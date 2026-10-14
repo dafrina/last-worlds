@@ -44,6 +44,7 @@ test('endless starts fairly, tracks the wide map, and freezes on pause', async (
 test('campaign choices apply to training and never leak to endless', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
+  await page.getByLabel('Campaign mission').selectOption('training');
   await page.getByLabel('Campaign difficulty').selectOption('relaxed');
   await page.getByLabel('Main weapon', { exact: true }).selectOption('seeker');
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();

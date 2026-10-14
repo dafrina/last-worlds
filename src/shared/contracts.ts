@@ -3,10 +3,18 @@ export type Mode = 'campaign' | 'endless';
 export type Difficulty = 'relaxed' | 'standard' | 'veteran';
 export type GraphicsQuality = 'high' | 'low';
 export type WeaponId = 'pulse' | 'fan' | 'seeker';
+export type MissionId = 'training' | 'bastion';
+export type BossPart = 'left' | 'right' | 'core';
+export interface BossState {
+  phase: 'arrival' | 'batteries' | 'core' | 'overload' | 'destroyed';
+  x: number; originX: number; s: number; startedAt: number; phaseStartedAt: number;
+  nextAttackAt: number; attackIndex: number; attack: 'burst' | 'fan' | 'beam' | null;
+  attackerId: number | null; deathEffectAt: number;
+}
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
-export interface RunConfig { mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId }
+export interface RunConfig { mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId }
 export interface Player {
   x: number; vx: number; lives: number; shields: number; maxShields: number;
   specialCharge: number; invulnerableUntil: number; lastHitAt: number;
@@ -16,6 +24,7 @@ export interface Enemy {
   id: number; kind: EnemyKind; x: number; s: number; originX: number;
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
   warning: number; aimX: number; groundHeight: number;
+  bossPart?: BossPart; damageable?: boolean;
 }
 export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;
@@ -32,6 +41,7 @@ export interface RunState {
   score: number; kills: number; credits: number; livesLost: number; specialsUsed: number;
   nextId: number; nextVolleyAt: number; nextEncounterAt: number; encounterIndex: number;
   lootRng: number; chargeKillTimes: number[]; message: string; messageUntil: number;
+  boss: BossState | null;
 }
 export const VIEW = { width: 12, worldWidth: 36, sectionLength: 36, elevation: 55, flightHeight: 3, minS: -6.25, maxS: 19.8, playerRadius: 0.25, scrollSpeed: 4 } as const;
 export const STEP = 1 / 60;

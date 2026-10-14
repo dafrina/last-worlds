@@ -4,6 +4,8 @@ import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight } from '../world/terra
 import { createEnemy, createHero, createMaterials, createPickupModel } from './models';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
+import { createBastionView } from './bastion-view';
+import { BASTION } from '../content/bastion';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 const COT_ELEVATION = 1 / Math.tan(ELEVATION);
@@ -54,6 +56,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const sunOffset = new THREE.Vector3(SUN_DIRECTION.x, SUN_DIRECTION.y, -SUN_DIRECTION.s).multiplyScalar(30);
   scene.add(sunlight, sunlight.target);
   const materials = createMaterials();
+  const bastion = createBastionView(scene);
   const terrainMaterials = createTerrainMaterials();
   const groundMaterial = terrainMaterials.ground, kitMaterial = terrainMaterials.kit;
   const boundaryMaterial = new THREE.MeshBasicMaterial({ color: 0xd8c08a, transparent: true, opacity: .52 });
@@ -184,6 +187,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
       void alpha;
       terrain.update(state.config.seed, state.distance); configureCamera(camera, state.cameraX); terrain.cull(camera);
+      bastion.update(state, state.boss ? groundPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight) : null);
       if (!warmed) {
         // Preview rendering warms all authored craft/material programs before the first fight.
         // Instance-color attributes above are allocated now, avoiding a new program on first loot/hit.
@@ -226,6 +230,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         lineColors.set([color.r, color.g, color.b, color.r, color.g, color.b], lineCursor * 3); lineCursor += 2;
       };
       for (const enemy of state.enemies) {
+        if (enemy.bossPart) continue;
         let entry = enemyModels.get(enemy.id);
         if (!entry || entry.kind !== enemy.kind) {
           if (entry) scene.remove(entry.model);

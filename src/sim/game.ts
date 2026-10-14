@@ -2,6 +2,8 @@ import { BALANCE, DIFFICULTIES, ENEMIES, WEAPONS, difficultyScales } from '../co
 import { CAMPAIGN, endlessPlaylist, type EncounterCue } from '../content/encounters';
 import { STEP, VIEW, type Enemy, type InputFrame, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
+import { BASTION } from '../content/bastion';
+import { resolveBastionPhase, startBastion, updateBastion } from './bastion';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -10,7 +12,7 @@ export function createRun(config: RunConfig): RunState {
   // A canonical config prevents campaign menu choices from leaking into an endless replay.
   const normalized: RunConfig = config.mode === 'endless'
     ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', weapon: 'pulse' }
-    : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', weapon: config.weapon ?? 'pulse' };
+    : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', weapon: config.weapon ?? 'pulse', mission: config.mission ?? 'training' };
   return {
     config: normalized, phase: 'playing', tick: 0, time: 0, distance: 0, sector: 1, cameraX: 0,
     player: {
@@ -23,8 +25,8 @@ export function createRun(config: RunConfig): RunState {
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0,
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
     lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
-    chargeKillTimes: [],
-    message: normalized.mode === 'endless' ? 'SECTOR 01 · KHEPRI' : 'TRAINING SORTIE · KHEPRI', messageUntil: 3,
+    chargeKillTimes: [], boss: null,
+    message: normalized.mode === 'endless' ? 'SECTOR 01 · KHEPRI' : normalized.mission === 'bastion' ? 'ROLLING THUNDER · KHEPRI' : 'TRAINING SORTIE · KHEPRI', messageUntil: 3,
   };
 }
 
@@ -42,16 +44,19 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updateDirector(state);
   updateShieldSupplies(state, previousTime);
   updateEnemies(state, dt);
+  updateBastion(state, dt);
+  if (state.phase !== 'playing') return;
   if (input.specialPressed && state.player.specialCharge >= 1 - 1e-8) useSpecial(state);
   fireMain(state);
   updateProjectiles(state, previousPlayerX, dt);
+  resolveBastionPhase(state);
   updateHazards(state, previousPlayerX, dt);
   updateContact(state, previousPlayerX);
   updatePickups(state, dt);
   updateResources(state, dt);
-  state.enemies = state.enemies.filter(enemy => enemy.hp > 0 && enemy.s > VIEW.minS - 2);
+  state.enemies = state.enemies.filter(enemy => enemy.bossPart || (enemy.hp > 0 && enemy.s > VIEW.minS - 2));
   state.effects = state.effects.filter(effect => (effect.ttl -= dt) > 0);
-  if (state.phase === 'playing' && state.config.mode === 'campaign' && state.time + 1e-8 >= BALANCE.campaignDuration) {
+  if (state.phase === 'playing' && state.config.mode === 'campaign' && state.config.mission !== 'bastion' && state.time + 1e-8 >= BALANCE.campaignDuration) {
     state.phase = 'complete';
     state.message = 'SORTIE COMPLETE';
     state.projectiles = [];
@@ -74,6 +79,13 @@ function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
 }
 
 function updateDirector(state: RunState): void {
+  if (state.config.mode === 'campaign' && state.config.mission === 'bastion') {
+    if (state.time + 1e-8 >= BASTION.arrivesAt) { startBastion(state); return; }
+    if (state.nextEncounterAt >= 103) {
+      if (state.time >= 103 && state.message !== 'FORTRESS APPROACH · READY YOUR SPECIAL') setMessage(state, 'FORTRESS APPROACH · READY YOUR SPECIAL', 6);
+      return;
+    }
+  }
   const sector = state.config.mode === 'endless' ? Math.floor((state.time + 1e-8) / BALANCE.sectorDuration) + 1 : 1;
   if (sector !== state.sector) {
     state.sector = sector;
@@ -114,7 +126,7 @@ function spawnCue(state: RunState, cue: EncounterCue): void {
 function updateShieldSupplies(state: RunState, previousTime: number): void {
   const supplies = BALANCE.shieldSupplies;
   const times: readonly number[] = state.config.mode === 'campaign'
-    ? supplies.campaign[state.config.difficulty ?? 'standard']
+    ? (state.config.mission === 'bastion' ? BASTION.shieldSupplies : supplies.campaign)[state.config.difficulty ?? 'standard']
     : [(state.sector - 1) * BALANCE.sectorDuration + supplies.endlessAt];
   for (const at of times) {
     // Match the director's floating-point tolerance on both sides of the crossing.
@@ -149,7 +161,7 @@ function canAttack(state: RunState, enemy: Enemy): boolean {
 
 function updateEnemies(state: RunState, dt: number): void {
   for (const enemy of state.enemies) {
-    if (enemy.hp <= 0) continue;
+    if (enemy.hp <= 0 || enemy.bossPart) continue;
     const stats = ENEMIES[enemy.kind];
     enemy.age += dt;
     enemy.s -= stats.speed * dt;
@@ -197,7 +209,7 @@ export function acquireTarget(state: RunState, weaponId = state.player.weapon): 
   const weapon = WEAPONS[weaponId];
   let best: Enemy | undefined;
   for (const enemy of state.enemies) {
-    if (enemy.hp <= 0 || enemy.s <= MUZZLE || enemy.s - enemy.radius > weapon.range || !isVisible(state, enemy.x, enemy.s, enemy.radius)) continue;
+    if (enemy.hp <= 0 || enemy.damageable === false || enemy.s <= MUZZLE || enemy.s - enemy.radius > weapon.range || !isVisible(state, enemy.x, enemy.s, enemy.radius)) continue;
     let eligible = false;
     if (weaponId === 'seeker') {
       eligible = Math.abs(enemy.x - state.player.x) <= Math.min(5.5, 0.5 + enemy.s * 0.3) + enemy.radius;
@@ -241,7 +253,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
     shot.previousX = shot.x;
     shot.previousS = shot.s;
     if (shot.homingTargetId !== undefined) {
-      const target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0);
+      const target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false);
       if (target && isVisible(state, target.x, target.s, target.radius)) {
         const current = Math.atan2(shot.vx, shot.vs);
         const desired = Math.atan2(target.x - shot.x, target.s - shot.s);
@@ -259,13 +271,15 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       let target: Enemy | undefined;
       let first = Infinity;
       for (const enemy of state.enemies) {
-        if (enemy.hp <= 0) continue;
+        if (enemy.hp <= 0 || enemy.damageable === false) continue;
         const t = segmentCircleHit(shot.previousX, shot.previousS, shot.x, shot.s, enemy.x, enemy.s, enemy.radius + shot.radius);
         if (t !== null && (t < first || (t === first && enemy.id < (target?.id ?? Infinity)))) { target = enemy; first = t; }
       }
       if (target) {
         shot.ttl = 0;
         damageEnemy(state, target, shot.damage, true);
+        // Core destruction clears danger before later bullets in this same tick can hit.
+        if (target.bossPart === 'core' && target.hp <= 0) resolveBastionPhase(state);
       }
     } else if (segmentCircleHit(shot.previousX - previousPlayerX, shot.previousS,
       shot.x - (previousPlayerX + (state.player.x - previousPlayerX) * activeDt / dt), shot.s, 0, 0, VIEW.playerRadius + shot.radius) !== null) {
@@ -315,17 +329,21 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
   player.shields = player.maxShields;
   player.specialCharge = BALANCE.respawn.specialCharge;
   player.invulnerableUntil = state.time + BALANCE.respawn.invulnerability;
+  state.projectiles = state.projectiles.filter(shot => shot.friendly || !isVisible(state, shot.x, shot.s));
+  state.hazards = [];
+  for (const enemy of state.enemies) { enemy.warning = 0; enemy.nextAttack = Math.max(enemy.nextAttack, enemy.age + BALANCE.respawn.invulnerability); }
+  if (state.boss) { state.boss.attack = null; state.boss.attackerId = null; state.boss.nextAttackAt = state.time + BALANCE.respawn.invulnerability; }
   if (state.config.mode === 'endless') player.power = Math.max(0, player.power - 1);
   setMessage(state, 'FIGHTER RESTORED', 2);
 }
 
 function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean): void {
-  if (enemy.hp <= 0) return;
+  if (enemy.hp <= 0 || enemy.damageable === false) return;
   enemy.hp -= damage;
   addEffect(state, 'hit', enemy.x, enemy.s, 0.12);
   if (enemy.hp > 0) return;
   state.kills += 1;
-  state.score += ENEMIES[enemy.kind].score;
+  state.score += enemy.bossPart ? (enemy.bossPart === 'core' ? 5000 : 500) : ENEMIES[enemy.kind].score;
   addEffect(state, 'explosion', enemy.x, enemy.s, 0.5);
   if (mainWeapon) {
     state.chargeKillTimes = state.chargeKillTimes.filter(time => state.time - time < 1);
@@ -334,7 +352,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
       state.chargeKillTimes.push(state.time);
     }
   }
-  if (state.pickups.length < BALANCE.maxPickups - 1) {
+  if (!enemy.bossPart && state.pickups.length < BALANCE.maxPickups - 1) {
     state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits, ttl: 12 });
   }
 }

@@ -4,7 +4,7 @@
 
 Fly above hostile alien worlds, line up targets, weave through readable attacks, and dismantle moving fortresses. The image has real depth; combat has the clarity of a single plane.
 
-This repository contains a playable Khepri flight prototype and the longer-term design package. It includes a 120-second campaign test sortie and escalating endless mode over seeded real 3D terrain. Campaign progression, full three-planet content, bosses, saves, statistics, and offline installation are still planned. See [build status](docs/build-status.md) for verification and remaining limits.
+This repository contains a playable Khepri prototype and the longer-term design package. Campaign offers the short Training flight and **Rolling Thunder**, which ends with the destructible Bastion-9 fortress. Endless escalates independently over seeded real 3D terrain. Saved campaign progression, full three-planet content, statistics, and offline installation are still planned. See [build status](docs/build-status.md) and [the boss increment](docs/15-bastion-slice.md) for verification and remaining limits.
 
 ## Run locally
 
