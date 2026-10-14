@@ -436,9 +436,12 @@ const HAZE_VERTEX = `#include <project_vertex>
 const HAZE_FRAGMENT = `#include <opaque_fragment>
   gl_FragColor.rgb = mix( gl_FragColor.rgb, hazeColor, smoothstep( hazeTop, hazeBottom, vHazeY ) * hazeStrength );`;
 const HAZE_UNIFORMS = '\nuniform vec3 hazeColor;\nuniform float hazeTop;\nuniform float hazeBottom;\nuniform float hazeStrength;\nvarying float vHazeY;';
-/** Haze tuned for valley floors near −6 and rims near 2: a dusky slate veil in the depths only. */
+/**
+ * Haze tuned for valley floors near −6 and rims near 2: a faint dusky violet that *lifts* the depths (its
+ * radiance sits above a shadowed valley floor), so deep canyons read as distance and air, never as night.
+ */
 const haze = () => ({
-  hazeColor: { value: linear(0x56607a) }, hazeTop: { value: -3.2 }, hazeBottom: { value: -7 }, hazeStrength: { value: 0.3 },
+  hazeColor: { value: linear(0x6e6070) }, hazeTop: { value: -2.6 }, hazeBottom: { value: -7 }, hazeStrength: { value: 0.34 },
 });
 
 /**
@@ -466,20 +469,33 @@ attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying 
       .replace('#include <common>', `#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-  // Thin glowing vein networks: each family's signed distance interpolates cleanly; crossings come from
-  // taking the nearer line per fragment (never per vertex, which would zig-zag).
-  // Width is measured in pixels (|d| / fwidth(d)), so cracks stay 1–3 px wide wherever the field is shallow.
+  // Glowing mineral cracks: each family's signed distance interpolates cleanly; crossings come from taking
+  // the nearer line per fragment (never per vertex, which would zig-zag). Width is measured in pixels
+  // (|d| / fwidth(d)): a ~1 px luminous core inside a ~3 px dark fissure lip. Brightness breaks up along the
+  // crack (periodic value noise, seamless across 36-unit sections), so networks read as cracks, not lightning.
   vec2 pixels = abs( vVeins ) / max( fwidth( vVeins ), vec2( 1e-4 ) );
-  vec2 lines = vec2( 1.0 ) - smoothstep( vec2( 0.5 ), vec2( 1.5 ), pixels );
-  float vein = vSurface.x * max( lines.x, lines.y );
+  vec2 cores = vec2( 1.0 ) - smoothstep( vec2( 0.2 ), vec2( 0.85 ), pixels );
+  vec2 lips = vec2( 1.0 ) - smoothstep( vec2( 0.7 ), vec2( 2.4 ), pixels );
+  float vein = 0.0, crack = 0.0;
+  if ( vSurface.x > 0.01 ) {
+    vec2 cell = vLocal.xz * 0.5, i = floor( cell ), f = fract( cell ); f = f * f * ( 3.0 - 2.0 * f );
+    vec2 j = vec2( i.x, mod( i.y, 18.0 ) );
+    float a = fract( sin( dot( j, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ), b = fract( sin( dot( j + vec2( 1.0, 0.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+    float c = fract( sin( dot( vec2( j.x, mod( j.y + 1.0, 18.0 ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 ), d = fract( sin( dot( vec2( j.x + 1.0, mod( j.y + 1.0, 18.0 ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+    float patchy = smoothstep( 0.3, 0.72, mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y ) );
+    vein = vSurface.x * max( cores.x, cores.y ) * patchy;
+    crack = vSurface.x * max( lips.x, lips.y ) * mix( 0.45, 1.0, patchy );
+  }
   // Pools read as dark mineral liquid with glowing terraced rims, never as flat cyan sheets that would
   // compete with the player's cyan shots.
   // Soft edges: the mask is interpolated on a 0.5-unit grid, and crisp thresholds would show its polygons.
   float poolOuter = smoothstep( 0.3, 0.58, vSurface.y ), poolInner = smoothstep( 0.55, 0.85, vSurface.y );
   float poolRim = max( 0.0, poolOuter - poolInner );
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.02, 0.2, 0.18 ), vein * 0.8 );
+  diffuseColor.rgb *= 1.0 - crack * 0.5;
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.02, 0.16, 0.15 ), vein * 0.75 );
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.012, 0.05, 0.055 ), poolInner * 0.9 );
-  totalEmissiveRadiance += glowColor * ( vein * 2.2 + poolRim * 1.1 + poolInner * 0.12 );`)
+  // Cracks glow just below the bloom threshold; pool rims rise above it for a soft halo (High).
+  totalEmissiveRadiance += glowColor * ( vein * 1.15 + poolRim * 1.7 + poolInner * 0.16 );`)
       .replace('#include <map_fragment>', `float vRock = vSurface.z;
 #ifdef USE_MAP
   // One dust tap; vertex-colour drift hides the tile repetition. Three taps in total on High (dust, rock, normal).
@@ -505,9 +521,10 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
   };
   ground.customProgramCacheKey = () => 'khepri-ground';
 
-  const infra = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3 });
+  const infra = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3, envMapIntensity: 0.55 });
   infra.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, haze(), time, { glowColor: { value: linear(0xffb060).multiplyScalar(1.6) }, detailContrast: { value: 0 } });
+    // Amber work lights and beacons sit above the bloom threshold (true glows); hulls stay below it.
+    Object.assign(shader.uniforms, haze(), time, { glowColor: { value: linear(0xffb060).multiplyScalar(3.4) }, detailContrast: { value: 0 } });
     shader.vertexShader = shader.vertexShader.replace('#include <common>', `${GLOW_VERTEX}\nuniform float beaconTime;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   // Amber beacons blink: each instance gets its own phase from its position; some lamps stay steady.
@@ -524,7 +541,8 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
   infra.customProgramCacheKey = () => 'khepri-infra';
   const kit = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.85, 0.85) });
   kit.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 0.75 } });
+    // Crystal growths and mineral crack faces are true glows (bloom on High); basalt stays matte.
+    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.75 } });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
@@ -575,6 +593,8 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
     setTextures(next: KhepriTextures) { textures = next; apply(); },
     /** Low tier skips normal maps (a cosmetic cost), never layout or colour. */
     setNormalMaps(enabled: boolean) { if (enabled !== normals) { normals = enabled; apply(); } },
+    /** Prefiltered desert sky for machinery reflections (graphite metal and paint); terrain stays matte. */
+    setEnvironment(texture: THREE.Texture | null) { infra.envMap = texture; infra.needsUpdate = true; },
     dispose() {
       ground.dispose(); kit.dispose(); infra.dispose(); roads.dispose(); (roads.map as THREE.Texture | null)?.dispose(); fallback.dispose(); flatNormal.dispose();
       if (textures) Object.values(textures).forEach(texture => texture?.dispose());
@@ -679,11 +699,11 @@ export function createFallbackShared(): KitGeometries {
 
 /** Khepri palette for the shared kit (docs/14 §2): graphite metal, ochre/rust paint, ochre dust, amber lamps. */
 export function createSharedMaterial(): THREE.MeshStandardMaterial {
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.55 });
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.55, envMapIntensity: 0.55 });
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, haze(), {
       metalColor: { value: linear(0x3e4044) }, paintColor: { value: linear(0xb06a2e) }, wearColor: { value: linear(0xc8b8a0) },
-      dustColor: { value: linear(0xa8683a) }, lampColor: { value: linear(0xffb060).multiplyScalar(2.2) },
+      dustColor: { value: linear(0xa8683a) }, lampColor: { value: linear(0xffb060).multiplyScalar(3.4) },
     });
     shader.vertexShader = shader.vertexShader.replace('#include <common>', GLOW_VERTEX)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;').replace('#include <project_vertex>', HAZE_VERTEX);

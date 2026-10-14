@@ -656,7 +656,7 @@ def crystal_cluster(hs, rng, cx, cy, cz, n, size):
               size * (1.0 if k == 0 else rng.uniform(0.45, 0.8)), rng)
 
 
-def loft(hs, sections, profile, paint, cap0=True, cap1=True, cap_paint="char"):
+def loft(hs, sections, profile, paint, cap0=True, cap1=True, cap_paint="char", cap_tag="edge", mat=0):
     """Hull lofted along x: sections = [(x, sy, sz, z_off)], profile = [(y, z)] (CCW seen from +x)."""
     rings = []
     for x, sy, sz, zo in sections:
@@ -671,11 +671,11 @@ def loft(hs, sections, profile, paint, cap0=True, cap1=True, cap_paint="char"):
             for i in q:
                 c += Vector(hs.verts[i])
             c /= 4
-            hs.face(q, paint, "main", 0, outward=tuple(c - mid))
+            hs.face(q, paint, "main", mat, outward=tuple(c - mid))
     if cap0:
-        hs.face(tuple(rings[0]), cap_paint, "edge", 0, outward=(-1.0, 0.0, 0.0))
+        hs.face(tuple(rings[0]), cap_paint, cap_tag, mat, outward=(-1.0, 0.0, 0.0))
     if cap1:
-        hs.face(tuple(rings[-1]), cap_paint, "edge", 0, outward=(1.0, 0.0, 0.0))
+        hs.face(tuple(rings[-1]), cap_paint, cap_tag, mat, outward=(1.0, 0.0, 0.0))
 
 
 def bury(hs, zmin=SINK):

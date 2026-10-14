@@ -49,12 +49,12 @@ The two half-screen steering areas are invisible during normal play, with a subt
 
 ### Touch ownership
 
-- The touch's initial side owns that movement action until release. Crossing the middle does not unexpectedly reverse direction; retouch on the opposite side to reverse. This is a provisional interaction detail to test in M1.
-- Each active pointer is assigned exactly one role on pointer-down: left, right, special, or another UI control. Roles do not change mid-touch.
+- **User decision (14 October):** a held steering touch that slides across the middle switches direction, so there is no need to lift and retouch. A dead band of 3% of the width around the centre line prevents flicker. This replaces the earlier provisional "initial side owns until release" rule.
+- Each active pointer is assigned one role on pointer-down: left, right, special, or another UI control. Only steering roles may switch between left and right mid-touch; special and UI pointers never become steering.
 - Holding both left and right yields neutral steering; special can operate concurrently with either. Releasing one side resumes the remaining side.
 - Pointer cancellation, lost capture, window blur, and pause clear the affected held inputs. No stuck steering.
 - Touches on the special button, pause control, menu, or outside the fitted game rectangle never steer.
-- Use rapid acceleration and braking, not instant teleportation. Starting values: top speed 10 units/s, acceleration 70 units/s², braking 100 units/s².
+- Use rapid acceleration and braking, not instant teleportation. Starting values: top speed 12 units/s, acceleration 90 units/s², braking 125 units/s² (raised from 10/70/100 on 14 October for a faster pace).
 - A one-thumb player can steer, release briefly, and tap the centered special. Two thumbs allow simultaneous steering and special. The button is centered so either hand can reach it.
 
 A tap in the main viewport starts movement; it does not select an enemy. Ordinary targets cannot demand precise finger aiming. Main-fire controls and dragging are not alternative defaults in this plan.

@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type Pickup, type RunState } from '../shared/contracts';
 import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight } from '../world/terrain';
-import { createEnemy, createHero, createMaterials, createPickupModel } from './models';
+import { createDesertEnvironment, createEnemy, createHero, createMaterials, createPickupModel } from './models';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
-import { createBastionView } from './bastion-view';
+import { createPostPipeline } from './post-pipeline';
+import { createFx, type Plume } from './fx-particles';
+import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { BASTION } from '../content/bastion';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
@@ -33,11 +35,102 @@ export function groundPlacement(seed: number, distance: number, x: number, logic
   return { baseHeight, s: groundForwardPosition(logicalS, baseHeight + coreHeight) };
 }
 
-export function configureCamera(camera: THREE.OrthographicCamera, x: number): void {
+/**
+ * Bastion-9 seating (render-only): the wide hull rests on the highest ground under its footprint so it never
+ * sinks into a ridge, and its target sockets still project exactly onto their logical combat rows.
+ */
+export function bastionPlacement(seed: number, distance: number, x: number, logicalS: number) {
+  let { s } = groundPlacement(seed, distance, x, logicalS, BASTION.targetHeight), baseHeight = -Infinity;
+  for (let pass = 0; pass < 3; pass++) {
+    baseHeight = -Infinity;
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+      // Local +z faces the player, which is toward smaller s.
+      const dx = i / 2 * (BASTION_FOOTPRINT.halfWidth - .2), dz = j / 2 * (BASTION_FOOTPRINT.halfDepth - .2);
+      baseHeight = Math.max(baseHeight, terrainHeight(seed, x + dx, distance + s - dz));
+    }
+    s = groundForwardPosition(logicalS, baseHeight + BASTION.targetHeight);
+  }
+  return { baseHeight, s };
+}
+
+/** Experimental slight perspective (look-dev switch `?camera=perspective`): a long lens keeps parallax small. */
+export const PERSPECTIVE_FOV = 20;
+
+export function configureCamera(camera: THREE.OrthographicCamera | THREE.PerspectiveCamera, x: number): void {
   const centerS = (VIEW.minS + VIEW.maxS) / 2;
   const target = new THREE.Vector3(x, VIEW.flightHeight, -centerS);
-  camera.position.set(x, target.y + Math.sin(ELEVATION) * 36, target.z + Math.cos(ELEVATION) * 36);
+  // A perspective lens is placed so the tactical height fits the view at the centre depth, matching the ortho frame.
+  const distance = camera instanceof THREE.PerspectiveCamera ? TACTICAL_HEIGHT / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) : 36;
+  camera.position.set(x, target.y + Math.sin(ELEVATION) * distance, target.z + Math.cos(ELEVATION) * distance);
   camera.lookAt(target); camera.updateMatrixWorld();
+}
+
+/**
+ * Perspective seating (render-only): follow the camera ray through the logical flight-plane target down to
+ * terrain + core height, so the physical core covers its logical target pixel under any lens.
+ */
+export function rayPlacement(camera: THREE.Camera, seed: number, distance: number, x: number, logicalS: number, coreHeight: number, baseFloor = -Infinity) {
+  const target = new THREE.Vector3(x, VIEW.flightHeight, -logicalS);
+  const direction = camera instanceof THREE.PerspectiveCamera ? target.clone().sub(camera.position).normalize() : camera.getWorldDirection(new THREE.Vector3());
+  const at = (t: number) => target.clone().addScaledVector(direction, t);
+  const ground = (point: THREE.Vector3) => Math.max(baseFloor, terrainHeight(seed, point.x, distance - point.z));
+  let lo = 0, hi = (VIEW.flightHeight - TERRAIN_MIN_HEIGHT + 2) / Math.max(.2, -direction.y);
+  for (let i = 0; i < 28; i++) {
+    const t = (lo + hi) / 2, point = at(t);
+    if (point.y > ground(point) + coreHeight) lo = t; else hi = t;
+  }
+  const point = at((lo + hi) / 2);
+  return { x: point.x, s: -point.z, baseHeight: point.y - coreHeight };
+}
+
+/**
+ * Experimental "rectified" slight perspective (look-dev switch `?camera=rectified`): the image plane is parallel
+ * to the flight plane, so the flight plane maps exactly as the orthographic view (same VIEW rectangle, player row
+ * and edges), while terrain below it gains perspective scale and outward-leaning verticals. The centre of
+ * projection sits `distance` units along the canonical 55° view direction from the view centre.
+ */
+export function configureRectified(camera: THREE.PerspectiveCamera, x: number, distance: number): void {
+  const centerS = (VIEW.minS + VIEW.maxS) / 2;
+  const cx = x, cy = VIEW.flightHeight + Math.sin(ELEVATION) * distance, cz = -centerS + Math.cos(ELEVATION) * distance;
+  camera.position.set(cx, cy, cz); camera.up.set(0, 0, -1); camera.lookAt(cx, cy - 1, cz); camera.updateMatrixWorld();
+  // Camera space: X = world x − cx, Y (screen up) = cz + s, depth = height above the plane.
+  const k = camera.near / (cy - VIEW.flightHeight);
+  camera.projectionMatrix.makePerspective((-VIEW.width / 2) * k, (VIEW.width / 2) * k, (cz + VIEW.maxS) * k, (cz + VIEW.minS) * k, camera.near, camera.far);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+}
+
+/**
+ * Real-time sun (High-tier shadow map and both tiers' key light): the generator's azimuth from the upper left
+ * and behind the view, raised to 38° so cast shadows run ~1.3× an object's height instead of ~1.9× (the baked
+ * relief shading keeps its lower sun; the two read as one light at phone size).
+ */
+const SUN_ELEVATION = THREE.MathUtils.degToRad(38);
+export const SUN = new THREE.Vector3(SUN_DIRECTION.x, 0, -SUN_DIRECTION.s).normalize().multiplyScalar(Math.cos(SUN_ELEVATION)).setY(Math.sin(SUN_ELEVATION));
+/** Height band that can receive (terrain floor) or cast (scenery, fortress superstructure) shadows. */
+const SHADOW_SLAB = { bottom: TERRAIN_MIN_HEIGHT - .2, top: 3.7 } as const;
+const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
+
+/**
+ * Light-space extents of everything the camera can see within the shadow slab, relative to the view target
+ * (constant while the camera only translates). The shadow frustum is fitted once, then follows the view.
+ */
+export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3) {
+  const lightCamera = new THREE.OrthographicCamera();
+  lightCamera.position.copy(SUN).multiplyScalar(SHADOW_LIGHT_DISTANCE); lightCamera.lookAt(0, 0, 0); lightCamera.updateMatrixWorld();
+  const ndc = new THREE.Vector3(), origin = new THREE.Vector3(), direction = new THREE.Vector3();
+  const box = new THREE.Box3();
+  for (const nx of [-1, 1]) for (const ny of [-1, 1]) {
+    origin.set(nx, ny, -1).unproject(camera); direction.copy(ndc.set(nx, ny, 1).unproject(camera)).sub(origin).normalize();
+    for (const y of [SHADOW_SLAB.bottom, SHADOW_SLAB.top]) {
+      const point = origin.clone().addScaledVector(direction, (y - origin.y) / direction.y).sub(target);
+      box.expandByPoint(point.applyMatrix4(lightCamera.matrixWorldInverse));
+    }
+  }
+  // Depths are distances from the light (placed SHADOW_LIGHT_DISTANCE sunward of the target). Casters up to the
+  // slab top may stand sunward of the visible area: extend the near side along the light.
+  const reach = (SHADOW_SLAB.top - SHADOW_SLAB.bottom) / SUN.y;
+  return { left: box.min.x, right: box.max.x, bottom: box.min.y, top: box.max.y, near: -box.max.z - reach - 1, far: -box.min.z + 1,
+    right3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 0), up3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 1) };
 }
 
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
@@ -46,25 +139,70 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // Neutral tone mapping keeps the saturated rust/turquoise palette instead of washing it toward grey.
+  // Low renders straight to the canvas with it; High applies the same curve in its composite pass.
   renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = false;
-  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x5a3420);
-  const camera = new THREE.OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, TACTICAL_HEIGHT / 2, -TACTICAL_HEIGHT / 2, .1, 100);
-  configureCamera(camera, 0);
-  // Warm sky fill and rust bounce; the low sun sits upper-left beyond the top of the view (docs/13 §1),
-  // so plateau tops are lit, camera-facing faces fall into shade, and shadows run to the lower right.
-  scene.add(new THREE.HemisphereLight(0xd8d4d0, 0x56321f, 1.0));
-  const sunlight = new THREE.DirectionalLight(0xfff0dc, 4.2);
-  const sunOffset = new THREE.Vector3(SUN_DIRECTION.x, SUN_DIRECTION.y, -SUN_DIRECTION.s).multiplyScalar(30);
-  scene.add(sunlight, sunlight.target);
+  // High tier: real sun shadows (docs/05 §9 allows bounded shadow maps on higher tiers); Low keeps blob shadows.
+  // Only meaningful casters are drawn into it: merged terrain caster strips, ground turrets and the fortress.
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  // Stats accumulate over every pass of a frame (shadow map, scene, bloom), reset once per frame below.
+  renderer.info.autoReset = false;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x6a3a22);
+  const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
+  // Look-dev only: `?camera=perspective[&fov=15..25]` or `?camera=rectified[&depth=60]`. Orthographic stays the default.
+  const cameraMode = query.get('camera') === 'perspective' ? 'perspective' : query.get('camera') === 'rectified' ? 'rectified' : 'ortho';
+  const perspective = cameraMode !== 'ortho';
+  const lens = Number(query.get('fov')) || PERSPECTIVE_FOV, rectifiedDepth = Number(query.get('depth')) || 60.5;
+  const camera = cameraMode === 'perspective' ? new THREE.PerspectiveCamera(lens, 9 / 16, 1, 260)
+    : cameraMode === 'rectified' ? new THREE.PerspectiveCamera(20, 9 / 16, 1, 260)
+    : new THREE.OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, TACTICAL_HEIGHT / 2, -TACTICAL_HEIGHT / 2, .1, 100);
+  const placeCamera = (x: number) => {
+    if (cameraMode === 'rectified') configureRectified(camera as THREE.PerspectiveCamera, x, rectifiedDepth); else configureCamera(camera, x);
+  };
+  placeCamera(0);
+
+  // Lighting after the concept: a warm low sun from the upper left (docs/13 §1) with soft, shortened shadows;
+  // a warm sky/rust-ground fill so shade reads as umber, never night; and a low rust bounce from the opposite
+  // side that lifts camera-facing cliff faces and gives hulls a second, warmer edge.
+  const hemisphere = new THREE.HemisphereLight(0xffdcb8, 0x7a4024, 1.35);
+  const sunlight = new THREE.DirectionalLight(0xffd8ac, 3.3);
+  const bounce = new THREE.DirectionalLight(0xd97a4a, 0.6);
+  const bounceOffset = new THREE.Vector3(-SUN.x, .32, -SUN.z).normalize().multiplyScalar(30);
+  sunlight.castShadow = true; sunlight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+  sunlight.shadow.bias = -.0005; sunlight.shadow.normalBias = .025; sunlight.shadow.radius = 2.6; sunlight.shadow.intensity = .82;
+  scene.add(hemisphere, sunlight, sunlight.target, bounce, bounce.target);
+  // The shadow frustum is fitted once to the visible slab, then follows the view snapped to whole texels in the
+  // terrain's own frame, so static casters never shimmer while the world scrolls.
+  const viewTarget = new THREE.Vector3(0, VIEW.flightHeight, -(VIEW.minS + VIEW.maxS) / 2);
+  const extents = shadowExtents(camera, viewTarget);
+  Object.assign(sunlight.shadow.camera, { left: extents.left, right: extents.right, top: extents.top, bottom: extents.bottom,
+    near: Math.max(.5, extents.near), far: extents.far });
+  sunlight.shadow.camera.updateProjectionMatrix();
+  const texel = { x: (extents.right - extents.left) / SHADOW_MAP_SIZE, y: (extents.top - extents.bottom) / SHADOW_MAP_SIZE };
+  const shadowAnchor = new THREE.Vector3();
+  const placeSun = (cameraX: number, distance: number) => {
+    // Terrain frame: world z = distance − s, so z − distance is fixed on the ground.
+    shadowAnchor.set(cameraX, viewTarget.y, viewTarget.z - distance);
+    const a = shadowAnchor.dot(extents.right3), b = shadowAnchor.dot(extents.up3);
+    shadowAnchor.addScaledVector(extents.right3, Math.round(a / texel.x) * texel.x - a).addScaledVector(extents.up3, Math.round(b / texel.y) * texel.y - b);
+    sunlight.target.position.set(shadowAnchor.x, shadowAnchor.y, shadowAnchor.z + distance);
+    sunlight.position.copy(sunlight.target.position).addScaledVector(SUN, SHADOW_LIGHT_DISTANCE);
+    bounce.target.position.copy(sunlight.target.position); bounce.position.copy(bounce.target.position).add(bounceOffset);
+  };
+  // High tier: HDR scene + selective bloom + graded composite in 6 full-screen draws; Low renders direct.
+  const post = createPostPipeline(renderer, { exposure: 1.0, threshold: 1.0, knee: .35, strength: .7,
+    lift: new THREE.Color(.011, .0058, .0026), saturation: 1.06, vignette: .2 });
   const materials = createMaterials();
   const bastion = createBastionView(scene);
   const terrainMaterials = createTerrainMaterials();
   const groundMaterial = terrainMaterials.ground, kitMaterial = terrainMaterials.kit;
   const boundaryMaterial = new THREE.MeshBasicMaterial({ color: 0xd8c08a, transparent: true, opacity: .52 });
   const sharedMaterial = createSharedMaterial();
+  // Prefiltered desert sky: craft metals and outpost machinery reflect warm light instead of reading flat black.
+  const environment = createDesertEnvironment(renderer, SUN);
+  materials.craft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra, boundaryMaterial,
     sharedMaterial, roadMaterial: terrainMaterials.roads, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared() });
+  terrain.setShadowFrustum(sunlight.shadow.getFrustum());
   let disposed = false, warmed = false;
   // The Blender kit streams in after start; fallback pieces render until (or unless) it arrives.
   loadKhepriKit(`${import.meta.env.BASE_URL}assets/khepri/khepri-kit.glb`).then(kit => {
@@ -81,31 +219,44 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (disposed) { shared.forEach(geometry => geometry.dispose()); return; }
     terrain.setShared(shared); warmed = false;
   }).catch(() => { /* Not shipped: the code-built stand-ins remain. */ });
+  // The production fortress (docs/15) replaces the functional stand-in; if it fails, the stand-in remains.
+  loadBastionModel(`${import.meta.env.BASE_URL}assets/khepri/bastion-9.glb`).then(model => {
+    if (disposed) return;
+    bastion.setModel(model); warmed = false;
+  }).catch(error => console.warn('Bastion-9 model unavailable; using the functional fortress.', error));
   // Detail maps are optional polish: any map that fails keeps its procedural stand-in.
   loadKhepriTextures(`${import.meta.env.BASE_URL}assets/khepri/textures/`, Math.min(2, renderer.capabilities.getMaxAnisotropy())).then(textures => {
     if (disposed) { Object.values(textures).forEach(texture => texture?.dispose()); return; }
     terrainMaterials.setTextures(textures); warmed = false;
   });
+  // Every craft is one mesh with the shared craft material; enemies of a kind are one instanced draw.
   const hero = createHero(materials); scene.add(hero);
-  const enemyTemplates = new Map<EnemyKind, THREE.Group>(['dart', 'weaver', 'turret', 'lancer'].map(kind => [kind as EnemyKind, createEnemy(kind as EnemyKind, materials)]));
+  const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer'];
+  const ENEMY_CAPACITY = 32;
+  const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
   // Ground targets on every terrain level (docs/13 §2), render-only: where terrain in front hides a turret,
   // a faint silhouette shows through (drawn before the turret, only where it lies behind existing depth).
   const silhouetteMaterial = new THREE.MeshBasicMaterial({ color: 0xffd39a, opacity: .32, depthFunc: THREE.GreaterDepth,
     depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor });
-  {
-    const turret = enemyTemplates.get('turret')!, ghosts = new THREE.Group();
-    turret.children.forEach(child => {
-      const mesh = child as THREE.Mesh; mesh.renderOrder = 2;
-      const ghost = new THREE.Mesh(mesh.geometry, silhouetteMaterial); ghost.renderOrder = 1; ghosts.add(ghost);
-    });
-    turret.add(ghosts);
+  const enemyBatches = new Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }>();
+  for (const kind of ENEMY_KINDS) {
+    const geometry = craftGeometry(createEnemy(kind, materials));
+    const mesh = new THREE.InstancedMesh(geometry, materials.craft, ENEMY_CAPACITY);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
+    // Ground turrets cast into the High shadow map and take shadows; flying craft use readable blob shadows.
+    mesh.castShadow = mesh.receiveShadow = kind === 'turret';
+    let ghost: THREE.InstancedMesh | undefined;
+    if (kind === 'turret') {
+      mesh.renderOrder = 2;
+      ghost = new THREE.InstancedMesh(geometry, silhouetteMaterial, ENEMY_CAPACITY);
+      ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
+    }
+    scene.add(mesh); enemyBatches.set(kind, { mesh, ghost });
   }
   // On slopes a foundation plinth reaches down to the lowest ground under the turret footprint.
   const plinthGeometry = new THREE.CylinderGeometry(.6, .66, 1, 6); plinthGeometry.translate(0, .5, 0);
   const plinths = new THREE.InstancedMesh(plinthGeometry, materials.dark, 32);
-  plinths.instanceMatrix.setUsage(THREE.DynamicDrawUsage); plinths.frustumCulled = false; plinths.count = 0; scene.add(plinths);
-  const enemyModels = new Map<number, { kind: EnemyKind; model: THREE.Group }>();
-  const enemyPool = new Map<EnemyKind, THREE.Group[]>();
+  plinths.instanceMatrix.setUsage(THREE.DynamicDrawUsage); plinths.frustumCulled = false; plinths.count = 0; plinths.receiveShadow = true; scene.add(plinths);
   const transform = new THREE.Object3D(), color = new THREE.Color();
 
   const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 32;
@@ -117,18 +268,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     shadowContext.fillStyle = gradient; shadowContext.fillRect(0, 0, 32, 32);
   }
   const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
-  const shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x211d18, map: shadowTexture, transparent: true, opacity: .6, depthWrite: false });
+  const shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x2a1a12, map: shadowTexture, transparent: true, opacity: .55, depthWrite: false });
   const shadowGeometry = new THREE.PlaneGeometry(1, 1); shadowGeometry.rotateX(-Math.PI / 2);
   const flightShadows = new THREE.InstancedMesh(shadowGeometry, shadowMaterial, 64);
   flightShadows.instanceMatrix.setUsage(THREE.DynamicDrawUsage); flightShadows.frustumCulled = false;
   flightShadows.count = 0; flightShadows.renderOrder = 1; scene.add(flightShadows);
 
-  const exhaustMaterial = new THREE.MeshBasicMaterial({ color: 0x72f0e5, transparent: true, opacity: .65, depthWrite: false });
-  const exhaustGeometry = new THREE.ConeGeometry(.066, .4, 6);
-  const exhausts = [-1, 1].map(side => {
-    const exhaust = new THREE.Mesh(exhaustGeometry, exhaustMaterial); exhaust.rotation.x = Math.PI / 2;
-    exhaust.position.set(side * .38, .015, .69); hero.add(exhaust); return exhaust;
-  });
   const shieldMaterial = new THREE.MeshBasicMaterial({ color: 0xb1fff1, transparent: true, opacity: .35, depthWrite: false, depthTest: false });
   const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial);
   shield.rotation.x = -ELEVATION; shield.renderOrder = 8; scene.add(shield);
@@ -152,13 +297,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.frustumCulled=false;mesh.renderOrder=7;mesh.count=0;scene.add(mesh);return mesh;
     });pickupBatches.set(kind,batch);
   }
+  // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
   const effects = new THREE.InstancedMesh(new THREE.RingGeometry(.85, 1, 24), effectMaterial, 128);
   effects.setColorAt(0, color.setHex(0xffffff));
   effects.instanceMatrix.setUsage(THREE.DynamicDrawUsage); effects.frustumCulled = false; effects.renderOrder = 6; effects.count = 0; scene.add(effects);
-  const sparks = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.09), effectMaterial, 1024);
-  sparks.setColorAt(0, color.setHex(0xffffff));
-  sparks.instanceMatrix.setUsage(THREE.DynamicDrawUsage); sparks.frustumCulled = false; sparks.renderOrder = 6; sparks.count = 0; scene.add(sparks);
+  const fx = createFx(scene);
+  const plumes: Plume[] = [];
 
   const laneGeometry = new THREE.PlaneGeometry(1, VIEW.maxS - VIEW.minS);
   laneGeometry.rotateX(-Math.PI / 2);
@@ -176,24 +321,42 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let lastStatsTick = -Infinity;
   /** Per-frame terrain CPU work (update, cull, animate, prefetch), for streaming QA. */
   const terrainWork = { last: 0, max: 0, over4: 0, frames: 0, renderMax: 0, updateMax: 0, animateMax: 0, prefetchMax: 0 };
+  /** Draw calls per pass in the last frame (shadow map, main scene, post), for the budget evidence. */
+  const passes = { shadow: 0, main: 0, post: 0 };
+  // QA instrumentation only: count the draws three.js issues inside its shadow pass.
+  const renderShadows = renderer.shadowMap.render.bind(renderer.shadowMap);
+  renderer.shadowMap.render = (lights, shadowScene, view) => {
+    const before = renderer.info.render.calls; renderShadows(lights, shadowScene, view); passes.shadow += renderer.info.render.calls - before;
+  };
+  let drawingWidth = 1, drawingHeight = 1;
+  const resizePost = () => post.setSize(drawingWidth * renderer.getPixelRatio(), drawingHeight * renderer.getPixelRatio());
   return {
     setQuality(next) {
-      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1));
+      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); renderer.setSize(drawingWidth, drawingHeight, false); resizePost();
+      // Shadow maps are a High-tier feature; toggling them recompiles the affected programs once.
+      renderer.shadowMap.enabled = sunlight.castShadow = next === 'high';
+      scene.traverse(object => { const material = (object as THREE.Mesh).material; (Array.isArray(material) ? material : material ? [material] : []).forEach(m => { m.needsUpdate = true; }); });
       lastStatsTick=-Infinity;
     },
     resize(width, height) {
       if (disposed) return;
-      renderer.setSize(Math.max(1, Math.floor(width)), Math.max(1, Math.floor(height)), false);
+      drawingWidth = Math.max(1, Math.floor(width)); drawingHeight = Math.max(1, Math.floor(height));
+      renderer.setSize(drawingWidth, drawingHeight, false); resizePost();
     },
     render(state, alpha) {
       if (disposed) return;
+      renderer.info.reset();
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
       void alpha;
       const terrainStart = performance.now();
-      terrain.update(state.config.seed, state.distance); configureCamera(camera, state.cameraX); terrain.cull(camera);
+      terrain.update(state.config.seed, state.distance); placeCamera(state.cameraX); terrain.cull(camera);
       const terrainUpdate = performance.now() - terrainStart;
-      bastion.update(state, state.boss ? groundPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight) : null);
+      let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s) : null;
+      if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight);
+      bastion.update(state, bossPlacement);
+      // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
+      terrain.setExclusion(bastion.footprint(state, bossPlacement));
       // Haulers and beacons run on simulation time (frozen while paused); presentation only.
       const animateStart = performance.now();
       terrain.animate(state.time, state.cameraX); terrainMaterials.setTime(state.time);
@@ -212,18 +375,22 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (!warmed) {
         // Preview rendering warms all authored craft/material programs before the first fight.
         // Instance-color attributes above are allocated now, avoiding a new program on first loot/hit.
-        const templates = [...enemyTemplates.values()], pieces = terrain.warmupObjects();
-        scene.add(...templates); pieces.forEach(piece => { piece.userData.wasVisible = piece.visible; piece.visible = true; });
+        const pieces = terrain.warmupObjects();
+        pieces.forEach(piece => { piece.userData.wasVisible = piece.visible; piece.visible = true; });
         renderer.compile(scene, camera);
-        scene.remove(...templates); pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true;
+        pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true;
       }
-      sunlight.target.position.set(state.cameraX, 0, -8); sunlight.position.copy(sunlight.target.position).add(sunOffset);
+      placeSun(state.cameraX, state.distance);
       hero.position.set(state.player.x, VIEW.flightHeight, 0);
       hero.rotation.z = -state.player.vx * .016;
-      exhausts.forEach(exhaust => { exhaust.scale.y = 1 + Math.abs(state.player.vx) * .027; });
       shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
       shield.visible = state.time < state.player.invulnerableUntil;
       shieldMaterial.opacity = .34;
+      // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
+      plumes.length = 0;
+      const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
+      const heroLength = (.5 + Math.abs(state.player.vx) * .03) * flicker(0);
+      for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * Math.cos(hero.rotation.z), z: .7, length: heroLength, width: .2, hex: 0x7ff6ea, energy: 2.6 });
       let shadowCount = 0, plinthCount = 0;
       const flightShadow = (x: number, s: number, width: number, length: number, height: number) => {
         if (shadowCount >= flightShadows.instanceMatrix.count) return;
@@ -236,13 +403,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       };
       flightShadow(state.player.x, 0, 1.5, 1.8, VIEW.flightHeight);
 
-      const liveEnemies = new Set(state.enemies.map(enemy => enemy.id));
-      for (const [id, entry] of enemyModels) if (!liveEnemies.has(id)) {
-        scene.remove(entry.model); enemyModels.delete(id);
-        const pool = enemyPool.get(entry.kind) ?? [];
-        if (pool.length < 32) pool.push(entry.model);
-        enemyPool.set(entry.kind, pool);
-      }
+      const counts = new Map<EnemyKind, number>(ENEMY_KINDS.map(kind => [kind, 0]));
       let lineCursor = 0;
       const line = (x1: number, s1: number, x2: number, s2: number, hex: number) => {
         if (lineCursor + 2 > lineVertices.length / 3) return;
@@ -252,15 +413,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       };
       for (const enemy of state.enemies) {
         if (enemy.bossPart) continue;
-        let entry = enemyModels.get(enemy.id);
-        if (!entry || entry.kind !== enemy.kind) {
-          if (entry) scene.remove(entry.model);
-          const model = enemyPool.get(enemy.kind)?.pop() ?? enemyTemplates.get(enemy.kind)!.clone();
-          entry = { kind: enemy.kind, model }; enemyModels.set(enemy.id, entry); scene.add(model);
-        }
         const isGround = enemy.kind === 'turret';
-        const placement=isGround?groundPlacement(state.config.seed,state.distance,enemy.x,enemy.s,enemy.groundHeight):{baseHeight:VIEW.flightHeight,s:enemy.s};
-        entry.model.position.set(enemy.x,placement.baseHeight,-placement.s);
+        const visible = Math.abs(enemy.x - state.cameraX) < VIEW.width / 2 + 1 && enemy.s > VIEW.minS - 2 && enemy.s < VIEW.maxS + 3;
+        if (!visible) continue;
+        const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
+          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight)
+          : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight);
+        const batch = enemyBatches.get(enemy.kind)!, slot = counts.get(enemy.kind)!;
+        if (slot < ENEMY_CAPACITY) {
+          transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
+          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.set(1, 1, 1); transform.updateMatrix();
+          batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(enemy.kind, slot + 1);
+        }
         if (isGround && plinthCount < plinths.instanceMatrix.count) {
           let lowest = placement.baseHeight;
           for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, terrainHeight(state.config.seed, enemy.x + dx, state.distance + placement.s + ds));
@@ -270,12 +434,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             plinths.setMatrixAt(plinthCount++, transform.matrix);
           }
         }
-        entry.model.rotation.z = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
-        const visible = Math.abs(enemy.x - state.cameraX) < VIEW.width / 2 + 1 && enemy.s > VIEW.minS - 2 && enemy.s < VIEW.maxS + 3;
-        entry.model.visible = visible;
-        if (!visible) continue;
-        flightShadow(enemy.x, placement.s,
+        // Flying craft keep the readable blob shadow on both tiers; ground turrets cast real shadows on High.
+        if (!isGround || quality !== 'high') flightShadow(enemy.x, placement.s,
           enemy.kind === 'weaver' ? 2.2 : 1.5, enemy.kind === 'lancer' ? 2.3 : 1.9, isGround ? enemy.groundHeight : VIEW.flightHeight);
+        if (!isGround) {
+          // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
+          const bank = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
+          for (const side of [-1, 1]) plumes.push({ x: enemy.x + side * .27 * Math.cos(bank), z: -enemy.s - .55, length: -.34 * flicker(enemy.id + side), width: .14, hex: 0xffa060, energy: 1.9 });
+        }
         // Ground brackets are drawn on the shared proxy, exactly over the physical luminous core.
         if (isGround || enemy.warning > 0) {
           const r = enemy.radius + .13, length = .16, tint = enemy.warning > 0 ? 0xffc987 : 0xdab482;
@@ -298,6 +464,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             }
           }
         }
+      }
+      for (const [kind, batch] of enemyBatches) {
+        const count = counts.get(kind)!;
+        batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true;
+        if (batch.ghost) batch.ghost.count = count;
       }
       flightShadows.count = shadowCount; flightShadows.instanceMatrix.needsUpdate = true;
       plinths.count = plinthCount; plinths.instanceMatrix.needsUpdate = true;
@@ -351,7 +522,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
       }
       lanes.count = laneCount; lanes.instanceMatrix.needsUpdate = true;
-      let effectCount = 0, sparkCount = 0;
+      let effectCount = 0;
       for (const effect of state.effects) {
         if (effectCount >= effects.instanceMatrix.count) break;
         const age = Math.max(0, Math.min(1, 1 - effect.ttl / effect.duration));
@@ -361,30 +532,31 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         effects.setMatrixAt(effectCount, transform.matrix);
         const tint = effect.kind === 'explosion' || effect.kind === 'hit' ? 0xf9b67f : 0x97e7da;
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
-        if (effect.kind === 'explosion') for (let i = 0; i < 7 && sparkCount < sparks.instanceMatrix.count; i++) {
-          const angle = i * Math.PI * 2 / 7 + effect.id * .1;
-          transform.position.set(effect.x + Math.cos(angle) * age * 1.3, VIEW.flightHeight + .06, -effect.s + Math.sin(angle) * age * 1.3);
-          transform.scale.setScalar(1 - age * .8); transform.rotation.set(angle, age * 3, 0); transform.updateMatrix();
-          sparks.setMatrixAt(sparkCount, transform.matrix); sparks.setColorAt(sparkCount++, color);
-        }
       }
-      effects.count = effectCount; sparks.count = sparkCount;
-      for (const mesh of [effects, sparks]) { mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+      effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;
+      fx.update(state, plumes);
       lineGeometry.setDrawRange(0, lineCursor);
       lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
       const renderStart = performance.now();
-      renderer.render(scene, camera);
+      passes.shadow = 0;
+      if (quality === 'high') {
+        post.render(scene, camera);
+        passes.post = 6; passes.main = renderer.info.render.calls - passes.shadow - passes.post;
+      } else {
+        renderer.setRenderTarget(null); renderer.render(scene, camera);
+        passes.shadow = passes.post = 0; passes.main = renderer.info.render.calls;
+      }
       if (state.tick > 0) terrainWork.renderMax = Math.max(terrainWork.renderMax, performance.now() - renderStart);
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
-          calls: renderer.info.render.calls, tier: quality, pixelRatio: renderer.getPixelRatio(),antialias:true,
+          calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
-          textures: renderer.info.memory.textures, pooledEnemies: [...enemyPool.values()].reduce((n, pool) => n + pool.length, 0),
+          textures: renderer.info.memory.textures, particles: fx.particles, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
         });
         lastStatsTick = state.tick;
       }
@@ -399,13 +571,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         if (object instanceof THREE.InstancedMesh) object.dispose();
       };
-      scene.traverse(collect); enemyTemplates.forEach(model => model.traverse(collect));
-      enemyPool.forEach(pool => pool.forEach(model => model.traverse(collect)));
+      fx.dispose(); scene.traverse(collect);
       const textures=new Set<THREE.Texture>();
-      usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture)textures.add(value);}));
+      usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); enemyModels.clear(); enemyPool.clear();
-      sunlight.shadow.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); environment.dispose();
+      sunlight.shadow.dispose(); post.dispose();
       renderer.dispose();
     },
   };

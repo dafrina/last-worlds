@@ -13,15 +13,16 @@ export {
 export { terrainHeight } from './terrain-ground';
 export { ARCHETYPES, MODULE_HEIGHT, SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Archetype, type Settlement } from './terrain-settlements';
 export {
-  PIPE_CELL, PIPE_MAX_SLOPE, ROAD_MAX_SLOPE, ROAD_STEP, SHARED_BOUNDS, SHARED_NODES, edgesNear, pipePieces, roadPath, sectionNetwork,
-  type IndustryPiece, type NetworkEdge, type RoadMesh, type RoadPath, type SharedNode,
+  PIPE_AXIS, PIPE_BEDDING, PIPE_CELL, PIPE_MAX_SLOPE, PIPE_TOP, ROAD_MAX_SLOPE, ROAD_STEP, SHARED_BOUNDS, SHARED_LOCAL_BOX, SHARED_NODES, SUPPORT_HEIGHT,
+  edgesNear, pieceBounds, pipePieces, pipeRun, roadPath, rotatePiece, sectionNetwork,
+  type IndustryPiece, type NetworkEdge, type PipeRun, type RoadMesh, type RoadPath, type SharedNode,
 } from './terrain-network';
 export {
   KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, kitNodeName, stripOf, type KitInstance, type KitKind,
 } from './terrain-scatter';
 
 /** Pure Khepri scenery. Terrain never reads, schedules, or advances combat or loot. */
-export const TERRAIN_VERSION = 6;
+export const TERRAIN_VERSION = 7;
 /** Binary-exact grid step so section seams share bit-identical coordinates. */
 export const TERRAIN_STEP = 0.5;
 export const RETAINED_SECTIONS = 3;
@@ -114,7 +115,7 @@ function settlementPieces(seed: number, startS: number, size: number) {
     } else if (module.kind === 'shared') {
       const node = module.node as SharedNode, bounds = SHARED_BOUNDS[node];
       if (site.level + bounds.height > SCENERY_MAX_HEIGHT || Math.abs(module.x) + Math.max(bounds.halfX, bounds.halfZ) > WORLD_HALF) continue;
-      industry.push({ id: module.id, node, x: module.x, s: module.s, y: site.level, rotation: module.yaw, pitch: 0, scaleY: 1, group: site.id });
+      industry.push({ id: module.id, node, x: module.x, s: module.s, y: site.level, rotation: module.yaw, pitch: 0, roll: 0, scaleY: 1, scaleZ: 1, group: site.id });
     } else {
       const kind = module.node as KitKind, spec = KIT[kind], scale = Math.min(KIT_MAX_SCALE, module.scale);
       const height = kind === 'rock' ? scale * 0.9 : scale;

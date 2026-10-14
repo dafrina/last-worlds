@@ -1,9 +1,13 @@
-import { BALANCE, DIFFICULTIES, ENEMIES, WEAPONS, difficultyScales } from '../content/balance';
-import { CAMPAIGN, endlessPlaylist, type EncounterCue } from '../content/encounters';
-import { STEP, VIEW, type Enemy, type InputFrame, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
+import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, THREAT_COST, WEAPONS, difficultyScales, type DifficultyScale } from '../content/balance';
+import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
+import { FORMATIONS, slotFlies } from '../content/formations';
+import { STEP, VIEW, type Enemy, type FormationMember, type InputFrame, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BASTION } from '../content/bastion';
 import { resolveBastionPhase, startBastion, updateBastion } from './bastion';
+import { LANCER_BEAM, SHOT_TTL, enemyShots } from './attacks';
+import { admitAttack } from './fairness';
+import { advanceEnemy, aimOffset, groundHeight, inFiringWindow, memberPosition, pathComplete } from './motion';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -54,7 +58,8 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updateContact(state, previousPlayerX);
   updatePickups(state, dt);
   updateResources(state, dt);
-  state.enemies = state.enemies.filter(enemy => enemy.bossPart || (enemy.hp > 0 && enemy.s > VIEW.minS - 2));
+  state.enemies = state.enemies.filter(enemy => enemy.bossPart
+    || (enemy.hp > 0 && enemy.s > VIEW.minS - 2 && !(pathComplete(enemy) && !isVisible(state, enemy.x, enemy.s, -1))));
   state.effects = state.effects.filter(effect => (effect.ttl -= dt) > 0);
   if (state.phase === 'playing' && state.config.mode === 'campaign' && state.config.mission !== 'bastion' && state.time + 1e-8 >= BALANCE.campaignDuration) {
     state.phase = 'complete';
@@ -78,11 +83,14 @@ function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), BALANCE.camera.speed * dt);
 }
 
+const FORTRESS_MESSAGE = 'FORTRESS APPROACH · READY YOUR SPECIAL';
+const ANCHOR_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
+
 function updateDirector(state: RunState): void {
   if (state.config.mode === 'campaign' && state.config.mission === 'bastion') {
     if (state.time + 1e-8 >= BASTION.arrivesAt) { startBastion(state); return; }
-    if (state.nextEncounterAt >= 103) {
-      if (state.time >= 103 && state.message !== 'FORTRESS APPROACH · READY YOUR SPECIAL') setMessage(state, 'FORTRESS APPROACH · READY YOUR SPECIAL', 6);
+    if (state.time + 1e-8 >= BASTION.approachEndsAt || state.nextEncounterAt >= BASTION.approachEndsAt) {
+      if (state.time >= BASTION.approachEndsAt && state.message !== FORTRESS_MESSAGE) setMessage(state, FORTRESS_MESSAGE, 6);
       return;
     }
   }
@@ -93,34 +101,56 @@ function updateDirector(state: RunState): void {
     state.nextEncounterAt = (sector - 1) * BALANCE.sectorDuration + 2;
     setMessage(state, `SECTOR ${String(sector).padStart(2, '0')} · PRESSURE RISING`, 3);
   }
-  const cues = state.config.mode === 'campaign' ? CAMPAIGN : endlessPlaylist(state.sector);
+  const cues = state.config.mode === 'campaign' ? campaignPlaylist(state.config.mission ?? 'training') : endlessPlaylist(state.sector);
   const start = state.config.mode === 'endless' ? (state.sector - 1) * BALANCE.sectorDuration : 0;
   const cue = cues[state.encounterIndex];
   if (!cue || state.time + 1e-8 < state.nextEncounterAt) return;
-  // Admit a complete authored group; never silently trim its composition.
-  if (state.enemies.filter(enemy => enemy.hp > 0).length + cue.enemies.length > BALANCE.maxEnemies) return;
-  spawnCue(state, cue);
+  // Two-flank entries are announced first; a stale or overwritten alert is shown again in full.
+  const alert = cueAlert(cue);
+  if (alert && !(state.message === alert && state.time < state.messageUntil)) {
+    setMessage(state, alert, ALERT_LEAD + 1.6);
+    state.nextEncounterAt = state.time + ALERT_LEAD;
+    return;
+  }
+  // Admit a complete authored group; never silently trim its composition. Surviving enemies count against
+  // the live threat budget and the entity ceiling, so a late group waits instead of stacking.
+  const scale = scales(state);
+  const roster = cueRoster(cue, scale.rank);
+  const alive = state.enemies.filter(enemy => enemy.hp > 0 && !enemy.bossPart);
+  const liveThreat = alive.reduce((sum, enemy) => sum + THREAT_COST[enemy.kind], 0);
+  const cueThreat = roster.reduce((sum, kind) => sum + THREAT_COST[kind], 0);
+  if (alive.length + roster.length > BALANCE.maxEnemies || liveThreat + cueThreat > scale.threatBudget) return;
+  spawnCue(state, cue, scale);
   state.encounterIndex += 1;
   state.nextEncounterAt = cues[state.encounterIndex] ? start + cues[state.encounterIndex].at : Infinity;
 }
 
-function spawnCue(state: RunState, cue: EncounterCue): void {
-  const scale = scales(state);
-  for (const spawn of cue.enemies) {
-    const stats = ENEMIES[spawn.kind];
-    const hp = stats.hp * scale.hp;
-    state.enemies.push({
-      id: state.nextId++, kind: spawn.kind, x: spawn.x, s: spawn.s ?? 22,
-      originX: spawn.x, hp, maxHp: hp, radius: stats.radius,
-      age: 0, nextAttack: 1.2, warning: 0, aimX: spawn.x,
-      groundHeight: spawn.kind === 'turret' ? 0.85 : VIEW.flightHeight,
-    });
-  }
+function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): void {
+  for (const placement of cue.formations) spawnFormation(state, placement, scale);
   // Reserve one slot for the fixed shield-supply opportunity; never evict an existing drop.
   if (cue.pickup && state.pickups.length < BALANCE.maxPickups - 1) {
     state.pickups.push({ id: state.nextId++, ...cue.pickup, ttl: 12 });
   }
   if (cue.message) setMessage(state, cue.message, 3.5);
+}
+
+/** Spawns every member flying at this rank. View anchors resolve to the camera, clamped inside the map. */
+export function spawnFormation(state: RunState, placement: FormationPlacement, scale: DifficultyScale = scales(state)): void {
+  const template = FORMATIONS[placement.formation];
+  const anchorX = placement.anchor === 'world'
+    ? placement.x ?? 0
+    : clamp(state.cameraX + (placement.x ?? 0), -ANCHOR_LIMIT, ANCHOR_LIMIT);
+  template.slots.forEach((slot, index) => {
+    if (!slotFlies(slot, scale.rank)) return;
+    const member: FormationMember = { template: template.id, slot: index, anchorX, mirror: placement.mirror ? -1 : 1 };
+    const at = memberPosition(member, 0);
+    const hp = ENEMIES[slot.kind].hp * scale.hp;
+    state.enemies.push({
+      id: state.nextId++, kind: slot.kind, x: at.x, s: at.s, originX: anchorX, hp, maxHp: hp,
+      radius: ENEMIES[slot.kind].radius, age: 0, nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
+      warning: 0, aimX: at.x, groundHeight: groundHeight(slot.kind), formation: member,
+    });
+  });
 }
 
 function updateShieldSupplies(state: RunState, previousTime: number): void {
@@ -154,54 +184,55 @@ export function isVisible(state: RunState, x: number, s: number, margin = 0): bo
   return Math.abs(x - state.cameraX) <= VIEW.width / 2 - margin && s >= VIEW.minS + margin && s <= VIEW.maxS - margin;
 }
 
+/** Fully visible and above the attack floor. Windups that lose visibility are cancelled and restart in full. */
 function canAttack(state: RunState, enemy: Enemy): boolean {
-  return enemy.hp > 0 && enemy.s > 3.5 && isVisible(state, enemy.x, enemy.s, enemy.radius + 0.2)
-    && state.time >= state.player.invulnerableUntil - 0.3;
+  return enemy.hp > 0 && enemy.s > 3.5 && isVisible(state, enemy.x, enemy.s, enemy.radius + 0.2);
 }
 
 function updateEnemies(state: RunState, dt: number): void {
+  const scale = scales(state);
+  let windups = state.enemies.reduce((count, enemy) => count + (enemy.hp > 0 && enemy.warning > 0 && !enemy.bossPart ? 1 : 0), 0);
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
     const stats = ENEMIES[enemy.kind];
-    enemy.age += dt;
-    enemy.s -= stats.speed * dt;
-    if (enemy.kind === 'weaver') enemy.x = enemy.originX + Math.sin(enemy.age * 1.6) * 1.2;
-    const visible = canAttack(state, enemy);
-    if (!visible) {
-      if (enemy.warning > 0) enemy.nextAttack = enemy.age + 0.6;
+    advanceEnemy(enemy, dt);
+    if (!canAttack(state, enemy)) {
+      if (enemy.warning > 0) { enemy.nextAttack = enemy.age + 0.6; windups -= 1; }
       enemy.warning = 0;
       continue;
     }
     if (enemy.warning > 0) {
       enemy.warning = Math.max(0, enemy.warning - dt);
       if (enemy.warning === 0) {
-        emitAttack(state, enemy);
-        enemy.nextAttack = enemy.age + stats.attackEvery;
+        emitAttack(state, enemy, scale);
+        enemy.nextAttack = enemy.age + stats.attackEvery * scale.cadence;
+        windups -= 1;
       }
-    } else if (enemy.age >= enemy.nextAttack) {
-      // Conservative authored-phrase guard: at most two simultaneous windups, one beam.
-      const warnings = state.enemies.filter(other => other.id !== enemy.id && other.warning > 0);
-      if (warnings.length >= 2 || (enemy.kind === 'lancer' && (state.hazards.length > 0 || warnings.some(other => other.kind === 'lancer')))) continue;
-      enemy.aimX = state.player.x;
-      enemy.warning = stats.warning + scales(state).warning;
+    } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy) && state.time >= state.player.invulnerableUntil - 0.3) {
+      // Readability caps: a bounded number of simultaneous windups and of marked beam lanes.
+      if (windups >= scale.maxWindups) continue;
+      if (enemy.kind === 'lancer' && state.hazards.length + state.enemies.filter(other => other.kind === 'lancer' && other.warning > 0).length >= scale.maxBeams) continue;
+      // The aim commits now, at the player's x plus the authored bracket offset, and never tracks afterwards.
+      const aimX = state.player.x + aimOffset(enemy);
+      const warning = stats.warning + scale.warning;
+      // Director exclusion window: an attack that would break the hazard-union rules waits; it is never edited.
+      if (!admitAttack(state, enemy, aimX, warning)) { enemy.nextAttack = enemy.age + FAIRNESS.retryDelay; continue; }
+      enemy.aimX = aimX;
+      enemy.warning = warning;
+      windups += 1;
     }
   }
 }
 
-function emitAttack(state: RunState, enemy: Enemy): void {
+function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void {
   if (enemy.kind === 'lancer') {
-    state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: 0.8, warning: 0.35, active: 0.22, ttl: 0.57 });
+    state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: LANCER_BEAM.width, warning: LANCER_BEAM.warning, active: LANCER_BEAM.active, ttl: LANCER_BEAM.warning + LANCER_BEAM.active });
     return;
   }
-  const count = enemy.kind === 'weaver' ? 2 : enemy.kind === 'turret' ? 3 : 1;
-  if (state.projectiles.length + count > BALANCE.maxProjectiles) return;
-  const speed = ENEMIES[enemy.kind].shotSpeed * scales(state).shotSpeed;
-  const aim = Math.atan2(enemy.aimX - enemy.x, -(enemy.s - 0.2));
-  for (let i = 0; i < count; i += 1) {
-    const angle = aim + (enemy.kind === 'turret' ? (i - 1) * 0.14 : 0);
-    const x = enemy.x + (enemy.kind === 'weaver' ? (i === 0 ? -0.5 : 0.5) : 0);
-    state.projectiles.push(projectile(state, x, enemy.s - 0.2, Math.sin(angle) * speed, Math.cos(angle) * speed, false, 1, 0.13, 7));
-  }
+  const shots = enemyShots(enemy.kind, enemy.x, enemy.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed);
+  // A full projectile pool skips the whole volley; a fixed pattern is never trimmed bullet by bullet.
+  if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
+  for (const shot of shots) state.projectiles.push(projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL));
 }
 
 /** Uses emitted pellet paths for fixed guns; only the seeker has a cone and guidance. */
@@ -377,7 +408,7 @@ function updatePickups(state: RunState, dt: number): void {
     pickup.s -= BALANCE.pickup.speed * dt;
     let distance = Math.hypot(pickup.x - state.player.x, pickup.s);
     if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius && distance > 0.001) {
-      const pull = Math.min(distance, 6 * dt);
+      const pull = Math.min(distance, BALANCE.pickup.magnetSpeed * dt);
       pickup.x += (state.player.x - pickup.x) / distance * pull;
       pickup.s += -pickup.s / distance * pull;
       distance = Math.hypot(pickup.x - state.player.x, pickup.s);

@@ -37,7 +37,7 @@ Source folders are a plan, not existing code. The initial JSON in `docs/spec/` i
 
 ## 3. Logical space, wider map, and camera
 
-Simulation uses (x, s): x is horizontal world position; s is ahead of the player's fixed forward row. Aircraft render at world (x, H, −s), H = 3. Terrain scrolls toward −s at an initial 4 units/s; projectile and aircraft velocities are player-relative and do not subtract scroll twice.
+Simulation uses (x, s): x is horizontal world position; s is ahead of the player's fixed forward row. Aircraft render at world (x, H, −s), H = `VIEW.flightHeight` = 3.8 (raised from 3 on 14 October so aircraft clear tall terrain; render/projection only). Terrain scrolls toward −s at an initial 4 units/s; projectile and aircraft velocities are player-relative and do not subtract scroll twice.
 
 Initial map sections are 36 × 36 units, connected forward. World edges are x = ±18; player radius 0.25 gives center bounds ±17.75. The fitted 9:16 viewport shows 12 units horizontally. Camera x ranges ±12 and follows beyond a ±2.5-unit dead zone, at a proposed maximum rate of 14 units/s. Camera translation is explicit fixed-step state. See [wide map and camera](10-wide-map-and-camera.md) for follow, exploration, visibility, and boundary rules.
 
@@ -100,7 +100,7 @@ RNG streams: loot, terrain, cosmetics. Combat uses an authored playlist, without
 
 Pointer Events provide a shared touch/mouse/pen event model and pointer capture. Use `touch-action: none` on the actual gameplay surface, plus pointer cancellation/lost-capture handling. Keep ordinary menu scrolling and browser zoom behavior outside that surface. See [MDN Pointer Events](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events).
 
-On pointer-down, test UI controls first, then classify left/right inside the fitted gameplay rectangle. Persist pointer-role ownership until pointer-up/cancel. Count held pointers per side; neutralize opposing inputs. Special uses its own pointer and edge-trigger queue. Keyboard input joins the same frame adapter, with blur clearing state. Do not use only `isPrimary`, because a second touch must activate special.
+On pointer-down, test UI controls first, then classify left/right inside the fitted gameplay rectangle. Persist the pointer's role until pointer-up/cancel, except that a held steering pointer switches left/right when it crosses the middle (3% dead band; user decision 14 October). Special and UI pointers never steer. Count held pointers per side; neutralize opposing inputs. Special uses its own pointer and edge-trigger queue. Keyboard input joins the same frame adapter, with blur clearing state. Do not use only `isPrimary`, because a second touch must activate special.
 
 Resize and safe-area changes rebuild the fitted rectangle and release held inputs. Pointer positions are CSS pixels; rendering resolution does not alter touch classification. Use a device-pixel-ratio cap independently of CSS layout.
 

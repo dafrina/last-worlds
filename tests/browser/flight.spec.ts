@@ -81,6 +81,19 @@ test('two touches can steer and use the centered special independently', async (
   await page.screenshot({ path: 'test-results/touch-special-phone.png' });
 });
 
+test('sliding a held steering touch across the middle reverses direction', async ({ page, context }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
+  const frame = (await page.locator('.flight-frame').boundingBox())!;
+  const y = frame.y + frame.height * 0.6, client = await context.newCDPSession(page);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: frame.x + frame.width * 0.2, y }] });
+  await expect.poll(async () => (await snapshot(page)).player.vx).toBeLessThan(0);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: frame.x + frame.width * 0.8, y }] });
+  await expect.poll(async () => (await snapshot(page)).player.vx).toBeGreaterThan(0);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+});
+
 test('held steering touches cancel iOS long-press gestures but buttons keep their taps', async ({ page }) => {
   await page.goto('/');
   // A touchstart whose default is prevented never starts Safari's loupe, callout or text selection.

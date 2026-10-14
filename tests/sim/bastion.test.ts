@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { BASTION } from '../../src/content/bastion';
-import { EMPTY_INPUT, STEP, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
+import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
 
 function encounter(weapon: WeaponId = 'pulse', difficulty: Difficulty = 'standard') {
   const state = createRun({ mode: 'campaign', mission: 'bastion', seed: 53, weapon, difficulty });
   state.time = BASTION.arrivesAt - STEP;
-  state.distance = state.time * 4;
+  state.distance = state.time * VIEW.scrollSpeed;
   stepRun(state, EMPTY_INPUT);
   return state;
 }

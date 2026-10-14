@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BALANCE, difficultyScales } from '../../src/content/balance';
-import { CAMPAIGN } from '../../src/content/encounters';
+import { BALANCE, ENDLESS_RAMP, difficultyScales } from '../../src/content/balance';
+import { TRAINING } from '../../src/content/encounters';
 import { EMPTY_INPUT, STEP, type Enemy, type RunState } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { segmentCircleHit } from '../../src/sim/geometry';
 
 function quietRun(): RunState {
   const state = createRun({ mode: 'campaign', seed: 17 });
-  state.encounterIndex = CAMPAIGN.length;
+  state.encounterIndex = TRAINING.length;
   state.nextEncounterAt = Infinity;
   return state;
 }
@@ -419,7 +419,10 @@ describe('wide world, scheduling, and mode boundaries', () => {
     advance(endless, 180);
     expect(endless.phase).toBe('playing');
     expect(endless.sector).toBe(3);
-    expect(difficultyScales('endless', 'veteran', 100)).toMatchObject({ hp: 1.6, shotSpeed: 1.25, warning: 0 });
+    // The endless ramp stops at its documented caps; warnings never shrink at any sector.
+    expect(difficultyScales('endless', 'veteran', 100)).toMatchObject({
+      hp: ENDLESS_RAMP.hp.cap, shotSpeed: ENDLESS_RAMP.shotSpeed.cap, cadence: ENDLESS_RAMP.cadence.floor, warning: 0,
+    });
   });
 });
 

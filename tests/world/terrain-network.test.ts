@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ARCHETYPES, MODULE_HEIGHT, PIPE_MAX_SLOPE, ROAD_MAX_SLOPE, ROAD_STEP, SCENERY_MAX_HEIGHT, SHARED_BOUNDS, VIEW_HALF, edgesNear, generateTerrainSection,
-  pipePieces, roadPath, settlementsNear, terrainHeight, type IndustryPiece,
+  ARCHETYPES, MODULE_HEIGHT, ROAD_MAX_SLOPE, ROAD_STEP, SCENERY_MAX_HEIGHT, SUPPORT_HEIGHT, VIEW_HALF, edgesNear, generateTerrainSection,
+  pieceBounds, pipePieces, roadPath, settlementsNear, terrainHeight, type IndustryPiece,
 } from './network-helpers';
 
 describe('settlement network (docs/13 §2)', () => {
@@ -63,17 +63,8 @@ describe('settlement network (docs/13 §2)', () => {
           if (edge.kind === 'exit' && Math.abs(road.x[road.x.length - 1]) >= VIEW_HALF - 1.6) exits++;
           longest = Math.max(longest, Math.abs(road.s[road.s.length - 1] - road.s[0]));
         }
-        const pieces = pipePieces(seed, edge).filter(piece => piece.node !== 'pipe_support');
-        if (pieces.length) {
-          pipes++;
-          // A 4-connected chain on the 2-unit grid; pitch never steeper than the grid's slope limit.
-          for (let i = 1; i < pieces.length; i++) expect(Math.hypot(pieces[i].x - pieces[i - 1].x, pieces[i].s - pieces[i - 1].s)).toBeCloseTo(2, 6);
-          for (const piece of pieces) {
-            // Grid steps rise at most PIPE_MAX_SLOPE per unit; levelling around elbows can add a little more.
-            expect(Math.abs(piece.pitch)).toBeLessThan(Math.atan(PIPE_MAX_SLOPE * 1.4));
-            expect(piece.y).toBeGreaterThanOrEqual(terrainHeight(seed, piece.x, piece.s) - 1e-6);
-          }
-        }
+        // Pipeline geometry (risers, trestles, clearance, supports) is covered in terrain-pipes.test.ts.
+        if (pipePieces(seed, edge).length) pipes++;
       }
       expect(roads).toBeGreaterThan(8); expect(pipes).toBeGreaterThan(2); expect(exits).toBeGreaterThan(0);
       expect(longest).toBeGreaterThan(25);
@@ -81,10 +72,20 @@ describe('settlement network (docs/13 §2)', () => {
   });
 
   it('keeps supports on the ground and every piece inside the world', () => {
-    for (let index = 0; index < 10; index++) for (const piece of generateTerrainSection(93, index).industry as IndustryPiece[]) {
-      const bounds = SHARED_BOUNDS[piece.node];
-      expect(Math.abs(piece.x) + Math.max(bounds.halfX, bounds.halfZ)).toBeLessThanOrEqual(VIEW_HALF);
-      if (piece.node === 'pipe_support') expect(piece.y).toBeCloseTo(terrainHeight(93, piece.x, piece.s), 6);
+    for (let index = 0; index < 10; index++) {
+      const industry = generateTerrainSection(93, index).industry as IndustryPiece[], columns = new Map<string, IndustryPiece[]>();
+      for (const piece of industry) {
+        const box = pieceBounds(piece);
+        expect(Math.max(-box.minX, box.maxX)).toBeLessThanOrEqual(VIEW_HALF);
+        expect(box.maxY).toBeLessThanOrEqual(SCENERY_MAX_HEIGHT + 1e-6);
+        if (piece.node === 'pipe_support') columns.set(`${piece.x}:${piece.s}`, [...(columns.get(`${piece.x}:${piece.s}`) ?? []), piece]);
+      }
+      // Support columns (a rack, a stack of frames, or both) stand on the ground in the section that owns them.
+      for (const column of columns.values()) {
+        const lowest = Math.min(...column.map(piece => piece.y)), top = Math.max(...column.map(piece => piece.y + SUPPORT_HEIGHT * piece.scaleY));
+        expect(Math.abs(lowest - terrainHeight(93, column[0].x, column[0].s))).toBeLessThanOrEqual(0.021);
+        expect(top).toBeGreaterThan(lowest);
+      }
     }
   });
 });

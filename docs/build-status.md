@@ -1,5 +1,37 @@
 # Build status
 
+## Checkpoint deploy — 14 October 2026, late evening
+
+The user asked for a checkpoint at a stable point; the graphics polish and its measurements follow in a second deploy.
+
+- **Bastion-9 production integration** (docs/15):
+  - **Model:** the Blender model with gigantic treads, a core turret blended into the hull and deck turrets (19.1k triangles).
+  - **Animation:** treads scroll and kick up dust; shutters slide open; guns track their aim; batteries break into wrecks with sparks and smoke; the core glow follows damage; overload flickers.
+  - **Destruction:** sparks, rolling fireballs and debris, a core blast with a shock ring, then smoke.
+  - **Seating:** `bastionPlacement` rests the hull on the highest ground under it; scenery under the footprint is hidden.
+  - **Audio:** cues for arrival, phase changes and kills.
+- **Pipelines:** all 132 test-seed edges connect (risers, trestles, lifted runs).
+- **Combat:** 16 authored squadron formations; 5–8× denser fire under a runtime fairness guard and an offline validator; Relaxed, Standard and Veteran differ more.
+- **Pace:** about 20–25% faster. Scroll 4 → 5, ship 10/70/100 → 12/90/125, camera follow 14 → 17.
+- **Rendering:**
+  - **Flight plane:** raised from 3 to 3.8; screen positions are unchanged.
+  - **High tier:** sun shadows and a new post pipeline (MSAA HDR, selective bloom, grade, vignette).
+  - **Look:** warmer lighting; veins are now thin glowing cracks; valleys read warm violet instead of night.
+  - **Craft:** PBR craft materials; engine, muzzle, impact and explosion VFX.
+  - **Haulers:** 75% scale, seated on slopes.
+- **Controls:** a held steering touch that slides across the middle switches direction (3% dead band).
+- **iOS:** the long-press loupe and callout are suppressed. This shipped earlier, in `f31267e`.
+- **Evidence** (WSL, Node 24.16.0, SwiftShader):
+  - **Checks:** typecheck clean; `npm test` 16 files, 167/167; build 845 KB JS (234 KB gzip); `test:browser` 9/9, including slide-steering and all three boss cases.
+  - **Draw calls** (graphics agent, frozen builds, boss fixture): High 104 (shadow 37, main 61, post 6), Low 56.
+  - **Visual review:** endless seed 93 and the boss batteries phase were checked by eye.
+- **Not verified:** phone frame time; endless draw-call and frame-time measurements under the new renderer.
+- **Open items:**
+  - mineral pool rims still read as flat cyan in deep valleys;
+  - merging the fortress meshes would cut about 25 shadow draws;
+  - the baked terrain shading uses a 28° sun while the live sun is at 38°;
+  - the perspective decision is pending, with data in hand: at FOV 20 the flight plane is 13.7 units wide at the top versus 10.7 at the bottom, 8.5% of the sim's view rectangle falls off-screen, and ground targets slide up to 1.27 units across a camera pan; the graphics agent recommends keeping ortho.
+
 ## M2 mechanics increment — local, 14 October 2026
 
 Rolling Thunder is selectable alongside Training and ends with the functional Bastion-9 encounter. Two destructible batteries, a protected/exposed core, overload lanes, safe destruction/extraction, victory and retry are implemented. Shields remain pickup-only with a fixed mission budget; endless starts and difficulty remain independent. See [the complete behavior and handoff](15-bastion-slice.md).

@@ -4,13 +4,13 @@ import { startBastion, bossTarget, resolveBastionPhase } from '../../src/sim/bas
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
 import { createInput } from '../../src/input/controls';
-import { STEP, EMPTY_INPUT, type RunConfig } from '../../src/shared/contracts';
+import { STEP, EMPTY_INPUT, VIEW, type RunConfig } from '../../src/shared/contracts';
 import { BASTION } from '../../src/content/bastion';
 
 const query = new URLSearchParams(location.search);
 let state = createRun({ mode: 'campaign', mission: 'bastion', seed: Number(query.get('seed') ?? 8831) });
 function prepare() {
-  state.time = BASTION.arrivesAt; state.distance = state.time * 4; startBastion(state);
+  state.time = BASTION.arrivesAt; state.distance = state.time * VIEW.scrollSpeed; startBastion(state);
   for (let i = 0; i < 181; i++) stepRun(state, EMPTY_INPUT);
   if (['core', 'overload', 'destroyed'].includes(query.get('phase') ?? '')) {
     bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
@@ -30,10 +30,12 @@ const renderer = createRenderer(ui.canvas);
 const observer = new ResizeObserver(() => { const rect = ui.canvas.getBoundingClientRect(); renderer.resize(rect.width, rect.height); });
 observer.observe(ui.canvas);
 let previous = performance.now(), accumulator = 0;
+// `hold=N` keeps the simulation still for N seconds so models load before a timed sequence (e.g. destruction) plays.
+const holdUntil = performance.now() + Number(query.get('hold') ?? 0) * 1000;
 function frame(now: number) {
   const elapsed = (now - previous) / 1000; previous = now;
   const controls = input.sample();
-  if (!query.has('still')) {
+  if (!query.has('still') && now >= holdUntil) {
     accumulator += elapsed > .25 ? 0 : Math.min(elapsed, STEP * 5);
     let special = controls.specialPressed;
     while (accumulator >= STEP) { stepRun(state, { ...controls, specialPressed: special }); special = false; accumulator -= STEP; }

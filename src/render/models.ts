@@ -5,22 +5,95 @@ import type { EnemyKind, Pickup } from '../shared/contracts';
 /** Code-built outpost stand-ins, used when the modelled infrastructure kit is missing. */
 export type PropKind = 'relay' | 'cargo' | 'landingPad' | 'track' | 'refinery';
 
-export function createMaterials() {
-  const pixels = new Uint8Array(64 * 64 * 4);
-  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
-    const noise = ((Math.imul(x + 11, 374761393) ^ Math.imul(y + 37, 668265263)) >>> 0) % 23;
-    const shade = 228 + noise - (x % 19 === 0 && y % 7 < 4 ? 18 : 0);
-    pixels.set([shade, shade, shade, 255], (y * 64 + x) * 4);
+/**
+ * Panel detail for craft (luminance ratio, 0.5 = neutral): irregular armour plates with dark seams, rivets,
+ * edge wear and grime. Data, not colour: it only modulates the palette, so faction colours stay authored.
+ */
+function createPanelTexture(): THREE.DataTexture {
+  const size = 128, data = new Uint8Array(size * size * 4);
+  const hash = (x: number, y: number, salt: number) => {
+    let n = Math.imul(x + 11 + salt * 131, 374761393) ^ Math.imul(y + 37 + salt * 71, 668265263);
+    n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  };
+  // Plate grid: rows of different heights, each row split at its own offsets, so seams never form a uniform grid.
+  const rows = [0, 22, 38, 64, 80, 101, 128], seamAt = (x: number, y: number) => {
+    const row = rows.findIndex((top, i) => y >= top && y < rows[i + 1]);
+    const top = rows[row], bottom = rows[row + 1], width = 18 + Math.floor(hash(row, 0, 3) * 20), shift = Math.floor(hash(row, 1, 5) * width);
+    const column = Math.floor((x + shift) / width), local = (x + shift) % width;
+    return { edge: Math.min(y - top, bottom - 1 - y, local, width - 1 - local), plate: row * 31 + column };
+  };
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const { edge, plate } = seamAt(x, y);
+    let v = 0.94 + hash(plate, 7, 9) * 0.1;                        // per-plate tone (patched, repainted panels)
+    if (edge === 0) v *= 0.58; else if (edge === 1) v *= 1.07;      // recessed seam with a lit lip
+    if (edge === 2 && (x + y) % 6 === 0) v *= 0.7;                  // rivet line
+    v *= 0.93 + 0.07 * hash(x >> 3, y >> 3, 13) + 0.05 * (hash(x, y, 17) - 0.5); // grime and grain
+    if (edge <= 2 && hash(x, y, 19) > 0.82) v *= 1.12;              // chipped edge wear
+    const byte = Math.round(Math.min(1, v / 2) * 255);
+    data.set([byte, byte, byte, 255], (y * size + x) * 4);
   }
-  const surface = new THREE.DataTexture(pixels, 64, 64); surface.wrapS = surface.wrapT = THREE.RepeatWrapping;
-  surface.magFilter = THREE.LinearFilter; surface.minFilter = THREE.LinearMipmapLinearFilter; surface.generateMipmaps = true; surface.needsUpdate = true;
-  const metal = (color: number, roughness = 0.68, metalness = 0.32) => new THREE.MeshStandardMaterial({ color, roughness, metalness, map: surface });
+  const texture = new THREE.DataTexture(data, size, size);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.colorSpace = THREE.NoColorSpace;
+  texture.magFilter = THREE.LinearFilter; texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true; texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * One physically based material for every authored craft. Each vertex carries its palette colour and a
+ * `pbr` triple (roughness, metalness, glow), so a whole ship is a single draw: graphite and gunmetal read as
+ * metal, ivory and ochre as worn paint, and glow parts emit above the bloom threshold (engines, threat lights).
+ * A warm rim term separates silhouettes from the terrain like the concept's hard-surface key light.
+ */
+function createCraftMaterial(panel: THREE.Texture): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: panel, roughness: 1, metalness: 1, envMapIntensity: 0.9 });
+  material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, { rimColor: { value: new THREE.Color(1, 0.78, 0.55) }, rimStrength: { value: 0.32 } });
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 pbr;\nvarying vec3 vPbr;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPbr = pbr;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPbr;\nuniform vec3 rimColor;\nuniform float rimStrength;')
+      .replace('#include <map_fragment>', `float glowMask = step( 0.01, vPbr.z );
+  vec3 glowTint = diffuseColor.rgb;
+  #ifdef USE_MAP
+    // Panel seams, rivets and wear modulate the paint, never the glow parts.
+    diffuseColor.rgb *= mix( 1.0 + ( texture2D( map, vMapUv ).r * 2.0 - 1.0 ) * 1.35, 1.0, glowMask );
+  #endif
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.015 ), glowMask );`)
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vPbr.x;')
+      .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vPbr.y;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowTint * vPbr.z;')
+      .replace('#include <opaque_fragment>', `vec3 rimView = isOrthographic ? vec3( 0.0, 0.0, 1.0 ) : normalize( vViewPosition );
+  float rim = pow( 1.0 - clamp( abs( dot( normal, rimView ) ), 0.0, 1.0 ), 3.0 );
+  outgoingLight += rimColor * rim * rimStrength * ( 1.0 - glowMask );
+  #include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => 'authored-craft';
+  return material;
+}
+
+/** Palette entry for craft: sRGB colour, roughness, metalness, glow (HDR emissive multiplier; 0 = lit surface). */
+export interface CraftPaint { color: THREE.Color; roughness: number; metalness: number; glow: number }
+
+export function createMaterials() {
+  const panel = createPanelTexture();
+  // Palette sources (baked into craft and fallback props) and the plinth material; the panel map lives on `craft`.
+  const metal = (color: number, roughness = 0.68, metalness = 0.32) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
+  const ivory = metal(0xd6caae, 0.52, 0.12), rust = metal(0x8a4c2c, 0.78, 0.32), dark = metal(0x2a2e31, 0.42, 0.72);
+  const gunmetal = metal(0x575f63, 0.36, 0.8), ochre = metal(0xb38946, 0.55, 0.22), glass = metal(0x123f49, 0.08, 0.35);
+  const cyan = new THREE.MeshBasicMaterial({ color: 0xa5fff6 }), hot = new THREE.MeshBasicMaterial({ color: 0xffac6d });
+  const paint = new Map<THREE.Material, CraftPaint>();
+  for (const material of [ivory, rust, dark, gunmetal, ochre, glass]) paint.set(material, { color: material.color, roughness: material.roughness, metalness: material.metalness, glow: 0 });
+  // Engines and threat lights are emissive cores above the bloom threshold on High; Low shows them as hot, clipped colour.
+  paint.set(cyan, { color: new THREE.Color(0x8ffcf0), roughness: 1, metalness: 0, glow: 3.2 });
+  paint.set(hot, { color: new THREE.Color(0xffa060), roughness: 1, metalness: 0, glow: 3.4 });
   return {
-    ivory: metal(0xc8bea4), rust: metal(0x84533a), dark: metal(0x252b2b, 0.57, 0.5),
-    gunmetal: metal(0x59615b, 0.5, 0.5), ochre: metal(0xa18a58), glass: metal(0x174b55, 0.2, 0.65),
-    cyan: new THREE.MeshBasicMaterial({ color: 0xa5fff6 }),
-    hot: new THREE.MeshBasicMaterial({ color: 0xffac6d }),
+    ivory, rust, dark, gunmetal, ochre, glass, cyan, hot,
     warning: new THREE.MeshBasicMaterial({ color: 0xfbc175, transparent: true, opacity: 0.76, depthWrite: false, depthTest: false }),
+    /** Shared single-draw material for hero and enemy craft. */
+    craft: createCraftMaterial(panel),
+    /** How each authored part material bakes into the craft vertex attributes. */
+    paint,
   };
 }
 export type Materials = ReturnType<typeof createMaterials>;
@@ -72,6 +145,40 @@ function combineStatic(source: THREE.Group): THREE.Group {
   return result;
 }
 
+/**
+ * Bakes an authored craft (many armour parts, several palette materials) into one mesh with the shared craft
+ * material: colour, roughness, metalness and glow become vertex attributes, so a ship is a single draw call and
+ * craft of one kind can be instanced. Planar UVs match the panel detail scale of the code-built props.
+ */
+function combineCraft(source: THREE.Group, m: Materials): THREE.Group {
+  source.updateMatrixWorld(true);
+  const parts: THREE.BufferGeometry[] = [];
+  source.traverse(object => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const paint = m.paint.get(object.material as THREE.Material);
+    const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone();
+    geometry.deleteAttribute('uv'); geometry.applyMatrix4(object.matrixWorld);
+    const count = geometry.getAttribute('position').count, color = new Float32Array(count * 3), pbr = new Float32Array(count * 3);
+    const linear = (paint?.color ?? new THREE.Color(0.5, 0.5, 0.5));
+    for (let i = 0; i < count; i++) {
+      color.set([linear.r, linear.g, linear.b], i * 3);
+      pbr.set([paint?.roughness ?? 0.6, paint?.metalness ?? 0.3, paint?.glow ?? 0], i * 3);
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(color, 3)); geometry.setAttribute('pbr', new THREE.BufferAttribute(pbr, 3));
+    parts.push(geometry); object.geometry.dispose();
+  });
+  const result = new THREE.Group(), geometry = mergeGeometries(parts);
+  parts.forEach(part => part.dispose());
+  if (geometry) {
+    const positions = geometry.getAttribute('position'), uv = new Float32Array(positions.count * 2);
+    for (let i = 0; i < positions.count; i++) { uv[i * 2] = positions.getX(i) * 1.5; uv[i * 2 + 1] = positions.getZ(i) * 1.5 + positions.getY(i) * .5; }
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geometry, m.craft); mesh.castShadow = false; mesh.receiveShadow = false; result.add(mesh);
+  }
+  return result;
+}
+
 export function createHero(materials: Materials): THREE.Group {
   const g = new THREE.Group(), m = materials;
   plate(g, m.rust, [[-.15, -.58], [.15, -.58], [.2, -.24], [.17, .43], [-.17, .43], [-.2, -.24]], .18, 0);
@@ -97,7 +204,7 @@ export function createHero(materials: Materials): THREE.Group {
   }
   box(g, m.ivory, [.07, .028, .18], [-.11, .111, .24]);
   box(g, m.rust, [.075, .025, .075], [.09, .136, -.45]);
-  const model = combineStatic(g); model.name = 'Scrapper — authored utility fighter'; return model;
+  const model = combineCraft(g, m); model.name = 'Scrapper — authored utility fighter'; return model;
 }
 
 export function createEnemy(kind: EnemyKind, m: Materials): THREE.Group {
@@ -133,7 +240,7 @@ export function createEnemy(kind: EnemyKind, m: Materials): THREE.Group {
     box(g, m.dark, [.018, .024, .23], [0, .21, .11]);
     box(g, m.hot, [.055, .055, .24], [0, .16, -.25]);
   }
-  const model = combineStatic(g); model.name = `Authored Khepri ${kind}`; return model;
+  const model = combineCraft(g, m); model.name = `Authored Khepri ${kind}`; return model;
 }
 
 export function createCargo(m: Materials): THREE.Group {
@@ -228,4 +335,32 @@ export function createPickupModel(kind: Pickup['kind']): THREE.Group {
     shape([[-.05,-.045],[.05,-.045],[.05,.045],[-.05,.045]],dark,.02);
   }
   const model=combineStatic(g);model.children.forEach(child=>{child.renderOrder=7;});return model;
+}
+
+/**
+ * Tiny procedural sky for image-based reflections on craft and machinery: warm hazy zenith, a bright amber
+ * horizon band, rust ground bounce and a low sun from the upper left (docs/13 §1). Prefiltered once with
+ * PMREM at start; no texture download. Metals pick up the desert's warmth instead of reading as flat black.
+ */
+export function createDesertEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
+  const scene = new THREE.Scene();
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, toneMapped: false,
+    uniforms: { sun: { value: sun.clone().normalize() } },
+    vertexShader: 'varying vec3 vDir; void main() { vDir = normalize( position ); gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }',
+    fragmentShader: `uniform vec3 sun; varying vec3 vDir;
+      void main() {
+        float y = vDir.y;
+        vec3 zenith = vec3( 0.55, 0.42, 0.32 ), horizon = vec3( 1.25, 0.72, 0.38 ), ground = vec3( 0.22, 0.09, 0.035 );
+        vec3 color = y > 0.0 ? mix( horizon, zenith, pow( y, 0.6 ) ) : mix( horizon * 0.45, ground, pow( -y, 0.5 ) );
+        float d = max( dot( normalize( vDir ), sun ), 0.0 );
+        color += vec3( 9.0, 6.4, 3.8 ) * pow( d, 900.0 ) + vec3( 0.6, 0.38, 0.18 ) * pow( d, 12.0 );
+        gl_FragColor = vec4( color, 1.0 );
+      }`,
+  });
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), material); scene.add(sphere);
+  const generator = new THREE.PMREMGenerator(renderer);
+  const target = generator.fromScene(scene, 0.02);
+  generator.dispose(); sphere.geometry.dispose(); material.dispose();
+  return target;
 }

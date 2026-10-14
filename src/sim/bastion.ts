@@ -2,6 +2,7 @@ import { BASTION } from '../content/bastion';
 import { BALANCE, difficultyScales } from '../content/balance';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
 import { clamp } from './geometry';
+import { BOSS_BEAM, SHOT_TTL, bossShots } from './attacks';
 
 function message(state: RunState, text: string, duration = 3) {
   state.message = text; state.messageUntil = state.time + duration;
@@ -80,18 +81,13 @@ function visible(state: RunState, enemy: Enemy) {
 function emit(state: RunState, enemy: Enemy) {
   const boss = state.boss!;
   if (boss.attack === 'beam') {
-    state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: .9, warning: .15, active: .3, ttl: .45 });
-  } else {
-    const fan = boss.attack === 'fan', count = fan ? 5 : 3;
-    if (state.projectiles.length + count > BALANCE.maxProjectiles) return;
-    const speed = (fan ? 4.6 : 6.2) * difficultyScales('campaign', state.config.difficulty ?? 'standard', 1).shotSpeed;
-    const aim = fan ? Math.PI : Math.atan2(enemy.aimX - enemy.x, -enemy.s);
-    for (let i = 0; i < count; i++) {
-      const angle = aim + (i - (count - 1) / 2) * (fan ? Math.PI / 15 : .095);
-      state.projectiles.push({ id: state.nextId++, x: enemy.x, s: enemy.s,
-        previousX: enemy.x, previousS: enemy.s, vx: Math.sin(angle) * speed,
-        vs: Math.cos(angle) * speed, friendly: false, damage: 1, radius: .13, ttl: 7 });
-    }
+    state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: BOSS_BEAM.width, warning: BOSS_BEAM.warning,
+      active: BOSS_BEAM.active, ttl: BOSS_BEAM.warning + BOSS_BEAM.active });
+  } else if (boss.attack) {
+    const shots = bossShots(boss.attack, enemy.x, enemy.s, enemy.aimX, difficultyScales('campaign', state.config.difficulty ?? 'standard', 1).shotSpeed);
+    if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
+    for (const shot of shots) state.projectiles.push({ id: state.nextId++, x: shot.x, s: shot.s, previousX: shot.x, previousS: shot.s,
+      vx: shot.vx, vs: shot.vs, friendly: false, damage: 1, radius: shot.radius, ttl: SHOT_TTL });
   }
 }
 

@@ -12,7 +12,7 @@ The 9:16 fitted viewport, orthographic elevation around 55°, forward screen-up 
 
 ## 2. Lateral camera contract
 
-Use a 2.5-unit half-width dead zone around the camera center. While the ship stays inside it, camera x stays still. Beyond it, camera target x follows enough to keep the ship at the dead-zone edge, clamped to map bounds. Move toward that target at up to 14 units/s, slightly faster than the fastest proposed ship; tune for smooth motion without losing forward threat visibility. A tiny interpolation ease is presentation only; authoritative visibility follows the simulation camera.
+Use a 2.5-unit half-width dead zone around the camera center. While the ship stays inside it, camera x stays still. Beyond it, camera target x follows enough to keep the ship at the dead-zone edge, clamped to map bounds. Move toward that target at up to 17 units/s (raised from 14 on 14 October with the faster ship), slightly faster than the fastest ship; tune for smooth motion without losing forward threat visibility. A tiny interpolation ease is presentation only; authoritative visibility follows the simulation camera.
 
 Camera x is explicit fixed-step state driven by player world x, not a DOM scroll or renderer-only guess. Input still uses left/right screen halves, with the bottom-center special button owning its pointer. Cross-screen steering and camera movement must not invert controls.
 

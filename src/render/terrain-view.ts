@@ -1,8 +1,9 @@
 import * as THREE from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  KIT, KIT_KINDS, ROAD_STEP, SHARED_BOUNDS, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, terrainHeight,
-  type RoadPath, type TerrainSection,
+  KIT, KIT_KINDS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, terrainHeight,
+  type IndustryPiece, type RoadPath, type TerrainSection,
 } from '../world/terrain';
 import { GROUND_TILE, INFRA_NODES, createFallbackKit, type KitGeometries } from './terrain-kit';
 
@@ -17,6 +18,8 @@ interface SectionView {
   instanced: THREE.InstancedMesh[]; geometries: THREE.BufferGeometry[]; prepared: Map<string, Prepared>;
   /** Road centrelines touching this section, for haulers. */
   roads: Map<string, RoadPath>;
+  /** Shadow-only merged caster strips (layer SHADOW_CASTER_LAYER); rebuilt when kit geometry changes. */
+  casters: THREE.Mesh[];
 }
 interface Batch { mesh: THREE.InstancedMesh; capacity: number; triangles: number }
 export interface TerrainViewOptions {
@@ -36,6 +39,37 @@ export interface TerrainStats {
   kit: 'glb' | 'fallback'; infra: 'glb' | 'fallback'; shared: 'glb' | 'fallback';
 }
 const SHARED = new Set<string>(SHARED_NODES);
+/** Background haulers are drawn at 75% of the cargo node (1.05 × 1.75 footprint) so they read as traffic. */
+const HAULER_SCALE = 0.75, HAULER_HALF_WIDTH = 1.05 / 2 * HAULER_SCALE, HAULER_HALF_LENGTH = 1.75 / 2 * HAULER_SCALE;
+
+/** A render-only rectangle in world (x, s) whose scenery pieces are hidden, e.g. under a boss fortress. */
+export interface TerrainExclusion { minX: number; maxX: number; minS: number; maxS: number }
+/** Exclusion updates within this distance reuse the last compaction (the applied rectangle is grown by it). */
+const EXCLUSION_SLACK = 0.25;
+
+/** Lateral caster strips per section (each 9 units wide); the shadow camera frustum culls the rest. */
+const CASTER_STRIPS = 4;
+/**
+ * Only meaningful casters (formations, columns, landmarks, outpost machinery and tanks) put shadows into the
+ * map; rocks, pebbles, crystals, boulders, fallen columns, pipes, cargo and flat pads only receive.
+ */
+const CASTER_NODES = new Set<string>([
+  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
+  'infra_refinery', 'infra_drill_rig', 'infra_silo', 'infra_comm_dish', 'infra_relay', 'infra_habitat_0', 'infra_habitat_1',
+  'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal',
+]);
+
+const piecePosition = new THREE.Vector3(), pieceRotation = new THREE.Euler(), pieceQuaternion = new THREE.Quaternion(), pieceScale = new THREE.Vector3();
+/**
+ * Instance matrix of a shared-kit piece in section-local space (z = −(s − startS)): yaw, then pitch about
+ * local x, then roll about local z (Euler 'YXZ'), and a stretch along local y and z. Shared with the tests
+ * that check laid pipelines join up.
+ */
+export function industryMatrix(piece: IndustryPiece, startS: number, target = new THREE.Matrix4()): THREE.Matrix4 {
+  pieceRotation.set(piece.pitch, piece.rotation, piece.roll, 'YXZ');
+  return target.compose(piecePosition.set(piece.x, piece.y, -(piece.s - startS)), pieceQuaternion.setFromEuler(pieceRotation),
+    pieceScale.set(1, piece.scaleY, piece.scaleZ));
+}
 
 function tint(seed: number, x: number, s: number): number {
   let n = Math.imul(Math.round(x * 131) ^ seed, 0x27d4eb2d) ^ Math.imul(Math.round(s * 113), 0x165667b1);
@@ -63,6 +97,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), worldBox = new THREE.Box3(), offset = new THREE.Vector3();
   const stats: TerrainStats = { calls: 0, triangles: 0, instances: 0, haulers: 0, kit: kitSource, infra: infraSource, shared: sharedSource };
   let distance = 0, origin = 0, lastCameraX = NaN, lastDistance = NaN, lastViewX = 0, dirty = true;
+  /** Applied exclusion (grown by the slack), or null: hidden scenery under e.g. a boss fortress. */
+  let exclusion: TerrainExclusion | null = null, requested: TerrainExclusion | null = null;
 
   const nodeGeometry = (name: string) => kit.get(name) ?? infra.get(name) ?? shared.get(name);
   const nodeMaterial = (name: string) => name.startsWith('infra_') ? infraMaterial : SHARED.has(name) ? sharedMaterial : kitMaterial;
@@ -71,6 +107,8 @@ export function createTerrainView(options: TerrainViewOptions) {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, color.setRGB(1, 1, 1));
     mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; mesh.name = name;
+    // Instanced pieces take the sun's shadow; casting goes through the merged caster strips (one draw per strip).
+    mesh.castShadow = false; mesh.receiveShadow = true;
     pieces.add(mesh);
     return mesh;
   }
@@ -97,6 +135,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       // Same program variant as the static batches (instance colour present), so no compile hitch on first sight.
       for (let i = 0; i < 16; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri hauler ${name}`;
+      mesh.castShadow = false; mesh.receiveShadow = true;
       haulers.set(name, mesh); scene.add(mesh);
     }
     return mesh;
@@ -112,7 +151,89 @@ export function createTerrainView(options: TerrainViewOptions) {
     entry.mesh = mesh; entry.capacity = capacity;
   }
 
+  /* ------------------------------------------------------------ shadow casters (only the High tier renders them) */
+  /**
+   * Caster strips are shadow-only: they report a frustum hit only for the sun's shadow frustum (set by the
+   * renderer on High), so the main pass culls them and terrain shadows cost a few draws instead of one per node.
+   */
+  let casterFrustum: THREE.Frustum | null = null;
+  const casterMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  /** World-space rectangle (minX, maxX, minZ, maxZ) whose caster pieces collapse, e.g. under the boss fortress. */
+  const casterExclusion = { value: new THREE.Vector4(1, -1, 1, -1) };
+  const casterDepth = new THREE.MeshDepthMaterial();
+  casterDepth.onBeforeCompile = shader => {
+    shader.uniforms.casterExclusion = casterExclusion;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 anchor;\nuniform vec4 casterExclusion;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+  vec2 anchorWorld = ( modelMatrix * vec4( anchor.x, 0.0, anchor.y, 1.0 ) ).xz;
+  if ( anchorWorld.x > casterExclusion.x && anchorWorld.x < casterExclusion.y && anchorWorld.y > casterExclusion.z && anchorWorld.y < casterExclusion.w ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );`);
+  };
+  casterDepth.customProgramCacheKey = () => 'khepri-caster-depth';
+  /** Position-only, vertex-welded copies of caster nodes (flat-shaded kit triangles share corners). */
+  const proxies = new Map<string, { position: Float32Array; index: Uint32Array }>();
+  function proxy(name: string) {
+    let entry = proxies.get(name);
+    if (entry) return entry;
+    const source = nodeGeometry(name);
+    if (!source) return null;
+    const positions = new THREE.BufferGeometry(); positions.setAttribute('position', source.getAttribute('position'));
+    if (source.index) positions.setIndex(source.index);
+    const welded = mergeVertices(positions, 1e-4);
+    const count = welded.getAttribute('position').count;
+    const index = welded.index ? Uint32Array.from(welded.index.array as ArrayLike<number>) : Uint32Array.from({ length: count }, (_, i) => i);
+    entry = { position: Float32Array.from(welded.getAttribute('position').array as ArrayLike<number>), index };
+    welded.dispose(); proxies.set(name, entry);
+    return entry;
+  }
+  /** Merges the section's meaningful casters into a few static, shadow-only strips in section-local space. */
+  function buildCasters(view: SectionView) {
+    view.casters.forEach(mesh => { view.group.remove(mesh); mesh.geometry.dispose(); }); view.casters = [];
+    const strips = Array.from({ length: CASTER_STRIPS }, () => ({ vertices: 0, indices: 0, items: [] as { name: string; data: Prepared; i: number }[] }));
+    for (const [name, data] of view.prepared) {
+      if (!CASTER_NODES.has(name)) continue;
+      const shape = proxy(name);
+      if (!shape) continue;
+      for (let i = 0; i < data.count; i++) {
+        const x = (data.boxes[i * 6] + data.boxes[i * 6 + 3]) / 2;
+        const strip = strips[Math.min(CASTER_STRIPS - 1, Math.max(0, Math.floor((x + VIEW.worldWidth / 2) / (VIEW.worldWidth / CASTER_STRIPS))))];
+        strip.items.push({ name, data, i }); strip.vertices += shape.position.length / 3; strip.indices += shape.index.length;
+      }
+    }
+    const matrix = new THREE.Matrix4(), point = new THREE.Vector3();
+    for (const strip of strips) {
+      if (!strip.items.length) continue;
+      const position = new Float32Array(strip.vertices * 3), anchor = new Float32Array(strip.vertices * 2), index = new Uint32Array(strip.indices);
+      let v = 0, k = 0;
+      for (const { name, data, i } of strip.items) {
+        const shape = proxy(name)!, base = v;
+        matrix.fromArray(data.matrices, i * 16);
+        const ax = (data.boxes[i * 6] + data.boxes[i * 6 + 3]) / 2, az = (data.boxes[i * 6 + 2] + data.boxes[i * 6 + 5]) / 2;
+        for (let j = 0; j < shape.position.length; j += 3, v++) {
+          point.set(shape.position[j], shape.position[j + 1], shape.position[j + 2]).applyMatrix4(matrix);
+          position[v * 3] = point.x; position[v * 3 + 1] = point.y; position[v * 3 + 2] = point.z;
+          anchor[v * 2] = ax; anchor[v * 2 + 1] = az;
+        }
+        for (let j = 0; j < shape.index.length; j++) index[k++] = base + shape.index[j];
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(position, 3)); geometry.setAttribute('anchor', new THREE.BufferAttribute(anchor, 2));
+      geometry.setIndex(new THREE.BufferAttribute(index, 1)); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geometry, casterMaterial); mesh.name = `Khepri shadow casters ${view.index}`;
+      mesh.castShadow = true; mesh.receiveShadow = false; mesh.customDepthMaterial = casterDepth;
+      mesh.intersectsFrustum = frustum => frustum === casterFrustum && frustum.intersectsObject(mesh);
+      view.group.add(mesh); view.casters.push(mesh);
+    }
+  }
+  /** Caster proxies follow the loaded kit: rebuild every live (and prebuilt) section once when nodes change. */
+  function refreshCasters() {
+    proxies.clear();
+    for (const view of views.values()) buildCasters(view);
+    if (prebuilt?.view) buildCasters(prebuilt.view);
+  }
+
   /** Converts a section's kit instances and district props into per-node, section-local instance arrays. */
+
   function prepare(section: TerrainSection): Map<string, Prepared> {
     const lists = new Map<string, { matrix: THREE.Matrix4; tone: THREE.Color; box: THREE.Box3; cosmetic: boolean }[]>();
     const push = (name: string, matrix: THREE.Matrix4, tone: THREE.Color, box: THREE.Box3, cosmetic: boolean) => {
@@ -139,13 +260,11 @@ export function createTerrainView(options: TerrainViewOptions) {
       push(prop.node, transform.matrix.clone(), new THREE.Color(1, 1, 1), box, false);
     }
     for (const piece of section.industry) {
-      const localS = piece.s - section.startS, bounds = SHARED_BOUNDS[piece.node], half = Math.max(bounds.halfX, bounds.halfZ) + 0.1;
-      // Pipes pitch about their local x to follow the ground; stretching by 1/cos keeps joints closed.
-      transform.position.set(piece.x, piece.y, -localS); transform.rotation.set(piece.pitch, piece.rotation, 0, 'YXZ');
-      transform.scale.set(1, piece.scaleY, 1 / Math.cos(piece.pitch)); transform.updateMatrix(); transform.rotation.order = 'XYZ';
-      const box = new THREE.Box3(new THREE.Vector3(piece.x - half, piece.y - 0.1, -localS - half),
-        new THREE.Vector3(piece.x + half, piece.y + bounds.height * piece.scaleY, -localS + half));
-      push(piece.node, transform.matrix.clone(), new THREE.Color(1, 1, 1), box, false);
+      // Pipes are posed by generation (pitched runs, vertical risers, stretched supports); boxes cover the rotated piece.
+      const bounds = pieceBounds(piece), margin = 0.05;
+      const box = new THREE.Box3(new THREE.Vector3(bounds.minX - margin, bounds.minY - margin, -(bounds.maxS - section.startS) - margin),
+        new THREE.Vector3(bounds.maxX + margin, bounds.maxY + margin, -(bounds.minS - section.startS) + margin));
+      push(piece.node, industryMatrix(piece, section.startS), new THREE.Color(1, 1, 1), box, false);
     }
     const prepared = new Map<string, Prepared>();
     for (const [name, list] of lists) {
@@ -192,7 +311,8 @@ export function createTerrainView(options: TerrainViewOptions) {
         box.min.y = Math.min(box.min.y, y); box.max.y = Math.max(box.max.y, y);
       }
       geometry.boundingBox = box.clone(); geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
-      const ground = new THREE.Mesh(geometry, groundMaterial); ground.name = `Khepri ground ${section.index}:${b}`;
+      // Ground takes shadows from scenery (its own relief shading is baked); it does not cast.
+      const ground = new THREE.Mesh(geometry, groundMaterial); ground.name = `Khepri ground ${section.index}:${b}`; ground.receiveShadow = true;
       const holder = new THREE.Group(); holder.add(ground); view.group.add(holder);
       view.geometries.push(geometry);
       const cullable: Cullable = { object: holder, box, triangles: strip.count / 3 };
@@ -216,7 +336,9 @@ export function createTerrainView(options: TerrainViewOptions) {
   /** Resumable view build: instance preparation, each ground strip, and the road mesh are separate steps. */
   function* buildSteps(section: TerrainSection): Generator<void, SectionView, void> {
     const group = new THREE.Group(); group.name = `Khepri procedural section ${section.index}`;
-    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map() };
+    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [] };
+    yield;
+    buildCasters(view);
     yield;
     yield* buildGround(section, view);
     buildRoads(section, view);
@@ -249,13 +371,14 @@ export function createTerrainView(options: TerrainViewOptions) {
     geometry.setAttribute('shade', new THREE.BufferAttribute(roads.shade, 1));
     geometry.setIndex(new THREE.BufferAttribute(roads.indices, 1));
     geometry.computeVertexNormals(); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, roadMaterial); mesh.name = `Khepri roads ${section.index}`; mesh.renderOrder = 1;
+    const mesh = new THREE.Mesh(geometry, roadMaterial); mesh.name = `Khepri roads ${section.index}`; mesh.renderOrder = 1; mesh.receiveShadow = true;
     const holder = new THREE.Group(); holder.add(mesh); view.group.add(holder); view.geometries.push(geometry);
     view.cullables.push({ object: holder, box: geometry.boundingBox!.clone().expandByScalar(0.1), triangles: roads.indices.length / 3 });
     for (const road of section.roadPaths) view.roads.set(road.id, road);
   }
   function disposeView(view: SectionView) {
     scene.remove(view.group);
+    view.casters.forEach(mesh => mesh.geometry.dispose()); view.casters = [];
     view.instanced.forEach(mesh => mesh.dispose());
     view.geometries.forEach(geometry => geometry.dispose());
     dirty = true;
@@ -269,6 +392,8 @@ export function createTerrainView(options: TerrainViewOptions) {
     let instances = 0;
     for (const view of views.values()) {
       const zShift = distance - view.startS, matrixShift = origin - view.startS;
+      // Exclusion in this section's local z (z = −(s − startS)); null costs one check per instance.
+      const hide = exclusion && { minX: exclusion.minX, maxX: exclusion.maxX, minZ: view.startS - exclusion.maxS, maxZ: view.startS - exclusion.minS };
       for (const [name, data] of view.prepared) {
         const entry = batch(name);
         if (!entry) continue;
@@ -278,6 +403,7 @@ export function createTerrainView(options: TerrainViewOptions) {
           const b = i * 6;
           // Cheap lateral reject first: the view is 12 wide in a 36-wide world, so most pieces fail here.
           if (data.boxes[b + 3] < viewLeft || data.boxes[b] > viewRight) continue;
+          if (hide && data.boxes[b + 3] > hide.minX && data.boxes[b] < hide.maxX && data.boxes[b + 5] > hide.minZ && data.boxes[b + 2] < hide.maxZ) continue;
           worldBox.min.set(data.boxes[b] - CULL_MARGIN, data.boxes[b + 1], data.boxes[b + 2] + zShift - CULL_MARGIN);
           worldBox.max.set(data.boxes[b + 3] + CULL_MARGIN, data.boxes[b + 4], data.boxes[b + 5] + zShift + CULL_MARGIN);
           if (!frustum.intersectsBox(worldBox)) continue;
@@ -347,6 +473,21 @@ export function createTerrainView(options: TerrainViewOptions) {
       }
     },
     get streamStats() { return stream.stats; },
+    /** The directional light's shadow frustum: caster strips draw only in that pass (null: never). */
+    setShadowFrustum(frustum: THREE.Frustum | null) { casterFrustum = frustum; },
+    /**
+     * Render-only exclusion in world (x, s): kit, infrastructure, shared and pipeline instances whose boxes
+     * overlap it are hidden while it is set (ground and roads stay); haulers skip it too. Generation is
+     * untouched. Small moves reuse the last compaction; null clears it.
+     */
+    setExclusion(rect: TerrainExclusion | null) {
+      if (!rect) { if (exclusion) { exclusion = null; requested = null; dirty = true; } return; }
+      if (requested && exclusion && Math.abs(rect.minX - requested.minX) <= EXCLUSION_SLACK && Math.abs(rect.maxX - requested.maxX) <= EXCLUSION_SLACK
+        && Math.abs(rect.minS - requested.minS) <= EXCLUSION_SLACK && Math.abs(rect.maxS - requested.maxS) <= EXCLUSION_SLACK) return;
+      requested = { ...rect };
+      exclusion = { minX: rect.minX - EXCLUSION_SLACK, maxX: rect.maxX + EXCLUSION_SLACK, minS: rect.minS - EXCLUSION_SLACK, maxS: rect.maxS + EXCLUSION_SLACK };
+      dirty = true;
+    },
     /** Culls ground strips by exact boxes and recompacts piece instances when the view moved past the margin. */
     cull(camera: THREE.Camera) {
       viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -355,6 +496,9 @@ export function createTerrainView(options: TerrainViewOptions) {
         lastViewX = camera.position.x; compact(); dirty = false; lastCameraX = camera.position.x; lastDistance = distance;
       }
       pieces.position.z = distance - origin;
+      // Caster exclusion in world xz (z = distance − s); an inverted rectangle disables it.
+      if (exclusion) casterExclusion.value.set(exclusion.minX, exclusion.maxX, distance - exclusion.maxS, distance - exclusion.minS);
+      else casterExclusion.value.set(1, -1, 1, -1);
       let calls = 0, triangles = 0;
       for (const view of views.values()) for (const cullable of view.cullables) {
         worldBox.copy(cullable.box).translate(offset.set(0, 0, view.group.position.z));
@@ -377,6 +521,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (const [name, geometry] of loaded) kit.set(name, geometry);
       if (loaded.size) kitSource = 'glb';
       for (const name of [...batches.keys()]) batch(name);
+      refreshCasters();
       for (const [name, geometry] of previous) if (kit.get(name) !== geometry) geometry.dispose();
       dirty = true;
     },
@@ -387,6 +532,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (const [name, geometry] of loaded) infra.set(name, geometry);
       if (loaded.size) infraSource = 'glb';
       for (const name of [...batches.keys()]) batch(name);
+      refreshCasters();
       for (const [name, geometry] of previous) if (infra.get(name) !== geometry) geometry.dispose();
       dirty = true;
     },
@@ -397,6 +543,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (const [name, geometry] of loaded) shared.set(name, geometry);
       if (loaded.size) sharedSource = 'glb';
       for (const name of [...batches.keys()]) batch(name);
+      refreshCasters();
       for (const [name, geometry] of previous) if (shared.get(name) !== geometry) geometry.dispose();
       dirty = true;
     },
@@ -421,13 +568,31 @@ export function createTerrainView(options: TerrainViewOptions) {
           const i = Math.min(road.x.length - 2, Math.floor(along / ROAD_STEP)), f = along / ROAD_STEP - i;
           const x = road.x[i] + (road.x[i + 1] - road.x[i]) * f, s = road.s[i] + (road.s[i + 1] - road.s[i]) * f;
           if (Math.abs(x - cameraX) > 7.5 || s - distance < -9 || s - distance > 30) continue;
+          if (exclusion && x > exclusion.minX && x < exclusion.maxX && s > exclusion.minS && s < exclusion.maxS) continue;
           const y = road.y[i] + (road.y[i + 1] - road.y[i]) * f;
           const dx = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), ds = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1);
           const n = Math.floor(tint(key, 9, k) * 3), mesh = hauler(nodes[n]);
           if (!mesh || used[n] >= mesh.instanceMatrix.count) continue;
-          // Cabs face −z: yaw so local −z points along the direction of travel.
-          transform.position.set(x, y + 0.02, distance - s); transform.rotation.set(0, Math.atan2(-dx, ds), 0); transform.scale.set(1, 1, 1);
-          transform.updateMatrix(); mesh.setMatrixAt(used[n]++, transform.matrix); count++;
+          // Cabs face −z: yaw so local −z points along the direction of travel. Haulers are background traffic,
+          // drawn smaller than the cargo node so they never read as ground enemies, and seated on the ground under
+          // all four corners: pitch and roll follow the slope, and the body lifts until no corner sinks.
+          const yaw = Math.atan2(-dx, ds), fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+          const ground = (a: number, b: number) => terrainHeight(seed ?? 0, x + fx * HAULER_HALF_LENGTH * a + rx * HAULER_HALF_WIDTH * b,
+            s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b));
+          const frontLeft = ground(1, -1), frontRight = ground(1, 1), backLeft = ground(-1, -1), backRight = ground(-1, 1);
+          const rise = (frontLeft + frontRight - backLeft - backRight) / 2, bank = (frontRight + backRight - frontLeft - backLeft) / 2;
+          const pitch = Math.atan2(rise, 2 * HAULER_HALF_LENGTH), roll = Math.atan2(bank, 2 * HAULER_HALF_WIDTH);
+          // Too steep to seat cleanly (a cut road over a ridge): skip this frame rather than clip into the slope.
+          if (Math.abs(pitch) > 0.45 || Math.abs(roll) > 0.35) continue;
+          const base = Math.max(y, (frontLeft + frontRight + backLeft + backRight) / 4);
+          let lift = 0;
+          for (const [a, b, h] of [[1, -1, frontLeft], [1, 1, frontRight], [-1, -1, backLeft], [-1, 1, backRight]]) {
+            lift = Math.max(lift, h - (base + a * rise / 2 + b * bank / 2));
+          }
+          if (lift > 0.3) continue;
+          transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, yaw, roll, 'YXZ');
+          transform.scale.setScalar(HAULER_SCALE); transform.updateMatrix(); transform.rotation.order = 'XYZ';
+          mesh.setMatrixAt(used[n]++, transform.matrix); count++;
         }
       }
       haulers.forEach((mesh, name) => {
@@ -448,7 +613,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       batches.forEach(entry => entry.mesh.dispose()); batches.clear(); scene.remove(pieces);
       haulers.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); haulers.clear();
       kit.forEach(geometry => geometry.dispose()); infra.forEach(geometry => geometry.dispose()); shared.forEach(geometry => geometry.dispose());
-      edgeGeometry.dispose();
+      edgeGeometry.dispose(); casterMaterial.dispose(); casterDepth.dispose(); proxies.clear();
     },
     /** Rebuilds live sections, e.g. after a layout-affecting change; kept for completeness. */
     rebuild: rebuildAll,

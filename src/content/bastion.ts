@@ -1,6 +1,8 @@
 /** Authored vertical-slice encounter. No world-generation or campaign-profile input. */
 export const BASTION = {
   arrivesAt: 115,
+  /** No approach cue is admitted at or after this time: authored relief before the fortress. */
+  approachEndsAt: 103,
   arrivalDuration: 3,
   batteryHp: 400,
   coreHp: 1600,

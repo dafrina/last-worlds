@@ -42,4 +42,14 @@ Everything stays ≤ 2.0 tall, below every planet's scenery cap. Style: credible
 
 ## 4. Runtime use
 
-The planet world generator lays pipelines along valley floors and between outposts. Straight segments tile, elbows make 90° jogs, tees branch into tank farms, and supports go every 2 units on terrain. Pipelines never cut through cliffs or cross calm combat lanes needlessly. Tank farms cluster at industrial districts. All of it is scenery: never collision, never targets, and generated from the terrain seed only. A missing kit falls back cleanly.
+The planet world generator lays pipelines between outposts and off the map. They leave and join at any cell on an outpost's rim, avoid its modules, and stay out of the calm centre lane. Tank farms cluster at industrial districts. All of it is scenery: never collision, never targets, and generated from the terrain seed only. A missing kit falls back cleanly.
+
+As built (14 October), the path search on the 2-unit grid can use:
+- straights pitched up to slope 0.8 (about 39°);
+- lifted runs over steps up to 3.2;
+- vertical risers up cliff steps, made from the shared elbow rolled into the vertical plane, with vertical straights;
+- level trestles across canyons 1–3 cells wide.
+
+Supports are `pipe_support` frames, stacked into lattice towers under trestles and beside risers. On mesa tops at the scenery cap, a small line rests on the ground on short stands.
+
+Every piece's centreline passes through its joints. Nothing cuts into terrain (sampled every 5 cm), floats, or exceeds the cap. All 132 test-seed pipeline edges connect end to end (seeds 11/93/8831/4242). A dedicated tall-support or bracket node would look better than stacked frames; that is a candidate for the next kit revision.

@@ -2,7 +2,10 @@ import type { GameInput, InputFrame } from '../shared/contracts';
 
 export type PointerRole = 'left' | 'right' | 'special';
 
-/** Input ownership is fixed at pointer-down, even when a finger crosses the screen. */
+/**
+ * Pointer roles are assigned at pointer-down. A held steering finger that slides across the middle switches
+ * direction (user decision, 14 October); the special button's pointer never steers.
+ */
 export function createControlState() {
   const pointers = new Map<number, PointerRole>();
   const keys = new Set<string>();
@@ -19,6 +22,12 @@ export function createControlState() {
       if (role === 'special') specialPressed = true;
     },
     pointerUp(id: number) { pointers.delete(id); },
+    /** A held steering pointer now over the other half steers that way; special pointers keep their role. */
+    pointerMove(id: number, side: 'left' | 'right') {
+      const role = pointers.get(id);
+      if (role === 'left' || role === 'right') pointers.set(id, side);
+    },
+    roleOf(id: number): PointerRole | undefined { return pointers.get(id); },
     keyDown(code: string, repeat = false) {
       if (!acceptedKeys.has(code)) return false;
       if (keys.has(code) || repeat) return true;
@@ -72,6 +81,15 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
     state.pointerDown(event.pointerId, event.clientX < rect.left + rect.width / 2 ? 'left' : 'right');
     capture(surface, event.pointerId);
     surface.focus({ preventScroll: true });
+  }, options);
+
+  // Crossing the middle switches a held steering finger; a small dead band stops flicker on the centre line.
+  surface.addEventListener('pointermove', (event) => {
+    const role = state.roleOf(event.pointerId);
+    if (!active() || (role !== 'left' && role !== 'right')) return;
+    const rect = surface.getBoundingClientRect(), centre = rect.left + rect.width / 2, band = rect.width * .03;
+    if (role === 'left' && event.clientX > centre + band) state.pointerMove(event.pointerId, 'right');
+    else if (role === 'right' && event.clientX < centre - band) state.pointerMove(event.pointerId, 'left');
   }, options);
 
   specialButton.addEventListener('pointerdown', (event) => {

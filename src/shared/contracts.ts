@@ -20,11 +20,13 @@ export interface Player {
   specialCharge: number; invulnerableUntil: number; lastHitAt: number;
   weapon: WeaponId; power: number;
 }
+/** Authored squadron membership. Motion and fire timing derive from the content template. */
+export interface FormationMember { template: string; slot: number; anchorX: number; mirror: 1 | -1 }
 export interface Enemy {
   id: number; kind: EnemyKind; x: number; s: number; originX: number;
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
   warning: number; aimX: number; groundHeight: number;
-  bossPart?: BossPart; damageable?: boolean;
+  bossPart?: BossPart; damageable?: boolean; formation?: FormationMember;
 }
 export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;
@@ -43,7 +45,7 @@ export interface RunState {
   lootRng: number; chargeKillTimes: number[]; message: string; messageUntil: number;
   boss: BossState | null;
 }
-export const VIEW = { width: 12, worldWidth: 36, sectionLength: 36, elevation: 55, flightHeight: 3, minS: -6.25, maxS: 19.8, playerRadius: 0.25, scrollSpeed: 4 } as const;
+export const VIEW = { width: 12, worldWidth: 36, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.25, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;
 export const EMPTY_INPUT: InputFrame = { horizontal: 0, specialPressed: false, pausePressed: false };
 export interface GameRenderer {

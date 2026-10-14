@@ -1,11 +1,13 @@
 // Fixed-seed look-dev captures of the running dev server for art review (not a test).
-// Usage: node tools/lookdev.mjs [label] [seed]   → lookdev/<label>-seed<seed>-{center,left,right}.png
+// Usage: node tools/lookdev.mjs [label] [seed] [query]   → lookdev/<label>-seed<seed>-{center,left,right}.png
+// query is appended to the URL, e.g. 'camera=perspective'.
 // Requires `npm run dev` on http://127.0.0.1:4173. Output goes to the git-ignored lookdev/ folder.
 import { mkdirSync } from 'node:fs';
 import { chromium } from '@playwright/test';
 
 const label = process.argv[2] ?? 'capture';
 const seed = Number(process.argv[3] ?? 8831) >>> 0;
+const query = process.argv[4] ? `?${process.argv[4]}` : '';
 mkdirSync('lookdev', { recursive: true });
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -17,7 +19,7 @@ await page.addInitScript(fixed => {
   const original = crypto.getRandomValues.bind(crypto);
   crypto.getRandomValues = array => (array instanceof Uint32Array && array.length === 1 ? (array[0] = fixed, array) : original(array));
 }, seed);
-await page.goto('http://127.0.0.1:4173/');
+await page.goto(`http://127.0.0.1:4173/${query}`);
 await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
 const stats = () => page.locator('canvas').getAttribute('data-render-stats');
 const shot = async name => {

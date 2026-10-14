@@ -25,6 +25,25 @@ function unlockAudio() {
   } catch { /* Sound is optional; blocked audio never interrupts the flight. */ }
 }
 
+// Bastion-9 audio cues: phase changes and module kills (presentation only; reads state, never writes it).
+let bossKey = '';
+function bossCues(state: RunState) {
+  const boss = state.boss;
+  const parts = state.enemies.filter(enemy => enemy.bossPart).map(enemy => `${enemy.bossPart}${enemy.hp > 0 ? 1 : 0}`).sort().join();
+  const key = boss ? `${boss.startedAt}|${boss.phase}|${parts}` : '';
+  if (key === bossKey) return;
+  const [previousStart, previousPhase, previousParts = ''] = bossKey.split('|');
+  bossKey = key;
+  if (!boss) return;
+  if (previousStart !== String(boss.startedAt)) { tone(55, 1.4, 0.07); tone(82, 1.1, 0.04); return; }
+  if (boss.phase !== previousPhase) {
+    if (boss.phase === 'batteries') tone(330, 0.25, 0.04);
+    if (boss.phase === 'core') { tone(260, 0.5, 0.05); tone(520, 0.35, 0.03); }
+    if (boss.phase === 'overload') tone(180, 0.7, 0.05);
+    if (boss.phase === 'destroyed') { tone(48, 2.2, 0.09); tone(70, 1.6, 0.06); }
+  } else if (parts !== previousParts) tone(64, 0.6, 0.08);
+}
+
 function tone(frequency: number, duration: number, volume: number) {
   const context = audioContext;
   if (muted || !context || context.state !== 'running') return;
@@ -143,6 +162,7 @@ function frame(now: number) {
       if (effect.kind === 'pickup') tone(740, 0.09, 0.025);
       lastSoundAt = now;
     }
+    bossCues(run);
   }
   renderer?.render(run ?? preview, accumulator / STEP);
   ui.update(run);

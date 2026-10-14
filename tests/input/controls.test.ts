@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createControlState } from '../../src/input/controls';
 
 describe('pointer and keyboard ownership', () => {
-  it('keeps the initial steering side until that pointer is released', () => {
+  it('ignores a repeated pointer-down for a pointer that is already held', () => {
     const input = createControlState();
     input.pointerDown(7, 'left');
     input.pointerDown(7, 'right');
@@ -10,6 +10,29 @@ describe('pointer and keyboard ownership', () => {
     input.pointerUp(7);
     input.pointerDown(7, 'right');
     expect(input.sample().horizontal).toBe(1);
+  });
+
+  it('switches direction when a held steering finger slides across the middle', () => {
+    const input = createControlState();
+    input.pointerDown(3, 'left');
+    expect(input.sample().horizontal).toBe(-1);
+    input.pointerMove(3, 'right');
+    expect(input.sample().horizontal).toBe(1);
+    input.pointerMove(3, 'left');
+    expect(input.sample().horizontal).toBe(-1);
+    // A second finger held on the other side still neutralises, and lifting it restores the switched finger.
+    input.pointerDown(4, 'right');
+    expect(input.sample().horizontal).toBe(0);
+    input.pointerUp(4);
+    expect(input.sample().horizontal).toBe(-1);
+  });
+
+  it('never lets the special button pointer steer, even when it moves', () => {
+    const input = createControlState();
+    input.pointerDown(9, 'special');
+    input.pointerMove(9, 'left');
+    expect(input.roleOf(9)).toBe('special');
+    expect(input.sample().horizontal).toBe(0);
   });
 
   it('allows special while steering and makes opposing fingers neutral', () => {
