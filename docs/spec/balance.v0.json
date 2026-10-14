@@ -1,0 +1,407 @@
+{
+  "schemaVersion": 2,
+  "designVersion": "0.2",
+  "status": "untested-design-starting-values",
+  "world": {
+    "simulationHz": 60,
+    "viewportAspect": [
+      9,
+      16
+    ],
+    "cameraElevationDegrees": 55,
+    "cameraYawDegrees": 0,
+    "flightHeight": 3,
+    "terrainScrollSpeed": 4,
+    "playerScreenHeightFraction": 0.76,
+    "viewportWidth": 12,
+    "mapSectionWidth": 36,
+    "mapSectionLength": 36,
+    "cameraDeadZoneHalfWidth": 2.5,
+    "cameraFollowMaxSpeed": 14
+  },
+  "player": {
+    "radius": 0.25,
+    "damageInvulnerabilitySeconds": 0.65,
+    "respawnInvulnerabilitySeconds": 2,
+    "respawnSpecialChargeFraction": 0.5,
+    "shieldBreakCannotConsumeLife": true,
+    "unshieldedAcceptedHitLifeCost": 1
+  },
+  "mainWeapons": [
+    {
+      "id": "pulse",
+      "unlockCredits": 0,
+      "damagePerProjectile": 6,
+      "projectilesPerVolley": 2,
+      "volleysPerSecond": 8,
+      "projectileSpeed": 30,
+      "range": 22,
+      "acquisitionHalfWidth": 0.55
+    },
+    {
+      "id": "scatter",
+      "unlockCredits": 250,
+      "damagePerProjectile": 5,
+      "projectilesPerVolley": 5,
+      "volleysPerSecond": 3,
+      "projectileSpeed": 26,
+      "range": 18,
+      "pelletAnglesDegrees": [
+        -12,
+        -6,
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "id": "rail",
+      "unlockCredits": 450,
+      "damagePerProjectile": 72,
+      "projectilesPerVolley": 1,
+      "volleysPerSecond": 1.5,
+      "range": 24,
+      "acquisitionHalfWidth": 0.35,
+      "totalTargetLimit": 3,
+      "damageRetentionPerNextTarget": 0.7,
+      "resolution": "instant-trace"
+    },
+    {
+      "id": "arc",
+      "unlockCredits": 450,
+      "damagePerProjectile": 18,
+      "projectilesPerVolley": 1,
+      "volleysPerSecond": 4,
+      "range": 17,
+      "acquisitionHalfWidth": 0.6,
+      "chainJumps": 1,
+      "chainRange": 2.4,
+      "damageRetentionPerJump": 0.5,
+      "resolution": "instant-trace-and-chain"
+    }
+  ],
+  "specialWeapons": [
+    {
+      "id": "shockwave",
+      "unlockCredits": 0,
+      "damagePerTarget": 180,
+      "invulnerabilitySeconds": 1,
+      "clearStandardHostileProjectiles": true,
+      "fullRechargeSeconds": 45
+    },
+    {
+      "id": "missile_rack",
+      "unlockCredits": 300,
+      "missileCount": 8,
+      "damagePerMissile": 40,
+      "fullRechargeSeconds": 35
+    },
+    {
+      "id": "siege_lance",
+      "unlockCredits": 400,
+      "durationSeconds": 0.8,
+      "damagePerSecond": 450,
+      "width": 0.9,
+      "fullRechargeSeconds": 40
+    }
+  ],
+  "enemies": [
+    {
+      "id": "dart",
+      "hp": 45,
+      "rewardClass": "light",
+      "threatCost": 1,
+      "scope": "slice"
+    },
+    {
+      "id": "weaver",
+      "hp": 65,
+      "rewardClass": "light",
+      "threatCost": 2,
+      "scope": "slice"
+    },
+    {
+      "id": "skirmisher",
+      "hp": 80,
+      "rewardClass": "medium",
+      "threatCost": 2,
+      "scope": "mvp"
+    },
+    {
+      "id": "bomber",
+      "hp": 150,
+      "rewardClass": "heavy",
+      "threatCost": 3,
+      "scope": "mvp"
+    },
+    {
+      "id": "bulwark",
+      "hp": 220,
+      "rewardClass": "heavy",
+      "threatCost": 4,
+      "scope": "full"
+    },
+    {
+      "id": "lancer",
+      "hp": 100,
+      "rewardClass": "medium",
+      "threatCost": 3,
+      "scope": "full"
+    },
+    {
+      "id": "spike_battery",
+      "hp": 90,
+      "rewardClass": "turret",
+      "threatCost": 2,
+      "scope": "slice"
+    },
+    {
+      "id": "crawler",
+      "hp": 160,
+      "rewardClass": "heavy",
+      "threatCost": 3,
+      "scope": "slice"
+    }
+  ],
+  "enemyDamage": {
+    "standardShieldChargeCost": 1,
+    "heavyShieldChargeCost": 2,
+    "airframeShieldChargeCost": 2
+  },
+  "pickups": {
+    "shieldCharges": 1,
+    "shieldChancePerEligibleKill": 0.18,
+    "shieldSpawnPitySeconds": 25,
+    "collectRadius": 0.65,
+    "shieldAndCreditMagnetRadius": 1.6,
+    "driftSpeed": 4,
+    "fullShieldCampaignConversionCredits": 5,
+    "fullShieldEndlessConversionScore": 100,
+    "boundaryAutoCollect": "revealed-ordinary-pickups-in-current-viewport-only"
+  },
+  "campaign": {
+    "mainRankMax": 3,
+    "mainDamageAdditiveMultiplierPerRank": 0.08,
+    "mainRankPrices": [
+      150,
+      300,
+      500
+    ],
+    "creditsByRewardClass": {
+      "light": 4,
+      "medium": 8,
+      "heavy": 16,
+      "turret": 10
+    },
+    "bossCompletionCredits": 60,
+    "missionCompletionCredits": 80,
+    "firstClearCredits": 150,
+    "failureCollectedCreditFraction": 0.5,
+    "failureRounding": "floor",
+    "weaponDrops": false,
+    "lifeDrops": false,
+    "equipmentSlots": [
+      "main",
+      "special",
+      "shieldTech",
+      "reactorTech"
+    ],
+    "defaultDifficulty": "standard",
+    "difficulties": [
+      {
+        "id": "relaxed",
+        "startingTotalLives": 5,
+        "enemyHpMultiplier": 0.85,
+        "hostileShotSpeedMultiplier": 0.85,
+        "warningTimeAddSeconds": 0.25,
+        "repeatableCreditMultiplier": 0.85
+      },
+      {
+        "id": "standard",
+        "startingTotalLives": 3,
+        "enemyHpMultiplier": 1,
+        "hostileShotSpeedMultiplier": 1,
+        "warningTimeAddSeconds": 0,
+        "repeatableCreditMultiplier": 1
+      },
+      {
+        "id": "veteran",
+        "startingTotalLives": 3,
+        "enemyHpMultiplier": 1.2,
+        "hostileShotSpeedMultiplier": 1.15,
+        "warningTimeAddSeconds": 0,
+        "repeatableCreditMultiplier": 1.2
+      }
+    ],
+    "firstClearScope": "mission-across-all-difficulties",
+    "specialDrops": false
+  },
+  "endless": {
+    "startingTotalLives": 3,
+    "maximumRemainingTotalLives": 5,
+    "sectorCombatSeconds": 90,
+    "bossEverySectors": 3,
+    "bossExtraSecondsLimit": 60,
+    "startingPowerPips": 0,
+    "maximumPowerPips": 4,
+    "powerTierDamageMultipliers": [
+      1,
+      1.15,
+      1.35,
+      1.55,
+      1.8
+    ],
+    "deathPowerPipLoss": 1,
+    "respawnInvulnerabilitySeconds": 2,
+    "firstPowerCellBySeconds": 20,
+    "firstWeaponOpportunityBySeconds": 30,
+    "extraLifeScoreMilestones": [
+      50000,
+      150000
+    ],
+    "lifeCapConversionScore": 2000,
+    "powerCapConversionScore": 1000,
+    "salvagePickupGroupScore": 50,
+    "healthScalePerSector": 0.06,
+    "healthScaleCap": 1.6,
+    "bulletSpeedScalePerSector": 0.025,
+    "bulletSpeedScaleCap": 1.25,
+    "threatBudgetStart": 8,
+    "threatBudgetAddPerSector": 2,
+    "threatBudgetCap": 24,
+    "respawnSpecialChargeFraction": 0.5,
+    "starter": {
+      "mainWeaponId": "pulse",
+      "mainRank": 0,
+      "specialWeaponId": "shockwave",
+      "shieldTechId": "standard_array",
+      "reactorTechId": "balanced_drive",
+      "appearanceId": "scrapper"
+    },
+    "campaignProgressAccess": false,
+    "sideMissionProgress": false
+  },
+  "score": {
+    "baseByRewardClass": {
+      "light": 100,
+      "medium": 200,
+      "heavy": 400,
+      "turret": 250,
+      "boss": 5000
+    },
+    "killsPerMultiplierStep": 10,
+    "maximumMultiplier": 5,
+    "comboDecayBeginsAfterSeconds": 6,
+    "comboDecayIntervalSeconds": 2,
+    "comboDecayKillsPerInterval": 10
+  },
+  "fairness": {
+    "warningMinimumSeconds": 0.65,
+    "beamWarningMinimumSeconds": 0.9,
+    "aimLockToImpactMinimumSeconds": 0.3,
+    "initialMinimumClearGap": 1.4,
+    "comfortMarginPerSide": 0.15,
+    "directorCandidateAttemptsMax": 8
+  },
+  "lowTierBudgets": {
+    "ordinaryEnemies": 24,
+    "hostileProjectiles": 300,
+    "friendlyProjectiles": 220,
+    "pickupGroups": 30,
+    "cosmeticParticles": 300,
+    "drawCalls": 100,
+    "visibleTriangles": 180000
+  },
+  "specialCharge": {
+    "startFraction": 1,
+    "activationCostFraction": 1,
+    "mainKillFraction": 0.03,
+    "specialKillFraction": 0,
+    "mainKillGainRollingSecondCap": 0.09,
+    "inputDebounceSeconds": 0.5
+  },
+  "shieldTechs": [
+    {
+      "id": "standard_array",
+      "unlockCredits": 0,
+      "charges": 3,
+      "rechargeDelaySeconds": 3,
+      "rechargeSecondsPerCharge": 3
+    },
+    {
+      "id": "bulwark_array",
+      "unlockCredits": 250,
+      "charges": 4,
+      "rechargeDelaySeconds": 4,
+      "rechargeSecondsPerCharge": 4
+    },
+    {
+      "id": "flux_array",
+      "unlockCredits": 250,
+      "charges": 2,
+      "rechargeDelaySeconds": 2,
+      "rechargeSecondsPerCharge": 2
+    }
+  ],
+  "reactorTechs": [
+    {
+      "id": "balanced_drive",
+      "unlockCredits": 0,
+      "maxSpeed": 10,
+      "acceleration": 70,
+      "braking": 100
+    },
+    {
+      "id": "vector_drive",
+      "unlockCredits": 250,
+      "maxSpeed": 11.5,
+      "acceleration": 60,
+      "braking": 85
+    },
+    {
+      "id": "precision_drive",
+      "unlockCredits": 250,
+      "maxSpeed": 9,
+      "acceleration": 90,
+      "braking": 140
+    }
+  ],
+  "hud": {
+    "style": "minimal-flat-analog",
+    "lives": "ship-icons",
+    "shields": "discrete-shield-icons",
+    "specialPosition": "bottom-center",
+    "steeringHintSeconds": 3,
+    "steeringHintOnResume": false,
+    "steeringHintReducedMotion": "static",
+    "playerHealthBar": false,
+    "shieldBar": false,
+    "ammoBar": false,
+    "specialEnergyBar": false,
+    "permanentArrows": false
+  },
+  "statistics": {
+    "recentAttemptsPerMode": 50,
+    "topEndlessRecords": 10,
+    "separateModes": true,
+    "campaignDifficultyFilters": true
+  },
+  "heroVisuals": {
+    "sameCentralColliderRadius": 0.25,
+    "tiers": [
+      {
+        "id": "scrapper",
+        "targetWidth": 1
+      },
+      {
+        "id": "razor",
+        "targetWidth": 1.35
+      },
+      {
+        "id": "dominion",
+        "targetWidth": 1.7
+      }
+    ],
+    "campaignUnlocksAffectEndless": false
+  }
+}

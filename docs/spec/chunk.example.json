@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 2,
+  "id": "khepri_alignment_01",
+  "biome": "khepri",
+  "durationSeconds": 20,
+  "threatCost": 5,
+  "intensity": "low",
+  "entryTags": [
+    "clear-player-row"
+  ],
+  "exitPolicy": "wait-until-clear",
+  "incompatibleHazards": [
+    "sweeping-beam",
+    "double-edge-lock"
+  ],
+  "allowedTransforms": [
+    "identity",
+    "mirror-x"
+  ],
+  "limits": {
+    "simultaneousEnemies": 4,
+    "hostileProjectiles": 12
+  },
+  "spawns": [
+    {
+      "atSeconds": 0,
+      "enemyId": "dart",
+      "x": -3,
+      "s": 21,
+      "patternId": "committed-single",
+      "rewardEligible": true
+    },
+    {
+      "atSeconds": 2,
+      "enemyId": "dart",
+      "x": 0,
+      "s": 21,
+      "patternId": "committed-single",
+      "rewardEligible": true
+    },
+    {
+      "atSeconds": 4,
+      "enemyId": "dart",
+      "x": 3,
+      "s": 21,
+      "patternId": "committed-single",
+      "rewardEligible": true
+    },
+    {
+      "atSeconds": 6,
+      "enemyId": "spike_battery",
+      "x": -2,
+      "s": 19,
+      "patternId": "committed-three-round",
+      "rewardEligible": true
+    }
+  ],
+  "recoverySeconds": 3,
+  "notes": "Illustrative central-region encounter in a wider map. Requires camera/visibility, ground proxy, warning and reachable-path validation. Side regions are authored separately."
+}

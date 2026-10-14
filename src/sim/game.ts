@@ -1,0 +1,413 @@
+import { BALANCE, DIFFICULTIES, ENEMIES, WEAPONS, difficultyScales } from '../content/balance';
+import { CAMPAIGN, endlessPlaylist, type EncounterCue } from '../content/encounters';
+import { STEP, VIEW, type Enemy, type InputFrame, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
+import { approach, clamp, segmentCircleHit } from './geometry';
+
+const DEG = Math.PI / 180;
+const MUZZLE = 0.55;
+
+export function createRun(config: RunConfig): RunState {
+  // A canonical config prevents campaign menu choices from leaking into an endless replay.
+  const normalized: RunConfig = config.mode === 'endless'
+    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', weapon: 'pulse' }
+    : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', weapon: config.weapon ?? 'pulse' };
+  return {
+    config: normalized, phase: 'playing', tick: 0, time: 0, distance: 0, sector: 1, cameraX: 0,
+    player: {
+      x: 0, vx: 0, lives: normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives,
+      shields: BALANCE.shield.charges, maxShields: BALANCE.shield.charges,
+      specialCharge: 1, invulnerableUntil: 0, lastHitAt: -100,
+      weapon: normalized.weapon!, power: 0,
+    },
+    enemies: [], projectiles: [], hazards: [], pickups: [], effects: [],
+    score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0,
+    nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
+    lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
+    chargeKillTimes: [],
+    message: normalized.mode === 'endless' ? 'SECTOR 01 · KHEPRI' : 'TRAINING SORTIE · KHEPRI', messageUntil: 3,
+  };
+}
+
+/** Simulation mutates only the supplied run. Call at fixed 60Hz, independent of rendering. */
+export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
+  if (state.phase !== 'playing') return;
+  if (input.pausePressed) { state.phase = 'paused'; return; }
+  if (!Number.isFinite(dt) || dt <= 0 || dt > 0.05) throw new RangeError('Simulation step must be in (0, 0.05] seconds');
+  const previousPlayerX = state.player.x;
+  const previousTime = state.time;
+  state.tick += 1;
+  state.time += dt;
+  state.distance += VIEW.scrollSpeed * dt;
+  movePlayer(state, input.horizontal, dt);
+  updateDirector(state);
+  updateShieldSupplies(state, previousTime);
+  updateEnemies(state, dt);
+  if (input.specialPressed && state.player.specialCharge >= 1 - 1e-8) useSpecial(state);
+  fireMain(state);
+  updateProjectiles(state, previousPlayerX, dt);
+  updateHazards(state, previousPlayerX, dt);
+  updateContact(state, previousPlayerX);
+  updatePickups(state, dt);
+  updateResources(state, dt);
+  state.enemies = state.enemies.filter(enemy => enemy.hp > 0 && enemy.s > VIEW.minS - 2);
+  state.effects = state.effects.filter(effect => (effect.ttl -= dt) > 0);
+  if (state.phase === 'playing' && state.config.mode === 'campaign' && state.time + 1e-8 >= BALANCE.campaignDuration) {
+    state.phase = 'complete';
+    state.message = 'SORTIE COMPLETE';
+    state.projectiles = [];
+    state.hazards = [];
+  }
+}
+
+function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
+  const player = state.player;
+  const movement = BALANCE.movement;
+  player.vx = approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
+  const limit = VIEW.worldWidth / 2 - VIEW.playerRadius;
+  player.x = clamp(player.x + player.vx * dt, -limit, limit);
+  if (Math.abs(player.x) >= limit && Math.sign(player.vx) === Math.sign(player.x)) player.vx = 0;
+  const offset = player.x - state.cameraX;
+  let target = state.cameraX;
+  if (Math.abs(offset) > BALANCE.camera.deadZone) target = player.x - Math.sign(offset) * BALANCE.camera.deadZone;
+  const cameraLimit = (VIEW.worldWidth - VIEW.width) / 2;
+  state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), BALANCE.camera.speed * dt);
+}
+
+function updateDirector(state: RunState): void {
+  const sector = state.config.mode === 'endless' ? Math.floor((state.time + 1e-8) / BALANCE.sectorDuration) + 1 : 1;
+  if (sector !== state.sector) {
+    state.sector = sector;
+    state.encounterIndex = 0;
+    state.nextEncounterAt = (sector - 1) * BALANCE.sectorDuration + 2;
+    setMessage(state, `SECTOR ${String(sector).padStart(2, '0')} · PRESSURE RISING`, 3);
+  }
+  const cues = state.config.mode === 'campaign' ? CAMPAIGN : endlessPlaylist(state.sector);
+  const start = state.config.mode === 'endless' ? (state.sector - 1) * BALANCE.sectorDuration : 0;
+  const cue = cues[state.encounterIndex];
+  if (!cue || state.time + 1e-8 < state.nextEncounterAt) return;
+  // Admit a complete authored group; never silently trim its composition.
+  if (state.enemies.filter(enemy => enemy.hp > 0).length + cue.enemies.length > BALANCE.maxEnemies) return;
+  spawnCue(state, cue);
+  state.encounterIndex += 1;
+  state.nextEncounterAt = cues[state.encounterIndex] ? start + cues[state.encounterIndex].at : Infinity;
+}
+
+function spawnCue(state: RunState, cue: EncounterCue): void {
+  const scale = scales(state);
+  for (const spawn of cue.enemies) {
+    const stats = ENEMIES[spawn.kind];
+    const hp = stats.hp * scale.hp;
+    state.enemies.push({
+      id: state.nextId++, kind: spawn.kind, x: spawn.x, s: spawn.s ?? 22,
+      originX: spawn.x, hp, maxHp: hp, radius: stats.radius,
+      age: 0, nextAttack: 1.2, warning: 0, aimX: spawn.x,
+      groundHeight: spawn.kind === 'turret' ? 0.85 : VIEW.flightHeight,
+    });
+  }
+  // Reserve one slot for the fixed shield-supply opportunity; never evict an existing drop.
+  if (cue.pickup && state.pickups.length < BALANCE.maxPickups - 1) {
+    state.pickups.push({ id: state.nextId++, ...cue.pickup, ttl: 12 });
+  }
+  if (cue.message) setMessage(state, cue.message, 3.5);
+}
+
+function updateShieldSupplies(state: RunState, previousTime: number): void {
+  const supplies = BALANCE.shieldSupplies;
+  const times: readonly number[] = state.config.mode === 'campaign'
+    ? supplies.campaign[state.config.difficulty ?? 'standard']
+    : [(state.sector - 1) * BALANCE.sectorDuration + supplies.endlessAt];
+  for (const at of times) {
+    // Match the director's floating-point tolerance on both sides of the crossing.
+    // Active time never rewinds on respawn or resume, so no separate receipt is needed.
+    if (previousTime + 1e-8 >= at || state.time + 1e-8 < at) continue;
+    const halfView = VIEW.width / 2 - supplies.viewMargin;
+    const left = state.cameraX - halfView;
+    const right = state.cameraX + halfView;
+    const candidates = [0, -2, 2, -4, 4].map(offset => clamp(state.player.x + offset, left, right));
+    const marked = (x: number) => state.hazards.some(hazard => Math.abs(hazard.x - x) < hazard.width / 2 + 0.8)
+      || state.enemies.some(enemy => enemy.hp > 0 && enemy.warning > 0 && Math.abs(enemy.aimX - x) < 1);
+    const x = candidates.find(candidate => !marked(candidate)) ?? candidates[0];
+    if (state.pickups.length < BALANCE.maxPickups) {
+      state.pickups.push({ id: state.nextId++, kind: 'shield', x, s: supplies.forward, value: 1, ttl: 12 });
+      setMessage(state, 'SHIELD CELL AHEAD', 2.5);
+    }
+  }
+}
+
+function scales(state: RunState) {
+  return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
+}
+
+export function isVisible(state: RunState, x: number, s: number, margin = 0): boolean {
+  return Math.abs(x - state.cameraX) <= VIEW.width / 2 - margin && s >= VIEW.minS + margin && s <= VIEW.maxS - margin;
+}
+
+function canAttack(state: RunState, enemy: Enemy): boolean {
+  return enemy.hp > 0 && enemy.s > 3.5 && isVisible(state, enemy.x, enemy.s, enemy.radius + 0.2)
+    && state.time >= state.player.invulnerableUntil - 0.3;
+}
+
+function updateEnemies(state: RunState, dt: number): void {
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    const stats = ENEMIES[enemy.kind];
+    enemy.age += dt;
+    enemy.s -= stats.speed * dt;
+    if (enemy.kind === 'weaver') enemy.x = enemy.originX + Math.sin(enemy.age * 1.6) * 1.2;
+    const visible = canAttack(state, enemy);
+    if (!visible) {
+      if (enemy.warning > 0) enemy.nextAttack = enemy.age + 0.6;
+      enemy.warning = 0;
+      continue;
+    }
+    if (enemy.warning > 0) {
+      enemy.warning = Math.max(0, enemy.warning - dt);
+      if (enemy.warning === 0) {
+        emitAttack(state, enemy);
+        enemy.nextAttack = enemy.age + stats.attackEvery;
+      }
+    } else if (enemy.age >= enemy.nextAttack) {
+      // Conservative authored-phrase guard: at most two simultaneous windups, one beam.
+      const warnings = state.enemies.filter(other => other.id !== enemy.id && other.warning > 0);
+      if (warnings.length >= 2 || (enemy.kind === 'lancer' && (state.hazards.length > 0 || warnings.some(other => other.kind === 'lancer')))) continue;
+      enemy.aimX = state.player.x;
+      enemy.warning = stats.warning + scales(state).warning;
+    }
+  }
+}
+
+function emitAttack(state: RunState, enemy: Enemy): void {
+  if (enemy.kind === 'lancer') {
+    state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: 0.8, warning: 0.35, active: 0.22, ttl: 0.57 });
+    return;
+  }
+  const count = enemy.kind === 'weaver' ? 2 : enemy.kind === 'turret' ? 3 : 1;
+  if (state.projectiles.length + count > BALANCE.maxProjectiles) return;
+  const speed = ENEMIES[enemy.kind].shotSpeed * scales(state).shotSpeed;
+  const aim = Math.atan2(enemy.aimX - enemy.x, -(enemy.s - 0.2));
+  for (let i = 0; i < count; i += 1) {
+    const angle = aim + (enemy.kind === 'turret' ? (i - 1) * 0.14 : 0);
+    const x = enemy.x + (enemy.kind === 'weaver' ? (i === 0 ? -0.5 : 0.5) : 0);
+    state.projectiles.push(projectile(state, x, enemy.s - 0.2, Math.sin(angle) * speed, Math.cos(angle) * speed, false, 1, 0.13, 7));
+  }
+}
+
+/** Uses emitted pellet paths for fixed guns; only the seeker has a cone and guidance. */
+export function acquireTarget(state: RunState, weaponId = state.player.weapon): Enemy | undefined {
+  const weapon = WEAPONS[weaponId];
+  let best: Enemy | undefined;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.s <= MUZZLE || enemy.s - enemy.radius > weapon.range || !isVisible(state, enemy.x, enemy.s, enemy.radius)) continue;
+    let eligible = false;
+    if (weaponId === 'seeker') {
+      eligible = Math.abs(enemy.x - state.player.x) <= Math.min(5.5, 0.5 + enemy.s * 0.3) + enemy.radius;
+    } else {
+      eligible = weapon.angles.some((angle, index) => {
+        const x = state.player.x + weapon.offsets[index];
+        return segmentCircleHit(x, MUZZLE, x + Math.sin(angle * DEG) * weapon.range, MUZZLE + Math.cos(angle * DEG) * weapon.range,
+          enemy.x, enemy.s, enemy.radius + weapon.radius) !== null;
+      });
+    }
+    if (eligible && (!best || enemy.s < best.s || (enemy.s === best.s && enemy.id < best.id))) best = enemy;
+  }
+  return best;
+}
+
+function fireMain(state: RunState): void {
+  if (state.time + 1e-8 < state.nextVolleyAt) return;
+  const target = acquireTarget(state);
+  if (!target) return;
+  const weapon = WEAPONS[state.player.weapon];
+  if (state.projectiles.length + weapon.angles.length > BALANCE.maxProjectiles) return;
+  const power = BALANCE.power[clamp(state.player.power, 0, BALANCE.power.length - 1)];
+  weapon.angles.forEach((angle, index) => {
+    const shot = projectile(state, state.player.x + weapon.offsets[index], MUZZLE,
+      Math.sin(angle * DEG) * weapon.speed, Math.cos(angle * DEG) * weapon.speed,
+      true, weapon.damage * power, weapon.radius, weapon.range / weapon.speed);
+    if (state.player.weapon === 'seeker') shot.homingTargetId = target.id;
+    state.projectiles.push(shot);
+  });
+  state.nextVolleyAt = state.time + weapon.cadence;
+}
+
+function projectile(state: RunState, x: number, s: number, vx: number, vs: number, friendly: boolean, damage: number, radius: number, ttl: number): Projectile {
+  return { id: state.nextId++, x, s, previousX: x, previousS: s, vx, vs, friendly, damage, radius, ttl };
+}
+
+function updateProjectiles(state: RunState, previousPlayerX: number, dt: number): void {
+  for (const shot of state.projectiles) {
+    if (shot.ttl <= 0) continue;
+    const activeDt = Math.min(dt, shot.ttl);
+    shot.previousX = shot.x;
+    shot.previousS = shot.s;
+    if (shot.homingTargetId !== undefined) {
+      const target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0);
+      if (target && isVisible(state, target.x, target.s, target.radius)) {
+        const current = Math.atan2(shot.vx, shot.vs);
+        const desired = Math.atan2(target.x - shot.x, target.s - shot.s);
+        const delta = Math.atan2(Math.sin(desired - current), Math.cos(desired - current));
+        const next = current + clamp(delta, -2.8 * activeDt, 2.8 * activeDt);
+        const speed = Math.hypot(shot.vx, shot.vs);
+        shot.vx = Math.sin(next) * speed;
+        shot.vs = Math.cos(next) * speed;
+      }
+    }
+    shot.x += shot.vx * activeDt;
+    shot.s += shot.vs * activeDt;
+    shot.ttl -= dt;
+    if (shot.friendly) {
+      let target: Enemy | undefined;
+      let first = Infinity;
+      for (const enemy of state.enemies) {
+        if (enemy.hp <= 0) continue;
+        const t = segmentCircleHit(shot.previousX, shot.previousS, shot.x, shot.s, enemy.x, enemy.s, enemy.radius + shot.radius);
+        if (t !== null && (t < first || (t === first && enemy.id < (target?.id ?? Infinity)))) { target = enemy; first = t; }
+      }
+      if (target) {
+        shot.ttl = 0;
+        damageEnemy(state, target, shot.damage, true);
+      }
+    } else if (segmentCircleHit(shot.previousX - previousPlayerX, shot.previousS,
+      shot.x - (previousPlayerX + (state.player.x - previousPlayerX) * activeDt / dt), shot.s, 0, 0, VIEW.playerRadius + shot.radius) !== null) {
+      shot.ttl = 0;
+      hitPlayer(state, shot.damage);
+    }
+  }
+  state.projectiles = state.projectiles.filter(shot => shot.ttl > 0 && Math.abs(shot.x) < VIEW.worldWidth / 2 + 10 && shot.s > VIEW.minS - 5 && shot.s < 35);
+}
+
+function updateHazards(state: RunState, previousPlayerX: number, dt: number): void {
+  for (const hazard of state.hazards) {
+    const warningBefore = hazard.warning;
+    hazard.warning = Math.max(0, hazard.warning - dt);
+    const activeTime = Math.max(0, dt - warningBefore);
+    if (hazard.warning === 0 && hazard.active > 0 && activeTime > 0) {
+      const radius = hazard.width / 2 + VIEW.playerRadius;
+      if (Math.min(previousPlayerX, state.player.x) <= hazard.x + radius && Math.max(previousPlayerX, state.player.x) >= hazard.x - radius) hitPlayer(state, 2);
+      hazard.active = Math.max(0, hazard.active - activeTime);
+    }
+    hazard.ttl -= dt;
+  }
+  state.hazards = state.hazards.filter(hazard => hazard.ttl > 0 && (hazard.warning > 0 || hazard.active > 0));
+}
+
+function updateContact(state: RunState, previousPlayerX: number): void {
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.kind === 'turret') continue;
+    if (segmentCircleHit(previousPlayerX, 0, state.player.x, 0, enemy.x, enemy.s, enemy.radius + VIEW.playerRadius) !== null) hitPlayer(state, 2);
+  }
+}
+
+export function hitPlayer(state: RunState, shieldCost: number): void {
+  const player = state.player;
+  if (state.phase !== 'playing' || state.time < player.invulnerableUntil) return;
+  player.lastHitAt = state.time;
+  if (player.shields > 0) {
+    player.shields = Math.max(0, player.shields - shieldCost);
+    player.invulnerableUntil = state.time + BALANCE.shield.hitInvulnerability;
+    addEffect(state, 'shield', player.x, 0, 0.35);
+    return;
+  }
+  player.lives -= 1;
+  state.livesLost += 1;
+  addEffect(state, 'explosion', player.x, 0, 0.6);
+  if (player.lives <= 0) { state.phase = 'over'; state.message = 'FLIGHT LOST'; return; }
+  player.shields = player.maxShields;
+  player.specialCharge = BALANCE.respawn.specialCharge;
+  player.invulnerableUntil = state.time + BALANCE.respawn.invulnerability;
+  if (state.config.mode === 'endless') player.power = Math.max(0, player.power - 1);
+  setMessage(state, 'FIGHTER RESTORED', 2);
+}
+
+function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean): void {
+  if (enemy.hp <= 0) return;
+  enemy.hp -= damage;
+  addEffect(state, 'hit', enemy.x, enemy.s, 0.12);
+  if (enemy.hp > 0) return;
+  state.kills += 1;
+  state.score += ENEMIES[enemy.kind].score;
+  addEffect(state, 'explosion', enemy.x, enemy.s, 0.5);
+  if (mainWeapon) {
+    state.chargeKillTimes = state.chargeKillTimes.filter(time => state.time - time < 1);
+    if (state.chargeKillTimes.length < 3) {
+      state.player.specialCharge = Math.min(1, state.player.specialCharge + BALANCE.special.killCharge);
+      state.chargeKillTimes.push(state.time);
+    }
+  }
+  if (state.pickups.length < BALANCE.maxPickups - 1) {
+    state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits, ttl: 12 });
+  }
+}
+
+function useSpecial(state: RunState): void {
+  state.player.specialCharge = 0;
+  state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + BALANCE.special.invulnerability);
+  state.specialsUsed += 1;
+  const left = state.cameraX - VIEW.width / 2;
+  const right = state.cameraX + VIEW.width / 2;
+  const inside = (x: number, s: number) => x >= left && x <= right && s >= VIEW.minS && s <= VIEW.maxS;
+  state.projectiles = state.projectiles.filter(shot => shot.friendly || !inside(shot.x, shot.s));
+  for (const enemy of state.enemies) if (inside(enemy.x, enemy.s)) damageEnemy(state, enemy, BALANCE.special.damage, false);
+  // The instantaneous world-space footprint cannot follow later camera movement.
+  addEffect(state, 'special', state.cameraX, (VIEW.minS + VIEW.maxS) / 2, 0.6);
+  setMessage(state, 'SHOCKWAVE', 1);
+}
+
+function updatePickups(state: RunState, dt: number): void {
+  for (const pickup of state.pickups) {
+    pickup.ttl -= dt;
+    pickup.s -= BALANCE.pickup.speed * dt;
+    let distance = Math.hypot(pickup.x - state.player.x, pickup.s);
+    if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius && distance > 0.001) {
+      const pull = Math.min(distance, 6 * dt);
+      pickup.x += (state.player.x - pickup.x) / distance * pull;
+      pickup.s += -pickup.s / distance * pull;
+      distance = Math.hypot(pickup.x - state.player.x, pickup.s);
+    }
+    if (distance > BALANCE.pickup.radius) continue;
+    pickup.ttl = 0;
+    addEffect(state, 'pickup', pickup.x, pickup.s, 0.3);
+    switch (pickup.kind) {
+      case 'shield':
+        if (state.player.shields < state.player.maxShields) state.player.shields += 1;
+        else if (state.config.mode === 'campaign') state.credits += 5;
+        else state.score += 100;
+        break;
+      case 'credit':
+        if (state.config.mode === 'campaign') state.credits += pickup.value;
+        else state.score += 50;
+        break;
+      case 'power':
+        if (state.config.mode === 'endless') givePower(state);
+        break;
+      case 'weapon':
+        if (state.config.mode === 'endless' && pickup.weapon) {
+          if (state.player.weapon === pickup.weapon) givePower(state);
+          else { state.player.weapon = pickup.weapon; setMessage(state, `${WEAPONS[pickup.weapon].label.toUpperCase()} EQUIPPED`, 2.5); }
+        }
+        break;
+    }
+  }
+  state.pickups = state.pickups.filter(pickup => pickup.ttl > 0 && pickup.s > VIEW.minS - 2);
+}
+
+function givePower(state: RunState): void {
+  if (state.player.power < BALANCE.power.length - 1) state.player.power += 1;
+  else state.score += 1000;
+  setMessage(state, `WEAPON POWER ${state.player.power + 1}`, 2);
+}
+
+function updateResources(state: RunState, dt: number): void {
+  if (state.phase !== 'playing') return;
+  state.player.specialCharge = Math.min(1, state.player.specialCharge + dt / BALANCE.special.rechargeTime);
+}
+
+function addEffect(state: RunState, kind: RunState['effects'][number]['kind'], x: number, s: number, duration: number): void {
+  if (state.effects.length >= BALANCE.maxEffects) state.effects.shift();
+  state.effects.push({ id: state.nextId++, kind, x, s, ttl: duration, duration });
+}
+
+function setMessage(state: RunState, message: string, duration: number): void {
+  state.message = message;
+  state.messageUntil = state.time + duration;
+}

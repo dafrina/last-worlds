@@ -1,0 +1,57 @@
+# Wider maps, camera movement, and exploration
+
+Design v0.2. The user explicitly replaced a fixed screen-width corridor with a wider map: the visible screen is a slice of the world, and the camera follows lateral travel. The player still controls left/right only; automatic forward travel remains.
+
+## 1. Geometry and feel
+
+Proposed starting dimensions: square terrain sections 36 × 36 world units, with a portrait viewport showing 12 units horizontally. The camera initially shows the middle third. Sections connect along forward travel to form campaign routes or endless terrain; they do not enclose the game in one finite square.
+
+The ship is free to move across the entire world width. Screen edges are not world walls. World x spans −18 to +18; with radius 0.25 the ship center clamps to [−17.75, +17.75]. The camera center spans [−12, +12], ensuring the viewport stays inside the map. At the outer map boundary the ship approaches the screen edge naturally. Mark actual world limits with readable terrain/flight-boundary cues; never invisible viewport clamping.
+
+The 9:16 fitted viewport, orthographic elevation around 55°, forward screen-up motion, and fixed player forward row remain. Different phone shapes fit the same visible tactical rectangle; they do not reveal more width. Horizontal camera movement does not rotate the flight direction.
+
+## 2. Lateral camera contract
+
+Use a 2.5-unit half-width dead zone around the camera center. While the ship stays inside it, camera x stays still. Beyond it, camera target x follows enough to keep the ship at the dead-zone edge, clamped to map bounds. Move toward that target at up to 14 units/s, slightly faster than the fastest proposed ship; tune for smooth motion without losing forward threat visibility. A tiny interpolation ease is presentation only; authoritative visibility follows the simulation camera.
+
+Camera x is explicit fixed-step state driven by player world x, not a DOM scroll or renderer-only guess. Input still uses left/right screen halves, with the bottom-center special button owning its pointer. Cross-screen steering and camera movement must not invert controls.
+
+No automatic camera jumps toward pickups or side quests. Do not recenter the map after releasing steering or losing a life. Respawn in a safe position near the current region. A menu restart may return to the authored starting point. Camera shake is optional, tiny, and unrelated to exploration.
+
+## 3. Exploration without stopping forward flight
+
+Authored side routes provide different enemy groups, caches, scenery, and firing positions. Telegraph a turn far enough ahead to reach it with the slowest drive. The player chooses what to engage or pass, while terrain continues scrolling. This is route exploration within a scrolling shooter, not a free-roaming map or a demand for vertical controls.
+
+Start the prototype with a center patrol, a left optional cache, and a right optional turret group on one 36-unit-wide section. Place a landmark where it can be seen before the lateral commitment, or use a subtle temporary world-edge signal. No permanent minimap or new HUD meter at launch.
+
+Use stable world IDs and states. Leaving the viewport does not reset enemy HP, respawn a cache, regenerate its reward, reroll loot, or permit repeated discovery bonuses. Unseen rewards are not automatically collected at sector end. Advance ordinary world-relative motion offscreen; only expensive visual details may sleep. Record authored encounters and seeded caches with stable IDs; procedural world layout cannot rewrite the battle schedule.
+
+Side missions may count visits to already-existing optional landmarks. They do not create those landmarks, alter loot, steer the camera, or make enemies behave differently. Standard route choice exists equally without a contract.
+
+## 4. Visibility and fair threats
+
+Offscreen enemies may exist, but they cannot begin a new attack at the player without a readable warning and legal exposure in the current view. Entering a side region must not reveal a pre-fired unavoidable wall. Activate attack schedules through authored visibility-aware encounter rules, consistently for every mode and player.
+
+Already fired projectiles do not vanish when the camera pans. Retain world trajectories and use bounded transient edge warnings if a known active threat approaches from outside the view. A scheduling validator must account for camera movement and reaction time. If a candidate could strike before a readable warning window, delay its emission before it occurs; never silently teleport an existing bullet to rescue the player.
+
+Ordinary automatic targeting checks the current viewport. Camera movement cannot extend range, lock distant unseen enemies, or let homing guns acquire unrevealed targets. Main/special fire and offscreen movement use the same fixed-step world state. Freeze area-special footprints in world coordinates at activation so camera panning cannot enlarge their effect.
+
+The fair-path test includes player x, velocity, and camera x across the wide map, plus visibility/telegraph constraints. A physically reachable lane outside the viewport is not automatically a fair human-readable dodge. All supported reactor techs need safe options; no route requires an upgrade.
+
+## 5. Encounters, bosses, and boundaries
+
+Expand content chunks from one screen to world sections with center/left/right regions and validated cross-region overlaps. Limit pressure by the visible active encounter and nearby threats; do not spawn three full-screen bullet patterns at once just because the map is three times wider. Terrain, loot, and cosmetic RNG remain separate. Combat composition is authored without encounter RNG.
+
+Campaign mandatory fights need visible route guidance and reachable entry points. A boss arena may gently narrow to an authored 18-unit width, still wider than the 12-unit viewport, with physical boundaries clearly telegraphed before entry. Do not snap the ship, abruptly lock the camera, or hide an invisible wall. Boss entry/exit framing and weakpoint exposure need dedicated tests. There is no requirement to add narrowing arenas if a wide fight already works.
+
+Endless allows bypassing optional threats at a cost of missed score/pickups. Route choice is skill expression, not an exploit. Repeat visits cannot farm rewards; repeated camera visibility does not re-award a spawn or kill. Mandatory progression and boss retreat rules must remain consistent with the selected mission/run policy.
+
+## 6. Technical and validation changes
+
+World coordinates remain (x, s), with s ahead of the ship; render aircraft at (x, flightHeight, −s). Camera translation changes projection, not entity world coordinates or ground-proxy height compensation. Ground xProxy stays xGround. Use the same camera state for projections, target visibility, warning placement, and collision debug overlays.
+
+Keep entities outside the visible slice in simulation or an equivalent deterministic lightweight state. Pool rendering objects independently. Budget nearby active threats, terrain draws, and projectiles explicitly; never treat camera movement as permission to remove damaging entities.
+
+M1 must demonstrate traversal across the entire map, dead-zone following, true outer boundaries, discovery, offscreen persistence, current-region respawn, and ground-shot alignment at center and both camera extremes. Check both touch and keyboard. M4 validates route/visibility fairness and identical same-seed outcomes regardless of campaign progress.
+
+Initial width/dead zone/speed values are proposals. The user-confirmed requirement is a wider traversable world with lateral camera tracking and meaningful optional exploration.
