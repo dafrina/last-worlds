@@ -14,7 +14,11 @@
 
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; width: 100%; min-height: 100%; }
-body { overflow: hidden; }
+/* No double-tap zoom, long-press callout or tap flash anywhere in the app shell (iOS Safari). */
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
+body { overflow: hidden; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.flight-frame, .flight-frame * { -webkit-touch-callout: none; }
+.flight-frame :not(select) { -webkit-user-select: none; user-select: none; }
 button, select { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 button, select { border-radius: 0; }

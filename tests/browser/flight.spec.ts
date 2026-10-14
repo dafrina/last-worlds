@@ -80,6 +80,25 @@ test('two touches can steer and use the centered special independently', async (
   await page.screenshot({ path: 'test-results/touch-special-phone.png' });
 });
 
+test('held steering touches cancel iOS long-press gestures but buttons keep their taps', async ({ page }) => {
+  await page.goto('/');
+  // A touchstart whose default is prevented never starts Safari's loupe, callout or text selection.
+  const prevented = (selector: string) => page.locator(selector).evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const touch = new Touch({ identifier: 9, target: element, clientX: rect.x + rect.width / 2, clientY: rect.y + rect.height / 2 });
+    const event = new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch], targetTouches: [touch], changedTouches: [touch] });
+    element.dispatchEvent(event);
+    element.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, changedTouches: [touch] }));
+    return event.defaultPrevented;
+  });
+  expect(await prevented('[data-action="endless"]')).toBe(false);
+  await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
+  expect(await prevented('.flight-canvas')).toBe(true);
+  expect(await prevented('.special-button')).toBe(true);
+  expect(await prevented('.pause-button')).toBe(false);
+});
+
 test('desktop menu fits and a missing renderer gets a usable explanation', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');

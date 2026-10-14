@@ -85,6 +85,20 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
   specialButton.addEventListener('click', (event) => {
     if (active() && event.detail === 0) state.activateSpecial();
   }, options);
+  // iOS Safari starts its long-press loupe, callout and text selection from touch events, which a
+  // pointerdown preventDefault does not cancel. Steering and special touches cancel them; other
+  // buttons and menu controls keep their default so taps still produce clicks.
+  const suppressTouchGestures = (event: TouchEvent) => {
+    if (!active() || !event.cancelable) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target && !specialButton.contains(target) &&
+        target.closest('button, input, select, textarea, a, [data-no-steer], [role="button"]')) return;
+    event.preventDefault();
+  };
+  for (const type of ['touchstart', 'touchmove'] as const) {
+    surface.addEventListener(type, suppressTouchGestures, { signal: abort.signal, passive: false });
+  }
+  surface.addEventListener('contextmenu', (event) => { if (active()) event.preventDefault(); }, options);
   for (const element of [surface, specialButton]) {
     element.addEventListener('pointerup', release, options);
     element.addEventListener('pointercancel', release, options);
