@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  KIT, KIT_KINDS, SHARED_BOUNDS, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, terrainSample,
-  type TerrainProp, type TerrainSection,
+  KIT, KIT_KINDS, ROAD_STEP, SHARED_BOUNDS, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, terrainHeight,
+  type RoadPath, type TerrainSection,
 } from '../world/terrain';
-import { GROUND_TILE, INFRA_NODES, TRACK_SEGMENT, createFallbackKit, type KitGeometries } from './terrain-kit';
+import { GROUND_TILE, INFRA_NODES, createFallbackKit, type KitGeometries } from './terrain-kit';
 
 /** Extra world units around the frustum kept in the compacted instance set, and the camera travel that triggers recompaction. */
-const CULL_MARGIN = 1.2, RECOMPACT = 0.55;
+const CULL_MARGIN = 2.2, RECOMPACT = 1.1;
 
 interface Cullable { object: THREE.Object3D; box: THREE.Box3; triangles: number }
 /** Per-node instance data of one section in section-local space (z = −(s − startS)). */
@@ -15,6 +15,8 @@ interface Prepared { matrices: Float32Array; colors: Float32Array; boxes: Float3
 interface SectionView {
   index: number; startS: number; group: THREE.Group; cullables: Cullable[];
   instanced: THREE.InstancedMesh[]; geometries: THREE.BufferGeometry[]; prepared: Map<string, Prepared>;
+  /** Road centrelines touching this section, for haulers. */
+  roads: Map<string, RoadPath>;
 }
 interface Batch { mesh: THREE.InstancedMesh; capacity: number; triangles: number }
 export interface TerrainViewOptions {
@@ -22,13 +24,15 @@ export interface TerrainViewOptions {
   groundMaterial: THREE.Material; kitMaterial: THREE.Material; infraMaterial: THREE.Material; boundaryMaterial: THREE.Material;
   /** Palette-from-masks material for the shared industrial kit (docs/14). */
   sharedMaterial: THREE.Material;
+  /** Road ribbon material (graded dust, ruts, berms). */
+  roadMaterial: THREE.Material;
   /** Code-built infrastructure stand-ins, used until (or unless) khepri-infra.glb provides real nodes. */
   fallbackInfra: KitGeometries;
   /** Code-built pipes and tanks, used until (or unless) industrial-kit.glb provides real nodes. */
   fallbackShared: KitGeometries;
 }
 export interface TerrainStats {
-  calls: number; triangles: number; instances: number;
+  calls: number; triangles: number; instances: number; haulers: number;
   kit: 'glb' | 'fallback'; infra: 'glb' | 'fallback'; shared: 'glb' | 'fallback';
 }
 const SHARED = new Set<string>(SHARED_NODES);
@@ -37,17 +41,6 @@ function tint(seed: number, x: number, s: number): number {
   let n = Math.imul(Math.round(x * 131) ^ seed, 0x27d4eb2d) ^ Math.imul(Math.round(s * 113), 0x165667b1);
   n = Math.imul(n ^ (n >>> 15), 0x85ebca6b);
   return ((n ^ (n >>> 13)) >>> 0) / 4294967296;
-}
-
-/** Infrastructure node for a district prop (cargo cycles through its three variants). */
-function infraNode(prop: TerrainProp): string {
-  switch (prop.kind) {
-    case 'landingPad': return 'infra_landing_pad';
-    case 'refinery': return 'infra_refinery';
-    case 'relay': return 'infra_relay';
-    case 'track': return 'infra_track_segment';
-    default: return `infra_cargo_${(Number(prop.id.split(':').at(-1)) || 0) % 3}`;
-  }
 }
 
 const triangleCount = (geometry: THREE.BufferGeometry) => (geometry.index ? geometry.index.count : geometry.getAttribute('position').count) / 3;
@@ -59,7 +52,7 @@ const triangleCount = (geometry: THREE.BufferGeometry) => (geometry.index ? geom
  * calls stay bounded by the node count and triangles by what is actually on screen. Presentation only.
  */
 export function createTerrainView(options: TerrainViewOptions) {
-  const { scene, groundMaterial, kitMaterial, infraMaterial, boundaryMaterial, sharedMaterial } = options;
+  const { scene, groundMaterial, kitMaterial, infraMaterial, boundaryMaterial, sharedMaterial, roadMaterial } = options;
   let kit: KitGeometries = createFallbackKit(), infra: KitGeometries = new Map(options.fallbackInfra), shared: KitGeometries = new Map(options.fallbackShared);
   let kitSource: TerrainStats['kit'] = 'fallback', infraSource: TerrainStats['infra'] = 'fallback', sharedSource: TerrainStats['shared'] = 'fallback';
   let quality: GraphicsQuality = 'high', seed: number | null = null, stream = createTerrainStream(0);
@@ -68,8 +61,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   const edgeGeometry = new THREE.BoxGeometry(0.06, 0.018, 1.5);
   const transform = new THREE.Object3D(), color = new THREE.Color();
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), worldBox = new THREE.Box3(), offset = new THREE.Vector3();
-  const stats: TerrainStats = { calls: 0, triangles: 0, instances: 0, kit: kitSource, infra: infraSource, shared: sharedSource };
-  let distance = 0, origin = 0, lastCameraX = NaN, lastDistance = NaN, dirty = true;
+  const stats: TerrainStats = { calls: 0, triangles: 0, instances: 0, haulers: 0, kit: kitSource, infra: infraSource, shared: sharedSource };
+  let distance = 0, origin = 0, lastCameraX = NaN, lastDistance = NaN, lastViewX = 0, dirty = true;
 
   const nodeGeometry = (name: string) => kit.get(name) ?? infra.get(name) ?? shared.get(name);
   const nodeMaterial = (name: string) => name.startsWith('infra_') ? infraMaterial : SHARED.has(name) ? sharedMaterial : kitMaterial;
@@ -91,6 +84,22 @@ export function createTerrainView(options: TerrainViewOptions) {
       batches.set(name, entry); dirty = true;
     }
     return entry;
+  }
+  /** Dynamic hauler meshes (one per cargo model), refilled every frame by animate(). */
+  const haulers = new Map<string, THREE.InstancedMesh>();
+  function hauler(name: string): THREE.InstancedMesh | null {
+    const geometry = infra.get(name);
+    if (!geometry) return null;
+    let mesh = haulers.get(name);
+    if (!mesh || mesh.geometry !== geometry) {
+      if (mesh) { scene.remove(mesh); mesh.dispose(); }
+      mesh = new THREE.InstancedMesh(geometry, infraMaterial, 16);
+      // Same program variant as the static batches (instance colour present), so no compile hitch on first sight.
+      for (let i = 0; i < 16; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri hauler ${name}`;
+      haulers.set(name, mesh); scene.add(mesh);
+    }
+    return mesh;
   }
   function grow(entry: Batch, needed: number) {
     if (needed <= entry.capacity) return;
@@ -122,24 +131,18 @@ export function createTerrainView(options: TerrainViewOptions) {
         new THREE.Color(variation * light, variation * light * 0.985, variation * light * 0.97), box, instance.cosmetic);
     }
     for (const prop of section.props) {
-      const name = infraNode(prop), localS = prop.s - section.startS, white = new THREE.Color(1, 1, 1);
-      const alongX = prop.footprint[0] > prop.footprint[1], length = Math.max(...prop.footprint);
-      const tiles = prop.kind === 'track' ? Math.max(1, Math.round(length / TRACK_SEGMENT)) : 1;
-      for (let i = 0; i < tiles; i++) {
-        const shift = prop.kind === 'track' ? (i - (tiles - 1) / 2) * TRACK_SEGMENT : 0;
-        const x = prop.x + (alongX ? shift : 0), z = -localS - (alongX ? 0 : shift);
-        transform.position.set(x, prop.baseHeight, z);
-        transform.rotation.set(0, prop.rotation + (alongX && prop.kind === 'track' ? Math.PI / 2 : 0), 0);
-        transform.scale.set(1, 1, 1); transform.updateMatrix();
-        const half = Math.max(...(INFRA_NODES[name]?.size ?? [1, 1, 1])) / 2 + 0.2;
-        const box = new THREE.Box3(new THREE.Vector3(x - half, prop.baseHeight - 0.1, z - half), new THREE.Vector3(x + half, prop.baseHeight + 1.9, z + half));
-        push(name, transform.matrix.clone(), white, box, false);
-      }
+      const localS = prop.s - section.startS, z = -localS;
+      transform.position.set(prop.x, prop.baseHeight, z); transform.rotation.set(0, prop.rotation, 0);
+      transform.scale.set(1, 1, 1); transform.updateMatrix();
+      const size = INFRA_NODES[prop.node]?.size ?? [1, 1, 1], half = Math.hypot(size[0], size[2]) / 2 + 0.1;
+      const box = new THREE.Box3(new THREE.Vector3(prop.x - half, prop.baseHeight - 0.1, z - half), new THREE.Vector3(prop.x + half, prop.baseHeight + size[1] + 0.1, z + half));
+      push(prop.node, transform.matrix.clone(), new THREE.Color(1, 1, 1), box, false);
     }
     for (const piece of section.industry) {
       const localS = piece.s - section.startS, bounds = SHARED_BOUNDS[piece.node], half = Math.max(bounds.halfX, bounds.halfZ) + 0.1;
-      transform.position.set(piece.x, piece.y, -localS); transform.rotation.set(0, piece.rotation, 0);
-      transform.scale.set(1, piece.scaleY, 1); transform.updateMatrix();
+      // Pipes pitch about their local x to follow the ground; stretching by 1/cos keeps joints closed.
+      transform.position.set(piece.x, piece.y, -localS); transform.rotation.set(piece.pitch, piece.rotation, 0, 'YXZ');
+      transform.scale.set(1, piece.scaleY, 1 / Math.cos(piece.pitch)); transform.updateMatrix(); transform.rotation.order = 'XYZ';
       const box = new THREE.Box3(new THREE.Vector3(piece.x - half, piece.y - 0.1, -localS - half),
         new THREE.Vector3(piece.x + half, piece.y + bounds.height * piece.scaleY, -localS + half));
       push(piece.node, transform.matrix.clone(), new THREE.Color(1, 1, 1), box, false);
@@ -161,7 +164,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     return prepared;
   }
 
-  function buildGround(section: TerrainSection, view: SectionView) {
+  function* buildGround(section: TerrainSection, view: SectionView): Generator<void, void, void> {
     const vertices = section.side * section.side, uv = new Float32Array(vertices * 2), surface = new Float32Array(vertices * 4);
     const veins = new Float32Array(vertices * 2);
     for (let i = 0; i < vertices; i++) {
@@ -177,8 +180,9 @@ export function createTerrainView(options: TerrainViewOptions) {
       veins: new THREE.BufferAttribute(veins, 2),
     };
     const index = new THREE.BufferAttribute(section.indices, 1);
-    section.strips.forEach((strip, b) => {
-      const geometry = new THREE.BufferGeometry();
+    yield;
+    for (let b = 0; b < section.strips.length; b++) {
+      const strip = section.strips[b], geometry = new THREE.BufferGeometry();
       for (const [name, attribute] of Object.entries(attributes)) geometry.setAttribute(name, attribute);
       geometry.setIndex(index); geometry.setDrawRange(strip.start, strip.count);
       const box = new THREE.Box3(new THREE.Vector3(strip.minX, Infinity, -section.size), new THREE.Vector3(strip.maxX, -Infinity, 0));
@@ -193,26 +197,62 @@ export function createTerrainView(options: TerrainViewOptions) {
       view.geometries.push(geometry);
       const cullable: Cullable = { object: holder, box, triangles: strip.count / 3 };
       view.cullables.push(cullable);
+      yield;
       // World limits read as quiet surveyed flight-border lines on the outermost strips only.
-      if (b !== 0 && b !== section.strips.length - 1) return;
+      if (b !== 0 && b !== section.strips.length - 1) continue;
       const x = (b === 0 ? -1 : 1) * (VIEW.worldWidth / 2 - 0.06);
       const marks = new THREE.InstancedMesh(edgeGeometry, boundaryMaterial, Math.ceil(section.size / 3));
       let i = 0;
       for (let s = 0; s < section.size; s += 3) {
-        transform.position.set(x, terrainSample(section.seed, x, section.startS + s).height + 0.035, -s);
+        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s) + 0.035, -s);
         transform.rotation.set(0, 0, 0); transform.scale.set(1, 1, 1); transform.updateMatrix(); marks.setMatrixAt(i++, transform.matrix);
       }
       marks.count = i; marks.computeBoundingSphere(); holder.add(marks); view.instanced.push(marks);
       cullable.triangles += i * 12;
-    });
+      yield;
+    }
   }
 
-  function buildSection(section: TerrainSection): SectionView {
+  /** Resumable view build: instance preparation, each ground strip, and the road mesh are separate steps. */
+  function* buildSteps(section: TerrainSection): Generator<void, SectionView, void> {
     const group = new THREE.Group(); group.name = `Khepri procedural section ${section.index}`;
-    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section) };
-    buildGround(section, view);
-    scene.add(group); dirty = true;
+    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map() };
+    yield;
+    yield* buildGround(section, view);
+    buildRoads(section, view);
     return view;
+  }
+  function buildSection(section: TerrainSection): SectionView {
+    const work = buildSteps(section);
+    let step = work.next();
+    while (!step.done) step = work.next();
+    scene.add(step.value.group); dirty = true;
+    return step.value;
+  }
+  /** A view built ahead (in budgeted steps) for the prefetched section, attached when that section enters the window. */
+  let prebuilt: { section: TerrainSection; work: Generator<void, SectionView, void>; view: SectionView | null } | null = null;
+  const discardPrebuilt = () => {
+    if (!prebuilt) return;
+    if (prebuilt.view) disposeView(prebuilt.view);
+    else { const partial = prebuilt.work.return(undefined as never); void partial; }
+    prebuilt = null;
+  };
+
+  /** One ribbon mesh per section for the road segments that start in it, culled by its box. */
+  function buildRoads(section: TerrainSection, view: SectionView) {
+    const roads = section.roads;
+    if (!roads.indices.length) return;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(roads.positions, 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(roads.uvs, 2));
+    geometry.setAttribute('alpha', new THREE.BufferAttribute(roads.alpha, 1));
+    geometry.setAttribute('shade', new THREE.BufferAttribute(roads.shade, 1));
+    geometry.setIndex(new THREE.BufferAttribute(roads.indices, 1));
+    geometry.computeVertexNormals(); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geometry, roadMaterial); mesh.name = `Khepri roads ${section.index}`; mesh.renderOrder = 1;
+    const holder = new THREE.Group(); holder.add(mesh); view.group.add(holder); view.geometries.push(geometry);
+    view.cullables.push({ object: holder, box: geometry.boundingBox!.clone().expandByScalar(0.1), triangles: roads.indices.length / 3 });
+    for (const road of section.roadPaths) view.roads.set(road.id, road);
   }
   function disposeView(view: SectionView) {
     scene.remove(view.group);
@@ -225,6 +265,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   function compact() {
     const counts = new Map<string, number>();
     origin = views.size ? Math.min(...[...views.values()].map(view => view.startS)) : 0;
+    const viewLeft = lastViewX - VIEW.width / 2 - CULL_MARGIN - 0.5, viewRight = lastViewX + VIEW.width / 2 + CULL_MARGIN + 0.5;
     let instances = 0;
     for (const view of views.values()) {
       const zShift = distance - view.startS, matrixShift = origin - view.startS;
@@ -235,6 +276,8 @@ export function createTerrainView(options: TerrainViewOptions) {
         for (let i = 0; i < data.count; i++) {
           if (quality === 'low' && data.cosmetic[i]) break;
           const b = i * 6;
+          // Cheap lateral reject first: the view is 12 wide in a 36-wide world, so most pieces fail here.
+          if (data.boxes[b + 3] < viewLeft || data.boxes[b] > viewRight) continue;
           worldBox.min.set(data.boxes[b] - CULL_MARGIN, data.boxes[b + 1], data.boxes[b + 2] + zShift - CULL_MARGIN);
           worldBox.max.set(data.boxes[b + 3] + CULL_MARGIN, data.boxes[b + 4], data.boxes[b + 5] + zShift + CULL_MARGIN);
           if (!frustum.intersectsBox(worldBox)) continue;
@@ -274,22 +317,42 @@ export function createTerrainView(options: TerrainViewOptions) {
       distance = nextDistance;
       if (seed !== nextSeed) {
         views.forEach(disposeView); views.clear(); stream.clear();
+        discardPrebuilt();
         seed = nextSeed; stream = createTerrainStream(seed);
       }
       const active = stream.update(distance), live = new Set(active.map(section => section.index));
       for (const [index, view] of views) if (!live.has(index)) { disposeView(view); views.delete(index); }
       for (const section of active) {
         let view = views.get(section.index);
+        if (!view && prebuilt?.section === section && prebuilt.view) { view = prebuilt.view; prebuilt = null; scene.add(view.group); dirty = true; }
+        if (!view && prebuilt?.section === section) discardPrebuilt();
         if (!view) { view = buildSection(section); views.set(section.index, view); }
+        views.set(section.index, view);
         view.group.position.z = distance - section.startS;
       }
+      if (prebuilt && !live.has(prebuilt.section.index) && prebuilt.section.index < Math.floor(distance / VIEW.sectionLength)) discardPrebuilt();
     },
+    /**
+     * Spends spare frame time ahead of need: first advances the next section's generation in resumable steps,
+     * then (in a later frame) builds its view off-scene. `more()` is the caller's per-frame budget check.
+     */
+    prefetch(more: () => boolean) {
+      if (seed === null) return;
+      if (!stream.prefetch(distance, more) || !more()) return;
+      const upcoming = stream.upcoming();
+      if (upcoming && prebuilt?.section !== upcoming) { discardPrebuilt(); prebuilt = { section: upcoming, work: buildSteps(upcoming), view: null }; }
+      while (prebuilt && !prebuilt.view && more()) {
+        const step = prebuilt.work.next();
+        if (step.done) prebuilt.view = step.value;
+      }
+    },
+    get streamStats() { return stream.stats; },
     /** Culls ground strips by exact boxes and recompacts piece instances when the view moved past the margin. */
     cull(camera: THREE.Camera) {
       viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
       frustum.setFromProjectionMatrix(viewProjection);
       if (dirty || Math.abs(camera.position.x - lastCameraX) > RECOMPACT || Math.abs(distance - lastDistance) > RECOMPACT) {
-        compact(); dirty = false; lastCameraX = camera.position.x; lastDistance = distance;
+        lastViewX = camera.position.x; compact(); dirty = false; lastCameraX = camera.position.x; lastDistance = distance;
       }
       pieces.position.z = distance - origin;
       let calls = 0, triangles = 0;
@@ -300,6 +363,7 @@ export function createTerrainView(options: TerrainViewOptions) {
         if (visible) { calls += cullable.object.children.length; triangles += cullable.triangles; }
       }
       for (const entry of batches.values()) if (entry.mesh.count > 0) { calls++; triangles += entry.triangles * entry.mesh.count; }
+      for (const mesh of haulers.values()) if (mesh.count > 0) { calls++; triangles += triangleCount(mesh.geometry) * mesh.count; }
       stats.calls = calls; stats.triangles = Math.round(triangles); stats.kit = kitSource; stats.infra = infraSource; stats.shared = sharedSource;
     },
     setQuality(next: GraphicsQuality) {
@@ -336,6 +400,41 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (const [name, geometry] of previous) if (shared.get(name) !== geometry) geometry.dispose();
       dirty = true;
     },
+    /**
+     * Haulers drive the roads (presentation only: seed + time, never collision or targets). Each road carries
+     * one or two haulers shuttling back and forth; the low tier keeps fewer.
+     */
+    animate(time: number, cameraX: number) {
+      let count = 0;
+      const nodes = ['infra_cargo_0', 'infra_cargo_1', 'infra_cargo_2'];
+      const used = nodes.map(() => 0), roads = new Map<string, RoadPath>();
+      for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
+      for (const road of roads.values()) {
+        const total = road.length[road.length.length - 1];
+        if (total < 4) continue;
+        const key = road.id.length * 131 + road.x.length * 7 + Math.round(road.s[0] * 3);
+        const quota = (quality === 'low' ? 0.5 : 1) * (1 + (tint(key, 1, 2) < 0.45 ? 1 : 0));
+        for (let k = 0; k < Math.ceil(quota); k++) {
+          if (quota < 1 && tint(key, 3, k) > quota) continue;
+          const speed = 0.7 + tint(key, 5, k) * 0.6, travel = (tint(key, 7, k) * total * 2 + time * speed) % (total * 2);
+          const forward = travel < total, along = forward ? travel : total * 2 - travel;
+          const i = Math.min(road.x.length - 2, Math.floor(along / ROAD_STEP)), f = along / ROAD_STEP - i;
+          const x = road.x[i] + (road.x[i + 1] - road.x[i]) * f, s = road.s[i] + (road.s[i + 1] - road.s[i]) * f;
+          if (Math.abs(x - cameraX) > 7.5 || s - distance < -9 || s - distance > 30) continue;
+          const y = road.y[i] + (road.y[i + 1] - road.y[i]) * f;
+          const dx = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), ds = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1);
+          const n = Math.floor(tint(key, 9, k) * 3), mesh = hauler(nodes[n]);
+          if (!mesh || used[n] >= mesh.instanceMatrix.count) continue;
+          // Cabs face −z: yaw so local −z points along the direction of travel.
+          transform.position.set(x, y + 0.02, distance - s); transform.rotation.set(0, Math.atan2(-dx, ds), 0); transform.scale.set(1, 1, 1);
+          transform.updateMatrix(); mesh.setMatrixAt(used[n]++, transform.matrix); count++;
+        }
+      }
+      haulers.forEach((mesh, name) => {
+        const n = nodes.indexOf(name); mesh.count = used[n]; mesh.visible = used[n] > 0; mesh.instanceMatrix.needsUpdate = true;
+      });
+      stats.haulers = count;
+    },
     /** Every node batch, made visible, so a warm-up compile covers all scenery programs. */
     warmupObjects(): THREE.Object3D[] {
       for (const kind of KIT_KINDS) for (let v = 0; v < KIT[kind].variants; v++) batch(kitNodeName(kind, v));
@@ -345,7 +444,9 @@ export function createTerrainView(options: TerrainViewOptions) {
     get stats(): Readonly<TerrainStats> { return stats; },
     dispose() {
       views.forEach(disposeView); views.clear(); stream.clear();
+      discardPrebuilt();
       batches.forEach(entry => entry.mesh.dispose()); batches.clear(); scene.remove(pieces);
+      haulers.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); haulers.clear();
       kit.forEach(geometry => geometry.dispose()); infra.forEach(geometry => geometry.dispose()); shared.forEach(geometry => geometry.dispose());
       edgeGeometry.dispose();
     },

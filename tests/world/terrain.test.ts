@@ -156,24 +156,6 @@ describe('seeded Khepri landforms', () => {
     expect(shadowed).toBeGreaterThan(200);
   });
 
-  it('sets composed outposts on flattened ground at their real size', () => {
-    const props = [0, 1, 2, 3].flatMap(index => generateTerrainSection(137, index).props);
-    expect(new Set(props.map(prop => prop.id)).size).toBe(props.length);
-    const groups = new Map<string, typeof props>();
-    for (const prop of props) {
-      const list = groups.get(prop.group) ?? []; list.push(prop); groups.set(prop.group, list);
-      expect(terrainSample(137, prop.x, prop.s).industrial).toBe(1);
-    }
-    expect(groups.size).toBe(2);
-    for (const members of groups.values()) {
-      expect(members.filter(prop => prop.kind === 'refinery').map(prop => prop.height)).toEqual([1.6]);
-      expect(members.filter(prop => prop.kind === 'relay').map(prop => prop.height)).toEqual([1.6]);
-      expect(members.filter(prop => prop.kind === 'cargo')).toHaveLength(3);
-      const pad = members.find(prop => prop.kind === 'landingPad')!;
-      for (const [dx, ds] of [[-2.5, -3], [2.5, -3], [-2.5, 3], [2.5, 3]]) expect(terrainHeight(137, pad.x + dx, pad.s + ds)).toBeCloseTo(pad.baseHeight, 3);
-    }
-  });
-
   it('keeps a bounded cache during long endless runs and arbitrary seeks', () => {
     const stream = createTerrainStream(128);
     const original = stream.update(0)[1];

@@ -142,27 +142,6 @@ export function routeCalm(seed: number, x: number, s: number): number {
   return calm;
 }
 
-export interface District { id: string; cell: number; x: number; s: number; side: number; variation: number }
-export const DISTRICT_SPACING = 72;
-/** One composed outpost per 72 forward units, on ground flattened to the local landform level. */
-export function district(seed: number, cell: number): District {
-  const variation = hash(seed ^ 0x20d15, cell, 7);
-  const side = hash(seed ^ 0x73a1, cell, 9) < 0.5 ? -1 : 1;
-  return { id: `district:${cell}`, cell, x: side * 12.6, s: cell * DISTRICT_SPACING + 20 + hash(seed ^ 0x3e19, cell, 2) * 10, side, variation };
-}
-const PAD_HALF_X = 5.8, PAD_HALF_S = 11.6, PAD_CORNER = 2.2;
-function districtDistance(site: District, x: number, s: number): number {
-  const qx = Math.abs(x - (site.x - site.side * 0.4)) - (PAD_HALF_X - PAD_CORNER);
-  const qs = Math.abs(s - site.s) - (PAD_HALF_S - PAD_CORNER);
-  return Math.hypot(Math.max(qx, 0), Math.max(qs, 0)) + Math.min(Math.max(qx, qs), 0) - PAD_CORNER;
-}
-/** The pad level: the landform height at the outpost center, snapped to a half-unit terrace. */
-function districtLevel(seed: number, site: District): number {
-  const raw = landform(seed, site.x, site.s, moodParams(seed, site.s)).height;
-  // Capped so 1.6-tall refineries and relays (and ~1.5 tanks) stay under the 2.2 scenery cap.
-  return clamp(Math.round(raw / 0.5) * 0.5, FLOOR_LEVEL + 0.3, 0.5);
-}
-
 /* ---------------------------------------------------------------- landform */
 
 export interface Landform {
@@ -198,6 +177,8 @@ export function landform(seed: number, x: number, s: number, mood: MoodParams, c
   e = clamp(mix(e, stepped, mood.terrace * (1 - calm * 0.5)));
   // Mid-frequency erosion relief keeps broad tops and floors from reading as smeared flats.
   let height = FLOOR_LEVEL + e * RELIEF + (noise(seed ^ 0x4e57, x * 0.75, s * 0.7) - 0.5) * 0.12 + (noise(seed ^ 0x4e58, x * 1.7, s * 1.6) - 0.5) * 0.04;
+  // Occasional impact craters: a bowl, a raised rim and a faint ejecta blanket.
+  height += crater(seed, x, s, calm).height;
   // Terraced mineral pools in the lowest valley bottoms: shallow stepped basins.
   // Small, scattered pools: large cyan areas would compete with the player's cyan shots.
   const blob = smoothRange(0.74, 0.86, noise(seed ^ 0x3c59, x * 0.7, s * 0.7));
@@ -214,31 +195,22 @@ export function landform(seed: number, x: number, s: number, mood: MoodParams, c
   return { height: clamp(height, TERRAIN_MIN_HEIGHT, TERRAIN_MAX_HEIGHT), elevation: e, channel, pool, vein: a, vein2: b, veins };
 }
 
-/* ---------------------------------------------------------------- rows and points */
+/* ---------------------------------------------------------------- craters */
 
-/** Everything constant along one forward row. */
-export interface TerrainRow { seed: number; s: number; mood: Mood; params: MoodParams; sites: { site: District; level: number }[] }
-export function terrainRow(seed: number, s: number): TerrainRow {
-  const sites: TerrainRow['sites'] = [];
-  for (let cell = Math.floor(s / DISTRICT_SPACING) - 1; cell <= Math.floor(s / DISTRICT_SPACING) + 1; cell++) {
-    const site = district(seed, cell);
-    if (Math.abs(s - site.s) < PAD_HALF_S + 4) sites.push({ site, level: districtLevel(seed, site) });
+const CRATER_CELL = 22;
+/** Height offset of nearby craters and how close a point is to a rim (0..1, for ejecta scatter). */
+export function crater(seed: number, x: number, s: number, calm = 0): { height: number; rim: number } {
+  let height = 0, rim = 0;
+  for (let j = Math.floor(s / CRATER_CELL) - 1; j <= Math.floor(s / CRATER_CELL) + 1; j++) for (let i = -2; i <= 1; i++) {
+    if (hash(seed ^ 0xc4a7, i, j) > 0.42) continue;
+    const cx = (i + 0.2 + hash(seed ^ 0xc4a8, i, j) * 0.6) * CRATER_CELL, cs = (j + 0.2 + hash(seed ^ 0xc4a9, i, j) * 0.6) * CRATER_CELL;
+    const radius = 1.4 + hash(seed ^ 0xc4aa, i, j) * 1.9, d = Math.hypot(x - cx, s - cs) / radius;
+    if (d > 2.4) continue;
+    const depth = (0.45 + hash(seed ^ 0xc4ab, i, j) * 0.5) * (1 - calm), lip = radius * 0.1 * (1 - calm);
+    height += (d < 1 ? -depth * (1 - d * d) : 0) + lip * Math.exp(-(((d - 1) / 0.22) ** 2)) + (d > 1 ? lip * 0.25 * (1 - smoothRange(1, 2.4, d)) : 0);
+    rim = Math.max(rim, (1 - smoothRange(0.8, 1.9, d)) * smoothRange(0.75, 1, d));
   }
-  return { seed, s, mood: moodAt(seed, s), params: moodParams(seed, s), sites };
-}
-
-export interface TerrainPoint extends Landform { industrial: number }
-export function rowPoint(row: TerrainRow, x: number): TerrainPoint {
-  const form = landform(row.seed, x, row.s, row.params);
-  let industrial = 0, height = form.height;
-  for (const { site, level } of row.sites) {
-    const influence = 1 - smoothRange(-1.2, 2.2, districtDistance(site, x, row.s));
-    if (influence > industrial) { industrial = influence; height = mix(form.height, level, influence); }
-  }
-  return { ...form, height, industrial, pool: form.pool * (1 - industrial), veins: form.veins * (1 - industrial) };
-}
-export function heightAt(seed: number, x: number, s: number): number {
-  return rowPoint(terrainRow(seed, s), x).height;
+  return { height, rim };
 }
 
 /* ---------------------------------------------------------------- colour */
@@ -247,7 +219,7 @@ export function heightAt(seed: number, x: number, s: number): number {
  * Slope-driven albedo (linear RGB): steep faces dark columnar basalt, flat ground ochre dust, rims and
  * ledges lighter dust, valley bottoms darker with minerals. `slope` is |∇h| from central differences.
  */
-export function pointColor(row: TerrainRow, x: number, point: TerrainPoint, slope: number, rim: number): [number, number, number] {
+export function pointColor(row: { seed: number; s: number }, x: number, point: Landform & { industrial: number }, slope: number, rim: number): [number, number, number] {
   const { seed, s } = row;
   const drift = noise(seed ^ 0x51ab, x * 0.05, s * 0.032), broad = noise(seed ^ 0x5a1b, x * 0.11, s * 0.08);
   const fine = noise(seed ^ 0x1234, x * 0.9, s * 0.9);

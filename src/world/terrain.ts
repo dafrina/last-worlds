@@ -1,22 +1,27 @@
 import { VIEW } from '../shared/contracts';
-import {
-  DISTRICT_SPACING, SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, district, pointColor, rowPoint, smoothRange, terrainRow,
-  type TerrainPoint, type TerrainRow,
-} from './terrain-layout';
-import { TERRAIN_STRIPS, scatterKit, type KitInstance, type ScatterField } from './terrain-scatter';
-import { SHARED_BOUNDS, sectionIndustry, type IndustryPiece } from './terrain-industry';
+import { SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, crater, pointColor, smoothRange } from './terrain-layout';
+import { rowPoint, terrainHeight, terrainRow, type TerrainPoint, type TerrainRow } from './terrain-ground';
+import { KIT, KIT_MAX_SCALE, TERRAIN_STRIPS, scatterKitSteps, type KitInstance, type KitKind, type ScatterField } from './terrain-scatter';
+import { finish, type Work } from './terrain-work';
+import { MODULE_HEIGHT, settlementsNear, type Archetype } from './terrain-settlements';
+import { SHARED_BOUNDS, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 
 export {
   MOODS, MOOD_LENGTH, ROUTES, ROUTE_AXES, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT,
   landform, moodAt, moodOf, routeCalm, routeCenter, type Mood, type Route,
 } from './terrain-layout';
-export { PIPE_CELL, SHARED_BOUNDS, SHARED_NODES, pipeEnds, sectionIndustry, type IndustryPiece, type SharedNode } from './terrain-industry';
+export { terrainHeight } from './terrain-ground';
+export { ARCHETYPES, MODULE_HEIGHT, SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Archetype, type Settlement } from './terrain-settlements';
+export {
+  PIPE_CELL, PIPE_MAX_SLOPE, ROAD_MAX_SLOPE, ROAD_STEP, SHARED_BOUNDS, SHARED_NODES, edgesNear, pipePieces, roadPath, sectionNetwork,
+  type IndustryPiece, type NetworkEdge, type RoadMesh, type RoadPath, type SharedNode,
+} from './terrain-network';
 export {
   KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, kitNodeName, stripOf, type KitInstance, type KitKind,
 } from './terrain-scatter';
 
 /** Pure Khepri scenery. Terrain never reads, schedules, or advances combat or loot. */
-export const TERRAIN_VERSION = 5;
+export const TERRAIN_VERSION = 6;
 /** Binary-exact grid step so section seams share bit-identical coordinates. */
 export const TERRAIN_STEP = 0.5;
 export const RETAINED_SECTIONS = 3;
@@ -27,14 +32,13 @@ const SHADOW_FLOOR = 0.3;
 /** Neighbourhood radius (cells) for rim and cliff-foot detection. */
 const RIM_CELLS = 2;
 
-export type PropKind = 'relay' | 'cargo' | 'landingPad' | 'track' | 'refinery';
+/** A modelled infrastructure piece (docs/13 §3b) placed at scale 1 by a settlement archetype. */
 export interface TerrainProp {
-  id: string; kind: PropKind; x: number; s: number;
-  scale: number; rotation: number; variation: number;
-  /** World-space width/depth before rotation; baseHeight is the bottom of the model. */
-  footprint: readonly [number, number]; baseHeight: number; height: number;
-  /** Stable industrial district, independent of section loading. */
-  group: string;
+  id: string; node: string; x: number; s: number; rotation: number;
+  /** Base height (pivot) and the authored height of the piece. */
+  baseHeight: number; height: number;
+  /** Settlement it belongs to, and that settlement's archetype. */
+  group: string; archetype: Archetype;
 }
 /** A contiguous index range covering one lateral strip of the section mesh. */
 export interface TerrainStrip { start: number; count: number; minX: number; maxX: number }
@@ -54,8 +58,12 @@ export interface TerrainSection {
   props: readonly TerrainProp[];
   /** Kit pieces owned by this section, essential pieces first. */
   instances: readonly KitInstance[];
-  /** Shared industrial kit pieces (pipelines, supports, tank farms) owned by this section. */
+  /** Shared industrial kit pieces (network pipelines, supports, settlement tanks and containers) owned by this section. */
   industry: readonly IndustryPiece[];
+  /** Road ribbons for segments starting in this section (section-local coordinates). */
+  roads: RoadMesh;
+  /** Full centrelines of roads touching this section (world coordinates), for haulers. */
+  roadPaths: readonly RoadPath[];
 }
 export interface TerrainSample {
   height: number;
@@ -68,11 +76,6 @@ export interface TerrainSample {
   /** |∇height| from central differences at the grid step. */
   slope: number;
   industrial: number;
-}
-
-/** Seating height only: cheap enough for per-frame turret seating and flight shadows. */
-export function terrainHeight(seed: number, x: number, s: number): number {
-  return rowPoint(terrainRow(seed, s), x).height;
 }
 
 function rimAt(height: (dx: number, ds: number) => number): { drop: number; rise: number } {
@@ -98,31 +101,39 @@ export function terrainSample(seed: number, x: number, s: number): TerrainSample
   };
 }
 
-function sectionProps(seed: number, startS: number, size: number): TerrainProp[] {
-  const props: TerrainProp[] = [];
-  const add = (id: string, kind: PropKind, x: number, s: number, footprint: readonly [number, number],
-    height: number, group: string, variation: number, rotation = 0) => {
-    // District props are axis-aligned: footprint[0] spans x, footprint[1] spans s.
-    if (s < startS || s >= startS + size || Math.abs(x) + footprint[0] / 2 >= WORLD_HALF) return;
-    // Infrastructure is authored at real size and seats 0.05 below its pivot (track lies flush).
-    const baseHeight = terrainHeight(seed, x, s) + (kind === 'track' ? 0.01 : 0);
-    props.push({ id, kind, x, s, footprint, baseHeight, height: Math.max(0.04, Math.min(height, SCENERY_MAX_HEIGHT - baseHeight)),
-      scale: 1, rotation, variation, group });
-  };
-  // One composed outpost per 72 forward units, on ground flattened to the local landform level.
-  for (let cell = Math.floor(startS / DISTRICT_SPACING) - 1; cell <= Math.floor((startS + size) / DISTRICT_SPACING) + 1; cell++) {
-    const { id, x, s, side, variation } = district(seed, cell);
-    add(`${id}:pad`, 'landingPad', x, s - 5, [5.4, 6.2], 0.3, id, variation);
-    add(`${id}:spine`, 'track', x - 4.5 * side, s, [1.35, 22], 0.05, id, variation);
-    add(`${id}:spur`, 'track', x - 2 * side, s - 5, [6, 1.35], 0.05, id, variation);
-    add(`${id}:refinery`, 'refinery', x + 2.1 * side, s + 3.5, [4.1, 5.1], 1.6, id, variation);
-    add(`${id}:relay`, 'relay', x + 3.9 * side, s - 4.7, [0.85, 1.0], 1.6, id, variation);
-    for (let i = 0; i < 3; i++) add(`${id}:cargo:${i}`, 'cargo', x - 1.9 * side, s + 1.5 + i * 2.4, [1.05, 1.75], 0.65, id, variation, 0);
+/** Settlement modules owned by a section: modelled infrastructure, shared tanks and containers, and kit rubble. */
+function settlementPieces(seed: number, startS: number, size: number) {
+  const props: TerrainProp[] = [], industry: IndustryPiece[] = [], rubble: KitInstance[] = [];
+  for (const site of settlementsNear(seed, startS, startS + size)) for (const module of site.modules) {
+    if (module.s < startS || module.s >= startS + size) continue;
+    const ground = terrainHeight(seed, module.x, module.s);
+    if (module.kind === 'infra') {
+      const height = MODULE_HEIGHT[module.node] ?? 1, base = site.flatten ? site.level : ground - (module.node.startsWith('wreck') ? 0.12 : 0);
+      if (Math.abs(module.x) > WORLD_HALF - 0.4 || base + height > SCENERY_MAX_HEIGHT) continue;
+      props.push({ id: module.id, node: module.node, x: module.x, s: module.s, rotation: module.yaw, baseHeight: base, height, group: site.id, archetype: site.archetype });
+    } else if (module.kind === 'shared') {
+      const node = module.node as SharedNode, bounds = SHARED_BOUNDS[node];
+      if (site.level + bounds.height > SCENERY_MAX_HEIGHT || Math.abs(module.x) + Math.max(bounds.halfX, bounds.halfZ) > WORLD_HALF) continue;
+      industry.push({ id: module.id, node, x: module.x, s: module.s, y: site.level, rotation: module.yaw, pitch: 0, scaleY: 1, group: site.id });
+    } else {
+      const kind = module.node as KitKind, spec = KIT[kind], scale = Math.min(KIT_MAX_SCALE, module.scale);
+      const height = kind === 'rock' ? scale * 0.9 : scale;
+      if (Math.abs(module.x) + spec.radius * scale > WORLD_HALF || ground + height * spec.height > SCENERY_MAX_HEIGHT) continue;
+      rubble.push({ kind, variant: Math.min(spec.variants - 1, Math.floor(module.pick * spec.variants)), x: module.x, s: module.s,
+        y: ground - 0.05, scale, height, rotation: module.yaw, shade: 1, cosmetic: false });
+    }
   }
-  return props;
+  return { props, industry, rubble };
 }
 
+/** Synchronous generation: runs the resumable steps below to completion (identical output). */
 export function generateTerrainSection(seed: number, index: number): TerrainSection {
+  if (!Number.isInteger(index) || !Number.isFinite(seed)) throw new Error('Terrain requires a finite seed and integer section index.');
+  return finish(sectionSteps(seed, index));
+}
+
+/** Resumable section generation: yields between rows and passes so a frame can stop after a few ms. */
+export function* sectionSteps(seed: number, index: number): Work<TerrainSection> {
   if (!Number.isInteger(index) || !Number.isFinite(seed)) throw new Error('Terrain requires a finite seed and integer section index.');
   const size = VIEW.sectionLength, startS = index * size, cells = size / TERRAIN_STEP, side = cells + 1;
   // Apron: rim detection on every side, plus a long shadow apron toward the sun (−x, +s).
@@ -139,6 +150,7 @@ export function generateTerrainSection(seed: number, index: number): TerrainSect
       heights[at(row, column)] = point.height;
       if (row >= 0 && row <= cells && column >= 0 && column <= cells) points[row * side + column] = point;
     }
+    yield;
   }
   const positions = new Float32Array(side * side * 3), colors = new Float32Array(side * side * 3);
   const normals = new Float32Array(side * side * 3), glow = new Float32Array(side * side * 2);
@@ -147,6 +159,7 @@ export function generateTerrainSection(seed: number, index: number): TerrainSect
   const gradients = new Float32Array(side * side * 2), shade = new Float32Array(side * side);
   const rise = TERRAIN_STEP * Math.SQRT2 * SUN_RISE;
   for (let row = 0; row <= cells; row++) for (let column = 0; column <= cells; column++) {
+    if (column === 0 && row % 2 === 0) yield;
     const vertex = row * side + column, center = at(row, column), point = points[vertex], x = -WORLD_HALF + column * TERRAIN_STEP;
     // Central differences include the apron. Never recompute isolated mesh normals.
     const dx = (heights[center + 1] - heights[center - 1]) / (TERRAIN_STEP * 2);
@@ -176,8 +189,9 @@ export function generateTerrainSection(seed: number, index: number): TerrainSect
     const start = cursor;
     for (let row = 0; row < cells; row++) for (let column = strip * stripCells; column < (strip + 1) * stripCells; column++) {
       const a = row * side + column, b = a + 1, c = a + side, d = c + 1;
-      indices.set([a, b, c, b, d, c], cursor); cursor += 6;
+      indices[cursor++] = a; indices[cursor++] = b; indices[cursor++] = c; indices[cursor++] = b; indices[cursor++] = d; indices[cursor++] = c;
     }
+    yield;
     strips.push({ start, count: cursor - start, minX: -WORLD_HALF + strip * stripCells * TERRAIN_STEP,
       maxX: -WORLD_HALF + (strip + 1) * stripCells * TERRAIN_STEP });
   }
@@ -190,6 +204,7 @@ export function generateTerrainSection(seed: number, index: number): TerrainSect
   };
   const elevation = new Float32Array(side * side), industry = new Float32Array(side * side);
   points.forEach((point, i) => { elevation[i] = point.elevation; industry[i] = point.industrial; });
+  yield;
   const field: ScatterField = {
     height(x, s) {
       const u = (x + WORLD_HALF) / TERRAIN_STEP, v = (s - startS) / TERRAIN_STEP;
@@ -203,33 +218,73 @@ export function generateTerrainSection(seed: number, index: number): TerrainSect
     elevation: vertexField(elevation), industrial: vertexField(industry), veins: vertexField(glow, 2, 0), pool: vertexField(glow, 2, 1),
     shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s).params,
     blocked: (x: number, s: number) => occupied.has(`${Math.floor(x)}:${Math.floor(s)}`),
+    crater: (x: number, s: number) => crater(seed, x, s).rim,
   };
-  // Scatter keeps off the unit cells under pipelines and tanks.
-  const industryPieces = sectionIndustry(seed, startS, size), occupied = new Set<string>();
-  for (const piece of industryPieces) {
-    const bounds = SHARED_BOUNDS[piece.node], reach = Math.max(bounds.halfX, bounds.halfZ) + 0.4;
-    for (let x = Math.floor(piece.x - reach); x <= Math.floor(piece.x + reach); x++) {
-      for (let s = Math.floor(piece.s - reach); s <= Math.floor(piece.s + reach); s++) occupied.add(`${x}:${s}`);
-    }
-  }
+  // Scatter keeps off the unit cells under roads, pipelines and settlement modules.
+  const network = yield* sectionNetworkSteps(seed, startS, size), settled = settlementPieces(seed, startS, size), occupied = new Set<string>();
+  yield;
+  const occupy = (x0: number, s0: number, reach: number) => {
+    for (let x = Math.floor(x0 - reach); x <= Math.floor(x0 + reach); x++) for (let s = Math.floor(s0 - reach); s <= Math.floor(s0 + reach); s++) occupied.add(`${x}:${s}`);
+  };
+  for (const piece of [...network.pieces, ...settled.industry]) occupy(piece.x, piece.s, Math.max(SHARED_BOUNDS[piece.node].halfX, SHARED_BOUNDS[piece.node].halfZ) + 0.3);
+  for (const prop of settled.props) occupy(prop.x, prop.s, prop.node === 'infra_landing_pad' ? 3.2 : prop.node === 'infra_refinery' ? 2.7 : 1);
+  for (const road of network.roads) for (let i = 0; i < road.x.length; i++) if (road.s[i] >= startS - 1 && road.s[i] < startS + size + 1) occupy(road.x[i], road.s[i], 1);
+  // Roads take the ground's baked cast shadow so they darken in shaded valleys too.
+  const roads = yield* roadRibbonSteps(seed, network.roads, startS, size);
+  for (let i = 0; i < roads.shade.length; i++) roads.shade[i] = field.shade(roads.positions[i * 3], startS - roads.positions[i * 3 + 2]);
+  const scattered = yield* scatterKitSteps(seed, startS, size, field), firstCosmetic = scattered.findIndex(instance => instance.cosmetic);
+  const instances = firstCosmetic < 0 ? [...scattered, ...settled.rubble]
+    : [...scattered.slice(0, firstCosmetic), ...settled.rubble, ...scattered.slice(firstCosmetic)];
   return {
     seed, index, startS, size, side, positions, colors, normals, glow, edges, rock, indices, strips,
-    props: sectionProps(seed, startS, size), instances: scatterKit(seed, startS, size, field), industry: industryPieces,
+    props: settled.props, instances, industry: [...settled.industry, ...network.pieces],
+    roads, roadPaths: network.roads,
   };
 }
 
-/** Fixed three-section cache; seeking does not retain old scenery or affect any RNG. */
+/**
+ * Fixed three-section window; seeking does not retain old scenery or affect any RNG. `prefetch` advances the
+ * next section ahead in small resumable steps while the caller's budget allows; `update` uses it when ready and
+ * otherwise generates synchronously (counted in `fallbacks`). Both paths produce identical sections.
+ */
 export function createTerrainStream(seed: number) {
-  const sections = new Map<number, TerrainSection>();
+  const sections = new Map<number, TerrainSection>(), ready = new Map<number, TerrainSection>();
+  let pending: { index: number; work: Work<TerrainSection> } | null = null;
+  const counts = { fallbacks: 0, startup: 0, prefetched: 0 };
   return {
     update(distance: number): readonly TerrainSection[] {
       if (!Number.isFinite(distance)) throw new Error('Terrain distance must be finite.');
       const current = Math.floor(distance / VIEW.sectionLength);
       for (const key of sections.keys()) if (key < current - 1 || key > current + 1) sections.delete(key);
-      for (let i = current - 1; i <= current + 1; i++) if (!sections.has(i)) sections.set(i, generateTerrainSection(seed, i));
+      for (const key of ready.keys()) if (key < current - 1 || key > current + 2) ready.delete(key);
+      if (pending && (pending.index < current - 1 || pending.index > current + 2)) pending = null;
+      const starting = sections.size === 0;
+      for (let i = current - 1; i <= current + 1; i++) {
+        if (sections.has(i)) continue;
+        const early = ready.get(i);
+        if (early) { sections.set(i, early); ready.delete(i); counts.prefetched++; continue; }
+        if (pending?.index === i) pending = null;
+        if (starting) counts.startup++; else counts.fallbacks++;
+        sections.set(i, generateTerrainSection(seed, i));
+      }
       return [...sections.values()].sort((a, b) => a.index - b.index);
     },
+    /** Generates the next section ahead while `more()` allows; returns true once it is ready. */
+    prefetch(distance: number, more: () => boolean): boolean {
+      const ahead = Math.floor(distance / VIEW.sectionLength) + 2;
+      if (sections.has(ahead) || ready.has(ahead)) return true;
+      if (!pending || pending.index !== ahead) pending = { index: ahead, work: sectionSteps(seed, ahead) };
+      while (more()) {
+        const step = pending.work.next();
+        if (step.done) { ready.set(ahead, step.value); pending = null; return true; }
+      }
+      return false;
+    },
+    /** A prefetched section that is ready but not yet in the window (for building its view ahead). */
+    upcoming(): TerrainSection | undefined { return [...ready.values()][0]; },
+    /** Sections taken from prefetch, synchronous fallbacks after start, and startup generations. */
+    get stats() { return { ...counts }; },
     get size() { return sections.size; },
-    clear() { sections.clear(); },
+    clear() { sections.clear(); ready.clear(); pending = null; },
   };
 }

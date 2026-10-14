@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { KIT, KIT_KINDS, SHARED_NODES, kitNodeName, type KitKind, type PropKind, type SharedNode } from '../world/terrain';
-import { createScenicProp, type Materials } from './models';
+import { KIT, KIT_KINDS, SHARED_NODES, kitNodeName, type KitKind, type SharedNode } from '../world/terrain';
+import { createScenicProp, type Materials, type PropKind } from './models';
 
 /** Kit geometry by node name (`basalt_clump_0` …). Attributes: position, normal, color, glow. */
 export type KitGeometries = Map<string, THREE.BufferGeometry>;
@@ -255,7 +255,7 @@ export function loadKhepriKit(url: string): Promise<KitGeometries> {
 /* ---------------------------------------------------------------- infrastructure (docs/13 §3b) */
 
 /** Real-size infrastructure nodes (x × height × z) and the code-built stand-in each falls back to. */
-export const INFRA_NODES: Readonly<Record<string, { kind: PropKind; size: readonly [number, number, number] }>> = {
+export const INFRA_NODES: Readonly<Record<string, { kind?: PropKind; size: readonly [number, number, number] }>> = {
   infra_landing_pad: { kind: 'landingPad', size: [5.4, 0.3, 6.2] },
   infra_refinery: { kind: 'refinery', size: [4.1, 1.6, 5.1] },
   infra_relay: { kind: 'relay', size: [0.85, 1.6, 1.0] },
@@ -263,14 +263,57 @@ export const INFRA_NODES: Readonly<Record<string, { kind: PropKind; size: readon
   infra_cargo_1: { kind: 'cargo', size: [1.05, 0.65, 1.75] },
   infra_cargo_2: { kind: 'cargo', size: [1.05, 0.65, 1.75] },
   infra_track_segment: { kind: 'track', size: [1.35, 0.05, 2.0] },
+  infra_drill_rig: { size: [1.5, 1.96, 1.32] }, infra_habitat_0: { size: [1.38, 0.78, 0.74] }, infra_habitat_1: { size: [1.32, 0.78, 1.02] },
+  infra_comm_dish: { size: [1.0, 1.25, 1.0] }, infra_solar_array: { size: [2.2, 0.45, 0.74] }, infra_light_mast: { size: [0.38, 1.5, 0.36] },
+  infra_silo: { size: [0.94, 1.75, 0.94] }, wreck_0: { size: [2.36, 0.39, 1.36] }, wreck_1: { size: [2.12, 0.54, 1.46] },
 };
-/** Length of one tiling track segment along its local z. */
-export const TRACK_SEGMENT = 2;
+
+const GRAPHITE = linear(0x3a3c3e), OCHRE = linear(0x9a6a3a), RUST = linear(0x7a4a30), AMBER = linear(0xffb060);
+/** Primitive stand-ins for the settlement pieces (vertex colour + amber lamp glow), at contract size. */
+function primitiveInfra(name: string): THREE.BufferGeometry | null {
+  const parts: THREE.BufferGeometry[] = [];
+  const add = (geometry: THREE.BufferGeometry, color: THREE.Color, lamp = 0) => {
+    const g = geometry.index ? geometry.toNonIndexed() : geometry, count = g.getAttribute('position').count;
+    g.deleteAttribute('uv');
+    g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: count }, () => [color.r, color.g, color.b]).flat(), 3));
+    g.setAttribute('glow', new THREE.Float32BufferAttribute(new Float32Array(count).fill(lamp), 1));
+    parts.push(g);
+  };
+  const box = (w: number, h: number, d: number, x: number, y: number, z: number, color: THREE.Color) => add(new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), color);
+  const lamp = (x: number, y: number, z: number) => add(new THREE.SphereGeometry(0.05, 6, 4).translate(x, y, z), AMBER, 1);
+  switch (name) {
+    case 'infra_drill_rig':
+      box(1.3, 0.25, 1.1, 0, 0, 0, GRAPHITE);
+      for (const [x, z] of [[-0.4, -0.35], [0.4, -0.35], [0, 0.4]]) add(new THREE.CylinderGeometry(0.04, 0.06, 1.7, 5).translate(x * 0.6, 1.1, z * 0.6), OCHRE);
+      box(0.3, 0.4, 0.3, 0, 1.5, 0, GRAPHITE); lamp(0, 1.92, 0); break;
+    case 'infra_habitat_0': case 'infra_habitat_1':
+      add(new THREE.CylinderGeometry(0.34, 0.34, name.endsWith('0') ? 1.3 : 1.2, 10).rotateZ(Math.PI / 2).translate(0, 0.38, 0), OCHRE);
+      box(0.4, 0.2, 0.3, 0, 0.62, 0, GRAPHITE); lamp(0.5, 0.6, 0.3); break;
+    case 'infra_comm_dish':
+      add(new THREE.CylinderGeometry(0.06, 0.12, 0.8, 6).translate(0, 0.4, 0), GRAPHITE);
+      add(new THREE.SphereGeometry(0.48, 12, 6, 0, Math.PI * 2, 0, Math.PI / 3).rotateX(-0.9).translate(0, 0.95, 0), OCHRE); lamp(0, 1.2, 0); break;
+    case 'infra_solar_array':
+      box(2.1, 0.06, 0.7, 0, 0.32, 0, linear(0x22303a)); box(0.08, 0.32, 0.08, -0.8, 0, 0, GRAPHITE); box(0.08, 0.32, 0.08, 0.8, 0, 0, GRAPHITE); break;
+    case 'infra_light_mast':
+      add(new THREE.CylinderGeometry(0.04, 0.07, 1.4, 6).translate(0, 0.7, 0), GRAPHITE); box(0.3, 0.06, 0.12, 0, 1.4, 0, GRAPHITE); lamp(-0.1, 1.46, 0); lamp(0.1, 1.46, 0); break;
+    case 'infra_silo':
+      add(new THREE.CylinderGeometry(0.42, 0.42, 1.45, 12).translate(0, 0.73, 0), OCHRE);
+      add(new THREE.ConeGeometry(0.42, 0.3, 12).translate(0, 1.6, 0), GRAPHITE); lamp(0, 1.72, 0); break;
+    case 'wreck_0': case 'wreck_1':
+      box(1.8, 0.3, 0.9, 0, 0, 0, RUST); box(0.7, 0.18, 1.3, 0.4, 0.15, 0, GRAPHITE);
+      add(new THREE.ConeGeometry(0.2, 0.5, 4).rotateZ(1.2).translate(-0.8, 0.3, 0.2), linear(0x2fe0d4), 0.6); break;
+    default: return null;
+  }
+  const merged = mergeGeometries(parts); parts.forEach(part => part.dispose());
+  if (merged) { merged.computeVertexNormals(); merged.computeBoundingBox(); merged.computeBoundingSphere(); }
+  return merged;
+}
 
 /** Bakes the code-built props (one mesh per material) into single vertex-coloured geometries at real size. */
 export function createFallbackInfra(materials: Materials): KitGeometries {
   const infra: KitGeometries = new Map();
   for (const [name, { kind, size }] of Object.entries(INFRA_NODES)) {
+    if (!kind) { const geometry = primitiveInfra(name); if (geometry) infra.set(name, geometry); continue; }
     const model = createScenicProp(kind, materials), parts: THREE.BufferGeometry[] = [];
     model.updateMatrixWorld(true);
     model.traverse(object => {
@@ -403,6 +446,7 @@ const haze = () => ({
  * only add contrast-limited luminance detail and normals. Low tier drops normal maps; layout never changes.
  */
 export function createTerrainMaterials() {
+  const time = { beaconTime: { value: 0 } };
   const fallback = createDetailTexture();
   const flatNormal = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
   flatNormal.needsUpdate = true;
@@ -463,9 +507,17 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
 
   const infra = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3 });
   infra.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, haze(), { glowColor: { value: linear(0xffb060).multiplyScalar(1.6) }, detailContrast: { value: 0 } });
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', GLOW_VERTEX)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;').replace('#include <project_vertex>', HAZE_VERTEX);
+    Object.assign(shader.uniforms, haze(), time, { glowColor: { value: linear(0xffb060).multiplyScalar(1.6) }, detailContrast: { value: 0 } });
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', `${GLOW_VERTEX}\nuniform float beaconTime;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  // Amber beacons blink: each instance gets its own phase from its position; some lamps stay steady.
+  #ifdef USE_INSTANCING
+    float beaconPhase = fract( sin( dot( instanceMatrix[ 3 ].xz, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+  #else
+    float beaconPhase = 0.0;
+  #endif
+  float beaconPulse = beaconPhase < 0.35 ? 1.0 : 0.25 + 0.75 * smoothstep( 0.55, 0.75, fract( beaconTime * ( 0.45 + beaconPhase * 0.4 ) + beaconPhase ) );
+  vGlow = glow * beaconPulse;`).replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS)
       .replace('#include <emissivemap_fragment>', EMISSIVE).replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
@@ -504,6 +556,7 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
   };
   kit.customProgramCacheKey = () => 'khepri-kit';
 
+  const roads = createRoadMaterial();
   let textures: KhepriTextures | null = null, normals = true;
   const apply = () => {
     ground.map = textures?.groundDetail ?? fallback;
@@ -516,12 +569,14 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
     ground.needsUpdate = true; kit.needsUpdate = true;
   };
   return {
-    ground, kit, infra,
+    ground, kit, infra, roads,
+    /** Presentation time for blinking beacons (seconds); never read by the simulation. */
+    setTime(seconds: number) { time.beaconTime.value = seconds; },
     setTextures(next: KhepriTextures) { textures = next; apply(); },
     /** Low tier skips normal maps (a cosmetic cost), never layout or colour. */
     setNormalMaps(enabled: boolean) { if (enabled !== normals) { normals = enabled; apply(); } },
     dispose() {
-      ground.dispose(); kit.dispose(); infra.dispose(); fallback.dispose(); flatNormal.dispose();
+      ground.dispose(); kit.dispose(); infra.dispose(); roads.dispose(); (roads.map as THREE.Texture | null)?.dispose(); fallback.dispose(); flatNormal.dispose();
       if (textures) Object.values(textures).forEach(texture => texture?.dispose());
     },
   };
@@ -645,5 +700,45 @@ export function createSharedMaterial(): THREE.MeshStandardMaterial {
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   material.customProgramCacheKey = () => 'shared-industrial';
+  return material;
+}
+
+/* ---------------------------------------------------------------- roads */
+
+/** Tileable graded-dust road texture: berms at the edges, a lighter graded bed and two tyre ruts (u across, v along). */
+function createRoadTexture(): THREE.DataTexture {
+  const width = 32, height = 64, data = new Uint8Array(width * height * 4);
+  const berm = new THREE.Color(0x9a5a32), bed = new THREE.Color(0xbb7c4c), rut = new THREE.Color(0x6e3c22), color = new THREE.Color();
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const u = (x + 0.5) / width, grain = 0.92 + rand(31, y * width + x) * 0.16, wobble = Math.sin(y / height * Math.PI * 2) * 0.012;
+    const inBed = u > 0.22 && u < 0.78, rutLine = Math.min(Math.abs(u - 0.37 - wobble), Math.abs(u - 0.63 - wobble));
+    color.copy(inBed ? bed : berm);
+    if (inBed && rutLine < 0.045) color.lerp(rut, 0.65 * (1 - rutLine / 0.045));
+    data.set([color.r * 255 * grain, color.g * 255 * grain, color.b * 255 * grain, 255].map(v => Math.min(255, Math.round(v))), (y * width + x) * 4);
+  }
+  const texture = new THREE.DataTexture(data, width, height);
+  texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = THREE.ClampToEdgeWrapping; texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.LinearFilter; texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true; texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Terrain-following road ribbons: graded dust with ruts and berms, drawn over the ground with a polygon
+ * offset, edges faded by a per-vertex alpha and darkened by the ground's baked shade.
+ */
+export function createRoadMaterial(): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ map: createRoadTexture(), roughness: 1, metalness: 0, transparent: true, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+  material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, haze());
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float alpha;\nattribute float shade;\nvarying float vAlpha;\nvarying float vShade;\nvarying float vHazeY;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvAlpha = alpha;\nvShade = shade;').replace('#include <project_vertex>', HAZE_VERTEX);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying float vAlpha;\nvarying float vShade;${HAZE_UNIFORMS}`)
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vShade;\ndiffuseColor.a *= vAlpha;')
+      .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
+  };
+  material.customProgramCacheKey = () => 'khepri-road';
   return material;
 }

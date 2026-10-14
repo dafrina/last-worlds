@@ -1,6 +1,6 @@
 # Khepri infrastructure kit
 
-Runtime file: `public/assets/khepri/khepri-infra.glb` (597,284 bytes, sha256 `952b543edf688163209ea6d3feb3e7234f37784b5a14fc877fab513998a6830b`).
+Runtime file: `public/assets/khepri/khepri-infra.glb` (1,066,244 bytes, sha256 `c63257867bf475b819e423c731ca63baaa451a2e8acc985552b650f05a8fec4f`).
 Contract: [docs/13-khepri-world.md §3b](../../docs/13-khepri-world.md).
 
 ## Provenance
@@ -9,6 +9,7 @@ Contract: [docs/13-khepri-world.md §3b](../../docs/13-khepri-world.md).
 - The script imports small shared helpers from `tools/blender/khepri_kit.py` (box UV, preview setup), with bytecode writing disabled.
 - Built with Blender 5.2.2 LTS (hash `d13f752e3b9c`) and its bundled glTF exporter (`io_scene_gltf2` 5.2.40), headless on the Windows host, on 14 October 2026.
 - Determinism: a fixed seed (`INFRA_SEED`), per-piece `random.Random` streams and no time-based values. Three consecutive builds were byte-identical, matching the hash above.
+- The settlement-network update (14 October) added nine nodes and left the original seven unchanged: their decoded attributes, indices and materials are identical to the previous build.
 - The previews use CC0 Poly Haven maps from `art/source/polyhaven/`: `metal_plate_02` on infrastructure, plus `dry_ground_rocks` and `rock_face_03` on the preview terrain. They supply luminance detail and normals only, applied to preview materials after export (see that folder's README).
 
 ## Rebuild
@@ -20,18 +21,19 @@ cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -
   --glb "$(wslpath -w $R/public/assets/khepri/khepri-infra.glb)" \
   --preview-dir "$(wslpath -w $R/art/khepri-infra)" \
   --textures "$(wslpath -w $R/art/source/polyhaven)" \
-  --terrain-kit "$(wslpath -w $R/public/assets/khepri/khepri-kit.glb)"
+  --terrain-kit "$(wslpath -w $R/public/assets/khepri/khepri-kit.glb)" \
+  --shared-kit "$(wslpath -w $R/public/assets/shared/industrial-kit.glb)"
 ```
 
 Omit `--preview-dir` to export only (about 2 s).
 
 Every build re-parses its GLB and fails on any violation of these checks:
-- exactly the seven node names, with no node transforms;
-- exact footprints (±0.1 mm), base −0.05 (track: 0.0), refinery and relay tops of exactly 1.6, the other height limits, and triangle budgets;
+- exactly the sixteen node names, with no node transforms;
+- footprints: exact (±0.1 mm) for the original seven, and centred within the limit for the settlement pieces (the solar array is exact along its tiling axis); base −0.05 (track: 0.0); refinery and relay tops of exactly 1.6; the other height limits; triangle budgets;
 - exactly two materials;
 - COLOR_0 and TEXCOORD_0 on every primitive, with each UV checked per triangle against the box-projection formula;
 - no textures, images, cameras, animations or extensions;
-- seamless track tiling: every vertex on z = +1 has a twin on z = −1 with identical x, y, normal and colour.
+- seamless tiling: every track vertex on z = +1 has a twin on z = −1, and every solar-array vertex on x = +1.1 has a twin on x = −1.1, each with identical position, normal and colour.
 
 ## Nodes
 
@@ -47,11 +49,32 @@ Sizes are in glTF space: +Y up, x lateral, and −Z forward (the runtime's `s` d
 | infra_cargo_2 | 810 / 900 | 1.05 × 1.75 | −0.05, 0.65 | Tracked container carrier: two ribbed containers in weathered ochre and rust, with straps |
 | infra_track_segment | 170 / 200 | 1.35 × 2.0 | 0.00, 0.05 | Crawler roadway: bed, kerbs, two guide rails and four tie rows every 0.5. Tiles seamlessly along z every 2.0 |
 
-Total: 6,930 triangles in 7 meshes.
+| infra_drill_rig | 1,164 / 2,500 | ≤ 1.6 × 1.6 (1.49 × 1.32) | −0.05, 1.96 | Mining derrick. A braced four-leg lattice tower stands on an octagonal platform, with a crown block, sheave and beacon; a drill string with travelling block over a rotary table; an engine house with ochre door, louvres, stack and lamp; a spoil chute down to a heap of broken ore; and leg-mounted work lamps |
+| infra_habitat_0 | 496 / 1,200 | ≤ 1.6 × 1.2 (1.38 × 0.74) | −0.05, 0.78 | Capsule module on a skid. A rounded hull with domed ends, banding, window strips, airlock and step, roof plant, an antenna whip and a lamp |
+| infra_habitat_1 | 348 / 1,200 | ≤ 1.6 × 1.2 (1.32 × 1.03) | −0.05, 0.78 | Stacked prefab blocks. A wide lower module with window band, door and ochre panels, and an offset upper office with an observation cupola; also an external stair, roof rail, plant, antenna and lamp |
+| infra_comm_dish | 590 / 1,200 | ≤ 1.2 × 1.2 (1.0 × 1.0) | −0.05, 1.25 | Steerable dish. An octagonal plinth with equipment shed and lamp; a pedestal, azimuth ring and yoke; a two-surface parabolic dish tilted toward the camera side, with rim, feed-horn tripod and counterweight |
+| infra_solar_array | 412 / 600 | 2.2 (tiling) × ≤ 1.2 (0.74) | −0.05, 0.45 | Four tilted cell panels with frames and dividers on two rails open at the ends, posts every 1.1 and a junction box with lamp. **Tiles side by side every 2.2 along X** |
+| infra_light_mast | 262 / 300 | ≤ 0.4 × 0.4 (0.37 × 0.36) | −0.05, 1.50 | Ballast block, tapered pole, junction box, crossbar with two angled amber floodlights and a beacon |
+| infra_silo | 596 / 900 | ≤ 1.0 × 1.0 (0.94 × 0.94) | −0.05, 1.75 | Hopper-bottom silo on four braced legs. It has a cone roof, banding, a catwalk ring, a ladder, a roof vent with lamp, a discharge chute and a loading box |
+| wreck_0 | 615 / 1,200 | ≤ 2.4 × 1.6 (2.37 × 1.36) | −0.05, 0.39 | A crashed carapace hull broken in two. The nose is ploughed in, a wing is torn upright, and frames are exposed at the break among torn plates. Turquoise crystal grows through the break; one amber ember remains at the engines |
+| wreck_1 | 576 / 1,200 | ≤ 2.4 × 1.6 (2.12 × 1.46) | −0.05, 0.54 | A cargo lander split open. The tipped main body and a broken-off cockpit block lie among splayed landing struts, a nacelle, spilled crates and plates, with crystal pushing through |
+
+Total: 11,989 triangles in 16 meshes.
 
 All haulers share one tracked chassis: two track pods with road-wheel hubs, graphite fenders with small worn ochre plates, a hull deck, side lockers, an exhaust stack, and a cab with visor, roof lamp, headlights and a rear light bar. The **cab faces −Z** (forward), so haulers at rotation 0 drive up-screen.
 
 Hauler paint is a desaturated, heavily worn ochre and rust over graphite, with 1.5× dust, matching the concept crawlers rather than bright yellow.
+
+**Settlement pieces:**
+- **Pivots:** at the footprint centre, base at −0.05. The pieces are authored at game size with their own silhouettes per outpost archetype:
+  - mining camp: drill rig, habitats, silo, light masts;
+  - comm station: dish, solar array;
+  - points of interest: wrecks.
+- **Solar array:** place copies every 2.2 along local X to make continuous rows.
+- **Wrecks:**
+  - Built half-buried: geometry below ground is clamped to −0.05.
+  - Hulls are charred and burnt, with baked soot falloff around fire centres and remnants of weathered ochre faction paint.
+  - The crystal overgrowth is bright turquoise **vertex colour** on `khepri_infra`, not emissive, and carries no dust. `khepri_light` is used only for one small amber ember on `wreck_0`.
 
 ## Runtime conventions
 
@@ -60,12 +83,12 @@ Hauler paint is a desaturated, heavily worn ochre and rust over graphite, with 1
   - `khepri_infra`: baseColorFactor 1, roughness 0.58, metallic 0.25, single-sided. Albedo comes entirely from COLOR_0.
   - `khepri_light`: amber #ffb04a base and emissive (core glTF, strength 1), single-sided. Light faces carry white COLOR_0. Under ACES tone mapping lamps read as pale amber points; use `toneMapped = false` or a glow sprite for a stronger accent.
 - **COLOR_0:** VEC4, normalized unsigned short, **linear**, alpha 1. It bakes:
-  - paint: graphite, dark graphite, steel, yellow-ochre, weathered hauler ochre and rust, rust, pale marking, dark visor and basalt ore;
+  - paint: graphite, dark graphite, steel, yellow-ochre, weathered ochre and rust, rust, pale marking, dark visor, basalt ore, solar cells, charred and burnt hull, and crystal turquoise;
   - edge wear on every chamfer face (bare worn metal, strongest on ochre paint);
   - ochre dust on upward faces, in occluded upward corners and in a band near the ground;
   - ray-cast AO (48 rays, ground plane included).
 
-  The track bakes AO against its neighbouring copies, with no random variation, so tiled segments match exactly.
+  The tiling pieces (track along z, solar array along x) bake AO against their neighbouring copies, with no random variation, so tiled copies match exactly.
 - **Normals:** flat on hard-surface faces; cylinder walls are smooth-shaded.
 - **TEXCOORD_0:** the same world-scale box projection as the terrain kit (1 UV unit = 1 unit; see `art/khepri-kit/README.md`), intended for tiled `metal_plate_02` detail. Track UVs differ by exactly 2.0 across a seam, so any texture whose repeat divides 2 tiles seamlessly.
 
@@ -73,9 +96,15 @@ Hauler paint is a desaturated, heavily worn ochre and rust over graphite, with 1
 
 The camera and lighting match the terrain kit previews: EEVEE, ACES 1.3 view at +0.81 EV, warm sun from the upper left and slightly beyond the scene, and an orthographic camera at 55° elevation with zero yaw.
 
-- `preview-infra.png`: every piece on a plain ochre ground, plus three track segments tiled with a 90° spur.
+- `preview-infra.png`: all sixteen pieces on a plain ochre ground, with three solar arrays tiled along X and three track segments tiled with a 90° spur.
 - `preview-outpost.png`: the district layout from `src/world/terrain.ts` with side = +1, at the 900×1600 game camera (about 12.5 units wide). It shows:
   - the pad;
   - a 22-unit spine track (11 segments) and a 6-unit spur (3 segments rotated 90°);
   - the refinery, the relay and the three haulers;
   - ground flattened under the district, with terrain-kit formations and rocks around it.
+- `preview-settlements.png`: two different outpost archetypes at the 900×1600 game camera, on graded ground with terrain-kit formations around them. It shows:
+  - **Mining camp (south):** two drill rigs, a silo, three habitats, haulers, light masts and a spoil heap.
+  - **Comm station (north):** the dish, relay, a five-array solar field, two habitats, a tanker and a mast.
+  - **Road:** track segments run past both outposts and beyond the frame, with spurs into each.
+  - **Pipeline:** shared-kit large pipes on supports, in the Khepri palette. It leaves the camp's tank, runs north, tees into the station's tank, passes a valve and continues on.
+  - **Wreck site:** both wrecks between the outposts, with crystals and a boulder.

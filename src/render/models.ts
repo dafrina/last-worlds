@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { EnemyKind, Pickup } from '../shared/contracts';
-import type { PropKind } from '../world/terrain';
+/** Code-built outpost stand-ins, used when the modelled infrastructure kit is missing. */
+export type PropKind = 'relay' | 'cargo' | 'landingPad' | 'track' | 'refinery';
 
 export function createMaterials() {
   const pixels = new Uint8Array(64 * 64 * 4);

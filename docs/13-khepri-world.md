@@ -32,6 +32,19 @@ User decisions of 14 October, in order: no artificial corridors of rock walls; y
 - **Ground enemies on every level:** turrets and ground vehicles stand wherever their authored position lands: valley floors, slopes, ledges, plateaus or peaks. `terrainSample` is the seating height, and `groundPlacement` must search a range wide enough for the full depth. On slopes, a render-only foundation plinth extends down to the lowest ground under the footprint. When terrain in front hides a ground target's model, draw a subtle occlusion silhouette; markers already draw on top. None of this alters simulation or targeting.
 - **World edges:** keep readable boundary cues at x = ±18.
 - **Industrial districts:** outposts sit on flattened open ground (valley floors, plateaus, broad ledges) at their real game size; they must not fight the basalt composition.
+- **Settlement network (user request, 14 Oct: "all the infrastructure bases look the same", "the world feels very empty", "pipelines … roads"):**
+  - *Varied outposts.* Bases are not one template. Seeded archetypes each have their own composition, rotation/mirroring and module counts:
+    - refinery complex: refinery, tank farm, pipeline hub;
+    - mining camp: drill rigs, habitats, haulers, light masts, spoil heaps;
+    - landing field: pad, relay, containers, haulers;
+    - comm station: dish, relay, solar/radiator array;
+    - pumping station: valve, small tanks, pipeline junction;
+    - wreck sites and abandoned outposts as points of interest.
+  - *Long-range network.* Outposts are nodes of a seeded global network, and roads and pipelines run between them across the landscape, beyond the bases. Paths are found on a coarse grid with a slope cost. They follow valleys and contours, never climb cliffs, and are deterministic per edge, so every section renders its own part identically.
+    - Roads are terrain-following ribbon meshes: graded dust with tyre ruts and berms, gently curved.
+    - Pipelines are raised on supports from the shared kit, pitched to follow the ground, with bends and occasional valve stations.
+  - *Life.* Haulers drive the roads and amber beacons blink. Motion is presentation-only (seed + time), never collision, never targets, and the low tier may thin it.
+  - *Density.* Rocks, boulders, rubble and crystal fields are clearly denser, with occasional craters. Calm ground stays near the authored routes, and visible draw calls and triangles stay within §4.
 
 ## 3. Blender asset kit contract
 
@@ -73,6 +86,15 @@ Source: `tools/blender/khepri_infra.py` (seeded, deterministic). Output: `public
 | `infra_relay` | 0.85 × 1.0 | 1.6 (≤ 1.8) | ≤ 1,200 |
 | `infra_cargo_0` … `infra_cargo_2` | 1.05 × 1.75 | ≤ 0.65 | ≤ 900 each |
 | `infra_track_segment` | 1.35 × 2.0, tiles seamlessly along z | ≤ 0.05 | ≤ 200 |
+| `infra_drill_rig` | ≤ 1.6 × 1.6 | ≤ 2.0 | ≤ 2,500 |
+| `infra_habitat_0`, `infra_habitat_1` | ≤ 1.6 × 1.2 | ≤ 0.8 | ≤ 1,200 each |
+| `infra_comm_dish` | ≤ 1.2 × 1.2 | ≤ 1.4 | ≤ 1,200 |
+| `infra_solar_array` | ≤ 2.2 × 1.2 (tiles side by side along x) | ≤ 0.5 | ≤ 600 |
+| `infra_light_mast` | ≤ 0.4 × 0.4 | ≤ 1.6 | ≤ 300 |
+| `infra_silo` | ≤ 1.0 × 1.0 | ≤ 1.8 | ≤ 900 |
+| `wreck_0`, `wreck_1` | ≤ 2.4 × 1.6 | ≤ 0.7 | ≤ 1,200 each |
+
+The second group (added with the settlement network) gives each outpost archetype its own silhouettes. Wrecks are scorched, broken hulls of original design: half-buried and partly overgrown with turquoise crystal.
 
 The runtime places these at scale 1 (district layout heights follow the authored heights) and tiles track segments along each track's length. Surface detail may come from the CC0 `metal_plate_02` maps in `art/source/polyhaven/`.
 
@@ -84,7 +106,8 @@ As implemented (14 October), with deviations from the first draft:
 - **Culling:** there is one `InstancedMesh` per kit node, refilled with only the in-view instances whenever the camera passes a margin. Ground meshes are split into lateral strips with exact culling boxes. Draw calls are therefore bounded by node count, and triangles track what is on screen. The first draft had per-section instanced strips.
 - **Heights:** the heightfield spans −8 to 2.0 (floors near −6). Rim columns may rise to the 2.2 scenery cap. Outposts sit on terraces capped at 0.5, so 1.6-tall structures stay under the cap.
 - **Textures:** ground shading uses one detail tap on flat ground and two on steep faces, with no ground normal map on any tier. The kit normal map is High tier only.
-- **Measured** in SwiftShader (no phone yet): 32–48 total draw calls and about 20–32k triangles in view. The Node sweep's worst case is 44 calls and 52.6k triangles. Section generation takes 13–27 ms in Node and may cause a short hitch about every 9 s on phones; this is unmeasured on hardware.
+- **Measured** in SwiftShader, no phone yet. First world pass: 32–48 total draw calls and about 20–32k triangles in view. With the settlement network: 44–54 calls and 26–30k triangles in view, and a Node-sweep worst case of 51 calls and 36.4k terrain triangles.
+- **Streaming:** generation is resumable and prefetched within a 3 ms per-frame budget (`src/world/terrain-work.ts`). Incremental output is byte-identical to synchronous output, and no synchronous fallback occurs after start.
 
 ## 5. Ownership for this pass
 

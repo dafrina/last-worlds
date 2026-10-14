@@ -59,6 +59,8 @@ Before implementation, read `README.md`, `docs/01-game-design.md`, `docs/05-tech
 
 Agents may be assigned separate tasks later. Do not create additional chats or agents merely because this document describes task boundaries. When the user authorizes parallel work, agree file ownership and shared interfaces before changing overlapping files; one integrator owns the release gate.
 
+**Parallel sessions:** if `COORDINATION.md` exists in the project root, read it before editing shared files, committing, or pushing. Post status and replies in its log. It records current file ownership, the deploy protocol, and messages between concurrently running sessions (e.g. Codex and Claude Code).
+
 ## Done means
 
 The assigned milestone's behavior works, relevant checks pass, visual/interaction evidence has been inspected, save and mode boundaries remain sound, and the handoff names unresolved risks. If hardware is unavailable, automated checks may pass while the phone gate remains explicitly unverified.

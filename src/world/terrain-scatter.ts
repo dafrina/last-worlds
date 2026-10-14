@@ -1,4 +1,5 @@
-import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, smoothRange, type MoodParams } from './terrain-layout';
+import { finish, type Work } from './terrain-work';
+import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type MoodParams } from './terrain-layout';
 
 /** Kit pieces from public/assets/khepri/khepri-kit.glb (docs/13 §3); base-center pivots, +Y up. */
 export type KitKind = 'clump' | 'column' | 'rock' | 'crystal' | 'spire' | 'wall' | 'fallen' | 'boulder' | 'crystalSpire' | 'rosette' | 'hoodoo';
@@ -57,6 +58,8 @@ export interface ScatterField {
   mood(s: number): MoodParams;
   /** True where pipelines or tanks stand; scatter keeps clear. */
   blocked(x: number, s: number): boolean;
+  /** Closeness to an impact-crater rim (0..1), for ejecta. */
+  crater(x: number, s: number): number;
 }
 
 /**
@@ -65,7 +68,7 @@ export interface ScatterField {
  * towering stacks at cliff feet; hoodoos, rosettes and sparse rocks on open ground; crystals at pools.
  * Cells are global, so a section's pieces never depend on which sections were generated first.
  */
-export function scatterKit(seed: number, startS: number, size: number, terrain: ScatterField): KitInstance[] {
+export function* scatterKitSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
   const essential: KitInstance[] = [], cosmetic: KitInstance[] = [];
   const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number, shade?: number) => {
     const { kind, x, s, scale } = instance, spec = KIT[kind];
@@ -84,6 +87,7 @@ export function scatterKit(seed: number, startS: number, size: number, terrain: 
   const turn = (pick: number) => pick * Math.PI * 2;
   const cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   for (let j = Math.floor(startS / cell); j < Math.ceil((startS + size) / cell); j++) for (let i = 0; i < columns; i++) {
+    if (i === 0) yield;
     const h = (k: number) => hash(seed ^ 0x6c1a, i * 41 + k, j);
     const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.8) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.8) * cell;
     if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s)) continue;
@@ -132,7 +136,9 @@ export function scatterKit(seed: number, startS: number, size: number, terrain: 
       }
     } else {
       // Open ground: crystals and crystal spires at pools, hoodoos and rosettes, sparse rocks and boulder fields.
-      const field = smoothRange(0.68, 0.84, noise(seed ^ 0x4a7c, x * 0.12, s * 0.12)), pool = terrain.pool(x, s), veins = terrain.veins(x, s);
+      const field = smoothRange(0.62, 0.82, noise(seed ^ 0x4a7c, x * 0.12, s * 0.12)), pool = terrain.pool(x, s), veins = terrain.veins(x, s);
+      const crystals = smoothRange(0.72, 0.86, noise(seed ^ 0x4a7d, x * 0.09, s * 0.09)) * Math.min(1, mood.mineral), ejecta = terrain.crater(x, s);
+      const calm = routeCalm(seed, x, s);
       if (pool > 0.3 && pick < 0.06) {
         const scale = 0.9 + h(4) * 0.3;
         add({ kind: 'crystalSpire', x, s, y: ground - 0.12, scale, height: 0.9 + h(5) * 1.1, rotation: turn(h(6)), cosmetic: false }, h(7));
@@ -143,12 +149,18 @@ export function scatterKit(seed: number, startS: number, size: number, terrain: 
         add({ kind: 'hoodoo', x, s, y: ground - 0.08, scale: 0.85 + h(4) * 0.35, height: 1 + h(5) * 1.6, rotation: turn(h(6)), cosmetic: false }, h(7));
       } else if (slope < 0.45 && pick < 0.014 * mood.stacks + 0.008) {
         add({ kind: 'rosette', x, s, y: ground - 0.15, scale: 0.85 + h(4) * 0.3, height: 0.6 + h(5) * 0.8, rotation: turn(h(6)), cosmetic: false }, h(7));
-      } else if (veins > 0.6 && pick < 0.04) {
-        const scale = 0.4 + h(4) * 0.35;
-        add({ kind: 'crystal', x, s, y: ground - 0.05, scale, height: scale, rotation: turn(h(6)), cosmetic: true }, h(7));
-      } else if (pick < (ground > 0.5 ? 0.06 : 0.03) + field * 0.2) {
-        const big = field > 0.3 && h(8) < 0.3, kind = big ? (h(9) < 0.6 ? 'boulder' : 'fallen') : 'rock';
-        const scale = big ? 0.8 + h(4) * 0.35 : 0.14 + h(4) * h(4) * 0.4 + field * 0.15;
+      } else if ((veins > 0.6 && pick < 0.05) || (crystals > 0.15 && pick < 0.26 * crystals)) {
+        // Crystal fields in mineral regions, and accents along glowing veins.
+        const scale = 0.4 + h(4) * 0.45;
+        add({ kind: 'crystal', x, s, y: ground - 0.05, scale, height: scale * (0.8 + h(5) * 0.4), rotation: turn(h(6)), cosmetic: h(11) > 0.5 }, h(7));
+      } else if (ejecta > 0.2 && pick < 0.5 * ejecta) {
+        // Crater ejecta: blocks and rubble thrown around the rim.
+        const big = h(8) < 0.3, kind = big ? 'boulder' : 'rock', scale = big ? 0.8 + h(4) * 0.3 : 0.2 + h(4) * 0.4;
+        add({ kind, x, s, y: ground - 0.05, scale, height: big ? scale : scale * (0.7 + h(5) * 0.4), rotation: turn(h(6)), cosmetic: !big }, h(7));
+      } else if (pick < ((ground > 0.5 ? 0.1 : 0.07) + field * 0.35) * (1 - calm * 0.8)) {
+        // Rubble, boulder and fallen-column fields; calmer near the authored routes.
+        const big = field > 0.25 && h(8) < 0.35, kind = big ? (h(9) < 0.55 ? 'boulder' : 'fallen') : 'rock';
+        const scale = big ? 0.8 + h(4) * 0.35 : 0.14 + h(4) * h(4) * 0.42 + field * 0.15;
         // Fallen columns and boulders keep their modelled proportions (uniform scale); rocks vary in height.
         add({ kind, x, s, y: ground - 0.05, scale, height: big ? scale : scale * (0.75 + h(5) * 0.35),
           rotation: turn(h(6)), cosmetic: !big || h(10) > 0.6 }, h(7));
@@ -157,3 +169,4 @@ export function scatterKit(seed: number, startS: number, size: number, terrain: 
   }
   return [...essential, ...cosmetic];
 }
+export const scatterKit = (seed: number, startS: number, size: number, terrain: ScatterField) => finish(scatterKitSteps(seed, startS, size, terrain));

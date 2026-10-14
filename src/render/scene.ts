@@ -8,6 +8,8 @@ import { createBastionView } from './bastion-view';
 import { BASTION } from '../content/bastion';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
+/** Per-frame CPU budget for generating the next terrain section ahead of need. */
+const PREFETCH_BUDGET_MS = 3;
 const COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const TACTICAL_HEIGHT = VIEW.width * 16 / 9;
 
@@ -62,7 +64,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const boundaryMaterial = new THREE.MeshBasicMaterial({ color: 0xd8c08a, transparent: true, opacity: .52 });
   const sharedMaterial = createSharedMaterial();
   const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra, boundaryMaterial,
-    sharedMaterial, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared() });
+    sharedMaterial, roadMaterial: terrainMaterials.roads, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared() });
   let disposed = false, warmed = false;
   // The Blender kit streams in after start; fallback pieces render until (or unless) it arrives.
   loadKhepriKit(`${import.meta.env.BASE_URL}assets/khepri/khepri-kit.glb`).then(kit => {
@@ -172,6 +174,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   lines.frustumCulled = false; lines.renderOrder = 9; scene.add(lines);
 
   let lastStatsTick = -Infinity;
+  /** Per-frame terrain CPU work (update, cull, animate, prefetch), for streaming QA. */
+  const terrainWork = { last: 0, max: 0, over4: 0, frames: 0, renderMax: 0, updateMax: 0, animateMax: 0, prefetchMax: 0 };
   return {
     setQuality(next) {
       if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');
@@ -186,8 +190,25 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (disposed) return;
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
       void alpha;
+      const terrainStart = performance.now();
       terrain.update(state.config.seed, state.distance); configureCamera(camera, state.cameraX); terrain.cull(camera);
+      const terrainUpdate = performance.now() - terrainStart;
       bastion.update(state, state.boss ? groundPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight) : null);
+      // Haulers and beacons run on simulation time (frozen while paused); presentation only.
+      const animateStart = performance.now();
+      terrain.animate(state.time, state.cameraX); terrainMaterials.setTime(state.time);
+      // Spare budget each frame generates the next section (and then its view) ahead of need, so streaming
+      // never needs a long synchronous generation mid-flight.
+      const prefetchStart = performance.now(), prefetchEnd = prefetchStart + PREFETCH_BUDGET_MS;
+      terrain.prefetch(() => performance.now() < prefetchEnd);
+      const now = performance.now(), work = terrainUpdate + now - animateStart;
+      terrainWork.last = work; terrainWork.frames++;
+      if (state.tick > 0) {
+        terrainWork.max = Math.max(terrainWork.max, work); if (work > 4) terrainWork.over4++;
+        terrainWork.updateMax = Math.max(terrainWork.updateMax, terrainUpdate);
+        terrainWork.animateMax = Math.max(terrainWork.animateMax, prefetchStart - animateStart);
+        terrainWork.prefetchMax = Math.max(terrainWork.prefetchMax, now - prefetchStart);
+      }
       if (!warmed) {
         // Preview rendering warms all authored craft/material programs before the first fight.
         // Instance-color attributes above are allocated now, avoiding a new program on first loot/hit.
@@ -351,11 +372,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       for (const mesh of [effects, sparks]) { mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
       lineGeometry.setDrawRange(0, lineCursor);
       lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
+      const renderStart = performance.now();
       renderer.render(scene, camera);
+      if (state.tick > 0) terrainWork.renderMax = Math.max(terrainWork.renderMax, performance.now() - renderStart);
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, calls: renderer.info.render.calls, tier: quality, pixelRatio: renderer.getPixelRatio(),antialias:true,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats,
+          terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
+            renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
+            animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
+          calls: renderer.info.render.calls, tier: quality, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
           textures: renderer.info.memory.textures, pooledEnemies: [...enemyPool.values()].reduce((n, pool) => n + pool.length, 0),
         });

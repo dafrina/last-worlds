@@ -17,6 +17,27 @@ Verification in WSL Ubuntu / Node 24.16.0 / Chromium with SwiftShader:
 
 The new boss increment is local and has not been pushed/deployed by this session. The existing public site below is the earlier deployed version. Remaining M2 gates: human boss playtests, actual phone frame-time/touch checks, production fortress/ship models and fuller feedback/audio. M3 campaign hangar, wallet, goals/statistics and saves remain next; this increment does not claim those systems.
 
+*Integrator note:* the Codex session ran out of tokens before pushing. At the user's direction, the World session committed this increment unchanged as `deb1b22` and deployed it together with the settlement-network pass. That commit passes typecheck and its 81 unit tests on its own.
+
+## Settlement network pass — 14 October 2026
+
+User feedback: the world "feels very empty", "all the infrastructure bases look the same", and pipelines and roads should run beyond the bases. Changes:
+- **Outposts:** seven seeded archetypes (refinery complex, mining camp, landing field, comm station, pumping station, wreck site, abandoned outpost), each with its own composition, rotation/mirroring and module counts, on flattened ground. They use nine new Blender pieces (drill rig, two habitats, comm dish, tiling solar array, light mast, silo, two wrecks), so `khepri-infra.glb` now has 16 nodes and is 1.07 MB.
+- **Network:** a seeded global graph links the outposts, with exits off the map and some cross links. Each edge is path-found with A* on a slope-cost grid, so routes never climb cliffs, and is cached per edge, so every section renders its own part identically. Roads render as terrain-following ribbons with ruts and berms; pipelines are shared-kit pieces on supports, pitched to the ground, with valve stations.
+- **Life and density:**
+  - Haulers drive the roads and amber beacons blink; both are presentation-only, from seed and time, never collision or targets.
+  - Rock, boulder, fallen-column and crystal fields are denser, and impact craters have ejecta.
+- **Streaming:** section generation is resumable (generators) and prefetched ahead of need within a 3 ms per-frame budget. A test proves incremental and synchronous builds are identical.
+- **Evidence (WSL, Node 24.16.0, SwiftShader):**
+  - **Checks:** typecheck clean; `npm test` 11 files, 84/84; build 782 KB JS (212 KB gzip); `test:browser` 8/8, including the 3 Bastion browser tests.
+  - **Render stats:** fixed seed 93 at High tier gave 44–54 draw calls and 26–30k triangles in view. A Node sweep found at worst 51 calls and 36.4k terrain triangles.
+  - **Streaming:** no synchronous fallbacks after start. Terrain CPU work peaked at 4.3–5.4 ms per frame (budget ≈4 ms; 1–2 frames over in 700).
+- **Remaining:**
+  - About half of the edges flagged for pipelines fail their path search at cliffs.
+  - The old rail track pieces are no longer placed.
+  - Crystal and lamp glow stay tone-mapped.
+  - Phone frame time is still unmeasured.
+
 14 October 2026 — M1 world pass: procedural Khepri world map, Blender kits, GitHub Pages pipeline.
 
 ## Authorized scope
@@ -53,7 +74,7 @@ Procedural terrain and world layout belong in the MVP. Enemy models, encounter c
 
 ## Known limits and next actions
 
-- **Phone performance is unverified:** no iPhone/Android test has been performed. SwiftShader shows frame hitches (max frame 0.5–1.2 s under heavy machine load). Section generation (13–27 ms in Node) may hitch on phones about every 9 s; measure on hardware, then consider spreading the work across frames.
+- **Phone performance is unverified:** no iPhone/Android frame-time test has been performed; the user has played on an iOS device informally. SwiftShader shows frame hitches (max frame 0.4–1.2 s under heavy machine load). Section generation is now spread across frames (see the settlement network pass); measure on hardware.
 - **Visual polish:**
   - Diagonal terrace risers still alias into sawtooth steps in places, so more rim dressing is needed.
   - Veins are subtle.
