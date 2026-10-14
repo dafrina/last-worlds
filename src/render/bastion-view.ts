@@ -42,7 +42,34 @@ function treadTexture(): THREE.Texture {
 const glowMaterial = (color: number, intensity: number) =>
   new THREE.MeshStandardMaterial({ color: 0x2a1408, emissive: color, emissiveIntensity: intensity, roughness: .5, metalness: .2, toneMapped: false });
 
-const castShadows = (object: THREE.Object3D) => object.traverse(child => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
+/**
+ * Shadows for the whole fortress come from one merged, invisible proxy (position-only geometry of every static
+ * part, riding on the chassis), so the boss costs a single shadow draw instead of one per part and material.
+ * Detailed meshes only receive shadows. The proxy writes neither colour nor depth in the main pass.
+ */
+const shadowProxyMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+function castShadows(chassis: THREE.Object3D) {
+  chassis.getObjectByName('bastion-shadow-proxy')?.removeFromParent();
+  chassis.updateMatrixWorld(true);
+  const inverse = chassis.matrixWorld.clone().invert(), parts: THREE.BufferGeometry[] = [];
+  chassis.traverse(child => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.castShadow = false; child.receiveShadow = true;
+    if (!child.visible || child.userData.noShadowProxy) return;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', child.geometry.getAttribute('position').clone());
+    if (child.geometry.index) geometry.setIndex(child.geometry.index.clone());
+    const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+    flat.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, child.matrixWorld)); parts.push(flat);
+    if (flat !== geometry) geometry.dispose();
+  });
+  const merged = parts.length ? mergeGeometries(parts) : null;
+  parts.forEach(part => part.dispose());
+  if (!merged) return;
+  const proxy = new THREE.Mesh(merged, shadowProxyMaterial);
+  proxy.name = 'bastion-shadow-proxy'; proxy.castShadow = true; proxy.receiveShadow = false; proxy.frustumCulled = false;
+  chassis.add(proxy);
+}
 
 /* ------------------------------------------------------------------ functional stand-in */
 

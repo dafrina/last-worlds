@@ -458,7 +458,7 @@ export function createTerrainMaterials() {
   };
   const ground = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, normalScale: new THREE.Vector2(0.7, 0.7) });
   ground.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.3 } });
+    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 } });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
@@ -467,7 +467,28 @@ attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying 
       .replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
-uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
+uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}
+// Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
+// across section joins (36·scale must be an integer).
+float khepriHash( vec2 p, float period ) { return fract( sin( dot( vec2( p.x, mod( p.y, period ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+float khepriNoise( vec2 local, float scale ) {
+  vec2 cell = local * scale, i = floor( cell ), f = fract( cell ); f = f * f * ( 3.0 - 2.0 * f );
+  float period = 36.0 * scale;
+  return mix( mix( khepriHash( i, period ), khepriHash( i + vec2( 1.0, 0.0 ), period ), f.x ),
+    mix( khepriHash( i + vec2( 0.0, 1.0 ), period ), khepriHash( i + vec2( 1.0, 1.0 ), period ), f.x ), f.y );
+}
+/** Cellular (F2 − F1) distance for crystalline crackle; same seamless period rule as khepriNoise. */
+float khepriCells( vec2 local, float scale ) {
+  vec2 p = local * scale, i = floor( p ), f = fract( p );
+  float period = 36.0 * scale, f1 = 8.0, f2 = 8.0;
+  for ( int y = -1; y <= 1; y++ ) for ( int x = -1; x <= 1; x++ ) {
+    vec2 g = vec2( float( x ), float( y ) ), c = i + g;
+    vec2 o = vec2( khepriHash( c, period ), khepriHash( c + vec2( 31.0, 0.0 ), period ) ) * 0.8 + 0.1;
+    float d = length( g + o - f );
+    if ( d < f1 ) { f2 = f1; f1 = d; } else if ( d < f2 ) f2 = d;
+  }
+  return f2 - f1;
+}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   // Glowing mineral cracks: each family's signed distance interpolates cleanly; crossings come from taking
   // the nearer line per fragment (never per vertex, which would zig-zag). Width is measured in pixels
@@ -476,26 +497,27 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
   vec2 pixels = abs( vVeins ) / max( fwidth( vVeins ), vec2( 1e-4 ) );
   vec2 cores = vec2( 1.0 ) - smoothstep( vec2( 0.2 ), vec2( 0.85 ), pixels );
   vec2 lips = vec2( 1.0 ) - smoothstep( vec2( 0.7 ), vec2( 2.4 ), pixels );
-  float vein = 0.0, crack = 0.0;
-  if ( vSurface.x > 0.01 ) {
-    vec2 cell = vLocal.xz * 0.5, i = floor( cell ), f = fract( cell ); f = f * f * ( 3.0 - 2.0 * f );
-    vec2 j = vec2( i.x, mod( i.y, 18.0 ) );
-    float a = fract( sin( dot( j, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ), b = fract( sin( dot( j + vec2( 1.0, 0.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
-    float c = fract( sin( dot( vec2( j.x, mod( j.y + 1.0, 18.0 ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 ), d = fract( sin( dot( vec2( j.x + 1.0, mod( j.y + 1.0, 18.0 ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
-    float patchy = smoothstep( 0.3, 0.72, mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y ) );
+  float vein = 0.0, crack = 0.0, shore = 0.0, pool = 0.0, sparkle = 0.0;
+  if ( vSurface.x > 0.01 || vSurface.y > 0.12 ) {
+    float patchy = smoothstep( 0.3, 0.72, khepriNoise( vLocal.xz, 0.5 ) );
     vein = vSurface.x * max( cores.x, cores.y ) * patchy;
     crack = vSurface.x * max( lips.x, lips.y ) * mix( 0.45, 1.0, patchy );
+    // Mineral pools read as crystalline deposits, not outlined shapes: a dark teal bed shot through with a glowing
+    // crackle network (cells ~0.3 units, lines ~1–2 px via fwidth) and a faint soft rim. The mask lives on a
+    // 0.5-unit grid, so its edge is warped by noise to hide the grid polygons.
+    float level = vSurface.y + ( khepriNoise( vLocal.xz + vec2( 7.3, 0.0 ), 1.25 ) - 0.5 ) * 0.3;
+    pool = smoothstep( 0.36, 0.56, level );
+    if ( pool > 0.0 ) {
+      float cells = khepriCells( vLocal.xz, 3.0 ), width = max( fwidth( cells ), 1e-4 );
+      sparkle = pool * ( 1.0 - smoothstep( 0.6 * width, 1.9 * width, cells ) ) * mix( 0.5, 1.0, patchy );
+    }
+    shore = ( smoothstep( 0.24, 0.4, level ) - smoothstep( 0.4, 0.6, level ) ) * 0.6;
   }
-  // Pools read as dark mineral liquid with glowing terraced rims, never as flat cyan sheets that would
-  // compete with the player's cyan shots.
-  // Soft edges: the mask is interpolated on a 0.5-unit grid, and crisp thresholds would show its polygons.
-  float poolOuter = smoothstep( 0.3, 0.58, vSurface.y ), poolInner = smoothstep( 0.55, 0.85, vSurface.y );
-  float poolRim = max( 0.0, poolOuter - poolInner );
   diffuseColor.rgb *= 1.0 - crack * 0.5;
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.02, 0.16, 0.15 ), vein * 0.75 );
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.012, 0.05, 0.055 ), poolInner * 0.9 );
-  // Cracks glow just below the bloom threshold; pool rims rise above it for a soft halo (High).
-  totalEmissiveRadiance += glowColor * ( vein * 1.15 + poolRim * 1.7 + poolInner * 0.16 );`)
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.014, 0.055, 0.06 ), pool * 0.85 );
+  // Cracks glow just below the bloom threshold; the crackle network inside pools reaches it (soft halo on High).
+  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * 0.12 + sparkle * 1.2 );`)
       .replace('#include <map_fragment>', `float vRock = vSurface.z;
 #ifdef USE_MAP
   // One dust tap; vertex-colour drift hides the tile repetition. Three taps in total on High (dust, rock, normal).
@@ -516,7 +538,10 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
     detail = mix( dustA, rockD * tone * mix( 0.5, 1.0, seamLine ), vRock );
   }
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast;
-#endif`)
+#endif
+  // Camera-facing cliff faces sit in the generator's baked (lower-sun) shade; lift them like warm bounce light
+  // off the sunlit floor so columns keep readable detail instead of going black (both tiers).
+  diffuseColor.rgb *= 1.0 + 0.6 * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   ground.customProgramCacheKey = () => 'khepri-ground';
@@ -542,7 +567,7 @@ uniform sampler2D rockMap;\nuniform float faceScale;${HAZE_UNIFORMS}`)
   const kit = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.85, 0.85) });
   kit.onBeforeCompile = shader => {
     // Crystal growths and mineral crack faces are true glows (bloom on High); basalt stays matte.
-    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.75 } });
+    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>

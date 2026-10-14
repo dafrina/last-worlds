@@ -39,6 +39,8 @@ interface Particle {
   x: number; y: number; z: number; vx: number; vy: number; vz: number;
   age: number; life: number; size: number; grow: number; stretch: number;
   r: number; g: number; b: number; alpha: number; shape: number; flat: boolean; drag: number; fall: number;
+  /** Fraction of the scroll speed the particle drifts with (1 = rests on the ground, 0 = rides the flight plane). */
+  drift: number;
 }
 /** An engine plume in world space: nozzle at (x, z), extending `length` along z (positive = toward the player). */
 export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number }
@@ -49,14 +51,15 @@ function layer(scene: THREE.Scene, capacity: number, additive: boolean) {
   const params = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2).setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('aParams', params);
   const material = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: FRAGMENT, uniforms: { additive: { value: additive ? 1 : 0 } },
-    transparent: true, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide,
+    // Glows draw over everything like the other combat markers; smoke and ground dust respect terrain depth.
+    transparent: true, depthWrite: false, depthTest: !additive, toneMapped: false, side: THREE.DoubleSide,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
   const mesh = new THREE.InstancedMesh(geometry, material, capacity);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
   mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = additive ? 6 : 5; mesh.name = additive ? 'fx glow' : 'fx smoke';
   scene.add(mesh);
   const pool: Particle[] = [];
-  for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0 });
+  for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0, drift: 0 });
   let live = 0;
   return { mesh, params, pool, get live() { return live; }, set live(n: number) { live = n; }, capacity, geometry, material };
 }
@@ -71,7 +74,7 @@ export function createFx(scene: THREE.Scene) {
     const q = target.pool[target.live++];
     q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx ?? 0; q.vy = p.vy ?? 0; q.vz = p.vz ?? 0; q.age = 0; q.life = p.life;
     q.size = p.size; q.grow = p.grow ?? 0; q.stretch = p.stretch ?? 1; q.alpha = p.alpha ?? 1; q.shape = p.shape ?? ROUND;
-    q.flat = p.flat ?? false; q.drag = p.drag ?? 0; q.fall = p.fall ?? 0; q.r = p.r ?? 1; q.g = p.g ?? 1; q.b = p.b ?? 1;
+    q.flat = p.flat ?? false; q.drag = p.drag ?? 0; q.fall = p.fall ?? 0; q.r = p.r ?? 1; q.g = p.g ?? 1; q.b = p.b ?? 1; q.drift = p.drift ?? 0;
   };
   const tint = (hex: number, energy: number) => { color.setHex(hex).multiplyScalar(energy); return { r: color.r, g: color.g, b: color.b }; };
   const full = () => quality === 'high';
@@ -100,13 +103,13 @@ export function createFx(scene: THREE.Scene) {
     if (!full()) return;
     for (let k = 0; k < 3; k++) {
       const a = hash(n + k * 9.1) * Math.PI * 2;
-      emit(smoke, { x: x + Math.cos(a) * .15, y: y - .1, z: z + Math.sin(a) * .15, vx: Math.cos(a) * .35, vy: .25, vz: Math.sin(a) * .35 + VIEW.scrollSpeed * .15,
-        life: .8 + hash(n + k) * .4, size: .5, grow: 1.1, drag: 1.5, alpha: .42, shape: ROUND, ...tint(k === 1 ? 0x46382f : 0x2c2622, 1) });
+      emit(smoke, { x: x + Math.cos(a) * .15, y: y - .1, z: z + Math.sin(a) * .15, vx: Math.cos(a) * .35, vy: .25, vz: Math.sin(a) * .35,
+        life: .8 + hash(n + k) * .4, size: .5, grow: 1.1, drag: 1.5, alpha: .42, shape: ROUND, drift: .5, ...tint(k === 1 ? 0x46382f : 0x2c2622, 1) });
     }
     for (let k = 0; k < 5; k++) {
       const a = hash(n + k * 4.9 + 1) * Math.PI * 2, v = 2.2 + hash(n + k * 1.9) * 2.6;
       emit(smoke, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: -.4, life: .45 + hash(n + k) * .25, size: .11 + hash(n + k * 3) * .07,
-        drag: 1.2, fall: 6, alpha: .95, shape: CHIP, ...tint(0x1b1714, 1) });
+        drag: 1.2, fall: 6, alpha: .95, shape: CHIP, drift: .5, ...tint(0x1b1714, 1) });
     }
   }
 
@@ -193,11 +196,18 @@ export function createFx(scene: THREE.Scene) {
   return {
     setQuality(next: GraphicsQuality) { quality = next; },
     /** Advance by simulation time (frozen while paused or in still fixtures) and rebuild both instanced layers. */
-    update(state: RunState, plumes: readonly Plume[]) {
-      const dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
-      spawn(state); step(glow, dt); step(smoke, dt);
-      // The ground scrolls toward the player; smoke and debris drift with it, glows stay with the flight plane.
-      for (let i = 0; i < smoke.live; i++) smoke.pool[i].z += VIEW.scrollSpeed * dt * .5;
+    update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = []) {
+      const previous = lastTime, dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
+      spawn(state);
+      // Haulers kick up a light dust trail on High (about three puffs a second each); it rests on the ground.
+      if (full() && dt > 0 && Math.floor(state.time * 3) !== Math.floor(previous * 3)) dust.forEach((source, i) => emit(smoke, {
+        x: source.x + (hash(state.time + i) - .5) * .2, y: source.y + .08, z: source.z, vy: .18, life: .9, size: .22, grow: .6, drag: 1,
+        alpha: .3, shape: ROUND, drift: 1, ...tint(0xb27c4e, 1) }));
+      step(glow, dt); step(smoke, dt);
+      // The ground scrolls toward the player: ground dust moves with it, air smoke partly, glows ride the flight plane.
+      // Uses the run's live scroll speed when the simulation exposes it (endless ramp, boss stop).
+      const scroll = (state as RunState & { scrollSpeed?: number }).scrollSpeed ?? VIEW.scrollSpeed;
+      for (let i = 0; i < smoke.live; i++) smoke.pool[i].z += scroll * dt * smoke.pool[i].drift;
       write(glow); write(smoke); overlay(state, plumes);
       for (const target of [glow, smoke]) {
         target.mesh.instanceMatrix.needsUpdate = true; target.params.needsUpdate = true;

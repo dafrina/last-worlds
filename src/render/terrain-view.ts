@@ -123,6 +123,8 @@ export function createTerrainView(options: TerrainViewOptions) {
     }
     return entry;
   }
+  /** Rear axle of each hauler drawn this frame (world space), for render-only dust puffs. */
+  const haulerDust: { x: number; y: number; z: number }[] = [];
   /** Dynamic hauler meshes (one per cargo model), refilled every frame by animate(). */
   const haulers = new Map<string, THREE.InstancedMesh>();
   function hauler(name: string): THREE.InstancedMesh | null {
@@ -186,10 +188,14 @@ export function createTerrainView(options: TerrainViewOptions) {
     welded.dispose(); proxies.set(name, entry);
     return entry;
   }
-  /** Merges the section's meaningful casters into a few static, shadow-only strips in section-local space. */
-  function buildCasters(view: SectionView) {
+  /**
+   * Merges the section's meaningful casters into a few static, shadow-only strips in section-local space.
+   * Resumable: one strip per step, so the section build stays within the per-frame streaming budget.
+   */
+  function* casterSteps(view: SectionView): Generator<void, void, void> {
     view.casters.forEach(mesh => { view.group.remove(mesh); mesh.geometry.dispose(); }); view.casters = [];
-    const strips = Array.from({ length: CASTER_STRIPS }, () => ({ vertices: 0, indices: 0, items: [] as { name: string; data: Prepared; i: number }[] }));
+    type Shape = NonNullable<ReturnType<typeof proxy>>;
+    const strips = Array.from({ length: CASTER_STRIPS }, () => ({ vertices: 0, indices: 0, items: [] as { shape: Shape; data: Prepared; i: number }[] }));
     for (const [name, data] of view.prepared) {
       if (!CASTER_NODES.has(name)) continue;
       const shape = proxy(name);
@@ -197,7 +203,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (let i = 0; i < data.count; i++) {
         const x = (data.boxes[i * 6] + data.boxes[i * 6 + 3]) / 2;
         const strip = strips[Math.min(CASTER_STRIPS - 1, Math.max(0, Math.floor((x + VIEW.worldWidth / 2) / (VIEW.worldWidth / CASTER_STRIPS))))];
-        strip.items.push({ name, data, i }); strip.vertices += shape.position.length / 3; strip.indices += shape.index.length;
+        strip.items.push({ shape, data, i }); strip.vertices += shape.position.length / 3; strip.indices += shape.index.length;
       }
     }
     const matrix = new THREE.Matrix4(), point = new THREE.Vector3();
@@ -205,8 +211,8 @@ export function createTerrainView(options: TerrainViewOptions) {
       if (!strip.items.length) continue;
       const position = new Float32Array(strip.vertices * 3), anchor = new Float32Array(strip.vertices * 2), index = new Uint32Array(strip.indices);
       let v = 0, k = 0;
-      for (const { name, data, i } of strip.items) {
-        const shape = proxy(name)!, base = v;
+      for (const { shape, data, i } of strip.items) {
+        const base = v;
         matrix.fromArray(data.matrices, i * 16);
         const ax = (data.boxes[i * 6] + data.boxes[i * 6 + 3]) / 2, az = (data.boxes[i * 6 + 2] + data.boxes[i * 6 + 5]) / 2;
         for (let j = 0; j < shape.position.length; j += 3, v++) {
@@ -223,13 +229,17 @@ export function createTerrainView(options: TerrainViewOptions) {
       mesh.castShadow = true; mesh.receiveShadow = false; mesh.customDepthMaterial = casterDepth;
       mesh.intersectsFrustum = frustum => frustum === casterFrustum && frustum.intersectsObject(mesh);
       view.group.add(mesh); view.casters.push(mesh);
+      yield;
     }
   }
+  function buildCasters(view: SectionView) { for (const _ of casterSteps(view)) void _; }
   /** Caster proxies follow the loaded kit: rebuild every live (and prebuilt) section once when nodes change. */
   function refreshCasters() {
     proxies.clear();
     for (const view of views.values()) buildCasters(view);
     if (prebuilt?.view) buildCasters(prebuilt.view);
+    // A half-built prefetched view would keep stand-in casters; drop it and let prefetch rebuild it.
+    else if (prebuilt) discardPrebuilt();
   }
 
   /** Converts a section's kit instances and district props into per-node, section-local instance arrays. */
@@ -338,8 +348,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     const group = new THREE.Group(); group.name = `Khepri procedural section ${section.index}`;
     const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [] };
     yield;
-    buildCasters(view);
-    yield;
+    yield* casterSteps(view);
     yield* buildGround(section, view);
     buildRoads(section, view);
     return view;
@@ -552,7 +561,7 @@ export function createTerrainView(options: TerrainViewOptions) {
      * one or two haulers shuttling back and forth; the low tier keeps fewer.
      */
     animate(time: number, cameraX: number) {
-      let count = 0;
+      let count = 0; haulerDust.length = 0;
       const nodes = ['infra_cargo_0', 'infra_cargo_1', 'infra_cargo_2'];
       const used = nodes.map(() => 0), roads = new Map<string, RoadPath>();
       for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
@@ -593,6 +602,7 @@ export function createTerrainView(options: TerrainViewOptions) {
           transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, yaw, roll, 'YXZ');
           transform.scale.setScalar(HAULER_SCALE); transform.updateMatrix(); transform.rotation.order = 'XYZ';
           mesh.setMatrixAt(used[n]++, transform.matrix); count++;
+          haulerDust.push({ x: x - fx * HAULER_HALF_LENGTH, y: base + lift, z: distance - s - fz * HAULER_HALF_LENGTH });
         }
       }
       haulers.forEach((mesh, name) => {
@@ -607,6 +617,8 @@ export function createTerrainView(options: TerrainViewOptions) {
       return [...batches.values()].map(entry => entry.mesh);
     },
     get stats(): Readonly<TerrainStats> { return stats; },
+    /** Where haulers kick up dust this frame (presentation only). */
+    get haulerDust(): readonly { x: number; y: number; z: number }[] { return haulerDust; },
     dispose() {
       views.forEach(disposeView); views.clear(); stream.clear();
       discardPrebuilt();

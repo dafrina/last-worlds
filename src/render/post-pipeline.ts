@@ -3,12 +3,12 @@ import * as THREE from 'three';
 /**
  * High-tier post-processing in six full-screen draws (docs/05 §9: subtle bloom, disabled first under load).
  *
- * The scene renders once into a multisampled HDR target. Bloom is *selective by energy*: only pixels whose
+ * The scene renders once into an HDR target. Bloom is *selective by energy*: only pixels whose
  * linear radiance exceeds `threshold` (emissive cores, vents, lamps, engines, crystals and pool rims, which are
  * authored above 1.0) feed a quarter-resolution dual-filter chain (prefilter ↓¼, ↓⅛, ↓1/16, ↑⅛, ↑¼). Sunlit
  * surfaces stay below the threshold, so terrain, craft armour and projectiles never smear.
  *
- * One composite pass then adds the bloom, applies exposure, Neutral tone mapping, a restrained warm grade and
+ * One composite pass then antialiases (FXAA), adds the bloom, applies exposure, Neutral tone mapping, a restrained warm grade and
  * a soft vignette, and writes sRGB to the canvas. The Low tier never creates or runs this pipeline.
  */
 export interface PostSettings {
@@ -19,6 +19,8 @@ export interface PostSettings {
   /** Warm lift added to the darkest tones before tone mapping (linear RGB). */
   lift: THREE.Color;
   saturation: number;
+  /** Display-space contrast around mid-grey (1 = none). */
+  contrast: number;
   /** 0 = none; darkening at the corners. */
   vignette: number;
 }
@@ -75,9 +77,29 @@ void main() {
 }`;
 
 const COMPOSITE = /* glsl */`
-uniform sampler2D scene; uniform sampler2D bloom;
-uniform float exposure; uniform float strength; uniform vec3 lift; uniform float saturation; uniform float vignette; uniform vec2 aspect;
+uniform sampler2D scene; uniform sampler2D bloom; uniform vec2 texel;
+uniform float exposure; uniform float strength; uniform vec3 lift; uniform float saturation; uniform float contrast; uniform float vignette; uniform vec2 aspect;
 varying vec2 vUv;
+/** Compressed (Reinhard) luma, so FXAA edge detection behaves on HDR input. */
+float edgeLuma( vec3 c ) { float l = dot( c, vec3( 0.299, 0.587, 0.114 ) ) * exposure; return l / ( 1.0 + l ); }
+/**
+ * Compact FXAA (NVIDIA's console variant): 5 taps decide whether a pixel sits on a contrasted edge; only edge
+ * pixels take 4 more taps along it. Replaces MSAA on the HDR target, which cost more than the whole bloom chain.
+ */
+vec3 antialiased( vec2 uv ) {
+  vec3 m = texture2D( scene, uv ).rgb;
+  float nw = edgeLuma( texture2D( scene, uv + texel * vec2( -1.0, -1.0 ) ).rgb ), ne = edgeLuma( texture2D( scene, uv + texel * vec2( 1.0, -1.0 ) ).rgb );
+  float sw = edgeLuma( texture2D( scene, uv + texel * vec2( -1.0, 1.0 ) ).rgb ), se = edgeLuma( texture2D( scene, uv + texel * vec2( 1.0, 1.0 ) ).rgb );
+  float lm = edgeLuma( m ), lo = min( lm, min( min( nw, ne ), min( sw, se ) ) ), hi = max( lm, max( max( nw, ne ), max( sw, se ) ) );
+  if ( hi - lo < max( 0.04, hi * 0.15 ) ) return m;
+  vec2 dir = vec2( -( ( nw + ne ) - ( sw + se ) ), ( nw + sw ) - ( ne + se ) );
+  float reduce = max( ( nw + ne + sw + se ) * 0.03125, 1.0 / 128.0 );
+  dir = clamp( dir / ( min( abs( dir.x ), abs( dir.y ) ) + reduce ), vec2( -8.0 ), vec2( 8.0 ) ) * texel;
+  vec3 a = 0.5 * ( texture2D( scene, uv + dir * ( 1.0 / 3.0 - 0.5 ) ).rgb + texture2D( scene, uv + dir * ( 2.0 / 3.0 - 0.5 ) ).rgb );
+  vec3 b = a * 0.5 + 0.25 * ( texture2D( scene, uv - dir * 0.5 ).rgb + texture2D( scene, uv + dir * 0.5 ).rgb );
+  float lb = edgeLuma( b );
+  return ( lb < lo || lb > hi ) ? a : b;
+}
 vec3 neutral( vec3 color ) {
   // Khronos PBR Neutral, as three.js NeutralToneMapping (keeps the saturated rust and turquoise palette).
   const float start = 0.76; const float desaturation = 0.15;
@@ -96,7 +118,7 @@ vec3 srgb( vec3 c ) {
   return mix( c * 12.92, pow( c, vec3( 0.41666 ) ) * 1.055 - vec3( 0.055 ), step( vec3( 0.0031308 ), c ) );
 }
 void main() {
-  vec3 color = texture2D( scene, vUv ).rgb + texture2D( bloom, vUv ).rgb * strength;
+  vec3 color = antialiased( vUv ) + texture2D( bloom, vUv ).rgb * strength;
   color *= exposure;
   // Warm lift in the deepest tones only: shadows read as warm umber, never as night.
   float luma = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
@@ -107,21 +129,23 @@ void main() {
   color *= 1.0 - vignette * smoothstep( 0.35, 0.95, dot( p, p ) * 2.0 );
   // Ordered dither hides 8-bit banding in the vignette and haze gradients.
   float dither = fract( sin( dot( gl_FragCoord.xy, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ) - 0.5;
-  gl_FragColor = vec4( srgb( clamp( color, 0.0, 1.0 ) ) + dither / 255.0, 1.0 );
+  vec3 display = srgb( clamp( color, 0.0, 1.0 ) );
+  display = clamp( ( display - 0.5 ) * contrast + 0.5, 0.0, 1.0 );
+  gl_FragColor = vec4( display + dither / 255.0, 1.0 );
 }`;
 
 export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: PostSettings) {
-  const samples = Math.min(4, renderer.capabilities.maxSamples);
-  const hdr = (width: number, height: number, multisample = 0) => {
+  const hdr = (width: number, height: number, depth = false) => {
     const target = new THREE.WebGLRenderTarget(width, height, {
-      type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: multisample > 0, samples: multisample,
+      type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: depth, samples: 0,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false,
     });
     target.texture.colorSpace = THREE.LinearSRGBColorSpace;
     return target;
   };
-  // Scene in HDR with MSAA (the composer path previously lost antialiasing); bloom chain at ¼, ⅛, 1/16.
-  const sceneTarget = hdr(1, 1, Math.max(1, samples));
+  // Scene in HDR (antialiased by FXAA in the composite; an MSAA half-float target was the costliest step);
+  // bloom chain at ¼, ⅛, 1/16.
+  const sceneTarget = hdr(1, 1, true);
   const quarter = hdr(1, 1), eighth = hdr(1, 1), sixteenth = hdr(1, 1), upEighth = hdr(1, 1), upQuarter = hdr(1, 1);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const triangle = new THREE.BufferGeometry();
@@ -135,8 +159,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
   const up = pass(UP, { source: { value: null }, detail: { value: null }, texel: { value: new THREE.Vector2() } });
   const composite = pass(COMPOSITE, {
     scene: { value: sceneTarget.texture }, bloom: { value: upQuarter.texture }, exposure: { value: settings.exposure },
-    strength: { value: settings.strength }, lift: { value: settings.lift }, saturation: { value: settings.saturation },
-    vignette: { value: settings.vignette }, aspect: { value: new THREE.Vector2(1, 1) },
+    strength: { value: settings.strength }, lift: { value: settings.lift }, saturation: { value: settings.saturation }, contrast: { value: settings.contrast },
+    vignette: { value: settings.vignette }, aspect: { value: new THREE.Vector2(1, 1) }, texel: { value: new THREE.Vector2(1, 1) },
   });
   const quad = new THREE.Mesh(triangle, prefilter); quad.frustumCulled = false;
   let width = 1, height = 1;
@@ -153,6 +177,7 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
       eighth.setSize(Math.max(1, q[0] >> 1), Math.max(1, q[1] >> 1)); upEighth.setSize(Math.max(1, q[0] >> 1), Math.max(1, q[1] >> 1));
       sixteenth.setSize(Math.max(1, q[0] >> 2), Math.max(1, q[1] >> 2));
       composite.uniforms.aspect.value.set(width / Math.max(width, height) * 1.25, height / Math.max(width, height));
+      composite.uniforms.texel.value.set(1 / width, 1 / height);
     },
     /** Renders the scene into the HDR target, then bloom and the graded composite to the canvas. */
     render(scene: THREE.Object3D, view: THREE.Camera) {

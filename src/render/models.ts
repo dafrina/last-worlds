@@ -86,7 +86,7 @@ export function createMaterials() {
   for (const material of [ivory, rust, dark, gunmetal, ochre, glass]) paint.set(material, { color: material.color, roughness: material.roughness, metalness: material.metalness, glow: 0 });
   // Engines and threat lights are emissive cores above the bloom threshold on High; Low shows them as hot, clipped colour.
   paint.set(cyan, { color: new THREE.Color(0x8ffcf0), roughness: 1, metalness: 0, glow: 3.2 });
-  paint.set(hot, { color: new THREE.Color(0xffa060), roughness: 1, metalness: 0, glow: 3.4 });
+  paint.set(hot, { color: new THREE.Color(0xff8a40), roughness: 1, metalness: 0, glow: 2.5 });
   return {
     ivory, rust, dark, gunmetal, ochre, glass, cyan, hot,
     warning: new THREE.MeshBasicMaterial({ color: 0xfbc175, transparent: true, opacity: 0.76, depthWrite: false, depthTest: false }),
@@ -334,6 +334,10 @@ export function createPickupModel(kind: Pickup['kind']): THREE.Group {
     shape([[-.105,-.1],[.105,-.1],[.105,.1],[-.105,.1]],ink,.01);
     shape([[-.05,-.045],[.05,-.045],[.05,.045],[-.05,.045]],dark,.02);
   }
+  // Drops read at the shield cell's size (user request): the diamond credit and power frames are smaller for the
+  // same radius, so they scale up until their footprint matches the hexagon. Visual only; pickup radius is sim-owned.
+  const grow=kind==='credit'?1.3:kind==='power'?1.15:1;
+  if(grow!==1)g.children.forEach(child=>(child as THREE.Mesh).geometry.scale(grow,grow,1));
   const model=combineStatic(g);model.children.forEach(child=>{child.renderOrder=7;});return model;
 }
 

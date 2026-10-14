@@ -109,6 +109,11 @@ export const SUN = new THREE.Vector3(SUN_DIRECTION.x, 0, -SUN_DIRECTION.s).norma
 /** Height band that can receive (terrain floor) or cast (scenery, fortress superstructure) shadows. */
 const SHADOW_SLAB = { bottom: TERRAIN_MIN_HEIGHT - .2, top: 3.7 } as const;
 const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
+/**
+ * The authored Scrapper is ~1.0 unit wide; the user asked for the hero to fly at the planned top-tier size
+ * (1.7 units, docs/04 §9). Render-only: the collision radius is owned by the simulation.
+ */
+export const HERO_SCALE = 1.7;
 
 /**
  * Light-space extents of everything the camera can see within the shadow slab, relative to the view target
@@ -163,9 +168,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Lighting after the concept: a warm low sun from the upper left (docs/13 §1) with soft, shortened shadows;
   // a warm sky/rust-ground fill so shade reads as umber, never night; and a low rust bounce from the opposite
   // side that lifts camera-facing cliff faces and gives hulls a second, warmer edge.
-  const hemisphere = new THREE.HemisphereLight(0xffdcb8, 0x7a4024, 1.35);
-  const sunlight = new THREE.DirectionalLight(0xffd8ac, 3.3);
-  const bounce = new THREE.DirectionalLight(0xd97a4a, 0.6);
+  const hemisphere = new THREE.HemisphereLight(0xd9c6b2, 0x6a3420, 1.05);
+  const sunlight = new THREE.DirectionalLight(0xffeedb, 4.0);
+  const bounce = new THREE.DirectionalLight(0xd08050, 1.0);
   const bounceOffset = new THREE.Vector3(-SUN.x, .32, -SUN.z).normalize().multiplyScalar(30);
   sunlight.castShadow = true; sunlight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
   sunlight.shadow.bias = -.0005; sunlight.shadow.normalBias = .025; sunlight.shadow.radius = 2.6; sunlight.shadow.intensity = .82;
@@ -190,7 +195,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   // High tier: HDR scene + selective bloom + graded composite in 6 full-screen draws; Low renders direct.
   const post = createPostPipeline(renderer, { exposure: 1.0, threshold: 1.0, knee: .35, strength: .7,
-    lift: new THREE.Color(.011, .0058, .0026), saturation: 1.06, vignette: .2 });
+    lift: new THREE.Color(.007, .0038, .0018), saturation: 1.0, contrast: 1.07, vignette: .24 });
   const materials = createMaterials();
   const bastion = createBastionView(scene);
   const terrainMaterials = createTerrainMaterials();
@@ -230,7 +235,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     terrainMaterials.setTextures(textures); warmed = false;
   });
   // Every craft is one mesh with the shared craft material; enemies of a kind are one instanced draw.
-  const hero = createHero(materials); scene.add(hero);
+  const hero = createHero(materials); hero.scale.setScalar(HERO_SCALE); scene.add(hero);
   const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer'];
   const ENEMY_CAPACITY = 32;
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
@@ -275,18 +280,20 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   flightShadows.count = 0; flightShadows.renderOrder = 1; scene.add(flightShadows);
 
   const shieldMaterial = new THREE.MeshBasicMaterial({ color: 0xb1fff1, transparent: true, opacity: .35, depthWrite: false, depthTest: false });
-  const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial);
+  const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial); shield.scale.setScalar(HERO_SCALE * .92);
   shield.rotation.x = -ELEVATION; shield.renderOrder = 8; scene.add(shield);
 
-  const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false });
-  const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false });
-  const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false });
+  // Shots never hide behind ground: no depth test, and `transparent` puts them in the last (transparent) list so
+  // they draw after roads and other blended ground passes, which would otherwise paint over them.
+  const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true });
+  const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false, transparent: true });
+  const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);
   const friendly = new THREE.InstancedMesh(projectileGeometry, friendlyMaterial, 1024);
   const hostile = new THREE.InstancedMesh(projectileGeometry, hostileMaterial, 1024);
   const hostileCores = new THREE.InstancedMesh(projectileGeometry, hostileCoreMaterial, 1024);
   for (const mesh of [friendly, hostile, hostileCores]) {
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.renderOrder = 10; mesh.count = 0; scene.add(mesh);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.renderOrder = mesh === hostileCores ? 11 : 10; mesh.count = 0; scene.add(mesh);
   }
   const pickupBatches=new Map<Pickup['kind'],THREE.InstancedMesh[]>();
   for(const kind of ['shield','weapon','power','credit'] as const) {
@@ -333,7 +340,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   return {
     setQuality(next) {
       if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); renderer.setSize(drawingWidth, drawingHeight, false); resizePost();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); resizePost();
       // Shadow maps are a High-tier feature; toggling them recompiles the affected programs once.
       renderer.shadowMap.enabled = sunlight.castShadow = next === 'high';
       scene.traverse(object => { const material = (object as THREE.Mesh).material; (Array.isArray(material) ? material : material ? [material] : []).forEach(m => { m.needsUpdate = true; }); });
@@ -389,8 +396,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
       plumes.length = 0;
       const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
-      const heroLength = (.5 + Math.abs(state.player.vx) * .03) * flicker(0);
-      for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * Math.cos(hero.rotation.z), z: .7, length: heroLength, width: .2, hex: 0x7ff6ea, energy: 2.6 });
+      const heroLength = (.5 + Math.abs(state.player.vx) * .03) * flicker(0) * HERO_SCALE;
+      for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * HERO_SCALE * Math.cos(hero.rotation.z), z: .7 * HERO_SCALE, length: heroLength,
+        width: .2 * HERO_SCALE, hex: 0x7ff6ea, energy: 2.6 });
       let shadowCount = 0, plinthCount = 0;
       const flightShadow = (x: number, s: number, width: number, length: number, height: number) => {
         if (shadowCount >= flightShadows.instanceMatrix.count) return;
@@ -401,7 +409,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         transform.rotation.set(0, 0, 0); transform.scale.set(width, 1, length); transform.updateMatrix();
         flightShadows.setMatrixAt(shadowCount++, transform.matrix);
       };
-      flightShadow(state.player.x, 0, 1.5, 1.8, VIEW.flightHeight);
+      flightShadow(state.player.x, 0, 1.5 * HERO_SCALE, 1.8 * HERO_SCALE, VIEW.flightHeight);
 
       const counts = new Map<EnemyKind, number>(ENEMY_KINDS.map(kind => [kind, 0]));
       let lineCursor = 0;
@@ -475,7 +483,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       let friendlyCount = 0, hostileCount = 0;
       for (const shot of state.projectiles) {
         if (Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
-        transform.position.set(shot.x, VIEW.flightHeight, -shot.s);
+        transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);
         transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0);
         if (shot.friendly) {
           transform.scale.set(.045, .045, .27); transform.updateMatrix();
@@ -534,7 +542,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
       }
       effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;
-      fx.update(state, plumes);
+      fx.update(state, plumes, terrain.haulerDust);
       lineGeometry.setDrawRange(0, lineCursor);
       lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
       const renderStart = performance.now();
