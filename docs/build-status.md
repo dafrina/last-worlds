@@ -25,6 +25,7 @@ The user asked for a checkpoint at a stable point; the graphics polish and its m
   - **Checks:** typecheck clean; `npm test` 16 files, 167/167; build 845 KB JS (234 KB gzip); `test:browser` 9/9, including slide-steering and all three boss cases.
   - **Draw calls** (graphics agent, frozen builds, boss fixture): High 104 (shadow 37, main 61, post 6), Low 56.
   - **Visual review:** endless seed 93 and the boss batteries phase were checked by eye.
+- **Deployed:** commit `587f7bc`, Actions run 38640030484 succeeded. Live check in headless Chromium: both campaign missions are offered; `bastion-9.glb` returned 200 (1,674,252 B); endless High tier ran at 44 calls (shadow 8, main 30, post 6) with all kits as GLB, no stream fallbacks and no page errors.
 - **Not verified:** phone frame time; endless draw-call and frame-time measurements under the new renderer.
 - **Open items:**
   - mineral pool rims still read as flat cyan in deep valleys;
