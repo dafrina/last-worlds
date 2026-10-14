@@ -92,3 +92,10 @@ First deployment, 14 October 2026:
 - **Live check:** in headless Chromium, the page loaded, an endless flight started, and all three kit GLBs and the textures returned 200 from the `/last-worlds/` subpath. Render stats showed `kit/infra/shared: glb`, with no page errors or failed requests.
 - **Not yet tested:** phones and the installed/offline flow (no service worker exists yet).
 - **Upcoming runner change:** GitHub will move `ubuntu-latest` to Ubuntu 26 from 19 October 2026; recheck the workflow after that.
+
+Second deployment, 14 October 2026 (Bastion-9 plus settlement network):
+- **Commits:** `deb1b22` (Bastion, from the Codex session) and `ff62ddc` (world).
+- **First attempt failed:** run 38622891671. The 70 s terrain-streaming unit test took 5.8 s on the GitHub runner, over Vitest's 5 s default. Fixed in `vitest.config.ts` (`testTimeout` 30 s); run 38623094575 succeeded.
+- **Live check:** in headless Chromium, the campaign offered "Rolling Thunder · fortress assault" and "Training". The 16-node infra kit served 200 (1,066,244 B). Endless rendered at 52 calls / 33k triangles, with `kit/infra/shared: glb`, no stream fallbacks and no page errors.
+- **Long local run:** a 160 s campaign run through the Bastion fight (623 units of travel) held a flat 35 MB heap with zero synchronous terrain generations. Geometry count grew only on first use of models and the boss.
+- **Not yet tested:** phones.
