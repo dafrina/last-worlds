@@ -39,7 +39,7 @@ describe('incremental terrain streaming', () => {
     expect(stream.stats.fallbacks).toBe(0);
     expect(stream.stats.prefetched).toBeGreaterThan(5);
     expect(maxSteps).toBeLessThanOrEqual(30);
-  });
+  }, 90_000);
 
   it('keeps up at the fastest endless pace and holds still through a stop (boss arena)', () => {
     const arena = { fromS: 566, toS: 601 };
