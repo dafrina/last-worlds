@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type Pickup, type RunState } from '../shared/contracts';
-import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, type TerrainArena } from '../world/terrain';
+import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { arenaStopDistance } from '../sim/bastion';
-import { createDesertEnvironment, createEnemy, createHero, createMaterials, createPickupModel } from './models';
+import { runPlanet } from '../content/missions';
+import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createMaterials, createPickupModel, loadVesperCraft, type VesperCraftNode } from './models';
+import { createFoam, createWater, type FoamRing } from './water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
 import { createPostPipeline } from './post-pipeline';
@@ -16,6 +18,15 @@ const PREFETCH_BUDGET_MS = 3;
 const COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const TACTICAL_HEIGHT = VIEW.width * 16 / 9;
 
+/**
+ * Height of what a ground piece rests on: the terrain, or the sea surface over water (planets with an ocean).
+ * On a dry planet (Khepri) this is exactly terrainHeight.
+ */
+export function surfaceHeight(seed: number, x: number, s: number, world?: WorldInput | World): number {
+  const ground = terrainHeight(seed, x, s, world), sea = world ? worldOf(world).planet.seaLevel : null;
+  return sea === null ? ground : Math.max(ground, sea);
+}
+
 /** Public for projection verification: actual ground core and logical target share a pixel. */
 export function groundForwardPosition(logicalS: number, coreHeight: number): number {
   return logicalS - (coreHeight - VIEW.flightHeight) * COT_ELEVATION;
@@ -26,13 +37,13 @@ export function groundForwardPosition(logicalS: number, coreHeight: number): num
  * preserving its exact logical target pixel. The search spans the full terrain depth: a core at height
  * h sits (3 − h)·cot(elevation) further forward than its logical row.
  */
-export function groundPlacement(seed: number, distance: number, x: number, logicalS: number, coreHeight: number, arena?: TerrainArena) {
+export function groundPlacement(seed: number, distance: number, x: number, logicalS: number, coreHeight: number, arena?: WorldInput | World) {
   let lo = logicalS - 1, hi = logicalS + (VIEW.flightHeight - TERRAIN_MIN_HEIGHT - coreHeight) * COT_ELEVATION + 1;
   for (let i = 0; i < 26; i++) {
-    const s = (lo + hi) / 2, baseHeight = terrainHeight(seed, x, distance + s, arena);
+    const s = (lo + hi) / 2, baseHeight = surfaceHeight(seed, x, distance + s, arena);
     if (s + (baseHeight + coreHeight - VIEW.flightHeight) * COT_ELEVATION < logicalS) lo = s; else hi = s;
   }
-  const baseHeight = terrainHeight(seed, x, distance + (lo + hi) / 2, arena);
+  const baseHeight = surfaceHeight(seed, x, distance + (lo + hi) / 2, arena);
   return { baseHeight, s: groundForwardPosition(logicalS, baseHeight + coreHeight) };
 }
 
@@ -80,11 +91,11 @@ export function configureCamera(camera: THREE.OrthographicCamera | THREE.Perspec
  * Perspective seating (render-only): follow the camera ray through the logical flight-plane target down to
  * terrain + core height, so the physical core covers its logical target pixel under any lens.
  */
-export function rayPlacement(camera: THREE.Camera, seed: number, distance: number, x: number, logicalS: number, coreHeight: number, baseFloor = -Infinity, arena?: TerrainArena) {
+export function rayPlacement(camera: THREE.Camera, seed: number, distance: number, x: number, logicalS: number, coreHeight: number, baseFloor = -Infinity, arena?: WorldInput | World) {
   const target = new THREE.Vector3(x, VIEW.flightHeight, -logicalS);
   const direction = camera instanceof THREE.PerspectiveCamera ? target.clone().sub(camera.position).normalize() : camera.getWorldDirection(new THREE.Vector3());
   const at = (t: number) => target.clone().addScaledVector(direction, t);
-  const ground = (point: THREE.Vector3) => Math.max(baseFloor, terrainHeight(seed, point.x, distance - point.z, arena));
+  const ground = (point: THREE.Vector3) => Math.max(baseFloor, surfaceHeight(seed, point.x, distance - point.z, arena));
   let lo = 0, hi = (VIEW.flightHeight - TERRAIN_MIN_HEIGHT + 2) / Math.max(.2, -direction.y);
   for (let i = 0; i < 28; i++) {
     const t = (lo + hi) / 2, point = at(t);
@@ -128,12 +139,61 @@ const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
 export const HERO_SCALE = 1;
 
 /**
+ * Per-planet light and grade (docs/13 §1, docs/17 §1). Khepri's values are the shipped look. Vesper: a high, pale,
+ * slightly cool sun with blue shadows from a cool sky fill, snow kept just under the bloom threshold so it reads
+ * bright white without clipping or smearing, a cool shadow lift and a faint white-blue haze toward the horizon.
+ */
+interface PlanetLook {
+  background: number; sunElevation: number; sun: [number, number]; hemisphere: [number, number, number]; bounce: [number, number];
+  shadowIntensity: number; blobShadow: number; lowExposure: number;
+  post: { exposure: number; threshold: number; knee: number; strength: number; lift: [number, number, number]; saturation: number; contrast: number; vignette: number;
+    haze: [number, number, number, number] };
+  environment: 'desert' | 'ice';
+}
+const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
+  khepri: {
+    background: 0x6a3a22, sunElevation: 38, sun: [0xffeedb, 4.0], hemisphere: [0xd9c6b2, 0x6a3420, 1.05], bounce: [0xd08050, 1.0],
+    shadowIntensity: .82, blobShadow: 0x2a1a12, lowExposure: 1.0,
+    post: { exposure: 1.0, threshold: 1.0, knee: .35, strength: .7, lift: [.007, .0038, .0018], saturation: 1.0, contrast: 1.07, vignette: .24, haze: [0, 0, 0, 0] },
+    environment: 'desert',
+  },
+  vesper: {
+    background: 0x0d3557, sunElevation: 58, sun: [0xf2f6ff, 2.6], hemisphere: [0xa8c6ec, 0x4f6f8f, 1.35], bounce: [0x9fbcdc, .45],
+    shadowIntensity: .72, blobShadow: 0x10243c, lowExposure: 1.0,
+    post: { exposure: 1.0, threshold: 1.2, knee: .3, strength: .75, lift: [.0025, .0045, .0085], saturation: 1.02, contrast: 1.05, vignette: .2,
+      haze: [.82, .9, .98, .025] },
+    environment: 'ice',
+  },
+};
+/** Unit vector toward a planet's sun: the shared upper-left azimuth (shadows to the lower right) at its elevation. */
+function sunDirection(elevationDegrees: number): THREE.Vector3 {
+  const elevation = THREE.MathUtils.degToRad(elevationDegrees);
+  return new THREE.Vector3(SUN_DIRECTION.x, 0, -SUN_DIRECTION.s).normalize().multiplyScalar(Math.cos(elevation)).setY(Math.sin(elevation));
+}
+
+/**
+ * Vesper stand-ins for the current enemy kinds until the combat agent adds Vesper kinds (one table):
+ * dart/lancer → Needle, weaver → Diamond, turret → missile battery. Scale keeps them readable next to Khepri
+ * sizes; engines are the authored exhaust sockets (art/vesper-craft/README.md).
+ */
+// Keyed by kind name so the table also covers the Vesper kinds (needle, diamond, missile) the combat side adds.
+const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: number; engines: readonly (readonly [number, number])[] }>> = {
+  dart: { node: 'vesper_needle', scale: 1.25, engines: [[-.065, -.48], [.065, -.48]] },
+  lancer: { node: 'vesper_needle', scale: 1.45, engines: [[-.065, -.48], [.065, -.48]] },
+  weaver: { node: 'vesper_diamond', scale: 1.05, engines: [[-.14, -.58], [0, -.58], [.14, -.58]] },
+  turret: { node: 'vesper_missile_battery', scale: 1.15, engines: [] },
+  needle: { node: 'vesper_needle', scale: 1.25, engines: [[-.065, -.48], [.065, -.48]] },
+  diamond: { node: 'vesper_diamond', scale: 1.05, engines: [[-.14, -.58], [0, -.58], [.14, -.58]] },
+  missile: { node: 'vesper_missile_battery', scale: 1.15, engines: [] },
+};
+
+/**
  * Light-space extents of everything the camera can see within the shadow slab, relative to the view target
  * (constant while the camera only translates). The shadow frustum is fitted once, then follows the view.
  */
-export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3) {
+export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3, sun = SUN) {
   const lightCamera = new THREE.OrthographicCamera();
-  lightCamera.position.copy(SUN).multiplyScalar(SHADOW_LIGHT_DISTANCE); lightCamera.lookAt(0, 0, 0); lightCamera.updateMatrixWorld();
+  lightCamera.position.copy(sun).multiplyScalar(SHADOW_LIGHT_DISTANCE); lightCamera.lookAt(0, 0, 0); lightCamera.updateMatrixWorld();
   const ndc = new THREE.Vector3(), origin = new THREE.Vector3(), direction = new THREE.Vector3();
   const box = new THREE.Box3();
   for (const nx of [-1, 1]) for (const ny of [-1, 1]) {
@@ -145,7 +205,7 @@ export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3) {
   }
   // Depths are distances from the light (placed SHADOW_LIGHT_DISTANCE sunward of the target). Casters up to the
   // slab top may stand sunward of the visible area: extend the near side along the light.
-  const reach = (SHADOW_SLAB.top - SHADOW_SLAB.bottom) / SUN.y;
+  const reach = (SHADOW_SLAB.top - SHADOW_SLAB.bottom) / sun.y;
   return { left: box.min.x, right: box.max.x, bottom: box.min.y, top: box.max.y, near: -box.max.z - reach - 1, far: -box.min.z + 1,
     right3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 0), up3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 1) };
 }
@@ -183,18 +243,24 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const hemisphere = new THREE.HemisphereLight(0xd9c6b2, 0x6a3420, 1.05);
   const sunlight = new THREE.DirectionalLight(0xffeedb, 4.0);
   const bounce = new THREE.DirectionalLight(0xd08050, 1.0);
-  const bounceOffset = new THREE.Vector3(-SUN.x, .32, -SUN.z).normalize().multiplyScalar(30);
+  /** The active planet's sun (Khepri: SUN) and the bounce light's offset opposite it. */
+  const sun = SUN.clone(), bounceOffset = new THREE.Vector3(-SUN.x, .32, -SUN.z).normalize().multiplyScalar(30);
   sunlight.castShadow = true; sunlight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
   sunlight.shadow.bias = -.0005; sunlight.shadow.normalBias = .025; sunlight.shadow.radius = 2.6; sunlight.shadow.intensity = .82;
   scene.add(hemisphere, sunlight, sunlight.target, bounce, bounce.target);
   // The shadow frustum is fitted once to the visible slab, then follows the view snapped to whole texels in the
   // terrain's own frame, so static casters never shimmer while the world scrolls.
   const viewTarget = new THREE.Vector3(0, VIEW.flightHeight, -(VIEW.minS + VIEW.maxS) / 2);
-  const extents = shadowExtents(camera, viewTarget);
-  Object.assign(sunlight.shadow.camera, { left: extents.left, right: extents.right, top: extents.top, bottom: extents.bottom,
-    near: Math.max(.5, extents.near), far: extents.far });
-  sunlight.shadow.camera.updateProjectionMatrix();
-  const texel = { x: (extents.right - extents.left) / SHADOW_MAP_SIZE, y: (extents.top - extents.bottom) / SHADOW_MAP_SIZE };
+  let extents = shadowExtents(camera, viewTarget);
+  const texel = { x: 1, y: 1 };
+  const fitShadow = () => {
+    extents = shadowExtents(camera, viewTarget, sun);
+    Object.assign(sunlight.shadow.camera, { left: extents.left, right: extents.right, top: extents.top, bottom: extents.bottom,
+      near: Math.max(.5, extents.near), far: extents.far });
+    sunlight.shadow.camera.updateProjectionMatrix();
+    texel.x = (extents.right - extents.left) / SHADOW_MAP_SIZE; texel.y = (extents.top - extents.bottom) / SHADOW_MAP_SIZE;
+  };
+  fitShadow();
   const shadowAnchor = new THREE.Vector3();
   const placeSun = (cameraX: number, distance: number) => {
     // Terrain frame: world z = distance − s, so z − distance is fixed on the ground.
@@ -202,12 +268,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const a = shadowAnchor.dot(extents.right3), b = shadowAnchor.dot(extents.up3);
     shadowAnchor.addScaledVector(extents.right3, Math.round(a / texel.x) * texel.x - a).addScaledVector(extents.up3, Math.round(b / texel.y) * texel.y - b);
     sunlight.target.position.set(shadowAnchor.x, shadowAnchor.y, shadowAnchor.z + distance);
-    sunlight.position.copy(sunlight.target.position).addScaledVector(SUN, SHADOW_LIGHT_DISTANCE);
+    sunlight.position.copy(sunlight.target.position).addScaledVector(sun, SHADOW_LIGHT_DISTANCE);
     bounce.target.position.copy(sunlight.target.position); bounce.position.copy(bounce.target.position).add(bounceOffset);
   };
   // High tier: HDR scene + selective bloom + graded composite in 6 full-screen draws; Low renders direct.
   const post = createPostPipeline(renderer, { exposure: 1.0, threshold: 1.0, knee: .35, strength: .7,
-    lift: new THREE.Color(.007, .0038, .0018), saturation: 1.0, contrast: 1.07, vignette: .24 });
+    lift: new THREE.Color(.007, .0038, .0018), saturation: 1.0, contrast: 1.07, vignette: .24, haze: new THREE.Vector4(0, 0, 0, 0) });
   const materials = createMaterials();
   const bastion = createBastionView(scene);
   const terrainMaterials = createTerrainMaterials();
@@ -217,8 +283,42 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Prefiltered desert sky: craft metals and outpost machinery reflect warm light instead of reading flat black.
   const environment = createDesertEnvironment(renderer, SUN);
   materials.craft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
+  /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
+  let iceEnvironment: THREE.WebGLRenderTarget | null = null;
+  const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [];
+  let planet: PlanetId = 'khepri';
+  /**
+   * The single planet hook: the terrain view reports the planet it streams (the dev `?planet=` override today, the
+   * mission's planet later), and the whole rig follows: lights, sun direction and shadow fit, sky reflections,
+   * material palettes, grade and haze, background and blob shadows.
+   */
+  const applyLook = (next: PlanetId) => {
+    planet = next;
+    const look = LOOKS[next];
+    scene.background = new THREE.Color(look.background);
+    sun.copy(next === 'khepri' ? SUN : sunDirection(look.sunElevation));
+    bounceOffset.set(-sun.x, .32, -sun.z).normalize().multiplyScalar(30);
+    sunlight.color.setHex(look.sun[0]); sunlight.intensity = look.sun[1]; sunlight.shadow.intensity = look.shadowIntensity;
+    hemisphere.color.setHex(look.hemisphere[0]); hemisphere.groundColor.setHex(look.hemisphere[1]); hemisphere.intensity = look.hemisphere[2];
+    bounce.color.setHex(look.bounce[0]); bounce.intensity = look.bounce[1];
+    fitShadow();
+    const settings = post.settings;
+    settings.exposure.value = look.post.exposure; settings.strength.value = look.post.strength; settings.saturation.value = look.post.saturation;
+    settings.contrast.value = look.post.contrast; settings.vignette.value = look.post.vignette; settings.lift.value.setRGB(...look.post.lift);
+    settings.haze.value.set(...look.post.haze); post.setThreshold(look.post.threshold, look.post.knee);
+    renderer.toneMappingExposure = look.lowExposure;
+    shadowMaterial.color.setHex(look.blobShadow);
+    if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sun);
+    const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : environment.texture;
+    materials.craft.envMap = sky; materials.craft.needsUpdate = true; sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
+    terrainMaterials.setEnvironment(sky); water.setEnvironment(sky);
+    terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
+    if (next !== 'khepri') ensureCraft(next); else foam.clear();
+    warmed = false;
+  };
   const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra, boundaryMaterial,
-    sharedMaterial, roadMaterial: terrainMaterials.roads, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared() });
+    sharedMaterial, roadMaterial: terrainMaterials.roads, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared(),
+    waterMaterial: water.material, onPlanet: next => { if (next !== planet) applyLook(next); } });
   terrain.setShadowFrustum(sunlight.shadow.getFrustum());
   let disposed = false, warmed = false;
   // The Blender kit streams in after start; fallback pieces render until (or unless) it arrives.
@@ -269,6 +369,65 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
     }
     scene.add(mesh); enemyBatches.set(kind, { mesh, ghost });
+  }
+  /*
+   * Water features read back from the terrain view's own instanced batches (drifting floes, vent stacks) until it
+   * exposes them directly; positions are world space after the view's own transforms. Presentation only.
+   */
+  const featureMatrix = new THREE.Matrix4(), featurePosition = new THREE.Vector3(), featureQuaternion = new THREE.Quaternion();
+  const featureScale = new THREE.Vector3(), featureEuler = new THREE.Euler(), vents: { x: number; y: number; z: number }[] = [];
+  function collectFloeRings(world: World): FoamRing[] {
+    floeRings.length = 0;
+    const sea = world.planet.seaLevel ?? 0;
+    for (const object of scene.children) {
+      const mesh = object as THREE.InstancedMesh;
+      if (!mesh.isInstancedMesh || !mesh.visible || !/^Vesper (floe|iceberg)_/.test(mesh.name)) continue;
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const box = mesh.geometry.boundingBox!, halfX = Math.max(-box.min.x, box.max.x), halfZ = Math.max(-box.min.z, box.max.z);
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, featureMatrix); featureMatrix.decompose(featurePosition, featureQuaternion, featureScale);
+        featureEuler.setFromQuaternion(featureQuaternion, 'YXZ');
+        floeRings.push({ x: featurePosition.x, z: featurePosition.z, y: sea, yaw: featureEuler.y, rx: halfX * featureScale.x, rz: halfZ * featureScale.z });
+      }
+    }
+    return floeRings;
+  }
+  function collectVents(cameraX: number) {
+    vents.length = 0;
+    scene.getObjectByName('Khepri instanced scenery')?.children.forEach(object => {
+      const mesh = object as THREE.InstancedMesh;
+      if (!mesh.isInstancedMesh || !mesh.visible || !/vent_stack/.test(mesh.name)) return;
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, featureMatrix); featureMatrix.premultiply(mesh.matrixWorld).decompose(featurePosition, featureQuaternion, featureScale);
+        if (Math.abs(featurePosition.x - cameraX) < VIEW.width / 2 + 1) vents.push({ x: featurePosition.x, y: featurePosition.y + featureScale.y * .9, z: featurePosition.z });
+      }
+    });
+    return vents;
+  }
+  /** Vesper craft batches (same kinds, Vesper models), created once vesper-craft.glb has loaded. */
+  let vesperBatches: Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }> | null = null, craftRequested = false;
+  function ensureCraft(next: PlanetId) {
+    if (next !== 'vesper' || craftRequested) return;
+    craftRequested = true;
+    loadVesperCraft(`${import.meta.env.BASE_URL}assets/vesper/vesper-craft.glb`).then(nodes => {
+      if (disposed) { nodes.forEach(geometry => geometry.dispose()); return; }
+      const batches = new Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }>();
+      for (const kind of ENEMY_KINDS) {
+        const geometry = nodes.get(VESPER_CRAFT[kind].node);
+        if (!geometry) continue;
+        const mesh = new THREE.InstancedMesh(geometry, materials.craft, ENEMY_CAPACITY);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${kind} craft`;
+        mesh.castShadow = mesh.receiveShadow = kind === 'turret';
+        let ghost: THREE.InstancedMesh | undefined;
+        if (kind === 'turret') {
+          mesh.renderOrder = 2;
+          ghost = new THREE.InstancedMesh(geometry, silhouetteMaterial, ENEMY_CAPACITY);
+          ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
+        }
+        scene.add(mesh); batches.set(kind, { mesh, ghost });
+      }
+      vesperBatches = batches; warmed = false;
+    }).catch(error => console.warn(`Vesper craft unavailable (${VESPER_CRAFT_NODES.join(', ')}); using Khepri models.`, error));
   }
   // On slopes a foundation plinth reaches down to the lowest ground under the turret footprint.
   const plinthGeometry = new THREE.CylinderGeometry(.6, .66, 1, 6); plinthGeometry.translate(0, .5, 0);
@@ -370,7 +529,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       void alpha;
       const terrainStart = performance.now();
       const arena = missionArena(state.config);
-      terrain.update(state.config.seed, state.distance, arena); placeCamera(state.cameraX); terrain.cull(camera);
+      // The run's mission selects the planet (docs/17 §2); endless and Khepri missions stay on Khepri.
+      terrain.update(state.config.seed, state.distance, { planet: runPlanet(state.config), arena }); placeCamera(state.cameraX); terrain.cull(camera);
+      /** The streamed world (planet and arena): seating, blob shadows and plinths sit on its surface. */
+      const world = terrain.world;
       const terrainUpdate = performance.now() - terrainStart;
       let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena) : null;
       if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
@@ -417,7 +579,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (shadowCount >= flightShadows.instanceMatrix.count) return;
         // Shadows fall to the lower right, away from the upper-left sun; offset kept modest for readability.
         const groundX = x + height * .22, groundS = s - height * .08;
-        const groundY = terrainHeight(state.config.seed, groundX, state.distance + groundS, arena);
+        const groundY = surfaceHeight(state.config.seed, groundX, state.distance + groundS, world);
         transform.position.set(groundX, groundY + .07, -groundS);
         transform.rotation.set(0, 0, 0); transform.scale.set(width, 1, length); transform.updateMatrix();
         flightShadows.setMatrixAt(shadowCount++, transform.matrix);
@@ -425,6 +587,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       flightShadow(state.player.x, 0, 1.5 * HERO_SCALE, 1.8 * HERO_SCALE, VIEW.flightHeight);
 
       const counts = new Map<EnemyKind, number>(ENEMY_KINDS.map(kind => [kind, 0]));
+      // Vesper flies its own faction's craft once loaded (Khepri models meanwhile).
+      const activeBatches = planet === 'vesper' && vesperBatches ? vesperBatches : enemyBatches;
       let lineCursor = 0;
       const line = (x1: number, s1: number, x2: number, s2: number, hex: number) => {
         if (lineCursor + 2 > lineVertices.length / 3) return;
@@ -438,17 +602,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const visible = Math.abs(enemy.x - state.cameraX) < VIEW.width / 2 + 1 && enemy.s > VIEW.minS - 2 && enemy.s < VIEW.maxS + 3;
         if (!visible) continue;
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
-          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, -Infinity, arena)
-          : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, arena);
-        const batch = enemyBatches.get(enemy.kind)!, slot = counts.get(enemy.kind)!;
+          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, -Infinity, world)
+          : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, world);
+        const batch = activeBatches.get(enemy.kind) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(enemy.kind)!;
+        const vesperCraft = activeBatches === vesperBatches ? VESPER_CRAFT[enemy.kind] : null;
         if (slot < ENEMY_CAPACITY) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
-          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.set(1, 1, 1); transform.updateMatrix();
+          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(vesperCraft?.scale ?? 1); transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(enemy.kind, slot + 1);
         }
         if (isGround && plinthCount < plinths.instanceMatrix.count) {
           let lowest = placement.baseHeight;
-          for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, terrainHeight(state.config.seed, enemy.x + dx, state.distance + placement.s + ds, arena));
+          for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, surfaceHeight(state.config.seed, enemy.x + dx, state.distance + placement.s + ds, world));
           if (placement.baseHeight - lowest > .08) {
             transform.position.set(enemy.x, lowest - .12, -placement.s); transform.rotation.set(0, 0, 0);
             transform.scale.set(1, placement.baseHeight + .06 - (lowest - .12), 1); transform.updateMatrix();
@@ -461,7 +626,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (!isGround) {
           // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
           const bank = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
-          for (const side of [-1, 1]) plumes.push({ x: enemy.x + side * .27 * Math.cos(bank), z: -enemy.s - .55, length: -.34 * flicker(enemy.id + side), width: .14, hex: 0xffa060, energy: 1.9 });
+          if (vesperCraft) for (const [ex, ez] of vesperCraft.engines) plumes.push({ x: enemy.x + ex * vesperCraft.scale * Math.cos(bank), z: -enemy.s + ez * vesperCraft.scale,
+            length: -.3 * flicker(enemy.id + ex * 13), width: .11, hex: 0xff7a26, energy: 2.2 });
+          else for (const side of [-1, 1]) plumes.push({ x: enemy.x + side * .27 * Math.cos(bank), z: -enemy.s - .55, length: -.34 * flicker(enemy.id + side), width: .14, hex: 0xffa060, energy: 1.9 });
         }
         // Ground brackets are drawn on the shared proxy, exactly over the physical luminous core.
         if (isGround || enemy.warning > 0) {
@@ -486,8 +653,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
         }
       }
-      for (const [kind, batch] of enemyBatches) {
-        const count = counts.get(kind)!;
+      for (const set of [enemyBatches, vesperBatches]) if (set) for (const [kind, batch] of set) {
+        const count = set === activeBatches ? counts.get(kind)! : 0;
         batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true;
         if (batch.ghost) batch.ghost.count = count;
       }
@@ -555,7 +722,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
       }
       effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;
-      fx.update(state, plumes, terrain.haulerDust);
+      // Vesper: debris that falls on open water throws snow-white spray; vent stacks breathe steam.
+      const sea = world.planet.seaLevel;
+      fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && sea !== null ? {
+        splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < sea - .05 ? sea : null,
+        vents: collectVents(state.cameraX),
+      } : null);
+      if (planet === 'vesper') {
+        water.update(state.time, state.distance);
+        foam.update(state.time, collectFloeRings(world), []);
+      }
       lineGeometry.setDrawRange(0, lineCursor);
       lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
       const renderStart = performance.now();

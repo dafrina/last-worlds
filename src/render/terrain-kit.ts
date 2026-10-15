@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { KIT, KIT_KINDS, SHARED_NODES, kitNodeName, type KitKind, type SharedNode } from '../world/terrain';
+import { KIT, KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 
 /** Kit geometry by node name (`basalt_clump_0` …). Attributes: position, normal, color, glow. */
@@ -63,7 +63,8 @@ class Builder {
 }
 
 function fallbackPiece(kind: KitKind, variant: number): THREE.BufferGeometry {
-  const builder = new Builder(), seed = KIT_KINDS.indexOf(kind) * 101 + variant * 13;
+  if ((VESPER_KIT_KINDS as readonly string[]).includes(kind)) return vesperFallbackPiece(kind, variant);
+  const builder = new Builder(), seed = (KIT_KINDS as readonly string[]).indexOf(kind) * 101 + variant * 13;
   const cluster = (count: number, spreadX: number, spreadZ: number, minTop: number, size: number) => {
     for (let i = 0; i < count; i++) {
       const u = i === 0 ? 0 : rand(seed, i + 2) * 2 - 1, w = i === 0 ? 0 : rand(seed, i + 30) * 2 - 1;
@@ -146,10 +147,46 @@ function fallbackPiece(kind: KitKind, variant: number): THREE.BufferGeometry {
   return builder.geometry();
 }
 
-/** Simple procedural stand-ins so the game renders before (or without) the Blender kit. */
+const SNOW = linear(0xe9eef3), SNOW_SHADE = linear(0xb9c8d8), ICE = linear(0x8fc3e6), ICE_DEEP = linear(0x2e6f9e), CHARCOAL = linear(0x2a2d31);
+/** Code-built Vesper stand-ins (ice, snow and rock lumps at contract size) until vesper-kit.glb loads. */
+function vesperFallbackPiece(kind: KitKind, variant: number): THREE.BufferGeometry {
+  const builder = new Builder(), seed = (VESPER_KIT_KINDS as readonly string[]).indexOf(kind) * 211 + variant * 17 + 5;
+  const up = new THREE.Vector3(0, 1, 0);
+  /** A faceted slab: an irregular polygon footprint extruded from y0 to top, ice walls and a snow top. */
+  const slab = (cx: number, cz: number, rx: number, rz: number, y0: number, top: number, sides: number, wall: THREE.Color, cap: THREE.Color) => {
+    const ring = Array.from({ length: sides }, (_, i) => {
+      const a = i / sides * Math.PI * 2 + rand(seed, i) * 0.4, k = 0.75 + rand(seed, i + 40) * 0.3;
+      return new THREE.Vector3(cx + Math.cos(a) * rx * k, 0, cz + Math.sin(a) * rz * k);
+    });
+    const center = new THREE.Vector3(cx, top, cz);
+    for (let i = 0; i < sides; i++) {
+      const a = ring[i], b = ring[(i + 1) % sides], out = new THREE.Vector3((a.x + b.x) / 2 - cx, 0, (a.z + b.z) / 2 - cz);
+      const a0 = new THREE.Vector3(a.x, y0, a.z), b0 = new THREE.Vector3(b.x, y0, b.z), a1 = new THREE.Vector3(a.x, top, a.z), b1 = new THREE.Vector3(b.x, top, b.z);
+      const shade = wall.clone().lerp(ICE_DEEP, rand(seed, i + 80) * 0.35);
+      builder.tri(a0, b0, b1, shade, 0, out); builder.tri(a0, b1, a1, shade, 0, out);
+      builder.tri(a1, b1, center, cap, 0, up);
+    }
+  };
+  switch (kind) {
+    case 'iceCliff':
+      for (let i = 0; i < 4; i++) slab(-0.9 + i * 0.6, rand(seed, i + 7) * 0.1, 0.36, 0.45, -0.15, 0.82 + rand(seed, i + 9) * 0.18, 5, ICE, SNOW);
+      break;
+    case 'serac': slab(0, 0, 0.36, 0.28, -0.12, 1, 5, ICE, SNOW); break;
+    case 'iceSpire': slab(0, 0, 0.25, 0.24, -0.12, 0.55, 5, ICE, SNOW); slab(0.03, 0.02, 0.14, 0.13, 0.5, 1, 4, ICE, SNOW); break;
+    case 'iceberg': slab(0, 0, 0.62, 0.52, -0.55, 0.5 + variant * 0.1, 7, ICE, SNOW); break;
+    case 'floe': slab(0, 0, 0.85, 0.58, -0.15, 0.12 + variant * 0.03, 6 + (variant % 2), ICE, SNOW); break;
+    case 'ridge': for (let i = 0; i < 4; i++) slab(-0.75 + i * 0.5, 0, 0.3, 0.32, -0.1, 0.2 + rand(seed, i) * 0.15, 4, SNOW_SHADE, SNOW); break;
+    case 'drift': slab(0, 0, 0.82, 0.48, -0.12, 0.3, 8, SNOW_SHADE, SNOW); break;
+    case 'outcrop': slab(0, 0, 0.4, 0.32, -0.12, 0.6 + variant * 0.1, 6, CHARCOAL, SNOW); break;
+    default: slab(0, 0, 0.3, 0.3, -0.12, 0.95, 6, CHARCOAL, SNOW_SHADE); break;
+  }
+  return builder.geometry();
+}
+
+/** Simple procedural stand-ins so the game renders before (or without) the Blender kits. */
 export function createFallbackKit(): KitGeometries {
   const kit: KitGeometries = new Map();
-  for (const kind of KIT_KINDS) for (let v = 0; v < KIT[kind].variants; v++) {
+  for (const kind of [...KIT_KINDS, ...VESPER_KIT_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) {
     const geometry = normalizeKitGeometry(fallbackPiece(kind, v), kind);
     if (geometry) kit.set(kitNodeName(kind, v), geometry);
   }
@@ -247,9 +284,14 @@ async function loadNodes(url: string, names: readonly string[], extract: (node: 
 }
 
 /** Loads the Blender terrain kit; nodes it lacks keep their fallback. */
-export function loadKhepriKit(url: string): Promise<KitGeometries> {
-  const names = KIT_KINDS.flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v)));
-  return loadNodes(url, names, (node, name) => extractKitNode(node, KIT_KINDS.find(kind => name.startsWith(`${KIT[kind].prefix}_`))!));
+export function loadKhepriKit(url: string): Promise<KitGeometries> { return loadKit(url, KIT_KINDS); }
+/** Loads Vesper's ice kit (vesper-kit.glb); nodes it lacks keep their fallback. */
+export function loadVesperKit(url: string): Promise<KitGeometries> { return loadKit(url, VESPER_KIT_KINDS); }
+function loadKit(url: string, kinds: readonly KitKind[]): Promise<KitGeometries> {
+  const names = kinds.flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v)));
+  // Longest prefix first: `ice_cliff_0` must not match a shorter prefix.
+  const byPrefix = [...kinds].sort((a, b) => KIT[b].prefix.length - KIT[a].prefix.length);
+  return loadNodes(url, names, (node, name) => extractKitNode(node, byPrefix.find(kind => name.startsWith(`${KIT[kind].prefix}_`))!));
 }
 
 /* ---------------------------------------------------------------- infrastructure (docs/13 §3b) */
@@ -266,6 +308,13 @@ export const INFRA_NODES: Readonly<Record<string, { kind?: PropKind; size: reado
   infra_drill_rig: { size: [1.5, 1.96, 1.32] }, infra_habitat_0: { size: [1.38, 0.78, 0.74] }, infra_habitat_1: { size: [1.32, 0.78, 1.02] },
   infra_comm_dish: { size: [1.0, 1.25, 1.0] }, infra_solar_array: { size: [2.2, 0.45, 0.74] }, infra_light_mast: { size: [0.38, 1.5, 0.36] },
   infra_silo: { size: [0.94, 1.75, 0.94] }, wreck_0: { size: [2.36, 0.39, 1.36] }, wreck_1: { size: [2.12, 0.54, 1.46] },
+};
+/** Vesper infrastructure nodes (vesper-infra.glb, art/vesper-infra/README.md): real-size bounds x × height × z. */
+export const VESPER_INFRA_NODES: Readonly<Record<string, { size: readonly [number, number, number] }>> = {
+  vesper_radiator_array: { size: [2.0, 0.86, 0.76] }, vesper_missile_site: { size: [1.74, 1.79, 2.2] }, vesper_cannon_site: { size: [1.66, 0.89, 2.42] },
+  vesper_cryo_dome: { size: [1.58, 0.99, 1.82] }, vesper_habitat_0: { size: [1.4, 0.94, 1.56] }, vesper_habitat_1: { size: [1.1, 0.84, 0.96] },
+  vesper_pier_segment: { size: [1.4, 1.24, 2.0] }, vesper_crane: { size: [1.26, 2.15, 2.3] }, vesper_comm_needle: { size: [0.74, 2.21, 0.7] },
+  vesper_ice_hauler: { size: [1.1, 0.69, 1.96] }, vesper_icebreaker: { size: [1.04, 1.62, 3.32] },
 };
 
 const GRAPHITE = linear(0x3a3c3e), OCHRE = linear(0x9a6a3a), RUST = linear(0x7a4a30), AMBER = linear(0xffb060);
@@ -342,6 +391,42 @@ export function createFallbackInfra(materials: Materials): KitGeometries {
 export function loadKhepriInfra(url: string): Promise<KitGeometries> {
   return loadNodes(url, Object.keys(INFRA_NODES), node => extractNode(node, /light/i));
 }
+/** Loads Vesper's infrastructure (black ceramic, orange `vesper_glow` faces glow). Missing nodes keep their stand-in. */
+export function loadVesperInfra(url: string): Promise<KitGeometries> {
+  return loadNodes(url, Object.keys(VESPER_INFRA_NODES), node => extractNode(node, /glow/i));
+}
+/** Code-built Vesper infrastructure stand-ins: black ceramic boxes with orange glow strips, at real size. */
+export function createFallbackVesperInfra(): KitGeometries {
+  const infra: KitGeometries = new Map(), black = linear(0x15181b), pale = linear(0xd3dae1), glow = linear(0xff7a26);
+  for (const [name, { size: [w, h, d] }] of Object.entries(VESPER_INFRA_NODES)) {
+    const parts: THREE.BufferGeometry[] = [];
+    const add = (geometry: THREE.BufferGeometry, color: THREE.Color, lamp = 0) => {
+      const g = geometry.toNonIndexed(), count = g.getAttribute('position').count;
+      g.deleteAttribute('uv');
+      g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: count }, () => [color.r, color.g, color.b]).flat(), 3));
+      g.setAttribute('glow', new THREE.Float32BufferAttribute(new Float32Array(count).fill(lamp), 1));
+      parts.push(g);
+    };
+    const water = name === 'vesper_pier_segment' || name === 'vesper_icebreaker', y0 = water ? -0.6 : -0.05;
+    add(new THREE.BoxGeometry(w * 0.9, (h + y0) * 0.7 - y0 * 0.7, d * 0.9).translate(0, y0 + ((h + y0) * 0.7 - y0 * 0.7) / 2, 0), black);
+    add(new THREE.BoxGeometry(w * 0.5, h * 0.3, d * 0.5).translate(0, h * 0.85 - h * 0.15, 0), pale);
+    add(new THREE.BoxGeometry(w * 0.92, 0.05, 0.05).translate(0, h * 0.5, d * 0.46), glow, 1);
+    const merged = mergeGeometries(parts); parts.forEach(part => part.dispose());
+    if (merged) { merged.computeVertexNormals(); merged.computeBoundingBox(); merged.computeBoundingSphere(); infra.set(name, merged); }
+  }
+  return infra;
+}
+
+/**
+ * Placeholder ocean (docs/17 §1) until the graphics agent's water shader: vertex colours carry depth tint
+ * (shallows → deep) and white foam near the waterline; `shore` and `depth` attributes stay on the mesh for a
+ * real shader to use. Its own material, so it can be swapped wholesale.
+ */
+export function createWaterMaterial(): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.05 });
+  material.name = 'vesper_water_placeholder';
+  return material;
+}
 
 /** Runtime detail maps derived from Poly Haven CC0 sources (see report / art/source/polyhaven). */
 export interface KhepriTextures {
@@ -377,6 +462,30 @@ export async function loadKhepriTextures(base: string, anisotropy: number): Prom
  * R = procedural dust grain, the stand-in until/unless the Poly Haven detail map loads;
  * G = columnar-basalt top mosaic (jittered Voronoi cells, dark crevices) for mesa surfaces.
  */
+/**
+ * Vesper ground detail (runtime-generated, no external source): smooth wind-packed snow with soft sastrugi
+ * ripples running with the prevailing wind and a very light grain, luminance only (mean 0.5, tileable over
+ * the ground tile). No pebbles: snow must never read as sand.
+ */
+export function createSnowDetailTexture(): THREE.DataTexture {
+  const size = 256, data = new Uint8Array(size * size * 4), tau = Math.PI * 2;
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const u = x / size, v = y / size;
+    // Integer frequencies keep the tile seamless; the warp makes the ripples wander like real sastrugi.
+    const warp = 0.9 * Math.sin(tau * (2 * u - v)) + 0.5 * Math.sin(tau * (u + 3 * v) + 1.3);
+    const ripple = Math.sin(tau * (5 * u + 8 * v) + warp), soft = Math.sin(tau * (2 * u + 3 * v) + 0.7 * warp);
+    const patches = Math.sin(tau * (u + v)) * Math.sin(tau * (2 * u - v) + 0.4);
+    const grain = (rand(131, y * size + x) - 0.5) * 0.035;
+    const value = 0.5 + 0.055 * ripple * (0.6 + 0.4 * soft) + 0.035 * patches + grain;
+    const byte = Math.max(0, Math.min(255, Math.round(value * 255)));
+    data.set([byte, byte, byte, 255], (y * size + x) * 4);
+  }
+  const texture = new THREE.DataTexture(data, size, size);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true; texture.needsUpdate = true;
+  return texture;
+}
+
 export function createDetailTexture(): THREE.DataTexture {
   const size = 256, data = new Uint8Array(size * size * 4);
   const lattice = (period: number, x: number, y: number, salt: number) => {
@@ -425,6 +534,43 @@ const BASALT_TILE = 1.3, FACE_TILE = 2.2;
 const GLOW_VERTEX = '#include <common>\nattribute float glow;\nvarying float vGlow;\nvarying float vHazeY;';
 const GLOW_FRAGMENT = '#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying float vGlow;';
 const EMISSIVE = '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowColor * vGlow;';
+/**
+ * Vesper kit surfaces (docs/17 §1, art/vesper-kit). The kit's COLOR_0 already separates the materials: ice is
+ * saturated blue, snow near-white, rock dark grey. Ice turns glossy with a translucent inner glow that deepens toward
+ * its blue base, plus a crisp bright rim along the top edge; snow and ice tops carry sparse sun-glints.
+ */
+const VESPER_KIT_HEAD = `
+uniform float vesperLook; uniform float beaconTime; varying float vPieceY;
+float vesperHash( vec2 p ) { return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ); }`;
+const VESPER_KIT_SURFACE = `
+  float vesperIce = 0.0, vesperSnow = 0.0;
+  vec3 vesperBase = diffuseColor.rgb;
+  if ( vesperLook > 0.5 ) {
+    float hi = max( vesperBase.r, max( vesperBase.g, vesperBase.b ) ), lo = min( vesperBase.r, min( vesperBase.g, vesperBase.b ) );
+    float saturation = ( hi - lo ) / max( hi, 1e-3 );
+    vesperIce = smoothstep( 0.3, 0.46, saturation );
+    vesperSnow = ( 1.0 - vesperIce ) * smoothstep( 0.25, 0.5, hi );
+    // Glacier blue: deepen and saturate ice toward the base of each wall (the kit's pale tops stay pale).
+    vec3 glacier = pow( vesperBase, vec3( 1.35 ) ) * vec3( 0.7, 0.95, 1.25 );
+    diffuseColor.rgb = mix( vesperBase, mix( glacier, vesperBase, smoothstep( 0.55, 0.95, vPieceY ) ), vesperIce );
+    vesperBase = diffuseColor.rgb;
+  }`;
+const VESPER_KIT_EMISSIVE = `
+  if ( vesperLook > 0.5 ) {
+    vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
+    // Translucency: ice gives back some of its own blue (stronger on faces turned toward the viewer).
+    float facing = clamp( dot( normal, vec3( 0.0, 0.0, 1.0 ) ), 0.0, 1.0 );
+    totalEmissiveRadiance += vesperBase * vesperIce * ( 0.22 + 0.25 * facing );
+    // Crisp top rim on ice walls: a thin bright band just under the snow cap of pieces scaled to their top.
+    float rim = smoothstep( 0.9, 0.97, vPieceY ) * ( 1.0 - smoothstep( 0.985, 1.0, vPieceY ) ) * ( 1.0 - abs( worldNormal.y ) );
+    totalEmissiveRadiance += vec3( 0.75, 0.9, 1.0 ) * rim * vesperIce * 0.9;
+    // Sparse glints on snow and ice tops that twinkle slowly (world-fixed cells, render time).
+    #ifdef USE_MAP
+      vec2 cell = floor( vMapUv * 46.0 );
+      float glint = step( 0.9965, vesperHash( cell + floor( beaconTime * 1.5 + vesperHash( cell ) * 4.0 ) * 0.37 ) );
+      totalEmissiveRadiance += vec3( 1.6, 1.8, 2.0 ) * glint * ( vesperSnow + vesperIce ) * smoothstep( 0.6, 0.9, worldNormal.y );
+    #endif
+  }`;
 /** World height for depth haze; instanced pieces include their instance transform. */
 const HAZE_VERTEX = `#include <project_vertex>
   #ifdef USE_INSTANCING
@@ -450,6 +596,8 @@ const haze = () => ({
  */
 export function createTerrainMaterials() {
   const time = { beaconTime: { value: 0 } };
+  /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material). */
+  const kitLook = { vesperLook: { value: 0 } };
   const fallback = createDetailTexture();
   const flatNormal = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
   flatNormal.needsUpdate = true;
@@ -457,8 +605,10 @@ export function createTerrainMaterials() {
     rockMap: { value: fallback as THREE.Texture }, faceScale: { value: 1 / FACE_TILE }, kitTile: { value: 1 / BASALT_TILE },
   };
   const ground = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, normalScale: new THREE.Vector2(0.7, 0.7) });
+  // Persistent uniform objects so a planet switch can retune them (Khepri values are the originals).
+  const groundHaze = haze(), groundLook = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 } };
   ground.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 } });
+    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
@@ -549,9 +699,11 @@ float khepriCells( vec2 local, float scale ) {
   ground.customProgramCacheKey = () => 'khepri-ground';
 
   const infra = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3, envMapIntensity: 0.55 });
+  /** Planet look of the infrastructure lamps: Khepri amber; Vesper's orange radiator glow (see setLook). */
+  const infraGlow = { glowColor: { value: linear(0xffb060).multiplyScalar(3.4) }, detailContrast: { value: 0 } };
   infra.onBeforeCompile = shader => {
     // Amber work lights and beacons sit above the bloom threshold (true glows); hulls stay below it.
-    Object.assign(shader.uniforms, haze(), time, { glowColor: { value: linear(0xffb060).multiplyScalar(3.4) }, detailContrast: { value: 0 } });
+    Object.assign(shader.uniforms, haze(), time, infraGlow);
     shader.vertexShader = shader.vertexShader.replace('#include <common>', `${GLOW_VERTEX}\nuniform float beaconTime;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   // Amber beacons blink: each instance gets its own phase from its position; some lamps stay steady.
@@ -569,9 +721,9 @@ float khepriCells( vec2 local, float scale ) {
   const kit = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.85, 0.85) });
   kit.onBeforeCompile = shader => {
     // Crystal growths and mineral crack faces are true glows (bloom on High); basalt stays matte.
-    Object.assign(shader.uniforms, uniforms, haze(), { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } });
+    Object.assign(shader.uniforms, uniforms, haze(), time, kitLook, { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;`)
+      .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;\nvarying float vPieceY;`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
   // Cheap box projection in section space: one planar axis per (flat) face, immune to instance scaling.
   #ifdef USE_INSTANCING
@@ -588,23 +740,41 @@ float khepriCells( vec2 local, float scale ) {
   #ifdef USE_NORMALMAP
     vNormalMapUv = boxUv;
   #endif`)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;\nvPieceY = position.y;')
       .replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS)
-      .replace('#include <emissivemap_fragment>', EMISSIVE)
+      .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD)
+      .replace('#include <emissivemap_fragment>', EMISSIVE + VESPER_KIT_EMISSIVE)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
   float detail = texture2D( map, vMapUv ).r * 2.0;
-  diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - vGlow );
-#endif`)
+  diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - vGlow ) * ( 1.0 - vesperLook );
+#endif
+${VESPER_KIT_SURFACE}`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.2, vesperIce );')
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   kit.customProgramCacheKey = () => 'khepri-kit';
 
-  const roads = createRoadMaterial();
+  const roads = createRoadMaterial(), dustTrack = roads.map;
+  let snowTrack: THREE.DataTexture | null = null;
   let textures: KhepriTextures | null = null, normals = true;
+  /** Vesper's snow detail while that planet is active (null on Khepri). */
+  let snowDetail: THREE.DataTexture | null = null, snowTexture: THREE.DataTexture | null = null;
+  /** Retunes the ground and roads for a planet: Vesper snow takes its own ripple detail, cool haze and snow tracks. */
+  const setPlanet = (planet: PlanetId) => {
+    const vesper = planet === 'vesper', khepri = haze();
+    if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();
+    const nextDetail = vesper ? snowTexture : null;
+    if (nextDetail !== snowDetail) { snowDetail = nextDetail; apply(); }
+    groundLook.detailContrast.value = vesper ? 0.9 : 1.4;
+    groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : khepri.hazeColor.value);
+    groundHaze.hazeStrength.value = vesper ? 0.12 : khepri.hazeStrength.value;
+    if (vesper && !snowTrack) snowTrack = createRoadTexture('snow');
+    roads.map = vesper ? snowTrack : dustTrack; roads.needsUpdate = true;
+  };
+  ground.userData.setPlanet = setPlanet;
   const apply = () => {
-    ground.map = textures?.groundDetail ?? fallback;
+    ground.map = snowDetail ?? textures?.groundDetail ?? fallback;
     kit.map = textures?.basaltDetail ?? fallback;
     uniforms.rockMap.value = textures?.basaltDetail ?? fallback;
     // The ground stays without a normal map on every tier: at full-screen coverage its derivative-based
@@ -615,6 +785,8 @@ float khepriCells( vec2 local, float scale ) {
   };
   return {
     ground, kit, infra, roads,
+    /** Planet look (ground grain, haze, road surface); the terrain view also calls it through ground.userData. */
+    setPlanet,
     /** Presentation time for blinking beacons (seconds); never read by the simulation. */
     setTime(seconds: number) { time.beaconTime.value = seconds; },
     setTextures(next: KhepriTextures) { textures = next; apply(); },
@@ -622,8 +794,20 @@ float khepriCells( vec2 local, float scale ) {
     setNormalMaps(enabled: boolean) { if (enabled !== normals) { normals = enabled; apply(); } },
     /** Prefiltered desert sky for machinery reflections (graphite metal and paint); terrain stays matte. */
     setEnvironment(texture: THREE.Texture | null) { infra.envMap = texture; infra.needsUpdate = true; },
+    /**
+     * Planet look of the kit and infrastructure materials (graphics rig; the ground has its own setPlanet).
+     * Khepri restores the original values exactly. Vesper: kit pieces read their COLOR_0 as ice (saturated blue,
+     * glossy, translucent-looking, crisp top rim), snow (bright, sparkling) or rock, and infrastructure becomes
+     * glossy black ceramic with orange radiator glow.
+     */
+    setLook(planet: PlanetId) {
+      const vesper = planet === 'vesper';
+      kitLook.vesperLook.value = vesper ? 1 : 0;
+      infraGlow.glowColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
+      infra.roughness = vesper ? 0.4 : 0.55; infra.metalness = vesper ? 0.06 : 0.3; infra.envMapIntensity = vesper ? 0.8 : 0.55;
+    },
     dispose() {
-      ground.dispose(); kit.dispose(); infra.dispose(); roads.dispose(); (roads.map as THREE.Texture | null)?.dispose(); fallback.dispose(); flatNormal.dispose();
+      ground.dispose(); kit.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); snowTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
       if (textures) Object.values(textures).forEach(texture => texture?.dispose());
     },
   };
@@ -727,11 +911,20 @@ export function createFallbackShared(): KitGeometries {
 /** Khepri palette for the shared kit (docs/14 §2): graphite metal, ochre/rust paint, ochre dust, amber lamps. */
 export function createSharedMaterial(): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.55, envMapIntensity: 0.55 });
+  const palette = {
+    metalColor: { value: linear(0x3e4044) }, paintColor: { value: linear(0xb06a2e) }, wearColor: { value: linear(0xc8b8a0) },
+    dustColor: { value: linear(0xa8683a) }, lampColor: { value: linear(0xffb060).multiplyScalar(3.4) },
+  };
+  /** Planet palette for the mask-driven kit (docs/17 §3): Vesper reads black ceramic, orange heat bands and frost. */
+  material.userData.setPlanet = (planet: PlanetId) => {
+    const vesper = planet === 'vesper';
+    palette.metalColor.value.copy(linear(vesper ? 0x15181b : 0x3e4044)); palette.paintColor.value.copy(linear(vesper ? 0xd2541a : 0xb06a2e));
+    palette.wearColor.value.copy(linear(vesper ? 0xd3dae1 : 0xc8b8a0)); palette.dustColor.value.copy(linear(vesper ? 0xe3ebf2 : 0xa8683a));
+    palette.lampColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
+    material.metalness = vesper ? 0.15 : 0.55; material.roughness = vesper ? 0.4 : 0.55;
+  };
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, haze(), {
-      metalColor: { value: linear(0x3e4044) }, paintColor: { value: linear(0xb06a2e) }, wearColor: { value: linear(0xc8b8a0) },
-      dustColor: { value: linear(0xa8683a) }, lampColor: { value: linear(0xffb060).multiplyScalar(3.4) },
-    });
+    Object.assign(shader.uniforms, haze(), palette);
     shader.vertexShader = shader.vertexShader.replace('#include <common>', GLOW_VERTEX)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;').replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader
@@ -753,9 +946,10 @@ export function createSharedMaterial(): THREE.MeshStandardMaterial {
 /* ---------------------------------------------------------------- roads */
 
 /** Tileable graded-dust road texture: berms at the edges, a lighter graded bed and two tyre ruts (u across, v along). */
-function createRoadTexture(): THREE.DataTexture {
-  const width = 32, height = 64, data = new Uint8Array(width * height * 4);
-  const berm = new THREE.Color(0x9a5a32), bed = new THREE.Color(0xbb7c4c), rut = new THREE.Color(0x6e3c22), color = new THREE.Color();
+function createRoadTexture(surface: 'dust' | 'snow' = 'dust'): THREE.DataTexture {
+  const width = 32, height = 64, data = new Uint8Array(width * height * 4), snow = surface === 'snow';
+  // Snow tracks: packed pale snow with blue-grey tread ruts between soft white berms.
+  const berm = new THREE.Color(snow ? 0xf2f6fa : 0x9a5a32), bed = new THREE.Color(snow ? 0xc9d6e2 : 0xbb7c4c), rut = new THREE.Color(snow ? 0x8ea4bb : 0x6e3c22), color = new THREE.Color();
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const u = (x + 0.5) / width, grain = 0.92 + rand(31, y * width + x) * 0.16, wobble = Math.sin(y / height * Math.PI * 2) * 0.012;
     const inBed = u > 0.22 && u < 0.78, rutLine = Math.min(Math.abs(u - 0.37 - wobble), Math.abs(u - 0.63 - wobble));

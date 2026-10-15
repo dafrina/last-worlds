@@ -2,10 +2,31 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  KIT, KIT_KINDS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, sameArena, terrainHeight, type TerrainArena,
-  type IndustryPiece, type RoadPath, type TerrainSection,
+  KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, terrainHeight, worldOf,
+  type Floe, type IndustryPiece, type PlanetId, type RoadPath, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
-import { GROUND_TILE, INFRA_NODES, createFallbackKit, type KitGeometries } from './terrain-kit';
+import {
+  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadVesperInfra, loadVesperKit,
+  type KitGeometries,
+} from './terrain-kit';
+
+/**
+ * Hidden preview switch: `?planet=vesper` renders that planet's world in any run (look tests before its mission
+ * ships; it is not offered in any menu). Seating that reads the view's `world` getter follows it.
+ */
+const DEV_PLANET: PlanetId | null = (() => {
+  try {
+    if (typeof location === 'undefined') return null;
+    const planet = new URLSearchParams(location.search).get('planet');
+    return planet && planet in PLANETS ? planet as PlanetId : null;
+  } catch { return null; }
+})();
+const devWorld = (input?: WorldInput): WorldInput => {
+  if (!DEV_PLANET) return input;
+  return { planet: DEV_PLANET, arena: input && 'fromS' in input ? input : input?.arena };
+};
+/** Slow presentation-only floe drift: circling speed (rad/s) and gentle yaw sway. */
+const FLOE_SPIN = 0.07, FLOE_SWAY = 0.05;
 
 /** Extra world units around the frustum kept in the compacted instance set, and the camera travel that triggers recompaction. */
 const CULL_MARGIN = 2.2, RECOMPACT = 1.1;
@@ -20,6 +41,10 @@ interface SectionView {
   roads: Map<string, RoadPath>;
   /** Shadow-only merged caster strips (layer SHADOW_CASTER_LAYER); rebuilt when kit geometry changes. */
   casters: THREE.Mesh[];
+  /** Pack ice drawn by animate() (drifting, presentation only). */
+  floes: readonly Floe[];
+  /** Vent-stack tops (world x, y and forward s) for the live features. */
+  vents: readonly { x: number; y: number; s: number }[];
 }
 interface Batch { mesh: THREE.InstancedMesh; capacity: number; triangles: number }
 export interface TerrainViewOptions {
@@ -33,6 +58,12 @@ export interface TerrainViewOptions {
   fallbackInfra: KitGeometries;
   /** Code-built pipes and tanks, used until (or unless) industrial-kit.glb provides real nodes. */
   fallbackShared: KitGeometries;
+  /** Ocean material hook (planets with a sea); a placeholder is created when omitted. */
+  waterMaterial?: THREE.Material;
+  /** Base URL for per-planet assets loaded on first use (Vesper kits); defaults to the app base. */
+  assetBase?: string;
+  /** Called when the world's planet changes (lighting/palette rigs); the ground material's own hook runs too. */
+  onPlanet?: (planet: PlanetId) => void;
 }
 export interface TerrainStats {
   calls: number; triangles: number; instances: number; haulers: number;
@@ -44,6 +75,14 @@ const HAULER_SCALE = 0.75, HAULER_HALF_WIDTH = 1.05 / 2 * HAULER_SCALE, HAULER_H
 
 /** A render-only rectangle in world (x, s) whose scenery pieces are hidden, e.g. under a boss fortress. */
 export interface TerrainExclusion { minX: number; maxX: number; minS: number; maxS: number }
+/**
+ * Live presentation features in three.js world space (x, y, z = distance − s), rebuilt by every animate() for
+ * the pieces near the view: drifting pack ice (waterline centre, yaw about +y, half extents along the piece's
+ * own x and z) and vent-stack tops (steam). Effects read these instead of the batches' names. Never gameplay.
+ */
+export interface FloeFeature { id: string; kind: 'floe' | 'iceberg'; x: number; y: number; z: number; rx: number; rz: number; yaw: number }
+export interface VentFeature { x: number; y: number; z: number }
+export interface TerrainFeatures { readonly floes: readonly FloeFeature[]; readonly vents: readonly VentFeature[] }
 /** Exclusion updates within this distance reuse the last compaction (the applied rectangle is grown by it). */
 const EXCLUSION_SLACK = 0.25;
 
@@ -90,8 +129,10 @@ export function createTerrainView(options: TerrainViewOptions) {
   let kit: KitGeometries = createFallbackKit(), infra: KitGeometries = new Map(options.fallbackInfra), shared: KitGeometries = new Map(options.fallbackShared);
   let kitSource: TerrainStats['kit'] = 'fallback', infraSource: TerrainStats['infra'] = 'fallback', sharedSource: TerrainStats['shared'] = 'fallback';
   let quality: GraphicsQuality = 'high', seed: number | null = null, stream = createTerrainStream(0);
-  /** The mission arena the current stream was built with (none in endless and training). */
-  let arena: TerrainArena | undefined;
+  /** The world (planet and mission arena) the current stream was built with. */
+  let world: World = worldOf();
+  let water: THREE.Material | null = options.waterMaterial ?? null;
+  const loadedPlanets = new Set<PlanetId>(['khepri']);
   const views = new Map<number, SectionView>(), batches = new Map<string, Batch>();
   const pieces = new THREE.Group(); pieces.name = 'Khepri instanced scenery'; scene.add(pieces);
   const edgeGeometry = new THREE.BoxGeometry(0.06, 0.018, 1.5);
@@ -127,6 +168,9 @@ export function createTerrainView(options: TerrainViewOptions) {
   }
   /** Rear axle of each hauler drawn this frame (world space), for render-only dust puffs. */
   const haulerDust: { x: number; y: number; z: number }[] = [];
+  /** Live features (pooled objects, refilled by animate()). */
+  const floeFeatures: FloeFeature[] = [], ventFeatures: VentFeature[] = [], features: TerrainFeatures = { floes: floeFeatures, vents: ventFeatures };
+  let floeUsed = 0, ventUsed = 0;
   /** Dynamic hauler meshes (one per cargo model), refilled every frame by animate(). */
   const haulers = new Map<string, THREE.InstancedMesh>();
   function hauler(name: string): THREE.InstancedMesh | null {
@@ -336,7 +380,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       const marks = new THREE.InstancedMesh(edgeGeometry, boundaryMaterial, Math.ceil(section.size / 3));
       let i = 0;
       for (let s = 0; s < section.size; s += 3) {
-        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s, arena) + 0.035, -s);
+        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s, world) + 0.035, -s);
         transform.rotation.set(0, 0, 0); transform.scale.set(1, 1, 1); transform.updateMatrix(); marks.setMatrixAt(i++, transform.matrix);
       }
       marks.count = i; marks.computeBoundingSphere(); holder.add(marks); view.instanced.push(marks);
@@ -348,12 +392,87 @@ export function createTerrainView(options: TerrainViewOptions) {
   /** Resumable view build: instance preparation, each ground strip, and the road mesh are separate steps. */
   function* buildSteps(section: TerrainSection): Generator<void, SectionView, void> {
     const group = new THREE.Group(); group.name = `Khepri procedural section ${section.index}`;
-    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [] };
+    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [], floes: section.floes ?? [],
+      vents: section.instances.filter(piece => piece.kind === 'vent').map(piece => ({ x: piece.x, y: piece.y + piece.height * KIT.vent.height, s: piece.s })) };
     yield;
     yield* casterSteps(view);
     yield* buildGround(section, view);
     buildRoads(section, view);
+    if (section.water) { yield; buildWater(section, view); }
     return view;
+  }
+
+  /**
+   * Placeholder ocean for one section: a sea-level sheet on the half-unit grid, only where the ground is under
+   * or near the water, with depth tint and foam in vertex colours and `shore`/`depth` attributes for a real shader.
+   */
+  function buildWater(section: TerrainSection, view: SectionView) {
+    const { level, shore } = section.water!, stride = 2, columns = (section.across - 1) / stride + 1, rows = (section.along - 1) / stride + 1;
+    const positions = new Float32Array(columns * rows * 3), colors = new Float32Array(columns * rows * 3);
+    const shoreAttribute = new Float32Array(columns * rows), depthAttribute = new Float32Array(columns * rows), indices: number[] = [];
+    const deep = new THREE.Color().setHex(0x0d3557, THREE.SRGBColorSpace), shallow = new THREE.Color().setHex(0x1f6a8f, THREE.SRGBColorSpace);
+    const foam = new THREE.Color().setHex(0xeef6fb, THREE.SRGBColorSpace), color = new THREE.Color();
+    for (let r = 0; r < rows; r++) for (let c = 0; c < columns; c++) {
+      const v = r * columns + c, g = (r * stride) * section.across + c * stride, ground = section.positions[g * 3 + 1], distance = shore[g];
+      positions[v * 3] = section.positions[g * 3]; positions[v * 3 + 1] = level; positions[v * 3 + 2] = section.positions[g * 3 + 2];
+      const depth = Math.max(0, level - ground);
+      // A soft foam band over the whole clamped distance (±1), so the half-unit grid never shows as steps.
+      const band = Math.max(0, 1 - Math.abs(distance)), soft = band * band * (3 - 2 * band);
+      color.copy(shallow).lerp(deep, Math.min(1, depth / 2.2)).lerp(foam, soft * 0.35);
+      color.toArray(colors, v * 3); shoreAttribute[v] = distance; depthAttribute[v] = depth;
+    }
+    for (let r = 0; r < rows - 1; r++) for (let c = 0; c < columns - 1; c++) {
+      const a = r * columns + c, b = a + 1, d = a + columns, e = d + 1;
+      // Skip sheets entirely over dry shelf (the ground hides them anyway).
+      if (Math.max(shoreAttribute[a], shoreAttribute[b], shoreAttribute[d], shoreAttribute[e]) < -0.6) continue;
+      indices.push(a, b, d, b, e, d);
+    }
+    if (!indices.length) return;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(columns * rows * 3).map((_, i) => i % 3 === 1 ? 1 : 0), 3));
+    // Vertex colours feed only the placeholder material; a supplied water material reads shore and depth.
+    if (!options.waterMaterial) geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('shore', new THREE.BufferAttribute(shoreAttribute, 1));
+    geometry.setAttribute('depth', new THREE.BufferAttribute(depthAttribute, 1));
+    geometry.setIndex(indices); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+    water ??= createWaterMaterial();
+    const mesh = new THREE.Mesh(geometry, water); mesh.name = `Vesper water ${section.index}`; mesh.receiveShadow = true;
+    const holder = new THREE.Group(); holder.add(mesh); view.group.add(holder); view.geometries.push(geometry);
+    view.cullables.push({ object: holder, box: geometry.boundingBox!.clone().expandByScalar(0.1), triangles: indices.length / 3 });
+  }
+
+  /** Loads a planet's own kits on first use (Vesper: ice kit and infrastructure; fallbacks render meanwhile). */
+  function ensurePlanet(planet: PlanetId) {
+    (groundMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(planet);
+    options.onPlanet?.(planet);
+    if (loadedPlanets.has(planet)) return;
+    loadedPlanets.add(planet);
+    if (planet !== 'vesper') return;
+    self.setInfra(createFallbackVesperInfra());
+    const base = options.assetBase ?? (import.meta.env?.BASE_URL ?? './');
+    loadVesperKit(`${base}assets/vesper/vesper-kit.glb`).then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); })
+      .catch(error => console.warn('Vesper kit unavailable; using fallback ice.', error));
+    loadVesperInfra(`${base}assets/vesper/vesper-infra.glb`).then(loaded => { if (!disposed) self.setInfra(loaded); else loaded.forEach(g => g.dispose()); })
+      .catch(error => console.warn('Vesper infrastructure unavailable; using stand-ins.', error));
+  }
+  let disposed = false;
+  /** Drifting pack ice (one dynamic batch per kit node), refilled every frame by animate(). */
+  const floeMeshes = new Map<string, THREE.InstancedMesh>();
+  function floeMesh(name: string, needed: number): THREE.InstancedMesh | null {
+    const geometry = kit.get(name);
+    if (!geometry) return null;
+    let mesh = floeMeshes.get(name);
+    if (!mesh || mesh.geometry !== geometry || mesh.instanceMatrix.count < needed) {
+      const capacity = Math.max(32, 2 ** Math.ceil(Math.log2(Math.max(needed, 1))));
+      if (mesh) { scene.remove(mesh); mesh.dispose(); }
+      mesh = new THREE.InstancedMesh(geometry, kitMaterial, capacity);
+      for (let i = 0; i < capacity; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${name}`;
+      mesh.castShadow = mesh.receiveShadow = true;
+      floeMeshes.set(name, mesh); scene.add(mesh);
+    }
+    return mesh;
   }
   function buildSection(section: TerrainSection): SectionView {
     const work = buildSteps(section);
@@ -448,18 +567,20 @@ export function createTerrainView(options: TerrainViewOptions) {
     dirty = true;
   }
 
-  return {
+  const self = {
     /**
-     * Keeps the three-section window built for the seed and forward distance. `nextArena` (a mission's boss
-     * platform, in world s) settles that stretch into a flat arena; omit it for endless and training. A new
-     * seed or arena rebuilds the window.
+     * Keeps the three-section window built for the seed and forward distance. `next` is the world:
+     * `{ planet, arena }` (a bare arena still means Khepri; omit for endless and training). A new seed, planet
+     * or arena rebuilds the window; a new planet also loads its kits and retunes the ground material.
      */
-    update(nextSeed: number, nextDistance: number, nextArena?: TerrainArena) {
+    update(nextSeed: number, nextDistance: number, next?: WorldInput) {
       distance = nextDistance;
-      if (seed !== nextSeed || !sameArena(arena, nextArena)) {
+      const target = worldOf(devWorld(next));
+      if (seed !== nextSeed || target !== world) {
         views.forEach(disposeView); views.clear(); stream.clear();
         discardPrebuilt();
-        seed = nextSeed; arena = nextArena && { fromS: nextArena.fromS, toS: nextArena.toS }; stream = createTerrainStream(seed, arena);
+        if (target.planet !== world.planet || seed === null) ensurePlanet(target.planet.id);
+        seed = nextSeed; world = target; stream = createTerrainStream(seed, world);
       }
       const active = stream.update(distance), live = new Set(active.map(section => section.index));
       for (const [index, view] of views) if (!live.has(index)) { disposeView(view); views.delete(index); }
@@ -523,6 +644,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       }
       for (const entry of batches.values()) if (entry.mesh.count > 0) { calls++; triangles += entry.triangles * entry.mesh.count; }
       for (const mesh of haulers.values()) if (mesh.count > 0) { calls++; triangles += triangleCount(mesh.geometry) * mesh.count; }
+      for (const mesh of floeMeshes.values()) if (mesh.count > 0) { calls++; triangles += triangleCount(mesh.geometry) * mesh.count; }
       stats.calls = calls; stats.triangles = Math.round(triangles); stats.kit = kitSource; stats.infra = infraSource; stats.shared = sharedSource;
     },
     setQuality(next: GraphicsQuality) {
@@ -568,7 +690,8 @@ export function createTerrainView(options: TerrainViewOptions) {
      */
     animate(time: number, cameraX: number) {
       let count = 0; haulerDust.length = 0;
-      const nodes = ['infra_cargo_0', 'infra_cargo_1', 'infra_cargo_2'];
+      // Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
+      const vesper = world.planet.id === 'vesper', nodes = vesper ? ['vesper_ice_hauler'] : ['infra_cargo_0', 'infra_cargo_1', 'infra_cargo_2'];
       const used = nodes.map(() => 0), roads = new Map<string, RoadPath>();
       for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
       for (const road of roads.values()) {
@@ -586,14 +709,14 @@ export function createTerrainView(options: TerrainViewOptions) {
           if (exclusion && x > exclusion.minX && x < exclusion.maxX && s > exclusion.minS && s < exclusion.maxS) continue;
           const y = road.y[i] + (road.y[i + 1] - road.y[i]) * f;
           const dx = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), ds = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1);
-          const n = Math.floor(tint(key, 9, k) * 3), mesh = hauler(nodes[n]);
+          const n = Math.floor(tint(key, 9, k) * nodes.length), mesh = hauler(nodes[n]);
           if (!mesh || used[n] >= mesh.instanceMatrix.count) continue;
           // Cabs face −z: yaw so local −z points along the direction of travel. Haulers are background traffic,
           // drawn smaller than the cargo node so they never read as ground enemies, and seated on the ground under
           // all four corners: pitch and roll follow the slope, and the body lifts until no corner sinks.
           const yaw = Math.atan2(-dx, ds), fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
           const ground = (a: number, b: number) => terrainHeight(seed ?? 0, x + fx * HAULER_HALF_LENGTH * a + rx * HAULER_HALF_WIDTH * b,
-            s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b));
+            s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b), world.bare);
           const frontLeft = ground(1, -1), frontRight = ground(1, 1), backLeft = ground(-1, -1), backRight = ground(-1, 1);
           const rise = (frontLeft + frontRight - backLeft - backRight) / 2, bank = (frontRight + backRight - frontLeft - backLeft) / 2;
           const pitch = Math.atan2(rise, 2 * HAULER_HALF_LENGTH), roll = Math.atan2(bank, 2 * HAULER_HALF_WIDTH);
@@ -605,16 +728,53 @@ export function createTerrainView(options: TerrainViewOptions) {
             lift = Math.max(lift, h - (base + a * rise / 2 + b * bank / 2));
           }
           if (lift > 0.3) continue;
-          transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, yaw, roll, 'YXZ');
+          transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, vesper ? yaw + Math.PI : yaw, vesper ? -roll : roll, 'YXZ');
           transform.scale.setScalar(HAULER_SCALE); transform.updateMatrix(); transform.rotation.order = 'XYZ';
           mesh.setMatrixAt(used[n]++, transform.matrix); count++;
           haulerDust.push({ x: x - fx * HAULER_HALF_LENGTH, y: base + lift, z: distance - s - fz * HAULER_HALF_LENGTH });
         }
       }
       haulers.forEach((mesh, name) => {
-        const n = nodes.indexOf(name); mesh.count = used[n]; mesh.visible = used[n] > 0; mesh.instanceMatrix.needsUpdate = true;
+        const n = nodes.indexOf(name), shown = n < 0 ? 0 : used[n]; mesh.count = shown; mesh.visible = shown > 0; mesh.instanceMatrix.needsUpdate = true;
       });
       stats.haulers = count;
+      // Pack ice drifts slowly around its base position (seed + time only; never collision or targets).
+      const sea = world.planet.seaLevel ?? 0, visible = new Map<string, Floe[]>();
+      for (const view of views.values()) for (const floe of view.floes) {
+        if (Math.abs(floe.x - cameraX) > 8.6 || floe.s - distance < -9 || floe.s - distance > 30) continue;
+        if (exclusion && floe.x > exclusion.minX && floe.x < exclusion.maxX && floe.s > exclusion.minS && floe.s < exclusion.maxS) continue;
+        const name = kitNodeName(floe.kind, floe.variant), list = visible.get(name) ?? [];
+        list.push(floe); visible.set(name, list);
+      }
+      for (const [name, mesh] of floeMeshes) if (!visible.has(name)) { mesh.count = 0; mesh.visible = false; }
+      floeUsed = 0;
+      for (const [name, list] of visible) {
+        const mesh = floeMesh(name, list.length);
+        if (!mesh) continue;
+        list.forEach((floe, i) => {
+          const angle = floe.phase + time * FLOE_SPIN * (floe.kind === 'iceberg' ? 0.5 : 1);
+          const x = floe.x + Math.cos(angle) * floe.radius, z = distance - floe.s - Math.sin(angle) * floe.radius;
+          const yaw = floe.rotation + Math.sin(time * 0.11 + floe.phase) * FLOE_SWAY, spec = KIT[floe.kind];
+          transform.position.set(x, sea + Math.sin(time * 0.9 + floe.phase) * 0.015, z);
+          transform.rotation.set(0, yaw, 0);
+          transform.scale.set(floe.scaleX, floe.height, floe.scaleZ); transform.updateMatrix();
+          mesh.setMatrixAt(i, transform.matrix);
+          const feature = floeFeatures[floeUsed] ??= { id: '', kind: 'floe', x: 0, y: 0, z: 0, rx: 0, rz: 0, yaw: 0 };
+          feature.id = floe.id; feature.kind = floe.kind; feature.x = x; feature.y = sea; feature.z = z;
+          feature.rx = spec.halfX * floe.scaleX; feature.rz = spec.halfZ * floe.scaleZ; feature.yaw = yaw; floeUsed++;
+        });
+        mesh.count = list.length; mesh.visible = true; mesh.instanceMatrix.needsUpdate = true;
+      }
+      floeFeatures.length = floeUsed;
+      // Vent tops near the view (steam), skipping any exclusion like the instances themselves.
+      ventUsed = 0;
+      for (const view of views.values()) for (const vent of view.vents) {
+        if (Math.abs(vent.x - cameraX) > VIEW.width / 2 + 1 || vent.s - distance < -9 || vent.s - distance > 30) continue;
+        if (exclusion && vent.x > exclusion.minX && vent.x < exclusion.maxX && vent.s > exclusion.minS && vent.s < exclusion.maxS) continue;
+        const feature = ventFeatures[ventUsed] ??= { x: 0, y: 0, z: 0 };
+        feature.x = vent.x; feature.y = vent.y; feature.z = distance - vent.s; ventUsed++;
+      }
+      ventFeatures.length = ventUsed;
     },
     /** Every node batch, made visible, so a warm-up compile covers all scenery programs. */
     warmupObjects(): THREE.Object3D[] {
@@ -625,15 +785,23 @@ export function createTerrainView(options: TerrainViewOptions) {
     get stats(): Readonly<TerrainStats> { return stats; },
     /** Where haulers kick up dust this frame (presentation only). */
     get haulerDust(): readonly { x: number; y: number; z: number }[] { return haulerDust; },
+    /** Live floes and vent tops in world space, as of the last animate() (empty on dry planets). */
+    get features(): TerrainFeatures { return features; },
     dispose() {
       views.forEach(disposeView); views.clear(); stream.clear();
       discardPrebuilt();
       batches.forEach(entry => entry.mesh.dispose()); batches.clear(); scene.remove(pieces);
       haulers.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); haulers.clear();
+      floeMeshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); floeMeshes.clear();
+      if (water && !options.waterMaterial) water.dispose();
+      disposed = true;
       kit.forEach(geometry => geometry.dispose()); infra.forEach(geometry => geometry.dispose()); shared.forEach(geometry => geometry.dispose());
       edgeGeometry.dispose(); casterMaterial.dispose(); casterDepth.dispose(); proxies.clear();
     },
     /** Rebuilds live sections, e.g. after a layout-affecting change; kept for completeness. */
     rebuild: rebuildAll,
+    /** The world currently streamed (after any dev-only planet override). */
+    get world(): World { return world; },
   };
+  return self;
 }

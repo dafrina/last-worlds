@@ -2,7 +2,8 @@ import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, routeCenter } from './terr
 import { terrainHeight } from './terrain-ground';
 import { SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Settlement } from './terrain-settlements';
 import { finish, type Work } from './terrain-work';
-import { nearArena, type TerrainArena } from './terrain-arena';
+import { nearArena } from './terrain-arena';
+import { KHEPRI, worldOf, type PlanetProfile, type World, type WorldInput } from './terrain-planet';
 
 /**
  * Long-range settlement network (docs/13 §2): outposts are nodes of a seeded graph; each edge gets a
@@ -88,8 +89,6 @@ export function pieceBounds(piece: IndustryPiece) {
 export interface Endpoint { x: number; s: number; site: Settlement | null }
 export interface NetworkEdge { id: string; a: Endpoint; b: Endpoint; road: boolean; pipe: boolean; kind: 'chain' | 'exit' | 'cross' }
 
-const INDUSTRIAL = new Set(['refinery', 'pumping', 'mining']);
-const QUIET = new Set(['wreck', 'abandoned']);
 /** The point on a pad's edge facing a target, so paths leave from the outpost's side. */
 function gate(site: Settlement, tx: number, ts: number): Endpoint {
   const dx = tx - site.x, ds = ts - site.s, length = Math.hypot(dx, ds) || 1;
@@ -98,14 +97,15 @@ function gate(site: Settlement, tx: number, ts: number): Endpoint {
 }
 
 /** Edges owned by one settlement: the next outpost ahead on its side, sometimes a map exit or a cross link. */
-function edgesOf(seed: number, site: Settlement): NetworkEdge[] {
+function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI): NetworkEdge[] {
+  const INDUSTRIAL = planet.industrial, QUIET = planet.quiet;
   const edges: NetworkEdge[] = [], h = (k: number) => hash(seed ^ 0x7e7, site.cell * 31 + k, site.side > 0 ? 7 : 3);
   const make = (kind: NetworkEdge['kind'], target: Settlement | null, tx: number, ts: number, road: number, pipe: number): NetworkEdge => {
     const b: Endpoint = target ? gate(target, site.x, site.s) : { x: tx, s: ts, site: null };
     return { id: `${site.id}>${kind}`, a: gate(site, b.x, b.s), b, kind, road: h(edges.length * 3 + 1) < road, pipe: h(edges.length * 3 + 2) < pipe };
   };
   for (let cell = site.cell + 1; cell <= site.cell + 3; cell++) {
-    const next = settlement(seed, cell, site.side);
+    const next = planet.settlement(seed, cell, site.side);
     if (!next) continue;
     const quiet = QUIET.has(site.archetype) || QUIET.has(next.archetype);
     const industrial = INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.9 : INDUSTRIAL.has(site.archetype) || INDUSTRIAL.has(next.archetype) ? 0.55 : 0.2;
@@ -114,7 +114,7 @@ function edgesOf(seed: number, site: Settlement): NetworkEdge[] {
   }
   if (h(20) < 0.42) edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, 0.7, QUIET.has(site.archetype) ? 0 : 0.45));
   if (h(22) < 0.14 && !QUIET.has(site.archetype)) {
-    const other = settlement(seed, site.cell, -site.side) ?? settlement(seed, site.cell + 1, -site.side);
+    const other = planet.settlement(seed, site.cell, -site.side) ?? planet.settlement(seed, site.cell + 1, -site.side);
     if (other && !QUIET.has(other.archetype)) edges.push(make('cross', other, 0, 0, 1, 0));
   }
   return edges.filter(edge => edge.road || edge.pipe);
@@ -125,10 +125,10 @@ function edgesOf(seed: number, site: Settlement): NetworkEdge[] {
  * search could reach it (or its ramps) are left out, so no road or pipeline crosses the platform and every
  * remaining path is exactly the one built without an arena.
  */
-export function edgesNear(seed: number, s0: number, s1: number, arena?: TerrainArena): NetworkEdge[] {
-  const edges: NetworkEdge[] = [];
-  for (const site of settlementsNear(seed, s0 - 3 * SETTLEMENT_CELL - 10, s1 + 10, arena)) {
-    for (const edge of edgesOf(seed, site)) {
+export function edgesNear(seed: number, s0: number, s1: number, input?: WorldInput | World): NetworkEdge[] {
+  const edges: NetworkEdge[] = [], { arena, planet } = worldOf(input);
+  for (const site of settlementsNear(seed, s0 - 3 * SETTLEMENT_CELL - 10, s1 + 10, arena, planet)) {
+    for (const edge of edgesOf(seed, site, planet)) {
       if (nearArena(arena, Math.min(edge.a.s, edge.b.s), Math.max(edge.a.s, edge.b.s), PIPE_MARGIN + 2 * PIPE_CELL)) continue;
       if (Math.max(edge.a.s, edge.b.s) + 10 >= s0 && Math.min(edge.a.s, edge.b.s) - 10 <= s1) edges.push(edge);
     }
@@ -166,6 +166,10 @@ interface Grid {
   x0: number; s0: number; cell: number; columns: number; rows: number; heights: Float64Array; extra: Float64Array;
   /** Cells too close to an outpost's modules for a pipe piece (pipeline grids only). */
   crowded: Uint8Array;
+  /** Cells at or under the water (planets with an ocean); roads and pipe runs keep off them. */
+  wet: Uint8Array | null;
+  /** Height at a world point below which ground counts as wet (Infinity-free: −Infinity on dry planets). */
+  sea: number;
   /** Height at half-cell lattice point (c2, r2), computed lazily: catches canyons narrower than a cell. */
   half(c2: number, r2: number): number;
   /** Ground height anywhere (uncached). */
@@ -174,19 +178,20 @@ interface Grid {
 /** Module reach (from its centre) a pipe piece keeps clear of: big platforms reach further. */
 const moduleReach = (node: string) => node === 'infra_landing_pad' ? 3.2 : node === 'infra_refinery' ? 2.7 : 1;
 /** Coarse grid over the edge's span with ground heights and a per-cell cost (center lane, foreign pads). */
-function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: number, margin = 8, ownPads = false): Work<Grid> {
+function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: number, margin = 8, ownPads = false, world: World = worldOf()): Work<Grid> {
+  const terrainAt = (x: number, s: number) => terrainHeight(seed, x, s, world.bare);
   // Columns sit symmetrically about the centre (on whole or half cells, whichever reaches further), their cells
   // at least half a unit clear of the world edges.
   const limit = WORLD_HALF - 0.5 - cell / 2, whole = Math.floor(limit / cell) * cell, offset = (Math.floor(limit / cell - 0.5) + 0.5) * cell;
   const reach = Math.max(whole, offset), x0 = -reach, columns = Math.round(2 * reach / cell) + 1;
   const s0 = Math.floor((Math.min(edge.a.s, edge.b.s) - margin) / cell) * cell, rows = Math.ceil((Math.max(edge.a.s, edge.b.s) + margin - s0) / cell) + 1;
   const heights = new Float64Array(columns * rows), extra = new Float64Array(columns * rows);
-  const pads = settlementsNear(seed, s0, s0 + rows * cell).filter(site => site !== edge.a.site && site !== edge.b.site);
+  const pads = settlementsNear(seed, s0, s0 + rows * cell, undefined, world.planet).filter(site => site !== edge.a.site && site !== edge.b.site);
   for (let r = 0; r < rows; r++) {
     const s = s0 + r * cell, lane = routeCenter(seed, 1, s);
     for (let c = 0; c < columns; c++) {
       const x = x0 + c * cell, i = r * columns + c;
-      heights[i] = terrainHeight(seed, x, s);
+      heights[i] = terrainAt(x, s);
       extra[i] = (Math.abs(x - lane) < 3 ? center : 0) + (pads.some(site => padDistance(site, x, s) < 0.6) ? 4 : 0)
         // Pipelines may leave from any side of their own outposts, but never run through the modules.
         + (ownPads && [edge.a.site, edge.b.site].some(site => site && padDistance(site, x, s) < -0.2) ? 4 : 0);
@@ -195,7 +200,7 @@ function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: numbe
   }
   // Pipelines keep their pieces (a cell's centre plus a unit of pipe) off outpost modules.
   const crowded = new Uint8Array(columns * rows);
-  if (ownPads) for (const site of settlementsNear(seed, s0, s0 + rows * cell)) for (const module of site.modules) {
+  if (ownPads) for (const site of settlementsNear(seed, s0, s0 + rows * cell, undefined, world.planet)) for (const module of site.modules) {
     if (module.kind === 'kit') continue;
     const reach = moduleReach(module.node) + 1, c0 = Math.max(0, Math.ceil((module.x - reach - x0) / cell)), c1 = Math.min(columns - 1, Math.floor((module.x + reach - x0) / cell));
     const r0 = Math.max(0, Math.ceil((module.s - reach - s0) / cell)), r1 = Math.min(rows - 1, Math.floor((module.s + reach - s0) / cell));
@@ -207,10 +212,13 @@ function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: numbe
   const halves = new Float64Array((columns * 2 - 1) * (rows * 2 - 1)).fill(NaN), halfColumns = columns * 2 - 1;
   const half = (c2: number, r2: number) => {
     const i = r2 * halfColumns + c2;
-    if (Number.isNaN(halves[i])) halves[i] = terrainHeight(seed, x0 + c2 * cell / 2, s0 + r2 * cell / 2);
+    if (Number.isNaN(halves[i])) halves[i] = terrainAt(x0 + c2 * cell / 2, s0 + r2 * cell / 2);
     return halves[i];
   };
-  return { x0, s0, cell, columns, rows, heights, extra, crowded, half, ground: (x: number, s: number) => terrainHeight(seed, x, s) };
+  // Water keeps a margin above sea level so tracks and pipe runs stay on solid shelf ice.
+  const sea = world.planet.seaLevel === null ? -Infinity : world.planet.seaLevel + 0.15;
+  const wet = world.planet.seaLevel === null ? null : heights.map(height => height < sea ? 1 : 0) as unknown as Uint8Array;
+  return { x0, s0, cell, columns, rows, heights, extra, crowded, wet, sea, half, ground: terrainAt };
 }
 
 /**
@@ -237,10 +245,10 @@ function* searchSteps(g: Grid, a: Endpoint, b: Endpoint, diagonal: boolean, maxS
       const nc = c + steps[d][0], nr = r + steps[d][1];
       if (nc < 0 || nc >= columns || nr < 0 || nr >= rows) continue;
       const next = nr * columns + nc, length = Math.hypot(steps[d][0], steps[d][1]) * cell, rise = Math.abs(heights[next] - heights[node]) / length;
-      if (rise > maxSlope) continue;
+      if (rise > maxSlope || g.wet?.[next]) continue;
       // Never hop over a canyon narrower than a cell: the midpoint must also sit within the grade.
       const middle = g.half(c + nc, r + nr);
-      if (Math.abs(middle - heights[node]) > maxSlope * length / 2 || Math.abs(heights[next] - middle) > maxSlope * length / 2) continue;
+      if (Math.abs(middle - heights[node]) > maxSlope * length / 2 || Math.abs(heights[next] - middle) > maxSlope * length / 2 || middle < g.sea) continue;
       const step = length * (1 + 6 * rise * rise + g.extra[next]) + (d !== heading && node !== start ? turnCost : 0);
       const nextState = next * headings + d, total = base + step;
       if (total < cost[nextState]) {
@@ -271,12 +279,12 @@ export const ROAD_STEP = 0.5;
 export const ROAD_MAX_SLOPE = 0.45;
 
 const roadMemo = new Map<string, RoadPath | null>();
-export function* roadPathSteps(seed: number, edge: NetworkEdge): Work<RoadPath | null> {
-  const key = `${seed}:${edge.id}`;
+export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInput | World): Work<RoadPath | null> {
+  const world = worldOf(input).bare, key = `${world.planet.id}:${seed}:${edge.id}`;
   if (roadMemo.has(key)) return roadMemo.get(key)!;
   let result: RoadPath | null = null;
   if (edge.road) {
-    const g = yield* gridSteps(seed, edge, 1, 0.5), nodes = yield* searchSteps(g, edge.a, edge.b, true, ROAD_MAX_SLOPE, 0.4, 10);
+    const g = yield* gridSteps(seed, edge, 1, 0.5, 8, false, world), nodes = yield* searchSteps(g, edge.a, edge.b, true, ROAD_MAX_SLOPE, 0.4, 10);
     if (nodes && nodes.length > 1) {
       let points = nodes.map(node => [g.x0 + (node % g.columns) * g.cell, g.s0 + Math.floor(node / g.columns) * g.cell]);
       // Chaikin smoothing gives gently curved roads; the endpoints stay on searched cells next to the gates.
@@ -297,7 +305,7 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge): Work<RoadPath |
         }
         carry = (carry + span) % ROAD_STEP;
       }
-      const y = xs.map((x, i) => terrainHeight(seed, x, ss[i]));
+      const y = xs.map((x, i) => g.ground(x, ss[i]));
       // Last guard: a road whose smoothed line still meets a hard grade is not built.
       const graded = y.every((height, i) => i === 0 || Math.abs(height - y[i - 1]) / ROAD_STEP <= ROAD_MAX_SLOPE * 1.6);
       if (graded) result = { id: edge.id, x: Float64Array.from(xs), s: Float64Array.from(ss), y: Float64Array.from(y), length: Float64Array.from(lengths) };
@@ -307,14 +315,15 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge): Work<RoadPath |
   roadMemo.set(key, result);
   return result;
 }
-export const roadPath = (seed: number, edge: NetworkEdge) => finish(roadPathSteps(seed, edge));
+export const roadPath = (seed: number, edge: NetworkEdge, world?: WorldInput | World) => finish(roadPathSteps(seed, edge, world));
 
 /** Ribbon cross-section: outer berm, road edge, road edge, outer berm (offsets, u, lift above ground, alpha). */
 const RIBBON = [[-0.82, 0, 0.035, 0], [-0.5, 0.2, 0.055, 1], [0.5, 0.8, 0.055, 1], [0.82, 1, 0.035, 0]] as const;
 export interface RoadMesh { positions: Float32Array; uvs: Float32Array; alpha: Float32Array; shade: Float32Array; indices: Uint32Array }
 
 /** Ribbon quads for road segments starting inside a section (section-local z = −(s − startS)). */
-export function* roadRibbonSteps(seed: number, roads: readonly RoadPath[], startS: number, size: number): Work<RoadMesh> {
+export function* roadRibbonSteps(seed: number, roads: readonly RoadPath[], startS: number, size: number, world?: WorldInput | World): Work<RoadMesh> {
+  const bare = worldOf(world).bare;
   const positions: number[] = [], uvs: number[] = [], alpha: number[] = [], indices: number[] = [];
   for (const road of roads) {
     const n = road.x.length;
@@ -329,7 +338,7 @@ export function* roadRibbonSteps(seed: number, roads: readonly RoadPath[], start
         const [nx, ns] = normal(j);
         for (const [offset, u, lift, a] of RIBBON) {
           const x = road.x[j] + nx * offset, s = road.s[j] + ns * offset;
-          positions.push(x, terrainHeight(seed, x, s) + lift, -(s - startS));
+          positions.push(x, terrainHeight(seed, x, s, bare) + lift, -(s - startS));
           uvs.push(u, road.length[j] / 2); alpha.push(a);
         }
       }
@@ -340,7 +349,7 @@ export function* roadRibbonSteps(seed: number, roads: readonly RoadPath[], start
   }
   return { positions: Float32Array.from(positions), uvs: Float32Array.from(uvs), alpha: Float32Array.from(alpha), shade: new Float32Array(alpha.length).fill(1), indices: Uint32Array.from(indices) };
 }
-export const roadRibbons = (seed: number, roads: readonly RoadPath[], startS: number, size: number) => finish(roadRibbonSteps(seed, roads, startS, size));
+export const roadRibbons = (seed: number, roads: readonly RoadPath[], startS: number, size: number, world?: WorldInput | World) => finish(roadRibbonSteps(seed, roads, startS, size, world));
 
 /* ---------------------------------------------------------------- pipelines */
 
@@ -359,6 +368,8 @@ const PIPE_RUN_RISE = PIPE_MAX_SLOPE * PIPE_CELL;
 /** Detour budget: how far beyond the endpoints (forward and back) the pipe search may wander. */
 const PIPE_MARGIN = 20;
 const PIPE_TURN = 3, PIPE_HUMP = 0.6, RISER_COST = 9, RISER_PER_UNIT = 0.4, TRESTLE_COST = 4, TRESTLE_PER_CELL = 1.5, TRESTLE_CELLS = 3;
+/** On a planet with a sea, pipes never run on wet cells; they cross leads on trestles of up to this many cells. */
+const WET_TRESTLE_CELLS = 6;
 /**
  * A step a little too steep for one cell can still be a pitched run: layout lifts the lower side onto
  * supports and lets the line descend over the next cells. Small excesses prefer that; tall cliffs take risers.
@@ -404,7 +415,7 @@ function rimCells(g: Grid, site: Settlement): number[] {
   const c0 = Math.max(0, Math.floor((site.x - site.hx - reach - g.x0) / g.cell)), c1 = Math.min(g.columns - 1, Math.ceil((site.x + site.hx + reach - g.x0) / g.cell));
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
     const distance = padDistance(site, g.x0 + c * g.cell, g.s0 + r * g.cell);
-    if (distance >= 0 && distance <= 2.2 && fits(g.heights[r * g.columns + c]) && !g.crowded[r * g.columns + c]) cells.push(r * g.columns + c);
+    if (distance >= 0 && distance <= 2.2 && fits(g.heights[r * g.columns + c]) && !g.crowded[r * g.columns + c] && !g.wet?.[r * g.columns + c]) cells.push(r * g.columns + c);
   }
   return cells;
 }
@@ -414,20 +425,20 @@ function rimCells(g: Grid, site: Settlement): number[] {
  * A pipeline may leave its outpost from any rim cell (the side facing its target costs least) and joins the
  * other outpost's rim, or the map edge near the exit point. Moves: a pitched run to a neighbour within the
  * grade; a riser down or up a cliff step (standing in the lower cell, never two in one cell); or a level
- * trestle straight across up to three lower cells to ground about as high. When every goal stays
+ * trestle straight across up to three lower cells (five over water: runs never stand on wet cells) to ground about as high. When every goal stays
  * unreachable, the closest partial run is kept.
  */
 function* pipeSearchSteps(g: Grid, a: Endpoint, b: Endpoint, banned: ReadonlySet<number>, noRiser: ReadonlySet<number>): Work<{ cells: PipeCell[]; reached: boolean } | null> {
   const { columns, rows, cell, heights, extra } = g;
   const index = (x: number, s: number) => clamp(Math.round((s - g.s0) / cell), 0, rows - 1) * columns + clamp(Math.round((x - g.x0) / cell), 0, columns - 1);
   const gateA = index(a.x, a.s), gateB = index(b.x, b.s), bc = gateB % columns, br = Math.floor(gateB / columns);
-  const sources = (a.site ? rimCells(g, a.site) : []).concat(fits(heights[gateA]) && !g.crowded[gateA] ? [gateA] : []).filter(node => !banned.has(node));
+  const sources = (a.site ? rimCells(g, a.site) : []).concat(fits(heights[gateA]) && !g.crowded[gateA] && !g.wet?.[gateA] ? [gateA] : []).filter(node => !banned.has(node));
   if (!sources.length) return null;
   const goal = new Uint8Array(columns * rows);
   let spread = 0;
   if (b.site) {
-    for (const node of [...rimCells(g, b.site), ...g.crowded[gateB] ? [] : [gateB]]) if (!banned.has(node)) { goal[node] = 1; spread = Math.max(spread, Math.hypot(node % columns - bc, Math.floor(node / columns) - br)); }
-  } else for (let r = 0; r < rows; r++) if (Math.abs(r - br) <= 6) goal[r * columns + bc] = 1;
+    for (const node of [...rimCells(g, b.site), ...g.crowded[gateB] || g.wet?.[gateB] ? [] : [gateB]]) if (!banned.has(node)) { goal[node] = 1; spread = Math.max(spread, Math.hypot(node % columns - bc, Math.floor(node / columns) - br)); }
+  } else for (let r = 0; r < rows; r++) if (Math.abs(r - br) <= 6 && !g.wet?.[r * columns + bc]) goal[r * columns + bc] = 1;
   // Admissible distance to the nearest goal cell (in cells): to the rim around the gate, or to the exit column.
   const remaining = (node: number) => {
     const c = node % columns, r = Math.floor(node / columns);
@@ -465,7 +476,7 @@ function* pipeSearchSteps(g: Grid, a: Endpoint, b: Endpoint, banned: ReadonlySet
       const [dc, dr] = PIPE_STEPS[d], turn = d !== heading && from[state] >= 0 ? PIPE_TURN : 0, nc = c + dc, nr = r + dr;
       if (nc < 0 || nc >= columns || nr < 0 || nr >= rows) continue;
       const next = nr * columns + nc, hv = heights[next], rise = hv - hu, hump = g.half(c + nc, r + nr), high = hv > PIPE_TOP ? HIGH_COST : 0;
-      if (!banned.has(next) && fits(hv) && fits(hump) && hump <= Math.max(hu, hv) + PIPE_HUMP) {
+      if (!banned.has(next) && !g.wet?.[next] && fits(hv) && fits(hump) && hump <= Math.max(hu, hv) + PIPE_HUMP) {
         const run = cell * (1 + 3 * (Math.min(Math.abs(rise), PIPE_RUN_RISE) / cell) ** 2 + extra[next] + high) + turn;
         if (Math.abs(rise) <= PIPE_RUN_RISE) relax(state, next, d, 0, 0, run);
         else {
@@ -481,7 +492,7 @@ function* pipeSearchSteps(g: Grid, a: Endpoint, b: Endpoint, banned: ReadonlySet
       }
       // Trestle: a level straight over k lower cells (a real canyon) to ground about as high as this cell.
       let span = -Infinity, deepest = Infinity, extras = 0;
-      for (let k = 1; k <= TRESTLE_CELLS; k++) {
+      for (let k = 1; k <= (g.wet ? WET_TRESTLE_CELLS : TRESTLE_CELLS); k++) {
         const mc = c + dc * k, mr = r + dr * k, ec = mc + dc, er = mr + dr;
         if (ec < 0 || ec >= columns || er < 0 || er >= rows) break;
         const middle = mr * columns + mc, end = er * columns + ec, he = heights[end];
@@ -490,7 +501,7 @@ function* pipeSearchSteps(g: Grid, a: Endpoint, b: Endpoint, banned: ReadonlySet
         if (!fits(span)) break;
         const level = Math.max(pipeNeed(hu, 's'), pipeNeed(he, 's'));
         if (banned.has(middle)) break;
-        if (banned.has(end) || Math.abs(he - hu) > PIPE_RUN_RISE || pipeNeed(span, 's') > level || deepest > Math.max(hu, he) - PIPE_RUN_RISE / 2) continue;
+        if (banned.has(end) || g.wet?.[end] || Math.abs(he - hu) > PIPE_RUN_RISE || pipeNeed(span, 's') > level || deepest > Math.max(hu, he) - PIPE_RUN_RISE / 2) continue;
         relax(state, end, d, 0, 2 + k, cell * (k + 1 + extras + extra[end] + (he > PIPE_TOP ? HIGH_COST : 0)) + TRESTLE_COST + TRESTLE_PER_CELL * k + turn);
       }
     }
@@ -539,8 +550,9 @@ function elbowPiece(id: string, node: SharedNode, group: string, x: number, s: n
  * (a lattice tower when tall). Where no rack fits under the cap the pipe rests on the ground, on a short
  * stand of frames up to its underside if needed. Valves (`rack` false) stand on frames under their base.
  */
-function supportStack(pieces: IndustryPiece[], seed: number, id: string, group: string, x: number, s: number, level: number, along: Vec, rack: boolean, body: number) {
-  const ground = terrainHeight(seed, x, s), racked = rack && level <= PIPE_TOP + 1e-9 && ground <= level + 0.02;
+type Ground = (x: number, s: number) => number;
+function supportStack(pieces: IndustryPiece[], terrain: Ground, id: string, group: string, x: number, s: number, level: number, along: Vec, rack: boolean, body: number) {
+  const ground = terrain(x, s), racked = rack && level <= PIPE_TOP + 1e-9 && ground <= level + 0.02;
   const base = { node: 'pipe_support' as const, x, s, rotation: Math.atan2(along[0], along[2]), pitch: 0, roll: 0, scaleZ: 1, group };
   if (racked) pieces.push({ ...base, id: `${id}:rack`, y: level, scaleY: 1 });
   const gap = (rack && !racked ? level + body : level) - ground;
@@ -550,16 +562,16 @@ function supportStack(pieces: IndustryPiece[], seed: number, id: string, group: 
 }
 
 /** Where a line rests on high ground (no rack fits), a short stand under any spot it lifts off over a dip. */
-function stand(pieces: IndustryPiece[], seed: number, id: string, group: string, x: number, s: number, level: number, along: Vec, body: number) {
-  const ground = terrainHeight(seed, x, s);
+function stand(pieces: IndustryPiece[], terrain: Ground, id: string, group: string, x: number, s: number, level: number, along: Vec, body: number) {
+  const ground = terrain(x, s);
   if ((level <= PIPE_TOP + 1e-9 && ground <= level + 0.02) || level + body - ground <= 0.1) return;
-  supportStack(pieces, seed, id, group, x, s, level, along, true, body);
+  supportStack(pieces, terrain, id, group, x, s, level, along, true, body);
 }
 
 interface Layout { cells: PipeCell[]; at: (readonly [number, number])[]; back: Side[]; front: Side[]; turn: boolean[]; joints: Float64Array }
 
 /** Poses the pieces of a solved layout: pitched straights, level elbows, risers, trestle spans and their supports. */
-function* assembleSteps(seed: number, edge: NetworkEdge, layout: Layout, reached: boolean, size: PipeSize): Work<IndustryPiece[]> {
+function* assembleSteps(seed: Ground, edge: NetworkEdge, layout: Layout, reached: boolean, size: PipeSize): Work<IndustryPiece[]> {
   const { cells, at, back, front, turn, joints } = layout, pieces: IndustryPiece[] = [], n = cells.length, group = `pipe:${edge.id}`;
   const large = size === 'l', body = PIPE_BODY[size];
   const straight = `pipe_${size}_straight` as SharedNode, elbow = `pipe_${size}_elbow` as SharedNode;
@@ -595,7 +607,7 @@ function* assembleSteps(seed: number, edge: NetworkEdge, layout: Layout, reached
         let worst = 0.1, best = -1;
         for (let t = low + 0.0625; t < low + 0.5; t += 0.125) {
           const d = Math.abs(1 - 2 * t), gap = joints[i] + (joints[i + 1] - joints[i]) * t + body
-            - terrainHeight(seed, x + DIRECTION[side][0] * d, s + DIRECTION[side][1] * d);
+            - seed(x + DIRECTION[side][0] * d, s + DIRECTION[side][1] * d);
           if (gap > worst) { worst = gap; best = t; }
         }
         if (best < 0) continue;
@@ -619,7 +631,7 @@ interface Attempt extends PipeRun { blocked: { node: number; riser: boolean } | 
  * trestle spans and free ends stay level; a riser's bends clear their arms and sit two units apart. A run
  * that would rise above the cap is cut back to an open end.
  */
-function* pipeLayoutSteps(seed: number, g: Grid, found: { cells: PipeCell[]; reached: boolean }, edge: NetworkEdge, size: PipeSize): Work<Attempt> {
+function* pipeLayoutSteps(g: Grid, found: { cells: PipeCell[]; reached: boolean }, edge: NetworkEdge, size: PipeSize): Work<Attempt> {
   let cells = found.cells, reached = found.reached, blocked: Attempt['blocked'] = null;
   const position = (cell: PipeCell) => [g.x0 + (cell.node % g.columns) * g.cell, g.s0 + Math.floor(cell.node / g.columns) * g.cell] as const;
   for (;;) {
@@ -636,7 +648,7 @@ function* pipeLayoutSteps(seed: number, g: Grid, found: { cells: PipeCell[]; rea
     front[n - 1] = last === back[n - 1] ? OPPOSITE[back[n - 1]] : last;
     const turn = cells.map((cell, i) => cell.kind === 'run' && back[i] !== OPPOSITE[front[i]]);
     // Ground samples, already turned into the lowest pipe base each allows (see pipeNeed).
-    const sample = (i: number, side: Side, d: number) => pipeNeed(terrainHeight(seed, at[i][0] + DIRECTION[side][0] * d, at[i][1] + DIRECTION[side][1] * d), size);
+    const sample = (i: number, side: Side, d: number) => pipeNeed(g.ground(at[i][0] + DIRECTION[side][0] * d, at[i][1] + DIRECTION[side][1] * d), size);
     const center = cells.map(cell => pipeNeed(g.heights[cell.node], size)), backArm: number[][] = [], frontArm: number[][] = [];
     const foot = cells.map((cell, i) => cell.kind === 'riser' ? Math.max(...(['px', 'nx', 'ps', 'ns'] as const).map(side => sample(i, side, RISER_REACH * PIPE_CELL))) : -Infinity);
     const joints = new Float64Array(n + 1);
@@ -681,7 +693,7 @@ function* pipeLayoutSteps(seed: number, g: Grid, found: { cells: PipeCell[]; rea
       if (!changed) break;
     }
     const over = Array.from({ length: n }, (_, i) => i).find(i => Math.max(joints[i], joints[i + 1]) > PIPE_HIGHEST[size] + 1e-9);
-    if (over === undefined) return { pieces: yield* assembleSteps(seed, edge, { cells, at, back, front, turn, joints }, reached, size), reached, cells: n, blocked };
+    if (over === undefined) return { pieces: yield* assembleSteps(g.ground, edge, { cells, at, back, front, turn, joints }, reached, size), reached, cells: n, blocked };
     // Cut back before the cell that would rise above the cap, never ending mid-trestle or on a riser's top.
     blocked ??= { node: cells[over].node, riser: cells[over].kind === 'riser' };
     cells = cells.slice(0, over); reached = false;
@@ -691,12 +703,12 @@ function* pipeLayoutSteps(seed: number, g: Grid, found: { cells: PipeCell[]; rea
 
 const pipeMemo = new Map<string, PipeRun>();
 /** One edge's pipeline (cached per edge, so every section extracts its own pieces identically). */
-export function* pipeRunSteps(seed: number, edge: NetworkEdge): Work<PipeRun> {
-  const key = `${seed}:${edge.id}`;
+export function* pipeRunSteps(seed: number, edge: NetworkEdge, input?: WorldInput | World): Work<PipeRun> {
+  const world = worldOf(input).bare, key = `${world.planet.id}:${seed}:${edge.id}`;
   if (pipeMemo.has(key)) return pipeMemo.get(key)!;
   let run: PipeRun = { pieces: [], reached: false, cells: 0 };
   if (edge.pipe) {
-    const g = yield* gridSteps(seed, edge, PIPE_CELL, 1.5, PIPE_MARGIN, true), banned = new Set<number>(), noRiser = new Set<number>();
+    const g = yield* gridSteps(seed, edge, PIPE_CELL, 1.5, PIPE_MARGIN, true, world), banned = new Set<number>(), noRiser = new Set<number>();
     // The search plans on cell heights; when the laid line would still rise above the cap somewhere, that
     // cell is ruled out and the search runs again (a few times at most).
     for (let attempt = 0; attempt < PIPE_ATTEMPTS; attempt++) {
@@ -704,37 +716,40 @@ export function* pipeRunSteps(seed: number, edge: NetworkEdge): Work<PipeRun> {
       if (!found) break;
       // Most lines are large; a line that must cross ground too high for a large pipe is laid small.
       const large = hash(seed ^ 0x919, found.cells.length, found.cells[0].node) < 0.6;
-      let laid = yield* pipeLayoutSteps(seed, g, found, edge, large ? 'l' : 's');
-      if (large && found.reached && !laid.reached) laid = yield* pipeLayoutSteps(seed, g, found, edge, 's');
+      let laid = yield* pipeLayoutSteps(g, found, edge, large ? 'l' : 's');
+      if (large && found.reached && !laid.reached) laid = yield* pipeLayoutSteps(g, found, edge, 's');
       run = { pieces: laid.pieces, reached: laid.reached, cells: laid.cells };
       if (laid.reached || !found.reached || laid.blocked === null) break;
       // A riser too tall for the cap is ruled out in that cell (the cell stays usable); any other cell is avoided.
       (laid.blocked.riser ? noRiser : banned).add(laid.blocked.node);
     }
+    // Over a sea a line that cannot reach its goal would stop at a shelf edge (open water too wide to
+    // trestle across): it is not built at all.
+    if (!run.reached && world.planet.seaLevel !== null) run = { pieces: [], reached: false, cells: 0 };
   }
   if (pipeMemo.size > 256) pipeMemo.clear();
   pipeMemo.set(key, run);
   return run;
 }
-export const pipeRun = (seed: number, edge: NetworkEdge) => finish(pipeRunSteps(seed, edge));
-export function* pipePieceSteps(seed: number, edge: NetworkEdge): Work<IndustryPiece[]> { return (yield* pipeRunSteps(seed, edge)).pieces; }
-export const pipePieces = (seed: number, edge: NetworkEdge) => finish(pipePieceSteps(seed, edge));
+export const pipeRun = (seed: number, edge: NetworkEdge, world?: WorldInput | World) => finish(pipeRunSteps(seed, edge, world));
+export function* pipePieceSteps(seed: number, edge: NetworkEdge, world?: WorldInput | World): Work<IndustryPiece[]> { return (yield* pipeRunSteps(seed, edge, world)).pieces; }
+export const pipePieces = (seed: number, edge: NetworkEdge, world?: WorldInput | World) => finish(pipePieceSteps(seed, edge, world));
 
 /** Every network piece of a section (anchor s inside it), plus the roads that touch it. */
-export function* sectionNetworkSteps(seed: number, startS: number, size: number, arena?: TerrainArena): Work<{ pieces: IndustryPiece[]; roads: RoadPath[] }> {
-  const pieces: IndustryPiece[] = [], roads: RoadPath[] = [];
-  for (const edge of edgesNear(seed, startS, startS + size, arena)) {
-    for (const piece of yield* pipePieceSteps(seed, edge)) {
+export function* sectionNetworkSteps(seed: number, startS: number, size: number, input?: WorldInput | World): Work<{ pieces: IndustryPiece[]; roads: RoadPath[] }> {
+  const pieces: IndustryPiece[] = [], roads: RoadPath[] = [], world = worldOf(input);
+  for (const edge of edgesNear(seed, startS, startS + size, world)) {
+    for (const piece of yield* pipePieceSteps(seed, edge, world)) {
       if (piece.s < startS || piece.s >= startS + size) continue;
       // Safety net only: layout keeps every piece inside the world and under the cap (tests hold it to that).
       const box = pieceBounds(piece);
       if (box.minX < -WORLD_HALF || box.maxX > WORLD_HALF || box.maxY > SCENERY_MAX_HEIGHT + 1e-6) continue;
       pieces.push(piece);
     }
-    const road = yield* roadPathSteps(seed, edge);
+    const road = yield* roadPathSteps(seed, edge, world);
     if (road && road.s.some(s => s >= startS - 1 && s < startS + size + 1)) roads.push(road);
     yield;
   }
   return { pieces, roads };
 }
-export const sectionNetwork = (seed: number, startS: number, size: number, arena?: TerrainArena) => finish(sectionNetworkSteps(seed, startS, size, arena));
+export const sectionNetwork = (seed: number, startS: number, size: number, world?: WorldInput | World) => finish(sectionNetworkSteps(seed, startS, size, world));

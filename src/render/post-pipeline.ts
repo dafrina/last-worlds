@@ -23,6 +23,8 @@ export interface PostSettings {
   contrast: number;
   /** 0 = none; darkening at the corners. */
   vignette: number;
+  /** Distance haze toward the top of the frame: linear RGB in xyz, amount in w (0 = none). */
+  haze: THREE.Vector4;
 }
 
 const VERTEX = /* glsl */`
@@ -79,6 +81,7 @@ void main() {
 const COMPOSITE = /* glsl */`
 uniform sampler2D scene; uniform sampler2D bloom; uniform vec2 texel;
 uniform float exposure; uniform float strength; uniform vec3 lift; uniform float saturation; uniform float contrast; uniform float vignette; uniform vec2 aspect;
+uniform vec4 haze;
 varying vec2 vUv;
 /** Compressed (Reinhard) luma, so FXAA edge detection behaves on HDR input. */
 float edgeLuma( vec3 c ) { float l = dot( c, vec3( 0.299, 0.587, 0.114 ) ) * exposure; return l / ( 1.0 + l ); }
@@ -125,6 +128,8 @@ void main() {
   color += lift * ( 1.0 - smoothstep( 0.0, 0.18, luma ) );
   color = clamp( neutral( color ), 0.0, 1.0 );
   color = mix( vec3( dot( color, vec3( 0.2126, 0.7152, 0.0722 ) ) ), color, saturation );
+  // Planet air: a faint haze thickening toward the far (upper) edge of the view.
+  color = mix( color, haze.rgb, haze.a * smoothstep( 0.4, 1.0, vUv.y ) );
   vec2 p = ( vUv - 0.5 ) * aspect;
   color *= 1.0 - vignette * smoothstep( 0.35, 0.95, dot( p, p ) * 2.0 );
   // Ordered dither hides 8-bit banding in the vignette and haze gradients.
@@ -161,6 +166,7 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
     scene: { value: sceneTarget.texture }, bloom: { value: upQuarter.texture }, exposure: { value: settings.exposure },
     strength: { value: settings.strength }, lift: { value: settings.lift }, saturation: { value: settings.saturation }, contrast: { value: settings.contrast },
     vignette: { value: settings.vignette }, aspect: { value: new THREE.Vector2(1, 1) }, texel: { value: new THREE.Vector2(1, 1) },
+    haze: { value: settings.haze.clone() },
   });
   const quad = new THREE.Mesh(triangle, prefilter); quad.frustumCulled = false;
   let width = 1, height = 1;
@@ -195,6 +201,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
       renderer.autoClear = previousAutoClear;
     },
     settings: composite.uniforms,
+    /** Bloom threshold and knee (linear radiance), e.g. per planet so sunlit snow never smears. */
+    setThreshold(threshold: number, knee: number) { prefilter.uniforms.threshold.value = threshold; prefilter.uniforms.knee.value = knee; },
     dispose() {
       [sceneTarget, quarter, eighth, sixteenth, upEighth, upQuarter].forEach(target => target.dispose());
       [prefilter, down, up, composite].forEach(material => material.dispose()); triangle.dispose();

@@ -3,7 +3,9 @@ export type Mode = 'campaign' | 'endless';
 export type Difficulty = 'relaxed' | 'standard' | 'veteran';
 export type GraphicsQuality = 'high' | 'low';
 export type WeaponId = 'pulse' | 'fan' | 'seeker';
-export type MissionId = 'training' | 'bastion';
+export type MissionId = 'training' | 'bastion' | 'cold-vector';
+/** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
+export type PlanetId = 'khepri' | 'vesper';
 export type BossPart = 'left' | 'right' | 'core';
 export interface BossState {
   phase: 'arrival' | 'batteries' | 'core' | 'overload' | 'destroyed';

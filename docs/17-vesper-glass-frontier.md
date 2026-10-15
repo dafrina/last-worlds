@@ -73,6 +73,20 @@ All of them follow the fairness rules and the validator, and the perfect pilot m
 - **Health:** total effective HP is about 3,000, scaled by difficulty.
 - **Presentation:** wake and spray, radiator glow driven by damage, then a destruction sequence of explosions, listing and sinking with steam.
 
+## As implemented: world and look (wave 1, 15 October)
+
+- **Planet profiles:** `src/world/terrain-planet.ts` and `terrain-vesper.ts`. `runPlanet(config)` in `src/content/missions.ts` maps missions to planets, and `terrain.update(seed, distance, { planet, arena })` takes the result. Khepri's output is byte-identical (fingerprint tests). `TERRAIN_VERSION` is 10.
+- **Land and water:** about 70% land, 30% water (user request; mean 0.71 over test seeds, tested to 0.65–0.75). Pack-ice seas are rare (about 6% of the route); shelves, crevasse plateaus and radiator plains dominate.
+- **Ice and pack ice:** continuous faceted ice-cliff faces with undercuts and calved blocks. Pack ice fields have domain-warped ragged edges, mixed plate sizes and cracked plates.
+- **Pipelines:** they cross water only on trestles of up to 6 cells, and lines that can't reach their goal are not built.
+- **Look:** a per-planet light and grade table in `scene.ts`; Khepri is pixel-identical. The Vesper side:
+  - **Light:** a high, pale, cool sun with blue shadows; bloom threshold 1.2, so snow never blooms.
+  - **Water** (`src/render/water.ts`): one opaque draw per strip, with analytic swell, depth tint, shoreline foam, and instanced foam collars and wakes around floes.
+  - **Materials:** ice, snow and rock shading derived from the kit's vertex colours; black ceramic infrastructure with orange radiator glow.
+  - **Enemies:** Vesper craft models.
+- **Live features:** `terrain.features` exposes floes and vents, for foam collars and steam.
+- **Preview:** `?planet=vesper` is a hidden preview switch, not offered in any menu, that shows Vesper in any run until Cold Vector ships.
+
 ## 6. Ownership and order
 
 1. **Kit agent:** the four GLBs (§3).

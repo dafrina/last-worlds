@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { EnemyKind, Pickup } from '../shared/contracts';
 /** Code-built outpost stand-ins, used when the modelled infrastructure kit is missing. */
 export type PropKind = 'relay' | 'cargo' | 'landingPad' | 'track' | 'refinery';
@@ -347,18 +348,36 @@ export function createPickupModel(kind: Pickup['kind']): THREE.Group {
  * PMREM at start; no texture download. Metals pick up the desert's warmth instead of reading as flat black.
  */
 export function createDesertEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
+  return skyEnvironment(renderer, sun, {
+    zenith: [0.55, 0.42, 0.32], horizon: [1.25, 0.72, 0.38], ground: [0.22, 0.09, 0.035], disc: [9.0, 6.4, 3.8], halo: [0.6, 0.38, 0.18],
+  });
+}
+
+/**
+ * Vesper's sky for reflections (docs/17 §1): pale cold zenith, a bright white-blue horizon, deep ocean below and a
+ * high pale sun. Ceramic craft, radiator machinery and the water pick up cool light from it.
+ */
+export function createIceEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
+  return skyEnvironment(renderer, sun, {
+    zenith: [0.42, 0.58, 0.86], horizon: [1.05, 1.15, 1.3], ground: [0.02, 0.06, 0.13], disc: [9.0, 9.2, 9.6], halo: [0.35, 0.4, 0.5],
+  });
+}
+
+interface SkyPalette { zenith: readonly number[]; horizon: readonly number[]; ground: readonly number[]; disc: readonly number[]; halo: readonly number[] }
+function skyEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3, palette: SkyPalette): THREE.WebGLRenderTarget {
+  const vec = (c: readonly number[]) => `vec3( ${c.map(v => v.toFixed(3)).join(', ')} )`;
   const scene = new THREE.Scene();
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, toneMapped: false,
     uniforms: { sun: { value: sun.clone().normalize() } },
     vertexShader: 'varying vec3 vDir; void main() { vDir = normalize( position ); gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }',
-    fragmentShader: `uniform vec3 sun; varying vec3 vDir;
+    fragmentShader: /* glsl */`uniform vec3 sun; varying vec3 vDir;
       void main() {
         float y = vDir.y;
-        vec3 zenith = vec3( 0.55, 0.42, 0.32 ), horizon = vec3( 1.25, 0.72, 0.38 ), ground = vec3( 0.22, 0.09, 0.035 );
+        vec3 zenith = ${vec(palette.zenith)}, horizon = ${vec(palette.horizon)}, ground = ${vec(palette.ground)};
         vec3 color = y > 0.0 ? mix( horizon, zenith, pow( y, 0.6 ) ) : mix( horizon * 0.45, ground, pow( -y, 0.5 ) );
         float d = max( dot( normalize( vDir ), sun ), 0.0 );
-        color += vec3( 9.0, 6.4, 3.8 ) * pow( d, 900.0 ) + vec3( 0.6, 0.38, 0.18 ) * pow( d, 12.0 );
+        color += ${vec(palette.disc)} * pow( d, 900.0 ) + ${vec(palette.halo)} * pow( d, 12.0 );
         gl_FragColor = vec4( color, 1.0 );
       }`,
   });
@@ -367,4 +386,55 @@ export function createDesertEnvironment(renderer: THREE.WebGLRenderer, sun: THRE
   const target = generator.fromScene(scene, 0.02);
   generator.dispose(); sphere.geometry.dispose(); material.dispose();
   return target;
+}
+
+/* ---------------------------------------------------------------- Vesper craft (docs/17 §3, art/vesper-craft) */
+
+/** Nodes in vesper-craft.glb: noses and muzzles +Z, air craft pivot at their mid-plane, the battery at its base. */
+export type VesperCraftNode = 'vesper_needle' | 'vesper_diamond' | 'vesper_missile_battery';
+export const VESPER_CRAFT_NODES: readonly VesperCraftNode[] = ['vesper_needle', 'vesper_diamond', 'vesper_missile_battery'];
+
+/**
+ * Loads the Vesper faction craft and bakes each node into the shared craft format (one draw per ship): COLOR_0 ×
+ * base colour as albedo, `pbr` from the authored material (pale and black ceramic are glossy dielectrics; the
+ * orange `vesper_glow` faces emit above the bloom threshold), and the authored box UVs for panel detail.
+ */
+export async function loadVesperCraft(url: string): Promise<Map<VesperCraftNode, THREE.BufferGeometry>> {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  const found = new Map<VesperCraftNode, THREE.BufferGeometry>();
+  for (const name of VESPER_CRAFT_NODES) {
+    const node = gltf.scene.getObjectByName(name);
+    if (!node) continue;
+    node.updateMatrixWorld(true);
+    const inverse = node.matrixWorld.clone().invert(), parts: THREE.BufferGeometry[] = [];
+    node.traverse(object => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+      const glow = /glow/i.test(material.name), pale = /pale/i.test(material.name);
+      const source = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+      const count = source.getAttribute('position').count, color = new Float32Array(count * 3), pbr = new Float32Array(count * 3);
+      const tint = glow ? new THREE.Color(0xff7a26) : material.color, vertex = source.getAttribute('color');
+      for (let i = 0; i < count; i++) {
+        const r = vertex && !glow ? vertex.getX(i) : 1, g = vertex && !glow ? vertex.getY(i) : 1, b = vertex && !glow ? vertex.getZ(i) : 1;
+        color.set([r * tint.r, g * tint.g, b * tint.b], i * 3);
+        pbr.set(glow ? [1, 0, 2.8] : [pale ? 0.34 : 0.26, 0.04, 0], i * 3);
+      }
+      const part = new THREE.BufferGeometry();
+      part.setAttribute('position', source.getAttribute('position').clone());
+      part.setAttribute('normal', source.getAttribute('normal').clone());
+      part.setAttribute('uv', source.getAttribute('uv')?.clone() ?? new THREE.BufferAttribute(new Float32Array(count * 2).fill(0.3), 2));
+      part.setAttribute('color', new THREE.BufferAttribute(color, 3)); part.setAttribute('pbr', new THREE.BufferAttribute(pbr, 3));
+      part.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
+      parts.push(part); source.dispose();
+    });
+    const merged = mergeGeometries(parts); parts.forEach(part => part.dispose());
+    if (merged) { merged.computeBoundingBox(); merged.computeBoundingSphere(); found.set(name, merged); }
+  }
+  gltf.scene.traverse(object => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose(); (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(material => material.dispose());
+  });
+  return found;
 }

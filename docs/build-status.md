@@ -1,5 +1,18 @@
 # Build status
 
+## Vesper wave 1: the ice planet's look — 15 October 2026
+
+Vesper (docs/17) is viewable through the hidden preview switch `?planet=vesper` (https://dafrina.github.io/last-worlds/?planet=vesper). Its Cold Vector mission and the Helion Ark follow in wave 2.
+- **World:** about 70% land and 30% water (measured mean 0.71). Ice shelves with continuous blue cliffs, crevasses, ridges, rock outcrops, radiator fields, missile sites, harbours and cryo stations, snow-track roads and heated pipelines on trestles. Ragged pack-ice fields with cracked plates.
+- **Look:** a cool lighting rig and grade, an animated ocean with shoreline and floe foam, ice, snow and ceramic materials, Vesper enemy craft, water spray and vent steam. Khepri is pixel-identical to before, and its terrain sections are byte-identical.
+- **Assets:** `public/assets/vesper/` holds the kit, infrastructure, craft and the Helion Ark (used in wave 2).
+- **Budgets** (SwiftShader): Vesper High 27–41 calls, 21–67k triangles; Low 17–30 calls.
+- **Known gaps:**
+  - Floes are still mostly convex; more irregular variants are being modelled.
+  - In the preview, ground batteries can sit on the water, because their positions are not authored for Vesper yet (wave 2).
+  - The banner still names the run's own planet.
+  - The hero is the Khepri Scrapper.
+
 ## Animated Bastion-9 treads — 15 October 2026
 
 Sprockets, idlers and 12 road wheels are now separate Blender nodes (`bastion-9.glb`, 30 nodes, 19.9k triangles) that roll with the fortress's ground speed, and the belts scroll a one-link-per-tile pattern at the same speed. Checked: typecheck, tests, build and browser suite in a snapshot; the boss fixture renders without errors.

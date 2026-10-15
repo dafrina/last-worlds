@@ -100,7 +100,7 @@ The runtime places these at scale 1 (district layout heights follow the authored
 
 ### Width 30 and the boss arena (15 October)
 
-- **Width:** the world is 30 units wide (2.5 screens). Side routes sit at ±9.5, outposts in a band of 0.38–0.85 of the half width, and the pipe grid at ±13. Sections are 36 long and 30 wide. `TERRAIN_VERSION` is 8.
+- **Width:** the world is 30 units wide (2.5 screens). Side routes sit at ±9.5, outposts in a band of 0.38–0.85 of the half width, and the pipe grid at ±13. Sections are 36 long and 30 wide. `TERRAIN_VERSION` is 10 (9: quarter-unit grid with contour-following splits; 10: planet profiles, Khepri output unchanged).
 - **Arena:** when a `TerrainArena` is passed, terrain eases to a flat platform (see docs/15). Without one, output is byte-identical.
 
 ## 4. Budgets and quality

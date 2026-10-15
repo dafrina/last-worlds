@@ -6,11 +6,14 @@ import { nearArena, type TerrainArena } from './terrain-arena';
  * own composition, quarter-turn rotation, mirroring and module counts, on flattened ground. Pure data from
  * the seed; never reads combat. Positions are global, so every section sees the same settlements.
  */
-export type Archetype = 'refinery' | 'mining' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned';
-export const ARCHETYPES: readonly Archetype[] = ['refinery', 'mining', 'landing', 'comm', 'pumping', 'wreck', 'abandoned'];
-const WEIGHTS: Readonly<Record<Archetype, number>> = { refinery: 0.16, mining: 0.19, landing: 0.14, comm: 0.14, pumping: 0.14, wreck: 0.12, abandoned: 0.11 };
+export type Archetype = 'refinery' | 'mining' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned'
+  // Vesper (docs/17 §4).
+  | 'radiator' | 'missile' | 'cryo' | 'harbour';
+export type KhepriArchetype = 'refinery' | 'mining' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned';
+export const ARCHETYPES: readonly KhepriArchetype[] = ['refinery', 'mining', 'landing', 'comm', 'pumping', 'wreck', 'abandoned'];
+const WEIGHTS: Readonly<Record<KhepriArchetype, number>> = { refinery: 0.16, mining: 0.19, landing: 0.14, comm: 0.14, pumping: 0.14, wreck: 0.12, abandoned: 0.11 };
 /** Local half extents (lateral u, forward v) of each archetype's flattened pad. */
-const EXTENT: Readonly<Record<Archetype, [number, number]>> = {
+const EXTENT: Readonly<Record<KhepriArchetype, [number, number]>> = {
   refinery: [3.7, 4.7], mining: [3.6, 3.6], landing: [3.9, 4.3], comm: [3.1, 3.1], pumping: [2.5, 2.9], wreck: [2.7, 2.3], abandoned: [3.1, 3.1],
 };
 /** Authored real-size heights of the pieces settlements use (docs/13 §3b, docs/14). */
@@ -20,6 +23,9 @@ export const MODULE_HEIGHT: Readonly<Record<string, number>> = {
   infra_solar_array: 0.45, infra_light_mast: 1.5, infra_silo: 1.75, wreck_0: 0.39, wreck_1: 0.54,
   tank_vertical_0: 1.45, tank_vertical_1: 1.45, tank_sphere: 1.5, tank_horizontal: 0.9, container_0: 0.55, container_1: 0.6,
   pipe_valve: 0.8, pipe_l_tee: 0.57, pipe_support: 0.62,
+  // Vesper infrastructure (vesper-infra.glb, art/vesper-infra/README.md); the pier counts from its waterline.
+  vesper_radiator_array: 0.81, vesper_missile_site: 1.74, vesper_cannon_site: 0.84, vesper_cryo_dome: 0.94, vesper_habitat_0: 0.89,
+  vesper_habitat_1: 0.79, vesper_pier_segment: 0.64, vesper_crane: 2.1, vesper_comm_needle: 2.16, vesper_ice_hauler: 0.64, vesper_icebreaker: 1.37,
 };
 /** Settlement cells along s, one candidate per side per cell. */
 export const SETTLEMENT_CELL = 30;
@@ -30,6 +36,8 @@ export interface PlacedModule {
   id: string; kind: ModuleKind; node: string; x: number; s: number; yaw: number;
   /** Kit modules only: uniform scale and variant pick. */
   scale: number; pick: number;
+  /** A fixed base height (e.g. a quay at sea level) instead of the pad level. */
+  base?: number;
 }
 export interface Settlement {
   id: string; cell: number; side: number; archetype: Archetype;
@@ -173,12 +181,16 @@ export function padDistance(site: Settlement, x: number, s: number): number {
 /** How strongly a pad flattens ground at a point (0 outside, 1 on the pad). */
 export const padInfluence = (site: Settlement, x: number, s: number) => site.flatten * (1 - smoothRange(0, 2.4, padDistance(site, x, s)));
 
-/** Settlements whose cells could reach forward distances [s0, s1]; none stand on a mission arena or its ramps. */
-export function settlementsNear(seed: number, s0: number, s1: number, arena?: TerrainArena): Settlement[] {
+/**
+ * Settlements whose cells could reach forward distances [s0, s1] on a planet (Khepri unless given); none stand
+ * on a mission arena or its ramps.
+ */
+export function settlementsNear(seed: number, s0: number, s1: number, arena?: TerrainArena,
+  planet: { settlement(seed: number, cell: number, side: number): Settlement | null } = { settlement }): Settlement[] {
   const list: Settlement[] = [];
   for (let cell = Math.floor((s0 - 30) / SETTLEMENT_CELL); cell <= Math.floor((s1 + 30) / SETTLEMENT_CELL); cell++) {
     for (const side of [-1, 1]) {
-      const site = settlement(seed, cell, side);
+      const site = planet.settlement(seed, cell, side);
       if (site && site.s + site.hs + 3 >= s0 && site.s - site.hs - 3 <= s1 && !nearArena(arena, site.s - site.hs - 3, site.s + site.hs + 3)) list.push(site);
     }
   }

@@ -1,11 +1,12 @@
 import { VIEW } from '../shared/contracts';
-import { SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, crater, pointColor, smoothRange } from './terrain-layout';
+import { SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, crater, mix, smoothRange } from './terrain-layout';
 import { rowPoint, terrainHeight, terrainRow, type TerrainPoint, type TerrainRow } from './terrain-ground';
 import { KIT, KIT_MAX_SCALE, TERRAIN_STRIPS, scatterKitSteps, type KitInstance, type KitKind, type ScatterField } from './terrain-scatter';
 import { finish, type Work } from './terrain-work';
 import { MODULE_HEIGHT, settlementsNear, type Archetype } from './terrain-settlements';
 import { SHARED_BOUNDS, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
-import { arenaWeight, type TerrainArena } from './terrain-arena';
+import { arenaWeight } from './terrain-arena';
+import { worldOf, type Floe, type World, type WorldInput } from './terrain-planet';
 
 export {
   MOODS, MOOD_LENGTH, ROUTES, ROUTE_AXES, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT,
@@ -13,6 +14,8 @@ export {
 } from './terrain-layout';
 export { terrainHeight } from './terrain-ground';
 export { ARENA_LEVEL, ARENA_RAMP, arenaWeight, sameArena, type TerrainArena } from './terrain-arena';
+export { PLANETS, sameWorld, worldOf, type Floe, type PlanetId, type PlanetProfile, type TerrainWorld, type World, type WorldInput } from './terrain-planet';
+export { VESPER_PALETTE, VESPER_SEA_LEVEL } from './terrain-vesper';
 export { ARCHETYPES, MODULE_HEIGHT, SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Archetype, type Settlement } from './terrain-settlements';
 export {
   PIPE_AXIS, PIPE_BEDDING, PIPE_CELL, PIPE_MAX_SLOPE, PIPE_TOP, ROAD_MAX_SLOPE, ROAD_STEP, SHARED_BOUNDS, SHARED_LOCAL_BOX, SHARED_NODES, SUPPORT_HEIGHT,
@@ -20,11 +23,14 @@ export {
   type IndustryPiece, type NetworkEdge, type PipeRun, type RoadMesh, type RoadPath, type SharedNode,
 } from './terrain-network';
 export {
-  KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, kitNodeName, stripOf, type KitInstance, type KitKind,
+  KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, VESPER_KIT_KINDS, kitNodeName, stripOf, type KitInstance, type KitKind,
 } from './terrain-scatter';
 
-/** Pure Khepri scenery. Terrain never reads, schedules, or advances combat or loot. */
-export const TERRAIN_VERSION = 9;
+/**
+ * Pure planet scenery (Khepri, Vesper). Terrain never reads, schedules, or advances combat or loot.
+ * 10: planet profiles and Vesper; Khepri's output is unchanged from 9 (fingerprints in terrain-vesper.test.ts).
+ */
+export const TERRAIN_VERSION = 10;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.
@@ -72,6 +78,13 @@ export interface TerrainSection {
   roads: RoadMesh;
   /** Full centrelines of roads touching this section (world coordinates), for haulers. */
   roadPaths: readonly RoadPath[];
+  /** Planets with an ocean only: pack ice owned by this section (drift is presentation-only). */
+  floes?: readonly Floe[];
+  /**
+   * Planets with an ocean only: the sea level and, per ground vertex, the signed distance to the waterline in
+   * world units (positive over water, negative over land, clamped to ±1) for foam and depth tint.
+   */
+  water?: { level: number; shore: Float32Array };
 }
 export interface TerrainSample {
   height: number;
@@ -97,35 +110,36 @@ function rimAt(height: (dx: number, ds: number) => number): { drop: number; rise
 const rimFactor = (drop: number, slope: number) => smoothRange(0.45, 1.2, drop) * (1 - smoothRange(0.6, 1.3, slope));
 
 /** Coordinates are global: independent sections sample exactly the same values at shared points. */
-export function terrainSample(seed: number, x: number, s: number, arena?: TerrainArena): TerrainSample {
-  const row = terrainRow(seed, s, arena), point = rowPoint(row, x), step = TERRAIN_STEP;
-  const at = (dx: number, ds: number) => dx === 0 && ds === 0 ? point.height : terrainHeight(seed, x + dx * step, s + ds * step, arena);
+export function terrainSample(seed: number, x: number, s: number, input?: WorldInput | World): TerrainSample {
+  const world = worldOf(input), row = terrainRow(seed, s, world), point = rowPoint(row, x), step = TERRAIN_STEP;
+  const at = (dx: number, ds: number) => dx === 0 && ds === 0 ? point.height : terrainHeight(seed, x + dx * step, s + ds * step, world);
   const slope = Math.hypot((at(1, 0) - at(-1, 0)) / (2 * step), (at(0, 1) - at(0, -1)) / (2 * step));
   const { drop } = rimAt(at);
   return {
-    height: point.height, color: pointColor(row, x, point, slope, rimFactor(drop, slope)),
+    height: point.height, color: world.planet.color(row, x, point, slope, rimFactor(drop, slope), [0, 0, 0]),
     mineral: Math.max(point.veins, point.pool), elevation: point.elevation, slope, industrial: point.industrial,
   };
 }
 
 /** Settlement modules owned by a section: modelled infrastructure, shared tanks and containers, and kit rubble. */
-function settlementPieces(seed: number, startS: number, size: number, arena?: TerrainArena) {
-  const props: TerrainProp[] = [], industry: IndustryPiece[] = [], rubble: KitInstance[] = [];
-  for (const site of settlementsNear(seed, startS, startS + size, arena)) for (const module of site.modules) {
+function settlementPieces(seed: number, startS: number, size: number, world: World) {
+  const props: TerrainProp[] = [], industry: IndustryPiece[] = [], rubble: KitInstance[] = [], cap = world.planet.sceneryMax;
+  for (const site of settlementsNear(seed, startS, startS + size, world.arena, world.planet)) for (const module of site.modules) {
     if (module.s < startS || module.s >= startS + size) continue;
-    const ground = terrainHeight(seed, module.x, module.s, arena);
+    const ground = terrainHeight(seed, module.x, module.s, world);
     if (module.kind === 'infra') {
-      const height = MODULE_HEIGHT[module.node] ?? 1, base = site.flatten ? site.level : ground - (module.node.startsWith('wreck') ? 0.12 : 0);
-      if (Math.abs(module.x) > WORLD_HALF - 0.4 || base + height > SCENERY_MAX_HEIGHT) continue;
+      const height = MODULE_HEIGHT[module.node] ?? 1;
+      const base = module.base ?? (site.flatten ? site.level : ground - (module.node.startsWith('wreck') ? 0.12 : 0));
+      if (Math.abs(module.x) > WORLD_HALF - 0.4 || base + height > cap) continue;
       props.push({ id: module.id, node: module.node, x: module.x, s: module.s, rotation: module.yaw, baseHeight: base, height, group: site.id, archetype: site.archetype });
     } else if (module.kind === 'shared') {
       const node = module.node as SharedNode, bounds = SHARED_BOUNDS[node];
-      if (site.level + bounds.height > SCENERY_MAX_HEIGHT || Math.abs(module.x) + Math.max(bounds.halfX, bounds.halfZ) > WORLD_HALF) continue;
+      if (site.level + bounds.height > cap || Math.abs(module.x) + Math.max(bounds.halfX, bounds.halfZ) > WORLD_HALF) continue;
       industry.push({ id: module.id, node, x: module.x, s: module.s, y: site.level, rotation: module.yaw, pitch: 0, roll: 0, scaleY: 1, scaleZ: 1, group: site.id });
     } else {
       const kind = module.node as KitKind, spec = KIT[kind], scale = Math.min(KIT_MAX_SCALE, module.scale);
       const height = kind === 'rock' ? scale * 0.9 : scale;
-      if (Math.abs(module.x) + spec.radius * scale > WORLD_HALF || ground + height * spec.height > SCENERY_MAX_HEIGHT) continue;
+      if (Math.abs(module.x) + spec.radius * scale > WORLD_HALF || ground + height * spec.height > cap) continue;
       rubble.push({ kind, variant: Math.min(spec.variants - 1, Math.floor(module.pick * spec.variants)), x: module.x, s: module.s,
         y: ground - 0.05, scale, height, rotation: module.yaw, shade: 1, cosmetic: false });
     }
@@ -134,17 +148,18 @@ function settlementPieces(seed: number, startS: number, size: number, arena?: Te
 }
 
 /**
- * Synchronous generation: runs the resumable steps below to completion (identical output). An optional
- * mission arena settles its stretch into a platform; without one nothing differs.
+ * Synchronous generation: runs the resumable steps below to completion (identical output). `world` picks the
+ * planet (Khepri when omitted) and an optional mission arena; Khepri without an arena is the original output.
  */
-export function generateTerrainSection(seed: number, index: number, arena?: TerrainArena): TerrainSection {
+export function generateTerrainSection(seed: number, index: number, world?: WorldInput | World): TerrainSection {
   if (!Number.isInteger(index) || !Number.isFinite(seed)) throw new Error('Terrain requires a finite seed and integer section index.');
-  return finish(sectionSteps(seed, index, arena));
+  return finish(sectionSteps(seed, index, world));
 }
 
 /** Resumable section generation: yields between rows and passes so a frame can stop after a few ms. */
-export function* sectionSteps(seed: number, index: number, arena?: TerrainArena): Work<TerrainSection> {
+export function* sectionSteps(seed: number, index: number, input?: WorldInput | World): Work<TerrainSection> {
   if (!Number.isInteger(index) || !Number.isFinite(seed)) throw new Error('Terrain requires a finite seed and integer section index.');
+  const world = worldOf(input), { planet, arena } = world, sea = planet.seaLevel;
   // The section mesh spans the world's width (x) and the section's length (s); cells are TERRAIN_STEP square.
   const size = VIEW.sectionLength, startS = index * size, cellsX = WORLD_HALF * 2 / TERRAIN_STEP, cellsS = size / TERRAIN_STEP;
   const across = cellsX + 1, along = cellsS + 1, vertices = across * along;
@@ -156,14 +171,14 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
   // Per-vertex landform fields go straight into typed arrays (no retained point objects: less garbage).
   const perVertex = () => new Float32Array(vertices);
   const fChannel = perVertex(), fIndustrial = perVertex(), fPool = perVertex(), fVeins = perVertex(), fVein = perVertex(), fVein2 = perVertex();
-  const elevation = perVertex(), fPlatform = perVertex(), fPaving = perVertex(), fPlate = perVertex();
+  const elevation = perVertex(), fPlatform = perVertex(), fPaving = perVertex(), fPlate = perVertex(), fTone = perVertex();
   let arenaRows = false;
   const contexts: TerrainRow[] = new Array(along);
   for (let row = -near; row <= cellsS + far; row++) {
     // Beyond the near apron only the shadow march reads heights, on even rows and columns (half-unit steps).
     const farRow = row > cellsS + near;
     if (farRow && row & 1) { yield; continue; }
-    const localS = row * TERRAIN_STEP, ctx = terrainRow(seed, startS + localS, arena);
+    const localS = row * TERRAIN_STEP, ctx = terrainRow(seed, startS + localS, world);
     if (row >= 0 && row <= cellsS) contexts[row] = ctx;
     for (let column = -far; column <= cellsX + near; column++) {
       if ((farRow || column < -near) && column & 1) continue;
@@ -172,7 +187,7 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
       if (row >= 0 && row <= cellsS && column >= 0 && column <= cellsX) {
         const v = row * across + column;
         fChannel[v] = point.channel; fIndustrial[v] = point.industrial; fPool[v] = point.pool; fVeins[v] = point.veins;
-        fVein[v] = point.vein; fVein2[v] = point.vein2; elevation[v] = point.elevation;
+        fVein[v] = point.vein; fVein2[v] = point.vein2; elevation[v] = point.elevation; fTone[v] = (point as { tone?: number }).tone ?? 0;
         if (point.platform !== undefined) { arenaRows = true; fPlatform[v] = point.platform; fPaving[v] = point.paving ?? 0; fPlate[v] = point.plate ?? 0; }
       }
     }
@@ -193,12 +208,13 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
     if (r & 1 && c & 1) return (H(r - 1, c - 1) + H(r - 1, c + 1) + H(r + 1, c - 1) + H(r + 1, c + 1)) / 4;
     return r & 1 ? (H(r - 1, c) + H(r + 1, c)) / 2 : (H(r, c - 1) + H(r, c + 1)) / 2;
   };
-  const rimOffsets = RIM_OFFSETS.map(([dx, ds]) => ds * columns + dx);
+  const rimOffsets = RIM_OFFSETS.map(([dx, ds]) => ds * columns + dx), tint = planet.shadowTint;
   for (let row = 0; row <= cellsS; row++) for (let column = 0; column <= cellsX; column++) {
     if (column === 0) yield;
     const vertex = row * across + column, center = at(row, column), x = -WORLD_HALF + column * TERRAIN_STEP;
     const point = scratch;
     point.height = heights[center]; point.channel = fChannel[vertex]; point.industrial = fIndustrial[vertex]; point.pool = fPool[vertex];
+    point.elevation = elevation[vertex]; (point as { tone?: number }).tone = fTone[vertex];
     if (arenaRows && fPlatform[vertex] > 0) { point.platform = fPlatform[vertex]; point.paving = fPaving[vertex]; point.plate = fPlate[vertex]; }
     else point.platform = point.paving = point.plate = undefined;
     // Central differences over the quarter-unit grid (apron included) follow the smooth field closely, so
@@ -215,8 +231,14 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
       shadow = Math.max(shadow, smoothRange(-0.1, 0.35, marchHeight(row + i * SHADOW_STRIDE, column - i * SHADOW_STRIDE) - point.height - i * rise));
     }
     const light = (1 - (1 - SHADOW_FLOOR) * shadow) * (1 - 0.28 * smoothRange(0.6, 2.4, foot) * (1 - smoothRange(0.6, 1.4, slope)));
-    pointColor(contexts[row], x, point, slope, rimFactor(drop, slope), albedo);
-    colors[vertex * 3] = albedo[0] * light; colors[vertex * 3 + 1] = albedo[1] * light; colors[vertex * 3 + 2] = albedo[2] * light;
+    planet.color(contexts[row], x, point, slope, rimFactor(drop, slope), albedo);
+    if (tint) {
+      // Cool planets shade toward a luminous blue rather than black (snow keeps sky light in shadow).
+      const lit = smoothRange(SHADOW_FLOOR, 1, light);
+      for (let c = 0; c < 3; c++) colors[vertex * 3 + c] = albedo[c] * mix(tint[c] * 0.62, 1, lit);
+    } else {
+      colors[vertex * 3] = albedo[0] * light; colors[vertex * 3 + 1] = albedo[1] * light; colors[vertex * 3 + 2] = albedo[2] * light;
+    }
     positions[vertex * 3] = x; positions[vertex * 3 + 1] = point.height; positions[vertex * 3 + 2] = -row * TERRAIN_STEP;
     // Veins run across calm low ground and brighten where they gather at cliff feet.
     glow[vertex * 2] = Math.min(1, fVeins[vertex] * (1 - smoothRange(0.4, 0.9, slope)) * (1 + 0.8 * smoothRange(0.8, 2.2, foot))); glow[vertex * 2 + 1] = point.pool;
@@ -294,7 +316,7 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
     height(x, s) {
       const u = (x + WORLD_HALF) / TERRAIN_STEP, v = (s - startS) / TERRAIN_STEP;
       // The grid is full resolution only within the near apron (the far apron is sparse, for shadows).
-      if (u < -near || u >= cellsX + near || v < -near || v >= cellsS + near) return terrainHeight(seed, x, s, arena);
+      if (u < -near || u >= cellsX + near || v < -near || v >= cellsS + near) return terrainHeight(seed, x, s, world);
       const c0 = Math.floor(u), r0 = Math.floor(v), fu = u - c0, fv = v - r0;
       const value = (r: number, c: number) => heights[at(r, c)];
       return (value(r0, c0) * (1 - fu) + value(r0, c0 + 1) * fu) * (1 - fv) + (value(r0 + 1, c0) * (1 - fu) + value(r0 + 1, c0 + 1) * fu) * fv;
@@ -302,12 +324,13 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
     slope: vertexField(slopes), drop: vertexField(drops), rise: vertexField(rises),
     gradientX: vertexField(gradients, 2, 0), gradientS: vertexField(gradients, 2, 1),
     elevation: vertexField(elevation), industrial: vertexField(industry), veins: vertexField(glow, 2, 0), pool: vertexField(glow, 2, 1),
-    shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s, arena).params, platform: (s: number) => arenaWeight(arena, s),
+    shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s, world).params, platform: (s: number) => arenaWeight(arena, s),
+    tone: vertexField(fTone),
     blocked: (x: number, s: number) => occupied.has(`${Math.floor(x)}:${Math.floor(s)}`),
     crater: (x: number, s: number) => crater(seed, x, s).rim,
   };
   // Scatter keeps off the unit cells under roads, pipelines and settlement modules.
-  const network = yield* sectionNetworkSteps(seed, startS, size, arena), settled = settlementPieces(seed, startS, size, arena), occupied = new Set<string>();
+  const network = yield* sectionNetworkSteps(seed, startS, size, world), settled = settlementPieces(seed, startS, size, world), occupied = new Set<string>();
   yield;
   const occupy = (x0: number, s0: number, reach: number) => {
     for (let x = Math.floor(x0 - reach); x <= Math.floor(x0 + reach); x++) for (let s = Math.floor(s0 - reach); s <= Math.floor(s0 + reach); s++) occupied.add(`${x}:${s}`);
@@ -316,16 +339,57 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
   for (const prop of settled.props) occupy(prop.x, prop.s, prop.node === 'infra_landing_pad' ? 3.2 : prop.node === 'infra_refinery' ? 2.7 : 1);
   for (const road of network.roads) for (let i = 0; i < road.x.length; i++) if (road.s[i] >= startS - 1 && road.s[i] < startS + size + 1) occupy(road.x[i], road.s[i], 1);
   // Roads take the ground's baked cast shadow so they darken in shaded valleys too.
-  const roads = yield* roadRibbonSteps(seed, network.roads, startS, size);
+  const roads = yield* roadRibbonSteps(seed, network.roads, startS, size, world.bare);
   for (let i = 0; i < roads.shade.length; i++) roads.shade[i] = field.shade(roads.positions[i * 3], startS - roads.positions[i * 3 + 2]);
-  const scattered = yield* scatterKitSteps(seed, startS, size, field), firstCosmetic = scattered.findIndex(instance => instance.cosmetic);
+  const scattered = yield* planet.scatter(seed, startS, size, field), firstCosmetic = scattered.findIndex(instance => instance.cosmetic);
   const instances = firstCosmetic < 0 ? [...scattered, ...settled.rubble]
     : [...scattered.slice(0, firstCosmetic), ...settled.rubble, ...scattered.slice(firstCosmetic)];
-  return {
+  const section: TerrainSection = {
     seed, index, startS, size, across, along, positions, colors, normals, glow, edges, rock, indices: indices.slice(0, cursor), strips,
     props: settled.props, instances, industry: [...settled.industry, ...network.pieces],
     roads, roadPaths: network.roads,
   };
+  if (sea !== null) {
+    yield;
+    section.floes = yield* planet.floes(seed, startS, size, field, arena);
+    yield;
+    section.water = { level: sea, shore: yield* shoreDistanceSteps(heights, at, cellsX, cellsS, near, sea) };
+  }
+  return section;
+}
+
+/**
+ * Signed distance to the waterline per ground vertex (world units, + over water, − over land, clamped ±1):
+ * a two-pass chamfer over the section and its one-unit apron, so both sides of a seam agree (every distance
+ * within the clamp is decided inside both windows).
+ */
+function* shoreDistanceSteps(heights: Float64Array, at: (row: number, column: number) => number, cellsX: number, cellsS: number, near: number, sea: number): Work<Float32Array> {
+  const C = cellsX + 2 * near + 1, R = cellsS + 2 * near + 1, far = 1e9, d = new Float64Array(C * R);
+  const wet = (r: number, c: number) => heights[at(r - near, c - near)] < sea;
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const w = wet(r, c), edge = (c > 0 && wet(r, c - 1) !== w) || (c < C - 1 && wet(r, c + 1) !== w) || (r > 0 && wet(r - 1, c) !== w) || (r < R - 1 && wet(r + 1, c) !== w);
+    d[r * C + c] = edge ? 0.5 : far;
+  }
+  yield;
+  const relax = (i: number, j: number, cost: number) => { if (d[j] + cost < d[i]) d[i] = d[j] + cost; };
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const i = r * C + c;
+    if (c > 0) relax(i, i - 1, 1);
+    if (r > 0) { relax(i, i - C, 1); if (c > 0) relax(i, i - C - 1, Math.SQRT2); if (c < C - 1) relax(i, i - C + 1, Math.SQRT2); }
+  }
+  yield;
+  for (let r = R - 1; r >= 0; r--) for (let c = C - 1; c >= 0; c--) {
+    const i = r * C + c;
+    if (c < C - 1) relax(i, i + 1, 1);
+    if (r < R - 1) { relax(i, i + C, 1); if (c < C - 1) relax(i, i + C + 1, Math.SQRT2); if (c > 0) relax(i, i + C - 1, Math.SQRT2); }
+  }
+  yield;
+  const across = cellsX + 1, shore = new Float32Array(across * (cellsS + 1)), clampCells = 1 / TERRAIN_STEP;
+  for (let r = 0; r <= cellsS; r++) for (let c = 0; c <= cellsX; c++) {
+    const distance = Math.min(d[(r + near) * C + c + near], clampCells) * TERRAIN_STEP;
+    shore[r * across + c] = wet(r + near, c + near) ? distance : -distance;
+  }
+  return shore;
 }
 
 /**
@@ -333,7 +397,8 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
  * next section ahead in small resumable steps while the caller's budget allows; `update` uses it when ready and
  * otherwise generates synchronously (counted in `fallbacks`). Both paths produce identical sections.
  */
-export function createTerrainStream(seed: number, arena?: TerrainArena) {
+export function createTerrainStream(seed: number, input?: WorldInput | World) {
+  const world = worldOf(input);
   const sections = new Map<number, TerrainSection>(), ready = new Map<number, TerrainSection>();
   let pending: { index: number; work: Work<TerrainSection> } | null = null;
   const counts = { fallbacks: 0, startup: 0, prefetched: 0 };
@@ -351,7 +416,7 @@ export function createTerrainStream(seed: number, arena?: TerrainArena) {
         if (early) { sections.set(i, early); ready.delete(i); counts.prefetched++; continue; }
         if (pending?.index === i) pending = null;
         if (starting) counts.startup++; else counts.fallbacks++;
-        sections.set(i, generateTerrainSection(seed, i, arena));
+        sections.set(i, generateTerrainSection(seed, i, world));
       }
       return [...sections.values()].sort((a, b) => a.index - b.index);
     },
@@ -359,7 +424,7 @@ export function createTerrainStream(seed: number, arena?: TerrainArena) {
     prefetch(distance: number, more: () => boolean): boolean {
       const ahead = Math.floor(distance / VIEW.sectionLength) + 2;
       if (sections.has(ahead) || ready.has(ahead)) return true;
-      if (!pending || pending.index !== ahead) pending = { index: ahead, work: sectionSteps(seed, ahead, arena) };
+      if (!pending || pending.index !== ahead) pending = { index: ahead, work: sectionSteps(seed, ahead, world) };
       while (more()) {
         const step = pending.work.next();
         if (step.done) { ready.set(ahead, step.value); pending = null; return true; }

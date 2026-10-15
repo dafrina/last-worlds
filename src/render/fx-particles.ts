@@ -44,6 +44,8 @@ interface Particle {
 }
 /** An engine plume in world space: nozzle at (x, z), extending `length` along z (positive = toward the player). */
 export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number }
+/** Planet surface hooks (Vesper): sea height under a world point (null over land) and steam vents (world space). */
+export interface FxSurface { splash(x: number, z: number): number | null; vents: readonly { x: number; y: number; z: number }[] }
 const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 
 function layer(scene: THREE.Scene, capacity: number, additive: boolean) {
@@ -90,8 +92,20 @@ export function createFx(scene: THREE.Scene) {
   const flash = (x: number, z: number, size: number, life: number, hex: number, energy: number) =>
     emit(glow, { x, y: VIEW.flightHeight + .08, z, life, size, grow: size * .6, alpha: 1, shape: ROUND, ...tint(hex, energy) });
 
+  /** Snow-white spray where falling debris meets open water: a flat ring of foam and a few droplets. */
+  function spray(x: number, sea: number, z: number, n: number) {
+    emit(smoke, { x, y: sea + .03, z, life: .7, size: .5, grow: 1.6, alpha: .55, shape: ROUND, flat: true, drift: 1, ...tint(0xf4f9fc, 1) });
+    for (let k = 0; k < (full() ? 7 : 3); k++) {
+      const a = hash(n + k * 2.7) * Math.PI * 2, v = .6 + hash(n + k * 5.1) * 1.1;
+      emit(smoke, { x: x + Math.cos(a) * .15, y: sea + .05, z: z + Math.sin(a) * .15, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 2.2 + hash(n + k) * 1.6,
+        fall: 7.5, drag: .8, life: .5 + hash(n + k * 3.3) * .25, size: .1 + hash(n + k * 7) * .07, alpha: .9, shape: ROUND, drift: 1, ...tint(0xeef6fb, 1) });
+    }
+  }
+  let surface: FxSurface | null = null;
   function explosion(x: number, z: number, n: number) {
     const y = VIEW.flightHeight + .06;
+    const sea = surface?.splash(x, z) ?? null;
+    if (sea !== null) spray(x, sea, z, n);
     flash(x, z, 1.5, .11, 0xfff1d0, 2.2);
     const fire = full() ? 4 : 2;
     for (let k = 0; k < fire; k++) {
@@ -196,9 +210,14 @@ export function createFx(scene: THREE.Scene) {
   return {
     setQuality(next: GraphicsQuality) { quality = next; },
     /** Advance by simulation time (frozen while paused or in still fixtures) and rebuild both instanced layers. */
-    update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = []) {
+    update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = [], planetSurface: FxSurface | null = null) {
       const previous = lastTime, dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
+      surface = planetSurface;
       spawn(state);
+      // Steam from vent stacks: a slow, soft column (about two puffs a second each; High only).
+      if (full() && dt > 0 && planetSurface && Math.floor(state.time * 2) !== Math.floor(previous * 2)) planetSurface.vents.forEach((vent, i) => emit(smoke, {
+        x: vent.x + (hash(state.time + i * 3.1) - .5) * .12, y: vent.y, z: vent.z, vx: .08, vy: .55, life: 1.8, size: .25, grow: 1.1, drag: .3,
+        alpha: .28, shape: ROUND, drift: 1, ...tint(0xe8f0f6, 1) }));
       // Haulers kick up a light dust trail on High (about three puffs a second each); it rests on the ground.
       if (full() && dt > 0 && Math.floor(state.time * 3) !== Math.floor(previous * 3)) dust.forEach((source, i) => emit(smoke, {
         x: source.x + (hash(state.time + i) - .5) * .2, y: source.y + .08, z: source.z, vy: .18, life: .9, size: .22, grow: .6, drag: 1,

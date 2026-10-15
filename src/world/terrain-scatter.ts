@@ -2,8 +2,13 @@ import { finish, type Work } from './terrain-work';
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type MoodParams } from './terrain-layout';
 
 /** Kit pieces from public/assets/khepri/khepri-kit.glb (docs/13 §3); base-center pivots, +Y up. */
-export type KitKind = 'clump' | 'column' | 'rock' | 'crystal' | 'spire' | 'wall' | 'fallen' | 'boulder' | 'crystalSpire' | 'rosette' | 'hoodoo';
-export const KIT_KINDS: readonly KitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
+export type KhepriKitKind = 'clump' | 'column' | 'rock' | 'crystal' | 'spire' | 'wall' | 'fallen' | 'boulder' | 'crystalSpire' | 'rosette' | 'hoodoo';
+/** Vesper kit (public/assets/vesper/vesper-kit.glb, docs/17 §3); waterline at y = 0 for floating pieces. */
+export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'floe' | 'ridge' | 'drift' | 'outcrop' | 'vent';
+export type KitKind = KhepriKitKind | VesperKitKind;
+/** Khepri's kit (khepri-kit.glb). */
+export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
+export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'ridge', 'drift', 'outcrop', 'vent'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
 export const KIT: Readonly<Record<KitKind, {
   prefix: string; variants: number;
@@ -25,6 +30,17 @@ export const KIT: Readonly<Record<KitKind, {
   crystalSpire: { prefix: 'crystal_spire', variants: 2, halfX: 0.6, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(0.6, 0.6) },
   rosette: { prefix: 'basalt_rosette', variants: 1, halfX: 0.9, halfZ: 0.9, height: 1, exactTop: true, radius: Math.hypot(0.9, 0.9) },
   hoodoo: { prefix: 'hoodoo', variants: 2, halfX: 0.5, halfZ: 0.5, height: 1, exactTop: true, radius: Math.hypot(0.5, 0.5) },
+  // Vesper (vesper-kit.glb, art/vesper-kit/README.md). Cliffs, seracs and spires top out at exactly 1 (scale y);
+  // icebergs and floes have their waterline at y = 0; the rest are real size.
+  iceCliff: { prefix: 'ice_cliff', variants: 3, halfX: 1.26, halfZ: 0.5, height: 1, exactTop: true, radius: Math.hypot(1.26, 0.5) },
+  serac: { prefix: 'serac', variants: 3, halfX: 0.4, halfZ: 0.32, height: 1, exactTop: true, radius: Math.hypot(0.4, 0.32) },
+  iceSpire: { prefix: 'ice_spire', variants: 2, halfX: 0.3, halfZ: 0.28, height: 1, exactTop: true, radius: Math.hypot(0.3, 0.28) },
+  iceberg: { prefix: 'iceberg', variants: 3, halfX: 0.68, halfZ: 0.57, height: 0.78, exactTop: false, radius: Math.hypot(0.68, 0.57) },
+  floe: { prefix: 'floe', variants: 4, halfX: 0.91, halfZ: 0.63, height: 0.26, exactTop: false, radius: Math.hypot(0.91, 0.63) },
+  ridge: { prefix: 'pressure_ridge', variants: 2, halfX: 1.08, halfZ: 0.39, height: 0.36, exactTop: false, radius: Math.hypot(1.08, 0.39) },
+  drift: { prefix: 'snow_drift', variants: 2, halfX: 0.86, halfZ: 0.51, height: 0.33, exactTop: false, radius: Math.hypot(0.86, 0.51) },
+  outcrop: { prefix: 'rock_outcrop', variants: 3, halfX: 0.44, halfZ: 0.35, height: 0.81, exactTop: false, radius: Math.hypot(0.44, 0.35) },
+  vent: { prefix: 'vent_stack', variants: 2, halfX: 0.4, halfZ: 0.35, height: 0.98, exactTop: false, radius: Math.hypot(0.4, 0.35) },
 };
 export const kitNodeName = (kind: KitKind, variant: number) => `${KIT[kind].prefix}_${variant}`;
 /** The runtime may vary footprint scale by at most ±20%. */
@@ -62,6 +78,8 @@ export interface ScatterField {
   crater(x: number, s: number): number;
   /** How far a row has settled into a mission arena's platform (0 without an arena). */
   platform(s: number): number;
+  /** Planet-specific surface mask (Vesper: rock outcrops); 0 on Khepri. */
+  tone(x: number, s: number): number;
 }
 
 /**
