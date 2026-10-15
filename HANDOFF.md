@@ -5,7 +5,7 @@ Written 15 October 2026 at the end of a long Claude Code session (integrator plu
 ## 1. Where things stand
 
 - **Live:** https://dafrina.github.io/last-worlds/. Every push to `main` runs unit tests, typecheck and build, then deploys to GitHub Pages. Repo: https://github.com/dafrina/last-worlds. `gh` is installed in WSL (`~/.local/bin/gh`) and authenticated as `dafrina`.
-- **Last deployed commit:** `7ed310a` — wave 3, the endless planet cycle. The commit before it, `ac331de`, shipped the Cold Vector mission and the Helion Ark; the user played that one and loved it ("very challenging already, interesting layout and alternations"). **The working tree is clean: everything is committed and deployed.**
+- **Last deployed commit:** the endless freeze fix (see the top of `docs/build-status.md`; every endless run hung at distance ≈1455 because of an exact tie in the terrain route's arena ownership), on top of `7ed310a` — wave 3, the endless planet cycle. The commit before it, `ac331de`, shipped the Cold Vector mission and the Helion Ark; the user played that one and loved it ("very challenging already, interesting layout and alternations"). **The working tree is clean: everything is committed and deployed.**
 - **Playable now:**
   - Campaign: Training, Rolling Thunder (Khepri, Bastion-9) and Cold Vector (Vesper, Helion Ark).
   - Endless, cycling Khepri → Bastion-9 → jump → Vesper → Helion Ark → jump → …, with the pace ramp. Bosses must be killed to proceed.

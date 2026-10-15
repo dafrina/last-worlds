@@ -50,6 +50,22 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
     }
   });
 
+  it('hands each arena midpoint to the next arena, so spans always advance (endless freeze regression)', () => {
+    // The midpoints between endless arenas tie exactly; a segment that ended at its own query froze the game at ~1455.
+    const arenas = [...schedule.arenas(0, 12000)].sort((a, b) => a.from - b.from);
+    expect(arenas.length).toBeGreaterThan(5);
+    for (let i = 0; i + 1 < arenas.length; i++) {
+      const mid = (arenas[i].to + arenas[i + 1].from) / 2;
+      expect(route.worldAt(mid).arena).toEqual({ fromS: arenas[i + 1].from, toS: arenas[i + 1].to });
+      expect(route.worldAt(mid - 1e-6).arena).toEqual({ fromS: arenas[i].from, toS: arenas[i].to });
+      const spans = route.spans(mid - 400, mid + 400);
+      expect(spans[0].from).toBe(mid - 400); expect(spans[spans.length - 1].to).toBe(mid + 400);
+      spans.forEach((span, k) => { expect(span.to).toBeGreaterThan(span.from); if (k) expect(span.from).toBe(spans[k - 1].to); });
+    }
+    // The terrain view's own window (one section back, 400 ahead) across two full planet cycles.
+    for (let d = 0; d < 6000; d += 0.5) if (!route.spans(d - L, d + 400).length) throw new Error(`no spans at ${d}`);
+  });
+
   it('splits the section at a planet switch: a clean hard seam, matching neighbours, nothing near it', () => {
     for (const { jump, arena } of jumps) {
       const index = Math.floor(jump.switchDistance / L), [before, split, after] = [index - 1, index, index + 1].map(i => generateTerrainSection(SEED, i, route));

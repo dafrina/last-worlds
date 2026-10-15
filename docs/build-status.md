@@ -1,5 +1,18 @@
 # Build status
 
+## Fix: endless froze at distance ~1455 — 15 October 2026
+
+User report: "endless crashed after a while into level 2, freezes, normal campaign seems fine" (phone and PC Chrome).
+- **Cause:** an infinite loop in the endless terrain route (`src/world/terrain-planet.ts` `routeOf` → `segmentAt`). Arena ownership was picked by nearest gap, but zones are cut at the midpoint between two arenas. The endless midpoints tie *exactly* (gap 696.8125 / 714.625 on both sides), so the earlier arena won and `segmentAt` returned a segment ending at the query, and `spans()` never advanced. The terrain view reads 400 units ahead, so every endless run hung the main thread at distance ≈1455 (sector 4, the first Vesper stint), independent of seed. Campaign has one arena and was unaffected. Introduced with wave 3 (`7ed310a`).
+- **Fix:** owner and zone now come from the same half-open midpoints, so the segment always holds its query; a broken invariant throws instead of hanging. Campaign routes are unchanged (one arena: same zone as before).
+- **Regression test:** `tests/world/terrain-route.test.ts` "hands each arena midpoint to the next arena…" (fails without the fix, without hanging).
+- **Evidence:**
+  - reproduced in headless Chromium with the real sim, renderer and UI (`lookdev/freeze.html`, git-ignored): the page stopped responding at d≈1449, and a CDP pause showed `terrain-view update → route.spans → segmentAt → endless stretches` spinning;
+  - after the fix the same run flies through 1455 into sector 6, and a second run passes the next midpoint (≈2910) into sector 9, with 0 errors;
+  - ruled out on the way: simulation (fuzzed endless runs with specials, pickups, all weapons, mortal and invulnerable, to sector 11, worst step 7 ms), terrain generation (240 random seeds × sections 0–36, no hang, none over 400 ms), GPU/heap growth (flat through sector 4);
+  - typecheck clean; 252/252 unit tests.
+- **Not tested:** phone.
+
 ## Wave 3: endless planet cycle — 15 October 2026
 
 Endless now cycles planets (docs/18): Khepri sectors 1–3 end with Bastion-9, then a hyperdrive jump to Vesper; sectors 4–6 end with the Helion Ark, then a jump back to Khepri; and it repeats.

@@ -182,15 +182,18 @@ export function routeOf(key: string, schedule: RouteSchedule): TerrainRoute {
     const stretch = stretches.find(item => s >= item.from && s < item.to)
       ?? (stretches.length && s < stretches[0].from ? { planet: stretches[0].planet, from: from0, to: stretches[0].from } : null);
     if (!stretch) throw new Error(`Route ${key} has no planet at ${s}`);
-    // The arena that owns s: the nearest one; ownership changes halfway between neighbouring arenas.
+    // The arena that owns s: the nearest one; ownership changes halfway between neighbouring arenas. Owner and
+    // zone come from the same half-open midpoints, so the segment always holds s (a nearest-gap pick tied exactly
+    // at a midpoint, kept the earlier arena, and handed `spans` a segment ending at s: an endless hang).
     const arenas = [...schedule.arenas(from0, to0)].sort((a, b) => a.from - b.from);
-    const gap = (arena: { from: number; to: number }) => Math.max(0, arena.from - s, s - arena.to);
-    let owner = -1;
-    arenas.forEach((arena, i) => { if (owner < 0 || gap(arena) < gap(arenas[owner])) owner = i; });
-    const zoneFrom = owner > 0 ? (arenas[owner - 1].to + arenas[owner].from) / 2 : from0;
-    const zoneTo = owner >= 0 && owner < arenas.length - 1 ? (arenas[owner].to + arenas[owner + 1].from) / 2 : to0;
+    const midpoint = (i: number) => (arenas[i].to + arenas[i + 1].from) / 2;
+    let owner = arenas.length ? 0 : -1;
+    while (owner >= 0 && owner < arenas.length - 1 && s >= midpoint(owner)) owner++;
+    const zoneFrom = owner > 0 ? midpoint(owner - 1) : from0;
+    const zoneTo = owner >= 0 && owner < arenas.length - 1 ? midpoint(owner) : to0;
     const arena = owner >= 0 ? { fromS: arenas[owner].from, toS: arenas[owner].to } : undefined;
     const segment = { world: worldOf({ planet: stretch.planet, arena }), from: Math.max(stretch.from, zoneFrom, from0), to: Math.min(stretch.to, zoneTo, to0) };
+    if (!(s >= segment.from && s < segment.to)) throw new Error(`Route ${key}: segment [${segment.from}, ${segment.to}) misses ${s}`);
     segments.push(segment); if (segments.length > 32) segments.shift();
     return (last = segment);
   };
