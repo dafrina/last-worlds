@@ -1,4 +1,6 @@
 import type { Difficulty, GameUi, GraphicsQuality, MissionId, RunConfig, RunState, UiActions, WeaponId } from '../shared/contracts';
+import { menuMarkup } from './menu-markup';
+import { createFlightLog } from './flight-log';
 import './styles.css';
 
 const shipGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 15 10 21 15 21 19 14 17 14 21 10 21 10 17 3 19 3 15 9 10Z"/></svg>';
@@ -20,6 +22,9 @@ function duration(seconds: number): string {
 export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const abort = new AbortController();
   const options = { signal: abort.signal };
+  let storage: Storage | undefined;
+  try { storage = window.localStorage; } catch { /* Private storage may be unavailable. */ }
+  const flightLog = createFlightLog(storage);
   const shell = document.createElement('main');
   shell.className = 'last-worlds-shell';
   shell.innerHTML = `
@@ -27,7 +32,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       <span class="rail-mark">LW / 01</span>
       <span class="rail-rule"></span>
       <p>LOW ORBIT.<br>NO WAY BACK.</p>
-      <span class="rail-foot">KHEPRI EXPEDITION<br>FLIGHT PROTOTYPE</span>
+      <span class="rail-foot">LAST WORLDS<br>FLIGHT COMMAND</span>
     </aside>
     <section class="flight-frame" tabindex="0" aria-label="Flight area. Hold the left or right half to steer." data-input-active="false">
       <canvas class="flight-canvas" aria-label="Three-dimensional arcade flight"></canvas>
@@ -51,25 +56,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         <span class="charge-ticks" aria-hidden="true">${Array.from({ length: 6 }, () => '<i></i>').join('')}</span>
       </button>
       <div class="flight-overlay" data-no-steer>
-        <section class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="game-title">
-          <div class="menu-topline"><span>01 / KHEPRI</span><span class="status-dot">FLIGHT PROTOTYPE</span></div>
-          <div class="wordmark"><p class="eyebrow">AN ARCADE EXPEDITION</p><h1 id="game-title">LAST<br>WORLDS</h1></div>
-          <p class="menu-intro">One fighter.<br>An unfamiliar world below.</p>
-          <div class="menu-launches">
-            <button type="button" class="arcade-button primary" data-action="endless"><span>ENDLESS</span><span class="button-arrow" aria-hidden="true">↗</span></button>
-            <p class="button-caption">A fresh ship. An escalating fight.</p>
-            <button type="button" class="arcade-button secondary" data-action="campaign" aria-expanded="false" aria-controls="campaign-options"><span>CAMPAIGN FLIGHT</span><span class="button-arrow" aria-hidden="true">+</span></button>
-            <div id="campaign-options" class="campaign-options" hidden>
-              <p class="mission-description">A 3–4 minute assault ending with Bastion-9.</p>
-              <div class="setup-fields mission-field"><label>MISSION<select name="mission" aria-label="Campaign mission"><option value="bastion">Rolling Thunder · fortress assault</option><option value="training">Training · 120-second flight</option></select></label></div>
-              <div class="setup-fields"><label>DIFFICULTY<select name="difficulty" aria-label="Campaign difficulty"><option value="relaxed">Relaxed</option><option value="standard" selected>Standard</option><option value="veteran">Veteran</option></select></label><label>MAIN WEAPON<select name="weapon" aria-label="Main weapon"><option value="pulse">Pulse · straight</option><option value="fan">Scatter · fan</option><option value="seeker">Seeker · homing</option></select></label></div>
-              <button type="button" class="arcade-button compact" data-action="launch-campaign">LAUNCH SORTIE <span aria-hidden="true">↗</span></button>
-            </div>
-          </div>
-          <div class="menu-instructions"><p>HOLD EITHER SIDE TO STEER</p><p>Main fire opens when a target is in range.<br>Tap the center button for a shockwave.</p><p class="keyboard-help">A / D or ← / → · SPACE special · ESC pause</p></div>
-          <p class="prototype-note">Procedural terrain. Authored battles.<br>Campaign progression is still in development.</p>
-          <div class="flight-settings"><button type="button" class="sound-toggle" data-sound aria-label="Mute sound" aria-pressed="false">SOUND ON</button><label>GRAPHICS<select data-graphics aria-label="Graphics quality"><option value="high">High</option><option value="low">Low</option></select></label></div>
-        </section>
+        ${menuMarkup}
         <section class="pause-panel short-panel" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
           <p class="eyebrow">FLIGHT SUSPENDED</p><h2 id="pause-title">PAUSED</h2>
           <p class="pause-description"></p>
@@ -77,8 +64,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="resume-countdown" role="status" hidden></p>
           <button type="button" class="arcade-button primary" data-action="resume">RESUME <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="quit">RETURN TO MENU</button>
-          <p class="panel-note">Hold left or right to steer. Space or the center button triggers your special.</p>
-          <div class="flight-settings"><button type="button" class="sound-toggle" data-sound aria-label="Mute sound" aria-pressed="false">SOUND ON</button><label>GRAPHICS<select data-graphics aria-label="Graphics quality"><option value="high">High</option><option value="low">Low</option></select></label></div>
+          <button type="button" class="text-button" data-action="pause-settings">SETTINGS</button>
         </section>
         <section class="results-panel short-panel" role="dialog" aria-modal="true" aria-labelledby="results-title" hidden>
           <p class="eyebrow result-mode"></p><h2 id="results-title">FLIGHT<br>ENDED</h2>
@@ -92,7 +78,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       </div>
     </section>
     <aside class="flight-rail rail-right" aria-hidden="true">
-      <span class="rail-coordinate">36° / 12°</span><span class="rail-rule"></span>
+      <span class="rail-coordinate">LW / 01</span><span class="rail-rule"></span>
       <p>HOLD YOUR LINE.<br>FIND YOUR WAY.</p>
       <span class="rail-foot">A / D &nbsp; STEER<br>SPACE &nbsp; SPECIAL<br>ESC &nbsp; PAUSE</span>
     </aside>`;
@@ -115,19 +101,21 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const hints = find<HTMLElement>('.steering-hints');
   const message = find<HTMLElement>('.flight-message');
   const ticks = [...specialButton.querySelectorAll<HTMLElement>('.charge-ticks i')];
-  const campaignToggle = find<HTMLButtonElement>('[data-action="campaign"]');
-  const campaignOptions = find<HTMLElement>('.campaign-options');
   const difficultySelect = find<HTMLSelectElement>('[name="difficulty"]');
   const weaponSelect = find<HTMLSelectElement>('[name="weapon"]');
   const missionSelect = find<HTMLSelectElement>('[name="mission"]');
   missionSelect.addEventListener('change', () => text('.mission-description', missionSelect.value === 'bastion'
-    ? 'A 3–4 minute assault ending with Bastion-9.' : 'A short flight to practice weapons and movement.'), options);
+    ? 'Bring down the Bastion-9 fortress.' : 'Practice movement and weapons.'), options);
   let lastState: RunState | null = null;
   let displayedPhase = 'menu';
   let lastConfig: RunConfig = { mode: 'endless', seed: 1 };
   let iconKey = '';
   let error = false;
   let muted = false;
+  let currentPanel = 'menu-panel';
+  let settingsParent = 'menu-panel';
+  let helpParent = 'menu-panel';
+  let statisticsMode: 'campaign' | 'endless' = 'endless';
   let resumeTimer: ReturnType<typeof setTimeout> | null = null;
   const resumeButton = find<HTMLButtonElement>('[data-action="resume"]');
   const countdown = find<HTMLElement>('.resume-countdown');
@@ -164,11 +152,16 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   }
   function showPanel(className: string, focusSelector?: string) {
     overlay.hidden = false;
+    currentPanel = className;
+    overlay.dataset.page = className;
+    overlay.scrollTop = 0;
     for (const panel of panels) panel.hidden = !panel.classList.contains(className);
-    if (focusSelector) find<HTMLElement>(focusSelector).focus({ preventScroll: true });
+    const target = focusSelector ? find<HTMLElement>(focusSelector) : find<HTMLElement>(`.${className} button`);
+    target.focus({ preventScroll: true });
   }
   function launch(config: RunConfig) {
     cancelResume();
+    if (lastState) flightLog.observe(lastState, true);
     lastConfig = config;
     actions.start(config);
     surface.focus({ preventScroll: true });
@@ -177,13 +170,65 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     find(`[data-action="${action}"]`).addEventListener('click', handler, options);
   }
   onAction('endless', () => launch({ mode: 'endless', seed: seed() }));
-  onAction('campaign', () => {
-    campaignOptions.hidden = !campaignOptions.hidden;
-    campaignToggle.setAttribute('aria-expanded', String(!campaignOptions.hidden));
-    const arrow = campaignToggle.querySelector('.button-arrow');
-    if (arrow) arrow.textContent = campaignOptions.hidden ? '+' : '−';
-    if (!campaignOptions.hidden) difficultySelect.focus({ preventScroll: true });
-  });
+  onAction('campaign', () => showPanel('campaign-panel', '.campaign-panel .back-button'));
+  function renderStatistics() {
+    const log = flightLog.read();
+    const totals = log[statisticsMode];
+    const campaign = statisticsMode === 'campaign';
+    for (const tab of shell.querySelectorAll<HTMLButtonElement>('[data-stats-mode]')) {
+      const selected = tab.dataset.statsMode === statisticsMode;
+      tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
+    }
+    find('#statistics-content').setAttribute('aria-labelledby', `stats-${statisticsMode}-tab`);
+    text('.stats-record-label', campaign ? 'SORTIES CLEARED' : 'BEST SCORE');
+    text('.stats-record-value', totals.flights ? (campaign ? String(totals.clears) : totals.bestScore.toLocaleString()) : '—');
+    text('[data-stat="flights"]', String(totals.flights));
+    text('[data-stat="kills"]', totals.kills.toLocaleString());
+    text('[data-stat="time"]', duration(totals.seconds));
+    text('[data-stat="lives"]', String(totals.livesLost));
+    text('[data-stat="specials"]', String(totals.specials));
+    text('.stats-progress-label', campaign ? 'CLEAR RATE' : 'FURTHEST SECTOR');
+    const finalized = totals.clears + totals.lost + totals.retired;
+    text('[data-stat="progress"]', campaign ? (finalized ? `${Math.round(totals.clears / finalized * 100)}%` : '—') : totals.bestSector ? String(totals.bestSector) : '—');
+    const recent = log.recent.filter(record => record.mode === statisticsMode).slice(0, 3);
+    find<HTMLElement>('.statistics-empty').hidden = recent.length > 0;
+    const history = find<HTMLOListElement>('.statistics-history');
+    history.replaceChildren(...recent.map(record => {
+      const li = document.createElement('li');
+      const title = document.createElement('span');
+      const detail = document.createElement('small');
+      const value = document.createElement('b');
+      const outcome = { interrupted: 'Interrupted', complete: 'Cleared', lost: 'Lost', retired: 'Retired' }[record.outcome];
+      title.textContent = campaign ? record.mission : `Sector ${record.sector}`;
+      detail.textContent = `${campaign ? `${difficultyNames[record.difficulty]} · ` : ''}${outcome} · ${duration(record.seconds)}`;
+      value.textContent = campaign ? `${record.kills} down` : record.score.toLocaleString();
+      title.append(detail); li.append(title, value); return li;
+    }));
+    text('.statistics-note', flightLog.status() === 'saved' ? 'Saved on this browser. Flights count from this build onward.'
+      : flightLog.status() === 'unreadable' ? 'Previous log could not be read and was kept intact. New stats are session-only.' : 'Storage unavailable. Stats last for this session.');
+  }
+  onAction('statistics', () => { renderStatistics(); showPanel('statistics-panel'); });
+  for (const tab of shell.querySelectorAll<HTMLButtonElement>('[data-stats-mode]')) {
+    tab.addEventListener('click', () => { statisticsMode = tab.dataset.statsMode as typeof statisticsMode; renderStatistics(); }, options);
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      statisticsMode = event.key === 'Home' ? 'endless' : event.key === 'End' ? 'campaign' : statisticsMode === 'endless' ? 'campaign' : 'endless';
+      renderStatistics(); find<HTMLElement>(`[data-stats-mode="${statisticsMode}"]`).focus();
+    }, options);
+  }
+  function openSettings(parent: string) { cancelResume(); settingsParent = parent; showPanel('settings-panel'); }
+  onAction('settings', () => openSettings('menu-panel'));
+  onAction('pause-settings', () => openSettings('pause-panel'));
+  onAction('help', () => { helpParent = 'menu-panel'; showPanel('help-panel'); });
+  onAction('settings-help', () => { helpParent = 'settings-panel'; showPanel('help-panel'); });
+  function navigateBack() {
+    if (currentPanel === 'settings-panel') showPanel(settingsParent, settingsParent === 'pause-panel' ? '[data-action="pause-settings"]' : '[data-action="settings"]');
+    else if (currentPanel === 'help-panel') showPanel(helpParent, helpParent === 'settings-panel' ? '[data-action="settings-help"]' : '[data-action="help"]');
+    else if (currentPanel === 'campaign-panel') showPanel('menu-panel', '[data-action="campaign"]');
+    else if (currentPanel === 'statistics-panel') showPanel('menu-panel', '[data-action="statistics"]');
+  }
+  for (const button of shell.querySelectorAll<HTMLButtonElement>('[data-back], [data-settings-back], [data-help-back]')) button.addEventListener('click', navigateBack, options);
   onAction('launch-campaign', () => launch({
     mode: 'campaign', seed: seed(), difficulty: difficultySelect.value as Difficulty,
     weapon: weaponSelect.value as WeaponId, mission: missionSelect.value as MissionId,
@@ -207,7 +252,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       muted = !muted;
       actions.setMuted(muted);
       for (const soundButton of soundButtons) {
-        soundButton.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
+        soundButton.textContent = muted ? 'OFF' : 'ON';
         soundButton.setAttribute('aria-label', muted ? 'Enable sound' : 'Mute sound');
         soundButton.setAttribute('aria-pressed', String(muted));
       }
@@ -216,13 +261,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
 
   // Keep keyboard navigation inside whichever modal panel is actually visible.
   overlay.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && displayedPhase === 'paused') {
+    if (event.key === 'Escape' && currentPanel === 'pause-panel') {
       event.preventDefault();
       resume();
+    } else if (event.key === 'Escape') {
+      event.preventDefault(); navigateBack();
     }
     if (event.key !== 'Tab') return;
     const focusables = [...overlay.querySelectorAll<HTMLElement>('button, select, input, [tabindex="0"]')]
-      .filter((element) => !element.closest('[hidden]') && !element.hasAttribute('disabled'));
+      .filter((element) => !element.closest('[hidden]') && !element.hasAttribute('disabled') && element.tabIndex >= 0);
     const first = focusables[0];
     const last = focusables.at(-1);
     if (event.shiftKey && document.activeElement === first && last) {
@@ -232,19 +279,21 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     }
   }, options);
   window.addEventListener('blur', cancelResume, options);
+  window.addEventListener('pagehide', () => { if (lastState) flightLog.observe(lastState, false, true); }, options);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) cancelResume();
+    if (document.hidden) { cancelResume(); if (lastState) flightLog.observe(lastState, false, true); }
   }, options);
 
   function showMenu() {
     cancelResume();
+    if (lastState) flightLog.observe(lastState, true);
     error = false;
     displayedPhase = 'menu';
     lastState = null;
     surface.dataset.inputActive = 'false';
     surface.classList.remove('is-playing');
     hud.hidden = specialButton.hidden = hints.hidden = message.hidden = true;
-    showPanel('menu-panel', '[data-action="endless"]');
+    showPanel('menu-panel', '[data-action="campaign"]');
   }
 
   function update(state: RunState | null) {
@@ -254,6 +303,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       return;
     }
     lastConfig = state.config;
+    flightLog.observe(state);
     const changed = displayedPhase !== state.phase || lastState !== state;
     lastState = state;
     displayedPhase = state.phase;
@@ -309,8 +359,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       find<HTMLElement>('.result-sector-row').hidden = campaign;
       find<HTMLElement>('.result-score-row').hidden = campaign;
       text('.result-note', campaign
-        ? `${difficultyNames[state.config.difficulty ?? 'standard']} · ${weaponNames[state.config.weapon ?? 'pulse']}. This test sortie does not save campaign progress.`
-        : 'Every new run begins with the same starter equipment. Campaign progress never carries over.');
+        ? `${difficultyNames[state.config.difficulty ?? 'standard']} · ${weaponNames[state.config.weapon ?? 'pulse']}`
+        : 'New flight. Same starter. A higher score.');
       showPanel('results-panel', '[data-action="retry"]');
     }
   }
@@ -324,8 +374,10 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       surface.classList.remove('is-playing');
       hud.hidden = specialButton.hidden = hints.hidden = message.hidden = true;
       text('.error-message', errorMessage);
-      showPanel('error-panel');
+      overlay.hidden = false;
+      currentPanel = 'error-panel';
+      for (const panel of panels) panel.hidden = !panel.classList.contains('error-panel');
     },
-    dispose() { cancelResume(); abort.abort(); shell.remove(); },
+    dispose() { if (lastState) flightLog.observe(lastState, false, true); cancelResume(); abort.abort(); shell.remove(); },
   };
 }

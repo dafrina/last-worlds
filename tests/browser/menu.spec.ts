@@ -1,0 +1,111 @@
+import { expect, test, type Page } from '@playwright/test';
+import type { RunState } from '../../src/shared/contracts';
+
+const snapshot = (page: Page): Promise<RunState> => page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
+
+test('home stays compact on phones and campaign setup has its own page', async ({ page }, info) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport); await page.goto('/');
+    await expect(page.getByRole('heading', { name: /LAST/ })).toBeVisible();
+    expect(await page.locator('.flight-overlay').evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true);
+    expect(await page.locator('#game-title').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`menu-${viewport.width}.png`) });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await expect(page.getByRole('heading', { name: 'CAMPAIGN', exact: true })).toBeVisible();
+  await expect(page.locator('.menu-panel')).toBeHidden();
+  await page.getByLabel('Campaign mission').selectOption('training');
+  await page.getByLabel('Campaign difficulty').selectOption('veteran');
+  await page.getByLabel('Main weapon', { exact: true }).selectOption('fan');
+  await page.screenshot({ path: info.outputPath('campaign-phone.png') });
+  await page.getByRole('button', { name: 'BACK' }).click();
+  await expect(page.getByRole('button', { name: 'CAMPAIGN FLIGHT' })).toBeFocused();
+  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await expect(page.getByLabel('Campaign difficulty')).toHaveValue('veteran');
+  await expect(page.getByLabel('Main weapon', { exact: true })).toHaveValue('fan');
+  expect(errors).toEqual([]);
+});
+
+test('pause settings preserve the frozen flight and statistics persist without duplication', async ({ page }, info) => {
+  await page.goto('/'); await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await page.getByRole('button', { name: /Activate shockwave/ }).click();
+  await expect.poll(async () => (await snapshot(page)).specialsUsed).toBe(1);
+  await page.getByRole('button', { name: 'Pause flight' }).click();
+  const paused = await snapshot(page);
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  await page.getByLabel('Graphics quality').selectOption('low');
+  await page.getByRole('button', { name: /Mute sound/ }).click();
+  await page.getByRole('button', { name: /HOW TO PLAY/ }).click();
+  await expect(page.getByRole('heading', { name: 'HOLD YOUR LINE.' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'SETTINGS' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'PAUSED' })).toBeVisible();
+  expect((await snapshot(page)).tick).toBe(paused.tick);
+  await page.getByRole('button', { name: 'RETURN TO MENU', exact: true }).click();
+  await page.getByRole('button', { name: 'STATISTICS' }).click();
+  await expect(page.locator('[data-stat="flights"]')).toHaveText('1');
+  await expect(page.locator('[data-stat="specials"]')).toHaveText('1');
+  await expect(page.locator('.statistics-history')).toContainText('Retired');
+  await page.getByRole('tab', { name: 'CAMPAIGN' }).click();
+  await expect(page.locator('[data-stat="flights"]')).toHaveText('0');
+  await expect(page.locator('.statistics-empty')).toBeVisible();
+  await page.getByRole('tab', { name: 'CAMPAIGN' }).press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'ENDLESS' })).toHaveAttribute('aria-selected', 'true');
+  await page.screenshot({ path: info.outputPath('statistics-phone.png') });
+  await page.reload(); await page.getByRole('button', { name: 'STATISTICS' }).click();
+  await expect(page.locator('[data-stat="flights"]')).toHaveText('1');
+  await expect(page.locator('[data-stat="specials"]')).toHaveText('1');
+});
+
+test('campaign observations stay separate and record the chosen difficulty', async ({ page }) => {
+  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByLabel('Campaign mission').selectOption('training');
+  await page.getByLabel('Campaign difficulty').selectOption('relaxed');
+  await page.getByLabel('Main weapon', { exact: true }).selectOption('seeker');
+  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
+  expect((await snapshot(page)).config).toMatchObject({ mode: 'campaign', mission: 'training', difficulty: 'relaxed', weapon: 'seeker' });
+  await page.getByRole('button', { name: 'Pause flight' }).click();
+  await page.getByRole('button', { name: 'RETURN TO MENU', exact: true }).click();
+  await page.getByRole('button', { name: 'STATISTICS' }).click();
+  await expect(page.locator('[data-stat="flights"]')).toHaveText('0');
+  await page.getByRole('tab', { name: 'CAMPAIGN' }).click();
+  await expect(page.locator('[data-stat="flights"]')).toHaveText('1');
+  await expect(page.locator('.statistics-history')).toContainText('Relaxed · Retired');
+});
+
+test('unavailable storage leaves a usable session log and menu', async ({ page }) => {
+  await page.addInitScript(() => { Storage.prototype.setItem = () => { throw new Error('Storage disabled'); }; });
+  await page.goto('/'); await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await page.getByRole('button', { name: 'Pause flight' }).click();
+  await page.getByRole('button', { name: 'RETURN TO MENU', exact: true }).click();
+  await page.getByRole('button', { name: 'STATISTICS' }).click();
+  await expect(page.locator('[data-stat="flights"]')).toHaveText('1');
+  await expect(page.locator('.statistics-note')).toContainText('Stats last for this session');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'STATISTICS' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'SETTINGS', exact: true })).toBeFocused();
+});
+
+test('small-screen subpages keep back navigation and the launch action reachable', async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 568 }); await page.goto('/');
+  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  const back = await page.getByRole('button', { name: 'BACK' }).boundingBox();
+  const overlay = await page.locator('.flight-overlay').boundingBox();
+  expect(back!.y).toBeGreaterThanOrEqual(overlay!.y);
+  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: /LAUNCH SORTIE/ })).toBeInViewport();
+  await page.screenshot({ path: info.outputPath('campaign-small-phone.png') });
+  await page.keyboard.press('Escape');
+  expect(await page.locator('.flight-overlay').evaluate(element => element.scrollTop)).toBe(0);
+  await page.getByRole('button', { name: 'STATISTICS' }).click();
+  await page.getByRole('button', { name: 'BACK' }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('tab', { name: 'ENDLESS' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'BACK' })).toBeFocused();
+});

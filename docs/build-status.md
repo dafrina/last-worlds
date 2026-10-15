@@ -144,3 +144,28 @@ Second deployment, 14 October 2026 (Bastion-9 plus settlement network):
 - **Live check:** in headless Chromium, the campaign offered "Rolling Thunder · fortress assault" and "Training". The 16-node infra kit served 200 (1,066,244 B). Endless rendered at 52 calls / 33k triangles, with `kit/infra/shared: glb`, no stream fallbacks and no page errors.
 - **Long local run:** a 160 s campaign run through the Bastion fight (623 units of travel) held a flat 35 MB heap with zero synchronous terrain generations. Geometry count grew only on first use of models and the boss.
 - **Not yet tested:** phones.
+
+## 15 October 2026 · Isolated flight-command UI and local statistics (Codex)
+
+User reassigned Codex to UI/menu only while World continued combat/terrain. This increment sits on the newer `372a2a7` checkout and preserves that session's ongoing dirty files.
+
+- Deep navy/cool blue menu palette and original SVG orbital illustration; shorter Home with Campaign Flight, Endless, Statistics and Settings. Instructions live in a separate guide. Campaign now has a dedicated preparation page with the existing mission/difficulty/main-weapon options and all four equipment slots represented.
+- Settings are reachable from Home/Pause; Back and Escape return to the calling page without resuming a paused flight. Keyboard tab handling, focus return, narrow-screen scrolling and title sizing were checked.
+- Local observational statistics now persist independently for Campaign/Endless, with cumulative activity, finalized records and recent flight history. No campaign wallet, unlock, store or gameplay logic was added. Interrupted checkpoints are labeled; corrupted/unknown data is preserved and blocked storage falls back to a clearly labeled session log.
+- Navigation plan and save boundaries: `docs/16-flight-command-ui.md`. Future Missions/Loadout/Store/Assignments belong inside Campaign; no nonfunctional store controls were added.
+
+Validation:
+- `npx vitest run tests/ui/flight-log.test.ts`: **8/8 passed** (deltas/deduplication, mode isolation and read-only observation, reload/interruption, malformed saves, quota failure, sequential shared-storage updates, bounded history and exclusion of late fixtures).
+- Playwright: **14 distinct browser cases passed** across `menu.spec.ts` (5), `flight.spec.ts` (6) and `bastion.spec.ts` (3). Initial 13-case integration run passed; the added small-screen/focus case caught a tab-trap bug, which was fixed and all 5 menu cases rerun successfully. Final title width fix passed the targeted responsive case again.
+- Checked 320×568, 390×844 and 1440×900; actual menu/campaign/statistics screenshots inspected, plus an in-app browser review. Narrow-phone title clipping under fallback fonts was fixed by sizing against frame width. Home fits without vertical scrolling; campaign Back and Launch remain reachable on the smallest viewport.
+- `npm run build`: **passed**, including TypeScript. Combined current bundle 866.20 kB JS / 241.93 kB gzip; the existing >500 kB chunk warning remains. `git diff --check` on this increment passed.
+- Browser evidence uses bundled Playwright 1.64.0 Chromium / software ANGLE, DPR 1, plus the desktop in-app browser. No actual iPhone/Android validation or full combat/terrain suite claimed for this isolated increment.
+
+Evidence: `docs/screenshots/menu-blue-phone.png`, `campaign-menu-phone.png`, `statistics-phone.png`. Detailed test output is in ignored `lookdev/ui-menu-qa`, `ui-final-qa`, and `ui-title-qa`.
+
+Status: local changes ready for World's coordinated integration; no independent commit/push/deploy. Real phone testing, full campaign progression/store, richer statistics filters, and future log migration/export remain later work.
+
+
+## 15 October 2026 · UI release validation
+
+The user requested deployment of the reviewed UI increment on top of the already deployed gameplay commit `dde50a5`. The exact combined checkout passed all **180 unit tests**, **14 browser tests**, TypeScript and the production build before commit/push. Browser output: `lookdev/ui-deploy-qa`. Source changes are limited to the menu, local statistics, browser theme color, associated tests, screenshots and documentation. The existing bundle-size warning and actual-phone validation limits remain.
