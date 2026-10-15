@@ -234,10 +234,12 @@ describe('rare shield-supply quotas', () => {
   it('offers one endless cell per sector independently of campaign settings and seed', () => {
     const first = createRun({ mode: 'endless', seed: 10, difficulty: 'relaxed', weapon: 'fan' });
     const second = createRun({ mode: 'endless', seed: 99, difficulty: 'veteran', weapon: 'seeker' });
-    const firstCells = recordSupplies(first, 360);
-    const secondCells = recordSupplies(second, 360);
+    const firstCells = recordSupplies(first, 400);
+    const secondCells = recordSupplies(second, 400);
     expect(firstCells).toEqual(secondCells);
-    expect(firstCells.map(cell => Math.round(cell.time))).toEqual([55, 145, 235, 325]);
+    // One cell 55 s into each sector. This pilot never fires, so it stays in the Bastion-9 fight that closes
+    // sector 3 (endless continues only after the kill), and the long fight earns no extra cell.
+    expect(firstCells.map(cell => Math.round(cell.time))).toEqual([55, 145, 235]);
   });
 
   it('collecting a cell restores one charge, never a whole shield', () => {
@@ -420,7 +422,10 @@ describe('wide world, scheduling, and mode boundaries', () => {
       for (const key of ['enemies', 'projectiles', 'pickups', 'effects'] as const) maxima[key] = Math.max(maxima[key], state[key].length);
     }
     expect(state.phase).toBe('playing');
-    expect(state.sector).toBe(7);
+    // Endless continues only after a boss kill; this weaving ship cannot finish Bastion-9, so the soak spends
+    // its last minutes in the sector 3 boss fight.
+    expect(state.sector).toBe(3);
+    expect(state.boss?.id).toBe('bastion');
     expect(maxima.enemies).toBeLessThanOrEqual(BALANCE.maxEnemies);
     expect(maxima.projectiles).toBeLessThanOrEqual(BALANCE.maxProjectiles);
     expect(maxima.pickups).toBeLessThanOrEqual(BALANCE.maxPickups);

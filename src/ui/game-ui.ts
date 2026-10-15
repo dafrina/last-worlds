@@ -347,7 +347,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       showPanel('pause-panel', '[data-action="resume"]');
     } else if (changed && (state.phase === 'over' || state.phase === 'complete')) {
       const campaign = state.config.mode === 'campaign';
-      text('.result-mode', campaign ? 'CAMPAIGN FLIGHT' : 'ENDLESS / KHEPRI');
+      text('.result-mode', campaign ? 'CAMPAIGN FLIGHT' : `ENDLESS / ${(state.planet ?? 'khepri').toUpperCase()}`);
       text('#results-title', state.phase === 'complete' ? 'SORTIE COMPLETE' : 'FLIGHT ENDED');
       text('.result-subtitle', state.phase === 'complete'
         ? missionText(state.config.mission).complete

@@ -58,7 +58,7 @@ The flat arena platform must cover world distance **566 to 601** (s from −9 to
 
 The sim exposes `RunState.scrollSpeed` for terrain and tread rendering, and `BossState.vx`/`vs` (combat-plane velocity) for the fortress's ground-relative tread speed, which is `vs + scrollSpeed`.
 
-Endless allows bypassing optional threats at a cost of missed score/pickups. Route choice is skill expression, not an exploit. Repeat visits cannot farm rewards; repeated camera visibility does not re-award a spawn or kill. Mandatory progression and boss retreat rules must remain consistent with the selected mission/run policy.
+Endless allows bypassing optional threats at a cost of missed score/pickups. Route choice is skill expression, not an exploit. Repeat visits cannot farm rewards; repeated camera visibility does not re-award a spawn or kill. Mandatory progression and boss rules (endless bosses must be killed to continue; no retreat, 15 October) must remain consistent with the selected mission/run policy.
 
 ## 6. Technical and validation changes
 

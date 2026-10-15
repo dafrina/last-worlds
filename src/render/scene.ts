@@ -4,6 +4,7 @@ import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetI
 import { arenaStopDistance } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
+import { runRoute } from './terrain-route';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
@@ -12,6 +13,8 @@ import { createFallbackInfra, createFallbackShared, createSharedMaterial, create
 import { createTerrainView } from './terrain-view';
 import { createPostPipeline } from './post-pipeline';
 import { createFx, type Plume } from './fx-particles';
+import { createJumpFx } from './fx-jump';
+import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { BASTION } from '../content/bastion';
 
@@ -304,11 +307,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
   let iceEnvironment: THREE.WebGLRenderTarget | null = null;
   const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [];
-  let planet: PlanetId = 'khepri';
+  let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
+  /** Look-dev only: `?planet=` makes the terrain stream another planet; the look then follows the terrain's report. */
+  const lookOverride = !!import.meta.env?.DEV && query.has('planet');
   /**
-   * The single planet hook: the terrain view reports the planet it streams (the dev `?planet=` override today, the
-   * mission's planet later), and the whole rig follows: lights, sun direction and shadow fit, sky reflections,
-   * material palettes, grade and haze, background and blob shadows.
+   * The planet look rig: lights, sun direction and shadow fit, sky reflections, material palettes, grade and haze,
+   * background and blob shadows. It follows `state.planet` (the run's planet, which an endless jump switches at its
+   * flash), so the switch happens under the flash and never mid-sector.
    */
   const applyLook = (next: PlanetId) => {
     planet = next;
@@ -326,7 +331,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     settings.haze.value.set(...look.post.haze); post.setThreshold(look.post.threshold, look.post.knee);
     renderer.toneMappingExposure = look.lowExposure;
     shadowMaterial.color.setHex(look.blobShadow);
-    if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sun);
+    if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation));
     const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : environment.texture;
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky);
@@ -336,7 +341,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra, boundaryMaterial,
     sharedMaterial, roadMaterial: terrainMaterials.roads, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared(),
-    waterMaterial: water.material, onPlanet: next => { if (next !== planet) applyLook(next); } });
+    waterMaterial: water.material, onPlanet: next => { terrainPlanet = next; } });
   terrain.setShadowFrustum(sunlight.shadow.getFrustum());
   let disposed = false, warmed = false;
   // The Blender kit streams in after start; fallback pieces render until (or unless) it arrives.
@@ -459,6 +464,21 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     loadArkModel(`${import.meta.env.BASE_URL}assets/vesper/helion-ark.glb`).then(model => { if (!disposed) { ark.setModel(model); warmed = false; } })
       .catch(error => console.warn('Helion Ark model unavailable; using the functional carrier.', error));
   };
+  /*
+   * Endless planet cycle (docs/18 §4): the next planet's render assets load during the boss sector, never mid-jump,
+   * and stay cached. Khepri's load at start; Vesper's are its craft, the Helion Ark and its prefiltered sky.
+   */
+  const preload = (next: PlanetId) => {
+    if (next !== 'vesper') return;
+    ensureCraft('vesper'); ensureArk();
+    if (!iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
+  };
+  const planetReady = (next: PlanetId) => next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
+  const jumpFx = createJumpFx(scene);
+  const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
+  const reducedMotion = () => query.get('motion') === 'reduce' || !!motionQuery?.matches;
+  let jumpActive = false;
   const transform = new THREE.Object3D(), color = new THREE.Color();
 
   const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 32;
@@ -554,11 +574,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
       void alpha;
       const terrainStart = performance.now();
-      const arena = missionArena(state.config);
-      // The run's mission selects the planet (docs/17 §2); endless and Khepri missions stay on Khepri.
-      terrain.update(state.config.seed, state.distance, { planet: runPlanet(state.config), arena }); placeCamera(state.cameraX); terrain.cull(camera);
-      /** The streamed world (planet and arena): seating, blob shadows and plinths sit on its surface. */
-      const world = terrain.world;
+      // The run's schedule drives the terrain (docs/18 §3): planet stretches and boss arenas by distance; a campaign is one planet.
+      terrain.update(state.config.seed, state.distance, runRoute(state.config)); placeCamera(state.cameraX); terrain.cull(camera);
+      /** The streamed world under the ship (planet and arena); seating given it resolves each distance on the route. */
+      const world = terrain.world, arena = world.arena;
+      const lookPlanet: PlanetId = lookOverride ? terrainPlanet : state.planet ?? runPlanet(state.config);
+      if (lookPlanet !== planet) applyLook(lookPlanet);
+      if (state.config.mode === 'endless') {
+        const plan = endlessSectorPlan(Math.max(1, state.sector));
+        if (plan.jump && state.time - state.sectorStartedAt > 8) preload(plan.jump.to);
+      }
       const terrainUpdate = performance.now() - terrainStart;
       // Boss routing: the Helion Ark rides the sea; every other boss is Bastion-9 (its lines unchanged below).
       const isArk = state.boss?.id === 'ark';
@@ -597,7 +622,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (!warmed) {
         // Preview rendering warms all authored craft/material programs before the first fight.
         // Instance-color attributes above are allocated now, avoiding a new program on first loot/hit.
-        const pieces = terrain.warmupObjects();
+        const pieces = [...terrain.warmupObjects(), ...jumpFx.objects];
         pieces.forEach(piece => { piece.userData.wasVisible = piece.visible; piece.visible = true; });
         renderer.compile(scene, camera);
         pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true;
@@ -819,11 +844,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < seaHeight - .05 ? seaHeight : null,
         vents: collectVents(state.cameraX),
       } : null);
-      if (planet === 'vesper') {
-        water.update(state.time, state.distance);
-        const arkFoam = ark.foam;
-        foam.update(state.time, [...collectFloeRings(), ...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
-      }
+      // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
+      water.update(state.time, state.distance);
+      const arkFoam = ark.foam;
+      foam.update(state.time, [...collectFloeRings(), ...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
+      jumpActive = jumpFx.update(state, reducedMotion(), planetReady(state.jump?.to ?? state.planet ?? planet), quality === 'high');
       lineGeometry.setDrawRange(0, lineCursor);
       lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
       const renderStart = performance.now();
@@ -839,7 +864,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, planet, jump: jumpActive,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
@@ -865,7 +890,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
       terrain.dispose(); terrainMaterials.dispose(); environment.dispose();
-      sunlight.shadow.dispose(); post.dispose();
+      sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose();
       renderer.dispose();
     },
   };

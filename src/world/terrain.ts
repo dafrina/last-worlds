@@ -6,7 +6,7 @@ import { finish, type Work } from './terrain-work';
 import { MODULE_HEIGHT, settlementsNear, type Archetype } from './terrain-settlements';
 import { SHARED_BOUNDS, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 import { arenaWeight } from './terrain-arena';
-import { worldOf, type Floe, type World, type WorldInput } from './terrain-planet';
+import { routeOfInput, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
 
 export {
   MOODS, MOOD_LENGTH, ROUTES, ROUTE_AXES, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT,
@@ -14,7 +14,11 @@ export {
 } from './terrain-layout';
 export { terrainHeight } from './terrain-ground';
 export { ARENA_LEVEL, ARENA_RAMP, arenaWeight, sameArena, type TerrainArena } from './terrain-arena';
-export { PLANETS, sameWorld, worldOf, type Floe, type PlanetId, type PlanetProfile, type TerrainWorld, type World, type WorldInput } from './terrain-planet';
+export {
+  PLANETS, isRoute, routeOf, routeOfInput, routedWorld, sameWorld, worldAt, worldOf,
+  type Floe, type PlanetId, type PlanetProfile, type RouteSchedule, type RouteSpan, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainWorld,
+  type World, type WorldInput,
+} from './terrain-planet';
 export { VESPER_PALETTE, VESPER_SEA_LEVEL } from './terrain-vesper';
 export { ARCHETYPES, MODULE_HEIGHT, SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Archetype, type Settlement } from './terrain-settlements';
 export {
@@ -110,9 +114,9 @@ function rimAt(height: (dx: number, ds: number) => number): { drop: number; rise
 const rimFactor = (drop: number, slope: number) => smoothRange(0.45, 1.2, drop) * (1 - smoothRange(0.6, 1.3, slope));
 
 /** Coordinates are global: independent sections sample exactly the same values at shared points. */
-export function terrainSample(seed: number, x: number, s: number, input?: WorldInput | World): TerrainSample {
-  const world = worldOf(input), row = terrainRow(seed, s, world), point = rowPoint(row, x), step = TERRAIN_STEP;
-  const at = (dx: number, ds: number) => dx === 0 && ds === 0 ? point.height : terrainHeight(seed, x + dx * step, s + ds * step, world);
+export function terrainSample(seed: number, x: number, s: number, input?: TerrainInput): TerrainSample {
+  const row = terrainRow(seed, s, input), world = row.world, point = rowPoint(row, x), step = TERRAIN_STEP;
+  const at = (dx: number, ds: number) => dx === 0 && ds === 0 ? point.height : terrainHeight(seed, x + dx * step, s + ds * step, input);
   const slope = Math.hypot((at(1, 0) - at(-1, 0)) / (2 * step), (at(0, 1) - at(0, -1)) / (2 * step));
   const { drop } = rimAt(at);
   return {
@@ -151,17 +155,26 @@ function settlementPieces(seed: number, startS: number, size: number, world: Wor
  * Synchronous generation: runs the resumable steps below to completion (identical output). `world` picks the
  * planet (Khepri when omitted) and an optional mission arena; Khepri without an arena is the original output.
  */
-export function generateTerrainSection(seed: number, index: number, world?: WorldInput | World): TerrainSection {
+export function generateTerrainSection(seed: number, index: number, world?: TerrainInput): TerrainSection {
   if (!Number.isInteger(index) || !Number.isFinite(seed)) throw new Error('Terrain requires a finite seed and integer section index.');
   return finish(sectionSteps(seed, index, world));
 }
 
 /** Resumable section generation: yields between rows and passes so a frame can stop after a few ms. */
-export function* sectionSteps(seed: number, index: number, input?: WorldInput | World): Work<TerrainSection> {
+export function* sectionSteps(seed: number, index: number, input?: TerrainInput): Work<TerrainSection> {
   if (!Number.isInteger(index) || !Number.isFinite(seed)) throw new Error('Terrain requires a finite seed and integer section index.');
-  const world = worldOf(input), { planet, arena } = world, sea = planet.seaLevel;
   // The section mesh spans the world's width (x) and the section's length (s); cells are TERRAIN_STEP square.
   const size = VIEW.sectionLength, startS = index * size, cellsX = WORLD_HALF * 2 / TERRAIN_STEP, cellsS = size / TERRAIN_STEP;
+  // One world, or a route: every row (aprons included) and height query resolves the world of its own distance,
+  // so both sides of a seam agree; scatter, settlements, networks and floes run per single-world span. A planet
+  // switch inside the section splits it (docs/18 §3): a hard seam under the jump's flash, inside an arena's calm.
+  const route = routeOfInput(input), single = route ? null : worldOf(input as WorldInput | World);
+  const source: TerrainInput = route ?? single!;
+  const spans: RouteSpan[] = route ? route.spans(startS, startS + size) : [{ world: single!, from: startS, to: startS + size }];
+  const seaSpan = spans.find(span => span.world.planet.seaLevel !== null), sea = seaSpan ? seaSpan.world.planet.seaLevel : null;
+  // Planet seams within reach of this section's pieces (none for one world): pieces keep clear of them.
+  const seams = route ? planetSeams(route, startS - SEAM_CLEARANCE, startS + size + SEAM_CLEARANCE) : [];
+  const clear = (s: number) => seams.every(seam => Math.abs(s - seam) >= SEAM_CLEARANCE);
   const across = cellsX + 1, along = cellsS + 1, vertices = across * along;
   // Apron: rim detection on every side, plus a long shadow apron toward the sun (−x, +s).
   const near = RIM_CELLS, far = Math.max(SHADOW_STEPS * SHADOW_STRIDE, RIM_CELLS);
@@ -178,7 +191,7 @@ export function* sectionSteps(seed: number, index: number, input?: WorldInput | 
     // Beyond the near apron only the shadow march reads heights, on even rows and columns (half-unit steps).
     const farRow = row > cellsS + near;
     if (farRow && row & 1) { yield; continue; }
-    const localS = row * TERRAIN_STEP, ctx = terrainRow(seed, startS + localS, world);
+    const localS = row * TERRAIN_STEP, ctx = terrainRow(seed, startS + localS, source);
     if (row >= 0 && row <= cellsS) contexts[row] = ctx;
     for (let column = -far; column <= cellsX + near; column++) {
       if ((farRow || column < -near) && column & 1) continue;
@@ -208,7 +221,7 @@ export function* sectionSteps(seed: number, index: number, input?: WorldInput | 
     if (r & 1 && c & 1) return (H(r - 1, c - 1) + H(r - 1, c + 1) + H(r + 1, c - 1) + H(r + 1, c + 1)) / 4;
     return r & 1 ? (H(r - 1, c) + H(r + 1, c)) / 2 : (H(r, c - 1) + H(r, c + 1)) / 2;
   };
-  const rimOffsets = RIM_OFFSETS.map(([dx, ds]) => ds * columns + dx), tint = planet.shadowTint;
+  const rimOffsets = RIM_OFFSETS.map(([dx, ds]) => ds * columns + dx);
   for (let row = 0; row <= cellsS; row++) for (let column = 0; column <= cellsX; column++) {
     if (column === 0) yield;
     const vertex = row * across + column, center = at(row, column), x = -WORLD_HALF + column * TERRAIN_STEP;
@@ -231,7 +244,8 @@ export function* sectionSteps(seed: number, index: number, input?: WorldInput | 
       shadow = Math.max(shadow, smoothRange(-0.1, 0.35, marchHeight(row + i * SHADOW_STRIDE, column - i * SHADOW_STRIDE) - point.height - i * rise));
     }
     const light = (1 - (1 - SHADOW_FLOOR) * shadow) * (1 - 0.28 * smoothRange(0.6, 2.4, foot) * (1 - smoothRange(0.6, 1.4, slope)));
-    planet.color(contexts[row], x, point, slope, rimFactor(drop, slope), albedo);
+    const rowPlanet = contexts[row].world.planet, tint = rowPlanet.shadowTint;
+    rowPlanet.color(contexts[row], x, point, slope, rimFactor(drop, slope), albedo);
     if (tint) {
       // Cool planets shade toward a luminous blue rather than black (snow keeps sky light in shadow).
       const lit = smoothRange(SHADOW_FLOOR, 1, light);
@@ -316,7 +330,7 @@ export function* sectionSteps(seed: number, index: number, input?: WorldInput | 
     height(x, s) {
       const u = (x + WORLD_HALF) / TERRAIN_STEP, v = (s - startS) / TERRAIN_STEP;
       // The grid is full resolution only within the near apron (the far apron is sparse, for shadows).
-      if (u < -near || u >= cellsX + near || v < -near || v >= cellsS + near) return terrainHeight(seed, x, s, world);
+      if (u < -near || u >= cellsX + near || v < -near || v >= cellsS + near) return terrainHeight(seed, x, s, source);
       const c0 = Math.floor(u), r0 = Math.floor(v), fu = u - c0, fv = v - r0;
       const value = (r: number, c: number) => heights[at(r, c)];
       return (value(r0, c0) * (1 - fu) + value(r0, c0 + 1) * fu) * (1 - fv) + (value(r0 + 1, c0) * (1 - fu) + value(r0 + 1, c0 + 1) * fu) * fv;
@@ -324,38 +338,90 @@ export function* sectionSteps(seed: number, index: number, input?: WorldInput | 
     slope: vertexField(slopes), drop: vertexField(drops), rise: vertexField(rises),
     gradientX: vertexField(gradients, 2, 0), gradientS: vertexField(gradients, 2, 1),
     elevation: vertexField(elevation), industrial: vertexField(industry), veins: vertexField(glow, 2, 0), pool: vertexField(glow, 2, 1),
-    shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s, world).params, platform: (s: number) => arenaWeight(arena, s),
+    shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s, source).params, platform: (s: number) => arenaWeight(worldAt(source, s).arena, s),
     tone: vertexField(fTone),
     blocked: (x: number, s: number) => occupied.has(`${Math.floor(x)}:${Math.floor(s)}`),
     crater: (x: number, s: number) => crater(seed, x, s).rim,
   };
-  // Scatter keeps off the unit cells under roads, pipelines and settlement modules.
-  const network = yield* sectionNetworkSteps(seed, startS, size, world), settled = settlementPieces(seed, startS, size, world), occupied = new Set<string>();
+  // Scatter keeps off the unit cells under roads, pipelines and settlement modules (each span's own).
+  const networks: { pieces: IndustryPiece[]; roads: RoadPath[] }[] = [], settlements: ReturnType<typeof settlementPieces>[] = [];
+  for (const span of spans) {
+    networks.push(yield* sectionNetworkSteps(seed, span.from, span.to - span.from, span.world));
+    settlements.push(settlementPieces(seed, span.from, span.to - span.from, span.world));
+  }
+  const occupied = new Set<string>();
   yield;
   const occupy = (x0: number, s0: number, reach: number) => {
     for (let x = Math.floor(x0 - reach); x <= Math.floor(x0 + reach); x++) for (let s = Math.floor(s0 - reach); s <= Math.floor(s0 + reach); s++) occupied.add(`${x}:${s}`);
   };
-  for (const piece of [...network.pieces, ...settled.industry]) occupy(piece.x, piece.s, Math.max(SHARED_BOUNDS[piece.node].halfX, SHARED_BOUNDS[piece.node].halfZ) + 0.3);
+  const networkPieces = networks.flatMap(network => network.pieces).filter(piece => clear(piece.s)), networkRoads = networks.flatMap(network => network.roads);
+  const settled = settlements.length === 1 && !seams.length ? settlements[0] : {
+    props: settlements.flatMap(item => item.props).filter(prop => clear(prop.s)), industry: settlements.flatMap(item => item.industry).filter(piece => clear(piece.s)),
+    rubble: settlements.flatMap(item => item.rubble).filter(piece => clear(piece.s)),
+  };
+  for (const piece of [...networkPieces, ...settled.industry]) occupy(piece.x, piece.s, Math.max(SHARED_BOUNDS[piece.node].halfX, SHARED_BOUNDS[piece.node].halfZ) + 0.3);
   for (const prop of settled.props) occupy(prop.x, prop.s, prop.node === 'infra_landing_pad' ? 3.2 : prop.node === 'infra_refinery' ? 2.7 : 1);
-  for (const road of network.roads) for (let i = 0; i < road.x.length; i++) if (road.s[i] >= startS - 1 && road.s[i] < startS + size + 1) occupy(road.x[i], road.s[i], 1);
-  // Roads take the ground's baked cast shadow so they darken in shaded valleys too.
-  const roads = yield* roadRibbonSteps(seed, network.roads, startS, size, world.bare);
+  for (const road of networkRoads) for (let i = 0; i < road.x.length; i++) if (road.s[i] >= startS - 1 && road.s[i] < startS + size + 1) occupy(road.x[i], road.s[i], 1);
+  // Roads take the ground's baked cast shadow so they darken in shaded valleys too. Each span's roads sit on its world.
+  const ribbons: RoadMesh[] = [];
+  for (let k = 0; k < spans.length; k++) ribbons.push(yield* roadRibbonSteps(seed, networks[k].roads, startS, size, spans[k].world.bare));
+  const roads = ribbons.length === 1 ? ribbons[0] : mergeRoadMeshes(ribbons);
   for (let i = 0; i < roads.shade.length; i++) roads.shade[i] = field.shade(roads.positions[i * 3], startS - roads.positions[i * 3 + 2]);
-  const scattered = yield* planet.scatter(seed, startS, size, field), firstCosmetic = scattered.findIndex(instance => instance.cosmetic);
-  const instances = firstCosmetic < 0 ? [...scattered, ...settled.rubble]
-    : [...scattered.slice(0, firstCosmetic), ...settled.rubble, ...scattered.slice(firstCosmetic)];
+  let instances: KitInstance[];
+  if (spans.length === 1) {
+    let scattered = yield* spans[0].world.planet.scatter(seed, startS, size, field);
+    if (seams.length) scattered = scattered.filter(instance => clear(instance.s));
+    const firstCosmetic = scattered.findIndex(instance => instance.cosmetic);
+    instances = firstCosmetic < 0 ? [...scattered, ...settled.rubble]
+      : [...scattered.slice(0, firstCosmetic), ...settled.rubble, ...scattered.slice(firstCosmetic)];
+  } else {
+    // Essential pieces first, cosmetic last (the low tier stops at the first cosmetic piece of each node).
+    const scattered: KitInstance[] = [];
+    for (const span of spans) for (const instance of yield* span.world.planet.scatter(seed, span.from, span.to - span.from, field)) if (clear(instance.s)) scattered.push(instance);
+    instances = [...scattered.filter(instance => !instance.cosmetic), ...settled.rubble, ...scattered.filter(instance => instance.cosmetic)];
+  }
   const section: TerrainSection = {
     seed, index, startS, size, across, along, positions, colors, normals, glow, edges, rock, indices: indices.slice(0, cursor), strips,
-    props: settled.props, instances, industry: [...settled.industry, ...network.pieces],
-    roads, roadPaths: network.roads,
+    props: settled.props, instances, industry: [...settled.industry, ...networkPieces],
+    roads, roadPaths: networkRoads,
   };
   if (sea !== null) {
     yield;
-    section.floes = yield* planet.floes(seed, startS, size, field, arena);
+    const floes: Floe[] = [];
+    for (const span of spans) if (span.world.planet.seaLevel !== null) {
+      for (const floe of yield* span.world.planet.floes(seed, span.from, span.to - span.from, field, span.world.arena)) if (clear(floe.s)) floes.push(floe);
+    }
+    section.floes = floes;
     yield;
-    section.water = { level: sea, shore: yield* shoreDistanceSteps(heights, at, cellsX, cellsS, near, sea) };
+    // Only rows of a planet with a sea can be wet (a dry planet's low ground in a split section stays land).
+    const seaOfRow = spans.length === 1 ? null : (row: number) => worldAt(source, startS + row * TERRAIN_STEP).planet.seaLevel;
+    section.water = { level: sea, shore: yield* shoreDistanceSteps(heights, at, cellsX, cellsS, near, sea, seaOfRow) };
   }
   return section;
+}
+
+/** How far every piece (scenery, settlement, pipeline, floe) keeps from a planet seam, in world units. */
+export const SEAM_CLEARANCE = 3;
+/** Forward distances in [from, to] where a route changes planet. */
+function planetSeams(route: TerrainRoute, from: number, to: number): number[] {
+  const spans = route.spans(from, to), seams: number[] = [];
+  for (let i = 1; i < spans.length; i++) if (spans[i].world.planet !== spans[i - 1].world.planet) seams.push(spans[i].from);
+  return seams;
+}
+
+/** Concatenates road ribbon meshes (one per span of a split section). */
+function mergeRoadMeshes(meshes: readonly RoadMesh[]): RoadMesh {
+  const total = (key: 'positions' | 'uvs' | 'alpha' | 'shade' | 'indices') => meshes.reduce((n, mesh) => n + mesh[key].length, 0);
+  const out: RoadMesh = { positions: new Float32Array(total('positions')), uvs: new Float32Array(total('uvs')), alpha: new Float32Array(total('alpha')),
+    shade: new Float32Array(total('shade')), indices: new Uint32Array(total('indices')) };
+  let p = 0, u = 0, a = 0, i = 0;
+  for (const mesh of meshes) {
+    const base = p / 3;
+    out.positions.set(mesh.positions, p); out.uvs.set(mesh.uvs, u); out.alpha.set(mesh.alpha, a); out.shade.set(mesh.shade, a);
+    for (let k = 0; k < mesh.indices.length; k++) out.indices[i + k] = mesh.indices[k] + base;
+    p += mesh.positions.length; u += mesh.uvs.length; a += mesh.alpha.length; i += mesh.indices.length;
+  }
+  return out;
 }
 
 /**
@@ -363,9 +429,12 @@ export function* sectionSteps(seed: number, index: number, input?: WorldInput | 
  * a two-pass chamfer over the section and its one-unit apron, so both sides of a seam agree (every distance
  * within the clamp is decided inside both windows).
  */
-function* shoreDistanceSteps(heights: Float64Array, at: (row: number, column: number) => number, cellsX: number, cellsS: number, near: number, sea: number): Work<Float32Array> {
+function* shoreDistanceSteps(heights: Float64Array, at: (row: number, column: number) => number, cellsX: number, cellsS: number, near: number, sea: number,
+  seaOfRow: ((row: number) => number | null) | null = null): Work<Float32Array> {
   const C = cellsX + 2 * near + 1, R = cellsS + 2 * near + 1, far = 1e9, d = new Float64Array(C * R);
-  const wet = (r: number, c: number) => heights[at(r - near, c - near)] < sea;
+  const rowSea = seaOfRow ? Array.from({ length: R }, (_, r) => seaOfRow(r - near)) : null;
+  const wet = rowSea ? (r: number, c: number) => rowSea[r] !== null && heights[at(r - near, c - near)] < rowSea[r]!
+    : (r: number, c: number) => heights[at(r - near, c - near)] < sea;
   for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
     const w = wet(r, c), edge = (c > 0 && wet(r, c - 1) !== w) || (c < C - 1 && wet(r, c + 1) !== w) || (r > 0 && wet(r - 1, c) !== w) || (r < R - 1 && wet(r + 1, c) !== w);
     d[r * C + c] = edge ? 0.5 : far;
@@ -397,8 +466,9 @@ function* shoreDistanceSteps(heights: Float64Array, at: (row: number, column: nu
  * next section ahead in small resumable steps while the caller's budget allows; `update` uses it when ready and
  * otherwise generates synchronously (counted in `fallbacks`). Both paths produce identical sections.
  */
-export function createTerrainStream(seed: number, input?: WorldInput | World) {
-  const world = worldOf(input);
+export function createTerrainStream(seed: number, input?: TerrainInput) {
+  // A route streams as-is (each section resolves its own worlds); anything else is one world everywhere.
+  const world: TerrainInput = routeOfInput(input) ?? worldOf(input as WorldInput | World);
   const sections = new Map<number, TerrainSection>(), ready = new Map<number, TerrainSection>();
   let pending: { index: number; work: Work<TerrainSection> } | null = null;
   const counts = { fallbacks: 0, startup: 0, prefetched: 0 };

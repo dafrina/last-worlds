@@ -1,5 +1,18 @@
 # Build status
 
+## Wave 3: endless planet cycle — 15 October 2026
+
+Endless now cycles planets (docs/18): Khepri sectors 1–3 end with Bastion-9, then a hyperdrive jump to Vesper; sectors 4–6 end with the Helion Ark, then a jump back to Khepri; and it repeats.
+- **Bosses must be killed to proceed** (user decision): no timeout or retreat, however long the fight takes. Endless bosses use the endless HP and cadence ramps.
+- **Rosters and schedule:** Vesper sectors fly Vesper-only playlists. One pure `endlessSchedule(config)` drives terrain (planet stretches, arenas, jump windows) and look.
+- **Terrain:** split seams at planet switches; no stream fallbacks through either jump at 12.7 and 16.6 units/s.
+- **Jump visuals:** a veil, streaks and a flash, with a reduced-motion fade. Assets preload during the boss sector.
+- **Evidence** (snapshot of the full tree):
+  - typecheck clean; 251/251 unit tests; build OK; 15/15 browser tests at low load (load flakes seen earlier at load average 30–50);
+  - the perfect pilot kills both bosses with every weapon at power 0 in sectors 1–7 with zero hits;
+  - campaign and Khepri output byte-identical.
+- **Open:** see `HANDOFF.md` §2–3 (terrain-kit readiness in the jump hold, the old look on new terrain before the flash, streak polish, Ark sky reflection, Vesper infrastructure material routing, Low-tier Ark captures, phone measurements).
+
 ## Vesper wave 2: Cold Vector and the Helion Ark — 15 October 2026
 
 Cold Vector is playable from the campaign menu ("Cold Vector · Vesper", docs/17).

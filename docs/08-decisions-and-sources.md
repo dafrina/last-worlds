@@ -102,3 +102,14 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
 - 2026-10-13, v0.3: User authorized implementation agents; confirmed procedural world design for MVP and authored enemies/encounters/battles. Hero generation deferred. GitHub Pages is the intended later deployment. Main families retain distinct straight, spread, or homing behavior; Seeker replaces Arc in the four-family MVP proposal. M0/M1 implementation begins with generated terrain and a playable endless foundation; later milestone content remains pending.
 
 - 2026-10-14, v0.4: Confirmed name **Last Worlds**. Shields recover only through rare pickups; no passive regeneration. Prototype supply budget: two cells on Relaxed/Standard training, one on Veteran, one per endless sector. First art pass uses real 3D terrain and modeled scenery, sharper rendering, detailed existing ship silhouettes, and pickups distinguishable from bullets. The first release keeps Khepri, Nacre, and Vesper. The proposed solar-system invasion/reclamation lore, Mars finale, and dialogue are future narrative context only. GitHub Pages deployment has been explicitly authorized.
+
+- 2026-10-15, v0.5–0.7 (user decisions during the world, combat and Vesper passes):
+  - **Hitbox:** the player hitbox is 0.42, the third tier's planned size; the starter model keeps its size.
+  - **Shields:** one run-wide pool; losing a life no longer refills them, and only pickups do. This replaces "a replacement life starts with full shields".
+  - **Enemy fire:** about 35% faster in total, enemies only; the player's cadence is unchanged.
+  - **World and controls:** the world is 30 units wide (2.5 screens). A held steering touch that slides across the middle switches direction.
+  - **Bosses:** each mission boss fights in a static arena where the scroll stops (Bastion-9 on a flat platform, the Helion Ark on open water).
+  - **Vesper:** added as the second playable planet, with the Cold Vector mission and the Helion Ark (docs/17); about 70% land and 30% water.
+  - **Endless:** it cycles planets with a hyperdrive jump after each planet's boss (docs/18).
+  - **Endless bosses must be killed:** no timeout or retreat; the run continues only after the kill. This replaces docs/03 §8's "the boss retreats after 60 s overtime".
+

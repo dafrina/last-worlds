@@ -1,4 +1,5 @@
-import { kinematics } from '../../src/content/balance';
+import { BALANCE, kinematics } from '../../src/content/balance';
+import { endlessPlanet, endlessSectorPlan, paceInSector } from '../../src/content/endless';
 import { EMPTY_INPUT, VIEW, type InputFrame, type RunState } from '../../src/shared/contracts';
 import { committedFootprints, planEvasion } from '../../src/sim/fairness';
 import { stepRun } from '../../src/sim/game';
@@ -171,4 +172,22 @@ export function fly(state: RunState, pilot: Pilot, seconds: number, options: Fli
   log.livesLost = state.livesLost;
   log.specialsUsed = state.specialsUsed;
   return log;
+}
+
+/**
+ * Places a fresh endless run at the start of a sector, as if the earlier sectors had been flown with no boss
+ * overtime: the schedule's distance, planet and pace, an empty sky and the sector's playlist from its top.
+ */
+export function enterSector(state: RunState, sector: number): RunState {
+  if (sector <= 1) return state;
+  const at = (sector - 1) * BALANCE.sectorDuration;
+  state.time = at;
+  state.sectorStartedAt = at;
+  state.sector = sector;
+  state.planet = endlessPlanet(sector);
+  state.distance = endlessSectorPlan(sector).startDistance;
+  state.pace = paceInSector(sector, 0);
+  state.encounterIndex = 0;
+  state.nextEncounterAt = at + 2;
+  return state;
 }

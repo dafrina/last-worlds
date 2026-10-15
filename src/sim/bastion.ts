@@ -1,5 +1,6 @@
 import { BASTION } from '../content/bastion';
-import { BALANCE, FAIRNESS, difficultyScales } from '../content/balance';
+import { BALANCE, FAIRNESS } from '../content/balance';
+import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, missionBoss, type BossDefinition } from '../content/bosses';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
 import { clamp } from './geometry';
@@ -7,7 +8,7 @@ import { bossPartOffset, bossPose } from './motion';
 import { BOSS_BEAM, SHOT_TTL, bossShots } from './attacks';
 import { ANCHOR_LIMIT } from './airspace';
 import { admitFootprints, pendingAttackFootprints, type Footprint } from './fairness';
-import { spawnMembers } from './spawn';
+import { bossShotScale, runScale, spawnMembers } from './spawn';
 
 /*
  * Campaign bosses: Bastion-9 (Rolling Thunder) and the Helion Ark (Cold Vector). Both follow the same phase
@@ -28,6 +29,14 @@ function clearThreats(state: RunState) {
 function bossDef(state: RunState): BossDefinition {
   return BOSSES[state.boss!.id];
 }
+
+/** Pause after each boss attack: the authored recovery, scaled by the endless cadence ramp in endless. */
+function bossRecovery(state: RunState): number {
+  return bossDef(state).recovery * (state.config.mode === 'endless' ? runScale(state).cadence : 1);
+}
+
+/** Endless: protection through the scroll resume and the hyperdrive jump after the kill. */
+const ENDLESS_EXIT_PROTECTION = ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration + 0.5;
 
 /**
  * Terrain scroll for a boss mission as a closed form of active time, so the arena stop distance is exact:
@@ -54,9 +63,12 @@ export function arenaStopDistance(arena: BossDefinition['arena'] = BASTION.arena
   return VIEW.scrollSpeed * (arena.decelStart + arena.decelDuration / 2);
 }
 
-/** Starts the boss of the current campaign mission (no-op otherwise, or if it already started). */
-export function startBoss(state: RunState): void {
-  const def = state.config.mode === 'campaign' ? missionBoss(state.config.mission) : null;
+/**
+ * Starts a boss: the current campaign mission's boss by default, or the given one (endless boss sectors).
+ * No-op if a boss is already present or the mission has none.
+ */
+export function startBoss(state: RunState, which: BossDefinition | null = state.config.mode === 'campaign' ? missionBoss(state.config.mission) : null): void {
+  const def = which;
   if (state.boss || !def) return;
   const x = clamp(state.cameraX, -ANCHOR_LIMIT, ANCHOR_LIMIT);
   state.boss = { id: def.id, phase: 'arrival', x, originX: x, s: def.entryS, startedAt: state.time,
@@ -65,7 +77,8 @@ export function startBoss(state: RunState): void {
   // This authored relief is the boundary between approach and the boss encounter.
   state.enemies = [];
   clearThreats(state);
-  const scale = difficultyScales('campaign', state.config.difficulty ?? 'standard', 1).hp;
+  // Campaign difficulty, or the endless ramp at this sector.
+  const scale = runScale(state).hp;
   for (const part of ['left', 'right', 'core'] as const) {
     const spec = def.parts[part], hp = spec.hp * scale;
     state.enemies.push({ id: state.nextId++, kind: 'turret', bossPart: part, damageable: false,
@@ -99,8 +112,10 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
   if (phase === 'destroyed') {
     boss.deathEffectAt = state.time;
     boss.launchesLeft = 0;
-    state.player.invulnerableUntil = state.time + def.extractionDuration;
-    state.credits += 60;
+    const campaign = state.config.mode === 'campaign';
+    state.player.invulnerableUntil = state.time + (campaign ? def.extractionDuration : ENDLESS_EXIT_PROTECTION);
+    // Credits are campaign-only; endless scores the kill through the core's 5,000 points.
+    if (campaign) state.credits += 60;
     // Launched fighters go down with their carrier: nothing dangerous remains during extraction.
     state.enemies = state.enemies.filter(enemy => enemy.bossPart);
   }
@@ -145,7 +160,7 @@ function emit(state: RunState, enemy: Enemy) {
   const boss = state.boss!;
   // Lanes were placed as marked hazards when the windup began; nothing more is released.
   if (boss.attack && boss.attack !== 'beam') {
-    const shots = bossShots(bossDef(state), boss.attack, enemy.x, enemy.s, enemy.aimX, difficultyScales('campaign', state.config.difficulty ?? 'standard', 1).shotSpeed, enemy.bossPart === 'core');
+    const shots = bossShots(bossDef(state), boss.attack, enemy.x, enemy.s, enemy.aimX, bossShotScale(state), enemy.bossPart === 'core');
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
     for (const shot of shots) state.projectiles.push({ id: state.nextId++, x: shot.x, s: shot.s, previousX: shot.x, previousS: shot.s,
       vx: shot.vx, vs: shot.vs, friendly: false, damage: 1, radius: shot.radius, ttl: SHOT_TTL });
@@ -199,7 +214,8 @@ export function updateBoss(state: RunState, dt: number): void {
       if (state.effects.length < BALANCE.maxEffects) state.effects.push({ id: state.nextId++, kind: 'explosion', x: boss.x + offset, s: boss.s + Math.cos(offset) * 1.5, ttl: .7, duration: .7 });
       boss.deathEffectAt = state.time + .24;
     }
-    if (state.time - boss.phaseStartedAt + 1e-8 >= def.extractionDuration) {
+    // The campaign ends after extraction; endless continues with the hyperdrive jump (src/sim/endless.ts).
+    if (state.config.mode === 'campaign' && state.time - boss.phaseStartedAt + 1e-8 >= def.extractionDuration) {
       state.phase = 'complete'; state.projectiles = []; state.hazards = [];
     }
     return;
@@ -221,7 +237,7 @@ export function updateBoss(state: RunState, dt: number): void {
     attacker.warning = Math.max(0, attacker.warning - dt);
     if (attacker.warning === 0) {
       emit(state, attacker); boss.attack = null; boss.attackerId = null;
-      boss.nextAttackAt = state.time + def.recovery;
+      boss.nextAttackAt = state.time + bossRecovery(state);
     }
     return;
   }
@@ -238,7 +254,7 @@ export function updateBoss(state: RunState, dt: number): void {
       ? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst')
       : 'beam';
   const aimX = attack === 'beam' ? boss.x : state.player.x;
-  const difficultyWarning = difficultyScales('campaign', state.config.difficulty ?? 'standard', 1).warning;
+  const difficultyWarning = runScale(state).warning;
   const warning = (attack !== 'beam' ? def.warning : boss.phase === 'batteries' && def.laser ? def.laser.warning : def.beamWarning) + difficultyWarning;
   // The director's exclusion check applies to bosses too. A rejected attack is not edited: the boss switches
   // to its alternate pattern and tries again after a short delay.

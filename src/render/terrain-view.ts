@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  FLOE_FOOTPRINT, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, terrainHeight, worldOf,
-  type Floe, type IndustryPiece, type PlanetId, type RoadPath, type TerrainSection, type World, type WorldInput,
+  FLOE_FOOTPRINT, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, routeOfInput, routedWorld,
+  terrainHeight, worldAt, worldOf,
+  type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
   GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadVesperInfra, loadVesperKit,
@@ -25,6 +26,27 @@ const devWorld = (input?: WorldInput): WorldInput => {
   if (!DEV_PLANET) return input;
   return { planet: DEV_PLANET, arena: input && 'fromS' in input ? input : input?.arena };
 };
+/** The preview switch on a route: every stretch shows that planet, with the route's own arenas. */
+const devRoutes = new Map<string, TerrainRoute>();
+function devRoute(route: TerrainRoute): TerrainRoute {
+  if (!DEV_PLANET) return route;
+  const key = `${route.key}|preview:${DEV_PLANET}`;
+  let made = devRoutes.get(key);
+  if (!made) {
+    const planet = DEV_PLANET, swap = (world: World) => worldOf({ planet, arena: world.arena });
+    made = { key, worldAt: s => swap(route.worldAt(s)), lookAt: () => planet,
+      spans: (from, to) => route.spans(from, to).reduce<{ world: World; from: number; to: number }[]>((out, span) => {
+        const world = swap(span.world), tail = out[out.length - 1];
+        if (tail && tail.world === world) tail.to = span.to; else out.push({ world, from: span.from, to: span.to });
+        return out;
+      }, []) };
+    devRoutes.set(key, made);
+  }
+  return made;
+}
+/** How far ahead (world units) a route's coming planets have their kits loaded: well before any jump. */
+const PRELOAD_AHEAD = 400;
+const KHEPRI_HAULERS = ['infra_cargo_0', 'infra_cargo_1', 'infra_cargo_2'], VESPER_HAULERS = ['vesper_ice_hauler'];
 /** Slow presentation-only floe drift: circling speed (rad/s) and gentle yaw sway. */
 const FLOE_SPIN = 0.07, FLOE_SWAY = 0.05;
 
@@ -41,8 +63,8 @@ interface SectionView {
   roads: Map<string, RoadPath>;
   /** Shadow-only merged caster strips (layer SHADOW_CASTER_LAYER); rebuilt when kit geometry changes. */
   casters: THREE.Mesh[];
-  /** Pack ice drawn by animate() (drifting, presentation only). */
-  floes: readonly Floe[];
+  /** Pack ice drawn by animate() (drifting, presentation only), and its section's sea level. */
+  floes: readonly Floe[]; sea: number;
   /** Vent-stack tops (world x, y and forward s) for the live features. */
   vents: readonly { x: number; y: number; s: number }[];
 }
@@ -129,8 +151,10 @@ export function createTerrainView(options: TerrainViewOptions) {
   let kit: KitGeometries = createFallbackKit(), infra: KitGeometries = new Map(options.fallbackInfra), shared: KitGeometries = new Map(options.fallbackShared);
   let kitSource: TerrainStats['kit'] = 'fallback', infraSource: TerrainStats['infra'] = 'fallback', sharedSource: TerrainStats['shared'] = 'fallback';
   let quality: GraphicsQuality = 'high', seed: number | null = null, stream = createTerrainStream(0);
-  /** The world (planet and mission arena) the current stream was built with. */
-  let world: World = worldOf();
+  /** The world (planet and mission arena) the current stream was built with, or its route (endless cycle). */
+  let world: World = worldOf(), route: TerrainRoute | null = null, sourceKey = '';
+  /** The planet the look shows (ground material, onPlanet); on a route it switches at a jump's flash. */
+  let lookPlanet: PlanetId | null = null, viewFallbacks = 0;
   let water: THREE.Material | null = options.waterMaterial ?? null;
   const loadedPlanets = new Set<PlanetId>(['khepri']);
   const views = new Map<number, SectionView>(), batches = new Map<string, Batch>();
@@ -380,7 +404,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       const marks = new THREE.InstancedMesh(edgeGeometry, boundaryMaterial, Math.ceil(section.size / 3));
       let i = 0;
       for (let s = 0; s < section.size; s += 3) {
-        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s, world) + 0.035, -s);
+        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s, route ?? world) + 0.035, -s);
         transform.rotation.set(0, 0, 0); transform.scale.set(1, 1, 1); transform.updateMatrix(); marks.setMatrixAt(i++, transform.matrix);
       }
       marks.count = i; marks.computeBoundingSphere(); holder.add(marks); view.instanced.push(marks);
@@ -392,7 +416,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   /** Resumable view build: instance preparation, each ground strip, and the road mesh are separate steps. */
   function* buildSteps(section: TerrainSection): Generator<void, SectionView, void> {
     const group = new THREE.Group(); group.name = `Khepri procedural section ${section.index}`;
-    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [], floes: section.floes ?? [],
+    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [], floes: section.floes ?? [], sea: section.water?.level ?? 0,
       vents: section.instances.filter(piece => piece.kind === 'vent').map(piece => ({ x: piece.x, y: piece.y + piece.height * KIT.vent.height, s: piece.s })) };
     yield;
     yield* casterSteps(view);
@@ -442,10 +466,15 @@ export function createTerrainView(options: TerrainViewOptions) {
     view.cullables.push({ object: holder, box: geometry.boundingBox!.clone().expandByScalar(0.1), triangles: indices.length / 3 });
   }
 
-  /** Loads a planet's own kits on first use (Vesper: ice kit and infrastructure; fallbacks render meanwhile). */
-  function ensurePlanet(planet: PlanetId) {
+  /** The look follows a planet: the ground material's own hook and the caller's rig (onPlanet). */
+  function applyLook(planet: PlanetId) {
+    if (planet === lookPlanet) return;
+    lookPlanet = planet;
     (groundMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(planet);
     options.onPlanet?.(planet);
+  }
+  /** Loads a planet's own kits on first use (Vesper: ice kit and infrastructure; fallbacks render meanwhile). */
+  function ensurePlanet(planet: PlanetId) {
     if (loadedPlanets.has(planet)) return;
     loadedPlanets.add(planet);
     if (planet !== 'vesper') return;
@@ -570,25 +599,33 @@ export function createTerrainView(options: TerrainViewOptions) {
   const self = {
     /**
      * Keeps the three-section window built for the seed and forward distance. `next` is the world:
-     * `{ planet, arena }` (a bare arena still means Khepri; omit for endless and training). A new seed, planet
-     * or arena rebuilds the window; a new planet also loads its kits and retunes the ground material.
+     * `{ planet, arena }` (a bare arena still means Khepri; omit for Khepri without an arena), or a route
+     * (`routeOf` over the run's schedule: planet stretches and boss arenas by distance, docs/18 §3). A new seed
+     * or world rebuilds the window. On a route the window never rebuilds: sections ahead of a planet switch are
+     * prefetched with the next planet, its kits load well ahead, and the look switches at the jump's flash.
      */
-    update(nextSeed: number, nextDistance: number, next?: WorldInput) {
+    update(nextSeed: number, nextDistance: number, next?: TerrainInput) {
       distance = nextDistance;
-      const target = worldOf(devWorld(next));
-      if (seed !== nextSeed || target !== world) {
+      const nextRoute = routeOfInput(next), targetRoute = nextRoute ? devRoute(nextRoute) : null;
+      const target = targetRoute ? targetRoute.worldAt(distance) : worldOf(devWorld(next as WorldInput));
+      const key = targetRoute ? `route:${targetRoute.key}` : target.key;
+      if (seed !== nextSeed || key !== sourceKey) {
         views.forEach(disposeView); views.clear(); stream.clear();
         discardPrebuilt();
-        if (target.planet !== world.planet || seed === null) ensurePlanet(target.planet.id);
-        seed = nextSeed; world = target; stream = createTerrainStream(seed, world);
+        seed = nextSeed; route = targetRoute; sourceKey = key; stream = createTerrainStream(seed, route ?? target);
       }
-      const active = stream.update(distance), live = new Set(active.map(section => section.index));
+      world = target;
+      if (route) for (const span of route.spans(distance - VIEW.sectionLength, distance + PRELOAD_AHEAD)) ensurePlanet(span.world.planet.id);
+      else ensurePlanet(world.planet.id);
+      applyLook(route ? route.lookAt(distance) : world.planet.id);
+      const active = stream.update(distance), live = new Set(active.map(section => section.index)), starting = views.size === 0;
       for (const [index, view] of views) if (!live.has(index)) { disposeView(view); views.delete(index); }
       for (const section of active) {
         let view = views.get(section.index);
         if (!view && prebuilt?.section === section && prebuilt.view) { view = prebuilt.view; prebuilt = null; scene.add(view.group); dirty = true; }
         if (!view && prebuilt?.section === section) discardPrebuilt();
-        if (!view) { view = buildSection(section); views.set(section.index, view); }
+        // A view built here, mid-flight, is a synchronous fallback (prefetch builds views ahead in steps).
+        if (!view) { view = buildSection(section); views.set(section.index, view); if (!starting) viewFallbacks++; }
         views.set(section.index, view);
         view.group.position.z = distance - section.startS;
       }
@@ -608,7 +645,8 @@ export function createTerrainView(options: TerrainViewOptions) {
         if (step.done) prebuilt.view = step.value;
       }
     },
-    get streamStats() { return stream.stats; },
+    /** Section generation (startup, prefetched, fallbacks) plus views built synchronously mid-flight. */
+    get streamStats() { return { ...stream.stats, viewFallbacks }; },
     /** The directional light's shadow frustum: caster strips draw only in that pass (null: never). */
     setShadowFrustum(frustum: THREE.Frustum | null) { casterFrustum = frustum; },
     /**
@@ -690,9 +728,8 @@ export function createTerrainView(options: TerrainViewOptions) {
      */
     animate(time: number, cameraX: number) {
       let count = 0; haulerDust.length = 0;
-      // Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
-      const vesper = world.planet.id === 'vesper', nodes = vesper ? ['vesper_ice_hauler'] : ['infra_cargo_0', 'infra_cargo_1', 'infra_cargo_2'];
-      const used = nodes.map(() => 0), roads = new Map<string, RoadPath>();
+      // Each road's own planet picks its haulers: Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
+      const used = new Map<string, number>(), roads = new Map<string, RoadPath>(), source = route ?? world;
       for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
       for (const road of roads.values()) {
         const total = road.length[road.length.length - 1];
@@ -709,14 +746,15 @@ export function createTerrainView(options: TerrainViewOptions) {
           if (exclusion && x > exclusion.minX && x < exclusion.maxX && s > exclusion.minS && s < exclusion.maxS) continue;
           const y = road.y[i] + (road.y[i + 1] - road.y[i]) * f;
           const dx = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), ds = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1);
-          const n = Math.floor(tint(key, 9, k) * nodes.length), mesh = hauler(nodes[n]);
-          if (!mesh || used[n] >= mesh.instanceMatrix.count) continue;
+          const roadWorld = worldAt(source, s), vesper = roadWorld.planet.id === 'vesper', nodes = vesper ? VESPER_HAULERS : KHEPRI_HAULERS;
+          const node = nodes[Math.floor(tint(key, 9, k) * nodes.length)], mesh = hauler(node), slot = used.get(node) ?? 0;
+          if (!mesh || slot >= mesh.instanceMatrix.count) continue;
           // Cabs face −z: yaw so local −z points along the direction of travel. Haulers are background traffic,
           // drawn smaller than the cargo node so they never read as ground enemies, and seated on the ground under
           // all four corners: pitch and roll follow the slope, and the body lifts until no corner sinks.
           const yaw = Math.atan2(-dx, ds), fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
           const ground = (a: number, b: number) => terrainHeight(seed ?? 0, x + fx * HAULER_HALF_LENGTH * a + rx * HAULER_HALF_WIDTH * b,
-            s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b), world.bare);
+            s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b), roadWorld.bare);
           const frontLeft = ground(1, -1), frontRight = ground(1, 1), backLeft = ground(-1, -1), backRight = ground(-1, 1);
           const rise = (frontLeft + frontRight - backLeft - backRight) / 2, bank = (frontRight + backRight - frontLeft - backLeft) / 2;
           const pitch = Math.atan2(rise, 2 * HAULER_HALF_LENGTH), roll = Math.atan2(bank, 2 * HAULER_HALF_WIDTH);
@@ -730,21 +768,21 @@ export function createTerrainView(options: TerrainViewOptions) {
           if (lift > 0.3) continue;
           transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, vesper ? yaw + Math.PI : yaw, vesper ? -roll : roll, 'YXZ');
           transform.scale.setScalar(HAULER_SCALE); transform.updateMatrix(); transform.rotation.order = 'XYZ';
-          mesh.setMatrixAt(used[n]++, transform.matrix); count++;
+          mesh.setMatrixAt(slot, transform.matrix); used.set(node, slot + 1); count++;
           haulerDust.push({ x: x - fx * HAULER_HALF_LENGTH, y: base + lift, z: distance - s - fz * HAULER_HALF_LENGTH });
         }
       }
       haulers.forEach((mesh, name) => {
-        const n = nodes.indexOf(name), shown = n < 0 ? 0 : used[n]; mesh.count = shown; mesh.visible = shown > 0; mesh.instanceMatrix.needsUpdate = true;
+        const shown = used.get(name) ?? 0; mesh.count = shown; mesh.visible = shown > 0; mesh.instanceMatrix.needsUpdate = true;
       });
       stats.haulers = count;
       // Pack ice drifts slowly around its base position (seed + time only; never collision or targets).
-      const sea = world.planet.seaLevel ?? 0, visible = new Map<string, Floe[]>();
+      const visible = new Map<string, Floe[]>(), seaOf = new Map<Floe, number>();
       for (const view of views.values()) for (const floe of view.floes) {
         if (Math.abs(floe.x - cameraX) > 8.6 || floe.s - distance < -9 || floe.s - distance > 30) continue;
         if (exclusion && floe.x > exclusion.minX && floe.x < exclusion.maxX && floe.s > exclusion.minS && floe.s < exclusion.maxS) continue;
         const name = kitNodeName(floe.kind, floe.variant), list = visible.get(name) ?? [];
-        list.push(floe); visible.set(name, list);
+        list.push(floe); visible.set(name, list); seaOf.set(floe, view.sea);
       }
       for (const [name, mesh] of floeMeshes) if (!visible.has(name)) { mesh.count = 0; mesh.visible = false; }
       floeUsed = 0;
@@ -761,6 +799,7 @@ export function createTerrainView(options: TerrainViewOptions) {
           }
           const x = bx + Math.cos(angle) * floe.radius, z = distance + bz - Math.sin(angle) * floe.radius, yaw = floe.rotation + sway;
           const [hx, hz] = FLOE_FOOTPRINT[name] ?? [KIT[floe.kind].halfX, KIT[floe.kind].halfZ];
+          const sea = seaOf.get(floe)!;
           transform.position.set(x, sea + Math.sin(time * 0.9 + floe.phase) * 0.015, z);
           transform.rotation.set(0, yaw, 0);
           transform.scale.set(floe.scaleX, floe.height, floe.scaleZ); transform.updateMatrix();
@@ -806,8 +845,14 @@ export function createTerrainView(options: TerrainViewOptions) {
     },
     /** Rebuilds live sections, e.g. after a layout-affecting change; kept for completeness. */
     rebuild: rebuildAll,
-    /** The world currently streamed (after any dev-only planet override). */
-    get world(): World { return world; },
+    /**
+     * The world at the current scroll distance (after the preview switch). On a route it is a routed world:
+     * its planet and arena are those under the ship, and height queries given it resolve every distance on
+     * the route (seating across a planet seam stays right).
+     */
+    get world(): World | RoutedWorld { return route ? routedWorld(route, world) : world; },
+    /** The route being streamed, if any. */
+    get route(): TerrainRoute | null { return route; },
   };
   return self;
 }

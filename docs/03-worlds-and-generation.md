@@ -205,7 +205,9 @@ The perfect pilot must take no hit in isolated squadrons and lose no life in any
 
 ## 8. Endless difficulty and seeds
 
-Sector combat duration is 90 seconds excluding draft pauses. Every third sector ends with a boss; stop adding ordinary chunks before its entry. Boss duration may extend the sector by up to 60 seconds; if time expires, the boss retreats, awards no kill reward, and the run continues. Never kill the player merely for low damage output. Campaign bosses do not retreat.
+Sector combat duration is 90 seconds excluding draft pauses. Every third sector ends with a boss; stop adding ordinary chunks before its entry. **Endless continues only once the boss is dead** (user decision, 15 October 2026): the fight has no time limit and no boss retreats, in endless or the campaign. This replaces the earlier rule that the boss could extend the sector by up to 60 seconds and then retreat with no kill reward. Never kill the player merely for low damage output; the fight simply lasts until the kill.
+
+**Planet cycle and endless bosses (as built, 15 October 2026; contract in [docs/18](18-endless-planet-cycle.md)).** Sectors 1–3 fly Khepri and sector 3 ends with Bastion-9; a hyperdrive jump leads to Vesper for sectors 4–6, and sector 6 ends with the Helion Ark; a jump back to Khepri follows, and the cycle repeats. A boss sector runs on its own clock (seconds from the sector's start): no ordinary cue is admitted from 70 s, not even one the airspace or budget held back, and the boss's approach message shows; the scroll eases to a stop over 77–83 s exactly as in the campaign arenas; the boss arrives at 80 s with the generic boss simulation (`src/sim/bastion.ts`) and its campaign script. Its part HP scale with the endless `healthScale`, its shot speeds with `bulletSpeedScale` times the pace's shot factor, and its recovery after each attack with `attackIntervalScale`; warnings, beam lanes and the fairness admission never scale. The fight lasts until the boss is destroyed. Then the scroll eases back up over 2 s and the 3 s hyperdrive jump runs (no enemies, shots or hazards; the player invulnerable from the kill until 0.5 s after the jump); the next sector starts on the new planet when the jump ends. The kill scores as usual (500 per module, 5,000 for the core); credits stay campaign-only. Fight length moves only time, never distance, so the whole schedule is a fixed function of distance (`endlessSchedule` in `src/content/endless.ts`).
 
 Difficulty by sector `s >= 1` (runtime source: `ENDLESS_RAMP` and `PACE` in `src/content/balance.ts`; revised 14 and 15 October 2026):
 
@@ -217,7 +219,9 @@ attackIntervalScale = max(1 - 0.06 * (s - 1), 0.70)    // repeat volleys; floor 
 threatBudget        = min(14 + 2 * (s - 1), 22)        // live threat incl. survivors; cap in sector 5
 windups / beam lanes = 5 / 1 in sectors 1-2, 7 / 2 from sector 3
 squadron variant    = base in sectors 1-2, Veteran wingmen from sector 3
-playlist            = opening (sector 1), pressure (2-3), peak (4+)
+playlist            = Khepri: opening (sector 1), pressure (2-3), peak (later Khepri visits)
+                      Vesper: vesper opening (4), vesper pressure (5-6), vesper peak (later Vesper visits)
+                      boss sectors (every third) fly their playlist only up to 70 s
 ```
 
 **Pace.** Pace scales the terrain scroll, ship kinematics, enemy movement (squadron paths, fire offsets and repeat intervals run on an enemy clock at the pace; ground batteries move with the scroll), camera follow and pickup drift together. The anchors are:
@@ -228,7 +232,7 @@ playlist            = opening (sector 1), pressure (2-3), peak (4+)
 | 1.0 (campaign) | 5 | 12 / 90 / 125 | 17 | 1 |
 | 1.1 (sector 5 onward) | 5.5 | 13.2 / 99 / 137.5 | 18.7 | 1.05 |
 
-Values interpolate linearly between anchors. Sector values are 0.8, 0.875, 0.95, 1.025 and then 1.1. Warnings are real seconds and never scale with the pace. Campaign always flies pace 1.
+Values interpolate linearly between anchors. Sector values are 0.8, 0.875, 0.95, 1.025 and then 1.1. Warnings are real seconds and never scale with the pace. Campaign always flies pace 1. Scroll is exactly 5 × pace, so endless distance is a closed form of time: a sector without a boss covers 360, 392.81, 460.31, 494.06 and then 495 units (sectors 1, 2, 4, 5, then 7 onward); a boss sector covers its ramp to the arena stop, then 34.25 (Bastion-9) or 43.25 (Helion Ark) units of resume and jump.
 
 The 14 October proposal was `healthScale = min(1 + 0.08(s − 1), 1.6)`, `bulletSpeedScale = min(1 + 0.04(s − 1), 1.3)` and `threatBudget = min(22 + 3(s − 1), 34)` at a constant pace. The original proposal was `min(1 + 0.06(s − 1), 1.6)`, `min(1 + 0.025(s − 1), 1.25)` and a per-chunk `min(8 + 2(s − 1), 24)`. Sector 1 starts with squadrons from second 2, but the first 20 s stay an introduction: a ship that never moves loses its first life at about 29 s. After those caps, repeat at capped difficulty with new order and biome rotations. Endless means no scripted final stage, not infinitely accelerating bullets. No global timer that eventually makes all patterns impossible. Bullet count, warning time, and safe-path constraints remain hard limits at every sector.
 

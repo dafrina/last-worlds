@@ -91,17 +91,6 @@ export function kinematics(pace: number): Kinematics {
   return anchors[anchors.length - 1].kinematics;
 }
 
-/** Endless pace at an active time: each sector eases from the previous sector's pace to its own. */
-export function endlessPace(time: number): number {
-  const ramp = PACE.endless;
-  const sector = Math.floor((time + 1e-8) / BALANCE.sectorDuration) + 1;
-  const target = (s: number) => Math.min(ramp.start + ramp.perSector * Math.max(0, s - 1), ramp.cap);
-  const into = time - (sector - 1) * BALANCE.sectorDuration;
-  const u = Math.max(0, Math.min(1, into / ramp.easeSeconds));
-  const from = target(sector - 1 < 1 ? 1 : sector - 1);
-  return from + (target(sector) - from) * u * u * (3 - 2 * u);
-}
-
 /**
  * Airspace (docs/03 §6): squadrons never overlap. Members of different squadrons keep `separation` apart, and
  * two air squadrons on screen never share rows (their forward extents stay `bandGap` apart). Ground batteries

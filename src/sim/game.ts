@@ -1,8 +1,11 @@
-import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, endlessPace, kinematics, type DifficultyScale } from '../content/balance';
+import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
-import { missionBoss } from '../content/bosses';
+import { BOSSES, missionBoss } from '../content/bosses';
+import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
+import { runPlanet } from '../content/missions';
+import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
 import { airspaceClear, plannedMembers, resolveAnchor } from './airspace';
@@ -18,10 +21,10 @@ export function createRun(config: RunConfig): RunState {
   const normalized: RunConfig = config.mode === 'endless'
     ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', weapon: 'pulse' }
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', weapon: config.weapon ?? 'pulse', mission: config.mission ?? 'training' };
-  const pace = normalized.mode === 'endless' ? endlessPace(0) : PACE.campaign;
+  const pace = normalized.mode === 'endless' ? paceInSector(1, 0) : PACE.campaign;
   return {
     config: normalized, phase: 'playing', tick: 0, time: 0, distance: 0, sector: 1, cameraX: 0,
-    pace, scrollSpeed: kinematics(pace).scroll,
+    pace, scrollSpeed: kinematics(pace).scroll, planet: runPlanet(normalized), jump: null, sectorStartedAt: 0,
     player: {
       x: 0, vx: 0, lives: normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives,
       shields: BALANCE.shield.charges, maxShields: BALANCE.shield.charges,
@@ -79,9 +82,8 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
  */
 function updatePace(state: RunState, dt: number): void {
   if (state.config.mode === 'endless') {
-    state.pace = endlessPace(state.time);
-    state.scrollSpeed = kinematics(state.pace).scroll;
-    state.distance += state.scrollSpeed * dt;
+    // Endless: sector progression, closed-form scroll, bosses and the hyperdrive jump (docs/18).
+    updateEndless(state, beginSector);
   } else if (missionBoss(state.config.mission)) {
     const destroyedAt = state.boss?.phase === 'destroyed' ? state.boss.phaseStartedAt : null;
     const scroll = arenaScroll(state.time, destroyedAt, missionBoss(state.config.mission)!.arena);
@@ -109,6 +111,13 @@ function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), movement.camera * dt);
 }
 
+/** Starts an endless sector's playlist (called by the cycle driver when a sector begins). */
+function beginSector(state: RunState): void {
+  state.encounterIndex = 0;
+  state.nextEncounterAt = state.sectorStartedAt + 2;
+  setMessage(state, `SECTOR ${String(state.sector).padStart(2, '0')} · ${state.planet.toUpperCase()}`, 3);
+}
+
 const MISSION_TITLES: Readonly<Record<MissionId, string>> = {
   training: 'TRAINING SORTIE · KHEPRI', bastion: 'ROLLING THUNDER · KHEPRI', 'cold-vector': 'COLD VECTOR · VESPER',
 };
@@ -122,15 +131,20 @@ function updateDirector(state: RunState): void {
       return;
     }
   }
-  const sector = state.config.mode === 'endless' ? Math.floor((state.time + 1e-8) / BALANCE.sectorDuration) + 1 : 1;
-  if (sector !== state.sector) {
-    state.sector = sector;
-    state.encounterIndex = 0;
-    state.nextEncounterAt = (sector - 1) * BALANCE.sectorDuration + 2;
-    setMessage(state, `SECTOR ${String(sector).padStart(2, '0')} · PRESSURE RISING`, 3);
+  const endless = state.config.mode === 'endless';
+  // Endless boss sectors admit no ordinary cue once the approach ends, during the fight or the jump. A cue
+  // the airspace or budget held back past the approach is dropped, exactly as in the campaign.
+  if (endless && (state.boss || state.jump)) return;
+  if (endless && isBossSector(state.sector)) {
+    const def = BOSSES[endlessSectorPlan(state.sector).boss!];
+    const approachEndsAt = state.sectorStartedAt + ENDLESS_CYCLE.bossSector.approachEndsAt;
+    if (state.time + 1e-8 >= approachEndsAt || state.nextEncounterAt >= approachEndsAt) {
+      if (state.time >= approachEndsAt && state.message !== def.messages.approach) setMessage(state, def.messages.approach, 6);
+      return;
+    }
   }
-  const cues = state.config.mode === 'campaign' ? campaignPlaylist(state.config.mission ?? 'training') : endlessPlaylist(state.sector);
-  const start = state.config.mode === 'endless' ? (state.sector - 1) * BALANCE.sectorDuration : 0;
+  const cues = endless ? endlessPlaylist(state.sector) : campaignPlaylist(state.config.mission ?? 'training');
+  const start = endless ? state.sectorStartedAt : 0;
   const cue = cues[state.encounterIndex];
   if (!cue || state.time + 1e-8 < state.nextEncounterAt) return;
   // Two-flank entries are announced first; a stale or overwritten alert is shown again in full.
@@ -173,7 +187,7 @@ function updateShieldSupplies(state: RunState, previousTime: number): void {
   const supplies = BALANCE.shieldSupplies;
   const times: readonly number[] = state.config.mode === 'campaign'
     ? (missionBoss(state.config.mission)?.shieldSupplies ?? supplies.campaign)[state.config.difficulty ?? 'standard']
-    : [(state.sector - 1) * BALANCE.sectorDuration + supplies.endlessAt];
+    : [state.sectorStartedAt + supplies.endlessAt];
   for (const at of times) {
     // Match the director's floating-point tolerance on both sides of the crossing.
     // Active time never rewinds on respawn or resume, so no separate receipt is needed.

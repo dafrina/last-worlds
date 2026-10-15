@@ -1,7 +1,7 @@
 import { TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT, clamp, mix, type Mood, type MoodParams } from './terrain-layout';
 import { padInfluence, settlementsNear, type Settlement } from './terrain-settlements';
 import { arenaWeight, type TerrainArena } from './terrain-arena';
-import { worldOf, type PlanetPoint, type World, type WorldInput } from './terrain-planet';
+import { worldAt, type PlanetPoint, type TerrainInput, type World } from './terrain-planet';
 
 /** Everything constant along one forward row: planet and mood, the settlement pads that reach it, and any arena. */
 export interface TerrainRow {
@@ -15,8 +15,9 @@ export interface TerrainRow {
 }
 /** A few recent rows are reused (rows are immutable), which cuts allocation in path search and seating. */
 const recentRows: TerrainRow[] = [];
-export function terrainRow(seed: number, s: number, input?: WorldInput | World): TerrainRow {
-  const world = worldOf(input);
+export function terrainRow(seed: number, s: number, input?: TerrainInput): TerrainRow {
+  // A route resolves the world of this row's own distance (planet stretch and nearest arena).
+  const world = worldAt(input, s);
   for (const row of recentRows) if (row.s === s && row.seed === seed && row.world === world) return row;
   const { planet, arena } = world;
   const sites = settlementsNear(seed, s, s, arena, planet).filter(site => site.flatten > 0 && Math.abs(s - site.s) < site.hs + 2.5);
@@ -46,8 +47,9 @@ export function rowPoint(row: TerrainRow, x: number): TerrainPoint {
 }
 /**
  * Seating height only: cheap enough for per-frame turret seating, flight shadows and path search. `world` is
- * `{ planet, arena }` (Khepri without an arena when omitted; a bare arena still means Khepri).
+ * `{ planet, arena }` (Khepri without an arena when omitted; a bare arena still means Khepri), or a route
+ * (each distance resolves its own world).
  */
-export function terrainHeight(seed: number, x: number, s: number, world?: WorldInput | World): number {
+export function terrainHeight(seed: number, x: number, s: number, world?: TerrainInput): number {
   return rowPoint(terrainRow(seed, s, world), x).height;
 }

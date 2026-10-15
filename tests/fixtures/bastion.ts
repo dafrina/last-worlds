@@ -13,6 +13,7 @@ const query = new URLSearchParams(location.search);
 const ark = query.get('boss') === 'ark';
 let state = createRun({ mode: 'campaign', mission: ark ? 'cold-vector' : 'bastion', seed: Number(query.get('seed') ?? 8831) });
 function prepare() {
+  if (query.get('mode') === 'jump') return prepareJump();
   if (ark) return prepareArk();
   state.time = BASTION.arrivesAt;
   // The arena scroll is a closed form of time: the terrain is decelerating toward its stop as the fortress rolls in.
@@ -43,6 +44,19 @@ function prepareArk() {
   if (phase === 'launch') { step(Math.max(0, state.boss!.nextLaunchAt - state.time - .35)); return; }
   if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
   if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
+}
+/**
+ * Endless hyperdrive jump (docs/18): `mode=jump&n=1|2&t=N` flies an endless run (invulnerable, no input) to the
+ * n-th boss sector (1: Bastion-9 then Khepri → Vesper; 2: the Helion Ark then Vesper → Khepri), destroys the boss
+ * as soon as it is targetable, then steps N seconds: the jump runs from about 2 to 5 s, its flash at 3.5 s.
+ */
+function prepareJump() {
+  state = createRun({ mode: 'endless', seed: Number(query.get('seed') ?? 8831) });
+  const target = Number(query.get('n') ?? 1) * 3, at = Number(query.get('t') ?? 0);
+  const tick = () => { state.player.invulnerableUntil = Infinity; stepRun(state, EMPTY_INPUT); };
+  for (let guard = 0; guard < 60 * 1200 && !(state.sector === target && state.boss && state.boss.phase === 'batteries'); guard++) tick();
+  if (state.boss) { for (const part of ['left', 'right', 'core'] as const) bossTarget(state, part)!.hp = 0; resolveBastionPhase(state); }
+  for (let i = 0; i < Math.round(at * 60); i++) tick();
 }
 prepare();
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {

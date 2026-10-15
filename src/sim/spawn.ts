@@ -1,10 +1,18 @@
-import { ENEMIES, difficultyScales, type DifficultyScale } from '../content/balance';
+import { ENEMIES, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { FORMATIONS, slotFlies, type FormationId } from '../content/formations';
 import type { FormationMember, RunState } from '../shared/contracts';
 import { groundHeight, memberPosition } from './motion';
 
 export function runScale(state: RunState): DifficultyScale {
   return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
+}
+
+/**
+ * Boss shot speed: the campaign difficulty, or the endless ramp at this sector times the pace's shot factor.
+ * The boss simulation and the fairness prediction both use it, so predictions match the fired pattern.
+ */
+export function bossShotScale(state: RunState): number {
+  return runScale(state).shotSpeed * (state.config.mode === 'endless' ? kinematics(state.pace).shot : 1);
 }
 
 /**

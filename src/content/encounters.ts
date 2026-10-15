@@ -1,5 +1,6 @@
 import type { EnemyKind, MissionId, WeaponId } from '../shared/contracts';
 import { FORMATIONS, slotFlies, type FormationId, type FormationRank } from './formations';
+import { endlessPlanet, isFirstVisit } from './endless';
 
 /**
  * One authored squadron placement. 'view' anchors the template to the camera center when the cue is admitted
@@ -293,9 +294,15 @@ export function campaignPlaylist(mission: MissionId): readonly EncounterCue[] {
   return mission === 'bastion' ? ROLLING_THUNDER : mission === 'cold-vector' ? COLD_VECTOR : TRAINING;
 }
 
-/** The authored playlist of an endless sector (Khepri roster; the planet cycle arrives with docs/18). */
+/**
+ * The authored playlist of an endless sector: the planet's roster (Khepri kinds on Khepri, Vesper kinds on
+ * Vesper), opening and pressure stages on the planet's first stint, its peak playlist on later visits. A boss
+ * sector admits no cue at or after ENDLESS_CYCLE.bossSector.approachEndsAt.
+ */
 export function endlessPlaylist(sector: number): readonly EncounterCue[] {
-  return sector === 1 ? SECTOR_OPENING : sector < 4 ? SECTOR_PRESSURE : SECTOR_PEAK;
+  const stage = (sector - 1) % 3;
+  if (endlessPlanet(sector) === 'vesper') return isFirstVisit(sector) ? (stage === 0 ? VESPER_OPENING : VESPER_PRESSURE) : VESPER_PEAK;
+  return isFirstVisit(sector) ? (stage === 0 ? SECTOR_OPENING : SECTOR_PRESSURE) : SECTOR_PEAK;
 }
 
 /** Enemy kinds a cue admits at the given rank: the complete group, never trimmed. */

@@ -4,6 +4,7 @@ import { VIEW, type Enemy, type RunState } from '../shared/contracts';
 import { beamSpec, bossShots, diamondSide, enemyShots, type BulletKind, type ShotSpec } from './attacks';
 import { clamp, approach } from './geometry';
 import { bossPartOffset, bossPose, enemyClockRate, positionAfter } from './motion';
+import { bossShotScale } from './spawn';
 
 /**
  * Hazard union at the player's fixed row (docs/03 §7). A footprint is the physical lateral extent of one
@@ -40,7 +41,7 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     const attack = state.boss?.attack;
     // Overload lanes already exist as marked hazards from the start of their windup.
     if (!attack || attack === 'beam') return [];
-    const scale = difficultyScales('campaign', state.config.difficulty ?? 'standard', 1).shotSpeed;
+    const scale = bossShotScale(state);
     // The hull keeps maneuvering through the windup: predict from its pose at release.
     const pose = state.boss!.phase === 'destroyed' ? { x: state.boss!.x, s: state.boss!.s } : bossPose(state.boss!, release);
     const offset = bossPartOffset(enemy.bossPart, state.boss!.id);

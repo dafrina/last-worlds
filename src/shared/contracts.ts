@@ -53,6 +53,8 @@ export interface Projectile {
 export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number }
 export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
 export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup'; x: number; s: number; ttl: number; duration: number }
+/** A hyperdrive jump between planets: about 3 s; the look switches at its midpoint (`startedAt + duration / 2`). */
+export interface JumpState { startedAt: number; duration: number; from: PlanetId; to: PlanetId }
 export interface RunState {
   config: RunConfig; phase: RunPhase; tick: number; time: number; distance: number;
   sector: number; cameraX: number; player: Player; enemies: Enemy[];
@@ -65,6 +67,12 @@ export interface RunState {
   scrollSpeed: number;
   /** Kinematic pace: 1 is the campaign pace; endless ramps it by sector. Scales ship, enemy and camera motion. */
   pace: number;
+  /** The planet the run is over now (endless cycles Khepri → Vesper → …; docs/18). Switches at the jump flash. */
+  planet: PlanetId;
+  /** The hyperdrive jump in progress, or null: no combat or hazards, the player invulnerable. */
+  jump: JumpState | null;
+  /** Active time at which the current endless sector began (0 in the campaign). */
+  sectorStartedAt: number;
 }
 export const VIEW = { width: 12, worldWidth: 30, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;
