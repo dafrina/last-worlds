@@ -1,5 +1,17 @@
 # Build status
 
+## Smooth cliff edges — 15 October 2026
+
+The sawtooth stair-step rims and striped diagonal walls are fixed in the geometry:
+- **Mesh:** the ground grid is now 0.25 units (`TERRAIN_STEP`, previously 0.5), each quad splits along its flatter diagonal so triangle edges follow rims, and nearly flat ground merges back to half-unit quads with crack-free transitions.
+- **Shading:** normals come from central differences on the fine grid, and the basalt striation projects along each face's own direction instead of flipping between axes, which caused chevrons.
+- **Version:** `TERRAIN_VERSION` is 9.
+- **Checks:** 182/182 tests, including a new seam and crack test; 14/14 browser tests.
+- **Cost:**
+  - visible terrain triangles: worst 64.8k on High, average 33k (target ≤ 120k);
+  - generation: about 50 ms per section, spread over prefetch frames with 0 fallbacks;
+  - run start: the first three sections build synchronously, about 150 ms on desktop, an estimated 0.5 s on phones (unmeasured).
+
 ## Quicker fire and run-wide shields — 15 October 2026
 
 - **Faster enemy fire (about 17%):** repeat intervals are now Dart 1.0 s, Weaver 1.25 s, battery 1.15 s, Lancer 2.15 s; Bastion-9's pause between attacks is 0.6 s. Training keeps a ×1.25 cadence and a lighter climax; Relaxed is ×2.0.

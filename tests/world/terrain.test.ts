@@ -47,6 +47,34 @@ describe('seeded Khepri landforms', () => {
     }
   });
 
+  it('meshes the quarter-unit grid adaptively without cracks, and seams share the same boundary edges', () => {
+    for (const seed of [93, 8831]) {
+      const edgesOf = (section: TerrainSection) => {
+        const count = new Map<string, number>(), key = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`;
+        for (let i = 0; i < section.indices.length; i += 3) for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) {
+          const k = key(section.indices[i + a], section.indices[i + b]); count.set(k, (count.get(k) ?? 0) + 1);
+        }
+        return count;
+      };
+      const a = generateTerrainSection(seed, 4), b = generateTerrainSection(seed, 5), { across, along } = a;
+      // Flat ground uses half-unit quads; relief keeps the quarter-unit grid.
+      expect(a.indices.length / 3).toBeLessThan((across - 1) * (along - 1) * 2 * 0.8);
+      expect(a.indices.length / 3).toBeGreaterThan((across - 1) * (along - 1) / 2 * 1.05);
+      const onBorder = (v: number) => v % across === 0 || v % across === across - 1 || v < across || v >= (along - 1) * across;
+      // A closed sheet: every inner edge is shared by exactly two triangles (no T-junction cracks).
+      for (const [edge, n] of edgesOf(a)) {
+        const [u, v] = edge.split(':').map(Number);
+        if (onBorder(u) && onBorder(v) && (Math.floor(u / across) === Math.floor(v / across) || u % across === v % across)) expect(n).toBe(1);
+        else expect(n, edge).toBe(2);
+      }
+      // The last row of one section and the first of the next are split at the same vertices.
+      const lastRow = [...edgesOf(a).keys()].map(k => k.split(':').map(Number)).filter(([u, v]) => u >= (along - 1) * across && v >= (along - 1) * across)
+        .map(([u, v]) => `${u - (along - 1) * across}:${v - (along - 1) * across}`).sort();
+      const firstRow = [...edgesOf(b).keys()].map(k => k.split(':').map(Number)).filter(([u, v]) => u < across && v < across).map(([u, v]) => `${u}:${v}`).sort();
+      expect(lastRow).toEqual(firstRow);
+    }
+  });
+
   it('spans deep valleys to high rims within [−8, 2.2] and keeps every piece inside its section and the world', () => {
     expect(TERRAIN_MIN_HEIGHT).toBeGreaterThanOrEqual(-8); expect(SCENERY_MAX_HEIGHT).toBe(2.2);
     let lowest = Infinity, highest = -Infinity;

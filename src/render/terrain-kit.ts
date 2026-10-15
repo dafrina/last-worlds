@@ -523,9 +523,11 @@ float khepriCells( vec2 local, float scale ) {
   // One dust tap; vertex-colour drift hides the tile repetition. Three taps in total on High (dust, rock, normal).
   float dustA = texture2D( map, vMapUv ).r * 2.0;
   // Steep faces: basalt detail projected on the vertical plane they face, with columnar striation.
+  // The across-face coordinate follows the face's own horizontal direction continuously, so walls running
+  // diagonally keep straight columns instead of flipping between x and z projections (chevron stripes).
   // Flat ground (most pixels) skips this path; derivatives are taken outside the branch.
-  bool facesX = abs( vFace.x ) > abs( vFace.z );
-  float across = facesX ? vLocal.z : vLocal.x;
+  vec2 faceDir = normalize( vFace.xz + vec2( 1e-4, 0.0 ) );
+  float across = dot( vLocal.xz, vec2( -faceDir.y, faceDir.x ) );
   vec2 faceUv = vec2( across, vLocal.y ) * faceScale, faceDx = dFdx( faceUv ), faceDy = dFdy( faceUv );
   float detail = dustA;
   if ( vRock > 0.01 ) {

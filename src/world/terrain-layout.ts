@@ -220,7 +220,7 @@ export function crater(seed: number, x: number, s: number, calm = 0): { height: 
  * Slope-driven albedo (linear RGB): steep faces dark columnar basalt, flat ground ochre dust, rims and
  * ledges lighter dust, valley bottoms darker with minerals. `slope` is |∇h| from central differences.
  */
-export function pointColor(row: { seed: number; s: number }, x: number, point: Landform & { industrial: number; platform?: number; paving?: number; plate?: number }, slope: number, rim: number): [number, number, number] {
+export function pointColor(row: { seed: number; s: number }, x: number, point: Landform & { industrial: number; platform?: number; paving?: number; plate?: number }, slope: number, rim: number, out: [number, number, number] = [0, 0, 0]): [number, number, number] {
   const { seed, s } = row;
   const drift = noise(seed ^ 0x51ab, x * 0.05, s * 0.032), broad = noise(seed ^ 0x5a1b, x * 0.11, s * 0.08);
   const fine = noise(seed ^ 0x1234, x * 0.9, s * 0.9);
@@ -240,5 +240,6 @@ export function pointColor(row: { seed: number; s: number }, x: number, point: L
     return mix(value, P.mineralBed[channel], point.pool * 0.25);
   };
   const grain = 0.96 + fine * 0.08;
-  return [pick(0) * grain, pick(1) * grain, pick(2) * grain];
+  out[0] = pick(0) * grain; out[1] = pick(1) * grain; out[2] = pick(2) * grain;
+  return out;
 }

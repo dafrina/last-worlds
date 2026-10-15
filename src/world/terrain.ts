@@ -24,16 +24,21 @@ export {
 } from './terrain-scatter';
 
 /** Pure Khepri scenery. Terrain never reads, schedules, or advances combat or loot. */
-export const TERRAIN_VERSION = 8;
-/** Binary-exact grid step so section seams share bit-identical coordinates. */
-export const TERRAIN_STEP = 0.5;
+export const TERRAIN_VERSION = 9;
+/**
+ * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
+ * rims and canyon walls that cross the grid diagonally without visible stair steps.
+ */
+export const TERRAIN_STEP = 0.25;
 export const RETAINED_SECTIONS = 3;
-/** Diagonal march length for baked cast shadows (each step is TERRAIN_STEP·√2 toward the sun). */
-const SHADOW_STEPS = 16;
+/** Cast-shadow march: steps of SHADOW_STRIDE cells (half a unit) diagonally toward the sun, about 11 units in all. */
+const SHADOW_STEPS = 16, SHADOW_STRIDE = Math.round(0.5 / TERRAIN_STEP);
 /** Ground in full cast shadow keeps this fraction of its albedo. */
 const SHADOW_FLOOR = 0.3;
-/** Neighbourhood radius (cells) for rim and cliff-foot detection. */
-const RIM_CELLS = 2;
+/** Largest height error (world units) allowed where a 2×2 block of quarter cells is drawn as one quad. */
+const FLAT_TOLERANCE = 0.03;
+/** Neighbourhood radius (cells, one unit) for rim and cliff-foot detection. */
+const RIM_CELLS = Math.round(1 / TERRAIN_STEP);
 
 /** A modelled infrastructure piece (docs/13 §3b) placed at scale 1 by a settlement archetype. */
 export interface TerrainProp {
@@ -81,13 +86,12 @@ export interface TerrainSample {
   industrial: number;
 }
 
+/** The eight rim-probe offsets (cells) around a point, one unit out. */
+const RIM_OFFSETS = Array.from({ length: 8 }, (_, k) => [Math.round(Math.cos(k * Math.PI / 4) * RIM_CELLS), Math.round(Math.sin(k * Math.PI / 4) * RIM_CELLS)] as const);
 function rimAt(height: (dx: number, ds: number) => number): { drop: number; rise: number } {
   const center = height(0, 0);
   let drop = 0, rise = 0;
-  for (let k = 0; k < 8; k++) {
-    const angle = k * Math.PI / 4, h = height(Math.round(Math.cos(angle) * RIM_CELLS), Math.round(Math.sin(angle) * RIM_CELLS));
-    drop = Math.max(drop, center - h); rise = Math.max(rise, h - center);
-  }
+  for (const [dx, ds] of RIM_OFFSETS) { const h = height(dx, ds); drop = Math.max(drop, center - h); rise = Math.max(rise, h - center); }
   return { drop, rise };
 }
 const rimFactor = (drop: number, slope: number) => smoothRange(0.45, 1.2, drop) * (1 - smoothRange(0.6, 1.3, slope));
@@ -145,18 +149,32 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
   const size = VIEW.sectionLength, startS = index * size, cellsX = WORLD_HALF * 2 / TERRAIN_STEP, cellsS = size / TERRAIN_STEP;
   const across = cellsX + 1, along = cellsS + 1, vertices = across * along;
   // Apron: rim detection on every side, plus a long shadow apron toward the sun (−x, +s).
-  const near = RIM_CELLS, far = Math.max(SHADOW_STEPS, RIM_CELLS);
+  const near = RIM_CELLS, far = Math.max(SHADOW_STEPS * SHADOW_STRIDE, RIM_CELLS);
   const columns = near + far + cellsX + 1, rows = near + far + cellsS + 1;
   const heights = new Float64Array(columns * rows);
   const at = (row: number, column: number) => (row + near) * columns + column + far;
-  const points: TerrainPoint[] = new Array(vertices), contexts: TerrainRow[] = new Array(along);
+  // Per-vertex landform fields go straight into typed arrays (no retained point objects: less garbage).
+  const perVertex = () => new Float32Array(vertices);
+  const fChannel = perVertex(), fIndustrial = perVertex(), fPool = perVertex(), fVeins = perVertex(), fVein = perVertex(), fVein2 = perVertex();
+  const elevation = perVertex(), fPlatform = perVertex(), fPaving = perVertex(), fPlate = perVertex();
+  let arenaRows = false;
+  const contexts: TerrainRow[] = new Array(along);
   for (let row = -near; row <= cellsS + far; row++) {
+    // Beyond the near apron only the shadow march reads heights, on even rows and columns (half-unit steps).
+    const farRow = row > cellsS + near;
+    if (farRow && row & 1) { yield; continue; }
     const localS = row * TERRAIN_STEP, ctx = terrainRow(seed, startS + localS, arena);
     if (row >= 0 && row <= cellsS) contexts[row] = ctx;
     for (let column = -far; column <= cellsX + near; column++) {
+      if ((farRow || column < -near) && column & 1) continue;
       const point = rowPoint(ctx, -WORLD_HALF + column * TERRAIN_STEP);
       heights[at(row, column)] = point.height;
-      if (row >= 0 && row <= cellsS && column >= 0 && column <= cellsX) points[row * across + column] = point;
+      if (row >= 0 && row <= cellsS && column >= 0 && column <= cellsX) {
+        const v = row * across + column;
+        fChannel[v] = point.channel; fIndustrial[v] = point.industrial; fPool[v] = point.pool; fVeins[v] = point.veins;
+        fVein[v] = point.vein; fVein2[v] = point.vein2; elevation[v] = point.elevation;
+        if (point.platform !== undefined) { arenaRows = true; fPlatform[v] = point.platform; fPaving[v] = point.paving ?? 0; fPlate[v] = point.plate ?? 0; }
+      }
     }
     yield;
   }
@@ -165,39 +183,99 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
   const edges = new Float32Array(vertices * 2), rock = new Float32Array(vertices);
   const slopes = new Float32Array(vertices), drops = new Float32Array(vertices), rises = new Float32Array(vertices);
   const gradients = new Float32Array(vertices * 2), shade = new Float32Array(vertices);
-  const rise = TERRAIN_STEP * Math.SQRT2 * SUN_RISE;
+  const rise = TERRAIN_STEP * SHADOW_STRIDE * Math.SQRT2 * SUN_RISE, albedo: [number, number, number] = [0, 0, 0];
+  const scratch = { height: 0, elevation: 0, channel: 0, pool: 0, vein: 0, vein2: 0, veins: 0, industrial: 0 } as TerrainPoint;
+  // Shadow-march heights read the half-unit lattice (even rows and columns, all the sparse far apron holds),
+  // filled in between linearly. The rule is the same everywhere, so seams shade identically on both sides.
+  const H = (r: number, c: number) => heights[at(r, c)];
+  const marchHeight = (r: number, c: number) => {
+    if (!(r & 1) && !(c & 1)) return H(r, c);
+    if (r & 1 && c & 1) return (H(r - 1, c - 1) + H(r - 1, c + 1) + H(r + 1, c - 1) + H(r + 1, c + 1)) / 4;
+    return r & 1 ? (H(r - 1, c) + H(r + 1, c)) / 2 : (H(r, c - 1) + H(r, c + 1)) / 2;
+  };
+  const rimOffsets = RIM_OFFSETS.map(([dx, ds]) => ds * columns + dx);
   for (let row = 0; row <= cellsS; row++) for (let column = 0; column <= cellsX; column++) {
-    if (column === 0 && row % 2 === 0) yield;
-    const vertex = row * across + column, center = at(row, column), point = points[vertex], x = -WORLD_HALF + column * TERRAIN_STEP;
-    // Central differences include the apron. Never recompute isolated mesh normals.
+    if (column === 0) yield;
+    const vertex = row * across + column, center = at(row, column), x = -WORLD_HALF + column * TERRAIN_STEP;
+    const point = scratch;
+    point.height = heights[center]; point.channel = fChannel[vertex]; point.industrial = fIndustrial[vertex]; point.pool = fPool[vertex];
+    if (arenaRows && fPlatform[vertex] > 0) { point.platform = fPlatform[vertex]; point.paving = fPaving[vertex]; point.plate = fPlate[vertex]; }
+    else point.platform = point.paving = point.plate = undefined;
+    // Central differences over the quarter-unit grid (apron included) follow the smooth field closely, so
+    // shading stays smooth across rims and walls. Never recompute isolated mesh normals.
     const dx = (heights[center + 1] - heights[center - 1]) / (TERRAIN_STEP * 2);
     const ds = (heights[center + columns] - heights[center - columns]) / (TERRAIN_STEP * 2);
     const length = Math.hypot(dx, 1, ds), slope = Math.hypot(dx, ds);
-    normals.set([-dx / length, 1 / length, ds / length], vertex * 3);
-    const { drop, rise: foot } = rimAt((cx, cs) => heights[at(row + cs, column + cx)]);
+    normals[vertex * 3] = -dx / length; normals[vertex * 3 + 1] = 1 / length; normals[vertex * 3 + 2] = ds / length;
+    let drop = 0, foot = 0;
+    for (const offset of rimOffsets) { const h = heights[center + offset]; drop = Math.max(drop, heights[center] - h); foot = Math.max(foot, h - heights[center]); }
     // Cheap cast shadow: march the height grid diagonally toward the sun.
     let shadow = 0;
     for (let i = 1; i <= SHADOW_STEPS && shadow < 1; i++) {
-      shadow = Math.max(shadow, smoothRange(-0.1, 0.35, heights[at(row + i, column - i)] - point.height - i * rise));
+      shadow = Math.max(shadow, smoothRange(-0.1, 0.35, marchHeight(row + i * SHADOW_STRIDE, column - i * SHADOW_STRIDE) - point.height - i * rise));
     }
     const light = (1 - (1 - SHADOW_FLOOR) * shadow) * (1 - 0.28 * smoothRange(0.6, 2.4, foot) * (1 - smoothRange(0.6, 1.4, slope)));
-    const albedo = pointColor(contexts[row], x, point, slope, rimFactor(drop, slope));
-    colors.set([albedo[0] * light, albedo[1] * light, albedo[2] * light], vertex * 3);
-    positions.set([x, point.height, -row * TERRAIN_STEP], vertex * 3);
+    pointColor(contexts[row], x, point, slope, rimFactor(drop, slope), albedo);
+    colors[vertex * 3] = albedo[0] * light; colors[vertex * 3 + 1] = albedo[1] * light; colors[vertex * 3 + 2] = albedo[2] * light;
+    positions[vertex * 3] = x; positions[vertex * 3 + 1] = point.height; positions[vertex * 3 + 2] = -row * TERRAIN_STEP;
     // Veins run across calm low ground and brighten where they gather at cliff feet.
-    glow[vertex * 2] = Math.min(1, point.veins * (1 - smoothRange(0.4, 0.9, slope)) * (1 + 0.8 * smoothRange(0.8, 2.2, foot))); glow[vertex * 2 + 1] = point.pool;
-    edges[vertex * 2] = point.vein; edges[vertex * 2 + 1] = point.vein2; rock[vertex] = smoothRange(0.6, 1.5, slope);
+    glow[vertex * 2] = Math.min(1, fVeins[vertex] * (1 - smoothRange(0.4, 0.9, slope)) * (1 + 0.8 * smoothRange(0.8, 2.2, foot))); glow[vertex * 2 + 1] = point.pool;
+    edges[vertex * 2] = fVein[vertex]; edges[vertex * 2 + 1] = fVein2[vertex]; rock[vertex] = smoothRange(0.6, 1.5, slope);
     slopes[vertex] = slope; drops[vertex] = drop; rises[vertex] = foot; shade[vertex] = light;
     gradients[vertex * 2] = dx; gradients[vertex * 2 + 1] = ds;
   }
+  // Adaptive mesh: where the ground is nearly flat a 2×2 block of quarter cells is drawn as one half-unit
+  // quad; rims, walls and other relief keep the full quarter-unit grid. A flat block next to a detailed one
+  // takes the shared edge midpoints into a fan around its centre, so there are no T-junction cracks. The
+  // decision reads only global heights (the apron covers the neighbours across section seams).
+  const blocksX = cellsX / 2, blocksS = cellsS / 2, flat = new Uint8Array((blocksS + 2) * blocksX);
+  const isFlat = (R: number, C: number) => C >= 0 && C < blocksX && flat[(R + 1) * blocksX + C] === 1;
+  for (let R = -1; R <= blocksS; R++) {
+    for (let C = 0; C < blocksX; C++) {
+      const h = (i: number, j: number) => heights[at(R * 2 + j, C * 2 + i)];
+      const a = h(0, 0), b = h(2, 0), c = h(0, 2), d = h(2, 2);
+      let deviation = 0;
+      for (let j = 0; j <= 2; j++) for (let i = 0; i <= 2; i++) {
+        const u = i / 2, v = j / 2, planar = (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+        deviation = Math.max(deviation, Math.abs(h(i, j) - planar));
+      }
+      flat[(R + 1) * blocksX + C] = deviation < FLAT_TOLERANCE ? 1 : 0;
+    }
+    if (R % 8 === 0) yield;
+  }
   const indices = new Uint16Array(cellsS * cellsX * 6), strips: TerrainStrip[] = [];
   const stripCells = cellsX / TERRAIN_STRIPS;
+  const vertexAt = (row: number, column: number) => row * across + column;
+  // Each quad splits along its flatter diagonal, so triangle edges follow rims and canyon walls (contours)
+  // instead of cutting across them into a sawtooth.
+  const quad = (a: number, b: number, c: number, d: number) => {
+    if (Math.abs(positions[a * 3 + 1] - positions[d * 3 + 1]) < Math.abs(positions[b * 3 + 1] - positions[c * 3 + 1])) {
+      indices[cursor++] = a; indices[cursor++] = b; indices[cursor++] = d; indices[cursor++] = a; indices[cursor++] = d; indices[cursor++] = c;
+    } else {
+      indices[cursor++] = a; indices[cursor++] = b; indices[cursor++] = c; indices[cursor++] = b; indices[cursor++] = d; indices[cursor++] = c;
+    }
+  };
   let cursor = 0;
   for (let strip = 0; strip < TERRAIN_STRIPS; strip++) {
     const start = cursor;
-    for (let row = 0; row < cellsS; row++) for (let column = strip * stripCells; column < (strip + 1) * stripCells; column++) {
-      const a = row * across + column, b = a + 1, c = a + across, d = c + 1;
-      indices[cursor++] = a; indices[cursor++] = b; indices[cursor++] = c; indices[cursor++] = b; indices[cursor++] = d; indices[cursor++] = c;
+    for (let R = 0; R < blocksS; R++) for (let C = strip * stripCells / 2; C < (strip + 1) * stripCells / 2; C++) {
+      const row = R * 2, column = C * 2;
+      if (!isFlat(R, C)) {
+        for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+          const a = vertexAt(row + j, column + i);
+          quad(a, a + 1, a + across, a + across + 1);
+        }
+        continue;
+      }
+      const corner = (i: number, j: number) => vertexAt(row + j, column + i);
+      // Shared edge midpoints a detailed neighbour has (top, right, bottom, left); C ± 1 outside the world has none.
+      const top = !isFlat(R - 1, C), right = C + 1 < blocksX && !isFlat(R, C + 1), bottom = !isFlat(R + 1, C), left = C > 0 && !isFlat(R, C - 1);
+      if (!top && !right && !bottom && !left) { quad(corner(0, 0), corner(2, 0), corner(0, 2), corner(2, 2)); continue; }
+      const perimeter = [corner(0, 0), ...top ? [corner(1, 0)] : [], corner(2, 0), ...right ? [corner(2, 1)] : [],
+        corner(2, 2), ...bottom ? [corner(1, 2)] : [], corner(0, 2), ...left ? [corner(0, 1)] : []], middle = corner(1, 1);
+      for (let k = 0; k < perimeter.length; k++) {
+        indices[cursor++] = middle; indices[cursor++] = perimeter[k]; indices[cursor++] = perimeter[(k + 1) % perimeter.length];
+      }
     }
     yield;
     strips.push({ start, count: cursor - start, minX: -WORLD_HALF + strip * stripCells * TERRAIN_STEP,
@@ -210,13 +288,13 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
     const value = (r: number, c: number) => (values as Float32Array)[(r * across + c) * stride + offset];
     return (value(r0, c0) * (1 - fu) + value(r0, c0 + 1) * fu) * (1 - fv) + (value(r0 + 1, c0) * (1 - fu) + value(r0 + 1, c0 + 1) * fu) * fv;
   };
-  const elevation = new Float32Array(vertices), industry = new Float32Array(vertices);
-  points.forEach((point, i) => { elevation[i] = point.elevation; industry[i] = point.industrial; });
+  const industry = fIndustrial;
   yield;
   const field: ScatterField = {
     height(x, s) {
       const u = (x + WORLD_HALF) / TERRAIN_STEP, v = (s - startS) / TERRAIN_STEP;
-      if (u < -far || u >= cellsX + near || v < -near || v >= cellsS + far) return terrainHeight(seed, x, s, arena);
+      // The grid is full resolution only within the near apron (the far apron is sparse, for shadows).
+      if (u < -near || u >= cellsX + near || v < -near || v >= cellsS + near) return terrainHeight(seed, x, s, arena);
       const c0 = Math.floor(u), r0 = Math.floor(v), fu = u - c0, fv = v - r0;
       const value = (r: number, c: number) => heights[at(r, c)];
       return (value(r0, c0) * (1 - fu) + value(r0, c0 + 1) * fu) * (1 - fv) + (value(r0 + 1, c0) * (1 - fu) + value(r0 + 1, c0 + 1) * fu) * fv;
@@ -244,7 +322,7 @@ export function* sectionSteps(seed: number, index: number, arena?: TerrainArena)
   const instances = firstCosmetic < 0 ? [...scattered, ...settled.rubble]
     : [...scattered.slice(0, firstCosmetic), ...settled.rubble, ...scattered.slice(firstCosmetic)];
   return {
-    seed, index, startS, size, across, along, positions, colors, normals, glow, edges, rock, indices, strips,
+    seed, index, startS, size, across, along, positions, colors, normals, glow, edges, rock, indices: indices.slice(0, cursor), strips,
     props: settled.props, instances, industry: [...settled.industry, ...network.pieces],
     roads, roadPaths: network.roads,
   };
