@@ -24,8 +24,11 @@ Within each planet use three terrain families: open traversal, industrial concen
 | Lancer | Long needle hull | Marks a narrow lane, locks aim, then emits a brief beam | Exit warned strip; shoot during recovery | Full |
 | Spike Battery | Triangular ground base with tall barrel | Stationary relative to terrain; one aimed three-round burst | Same alignment rules as air targets | Slice |
 | Crawler | Low tracked chassis, paired pods | Moves slowly laterally on ground; alternating pod fire | Pick a pod to reduce pressure | Slice |
+| Needle (Vesper) | Pale ceramic blade, offset fins | Fast interceptor; marks a very narrow lane (0.4 wide) locked on the player, 0.75 s windup plus a 0.2 s flash, then a 0.15 s beam that costs one shield charge | Step out of the thin lane; shoot it between beams | Built (Cold Vector) |
+| Diamond (Vesper, Bulwark family) | Fractured diamond frame, radiator wings, central core | Heavy escort; alternating left/right wing volleys of three tight rounds, each bracketing the committed position 1.2 to that side | Read which wing is winding up; stay put or move the other way; hit the 0.3 core | Built (Cold Vector) |
+| Missile battery (Vesper) | Hex-plinth launcher on the ice | Ground target; one straight, non-tracking missile (radius 0.2, fast) down its own marked column every volley | Align under it only between missiles | Built (Cold Vector) |
 
-Starting HP: Dart 55, Weaver 75, Skirmisher 80, Bomber 150, Bulwark 220, Lancer 120, Spike Battery 110, Crawler 160. Crawler's MVP version is one damageable entity; split pods are boss tech, not required for every enemy. Dart, Weaver, Lancer and Spike Battery HP rose on 14 October 2026 so that squadrons survive long enough to fire; Twin Pulse still kills a Dart in 0.57 s and a Weaver in 0.78 s, inside the light-enemy goal in [combat](02-combat-and-progression.md#8-validation). Runtime values live in `src/content/balance.ts`.
+Starting HP: Dart 55, Weaver 75, Skirmisher 80, Bomber 150, Bulwark 220, Lancer 120, Spike Battery 110, Crawler 160; Vesper Needle 50, Diamond 220, Missile battery 120 (collision radii 0.30, 0.30 core within a 0.6 scenery frame, 0.55; score/credits 150/6, 400/16, 250/10; threat cost 2, 4, 2). Repeat intervals: Needle 1.3 s, Diamond 1.0 s, Missile battery 1.1 s. Crawler's MVP version is one damageable entity; split pods are boss tech, not required for every enemy. Dart, Weaver, Lancer and Spike Battery HP rose on 14 October 2026 so that squadrons survive long enough to fire; Twin Pulse still kills a Dart in 0.57 s and a Weaver in 0.78 s, inside the light-enemy goal in [combat](02-combat-and-progression.md#8-validation). Runtime values live in `src/content/balance.ts`.
 
 Enemies entering from a side cannot attack until fully visible and warned. Airframes that travel below the player line stop firing and leave quickly. Never spawn behind the player. Enemies may pass harmlessly out of view if missed; missing a kill costs score and rewards, not unavoidable collision damage.
 
@@ -50,6 +53,11 @@ Squadrons are authored templates in `src/content/formations.ts`: a leader path a
 | `dive-pair` | 2 darts | Dives straight through the player row at ±2.3 | One shot each | The dive lanes are contact hazards |
 | `battery-2/3/4` | 2–4 Spike Batteries | Fixed to the scrolling ground | Staggered fans 0.7–1 s apart | Destroy one to remove its layer |
 | `solo-*` | One dart, weaver, lancer or battery | As above | As above | Teaching and recovery |
+| `needle-solo`, `needle-line-3` | 1 or 3 Needles (+2 Veteran) | Quick dive in (0.9 s), hold high, climb out | Narrow lanes stepping −1/0/+1 around the committed position, 0.4 s apart | Keep moving; the lanes are thin |
+| `needle-column-5` and mirror | 4 Needles in a column (+1) | Side entry, sweeping across | Each locks a lane as it passes | Predict the sweep |
+| `diamond-solo`, `diamond-convoy` | 1 Diamond; or 2 Diamonds with 2 Needle escorts (+1 Diamond) | Slow descent, long hold | Alternating wing volleys; escorts lock lanes | Break the escorts, then the cores |
+| `missile-2`, `missile-3` | 2 or 3 missile batteries | Fixed to the scrolling ice | Straight missiles down each battery's column | Destroy them in the gaps between missiles |
+| `ark-launch` | 2 Needles from the Helion Ark's deck bays | Leave the bays, hold beside the Ark, exit | Lanes locked on the player | Boss-only; finite waves |
 
 Squadrons dive in or climb out in 1.4 s, sweep and strafe about 25% faster than the first squadron pass, hold their row for 4–8.5 s and repeat their volleys while they hold. Base repeat intervals are Dart 0.85 s, Weaver 1.05 s, Spike Battery 0.98 s and Lancer 1.85 s, scaled by difficulty and, in the campaign, by the mission (Training ×1.25). They were shortened twice on 15 October: first because fewer enemies fly at once and each fires more often, then about 17% further at the user's request, then about 15% more (enemy fire only; the player's cadence is unchanged) after the user asked for enemies to be harder independently of the player's weapon. Base shot speeds are Dart 7.9, Weaver 6.6 and Spike Battery 7.3 units/s. Ground batteries move with the terrain scroll (`VIEW.scrollSpeed`, 5 units/s since 14 October 2026). Within one squadron no two windups start less than 0.3 s apart, so a squadron never fires as one wall. Squadrons never overlap one another; see the airspace rule in §6. Held rows keep every member inside the view while it may fire. No member spawns inside the view or behind the player; every path ends outside the view.
 
@@ -81,6 +89,18 @@ Broad refinery on four articulated legs. Two side condensers expose alternating 
 ### Helion Ark
 
 Carrier moving above ice can visually sit higher than ordinary ground machinery; its targets still use the same combat-plane contract. Destroy two radiator weapons, then the bridge. Alternating lane lasers and finite fighter launches test learned patterns. Large wings are scenery, not an enormous hidden collision box. Target total effective HP around 3,000; ordinary starter weapons still need useful core exposure.
+
+**As built (Cold Vector, 15 October 2026).** It rides on the open-ocean arena (the scroll stops at distance 920) and follows the same phase rules as Bastion-9. Runtime values are in `src/content/ark.ts`; [Vesper](17-vesper-glass-frontier.md#5-mission-cold-vector-and-the-helion-ark) has the full contract.
+
+| Phase | Targets / HP (Standard) | Pattern |
+| --- | --- | --- |
+| Arrival, 3.5 s | None damageable | Glides in from s 26 to its row (11.5) |
+| Radiators | Left and right radiator, 600 each, radius 0.75, at x ∓2.4, s −0.5 | Alternating narrow lane lasers (0.7 wide) locked on the player: 1.1 s windup + 0.15 s flash, 0.3 s active, 0.55 s recovery |
+| Bridge | Bridge, 1,800, radius 1.0, at x 0, s +1.6 | Aimed three-bolt bursts (1.0 s warning) plus three launch waves of two Needles from the deck bays (x ∓0.75, s −2), the first 2.5 s into the phase and then every 7 s, one wave at a time |
+| Bridge overload | Same bridge below 40% | Alternating lanes over its own hit columns: 2.2 wide over the bridge, then 1.6 wide over both radiator columns, leaving the bridge column open as the damage window. 1.25 s windup + 0.15 s flash, 0.35 s active |
+| Destroyed | None | Launched fighters go down with it; the wreck stays on the water as extraction resumes the scroll; 8 s extraction |
+
+HP scales with campaign difficulty (2,550 Relaxed, 3,600 Veteran). The hull drifts ±1.3 laterally and surges ±0.7; `BossState.vx`/`vs` expose its velocity. Every attack passes the director's exclusion check.
 
 For each boss document the active targets, damageable flags, attack schedule, incoming-projectile limits, phase exits, death handling, and behavior if a player respawns. Never use a phase timer to silently restore health.
 

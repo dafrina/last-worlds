@@ -340,6 +340,142 @@ def build_vent(rng, idx):
 
 
 # ----------------------------------------------------------------------------
+# Jagged pack-ice floes (revision 2, 15 October): non-convex outlines, raised snow rims, cracked sets
+# ----------------------------------------------------------------------------
+
+def jagged_outline(rng, rad, k):
+    """Star-shaped, non-convex outline in polar form: (angle, radius) samples with notches and bays."""
+    rot = rng.uniform(0, 2 * math.pi)
+    angs = sorted(rot + 2 * math.pi * (i + rng.uniform(-0.3, 0.3)) / k for i in range(k))
+    rads = [rad * rng.uniform(0.82, 1.0) for _ in range(k)]
+    for i in range(k):                                    # sharp notches
+        if rng.random() < 0.22:
+            rads[i] *= rng.uniform(0.55, 0.72)
+    b = rng.randrange(k)                                  # a broad bay over two or three samples
+    for j in range(rng.choice((2, 3))):
+        rads[(b + j) % k] *= rng.uniform(0.66, 0.78)
+    return list(zip(angs, rads))
+
+
+def radius_at(polar, theta):
+    k = len(polar)
+    for i in range(k):
+        a0, r0 = polar[i]
+        a1, r1 = polar[(i + 1) % k]
+        if i == k - 1:
+            a1 += 2 * math.pi
+        t = theta
+        while t < a0:
+            t += 2 * math.pi
+        if a0 <= t <= a1:
+            return r0 + (r1 - r0) * (t - a0) / (a1 - a0)
+    return polar[0][1]
+
+
+def crack_polyline(rng, polar, theta, n=4):
+    """Jagged crack from the centre to the rim at angle theta (centre excluded, rim included)."""
+    rr = radius_at(polar, theta)
+    ux, uy = math.cos(theta), math.sin(theta)
+    pts = []
+    for j in range(1, n + 1):
+        t = j / (n + 1)
+        lat = rng.uniform(-1.0, 1.0) * 0.09 * rr * 4.0 * t * (1.0 - t)
+        pts.append((ux * rr * t - uy * lat, uy * rr * t + ux * lat))
+    pts.append((ux * rr, uy * rr))
+    return pts
+
+
+def arc_points(polar, th0, th1):
+    """Outline points strictly inside the angular interval (th0, th1), in order."""
+    out = []
+    for a, r in polar:
+        t = a
+        while t <= th0:
+            t += 2 * math.pi
+        if t < th1:
+            out.append((t, r))
+    out.sort()
+    return [(math.cos(t) * r, math.sin(t) * r) for t, r in out]
+
+
+def floe_slab(hs, poly, size):
+    """Floe slab from a (possibly concave) CCW outline: submerged base, blue waterline band,
+    snow rim slightly raised around a flat snow skin. Waterline at z = 0."""
+    if kit.poly_area(poly) < 0:
+        poly = list(reversed(poly))
+    n = len(poly)
+    cx = sum(p[0] for p in poly) / n
+    cy = sum(p[1] for p in poly) / n
+    top = 0.09 if size > 0.3 else 0.07
+    rim_in = min(0.035, size * 0.08)
+    dip_in = min(0.09, size * 0.2)
+    base = [(cx + (x - cx) * 0.9, cy + (y - cy) * 0.9) for x, y in poly]
+    rim = kit.inset_poly(poly, [rim_in] * n) or [(cx + (x - cx) * 0.95, cy + (y - cy) * 0.95) for x, y in poly]
+    dip = kit.inset_poly(poly, [dip_in] * n) or [(cx + (x - cx) * 0.85, cy + (y - cy) * 0.85) for x, y in poly]
+    r0 = [hs.v((x, y, -0.15)) for x, y in base]
+    r1 = [hs.v((x, y, -0.02)) for x, y in poly]
+    r2 = [hs.v((x, y, top - 0.03)) for x, y in poly]
+    r3 = [hs.v((x, y, top)) for x, y in rim]
+    r4 = [hs.v((x, y, top - 0.018)) for x, y in dip]
+    for i in range(n):
+        j = (i + 1) % n
+        nx, ny = outward_normal(poly[i], poly[j])
+        hs.face((r0[i], r0[j], r1[j], r1[i]), "ice", "main", ICE, outward=(nx, ny, -0.3))
+        hs.face((r1[i], r1[j], r2[j], r2[i]), "ice", "main", ICE, outward=(nx, ny, 0.0))
+        hs.face((r2[i], r2[j], r3[j], r3[i]), "snow", "edge", SNOW, outward=(nx, ny, 1.0))
+        hs.face((r3[i], r3[j], r4[j], r4[i]), "snow", "ledge", SNOW, outward=(-nx, -ny, 3.0))
+    hs.face(tuple(r4), "snow", "main", SNOW, outward=(0, 0, 1))
+
+
+FLOE_SINGLES = {"floe_4": (0.2, 9), "floe_5": (0.22, 9), "floe_6": (0.5, 13), "floe_7": (0.55, 14),
+                "floe_8": (0.95, 17), "floe_9": (1.15, 18)}
+FLOE_SETS = {"floe_pair_a": (1.1, 18, 2), "floe_pair_b": (0.55, 14, 2), "floe_triple_c": (1.15, 18, 3)}
+CRACK_GAP = 0.05
+SET_OFFSETS = {}                  # piece name -> (x, z) offset from the set origin (glTF), filled by main()
+_SET_CACHE = {}
+
+
+def build_jagged_floe(rng, name):
+    rad, k = FLOE_SINGLES[name]
+    hs = HS(rng)
+    polar = jagged_outline(rng, rad, k)
+    floe_slab(hs, [(math.cos(a) * r, math.sin(a) * r) for a, r in polar], rad * 2)
+    return hs
+
+
+def build_floe_set(set_name):
+    """Split one jagged parent floe along radial cracks into 2 or 3 pieces that fit together with
+    narrow gaps. Returns {piece name: hs} in the set frame (set origin = parent centre)."""
+    if set_name in _SET_CACHE:
+        return _SET_CACHE[set_name]
+    rad, k, parts = FLOE_SETS[set_name]
+    rng = random.Random(f"{SEED}:{set_name}")
+    polar = jagged_outline(rng, rad, k)
+    th0 = rng.uniform(0, 2 * math.pi)
+    if parts == 2:
+        cuts = [th0, th0 + math.pi + rng.uniform(-0.25, 0.25)]
+    else:
+        cuts = [th0, th0 + 2 * math.pi / 3 + rng.uniform(-0.3, 0.3), th0 + 4 * math.pi / 3 + rng.uniform(-0.3, 0.3)]
+    cracks = [crack_polyline(rng, polar, c) for c in cuts]
+    pieces = {}
+    for p in range(parts):
+        a0 = cuts[p]
+        a1 = cuts[(p + 1) % parts] + (2 * math.pi if p == parts - 1 else 0.0)
+        poly = list(cracks[p])                                    # centre -> rim along crack p (rim incl.)
+        poly += arc_points(polar, a0, a1)
+        poly += list(reversed(cracks[(p + 1) % parts]))            # rim -> centre along the next crack
+        poly.append((0.0, 0.0))
+        mid = (a0 + a1) * 0.5
+        d = CRACK_GAP * (0.5 if parts == 2 else 0.6)
+        poly = [(x + math.cos(mid) * d, y + math.sin(mid) * d) for x, y in poly]
+        hs = HS(random.Random(f"{SEED}:{set_name}:{p}"))
+        floe_slab(hs, poly, rad)
+        pieces[f"{set_name}_{p}"] = hs
+    _SET_CACHE[set_name] = pieces
+    return pieces
+
+
+# ----------------------------------------------------------------------------
 # Node table (contract) and colours
 # ----------------------------------------------------------------------------
 
@@ -356,6 +492,11 @@ for i in range(2):
     NODES[f"vent_stack_{i}"] = dict(budget=600, foot=(0.9, 0.9), y_min_exact=-0.12, y_max=1.0)
 for i in range(4):
     NODES[f"floe_{i}"] = dict(budget=600, foot=(2.0, 2.0), y_min_exact=-0.15, y_max=0.3)
+for _name, (_rad, _k) in FLOE_SINGLES.items():
+    NODES[_name] = dict(budget=200, foot=(_rad * 2.3, _rad * 2.3), y_min_exact=-0.15, y_max=0.1)
+for _set, (_rad, _k, _parts) in FLOE_SETS.items():
+    for _p in range(_parts):
+        NODES[f"{_set}_{_p}"] = dict(budget=200, foot=(_rad * 2.3, _rad * 2.3), y_min_exact=-0.15, y_max=0.1)
 
 
 def kit_colour_fn(hs, floating):
@@ -418,6 +559,14 @@ def fit_top(hs, target):
                 v[2] = target
 
 
+for _name in FLOE_SINGLES:
+    BUILD.append((_name, lambda rng, name: build_jagged_floe(rng, name), _name, True))
+for _set, (_rad, _k, _parts) in FLOE_SETS.items():
+    for _p in range(_parts):
+        BUILD.append((f"{_set}_{_p}", lambda rng, name: build_floe_set(name.rsplit("_", 1)[0])[name],
+                      f"{_set}_{_p}", True))
+
+
 def centre_xy(hs):
     xs = [v[0] for v in hs.verts]
     ys = [v[1] for v in hs.verts]
@@ -425,6 +574,7 @@ def centre_xy(hs):
     for v in hs.verts:
         v[0] -= ox
         v[1] -= oy
+    return ox, oy
 
 
 def main():
@@ -446,7 +596,10 @@ def main():
     objs = {}
     for name, fn, i, floating in BUILD:
         hs = fn(random.Random(f"{SEED}:{name}"), i)
-        centre_xy(hs)
+        ox, oy = centre_xy(hs)
+        if name.startswith(tuple(FLOE_SETS)):
+            SET_OFFSETS[name] = (round(ox, 4), round(-oy, 4))          # glTF (x, z) from the set origin
+            print(f"KIT set offset {name}: x {ox:+.4f}, z {-oy:+.4f}")
         if "y_max_exact" in NODES[name]:
             fit_top(hs, NODES[name]["y_max_exact"])
         cols = vc.bake(hs, name, dict(glow=set(), ao=0.3, ground=None if floating else 0.0,
@@ -458,6 +611,10 @@ def main():
         os.makedirs(args.preview_dir, exist_ok=True)
         render_sheet(objs, args)
         keep = set(objs)
+        kit.clear_preview(keep)
+        render_floes(objs, args, keep)
+        kit.clear_preview(keep)
+        render_pack(objs, args, keep)
         kit.clear_preview(keep)
         render_diorama(objs, args, keep)
 
@@ -488,6 +645,64 @@ def render_sheet(objs, args):
     kit.add_ortho_camera((0.0, 0.2, 0.0), 55.0, 15.0)
     vc.setup_render(scene, args.engine, args.samples, 1800, 1800)
     kit.render(os.path.join(args.preview_dir, "preview-kit.png"))
+
+
+def render_floes(objs, args, keep):
+    """Contact sheet of the jagged floes and the assembled cracked sets (sea level at z = 0)."""
+    scene = bpy.context.scene
+    pm = vc.preview_materials()
+    for k, name in enumerate(FLOE_SINGLES):
+        x = -6.0 + k * 2.2
+        kit.instance("fs_" + name, objs[name], (x, 3.0, 0.0))
+        kit.text_label(name, (x, 1.6, 0.012), 0.16, pm["label"])
+    for k, set_name in enumerate(FLOE_SETS):
+        cx = -4.6 + k * 4.6
+        parts = FLOE_SETS[set_name][2]
+        for p in range(parts):
+            nm = f"{set_name}_{p}"
+            ox, oz = SET_OFFSETS[nm]
+            kit.instance("fs_" + nm, objs[nm], (cx + ox, -1.6 - oz, 0.0))
+        kit.text_label(set_name + " (assembled)", (cx, -3.4, 0.012), 0.16, pm["label"])
+    vc.plane("ocean", -30, 30, -30, 30, 0.0, pm["ocean"])
+    vc.preview_world(scene)
+    kit.add_ortho_camera((0.0, 0.2, 0.0), 55.0, 16.0)
+    vc.setup_render(scene, args.engine, args.samples, 1800, 1300)
+    kit.render(os.path.join(args.preview_dir, "preview-floes.png"))
+
+
+def render_pack(objs, args, keep):
+    """Pack ice at the game camera: mixed jagged floes, brash and cracked sets drifting slightly apart."""
+    scene = bpy.context.scene
+    pm = vc.preview_materials()
+    rng = random.Random(f"{SEED}:pack")
+    singles = list(FLOE_SINGLES)
+    placed = []
+    for k in range(70):
+        for _try in range(30):
+            x, y = rng.uniform(-7.0, 7.0), rng.uniform(-6.0, 30.0)
+            name = rng.choice(singles + ["floe_4", "floe_5", "floe_4"])
+            r = FLOE_SINGLES[name][0]
+            if all(math.hypot(x - px, y - py) > r + pr + 0.15 for px, py, pr in placed):
+                break
+        placed.append((x, y, r))
+        put(objs[name], (x, y, SEA), rng.uniform(0, 2 * math.pi))
+    for k in range(5):
+        set_name = rng.choice(list(FLOE_SETS))
+        cx, cy = rng.uniform(-5.0, 5.0), 2.0 + k * 5.5
+        yaw = rng.uniform(0, 2 * math.pi)
+        drift = rng.uniform(1.0, 2.2)
+        for p in range(FLOE_SETS[set_name][2]):
+            nm = f"{set_name}_{p}"
+            ox, oz = SET_OFFSETS[nm]
+            bx, by = ox * drift, -oz * drift                        # pieces drift apart a little
+            x = cx + bx * math.cos(yaw) - by * math.sin(yaw)
+            y = cy + bx * math.sin(yaw) + by * math.cos(yaw)
+            put(objs[nm], (x, y, SEA), yaw)
+    vc.plane("ocean", -30, 30, -20, 50, SEA, pm["ocean"])
+    vc.preview_world(scene)
+    kit.add_ortho_camera((0.0, 10.0, SEA), 55.0, 12.5 * 1600.0 / 900.0)
+    vc.setup_render(scene, args.engine, args.samples, 900, 1600)
+    kit.render(os.path.join(args.preview_dir, "preview-pack-ice.png"))
 
 
 SEA = -1.2       # sea level used by the Vesper world profile (docs/17 section 4)

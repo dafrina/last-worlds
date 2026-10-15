@@ -2,8 +2,11 @@ import * as THREE from 'three';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type Pickup, type RunState } from '../shared/contracts';
 import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { arenaStopDistance } from '../sim/bastion';
+import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
-import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createMaterials, createPickupModel, loadVesperCraft, type VesperCraftNode } from './models';
+import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
+import { arkPlacement, createArkView, loadArkModel } from './ark-view';
+import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
@@ -48,13 +51,16 @@ export function groundPlacement(seed: number, distance: number, x: number, logic
 }
 
 /**
- * Rolling Thunder's static boss arena in world s (docs/15): the scroll stops at a mission-determined distance and
- * the world generator lays a flat platform there. Passed from the run's start so the window never rebuilds mid-flight.
+ * A boss mission's static arena in world s (docs/15, docs/17 §5): the scroll stops at a mission-determined distance
+ * and the world generator shapes the platform there (Rolling Thunder: a flat basalt platform, 566–601; Cold Vector:
+ * open ocean, 911–955). Read from the mission boss's own arena constants. Passed from the run's start so the window
+ * never rebuilds mid-flight; endless and training have none.
  */
 export function missionArena(config: RunState['config']): TerrainArena | undefined {
-  if (config.mode !== 'campaign' || config.mission !== 'bastion') return undefined;
-  const stop = arenaStopDistance();
-  return { fromS: stop + BASTION.arena.platform.from, toS: stop + BASTION.arena.platform.to };
+  const boss = config.mode === 'campaign' ? missionBoss(config.mission) : null;
+  if (!boss) return undefined;
+  const stop = arenaStopDistance(boss.arena);
+  return { fromS: stop + boss.arena.platform.from, toS: stop + boss.arena.platform.to };
 }
 
 /**
@@ -186,6 +192,18 @@ const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: numb
   diamond: { node: 'vesper_diamond', scale: 1.05, engines: [[-.14, -.58], [0, -.58], [.14, -.58]] },
   missile: { node: 'vesper_missile_battery', scale: 1.15, engines: [] },
 };
+
+/** Every enemy kind the renderer draws (Khepri and Vesper); ground kinds stand on terrain or float on the sea. */
+const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile'];
+const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile']);
+/** Vesper faction kinds: always their own models once vesper-craft.glb is in, on any planet. */
+const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle', 'diamond', 'missile']);
+/** Code-built Khepri model each kind uses until (or unless) its Vesper model is available. */
+const KHEPRI_STAND_IN: Readonly<Record<EnemyKind, 'dart' | 'weaver' | 'turret' | 'lancer'>> = {
+  dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret',
+};
+/** Deck height of the render-only pontoon a ground battery rides on when the simulation seats it over open water. */
+const PONTOON_DECK = .14;
 
 /**
  * Light-space extents of everything the camera can see within the shadow slab, relative to the view target
@@ -348,7 +366,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   });
   // Every craft is one mesh with the shared craft material; enemies of a kind are one instanced draw.
   const hero = createHero(materials); hero.scale.setScalar(HERO_SCALE); scene.add(hero);
-  const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer'];
   const ENEMY_CAPACITY = 32;
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
   // Ground targets on every terrain level (docs/13 §2), render-only: where terrain in front hides a turret,
@@ -356,58 +373,35 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const silhouetteMaterial = new THREE.MeshBasicMaterial({ color: 0xffd39a, opacity: .32, depthFunc: THREE.GreaterDepth,
     depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor });
   const enemyBatches = new Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }>();
+  const standIns = new Map<string, THREE.BufferGeometry>();
   for (const kind of ENEMY_KINDS) {
-    const geometry = craftGeometry(createEnemy(kind, materials));
+    const model = KHEPRI_STAND_IN[kind];
+    if (!standIns.has(model)) standIns.set(model, craftGeometry(createEnemy(model, materials)));
+    const geometry = standIns.get(model)!;
     const mesh = new THREE.InstancedMesh(geometry, materials.craft, ENEMY_CAPACITY);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
     // Ground turrets cast into the High shadow map and take shadows; flying craft use readable blob shadows.
-    mesh.castShadow = mesh.receiveShadow = kind === 'turret';
+    mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
     let ghost: THREE.InstancedMesh | undefined;
-    if (kind === 'turret') {
+    if (GROUND_KINDS.has(kind)) {
       mesh.renderOrder = 2;
       ghost = new THREE.InstancedMesh(geometry, silhouetteMaterial, ENEMY_CAPACITY);
       ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
     }
     scene.add(mesh); enemyBatches.set(kind, { mesh, ghost });
   }
-  /*
-   * Water features read back from the terrain view's own instanced batches (drifting floes, vent stacks) until it
-   * exposes them directly; positions are world space after the view's own transforms. Presentation only.
-   */
-  const featureMatrix = new THREE.Matrix4(), featurePosition = new THREE.Vector3(), featureQuaternion = new THREE.Quaternion();
-  const featureScale = new THREE.Vector3(), featureEuler = new THREE.Euler(), vents: { x: number; y: number; z: number }[] = [];
-  function collectFloeRings(world: World): FoamRing[] {
+  /** Foam collars for drifting floes and bergs, from the terrain view's live features (world space, real footprints). */
+  function collectFloeRings(): FoamRing[] {
     floeRings.length = 0;
-    const sea = world.planet.seaLevel ?? 0;
-    for (const object of scene.children) {
-      const mesh = object as THREE.InstancedMesh;
-      if (!mesh.isInstancedMesh || !mesh.visible || !/^Vesper (floe|iceberg)_/.test(mesh.name)) continue;
-      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-      const box = mesh.geometry.boundingBox!, halfX = Math.max(-box.min.x, box.max.x), halfZ = Math.max(-box.min.z, box.max.z);
-      for (let i = 0; i < mesh.count; i++) {
-        mesh.getMatrixAt(i, featureMatrix); featureMatrix.decompose(featurePosition, featureQuaternion, featureScale);
-        featureEuler.setFromQuaternion(featureQuaternion, 'YXZ');
-        floeRings.push({ x: featurePosition.x, z: featurePosition.z, y: sea, yaw: featureEuler.y, rx: halfX * featureScale.x, rz: halfZ * featureScale.z });
-      }
-    }
+    for (const floe of terrain.features.floes) floeRings.push({ x: floe.x, z: floe.z, y: floe.y, yaw: floe.yaw, rx: floe.rx, rz: floe.rz });
     return floeRings;
   }
-  function collectVents(cameraX: number) {
-    vents.length = 0;
-    scene.getObjectByName('Khepri instanced scenery')?.children.forEach(object => {
-      const mesh = object as THREE.InstancedMesh;
-      if (!mesh.isInstancedMesh || !mesh.visible || !/vent_stack/.test(mesh.name)) return;
-      for (let i = 0; i < mesh.count; i++) {
-        mesh.getMatrixAt(i, featureMatrix); featureMatrix.premultiply(mesh.matrixWorld).decompose(featurePosition, featureQuaternion, featureScale);
-        if (Math.abs(featurePosition.x - cameraX) < VIEW.width / 2 + 1) vents.push({ x: featurePosition.x, y: featurePosition.y + featureScale.y * .9, z: featurePosition.z });
-      }
-    });
-    return vents;
-  }
+  /** Vent-stack tops near the view, for steam (terrain view's live features). */
+  const collectVents = (cameraX: number) => terrain.features.vents.filter(vent => Math.abs(vent.x - cameraX) < VIEW.width / 2 + 1);
   /** Vesper craft batches (same kinds, Vesper models), created once vesper-craft.glb has loaded. */
   let vesperBatches: Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }> | null = null, craftRequested = false;
-  function ensureCraft(next: PlanetId) {
-    if (next !== 'vesper' || craftRequested) return;
+  function ensureCraft(next: PlanetId | 'kinds') {
+    if (next === 'khepri' || craftRequested) return;
     craftRequested = true;
     loadVesperCraft(`${import.meta.env.BASE_URL}assets/vesper/vesper-craft.glb`).then(nodes => {
       if (disposed) { nodes.forEach(geometry => geometry.dispose()); return; }
@@ -417,9 +411,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (!geometry) continue;
         const mesh = new THREE.InstancedMesh(geometry, materials.craft, ENEMY_CAPACITY);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${kind} craft`;
-        mesh.castShadow = mesh.receiveShadow = kind === 'turret';
+        mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
         let ghost: THREE.InstancedMesh | undefined;
-        if (kind === 'turret') {
+        if (GROUND_KINDS.has(kind)) {
           mesh.renderOrder = 2;
           ghost = new THREE.InstancedMesh(geometry, silhouetteMaterial, ENEMY_CAPACITY);
           ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
@@ -433,6 +427,38 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const plinthGeometry = new THREE.CylinderGeometry(.6, .66, 1, 6); plinthGeometry.translate(0, .5, 0);
   const plinths = new THREE.InstancedMesh(plinthGeometry, materials.dark, 32);
   plinths.instanceMatrix.setUsage(THREE.DynamicDrawUsage); plinths.frustumCulled = false; plinths.count = 0; plinths.receiveShadow = true; scene.add(plinths);
+  // Over open water a ground battery rides a small black-ceramic pontoon instead (render-only, one draw).
+  const pontoons = new THREE.InstancedMesh(createPontoonGeometry(), materials.craft, 32);
+  pontoons.instanceMatrix.setUsage(THREE.DynamicDrawUsage); pontoons.frustumCulled = false; pontoons.count = 0; pontoons.receiveShadow = true; pontoons.name = 'battery pontoons';
+  scene.add(pontoons);
+  const pontoonRings: FoamRing[] = [];
+  /*
+   * Telegraph strips for the Vesper kinds: flat quads in the flight plane (readable at phone size, unlike 1 px
+   * lines), one draw. Needle windup: a dashed 0.4 lane at its aim; missile battery: its own column; Diamond: the
+   * wing that fires and the side it brackets. A second, additive layer flashes a Needle lane bright for the 0.2 s
+   * before its beam (bloom on High).
+   */
+  const stripGeometry = new THREE.PlaneGeometry(1, 1); stripGeometry.rotateX(-Math.PI / 2);
+  const telegraphs = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .85,
+    depthTest: false, depthWrite: false }), 512);
+  const flashLanes = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55,
+    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 32);
+  // Soft lane and column fills under the dashed edges: a light veil that reads on snow and on water alike.
+  const laneFills = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .26,
+    depthTest: false, depthWrite: false }), 32);
+  for (const mesh of [telegraphs, flashLanes, laneFills]) {
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
+    mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9; scene.add(mesh);
+  }
+  // The Helion Ark (docs/17 §5) rides on the sea; its model loads on first use, Bastion-9 stays untouched.
+  const ark = createArkView(scene);
+  let arkRequested = false;
+  const ensureArk = () => {
+    if (arkRequested) return;
+    arkRequested = true;
+    loadArkModel(`${import.meta.env.BASE_URL}assets/vesper/helion-ark.glb`).then(model => { if (!disposed) { ark.setModel(model); warmed = false; } })
+      .catch(error => console.warn('Helion Ark model unavailable; using the functional carrier.', error));
+  };
   const transform = new THREE.Object3D(), color = new THREE.Color();
 
   const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 32;
@@ -534,11 +560,25 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       /** The streamed world (planet and arena): seating, blob shadows and plinths sit on its surface. */
       const world = terrain.world;
       const terrainUpdate = performance.now() - terrainStart;
-      let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena) : null;
-      if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
-      bastion.update(state, bossPlacement);
-      // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
-      terrain.setExclusion(bastion.footprint(state, bossPlacement));
+      // Boss routing: the Helion Ark rides the sea; every other boss is Bastion-9 (its lines unchanged below).
+      const isArk = state.boss?.id === 'ark';
+      if (!isArk) {
+        let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena) : null;
+        if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
+        bastion.update(state, bossPlacement);
+        // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
+        terrain.setExclusion(bastion.footprint(state, bossPlacement));
+      }
+      // Waterline on the sea; targets (local height 1.6) project onto their logical rows (rayPlacement under a lens).
+      const sea = world.planet.seaLevel ?? 0;
+      let arkSeat: { x?: number; s: number; baseHeight: number } | null = null;
+      if (isArk && state.boss) {
+        ensureArk();
+        arkSeat = perspective ? rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, HELION_ARK.targetHeight, sea, world)
+          : arkPlacement(state.boss.s, sea);
+      }
+      ark.update(state, arkSeat);
+      if (isArk) terrain.setExclusion(ark.footprint(state, arkSeat));
       // Haulers and beacons run on simulation time (frozen while paused); presentation only.
       const animateStart = performance.now();
       terrain.animate(state.time, state.cameraX); terrainMaterials.setTime(state.time);
@@ -587,6 +627,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       flightShadow(state.player.x, 0, 1.5 * HERO_SCALE, 1.8 * HERO_SCALE, VIEW.flightHeight);
 
       const counts = new Map<EnemyKind, number>(ENEMY_KINDS.map(kind => [kind, 0]));
+      let pontoonCount = 0, stripCount = 0, flashCount = 0, fillCount = 0; pontoonRings.length = 0;
+      const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
+        const index = layer === telegraphs ? stripCount : layer === flashLanes ? flashCount : fillCount;
+        if (index >= layer.instanceMatrix.count) return;
+        transform.position.set((x1 + x2) / 2, VIEW.flightHeight + .035, -(s1 + s2) / 2);
+        transform.rotation.set(0, Math.atan2(x2 - x1, -(s2 - s1)), 0); transform.scale.set(width, 1, Math.hypot(x2 - x1, s2 - s1)); transform.updateMatrix();
+        layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
+        if (layer === telegraphs) stripCount++; else if (layer === flashLanes) flashCount++; else fillCount++;
+      };
       // Vesper flies its own faction's craft once loaded (Khepri models meanwhile).
       const activeBatches = planet === 'vesper' && vesperBatches ? vesperBatches : enemyBatches;
       let lineCursor = 0;
@@ -598,20 +647,34 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       };
       for (const enemy of state.enemies) {
         if (enemy.bossPart) continue;
-        const isGround = enemy.kind === 'turret';
+        const isGround = GROUND_KINDS.has(enemy.kind);
         const visible = Math.abs(enemy.x - state.cameraX) < VIEW.width / 2 + 1 && enemy.s > VIEW.minS - 2 && enemy.s < VIEW.maxS + 3;
         if (!visible) continue;
+        // A ground battery over open water rides a pontoon: its core sits PONTOON_DECK higher, still on its logical pixel.
+        const afloat = isGround && world.planet.seaLevel !== null && surfaceHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) <= sea + 1e-6
+          && terrainHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) < sea - .05;
+        const coreHeight = enemy.groundHeight + (afloat ? PONTOON_DECK : 0);
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
-          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, -Infinity, world)
-          : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, world);
-        const batch = activeBatches.get(enemy.kind) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(enemy.kind)!;
-        const vesperCraft = activeBatches === vesperBatches ? VESPER_CRAFT[enemy.kind] : null;
+          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, -Infinity, world)
+          : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
+        if (afloat) {
+          if (pontoonCount < pontoons.instanceMatrix.count) {
+            transform.position.set(placement.x ?? enemy.x, placement.baseHeight + Math.sin(state.time * 1.1 + enemy.id) * .012, -placement.s);
+            transform.rotation.set(0, enemy.id * .7, 0); transform.scale.setScalar(1); transform.updateMatrix(); pontoons.setMatrixAt(pontoonCount++, transform.matrix);
+            pontoonRings.push({ x: placement.x ?? enemy.x, z: -placement.s, y: sea, yaw: 0, rx: .8, rz: .8, strength: .55 });
+          }
+          placement.baseHeight += PONTOON_DECK;
+        }
+        if (VESPER_KINDS.has(enemy.kind) && !craftRequested) ensureCraft('kinds');
+        const useVesper = !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
+        const batch = (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(enemy.kind)!;
+        const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind] : null;
         if (slot < ENEMY_CAPACITY) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(vesperCraft?.scale ?? 1); transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(enemy.kind, slot + 1);
         }
-        if (isGround && plinthCount < plinths.instanceMatrix.count) {
+        if (isGround && !afloat && plinthCount < plinths.instanceMatrix.count) {
           let lowest = placement.baseHeight;
           for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, surfaceHeight(state.config.seed, enemy.x + dx, state.distance + placement.s + ds, world));
           if (placement.baseHeight - lowest > .08) {
@@ -622,7 +685,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         // Flying craft keep the readable blob shadow on both tiers; ground turrets cast real shadows on High.
         if (!isGround || quality !== 'high') flightShadow(enemy.x, placement.s,
-          enemy.kind === 'weaver' ? 2.2 : 1.5, enemy.kind === 'lancer' ? 2.3 : 1.9, isGround ? enemy.groundHeight : VIEW.flightHeight);
+          enemy.kind === 'weaver' || enemy.kind === 'diamond' ? 2.2 : 1.5, enemy.kind === 'lancer' ? 2.3 : enemy.kind === 'diamond' ? 2.1 : 1.9, isGround ? enemy.groundHeight : VIEW.flightHeight);
         if (!isGround) {
           // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
           const bank = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
@@ -638,7 +701,24 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             line(enemy.x + sx * r, enemy.s + sy * r, enemy.x + sx * r, enemy.s + sy * (r - length), tint);
           }
         }
-        if (enemy.warning > 0) {
+        if (enemy.warning > 0 && enemy.kind === 'needle') {
+          // Needle windup: a dashed 0.4 lane down the whole view at its committed aim, with a faint fill.
+          strip(enemy.aimX, VIEW.minS, enemy.aimX, VIEW.maxS, .4, 0x6a4020, laneFills);
+          for (let s = VIEW.minS; s < VIEW.maxS; s += 1.2) for (const side of [-1, 1]) strip(enemy.aimX + side * .2, s, enemy.aimX + side * .2, Math.min(s + .7, VIEW.maxS), .055, 0xffc06a);
+        } else if (enemy.warning > 0 && enemy.kind === 'missile') {
+          // Missile battery: a straight marked column from the battery down past the player row (non-tracking).
+          strip(enemy.x, enemy.s, enemy.x, VIEW.minS, .4, 0x6a2c1a, laneFills);
+          for (let s = enemy.s - .2; s > VIEW.minS; s -= 1.0) for (const side of [-1, 1]) strip(enemy.x + side * .2, s, enemy.x + side * .2, Math.max(s - .6, VIEW.minS), .055, 0xff9a6a);
+          strip(enemy.x - .3, enemy.s - .45, enemy.x, enemy.s - .75, .06, 0xffc28a); strip(enemy.x + .3, enemy.s - .45, enemy.x, enemy.s - .75, .06, 0xffc28a);
+        } else if (enemy.warning > 0 && enemy.kind === 'diamond') {
+          // Diamond: the firing wing and the side it brackets (the volley lands 1.2 to that side of the committed x).
+          const side = (enemy.volleys ?? 0) % 2 === 0 ? -1 : 1, wing = enemy.x + side * .55;
+          for (let i = 0; i < 6; i++) {
+            const a = i / 6, b = (i + .45) / 6;
+            strip(THREE.MathUtils.lerp(wing, enemy.aimX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(wing, enemy.aimX, b), enemy.s * (1 - b), .06, 0xffa874);
+          }
+          strip(enemy.aimX - side * .35, .7, enemy.aimX, .35, .06, 0xffc28a); strip(enemy.aimX - side * .35, 0, enemy.aimX, .35, .06, 0xffc28a);
+        } else if (enemy.warning > 0) {
           const targetX = enemy.aimX;
           if (enemy.kind === 'lancer') {
             for (let s = VIEW.minS; s < VIEW.maxS; s += 1.2) {
@@ -660,6 +740,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       flightShadows.count = shadowCount; flightShadows.instanceMatrix.needsUpdate = true;
       plinths.count = plinthCount; plinths.instanceMatrix.needsUpdate = true;
+      pontoons.count = pontoonCount; pontoons.instanceMatrix.needsUpdate = true;
       let friendlyCount = 0, hostileCount = 0;
       for (const shot of state.projectiles) {
         if (Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
@@ -700,6 +781,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       pickupBatches.forEach((batch,kind)=>batch.forEach(mesh=>{mesh.count=pickupCounts[kind];mesh.instanceMatrix.needsUpdate=true;}));
       let laneCount = 0;
       for (const hazard of state.hazards) {
+        // A Needle's narrow lane flashes bright for its last 0.2 s before the beam (Khepri lanes are all wider).
+        if (hazard.width <= .45 && hazard.warning > 0) {
+          const pulse = .6 + .4 * Math.sin(state.time * 40);
+          strip(hazard.x, VIEW.minS, hazard.x, VIEW.maxS, hazard.width, 0xffd6a0, flashLanes, 1.8 * pulse);
+          const source = state.enemies.find(enemy => enemy.kind === 'needle' && Math.abs(enemy.aimX - hazard.x) < 1e-6);
+          if (source) plumes.push({ x: source.x, z: -source.s + .5, length: .01, width: .8, hex: 0xffe0b0, energy: 3, round: true });
+        }
         if (hazard.active > 0 && hazard.warning <= 0 && laneCount < lanes.instanceMatrix.count) {
           transform.position.set(hazard.x, VIEW.flightHeight + .02, -(VIEW.minS + VIEW.maxS) / 2);
           transform.rotation.set(0, 0, 0); transform.scale.set(hazard.width, 1, 1); transform.updateMatrix(); lanes.setMatrixAt(laneCount++, transform.matrix);
@@ -710,6 +798,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
       }
       lanes.count = laneCount; lanes.instanceMatrix.needsUpdate = true;
+      for (const [mesh, count] of [[telegraphs, stripCount], [flashLanes, flashCount], [laneFills, fillCount]] as const) {
+        mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      }
       let effectCount = 0;
       for (const effect of state.effects) {
         if (effectCount >= effects.instanceMatrix.count) break;
@@ -723,14 +814,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;
       // Vesper: debris that falls on open water throws snow-white spray; vent stacks breathe steam.
-      const sea = world.planet.seaLevel;
-      fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && sea !== null ? {
-        splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < sea - .05 ? sea : null,
+      const seaHeight = world.planet.seaLevel;
+      fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && seaHeight !== null ? {
+        splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < seaHeight - .05 ? seaHeight : null,
         vents: collectVents(state.cameraX),
       } : null);
       if (planet === 'vesper') {
         water.update(state.time, state.distance);
-        foam.update(state.time, collectFloeRings(world), []);
+        const arkFoam = ark.foam;
+        foam.update(state.time, [...collectFloeRings(), ...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
       }
       lineGeometry.setDrawRange(0, lineCursor);
       lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
@@ -747,7 +839,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },

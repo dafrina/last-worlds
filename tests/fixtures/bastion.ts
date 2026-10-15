@@ -6,10 +6,14 @@ import { createUi } from '../../src/ui/game-ui';
 import { createInput } from '../../src/input/controls';
 import { STEP, EMPTY_INPUT, VIEW, type RunConfig } from '../../src/shared/contracts';
 import { BASTION } from '../../src/content/bastion';
+import { HELION_ARK } from '../../src/content/ark';
 
 const query = new URLSearchParams(location.search);
-let state = createRun({ mode: 'campaign', mission: 'bastion', seed: Number(query.get('seed') ?? 8831) });
+// `boss=ark` previews Cold Vector's Helion Ark on Vesper's open-water arena; without it this is Rolling Thunder's Bastion-9.
+const ark = query.get('boss') === 'ark';
+let state = createRun({ mode: 'campaign', mission: ark ? 'cold-vector' : 'bastion', seed: Number(query.get('seed') ?? 8831) });
 function prepare() {
+  if (ark) return prepareArk();
   state.time = BASTION.arrivesAt;
   // The arena scroll is a closed form of time: the terrain is decelerating toward its stop as the fortress rolls in.
   const scroll = arenaScroll(state.time, null); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
@@ -19,6 +23,26 @@ function prepare() {
   }
   if (query.get('phase') === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
   if (query.get('phase') === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); }
+}
+/**
+ * Helion Ark phases: `arrival` (1.2 s into the glide-in, or `t`), `batteries`, `core`, `launch` (bridge phase just
+ * before the first Needle launch, bay doors opening), `overload`, `destroyed` (`t` seconds into the sequence);
+ * `approach` previews the mission before the boss.
+ */
+function prepareArk() {
+  const phase = query.get('phase') ?? 'batteries', at = Number(query.get('t') ?? (phase === 'arrival' ? 1.2 : 0));
+  const step = (seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) stepRun(state, EMPTY_INPUT); };
+  // `phase=approach&t=N`: Cold Vector itself, N seconds after launch (Needles, Diamonds, missile batteries).
+  if (phase === 'approach') { step(at); return; }
+  state.time = HELION_ARK.arrivesAt;
+  const scroll = arenaScroll(state.time, null, HELION_ARK.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  if (phase === 'arrival') { step(at); return; }
+  step(HELION_ARK.arrivalDuration + 1 / 60);
+  if (phase === 'batteries') return;
+  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
+  if (phase === 'launch') { step(Math.max(0, state.boss!.nextLaunchAt - state.time - .35)); return; }
+  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
+  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
 }
 prepare();
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {

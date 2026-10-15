@@ -178,12 +178,122 @@ const SECTOR_PEAK: readonly EncounterCue[] = [
   { at: 84, id: 'e3-east', phase: 'recovery', formations: [world('battery-2', 7.5)] },
 ];
 
-export const ENDLESS_SECTORS = { opening: SECTOR_OPENING, pressure: SECTOR_PRESSURE, peak: SECTOR_PEAK } as const;
+/** Endless Vesper, first sector of a Vesper stint: the Vesper roster from the first seconds. */
+const VESPER_OPENING: readonly EncounterCue[] = [
+  { at: 2, id: 'ev1-needle', phase: 'intro', formations: [f('needle-solo')] },
+  { at: 5, id: 'ev1-diamond', phase: 'intro', formations: [f('diamond-solo')] },
+  { at: 9, id: 'ev1-missiles', phase: 'intro', message: 'POWER CELL AHEAD', formations: [f('missile-2')], pickup: { kind: 'power', x: 0, s: 17, value: 1 } },
+  { at: 13, id: 'ev1-line', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 18, id: 'ev1-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 21, id: 'ev1-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 27, id: 'ev1-missiles-2', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 30, id: 'ev1-heavy', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 36, id: 'ev1-west', phase: 'recovery', message: 'CLIFF BATTERY · WEST', formations: [world('missile-2', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 5 } },
+  { at: 42, id: 'ev1-line-2', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 46, id: 'ev1-missiles-4', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 49, id: 'ev1-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
+  { at: 55, id: 'ev1-convoy', phase: 'climax', message: 'ESCORT CONVOY', formations: [f('diamond-convoy')] },
+  { at: 59, id: 'ev1-convoy-missiles', phase: 'climax', formations: [f('missile-2')] },
+  { at: 62, id: 'ev1-convoy-line', phase: 'climax', formations: [f('needle-line-3', -1)] },
+  { at: 67, id: 'ev1-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 72, id: 'ev1-convoy-missiles-2', phase: 'climax', formations: [f('missile-3')] },
+  { at: 84, id: 'ev1-east', phase: 'recovery', formations: [world('needle-solo', 7.5)] },
+];
+
+/** Endless Vesper, later sectors of a first Vesper stint. */
+const VESPER_PRESSURE: readonly EncounterCue[] = [
+  { at: 2, id: 'ev2-line', phase: 'intro', formations: [f('needle-line-3')] },
+  { at: 5, id: 'ev2-missiles', phase: 'pressure', formations: [f('missile-3')], pickup: { kind: 'power', x: 0, s: 17, value: 1 } },
+  { at: 9, id: 'ev2-heavy', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 13, id: 'ev2-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 17, id: 'ev2-missiles-2', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 20, id: 'ev2-convoy', phase: 'pressure', formations: [f('diamond-convoy')] },
+  { at: 26, id: 'ev2-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 32, id: 'ev2-west', phase: 'recovery', formations: [world('missile-2', -7.5)], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'seeker' } },
+  { at: 38, id: 'ev2-line-2', phase: 'pressure', formations: [f('needle-line-3', 1)] },
+  { at: 41, id: 'ev2-missiles-4', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 44, id: 'ev2-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
+  { at: 49, id: 'ev2-heavy-2', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 53, id: 'ev2-climax-missiles', phase: 'climax', formations: [f('missile-3')] },
+  { at: 56, id: 'ev2-climax-convoy', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 61, id: 'ev2-climax-line', phase: 'climax', formations: [f('needle-line-3')] },
+  { at: 65, id: 'ev2-climax-missiles-2', phase: 'climax', formations: [f('missile-2')] },
+  { at: 68, id: 'ev2-climax-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 84, id: 'ev2-east', phase: 'recovery', formations: [world('missile-2', 7.5)] },
+];
+
+/** Endless Vesper on later visits: the capped peak arc. */
+const VESPER_PEAK: readonly EncounterCue[] = [
+  { at: 2, id: 'ev3-convoy', phase: 'intro', formations: [f('diamond-convoy')] },
+  { at: 4, id: 'ev3-missiles', phase: 'pressure', formations: [f('missile-3')], pickup: { kind: 'power', x: 0, s: 17, value: 1 } },
+  { at: 8, id: 'ev3-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 11, id: 'ev3-missiles-2', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 13, id: 'ev3-line', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 18, id: 'ev3-convoy-2', phase: 'pressure', formations: [f('diamond-convoy')] },
+  { at: 21, id: 'ev3-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 25, id: 'ev3-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
+  { at: 31, id: 'ev3-west', phase: 'recovery', formations: [world('needle-solo', -7.5)], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } },
+  { at: 36, id: 'ev3-line-2', phase: 'pressure', formations: [f('needle-line-3', -1)] },
+  { at: 38, id: 'ev3-missiles-4', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 41, id: 'ev3-heavy', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 45, id: 'ev3-missiles-5', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 48, id: 'ev3-column-2', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 53, id: 'ev3-climax-convoy', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 55, id: 'ev3-climax-missiles', phase: 'climax', formations: [f('missile-3')] },
+  { at: 59, id: 'ev3-climax-line', phase: 'climax', formations: [f('needle-line-3', 1)] },
+  { at: 63, id: 'ev3-climax-missiles-2', phase: 'climax', formations: [f('missile-2')] },
+  { at: 66, id: 'ev3-climax-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 84, id: 'ev3-east', phase: 'recovery', formations: [world('missile-3', 7.5)] },
+];
+
+export const ENDLESS_SECTORS = {
+  opening: SECTOR_OPENING, pressure: SECTOR_PRESSURE, peak: SECTOR_PEAK,
+  vesperOpening: VESPER_OPENING, vesperPressure: VESPER_PRESSURE, vesperPeak: VESPER_PEAK,
+} as const;
+
+/**
+ * Cold Vector (Vesper, docs/17 §5): a high-contrast introduction over the shelf coast, Needle squadrons with
+ * narrow beam lanes, relief, missile batteries on the ice cliffs, a heavy Diamond escort convoy, relief, then
+ * the scroll eases to a stop over open ocean for the Helion Ark (HELION_ARK.approachEndsAt / arrivesAt).
+ */
+export const COLD_VECTOR: readonly EncounterCue[] = [
+  { at: 2, id: 'v-first-needle', phase: 'intro', message: 'COLD VECTOR · NARROW BEAMS · WATCH THE LANE', formations: [f('needle-solo')] },
+  { at: 7, id: 'v-first-diamond', phase: 'intro', message: 'DIAMOND HEAVY · ALTERNATING WINGS', formations: [f('diamond-solo')] },
+  { at: 13, id: 'v-first-missiles', phase: 'intro', message: 'MISSILE BATTERIES FIRE DOWN THEIR OWN COLUMN', formations: [f('missile-2')] },
+  { at: 17, id: 'v-needle-line', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 22, id: 'v-missiles', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 25, id: 'v-needle-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 31, id: 'v-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 34, id: 'v-needle-line-2', phase: 'pressure', formations: [f('needle-line-3', 1)] },
+  { at: 41, id: 'v-needle-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
+  { at: 48, id: 'v-west', phase: 'recovery', message: 'CLIFF BATTERY · WEST', formations: [world('missile-2', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
+  { at: 53, id: 'v-east', phase: 'recovery', message: 'LONE INTERCEPTOR · EAST', formations: [world('needle-solo', 7.5)] },
+  { at: 58, id: 'v-cliff-missiles', phase: 'pressure', message: 'MISSILE BATTERIES ON THE CLIFFS', formations: [f('missile-3')] },
+  { at: 61, id: 'v-cliff-needles', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 66, id: 'v-cliff-missiles-2', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 69, id: 'v-cliff-diamond', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 75, id: 'v-cliff-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 78, id: 'v-cliff-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 84, id: 'v-cliff-missiles-4', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 89, id: 'v-convoy', phase: 'climax', message: 'ESCORT CONVOY · BREAK THE DIAMONDS', formations: [f('diamond-convoy')] },
+  { at: 94, id: 'v-convoy-missiles', phase: 'climax', formations: [f('missile-3')] },
+  { at: 100, id: 'v-convoy-needles', phase: 'climax', formations: [f('needle-line-3')] },
+  { at: 106, id: 'v-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 112, id: 'v-convoy-missiles-2', phase: 'climax', formations: [f('missile-2')] },
+  { at: 117, id: 'v-convoy-column', phase: 'climax', formations: [f('needle-column-5', 0, true)] },
+  { at: 123, id: 'v-convoy-3', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 129, id: 'v-convoy-missiles-3', phase: 'climax', formations: [f('missile-3')] },
+  { at: 135, id: 'v-convoy-needles-2', phase: 'climax', formations: [f('needle-line-3', -1)] },
+  { at: 141, id: 'v-convoy-4', phase: 'climax', message: 'LAST ESCORT · OPEN WATER AHEAD', formations: [f('diamond-convoy')] },
+  { at: 147, id: 'v-convoy-missiles-4', phase: 'climax', formations: [f('missile-2')] },
+  { at: 160, id: 'v-relief', phase: 'recovery', formations: [] },
+];
 
 export function campaignPlaylist(mission: MissionId): readonly EncounterCue[] {
-  return mission === 'bastion' ? ROLLING_THUNDER : TRAINING;
+  return mission === 'bastion' ? ROLLING_THUNDER : mission === 'cold-vector' ? COLD_VECTOR : TRAINING;
 }
 
+/** The authored playlist of an endless sector (Khepri roster; the planet cycle arrives with docs/18). */
 export function endlessPlaylist(sector: number): readonly EncounterCue[] {
   return sector === 1 ? SECTOR_OPENING : sector < 4 ? SECTOR_PRESSURE : SECTOR_PEAK;
 }

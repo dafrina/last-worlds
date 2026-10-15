@@ -3,12 +3,14 @@ import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smo
 
 /** Kit pieces from public/assets/khepri/khepri-kit.glb (docs/13 §3); base-center pivots, +Y up. */
 export type KhepriKitKind = 'clump' | 'column' | 'rock' | 'crystal' | 'spire' | 'wall' | 'fallen' | 'boulder' | 'crystalSpire' | 'rosette' | 'hoodoo';
+/** Cracked floe sets: one parent floe split along shared jagged cracks (pieces placed from FLOE_SETS offsets). */
+export type FloeSetKind = 'floePairA' | 'floePairB' | 'floeTripleC';
 /** Vesper kit (public/assets/vesper/vesper-kit.glb, docs/17 §3); waterline at y = 0 for floating pieces. */
-export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'floe' | 'ridge' | 'drift' | 'outcrop' | 'vent';
+export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'floe' | FloeSetKind | 'ridge' | 'drift' | 'outcrop' | 'vent';
 export type KitKind = KhepriKitKind | VesperKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
-export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'ridge', 'drift', 'outcrop', 'vent'];
+export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
 export const KIT: Readonly<Record<KitKind, {
   prefix: string; variants: number;
@@ -36,13 +38,39 @@ export const KIT: Readonly<Record<KitKind, {
   serac: { prefix: 'serac', variants: 3, halfX: 0.4, halfZ: 0.32, height: 1, exactTop: true, radius: Math.hypot(0.4, 0.32) },
   iceSpire: { prefix: 'ice_spire', variants: 2, halfX: 0.3, halfZ: 0.28, height: 1, exactTop: true, radius: Math.hypot(0.3, 0.28) },
   iceberg: { prefix: 'iceberg', variants: 3, halfX: 0.68, halfZ: 0.57, height: 0.78, exactTop: false, radius: Math.hypot(0.68, 0.57) },
-  floe: { prefix: 'floe', variants: 4, halfX: 0.91, halfZ: 0.63, height: 0.26, exactTop: false, radius: Math.hypot(0.91, 0.63) },
+  // Floes 0–3 are the first convex plates (1–2 ridged); 4–9 are jagged pack-ice outlines (brash, medium, large).
+  // The table holds the envelope; FLOE_FOOTPRINT has each node's own size.
+  floe: { prefix: 'floe', variants: 10, halfX: 1.05, halfZ: 1.05, height: 0.26, exactTop: false, radius: Math.hypot(1.05, 1.05) },
+  floePairA: { prefix: 'floe_pair_a', variants: 2, halfX: 0.55, halfZ: 1.01, height: 0.1, exactTop: false, radius: Math.hypot(0.55, 1.01) },
+  floePairB: { prefix: 'floe_pair_b', variants: 2, halfX: 0.48, halfZ: 0.37, height: 0.1, exactTop: false, radius: Math.hypot(0.48, 0.37) },
+  floeTripleC: { prefix: 'floe_triple_c', variants: 3, halfX: 0.63, halfZ: 0.78, height: 0.1, exactTop: false, radius: Math.hypot(0.63, 0.78) },
   ridge: { prefix: 'pressure_ridge', variants: 2, halfX: 1.08, halfZ: 0.39, height: 0.36, exactTop: false, radius: Math.hypot(1.08, 0.39) },
   drift: { prefix: 'snow_drift', variants: 2, halfX: 0.86, halfZ: 0.51, height: 0.33, exactTop: false, radius: Math.hypot(0.86, 0.51) },
   outcrop: { prefix: 'rock_outcrop', variants: 3, halfX: 0.44, halfZ: 0.35, height: 0.81, exactTop: false, radius: Math.hypot(0.44, 0.35) },
   vent: { prefix: 'vent_stack', variants: 2, halfX: 0.4, halfZ: 0.35, height: 0.98, exactTop: false, radius: Math.hypot(0.4, 0.35) },
 };
 export const kitNodeName = (kind: KitKind, variant: number) => `${KIT[kind].prefix}_${variant}`;
+/**
+ * Floating ice: each node's own half footprint (local x, z) at scale 1, measured from vesper-kit.glb
+ * (art/vesper-kit/README.md). Placement spacing and the live floe features use these.
+ */
+export const FLOE_FOOTPRINT: Readonly<Record<string, readonly [number, number]>> = {
+  floe_0: [0.52, 0.425], floe_1: [0.737, 0.575], floe_2: [0.905, 0.621], floe_3: [0.394, 0.292],
+  floe_4: [0.131, 0.148], floe_5: [0.173, 0.202], floe_6: [0.446, 0.451], floe_7: [0.482, 0.472], floe_8: [0.837, 0.854], floe_9: [1.042, 1.045],
+  floe_pair_a_0: [0.541, 0.975], floe_pair_a_1: [0.54, 1.0], floe_pair_b_0: [0.455, 0.25], floe_pair_b_1: [0.474, 0.366],
+  floe_triple_c_0: [0.535, 0.682], floe_triple_c_1: [0.628, 0.774], floe_triple_c_2: [0.544, 0.566],
+  iceberg_0: [0.621, 0.444], iceberg_1: [0.669, 0.563], iceberg_2: [0.408, 0.358],
+};
+/**
+ * Cracked sets: each piece's pivot offset (glTF local x, z) from the set origin. A piece goes at
+ * origin + R(yaw)·offset with the set's yaw; offsets scaled above 1 let the pieces drift apart.
+ * `reach` is the assembled set's radius at scale 1.
+ */
+export const FLOE_SETS: Readonly<Record<FloeSetKind, { offsets: readonly (readonly [number, number])[]; reach: number }>> = {
+  floePairA: { offsets: [[0.4568, 0.0471], [-0.4637, 0.013]], reach: 1.1 },
+  floePairB: { offsets: [[0.0232, 0.099], [-0.0274, -0.1167]], reach: 0.5 },
+  floeTripleC: { offsets: [[-0.562, 0.332], [0.48, 0.2375], [-0.1254, -0.5959]], reach: 1.2 },
+};
 /** The runtime may vary footprint scale by at most ±20%. */
 export const KIT_MAX_SCALE = 1.2;
 

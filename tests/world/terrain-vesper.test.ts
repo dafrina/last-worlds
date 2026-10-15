@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { VIEW } from '../../src/shared/contracts';
 import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
 import { vesperMoodOf } from '../../src/world/terrain-vesper';
+import { HELION_ARK } from '../../src/content/ark';
+import { arenaStopDistance } from '../../src/sim/bastion';
+import { missionArena } from '../../src/render/scene';
 import {
-  KIT, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, roadPath, sectionSteps, settlementsNear,
+  ARENA_RAMP, FLOE_SETS, KIT, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, roadPath, sectionSteps, settlementsNear,
   terrainHeight, worldOf, type TerrainSection,
 } from '../../src/world/terrain';
 
@@ -113,7 +116,28 @@ describe('Vesper generator (docs/17 §4)', () => {
       for (const prop of section.props) expect(prop.baseHeight + prop.height).toBeLessThanOrEqual(3 + 1e-9);
     }
     expect(pack.reduce((n, { section }) => n + section.floes!.length, 0)).toBeGreaterThan(200);
-    expect(pack.flatMap(({ section }) => section.floes!).some(floe => floe.id.startsWith('cracked:'))).toBe(true);
+    // Mostly the kit's jagged outlines and cracked sets; the first convex plates (floe_0–3) only now and then.
+    const pieces = [...sections, ...pack].flatMap(({ section }) => section.floes!).filter(floe => floe.kind !== 'iceberg');
+    const convex = pieces.filter(floe => floe.kind === 'floe' && floe.variant < 4).length;
+    expect(convex / pieces.length).toBeLessThan(0.2);
+    expect(pieces.some(floe => floe.kind === 'floe' && floe.variant >= 8)).toBe(true);
+    expect(pieces.some(floe => floe.kind === 'floe' && floe.variant >= 4 && floe.variant <= 5)).toBe(true);
+    // Cracked sets: every piece at origin + R(yaw)·offset × one factor per set, all with the set's yaw and scale.
+    const sets = new Map<string, typeof pieces>();
+    for (const floe of pieces) if (floe.id.startsWith('set:')) sets.set(floe.id.slice(0, floe.id.lastIndexOf(':')), [...sets.get(floe.id.slice(0, floe.id.lastIndexOf(':'))) ?? [], floe]);
+    expect(sets.size).toBeGreaterThan(5);
+    for (const group of sets.values()) {
+      const factors = group.map(floe => {
+        expect(floe.kind in FLOE_SETS).toBe(true);
+        expect(floe.rotation).toBe(group[0].rotation); expect(floe.scaleX).toBe(group[0].scaleX); expect(floe.originX).toBe(group[0].originX);
+        // Back into the set's frame (three.js axes: z = −s; yaw about +y).
+        const dx = floe.x - floe.originX!, dz = floe.originS! - floe.s, c = Math.cos(floe.rotation), n = Math.sin(floe.rotation);
+        const lx = dx * c - dz * n, lz = dx * n + dz * c, [ox, oz] = FLOE_SETS[floe.kind as keyof typeof FLOE_SETS].offsets[floe.variant];
+        expect(Math.abs(lx * oz - lz * ox)).toBeLessThan(1e-9);
+        return Math.hypot(lx, lz) / Math.hypot(ox, oz);
+      });
+      for (const factor of factors) { expect(factor).toBeCloseTo(factors[0], 9); expect(factor / group[0].scaleX).toBeGreaterThanOrEqual(1); expect(factor / group[0].scaleX).toBeLessThanOrEqual(1.3 + 1e-9); }
+    }
   });
 
   it('settles on shelf ice: harbours run jetties over open water; tracks stay off water; pipelines trestle across leads', () => {
@@ -145,16 +169,30 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect(reached / pipes).toBeGreaterThanOrEqual(0.8);
   });
 
-  it('opens the ocean arena: open water across the platform, only distant icebergs, no shelves or scatter', () => {
-    const arena = { fromS: 1180, toS: 1215 }, world = { planet: 'vesper' as const, arena };
-    for (const seed of [93, 8831]) {
+  it('opens the Cold Vector ocean arena (911–955): open water, nothing afloat on it, calm ramps with distant bergs only', () => {
+    // The mission's arena comes from the Ark's own constants: the scroll stops at 920.
+    const config = { mode: 'campaign', mission: 'cold-vector', seed: 93 } as Parameters<typeof missionArena>[0];
+    const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena };
+    expect(arenaStopDistance(HELION_ARK.arena)).toBe(920);
+    expect(arena).toEqual({ fromS: 911, toS: 955 });
+    expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 566, toS: 601 });
+    expect(missionArena({ ...config, mode: 'endless' })).toBeUndefined();
+    for (const seed of [93, 8831, 11]) {
       for (let s = arena.fromS; s <= arena.toS; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) expect(terrainHeight(seed, x, s, world)).toBeLessThan(SEA - 0.5);
-      for (let index = Math.floor(arena.fromS / VIEW.sectionLength); index <= Math.floor(arena.toS / VIEW.sectionLength); index++) {
-        const section = generateTerrainSection(seed, index, world), inside = (s: number) => s >= arena.fromS && s <= arena.toS;
-        for (const floe of section.floes!) if (inside(floe.s)) { expect(floe.kind).toBe('iceberg'); expect(Math.abs(floe.x)).toBeGreaterThan(HALF - 4); }
+      const inside = (s: number) => s >= arena.fromS && s <= arena.toS, ramp = (s: number) => !inside(s) && s > arena.fromS - ARENA_RAMP && s < arena.toS + ARENA_RAMP;
+      let land = 0;
+      for (let index = Math.floor((arena.fromS - ARENA_RAMP) / VIEW.sectionLength); index <= Math.floor((arena.toS + ARENA_RAMP) / VIEW.sectionLength); index++) {
+        const section = generateTerrainSection(seed, index, world);
+        for (const floe of section.floes!) {
+          expect(inside(floe.s)).toBe(false);
+          if (ramp(floe.s)) { expect(floe.kind).toBe('iceberg'); expect(Math.abs(floe.x)).toBeGreaterThan(HALF - 4); }
+        }
         for (const piece of section.instances) expect(inside(piece.s)).toBe(false);
         for (const prop of section.props) expect(inside(prop.s)).toBe(false);
       }
+      // The shelf edge pulls back but still frames the approach: there is shelf ice on the ramp before the platform.
+      for (let s = arena.fromS - ARENA_RAMP; s < arena.fromS - 10; s += 1) for (let x = -HALF; x <= HALF; x += 1) if (terrainHeight(seed, x, s, world) >= SEA) land++;
+      expect(land).toBeGreaterThan(0);
       // Far from the arena nothing changes.
       expect(generateTerrainSection(seed, 3, world)).toEqual(generateTerrainSection(seed, 3, VESPER));
     }

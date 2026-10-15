@@ -30,8 +30,11 @@ export interface FormationSlot {
 export interface FormationTemplate {
   readonly id: string;
   readonly name: string;
-  /** Where members first appear, used by validation: above the view, one side, both sides, or on the ground. */
-  readonly entry: 'top' | 'side' | 'both' | 'ground';
+  /**
+   * Where members first appear, used by validation: above the view, one side, both sides, on the ground, or
+   * from a boss launch bay ('bay': keyframe s is relative to the member's anchorS, the boss pivot).
+   */
+  readonly entry: 'top' | 'side' | 'both' | 'ground' | 'bay';
   readonly path: readonly Keyframe[];
   /** Bounded sine sway added along one axis while flying the path. */
   readonly sway?: { readonly axis: 'x' | 's'; readonly amp: number; readonly period: number };
@@ -51,6 +54,15 @@ const TOP_HOLD = (holdS: number, hold: number): readonly Keyframe[] => [
 const GROUND: readonly Keyframe[] = [[0, 0, 22], [36 / VIEW.scrollSpeed, 0, -14]];
 /** Ground batteries may start a windup between s = 18.8 (fully in view) and s = 3.6 (the attack floor). */
 const GROUND_FIRE = { fireFrom: (22 - 18.8) / VIEW.scrollSpeed, fireUntil: (22 - 3.6) / VIEW.scrollSpeed } as const;
+
+/** Vesper interceptors: a quicker dive in and climb out than the Khepri squadrons. */
+const NEEDLE_HOLD = (holdS: number, hold: number): readonly Keyframe[] => [
+  [0, 0, 23], [0.9, 0, holdS + 1], [0.9 + hold, 0, holdS], [1.8 + hold, 0, 24],
+];
+/** Vesper heavies descend slowly and hold their row longest. */
+const HEAVY_HOLD = (holdS: number, hold: number): readonly Keyframe[] => [
+  [0, 0, 23], [2.4, 0, holdS + 1], [2.4 + hold, 0, holdS], [4.4 + hold, 0, 24],
+];
 
 const templates = [
   {
@@ -197,6 +209,80 @@ const templates = [
     id: 'solo-turret', name: 'Single ground battery', entry: 'ground',
     path: GROUND, ...GROUND_FIRE,
     slots: [{ kind: 'turret', dx: 0, fire: 0 }],
+  },
+  // ---- Vesper (docs/17 §5) ----
+  {
+    id: 'needle-solo', name: 'Single needle', entry: 'top',
+    path: NEEDLE_HOLD(14, 5), fireFrom: 0.7, fireUntil: 5.9,
+    slots: [{ kind: 'needle', dx: 0, fire: 0 }],
+  },
+  {
+    // Narrow beam lanes stepping across the committed position, one at a time.
+    id: 'needle-line-3', name: 'Needle line with stepped beam lanes', entry: 'top',
+    path: NEEDLE_HOLD(14.5, 6), fireFrom: 0.7, fireUntil: 6.9,
+    slots: [
+      { kind: 'needle', dx: -2.8, fire: 0, aim: -1 },
+      { kind: 'needle', dx: 0, fire: 0.4 },
+      { kind: 'needle', dx: 2.8, fire: 0.8, aim: 1 },
+      { kind: 'needle', dx: -4.4, ds: 1, fire: 1.6, aim: -2, from: 'veteran' },
+      { kind: 'needle', dx: 4.4, ds: 1, fire: 2, aim: 2, from: 'veteran' },
+    ],
+  },
+  {
+    // Interceptor column sweeping across, each member locking a lane as it passes.
+    id: 'needle-column-5', name: 'Needle column sweeping across', entry: 'side',
+    path: [[0, -7.6, 14], [5, 7.6, 12.5]], sway: { axis: 's', amp: 0.8, period: 1.8 }, fireFrom: 0.75, fireUntil: 4.4,
+    slots: [
+      { kind: 'needle', dx: 0, fire: 0 },
+      { kind: 'needle', dx: 0, lag: 0.35, fire: 0.4, aim: 0.9 },
+      { kind: 'needle', dx: 0, lag: 0.7, fire: 0.8, aim: -0.9 },
+      { kind: 'needle', dx: 0, lag: 1.05, fire: 1.2 },
+      { kind: 'needle', dx: 0, lag: 1.4, fire: 1.6, from: 'veteran' },
+    ],
+  },
+  {
+    id: 'diamond-solo', name: 'Single diamond heavy', entry: 'top',
+    path: HEAVY_HOLD(12.5, 7), fireFrom: 1.2, fireUntil: 9.4,
+    slots: [{ kind: 'diamond', dx: 0, fire: 0 }],
+  },
+  {
+    // Heavy escort convoy: two Diamonds alternating wing volleys, Needles on the flanks.
+    id: 'diamond-convoy', name: 'Diamond escort convoy', entry: 'top',
+    path: HEAVY_HOLD(11.5, 8), fireFrom: 1.2, fireUntil: 10.4,
+    slots: [
+      { kind: 'diamond', dx: -2, fire: 0 },
+      { kind: 'diamond', dx: 2, ds: 1.6, fire: 0.6 },
+      { kind: 'needle', dx: -4.2, ds: 2.4, fire: 1.2, aim: -1.2 },
+      { kind: 'needle', dx: 4.2, ds: 2.4, fire: 1.8, aim: 1.2 },
+      { kind: 'diamond', dx: 0, ds: 3.4, fire: 2.4, from: 'veteran' },
+    ],
+  },
+  {
+    // Missiles fly straight down each battery's own marked column: align to destroy it in the gaps.
+    id: 'missile-2', name: 'Missile battery pair', entry: 'ground',
+    path: GROUND, ...GROUND_FIRE,
+    slots: [
+      { kind: 'missile', dx: -2.8, fire: 0 },
+      { kind: 'missile', dx: 2.8, ds: 1.2, fire: 0.8 },
+    ],
+  },
+  {
+    id: 'missile-3', name: 'Missile battery line', entry: 'ground',
+    path: GROUND, ...GROUND_FIRE,
+    slots: [
+      { kind: 'missile', dx: -3.6, fire: 0 },
+      { kind: 'missile', dx: 0, ds: 1.4, fire: 0.6 },
+      { kind: 'missile', dx: 3.6, fire: 1.2 },
+    ],
+  },
+  {
+    // Helion Ark launch wave: one Needle from each deck bay (s relative to the Ark pivot, anchorS).
+    id: 'ark-launch', name: 'Helion Ark launch wave', entry: 'bay',
+    path: [[0, 0, -2], [1, -3.2, -4.5], [5.5, -3, -4.5], [6.6, -9.5, -3]], fireFrom: 1, fireUntil: 5.5,
+    slots: [
+      { kind: 'needle', dx: -0.75, fire: 0 },
+      { kind: 'needle', dx: -0.75, flip: true, fire: 0.6 },
+    ],
   },
 ] as const satisfies readonly FormationTemplate[];
 

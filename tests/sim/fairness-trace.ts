@@ -1,4 +1,4 @@
-import { FAIRNESS } from '../../src/content/balance';
+import { FAIRNESS, GROUND_KINDS } from '../../src/content/balance';
 import { STEP, VIEW, type RunState } from '../../src/shared/contracts';
 import { airspaceConflict, liveGroups } from '../../src/sim/airspace';
 import { WEAVER_PAIR_OFFSET } from '../../src/sim/attacks';
@@ -141,7 +141,7 @@ export class FairnessTrace {
       this.spans.push({ x0: hazard.x - hazard.width / 2, x1: hazard.x + hazard.width / 2, t0, t1: t0 + hazard.active, committed, camera });
     }
     for (const enemy of state.enemies) {
-      if (enemy.hp <= 0 || enemy.kind === 'turret' || enemy.bossPart) continue;
+      if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind) || enemy.bossPart) continue;
       if (Math.abs(enemy.s) <= R + enemy.radius) this.spans.push({ x0: enemy.x - enemy.radius, x1: enemy.x + enemy.radius, t0: now - STEP, t1: now, committed: now, camera: state.cameraX });
     }
     // Shots removed long before reaching the row (phase clears, respawn, Shockwave) never threaten it.

@@ -91,8 +91,8 @@ export function createWater(): Water {
   };
 }
 
-/** A soft foam collar around a floating piece (world xz, footprint radii, yaw). */
-export interface FoamRing { x: number; z: number; rx: number; rz: number; yaw: number; y: number }
+/** A soft foam collar around a floating piece (world xz, footprint radii, yaw); `strength` 0–1 (default 0.5). */
+export interface FoamRing { x: number; z: number; rx: number; rz: number; yaw: number; y: number; strength?: number }
 /** A V wake behind a moving hull: apex at (x, z), trailing along `heading` + π, `length` units, `strength` 0–1. */
 export interface Wake { x: number; z: number; y: number; heading: number; length: number; width: number; strength: number }
 
@@ -149,7 +149,7 @@ export function createFoam(scene: THREE.Scene, capacity = 64) {
         transform.position.set(ring.x, ring.y + 0.012, ring.z); transform.rotation.set(0, ring.yaw, 0);
         // The collar peaks just inside the footprint ellipse, so foam shows only where the floe outline dips inward.
         transform.scale.set(ring.rx * 2.3, 1, ring.rz * 2.3); transform.updateMatrix(); mesh.setMatrixAt(n, transform.matrix);
-        array.set([0.5, 0, Math.abs(ring.x * 0.37 + ring.z * 0.11) % 1], n * 3); n++;
+        array.set([ring.strength ?? 0.5, 0, Math.abs(ring.x * 0.37 + ring.z * 0.11) % 1], n * 3); n++;
       }
       for (const wake of wakes) {
         if (n >= capacity) break;

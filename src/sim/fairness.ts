@@ -1,6 +1,7 @@
-import { ENEMIES, FAIRNESS, difficultyScales, kinematics, type Kinematics } from '../content/balance';
+import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, difficultyScales, kinematics, type Kinematics } from '../content/balance';
+import { BOSSES } from '../content/bosses';
 import { VIEW, type Enemy, type RunState } from '../shared/contracts';
-import { LANCER_BEAM, bossShots, enemyShots, type ShotSpec } from './attacks';
+import { beamSpec, bossShots, diamondSide, enemyShots, type BulletKind, type ShotSpec } from './attacks';
 import { clamp, approach } from './geometry';
 import { bossPartOffset, bossPose, enemyClockRate, positionAfter } from './motion';
 
@@ -42,23 +43,25 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     const scale = difficultyScales('campaign', state.config.difficulty ?? 'standard', 1).shotSpeed;
     // The hull keeps maneuvering through the windup: predict from its pose at release.
     const pose = state.boss!.phase === 'destroyed' ? { x: state.boss!.x, s: state.boss!.s } : bossPose(state.boss!, release);
-    const offset = bossPartOffset(enemy.bossPart);
-    return bossShots(attack, pose.x + offset.x, pose.s + offset.s, aimX, scale, enemy.bossPart === 'core')
+    const offset = bossPartOffset(enemy.bossPart, state.boss!.id);
+    return bossShots(BOSSES[state.boss!.id], attack, pose.x + offset.x, pose.s + offset.s, aimX, scale, enemy.bossPart === 'core')
       .map(shot => shotFootprint(release, shot)).filter((f): f is Footprint => f !== null);
   }
-  if (enemy.kind === 'lancer') {
-    const t0 = release + LANCER_BEAM.warning;
-    return [{ x0: aimX - LANCER_BEAM.width / 2, x1: aimX + LANCER_BEAM.width / 2, t0, t1: t0 + LANCER_BEAM.active }];
+  if (BEAM_KINDS.has(enemy.kind)) {
+    const beam = beamSpec(enemy.kind);
+    const t0 = release + beam.warning;
+    return [{ x0: aimX - beam.width / 2, x1: aimX + beam.width / 2, t0, t1: t0 + beam.active }];
   }
   const at = positionAfter(enemy, warning, enemyClockRate(state, enemy));
   const speed = ENEMIES[enemy.kind].shotSpeed * shotSpeedScale(state);
-  return enemyShots(enemy.kind, at.x, at.s, aimX, speed)
+  const side = enemy.kind === 'diamond' ? diamondSide(enemy) : 0;
+  return enemyShots(enemy.kind as BulletKind, at.x, at.s, aimX, speed, side)
     .map(shot => shotFootprint(release, shot)).filter((f): f is Footprint => f !== null);
 }
 
 /** Airframes that will cross the player row inside the horizon are contact hazards. */
 function contactFootprints(state: RunState, enemy: Enemy, horizon: number, out: Footprint[]): void {
-  if (enemy.hp <= 0 || enemy.kind === 'turret' || enemy.bossPart) return;
+  if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind) || enemy.bossPart) return;
   const reach = R + enemy.radius + 0.05;
   const step = FAIRNESS.slice;
   let open: Footprint | null = null;

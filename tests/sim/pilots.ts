@@ -59,6 +59,26 @@ export function hunterPilot(): Pilot {
   };
 }
 
+/**
+ * Reporting aid for beam-heavy content: the hunter that also steps out of any lane it saw marked 0.2 s ago
+ * (marked hazards and beam windups), moving to the nearer side. Otherwise it behaves exactly like the hunter.
+ */
+export function beamAwareHunterPilot(): Pilot {
+  const hunt = hunterPilot();
+  const history: { x: number; half: number }[][] = [];
+  return state => {
+    const lanes = state.hazards.map(hazard => ({ x: hazard.x, half: hazard.width / 2 }))
+      .concat(state.enemies.filter(enemy => enemy.warning > 0 && (enemy.kind === 'lancer' || enemy.kind === 'needle'))
+        .map(enemy => ({ x: enemy.aimX, half: enemy.kind === 'needle' ? 0.2 : 0.4 })));
+    history.push(lanes);
+    if (history.length > REACTION_TICKS + 1) history.shift();
+    const input = hunt(state);
+    const inside = history[0].find(lane => Math.abs(state.player.x - lane.x) < lane.half + VIEW.playerRadius + 0.15);
+    if (!inside) return input;
+    return { ...EMPTY_INPUT, horizontal: state.player.x >= inside.x ? 1 : -1 };
+  };
+}
+
 /** Target to align with: the nearest damageable enemy in view, so automatic fire can clear content. */
 export function preferredX(state: RunState): number {
   let best: { x: number; score: number } | null = null;
@@ -68,6 +88,8 @@ export function preferredX(state: RunState): number {
     const score = enemy.s + 0.8 * Math.abs(enemy.x - state.player.x);
     if (!best || score < best.score) best = { x: enemy.x, score };
   }
+  // Nothing to shoot in view during a boss fight: head back to the boss (the game shows RETURN LEFT/RIGHT).
+  if (!best && state.boss && state.boss.phase !== 'destroyed') return state.boss.x;
   return best?.x ?? state.cameraX;
 }
 

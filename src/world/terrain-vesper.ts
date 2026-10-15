@@ -1,7 +1,7 @@
 import {
   WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type Landform, type MoodParams,
 } from './terrain-layout';
-import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
+import { FLOE_FOOTPRINT, FLOE_SETS, KIT, kitNodeName, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
 import { MODULE_HEIGHT, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
 import type { Work } from './terrain-work';
 import type { Floe, PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
@@ -116,9 +116,18 @@ export function vesperMasks(seed: number, x: number, s: number, p: VesperParams,
   return { land, crack, ridge, rock, mass, dune };
 }
 
+/**
+ * An ocean arena's weight for the coastline around it: the platform range itself is open water (weight 1), and on
+ * the ramps the open water reaches out by up to 9 units in places, so the shelf edge that frames the arena is an
+ * irregular coast with bays rather than one straight line. Never below the row's own weight.
+ */
+function coastPlatform(seed: number, x: number, s: number, arena: TerrainArena): number {
+  const reach = 9 * smoothRange(0.3, 0.75, noise(seed ^ 0xa7e1, x * 0.11, s * 0.07));
+  return Math.max(arenaWeight(arena, s), arenaWeight(arena, s + reach), arenaWeight(arena, s - reach));
+}
 /** Vesper ground: seabed under the water, shelves above it with drifts, ridges, crevasses and outcrops. */
 export function vesperLandform(seed: number, x: number, s: number, row: PlanetRow): Landform & { tone: number } {
-  const p = row.local as VesperParams, m = vesperMasks(seed, x, s, p, row.platform);
+  const p = row.local as VesperParams, m = vesperMasks(seed, x, s, p, row.arena ? coastPlatform(seed, x, s, row.arena) : row.platform);
   const seabed = SEA - 1.5 - noise(seed ^ 0x9ac, x * 0.07, s * 0.06) * 1.6;
   const top = clamp(p.top + (noise(seed ^ 0x9a7, x * 0.055, s * 0.05) - 0.5) * 0.9, 0.6, 1.85)
     + (noise(seed ^ 0x9ad, x * 0.25, s * 0.3) - 0.5) * 0.18 + (noise(seed ^ 0x9ae, x * 1.3, s * 1.2) - 0.5) * 0.03
@@ -367,11 +376,12 @@ const CLIFF_CELL = 3.4;
 /** Pack-ice plates (jittered lattice, nearly touching) and the smaller brash at field edges. */
 const PLATE_CELL = 1.35, BRASH_CELL = 0.8;
 /**
- * Floe variants: 0 and 3 are plain plates, 1 and 2 carry a small pressure ridge. Ridged plates are a minority,
- * so a packed field does not repeat the same hummock on every plate.
+ * Floe nodes by size class (art/vesper-kit/README.md). Mostly the jagged pack-ice outlines (4–9); the first
+ * convex plates (0–3, two of them ridged) turn up now and then.
  */
-const PLAIN_FLOES = [0, 3] as const, RIDGED_FLOES = [1, 2] as const;
-const floeVariant = (pick: number) => pick < 0.18 ? RIDGED_FLOES[pick < 0.09 ? 0 : 1] : pick < 0.72 ? PLAIN_FLOES[0] : PLAIN_FLOES[1];
+const MEDIUM_FLOES = [6, 7] as const, LARGE_FLOES = [8, 9] as const, BRASH_FLOES = [4, 5] as const, CONVEX_FLOES = [0, 1, 2, 3] as const;
+const CONVEX_SHARE = 0.12;
+const floeSize = (variant: number) => { const [hx, hz] = FLOE_FOOTPRINT[kitNodeName('floe', variant)]; return 2 * Math.max(hx, hz); };
 /** Pack-ice density: fields of packed plates, thinning out at their edges, with open leads between them. */
 function packDensity(seed: number, x: number, s: number, p: VesperParams): number {
   // Domain-warped, so field edges are ragged and thin out into brash instead of following one noise contour.
@@ -382,27 +392,26 @@ function packDensity(seed: number, x: number, s: number, p: VesperParams): numbe
 }
 /** Big cracked plates: one candidate per field cell (two plate cells), pure in seed and position. */
 const FIELD_CELL = 2.7;
-interface BigPlate { x: number; s: number; yaw: number; size: number; parts: number; i: number; j: number }
-/** Fragment offsets in plate units (fractions of a fragment's footprint): halves, a three-way split, quarters. */
-const SPLITS: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
-  2: [[-0.45, 0], [0.45, 0]],
-  3: [[-0.45, -0.3], [0.45, -0.3], [0.02, 0.5]],
-  4: [[-0.45, -0.42], [0.45, -0.42], [-0.45, 0.42], [0.45, 0.42]],
-};
+interface BigPlate { kind: FloeSetKind; x: number; s: number; yaw: number; scale: number; spread: number }
+/** Large triples and pairs make most big plates; the smaller pair now and then. */
+const pickSet = (pick: number): FloeSetKind => pick < 0.42 ? 'floeTripleC' : pick < 0.82 ? 'floePairA' : 'floePairB';
 function bigPlate(seed: number, i: number, j: number, arena: TerrainArena | undefined): BigPlate | null {
   const h = (k: number) => hash(seed ^ 0xb16e, i * 53 + k, j);
   const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.5) * FIELD_CELL, s = (j + 0.5 + (h(1) - 0.5) * 0.5) * FIELD_CELL;
   if (h(2) > 0.55 || arenaWeight(arena, s) > 0 || packDensity(seed, x, s, vesperParams(seed, s)) < 0.62) return null;
-  return { x, s, yaw: h(3) * Math.PI * 2, size: 1.0 + h(4) * 0.45, parts: 2 + Math.floor(h(5) * 3), i, j };
+  const kind = pickSet(h(5));
+  // Sets keep their cracks narrow (offsets × 1.0–1.3: the pieces have only begun to drift apart).
+  return { kind, x, s, yaw: h(3) * Math.PI * 2, scale: kind === 'floePairB' ? 1.3 + h(4) * 0.5 : 1 + h(4) * 0.25, spread: 1 + h(6) * 0.3 };
 }
-/** Reach of a big plate's outline from its centre (fragments of up to 1.05 × size, plate node 1.82 × 1.26). */
-const bigReach = (plate: BigPlate) => 1.35 * plate.size;
+/** Reach of a big plate's assembled outline from its origin. */
+const bigReach = (plate: BigPlate) => FLOE_SETS[plate.kind].reach * plate.scale * plate.spread;
 /**
- * Pack ice: fields of jagged plates packed tightly (narrow dark cracks between them) in mixed sizes, big plates
- * cracked into two to four fragments that keep one outline, thinning into small brash at the field edges, open
- * leads between fields, and now and then an iceberg. Each piece has a stable id and base position; drift is
- * presentation-only and coherent across a field (phases follow smooth noise, so a cracked plate drifts as one).
- * On an ocean arena only a few distant icebergs stand off the edges.
+ * Pack ice: fields of jagged floes packed tightly (narrow dark cracks between them) in mixed sizes, big plates
+ * from the kit's cracked sets (pieces with the set's yaw at their documented offsets, drifting a little apart),
+ * thinning into small brash at the field edges, open leads between fields, and now and then an iceberg. Each
+ * piece has a stable id and base position; drift is presentation-only and coherent across a field (phases
+ * follow smooth noise, and a set's pieces share one). A mission arena stays calm: nothing floats inside its
+ * platform range, and its ramps carry only distant icebergs off the world's sides.
  */
 export function* vesperFloes(seed: number, startS: number, size: number, terrain: ScatterField, arena: TerrainArena | undefined): Work<Floe[]> {
   const floes: Floe[] = [];
@@ -410,9 +419,10 @@ export function* vesperFloes(seed: number, startS: number, size: number, terrain
   const open = (x: number, s: number, reach: number) => Math.abs(x) + reach <= WORLD_HALF
     && [[0, 0], [reach, 0], [-reach, 0], [0, reach], [0, -reach]].every(([dx, ds]) => terrain.height(x + dx, s + ds) < SEA - 0.25 && !terrain.blocked(x + dx, s + ds));
   const phaseAt = (x: number, s: number) => noise(seed ^ 0xf1e4, x * 0.05, s * 0.05) * Math.PI * 4;
+  const inside = (s: number) => !!arena && s >= arena.fromS && s <= arena.toS;
   const fieldColumns = Math.floor(WORLD_HALF * 2 / FIELD_CELL);
-  // Big cracked plates. Candidates are pure, so every section agrees on them; each fragment belongs to the
-  // section holding its own position and is placed only over open water there.
+  // Big cracked plates. Candidates are pure, so every section agrees on them; each piece belongs to the section
+  // holding its own position and is placed only over open water there.
   const plates = new Map<number, BigPlate | null>();
   const plateAt = (i: number, j: number) => {
     const key = j * 64 + i;
@@ -424,16 +434,15 @@ export function* vesperFloes(seed: number, startS: number, size: number, terrain
     for (let i = 0; i < fieldColumns; i++) {
       const plate = plateAt(i, j);
       if (!plate) continue;
-      const h = (k: number) => hash(seed ^ 0xb16f, i * 59 + k, j), cos = Math.cos(plate.yaw), sin = Math.sin(plate.yaw);
-      SPLITS[plate.parts].forEach(([u, v], k) => {
-        // Fragments share the plate's yaw (cracks stay narrow and straight) with a slight opening twist.
-        const fs = plate.size * (0.9 + h(k * 8) * 0.15), sx = fs * (0.9 + h(k * 8 + 1) * 0.2), sz = fs * (0.9 + h(k * 8 + 2) * 0.2);
-        const lu = u * 2 * KIT.floe.halfX * fs, lv = v * 2 * KIT.floe.halfZ * fs;
-        // Local (u, v) to world: x along the plate's local x, s along its local −z (three.js yaw about +y).
+      const cos = Math.cos(plate.yaw), sin = Math.sin(plate.yaw), height = 0.9 + hash(seed ^ 0xb16f, i * 59, j) * 0.3;
+      FLOE_SETS[plate.kind].offsets.forEach(([u, v], k) => {
+        // origin + R(yaw)·offset in three.js axes (x, z), with s = −z.
+        const lu = u * plate.scale * plate.spread, lv = v * plate.scale * plate.spread;
         const x = plate.x + lu * cos + lv * sin, s = plate.s - (-lu * sin + lv * cos);
-        if (s < startS || s >= startS + size || !open(x, s, 0.45 * Math.max(sx, sz))) return;
-        floes.push({ id: `cracked:${i}:${j}:${k}`, kind: 'floe', variant: floeVariant(h(k * 8 + 3)), x, s, scaleX: sx, scaleZ: sz,
-          height: 0.95 + h(k * 8 + 4) * 0.2, rotation: plate.yaw + (h(k * 8 + 5) - 0.5) * 0.24, phase: phaseAt(plate.x, plate.s), radius: 0.22 });
+        const [hx, hz] = FLOE_FOOTPRINT[kitNodeName(plate.kind, k)];
+        if (s < startS || s >= startS + size || !open(x, s, 0.8 * Math.max(hx, hz) * plate.scale)) return;
+        floes.push({ id: `set:${i}:${j}:${k}`, kind: plate.kind, variant: k, x, s, scaleX: plate.scale, scaleZ: plate.scale,
+          height, rotation: plate.yaw, phase: phaseAt(plate.x, plate.s), radius: 0.22, originX: plate.x, originS: plate.s });
       });
     }
   }
@@ -452,34 +461,37 @@ export function* vesperFloes(seed: number, startS: number, size: number, terrain
       if (i === 0) yield;
       const h = (k: number) => hash(seed ^ salt, i * 37 + k, j);
       const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.3) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.3) * cell;
-      if (s < startS || s >= startS + size) continue;
+      if (s < startS || s >= startS + size || inside(s)) continue;
       decide(x, s, packDensity(seed, x, s, vesperParams(seed, s)), arenaWeight(arena, s), h, i, j);
     }
   };
   yield* place(PLATE_CELL, 0xf10e, (x, s, d, platform, h, i, j) => {
     const p = vesperParams(seed, s);
-    if (h(2) < 0.018 * p.floes * (1 - platform) || (platform >= 0.5 && Math.abs(x) > WORLD_HALF - 4 && h(2) < 0.1)) {
+    // Icebergs: rare on open water; on an arena's ramps only far off to the sides.
+    if (platform > 0 ? Math.abs(x) > WORLD_HALF - 4 && h(2) < 0.08 : h(2) < 0.018 * p.floes) {
       const scale = 1 + h(3) * 0.8;
-      if (open(x, s, 0.8 * scale) && (platform >= 0.5 || !covered(x, s))) floes.push({ id: `berg:${i}:${j}`, kind: 'iceberg', variant: Math.floor(h(4) * KIT.iceberg.variants), x, s,
+      if (open(x, s, 0.8 * scale) && (platform > 0 || !covered(x, s))) floes.push({ id: `berg:${i}:${j}`, kind: 'iceberg', variant: Math.floor(h(4) * KIT.iceberg.variants), x, s,
         scaleX: scale * (0.85 + h(5) * 0.3), scaleZ: scale * (0.85 + h(6) * 0.3), height: scale * (0.7 + h(7) * 0.5), rotation: h(8) * Math.PI * 2,
         phase: phaseAt(x, s), radius: 0.12 });
       return;
     }
-    if (platform >= 0.5 || d < 0.5 || h(9) > (d - 0.5) / 0.1 || covered(x, s)) return;
-    // Plates fill their cell in mixed sizes (a third of them small), with irregular outlines from stretch and
-    // free rotation; neighbours may raft over each other. The floe nodes are about 1.8 × 1.24 at scale 1.
-    const small = h(10) < 0.3, scale = PLATE_CELL / 1.05 * (small ? 0.55 + h(16) * 0.3 : 1.05 + h(16) * 0.35);
-    const sx = scale * (0.7 + h(11) * 0.6), sz = scale * (0.7 + h(12) * 0.6);
-    if (!open(x, s, 0.5 * Math.max(sx, sz))) return;
-    floes.push({ id: `plate:${i}:${j}`, kind: 'floe', variant: floeVariant(h(13)), x, s, scaleX: sx, scaleZ: sz,
+    if (platform > 0 || d < 0.5 || h(9) > (d - 0.5) / 0.1 || covered(x, s)) return;
+    // Plates fill their cell in mixed sizes (about a third small), each node scaled to its drawn width from its
+    // own footprint, with a little stretch and free rotation; neighbours may raft over each other.
+    const small = h(10) < 0.32, width = small ? 0.75 + h(16) * 0.3 : 1.4 + h(16) * 0.4;
+    const variant = h(13) < CONVEX_SHARE ? CONVEX_FLOES[Math.floor(h(17) * CONVEX_FLOES.length)]
+      : (small ? MEDIUM_FLOES : h(17) < 0.7 ? LARGE_FLOES : MEDIUM_FLOES)[Math.floor(h(18) * 2)];
+    const scale = width / floeSize(variant), sx = scale * (0.88 + h(11) * 0.24), sz = scale * (0.88 + h(12) * 0.24);
+    if (!open(x, s, 0.45 * width)) return;
+    floes.push({ id: `plate:${i}:${j}`, kind: 'floe', variant, x, s, scaleX: sx, scaleZ: sz,
       height: 0.8 + h(14) * 0.5, rotation: h(15) * Math.PI * 2, phase: phaseAt(x, s), radius: 0.22 });
   });
   yield* place(BRASH_CELL, 0xb2a5, (x, s, d, platform, h, i, j) => {
-    // Brash: small broken pieces where a field thins out (never inside the packed core or on an arena).
-    if (platform >= 0.5 || d < 0.18 || d > 0.66 || h(2) > Math.sin((d - 0.18) / 0.48 * Math.PI) * 0.55) return;
-    const scale = 0.16 + h(3) * 0.22;
+    // Brash: small broken pieces where a field thins out (never inside the packed core or near an arena).
+    if (platform > 0 || d < 0.18 || d > 0.66 || h(2) > Math.sin((d - 0.18) / 0.48 * Math.PI) * 0.55) return;
+    const variant = h(9) < 0.1 ? 3 : BRASH_FLOES[Math.floor(h(4) * 2)], width = 0.22 + h(3) * 0.38, scale = width / floeSize(variant);
     if (!open(x, s, 0.4)) return;
-    floes.push({ id: `brash:${i}:${j}`, kind: 'floe', variant: h(4) < 0.5 ? PLAIN_FLOES[0] : PLAIN_FLOES[1], x, s, scaleX: scale * (0.7 + h(5) * 0.6), scaleZ: scale * (0.7 + h(6) * 0.6),
+    floes.push({ id: `brash:${i}:${j}`, kind: 'floe', variant, x, s, scaleX: scale * (0.8 + h(5) * 0.4), scaleZ: scale * (0.8 + h(6) * 0.4),
       height: 0.6 + h(7) * 0.4, rotation: h(8) * Math.PI * 2, phase: phaseAt(x, s), radius: 0.22 });
   });
   return floes;

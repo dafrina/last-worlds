@@ -2,7 +2,7 @@ import type { PlanetId } from '../shared/contracts';
 import { landform, moodAt, moodParams, pointColor, type Landform, type MoodParams } from './terrain-layout';
 import { arenaGround, arenaPaving, sameArena, type TerrainArena } from './terrain-arena';
 import { settlement, type Settlement } from './terrain-settlements';
-import { scatterKitSteps, type KitInstance, type ScatterField } from './terrain-scatter';
+import { scatterKitSteps, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
 import type { Work } from './terrain-work';
 import { VESPER } from './terrain-vesper';
 import { SCENERY_MAX_HEIGHT, clamp, mix } from './terrain-layout';
@@ -21,17 +21,26 @@ export interface PlanetPoint extends Landform {
   platform?: number; paving?: number; plate?: number;
 }
 /** What a planet sees of a forward row. */
-export interface PlanetRow { seed: number; s: number; params: MoodParams; local: unknown; platform: number }
+export interface PlanetRow {
+  seed: number; s: number; params: MoodParams; local: unknown; platform: number;
+  /** The mission arena, when the world has one (planets may shape its surroundings per point). */
+  arena?: TerrainArena;
+}
 
-/** A floating ice piece (pack ice): base position and a stable id; drift is presentation-only (seed + time). */
+/**
+ * A floating ice piece (pack ice): base position and a stable id; drift is presentation-only (seed + time).
+ * Its kit node is kitNodeName(kind, variant): a floe, an iceberg, or one piece of a cracked set.
+ */
 export interface Floe {
-  id: string; kind: 'floe' | 'iceberg'; variant: number;
+  id: string; kind: 'floe' | 'iceberg' | FloeSetKind; variant: number;
   /** Base centre in world coordinates; the waterline sits at the planet's sea level. */
   x: number; s: number;
   /** Footprint scale along the piece's local x and z (irregular outlines), vertical scale, and yaw. */
   scaleX: number; scaleZ: number; height: number; rotation: number;
   /** Drift phase (radians) and radius (units) for the renderer's slow circling. */
   phase: number; radius: number;
+  /** A cracked set's origin: its pieces sway about it together, so their cracks keep their width. */
+  originX?: number; originS?: number;
 }
 
 export interface PlanetProfile {

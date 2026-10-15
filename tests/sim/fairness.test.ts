@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, THREAT_COST, difficultyScales } from '../../src/content/balance';
+import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, THREAT_COST, difficultyScales } from '../../src/content/balance';
+import { HELION_ARK } from '../../src/content/ark';
 import { BASTION } from '../../src/content/bastion';
-import { ALERT_LEAD, ENDLESS_SECTORS, ROLLING_THUNDER, TRAINING, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
+import { ALERT_LEAD, COLD_VECTOR, ENDLESS_SECTORS, ROLLING_THUNDER, TRAINING, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
 import { FORMATIONS, FORMATION_IDS, slotFlies, type FormationId, type FormationTemplate } from '../../src/content/formations';
 import { VIEW, type Difficulty, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { BOSS_BEAM, ENEMY_SHOT_RADIUS, LANCER_BEAM } from '../../src/sim/attacks';
@@ -35,13 +36,15 @@ describe('authored formation content', () => {
       for (let i = 1; i < template.path.length; i += 1) expect(template.path[i][0]).toBeGreaterThan(template.path[i - 1][0]);
       expect(template.fireUntil).toBeGreaterThan(template.fireFrom);
       expect(template.slots.length).toBeGreaterThan(0);
-      for (const [slot, member] of template.slots.map((slot, index) => [slot, { template: id, slot: index, anchorX: 0, mirror: 1 as const, group: 0 }] as const)) {
+      // Bay launches are measured from the Helion Ark's row, their real anchor.
+      const anchorS = template.entry === 'bay' ? HELION_ARK.row : undefined;
+      for (const [slot, member] of template.slots.map((slot, index) => [slot, { template: id, slot: index, anchorX: 0, mirror: 1 as const, group: 0, anchorS }] as const)) {
         const at = memberPosition(member, 0);
         // Never spawn inside the view or behind the player: above it, beside it, or on the scrolling ground.
         if (template.entry === 'top') expect(at.s, `${id} slot ${member.slot}`).toBeGreaterThan(VIEW.maxS + 0.5);
         if (template.entry === 'side' || template.entry === 'both') expect(Math.abs(at.x), `${id} slot ${member.slot}`).toBeGreaterThan(VIEW.width / 2 + 1);
         if (template.entry === 'ground') {
-          expect(slot.kind).toBe('turret');
+          expect(GROUND_KINDS.has(slot.kind), `${id} slot ${member.slot} is a ground kind`).toBe(true);
           expect(at.s).toBeGreaterThan(VIEW.maxS);
           const later = memberPosition(member, 1);
           expect(at.s - later.s).toBeCloseTo(VIEW.scrollSpeed, 6);
@@ -72,12 +75,12 @@ describe('authored formation content', () => {
           if (!holds) continue;
           const radius = ENEMIES[slot.kind].radius;
           for (let t = template.fireFrom; t <= template.fireUntil; t += 0.05) {
-            const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0 }, (slot.lag ?? 0) + t);
+            const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0, anchorS: template.entry === 'bay' ? HELION_ARK.row : undefined }, (slot.lag ?? 0) + t);
             expect(Math.abs(at.x), `${id} slot ${index} in view at path time ${t.toFixed(2)}`).toBeLessThanOrEqual(VIEW.width / 2 - radius - 0.2);
           }
         }
         for (const { slot, index } of flying) {
-          const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0 }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
+          const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0, anchorS: template.entry === 'bay' ? HELION_ARK.row : undefined }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
           const radius = ENEMIES[slot.kind].radius;
           expect(Math.abs(at.x), `${id} slot ${index} lateral`).toBeLessThanOrEqual(VIEW.width / 2 - radius - 0.2);
           expect(at.s, `${id} slot ${index} forward`).toBeGreaterThan(3.5);
@@ -115,7 +118,7 @@ describe('warning and aim-lock floors', () => {
 
 describe('authored cue sequences', () => {
   const sequences: [string, readonly EncounterCue[]][] = [
-    ['training', TRAINING], ['rolling-thunder', ROLLING_THUNDER],
+    ['training', TRAINING], ['rolling-thunder', ROLLING_THUNDER], ['cold-vector', COLD_VECTOR],
     ['endless-opening', ENDLESS_SECTORS.opening], ['endless-pressure', ENDLESS_SECTORS.pressure], ['endless-peak', ENDLESS_SECTORS.peak],
   ];
 
@@ -142,7 +145,7 @@ describe('authored cue sequences', () => {
         expect(roster.reduce((sum, kind) => sum + THREAT_COST[kind], 0), `${label} ${cue.id}`).toBeLessThanOrEqual(scale.threatBudget);
       }
     };
-    for (const difficulty of DIFFICULTY_IDS) for (const mission of ['training', 'bastion'] as const) check(campaignPlaylist(mission), DIFFICULTIES[difficulty], `${mission}/${difficulty}`);
+    for (const difficulty of DIFFICULTY_IDS) for (const mission of ['training', 'bastion', 'cold-vector'] as const) check(campaignPlaylist(mission), DIFFICULTIES[difficulty], `${mission}/${difficulty}`);
     for (const sector of [1, 2, 3, 4, 9]) check(endlessPlaylist(sector), difficultyScales('endless', 'standard', sector), `endless/${sector}`);
   });
 
@@ -235,7 +238,8 @@ function flyFormation(id: FormationId, mirror: boolean, config: RunConfig, secto
 }
 
 describe('formation hazard unions (isolated squadrons)', () => {
-  const cases = FORMATION_IDS.flatMap(id => [false, true].map(mirror => ({ id, mirror })));
+  // Bay launches only fly from the Helion Ark; the Cold Vector boss runs cover them.
+  const cases = FORMATION_IDS.filter(id => FORMATIONS[id].entry !== 'bay').flatMap(id => [false, true].map(mirror => ({ id, mirror })));
   const scales: { label: string; config: RunConfig; sector: number }[] = [
     ...DIFFICULTY_IDS.map(difficulty => ({ label: difficulty, config: { mode: 'campaign' as const, mission: 'training' as const, difficulty, seed: 9 }, sector: 1 })),
     { label: 'endless-capped', config: { mode: 'endless', seed: 9 }, sector: 9 },
@@ -262,6 +266,7 @@ describe('cue sequence hazard unions', () => {
     ...DIFFICULTY_IDS.flatMap(difficulty => [
       { label: `training/${difficulty}`, config: { mode: 'campaign' as const, mission: 'training' as const, difficulty, seed: 21 }, seconds: 121, sector: 1 },
       { label: `rolling-thunder/${difficulty}`, config: { mode: 'campaign' as const, mission: 'bastion' as const, difficulty, seed: 21 }, seconds: 300, sector: 1 },
+      { label: `cold-vector/${difficulty}`, config: { mode: 'campaign' as const, mission: 'cold-vector' as const, difficulty, seed: 21 }, seconds: 330, sector: 1 },
     ]),
     { label: 'endless sectors 1-4', config: { mode: 'endless', seed: 21 }, seconds: 360, sector: 1 },
     { label: 'endless capped sector 9', config: { mode: 'endless', seed: 21 }, seconds: 90, sector: 9 },

@@ -6,7 +6,9 @@ export type WeaponId = 'pulse' | 'fan' | 'seeker';
 export type MissionId = 'training' | 'bastion' | 'cold-vector';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
 export type PlanetId = 'khepri' | 'vesper';
+/** Boss modules. Bastion-9: batteries and core. Helion Ark: radiators (left/right) and bridge (core). */
 export type BossPart = 'left' | 'right' | 'core';
+export type BossId = 'bastion' | 'ark';
 export interface BossState {
   phase: 'arrival' | 'batteries' | 'core' | 'overload' | 'destroyed';
   x: number; originX: number; s: number; startedAt: number; phaseStartedAt: number;
@@ -14,9 +16,16 @@ export interface BossState {
   attackerId: number | null; deathEffectAt: number;
   /** Combat-plane velocity (units/s; s is relative to the player row). Ground-relative forward speed is vs + RunState.scrollSpeed. */
   vx: number; vs: number;
+  /**
+   * Which boss this is. Phases are shared: 'batteries' is the first module pair (Ark: radiators), 'core' the
+   * main target (Ark: bridge), 'overload' its lane phase. `launchesLeft`/`nextLaunchAt` count the Ark's finite
+   * Needle launches (zero and Infinity for Bastion-9).
+   */
+  id: BossId; launchesLeft: number; nextLaunchAt: number;
 }
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
-export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer';
+/** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */
+export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
 export interface RunConfig { mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId }
 export interface Player {
@@ -25,19 +34,23 @@ export interface Player {
   weapon: WeaponId; power: number;
 }
 /** Authored squadron membership. Motion and fire timing derive from the content template. */
-export interface FormationMember { template: string; slot: number; anchorX: number; mirror: 1 | -1; group: number }
+/** `anchorS` shifts the template's forward keyframes (launches from a moving boss bay); zero when absent. */
+export interface FormationMember { template: string; slot: number; anchorX: number; mirror: 1 | -1; group: number; anchorS?: number }
 export interface Enemy {
   id: number; kind: EnemyKind; x: number; s: number; originX: number;
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
   warning: number; aimX: number; groundHeight: number;
   bossPart?: BossPart; damageable?: boolean; formation?: FormationMember;
+  /** Volleys released so far (the Diamond alternates its wing each volley). */
+  volleys?: number;
 }
 export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;
   vx: number; vs: number; friendly: boolean; damage: number; radius: number;
   ttl: number; homingTargetId?: number;
 }
-export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number }
+/** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
+export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number }
 export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
 export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup'; x: number; s: number; ttl: number; duration: number }
 export interface RunState {

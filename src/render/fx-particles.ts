@@ -43,7 +43,7 @@ interface Particle {
   drift: number;
 }
 /** An engine plume in world space: nozzle at (x, z), extending `length` along z (positive = toward the player). */
-export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number }
+export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number; round?: boolean }
 /** Planet surface hooks (Vesper): sea height under a world point (null over land) and steam vents (world space). */
 export interface FxSurface { splash(x: number, z: number): number | null; vents: readonly { x: number; y: number; z: number }[] }
 const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -191,6 +191,12 @@ export function createFx(scene: THREE.Scene) {
       glow.mesh.setMatrixAt(n, matrix); glow.mesh.setColorAt(n, color.setRGB(r, g, b)); params[n * 2] = alpha; params[n * 2 + 1] = shape; n++;
     };
     for (const plume of plumes) {
+      if (plume.round) {
+        // A one-frame glow (e.g. a Needle's muzzle charging) facing the camera, `width` across.
+        transform.position.set(plume.x, VIEW.flightHeight + .06, plume.z); transform.rotation.set(-ELEVATION, 0, 0); transform.scale.set(plume.width, plume.width, 1);
+        transform.updateMatrix(); color.setHex(plume.hex).multiplyScalar(plume.energy); add(transform.matrix, color.r, color.g, color.b, 1, ROUND);
+        continue;
+      }
       // Lies in the flight plane; uv.y = 1 at the nozzle, fading toward the tail.
       transform.position.set(plume.x, VIEW.flightHeight + .02, plume.z + plume.length / 2);
       transform.rotation.set(-Math.PI / 2, 0, plume.length > 0 ? 0 : Math.PI); transform.scale.set(plume.width, Math.abs(plume.length), 1); transform.updateMatrix();

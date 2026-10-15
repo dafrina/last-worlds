@@ -1,4 +1,5 @@
 import type { Difficulty, GameUi, GraphicsQuality, MissionId, RunConfig, RunState, UiActions, WeaponId } from '../shared/contracts';
+import { missionText } from './missions';
 import { menuMarkup } from './menu-markup';
 import { createFlightLog } from './flight-log';
 import './styles.css';
@@ -104,8 +105,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const difficultySelect = find<HTMLSelectElement>('[name="difficulty"]');
   const weaponSelect = find<HTMLSelectElement>('[name="weapon"]');
   const missionSelect = find<HTMLSelectElement>('[name="mission"]');
-  missionSelect.addEventListener('change', () => text('.mission-description', missionSelect.value === 'bastion'
-    ? 'Bring down the Bastion-9 fortress.' : 'Practice movement and weapons.'), options);
+  missionSelect.addEventListener('change', () => text('.mission-description', missionText(missionSelect.value as MissionId).brief), options);
   let lastState: RunState | null = null;
   let displayedPhase = 'menu';
   let lastConfig: RunConfig = { mode: 'endless', seed: 1 };
@@ -342,7 +342,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     } else if (changed && state.phase === 'paused') {
       text('.pause-description', state.config.mode === 'endless'
         ? `Endless · Sector ${state.sector}`
-        : `${state.config.mission === 'bastion' ? 'Rolling Thunder' : 'Training'} · ${difficultyNames[state.config.difficulty ?? 'standard']}`);
+        : `${missionText(state.config.mission).name} · ${difficultyNames[state.config.difficulty ?? 'standard']}`);
       text('.pause-weapon', weaponNames[state.player.weapon]);
       showPanel('pause-panel', '[data-action="resume"]');
     } else if (changed && (state.phase === 'over' || state.phase === 'complete')) {
@@ -350,8 +350,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       text('.result-mode', campaign ? 'CAMPAIGN FLIGHT' : 'ENDLESS / KHEPRI');
       text('#results-title', state.phase === 'complete' ? 'SORTIE COMPLETE' : 'FLIGHT ENDED');
       text('.result-subtitle', state.phase === 'complete'
-        ? state.config.mission === 'bastion' ? 'Bastion-9 is down. Extraction complete.' : 'You made it through the proving ground.'
-        : state.boss ? 'Bastion-9 is still standing. Fly again.' : 'Every flight leaves a mark.');
+        ? missionText(state.config.mission).complete
+        : state.boss ? `${missionText(state.config.mission).boss ?? 'The enemy'} is still standing. Fly again.` : 'Every flight leaves a mark.');
       text('.result-score', String(Math.floor(state.score)).padStart(6, '0'));
       text('.result-kills', String(state.kills));
       text('.result-time', duration(state.time));

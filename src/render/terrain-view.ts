@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, terrainHeight, worldOf,
+  FLOE_FOOTPRINT, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, terrainHeight, worldOf,
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
@@ -752,16 +752,22 @@ export function createTerrainView(options: TerrainViewOptions) {
         const mesh = floeMesh(name, list.length);
         if (!mesh) continue;
         list.forEach((floe, i) => {
-          const angle = floe.phase + time * FLOE_SPIN * (floe.kind === 'iceberg' ? 0.5 : 1);
-          const x = floe.x + Math.cos(angle) * floe.radius, z = distance - floe.s - Math.sin(angle) * floe.radius;
-          const yaw = floe.rotation + Math.sin(time * 0.11 + floe.phase) * FLOE_SWAY, spec = KIT[floe.kind];
+          const angle = floe.phase + time * FLOE_SPIN * (floe.kind === 'iceberg' ? 0.5 : 1), sway = Math.sin(time * 0.11 + floe.phase) * FLOE_SWAY;
+          // A cracked set's pieces sway about the set origin together (three.js yaw about +y, s = −z).
+          let bx = floe.x, bz = -floe.s;
+          if (floe.originX !== undefined && floe.originS !== undefined) {
+            const ox = floe.x - floe.originX, oz = floe.originS - floe.s, c = Math.cos(sway), n = Math.sin(sway);
+            bx = floe.originX + ox * c + oz * n; bz = -floe.originS - ox * n + oz * c;
+          }
+          const x = bx + Math.cos(angle) * floe.radius, z = distance + bz - Math.sin(angle) * floe.radius, yaw = floe.rotation + sway;
+          const [hx, hz] = FLOE_FOOTPRINT[name] ?? [KIT[floe.kind].halfX, KIT[floe.kind].halfZ];
           transform.position.set(x, sea + Math.sin(time * 0.9 + floe.phase) * 0.015, z);
           transform.rotation.set(0, yaw, 0);
           transform.scale.set(floe.scaleX, floe.height, floe.scaleZ); transform.updateMatrix();
           mesh.setMatrixAt(i, transform.matrix);
           const feature = floeFeatures[floeUsed] ??= { id: '', kind: 'floe', x: 0, y: 0, z: 0, rx: 0, rz: 0, yaw: 0 };
-          feature.id = floe.id; feature.kind = floe.kind; feature.x = x; feature.y = sea; feature.z = z;
-          feature.rx = spec.halfX * floe.scaleX; feature.rz = spec.halfZ * floe.scaleZ; feature.yaw = yaw; floeUsed++;
+          feature.id = floe.id; feature.kind = floe.kind === 'iceberg' ? 'iceberg' : 'floe'; feature.x = x; feature.y = sea; feature.z = z;
+          feature.rx = hx * floe.scaleX; feature.rz = hz * floe.scaleZ; feature.yaw = yaw; floeUsed++;
         });
         mesh.count = list.length; mesh.visible = true; mesh.instanceMatrix.needsUpdate = true;
       }

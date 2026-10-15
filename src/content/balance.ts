@@ -143,7 +143,12 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 1, 'cold-vector': 1 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
-export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3 };
+export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2 };
+
+/** Ground targets move with the terrain scroll and are never airframe contact hazards. */
+export const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile']);
+/** Kinds whose attack is a locked beam lane rather than bullets. */
+export const BEAM_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['lancer', 'needle']);
 
 /**
  * Standardized endless ramp by sector s >= 1 (docs/03 §8). Independent of every campaign setting. After the
@@ -176,6 +181,12 @@ export const ENEMIES: Record<EnemyKind, {
   weaver: { hp: 75, radius: 0.58, speed: 2.05, shotSpeed: 6.6, attackEvery: 1.05, warning: 0.9, score: 200, credits: 8 },
   turret: { hp: 110, radius: 0.62, speed: VIEW.scrollSpeed, shotSpeed: 7.3, attackEvery: 0.98, warning: 0.95, score: 250, credits: 10 },
   lancer: { hp: 120, radius: 0.46, speed: 1.55, shotSpeed: 6, attackEvery: 1.85, warning: 1.2, score: 400, credits: 16 },
+  // Vesper (docs/17 §5). Needle: fast interceptor, a very narrow locked beam on its own quick timing.
+  needle: { hp: 50, radius: 0.3, speed: 3.2, shotSpeed: 0, attackEvery: 1.3, warning: 0.75, score: 150, credits: 6 },
+  // Diamond: heavy escort; the 0.3 radius is its exposed core, the 0.6 frame is scenery.
+  diamond: { hp: 220, radius: 0.3, speed: 1.2, shotSpeed: 6.8, attackEvery: 1, warning: 0.95, score: 400, credits: 16 },
+  // Missile battery: ground target; straight, non-tracking missiles down its own marked column.
+  missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 9.5, attackEvery: 1.1, warning: 1, score: 250, credits: 10 },
 };
 
 export function difficultyScales(mode: 'campaign' | 'endless', difficulty: Difficulty, sector: number): DifficultyScale {

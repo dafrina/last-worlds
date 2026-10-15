@@ -87,6 +87,92 @@ All of them follow the fairness rules and the validator, and the perfect pilot m
 - **Live features:** `terrain.features` exposes floes and vents, for foam collars and steam.
 - **Preview:** `?planet=vesper` is a hidden preview switch, not offered in any menu, that shows Vesper in any run until Cold Vector ships.
 
+### As built: combat (15 October 2026)
+
+Runtime sources:
+- `src/content/ark.ts` (Helion Ark);
+- `src/content/bosses.ts` (shared boss definition);
+- `src/content/formations.ts` and `encounters.ts` (`COLD_VECTOR`);
+- `src/content/balance.ts` (enemy stats);
+- `src/sim/bastion.ts` (generic boss simulation, still exporting the Bastion names).
+
+**Enemy kinds (`EnemyKind`):**
+
+| Kind | Role | Radius | HP | Score / credits | Threat | Attack |
+| --- | --- | --- | --- | --- | --- | --- |
+| `needle` | Fast interceptor | 0.30 | 50 | 150 / 6 | 2 | Narrow 0.4 lane locked on the player: 0.75 s windup + 0.2 s flash, 0.15 s beam, costs **one** shield charge (Lancer beams cost two). Repeats every 1.3 s. Narrow lanes do not count against the wide-beam lane cap |
+| `diamond` | Heavy escort (Bulwark family) | 0.30 core; the 0.6 frame is scenery | 220 | 400 / 16 | 4 | Alternating left/right wing volleys: three tight rounds from the wing, aimed 1.2 to that side of the committed position. Repeats every 1.0 s |
+| `missile` | Ground battery | 0.55 | 120 | 250 / 10 | 2 | One straight, non-tracking missile (radius 0.2, speed 9.5) down its own marked column; 1.0 s windup, repeats every 1.1 s. Moves with the terrain; no contact damage |
+
+**Squadrons:**
+- `needle-solo`, `needle-line-3` (stepped narrow lanes), `needle-column-5` (sweeping column, mirrorable);
+- `diamond-solo`, `diamond-convoy` (2 Diamonds + 2 Needle escorts, +1 Diamond on Veteran);
+- `missile-2`, `missile-3`;
+- `ark-launch` (boss-only, from the deck bays).
+
+All follow the airspace rule (one air squadron in a stretch of airspace at a time) and the director's exclusion check. Cold Vector uses the same harder cadence as Rolling Thunder (`MISSION_CADENCE['cold-vector'] = 1`).
+
+**Mission timeline (`COLD_VECTOR`, about 4–5 min):**
+
+| Time | Stage |
+| --- | --- |
+| 2–13 s | Introduction: a Needle, a Diamond and a missile pair, each with a teaching message |
+| 17–41 s | Needle squadrons with narrow beam lanes |
+| 48–53 s | Relief: an optional cliff battery west, a lone interceptor east |
+| 58–84 s | Missile batteries on the ice cliffs |
+| 89–147 s | Heavy Diamond escort convoy |
+| 160 s | Relief |
+| 170 s | Approach ends |
+| 181–187 s | The scroll eases to a stop |
+| 184 s | The Helion Ark arrives |
+
+Shield cells:
+- 50, 115 and 172 s on Relaxed and Standard;
+- 115 and 172 s on Veteran.
+
+**Arena (for the world agent):**
+- **Scroll:** a closed form of active time. Full speed (5 units/s) until t = 181 s (distance 905), then a smoothstep ease to zero over 6 s.
+- **Stop:** exactly **distance 920** at t = 187 s.
+- **During the fight:** static.
+- **After the kill:** a 2 s smoothstep ease back to 5 units/s for the 8 s extraction.
+- **Platform:**
+  - The open-water platform must cover **s from −9 to +35** relative to the stop, which is **world distance 911 to 955**.
+  - It spans the full world width, x from −15 to +15.
+  - The Ark glides in from pivot s 26; its stern is about +7.3 behind the pivot.
+  - It then holds pivot s 11.5 ± 0.7, with the bow near s 7.8 and the stern near s 18.8.
+  - Its post is the camera x at arrival clamped to ±7, swaying ±1.3.
+
+**Helion Ark state (additive contract fields):**
+- `BossState.id` is `'ark'`.
+- Phases reuse the shared names:
+  - `'arrival'`;
+  - `'batteries'` (radiators);
+  - `'core'` (bridge);
+  - `'overload'` (bridge overload);
+  - `'destroyed'`.
+- `BossState.launchesLeft` and `nextLaunchAt` track the finite launches (3 waves of 2 Needles).
+- `BossState.vx` and `vs` give its velocity on the water.
+- Boss targets are `Enemy.bossPart`:
+  - `'left'`/`'right'` are the radiators (x ∓2.4, s −0.5, radius 0.75, 600 HP);
+  - `'core'` is the bridge (x 0, s +1.6, radius 1.0, 1,800 HP).
+  - All are at target height 1.6.
+- The deck bays (x ∓0.75, s −2) are launch points, not targets.
+- Total HP is 3,000 on Standard, scaled by difficulty.
+- Other additive fields:
+  - `FormationMember.anchorS` places bay launches relative to the moving hull;
+  - `Enemy.volleys` counts the Diamond's wing volleys;
+  - `Hazard.cost` gives a hazard's shield cost.
+
+**Evidence (`tests/sim/ark.test.ts`, `fairness.test.ts`):**
+- The validator covers every Vesper squadron in isolation and Cold Vector on all three difficulties, on the perfect, idle and dodger branches.
+- The perfect pilot clears all nine weapon × difficulty combinations of Cold Vector with **zero hits**, no special and no pickups. A wider sweep from two start positions per combination (18 runs) was also clean.
+- Clear times by setting:
+  - Relaxed: Pulse 245 s, Fan 303 s, Seeker 238 s;
+  - Standard: Pulse 272 s, Fan 335 s, Seeker 243 s;
+  - Veteran: Pulse 285 s, Fan 365 s, Seeker 251 s.
+- The Fan's Ark fight is long (about 150 s on Standard), the same single-target weakness it shows against Bastion-9.
+- Scripted mid-skill pilots fail Cold Vector before the Ark about as often as they fail Rolling Thunder before Bastion-9. With run-wide shields and the harder cadence, human playtests must judge it.
+
 ## 6. Ownership and order
 
 1. **Kit agent:** the four GLBs (§3).

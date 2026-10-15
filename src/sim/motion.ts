@@ -1,7 +1,7 @@
-import { ENEMIES } from '../content/balance';
-import { BASTION } from '../content/bastion';
+import { ENEMIES, GROUND_KINDS } from '../content/balance';
+import { BOSSES } from '../content/bosses';
 import { FORMATIONS, type FormationTemplate, type Keyframe } from '../content/formations';
-import { VIEW, type BossState, type Enemy, type FormationMember, type RunState } from '../shared/contracts';
+import { VIEW, type BossId, type BossState, type Enemy, type FormationMember, type RunState } from '../shared/contracts';
 
 /** Linear keyframe interpolation; past the last keyframe the final segment continues (the exit). */
 export function keyframeAt(path: readonly Keyframe[], t: number): { x: number; s: number } {
@@ -37,7 +37,7 @@ export function memberPosition(member: FormationMember, age: number): { x: numbe
     const offset = template.sway.amp * Math.sin(2 * Math.PI * t / template.sway.period);
     if (template.sway.axis === 'x') swayX = offset; else swayS = offset;
   }
-  return { x: member.anchorX + side * (point.x + slot.dx + swayX), s: point.s + (slot.ds ?? 0) + swayS };
+  return { x: member.anchorX + side * (point.x + slot.dx + swayX), s: point.s + (slot.ds ?? 0) + swayS + (member.anchorS ?? 0) };
 }
 
 /** Authored aim offset in world x for a member: mirrored with its placement and flip. */
@@ -67,7 +67,7 @@ export function pathComplete(enemy: Enemy): boolean {
  * intervals are measured on this clock; warnings always count real seconds.
  */
 export function enemyClockRate(state: Pick<RunState, 'pace' | 'scrollSpeed'>, enemy: Enemy): number {
-  return enemy.kind === 'turret' ? state.scrollSpeed / VIEW.scrollSpeed : state.pace;
+  return GROUND_KINDS.has(enemy.kind) ? state.scrollSpeed / VIEW.scrollSpeed : state.pace;
 }
 
 /**
@@ -90,25 +90,27 @@ export function advanceEnemy(enemy: Enemy, dt: number, rate = 1): void {
 }
 
 /**
- * Bastion-9's authored maneuver on the static arena at an active time: it rolls in during arrival, then sways
- * laterally and surges forward/back within bounds. The fight freezes in place once destroyed.
+ * A boss's authored maneuver on its static arena at an active time: it arrives (Bastion-9 rolls in, the Helion
+ * Ark glides in on the water), then sways laterally and surges forward/back within bounds.
  */
-export function bossPose(boss: Pick<BossState, 'originX' | 'startedAt'>, time: number): { x: number; s: number } {
+export function bossPose(boss: Pick<BossState, 'originX' | 'startedAt' | 'id'>, time: number): { x: number; s: number } {
+  const def = BOSSES[boss.id];
   const age = time - boss.startedAt;
-  const arena = BASTION.arena;
-  const fight = Math.max(0, age - BASTION.arrivalDuration);
-  const s = age < BASTION.arrivalDuration
-    ? 22 + (BASTION.row - 22) * Math.max(0, age) / BASTION.arrivalDuration
-    : BASTION.row + Math.sin(fight * arena.surgeRate) * arena.surge;
+  const arena = def.arena;
+  const fight = Math.max(0, age - def.arrivalDuration);
+  const s = age < def.arrivalDuration
+    ? def.entryS + (def.row - def.entryS) * Math.max(0, age) / def.arrivalDuration
+    : def.row + Math.sin(fight * arena.surgeRate) * arena.surge;
   return { x: boss.originX + Math.sin(fight * arena.swayRate) * arena.sway, s };
 }
 
-/** Logical position of a fortress module for a hull pose. */
-export function bossPartOffset(part: NonNullable<Enemy['bossPart']>): { x: number; s: number } {
-  return { x: part === 'left' ? -BASTION.batteryOffset : part === 'right' ? BASTION.batteryOffset : 0, s: part === 'core' ? BASTION.coreRowOffset : 0 };
+/** Logical position of a boss module relative to the boss pivot. */
+export function bossPartOffset(part: NonNullable<Enemy['bossPart']>, id: BossId = 'bastion'): { x: number; s: number } {
+  const offset = BOSSES[id].parts[part];
+  return { x: offset.x, s: offset.s };
 }
 
 export const GROUND_HEIGHT = 0.85;
 export function groundHeight(kind: Enemy['kind']): number {
-  return kind === 'turret' ? GROUND_HEIGHT : VIEW.flightHeight;
+  return GROUND_KINDS.has(kind) ? GROUND_HEIGHT : VIEW.flightHeight;
 }

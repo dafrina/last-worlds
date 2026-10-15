@@ -49,6 +49,7 @@ npm run test:browser
 | [Khepri world map](docs/13-khepri-world.md) | Concept-matched visual target, seeded valley/mesa layout, and the Blender terrain kit contract |
 | [Shared industrial kit](docs/14-shared-industrial-kit.md) | Cross-planet tiling pipes, tanks and containers with planet-neutral, palette-driven shading |
 | [Vesper — Glass Frontier](docs/17-vesper-glass-frontier.md) | The ice planet, its Blender kits, the Cold Vector mission and the Helion Ark boss |
+| [Endless planet cycle](docs/18-endless-planet-cycle.md) | Endless cycles planets with bosses and hyperdrive jumps |
 | [Package validation](docs/package-validation.md) | Completed documentation checks and untested implementation gates |
 
 ## The recommended design

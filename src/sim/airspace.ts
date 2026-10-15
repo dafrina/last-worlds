@@ -1,4 +1,4 @@
-import { AIRSPACE, ENEMIES } from '../content/balance';
+import { AIRSPACE, ENEMIES, GROUND_KINDS } from '../content/balance';
 import type { FormationPlacement } from '../content/encounters';
 import { FORMATIONS, slotFlies, type FormationRank } from '../content/formations';
 import { VIEW, type EnemyKind, type FormationMember, type RunState } from '../shared/contracts';
@@ -83,18 +83,18 @@ export function airspaceConflict(a: GroupSample, b: GroupSample, margin = 0): bo
 /** Group samples of the live squadrons right now, for the validator's independent observation. */
 export function liveGroups(state: RunState): Map<number, GroupSample> {
   const tracks: Track[] = state.enemies.filter(enemy => enemy.hp > 0 && enemy.formation && !enemy.bossPart)
-    .map(enemy => ({ group: enemy.formation!.group, air: enemy.kind !== 'turret', radius: enemy.radius, at: () => ({ x: enemy.x, s: enemy.s }) }));
+    .map(enemy => ({ group: enemy.formation!.group, air: !GROUND_KINDS.has(enemy.kind), radius: enemy.radius, at: () => ({ x: enemy.x, s: enemy.s }) }));
   return sample(tracks, 0);
 }
 
 export function airspaceClear(state: RunState, planned: readonly PlannedMember[]): boolean {
   const live: Track[] = state.enemies.filter(enemy => enemy.hp > 0 && enemy.formation && !enemy.bossPart).map(enemy => {
     const rate = enemyClockRate(state, enemy);
-    return { group: enemy.formation!.group, air: enemy.kind !== 'turret', radius: enemy.radius, at: (t: number) => t === 0 ? { x: enemy.x, s: enemy.s } : positionAfter(enemy, t, rate) };
+    return { group: enemy.formation!.group, air: !GROUND_KINDS.has(enemy.kind), radius: enemy.radius, at: (t: number) => t === 0 ? { x: enemy.x, s: enemy.s } : positionAfter(enemy, t, rate) };
   });
   const fresh: Track[] = planned.map(({ member, kind }) => {
-    const rate = kind === 'turret' ? state.scrollSpeed / VIEW.scrollSpeed : state.pace;
-    return { group: member.group, air: kind !== 'turret', radius: ENEMIES[kind].radius, at: (t: number) => memberPosition(member, t * rate) };
+    const rate = GROUND_KINDS.has(kind) ? state.scrollSpeed / VIEW.scrollSpeed : state.pace;
+    return { group: member.group, air: !GROUND_KINDS.has(kind), radius: ENEMIES[kind].radius, at: (t: number) => memberPosition(member, t * rate) };
   });
   const freshGroups = new Set(fresh.map(track => track.group));
   const tracks = live.concat(fresh);

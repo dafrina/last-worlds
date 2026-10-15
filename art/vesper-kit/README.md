@@ -1,6 +1,6 @@
 # Vesper ice terrain kit
 
-Runtime file: `public/assets/vesper/vesper-kit.glb` (365,940 bytes, sha256 `94b9e32ae11aef05669cad84e54296ba1de40c8ad7a72b327a6b05a112b4298c`).
+Runtime file: `public/assets/vesper/vesper-kit.glb` (540,256 bytes, sha256 `bdb730e6b115c1ac5bc5554d5d19fbb5012644f75cc99a19a942c05a1ccf9588`).
 Contract: [docs/17-vesper-glass-frontier.md §1 and §3](../../docs/17-vesper-glass-frontier.md). The kit follows the right panel of `art/concepts/01-worlds-direction.png`: snowy shelves, sheer blue-white faceted ice cliffs, deep blue ocean and broken floes. The concept is a reference only.
 
 ## Provenance
@@ -24,7 +24,7 @@ cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -
   --craft "$(wslpath -w $R/public/assets/vesper/vesper-craft.glb)"
 ```
 
-The build exports to a temporary file, re-parses it, and only publishes when every check passes: names, footprints, bases and tops (exact where marked), budgets (≤ 600 per piece), materials, COLOR_0 and box UVs.
+The build exports to a temporary file, re-parses it, and only publishes when every check passes: names, footprints, bases and tops (exact where marked), budgets (≤ 600 per piece; ≤ 200 for the jagged floes), materials, COLOR_0 and box UVs.
 
 ## Conventions
 
@@ -49,12 +49,39 @@ Upward faces and ledges are snow, walls are ice, and outcrops are rock with snow
 | `rock_outcrop_0` … `_2` | 74, 52, 104 | ≤ 0.86 × 0.68; y −0.12 … 0.50–0.80 | Snow-capped charcoal rock clusters |
 | `vent_stack_0` … `_1` | 152, 456 | ≤ 0.78 × 0.68; y −0.12 … 0.97 / 0.77 | Frozen vent stacks: rock chimneys with ice collars and frosted rims (one tall, one cluster of three) |
 
-Total: 3,691 triangles in 24 meshes.
+**Jagged pack-ice floes (added 15 October; the 24 earlier nodes are unchanged).** These are non-convex, irregular outlines with sharp notches and a broad bay, mostly flat-topped with no ridges. Each has a snow skin with a slightly raised rim, a blue-ice waterline band, and a submerged base. **Waterline at y = 0**: the pivot sits at sea level, and each floe runs from y −0.15 to the rim crest at y 0.07–0.09.
+
+| Node | Tris | Size (x × z) | Class |
+| --- | --- | --- | --- |
+| `floe_4`, `floe_5` | 79, 79 | 0.26 × 0.30, 0.34 × 0.40 | brash, about 0.4 |
+| `floe_6`, `floe_7` | 115, 124 | 0.90 × 0.90, 0.96 × 0.94 | medium, about 1.0 |
+| `floe_8`, `floe_9` | 151, 160 | 1.68 × 1.70, 2.08 × 2.08 | large, about 1.8–2.1 |
+| `floe_pair_a_0`, `_1` | 187, 169 | 1.08 × 1.94, 1.08 × 2.00 | large pair, about 2.2 across assembled |
+| `floe_pair_b_0`, `_1` | 133, 160 | 0.90 × 0.50, 0.94 × 0.74 | medium pair, about 1.0 across assembled |
+| `floe_triple_c_0`, `_1`, `_2` | 142, 169, 142 | 1.06 × 1.36, 1.26 × 1.54, 1.08 × 1.14 | large triple, about 2.3 across assembled |
+
+**Cracked sets:** each set is one parent floe split along shared jagged cracks; the pieces fit together with a gap of about 0.05.
+- **Placement:** put each piece at `set_origin + R(yaw) · offset` and give every piece the same yaw R, using the same Y rotation for the offset vector as for the piece. Scale the offsets by more than 1 to let the pieces drift apart.
+- **Offsets** (glTF x, z) of each piece pivot from the set origin:
+
+| Piece | Offset x | Offset z |
+| --- | --- | --- |
+| `floe_pair_a_0` | +0.4568 | +0.0471 |
+| `floe_pair_a_1` | −0.4637 | +0.0130 |
+| `floe_pair_b_0` | +0.0232 | +0.0990 |
+| `floe_pair_b_1` | −0.0274 | −0.1167 |
+| `floe_triple_c_0` | −0.5620 | +0.3320 |
+| `floe_triple_c_1` | +0.4800 | +0.2375 |
+| `floe_triple_c_2` | −0.1254 | −0.5959 |
+
+Total: 5,501 triangles in 37 meshes.
 
 ## Previews
 
 The lighting is Vesper's: a high, pale, cool sun from the upper left and slightly behind, a cool sky for blue shadows, ACES 1.3. The camera is orthographic at 55° elevation with zero yaw.
 - `preview-kit.png`: every land piece on a snowy shelf; bergs and floes in the ocean below the shelf edge.
+- `preview-floes.png`: the jagged floes and the three cracked sets, assembled from the documented offsets.
+- `preview-pack-ice.png`: pack ice at the game camera. Mixed jagged floes and brash, with cracked sets drifting slightly apart (offsets × 1.0–2.2).
 - `preview-diorama.png`: the game camera (12.5 units wide). It shows:
   - a shelf at 0.8 over the sea at −1.2, its jagged edge lined with ice cliffs scaled to the 2.0 shelf height and facing outward;
   - shelf scatter: seracs, a spire, outcrops, drifts, a pressure ridge and a vent;

@@ -16,7 +16,7 @@ export const menuMarkup = `
   <section class="campaign-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>
     <p class="eyebrow">01 / KHEPRI</p><h2 id="campaign-title">CAMPAIGN</h2>
-    <div class="mission-select setup-fields"><label>MISSION<select name="mission" aria-label="Campaign mission"><option value="bastion">Rolling Thunder</option><option value="training">Training</option></select></label></div>
+    <div class="mission-select setup-fields"><label>MISSION<select name="mission" aria-label="Campaign mission"><option value="bastion">Rolling Thunder</option><option value="cold-vector">Cold Vector · Vesper</option><option value="training">Training</option></select></label></div>
     <p class="mission-description">Bring down the Bastion-9 fortress.</p>
     <div class="setup-fields"><label>DIFFICULTY<select name="difficulty" aria-label="Campaign difficulty"><option value="relaxed">Relaxed</option><option value="standard" selected>Standard</option><option value="veteran">Veteran</option></select></label></div>
     <div class="equipment-preview"><h3>LOADOUT</h3><dl>

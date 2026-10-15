@@ -1,0 +1,92 @@
+import type { BossId, BossPart, Difficulty, MissionId } from '../shared/contracts';
+import { BASTION } from './bastion';
+import { HELION_ARK } from './ark';
+
+/**
+ * One shape for every campaign boss, built from each boss's own content file. Phases are shared:
+ * arrival → 'batteries' (first module pair) → 'core' (main target) → 'overload' (lanes over its own hit
+ * columns) → 'destroyed' (ground- or water-anchored wreck, extraction).
+ */
+export interface BossDefinition {
+  id: BossId;
+  name: string;
+  arrivesAt: number;
+  approachEndsAt: number;
+  arrivalDuration: number;
+  entryS: number;
+  row: number;
+  targetHeight: number;
+  parts: Readonly<Record<BossPart, { x: number; s: number; radius: number; hp: number }>>;
+  /** First-pair attack: Bastion fires aimed bursts, the Ark fires narrow lane lasers. */
+  pairAttack: 'burst' | 'laser';
+  /** Main-target attack: Bastion alternates its fixed fan with an aimed burst; the Ark fires aimed bursts. */
+  coreAttack: 'fan-burst' | 'burst';
+  warning: number;
+  laser: { warning: number; width: number; active: number } | null;
+  beamWarning: number;
+  overload: { coreLaneWidth: number; batteryLaneWidth: number; active: number };
+  recovery: number;
+  transitionRecovery: number;
+  overloadFraction: number;
+  extractionDuration: number;
+  bursts: { pair: { bolts: number; spread: number; speed: number }; core: { bolts: number; spread: number; speed: number } };
+  fan: { bolts: number; spacing: number; speed: number } | null;
+  launches: { waves: number; firstAfter: number; interval: number; bays: readonly { x: number; s: number }[] } | null;
+  arena: { decelStart: number; decelDuration: number; resumeDuration: number; sway: number; swayRate: number; surge: number; surgeRate: number; platform: { from: number; to: number } };
+  shieldSupplies: Readonly<Record<Difficulty, readonly number[]>>;
+  messages: { start: string; batteries: string; core: string; overload: string; destroyed: string; approach: string };
+}
+
+export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
+  bastion: {
+    id: 'bastion', name: 'BASTION-9',
+    arrivesAt: BASTION.arrivesAt, approachEndsAt: BASTION.approachEndsAt, arrivalDuration: BASTION.arrivalDuration,
+    entryS: 22, row: BASTION.row, targetHeight: BASTION.targetHeight,
+    parts: {
+      left: { x: -BASTION.batteryOffset, s: 0, radius: BASTION.batteryRadius, hp: BASTION.batteryHp },
+      right: { x: BASTION.batteryOffset, s: 0, radius: BASTION.batteryRadius, hp: BASTION.batteryHp },
+      core: { x: 0, s: BASTION.coreRowOffset, radius: BASTION.coreRadius, hp: BASTION.coreHp },
+    },
+    pairAttack: 'burst', coreAttack: 'fan-burst',
+    warning: BASTION.warning, laser: null, beamWarning: BASTION.beamWarning, overload: BASTION.overload,
+    recovery: BASTION.recovery, transitionRecovery: BASTION.transitionRecovery,
+    overloadFraction: BASTION.overloadFraction, extractionDuration: BASTION.extractionDuration,
+    bursts: { pair: BASTION.batteryBurst, core: BASTION.coreBurst }, fan: BASTION.coreFan, launches: null,
+    arena: BASTION.arena, shieldSupplies: BASTION.shieldSupplies,
+    messages: {
+      start: 'BASTION-9 · BREAK BOTH BATTERIES', batteries: 'BREAK BOTH BATTERIES', core: 'CORE EXPOSED',
+      overload: 'CORE OVERLOAD · WATCH THE LANES', destroyed: 'BASTION-9 DESTROYED · EXTRACTION',
+      approach: 'FORTRESS APPROACH · READY YOUR SPECIAL',
+    },
+  },
+  ark: {
+    id: 'ark', name: 'HELION ARK',
+    arrivesAt: HELION_ARK.arrivesAt, approachEndsAt: HELION_ARK.approachEndsAt, arrivalDuration: HELION_ARK.arrivalDuration,
+    entryS: HELION_ARK.entryS, row: HELION_ARK.row, targetHeight: HELION_ARK.targetHeight,
+    parts: {
+      left: { x: -HELION_ARK.radiatorOffset, s: HELION_ARK.radiatorS, radius: HELION_ARK.radiatorRadius, hp: HELION_ARK.radiatorHp },
+      right: { x: HELION_ARK.radiatorOffset, s: HELION_ARK.radiatorS, radius: HELION_ARK.radiatorRadius, hp: HELION_ARK.radiatorHp },
+      core: { x: 0, s: HELION_ARK.bridgeS, radius: HELION_ARK.bridgeRadius, hp: HELION_ARK.bridgeHp },
+    },
+    pairAttack: 'laser', coreAttack: 'burst',
+    warning: HELION_ARK.warning, laser: HELION_ARK.laser, beamWarning: HELION_ARK.beamWarning, overload: HELION_ARK.overload,
+    recovery: HELION_ARK.recovery, transitionRecovery: HELION_ARK.transitionRecovery,
+    overloadFraction: HELION_ARK.overloadFraction, extractionDuration: HELION_ARK.extractionDuration,
+    bursts: { pair: HELION_ARK.bridgeBurst, core: HELION_ARK.bridgeBurst }, fan: null,
+    launches: { ...HELION_ARK.launches, bays: HELION_ARK.bays },
+    arena: HELION_ARK.arena, shieldSupplies: HELION_ARK.shieldSupplies,
+    messages: {
+      start: 'HELION ARK · BREAK BOTH RADIATORS', batteries: 'BREAK BOTH RADIATORS', core: 'BRIDGE EXPOSED',
+      overload: 'BRIDGE OVERLOAD · WATCH THE LANES', destroyed: 'HELION ARK DESTROYED · EXTRACTION',
+      approach: 'OPEN WATER · THE ARK IS INBOUND',
+    },
+  },
+};
+
+/** The boss that ends a campaign mission, if any. */
+export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: null, bastion: 'bastion', 'cold-vector': 'ark' };
+
+export function missionBoss(mission: MissionId | undefined): BossDefinition | null {
+  const id = mission ? MISSION_BOSS[mission] : null;
+  return id ? BOSSES[id] : null;
+}

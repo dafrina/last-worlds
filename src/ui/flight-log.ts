@@ -1,4 +1,5 @@
 import type { Difficulty, Mode, RunState } from '../shared/contracts';
+import { missionText } from './missions';
 
 /** Observational UI history, never a campaign wallet or an input to simulation. */
 export const FLIGHT_LOG_KEY = 'last-worlds.flight-log.v1';
@@ -69,7 +70,7 @@ export function createFlightLog(storage?: LogStorage, makeId: () => string = rec
     }
     const record: FlightRecord = {
       id: receipt.id, mode: state.config.mode, difficulty: state.config.difficulty ?? 'standard',
-      mission: state.config.mission === 'bastion' ? 'Rolling Thunder' : 'Training', ruleset: FLIGHT_LOG_RULESET,
+      mission: missionText(state.config.mission).name, ruleset: FLIGHT_LOG_RULESET,
       outcome: state.phase === 'complete' ? 'complete' : state.phase === 'over' ? 'lost' : finish ? 'retired' : 'interrupted',
       seconds: state.time, kills: state.kills, livesLost: state.livesLost, specials: state.specialsUsed,
       score: Math.floor(state.score), sector: state.sector,

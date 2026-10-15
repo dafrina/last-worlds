@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { KIT, KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KIT, KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 
 /** Kit geometry by node name (`basalt_clump_0` …). Attributes: position, normal, color, glow. */
@@ -174,7 +174,11 @@ function vesperFallbackPiece(kind: KitKind, variant: number): THREE.BufferGeomet
     case 'serac': slab(0, 0, 0.36, 0.28, -0.12, 1, 5, ICE, SNOW); break;
     case 'iceSpire': slab(0, 0, 0.25, 0.24, -0.12, 0.55, 5, ICE, SNOW); slab(0.03, 0.02, 0.14, 0.13, 0.5, 1, 4, ICE, SNOW); break;
     case 'iceberg': slab(0, 0, 0.62, 0.52, -0.55, 0.5 + variant * 0.1, 7, ICE, SNOW); break;
-    case 'floe': slab(0, 0, 0.85, 0.58, -0.15, 0.12 + variant * 0.03, 6 + (variant % 2), ICE, SNOW); break;
+    case 'floe': case 'floePairA': case 'floePairB': case 'floeTripleC': {
+      // Sized like the node it stands in for, so placement spacing holds before the kit loads.
+      const [hx, hz] = FLOE_FOOTPRINT[kitNodeName(kind, variant)] ?? [0.5, 0.5];
+      slab(0, 0, hx, hz, -0.15, 0.09, 6 + (variant % 3), ICE, SNOW); break;
+    }
     case 'ridge': for (let i = 0; i < 4; i++) slab(-0.75 + i * 0.5, 0, 0.3, 0.32, -0.1, 0.2 + rand(seed, i) * 0.15, 4, SNOW_SHADE, SNOW); break;
     case 'drift': slab(0, 0, 0.82, 0.48, -0.12, 0.3, 8, SNOW_SHADE, SNOW); break;
     case 'outcrop': slab(0, 0, 0.4, 0.32, -0.12, 0.6 + variant * 0.1, 6, CHARCOAL, SNOW); break;
@@ -598,6 +602,8 @@ export function createTerrainMaterials() {
   const time = { beaconTime: { value: 0 } };
   /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material). */
   const kitLook = { vesperLook: { value: 0 } };
+  /** Kit glow: Khepri's mineral cyan; on Vesper the only glowing faces it draws are radiator/lamp bands (orange). */
+  const kitGlow = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } };
   const fallback = createDetailTexture();
   const flatNormal = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
   flatNormal.needsUpdate = true;
@@ -721,7 +727,7 @@ float khepriCells( vec2 local, float scale ) {
   const kit = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.85, 0.85) });
   kit.onBeforeCompile = shader => {
     // Crystal growths and mineral crack faces are true glows (bloom on High); basalt stays matte.
-    Object.assign(shader.uniforms, uniforms, haze(), time, kitLook, { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } });
+    Object.assign(shader.uniforms, uniforms, haze(), time, kitLook, kitGlow);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;\nvarying float vPieceY;`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
@@ -803,6 +809,7 @@ ${VESPER_KIT_SURFACE}`)
     setLook(planet: PlanetId) {
       const vesper = planet === 'vesper';
       kitLook.vesperLook.value = vesper ? 1 : 0;
+      kitGlow.glowColor.value.copy(vesper ? linear(0xff7a26).multiplyScalar(3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
       infraGlow.glowColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
       infra.roughness = vesper ? 0.4 : 0.55; infra.metalness = vesper ? 0.06 : 0.3; infra.envMapIntensity = vesper ? 0.8 : 0.55;
     },

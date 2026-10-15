@@ -438,3 +438,29 @@ export async function loadVesperCraft(url: string): Promise<Map<VesperCraftNode,
   });
   return found;
 }
+
+/**
+ * Floating black-ceramic pontoon under a ground battery that the simulation seats over open water (render-only):
+ * a hexagonal barge riding at the waterline (deck top +0.14), a pale deck rim and an orange glow band, in the
+ * shared craft format so every pontoon is one instanced draw.
+ */
+export function createPontoonGeometry(): THREE.BufferGeometry {
+  const linear = (hex: number) => new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
+  const part = (geometry: THREE.BufferGeometry, color: THREE.Color, pbr: [number, number, number]) => {
+    const g = geometry.index ? geometry.toNonIndexed() : geometry; g.deleteAttribute('uv');
+    const count = g.getAttribute('position').count;
+    g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: count }, () => [color.r, color.g, color.b]).flat(), 3));
+    g.setAttribute('pbr', new THREE.Float32BufferAttribute(Array.from({ length: count }, () => pbr).flat(), 3));
+    return g;
+  };
+  const parts = [
+    part(new THREE.CylinderGeometry(.8, .7, .32, 6).translate(0, -.02, 0), linear(0x15181b), [.3, .05, 0]),
+    part(new THREE.CylinderGeometry(.83, .83, .05, 6).translate(0, .125, 0), linear(0xd3dae1), [.38, .03, 0]),
+    part(new THREE.CylinderGeometry(.81, .79, .035, 6, 1, true).translate(0, .03, 0), new THREE.Color(0xff7a26), [1, 0, 2.4]),
+  ];
+  const merged = mergeGeometries(parts)!; parts.forEach(p => p.dispose());
+  const positions = merged.getAttribute('position'), uv = new Float32Array(positions.count * 2);
+  for (let i = 0; i < positions.count; i++) { uv[i * 2] = positions.getX(i) * 1.5 + .31; uv[i * 2 + 1] = positions.getZ(i) * 1.5 + .27; }
+  merged.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); merged.computeBoundingBox(); merged.computeBoundingSphere();
+  return merged;
+}

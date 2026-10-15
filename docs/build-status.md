@@ -1,5 +1,21 @@
 # Build status
 
+## Vesper wave 2: Cold Vector and the Helion Ark — 15 October 2026
+
+Cold Vector is playable from the campaign menu ("Cold Vector · Vesper", docs/17).
+- **Mission:** intro, Needle beam squadrons, missile batteries on the ice cliffs, a Diamond escort convoy and relief. Then the scroll stops at distance 920 over open water for the Helion Ark.
+- **Helion Ark:** radiator lasers, then the bridge with finite Needle launches from its bays, then overload lanes over its own hit columns. On death it sinks with steam and a foam ring, and the wreck stays on the water as extraction resumes.
+- **Presentation** (`src/render/ark-view.ts`): shutters, bay doors, wrecks, wakes, damage glow, one shadow draw.
+- **Telegraphs:** Needle beam lanes with a pre-beam flash, missile column marks, Diamond bracket lines.
+- **Barges:** a black-ceramic barge under any missile battery seated on water.
+- **World:** jagged floes and cracked sets.
+- **Evidence:**
+  - typecheck clean; unit tests (21 files) and browser tests green in the snapshot;
+  - the perfect pilot clears all nine weapon × difficulty combinations of Cold Vector with zero hits;
+  - Khepri and Bastion-9 render pixel-identical.
+- **Not tested:** no phone test.
+- **Known balance risk:** with the Fan, the Ark fight runs about 150 s, so a Fan run of Cold Vector lasts about 5.6 min.
+
 ## Vesper wave 1: the ice planet's look — 15 October 2026
 
 Vesper (docs/17) is viewable through the hidden preview switch `?planet=vesper` (https://dafrina.github.io/last-worlds/?planet=vesper). Its Cold Vector mission and the Helion Ark follow in wave 2.
