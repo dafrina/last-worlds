@@ -14,31 +14,32 @@ The prototype also scales attack pressure (runtime source: `DIFFICULTIES` in `sr
 
 | Setting | Repeat-attack interval | Simultaneous windups / beam lanes | Squadron variant | Live threat budget | Shield cells (Training · Rolling Thunder) |
 | --- | --- | --- | --- | --- | --- |
-| Relaxed | ×1.70 | 3 / 1 | Base | 14 | 40 s, 85 s · 40 s, 105 s |
+| Relaxed | ×2.00 | 3 / 1 | Base | 14 | 40 s, 85 s · 40 s, 105 s |
 | Standard | ×1.00 | 5 / 1 | Base | 16 | 40 s, 85 s · 40 s, 105 s |
 | Veteran | ×0.75 | 7 / 2 | Base plus authored Veteran wingmen | 20 | 65 s · 105 s |
 
-Budgets were lowered on 15 October (from 18 / 24 / 32) together with the rule that squadrons never overlap. In practice one air squadron flies at a time, with ground batteries beneath it, and difficulty comes from the faster repeat volleys instead of more enemies. Campaign always flies pace 1.
+Budgets were lowered on 15 October (from 18 / 24 / 32) together with the rule that squadrons never overlap. Later the same day base repeat intervals were cut by about 17%, Relaxed's multiplier was widened from ×1.7 to ×2.0, and the Training sortie gained a mission factor of ×1.25 on repeat intervals (`MISSION_CADENCE`), so Rolling Thunder carries the full pressure. In practice one air squadron flies at a time, with ground batteries beneath it, and difficulty comes from the faster repeat volleys instead of more enemies. Campaign always flies pace 1.
 
 All difficulties are available for an unlocked mission from the start. Select in mission preparation; persist the preferred campaign difficulty separately from endless. Lock it for an attempt. Changing it in the menu applies to the next launch and never mutates a paused run.
 
-Shield technology, discrete hit costs, main/special rules, camera behavior, and reactor handling are unchanged by difficulty. There is no hidden aim assistance, extra currency, gear restriction, permanent penalty, or altered side-mission logic. Extra Relaxed lives simply use more of the same small ship icons.
+Shield technology, discrete hit costs, main/special rules, camera behavior, and reactor handling are unchanged by difficulty. There is no hidden aim assistance, extra currency, gear restriction, permanent penalty, or altered side-mission logic. Extra Relaxed lives simply use more of the same small ship icons. On every setting shields are one pool for the whole attempt: losing a life does not refill them, and only shield cells add charges. Standard and Veteran therefore absorb 6 accepted hits per attempt and Relaxed 8, plus whatever cells are collected.
 
 ## 2. Challenge and fairness
 
 Use the same mission structure and route identities initially. Difficulty scales the specified values only; any later harder formation must be a separately authored and validated variant. Do not arbitrarily stack waves or add untelegraphed attacks. Veteran keeps readable warnings and reachable paths with every campaign reactor, including Precision's lower top speed.
 
-All three settings fly the same authored squadrons, cues and timings. Veteran adds the extra wingmen marked as its variant in each squadron template; those members are part of the authored and validated template, not random additions. The fairness floors, the 1.4-unit gap and the director's exclusion windows apply identically on every setting ([fairness](03-worlds-and-generation.md#7-fairness-for-leftright-only-movement)).
+All three settings fly the same authored squadrons, cues and timings. Veteran adds the extra wingmen marked as its variant in each squadron template; those members are part of the authored and validated template, not random additions. The fairness floors, the 1.74-unit gap (1.4 before the 0.42 collider) and the director's exclusion windows apply identically on every setting ([fairness](03-worlds-and-generation.md#7-fairness-for-leftright-only-movement)).
 
 Scripted calibration, 15 October 2026 (`tests/sim/difficulty.test.ts`). These are deterministic bot results, not human playtests. A mid-skill pilot aligns under targets and dodges only the nearest bullet it saw 0.2 s ago; medians are over five start positions.
 
 | Training sortie | Relaxed | Standard | Veteran |
 | --- | --- | --- | --- |
-| Hostile shots per minute faced by that pilot (13 Oct → 14 Oct → 15 Oct) | 11 → 73 → 56 | 16 → 98 → 69 | 17 → 115 → 89 |
-| Its lives lost by extraction (13 Oct → 14 Oct → 15 Oct) | 0 → 1 → 1 of 5 | 1 → 2 → 3 of 3 (all five runs failed) | 1 → 3 → 3 of 3 (three of five runs failed) |
-| Fire faced by the perfect pilot, shots per minute (15 Oct) | 54 | 73 | 84 |
+| Hostile shots per minute faced by that pilot (13 Oct → 14 Oct → 15 Oct) | 11 → 73 → 51 | 16 → 98 → 65 | 17 → 115 → 90 |
+| Its outcome at extraction (15 Oct, final) | clears 4 of 5 runs, median 3 of 5 lives lost | fails all 5 runs, median game over at 84 s | fails all 5 runs, median game over at 97 s |
+| Hits it takes per minute (Training · Rolling Thunder approach, 9 starts, lives to spare) | 3.7 · 3.7 | 4.7 · 5.7 | 4.5 · 5.8 |
+| Fire faced by the perfect pilot, shots per minute (15 Oct) | 47 | 67 | 92 |
 
-The 0.42 collider dominates the 15 October change: the mid-skill pilot now fails Training on Standard, although it faces fewer bullets than on 14 October. Human playtests should confirm whether Standard Training is now too punishing; the main levers are Standard's repeat-attack interval and the Training climax.
+The 0.42 collider and the run-wide shield pool dominate the 15 October changes. The mid-skill pilot still clears Training on Relaxed but fails it on Standard. Its hits come mostly from squadrons' first volleys rather than repeat volleys: a sweep of Training-only interval factors from ×1.0 to ×1.75 moved its Standard game-over time between 57 s and 84 s without producing clears. The ×1.25 factor was kept because it gave the longest Standard survival while Relaxed still clears. Veteran is not easier than Standard for this bot (hit rates are within 5%). Its denser fire is partly offset by tougher squadrons holding the airspace longer, so Veteran's edge shows in the fire a strong pilot faces, its single shield cell and its enemy HP. Human playtests should judge whether Standard Training is too punishing. The remaining levers are fewer squadrons in Training's first pressure phase, later first volleys, or more Standard lives; restoring the shield refill is excluded by the user's decision.
 
 Veteran's shot-speed multiplier dropped from ×1.15 to ×1.05 in the 14 October pacing pass, which raised every base shot speed by about 10%. Veteran bullets therefore keep roughly their previous absolute speed (Dart 8.3 units/s), while Veteran keeps more shooters, shorter repeat intervals, more HP, two beam lanes and one fewer shield cell. Scripted pilots were also hit less by faster bullets, so speed alone was not making Veteran harder.
 

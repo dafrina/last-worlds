@@ -1,4 +1,4 @@
-import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, PACE, THREAT_COST, WEAPONS, difficultyScales, endlessPace, kinematics, type DifficultyScale } from '../content/balance';
+import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, endlessPace, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { FORMATIONS, slotFlies } from '../content/formations';
 import { STEP, VIEW, type Enemy, type FormationMember, type InputFrame, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
@@ -201,6 +201,10 @@ function updateShieldSupplies(state: RunState, previousTime: number): void {
   }
 }
 
+function missionCadence(state: RunState): number {
+  return state.config.mode === 'campaign' ? MISSION_CADENCE[state.config.mission ?? 'training'] : 1;
+}
+
 function scales(state: RunState) {
   return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
 }
@@ -230,7 +234,7 @@ function updateEnemies(state: RunState, dt: number): void {
       enemy.warning = Math.max(0, enemy.warning - dt);
       if (enemy.warning === 0) {
         emitAttack(state, enemy, scale);
-        enemy.nextAttack = enemy.age + stats.attackEvery * scale.cadence;
+        enemy.nextAttack = enemy.age + stats.attackEvery * scale.cadence * missionCadence(state);
         windups -= 1;
       }
     } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy) && state.time >= state.player.invulnerableUntil - 0.3) {
@@ -382,7 +386,8 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
   state.livesLost += 1;
   addEffect(state, 'explosion', player.x, 0, 0.6);
   if (player.lives <= 0) { state.phase = 'over'; state.message = 'FLIGHT LOST'; return; }
-  player.shields = player.maxShields;
+  // Shields are one pool for the whole run: a replacement life keeps whatever charges remain (normally none).
+  // Only shield cells add charges.
   player.specialCharge = BALANCE.respawn.specialCharge;
   player.invulnerableUntil = state.time + BALANCE.respawn.invulnerability;
   state.projectiles = state.projectiles.filter(shot => shot.friendly || !isVisible(state, shot.x, shot.s));

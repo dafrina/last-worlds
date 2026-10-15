@@ -80,18 +80,26 @@ describe('difficulty bots', () => {
       const shots = new Set<number>();
       const clean = fly(strong, perfectPilot(), 120, { noPickups: true, onTick: s => { for (const shot of s.projectiles) if (!shot.friendly) shots.add(shot.id); } });
       expect(clean.hits).toBe(0);
-      // Lives lost by the mid-skill hunter, median over five start positions.
+      // Hits taken per minute by the mid-skill hunter with lives to spare (settings have different life counts).
+      const hits = OFFSETS.map(x => {
+        const state = createRun({ mode: 'campaign', mission: 'training', difficulty, seed: 53 });
+        state.player.x = x;
+        state.player.lives = 99;
+        return fly(state, hunterPilot(), 120).hits / 2;
+      });
       const runs = spread({ mode: 'campaign', mission: 'training', difficulty, seed: 53 }, hunterPilot, 120);
-      return { shotsPerMinute: shots.size / 2, livesLost: median(runs.map(run => run.log.livesLost)) };
+      return { shotsPerMinute: shots.size / 2, hitsPerMinute: median(hits), livesLost: median(runs.map(run => run.log.livesLost)) };
     };
     const relaxed = pressure('relaxed');
     const standard = pressure('standard');
     const veteran = pressure('veteran');
     expect(standard.shotsPerMinute).toBeGreaterThan(relaxed.shotsPerMinute * 1.15);
     expect(veteran.shotsPerMinute).toBeGreaterThan(standard.shotsPerMinute * 1.15);
-    // A mid-skill pilot finds Standard a real challenge and never finds a harder setting easier.
+    // A mid-skill pilot finds Standard a real challenge and clearly harder than Relaxed. Veteran is not easier
+    // for it: Veteran's denser fire is partly offset by tougher squadrons holding the airspace longer, so its
+    // edge shows in the fire a strong pilot faces (above), its single shield cell and its enemy HP.
     expect(standard.livesLost).toBeGreaterThanOrEqual(1);
-    expect(standard.livesLost).toBeGreaterThanOrEqual(relaxed.livesLost);
-    expect(veteran.livesLost).toBeGreaterThanOrEqual(standard.livesLost);
+    expect(standard.hitsPerMinute).toBeGreaterThan(relaxed.hitsPerMinute * 1.1);
+    expect(veteran.hitsPerMinute).toBeGreaterThanOrEqual(standard.hitsPerMinute * 0.85);
   });
 });

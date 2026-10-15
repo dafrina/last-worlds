@@ -9,15 +9,15 @@ The player has **lives and shields**, an unlimited-ammunition main weapon, and o
 | Resource | Proposed baseline | Display |
 | --- | --- | --- |
 | Lives | Three total in Standard/Veteran campaign and endless; five proposed for Relaxed, including the current ship | One small ship silhouette per remaining life; one disappears on loss |
-| Shields | Three discrete shield charges with Standard tech | Three simple shield glyphs; filled means available, outline means depleted |
+| Shields | Three discrete shield charges with Standard tech; one pool for the whole run | Three simple shield glyphs; filled means available, outline means depleted |
 | Main ammunition | Unlimited | No ammunition indicator |
 | Special | One activation, initially ready | Recharge marks on the plain special button only |
 
-A normal accepted hit consumes one shield charge; a heavy hit or airframe collision consumes two. If any shield remains before the hit, it protects the current life even if the hit empties all remaining charges. There is no overflow into life damage. The next accepted hit with no shield removes exactly one life. Enemy HP remains numerical internally; player protection uses discrete charges to match the icon display.
+A normal accepted hit consumes one shield charge; a heavy hit or airframe collision consumes two. If any shield remains before the hit, it protects the current life even if the hit empties all remaining charges. There is no overflow into life damage. The next accepted hit with no shield removes exactly one life. Shields are spent first and then lives take the hits: losing a life does **not** refill shields (user decision, 15 October 2026), so a replacement life starts with whatever charges remain, normally none. Only shield cells add charges. With three charges and three lives, Standard therefore absorbs 6 accepted hits per run, where the old refill gave 12. Enemy HP remains numerical internally; player protection uses discrete charges to match the icon display.
 
 The ship's collision radius is 0.42 for every airframe in the prototype (15 October 2026, user request: the size planned for the Dominion tier, about 1.7 units wide; it was 0.25). Hit regions stay central and honest; the hero models are scaled to match. An accepted hit gives 0.65 seconds invulnerability. Resolve at most one hit per tick/invulnerability interval, choosing the largest eligible incoming hit, and consume colliding non-piercing hostile bullets. Continuous beams obey the same rule. Windups already warned when a hit lands continue; no new windup starts until 0.3 s before the invulnerability ends. Only a respawn cancels windups in progress (implemented 14 October 2026; earlier builds cancelled every windup on any hit, which made sustained pressure impossible). **Shields never regenerate passively.** Recovery during a life requires collecting a rare shield cell; each Standard Array cell restores one charge. Waiting, kills, special use, sector transitions, and pausing do not refill shields.
 
-If lives remain after a loss: preserve equipment and enemy/boss damage, respawn safely near the current world x rather than teleporting to the middle of the wider map, refill shield, set special charge to 50%, clear standard hostile shots near the respawn viewport, and give two seconds invulnerability with new attacks delayed. Resolve a persistent hazard before choosing the safe respawn location. Campaign weapon rank is retained; endless loses one weapon-power pip, minimum zero. A life loss does not fail a campaign mission until the last life is lost.
+If lives remain after a loss: preserve equipment and enemy/boss damage, respawn safely near the current world x rather than teleporting to the middle of the wider map, keep the remaining shield charges (no refill), set special charge to 50%, clear standard hostile shots near the respawn viewport, and give two seconds invulnerability with new attacks delayed. Resolve a persistent hazard before choosing the safe respawn location. Campaign weapon rank is retained; endless loses one weapon-power pip, minimum zero. A life loss does not fail a campaign mission until the last life is lost.
 
 Endless and Standard/Veteran campaign start with three lives; Relaxed campaign proposes five. No unused campaign life carries to the next mission. Life count, hit cost, and supply placement are tuning values; pickup-only shield recovery is confirmed. Do not add hidden hull HP behind the icon UI.
 
@@ -137,14 +137,14 @@ Record shield hits, lives lost, specials used, weapon/tech choice, time aligned,
 
 | Pilot | Measure | Before (13 Oct) | 14 Oct (squadrons, pacing) | 15 Oct (current) |
 | --- | --- | --- | --- | --- |
-| Idle (never moves) | First life lost | 28.2 s | 27.4 s | 29.1 s (target 25–40 s) |
-| Idle (never moves) | All lives lost | 86.9 s | 53.4 s | 52.0 s |
-| Simple dodger, 0.2 s reaction (median of 5 starts) | First life lost | 71 s | 57 s | 30 s (never before 28 s) |
-| Simple dodger, 0.2 s reaction (median of 5 starts) | All lives lost | 229 s | 155 s | 109 s |
-| Mid-skill hunter (aligns, then dodges the nearest bullet) | First life lost | 158 s | 99 s | 76 s |
-| Mid-skill hunter (aligns, then dodges the nearest bullet) | All lives lost | 484 s | 169 s | 131 s |
+| Idle (never moves) | First life lost | 28.2 s | 27.4 s | 28.9 s (target 25–40 s) |
+| Idle (never moves) | All lives lost | 86.9 s | 53.4 s | 38.5 s |
+| Simple dodger, 0.2 s reaction (median of 5 starts) | First life lost | 71 s | 57 s | 44 s (never before 28 s) |
+| Simple dodger, 0.2 s reaction (median of 5 starts) | All lives lost | 229 s | 155 s | 99 s |
+| Mid-skill hunter (aligns, then dodges the nearest bullet) | First life lost | 158 s | 99 s | 75 s |
+| Mid-skill hunter (aligns, then dodges the nearest bullet) | All lives lost | 484 s | 169 s | 92 s |
 | Perfect solver pilot (no special, no pickups) | Sectors 1–4 | 0 hits | 0 hits | 0 hits |
-| — | Hostile shots per minute (dodger, hunter) | 14 | about 100–110 | about 66–75 |
+| — | Hostile shots per minute (dodger, hunter) | 14 | about 100–110 | about 60–71 |
 
 The 14 October pass added squadrons and a 25% faster pace (scroll 4 → 5, Balanced Drive 12 / 90 / 125, camera 17). The 15 October pass made several changes:
 
@@ -153,6 +153,6 @@ The 14 October pass added squadrons and a 25% faster pace (scroll 4 → 5, Balan
 - the 30-unit map;
 - endless starting at the old pace (0.8) and ramping to 1.1.
 
-Fewer bullets now reach the row per minute than on 14 October, but each squadron fires faster and the larger ship is far easier to hit.
+Fewer bullets now reach the row per minute than on 14 October, but each squadron fires faster and the larger ship is far easier to hit. The current column also includes the later 15 October changes: repeat intervals about 17% shorter (Dart 1.0 s, Weaver 1.25 s, battery 1.15 s, Lancer 2.15 s), a quicker Bastion-9 recovery (0.6 s), and no shield refill on respawn (6 hits per Standard run instead of 12).
 
 The perfect pilot proves that a surviving path exists for a pilot who reads every warning; it is not a model of human play. Phone playtests remain the gate for readability and fun.

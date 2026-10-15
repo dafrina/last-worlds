@@ -160,7 +160,9 @@ export function assessSafety(state: RunState, footprints: readonly Footprint[]):
       sealed ||= sealsEdgesAndCenter(simultaneous, left, right);
     }
     if (!reachable || t < start) continue;
-    const cuts = footprints.filter(f => f.t0 <= t + slice / 2 && f.t1 >= t - slice / 2)
+    // Hazards are padded in time like the validation pilot pads them (0.1 s before, 0.05 s after), so the
+    // director never admits a pattern that only a zero-margin pilot could thread.
+    const cuts = footprints.filter(f => f.t0 - 0.1 <= t + slice / 2 && f.t1 + 0.05 >= t - slice / 2)
       .map(f => ({ a: f.x0 - R - comfortMargin, b: f.x1 + R + comfortMargin }));
     // The sweep starts from a small interval around the predicted position (a zero-width interval would be
     // discarded by subtraction), then grows at the conservative lateral speed every slice.

@@ -37,7 +37,10 @@ const world = (formation: FormationId, x: number, mirror = false): FormationPlac
  * batteries may arrive beneath it. A pilot who destroys squadrons quickly therefore meets the next one sooner.
  */
 
-/** Training sortie, 120 s. Teaches each squadron, then the same arc at full pressure. No seed or offsets. */
+/**
+ * Training sortie, 120 s. Teaches each squadron, then the same arc at pressure. Its climax keeps lighter
+ * batteries and a three-dart finale; Rolling Thunder and endless carry the heaviest phrases. No seed or offsets.
+ */
 export const TRAINING: readonly EncounterCue[] = [
   { at: 2, id: 't-first-contact', phase: 'intro', message: 'LINE UP TO FIRE', formations: [f('solo-dart')] },
   { at: 7, id: 't-arrow', phase: 'intro', message: 'ARROWHEAD · KEEP MOVING', formations: [f('arrow-3')] },
@@ -56,15 +59,15 @@ export const TRAINING: readonly EncounterCue[] = [
   { at: 64, id: 't-battery-2', phase: 'pressure', formations: [f('battery-2')] },
   { at: 67, id: 't-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] },
   { at: 72, id: 't-arrow-5', phase: 'climax', message: 'SQUADRONS INBOUND', formations: [f('arrow-5')] },
-  { at: 75, id: 't-battery-4', phase: 'climax', formations: [f('battery-4')] },
+  { at: 75, id: 't-battery-climax-1', phase: 'climax', formations: [f('battery-3')] },
   { at: 79, id: 't-pincer', phase: 'climax', formations: [f('pincer-4')] },
-  { at: 84, id: 't-battery-climax', phase: 'climax', formations: [f('battery-3')] },
+  { at: 84, id: 't-battery-climax', phase: 'climax', formations: [f('battery-2')] },
   { at: 86, id: 't-diamond', phase: 'climax', formations: [f('diamond-lancer')] },
   { at: 92, id: 't-snake-climax', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] },
   { at: 95, id: 't-battery-late', phase: 'climax', formations: [f('battery-2')] },
   { at: 97, id: 't-last', phase: 'climax', message: 'LAST PATROL · EXTRACTION AHEAD', formations: [f('line-dart-4')] },
   { at: 101, id: 't-last-ground', phase: 'climax', formations: [f('battery-3')] },
-  { at: 103, id: 't-last-arrow', phase: 'climax', formations: [f('arrow-5')] },
+  { at: 103, id: 't-last-arrow', phase: 'climax', formations: [f('arrow-3')] },
   { at: 112, id: 't-extraction', phase: 'recovery', message: 'EXTRACTION APPROACH', formations: [] },
 ];
 

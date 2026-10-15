@@ -26,7 +26,7 @@ Core protection applies consistently to automatic acquisition, ordinary projecti
 
 The boss spawns near the current camera, then has a small authored lateral sway. The world remains wide and the camera remains free. Offscreen modules cannot start attacks; a windup leaving view cancels and must begin again when visible. A temporary return-left/right message helps a player who has left the encounter. No invisible arena wall is introduced.
 
-Life loss preserves every destroyed module and the remaining core HP. It gives the normal replacement-life shields, clears nearby hostile bullets and current hazards, and delays fresh attacks for the respawn protection interval. No supply budget resets.
+Life loss preserves every destroyed module and the remaining core HP. It does not refill shields (they are a run-wide pool, 15 October), clears nearby hostile bullets and current hazards, and delays fresh attacks for the respawn protection interval. No supply budget resets.
 
 Shield opportunities for this entire longer mission: Relaxed/Standard at 40 and 105 seconds; Veteran at 105 seconds. Each restores one charge. There are no further cells during an extended boss fight. Training remains 40/85 or 65 seconds; endless remains one cell at second 55 of each 90-second sector.
 

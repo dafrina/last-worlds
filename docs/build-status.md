@@ -1,5 +1,11 @@
 # Build status
 
+## Quicker fire and run-wide shields — 15 October 2026
+
+- **Faster enemy fire (about 17%):** repeat intervals are now Dart 1.0 s, Weaver 1.25 s, battery 1.15 s, Lancer 2.15 s; Bastion-9's pause between attacks is 0.6 s. Training keeps a ×1.25 cadence and a lighter climax; Relaxed is ×2.0.
+- **Shields (user decision):** one run-wide pool. Hits use up shields, then lives; losing a life does not refill them, and only shield cells add charges. Standard now absorbs 6 hits per run instead of 12.
+- **Evidence:** typecheck clean; 181/181 tests. The perfect pilot is hit-free across every mission, difficulty and weapon, and in endless sectors 1–4. Endless idle bot: game over at 38.5 s. The mid-skill bot clears Relaxed Training in 4 of 5 runs and fails Standard Training. Human playtest decides any further softening (fewer early squadrons, later first volleys, or an extra Standard life).
+
 ## Combat retune, narrower world and boss arena — 15 October 2026
 
 User feedback after the checkpoint: endless should ramp up in speed; squadrons overlapped and the game was still easy; the ship's hitbox was too small; the boss was too easy and rolled over ravines; the map should be 2.5 screens wide.

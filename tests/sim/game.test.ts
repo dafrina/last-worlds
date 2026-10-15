@@ -117,9 +117,24 @@ describe('lives, shield charges, and special', () => {
     state.time = 1;
     hitPlayer(state, 1);
     expect(state.player.lives).toBe(2);
-    expect(state.player.shields).toBe(3);
+    // Shields are one pool for the run: the replacement life does not get them back.
+    expect(state.player.shields).toBe(0);
     expect(state.player.specialCharge).toBe(0.5);
     expect(state.livesLost).toBe(1);
+    // After the respawn protection, the very next hit costs another life.
+    state.time = 3.5;
+    hitPlayer(state, 1);
+    expect(state.player.lives).toBe(1);
+  });
+
+  it('only a shield cell restores charges after a life is lost', () => {
+    const state = quietRun();
+    state.player.shields = 0;
+    hitPlayer(state, 1);
+    expect(state.player.shields).toBe(0);
+    state.pickups.push({ id: state.nextId++, kind: 'shield', x: 0, s: 0.1, value: 1, ttl: 12 });
+    stepRun(state, EMPTY_INPUT);
+    expect(state.player.shields).toBe(1);
   });
 
   it('never restores shields merely by waiting without taking damage', () => {
@@ -255,7 +270,7 @@ describe('rare shield-supply quotas', () => {
     state.player.shields = 0;
     hitPlayer(state, 1);
     expect(state.player.lives).toBe(2);
-    expect(state.player.shields).toBe(3);
+    expect(state.player.shields).toBe(0);
     state.phase = 'paused';
     advance(state, 10);
     expect(state.time).toBeCloseTo(40);

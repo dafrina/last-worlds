@@ -93,7 +93,7 @@ Start every run from the same Pulse tier I, ready Shockwave, Standard shield, Ba
 
 Difficulty ramps each sector through stronger formations, more coordinated pressure, capped enemy HP/speed increases, and bosses every third sector. Play 90-second sectors with short boundary choices. Campaign difficulty never changes this ramp. Discover lateral routes and choose optional engagements at the cost of missed rewards elsewhere. Run-only main/special swaps and weapon power are available from the first run regardless of campaign unlocks. Shield/reactor remain the baseline technologies in this release.
 
-Death with lives remaining refills shield safely near the current region, gives temporary invulnerability, sets special charge to 50%, and removes one main-power pip. Equipment family remains. Last-life loss ends the run. Score-based extra-life milestones are limited and identical for all players.
+Death with lives remaining respawns safely near the current region with whatever shield charges remain (normally none: shields are one pool for the whole run, refilled only by shield cells), gives temporary invulnerability, sets special charge to 50%, and removes one main-power pip. Equipment family remains. Last-life loss ends the run. Score-based extra-life milestones are limited and identical for all players.
 
 Records and statistics are independent from campaign. Local scoreboard categories separate ruleset versions and gameplay-changing assists. Same starter means progression fairness; different random seeds still have luck variation. A later shared-seed/public scoreboard requires its own verification design.
 
