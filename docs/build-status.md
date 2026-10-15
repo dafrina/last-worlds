@@ -1,8 +1,30 @@
 # Build status
 
-## Moon training ground — 15 October 2026
+## Endings, boss impacts, Vesper balance, text pass — 15 October 2026
 
-Training now flies over Khepri's moon: craters, grey regolith, sparse outposts, and blue-tinted enemies. Encounters are unchanged. See [docs/19](19-moon-training.md).
+- **Victory ending:** when a mission completes, the hero cruises on, accelerates into the same hyperdrive jump endless uses (veil, streaks, flash), and the results fade in after the flash. It shares `main.ts`'s presentation-only afterglow with the death ending.
+- **Impacts:**
+  - every craft flashes over-bright for 0.12 s when hit (instance colour);
+  - boss weak points flare their heat and throw sparks on each hit (Bastion-9 and the Helion Ark).
+- **Diamond** (the big white Vesper heavy): it takes hits on its whole visible body (radius 0.60, was a 0.30 core) and has 130 HP (was 220). Previously Fan Cannon could not kill one in a whole pass, even parked under it.
+- **Needle beam rests:** later endless Vesper sectors chained Needle beams for 18–19 s without a real pause. Now, after 7 s (Relaxed 5 s), pending Needle windups are called off and new ones hold for 3 s (Relaxed 4 s). Veteran has no rest. The longest barrage is now 7–9 s and beams still fill about 30% of the time. The Ark is unchanged (user: it's fine). See docs/11.
+- **Text pass:**
+  - the moon is now **Luna** (internal id `luna`);
+  - removed the "KHEPRI" status dot from the home screen;
+  - weapons use their design names everywhere (Twin Pulse, Fan Cannon, Seeker Array);
+  - results read `CAMPAIGN / <mission>`;
+  - briefs no longer repeat the world name;
+  - the help text describes the special's ring.
+- **Evidence:**
+  - typecheck clean;
+  - 257 unit tests, including the new beam-rest test;
+  - 15/15 browser specs;
+  - victory and death sequences captured in the real app (dev-only `__LAST_WORLDS__.end(phase)` look-dev hook).
+- **Not done:** no phone hardware test.
+
+## Luna training ground — 15 October 2026
+
+Training now flies over Khepri's moon: craters, grey regolith, sparse outposts, and blue-tinted enemies. Encounters are unchanged. See [docs/19](19-luna-training.md).
 - **Evidence:**
   - typecheck clean;
   - 256/256 unit tests, including the new `tests/world/terrain-moon.test.ts`;

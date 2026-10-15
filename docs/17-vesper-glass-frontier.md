@@ -101,7 +101,7 @@ Runtime sources:
 | Kind | Role | Radius | HP | Score / credits | Threat | Attack |
 | --- | --- | --- | --- | --- | --- | --- |
 | `needle` | Fast interceptor | 0.30 | 50 | 150 / 6 | 2 | Narrow 0.4 lane locked on the player: 0.75 s windup + 0.2 s flash, 0.15 s beam, costs **one** shield charge (Lancer beams cost two). Repeats every 1.3 s. Narrow lanes do not count against the wide-beam lane cap |
-| `diamond` | Heavy escort (Bulwark family) | 0.30 core; the 0.6 frame is scenery | 220 | 400 / 16 | 4 | Alternating left/right wing volleys: three tight rounds from the wing, aimed 1.2 to that side of the committed position. Repeats every 1.0 s |
+| `diamond` | Heavy escort (Bulwark family) | 0.60, its whole pale body | 130 (was 220 on a 0.30 core until 15 October; Scatter could not kill one in a pass) | 400 / 16 | 4 | Alternating left/right wing volleys: three tight rounds from the wing, aimed 1.2 to that side of the committed position. Repeats every 1.0 s |
 | `missile` | Ground battery | 0.55 | 120 | 250 / 10 | 2 | One straight, non-tracking missile (radius 0.2, speed 9.5) down its own marked column; 1.0 s windup, repeats every 1.1 s. Moves with the terrain; no contact damage |
 
 **Squadrons:**
@@ -184,3 +184,8 @@ Shield cells:
 **Deploy waves:**
 - first a flyable Vesper flight to judge the look;
 - then the full mission with the Helion Ark.
+
+
+**15 October balance notes:**
+- The Diamond takes hits on its whole pale body (radius 0.60) and has 130 HP (was a 0.30 core and 220 HP). With the old values Fan Cannon could not kill one in a whole pass, and shots through the visible plates did nothing.
+- Needle barrages rest after 7 s on Standard and in endless, and after 5 s on Relaxed (docs/11, "Needle beam rests").

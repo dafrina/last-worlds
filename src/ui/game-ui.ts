@@ -8,7 +8,7 @@ import './styles.css';
 
 const shipGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 15 10 21 15 21 19 14 17 14 21 10 21 10 17 3 19 3 15 9 10Z"/></svg>';
 const shieldGlyph = '<svg viewBox="0 0 20 24" aria-hidden="true"><path d="M3 4 10 2 17 4 17 12Q17 17 10 22Q3 17 3 12Z"/></svg>';
-const weaponNames: Record<WeaponId, string> = { pulse: 'Pulse / straight', fan: 'Scatter / fan', seeker: 'Seeker / homing' };
+const weaponNames: Record<WeaponId, string> = { pulse: 'Twin Pulse', fan: 'Fan Cannon', seeker: 'Seeker Array' };
 const difficultyNames: Record<Difficulty, string> = { relaxed: 'Relaxed', standard: 'Standard', veteran: 'Veteran' };
 
 function seed(): number {
@@ -218,7 +218,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     if (element.textContent !== value) element.textContent = value;
   }
   function showPanel(className: string, focusSelector?: string) {
-    if (className !== 'results-panel') overlay.classList.remove('is-ending', 'is-settled');
+    if (className !== 'results-panel') overlay.classList.remove('is-ending', 'is-victory', 'is-settled');
     overlay.hidden = false;
     currentPanel = className;
     overlay.dataset.page = className;
@@ -388,7 +388,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     const chargeStep = Math.floor(charge * 100);
     if (chargeStep !== chargeShown) { chargeShown = chargeStep; specialButton.style.setProperty('--charge', String(chargeStep / 100)); }
     // A lost flight keeps its last word on screen through the afterglow, until the results veil covers it.
-    const activeMessage = playing && state.messageUntil > state.time ? state.message : state.phase === 'over' ? state.message : '';
+    const activeMessage = playing && state.messageUntil > state.time ? state.message : state.phase === 'over' || state.phase === 'complete' ? state.message : '';
     if (message.textContent !== activeMessage) message.textContent = activeMessage;
     message.hidden = !activeMessage;
 
@@ -402,7 +402,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       showPanel('pause-panel', '[data-action="resume"]');
     } else if (changed && (state.phase === 'over' || state.phase === 'complete')) {
       const campaign = state.config.mode === 'campaign';
-      text('.result-mode', campaign ? 'CAMPAIGN FLIGHT' : `ENDLESS / ${(state.planet ?? 'khepri').toUpperCase()}`);
+      text('.result-mode', campaign ? `CAMPAIGN / ${missionText(state.config.mission).name.toUpperCase()}` : `ENDLESS / ${(state.planet ?? 'khepri').toUpperCase()}`);
       text('#results-title', state.phase === 'complete' ? 'SORTIE COMPLETE' : 'FLIGHT ENDED');
       text('.result-subtitle', state.phase === 'complete'
         ? missionText(state.config.mission).complete
@@ -415,17 +415,16 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       find<HTMLElement>('.result-score-row').hidden = campaign;
       text('.result-note', campaign
         ? `${difficultyNames[state.config.difficulty ?? 'standard']} · ${weaponNames[state.config.weapon ?? 'pulse']}`
-        : 'New flight. Same starter. A higher score.');
+        : 'Every endless flight starts with the same fighter.');
       showPanel('results-panel', '[data-action="retry"]');
-      // A lost flight eases out: the world drifts on in slow motion (main.ts) while the results fade in; taps
-      // reach the buttons only once they are visible.
-      overlay.classList.remove('is-ending', 'is-settled');
-      if (state.phase === 'over') {
-        void overlay.offsetWidth;
-        overlay.classList.add('is-ending');
-        if (endingTimer !== null) clearTimeout(endingTimer);
-        endingTimer = setTimeout(() => { endingTimer = null; overlay.classList.add('is-settled'); }, 1500);
-      }
+      // Endings ease out over the afterglow (main.ts): a lost flight drifts on in slow motion, a completed one jumps to
+      // hyperdrive and the results arrive after its flash. Taps reach the buttons only once they are visible.
+      overlay.classList.remove('is-ending', 'is-victory', 'is-settled');
+      void overlay.offsetWidth;
+      overlay.classList.add('is-ending');
+      overlay.classList.toggle('is-victory', state.phase === 'complete');
+      if (endingTimer !== null) clearTimeout(endingTimer);
+      endingTimer = setTimeout(() => { endingTimer = null; overlay.classList.add('is-settled'); }, state.phase === 'complete' ? 2600 : 1500);
     }
   }
 

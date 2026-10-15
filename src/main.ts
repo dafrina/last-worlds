@@ -2,7 +2,7 @@ import { createRun, stepRun } from './sim/game';
 import { createRenderer } from './render/scene';
 import { createUi } from './ui/game-ui';
 import { createInput } from './input/controls';
-import { STEP, type RunConfig, type RunState } from './shared/contracts';
+import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 
 const root = document.querySelector<HTMLElement>('#app')!;
 let run: RunState | null = null;
@@ -17,35 +17,53 @@ let lastPauseReason = '';
 let maxFrameMs = 0;
 let warmupFrames = 2;
 /**
- * Death afterglow (presentation only): when the last life is lost, a throwaway copy of the run keeps flying in
- * slow motion for a moment, so the explosion plays out and the world drifts on while the results fade in. The real
- * run is already over and is never stepped again; nothing in the copy can reach the log, score or results.
+ * Ending afterglow (presentation only). The real run is over and is never stepped again; a throwaway copy keeps the
+ * world moving while the results fade in, and nothing in the copy can reach the log, score or results.
+ * - Lost: the copy keeps flying in slow motion (the hero is gone, its explosion plays out).
+ * - Complete: the hero cruises on, accelerates and jumps to hyperdrive like an endless planet jump; the results
+ *   arrive just after the jump's flash.
  */
-const AFTERGLOW_SECONDS = 2.6;
-let afterglow: { source: RunState; state: RunState; left: number; accumulator: number; lastId: number } | null = null;
+const AFTERGLOW_SECONDS = 2.6, VICTORY_SECONDS = 4.4;
+/** Victory jump: starts after a short cruise and runs as long as an endless jump; its flash lands at the midpoint. */
+const VICTORY_JUMP = { delay: 0.7, duration: 3, peak: 16 } as const;
+let afterglow: { source: RunState; state: RunState; left: number; accumulator: number; lastId: number; victory: boolean } | null = null;
 function updateAfterglow(frameSeconds: number) {
-  if (run?.phase === 'over' && afterglow?.source !== run) {
+  if ((run?.phase === 'over' || run?.phase === 'complete') && afterglow?.source !== run) {
     try {
-      const state = structuredClone(run);
-      state.phase = 'playing'; state.player.invulnerableUntil = Infinity;
-      afterglow = { source: run, state, left: AFTERGLOW_SECONDS, accumulator: 0, lastId: state.nextId };
+      const state = structuredClone(run), victory = run.phase === 'complete';
+      state.phase = 'playing'; state.player.invulnerableUntil = victory ? -1 : Infinity;
+      if (victory) {
+        state.projectiles = []; state.hazards = [];
+        state.jump = { startedAt: state.time + VICTORY_JUMP.delay, duration: VICTORY_JUMP.duration, from: state.planet, to: state.planet };
+      }
+      afterglow = { source: run, state, left: victory ? VICTORY_SECONDS : AFTERGLOW_SECONDS, accumulator: 0, lastId: state.nextId, victory };
     } catch { afterglow = null; }
   }
   if (!afterglow || afterglow.source !== run) return null;
   if (afterglow.left <= 0) return afterglow.state;
   afterglow.left -= frameSeconds;
+  const state = afterglow.state;
+  if (afterglow.victory) {
+    // No simulation: time and the terrain scroll advance, surging through the jump (the hero stays in its row).
+    const jump = state.jump!, cruise = Math.max(VIEW.scrollSpeed, state.scrollSpeed);
+    const q = Math.min(1, Math.max(0, (state.time - jump.startedAt) / jump.duration));
+    state.scrollSpeed = cruise + (VICTORY_JUMP.peak - cruise) * Math.sin(Math.PI * q);
+    state.time += frameSeconds; state.distance += state.scrollSpeed * frameSeconds;
+    state.player.vx = 0;
+    return state;
+  }
   // Eases from deep slow motion (0.25×) toward a gentle drift (0.7×) as the results panel arrives.
   afterglow.accumulator += frameSeconds * (0.25 + 0.45 * (1 - afterglow.left / AFTERGLOW_SECONDS));
   try {
-    while (afterglow.accumulator >= STEP && afterglow.state.phase === 'playing') {
-      stepRun(afterglow.state, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP);
+    while (afterglow.accumulator >= STEP && state.phase === 'playing') {
+      stepRun(state, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP);
       // The ship is gone: drop any shot the copy fires after the moment of death.
       const lastId = afterglow.lastId;
-      afterglow.state.projectiles = afterglow.state.projectiles.filter(shot => !shot.friendly || shot.id < lastId);
+      state.projectiles = state.projectiles.filter(shot => !shot.friendly || shot.id < lastId);
       afterglow.accumulator -= STEP;
     }
   } catch { afterglow.left = 0; }
-  return afterglow.state;
+  return state;
 }
 
 function unlockAudio() {
@@ -196,7 +214,7 @@ function frame(now: number) {
     bossCues(run);
   }
   const dying = updateAfterglow(frameSeconds);
-  renderer?.render(dying ?? run ?? preview, dying ? afterglow!.accumulator / STEP : accumulator / STEP);
+  renderer?.render(dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
   ui.update(run);
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });
   requestAnimationFrame(frame);
@@ -206,7 +224,11 @@ requestAnimationFrame(frame);
 // Read-only development snapshots let browser tests inspect real gameplay.
 if (import.meta.env.DEV) {
   Object.defineProperty(window, '__LAST_WORLDS__', {
-    value: { snapshot: () => run ? structuredClone(run) : null },
+    value: {
+      snapshot: () => run ? structuredClone(run) : null,
+      // Look-dev only: ends the current flight as lost or complete, to capture the ending sequences.
+      end: (phase: 'over' | 'complete') => { if (run?.phase === 'playing') { run.phase = phase; run.message = phase === 'complete' ? 'SORTIE COMPLETE' : 'FLIGHT LOST'; if (phase === 'over') run.player.lives = 0; } },
+    },
     configurable: true,
   });
 }

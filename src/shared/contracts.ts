@@ -5,7 +5,7 @@ export type GraphicsQuality = 'high' | 'low';
 export type WeaponId = 'pulse' | 'fan' | 'seeker';
 export type MissionId = 'training' | 'bastion' | 'cold-vector';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
-export type PlanetId = 'khepri' | 'vesper' | 'moon';
+export type PlanetId = 'khepri' | 'vesper' | 'luna';
 /** Boss modules. Bastion-9: batteries and core. Helion Ark: radiators (left/right) and bridge (core). */
 export type BossPart = 'left' | 'right' | 'core';
 export type BossId = 'bastion' | 'ark';
@@ -63,6 +63,8 @@ export interface RunState {
   nextId: number; nextVolleyAt: number; nextEncounterAt: number; encounterIndex: number;
   lootRng: number; chargeKillTimes: number[]; message: string; messageUntil: number;
   boss: BossState | null;
+  /** Needle beam rest bookkeeping (difficulty `beamRest`): start of the current continuous beam run, last beam moment, rest end. */
+  beamRun?: { since: number; last: number; restUntil: number };
   /** Current forward scroll of the terrain (units/s). Render and terrain streaming read this, not VIEW.scrollSpeed. */
   scrollSpeed: number;
   /** Kinematic pace: 1 is the campaign pace; endless ramps it by sector. Scales ship, enemy and camera motion. */

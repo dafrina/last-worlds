@@ -96,7 +96,7 @@ export interface EndlessSectorPlan {
   jump: EndlessJump | null;
 }
 
-/** Planets the endless cycle visits (the training moon is campaign-only). */
+/** Planets the endless cycle visits (Luna is campaign-only). */
 export type EndlessPlanet = (typeof ENDLESS_CYCLE.planets)[number];
 
 export function endlessPlanet(sector: number): EndlessPlanet {

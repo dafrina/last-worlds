@@ -276,6 +276,8 @@ export function createBastionView(scene: THREE.Scene) {
   const tint = new THREE.Color(), world = new THREE.Vector3();
   let lastTime = -1, emitCarry = 0, treadOffset = 0, encounter = -1;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
+  /** Last seen hp and last damaging hit per boss part (by enemy id), for impact flares. */
+  const hpSeen = new Map<number, number>(), hitAt = new Map<number, number>();
 
   const burst = (at: THREE.Vector3, count: number, seed: number, power = 1) => {
     for (let i = 0; i < count; i++) {
@@ -385,6 +387,17 @@ export function createBastionView(scene: THREE.Scene) {
         // A module that just broke throws sparks, then trails smoke from its wreck.
         if (alive.get(enemy.bossPart) && !living) { deadAt.set(enemy.bossPart, state.time); burst(local(part.group.position.x, 1.5, part.group.position.z), 26, enemy.id * 7, 1.2); flash(local(part.group.position.x, 1.4, part.group.position.z), 1.6, enemy.id); }
         alive.set(enemy.bossPart, living);
+        // Impact: every damaging hit on a live weak point flares its heat and throws a few sparks from the part, so hits
+        // read on a boss as clearly as on a small craft (presentation only; sparks at most every 0.07 s per part).
+        const seen = hpSeen.get(enemy.id); hpSeen.set(enemy.id, enemy.hp);
+        if (seen !== undefined && enemy.hp < seen && living) {
+          if (state.time - (hitAt.get(enemy.id) ?? -9) > .07) {
+            const at = local(part.group.position.x, 1.5, part.group.position.z);
+            burst(at, 6, state.tick * 7 + enemy.id, .6); flash(at, .8, state.tick + enemy.id);
+          }
+          hitAt.set(enemy.id, state.time);
+        }
+        const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
         const died = deadAt.get(enemy.bossPart);
         if (died !== undefined && state.time - died < 7 && hash(state.time * 13 + enemy.id) < 5 * dt) puff(local(part.group.position.x, 1.5, part.group.position.z), state.time * 31 + enemy.id, true, .8);
         part.live.forEach(object => { object.visible = living; });
@@ -402,11 +415,11 @@ export function createBastionView(scene: THREE.Scene) {
         // Heat: brighter as armour is lost; overload flickers; warnings flare.
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .55 + .45 * Math.sin(state.time * 14) : 1;
-        part.heat.forEach(material => { material.emissiveIntensity = living ? (1 + (1 - fraction) * 1.6 + (enemy.warning > 0 ? 1.2 : 0)) * pulse : 0; });
+        part.heat.forEach(material => { material.emissiveIntensity = living ? (1 + (1 - fraction) * 1.6 + (enemy.warning > 0 ? 1.2 : 0)) * pulse + kick * 2.6 : 0; });
         target.mesh.visible = enemy.hp > 0 && enemy.damageable !== false;
         target.material.color.setHex(enemy.warning > 0 ? 0xffecd0 : 0xffb77c).multiplyScalar(.45 + .55 * fraction);
         if (enemy.hp <= 0 || enemy.damageable === false) continue;
-        const r = enemy.radius + .15, color = enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
+        const r = enemy.radius + .15, color = kick > 0 ? 0xffffff : enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
         for (const x of [-1, 1]) for (const s of [-1, 1]) {
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * (r - .25), enemy.s + s * r, color);
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * r, enemy.s + s * (r - .25), color);

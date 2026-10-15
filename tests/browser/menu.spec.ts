@@ -19,13 +19,13 @@ test('home stays compact on phones and campaign setup has its own page', async (
   await expect(page.locator('.menu-panel')).toBeHidden();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true }).click();
-  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Scatter', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Fan Cannon', exact: true }).click();
   await page.screenshot({ path: info.outputPath('campaign-phone.png') });
   await page.getByRole('button', { name: 'BACK' }).click();
   await expect(page.getByRole('button', { name: 'CAMPAIGN FLIGHT' })).toBeFocused();
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Scatter', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Fan Cannon', exact: true })).toHaveAttribute('aria-checked', 'true');
   expect(errors).toEqual([]);
 });
 
@@ -65,7 +65,7 @@ test('campaign observations stay separate and record the chosen difficulty', asy
   await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
-  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Seeker', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Seeker Array', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
   expect((await snapshot(page)).config).toMatchObject({ mode: 'campaign', mission: 'training', difficulty: 'relaxed', weapon: 'seeker' });
   await page.getByRole('button', { name: 'Pause flight' }).click();

@@ -226,6 +226,8 @@ export function createArkView(scene: THREE.Scene) {
   const rings3: FoamRing[] = [], wakes: Wake[] = [];
   let lastTime = -1, encounter = -1, sprayCarry = 0, doorsOpen = 0, lastNextLaunch = Infinity, lastLaunchAt = -Infinity;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
+  /** Last seen hp and last damaging hit per boss part (by enemy id), for impact flares. */
+  const hpSeen = new Map<number, number>(), hitAt = new Map<number, number>();
 
   const local = (x: number, y: number, z: number) => root.localToWorld(world.set(x, y, z)).clone();
   const burst = (at: THREE.Vector3, count: number, seed: number, power = 1) => {
@@ -356,6 +358,17 @@ export function createArkView(scene: THREE.Scene) {
           burst(at, 28, enemy.id * 7, 1.2); flash(at, 1.8, enemy.id); fireball(at, 1.3, enemy.id * 5);
         }
         alive.set(enemy.bossPart, living);
+        // Impact: every damaging hit on a live weak point flares its heat and throws a few sparks from the part, so hits
+        // read on a boss as clearly as on a small craft (presentation only; sparks at most every 0.07 s per part).
+        const seen = hpSeen.get(enemy.id); hpSeen.set(enemy.id, enemy.hp);
+        if (seen !== undefined && enemy.hp < seen && living) {
+          if (state.time - (hitAt.get(enemy.id) ?? -9) > .07) {
+            const at = local(part.group.position.x, 1.5, part.group.position.z);
+            burst(at, 6, state.tick * 7 + enemy.id, .6); flash(at, .8, state.tick + enemy.id);
+          }
+          hitAt.set(enemy.id, state.time);
+        }
+        const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
         const died = deadAt.get(enemy.bossPart);
         if (died !== undefined && state.time - died < 8 && hash(state.time * 13 + enemy.id) < 6 * dt) {
           const at = local(part.group.position.x, 1.5, part.group.position.z);
@@ -373,11 +386,11 @@ export function createArkView(scene: THREE.Scene) {
         // Heat: brighter as armour is lost; warnings flare; the bridge flickers in overload.
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .5 + .5 * Math.abs(Math.sin(state.time * 13)) : 1;
-        part.heat.emissiveIntensity = living ? (1.1 + (1 - fraction) * 2 + (enemy.warning > 0 ? 1.4 : 0)) * pulse : 0;
+        part.heat.emissiveIntensity = living ? (1.1 + (1 - fraction) * 2 + (enemy.warning > 0 ? 1.4 : 0)) * pulse + kick * 2.8 : 0;
         target.mesh.visible = enemy.hp > 0 && enemy.damageable !== false;
         target.material.color.setHex(enemy.warning > 0 ? 0xffecd0 : 0xffb77c).multiplyScalar(.45 + .55 * fraction);
         if (enemy.hp <= 0 || enemy.damageable === false) continue;
-        const r = enemy.radius + .15, color = enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
+        const r = enemy.radius + .15, color = kick > 0 ? 0xffffff : enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
         for (const x of [-1, 1]) for (const s of [-1, 1]) {
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * (r - .25), enemy.s + s * r, color);
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * r, enemy.s + s * (r - .25), color);

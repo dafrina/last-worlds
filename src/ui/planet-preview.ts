@@ -8,15 +8,15 @@ import { rowPoint, terrainRow } from '../world/terrain-ground';
  */
 const TEXTURE_W = 240, TEXTURE_H = 120, BLEND = 24, SPACING = 0.6, SEED = 93;
 const SIZE = 200;
-/** Atmosphere glow at the limb (CSS colour) per world; the airless moon gets only a faint grey edge. */
-const ATMOSPHERE: Readonly<Record<PlanetId, string>> = { khepri: '232, 138, 80', vesper: '150, 205, 255', moon: '190, 190, 195' };
-const ATMOSPHERE_STRENGTH: Readonly<Record<PlanetId, number>> = { khepri: 0.55, vesper: 0.6, moon: 0.18 };
+/** Atmosphere glow at the limb (CSS colour) per world; airless Luna gets only a faint grey edge. */
+const ATMOSPHERE: Readonly<Record<PlanetId, string>> = { khepri: '232, 138, 80', vesper: '150, 205, 255', luna: '190, 190, 195' };
+const ATMOSPHERE_STRENGTH: Readonly<Record<PlanetId, number>> = { khepri: 0.55, vesper: 0.6, luna: 0.18 };
 
 type Texture = Uint8ClampedArray;
 const textures = new Map<PlanetId, Texture>();
 const pending = new Map<PlanetId, Generator<void, Texture, void>>();
 /** Flat base tone (sRGB) shown while a world's texture is still baking. */
-const PLACEHOLDER: Readonly<Record<PlanetId, readonly [number, number, number]>> = { khepri: [176, 92, 50], vesper: [205, 218, 230], moon: [150, 148, 144] };
+const PLACEHOLDER: Readonly<Record<PlanetId, readonly [number, number, number]>> = { khepri: [176, 92, 50], vesper: [205, 218, 230], luna: [150, 148, 144] };
 
 /** Advances a world's bake for about `budget` ms; true once its texture exists. */
 function advance(planet: PlanetId, budget: number): boolean {
@@ -103,7 +103,7 @@ export function createPlanetPreview(canvas: HTMLCanvasElement): PlanetPreview {
   const bufferContext = buffer.getContext('2d');
   const image = bufferContext?.createImageData(SIZE, SIZE);
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let planet: PlanetId = 'moon', frame = 0, started = 0;
+  let planet: PlanetId = 'luna', frame = 0, started = 0;
 
   function draw(now: number) {
     frame = 0;

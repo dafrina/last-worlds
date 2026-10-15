@@ -1,6 +1,6 @@
 /** Menu-only surfaces. Gameplay HUD and input stay in game-ui.ts. */
 
-/** Campaign missions in selector order (progression: the moon first). */
+/** Campaign missions in selector order (progression: Luna first). */
 export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector']] as const;
 
 /**
@@ -14,7 +14,7 @@ export function selector(name: string, label: string, choices: readonly (readonl
 
 export const menuMarkup = `
   <section class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="game-title">
-    <div class="menu-topline"><span>LW / FLIGHT COMMAND</span><span class="status-dot">KHEPRI</span></div>
+    <div class="menu-topline"><span>LW / FLIGHT COMMAND</span></div>
     <div class="wordmark"><h1 id="game-title">LAST<br>WORLDS</h1><p class="menu-tagline">LOW ORBIT. NO WAY BACK.</p></div>
     <div class="orbital-art" aria-hidden="true">
       <svg viewBox="0 0 340 180" fill="none"><circle cx="235" cy="131" r="99" fill="#0c2340"/><circle cx="235" cy="131" r="99" stroke="#355678" stroke-width=".7"/><path d="M128 149C188 93 265 64 338 59M130 156C192 103 272 76 339 73" stroke="#527394" stroke-width=".7"/><path d="M36 138H93M64 110V166M148 35H166M157 26V44" stroke="#55708b" stroke-width=".7"/><circle cx="298" cy="23" r="1.2" fill="#9db8d5"/><circle cx="102" cy="54" r="1" fill="#7893ae"/><circle cx="196" cy="17" r=".8" fill="#7893ae"/><path d="M234 40L235 34L237 40L240 43L236 42L235 44L234 42L230 43Z" fill="#d9e6ef"/></svg>
@@ -40,7 +40,7 @@ export const menuMarkup = `
     <p class="mission-description"></p>
     <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i></span></p>
     <div class="setup-group"><span class="setup-label" id="difficulty-label">DIFFICULTY</span>${selector('difficulty', 'Campaign difficulty', [['relaxed', 'Relaxed'], ['standard', 'Standard'], ['veteran', 'Veteran']], 'standard')}</div>
-    <div class="setup-group"><span class="setup-label">MAIN WEAPON</span>${selector('weapon', 'Main weapon', [['pulse', 'Pulse'], ['fan', 'Scatter'], ['seeker', 'Seeker']], 'pulse')}</div>
+    <div class="setup-group"><span class="setup-label">MAIN WEAPON</span>${selector('weapon', 'Main weapon', [['pulse', 'Twin Pulse'], ['fan', 'Fan Cannon'], ['seeker', 'Seeker Array']], 'pulse')}</div>
     <p class="loadout-line">SPECIAL Shockwave · SHIELD Standard · REACTOR Balanced</p>
     <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH SORTIE <span aria-hidden="true">↗</span></button>
   </section>
@@ -65,6 +65,6 @@ export const menuMarkup = `
   <section class="help-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
     <button type="button" class="back-button" data-help-back>← BACK</button>
     <p class="eyebrow">FLIGHT MANUAL</p><h2 id="help-title">HOLD YOUR<br>LINE.</h2>
-    <ol class="control-guide"><li><span>01</span><div><h3>STEER</h3><p>Hold the left or right half of the screen.</p></div></li><li><span>02</span><div><h3>LINE UP</h3><p>Your main weapon fires when a target enters its firing path.</p></div></li><li><span>03</span><div><h3>BREAK THROUGH</h3><p>Tap the center button for a shockwave. Wait for it to recharge.</p></div></li></ol>
+    <ol class="control-guide"><li><span>01</span><div><h3>STEER</h3><p>Hold the left or right half of the screen.</p></div></li><li><span>02</span><div><h3>LINE UP</h3><p>Your main weapon fires when a target enters its firing path.</p></div></li><li><span>03</span><div><h3>BREAK THROUGH</h3><p>Tap the center button for a shockwave. It is ready again when its ring is full.</p></div></li></ol>
     <dl class="keyboard-controls"><div><dt>STEER</dt><dd>A / D or ← / →</dd></div><div><dt>SPECIAL</dt><dd>Space</dd></div><div><dt>PAUSE</dt><dd>Esc</dd></div></dl>
   </section>`;

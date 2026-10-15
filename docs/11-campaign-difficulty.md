@@ -71,3 +71,14 @@ These small multipliers recognize the challenge without making harder difficulty
 Campaign statistics support All / Relaxed / Standard / Veteran filters. Mode-level totals are the sum of disjoint difficulty-tagged attempt records; never count an attempt twice when changing filters. Show difficulty on every recent result. Records from older ruleset versions stay labeled.
 
 Test difficulty initialization, five-versus-three life icons, unchanged shield/handling rules, safe warnings on Veteran, shared story unlocks, first-clear deduplication across settings, exact rounding, fixed contract semantics, and mode isolation. With the same endless seed/version/input, changing the selected campaign difficulty must produce no difference in endless state, loot, camera, or score.
+
+## Needle beam rests (15 October 2026)
+
+The user reported nonstop beam barrages in the endless sectors; they liked the high-pressure moments but not barrages that never ended. Measured with dodging and idle bots, later Vesper sectors (the peak playlist) chained Needle beams for 18–19 s with no pause of 2.5 s or more.
+
+The rule lives in `DifficultyScale.beamRest`. When Needle beams have run for `run` seconds with no pause of at least 2.5 s, Needle windups that haven't fired yet are called off, and no new one starts for `rest` seconds:
+- Relaxed: 5 s run, 4 s rest.
+- Standard and all of endless: 7 s run, 3 s rest.
+- Veteran: no rest.
+
+Result: the longest barrage in endless sectors 4–11 is now 7–9 s, while beams still fill about 30% of the time (was 34–37%). The Helion Ark is unchanged; the user finds it fine.

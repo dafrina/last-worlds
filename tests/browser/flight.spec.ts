@@ -46,7 +46,7 @@ test('campaign choices apply to training and never leak to endless', async ({ pa
   await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
-  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Seeker', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Seeker Array', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
   let state = await snapshot(page);
   expect(state.config.mode).toBe('campaign');

@@ -5,7 +5,7 @@ import { settlement, type Settlement } from './terrain-settlements';
 import { scatterKitSteps, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
 import type { Work } from './terrain-work';
 import { VESPER } from './terrain-vesper';
-import { MOON } from './terrain-moon';
+import { LUNA } from './terrain-luna';
 import { SCENERY_MAX_HEIGHT, clamp, mix } from './terrain-layout';
 
 /**
@@ -65,7 +65,7 @@ export interface PlanetProfile {
   floes(seed: number, startS: number, size: number, field: ScatterField, arena: TerrainArena | undefined): Work<Floe[]>;
   /** Archetypes whose links carry pipelines more often, and quiet ones that never do. */
   industrial: ReadonlySet<string>; quiet: ReadonlySet<string>;
-  /** False on a planet without roads or pipelines between settlements (the moon). */
+  /** False on a planet without roads or pipelines between settlements (Luna). */
   networks?: boolean;
 }
 
@@ -88,7 +88,7 @@ export const KHEPRI: PlanetProfile = {
   industrial: new Set(['refinery', 'pumping', 'mining']), quiet: new Set(['wreck', 'abandoned']),
 };
 
-export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, moon: MOON };
+export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA };
 
 /**
  * What the generator is asked for: a planet and an optional mission arena. A bare arena (the pre-planet API)

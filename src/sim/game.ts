@@ -119,7 +119,7 @@ function beginSector(state: RunState): void {
 }
 
 const MISSION_TITLES: Readonly<Record<MissionId, string>> = {
-  training: 'TRAINING SORTIE · MOON', bastion: 'ROLLING THUNDER · KHEPRI', 'cold-vector': 'COLD VECTOR · VESPER',
+  training: 'TRAINING · LUNA', bastion: 'ROLLING THUNDER · KHEPRI', 'cold-vector': 'COLD VECTOR · VESPER',
 };
 
 function updateDirector(state: RunState): void {
@@ -226,6 +226,7 @@ function canAttack(state: RunState, enemy: Enemy): boolean {
 function updateEnemies(state: RunState, dt: number): void {
   const scale = scales(state);
   let windups = state.enemies.reduce((count, enemy) => count + (enemy.hp > 0 && enemy.warning > 0 && !enemy.bossPart ? 1 : 0), 0);
+  const resting = updateBeamRest(state, scale);
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
     const stats = ENEMIES[enemy.kind];
@@ -245,6 +246,8 @@ function updateEnemies(state: RunState, dt: number): void {
     } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy) && state.time >= state.player.invulnerableUntil - 0.3) {
       // Readability caps: a bounded number of simultaneous windups and of marked beam lanes.
       if (windups >= scale.maxWindups) continue;
+      // Needle beam rest: no new beam until the rest is over.
+      if (resting && enemy.kind === 'needle') { enemy.nextAttack = enemy.age + 0.25; continue; }
       // Needle beams are narrow (0.4) and do not count against the wide-beam lane cap.
       if (enemy.kind === 'lancer' && state.hazards.filter(hazard => hazard.width >= beamSpec('lancer').width).length + state.enemies.filter(other => other.kind === 'lancer' && other.warning > 0).length >= scale.maxBeams) continue;
       // The aim commits now and never tracks afterwards: the player's x plus the authored bracket offset (a
@@ -259,6 +262,33 @@ function updateEnemies(state: RunState, dt: number): void {
       windups += 1;
     }
   }
+}
+
+/** Longest pause (s) that still counts as one continuous Needle barrage. */
+const BEAM_GAP = 2.5;
+/**
+ * Needle beam rest: tracks Needle beam activity (windups and live narrow lanes; pauses under BEAM_GAP join one
+ * barrage) and, once a barrage lasts `scale.beamRest.run` seconds, calls off pending Needle windups and holds new
+ * ones for `rest` seconds.
+ * Returns whether a rest is on.
+ */
+function updateBeamRest(state: RunState, scale: DifficultyScale): boolean {
+  const rule = scale.beamRest;
+  if (!rule) return false;
+  const run = state.beamRun ??= { since: -1, last: -Infinity, restUntil: -Infinity };
+  const needleWidth = beamSpec('needle').width;
+  const beaming = state.enemies.some(enemy => enemy.kind === 'needle' && enemy.hp > 0 && enemy.warning > 0)
+    || state.hazards.some(hazard => hazard.width <= needleWidth + 1e-9);
+  if (beaming) {
+    if (run.since < 0 || state.time - run.last > BEAM_GAP) run.since = state.time;
+    run.last = state.time;
+    if (state.time >= run.restUntil && state.time - run.since >= rule.run) {
+      run.restUntil = state.time + rule.rest; run.since = -1;
+      // Windups not yet fired are called off (as when an attacker loses its window), so the rest is a real pause.
+      for (const enemy of state.enemies) if (enemy.kind === 'needle' && enemy.warning > 0) { enemy.warning = 0; enemy.nextAttack = enemy.age + rule.rest; }
+    }
+  }
+  return state.time < run.restUntil;
 }
 
 function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void {

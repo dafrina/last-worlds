@@ -3,7 +3,7 @@ import { BALANCE, difficultyScales, kinematics } from '../../src/content/balance
 import { ENDLESS_CYCLE, endlessPlanet, endlessSchedule, endlessSectorPlan, isBossSector, paceInSector, scrollForPace } from '../../src/content/endless';
 import { EMPTY_INPUT, STEP, type EnemyKind, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
-import { fly, perfectPilot } from './pilots';
+import { dodgerPilot, enterSector, fly, idlePilot, perfectPilot } from './pilots';
 
 const KHEPRI_KINDS: ReadonlySet<EnemyKind> = new Set(['dart', 'weaver', 'turret', 'lancer']);
 const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set(['needle', 'diamond', 'missile']);
@@ -193,4 +193,20 @@ describe('endless bosses and jumps', () => {
     // It keeps fighting: attacks still come throughout the fight, which has no time limit.
     expect(state.boss!.attackIndex).toBeGreaterThan(50);
   }, 60000);
+});
+
+describe('Needle beam rests (user report: nonstop beam barrages in later Vesper sectors)', () => {
+  it('never lets Needle beams run longer than about 9 s without a 2.5 s pause', () => {
+    for (const sector of [4, 10]) for (const make of [dodgerPilot, idlePilot]) {
+      const state = enterSector(createRun({ mode: 'endless', seed: 3 }), sector), pilot = make();
+      let since = -1, last = -9, longest = 0;
+      for (let i = 0; i < 70 / STEP && state.phase === 'playing'; i++) {
+        state.player.lives = 99;
+        stepRun(state, pilot(state));
+        const beaming = state.enemies.some(e => e.kind === 'needle' && e.hp > 0 && e.warning > 0) || state.hazards.some(h => h.width <= 0.4 + 1e-9);
+        if (beaming) { if (since < 0 || state.time - last > 2.5) since = state.time; last = state.time; longest = Math.max(longest, state.time - since); }
+      }
+      expect(longest, `sector ${sector}`).toBeLessThan(10);
+    }
+  });
 });

@@ -369,10 +369,10 @@ export function createIceEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.V
 }
 
 /**
- * The moon's sky for reflections (docs/19): black above, a faint grey horizon and bright regolith below, with a hard
+ * Luna's sky for reflections (docs/19): black above, a faint grey horizon and bright regolith below, with a hard
  * white sun, so hulls pick up ground bounce and the sun's glint but never a coloured sky.
  */
-export function createMoonEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
+export function createLunaEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
   return skyEnvironment(renderer, sun, {
     zenith: [0.03, 0.032, 0.04], horizon: [0.3, 0.3, 0.31], ground: [0.42, 0.41, 0.39], disc: [10.0, 9.8, 9.4], halo: [0.25, 0.25, 0.25],
   });

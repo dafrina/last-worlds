@@ -116,13 +116,19 @@ export interface DifficultyScale {
   rank: FormationRank;
   /** Ceiling on the live threat cost (surviving enemies plus the admitted cue), docs/03 §6. */
   threatBudget: number;
+  /**
+   * Needle beam rest: after `run` seconds of Needle beams without a real pause (windups or live lanes, gaps under
+   * 2.5 s), no new Needle windup starts for `rest` seconds. Null keeps beams back to back (campaign Veteran).
+   */
+  beamRest: { run: number; rest: number } | null;
 }
 
 /** Campaign difficulty is chosen per attempt; endless never reads this table (docs/11). */
 export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
-  relaxed: { lives: 5, hp: 0.85, shotSpeed: 0.85, warning: 0.25, cadence: 2, maxWindups: 3, maxBeams: 1, rank: 'standard', threatBudget: 14 },
-  standard: { lives: 3, hp: 1, shotSpeed: 1, warning: 0, cadence: 1, maxWindups: 5, maxBeams: 1, rank: 'standard', threatBudget: 16 },
-  veteran: { lives: 3, hp: 1.2, shotSpeed: 1.05, warning: 0, cadence: 0.75, maxWindups: 7, maxBeams: 2, rank: 'veteran', threatBudget: 20 },
+  // Beam rests added 15 October: later endless Vesper sectors chained 18–19 s of Needle beams (user report).
+  relaxed: { lives: 5, hp: 0.85, shotSpeed: 0.85, warning: 0.25, cadence: 2, maxWindups: 3, maxBeams: 1, rank: 'standard', threatBudget: 14, beamRest: { run: 5, rest: 4 } },
+  standard: { lives: 3, hp: 1, shotSpeed: 1, warning: 0, cadence: 1, maxWindups: 5, maxBeams: 1, rank: 'standard', threatBudget: 16, beamRest: { run: 7, rest: 3 } },
+  veteran: { lives: 3, hp: 1.2, shotSpeed: 1.05, warning: 0, cadence: 0.75, maxWindups: 7, maxBeams: 2, rank: 'veteran', threatBudget: 20, beamRest: null },
 };
 
 /**
@@ -172,8 +178,10 @@ export const ENEMIES: Record<EnemyKind, {
   lancer: { hp: 120, radius: 0.46, speed: 1.55, shotSpeed: 6, attackEvery: 1.85, warning: 1.2, score: 400, credits: 16 },
   // Vesper (docs/17 §5). Needle: fast interceptor, a very narrow locked beam on its own quick timing.
   needle: { hp: 50, radius: 0.3, speed: 3.2, shotSpeed: 0, attackEvery: 1.3, warning: 0.75, score: 150, credits: 6 },
-  // Diamond: heavy escort; the 0.3 radius is its exposed core, the 0.6 frame is scenery.
-  diamond: { hp: 220, radius: 0.3, speed: 1.2, shotSpeed: 6.8, attackEvery: 1, warning: 0.95, score: 400, credits: 16 },
+  // Diamond: heavy escort; its whole pale body (radius 0.6) takes hits. Softened on 15 October (was 220 hp on a 0.3
+  // core): shots through the visible plates did nothing, the user could never bring one down, and Scatter could not
+  // kill one in a whole pass.
+  diamond: { hp: 130, radius: 0.6, speed: 1.2, shotSpeed: 6.8, attackEvery: 1, warning: 0.95, score: 400, credits: 16 },
   // Missile battery: ground target; straight, non-tracking missiles down its own marked column.
   missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 9.5, attackEvery: 1.1, warning: 1, score: 250, credits: 10 },
 };
@@ -192,5 +200,7 @@ export function difficultyScales(mode: 'campaign' | 'endless', difficulty: Diffi
     maxBeams: sector >= 3 ? ramp.maxBeams.fromSector3 : ramp.maxBeams.base,
     rank: sector >= ramp.veteranFormationsFromSector ? 'veteran' : 'standard',
     threatBudget: Math.min(ramp.threatBudget.base + ramp.threatBudget.perSector * n, ramp.threatBudget.cap),
+    // Endless always rests like Standard: its pressure peaks stay, but never as a nonstop barrage.
+    beamRest: DIFFICULTIES.standard.beamRest,
   };
 }

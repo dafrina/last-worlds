@@ -5,13 +5,13 @@ import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 
 /**
- * Khepri's moon, the training ground (docs/19): grey regolith pocked with impact craters at three scales, smooth
+ * Luna, Khepri's luna,, the training ground (docs/19): grey regolith pocked with impact craters at three scales, smooth
  * dark mare plains with fewer of them, and a handful of small outposts. No water, no roads, no pipelines.
  * Every piece reuses the Khepri kit and infrastructure models. Pure functions of seed and world coordinates.
  */
 const NEUTRAL: MoodParams = { lift: 0, relief: 1, carve: 0, terrace: 0, mineral: 0, stacks: 0 };
-/** Moon scenery keeps Khepri's clearance under the flight plane. */
-export const MOON_SCENERY_MAX = 2.2;
+/** Luna scenery keeps Khepri's clearance under the flight plane. */
+export const LUNA_SCENERY_MAX = 2.2;
 
 /* ---------------------------------------------------------------- craters */
 
@@ -30,7 +30,7 @@ const CRATERS: readonly CraterScale[] = [
 const REACH = 1.8;
 
 /** Mare (dark basalt plains): 0 on the highlands, 1 deep in a mare. */
-export function moonMare(seed: number, x: number, s: number): number {
+export function lunaMare(seed: number, x: number, s: number): number {
   const wx = x + (noise(seed ^ 0xa1e2, x * 0.03, s * 0.03) - 0.5) * 18;
   return smoothRange(0.56, 0.7, noise(seed ^ 0xa1e1, wx * 0.014, s * 0.011));
 }
@@ -42,7 +42,7 @@ export interface CraterField {
   /** Closeness to a rim crest (0..1), for boulders. */ rim: number;
 }
 /** All craters touching a point, summed: bowl, raised rim and an ejecta apron that fades by 1.8 radii. */
-export function moonCraters(seed: number, x: number, s: number): CraterField {
+export function lunaCraters(seed: number, x: number, s: number): CraterField {
   const out: CraterField = { height: 0, bowl: 0, ejecta: 0, rim: 0 };
   for (const scale of CRATERS) {
     const ci = Math.floor(x / scale.cell), cj = Math.floor(s / scale.cell);
@@ -53,7 +53,7 @@ export function moonCraters(seed: number, x: number, s: number): CraterField {
       // Out of reach first (cheap); then mare plains, which are younger: fewer craters survive on them.
       if (d >= REACH) continue;
       const roll = h(2);
-      if (roll > scale.chance || roll > scale.chance * (1 - 0.45 * moonMare(seed, cx, cs))) continue;
+      if (roll > scale.chance || roll > scale.chance * (1 - 0.45 * lunaMare(seed, cx, cs))) continue;
       const depth = scale.depth * r, rim = scale.rim * r;
       if (d < 1) {
         // Flat-floored bowl rising steeply to the rim crest; big craters get a small central peak.
@@ -74,9 +74,9 @@ export function moonCraters(seed: number, x: number, s: number): CraterField {
 
 /* ---------------------------------------------------------------- landform */
 
-/** Moon ground: rolling highlands and low mare plains, cratered; `channel` carries the bowl and `tone` the ejecta. */
-export function moonLandform(seed: number, x: number, s: number): Landform & { tone: number } {
-  const mare = moonMare(seed, x, s), craters = moonCraters(seed, x, s);
+/** Luna ground: rolling highlands and low mare plains, cratered; `channel` carries the bowl and `tone` the ejecta. */
+export function lunaLandform(seed: number, x: number, s: number): Landform & { tone: number } {
+  const mare = lunaMare(seed, x, s), craters = lunaCraters(seed, x, s);
   const rolling = (noise(seed ^ 0xa1e3, x * 0.04, s * 0.035) - 0.5) * 1.3 + (noise(seed ^ 0xa1e4, x * 0.13, s * 0.12) - 0.5) * 0.35
     + (noise(seed ^ 0xa1e5, x * 0.9, s * 0.9) - 0.5) * 0.04;
   const base = mix(0.2 + rolling, -0.9 + rolling * 0.25, mare);
@@ -93,13 +93,13 @@ const linear = (hex: number): readonly [number, number, number] => {
   return [channel(hex >> 16 & 255), channel(hex >> 8 & 255), channel(hex & 255)];
 };
 /** Regolith palette, linear RGB: warm-grey highlands, darker blue-grey mare, bright fresh ejecta. */
-export const MOON_PALETTE = {
+export const LUNA_PALETTE = {
   highland: linear(0xb4b1ab), highlandLit: linear(0xc6c3bd), mare: linear(0x7a797a), bowl: linear(0x96938e),
   wall: linear(0x8a8782), ejecta: linear(0xe4e2dd), pad: linear(0xa09e9a),
 } as const;
 
-function moonColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: number }, slope: number, rim: number, out: [number, number, number]) {
-  const P = MOON_PALETTE, { seed, s } = row;
+function lunaColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: number }, slope: number, rim: number, out: [number, number, number]) {
+  const P = LUNA_PALETTE, { seed, s } = row;
   const drift = noise(seed ^ 0x51c1, x * 0.08, s * 0.06), fine = noise(seed ^ 0x51c2, x * 1.3, s * 1.3);
   const lit = smoothRange(0.45, 0.8, drift) * 0.6, steep = smoothRange(0.7, 1.8, slope), mare = 1 - point.elevation;
   for (let c = 0; c < 3; c++) {
@@ -120,7 +120,7 @@ function moonColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: numb
  * Sparse outposts from the Khepri infrastructure kit: a landing pad with a relay, a comm station with solar
  * panels, or an abandoned habitat. Most cells stay empty.
  */
-const MOON_ARCHETYPES: readonly Archetype[] = ['landing', 'comm', 'abandoned'];
+const LUNA_ARCHETYPES: readonly Archetype[] = ['landing', 'comm', 'abandoned'];
 const EXTENT: Readonly<Record<string, [number, number]>> = { landing: [3.6, 3.6], comm: [2.9, 2.9], abandoned: [2.4, 2.4] };
 const OUTPOST_CHANCE = 0.24;
 
@@ -151,8 +151,8 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
 }
 
 const memo = new Map<string, Settlement | null>();
-/** The moon outpost of one cell and side, or null (about one candidate in four), on the flattest nearby ground. */
-export function moonSettlement(seed: number, cell: number, side: number): Settlement | null {
+/** The Luna outpost of one cell and side, or null (about one candidate in four), on the flattest nearby ground. */
+export function lunaSettlement(seed: number, cell: number, side: number): Settlement | null {
   const key = `${seed}:${cell}:${side}`;
   if (memo.has(key)) return memo.get(key)!;
   const h = (k: number) => hash(seed ^ 0xa1e7 ^ (side > 0 ? 0x1000 : 0), cell * 211 + k, 6);
@@ -161,16 +161,16 @@ export function moonSettlement(seed: number, cell: number, side: number): Settle
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 6; k++) {
       const cx = side * Math.min(WORLD_HALF * (0.4 + h(1 + k) * 0.45), WORLD_HALF - 4), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
-      const heights = [[0, 0], [2.4, 0], [-2.4, 0], [0, 2.4], [0, -2.4]].map(([dx, ds]) => moonLandform(seed, cx + dx, cs + ds).height);
+      const heights = [[0, 0], [2.4, 0], [-2.4, 0], [0, 2.4], [0, -2.4]].map(([dx, ds]) => lunaLandform(seed, cx + dx, cs + ds).height);
       const relief = Math.max(...heights) - Math.min(...heights);
       if (relief < best) { best = relief; x = cx; s = cs; }
     }
-    const archetype = MOON_ARCHETYPES[Math.floor(h(20) * MOON_ARCHETYPES.length)];
+    const archetype = LUNA_ARCHETYPES[Math.floor(h(20) * LUNA_ARCHETYPES.length)];
     const turns = Math.floor(h(21) * 4), mirror = h(22) < 0.5 ? -1 : 1, [hu, hv] = EXTENT[archetype];
     const [hx, hs] = turns % 2 ? [hv, hu] : [hu, hv];
     const local = compose(archetype, k => h(30 + k));
     const tallest = Math.max(...local.map(module => MODULE_HEIGHT[module.node] ?? 1));
-    const level = clamp(Math.round(moonLandform(seed, x, s).height / 0.25) * 0.25, -4, MOON_SCENERY_MAX - tallest - 0.05);
+    const level = clamp(Math.round(lunaLandform(seed, x, s).height / 0.25) * 0.25, -4, LUNA_SCENERY_MAX - tallest - 0.05);
     x = Math.sign(x) * Math.min(Math.abs(x), WORLD_HALF - hx - 0.3);
     const cos = [1, 0, -1, 0][turns], sin = [0, 1, 0, -1][turns];
     const modules = local.map((module, i): PlacedModule => {
@@ -190,11 +190,11 @@ export function moonSettlement(seed: number, cell: number, side: number): Settle
 /* ---------------------------------------------------------------- scatter */
 
 /**
- * Moon dressing from the Khepri kit: boulders and rocks strewn along crater rims and over young ejecta, a few
+ * Luna dressing from the Khepri kit: boulders and rocks strewn along crater rims and over young ejecta, a few
  * large rock clumps on the highlands, scattered small rocks elsewhere. Mare plains stay bare and quiet.
  */
-export function* moonScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [], CAP = MOON_SCENERY_MAX;
+export function* lunaScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
+  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [], CAP = LUNA_SCENERY_MAX;
   const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number) => {
     const spec = KIT[instance.kind];
     if (instance.s < startS || instance.s >= startS + size || Math.abs(instance.x) + spec.radius * instance.scale > WORLD_HALF) return;
@@ -210,7 +210,7 @@ export function* moonScatterSteps(seed: number, startS: number, size: number, te
     const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.8) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.8) * cell;
     if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s) || terrain.platform(s) > 0) continue;
     const ground = terrain.height(x, s), slope = terrain.slope(x, s), pick = h(2);
-    const craters = moonCraters(seed, x, s), mare = moonMare(seed, x, s), rough = (craters.rim * 0.7 + craters.ejecta * 0.5) * (1 - mare * 0.7);
+    const craters = lunaCraters(seed, x, s), mare = lunaMare(seed, x, s), rough = (craters.rim * 0.7 + craters.ejecta * 0.5) * (1 - mare * 0.7);
     if (rough > 0.35 && slope < 1.6 && pick < 0.05 * rough) {
       const scale = 0.55 + h(3) * 0.5;
       add({ kind: 'boulder', x, s, y: ground - 0.08, scale, height: scale * (0.7 + h(4) * 0.4), rotation: turn(h(5)), cosmetic: false }, h(6));
@@ -230,18 +230,18 @@ export function* moonScatterSteps(seed: number, startS: number, size: number, te
 
 /* ---------------------------------------------------------------- profile */
 
-export const MOON: PlanetProfile = {
-  id: 'moon', seaLevel: null,
-  mood: (seed, s) => moonMare(seed, 0, s) > 0.5 ? 'mare' : 'highland', params: () => NEUTRAL, local: () => null,
-  landform: (seed, x, s) => moonLandform(seed, x, s),
+export const LUNA: PlanetProfile = {
+  id: 'luna', seaLevel: null,
+  mood: (seed, s) => lunaMare(seed, 0, s) > 0.5 ? 'mare' : 'highland', params: () => NEUTRAL, local: () => null,
+  landform: (seed, x, s) => lunaLandform(seed, x, s),
   // Training has no arena; a flat pad level keeps the hook total.
   arena(row, _x, point) { point.height = mix(point.height, 0, row.platform); },
-  color: moonColor,
+  color: lunaColor,
   shadowTint: null,
-  sceneryMax: MOON_SCENERY_MAX,
-  settlement: moonSettlement,
-  scatter: moonScatterSteps,
+  sceneryMax: LUNA_SCENERY_MAX,
+  settlement: lunaSettlement,
+  scatter: lunaScatterSteps,
   floes: function* () { return []; },
-  industrial: new Set(), quiet: new Set(MOON_ARCHETYPES),
+  industrial: new Set(), quiet: new Set(LUNA_ARCHETYPES),
   networks: false,
 };
