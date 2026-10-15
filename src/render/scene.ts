@@ -113,7 +113,8 @@ const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
  * The authored Scrapper is ~1.0 unit wide; the user asked for the hero to fly at the planned top-tier size
  * (1.7 units, docs/04 §9). Render-only: the collision radius is owned by the simulation.
  */
-export const HERO_SCALE = 1.7;
+/** Hero render scale. The user asked for a larger hitbox (sim playerRadius), not a larger model. */
+export const HERO_SCALE = 1;
 
 /**
  * Light-space extents of everything the camera can see within the shadow slab, relative to the view target
@@ -280,7 +281,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   flightShadows.count = 0; flightShadows.renderOrder = 1; scene.add(flightShadows);
 
   const shieldMaterial = new THREE.MeshBasicMaterial({ color: 0xb1fff1, transparent: true, opacity: .35, depthWrite: false, depthTest: false });
-  const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial); shield.scale.setScalar(HERO_SCALE * .92);
+  const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial); shield.scale.setScalar(HERO_SCALE);
   shield.rotation.x = -ELEVATION; shield.renderOrder = 8; scene.add(shield);
 
   // Shots never hide behind ground: no depth test, and `transparent` puts them in the last (transparent) list so
