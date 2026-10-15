@@ -1,6 +1,6 @@
 # Bastion-9 production model
 
-Runtime file: `public/assets/khepri/bastion-9.glb` (1,674,252 bytes, sha256 `4d80a510e863410915c90c986dad47334e15ae06aa3cc135442ea4bf0f28127c`).
+Runtime file: `public/assets/khepri/bastion-9.glb` (1,692,096 bytes, sha256 `d3541a543036d8104dc439ad9abed22c8526de070200370c2ad5648bb2922fb3`).
 Contract: [docs/15-bastion-slice.md, "Production asset contract"](../../docs/15-bastion-slice.md). The sockets match the functional box model in `src/render/bastion-view.ts`.
 
 ## Provenance
@@ -9,6 +9,7 @@ Contract: [docs/15-bastion-slice.md, "Production asset contract"](../../docs/15-
 - The script reuses the hard-surface helpers in `khepri_infra.py` and `khepri_kit.py`, with bytecode writing disabled.
 - Built with Blender 5.2.2 LTS (hash `d13f752e3b9c`) and its bundled glTF exporter (`io_scene_gltf2` 5.2.40), headless on the Windows host, on 14 October 2026.
 - Determinism: a fixed seed (`SEED`), per-node `random.Random` streams and no time-based values. Three consecutive builds were byte-identical, matching the hash above.
+- Revision 3 (15 October, user question "can the bulldozer wheels be animated?"): the sprockets, idlers and road wheels are now 16 separate rotating nodes, with their pivots at the axles. The belts are smooth: the static grousers are gone, and the runtime scrolls a link texture. The 14 original node names, sockets, pivots and materials are unchanged.
 - Revision 2b (14 October, user feedback "unepic", "flat"): a targeted pass with node names, sockets, pivots, materials and conventions unchanged. It made three changes:
   - gigantic tread pods;
   - the core housing blended into the hull with a turret ring;
@@ -31,7 +32,7 @@ cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -
 Omit `--preview-dir` to export only (about 3 s).
 
 Every build checks the contract before export, then re-parses the GLB and fails on any violation of these checks:
-- exactly the 14 node names;
+- exactly the 30 node names (the 14 originals plus 16 wheels);
 - node translations equal to the sockets below, with no rotation, scale or children;
 - exactly three materials, and no textures, cameras, animations or extensions;
 - COLOR_0 and TEXCOORD_0 everywhere;
@@ -45,9 +46,12 @@ glTF space: +Y up, 1 unit = 1 game unit, the front facing **+Z** (toward the pla
 
 | Node | Translation (x, y, z) | Tris | Meaning of the origin |
 | --- | --- | --- | --- |
-| bastion_hull | (0, 0, 0) | 7,018 | Hull ground centre, the same origin as the box model. Chassis, ribbed glacis, command block, the blended core turret ring, battery sponson shelves, four twin-gun deck turrets, radiators, stacks, and the tread running gear |
-| bastion_tread_left | (−2.85, 0, −0.40) | 2,276 | Tread pod centre on the ground. Belt loop with chunky grousers (track links) |
-| bastion_tread_right | (2.85, 0, −0.40) | 2,276 | Same, right side |
+| bastion_hull | (0, 0, 0) | 5,370 | Hull ground centre, the same origin as the box model. Chassis, ribbed glacis, command block, the blended core turret ring, battery sponson shelves, four twin-gun deck turrets, radiators and stacks. It also holds the non-rotating tread parts: the outboard armoured skirts with wheel cut-outs, rear guards and lamps |
+| bastion_tread_left | (−2.85, 0, −0.40) | 896 | Tread pod centre on the ground. A smooth belt loop of two strips (each 0.48 wide) with a 0.24 central guide gap |
+| bastion_tread_right | (2.85, 0, −0.40) | 896 | Same, right side |
+| bastion_sprocket_left / _right | (∓2.85, 0.60, −2.96) | 474 each | **Rear drive sprocket**, rotating about local x. It has 14 teeth (tip r 0.69) running in the belt's guide gap and standing above the belt at the rear; side discs under the belt; a bolted hub and spoke ribs on the outboard face |
+| bastion_idler_left / _right | (∓2.85, 0.60, +2.16) | 442 each | **Front idler**, rotating about local x: 10 teeth (tip r 0.67) in the guide gap, side discs, a bolted hub and spokes |
+| bastion_roadwheel_left_0 … _5 / _right_0 … _5 | (∓2.85, 0.29, z) with z = +1.61, +0.81, +0.00, −0.80, −1.61, −2.41 (index 0 at the front) | 274 each | **Double road wheel** (r 0.30, one disc each side of the guide gap), rotating about local x. The outboard face carries a hub, six bolts and six spokes |
 | bastion_battery_left | (−2.2, 1.45, 0) | 680 | **Battery target centre** (hit radius 0.7). Housing only |
 | bastion_battery_right | (2.2, 1.45, 0) | 680 | Battery target centre |
 | bastion_gun_left | (−2.2, 1.55, 0.20) | 684 | **Yaw pivot** on the housing's gun race; six barrels point +Z |
@@ -60,14 +64,14 @@ glTF space: +Y up, 1 unit = 1 game unit, the front facing **+Z** (toward the pla
 | bastion_core_shutter_a | (−0.62, 1.72, −1.35) | 354 | Centroid of the left half-disc (x < 0) |
 | bastion_core_shutter_b | (0.62, 1.72, −1.35) | 354 | Centroid of the right half-disc (x > 0) |
 
-Total: 19,138 triangles.
+Total: 19,850 triangles in 30 nodes.
 
-**Assembled bounds.** Width runs from x −3.62 to +3.62 (7.23). Length runs from z −3.60 to +2.80 (6.40). Height runs from y −0.10 to +1.79.
+**Assembled bounds.** Width runs from x −3.62 to +3.62 (7.23). Length runs from z −3.65 to +2.83 (6.48), including the sprocket and idler teeth. Height runs from y −0.10 to +1.79.
 
 **Revision 2b in detail:**
 - **Tread pods:**
-  - The belt is 1.2 wide (was 0.86), and the loop is 6.4 long and 1.28 tall (was 0.88), with 0.08 chunky grousers every 0.3 along the loop.
-  - The running gear lives in the hull: a 14-tooth rear drive sprocket and a 10-tooth front idler (1.0 wide) with hub caps; six heavy road wheels per side (r 0.27); and an outboard armoured skirt of four ribbed plates with glow strips, hanging tabs between the wheels (the cut-outs expose them) and a top rim.
+  - The belt is 1.2 wide (was 0.86), and the loop is 6.4 long and 1.28 tall (was 0.88). Revision 3 replaced the 0.08 grousers with a smooth belt, raised the loop radius from 0.56 to 0.64 to keep the same height, and split the belt with a central guide gap.
+  - The rotating running gear is in separate nodes (revision 3). The hull keeps an outboard armoured skirt of four ribbed plates with glow strips, hanging tabs between the wheels (the cut-outs expose them) and a top rim.
   - A sloped rear guard sits over each drive sprocket.
   - A sponson shelf bridges hull and pod under each battery housing; the belt runs beneath it.
 - **Core turret:** a sloped octagonal glacis ring with corner ribs steps down to the deck. Above it sit a stepped octagonal collar and a 32-sided ring wall (outer r 1.64, inner r 1.5, top 1.46) that seats the core shutters, with eight armoured lugs on the rim and six glowing window strips facing the camera. A recessed groove (r 1.24–1.5) with twelve glowing slits shows as a glowing seam around the closed shutters and frames the exposed core.
@@ -84,10 +88,15 @@ Total: 19,138 triangles.
   - Batteries active: hide the shutter.
   - Destroyed: swap the housing and gun for the wreck.
   - Core phases: hide or slide the core shutters.
-- **Tread belts:**
-  - TEXCOORD_0.u runs across the belt (−0.6 to +0.6). **v is the arc length along the loop in game units**: 0 at the front bottom, increasing along the bottom run toward −Z, then around the rear wheel, the top run and the front wheel, back to 13.749 where the loop closes.
-  - Grouser faces use the same mapping: v is the arc length at that point.
-  - Scroll v to animate a texture along the belt. The grousers are static geometry, so a scrolled texture slides over them; this reads fine during the brief arrival roll.
+- **Tread belts (revision 3, smooth with a scrolling texture):**
+  - TEXCOORD_0.u runs across the belt: −0.60 to −0.12 and +0.12 to +0.60, with the guide gap between. **v is the arc length along the loop in game units**: 0 at the front bottom, increasing along the bottom run toward −Z, then around the rear arc, the top run and the front arc, back to **14.2498** where the loop closes.
+  - **Link pitch:** 48 links per loop, **0.29687 v-units per link** (14.2498 / 48), so a link texture repeating every 0.29687 wraps seamlessly. Set texture repeat = 1 / 0.29687 per v unit.
+  - The belt's vertex colours have no per-face variation along v, so nothing static fights the scrolling pattern.
+  - **Scroll direction:** when the fortress drives toward +Z at ground speed s, the bottom run stays still relative to the ground. Relative to the hull, the belt therefore moves toward **increasing v** at speed s, so the pattern must advance by +s·t along v.
+- **Wheels (revision 3): rotate about each node's local X**. For motion toward +Z at ground speed s, the angle grows at **ω = +s / r** (right-hand rule about +X, i.e. three.js `rotation.x += s / r · dt`).
+  - Road wheels: rolling radius r = 0.30.
+  - Sprockets and idlers: r = **0.55**, the belt's inner surface where the teeth engage, so their teeth keep pace with the belt.
+  - The sprocket and idler axles sit 0.06 above the belt arc centre (y 0.60 vs 0.54), so the teeth clear the base plane and stand about 0.10 above the belt top at the loop ends. That makes them the parts whose rotation reads from the 55° camera; wheel faces only show from oblique views.
 
 ## Materials and vertex colours
 
@@ -107,7 +116,8 @@ Total: 19,138 triangles.
 All previews use EEVEE with the ACES 1.3 view at +0.81 EV (matching the runtime's ACESFilmic), a warm sun from the upper left and slightly behind, and an orthographic camera at 55° elevation with zero yaw. The front faces the bottom of the frame, toward the player.
 
 - `preview-kit.png`: every node about its own origin, with a link pattern on the belts driven by the along-belt UV.
-- `preview-hero.png`: a 3/4 front-right perspective of the protected fortress under a strong low sun.
+- `preview-hero.png`: a 3/4 front-right perspective of the protected fortress under a strong low sun. The preview belt shader draws the link pattern from the along-belt UV at the documented pitch.
+- `preview-wheels.png`: contact sheet of the 16 split wheel nodes, seen from their outboard faces (right side top row, left side bottom row).
 - `preview-fortress.png`: the assembled, protected fortress at the 900×1600 game camera (about 12.5 units wide) on Khepri ground: housings, guns, battery shutters and closed core shutters.
 - `preview-core-exposed.png`: the core phase, with both batteries as wrecks, no guns or battery shutters, and the core shutters slid ±1.1 along x.
 

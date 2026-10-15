@@ -11,7 +11,13 @@ import { VIEW, type BossPart, type RunState } from '../shared/contracts';
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 const PARTS = ['left', 'right', 'core'] as const;
-const TREAD_REPEAT = 1.25;
+/** Belt link pitch in game units (bastion-9.glb: 48 links over a 14.2498-unit loop); the texture holds one link. */
+const LINK_PITCH = 14.2498 / 48;
+/** Rotating running gear (docs/15): node name → rolling radius. Each spins about its own local x axle. */
+const WHEELS: readonly [string, number][] = [
+  ...['left', 'right'].flatMap(side => [[`bastion_sprocket_${side}`, .55], [`bastion_idler_${side}`, .55],
+    ...[0, 1, 2, 3, 4, 5].map(i => [`bastion_roadwheel_${side}_${i}`, .3])]) as [string, number][],
+];
 /** Local footprint of the hull (x half-width, z half-depth) for seating and the terrain exclusion. */
 export const BASTION_FOOTPRINT = { halfWidth: 3.8, halfDepth: 3.3 } as const;
 const socket = (part: BossPart) => new THREE.Vector3(
@@ -22,7 +28,10 @@ interface PartRig {
   group: THREE.Group; live: THREE.Object3D[]; gun?: THREE.Object3D; gunYaw: number; wreck?: THREE.Object3D;
   shutters: Shutter[]; heat: THREE.MeshStandardMaterial[]; open: number;
 }
-interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; treads: THREE.Texture[]; glow: THREE.MeshStandardMaterial[]; dispose(): void }
+interface Rig {
+  chassis: THREE.Group; parts: Map<BossPart, PartRig>; treads: THREE.Texture[]; glow: THREE.MeshStandardMaterial[];
+  wheels: { object: THREE.Object3D; radius: number }[]; dispose(): void;
+}
 
 export async function loadBastionModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
@@ -33,10 +42,11 @@ export async function loadBastionModel(url: string): Promise<THREE.Group> {
 function treadTexture(): THREE.Texture {
   const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 64;
   const context = canvas.getContext('2d');
-  if (context) for (let y = 0; y < 64; y++) { const v = y % 16 < 5 ? 70 : 210 + (y % 3) * 10; context.fillStyle = `rgb(${v},${v},${v})`; context.fillRect(0, y, 8, 1); }
+  // One heavy track link per tile: a dark grouser bar, a bright worn plate, and a thin hinge line.
+  if (context) for (let y = 0; y < 64; y++) { const v = y < 18 ? 55 : y < 22 ? 120 : y > 60 ? 90 : 205 + (y % 3) * 8; context.fillStyle = `rgb(${v},${v},${v})`; context.fillRect(0, y, 8, 1); }
   const texture = new THREE.CanvasTexture(canvas);
-  // Belt v is arc length in game units; four links per tile and one link every 0.2 units.
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(1, TREAD_REPEAT); texture.colorSpace = THREE.SRGBColorSpace;
+  // Belt v is arc length in game units; one texture tile per link, so the loop wraps without a seam.
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(1, 1 / LINK_PITCH); texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 const glowMaterial = (color: number, intensity: number) =>
@@ -119,7 +129,7 @@ function fallbackRig(): Rig {
     const gun = core ? undefined : box(group, [.22, .18, 1.3], [0, 1.45, .9], edge);
     parts.set(part, { group, live, gun, gunYaw: 0, shutters, heat: [heat], open: 0 });
   }
-  return { chassis, parts, treads: [], glow: [], dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); [armor, edge, rust, coreHeat, ...batteryHeat].forEach(m => m.dispose()); } };
+  return { chassis, parts, treads: [], glow: [], wheels: [], dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); [armor, edge, rust, coreHeat, ...batteryHeat].forEach(m => m.dispose()); } };
 }
 
 /* ------------------------------------------------------------------ production model */
@@ -172,7 +182,9 @@ function modelRig(model: THREE.Group): Rig {
   }
   // Everything else (hull, treads, lamps) rides on the chassis as authored.
   for (const name of ['bastion_hull', 'bastion_tread_left', 'bastion_tread_right']) { const object = node(name); if (object) chassis.attach(object); }
-  return { chassis, parts, treads: treadMaps, glow: [lamps],
+  // Sprockets, idlers and road wheels are separate nodes pivoting on their axles (older files lack them).
+  const wheels = WHEELS.flatMap(([name, radius]) => { const object = node(name); if (!object) return []; chassis.attach(object); return [{ object, radius }]; });
+  return { chassis, parts, treads: treadMaps, glow: [lamps], wheels,
     dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); treadMaps.forEach(t => t.dispose()); } };
 }
 
@@ -317,9 +329,14 @@ export function createBastionView(scene: THREE.Scene) {
 
       // Treads move at the hull's ground-relative speed: its combat-plane motion plus the terrain scroll
       // (which stops for the arena fight), so a parked fortress stops and a manoeuvring one crawls.
+      // Ground-relative motion: ground points slide toward −s at the scroll speed, so the hull moves over the
+      // ground at (vs + scroll) in s. The fortress faces +z (toward the player, −s), so forward speed is its negative.
       const groundSpeed = destroyed ? 0 : (boss.vs ?? 0) + state.scrollSpeed;
-      treadOffset = (treadOffset + groundSpeed * dt * TREAD_REPEAT) % 1;
+      const forward = -groundSpeed;
+      // Belts advance toward increasing v at the forward speed; wheels roll at ω = speed / rolling radius.
+      treadOffset = (treadOffset - forward * dt / LINK_PITCH) % 1;
       rig.treads.forEach(map => { map.offset.y = treadOffset; });
+      for (const wheel of rig.wheels) wheel.object.rotation.x += forward / wheel.radius * dt;
       emitCarry += dt * Math.min(26, Math.abs(groundSpeed) * 5 + Math.abs(boss.vx ?? 0) * 6);
       for (; emitCarry >= 1; emitCarry--) {
         const n = state.time * 97 + emitCarry, side = hash(n) < .5 ? -1 : 1;

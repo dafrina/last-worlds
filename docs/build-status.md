@@ -1,5 +1,9 @@
 # Build status
 
+## Animated Bastion-9 treads — 15 October 2026
+
+Sprockets, idlers and 12 road wheels are now separate Blender nodes (`bastion-9.glb`, 30 nodes, 19.9k triangles) that roll with the fortress's ground speed, and the belts scroll a one-link-per-tile pattern at the same speed. Checked: typecheck, tests, build and browser suite in a snapshot; the boss fixture renders without errors.
+
 ## Wreck falls behind; faster enemy fire — 15 October 2026
 
 - **Wreck:** after Bastion-9 is destroyed, the wreck is ground-anchored. When extraction resumes the scroll it falls behind instead of travelling with the player. A test checks the wreck's world position holds (a fixed offset of at most 5 cm from the resume ramp).

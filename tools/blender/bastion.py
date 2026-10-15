@@ -82,12 +82,38 @@ DEFAULT_STATE = ["bastion_hull", "bastion_tread_left", "bastion_tread_right", "b
 WRECK_STATE = ["bastion_hull", "bastion_tread_left", "bastion_tread_right", "bastion_battery_left_wreck",
                "bastion_battery_right_wreck", "bastion_core", "bastion_core_shutter_a", "bastion_core_shutter_b"]
 
-# Tread loop (Blender): pods at x = +-2.85, belt along y from -2.8 (front) to 3.6 (rear), chunky
-# grousers on the outer face; the loop centre stays at y = 0.4 (the tread node socket, glTF z = -0.4).
-TREAD_X, BELT_W, BELT_T, GROUSER = 2.85, 1.2, 0.09, 0.08
-LOOP_R = 0.56
+# Tread loop (Blender): pods at x = +-2.85, belt along y from -2.8 (front) to 3.6 (rear); the loop
+# centre stays at y = 0.4 (the tread node socket, glTF z = -0.4). Revision 3: the belt is smooth (no
+# geometric grousers; the runtime scrolls a link texture along v) and split into two strips by a
+# central guide gap in which the sprocket and idler teeth run and show above the belt.
+TREAD_X, BELT_W, BELT_T, GROUSER = 2.85, 1.2, 0.09, 0.0
+GUIDE_GAP = 0.24
+LOOP_R = 0.64
 LOOP_ZC = BASE + LOOP_R + GROUSER
 LOOP_Y0, LOOP_Y1 = -2.8 + LOOP_R + GROUSER, 3.6 - LOOP_R - GROUSER
+
+# Rotating wheels (revision 3): pivot at the axle centre, rotation about local x.
+SPROCKET_TIP, SPROCKET_TEETH = 0.69, 14     # rear drive sprocket (teeth stand 0.05 above the belt)
+IDLER_TIP, IDLER_TEETH = 0.67, 10           # front idler
+BELT_INNER_R = LOOP_R - BELT_T              # rolling radius of sprocket and idler (belt inner surface)
+DRIVE_RAISE = 0.06                          # sprocket/idler axles sit this far above the belt arc centre
+ROADWHEEL_R = 0.30
+ROADWHEEL_Z = LOOP_ZC - LOOP_R + BELT_T + ROADWHEEL_R
+ROADWHEEL_Y = [LOOP_Y0 + 0.55 + (LOOP_Y1 - LOOP_Y0 - 1.1) * k / 5 for k in range(6)]   # Blender y, front first
+WHEELS = {}
+for _sx, _nm in ((-1, "left"), (1, "right")):
+    WHEELS[f"bastion_sprocket_{_nm}"] = dict(t=(_sx * TREAD_X, LOOP_ZC + DRIVE_RAISE, -LOOP_Y1), kind="sprocket", side=_sx,
+                                            radius=BELT_INNER_R, outer=SPROCKET_TIP)
+    WHEELS[f"bastion_idler_{_nm}"] = dict(t=(_sx * TREAD_X, LOOP_ZC + DRIVE_RAISE, -LOOP_Y0), kind="idler", side=_sx,
+                                          radius=BELT_INNER_R, outer=IDLER_TIP)
+    for _k, _y in enumerate(ROADWHEEL_Y):
+        WHEELS[f"bastion_roadwheel_{_nm}_{_k}"] = dict(t=(_sx * TREAD_X, ROADWHEEL_Z, -_y), kind="road", side=_sx,
+                                                      radius=ROADWHEEL_R, outer=ROADWHEEL_R)
+for _name, _w in WHEELS.items():
+    SOCKETS[_name] = tuple(round(c, 6) for c in _w["t"])
+NODES = list(SOCKETS)
+DEFAULT_STATE += list(WHEELS)
+WRECK_STATE += list(WHEELS)
 
 
 def lamp(hs, p, r=0.04, h=0.06):
@@ -153,59 +179,42 @@ def build_tread(side):
     loop = belt_loop()
     xc = side * TREAD_X
     xa, xb = xc - BELT_W * 0.5, xc + BELT_W * 0.5
-    lanes = [xa, xa + BELT_W * 0.3, xb - BELT_W * 0.3, xb]  # three lanes: guide horns + centre pads
+    strips = [(xa, xc - GUIDE_GAP * 0.5), (xc + GUIDE_GAP * 0.5, xb)]   # two belt strips, guide gap between
     rings = []
-    for y, z, ny, nz, s in loop:
-        outer = [hs.v((x, y, z)) for x in lanes]
-        inner = [hs.v((x, y - ny * BELT_T, z - nz * BELT_T)) for x in lanes]
-        rings.append((outer, inner, s, ny, nz))
+    for y, z, ny, nz, sv in loop:
+        outer = [hs.v((x, y, z)) for st in strips for x in st]
+        inner = [hs.v((x, y - ny * BELT_T, z - nz * BELT_T)) for st in strips for x in st]
+        rings.append((outer, inner, sv, ny, nz))
     uv = []
-    for a, b in zip(rings, rings[1:]):
-        o0, i0, s0, ny0, nz0 = a
-        o1, i1, s1, ny1, nz1 = b
+    for a_, b_ in zip(rings, rings[1:]):
+        o0, i0, s0, ny0, nz0 = a_
+        o1, i1, s1, ny1, nz1 = b_
         nrm = Vector((0.0, (ny0 + ny1) * 0.5, (nz0 + nz1) * 0.5))
-        for k in range(3):
-            u0, u1 = lanes[k] - xc, lanes[k + 1] - xc
-            hs.face((o0[k], o0[k + 1], o1[k + 1], o1[k]), "belt", "edge" if k != 1 else "main", ARMOR,
-                    outward=tuple(nrm))
+        for k in (0, 2):                                  # each strip: outer, inner and two edge faces
+            ua, ub = (strips[0] if k == 0 else strips[1])
+            u0, u1 = ua - xc, ub - xc
+            hs.face((o0[k], o0[k + 1], o1[k + 1], o1[k]), "belt", "main", ARMOR, outward=tuple(nrm))
             uv.append([(u0, s0), (u1, s0), (u1, s1), (u0, s1)])
             hs.face((i0[k], i1[k], i1[k + 1], i0[k + 1]), "belt", "main", ARMOR, outward=tuple(-nrm))
             uv.append([(u0, s0), (u0, s1), (u1, s1), (u1, s0)])
-        hs.face((o0[0], o1[0], i1[0], i0[0]), "belt", "edge", ARMOR, outward=(-1, 0, 0))
-        uv.append([(0.0, s0), (0.0, s1), (BELT_T, s1), (BELT_T, s0)])
-        hs.face((o0[3], i0[3], i1[3], o1[3]), "belt", "edge", ARMOR, outward=(1, 0, 0))
-        uv.append([(0.0, s0), (BELT_T, s0), (BELT_T, s1), (0.0, s1)])
+            hs.face((o0[k], o1[k], i1[k], i0[k]), "belt", "edge", ARMOR, outward=(-1, 0, 0))
+            uv.append([(0.0, s0), (0.0, s1), (BELT_T, s1), (BELT_T, s0)])
+            hs.face((o0[k + 1], i0[k + 1], i1[k + 1], o1[k + 1]), "belt", "edge", ARMOR, outward=(1, 0, 0))
+            uv.append([(0.0, s0), (BELT_T, s0), (BELT_T, s1), (0.0, s1)])
     # face() may have reversed a face to orient it; keep UVs paired with final vertex order
     fixed = []
     for f, orig, corner_uv in zip(hs.faces, hs._raw, uv):
         fixed.append(corner_uv if tuple(f) == tuple(orig) else list(reversed(corner_uv)))
-    # Chunky grousers (track links) on the outer face, every ~0.3 units of belt. Their UVs use the
-    # same convention: u across the belt, v = arc length along the loop at that point.
-    total = loop[-1][4]
-    count = int(round(total / 0.3))
-    for k in range(count):
-        sk = total * (k + 0.5) / count
-        y, z, ny, nz = loop_point(loop, sk)
-        g = HS(hs.rng)
-        g.box((0.0, 0.0, 0.0), (BELT_W * 0.94, 0.22, GROUSER), 0.02, "belt", ARMOR, bottom=False)
-        base = len(hs.verts)
-        nf = len(hs.faces)
-        theta = math.atan2(-ny, nz)
-        merge_hs(hs, g, xform((xc, y + ny * GROUSER * 0.5, z + nz * GROUSER * 0.5), (theta, 0.0, 0.0)))
-        low = min(v[2] for v in hs.verts[base:])
-        if low < BASE:                                   # flat link on the curve: seat it on the base plane
-            for v in hs.verts[base:]:
-                v[2] += BASE - low
-        ty, tz = -nz, ny
-        for f in hs.faces[nf:]:
-            corner = []
-            for i in f:
-                vx, vy, vz = hs.verts[i]
-                corner.append((vx - xc, sk + (vy - y) * ty + (vz - z) * tz))
-            fixed.append(corner)
-        del base
     hs.belt_uv = fixed
     return hs
+
+
+LINK_COUNT = 48                                       # links per belt loop (texture repeats seamlessly)
+
+
+def link_pitch():
+    """Belt link pitch in v units: the loop length divided by LINK_COUNT."""
+    return belt_loop()[-1][4] / LINK_COUNT
 
 
 def loop_point(loop, s):
@@ -291,21 +300,55 @@ def deck_turret(hs, rng, x, y, z, yaw):
     merge_hs(hs, t, xform((x, y, z), (0.0, 0.0, yaw)))
 
 
+def bolt_ring(hs, c, sx, r, n, size, paint="steel"):
+    """Bolt heads / lugs on a wheel face facing +sx (rotation reads from them)."""
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        hs.box((c[0], c[1] + math.cos(a) * r, c[2] + math.sin(a) * r), (size, size, size), 0.0, paint, ARMOR)
+
+
+def build_wheel(name):
+    """Sprocket, idler or road wheel around its axle (Blender coordinates, axle along x)."""
+    w = WHEELS[name]
+    sx = w["side"]
+    rng = random.Random(f"{SEED}:{name}")
+    hs = HS(rng)
+    cx, cy, cz = B(*w["t"])
+    gap = GUIDE_GAP * 0.5
+    if w["kind"] in ("sprocket", "idler"):
+        teeth = SPROCKET_TEETH if w["kind"] == "sprocket" else IDLER_TEETH
+        gear(hs, (cx, cy, cz), True, w["outer"], GUIDE_GAP - 0.04, teeth, "steel")          # teeth in the gap
+        side_r = BELT_INNER_R - DRIVE_RAISE - 0.03          # clears the belt's inner surface
+        for sgn in (-1, 1):                                                                  # discs under the belt
+            hs.cyl((cx + sgn * gap, cy, cz), (sgn, 0, 0), side_r, 0.5 - gap, 16, 0.02,
+                   "graphite_dk" if w["kind"] == "sprocket" else "graphite", ARMOR, cap0=False)
+        hs.cyl((cx + sx * 0.5, cy, cz), (sx, 0, 0), 0.25, 0.1, 14, 0.02, "rust_w", TRIM, cap0=False)  # hub
+        hs.cyl((cx + sx * 0.6, cy, cz), (sx, 0, 0), 0.09, 0.05, 8, 0.0, "steel", ARMOR, cap0=False, smooth=False)
+        bolt_ring(hs, (cx + sx * 0.615, cy, cz), sx, 0.17, 6, 0.04)
+        for k in range(6):                                                                   # spoke ribs on the disc
+            a = 2 * math.pi * (k + 0.5) / 6
+            rib = HS(rng)
+            rib.box((0.0, 0.0, 0.0), (0.03, 0.05, side_r - 0.28), 0.0, "steel", ARMOR)
+            merge_hs(hs, rib, xform((cx + sx * 0.515, cy + math.cos(a) * (side_r + 0.26) * 0.5,
+                                     cz + math.sin(a) * (side_r + 0.26) * 0.5), (a - math.pi / 2, 0.0, 0.0)))
+    else:
+        r = w["outer"]
+        for sgn in (-1, 1):                                                                  # double road wheel
+            hs.cyl((cx + sgn * gap, cy, cz), (sgn, 0, 0), r, 0.56 - gap, 12, 0.03, "graphite_dk", ARMOR, cap0=False)
+        hs.cyl((cx + sx * 0.56, cy, cz), (sx, 0, 0), 0.11, 0.05, 8, 0.012, "rust_w", TRIM, cap0=False)
+        bolt_ring(hs, (cx + sx * 0.575, cy, cz), sx, 0.18, 6, 0.04)
+        for k in range(6):                                                                   # spokes
+            a = 2 * math.pi * k / 6
+            rib = HS(rng)
+            rib.box((0.0, 0.0, 0.0), (0.025, 0.04, 0.12), 0.0, "steel", ARMOR)
+            merge_hs(hs, rib, xform((cx + sx * 0.572, cy + math.cos(a) * 0.17, cz + math.sin(a) * 0.17),
+                                    (a - math.pi / 2, 0.0, 0.0)))
+    return hs
+
+
 def tread_gear(hs, rng, sx):
     xc = sx * TREAD_X
-    r_in = LOOP_R - BELT_T - 0.015
-    gear(hs, (xc, LOOP_Y1, LOOP_ZC), True, r_in, 1.0, 14, "steel")             # rear drive sprocket
-    gear(hs, (xc, LOOP_Y0, LOOP_ZC), True, r_in * 0.97, 1.0, 10, "graphite")   # front idler
-    for y in (LOOP_Y0, LOOP_Y1):
-        hs.cyl((xc + sx * 0.5, y, LOOP_ZC), (sx, 0, 0), 0.25, 0.1, 12, 0.02, "rust_w", TRIM, cap0=False)
-        hs.cyl((xc + sx * 0.6, y, LOOP_ZC), (sx, 0, 0), 0.1, 0.06, 8, 0.0, "steel", ARMOR, cap0=False, smooth=False)
-    # Heavy road wheels along the bottom run (outer row; the inner row is hidden by the hull).
-    rw = 0.27
-    zc = LOOP_ZC - LOOP_R + BELT_T + rw
-    ys = [LOOP_Y0 + 0.5 + (LOOP_Y1 - LOOP_Y0 - 1.0) * k / 5 for k in range(6)]
-    for y in ys:
-        hs.cyl((xc + sx * 0.04, y, zc), (sx, 0, 0), rw, 0.46, 12, 0.025, "graphite_dk", ARMOR, cap0=False)
-        hs.cyl((xc + sx * 0.5, y, zc), (sx, 0, 0), 0.1, 0.05, 8, 0.0, "steel", ARMOR, cap0=False, smooth=False)
+    ys = ROADWHEEL_Y          # the sprockets, idlers and road wheels are separate rotating nodes
     # Outboard armoured skirt: an upper band of plates with ribs, hanging tabs between the wheels
     # (the cut-outs expose the wheels), a top rim, and glow strips.
     xo = xc + sx * (BELT_W * 0.5 + 0.1)
@@ -322,14 +365,14 @@ def tread_gear(hs, rng, sx):
         glow_strip(hs, (xo + sx * 0.042, (a + b) * 0.5, 1.12), (0.012, (b - a) * 0.5, 0.03))
     for k in range(len(ys) - 1):
         ym = (ys[k] + ys[k + 1]) * 0.5
-        hs.box((xo, ym, 0.56), (0.08, 0.32, 0.36), 0.02, "graphite", ARMOR)
+        hs.box((xo, ym, 0.6), (0.08, 0.28, 0.36), 0.02, "graphite", ARMOR)
     hs.box((xo - sx * 0.02, (y0 + y1) * 0.5, 1.24), (0.14, y1 - y0, 0.04), 0.012, "graphite_dk", ARMOR)
     # Rear guard sloping over the drive sprocket (casts a shadow on the links).
     guard = HS(rng)
     guard.box((0.0, 0.0, 0.0), (BELT_W + 0.22, 0.72, 0.07), 0.025, "graphite", ARMOR, bottom=True)
     guard.box((0.0, -0.1, 0.045), (BELT_W, 0.18, 0.02), 0.0, "ochre_w", TRIM)
-    merge_hs(hs, guard, xform((xc, LOOP_Y1 + 0.12, LOOP_ZC + LOOP_R + GROUSER + 0.1), (-0.32, 0.0, 0.0)))
-    lamp(hs, (xc - sx * 0.35, LOOP_Y1 - 0.05, LOOP_ZC + LOOP_R + GROUSER + 0.15), r=0.035, h=0.05)
+    merge_hs(hs, guard, xform((xc, LOOP_Y1 + 0.12, LOOP_ZC + LOOP_R + GROUSER + 0.17), (-0.32, 0.0, 0.0)))
+    lamp(hs, (xc - sx * 0.35, LOOP_Y1 - 0.05, LOOP_ZC + LOOP_R + GROUSER + 0.22), r=0.035, h=0.05)
 
 
 def build_hull(rng):
@@ -682,6 +725,8 @@ def bake(hs, name, context_bvh_parts, max_dist=0.45):
         cen /= len(f)
         base, wear_amt = paints[hs.fpaint[fi]]
         jitter = rng.uniform(0.93, 1.06)
+        if name in TREADS:
+            jitter = 1.0
         for i in f:
             p = verts[i]
             sample = p + (cen - p) * 0.08 + n * 0.0015
@@ -810,6 +855,8 @@ def build_all():
     pieces["bastion_core"] = build_core(rng("core"))
     pieces["bastion_core_shutter_a"] = build_core_shutter(-1, rng("coreA"))
     pieces["bastion_core_shutter_b"] = build_core_shutter(1, rng("coreB"))
+    for name in WHEELS:
+        pieces[name] = build_wheel(name)
     return pieces
 
 
@@ -835,6 +882,7 @@ def check(pieces):
         if z1 > TOP_MAX + 1e-6:
             problems.append(f"{state}: top {z1:.4f} > {TOP_MAX}")
     print(f"BASTION total triangles {total}")
+    print(f"BASTION belt loop length {belt_loop()[-1][4]:.4f}, {LINK_COUNT} links, pitch {link_pitch():.5f}")
     if not TRI_RANGE[0] <= total <= TRI_RANGE[1]:
         problems.append(f"total triangles {total} outside {TRI_RANGE}")
     return problems
@@ -978,14 +1026,14 @@ def preview_materials(mats, tex_dir):
     nt.links.new(uvn.outputs["UV"], sep.inputs["Vector"])
     links = nt.nodes.new("ShaderNodeMath")                  # one link every 0.2 units of belt
     links.operation = "MULTIPLY"
-    links.inputs[1].default_value = 5.0
+    links.inputs[1].default_value = 1.0 / link_pitch()
     nt.links.new(sep.outputs["Y"], links.inputs[0])
     frac = nt.nodes.new("ShaderNodeMath")
     frac.operation = "FRACT"
     nt.links.new(links.outputs["Value"], frac.inputs[0])
     step = nt.nodes.new("ShaderNodeMapRange")
     step.inputs["From Min"].default_value = 0.0
-    step.inputs["From Max"].default_value = 0.25
+    step.inputs["From Max"].default_value = 0.35
     step.inputs["To Min"].default_value = 0.45
     step.inputs["To Max"].default_value = 1.15
     nt.links.new(frac.outputs["Value"], step.inputs["Value"])
@@ -1103,6 +1151,37 @@ def render_hero(objs, pmats, belt, terrain, path, engine, samples):
     kit.render(path)
 
 
+def render_wheels(objs, pmats, path, engine, samples):
+    """Contact sheet of the split rotating wheels, seen from the outboard side (faces toward the camera)."""
+    scene = bpy.context.scene
+    rows = (("right", 1.6, 0.0), ("left", 0.0, math.pi))
+    for side, z, rot in rows:
+        names = [f"bastion_sprocket_{side}", f"bastion_idler_{side}"] + [f"bastion_roadwheel_{side}_{k}" for k in range(6)]
+        for k, name in enumerate(names):
+            y = -5.6 + k * 1.6
+            o = bpy.data.objects.new(f"wheel_{name}", objs[name].data)
+            o.location = (0.0, y, z)
+            o.rotation_euler = (0.0, 0.0, rot)
+            scene.collection.objects.link(o)
+            lab = kit.text_label(name.replace("bastion_", ""), (0.75, y, z - 0.88), 0.13, pmats["label"])
+            lab.rotation_euler = (math.pi / 2, 0.0, math.pi / 2)
+    kit.plane_obj("wheel_ground", -10.0, 10.0, -10.0, 10.0, -1.05, pmats["sheet"])
+    kit.add_sun(kit.SUN_DIR, strength=3.9)
+    kit.setup_world(scene, (0.42, 0.45, 0.48), 0.9)
+    cam = bpy.data.cameras.new("wheel_cam")
+    cam.type = "ORTHO"
+    cam.ortho_scale = 13.6
+    ob = bpy.data.objects.new("wheel_cam", cam)
+    d = Vector((-1.0, 0.0, -0.32)).normalized()
+    ob.location = Vector((0.0, 0.0, 0.8)) - d * 20.0
+    ob.rotation_mode = "QUATERNION"
+    ob.rotation_quaternion = d.to_track_quat("-Z", "Y")
+    scene.collection.objects.link(ob)
+    scene.camera = ob
+    kit.setup_render(scene, engine, samples, 1800, 800)
+    kit.render(path)
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser(prog="bastion.py")
@@ -1165,6 +1244,8 @@ def main():
         kit.clear_preview(keep)
         render_hero(objs, pmats, belt, terrain, os.path.join(args.preview_dir, "preview-hero.png"),
                     args.engine, args.samples)
+        kit.clear_preview(keep)
+        render_wheels(objs, pmats, os.path.join(args.preview_dir, "preview-wheels.png"), args.engine, args.samples)
         print("BASTION previews written")
 
 

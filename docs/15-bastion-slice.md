@@ -85,6 +85,8 @@ Hit regions are unchanged: batteries radius 0.7, core 1.55, all at local height 
 
 ### Static arena and harder fight (15 October)
 
+**Animated running gear (15 October):** `bastion-9.glb` adds 16 wheel nodes: sprockets and idlers (rolling radius 0.55) and six road wheels per side (0.30), each pivoting on its own axle. The belts are smooth, with one texture tile per link (pitch 14.2498 / 48 ≈ 0.297). The renderer spins each wheel at the hull's ground-relative forward speed divided by its radius, and advances the belt links at the same speed. Both stop when the fortress is destroyed, because the wreck is ground-anchored.
+
 The user found the boss too easy and disliked it "rolling over ravines". Rolling Thunder now ends in a fixed arena:
 - **Scroll stop:** the scroll eases to zero from t = 112 s and stops at exactly distance 575 at t = 118 s (`BASTION.arena`, `arenaScroll` / `arenaStopDistance` in `src/sim/bastion.ts`). It resumes over 2 s once the core dies; the wreck is ground-anchored and falls behind as the scroll resumes.
 - **Platform:** the world generator lays a flat basalt-plate platform over world s 566–601 at height 0, across the full width, with low banks and rim columns at the edges, 20-unit ease ramps on either side, and no minerals, outposts, roads or pipelines. `scene.ts` passes `missionArena(config)` to the terrain from the start of the run.
