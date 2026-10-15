@@ -16,7 +16,7 @@ export const BASTION = {
   warning: 1,
   beamWarning: 1.25,
   /** Pause after each release before the next windup may start. */
-  recovery: 0.6,
+  recovery: 0.5,
   transitionRecovery: 1.25,
   overloadFraction: 0.4,
   extractionDuration: 8,

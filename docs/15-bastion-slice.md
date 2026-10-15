@@ -86,10 +86,10 @@ Hit regions are unchanged: batteries radius 0.7, core 1.55, all at local height 
 ### Static arena and harder fight (15 October)
 
 The user found the boss too easy and disliked it "rolling over ravines". Rolling Thunder now ends in a fixed arena:
-- **Scroll stop:** the scroll eases to zero from t = 112 s and stops at exactly distance 575 at t = 118 s (`BASTION.arena`, `arenaScroll` / `arenaStopDistance` in `src/sim/bastion.ts`). It resumes over 2 s once the core dies.
+- **Scroll stop:** the scroll eases to zero from t = 112 s and stops at exactly distance 575 at t = 118 s (`BASTION.arena`, `arenaScroll` / `arenaStopDistance` in `src/sim/bastion.ts`). It resumes over 2 s once the core dies; the wreck is ground-anchored and falls behind as the scroll resumes.
 - **Platform:** the world generator lays a flat basalt-plate platform over world s 566–601 at height 0, across the full width, with low banks and rim columns at the edges, 20-unit ease ramps on either side, and no minerals, outposts, roads or pipelines. `scene.ts` passes `missionArena(config)` to the terrain from the start of the run.
 - **Fortress movement:** it sways ±1.1 and surges ±0.9 around its post (camera x at arrival, clamped to ±7). Treads scroll at the hull's ground-relative speed, `boss.vs + scrollSpeed`.
-- **Difficulty:** attacks have a 1.0 s warning and 0.75 s recovery. The core alternates its fan with an aimed five-bolt burst. Overload lanes cover the fortress's own hit columns (a 2.4-wide lane over the core, then 1.4-wide lanes over both batteries, which leave the core open as the damage window), marked 1.4 s ahead and active for 0.35 s. All boss attacks pass the fairness guard. A Standard Pulse clear lasts about 46 s.
+- **Difficulty:** attacks have a 1.0 s warning and 0.5 s recovery (shortened twice on 15 October). The core alternates its fan with an aimed five-bolt burst. Overload lanes cover the fortress's own hit columns (a 2.4-wide lane over the core, then 1.4-wide lanes over both batteries, which leave the core open as the damage window), marked 1.4 s ahead and active for 0.35 s. All boss attacks pass the fairness guard. A Standard Pulse clear lasts about 46 s.
 
 The user narrowed the request: the boss "doesn't need a shitload of work". Revision 2b keeps the model and only:
 - makes the bulldozer-like treads much more gigantic;

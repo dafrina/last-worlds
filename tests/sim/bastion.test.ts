@@ -100,6 +100,22 @@ describe('Bastion-9 mission', () => {
     expect(state.phase).toBe('complete');
   });
 
+  it('leaves the wreck behind on the ground once extraction resumes the scroll', () => {
+    const state = encounter(); openCore(state);
+    bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state);
+    const s0 = state.boss!.s, d0 = state.distance;
+    advance(state, 4);
+    expect(state.distance).toBeGreaterThan(d0 + 5);
+    // Ground-anchored: the wreck's world position (distance + s) holds while its row falls behind the player.
+    // Distance is a closed-form integral of the resume ramp and the wreck integrates per step: a fixed ≤ 5 cm
+    // offset from the 2 s ramp that never grows afterwards.
+    expect(state.boss!.s).toBeLessThan(s0 - 5);
+    const drift = state.distance + state.boss!.s - (d0 + s0);
+    expect(Math.abs(drift)).toBeLessThan(.05);
+    advance(state, 3);
+    expect(state.distance + state.boss!.s - (d0 + s0)).toBeCloseTo(drift, 6);
+  });
+
   it('keeps the short training sortie and canonical endless start independent', () => {
     const endless = createRun({ mode: 'endless', mission: 'bastion', weapon: 'fan', difficulty: 'relaxed', seed: 42 });
     expect(endless.config.mission).toBeUndefined();

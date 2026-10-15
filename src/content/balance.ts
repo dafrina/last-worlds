@@ -172,10 +172,10 @@ export const ENEMIES: Record<EnemyKind, {
   hp: number; radius: number; speed: number; shotSpeed: number; attackEvery: number;
   warning: number; score: number; credits: number;
 }> = {
-  dart: { hp: 55, radius: 0.45, speed: 2.6, shotSpeed: 7.9, attackEvery: 1, warning: 0.85, score: 100, credits: 4 },
-  weaver: { hp: 75, radius: 0.58, speed: 2.05, shotSpeed: 6.6, attackEvery: 1.25, warning: 0.9, score: 200, credits: 8 },
-  turret: { hp: 110, radius: 0.62, speed: VIEW.scrollSpeed, shotSpeed: 7.3, attackEvery: 1.15, warning: 0.95, score: 250, credits: 10 },
-  lancer: { hp: 120, radius: 0.46, speed: 1.55, shotSpeed: 6, attackEvery: 2.15, warning: 1.2, score: 400, credits: 16 },
+  dart: { hp: 55, radius: 0.45, speed: 2.6, shotSpeed: 7.9, attackEvery: 0.85, warning: 0.85, score: 100, credits: 4 },
+  weaver: { hp: 75, radius: 0.58, speed: 2.05, shotSpeed: 6.6, attackEvery: 1.05, warning: 0.9, score: 200, credits: 8 },
+  turret: { hp: 110, radius: 0.62, speed: VIEW.scrollSpeed, shotSpeed: 7.3, attackEvery: 0.98, warning: 0.95, score: 250, credits: 10 },
+  lancer: { hp: 120, radius: 0.46, speed: 1.55, shotSpeed: 6, attackEvery: 1.85, warning: 1.2, score: 400, credits: 16 },
 };
 
 export function difficultyScales(mode: 'campaign' | 'endless', difficulty: Difficulty, sector: number): DifficultyScale {

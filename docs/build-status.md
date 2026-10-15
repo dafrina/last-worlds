@@ -1,5 +1,10 @@
 # Build status
 
+## Wreck falls behind; faster enemy fire — 15 October 2026
+
+- **Wreck:** after Bastion-9 is destroyed, the wreck is ground-anchored. When extraction resumes the scroll it falls behind instead of travelling with the player. A test checks the wreck's world position holds (a fixed offset of at most 5 cm from the resume ramp).
+- **Enemy fire:** about 15% faster again, enemies only; the player's weapon cadence is unchanged and never was changed. Dart 0.85 s, Weaver 1.05 s, battery 0.98 s, Lancer 1.85 s; Bastion-9's recovery is 0.5 s. All 127 sim tests pass, including the fairness validator and the perfect-pilot sweeps.
+
 ## Smooth cliff edges — 15 October 2026
 
 The sawtooth stair-step rims and striped diagonal walls are fixed in the geometry:

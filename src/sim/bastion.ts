@@ -138,6 +138,9 @@ export function updateBastion(state: RunState, dt: number): void {
     const pose = bossPose(boss, state.time);
     boss.x = pose.x;
     boss.s = pose.s;
+  } else {
+    // The wreck is ground-anchored: once extraction resumes the scroll, it falls behind instead of following.
+    boss.s -= state.scrollSpeed * dt;
   }
   boss.vx = dt > 0 ? (boss.x - previousX) / dt : 0;
   boss.vs = dt > 0 ? (boss.s - previousS) / dt : 0;
