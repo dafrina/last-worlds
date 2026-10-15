@@ -5,7 +5,7 @@ import { arenaStopDistance } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
-import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
+import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
@@ -17,6 +17,8 @@ import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView } from './warden-view';
+import { createVeilView, veilPlacement } from './veil-view';
+import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { BASTION } from '../content/bastion';
 
@@ -160,7 +162,7 @@ interface PlanetLook {
   shadowIntensity: number; blobShadow: number; lowExposure: number;
   post: { exposure: number; threshold: number; knee: number; strength: number; lift: [number, number, number]; saturation: number; contrast: number; vignette: number;
     haze: [number, number, number, number] };
-  environment: 'desert' | 'ice' | 'luna';
+  environment: 'desert' | 'ice' | 'luna' | 'mire';
 }
 const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
   khepri: {
@@ -184,6 +186,15 @@ const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
     post: { exposure: 1.0, threshold: 1.05, knee: .35, strength: .6, lift: [.003, .003, .0036], saturation: .96, contrast: 1.09, vignette: .26,
       haze: [0, 0, 0, 0] },
     environment: 'luna',
+  },
+  // Nacre (docs/20): a dim lilac sun under a violet sky, strong violet sky fill so the dark islands stay readable,
+  // teal-violet bounce off the mire, a low bloom threshold so the bioluminescence glows, and a faint violet mist.
+  nacre: {
+    background: 0x1a1040, sunElevation: 44, sun: [0xeadcff, 2.8], hemisphere: [0x8a74c8, 0x221a48, 1.05], bounce: [0x5a7ac0, .45],
+    shadowIntensity: .7, blobShadow: 0x120a28, lowExposure: 1.05,
+    post: { exposure: 1.0, threshold: .85, knee: .35, strength: .85, lift: [.004, .002, .008], saturation: 1.02, contrast: 1.1, vignette: .28,
+      haze: [.36, .26, .6, .03] },
+    environment: 'mire',
   },
 };
 /** Unit vector toward a planet's sun: the shared upper-left azimuth (shadows to the lower right) at its elevation. */
@@ -320,7 +331,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const environment = createDesertEnvironment(renderer, SUN);
   materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
-  let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null;
+  let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null;
   const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [];
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
   /** Look-dev only: `?planet=` makes the terrain stream another planet; the look then follows the terrain's report. */
@@ -348,12 +359,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     shadowMaterial.color.setHex(look.blobShadow);
     if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation));
     if (look.environment === 'luna') lunaEnvironment ??= createLunaEnvironment(renderer, sunDirection(LOOKS.luna.sunElevation));
-    const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : look.environment === 'luna' && lunaEnvironment ? lunaEnvironment.texture : environment.texture;
+    if (look.environment === 'mire') mireEnvironment ??= createMireEnvironment(renderer, sunDirection(LOOKS.nacre.sunElevation));
+    const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : look.environment === 'luna' && lunaEnvironment ? lunaEnvironment.texture
+      : look.environment === 'mire' && mireEnvironment ? mireEnvironment.texture : environment.texture;
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
     // On Luna the Khepri-built enemies wear steel-blue paint, so they read apart from the hero against grey regolith.
     (materials.enemyCraft.userData.paintSwap as { value: number }).value = next === 'luna' ? 1 : 0;
     sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
-    terrainMaterials.setEnvironment(sky); water.setEnvironment(sky);
+    terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
     if (next === 'vesper') ensureCraft(next); else foam.clear();
     warmed = false;
@@ -483,6 +496,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The Helion Ark (docs/17 §5) rides on the sea; its model loads on first use, Bastion-9 stays untouched.
   const ark = createArkView(scene);
   const warden = createWardenView(scene);
+  const veil = createVeilView(scene);
   let arkRequested = false;
   const ensureArk = () => {
     if (arkRequested) return;
@@ -495,11 +509,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * and stay cached. Khepri's load at start; Vesper's are its craft, the Helion Ark and its prefiltered sky.
    */
   const preload = (next: PlanetId) => {
+    // Nacre flies Vesper heavies among its own squadrons: their craft load before the jump too.
+    if (next === 'nacre') { ensureCraft('kinds'); return; }
     if (next !== 'vesper') return;
     ensureCraft('vesper'); ensureArk();
     if (!iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
   };
-  const planetReady = (next: PlanetId) => next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
+  const planetReady = (next: PlanetId) => next === 'nacre' ? !!vesperBatches : next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
   const jumpFx = createJumpFx(scene);
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
@@ -612,7 +628,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       const terrainUpdate = performance.now() - terrainStart;
       // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna; every other boss is Bastion-9.
-      const isArk = state.boss?.id === 'ark', isWarden = state.boss?.id === 'warden';
+      const isArk = state.boss?.id === 'ark', isWarden = state.boss?.id === 'warden', isVeil = state.boss?.id === 'veil';
       {
         let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && state.boss
           ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
@@ -620,7 +636,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         warden.update(state, seat);
         if (isWarden) terrain.setExclusion(warden.footprint(state, seat));
       }
-      if (!isArk && !isWarden) {
+      {
+        // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water.
+        const mire = world.planet.seaLevel ?? 0;
+        let seat: { x?: number; s: number; baseHeight: number } | null = isVeil && state.boss ? veilPlacement(state.boss.s, mire) : null;
+        if (isVeil && state.boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, VEIL.targetHeight, mire, world);
+        veil.update(state, seat);
+        if (isVeil) terrain.setExclusion(veil.footprint(state, seat));
+      }
+      if (!isArk && !isWarden && !isVeil) {
         let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena) : null;
         if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
         bastion.update(state, bossPlacement);
@@ -687,7 +711,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       };
       flightShadow(state.player.x, 0, 1.5 * HERO_SCALE, 1.8 * HERO_SCALE, VIEW.flightHeight);
 
-      const counts = new Map<EnemyKind, number>(ENEMY_KINDS.map(kind => [kind, 0]));
+      // Instance counts per batch mesh: each enemy fills the batch of the model it actually uses (a Vesper kind keeps its
+      // own model on any planet).
+      const counts = new Map<THREE.InstancedMesh, number>();
       // Hit flashes: compare each craft's hp with the last frame (a new run restarts the record).
       if (state.tick < hitTick) { enemyHp.clear(); enemyHitAt.clear(); }
       hitTick = state.tick;
@@ -732,12 +758,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         if (VESPER_KINDS.has(enemy.kind) && !craftRequested) ensureCraft('kinds');
         const useVesper = !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
-        const batch = (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(enemy.kind)!;
+        const batch = (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind] : null;
         if (slot < ENEMY_CAPACITY) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(vesperCraft?.scale ?? 1); transform.updateMatrix();
-          batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(enemy.kind, slot + 1);
+          batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
           const seen = enemyHp.get(enemy.id); enemyHp.set(enemy.id, enemy.hp);
           if (seen !== undefined && enemy.hp < seen) enemyHitAt.set(enemy.id, state.time);
           const kick = Math.max(0, 1 - (state.time - (enemyHitAt.get(enemy.id) ?? -9)) / HIT_FLASH);
@@ -803,7 +829,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
       }
       for (const set of [enemyBatches, vesperBatches]) if (set) for (const [kind, batch] of set) {
-        const count = set === activeBatches ? counts.get(kind)! : 0;
+        const count = counts.get(batch.mesh) ?? 0;
         batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true; if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;
         if (batch.ghost) batch.ghost.count = count;
       }
@@ -933,7 +959,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); lunaEnvironment?.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose();
       renderer.dispose();
     },

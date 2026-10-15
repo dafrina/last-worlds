@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KIT, KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KIT, KIT_KINDS, NACRE_KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 
 /** Kit geometry by node name (`basalt_clump_0` …). Attributes: position, normal, color, glow. */
@@ -64,6 +64,7 @@ class Builder {
 
 function fallbackPiece(kind: KitKind, variant: number): THREE.BufferGeometry {
   if ((VESPER_KIT_KINDS as readonly string[]).includes(kind)) return vesperFallbackPiece(kind, variant);
+  if ((NACRE_KIT_KINDS as readonly string[]).includes(kind)) return nacrePiece(kind, variant);
   const builder = new Builder(), seed = (KIT_KINDS as readonly string[]).indexOf(kind) * 101 + variant * 13;
   const cluster = (count: number, spreadX: number, spreadZ: number, minTop: number, size: number) => {
     for (let i = 0; i < count; i++) {
@@ -187,10 +188,132 @@ function vesperFallbackPiece(kind: KitKind, variant: number): THREE.BufferGeomet
   return builder.geometry();
 }
 
+/*
+ * Nacre's flora and monoliths (docs/20), built in code; they are the final pieces, not stand-ins. Glowing faces carry
+ * glow 1 and their own colour: under the Nacre look the kit material emits the vertex colour (teal caps and reeds,
+ * violet crystals, orange monolith slits) instead of one shared glow colour.
+ */
+const BLOOM = linear(0x3ff2d8), BLOOM_SOFT = linear(0x2a9e9a), CAP_TOP = linear(0x34507e), STEM = linear(0x8a8fb0), PAD = linear(0x1f5a52), PAD_VEIN = linear(0x56ffe0);
+const BARK = linear(0x2b2238), CANOPY = linear(0x5a3a8c), CANOPY_DARK = linear(0x35245a), VIOLET = linear(0xb070ff);
+const MIRE_ROCK = linear(0x221d2c), MIRE_ROCK_TOP = linear(0x3a3048), MONOLITH = linear(0x17151d), SLIT = linear(0xff8a30);
+function nacrePiece(kind: KitKind, variant: number): THREE.BufferGeometry {
+  const builder = new Builder(), seed = (NACRE_KIT_KINDS as readonly string[]).indexOf(kind) * 307 + variant * 19 + 11;
+  const up = new THREE.Vector3(0, 1, 0), down = new THREE.Vector3(0, -1, 0);
+  const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  /** A mushroom-like glowing cap: a pale stem, a domed top and glowing gills underneath, with a lit rim. */
+  const cap = (cx: number, cz: number, radius: number, height: number, lean: number) => {
+    builder.prism(cx, cz, radius * .12, height * .8, 6, seed, 0, -0.05);
+    const sides = 12, top = v(cx + lean, height, cz), under = v(cx + lean * .8, height * .78, cz);
+    for (let i = 0; i < sides; i++) {
+      const a0 = i / sides * Math.PI * 2, a1 = (i + 1) / sides * Math.PI * 2, wobble = (k: number) => .88 + rand(seed, k) * .24;
+      const r0 = radius * wobble(i), r1 = radius * wobble((i + 1) % sides);
+      const p0 = v(cx + lean + Math.cos(a0) * r0, height * .86, cz + Math.sin(a0) * r0), p1 = v(cx + lean + Math.cos(a1) * r1, height * .86, cz + Math.sin(a1) * r1);
+      // Seen from above: a dark dome with a glowing outer band (the gill rim showing through the cap's edge).
+      const m0 = v(cx + lean + Math.cos(a0) * r0 * .45, height * .96, cz + Math.sin(a0) * r0 * .45), m1 = v(cx + lean + Math.cos(a1) * r1 * .45, height * .96, cz + Math.sin(a1) * r1 * .45);
+      builder.tri(top, m0, m1, CAP_TOP, .12, up);
+      builder.tri(m0, p0, p1, CAP_TOP.clone().lerp(BLOOM_SOFT, .7), .4, up); builder.tri(m0, p1, m1, CAP_TOP.clone().lerp(BLOOM_SOFT, .7), .4, up);
+      builder.tri(under, p1, p0, BLOOM, 1, down);
+    }
+  };
+  /** An irregular dodecahedron lump (canopies and rocks); `glowShare` of its faces glow in `glowColor`. */
+  const lump = (cx: number, cy: number, cz: number, radius: number, squash: number, color: THREE.Color, glowShare = 0, glowColor = BLOOM) => {
+    const rock = new THREE.DodecahedronGeometry(radius, 0), p = rock.getAttribute('position'), center = v(cx, cy, cz);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), m = new THREE.Vector3();
+    const warp = (q: THREE.Vector3) => { const k = Math.round((q.x + 2) * 37 + (q.y + 2) * 71 + (q.z + 2) * 113), j = .8 + rand(seed, k) * .35; return q.set(cx + q.x * j, cy + q.y * squash * j, cz + q.z * j); };
+    for (let i = 0; i < p.count; i += 3) {
+      warp(a.fromBufferAttribute(p, i)); warp(b.fromBufferAttribute(p, i + 1)); warp(c.fromBufferAttribute(p, i + 2));
+      m.copy(a).add(b).add(c).divideScalar(3);
+      const lit = rand(seed, i + 500) < glowShare;
+      builder.tri(a.clone(), b.clone(), c.clone(), lit ? glowColor : m.y > cy ? color.clone().lerp(MIRE_ROCK_TOP, .2) : color, lit ? 1 : 0, m.clone().sub(center));
+    }
+    rock.dispose();
+  };
+  switch (kind) {
+    case 'bloomCap': {
+      cap(0, 0, .55, 1, .04);
+      if (variant > 0) cap(.38, .22, .3, .6, .03);
+      if (variant > 1) cap(-.3, -.28, .24, .45, -.03);
+      break;
+    }
+    case 'lilyPad': {
+      // A flat floating pad with a notch, a glowing ring and veins; waterline at y = 0.
+      const sides = 14, notch = rand(seed, 1) * Math.PI * 2, centre = v(0, .05, 0);
+      for (let i = 0; i < sides; i++) {
+        const a0 = i / sides * Math.PI * 2 + notch, a1 = (i + 1) / sides * Math.PI * 2 + notch;
+        if (i === 0) continue;
+        const r = .5 * (.85 + rand(seed, i) * .15), p0 = v(Math.cos(a0) * r, .03, Math.sin(a0) * r), p1 = v(Math.cos(a1) * r, .03, Math.sin(a1) * r);
+        builder.tri(centre, p0, p1, PAD.clone().lerp(PAD_VEIN, rand(seed, i + 30) * .12), 0, up);
+        // A small glowing heart at the centre of the pad.
+        builder.tri(v(0, .06, 0), v(Math.cos(a0) * .1, .06, Math.sin(a0) * .1), v(Math.cos(a1) * .1, .06, Math.sin(a1) * .1), PAD_VEIN, 1, up);
+      }
+      if (variant === 2) cap(.12, .05, .14, .3, 0);
+      break;
+    }
+    case 'reed': {
+      // A clump of thin curved blades with glowing seed tips.
+      const blades = 7 + variant * 3;
+      for (let i = 0; i < blades; i++) {
+        const a = rand(seed, i) * Math.PI * 2, r = rand(seed, i + 20) * .25, x = Math.cos(a) * r, z = Math.sin(a) * r;
+        const h = .55 + rand(seed, i + 40) * .45, bend = (rand(seed, i + 60) - .5) * .3, w = .03;
+        const side = v(-Math.sin(a), 0, Math.cos(a)), tip = v(x + bend, h, z + bend * .5);
+        builder.tri(v(x - side.x * w, -.05, z - side.z * w), v(x + side.x * w, -.05, z + side.z * w), tip, BARK.clone().lerp(BLOOM_SOFT, .4), 0, v(Math.cos(a), .2, Math.sin(a)));
+        builder.tri(v(x + side.x * w, -.05, z + side.z * w), v(x - side.x * w, -.05, z - side.z * w), tip, BARK.clone().lerp(BLOOM_SOFT, .4), 0, v(-Math.cos(a), .2, -Math.sin(a)));
+        if (i % 2 === 0) lump(tip.x, tip.y - .04, tip.z, .045, 1.6, BLOOM, 1);
+      }
+      break;
+    }
+    case 'mireTree': {
+      // A twisted dark trunk with violet canopy lumps scattered with glowing teal fruit, and hanging glow tendrils.
+      const lean = (rand(seed, 2) - .5) * .25;
+      builder.prism(0, 0, .11, .45, 6, seed, .1, -.1);
+      builder.prism(lean * .5, 0, .08, .62, 5, seed + 1, -.1, .35);
+      const lobes = 3 + variant;
+      for (let i = 0; i < lobes; i++) {
+        const a = i / lobes * Math.PI * 2 + rand(seed, i) * .6, r = i === 0 ? 0 : .32 + rand(seed, i + 9) * .18;
+        lump(lean + Math.cos(a) * r, .72 + rand(seed, i + 30) * .14, Math.sin(a) * r, i === 0 ? .38 : .26 + rand(seed, i + 50) * .08, .7, i % 2 ? CANOPY : CANOPY_DARK, .18);
+      }
+      for (let i = 0; i < 4; i++) {
+        const a = rand(seed, i + 70) * Math.PI * 2, r = .35 + rand(seed, i + 80) * .15, x = lean + Math.cos(a) * r, z = Math.sin(a) * r;
+        builder.tri(v(x - .015, .62, z), v(x + .015, .62, z), v(x, .3 + rand(seed, i + 90) * .12, z), BLOOM, 1, v(Math.cos(a), 0, Math.sin(a)));
+      }
+      break;
+    }
+    case 'mireCrystal': {
+      for (let i = 0; i < 4 + variant * 2; i++) {
+        const angle = i * 2.2 + variant, lean = i === 0 ? 0 : .3, x = Math.cos(angle) * (i === 0 ? 0 : .18), z = Math.sin(angle) * (i === 0 ? 0 : .18);
+        const height = i === 0 ? 1 : .4 + rand(seed, i) * .4, r = .07 + rand(seed, i + 9) * .05, tip = v(x + Math.cos(angle) * lean * height, height, z + Math.sin(angle) * lean * height);
+        for (let k = 0; k < 5; k++) {
+          const a0 = k / 5 * Math.PI * 2 + angle, a1 = (k + 1) / 5 * Math.PI * 2 + angle, am = (a0 + a1) / 2;
+          builder.tri(v(x + Math.cos(a0) * r, -.05, z + Math.sin(a0) * r), v(x + Math.cos(a1) * r, -.05, z + Math.sin(a1) * r), tip, VIOLET, k % 2 ? 1 : .55, v(Math.cos(am), .3, Math.sin(am)));
+        }
+      }
+      break;
+    }
+    case 'mireRock': lump(0, .2, 0, .5, .65 + variant * .1, MIRE_ROCK, variant === 2 ? .06 : 0); break;
+    default: {
+      // Monolith: a tall dark slab with chamfered edges and a vertical orange slit on its front and back.
+      const w = .28 + variant * .06, d = .2, h = 1, top = v(0, h + .06, 0);
+      const corners = [v(-w, 0, -d), v(w, 0, -d), v(w, 0, d), v(-w, 0, d)];
+      for (let i = 0; i < 4; i++) {
+        const a = corners[i], b = corners[(i + 1) % 4], out = v((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+        const a0 = v(a.x, -.1, a.z), b0 = v(b.x, -.1, b.z), a1 = v(a.x * .9, h, a.z * .9), b1 = v(b.x * .9, h, b.z * .9);
+        builder.tri(a0, b0, b1, MONOLITH, 0, out); builder.tri(a0, b1, a1, MONOLITH, 0, out);
+        builder.tri(a1, b1, top, MONOLITH.clone().lerp(MIRE_ROCK_TOP, .3), 0, up);
+        if (i % 2 === 0) {
+          // The slit, just proud of the face.
+          const z = (a.z + b.z) / 2 + Math.sign(out.z) * .005, s0 = v(-.04, .15, z), s1 = v(.04, .15, z), s2 = v(.035, .85, z), s3 = v(-.035, .85, z);
+          builder.tri(s0, s1, s2, SLIT, 1, out); builder.tri(s0, s2, s3, SLIT, 1, out);
+        }
+      }
+    }
+  }
+  return builder.geometry();
+}
+
 /** Simple procedural stand-ins so the game renders before (or without) the Blender kits. */
 export function createFallbackKit(): KitGeometries {
   const kit: KitGeometries = new Map();
-  for (const kind of [...KIT_KINDS, ...VESPER_KIT_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) {
+  for (const kind of [...KIT_KINDS, ...VESPER_KIT_KINDS, ...NACRE_KIT_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) {
     const geometry = normalizeKitGeometry(fallbackPiece(kind, v), kind);
     if (geometry) kit.set(kitNodeName(kind, v), geometry);
   }
@@ -544,7 +667,7 @@ const EMISSIVE = '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glow
  * its blue base, plus a crisp bright rim along the top edge; snow and ice tops carry sparse sun-glints.
  */
 const VESPER_KIT_HEAD = `
-uniform float vesperLook; uniform float lunaLook; uniform float beaconTime; varying float vPieceY;
+uniform float vesperLook; uniform float lunaLook; uniform float nacreLook; uniform float beaconTime; varying float vPieceY;
 float vesperHash( vec2 p ) { return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ); }`;
 const VESPER_KIT_SURFACE = `
   float vesperIce = 0.0, vesperSnow = 0.0;
@@ -601,7 +724,7 @@ const haze = () => ({
 export function createTerrainMaterials() {
   const time = { beaconTime: { value: 0 } };
   /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material); lunaLook greys the basalt. */
-  const kitLook = { vesperLook: { value: 0 }, lunaLook: { value: 0 } };
+  const kitLook = { vesperLook: { value: 0 }, lunaLook: { value: 0 }, nacreLook: { value: 0 } };
   /** Kit glow: Khepri's mineral cyan; on Vesper the only glowing faces it draws are radiator/lamp bands (orange). */
   const kitGlow = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } };
   const fallback = createDetailTexture();
@@ -750,7 +873,8 @@ float khepriCells( vec2 local, float scale ) {
       .replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD)
-      .replace('#include <emissivemap_fragment>', EMISSIVE + VESPER_KIT_EMISSIVE)
+      // Nacre's flora emits its own vertex colour (teal, violet, orange) instead of the shared glow colour.
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 2.6, nacreLook ) * vGlow;' + VESPER_KIT_EMISSIVE)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
   float detail = texture2D( map, vMapUv ).r * 2.0;
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - vGlow ) * ( 1.0 - vesperLook );
@@ -771,14 +895,14 @@ ${VESPER_KIT_SURFACE}`)
   let snowDetail: THREE.DataTexture | null = null, snowTexture: THREE.DataTexture | null = null;
   /** Retunes the ground and roads for a planet: Vesper snow takes its own ripple detail, cool haze and snow tracks. */
   const setPlanet = (planet: PlanetId) => {
-    const vesper = planet === 'vesper', luna = planet === 'luna', khepri = haze();
+    const vesper = planet === 'vesper', luna = planet === 'luna', nacre = planet === 'nacre', khepri = haze();
     if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();
     const nextDetail = vesper ? snowTexture : null;
     if (nextDetail !== snowDetail) { snowDetail = nextDetail; apply(); }
-    groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : 1.4;
-    groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : khepri.hazeColor.value);
+    groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : 1.4;
+    groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters.
-    groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : khepri.hazeStrength.value;
+    groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : khepri.hazeStrength.value;
     if (vesper && !snowTrack) snowTrack = createRoadTexture('snow');
     roads.map = vesper ? snowTrack : dustTrack; roads.needsUpdate = true;
   };
@@ -812,7 +936,7 @@ ${VESPER_KIT_SURFACE}`)
      */
     setLook(planet: PlanetId) {
       const vesper = planet === 'vesper';
-      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0;
+      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0; kitLook.nacreLook.value = planet === 'nacre' ? 1 : 0;
       kitGlow.glowColor.value.copy(vesper ? linear(0xff7a26).multiplyScalar(3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
       infraGlow.glowColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
       infra.roughness = vesper ? 0.4 : 0.55; infra.metalness = vesper ? 0.06 : 0.3; infra.envMapIntensity = vesper ? 0.8 : 0.55;

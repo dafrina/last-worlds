@@ -291,8 +291,46 @@ export const COLD_VECTOR: readonly EncounterCue[] = [
   { at: 160, id: 'v-relief', phase: 'recovery', formations: [] },
 ];
 
+/**
+ * Deep Bloom (Nacre, docs/20): sine-flight weaver columns over the mire, Needle beams between the islands, ground
+ * batteries and missile batteries on the islands and on pontoons, Diamond heavies, overlapping rhythms; relief, then
+ * the scroll eases to a stop over open mire for THE VEIL (VEIL.approachEndsAt / arrivesAt). Pressure close to Cold
+ * Vector.
+ */
+export const DEEP_BLOOM: readonly EncounterCue[] = [
+  { at: 2, id: 'n-first-weavers', phase: 'intro', message: 'DEEP BLOOM · SINE FLIGHTS OVER THE MIRE', formations: [f('line-weaver-4')] },
+  { at: 8, id: 'n-first-needle', phase: 'intro', formations: [f('needle-solo')] },
+  { at: 12, id: 'n-first-batteries', phase: 'intro', message: 'BATTERIES ON THE ISLANDS', formations: [f('battery-2')] },
+  { at: 16, id: 'n-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
+  { at: 21, id: 'n-missiles', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 24, id: 'n-needle-line', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 30, id: 'n-battery-3', phase: 'pressure', formations: [f('battery-3')] },
+  { at: 33, id: 'n-diamond', phase: 'pressure', message: 'DIAMOND HEAVY', formations: [f('diamond-solo')] },
+  { at: 40, id: 'n-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] },
+  { at: 45, id: 'n-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 51, id: 'n-west', phase: 'recovery', message: 'GLOWING GROVE · WEST', formations: [world('battery-2', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
+  { at: 56, id: 'n-east', phase: 'recovery', message: 'LONE INTERCEPTOR · EAST', formations: [world('needle-solo', 7.5)] },
+  { at: 62, id: 'n-weaver-line', phase: 'pressure', formations: [f('line-weaver-4', 1)] },
+  { at: 66, id: 'n-battery-mid', phase: 'pressure', formations: [f('battery-3')] },
+  { at: 69, id: 'n-needle-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 75, id: 'n-missiles-mid', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 78, id: 'n-snake-2', phase: 'pressure', formations: [f('snake-weaver-5')] },
+  { at: 84, id: 'n-diamond-2', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 90, id: 'n-climax-convoy', phase: 'climax', message: 'OVERLAPPING RHYTHMS', formations: [f('diamond-convoy')] },
+  { at: 95, id: 'n-climax-batteries', phase: 'climax', formations: [f('battery-4')] },
+  { at: 101, id: 'n-climax-weavers', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] },
+  { at: 106, id: 'n-climax-missiles', phase: 'climax', formations: [f('missile-3')] },
+  { at: 110, id: 'n-climax-needles', phase: 'climax', formations: [f('needle-line-3', -1)] },
+  { at: 116, id: 'n-climax-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 122, id: 'n-climax-batteries-2', phase: 'climax', formations: [f('battery-3')] },
+  { at: 126, id: 'n-climax-weavers-2', phase: 'climax', formations: [f('line-weaver-4', -1)] },
+  { at: 131, id: 'n-last-needles', phase: 'climax', message: 'LAST SQUADRON · OPEN MIRE AHEAD', formations: [f('needle-column-5', 0, true)] },
+  { at: 137, id: 'n-last-missiles', phase: 'climax', formations: [f('missile-2')] },
+  { at: 142, id: 'n-relief', phase: 'recovery', formations: [] },
+];
+
 export function campaignPlaylist(mission: MissionId): readonly EncounterCue[] {
-  return mission === 'bastion' ? ROLLING_THUNDER : mission === 'cold-vector' ? COLD_VECTOR : TRAINING;
+  return mission === 'bastion' ? ROLLING_THUNDER : mission === 'deep-bloom' ? DEEP_BLOOM : mission === 'cold-vector' ? COLD_VECTOR : TRAINING;
 }
 
 /**
@@ -303,9 +341,19 @@ export function campaignPlaylist(mission: MissionId): readonly EncounterCue[] {
 /** Endless prologue over Luna: Training's teaching phrases up to the boss sector's approach cutoff, then WARDEN-1. */
 const LUNA_PROLOGUE: readonly EncounterCue[] = TRAINING.filter(cue => cue.at < ENDLESS_CYCLE.bossSector.approachEndsAt);
 
+/**
+ * Endless Nacre: the first stint opens with Deep Bloom's first 90 s, then its middle and climax (shifted to start
+ * near 2 s); later visits fly the climax arc throughout. A boss sector's cutoff trims each list.
+ */
+const NACRE_OPENING: readonly EncounterCue[] = DEEP_BLOOM.filter(cue => cue.at < 88);
+const NACRE_PRESSURE: readonly EncounterCue[] = DEEP_BLOOM.filter(cue => cue.at >= 62 && cue.at < 142).map(cue => ({ ...cue, at: cue.at - 60, id: `en2-${cue.id}` }));
+const NACRE_PEAK: readonly EncounterCue[] = DEEP_BLOOM.filter(cue => cue.at >= 90 && cue.at < 142).map(cue => ({ ...cue, at: cue.at - 88, id: `en3-${cue.id}` }))
+  .concat(DEEP_BLOOM.filter(cue => cue.at >= 16 && cue.at < 50).map(cue => ({ ...cue, at: cue.at + 42, id: `en3b-${cue.id}` })));
+
 export function endlessPlaylist(sector: number): readonly EncounterCue[] {
   if (isPrologue(sector)) return LUNA_PROLOGUE;
   const stage = (cycleSector(sector) - 1) % 3;
+  if (endlessPlanet(sector) === 'nacre') return isFirstVisit(sector) ? (stage === 0 ? NACRE_OPENING : NACRE_PRESSURE) : NACRE_PEAK;
   if (endlessPlanet(sector) === 'vesper') return isFirstVisit(sector) ? (stage === 0 ? VESPER_OPENING : VESPER_PRESSURE) : VESPER_PEAK;
   return isFirstVisit(sector) ? (stage === 0 ? SECTOR_OPENING : SECTOR_PRESSURE) : SECTOR_PEAK;
 }

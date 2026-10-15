@@ -15,9 +15,10 @@ import { VIEW, type BossId, type PlanetId, type RunConfig } from '../shared/cont
 export const ENDLESS_CYCLE = {
   /** Before the cycle: one Luna sector ending with WARDEN-1, then the jump to Khepri (docs/19). */
   prologue: 'luna' as const satisfies PlanetId,
-  planets: ['khepri', 'vesper'] as const satisfies readonly PlanetId[],
+  /** Khepri, then Nacre (docs/20), then Vesper; repeated. */
+  planets: ['khepri', 'nacre', 'vesper'] as const satisfies readonly PlanetId[],
   sectorsPerPlanet: 3,
-  boss: { luna: 'warden', khepri: 'bastion', vesper: 'ark' } as const satisfies Readonly<Partial<Record<PlanetId, BossId>>>,
+  boss: { luna: 'warden', khepri: 'bastion', nacre: 'veil', vesper: 'ark' } as const satisfies Readonly<Partial<Record<PlanetId, BossId>>>,
   /** Boss sector timeline in seconds from the sector's start. */
   bossSector: {
     /** No ordinary cue is admitted at or after this time. */

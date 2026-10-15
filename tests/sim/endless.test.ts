@@ -12,10 +12,10 @@ const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set(['needle', 'diamond', 'miss
 function holdFire(state: RunState) { state.nextVolleyAt = Infinity; }
 
 describe('endless schedule', () => {
-  it('opens with the Luna prologue, then cycles Khepri and Vesper three sectors at a time, each stint ending with its boss', () => {
+  it('opens with the Luna prologue, then cycles Khepri, Nacre and Vesper three sectors at a time, each stint ending with its boss', () => {
     const planets = Array.from({ length: 13 }, (_, i) => endlessPlanet(i + 1));
-    expect(planets).toEqual(['luna', 'khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper', 'khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper']);
-    expect([1, 4, 7, 10, 13].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'ark', 'bastion', 'ark']);
+    expect(planets).toEqual(['luna', 'khepri', 'khepri', 'khepri', 'nacre', 'nacre', 'nacre', 'vesper', 'vesper', 'vesper', 'khepri', 'khepri', 'khepri']);
+    expect([1, 4, 7, 10, 13, 16, 19].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'veil', 'ark', 'bastion', 'veil', 'ark']);
     expect([2, 3, 5, 6, 8].every(n => endlessSectorPlan(n).boss === null && !isBossSector(n))).toBe(true);
     // The prologue does not advance the ramps: Khepri's first sector (2) flies at the old sector 1 values.
     expect(sectorPace(1)).toBe(sectorPace(2));
@@ -150,28 +150,30 @@ describe('endless bosses and jumps', () => {
   it('flies Vesper kinds on Vesper and Khepri kinds on Khepri', () => {
     const state = createRun({ mode: 'endless', seed: 2 });
     state.player.weapon = 'seeker';
-    const seen: Record<string, Set<EnemyKind>> = { luna: new Set(), khepri: new Set(), vesper: new Set() };
-    fly(state, perfectPilot(), 1100, { noPickups: true, onTick: s => { for (const enemy of s.enemies) if (!enemy.bossPart && !s.jump) seen[s.planet].add(enemy.kind); } });
-    expect(state.sector).toBeGreaterThanOrEqual(7);
+    const seen: Record<string, Set<EnemyKind>> = { luna: new Set(), khepri: new Set(), nacre: new Set(), vesper: new Set() };
+    fly(state, perfectPilot(), 1700, { noPickups: true, onTick: s => { for (const enemy of s.enemies) if (!enemy.bossPart && !s.jump) seen[s.planet].add(enemy.kind); } });
+    expect(state.sector).toBeGreaterThanOrEqual(9);
+    // Nacre mixes both rosters (weaver sine flights with Vesper heavies).
+    expect(seen.nacre.has('weaver') && seen.nacre.has('needle')).toBe(true);
     // Luna's prologue flies the Khepri-built roster (blue-painted on Luna).
     expect([...seen.luna, ...seen.khepri].every(kind => KHEPRI_KINDS.has(kind))).toBe(true);
     expect([...seen.vesper].every(kind => VESPER_KINDS.has(kind))).toBe(true);
     expect(seen.vesper.size).toBe(3);
-  }, 90000);
+  }, 120000);
 
-  it.each(['pulse', 'fan', 'seeker'] as WeaponId[])('the perfect pilot kills all three bosses with %s at power 0 in sectors 1-8 without a hit', weapon => {
+  it.each(['pulse', 'fan', 'seeker'] as WeaponId[])('the perfect pilot kills the first three bosses with %s at power 0 in sectors 1-8 without a hit', weapon => {
     const state = createRun({ mode: 'endless', seed: 5 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;
-    const log = fly(state, perfectPilot(), 2800, { noPickups: true, onTick: s => {
+    const log = fly(state, perfectPilot(), 3400, { noPickups: true, onTick: s => {
       const phase = s.boss?.phase ?? null;
       if (phase !== previous && phase === 'destroyed') kills.push(s.boss!.id);
       previous = phase;
       if (s.sector >= 8 && s.time - s.sectorStartedAt > 10) s.phase = 'paused';
     } });
     expect(state.sector).toBe(8);
-    expect(kills).toEqual(['warden', 'bastion', 'ark']);
+    expect(kills).toEqual(['warden', 'bastion', 'veil']);
     expect(state.player.weapon).toBe(weapon);
     expect(state.player.power).toBe(0);
     expect(log.hits).toBe(0);
@@ -203,7 +205,7 @@ describe('endless bosses and jumps', () => {
 
 describe('Needle beam rests (user report: nonstop beam barrages in later Vesper sectors)', () => {
   it('never lets Needle beams run longer than about 9 s without a 2.5 s pause', () => {
-    for (const sector of [5, 11]) for (const make of [dodgerPilot, idlePilot]) {
+    for (const sector of [8, 17]) for (const make of [dodgerPilot, idlePilot]) {
       const state = enterSector(createRun({ mode: 'endless', seed: 3 }), sector), pilot = make();
       let since = -1, last = -9, longest = 0;
       for (let i = 0; i < 70 / STEP && state.phase === 'playing'; i++) {

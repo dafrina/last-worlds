@@ -6,6 +6,7 @@ import type { MissionId, PlanetId, RunConfig } from '../shared/contracts';
 export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
   training: 'luna',
   bastion: 'khepri',
+  'deep-bloom': 'nacre',
   'cold-vector': 'vesper',
 };
 

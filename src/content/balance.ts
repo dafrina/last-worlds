@@ -135,7 +135,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
  * Per-mission multiplier on enemy repeat-attack intervals, on top of the difficulty. The Training sortie fires
  * more slowly; Rolling Thunder carries the full pressure. Endless never reads it.
  */
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 1, 'cold-vector': 1 };
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 1, 'deep-bloom': 1, 'cold-vector': 1 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2 };

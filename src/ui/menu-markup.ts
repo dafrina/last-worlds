@@ -1,7 +1,7 @@
 /** Menu-only surfaces. Gameplay HUD and input stay in game-ui.ts. */
 
 /** Campaign missions in selector order (progression: Luna first). */
-export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector']] as const;
+export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['deep-bloom', 'Deep Bloom'], ['cold-vector', 'Cold Vector']] as const;
 
 /**
  * A segmented selector (no dropdowns): one radio button per choice, the checked one lit with a glowing indicator.

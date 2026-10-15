@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
 import { BASTION } from '../../src/content/bastion';
-import { ALERT_LEAD, COLD_VECTOR, ENDLESS_SECTORS, ROLLING_THUNDER, TRAINING, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
+import { ALERT_LEAD, COLD_VECTOR, DEEP_BLOOM, ENDLESS_SECTORS, ROLLING_THUNDER, TRAINING, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
 import { FORMATIONS, FORMATION_IDS, slotFlies, type FormationId, type FormationTemplate } from '../../src/content/formations';
 import { VIEW, type Difficulty, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { BOSS_BEAM, ENEMY_SHOT_RADIUS, LANCER_BEAM } from '../../src/sim/attacks';
@@ -118,7 +118,7 @@ describe('warning and aim-lock floors', () => {
 
 describe('authored cue sequences', () => {
   const sequences: [string, readonly EncounterCue[]][] = [
-    ['training', TRAINING], ['rolling-thunder', ROLLING_THUNDER], ['cold-vector', COLD_VECTOR],
+    ['training', TRAINING], ['rolling-thunder', ROLLING_THUNDER], ['deep-bloom', DEEP_BLOOM], ['cold-vector', COLD_VECTOR],
     ['endless-opening', ENDLESS_SECTORS.opening], ['endless-pressure', ENDLESS_SECTORS.pressure], ['endless-peak', ENDLESS_SECTORS.peak],
     ['endless-vesper-opening', ENDLESS_SECTORS.vesperOpening], ['endless-vesper-pressure', ENDLESS_SECTORS.vesperPressure],
     ['endless-vesper-peak', ENDLESS_SECTORS.vesperPeak],
@@ -265,19 +265,20 @@ describe('cue sequence hazard unions', () => {
     ...DIFFICULTY_IDS.flatMap(difficulty => [
       { label: `training/${difficulty}`, config: { mode: 'campaign' as const, mission: 'training' as const, difficulty, seed: 21 }, seconds: 260, sector: 1 },
       { label: `rolling-thunder/${difficulty}`, config: { mode: 'campaign' as const, mission: 'bastion' as const, difficulty, seed: 21 }, seconds: 300, sector: 1 },
+      { label: `deep-bloom/${difficulty}`, config: { mode: 'campaign' as const, mission: 'deep-bloom' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
       { label: `cold-vector/${difficulty}`, config: { mode: 'campaign' as const, mission: 'cold-vector' as const, difficulty, seed: 21 }, seconds: 330, sector: 1 },
     ]),
-    // Sectors 1-8: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump, Vesper, the Helion Ark,
-    // the jump back. Endless continues only after a kill, so only the perfect branch gets past WARDEN-1; the idle
-    // and dodger branches spend the rest of the run in its fight.
-    { label: 'endless sectors 1-8', config: { mode: 'endless', seed: 21 }, seconds: 920, sector: 1, bosses: ['warden', 'bastion', 'ark'], planets: ['luna', 'khepri', 'vesper'] },
-    // Khepri's first stint on every branch, ending in the Bastion-9 fight.
+    // Sectors 1-5: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump into Nacre. Endless continues
+    // only after a kill, so only the perfect branch gets past WARDEN-1; the idle and dodger branches stay in its fight.
+    { label: 'endless sectors 1-5', config: { mode: 'endless', seed: 21 }, seconds: 760, sector: 1, bosses: ['warden', 'bastion'], planets: ['luna', 'khepri', 'nacre'] },
+    // Each planet's first stint on every branch, ending in its boss fight.
     { label: 'endless sectors 2-4 (Khepri, Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 2, bosses: ['bastion'], planets: ['khepri'] },
-    // Vesper's first stint on every branch, ending in the Helion Ark fight.
-    { label: 'endless sectors 5-7 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['ark'], planets: ['vesper'] },
-    // Capped Khepri with its Bastion-9, then capped Vesper ending with the Helion Ark.
-    { label: 'endless capped sector 10 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 10, bosses: ['bastion'], planets: ['khepri'] },
-    { label: 'endless capped sectors 11-13 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 11, bosses: ['ark'], planets: ['vesper'] },
+    { label: 'endless sectors 5-7 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['veil'], planets: ['nacre'] },
+    { label: 'endless sectors 8-10 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['ark'], planets: ['vesper'] },
+    // Later visits (peak playlists, capped ramp): Khepri's Bastion-9, then Nacre and Vesper.
+    { label: 'endless capped sector 13 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 13, bosses: ['bastion'], planets: ['khepri'] },
+    { label: 'endless capped sectors 14-16 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['veil'], planets: ['nacre'] },
+    { label: 'endless capped sectors 17-19 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['ark'], planets: ['vesper'] },
   ];
 
   it.each(runs)('$label keeps the union fair on the perfect, idle and dodger branches', ({ label, config, seconds, sector, bosses, planets }) => {

@@ -1,5 +1,21 @@
 # Build status
 
+## Nacre, Deep Bloom and THE VEIL — 15 October 2026
+
+- **Nacre**, the Luminous Mire, sits between Khepri and Vesper. It has indigo water between dark islands, code-built glowing flora (caps, lily pads, reeds, violet canopy trees, crystals, monoliths) and its own violet look and water. See docs/20.
+- **Deep Bloom:** campaign mission 3 of 4, threat 3, with pressure close to Cold Vector.
+- **THE VEIL:** a giant, code-built biological starship that rises out of the mire. Its crescent blades reach past both edges of the screen. It must be killed.
+- **Endless:** Luna → Khepri → Nacre → Vesper. Boss sectors are 1, 4, 7, 10, ….
+- **Fix:** enemy instance counts now follow the model each enemy actually uses. Vesper-kind craft on any other planet would have been invisible.
+- **Evidence:**
+  - typecheck clean;
+  - 279 unit tests: new `veil.test.ts`, with the perfect pilot clearing Deep Bloom on all nine combinations with no hits;
+  - fairness unions for Deep Bloom and each Nacre stint;
+  - 15/15 browser specs;
+  - real-app and fixture captures of Nacre, Deep Bloom and every phase of THE VEIL.
+- **Known limits:** a section straddling the Nacre → Vesper switch keeps Nacre's water level; Nacre reuses the Khepri and Vesper enemy rosters.
+- **Not done:** no phone hardware test.
+
 ## WARDEN-1 and the Luna prologue — 15 October 2026
 
 - **WARDEN-1:** Luna's small boss, a human-built lunar defence lander built in code. Training now ends with it; it must be killed, and the 8 s extraction follows.

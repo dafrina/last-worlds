@@ -6,6 +6,7 @@ import { scatterKitSteps, type FloeSetKind, type KitInstance, type ScatterField 
 import type { Work } from './terrain-work';
 import { VESPER } from './terrain-vesper';
 import { LUNA } from './terrain-luna';
+import { NACRE } from './terrain-nacre';
 import { SCENERY_MAX_HEIGHT, clamp, mix } from './terrain-layout';
 
 /**
@@ -88,7 +89,7 @@ export const KHEPRI: PlanetProfile = {
   industrial: new Set(['refinery', 'pumping', 'mining']), quiet: new Set(['wreck', 'abandoned']),
 };
 
-export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA };
+export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE };
 
 /**
  * What the generator is asked for: a planet and an optional mission arena. A bare arena (the pre-planet API)

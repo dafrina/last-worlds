@@ -378,6 +378,16 @@ export function createLunaEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.
   });
 }
 
+/**
+ * Nacre's sky for reflections (docs/20): a deep violet zenith, a softly glowing teal-violet horizon over the mire
+ * and a dim indigo below; the small sun is pale lilac.
+ */
+export function createMireEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
+  return skyEnvironment(renderer, sun, {
+    zenith: [0.16, 0.08, 0.32], horizon: [0.42, 0.36, 0.7], ground: [0.04, 0.03, 0.1], disc: [7.0, 6.2, 8.0], halo: [0.3, 0.22, 0.45],
+  });
+}
+
 interface SkyPalette { zenith: readonly number[]; horizon: readonly number[]; ground: readonly number[]; disc: readonly number[]; halo: readonly number[] }
 function skyEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3, palette: SkyPalette): THREE.WebGLRenderTarget {
   const vec = (c: readonly number[]) => `vec3( ${c.map(v => v.toFixed(3)).join(', ')} )`;

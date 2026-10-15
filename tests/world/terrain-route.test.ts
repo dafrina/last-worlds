@@ -4,6 +4,7 @@ import { ENDLESS_CYCLE, endlessSchedule, endlessScroll, endlessSectorPlan } from
 import { runPlanet } from '../../src/content/missions';
 import { missionArena } from '../../src/render/scene';
 import { runRoute } from '../../src/render/terrain-route';
+import { NACRE_SEA_LEVEL } from '../../src/world/terrain-nacre';
 import {
   ARENA_LEVEL, SEAM_CLEARANCE, TERRAIN_STEP, VESPER_SEA_LEVEL, createTerrainStream, generateTerrainSection, sectionSteps, terrainHeight, type TerrainSection,
 } from '../../src/world/terrain';
@@ -43,20 +44,22 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       for (let i = Math.ceil(plan.startDistance / L); (i + 1) * L <= plan.endDistance; i++) if (route.spans(i * L, (i + 1) * L).length === 1) return i;
       throw new Error(`no single-world section in sector ${sector}`);
     };
-    const vi = single(6), ki = single(3);
+    const vi = single(9), ki = single(3);
     const vesper = generateTerrainSection(SEED, vi, route), khepri = generateTerrainSection(SEED, ki, route);
     expect(schedule.planetAt(vi * L)).toBe('vesper'); expect(vesper.water?.level).toBe(SEA); expect(vesper.floes).toBeDefined();
     expect(vesper).toEqual(generateTerrainSection(SEED, vi, { planet: 'vesper', arena: route.worldAt(vi * L).arena }));
     expect(schedule.planetAt(ki * L)).toBe('khepri'); expect(khepri.water).toBeUndefined();
   });
 
-  it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, Vesper open water', () => {
-    const arenas = schedule.arenas(0, 6000);
-    expect(arenas.map(arena => arena.boss).slice(0, 5)).toEqual(['warden', 'bastion', 'ark', 'bastion', 'ark']);
-    for (const arena of arenas.slice(0, 3)) for (let s = arena.from + 0.5; s < arena.to; s += 2) for (let x = -HALF; x <= HALF; x += 1) {
+  it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water', () => {
+    const arenas = schedule.arenas(0, 8000);
+    expect(arenas.map(arena => arena.boss).slice(0, 5)).toEqual(['warden', 'bastion', 'veil', 'ark', 'bastion']);
+    for (const arena of arenas.slice(0, 4)) for (let s = arena.from + 0.5; s < arena.to; s += 2) for (let x = -HALF; x <= HALF; x += 1) {
       const height = terrainHeight(SEED, x, s, route);
       // Luna's craters level out to a flat floor (height 0) over the platform; the ramps blend into it.
       if (arena.planet === 'luna') { if (s > arena.from + 10 && s < arena.to - 10) expect(Math.abs(height)).toBeLessThan(0.05); continue; }
+      // Nacre's islands recede: the platform itself is open mire.
+      if (arena.planet === 'nacre') { if (s > arena.from + 10 && s < arena.to - 10) expect(height).toBeLessThan(NACRE_SEA_LEVEL - 0.2); continue; }
       // Khepri's paved floor spans the width but for a low lip at the edges (as in Rolling Thunder).
       if (arena.planet === 'khepri') expect(Math.abs(height - ARENA_LEVEL)).toBeLessThan(Math.abs(x) <= HALF - 1.6 ? 0.25 : 0.9);
       else expect(height).toBeLessThan(SEA - 0.5);
@@ -99,10 +102,12 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
         expect(rowY(split, row)).toEqual(rowY(s < jump.switchDistance ? old : next, row));
       }
       // The sea's rows have water; the dry planet's rows never count as wet (a dry-to-dry seam has no water at all).
-      if (jump.from !== 'vesper' && jump.to !== 'vesper') expect(split.water).toBeUndefined();
-      else expect(split.water?.level).toBe(SEA);
+      // (One water sheet per section: across a Nacre → Vesper switch it keeps the first sea's level for the rest of that section.)
+      const levelOf = (planet: string) => planet === 'vesper' ? SEA : planet === 'nacre' ? NACRE_SEA_LEVEL : null;
+      const firstSea = levelOf(jump.from) ?? levelOf(jump.to);
+      if (firstSea === null) expect(split.water).toBeUndefined(); else expect(split.water?.level).toBe(firstSea);
       if (split.water) for (let row = 0; row < split.along; row++) {
-        const s = split.startS + row * TERRAIN_STEP, wetPlanet = (s < jump.switchDistance ? jump.from : jump.to) === 'vesper';
+        const s = split.startS + row * TERRAIN_STEP, wetPlanet = levelOf(s < jump.switchDistance ? jump.from : jump.to) !== null;
         if (!wetPlanet) for (let c = 0; c < split.across; c++) expect(split.water!.shore[row * split.across + c]).toBeLessThanOrEqual(0);
       }
       // Nothing stands, floats or drifts at the seam (it lies in the arena's calm; pieces keep SEAM_CLEARANCE).

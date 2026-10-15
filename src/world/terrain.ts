@@ -27,7 +27,7 @@ export {
   type IndustryPiece, type NetworkEdge, type PipeRun, type RoadMesh, type RoadPath, type SharedNode,
 } from './terrain-network';
 export {
-  FLOE_FOOTPRINT, FLOE_SETS, KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, VESPER_KIT_KINDS, kitNodeName, stripOf, type FloeSetKind, type KitInstance, type KitKind,
+  FLOE_FOOTPRINT, FLOE_SETS, KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, VESPER_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName, stripOf, type FloeSetKind, type KitInstance, type KitKind,
 } from './terrain-scatter';
 
 /**

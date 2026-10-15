@@ -20,7 +20,7 @@ attribute float shore; attribute float depth;
 uniform float waterScroll;
 varying float vShore; varying float vDepth; varying vec2 vSea;`;
 const WATER_FRAGMENT_HEAD = /* glsl */`
-uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell;
+uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell; uniform float foamGlow;
 varying float vShore; varying float vDepth; varying vec2 vSea;
 float seaHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
 float seaNoise( vec2 p ) {
@@ -44,13 +44,15 @@ export interface Water {
   /** Simulation time (seconds) and the run's forward distance (terrain frame). */
   update(time: number, distance: number): void;
   setEnvironment(texture: THREE.Texture | null): void;
+  /** Planet palette: Vesper's ocean, or Nacre's indigo mire with a calm swell and soft teal glow at the shores. */
+  setPlanet(planet: string): void;
   dispose(): void;
 }
 
 export function createWater(): Water {
   const linear = (hex: number) => new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
   const uniforms = {
-    waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 },
+    waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 }, foamGlow: { value: 0 },
     deepColor: { value: linear(0x0d3557) }, shallowColor: { value: linear(0x1f6a8f) }, foamColor: { value: linear(0xeef6fb) },
   };
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0, envMapIntensity: 0.32 });
@@ -76,6 +78,8 @@ export function createWater(): Water {
   foam = clamp( foam, 0.0, 1.0 );
   diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * 0.92 );`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.85, foam );')
+      // Nacre: the shoreline band glows (bioluminescent film) instead of reading as white foam.
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   // Swell normals (world space → view space); calmer and flatter right at the shore.
   vec2 waveSlope = swellGradient( vSea, waterTime ) * swell * mix( 0.45, 1.0, calm ) * ( 1.0 - foam * 0.7 );
@@ -87,6 +91,12 @@ export function createWater(): Water {
     material,
     update(time, distance) { uniforms.waterTime.value = time; uniforms.waterScroll.value = distance; },
     setEnvironment(texture) { if (material.envMap !== texture) { material.envMap = texture; material.needsUpdate = true; } },
+    setPlanet(planet) {
+      const nacre = planet === 'nacre';
+      uniforms.deepColor.value.copy(linear(nacre ? 0x0c0826 : 0x0d3557)); uniforms.shallowColor.value.copy(linear(nacre ? 0x221650 : 0x1f6a8f));
+      uniforms.foamColor.value.copy(linear(nacre ? 0x2a9e92 : 0xeef6fb)); uniforms.swell.value = nacre ? 0.45 : 1; uniforms.foamGlow.value = nacre ? 0.35 : 0;
+      material.roughness = nacre ? 0.08 : 0.12;
+    },
     dispose() { material.dispose(); },
   };
 }

@@ -1,0 +1,30 @@
+import { describe, expect, it } from 'vitest';
+import { BOSSES, missionBoss } from '../../src/content/bosses';
+import { EMPTY_INPUT, STEP, type Difficulty, type WeaponId } from '../../src/shared/contracts';
+import { createRun, stepRun } from '../../src/sim/game';
+import { fly, perfectPilot } from './pilots';
+
+describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
+  it('ends Deep Bloom and is the toughest boss so far', () => {
+    expect(missionBoss('deep-bloom')?.id).toBe('veil');
+    const total = (id: 'veil' | 'ark' | 'bastion') => Object.values(BOSSES[id].parts).reduce((sum, part) => sum + part.hp, 0);
+    expect(total('veil')).toBeGreaterThan(total('ark'));
+  });
+
+  const combos = (['pulse', 'fan', 'seeker'] as WeaponId[]).flatMap(weapon => (['relaxed', 'standard', 'veteran'] as Difficulty[]).map(difficulty => ({ weapon, difficulty })));
+  it.each(combos)('the perfect pilot clears Deep Bloom on $difficulty with $weapon without a hit', ({ weapon, difficulty }) => {
+    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: 5 });
+    const log = fly(state, perfectPilot(), 420, { noPickups: true });
+    expect(log.phase).toBe('complete');
+    expect(log.hits).toBe(0);
+    expect(log.specialsUsed).toBe(0);
+  }, 60000);
+
+  it('must be killed: Deep Bloom never completes while it lives', () => {
+    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty: 'standard', seed: 8 });
+    state.player.lives = 10000;
+    for (let i = 0; i < 500 / STEP; i++) { state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT); }
+    expect(state.phase).toBe('playing');
+    expect(state.boss?.id).toBe('veil');
+  }, 60000);
+});

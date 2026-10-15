@@ -2,6 +2,7 @@ import type { BossId, BossPart, Difficulty, MissionId } from '../shared/contract
 import { BASTION } from './bastion';
 import { HELION_ARK } from './ark';
 import { WARDEN } from './warden';
+import { VEIL } from './veil';
 
 /**
  * One shape for every campaign boss, built from each boss's own content file. Phases are shared:
@@ -103,10 +104,31 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       approach: 'OLD DEFENCE LANDER INBOUND · READY YOUR SPECIAL',
     },
   },
+  veil: {
+    id: 'veil', name: 'THE VEIL',
+    arrivesAt: VEIL.arrivesAt, approachEndsAt: VEIL.approachEndsAt, arrivalDuration: VEIL.arrivalDuration,
+    entryS: VEIL.entryS, row: VEIL.row, targetHeight: VEIL.targetHeight,
+    parts: {
+      left: { x: -VEIL.podOffset, s: VEIL.podS, radius: VEIL.podRadius, hp: VEIL.podHp },
+      right: { x: VEIL.podOffset, s: VEIL.podS, radius: VEIL.podRadius, hp: VEIL.podHp },
+      core: { x: 0, s: VEIL.heartS, radius: VEIL.heartRadius, hp: VEIL.heartHp },
+    },
+    pairAttack: 'burst', coreAttack: 'fan-burst',
+    warning: VEIL.warning, laser: null, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
+    recovery: VEIL.recovery, transitionRecovery: VEIL.transitionRecovery,
+    overloadFraction: VEIL.overloadFraction, extractionDuration: VEIL.extractionDuration,
+    bursts: { pair: VEIL.podBurst, core: VEIL.heartBurst }, fan: VEIL.heartFan, launches: null,
+    arena: VEIL.arena, shieldSupplies: VEIL.shieldSupplies,
+    messages: {
+      start: 'THE VEIL · BURST BOTH GILL PODS', batteries: 'BURST BOTH GILL PODS', core: 'THE HEART IS OPEN',
+      overload: 'HEART OVERLOAD · WATCH THE LANES', destroyed: 'THE VEIL IS FALLING · EXTRACTION',
+      approach: 'THE MIRE GOES QUIET · SOMETHING HUGE IS RISING',
+    },
+  },
 };
 
 /** The boss that ends a campaign mission, if any. */
-export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'cold-vector': 'ark' };
+export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark' };
 
 export function missionBoss(mission: MissionId | undefined): BossDefinition | null {
   const id = mission ? MISSION_BOSS[mission] : null;
