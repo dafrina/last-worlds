@@ -5,13 +5,13 @@ Written 15 October 2026 at the end of a long Claude Code session (integrator plu
 ## 1. Where things stand
 
 - **Live:** https://dafrina.github.io/last-worlds/. Every push to `main` runs unit tests, typecheck and build, then deploys to GitHub Pages. Repo: https://github.com/dafrina/last-worlds. `gh` is installed in WSL (`~/.local/bin/gh`) and authenticated as `dafrina`.
-- **Last deployed commit:** `ac331de` — Vesper wave 2: the Cold Vector mission and the Helion Ark. The user played it and loved it: "very challenging already, interesting layout and alternations".
+- **Last deployed commit:** `7ed310a` — wave 3, the endless planet cycle. The commit before it, `ac331de`, shipped the Cold Vector mission and the Helion Ark; the user played that one and loved it ("very challenging already, interesting layout and alternations"). **The working tree is clean: everything is committed and deployed.**
 - **Playable now:**
   - Campaign: Training, Rolling Thunder (Khepri, Bastion-9) and Cold Vector (Vesper, Helion Ark).
-  - Endless on Khepri, with the pace ramp.
+  - Endless, cycling Khepri → Bastion-9 → jump → Vesper → Helion Ark → jump → …, with the pace ramp. Bosses must be killed to proceed.
   - `?planet=vesper` is a hidden preview switch that shows Vesper's world in any run.
 
-## 2. Wave 3 in progress (NOT deployed): endless planet cycle
+## 2. Wave 3: endless planet cycle (DEPLOYED in `7ed310a`)
 
 Contract: `docs/18-endless-planet-cycle.md`. The cycle runs Khepri sectors 1–3 → Bastion-9 → hyperdrive jump → Vesper 4–6 → Helion Ark → jump → … **User rule: the run continues only once the boss is killed; there is no timeout or retreat, however long the fight takes.**
 
@@ -20,9 +20,9 @@ Contract: `docs/18-endless-planet-cycle.md`. The cycle runs Khepri sectors 1–3
 | Simulation: cycle, endless bosses (kill to proceed), Vesper endless roster, pure `endlessSchedule(config)` in `src/content/endless.ts` | combat agent | **Done** in the working tree. 245/246 tests passed; the one failure was a world streaming-test timeout under heavy load. The perfect pilot kills both bosses with every weapon. |
 | World: terrain follows the planet schedule, endless arenas, prefetch across the switch at up to 17 units/s | world agent | *see §2a* |
 | Look: hyperdrive jump (`src/render/fx-jump.ts`), look/craft/boss switch at the flash, asset preloading, HUD planet name | graphics agent | *see §2b* |
-| Integration: snapshot verification, a visual check of a jump, deploy | integrator | not started |
+| Integration: snapshot verification, a visual check of a jump, deploy | integrator | **Done**: 251/251 unit tests and 15/15 browser tests at low load, then deployed |
 
-The uncommitted wave 3 work is preserved as described in §2c.
+Nothing is uncommitted.
 
 ### 2a. World agent report: DONE
 - **Route:** `src/world/terrain-planet.ts` `routeOf(...)` plus the new `src/render/terrain-route.ts` `runRoute(config)` wrap `endlessSchedule`. Each distance gets its stretch's planet and its nearest arena. In `scene.ts`, `terrain.update(seed, distance, runRoute(config))` and `terrain.world` is a routed world, so seating works unchanged.
@@ -42,11 +42,26 @@ The uncommitted wave 3 work is preserved as described in §2c.
   - **Flaky tests:** `terrain-stream.test.ts` timed out once at 30 s under load average 50. The fortress browser test flaked once and passed on re-run.
   - **Docs still needed:** docs/17 (arena coast, floe sets, `terrain.features`) and docs/13 (`TERRAIN_VERSION` 10) aren't fully updated.
 
-### 2b. Graphics agent report
-_(filled in below when received)_
+### 2b. Graphics agent report: DONE
+- **Jump** (`src/render/fx-jump.ts`): a veil, 120 streaks and an HDR flash at the switch. Reduced motion (the OS setting, or `?motion=reduce`) gets a plain fade. If assets are late, the veil holds for up to 4 s.
+- **Look and loading:** the look rig follows `state.planet` at the flash. Vesper's craft, Ark and ice sky preload 8 s into each endless boss sector.
+- **HUD:** the results label reads `ENDLESS / <planet>`.
+- **Fixture:** `tests/fixtures/bastion.html?mode=jump&n=1|2&t=N`.
+- **Captures:** `lookdev/gfx/jumpC-sheet.png`.
+- **NOT DONE**, with exact next steps:
+  1. **Terrain-kit readiness:** add it to `planetReady()` in `scene.ts`. The world side should expose `preload(planet)`/`ready(planet)` from `terrain-view.ts`'s `ensurePlanet`.
+  2. **Vesper infrastructure material:** in `terrain-view.ts` `nodeMaterial()`, route `vesper_*` infrastructure nodes to `infraMaterial`, then drop the `kitGlow` workaround in `terrain-kit.ts`.
+  3. **Ark sky reflection:** add `setEnvironment(texture)` to `ark-view.ts` (`envMap` on armour and trim, intensity about 0.6) and call it from `applyLook` and after `setModel`.
+  4. **Streak polish:** the streaks read a bit like rain. Widen the fan in `fx-jump.ts` by changing `STREAK_VERTEX` spread from 0.25 to about 0.1.
+  5. **Ark captures:** Low-tier captures of the Ark phases, and a re-check of the destruction toning.
+  6. **Vesper container paint:** shared-kit containers read salmon under the cool light (`#d2541a` in `createSharedMaterial` `setPlanet`).
+- **Other open items:**
+  - **Menu labels:** the "KHEPRI" status dot and the "01 / KHEPRI" eyebrow in `src/ui/menu-markup.ts` are still fixed (Codex's UI).
+  - **Terrain edge during jumps:** an unstreamed section edge was briefly visible at peak jump speed, under the veil.
+  - **Old look ahead:** before the flash, the new planet's ground ahead is drawn with the old look.
 
-### 2c. Where the uncommitted work is
-_(filled in below)_
+### 2c. Uncommitted work
+None. All work is on `main` and live.
 
 ## 3. Open items and ideas (not started)
 
