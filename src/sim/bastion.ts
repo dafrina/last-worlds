@@ -157,12 +157,11 @@ export function overloadLanes(bossX: number, index: number, def: BossDefinition 
 }
 
 /** Marked lanes for a boss lane attack: radiator lasers lock on the player; overload lanes cover its own columns. */
-function attackLanes(state: RunState, def: BossDefinition): { x: number; width: number; active: number }[] {
+function attackLanes(state: RunState, def: BossDefinition, from: Enemy): { x: number; width: number; active: number }[] {
   const boss = state.boss!;
-  const laser = def.laser ?? { width: 0.8, active: 0.3 };
-  if (boss.phase === 'batteries' && def.laser) return [{ x: state.player.x, width: def.laser.width, active: def.laser.active }];
+  // Radiator lasers fire straight down from the radiator that fires them.
+  if (boss.phase === 'batteries' && def.laser) return [{ x: from.x, width: def.laser.width, active: def.laser.active }];
   const active = def.overload.active, move = overloadMove(state);
-  if (move === 'laser') return [{ x: state.player.x, width: laser.width, active: laser.active }];
   if (move === 'cross') {
     // The core column and one side column, alternating sides through the sequence.
     const side = Math.floor(boss.attackIndex / def.overloadMoves.length) % 2 ? 'left' : 'right';
@@ -207,7 +206,8 @@ export function updateBoss(state: RunState, dt: number): void {
   const previousS = boss.s;
   if (boss.phase !== 'destroyed') {
     // Authored maneuvering on the static arena: a bounded lateral sway and a forward/back surge. The full
-    // wide map stays traversable; there is no camera cage.
+    // wide map stays traversable; there is no camera cage. It holds still while its own lanes charge and fire.
+    if (boss.phase !== 'arrival' && state.time < (boss.holdUntil ?? 0)) boss.heldFor = (boss.heldFor ?? 0) + dt;
     const pose = bossPose(boss, state.time);
     boss.x = pose.x;
     boss.s = pose.s;
@@ -271,12 +271,12 @@ export function updateBoss(state: RunState, dt: number): void {
       : move === 'burst' ? 'burst' : move === 'fan' ? (def.fan ? 'fan' : 'burst') : 'beam';
   const aimX = attack === 'beam' ? boss.x : state.player.x;
   const difficultyWarning = runScale(state).warning;
-  const lockedLaser = (boss.phase === 'batteries' && def.laser) || move === 'laser';
+  const lockedLaser = boss.phase === 'batteries' && def.laser;
   const warning = (attack !== 'beam' ? def.warning : lockedLaser ? def.laser?.warning ?? def.beamWarning : def.beamWarning) + difficultyWarning;
   // The director's exclusion check applies to bosses too. A rejected attack is not edited: the boss switches
   // to its alternate pattern and tries again after a short delay.
   boss.attack = attack;
-  const lanes = attack === 'beam' ? attackLanes(state, def) : [];
+  const lanes = attack === 'beam' ? attackLanes(state, def, selected) : [];
   const footprints: Footprint[] = attack === 'beam'
     ? lanes.map(lane => {
       const t0 = state.time + warning + BOSS_BEAM.warning;
@@ -296,6 +296,8 @@ export function updateBoss(state: RunState, dt: number): void {
   for (const lane of lanes) {
     state.hazards.push({ id: state.nextId++, x: lane.x, width: lane.width, warning: selected.warning + BOSS_BEAM.warning,
       active: lane.active, ttl: selected.warning + BOSS_BEAM.warning + lane.active });
+    // Hold still until the lane is spent, so it stays under the column that fired it.
+    boss.holdUntil = Math.max(boss.holdUntil ?? 0, state.time + selected.warning + BOSS_BEAM.warning + lane.active);
   }
   boss.attackIndex++;
 }

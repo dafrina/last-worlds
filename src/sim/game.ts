@@ -11,7 +11,7 @@ import { spawnMembers } from './spawn';
 import { airspaceClear, plannedMembers, resolveAnchor } from './airspace';
 import { DIAMOND_VOLLEY, SHOT_TTL, beamSpec, diamondSide, enemyShots, type BulletKind } from './attacks';
 import { admitAttack } from './fairness';
-import { advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete } from './motion';
+import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete } from './motion';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -232,7 +232,7 @@ function updateEnemies(state: RunState, dt: number): void {
     const stats = ENEMIES[enemy.kind];
     advanceEnemy(enemy, dt, enemyClockRate(state, enemy));
     if (!canAttack(state, enemy)) {
-      if (enemy.warning > 0) { enemy.nextAttack = enemy.age + 0.6; windups -= 1; }
+      if (enemy.warning > 0) { enemy.nextAttack = enemy.age + 0.6; windups -= 1; if (enemy.lock) enemy.lock.hold = 0; }
       enemy.warning = 0;
       continue;
     }
@@ -259,6 +259,8 @@ function updateEnemies(state: RunState, dt: number): void {
       if (!admitAttack(state, enemy, aimX, warning)) { enemy.nextAttack = enemy.age + FAIRNESS.retryDelay; continue; }
       enemy.aimX = aimX;
       enemy.warning = warning;
+      // Beam ships swing over their lane and fire straight down from it (see applyBeamLock).
+      if (BEAM_KINDS.has(enemy.kind)) { const beam = beamSpec(enemy.kind); enemy.lock = { total: warning, hold: beam.warning + beam.active, release: BEAM_LOCK_RELEASE }; }
       windups += 1;
     }
   }
@@ -285,7 +287,7 @@ function updateBeamRest(state: RunState, scale: DifficultyScale): boolean {
     if (state.time >= run.restUntil && state.time - run.since >= rule.run) {
       run.restUntil = state.time + rule.rest; run.since = -1;
       // Windups not yet fired are called off (as when an attacker loses its window), so the rest is a real pause.
-      for (const enemy of state.enemies) if (enemy.kind === 'needle' && enemy.warning > 0) { enemy.warning = 0; enemy.nextAttack = enemy.age + rule.rest; }
+      for (const enemy of state.enemies) if (enemy.kind === 'needle' && enemy.warning > 0) { enemy.warning = 0; enemy.nextAttack = enemy.age + rule.rest; if (enemy.lock) enemy.lock.hold = 0; }
     }
   }
   return state.time < run.restUntil;

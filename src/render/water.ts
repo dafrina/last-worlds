@@ -20,7 +20,7 @@ attribute float shore; attribute float depth;
 uniform float waterScroll;
 varying float vShore; varying float vDepth; varying vec2 vSea;`;
 const WATER_FRAGMENT_HEAD = /* glsl */`
-uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell; uniform float foamGlow;
+uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell; uniform float foamGlow; uniform vec3 bloomTint; uniform float bloomAmount;
 varying float vShore; varying float vDepth; varying vec2 vSea;
 float seaHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
 float seaNoise( vec2 p ) {
@@ -52,7 +52,7 @@ export interface Water {
 export function createWater(): Water {
   const linear = (hex: number) => new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
   const uniforms = {
-    waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 }, foamGlow: { value: 0 },
+    waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 }, foamGlow: { value: 0 }, bloomTint: { value: new THREE.Color() }, bloomAmount: { value: 0 },
     deepColor: { value: linear(0x0d3557) }, shallowColor: { value: linear(0x1f6a8f) }, foamColor: { value: linear(0xeef6fb) },
   };
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0, envMapIntensity: 0.32 });
@@ -71,6 +71,13 @@ export function createWater(): Water {
       .replace('#include <color_fragment>', `#include <color_fragment>
   float calm = smoothstep( -0.1, 0.9, vShore );
   diffuseColor.rgb = mix( shallowColor, deepColor, smoothstep( 0.0, 2.4, vDepth ) );
+  // Nacre: violet algae blooms streak the mire (warped noise in the terrain frame, so they ride the scroll).
+  if ( bloomAmount > 0.0 ) {
+    vec2 q = vSea * vec2( 0.34, 0.28 ) + vec2( seaNoise( vSea * 0.08 ) * 4.0, seaNoise( vSea * 0.07 + 7.0 ) * 4.0 );
+    float veins = 1.0 - smoothstep( 0.03, 0.12, abs( seaNoise( q ) - 0.5 ) );
+    float bloom = clamp( veins * 0.85 + smoothstep( 0.66, 0.9, seaNoise( vSea * 0.11 + 3.0 ) ) * 0.25, 0.0, 1.0 ) * ( 0.55 + 0.45 * seaNoise( vSea * 1.3 ) );
+    diffuseColor.rgb = mix( diffuseColor.rgb, bloomTint, bloom * bloomAmount );
+  }
   // Shoreline foam: a broken band that laps in and out; streaks drift with the swell.
   float lap = 0.5 + 0.5 * sin( waterTime * 1.3 + seaNoise( vSea * 0.7 ) * 6.2832 );
   float breakup = seaNoise( vSea * vec2( 3.1, 2.3 ) + vec2( waterTime * 0.12, 0.0 ) );
@@ -93,7 +100,8 @@ export function createWater(): Water {
     setEnvironment(texture) { if (material.envMap !== texture) { material.envMap = texture; material.needsUpdate = true; } },
     setPlanet(planet) {
       const nacre = planet === 'nacre';
-      uniforms.deepColor.value.copy(linear(nacre ? 0x0c0826 : 0x0d3557)); uniforms.shallowColor.value.copy(linear(nacre ? 0x221650 : 0x1f6a8f));
+      uniforms.deepColor.value.copy(linear(nacre ? 0x0c1040 : 0x0d3557)); uniforms.shallowColor.value.copy(linear(nacre ? 0x1a2a78 : 0x1f6a8f));
+      uniforms.bloomTint.value.copy(linear(0x5a36a8)); uniforms.bloomAmount.value = nacre ? 0.7 : 0;
       uniforms.foamColor.value.copy(linear(nacre ? 0x2a9e92 : 0xeef6fb)); uniforms.swell.value = nacre ? 0.45 : 1; uniforms.foamGlow.value = nacre ? 0.35 : 0;
       material.roughness = nacre ? 0.08 : 0.12;
     },

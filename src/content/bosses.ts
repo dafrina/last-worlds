@@ -13,10 +13,9 @@ import { VEIL } from './veil';
  * One move of a boss's overload phase (cycled in order; a move the fairness director rejects is skipped):
  * - 'core-lane' / 'side-lanes': lanes over its own core column, or over both side-module columns;
  * - 'cross': the core lane plus one side lane (alternating sides), so the open side alternates;
- * - 'laser': a narrow lane locked on the player when the windup starts;
  * - 'burst' / 'fan': the core's aimed burst or fixed fan.
  */
-export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'laser' | 'burst' | 'fan';
+export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'burst' | 'fan';
 
 export interface BossDefinition {
   id: BossId;
@@ -87,9 +86,9 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
     pairAttack: 'laser', coreAttack: 'burst',
     warning: HELION_ARK.warning, laser: HELION_ARK.laser, beamWarning: HELION_ARK.beamWarning, overload: HELION_ARK.overload,
-    // The final phase mixes its lanes with player-locked lasers, crosses and bridge bursts, recovers faster, and
+    // The final phase mixes its lanes with crosses and bridge bursts, recovers faster, and
     // launches two more drop-pod waves (user: the last laser section was always the same and a bit easy).
-    overloadMoves: ['core-lane', 'laser', 'side-lanes', 'burst', 'cross', 'laser', 'core-lane', 'cross'], overloadRecovery: 0.4,
+    overloadMoves: ['core-lane', 'burst', 'side-lanes', 'cross', 'burst', 'core-lane', 'cross', 'side-lanes'], overloadRecovery: 0.4,
     recovery: HELION_ARK.recovery, transitionRecovery: HELION_ARK.transitionRecovery,
     overloadFraction: HELION_ARK.overloadFraction, extractionDuration: HELION_ARK.extractionDuration,
     bursts: { pair: HELION_ARK.bridgeBurst, core: HELION_ARK.bridgeBurst }, fan: null,
@@ -133,8 +132,8 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       core: { x: 0, s: VEIL.heartS, radius: VEIL.heartRadius, hp: VEIL.heartHp },
     },
     pairAttack: 'burst', coreAttack: 'fan-burst',
-    warning: VEIL.warning, laser: { warning: 1.05, width: 0.8, active: 0.3 }, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
-    overloadMoves: ['core-lane', 'fan', 'cross', 'laser', 'side-lanes', 'burst', 'cross', 'fan'], overloadRecovery: 0.45,
+    warning: VEIL.warning, laser: null, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
+    overloadMoves: ['core-lane', 'fan', 'cross', 'burst', 'side-lanes', 'fan', 'cross', 'burst'], overloadRecovery: 0.45,
     recovery: VEIL.recovery, transitionRecovery: VEIL.transitionRecovery,
     overloadFraction: VEIL.overloadFraction, extractionDuration: VEIL.extractionDuration,
     bursts: { pair: VEIL.podBurst, core: VEIL.heartBurst }, fan: VEIL.heartFan, launches: null,

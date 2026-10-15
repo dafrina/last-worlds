@@ -82,7 +82,7 @@ describe('Helion Ark', () => {
     expect(total('veteran')).toBeCloseTo(3600, 6);
   });
 
-  it('fires narrow radiator lane lasers locked on the player, marked long enough, from alternating radiators', () => {
+  it('fires narrow radiator lane lasers straight down from the radiator that fires them, marked long enough, alternating radiators', () => {
     const state = encounter();
     advance(state, HELION_ARK.arrivalDuration + 0.05);
     const attackers: number[] = [];
@@ -93,7 +93,8 @@ describe('Helion Ark', () => {
       for (const hazard of state.hazards) if (!before.has(hazard.id)) {
         lanes += 1;
         expect(hazard.width).toBe(HELION_ARK.laser.width);
-        expect(hazard.x).toBeCloseTo(state.player.x, 6);
+        // Aligned with its radiator (user report: lasers did not line up with what fired them).
+        expect(hazard.x).toBeCloseTo(state.enemies.find(enemy => enemy.id === state.boss!.attackerId)!.x, 6);
         expect(hazard.warning + STEP).toBeGreaterThanOrEqual(FAIRNESS.beamWarningFloor);
         attackers.push(state.boss!.attackerId!);
       }
@@ -146,13 +147,14 @@ describe('Helion Ark', () => {
     const state = encounter();
     openBridge(state);
     advance(state, 8);
+    const credits = state.credits;
     bossTarget(state, 'core')!.hp = 0;
     resolveBossPhase(state);
     expect(state.boss!.phase).toBe('destroyed');
     expect(state.enemies.every(enemy => enemy.bossPart)).toBe(true);
-    expect(state.credits).toBe(60);
+    expect(state.credits).toBe(credits + 60);
     resolveBossPhase(state);
-    expect(state.credits).toBe(60);
+    expect(state.credits).toBe(credits + 60);
     const s0 = state.boss!.s;
     advance(state, 4);
     // The scroll resumes for extraction and the wreck stays on the water, falling behind.
@@ -188,4 +190,24 @@ describe('Helion Ark', () => {
     expect(log.hits).toBe(0);
     expect(log.specialsUsed).toBe(0);
   });
+});
+
+describe('beam alignment (user report: some laser beams did not line up with the ships firing them)', () => {
+  it('keeps every Needle beam under the Needle that fires it, and every boss lane under its column while it is live', () => {
+    for (const mission of ['cold-vector', 'deep-bloom'] as const) {
+      const state = createRun({ mode: 'campaign', mission, difficulty: 'standard', weapon: 'pulse', seed: 4 });
+      state.player.lives = 99;
+      const pilot = perfectPilot();
+      let checked = 0;
+      for (let i = 0; i < 300 / STEP && state.phase === 'playing'; i++) {
+        stepRun(state, { ...(pilot(state) ?? EMPTY_INPUT), specialPressed: false });
+        // A live Needle lane has its Needle right above it.
+        for (const hazard of state.hazards) if (hazard.width <= 0.4 + 1e-9 && hazard.warning === 0 && hazard.active > 0) {
+          const needles = state.enemies.filter(enemy => enemy.kind === 'needle' && enemy.hp > 0);
+          if (needles.length) { expect(Math.min(...needles.map(enemy => Math.abs(enemy.x - hazard.x)))).toBeLessThan(0.05); checked++; }
+        }
+      }
+      expect(checked).toBeGreaterThan(0);
+    }
+  }, 120000);
 });

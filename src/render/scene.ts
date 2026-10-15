@@ -190,7 +190,7 @@ const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
   // Nacre (docs/20): a dim lilac sun under a violet sky, strong violet sky fill so the dark islands stay readable,
   // teal-violet bounce off the mire, a low bloom threshold so the bioluminescence glows, and a faint violet mist.
   nacre: {
-    background: 0x1a1040, sunElevation: 44, sun: [0xeadcff, 2.8], hemisphere: [0x8a74c8, 0x221a48, 1.05], bounce: [0x5a7ac0, .45],
+    background: 0x1a1040, sunElevation: 32, sun: [0xd8d0ff, 3.4], hemisphere: [0x7a6cc0, 0x1c1a48, .95], bounce: [0x4a7ac8, .5],
     shadowIntensity: .7, blobShadow: 0x120a28, lowExposure: 1.05,
     post: { exposure: 1.0, threshold: .85, knee: .35, strength: .85, lift: [.004, .002, .008], saturation: 1.02, contrast: 1.1, vignette: .28,
       haze: [.36, .26, .6, .03] },
@@ -884,8 +884,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           if (source) plumes.push({ x: source.x, z: -source.s + .5, length: .01, width: .8, hex: 0xffe0b0, energy: 3, round: true });
         }
         if (hazard.active > 0 && hazard.warning <= 0 && laneCount < lanes.instanceMatrix.count) {
-          transform.position.set(hazard.x, VIEW.flightHeight + .02, -(VIEW.minS + VIEW.maxS) / 2);
-          transform.rotation.set(0, 0, 0); transform.scale.set(hazard.width, 1, 1); transform.updateMatrix(); lanes.setMatrixAt(laneCount++, transform.matrix);
+          // A live beam starts at whatever fired it (a locked beam ship, or the boss column right above it) and runs down.
+          const source = state.enemies.find(enemy => enemy.hp > 0 && (enemy.bossPart ? Math.abs(enemy.x - hazard.x) < hazard.width / 2 + .3 : !!enemy.lock && Math.abs(enemy.x - hazard.x) < .05));
+          const top = Math.min(VIEW.maxS, source ? source.s : VIEW.maxS), length = top - VIEW.minS;
+          transform.position.set(hazard.x, VIEW.flightHeight + .02, -(VIEW.minS + top) / 2);
+          transform.rotation.set(0, 0, 0); transform.scale.set(hazard.width, 1, length / (VIEW.maxS - VIEW.minS)); transform.updateMatrix(); lanes.setMatrixAt(laneCount++, transform.matrix);
         }
         for (const side of [-1, 1]) {
           const x = hazard.x + side * hazard.width / 2;

@@ -22,6 +22,8 @@ export interface BossState {
    * Needle launches (zero and Infinity for Bastion-9).
    */
   id: BossId; launchesLeft: number; nextLaunchAt: number;
+  /** The boss holds its sway while its own lanes charge and fire, so every lane stays under the part that fired it. */
+  holdUntil?: number; heldFor?: number;
 }
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */
@@ -43,6 +45,11 @@ export interface Enemy {
   bossPart?: BossPart; damageable?: boolean; formation?: FormationMember;
   /** Volleys released so far (the Diamond alternates its wing each volley). */
   volleys?: number;
+  /**
+   * Beam lock (Needle, Lancer): the ship swings over its committed lane during the windup, fires straight down from
+   * it, holds while the beam is live, then eases back onto its path. Seconds: total windup, hold left, release left.
+   */
+  lock?: { total: number; hold: number; release: number };
 }
 export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;

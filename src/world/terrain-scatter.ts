@@ -8,12 +8,12 @@ export type FloeSetKind = 'floePairA' | 'floePairB' | 'floeTripleC';
 /** Vesper kit (public/assets/vesper/vesper-kit.glb, docs/17 §3); waterline at y = 0 for floating pieces. */
 export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'floe' | FloeSetKind | 'ridge' | 'drift' | 'outcrop' | 'vent';
 /** Nacre flora and monoliths (docs/20), built in code (no glb): glowing caps, lily pads, reeds, trees, crystals, rocks. */
-export type NacreKitKind = 'bloomCap' | 'lilyPad' | 'reed' | 'mireTree' | 'mireCrystal' | 'mireRock' | 'monolith';
+export type NacreKitKind = 'bloomCap' | 'lilyPad' | 'reed' | 'mireTree' | 'mireCrystal' | 'mireRock' | 'monolith' | 'glassTube' | 'mireSpire' | 'bioTower' | 'bioRing';
 export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
 export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
-export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['bloomCap', 'lilyPad', 'reed', 'mireTree', 'mireCrystal', 'mireRock', 'monolith'];
+export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['bloomCap', 'lilyPad', 'reed', 'mireTree', 'mireCrystal', 'mireRock', 'monolith', 'glassTube', 'mireSpire', 'bioTower', 'bioRing'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
 export const KIT: Readonly<Record<KitKind, {
   prefix: string; variants: number;
@@ -59,6 +59,10 @@ export const KIT: Readonly<Record<KitKind, {
   mireCrystal: { prefix: 'nacre_crystal', variants: 2, halfX: 0.45, halfZ: 0.45, height: 1, exactTop: true, radius: Math.hypot(0.45, 0.45) },
   mireRock: { prefix: 'nacre_rock', variants: 3, halfX: 0.6, halfZ: 0.6, height: 0.8, exactTop: false, radius: Math.hypot(0.6, 0.6) },
   monolith: { prefix: 'nacre_monolith', variants: 2, halfX: 0.45, halfZ: 0.45, height: 1, exactTop: true, radius: Math.hypot(0.45, 0.45) },
+  glassTube: { prefix: 'nacre_tubes', variants: 3, halfX: 0.5, halfZ: 0.5, height: 1, exactTop: true, radius: Math.hypot(0.5, 0.5) },
+  mireSpire: { prefix: 'nacre_spire', variants: 3, halfX: 0.6, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(0.6, 0.6) },
+  bioTower: { prefix: 'nacre_tower', variants: 2, halfX: 0.9, halfZ: 0.9, height: 1, exactTop: true, radius: Math.hypot(0.9, 0.9) },
+  bioRing: { prefix: 'nacre_ring', variants: 2, halfX: 1.1, halfZ: 1.1, height: 0.35, exactTop: false, radius: Math.hypot(1.1, 1.1) },
 };
 export const kitNodeName = (kind: KitKind, variant: number) => `${KIT[kind].prefix}_${variant}`;
 /**

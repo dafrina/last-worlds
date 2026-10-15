@@ -87,17 +87,39 @@ export function advanceEnemy(enemy: Enemy, dt: number, rate = 1): void {
   enemy.age += dt * rate;
   enemy.x = next.x;
   enemy.s = next.s;
+  applyBeamLock(enemy, dt);
 }
+
+/** Seconds a beam ship takes to swing back onto its path after its beam. */
+const LOCK_RELEASE = 0.45;
+/**
+ * Beam lock: blends a beam ship's path position toward its committed lane, reaching it within the first 0.45 s of
+ * the windup (or 60% of a shorter one), holding it while the beam is live, then easing back. Render and hit
+ * position follow; the lane itself never moves.
+ */
+function applyBeamLock(enemy: Enemy, dt: number): void {
+  const lock = enemy.lock;
+  if (!lock) return;
+  let f: number;
+  if (enemy.warning > 0) f = Math.min(1, (lock.total - enemy.warning) / Math.min(0.45, lock.total * 0.6));
+  else if (lock.hold > 0) { lock.hold -= dt; f = 1; }
+  else if (lock.release > 0) { lock.release -= dt; f = Math.max(0, lock.release / LOCK_RELEASE); }
+  else { enemy.lock = undefined; return; }
+  f = f * f * (3 - 2 * f);
+  enemy.x += (enemy.aimX - enemy.x) * f;
+}
+export const BEAM_LOCK_RELEASE = LOCK_RELEASE;
 
 /**
  * A boss's authored maneuver on its static arena at an active time: it arrives (Bastion-9 rolls in, the Helion
  * Ark glides in on the water), then sways laterally and surges forward/back within bounds.
  */
-export function bossPose(boss: Pick<BossState, 'originX' | 'startedAt' | 'id'>, time: number): { x: number; s: number } {
+export function bossPose(boss: Pick<BossState, 'originX' | 'startedAt' | 'id' | 'heldFor'>, time: number): { x: number; s: number } {
   const def = BOSSES[boss.id];
   const age = time - boss.startedAt;
   const arena = def.arena;
-  const fight = Math.max(0, age - def.arrivalDuration);
+  // Time spent holding still for its own lanes does not advance the manoeuvre.
+  const fight = Math.max(0, age - def.arrivalDuration - (boss.heldFor ?? 0));
   const s = age < def.arrivalDuration
     ? def.entryS + (def.row - def.entryS) * Math.max(0, age) / def.arrivalDuration
     : def.row + Math.sin(fight * arena.surgeRate) * arena.surge;

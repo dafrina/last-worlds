@@ -193,120 +193,207 @@ function vesperFallbackPiece(kind: KitKind, variant: number): THREE.BufferGeomet
  * glow 1 and their own colour: under the Nacre look the kit material emits the vertex colour (teal caps and reeds,
  * violet crystals, orange monolith slits) instead of one shared glow colour.
  */
-const BLOOM = linear(0x3ff2d8), BLOOM_SOFT = linear(0x2a9e9a), CAP_TOP = linear(0x34507e), STEM = linear(0x8a8fb0), PAD = linear(0x1f5a52), PAD_VEIN = linear(0x56ffe0);
-const BARK = linear(0x2b2238), CANOPY = linear(0x5a3a8c), CANOPY_DARK = linear(0x35245a), VIOLET = linear(0xb070ff);
-const MIRE_ROCK = linear(0x221d2c), MIRE_ROCK_TOP = linear(0x3a3048), MONOLITH = linear(0x17151d), SLIT = linear(0xff8a30);
+const BLOOM = linear(0x4ee8e2), BLOOM_SOFT = linear(0x1f9aa6), BLOOM_CORE = linear(0xd8fff8), STEM = linear(0x2a8f9a);
+const PAD = linear(0x2a7a62), PAD_RIM = linear(0x4aa886), PAD_VEIN = linear(0x7affe0);
+const BARK = linear(0x1c1828), FROND = linear(0x46e0c8), CANOPY = linear(0x3a2768), VIOLET = linear(0xb27cff), VIOLET_DEEP = linear(0x5a2fa0);
+const CRAG = linear(0x16171f), CRAG_LIT = linear(0x3a4766), MOSS = linear(0x1b3d35), CHITIN = linear(0x1a1824), CHITIN_LIT = linear(0x3c3656), SLIT = linear(0xff8a30);
+/*
+ * Nacre's flora and structures (docs/20), built in code after the concept's middle panel: translucent glowing lotus
+ * caps on trumpet stems, glassy tube clusters, violet goblet flowers, teal lily pads, craggy faceted black rock and
+ * spires, drooping glow-frond jungle trees, and the biological towers and ring platforms of its builders. Glowing
+ * faces carry glow > 0 and their own colour: under the Nacre look the kit material emits the vertex colour.
+ */
 function nacrePiece(kind: KitKind, variant: number): THREE.BufferGeometry {
   const builder = new Builder(), seed = (NACRE_KIT_KINDS as readonly string[]).indexOf(kind) * 307 + variant * 19 + 11;
   const up = new THREE.Vector3(0, 1, 0), down = new THREE.Vector3(0, -1, 0);
   const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-  /** A mushroom-like glowing cap: a pale stem, a domed top and glowing gills underneath, with a lit rim. */
-  const cap = (cx: number, cz: number, radius: number, height: number, lean: number) => {
-    builder.prism(cx, cz, radius * .12, height * .8, 6, seed, 0, -0.05);
-    const sides = 12, top = v(cx + lean, height, cz), under = v(cx + lean * .8, height * .78, cz);
+  /** A frustum band between two rings (open), outward-facing, optionally glowing. */
+  const band = (cx: number, cz: number, r0: number, y0: number, r1: number, y1: number, sides: number, color: THREE.Color, glow = 0, turn = 0, lean = 0) => {
     for (let i = 0; i < sides; i++) {
-      const a0 = i / sides * Math.PI * 2, a1 = (i + 1) / sides * Math.PI * 2, wobble = (k: number) => .88 + rand(seed, k) * .24;
-      const r0 = radius * wobble(i), r1 = radius * wobble((i + 1) % sides);
-      const p0 = v(cx + lean + Math.cos(a0) * r0, height * .86, cz + Math.sin(a0) * r0), p1 = v(cx + lean + Math.cos(a1) * r1, height * .86, cz + Math.sin(a1) * r1);
-      // Seen from above: a dark dome with a glowing outer band (the gill rim showing through the cap's edge).
-      const m0 = v(cx + lean + Math.cos(a0) * r0 * .45, height * .96, cz + Math.sin(a0) * r0 * .45), m1 = v(cx + lean + Math.cos(a1) * r1 * .45, height * .96, cz + Math.sin(a1) * r1 * .45);
-      builder.tri(top, m0, m1, CAP_TOP, .12, up);
-      builder.tri(m0, p0, p1, CAP_TOP.clone().lerp(BLOOM_SOFT, .7), .4, up); builder.tri(m0, p1, m1, CAP_TOP.clone().lerp(BLOOM_SOFT, .7), .4, up);
-      builder.tri(under, p1, p0, BLOOM, 1, down);
+      const a0 = turn + i / sides * Math.PI * 2, a1 = turn + (i + 1) / sides * Math.PI * 2, am = (a0 + a1) / 2;
+      const p00 = v(cx + Math.cos(a0) * r0, y0, cz + Math.sin(a0) * r0), p01 = v(cx + Math.cos(a1) * r0, y0, cz + Math.sin(a1) * r0);
+      const p10 = v(cx + lean + Math.cos(a0) * r1, y1, cz + Math.sin(a0) * r1), p11 = v(cx + lean + Math.cos(a1) * r1, y1, cz + Math.sin(a1) * r1);
+      const out = v(Math.cos(am), 0.2, Math.sin(am));
+      builder.tri(p00, p01, p11, color, glow, out); builder.tri(p00, p11, p10, color, glow, out);
     }
   };
-  /** An irregular dodecahedron lump (canopies and rocks); `glowShare` of its faces glow in `glowColor`. */
-  const lump = (cx: number, cy: number, cz: number, radius: number, squash: number, color: THREE.Color, glowShare = 0, glowColor = BLOOM) => {
+  /** A flat disc (or a cone toward the centre) facing up. */
+  const disc = (cx: number, y: number, cz: number, radius: number, sides: number, color: THREE.Color, glow: number, centreLift = 0, ribs?: THREE.Color) => {
+    const centre = v(cx, y + centreLift, cz);
+    for (let i = 0; i < sides; i++) {
+      const a0 = i / sides * Math.PI * 2, a1 = (i + 1) / sides * Math.PI * 2, wobble = (k: number) => .9 + rand(seed, k) * .18;
+      builder.tri(centre, v(cx + Math.cos(a0) * radius * wobble(i), y, cz + Math.sin(a0) * radius * wobble(i)),
+        v(cx + Math.cos(a1) * radius * wobble((i + 1) % sides), y, cz + Math.sin(a1) * radius * wobble((i + 1) % sides)), ribs && i % 2 ? ribs : color, ribs && i % 2 ? glow * 1.3 : glow, up);
+    }
+  };
+  /** An irregular faceted lump: rocks and crags (`glowShare` faces glow as moss speckle). */
+  const lump = (cx: number, cy: number, cz: number, radius: number, squash: number, color: THREE.Color, top: THREE.Color, glowShare = 0, glowColor = BLOOM) => {
     const rock = new THREE.DodecahedronGeometry(radius, 0), p = rock.getAttribute('position'), center = v(cx, cy, cz);
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), m = new THREE.Vector3();
-    const warp = (q: THREE.Vector3) => { const k = Math.round((q.x + 2) * 37 + (q.y + 2) * 71 + (q.z + 2) * 113), j = .8 + rand(seed, k) * .35; return q.set(cx + q.x * j, cy + q.y * squash * j, cz + q.z * j); };
+    const warp = (q: THREE.Vector3) => { const k = Math.round((q.x + 2) * 37 + (q.y + 2) * 71 + (q.z + 2) * 113), j = .75 + rand(seed, k) * .45; return q.set(cx + q.x * j, cy + q.y * squash * j, cz + q.z * j); };
     for (let i = 0; i < p.count; i += 3) {
       warp(a.fromBufferAttribute(p, i)); warp(b.fromBufferAttribute(p, i + 1)); warp(c.fromBufferAttribute(p, i + 2));
       m.copy(a).add(b).add(c).divideScalar(3);
-      const lit = rand(seed, i + 500) < glowShare;
-      builder.tri(a.clone(), b.clone(), c.clone(), lit ? glowColor : m.y > cy ? color.clone().lerp(MIRE_ROCK_TOP, .2) : color, lit ? 1 : 0, m.clone().sub(center));
+      const lit = rand(seed, i + 500) < glowShare, facing = m.clone().sub(center).normalize();
+      builder.tri(a.clone(), b.clone(), c.clone(), lit ? glowColor : facing.y > .45 ? top : color, lit ? .8 : 0, facing);
     }
     rock.dispose();
   };
+  /** A lotus cap after the concept: a wide translucent glowing disc with radial ribs and a bright heart on a trumpet stem. */
+  const lotus = (cx: number, cz: number, radius: number, height: number) => {
+    band(cx, cz, radius * .09, -.05, radius * .07, height * .55, 7, STEM, .55);
+    band(cx, cz, radius * .07, height * .55, radius * .32, height * .9, 9, BLOOM_SOFT, .8);
+    disc(cx, height * .9, cz, radius, 16, BLOOM_SOFT, .32, height * .05, BLOOM);
+    disc(cx, height * .95 + .01, cz, radius * .16, 8, BLOOM_CORE, .8, .02);
+  };
   switch (kind) {
     case 'bloomCap': {
-      cap(0, 0, .55, 1, .04);
-      if (variant > 0) cap(.38, .22, .3, .6, .03);
-      if (variant > 1) cap(-.3, -.28, .24, .45, -.03);
+      lotus(0, 0, .6, 1);
+      if (variant > 0) lotus(.45, .28, .32, .55);
+      if (variant > 1) lotus(-.38, -.3, .26, .42);
       break;
     }
     case 'lilyPad': {
-      // A flat floating pad with a notch, a glowing ring and veins; waterline at y = 0.
-      const sides = 14, notch = rand(seed, 1) * Math.PI * 2, centre = v(0, .05, 0);
-      for (let i = 0; i < sides; i++) {
-        const a0 = i / sides * Math.PI * 2 + notch, a1 = (i + 1) / sides * Math.PI * 2 + notch;
-        if (i === 0) continue;
-        const r = .5 * (.85 + rand(seed, i) * .15), p0 = v(Math.cos(a0) * r, .03, Math.sin(a0) * r), p1 = v(Math.cos(a1) * r, .03, Math.sin(a1) * r);
-        builder.tri(centre, p0, p1, PAD.clone().lerp(PAD_VEIN, rand(seed, i + 30) * .12), 0, up);
-        // A small glowing heart at the centre of the pad.
-        builder.tri(v(0, .06, 0), v(Math.cos(a0) * .1, .06, Math.sin(a0) * .1), v(Math.cos(a1) * .1, .06, Math.sin(a1) * .1), PAD_VEIN, 1, up);
+      // A round floating pad with a notch, a lighter rim and a faint glowing heart; waterline at y = 0.
+      const sides = 16, notch = rand(seed, 1) * Math.PI * 2, centre = v(0, .045, 0);
+      for (let i = 1; i < sides; i++) {
+        const a0 = i / sides * Math.PI * 2 + notch, a1 = (i + 1) / sides * Math.PI * 2 + notch, r = .5;
+        const i0 = v(Math.cos(a0) * r * .82, .04, Math.sin(a0) * r * .82), i1 = v(Math.cos(a1) * r * .82, .04, Math.sin(a1) * r * .82);
+        builder.tri(centre, i0, i1, PAD, 0, up);
+        builder.tri(i0, v(Math.cos(a0) * r, .03, Math.sin(a0) * r), v(Math.cos(a1) * r, .03, Math.sin(a1) * r), PAD_RIM, .15, up);
+        builder.tri(i0, v(Math.cos(a1) * r, .03, Math.sin(a1) * r), i1, PAD_RIM, .15, up);
       }
-      if (variant === 2) cap(.12, .05, .14, .3, 0);
+      disc(0, .05, 0, .07, 6, PAD_VEIN, .9);
+      if (variant === 2) lotus(.1, .05, .16, .3);
       break;
     }
     case 'reed': {
-      // A clump of thin curved blades with glowing seed tips.
       const blades = 7 + variant * 3;
       for (let i = 0; i < blades; i++) {
         const a = rand(seed, i) * Math.PI * 2, r = rand(seed, i + 20) * .25, x = Math.cos(a) * r, z = Math.sin(a) * r;
         const h = .55 + rand(seed, i + 40) * .45, bend = (rand(seed, i + 60) - .5) * .3, w = .03;
         const side = v(-Math.sin(a), 0, Math.cos(a)), tip = v(x + bend, h, z + bend * .5);
-        builder.tri(v(x - side.x * w, -.05, z - side.z * w), v(x + side.x * w, -.05, z + side.z * w), tip, BARK.clone().lerp(BLOOM_SOFT, .4), 0, v(Math.cos(a), .2, Math.sin(a)));
-        builder.tri(v(x + side.x * w, -.05, z + side.z * w), v(x - side.x * w, -.05, z - side.z * w), tip, BARK.clone().lerp(BLOOM_SOFT, .4), 0, v(-Math.cos(a), .2, -Math.sin(a)));
-        if (i % 2 === 0) lump(tip.x, tip.y - .04, tip.z, .045, 1.6, BLOOM, 1);
+        builder.tri(v(x - side.x * w, -.05, z - side.z * w), v(x + side.x * w, -.05, z + side.z * w), tip, MOSS, 0, v(Math.cos(a), .2, Math.sin(a)));
+        builder.tri(v(x + side.x * w, -.05, z + side.z * w), v(x - side.x * w, -.05, z - side.z * w), tip, MOSS, 0, v(-Math.cos(a), .2, -Math.sin(a)));
+        if (i % 2 === 0) disc(tip.x, tip.y - .02, tip.z, .05, 5, BLOOM, 1.2, .04);
+      }
+      break;
+    }
+    case 'glassTube': {
+      // A cluster of tall translucent cyan tubes with flared, brighter mouths (the concept's glass anemones).
+      const tubes = 4 + variant * 2;
+      for (let i = 0; i < tubes; i++) {
+        const a = i * 2.4 + variant, r = i === 0 ? 0 : .14 + rand(seed, i) * .22, x = Math.cos(a) * r, z = Math.sin(a) * r;
+        const h = i === 0 ? 1 : .45 + rand(seed, i + 9) * .45, w = .06 + rand(seed, i + 3) * .03, lean = (rand(seed, i + 7) - .5) * .12;
+        band(x, z, w, -.05, w * .9, h * .85, 6, BLOOM_SOFT, .6, a, lean);
+        band(x + lean, z, w * .9, h * .85, w * 1.9, h, 6, BLOOM, 1, a);
+        disc(x + lean, h * .97, z, w * 1.5, 6, BLOOM_CORE, 1.2);
       }
       break;
     }
     case 'mireTree': {
-      // A twisted dark trunk with violet canopy lumps scattered with glowing teal fruit, and hanging glow tendrils.
-      const lean = (rand(seed, 2) - .5) * .25;
-      builder.prism(0, 0, .11, .45, 6, seed, .1, -.1);
-      builder.prism(lean * .5, 0, .08, .62, 5, seed + 1, -.1, .35);
-      const lobes = 3 + variant;
-      for (let i = 0; i < lobes; i++) {
-        const a = i / lobes * Math.PI * 2 + rand(seed, i) * .6, r = i === 0 ? 0 : .32 + rand(seed, i + 9) * .18;
-        lump(lean + Math.cos(a) * r, .72 + rand(seed, i + 30) * .14, Math.sin(a) * r, i === 0 ? .38 : .26 + rand(seed, i + 50) * .08, .7, i % 2 ? CANOPY : CANOPY_DARK, .18);
-      }
-      for (let i = 0; i < 4; i++) {
-        const a = rand(seed, i + 70) * Math.PI * 2, r = .35 + rand(seed, i + 80) * .15, x = lean + Math.cos(a) * r, z = Math.sin(a) * r;
-        builder.tri(v(x - .015, .62, z), v(x + .015, .62, z), v(x, .3 + rand(seed, i + 90) * .12, z), BLOOM, 1, v(Math.cos(a), 0, Math.sin(a)));
+      // An alien jungle tree: a dark twisted stalk, a violet crown and drooping glowing fronds like a bioluminescent willow.
+      const lean = (rand(seed, 2) - .5) * .2;
+      band(0, 0, .1, -.1, .07, .55, 6, BARK, 0, seed, lean * .5);
+      band(lean * .5, 0, .07, .55, .05, .78, 5, BARK, 0, seed, lean * .5);
+      lump(lean, .82, 0, .3 + variant * .04, .45, CANOPY, CANOPY.clone().lerp(VIOLET, .25), .12, VIOLET);
+      const fronds = 9 + variant * 3;
+      for (let i = 0; i < fronds; i++) {
+        const a = i / fronds * Math.PI * 2 + rand(seed, i) * .4, r0 = .22, r1 = .42 + rand(seed, i + 9) * .14;
+        const top = v(lean + Math.cos(a) * r0, .84, Math.sin(a) * r0), mid = v(lean + Math.cos(a) * r1, .72, Math.sin(a) * r1), end = v(lean + Math.cos(a) * (r1 + .05), .32 + rand(seed, i + 30) * .2, Math.sin(a) * (r1 + .05));
+        const side = v(-Math.sin(a) * .04, 0, Math.cos(a) * .04), out = v(Math.cos(a), .3, Math.sin(a));
+        builder.tri(top.clone().sub(side), top.clone().add(side), mid, CANOPY, .2, out);
+        builder.tri(mid.clone().sub(side), mid.clone().add(side), end, FROND, .9, out);
       }
       break;
     }
     case 'mireCrystal': {
-      for (let i = 0; i < 4 + variant * 2; i++) {
-        const angle = i * 2.2 + variant, lean = i === 0 ? 0 : .3, x = Math.cos(angle) * (i === 0 ? 0 : .18), z = Math.sin(angle) * (i === 0 ? 0 : .18);
-        const height = i === 0 ? 1 : .4 + rand(seed, i) * .4, r = .07 + rand(seed, i + 9) * .05, tip = v(x + Math.cos(angle) * lean * height, height, z + Math.sin(angle) * lean * height);
-        for (let k = 0; k < 5; k++) {
-          const a0 = k / 5 * Math.PI * 2 + angle, a1 = (k + 1) / 5 * Math.PI * 2 + angle, am = (a0 + a1) / 2;
-          builder.tri(v(x + Math.cos(a0) * r, -.05, z + Math.sin(a0) * r), v(x + Math.cos(a1) * r, -.05, z + Math.sin(a1) * r), tip, VIOLET, k % 2 ? 1 : .55, v(Math.cos(am), .3, Math.sin(am)));
-        }
+      // Violet goblet flowers: flared cups on thin stems, glowing from inside.
+      const cups = 3 + variant * 2;
+      for (let i = 0; i < cups; i++) {
+        const a = i * 2.2 + variant, r = i === 0 ? 0 : .16 + rand(seed, i) * .16, x = Math.cos(a) * r, z = Math.sin(a) * r;
+        const h = i === 0 ? 1 : .5 + rand(seed, i + 9) * .4, cup = .12 + rand(seed, i + 3) * .06;
+        band(x, z, .025, -.05, .02, h * .62, 5, VIOLET_DEEP, .3);
+        band(x, z, .03, h * .62, cup * .55, h * .8, 7, VIOLET_DEEP, .6);
+        band(x, z, cup * .55, h * .8, cup, h, 7, VIOLET, 1);
+        disc(x, h * .86, z, cup * .6, 7, BLOOM_CORE.clone().lerp(VIOLET, .5), 1.3);
       }
       break;
     }
-    case 'mireRock': lump(0, .2, 0, .5, .65 + variant * .1, MIRE_ROCK, variant === 2 ? .06 : 0); break;
+    case 'mireRock': {
+      // Craggy faceted black rock: a few stacked broken lumps with cold blue tops and moss speckle at the base.
+      lump(0, .25, 0, .5, .7, CRAG, CRAG_LIT, 0);
+      lump(.22, .55, -.1, .32, 1.1, CRAG, CRAG_LIT, 0);
+      if (variant > 0) lump(-.25, .45, .15, .28, 1.3, CRAG, CRAG_LIT, 0);
+      lump(0, .02, 0, .55, .25, MOSS, MOSS, .2);
+      break;
+    }
+    case 'mireSpire': {
+      // A tall jagged rock pillar: tapering broken prisms stacked off-axis, with a mossy glowing foot.
+      let x = 0, z = 0, y = -.1;
+      const pieces = 4 + variant;
+      for (let i = 0; i < pieces; i++) {
+        const r = .36 * (1 - i / (pieces + 1)) + .05, h = (1.1 / pieces) * (.8 + rand(seed, i) * .4), top = Math.min(1, y + h);
+        builder.prism(x, z, r, top, 5, rand(seed, i + 5) * 6, i === pieces - 1 ? .3 : 0, y);
+        x += (rand(seed, i + 20) - .5) * .12; z += (rand(seed, i + 30) - .5) * .12; y = top - .04;
+      }
+      lump(0, .02, 0, .5, .3, MOSS, MOSS, .25);
+      // Recolour the prisms to crag (Builder.prism uses Khepri basalt colours).
+      for (let i = 0; i < builder.colors.length; i += 3) {
+        if (builder.glow[i / 3] === 0 && builder.colors[i] > builder.colors[i + 2]) { builder.colors[i] = CRAG.r; builder.colors[i + 1] = CRAG.g; builder.colors[i + 2] = CRAG.b * 1.15; }
+        else if (builder.glow[i / 3] > 0 && builder.colors[i + 1] > .4 && builder.colors[i] < .1) { builder.glow[i / 3] = .6; }
+      }
+      break;
+    }
+    case 'bioTower': {
+      // A biological tower: segmented chitin shaft tapering upward, rib flanges, curved buttress roots, an orange
+      // glowing slit up its front and back, and a cyan crown ring. Seen from above it reads as an organic spire.
+      const segments = 6;
+      for (let i = 0; i < segments; i++) {
+        const y0 = i / segments * .9, y1 = (i + 1) / segments * .9, r0 = .34 - i * .035, r1 = .34 - (i + 1) * .035 + .03;
+        band(0, 0, r0, y0, r1, y1 - .02, 8, i % 2 ? CHITIN : CHITIN_LIT, 0, i * .2);
+        band(0, 0, r1, y1 - .02, r1 + .07, y1, 8, CHITIN_LIT, 0, i * .2);
+      }
+      band(0, 0, .14, .9, .02, 1, 6, CHITIN_LIT, 0);
+      band(0, 0, .22, .86, .26, .9, 12, BLOOM, 1.4);
+      for (const side of [-1, 1]) {
+        const z = side * .3, a = v(-.035, .08, z), b = v(.035, .08, z), c = v(.025, .82, z * .55), d = v(-.025, .82, z * .55);
+        builder.tri(a, b, c, SLIT, 1, v(0, 0, side)); builder.tri(a, c, d, SLIT, 1, v(0, 0, side));
+      }
+      const roots = 5 + variant;
+      for (let i = 0; i < roots; i++) {
+        const a = i / roots * Math.PI * 2 + variant, out = v(Math.cos(a), .4, Math.sin(a));
+        const foot = v(Math.cos(a) * .85, -.05, Math.sin(a) * .85), knee = v(Math.cos(a) * .45, .3, Math.sin(a) * .45), base = v(Math.cos(a) * .25, .45, Math.sin(a) * .25);
+        const side = v(-Math.sin(a) * .07, 0, Math.cos(a) * .07);
+        builder.tri(base.clone().sub(side), base.clone().add(side), knee, CHITIN, 0, out);
+        builder.tri(knee.clone().sub(side), knee.clone().add(side), foot, CHITIN_LIT, 0, out);
+        builder.tri(knee.clone().add(side), knee.clone().sub(side), base, CHITIN, 0, out.clone().negate());
+      }
+      break;
+    }
+    case 'bioRing': {
+      // A round landing ring of grown chitin: a raised rim, a dark floor and a glowing cyan inner circle.
+      band(0, 0, 1, -.1, .98, .25, 20, CHITIN, 0);
+      disc(0, .25, 0, 1, 20, CHITIN_LIT, 0);
+      disc(0, .26, 0, .8, 20, CHITIN, 0);
+      band(0, 0, .62, .25, .6, .28, 20, BLOOM, 1.3);
+      disc(0, .27, 0, .18, 10, BLOOM_CORE, 1.2);
+      if (variant) for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + .4; band(Math.cos(a) * .9, Math.sin(a) * .9, .07, .25, .04, .6, 5, CHITIN_LIT, 0); disc(Math.cos(a) * .9, .6, Math.sin(a) * .9, .06, 5, SLIT, 1.2); }
+      break;
+    }
     default: {
-      // Monolith: a tall dark slab with chamfered edges and a vertical orange slit on its front and back.
+      // Monolith (legacy): a tall dark slab with an orange slit.
       const w = .28 + variant * .06, d = .2, h = 1, top = v(0, h + .06, 0);
       const corners = [v(-w, 0, -d), v(w, 0, -d), v(w, 0, d), v(-w, 0, d)];
       for (let i = 0; i < 4; i++) {
         const a = corners[i], b = corners[(i + 1) % 4], out = v((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
         const a0 = v(a.x, -.1, a.z), b0 = v(b.x, -.1, b.z), a1 = v(a.x * .9, h, a.z * .9), b1 = v(b.x * .9, h, b.z * .9);
-        builder.tri(a0, b0, b1, MONOLITH, 0, out); builder.tri(a0, b1, a1, MONOLITH, 0, out);
-        builder.tri(a1, b1, top, MONOLITH.clone().lerp(MIRE_ROCK_TOP, .3), 0, up);
-        if (i % 2 === 0) {
-          // The slit, just proud of the face.
-          const z = (a.z + b.z) / 2 + Math.sign(out.z) * .005, s0 = v(-.04, .15, z), s1 = v(.04, .15, z), s2 = v(.035, .85, z), s3 = v(-.035, .85, z);
-          builder.tri(s0, s1, s2, SLIT, 1, out); builder.tri(s0, s2, s3, SLIT, 1, out);
-        }
+        builder.tri(a0, b0, b1, CHITIN, 0, out); builder.tri(a0, b1, a1, CHITIN, 0, out);
+        builder.tri(a1, b1, top, CHITIN_LIT, 0, up);
       }
     }
   }
+  void down;
   return builder.geometry();
 }
 
@@ -874,7 +961,7 @@ float khepriCells( vec2 local, float scale ) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD)
       // Nacre's flora emits its own vertex colour (teal, violet, orange) instead of the shared glow colour.
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 2.6, nacreLook ) * vGlow;' + VESPER_KIT_EMISSIVE)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 1.8, nacreLook ) * vGlow;' + VESPER_KIT_EMISSIVE)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
   float detail = texture2D( map, vMapUv ).r * 2.0;
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - vGlow ) * ( 1.0 - vesperLook );
