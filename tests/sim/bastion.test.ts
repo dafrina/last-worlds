@@ -3,6 +3,7 @@ import { BASTION } from '../../src/content/bastion';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
+import { fly, perfectPilot } from './pilots';
 
 function encounter(weapon: WeaponId = 'pulse', difficulty: Difficulty = 'standard') {
   const state = createRun({ mode: 'campaign', mission: 'bastion', seed: 53, weapon, difficulty });
@@ -32,7 +33,7 @@ describe('Bastion-9 mission', () => {
     advance(state, 3);
     expect(state.boss?.phase).toBe('batteries');
     expect(acquireTarget(state)).toBeUndefined();
-    state.player.x = -15; state.cameraX = -12;
+    state.player.x = -(VIEW.worldWidth / 2 - 1); state.cameraX = -(VIEW.worldWidth - VIEW.width) / 2;
     advance(state, 180);
     expect(state.phase).toBe('playing');
     expect(state.boss?.phase).toBe('batteries');
@@ -76,7 +77,7 @@ describe('Bastion-9 mission', () => {
   it('cancels offscreen windups and grants a fresh warning on return', () => {
     const state = encounter(); advance(state, 4.5);
     expect(state.boss!.attack).not.toBeNull();
-    state.player.x = 16; state.cameraX = 12; advance(state, 1);
+    state.player.x = VIEW.worldWidth / 2 - 1; state.cameraX = (VIEW.worldWidth - VIEW.width) / 2; advance(state, 1);
     expect(state.boss!.attack).toBeNull();
     expect(state.projectiles.filter(shot => !shot.friendly)).toHaveLength(0);
     state.player.x = 0; state.cameraX = 0; stepRun(state, EMPTY_INPUT);
@@ -113,7 +114,7 @@ describe('Bastion-9 mission', () => {
   it('offers only the fixed mission shield budget even during an extended boss fight', () => {
     for (const difficulty of ['relaxed', 'standard', 'veteran'] as const) {
       const state = createRun({ mode: 'campaign', mission: 'bastion', difficulty, seed: 5 });
-      state.player.x = -17; state.cameraX = -12; state.nextVolleyAt = Infinity;
+      state.player.x = -(VIEW.worldWidth / 2 - 1); state.cameraX = -(VIEW.worldWidth - VIEW.width) / 2; state.nextVolleyAt = Infinity;
       const cells = new Set<number>();
       for (let tick = 0; tick < 300 / STEP; tick++) {
         stepRun(state, EMPTY_INPUT);
@@ -126,29 +127,12 @@ describe('Bastion-9 mission', () => {
   });
 
   it.each((['pulse', 'fan', 'seeker'] as WeaponId[]).flatMap(weapon =>
-    (['relaxed', 'standard', 'veteran'] as Difficulty[]).map(difficulty => ({ weapon, difficulty }))))('can clear $difficulty with $weapon, starter lives, no pickups and no special', ({ weapon, difficulty }) => {
+    (['relaxed', 'standard', 'veteran'] as Difficulty[]).map(difficulty => ({ weapon, difficulty }))))('can clear $difficulty with $weapon without a hit, the special or pickups', ({ weapon, difficulty }) => {
+    // The solver pilot acts on what it saw 0.2 s earlier with the ship's exact kinematics.
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed: 53 });
-    for (let tick = 0; tick < 360 / STEP && state.phase === 'playing'; tick++) {
-      const target = state.enemies.find(enemy => enemy.hp > 0 && enemy.damageable !== false && Math.abs(enemy.x) < 5 && enemy.s > 1 && enemy.s < 19);
-      const targetX = target?.x ?? 0;
-      const candidates = Array.from({ length: 23 }, (_, index) => -5.5 + index * .5);
-      const cost = (x: number) => {
-        let danger = 0;
-        for (const shot of state.projectiles) if (!shot.friendly && shot.vs < 0) {
-          const arrival = shot.s / -shot.vs;
-          if (arrival > -.05 && arrival < 1.1 && Math.abs(shot.x + shot.vx * arrival - x) < .65) danger += 100;
-        }
-        for (const hazard of state.hazards) if (hazard.warning < .8 && Math.abs(hazard.x - x) < hazard.width / 2 + .6) danger += 100;
-        for (const enemy of state.enemies) if (enemy.kind !== 'turret' && enemy.hp > 0 && enemy.s > -1 && enemy.s < 2 && Math.abs(enemy.x - x) < enemy.radius + .7) danger += 100;
-        return danger + Math.abs(targetX - x) + Math.abs(state.player.x - x) * .2;
-      };
-      const desired = candidates.reduce((best, x) => cost(x) < cost(best) ? x : best, candidates[0]);
-      const dx = desired - state.player.x;
-      stepRun(state, { ...EMPTY_INPUT, horizontal: Math.abs(dx) < .13 ? 0 : dx < 0 ? -1 : 1 });
-      state.pickups = []; // The proof must not depend on recovery or extra equipment.
-    }
-    expect({ phase: state.phase, boss: state.boss?.phase, lives: state.player.lives, time: state.time }).toMatchObject({ phase: 'complete', boss: 'destroyed' });
-    expect(state.player.lives).toBeGreaterThan(0);
+    const log = fly(state, perfectPilot(), 360, { noPickups: true });
+    expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });
+    expect(log.hits).toBe(0);
     expect(state.specialsUsed).toBe(0);
     expect(state.time).toBeLessThan(270);
   });

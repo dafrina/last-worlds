@@ -23,9 +23,9 @@ Before implementation, read `README.md`, `docs/01-game-design.md`, `docs/05-tech
 9. Match the art brief: credible stylized spacecraft, readable forms, no toy-like or photorealistic drift. Concept images are references, never runtime backgrounds or finished model assets.
 10. Performance and visibility on actual phones take priority over extra effects or content.
 11. Lives and discrete shield charges are the only player protection resources; no hidden hull HP. Special recharge appears only on its button. Shields recover only from rare, explicitly budgeted pickups; never add passive regeneration or per-kill shield farming. A replacement life starts with full shields.
-12. The map is wider than the viewport. Lateral camera follow and optional exploration are core behavior; never clamp movement to screen edges. Read docs/10-wide-map-and-camera.md.
+12. The map is wider than the viewport (30 units, 2.5 screens, since 14 October; previously 36). Lateral camera follow and optional exploration are core behavior; never clamp movement to screen edges. Read docs/10-wide-map-and-camera.md.
 13. Side missions only observe events. Never change targeting, damage, drops, movement, camera, or enemy behavior to accommodate one. Rewards and advancement are campaign-only; statistics are separated by mode.
-14. Hero tiers are fundamentally different authored chassis. The battered starter is visibly smaller in gameplay. Keep fair documented central hit regions and no hidden stat benefits. Campaign visual unlocks do not affect endless starts.
+14. Hero tiers are fundamentally different authored chassis. Keep fair documented central hit regions and no hidden stat benefits. Campaign visual unlocks do not affect endless starts. (User decision, 14–15 October: the starter keeps its model size but gets the hitbox planned for the third tier, about 0.42 radius instead of 0.25, because the small hitbox made dodging too easy. The relative sizing of the three tiers is revisited when the tiers are implemented.)
 15. Campaign has selectable difficulty locked per attempt; endless has its own standardized sector-based difficulty ramp, independent of campaign settings. Read docs/11-campaign-difficulty.md.
 
 ## Implementation rules

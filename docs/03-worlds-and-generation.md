@@ -31,7 +31,7 @@ Enemies entering from a side cannot attack until fully visible and warned. Airfr
 
 Aim at the player's current horizontal position only at a documented commit point. Once a projectile launches, standard shots do not track. A locked beam does not move with the player. If a tracking special enemy is added later, it needs its own unmistakable appearance and rule.
 
-In the prototype the commit point is the start of the windup: the warning line is drawn to the committed point and the shot is released when the warning ends. A squadron member may add an authored lateral **aim offset** to the committed player x (bracketing). The offset is part of the template, is committed at the same moment, is shown by the same warning line, and never tracks afterwards. Each archetype keeps its own attack shape: Dart one aimed shot, Weaver two parallel aimed shots 1 unit apart, Spike Battery an aimed three-round fan, Lancer a 0.8-unit beam lane.
+In the prototype the commit point is the start of the windup: the warning line is drawn to the committed point and the shot is released when the warning ends. A squadron member may add an authored lateral **aim offset** to the committed player x (bracketing). The offset is part of the template, is committed at the same moment, is shown by the same warning line, and never tracks afterwards. Each archetype keeps its own attack shape: Dart one aimed shot, Weaver two parallel aimed shots 1.5 units apart (widened from 1 unit on 15 October so the lane between them still fits the 0.42 collider), Spike Battery an aimed three-round fan, Lancer a 0.8-unit beam lane.
 
 ### Authored squadrons
 
@@ -51,7 +51,7 @@ Squadrons are authored templates in `src/content/formations.ts`: a leader path a
 | `battery-2/3/4` | 2–4 Spike Batteries | Fixed to the scrolling ground | Staggered fans 0.7–1 s apart | Destroy one to remove its layer |
 | `solo-*` | One dart, weaver, lancer or battery | As above | As above | Teaching and recovery |
 
-Squadrons dive in or climb out in 1.4 s, sweep and strafe about 25% faster than the first squadron pass, hold their row for 4–8.5 s and repeat their volleys while they hold. Base repeat intervals are Dart 1.85 s, Weaver 2.2 s, Spike Battery 1.85 s and Lancer 3.2 s, scaled by difficulty. Base shot speeds are Dart 7.9, Weaver 6.6 and Spike Battery 7.3 units/s. Ground batteries move with the terrain scroll (`VIEW.scrollSpeed`, 5 units/s since 14 October 2026). Within one squadron no two windups start less than 0.3 s apart, so a squadron never fires as one wall. Held rows keep every member inside the view while it may fire. No member spawns inside the view or behind the player; every path ends outside the view.
+Squadrons dive in or climb out in 1.4 s, sweep and strafe about 25% faster than the first squadron pass, hold their row for 4–8.5 s and repeat their volleys while they hold. Base repeat intervals are Dart 1.2 s, Weaver 1.5 s, Spike Battery 1.4 s and Lancer 2.6 s, scaled by difficulty (shortened on 15 October: fewer enemies at once, each firing more often). Base shot speeds are Dart 7.9, Weaver 6.6 and Spike Battery 7.3 units/s. Ground batteries move with the terrain scroll (`VIEW.scrollSpeed`, 5 units/s since 14 October 2026). Within one squadron no two windups start less than 0.3 s apart, so a squadron never fires as one wall. Squadrons never overlap one another; see the airspace rule in §6. Held rows keep every member inside the view while it may fire. No member spawns inside the view or behind the player; every path ends outside the view.
 
 Biome variants retain recognizable silhouettes and base mechanics. Material, exhaust, wing attachments, volley timing, and formation may vary within validated limits. A fast variant must be labeled visually; a recolor alone must not secretly triple bullet speed.
 
@@ -61,16 +61,16 @@ Bosses are authored state machines with targetable modules and readable phase tr
 
 ### Bastion-9: the vertical-slice centerpiece
 
-Occupies the upper third of the view while terrain moves underneath. Its body is visibly below the aircraft, with two elevated weapon housings and a central core. The large ground silhouette communicates scale; projected combat targets communicate where to shoot.
+Rolls in as the terrain eases to a stop, then fights over a static arena platform (the exact stop and platform range are in [wide map and camera](10-wide-map-and-camera.md#5-encounters-bosses-and-boundaries)); it maneuvers within ±1.1 laterally and ±0.9 forward/back. Its body is visibly below the aircraft, with two elevated weapon housings and a central core. The large ground silhouette communicates scale; projected combat targets communicate where to shoot.
 
 | Phase | Targets / starting HP | Pattern | Tactical decision |
 | --- | --- | --- | --- |
 | Arrival, 3 s | None damageable until markers activate | Fortress rolls in, dust trails, shutters open; no incoming attack | Read the layout |
-| 1: artillery | Left and right battery, 400 HP each | Alternate aimed bursts; 0.8 s warning and 0.3 s locked interval included within warning | Choose which gun to remove first |
-| 2: core | Core, 1,600 HP after both batteries break | Slow fans with wide safe gaps; at most two Dart escorts at once | Stay aligned while timing lateral dodges |
-| 3: overload | Same core at below 40% remaining HP | Alternate fixed beam lanes with at least one broad reachable safe lane; larger warning glow | Commit damage during recovery windows |
+| 1: artillery | Left and right battery, 400 HP each | Alternate aimed three-bolt bursts; 1.0 s warning, 0.75 s recovery | Choose which gun to remove first |
+| 2: core | Core, 1,600 HP after both batteries break | Fixed five-way fan alternating with an aimed five-bolt burst; 1.0 s warning, 0.75 s recovery | Stay aligned while timing lateral dodges |
+| 3: overload | Same core at below 40% remaining HP | Lanes over the fortress's own hit columns, alternating: a 2.4-wide lane over the core column, then 1.4-wide lanes over both battery columns, which leave the core column open as the damage window. Marked for 1.4 s (1.25 s windup plus 0.15 s flash), active 0.35 s, 0.75 s recovery | Leave the core column on its lane; return to it while the battery lanes fire |
 
-Phase 3 is a pattern transition, not restored HP. The minimal HUD communicates boss damage through visible weakpoints rather than a default extra bar. Removed guns remain destroyed and cannot keep shooting. Escorts are finite per sequence and yield no special-charge or drop farming if repeatedly summoned. Transition waits at least 0.75 s before introducing new threats; remove incompatible lingering hazards.
+Every fortress attack passes the same director exclusion check as squadron attacks (§6); a rejected attack switches to its alternate pattern and retries after 0.25 s, so the fortress never stalls. A hit no longer cancels a fortress windup in progress; leaving the view still does. Phase 3 is a pattern transition, not restored HP. The minimal HUD communicates boss damage through visible weakpoints rather than a default extra bar. Removed guns remain destroyed and cannot keep shooting. Escorts are finite per sequence and yield no special-charge or drop farming if repeatedly summoned. Transition waits at least 0.75 s before introducing new threats; remove incompatible lingering hazards.
 
 Boss destruction is a sequence: module sparks → internal flashes → chassis collapse → short expanding shock ring → reduced smoke. The reward summary starts only after dangerous entities are cleared. The scene should stay responsive to pause throughout.
 
@@ -141,12 +141,13 @@ Pressure alternates between introduction, pressure, recovery, pressure, climax, 
 
 Content lives in `src/content/encounters.ts` (cue sequences) and `src/content/formations.ts` (squadron templates, §2); the director is `updateDirector` in `src/sim/game.ts`. There are five authored sequences: Training (120 s), the Rolling Thunder approach (cues to 98 s, then relief before Bastion-9 at 115 s), and three endless playlists: opening (sector 1), pressure (sectors 2–3) and peak (sector 4 onward, repeated at the capped ramp). Each sequence follows the arc exactly once: intro → pressure → recovery → pressure → climax → recovery.
 
-- **Cue.** A time, a pacing label, one or more squadron placements, and an optional message and authored pickup. Pressure cues overlap: a new squadron arrives every 3–5 s while earlier ones still hold their rows. Recovery cues carry at most 6 threat and are followed by at least 5 s before the next cue.
-- **Placement anchor.** A `view` anchor resolves to the camera center when the cue is admitted, clamped to the camera range, so the mandatory battle follows the player across the wide map. A `world` anchor pins optional side-route content (salvage west, outpost east) to a world x. Both use the same templates; mirrors and lateral offsets of at most 2 units are the only variants.
+- **Cue.** A time, a pacing label, one or more squadron placements, and an optional message and authored pickup. Pressure cues come every 2–6 s, alternating air squadrons with ground batteries; an air squadron waits for clear airspace (below), so batteries arrive beneath the squadron in flight. Recovery cues carry at most 6 threat and are followed by at least 5 s before the next cue.
+- **Placement anchor.** A `view` anchor resolves to the camera center when the cue is admitted, clamped to ±7 (two units inside the camera range), so the mandatory battle follows the player across the wide map but never pins the ship against a world edge. A `world` anchor pins optional side-route content (salvage west, outpost east) to a world x. Both use the same templates; mirrors and lateral offsets of at most 2 units are the only variants.
 - **Two-flank alert.** A cue containing a two-sided entry first shows its alert, then admits the members 1.4 s later. If another message overwrites the alert or it goes stale before admission, the alert is shown again with the full lead.
+- **Airspace (15 October 2026).** Squadrons never overlap. A cue is admitted only if its predicted flight keeps every member at least 2.2 units from every member of another squadron. In addition, no two air squadrons whose lateral extents could share one screen may occupy forward bands closer than 1 unit while either is in the visible band. Otherwise the cue waits. The rule uses world positions only, sampled every 0.1 s with swept extents and a 0.35 safety margin. Ground batteries are terrain targets: they keep separation from each other and may pass beneath an air squadron. In practice one air squadron flies at a time, and cue times are earliest times. A pilot who destroys squadrons quickly meets the next one sooner.
 - **Admission.** A cue is admitted whole or not at all. Threat costs are Dart 1, Weaver 2, Spike Battery 2, Lancer 3. Surviving enemies plus the new cue must fit the live threat budget of the current scale ([campaign difficulty](11-campaign-difficulty.md), §8 for endless) and the 24-enemy ceiling; otherwise the cue waits. Every authored cue fits every scale that flies it.
 - **Windup gate.** A member may start a windup only inside its template's firing window, while fully visible and above the s = 3.5 attack floor. A cap limits simultaneous windups (3–7 by scale) and marked beam lanes (1–2 by scale).
-- **Exclusion windows.** Before committing a windup, the director predicts the row footprints of every committed hazard (shots in flight, marked beams, windups already running, airframe paths through the player row) plus the new attack. It admits the windup only if, in every 0.25 s simultaneity window over the next 4.5 s, a physical clear gap of at least 1.4 units remains in the view, both view edges and the center are never blocked together, and a conservative player model can still reach a clear position: 0.2 s reaction, 0.15 s maneuver delay, then 80% of the drive's top speed (9.6 units/s with Balanced Drive's 12), with the collider plus 0.15 comfort margin on each side of every hazard. A rejected windup waits 0.25 s and is checked again; its pattern is never edited and existing bullets are never moved. If the player is already committed to an unavoidable hit, only the gap and seal rules apply, so the director neither stalls nor quietly eases off.
+- **Exclusion windows.** Before committing a windup, the director predicts the row footprints of every committed hazard (shots in flight, marked beams, windups already running, airframe paths through the player row) plus the new attack. It admits the windup only if, in every 0.25 s simultaneity window over the next 6 s, a physical clear gap of at least 1.74 units remains in the view, both view edges and the center are never blocked together, and a conservative player model can still reach a clear position: 0.2 s reaction, 0.15 s maneuver delay, then 80% of the current top speed (9.6 units/s at campaign pace), with the collider plus 0.15 comfort margin on each side of every hazard. The check now looks 6 s ahead (was 4.5 s) so the slowest committed pattern, a Relaxed core fan landing about 5.1 s after its windup, is included. A rejected windup waits 0.25 s and is checked again; its pattern is never edited and existing bullets are never moved. If the player is already committed to an unavoidable hit, only the gap and seal rules apply, so the director neither stalls nor quietly eases off.
 - **Pool limit.** If a volley would overflow the projectile pool, the whole volley is skipped; a fixed pattern is never trimmed bullet by bullet.
 
 Hit invulnerability (0.65 s) no longer cancels windups in progress; it only blocks new windups until 0.3 s before it ends. Respawn still clears hostile shots in view, cancels all windups and delays new attacks for 2 s, as specified in [combat](02-combat-and-progression.md#1-lives-and-shield-charges).
@@ -159,7 +160,7 @@ Initial constraints:
 
 - At least 0.65 s from first readable warning to a threatening shot; beams at least 0.9 s. These are floors, not sufficient by themselves to guarantee dodgeability.
 - At least 0.30 s after aim locks before impact is possible. Increase this when required by travel distance and acceleration.
-- Safe intervals must include player collider radius, an additional 0.15-unit comfort margin on each side, and movement time. Target a minimum clear gap of 1.4 units; bosses usually give more.
+- Safe intervals must include player collider radius, an additional 0.15-unit comfort margin on each side, and movement time. Target a minimum clear gap of 1.4 units; bosses usually give more. With the 0.42 collider adopted on 15 October the gap scales to 2 × (0.42 + 0.15) + 0.6 = 1.74 units, keeping the same 0.6 units of free movement; the edge and center seal strips use the same width.
 - No spawn or scheduled hazard may overlap the player's body without prior warning. No attack may require a special, pickup, upgraded reactor tech, or destroying an enemy in time to avoid certain damage.
 - No simultaneous hazards that seal both screen edges and the center. Decorative occluders cannot cover the playfield or aim indicators.
 
@@ -172,7 +173,8 @@ This algorithm is a guardrail, not a proof that a human finds the pattern fair. 
 - each release came at least 0.65 s after its windup started, and beams were marked for at least 0.9 s;
 - lock to earliest impact was at least 0.30 s;
 - no windup started out of view and no shot appeared without a completed windup;
-- every 0.25 s window of actual hazards left a 1.4-unit gap in the view and never sealed both edges and the center.
+- every 0.25 s window of actual hazards left a 1.74-unit gap and never sealed both edges and the center, judged in the view where the latest hazard was committed (the view the director checked);
+- no two squadrons ever overlapped or shared rows (the airspace rule, observed every tick).
 
 Branches are recomputed by flying several pilots: a perfect pilot (the safe-gap solver with the simulation's exact acceleration, braking and top speed, acting on what it saw 0.2 s earlier, with no special and no pickups), an idle pilot and a simple dodger. Each aimed commitment is therefore resolved against each branch. Coverage:
 
@@ -185,18 +187,29 @@ The perfect pilot must take no hit in isolated squadrons and lose no life in any
 
 Sector combat duration is 90 seconds excluding draft pauses. Every third sector ends with a boss; stop adding ordinary chunks before its entry. Boss duration may extend the sector by up to 60 seconds; if time expires, the boss retreats, awards no kill reward, and the run continues. Never kill the player merely for low damage output. Campaign bosses do not retreat.
 
-Difficulty by sector `s >= 1` (runtime source: `ENDLESS_RAMP` in `src/content/balance.ts`; revised 14 October 2026 to start harder and ramp sooner):
+Difficulty by sector `s >= 1` (runtime source: `ENDLESS_RAMP` and `PACE` in `src/content/balance.ts`; revised 14 and 15 October 2026):
 
 ```
+pace                = min(0.8 + 0.075 * (s - 1), 1.1)  // eased over the first 5 s of each sector
 healthScale         = min(1 + 0.08 * (s - 1), 1.60)    // cap reached in sector 9
-bulletSpeedScale    = min(1 + 0.04 * (s - 1), 1.30)    // cap reached in sector 9
+bulletSpeedScale    = min(1 + 0.04 * (s - 1), 1.25)    // times the pace's shot factor (0.91 at 0.8, 1.05 at 1.1)
 attackIntervalScale = max(1 - 0.06 * (s - 1), 0.70)    // repeat volleys; floor reached in sector 6
-threatBudget        = min(22 + 3 * (s - 1), 34)        // live threat incl. survivors; cap in sector 5
+threatBudget        = min(14 + 2 * (s - 1), 22)        // live threat incl. survivors; cap in sector 5
 windups / beam lanes = 5 / 1 in sectors 1-2, 7 / 2 from sector 3
 squadron variant    = base in sectors 1-2, Veteran wingmen from sector 3
 playlist            = opening (sector 1), pressure (2-3), peak (4+)
 ```
 
-The previous proposal was `healthScale = min(1 + 0.06(s − 1), 1.60)`, `bulletSpeedScale = min(1 + 0.025(s − 1), 1.25)` and a per-chunk `threatBudget = min(8 + 2(s − 1), 24)`, with no cadence, windup or variant ramp. Sector 1 starts with squadrons from second 2, but the first 20 s stay an introduction: a ship that never moves loses its first life at about 28 s. After those caps, repeat at capped difficulty with new order and biome rotations. Endless means no scripted final stage, not infinitely accelerating bullets. No global timer that eventually makes all patterns impossible. Bullet count, warning time, and safe-path constraints remain hard limits at every sector.
+**Pace.** Pace scales the terrain scroll, ship kinematics, enemy movement (squadron paths, fire offsets and repeat intervals run on an enemy clock at the pace; ground batteries move with the scroll), camera follow and pickup drift together. The anchors are:
+
+| Pace | Scroll | Ship speed / acceleration / braking | Camera follow | Shot-speed factor |
+| --- | --- | --- | --- | --- |
+| 0.8 (sector 1, the pre-14-October pace) | 4 | 10 / 70 / 100 | 14 | 0.91 |
+| 1.0 (campaign) | 5 | 12 / 90 / 125 | 17 | 1 |
+| 1.1 (sector 5 onward) | 5.5 | 13.2 / 99 / 137.5 | 18.7 | 1.05 |
+
+Values interpolate linearly between anchors. Sector values are 0.8, 0.875, 0.95, 1.025 and then 1.1. Warnings are real seconds and never scale with the pace. Campaign always flies pace 1.
+
+The 14 October proposal was `healthScale = min(1 + 0.08(s − 1), 1.6)`, `bulletSpeedScale = min(1 + 0.04(s − 1), 1.3)` and `threatBudget = min(22 + 3(s − 1), 34)` at a constant pace. The original proposal was `min(1 + 0.06(s − 1), 1.6)`, `min(1 + 0.025(s − 1), 1.25)` and a per-chunk `min(8 + 2(s − 1), 24)`. Sector 1 starts with squadrons from second 2, but the first 20 s stay an introduction: a ship that never moves loses its first life at about 29 s. After those caps, repeat at capped difficulty with new order and biome rotations. Endless means no scripted final stage, not infinitely accelerating bullets. No global timer that eventually makes all patterns impossible. Bullet count, warning time, and safe-path constraints remain hard limits at every sector.
 
 Use stable PRNG streams for loot, terrain, and cosmetics derived from `runSeed + generatorVersion`. Encounter order and parameters come from the authored schedule, without encounter RNG. Log executed chunk IDs and parameters for reproductions. Changing grass density must not change enemy order or drops. Record simulation/content version with a score; exact cross-browser bit-identical replay is not promised for v1.

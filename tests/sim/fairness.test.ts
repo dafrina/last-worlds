@@ -11,6 +11,7 @@ import { FairnessTrace } from './fairness-trace';
 import { dodgerPilot, fly, idlePilot, perfectPilot, type Pilot } from './pilots';
 
 const DIFFICULTY_IDS: readonly Difficulty[] = ['relaxed', 'standard', 'veteran'];
+const WORLD_EDGE = VIEW.worldWidth / 2 - VIEW.playerRadius;
 const R = VIEW.playerRadius;
 
 /** Every scale the content can fly at: three campaign settings plus the first and capped endless sectors. */
@@ -34,7 +35,7 @@ describe('authored formation content', () => {
       for (let i = 1; i < template.path.length; i += 1) expect(template.path[i][0]).toBeGreaterThan(template.path[i - 1][0]);
       expect(template.fireUntil).toBeGreaterThan(template.fireFrom);
       expect(template.slots.length).toBeGreaterThan(0);
-      for (const [slot, member] of template.slots.map((slot, index) => [slot, { template: id, slot: index, anchorX: 0, mirror: 1 as const }] as const)) {
+      for (const [slot, member] of template.slots.map((slot, index) => [slot, { template: id, slot: index, anchorX: 0, mirror: 1 as const, group: 0 }] as const)) {
         const at = memberPosition(member, 0);
         // Never spawn inside the view or behind the player: above it, beside it, or on the scrolling ground.
         if (template.entry === 'top') expect(at.s, `${id} slot ${member.slot}`).toBeGreaterThan(VIEW.maxS + 0.5);
@@ -71,12 +72,12 @@ describe('authored formation content', () => {
           if (!holds) continue;
           const radius = ENEMIES[slot.kind].radius;
           for (let t = template.fireFrom; t <= template.fireUntil; t += 0.05) {
-            const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1 }, (slot.lag ?? 0) + t);
+            const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0 }, (slot.lag ?? 0) + t);
             expect(Math.abs(at.x), `${id} slot ${index} in view at path time ${t.toFixed(2)}`).toBeLessThanOrEqual(VIEW.width / 2 - radius - 0.2);
           }
         }
         for (const { slot, index } of flying) {
-          const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1 }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
+          const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0 }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
           const radius = ENEMIES[slot.kind].radius;
           expect(Math.abs(at.x), `${id} slot ${index} lateral`).toBeLessThanOrEqual(VIEW.width / 2 - radius - 0.2);
           expect(at.s, `${id} slot ${index} forward`).toBeGreaterThan(3.5);
@@ -152,7 +153,7 @@ describe('authored cue sequences', () => {
       const offset = placement.x ?? 0;
       expect(Math.abs(offset), `${name} ${cue.id} offset`).toBeLessThanOrEqual(2);
       template.slots.forEach((slot, index) => {
-        const at = memberPosition({ template: template.id, slot: index, anchorX: offset, mirror: placement.mirror ? -1 : 1 }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
+        const at = memberPosition({ template: template.id, slot: index, anchorX: offset, mirror: placement.mirror ? -1 : 1, group: 0 }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
         expect(Math.abs(at.x), `${name} ${cue.id} slot ${index}`).toBeLessThanOrEqual(VIEW.width / 2 - ENEMIES[slot.kind].radius - 0.2);
       });
     }
@@ -167,20 +168,22 @@ describe('authored cue sequences', () => {
   });
 
   it('announces every two-flank pincer before any member enters, and re-announces after an interruption', () => {
-    const state = createRun({ mode: 'endless', seed: 3 });
+    // A pilot that clears squadrons keeps the airspace moving so the pincer cue is reached in its sector.
+    const state = createRun({ mode: 'campaign', mission: 'training', seed: 3 });
     state.player.invulnerableUntil = Infinity;
-    const pincer = ENDLESS_SECTORS.opening.findIndex(cue => cueAlert(cue));
+    const pincer = TRAINING.findIndex(cue => cueAlert(cue));
     expect(pincer).toBeGreaterThan(0);
-    const cue = ENDLESS_SECTORS.opening[pincer];
-    const alert = cueAlert(cue)!;
+    const alert = cueAlert(TRAINING[pincer])!;
+    const pilot = perfectPilot();
     let alertAt: number | null = null;
     let entered: number | null = null;
-    while (state.time < cue.at + 6 && entered === null) {
-      stepRun(state, { horizontal: 0, specialPressed: false, pausePressed: false });
+    let interrupted = false;
+    while (state.phase === 'playing' && entered === null) {
+      stepRun(state, pilot(state));
       if (state.message === alert && alertAt === null) alertAt = state.time;
       if (state.enemies.some(enemy => enemy.formation?.template === 'pincer-4')) entered = state.time;
       // An unrelated message overwrites the alert once: the full lead must restart.
-      if (alertAt !== null && state.time - alertAt > 0.5 && state.time - alertAt < 0.5 + 1 / 60) state.message = 'SHIELD CELL AHEAD';
+      if (alertAt !== null && !interrupted && state.time - alertAt > 0.5) { state.message = 'SHIELD CELL AHEAD'; interrupted = true; }
     }
     expect(alertAt).not.toBeNull();
     expect(entered).not.toBeNull();
@@ -240,7 +243,7 @@ describe('formation hazard unions (isolated squadrons)', () => {
 
   it.each(cases)('$id (mirror $mirror): reachable 1.4 gap, no seal, warning/lock floors, on every branch', ({ id, mirror }) => {
     for (const { label, config, sector } of scales) {
-      const starts = label === 'standard' ? [-3, 0, 3, 15] : [0];
+      const starts = label === 'standard' ? [-3, 0, 3, WORLD_EDGE - 0.5] : [0];
       for (const startX of starts) {
         for (const branch of BRANCHES) {
           if (branch.name !== 'perfect' && startX !== 0) continue;

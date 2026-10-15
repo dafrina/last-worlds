@@ -1,6 +1,6 @@
 /** Development-only visual fixture; this HTML is not a Vite production entry. */
 import { createRun, stepRun } from '../../src/sim/game';
-import { startBastion, bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
+import { arenaScroll, startBastion, bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
 import { createInput } from '../../src/input/controls';
@@ -10,7 +10,9 @@ import { BASTION } from '../../src/content/bastion';
 const query = new URLSearchParams(location.search);
 let state = createRun({ mode: 'campaign', mission: 'bastion', seed: Number(query.get('seed') ?? 8831) });
 function prepare() {
-  state.time = BASTION.arrivesAt; state.distance = state.time * VIEW.scrollSpeed; startBastion(state);
+  state.time = BASTION.arrivesAt;
+  // The arena scroll is a closed form of time: the terrain is decelerating toward its stop as the fortress rolls in.
+  const scroll = arenaScroll(state.time, null); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
   for (let i = 0; i < 181; i++) stepRun(state, EMPTY_INPUT);
   if (['core', 'overload', 'destroyed'].includes(query.get('phase') ?? '')) {
     bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);

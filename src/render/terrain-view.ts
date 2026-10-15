@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  KIT, KIT_KINDS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, terrainHeight,
+  KIT, KIT_KINDS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, sameArena, terrainHeight, type TerrainArena,
   type IndustryPiece, type RoadPath, type TerrainSection,
 } from '../world/terrain';
 import { GROUND_TILE, INFRA_NODES, createFallbackKit, type KitGeometries } from './terrain-kit';
@@ -90,6 +90,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   let kit: KitGeometries = createFallbackKit(), infra: KitGeometries = new Map(options.fallbackInfra), shared: KitGeometries = new Map(options.fallbackShared);
   let kitSource: TerrainStats['kit'] = 'fallback', infraSource: TerrainStats['infra'] = 'fallback', sharedSource: TerrainStats['shared'] = 'fallback';
   let quality: GraphicsQuality = 'high', seed: number | null = null, stream = createTerrainStream(0);
+  /** The mission arena the current stream was built with (none in endless and training). */
+  let arena: TerrainArena | undefined;
   const views = new Map<number, SectionView>(), batches = new Map<string, Batch>();
   const pieces = new THREE.Group(); pieces.name = 'Khepri instanced scenery'; scene.add(pieces);
   const edgeGeometry = new THREE.BoxGeometry(0.06, 0.018, 1.5);
@@ -294,7 +296,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   }
 
   function* buildGround(section: TerrainSection, view: SectionView): Generator<void, void, void> {
-    const vertices = section.side * section.side, uv = new Float32Array(vertices * 2), surface = new Float32Array(vertices * 4);
+    const vertices = section.across * section.along, uv = new Float32Array(vertices * 2), surface = new Float32Array(vertices * 4);
     const veins = new Float32Array(vertices * 2);
     for (let i = 0; i < vertices; i++) {
       uv[i * 2] = section.positions[i * 3] / GROUND_TILE; uv[i * 2 + 1] = -section.positions[i * 3 + 2] / GROUND_TILE;
@@ -316,8 +318,8 @@ export function createTerrainView(options: TerrainViewOptions) {
       geometry.setIndex(index); geometry.setDrawRange(strip.start, strip.count);
       const box = new THREE.Box3(new THREE.Vector3(strip.minX, Infinity, -section.size), new THREE.Vector3(strip.maxX, -Infinity, 0));
       const first = Math.round((strip.minX + VIEW.worldWidth / 2) / TERRAIN_STEP), last = Math.round((strip.maxX + VIEW.worldWidth / 2) / TERRAIN_STEP);
-      for (let row = 0; row < section.side; row++) for (let column = first; column <= last; column++) {
-        const y = section.positions[(row * section.side + column) * 3 + 1];
+      for (let row = 0; row < section.along; row++) for (let column = first; column <= last; column++) {
+        const y = section.positions[(row * section.across + column) * 3 + 1];
         box.min.y = Math.min(box.min.y, y); box.max.y = Math.max(box.max.y, y);
       }
       geometry.boundingBox = box.clone(); geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
@@ -334,7 +336,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       const marks = new THREE.InstancedMesh(edgeGeometry, boundaryMaterial, Math.ceil(section.size / 3));
       let i = 0;
       for (let s = 0; s < section.size; s += 3) {
-        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s) + 0.035, -s);
+        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s, arena) + 0.035, -s);
         transform.rotation.set(0, 0, 0); transform.scale.set(1, 1, 1); transform.updateMatrix(); marks.setMatrixAt(i++, transform.matrix);
       }
       marks.count = i; marks.computeBoundingSphere(); holder.add(marks); view.instanced.push(marks);
@@ -447,13 +449,17 @@ export function createTerrainView(options: TerrainViewOptions) {
   }
 
   return {
-    /** Keeps the three-section window built for the current seed and forward distance. */
-    update(nextSeed: number, nextDistance: number) {
+    /**
+     * Keeps the three-section window built for the seed and forward distance. `nextArena` (a mission's boss
+     * platform, in world s) settles that stretch into a flat arena; omit it for endless and training. A new
+     * seed or arena rebuilds the window.
+     */
+    update(nextSeed: number, nextDistance: number, nextArena?: TerrainArena) {
       distance = nextDistance;
-      if (seed !== nextSeed) {
+      if (seed !== nextSeed || !sameArena(arena, nextArena)) {
         views.forEach(disposeView); views.clear(); stream.clear();
         discardPrebuilt();
-        seed = nextSeed; stream = createTerrainStream(seed);
+        seed = nextSeed; arena = nextArena && { fromS: nextArena.fromS, toS: nextArena.toS }; stream = createTerrainStream(seed, arena);
       }
       const active = stream.update(distance), live = new Set(active.map(section => section.index));
       for (const [index, view] of views) if (!live.has(index)) { disposeView(view); views.delete(index); }

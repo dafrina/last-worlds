@@ -7,7 +7,7 @@ import { VIEW } from '../shared/contracts';
  * regardless of load order. No three.js, DOM, combat, loot, or Math.random.
  */
 export const WORLD_HALF = VIEW.worldWidth / 2;
-/** Scenery tops never exceed this, leaving 0.8 clearance under the flight plane at y = 3. */
+/** Scenery tops never exceed this, well under the flight plane (VIEW.flightHeight). */
 export const SCENERY_MAX_HEIGHT = 2.2;
 /** Heightfield rims stay below the scenery cap so rim columns can still crown them. */
 export const TERRAIN_MAX_HEIGHT = 2;
@@ -17,7 +17,8 @@ const FLOOR_LEVEL = -6.3, RELIEF = TERRAIN_MAX_HEIGHT - FLOOR_LEVEL;
 /** Authored routes (center patrol, west/east optional routes) get softly calmer terrain, never walls. */
 export type Route = 0 | 1 | 2;
 export const ROUTES: readonly Route[] = [0, 1, 2];
-export const ROUTE_AXES = [-11.5, 0, 11.5] as const;
+/** Side routes sit about two thirds of the way out (±9.5 in the 30-wide world), where the camera can still centre them. */
+export const ROUTE_AXES = [-9.5, 0, 9.5] as const;
 
 /** Low warm sun from the upper left and beyond the top of the view; shadows fall to the lower right. */
 const SUN_ELEVATION = 28 * Math.PI / 180;
@@ -219,7 +220,7 @@ export function crater(seed: number, x: number, s: number, calm = 0): { height: 
  * Slope-driven albedo (linear RGB): steep faces dark columnar basalt, flat ground ochre dust, rims and
  * ledges lighter dust, valley bottoms darker with minerals. `slope` is |∇h| from central differences.
  */
-export function pointColor(row: { seed: number; s: number }, x: number, point: Landform & { industrial: number }, slope: number, rim: number): [number, number, number] {
+export function pointColor(row: { seed: number; s: number }, x: number, point: Landform & { industrial: number; platform?: number; paving?: number; plate?: number }, slope: number, rim: number): [number, number, number] {
   const { seed, s } = row;
   const drift = noise(seed ^ 0x51ab, x * 0.05, s * 0.032), broad = noise(seed ^ 0x5a1b, x * 0.11, s * 0.08);
   const fine = noise(seed ^ 0x1234, x * 0.9, s * 0.9);
@@ -234,6 +235,8 @@ export function pointColor(row: { seed: number; s: number }, x: number, point: L
     ground = mix(ground, P.rimDust[channel], rim * (1 - steep) * 0.7);
     let value = mix(ground, mix(P.basalt[channel], P.basaltDark[channel], fine), steep * 0.92);
     value = mix(value, P.industrial[channel], point.industrial * 0.35);
+    // Arena paving: plates varying in tone, cracks weathered dark.
+    if (point.platform) value = mix(value, mix(value * (0.95 + 0.11 * (point.plate ?? 0)), P.dustDark[channel], (point.paving ?? 0) * 0.55), point.platform);
     return mix(value, P.mineralBed[channel], point.pool * 0.25);
   };
   const grain = 0.96 + fine * 0.08;

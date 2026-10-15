@@ -101,7 +101,7 @@ const templates = [
   {
     // Echelon right as authored; the echelon-left variant is the validated mirror placement.
     id: 'echelon-4', name: 'Echelon of four darts strafing across', entry: 'top',
-    path: [[0, 5, 23], [1.75, 1.8, 12.5], [6.7, -1.8, 10.5], [8.3, -12.5, 10]], fireFrom: 1.05, fireUntil: 6.7,
+    path: [[0, 5, 23], [1.75, 1.8, 12.5], [6.7, -1.8, 10.5], [8.4, -13, 10]], fireFrom: 1.05, fireUntil: 6.7,
     slots: [
       { kind: 'dart', dx: 0, fire: 0 },
       { kind: 'dart', dx: 1.3, ds: 1.1, fire: 0.45, aim: 1.4 },
@@ -112,7 +112,7 @@ const templates = [
   },
   {
     id: 'snake-weaver-5', name: 'Weaver column sweeping across', entry: 'side',
-    path: [[0, -8.5, 13.5], [6, 8.5, 11]], sway: { axis: 's', amp: 1.1, period: 2 }, fireFrom: 1.2, fireUntil: 5.1,
+    path: [[0, -7.6, 13.5], [5.4, 7.6, 11]], sway: { axis: 's', amp: 1.1, period: 2 }, fireFrom: 0.85, fireUntil: 4.65,
     slots: [
       { kind: 'weaver', dx: 0, fire: 0 },
       { kind: 'weaver', dx: 0, lag: 0.5, fire: 0.5, aim: 1.3 },
@@ -123,7 +123,7 @@ const templates = [
   },
   {
     id: 'pincer-4', name: 'Pincer pairs from both flanks', entry: 'both', alert: 'PINCER · BOTH FLANKS',
-    path: [[0, -8.6, 11.5], [1.35, -3.3, 11.5], [8, -3, 10.5], [9.3, -9.5, 12]], fireFrom: 1.5, fireUntil: 8,
+    path: [[0, -7.6, 11.5], [1.1, -3.3, 11.5], [8, -3, 10.5], [9.2, -8.4, 12]], fireFrom: 1.3, fireUntil: 8,
     slots: [
       { kind: 'dart', dx: 0, fire: 0 },
       { kind: 'dart', dx: 0, flip: true, fire: 0.55 },

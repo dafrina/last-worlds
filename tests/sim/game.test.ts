@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, ENDLESS_RAMP, difficultyScales } from '../../src/content/balance';
 import { TRAINING } from '../../src/content/encounters';
-import { EMPTY_INPUT, STEP, type Enemy, type RunState } from '../../src/shared/contracts';
+import { EMPTY_INPUT, STEP, VIEW, type Enemy, type RunState } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { segmentCircleHit } from '../../src/sim/geometry';
+
+const PLAYER_LIMIT = VIEW.worldWidth / 2 - VIEW.playerRadius;
+const CAMERA_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
 
 function quietRun(): RunState {
   const state = createRun({ mode: 'campaign', seed: 17 });
@@ -140,13 +143,13 @@ describe('lives, shield charges, and special', () => {
   it('respawns in the current map region and loses endless power only', () => {
     const state = createRun({ mode: 'endless', seed: 1 });
     state.player.x = 11;
-    state.cameraX = 9;
+    state.cameraX = 8.5;
     state.player.shields = 0;
     state.player.weapon = 'fan';
     state.player.power = 3;
     hitPlayer(state, 1);
     expect(state.player.x).toBe(11);
-    expect(state.cameraX).toBe(9);
+    expect(state.cameraX).toBe(8.5);
     expect(state.player.power).toBe(2);
     expect(state.player.weapon).toBe('fan');
   });
@@ -267,8 +270,8 @@ describe('rare shield-supply quotas', () => {
   it('places supplies ahead within the current view at both world edges', () => {
     for (const side of [-1, 1]) {
       const state = quietRun();
-      state.player.x = side * 17.75;
-      state.cameraX = side * 12;
+      state.player.x = side * PLAYER_LIMIT;
+      state.cameraX = side * CAMERA_LIMIT;
       state.time = 40 - STEP;
       stepRun(state, EMPTY_INPUT);
       const cell = state.pickups.find(pickup => pickup.kind === 'shield')!;
@@ -294,12 +297,12 @@ describe('wide world, scheduling, and mode boundaries', () => {
   it('travels beyond the viewport, follows the dead zone, and stops at true world bounds', () => {
     const state = quietRun();
     for (let i = 0; i < 180; i += 1) stepRun(state, { ...EMPTY_INPUT, horizontal: 1 });
-    expect(state.player.x).toBe(17.75);
-    expect(state.cameraX).toBe(12);
+    expect(state.player.x).toBe(PLAYER_LIMIT);
+    expect(state.cameraX).toBe(CAMERA_LIMIT);
     expect(state.player.vx).toBe(0);
     for (let i = 0; i < 300; i += 1) stepRun(state, { ...EMPTY_INPUT, horizontal: -1 });
-    expect(state.player.x).toBe(-17.75);
-    expect(state.cameraX).toBe(-12);
+    expect(state.player.x).toBe(-PLAYER_LIMIT);
+    expect(state.cameraX).toBe(-CAMERA_LIMIT);
   });
 
   it('pauses without advancing simulation or recharge', () => {
@@ -366,8 +369,8 @@ describe('wide world, scheduling, and mode boundaries', () => {
   it('retains fired projectiles when the camera moves away', () => {
     const state = quietRun();
     state.projectiles.push({ id: state.nextId++, x: -3, s: 10, previousX: -3, previousS: 10, vx: 0, vs: -5, friendly: false, damage: 1, radius: 0.1, ttl: 3 });
-    state.cameraX = 12;
-    state.player.x = 15;
+    state.cameraX = CAMERA_LIMIT;
+    state.player.x = CAMERA_LIMIT + 2;
     stepRun(state, EMPTY_INPUT);
     expect(state.projectiles).toHaveLength(1);
     expect(state.projectiles[0].s).toBeLessThan(10);

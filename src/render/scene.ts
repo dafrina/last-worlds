@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type Pickup, type RunState } from '../shared/contracts';
-import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight } from '../world/terrain';
+import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, type TerrainArena } from '../world/terrain';
+import { arenaStopDistance } from '../sim/bastion';
 import { createDesertEnvironment, createEnemy, createHero, createMaterials, createPickupModel } from './models';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
@@ -25,28 +26,38 @@ export function groundForwardPosition(logicalS: number, coreHeight: number): num
  * preserving its exact logical target pixel. The search spans the full terrain depth: a core at height
  * h sits (3 − h)·cot(elevation) further forward than its logical row.
  */
-export function groundPlacement(seed: number, distance: number, x: number, logicalS: number, coreHeight: number) {
+export function groundPlacement(seed: number, distance: number, x: number, logicalS: number, coreHeight: number, arena?: TerrainArena) {
   let lo = logicalS - 1, hi = logicalS + (VIEW.flightHeight - TERRAIN_MIN_HEIGHT - coreHeight) * COT_ELEVATION + 1;
   for (let i = 0; i < 26; i++) {
-    const s = (lo + hi) / 2, baseHeight = terrainHeight(seed, x, distance + s);
+    const s = (lo + hi) / 2, baseHeight = terrainHeight(seed, x, distance + s, arena);
     if (s + (baseHeight + coreHeight - VIEW.flightHeight) * COT_ELEVATION < logicalS) lo = s; else hi = s;
   }
-  const baseHeight = terrainHeight(seed, x, distance + (lo + hi) / 2);
+  const baseHeight = terrainHeight(seed, x, distance + (lo + hi) / 2, arena);
   return { baseHeight, s: groundForwardPosition(logicalS, baseHeight + coreHeight) };
+}
+
+/**
+ * Rolling Thunder's static boss arena in world s (docs/15): the scroll stops at a mission-determined distance and
+ * the world generator lays a flat platform there. Passed from the run's start so the window never rebuilds mid-flight.
+ */
+export function missionArena(config: RunState['config']): TerrainArena | undefined {
+  if (config.mode !== 'campaign' || config.mission !== 'bastion') return undefined;
+  const stop = arenaStopDistance();
+  return { fromS: stop + BASTION.arena.platform.from, toS: stop + BASTION.arena.platform.to };
 }
 
 /**
  * Bastion-9 seating (render-only): the wide hull rests on the highest ground under its footprint so it never
  * sinks into a ridge, and its target sockets still project exactly onto their logical combat rows.
  */
-export function bastionPlacement(seed: number, distance: number, x: number, logicalS: number) {
-  let { s } = groundPlacement(seed, distance, x, logicalS, BASTION.targetHeight), baseHeight = -Infinity;
+export function bastionPlacement(seed: number, distance: number, x: number, logicalS: number, arena?: TerrainArena) {
+  let { s } = groundPlacement(seed, distance, x, logicalS, BASTION.targetHeight, arena), baseHeight = -Infinity;
   for (let pass = 0; pass < 3; pass++) {
     baseHeight = -Infinity;
     for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
       // Local +z faces the player, which is toward smaller s.
       const dx = i / 2 * (BASTION_FOOTPRINT.halfWidth - .2), dz = j / 2 * (BASTION_FOOTPRINT.halfDepth - .2);
-      baseHeight = Math.max(baseHeight, terrainHeight(seed, x + dx, distance + s - dz));
+      baseHeight = Math.max(baseHeight, terrainHeight(seed, x + dx, distance + s - dz, arena));
     }
     s = groundForwardPosition(logicalS, baseHeight + BASTION.targetHeight);
   }
@@ -69,11 +80,11 @@ export function configureCamera(camera: THREE.OrthographicCamera | THREE.Perspec
  * Perspective seating (render-only): follow the camera ray through the logical flight-plane target down to
  * terrain + core height, so the physical core covers its logical target pixel under any lens.
  */
-export function rayPlacement(camera: THREE.Camera, seed: number, distance: number, x: number, logicalS: number, coreHeight: number, baseFloor = -Infinity) {
+export function rayPlacement(camera: THREE.Camera, seed: number, distance: number, x: number, logicalS: number, coreHeight: number, baseFloor = -Infinity, arena?: TerrainArena) {
   const target = new THREE.Vector3(x, VIEW.flightHeight, -logicalS);
   const direction = camera instanceof THREE.PerspectiveCamera ? target.clone().sub(camera.position).normalize() : camera.getWorldDirection(new THREE.Vector3());
   const at = (t: number) => target.clone().addScaledVector(direction, t);
-  const ground = (point: THREE.Vector3) => Math.max(baseFloor, terrainHeight(seed, point.x, distance - point.z));
+  const ground = (point: THREE.Vector3) => Math.max(baseFloor, terrainHeight(seed, point.x, distance - point.z, arena));
   let lo = 0, hi = (VIEW.flightHeight - TERRAIN_MIN_HEIGHT + 2) / Math.max(.2, -direction.y);
   for (let i = 0; i < 28; i++) {
     const t = (lo + hi) / 2, point = at(t);
@@ -358,10 +369,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
       void alpha;
       const terrainStart = performance.now();
-      terrain.update(state.config.seed, state.distance); placeCamera(state.cameraX); terrain.cull(camera);
+      const arena = missionArena(state.config);
+      terrain.update(state.config.seed, state.distance, arena); placeCamera(state.cameraX); terrain.cull(camera);
       const terrainUpdate = performance.now() - terrainStart;
-      let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s) : null;
-      if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight);
+      let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena) : null;
+      if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
       bastion.update(state, bossPlacement);
       // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
       terrain.setExclusion(bastion.footprint(state, bossPlacement));
@@ -405,7 +417,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (shadowCount >= flightShadows.instanceMatrix.count) return;
         // Shadows fall to the lower right, away from the upper-left sun; offset kept modest for readability.
         const groundX = x + height * .22, groundS = s - height * .08;
-        const groundY = terrainHeight(state.config.seed, groundX, state.distance + groundS);
+        const groundY = terrainHeight(state.config.seed, groundX, state.distance + groundS, arena);
         transform.position.set(groundX, groundY + .07, -groundS);
         transform.rotation.set(0, 0, 0); transform.scale.set(width, 1, length); transform.updateMatrix();
         flightShadows.setMatrixAt(shadowCount++, transform.matrix);
@@ -426,8 +438,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const visible = Math.abs(enemy.x - state.cameraX) < VIEW.width / 2 + 1 && enemy.s > VIEW.minS - 2 && enemy.s < VIEW.maxS + 3;
         if (!visible) continue;
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
-          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight)
-          : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight);
+          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, -Infinity, arena)
+          : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, enemy.groundHeight, arena);
         const batch = enemyBatches.get(enemy.kind)!, slot = counts.get(enemy.kind)!;
         if (slot < ENEMY_CAPACITY) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
@@ -436,7 +448,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         if (isGround && plinthCount < plinths.instanceMatrix.count) {
           let lowest = placement.baseHeight;
-          for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, terrainHeight(state.config.seed, enemy.x + dx, state.distance + placement.s + ds));
+          for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, terrainHeight(state.config.seed, enemy.x + dx, state.distance + placement.s + ds, arena));
           if (placement.baseHeight - lowest > .08) {
             transform.position.set(enemy.x, lowest - .12, -placement.s); transform.rotation.set(0, 0, 0);
             transform.scale.set(1, placement.baseHeight + .06 - (lowest - .12), 1); transform.updateMatrix();

@@ -1,5 +1,17 @@
 # Build status
 
+## Combat retune, narrower world and boss arena — 15 October 2026
+
+User feedback after the checkpoint: endless should ramp up in speed; squadrons overlapped and the game was still easy; the ship's hitbox was too small; the boss was too easy and rolled over ravines; the map should be 2.5 screens wide.
+
+- **Endless pace ramp:** sector 1 starts at the old pace (scroll 4) and reaches 1.1× the campaign pace (scroll 5.5) by sector 5, with ship, enemies and camera scaled together. Warning times never scale. `RunState.scrollSpeed` and `RunState.pace` drive render and streaming.
+- **Squadrons:** they never overlap (2.2-unit separation, one air squadron at a time, with ground batteries beneath) and threat budgets are lower. Difficulty now comes from much shorter repeat intervals: Dart 1.2 s, Weaver 1.5 s, battery 1.4 s, Lancer 2.6 s.
+- **Hitbox:** `VIEW.playerRadius` 0.25 → 0.42, the third-tier size the user asked for; the model is unchanged. The safe gap is now 1.74.
+- **Bastion-9:** harder phases, overload lanes over its own hit columns, and the scroll stops into a static arena with a flat platform (docs/15).
+- **World:** 30 wide (`TERRAIN_VERSION` 8). Pipelines still connect 100% (132/132 test edges, 1,053/1,053 over 60 more seeds).
+- **Bot evidence** (Standard): endless idle loses its first life at 29.1 s; the dodger at 30 s (game over at 109 s); the mid-skill pilot at 76 s. The perfect pilot clears every mode and all nine weapon × difficulty combinations without a hit.
+- **Open decision:** the larger hitbox makes Training very hard for the mid-skill bot (it fails Standard Training in all 5 runs); human playtesting should decide whether to soften Training.
+
 ## Checkpoint deploy — 14 October 2026, late evening
 
 The user asked for a checkpoint at a stable point; the graphics polish and its measurements follow in a second deploy.

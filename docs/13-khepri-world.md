@@ -98,6 +98,11 @@ The second group (added with the settlement network) gives each outpost archetyp
 
 The runtime places these at scale 1 (district layout heights follow the authored heights) and tiles track segments along each track's length. Surface detail may come from the CC0 `metal_plate_02` maps in `art/source/polyhaven/`.
 
+### Width 30 and the boss arena (15 October)
+
+- **Width:** the world is 30 units wide (2.5 screens). Side routes sit at ±9.5, outposts in a band of 0.38–0.85 of the half width, and the pipe grid at ±13. Sections are 36 long and 30 wide. `TERRAIN_VERSION` is 8.
+- **Arena:** when a `TerrainArena` is passed, terrain eases to a flat platform (see docs/15). Without one, output is byte-identical.
+
 ## 4. Budgets and quality
 
 Terrain contributes at most about 60 draw calls and 120k visible triangles on the High tier, within the 100-call / 180k-triangle low-tier scene guardrail in [technical design](05-technical-design.md). Low tier may thin cosmetic scatter only; it never changes layout, heights, or anything the simulation reads. No `Math.random()` anywhere in generation.

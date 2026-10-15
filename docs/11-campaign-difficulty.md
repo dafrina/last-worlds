@@ -10,13 +10,15 @@ Design v0.2. Selectable campaign difficulty is a confirmed user requirement. The
 | Standard | Intended baseline experience: a real challenge | 3 | ×1.00 | ×1.00 | Authored baseline | ×1.00 |
 | Veteran | Master timing and positioning | 3 | ×1.20 | ×1.05 | Same minimum as Standard | ×1.20 |
 
-The prototype also scales attack pressure (runtime source: `DIFFICULTIES` in `src/content/balance.ts`, 14 October 2026):
+The prototype also scales attack pressure (runtime source: `DIFFICULTIES` in `src/content/balance.ts`, revised 15 October 2026):
 
 | Setting | Repeat-attack interval | Simultaneous windups / beam lanes | Squadron variant | Live threat budget | Shield cells (Training · Rolling Thunder) |
 | --- | --- | --- | --- | --- | --- |
-| Relaxed | ×1.40 | 3 / 1 | Base | 18 | 40 s, 85 s · 40 s, 105 s |
-| Standard | ×1.00 | 5 / 1 | Base | 24 | 40 s, 85 s · 40 s, 105 s |
-| Veteran | ×0.75 | 7 / 2 | Base plus authored Veteran wingmen | 32 | 65 s · 105 s |
+| Relaxed | ×1.70 | 3 / 1 | Base | 14 | 40 s, 85 s · 40 s, 105 s |
+| Standard | ×1.00 | 5 / 1 | Base | 16 | 40 s, 85 s · 40 s, 105 s |
+| Veteran | ×0.75 | 7 / 2 | Base plus authored Veteran wingmen | 20 | 65 s · 105 s |
+
+Budgets were lowered on 15 October (from 18 / 24 / 32) together with the rule that squadrons never overlap. In practice one air squadron flies at a time, with ground batteries beneath it, and difficulty comes from the faster repeat volleys instead of more enemies. Campaign always flies pace 1.
 
 All difficulties are available for an unlocked mission from the start. Select in mission preparation; persist the preferred campaign difficulty separately from endless. Lock it for an attempt. Changing it in the menu applies to the next launch and never mutates a paused run.
 
@@ -28,12 +30,15 @@ Use the same mission structure and route identities initially. Difficulty scales
 
 All three settings fly the same authored squadrons, cues and timings. Veteran adds the extra wingmen marked as its variant in each squadron template; those members are part of the authored and validated template, not random additions. The fairness floors, the 1.4-unit gap and the director's exclusion windows apply identically on every setting ([fairness](03-worlds-and-generation.md#7-fairness-for-leftright-only-movement)).
 
-Scripted calibration, 14 October 2026 (`tests/sim/difficulty.test.ts`). These are deterministic bot results, not human playtests. A mid-skill pilot aligns under targets and dodges only the nearest bullet it saw 0.2 s ago; medians are over five start positions.
+Scripted calibration, 15 October 2026 (`tests/sim/difficulty.test.ts`). These are deterministic bot results, not human playtests. A mid-skill pilot aligns under targets and dodges only the nearest bullet it saw 0.2 s ago; medians are over five start positions.
 
 | Training sortie | Relaxed | Standard | Veteran |
 | --- | --- | --- | --- |
-| Hostile shots per minute faced by that pilot (before → after) | 11 → 73 | 16 → 98 | 17 → 115 |
-| Its lives lost by extraction (before → after) | 0 → 1 of 5 | 1 → 2 of 3; two of five runs failed | 1 → 3 of 3; three of five runs failed |
+| Hostile shots per minute faced by that pilot (13 Oct → 14 Oct → 15 Oct) | 11 → 73 → 56 | 16 → 98 → 69 | 17 → 115 → 89 |
+| Its lives lost by extraction (13 Oct → 14 Oct → 15 Oct) | 0 → 1 → 1 of 5 | 1 → 2 → 3 of 3 (all five runs failed) | 1 → 3 → 3 of 3 (three of five runs failed) |
+| Fire faced by the perfect pilot, shots per minute (15 Oct) | 54 | 73 | 84 |
+
+The 0.42 collider dominates the 15 October change: the mid-skill pilot now fails Training on Standard, although it faces fewer bullets than on 14 October. Human playtests should confirm whether Standard Training is now too punishing; the main levers are Standard's repeat-attack interval and the Training climax.
 
 Veteran's shot-speed multiplier dropped from ×1.15 to ×1.05 in the 14 October pacing pass, which raised every base shot speed by about 10%. Veteran bullets therefore keep roughly their previous absolute speed (Dart 8.3 units/s), while Veteran keeps more shooters, shorter repeat intervals, more HP, two beam lanes and one fewer shield cell. Scripted pilots were also hit less by faster bullets, so speed alone was not making Veteran harder.
 

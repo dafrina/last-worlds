@@ -41,6 +41,25 @@ describe('incremental terrain streaming', () => {
     expect(maxSteps).toBeLessThanOrEqual(30);
   });
 
+  it('keeps up at the fastest endless pace and holds still through a stop (boss arena)', () => {
+    const arena = { fromS: 566, toS: 601 };
+    for (const [speed, area] of [[5.5, undefined], [5.5, arena]] as const) {
+      const stream = createTerrainStream(4242, area);
+      let distance = 0;
+      for (let frame = 0; frame < 60 * 140; frame++) {
+        // Stop on the platform (Rolling Thunder holds at 575) for about 25 s, then go on: the window and
+        // prefetch must simply hold.
+        const stopped = area && distance >= 575 && frame < 60 * 140 - 600;
+        if (!stopped) distance += speed / 60;
+        stream.update(distance);
+        stream.prefetch(distance, steps(30));
+      }
+      expect(stream.stats.fallbacks).toBe(0);
+      expect(stream.stats.startup).toBe(3);
+      if (area) for (const section of stream.update(distance)) expect(section).toEqual(generateTerrainSection(4242, section.index, area));
+    }
+  });
+
   it('falls back to synchronous generation (counted) when a seek outruns the prefetch', () => {
     const stream = createTerrainStream(99);
     stream.update(0);

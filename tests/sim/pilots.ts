@@ -1,4 +1,4 @@
-import { BALANCE } from '../../src/content/balance';
+import { kinematics } from '../../src/content/balance';
 import { EMPTY_INPUT, VIEW, type InputFrame, type RunState } from '../../src/shared/contracts';
 import { committedFootprints, planEvasion } from '../../src/sim/fairness';
 import { stepRun } from '../../src/sim/game';
@@ -53,7 +53,7 @@ export function hunterPilot(): Pilot {
     if (history.length > REACTION_TICKS + 1) history.shift();
     if (evade.horizontal !== 0) return evade;
     const dx = history[0] - state.player.x;
-    const stopping = state.player.vx * state.player.vx / (2 * BALANCE.movement.braking);
+    const stopping = state.player.vx * state.player.vx / (2 * kinematics(state.pace).braking);
     const hold = Math.abs(dx) < 0.15 || (Math.sign(state.player.vx) === Math.sign(dx) && Math.abs(dx) <= stopping + 0.05);
     return { ...EMPTY_INPUT, horizontal: hold ? 0 : dx < 0 ? -1 : 1 };
   };
@@ -92,6 +92,7 @@ export function perfectPilot(): Pilot {
   const history: RunState[] = [];
   let plan: InputFrame = EMPTY_INPUT;
   let target: number | null = null;
+  let direct = false;
   return state => {
     history.push(perceive(state));
     if (history.length > REACTION_TICKS + 1) history.shift();
@@ -100,11 +101,14 @@ export function perfectPilot(): Pilot {
       const footprints = committedFootprints(seen, 3.4);
       const result = planEvasion(state, footprints, preferredX(seen), target);
       target = result.target;
+      direct = result.direct === true;
       plan = { ...EMPTY_INPUT, horizontal: result.input };
+    } else if (direct) {
+      // An exact-search plan is applied as computed until the next replan.
     } else {
       // Between replans keep steering toward the chosen target with the same stopping controller.
       const dx = target - state.player.x;
-      const stopping = state.player.vx * state.player.vx / (2 * BALANCE.movement.braking);
+      const stopping = state.player.vx * state.player.vx / (2 * kinematics(state.pace).braking);
       plan = { ...EMPTY_INPUT, horizontal: Math.abs(dx) < 0.06 || (Math.sign(state.player.vx) === Math.sign(dx) && Math.abs(dx) <= stopping + 0.04) ? 0 : dx < 0 ? -1 : 1 };
     }
     return plan;

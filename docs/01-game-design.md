@@ -54,14 +54,14 @@ The two half-screen steering areas are invisible during normal play, with a subt
 - Holding both left and right yields neutral steering; special can operate concurrently with either. Releasing one side resumes the remaining side.
 - Pointer cancellation, lost capture, window blur, and pause clear the affected held inputs. No stuck steering.
 - Touches on the special button, pause control, menu, or outside the fitted game rectangle never steer.
-- Use rapid acceleration and braking, not instant teleportation. Starting values: top speed 12 units/s, acceleration 90 units/s², braking 125 units/s² (raised from 10/70/100 on 14 October for a faster pace).
+- Use rapid acceleration and braking, not instant teleportation. Starting values: top speed 12 units/s, acceleration 90 units/s², braking 125 units/s² at campaign pace (raised from 10/70/100 on 14 October). Endless starts at the old 10/70/100 and ramps by sector to 1.1 times the campaign values; see [worlds and generation](03-worlds-and-generation.md#8-endless-difficulty-and-seeds). The ship's collision radius is 0.42 (the planned Dominion tier width), giving an honest, sizeable hit region.
 - A one-thumb player can steer, release briefly, and tap the centered special. Two thumbs allow simultaneous steering and special. The button is centered so either hand can reach it.
 
 A tap in the main viewport starts movement; it does not select an enemy. Ordinary targets cannot demand precise finger aiming. Main-fire controls and dragging are not alternative defaults in this plan.
 
 ### Orientation, HUD, and wider map
 
-Fit a consistent 9:16 viewport showing 12 world units horizontally. This is a window into an initially 36-unit-wide world, not a movement boundary. Square 36 × 36 terrain sections connect forward; the camera begins over the middle slice and follows lateral travel after the ship leaves a central dead zone. The player can find side routes, caches, and optional fights while forward scrolling continues. See [wide map and camera](10-wide-map-and-camera.md).
+Fit a consistent 9:16 viewport showing 12 world units horizontally. This is a window into a 30-unit-wide world (2.5 screens; narrowed from 36 on 15 October), not a movement boundary. Terrain sections 30 wide and 36 long connect forward; the camera begins over the middle slice and follows lateral travel after the ship leaves a central dead zone. The player can find side routes, caches, and optional fights while forward scrolling continues. See [wide map and camera](10-wide-map-and-camera.md).
 
 Different phone shapes fit the same tactical viewport without revealing extra world width. True outer world limits remain visible and distinct from screen edges. No camera rotation or zoom while steering.
 

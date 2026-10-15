@@ -315,11 +315,12 @@ export function createBastionView(scene: THREE.Scene) {
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload';
 
-      // Treads: holding a fixed row means reversing over ground at scroll speed (slower while rolling in).
-      const groundSpeed = destroyed ? 0 : boss.phase === 'arrival' ? 1 + (VIEW.scrollSpeed - 1) * Math.min(1, age / BASTION.arrivalDuration) : VIEW.scrollSpeed;
+      // Treads move at the hull's ground-relative speed: its combat-plane motion plus the terrain scroll
+      // (which stops for the arena fight), so a parked fortress stops and a manoeuvring one crawls.
+      const groundSpeed = destroyed ? 0 : (boss.vs ?? 0) + state.scrollSpeed;
       treadOffset = (treadOffset + groundSpeed * dt * TREAD_REPEAT) % 1;
       rig.treads.forEach(map => { map.offset.y = treadOffset; });
-      emitCarry += dt * (boss.phase === 'arrival' ? 26 : destroyed ? 0 : 7);
+      emitCarry += dt * Math.min(26, Math.abs(groundSpeed) * 5 + Math.abs(boss.vx ?? 0) * 6);
       for (; emitCarry >= 1; emitCarry--) {
         const n = state.time * 97 + emitCarry, side = hash(n) < .5 ? -1 : 1;
         puff(local(side * 2.85 + (hash(n + 1) - .5) * .8, 0, (hash(n + 2) < .5 ? -1 : 1) * 2.6), n, false, boss.phase === 'arrival' ? 1.25 : .8);
@@ -401,7 +402,7 @@ export function createBastionView(scene: THREE.Scene) {
         }
       }
       rig.glow.forEach(material => { material.emissiveIntensity = destroyed ? Math.max(0, 1.6 - phaseAge * .8) : 1.4 + .3 * Math.sin(state.time * 3); });
-      const groundShift = VIEW.scrollSpeed * dt;
+      const groundShift = state.scrollSpeed * dt;
       dust.step(dt, groundShift); sparks.step(dt, groundShift);
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;

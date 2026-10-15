@@ -1,13 +1,14 @@
-import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, THREAT_COST, WEAPONS, difficultyScales, type DifficultyScale } from '../content/balance';
+import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, PACE, THREAT_COST, WEAPONS, difficultyScales, endlessPace, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { FORMATIONS, slotFlies } from '../content/formations';
 import { STEP, VIEW, type Enemy, type FormationMember, type InputFrame, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BASTION } from '../content/bastion';
-import { resolveBastionPhase, startBastion, updateBastion } from './bastion';
+import { arenaScroll, resolveBastionPhase, startBastion, updateBastion } from './bastion';
+import { airspaceClear, plannedMembers, resolveAnchor } from './airspace';
 import { LANCER_BEAM, SHOT_TTL, enemyShots } from './attacks';
 import { admitAttack } from './fairness';
-import { advanceEnemy, aimOffset, groundHeight, inFiringWindow, memberPosition, pathComplete } from './motion';
+import { advanceEnemy, aimOffset, enemyClockRate, groundHeight, inFiringWindow, memberPosition, pathComplete } from './motion';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -17,8 +18,10 @@ export function createRun(config: RunConfig): RunState {
   const normalized: RunConfig = config.mode === 'endless'
     ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', weapon: 'pulse' }
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', weapon: config.weapon ?? 'pulse', mission: config.mission ?? 'training' };
+  const pace = normalized.mode === 'endless' ? endlessPace(0) : PACE.campaign;
   return {
     config: normalized, phase: 'playing', tick: 0, time: 0, distance: 0, sector: 1, cameraX: 0,
+    pace, scrollSpeed: kinematics(pace).scroll,
     player: {
       x: 0, vx: 0, lives: normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives,
       shields: BALANCE.shield.charges, maxShields: BALANCE.shield.charges,
@@ -43,7 +46,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   const previousTime = state.time;
   state.tick += 1;
   state.time += dt;
-  state.distance += VIEW.scrollSpeed * dt;
+  updatePace(state, dt);
   movePlayer(state, input.horizontal, dt);
   updateDirector(state);
   updateShieldSupplies(state, previousTime);
@@ -69,9 +72,31 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   }
 }
 
+/**
+ * Pace and terrain scroll. Endless eases its pace up by sector; campaign flies pace 1. Rolling Thunder brings
+ * the terrain to a stop for the Bastion-9 arena and resumes it for extraction (closed form, deterministic).
+ */
+function updatePace(state: RunState, dt: number): void {
+  if (state.config.mode === 'endless') {
+    state.pace = endlessPace(state.time);
+    state.scrollSpeed = kinematics(state.pace).scroll;
+    state.distance += state.scrollSpeed * dt;
+  } else if (state.config.mission === 'bastion') {
+    const destroyedAt = state.boss?.phase === 'destroyed' ? state.boss.phaseStartedAt : null;
+    const scroll = arenaScroll(state.time, destroyedAt);
+    state.pace = PACE.campaign;
+    state.scrollSpeed = scroll.speed;
+    state.distance = scroll.distance;
+  } else {
+    state.pace = PACE.campaign;
+    state.scrollSpeed = kinematics(state.pace).scroll;
+    state.distance += state.scrollSpeed * dt;
+  }
+}
+
 function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   const player = state.player;
-  const movement = BALANCE.movement;
+  const movement = kinematics(state.pace);
   player.vx = approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
   const limit = VIEW.worldWidth / 2 - VIEW.playerRadius;
   player.x = clamp(player.x + player.vx * dt, -limit, limit);
@@ -80,11 +105,10 @@ function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   let target = state.cameraX;
   if (Math.abs(offset) > BALANCE.camera.deadZone) target = player.x - Math.sign(offset) * BALANCE.camera.deadZone;
   const cameraLimit = (VIEW.worldWidth - VIEW.width) / 2;
-  state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), BALANCE.camera.speed * dt);
+  state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), movement.camera * dt);
 }
 
 const FORTRESS_MESSAGE = 'FORTRESS APPROACH · READY YOUR SPECIAL';
-const ANCHOR_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
 
 function updateDirector(state: RunState): void {
   if (state.config.mode === 'campaign' && state.config.mission === 'bastion') {
@@ -120,6 +144,8 @@ function updateDirector(state: RunState): void {
   const liveThreat = alive.reduce((sum, enemy) => sum + THREAT_COST[enemy.kind], 0);
   const cueThreat = roster.reduce((sum, kind) => sum + THREAT_COST[kind], 0);
   if (alive.length + roster.length > BALANCE.maxEnemies || liveThreat + cueThreat > scale.threatBudget) return;
+  // Squadrons never overlap: the cue waits until its airspace is clear.
+  if (!airspaceClear(state, plannedMembers(state, cue.formations, scale.rank))) return;
   spawnCue(state, cue, scale);
   state.encounterIndex += 1;
   state.nextEncounterAt = cues[state.encounterIndex] ? start + cues[state.encounterIndex].at : Infinity;
@@ -137,12 +163,11 @@ function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): v
 /** Spawns every member flying at this rank. View anchors resolve to the camera, clamped inside the map. */
 export function spawnFormation(state: RunState, placement: FormationPlacement, scale: DifficultyScale = scales(state)): void {
   const template = FORMATIONS[placement.formation];
-  const anchorX = placement.anchor === 'world'
-    ? placement.x ?? 0
-    : clamp(state.cameraX + (placement.x ?? 0), -ANCHOR_LIMIT, ANCHOR_LIMIT);
+  const anchorX = resolveAnchor(state, placement);
+  const group = state.nextId;
   template.slots.forEach((slot, index) => {
     if (!slotFlies(slot, scale.rank)) return;
-    const member: FormationMember = { template: template.id, slot: index, anchorX, mirror: placement.mirror ? -1 : 1 };
+    const member: FormationMember = { template: template.id, slot: index, anchorX, mirror: placement.mirror ? -1 : 1, group };
     const at = memberPosition(member, 0);
     const hp = ENEMIES[slot.kind].hp * scale.hp;
     state.enemies.push({
@@ -195,7 +220,7 @@ function updateEnemies(state: RunState, dt: number): void {
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
     const stats = ENEMIES[enemy.kind];
-    advanceEnemy(enemy, dt);
+    advanceEnemy(enemy, dt, enemyClockRate(state, enemy));
     if (!canAttack(state, enemy)) {
       if (enemy.warning > 0) { enemy.nextAttack = enemy.age + 0.6; windups -= 1; }
       enemy.warning = 0;
@@ -229,7 +254,7 @@ function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void
     state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: LANCER_BEAM.width, warning: LANCER_BEAM.warning, active: LANCER_BEAM.active, ttl: LANCER_BEAM.warning + LANCER_BEAM.active });
     return;
   }
-  const shots = enemyShots(enemy.kind, enemy.x, enemy.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed);
+  const shots = enemyShots(enemy.kind, enemy.x, enemy.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed * kinematics(state.pace).shot);
   // A full projectile pool skips the whole volley; a fixed pattern is never trimmed bullet by bullet.
   if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
   for (const shot of shots) state.projectiles.push(projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL));
@@ -405,10 +430,10 @@ function useSpecial(state: RunState): void {
 function updatePickups(state: RunState, dt: number): void {
   for (const pickup of state.pickups) {
     pickup.ttl -= dt;
-    pickup.s -= BALANCE.pickup.speed * dt;
+    pickup.s -= BALANCE.pickup.speed * state.pace * dt;
     let distance = Math.hypot(pickup.x - state.player.x, pickup.s);
     if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius && distance > 0.001) {
-      const pull = Math.min(distance, BALANCE.pickup.magnetSpeed * dt);
+      const pull = Math.min(distance, BALANCE.pickup.magnetSpeed * state.pace * dt);
       pickup.x += (state.player.x - pickup.x) / distance * pull;
       pickup.s += -pickup.s / distance * pull;
       distance = Math.hypot(pickup.x - state.player.x, pickup.s);

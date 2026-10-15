@@ -34,10 +34,11 @@ describe('seeded Khepri landforms', () => {
 
   it('joins positions, colours, normals and surface channels without seams', () => {
     for (const seed of [93, 4041]) for (const index of [-2, -1, 0, 2, 19]) {
-      const a = generateTerrainSection(seed, index), b = generateTerrainSection(seed, index + 1), side = a.side;
-      expect(side).toBe(VIEW.sectionLength / TERRAIN_STEP + 1);
-      for (let column = 0; column < side; column++) {
-        const end = (side - 1) * side + column, start = column;
+      const a = generateTerrainSection(seed, index), b = generateTerrainSection(seed, index + 1), { across, along } = a;
+      expect(along).toBe(VIEW.sectionLength / TERRAIN_STEP + 1);
+      expect(across).toBe(VIEW.worldWidth / TERRAIN_STEP + 1);
+      for (let column = 0; column < across; column++) {
+        const end = (along - 1) * across + column, start = column;
         expect(a.positions[end * 3 + 1]).toBe(b.positions[start * 3 + 1]);
         expect([...a.colors.slice(end * 3, end * 3 + 3)]).toEqual([...b.colors.slice(start * 3, start * 3 + 3)]);
         expect([...a.normals.slice(end * 3, end * 3 + 3)]).toEqual([...b.normals.slice(start * 3, start * 3 + 3)]);
@@ -138,7 +139,7 @@ describe('seeded Khepri landforms', () => {
     const horizontal = Math.hypot(SUN_DIRECTION.x, SUN_DIRECTION.s);
     for (const seed of [7, 93]) for (const index of [0, 3]) {
       const section = generateTerrainSection(seed, index);
-      for (let v = 0; v < section.side * section.side; v += 3) {
+      for (let v = 0; v < section.across * section.along; v += 3) {
         const x = section.positions[v * 3], y = section.positions[v * 3 + 1], s = section.startS - section.positions[v * 3 + 2];
         const albedo = terrainSample(seed, x, s);
         expect(albedo.height).toBeCloseTo(y, 5);

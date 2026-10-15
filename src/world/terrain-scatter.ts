@@ -60,6 +60,8 @@ export interface ScatterField {
   blocked(x: number, s: number): boolean;
   /** Closeness to an impact-crater rim (0..1), for ejecta. */
   crater(x: number, s: number): number;
+  /** How far a row has settled into a mission arena's platform (0 without an arena). */
+  platform(s: number): number;
 }
 
 /**
@@ -70,9 +72,12 @@ export interface ScatterField {
  */
 export function* scatterKitSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
   const essential: KitInstance[] = [], cosmetic: KitInstance[] = [];
+  /** Set per cell on an arena's ramp: only low pieces stand there. */
+  let ramp = false;
   const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number, shade?: number) => {
     const { kind, x, s, scale } = instance, spec = KIT[kind];
     if (s < startS || s >= startS + size) return;
+    if (ramp && instance.height * spec.height > 0.6) return;
     if (Math.abs(x) + spec.radius * scale > WORLD_HALF) return;
     if (instance.y + instance.height * spec.height > SCENERY_MAX_HEIGHT) {
       // Real-size pieces are never squashed to fit the cap; stretchable ones are trimmed.
@@ -95,6 +100,35 @@ export function* scatterKitSteps(seed: number, startS: number, size: number, ter
     const mood = terrain.mood(s), pick = h(2);
     const gx = terrain.gradientX(x, s), gs = terrain.gradientS(x, s);
     const along = Math.hypot(gx, gs) > 0.05 ? Math.atan2(gx, -gs) : turn(h(3));
+    const platform = terrain.platform(s);
+    ramp = false;
+    if (platform >= 0.5) {
+      // Arena platform: a clean floor framed at the world edges by low rim columns, formations and boulders
+      // (framing only on the platform proper; the ramps stay clean).
+      const frame = h(30), edge = platform >= 1 && Math.abs(x) >= WORLD_HALF - 2.4;
+      if (edge && frame < 0.22) {
+        const members = 2 + Math.floor(h(31) * 2);
+        for (let m = 0; m < members; m++) {
+          // Members cluster toward the world edge, never in toward the floor.
+          const ox = x + (m ? Math.sign(x) * h(32 + m) * 0.45 : 0), os = s + (m ? (h(36 + m) - 0.5) * 0.9 : 0), base = terrain.height(ox, os);
+          add({ kind: 'column', x: ox, s: os, y: base - 0.3, scale: 0.85 + h(40 + m) * 0.35, height: 0.8 + h(44 + m) * 1.1, rotation: turn(h(48 + m)), cosmetic: m > 1 }, h(52 + m), 1);
+        }
+      } else if (edge && frame < 0.34) {
+        const kind = h(31) < 0.4 ? 'wall' : 'clump';
+        add({ kind, x, s, y: ground - 0.1, scale: 0.85 + h(32) * 0.3, height: 0.6 + h(33) * 0.6,
+          rotation: kind === 'wall' ? (x > 0 ? Math.PI / 2 : -Math.PI / 2) + (h(34) - 0.5) * 0.5 : turn(h(34)), cosmetic: false }, h(35));
+      } else if (edge && frame < 0.42) {
+        const scale = 0.75 + h(31) * 0.35;
+        add({ kind: 'boulder', x, s, y: ground - 0.08, scale, height: scale, rotation: turn(h(32)), cosmetic: false }, h(33));
+      } else if (frame < 0.03) {
+        const scale = 0.14 + h(31) * 0.18;
+        add({ kind: 'rock', x, s, y: ground - 0.04, scale, height: scale * (0.7 + h(32) * 0.4), rotation: turn(h(33)), cosmetic: true }, h(34));
+      }
+      continue;
+    }
+    // Scatter thins out down the ramp toward a platform, and nothing tall stands on it.
+    if (platform > 0 && h(30) < platform * 2) continue;
+    ramp = platform > 0;
     if (rise > 1 && slope < 1.1) {
       // Cliff feet: columnar pieces fill the face from its foot (stacked columns, not paving), with
       // talus, fallen columns and boulders below and now and then a towering stack or hoodoo.

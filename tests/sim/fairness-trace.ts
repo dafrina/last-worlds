@@ -1,14 +1,17 @@
 import { FAIRNESS } from '../../src/content/balance';
 import { STEP, VIEW, type RunState } from '../../src/shared/contracts';
+import { airspaceConflict, liveGroups } from '../../src/sim/airspace';
+import { WEAVER_PAIR_OFFSET } from '../../src/sim/attacks';
 
 /**
  * Independent fairness observer for the validator. It does not reuse the director's prediction code: it
  * watches what the simulation actually does (windup starts, releases, beams, row crossings and airframe
  * contact) and checks the documented floors and the gap/seal rules on the real union of hazards.
  */
-export interface Violation { rule: 'gap' | 'seal' | 'warning' | 'beam-warning' | 'lock' | 'offscreen' | 'unwarned'; time: number; detail: string }
+export interface Violation { rule: 'gap' | 'seal' | 'warning' | 'beam-warning' | 'lock' | 'offscreen' | 'unwarned' | 'airspace'; time: number; detail: string }
 
-interface Span { x0: number; x1: number; t0: number; t1: number }
+/** A hazard's row footprint, plus the camera when it was committed (its windup start). */
+interface Span { x0: number; x1: number; t0: number; t1: number; committed: number; camera: number; shot?: number }
 
 const R = VIEW.playerRadius;
 const TICK = STEP + 1e-6;
@@ -43,7 +46,9 @@ export class FairnessTrace {
   releases = 0;
   beams = 0;
   hostileShots = 0;
+  airspaceTicks = 0;
   private readonly started = new Map<number, number>();
+  private readonly startCamera = new Map<number, number>();
   private readonly previousWarning = new Map<number, number>();
   private readonly last = new Map<number, { kind: string; x: number; s: number; aimX: number; warning: number }>();
   private readonly seenShots = new Set<number>();
@@ -75,6 +80,7 @@ export class FairnessTrace {
       if (enemy.warning > 0 && before === 0) {
         this.windups += 1;
         this.started.set(enemy.id, now);
+        this.startCamera.set(enemy.id, state.cameraX);
         const visible = Math.abs(enemy.x - state.cameraX) <= VIEW.width / 2 - enemy.radius + 1e-6 && enemy.s > 3.5 && enemy.s + enemy.radius <= VIEW.maxS + 1e-6;
         if (!visible) this.fail('offscreen', now, `${enemy.kind}#${enemy.id} started a windup at x=${enemy.x.toFixed(2)} s=${enemy.s.toFixed(2)} cam=${state.cameraX.toFixed(2)}`);
       }
@@ -86,7 +92,7 @@ export class FairnessTrace {
       this.seenShots.add(shot.id);
       this.hostileShots += 1;
       // Emission origin: projectiles record where they were before this tick's movement.
-      const source = released.find(enemy => Math.abs(shot.previousX - enemy.x) <= 0.6 && Math.abs(shot.previousS - enemy.s) <= 0.35);
+      const source = released.find(enemy => Math.abs(shot.previousX - enemy.x) <= WEAVER_PAIR_OFFSET + 0.1 && Math.abs(shot.previousS - enemy.s) <= 0.35);
       const start = source ? this.started.get(source.id) : undefined;
       if (!source || start === undefined) this.fail('unwarned', now, `hostile shot #${shot.id} at x=${shot.previousX.toFixed(2)} s=${shot.previousS.toFixed(2)} had no completed windup`);
       else {
@@ -103,10 +109,13 @@ export class FairnessTrace {
         // Shots never steer, so the row crossing is known at release. Record it even if a hit consumes it.
         const crossing = shot.previousS / -shot.vs;
         const x = shot.previousX + shot.vx * crossing;
-        const half = shot.radius + Math.abs(shot.vx / shot.vs) * (R + shot.radius);
+        // A slanted bullet hits every ship center within (R + r) / cos(angle) of its crossing: subtract R for its edge.
+        const half = (R + shot.radius) * Math.hypot(shot.vx, shot.vs) / -shot.vs - R;
         const band = (R + shot.radius) / -shot.vs;
         const t = now - STEP + crossing;
-        this.spans.push({ x0: x - half, x1: x + half, t0: t - band, t1: t + band });
+        const committed = source ? this.started.get(source.id) ?? now : now;
+        const camera = source ? this.startCamera.get(source.id) ?? state.cameraX : state.cameraX;
+        this.spans.push({ x0: x - half, x1: x + half, t0: t - band, t1: t + band, committed, camera, shot: shot.id });
       }
     }
     for (const hazard of state.hazards) {
@@ -115,17 +124,35 @@ export class FairnessTrace {
       this.beams += 1;
       const source = released.find(enemy => Math.abs(enemy.aimX - hazard.x) < 1e-6);
       const start = source ? this.started.get(source.id) : undefined;
-      if (!source || start === undefined) { this.fail('unwarned', now, `beam #${hazard.id} at x=${hazard.x.toFixed(2)} had no completed windup`); continue; }
-      const total = now - start + hazard.warning + STEP;
+      let total: number;
+      let committed = now;
+      let camera = state.cameraX;
+      if (source && start !== undefined) {
+        total = now - start + hazard.warning + STEP;
+        committed = start;
+        camera = this.startCamera.get(source.id) ?? camera;
+      }
+      // A lane placed already marked (Bastion-9 overload) is its own warning for its full marked time.
+      else if (hazard.warning + STEP + TICK >= FAIRNESS.beamWarningFloor) total = hazard.warning + STEP;
+      else { this.fail('unwarned', now, `beam #${hazard.id} at x=${hazard.x.toFixed(2)} had no completed windup`); continue; }
       this.minBeamWarning = Math.min(this.minBeamWarning, total);
       if (total + TICK < FAIRNESS.beamWarningFloor) this.fail('beam-warning', now, `beam marked for ${total.toFixed(3)} s`);
       const t0 = now + hazard.warning;
-      this.spans.push({ x0: hazard.x - hazard.width / 2, x1: hazard.x + hazard.width / 2, t0, t1: t0 + hazard.active });
+      this.spans.push({ x0: hazard.x - hazard.width / 2, x1: hazard.x + hazard.width / 2, t0, t1: t0 + hazard.active, committed, camera });
     }
     for (const enemy of state.enemies) {
       if (enemy.hp <= 0 || enemy.kind === 'turret' || enemy.bossPart) continue;
-      if (Math.abs(enemy.s) <= R + enemy.radius) this.spans.push({ x0: enemy.x - enemy.radius, x1: enemy.x + enemy.radius, t0: now - STEP, t1: now });
+      if (Math.abs(enemy.s) <= R + enemy.radius) this.spans.push({ x0: enemy.x - enemy.radius, x1: enemy.x + enemy.radius, t0: now - STEP, t1: now, committed: now, camera: state.cameraX });
     }
+    // Shots removed long before reaching the row (phase clears, respawn, Shockwave) never threaten it.
+    const flying = new Set(state.projectiles.map(shot => shot.id));
+    this.spans = this.spans.filter(span => span.shot === undefined || flying.has(span.shot) || now >= span.t0 - 0.05);
+    // Squadron airspace as actually flown: no two squadrons may overlap or share rows.
+    const groups = [...liveGroups(state)];
+    for (let i = 0; i < groups.length; i += 1) for (let j = i + 1; j < groups.length; j += 1) {
+      if (airspaceConflict(groups[i][1], groups[j][1])) this.fail('airspace', now, `squadrons ${groups[i][0]} and ${groups[j][0]} overlap`);
+    }
+    this.airspaceTicks += 1;
     this.evaluate(now - this.lag);
   }
 
@@ -140,7 +167,9 @@ export class FairnessTrace {
       this.evaluatedUntil = t;
       const active = this.spans.filter(span => span.t0 <= t + half && span.t1 >= t - half);
       if (active.length === 0) continue;
-      const camera = this.cameraAt(t);
+      // Judge the window in the view the latest of its hazards was committed in: the view the director checked.
+      const latest = active.reduce((a, b) => (b.committed > a.committed ? b : a));
+      const camera = latest.camera;
       const left = camera - VIEW.width / 2;
       const right = camera + VIEW.width / 2;
       const gap = largestGap(active, left, right);

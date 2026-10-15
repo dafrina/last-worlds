@@ -1,4 +1,5 @@
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, landform, moodParams, smoothRange } from './terrain-layout';
+import { nearArena, type TerrainArena } from './terrain-arena';
 
 /**
  * Settlement nodes (docs/13 §2 "Settlement network"): seeded outposts of varied archetypes, each with its
@@ -126,7 +127,8 @@ export function settlement(seed: number, cell: number, side: number): Settlement
     // Prefer the calmest of a few candidate spots: outposts settle on flat ground at any terrain level.
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 5; k++) {
-      const cx = side * (6.8 + h(1 + k) * 8.4), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
+      // Candidates span the outer part of each side (about 0.38–0.85 of the half width), clear of the centre lane.
+      const cx = side * WORLD_HALF * (0.38 + h(1 + k) * 0.47), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
       const mood = moodParams(seed, cs), heights = [[0, 0], [2.6, 0], [-2.6, 0], [0, 3], [0, -3]].map(([dx, ds]) => landform(seed, cx + dx, cs + ds, mood).height);
       const relief = Math.max(...heights) - Math.min(...heights);
       if (relief < best) { best = relief; x = cx; s = cs; }
@@ -171,13 +173,13 @@ export function padDistance(site: Settlement, x: number, s: number): number {
 /** How strongly a pad flattens ground at a point (0 outside, 1 on the pad). */
 export const padInfluence = (site: Settlement, x: number, s: number) => site.flatten * (1 - smoothRange(0, 2.4, padDistance(site, x, s)));
 
-/** Settlements whose cells could reach forward distances [s0, s1]. */
-export function settlementsNear(seed: number, s0: number, s1: number): Settlement[] {
+/** Settlements whose cells could reach forward distances [s0, s1]; none stand on a mission arena or its ramps. */
+export function settlementsNear(seed: number, s0: number, s1: number, arena?: TerrainArena): Settlement[] {
   const list: Settlement[] = [];
   for (let cell = Math.floor((s0 - 30) / SETTLEMENT_CELL); cell <= Math.floor((s1 + 30) / SETTLEMENT_CELL); cell++) {
     for (const side of [-1, 1]) {
       const site = settlement(seed, cell, side);
-      if (site && site.s + site.hs + 3 >= s0 && site.s - site.hs - 3 <= s1) list.push(site);
+      if (site && site.s + site.hs + 3 >= s0 && site.s - site.hs - 3 <= s1 && !nearArena(arena, site.s - site.hs - 3, site.s + site.hs + 3)) list.push(site);
     }
   }
   return list;

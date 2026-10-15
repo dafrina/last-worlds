@@ -15,7 +15,7 @@ The player has **lives and shields**, an unlimited-ammunition main weapon, and o
 
 A normal accepted hit consumes one shield charge; a heavy hit or airframe collision consumes two. If any shield remains before the hit, it protects the current life even if the hit empties all remaining charges. There is no overflow into life damage. The next accepted hit with no shield removes exactly one life. Enemy HP remains numerical internally; player protection uses discrete charges to match the icon display.
 
-An accepted hit gives 0.65 seconds invulnerability. Resolve at most one hit per tick/invulnerability interval, choosing the largest eligible incoming hit, and consume colliding non-piercing hostile bullets. Continuous beams obey the same rule. Windups already warned when a hit lands continue; no new windup starts until 0.3 s before the invulnerability ends. Only a respawn cancels windups in progress (implemented 14 October 2026; earlier builds cancelled every windup on any hit, which made sustained pressure impossible). **Shields never regenerate passively.** Recovery during a life requires collecting a rare shield cell; each Standard Array cell restores one charge. Waiting, kills, special use, sector transitions, and pausing do not refill shields.
+The ship's collision radius is 0.42 for every airframe in the prototype (15 October 2026, user request: the size planned for the Dominion tier, about 1.7 units wide; it was 0.25). Hit regions stay central and honest; the hero models are scaled to match. An accepted hit gives 0.65 seconds invulnerability. Resolve at most one hit per tick/invulnerability interval, choosing the largest eligible incoming hit, and consume colliding non-piercing hostile bullets. Continuous beams obey the same rule. Windups already warned when a hit lands continue; no new windup starts until 0.3 s before the invulnerability ends. Only a respawn cancels windups in progress (implemented 14 October 2026; earlier builds cancelled every windup on any hit, which made sustained pressure impossible). **Shields never regenerate passively.** Recovery during a life requires collecting a rare shield cell; each Standard Array cell restores one charge. Waiting, kills, special use, sector transitions, and pausing do not refill shields.
 
 If lives remain after a loss: preserve equipment and enemy/boss damage, respawn safely near the current world x rather than teleporting to the middle of the wider map, refill shield, set special charge to 50%, clear standard hostile shots near the respawn viewport, and give two seconds invulnerability with new attacks delayed. Resolve a persistent hazard before choosing the safe respawn location. Campaign weapon rank is retained; endless loses one weapon-power pip, minimum zero. A life loss does not fail a campaign mission until the last life is lost.
 
@@ -70,7 +70,7 @@ Only Standard exists in the prototype. Bulwark/Flux are future sidegrade proposa
 | Vector Drive | 14 | 75 | 105 | Fast traversal, more stopping anticipation; 250 credits |
 | Precision Drive | 11 | 115 | 170 | Lower top speed, responsive start/stop; 250 credits |
 
-Speed is units/s; acceleration/braking units/s². The 14 October 2026 pacing pass raised Balanced Drive from 10 / 70 / 100 together with the forward scroll (4 → 5 units/s); the unimplemented Vector and Precision proposals were scaled by the same proportion. The camera follows at up to 17 units/s, faster than the fastest drive. Reactor tech changes propulsion and maneuverability, not a power budget or ammunition. All standard patterns and optional routes must work with the slowest supported drive; equipment should change feel rather than make a route physically mandatory.
+Speed is units/s; acceleration/braking units/s², at campaign pace 1. Endless scales them with its pace (0.8 to 1.1; see [endless difficulty](03-worlds-and-generation.md#8-endless-difficulty-and-seeds)). The 14 October 2026 pacing pass raised Balanced Drive from 10 / 70 / 100 together with the forward scroll (4 → 5 units/s); the unimplemented Vector and Precision proposals were scaled by the same proportion. The camera follows at up to 17 units/s, faster than the fastest drive. Reactor tech changes propulsion and maneuverability, not a power budget or ammunition. All standard patterns and optional routes must work with the slowest supported drive; equipment should change feel rather than make a route physically mandatory.
 
 Example builds: Pulse + Shockwave + Standard + Balanced for general use; Rail + Siege Lance + Flux + Precision for deliberate alignment; Scatter + Seekers + Bulwark + Vector for lateral sweeps.
 
@@ -119,7 +119,7 @@ All main/special choices are eligible from the first endless run. Campaign unloc
 
 Shield cells have a small explicit per-level supply budget, never an independent chance on every kill and no repeatable pity timer. The current 120-second training sortie schedules two cells at 40 and 85 active seconds on Relaxed/Standard, or one at 65 seconds on Veteran. Endless schedules one cell at second 55 of every 90-second sector, independent of campaign difficulty. Supplies appear ahead within the current view; they still require collection. Missing one does not create a replacement. Pausing, losing a life, and revisiting terrain cannot reset the budget. Longer authored levels may tune the placement, starting from one or two cells per level. Full-shield cells convert to five campaign credits or 100 endless score; partially useful ones only refill.
 
-Collection radius is 0.65; ordinary pickup magnet radius 1.6. Drift toward the player's forward row with the terrain scroll (5 units/s); the magnet pulls at 7.5 units/s. Gun capsules do not magnetize. On a wider map, unexplored caches and unseen optional drops are never globally vacuumed into the ship. At a success/sector boundary auto-collect only already revealed ordinary drops in the current viewport. A revealed pickup remains a world object when panning away and expires normally.
+Collection radius is 0.65; ordinary pickup magnet radius 1.6. Drift toward the player's forward row at 5 units/s times the pace; the magnet pulls at 7.5 units/s times the pace. Gun capsules do not magnetize. On a wider map, unexplored caches and unseen optional drops are never globally vacuumed into the ship. At a success/sector boundary auto-collect only already revealed ordinary drops in the current viewport. A revealed pickup remains a world object when panning away and expires normally.
 
 Endless extra lives are earned at 50,000 and 150,000 score, once each per run, awarded at the next safe sector boundary. At five-life cap substitute 2,000 score. Consume milestone receipt first; a pending life does not resurrect a player who loses their last life before the boundary.
 
@@ -133,19 +133,26 @@ Check discrete shield loss/recovery, shield-break survival, exactly one life los
 
 Record shield hits, lives lost, specials used, weapon/tech choice, time aligned, route visited, credits, and objectives in local statistics. Enemy time-to-kill starting goals remain 0.4–0.8 seconds for light enemies, 1.5–3 seconds for heavies, and 45–70 seconds for bosses. With the 14 October HP values, Twin Pulse kills a Dart in 0.57 s and a Weaver in 0.78 s.
 
-**Combat difficulty calibration (14 October 2026).** Squadron formations, overlapping cues, repeat volleys and the scaling in [campaign difficulty](11-campaign-difficulty.md) and the [endless ramp](03-worlds-and-generation.md#8-endless-difficulty-and-seeds) replaced the sparse playlists. Deterministic scripted pilots in `tests/sim/difficulty.test.ts` guard the calibration; fairness is validated separately ([fairness](03-worlds-and-generation.md#7-fairness-for-leftright-only-movement)). Standard endless, before → after:
+**Combat difficulty calibration (14 October 2026).** Squadron formations, overlapping cues, repeat volleys and the scaling in [campaign difficulty](11-campaign-difficulty.md) and the [endless ramp](03-worlds-and-generation.md#8-endless-difficulty-and-seeds) replaced the sparse playlists. Deterministic scripted pilots in `tests/sim/difficulty.test.ts` guard the calibration; fairness is validated separately ([fairness](03-worlds-and-generation.md#7-fairness-for-leftright-only-movement)). Standard endless:
 
-| Pilot | Measure | Before | After |
-| --- | --- | --- | --- |
-| Idle (never moves) | First life lost | 28.2 s | 27.4 s (target 25–40 s) |
-| Idle (never moves) | All lives lost | 86.9 s | 53.4 s |
-| Simple dodger, 0.2 s reaction (median of 5 starts) | First life lost | 71 s | 57 s (never before 53 s) |
-| Simple dodger, 0.2 s reaction (median of 5 starts) | All lives lost | 229 s | 155 s, inside sector 2 |
-| Mid-skill hunter (aligns, then dodges the nearest bullet) | First life lost | 158 s | 99 s |
-| Mid-skill hunter (aligns, then dodges the nearest bullet) | All lives lost | 484 s | 169 s |
-| Perfect solver pilot (no special, no pickups) | Sectors 1–4 | 0 hits | 0 hits |
-| — | Hostile shots per minute | 14 | about 100–120 |
+| Pilot | Measure | Before (13 Oct) | 14 Oct (squadrons, pacing) | 15 Oct (current) |
+| --- | --- | --- | --- | --- |
+| Idle (never moves) | First life lost | 28.2 s | 27.4 s | 29.1 s (target 25–40 s) |
+| Idle (never moves) | All lives lost | 86.9 s | 53.4 s | 52.0 s |
+| Simple dodger, 0.2 s reaction (median of 5 starts) | First life lost | 71 s | 57 s | 30 s (never before 28 s) |
+| Simple dodger, 0.2 s reaction (median of 5 starts) | All lives lost | 229 s | 155 s | 109 s |
+| Mid-skill hunter (aligns, then dodges the nearest bullet) | First life lost | 158 s | 99 s | 76 s |
+| Mid-skill hunter (aligns, then dodges the nearest bullet) | All lives lost | 484 s | 169 s | 131 s |
+| Perfect solver pilot (no special, no pickups) | Sectors 1–4 | 0 hits | 0 hits | 0 hits |
+| — | Hostile shots per minute (dodger, hunter) | 14 | about 100–110 | about 66–75 |
 
-"After" includes the pacing pass of 14 October 2026: forward scroll 4 → 5 units/s, Balanced Drive 12 / 90 / 125, camera 17 units/s, squadron entries and exits in 1.4 s instead of 1.8 s, sweeps and dives about 25% faster, base shot speeds about 10% faster and repeat intervals about 12% shorter.
+The 14 October pass added squadrons and a 25% faster pace (scroll 4 → 5, Balanced Drive 12 / 90 / 125, camera 17). The 15 October pass made several changes:
+
+- one air squadron at a time (the airspace rule) with much faster repeat volleys;
+- the 0.42 collider;
+- the 30-unit map;
+- endless starting at the old pace (0.8) and ramping to 1.1.
+
+Fewer bullets now reach the row per minute than on 14 October, but each squadron fires faster and the larger ship is far easier to hit.
 
 The perfect pilot proves that a surviving path exists for a pilot who reads every warning; it is not a model of human play. Phone playtests remain the gate for readability and fun.

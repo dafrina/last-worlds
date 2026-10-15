@@ -1,6 +1,7 @@
 import { ENEMIES } from '../content/balance';
+import { BASTION } from '../content/bastion';
 import { FORMATIONS, type FormationTemplate, type Keyframe } from '../content/formations';
-import { VIEW, type Enemy, type FormationMember } from '../shared/contracts';
+import { VIEW, type BossState, type Enemy, type FormationMember, type RunState } from '../shared/contracts';
 
 /** Linear keyframe interpolation; past the last keyframe the final segment continues (the exit). */
 export function keyframeAt(path: readonly Keyframe[], t: number): { x: number; s: number } {
@@ -61,21 +62,50 @@ export function pathComplete(enemy: Enemy): boolean {
 }
 
 /**
- * Deterministic position `ahead` seconds from now. Formation members follow their template; the legacy
- * single-enemy motion (straight descent, weaver sine) remains for raw test fixtures.
+ * Rate of an enemy's clock relative to active time. Airframes run at the pace; ground targets are fixed to the
+ * terrain and move with its scroll, so they stop when the terrain stops. Paths, fire offsets and repeat
+ * intervals are measured on this clock; warnings always count real seconds.
  */
-export function positionAfter(enemy: Enemy, ahead: number): { x: number; s: number } {
-  if (enemy.bossPart) return { x: enemy.x, s: enemy.s };
-  if (enemy.formation) return memberPosition(enemy.formation, enemy.age + ahead);
-  const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + ahead) * 1.6) * 1.2 : enemy.x;
-  return { x, s: enemy.s - ENEMIES[enemy.kind].speed * ahead };
+export function enemyClockRate(state: Pick<RunState, 'pace' | 'scrollSpeed'>, enemy: Enemy): number {
+  return enemy.kind === 'turret' ? state.scrollSpeed / VIEW.scrollSpeed : state.pace;
 }
 
-export function advanceEnemy(enemy: Enemy, dt: number): void {
-  const next = positionAfter(enemy, dt);
-  enemy.age += dt;
+/**
+ * Deterministic position `ahead` real seconds from now at clock `rate`. Formation members follow their
+ * template; the legacy single-enemy motion (straight descent, weaver sine) remains for raw test fixtures.
+ */
+export function positionAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; s: number } {
+  if (enemy.bossPart) return { x: enemy.x, s: enemy.s };
+  const clock = ahead * rate;
+  if (enemy.formation) return memberPosition(enemy.formation, enemy.age + clock);
+  const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + clock) * 1.6) * 1.2 : enemy.x;
+  return { x, s: enemy.s - ENEMIES[enemy.kind].speed * clock };
+}
+
+export function advanceEnemy(enemy: Enemy, dt: number, rate = 1): void {
+  const next = positionAfter(enemy, dt, rate);
+  enemy.age += dt * rate;
   enemy.x = next.x;
   enemy.s = next.s;
+}
+
+/**
+ * Bastion-9's authored maneuver on the static arena at an active time: it rolls in during arrival, then sways
+ * laterally and surges forward/back within bounds. The fight freezes in place once destroyed.
+ */
+export function bossPose(boss: Pick<BossState, 'originX' | 'startedAt'>, time: number): { x: number; s: number } {
+  const age = time - boss.startedAt;
+  const arena = BASTION.arena;
+  const fight = Math.max(0, age - BASTION.arrivalDuration);
+  const s = age < BASTION.arrivalDuration
+    ? 22 + (BASTION.row - 22) * Math.max(0, age) / BASTION.arrivalDuration
+    : BASTION.row + Math.sin(fight * arena.surgeRate) * arena.surge;
+  return { x: boss.originX + Math.sin(fight * arena.swayRate) * arena.sway, s };
+}
+
+/** Logical position of a fortress module for a hull pose. */
+export function bossPartOffset(part: NonNullable<Enemy['bossPart']>): { x: number; s: number } {
+  return { x: part === 'left' ? -BASTION.batteryOffset : part === 'right' ? BASTION.batteryOffset : 0, s: part === 'core' ? BASTION.coreRowOffset : 0 };
 }
 
 export const GROUND_HEIGHT = 0.85;

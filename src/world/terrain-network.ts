@@ -2,6 +2,7 @@ import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, routeCenter } from './terr
 import { terrainHeight } from './terrain-ground';
 import { SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Settlement } from './terrain-settlements';
 import { finish, type Work } from './terrain-work';
+import { nearArena, type TerrainArena } from './terrain-arena';
 
 /**
  * Long-range settlement network (docs/13 §2): outposts are nodes of a seeded graph; each edge gets a
@@ -119,11 +120,16 @@ function edgesOf(seed: number, site: Settlement): NetworkEdge[] {
   return edges.filter(edge => edge.road || edge.pipe);
 }
 
-/** Network edges whose endpoints could reach forward distances [s0, s1]. */
-export function edgesNear(seed: number, s0: number, s1: number): NetworkEdge[] {
+/**
+ * Network edges whose endpoints could reach forward distances [s0, s1]. With a mission arena, edges whose
+ * search could reach it (or its ramps) are left out, so no road or pipeline crosses the platform and every
+ * remaining path is exactly the one built without an arena.
+ */
+export function edgesNear(seed: number, s0: number, s1: number, arena?: TerrainArena): NetworkEdge[] {
   const edges: NetworkEdge[] = [];
-  for (const site of settlementsNear(seed, s0 - 3 * SETTLEMENT_CELL - 10, s1 + 10)) {
+  for (const site of settlementsNear(seed, s0 - 3 * SETTLEMENT_CELL - 10, s1 + 10, arena)) {
     for (const edge of edgesOf(seed, site)) {
+      if (nearArena(arena, Math.min(edge.a.s, edge.b.s), Math.max(edge.a.s, edge.b.s), PIPE_MARGIN + 2 * PIPE_CELL)) continue;
       if (Math.max(edge.a.s, edge.b.s) + 10 >= s0 && Math.min(edge.a.s, edge.b.s) - 10 <= s1) edges.push(edge);
     }
   }
@@ -169,8 +175,10 @@ interface Grid {
 const moduleReach = (node: string) => node === 'infra_landing_pad' ? 3.2 : node === 'infra_refinery' ? 2.7 : 1;
 /** Coarse grid over the edge's span with ground heights and a per-cell cost (center lane, foreign pads). */
 function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: number, margin = 8, ownPads = false): Work<Grid> {
-  // Columns sit symmetrically about the centre, their cells at least half a unit clear of the world edges.
-  const reach = Math.floor((WORLD_HALF - 0.5 - cell / 2) / cell) * cell, x0 = -reach, columns = Math.round(2 * reach / cell) + 1;
+  // Columns sit symmetrically about the centre (on whole or half cells, whichever reaches further), their cells
+  // at least half a unit clear of the world edges.
+  const limit = WORLD_HALF - 0.5 - cell / 2, whole = Math.floor(limit / cell) * cell, offset = (Math.floor(limit / cell - 0.5) + 0.5) * cell;
+  const reach = Math.max(whole, offset), x0 = -reach, columns = Math.round(2 * reach / cell) + 1;
   const s0 = Math.floor((Math.min(edge.a.s, edge.b.s) - margin) / cell) * cell, rows = Math.ceil((Math.max(edge.a.s, edge.b.s) + margin - s0) / cell) + 1;
   const heights = new Float64Array(columns * rows), extra = new Float64Array(columns * rows);
   const pads = settlementsNear(seed, s0, s0 + rows * cell).filter(site => site !== edge.a.site && site !== edge.b.site);
@@ -242,13 +250,15 @@ function* searchSteps(g: Grid, a: Endpoint, b: Endpoint, diagonal: boolean, maxS
     }
   }
   // Unreachable goal: keep the best partial run (a line or track that ends in the open), if it is long enough.
-  if (found < 0) found = closest;
+  const reached = found >= 0;
+  if (!reached) found = closest;
   if (found < 0) return null;
   const path: number[] = [];
   for (let state = found; state >= 0; state = from[state]) path.push(Math.floor(state / headings));
   path.reverse();
   const unique = path.filter((node, i) => i === 0 || node !== path[i - 1]);
-  return unique.length >= minimum ? unique : null;
+  // A path that reaches its goal stands however short it is (an outpost by the map edge exits in a few units).
+  return unique.length >= (reached ? 3 : minimum) ? unique : null;
 }
 
 
@@ -371,7 +381,8 @@ export const PIPE_BEDDING = 0.05;
  * Lowest base a pipe may take over ground g: on a rack (base at the ground) wherever a rack fits under the
  * scenery cap; higher up (mesa tops) it rests on the ground on short stands, as only a small pipe fits.
  */
-const pipeNeed = (g: number, size: PipeSize) => Math.min(g, Math.max(PIPE_TOP, g - PIPE_BODY[size] - PIPE_BEDDING));
+// Layout plans with part of the bedding allowance: ground between its samples may rise a little more.
+const pipeNeed = (g: number, size: PipeSize) => Math.min(g, Math.max(PIPE_TOP, g - PIPE_BODY[size] - PIPE_BEDDING * 0.6));
 /** The search plans with the small pipe's limits; layout picks the size that fits. */
 const fits = (g: number) => pipeNeed(g, 's') <= PIPE_HIGHEST.s + 1e-9;
 /** Extra cost per unit over ground too high for a rack, so lines cross mesa tops only when they must. */
@@ -579,9 +590,17 @@ function* assembleSteps(seed: number, edge: NetworkEdge, layout: Layout, reached
       pieces.push(pipeBetween(id, valve ? 'pipe_valve' : straight, group, [x + bx, joints[i] + PIPE_AXIS, -(s + bs)], [x + fx, joints[i + 1] + PIPE_AXIS, -(s + fs)]));
       // Trestle spans get the same supports, just tall: stacked frames down to the canyon floor.
       supportStack(pieces, seed, `${id}:support`, group, x, s, (joints[i] + joints[i + 1]) / 2, toThree(front[i]), !valve, body);
-      if (!valve) {
-        stand(pieces, seed, `${id}:back`, group, x + bx / 2, s + bs / 2, joints[i] * 0.75 + joints[i + 1] * 0.25, toThree(front[i]), body);
-        stand(pieces, seed, `${id}:front`, group, x + fx / 2, s + fs / 2, joints[i] * 0.25 + joints[i + 1] * 0.75, toThree(front[i]), body);
+      // A line resting on high ground gets a stand under the worst dip it bridges in each half.
+      if (!valve) for (const [name, low, side] of [['back', 0, back[i]], ['front', 0.5, front[i]]] as const) {
+        let worst = 0.1, best = -1;
+        for (let t = low + 0.0625; t < low + 0.5; t += 0.125) {
+          const d = Math.abs(1 - 2 * t), gap = joints[i] + (joints[i + 1] - joints[i]) * t + body
+            - terrainHeight(seed, x + DIRECTION[side][0] * d, s + DIRECTION[side][1] * d);
+          if (gap > worst) { worst = gap; best = t; }
+        }
+        if (best < 0) continue;
+        const d = Math.abs(1 - 2 * best);
+        stand(pieces, seed, `${id}:${name}`, group, x + DIRECTION[side][0] * d, s + DIRECTION[side][1] * d, joints[i] + (joints[i + 1] - joints[i]) * best, toThree(front[i]), body);
       }
     }
     if (i % 4 === 3) yield;
@@ -702,9 +721,9 @@ export function* pipePieceSteps(seed: number, edge: NetworkEdge): Work<IndustryP
 export const pipePieces = (seed: number, edge: NetworkEdge) => finish(pipePieceSteps(seed, edge));
 
 /** Every network piece of a section (anchor s inside it), plus the roads that touch it. */
-export function* sectionNetworkSteps(seed: number, startS: number, size: number): Work<{ pieces: IndustryPiece[]; roads: RoadPath[] }> {
+export function* sectionNetworkSteps(seed: number, startS: number, size: number, arena?: TerrainArena): Work<{ pieces: IndustryPiece[]; roads: RoadPath[] }> {
   const pieces: IndustryPiece[] = [], roads: RoadPath[] = [];
-  for (const edge of edgesNear(seed, startS, startS + size)) {
+  for (const edge of edgesNear(seed, startS, startS + size, arena)) {
     for (const piece of yield* pipePieceSteps(seed, edge)) {
       if (piece.s < startS || piece.s >= startS + size) continue;
       // Safety net only: layout keeps every piece inside the world and under the cap (tests hold it to that).
@@ -718,4 +737,4 @@ export function* sectionNetworkSteps(seed: number, startS: number, size: number)
   }
   return { pieces, roads };
 }
-export const sectionNetwork = (seed: number, startS: number, size: number) => finish(sectionNetworkSteps(seed, startS, size));
+export const sectionNetwork = (seed: number, startS: number, size: number, arena?: TerrainArena) => finish(sectionNetworkSteps(seed, startS, size, arena));

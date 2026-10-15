@@ -10,6 +10,8 @@ export interface BossState {
   x: number; originX: number; s: number; startedAt: number; phaseStartedAt: number;
   nextAttackAt: number; attackIndex: number; attack: 'burst' | 'fan' | 'beam' | null;
   attackerId: number | null; deathEffectAt: number;
+  /** Combat-plane velocity (units/s; s is relative to the player row). Ground-relative forward speed is vs + RunState.scrollSpeed. */
+  vx: number; vs: number;
 }
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer';
@@ -21,7 +23,7 @@ export interface Player {
   weapon: WeaponId; power: number;
 }
 /** Authored squadron membership. Motion and fire timing derive from the content template. */
-export interface FormationMember { template: string; slot: number; anchorX: number; mirror: 1 | -1 }
+export interface FormationMember { template: string; slot: number; anchorX: number; mirror: 1 | -1; group: number }
 export interface Enemy {
   id: number; kind: EnemyKind; x: number; s: number; originX: number;
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
@@ -44,8 +46,12 @@ export interface RunState {
   nextId: number; nextVolleyAt: number; nextEncounterAt: number; encounterIndex: number;
   lootRng: number; chargeKillTimes: number[]; message: string; messageUntil: number;
   boss: BossState | null;
+  /** Current forward scroll of the terrain (units/s). Render and terrain streaming read this, not VIEW.scrollSpeed. */
+  scrollSpeed: number;
+  /** Kinematic pace: 1 is the campaign pace; endless ramps it by sector. Scales ship, enemy and camera motion. */
+  pace: number;
 }
-export const VIEW = { width: 12, worldWidth: 36, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.25, scrollSpeed: 5 } as const;
+export const VIEW = { width: 12, worldWidth: 30, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;
 export const EMPTY_INPUT: InputFrame = { horizontal: 0, specialPressed: false, pausePressed: false };
 export interface GameRenderer {
