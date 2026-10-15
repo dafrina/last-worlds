@@ -26,7 +26,8 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
     }
     // Endless opens on Luna, exactly Luna's own world (no arena reaches the first sections).
     for (const index of [0, 1, 4]) expect(generateTerrainSection(SEED, index, route)).toEqual(generateTerrainSection(SEED, index, { planet: 'luna' }));
-  });
+    // 36 full sections: CI runners need well over the default 30 s (it timed out there on 15 October).
+  }, 120_000);
 
   it('follows the schedule: each distance takes its stretch’s planet and the nearest arena', () => {
     for (let s = -20; s < 6000; s += 3.7) {
