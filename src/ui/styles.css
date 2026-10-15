@@ -18,11 +18,11 @@ html, body, #app { margin: 0; width: 100%; min-height: 100%; }
 html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
 body { overflow: hidden; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .flight-frame, .flight-frame * { -webkit-touch-callout: none; }
-.flight-frame :not(select) { -webkit-user-select: none; user-select: none; }
-button, select { font: inherit; }
+.flight-frame * { -webkit-user-select: none; user-select: none; }
+button { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
-button, select { border-radius: 0; }
-button:focus-visible, select:focus-visible { outline: 2px solid var(--coral); outline-offset: 5px; }
+button { border-radius: 0; }
+button:focus-visible { outline: 2px solid var(--coral); outline-offset: 5px; }
 button:disabled { cursor: default; }
 [hidden] { display: none !important; }
 
@@ -99,18 +99,29 @@ button:disabled { cursor: default; }
   font: 400 24px / 1 Arial, sans-serif; pointer-events: auto; touch-action: none;
 }
 .special-button {
+  --charge: 0; --glow: #7fd8ff;
   position: absolute; z-index: 5; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%;
-  transform: translateX(-50%); width: 72px; height: 72px; padding: 12px 20px 15px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 5px; border-radius: 50%; border: 1px solid #acc2d680;
-  background: #112136ee; color: #8c9db3; touch-action: none;
+  transform: translateX(-50%); width: 72px; height: 72px; padding: 0;
+  display: grid; place-items: center; border-radius: 50%; border: 0;
+  background: #0d1b2ef0; color: #7f93ab; touch-action: none;
+  box-shadow: inset 0 0 0 1px #acc2d633;
 }
-.special-button.is-ready { border-color: #e2edf6ba; color: var(--ivory); }
+/* Recharge: a glowing arc that fills clockwise around the border; the unfilled track stays faint. */
+.charge-ring {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--glow) calc(var(--charge) * 360deg), #6785a333 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  filter: drop-shadow(0 0 4px var(--glow));
+}
+.special-button.is-ready { color: #f2fbff; animation: special-ready 1.3s ease-in-out infinite; }
+.special-button.is-ready .special-glyph { filter: drop-shadow(0 0 6px var(--glow)); }
 .special-button:active { background: #2d4664; }
-.special-glyph { height: 28px; width: 24px; fill: currentColor; flex: 0 0 auto; }
-.charge-ticks { display: flex; gap: 3px; justify-content: center; }
-.charge-ticks i { display: block; width: 3px; height: 5px; background: #6785a353; }
-.charge-ticks i.charged { background: var(--ivory); }
+.special-glyph { position: relative; height: 30px; width: 26px; fill: currentColor; }
+@keyframes special-ready {
+  0%, 100% { box-shadow: inset 0 0 0 1px #acc2d633, 0 0 10px 1px #7fd8ff66; }
+  50% { box-shadow: inset 0 0 0 1px #acc2d633, 0 0 22px 6px #7fd8ffb0; }
+}
 .steering-hints {
   position: absolute; z-index: 3; pointer-events: none;
   left: 8%; right: 8%; bottom: 21%; display: flex; justify-content: space-between;
@@ -170,17 +181,6 @@ button:disabled { cursor: default; }
 .eyebrow { margin: 0 0 12px; color: #8fa9c5; font: 9px / 1.5 var(--mono); letter-spacing: 1.6px; }
 .page-panel h2, .short-panel h2 { margin: 0 0 25px; font-size: clamp(29px, 5vh, 43px); line-height: 1; letter-spacing: -1.6px; font-weight: 750; }
 .page-panel h3 { margin: 0; color: #9ab0c9; font: 9px / 1.5 var(--mono); letter-spacing: 1.2px; }
-.setup-fields { display: grid; gap: 12px; }
-.setup-fields label { display: grid; gap: 8px; font: 9px / 1.3 var(--mono); letter-spacing: 1px; color: #9ab0c9; }
-select { min-width: 0; min-height: 44px; padding: 9px; color: var(--ivory); background: #10233b; border: 1px solid var(--line); font: 12px / 1.3 var(--mono); touch-action: manipulation; }
-.setup-fields select { width: 100%; }
-.mission-description { margin: 10px 0 22px; color: #9db0c5; font-size: 12px; line-height: 1.6; }
-.equipment-preview { border-top: 1px solid var(--line); margin: 25px 0 23px; padding-top: 16px; }
-.equipment-preview dl { margin: 9px 0 0; }
-.equipment-preview dl div { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
-.equipment-preview dt { color: #93aac3; font-size: 12px; }
-.equipment-preview dd { margin: 0; font: 11px / 1.5 var(--mono); text-align: right; }
-.equipment-preview select { max-width: 100%; margin: 0 0 7px; }
 .mode-tabs { display: flex; border-bottom: 1px solid var(--line); }
 .mode-tabs button { flex: 1; background: transparent; color: #91a6c0; border: 0; border-bottom: 2px solid transparent; min-height: 44px; padding: 12px 0; font: 10px / 1.5 var(--mono); letter-spacing: 1px; }
 .mode-tabs button[aria-selected="true"] { color: #e2edf6; border-bottom-color: #a4c8ed; }
@@ -198,7 +198,6 @@ select { min-width: 0; min-height: 44px; padding: 9px; color: var(--ivory); back
 .statistics-history b { font: 12px / 1.5 var(--mono); }
 .settings-list { display: grid; margin-top: 34px; }
 .settings-list > div, .settings-list > label { display: flex; justify-content: space-between; align-items: center; gap: 15px; border-bottom: 1px solid var(--line); padding: 15px 0; font-size: 14px; }
-.sound-toggle { min-height: 44px; min-width: 74px; border: 1px solid var(--line); background: #10233b; color: var(--ivory); font: 11px / 1.5 var(--mono); touch-action: manipulation; }
 .settings-help { margin-top: 38px !important; }
 .control-guide { margin: 30px 0; padding: 0; list-style: none; }
 .control-guide li { display: flex; gap: 20px; margin: 0 0 26px; }
@@ -220,8 +219,67 @@ select { min-width: 0; min-height: 44px; padding: 9px; color: var(--ivory); back
 .error-message { color: #c3d3e4; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .text-button { margin-top: 12px; }
 
+/* Lost flight: the results arrive after a beat, over the slow-motion afterglow (main.ts). */
+.flight-overlay.is-ending { animation: ending-veil 1.1s ease-out 1.2s both; pointer-events: none; }
+.flight-overlay.is-ending.is-settled { pointer-events: auto; }
+.flight-overlay.is-ending .results-panel { animation: ending-rise .9s cubic-bezier(.2, .7, .2, 1) 1.45s both; }
+.flight-overlay.is-ending .results-panel h2 { animation: ending-title 1.6s ease-out 1.4s both; }
+@keyframes ending-veil { from { background-color: #08142600; } to { background-color: #081426f7; } }
+@keyframes ending-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes ending-title { from { letter-spacing: 6px; opacity: 0; } to { letter-spacing: -1.6px; opacity: 1; } }
+@keyframes ending-fade { from { opacity: 0; } to { opacity: 1; } }
+/* Selectors (no dropdowns): segmented radio buttons; the checked one glows. */
+.selector { display: flex; gap: 6px; }
+.selector [role="radio"] {
+  position: relative; flex: 1; min-height: 44px; padding: 10px 6px 12px; border: 1px solid var(--line);
+  background: #0b1b30; color: #8ea4bd; font: 10px / 1.2 var(--mono); letter-spacing: 1px; text-transform: uppercase;
+  touch-action: manipulation; transition: color .2s, border-color .2s, box-shadow .2s, background .2s;
+}
+.selector [role="radio"]::after {
+  content: ''; position: absolute; left: 22%; right: 22%; bottom: 5px; height: 2px; border-radius: 2px;
+  background: #33506f; transition: background .2s, box-shadow .2s;
+}
+.selector [role="radio"][aria-checked="true"] {
+  color: #f2fbff; border-color: #7fd8ffaa; background: #12304d;
+  box-shadow: 0 0 12px #7fd8ff40, inset 0 0 10px #7fd8ff22;
+}
+.selector [role="radio"][aria-checked="true"]::after { background: #9fe4ff; box-shadow: 0 0 8px 1px #7fd8ff; }
+.selector [role="radio"]:hover { color: #d6e6f4; }
+.setup-group { display: grid; gap: 7px; margin: 0 0 12px; }
+.setup-label { color: #8fa9c5; font: 8px / 1.4 var(--mono); letter-spacing: 1.3px; }
+.settings-list .selector { width: 150px; }
+
+/* Mission selector: a spinning preview of each world, swiped or stepped with the arrows. */
+.campaign-panel .back-button { margin-bottom: 8px; }
+.campaign-panel .eyebrow { margin-bottom: 0; }
+.campaign-eyebrow { display: flex; gap: 8px; }
+.page-panel .campaign-eyebrow h2 { margin: 0; font: inherit; letter-spacing: inherit; }
+.planet-stage { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; touch-action: pan-y; margin: 2px -8px 0; }
+.planet-preview {
+  justify-self: center; width: min(52cqw, 26vh, 250px); aspect-ratio: 1; border-radius: 50%;
+  filter: drop-shadow(0 0 18px #7fb8e655);
+}
+.planet-stage.is-switching .planet-preview { animation: planet-in .45s cubic-bezier(.2, .7, .2, 1); }
+.mission-arrow {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid #7fd8ff66; background: #0b1b30cc; color: #dff4ff;
+  font: 26px / 1 Arial, sans-serif; padding: 0 0 3px; box-shadow: 0 0 10px #7fd8ff33; touch-action: manipulation;
+}
+.mission-arrow:hover { box-shadow: 0 0 16px #7fd8ff77; }
+.selector-dots { display: flex; justify-content: center; gap: 12px; margin: 6px 0 10px; }
+.selector-dots [role="radio"] { width: 24px; height: 24px; border: 0; padding: 0; background: transparent; display: grid; place-items: center; }
+.selector-dots [role="radio"]::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #33506f; transition: background .2s, box-shadow .2s; }
+.selector-dots [role="radio"][aria-checked="true"]::before { background: #9fe4ff; box-shadow: 0 0 8px 2px #7fd8ffaa; }
+.mission-world { margin: 0; text-align: center; color: #8fa9c5; font: 8px / 1.5 var(--mono); letter-spacing: 1.5px; }
+.page-panel .mission-name { margin: 4px 0 6px; text-align: center; color: var(--ivory); font: 750 clamp(24px, 4.2vh, 34px) / 1 'Aptos', 'Segoe UI', Arial, sans-serif; letter-spacing: -1px; }
+.mission-description { margin: 0 0 8px; text-align: center; color: #9db0c5; font-size: 12px; line-height: 1.5; min-height: 2.9em; }
+.mission-threat { display: flex; justify-content: center; align-items: center; gap: 9px; margin: 0 0 14px; color: #8fa9c5; font: 8px / 1 var(--mono); letter-spacing: 1.3px; }
+.threat-pips { display: flex; gap: 4px; }
+.threat-pips i { width: 14px; height: 4px; background: #2a4058; }
+.threat-pips i.on { background: #ffb36b; box-shadow: 0 0 6px #ff9a4a; }
+.loadout-line { margin: 2px 0 14px; color: #7f97b1; font: 8px / 1.6 var(--mono); letter-spacing: .8px; text-align: center; }
+@keyframes planet-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
 @keyframes gentle-hint { 0%, 100% { opacity: .9; } 50% { opacity: .3; } }
-@media (prefers-reduced-motion: reduce) { .steering-hints { animation: none; } .arcade-button:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .planet-stage.is-switching .planet-preview { animation: none; } .flight-overlay.is-ending .results-panel, .flight-overlay.is-ending .results-panel h2 { animation: ending-fade .8s ease-out 1.2s both; } .special-button.is-ready { animation: none; box-shadow: inset 0 0 0 1px #acc2d633, 0 0 16px 3px #7fd8ff99; } .steering-hints { animation: none; } .arcade-button:active { transform: none; } }
 @media (max-width: 980px) { .flight-rail { display: none; } }
 @media (max-width: 600px), (max-height: 560px) {
   .last-worlds-shell { padding: 0; }

@@ -15,7 +15,7 @@ import { VIEW, type BossId, type PlanetId, type RunConfig } from '../shared/cont
 export const ENDLESS_CYCLE = {
   planets: ['khepri', 'vesper'] as const satisfies readonly PlanetId[],
   sectorsPerPlanet: 3,
-  boss: { khepri: 'bastion', vesper: 'ark' } as const satisfies Readonly<Record<PlanetId, BossId>>,
+  boss: { khepri: 'bastion', vesper: 'ark' } as const satisfies Readonly<Partial<Record<PlanetId, BossId>>>,
   /** Boss sector timeline in seconds from the sector's start. */
   bossSector: {
     /** No ordinary cue is admitted at or after this time. */
@@ -96,7 +96,10 @@ export interface EndlessSectorPlan {
   jump: EndlessJump | null;
 }
 
-export function endlessPlanet(sector: number): PlanetId {
+/** Planets the endless cycle visits (the training moon is campaign-only). */
+export type EndlessPlanet = (typeof ENDLESS_CYCLE.planets)[number];
+
+export function endlessPlanet(sector: number): EndlessPlanet {
   const stint = Math.floor((sector - 1) / ENDLESS_CYCLE.sectorsPerPlanet);
   return ENDLESS_CYCLE.planets[stint % ENDLESS_CYCLE.planets.length];
 }

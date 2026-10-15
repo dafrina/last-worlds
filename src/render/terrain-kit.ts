@@ -544,7 +544,7 @@ const EMISSIVE = '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glow
  * its blue base, plus a crisp bright rim along the top edge; snow and ice tops carry sparse sun-glints.
  */
 const VESPER_KIT_HEAD = `
-uniform float vesperLook; uniform float beaconTime; varying float vPieceY;
+uniform float vesperLook; uniform float moonLook; uniform float beaconTime; varying float vPieceY;
 float vesperHash( vec2 p ) { return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ); }`;
 const VESPER_KIT_SURFACE = `
   float vesperIce = 0.0, vesperSnow = 0.0;
@@ -600,8 +600,8 @@ const haze = () => ({
  */
 export function createTerrainMaterials() {
   const time = { beaconTime: { value: 0 } };
-  /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material). */
-  const kitLook = { vesperLook: { value: 0 } };
+  /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material); moonLook greys the basalt. */
+  const kitLook = { vesperLook: { value: 0 }, moonLook: { value: 0 } };
   /** Kit glow: Khepri's mineral cyan; on Vesper the only glowing faces it draws are radiator/lamp bands (orange). */
   const kitGlow = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } };
   const fallback = createDetailTexture();
@@ -756,6 +756,9 @@ float khepriCells( vec2 local, float scale ) {
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - vGlow ) * ( 1.0 - vesperLook );
 #endif
 ${VESPER_KIT_SURFACE}`)
+      // Moon (docs/19): after the vertex colours, the Khepri basalt pieces turn to grey rock (luminance kept, lifted).
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.5, 1.48, 1.44 ), moonLook );`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.2, vesperIce );')
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
@@ -768,13 +771,14 @@ ${VESPER_KIT_SURFACE}`)
   let snowDetail: THREE.DataTexture | null = null, snowTexture: THREE.DataTexture | null = null;
   /** Retunes the ground and roads for a planet: Vesper snow takes its own ripple detail, cool haze and snow tracks. */
   const setPlanet = (planet: PlanetId) => {
-    const vesper = planet === 'vesper', khepri = haze();
+    const vesper = planet === 'vesper', moon = planet === 'moon', khepri = haze();
     if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();
     const nextDetail = vesper ? snowTexture : null;
     if (nextDetail !== snowDetail) { snowDetail = nextDetail; apply(); }
-    groundLook.detailContrast.value = vesper ? 0.9 : 1.4;
+    groundLook.detailContrast.value = vesper ? 0.9 : moon ? 0.6 : 1.4;
     groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : khepri.hazeColor.value);
-    groundHaze.hazeStrength.value = vesper ? 0.12 : khepri.hazeStrength.value;
+    // The moon has no air: no haze in its craters.
+    groundHaze.hazeStrength.value = vesper ? 0.12 : moon ? 0 : khepri.hazeStrength.value;
     if (vesper && !snowTrack) snowTrack = createRoadTexture('snow');
     roads.map = vesper ? snowTrack : dustTrack; roads.needsUpdate = true;
   };
@@ -808,7 +812,7 @@ ${VESPER_KIT_SURFACE}`)
      */
     setLook(planet: PlanetId) {
       const vesper = planet === 'vesper';
-      kitLook.vesperLook.value = vesper ? 1 : 0;
+      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.moonLook.value = planet === 'moon' ? 1 : 0;
       kitGlow.glowColor.value.copy(vesper ? linear(0xff7a26).multiplyScalar(3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
       infraGlow.glowColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
       infra.roughness = vesper ? 0.4 : 0.55; infra.metalness = vesper ? 0.06 : 0.3; infra.envMapIntensity = vesper ? 0.8 : 0.55;
@@ -924,9 +928,9 @@ export function createSharedMaterial(): THREE.MeshStandardMaterial {
   };
   /** Planet palette for the mask-driven kit (docs/17 §3): Vesper reads black ceramic, orange heat bands and frost. */
   material.userData.setPlanet = (planet: PlanetId) => {
-    const vesper = planet === 'vesper';
-    palette.metalColor.value.copy(linear(vesper ? 0x15181b : 0x3e4044)); palette.paintColor.value.copy(linear(vesper ? 0xd2541a : 0xb06a2e));
-    palette.wearColor.value.copy(linear(vesper ? 0xd3dae1 : 0xc8b8a0)); palette.dustColor.value.copy(linear(vesper ? 0xe3ebf2 : 0xa8683a));
+    const vesper = planet === 'vesper', moon = planet === 'moon';
+    palette.metalColor.value.copy(linear(vesper ? 0x15181b : 0x3e4044)); palette.paintColor.value.copy(linear(vesper ? 0xd2541a : moon ? 0xc9c4b8 : 0xb06a2e));
+    palette.wearColor.value.copy(linear(vesper ? 0xd3dae1 : 0xc8b8a0)); palette.dustColor.value.copy(linear(vesper ? 0xe3ebf2 : moon ? 0x9a9893 : 0xa8683a));
     palette.lampColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
     material.metalness = vesper ? 0.15 : 0.55; material.roughness = vesper ? 0.4 : 0.55;
   };

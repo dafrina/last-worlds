@@ -119,7 +119,7 @@ function beginSector(state: RunState): void {
 }
 
 const MISSION_TITLES: Readonly<Record<MissionId, string>> = {
-  training: 'TRAINING SORTIE · KHEPRI', bastion: 'ROLLING THUNDER · KHEPRI', 'cold-vector': 'COLD VECTOR · VESPER',
+  training: 'TRAINING SORTIE · MOON', bastion: 'ROLLING THUNDER · KHEPRI', 'cold-vector': 'COLD VECTOR · VESPER',
 };
 
 function updateDirector(state: RunState): void {

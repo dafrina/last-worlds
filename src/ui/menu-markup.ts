@@ -1,4 +1,17 @@
 /** Menu-only surfaces. Gameplay HUD and input stay in game-ui.ts. */
+
+/** Campaign missions in selector order (progression: the moon first). */
+export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector']] as const;
+
+/**
+ * A segmented selector (no dropdowns): one radio button per choice, the checked one lit with a glowing indicator.
+ * game-ui.ts wires clicks and arrow keys; `data-selector` names the value it carries.
+ */
+export function selector(name: string, label: string, choices: readonly (readonly [string, string])[], value: string): string {
+  return `<div class="selector" role="radiogroup" aria-label="${label}" data-selector="${name}">${choices.map(([id, text]) =>
+    `<button type="button" role="radio" data-value="${id}" aria-checked="${id === value}" tabindex="${id === value ? 0 : -1}"><span>${text}</span></button>`).join('')}</div>`;
+}
+
 export const menuMarkup = `
   <section class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="game-title">
     <div class="menu-topline"><span>LW / FLIGHT COMMAND</span><span class="status-dot">KHEPRI</span></div>
@@ -15,16 +28,21 @@ export const menuMarkup = `
   </section>
   <section class="campaign-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>
-    <p class="eyebrow">01 / KHEPRI</p><h2 id="campaign-title">CAMPAIGN</h2>
-    <div class="mission-select setup-fields"><label>MISSION<select name="mission" aria-label="Campaign mission"><option value="bastion">Rolling Thunder</option><option value="cold-vector">Cold Vector · Vesper</option><option value="training">Training</option></select></label></div>
-    <p class="mission-description">Bring down the Bastion-9 fortress.</p>
-    <div class="setup-fields"><label>DIFFICULTY<select name="difficulty" aria-label="Campaign difficulty"><option value="relaxed">Relaxed</option><option value="standard" selected>Standard</option><option value="veteran">Veteran</option></select></label></div>
-    <div class="equipment-preview"><h3>LOADOUT</h3><dl>
-      <div><dt><label for="main-weapon">Main</label></dt><dd><select id="main-weapon" name="weapon" aria-label="Main weapon"><option value="pulse">Pulse · straight</option><option value="fan">Scatter · fan</option><option value="seeker">Seeker · homing</option></select></dd></div>
-      <div><dt>Special</dt><dd>Shockwave</dd></div><div><dt>Shield</dt><dd>Standard</dd></div><div><dt>Reactor</dt><dd>Balanced</dd></div>
-    </dl></div>
+    <div class="eyebrow campaign-eyebrow"><h2 id="campaign-title">CAMPAIGN</h2><span aria-hidden="true">·</span><span class="mission-count">2 / 3</span></div>
+    <div class="planet-stage">
+      <button type="button" class="mission-arrow" data-mission-step="-1" aria-label="Previous mission">‹</button>
+      <canvas class="planet-preview" aria-hidden="true"></canvas>
+      <button type="button" class="mission-arrow" data-mission-step="1" aria-label="Next mission">›</button>
+    </div>
+    <div class="mission-dots selector-dots" role="radiogroup" aria-label="Campaign mission">${MISSION_ORDER.map(([id, name]) => `<button type="button" role="radio" data-value="${id}" aria-label="${name}" aria-checked="false"></button>`).join('')}</div>
+    <p class="mission-world"></p>
+    <h3 class="mission-name"></h3>
+    <p class="mission-description"></p>
+    <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i></span></p>
+    <div class="setup-group"><span class="setup-label" id="difficulty-label">DIFFICULTY</span>${selector('difficulty', 'Campaign difficulty', [['relaxed', 'Relaxed'], ['standard', 'Standard'], ['veteran', 'Veteran']], 'standard')}</div>
+    <div class="setup-group"><span class="setup-label">MAIN WEAPON</span>${selector('weapon', 'Main weapon', [['pulse', 'Pulse'], ['fan', 'Scatter'], ['seeker', 'Seeker']], 'pulse')}</div>
+    <p class="loadout-line">SPECIAL Shockwave · SHIELD Standard · REACTOR Balanced</p>
     <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH SORTIE <span aria-hidden="true">↗</span></button>
-    <p class="panel-note">Equipment upgrades arrive in a later build.</p>
   </section>
   <section class="statistics-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="statistics-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>
@@ -40,7 +58,7 @@ export const menuMarkup = `
   <section class="settings-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
     <button type="button" class="back-button" data-settings-back>← BACK</button>
     <p class="eyebrow">FLIGHT COMMAND</p><h2 id="settings-title">SETTINGS</h2>
-    <div class="settings-list"><div><span>Sound</span><button type="button" class="sound-toggle" data-sound aria-label="Mute sound" aria-pressed="false">ON</button></div><label><span>Graphics</span><select data-graphics aria-label="Graphics quality"><option value="high">High</option><option value="low">Low</option></select></label></div>
+    <div class="settings-list"><div><span>Sound</span>${selector('sound', 'Sound', [['on', 'On'], ['off', 'Off']], 'on')}</div><div><span>Graphics</span>${selector('graphics', 'Graphics quality', [['high', 'High'], ['low', 'Low']], 'high')}</div></div>
     <p class="panel-note">Use Low graphics for a smoother flight.</p>
     <button type="button" class="arcade-button secondary settings-help" data-action="settings-help">HOW TO PLAY <span aria-hidden="true">↗</span></button>
   </section>

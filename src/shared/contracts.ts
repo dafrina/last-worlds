@@ -5,7 +5,7 @@ export type GraphicsQuality = 'high' | 'low';
 export type WeaponId = 'pulse' | 'fan' | 'seeker';
 export type MissionId = 'training' | 'bastion' | 'cold-vector';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
-export type PlanetId = 'khepri' | 'vesper';
+export type PlanetId = 'khepri' | 'vesper' | 'moon';
 /** Boss modules. Bastion-9: batteries and core. Helion Ark: radiators (left/right) and bridge (core). */
 export type BossPart = 'left' | 'right' | 'core';
 export type BossId = 'bastion' | 'ark';

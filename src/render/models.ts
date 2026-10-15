@@ -47,13 +47,14 @@ function createPanelTexture(): THREE.DataTexture {
  */
 function createCraftMaterial(panel: THREE.Texture): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: panel, roughness: 1, metalness: 1, envMapIntensity: 0.9 });
+  material.userData.paintSwap = { value: 0 };
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, { rimColor: { value: new THREE.Color(1, 0.78, 0.55) }, rimStrength: { value: 0.32 } });
+    Object.assign(shader.uniforms, { rimColor: { value: new THREE.Color(1, 0.78, 0.55) }, rimStrength: { value: 0.32 }, paintSwap: material.userData.paintSwap });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 pbr;\nvarying vec3 vPbr;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPbr = pbr;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPbr;\nuniform vec3 rimColor;\nuniform float rimStrength;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPbr;\nuniform vec3 rimColor;\nuniform float rimStrength;\nuniform float paintSwap;')
       .replace('#include <map_fragment>', `float glowMask = step( 0.01, vPbr.z );
   vec3 glowTint = diffuseColor.rgb;
   #ifdef USE_MAP
@@ -61,6 +62,8 @@ function createCraftMaterial(panel: THREE.Texture): THREE.MeshStandardMaterial {
     diffuseColor.rgb *= mix( 1.0 + ( texture2D( map, vMapUv ).r * 2.0 - 1.0 ) * 1.35, 1.0, glowMask );
   #endif
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.015 ), glowMask );`)
+      // Paint swap (0..1), after the vertex paint: warm ochre and rust turn steel blue (channels reversed); glow parts keep theirs.
+      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.bgr, paintSwap * ( 1.0 - glowMask ) );')
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vPbr.x;')
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vPbr.y;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowTint * vPbr.z;')
@@ -93,6 +96,8 @@ export function createMaterials() {
     warning: new THREE.MeshBasicMaterial({ color: 0xfbc175, transparent: true, opacity: 0.76, depthWrite: false, depthTest: false }),
     /** Shared single-draw material for hero and enemy craft. */
     craft: createCraftMaterial(panel),
+    /** Same as `craft` for the code-built enemy batches, so their paint can be retinted per planet (`userData.paintSwap`). */
+    enemyCraft: createCraftMaterial(panel),
     /** How each authored part material bakes into the craft vertex attributes. */
     paint,
   };
@@ -360,6 +365,16 @@ export function createDesertEnvironment(renderer: THREE.WebGLRenderer, sun: THRE
 export function createIceEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
   return skyEnvironment(renderer, sun, {
     zenith: [0.42, 0.58, 0.86], horizon: [1.05, 1.15, 1.3], ground: [0.02, 0.06, 0.13], disc: [9.0, 9.2, 9.6], halo: [0.35, 0.4, 0.5],
+  });
+}
+
+/**
+ * The moon's sky for reflections (docs/19): black above, a faint grey horizon and bright regolith below, with a hard
+ * white sun, so hulls pick up ground bounce and the sun's glint but never a coloured sky.
+ */
+export function createMoonEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
+  return skyEnvironment(renderer, sun, {
+    zenith: [0.03, 0.032, 0.04], horizon: [0.3, 0.3, 0.31], ground: [0.42, 0.41, 0.39], disc: [10.0, 9.8, 9.4], halo: [0.25, 0.25, 0.25],
   });
 }
 

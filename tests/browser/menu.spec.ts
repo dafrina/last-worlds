@@ -17,15 +17,15 @@ test('home stays compact on phones and campaign setup has its own page', async (
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await expect(page.getByRole('heading', { name: 'CAMPAIGN', exact: true })).toBeVisible();
   await expect(page.locator('.menu-panel')).toBeHidden();
-  await page.getByLabel('Campaign mission').selectOption('training');
-  await page.getByLabel('Campaign difficulty').selectOption('veteran');
-  await page.getByLabel('Main weapon', { exact: true }).selectOption('fan');
+  await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Scatter', exact: true }).click();
   await page.screenshot({ path: info.outputPath('campaign-phone.png') });
   await page.getByRole('button', { name: 'BACK' }).click();
   await expect(page.getByRole('button', { name: 'CAMPAIGN FLIGHT' })).toBeFocused();
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
-  await expect(page.getByLabel('Campaign difficulty')).toHaveValue('veteran');
-  await expect(page.getByLabel('Main weapon', { exact: true })).toHaveValue('fan');
+  await expect(page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Scatter', exact: true })).toHaveAttribute('aria-checked', 'true');
   expect(errors).toEqual([]);
 });
 
@@ -36,8 +36,8 @@ test('pause settings preserve the frozen flight and statistics persist without d
   await page.getByRole('button', { name: 'Pause flight' }).click();
   const paused = await snapshot(page);
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
-  await page.getByLabel('Graphics quality').selectOption('low');
-  await page.getByRole('button', { name: /Mute sound/ }).click();
+  await page.getByRole('radiogroup', { name: 'Graphics quality' }).getByRole('radio', { name: 'Low', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Sound' }).getByRole('radio', { name: 'Off', exact: true }).click();
   await page.getByRole('button', { name: /HOW TO PLAY/ }).click();
   await expect(page.getByRole('heading', { name: 'HOLD YOUR LINE.' })).toBeVisible();
   await page.keyboard.press('Escape');
@@ -63,9 +63,9 @@ test('pause settings preserve the frozen flight and statistics persist without d
 
 test('campaign observations stay separate and record the chosen difficulty', async ({ page }) => {
   await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
-  await page.getByLabel('Campaign mission').selectOption('training');
-  await page.getByLabel('Campaign difficulty').selectOption('relaxed');
-  await page.getByLabel('Main weapon', { exact: true }).selectOption('seeker');
+  await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Seeker', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
   expect((await snapshot(page)).config).toMatchObject({ mode: 'campaign', mission: 'training', difficulty: 'relaxed', weapon: 'seeker' });
   await page.getByRole('button', { name: 'Pause flight' }).click();

@@ -21,7 +21,7 @@ await page.addInitScript(fixed => {
 }, seed);
 await page.goto(`http://127.0.0.1:4173/${query}`);
 await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
-const stats = () => page.locator('canvas').getAttribute('data-render-stats');
+const stats = () => page.locator('canvas.flight-canvas').getAttribute('data-render-stats');
 const shot = async name => {
   await page.screenshot({ path: `lookdev/${label}-seed${seed}-${name}.png` });
   console.log(name, await stats());
@@ -29,6 +29,6 @@ const shot = async name => {
 await page.waitForTimeout(8000); await shot('center');
 await page.keyboard.down('a'); await page.waitForTimeout(4500); await page.keyboard.up('a'); await page.waitForTimeout(600); await shot('left');
 await page.keyboard.down('d'); await page.waitForTimeout(8000); await page.keyboard.up('d'); await page.waitForTimeout(600); await shot('right');
-console.log('frame', await page.locator('canvas').getAttribute('data-frame-state'));
+console.log('frame', await page.locator('canvas.flight-canvas').getAttribute('data-frame-state'));
 if (errors.length) console.log('page errors', errors);
 await browser.close();

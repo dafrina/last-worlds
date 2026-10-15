@@ -1,6 +1,8 @@
 import type { Difficulty, GameUi, GraphicsQuality, MissionId, RunConfig, RunState, UiActions, WeaponId } from '../shared/contracts';
 import { missionText } from './missions';
-import { menuMarkup } from './menu-markup';
+import { MISSION_ORDER, menuMarkup } from './menu-markup';
+import { createPlanetPreview, prebakePlanets } from './planet-preview';
+import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog } from './flight-log';
 import './styles.css';
 
@@ -53,8 +55,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       </div>
       <p class="flight-message" role="status" hidden></p>
       <button type="button" class="special-button" aria-label="Activate shockwave" data-no-steer hidden>
+        <span class="charge-ring" aria-hidden="true"></span>
         <svg class="special-glyph" viewBox="0 0 24 28" aria-hidden="true"><path d="M14 2 4 16H11L9 26 20 11H13Z"/></svg>
-        <span class="charge-ticks" aria-hidden="true">${Array.from({ length: 6 }, () => '<i></i>').join('')}</span>
       </button>
       <div class="flight-overlay" data-no-steer>
         ${menuMarkup}
@@ -101,11 +103,76 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const score = find<HTMLElement>('.score');
   const hints = find<HTMLElement>('.steering-hints');
   const message = find<HTMLElement>('.flight-message');
-  const ticks = [...specialButton.querySelectorAll<HTMLElement>('.charge-ticks i')];
-  const difficultySelect = find<HTMLSelectElement>('[name="difficulty"]');
-  const weaponSelect = find<HTMLSelectElement>('[name="weapon"]');
-  const missionSelect = find<HTMLSelectElement>('[name="mission"]');
-  missionSelect.addEventListener('change', () => text('.mission-description', missionText(missionSelect.value as MissionId).brief), options);
+  let chargeShown = -1;
+  let endingTimer: ReturnType<typeof setTimeout> | null = null;
+  /*
+   * Selectors (no dropdowns): radio groups whose checked button carries the value. Click or arrow keys move the
+   * glowing indicator; `onSelect` hears every change.
+   */
+  const selectorListeners = new Map<string, (value: string) => void>();
+  function check(group: HTMLElement, button: HTMLElement) {
+    for (const radio of group.querySelectorAll<HTMLElement>('[role="radio"]')) {
+      const on = radio === button;
+      radio.setAttribute('aria-checked', String(on)); radio.tabIndex = on ? 0 : -1;
+    }
+    selectorListeners.get(group.dataset.selector ?? '')?.(button.dataset.value ?? '');
+  }
+  for (const group of shell.querySelectorAll<HTMLElement>('[role="radiogroup"]')) {
+    group.addEventListener('click', event => {
+      const radio = (event.target as HTMLElement).closest<HTMLElement>('[role="radio"]');
+      if (radio && group.contains(radio)) check(group, radio);
+    }, options);
+    group.addEventListener('keydown', event => {
+      const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+      if (!step) return;
+      event.preventDefault(); event.stopPropagation();
+      const radios = [...group.querySelectorAll<HTMLElement>('[role="radio"]')];
+      const current = radios.findIndex(radio => radio.getAttribute('aria-checked') === 'true');
+      const next = radios[(current + step + radios.length) % radios.length];
+      check(group, next); next.focus();
+    }, options);
+  }
+  const selected = (name: string) => find<HTMLElement>(`[data-selector="${name}"] [aria-checked="true"]`).dataset.value ?? '';
+  const missionDots = find<HTMLElement>('.mission-dots');
+  missionDots.dataset.selector = 'mission';
+  const preview = createPlanetPreview(find<HTMLCanvasElement>('.planet-preview'));
+  let missionIndex = MISSION_ORDER.findIndex(([id]) => id === 'bastion');
+  function showMission(index: number) {
+    missionIndex = (index + MISSION_ORDER.length) % MISSION_ORDER.length;
+    const id = MISSION_ORDER[missionIndex][0] as MissionId, mission = missionText(id);
+    for (const dot of missionDots.querySelectorAll<HTMLElement>('[role="radio"]')) {
+      const on = dot.dataset.value === id;
+      dot.setAttribute('aria-checked', String(on)); dot.tabIndex = on ? 0 : -1;
+    }
+    text('.mission-count', `${missionIndex + 1} / ${MISSION_ORDER.length}`);
+    text('.mission-world', mission.world);
+    text('.mission-name', mission.name);
+    text('.mission-description', mission.brief);
+    find('.mission-threat').setAttribute('aria-label', `Threat ${mission.threat} of 3`);
+    find<HTMLElement>('.threat-pips').querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', i < mission.threat));
+    const stage = find<HTMLElement>('.planet-stage');
+    stage.classList.remove('is-switching'); void stage.offsetWidth; stage.classList.add('is-switching');
+    preview.show(MISSION_PLANET[id]);
+  }
+  selectorListeners.set('mission', value => showMission(MISSION_ORDER.findIndex(([id]) => id === value)));
+  for (const arrow of shell.querySelectorAll<HTMLElement>('[data-mission-step]')) {
+    arrow.addEventListener('click', () => showMission(missionIndex + Number(arrow.dataset.missionStep)), options);
+  }
+  // Swipe the planet left or right to change mission.
+  {
+    const stage = find<HTMLElement>('.planet-stage');
+    let swipe: { id: number; x: number } | null = null;
+    stage.addEventListener('pointerdown', event => { if (!(event.target as HTMLElement).closest('button')) swipe = { id: event.pointerId, x: event.clientX }; }, options);
+    stage.addEventListener('pointerup', event => {
+      if (!swipe || swipe.id !== event.pointerId) return;
+      const dx = event.clientX - swipe.x; swipe = null;
+      if (Math.abs(dx) > 36) showMission(missionIndex + (dx < 0 ? 1 : -1));
+    }, options);
+    stage.addEventListener('pointercancel', () => { swipe = null; }, options);
+  }
+  showMission(missionIndex);
+  preview.stop();
+  prebakePlanets(MISSION_ORDER.map(([id]) => MISSION_PLANET[id]));
   let lastState: RunState | null = null;
   let displayedPhase = 'menu';
   let lastConfig: RunConfig = { mode: 'endless', seed: 1 };
@@ -151,6 +218,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     if (element.textContent !== value) element.textContent = value;
   }
   function showPanel(className: string, focusSelector?: string) {
+    if (className !== 'results-panel') overlay.classList.remove('is-ending', 'is-settled');
     overlay.hidden = false;
     currentPanel = className;
     overlay.dataset.page = className;
@@ -170,7 +238,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     find(`[data-action="${action}"]`).addEventListener('click', handler, options);
   }
   onAction('endless', () => launch({ mode: 'endless', seed: seed() }));
-  onAction('campaign', () => showPanel('campaign-panel', '.campaign-panel .back-button'));
+  onAction('campaign', () => { showPanel('campaign-panel', '.campaign-panel .back-button'); preview.show(MISSION_PLANET[MISSION_ORDER[missionIndex][0]]); });
   function renderStatistics() {
     const log = flightLog.read();
     const totals = log[statisticsMode];
@@ -230,34 +298,16 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   }
   for (const button of shell.querySelectorAll<HTMLButtonElement>('[data-back], [data-settings-back], [data-help-back]')) button.addEventListener('click', navigateBack, options);
   onAction('launch-campaign', () => launch({
-    mode: 'campaign', seed: seed(), difficulty: difficultySelect.value as Difficulty,
-    weapon: weaponSelect.value as WeaponId, mission: missionSelect.value as MissionId,
+    mode: 'campaign', seed: seed(), difficulty: selected('difficulty') as Difficulty,
+    weapon: selected('weapon') as WeaponId, mission: MISSION_ORDER[missionIndex][0],
   }));
   onAction('resume', resume);
   onAction('quit', () => { cancelResume(); actions.quit(); });
   onAction('menu', () => { cancelResume(); actions.quit(); });
   onAction('retry', () => launch({ ...lastConfig, seed: seed() }));
   find('.pause-button').addEventListener('click', () => actions.pause(), options);
-  const soundButtons = [...shell.querySelectorAll<HTMLButtonElement>('[data-sound]')];
-  const graphicsSelects = [...shell.querySelectorAll<HTMLSelectElement>('[data-graphics]')];
-  for (const select of graphicsSelects) {
-    select.addEventListener('change', () => {
-      const quality = select.value as GraphicsQuality;
-      actions.setQuality(quality);
-      for (const other of graphicsSelects) other.value = quality;
-    }, options);
-  }
-  for (const button of soundButtons) {
-    button.addEventListener('click', () => {
-      muted = !muted;
-      actions.setMuted(muted);
-      for (const soundButton of soundButtons) {
-        soundButton.textContent = muted ? 'OFF' : 'ON';
-        soundButton.setAttribute('aria-label', muted ? 'Enable sound' : 'Mute sound');
-        soundButton.setAttribute('aria-pressed', String(muted));
-      }
-    }, options);
-  }
+  selectorListeners.set('graphics', value => actions.setQuality(value as GraphicsQuality));
+  selectorListeners.set('sound', value => { muted = value === 'off'; actions.setMuted(muted); });
 
   // Keep keyboard navigation inside whichever modal panel is actually visible.
   overlay.addEventListener('keydown', (event) => {
@@ -266,6 +316,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       resume();
     } else if (event.key === 'Escape') {
       event.preventDefault(); navigateBack();
+    } else if (currentPanel === 'campaign-panel' && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      event.preventDefault(); showMission(missionIndex + (event.key === 'ArrowRight' ? 1 : -1));
     }
     if (event.key !== 'Tab') return;
     const focusables = [...overlay.querySelectorAll<HTMLElement>('button, select, input, [tabindex="0"]')]
@@ -332,8 +384,11 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     specialButton.setAttribute('aria-disabled', String(!ready));
     const chargeLabel = ready ? 'Activate shockwave. Ready.' : `Shockwave recharging. ${Math.floor(charge * 100)} percent.`;
     if (specialButton.getAttribute('aria-label') !== chargeLabel) specialButton.setAttribute('aria-label', chargeLabel);
-    ticks.forEach((tick, index) => tick.classList.toggle('charged', (index + 1) / ticks.length <= charge));
-    const activeMessage = playing && state.messageUntil > state.time ? state.message : '';
+    // The recharge fills a glowing ring around the button border (CSS --charge, 0..1); steps of 1% keep style writes rare.
+    const chargeStep = Math.floor(charge * 100);
+    if (chargeStep !== chargeShown) { chargeShown = chargeStep; specialButton.style.setProperty('--charge', String(chargeStep / 100)); }
+    // A lost flight keeps its last word on screen through the afterglow, until the results veil covers it.
+    const activeMessage = playing && state.messageUntil > state.time ? state.message : state.phase === 'over' ? state.message : '';
     if (message.textContent !== activeMessage) message.textContent = activeMessage;
     message.hidden = !activeMessage;
 
@@ -362,6 +417,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         ? `${difficultyNames[state.config.difficulty ?? 'standard']} · ${weaponNames[state.config.weapon ?? 'pulse']}`
         : 'New flight. Same starter. A higher score.');
       showPanel('results-panel', '[data-action="retry"]');
+      // A lost flight eases out: the world drifts on in slow motion (main.ts) while the results fade in; taps
+      // reach the buttons only once they are visible.
+      overlay.classList.remove('is-ending', 'is-settled');
+      if (state.phase === 'over') {
+        void overlay.offsetWidth;
+        overlay.classList.add('is-ending');
+        if (endingTimer !== null) clearTimeout(endingTimer);
+        endingTimer = setTimeout(() => { endingTimer = null; overlay.classList.add('is-settled'); }, 1500);
+      }
     }
   }
 
@@ -378,6 +442,6 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       currentPanel = 'error-panel';
       for (const panel of panels) panel.hidden = !panel.classList.contains('error-panel');
     },
-    dispose() { if (lastState) flightLog.observe(lastState, false, true); cancelResume(); abort.abort(); shell.remove(); },
+    dispose() { preview.stop(); if (lastState) flightLog.observe(lastState, false, true); cancelResume(); if (endingTimer !== null) clearTimeout(endingTimer); abort.abort(); shell.remove(); },
   };
 }

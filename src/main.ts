@@ -16,6 +16,37 @@ let lastEffectId = 0;
 let lastPauseReason = '';
 let maxFrameMs = 0;
 let warmupFrames = 2;
+/**
+ * Death afterglow (presentation only): when the last life is lost, a throwaway copy of the run keeps flying in
+ * slow motion for a moment, so the explosion plays out and the world drifts on while the results fade in. The real
+ * run is already over and is never stepped again; nothing in the copy can reach the log, score or results.
+ */
+const AFTERGLOW_SECONDS = 2.6;
+let afterglow: { source: RunState; state: RunState; left: number; accumulator: number; lastId: number } | null = null;
+function updateAfterglow(frameSeconds: number) {
+  if (run?.phase === 'over' && afterglow?.source !== run) {
+    try {
+      const state = structuredClone(run);
+      state.phase = 'playing'; state.player.invulnerableUntil = Infinity;
+      afterglow = { source: run, state, left: AFTERGLOW_SECONDS, accumulator: 0, lastId: state.nextId };
+    } catch { afterglow = null; }
+  }
+  if (!afterglow || afterglow.source !== run) return null;
+  if (afterglow.left <= 0) return afterglow.state;
+  afterglow.left -= frameSeconds;
+  // Eases from deep slow motion (0.25×) toward a gentle drift (0.7×) as the results panel arrives.
+  afterglow.accumulator += frameSeconds * (0.25 + 0.45 * (1 - afterglow.left / AFTERGLOW_SECONDS));
+  try {
+    while (afterglow.accumulator >= STEP && afterglow.state.phase === 'playing') {
+      stepRun(afterglow.state, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP);
+      // The ship is gone: drop any shot the copy fires after the moment of death.
+      const lastId = afterglow.lastId;
+      afterglow.state.projectiles = afterglow.state.projectiles.filter(shot => !shot.friendly || shot.id < lastId);
+      afterglow.accumulator -= STEP;
+    }
+  } catch { afterglow.left = 0; }
+  return afterglow.state;
+}
 
 function unlockAudio() {
   if (muted) return;
@@ -164,7 +195,8 @@ function frame(now: number) {
     }
     bossCues(run);
   }
-  renderer?.render(run ?? preview, accumulator / STEP);
+  const dying = updateAfterglow(frameSeconds);
+  renderer?.render(dying ?? run ?? preview, dying ? afterglow!.accumulator / STEP : accumulator / STEP);
   ui.update(run);
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });
   requestAnimationFrame(frame);

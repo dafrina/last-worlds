@@ -1,5 +1,27 @@
 # Build status
 
+## Moon training ground — 15 October 2026
+
+Training now flies over Khepri's moon: craters, grey regolith, sparse outposts, and blue-tinted enemies. Encounters are unchanged. See [docs/19](19-moon-training.md).
+- **Evidence:**
+  - typecheck clean;
+  - 256/256 unit tests, including the new `tests/world/terrain-moon.test.ts`;
+  - flight and menu browser specs 11/11;
+  - fixed-seed phone captures inspected (seeds 8831 and 4242): dense craters, grey rocks, steel-blue enemies, orange hero;
+  - render stats on High: about 16–22 calls, 12–16k triangles, 0 stream fallbacks.
+- **UI pass, same day (user requests):**
+  - **Mission selector:** campaign setup is now a full-screen mission page. A slowly spinning globe is painted from each level's own terrain (`src/ui/planet-preview.ts`: a 2D canvas, so no second WebGL context, baked in idle-time slices). Step through missions with the arrows, a swipe, the ← → keys or the glowing dots. The page shows each mission's world, name, brief and threat (1–3).
+  - **No dropdowns:** mission, difficulty, weapon, graphics and sound are segmented selectors with glowing indicators (`selector()` in `src/ui/menu-markup.ts`).
+  - **Special button:** icon only. The recharge fills a glowing ring around the border, and the button pulses when ready (static glow with reduced motion).
+  - **Death:** no more hard cut. After the last life, a throwaway copy of the run keeps flying in slow motion for 2.6 s (`main.ts` afterglow: the hero is hidden, its shots dropped, nothing reaches score or log), "FLIGHT LOST" stays on screen, and the results fade in after a beat.
+  - **Moon:** crater lookup now checks reach before mare noise; moon sections generate in about the same time as Khepri's (128 vs 119 ms here).
+  - **Evidence:**
+    - typecheck clean;
+    - 256/256 unit tests (one route test timed out once at load average 31 and passed on re-run);
+    - all 15 browser specs pass (four were updated for selectors and the second canvas);
+    - phone-size captures of the selector, settings, special button and death sequence inspected; no page errors.
+- **Not done:** no phone hardware test.
+
 ## Fix: endless froze at distance ~1455 — 15 October 2026
 
 User report: "endless crashed after a while into level 2, freezes, normal campaign seems fine" (phone and PC Chrome).

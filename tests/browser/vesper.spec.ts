@@ -9,12 +9,12 @@ test('campaign offers Cold Vector on Vesper and launches it without browser erro
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
-  await page.getByLabel('Campaign mission').selectOption('cold-vector');
+  await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Cold Vector', exact: true }).click();
   await expect(page.locator('.mission-description')).toContainText('Helion Ark');
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
   await expect.poll(async () => (await snapshot(page))?.phase).toBe('playing');
   expect((await snapshot(page)).config.mission).toBe('cold-vector');
-  await expect(page.locator('canvas')).toHaveAttribute('data-render-stats', /"calls":/);
+  await expect(page.locator('canvas.flight-canvas')).toHaveAttribute('data-render-stats', /"calls":/);
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await expect(page.locator('.pause-description')).toContainText('Cold Vector');
   expect(errors).toEqual([]);

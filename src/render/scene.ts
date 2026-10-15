@@ -5,7 +5,7 @@ import { arenaStopDistance } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
-import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
+import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createMoonEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
@@ -157,7 +157,7 @@ interface PlanetLook {
   shadowIntensity: number; blobShadow: number; lowExposure: number;
   post: { exposure: number; threshold: number; knee: number; strength: number; lift: [number, number, number]; saturation: number; contrast: number; vignette: number;
     haze: [number, number, number, number] };
-  environment: 'desert' | 'ice';
+  environment: 'desert' | 'ice' | 'moon';
 }
 const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
   khepri: {
@@ -172,6 +172,15 @@ const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
     post: { exposure: 1.0, threshold: 1.2, knee: .3, strength: .75, lift: [.0025, .0045, .0085], saturation: 1.02, contrast: 1.05, vignette: .2,
       haze: [.82, .9, .98, .025] },
     environment: 'ice',
+  },
+  // Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and
+  // only a faint grey fill (regolith bounce), so shade stays readable on a phone without any haze.
+  moon: {
+    background: 0x07080a, sunElevation: 30, sun: [0xfffaf2, 4.2], hemisphere: [0x8e939c, 0x4a4845, .75], bounce: [0xa8a6a0, .7],
+    shadowIntensity: .88, blobShadow: 0x111214, lowExposure: 1.0,
+    post: { exposure: 1.0, threshold: 1.05, knee: .35, strength: .6, lift: [.003, .003, .0036], saturation: .96, contrast: 1.09, vignette: .26,
+      haze: [0, 0, 0, 0] },
+    environment: 'moon',
   },
 };
 /** Unit vector toward a planet's sun: the shared upper-left azimuth (shadows to the lower right) at its elevation. */
@@ -303,9 +312,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const sharedMaterial = createSharedMaterial();
   // Prefiltered desert sky: craft metals and outpost machinery reflect warm light instead of reading flat black.
   const environment = createDesertEnvironment(renderer, SUN);
-  materials.craft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
+  materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
-  let iceEnvironment: THREE.WebGLRenderTarget | null = null;
+  let iceEnvironment: THREE.WebGLRenderTarget | null = null, moonEnvironment: THREE.WebGLRenderTarget | null = null;
   const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [];
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
   /** Look-dev only: `?planet=` makes the terrain stream another planet; the look then follows the terrain's report. */
@@ -332,11 +341,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     renderer.toneMappingExposure = look.lowExposure;
     shadowMaterial.color.setHex(look.blobShadow);
     if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation));
-    const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : environment.texture;
-    materials.craft.envMap = sky; materials.craft.needsUpdate = true; sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
+    if (look.environment === 'moon') moonEnvironment ??= createMoonEnvironment(renderer, sunDirection(LOOKS.moon.sunElevation));
+    const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : look.environment === 'moon' && moonEnvironment ? moonEnvironment.texture : environment.texture;
+    materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
+    // On the moon the Khepri-built enemies wear steel-blue paint, so they read apart from the hero against grey regolith.
+    (materials.enemyCraft.userData.paintSwap as { value: number }).value = next === 'moon' ? 1 : 0;
+    sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
-    if (next !== 'khepri') ensureCraft(next); else foam.clear();
+    if (next === 'vesper') ensureCraft(next); else foam.clear();
     warmed = false;
   };
   const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra, boundaryMaterial,
@@ -383,7 +396,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const model = KHEPRI_STAND_IN[kind];
     if (!standIns.has(model)) standIns.set(model, craftGeometry(createEnemy(model, materials)));
     const geometry = standIns.get(model)!;
-    const mesh = new THREE.InstancedMesh(geometry, materials.craft, ENEMY_CAPACITY);
+    const mesh = new THREE.InstancedMesh(geometry, materials.enemyCraft, ENEMY_CAPACITY);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
     // Ground turrets cast into the High shadow map and take shadows; flying craft use readable blob shadows.
     mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
@@ -406,7 +419,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** Vesper craft batches (same kinds, Vesper models), created once vesper-craft.glb has loaded. */
   let vesperBatches: Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }> | null = null, craftRequested = false;
   function ensureCraft(next: PlanetId | 'kinds') {
-    if (next === 'khepri' || craftRequested) return;
+    if (next === 'khepri' || next === 'moon' || craftRequested) return;
     craftRequested = true;
     loadVesperCraft(`${import.meta.env.BASE_URL}assets/vesper/vesper-craft.glb`).then(nodes => {
       if (disposed) { nodes.forEach(geometry => geometry.dispose()); return; }
@@ -628,16 +641,19 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true;
       }
       placeSun(state.cameraX, state.distance);
+      // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
+      const heroAlive = state.player.lives > 0;
+      hero.visible = heroAlive;
       hero.position.set(state.player.x, VIEW.flightHeight, 0);
       hero.rotation.z = -state.player.vx * .016;
       shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
-      shield.visible = state.time < state.player.invulnerableUntil;
+      shield.visible = heroAlive && state.time < state.player.invulnerableUntil;
       shieldMaterial.opacity = .34;
       // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
       plumes.length = 0;
       const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
       const heroLength = (.5 + Math.abs(state.player.vx) * .03) * flicker(0) * HERO_SCALE;
-      for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * HERO_SCALE * Math.cos(hero.rotation.z), z: .7 * HERO_SCALE, length: heroLength,
+      if (heroAlive) for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * HERO_SCALE * Math.cos(hero.rotation.z), z: .7 * HERO_SCALE, length: heroLength,
         width: .2 * HERO_SCALE, hex: 0x7ff6ea, energy: 2.6 });
       let shadowCount = 0, plinthCount = 0;
       const flightShadow = (x: number, s: number, width: number, length: number, height: number) => {
@@ -889,7 +905,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); environment.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); moonEnvironment?.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose();
       renderer.dispose();
     },

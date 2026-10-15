@@ -1,11 +1,11 @@
 import type { MissionId, PlanetId, RunConfig } from '../shared/contracts';
 
 /**
- * Which planet each campaign mission flies over (docs/17 §2). Endless always stays on Khepri. The combat agent
+ * Which world each campaign mission flies over (docs/17 §2; Training flies over Khepri's moon, docs/19). Endless always stays on Khepri. The combat agent
  * fills Cold Vector's encounters; this table only selects the world.
  */
 export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
-  training: 'khepri',
+  training: 'moon',
   bastion: 'khepri',
   'cold-vector': 'vesper',
 };

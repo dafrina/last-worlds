@@ -127,6 +127,7 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
  */
 export function edgesNear(seed: number, s0: number, s1: number, input?: WorldInput | World): NetworkEdge[] {
   const edges: NetworkEdge[] = [], { arena, planet } = worldOf(input);
+  if (planet.networks === false) return edges;
   for (const site of settlementsNear(seed, s0 - 3 * SETTLEMENT_CELL - 10, s1 + 10, arena, planet)) {
     for (const edge of edgesOf(seed, site, planet)) {
       if (nearArena(arena, Math.min(edge.a.s, edge.b.s), Math.max(edge.a.s, edge.b.s), PIPE_MARGIN + 2 * PIPE_CELL)) continue;
