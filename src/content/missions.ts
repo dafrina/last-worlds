@@ -1,8 +1,7 @@
 import type { MissionId, PlanetId, RunConfig } from '../shared/contracts';
 
 /**
- * Which world each campaign mission flies over (docs/17 §2; Training flies over Luna, Khepri's luna,, docs/19). Endless always stays on Khepri. The combat agent
- * fills Cold Vector's encounters; this table only selects the world.
+ * Which world each campaign mission flies over (docs/17 §2). Training flies over Luna, Khepri's moon (docs/19).
  */
 export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
   training: 'luna',
@@ -10,7 +9,7 @@ export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
   'cold-vector': 'vesper',
 };
 
-/** The planet a run flies over: its mission's planet in the campaign, Khepri in endless. */
+/** The planet a run starts over: its mission's planet in the campaign; endless opens on Luna (docs/19). */
 export function runPlanet(config: Pick<RunConfig, 'mode' | 'mission'>): PlanetId {
-  return config.mode === 'campaign' && config.mission ? MISSION_PLANET[config.mission] : 'khepri';
+  return config.mode === 'campaign' && config.mission ? MISSION_PLANET[config.mission] : 'luna';
 }

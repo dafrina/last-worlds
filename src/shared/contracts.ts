@@ -8,7 +8,7 @@ export type MissionId = 'training' | 'bastion' | 'cold-vector';
 export type PlanetId = 'khepri' | 'vesper' | 'luna';
 /** Boss modules. Bastion-9: batteries and core. Helion Ark: radiators (left/right) and bridge (core). */
 export type BossPart = 'left' | 'right' | 'core';
-export type BossId = 'bastion' | 'ark';
+export type BossId = 'bastion' | 'ark' | 'warden';
 export interface BossState {
   phase: 'arrival' | 'batteries' | 'core' | 'overload' | 'destroyed';
   x: number; originX: number; s: number; startedAt: number; phaseStartedAt: number;

@@ -1,4 +1,4 @@
-import { BALANCE, PACE } from './balance';
+import { BALANCE, ENDLESS_PROLOGUE_SECTORS, PACE, endlessRampSector } from './balance';
 import { BOSSES, missionBoss } from './bosses';
 import { runPlanet } from './missions';
 import { VIEW, type BossId, type PlanetId, type RunConfig } from '../shared/contracts';
@@ -13,9 +13,11 @@ import { VIEW, type BossId, type PlanetId, type RunConfig } from '../shared/cont
  * passes, so every planet stretch, arena and jump window is a fixed world distance.
  */
 export const ENDLESS_CYCLE = {
+  /** Before the cycle: one Luna sector ending with WARDEN-1, then the jump to Khepri (docs/19). */
+  prologue: 'luna' as const satisfies PlanetId,
   planets: ['khepri', 'vesper'] as const satisfies readonly PlanetId[],
   sectorsPerPlanet: 3,
-  boss: { khepri: 'bastion', vesper: 'ark' } as const satisfies Readonly<Partial<Record<PlanetId, BossId>>>,
+  boss: { luna: 'warden', khepri: 'bastion', vesper: 'ark' } as const satisfies Readonly<Partial<Record<PlanetId, BossId>>>,
   /** Boss sector timeline in seconds from the sector's start. */
   bossSector: {
     /** No ordinary cue is admitted at or after this time. */
@@ -37,7 +39,7 @@ export const ENDLESS_CYCLE = {
 /** Target endless pace of a sector (docs/03 §8). */
 export function sectorPace(sector: number): number {
   const ramp = PACE.endless;
-  return Math.min(ramp.start + ramp.perSector * Math.max(0, sector - 1), ramp.cap);
+  return Math.min(ramp.start + ramp.perSector * Math.max(0, endlessRampSector(sector) - 1), ramp.cap);
 }
 
 /** Pace τ seconds into a sector: a smoothstep ease from the previous sector's pace. */
@@ -96,21 +98,31 @@ export interface EndlessSectorPlan {
   jump: EndlessJump | null;
 }
 
-/** Planets the endless cycle visits (Luna is campaign-only). */
-export type EndlessPlanet = (typeof ENDLESS_CYCLE.planets)[number];
+/** Planets endless visits: the Luna prologue, then the cycle. */
+export type EndlessPlanet = typeof ENDLESS_CYCLE.prologue | (typeof ENDLESS_CYCLE.planets)[number];
+
+/** Whether a sector is the Luna prologue (sector 1). */
+export const isPrologue = (sector: number) => sector <= ENDLESS_PROLOGUE_SECTORS;
+/** A sector's position in the planet cycle (1 = Khepri's first sector); the prologue has none. */
+export const cycleSector = (sector: number) => sector - ENDLESS_PROLOGUE_SECTORS;
 
 export function endlessPlanet(sector: number): EndlessPlanet {
-  const stint = Math.floor((sector - 1) / ENDLESS_CYCLE.sectorsPerPlanet);
+  if (isPrologue(sector)) return ENDLESS_CYCLE.prologue;
+  const stint = Math.floor((cycleSector(sector) - 1) / ENDLESS_CYCLE.sectorsPerPlanet);
   return ENDLESS_CYCLE.planets[stint % ENDLESS_CYCLE.planets.length];
 }
 
+/** The prologue's one sector ends with WARDEN-1; in the cycle every third sector ends with its planet's boss. */
 export function isBossSector(sector: number): boolean {
-  return sector % ENDLESS_CYCLE.sectorsPerPlanet === 0;
+  return isPrologue(sector) || cycleSector(sector) % ENDLESS_CYCLE.sectorsPerPlanet === 0;
 }
+/** The boss sector after `sector` (boss sectors: 1, 4, 7, …). */
+const nextBossSector = (sector: number) => { let n = sector + 1; while (!isBossSector(n)) n += 1; return n; };
+const FIRST_BOSS_SECTOR = 1;
 
-/** Whether this is the planet's first stint (sectors 1-3 Khepri, 4-6 Vesper) rather than a later visit. */
+/** Whether this is the planet's first stint (sectors 2-4 Khepri, 5-7 Vesper) rather than a later visit. */
 export function isFirstVisit(sector: number): boolean {
-  return Math.floor((sector - 1) / ENDLESS_CYCLE.sectorsPerPlanet) < ENDLESS_CYCLE.planets.length;
+  return isPrologue(sector) || Math.floor((cycleSector(sector) - 1) / ENDLESS_CYCLE.sectorsPerPlanet) < ENDLESS_CYCLE.planets.length;
 }
 
 const plans: EndlessSectorPlan[] = [];
@@ -221,7 +233,7 @@ function sectorAtDistance(distance: number): EndlessSectorPlan {
 /** Planet stretches are bounded by the switch distances of the boss sectors. */
 function endlessStretchAt(distance: number): PlanetStretch {
   let from = 0;
-  for (let n = ENDLESS_CYCLE.sectorsPerPlanet; ; n += ENDLESS_CYCLE.sectorsPerPlanet) {
+  for (let n = FIRST_BOSS_SECTOR; ; n = nextBossSector(n)) {
     const plan = endlessSectorPlan(n);
     if (distance < plan.jump!.switchDistance) return { planet: plan.planet, from, to: plan.jump!.switchDistance };
     from = plan.jump!.switchDistance;
@@ -255,7 +267,7 @@ export function endlessSchedule(config: Pick<RunConfig, 'mode' | 'mission'>): Wo
   return {
     planetAt: distance => endlessStretchAt(distance).planet,
     arenaAt: distance => {
-      for (let n = ENDLESS_CYCLE.sectorsPerPlanet; ; n += ENDLESS_CYCLE.sectorsPerPlanet) {
+      for (let n = FIRST_BOSS_SECTOR; ; n = nextBossSector(n)) {
         const plan = endlessSectorPlan(n);
         if (distance < plan.stop!.platform.from) return null;
         if (distance < plan.stop!.platform.to) return arenaOf(plan);
@@ -277,7 +289,7 @@ export function endlessSchedule(config: Pick<RunConfig, 'mode' | 'mission'>): Wo
     },
     arenas: (from, to) => {
       const out: ArenaSpan[] = [];
-      for (let n = ENDLESS_CYCLE.sectorsPerPlanet; ; n += ENDLESS_CYCLE.sectorsPerPlanet) {
+      for (let n = FIRST_BOSS_SECTOR; ; n = nextBossSector(n)) {
         const plan = endlessSectorPlan(n);
         if (plan.stop!.platform.from >= to) return out;
         if (plan.stop!.platform.to > from) out.push(arenaOf(plan));

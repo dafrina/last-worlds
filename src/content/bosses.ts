@@ -1,6 +1,7 @@
 import type { BossId, BossPart, Difficulty, MissionId } from '../shared/contracts';
 import { BASTION } from './bastion';
 import { HELION_ARK } from './ark';
+import { WARDEN } from './warden';
 
 /**
  * One shape for every campaign boss, built from each boss's own content file. Phases are shared:
@@ -81,10 +82,31 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       approach: 'OPEN WATER · THE ARK IS INBOUND',
     },
   },
+  warden: {
+    id: 'warden', name: 'WARDEN-1',
+    arrivesAt: WARDEN.arrivesAt, approachEndsAt: WARDEN.approachEndsAt, arrivalDuration: WARDEN.arrivalDuration,
+    entryS: WARDEN.entryS, row: WARDEN.row, targetHeight: WARDEN.targetHeight,
+    parts: {
+      left: { x: -WARDEN.podOffset, s: 0, radius: WARDEN.podRadius, hp: WARDEN.podHp },
+      right: { x: WARDEN.podOffset, s: 0, radius: WARDEN.podRadius, hp: WARDEN.podHp },
+      core: { x: 0, s: WARDEN.commandS, radius: WARDEN.commandRadius, hp: WARDEN.commandHp },
+    },
+    pairAttack: 'burst', coreAttack: 'burst',
+    warning: WARDEN.warning, laser: null, beamWarning: WARDEN.beamWarning, overload: WARDEN.overload,
+    recovery: WARDEN.recovery, transitionRecovery: WARDEN.transitionRecovery,
+    overloadFraction: WARDEN.overloadFraction, extractionDuration: WARDEN.extractionDuration,
+    bursts: { pair: WARDEN.podBurst, core: WARDEN.commandBurst }, fan: null, launches: null,
+    arena: WARDEN.arena, shieldSupplies: WARDEN.shieldSupplies,
+    messages: {
+      start: 'WARDEN-1 · BREAK BOTH TURRET PODS', batteries: 'BREAK BOTH TURRET PODS', core: 'COMMAND MODULE EXPOSED',
+      overload: 'REACTOR OVERLOAD · WATCH THE LANES', destroyed: 'WARDEN-1 DOWN · EXTRACTION',
+      approach: 'OLD DEFENCE LANDER INBOUND · READY YOUR SPECIAL',
+    },
+  },
 };
 
 /** The boss that ends a campaign mission, if any. */
-export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: null, bastion: 'bastion', 'cold-vector': 'ark' };
+export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'cold-vector': 'ark' };
 
 export function missionBoss(mission: MissionId | undefined): BossDefinition | null {
   const id = mission ? MISSION_BOSS[mission] : null;

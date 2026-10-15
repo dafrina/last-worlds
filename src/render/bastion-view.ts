@@ -208,7 +208,7 @@ void main() {
 }`;
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; age: number; life: number; size: number; grow: number; alpha: number; color: number; drag: number; lift: number }
 
-function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) {
+export function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) {
   const geometry = new THREE.PlaneGeometry(1, 1); geometry.rotateX(-ELEVATION);
   const material = new THREE.ShaderMaterial({ vertexShader: PARTICLE_VERTEX, fragmentShader: PARTICLE_FRAGMENT, uniforms: { additive: { value: additive ? 1 : 0 } },
     transparent: true, depthWrite: false, toneMapped: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
@@ -246,7 +246,7 @@ function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) 
 /* ------------------------------------------------------------------ view */
 
 /** Deterministic cosmetic noise (presentation only; never touches simulation RNG). */
-const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+export const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 
 export function createBastionView(scene: THREE.Scene) {
   const root = new THREE.Group(); root.name = 'Bastion-9'; root.visible = false; scene.add(root);

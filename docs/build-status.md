@@ -1,5 +1,22 @@
 # Build status
 
+## WARDEN-1 and the Luna prologue — 15 October 2026
+
+- **WARDEN-1:** Luna's small boss, a human-built lunar defence lander built in code. Training now ends with it; it must be killed, and the 8 s extraction follows.
+- **Endless** opens on Luna: sector 1 ends with WARDEN-1 and a jump to Khepri. The ramps ignore the prologue, so Khepri plays exactly as before. Boss sectors are now 1, 4, 7, …
+- See docs/19 §2.
+- **Tests:**
+  - updated for the new structure;
+  - new `tests/sim/warden.test.ts` (must-kill, completion after extraction);
+  - perfect pilot: kills WARDEN-1 → Bastion-9 → Ark with every weapon and no hits, and clears Training on all nine combinations;
+  - fairness unions pass on all three bot branches, with a new Khepri-first-stint run.
+- **Evidence:**
+  - typecheck clean;
+  - 261/261 unit tests;
+  - 15/15 browser specs;
+  - fixture captures of the descent, pods, command module and destruction (`/tests/fixtures/bastion.html?boss=warden&phase=…`).
+- **Not done:** no phone hardware test.
+
 ## Endings, boss impacts, Vesper balance, text pass — 15 October 2026
 
 - **Victory ending:** when a mission completes, the hero cruises on, accelerates into the same hyperdrive jump endless uses (veil, streaks, flash), and the results fade in after the flash. It shares `main.ts`'s presentation-only afterglow with the death ending.

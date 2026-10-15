@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, difficultyScales, kinematics } from '../../src/content/balance';
-import { ENDLESS_CYCLE, endlessPlanet, endlessSchedule, endlessSectorPlan, isBossSector, paceInSector, scrollForPace } from '../../src/content/endless';
+import { ENDLESS_CYCLE, endlessPlanet, endlessSchedule, endlessSectorPlan, isBossSector, paceInSector, scrollForPace, sectorPace } from '../../src/content/endless';
 import { EMPTY_INPUT, STEP, type EnemyKind, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
 import { dodgerPilot, enterSector, fly, idlePilot, perfectPilot } from './pilots';
@@ -12,11 +12,15 @@ const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set(['needle', 'diamond', 'miss
 function holdFire(state: RunState) { state.nextVolleyAt = Infinity; }
 
 describe('endless schedule', () => {
-  it('cycles Khepri and Vesper three sectors at a time, each stint ending with its boss', () => {
-    const planets = Array.from({ length: 12 }, (_, i) => endlessPlanet(i + 1));
-    expect(planets).toEqual(['khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper', 'khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper']);
-    expect([3, 6, 9, 12].map(n => endlessSectorPlan(n).boss)).toEqual(['bastion', 'ark', 'bastion', 'ark']);
-    expect([1, 2, 4, 5, 7].every(n => endlessSectorPlan(n).boss === null && !isBossSector(n))).toBe(true);
+  it('opens with the Luna prologue, then cycles Khepri and Vesper three sectors at a time, each stint ending with its boss', () => {
+    const planets = Array.from({ length: 13 }, (_, i) => endlessPlanet(i + 1));
+    expect(planets).toEqual(['luna', 'khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper', 'khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper']);
+    expect([1, 4, 7, 10, 13].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'ark', 'bastion', 'ark']);
+    expect([2, 3, 5, 6, 8].every(n => endlessSectorPlan(n).boss === null && !isBossSector(n))).toBe(true);
+    // The prologue does not advance the ramps: Khepri's first sector (2) flies at the old sector 1 values.
+    expect(sectorPace(1)).toBe(sectorPace(2));
+    expect(difficultyScales('endless', 'standard', 2)).toEqual(difficultyScales('endless', 'standard', 1));
+    expect(difficultyScales('endless', 'standard', 3).cadence).toBeLessThan(difficultyScales('endless', 'standard', 2).cadence);
   });
 
   it('is a pure function of the config: same for every seed and contiguous in distance', () => {
@@ -30,7 +34,7 @@ describe('endless schedule', () => {
       expect(stretches[i].planet).not.toBe(stretches[i - 1].planet);
     }
     // Each arena is wholly on its planet; each planet switch lies past the end of the arena it follows.
-    for (const n of [3, 6, 9]) {
+    for (const n of [1, 4, 7, 10]) {
       const plan = endlessSectorPlan(n);
       expect(a.planetAt(plan.stop!.platform.from)).toBe(plan.planet);
       expect(a.planetAt(plan.stop!.platform.to - 1e-6)).toBe(plan.planet);
@@ -56,7 +60,7 @@ describe('endless schedule', () => {
     let previousDistance = 0;
     let sector = 1;
     let jumps = 0;
-    while (state.sector < 7 && state.phase === 'playing') {
+    while (state.sector < 8 && state.phase === 'playing') {
       stepRun(state, pilot(state));
       state.pickups = [];
       expect(state.distance).toBeGreaterThanOrEqual(previousDistance - 1e-9);
@@ -78,9 +82,9 @@ describe('endless schedule', () => {
         expect(state.planet).toBe(schedule.planetAt(state.distance));
       }
     }
-    expect(state.sector).toBe(7);
-    expect(jumps).toBe(2);
-  }, 60000);
+    expect(state.sector).toBe(8);
+    expect(jumps).toBe(3);
+  }, 90000);
 });
 
 describe('endless bosses and jumps', () => {
@@ -91,33 +95,34 @@ describe('endless bosses and jumps', () => {
     while (!state.boss && state.time < 400) {
       stepRun(state, EMPTY_INPUT);
       const tau = state.time - state.sectorStartedAt;
-      if (state.sector === 3 && tau > ENDLESS_CYCLE.bossSector.approachEndsAt + 8) {
+      if (state.sector === 1 && tau > ENDLESS_CYCLE.bossSector.approachEndsAt + 8) {
         expect(state.enemies.filter(enemy => enemy.formation && enemy.age < 0.5)).toHaveLength(0);
       }
       if (state.boss) bossAt = tau;
     }
-    expect(state.sector).toBe(3);
-    expect(state.boss!.id).toBe('bastion');
+    // The first boss is WARDEN-1 at the end of the Luna prologue.
+    expect(state.sector).toBe(1);
+    expect(state.boss!.id).toBe('warden');
     expect(bossAt).toBeCloseTo(ENDLESS_CYCLE.bossSector.arrivesAt, 1);
     const total = state.enemies.filter(enemy => enemy.bossPart).reduce((sum, enemy) => sum + enemy.maxHp, 0);
-    expect(total).toBeCloseTo(2400 * difficultyScales('endless', 'standard', 3).hp, 6);
+    expect(total).toBeCloseTo(1240 * difficultyScales('endless', 'standard', 1).hp, 6);
     expect(state.enemies.every(enemy => enemy.bossPart)).toBe(true);
   });
 
-  it('continues only after the kill: no credits, the core scores, then a protected jump to Vesper', () => {
+  it('continues only after the kill: no credits, the core scores, then a protected jump to Khepri', () => {
     const state = createRun({ mode: 'endless', seed: 2 });
     state.player.weapon = 'seeker';
     let killAt: number | null = null;
     let scoreBeforeKill = 0;
     let jumpSeen = false;
     const pilot = perfectPilot();
-    while (state.sector < 4 && state.phase === 'playing' && state.time < 900) {
+    while (state.sector < 2 && state.phase === 'playing' && state.time < 900) {
       const score = state.score;
       stepRun(state, pilot(state));
       state.pickups = [];
       if (state.boss?.phase === 'destroyed' && killAt === null) { killAt = state.time - state.sectorStartedAt; scoreBeforeKill = score; }
       // No resume, jump or next sector before the kill.
-      if (state.sector === 3 && killAt === null) {
+      if (state.sector === 1 && killAt === null) {
         expect(state.jump).toBeNull();
         if (state.time - state.sectorStartedAt > ENDLESS_CYCLE.bossSector.decelStart + ENDLESS_CYCLE.bossSector.decelDuration) expect(state.scrollSpeed).toBe(0);
       }
@@ -133,39 +138,40 @@ describe('endless bosses and jumps', () => {
     expect(state.score - scoreBeforeKill).toBeGreaterThanOrEqual(5000);
     expect(state.credits).toBe(0);
     expect(jumpSeen).toBe(true);
-    expect(state.sector).toBe(4);
+    expect(state.sector).toBe(2);
     // The next sector starts exactly 5 s (resume and jump) after the kill.
-    expect(state.sectorStartedAt).toBeCloseTo(2 * BALANCE.sectorDuration + killAt! + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration, 1);
-    expect(state.planet).toBe('vesper');
+    expect(state.sectorStartedAt).toBeCloseTo(killAt! + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration, 1);
+    expect(state.planet).toBe('khepri');
     expect(state.boss).toBeNull();
     expect(state.enemies.some(enemy => enemy.bossPart)).toBe(false);
-    expect(state.message).toBe('SECTOR 04 · VESPER');
+    expect(state.message).toBe('SECTOR 02 · KHEPRI');
   }, 60000);
 
   it('flies Vesper kinds on Vesper and Khepri kinds on Khepri', () => {
     const state = createRun({ mode: 'endless', seed: 2 });
     state.player.weapon = 'seeker';
-    const seen: Record<string, Set<EnemyKind>> = { khepri: new Set(), vesper: new Set() };
-    fly(state, perfectPilot(), 900, { noPickups: true, onTick: s => { for (const enemy of s.enemies) if (!enemy.bossPart && !s.jump) seen[s.planet].add(enemy.kind); } });
-    expect(state.sector).toBeGreaterThanOrEqual(6);
-    expect([...seen.khepri].every(kind => KHEPRI_KINDS.has(kind))).toBe(true);
+    const seen: Record<string, Set<EnemyKind>> = { luna: new Set(), khepri: new Set(), vesper: new Set() };
+    fly(state, perfectPilot(), 1100, { noPickups: true, onTick: s => { for (const enemy of s.enemies) if (!enemy.bossPart && !s.jump) seen[s.planet].add(enemy.kind); } });
+    expect(state.sector).toBeGreaterThanOrEqual(7);
+    // Luna's prologue flies the Khepri-built roster (blue-painted on Luna).
+    expect([...seen.luna, ...seen.khepri].every(kind => KHEPRI_KINDS.has(kind))).toBe(true);
     expect([...seen.vesper].every(kind => VESPER_KINDS.has(kind))).toBe(true);
     expect(seen.vesper.size).toBe(3);
-  }, 60000);
+  }, 90000);
 
-  it.each(['pulse', 'fan', 'seeker'] as WeaponId[])('the perfect pilot kills both bosses with %s at power 0 in sectors 1-7 without a hit', weapon => {
+  it.each(['pulse', 'fan', 'seeker'] as WeaponId[])('the perfect pilot kills all three bosses with %s at power 0 in sectors 1-8 without a hit', weapon => {
     const state = createRun({ mode: 'endless', seed: 5 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;
-    const log = fly(state, perfectPilot(), 2400, { noPickups: true, onTick: s => {
+    const log = fly(state, perfectPilot(), 2800, { noPickups: true, onTick: s => {
       const phase = s.boss?.phase ?? null;
       if (phase !== previous && phase === 'destroyed') kills.push(s.boss!.id);
       previous = phase;
-      if (s.sector >= 7 && s.time - s.sectorStartedAt > 10) s.phase = 'paused';
+      if (s.sector >= 8 && s.time - s.sectorStartedAt > 10) s.phase = 'paused';
     } });
-    expect(state.sector).toBe(7);
-    expect(kills).toEqual(['bastion', 'ark']);
+    expect(state.sector).toBe(8);
+    expect(kills).toEqual(['warden', 'bastion', 'ark']);
     expect(state.player.weapon).toBe(weapon);
     expect(state.player.power).toBe(0);
     expect(log.hits).toBe(0);
@@ -178,18 +184,18 @@ describe('endless bosses and jumps', () => {
     // A large test-only life reserve keeps the boss attacking (it holds fire while the player is protected).
     state.player.lives = 10000;
     while (!state.boss && state.time < 400) { holdFire(state); stepRun(state, EMPTY_INPUT); }
-    expect(state.sector).toBe(3);
+    expect(state.sector).toBe(1);
     const arrived = state.time;
     const hp = state.enemies.filter(enemy => enemy.bossPart).reduce((sum, enemy) => sum + enemy.hp, 0);
     while (state.time < arrived + 300) { holdFire(state); stepRun(state, EMPTY_INPUT); }
     expect(state.phase).toBe('playing');
-    expect(state.sector).toBe(3);
-    expect(state.boss?.id).toBe('bastion');
+    expect(state.sector).toBe(1);
+    expect(state.boss?.id).toBe('warden');
     expect(state.boss?.phase).toBe('batteries');
     expect(state.enemies.filter(enemy => enemy.bossPart).reduce((sum, enemy) => sum + enemy.hp, 0)).toBe(hp);
     expect(state.jump).toBeNull();
     expect(state.scrollSpeed).toBe(0);
-    expect(state.distance).toBeCloseTo(endlessSectorPlan(3).stop!.stopDistance, 9);
+    expect(state.distance).toBeCloseTo(endlessSectorPlan(1).stop!.stopDistance, 9);
     // It keeps fighting: attacks still come throughout the fight, which has no time limit.
     expect(state.boss!.attackIndex).toBeGreaterThan(50);
   }, 60000);
@@ -197,7 +203,7 @@ describe('endless bosses and jumps', () => {
 
 describe('Needle beam rests (user report: nonstop beam barrages in later Vesper sectors)', () => {
   it('never lets Needle beams run longer than about 9 s without a 2.5 s pause', () => {
-    for (const sector of [4, 10]) for (const make of [dodgerPilot, idlePilot]) {
+    for (const sector of [5, 11]) for (const make of [dodgerPilot, idlePilot]) {
       const state = enterSector(createRun({ mode: 'endless', seed: 3 }), sector), pilot = make();
       let since = -1, last = -9, longest = 0;
       for (let i = 0; i < 70 / STEP && state.phase === 'playing'; i++) {

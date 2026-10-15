@@ -33,11 +33,11 @@ describe('planet profiles (docs/17 §2)', () => {
     expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('461ca4d8c9f0203f');
   });
 
-  it('maps missions to planets; endless stays on Khepri', () => {
+  it('maps missions to planets; endless starts on Luna', () => {
     expect(MISSION_PLANET['cold-vector']).toBe('vesper');
     expect(MISSION_PLANET.bastion).toBe('khepri');
     expect(runPlanet({ mode: 'campaign', mission: 'cold-vector' })).toBe('vesper');
-    expect(runPlanet({ mode: 'endless', mission: 'cold-vector' })).toBe('khepri');
+    expect(runPlanet({ mode: 'endless', mission: 'cold-vector' })).toBe('luna');
   });
 });
 

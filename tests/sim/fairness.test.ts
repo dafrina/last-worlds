@@ -263,19 +263,21 @@ describe('formation hazard unions (isolated squadrons)', () => {
 describe('cue sequence hazard unions', () => {
   const runs: { label: string; config: RunConfig; seconds: number; sector: number; bosses?: string[]; planets?: string[] }[] = [
     ...DIFFICULTY_IDS.flatMap(difficulty => [
-      { label: `training/${difficulty}`, config: { mode: 'campaign' as const, mission: 'training' as const, difficulty, seed: 21 }, seconds: 121, sector: 1 },
+      { label: `training/${difficulty}`, config: { mode: 'campaign' as const, mission: 'training' as const, difficulty, seed: 21 }, seconds: 260, sector: 1 },
       { label: `rolling-thunder/${difficulty}`, config: { mode: 'campaign' as const, mission: 'bastion' as const, difficulty, seed: 21 }, seconds: 300, sector: 1 },
       { label: `cold-vector/${difficulty}`, config: { mode: 'campaign' as const, mission: 'cold-vector' as const, difficulty, seed: 21 }, seconds: 330, sector: 1 },
     ]),
-    // Sectors 1-7: Khepri, Bastion-9, the jump, Vesper, the Helion Ark, the jump back. Endless continues only
-    // after a kill, so only the perfect branch (Pulse at power 0 kills at 152 s and 191 s sector time) gets
-    // past Bastion-9; the idle and dodger branches spend the rest of the run in its fight.
-    { label: 'endless sectors 1-7', config: { mode: 'endless', seed: 21 }, seconds: 720, sector: 1, bosses: ['bastion', 'ark'], planets: ['khepri', 'vesper'] },
+    // Sectors 1-8: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump, Vesper, the Helion Ark,
+    // the jump back. Endless continues only after a kill, so only the perfect branch gets past WARDEN-1; the idle
+    // and dodger branches spend the rest of the run in its fight.
+    { label: 'endless sectors 1-8', config: { mode: 'endless', seed: 21 }, seconds: 920, sector: 1, bosses: ['warden', 'bastion', 'ark'], planets: ['luna', 'khepri', 'vesper'] },
+    // Khepri's first stint on every branch, ending in the Bastion-9 fight.
+    { label: 'endless sectors 2-4 (Khepri, Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 2, bosses: ['bastion'], planets: ['khepri'] },
     // Vesper's first stint on every branch, ending in the Helion Ark fight.
-    { label: 'endless sectors 4-6 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 4, bosses: ['ark'], planets: ['vesper'] },
+    { label: 'endless sectors 5-7 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['ark'], planets: ['vesper'] },
     // Capped Khepri with its Bastion-9, then capped Vesper ending with the Helion Ark.
-    { label: 'endless capped sector 9 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 9, bosses: ['bastion'], planets: ['khepri'] },
-    { label: 'endless capped sectors 10-12 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 10, bosses: ['ark'], planets: ['vesper'] },
+    { label: 'endless capped sector 10 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 10, bosses: ['bastion'], planets: ['khepri'] },
+    { label: 'endless capped sectors 11-13 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 11, bosses: ['ark'], planets: ['vesper'] },
   ];
 
   it.each(runs)('$label keeps the union fair on the perfect, idle and dodger branches', ({ label, config, seconds, sector, bosses, planets }) => {

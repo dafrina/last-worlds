@@ -7,11 +7,11 @@ import { KIT, generateTerrainSection, terrainHeight } from '../../src/world/terr
 const LUNA = { planet: 'luna' } as const;
 
 describe('luna training world (docs/19)', () => {
-  it('flies Training over Luna; the other missions and endless keep their planets', () => {
+  it('flies Training over Luna and opens endless there; the other missions keep their planets', () => {
     expect(MISSION_PLANET.training).toBe('luna');
     expect(runPlanet({ mode: 'campaign', mission: 'training' })).toBe('luna');
     expect(runPlanet({ mode: 'campaign', mission: 'bastion' })).toBe('khepri');
-    expect(runPlanet({ mode: 'endless', mission: 'training' })).toBe('khepri');
+    expect(runPlanet({ mode: 'endless', mission: 'training' })).toBe('luna');
     const route = runRoute({ mode: 'campaign', mission: 'training' });
     for (const s of [0, 500, 3000]) expect(route.worldAt(s).planet.id).toBe('luna');
   });

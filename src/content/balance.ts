@@ -186,9 +186,18 @@ export const ENEMIES: Record<EnemyKind, {
   missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 9.5, attackEvery: 1.1, warning: 1, score: 250, credits: 10 },
 };
 
-export function difficultyScales(mode: 'campaign' | 'endless', difficulty: Difficulty, sector: number): DifficultyScale {
+/**
+ * Endless opens with prologue sectors (Luna and WARDEN-1, docs/19) before the planet cycle. The pace and difficulty
+ * ramps count from the first cycle sector, so the prologue flies at the starting values and Khepri's first sector is
+ * exactly what sector 1 was before the prologue existed.
+ */
+export const ENDLESS_PROLOGUE_SECTORS = 1;
+/** The ramp sector of an endless sector: 1 for the prologue and the first cycle sector, then counting up. */
+export const endlessRampSector = (sector: number) => Math.max(1, sector - ENDLESS_PROLOGUE_SECTORS);
+
+export function difficultyScales(mode: 'campaign' | 'endless', difficulty: Difficulty, rawSector: number): DifficultyScale {
   if (mode === 'campaign') return DIFFICULTIES[difficulty];
-  const n = Math.max(0, sector - 1);
+  const sector = endlessRampSector(rawSector), n = Math.max(0, sector - 1);
   const ramp = ENDLESS_RAMP;
   return {
     lives: 3,

@@ -29,3 +29,24 @@ Luna is the moon of Khepri; the player-facing name was chosen on 15 October (int
 - sparse outposts.
 
 Fixed-seed captures were inspected in headless Chromium (git-ignored `lookdev/moon/`).
+
+## 2. WARDEN-1 and the endless prologue (15 October 2026)
+
+The user asked for a small boss on Luna, built to look human-made, and for Luna to open endless.
+
+- **WARDEN-1** (`src/content/warden.ts`, `src/render/warden-view.ts`) is a decommissioned human lunar defence lander, built in code:
+  - octagonal white-grey deck with a hazard band and four landing legs;
+  - blue solar wings, an antenna with a blinking beacon, and orange fuel tanks;
+  - a command module (the core) whose hatches slide open;
+  - two boxy turret pods with twin barrels (the first pair).
+
+  It descends on thrusters during its arrival. It uses the generic boss phases: arrival, pods, command module, overload, destroyed and extraction.
+- **Balance:** the smallest boss.
+  - HP: pods 220 each, command module 800 (Bastion-9 has 400 and 1600).
+  - Warnings 1.15 s; slow three- and four-bolt bursts; 0.75 s recovery.
+  - The perfect pilot clears it with every weapon on every difficulty without a hit.
+- **It must be killed:** Training completes only after the command module falls and the 8 s extraction ends (user rule: bosses are always killed, in every mode). Training's cues are unchanged; its approach closes at 105 s, and WARDEN-1 lands at 115 s on a levelled stretch of Luna. The shield budget stays at 40 and 85 s (65 s on Veteran).
+- **Endless prologue:**
+  - Sector 1 is Luna. It flies Training's teaching phrases up to the 70 s boss-sector cutoff, then WARDEN-1 lands, then a hyperdrive jump to Khepri. The cycle (Khepri ×3, Vesper ×3) follows from sector 2.
+  - The pace and difficulty ramps count from sector 2 (`endlessRampSector`), so Khepri's first sector flies exactly as sector 1 did before. This keeps the calibrated difficulty.
+  - Boss sectors are now 1, 4, 7, 10, …

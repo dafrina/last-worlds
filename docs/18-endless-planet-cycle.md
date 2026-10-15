@@ -91,3 +91,5 @@ Nacre joins the cycle when it exists. The cycle, its bosses and its timings are 
   - Before the flash, the new planet's ground ahead is drawn in the old look; it's mostly hidden by the veil.
   - One frame showed an unstreamed section edge at peak jump speed, also under the veil.
 
+
+**Update, 15 October 2026 (user request):** endless now opens with a one-sector Luna prologue that ends with WARDEN-1 and a jump to Khepri; the cycle above starts at sector 2. The pace and difficulty ramps ignore the prologue. See docs/19 §2.

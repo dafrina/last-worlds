@@ -5,7 +5,7 @@ import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 
 /**
- * Luna, Khepri's luna,, the training ground (docs/19): grey regolith pocked with impact craters at three scales, smooth
+ * Luna, Khepri's moon and the training ground (docs/19): grey regolith pocked with impact craters at three scales, smooth
  * dark mare plains with fewer of them, and a handful of small outposts. No water, no roads, no pipelines.
  * Every piece reuses the Khepri kit and infrastructure models. Pure functions of seed and world coordinates.
  */

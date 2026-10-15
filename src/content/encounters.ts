@@ -1,6 +1,6 @@
 import type { EnemyKind, MissionId, WeaponId } from '../shared/contracts';
 import { FORMATIONS, slotFlies, type FormationId, type FormationRank } from './formations';
-import { endlessPlanet, isFirstVisit } from './endless';
+import { ENDLESS_CYCLE, cycleSector, endlessPlanet, isFirstVisit, isPrologue } from './endless';
 
 /**
  * One authored squadron placement. 'view' anchors the template to the camera center when the cue is admitted
@@ -39,8 +39,9 @@ const world = (formation: FormationId, x: number, mirror = false): FormationPlac
  */
 
 /**
- * Training sortie, 120 s. Teaches each squadron, then the same arc at pressure. Its climax keeps lighter
- * batteries and a three-dart finale; Rolling Thunder and endless carry the heaviest phrases. No seed or offsets.
+ * Training sortie over Luna. Teaches each squadron, then the same arc at pressure, then WARDEN-1 lands at 115 s
+ * (its approach closes at 105 s). Its climax keeps lighter batteries and a three-dart finale; Rolling Thunder and
+ * endless carry the heaviest phrases. No seed or offsets.
  */
 export const TRAINING: readonly EncounterCue[] = [
   { at: 2, id: 't-first-contact', phase: 'intro', message: 'LINE UP TO FIRE', formations: [f('solo-dart')] },
@@ -66,10 +67,10 @@ export const TRAINING: readonly EncounterCue[] = [
   { at: 86, id: 't-diamond', phase: 'climax', formations: [f('diamond-lancer')] },
   { at: 92, id: 't-snake-climax', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] },
   { at: 95, id: 't-battery-late', phase: 'climax', formations: [f('battery-2')] },
-  { at: 97, id: 't-last', phase: 'climax', message: 'LAST PATROL · EXTRACTION AHEAD', formations: [f('line-dart-4')] },
+  { at: 97, id: 't-last', phase: 'climax', message: 'LAST PATROL', formations: [f('line-dart-4')] },
   { at: 101, id: 't-last-ground', phase: 'climax', formations: [f('battery-3')] },
   { at: 103, id: 't-last-arrow', phase: 'climax', formations: [f('arrow-3')] },
-  { at: 112, id: 't-extraction', phase: 'recovery', message: 'EXTRACTION APPROACH', formations: [] },
+  { at: 104, id: 't-relief', phase: 'recovery', formations: [] },
 ];
 
 /** Rolling Thunder approach. Ends before BASTION.approachEndsAt; relief precedes the fortress. */
@@ -295,12 +296,16 @@ export function campaignPlaylist(mission: MissionId): readonly EncounterCue[] {
 }
 
 /**
- * The authored playlist of an endless sector: the planet's roster (Khepri kinds on Khepri, Vesper kinds on
- * Vesper), opening and pressure stages on the planet's first stint, its peak playlist on later visits. A boss
+ * The authored playlist of an endless sector: the Luna prologue first, then the planet's roster (Khepri kinds on
+ * Khepri, Vesper kinds on Vesper), opening and pressure stages on the planet's first stint, its peak playlist on later visits. A boss
  * sector admits no cue at or after ENDLESS_CYCLE.bossSector.approachEndsAt.
  */
+/** Endless prologue over Luna: Training's teaching phrases up to the boss sector's approach cutoff, then WARDEN-1. */
+const LUNA_PROLOGUE: readonly EncounterCue[] = TRAINING.filter(cue => cue.at < ENDLESS_CYCLE.bossSector.approachEndsAt);
+
 export function endlessPlaylist(sector: number): readonly EncounterCue[] {
-  const stage = (sector - 1) % 3;
+  if (isPrologue(sector)) return LUNA_PROLOGUE;
+  const stage = (cycleSector(sector) - 1) % 3;
   if (endlessPlanet(sector) === 'vesper') return isFirstVisit(sector) ? (stage === 0 ? VESPER_OPENING : VESPER_PRESSURE) : VESPER_PEAK;
   return isFirstVisit(sector) ? (stage === 0 ? SECTOR_OPENING : SECTOR_PRESSURE) : SECTOR_PEAK;
 }

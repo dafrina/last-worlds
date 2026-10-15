@@ -16,6 +16,8 @@ import { createFx, type Plume } from './fx-particles';
 import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
+import { WARDEN_FOOTPRINT, createWardenView } from './warden-view';
+import { WARDEN } from '../content/warden';
 import { BASTION } from '../content/bastion';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
@@ -70,16 +72,17 @@ export function missionArena(config: RunState['config']): TerrainArena | undefin
  * Bastion-9 seating (render-only): the wide hull rests on the highest ground under its footprint so it never
  * sinks into a ridge, and its target sockets still project exactly onto their logical combat rows.
  */
-export function bastionPlacement(seed: number, distance: number, x: number, logicalS: number, arena?: TerrainArena) {
-  let { s } = groundPlacement(seed, distance, x, logicalS, BASTION.targetHeight, arena), baseHeight = -Infinity;
+export function bastionPlacement(seed: number, distance: number, x: number, logicalS: number, arena?: TerrainArena | WorldInput | World,
+  footprint: { halfWidth: number; halfDepth: number } = BASTION_FOOTPRINT, targetHeight: number = BASTION.targetHeight) {
+  let { s } = groundPlacement(seed, distance, x, logicalS, targetHeight, arena), baseHeight = -Infinity;
   for (let pass = 0; pass < 3; pass++) {
     baseHeight = -Infinity;
     for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
       // Local +z faces the player, which is toward smaller s.
-      const dx = i / 2 * (BASTION_FOOTPRINT.halfWidth - .2), dz = j / 2 * (BASTION_FOOTPRINT.halfDepth - .2);
+      const dx = i / 2 * (footprint.halfWidth - .2), dz = j / 2 * (footprint.halfDepth - .2);
       baseHeight = Math.max(baseHeight, terrainHeight(seed, x + dx, distance + s - dz, arena));
     }
-    s = groundForwardPosition(logicalS, baseHeight + BASTION.targetHeight);
+    s = groundForwardPosition(logicalS, baseHeight + targetHeight);
   }
   return { baseHeight, s };
 }
@@ -173,7 +176,7 @@ const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
       haze: [.82, .9, .98, .025] },
     environment: 'ice',
   },
-  // Luna, Khepri's luna, (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and
+  // Luna, Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and
   // only a faint grey fill (regolith bounce), so shade stays readable on a phone without any haze.
   luna: {
     background: 0x07080a, sunElevation: 30, sun: [0xfffaf2, 4.2], hemisphere: [0x8e939c, 0x4a4845, .75], bounce: [0xa8a6a0, .7],
@@ -479,6 +482,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   }
   // The Helion Ark (docs/17 §5) rides on the sea; its model loads on first use, Bastion-9 stays untouched.
   const ark = createArkView(scene);
+  const warden = createWardenView(scene);
   let arkRequested = false;
   const ensureArk = () => {
     if (arkRequested) return;
@@ -607,9 +611,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (plan.jump && state.time - state.sectorStartedAt > 8) preload(plan.jump.to);
       }
       const terrainUpdate = performance.now() - terrainStart;
-      // Boss routing: the Helion Ark rides the sea; every other boss is Bastion-9 (its lines unchanged below).
-      const isArk = state.boss?.id === 'ark';
-      if (!isArk) {
+      // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna; every other boss is Bastion-9.
+      const isArk = state.boss?.id === 'ark', isWarden = state.boss?.id === 'warden';
+      {
+        let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && state.boss
+          ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
+        if (isWarden && state.boss && seat && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, WARDEN.targetHeight, seat.baseHeight, arena);
+        warden.update(state, seat);
+        if (isWarden) terrain.setExclusion(warden.footprint(state, seat));
+      }
+      if (!isArk && !isWarden) {
         let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena) : null;
         if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
         bastion.update(state, bossPlacement);

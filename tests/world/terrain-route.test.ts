@@ -11,8 +11,11 @@ import {
 const SEA = VESPER_SEA_LEVEL, HALF = VIEW.worldWidth / 2, L = VIEW.sectionLength, SEED = 93;
 const ENDLESS = { mode: 'endless', seed: SEED } as RunConfig;
 const route = runRoute(ENDLESS), schedule = endlessSchedule(ENDLESS);
-/** The two planet switches of the first cycle: Khepri → Vesper after Bastion-9, Vesper → Khepri after the Ark. */
-const jumps = [3, 6].map(sector => endlessSectorPlan(sector)).map(plan => ({ plan, jump: plan.jump!, arena: plan.stop!.platform }));
+/**
+ * The first three planet switches: Luna → Khepri after WARDEN-1 (the prologue), Khepri → Vesper after Bastion-9,
+ * Vesper → Khepri after the Ark.
+ */
+const jumps = [1, 4, 7].map(sector => endlessSectorPlan(sector)).map(plan => ({ plan, jump: plan.jump!, arena: plan.stop!.platform }));
 const rowY = (section: TerrainSection, row: number) => Array.from({ length: section.across }, (_, c) => section.positions[(row * section.across + c) * 3 + 1]);
 
 describe('terrain routes from the run schedule (docs/18 §3)', () => {
@@ -21,8 +24,8 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       const config = { mode: 'campaign', mission, seed: SEED } as RunConfig, world = { planet: runPlanet(config), arena: missionArena(config) };
       for (const index of [0, 15, 16, 25, 26]) expect(generateTerrainSection(SEED, index, runRoute(config))).toEqual(generateTerrainSection(SEED, index, world));
     }
-    // Endless opens on Khepri exactly as before the cycle (no arena reaches the first sections).
-    for (const index of [0, 1, 4]) expect(generateTerrainSection(SEED, index, route)).toEqual(generateTerrainSection(SEED, index));
+    // Endless opens on Luna, exactly Luna's own world (no arena reaches the first sections).
+    for (const index of [0, 1, 4]) expect(generateTerrainSection(SEED, index, route)).toEqual(generateTerrainSection(SEED, index, { planet: 'luna' }));
   });
 
   it('follows the schedule: each distance takes its stretch’s planet and the nearest arena', () => {
@@ -33,17 +36,26 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       if (arena) expect(world.arena).toEqual({ fromS: arena.from, toS: arena.to });
     }
     // Sections wholly on one planet are generated as that planet (Vesper has water and floes; Khepri none).
-    const vesper = generateTerrainSection(SEED, 40, route), khepri = generateTerrainSection(SEED, 80, route);
-    expect(schedule.planetAt(40 * L)).toBe('vesper'); expect(vesper.water?.level).toBe(SEA); expect(vesper.floes).toBeDefined();
-    expect(vesper).toEqual(generateTerrainSection(SEED, 40, { planet: 'vesper', arena: route.worldAt(40 * L).arena }));
-    expect(schedule.planetAt(80 * L)).toBe('khepri'); expect(khepri.water).toBeUndefined();
+    // A section wholly inside one world (one planet, one arena owner) in sector 6 (Vesper) and in sector 3 (Khepri).
+    const single = (sector: number) => {
+      const plan = endlessSectorPlan(sector);
+      for (let i = Math.ceil(plan.startDistance / L); (i + 1) * L <= plan.endDistance; i++) if (route.spans(i * L, (i + 1) * L).length === 1) return i;
+      throw new Error(`no single-world section in sector ${sector}`);
+    };
+    const vi = single(6), ki = single(3);
+    const vesper = generateTerrainSection(SEED, vi, route), khepri = generateTerrainSection(SEED, ki, route);
+    expect(schedule.planetAt(vi * L)).toBe('vesper'); expect(vesper.water?.level).toBe(SEA); expect(vesper.floes).toBeDefined();
+    expect(vesper).toEqual(generateTerrainSection(SEED, vi, { planet: 'vesper', arena: route.worldAt(vi * L).arena }));
+    expect(schedule.planetAt(ki * L)).toBe('khepri'); expect(khepri.water).toBeUndefined();
   });
 
-  it('gives every endless boss stop its planet’s arena: Khepri platform, Vesper open water', () => {
+  it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, Vesper open water', () => {
     const arenas = schedule.arenas(0, 6000);
-    expect(arenas.map(arena => arena.boss)).toEqual(['bastion', 'ark', 'bastion', 'ark']);
-    for (const arena of arenas.slice(0, 2)) for (let s = arena.from + 0.5; s < arena.to; s += 2) for (let x = -HALF; x <= HALF; x += 1) {
+    expect(arenas.map(arena => arena.boss).slice(0, 5)).toEqual(['warden', 'bastion', 'ark', 'bastion', 'ark']);
+    for (const arena of arenas.slice(0, 3)) for (let s = arena.from + 0.5; s < arena.to; s += 2) for (let x = -HALF; x <= HALF; x += 1) {
       const height = terrainHeight(SEED, x, s, route);
+      // Luna's craters level out to a flat floor (height 0) over the platform; the ramps blend into it.
+      if (arena.planet === 'luna') { if (s > arena.from + 10 && s < arena.to - 10) expect(Math.abs(height)).toBeLessThan(0.05); continue; }
       // Khepri's paved floor spans the width but for a low lip at the edges (as in Rolling Thunder).
       if (arena.planet === 'khepri') expect(Math.abs(height - ARENA_LEVEL)).toBeLessThan(Math.abs(x) <= HALF - 1.6 ? 0.25 : 0.9);
       else expect(height).toBeLessThan(SEA - 0.5);
@@ -85,9 +97,10 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
         const s = split.startS + row * TERRAIN_STEP;
         expect(rowY(split, row)).toEqual(rowY(s < jump.switchDistance ? old : next, row));
       }
-      // The sea's rows have water; the dry planet's rows never count as wet.
-      expect(split.water?.level).toBe(SEA);
-      for (let row = 0; row < split.along; row++) {
+      // The sea's rows have water; the dry planet's rows never count as wet (a dry-to-dry seam has no water at all).
+      if (jump.from !== 'vesper' && jump.to !== 'vesper') expect(split.water).toBeUndefined();
+      else expect(split.water?.level).toBe(SEA);
+      if (split.water) for (let row = 0; row < split.along; row++) {
         const s = split.startS + row * TERRAIN_STEP, wetPlanet = (s < jump.switchDistance ? jump.from : jump.to) === 'vesper';
         if (!wetPlanet) for (let c = 0; c < split.across; c++) expect(split.water!.shore[row * split.across + c]).toBeLessThanOrEqual(0);
       }

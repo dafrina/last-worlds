@@ -116,15 +116,16 @@ describe('Bastion-9 mission', () => {
     expect(state.distance + state.boss!.s - (d0 + s0)).toBeCloseTo(drift, 6);
   });
 
-  it('keeps the short training sortie and canonical endless start independent', () => {
+  it('keeps the training sortie and canonical endless start independent of Rolling Thunder', () => {
     const endless = createRun({ mode: 'endless', mission: 'bastion', weapon: 'fan', difficulty: 'relaxed', seed: 42 });
     expect(endless.config.mission).toBeUndefined();
     expect(endless.player.weapon).toBe('pulse');
+    // Endless opens on Luna; its first boss is WARDEN-1, never the mission's Bastion-9.
     endless.player.invulnerableUntil = Infinity; advance(endless, 240);
-    expect(endless.boss).toBeNull(); expect(endless.phase).toBe('playing');
+    expect(endless.boss?.id).toBe('warden'); expect(endless.phase).toBe('playing');
     const training = createRun({ mode: 'campaign', mission: 'training', seed: 42 });
     training.player.invulnerableUntil = Infinity; advance(training, 121);
-    expect(training.boss).toBeNull(); expect(training.phase).toBe('complete');
+    expect(training.boss?.id).toBe('warden'); expect(training.phase).toBe('playing');
   });
 
   it('offers only the fixed mission shield budget even during an extended boss fight', () => {

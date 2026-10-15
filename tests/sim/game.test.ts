@@ -237,9 +237,9 @@ describe('rare shield-supply quotas', () => {
     const firstCells = recordSupplies(first, 400);
     const secondCells = recordSupplies(second, 400);
     expect(firstCells).toEqual(secondCells);
-    // One cell 55 s into each sector. This pilot never fires, so it stays in the Bastion-9 fight that closes
-    // sector 3 (endless continues only after the kill), and the long fight earns no extra cell.
-    expect(firstCells.map(cell => Math.round(cell.time))).toEqual([55, 145, 235]);
+    // One cell 55 s into each sector. This pilot never fires, so it stays in the WARDEN-1 fight that closes the
+    // Luna prologue (endless continues only after the kill), and the long fight earns no extra cell.
+    expect(firstCells.map(cell => Math.round(cell.time))).toEqual([55]);
   });
 
   it('collecting a cell restores one charge, never a whole shield', () => {
@@ -422,9 +422,9 @@ describe('wide world, scheduling, and mode boundaries', () => {
       for (const key of ['enemies', 'projectiles', 'pickups', 'effects'] as const) maxima[key] = Math.max(maxima[key], state[key].length);
     }
     expect(state.phase).toBe('playing');
-    // Endless continues only after a boss kill; this weaving ship cannot finish Bastion-9, so the soak spends
-    // its last minutes in the sector 3 boss fight.
-    expect(state.sector).toBe(3);
+    // Endless continues only after a boss kill; this weaving ship beats WARDEN-1 but cannot finish Bastion-9, so
+    // the soak spends its last minutes in the sector 4 boss fight.
+    expect(state.sector).toBe(4);
     expect(state.boss?.id).toBe('bastion');
     expect(maxima.enemies).toBeLessThanOrEqual(BALANCE.maxEnemies);
     expect(maxima.projectiles).toBeLessThanOrEqual(BALANCE.maxProjectiles);
@@ -433,15 +433,18 @@ describe('wide world, scheduling, and mode boundaries', () => {
     expect(state.nextId).toBeGreaterThan(300);
   });
 
-  it('completes training at 120 seconds and advances endless sectors instead', () => {
+  it('ends training with WARDEN-1 instead of a timer, and opens endless on Luna with the same boss', () => {
     const campaign = quietRun();
     advance(campaign, 120);
-    expect(campaign.phase).toBe('complete');
+    expect(campaign.phase).toBe('playing');
+    expect(campaign.boss?.id).toBe('warden');
     const endless = createRun({ mode: 'endless', seed: 1 });
     endless.player.invulnerableUntil = Infinity;
     advance(endless, 180);
     expect(endless.phase).toBe('playing');
-    expect(endless.sector).toBe(3);
+    expect(endless.planet).toBe('luna');
+    expect(endless.sector).toBe(1);
+    expect(endless.boss?.id).toBe('warden');
     // The endless ramp stops at its documented caps; warnings never shrink at any sector.
     expect(difficultyScales('endless', 'veteran', 100)).toMatchObject({
       hp: ENDLESS_RAMP.hp.cap, shotSpeed: ENDLESS_RAMP.shotSpeed.cap, cadence: ENDLESS_RAMP.cadence.floor, warning: 0,

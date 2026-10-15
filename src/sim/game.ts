@@ -36,7 +36,7 @@ export function createRun(config: RunConfig): RunState {
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
     lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
     chargeKillTimes: [], boss: null,
-    message: normalized.mode === 'endless' ? 'SECTOR 01 · KHEPRI' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
+    message: normalized.mode === 'endless' ? 'SECTOR 01 · LUNA' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
   };
 }
 
