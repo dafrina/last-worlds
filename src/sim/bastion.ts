@@ -32,8 +32,11 @@ function bossDef(state: RunState): BossDefinition {
 
 /** Pause after each boss attack: the authored recovery, scaled by the endless cadence ramp in endless. */
 function bossRecovery(state: RunState): number {
-  return bossDef(state).recovery * (state.config.mode === 'endless' ? runScale(state).cadence : 1);
+  const def = bossDef(state), base = state.boss?.phase === 'overload' ? def.overloadRecovery ?? def.recovery : def.recovery;
+  return base * (state.config.mode === 'endless' ? runScale(state).cadence : 1);
 }
+/** The overload move for the next attack. */
+const overloadMove = (state: RunState) => { const moves = bossDef(state).overloadMoves; return moves[state.boss!.attackIndex % moves.length]; };
 
 /** Endless: protection through the scroll resume and the hyperdrive jump after the kill. */
 const ENDLESS_EXIT_PROTECTION = ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration + 0.5;
@@ -108,6 +111,10 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     boss.launchesLeft = def.launches.waves;
     boss.nextLaunchAt = state.time + def.launches.firstAfter;
   }
+  if (phase === 'overload') {
+    boss.attackIndex = 0;
+    if (def.launches?.overloadWaves) { boss.launchesLeft += def.launches.overloadWaves; boss.nextLaunchAt = Math.max(boss.nextLaunchAt, state.time + def.launches.firstAfter); }
+  }
   message(state, def.messages[phase], phase === 'destroyed' ? 8 : 3);
   if (phase === 'destroyed') {
     boss.deathEffectAt = state.time;
@@ -152,8 +159,16 @@ export function overloadLanes(bossX: number, index: number, def: BossDefinition 
 /** Marked lanes for a boss lane attack: radiator lasers lock on the player; overload lanes cover its own columns. */
 function attackLanes(state: RunState, def: BossDefinition): { x: number; width: number; active: number }[] {
   const boss = state.boss!;
+  const laser = def.laser ?? { width: 0.8, active: 0.3 };
   if (boss.phase === 'batteries' && def.laser) return [{ x: state.player.x, width: def.laser.width, active: def.laser.active }];
-  return overloadLanes(boss.x, boss.attackIndex, def).map(lane => ({ ...lane, active: def.overload.active }));
+  const active = def.overload.active, move = overloadMove(state);
+  if (move === 'laser') return [{ x: state.player.x, width: laser.width, active: laser.active }];
+  if (move === 'cross') {
+    // The core column and one side column, alternating sides through the sequence.
+    const side = Math.floor(boss.attackIndex / def.overloadMoves.length) % 2 ? 'left' : 'right';
+    return [{ x: boss.x + def.parts.core.x, width: def.overload.coreLaneWidth, active }, { x: boss.x + def.parts[side].x, width: def.overload.batteryLaneWidth, active }];
+  }
+  return overloadLanes(boss.x, move === 'side-lanes' ? 1 : 0, def).map(lane => ({ ...lane, active }));
 }
 
 function emit(state: RunState, enemy: Enemy) {
@@ -171,7 +186,7 @@ function emit(state: RunState, enemy: Enemy) {
 function updateLaunches(state: RunState): void {
   const boss = state.boss!;
   const def = bossDef(state);
-  if (!def.launches || boss.phase !== 'core' || boss.launchesLeft <= 0 || state.time < boss.nextLaunchAt) return;
+  if (!def.launches || (boss.phase !== 'core' && boss.phase !== 'overload') || boss.launchesLeft <= 0 || state.time < boss.nextLaunchAt) return;
   // One wave at a time, only while the bays are in view and the player is not in respawn protection.
   const waveAlive = state.enemies.some(enemy => enemy.hp > 0 && enemy.formation?.template === 'ark-launch');
   const bay = def.launches.bays[0];
@@ -248,14 +263,16 @@ export function updateBoss(state: RunState, dt: number): void {
     return;
   }
   const selected = candidates[boss.attackIndex % candidates.length];
+  const move = boss.phase === 'overload' ? overloadMove(state) : null;
   const attack = boss.phase === 'batteries'
     ? (def.pairAttack === 'laser' ? 'beam' : 'burst')
     : boss.phase === 'core'
       ? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst')
-      : 'beam';
+      : move === 'burst' ? 'burst' : move === 'fan' ? (def.fan ? 'fan' : 'burst') : 'beam';
   const aimX = attack === 'beam' ? boss.x : state.player.x;
   const difficultyWarning = runScale(state).warning;
-  const warning = (attack !== 'beam' ? def.warning : boss.phase === 'batteries' && def.laser ? def.laser.warning : def.beamWarning) + difficultyWarning;
+  const lockedLaser = (boss.phase === 'batteries' && def.laser) || move === 'laser';
+  const warning = (attack !== 'beam' ? def.warning : lockedLaser ? def.laser?.warning ?? def.beamWarning : def.beamWarning) + difficultyWarning;
   // The director's exclusion check applies to bosses too. A rejected attack is not edited: the boss switches
   // to its alternate pattern and tries again after a short delay.
   boss.attack = attack;

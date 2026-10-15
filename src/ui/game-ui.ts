@@ -148,7 +148,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     text('.mission-world', mission.world);
     text('.mission-name', mission.name);
     text('.mission-description', mission.brief);
-    find('.mission-threat').setAttribute('aria-label', `Threat ${mission.threat} of 3`);
+    find('.mission-threat').setAttribute('aria-label', `Threat ${mission.threat} of 4`);
     find<HTMLElement>('.threat-pips').querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', i < mission.threat));
     const stage = find<HTMLElement>('.planet-stage');
     stage.classList.remove('is-switching'); void stage.offsetWidth; stage.classList.add('is-switching');

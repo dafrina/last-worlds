@@ -9,6 +9,15 @@ import { VEIL } from './veil';
  * arrival → 'batteries' (first module pair) → 'core' (main target) → 'overload' (lanes over its own hit
  * columns) → 'destroyed' (ground- or water-anchored wreck, extraction).
  */
+/**
+ * One move of a boss's overload phase (cycled in order; a move the fairness director rejects is skipped):
+ * - 'core-lane' / 'side-lanes': lanes over its own core column, or over both side-module columns;
+ * - 'cross': the core lane plus one side lane (alternating sides), so the open side alternates;
+ * - 'laser': a narrow lane locked on the player when the windup starts;
+ * - 'burst' / 'fan': the core's aimed burst or fixed fan.
+ */
+export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'laser' | 'burst' | 'fan';
+
 export interface BossDefinition {
   id: BossId;
   name: string;
@@ -27,13 +36,18 @@ export interface BossDefinition {
   laser: { warning: number; width: number; active: number } | null;
   beamWarning: number;
   overload: { coreLaneWidth: number; batteryLaneWidth: number; active: number };
+  /** Overload phase: the boss's own sequence of moves (docs/15, docs/17, docs/19, docs/20). */
+  overloadMoves: readonly OverloadMove[];
   recovery: number;
+  /** Pause after each overload attack (defaults to `recovery`). */
+  overloadRecovery?: number;
   transitionRecovery: number;
   overloadFraction: number;
   extractionDuration: number;
   bursts: { pair: { bolts: number; spread: number; speed: number }; core: { bolts: number; spread: number; speed: number } };
   fan: { bolts: number; spacing: number; speed: number } | null;
-  launches: { waves: number; firstAfter: number; interval: number; bays: readonly { x: number; s: number }[] } | null;
+  /** Finite launches from deck bays in the core phase, plus `overloadWaves` more once overload begins. */
+  launches: { waves: number; firstAfter: number; interval: number; overloadWaves?: number; bays: readonly { x: number; s: number }[] } | null;
   arena: { decelStart: number; decelDuration: number; resumeDuration: number; sway: number; swayRate: number; surge: number; surgeRate: number; platform: { from: number; to: number } };
   shieldSupplies: Readonly<Record<Difficulty, readonly number[]>>;
   messages: { start: string; batteries: string; core: string; overload: string; destroyed: string; approach: string };
@@ -51,6 +65,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
     pairAttack: 'burst', coreAttack: 'fan-burst',
     warning: BASTION.warning, laser: null, beamWarning: BASTION.beamWarning, overload: BASTION.overload,
+    overloadMoves: ['core-lane', 'side-lanes', 'fan', 'cross', 'core-lane', 'burst'],
     recovery: BASTION.recovery, transitionRecovery: BASTION.transitionRecovery,
     overloadFraction: BASTION.overloadFraction, extractionDuration: BASTION.extractionDuration,
     bursts: { pair: BASTION.batteryBurst, core: BASTION.coreBurst }, fan: BASTION.coreFan, launches: null,
@@ -72,10 +87,13 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
     pairAttack: 'laser', coreAttack: 'burst',
     warning: HELION_ARK.warning, laser: HELION_ARK.laser, beamWarning: HELION_ARK.beamWarning, overload: HELION_ARK.overload,
+    // The final phase mixes its lanes with player-locked lasers, crosses and bridge bursts, recovers faster, and
+    // launches two more drop-pod waves (user: the last laser section was always the same and a bit easy).
+    overloadMoves: ['core-lane', 'laser', 'side-lanes', 'burst', 'cross', 'laser', 'core-lane', 'cross'], overloadRecovery: 0.4,
     recovery: HELION_ARK.recovery, transitionRecovery: HELION_ARK.transitionRecovery,
     overloadFraction: HELION_ARK.overloadFraction, extractionDuration: HELION_ARK.extractionDuration,
     bursts: { pair: HELION_ARK.bridgeBurst, core: HELION_ARK.bridgeBurst }, fan: null,
-    launches: { ...HELION_ARK.launches, bays: HELION_ARK.bays },
+    launches: { ...HELION_ARK.launches, overloadWaves: 2, bays: HELION_ARK.bays },
     arena: HELION_ARK.arena, shieldSupplies: HELION_ARK.shieldSupplies,
     messages: {
       start: 'HELION ARK · BREAK BOTH RADIATORS', batteries: 'BREAK BOTH RADIATORS', core: 'BRIDGE EXPOSED',
@@ -94,6 +112,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
     pairAttack: 'burst', coreAttack: 'burst',
     warning: WARDEN.warning, laser: null, beamWarning: WARDEN.beamWarning, overload: WARDEN.overload,
+    overloadMoves: ['core-lane', 'burst', 'side-lanes', 'cross'],
     recovery: WARDEN.recovery, transitionRecovery: WARDEN.transitionRecovery,
     overloadFraction: WARDEN.overloadFraction, extractionDuration: WARDEN.extractionDuration,
     bursts: { pair: WARDEN.podBurst, core: WARDEN.commandBurst }, fan: null, launches: null,
@@ -114,7 +133,8 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       core: { x: 0, s: VEIL.heartS, radius: VEIL.heartRadius, hp: VEIL.heartHp },
     },
     pairAttack: 'burst', coreAttack: 'fan-burst',
-    warning: VEIL.warning, laser: null, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
+    warning: VEIL.warning, laser: { warning: 1.05, width: 0.8, active: 0.3 }, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
+    overloadMoves: ['core-lane', 'fan', 'cross', 'laser', 'side-lanes', 'burst', 'cross', 'fan'], overloadRecovery: 0.45,
     recovery: VEIL.recovery, transitionRecovery: VEIL.transitionRecovery,
     overloadFraction: VEIL.overloadFraction, extractionDuration: VEIL.extractionDuration,
     bursts: { pair: VEIL.podBurst, core: VEIL.heartBurst }, fan: VEIL.heartFan, launches: null,

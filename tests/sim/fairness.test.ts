@@ -268,17 +268,17 @@ describe('cue sequence hazard unions', () => {
       { label: `deep-bloom/${difficulty}`, config: { mode: 'campaign' as const, mission: 'deep-bloom' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
       { label: `cold-vector/${difficulty}`, config: { mode: 'campaign' as const, mission: 'cold-vector' as const, difficulty, seed: 21 }, seconds: 330, sector: 1 },
     ]),
-    // Sectors 1-5: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump into Nacre. Endless continues
+    // Sectors 1-5: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump into Vesper. Endless continues
     // only after a kill, so only the perfect branch gets past WARDEN-1; the idle and dodger branches stay in its fight.
-    { label: 'endless sectors 1-5', config: { mode: 'endless', seed: 21 }, seconds: 760, sector: 1, bosses: ['warden', 'bastion'], planets: ['luna', 'khepri', 'nacre'] },
+    { label: 'endless sectors 1-5', config: { mode: 'endless', seed: 21 }, seconds: 760, sector: 1, bosses: ['warden', 'bastion'], planets: ['luna', 'khepri', 'vesper'] },
     // Each planet's first stint on every branch, ending in its boss fight.
     { label: 'endless sectors 2-4 (Khepri, Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 2, bosses: ['bastion'], planets: ['khepri'] },
-    { label: 'endless sectors 5-7 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['veil'], planets: ['nacre'] },
-    { label: 'endless sectors 8-10 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['ark'], planets: ['vesper'] },
-    // Later visits (peak playlists, capped ramp): Khepri's Bastion-9, then Nacre and Vesper.
+    { label: 'endless sectors 5-7 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['ark'], planets: ['vesper'] },
+    { label: 'endless sectors 8-10 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['veil'], planets: ['nacre'] },
+    // Later visits (peak playlists, capped ramp): Khepri's Bastion-9, then Vesper and Nacre.
     { label: 'endless capped sector 13 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 13, bosses: ['bastion'], planets: ['khepri'] },
-    { label: 'endless capped sectors 14-16 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['veil'], planets: ['nacre'] },
-    { label: 'endless capped sectors 17-19 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['ark'], planets: ['vesper'] },
+    { label: 'endless capped sectors 14-16 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['ark'], planets: ['vesper'] },
+    { label: 'endless capped sectors 17-19 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['veil'], planets: ['nacre'] },
   ];
 
   it.each(runs)('$label keeps the union fair on the perfect, idle and dodger branches', ({ label, config, seconds, sector, bosses, planets }) => {

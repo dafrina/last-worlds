@@ -82,3 +82,13 @@ The rule lives in `DifficultyScale.beamRest`. When Needle beams have run for `ru
 - Veteran: no rest.
 
 Result: the longest barrage in endless sectors 4–11 is now 7–9 s, while beams still fill about 30% of the time (was 34–37%). The Helion Ark is unchanged; the user finds it fine.
+
+## Later tuning (15 October 2026)
+
+At the user's request:
+- Rolling Thunder is slightly harder: mission cadence ×0.92, and Bastion-9's recovery dropped from 0.5 s to 0.45 s.
+- WARDEN-1 is slightly harder (docs/19).
+- Deep Bloom, now the final mission, runs at ×0.92.
+- The Helion Ark's final phase is harder and varied (docs/20, "Varied boss fights").
+
+The perfect pilot still clears every mission on all nine combinations without a hit.

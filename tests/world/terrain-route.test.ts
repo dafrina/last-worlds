@@ -44,7 +44,7 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       for (let i = Math.ceil(plan.startDistance / L); (i + 1) * L <= plan.endDistance; i++) if (route.spans(i * L, (i + 1) * L).length === 1) return i;
       throw new Error(`no single-world section in sector ${sector}`);
     };
-    const vi = single(9), ki = single(3);
+    const vi = single(6), ki = single(3);
     const vesper = generateTerrainSection(SEED, vi, route), khepri = generateTerrainSection(SEED, ki, route);
     expect(schedule.planetAt(vi * L)).toBe('vesper'); expect(vesper.water?.level).toBe(SEA); expect(vesper.floes).toBeDefined();
     expect(vesper).toEqual(generateTerrainSection(SEED, vi, { planet: 'vesper', arena: route.worldAt(vi * L).arena }));
@@ -53,7 +53,7 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
 
   it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water', () => {
     const arenas = schedule.arenas(0, 8000);
-    expect(arenas.map(arena => arena.boss).slice(0, 5)).toEqual(['warden', 'bastion', 'veil', 'ark', 'bastion']);
+    expect(arenas.map(arena => arena.boss).slice(0, 5)).toEqual(['warden', 'bastion', 'ark', 'veil', 'bastion']);
     for (const arena of arenas.slice(0, 4)) for (let s = arena.from + 0.5; s < arena.to; s += 2) for (let x = -HALF; x <= HALF; x += 1) {
       const height = terrainHeight(SEED, x, s, route);
       // Luna's craters level out to a flat floor (height 0) over the platform; the ramps blend into it.

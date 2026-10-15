@@ -12,10 +12,10 @@ const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set(['needle', 'diamond', 'miss
 function holdFire(state: RunState) { state.nextVolleyAt = Infinity; }
 
 describe('endless schedule', () => {
-  it('opens with the Luna prologue, then cycles Khepri, Nacre and Vesper three sectors at a time, each stint ending with its boss', () => {
+  it('opens with the Luna prologue, then cycles Khepri, Vesper and Nacre three sectors at a time, each stint ending with its boss', () => {
     const planets = Array.from({ length: 13 }, (_, i) => endlessPlanet(i + 1));
-    expect(planets).toEqual(['luna', 'khepri', 'khepri', 'khepri', 'nacre', 'nacre', 'nacre', 'vesper', 'vesper', 'vesper', 'khepri', 'khepri', 'khepri']);
-    expect([1, 4, 7, 10, 13, 16, 19].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'veil', 'ark', 'bastion', 'veil', 'ark']);
+    expect(planets).toEqual(['luna', 'khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper', 'nacre', 'nacre', 'nacre', 'khepri', 'khepri', 'khepri']);
+    expect([1, 4, 7, 10, 13, 16, 19].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'ark', 'veil', 'bastion', 'ark', 'veil']);
     expect([2, 3, 5, 6, 8].every(n => endlessSectorPlan(n).boss === null && !isBossSector(n))).toBe(true);
     // The prologue does not advance the ramps: Khepri's first sector (2) flies at the old sector 1 values.
     expect(sectorPace(1)).toBe(sectorPace(2));
@@ -105,7 +105,7 @@ describe('endless bosses and jumps', () => {
     expect(state.boss!.id).toBe('warden');
     expect(bossAt).toBeCloseTo(ENDLESS_CYCLE.bossSector.arrivesAt, 1);
     const total = state.enemies.filter(enemy => enemy.bossPart).reduce((sum, enemy) => sum + enemy.maxHp, 0);
-    expect(total).toBeCloseTo(1240 * difficultyScales('endless', 'standard', 1).hp, 6);
+    expect(total).toBeCloseTo(1490 * difficultyScales('endless', 'standard', 1).hp, 6);
     expect(state.enemies.every(enemy => enemy.bossPart)).toBe(true);
   });
 
@@ -173,7 +173,7 @@ describe('endless bosses and jumps', () => {
       if (s.sector >= 8 && s.time - s.sectorStartedAt > 10) s.phase = 'paused';
     } });
     expect(state.sector).toBe(8);
-    expect(kills).toEqual(['warden', 'bastion', 'veil']);
+    expect(kills).toEqual(['warden', 'bastion', 'ark']);
     expect(state.player.weapon).toBe(weapon);
     expect(state.player.power).toBe(0);
     expect(log.hits).toBe(0);
@@ -205,7 +205,7 @@ describe('endless bosses and jumps', () => {
 
 describe('Needle beam rests (user report: nonstop beam barrages in later Vesper sectors)', () => {
   it('never lets Needle beams run longer than about 9 s without a 2.5 s pause', () => {
-    for (const sector of [8, 17]) for (const make of [dodgerPilot, idlePilot]) {
+    for (const sector of [5, 14]) for (const make of [dodgerPilot, idlePilot]) {
       const state = enterSector(createRun({ mode: 'endless', seed: 3 }), sector), pilot = make();
       let since = -1, last = -9, longest = 0;
       for (let i = 0; i < 70 / STEP && state.phase === 'playing'; i++) {

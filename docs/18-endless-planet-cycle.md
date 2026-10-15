@@ -95,3 +95,5 @@ Nacre joins the cycle when it exists. The cycle, its bosses and its timings are 
 **Update, 15 October 2026 (user request):** endless now opens with a one-sector Luna prologue that ends with WARDEN-1 and a jump to Khepri; the cycle above starts at sector 2. The pace and difficulty ramps ignore the prologue. See docs/19 §2.
 
 **Update, 15 October 2026:** Nacre joins between Khepri and Vesper (docs/20); boss sectors are 1, 4, 7, 10, …..
+
+**Update, 15 October 2026 (later):** order swapped by the user: Khepri → Vesper → Nacre; Nacre is the final world (docs/20).

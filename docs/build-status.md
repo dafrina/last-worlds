@@ -1,5 +1,14 @@
 # Build status
 
+## Varied boss fights, harder Ark finale, world order — 15 October 2026
+
+- **Overload moves:** every boss's overload phase cycles its own move list (lanes, crosses, player-locked lasers, bursts, fans) instead of the same two lane patterns.
+- **Ark finale:** lasers and crosses, faster recovery, and two more drop-pod waves.
+- **Harder:** Rolling Thunder (cadence ×0.92, Bastion-9 recovery 0.45 s) and WARDEN-1 (more HP, shorter warnings).
+- **Order:** Nacre and Deep Bloom are now the final world and mission; Vesper comes in between. Campaign: Training → Rolling Thunder → Cold Vector → Deep Bloom. Endless: Luna → Khepri → Vesper → Nacre. Threat pips go up to 4.
+- **Evidence:** typecheck clean; 278/278 unit tests (perfect pilot clears all missions on all nine combinations with no hits; fairness unions pass on every branch); browser specs (below).
+- **Not done:** no phone hardware test.
+
 ## Nacre, Deep Bloom and THE VEIL — 15 October 2026
 
 - **Nacre**, the Luminous Mire, sits between Khepri and Vesper. It has indigo water between dark islands, code-built glowing flora (caps, lily pads, reeds, violet canopy trees, crystals, monoliths) and its own violet look and water. See docs/20.

@@ -21,9 +21,9 @@ User request (15 October 2026): the level between Khepri and the ice world, with
   - a faint violet mist, violet shadows and a violet sky reflection map (`createMireEnvironment`);
   - water: indigo, calm swell, a soft teal bioluminescent film at the shores (`water.setPlanet`).
 
-## Deep Bloom (campaign mission 3 of 4)
+## Deep Bloom (campaign mission 4 of 4, the finale)
 
-Between Rolling Thunder and Cold Vector, threat 3. Its combat idea follows docs/03: sine-flight weaver columns, overlapping rhythms, Needle beams between the islands, batteries on islands and pontoons, Diamond heavies and escort convoys. Mission cadence is ×1, like Cold Vector.
+After Cold Vector, threat 4 of 4 (user decision, 15 October: THE VEIL is so epic that Nacre becomes the final world and Vesper the one in between). Its combat idea follows docs/03: sine-flight weaver columns, overlapping rhythms, Needle beams between the islands, batteries on islands and pontoons, Diamond heavies and escort convoys. Mission cadence is ×0.92, the hardest campaign mission.
 
 The approach closes at 146 s. THE VEIL rises at 160 s over open mire; the scroll stops at distance 800. Shield cells come at 45, 105 and 150 s (105 and 150 s on Veteran).
 
@@ -46,7 +46,7 @@ It rises out of the mire on arrival and sinks back into it when destroyed.
 
 ## Endless
 
-The cycle is now Luna (prologue) → Khepri ×3 → Nacre ×3 → Vesper ×3 → Khepri …. Boss sectors: 1 (WARDEN-1), 4 (Bastion-9), 7 (THE VEIL), 10 (the Ark), 13, 16, 19, ….
+The cycle is now Luna (prologue) → Khepri ×3 → Vesper ×3 → Nacre ×3 → Khepri …. Boss sectors: 1 (WARDEN-1), 4 (Bastion-9), 7 (the Ark), 10 (THE VEIL), 13, 16, 19, ….
 
 Nacre's playlists are built from Deep Bloom:
 - the first stint opens with its first 90 s, then its middle and climax;
@@ -56,5 +56,24 @@ Vesper's craft preload during the Khepri boss sector.
 
 ## Known limits
 
-- A terrain section that straddles the Nacre → Vesper switch keeps one water sheet at Nacre's level. For less than one section after that jump, Vesper's water draws 0.6 units high.
+- A terrain section that straddles a Vesper ↔ Nacre switch keeps one water sheet at Nacre's level. For less than one section after that jump, the second sea draws at the first sea's level.
 - Nacre has no own enemy craft yet; it reuses the Khepri and Vesper rosters.
+
+## Varied boss fights (15 October 2026)
+
+Each boss's overload phase now runs its own sequence of moves (`BossDefinition.overloadMoves`) instead of always alternating the same two lane patterns. The moves:
+- core lane;
+- side lanes;
+- **cross:** core plus one side, with the open side alternating;
+- **laser:** a narrow lane locked on the player;
+- aimed burst;
+- fixed fan.
+
+Every move passes the same fairness director, and a rejected move is skipped.
+
+| Boss | Overload sequence | Notes |
+| --- | --- | --- |
+| WARDEN-1 | core, burst, side, cross | |
+| Bastion-9 | core, side, fan, cross, core, burst | |
+| Helion Ark | core, laser, side, burst, cross, laser, core, cross | Recovers in 0.4 s instead of 0.55 s, and launches two more drop-pod waves once overload begins (user: the final laser section was always the same and a bit easy). |
+| THE VEIL | core, fan, cross, laser, side, burst, cross, fan | Recovers in 0.45 s. |

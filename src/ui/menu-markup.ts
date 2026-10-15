@@ -1,7 +1,7 @@
 /** Menu-only surfaces. Gameplay HUD and input stay in game-ui.ts. */
 
 /** Campaign missions in selector order (progression: Luna first). */
-export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['deep-bloom', 'Deep Bloom'], ['cold-vector', 'Cold Vector']] as const;
+export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector'], ['deep-bloom', 'Deep Bloom']] as const;
 
 /**
  * A segmented selector (no dropdowns): one radio button per choice, the checked one lit with a glowing indicator.
@@ -38,7 +38,7 @@ export const menuMarkup = `
     <p class="mission-world"></p>
     <h3 class="mission-name"></h3>
     <p class="mission-description"></p>
-    <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i></span></p>
+    <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i><i></i></span></p>
     <div class="setup-group"><span class="setup-label" id="difficulty-label">DIFFICULTY</span>${selector('difficulty', 'Campaign difficulty', [['relaxed', 'Relaxed'], ['standard', 'Standard'], ['veteran', 'Veteran']], 'standard')}</div>
     <div class="setup-group"><span class="setup-label">MAIN WEAPON</span>${selector('weapon', 'Main weapon', [['pulse', 'Twin Pulse'], ['fan', 'Fan Cannon'], ['seeker', 'Seeker Array']], 'pulse')}</div>
     <p class="loadout-line">SPECIAL Shockwave · SHIELD Standard · REACTOR Balanced</p>
