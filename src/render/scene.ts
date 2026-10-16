@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type Pickup, type RunState } from '../shared/contracts';
+import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { arenaStopDistance } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
-import { loadKhepriCraft, loadNacreCraft, type KhepriCraftNode, type NacreCraftNode } from './models';
-import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
+import { loadCraftNodes, loadKhepriCraft, loadNacreCraft, type KhepriCraftNode, type NacreCraftNode } from './models';
+import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
+import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
@@ -240,13 +241,13 @@ const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: numb
  * Nacre's own craft (art/nacre-craft, after the ORRERY, SHARD and VEIL concepts): on Nacre every kind flies a Nacre
  * model, and THE VEIL's pod waves use the pod. Plume colour is teal.
  */
-const NACRE_CRAFT: Readonly<Record<EnemyKind, { node: NacreCraftNode; scale: number }>> = {
+const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NacreCraftNode; scale: number }>> = {
   dart: { node: 'nacre_shard', scale: 1 }, needle: { node: 'nacre_shard', scale: 1.1 }, lancer: { node: 'nacre_veil', scale: 1.1 },
   weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
 };
 
 /** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
-const KHEPRI_NODE: Readonly<Record<EnemyKind, KhepriCraftNode>> = {
+const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
   dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret',
 };
 /** Engine sockets (x, z) of the Khepri craft, from tools/blender/khepri_craft.py SOCKETS (glTF z toward the player). */
@@ -256,13 +257,17 @@ const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [numbe
 };
 
 /** Every enemy kind the renderer draws (Khepri and Vesper); ground kinds stand on terrain or float on the sea. */
-const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile'];
-const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile']);
+const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel'];
+const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
+/** Loot props and ground wrecks (art/loot-props, Blender): the fuel skid target and what destroyed ground targets leave. */
+const LOOT_NODES = ['loot_fuel', 'wreck_turret_0', 'wreck_turret_1', 'wreck_fuel'] as const;
+/** At most this many wrecks stay on the ground at once (oldest go first). */
+const WRECK_CAPACITY = 24;
 /** Vesper faction kinds: always their own models once vesper-craft.glb is in, on any planet. */
 const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle', 'diamond', 'missile']);
 /** Code-built Khepri model each kind uses until (or unless) its Vesper model is available. */
 const KHEPRI_STAND_IN: Readonly<Record<EnemyKind, 'dart' | 'weaver' | 'turret' | 'lancer'>> = {
-  dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret',
+  dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret', fuel: 'turret',
 };
 /** Deck height of the render-only pontoon a ground battery rides on when the simulation seats it over open water. */
 const PONTOON_DECK = .14;
@@ -454,7 +459,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const model = KHEPRI_STAND_IN[kind];
     if (!standIns.has(model)) standIns.set(model, craftGeometry(createEnemy(model, materials)));
     const geometry = standIns.get(model)!;
-    const mesh = new THREE.InstancedMesh(geometry, materials.enemyCraft, ENEMY_CAPACITY);
+    // The fuel skid keeps its hazard red on every planet (Luna's steel-blue repaint is for the Khepri craft).
+    const mesh = new THREE.InstancedMesh(geometry, kind === 'fuel' ? materials.craft : materials.enemyCraft, ENEMY_CAPACITY);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
     // Ground turrets cast into the High shadow map and take shadows; flying craft use readable blob shadows.
     mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
@@ -476,13 +482,41 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   loadKhepriCraft(`${import.meta.env.BASE_URL}assets/khepri/khepri-craft.glb`).then(nodes => {
     if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
     for (const kind of ENEMY_KINDS) {
+      if (kind === 'fuel') continue;
       const craft = nodes.get(KHEPRI_NODE[kind]), batch = enemyBatches.get(kind);
       if (!craft || !batch) continue;
       batch.mesh.geometry = craft.geometry; if (batch.ghost) batch.ghost.geometry = craft.geometry;
     }
-    khepriEngines = new Map(ENEMY_KINDS.map(kind => [kind, KHEPRI_ENGINES[KHEPRI_NODE[kind]]]));
+    khepriEngines = new Map(ENEMY_KINDS.filter(kind => kind !== 'fuel').map(kind => [kind, KHEPRI_ENGINES[KHEPRI_NODE[kind as Exclude<EnemyKind, 'fuel'>]]]));
     warmed = false;
   }).catch(error => console.warn('Khepri craft unavailable (khepri-craft.glb); using the code-built stand-ins.', error));
+  /** Wreck batches by node (loot-props.glb); the fuel skid's model replaces its stand-in in the enemy batches. */
+  const wreckBatches = new Map<string, THREE.InstancedMesh>();
+  loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/loot-props.glb`, LOOT_NODES).then(nodes => {
+    if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
+    const fuel = nodes.get('loot_fuel'), batch = enemyBatches.get('fuel');
+    if (fuel && batch) { batch.mesh.geometry = fuel.geometry; if (batch.ghost) batch.ghost.geometry = fuel.geometry; }
+    for (const name of ['wreck_turret_0', 'wreck_turret_1', 'wreck_fuel'] as const) {
+      const craft = nodes.get(name);
+      if (!craft) continue;
+      const mesh = new THREE.InstancedMesh(craft.geometry, materials.craft, WRECK_CAPACITY);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Wreck ${name}`;
+      mesh.castShadow = mesh.receiveShadow = true;
+      for (let i = 0; i < WRECK_CAPACITY; i++) mesh.setColorAt(i, WHITE);
+      scene.add(mesh); wreckBatches.set(name, mesh);
+    }
+    warmed = false;
+  }).catch(error => console.warn('Loot props unavailable (loot-props.glb); fuel skids use a stand-in and kills leave no wrecks.', error));
+  /**
+   * Ground wrecks (render-only): a ground target that vanishes on screen with the simulation's kill explosion at its
+   * position leaves a wreck on the terrain at that world spot; it scrolls away with the ground. Targets cleared by a
+   * boss's arrival or a jump leave nothing (no explosion there).
+   */
+  const wrecks: { node: 'wreck_turret_0' | 'wreck_turret_1' | 'wreck_fuel'; x: number; worldS: number; yaw: number; y: number }[] = [];
+  /** A ground target last frame: logical (x, s) for matching its kill explosion; drawn ground spot for the wreck. */
+  type GroundSeen = { kind: EnemyKind; x: number; s: number; afloat: boolean; groundX: number; /** World s. */ groundS: number; base: number };
+  const groundSeen = new Map<number, GroundSeen>();
+  let wreckRun: RunState['config'] | null = null, wreckTick = -1;
   /** Foam collars for drifting floes and bergs, from the terrain view's live features (world space, real footprints). */
   function collectFloeRings(): FoamRing[] {
     floeRings.length = 0;
@@ -651,14 +685,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   for (const mesh of [friendly, hostile, hostileCores]) {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.renderOrder = mesh === hostileCores ? 11 : 10; mesh.count = 0; scene.add(mesh);
   }
-  const pickupBatches=new Map<Pickup['kind'],THREE.InstancedMesh[]>();
-  for(const kind of ['shield','weapon','power','credit'] as const) {
-    const template=createPickupModel(kind);
-    const batch=template.children.map(object=>{
-      const part=object as THREE.Mesh;
-      const mesh=new THREE.InstancedMesh(part.geometry,part.material,128);
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.frustumCulled=false;mesh.renderOrder=7;mesh.count=0;scene.add(mesh);return mesh;
-    });pickupBatches.set(kind,batch);
+  // Drop icons: one antialiased, mipmapped canvas sprite per icon (weapon drops show their own gun), one draw each.
+  const pickupTextures = createPickupIconTextures(renderer.capabilities.getMaxAnisotropy());
+  const pickupGeometry = new THREE.PlaneGeometry(PICKUP_ICON_SIZE, PICKUP_ICON_SIZE);
+  const pickupBatches = new Map<PickupIcon, THREE.InstancedMesh>();
+  for (const icon of PICKUP_ICONS) {
+    const material = new THREE.MeshBasicMaterial({ map: pickupTextures.get(icon)!, transparent: true, depthWrite: false, depthTest: false, toneMapped: false });
+    const mesh = new THREE.InstancedMesh(pickupGeometry, material, 64);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.renderOrder = 7; mesh.count = 0; scene.add(mesh);
+    pickupBatches.set(icon, mesh);
   }
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
@@ -780,7 +815,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (!warmed) {
         // Preview rendering warms all authored craft/material programs before the first fight.
         // Instance-color attributes above are allocated now, avoiding a new program on first loot/hit.
-        const pieces = [...terrain.warmupObjects(), ...jumpFx.objects];
+        // Boss rigs stay hidden until their arrival; compile every part (wrecks, shutters, thrusters included) now, so
+        // a boss's first frame never stalls on shader compilation and it glides in instead of popping up mid-view.
+        const bossParts: THREE.Object3D[] = [];
+        for (const name of ['Bastion-9', 'Helion Ark', 'WARDEN-1', 'THE VEIL']) scene.getObjectByName(name)?.traverse(object => { bossParts.push(object); });
+        const pieces = [...terrain.warmupObjects(), ...jumpFx.objects, ...bossParts];
         pieces.forEach(piece => { piece.userData.wasVisible = piece.visible; piece.visible = true; });
         renderer.compile(scene, camera);
         pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true;
@@ -842,6 +881,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         lineVertices.set([x1, VIEW.flightHeight + .03, -s1, x2, VIEW.flightHeight + .03, -s2], lineCursor * 3);
         lineColors.set([color.r, color.g, color.b, color.r, color.g, color.b], lineCursor * 3); lineCursor += 2;
       };
+      const groundNow = new Map<number, GroundSeen>();
       for (const enemy of state.enemies) {
         if (enemy.bossPart) continue;
         const isGround = GROUND_KINDS.has(enemy.kind);
@@ -854,6 +894,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
           : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, -Infinity, world)
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
+        if (isGround && enemy.hp > 0) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight });
         if (afloat) {
           if (pontoonCount < pontoons.instanceMatrix.count) {
             transform.position.set(placement.x ?? enemy.x, placement.baseHeight + Math.sin(state.time * 1.1 + enemy.id) * .012, -placement.s);
@@ -863,12 +904,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           placement.baseHeight += PONTOON_DECK;
         }
         if (VESPER_KINDS.has(enemy.kind) && !craftRequested) ensureCraft('kinds');
-        const nacreNode: NacreCraftNode | null = planet === 'nacre' && nacreBatches ? (enemy.formation?.template === 'veil-pods' ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
+        const nacreNode: NacreCraftNode | null = planet === 'nacre' && nacreBatches && enemy.kind !== 'fuel' ? (enemy.formation?.template === 'veil-pods' ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
         const nacreBatch = nacreNode ? nacreBatches!.get(nacreNode) : undefined;
-        const useVesper = !nacreBatch && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
+        const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind] : null;
-        const craftScale = nacreBatch ? (nacreNode === 'nacre_pod' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
+        const craftScale = nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
         if (slot < ENEMY_CAPACITY) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale); transform.updateMatrix();
@@ -941,6 +982,28 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
         }
       }
+      // Ground wrecks: a new run (or a rewind) clears them; a ground target killed on screen leaves one.
+      if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); wreckRun = state.config; }
+      wreckTick = state.tick;
+      for (const [id, last] of groundSeen) {
+        if (groundNow.has(id) || last.afloat || last.s < VIEW.minS) continue;
+        const exploded = state.effects.some(effect => effect.kind === 'explosion' && Math.abs(effect.x - last.x) < .4 && Math.abs(effect.s - last.s) < .6);
+        if (!exploded) continue;
+        const hash = Math.sin(id * 12.9898) * 43758.5453 % 1;
+        wrecks.push({ node: last.kind === 'fuel' ? 'wreck_fuel' : Math.abs(hash) < .5 ? 'wreck_turret_0' : 'wreck_turret_1', x: last.groundX,
+          worldS: last.groundS, yaw: hash * Math.PI * 2, y: last.base });
+        if (wrecks.length > WRECK_CAPACITY) wrecks.shift();
+      }
+      groundSeen.clear(); groundNow.forEach((value, id) => groundSeen.set(id, value));
+      for (let i = wrecks.length - 1; i >= 0; i--) if (wrecks[i].worldS - state.distance < VIEW.minS - 4) wrecks.splice(i, 1);
+      wreckBatches.forEach(mesh => { mesh.count = 0; });
+      for (const wreck of wrecks) {
+        const mesh = wreckBatches.get(wreck.node);
+        if (!mesh || Math.abs(wreck.x - state.cameraX) > VIEW.width / 2 + 2) continue;
+        transform.position.set(wreck.x, wreck.y, -(wreck.worldS - state.distance)); transform.rotation.set(0, wreck.yaw, 0); transform.scale.setScalar(1); transform.updateMatrix();
+        mesh.setMatrixAt(mesh.count++, transform.matrix);
+      }
+      wreckBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
       for (const set of [enemyBatches, vesperBatches, nacreBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
         batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true; if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;
@@ -977,16 +1040,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       friendly.count = friendlyCount; hostile.count = hostileCores.count = hostileCount;
       for (const mesh of [friendly, hostile, hostileCores]) mesh.instanceMatrix.needsUpdate = true;
 
-      const pickupCounts: Record<Pickup['kind'],number>={shield:0,weapon:0,power:0,credit:0};
+      pickupBatches.forEach(mesh => { mesh.count = 0; });
       for (const pickup of state.pickups) {
-        const batch=pickupBatches.get(pickup.kind)!,i=pickupCounts[pickup.kind];
-        if(i>=batch[0].instanceMatrix.count)continue;
-        transform.position.set(pickup.x, VIEW.flightHeight+.06+Math.sin(state.time*2+pickup.id)*.035, -pickup.s);
-        transform.rotation.set(-ELEVATION,0,Math.sin(state.time*.75+pickup.id)*.08);
-        transform.scale.setScalar(1);transform.updateMatrix();
-        batch.forEach(mesh=>mesh.setMatrixAt(i,transform.matrix));pickupCounts[pickup.kind]++;
+        const mesh = pickupBatches.get(pickupIcon(pickup))!;
+        if (mesh.count >= mesh.instanceMatrix.count) continue;
+        // A gentle bob and sway, plus a soft breathing scale so drops catch the eye; they fade in their last 2 s.
+        const breathe = 1 + Math.sin(state.time * 3.2 + pickup.id) * .045, fade = pickup.ttl < 2 ? .55 + .45 * Math.abs(Math.cos(state.time * 9)) : 1;
+        transform.position.set(pickup.x, VIEW.flightHeight + .06 + Math.sin(state.time * 2 + pickup.id) * .035, -pickup.s);
+        transform.rotation.set(-ELEVATION, 0, Math.sin(state.time * .75 + pickup.id) * .08);
+        transform.scale.setScalar(breathe * (pickup.ttl < 2 ? fade : 1)); transform.updateMatrix();
+        mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
-      pickupBatches.forEach((batch,kind)=>batch.forEach(mesh=>{mesh.count=pickupCounts[kind];mesh.instanceMatrix.needsUpdate=true;}));
+      pickupBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
       let laneCount = 0;
       for (const hazard of state.hazards) {
         // A Needle's narrow lane flashes bright for its last 0.2 s before the beam (Khepri lanes are all wider).

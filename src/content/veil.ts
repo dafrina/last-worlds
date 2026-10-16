@@ -5,7 +5,7 @@
  * pods, then the heart alternates a fixed fan with an aimed burst, then overload lanes over its own hit columns.
  */
 export const VEIL = {
-  arrivesAt: 160,
+  arrivesAt: 153,
   /** No approach cue is admitted at or after this time: authored relief before the ship rises. */
   approachEndsAt: 146,
   arrivalDuration: 4,
@@ -35,13 +35,13 @@ export const VEIL = {
   bays: [{ x: -1.7, s: -2.6 }, { x: 1.7, s: -2.6 }],
   launches: { waves: 3, firstAfter: 2, interval: 6.5, overloadWaves: 2 },
   /**
-   * Static arena over open mire. The scroll eases from 5 to zero over 6 s from t = 157, stopping at distance
-   * 5 * 157 + 5 * 6 / 2 = 800; `platform` is the s-range relative to the stop that must be open water.
+   * Static arena over open mire. The scroll eases from 5 to zero over 6 s from t = 150, stopping at distance
+   * 5 * 150 + 5 * 6 / 2 = 765; `platform` is the s-range relative to the stop that must be open water.
    */
   arena: {
-    decelStart: 157, decelDuration: 6, resumeDuration: 2,
+    decelStart: 150, decelDuration: 6, resumeDuration: 2,
     sway: 1.4, swayRate: 0.26, surge: 0.8, surgeRate: 0.2,
     platform: { from: -9, to: 34 },
   },
-  shieldSupplies: { relaxed: [45, 105, 150], standard: [45, 105, 150], veteran: [105, 150] },
+  shieldSupplies: { relaxed: [45, 105, 148], standard: [45, 105, 148], veteran: [105, 148] },
 } as const;

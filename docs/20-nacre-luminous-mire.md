@@ -66,7 +66,7 @@ The reference is the middle panel of `art/concepts/01-worlds-direction.png`.
 
 After Cold Vector, threat 4 of 4 (user decision, 15 October: THE VEIL is so epic that Nacre becomes the final world and Vesper the one in between). Its combat idea follows docs/03: sine-flight weaver columns, overlapping rhythms, Needle beams between the islands, batteries on islands and pontoons, Diamond heavies and escort convoys. Mission cadence is ×0.92, the hardest campaign mission.
 
-The approach closes at 146 s. THE VEIL rises at 160 s over open mire; the scroll stops at distance 800. Shield cells come at 45, 105 and 150 s (105 and 150 s on Veteran).
+The approach closes at 146 s. THE VEIL rises at 153 s over open mire (160 s until 16 October); the scroll stops at distance 765. Shield cells come at 45, 105 and 148 s (105 and 148 s on Veteran).
 
 ## THE VEIL (`src/content/veil.ts`, `src/render/veil-view.ts`)
 

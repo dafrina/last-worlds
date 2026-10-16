@@ -1,6 +1,7 @@
 import { describe,expect,it } from 'vitest';
 import { Box3,Mesh,Vector3 } from 'three';
-import { createHero,createMaterials,createPickupModel,createScenicProp } from '../../src/render/models';
+import { createHero,createMaterials,createScenicProp } from '../../src/render/models';
+import { PICKUP_ICONS,PICKUP_ICON_SIZE,pickupIcon } from '../../src/render/pickup-icons';
 
 describe('authored presentation assets',()=>{
   it('preserves the small utility fighter envelope after adding surface detail',()=>{
@@ -9,15 +10,12 @@ describe('authored presentation assets',()=>{
     expect(size.x).toBeGreaterThan(.95);expect(size.x).toBeLessThan(1.1);
     expect(size.z).toBeLessThan(1.3);
   });
-  it('gives drops large framed shapes and glyph geometry distinct from projectile blips',()=>{
-    const counts=new Set<number>();
-    for(const kind of ['shield','weapon','power','credit'] as const) {
-      const model=createPickupModel(kind),bounds=new Box3().setFromObject(model).getSize(new Vector3());
-      expect(bounds.x).toBeGreaterThan(.45);expect(bounds.y).toBeGreaterThan(.45);
-      let vertices=0;model.traverse(object=>{if(object instanceof Mesh) vertices+=object.geometry.getAttribute('position').count;});counts.add(vertices);
-      expect(model.children.length).toBe(2);
-    }
-    expect(counts.size).toBeGreaterThanOrEqual(3);
+  it('gives every drop a large icon, and each main weapon its own',()=>{
+    expect(PICKUP_ICON_SIZE).toBeGreaterThan(.6);
+    expect(new Set(PICKUP_ICONS).size).toBe(PICKUP_ICONS.length);
+    const weapons=(['pulse','fan','seeker'] as const).map(weapon=>pickupIcon({kind:'weapon',weapon}));
+    expect(new Set(weapons).size).toBe(3);
+    for(const icon of [...weapons,pickupIcon({kind:'shield'}),pickupIcon({kind:'power'}),pickupIcon({kind:'credit'})]) expect(PICKUP_ICONS).toContain(icon);
   });
   it('normalizes every industrial asset to the bounded world footprint contract',()=>{
     const materials=createMaterials();

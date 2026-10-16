@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { WRECK_HOLD } from '../../src/content/bosses';
 import { ENDLESS_CYCLE, endlessSchedule, endlessScroll, endlessSectorPlan } from '../../src/content/endless';
 import { VIEW } from '../../src/shared/contracts';
 import { configureCamera } from '../../src/render/scene';
@@ -20,8 +21,9 @@ describe('endless boss terrain clearance', () => {
   it.each([1, 4, 7, 10, 13, 16, 19])('keeps the full camera view on the outgoing world through the fight and departure in sector %i', sector => {
     const plan = endlessSectorPlan(sector), stop = plan.stop!, jump = plan.jump!;
     const killedAt = ENDLESS_CYCLE.bossSector.decelStart + ENDLESS_CYCLE.bossSector.decelDuration + 30;
-    // Whole boss fight, both seconds of scroll resume, and the jump's fade-in (maximum veil by q=.38).
-    for (const sinceKill of [-30, -1, 0, 1, ENDLESS_CYCLE.resumeDuration, ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration * .38]) {
+    // Whole boss fight, the hold over the wreck, both seconds of scroll resume, and the jump's fade-in (maximum veil by q=.38).
+    const exit = WRECK_HOLD + ENDLESS_CYCLE.resumeDuration;
+    for (const sinceKill of [-30, -1, 0, 1, WRECK_HOLD, exit, exit + ENDLESS_CYCLE.jumpDuration * .38]) {
       const scroll = endlessScroll(plan, killedAt + sinceKill, sinceKill < 0 ? null : killedAt);
       expect(scroll.distance + far, `sector ${sector}, after kill ${sinceKill}s`).toBeLessThan(jump.switchDistance);
       expect(schedule.planetAt(scroll.distance + far)).toBe(plan.planet);
@@ -30,7 +32,7 @@ describe('endless boss terrain clearance', () => {
     // The complete view is on the destination when the jump ends, with no outgoing terrain left at the bottom.
     expect(schedule.planetAt(jump.endDistance + near)).toBe(jump.to);
     expect(schedule.planetAt(jump.endDistance + far)).toBe(jump.to);
-    const finish = endlessScroll(plan, killedAt + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration, killedAt);
+    const finish = endlessScroll(plan, killedAt + exit + ENDLESS_CYCLE.jumpDuration, killedAt);
     expect(finish.phase).toBe('next');
     expect(finish.distance).toBe(endlessSectorPlan(sector + 1).startDistance);
   });

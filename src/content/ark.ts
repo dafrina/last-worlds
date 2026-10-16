@@ -4,9 +4,9 @@
  * radiators and the bridge are targets; the hull and radiator wings are scenery.
  */
 export const HELION_ARK = {
-  arrivesAt: 184,
+  arrivesAt: 170,
   /** No approach cue is admitted at or after this time: authored relief before the Ark. */
-  approachEndsAt: 170,
+  approachEndsAt: 162,
   arrivalDuration: 3.5,
   /** The Ark glides in from beyond the view (pivot s) to its row. */
   entryS: 26,
@@ -37,14 +37,14 @@ export const HELION_ARK = {
   /** Finite Needle launches during the bridge phase: waves of two, one from each bay. */
   launches: { waves: 3, firstAfter: 2.5, interval: 7 },
   /**
-   * Static arena over open ocean. The scroll eases from 5 to zero over 6 s from t = 181 (smoothstep), stopping
-   * at distance 5 * 181 + 5 * 6 / 2 = 920. `platform` is the s-range relative to the stop that must be open
+   * Static arena over open ocean. The scroll eases from 5 to zero over 6 s from t = 167 (smoothstep), stopping
+   * at distance 5 * 167 + 5 * 6 / 2 = 850. `platform` is the s-range relative to the stop that must be open
    * water: from below the view to past the Ark's stern as it glides in (pivot s 26, stern about +7.3).
    */
   arena: {
-    decelStart: 181, decelDuration: 6, resumeDuration: 2,
+    decelStart: 167, decelDuration: 6, resumeDuration: 2,
     sway: 1.3, swayRate: 0.3, surge: 0.7, surgeRate: 0.22,
     platform: { from: -9, to: 35 },
   },
-  shieldSupplies: { relaxed: [50, 115, 172], standard: [50, 115, 172], veteran: [115, 172] },
+  shieldSupplies: { relaxed: [50, 115, 163], standard: [50, 115, 163], veteran: [115, 163] },
 } as const;

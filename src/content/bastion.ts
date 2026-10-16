@@ -1,6 +1,6 @@
 /** Authored vertical-slice encounter. No world-generation or campaign-profile input. */
 export const BASTION = {
-  arrivesAt: 115,
+  arrivesAt: 111,
   /** No approach cue is admitted at or after this time: authored relief before the fortress. */
   approachEndsAt: 103,
   arrivalDuration: 3,
@@ -31,13 +31,13 @@ export const BASTION = {
   overload: { coreLaneWidth: 2.4, batteryLaneWidth: 1.4, active: 0.35 },
   /**
    * Static arena. The terrain scroll eases from VIEW.scrollSpeed to zero over `decelDuration` seconds from
-   * `decelStart` (smoothstep velocity), so it stops at distance 5 * 112 + 5 * 6 / 2 = 575 world units, three
+   * `decelStart` (smoothstep velocity), so it stops at distance 5 * 108 + 5 * 6 / 2 = 555 world units, three
    * seconds after the fortress starts rolling in. After destruction the scroll eases back up over
    * `resumeDuration`. The fortress maneuvers on the static ground within `sway` (lateral) and `surge`
    * (forward/back) of its post; `platform` is the s-range relative to the stop distance the arena must cover.
    */
   arena: {
-    decelStart: 112, decelDuration: 6, resumeDuration: 2,
+    decelStart: 108, decelDuration: 6, resumeDuration: 2,
     sway: 1.1, swayRate: 0.35, surge: 0.9, surgeRate: 0.27,
     platform: { from: -9, to: 26 },
   },

@@ -139,10 +139,10 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
-export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2 };
+export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0 };
 
 /** Ground targets move with the terrain scroll and are never airframe contact hazards. */
-export const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile']);
+export const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
 /** Kinds whose attack is a locked beam lane rather than bullets. */
 export const BEAM_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['lancer', 'needle']);
 
@@ -185,6 +185,8 @@ export const ENEMIES: Record<EnemyKind, {
   diamond: { hp: 130, radius: 0.6, speed: 1.2, shotSpeed: 6.8, attackEvery: 1, warning: 0.95, score: 400, credits: 16 },
   // Missile battery: ground target; straight, non-tracking missiles down its own marked column.
   missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 9.5, attackEvery: 1.1, warning: 1, score: 250, credits: 10 },
+  // Fuel-tank skid (user request, 16 October): a harmless ground loot target that never fires; quick to burst.
+  fuel: { hp: 40, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 0, attackEvery: Infinity, warning: 0, score: 50, credits: 6 },
 };
 
 /**

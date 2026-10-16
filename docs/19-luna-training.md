@@ -45,7 +45,7 @@ The user asked for a small boss on Luna, built to look human-made, and for Luna 
   - HP: pods 270 each, command module 950 (Bastion-9 has 400 and 1600). Raised from 220 and 800 on 15 October at the user's request.
   - Warnings 1.05 s (was 1.15 s); slow three- and four-bolt bursts; 0.65 s recovery (was 0.75 s).
   - The perfect pilot clears it with every weapon on every difficulty without a hit.
-- **It must be killed:** Training completes only after the command module falls and the 8 s extraction ends (user rule: bosses are always killed, in every mode). Training's cues are unchanged; its approach closes at 105 s, and WARDEN-1 lands at 115 s on a levelled stretch of Luna. The shield budget stays at 40 and 85 s (65 s on Veteran).
+- **It must be killed:** Training completes only after the command module falls and the 8 s extraction ends (user rule: bosses are always killed, in every mode). Training's cues are unchanged; its approach closes at 105 s, and WARDEN-1 lands at 113 s (115 s until 16 October) on a levelled stretch of Luna; after the kill the scroll holds 2.5 s over the wreck before the 8 s extraction. The shield budget stays at 40 and 85 s (65 s on Veteran).
 - **Endless prologue:**
   - Sector 1 is Luna. It flies Training's teaching phrases up to the 70 s boss-sector cutoff, then WARDEN-1 lands, then a hyperdrive jump to Khepri. The cycle (Khepri ×3, Vesper ×3) follows from sector 2.
   - The pace and difficulty ramps count from sector 2 (`endlessRampSector`), so Khepri's first sector flies exactly as sector 1 did before. This keeps the calibrated difficulty.

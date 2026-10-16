@@ -27,7 +27,8 @@ export interface BossState {
 }
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */
-export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile';
+/** `fuel` is a harmless ground loot target (a fuel-tank skid): it never attacks and drops what a ship drops. */
+export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
 export interface RunConfig { mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId }
 export interface Player {

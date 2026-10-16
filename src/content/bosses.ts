@@ -5,6 +5,12 @@ import { WARDEN } from './warden';
 import { VEIL } from './veil';
 
 /**
+ * After a boss falls, the scroll holds over its wreck this long before it resumes (and, in endless, before the
+ * hyperdrive jump), so the pilot sees the destruction play out (user request, 16 October 2026).
+ */
+export const WRECK_HOLD = 2.5;
+
+/**
  * One shape for every campaign boss, built from each boss's own content file. Phases are shared:
  * arrival → 'batteries' (first module pair) → 'core' (main target) → 'overload' (lanes over its own hit
  * columns) → 'destroyed' (ground- or water-anchored wreck, extraction).
@@ -56,7 +62,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   bastion: {
     id: 'bastion', name: 'BASTION-9',
     arrivesAt: BASTION.arrivesAt, approachEndsAt: BASTION.approachEndsAt, arrivalDuration: BASTION.arrivalDuration,
-    entryS: 22, row: BASTION.row, targetHeight: BASTION.targetHeight,
+    entryS: 27, row: BASTION.row, targetHeight: BASTION.targetHeight,
     parts: {
       left: { x: -BASTION.batteryOffset, s: 0, radius: BASTION.batteryRadius, hp: BASTION.batteryHp },
       right: { x: BASTION.batteryOffset, s: 0, radius: BASTION.batteryRadius, hp: BASTION.batteryHp },

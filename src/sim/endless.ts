@@ -1,5 +1,5 @@
 import { BALANCE } from '../content/balance';
-import { BOSSES } from '../content/bosses';
+import { BOSSES, WRECK_HOLD } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessPlanet, endlessScroll, endlessSectorPlan, paceInSector } from '../content/endless';
 import type { RunState } from '../shared/contracts';
 import { startBoss } from './bastion';
@@ -21,7 +21,7 @@ export function updateEndless(state: RunState, onNewSector: (state: RunState) =>
   let tau = state.time - state.sectorStartedAt;
   let scroll = endlessScroll(plan, tau, bossEnd(state));
   if (scroll.phase === 'next') {
-    const length = plan.boss ? bossEnd(state)! + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration : BALANCE.sectorDuration;
+    const length = plan.boss ? bossEnd(state)! + WRECK_HOLD + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration : BALANCE.sectorDuration;
     state.sectorStartedAt += length;
     state.sector += 1;
     state.boss = null;
@@ -39,7 +39,7 @@ export function updateEndless(state: RunState, onNewSector: (state: RunState) =>
   if (plan.boss && !state.boss && tau + 1e-8 >= ENDLESS_CYCLE.bossSector.arrivesAt) startBoss(state, BOSSES[plan.boss]);
   if (scroll.phase === 'jump' && plan.jump) {
     if (!state.jump) {
-      const startedAt = state.sectorStartedAt + bossEnd(state)! + ENDLESS_CYCLE.resumeDuration;
+      const startedAt = state.sectorStartedAt + bossEnd(state)! + WRECK_HOLD + ENDLESS_CYCLE.resumeDuration;
       state.jump = { startedAt, duration: ENDLESS_CYCLE.jumpDuration, from: plan.jump.from, to: plan.jump.to };
       // No combat during the jump: nothing hostile remains, and the player is protected until after it.
       state.enemies = state.enemies.filter(enemy => enemy.bossPart);

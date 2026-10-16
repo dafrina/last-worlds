@@ -94,6 +94,8 @@ export interface TerrainStats {
 const SHARED = new Set<string>(SHARED_NODES);
 /** Background haulers are drawn at 75% of the cargo node (1.05 × 1.75 footprint) so they read as traffic. */
 const HAULER_SCALE = 0.75, HAULER_HALF_WIDTH = 1.05 / 2 * HAULER_SCALE, HAULER_HALF_LENGTH = 1.75 / 2 * HAULER_SCALE;
+/** Lane offset from the road centreline: two haulers pass 0.8 apart, just clear of each other. */
+const HAULER_LANE = 0.4;
 
 /** A render-only rectangle in world (x, s) whose scenery pieces are hidden, e.g. under a boss fortress. */
 export interface TerrainExclusion { minX: number; maxX: number; minS: number; maxS: number }
@@ -193,6 +195,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   }
   /** Rear axle of each hauler drawn this frame (world space), for render-only dust puffs. */
   const haulerDust: { x: number; y: number; z: number }[] = [];
+  /** Hauler positions (x, s) placed this frame, for the spacing check. */
+  const placed: [number, number, number, number][] = [];
   /** Live features (pooled objects, refilled by animate()). */
   const floeFeatures: FloeFeature[] = [], ventFeatures: VentFeature[] = [], features: TerrainFeatures = { floes: floeFeatures, vents: ventFeatures };
   let floeUsed = 0, ventUsed = 0;
@@ -732,10 +736,12 @@ export function createTerrainView(options: TerrainViewOptions) {
     },
     /**
      * Haulers drive the roads (presentation only: seed + time, never collision or targets). Each road carries
-     * one or two haulers shuttling back and forth; the low tier keeps fewer.
+     * one or two haulers shuttling back and forth; the low tier keeps fewer. A road's haulers share one speed, half
+     * a round trip apart, and keep to the right-hand lane, so they pass side by side instead of through each other;
+     * where roads share a corridor, a hauler that would overlap one already placed is left out.
      */
     animate(time: number, cameraX: number) {
-      let count = 0; haulerDust.length = 0;
+      let count = 0; haulerDust.length = 0; placed.length = 0;
       // Each road's own planet picks its haulers: Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
       const used = new Map<string, number>(), roads = new Map<string, RoadPath>(), source = route ?? world;
       for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
@@ -746,10 +752,15 @@ export function createTerrainView(options: TerrainViewOptions) {
         const quota = (quality === 'low' ? 0.5 : 1) * (1 + (tint(key, 1, 2) < 0.45 ? 1 : 0));
         for (let k = 0; k < Math.ceil(quota); k++) {
           if (quota < 1 && tint(key, 3, k) > quota) continue;
-          const speed = 0.7 + tint(key, 5, k) * 0.6, travel = (tint(key, 7, k) * total * 2 + time * speed) % (total * 2);
+          const speed = 0.7 + tint(key, 5, 0) * 0.6, travel = (tint(key, 7, 0) * total * 2 + k * total + time * speed) % (total * 2);
           const forward = travel < total, along = forward ? travel : total * 2 - travel;
           const i = Math.min(road.x.length - 2, Math.floor(along / ROAD_STEP)), f = along / ROAD_STEP - i;
-          const x = road.x[i] + (road.x[i + 1] - road.x[i]) * f, s = road.s[i] + (road.s[i + 1] - road.s[i]) * f;
+          // Right-hand lane, easing onto the centreline at the road ends where a hauler turns around.
+          const segX = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), segS = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1), segL = Math.hypot(segX, segS) || 1;
+          const lane = HAULER_LANE * THREE.MathUtils.smoothstep(Math.min(along, total - along), 0, 1.5);
+          const x = road.x[i] + (road.x[i + 1] - road.x[i]) * f + segS / segL * lane, s = road.s[i] + (road.s[i + 1] - road.s[i]) * f - segX / segL * lane;
+          // Footprint overlap in the placed hauler's own frame (along its heading and across it).
+          if (placed.some(([px, ps, hx, hs]) => Math.abs((x - px) * hx + (s - ps) * hs) < 2 * HAULER_HALF_LENGTH && Math.abs((x - px) * hs - (s - ps) * hx) < 2 * HAULER_HALF_WIDTH * .95)) continue;
           if (Math.abs(x - cameraX) > 7.5 || s - distance < -9 || s - distance > 30) continue;
           if (exclusion && x > exclusion.minX && x < exclusion.maxX && s > exclusion.minS && s < exclusion.maxS) continue;
           const y = road.y[i] + (road.y[i + 1] - road.y[i]) * f;
@@ -776,7 +787,7 @@ export function createTerrainView(options: TerrainViewOptions) {
           if (lift > 0.3) continue;
           transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, vesper ? yaw + Math.PI : yaw, vesper ? -roll : roll, 'YXZ');
           transform.scale.setScalar(HAULER_SCALE); transform.updateMatrix(); transform.rotation.order = 'XYZ';
-          mesh.setMatrixAt(slot, transform.matrix); used.set(node, slot + 1); count++;
+          mesh.setMatrixAt(slot, transform.matrix); used.set(node, slot + 1); count++; placed.push([x, s, segX / segL, segS / segL]);
           haulerDust.push({ x: x - fx * HAULER_HALF_LENGTH, y: base + lift, z: distance - s - fz * HAULER_HALF_LENGTH });
         }
       }

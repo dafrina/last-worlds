@@ -231,6 +231,8 @@ function updateEnemies(state: RunState, dt: number): void {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
     const stats = ENEMIES[enemy.kind];
     advanceEnemy(enemy, dt, enemyClockRate(state, enemy));
+    // Fuel skids are harmless loot: they ride the terrain and never wind up.
+    if (enemy.kind === 'fuel') continue;
     if (!canAttack(state, enemy)) {
       if (enemy.warning > 0) { enemy.nextAttack = enemy.age + 0.6; windups -= 1; if (enemy.lock) enemy.lock.hold = 0; }
       enemy.warning = 0;
@@ -323,7 +325,9 @@ export function acquireTarget(state: RunState, weaponId = state.player.weapon): 
           enemy.x, enemy.s, enemy.radius + weapon.radius) !== null;
       });
     }
-    if (eligible && (!best || enemy.s < best.s || (enemy.s === best.s && enemy.id < best.id))) best = enemy;
+    // Armed enemies come first; a harmless fuel skid is targeted only when nothing armed is in the envelope.
+    const rank = enemy.kind === 'fuel' ? 1 : 0, bestRank = best?.kind === 'fuel' ? 1 : 0;
+    if (eligible && (!best || rank < bestRank || (rank === bestRank && (enemy.s < best.s || (enemy.s === best.s && enemy.id < best.id))))) best = enemy;
   }
   return best;
 }

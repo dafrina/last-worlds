@@ -34,7 +34,7 @@ describe('authored formation content', () => {
       const template: FormationTemplate = FORMATIONS[id];
       expect(template.id).toBe(id);
       for (let i = 1; i < template.path.length; i += 1) expect(template.path[i][0]).toBeGreaterThan(template.path[i - 1][0]);
-      expect(template.fireUntil).toBeGreaterThan(template.fireFrom);
+      if (!template.harmless) expect(template.fireUntil).toBeGreaterThan(template.fireFrom);
       expect(template.slots.length).toBeGreaterThan(0);
       // Bay launches are measured from the Helion Ark's row, their real anchor.
       const anchorS = template.entry === 'bay' ? HELION_ARK.row : undefined;
@@ -64,6 +64,7 @@ describe('authored formation content', () => {
   it('keeps every member inside the view while its authored windup can start, and staggers volleys', () => {
     for (const id of ids) {
       const template = FORMATIONS[id];
+      if (template.harmless) continue;
       for (const rank of ['standard', 'veteran'] as const) {
         const flying = template.slots.map((slot, index) => ({ slot, index })).filter(({ slot }) => slotFlies(slot, rank));
         const starts = flying.map(({ slot }) => (slot.lag ?? 0) + template.fireFrom + slot.fire).sort((a, b) => a - b);
@@ -155,6 +156,7 @@ describe('authored cue sequences', () => {
     for (const [name, cues] of sequences) for (const cue of cues) for (const placement of cue.formations) {
       if (placement.anchor === 'world') continue;
       const template = FORMATIONS[placement.formation];
+      if (template.harmless) continue;
       const offset = placement.x ?? 0;
       expect(Math.abs(offset), `${name} ${cue.id} offset`).toBeLessThanOrEqual(2);
       template.slots.forEach((slot, index) => {

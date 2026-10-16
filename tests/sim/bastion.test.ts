@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASTION } from '../../src/content/bastion';
+import { WRECK_HOLD } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
@@ -94,7 +95,8 @@ describe('Bastion-9 mission', () => {
     const before = structuredClone(state);
     state.phase = 'paused'; advance(state, 5);
     expect(state.time).toBe(before.time);
-    state.phase = 'playing'; advance(state, 7);
+    // The wreck hold, then 8 s of extraction.
+    state.phase = 'playing'; advance(state, WRECK_HOLD + 7);
     expect(state.phase).toBe('playing');
     advance(state, 1.1);
     expect(state.phase).toBe('complete');
@@ -104,6 +106,8 @@ describe('Bastion-9 mission', () => {
     const state = encounter(); openCore(state);
     bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state);
     const s0 = state.boss!.s, d0 = state.distance;
+    advance(state, WRECK_HOLD);
+    expect(state.distance).toBe(d0);
     advance(state, 4);
     expect(state.distance).toBeGreaterThan(d0 + 5);
     // Ground-anchored: the wreck's world position (distance + s) holds while its row falls behind the player.

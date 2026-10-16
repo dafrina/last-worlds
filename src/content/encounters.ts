@@ -39,7 +39,7 @@ const world = (formation: FormationId, x: number, mirror = false): FormationPlac
  */
 
 /**
- * Training sortie over Luna. Teaches each squadron, then the same arc at pressure, then WARDEN-1 lands at 115 s
+ * Training sortie over Luna. Teaches each squadron, then the same arc at pressure, then WARDEN-1 lands at 113 s
  * (its approach closes at 105 s). Its climax keeps lighter batteries and a three-dart finale; Rolling Thunder and
  * endless carry the heaviest phrases. No seed or offsets.
  */
@@ -51,15 +51,15 @@ export const TRAINING: readonly EncounterCue[] = [
   { at: 20, id: 't-line', phase: 'pressure', message: 'LINE ABREAST · READ THE SWEEP', formations: [f('line-dart-4')] },
   { at: 26, id: 't-battery-3', phase: 'pressure', formations: [f('battery-3')] },
   { at: 29, id: 't-echelon', phase: 'pressure', formations: [f('echelon-4')] },
-  { at: 35, id: 't-dive', phase: 'pressure', formations: [f('dive-pair')] },
-  { at: 39, id: 't-west', phase: 'recovery', message: 'SALVAGE ROUTE · WEST', formations: [world('solo-dart', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
+  { at: 35, id: 't-dive', phase: 'pressure', message: 'FUEL SKIDS · SHOOT THEM FOR SALVAGE', formations: [f('dive-pair'), f('fuel-pair')] },
+  { at: 39, id: 't-west', phase: 'recovery', message: 'SALVAGE ROUTE · WEST', formations: [world('solo-dart', -7.5), world('fuel-pair', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
   { at: 44, id: 't-east', phase: 'recovery', message: 'OPTIONAL OUTPOST · EAST', formations: [world('battery-2', 7.5)] },
   { at: 49, id: 't-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] },
   { at: 53, id: 't-battery', phase: 'pressure', formations: [f('battery-3')] },
   { at: 56, id: 't-snake', phase: 'pressure', message: 'COLUMN CROSSING', formations: [f('snake-weaver-5')] },
   { at: 61, id: 't-lancer', phase: 'pressure', message: 'BEAM LOCK · LEAVE THE MARKED LANE', formations: [f('solo-lancer', 1)] },
   { at: 64, id: 't-battery-2', phase: 'pressure', formations: [f('battery-2')] },
-  { at: 67, id: 't-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] },
+  { at: 67, id: 't-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true), f('fuel-depot')] },
   { at: 72, id: 't-arrow-5', phase: 'climax', message: 'SQUADRONS INBOUND', formations: [f('arrow-5')] },
   { at: 75, id: 't-battery-climax-1', phase: 'climax', formations: [f('battery-3')] },
   { at: 79, id: 't-pincer', phase: 'climax', formations: [f('pincer-4')] },
@@ -83,13 +83,13 @@ export const ROLLING_THUNDER: readonly EncounterCue[] = [
   { at: 24, id: 'r-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
   { at: 27, id: 'r-battery-2', phase: 'pressure', formations: [f('battery-2')] },
   { at: 30, id: 'r-diamond', phase: 'pressure', formations: [f('diamond-lancer')] },
-  { at: 36, id: 'r-dive', phase: 'pressure', formations: [f('dive-pair')] },
+  { at: 36, id: 'r-dive', phase: 'pressure', formations: [f('dive-pair'), f('fuel-pair')] },
   { at: 41, id: 'r-west', phase: 'recovery', message: 'SALVAGE ROUTE · WEST', formations: [world('battery-2', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
   { at: 47, id: 'r-pincer', phase: 'pressure', formations: [f('pincer-4')] },
   { at: 51, id: 'r-battery-4', phase: 'pressure', formations: [f('battery-4')] },
   { at: 54, id: 'r-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] },
   { at: 60, id: 'r-battery-3', phase: 'pressure', formations: [f('battery-3')] },
-  { at: 63, id: 'r-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] },
+  { at: 63, id: 'r-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true), f('fuel-depot')] },
   { at: 69, id: 'r-arrow-5', phase: 'climax', message: 'FORTRESS ESCORT · BREAK THROUGH', formations: [f('arrow-5')] },
   { at: 73, id: 'r-battery-climax', phase: 'climax', formations: [f('battery-3')] },
   { at: 76, id: 'r-diamond-climax', phase: 'climax', formations: [f('diamond-lancer')] },
@@ -111,7 +111,7 @@ const SECTOR_OPENING: readonly EncounterCue[] = [
   { at: 30, id: 'e1-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
   { at: 33, id: 'e1-battery-2', phase: 'pressure', formations: [f('battery-2')] },
   { at: 36, id: 'e1-arrow-5', phase: 'pressure', formations: [f('arrow-5')] },
-  { at: 44, id: 'e1-west', phase: 'recovery', message: 'SALVAGE ROUTE · WEST', formations: [world('solo-weaver', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 5 } },
+  { at: 44, id: 'e1-west', phase: 'recovery', message: 'SALVAGE ROUTE · WEST', formations: [world('solo-weaver', -7.5), world('fuel-pair', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 5 } },
   { at: 50, id: 'e1-diamond', phase: 'pressure', message: 'SEEKER ARRAY AHEAD · COLLECT TO EQUIP', formations: [f('diamond-lancer')], pickup: { kind: 'weapon', x: -2, s: 17, value: 1, weapon: 'seeker' } },
   { at: 54, id: 'e1-battery', phase: 'pressure', formations: [f('battery-3')] },
   { at: 58, id: 'e1-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] },
@@ -161,7 +161,7 @@ const SECTOR_PEAK: readonly EncounterCue[] = [
   { at: 19, id: 'e3-battery-2', phase: 'pressure', formations: [f('battery-2')] },
   { at: 21, id: 'e3-echelon', phase: 'pressure', formations: [f('echelon-4')] },
   { at: 25, id: 'e3-arrow', phase: 'pressure', formations: [f('arrow-5')] },
-  { at: 31, id: 'e3-west', phase: 'recovery', formations: [world('arrow-3', -7.5)], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } },
+  { at: 31, id: 'e3-west', phase: 'recovery', formations: [world('arrow-3', -7.5), world('fuel-pair', -7.5)], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } },
   { at: 36, id: 'e3-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] },
   { at: 38, id: 'e3-battery-3', phase: 'pressure', formations: [f('battery-3')] },
   { at: 41, id: 'e3-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] },
@@ -199,7 +199,7 @@ const VESPER_OPENING: readonly EncounterCue[] = [
   { at: 62, id: 'ev1-convoy-line', phase: 'climax', formations: [f('needle-line-3', -1)] },
   { at: 67, id: 'ev1-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
   { at: 72, id: 'ev1-convoy-missiles-2', phase: 'climax', formations: [f('missile-3')] },
-  { at: 84, id: 'ev1-east', phase: 'recovery', formations: [world('needle-solo', 7.5)] },
+  { at: 84, id: 'ev1-east', phase: 'recovery', formations: [world('needle-solo', 7.5), world('fuel-depot', 7.5)] },
 ];
 
 /** Endless Vesper, later sectors of a first Vesper stint. */
@@ -234,7 +234,7 @@ const VESPER_PEAK: readonly EncounterCue[] = [
   { at: 18, id: 'ev3-convoy-2', phase: 'pressure', formations: [f('diamond-convoy')] },
   { at: 21, id: 'ev3-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
   { at: 25, id: 'ev3-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
-  { at: 31, id: 'ev3-west', phase: 'recovery', formations: [world('needle-solo', -7.5)], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } },
+  { at: 31, id: 'ev3-west', phase: 'recovery', formations: [world('needle-solo', -7.5), world('fuel-depot', -7.5)], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } },
   { at: 36, id: 'ev3-line-2', phase: 'pressure', formations: [f('needle-line-3', -1)] },
   { at: 38, id: 'ev3-missiles-4', phase: 'pressure', formations: [f('missile-2')] },
   { at: 41, id: 'ev3-heavy', phase: 'pressure', formations: [f('diamond-solo')] },
@@ -262,14 +262,14 @@ export const COLD_VECTOR: readonly EncounterCue[] = [
   { at: 2, id: 'v-first-needle', phase: 'intro', message: 'COLD VECTOR · NARROW BEAMS · WATCH THE LANE', formations: [f('needle-solo')] },
   { at: 7, id: 'v-first-diamond', phase: 'intro', message: 'DIAMOND HEAVY · ALTERNATING WINGS', formations: [f('diamond-solo')] },
   { at: 13, id: 'v-first-missiles', phase: 'intro', message: 'MISSILE BATTERIES FIRE DOWN THEIR OWN COLUMN', formations: [f('missile-2')] },
-  { at: 17, id: 'v-needle-line', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 17, id: 'v-needle-line', phase: 'pressure', formations: [f('needle-line-3'), f('fuel-pair')] },
   { at: 22, id: 'v-missiles', phase: 'pressure', formations: [f('missile-2')] },
   { at: 25, id: 'v-needle-column', phase: 'pressure', formations: [f('needle-column-5')] },
   { at: 31, id: 'v-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
   { at: 34, id: 'v-needle-line-2', phase: 'pressure', formations: [f('needle-line-3', 1)] },
   { at: 41, id: 'v-needle-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
   { at: 48, id: 'v-west', phase: 'recovery', message: 'CLIFF BATTERY · WEST', formations: [world('missile-2', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
-  { at: 53, id: 'v-east', phase: 'recovery', message: 'LONE INTERCEPTOR · EAST', formations: [world('needle-solo', 7.5)] },
+  { at: 53, id: 'v-east', phase: 'recovery', message: 'LONE INTERCEPTOR · EAST', formations: [world('needle-solo', 7.5), world('fuel-depot', 7.5)] },
   { at: 58, id: 'v-cliff-missiles', phase: 'pressure', message: 'MISSILE BATTERIES ON THE CLIFFS', formations: [f('missile-3')] },
   { at: 61, id: 'v-cliff-needles', phase: 'pressure', formations: [f('needle-line-3')] },
   { at: 66, id: 'v-cliff-missiles-2', phase: 'pressure', formations: [f('missile-2')] },
@@ -298,7 +298,7 @@ export const COLD_VECTOR: readonly EncounterCue[] = [
  * Vector.
  */
 export const DEEP_BLOOM: readonly EncounterCue[] = [
-  { at: 2, id: 'n-first-weavers', phase: 'intro', message: 'DEEP BLOOM · SINE FLIGHTS OVER THE MIRE', formations: [f('line-weaver-4')] },
+  { at: 2, id: 'n-first-weavers', phase: 'intro', message: 'DEEP BLOOM · SINE FLIGHTS OVER THE MIRE', formations: [f('line-weaver-4'), f('fuel-pair')] },
   { at: 8, id: 'n-first-needle', phase: 'intro', formations: [f('needle-solo')] },
   { at: 12, id: 'n-first-batteries', phase: 'intro', message: 'BATTERIES ON THE ISLANDS', formations: [f('battery-2')] },
   { at: 16, id: 'n-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
@@ -309,7 +309,7 @@ export const DEEP_BLOOM: readonly EncounterCue[] = [
   { at: 40, id: 'n-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] },
   { at: 45, id: 'n-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
   { at: 51, id: 'n-west', phase: 'recovery', message: 'GLOWING GROVE · WEST', formations: [world('battery-2', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
-  { at: 56, id: 'n-east', phase: 'recovery', message: 'LONE INTERCEPTOR · EAST', formations: [world('needle-solo', 7.5)] },
+  { at: 56, id: 'n-east', phase: 'recovery', message: 'LONE INTERCEPTOR · EAST', formations: [world('needle-solo', 7.5), world('fuel-depot', 7.5)] },
   { at: 62, id: 'n-weaver-line', phase: 'pressure', formations: [f('line-weaver-4', 1)] },
   { at: 66, id: 'n-battery-mid', phase: 'pressure', formations: [f('battery-3')] },
   { at: 69, id: 'n-needle-column', phase: 'pressure', formations: [f('needle-column-5')] },

@@ -169,13 +169,13 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect(reached / pipes).toBeGreaterThanOrEqual(0.8);
   });
 
-  it('opens the Cold Vector ocean arena (911–955): open water, nothing afloat on it, calm ramps with distant bergs only', () => {
-    // The mission's arena comes from the Ark's own constants: the scroll stops at 920.
+  it('opens the Cold Vector ocean arena (841–885): open water, nothing afloat on it, calm ramps with distant bergs only', () => {
+    // The mission's arena comes from the Ark's own constants: the scroll stops at 850.
     const config = { mode: 'campaign', mission: 'cold-vector', seed: 93 } as Parameters<typeof missionArena>[0];
     const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena };
-    expect(arenaStopDistance(HELION_ARK.arena)).toBe(920);
-    expect(arena).toEqual({ fromS: 911, toS: 955 });
-    expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 566, toS: 601 });
+    expect(arenaStopDistance(HELION_ARK.arena)).toBe(850);
+    expect(arena).toEqual({ fromS: 841, toS: 885 });
+    expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 546, toS: 581 });
     expect(missionArena({ ...config, mode: 'endless' })).toBeUndefined();
     for (const seed of [93, 8831, 11]) {
       for (let s = arena.fromS; s <= arena.toS; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) expect(terrainHeight(seed, x, s, world)).toBeLessThan(SEA - 0.5);

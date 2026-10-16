@@ -124,7 +124,7 @@ All follow the airspace rule (one air squadron in a stretch of airspace at a tim
 | 160 s | Relief |
 | 170 s | Approach ends |
 | 181–187 s | The scroll eases to a stop |
-| 184 s | The Helion Ark arrives |
+| 170 s | The Helion Ark arrives (184 s until 16 October; cues close at 162 s) |
 
 Shield cells:
 - 50, 115 and 172 s on Relaxed and Standard;
@@ -132,9 +132,9 @@ Shield cells:
 
 **Arena (for the world agent):**
 - **Scroll:** a closed form of active time. Full speed (5 units/s) until t = 181 s (distance 905), then a smoothstep ease to zero over 6 s.
-- **Stop:** exactly **distance 920** at t = 187 s.
+- **Stop:** exactly **distance 850** at t = 173 s (920 at 187 s until 16 October).
 - **During the fight:** static.
-- **After the kill:** a 2 s smoothstep ease back to 5 units/s for the 8 s extraction.
+- **After the kill:** a 2.5 s hold over the wreck, then a 2 s smoothstep ease back to 5 units/s for the 8 s extraction.
 - **Platform:**
   - The open-water platform must cover **s from −9 to +35** relative to the stop, which is **world distance 911 to 955**.
   - It spans the full world width, x from −15 to +15.

@@ -1,7 +1,7 @@
 import { BASTION } from '../content/bastion';
 import { BALANCE, FAIRNESS } from '../content/balance';
 import { ENDLESS_CYCLE } from '../content/endless';
-import { BOSSES, missionBoss, type BossDefinition } from '../content/bosses';
+import { BOSSES, WRECK_HOLD, missionBoss, type BossDefinition } from '../content/bosses';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
 import { clamp } from './geometry';
 import { bossPartOffset, bossPose } from './motion';
@@ -39,7 +39,7 @@ function bossRecovery(state: RunState): number {
 const overloadMove = (state: RunState) => { const moves = bossDef(state).overloadMoves; return moves[state.boss!.attackIndex % moves.length]; };
 
 /** Endless: protection through the scroll resume and the hyperdrive jump after the kill. */
-const ENDLESS_EXIT_PROTECTION = ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration + 0.5;
+const ENDLESS_EXIT_PROTECTION = WRECK_HOLD + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration + 0.5;
 
 /**
  * Terrain scroll for a boss mission as a closed form of active time, so the arena stop distance is exact:
@@ -55,13 +55,15 @@ export function arenaScroll(time: number, destroyedAt: number | null, arena: Bos
     const u = (time - t0) / span;
     return { distance: v * t0 + v * span * (u - u ** 3 + u ** 4 / 2), speed: v * (1 - u * u * (3 - 2 * u)) };
   }
-  if (destroyedAt === null || time <= destroyedAt) return { distance: stop, speed: 0 };
-  const w = (time - destroyedAt) / resume;
+  // After the kill the scroll holds over the wreck for WRECK_HOLD, then resumes for extraction.
+  const resumeAt = destroyedAt === null ? Infinity : destroyedAt + WRECK_HOLD;
+  if (time <= resumeAt) return { distance: stop, speed: 0 };
+  const w = (time - resumeAt) / resume;
   if (w < 1) return { distance: stop + v * resume * (w ** 3 - w ** 4 / 2), speed: v * w * w * (3 - 2 * w) };
-  return { distance: stop + v * resume / 2 + v * (time - destroyedAt - resume), speed: v };
+  return { distance: stop + v * resume / 2 + v * (time - resumeAt - resume), speed: v };
 }
 
-/** World distance at which a boss arena's terrain stops: 575 for Rolling Thunder, 920 for Cold Vector. */
+/** World distance at which a boss arena's terrain stops: 555 for Rolling Thunder, 850 for Cold Vector. */
 export function arenaStopDistance(arena: BossDefinition['arena'] = BASTION.arena): number {
   return VIEW.scrollSpeed * (arena.decelStart + arena.decelDuration / 2);
 }
@@ -120,7 +122,7 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     boss.deathEffectAt = state.time;
     boss.launchesLeft = 0;
     const campaign = state.config.mode === 'campaign';
-    state.player.invulnerableUntil = state.time + (campaign ? def.extractionDuration : ENDLESS_EXIT_PROTECTION);
+    state.player.invulnerableUntil = state.time + (campaign ? WRECK_HOLD + def.extractionDuration : ENDLESS_EXIT_PROTECTION);
     // Credits are campaign-only; endless scores the kill through the core's 5,000 points.
     if (campaign) state.credits += 60;
     // Launched fighters go down with their carrier: nothing dangerous remains during extraction.
@@ -229,8 +231,8 @@ export function updateBoss(state: RunState, dt: number): void {
       if (state.effects.length < BALANCE.maxEffects) state.effects.push({ id: state.nextId++, kind: 'explosion', x: boss.x + offset, s: boss.s + Math.cos(offset) * 1.5, ttl: .7, duration: .7 });
       boss.deathEffectAt = state.time + .24;
     }
-    // The campaign ends after extraction; endless continues with the hyperdrive jump (src/sim/endless.ts).
-    if (state.config.mode === 'campaign' && state.time - boss.phaseStartedAt + 1e-8 >= def.extractionDuration) {
+    // The campaign ends after the wreck hold and extraction; endless continues with the hyperdrive jump (src/sim/endless.ts).
+    if (state.config.mode === 'campaign' && state.time - boss.phaseStartedAt + 1e-8 >= WRECK_HOLD + def.extractionDuration) {
       state.phase = 'complete'; state.projectiles = []; state.hazards = [];
     }
     return;

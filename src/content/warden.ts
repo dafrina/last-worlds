@@ -5,7 +5,7 @@
  * No hidden collision: only the pods and the command module are targets; legs, wings and hull are scenery.
  */
 export const WARDEN = {
-  arrivesAt: 115,
+  arrivesAt: 113,
   /** No approach cue is admitted at or after this time (Training's last cue fires at 103 s). */
   approachEndsAt: 105,
   arrivalDuration: 3,
@@ -29,11 +29,11 @@ export const WARDEN = {
   commandBurst: { bolts: 4, spread: 0.085, speed: 5.8 },
   overload: { coreLaneWidth: 2.2, batteryLaneWidth: 1.3, active: 0.35 },
   /**
-   * Static arena on Luna. The scroll eases from 5 to zero over 6 s from t = 112, stopping at distance
-   * 5 * 112 + 5 * 6 / 2 = 575; `platform` is the s-range relative to the stop the arena levels.
+   * Static arena on Luna. The scroll eases from 5 to zero over 6 s from t = 110, stopping at distance
+   * 5 * 110 + 5 * 6 / 2 = 565; `platform` is the s-range relative to the stop the arena levels.
    */
   arena: {
-    decelStart: 112, decelDuration: 6, resumeDuration: 2,
+    decelStart: 110, decelDuration: 6, resumeDuration: 2,
     sway: 0.8, swayRate: 0.3, surge: 0.5, surgeRate: 0.24,
     platform: { from: -9, to: 22 },
   },

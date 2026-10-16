@@ -44,6 +44,8 @@ export interface FormationTemplate {
   readonly slots: readonly FormationSlot[];
   /** Readable alert shown before the members enter. Required for two-sided entries. */
   readonly alert?: string;
+  /** Members never attack (fuel skids): no firing window, so the windup checks do not apply. */
+  readonly harmless?: true;
 }
 
 /** Dive in from above the view, hold a row while drifting slightly forward, then climb out (1.4 s each way). */
@@ -180,6 +182,24 @@ const templates = [
       { kind: 'turret', dx: -1.4, ds: 1.4, fire: 0.55 },
       { kind: 'turret', dx: 1.4, ds: 1.4, fire: 1.1 },
       { kind: 'turret', dx: 4, fire: 1.65 },
+    ],
+  },
+  // Fuel-tank skids (user request, 16 October): harmless ground loot that never fires (an empty firing window).
+  {
+    id: 'fuel-pair', name: 'Fuel skid pair', entry: 'ground',
+    path: GROUND, fireFrom: Infinity, fireUntil: Infinity, harmless: true,
+    slots: [
+      { kind: 'fuel', dx: -1.3, fire: 0 },
+      { kind: 'fuel', dx: 1.3, ds: 0.6, fire: 0 },
+    ],
+  },
+  {
+    id: 'fuel-depot', name: 'Fuel depot', entry: 'ground',
+    path: GROUND, fireFrom: Infinity, fireUntil: Infinity, harmless: true,
+    slots: [
+      { kind: 'fuel', dx: -1.4, fire: 0 },
+      { kind: 'fuel', dx: 0, ds: 1.3, fire: 0 },
+      { kind: 'fuel', dx: 1.4, fire: 0 },
     ],
   },
   {

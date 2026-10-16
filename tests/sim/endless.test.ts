@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, difficultyScales, kinematics } from '../../src/content/balance';
+import { WRECK_HOLD } from '../../src/content/bosses';
 import { ENDLESS_CYCLE, endlessPlanet, endlessSchedule, endlessSectorPlan, isBossSector, paceInSector, scrollForPace, sectorPace } from '../../src/content/endless';
 import { EMPTY_INPUT, STEP, type EnemyKind, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
@@ -44,8 +45,8 @@ describe('endless schedule', () => {
     }
     // Campaign: one planet and the mission's own arena at its documented stop.
     const thunder = endlessSchedule({ mode: 'campaign', mission: 'bastion' });
-    expect(thunder.arenaAt(575)?.stopDistance).toBe(575);
-    expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).arenaAt(920)?.stopDistance).toBe(920);
+    expect(thunder.arenaAt(555)?.stopDistance).toBe(555);
+    expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).arenaAt(850)?.stopDistance).toBe(850);
     expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).planetAt(5000)).toBe('vesper');
   });
 
@@ -139,8 +140,8 @@ describe('endless bosses and jumps', () => {
     expect(state.credits).toBe(0);
     expect(jumpSeen).toBe(true);
     expect(state.sector).toBe(2);
-    // The next sector starts exactly 5 s (resume and jump) after the kill.
-    expect(state.sectorStartedAt).toBeCloseTo(killAt! + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration, 1);
+    // The next sector starts exactly 7.5 s (wreck hold, resume and jump) after the kill.
+    expect(state.sectorStartedAt).toBeCloseTo(killAt! + WRECK_HOLD + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration, 1);
     expect(state.planet).toBe('khepri');
     expect(state.boss).toBeNull();
     expect(state.enemies.some(enemy => enemy.bossPart)).toBe(false);
@@ -151,7 +152,8 @@ describe('endless bosses and jumps', () => {
     const state = createRun({ mode: 'endless', seed: 2 });
     state.player.weapon = 'seeker';
     const seen: Record<string, Set<EnemyKind>> = { luna: new Set(), khepri: new Set(), nacre: new Set(), vesper: new Set() };
-    fly(state, perfectPilot(), 1700, { noPickups: true, onTick: s => { for (const enemy of s.enemies) if (!enemy.bossPart && !s.jump) seen[s.planet].add(enemy.kind); } });
+    // Fuel skids are neutral loot props on every planet; only the armed rosters are faction-specific.
+    fly(state, perfectPilot(), 1700, { noPickups: true, onTick: s => { for (const enemy of s.enemies) if (!enemy.bossPart && !s.jump && enemy.kind !== 'fuel') seen[s.planet].add(enemy.kind); } });
     expect(state.sector).toBeGreaterThanOrEqual(9);
     // Nacre mixes both rosters (weaver sine flights with Vesper heavies).
     expect(seen.nacre.has('weaver') && seen.nacre.has('needle')).toBe(true);

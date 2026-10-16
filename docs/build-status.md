@@ -1,5 +1,24 @@
 # Build status
 
+## Boss entrances, wreck hold, drop icons, fuel skids, ground wrecks, hauler lanes — 16 October 2026
+
+- **Boss entrances:**
+  - Boss rigs are now compiled into the shader warm-up while still hidden. Before, a boss's first frame could stall on shader compilation, so on a phone it appeared to pop up mid-view.
+  - Bastion-9 starts its roll-in fully off-screen (entry row 27, was 22).
+- **Sooner bosses:** arrival and the arena stop are earlier: WARDEN-1 113 s (was 115), Bastion-9 111 (115), Helion Ark 170 (184, cues close at 162), THE VEIL 153 (160), endless boss sectors 78 s (80). The quiet stretch before each boss is now about 5–9 s. Late shield cells moved before the fights (Ark 163 s, Veil 148 s).
+- **Wreck hold:** after any boss kill the scroll holds 2.5 s over the wreck (`WRECK_HOLD`) before extraction or the endless jump.
+- **Drop icons:** antialiased, mipmapped canvas sprites with a soft glow, 1.15 units, replace the thin flat-shape icons that shimmered. Each main weapon has its own icon: twin bolts, a fan, homing arcs.
+- **Fuel skids:**
+  - a new harmless ground target, `fuel` (Blender `loot_fuel` in `public/assets/shared/loot-props.glb`, `tools/blender/loot_props.py`): hazard-red tanks that never fire and drop credits like a ship;
+  - placed by authored cues in every mission and the endless playlists (`fuel-pair`, `fuel-depot`);
+  - targeting prefers armed enemies over fuel skids.
+- **Ground wrecks:** destroyed batteries and skids leave a Blender wreck (`wreck_turret_0/1`, `wreck_fuel`) on the ground; it scrolls away with the terrain (render-only).
+- **Haulers:** a road's haulers share one speed, drive half a round trip apart in right-hand lanes, and a hauler that would overlap one already placed is left out. They no longer drive through or stack on each other.
+- **Evidence:**
+  - typecheck clean, 301/301 unit tests, 19/19 browser specs, production build;
+  - SwiftShader captures inspected: boss first frames, drop icons (zoomed), a fuel skid destroyed into its wreck, Khepri haulers in lanes.
+- **Not done:** no phone hardware test.
+
 ## Full-height phone playfield — 16 October 2026
 
 - **Phone layout:** fills the available dynamic viewport height instead of adding 9:16 letterbox bands. The HUD, special button and menus include notch/home-indicator padding. Landscape and wider touch devices retain a centered portrait field at full height; desktop keeps its fitted 9:16 frame and side rails, shrinking cleanly in narrow windows.

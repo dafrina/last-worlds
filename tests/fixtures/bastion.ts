@@ -22,6 +22,8 @@ function prepare() {
   state.time = BASTION.arrivesAt;
   // The arena scroll is a closed form of time: the terrain is decelerating toward its stop as the fortress rolls in.
   const scroll = arenaScroll(state.time, null); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  // `phase=arrival&t=N`: N seconds into the roll-in.
+  if (query.get('phase') === 'arrival') { for (let i = 0; i < Math.round(Number(query.get('t') ?? 0) * 60); i++) stepRun(state, EMPTY_INPUT); return; }
   for (let i = 0; i < 181; i++) stepRun(state, EMPTY_INPUT);
   if (['core', 'overload', 'destroyed'].includes(query.get('phase') ?? '')) {
     bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
@@ -90,6 +92,17 @@ function prepareJump() {
   for (let i = 0; i < Math.round(at * 60); i++) tick();
 }
 prepare();
+// `pickups`: every drop icon in a row above the player (render inspection; `still` keeps them in place).
+if (query.has('pickups')) {
+  const drops = [{ kind: 'shield' }, { kind: 'power' }, { kind: 'credit' }, { kind: 'weapon', weapon: 'pulse' }, { kind: 'weapon', weapon: 'fan' }, { kind: 'weapon', weapon: 'seeker' }] as const;
+  drops.forEach((drop, i) => state.pickups.push({ id: state.nextId++, ...drop, x: state.cameraX - 4.5 + i * 1.8, s: 5 + (i % 2) * 1.2, value: 1, ttl: 99 }));
+}
+// `fuel`: three fuel skids ahead; the middle one sits in the player's line of fire (its kill leaves a wreck).
+if (query.has('fuel')) for (const [dx, s] of [[-2.6, 10], [0, 8], [2.6, 11]]) {
+  const hp = 40;
+  state.enemies.push({ id: state.nextId++, kind: 'fuel', x: state.player.x + dx, s, originX: state.player.x + dx, hp, maxHp: hp, radius: .55, age: 0,
+    nextAttack: Infinity, warning: 0, aimX: state.player.x + dx, groundHeight: .85 });
+}
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start(config: RunConfig) { state = createRun(config); },
   pause() { state.phase = 'paused'; input.clear(); },

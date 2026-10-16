@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import type { EnemyKind, Pickup } from '../shared/contracts';
+import type { EnemyKind } from '../shared/contracts';
 /** Code-built outpost stand-ins, used when the modelled infrastructure kit is missing. */
 export type PropKind = 'relay' | 'cargo' | 'landingPad' | 'track' | 'refinery';
 
@@ -307,44 +307,6 @@ function normalizeProp(model: THREE.Group): THREE.Group {
     object.geometry.scale(1/size.x,1/size.y,1/size.z);
   });
   return model;
-}
-
-/** Slow, framed cargo icons: each category is recognizable without relying on its color. */
-export function createPickupModel(kind: Pickup['kind']): THREE.Group {
-  const g=new THREE.Group();
-  const color=kind==='shield'?0x96e3d4:kind==='credit'?0xf0ce83:kind==='weapon'?0xd1b9ee:0xf2e6cb;
-  const dark=new THREE.MeshBasicMaterial({color:0x1b292c});
-  const ink=new THREE.MeshBasicMaterial({color});
-  const shape=(points:[number,number][],material:THREE.Material,z=0)=>{
-    const mesh=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(points.map(p=>new THREE.Vector2(...p)))),material);
-    mesh.position.z=z;mesh.renderOrder=8;g.add(mesh);
-  };
-  const ring=(radius:number,segments:number)=>{
-    const background=new THREE.Mesh(new THREE.CircleGeometry(radius,segments),dark); background.renderOrder=7;g.add(background);
-    const border=new THREE.Mesh(new THREE.RingGeometry(radius-.022,radius,segments),ink); border.position.z=.005;border.renderOrder=8;g.add(border);
-  };
-  if(kind==='shield') {
-    ring(.32,6);
-    shape([[-.16,.17],[.16,.17],[.14,-.04],[0,-.2],[-.14,-.04]],ink,.01);
-    shape([[-.1,.105],[.1,.105],[.085,-.015],[0,-.11],[-.085,-.015]],dark,.02);
-  } else if(kind==='weapon') {
-    shape([[-.39,-.18],[-.32,-.26],[.32,-.26],[.39,-.18],[.39,.18],[.32,.26],[-.32,.26],[-.39,.18]],ink);
-    shape([[-.35,-.16],[-.29,-.22],[.29,-.22],[.35,-.16],[.35,.16],[.29,.22],[-.29,.22],[-.35,.16]],dark,.01);
-    for(const x of [-.12,.12]) shape([[x-.04,-.12],[x+.04,-.12],[x+.04,.14],[x-.04,.14]],ink,.02);
-    shape([[-.22,-.14],[.22,-.14],[.22,-.08],[-.22,-.08]],ink,.02);
-  } else if(kind==='power') {
-    ring(.32,4);
-    shape([[-.19,-.05],[0,.15],[.19,-.05],[.13,-.12],[0,.03],[-.13,-.12]],ink,.01);
-  } else {
-    ring(.28,4);
-    shape([[-.105,-.1],[.105,-.1],[.105,.1],[-.105,.1]],ink,.01);
-    shape([[-.05,-.045],[.05,-.045],[.05,.045],[-.05,.045]],dark,.02);
-  }
-  // Drops read at the shield cell's size (user request): the diamond credit and power frames are smaller for the
-  // same radius, so they scale up until their footprint matches the hexagon. Visual only; pickup radius is sim-owned.
-  const grow=kind==='credit'?1.3:kind==='power'?1.15:1;
-  if(grow!==1)g.children.forEach(child=>(child as THREE.Mesh).geometry.scale(grow,grow,1));
-  const model=combineStatic(g);model.children.forEach(child=>{child.renderOrder=7;});return model;
 }
 
 /**

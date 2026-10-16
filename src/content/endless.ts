@@ -1,5 +1,5 @@
 import { BALANCE, ENDLESS_PROLOGUE_SECTORS, PACE, endlessRampSector } from './balance';
-import { BOSSES, missionBoss } from './bosses';
+import { BOSSES, WRECK_HOLD, missionBoss } from './bosses';
 import { runPlanet } from './missions';
 import { VIEW, type BossId, type PlanetId, type RunConfig } from '../shared/contracts';
 
@@ -23,10 +23,10 @@ export const ENDLESS_CYCLE = {
   bossSector: {
     /** No ordinary cue is admitted at or after this time. */
     approachEndsAt: 70,
-    decelStart: 77,
+    decelStart: 75,
     decelDuration: 6,
-    /** Three seconds into the stop, as in the campaign arenas. */
-    arrivesAt: 80,
+    /** Three seconds into the stop, as in the campaign arenas (two seconds sooner since 16 October). */
+    arrivesAt: 78,
   },
   /** After the kill: the scroll eases back up, then the hyperdrive jump. */
   resumeDuration: 2,
@@ -185,9 +185,10 @@ export function endlessScroll(plan: EndlessSectorPlan, tau: number, bossEnd: num
     return { distance: decelFrom + cruise * span * (u - u ** 3 + u ** 4 / 2), speed: cruise * (1 - u * u * (3 - 2 * u)), phase: 'stopping' };
   }
   const stop = plan.stop.stopDistance;
-  if (bossEnd === null || tau <= bossEnd) return { distance: stop, speed: 0, phase: 'stopped' };
+  // The scroll holds over the wreck for WRECK_HOLD after the kill, then resumes.
+  if (bossEnd === null || tau <= bossEnd + WRECK_HOLD) return { distance: stop, speed: 0, phase: 'stopped' };
   const resume = ENDLESS_CYCLE.resumeDuration;
-  const since = tau - bossEnd;
+  const since = tau - bossEnd - WRECK_HOLD;
   if (since < resume) {
     const w = since / resume;
     return { distance: stop + cruise * resume * (w ** 3 - w ** 4 / 2), speed: cruise * w * w * (3 - 2 * w), phase: 'resuming' };
