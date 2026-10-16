@@ -464,6 +464,76 @@ export async function loadVesperCraft(url: string): Promise<Map<VesperCraftNode,
   return found;
 }
 
+/* ---------------------------------------------------------------- Nacre craft (docs/20, art/nacre-craft) */
+
+/** Nodes in nacre-craft.glb (after the ORRERY, SHARD and VEIL concepts): noses +Z, air craft pivot at their mid-plane. */
+export type NacreCraftNode = 'nacre_shard' | 'nacre_veil' | 'nacre_orrery' | 'nacre_spore' | 'nacre_pod';
+export const NACRE_CRAFT_NODES: readonly NacreCraftNode[] = ['nacre_shard', 'nacre_veil', 'nacre_orrery', 'nacre_spore', 'nacre_pod'];
+export interface NacreCraft { geometry: THREE.BufferGeometry; engines: [number, number][] }
+
+/**
+ * Loads the Nacre faction craft into the shared craft format (one draw per ship). Albedo is COLOR_0 × base colour
+ * (the iridescent nacre sheen is baked into COLOR_0); `pbr` follows the material class: glossy semi-metal shells,
+ * metallic pale blades and bronze, matte black frames; `nacre_glow_*` faces emit their own colour above the bloom
+ * threshold. Engine empties (`<node>_engine_N`) become plume sockets (x, z).
+ */
+export function loadNacreCraft(url: string): Promise<Map<NacreCraftNode, NacreCraft>> { return loadCraftNodes(url, NACRE_CRAFT_NODES); }
+
+/** Nodes in khepri-craft.glb (art/khepri-craft): the Khepri faction after the KHEPRI concept column. */
+export type KhepriCraftNode = 'khepri_dart' | 'khepri_lancer' | 'khepri_weaver' | 'khepri_turret';
+export const KHEPRI_CRAFT_NODES: readonly KhepriCraftNode[] = ['khepri_dart', 'khepri_lancer', 'khepri_weaver', 'khepri_turret'];
+export function loadKhepriCraft(url: string): Promise<Map<KhepriCraftNode, NacreCraft>> { return loadCraftNodes(url, KHEPRI_CRAFT_NODES); }
+
+/**
+ * Loads faction craft nodes from a GLB into the shared craft format (Khepri and Nacre craft; Vesper keeps its own
+ * loader). Material classes by name: glow, blade, bronze, frame; anything else is a shell or plate.
+ */
+export async function loadCraftNodes<N extends string>(url: string, names: readonly N[]): Promise<Map<N, NacreCraft>> {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  const found = new Map<N, NacreCraft>();
+  for (const name of names) {
+    const node = gltf.scene.getObjectByName(name);
+    if (!node) continue;
+    node.updateMatrixWorld(true);
+    const inverse = node.matrixWorld.clone().invert(), parts: THREE.BufferGeometry[] = [], engines: [number, number][] = [];
+    // Engine empties may be children of the node or top-level siblings named <node>_engine_N.
+    gltf.scene.traverse(object => {
+      if (object.name.startsWith(`${name}_engine_`)) { const p = object.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse); engines.push([p.x, p.z]); }
+    });
+    node.traverse(object => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+      const label = material.name ?? '', glow = /glow/i.test(label);
+      const pbrOf: [number, number, number] = glow ? [1, 0, 2.8] : /blade/i.test(label) ? [0.28, 0.6, 0] : /bronze/i.test(label) ? [0.34, 0.75, 0]
+        : /frame/i.test(label) ? [0.42, 0.4, 0] : /plate/i.test(label) ? [0.45, 0.35, 0] : [0.26, 0.35, 0];
+      const emissive = material.emissive && material.emissive.getHex() !== 0 ? material.emissive : material.color;
+      const tint = glow ? emissive : material.color;
+      const source = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+      const count = source.getAttribute('position').count, color = new Float32Array(count * 3), pbr = new Float32Array(count * 3), vertex = source.getAttribute('color');
+      for (let i = 0; i < count; i++) {
+        const r = vertex && !glow ? vertex.getX(i) : 1, g = vertex && !glow ? vertex.getY(i) : 1, b = vertex && !glow ? vertex.getZ(i) : 1;
+        color.set([r * tint.r, g * tint.g, b * tint.b], i * 3); pbr.set(pbrOf, i * 3);
+      }
+      const part = new THREE.BufferGeometry();
+      part.setAttribute('position', source.getAttribute('position').clone());
+      part.setAttribute('normal', source.getAttribute('normal').clone());
+      part.setAttribute('uv', source.getAttribute('uv')?.clone() ?? new THREE.BufferAttribute(new Float32Array(count * 2).fill(0.3), 2));
+      part.setAttribute('color', new THREE.BufferAttribute(color, 3)); part.setAttribute('pbr', new THREE.BufferAttribute(pbr, 3));
+      part.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
+      parts.push(part); source.dispose();
+    });
+    const merged = mergeGeometries(parts); parts.forEach(part => part.dispose());
+    if (merged) { merged.computeBoundingBox(); merged.computeBoundingSphere(); found.set(name, { geometry: merged, engines }); }
+  }
+  gltf.scene.traverse(object => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose(); (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(material => material.dispose());
+  });
+  return found;
+}
+
 /**
  * Floating black-ceramic pontoon under a ground battery that the simulation seats over open water (render-only):
  * a hexagonal barge riding at the waterline (deck top +0.14), a pale deck rim and an orange glow band, in the

@@ -7,13 +7,18 @@ export type KhepriKitKind = 'clump' | 'column' | 'rock' | 'crystal' | 'spire' | 
 export type FloeSetKind = 'floePairA' | 'floePairB' | 'floeTripleC';
 /** Vesper kit (public/assets/vesper/vesper-kit.glb, docs/17 §3); waterline at y = 0 for floating pieces. */
 export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'floe' | FloeSetKind | 'ridge' | 'drift' | 'outcrop' | 'vent';
-/** Nacre flora and monoliths (docs/20), built in code (no glb): glowing caps, lily pads, reeds, trees, crystals, rocks. */
-export type NacreKitKind = 'bloomCap' | 'lilyPad' | 'reed' | 'mireTree' | 'mireCrystal' | 'mireRock' | 'monolith' | 'glassTube' | 'mireSpire' | 'bioTower' | 'bioRing';
+/**
+ * Nacre kit (public/assets/nacre/nacre-kit.glb, docs/20, art/nacre-kit/README.md): jagged rock and crags, glowing
+ * flora (lotus caps, groves, glass tubes, violet goblets, lily rafts, moss tufts) and the builders' ruins.
+ */
+export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'glassTube' | 'goblet' | 'lilyRaft' | 'mossTuft'
+  | 'ruinTower' | 'ruinFort' | 'ruinRing' | 'ruinBridge' | 'ruinPillars' | 'ruinRubble';
 export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
 export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
-export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['bloomCap', 'lilyPad', 'reed', 'mireTree', 'mireCrystal', 'mireRock', 'monolith', 'glassTube', 'mireSpire', 'bioTower', 'bioRing'];
+export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
+  'ruinTower', 'ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
 export const KIT: Readonly<Record<KitKind, {
   prefix: string; variants: number;
@@ -51,18 +56,22 @@ export const KIT: Readonly<Record<KitKind, {
   drift: { prefix: 'snow_drift', variants: 2, halfX: 0.86, halfZ: 0.51, height: 0.33, exactTop: false, radius: Math.hypot(0.86, 0.51) },
   outcrop: { prefix: 'rock_outcrop', variants: 3, halfX: 0.44, halfZ: 0.35, height: 0.81, exactTop: false, radius: Math.hypot(0.44, 0.35) },
   vent: { prefix: 'vent_stack', variants: 2, halfX: 0.4, halfZ: 0.35, height: 0.98, exactTop: false, radius: Math.hypot(0.4, 0.35) },
-  // Nacre (code-built, docs/20). Caps, trees, crystals and monoliths top out at exactly 1 (scale y); pads float at y = 0.
-  bloomCap: { prefix: 'nacre_bloom', variants: 3, halfX: 0.7, halfZ: 0.7, height: 1, exactTop: true, radius: Math.hypot(0.7, 0.7) },
-  lilyPad: { prefix: 'nacre_pad', variants: 3, halfX: 0.5, halfZ: 0.5, height: 0.06, exactTop: false, radius: Math.hypot(0.5, 0.5) },
-  reed: { prefix: 'nacre_reed', variants: 2, halfX: 0.35, halfZ: 0.35, height: 1, exactTop: true, radius: Math.hypot(0.35, 0.35) },
-  mireTree: { prefix: 'nacre_tree', variants: 3, halfX: 0.8, halfZ: 0.8, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.8) },
-  mireCrystal: { prefix: 'nacre_crystal', variants: 2, halfX: 0.45, halfZ: 0.45, height: 1, exactTop: true, radius: Math.hypot(0.45, 0.45) },
-  mireRock: { prefix: 'nacre_rock', variants: 3, halfX: 0.6, halfZ: 0.6, height: 0.8, exactTop: false, radius: Math.hypot(0.6, 0.6) },
-  monolith: { prefix: 'nacre_monolith', variants: 2, halfX: 0.45, halfZ: 0.45, height: 1, exactTop: true, radius: Math.hypot(0.45, 0.45) },
+  // Nacre (nacre-kit.glb, art/nacre-kit/README.md; code-built stand-ins in src/render/nacre-kit.ts). Pieces marked
+  // exactTop top out at exactly 1 (instance height = world height); rafts float with their waterline at y = 0.
+  mireRock: { prefix: 'nacre_rock', variants: 3, halfX: 0.75, halfZ: 0.75, height: 1, exactTop: true, radius: Math.hypot(0.75, 0.75) },
+  mireCrag: { prefix: 'nacre_crag', variants: 3, halfX: 1.25, halfZ: 1.25, height: 1, exactTop: true, radius: Math.hypot(1.25, 1.25) },
+  lotus: { prefix: 'nacre_lotus', variants: 3, halfX: 0.8, halfZ: 0.8, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.8) },
+  lotusGrove: { prefix: 'nacre_grove', variants: 3, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.hypot(1, 1) },
   glassTube: { prefix: 'nacre_tubes', variants: 3, halfX: 0.5, halfZ: 0.5, height: 1, exactTop: true, radius: Math.hypot(0.5, 0.5) },
-  mireSpire: { prefix: 'nacre_spire', variants: 3, halfX: 0.6, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(0.6, 0.6) },
-  bioTower: { prefix: 'nacre_tower', variants: 2, halfX: 0.9, halfZ: 0.9, height: 1, exactTop: true, radius: Math.hypot(0.9, 0.9) },
-  bioRing: { prefix: 'nacre_ring', variants: 2, halfX: 1.1, halfZ: 1.1, height: 0.35, exactTop: false, radius: Math.hypot(1.1, 1.1) },
+  goblet: { prefix: 'nacre_goblet', variants: 2, halfX: 0.45, halfZ: 0.45, height: 1, exactTop: true, radius: Math.hypot(0.45, 0.45) },
+  lilyRaft: { prefix: 'nacre_pads', variants: 3, halfX: 0.9, halfZ: 0.9, height: 0.1, exactTop: false, radius: Math.hypot(0.9, 0.9) },
+  mossTuft: { prefix: 'nacre_moss', variants: 3, halfX: 0.7, halfZ: 0.7, height: 1, exactTop: true, radius: Math.hypot(0.7, 0.7) },
+  ruinTower: { prefix: 'nacre_tower', variants: 2, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.hypot(1, 1) },
+  ruinFort: { prefix: 'nacre_fort', variants: 2, halfX: 1.5, halfZ: 1.5, height: 1, exactTop: true, radius: Math.hypot(1.5, 1.5) },
+  ruinRing: { prefix: 'nacre_ring', variants: 2, halfX: 1.2, halfZ: 1.2, height: 0.5, exactTop: false, radius: Math.hypot(1.2, 1.2) },
+  ruinBridge: { prefix: 'nacre_bridge', variants: 2, halfX: 0.45, halfZ: 1.6, height: 1, exactTop: false, radius: Math.hypot(0.45, 1.6) },
+  ruinPillars: { prefix: 'nacre_pillars', variants: 2, halfX: 0.7, halfZ: 0.7, height: 1, exactTop: true, radius: Math.hypot(0.7, 0.7) },
+  ruinRubble: { prefix: 'nacre_rubble', variants: 2, halfX: 0.8, halfZ: 0.8, height: 0.4, exactTop: false, radius: Math.hypot(0.8, 0.8) },
 };
 export const kitNodeName = (kind: KitKind, variant: number) => `${KIT[kind].prefix}_${variant}`;
 /**

@@ -181,17 +181,17 @@ function emit(state: RunState, enemy: Enemy) {
   }
 }
 
-/** The Helion Ark's finite Needle launches from its deck bays during the bridge phase. */
+/** Finite launches from a boss's bays (the Helion Ark's Needles, THE VEIL's pods) in its core and overload phases. */
 function updateLaunches(state: RunState): void {
   const boss = state.boss!;
   const def = bossDef(state);
   if (!def.launches || (boss.phase !== 'core' && boss.phase !== 'overload') || boss.launchesLeft <= 0 || state.time < boss.nextLaunchAt) return;
   // One wave at a time, only while the bays are in view and the player is not in respawn protection.
-  const waveAlive = state.enemies.some(enemy => enemy.hp > 0 && enemy.formation?.template === 'ark-launch');
+  const waveAlive = state.enemies.some(enemy => enemy.hp > 0 && enemy.formation?.template === def.launches!.template);
   const bay = def.launches.bays[0];
   const baysVisible = Math.abs(boss.x - state.cameraX) <= VIEW.width / 2 - Math.abs(bay.x) - 0.5;
   if (waveAlive || !baysVisible || state.time < state.player.invulnerableUntil - .3) { boss.nextLaunchAt = state.time + FAIRNESS.retryDelay; return; }
-  spawnMembers(state, 'ark-launch', boss.x, 1, boss.s);
+  spawnMembers(state, def.launches.template, boss.x, 1, boss.s);
   boss.launchesLeft -= 1;
   boss.nextLaunchAt = state.time + def.launches.interval;
 }

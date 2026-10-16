@@ -1,5 +1,35 @@
 # Build status
 
+## Blender models for Nacre, THE VEIL, WARDEN-1 and Khepri; Nacre world after the concept — 16 October 2026
+
+User rule (15 October): every ship, boss and kit piece is a Blender model, never code-built. Code geometry only stands in while a GLB loads.
+
+- **Nacre craft** (`tools/blender/nacre_craft.py` → `public/assets/nacre/nacre-craft.glb`, 8,088 triangles): Shard, Veil, Orrery, Spore and Pod in the ORRERY / SHARD / VEIL language of `art/concepts/06-exotic-aliens.png`. Darts and Needles fly as the Shard (amber engines), Weavers and Lancers as the Veil, Diamonds as the Orrery, batteries as the Spore. THE VEIL's pods are Pods.
+- **THE VEIL** (`tools/blender/the_veil.py` → `the-veil.glb`, 15,872 of 16,000 triangles):
+  - a violet seed hull with layered crescent blades and honeycomb windows;
+  - two blade-cupped pods, a faceted heart under four shutters that swing 105° open, and front launch bays;
+  - it deploys pods in waves from both bays during the core and overload phases.
+- **WARDEN-1** (`tools/blender/warden.py` → `public/assets/luna/warden.glb`, 7,898 triangles):
+  - a credible human lunar lander: hazard-striped deck, legs, engine bells, solar wings and a beacon;
+  - its turret pods yaw toward their aim, and the core hatches slide 0.8 apart.
+- **Khepri craft** (`tools/blender/khepri_craft.py` → `public/assets/khepri/khepri-craft.glb`): gold segmented Dart, Lancer, Weaver and turret, after the KHEPRI concept column. Luna reuses them with a steel-blue paint swap.
+- **Nacre world** (`tools/blender/nacre_kit.py` → `nacre-kit.glb`, 35 nodes, 14,197 triangles), after the concept's middle panel:
+  - indigo water with violet algae, jagged black rock heaps and crags, and a dense glowing jungle (lotus caps and groves, glass tubes, goblets, lily rafts, moss);
+  - regular ruins: towers with orange light strips, stepped forts, ring platforms, conduit bridges, pillars and rubble.
+  - Crags, towers, forts and pillars cast shadows on High.
+- **Hero:** 10% larger (render only; the hitbox is unchanged). At mission start it drops from close to the camera with a barrel roll.
+- **Beam alignment** (commit `3e0a3bf`): Needle and Lancer beams fire straight down from the shooter's locked lane; boss lanes come from their own columns.
+- **Evidence:**
+  - typecheck clean, 287/287 unit tests, 15/15 browser specs, production build;
+  - every GLB passed its build verification, and repeated builds were byte-identical;
+  - SwiftShader captures inspected: Deep Bloom's approach with every Nacre craft; THE VEIL's batteries, core and overload phases; WARDEN-1's descent, batteries and core; Nacre world seeds 8831, 93 and 4242.
+  - Nacre frame cost on High: 50–55 draw calls and 72k–108k triangles; Khepri is 49–55 and 90k–101k. Longest terrain-generation slice: 6.7–7.2 ms on both.
+- **Known limits:**
+  - the Nacre water doesn't reflect the flora;
+  - THE VEIL's bay doors are static;
+  - render stats report the Nacre kit as `fallback` in the world fixture even when the GLB has loaded.
+- **Not done:** no phone hardware test.
+
 ## Varied boss fights, harder Ark finale, world order — 15 October 2026
 
 - **Overload moves:** every boss's overload phase cycles its own move list (lanes, crosses, player-locked lasers, bursts, fans) instead of the same two lane patterns.

@@ -5,6 +5,7 @@ import { arenaStopDistance } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
+import { loadKhepriCraft, loadNacreCraft, type KhepriCraftNode, type NacreCraftNode } from './models';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPickupModel, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
@@ -16,8 +17,8 @@ import { createFx, type Plume } from './fx-particles';
 import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
-import { WARDEN_FOOTPRINT, createWardenView } from './warden-view';
-import { createVeilView, veilPlacement } from './veil-view';
+import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
+import { createVeilView, loadVeilModel, veilPlacement } from './veil-view';
 import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { BASTION } from '../content/bastion';
@@ -149,8 +150,13 @@ const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
  * The authored Scrapper is ~1.0 unit wide; the user asked for the hero to fly at the planned top-tier size
  * (1.7 units, docs/04 §9). Render-only: the collision radius is owned by the simulation.
  */
-/** Hero render scale. The user asked for a larger hitbox (sim playerRadius), not a larger model. */
-export const HERO_SCALE = 1;
+/**
+ * Hero render scale. The user first asked for a larger hitbox (sim playerRadius), not a larger model; later (15 October)
+ * for the model 10% larger. Render-only: collision stays the simulation's 0.42 radius.
+ */
+export const HERO_SCALE = 1.1;
+/** Mission-start entrance: duration (s) and how far along the view ray toward the camera the hero starts. */
+const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
 
 /**
  * Per-planet light and grade (docs/13 §1, docs/17 §1). Khepri's values are the shipped look. Vesper: a high, pale,
@@ -187,13 +193,14 @@ const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
       haze: [0, 0, 0, 0] },
     environment: 'luna',
   },
-  // Nacre (docs/20): a dim lilac sun under a violet sky, strong violet sky fill so the dark islands stay readable,
-  // teal-violet bounce off the mire, a low bloom threshold so the bioluminescence glows, and a faint violet mist.
+  // Nacre (docs/20): a lilac sun under a violet sky, strong violet sky fill so the dark islands stay readable, a strong
+  // cold-blue bounce that lights the camera-facing sides of the black rock (the concept's blue-lit crags), a bloom
+  // threshold that lets the bioluminescence glow without washing out, and a faint violet mist.
   nacre: {
-    background: 0x1a1040, sunElevation: 32, sun: [0xd8d0ff, 3.4], hemisphere: [0x7a6cc0, 0x1c1a48, .95], bounce: [0x4a7ac8, .5],
-    shadowIntensity: .7, blobShadow: 0x120a28, lowExposure: 1.05,
-    post: { exposure: 1.0, threshold: .85, knee: .35, strength: .85, lift: [.004, .002, .008], saturation: 1.02, contrast: 1.1, vignette: .28,
-      haze: [.36, .26, .6, .03] },
+    background: 0x1a1040, sunElevation: 34, sun: [0xdcd6ff, 4.1], hemisphere: [0x8c84dc, 0x24245e, 1.2], bounce: [0x6a98f0, 1.5],
+    shadowIntensity: .7, blobShadow: 0x120a28, lowExposure: 1.08,
+    post: { exposure: 1.06, threshold: .9, knee: .35, strength: .75, lift: [.004, .003, .009], saturation: 1.04, contrast: 1.08, vignette: .26,
+      haze: [.36, .3, .62, .025] },
     environment: 'mire',
   },
 };
@@ -217,6 +224,25 @@ const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: numb
   needle: { node: 'vesper_needle', scale: 1.25, engines: [[-.065, -.48], [.065, -.48]] },
   diamond: { node: 'vesper_diamond', scale: 1.05, engines: [[-.14, -.58], [0, -.58], [.14, -.58]] },
   missile: { node: 'vesper_missile_battery', scale: 1.15, engines: [] },
+};
+
+/**
+ * Nacre's own craft (art/nacre-craft, after the ORRERY, SHARD and VEIL concepts): on Nacre every kind flies a Nacre
+ * model, and THE VEIL's pod waves use the pod. Plume colour is teal.
+ */
+const NACRE_CRAFT: Readonly<Record<EnemyKind, { node: NacreCraftNode; scale: number }>> = {
+  dart: { node: 'nacre_shard', scale: 1 }, needle: { node: 'nacre_shard', scale: 1.1 }, lancer: { node: 'nacre_veil', scale: 1.1 },
+  weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
+};
+
+/** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
+const KHEPRI_NODE: Readonly<Record<EnemyKind, KhepriCraftNode>> = {
+  dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret',
+};
+/** Engine sockets (x, z) of the Khepri craft, from tools/blender/khepri_craft.py SOCKETS (glTF z toward the player). */
+const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [number, number])[]>> = {
+  khepri_dart: [[-.45, -.43], [.45, -.43], [0, -.49]], khepri_lancer: [[-.17, -.51], [.17, -.51]],
+  khepri_weaver: [[-.09, -.45], [.09, -.45]], khepri_turret: [],
 };
 
 /** Every enemy kind the renderer draws (Khepri and Vesper); ground kinds stand on terrain or float on the sea. */
@@ -369,6 +395,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
     if (next === 'vesper') ensureCraft(next); else foam.clear();
+    if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); }
+    if (next === 'luna') ensureWarden();
     warmed = false;
   };
   const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra, boundaryMaterial,
@@ -429,6 +457,21 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     scene.add(mesh); enemyBatches.set(kind, { mesh, ghost });
   }
+  /**
+   * Khepri craft (khepri-craft.glb, Blender): replaces the code-built stand-ins in the Khepri batches once loaded. The
+   * batches use the shared enemy material, so Luna's steel-blue repaint applies to these models too.
+   */
+  let khepriEngines: ReadonlyMap<EnemyKind, readonly (readonly [number, number])[]> | null = null;
+  loadKhepriCraft(`${import.meta.env.BASE_URL}assets/khepri/khepri-craft.glb`).then(nodes => {
+    if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
+    for (const kind of ENEMY_KINDS) {
+      const craft = nodes.get(KHEPRI_NODE[kind]), batch = enemyBatches.get(kind);
+      if (!craft || !batch) continue;
+      batch.mesh.geometry = craft.geometry; if (batch.ghost) batch.ghost.geometry = craft.geometry;
+    }
+    khepriEngines = new Map(ENEMY_KINDS.map(kind => [kind, KHEPRI_ENGINES[KHEPRI_NODE[kind]]]));
+    warmed = false;
+  }).catch(error => console.warn('Khepri craft unavailable (khepri-craft.glb); using the code-built stand-ins.', error));
   /** Foam collars for drifting floes and bergs, from the terrain view's live features (world space, real footprints). */
   function collectFloeRings(): FoamRing[] {
     floeRings.length = 0;
@@ -440,6 +483,33 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** Vesper craft batches (same kinds, Vesper models), created once vesper-craft.glb has loaded. */
   const enemyHp = new Map<number, number>(), enemyHitAt = new Map<number, number>(), hitColor = new THREE.Color();
   let hitTick = 0;
+  /** Nacre craft batches by node, created once nacre-craft.glb has loaded (Nacre runs only). */
+  let nacreBatches: Map<NacreCraftNode, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number }> | null = null, nacreRequested = false;
+  function ensureNacreCraft() {
+    if (nacreRequested) return;
+    nacreRequested = true;
+    loadNacreCraft(`${import.meta.env.BASE_URL}assets/nacre/nacre-craft.glb`).then(nodes => {
+      if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
+      const batches = new Map<NacreCraftNode, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number }>();
+      for (const [name, craft] of nodes) {
+        const ground = name === 'nacre_spore';
+        const mesh = new THREE.InstancedMesh(craft.geometry, materials.craft, ENEMY_CAPACITY);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Nacre ${name}`;
+        mesh.castShadow = mesh.receiveShadow = ground;
+        for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
+        mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
+        let ghost: THREE.InstancedMesh | undefined;
+        if (ground) {
+          mesh.renderOrder = 2;
+          ghost = new THREE.InstancedMesh(craft.geometry, silhouetteMaterial, ENEMY_CAPACITY);
+          ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
+        }
+        // The Shard's engines glow amber like its seams (art/nacre-craft); the others burn teal.
+        scene.add(mesh); batches.set(name, { mesh, ghost, engines: craft.engines, plume: name === 'nacre_shard' ? 0xffa040 : 0x46f0dc });
+      }
+      nacreBatches = batches; warmed = false;
+    }).catch(error => console.warn('Nacre craft unavailable (nacre-craft.glb); using Khepri and Vesper models.', error));
+  }
   let vesperBatches: Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }> | null = null, craftRequested = false;
   function ensureCraft(next: PlanetId | 'kinds') {
     if (next === 'khepri' || next === 'luna' || craftRequested) return;
@@ -497,6 +567,22 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ark = createArkView(scene);
   const warden = createWardenView(scene);
   const veil = createVeilView(scene);
+  let wardenRequested = false;
+  /** WARDEN-1's production model (warden.glb) loads with Luna; the code-built stand-in renders until then. */
+  const ensureWarden = () => {
+    if (wardenRequested) return;
+    wardenRequested = true;
+    loadWardenModel(`${import.meta.env.BASE_URL}assets/luna/warden.glb`).then(model => { if (!disposed) { warden.setModel(model); warmed = false; } })
+      .catch(error => console.warn('WARDEN-1 model unavailable; using the code-built stand-in.', error));
+  };
+  let veilRequested = false;
+  /** THE VEIL's production model (the-veil.glb) loads with Nacre; the code-built stand-in renders until then. */
+  const ensureVeil = () => {
+    if (veilRequested) return;
+    veilRequested = true;
+    loadVeilModel(`${import.meta.env.BASE_URL}assets/nacre/the-veil.glb`).then(model => { if (!disposed) { veil.setModel(model); warmed = false; } })
+      .catch(error => console.warn('THE VEIL model unavailable; using the code-built stand-in.', error));
+  };
   let arkRequested = false;
   const ensureArk = () => {
     if (arkRequested) return;
@@ -509,13 +595,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * and stay cached. Khepri's load at start; Vesper's are its craft, the Helion Ark and its prefiltered sky.
    */
   const preload = (next: PlanetId) => {
-    // Nacre flies Vesper heavies among its own squadrons: their craft load before the jump too.
-    if (next === 'nacre') { ensureCraft('kinds'); return; }
+    // Nacre flies its own craft (and keeps the Vesper models as a fallback): both load before the jump.
+    if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); ensureCraft('kinds'); return; }
     if (next !== 'vesper') return;
     ensureCraft('vesper'); ensureArk();
     if (!iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
   };
-  const planetReady = (next: PlanetId) => next === 'nacre' ? !!vesperBatches : next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
+  const planetReady = (next: PlanetId) => next === 'nacre' ? !!nacreBatches || !!vesperBatches : next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
   const jumpFx = createJumpFx(scene);
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
@@ -688,8 +774,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
       const heroAlive = state.player.lives > 0;
       hero.visible = heroAlive;
-      hero.position.set(state.player.x, VIEW.flightHeight, 0);
-      hero.rotation.z = -state.player.vx * .016;
+      // Mission-start entrance (render-only): the hero starts close to the camera (large, out along the view ray, so it
+      // keeps its screen position under the orthographic lens) and drops to flight height with one barrel roll.
+      const entrance = state.time < HERO_ENTRANCE ? 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3) : 1;
+      const lift = (1 - entrance) * HERO_ENTRANCE_LIFT;
+      hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION), lift * Math.cos(ELEVATION));
+      hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
+      hero.rotation.z = -state.player.vx * .016 + (1 - entrance) * Math.PI * 2;
       shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
       shield.visible = heroAlive && state.time < state.player.invulnerableUntil;
       shieldMaterial.opacity = .34;
@@ -697,7 +788,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       plumes.length = 0;
       const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
       const heroLength = (.5 + Math.abs(state.player.vx) * .03) * flicker(0) * HERO_SCALE;
-      if (heroAlive) for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * HERO_SCALE * Math.cos(hero.rotation.z), z: .7 * HERO_SCALE, length: heroLength,
+      if (heroAlive && entrance > .9) for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * HERO_SCALE * Math.cos(hero.rotation.z), z: .7 * HERO_SCALE, length: heroLength,
         width: .2 * HERO_SCALE, hex: 0x7ff6ea, energy: 2.6 });
       let shadowCount = 0, plinthCount = 0;
       const flightShadow = (x: number, s: number, width: number, length: number, height: number) => {
@@ -757,12 +848,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           placement.baseHeight += PONTOON_DECK;
         }
         if (VESPER_KINDS.has(enemy.kind) && !craftRequested) ensureCraft('kinds');
-        const useVesper = !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
-        const batch = (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
+        const nacreNode: NacreCraftNode | null = planet === 'nacre' && nacreBatches ? (enemy.formation?.template === 'veil-pods' ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
+        const nacreBatch = nacreNode ? nacreBatches!.get(nacreNode) : undefined;
+        const useVesper = !nacreBatch && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
+        const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind] : null;
+        const craftScale = nacreBatch ? (nacreNode === 'nacre_pod' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
         if (slot < ENEMY_CAPACITY) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
-          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(vesperCraft?.scale ?? 1); transform.updateMatrix();
+          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale); transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
           const seen = enemyHp.get(enemy.id); enemyHp.set(enemy.id, enemy.hp);
           if (seen !== undefined && enemy.hp < seen) enemyHitAt.set(enemy.id, state.time);
@@ -784,8 +878,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (!isGround) {
           // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
           const bank = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
-          if (vesperCraft) for (const [ex, ez] of vesperCraft.engines) plumes.push({ x: enemy.x + ex * vesperCraft.scale * Math.cos(bank), z: -enemy.s + ez * vesperCraft.scale,
+          if (nacreBatch) for (const [ex, ez] of nacreBatch.engines) plumes.push({ x: enemy.x + ex * craftScale * Math.cos(bank), z: -enemy.s + ez * craftScale,
+            length: -.3 * flicker(enemy.id + ex * 13), width: .12, hex: nacreBatch.plume, energy: 2.2 });
+          else if (vesperCraft) for (const [ex, ez] of vesperCraft.engines) plumes.push({ x: enemy.x + ex * vesperCraft.scale * Math.cos(bank), z: -enemy.s + ez * vesperCraft.scale,
             length: -.3 * flicker(enemy.id + ex * 13), width: .11, hex: 0xff7a26, energy: 2.2 });
+          else if (khepriEngines) for (const [ex, ez] of khepriEngines.get(enemy.kind) ?? []) plumes.push({ x: enemy.x + ex * Math.cos(bank), z: -enemy.s + ez,
+            length: -.32 * flicker(enemy.id + ex * 13), width: .12, hex: 0xffa060, energy: 1.9 });
           else for (const side of [-1, 1]) plumes.push({ x: enemy.x + side * .27 * Math.cos(bank), z: -enemy.s - .55, length: -.34 * flicker(enemy.id + side), width: .14, hex: 0xffa060, energy: 1.9 });
         }
         // Ground brackets are drawn on the shared proxy, exactly over the physical luminous core.
@@ -828,7 +926,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
         }
       }
-      for (const set of [enemyBatches, vesperBatches]) if (set) for (const [kind, batch] of set) {
+      for (const set of [enemyBatches, vesperBatches, nacreBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
         batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true; if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;
         if (batch.ghost) batch.ghost.count = count;

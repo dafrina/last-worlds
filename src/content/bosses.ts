@@ -46,7 +46,7 @@ export interface BossDefinition {
   bursts: { pair: { bolts: number; spread: number; speed: number }; core: { bolts: number; spread: number; speed: number } };
   fan: { bolts: number; spacing: number; speed: number } | null;
   /** Finite launches from deck bays in the core phase, plus `overloadWaves` more once overload begins. */
-  launches: { waves: number; firstAfter: number; interval: number; overloadWaves?: number; bays: readonly { x: number; s: number }[] } | null;
+  launches: { waves: number; firstAfter: number; interval: number; overloadWaves?: number; template: 'ark-launch' | 'veil-pods'; bays: readonly { x: number; s: number }[] } | null;
   arena: { decelStart: number; decelDuration: number; resumeDuration: number; sway: number; swayRate: number; surge: number; surgeRate: number; platform: { from: number; to: number } };
   shieldSupplies: Readonly<Record<Difficulty, readonly number[]>>;
   messages: { start: string; batteries: string; core: string; overload: string; destroyed: string; approach: string };
@@ -92,7 +92,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     recovery: HELION_ARK.recovery, transitionRecovery: HELION_ARK.transitionRecovery,
     overloadFraction: HELION_ARK.overloadFraction, extractionDuration: HELION_ARK.extractionDuration,
     bursts: { pair: HELION_ARK.bridgeBurst, core: HELION_ARK.bridgeBurst }, fan: null,
-    launches: { ...HELION_ARK.launches, overloadWaves: 2, bays: HELION_ARK.bays },
+    launches: { ...HELION_ARK.launches, overloadWaves: 2, template: 'ark-launch', bays: HELION_ARK.bays },
     arena: HELION_ARK.arena, shieldSupplies: HELION_ARK.shieldSupplies,
     messages: {
       start: 'HELION ARK · BREAK BOTH RADIATORS', batteries: 'BREAK BOTH RADIATORS', core: 'BRIDGE EXPOSED',
@@ -136,7 +136,9 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     overloadMoves: ['core-lane', 'fan', 'cross', 'burst', 'side-lanes', 'fan', 'cross', 'burst'], overloadRecovery: 0.45,
     recovery: VEIL.recovery, transitionRecovery: VEIL.transitionRecovery,
     overloadFraction: VEIL.overloadFraction, extractionDuration: VEIL.extractionDuration,
-    bursts: { pair: VEIL.podBurst, core: VEIL.heartBurst }, fan: VEIL.heartFan, launches: null,
+    bursts: { pair: VEIL.podBurst, core: VEIL.heartBurst }, fan: VEIL.heartFan,
+    // It deploys pod waves from its front bays while its heart is open, and more once it overloads.
+    launches: { ...VEIL.launches, template: 'veil-pods', bays: VEIL.bays },
     arena: VEIL.arena, shieldSupplies: VEIL.shieldSupplies,
     messages: {
       start: 'THE VEIL · BURST BOTH GILL PODS', batteries: 'BURST BOTH GILL PODS', core: 'THE HEART IS OPEN',

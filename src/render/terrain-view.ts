@@ -7,7 +7,7 @@ import {
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
-  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadVesperInfra, loadVesperKit,
+  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadNacreKit, loadVesperInfra, loadVesperKit,
   type KitGeometries,
 } from './terrain-kit';
 
@@ -115,7 +115,8 @@ const CASTER_STRIPS = 4;
  * map; rocks, pebbles, crystals, boulders, fallen columns, pipes, cargo and flat pads only receive.
  */
 const CASTER_NODES = new Set<string>([
-  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
+  // Tall Nacre pieces (crags and the builders' ruins) ground themselves with real shadows on High too.
+  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
   'infra_refinery', 'infra_drill_rig', 'infra_silo', 'infra_comm_dish', 'infra_relay', 'infra_habitat_0', 'infra_habitat_1',
   'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal',
 ]);
@@ -477,6 +478,13 @@ export function createTerrainView(options: TerrainViewOptions) {
   function ensurePlanet(planet: PlanetId) {
     if (loadedPlanets.has(planet)) return;
     loadedPlanets.add(planet);
+    if (planet === 'nacre') {
+      // Nacre's Blender kit (rock, flora, ruins); the light code-built stand-ins draw until it arrives.
+      const base = options.assetBase ?? (import.meta.env?.BASE_URL ?? './');
+      loadNacreKit(`${base}assets/nacre/nacre-kit.glb`).then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); })
+        .catch(error => console.warn('Nacre kit unavailable; using stand-ins.', error));
+      return;
+    }
     if (planet !== 'vesper') return;
     self.setInfra(createFallbackVesperInfra());
     const base = options.assetBase ?? (import.meta.env?.BASE_URL ?? './');

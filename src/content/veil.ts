@@ -31,6 +31,9 @@ export const VEIL = {
   heartBurst: { bolts: 5, spread: 0.075, speed: 6.8 },
   heartFan: { bolts: 7, spacing: Math.PI / 18, speed: 5.2 },
   overload: { coreLaneWidth: 2.4, batteryLaneWidth: 1.6, active: 0.35 },
+  /** Front pod bays (relative to the pivot), and its pod waves: during the heart phase, plus more in overload. */
+  bays: [{ x: -1.7, s: -2.6 }, { x: 1.7, s: -2.6 }],
+  launches: { waves: 3, firstAfter: 2, interval: 6.5, overloadWaves: 2 },
   /**
    * Static arena over open mire. The scroll eases from 5 to zero over 6 s from t = 157, stopping at distance
    * 5 * 157 + 5 * 6 / 2 = 800; `platform` is the s-range relative to the stop that must be open water.

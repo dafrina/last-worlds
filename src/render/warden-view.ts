@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WARDEN } from '../content/warden';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 
 /**
- * WARDEN-1 presentation (docs/19 §2): a decommissioned human lunar defence lander, built in code. Render-only: it
- * reads boss state and never applies damage or decides anything the simulation uses. Clean grey-white panels,
+ * WARDEN-1 presentation (docs/19 §2): a decommissioned human lunar defence lander, modelled in Blender
+ * (public/assets/luna/warden.glb, art/warden); a code-built stand-in renders until the model has loaded. Render-only:
+ * it reads boss state and never applies damage or decides anything the simulation uses. Clean grey-white panels,
  * hazard striping, blue solar wings, four landing legs; the command module (core) between two turret pods.
  * It descends on its thrusters during the arrival and settles on its legs.
  */
@@ -20,6 +22,68 @@ const DESCENT = 4.5;
 
 interface Shutter { object: THREE.Object3D; closed: THREE.Vector3; open: THREE.Vector3 }
 interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D; shutters: Shutter[]; heat: THREE.MeshStandardMaterial; gun?: THREE.Object3D; gunYaw: number; open: number }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; thrusters: THREE.Group; beacon: THREE.MeshStandardMaterial; model: boolean; dispose(): void }
+/** How far each of warden.glb's two core hatches slides outward along local x when the command module opens. */
+const HATCH_SLIDE = .8;
+
+export async function loadWardenModel(url: string): Promise<THREE.Group> {
+  return (await new GLTFLoader().loadAsync(url)).scene;
+}
+
+/** Descent thruster flames (render-only effects) at the given sockets, hidden until the arrival. */
+function thrusterFlames(sockets: THREE.Vector3[], material: THREE.Material): THREE.Group {
+  const thrusters = new THREE.Group(), cone = new THREE.ConeGeometry(.22, 1.1, 10, 1, true).translate(0, .55, 0).rotateX(Math.PI);
+  for (const at of sockets) { const flame = new THREE.Mesh(cone, material); flame.position.copy(at); thrusters.add(flame); }
+  thrusters.visible = false;
+  return thrusters;
+}
+
+/**
+ * Builds the rig from warden.glb (art/warden): `warden_hull`, `warden_pod_left|right` (+ `_wreck`), `warden_core`
+ * (+ `_wreck`), `warden_core_hatch_0|1`, and `warden_beacon` / `warden_thruster_N` empties. The authored paint
+ * materials stay; `warden_glow` faces on a weak point take that part's heat material so hits and damage flare it.
+ */
+function modelRig(model: THREE.Group): Rig {
+  const chassis = new THREE.Group();
+  model.updateMatrixWorld(true);
+  const beacon = glowMaterial(0xff3020, 2.4), thruster = glowMaterial(0x9fd8ff, 3), lamp = glowMaterial(0xff5a1e, 1.6);
+  const owned: { dispose(): void }[] = [beacon, thruster, lamp];
+  const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(part === 'core' ? 0xff8a3c : 0xff9a50, 1.1)]));
+  heats.forEach(material => owned.push(material));
+  const partOf = (name: string): BossPart | null => name.startsWith('warden_core') ? 'core' : name.startsWith('warden_pod_left') ? 'left' : name.startsWith('warden_pod_right') ? 'right' : null;
+  model.traverse(object => {
+    if (!(object instanceof THREE.Mesh)) return;
+    let owner: THREE.Object3D | null = object;
+    while (owner && !owner.name.startsWith('warden_')) owner = owner.parent;
+    const material = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.Material;
+    const part = owner ? partOf(owner.name) : null, wreck = owner?.name.endsWith('_wreck') ?? false;
+    if (/glow/i.test(material.name ?? '')) { material.dispose(); object.material = part && !wreck ? heats.get(part)! : lamp; object.castShadow = false; }
+    else { owned.push(material); object.castShadow = true; }
+    object.receiveShadow = true;
+  });
+  const node = (name: string) => model.getObjectByName(name);
+  const at = (name: string) => node(name)?.getWorldPosition(new THREE.Vector3());
+  const hull = node('warden_hull'); if (hull) chassis.attach(hull);
+  const beaconAt = at('warden_beacon');
+  if (beaconAt) { const light = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), beacon); light.position.copy(beaconAt); chassis.add(light); }
+  const thrusters = thrusterFlames([0, 1, 2, 3].map(k => at(`warden_thruster_${k}`)).filter(Boolean) as THREE.Vector3[], thruster);
+  chassis.add(thrusters);
+  const parts = new Map<BossPart, PartRig>();
+  for (const part of PARTS) {
+    const group = new THREE.Group(); group.position.copy(socket(part)); chassis.add(group); group.updateMatrixWorld(true);
+    const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
+    const base = part === 'core' ? 'warden_core' : `warden_pod_${part}`;
+    const body = take(base), live = body ? [body] : [];
+    const wreck = take(`${base}_wreck`) ?? new THREE.Group(); wreck.visible = false;
+    const shutters: Shutter[] = part === 'core' ? [0, 1].map(k => take(`warden_core_hatch_${k}`)).filter(Boolean).map(object => {
+      const closed = object!.position.clone(), open = closed.clone().add(new THREE.Vector3(Math.sign(closed.x) * HATCH_SLIDE, 0, 0));
+      return { object: object!, closed, open };
+    }) : [];
+    // A pod turns as a whole toward its aim while it winds up.
+    parts.set(part, { group, live, wreck, shutters, heat: heats.get(part)!, gun: part === 'core' ? undefined : body ?? undefined, gunYaw: 0, open: 0 });
+  }
+  return { chassis, parts, thrusters, beacon, model: true, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
+}
 
 function hazardTexture(): THREE.Texture {
   const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 8;
@@ -46,7 +110,7 @@ function solarTexture(): THREE.Texture {
 const glowMaterial = (color: number, intensity: number) =>
   new THREE.MeshStandardMaterial({ color: 0x2a1408, emissive: color, emissiveIntensity: intensity, roughness: .5, metalness: .2, toneMapped: false });
 
-function buildRig() {
+function buildRig(): Rig {
   const chassis = new THREE.Group();
   const hull = new THREE.MeshStandardMaterial({ color: 0xc8ccd1, roughness: .52, metalness: .35 });
   const frame = new THREE.MeshStandardMaterial({ color: 0x4b5057, roughness: .6, metalness: .55 });
@@ -92,12 +156,8 @@ function buildRig() {
   }
   const beaconMesh = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), beacon); beaconMesh.position.set(-.9, 1.95, -1.7); chassis.add(beaconMesh);
   // Descent thrusters under the deck (visible during the arrival only).
-  const thrusters = new THREE.Group();
-  for (const [tx, tz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(.22, 1.1, 10, 1, true), thruster);
-    flame.rotation.x = Math.PI; flame.position.set(tx * .9, .0, -.3 + tz * .75); thrusters.add(flame);
-  }
-  thrusters.visible = false; chassis.add(thrusters);
+  const thrusters = thrusterFlames([[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([tx, tz]) => new THREE.Vector3(tx * .9, .55, -.3 + tz * .75)), thruster);
+  chassis.add(thrusters);
 
   const parts = new Map<BossPart, PartRig>();
   for (const part of PARTS) {
@@ -131,14 +191,14 @@ function buildRig() {
     parts.set(part, { group, live, wreck, shutters, heat, gun, gunYaw: 0, open: 0 });
   }
   return {
-    chassis, parts, thrusters, beacon,
+    chassis, parts, thrusters, beacon, model: false,
     dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); },
   };
 }
 
 export function createWardenView(scene: THREE.Scene) {
   const root = new THREE.Group(); root.name = 'WARDEN-1'; root.visible = false; scene.add(root);
-  const rig = buildRig(); root.add(rig.chassis);
+  let rig = buildRig(); root.add(rig.chassis);
   // Target rings on the sockets, outside the chassis so the descent and the collapse never move them.
   const rings = new Map<BossPart, { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }>();
   for (const part of PARTS) {
@@ -283,7 +343,9 @@ export function createWardenView(scene: THREE.Scene) {
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
-    get stats() { return { particles: dust.count + sparks.count }; },
+    /** Swap the code-built stand-in for the production model once warden.glb has loaded. */
+    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); },
+    get stats() { return { model: rig.model ? 'glb' : 'fallback', particles: dust.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
   };
 }

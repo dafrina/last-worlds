@@ -73,17 +73,27 @@ export function createWater(): Water {
   diffuseColor.rgb = mix( shallowColor, deepColor, smoothstep( 0.0, 2.4, vDepth ) );
   // Nacre: violet algae blooms streak the mire (warped noise in the terrain frame, so they ride the scroll).
   if ( bloomAmount > 0.0 ) {
-    vec2 q = vSea * vec2( 0.34, 0.28 ) + vec2( seaNoise( vSea * 0.08 ) * 4.0, seaNoise( vSea * 0.07 + 7.0 ) * 4.0 );
-    float veins = 1.0 - smoothstep( 0.03, 0.12, abs( seaNoise( q ) - 0.5 ) );
-    float bloom = clamp( veins * 0.85 + smoothstep( 0.66, 0.9, seaNoise( vSea * 0.11 + 3.0 ) ) * 0.25, 0.0, 1.0 ) * ( 0.55 + 0.45 * seaNoise( vSea * 1.3 ) );
+    // Nacre: deep indigo water streaked with violet algae (fuzzy, broken streaks drawn out along the channels and a
+    // few drifting clouds), a faint mottled sky sheen, darker water at the shores. All in the terrain frame.
+    vec2 warp = vec2( seaNoise( vSea * 0.11 ), seaNoise( vSea * 0.1 + 7.0 ) ) * 7.0;
+    vec2 p = vSea + warp + vec2( seaNoise( vSea * 0.37 + 2.0 ), seaNoise( vSea * 0.33 + 9.0 ) ) * 1.6;
+    float streak = 1.0 - smoothstep( 0.02, 0.15, abs( seaNoise( p * vec2( 0.38, 0.26 ) ) - 0.5 ) );
+    float streak2 = 1.0 - smoothstep( 0.01, 0.07, abs( seaNoise( p * 0.85 + 11.0 ) - 0.5 ) );
+    float breakup = smoothstep( 0.32, 0.72, seaNoise( p * 0.3 + 5.0 ) );
+    float drift = smoothstep( 0.63, 0.84, seaNoise( p * 0.2 + 3.0 ) * 0.7 + seaNoise( p * 0.8 ) * 0.3 );
+    float bloom = clamp( streak * breakup * 0.8 + streak2 * breakup * drift * 0.5 + drift * 0.6, 0.0, 1.0 );
+    bloom *= 0.75 + 0.25 * seaNoise( vSea * 3.0 );
     diffuseColor.rgb = mix( diffuseColor.rgb, bloomTint, bloom * bloomAmount );
+    float sheen = seaNoise( vSea * vec2( 0.7, 1.1 ) + warp * 0.6 ) * 0.7 + seaNoise( vSea * 2.3 ) * 0.3;
+    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.07, 0.12, 0.34 ), smoothstep( 0.6, 0.95, sheen ) * 0.45 * ( 1.0 - bloom * 0.7 ) );
+    diffuseColor.rgb *= ( 0.84 + seaNoise( vSea * 5.0 + warp ) * 0.26 ) * mix( 0.7, 1.0, smoothstep( 0.0, 0.7, vShore ) );
   }
   // Shoreline foam: a broken band that laps in and out; streaks drift with the swell.
   float lap = 0.5 + 0.5 * sin( waterTime * 1.3 + seaNoise( vSea * 0.7 ) * 6.2832 );
   float breakup = seaNoise( vSea * vec2( 3.1, 2.3 ) + vec2( waterTime * 0.12, 0.0 ) );
   float foam = ( 1.0 - smoothstep( 0.04, 0.2 + 0.16 * lap, vShore ) ) * smoothstep( 0.22, 0.62, breakup + 0.25 * ( 1.0 - smoothstep( 0.0, 0.08, vShore ) ) );
   foam = clamp( foam, 0.0, 1.0 );
-  diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * 0.92 );`)
+  diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * mix( 0.92, 0.2, bloomAmount ) );`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.85, foam );')
       // Nacre: the shoreline band glows (bioluminescent film) instead of reading as white foam.
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;')
@@ -100,10 +110,10 @@ export function createWater(): Water {
     setEnvironment(texture) { if (material.envMap !== texture) { material.envMap = texture; material.needsUpdate = true; } },
     setPlanet(planet) {
       const nacre = planet === 'nacre';
-      uniforms.deepColor.value.copy(linear(nacre ? 0x0c1040 : 0x0d3557)); uniforms.shallowColor.value.copy(linear(nacre ? 0x1a2a78 : 0x1f6a8f));
-      uniforms.bloomTint.value.copy(linear(0x5a36a8)); uniforms.bloomAmount.value = nacre ? 0.7 : 0;
-      uniforms.foamColor.value.copy(linear(nacre ? 0x2a9e92 : 0xeef6fb)); uniforms.swell.value = nacre ? 0.45 : 1; uniforms.foamGlow.value = nacre ? 0.35 : 0;
-      material.roughness = nacre ? 0.08 : 0.12;
+      uniforms.deepColor.value.copy(linear(nacre ? 0x141d5a : 0x0d3557)); uniforms.shallowColor.value.copy(linear(nacre ? 0x131b52 : 0x1f6a8f));
+      uniforms.bloomTint.value.copy(linear(0x4e2c9c)); uniforms.bloomAmount.value = nacre ? 0.8 : 0;
+      uniforms.foamColor.value.copy(linear(nacre ? 0x1a3c5a : 0xeef6fb)); uniforms.swell.value = nacre ? 0.6 : 1; uniforms.foamGlow.value = nacre ? 0.03 : 0;
+      material.roughness = nacre ? 0.16 : 0.12; material.envMapIntensity = nacre ? 0.45 : 0.32;
     },
     dispose() { material.dispose(); },
   };

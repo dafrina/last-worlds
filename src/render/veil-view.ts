@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VEIL } from '../content/veil';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 
 /**
- * THE VEIL presentation (docs/20): a giant biological starship after the "Veil" concept, built in code. Render-only:
- * it reads boss state and never applies damage. A long, flattened iridescent purple hull with pale bone ribs and a
- * carapace spine, two pairs of huge flat crescent blades sweeping past the edges of the view, bulbous gill pods with
- * glowing teal slits (the first pair), a glowing teal heart behind four membrane petals (the core), trailing tendrils
- * and teal stern engines. It rises out of the mire on arrival and sinks back into it when destroyed.
+ * THE VEIL presentation (docs/20): a giant biological starship after the "Veil" concept, modelled in Blender
+ * (public/assets/nacre/the-veil.glb, art/the-veil); a code-built stand-in renders until the model has loaded.
+ * Render-only: it reads boss state and never applies damage. A dark-violet seed hull with layered carapace scales,
+ * layered crescent blades sweeping past the edges of the view, two blade-cupped pods (the first pair of weak points),
+ * a faceted teal heart under four shutters (the core), launch bays for its pods, and teal stern engines. It rises
+ * out of the mire on arrival and sinks back into it when destroyed.
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation), COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const PARTS = ['left', 'right', 'core'] as const;
@@ -25,7 +27,63 @@ export function veilPlacement(logicalS: number, sea: number): { baseHeight: numb
   return { baseHeight: sea, s: logicalS - (sea + VEIL.targetHeight - VIEW.flightHeight) * COT_ELEVATION };
 }
 
-interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D; petals: { object: THREE.Object3D; closed: THREE.Euler; open: THREE.Euler }[]; heat: THREE.MeshStandardMaterial; open: number }
+interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D | null; petals: { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }[]; heat: THREE.MeshStandardMaterial; open: number }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; dispose(): void }
+/** How far the code-built stand-in's petals fold open (radians). */
+const SHUTTER_OPEN = -1.15;
+/** the-veil.glb shutters open by rotating about their local +X hinge (art/the-veil/README.md recommends 100–110°). */
+const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
+
+export async function loadVeilModel(url: string): Promise<THREE.Group> {
+  return (await new GLTFLoader().loadAsync(url)).scene;
+}
+
+/**
+ * Builds the rig from the-veil.glb (art/the-veil/README.md): `veil_hull`, `veil_pod_left|right` (+ `_wreck`),
+ * `veil_heart` (+ `_wreck`), `veil_heart_shutter_0..3`, bay and engine empties. Authored materials are replaced by
+ * runtime ones: an iridescent nacre shell, pale metallic blades, a black frame, and teal/amber glow (each weak point
+ * gets its own glow material so its heat can flare).
+ */
+function modelRig(model: THREE.Group): Rig {
+  const chassis = new THREE.Group();
+  model.updateMatrixWorld(true);
+  const shell = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .26, metalness: .45, iridescence: 1, iridescenceIOR: 1.45, iridescenceThicknessRange: [180, 620], clearcoat: .6, clearcoatRoughness: .2, envMapIntensity: 1.3 });
+  const blade = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .24, metalness: .7, envMapIntensity: 1.25 });
+  const frame = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .45, metalness: .3 });
+  const bronze = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .32, metalness: .8, envMapIntensity: 1.1 });
+  const sinew = glowMaterial(0x3ff2d8, 1.4), amber = glowMaterial(0xffa040, 1.6), engine = glowMaterial(0x6af6ff, 2.6);
+  const owned: { dispose(): void }[] = [shell, blade, frame, bronze, sinew, amber, engine];
+  const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(0x3ff2d8, 1.2)]));
+  heats.forEach(material => owned.push(material));
+  const partOf = (name: string): BossPart | null => name.startsWith('veil_heart') ? 'core' : name.startsWith('veil_pod_left') ? 'left' : name.startsWith('veil_pod_right') ? 'right' : null;
+  model.traverse(object => {
+    if (!(object instanceof THREE.Mesh)) return;
+    let owner: THREE.Object3D | null = object;
+    while (owner && !owner.name.startsWith('veil_')) owner = owner.parent;
+    const label = ((Array.isArray(object.material) ? object.material[0] : object.material) as THREE.Material).name ?? '';
+    const part = owner ? partOf(owner.name) : null, wreck = owner?.name.endsWith('_wreck') ?? false;
+    object.material = /glow/i.test(label) ? (part && !wreck ? heats.get(part)! : /amber/i.test(label) ? amber : owner?.name === 'veil_hull' && /engine/i.test(object.name) ? engine : sinew)
+      : /blade/i.test(label) ? blade : /frame/i.test(label) ? frame : /bronze/i.test(label) ? bronze : shell;
+    object.castShadow = !/glow/i.test(label); object.receiveShadow = true;
+  });
+  const node = (name: string) => model.getObjectByName(name);
+  const hull = node('veil_hull'); if (hull) chassis.attach(hull);
+  const parts = new Map<BossPart, PartRig>();
+  for (const part of PARTS) {
+    const group = new THREE.Group(); group.position.copy(socket(part)); chassis.add(group); group.updateMatrixWorld(true);
+    const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
+    const base = part === 'core' ? 'veil_heart' : `veil_pod_${part}`;
+    const live = [take(base)].filter(Boolean) as THREE.Object3D[];
+    const wreck = take(`${base}_wreck`); if (wreck) wreck.visible = false;
+    const petals = part === 'core' ? [0, 1, 2, 3].map(k => take(`veil_heart_shutter_${k}`)).filter(Boolean).map(object => {
+      const closed = object!.quaternion.clone(), open = closed.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), MODEL_SHUTTER_OPEN));
+      return { object: object!, closed, open };
+    }) : [];
+    parts.set(part, { group, live, wreck, petals, heat: heats.get(part)!, open: 0 });
+  }
+  const bays = ['veil_bay_left', 'veil_bay_right'].map(name => node(name)?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3());
+  return { chassis, parts, engine, sinew, bays, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
+}
 
 const glowMaterial = (color: number, intensity: number) =>
   new THREE.MeshStandardMaterial({ color: 0x08201e, emissive: color, emissiveIntensity: intensity, roughness: .4, metalness: .1, toneMapped: false });
@@ -46,7 +104,7 @@ function crescent(length: number, width: number, bend: number, thickness: number
   return geometry;
 }
 
-function buildRig() {
+function buildRig(): Rig {
   const chassis = new THREE.Group();
   const shell = new THREE.MeshStandardMaterial({ color: 0x4a2b7c, roughness: .3, metalness: .65, envMapIntensity: 1.2 });
   const bone = new THREE.MeshStandardMaterial({ color: 0xcfc2ea, roughness: .35, metalness: .55, envMapIntensity: 1.1 });
@@ -111,7 +169,8 @@ function buildRig() {
       for (let k = 0; k < 4; k++) {
         const hinge = new THREE.Group(); hinge.position.set(0, VEIL.targetHeight + .02, 0); hinge.rotation.y = k * Math.PI / 2 + Math.PI / 4; group.add(hinge);
         const petal = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6, 0, Math.PI / 2, 0, Math.PI / 2), shell); petal.scale.set(1, .35, 1); petal.castShadow = true; hinge.add(petal);
-        petals.push({ object: hinge, closed: hinge.rotation.clone(), open: new THREE.Euler(0, hinge.rotation.y, 0) });
+        const closed = hinge.quaternion.clone(), open = new THREE.Quaternion().setFromEuler(new THREE.Euler(SHUTTER_OPEN, hinge.rotation.y, 0, 'YXZ'));
+        petals.push({ object: hinge, closed, open });
       }
     } else {
       // Gill pod: a bulbous sac on the flank with three glowing slits.
@@ -122,12 +181,12 @@ function buildRig() {
     wreck.scale.set(1, .4, 1.2); wreck.visible = false;
     parts.set(part, { group, live, wreck, petals, heat, open: 0 });
   }
-  return { chassis, parts, engine, sinew, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
+  return { chassis, parts, engine, sinew, bays: [], dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
 }
 
 export function createVeilView(scene: THREE.Scene) {
   const root = new THREE.Group(); root.name = 'THE VEIL'; root.visible = false; scene.add(root);
-  const rig = buildRig(); root.add(rig.chassis);
+  let rig = buildRig(); root.add(rig.chassis);
   const rings = new Map<BossPart, { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }>();
   for (const part of PARTS) {
     const core = part === 'core', material = new THREE.MeshBasicMaterial({ color: 0xffb77c, depthTest: false, depthWrite: false });
@@ -147,6 +206,8 @@ export function createVeilView(scene: THREE.Scene) {
   let lastTime = -1, encounter = -1;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
   const hpSeen = new Map<number, number>(), hitAt = new Map<number, number>();
+  /** Pods already seen (a new one bursts out of its bay). */
+  const podsSeen = new Set<number>();
   const local = (x: number, y: number, z: number) => root.localToWorld(world.set(x, y, z)).clone();
   const burst = (at: THREE.Vector3, count: number, seed: number, power = 1, color = 0x8ffff0) => {
     for (let i = 0; i < count; i++) {
@@ -208,6 +269,13 @@ export function createVeilView(scene: THREE.Scene) {
         shock.position.set(placement.x ?? boss.x, placement.baseHeight + .1, -placement.s);
         shock.scale.setScalar(2 + Math.sqrt(ring) * 10); (shock.material as THREE.MeshBasicMaterial).opacity = (1 - ring) * (1 - ring);
       }
+      // Pod launches: each new pod bursts out of the bay on its side with a teal flash and a puff of mist.
+      for (const enemy of state.enemies) if (enemy.formation?.template === 'veil-pods' && !podsSeen.has(enemy.id)) {
+        podsSeen.add(enemy.id);
+        const bay = local(Math.sign(enemy.x - boss.x || 1) * VEIL.bays[1].x, 1.9, -VEIL.bays[1].s);
+        flash(bay, 1.2, enemy.id, 0x9ffff0); burst(bay, 8, enemy.id * 11, .7); steam(bay, enemy.id * 13, .8);
+      }
+      if (podsSeen.size > 64) podsSeen.clear();
       let cursor = 0;
       const line = (x: number, s: number, xx: number, ss: number, color: number) => {
         if (cursor + 2 > vertices.length / 3) return;
@@ -233,12 +301,12 @@ export function createVeilView(scene: THREE.Scene) {
         const died = deadAt.get(enemy.bossPart);
         if (died !== undefined && state.time - died < 7 && hash(state.time * 13 + enemy.id) < 5 * dt) steam(local(part.group.position.x, 1.8, part.group.position.z), state.time * 31 + enemy.id, .9);
         part.live.forEach(object => { object.visible = living; });
-        part.wreck.visible = !living;
+        if (part.wreck) part.wreck.visible = !living;
         // The heart's petals fold open once it can be damaged.
         const wantOpen = enemy.damageable !== false || !living ? 1 : 0;
         part.open += THREE.MathUtils.clamp(wantOpen - part.open, -dt * 1.4, dt * 1.4);
         const eased = THREE.MathUtils.smoothstep(part.open, 0, 1);
-        part.petals.forEach(petal => { petal.object.rotation.set(-eased * 1.15, petal.closed.y, 0, 'YXZ'); });
+        part.petals.forEach(petal => { petal.object.quaternion.slerpQuaternions(petal.closed, petal.open, eased); });
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .5 + .5 * Math.abs(Math.sin(state.time * 12)) : .85 + .15 * Math.sin(state.time * 2.2);
         part.heat.emissiveIntensity = living ? (1.2 + (1 - fraction) * 1.8 + (enemy.warning > 0 ? 1.4 : 0)) * pulse + kick * 2.8 : 0;
@@ -262,7 +330,9 @@ export function createVeilView(scene: THREE.Scene) {
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
-    get stats() { return { particles: mist.count + sparks.count }; },
+    /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
+    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); },
+    get stats() { return { model: rig.bays.length ? 'glb' : 'fallback', particles: mist.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
   };
 }

@@ -34,11 +34,11 @@ Fixed-seed captures were inspected in headless Chromium (git-ignored `lookdev/mo
 
 The user asked for a small boss on Luna, built to look human-made, and for Luna to open endless.
 
-- **WARDEN-1** (`src/content/warden.ts`, `src/render/warden-view.ts`) is a decommissioned human lunar defence lander, built in code:
-  - octagonal white-grey deck with a hazard band and four landing legs;
-  - blue solar wings, an antenna with a blinking beacon, and orange fuel tanks;
-  - a command module (the core) whose hatches slide open;
-  - two boxy turret pods with twin barrels (the first pair).
+- **WARDEN-1** (`src/content/warden.ts`, `src/render/warden-view.ts`) is a decommissioned human lunar defence lander. Since 16 October it is modelled in Blender (`tools/blender/warden.py` → `public/assets/luna/warden.glb`, 7,898 triangles, `art/warden/README.md`); the code-built version only stands in while the model loads:
+  - octagonal white-grey deck with a hazard band and panel seams, four splayed landing legs with footpads (one with a ladder), and four engine bells;
+  - blue solar wings on a rear boom, an antenna with a dish and a blinking beacon, orange fuel tanks, RCS quads and handrails;
+  - a command module (the core) whose two hatches slide 0.8 outward over a glowing reactor well;
+  - two turret pods with twin barrels (the first pair), which yaw toward their aim during the windup.
 
   It descends on thrusters during its arrival. It uses the generic boss phases: arrival, pods, command module, overload, destroyed and extraction.
 - **Balance:** the smallest boss.
