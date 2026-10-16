@@ -1,4 +1,5 @@
 import { BASTION } from '../content/bastion';
+import { REWARDS } from '../content/equipment';
 import { BALANCE, FAIRNESS } from '../content/balance';
 import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, WRECK_HOLD, missionBoss, type BossDefinition } from '../content/bosses';
@@ -124,7 +125,7 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     const campaign = state.config.mode === 'campaign';
     state.player.invulnerableUntil = state.time + (campaign ? WRECK_HOLD + def.extractionDuration : ENDLESS_EXIT_PROTECTION);
     // Credits are campaign-only; endless scores the kill through the core's 5,000 points.
-    if (campaign) state.credits += 60;
+    if (campaign) state.credits += REWARDS.boss;
     // Launched fighters go down with their carrier: nothing dangerous remains during extraction.
     state.enemies = state.enemies.filter(enemy => enemy.bossPart);
   }

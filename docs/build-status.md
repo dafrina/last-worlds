@@ -1,5 +1,20 @@
 # Build status
 
+## Campaign progression — 16 October 2026
+
+- **Unlocks:** missions open in order (Training → Rolling Thunder → Cold Vector → Deep Bloom) as each is cleared on any difficulty. Locked missions show a dimmed globe and a disabled launch; cleared ones show their best time.
+- **Credits, Hangar and loadout:**
+  - credits are the one campaign currency;
+  - a new Hangar page buys, equips and ranks up gear across the four slots: main (Fan 250, Seeker 450, ranks 150 / 300 / 500 at +8% each), special (Seeker Rack 300, Siege Lance 400, both new), shield (Bulwark 250, Flux 250) and reactor (Vector 250, Precision 250).
+  - Campaign runs fly the equipped loadout; endless always flies the canonical starter.
+- **Banking:** results show the payout breakdown (docs/11 §4) and any unlock. Each attempt banks exactly once by attempt ID. Leaving mid-flight banks half the collected credits.
+- **Save:** `last-worlds.campaign.v1`, versioned; an unreadable save is never overwritten. See docs/21.
+- **Evidence:**
+  - typecheck clean, 317/317 unit tests, 20/20 browser specs, production build;
+  - the perfect pilot clears all four missions hitless on the slowest drive;
+  - screens inspected: campaign page, hangar, results payout and unlock, Siege Lance and Seeker Rack in flight.
+- **Not done:** contracts and career milestones, Rail Lance, statistics filters, and no phone hardware test.
+
 ## Boss entrances, wreck hold, drop icons, fuel skids, ground wrecks, hauler lanes — 16 October 2026
 
 - **Boss entrances:**

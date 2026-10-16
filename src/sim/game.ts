@@ -5,6 +5,7 @@ import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
 import { runPlanet } from '../content/missions';
+import { REACTORS, REACTOR_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, rankDamage } from '../content/equipment';
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
@@ -18,16 +19,22 @@ const MUZZLE = 0.55;
 
 export function createRun(config: RunConfig): RunState {
   // A canonical config prevents campaign menu choices from leaking into an endless replay.
+  // Endless always flies the canonical starter; the campaign takes its loadout, falling back to the starter per slot.
+  const pick = <T,>(value: T | undefined, allowed: readonly T[], fallback: T) => value !== undefined && allowed.includes(value) ? value : fallback;
   const normalized: RunConfig = config.mode === 'endless'
-    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', weapon: 'pulse' }
-    : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', weapon: config.weapon ?? 'pulse', mission: config.mission ?? 'training' };
+    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...STARTER, rank: 0 }
+    : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', mission: config.mission ?? 'training',
+      weapon: pick(config.weapon, WEAPON_IDS, STARTER.weapon), special: pick(config.special, SPECIAL_IDS, STARTER.special),
+      shield: pick(config.shield, SHIELD_IDS, STARTER.shield), reactor: pick(config.reactor, REACTOR_IDS, STARTER.reactor),
+      rank: Math.max(0, Math.min(MAX_RANK, Math.floor(config.rank ?? 0))) };
+  const shieldTech = SHIELD_TECH[normalized.shield!];
   const pace = normalized.mode === 'endless' ? paceInSector(1, 0) : PACE.campaign;
   return {
     config: normalized, phase: 'playing', tick: 0, time: 0, distance: 0, sector: 1, cameraX: 0,
     pace, scrollSpeed: kinematics(pace).scroll, planet: runPlanet(normalized), jump: null, sectorStartedAt: 0,
     player: {
       x: 0, vx: 0, lives: normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives,
-      shields: BALANCE.shield.charges, maxShields: BALANCE.shield.charges,
+      shields: shieldTech.charges, maxShields: shieldTech.charges,
       specialCharge: 1, invulnerableUntil: 0, lastHitAt: -100,
       weapon: normalized.weapon!, power: 0,
     },
@@ -35,7 +42,7 @@ export function createRun(config: RunConfig): RunState {
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0,
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
     lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
-    chargeKillTimes: [], boss: null,
+    chargeKillTimes: [], boss: null, lance: null,
     message: normalized.mode === 'endless' ? 'SECTOR 01 · LUNA' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
   };
 }
@@ -58,6 +65,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   if (state.phase !== 'playing') return;
   if (input.specialPressed && state.player.specialCharge >= 1 - 1e-8) useSpecial(state);
   fireMain(state);
+  updateLance(state, dt);
   updateProjectiles(state, previousPlayerX, dt);
   resolveBossPhase(state);
   updateHazards(state, previousPlayerX, dt);
@@ -99,7 +107,9 @@ function updatePace(state: RunState, dt: number): void {
 
 function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   const player = state.player;
-  const movement = kinematics(state.pace);
+  // Campaign handling follows the equipped reactor (campaign pace is 1); endless flies the Balanced Drive at its pace.
+  const base = kinematics(state.pace), reactor = REACTORS[state.config.reactor ?? 'balanced'];
+  const movement = state.config.mode === 'campaign' ? { ...base, speed: reactor.speed, acceleration: reactor.acceleration, braking: reactor.braking } : base;
   player.vx = approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
   const limit = VIEW.worldWidth / 2 - VIEW.playerRadius;
   player.x = clamp(player.x + player.vx * dt, -limit, limit);
@@ -338,7 +348,7 @@ function fireMain(state: RunState): void {
   if (!target) return;
   const weapon = WEAPONS[state.player.weapon];
   if (state.projectiles.length + weapon.angles.length > BALANCE.maxProjectiles) return;
-  const power = BALANCE.power[clamp(state.player.power, 0, BALANCE.power.length - 1)];
+  const power = BALANCE.power[clamp(state.player.power, 0, BALANCE.power.length - 1)] * (state.config.mode === 'campaign' ? rankDamage(state.config.rank ?? 0) : 1);
   weapon.angles.forEach((angle, index) => {
     const shot = projectile(state, state.player.x + weapon.offsets[index], MUZZLE,
       Math.sin(angle * DEG) * weapon.speed, Math.cos(angle * DEG) * weapon.speed,
@@ -384,7 +394,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       }
       if (target) {
         shot.ttl = 0;
-        damageEnemy(state, target, shot.damage, true);
+        damageEnemy(state, target, shot.damage, !shot.special);
         // Core destruction clears danger before later bullets in this same tick can hit.
         if (target.bossPart === 'core' && target.hp <= 0) resolveBossPhase(state);
       }
@@ -470,8 +480,15 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
 
 function useSpecial(state: RunState): void {
   state.player.specialCharge = 0;
-  state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + BALANCE.special.invulnerability);
   state.specialsUsed += 1;
+  const special = state.config.special ?? 'shockwave';
+  if (special === 'seeker-rack') return launchSeekerRack(state);
+  if (special === 'siege-lance') {
+    state.lance = { until: state.time + SPECIALS['siege-lance'].duration };
+    setMessage(state, 'SIEGE LANCE', 1);
+    return;
+  }
+  state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + BALANCE.special.invulnerability);
   const left = state.cameraX - VIEW.width / 2;
   const right = state.cameraX + VIEW.width / 2;
   const inside = (x: number, s: number) => x >= left && x <= right && s >= VIEW.minS && s <= VIEW.maxS;
@@ -480,6 +497,33 @@ function useSpecial(state: RunState): void {
   // The instantaneous world-space footprint cannot follow later camera movement.
   addEffect(state, 'special', state.cameraX, (VIEW.minS + VIEW.maxS) / 2, 0.6);
   setMessage(state, 'SHOCKWAVE', 1);
+}
+
+/** Seeker Rack: missiles fan out from the ship, each homing on one of the nearest visible targets ahead (armed first). */
+function launchSeekerRack(state: RunState): void {
+  const rack = SPECIALS['seeker-rack'];
+  const targets = state.enemies
+    .filter(enemy => enemy.hp > 0 && enemy.damageable !== false && enemy.s > MUZZLE && isVisible(state, enemy.x, enemy.s, enemy.radius))
+    .sort((a, b) => (a.kind === 'fuel' ? 1 : 0) - (b.kind === 'fuel' ? 1 : 0) || a.s - b.s || a.id - b.id);
+  for (let i = 0; i < rack.missiles; i++) {
+    const angle = (i - (rack.missiles - 1) / 2) * 0.16;
+    const shot = projectile(state, state.player.x, MUZZLE, Math.sin(angle) * rack.speed, Math.cos(angle) * rack.speed, true, rack.damage, 0.16, 26 / rack.speed);
+    if (targets.length) shot.homingTargetId = targets[i % targets.length].id;
+    shot.special = true;
+    state.projectiles.push(shot);
+  }
+  setMessage(state, 'SEEKER RACK', 1);
+}
+
+/** Siege Lance: while active, its beam damages every target ahead whose body touches the lane over the ship. */
+function updateLance(state: RunState, dt: number): void {
+  if (!state.lance) return;
+  if (state.time >= state.lance.until) { state.lance = null; return; }
+  const lance = SPECIALS['siege-lance'];
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.damageable === false || enemy.s <= MUZZLE || !isVisible(state, enemy.x, enemy.s, 0)) continue;
+    if (Math.abs(enemy.x - state.player.x) <= lance.width / 2 + enemy.radius) damageEnemy(state, enemy, lance.dps * dt, false);
+  }
 }
 
 function updatePickups(state: RunState, dt: number): void {
@@ -498,7 +542,8 @@ function updatePickups(state: RunState, dt: number): void {
     addEffect(state, 'pickup', pickup.x, pickup.s, 0.3);
     switch (pickup.kind) {
       case 'shield':
-        if (state.player.shields < state.player.maxShields) state.player.shields += 1;
+        // A cell restores the shield technology's amount (Flux restores both of its charges).
+        if (state.player.shields < state.player.maxShields) state.player.shields = Math.min(state.player.maxShields, state.player.shields + SHIELD_TECH[state.config.shield ?? 'standard'].cell);
         else if (state.config.mode === 'campaign') state.credits += 5;
         else state.score += 100;
         break;
@@ -528,7 +573,7 @@ function givePower(state: RunState): void {
 
 function updateResources(state: RunState, dt: number): void {
   if (state.phase !== 'playing') return;
-  state.player.specialCharge = Math.min(1, state.player.specialCharge + dt / BALANCE.special.rechargeTime);
+  state.player.specialCharge = Math.min(1, state.player.specialCharge + dt / SPECIALS[state.config.special ?? 'shockwave'].recharge);
 }
 
 function addEffect(state: RunState, kind: RunState['effects'][number]['kind'], x: number, s: number, duration: number): void {

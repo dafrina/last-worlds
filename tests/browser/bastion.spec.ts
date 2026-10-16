@@ -1,11 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-test('campaign exposes the fortress sortie and preserves training as a separate selection', async ({ page }) => {
+test('a fresh campaign opens on Training; Rolling Thunder stays locked until Training is cleared', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
-  await expect(page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Rolling Thunder', exact: true })).toHaveAttribute('aria-checked', 'true');
+  const missions = page.getByRole('radiogroup', { name: 'Campaign mission' });
+  await expect(missions.getByRole('radio', { name: 'Training', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.credit-balance').first()).toContainText('0');
+  await missions.getByRole('radio', { name: 'Rolling Thunder', exact: true }).click();
   await expect(page.locator('.mission-description')).toContainText('Bastion-9');
-  await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
+  await expect(page.locator('.mission-record')).toContainText('LOCKED · CLEAR TRAINING');
+  await expect(page.getByRole('button', { name: /LAUNCH SORTIE/ })).toBeDisabled();
+  await missions.getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await expect(page.locator('.pause-description')).toContainText('Training');

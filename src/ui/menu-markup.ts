@@ -1,7 +1,8 @@
 /** Menu-only surfaces. Gameplay HUD and input stay in game-ui.ts. */
 
-/** Campaign missions in selector order (progression: Luna first). */
+/** Campaign missions in selector (and unlock) order: CAMPAIGN_ORDER in src/content/equipment.ts. */
 export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector'], ['deep-bloom', 'Deep Bloom']] as const;
+const creditGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 11 6 6 11 1 6Z"/></svg>';
 
 /**
  * A segmented selector (no dropdowns): one radio button per choice, the checked one lit with a glowing indicator.
@@ -28,7 +29,7 @@ export const menuMarkup = `
   </section>
   <section class="campaign-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>
-    <div class="eyebrow campaign-eyebrow"><h2 id="campaign-title">CAMPAIGN</h2><span aria-hidden="true">·</span><span class="mission-count">2 / 3</span></div>
+    <div class="eyebrow campaign-eyebrow"><h2 id="campaign-title">CAMPAIGN</h2><span aria-hidden="true">·</span><span class="mission-count">2 / 3</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span></div>
     <div class="planet-stage">
       <button type="button" class="mission-arrow" data-mission-step="-1" aria-label="Previous mission">‹</button>
       <canvas class="planet-preview" aria-hidden="true"></canvas>
@@ -39,10 +40,21 @@ export const menuMarkup = `
     <h3 class="mission-name"></h3>
     <p class="mission-description"></p>
     <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i><i></i></span></p>
+    <p class="mission-record"></p>
     <div class="setup-group"><span class="setup-label" id="difficulty-label">DIFFICULTY</span>${selector('difficulty', 'Campaign difficulty', [['relaxed', 'Relaxed'], ['standard', 'Standard'], ['veteran', 'Veteran']], 'standard')}</div>
-    <div class="setup-group"><span class="setup-label">MAIN WEAPON</span>${selector('weapon', 'Main weapon', [['pulse', 'Twin Pulse'], ['fan', 'Fan Cannon'], ['seeker', 'Seeker Array']], 'pulse')}</div>
-    <p class="loadout-line">SPECIAL Shockwave · SHIELD Standard · REACTOR Balanced</p>
+    <button type="button" class="loadout-summary" data-action="hangar" aria-label="Open the hangar to change or buy equipment">
+      <span class="setup-label">LOADOUT</span><span class="hangar-link">HANGAR ›</span>
+      <dl><div><dt>MAIN</dt><dd data-loadout="weapon"></dd></div><div><dt>SPECIAL</dt><dd data-loadout="special"></dd></div><div><dt>SHIELD</dt><dd data-loadout="shield"></dd></div><div><dt>REACTOR</dt><dd data-loadout="reactor"></dd></div></dl>
+    </button>
     <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH SORTIE <span aria-hidden="true">↗</span></button>
+  </section>
+  <section class="hangar-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="hangar-title" hidden>
+    <button type="button" class="back-button" data-back="campaign-panel">← BACK</button>
+    <div class="eyebrow campaign-eyebrow"><span>CAMPAIGN</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span></div>
+    <h2 id="hangar-title">HANGAR</h2>
+    ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['reactor', 'Reactor']], 'weapon')}
+    <ul class="hangar-items" aria-live="polite"></ul>
+    <p class="panel-note hangar-note">Credits come from campaign sorties. Changing equipped gear is free.</p>
   </section>
   <section class="statistics-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="statistics-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>

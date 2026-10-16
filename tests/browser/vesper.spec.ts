@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedCampaign } from './campaign-save';
 import type { RunState } from '../../src/shared/contracts';
 
 const snapshot = (page: import('@playwright/test').Page) =>
@@ -7,6 +8,7 @@ const snapshot = (page: import('@playwright/test').Page) =>
 test('campaign offers Cold Vector on Vesper and launches it without browser errors', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
+  await seedCampaign(page);
   await page.goto('/');
   await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Cold Vector', exact: true }).click();

@@ -302,3 +302,49 @@ button:disabled { cursor: default; }
   .back-button { margin-bottom: 14px; }
   .page-panel h2 { margin-bottom: 20px; }
 }
+
+/* Campaign progression (docs/21): credit balance, mission lock/record, loadout summary, hangar, results payout. */
+.credit-balance { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: #ffd27a; letter-spacing: 1px; }
+.credit-balance svg { width: 9px; height: 9px; fill: #ffd27a; filter: drop-shadow(0 0 4px #ffb84a); }
+.credit-balance b { font-weight: 600; color: #ffe2a6; }
+.planet-stage.is-locked .planet-preview { filter: grayscale(.85) brightness(.45); }
+.mission-record { margin: -6px 0 14px; text-align: center; color: #7fd8ff; font: 8px / 1.5 var(--mono); letter-spacing: 1.2px; }
+.mission-record.is-locked { color: #ffb36b; }
+.loadout-summary {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 10px; width: 100%; margin: 0 0 14px; padding: 10px 12px;
+  border: 1px solid var(--line); background: #0b1b30; color: inherit; text-align: left; touch-action: manipulation;
+  transition: border-color .2s, box-shadow .2s;
+}
+.loadout-summary:hover, .loadout-summary:focus-visible { border-color: #7fd8ffaa; box-shadow: 0 0 12px #7fd8ff40; }
+.hangar-link { color: #9fe4ff; font: 9px / 1 var(--mono); letter-spacing: 1.2px; }
+.loadout-summary dl { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 0; }
+.loadout-summary dl div { min-width: 0; }
+.loadout-summary dt { color: #6f88a3; font: 7px / 1.3 var(--mono); letter-spacing: 1.2px; }
+.loadout-summary dd { margin: 1px 0 0; color: #e2edf6; font: 10px / 1.3 var(--mono); letter-spacing: .5px; }
+.hangar-panel h2 { margin-bottom: 14px; }
+.hangar-panel .selector [role="radio"] { font-size: 9px; padding-left: 2px; padding-right: 2px; }
+.hangar-items { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.hangar-item { padding: 12px; border: 1px solid var(--line); background: #0b1b30; transition: border-color .2s, box-shadow .2s; }
+.hangar-item.is-equipped { border-color: #7fd8ffaa; background: #12304d; box-shadow: 0 0 12px #7fd8ff40, inset 0 0 10px #7fd8ff22; }
+.page-panel .hangar-item h3 { margin: 0 0 4px; color: var(--ivory); font: 700 15px / 1.2 'Aptos', 'Segoe UI', Arial, sans-serif; letter-spacing: 0; }
+.hangar-item p { margin: 0 0 10px; color: #9db0c5; font-size: 11px; line-height: 1.45; }
+.hangar-row, .hangar-rank { display: flex; align-items: center; gap: 10px; }
+.hangar-rank { margin-top: 10px; padding-top: 10px; border-top: 1px solid #1d3550; color: #8fa9c5; font: 8px / 1 var(--mono); letter-spacing: 1px; }
+.rank-pips { display: flex; gap: 4px; margin-right: auto; }
+.rank-pips i { width: 14px; height: 4px; background: #2a4058; }
+.rank-pips i.on { background: #9fe4ff; box-shadow: 0 0 6px #7fd8ff; }
+.hangar-tag { color: #9fe4ff; font: 9px / 1 var(--mono); letter-spacing: 1.4px; text-shadow: 0 0 8px #7fd8ff; }
+.hangar-action {
+  min-height: 36px; padding: 8px 12px; border: 1px solid #7fd8ff66; background: #0e2440; color: #dff4ff;
+  font: 600 9px / 1 var(--mono); letter-spacing: 1.2px; touch-action: manipulation; transition: box-shadow .2s, background .2s;
+}
+.hangar-action:hover:not(:disabled) { box-shadow: 0 0 12px #7fd8ff66; background: #143457; }
+.hangar-action.buy, .hangar-action.upgrade { border-color: #ffc46a88; color: #ffe2a6; }
+.hangar-action.buy:hover:not(:disabled), .hangar-action.upgrade:hover:not(:disabled) { box-shadow: 0 0 12px #ffb84a66; }
+.hangar-action:disabled { opacity: .4; }
+.result-credits { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #ffc46a44; background: #1a1a1c66; text-align: center; }
+.result-breakdown { margin: 0 0 6px; color: #b9a98a; font: 8px / 1.6 var(--mono); letter-spacing: .8px; }
+.result-earned { margin: 0; display: flex; justify-content: center; align-items: baseline; gap: 10px; }
+.result-earned b { color: #ffe2a6; font: 700 18px / 1 var(--mono); text-shadow: 0 0 10px #ffb84a88; }
+.result-earned span { color: #8fa9c5; font: 8px / 1 var(--mono); letter-spacing: 1px; }
+.result-unlock { margin: 10px 0 0; color: #9fe4ff; font: 600 9px / 1.4 var(--mono); letter-spacing: 1.3px; text-shadow: 0 0 8px #7fd8ff; }

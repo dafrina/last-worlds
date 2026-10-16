@@ -20,7 +20,7 @@ export interface LogStorage { getItem(key: string): string | null; setItem(key: 
 const emptyTotals = (): FlightTotals => ({ flights: 0, clears: 0, lost: 0, retired: 0, seconds: 0, kills: 0, livesLost: 0, specials: 0, bestScore: 0, bestSector: 0, longest: 0 });
 const emptyLog = (): LogData => ({ version: 1, ruleset: FLIGHT_LOG_RULESET, campaign: emptyTotals(), endless: emptyTotals(), recent: [] });
 const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
-function recordId(): string {
+export function recordId(): string {
   // getRandomValues also works on a phone's plain-HTTP LAN preview; randomUUID does not.
   const words = new Uint32Array(4);
   crypto.getRandomValues(words);

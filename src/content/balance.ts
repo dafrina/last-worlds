@@ -21,7 +21,8 @@ export const BALANCE = {
     viewMargin: 1,
   },
   respawn: { invulnerability: 2, specialCharge: 0.5 },
-  special: { rechargeTime: 45, killCharge: 0.03, damage: 180, invulnerability: 1 },
+  /** Shockwave's hit and invulnerability; every special's recharge time is in SPECIALS (src/content/equipment.ts). */
+  special: { killCharge: 0.03, damage: 180, invulnerability: 1 },
   /** Pickups drift toward the player row at `speed` times the pace; the magnet pulls at `magnetSpeed` times the pace. */
   pickup: { radius: 0.65, magnetRadius: 1.6, speed: VIEW.scrollSpeed, magnetSpeed: 7.5 },
   power: [1, 1.15, 1.35, 1.55, 1.8],

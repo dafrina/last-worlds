@@ -1053,6 +1053,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       pickupBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
       let laneCount = 0;
+      // Siege Lance (campaign special): a bright piercing beam straight ahead from the ship's nose while it fires.
+      if (state.lance && state.time < state.lance.until) {
+        const left = state.lance.until - state.time, flare = Math.min(1, left / .12) * (.85 + .15 * Math.sin(state.time * 60));
+        strip(state.player.x, .5, state.player.x, VIEW.maxS + 2, .9, 0x7fefff, flashLanes, 1.6 * flare);
+        strip(state.player.x, .5, state.player.x, VIEW.maxS + 2, .32, 0xffffff, flashLanes, 2.6 * flare);
+      }
       for (const hazard of state.hazards) {
         // A Needle's narrow lane flashes bright for its last 0.2 s before the beam (Khepri lanes are all wider).
         if (hazard.width <= .45 && hazard.warning > 0) {

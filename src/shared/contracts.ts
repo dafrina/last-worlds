@@ -3,6 +3,10 @@ export type Mode = 'campaign' | 'endless';
 export type Difficulty = 'relaxed' | 'standard' | 'veteran';
 export type GraphicsQuality = 'high' | 'low';
 export type WeaponId = 'pulse' | 'fan' | 'seeker';
+/** Campaign equipment slots besides the main weapon (docs/02 §3–4, src/content/equipment.ts). */
+export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance';
+export type ShieldTechId = 'standard' | 'bulwark' | 'flux';
+export type ReactorId = 'balanced' | 'vector' | 'precision';
 export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
 export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre';
@@ -30,7 +34,14 @@ export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** `fuel` is a harmless ground loot target (a fuel-tank skid): it never attacks and drops what a ship drops. */
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
-export interface RunConfig { mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId }
+/**
+ * A run's setup. The campaign loadout (weapon, special, shield, reactor, rank of the main weapon) applies only to the
+ * campaign; createRun gives every endless run the canonical starter.
+ */
+export interface RunConfig {
+  mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId;
+  special?: SpecialId; shield?: ShieldTechId; reactor?: ReactorId; rank?: number;
+}
 export interface Player {
   x: number; vx: number; lives: number; shields: number; maxShields: number;
   specialCharge: number; invulnerableUntil: number; lastHitAt: number;
@@ -56,6 +67,8 @@ export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;
   vx: number; vs: number; friendly: boolean; damage: number; radius: number;
   ttl: number; homingTargetId?: number;
+  /** Fired by a special (Seeker Rack): its kills never charge the special. */
+  special?: boolean;
 }
 /** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
 export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number }
@@ -83,6 +96,8 @@ export interface RunState {
   jump: JumpState | null;
   /** Active time at which the current endless sector began (0 in the campaign). */
   sectorStartedAt: number;
+  /** Siege Lance in progress: its beam fires straight ahead from the ship until this active time. */
+  lance?: { until: number } | null;
 }
 export const VIEW = { width: 12, worldWidth: 30, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;

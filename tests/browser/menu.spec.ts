@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedCampaign, veteranPilot } from './campaign-save';
 import type { RunState } from '../../src/shared/contracts';
 
 const snapshot = (page: Page): Promise<RunState> => page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
@@ -19,14 +20,40 @@ test('home stays compact on phones and campaign setup has its own page', async (
   await expect(page.locator('.menu-panel')).toBeHidden();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true }).click();
-  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Fan Cannon', exact: true }).click();
   await page.screenshot({ path: info.outputPath('campaign-phone.png') });
+  // Hangar: Fan Cannon costs credits a fresh pilot does not have.
+  await page.getByRole('button', { name: /Open the hangar/ }).click();
+  await expect(page.getByRole('heading', { name: 'HANGAR' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'BUY · 250 CR' })).toBeDisabled();
+  await page.screenshot({ path: info.outputPath('hangar-phone.png') });
+  await page.getByRole('button', { name: 'BACK' }).click();
   await page.getByRole('button', { name: 'BACK' }).click();
   await expect(page.getByRole('button', { name: 'CAMPAIGN FLIGHT' })).toBeFocused();
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Fan Cannon', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse');
   expect(errors).toEqual([]);
+});
+
+test('the hangar buys, equips and ranks up campaign gear, and the launch flies it', async ({ page }, info) => {
+  await seedCampaign(page, profile => { profile.credits = 700; });
+  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await expect(page.locator('.credit-balance').first()).toContainText('700');
+  await page.getByRole('button', { name: /Open the hangar/ }).click();
+  await page.getByRole('button', { name: 'BUY · 250 CR' }).first().click();
+  await expect(page.locator('.hangar-item.is-equipped h3')).toHaveText('Fan Cannon');
+  await page.locator('.hangar-item', { hasText: 'Fan Cannon' }).getByRole('button', { name: 'UPGRADE · 150 CR' }).click();
+  await page.getByRole('radiogroup', { name: 'Equipment slot' }).getByRole('radio', { name: 'Shield', exact: true }).click();
+  await page.getByRole('button', { name: 'BUY · 250 CR' }).first().click();
+  await expect(page.locator('.credit-balance').first()).toContainText('50');
+  await page.screenshot({ path: info.outputPath('hangar-bought.png') });
+  await page.getByRole('button', { name: 'BACK' }).click();
+  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Fan Cannon');
+  await expect(page.locator('[data-loadout="shield"]')).toHaveText('Bulwark Array');
+  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
+  const state = await snapshot(page);
+  expect(state.config).toMatchObject({ mode: 'campaign', weapon: 'fan', rank: 1, shield: 'bulwark' });
+  expect(state.player.maxShields).toBe(4);
 });
 
 test('pause settings preserve the frozen flight and statistics persist without duplication', async ({ page }, info) => {
@@ -62,10 +89,10 @@ test('pause settings preserve the frozen flight and statistics persist without d
 });
 
 test('campaign observations stay separate and record the chosen difficulty', async ({ page }) => {
+  await seedCampaign(page, profile => { veteranPilot(profile); profile.loadout.weapon = 'seeker'; });
   await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
-  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Seeker Array', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
   expect((await snapshot(page)).config).toMatchObject({ mode: 'campaign', mission: 'training', difficulty: 'relaxed', weapon: 'seeker' });
   await page.getByRole('button', { name: 'Pause flight' }).click();

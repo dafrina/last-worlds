@@ -1,3 +1,4 @@
+import { seedCampaign, veteranPilot } from './campaign-save';
 import { expect, test, type Page } from '@playwright/test';
 import type { RunState } from '../../src/shared/contracts';
 
@@ -42,11 +43,11 @@ test('endless starts fairly, tracks the wide map, and freezes on pause', async (
 });
 
 test('campaign choices apply to training and never leak to endless', async ({ page }) => {
+  await seedCampaign(page, profile => { veteranPilot(profile); profile.loadout.weapon = 'seeker'; });
   await page.goto('/');
   await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
-  await page.getByRole('radiogroup', { name: 'Main weapon' }).getByRole('radio', { name: 'Seeker Array', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
   let state = await snapshot(page);
   expect(state.config.mode).toBe('campaign');

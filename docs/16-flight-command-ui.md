@@ -21,6 +21,8 @@ Home contains navigation, not a manual. Move controls into How to Play, settings
 
 ## Where the full campaign will fit
 
+**Built 16 October 2026:** Missions (with unlocks), the Loadout summary and the Hangar (store and equip) now live inside Campaign; see [campaign progression](21-campaign-progression.md). Assignments remain future work.
+
 When those systems exist, Campaign becomes the campaign hub, with **Missions**, **Loadout**, **Store**, and **Assignments** below its heading. Keep these campaign destinations inside Campaign, rather than adding all of them to Home. Do not add dead Store or purchase buttons before the economy exists.
 
 | Future destination | Contents | Entry/return behavior |

@@ -1,3 +1,4 @@
+import { SPECIALS } from '../../src/content/equipment';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, ENDLESS_RAMP, difficultyScales } from '../../src/content/balance';
 import { TRAINING } from '../../src/content/encounters';
@@ -178,7 +179,7 @@ describe('lives, shield charges, and special', () => {
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
     expect(visible.hp).toBeLessThanOrEqual(0);
     expect(unseen.hp).toBe(50);
-    expect(state.player.specialCharge).toBeCloseTo(STEP / BALANCE.special.rechargeTime);
+    expect(state.player.specialCharge).toBeCloseTo(STEP / SPECIALS.shockwave.recharge);
     expect(state.specialsUsed).toBe(1);
     state.cameraX = 8;
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
@@ -196,7 +197,7 @@ describe('lives, shield charges, and special', () => {
     }
     stepRun(state, EMPTY_INPUT);
     expect(state.kills).toBe(5);
-    expect(state.player.specialCharge).toBeCloseTo(0.09 + STEP / BALANCE.special.rechargeTime);
+    expect(state.player.specialCharge).toBeCloseTo(0.09 + STEP / SPECIALS.shockwave.recharge);
   });
 });
 
