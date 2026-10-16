@@ -151,9 +151,10 @@ export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turr
  */
 export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: number; cadence: number }>> = {
   luna: { flight: 1, shot: 1, cadence: 1 },
-  khepri: { flight: 1.05, shot: 1.05, cadence: 0.9 },
-  vesper: { flight: 1.07, shot: 1.07, cadence: 0.86 },
-  nacre: { flight: 1.1, shot: 1.1, cadence: 0.82 },
+  // Repeat fire up to twice as often by Nacre (17 October: the first, gentler ramp ×0.90 / ×0.86 / ×0.82 was not noticeable).
+  khepri: { flight: 1.05, shot: 1.05, cadence: 0.8 },
+  vesper: { flight: 1.07, shot: 1.07, cadence: 0.62 },
+  nacre: { flight: 1.1, shot: 1.1, cadence: 0.5 },
 };
 /**
  * A destroyed fuel skid explodes (user request, 16 October 2026): every damageable target whose body is within

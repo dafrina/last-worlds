@@ -657,6 +657,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (!iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
   };
   const planetReady = (next: PlanetId) => next === 'nacre' ? !!nacreBatches || !!vesperBatches : next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
+  /** Boss encounter (by start time) whose wreck already went out with a warp detonation. */
+  let wreckWarpedAt = -1;
   const jumpFx = createJumpFx(scene);
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
@@ -780,26 +782,31 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (plan.jump && state.time - state.sectorStartedAt > 8) preload(plan.jump.to);
       }
       const terrainUpdate = performance.now() - terrainStart;
-      // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna; every other boss is Bastion-9.
-      const isArk = state.boss?.id === 'ark', isWarden = state.boss?.id === 'warden', isVeil = state.boss?.id === 'veil';
+      // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna; every other boss is Bastion-9. Once a
+      // hyperdrive jump starts (endless, or the campaign's victory jump) the wreck is left behind with its planet
+      // instead of being dragged through the warp.
+      const warping = !!state.jump && state.time >= state.jump.startedAt, boss = warping ? null : state.boss;
+      // The wreck goes out with a last detonation the moment the warp begins.
+      if (warping && state.boss && wreckWarpedAt !== state.boss.startedAt) { wreckWarpedAt = state.boss.startedAt; fx.detonate(state.boss.x, -state.boss.s, state.boss.startedAt * 13); }
+      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil';
       {
-        let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && state.boss
-          ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
-        if (isWarden && state.boss && seat && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, WARDEN.targetHeight, seat.baseHeight, arena);
+        let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && boss
+          ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
+        if (isWarden && boss && seat && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, WARDEN.targetHeight, seat.baseHeight, arena);
         warden.update(state, seat);
         if (isWarden) terrain.setExclusion(warden.footprint(state, seat));
       }
       {
         // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water.
         const mire = world.planet.seaLevel ?? 0;
-        let seat: { x?: number; s: number; baseHeight: number } | null = isVeil && state.boss ? veilPlacement(state.boss.s, mire) : null;
-        if (isVeil && state.boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, VEIL.targetHeight, mire, world);
+        let seat: { x?: number; s: number; baseHeight: number } | null = isVeil && boss ? veilPlacement(boss.s, mire) : null;
+        if (isVeil && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, VEIL.targetHeight, mire, world);
         veil.update(state, seat);
         if (isVeil) terrain.setExclusion(veil.footprint(state, seat));
       }
       if (!isArk && !isWarden && !isVeil) {
-        let bossPlacement: { x?: number; s: number; baseHeight: number } | null = state.boss ? bastionPlacement(state.config.seed, state.distance, state.boss.x, state.boss.s, arena) : null;
-        if (state.boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
+        let bossPlacement: { x?: number; s: number; baseHeight: number } | null = boss ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena) : null;
+        if (boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
         bastion.update(state, bossPlacement);
         // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
         terrain.setExclusion(bastion.footprint(state, bossPlacement));
@@ -807,10 +814,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Waterline on the sea; targets (local height 1.6) project onto their logical rows (rayPlacement under a lens).
       const sea = world.planet.seaLevel ?? 0;
       let arkSeat: { x?: number; s: number; baseHeight: number } | null = null;
-      if (isArk && state.boss) {
+      if (isArk && boss) {
         ensureArk();
-        arkSeat = perspective ? rayPlacement(camera, state.config.seed, state.distance, state.boss.x, state.boss.s, HELION_ARK.targetHeight, sea, world)
-          : arkPlacement(state.boss.s, sea);
+        arkSeat = perspective ? rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, HELION_ARK.targetHeight, sea, world)
+          : arkPlacement(boss.s, sea);
       }
       ark.update(state, arkSeat);
       if (isArk) terrain.setExclusion(ark.footprint(state, arkSeat));

@@ -9,7 +9,7 @@ import { REACTOR_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, W
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
-import { airspaceClear, plannedMembers, resolveAnchor } from './airspace';
+import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
 import { DIAMOND_VOLLEY, SHOT_TTL, beamSpec, diamondSide, enemyShots, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete } from './motion';
@@ -275,6 +275,8 @@ function updateEnemies(state: RunState, dt: number): void {
       const warning = stats.warning + scale.warning;
       // Director exclusion window: an attack that would break the hazard-union rules waits; it is never edited.
       if (!admitAttack(state, enemy, aimX, warning)) { enemy.nextAttack = enemy.age + FAIRNESS.retryDelay; continue; }
+      // A beam ship swings over to its lane before firing: it waits while that swing would crowd another squadron.
+      if (BEAM_KINDS.has(enemy.kind) && swingCrowds(state, enemy, aimX)) { enemy.nextAttack = enemy.age + FAIRNESS.retryDelay; continue; }
       enemy.aimX = aimX;
       enemy.warning = warning;
       // Beam ships swing over their lane and fire straight down from it (see applyBeamLock).
@@ -282,6 +284,21 @@ function updateEnemies(state: RunState, dt: number): void {
       windups += 1;
     }
   }
+}
+
+/**
+ * Whether a beam ship's swing to its lane at `aimX` would break the airspace rules (separation or shared rows) with
+ * another squadron: its squadron is tested with the ship over the lane, against every other live squadron.
+ */
+function swingCrowds(state: RunState, enemy: Enemy, aimX: number): boolean {
+  const group = enemy.formation?.group;
+  if (group === undefined) return false;
+  const x = enemy.x;
+  enemy.x = aimX;
+  const groups = liveGroups(state);
+  enemy.x = x;
+  const mine = groups.get(group);
+  return !!mine && [...groups].some(([id, other]) => id !== group && airspaceConflict(mine, other, 0.3));
 }
 
 /** Longest pause (s) that still counts as one continuous Needle barrage. */

@@ -174,6 +174,14 @@ const observer = new ResizeObserver(() => {
 });
 observer.observe(ui.canvas);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause('hidden'); });
+// Portrait only: a phone turned sideways pauses the flight under the rotate notice (styles.css). Where the browser
+// allows it (Android, installed app), also ask for a portrait lock on the first touch.
+const sideways = typeof matchMedia === 'function' ? matchMedia('(orientation: landscape) and (pointer: coarse) and (max-height: 600px)') : null;
+sideways?.addEventListener('change', event => { if (event.matches) { input.clear(); pause('rotate'); } });
+window.addEventListener('pointerdown', () => {
+  const orientation = screen.orientation as ScreenOrientation & { lock?: (kind: string) => Promise<void> };
+  orientation?.lock?.('portrait').catch(() => { /* Not supported outside fullscreen or on iOS: the notice covers it. */ });
+}, { once: true });
 window.addEventListener('blur', () => { input.clear(); pause('blur'); });
 ui.canvas.addEventListener('webglcontextlost', (event) => {
   event.preventDefault();
@@ -187,6 +195,9 @@ function frame(now: number) {
   if (warmupFrames > 0) warmupFrames--;
   maxFrameMs = Math.max(maxFrameMs, elapsed * 1000);
   lastTime = now;
+  // Steering is relative to the hero ship: tell the input where it is across the play surface.
+  const anchorRun = afterglow?.state ?? run;
+  if (anchorRun) input.setAnchor?.((anchorRun.player.x - anchorRun.cameraX) / VIEW.width + .5);
   const controls = input.sample();
   if (controls.pausePressed) pause();
   // A foreground rendering hitch drops its backlog without opening a pause menu.

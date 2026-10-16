@@ -49,7 +49,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       <p>LOW ORBIT.<br>NO WAY BACK.</p>
       <span class="rail-foot">LAST WORLDS<br>FLIGHT COMMAND</span>
     </aside>
-    <section class="flight-frame" tabindex="0" aria-label="Flight area. Hold the left or right half to steer." data-input-active="false">
+    <section class="flight-frame" tabindex="0" aria-label="Flight area. Hold left or right of your ship to steer." data-input-active="false">
       <canvas class="flight-canvas" aria-label="Three-dimensional arcade flight"></canvas>
       <div class="flight-grain" aria-hidden="true"></div>
       <header class="flight-hud" hidden>
@@ -63,7 +63,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         </div>
       </header>
       <div class="steering-hints" aria-hidden="true" hidden>
-        <span><b>‹</b> HOLD LEFT</span><span>HOLD RIGHT <b>›</b></span>
+        <span><b>‹</b> HOLD LEFT OF SHIP</span><span>HOLD RIGHT OF SHIP <b>›</b></span>
       </div>
       <p class="flight-message" role="status" hidden></p>
       <button type="button" class="special-button" aria-label="Activate shockwave" data-no-steer hidden>
@@ -93,6 +93,10 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         <section class="error-panel short-panel" role="alert" hidden><p class="eyebrow">FLIGHT UNAVAILABLE</p><h2>NO SIGNAL</h2><p class="error-message"></p><p class="panel-note">Try a browser with WebGL 2 and hardware acceleration enabled.</p></section>
       </div>
     </section>
+    <div class="rotate-notice" role="alert" aria-live="assertive">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="16" y="6" width="16" height="30" rx="3"/><path d="M10 40Q24 48 38 40M34 36l4 4-5 2"/></svg>
+      <p>TURN YOUR PHONE UPRIGHT</p><small>Last Worlds flies in portrait.</small>
+    </div>
     <aside class="flight-rail rail-right" aria-hidden="true">
       <span class="rail-coordinate">LW / 01</span><span class="rail-rule"></span>
       <p>HOLD YOUR LINE.<br>FIND YOUR WAY.</p>

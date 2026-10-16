@@ -1,5 +1,21 @@
 # Build status
 
+## Ship-relative steering, portrait only, wreck leaves before the warp, real fire-rate ramp — 17 October 2026
+
+- **Steering** is relative to the hero ship: hold left or right of it. The direction holds after the ship passes the finger; dragging across the ship switches it. Hints and How to Play are updated; docs/08 and AGENTS.md record the decision.
+- **Portrait only:**
+  - a web manifest with `orientation: portrait` (installed app), plus a portrait lock request where browsers allow it;
+  - on a phone held sideways, a "turn your phone upright" notice covers the game and the flight pauses.
+- **Boss wreck:** once a hyperdrive jump starts (endless, or the campaign's victory jump), the wreck goes out with a last detonation instead of being dragged through the warp.
+- **Enemy fire-rate ramp:** the 16 October ramp (×0.90 / ×0.86 / ×0.82 repeat intervals) was not noticeable. It is now Khepri ×0.8, Vesper ×0.62 and Nacre ×0.5, so Nacre fires twice as often as Luna; Luna is unchanged.
+- **Airspace fix:** a beam ship now waits while its swing onto its lane would crowd another squadron. The faster fire exposed this as a squadron overlap.
+- **Evidence:**
+  - 324/324 unit tests;
+  - 21/21 browser specs, including a new test that the ship keeps going past a held finger;
+  - the perfect pilot is hitless on every mission, difficulty and weapon, on Precision Drive and in endless sectors 1–8;
+  - rotate-notice capture checked.
+- **Not done:** no phone hardware test. iOS Safari cannot lock orientation in a browser tab; the notice and pause cover it.
+
 ## More chaos, progressive worlds, longer sorties, missiles, exploding fuel — 16 October 2026
 
 - **Progressive intensity by world** (`WORLD_INTENSITY`): Luna stays chill (×1). On Khepri, Vesper and Nacre, enemy flight speed and shot speed rise ×1.05 / ×1.07 / ×1.10, and repeat-fire intervals shorten ×0.90 / ×0.86 / ×0.82. This applies in both modes, on top of difficulty.

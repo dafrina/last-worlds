@@ -3,8 +3,10 @@ import type { GameInput, InputFrame } from '../shared/contracts';
 export type PointerRole = 'left' | 'right' | 'special';
 
 /**
- * Pointer roles are assigned at pointer-down. A held steering finger that slides across the middle switches
- * direction (user decision, 14 October); the special button's pointer never steers.
+ * Pointer roles are assigned at pointer-down. Steering is relative to the hero ship (user decision, 17 October 2026,
+ * replacing the screen halves): a touch left of the ship steers left, right of it steers right, and the direction
+ * holds while the finger stays down, even after the ship passes under it. Dragging the finger across to the other
+ * side of the ship switches direction. The special button's pointer never steers.
  */
 export function createControlState() {
   const pointers = new Map<number, PointerRole>();
@@ -64,6 +66,11 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
   const active = () => surface.dataset.inputActive !== 'false';
   const isField = (target: EventTarget | null) => target instanceof Element &&
     !!target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]');
+  /** The ship's position across the surface (0..1), from the renderer's view of the run. */
+  let anchor = .5;
+  /** Per steering pointer: the finger x at its last direction decision. */
+  const decidedAt = new Map<number, number>();
+  const shipX = () => { const rect = surface.getBoundingClientRect(); return rect.left + rect.width * anchor; };
   const capture = (element: HTMLElement, id: number) => {
     try { element.setPointerCapture?.(id); } catch { /* Pointer may already be canceled. */ }
   };
@@ -78,18 +85,23 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
     if (event.clientX < rect.left || event.clientX > rect.right ||
         event.clientY < rect.top || event.clientY > rect.bottom) return;
     event.preventDefault();
-    state.pointerDown(event.pointerId, event.clientX < rect.left + rect.width / 2 ? 'left' : 'right');
+    // Left or right of the ship (a touch right on top of it picks the side of the screen it is on).
+    const dx = event.clientX - shipX();
+    state.pointerDown(event.pointerId, Math.abs(dx) > 2 ? (dx < 0 ? 'left' : 'right') : event.clientX < rect.left + rect.width / 2 ? 'left' : 'right');
+    decidedAt.set(event.pointerId, event.clientX);
     capture(surface, event.pointerId);
     surface.focus({ preventScroll: true });
   }, options);
 
-  // Crossing the middle switches a held steering finger; a small dead band stops flicker on the centre line.
+  // A held finger switches only when the finger itself is dragged across to the other side of the ship (by a few
+  // pixels): the ship flying past a still finger never flips the direction.
   surface.addEventListener('pointermove', (event) => {
     const role = state.roleOf(event.pointerId);
     if (!active() || (role !== 'left' && role !== 'right')) return;
-    const rect = surface.getBoundingClientRect(), centre = rect.left + rect.width / 2, band = rect.width * .03;
-    if (role === 'left' && event.clientX > centre + band) state.pointerMove(event.pointerId, 'right');
-    else if (role === 'right' && event.clientX < centre - band) state.pointerMove(event.pointerId, 'left');
+    const rect = surface.getBoundingClientRect(), band = rect.width * .02, ship = shipX(), last = decidedAt.get(event.pointerId) ?? event.clientX;
+    if (Math.abs(event.clientX - last) < band) return;
+    if (role === 'left' && event.clientX > ship + band) { state.pointerMove(event.pointerId, 'right'); decidedAt.set(event.pointerId, event.clientX); }
+    else if (role === 'right' && event.clientX < ship - band) { state.pointerMove(event.pointerId, 'left'); decidedAt.set(event.pointerId, event.clientX); }
   }, options);
 
   specialButton.addEventListener('pointerdown', (event) => {
@@ -141,6 +153,7 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
       if (!active()) state.clear();
       return state.sample();
     },
+    setAnchor(fraction: number) { if (Number.isFinite(fraction)) anchor = Math.min(1, Math.max(0, fraction)); },
     clear: state.clear,
     dispose() { abort.abort(); state.clear(); },
   };

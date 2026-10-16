@@ -21,6 +21,8 @@ Design v0.2 · 13 October 2026 · working title Last Worlds
 - Maps extend beyond the horizontal viewport; lateral camera tracking enables exploration and alternate evasive routes.
 - Hero tiers must have fundamentally different airframes. The accepted battered utility starter must appear smaller in gameplay; preserve the latest accepted artwork.
 - Campaign has selectable difficulty levels. Endless ramps difficulty within every run, independently of campaign difficulty and advancement.
+- **Steering relative to the ship (17 October 2026, replaces the screen halves):** a touch left of the hero ship steers left, right of it steers right, and the direction holds while the finger stays down, even after the ship passes under it. Dragging the finger across to the other side of the ship switches direction. Still no drag-to-position steering.
+- **Portrait only (17 October 2026):** the installed app is locked to portrait (web manifest; the browser's orientation lock where allowed); a phone turned sideways sees a "turn your phone upright" notice and the flight pauses.
 
 The user did not approve every numerical value, planet name, ship design, scope count, or implementation choice in this package. Those are proposed defaults, clearly separated below.
 

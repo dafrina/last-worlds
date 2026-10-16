@@ -127,6 +127,14 @@ export function createFx(scene: THREE.Scene) {
     }
   }
 
+  /** A big orange fireball with a ring of fire and debris (fuel skids; `size` 2–3 for a boss wreck's last detonation). */
+  function blast(x: number, z: number, n: number, size: number) {
+    flash(x, z, 3.4 * size, .32 + .1 * size, 0xff8a30, 3);
+    const ring = full() ? 6 + Math.round(size * 2) : 3 + Math.round(size);
+    for (let k = 0; k < ring; k++) { const a = k / ring * Math.PI * 2; explosion(x + Math.cos(a) * 1.1 * size, z + Math.sin(a) * 1.1 * size, n * 7 + k); }
+    sparks(x, z, (full() ? 22 : 10) * Math.ceil(size), 0xffc070, 7.5 * Math.sqrt(size), n);
+  }
+
   /** New snapshot events → particle spawns. Rewinds (a new run, retry) reset the cursors. */
   function spawn(state: RunState) {
     if (state.tick < lastTick || seed !== state.config.seed) { lastEffect = -1; lastShot = -1; glow.live = 0; smoke.live = 0; seed = state.config.seed; }
@@ -137,12 +145,7 @@ export function createFx(scene: THREE.Scene) {
       maxEffect = Math.max(maxEffect, effect.id);
       const z = -effect.s;
       if (effect.kind === 'explosion') explosion(effect.x, z, effect.id);
-      else if (effect.kind === 'blast') {
-        // Fuel skid: a big orange fireball, a ring of fire and debris.
-        flash(effect.x, z, 3.4, .32, 0xff8a30, 3);
-        for (let k = 0; k < (full() ? 6 : 3); k++) { const a = k / 6 * Math.PI * 2; explosion(effect.x + Math.cos(a) * 1.1, z + Math.sin(a) * 1.1, effect.id * 7 + k); }
-        sparks(effect.x, z, full() ? 22 : 10, 0xffc070, 7.5, effect.id);
-      }
+      else if (effect.kind === 'blast') blast(effect.x, z, effect.id, 1);
       else if (effect.kind === 'hit') { flash(effect.x, z, .38, .07, 0xffd2a0, 1.8); sparks(effect.x, z, full() ? 5 : 3, 0xffb070, 4.2, effect.id); }
       else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, 0x9ffff2, 5, effect.id);
       else if (effect.kind === 'pickup') for (let i = 0; i < (full() ? 4 : 2); i++) emit(glow, { x: effect.x + (hash(effect.id + i) - .5) * .5, y: VIEW.flightHeight + .1,
@@ -257,6 +260,8 @@ export function createFx(scene: THREE.Scene) {
       }
     },
     get particles() { return glow.live + smoke.live; },
+    /** Render-only detonation at a world point (a boss wreck leaving with the warp). */
+    detonate(x: number, z: number, seed: number, size = 2.5) { blast(x, z, seed, size); },
     dispose() {
       for (const target of [glow, smoke]) { scene.remove(target.mesh); target.mesh.dispose(); target.geometry.dispose(); target.material.dispose(); }
     },

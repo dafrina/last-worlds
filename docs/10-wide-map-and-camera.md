@@ -16,7 +16,7 @@ Canvas resize updates projection, shadow coverage and post-processing together t
 
 Use a 2.5-unit half-width dead zone around the camera center. While the ship stays inside it, camera x stays still. Beyond it, camera target x follows enough to keep the ship at the dead-zone edge, clamped to map bounds. Move toward that target at up to 17 units/s at campaign pace (raised from 14 on 14 October with the faster ship; endless scales it with its pace from 14 to 18.7), slightly faster than the fastest ship; tune for smooth motion without losing forward threat visibility. A tiny interpolation ease is presentation only; authoritative visibility follows the simulation camera.
 
-Camera x is explicit fixed-step state driven by player world x, not a DOM scroll or renderer-only guess. Input still uses left/right screen halves, with the bottom-center special button owning its pointer. Cross-screen steering and camera movement must not invert controls.
+Camera x is explicit fixed-step state driven by player world x, not a DOM scroll or renderer-only guess. Input steers relative to the hero ship's position on screen (since 17 October; previously the screen halves), with the bottom-center special button owning its pointer. Cross-screen steering and camera movement must not invert controls.
 
 No automatic camera jumps toward pickups or side quests. Do not recenter the map after releasing steering or losing a life. Respawn in a safe position near the current region. A menu restart may return to the authored starting point. Camera shake is optional, tiny, and unrelated to exploration.
 

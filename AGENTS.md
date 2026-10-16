@@ -12,7 +12,7 @@ Before implementation, read `README.md`, `docs/01-game-design.md`, `docs/05-tech
 
 ## Product invariants
 
-1. Portrait-first. Hold the left/right half of the play surface for left/right movement. No drag-to-steer default. No forward/backward/altitude control.
+1. Portrait only (a phone turned sideways sees a rotate notice and the flight pauses). Hold left or right of the hero ship to move that way; the direction holds while the finger stays down, and dragging across the ship switches it (user decision, 17 October; this replaces holding the screen halves). No drag-to-position steering. No forward/backward/altitude control.
 2. Main weapons fire automatically only with a valid target in their authored firing envelope. Each family retains a consistent pattern: straight, fixed fan, or explicitly homing. Do not give all guns universal auto-aim or add a manual main-fire button.
 3. A plain bottom-center special button owns its pointer and must never also steer. Use simple ship/shield icons, no health/resource bars or ornate mobile-game UI. Steering hints blink gently for three seconds at flight start, then disappear; reduced-motion shows a static hint.
 4. Use real 3D presentation with a simple 2D collision simulation. Ground objects use explicit target proxies; scenery never silently blocks shots.

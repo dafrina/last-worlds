@@ -113,6 +113,8 @@ export interface GameRenderer {
 }
 export interface GameInput {
   sample(): InputFrame; clear(): void; dispose(): void;
+  /** Where the hero ship is across the play surface (0 = left edge, 1 = right edge): steering is relative to it. */
+  setAnchor?(fraction: number): void;
 }
 export interface UiActions {
   start(config: RunConfig): void; pause(): void; resume(): void; quit(): void;

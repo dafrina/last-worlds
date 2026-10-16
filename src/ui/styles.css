@@ -348,3 +348,17 @@ button:disabled { cursor: default; }
 .result-earned b { color: #ffe2a6; font: 700 18px / 1 var(--mono); text-shadow: 0 0 10px #ffb84a88; }
 .result-earned span { color: #8fa9c5; font: 8px / 1 var(--mono); letter-spacing: 1px; }
 .result-unlock { margin: 10px 0 0; color: #9fe4ff; font: 600 9px / 1.4 var(--mono); letter-spacing: 1.3px; text-shadow: 0 0 8px #7fd8ff; }
+
+/* Portrait only (user request, 17 October 2026): a phone turned sideways sees this notice and the flight pauses (main.ts). */
+.rotate-notice { display: none; }
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 600px) {
+  .rotate-notice {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 10px;
+    background: #081426; color: var(--ivory); text-align: center;
+  }
+  .rotate-notice svg { width: 64px; height: 64px; fill: none; stroke: #9fe4ff; stroke-width: 2; filter: drop-shadow(0 0 8px #7fd8ff88); animation: rotate-hint 2.4s ease-in-out infinite; }
+  .rotate-notice p { margin: 0; font: 600 12px / 1.4 var(--mono); letter-spacing: 2px; }
+  .rotate-notice small { color: #8fa9c5; font: 10px / 1.4 var(--mono); letter-spacing: 1px; }
+}
+@keyframes rotate-hint { 0%, 30% { transform: rotate(-90deg); } 60%, 100% { transform: rotate(0deg); } }
+@media (prefers-reduced-motion: reduce) { .rotate-notice svg { animation: none; } }
