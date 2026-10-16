@@ -13,10 +13,10 @@ const SEA = VESPER_SEA_LEVEL, HALF = VIEW.worldWidth / 2, L = VIEW.sectionLength
 const ENDLESS = { mode: 'endless', seed: SEED } as RunConfig;
 const route = runRoute(ENDLESS), schedule = endlessSchedule(ENDLESS);
 /**
- * The first three planet switches: Luna → Khepri after WARDEN-1 (the prologue), Khepri → Vesper after Bastion-9,
- * Vesper → Khepri after the Ark.
+ * The first four planet switches: Luna → Khepri after WARDEN-1 (the prologue), Khepri → Vesper after Bastion-9,
+ * Vesper → Nacre after the Ark, then Nacre → Khepri after THE VEIL.
  */
-const jumps = [1, 4, 7].map(sector => endlessSectorPlan(sector)).map(plan => ({ plan, jump: plan.jump!, arena: plan.stop!.platform }));
+const jumps = [1, 4, 7, 10].map(sector => endlessSectorPlan(sector)).map(plan => ({ plan, jump: plan.jump!, arena: plan.stop!.platform }));
 const rowY = (section: TerrainSection, row: number) => Array.from({ length: section.across }, (_, c) => section.positions[(row * section.across + c) * 3 + 1]);
 
 describe('terrain routes from the run schedule (docs/18 §3)', () => {
@@ -110,7 +110,7 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
         const s = split.startS + row * TERRAIN_STEP, wetPlanet = levelOf(s < jump.switchDistance ? jump.from : jump.to) !== null;
         if (!wetPlanet) for (let c = 0; c < split.across; c++) expect(split.water!.shore[row * split.across + c]).toBeLessThanOrEqual(0);
       }
-      // Nothing stands, floats or drifts at the seam (it lies in the arena's calm; pieces keep SEAM_CLEARANCE).
+      // Nothing stands, floats or drifts at the seam beyond the arena; pieces keep SEAM_CLEARANCE.
       for (const section of [before, split, after]) {
         const near = (s: number) => Math.abs(s - jump.switchDistance) < SEAM_CLEARANCE;
         for (const piece of section.instances) expect(near(piece.s)).toBe(false);
@@ -126,10 +126,10 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
     }
   });
 
-  it('streams through both jumps at peak hyperdrive speed from prefetched sections, with no fallback', () => {
+  it('streams through every planet jump at peak hyperdrive speed from prefetched sections, with no fallback', () => {
     for (const { plan, jump } of jumps) {
       const stream = createTerrainStream(SEED, route);
-      // The boss falls a second after the stop (the shortest fight): stop, resume, jump at up to ~17 units/s, next sector.
+      // The boss falls a second after the stop: exercise the faster jump over the outgoing terrain buffer too.
       const timeline = ENDLESS_CYCLE.bossSector, bossEnd = timeline.decelStart + timeline.decelDuration + 1;
       let peak = 0, maxSteps = 0, previous = -Infinity;
       for (let tau = timeline.decelStart - 20; tau < bossEnd + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration + 14; tau += 1 / 60) {

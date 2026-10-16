@@ -2,6 +2,17 @@
 
 Design v0.7 · 15 October 2026. The user asked how endless should cycle between worlds and wants the bosses in endless too. Agreed approach: a short hyperdrive jump between planets (not a gradual morph), and a boss closing each planet's stint, as docs/03 §8 already prescribed ("every third sector ends with a boss").
 
+**Current terrain clearance — 16 October 2026:** the historical distance table below predates the Luna/Nacre cycle and this fix. Runtime distances come from `src/content/endless.ts`. Each endless planet now continues for one additional 36-unit terrain section beyond its boss arena before changing to the next world. Luna previously switched just 22 units past its stop, within the tilted camera's ground view. The buffer also covers the two-second departure and jump fade-in, including the deepest visible terrain. Boss arenas, combat schedules, difficulty and the five-second resume/jump sequence remain the same; hyperdrive crosses the extra distance at a higher peak speed.
+
+| Boss | Outgoing world | Arena far edge, relative to stop | New planet begins, relative to stop |
+| --- | --- | --- | --- |
+| WARDEN-1 | Luna | 22 | 58 |
+| Bastion-9 | Khepri | 26 | 62 |
+| Helion Ark | Vesper | 35 | 71 |
+| THE VEIL | Nacre | 34 | 70 |
+
+The change applies to every repeat of the cycle. The next sector still starts 8.25 units beyond the seam. Regression coverage projects the real camera onto the deepest terrain, checks all four bosses and capped repeats through jump fade-in, and streams all four planet transitions without a synchronous fallback. The development fixture `tests/fixtures/endless-arena.html?sector=1` previews the live Moon arena; `&phase=departure&t=1.9` shows departure and `t=5.05` shows the next sector. `sector=4|7|10` covers the other worlds; `quality=low` selects the Low renderer.
+
 ## 1. The cycle
 
 | Sectors | Planet | Ends with |

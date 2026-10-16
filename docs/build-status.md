@@ -1,5 +1,13 @@
 # Build status
 
+## Endless boss terrain clearance — 16 October 2026
+
+- **Fixed:** Khepri terrain was visible behind WARDEN-1 during the endless Moon fight. Every endless boss arena now has another 36 units of its outgoing planet before the world boundary. This covers the full tilted-camera ground view, post-kill scroll resume and jump fade-in, including later repeats at capped pace.
+- **Scope:** only the endless distance schedule changes in production. Arena geometry, boss behavior, difficulty, campaign and the two-second resume / three-second jump timing stay the same. Hyperdrive covers the extra distance at a higher peak speed; later procedural terrain positions shift accordingly.
+- **Checks:** 294/294 unit tests, 16/16 browser cases, typecheck and production build passed. The terrain route suite now streams all four planet transitions with zero synchronous fallbacks. Camera projection regressions cover sectors 1, 4, 7, 10, 13, 16 and 19.
+- **Visual evidence:** actual game renderer, Chromium through Playwright 1.64.0 / SwiftShader in WSL, 390×844 portrait. Inspected all four boss arenas, Moon departure on Low and Khepri after the jump on High. Saved `docs/screenshots/endless-luna-boss-clearance.png` and `docs/screenshots/endless-khepri-after-jump.png`. Reproducible development fixture: `tests/fixtures/endless-arena.html` (parameters in docs/18).
+- **Limits:** no physical-phone test. Existing production bundle-size warning remains.
+
 ## Blender models for Nacre, THE VEIL, WARDEN-1 and Khepri; Nacre world after the concept — 16 October 2026
 
 User rule (15 October): every ship, boss and kit piece is a Blender model, never code-built. Code geometry only stands in while a GLB loads.

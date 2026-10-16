@@ -31,6 +31,8 @@ export const ENDLESS_CYCLE = {
   /** After the kill: the scroll eases back up, then the hyperdrive jump. */
   resumeDuration: 2,
   jumpDuration: 3,
+  /** Keep one full outgoing-world section beyond the arena; the tilted camera sees past its far edge. */
+  postBossTerrain: VIEW.sectionLength,
   /** The jump ends this far past the planet switch, so the next planet fills the whole view (−minS + 2). */
   jumpClearance: -VIEW.minS + 2,
   /** Pace eases from the previous sector's target over this many seconds (PACE.endless.easeSeconds). */
@@ -83,7 +85,7 @@ export interface EndlessJump {
   startDistance: number;
   /** Where the look switches (the flash, at the middle of the jump in time). */
   flashDistance: number;
-  /** Terrain beyond this distance belongs to the next planet: past the far end of the arena platform. */
+  /** Terrain beyond this distance belongs to the next planet: past the arena and its outgoing-world buffer. */
   switchDistance: number;
   endDistance: number;
 }
@@ -144,7 +146,7 @@ export function endlessSectorPlan(sector: number): EndlessSectorPlan {
     const cruise = scrollForPace(sectorPace(n));
     const stopDistance = startDistance + rampDistance(n, timeline.decelStart) + cruise * timeline.decelDuration / 2;
     const platform = BOSSES[boss].arena.platform;
-    const switchDistance = stopDistance + platform.to;
+    const switchDistance = stopDistance + platform.to + ENDLESS_CYCLE.postBossTerrain;
     const startJump = stopDistance + cruise * ENDLESS_CYCLE.resumeDuration / 2;
     const endDistance = switchDistance + ENDLESS_CYCLE.jumpClearance;
     const duration = ENDLESS_CYCLE.jumpDuration;
