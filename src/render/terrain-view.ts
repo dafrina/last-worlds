@@ -95,7 +95,7 @@ const SHARED = new Set<string>(SHARED_NODES);
 /** Background haulers are drawn at 75% of the cargo node (1.05 × 1.75 footprint) so they read as traffic. */
 const HAULER_SCALE = 0.75, HAULER_HALF_WIDTH = 1.05 / 2 * HAULER_SCALE, HAULER_HALF_LENGTH = 1.75 / 2 * HAULER_SCALE;
 /** Lane offset from the road centreline: two haulers pass 0.8 apart, just clear of each other. */
-const HAULER_LANE = 0.4;
+const HAULER_LANE = 0.4, HAULER_CAPACITY = 48;
 
 /** A render-only rectangle in world (x, s) whose scenery pieces are hidden, e.g. under a boss fortress. */
 export interface TerrainExclusion { minX: number; maxX: number; minS: number; maxS: number }
@@ -195,8 +195,26 @@ export function createTerrainView(options: TerrainViewOptions) {
   }
   /** Rear axle of each hauler drawn this frame (world space), for render-only dust puffs. */
   const haulerDust: { x: number; y: number; z: number }[] = [];
-  /** Hauler positions (x, s) placed this frame, for the spacing check. */
-  const placed: [number, number, number, number][] = [];
+  /**
+   * Roads that mostly run on top of another road (a shared corridor) carry no haulers, so two never stack. Decided once
+   * per road id, never per frame, so a hauler never blinks out and back.
+   */
+  const sharedCorridor = new Map<string, boolean>();
+  function corridorShared(road: RoadPath, roads: ReadonlyMap<string, RoadPath>): boolean {
+    let shared = sharedCorridor.get(road.id);
+    if (shared !== undefined) return shared;
+    let near = 0, samples = 0;
+    for (let i = 0; i < road.x.length; i += 4) {
+      samples++;
+      search: for (const other of roads.values()) {
+        if (other.id === road.id || sharedCorridor.get(other.id) === true) continue;
+        for (let j = 0; j < other.x.length; j += 2) if (Math.abs(other.x[j] - road.x[i]) < 1.2 && Math.abs(other.s[j] - road.s[i]) < 1.2) { near++; break search; }
+      }
+    }
+    shared = samples > 0 && near / samples > 0.3;
+    sharedCorridor.set(road.id, shared);
+    return shared;
+  }
   /** Live features (pooled objects, refilled by animate()). */
   const floeFeatures: FloeFeature[] = [], ventFeatures: VentFeature[] = [], features: TerrainFeatures = { floes: floeFeatures, vents: ventFeatures };
   let floeUsed = 0, ventUsed = 0;
@@ -208,9 +226,10 @@ export function createTerrainView(options: TerrainViewOptions) {
     let mesh = haulers.get(name);
     if (!mesh || mesh.geometry !== geometry) {
       if (mesh) { scene.remove(mesh); mesh.dispose(); }
-      mesh = new THREE.InstancedMesh(geometry, infraMaterial, 16);
+      // Room for every hauler in view: an overflow would drop haulers in and out as the draw order changes (flicker).
+      mesh = new THREE.InstancedMesh(geometry, infraMaterial, HAULER_CAPACITY);
       // Same program variant as the static batches (instance colour present), so no compile hitch on first sight.
-      for (let i = 0; i < 16; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
+      for (let i = 0; i < HAULER_CAPACITY; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri hauler ${name}`;
       mesh.castShadow = false; mesh.receiveShadow = true;
       haulers.set(name, mesh); scene.add(mesh);
@@ -600,7 +619,7 @@ export function createTerrainView(options: TerrainViewOptions) {
 
   function rebuildAll() {
     const sections = seed === null ? [] : stream.update(distance);
-    views.forEach(disposeView); views.clear();
+    views.forEach(disposeView); views.clear(); sharedCorridor.clear();
     for (const section of sections) {
       const view = buildSection(section);
       view.group.position.z = distance - section.startS; views.set(section.index, view);
@@ -622,7 +641,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       const target = targetRoute ? targetRoute.worldAt(distance) : worldOf(devWorld(next as WorldInput));
       const key = targetRoute ? `route:${targetRoute.key}` : target.key;
       if (seed !== nextSeed || key !== sourceKey) {
-        views.forEach(disposeView); views.clear(); stream.clear();
+        views.forEach(disposeView); views.clear(); stream.clear(); sharedCorridor.clear();
         discardPrebuilt();
         seed = nextSeed; route = targetRoute; sourceKey = key; stream = createTerrainStream(seed, route ?? target);
       }
@@ -738,16 +757,16 @@ export function createTerrainView(options: TerrainViewOptions) {
      * Haulers drive the roads (presentation only: seed + time, never collision or targets). Each road carries
      * one or two haulers shuttling back and forth; the low tier keeps fewer. A road's haulers share one speed, half
      * a round trip apart, and keep to the right-hand lane, so they pass side by side instead of through each other;
-     * where roads share a corridor, a hauler that would overlap one already placed is left out.
+     * a road sharing another's corridor carries none (corridorShared).
      */
     animate(time: number, cameraX: number) {
-      let count = 0; haulerDust.length = 0; placed.length = 0;
+      let count = 0; haulerDust.length = 0;
       // Each road's own planet picks its haulers: Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
       const used = new Map<string, number>(), roads = new Map<string, RoadPath>(), source = route ?? world;
       for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
       for (const road of roads.values()) {
         const total = road.length[road.length.length - 1];
-        if (total < 4) continue;
+        if (total < 4 || corridorShared(road, roads)) continue;
         const key = road.id.length * 131 + road.x.length * 7 + Math.round(road.s[0] * 3);
         const quota = (quality === 'low' ? 0.5 : 1) * (1 + (tint(key, 1, 2) < 0.45 ? 1 : 0));
         for (let k = 0; k < Math.ceil(quota); k++) {
@@ -759,8 +778,6 @@ export function createTerrainView(options: TerrainViewOptions) {
           const segX = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), segS = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1), segL = Math.hypot(segX, segS) || 1;
           const lane = HAULER_LANE * THREE.MathUtils.smoothstep(Math.min(along, total - along), 0, 1.5);
           const x = road.x[i] + (road.x[i + 1] - road.x[i]) * f + segS / segL * lane, s = road.s[i] + (road.s[i + 1] - road.s[i]) * f - segX / segL * lane;
-          // Footprint overlap in the placed hauler's own frame (along its heading and across it).
-          if (placed.some(([px, ps, hx, hs]) => Math.abs((x - px) * hx + (s - ps) * hs) < 2 * HAULER_HALF_LENGTH && Math.abs((x - px) * hs - (s - ps) * hx) < 2 * HAULER_HALF_WIDTH * .95)) continue;
           if (Math.abs(x - cameraX) > 7.5 || s - distance < -9 || s - distance > 30) continue;
           if (exclusion && x > exclusion.minX && x < exclusion.maxX && s > exclusion.minS && s < exclusion.maxS) continue;
           const y = road.y[i] + (road.y[i + 1] - road.y[i]) * f;
@@ -776,18 +793,17 @@ export function createTerrainView(options: TerrainViewOptions) {
             s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b), roadWorld.bare);
           const frontLeft = ground(1, -1), frontRight = ground(1, 1), backLeft = ground(-1, -1), backRight = ground(-1, 1);
           const rise = (frontLeft + frontRight - backLeft - backRight) / 2, bank = (frontRight + backRight - frontLeft - backLeft) / 2;
-          const pitch = Math.atan2(rise, 2 * HAULER_HALF_LENGTH), roll = Math.atan2(bank, 2 * HAULER_HALF_WIDTH);
-          // Too steep to seat cleanly (a cut road over a ridge): skip this frame rather than clip into the slope.
-          if (Math.abs(pitch) > 0.45 || Math.abs(roll) > 0.35) continue;
+          // Steep cut roads tilt the hauler up to a limit (it is always drawn: skipping a frame made it blink).
+          const pitch = THREE.MathUtils.clamp(Math.atan2(rise, 2 * HAULER_HALF_LENGTH), -0.45, 0.45), roll = THREE.MathUtils.clamp(Math.atan2(bank, 2 * HAULER_HALF_WIDTH), -0.35, 0.35);
           const base = Math.max(y, (frontLeft + frontRight + backLeft + backRight) / 4);
           let lift = 0;
           for (const [a, b, h] of [[1, -1, frontLeft], [1, 1, frontRight], [-1, -1, backLeft], [-1, 1, backRight]]) {
             lift = Math.max(lift, h - (base + a * rise / 2 + b * bank / 2));
           }
-          if (lift > 0.3) continue;
+          lift = Math.min(lift, 0.3);
           transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, vesper ? yaw + Math.PI : yaw, vesper ? -roll : roll, 'YXZ');
           transform.scale.setScalar(HAULER_SCALE); transform.updateMatrix(); transform.rotation.order = 'XYZ';
-          mesh.setMatrixAt(slot, transform.matrix); used.set(node, slot + 1); count++; placed.push([x, s, segX / segL, segS / segL]);
+          mesh.setMatrixAt(slot, transform.matrix); used.set(node, slot + 1); count++;
           haulerDust.push({ x: x - fx * HAULER_HALF_LENGTH, y: base + lift, z: distance - s - fz * HAULER_HALF_LENGTH });
         }
       }

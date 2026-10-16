@@ -1,5 +1,29 @@
 # Build status
 
+## More chaos, progressive worlds, longer sorties, missiles, exploding fuel — 16 October 2026
+
+- **Progressive intensity by world** (`WORLD_INTENSITY`): Luna stays chill (×1). On Khepri, Vesper and Nacre, enemy flight speed and shot speed rise ×1.05 / ×1.07 / ×1.10, and repeat-fire intervals shorten ×0.90 / ×0.86 / ×0.82. This applies in both modes, on top of difficulty.
+- **Longer sorties:** Training +10 s, Rolling Thunder +24 s, Cold Vector +28 s, Deep Bloom +36 s of authored stretches with fuel depots.
+- **Fuel skids explode:** 150 damage within 2.6 units, chaining into other skids, never hurting the player. New depot formations park batteries around skids in all missions and endless.
+- **Boss timing:**
+  - pre-boss quiet halved again: arrival about 3 s after the last threat;
+  - kill to warp halved: 1.5 s hold plus 4 s extraction in the campaign (was 10.5 s), 2.5 s to the endless jump (was 4.5 s);
+  - the Ark's arena moved to 935 so its approach keeps shelf ice.
+- **Specials:**
+  - the Shockwave ring now expands from the ship;
+  - Siege Lance lasts 2.4 s;
+  - Seeker Rack fires real missiles: a Blender model, fanned launch, acceleration, hard homing, smoke trails.
+- **Economy:** weapon ranks raise fire rate to double at rank 3; payouts are halved.
+- **Fixes:**
+  - a beam lane now ends when its ship is shot down;
+  - campaign attack admission assumes the slowest drive;
+  - badlands haulers no longer flicker: more instance room, no per-frame skipping, and roads that share a corridor carry no haulers.
+- **Evidence:**
+  - typecheck clean, 324/324 unit tests, 20/20 browser specs, production build;
+  - the perfect pilot clears every mission on every difficulty and weapon, and on Precision Drive, without a hit; fairness unions pass;
+  - captures inspected: Shockwave ring, missiles in flight, a frozen fuel blast.
+- **Not done:** endless pre-boss timing unchanged (its threats already end at the boss's arrival); no phone hardware test.
+
 ## Campaign progression — 16 October 2026
 
 - **Unlocks:** missions open in order (Training → Rolling Thunder → Cold Vector → Deep Bloom) as each is cleared on any difficulty. Locked missions show a dimmed globe and a disabled launch; cleared ones show their best time.

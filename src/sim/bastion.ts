@@ -64,7 +64,7 @@ export function arenaScroll(time: number, destroyedAt: number | null, arena: Bos
   return { distance: stop + v * resume / 2 + v * (time - resumeAt - resume), speed: v };
 }
 
-/** World distance at which a boss arena's terrain stops: 555 for Rolling Thunder, 850 for Cold Vector. */
+/** World distance at which a boss arena's terrain stops: 675 for Rolling Thunder, 935 for Cold Vector. */
 export function arenaStopDistance(arena: BossDefinition['arena'] = BASTION.arena): number {
   return VIEW.scrollSpeed * (arena.decelStart + arena.decelDuration / 2);
 }

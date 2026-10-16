@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASTION } from '../../src/content/bastion';
+import { WARDEN } from '../../src/content/warden';
 import { WRECK_HOLD } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
@@ -95,8 +96,8 @@ describe('Bastion-9 mission', () => {
     const before = structuredClone(state);
     state.phase = 'paused'; advance(state, 5);
     expect(state.time).toBe(before.time);
-    // The wreck hold, then 8 s of extraction.
-    state.phase = 'playing'; advance(state, WRECK_HOLD + 7);
+    // The wreck hold, then the extraction.
+    state.phase = 'playing'; advance(state, WRECK_HOLD + BASTION.extractionDuration - 1);
     expect(state.phase).toBe('playing');
     advance(state, 1.1);
     expect(state.phase).toBe('complete');
@@ -128,7 +129,7 @@ describe('Bastion-9 mission', () => {
     endless.player.invulnerableUntil = Infinity; advance(endless, 240);
     expect(endless.boss?.id).toBe('warden'); expect(endless.phase).toBe('playing');
     const training = createRun({ mode: 'campaign', mission: 'training', seed: 42 });
-    training.player.invulnerableUntil = Infinity; advance(training, 121);
+    training.player.invulnerableUntil = Infinity; advance(training, WARDEN.arrivesAt + 1);
     expect(training.boss?.id).toBe('warden'); expect(training.phase).toBe('playing');
   });
 

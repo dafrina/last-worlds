@@ -71,9 +71,10 @@ export interface Projectile {
   special?: boolean;
 }
 /** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
-export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number }
+/** `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none). */
+export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number; source?: number }
 export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
-export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup'; x: number; s: number; ttl: number; duration: number }
+export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast'; x: number; s: number; ttl: number; duration: number }
 /** A hyperdrive jump between planets: about 3 s; the look switches at its midpoint (`startedAt + duration / 2`). */
 export interface JumpState { startedAt: number; duration: number; from: PlanetId; to: PlanetId }
 export interface RunState {
@@ -98,6 +99,8 @@ export interface RunState {
   sectorStartedAt: number;
   /** Siege Lance in progress: its beam fires straight ahead from the ship until this active time. */
   lance?: { until: number } | null;
+  /** Shockwave in progress: a ring expanding from where the ship fired it; `hit` lists targets it already struck. */
+  shockwave?: { x: number; s: number; startedAt: number; hit: number[]; cameraX: number } | null;
 }
 export const VIEW = { width: 12, worldWidth: 30, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;

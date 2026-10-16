@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FAIRNESS } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
 import { BOSSES, WRECK_HOLD } from '../../src/content/bosses';
-import { COLD_VECTOR } from '../../src/content/encounters';
+import { COLD_VECTOR_SORTIE } from '../../src/content/encounters';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { arenaScroll, arenaStopDistance, bossTarget, overloadLanes, resolveBossPhase } from '../../src/sim/bastion';
 import { acquireTarget, createRun, stepRun } from '../../src/sim/game';
@@ -26,18 +26,18 @@ function openBridge(state: RunState) {
 }
 
 describe('Cold Vector arena', () => {
-  it('stops the scroll at exactly distance 850 over open water and resumes after the kill', () => {
-    expect(arenaStopDistance(HELION_ARK.arena)).toBe(850);
-    expect(arenaScroll(HELION_ARK.arena.decelStart, null, HELION_ARK.arena)).toEqual({ distance: 835, speed: 5 });
+  it('stops the scroll at exactly distance 935 over open water and resumes after the kill', () => {
+    expect(arenaStopDistance(HELION_ARK.arena)).toBe(935);
+    expect(arenaScroll(HELION_ARK.arena.decelStart, null, HELION_ARK.arena)).toEqual({ distance: 920, speed: 5 });
     const stopped = arenaScroll(HELION_ARK.arena.decelStart + HELION_ARK.arena.decelDuration, null, HELION_ARK.arena);
-    expect(stopped.distance).toBeCloseTo(850, 9);
+    expect(stopped.distance).toBeCloseTo(935, 9);
     expect(stopped.speed).toBe(0);
-    expect(arenaScroll(400, null, HELION_ARK.arena)).toEqual({ distance: 850, speed: 0 });
+    expect(arenaScroll(400, null, HELION_ARK.arena)).toEqual({ distance: 935, speed: 0 });
     // After the kill the scroll holds over the wreck, then resumes.
-    expect(arenaScroll(300 + WRECK_HOLD, 300, HELION_ARK.arena)).toEqual({ distance: 850, speed: 0 });
+    expect(arenaScroll(300 + WRECK_HOLD, 300, HELION_ARK.arena)).toEqual({ distance: 935, speed: 0 });
     expect(arenaScroll(300 + WRECK_HOLD + HELION_ARK.arena.resumeDuration, 300, HELION_ARK.arena).speed).toBeCloseTo(5, 9);
     // The approach ends before the relief; the Ark arrives after the terrain has nearly stopped.
-    expect(COLD_VECTOR[COLD_VECTOR.length - 1].at).toBeLessThan(HELION_ARK.approachEndsAt);
+    expect(COLD_VECTOR_SORTIE[COLD_VECTOR_SORTIE.length - 1].at).toBeLessThan(HELION_ARK.approachEndsAt);
     expect(HELION_ARK.arrivesAt).toBeGreaterThan(HELION_ARK.arena.decelStart);
     // The documented platform covers the view below the stop and the Ark's glide-in with its long stern.
     expect(HELION_ARK.arena.platform.from).toBeLessThan(VIEW.minS);
@@ -48,7 +48,7 @@ describe('Cold Vector arena', () => {
     const state = createRun({ mode: 'campaign', mission: 'cold-vector', seed: 7 });
     state.player.invulnerableUntil = Infinity;
     advance(state, HELION_ARK.arena.decelStart + HELION_ARK.arena.decelDuration + 1);
-    expect(state.distance).toBeCloseTo(850, 6);
+    expect(state.distance).toBeCloseTo(935, 6);
     expect(state.scrollSpeed).toBe(0);
     expect(state.boss?.id).toBe('ark');
   });

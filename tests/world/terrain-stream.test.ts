@@ -47,9 +47,9 @@ describe('incremental terrain streaming', () => {
       const stream = createTerrainStream(4242, area);
       let distance = 0;
       for (let frame = 0; frame < 60 * 140; frame++) {
-        // Stop on the platform (Rolling Thunder holds at 555) for about 25 s, then go on: the window and
+        // Stop on the platform (Rolling Thunder holds at 675) for about 25 s, then go on: the window and
         // prefetch must simply hold.
-        const stopped = area && distance >= 555 && frame < 60 * 140 - 600;
+        const stopped = area && distance >= 675 && frame < 60 * 140 - 600;
         if (!stopped) distance += speed / 60;
         stream.update(distance);
         stream.prefetch(distance, steps(30));

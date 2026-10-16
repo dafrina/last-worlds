@@ -6,9 +6,10 @@ import { VEIL } from './veil';
 
 /**
  * After a boss falls, the scroll holds over its wreck this long before it resumes (and, in endless, before the
- * hyperdrive jump), so the pilot sees the destruction play out (user request, 16 October 2026).
+ * hyperdrive jump), so the pilot sees the destruction play out (user request, 16 October 2026; 2.5 s until the user
+ * asked later that day to halve the wait from kill to warp).
  */
-export const WRECK_HOLD = 2.5;
+export const WRECK_HOLD = 1.5;
 
 /**
  * One shape for every campaign boss, built from each boss's own content file. Phases are shared:

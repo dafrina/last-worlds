@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REACTORS, SPECIALS, rankDamage } from '../../src/content/equipment';
+import { REACTORS, SPECIALS, rankFireRate } from '../../src/content/equipment';
 import { WEAPONS } from '../../src/content/balance';
 import { EMPTY_INPUT, STEP, type RunConfig } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
@@ -36,12 +36,16 @@ describe('campaign loadout in the simulation (docs/21)', () => {
     }
   });
 
-  it('main weapon rank scales its damage (campaign only)', () => {
-    const state = createRun(campaign({ weapon: 'pulse', rank: 3 }));
-    dummy(state, 0, 8);
-    stepRun(state, EMPTY_INPUT);
-    const shot = state.projectiles.find(p => p.friendly)!;
-    expect(shot.damage).toBeCloseTo(WEAPONS.pulse.damage * rankDamage(3), 9);
+  it('main weapon rank raises the rate of fire up to double (campaign only)', () => {
+    expect(rankFireRate(3)).toBe(2);
+    for (const rank of [0, 3]) {
+      const state = createRun(campaign({ weapon: 'pulse', rank }));
+      dummy(state, 0, 8, 1e6);
+      stepRun(state, EMPTY_INPUT);
+      expect(state.nextVolleyAt - state.time).toBeCloseTo(WEAPONS.pulse.cadence / rankFireRate(rank) - STEP + STEP, 6);
+    }
+    const endless = createRun({ mode: 'endless', seed: 1, rank: 3 });
+    expect(endless.config.rank).toBe(0);
   });
 
   it('each special recharges on its own time', () => {
@@ -67,12 +71,13 @@ describe('campaign loadout in the simulation (docs/21)', () => {
 
   it('Siege Lance burns targets in the lane over the ship for its duration, and only those', () => {
     const state = createRun(campaign({ special: 'siege-lance' }));
-    const inLane = dummy(state, 0, 10), aside = dummy(state, 3, 10);
+    const inLane = dummy(state, 0, 18), aside = dummy(state, 3, 18);
     state.nextVolleyAt = Infinity;
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
-    for (let i = 0; i < 60; i++) { state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT); }
+    for (let i = 0; i < 200; i++) { state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT); }
     const lance = SPECIALS['siege-lance'];
-    expect(1000 - inLane.hp).toBeCloseTo(lance.dps * lance.duration, 0);
+    // dps × duration, within one simulation step.
+    expect(Math.abs(1000 - inLane.hp - lance.dps * lance.duration)).toBeLessThanOrEqual(lance.dps * STEP + 1e-6);
     expect(aside.hp).toBe(1000);
     expect(state.lance).toBeNull();
   });
@@ -85,4 +90,24 @@ describe('slowest drive keeps every mission survivable (docs/02 §4)', () => {
     expect(log.phase).toBe('complete');
     expect(log.hits).toBe(0);
   }, 120000);
+});
+
+describe('fuel skids explode (user request, 16 October 2026)', () => {
+  it('a burst skid blasts nearby targets, chains into other skids, and never hurts the player', () => {
+    const state = createRun(campaign({}));
+    const skid = (x: number, s: number) => { const e = dummy(state, x, s, 40); (e as { kind: string }).kind = 'fuel'; return e; };
+    const first = skid(0, 12), second = skid(2.4, 12), farSkid = skid(6, 12);
+    const turret = dummy(state, -2, 12.5, 100);
+    const shields = state.player.shields;
+    first.hp = 1;
+    state.projectiles.push({ id: state.nextId++, x: 0, s: 11.5, previousX: 0, previousS: 11.5, vx: 0, vs: 20, friendly: true, damage: 5, radius: .1, ttl: 1 });
+    state.nextVolleyAt = Infinity;
+    stepRun(state, EMPTY_INPUT);
+    expect(first.hp).toBeLessThanOrEqual(0);
+    expect(second.hp).toBeLessThanOrEqual(0);
+    expect(turret.hp).toBeLessThanOrEqual(0);
+    expect(farSkid.hp).toBe(40);
+    expect(state.effects.filter(effect => effect.kind === 'blast')).toHaveLength(2);
+    expect(state.player.shields).toBe(shields);
+  });
 });

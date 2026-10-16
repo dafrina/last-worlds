@@ -1,4 +1,4 @@
-import { MAX_RANK, RANK_PRICES, REACTORS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, rankDamage } from '../content/equipment';
+import { MAX_RANK, RANK_PRICES, REACTORS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, rankFireRate } from '../content/equipment';
 import { WEAPONS } from '../content/balance';
 import { SLOT_ITEMS, itemPrice, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
 import type { ReactorId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
@@ -39,8 +39,8 @@ export function renderHangar(list: HTMLElement, profile: CampaignProfile, slot: 
     if (slot === 'weapon' && owned) {
       const weapon = id as WeaponId, rank = profile.ranks[weapon];
       const ranks = document.createElement('div'); ranks.className = 'hangar-rank';
-      ranks.setAttribute('aria-label', `Rank ${rank} of ${MAX_RANK}, damage ×${rankDamage(rank).toFixed(2)}`);
-      const label = document.createElement('span'); label.textContent = `RANK ×${rankDamage(rank).toFixed(2)}`;
+      ranks.setAttribute('aria-label', `Rank ${rank} of ${MAX_RANK}, fire rate ×${rankFireRate(rank).toFixed(2)}`);
+      const label = document.createElement('span'); label.textContent = `FIRE RATE ×${rankFireRate(rank).toFixed(2)}`;
       const pips = document.createElement('span'); pips.className = 'rank-pips';
       for (let r = 0; r < MAX_RANK; r++) { const pip = document.createElement('i'); if (r < rank) pip.className = 'on'; pips.append(pip); }
       ranks.append(label, pips);

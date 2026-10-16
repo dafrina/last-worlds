@@ -1,3 +1,4 @@
+import { WARDEN } from '../../src/content/warden';
 import { SPECIALS } from '../../src/content/equipment';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, ENDLESS_RAMP, difficultyScales } from '../../src/content/balance';
@@ -177,11 +178,14 @@ describe('lives, shield charges, and special', () => {
     visible.hp = 50;
     unseen.hp = 50;
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
+    // The ring expands from the ship; the camera moving meanwhile does not widen its footprint.
+    state.cameraX = 8;
+    for (let i = 0; i < 70; i++) stepRun(state, EMPTY_INPUT);
+    expect(state.shockwave).toBeNull();
     expect(visible.hp).toBeLessThanOrEqual(0);
     expect(unseen.hp).toBe(50);
-    expect(state.player.specialCharge).toBeCloseTo(STEP / SPECIALS.shockwave.recharge);
+    expect(state.player.specialCharge).toBeCloseTo(71 * STEP / SPECIALS.shockwave.recharge);
     expect(state.specialsUsed).toBe(1);
-    state.cameraX = 8;
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
     expect(unseen.hp).toBe(50);
     expect(state.specialsUsed).toBe(1);
@@ -218,18 +222,18 @@ describe('rare shield-supply quotas', () => {
     return supplies;
   }
 
-  it.each(['relaxed', 'standard'] as const)('offers exactly two cells at 40s and 85s in %s training', difficulty => {
+  it.each(['relaxed', 'standard'] as const)('offers exactly two cells at 40s and 95s in %s training', difficulty => {
     const state = createRun({ mode: 'campaign', seed: 10, difficulty });
     const cells = recordSupplies(state, 120);
     expect(cells).toHaveLength(2);
     expect(cells[0].time).toBeCloseTo(40);
-    expect(cells[1].time).toBeCloseTo(85);
+    expect(cells[1].time).toBeCloseTo(95);
   });
 
-  it('offers exactly one Veteran training cell at 65s', () => {
+  it('offers exactly one Veteran training cell at 75s', () => {
     const cells = recordSupplies(createRun({ mode: 'campaign', seed: 10, difficulty: 'veteran' }), 120);
     expect(cells).toHaveLength(1);
-    expect(cells[0].time).toBeCloseTo(65);
+    expect(cells[0].time).toBeCloseTo(75);
   });
 
   it('offers one endless cell per sector independently of campaign settings and seed', () => {
@@ -282,7 +286,7 @@ describe('rare shield-supply quotas', () => {
     expect(state.pickups.filter(pickup => pickup.kind === 'shield').map(pickup => pickup.id)).toEqual([firstId]);
     const later = recordSupplies(state, 79.5).filter(cell => cell.id !== firstId);
     expect(later).toHaveLength(1);
-    expect(later[0].time).toBeCloseTo(85);
+    expect(later[0].time).toBeCloseTo(95);
   });
 
   it('places supplies ahead within the current view at both world edges', () => {
@@ -436,7 +440,7 @@ describe('wide world, scheduling, and mode boundaries', () => {
 
   it('ends training with WARDEN-1 instead of a timer, and opens endless on Luna with the same boss', () => {
     const campaign = quietRun();
-    advance(campaign, 120);
+    advance(campaign, WARDEN.arrivesAt + 1);
     expect(campaign.phase).toBe('playing');
     expect(campaign.boss?.id).toBe('warden');
     const endless = createRun({ mode: 'endless', seed: 1 });

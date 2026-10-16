@@ -137,6 +137,12 @@ export function createFx(scene: THREE.Scene) {
       maxEffect = Math.max(maxEffect, effect.id);
       const z = -effect.s;
       if (effect.kind === 'explosion') explosion(effect.x, z, effect.id);
+      else if (effect.kind === 'blast') {
+        // Fuel skid: a big orange fireball, a ring of fire and debris.
+        flash(effect.x, z, 3.4, .32, 0xff8a30, 3);
+        for (let k = 0; k < (full() ? 6 : 3); k++) { const a = k / 6 * Math.PI * 2; explosion(effect.x + Math.cos(a) * 1.1, z + Math.sin(a) * 1.1, effect.id * 7 + k); }
+        sparks(effect.x, z, full() ? 22 : 10, 0xffc070, 7.5, effect.id);
+      }
       else if (effect.kind === 'hit') { flash(effect.x, z, .38, .07, 0xffd2a0, 1.8); sparks(effect.x, z, full() ? 5 : 3, 0xffb070, 4.2, effect.id); }
       else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, 0x9ffff2, 5, effect.id);
       else if (effect.kind === 'pickup') for (let i = 0; i < (full() ? 4 : 2); i++) emit(glow, { x: effect.x + (hash(effect.id + i) - .5) * .5, y: VIEW.flightHeight + .1,
@@ -228,6 +234,17 @@ export function createFx(scene: THREE.Scene) {
       if (full() && dt > 0 && Math.floor(state.time * 3) !== Math.floor(previous * 3)) dust.forEach((source, i) => emit(smoke, {
         x: source.x + (hash(state.time + i) - .5) * .2, y: source.y + .08, z: source.z, vy: .18, life: .9, size: .22, grow: .6, drag: 1,
         alpha: .3, shape: ROUND, drift: 1, ...tint(0xb27c4e, 1) }));
+      // Seeker Rack missiles: a hot nozzle glow and a grey smoke trail laid along their path.
+      if (dt > 0) for (const shot of state.projectiles) {
+        if (!shot.special || shot.ttl <= 0) continue;
+        const speed = Math.hypot(shot.vx, shot.vs) || 1, bx = -shot.vx / speed * .24, bs = -shot.vs / speed * .24;
+        emit(glow, { x: shot.x + bx, y: VIEW.flightHeight + .05, z: -(shot.s + bs), life: .08, size: .2, grow: -.4, alpha: 1, shape: ROUND, ...tint(0xffc070, 2.4) });
+        for (let k = 0; k < (full() ? 2 : 1); k++) {
+          const f = k / 2, x = shot.previousX + (shot.x - shot.previousX) * f + bx, s = shot.previousS + (shot.s - shot.previousS) * f + bs;
+          emit(smoke, { x: x + (hash(shot.id + state.tick + k) - .5) * .05, y: VIEW.flightHeight, z: -s, vy: .05, life: .55 + hash(shot.id + k) * .25,
+            size: .1, grow: .55, drag: 1.5, alpha: .5, shape: ROUND, drift: .25, ...tint(0xd8dde2, 1) });
+        }
+      }
       step(glow, dt); step(smoke, dt);
       // The ground scrolls toward the player: ground dust moves with it, air smoke partly, glows ride the flight plane.
       // Uses the run's live scroll speed when the simulation exposes it (endless ramp, boss stop).

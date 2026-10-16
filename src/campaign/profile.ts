@@ -85,9 +85,11 @@ export function payout(profile: CampaignProfile, result: AttemptResult): Omit<Pa
   const multiplier = CREDIT_MULTIPLIER[result.difficulty];
   const boss = result.outcome === 'complete' && result.bossKilled ? REWARDS.boss : 0;
   const collected = Math.max(0, Math.floor(result.credits) - (result.bossKilled ? REWARDS.boss : 0));
-  if (result.outcome !== 'complete') return { collected, boss: 0, mission: 0, multiplier, firstClear: 0, total: Math.floor(multiplier * REWARDS.failureShare * collected) };
-  const firstClear = profile.missions[result.mission]?.firstClearPaid ? 0 : REWARDS.firstClear;
-  return { collected, boss, mission: REWARDS.success, multiplier, firstClear, total: Math.floor(multiplier * (collected + boss + REWARDS.success)) + firstClear };
+  // The breakdown shows the rewards as paid (scaled); the run's collected credits are scaled the same way.
+  const scale = REWARDS.scale, shown = Math.floor(collected * scale);
+  if (result.outcome !== 'complete') return { collected: shown, boss: 0, mission: 0, multiplier, firstClear: 0, total: Math.floor(scale * multiplier * REWARDS.failureShare * collected) };
+  const firstClear = profile.missions[result.mission]?.firstClearPaid ? 0 : Math.floor(scale * REWARDS.firstClear);
+  return { collected: shown, boss: Math.floor(boss * scale), mission: Math.floor(REWARDS.success * scale), multiplier, firstClear, total: Math.floor(scale * multiplier * (collected + boss + REWARDS.success)) + firstClear };
 }
 
 /** The run config for a campaign launch: the mission, difficulty and the equipped loadout with its weapon's rank. */

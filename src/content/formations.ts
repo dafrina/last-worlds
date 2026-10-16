@@ -184,6 +184,37 @@ const templates = [
       { kind: 'turret', dx: 4, fire: 1.65 },
     ],
   },
+  // Depots (user request, 16 October: more chaos): batteries parked around fuel skids; one burst skid blasts its
+  // neighbours (FUEL_BLAST), and the skids chain. The skids never fire (their `fire` only keeps the stagger check tidy).
+  {
+    id: 'depot-2', name: 'Fuelled battery pair', entry: 'ground',
+    path: GROUND, ...GROUND_FIRE,
+    slots: [
+      { kind: 'turret', dx: -2.4, fire: 0 },
+      { kind: 'turret', dx: 2.4, ds: 1.2, fire: 0.8 },
+      { kind: 'fuel', dx: 0, ds: 0.6, fire: 1.6 },
+    ],
+  },
+  {
+    id: 'depot-3', name: 'Fuelled battery line', entry: 'ground',
+    path: GROUND, ...GROUND_FIRE,
+    slots: [
+      { kind: 'turret', dx: -3, fire: 0 },
+      { kind: 'turret', dx: 0, ds: 1.6, fire: 0.7 },
+      { kind: 'turret', dx: 3, fire: 1.4 },
+      { kind: 'fuel', dx: -1.3, ds: 0.8, fire: 2.1 },
+      { kind: 'fuel', dx: 1.3, ds: 0.8, fire: 2.5 },
+    ],
+  },
+  {
+    id: 'depot-missile', name: 'Fuelled missile pair', entry: 'ground',
+    path: GROUND, ...GROUND_FIRE,
+    slots: [
+      { kind: 'missile', dx: -2.8, fire: 0 },
+      { kind: 'missile', dx: 2.8, ds: 1.2, fire: 0.8 },
+      { kind: 'fuel', dx: 0, ds: 0.6, fire: 1.6 },
+    ],
+  },
   // Fuel-tank skids (user request, 16 October): harmless ground loot that never fires (an empty firing window).
   {
     id: 'fuel-pair', name: 'Fuel skid pair', entry: 'ground',

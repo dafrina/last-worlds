@@ -1,4 +1,4 @@
-import { VIEW, type Difficulty, type EnemyKind, type MissionId, type WeaponId } from '../shared/contracts';
+import { VIEW, type Difficulty, type EnemyKind, type MissionId, type PlanetId, type WeaponId } from '../shared/contracts';
 import type { FormationRank } from './formations';
 
 /** Authoritative tuning for the flight prototype. Full-release docs remain proposals. */
@@ -15,7 +15,7 @@ export const BALANCE = {
   camera: { deadZone: 2.5, speed: 17 },
   shield: { charges: 3, hitInvulnerability: 0.65 },
   shieldSupplies: {
-    campaign: { relaxed: [40, 85], standard: [40, 85], veteran: [65] },
+    campaign: { relaxed: [40, 95], standard: [40, 95], veteran: [75] },
     endlessAt: 55,
     forward: 12,
     viewMargin: 1,
@@ -143,6 +143,23 @@ export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bast
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0 };
 
 /** Ground targets move with the terrain scroll and are never airframe contact hazards. */
+/**
+ * Progressive intensity by world (user request, 16 October 2026: "training moon pretty chill, then gradually ramp up").
+ * `flight` scales air enemies' flight clock, `shot` their shot speeds (bosses too), and `cadence` their repeat-attack
+ * intervals (lower fires faster). Applies to the run's current planet in both modes, on top of difficulty, the endless
+ * ramp and MISSION_CADENCE.
+ */
+export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: number; cadence: number }>> = {
+  luna: { flight: 1, shot: 1, cadence: 1 },
+  khepri: { flight: 1.05, shot: 1.05, cadence: 0.9 },
+  vesper: { flight: 1.07, shot: 1.07, cadence: 0.86 },
+  nacre: { flight: 1.1, shot: 1.1, cadence: 0.82 },
+};
+/**
+ * A destroyed fuel skid explodes (user request, 16 October 2026): every damageable target whose body is within
+ * `radius` takes `damage` (other skids chain). It never hurts the player and never charges the special.
+ */
+export const FUEL_BLAST = { radius: 2.6, damage: 150 } as const;
 export const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
 /** Kinds whose attack is a locked beam lane rather than bullets. */
 export const BEAM_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['lancer', 'needle']);

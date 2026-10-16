@@ -29,7 +29,7 @@ export const ENDLESS_CYCLE = {
     arrivesAt: 78,
   },
   /** After the kill: the scroll eases back up, then the hyperdrive jump. */
-  resumeDuration: 2,
+  resumeDuration: 1,
   jumpDuration: 3,
   /** Keep one full outgoing-world section beyond the arena; the tilted camera sees past its far edge. */
   postBossTerrain: VIEW.sectionLength,

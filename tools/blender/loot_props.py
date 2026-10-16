@@ -7,6 +7,8 @@ Nodes:
 - wreck_turret_0, wreck_turret_1: what a destroyed ground battery leaves on its plinth: a scorched, split plinth,
   torn armour plates, a broken barrel and a few embers.
 - wreck_fuel: the burst skid left by a destroyed loot_fuel.
+- fx_missile: the Seeker Rack missile (special weapon): a slim white body with a red band, four graphite tail fins and
+  a glowing nozzle; pivot at its centre, nose toward +Z (the runtime yaws it along its flight).
 
 Conventions (as khepri_craft.py): glTF +Y up, 1 unit = 1 game unit, front toward +Z (toward the player). Every
 node pivots at its base centre on the ground (lowest point y = -0.05). Colour is baked into COLOR_0; glow faces use
@@ -182,14 +184,31 @@ def build_wreck_fuel(rng):
     return hs
 
 
+def build_missile(rng):
+    hs = HS(rng)
+    # Blender: nose toward -Y (glTF +Z). Body, nose cone, red band, fins, nozzle glow.
+    hs.cyl((0.0, 0.2, 0.0), (0, -1, 0), 0.045, 0.34, 10, 0.006, "white", PAINT, cap0=False, cap1=False)
+    hs.cyl((0.0, -0.14, 0.0), (0, -1, 0), 0.045, 0.1, 10, 0.0, "white", PAINT, cap0=False, r1=0.008)
+    hs.cyl((0.0, -0.06, 0.0), (0, -1, 0), 0.047, 0.05, 10, 0.0, "hazard", PAINT, cap0=False, cap1=False)
+    for k in range(4):
+        a = k * math.pi / 2 + math.pi / 4
+        fin = HS(rng)
+        fin.box((0.0, 0.0, 0.0), (0.012, 0.09, 0.07), 0.0, "graphite", FRAME)
+        merge_hs(hs, fin, xform((math.cos(a) * 0.07, 0.15, math.sin(a) * 0.07), (0.0, a + math.pi / 2, 0.0)))
+    hs.cyl((0.0, 0.2, 0.0), (0, 1, 0), 0.032, 0.03, 10, 0.0, "graphite_dk", FRAME, cap1=False)
+    glow_box(hs, (0.0, 0.232, 0.0), (0.04, 0.008, 0.04), GLOW)
+    return hs
+
+
 NODES = {
     "loot_fuel": dict(t=(0.0, 0.0, 0.0), budget=2500, foot=(1.15, 1.2), y_min_exact=-0.05, y_max=0.8),
     "wreck_turret_0": dict(t=(0.0, 0.0, 0.0), budget=1600, foot=(1.7, 1.7), y_min_exact=-0.05, y_max=0.75),
     "wreck_turret_1": dict(t=(0.0, 0.0, 0.0), budget=1600, foot=(1.7, 1.7), y_min_exact=-0.05, y_max=0.75),
     "wreck_fuel": dict(t=(0.0, 0.0, 0.0), budget=1600, foot=(1.7, 1.7), y_min_exact=-0.05, y_max=0.6),
+    "fx_missile": dict(t=(0.0, 0.0, 0.0), budget=500, foot=(0.3, 0.6)),
 }
 BUILDERS = {"loot_fuel": build_fuel, "wreck_turret_0": build_wreck_turret_0, "wreck_turret_1": build_wreck_turret_1,
-            "wreck_fuel": build_wreck_fuel}
+            "wreck_fuel": build_wreck_fuel, "fx_missile": build_missile}
 
 
 def main():
@@ -208,7 +227,7 @@ def main():
     objs = {}
     for name, fn in BUILDERS.items():
         hs = fn(random.Random(f"{SEED}:{name}"))
-        cols = vc.bake(hs, name, dict(glow={GLOW}, ao=0.25, ground=0.0, paints=PAINTS))
+        cols = vc.bake(hs, name, dict(glow={GLOW}, ao=0.25, ground=None if name == "fx_missile" else 0.0, paints=PAINTS))
         objs[name] = vc.make_object(name, hs, mats, (0.0, 0.0, 0.0), cols)
         print(f"PROPS {name:16s} tris={hs.tris()}")
     vc.publish(args.glb, "loot_props.py", dict(materials=MAT_NAMES, nodes=NODES, max_bytes=1_000_000), "PROPS")

@@ -1,4 +1,5 @@
-import { BALANCE, kinematics } from '../../src/content/balance';
+import { BALANCE } from '../../src/content/balance';
+import { playerKinematics } from '../../src/sim/fairness';
 import { endlessPlanet, endlessSectorPlan, paceInSector } from '../../src/content/endless';
 import { EMPTY_INPUT, VIEW, type InputFrame, type RunState } from '../../src/shared/contracts';
 import { committedFootprints, planEvasion } from '../../src/sim/fairness';
@@ -54,7 +55,7 @@ export function hunterPilot(): Pilot {
     if (history.length > REACTION_TICKS + 1) history.shift();
     if (evade.horizontal !== 0) return evade;
     const dx = history[0] - state.player.x;
-    const stopping = state.player.vx * state.player.vx / (2 * kinematics(state.pace).braking);
+    const stopping = state.player.vx * state.player.vx / (2 * playerKinematics(state).braking);
     const hold = Math.abs(dx) < 0.15 || (Math.sign(state.player.vx) === Math.sign(dx) && Math.abs(dx) <= stopping + 0.05);
     return { ...EMPTY_INPUT, horizontal: hold ? 0 : dx < 0 ? -1 : 1 };
   };
@@ -131,7 +132,7 @@ export function perfectPilot(): Pilot {
     } else {
       // Between replans keep steering toward the chosen target with the same stopping controller.
       const dx = target - state.player.x;
-      const stopping = state.player.vx * state.player.vx / (2 * kinematics(state.pace).braking);
+      const stopping = state.player.vx * state.player.vx / (2 * playerKinematics(state).braking);
       plan = { ...EMPTY_INPUT, horizontal: Math.abs(dx) < 0.06 || (Math.sign(state.player.vx) === Math.sign(dx) && Math.abs(dx) <= stopping + 0.04) ? 0 : dx < 0 ? -1 : 1 };
     }
     return plan;

@@ -1,4 +1,4 @@
-import { ENEMIES, GROUND_KINDS } from '../content/balance';
+import { ENEMIES, GROUND_KINDS, WORLD_INTENSITY } from '../content/balance';
 import { BOSSES } from '../content/bosses';
 import { FORMATIONS, type FormationTemplate, type Keyframe } from '../content/formations';
 import { VIEW, type BossId, type BossState, type Enemy, type FormationMember, type RunState } from '../shared/contracts';
@@ -66,9 +66,11 @@ export function pathComplete(enemy: Enemy): boolean {
  * terrain and move with its scroll, so they stop when the terrain stops. Paths, fire offsets and repeat
  * intervals are measured on this clock; warnings always count real seconds.
  */
-export function enemyClockRate(state: Pick<RunState, 'pace' | 'scrollSpeed'>, enemy: Enemy): number {
-  return GROUND_KINDS.has(enemy.kind) ? state.scrollSpeed / VIEW.scrollSpeed : state.pace;
+export function enemyClockRate(state: Pick<RunState, 'pace' | 'scrollSpeed' | 'planet'>, enemy: Enemy): number {
+  return GROUND_KINDS.has(enemy.kind) ? state.scrollSpeed / VIEW.scrollSpeed : airClockRate(state);
 }
+/** Air enemies' flight clock: the pace times the world's flight intensity (WORLD_INTENSITY). */
+export const airClockRate = (state: Pick<RunState, 'pace' | 'planet'>) => state.pace * WORLD_INTENSITY[state.planet ?? 'luna'].flight;
 
 /**
  * Deterministic position `ahead` real seconds from now at clock `rate`. Formation members follow their

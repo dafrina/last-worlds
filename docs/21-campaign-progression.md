@@ -23,10 +23,10 @@
 | Main | Twin Pulse | starter | unchanged |
 | Main | Fan Cannon | 250 | unchanged |
 | Main | Seeker Array | 450 | unchanged |
-| Main rank | ranks 1 / 2 / 3, per weapon | 150 / 300 / 500 | +8% base damage per rank (×1.24 at rank 3), campaign only |
-| Special | Shockwave | starter | 45 s recharge; clears shots in view, 180 damage to every target in view, 1 s invulnerability |
-| Special | Seeker Rack | 300 | 35 s recharge; eight homing missiles × 40 damage at the nearest visible targets ahead (armed first); no clear, no invulnerability |
-| Special | Siege Lance | 400 | 40 s recharge; a 0.9-wide piercing beam straight ahead from the ship for 0.8 s at 450 damage/s; the ship may steer it |
+| Main rank | ranks 1 / 2 / 3, per weapon | 150 / 300 / 500 | rate of fire ×1.33 / ×1.67 / ×2 (double at rank 3), campaign only; until the user's 16 October revision, +8% damage per rank |
+| Special | Shockwave | starter | 45 s recharge; a ring expands from the ship at 26 units/s across the view at activation: 180 damage to each target and clears each hostile shot as it arrives; 1 s invulnerability |
+| Special | Seeker Rack | 300 | 35 s recharge; eight Blender-modelled missiles leave the rack fanned to both sides at 5 units/s, accelerate (34 u/s²) to 21 and turn hard (4.5 rad/s) onto the nearest visible targets ahead (armed first), retargeting if theirs falls; 40 damage each; smoke trails; no clear, no invulnerability |
+| Special | Siege Lance | 400 | 40 s recharge; a 0.9-wide piercing beam straight ahead from the ship for 2.4 s at 360 damage/s (was 0.8 s at 450/s); the ship steers it |
 | Shield | Standard Array | starter | 3 charges, a cell restores 1 |
 | Shield | Bulwark Array | 250 | 4 charges, a cell restores 1 |
 | Shield | Flux Array | 250 | 2 charges, a cell restores both |
@@ -34,19 +34,19 @@
 | Reactor | Vector Drive | 250 | 14 / 75 / 105 |
 | Reactor | Precision Drive | 250 | 11 / 115 / 170 |
 
-Every special still charges 3% per main-weapon kill. Seeker Rack and Siege Lance kills never charge it. No shield technology regenerates passively. All standard patterns remain survivable on the slowest drive: the perfect pilot clears all four missions on Precision Drive with zero hits (`tests/sim/loadout.test.ts`).
+Every special still charges 3% per main-weapon kill. Seeker Rack and Siege Lance kills never charge it. No shield technology regenerates passively. All standard patterns remain survivable on the slowest drive: campaign attack admission (the fairness director) assumes Precision Drive's top speed whatever is equipped, and the perfect pilot clears all four missions on Precision Drive with zero hits (`tests/sim/loadout.test.ts`).
 
 **Endless isolation:** `createRun` gives every endless run the canonical starter (Twin Pulse rank 0, Shockwave, Standard Array, Balanced Drive), whatever the config says. Endless never reads or writes the campaign profile.
 
 ## 3. Economy
 
-With C = credits collected in the attempt, B = 60 if the boss fell, and M = ×0.85 / ×1 / ×1.2 (Relaxed / Standard / Veteran):
+With C = credits collected in the attempt, B = 60 if the boss fell, M = ×0.85 / ×1 / ×1.2 (Relaxed / Standard / Veteran), and every payout halved (user, 16 October: "the payout is way too much"):
 
-- success: floor(M × (C + B + 80)), plus 150 on a mission's first clear (once per mission, across difficulties);
-- failure or abandon (leaving mid-flight via Return to Menu or a new launch): floor(M × 0.5 × C);
+- success: floor(0.5 × M × (C + B + 80)), plus 75 on a mission's first clear (once per mission, across difficulties);
+- failure or abandon (leaving mid-flight via Return to Menu or a new launch): floor(0.5 × M × 0.5 × C);
 - a refresh or crash mid-flight banks nothing.
 
-Credit pickups (4 / 8 / 16 / 10 by enemy class, 6 per fuel skid), salvage caches and full-shield cells (+5) count toward C. Measured with the perfect pilot collecting drops on Standard (seed 5), a first clear banks 395 (Training), 419 (Rolling Thunder), 378 (Cold Vector) and 419 (Deep Bloom) credits; a repeat clear banks about 230–270. That is one or two items per first clear, within the design target of 300–450; repeats are slightly above the 160–260 target.
+Credit pickups (4 / 8 / 16 / 10 by enemy class, 6 per fuel skid), salvage caches and full-shield cells (+5) count toward C. Before halving, the perfect pilot banked about 380–420 per first clear and 230–270 per repeat on Standard; after halving and the longer sorties, measured (perfect pilot collecting drops, Standard, seed 5): first clear 213 / 208 / 229 / 238 and repeat 138 / 133 / 154 / 163 credits for Training / Rolling Thunder / Cold Vector / Deep Bloom (missions now last about 3:00 / 3:25 / 4:50 / 5:15). A rank-3 weapon or a second special now takes several clears.
 
 ## 4. Save (`src/campaign/profile.ts`)
 

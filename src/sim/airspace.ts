@@ -3,7 +3,7 @@ import type { FormationPlacement } from '../content/encounters';
 import { FORMATIONS, slotFlies, type FormationRank } from '../content/formations';
 import { VIEW, type EnemyKind, type FormationMember, type RunState } from '../shared/contracts';
 import { clamp } from './geometry';
-import { enemyClockRate, memberPosition, positionAfter } from './motion';
+import { airClockRate, enemyClockRate, memberPosition, positionAfter } from './motion';
 
 /**
  * Squadron airspace (docs/03 §6). A cue is admitted only if, over the new squadrons' flight, no member of one
@@ -93,7 +93,7 @@ export function airspaceClear(state: RunState, planned: readonly PlannedMember[]
     return { group: enemy.formation!.group, air: !GROUND_KINDS.has(enemy.kind), radius: enemy.radius, at: (t: number) => t === 0 ? { x: enemy.x, s: enemy.s } : positionAfter(enemy, t, rate) };
   });
   const fresh: Track[] = planned.map(({ member, kind }) => {
-    const rate = GROUND_KINDS.has(kind) ? state.scrollSpeed / VIEW.scrollSpeed : state.pace;
+    const rate = GROUND_KINDS.has(kind) ? state.scrollSpeed / VIEW.scrollSpeed : airClockRate(state);
     return { group: member.group, air: !GROUND_KINDS.has(kind), radius: ENEMIES[kind].radius, at: (t: number) => memberPosition(member, t * rate) };
   });
   const freshGroups = new Set(fresh.map(track => track.group));

@@ -4,7 +4,7 @@ import {
   ARENA_LEVEL, ARENA_RAMP, KIT, TERRAIN_STEP, createTerrainStream, generateTerrainSection, terrainHeight, terrainSample, type TerrainArena,
 } from '../../src/world/terrain';
 
-/** Rolling Thunder's Bastion-9 platform: the scroll stops at 555; the fight needs s 546–581 (BASTION.arena). */
+/** Rolling Thunder's Bastion-9 platform: the scroll stops at 675; the fight needs s 666–701 (BASTION.arena). */
 const ARENA: TerrainArena = { fromS: 566, toS: 601 };
 const HALF = VIEW.worldWidth / 2, SEEDS = [11, 93, 8831];
 const sectionsOver = (s0: number, s1: number) => {

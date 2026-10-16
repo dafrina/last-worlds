@@ -5,9 +5,9 @@
  * No hidden collision: only the pods and the command module are targets; legs, wings and hull are scenery.
  */
 export const WARDEN = {
-  arrivesAt: 113,
+  arrivesAt: 129,
   /** No approach cue is admitted at or after this time (Training's last cue fires at 103 s). */
-  approachEndsAt: 105,
+  approachEndsAt: 115,
   arrivalDuration: 3,
   /** It descends from beyond the view (pivot s) onto its post. */
   entryS: 20,
@@ -24,19 +24,19 @@ export const WARDEN = {
   recovery: 0.65,
   transitionRecovery: 1.5,
   overloadFraction: 0.35,
-  extractionDuration: 8,
+  extractionDuration: 4,
   podBurst: { bolts: 3, spread: 0.1, speed: 5.6 },
   commandBurst: { bolts: 4, spread: 0.085, speed: 5.8 },
   overload: { coreLaneWidth: 2.2, batteryLaneWidth: 1.3, active: 0.35 },
   /**
-   * Static arena on Luna. The scroll eases from 5 to zero over 6 s from t = 110, stopping at distance
-   * 5 * 110 + 5 * 6 / 2 = 565; `platform` is the s-range relative to the stop the arena levels.
+   * Static arena on Luna. The scroll eases from 5 to zero over 6 s from t = 126, stopping at distance
+   * 5 * 126 + 5 * 6 / 2 = 645; `platform` is the s-range relative to the stop the arena levels.
    */
   arena: {
-    decelStart: 110, decelDuration: 6, resumeDuration: 2,
+    decelStart: 126, decelDuration: 6, resumeDuration: 1,
     sway: 0.8, swayRate: 0.3, surge: 0.5, surgeRate: 0.24,
     platform: { from: -9, to: 22 },
   },
   // Training's supply budget is unchanged by the boss: two cells (one on Veteran), none during the fight.
-  shieldSupplies: { relaxed: [40, 85], standard: [40, 85], veteran: [65] },
+  shieldSupplies: { relaxed: [40, 95], standard: [40, 95], veteran: [75] },
 } as const;

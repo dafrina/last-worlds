@@ -1,4 +1,13 @@
-import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, difficultyScales, kinematics, type Kinematics } from '../content/balance';
+import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, WORLD_INTENSITY, difficultyScales, kinematics, type Kinematics } from '../content/balance';
+import { REACTORS } from '../content/equipment';
+
+/** Top lateral speed of the slowest campaign drive (Precision): campaign attack admission assumes it. */
+const SLOWEST_DRIVE = Math.min(...Object.values(REACTORS).map(reactor => reactor.speed));
+/** The ship's actual handling: the equipped reactor in the campaign (pace 1), the Balanced Drive at the pace in endless. */
+export function playerKinematics(state: Pick<RunState, 'pace' | 'config'>): Kinematics {
+  const base = kinematics(state.pace), reactor = REACTORS[state.config.reactor ?? 'balanced'];
+  return state.config.mode === 'campaign' ? { ...base, speed: reactor.speed, acceleration: reactor.acceleration, braking: reactor.braking } : base;
+}
 import { BOSSES } from '../content/bosses';
 import { VIEW, type Enemy, type RunState } from '../shared/contracts';
 import { beamSpec, bossShots, diamondSide, enemyShots, type BulletKind, type ShotSpec } from './attacks';
@@ -31,7 +40,7 @@ export function shotFootprint(start: number, shot: ShotSpec, ttl = Infinity): Fo
 }
 
 function shotSpeedScale(state: RunState): number {
-  return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector).shotSpeed * kinematics(state.pace).shot;
+  return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector).shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot;
 }
 
 /** Footprints of the attack an enemy will release after `warning` seconds, aimed at `aimX`. */
@@ -147,7 +156,8 @@ export function assessSafety(state: RunState, footprints: readonly Footprint[]):
   const { left, right } = viewBounds(state);
   const now = state.time;
   const { slice, horizon, window, comfortMargin, reaction, maneuverDelay } = FAIRNESS;
-  const effectiveSpeed = FAIRNESS.effectiveSpeedRatio * kinematics(state.pace).speed;
+  // Campaign content must stay escapable with the slowest drive (docs/02 §4), whichever reactor is equipped.
+  const effectiveSpeed = FAIRNESS.effectiveSpeedRatio * (state.config.mode === 'campaign' ? SLOWEST_DRIVE : kinematics(state.pace).speed);
   const lo = Math.max(-WORLD_LIMIT, left + R);
   const hi = Math.min(WORLD_LIMIT, right - R);
   const start = now + reaction + maneuverDelay;
@@ -274,7 +284,7 @@ export function planEvasion(state: RunState, footprints: readonly Footprint[], p
   const dt = 1 / 60;
   const steps = Math.round(horizon / dt);
   const lead = 0.1;
-  const movement = kinematics(state.pace);
+  const movement = playerKinematics(state);
   // Danger for the player's center: physical extent plus collider and margin, padded slightly in time.
   const danger = footprints.map(f => ({ a: f.x0 - R - margin, b: f.x1 + R + margin, from: f.t0 - lead - now, to: f.t1 + lead / 2 - now }));
   // Bucket footprints per simulation step for fast lookup while moving.

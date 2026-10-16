@@ -103,6 +103,8 @@ if (query.has('fuel')) for (const [dx, s] of [[-2.6, 10], [0, 8], [2.6, 11]]) {
   state.enemies.push({ id: state.nextId++, kind: 'fuel', x: state.player.x + dx, s, originX: state.player.x + dx, hp, maxHp: hp, radius: .55, age: 0,
     nextAttack: Infinity, warning: 0, aimX: state.player.x + dx, groundHeight: .85 });
 }
+// `fuel=kill`: fly on until the middle skid bursts (use with `still` to freeze its blast).
+if (query.get('fuel') === 'kill') for (let i = 0; i < 240 && !state.effects.some(effect => effect.kind === 'blast'); i++) stepRun(state, EMPTY_INPUT);
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start(config: RunConfig) { state = createRun(config); },
   pause() { state.phase = 'paused'; input.clear(); },

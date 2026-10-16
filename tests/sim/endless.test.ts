@@ -45,8 +45,8 @@ describe('endless schedule', () => {
     }
     // Campaign: one planet and the mission's own arena at its documented stop.
     const thunder = endlessSchedule({ mode: 'campaign', mission: 'bastion' });
-    expect(thunder.arenaAt(555)?.stopDistance).toBe(555);
-    expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).arenaAt(850)?.stopDistance).toBe(850);
+    expect(thunder.arenaAt(675)?.stopDistance).toBe(675);
+    expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).arenaAt(935)?.stopDistance).toBe(935);
     expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).planetAt(5000)).toBe('vesper');
   });
 

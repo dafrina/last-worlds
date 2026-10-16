@@ -19,24 +19,25 @@ export const WEAPON_BLURB: Readonly<Record<WeaponId, string>> = {
 };
 
 /**
- * Main weapon ranks 0–3: each adds 8% of base damage (rank 3 = ×1.24), campaign only. `RANK_PRICES[r]` buys rank
- * r + 1 for one weapon.
+ * Main weapon ranks 0–3 raise the rate of fire, up to double at rank 3 (×1.33, ×1.67, ×2; user request, 16 October
+ * 2026, replacing +8% damage per rank). Campaign only. `RANK_PRICES[r]` buys rank r + 1 for one weapon.
  */
-export const RANK_STEP = 0.08;
 export const RANK_PRICES = [150, 300, 500] as const;
 export const MAX_RANK = RANK_PRICES.length;
-export const rankDamage = (rank: number) => 1 + RANK_STEP * Math.max(0, Math.min(MAX_RANK, Math.floor(rank)));
+export const rankFireRate = (rank: number) => 1 + Math.max(0, Math.min(MAX_RANK, Math.floor(rank))) / MAX_RANK;
 
 /**
  * Specials: one activation per full recharge (time plus 3% per main-weapon kill, BALANCE.special.killCharge).
- * - Shockwave: clears hostile shots in view, 180 damage to every target in view, 1 s invulnerability.
- * - Seeker Rack: eight homing missiles × 40 damage at targets ahead; no clear, no invulnerability.
- * - Siege Lance: a 0.9-wide piercing beam straight ahead from the ship for 0.8 s at 450 damage/s; the ship may move.
+ * - Shockwave: a ring expanding from the ship across the view: 180 damage to each target and clears each hostile
+ *   shot as it reaches them; 1 s invulnerability.
+ * - Seeker Rack: eight missiles fan out, then accelerate and home on targets ahead (40 damage each); no clear.
+ * - Siege Lance: a 0.9-wide piercing beam straight ahead from the ship for 2.4 s at 360 damage/s; the ship may steer
+ *   it (0.8 s at 450/s until the user found it too short, 16 October).
  */
 export const SPECIALS = {
-  shockwave: { label: 'Shockwave', recharge: 45, price: 0, blurb: 'Clears shots in view and hits everything on screen.' },
-  'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 300, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, speed: 15 },
-  'siege-lance': { label: 'Siege Lance', recharge: 40, price: 400, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 0.8, dps: 450 },
+  shockwave: { label: 'Shockwave', recharge: 45, price: 0, blurb: 'A ring bursts out from your ship, clearing shots and hitting everything.', speed: 26, reach: 26 },
+  'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 300, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 5, speed: 21, accel: 34, turn: 4.5 },
+  'siege-lance': { label: 'Siege Lance', recharge: 40, price: 400, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
 } as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; blurb: string; [tuning: string]: string | number }>>;
 
 /** Shield technology: charge reserve and what a shield cell restores. None regenerates passively. */
@@ -62,10 +63,11 @@ export const REACTOR_IDS = Object.keys(REACTORS) as ReactorId[];
 export const CAMPAIGN_ORDER: readonly MissionId[] = ['training', 'bastion', 'cold-vector', 'deep-bloom'];
 
 /**
- * Mission income (docs/11 §4). With C = collected credits, B = the boss reward (already banked in the run's credits
- * when the boss falls) and M = the difficulty multiplier:
- * - success: floor(M × (C + B + success)) + firstClear once per mission;
- * - failure or abandon: floor(M × failureShare × C).
+ * Mission income (docs/11 §4), all scaled by `scale` (halved on 16 October: the user found the payout too high). With
+ * C = collected credits, B = the boss reward (already in the run's credits when the boss falls), M = the difficulty
+ * multiplier and S = scale:
+ * - success: floor(S × M × (C + B + success)) + floor(S × firstClear) once per mission;
+ * - failure or abandon: floor(S × M × failureShare × C).
  */
-export const REWARDS = { success: 80, boss: 60, firstClear: 150, failureShare: 0.5 } as const;
+export const REWARDS = { success: 80, boss: 60, firstClear: 150, failureShare: 0.5, scale: 0.5 } as const;
 export const CREDIT_MULTIPLIER: Readonly<Record<Difficulty, number>> = { relaxed: 0.85, standard: 1, veteran: 1.2 };

@@ -1,17 +1,17 @@
-import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
+import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
 import { runPlanet } from '../content/missions';
-import { REACTORS, REACTOR_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, rankDamage } from '../content/equipment';
+import { REACTOR_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, rankFireRate } from '../content/equipment';
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
 import { airspaceClear, plannedMembers, resolveAnchor } from './airspace';
 import { DIAMOND_VOLLEY, SHOT_TTL, beamSpec, diamondSide, enemyShots, type BulletKind } from './attacks';
-import { admitAttack } from './fairness';
+import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete } from './motion';
 
 const DEG = Math.PI / 180;
@@ -42,7 +42,7 @@ export function createRun(config: RunConfig): RunState {
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0,
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
     lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
-    chargeKillTimes: [], boss: null, lance: null,
+    chargeKillTimes: [], boss: null, lance: null, shockwave: null,
     message: normalized.mode === 'endless' ? 'SECTOR 01 · LUNA' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
   };
 }
@@ -66,6 +66,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   if (input.specialPressed && state.player.specialCharge >= 1 - 1e-8) useSpecial(state);
   fireMain(state);
   updateLance(state, dt);
+  updateShockwave(state);
   updateProjectiles(state, previousPlayerX, dt);
   resolveBossPhase(state);
   updateHazards(state, previousPlayerX, dt);
@@ -73,7 +74,13 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updatePickups(state, dt);
   updateResources(state, dt);
   state.enemies = state.enemies.filter(enemy => enemy.bossPart
-    || (enemy.hp > 0 && enemy.s > VIEW.minS - 2 && !(pathComplete(enemy) && !isVisible(state, enemy.x, enemy.s, -1))));
+    // A beam ship whose lane is still live stays until the beam ends, so the lane never outlives its source.
+    || (enemy.hp > 0 && enemy.s > VIEW.minS - 2 && !(pathComplete(enemy) && !isVisible(state, enemy.x, enemy.s, -1) && !(enemy.lock && enemy.lock.hold > 0))));
+  // Shooting a beam ship down ends its lane.
+  if (state.hazards.some(hazard => hazard.source !== undefined)) {
+    const alive = new Set(state.enemies.map(enemy => enemy.id));
+    state.hazards = state.hazards.filter(hazard => hazard.source === undefined || alive.has(hazard.source));
+  }
   state.effects = state.effects.filter(effect => (effect.ttl -= dt) > 0);
   // Boss missions end with extraction after the kill; the training sortie ends on time.
   if (state.phase === 'playing' && state.config.mode === 'campaign' && !missionBoss(state.config.mission) && state.time + 1e-8 >= BALANCE.campaignDuration) {
@@ -108,8 +115,7 @@ function updatePace(state: RunState, dt: number): void {
 function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   const player = state.player;
   // Campaign handling follows the equipped reactor (campaign pace is 1); endless flies the Balanced Drive at its pace.
-  const base = kinematics(state.pace), reactor = REACTORS[state.config.reactor ?? 'balanced'];
-  const movement = state.config.mode === 'campaign' ? { ...base, speed: reactor.speed, acceleration: reactor.acceleration, braking: reactor.braking } : base;
+  const movement = playerKinematics(state);
   player.vx = approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
   const limit = VIEW.worldWidth / 2 - VIEW.playerRadius;
   player.x = clamp(player.x + player.vx * dt, -limit, limit);
@@ -217,7 +223,7 @@ function updateShieldSupplies(state: RunState, previousTime: number): void {
 }
 
 function missionCadence(state: RunState): number {
-  return state.config.mode === 'campaign' ? MISSION_CADENCE[state.config.mission ?? 'training'] : 1;
+  return (state.config.mode === 'campaign' ? MISSION_CADENCE[state.config.mission ?? 'training'] : 1) * WORLD_INTENSITY[state.planet].cadence;
 }
 
 function scales(state: RunState) {
@@ -308,12 +314,12 @@ function updateBeamRest(state: RunState, scale: DifficultyScale): boolean {
 function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void {
   if (BEAM_KINDS.has(enemy.kind)) {
     const beam = beamSpec(enemy.kind);
-    state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: beam.width, warning: beam.warning, active: beam.active, ttl: beam.warning + beam.active, ...(beam.cost ? { cost: beam.cost } : {}) });
+    state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: beam.width, warning: beam.warning, active: beam.active, ttl: beam.warning + beam.active, source: enemy.id, ...(beam.cost ? { cost: beam.cost } : {}) });
     return;
   }
   const side = enemy.kind === 'diamond' ? diamondSide(enemy) : 0;
   enemy.volleys = (enemy.volleys ?? 0) + 1;
-  const shots = enemyShots(enemy.kind as BulletKind, enemy.x, enemy.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed * kinematics(state.pace).shot, side);
+  const shots = enemyShots(enemy.kind as BulletKind, enemy.x, enemy.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot, side);
   // A full projectile pool skips the whole volley; a fixed pattern is never trimmed bullet by bullet.
   if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
   for (const shot of shots) state.projectiles.push(projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL));
@@ -348,7 +354,7 @@ function fireMain(state: RunState): void {
   if (!target) return;
   const weapon = WEAPONS[state.player.weapon];
   if (state.projectiles.length + weapon.angles.length > BALANCE.maxProjectiles) return;
-  const power = BALANCE.power[clamp(state.player.power, 0, BALANCE.power.length - 1)] * (state.config.mode === 'campaign' ? rankDamage(state.config.rank ?? 0) : 1);
+  const power = BALANCE.power[clamp(state.player.power, 0, BALANCE.power.length - 1)];
   weapon.angles.forEach((angle, index) => {
     const shot = projectile(state, state.player.x + weapon.offsets[index], MUZZLE,
       Math.sin(angle * DEG) * weapon.speed, Math.cos(angle * DEG) * weapon.speed,
@@ -356,7 +362,8 @@ function fireMain(state: RunState): void {
     if (state.player.weapon === 'seeker') shot.homingTargetId = target.id;
     state.projectiles.push(shot);
   });
-  state.nextVolleyAt = state.time + weapon.cadence;
+  // Campaign ranks raise the rate of fire (rank 3 doubles it).
+  state.nextVolleyAt = state.time + weapon.cadence / (state.config.mode === 'campaign' ? rankFireRate(state.config.rank ?? 0) : 1);
 }
 
 function projectile(state: RunState, x: number, s: number, vx: number, vs: number, friendly: boolean, damage: number, radius: number, ttl: number): Projectile {
@@ -369,7 +376,8 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
     const activeDt = Math.min(dt, shot.ttl);
     shot.previousX = shot.x;
     shot.previousS = shot.s;
-    if (shot.homingTargetId !== undefined) {
+    if (shot.special) steerMissile(state, shot, activeDt);
+    else if (shot.homingTargetId !== undefined) {
       const target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false);
       if (target && isVisible(state, target.x, target.s, target.radius)) {
         const current = Math.atan2(shot.vx, shot.vs);
@@ -476,6 +484,14 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   if (!enemy.bossPart && state.pickups.length < BALANCE.maxPickups - 1) {
     state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits, ttl: 12 });
   }
+  if (enemy.kind === 'fuel') {
+    // The skid goes up: everything close by takes the blast, and other skids chain.
+    addEffect(state, 'blast', enemy.x, enemy.s, 0.9);
+    for (const other of state.enemies) {
+      if (other === enemy || other.hp <= 0 || other.damageable === false) continue;
+      if (Math.hypot(other.x - enemy.x, other.s - enemy.s) <= FUEL_BLAST.radius + other.radius * .5) damageEnemy(state, other, FUEL_BLAST.damage, false);
+    }
+  }
 }
 
 function useSpecial(state: RunState): void {
@@ -489,30 +505,69 @@ function useSpecial(state: RunState): void {
     return;
   }
   state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + BALANCE.special.invulnerability);
-  const left = state.cameraX - VIEW.width / 2;
-  const right = state.cameraX + VIEW.width / 2;
-  const inside = (x: number, s: number) => x >= left && x <= right && s >= VIEW.minS && s <= VIEW.maxS;
-  state.projectiles = state.projectiles.filter(shot => shot.friendly || !inside(shot.x, shot.s));
-  for (const enemy of state.enemies) if (inside(enemy.x, enemy.s)) damageEnemy(state, enemy, BALANCE.special.damage, false);
-  // The instantaneous world-space footprint cannot follow later camera movement.
-  addEffect(state, 'special', state.cameraX, (VIEW.minS + VIEW.maxS) / 2, 0.6);
+  // The ring bursts out from the ship (user request, 16 October 2026) and sweeps the view; see updateShockwave.
+  state.shockwave = { x: state.player.x, s: 0, startedAt: state.time, hit: [], cameraX: state.cameraX };
+  addEffect(state, 'special', state.player.x, 0, 0.6);
+  updateShockwave(state);
   setMessage(state, 'SHOCKWAVE', 1);
+}
+
+/**
+ * Shockwave: its ring grows from the ship at SPECIALS.shockwave.speed. Each target in the activation view takes 180
+ * damage once as the ring reaches it, and each hostile shot there it reaches is cleared. It ends past `reach`.
+ */
+function updateShockwave(state: RunState): void {
+  const wave = state.shockwave;
+  if (!wave) return;
+  const spec = SPECIALS.shockwave, radius = spec.speed * (state.time - wave.startedAt);
+  // The footprint stays the view at activation (docs/02 §3): moving the camera never sweeps it across the map.
+  const reached = (x: number, s: number, extra: number) => Math.hypot(x - wave.x, s - wave.s) <= radius + extra
+    && Math.abs(x - wave.cameraX) <= VIEW.width / 2 && s >= VIEW.minS && s <= VIEW.maxS;
+  state.projectiles = state.projectiles.filter(shot => shot.friendly || !reached(shot.x, shot.s, 0));
+  for (const enemy of state.enemies) {
+    if (wave.hit.includes(enemy.id) || !reached(enemy.x, enemy.s, enemy.radius)) continue;
+    wave.hit.push(enemy.id);
+    damageEnemy(state, enemy, BALANCE.special.damage, false);
+  }
+  if (radius > spec.reach) state.shockwave = null;
 }
 
 /** Seeker Rack: missiles fan out from the ship, each homing on one of the nearest visible targets ahead (armed first). */
 function launchSeekerRack(state: RunState): void {
   const rack = SPECIALS['seeker-rack'];
-  const targets = state.enemies
-    .filter(enemy => enemy.hp > 0 && enemy.damageable !== false && enemy.s > MUZZLE && isVisible(state, enemy.x, enemy.s, enemy.radius))
-    .sort((a, b) => (a.kind === 'fuel' ? 1 : 0) - (b.kind === 'fuel' ? 1 : 0) || a.s - b.s || a.id - b.id);
+  const targets = seekerTargets(state);
   for (let i = 0; i < rack.missiles; i++) {
-    const angle = (i - (rack.missiles - 1) / 2) * 0.16;
-    const shot = projectile(state, state.player.x, MUZZLE, Math.sin(angle) * rack.speed, Math.cos(angle) * rack.speed, true, rack.damage, 0.16, 26 / rack.speed);
+    // Fanned out to both sides of the rack (±70°), alternating, so they peel away before turning in.
+    const side = i % 2 ? 1 : -1, angle = side * (0.35 + Math.floor(i / 2) * 0.27);
+    const shot = projectile(state, state.player.x + side * 0.3, 0.2, Math.sin(angle) * rack.launchSpeed, Math.cos(angle) * rack.launchSpeed, true, rack.damage, 0.18, 3);
     if (targets.length) shot.homingTargetId = targets[i % targets.length].id;
     shot.special = true;
     state.projectiles.push(shot);
   }
   setMessage(state, 'SEEKER RACK', 1);
+}
+
+/**
+ * A Seeker Rack missile: it leaves the rack slowly, fanned out, then accelerates to full speed and turns hard onto its
+ * target. When its target is gone it takes the nearest visible target ahead, or flies straight on.
+ */
+function steerMissile(state: RunState, shot: Projectile, dt: number): void {
+  const rack = SPECIALS['seeker-rack'];
+  let target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false && isVisible(state, enemy.x, enemy.s, enemy.radius));
+  if (!target) {
+    target = seekerTargets(state).filter(enemy => enemy.s > shot.s - 1)[0];
+    shot.homingTargetId = target?.id;
+  }
+  const current = Math.atan2(shot.vx, shot.vs), desired = target ? Math.atan2(target.x - shot.x, target.s - shot.s) : 0;
+  const delta = Math.atan2(Math.sin(desired - current), Math.cos(desired - current));
+  const next = current + clamp(delta, -rack.turn * dt, rack.turn * dt), speed = Math.min(rack.speed, Math.hypot(shot.vx, shot.vs) + rack.accel * dt);
+  shot.vx = Math.sin(next) * speed; shot.vs = Math.cos(next) * speed;
+}
+/** Visible damageable targets ahead of the ship, armed ones first, nearest first. */
+function seekerTargets(state: RunState): Enemy[] {
+  return state.enemies
+    .filter(enemy => enemy.hp > 0 && enemy.damageable !== false && enemy.s > MUZZLE && isVisible(state, enemy.x, enemy.s, enemy.radius))
+    .sort((a, b) => (a.kind === 'fuel' ? 1 : 0) - (b.kind === 'fuel' ? 1 : 0) || a.s - b.s || a.id - b.id);
 }
 
 /** Siege Lance: while active, its beam damages every target ahead whose body touches the lane over the ship. */

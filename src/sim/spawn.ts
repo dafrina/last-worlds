@@ -1,4 +1,4 @@
-import { ENEMIES, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
+import { ENEMIES, WORLD_INTENSITY, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { FORMATIONS, slotFlies, type FormationId } from '../content/formations';
 import type { FormationMember, RunState } from '../shared/contracts';
 import { groundHeight, memberPosition } from './motion';
@@ -12,7 +12,7 @@ export function runScale(state: RunState): DifficultyScale {
  * The boss simulation and the fairness prediction both use it, so predictions match the fired pattern.
  */
 export function bossShotScale(state: RunState): number {
-  return runScale(state).shotSpeed * (state.config.mode === 'endless' ? kinematics(state.pace).shot : 1);
+  return runScale(state).shotSpeed * (state.config.mode === 'endless' ? kinematics(state.pace).shot : 1) * WORLD_INTENSITY[state.planet].shot;
 }
 
 /**

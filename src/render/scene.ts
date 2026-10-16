@@ -6,6 +6,7 @@ import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
 import { loadCraftNodes, loadKhepriCraft, loadNacreCraft, type KhepriCraftNode, type NacreCraftNode } from './models';
+import { SPECIALS } from '../content/equipment';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
@@ -260,7 +261,7 @@ const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [numbe
 const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel'];
 const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
 /** Loot props and ground wrecks (art/loot-props, Blender): the fuel skid target and what destroyed ground targets leave. */
-const LOOT_NODES = ['loot_fuel', 'wreck_turret_0', 'wreck_turret_1', 'wreck_fuel'] as const;
+const LOOT_NODES = ['loot_fuel', 'wreck_turret_0', 'wreck_turret_1', 'wreck_fuel', 'fx_missile'] as const;
 /** At most this many wrecks stay on the ground at once (oldest go first). */
 const WRECK_CAPACITY = 24;
 /** Vesper faction kinds: always their own models once vesper-craft.glb is in, on any planet. */
@@ -492,6 +493,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   }).catch(error => console.warn('Khepri craft unavailable (khepri-craft.glb); using the code-built stand-ins.', error));
   /** Wreck batches by node (loot-props.glb); the fuel skid's model replaces its stand-in in the enemy batches. */
   const wreckBatches = new Map<string, THREE.InstancedMesh>();
+  /** Seeker Rack missiles (fx_missile), yawed along their flight; the plain shot stands in until the model loads. */
+  let missiles: THREE.InstancedMesh | null = null;
   loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/loot-props.glb`, LOOT_NODES).then(nodes => {
     if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
     const fuel = nodes.get('loot_fuel'), batch = enemyBatches.get('fuel');
@@ -504,6 +507,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       mesh.castShadow = mesh.receiveShadow = true;
       for (let i = 0; i < WRECK_CAPACITY; i++) mesh.setColorAt(i, WHITE);
       scene.add(mesh); wreckBatches.set(name, mesh);
+    }
+    const missile = nodes.get('fx_missile');
+    if (missile) {
+      missiles = new THREE.InstancedMesh(missile.geometry, materials.craft, 32);
+      missiles.instanceMatrix.setUsage(THREE.DynamicDrawUsage); missiles.frustumCulled = false; missiles.count = 0; missiles.renderOrder = 10; missiles.name = 'Seeker Rack missiles';
+      for (let i = 0; i < 32; i++) missiles.setColorAt(i, WHITE);
+      scene.add(missiles);
     }
     warmed = false;
   }).catch(error => console.warn('Loot props unavailable (loot-props.glb); fuel skids use a stand-in and kills leave no wrecks.', error));
@@ -695,6 +705,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.renderOrder = 7; mesh.count = 0; scene.add(mesh);
     pickupBatches.set(icon, mesh);
   }
+  // Shockwave: a bright rim and a soft trailing band expanding from where the ship fired it (radius from the sim).
+  const shockMaterials = [0, 1].map(k => new THREE.MeshBasicMaterial({ color: new THREE.Color(k ? 0x5fd8ff : 0xc8fff8).multiplyScalar(k ? 1.2 : 2.4),
+    transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }));
+  const shockRings = [new THREE.RingGeometry(.93, 1, 160), new THREE.RingGeometry(.8, .93, 160)].map((geometry, k) => {
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new THREE.Mesh(geometry, shockMaterials[k]); mesh.renderOrder = 9; mesh.visible = false; mesh.frustumCulled = false; scene.add(mesh); return mesh;
+  });
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
   const effects = new THREE.InstancedMesh(new THREE.RingGeometry(.85, 1, 24), effectMaterial, 128);
@@ -1012,12 +1029,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       flightShadows.count = shadowCount; flightShadows.instanceMatrix.needsUpdate = true;
       plinths.count = plinthCount; plinths.instanceMatrix.needsUpdate = true;
       pontoons.count = pontoonCount; pontoons.instanceMatrix.needsUpdate = true;
-      let friendlyCount = 0, hostileCount = 0;
+      let friendlyCount = 0, hostileCount = 0, missileCount = 0;
       for (const shot of state.projectiles) {
         if (Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
         transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);
         transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0);
-        if (shot.friendly) {
+        if (shot.special && missiles) {
+          // Model nose toward +Z: yaw it along the flight (world z = −s); scaled up a touch so it reads as a missile.
+          transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0); transform.scale.setScalar(1.25); transform.updateMatrix();
+          if (missileCount < missiles.instanceMatrix.count) missiles.setMatrixAt(missileCount++, transform.matrix);
+        } else if (shot.friendly) {
           transform.scale.set(.045, .045, .27); transform.updateMatrix();
           if (friendlyCount < friendly.instanceMatrix.count) friendly.setMatrixAt(friendlyCount++, transform.matrix);
         } else {
@@ -1037,6 +1058,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         line(x, shot.s, x - Math.sign(dx) * .2, shot.s + .2, 0xffa174);
         line(x, shot.s, x - Math.sign(dx) * .2, shot.s - .2, 0xffa174);
       }
+      if (missiles) { missiles.count = missileCount; missiles.instanceMatrix.needsUpdate = true; }
       friendly.count = friendlyCount; hostile.count = hostileCores.count = hostileCount;
       for (const mesh of [friendly, hostile, hostileCores]) mesh.instanceMatrix.needsUpdate = true;
 
@@ -1083,15 +1105,24 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       for (const [mesh, count] of [[telegraphs, stripCount], [flashLanes, flashCount], [laneFills, fillCount]] as const) {
         mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
+      const wave = state.shockwave;
+      shockRings.forEach((ring, k) => {
+        ring.visible = !!wave;
+        if (!wave) return;
+        const radius = Math.max(.2, SPECIALS.shockwave.speed * (state.time - wave.startedAt)), fade = 1 - Math.min(1, radius / SPECIALS.shockwave.reach);
+        ring.position.set(wave.x, VIEW.flightHeight + .05, -wave.s); ring.scale.setScalar(radius);
+        shockMaterials[k].opacity = (k ? .22 : .95) * fade;
+      });
       let effectCount = 0;
       for (const effect of state.effects) {
+        if (effect.kind === 'special') continue;
         if (effectCount >= effects.instanceMatrix.count) break;
         const age = Math.max(0, Math.min(1, 1 - effect.ttl / effect.duration));
-        const radius = effect.kind === 'special' ? .4 + age * 6 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
+        const radius = effect.kind === 'blast' ? .4 + age * 3 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
         transform.position.set(effect.x, VIEW.flightHeight + .04, -effect.s);
         transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(radius); transform.updateMatrix();
         effects.setMatrixAt(effectCount, transform.matrix);
-        const tint = effect.kind === 'explosion' || effect.kind === 'hit' ? 0xf9b67f : 0x97e7da;
+        const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' ? 0xf9b67f : 0x97e7da;
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
       }
       effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;

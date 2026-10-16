@@ -5,9 +5,9 @@
  * pods, then the heart alternates a fixed fan with an aimed burst, then overload lanes over its own hit columns.
  */
 export const VEIL = {
-  arrivesAt: 153,
+  arrivesAt: 184,
   /** No approach cue is admitted at or after this time: authored relief before the ship rises. */
-  approachEndsAt: 146,
+  approachEndsAt: 182,
   arrivalDuration: 4,
   /** It glides in from far beyond the view (pivot s) to its row. */
   entryS: 30,
@@ -26,7 +26,7 @@ export const VEIL = {
   recovery: 0.5,
   transitionRecovery: 1.3,
   overloadFraction: 0.4,
-  extractionDuration: 8,
+  extractionDuration: 4,
   podBurst: { bolts: 4, spread: 0.085, speed: 6.6 },
   heartBurst: { bolts: 5, spread: 0.075, speed: 6.8 },
   heartFan: { bolts: 7, spacing: Math.PI / 18, speed: 5.2 },
@@ -35,13 +35,13 @@ export const VEIL = {
   bays: [{ x: -1.7, s: -2.6 }, { x: 1.7, s: -2.6 }],
   launches: { waves: 3, firstAfter: 2, interval: 6.5, overloadWaves: 2 },
   /**
-   * Static arena over open mire. The scroll eases from 5 to zero over 6 s from t = 150, stopping at distance
-   * 5 * 150 + 5 * 6 / 2 = 765; `platform` is the s-range relative to the stop that must be open water.
+   * Static arena over open mire. The scroll eases from 5 to zero over 6 s from t = 181, stopping at distance
+   * 5 * 181 + 5 * 6 / 2 = 920; `platform` is the s-range relative to the stop that must be open water.
    */
   arena: {
-    decelStart: 150, decelDuration: 6, resumeDuration: 2,
+    decelStart: 181, decelDuration: 6, resumeDuration: 1,
     sway: 1.4, swayRate: 0.26, surge: 0.8, surgeRate: 0.2,
     platform: { from: -9, to: 34 },
   },
-  shieldSupplies: { relaxed: [45, 105, 148], standard: [45, 105, 148], veteran: [105, 148] },
+  shieldSupplies: { relaxed: [45, 141, 178], standard: [45, 141, 178], veteran: [141, 178] },
 } as const;

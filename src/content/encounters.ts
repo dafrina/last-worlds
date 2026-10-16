@@ -81,14 +81,14 @@ export const ROLLING_THUNDER: readonly EncounterCue[] = [
   { at: 16, id: 'r-battery', phase: 'pressure', formations: [f('battery-3')] },
   { at: 18, id: 'r-echelon', phase: 'pressure', formations: [f('echelon-4')] },
   { at: 24, id: 'r-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
-  { at: 27, id: 'r-battery-2', phase: 'pressure', formations: [f('battery-2')] },
+  { at: 27, id: 'r-battery-2', phase: 'pressure', message: 'FUEL DEPOT · ONE SHOT SETS IT OFF', formations: [f('depot-2')] },
   { at: 30, id: 'r-diamond', phase: 'pressure', formations: [f('diamond-lancer')] },
   { at: 36, id: 'r-dive', phase: 'pressure', formations: [f('dive-pair'), f('fuel-pair')] },
   { at: 41, id: 'r-west', phase: 'recovery', message: 'SALVAGE ROUTE · WEST', formations: [world('battery-2', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
   { at: 47, id: 'r-pincer', phase: 'pressure', formations: [f('pincer-4')] },
   { at: 51, id: 'r-battery-4', phase: 'pressure', formations: [f('battery-4')] },
   { at: 54, id: 'r-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] },
-  { at: 60, id: 'r-battery-3', phase: 'pressure', formations: [f('battery-3')] },
+  { at: 60, id: 'r-battery-3', phase: 'pressure', formations: [f('depot-3')] },
   { at: 63, id: 'r-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true), f('fuel-depot')] },
   { at: 69, id: 'r-arrow-5', phase: 'climax', message: 'FORTRESS ESCORT · BREAK THROUGH', formations: [f('arrow-5')] },
   { at: 73, id: 'r-battery-climax', phase: 'climax', formations: [f('battery-3')] },
@@ -272,11 +272,11 @@ export const COLD_VECTOR: readonly EncounterCue[] = [
   { at: 53, id: 'v-east', phase: 'recovery', message: 'LONE INTERCEPTOR · EAST', formations: [world('needle-solo', 7.5), world('fuel-depot', 7.5)] },
   { at: 58, id: 'v-cliff-missiles', phase: 'pressure', message: 'MISSILE BATTERIES ON THE CLIFFS', formations: [f('missile-3')] },
   { at: 61, id: 'v-cliff-needles', phase: 'pressure', formations: [f('needle-line-3')] },
-  { at: 66, id: 'v-cliff-missiles-2', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 66, id: 'v-cliff-missiles-2', phase: 'pressure', formations: [f('depot-missile')] },
   { at: 69, id: 'v-cliff-diamond', phase: 'pressure', formations: [f('diamond-solo')] },
   { at: 75, id: 'v-cliff-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
   { at: 78, id: 'v-cliff-column', phase: 'pressure', formations: [f('needle-column-5')] },
-  { at: 84, id: 'v-cliff-missiles-4', phase: 'pressure', formations: [f('missile-2')] },
+  { at: 84, id: 'v-cliff-missiles-4', phase: 'pressure', formations: [f('depot-missile')] },
   { at: 89, id: 'v-convoy', phase: 'climax', message: 'ESCORT CONVOY · BREAK THE DIAMONDS', formations: [f('diamond-convoy')] },
   { at: 94, id: 'v-convoy-missiles', phase: 'climax', formations: [f('missile-3')] },
   { at: 100, id: 'v-convoy-needles', phase: 'climax', formations: [f('needle-line-3')] },
@@ -304,7 +304,7 @@ export const DEEP_BLOOM: readonly EncounterCue[] = [
   { at: 16, id: 'n-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
   { at: 21, id: 'n-missiles', phase: 'pressure', formations: [f('missile-2')] },
   { at: 24, id: 'n-needle-line', phase: 'pressure', formations: [f('needle-line-3')] },
-  { at: 30, id: 'n-battery-3', phase: 'pressure', formations: [f('battery-3')] },
+  { at: 30, id: 'n-battery-3', phase: 'pressure', formations: [f('depot-3')] },
   { at: 33, id: 'n-diamond', phase: 'pressure', message: 'DIAMOND HEAVY', formations: [f('diamond-solo')] },
   { at: 40, id: 'n-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] },
   { at: 45, id: 'n-missiles-3', phase: 'pressure', formations: [f('missile-3')] },
@@ -322,15 +322,61 @@ export const DEEP_BLOOM: readonly EncounterCue[] = [
   { at: 106, id: 'n-climax-missiles', phase: 'climax', formations: [f('missile-3')] },
   { at: 110, id: 'n-climax-needles', phase: 'climax', formations: [f('needle-line-3', -1)] },
   { at: 116, id: 'n-climax-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
-  { at: 122, id: 'n-climax-batteries-2', phase: 'climax', formations: [f('battery-3')] },
+  { at: 122, id: 'n-climax-batteries-2', phase: 'climax', formations: [f('depot-3')] },
   { at: 126, id: 'n-climax-weavers-2', phase: 'climax', formations: [f('line-weaver-4', -1)] },
   { at: 131, id: 'n-last-needles', phase: 'climax', message: 'LAST SQUADRON · OPEN MIRE AHEAD', formations: [f('needle-column-5', 0, true)] },
   { at: 137, id: 'n-last-missiles', phase: 'climax', formations: [f('missile-2')] },
   { at: 142, id: 'n-relief', phase: 'recovery', formations: [] },
 ];
 
+/**
+ * Inserts an authored block into a sequence at `at`: the block's cues start there (their `at` is relative) and every
+ * later cue moves back by `length` seconds.
+ */
+function extend(base: readonly EncounterCue[], at: number, length: number, block: readonly EncounterCue[]): readonly EncounterCue[] {
+  return [...base.filter(cue => cue.at < at), ...block.map(cue => ({ ...cue, at: at + cue.at })),
+    ...base.filter(cue => cue.at >= at).map(cue => ({ ...cue, at: cue.at + length }))];
+}
+/*
+ * Longer campaign missions (user request, 16 October 2026), growing by mission: Training +10 s stays gentle; Rolling
+ * Thunder +24 s, Cold Vector +28 s and Deep Bloom +36 s add authored stretches with fuel depots. Endless keeps the base
+ * phrases (its sectors have their own length).
+ */
+export const TRAINING_SORTIE = extend(TRAINING, 49, 10, [
+  { at: 0, id: 't-depot', phase: 'pressure', message: 'FUEL DEPOT · ONE SHOT SETS IT OFF', formations: [f('depot-2')] },
+  { at: 4, id: 't-depot-arrow', phase: 'pressure', formations: [f('arrow-3')] },
+]);
+export const ROLLING_THUNDER_SORTIE = extend(ROLLING_THUNDER, 47, 24, [
+  { at: 0, id: 'r-x-depot', phase: 'pressure', message: 'FUEL DEPOT · LIGHT IT UP', formations: [f('depot-3')] },
+  { at: 3, id: 'r-x-line', phase: 'pressure', formations: [f('line-dart-4')] },
+  { at: 9, id: 'r-x-depot-2', phase: 'pressure', formations: [f('depot-2')] },
+  { at: 11, id: 'r-x-snake', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] },
+  { at: 17, id: 'r-x-battery', phase: 'pressure', formations: [f('battery-3')] },
+  { at: 19, id: 'r-x-diamond', phase: 'pressure', formations: [f('diamond-lancer')] },
+]);
+export const COLD_VECTOR_SORTIE = extend(COLD_VECTOR, 89, 28, [
+  { at: 0, id: 'v-x-depot', phase: 'pressure', message: 'FUEL BARGES · BLOW THEM', formations: [f('depot-missile')] },
+  { at: 3, id: 'v-x-needles', phase: 'pressure', formations: [f('needle-line-3', -1)] },
+  { at: 9, id: 'v-x-diamond', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 12, id: 'v-x-missiles', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 16, id: 'v-x-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 21, id: 'v-x-depot-2', phase: 'pressure', formations: [f('depot-missile')] },
+  { at: 23, id: 'v-x-diamond-2', phase: 'pressure', formations: [f('diamond-solo')] },
+]);
+export const DEEP_BLOOM_SORTIE = extend(DEEP_BLOOM, 62, 36, [
+  { at: 0, id: 'n-x-depot', phase: 'pressure', message: 'FUEL DEPOTS IN THE GROVE', formations: [f('depot-3')] },
+  { at: 2, id: 'n-x-weavers', phase: 'pressure', formations: [f('line-weaver-4', -1)] },
+  { at: 8, id: 'n-x-needles', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 12, id: 'n-x-depot-2', phase: 'pressure', formations: [f('depot-missile')] },
+  { at: 15, id: 'n-x-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
+  { at: 21, id: 'n-x-diamond', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 25, id: 'n-x-depot-3', phase: 'pressure', formations: [f('depot-2')] },
+  { at: 28, id: 'n-x-column', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
+  { at: 33, id: 'n-x-missiles', phase: 'pressure', formations: [f('missile-2')] },
+]);
+
 export function campaignPlaylist(mission: MissionId): readonly EncounterCue[] {
-  return mission === 'bastion' ? ROLLING_THUNDER : mission === 'deep-bloom' ? DEEP_BLOOM : mission === 'cold-vector' ? COLD_VECTOR : TRAINING;
+  return mission === 'bastion' ? ROLLING_THUNDER_SORTIE : mission === 'deep-bloom' ? DEEP_BLOOM_SORTIE : mission === 'cold-vector' ? COLD_VECTOR_SORTIE : TRAINING_SORTIE;
 }
 
 /**
