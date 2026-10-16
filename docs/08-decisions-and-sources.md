@@ -113,3 +113,5 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **Endless:** it cycles planets with a hyperdrive jump after each planet's boss (docs/18).
   - **Endless bosses must be killed:** no timeout or retreat; the run continues only after the kill. This replaces docs/03 §8's "the boss retreats after 60 s overtime".
 
+- 2026-10-16, responsive viewport: the user reported unused vertical space on their phone and requested device-sized mobile play. Replaces letterboxing every phone to 9:16. Phones now fill the dynamic viewport height, with safe-area HUD/control padding. Implementation choice for desktop: keep the centered 9:16 frame. Camera projection preserves width and the enemy approach area, adding foreground on taller phones without stretching ships or changing simulation. Affects `src/ui/styles.css`, camera sizing in `src/render/scene.ts`, and docs/05, /06, /10 and /16.
+

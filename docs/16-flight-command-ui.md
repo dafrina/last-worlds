@@ -51,3 +51,5 @@ The full statistics design in `09-objectives-and-statistics.md` is still broader
 ## Validation
 
 See the UI section in `build-status.md` for completed automated checks and screenshot evidence. Desktop Chromium phone-sized viewports do not establish actual iPhone/Android ergonomics or performance. No independent deployment is part of this isolated pass.
+
+**Responsive layout update, 16 October 2026:** the phone frame now fills the live viewport height instead of letterboxing to 9:16. Safe-area padding protects the HUD, special button and menu pages. Desktop stays centered and portrait; side rails yield space in narrower windows. Camera projection expands the foreground without stretching ships or changing the approaching-enemy view; see docs/10 and the latest build-status entry.

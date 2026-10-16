@@ -8,7 +8,9 @@ Dimensions (15 October 2026, user decision): terrain sections 30 world units wid
 
 The ship is free to move across the entire world width. Screen edges are not world walls. World x spans −15 to +15; with the 0.42 collider the ship center clamps to [−14.58, +14.58]. The camera center spans [−9, +9], ensuring the viewport stays inside the map. Mandatory squadrons anchor to the camera but at most ±7, so a squadron never pins the ship against a world edge. At the outer map boundary the ship approaches the screen edge naturally. Mark actual world limits with readable terrain/flight-boundary cues; never invisible viewport clamping.
 
-The 9:16 fitted viewport, orthographic elevation around 55°, forward screen-up motion, and fixed player forward row remain. Different phone shapes fit the same visible tactical rectangle; they do not reveal more width. Horizontal camera movement does not rotate the flight direction.
+**Responsive viewport (user request, 16 October 2026):** phones fill the available dynamic viewport height (`100dvh`) and use their full width when taller than 9:16. Wider touch devices and landscape phones keep a centered portrait field at full height; desktop retains a fitted 9:16 frame with side rails when space permits. The camera preserves the 12-unit width, 55° elevation, forward screen-up motion and fixed player row. Extra phone height extends the foreground below the canonical combat area; its top stays anchored, so it never reveals approaching enemies earlier or stretches models. Horizontal camera movement does not rotate the flight direction.
+
+Canvas resize updates projection, shadow coverage and post-processing together through the existing ResizeObserver. HUD, special button and menus respect safe-area insets with breathing room. The full frame accepts left/right steering, including the formerly empty lower band. Browser-height/orientation changes clear held input as before. Tests cover resizing, notched-device safe areas (emulated), landscape, desktop fitting and ground-target alignment at different aspect ratios; actual iPhone/Android hardware remains a separate gate.
 
 ## 2. Lateral camera contract
 

@@ -30,6 +30,15 @@ const COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const TACTICAL_HEIGHT = VIEW.width * 16 / 9;
 
 /**
+ * Fit a device-sized canvas without stretching models or exposing enemies earlier on tall phones.
+ * Keep the canonical 9:16 view's top and horizontal span; extra height reveals foreground below it.
+ * The ground/target projection and simulation coordinates stay identical on every device.
+ */
+export function fitFlightViewport(camera: THREE.OrthographicCamera | THREE.PerspectiveCamera, width: number, height: number): void {
+  camera.setViewOffset(width, width * 16 / 9, 0, 0, width, height);
+}
+
+/**
  * Height of what a ground piece rests on: the terrain, or the sea surface over water (planets with an ocean).
  * On a dry planet (Khepri) this is exactly terrainHeight.
  */
@@ -126,13 +135,14 @@ export function rayPlacement(camera: THREE.Camera, seed: number, distance: numbe
  * and edges), while terrain below it gains perspective scale and outward-leaning verticals. The centre of
  * projection sits `distance` units along the canonical 55° view direction from the view centre.
  */
-export function configureRectified(camera: THREE.PerspectiveCamera, x: number, distance: number): void {
+export function configureRectified(camera: THREE.PerspectiveCamera, x: number, distance: number, aspect = 9 / 16): void {
   const centerS = (VIEW.minS + VIEW.maxS) / 2;
   const cx = x, cy = VIEW.flightHeight + Math.sin(ELEVATION) * distance, cz = -centerS + Math.cos(ELEVATION) * distance;
   camera.position.set(cx, cy, cz); camera.up.set(0, 0, -1); camera.lookAt(cx, cy - 1, cz); camera.updateMatrixWorld();
   // Camera space: X = world x − cx, Y (screen up) = cz + s, depth = height above the plane.
   const k = camera.near / (cy - VIEW.flightHeight);
-  camera.projectionMatrix.makePerspective((-VIEW.width / 2) * k, (VIEW.width / 2) * k, (cz + VIEW.maxS) * k, (cz + VIEW.minS) * k, camera.near, camera.far);
+  const nearS = VIEW.maxS - (VIEW.maxS - VIEW.minS) * (9 / 16) / aspect;
+  camera.projectionMatrix.makePerspective((-VIEW.width / 2) * k, (VIEW.width / 2) * k, (cz + VIEW.maxS) * k, (cz + nearS) * k, camera.near, camera.far);
   camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
 }
 
@@ -302,11 +312,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const cameraMode = query.get('camera') === 'perspective' ? 'perspective' : query.get('camera') === 'rectified' ? 'rectified' : 'ortho';
   const perspective = cameraMode !== 'ortho';
   const lens = Number(query.get('fov')) || PERSPECTIVE_FOV, rectifiedDepth = Number(query.get('depth')) || 60.5;
+  let viewportAspect = 9 / 16;
   const camera = cameraMode === 'perspective' ? new THREE.PerspectiveCamera(lens, 9 / 16, 1, 260)
     : cameraMode === 'rectified' ? new THREE.PerspectiveCamera(20, 9 / 16, 1, 260)
     : new THREE.OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, TACTICAL_HEIGHT / 2, -TACTICAL_HEIGHT / 2, .1, 100);
   const placeCamera = (x: number) => {
-    if (cameraMode === 'rectified') configureRectified(camera as THREE.PerspectiveCamera, x, rectifiedDepth); else configureCamera(camera, x);
+    if (cameraMode === 'rectified') configureRectified(camera as THREE.PerspectiveCamera, x, rectifiedDepth, viewportAspect); else configureCamera(camera, x);
   };
   placeCamera(0);
 
@@ -694,7 +705,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     resize(width, height) {
       if (disposed) return;
       drawingWidth = Math.max(1, Math.floor(width)); drawingHeight = Math.max(1, Math.floor(height));
+      viewportAspect = drawingWidth / drawingHeight;
+      if (cameraMode !== 'rectified') fitFlightViewport(camera, drawingWidth, drawingHeight);
+      placeCamera(camera.position.x); fitShadow();
       renderer.setSize(drawingWidth, drawingHeight, false); resizePost();
+      lastStatsTick = -Infinity;
     },
     render(state, alpha) {
       if (disposed) return;

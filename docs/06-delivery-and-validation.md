@@ -50,7 +50,7 @@ If the controls are tiring or automatic acquisition feels broken, tune movement,
 | Task | Depends on | Concrete result | Primary acceptance |
 | --- | --- | --- | --- |
 | T01 Project bootstrap | None | Build, lint/typecheck, tests, dev route, README commands | Clean checkout works |
-| T02 Canonical viewport/camera | T01 | Fixed 9:16 viewport, wider world, camera, safe areas | Equal viewport/world rules at all sizes |
+| T02 Canonical viewport/camera | T01 | 12-unit view width, responsive phone height, wider world, camera, safe areas (docs/10) | Equal combat framing/world rules at all sizes |
 | T03 Input adapter | T02 | Pointer ownership and keyboard `InputFrame` | Cancel/multi-touch/UI overlap tests pass |
 | T04 Fixed-step world | T01 | Tick loop, IDs, RNG streams, entity lifecycle | Render-rate independence test passes |
 | T05 Acquisition and ground proxies | T02,T04 | Unified target shapes and projected ground cores | Visible shot/core alignment |

@@ -10,6 +10,10 @@
   --coral: #a4c8ed;
   --line: #263d57;
   --mono: 'Cascadia Mono', 'SFMono-Regular', Consolas, monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -40,7 +44,8 @@ button:disabled { cursor: default; }
 .flight-frame {
   position: relative;
   container-type: inline-size;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   width: min(calc(100vw - 44px), calc((100vh - 44px) * 9 / 16));
   width: min(calc(100vw - 44px), calc((100dvh - 44px) * 9 / 16));
   aspect-ratio: 9 / 16;
@@ -79,7 +84,7 @@ button:disabled { cursor: default; }
 
 .flight-hud {
   position: absolute; z-index: 4;
-  inset: max(16px, env(safe-area-inset-top)) 15px auto;
+  inset: max(16px, calc(var(--safe-top) + 10px)) max(15px, calc(var(--safe-right) + 10px)) auto max(15px, calc(var(--safe-left) + 10px));
   display: flex; justify-content: space-between; align-items: flex-start;
   pointer-events: none;
   filter: drop-shadow(0 1px 2px #060d1acc);
@@ -100,7 +105,7 @@ button:disabled { cursor: default; }
 }
 .special-button {
   --charge: 0; --glow: #7fd8ff;
-  position: absolute; z-index: 5; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%;
+  position: absolute; z-index: 5; bottom: max(16px, calc(var(--safe-bottom) + 12px)); left: 50%;
   transform: translateX(-50%); width: 72px; height: 72px; padding: 0;
   display: grid; place-items: center; border-radius: 50%; border: 0;
   background: #0d1b2ef0; color: #7f93ab; touch-action: none;
@@ -142,7 +147,7 @@ button:disabled { cursor: default; }
   position: absolute; z-index: 10; inset: 0; display: flex; align-items: center;
   background: #081426f7; overflow-y: auto; overscroll-behavior: contain;
   touch-action: pan-y; scrollbar-width: thin; scrollbar-color: #3b5573 transparent;
-  padding: max(25px, env(safe-area-inset-top)) clamp(22px, 7%, 36px) max(24px, env(safe-area-inset-bottom));
+  padding: max(25px, calc(var(--safe-top) + 12px)) max(22px, 7%, calc(var(--safe-right) + 12px)) max(24px, calc(var(--safe-bottom) + 12px)) max(22px, 7%, calc(var(--safe-left) + 12px));
 }
 .menu-panel, .page-panel, .short-panel { width: 100%; margin: auto 0; }
 .menu-panel { position: relative; }
@@ -282,13 +287,17 @@ button:disabled { cursor: default; }
 @keyframes gentle-hint { 0%, 100% { opacity: .9; } 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .planet-stage.is-switching .planet-preview { animation: none; } .flight-overlay.is-ending .results-panel, .flight-overlay.is-ending .results-panel h2 { animation: ending-fade .8s ease-out 1.2s both; } .flight-overlay.is-ending.is-victory .results-panel, .flight-overlay.is-ending.is-victory .results-panel h2 { animation-delay: 2.3s; } .special-button.is-ready { animation: none; box-shadow: inset 0 0 0 1px #acc2d633, 0 0 16px 3px #7fd8ff99; } .steering-hints { animation: none; } .arcade-button:active { transform: none; } }
 @media (max-width: 980px) { .flight-rail { display: none; } }
-@media (max-width: 600px), (max-height: 560px) {
+/* Phones use the full live viewport. Wider touch devices keep a portrait playfield, full height. */
+@media (max-width: 600px), (max-height: 560px), (pointer: coarse) {
   .last-worlds-shell { padding: 0; }
-  .flight-frame { width: min(100vw, calc(100vh * 9 / 16)); width: min(100vw, calc(100dvh * 9 / 16)); border: 0; }
+  .flight-frame {
+    width: min(100%, calc(100vh * 9 / 16)); width: min(100%, calc(100dvh * 9 / 16));
+    height: 100%; aspect-ratio: auto; border: 0;
+  }
   .flight-rail { display: none; }
 }
 @media (max-height: 740px) {
-  .flight-overlay { padding-top: 21px; padding-bottom: 21px; }
+  .flight-overlay { padding-top: max(21px, calc(var(--safe-top) + 12px)); padding-bottom: max(21px, calc(var(--safe-bottom) + 12px)); }
   .wordmark { margin-top: 25px; }
   .back-button { margin-bottom: 14px; }
   .page-panel h2 { margin-bottom: 20px; }

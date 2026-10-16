@@ -1,5 +1,12 @@
 # Build status
 
+## Full-height phone playfield — 16 October 2026
+
+- **Phone layout:** fills the available dynamic viewport height instead of adding 9:16 letterbox bands. The HUD, special button and menus include notch/home-indicator padding. Landscape and wider touch devices retain a centered portrait field at full height; desktop keeps its fitted 9:16 frame and side rails, shrinking cleanly in narrow windows.
+- **Camera:** device resizing adjusts projection, shadow coverage and post-processing together. The original horizontal span and approach edge stay fixed; tall phones reveal foreground below the combat area. Ships retain their proportions, ground models still align with their collision targets, and simulation/targeting remain unchanged.
+- **Validation:** 297/297 unit tests, 19/19 browser cases, typecheck and production build passed. Chromium 156.0.8078.4 / Playwright 1.64.0 / SwiftShader in WSL. Inspected 320×568, 390×700, 390×844, 430×932 and 844×390 phone layouts, plus 1440×900 and 1024×1200 desktop layouts. Tests verify height changes, held-input clearing, steering in the newly filled lower band, simulated safe-area insets and projection alignment.
+- **Evidence:** `docs/screenshots/full-height-phone.png`; detailed captures in ignored `lookdev/viewport-browser/`. No physical iPhone/Android test. Existing bundle-size warning remains.
+
 ## Endless boss terrain clearance — 16 October 2026
 
 - **Fixed:** Khepri terrain was visible behind WARDEN-1 during the endless Moon fight. Every endless boss arena now has another 36 units of its outgoing planet before the world boundary. This covers the full tilted-camera ground view, post-kill scroll resume and jump fade-in, including later repeats at capped pace.
