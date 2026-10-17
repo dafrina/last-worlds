@@ -6,22 +6,23 @@ import { nearArena, type TerrainArena } from './terrain-arena';
  * own composition, quarter-turn rotation, mirroring and module counts, on flattened ground. Pure data from
  * the seed; never reads combat. Positions are global, so every section sees the same settlements.
  */
-export type Archetype = 'refinery' | 'mining' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned'
+export type Archetype = 'refinery' | 'mining' | 'plant' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned'
   // Vesper (docs/17 §4).
   | 'radiator' | 'missile' | 'cryo' | 'harbour';
-export type KhepriArchetype = 'refinery' | 'mining' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned';
-export const ARCHETYPES: readonly KhepriArchetype[] = ['refinery', 'mining', 'landing', 'comm', 'pumping', 'wreck', 'abandoned'];
-const WEIGHTS: Readonly<Record<KhepriArchetype, number>> = { refinery: 0.18, mining: 0.2, landing: 0.14, comm: 0.14, pumping: 0.1, wreck: 0.12, abandoned: 0.12 };
+export type KhepriArchetype = 'refinery' | 'mining' | 'plant' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned';
+export const ARCHETYPES: readonly KhepriArchetype[] = ['refinery', 'mining', 'plant', 'landing', 'comm', 'pumping', 'wreck', 'abandoned'];
+// Bigger facilities weigh more (user, 17 October: more houses and facilities on Khepri and Vesper).
+const WEIGHTS: Readonly<Record<KhepriArchetype, number>> = { refinery: 0.17, mining: 0.17, plant: 0.18, landing: 0.12, comm: 0.11, pumping: 0.09, wreck: 0.08, abandoned: 0.08 };
 /** Local half extents (lateral u, forward v) of each archetype's flattened pad. */
 const EXTENT: Readonly<Record<KhepriArchetype, [number, number]>> = {
-  refinery: [3.7, 4.7], mining: [3.6, 3.6], landing: [4.4, 4.3], comm: [3.1, 3.1], pumping: [3.2, 3.2], wreck: [2.7, 2.3], abandoned: [3.1, 3.1],
+  refinery: [4.0, 5.0], mining: [3.6, 3.6], plant: [3.6, 3.8], landing: [4.4, 4.3], comm: [3.1, 3.1], pumping: [3.2, 3.2], wreck: [2.7, 2.3], abandoned: [3.1, 3.1],
 };
 /** Authored real-size heights of the pieces settlements use (docs/13 §3b, docs/14). */
 export const MODULE_HEIGHT: Readonly<Record<string, number>> = {
   infra_landing_pad: 0.3, infra_refinery: 1.6, infra_relay: 1.6, infra_cargo_0: 0.65, infra_cargo_1: 0.65, infra_cargo_2: 0.65,
   infra_track_segment: 0.05, infra_drill_rig: 1.96, infra_habitat_0: 0.78, infra_habitat_1: 0.78, infra_comm_dish: 1.25,
   infra_solar_array: 0.45, infra_light_mast: 1.5, infra_silo: 1.75, wreck_0: 0.39, wreck_1: 0.54,
-  tank_vertical_0: 1.45, tank_vertical_1: 1.45, tank_sphere: 1.5, tank_horizontal: 0.9, container_0: 0.55, container_1: 0.6,
+  tank_vertical_0: 1.45, tank_vertical_1: 1.45, tank_sphere: 1.5, tank_horizontal: 0.9, container_0: 0.55, container_1: 0.6, facility: 1.8,
   pipe_valve: 0.8, pipe_l_tee: 0.57, pipe_support: 0.62,
   // Vesper infrastructure (vesper-infra.glb, art/vesper-infra/README.md); the pier counts from its waterline.
   vesper_radiator_array: 0.81, vesper_missile_site: 1.74, vesper_cannon_site: 0.84, vesper_cryo_dome: 0.94, vesper_habitat_0: 0.89,
@@ -65,7 +66,21 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
       for (let i = 0; i < tanks; i++) shared(['tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_vertical_0'][i], -2.4 + (i % 2) * 1.35, -3.4 + Math.floor(i / 2) * 1.4);
       shared('pipe_valve', -2.6, 1.6); shared('tank_horizontal', 1.2, -3.2, Math.PI / 2);
       for (let i = 0; i < count(2, 1, 2); i++) shared(`container_${i}`, 2.9, -1.4 + i * 0.9, Math.PI / 2);
-      infra('infra_light_mast', -3.3, 4.2); if (h(3) < 0.6) infra('infra_light_mast', 3.3, -4.2);
+      // Half the refineries add a processing hall on the free flank (it replaces that corner's light mast).
+      if (h(9) < 0.5) shared('facility', -2.5, 3.3, Math.PI / 2); else infra('infra_light_mast', -3.3, 4.2);
+      if (h(3) < 0.6) infra('infra_light_mast', 3.3, -4.2);
+      break;
+    }
+    case 'plant': {
+      // A processing plant: the facility hall with tanks, freight and a second, smaller building.
+      infra('infra_light_mast', -3.0, 3.2);
+      shared('facility', -0.9, 1.3);
+      shared(h(5) < 0.5 ? 'tank_vertical_0' : 'tank_sphere', 2.2, 2.2);
+      shared('tank_vertical_1', 2.2, 0.9);
+      shared('pipe_valve', 1.0, 0.3);
+      for (let i = 0; i < count(6, 1, 3); i++) shared(`container_${i % 2}`, -2.6 + i * 1.25, -1.4, 0);
+      infra(h(7) < 0.5 ? 'infra_habitat_0' : 'infra_habitat_1', 1.8, -2.4, Math.PI / 2);
+      if (h(8) < 0.6) infra(cargo(40), -0.6, -2.8, Math.PI / 2);
       break;
     }
     case 'mining': {
@@ -151,7 +166,7 @@ export function settlement(seed: number, cell: number, side: number): Settlement
   // the middle of nowhere made little sense): a slow district noise sets the chance, and the other side of a busy
   // cell is likelier to be built up too.
   const district = districtLevel(seed, cell), across = hash(seed ^ 0x5e77 ^ (side > 0 ? 0 : 0x1000), cell * 211, 3) < 0.15 + 0.75 * district;
-  if (h(0) < 0.22 + 1.25 * district + (across ? 0.12 : 0)) {
+  if (h(0) < 0.42 + 1.2 * district + (across ? 0.12 : 0)) {
     // Prefer the calmest of a few candidate spots: outposts settle on flat ground at any terrain level.
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 5; k++) {

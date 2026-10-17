@@ -926,6 +926,10 @@ export function createFallbackShared(): KitGeometries {
   build('tank_horizontal', [part(new THREE.CylinderGeometry(0.36, 0.36, 1.8, 16).rotateZ(Math.PI / 2).translate(0, 0.52, 0), SHARED_CLASS.metal),
     box(0.12, 0.3, 0.6, -0.55, 0, 0, SHARED_CLASS.paint), box(0.12, 0.3, 0.6, 0.55, 0, 0, SHARED_CLASS.paint)]);
   build('container_0', [box(1.18, 0.52, 0.62, 0, 0, 0, SHARED_CLASS.paint)]);
+  // Facility stand-in: hall, annex and stack (the Blender node replaces it once industrial-kit.glb loads).
+  build('facility', [box(2.7, 0.1, 2.1, 0, 0, 0, SHARED_CLASS.metal), box(1.9, 1.04, 1.5, -0.25, 0.1, -0.15, SHARED_CLASS.paint),
+    box(0.6, 0.64, 0.9, 1.05, 0.1, 0.2, SHARED_CLASS.metal), part(new THREE.CylinderGeometry(0.11, 0.11, 0.55, 10).translate(0.45, 1.47, -0.55), SHARED_CLASS.metal),
+    box(1.7, 0.09, 0.02, -0.25, 0.94, 0.62, SHARED_CLASS.light)]);
   build('container_1', [box(0.5, 0.28, 0.6, -0.27, 0, 0, SHARED_CLASS.paint), box(0.5, 0.28, 0.6, 0.27, 0, 0, SHARED_CLASS.paint), box(0.5, 0.28, 0.6, 0, 0.28, 0, SHARED_CLASS.paint)]);
   return kit;
 }

@@ -1,6 +1,7 @@
 /** Development-only visual fixture; this HTML is not a Vite production entry. */
 import { createRun, stepRun } from '../../src/sim/game';
 import { arenaScroll, startBastion, bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
+import { spawnMembers } from '../../src/sim/spawn';
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
 import { createInput } from '../../src/input/controls';
@@ -96,6 +97,16 @@ prepare();
 if (query.has('pickups')) {
   const drops = [{ kind: 'shield' }, { kind: 'power' }, { kind: 'credit' }, { kind: 'weapon', weapon: 'pulse' }, { kind: 'weapon', weapon: 'fan' }, { kind: 'weapon', weapon: 'seeker' }] as const;
   drops.forEach((drop, i) => state.pickups.push({ id: state.nextId++, ...drop, x: state.cameraX - 4.5 + i * 1.8, s: 5 + (i % 2) * 1.2, value: 1, ttl: 99 }));
+}
+// `battery=<formation>`: that ground formation rolls into view (no boss), frozen with `still`; for emplacement look-dev.
+if (query.has('battery')) {
+  // A fresh Rolling Thunder (Khepri) or Cold Vector (`planet=vesper`) flight, cues off, scrolling at full speed.
+  state = createRun({ mode: 'campaign', mission: query.get('planet') === 'vesper' ? 'cold-vector' : 'bastion', seed: Number(query.get('seed') ?? 8831) });
+  state.nextEncounterAt = Infinity;
+  for (let i = 0; i < Number(query.get('at') ?? 30) * 60; i++) { state.nextEncounterAt = Infinity; state.player.invulnerableUntil = Infinity; stepRun(state, EMPTY_INPUT); }
+  state.enemies = []; state.hazards = []; state.projectiles = []; state.pickups = [];
+  spawnMembers(state, query.get('battery') as Parameters<typeof spawnMembers>[1], state.cameraX, 1);
+  for (let i = 0; i < Number(query.get('roll') ?? 120); i++) { state.player.invulnerableUntil = Infinity; state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT); }
 }
 // `fuel`: three fuel skids ahead; the middle one sits in the player's line of fire (its kill leaves a wreck).
 if (query.has('fuel')) for (const [dx, s] of [[-2.6, 10], [0, 8], [2.6, 11]]) {

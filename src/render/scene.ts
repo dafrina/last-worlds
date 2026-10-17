@@ -436,7 +436,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Shared pipes and tanks (docs/14), shaded from the Khepri palette; code-built stand-ins until they load.
   loadSharedKit(`${import.meta.env.BASE_URL}assets/shared/industrial-kit.glb`).then(shared => {
     if (disposed) { shared.forEach(geometry => geometry.dispose()); return; }
-    terrain.setShared(shared); warmed = false;
+    terrain.setShared(shared); emplacementGeometry = shared; warmed = false;
   }).catch(() => { /* Not shipped: the code-built stand-ins remain. */ });
   // The production fortress (docs/15) replaces the functional stand-in; if it fails, the stand-in remains.
   loadBastionModel(`${import.meta.env.BASE_URL}assets/khepri/bastion-9.glb`).then(model => {
@@ -525,6 +525,36 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * boss's arrival or a jump leave nothing (no explosion there).
    */
   const wrecks: { node: 'wreck_turret_0' | 'wreck_turret_1' | 'wreck_fuel'; x: number; worldS: number; yaw: number; y: number }[] = [];
+  /**
+   * Battery emplacements (render-only; user, 17 October 2026: buildings near the turrets). The first time a ground
+   * battery stands on Khepri or Vesper ground, a few shared-kit pieces are laid out around it, anchored to the ground
+   * like the wrecks: a facility hall behind it, or tanks and freight. They stay after the battery falls.
+   */
+  type EmplacementNode = 'facility' | 'container_0' | 'container_1' | 'tank_horizontal' | 'tank_vertical_1' | 'tank_sphere';
+  const EMPLACEMENT_LAYOUTS: readonly (readonly [EmplacementNode, number, number, number])[][] = [
+    [['facility', 0, 2.5, 0], ['container_0', 1.5, 0.2, Math.PI / 2]],
+    [['tank_vertical_1', 1.3, 0.9, 0], ['tank_horizontal', -0.2, 1.7, 0], ['container_1', -1.4, 0.3, 0.3]],
+    [['tank_sphere', 0, 1.8, 0], ['container_0', -1.4, 0.6, Math.PI / 2], ['container_1', 1.4, 0.4, 0]],
+    [['facility', 0, 2.5, 0]],
+  ];
+  const EMPLACEMENT_RADIUS: Readonly<Record<EmplacementNode, number>> = { facility: 1.55, container_0: .65, container_1: .65, tank_horizontal: 1.05, tank_vertical_1: .6, tank_sphere: .65 };
+  const emplacements: { node: EmplacementNode; x: number; worldS: number; y: number; yaw: number }[] = [], emplaced = new Set<number>();
+  const emplacementBatches = new Map<EmplacementNode, THREE.InstancedMesh>();
+  let emplacementGeometry: ReadonlyMap<string, THREE.BufferGeometry> = createFallbackShared();
+  const emplacementMesh = (node: EmplacementNode) => {
+    const geometry = emplacementGeometry.get(node);
+    if (!geometry) return null;
+    let mesh = emplacementBatches.get(node);
+    if (!mesh || mesh.geometry !== geometry) {
+      if (mesh) { scene.remove(mesh); mesh.dispose(); }
+      mesh = new THREE.InstancedMesh(geometry, sharedMaterial, 48);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Emplacement ${node}`;
+      mesh.castShadow = mesh.receiveShadow = true;
+      for (let i = 0; i < 48; i++) mesh.setColorAt(i, WHITE);
+      scene.add(mesh); emplacementBatches.set(node, mesh);
+    }
+    return mesh;
+  };
   /** A ground target last frame: logical (x, s) for matching its kill explosion; drawn ground spot for the wreck. */
   type GroundSeen = { kind: EnemyKind; x: number; s: number; afloat: boolean; groundX: number; /** World s. */ groundS: number; base: number };
   const groundSeen = new Map<number, GroundSeen>();
@@ -1006,7 +1036,37 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
       }
       // Ground wrecks: a new run (or a rewind) clears them; a ground target killed on screen leaves one.
-      if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); wreckRun = state.config; }
+      if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
+      // New batteries on Khepri or Vesper ground get their emplacement (a quarter stand alone).
+      if (planet === 'khepri' || planet === 'vesper') for (const [id, spot] of groundNow) {
+        if (emplaced.has(id) || spot.afloat || spot.kind === 'fuel') continue;
+        emplaced.add(id);
+        const roll = Math.abs(Math.sin(id * 78.233) * 43758.5453 % 1);
+        if (roll < .25) continue;
+        const layout = EMPLACEMENT_LAYOUTS[Math.floor(roll * 997) % EMPLACEMENT_LAYOUTS.length], flip = roll * 13 % 1 < .5 ? -1 : 1;
+        for (const [node, dx, ds, yaw] of layout) {
+          const r = EMPLACEMENT_RADIUS[node];
+          // The authored spot first, then alternatives around the battery: the first that is clear and level wins.
+          const spots: [number, number][] = [[dx, ds], [-dx, ds], [dx + 2.4, ds - 1], [dx - 2.4, ds - 1], [dx, ds + 1.2], [2.8, -0.8], [-2.8, -0.8]];
+          for (const [ox, os] of spots) {
+            const x = spot.groundX + ox * flip, worldS = spot.groundS + os;
+            if (Math.abs(x) > VIEW.worldWidth / 2 - r) continue;
+            // Clear of every battery (its own too) and of the other emplacement pieces.
+            let blocked = Math.hypot(ox, os) < r + .7;
+            for (const [other, o] of groundNow) if (other !== id && Math.hypot(o.groundX - x, o.groundS - worldS) < r + .75) blocked = true;
+            for (const e of emplacements) if (Math.hypot(e.x - x, e.worldS - worldS) < r + EMPLACEMENT_RADIUS[e.node] + .1) blocked = true;
+            if (blocked) continue;
+            // On dry, fairly level ground, seated at the mean height (a hall tolerates ±0.35, the rest ±0.25).
+            const offsets = [[-r, -r], [r, -r], [-r, r], [r, r], [0, 0]].map(([cx, cs]) => [x + cx * .8, worldS + cs * .8]);
+            const corners = offsets.map(([px, ps]) => surfaceHeight(state.config.seed, px, ps, world));
+            if (Math.max(...corners) - Math.min(...corners) > (node === 'facility' ? .7 : .5)) continue;
+            if (world.planet.seaLevel !== null && offsets.some(([px, ps]) => terrainHeight(state.config.seed, px, ps, world) < sea - .05)) continue;
+            emplacements.push({ node, x, worldS, y: corners.reduce((sum, h) => sum + h, 0) / corners.length - .04, yaw: flip < 0 && yaw ? -yaw : yaw });
+            break;
+          }
+        }
+        if (emplacements.length > 60) emplacements.splice(0, emplacements.length - 60);
+      }
       wreckTick = state.tick;
       for (const [id, last] of groundSeen) {
         if (groundNow.has(id) || last.afloat || last.s < VIEW.minS) continue;
@@ -1027,6 +1087,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
       wreckBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+      for (let i = emplacements.length - 1; i >= 0; i--) if (emplacements[i].worldS - state.distance < VIEW.minS - 4) emplacements.splice(i, 1);
+      emplacementBatches.forEach(mesh => { mesh.count = 0; });
+      for (const piece of emplacements) {
+        const mesh = emplacementMesh(piece.node);
+        if (!mesh || mesh.count >= mesh.instanceMatrix.count || Math.abs(piece.x - state.cameraX) > VIEW.width / 2 + 3) continue;
+        transform.position.set(piece.x, piece.y, -(piece.worldS - state.distance)); transform.rotation.set(0, piece.yaw, 0); transform.scale.setScalar(1); transform.updateMatrix();
+        mesh.setMatrixAt(mesh.count++, transform.matrix);
+      }
+      emplacementBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
       for (const set of [enemyBatches, vesperBatches, nacreBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
         batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true; if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;

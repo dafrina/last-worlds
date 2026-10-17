@@ -86,7 +86,7 @@ export const KHEPRI: PlanetProfile = {
   settlement,
   scatter: scatterKitSteps,
   floes: function* () { return []; },
-  industrial: new Set(['refinery', 'pumping', 'mining']), quiet: new Set(['wreck', 'abandoned']),
+  industrial: new Set(['refinery', 'pumping', 'mining', 'plant']), quiet: new Set(['wreck', 'abandoned']),
 };
 
 export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE };

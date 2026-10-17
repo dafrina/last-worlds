@@ -60,6 +60,8 @@ RULES = {
     "tank_horizontal": dict(budget=700, foot=(2.0, 0.8), top_max=0.9, ground=True),
     "container_0": dict(budget=300, foot=(1.2, 0.7), top_max=0.6, ground=True),
     "container_1": dict(budget=300, foot=(1.2, 0.7), top_max=0.6, ground=True),
+    # A processing facility (17 October 2026): the shared mid-size building for outposts and battery emplacements.
+    "facility": dict(budget=1600, foot=(2.8, 2.2), top_range=(1.6, 1.95), ground=True),
 }
 NODE_ORDER = list(RULES)
 
@@ -317,6 +319,48 @@ def build_container(rng, idx):
     return hs, []
 
 
+def build_facility(rng):
+    """Processing facility: a long hall on a plinth with a lit window band, a roller door, a low annex, an external
+    stair, roof units, a vent and an exhaust stack with a beacon. Front (doors) toward -Y (glTF +Z)."""
+    hs = infra.HS(rng)
+    hs.box((0.0, 0.0, 0.05), (2.7, 2.1, 0.1), 0.02, "metal", mat=METAL)                      # plinth
+    hs.box((-0.25, 0.15, 0.62), (1.9, 1.5, 1.04), 0.03, "metal", mat=PAINT)                   # hall
+    hs.box((-0.25, 0.15, 1.17), (1.98, 1.58, 0.07), 0.015, "metal", mat=METAL)                # roof edge
+    for z in (0.32, 0.86):                                                                     # panel seams
+        hs.box((-0.25, 0.15, z), (1.92, 1.52, 0.025), 0.0, "metal", mat=METAL)
+    for k in range(5):                                                                          # pilasters
+        x = -1.2 + k * 0.475
+        hs.box((x, -0.6 - 0.012, 0.62), (0.06, 0.03, 1.04), 0.0, "metal", mat=METAL)
+    hs.box((-0.25, -0.6 - 0.02, 0.98), (1.7, 0.012, 0.09), 0.0, "lamp", mat=LIGHT)            # lit window band
+    hs.box((0.35, -0.6 - 0.018, 0.4), (0.5, 0.02, 0.62), 0.0, "metal", mat=METAL)             # roller door
+    for k in range(6):
+        hs.box((0.35, -0.6 - 0.03, 0.15 + k * 0.1), (0.48, 0.01, 0.02), 0.0, "metal", mat=PAINT)
+    hs.box((0.35, -0.6 - 0.035, 0.76), (0.56, 0.05, 0.05), 0.0, "metal", mat=PAINT)           # door header
+    hs.box((-0.8, -0.6 - 0.018, 0.33), (0.24, 0.02, 0.44), 0.0, "metal", mat=METAL)           # personnel door
+    hs.box((-0.8, -0.6 - 0.03, 0.6), (0.06, 0.02, 0.04), 0.0, "lamp", mat=LIGHT)              # door lamp
+    # Annex: a lower block on the right with its own roof band and a lit window.
+    hs.box((1.05, -0.2, 0.42), (0.6, 0.9, 0.64), 0.03, "metal", mat=METAL)
+    hs.box((1.05, -0.2, 0.77), (0.66, 0.96, 0.06), 0.012, "metal", mat=PAINT)
+    hs.box((1.05, -0.66, 0.48), (0.34, 0.012, 0.12), 0.0, "lamp", mat=LIGHT)
+    # External stair up the left gable to the roof.
+    for k in range(7):
+        hs.box((-1.28, 0.62 - k * 0.14, 0.14 + k * 0.15), (0.16, 0.13, 0.03), 0.0, "metal", mat=METAL)
+    hs.box((-1.36, 0.2, 0.62), (0.02, 0.98, 0.02), 0.0, "metal", mat=METAL)                   # rail
+    # Roof units, a vent and the exhaust stack with its beacon.
+    for x, y in ((-0.85, 0.45), (-0.35, 0.45)):
+        hs.box((x, y, 1.3), (0.34, 0.3, 0.2), 0.02, "metal", mat=METAL)
+        hs.cyl((x, y, 1.405), (0, 0, 1), 0.1, 0.02, 10, 0.0, "metal", mat=PAINT, cap0=False, smooth=False)
+    hs.box((0.2, -0.15, 1.27), (0.6, 0.22, 0.14), 0.015, "metal", mat=METAL)
+    hs.cyl((0.45, 0.55, 1.2), (0, 0, 1), 0.11, 0.55, 12, 0.0, "metal", mat=METAL, cap0=False)
+    for z in (1.42, 1.62):
+        hs.cyl((0.45, 0.55, z), (0, 0, 1), 0.125, 0.05, 12, 0.0, "metal", mat=PAINT, cap0=False, cap1=False)
+    hs.cyl((0.45, 0.55, 1.75), (0, 0, 1), 0.035, 0.05, 6, 0.0, "lamp", mat=LIGHT, cap0=False, smooth=False)
+    # A pipe run from the annex into the hall wall, with a valve wheel: ties it to the pipelines.
+    hs.cyl((1.05, 0.25, 0.3), (0, 1, 0), 0.06, 0.6, 8, 0.0, "metal", mat=METAL, cap0=False)
+    hs.cyl((1.05, 0.52, 0.3), (0, 1, 0), 0.085, 0.04, 10, 0.0, "metal", mat=PAINT, smooth=False)
+    return hs, []
+
+
 def build_all():
     out = {}
     for cls in ("s", "l"):
@@ -331,6 +375,7 @@ def build_all():
     out["tank_horizontal"] = build_tank_horizontal(random.Random(f"{SEED}:tankh"))
     for i in range(2):
         out[f"container_{i}"] = build_container(random.Random(f"{SEED}:container{i}"), i)
+    out["facility"] = build_facility(random.Random(f"{SEED}:facility"))
     return out
 
 
@@ -736,7 +781,7 @@ def render_sheet(objs, pmats, pal, path, engine, samples):
     scene = bpy.context.scene
     rows = [
         (6.8, 2.6, ["pipe_s_straight", "pipe_s_elbow", "pipe_s_tee", "pipe_l_straight", "pipe_l_elbow", "pipe_l_tee"]),
-        (3.4, 2.4, ["pipe_valve", "pipe_support", "container_0", "container_1"]),
+        (3.4, 2.4, ["pipe_valve", "pipe_support", "container_0", "container_1", "facility"]),
         (0.0, 2.6, ["tank_vertical_0", "tank_vertical_1", "tank_sphere", "tank_horizontal"]),
     ]
     for y, dx, names in rows:
@@ -747,7 +792,7 @@ def render_sheet(objs, pmats, pal, path, engine, samples):
             kit.text_label(name, (x, y - 1.25, 0.002), 0.15, pmats["label"])
     # Alternate palette swatch: icy metal, blue paint, cool lamps, on a pale slab.
     kit.plane_obj("swatch_ground", -5.2, 5.2, -4.9, -2.3, 0.004, pmats["ice"])
-    for c, name in enumerate(["tank_sphere", "tank_vertical_1", "pipe_l_elbow", "pipe_valve", "container_0"]):
+    for c, name in enumerate(["tank_sphere", "tank_vertical_1", "facility", "pipe_valve", "container_0"]):
         put(objs[name], (-4.0 + c * 2.0, -3.6, 0.004), pal=pal[1], name=f"swatch_{name}")
     kit.text_label("alternate palette (icy metal, blue paint, cool lamps)", (0.0, -5.3, 0.002), 0.15, pmats["label"])
     kit.plane_obj("sheet_ground", -14.0, 14.0, -10.0, 16.0, 0.0, pmats["sheet"])

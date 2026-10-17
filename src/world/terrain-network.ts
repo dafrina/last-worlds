@@ -19,10 +19,10 @@ import { KHEPRI, worldOf, type PlanetProfile, type World, type WorldInput } from
 export type SharedNode =
   | 'pipe_s_straight' | 'pipe_l_straight' | 'pipe_s_elbow' | 'pipe_l_elbow' | 'pipe_s_tee' | 'pipe_l_tee'
   | 'pipe_valve' | 'pipe_support' | 'tank_vertical_0' | 'tank_vertical_1' | 'tank_sphere' | 'tank_horizontal'
-  | 'container_0' | 'container_1';
+  | 'container_0' | 'container_1' | 'facility';
 export const SHARED_NODES: readonly SharedNode[] = [
   'pipe_s_straight', 'pipe_l_straight', 'pipe_s_elbow', 'pipe_l_elbow', 'pipe_s_tee', 'pipe_l_tee', 'pipe_valve',
-  'pipe_support', 'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'container_0', 'container_1',
+  'pipe_support', 'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'container_0', 'container_1', 'facility',
 ];
 /** Contract half footprint (local x/z, before rotation) and height, for bounds and culling. */
 export const SHARED_BOUNDS: Readonly<Record<SharedNode, { halfX: number; halfZ: number; height: number }>> = {
@@ -33,6 +33,7 @@ export const SHARED_BOUNDS: Readonly<Record<SharedNode, { halfX: number; halfZ: 
   tank_vertical_0: { halfX: 0.6, halfZ: 0.6, height: 1.45 }, tank_vertical_1: { halfX: 0.55, halfZ: 0.55, height: 1.45 },
   tank_sphere: { halfX: 0.6, halfZ: 0.6, height: 1.5 }, tank_horizontal: { halfX: 1, halfZ: 0.4, height: 0.9 },
   container_0: { halfX: 0.6, halfZ: 0.32, height: 0.55 }, container_1: { halfX: 0.56, halfZ: 0.33, height: 0.6 },
+  facility: { halfX: 1.38, halfZ: 1.05, height: 1.8 },
 };
 export const PIPE_CELL = 2;
 /** Pipe centreline above a piece's pivot (docs/14), and the height of one support rack. */
@@ -180,7 +181,7 @@ interface Grid {
   ground(x: number, s: number): number;
 }
 /** Module reach (from its centre) a pipe piece keeps clear of: big platforms reach further. */
-const moduleReach = (node: string) => node === 'infra_landing_pad' ? 3.2 : node === 'infra_refinery' ? 2.7 : 1;
+const moduleReach = (node: string) => node === 'infra_landing_pad' ? 3.2 : node === 'infra_refinery' ? 2.7 : node === 'facility' ? 1.8 : 1;
 /** Coarse grid over the edge's span with ground heights and a per-cell cost (center lane, foreign pads). */
 function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: number, margin = 8, ownPads = false, world: World = worldOf()): Work<Grid> {
   const terrainAt = (x: number, s: number) => terrainHeight(seed, x, s, world.bare);

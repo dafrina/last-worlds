@@ -24,9 +24,9 @@ describe('planet profiles (docs/17 §2)', () => {
     const arena = { fromS: 566, toS: 601 };
     expect(generateTerrainSection(93, 16, arena)).toEqual(generateTerrainSection(93, 16, { planet: 'khepri', arena }));
     expect(worldOf(arena)).toBe(worldOf({ planet: 'khepri', arena }));
-    // Re-recorded 17 October 2026 (outpost districts, denser outposts, tank farms on pipelines). A deliberate Khepri
+    // Re-recorded 17 October 2026 (outpost districts, denser outposts, tank farms on pipelines, processing plants). A deliberate Khepri
     // change updates these.
-    const recorded = new Map([['11:5', '87c1a283df7f08b6'], ['93:17', 'dcbca770d3ff3bcd'], ['8831:0', '6f8ab45f5ca93567']]);
+    const recorded = new Map([['11:5', '1a3d335a519d4f15'], ['93:17', 'fb13f53000739644'], ['8831:0', '6f8ab45f5ca93567']]);
     for (const [key, value] of recorded) {
       const [seed, index] = key.split(':').map(Number);
       expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);

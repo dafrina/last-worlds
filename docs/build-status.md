@@ -1,5 +1,18 @@
 # Build status
 
+## Facility building, more outposts on Khepri and Vesper, battery emplacements — 17 October 2026
+
+- **New shared asset `facility`** (Blender, `tools/blender/shared_industrial.py` → `industrial-kit.glb`, 722 triangles): a processing hall with a lit window band, roller door, annex, external stair, roof units and an exhaust stack with a beacon. The shared-kit palette themes it: ochre on Khepri, black ceramic with orange glow on Vesper.
+- **More and bigger outposts** (Luna unchanged, it stays desolate):
+  - Khepri: a new `plant` archetype (facility, tanks, freight, habitat) and half the refineries add a hall; bigger types weigh more, wrecks and abandoned sites less; outposts are about a third more likely within each district;
+  - Vesper: a new `plant` archetype and outposts in 88% of cells (was 74%).
+  - The Khepri fingerprints were re-recorded.
+- **Battery emplacements** (render-only): ground batteries on Khepri and Vesper get a facility hall or tanks and freight laid out beside them on clear, level ground (three in four batteries). They stay after the battery falls and scroll away with the ground. Battery frequency is unchanged.
+- **Evidence:**
+  - 324/324 unit tests, 21/21 browser specs, production build;
+  - captures of battery lines (Khepri and Vesper) and Khepri flight, with performance on High of 49–65 draw calls and 54k–94k triangles.
+- **Not done:** no phone hardware test.
+
 ## Vesper models restored, Luna colours, clustered outposts, Ark and Shockwave tuning — 17 October 2026
 
 - **Vesper craft fix:** the 16 October fuel-skid kind crashed the Vesper craft loader, so Vesper flew gold Khepri stand-ins. It now skips kinds without a Vesper model.

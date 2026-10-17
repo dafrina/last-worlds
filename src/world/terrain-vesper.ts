@@ -176,10 +176,11 @@ function vesperColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
 
 /* ---------------------------------------------------------------- settlements */
 
-export const VESPER_ARCHETYPES = ['radiator', 'missile', 'cryo', 'harbour'] as const;
-const WEIGHTS: Readonly<Record<string, number>> = { radiator: 0.3, missile: 0.25, cryo: 0.25, harbour: 0.2 };
+export const VESPER_ARCHETYPES = ['radiator', 'missile', 'cryo', 'plant', 'harbour'] as const;
+// A processing plant (the shared facility, black ceramic on Vesper) joins the mix (user, 17 October: more facilities).
+const WEIGHTS: Readonly<Record<string, number>> = { radiator: 0.25, missile: 0.2, cryo: 0.2, plant: 0.2, harbour: 0.15 };
 /** Pad half extents (lateral u, forward v). */
-const EXTENT: Readonly<Record<string, [number, number]>> = { radiator: [3.4, 3.8], missile: [3.0, 3.2], cryo: [3.0, 3.0], harbour: [2.6, 3.6] };
+const EXTENT: Readonly<Record<string, [number, number]>> = { radiator: [3.4, 3.8], missile: [3.0, 3.2], cryo: [3.0, 3.0], plant: [3.2, 3.2], harbour: [2.6, 3.6] };
 const CELL = 30;
 
 interface LocalModule { kind: PlacedModule['kind']; node: string; u: number; v: number; yaw: number; scale?: number; base?: number }
@@ -215,6 +216,14 @@ function compose(archetype: string, h: (k: number) => number, edge: number): Loc
       infra('vesper_comm_needle', 2.3, 2.3); shared('tank_sphere', -2.2, 2.1);
       break;
     }
+    case 'plant': {
+      shared('facility', -0.8, 1.2);
+      infra('vesper_comm_needle', 2.4, 2.4);
+      shared('tank_vertical_1', 2.0, 0.8); shared('tank_horizontal', 1.6, -1.0, Math.PI / 2);
+      infra('vesper_habitat_0', -1.8, -1.9);
+      for (let i = 0; i < count(26, 1, 2); i++) shared(`container_${i % 2}`, 0.1 + i * 1.2, -2.4, 0);
+      break;
+    }
     case 'harbour': {
       // A jetty from the cliff foot out to sea (pier tiles every 2.0 along their +Z, waterline at y = 0),
       // a crane on the shelf edge with its jib over the water, sometimes an icebreaker alongside; stores inland.
@@ -238,7 +247,7 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
   const h = (k: number) => hash(seed ^ 0x7e5e ^ (side > 0 ? 0x1000 : 0), cell * 211 + k, 5);
   let result: Settlement | null = null;
   const ground = (x: number, s: number) => vesperLandform(seed, x, s, { seed, s, params: NEUTRAL, local: vesperParams(seed, s), platform: 0 }).height;
-  if (h(0) < 0.74) {
+  if (h(0) < 0.88) {
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 9; k++) {
       // Clamped up front (largest pad) so a harbour's measured edge distance stays valid.
