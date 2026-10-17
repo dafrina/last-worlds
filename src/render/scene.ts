@@ -408,6 +408,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
     // On Luna the Khepri-built enemies wear steel-blue paint, so they read apart from the hero against grey regolith.
     (materials.enemyCraft.userData.paintSwap as { value: number }).value = next === 'luna' ? 1 : 0;
+    // The see-through silhouette of half-buried batteries follows the paint: pale blue on Luna, warm elsewhere.
+    silhouetteMaterial.color.setHex(next === 'luna' ? 0x9ad3ff : 0xffd39a);
     sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
@@ -573,7 +575,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (disposed) { nodes.forEach(geometry => geometry.dispose()); return; }
       const batches = new Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }>();
       for (const kind of ENEMY_KINDS) {
-        const geometry = nodes.get(VESPER_CRAFT[kind].node);
+        // Kinds without a Vesper model (the fuel skid) keep their own batch.
+        const craft = VESPER_CRAFT[kind as keyof typeof VESPER_CRAFT] as typeof VESPER_CRAFT[keyof typeof VESPER_CRAFT] | undefined;
+        const geometry = craft && nodes.get(craft.node);
         if (!geometry) continue;
         const mesh = new THREE.InstancedMesh(geometry, materials.craft, ENEMY_CAPACITY);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${kind} craft`;
@@ -927,7 +931,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const nacreBatch = nacreNode ? nacreBatches!.get(nacreNode) : undefined;
         const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
-        const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind] : null;
+        const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
         const craftScale = nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
         if (slot < ENEMY_CAPACITY) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);

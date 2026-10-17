@@ -1,5 +1,23 @@
 # Build status
 
+## Vesper models restored, Luna colours, clustered outposts, Ark and Shockwave tuning — 17 October 2026
+
+- **Vesper craft fix:** the 16 October fuel-skid kind crashed the Vesper craft loader, so Vesper flew gold Khepri stand-ins. It now skips kinds without a Vesper model.
+- **Luna colours:**
+  - Khepri infrastructure (landing pads, habitats, relays, haulers) turns clean white-grey on Luna, and the shared kit's paint and wear go neutral;
+  - the half-buried batteries' see-through silhouette and the craft rim light follow Luna's blue repaint.
+- **Clustered outposts:**
+  - Khepri and Luna outposts gather in districts along the route (`districtLevel`) with quiet stretches between: about 35 per 900 units instead of 46, but denser;
+  - landing fields carry a terminal block (habitats, silo, relay, freight); pump stations are tank farms that always sit on a pipeline;
+  - Luna bases combine pad, habitat, relay, solar and dish;
+  - Vesper vent stacks stand only on outpost fringes.
+  - The Khepri fingerprints were re-recorded.
+- **Luna boss:** WARDEN-1 lands at 124 s (was 129), a few seconds after the last squadron leaves.
+- **Helion Ark, first phase:** every third attack is an aimed bridge burst between the radiator lasers, so staying in the middle with the Fan Cannon no longer works there.
+- **Shockwave falloff:** full damage within 3 units of the ship, fading to 20% at its 20-unit reach; it clears hostile shots only within 8 units.
+- **Evidence:** 324/324 unit tests, 21/21 browser specs, production build; captures of Cold Vector (Vesper craft), Luna bases and turrets, and Khepri inspected.
+- **Not done:** no phone hardware test.
+
 ## One post-boss sequence for both modes, live coin counter — 17 October 2026
 
 - **After every boss kill, campaign and endless alike** (`src/content/departure.ts`):

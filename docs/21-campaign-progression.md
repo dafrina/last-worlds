@@ -24,7 +24,7 @@
 | Main | Fan Cannon | 250 | unchanged |
 | Main | Seeker Array | 450 | unchanged |
 | Main rank | ranks 1 / 2 / 3, per weapon | 150 / 300 / 500 | rate of fire ×1.33 / ×1.67 / ×2 (double at rank 3), campaign only; until the user's 16 October revision, +8% damage per rank |
-| Special | Shockwave | starter | 45 s recharge; a ring expands from the ship at 26 units/s across the view at activation: 180 damage to each target and clears each hostile shot as it arrives; 1 s invulnerability |
+| Special | Shockwave | starter | 45 s recharge; a ring expands from the ship at 26 units/s: up to 180 damage per target (full within 3 units, fading to 20% at its 20-unit reach), clears hostile shots within 8 units; 1 s invulnerability |
 | Special | Seeker Rack | 300 | 35 s recharge; eight Blender-modelled missiles leave the rack fanned to both sides at 5 units/s, accelerate (34 u/s²) to 21 and turn hard (4.5 rad/s) onto the nearest visible targets ahead (armed first), retargeting if theirs falls; 40 damage each; smoke trails; no clear, no invulnerability |
 | Special | Siege Lance | 400 | 40 s recharge; a 0.9-wide piercing beam straight ahead from the ship for 2.4 s at 360 damage/s (was 0.8 s at 450/s); the ship steers it |
 | Shield | Standard Array | starter | 3 charges, a cell restores 1 |

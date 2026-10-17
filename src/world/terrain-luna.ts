@@ -1,6 +1,6 @@
 import { WORLD_HALF, clamp, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
 import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
-import { MODULE_HEIGHT, SETTLEMENT_CELL, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
+import { MODULE_HEIGHT, SETTLEMENT_CELL, districtLevel, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 
@@ -121,7 +121,7 @@ function lunaColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: numb
  * panels, or an abandoned habitat. Most cells stay empty.
  */
 const LUNA_ARCHETYPES: readonly Archetype[] = ['landing', 'comm', 'abandoned'];
-const EXTENT: Readonly<Record<string, [number, number]>> = { landing: [3.6, 3.6], comm: [2.9, 2.9], abandoned: [2.4, 2.4] };
+const EXTENT: Readonly<Record<string, [number, number]>> = { landing: [3.9, 3.9], comm: [2.9, 2.9], abandoned: [2.4, 2.4] };
 const OUTPOST_CHANCE = 0.24;
 
 interface LocalModule { kind: PlacedModule['kind']; node: string; u: number; v: number; yaw: number; scale?: number }
@@ -131,21 +131,26 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
   const shared = (node: string, u: number, v: number, yaw = 0) => m.push({ kind: 'shared', node, u, v, yaw });
   switch (archetype) {
     case 'landing':
-      infra('infra_landing_pad', -0.5, 0);
-      infra('infra_relay', 2.8, -2.2);
-      shared('container_0', 2.7, 0.6, Math.PI / 2);
-      if (h(1) < 0.5) shared('tank_sphere', 2.6, 2.4);
-      infra('infra_light_mast', -3.1, 3.1);
+      // A small base, never a lone pad: the pad with a habitat, relay, solar power and a dish.
+      infra('infra_landing_pad', -1.0, 0);
+      infra('infra_habitat_0', 2.7, -2.4, Math.PI / 2);
+      infra('infra_relay', 3.0, -0.6);
+      shared('container_0', 2.8, 0.9, Math.PI / 2);
+      infra('infra_solar_array', 2.4, 2.6, Math.PI / 2);
+      if (h(1) < 0.5) infra('infra_comm_dish', -3.3, -3.0);
+      infra('infra_light_mast', -3.4, 3.2);
       break;
     case 'comm':
       infra('infra_comm_dish', -0.9, 0.9);
       infra('infra_solar_array', -1.1, -1.6); infra('infra_solar_array', 1.1, -1.6);
-      if (h(1) < 0.6) infra('infra_habitat_1', 1.6, 1.4, Math.PI / 2);
+      infra('infra_habitat_1', 1.6, 1.4, Math.PI / 2);
+      if (h(1) < 0.6) infra('infra_relay', -2.3, -0.4);
       break;
     default:
       infra('infra_habitat_0', -0.6, 0.4, h(2) * 0.6);
+      infra('infra_habitat_1', 1.2, 1.4, Math.PI / 2);
       shared(`container_${h(3) < 0.5 ? 0 : 1}`, 1.4, -1.2, h(4) * Math.PI);
-      if (h(5) < 0.5) infra('infra_solar_array', 0.6, 1.7, 0.3);
+      infra('infra_solar_array', -0.8, -1.6, 0.3);
   }
   return m;
 }
@@ -157,7 +162,8 @@ export function lunaSettlement(seed: number, cell: number, side: number): Settle
   if (memo.has(key)) return memo.get(key)!;
   const h = (k: number) => hash(seed ^ 0xa1e7 ^ (side > 0 ? 0x1000 : 0), cell * 211 + k, 6);
   let result: Settlement | null = null;
-  if (h(0) < OUTPOST_CHANCE) {
+  // Bases gather in districts (districtLevel) instead of standing alone; Luna stays sparse overall.
+  if (h(0) < OUTPOST_CHANCE * (0.25 + 1.6 * districtLevel(seed ^ 0xa1e7, cell))) {
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 6; k++) {
       const cx = side * Math.min(WORLD_HALF * (0.4 + h(1 + k) * 0.45), WORLD_HALF - 4), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;

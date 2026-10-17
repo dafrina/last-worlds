@@ -86,11 +86,11 @@ describe('Helion Ark', () => {
     expect(total('veteran')).toBeCloseTo(3600, 6);
   });
 
-  it('fires narrow radiator lane lasers straight down from the radiator that fires them, marked long enough, alternating radiators', () => {
+  it('fires narrow radiator lane lasers straight down from the radiator that fires them, alternating radiators, with bridge bursts between', () => {
     const state = encounter();
     advance(state, HELION_ARK.arrivalDuration + 0.05);
     const attackers: number[] = [];
-    let lanes = 0;
+    let lanes = 0, bursts = 0, shotsSeen = 0;
     for (let i = 0; i < 12 / STEP; i++) {
       const before = new Set(state.hazards.map(hazard => hazard.id));
       stepRun(state, EMPTY_INPUT);
@@ -102,10 +102,12 @@ describe('Helion Ark', () => {
         expect(hazard.warning + STEP).toBeGreaterThanOrEqual(FAIRNESS.beamWarningFloor);
         attackers.push(state.boss!.attackerId!);
       }
-      expect(state.projectiles.filter(shot => !shot.friendly)).toHaveLength(0);
+      for (const shot of state.projectiles) if (!shot.friendly && shot.id > shotsSeen) { bursts++; shotsSeen = shot.id; }
     }
     expect(lanes).toBeGreaterThanOrEqual(3);
     expect(new Set(attackers).size).toBe(2);
+    // Every third attack is an aimed bridge burst, so the middle between the radiator lanes is not a free spot.
+    expect(bursts).toBeGreaterThan(0);
   });
 
   it('launches a finite number of Needles from its deck bays during the bridge phase', () => {

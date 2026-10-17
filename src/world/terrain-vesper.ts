@@ -330,7 +330,8 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
       add({ kind: 'outcrop', x, s, y: ground, scale, height: scale, rotation: turn(h(5)), cosmetic: false }, h(6));
     } else if (drop > 0.9 && slope < 1 && pick < 0.025) {
       add({ kind: 'iceSpire', x, s, y: ground, scale: 0.85 + h(3) * 0.3, height: 0.8 + h(4) * 0.9, rotation: turn(h(5)), cosmetic: false }, h(6));
-    } else if (slope < 0.5 && m.land > 0.9 && pick < 0.0035 * (1 + p.crevasse)) {
+    } else if (slope < 0.5 && m.land > 0.9 && terrain.industrial(x, s) > 0.01 && pick < 0.08) {
+      // Vent stacks are outpost plant: they stand on the fringe of a pad, never alone on the shelf.
       const scale = 0.9 + h(3) * 0.2;
       add({ kind: 'vent', x, s, y: ground, scale, height: scale, rotation: turn(h(5)), cosmetic: false }, h(6));
     }

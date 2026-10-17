@@ -540,11 +540,15 @@ function updateShockwave(state: RunState): void {
   // The footprint stays the view at activation (docs/02 §3): moving the camera never sweeps it across the map.
   const reached = (x: number, s: number, extra: number) => Math.hypot(x - wave.x, s - wave.s) <= radius + extra
     && Math.abs(x - wave.cameraX) <= VIEW.width / 2 && s >= VIEW.minS && s <= VIEW.maxS;
-  state.projectiles = state.projectiles.filter(shot => shot.friendly || !reached(shot.x, shot.s, 0));
+  const near = Math.min(radius, spec.clear);
+  state.projectiles = state.projectiles.filter(shot => shot.friendly || Math.hypot(shot.x - wave.x, shot.s - wave.s) > near || !reached(shot.x, shot.s, 0));
   for (const enemy of state.enemies) {
     if (wave.hit.includes(enemy.id) || !reached(enemy.x, enemy.s, enemy.radius)) continue;
     wave.hit.push(enemy.id);
-    damageEnemy(state, enemy, BALANCE.special.damage, false);
+    // Full damage close to the ship, fading with distance.
+    const distance = Math.max(0, Math.hypot(enemy.x - wave.x, enemy.s - wave.s) - enemy.radius);
+    const share = Math.max(spec.minShare, Math.min(1, 1 - (distance - spec.full) / (spec.reach - spec.full) * (1 - spec.minShare)));
+    damageEnemy(state, enemy, BALANCE.special.damage * share, false);
   }
   if (radius > spec.reach) state.shockwave = null;
 }

@@ -11,10 +11,10 @@ export type Archetype = 'refinery' | 'mining' | 'landing' | 'comm' | 'pumping' |
   | 'radiator' | 'missile' | 'cryo' | 'harbour';
 export type KhepriArchetype = 'refinery' | 'mining' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned';
 export const ARCHETYPES: readonly KhepriArchetype[] = ['refinery', 'mining', 'landing', 'comm', 'pumping', 'wreck', 'abandoned'];
-const WEIGHTS: Readonly<Record<KhepriArchetype, number>> = { refinery: 0.16, mining: 0.19, landing: 0.14, comm: 0.14, pumping: 0.14, wreck: 0.12, abandoned: 0.11 };
+const WEIGHTS: Readonly<Record<KhepriArchetype, number>> = { refinery: 0.18, mining: 0.2, landing: 0.14, comm: 0.14, pumping: 0.1, wreck: 0.12, abandoned: 0.12 };
 /** Local half extents (lateral u, forward v) of each archetype's flattened pad. */
 const EXTENT: Readonly<Record<KhepriArchetype, [number, number]>> = {
-  refinery: [3.7, 4.7], mining: [3.6, 3.6], landing: [3.9, 4.3], comm: [3.1, 3.1], pumping: [2.5, 2.9], wreck: [2.7, 2.3], abandoned: [3.1, 3.1],
+  refinery: [3.7, 4.7], mining: [3.6, 3.6], landing: [4.4, 4.3], comm: [3.1, 3.1], pumping: [3.2, 3.2], wreck: [2.7, 2.3], abandoned: [3.1, 3.1],
 };
 /** Authored real-size heights of the pieces settlements use (docs/13 §3b, docs/14). */
 export const MODULE_HEIGHT: Readonly<Record<string, number>> = {
@@ -80,11 +80,14 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
       break;
     }
     case 'landing': {
-      infra('infra_landing_pad', -0.6, 0);
-      infra('infra_relay', 3.2, -2.6);
-      for (let i = 0; i < count(1, 2, 4); i++) shared(`container_${i % 2}`, 3.1, -0.9 + i * 0.85, Math.PI / 2);
-      for (let i = 0; i < count(2, 1, 2); i++) infra(cargo(30 + i), 3, 2.9 - i * 0.2 + i * 0, i * 0.2);
-      infra('infra_light_mast', -3.6, 3.6); infra('infra_light_mast', -3.6, -3.6);
+      // A working field, never a lone pad: a terminal block (habitats, silo), the relay, cargo and freight.
+      infra('infra_landing_pad', -1.1, 0);
+      infra('infra_habitat_0', 3.1, -3.2, Math.PI / 2); infra('infra_habitat_1', 3.2, 3.2, Math.PI / 2);
+      infra('infra_relay', 3.6, -1.4);
+      for (let i = 0; i < count(1, 2, 3); i++) shared(`container_${i % 2}`, 3.3, -0.3 + i * 0.75, Math.PI / 2);
+      infra(cargo(30), 2.4, 1.7, 0.2);
+      if (h(2) < 0.6) infra('infra_silo', 3.9, 1.7);
+      infra('infra_light_mast', -4, 3.8); infra('infra_light_mast', -4, -3.8);
       break;
     }
     case 'comm': {
@@ -93,16 +96,21 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
       const panels = count(2, 2, 4);
       // Solar arrays tile seamlessly every 2.2 along their local x: lay them in rows.
       for (let i = 0; i < panels; i++) infra('infra_solar_array', -1.1 + (i % 2) * 2.2, -1.4 - Math.floor(i / 2) * 1.0);
-      if (h(3) < 0.5) infra('infra_habitat_1', -2, 2.6, Math.PI / 2);
+      infra('infra_habitat_1', -2, 2.6, Math.PI / 2);
+      if (h(3) < 0.5) shared('container_0', 2.4, 1.1, Math.PI / 2);
       infra('infra_light_mast', 2.6, 2.6);
       break;
     }
     case 'pumping': {
+      // A tank farm on its pipeline: a row of tanks around the valve station, never a single tank.
       shared('pipe_valve', 0, 0);
-      for (let i = 0; i < count(1, 1, 2); i++) shared('tank_vertical_1', 1.5, -1.4 + i * 2.8);
+      const tanks = count(1, 3, 4);
+      for (let i = 0; i < tanks; i++) shared(['tank_vertical_1', 'tank_vertical_0', 'tank_sphere', 'tank_vertical_1'][i], 1.7, -2.1 + i * 1.4);
+      shared('tank_horizontal', -1.7, -1.6, Math.PI / 2);
       shared('pipe_l_tee', 0, 2, 0);
-      if (h(2) < 0.6) shared('container_1', -1.6, -1.9);
-      infra('infra_light_mast', -1.9, 1.9);
+      shared('container_1', -1.8, 1.0);
+      infra('infra_light_mast', -2.6, 2.6);
+      if (h(2) < 0.5) infra('infra_habitat_0', -1.6, -2.7);
       break;
     }
     case 'wreck': {
@@ -124,6 +132,14 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
   return m;
 }
 
+/** Slow 0..1 noise along the route (cells), shared by both sides: high in busy districts, low between them. */
+export function districtLevel(seed: number, cell: number): number {
+  const span = 4, t = cell / span, i = Math.floor(t), f = t - i, w = f * f * (3 - 2 * f);
+  const at = (k: number) => hash(seed ^ 0xd157, k, 5);
+  const level = at(i) * (1 - w) + at(i + 1) * w;
+  return Math.min(1, Math.max(0, (level - 0.25) / 0.6));
+}
+
 const memo = new Map<string, Settlement | null>();
 /** The settlement candidate of one cell and side, or null. Memoized; the cache never changes values. */
 export function settlement(seed: number, cell: number, side: number): Settlement | null {
@@ -131,7 +147,11 @@ export function settlement(seed: number, cell: number, side: number): Settlement
   if (memo.has(key)) return memo.get(key)!;
   const h = (k: number) => hash(seed ^ 0x5e77 ^ (side > 0 ? 0x1000 : 0), cell * 211 + k, 3);
   let result: Settlement | null = null;
-  if (h(0) < 0.78) {
+  // Outposts gather in districts along the route with empty stretches between (user, 17 October: lone outposts in
+  // the middle of nowhere made little sense): a slow district noise sets the chance, and the other side of a busy
+  // cell is likelier to be built up too.
+  const district = districtLevel(seed, cell), across = hash(seed ^ 0x5e77 ^ (side > 0 ? 0 : 0x1000), cell * 211, 3) < 0.15 + 0.75 * district;
+  if (h(0) < 0.22 + 1.25 * district + (across ? 0.12 : 0)) {
     // Prefer the calmest of a few candidate spots: outposts settle on flat ground at any terrain level.
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 5; k++) {

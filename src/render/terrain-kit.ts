@@ -716,7 +716,7 @@ float khepriCells( vec2 local, float scale ) {
   const infraGlow = { glowColor: { value: linear(0xffb060).multiplyScalar(3.4) }, detailContrast: { value: 0 } };
   infra.onBeforeCompile = shader => {
     // Amber work lights and beacons sit above the bloom threshold (true glows); hulls stay below it.
-    Object.assign(shader.uniforms, haze(), time, infraGlow);
+    Object.assign(shader.uniforms, haze(), time, infraGlow, { lunaLook: kitLook.lunaLook });
     shader.vertexShader = shader.vertexShader.replace('#include <common>', `${GLOW_VERTEX}\nuniform float beaconTime;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   // Amber beacons blink: each instance gets its own phase from its position; some lamps stay steady.
@@ -727,7 +727,10 @@ float khepriCells( vec2 local, float scale ) {
   #endif
   float beaconPulse = beaconPhase < 0.35 ? 1.0 : 0.25 + 0.75 * smoothstep( 0.55, 0.75, fract( beaconTime * ( 0.45 + beaconPhase * 0.4 ) + beaconPhase ) );
   vGlow = glow * beaconPulse;`).replace('#include <project_vertex>', HAZE_VERTEX);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS)
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + '\nuniform float lunaLook;')
+      // Luna (docs/19): human-built hardware in clean white-grey instead of Khepri's rust and ochre paint (lamps keep glowing).
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.55, 1.58, 1.64 ), lunaLook );`)
       .replace('#include <emissivemap_fragment>', EMISSIVE).replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   infra.customProgramCacheKey = () => 'khepri-infra';
@@ -937,8 +940,8 @@ export function createSharedMaterial(): THREE.MeshStandardMaterial {
   /** Planet palette for the mask-driven kit (docs/17 §3): Vesper reads black ceramic, orange heat bands and frost. */
   material.userData.setPlanet = (planet: PlanetId) => {
     const vesper = planet === 'vesper', luna = planet === 'luna';
-    palette.metalColor.value.copy(linear(vesper ? 0x15181b : 0x3e4044)); palette.paintColor.value.copy(linear(vesper ? 0xd2541a : luna ? 0xc9c4b8 : 0xb06a2e));
-    palette.wearColor.value.copy(linear(vesper ? 0xd3dae1 : 0xc8b8a0)); palette.dustColor.value.copy(linear(vesper ? 0xe3ebf2 : luna ? 0x9a9893 : 0xa8683a));
+    palette.metalColor.value.copy(linear(vesper ? 0x15181b : 0x3e4044)); palette.paintColor.value.copy(linear(vesper ? 0xd2541a : luna ? 0xd6dade : 0xb06a2e));
+    palette.wearColor.value.copy(linear(vesper || luna ? 0xd3dae1 : 0xc8b8a0)); palette.dustColor.value.copy(linear(vesper ? 0xe3ebf2 : luna ? 0x9a9893 : 0xa8683a));
     palette.lampColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
     material.metalness = vesper ? 0.15 : 0.55; material.roughness = vesper ? 0.4 : 0.55;
   };

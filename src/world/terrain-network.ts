@@ -108,11 +108,14 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
     const next = planet.settlement(seed, cell, site.side);
     if (!next) continue;
     const quiet = QUIET.has(site.archetype) || QUIET.has(next.archetype);
-    const industrial = INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.9 : INDUSTRIAL.has(site.archetype) || INDUSTRIAL.has(next.archetype) ? 0.55 : 0.2;
+    // A tank farm (pumping) always lies on a pipeline.
+    const farm = site.archetype === 'pumping' || next.archetype === 'pumping';
+    const industrial = farm ? 1 : INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.9 : INDUSTRIAL.has(site.archetype) || INDUSTRIAL.has(next.archetype) ? 0.55 : 0.2;
     edges.push(make('chain', next, 0, 0, quiet ? 0.45 : 0.88, quiet ? 0 : industrial));
     break;
   }
-  if (h(20) < 0.42) edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, 0.7, QUIET.has(site.archetype) ? 0 : 0.45));
+  const farm = site.archetype === 'pumping' && !edges.some(edge => edge.pipe);
+  if (farm || h(20) < 0.42) edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, 0.7, farm ? 1 : QUIET.has(site.archetype) ? 0 : 0.45));
   if (h(22) < 0.14 && !QUIET.has(site.archetype)) {
     const other = planet.settlement(seed, site.cell, -site.side) ?? planet.settlement(seed, site.cell + 1, -site.side);
     if (other && !QUIET.has(other.archetype)) edges.push(make('cross', other, 0, 0, 1, 0));

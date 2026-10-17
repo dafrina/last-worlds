@@ -267,10 +267,14 @@ export function updateBoss(state: RunState, dt: number): void {
     if (state.time > state.messageUntil) message(state, `${def.name} · ${boss.x < state.player.x ? 'RETURN LEFT' : 'RETURN RIGHT'}`, 2);
     return;
   }
-  const selected = candidates[boss.attackIndex % candidates.length];
+  // Laser bosses (the Ark) interleave an aimed bridge burst every third attack of their first phase, so the safe
+  // middle between the radiator lanes is not safe for long (user, 17 October: "a bit easy" with the Scatter).
+  const bridge = state.enemies.find(enemy => enemy.bossPart === 'core' && enemy.hp > 0);
+  const bridgeBurst = boss.phase === 'batteries' && def.pairAttack === 'laser' && boss.attackIndex % 3 === 2 && !!bridge && visible(state, bridge);
+  const selected = bridgeBurst ? bridge! : candidates[boss.attackIndex % candidates.length];
   const move = boss.phase === 'overload' ? overloadMove(state) : null;
   const attack = boss.phase === 'batteries'
-    ? (def.pairAttack === 'laser' ? 'beam' : 'burst')
+    ? (def.pairAttack === 'laser' && !bridgeBurst ? 'beam' : 'burst')
     : boss.phase === 'core'
       ? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst')
       : move === 'burst' ? 'burst' : move === 'fan' ? (def.fan ? 'fan' : 'burst') : 'beam';

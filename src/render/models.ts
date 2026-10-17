@@ -69,7 +69,8 @@ function createCraftMaterial(panel: THREE.Texture): THREE.MeshStandardMaterial {
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowTint * vPbr.z;')
       .replace('#include <opaque_fragment>', `vec3 rimView = isOrthographic ? vec3( 0.0, 0.0, 1.0 ) : normalize( vViewPosition );
   float rim = pow( 1.0 - clamp( abs( dot( normal, rimView ) ), 0.0, 1.0 ), 3.0 );
-  outgoingLight += rimColor * rim * rimStrength * ( 1.0 - glowMask );
+  // The warm rim turns cool with the paint swap (Luna), so no amber edge remains on the blue craft.
+  outgoingLight += mix( rimColor, rimColor.bgr, paintSwap ) * rim * rimStrength * ( 1.0 - glowMask );
   #include <opaque_fragment>`);
   };
   material.customProgramCacheKey = () => 'authored-craft';
