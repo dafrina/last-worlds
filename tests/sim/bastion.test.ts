@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BASTION } from '../../src/content/bastion';
 import { WARDEN } from '../../src/content/warden';
-import { BOSSES, WRECK_HOLD } from '../../src/content/bosses';
+import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
@@ -30,8 +30,8 @@ describe('Bastion-9 mission', () => {
     state.player.x = bossTarget(state, 'core')!.x;
     expect(acquireTarget(state)).toBeUndefined();
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
-    expect(bossTarget(state, 'core')!.hp).toBe(BASTION.coreHp);
-    expect(bossTarget(state, 'left')!.hp).toBe(BASTION.batteryHp);
+    expect(bossTarget(state, 'core')!.hp).toBeCloseTo(BASTION.coreHp * BOSS_TOUGHNESS.hp, 6);
+    expect(bossTarget(state, 'left')!.hp).toBeCloseTo(BASTION.batteryHp * BOSS_TOUGHNESS.hp, 6);
     advance(state, 3);
     expect(state.boss?.phase).toBe('batteries');
     expect(acquireTarget(state)).toBeUndefined();

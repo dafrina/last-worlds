@@ -264,13 +264,13 @@ const templates = [
   // ---- Vesper (docs/17 §5) ----
   {
     id: 'needle-solo', name: 'Single needle', entry: 'top',
-    path: NEEDLE_HOLD(14, 5), fireFrom: 0.7, fireUntil: 5.9,
+    path: NEEDLE_HOLD(14, 7), fireFrom: 0.7, fireUntil: 7.9,
     slots: [{ kind: 'needle', dx: 0, fire: 0 }],
   },
   {
     // Narrow beam lanes stepping across the committed position, one at a time.
     id: 'needle-line-3', name: 'Needle line with stepped beam lanes', entry: 'top',
-    path: NEEDLE_HOLD(14.5, 6), fireFrom: 0.7, fireUntil: 6.9,
+    path: NEEDLE_HOLD(14.5, 8), fireFrom: 0.7, fireUntil: 8.9,
     slots: [
       { kind: 'needle', dx: -2.8, fire: 0, aim: -1 },
       { kind: 'needle', dx: 0, fire: 0.4 },
@@ -282,7 +282,7 @@ const templates = [
   {
     // Interceptor column sweeping across, each member locking a lane as it passes.
     id: 'needle-column-5', name: 'Needle column sweeping across', entry: 'side',
-    path: [[0, -7.6, 14], [5, 7.6, 12.5]], sway: { axis: 's', amp: 0.8, period: 1.8 }, fireFrom: 0.75, fireUntil: 4.4,
+    path: [[0, -7.6, 14], [7, 7.6, 12.5]], sway: { axis: 's', amp: 0.8, period: 1.8 }, fireFrom: 1.05, fireUntil: 5.6,
     slots: [
       { kind: 'needle', dx: 0, fire: 0 },
       { kind: 'needle', dx: 0, lag: 0.35, fire: 0.4, aim: 0.9 },
@@ -293,13 +293,13 @@ const templates = [
   },
   {
     id: 'diamond-solo', name: 'Single diamond heavy', entry: 'top',
-    path: HEAVY_HOLD(12.5, 7), fireFrom: 1.2, fireUntil: 9.4,
+    path: HEAVY_HOLD(12.5, 9), fireFrom: 1.2, fireUntil: 11.4,
     slots: [{ kind: 'diamond', dx: 0, fire: 0 }],
   },
   {
     // Heavy escort convoy: two Diamonds alternating wing volleys, Needles on the flanks.
     id: 'diamond-convoy', name: 'Diamond escort convoy', entry: 'top',
-    path: HEAVY_HOLD(11.5, 8), fireFrom: 1.2, fireUntil: 10.4,
+    path: HEAVY_HOLD(11.5, 10), fireFrom: 1.2, fireUntil: 12.4,
     slots: [
       { kind: 'diamond', dx: -2, fire: 0 },
       { kind: 'diamond', dx: 2, ds: 1.6, fire: 0.6 },

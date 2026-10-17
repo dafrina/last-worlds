@@ -17,7 +17,8 @@ export const BALANCE = {
   shieldSupplies: {
     campaign: { relaxed: [40, 95], standard: [40, 95], veteran: [75] },
     endlessAt: 55,
-    forward: 12,
+    /** Shield cells appear at the top of the view and drift down to the player (17 October: was mid-screen, 12). */
+    forward: 18.5,
     viewMargin: 1,
   },
   respawn: { invulnerability: 2, specialCharge: 0.5 },
@@ -197,11 +198,12 @@ export const ENEMIES: Record<EnemyKind, {
   turret: { hp: 110, radius: 0.62, speed: VIEW.scrollSpeed, shotSpeed: 7.3, attackEvery: 0.98, warning: 0.95, score: 250, credits: 10 },
   lancer: { hp: 120, radius: 0.46, speed: 1.55, shotSpeed: 6, attackEvery: 1.85, warning: 1.2, score: 400, credits: 16 },
   // Vesper (docs/17 §5). Needle: fast interceptor, a very narrow locked beam on its own quick timing.
-  needle: { hp: 50, radius: 0.3, speed: 3.2, shotSpeed: 0, attackEvery: 1.3, warning: 0.75, score: 150, credits: 6 },
+  // 17 October (user): Needles and Diamonds tougher and longer on screen (hp 50 → 70, 130 → 175; holds +2 s).
+  needle: { hp: 70, radius: 0.3, speed: 3.2, shotSpeed: 0, attackEvery: 1.3, warning: 0.75, score: 150, credits: 6 },
   // Diamond: heavy escort; its whole pale body (radius 0.6) takes hits. Softened on 15 October (was 220 hp on a 0.3
   // core): shots through the visible plates did nothing, the user could never bring one down, and Scatter could not
   // kill one in a whole pass.
-  diamond: { hp: 130, radius: 0.6, speed: 1.2, shotSpeed: 6.8, attackEvery: 1, warning: 0.95, score: 400, credits: 16 },
+  diamond: { hp: 175, radius: 0.6, speed: 1.2, shotSpeed: 6.8, attackEvery: 1, warning: 0.95, score: 400, credits: 16 },
   // Missile battery: ground target; straight, non-tracking missiles down its own marked column.
   missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 9.5, attackEvery: 1.1, warning: 1, score: 250, credits: 10 },
   // Fuel-tank skid (user request, 16 October): a harmless ground loot target that never fires; quick to burst.

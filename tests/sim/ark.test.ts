@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FAIRNESS } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
-import { BOSSES, WRECK_HOLD } from '../../src/content/bosses';
+import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { DEPARTURE } from '../../src/content/departure';
 import { COLD_VECTOR_SORTIE } from '../../src/content/encounters';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
@@ -63,7 +63,7 @@ describe('Helion Ark', () => {
     expect(boss.phase).toBe('arrival');
     expect(boss.s).toBeCloseTo(HELION_ARK.entryS, 1);
     const [left, right, bridge] = (['left', 'right', 'core'] as const).map(part => bossTarget(state, part)!);
-    expect(left.maxHp + right.maxHp + bridge.maxHp).toBe(3000);
+    expect(left.maxHp + right.maxHp + bridge.maxHp).toBeCloseTo(3000 * BOSS_TOUGHNESS.hp, 6);
     expect([left.radius, right.radius, bridge.radius]).toEqual([0.75, 0.75, 1]);
     expect(left.x - boss.x).toBeCloseTo(-2.4, 9);
     expect(left.s - boss.s).toBeCloseTo(-0.5, 9);
@@ -82,8 +82,8 @@ describe('Helion Ark', () => {
       const state = encounter(difficulty);
       return (['left', 'right', 'core'] as const).reduce((sum, part) => sum + bossTarget(state, part)!.maxHp, 0);
     };
-    expect(total('relaxed')).toBeCloseTo(2550, 6);
-    expect(total('veteran')).toBeCloseTo(3600, 6);
+    expect(total('relaxed')).toBeCloseTo(2550 * BOSS_TOUGHNESS.hp, 6);
+    expect(total('veteran')).toBeCloseTo(3600 * BOSS_TOUGHNESS.hp, 6);
   });
 
   it('fires narrow radiator lane lasers straight down from the radiator that fires them, alternating radiators, with bridge bursts between', () => {

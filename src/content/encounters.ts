@@ -317,7 +317,7 @@ export const DEEP_BLOOM: readonly EncounterCue[] = [
   { at: 78, id: 'n-snake-2', phase: 'pressure', formations: [f('snake-weaver-5')] },
   { at: 84, id: 'n-diamond-2', phase: 'pressure', formations: [f('diamond-solo')] },
   { at: 90, id: 'n-climax-convoy', phase: 'climax', message: 'OVERLAPPING RHYTHMS', formations: [f('diamond-convoy')] },
-  { at: 95, id: 'n-climax-batteries', phase: 'climax', formations: [f('battery-4')] },
+  { at: 95, id: 'n-climax-batteries', phase: 'climax', formations: [f('battery-3')] },
   { at: 101, id: 'n-climax-weavers', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] },
   { at: 106, id: 'n-climax-missiles', phase: 'climax', formations: [f('missile-3')] },
   { at: 110, id: 'n-climax-needles', phase: 'climax', formations: [f('needle-line-3', -1)] },

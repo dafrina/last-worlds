@@ -5,6 +5,8 @@ import { WARDEN } from './warden';
 import { VEIL } from './veil';
 
 export { WRECK_HOLD } from './departure';
+/** Every boss 15% tougher with 10% shorter recoveries (user, 17 October 2026: "10-20% more difficult"). */
+export const BOSS_TOUGHNESS = { hp: 1.15, recovery: 0.9 } as const;
 import { DEPARTURE } from './departure';
 
 /**

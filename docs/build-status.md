@@ -1,5 +1,16 @@
 # Build status
 
+## Tougher Needles, Diamonds and bosses; shield cells from the top; solid victory screen — 17 October 2026
+
+- **Needles** have 70 HP (was 50) and **Diamonds** (the Orrery on Nacre) 175 (was 130); both hold their attack runs 2 s longer.
+- **Bosses:** every boss has 15% more HP and 10% shorter recoveries between attacks (`BOSS_TOUGHNESS`).
+- **Shield cells** appear at the top of the view (s 18.5, was 12) and drift down to the player.
+- **Wreck hold** is 2.5 s (was 1.5) before the departure and warp.
+- **Campaign victory:** the background fades to solid dark behind the results, so no level map shows through.
+- **Fairness adjustments:** Deep Bloom's climax battery is three guns instead of four, because the longer-lingering Needles had cornered the test pilot; the Needle column's firing window starts a little later so every windup begins in view.
+- **Evidence:** 324/324 unit tests, 21/21 browser specs, production build; victory screen captured. The perfect pilot is hitless on all four missions × three weapons × three difficulties (seed 5), apart from one hit in Training on Veteran with the Fan Cannon, which was already there before these changes.
+- **Not done:** no phone hardware test.
+
 ## Facility building, more outposts on Khepri and Vesper, battery emplacements — 17 October 2026
 
 - **New shared asset `facility`** (Blender, `tools/blender/shared_industrial.py` → `industrial-kit.glb`, 722 triangles): a processing hall with a lit window band, roller door, annex, external stair, roof units and an exhaust stack with a beacon. The shared-kit palette themes it: ochre on Khepri, black ceramic with orange glow on Vesper.

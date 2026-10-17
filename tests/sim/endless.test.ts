@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, difficultyScales, kinematics } from '../../src/content/balance';
-import { WRECK_HOLD } from '../../src/content/bosses';
+import { BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { ENDLESS_CYCLE, endlessPlanet, endlessSchedule, endlessSectorPlan, isBossSector, paceInSector, scrollForPace, sectorPace } from '../../src/content/endless';
 import { EMPTY_INPUT, STEP, type EnemyKind, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
@@ -106,7 +106,7 @@ describe('endless bosses and jumps', () => {
     expect(state.boss!.id).toBe('warden');
     expect(bossAt).toBeCloseTo(ENDLESS_CYCLE.bossSector.arrivesAt, 1);
     const total = state.enemies.filter(enemy => enemy.bossPart).reduce((sum, enemy) => sum + enemy.maxHp, 0);
-    expect(total).toBeCloseTo(1490 * difficultyScales('endless', 'standard', 1).hp, 6);
+    expect(total).toBeCloseTo(1490 * BOSS_TOUGHNESS.hp * difficultyScales('endless', 'standard', 1).hp, 6);
     expect(state.enemies.every(enemy => enemy.bossPart)).toBe(true);
   });
 

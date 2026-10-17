@@ -6,7 +6,8 @@
  * 3. the hyperdrive warp (WARP.duration) starts at that speed, surges, and settles to cruise. Endless lands on the next
  *    sector's planet; the campaign's results arrive after its flash.
  */
-export const WRECK_HOLD = 1.5;
+/** 2.5 s since 17 October (was 1.5): a beat longer over the wreck before the departure. */
+export const WRECK_HOLD = 2.5;
 export const DEPARTURE = { duration: 2, speed: 20, ramp: 1 } as const;
 /** Warp length, and the campaign victory warp's speed at its middle (endless sizes its surge to its schedule). */
 export const WARP = { duration: 3, peak: 30 } as const;

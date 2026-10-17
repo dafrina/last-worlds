@@ -3,7 +3,7 @@ import { REWARDS } from '../content/equipment';
 import { departure } from '../content/departure';
 import { BALANCE, FAIRNESS } from '../content/balance';
 import { ENDLESS_CYCLE } from '../content/endless';
-import { BOSSES, WRECK_HOLD, missionBoss, type BossDefinition } from '../content/bosses';
+import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, missionBoss, type BossDefinition } from '../content/bosses';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
 import { clamp } from './geometry';
 import { bossPartOffset, bossPose } from './motion';
@@ -35,7 +35,7 @@ function bossDef(state: RunState): BossDefinition {
 /** Pause after each boss attack: the authored recovery, scaled by the endless cadence ramp in endless. */
 function bossRecovery(state: RunState): number {
   const def = bossDef(state), base = state.boss?.phase === 'overload' ? def.overloadRecovery ?? def.recovery : def.recovery;
-  return base * (state.config.mode === 'endless' ? runScale(state).cadence : 1);
+  return base * BOSS_TOUGHNESS.recovery * (state.config.mode === 'endless' ? runScale(state).cadence : 1);
 }
 /** The overload move for the next attack. */
 const overloadMove = (state: RunState) => { const moves = bossDef(state).overloadMoves; return moves[state.boss!.attackIndex % moves.length]; };
@@ -86,7 +86,7 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
   // Campaign difficulty, or the endless ramp at this sector.
   const scale = runScale(state).hp;
   for (const part of ['left', 'right', 'core'] as const) {
-    const spec = def.parts[part], hp = spec.hp * scale;
+    const spec = def.parts[part], hp = spec.hp * scale * BOSS_TOUGHNESS.hp;
     state.enemies.push({ id: state.nextId++, kind: 'turret', bossPart: part, damageable: false,
       x: x + spec.x, s: def.entryS + spec.s, originX: x, hp, maxHp: hp, radius: spec.radius, age: 0,
       nextAttack: Infinity, warning: 0, aimX: x, groundHeight: def.targetHeight });

@@ -369,3 +369,6 @@ button:disabled { cursor: default; }
 .hud-credits.is-gain { animation: credit-gain .45s ease-out; }
 @keyframes credit-gain { 0% { transform: scale(1.25); color: #fff4d0; text-shadow: 0 0 14px #ffc860; } 100% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .hud-credits.is-gain { animation: none; } }
+/* Campaign victory (17 October): after the warp's flash the background fades to solid dark, so no level map shows behind the results. */
+.flight-overlay.is-ending.is-victory { animation-name: ending-veil-solid; }
+@keyframes ending-veil-solid { from { background-color: #08142600; } to { background-color: #081426; } }
