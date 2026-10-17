@@ -1,5 +1,12 @@
 # Build status
 
+## THE VEIL redesigned: long angular alien warship — 17 October 2026
+
+- **New model:** a long, narrow faceted black hull with layered iridescent armour shards, swept knife blades, crystal-crowned pods on outriggers, an octagonal heart collar and a stern engine block, in the Nacre fighters' language (`tools/blender/the_veil.py`, 10,044 triangles, `problems=0`). It replaces the round, animal-like model; sockets and game logic are unchanged.
+- **Game fit:** the terrain footprint and death explosions follow the long hull.
+- **Evidence:** 330/330 unit tests, 21/21 browser specs, production build; previews and in-game captures of the pod and overload phases inspected.
+- **Not done:** no phone hardware test.
+
 ## Pulsar: a new Nacre enemy with shockwave rings — 17 October 2026
 
 - **Pulsar:** a radial Nacre organism (Blender `nacre_pulsar`, 2,100 triangles in `nacre-craft.glb`). It dives low, charges for 1.25 s with a faint circle marking its reach, then releases an expanding shockwave ring; stay outside the circle. See docs/20.

@@ -35,7 +35,7 @@ from nacre_fleet import (HS, SHELL, BLADE, FRAME, TEAL, band, crescent, shard_pl
                          lattice, patch_between, sweep, tube, bez_pts, lerp, framed_poly, icosahedron, arc_band, disc,
                          merge_hs, xform, append, mirror_x, open_crescent, bipyramid, poly_solid, flipped)
 
-SEED = "the-veil-v1"
+SEED = "the-veil-v2"
 TARGET_Y = 2.2
 TOP_MAX = 3.4
 
@@ -49,7 +49,7 @@ SHUTTER_R = 1.05            # hinge radius around the heart axis
 SHUTTER_Z = 2.06            # hinge height
 SHUTTER_APEX = 2.66         # closed dome apex height
 SHUTTER_PHI = [math.radians(45 + 90 * k) for k in range(4)]   # azimuth from +Z toward +X (glTF yaw)
-ENGINE_C = (0.0, 1.35, -7.3)
+ENGINE_C = (0.0, 1.2, -14.3)
 ENGINE_AXIS_TILT = math.radians(45.0)
 
 
@@ -78,28 +78,27 @@ SOCKETS = {
 EMPTIES = {
     "veil_bay_left": BAY_L, "veil_bay_right": BAY_R,
     "veil_engine_0": ENGINE_C,
-    "veil_engine_1": (-1.25, 0.95, -6.95), "veil_engine_2": (1.25, 0.95, -6.95),
+    "veil_engine_1": (-0.85, 1.3, -14.3), "veil_engine_2": (0.85, 1.3, -14.3),
 }
 
 # ----------------------------------------------------------------------------
 # Hull
 # ----------------------------------------------------------------------------
 
-HULL = [  # (y, half-width W, crest T, chine C, keel B), design y descending (bow -> stern)
-    (7.7, 0.24, 1.3, 0.98, 0.55),
-    (6.6, 0.64, 1.5, 1.0, 0.2),
-    (5.1, 1.08, 1.68, 1.02, -0.1),
-    (3.5, 1.45, 1.82, 1.04, -0.3),
-    (1.8, 1.7, 1.92, 1.05, -0.42),
-    (0.2, 1.82, 1.96, 1.05, -0.48),
-    (-1.8, 1.8, 1.97, 1.05, -0.48),
-    (-3.7, 1.6, 1.88, 1.02, -0.42),
-    (-5.3, 1.26, 1.74, 0.98, -0.3),
-    (-6.5, 0.98, 1.6, 0.96, -0.12),
-    (-7.05, 0.8, 1.52, 0.96, 0.0),
+HULL = [  # (y, half-width W, crest T, chine C, keel B), design y descending (bow -> stern). Long and narrow.
+    (6.9, 0.3, 1.5, 1.15, 0.85),
+    (5.6, 0.75, 1.75, 1.2, 0.55),
+    (3.8, 1.2, 1.92, 1.2, 0.3),
+    (1.6, 1.5, 2.0, 1.2, 0.15),
+    (-1.0, 1.6, 1.97, 1.2, 0.1),
+    (-3.0, 1.6, 1.97, 1.2, 0.1),
+    (-6.0, 1.5, 1.95, 1.18, 0.15),
+    (-9.5, 1.3, 1.85, 1.12, 0.3),
+    (-12.5, 1.05, 1.72, 1.05, 0.45),
+    (-14.2, 0.9, 1.62, 1.0, 0.55),
 ]
-PROW = (0.0, 8.45, 1.22)
-UPPER = [(0.0, 0.0), (0.42, -0.12), (0.78, -0.45), (1.0, None)]       # (x / W, z offset from T; None = chine)
+PROW = (0.0, 7.9, 1.3)
+STERN = HULL[-1][0]
 
 
 def hull_at(y):
@@ -115,13 +114,10 @@ def hull_at(y):
 
 
 def deck_z(xf, y):
+    """Deck height at x = xf * W: a flat crest falling in one facet to the chine."""
     W, T, C, B = hull_at(y)
-    pts = [(f, T + dz if dz is not None else C) for f, dz in UPPER]
     xf = min(abs(xf), 1.0)
-    for (f0, z0), (f1, z1) in zip(pts, pts[1:]):
-        if f0 <= xf <= f1:
-            return z0 + (z1 - z0) * (xf - f0) / (f1 - f0)
-    return C
+    return T - 0.06 * min(xf / 0.5, 1.0) - (T - 0.06 - C) * max(0.0, (xf - 0.5) / 0.5)
 
 
 def deck_point(xf, y, lift=0.0):
@@ -131,29 +127,9 @@ def deck_point(xf, y, lift=0.0):
 
 def hull_section(y):
     W, T, C, B = hull_at(y)
-    right = [(0.0, T), (0.42 * W, T - 0.12), (0.78 * W, T - 0.45), (W, C), (0.86 * W, C - 0.5),
-             (0.42 * W, B + 0.14), (0.0, B)]
+    right = [(0.0, T), (0.5 * W, T - 0.06), (W, C), (0.62 * W, B + 0.2), (0.0, B)]
     left = [(-x, z) for x, z in reversed(right[1:-1])]
     return [P(x, y, z) for x, z in right + left]
-
-
-def carapace(hs, y0, y1, xf0, xf1, lift, th, sweep_back, paint, n=4, m=5):
-    """Curved shell plate conforming to the hull deck (one side, x > 0), swept back at its outer edge."""
-    rings = []
-    for i in range(n):
-        t = i / (n - 1)
-        top, bot = [], []
-        for j in range(m):
-            f = xf0 + (xf1 - xf0) * j / (m - 1)
-            g = j / (m - 1)
-            y = y0 + (y1 - y0) * t - sweep_back * g * (0.35 + 0.65 * t)
-            # taper: outer corners pinch toward the rear for a blade-like scale
-            p = deck_point(f, y, lift)
-            top.append(p + Vector((0, 0, th * (1.0 - 0.6 * abs(g - 0.35)))))
-            bot.append(p)
-        rings.append(top + list(reversed(bot)))
-    tg = ["smooth"] * (m - 1) + ["edge"] + ["smooth"] * (m - 1) + ["edge"]
-    sweep(hs, rings, paint, SHELL, tags=tg)
 
 
 def ribbon_samples(outer, inner, n, lift):
@@ -166,219 +142,179 @@ def ribbon_samples(outer, inner, n, lift):
     return O, I
 
 
-def nearest_y(pts, y, front_half=True):
-    cand = pts[len(pts) // 4:] if front_half else pts
-    return min(cand, key=lambda p: abs(p.y - y))
-
-
-# Crescent blades (right side; mirrored). Bezier edges root -> tip, z included.
-# W1 great wing: out and forward; W2 rear wing: out and back; W3 forward scythe; W4 stern ribbon.
-W1 = ([P(1.8, -1.0, 1.15), P(5.6, -2.4, 1.05), P(7.9, 1.4, 1.0), P(7.1, 5.6, 1.3)],
-      [P(1.75, 2.4, 1.22), P(4.0, 1.6, 1.12), P(6.0, 2.6, 1.05), P(7.1, 5.6, 1.3)])
-W2 = ([P(1.7, -2.2, 0.98), P(5.8, -1.5, 0.9), P(7.7, -5.4, 0.85), P(6.0, -8.1, 1.0)],
-      [P(1.45, -5.4, 1.05), P(3.6, -4.8, 0.95), P(5.2, -6.2, 0.9), P(6.0, -8.1, 1.0)])
-W3 = ([P(1.35, 3.0, 1.36), P(3.7, 3.1, 1.33), P(5.1, 6.1, 1.3), P(4.25, 8.35, 1.5)],
-      [P(1.1, 5.0, 1.42), P(2.4, 5.3, 1.39), P(3.4, 6.9, 1.35), P(4.25, 8.35, 1.5)])
-W4 = ([P(1.0, -5.6, 1.3), P(2.6, -6.1, 1.25), P(3.4, -7.4, 1.2), P(3.0, -8.42, 1.3)],
-      [P(0.85, -6.5, 1.32), P(1.7, -6.9, 1.28), P(2.5, -7.6, 1.22), P(3.0, -8.42, 1.3)])
+# Angular blades (right side; mirrored). Bezier edges root -> tip, nearly straight: knife-like, not wing-like.
+CANARD = ([P(0.75, 5.6, 1.5), P(1.6, 5.4, 1.42), P(2.5, 5.1, 1.36), P(3.05, 4.85, 1.38)],
+          [P(1.05, 4.2, 1.5), P(1.8, 4.35, 1.44), P(2.55, 4.6, 1.38), P(3.05, 4.85, 1.38)])
+MAIN = ([P(1.5, 1.4, 1.15), P(3.1, -0.6, 1.1), P(4.35, -3.6, 1.05), P(4.75, -7.6, 1.15)],
+        [P(1.55, -5.2, 1.15), P(2.6, -5.8, 1.1), P(3.8, -6.6, 1.08), P(4.75, -7.6, 1.15)])
+AFT = ([P(1.35, -8.4, 1.25), P(2.55, -9.7, 1.2), P(3.25, -11.9, 1.18), P(3.4, -14.4, 1.25)],
+       [P(1.12, -12.3, 1.28), P(1.9, -12.9, 1.24), P(2.7, -13.6, 1.2), P(3.4, -14.4, 1.25)])
 
 
 def tip_lift(t):
-    return 0.3 * t ** 3
+    return 0.22 * t ** 3
+
+
+def armour_plate(hs, y0, length, xf0, out, lift, k):
+    """A big angular iridescent shard plate floating over the flank, swept back to a point beyond the chine."""
+    W0, W1 = hull_at(y0)[0], hull_at(y0 - length)[0]
+    p_if = deck_point(xf0, y0, lift)
+    p_of = deck_point(0.92, y0 - length * 0.22, lift + 0.02)
+    tip = P(W1 + out, y0 - length, deck_z(1.0, y0 - length) + lift - 0.05)
+    p_ir = deck_point(xf0, y0 - length * 0.72, lift)
+    shard_plate(hs, [p_if, p_of, tip, p_ir], 0.13, 0.03, f"shell:{k % 9 + 1}", SHELL)
+    # a teal seam where the plate's trailing edge meets the deck
+    glow_line(hs, [lerp(p_ir, tip, f) + Vector((0, 0, -0.03)) for f in (0.08, 0.5, 0.86)], [(0.2, 0, 1)] * 3, 0.05, 0.015, TEAL)
 
 
 def build_hull(rng):
     hs = HS(rng)
-    # --- Seed hull: lofted violet shell (smooth along its length, crisp crest / chines / keel).
+    # --- Core: a long faceted black chitin hull (crisp facets, no rounding) closing to a ram prow.
     rings = [hull_section(y) for y, *_ in HULL]
     rings.insert(0, P(*PROW))
-    sweep(hs, rings, "shell:1", SHELL, tags="smooth", cap0=False, cap1=True)
-    # --- Layered carapace scales on the deck, two per station (left / right of the black spine).
+    sweep(hs, rings, "frame", FRAME, tags="main", cap0=False, cap1=True)
     half = HS(rng)
-    plates = [(7.55, 6.5, 0.1, 0.62, 0.45), (6.95, 5.4, 0.1, 0.8, 0.6), (5.7, 4.0, 0.1, 0.84, 0.7),
-              (4.3, 2.9, 0.1, 0.52, 0.5), (3.1, 1.3, 0.1, 0.86, 0.8), (1.6, -0.15, 0.1, 0.86, 0.7),
-              (-3.15, -4.5, 0.1, 0.86, 0.75), (-4.25, -5.6, 0.1, 0.84, 0.7), (-5.35, -6.6, 0.1, 0.8, 0.6)]
-    for k, (y0, y1, f0, f1, sb) in enumerate(plates):
-        lift = 0.05 if k % 2 == 0 else 0.09
-        carapace(half, y0, y1, f0, f1, lift, 0.09, sb, f"shell:{k + 3}")
-        # teal seam under each plate's trailing edge
-        pts = [deck_point(f, y1 - sb * ((f - f0) / (f1 - f0)) * 1.0 + 0.04, 0.03) for f in
-               (f0 + 0.05, (f0 + f1) * 0.5, f1 - 0.04)]
-        glow_line(half, pts, [(0.2, 0, 1)] * 3, 0.07, 0.02, TEAL)
-    # --- Flank lattice panels over a teal under-glow (organic honeycomb).
-    for (ya, yb) in ((4.8, 1.2),):
-        n = 9
+    # --- Layered armour: overlapping iridescent shard plates down each flank (clear of the heart and the bays).
+    for k, (y0, ln, out) in enumerate(((6.2, 1.9, 0.35), (4.9, 2.0, 0.45), (1.3, 2.2, 0.55), (-3.9, 2.2, 0.6),
+                                       (-5.6, 2.2, 0.6), (-7.3, 2.2, 0.55), (-9.0, 2.1, 0.5), (-10.7, 2.0, 0.45),
+                                       (-12.3, 1.8, 0.35))):
+        armour_plate(half, y0, ln, 0.12, out, 0.05 + 0.05 * (k % 2), k)
+    # --- Flank honeycomb lattice over a teal under-glow (cut-outs, as on the fighters).
+    for (ya, yb) in ((3.4, 0.0), (-4.2, -10.0)):
+        n = 8
         A, Bc = [], []
         for i in range(n):
             y = ya + (yb - ya) * i / (n - 1)
             W, T, C, B = hull_at(y)
-            A.append(P(W + 0.07, y, C + 0.05))
-            Bc.append(P(0.9 * W + 0.07, y, C - 0.42))
-        glow = [P(0.94 * hull_at(a.y)[0] + 0.025, a.y, hull_at(a.y)[2] - 0.21) for a in A]
-        glow_line(half, glow, [(1.0, 0, -0.2)] * n, 0.16, 0.02, TEAL)
-        lattice(half, patch_between(A, Bc, up=(1.0, 0.0, -0.35)), 6, 2, 0.1, "frame", FRAME, hole=0.6,
+            A.append(P(W + 0.05, y, C - 0.02))
+            Bc.append(P(0.66 * W + 0.05, y, B + 0.28))
+        glow_line(half, [P(0.86 * hull_at(a.y)[0], a.y, hull_at(a.y)[2] - 0.38) for a in A], [(1.0, 0, -0.4)] * n,
+                  0.14, 0.02, TEAL)
+        lattice(half, patch_between(A, Bc, up=(1.0, 0.0, -0.5)), 7, 2, 0.08, "frame_dk", FRAME, hole=0.62,
                 vmin=lambda u: 0.0, vmax=lambda u: 1.0, rng=rng)
-        tube(half, A, 0.06, "frame", FRAME, seg=4)
-    # --- Crescent blades. W1 silver with an open lattice window, W2 violet with a silver leading edge and a
-    # lattice loop, W3 silver scythe with a violet inner band, W4 stern ribbon. Alternating materials layer.
-    O1, I1 = open_crescent(half, rng, W1[0], W1[1], 24, 0.22, 0.16, 0.08, 0.5, 0.27, tip_lift,
-                           ("blade", BLADE, "blade_dk", BLADE), (8, 2), 0.1, vc_=0.5, glow_rim=0.07)
-    O2, I2 = ribbon_samples(W2[0], W2[1], 22, tip_lift)
-    E2 = [lerp(o, i, 0.2) for o, i in zip(O2, I2)]
-    E2[-1] = O2[-1]
-    band(half, O2, E2, lambda t: 0.12 * (1 - t) ** 0.6 + 0.01, (0, 0, 1), "blade", BLADE, ridge=0.45, facets=False)
-    open_crescent(half, rng, [lerp(W2[0][j], W2[1][j], 0.2) for j in range(4)], W2[1], 22, 0.18, 0.13, 0.1, 0.5,
-                  0.25, tip_lift, ("shell:2", SHELL, "shell_dk:5", SHELL), (6, 2), 0.09, vc_=0.5, glow_rim=0.06)
-    O3, I3 = ribbon_samples(W3[0], W3[1], 18, tip_lift)
-    E3 = [lerp(o, i, 0.55) for o, i in zip(O3, I3)]
+        tube(half, A, 0.05, "blade_dk", BLADE, seg=4)
+    # --- Blades: silver canards, main blades with open lattice windows, aft blades; violet inner bands.
+    Oc, Ic = ribbon_samples(CANARD[0], CANARD[1], 10, tip_lift)
+    band(half, Oc, Ic, lambda t: 0.1 * (1 - t) ** 0.6 + 0.01, (0, 0, 1), "blade", BLADE, ridge=0.4, facets=True)
+    # Main blades: solid knife blades (silver leading band, violet inner band, black slotted spar, teal edge line).
+    O1, I1 = ribbon_samples(MAIN[0], MAIN[1], 20, tip_lift)
+    E1 = [lerp(o, i, 0.4) for o, i in zip(O1, I1)]
+    E1[-1] = O1[-1]
+    band(half, O1, E1, lambda t: 0.16 * (1 - t) ** 0.6 + 0.012, (0, 0, 1), "blade", BLADE, ridge=0.38, facets=True)
+    band(half, E1, I1, lambda t: 0.12 * (1 - t) ** 0.5 + 0.01, (0, 0, 1), "shell_dk:5", SHELL, ridge=0.5, facets=True)
+    glow_line(half, [lerp(o, i, 0.4) + Vector((0, 0, 0.15 * (1 - k / 19) ** 0.5)) for k, (o, i) in
+                     enumerate(zip(O1, I1)) if 2 <= k <= 15], [(0, 0, 1)] * 14, 0.06, 0.02, TEAL)
+    for k in range(3, 16, 3):
+        a_, b_ = lerp(O1[k], I1[k], 0.55), lerp(O1[k], I1[k], 0.92)
+        lift_ = Vector((0, 0, 0.12 * (1 - k / 19) ** 0.5 + 0.02))
+        tube(half, [a_ + lift_, b_ + lift_ * 0.7], 0.05, "frame", FRAME, seg=4)
+    O3, I3 = ribbon_samples(AFT[0], AFT[1], 16, tip_lift)
+    E3 = [lerp(o, i, 0.45) for o, i in zip(O3, I3)]
     E3[-1] = O3[-1]
-    band(half, O3, E3, lambda t: 0.15 * (1 - t) ** 0.6 + 0.01, (0, 0, 1), "blade", BLADE, ridge=0.4, facets=True)
-    band(half, E3, I3, lambda t: 0.12 * (1 - t) ** 0.5 + 0.01, (0, 0, 1), "shell:7", SHELL, ridge=0.5, facets=False)
-    glow_line(half, [lerp(o, i, 0.55) + Vector((0, 0, 0.13 * (1 - k / 17) ** 0.5)) for k, (o, i) in
-                     enumerate(zip(O3, I3)) if 2 <= k <= 13], [(0, 0, 1)] * 12, 0.06, 0.02, TEAL)
-    O4, I4 = ribbon_samples(W4[0], W4[1], 12, tip_lift)
-    band(half, O4, I4, lambda t: 0.1 * (1 - t) ** 0.6 + 0.01, (0, 0, 1), "blade", BLADE, ridge=0.4, facets=True)
-    # --- Split armour seams across the silver bands (dark grooves from the edge to the ridge).
-    for (O, I, ks, frac, th0, n_) in ((O1, I1, (12, 15, 18), 0.22, 0.22, 24), (O3, I3, (7, 10, 13), 0.24, 0.15, 18),
-                                      (O2, I2, (11, 14, 17), 0.1, 0.12, 22)):
-        for k in ks:
-            t = k / (n_ - 1)
-            th = th0 * (1 - t) ** 0.65 + 0.012
-            a_ = O[k] + Vector((0, 0, 0.012))
-            b_ = lerp(O[k], I[k], frac) + Vector((0, 0, th + 0.012))
-            tube(half, [a_, lerp(a_, b_, 0.5) + Vector((0, 0, 0.01)), b_], 0.035, "frame", FRAME, seg=4)
-    # --- Black chitin root collars where the blades meet the hull, and spars between the wings.
-    for (O, I) in ((O1, I1), (O2, I2), (O3, I3)):
-        pts = [lerp(O[0], I[0], f) + Vector((0.05, 0, -0.04)) for f in (0.0, 0.33, 0.66, 1.0)]
-        tube(half, pts, 0.17, "frame", FRAME, seg=5)
-    # --- Pod cradle on W1 under the gill pod socket, with ribs to the hull.
+    band(half, O3, E3, lambda t: 0.13 * (1 - t) ** 0.6 + 0.01, (0, 0, 1), "blade", BLADE, ridge=0.4, facets=True)
+    band(half, E3, I3, lambda t: 0.1 * (1 - t) ** 0.5 + 0.01, (0, 0, 1), "shell:7", SHELL, ridge=0.5, facets=False)
+    glow_line(half, [lerp(o, i, 0.45) + Vector((0, 0, 0.11 * (1 - k / 15) ** 0.5)) for k, (o, i) in
+                     enumerate(zip(O3, I3)) if 2 <= k <= 12], [(0, 0, 1)] * 11, 0.05, 0.02, TEAL)
+    # Armour grooves across the main blade and black root collars into the hull.
+    for k in (9, 12, 15, 18):
+        t = k / 21
+        a_ = O1[k] + Vector((0, 0, 0.012))
+        b_ = lerp(O1[k], I1[k], 0.25) + Vector((0, 0, 0.2 * (1 - t) ** 0.65 + 0.02))
+        tube(half, [a_, lerp(a_, b_, 0.5) + Vector((0, 0, 0.01)), b_], 0.03, "frame", FRAME, seg=4)
+    for (O, I) in ((Oc, Ic), (O1, I1), (O3, I3)):
+        tube(half, [lerp(O[0], I[0], f) + Vector((0.04, 0, -0.03)) for f in (0.0, 0.33, 0.66, 1.0)], 0.14, "frame_dk",
+             FRAME, seg=5)
+    # --- Pod pylon: an angular outrigger from the hull to the pod mount.
     pc = Dg(POD_R)
-    tube(half, [P(pc.x, pc.y, 1.12), P(pc.x, pc.y, 1.3), P(pc.x, pc.y, 1.47)], [0.5, 0.66, 0.74], "frame", FRAME,
-         seg=10, cap1=True)
-    arc_band(half, 0.7, 0.14, 0.1, 0.0, 2 * math.pi, 14, "blade_dk", BLADE, ch=0.03,
-             m=Matrix.Translation(P(pc.x, pc.y, 1.47)))
-    for dy in (-0.45, 0.45):
-        W = hull_at(pc.y + dy)[0]
-        tube(half, [P(W * 0.95, pc.y + dy, 1.2), P(pc.x - 0.45, pc.y + dy * 0.6, 1.25)], 0.08, "frame", FRAME, seg=5)
+    tube(half, [P(1.45, pc.y + 0.5, 1.3), P(2.3, pc.y + 0.25, 1.36), P(pc.x - 0.35, pc.y, 1.4)], [0.2, 0.16, 0.14],
+         "frame", FRAME, seg=6)
+    tube(half, [P(1.45, pc.y - 0.6, 1.25), P(pc.x - 0.4, pc.y - 0.2, 1.36)], 0.1, "frame_dk", FRAME, seg=5)
+    arc_band(half, 0.62, 0.16, 0.12, 0.0, 2 * math.pi, 6, "blade_dk", BLADE, ch=0.03,
+             m=Matrix.Translation(P(pc.x, pc.y, 1.44)) @ Matrix.Rotation(math.pi / 6, 4, "Z"))
     # --- Pod launch bay cowl with petal doors at the bay socket.
     bc = Dg(BAY_R)
-    tube(half, [P(bc.x + 0.06, bc.y - 0.2, 1.15), P(bc.x + 0.02, bc.y - 0.06, 1.5), P(bc.x, bc.y, bc.z - 0.04)],
-         [0.6, 0.56, 0.5], "frame", FRAME, seg=10, cap1=False)
-    arc_band(half, 0.5, 0.12, 0.1, 0.0, 2 * math.pi, 12, "blade", BLADE, ch=0.03,
-             m=Matrix.Translation(P(bc.x, bc.y, bc.z)))
+    tube(half, [P(bc.x - 0.1, bc.y - 0.2, 1.3), P(bc.x, bc.y - 0.06, 1.56), P(bc.x, bc.y, bc.z - 0.04)],
+         [0.56, 0.52, 0.48], "frame", FRAME, seg=8, cap1=False)
+    arc_band(half, 0.5, 0.12, 0.1, 0.0, 2 * math.pi, 8, "blade", BLADE, ch=0.03,
+             m=Matrix.Translation(P(bc.x, bc.y, bc.z)) @ Matrix.Rotation(math.pi / 8, 4, "Z"))
     well = HS(rng)
-    tube(well, [P(bc.x, bc.y, bc.z + 0.04), P(bc.x, bc.y, bc.z - 0.2), P(bc.x, bc.y, bc.z - 0.42)], [0.45, 0.4, 0.3],
-         "frame_teal", FRAME, seg=12, cap0=False, cap1=False)
+    tube(well, [P(bc.x, bc.y, bc.z + 0.04), P(bc.x, bc.y, bc.z - 0.2), P(bc.x, bc.y, bc.z - 0.42)], [0.43, 0.38, 0.28],
+         "frame_teal", FRAME, seg=8, cap0=False, cap1=False)
     append(half, flipped(well))
-    disc(half, P(bc.x, bc.y, bc.z - 0.42), (0, 0, 1), 0.3, 12, "lamp", TEAL)
-    arc_band(half, 0.36, 0.035, 0.04, 0.0, 2 * math.pi, 12, "lamp", TEAL, ch=0.0,
-             m=Matrix.Translation(P(bc.x, bc.y, bc.z - 0.22)))
-    for k in range(5):
-        a = 2 * math.pi * k / 5 + 0.3
+    disc(half, P(bc.x, bc.y, bc.z - 0.42), (0, 0, 1), 0.28, 8, "lamp", TEAL)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + math.pi / 4
         d = Vector((math.cos(a), math.sin(a), 0.0))
         tvec = Vector((-d.y, d.x, 0.0))
-        root = P(bc.x, bc.y, bc.z + 0.03) + d * 0.48
-        tipp = root + d * 0.34 + Vector((0, 0, 0.3))
-        shard_plate(half, [root - tvec * 0.19, tipp + tvec * 0.02, root + tvec * 0.19], 0.035, 0.02,
-                    f"shell:{k + 6}", SHELL)
-    # --- Teal veins along the upper flank.
-    for f, ya, yb in ((0.9, 6.0, -6.2),):
-        pts = []
-        for i in range(14):
-            y = ya + (yb - ya) * i / 13
-            W, T, C, B = hull_at(y)
-            pts.append(P(f * W + 0.02, y, deck_z(f, y) + 0.02))
-        glow_line(half, pts, [(0.7, 0, 0.7)] * len(pts), 0.06, 0.02, TEAL)
-    # --- Prow barbs and stern fins.
-    crescent(half, [P(0.3, 6.6, 1.44), P(0.95, 6.9, 1.36), P(1.25, 7.7, 1.3), P(0.95, 8.4, 1.36)],
-             [P(0.24, 7.3, 1.46), P(0.6, 7.55, 1.4), P(0.85, 8.0, 1.34), P(0.95, 8.4, 1.36)], 9,
-             lambda t: 0.08 * (1 - t) + 0.01, (0, 0, 1), "blade", BLADE)
-    # --- Trailing tendrils from the stern underside.
-    for (x0, x1, z0, sag) in ((0.45, 1.05, 0.45, 0.0), (0.95, 2.1, 0.75, 0.1)):
-        pts = [P(x0, -6.5, z0), P(lerp(x0, x1, 0.35), -7.3, z0 * 0.6), P(lerp(x0, x1, 0.75), -7.95, z0 * 0.35 + sag),
-               P(x1, -8.45, 0.08 + sag)]
-        tube(half, pts, [0.17, 0.13, 0.08, 0.0], "frame", FRAME, seg=6, apex_end=True)
-        for f in (0.3, 0.55):
-            c = lerp(pts[1], pts[2], f)
-            tube(half, [c - Vector((0.0, 0.05, 0.0)), c + Vector((0.0, 0.05, 0.0))], 0.12 - 0.03 * f, "lamp", TEAL,
-                 seg=6)
-    # --- Side thrusters at the stern quarters (engine sockets 1 / 2).
-    e = Dg(EMPTIES["veil_engine_2"])
-    tube(half, [e + Vector((0, 0.5, 0)), e + Vector((0, 0.1, 0)), e], [0.2, 0.24, 0.22], "frame_dk", FRAME, seg=8)
-    disc(half, e - Vector((0, 0.005, 0)), (0, -1, 0), 0.17, 8, "lamp", TEAL)
+        root = P(bc.x, bc.y, bc.z + 0.03) + d * 0.46
+        tipp = root + d * 0.3 + Vector((0, 0, 0.34))
+        shard_plate(half, [root - tvec * 0.24, tipp, root + tvec * 0.24], 0.04, 0.02, f"shell:{k + 6}", SHELL)
+    # --- Teal veins along the chine.
+    pts = [P(hull_at(y)[0] + 0.01, y, hull_at(y)[2] + 0.02) for y in [6.0 - 19.4 * i / 15 for i in range(16)]]
+    glow_line(half, pts, [(1.0, 0, 0.3)] * len(pts), 0.05, 0.02, TEAL)
+    # --- Prow mandibles: two short silver blades flanking the ram.
+    crescent(half, [P(0.35, 5.9, 1.45), P(0.85, 6.3, 1.4), P(0.95, 7.2, 1.36), P(0.55, 8.2, 1.34)],
+             [P(0.3, 6.7, 1.48), P(0.5, 7.1, 1.44), P(0.6, 7.6, 1.4), P(0.55, 8.2, 1.34)], 8,
+             lambda t: 0.07 * (1 - t) + 0.01, (0, 0, 1), "blade", BLADE)
+    # --- Stern engine block: a faceted housing with three teal slots (engine sockets).
+    for ex, er in ((0.0, 0.42), (0.85, 0.3)):
+        c = P(ex, STERN - 0.05, 1.2 if ex else 1.3)
+        tube(half, [c + Vector((0, 0.9, 0)), c + Vector((0, 0.15, 0)), c], [er + 0.12, er + 0.16, er + 0.12], "frame_dk",
+             FRAME, seg=6)
+        disc(half, c - Vector((0, 0.01, 0)), (0, -1, 0), er, 6, "lamp", TEAL)
     append(hs, half)
     append(hs, mirror_x(half))
-    # --- Black chitin spine ridge with vertebrae and a teal slit (bow -> stern, broken by the heart iris).
-    for (ya, yb) in ((7.6, -0.3), (-3.3, -6.7)):
-        n = max(3, int(abs(ya - yb) / 0.9) + 1)
+    # --- Dorsal blade spine with vertebra shards and a teal slit (broken by the heart iris).
+    for (ya, yb) in ((6.4, 0.3), (-3.7, -13.8)):
+        n = max(3, int(abs(ya - yb) / 1.0) + 1)
         st = []
         for i in range(n):
             y = ya + (yb - ya) * i / (n - 1)
             T = hull_at(y)[1]
-            w = 0.16 if 0 < i < n - 1 else 0.08
-            st.append([P(w, y, T - 0.02), P(0.0, y, T + 0.2), P(-w, y, T - 0.02)])
+            h = 0.48 if 0 < i < n - 1 else 0.12
+            st.append([P(0.13, y, T - 0.02), P(0.0, y, T + h), P(-0.13, y, T - 0.02)])
         sweep(hs, st, "frame", FRAME, tags="main")
         for i in range(n - 1):
             y = ya + (yb - ya) * (i + 0.5) / (n - 1)
             T = hull_at(y)[1]
-            ln = 0.36
-            shard_plate(hs, [P(0.0, y + ln, T + 0.17), P(-0.34, y - ln * 0.6, T + 0.05), P(0.0, y - ln * 0.25, T + 0.15),
-                             P(0.34, y - ln * 0.6, T + 0.05)], 0.09, 0.02, "frame_dk", FRAME)
-        glow_line(hs, [P(0.0, ya - 0.3 * math.copysign(1, ya - yb), hull_at(ya)[1] + 0.21),
-                       P(0.0, yb + 0.3 * math.copysign(1, ya - yb), hull_at(yb)[1] + 0.21)], [(0, 0, 1)] * 2, 0.05, 0.015,
+            ln = 0.4
+            shard_plate(hs, [P(0.0, y + ln, T + 0.44), P(-0.42, y - ln * 0.7, T + 0.06), P(0.0, y - ln * 0.3, T + 0.3),
+                             P(0.42, y - ln * 0.7, T + 0.06)], 0.08, 0.02, "blade_dk", BLADE)
+        glow_line(hs, [P(0.0, ya - 0.3 * math.copysign(1, ya - yb), hull_at(ya)[1] + 0.12),
+                       P(0.0, yb + 0.3 * math.copysign(1, ya - yb), hull_at(yb)[1] + 0.12)], [(0, 0, 1)] * 2, 0.04, 0.015,
                   TEAL)
-    # --- Heart socket collar (iris housing) on the deck.
+    # --- Heart socket collar: an octagonal iris housing on the deck.
     hc = Dg(HEART)
-    arc_band(hs, 1.3, 0.3, 0.72, 0.0, 2 * math.pi, 20, "frame", FRAME, ch=0.06, m=Matrix.Translation(P(hc.x, hc.y, 1.72)),
-             full=True)
-    arc_band(hs, 1.13, 0.07, 0.06, 0.0, 2 * math.pi, 20, "lamp", TEAL, ch=0.0,
-             m=Matrix.Translation(P(hc.x, hc.y, 2.09)))
-    for k in range(12):
-        a = 2 * math.pi * (k + 0.5) / 12
+    arc_band(hs, 1.3, 0.3, 0.6, 0.0, 2 * math.pi, 8, "frame", FRAME, ch=0.06,
+             m=Matrix.Translation(P(hc.x, hc.y, 1.76)) @ Matrix.Rotation(math.pi / 8, 4, "Z"), full=True)
+    arc_band(hs, 1.13, 0.07, 0.06, 0.0, 2 * math.pi, 8, "lamp", TEAL, ch=0.0,
+             m=Matrix.Translation(P(hc.x, hc.y, 2.09)) @ Matrix.Rotation(math.pi / 8, 4, "Z"))
+    for k in range(8):
+        a = 2 * math.pi * k / 8
         d = Vector((math.cos(a), math.sin(a), 0.0))
         root = P(hc.x, hc.y, 1.95) + d * 1.4
-        tube(hs, [root, root + d * 0.2 + Vector((0, 0, 0.12)), root + d * 0.42 + Vector((0, 0, 0.18))],
-             [0.08, 0.05, 0.0], "frame", FRAME, seg=4, apex_end=True)
-    # --- Aft propulsion ring (concealed cavity) with concentric teal rings and vanes.
-    ec = Dg(ENGINE_C)
-    m = Matrix.Translation(ec) @ Matrix.Rotation(ENGINE_AXIS_TILT, 4, "X")
-    # local z (exhaust side) -> pointing back (-y) and up, so the ring reads from the high game camera
-    arc_band(hs, 1.1, 0.34, 0.46, 0.0, 2 * math.pi, 20, "frame", FRAME, ch=0.07, m=m, full=True)
-    arc_band(hs, 1.12, 0.12, 0.12, 0.0, 2 * math.pi, 20, "blade_dk", BLADE, ch=0.03, m=m @ xform((0, 0, 0.27)))
-    arc_band(hs, 0.86, 0.08, 0.1, 0.0, 2 * math.pi, 18, "lamp", TEAL, ch=0.0, m=m @ xform((0, 0, 0.06)))
-    arc_band(hs, 0.58, 0.06, 0.08, 0.0, 2 * math.pi, 14, "lamp", TEAL, ch=0.0, m=m @ xform((0, 0, -0.08)))
-    disc(hs, m @ Vector((0, 0, -0.2)), m.to_3x3() @ Vector((0, 0, 1)), 0.5, 14, "lamp", TEAL)
-    tube(hs, [m @ Vector((0, 0, -0.25)), m @ Vector((0, 0, 0.1)), m @ Vector((0, 0, 0.42))], [0.2, 0.17, 0.0],
-         "frame_dk", FRAME, seg=8, apex_end=True)
-    for k in range(6):
-        a = 2 * math.pi * k / 6
-        d = Vector((math.cos(a), math.sin(a), 0.0))
-        tvec = Vector((-d.y, d.x, 0.0))
-        outline = [m @ (d * 0.22), m @ (d * 0.92 + tvec * 0.12 + Vector((0, 0, 0.05))), m @ (d * 0.92 - tvec * 0.05)]
-        shard_plate(hs, outline, 0.03, 0.03, "blade_dk", BLADE)
+        tube(hs, [root, root + d * 0.25 + Vector((0, 0, 0.1)), root + d * 0.55 + Vector((0, 0, 0.14))],
+             [0.09, 0.06, 0.0], "frame", FRAME, seg=4, apex_end=True)
     return hs
 
 
 # ----------------------------------------------------------------------------
-# Gill pods (live / wreck)
+# Pods (live / wreck): an angular crystal crown on a hexagonal mount
 # ----------------------------------------------------------------------------
 
 def build_pod(side, rng, wreck=False):
     hs = HS(rng)
     c = Dg(POD_L if side < 0 else POD_R)
     base_z = 1.47
-    # black cup base
-    tube(hs, [P(c.x, c.y, base_z - 0.02), P(c.x, c.y, base_z + 0.12), P(c.x, c.y, base_z + 0.24)],
-         [0.6, 0.55, 0.36], "char" if wreck else "frame", FRAME, seg=10, cap0=False)
+    arc_band(hs, 0.42, 0.3, 0.26, 0.0, 2 * math.pi, 6, "char" if wreck else "frame", FRAME, ch=0.04,
+             m=Matrix.Translation(P(c.x, c.y, base_z + 0.1)), full=True)
     if not wreck:
-        # Faceted teal core with a black frame (gill heart), top near the target plane.
         verts, faces = icosahedron()
-        framed_poly(hs, verts, faces, xform((c.x, c.y, 1.92), (0.0, 0.0, 0.3)) @ Matrix.Diagonal((0.4, 0.4, 0.34, 1.0)),
+        framed_poly(hs, verts, faces, xform((c.x, c.y, 1.92), (0.0, 0.0, 0.3)) @ Matrix.Diagonal((0.38, 0.38, 0.34, 1.0)),
                     0.24, 0.035, "frame", FRAME, "lamp", TEAL)
     else:
-        # Shattered core: dark crushed shards, a few embers.
-        for k in range(7):
-            a = 2 * math.pi * k / 7 + rng.uniform(-0.2, 0.2)
+        for k in range(6):
+            a = 2 * math.pi * k / 6 + rng.uniform(-0.2, 0.2)
             d = Vector((math.cos(a), math.sin(a), rng.uniform(0.2, 0.9))).normalized()
             p0 = P(c.x, c.y, 1.76) + d * 0.08
             tube(hs, [p0, p0 + d * rng.uniform(0.2, 0.34)], [0.09, 0.0], "shell_dk", SHELL, seg=4, apex_end=True)
@@ -386,32 +322,20 @@ def build_pod(side, rng, wreck=False):
             a = 2 * math.pi * k / 3 + 0.5
             disc(hs, P(c.x + math.cos(a) * 0.16, c.y + math.sin(a) * 0.16, 1.73), (0, 0, 1), 0.06, 5, "lamp", TEAL)
         hs.scorch = [((c.x, c.y, 1.7), 1.1)]
-    # Five sickle blades cupping the core (claw); the wreck keeps three, broken and splayed.
-    for k in range(5):
-        a = -math.pi / 2 + 2 * math.pi * k / 5          # one blade aft, two flanking the front: mirror-symmetric
-        if wreck and k in (1, 3):
+    # Four tall angular shard fins standing around the core (two kept, broken, on the wreck).
+    for k in range(4):
+        if wreck and k % 2:
             continue
-        rot = xform(tuple(P(c.x, c.y, 0.0)), (0.0, 0.0, a - math.pi / 2))
-        bl = HS(rng)
-        # local: x tangential, y radial outward, z up
-        O = bez_pts([P(-0.18, 0.5, base_z + 0.04), P(-0.25, 1.02, 1.74), P(-0.13, 0.92, 2.26), P(0.05, 0.56, 2.56)], 9)
-        I = bez_pts([P(0.18, 0.45, base_z + 0.04), P(0.16, 0.8, 1.74), P(0.1, 0.74, 2.16), P(0.05, 0.56, 2.56)], 9)
-        if wreck:
-            cut = rng.randint(4, 6)
-            O, I = O[:cut], I[:cut]
-            I[-1] = O[-1] = lerp(O[-1], I[-1], 0.5) + Vector((0, 0.06, -0.05))
-        ups = [Vector((0.0, 1.0, -0.3 + 0.9 * i / 8)).normalized() for i in range(len(O))]
-        band(bl, O, I, lambda t: 0.1 * (1 - t) ** 0.6 + 0.01, ups, "burnt" if wreck else ("blade" if k % 2 else
-             f"shell:{k + 2}"), BLADE if (wreck or k % 2) else SHELL, ridge=0.42, facets=not wreck)
+        a = math.pi / 4 + k * math.pi / 2
+        d = Vector((math.cos(a), math.sin(a), 0.0))
+        tvec = Vector((-d.y, d.x, 0.0))
+        root = P(c.x, c.y, base_z + 0.22) + d * 0.5
+        top = root + d * 0.12 + Vector((0, 0, 0.9 if not wreck else 0.45))
+        outline = [root - tvec * 0.2, root + d * 0.22 + Vector((0, 0, 0.35)), top, root + tvec * 0.2]
+        shard_plate(hs, outline, 0.06, 0.02, "burnt" if wreck else ("blade" if k % 2 else f"shell:{k + 2}"),
+                    BLADE if (wreck or k % 2) else SHELL)
         if not wreck:
-            # gill slit on the outer face of each blade
-            q = [P(-0.1, 0.9, 1.72), P(-0.02, 0.93, 1.86), P(0.05, 0.86, 2.0)]
-            glow_line(bl, q, [(0, 1, 0.2)] * 3, 0.05, 0.03, TEAL)
-        m = rot
-        if wreck:
-            m = rot @ xform((0.0, 0.42, base_z), (rng.uniform(-0.6, -0.3), 0.0, rng.uniform(-0.2, 0.2))) @ \
-                xform((0.0, -0.42, -base_z))
-        merge_hs(hs, bl, m)
+            glow_line(hs, [root + d * 0.06 + Vector((0, 0, 0.15)), lerp(root, top, 0.6) + d * 0.04], [d] * 2, 0.04, 0.02, TEAL)
     return hs
 
 
@@ -524,7 +448,7 @@ def build_heart_wreck(rng):
 def node_rules():
     rules = {}
     for name, t in SOCKETS.items():
-        rules[name] = dict(t=t, x=(-7.5, 7.5), z=(-8.5, 8.5), y_max=TOP_MAX, y_min=-0.6)
+        rules[name] = dict(t=t, x=(-5.6, 5.6), z=(-14.9, 8.3), y_max=TOP_MAX, y_min=-0.6)
     for k in range(4):
         rules[f"veil_heart_shutter_{k}"]["yaw"] = SHUTTER_PHI[k]
     for name, t in EMPTIES.items():
@@ -617,15 +541,15 @@ def render_previews(objs, args):
     place_set(objs, LIVE, (0.0, 0.0, 0.0))
     kit.plane_obj("pv_mire", -40, 40, -40, 40, -0.02, pm["mire"])
     nf.preview_lights()
-    cam = kit.add_ortho_camera((0.0, 0.0, 0.0), 90.0, 18.5)
-    nf.setup_render(args.engine, args.samples, 1400, 1400)
+    cam = kit.add_ortho_camera((0.0, 3.1, 0.0), 90.0, 24.0)
+    nf.setup_render(args.engine, args.samples, 1100, 1400)
     kit.render(os.path.join(args.preview_dir, f"preview-veil-top{sfx}.png"))
     kit.clear_preview(keep)
     # 3. Hero 3/4 perspective.
     place_set(objs, LIVE, (0.0, 0.0, 0.0))
     kit.plane_obj("pv_mire", -60, 60, -60, 60, -0.02, pm["mire"])
     nf.preview_lights()
-    nf.perspective_camera((15.0, -15.5, 10.5), (0.0, 0.5, 0.8), lens=36.0)
+    nf.perspective_camera((17.0, -20.5, 12.0), (0.0, -3.0, 0.8), lens=34.0)
     nf.setup_render(args.engine, args.samples, 1800, 1100)
     kit.render(os.path.join(args.preview_dir, f"preview-veil-hero{sfx}.png"))
     kit.clear_preview(keep)

@@ -70,13 +70,12 @@ Since 16 October the sortie has a 36 s fuel-depot stretch: the approach closes a
 
 ## THE VEIL (`src/content/veil.ts`, `src/render/veil-view.ts`)
 
-A giant biological starship in the concept's "Veil" design language (`art/concepts/06-exotic-aliens.png`). Since 16 October it is modelled in Blender (`tools/blender/the_veil.py` → `public/assets/nacre/the-veil.glb`, 15,872 triangles against a 16,000 budget, `art/the-veil/README.md`); the code-built rig only stands in while the model loads:
-- a dark-violet seed hull with layered carapace scales and a black spine, about 14.5 × 16.9 units;
-- layered silver and violet crescent blades (great wings, rear wings, forward scythes, stern ribbons and prow barbs) with black honeycomb windows cut through them, reaching past both edges of the view;
-- glowing teal veins, a tilted aft engine ring and trailing tendrils;
-- two blade-cupped pods around teal cores (the first pair);
-- a faceted teal heart in a ten-blade iris under four shutters that swing 105° open (the core);
-- two launch bays at the front for its pods.
+A giant alien warship in the design language of Nacre's fighters (Shard and Veil), redesigned on 17 October 2026 at the user's request: the first model read as round and animal-like ("an axolotl"). Modelled in Blender (`tools/blender/the_veil.py` → `public/assets/nacre/the-veil.glb`, 10,044 triangles, `art/the-veil/README.md`); the code-built rig only stands in while the model loads:
+- a long, narrow faceted black hull, about 21 × 9 units, with a ram prow and silver mandibles;
+- a dorsal blade spine with vertebra shards and teal slits, broken by the heart's octagonal iris collar;
+- layered iridescent armour shards floating down both flanks, with honeycomb lattice and teal under-glow below;
+- swept knife blades: forward canards, solid main blades (silver leading band, violet inner band, teal edge, black spars) and aft blades;
+- two crystal-crowned pods on angular outriggers (the first pair), a faceted teal heart under four shutters that swing 105° open (the core), two launch bays at the front for its pods, and a stern engine block that sits beyond the top of the view.
 
 It rises out of the mire on arrival and sinks back into it when destroyed.
 

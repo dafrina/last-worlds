@@ -6,11 +6,11 @@ import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 
 /**
- * THE VEIL presentation (docs/20): a giant biological starship after the "Veil" concept, modelled in Blender
+ * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
  * (public/assets/nacre/the-veil.glb, art/the-veil); a code-built stand-in renders until the model has loaded.
- * Render-only: it reads boss state and never applies damage. A dark-violet seed hull with layered carapace scales,
- * layered crescent blades sweeping past the edges of the view, two blade-cupped pods (the first pair of weak points),
- * a faceted teal heart under four shutters (the core), launch bays for its pods, and teal stern engines. It rises
+ * Render-only: it reads boss state and never applies damage. A long, narrow faceted black hull (about 21 × 9) with a
+ * dorsal blade spine, layered iridescent armour shards, swept knife blades, two crystal-crowned pods on outriggers (the
+ * first pair of weak points), a faceted teal heart under four shutters (the core), launch bays and a stern engine block. It rises
  * out of the mire on arrival and sinks back into it when destroyed.
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation), COT_ELEVATION = 1 / Math.tan(ELEVATION);
@@ -18,7 +18,7 @@ const PARTS = ['left', 'right', 'core'] as const;
 /** Local +z faces the player (smaller s). */
 const socket = (part: BossPart) => new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -VEIL.podOffset : VEIL.podOffset, 0, part === 'core' ? -VEIL.heartS : -VEIL.podS);
 /** Hull footprint (x half-width, z half-depth) for the terrain exclusion (the blades overhang water anyway). */
-export const VEIL_FOOTPRINT = { halfWidth: 7.5, halfDepth: 9 } as const;
+export const VEIL_FOOTPRINT = { halfWidth: 5.5, halfDepth: 11 } as const;
 /** How deep the hull starts under the mire as it rises, and how far it sinks when destroyed. */
 const RISE = 3.2, SINK = 4.2;
 
@@ -232,7 +232,8 @@ export function createVeilView(scene: THREE.Scene) {
     footprint(state: RunState, placement: { s: number } | null) {
       if (!state.boss || !placement) return null;
       return { minX: state.boss.x - VEIL_FOOTPRINT.halfWidth, maxX: state.boss.x + VEIL_FOOTPRINT.halfWidth,
-        minS: state.distance + placement.s - 6, maxS: state.distance + placement.s + 12 };
+        // The long hull: its ram reaches 8 units toward the player, its stern 14.5 away (the-veil.glb, 17 October).
+        minS: state.distance + placement.s - 8.5, maxS: state.distance + placement.s + 15 };
     },
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
       const boss = state.boss && state.boss.id === 'veil' ? state.boss : null;
@@ -250,15 +251,15 @@ export function createVeilView(scene: THREE.Scene) {
       root.updateMatrixWorld(true);
       rig.chassis.rotation.set(-sink * .12 + Math.sin(state.time * .6) * .01, 0, sink * .16 + Math.sin(state.time * .45) * .012);
       if ((arriving && rise > .05) || (destroyed && sink > 0 && sink < 1)) for (let k = 0; k < 3; k++) if (hash(state.time * 37 + k) < 22 * dt) {
-        steam(local((hash(state.time + k) - .5) * 9, -root.position.y + placement.baseHeight + .1, (hash(state.time + k + 1) - .5) * 12), state.time * 41 + k, 1.6);
+        steam(local((hash(state.time + k) - .5) * 7, -root.position.y + placement.baseHeight + .1, (hash(state.time + k + 1) - .5) * 20 - 3), state.time * 41 + k, 1.6);
       }
       rig.engine.emissiveIntensity = destroyed ? Math.max(0, 2.6 - phaseAge) : 2.4 + .4 * Math.sin(state.time * 5);
       rig.sinew.emissiveIntensity = destroyed ? Math.max(0, 1.4 - phaseAge * .5) : 1.2 + .5 * Math.sin(state.time * 1.7);
       if (destroyed) {
         const before = phaseAge - dt;
-        for (let k = 0; k < 12; k++) { const at = .1 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * 8, 1.8, (hash(k + 5) - .5) * 10), 10, k * 13 + encounter, 1); }
+        for (let k = 0; k < 12; k++) { const at = .1 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * 5, 1.8, (hash(k + 5) - .5) * 18 - 3), 10, k * 13 + encounter, 1); }
         for (let k = 0; k < 10; k++) {
-          const at = .4 + k * .18, spot = local((hash(k + 21) - .5) * 7, 1.8, (hash(k + 23) - .5) * 9);
+          const at = .4 + k * .18, spot = local((hash(k + 21) - .5) * 4.5, 1.8, (hash(k + 23) - .5) * 17 - 3);
           if (before < at && phaseAge >= at) { flash(spot, 2.2 + hash(k), k); ichor(spot, 1.6 + hash(k + 40), k * 17 + encounter); }
         }
         if (before < 1.9 && phaseAge >= 1.9) { const heart = local(0, VEIL.targetHeight, -VEIL.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }

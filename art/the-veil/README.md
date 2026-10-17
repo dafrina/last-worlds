@@ -1,6 +1,8 @@
 # THE VEIL (Nacre boss)
 
-Runtime file: `public/assets/nacre/the-veil.glb` (1,448,480 bytes, sha256 `cd5198fd803d1b0ebebeca192eef02c0b387619ca832f96dc464848108d1a92f`).
+Runtime file: `public/assets/nacre/the-veil.glb` (950,536 bytes, sha256 `735ec1dde15976274fba856864124f4f6839d7c7251e4d6a3d24dfd286bde490`).
+
+**Redesign, 17 October 2026 (seed `the-veil-v2`):** the user found the first model round and animal-like ("an axolotl") and asked for something long, alien and exotic, like the fighter designs but huge. The hull is now a long, narrow faceted black warship (about 21 × 9 units, ram prow at z +7.9, stern engine block at z −14.4) with a dorsal blade spine, layered iridescent armour shards, swept knife blades (canards, solid main blades, aft blades) and crystal-crowned pods on outriggers. No tendrils or loop wings. The heart, shutters, sockets and wrecks are unchanged; the engine empties moved to the stern block. The rest of this README describes the first version where it differs.
 Context: [docs/20-nacre-luminous-mire.md](../../docs/20-nacre-luminous-mire.md) and `src/content/veil.ts`. The sockets match the simulation: target height 2.2, pods at x ∓3.1 / z +0.4 with radius 0.85, the heart at z −1.8 with radius 1.2, and bays at (∓1.7, z +2.6).
 
 **Design:** this replaces the code-built boss the user found "too round and comical". It uses the design language of the VEIL panel in `art/concepts/06-exotic-aliens.png`, with the NACRE capital ship of `05-alien-factions.png` for the top-down layout:
