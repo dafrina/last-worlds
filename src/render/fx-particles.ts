@@ -157,7 +157,7 @@ export function createFx(scene: THREE.Scene) {
     for (const shot of state.projectiles) {
       if (shot.id <= lastShot) continue;
       maxShot = Math.max(maxShot, shot.id);
-      if (Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + 1) continue;
+      if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + 1) continue;
       // Muzzle flash at the logical origin; colour follows the shot's team.
       if (shot.friendly) flash(shot.previousX, -shot.previousS, .3, .06, 0xd8fff9, 1.5);
       else flash(shot.previousX, -shot.previousS, .42, .09, 0xff9a78, 1.25);

@@ -1,5 +1,20 @@
 # Build status
 
+## Wide VEIL with a spiral finale, Pulsar bursts, cleaner fuel tanks — 17 October 2026
+
+- **THE VEIL:** now wider than long (blades span about 25 units, hull about 18 long). Its final phase adds a spiral barrage from the heart.
+- **Fairness:** the director's safety check now runs to the end of every committed footprint, so long patterns are judged in full.
+- **Pulsar:** the shockwave ring is replaced by a rapid burst: a marked line, then six fast shots down it (shots emitted together, each waiting at the muzzle via `Projectile.delay`).
+- **Fuel tanks:**
+  - they looked like wood for two reasons: the ship panel texture on their paint, and the tan see-through silhouette drawn over their half buried in slopes;
+  - props now use a craft material without the panel map, and fuel skids skip the silhouette;
+  - a few fewer tanks: one tank fewer in the bigger depot, and four cues without extra tanks.
+- **Evidence:**
+  - 330/330 unit tests, 21/21 browser specs, production build;
+  - spirals occur 1–4 times per final phase with the test pilot still hitless;
+  - captures of the new VEIL, the spiral and the tanks inspected.
+- **Not done:** no phone hardware test.
+
 ## THE VEIL redesigned: long angular alien warship — 17 October 2026
 
 - **New model:** a long, narrow faceted black hull with layered iridescent armour shards, swept knife blades, crystal-crowned pods on outriggers, an octagonal heart collar and a stern engine block, in the Nacre fighters' language (`tools/blender/the_veil.py`, 10,044 triangles, `problems=0`). It replaces the round, animal-like model; sockets and game logic are unchanged.

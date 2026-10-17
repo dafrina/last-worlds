@@ -202,8 +202,7 @@ const templates = [
       { kind: 'turret', dx: -3, fire: 0 },
       { kind: 'turret', dx: 0, ds: 1.6, fire: 0.7 },
       { kind: 'turret', dx: 3, fire: 1.4 },
-      { kind: 'fuel', dx: -1.3, ds: 0.8, fire: 2.1 },
-      { kind: 'fuel', dx: 1.3, ds: 0.8, fire: 2.5 },
+      { kind: 'fuel', dx: 1.3, ds: 0.8, fire: 2.1 },
     ],
   },
   {
@@ -261,19 +260,18 @@ const templates = [
     path: GROUND, ...GROUND_FIRE,
     slots: [{ kind: 'turret', dx: 0, fire: 0 }],
   },
-  // ---- Nacre (17 October 2026): Pulsars dive low, hold, and release shockwave rings (PULSE) ----
+  // ---- Nacre (17 October 2026): Pulsars dive in, hold, and fire rapid burst streams down a marked line ----
   {
     id: 'pulsar-solo', name: 'Single pulsar', entry: 'top',
-    path: TOP_HOLD(6.2, 7), fireFrom: 1.6, fireUntil: 8.2,
+    path: TOP_HOLD(9.5, 7), fireFrom: 1.6, fireUntil: 8.2,
     slots: [{ kind: 'pulsar', dx: 1.2, fire: 0 }],
   },
   {
     id: 'pulsar-pair', name: 'Pulsar pair', entry: 'top',
-    path: TOP_HOLD(6.4, 8), fireFrom: 1.6, fireUntil: 9.2,
+    path: TOP_HOLD(10, 8), fireFrom: 1.6, fireUntil: 9.2,
     slots: [
-      // Far apart, so two rings at once still leave the middle open.
-      { kind: 'pulsar', dx: -4.6, fire: 0 },
-      { kind: 'pulsar', dx: 4.6, ds: 0.6, fire: 1.4 },
+      { kind: 'pulsar', dx: -3.6, fire: 0, aim: -0.6 },
+      { kind: 'pulsar', dx: 3.6, ds: 0.6, fire: 1.3, aim: 0.6 },
     ],
   },
   // ---- Vesper (docs/17 §5) ----

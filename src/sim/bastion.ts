@@ -180,7 +180,7 @@ function emit(state: RunState, enemy: Enemy) {
     const shots = bossShots(bossDef(state), boss.attack, enemy.x, enemy.s, enemy.aimX, bossShotScale(state), enemy.bossPart === 'core');
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
     for (const shot of shots) state.projectiles.push({ id: state.nextId++, x: shot.x, s: shot.s, previousX: shot.x, previousS: shot.s,
-      vx: shot.vx, vs: shot.vs, friendly: false, damage: 1, radius: shot.radius, ttl: SHOT_TTL });
+      vx: shot.vx, vs: shot.vs, friendly: false, damage: 1, radius: shot.radius, ttl: SHOT_TTL, ...(shot.delay ? { delay: shot.delay } : {}) });
   }
 }
 
@@ -256,8 +256,9 @@ export function updateBoss(state: RunState, dt: number): void {
     }
     attacker.warning = Math.max(0, attacker.warning - dt);
     if (attacker.warning === 0) {
+      const unwinding = boss.attack === 'spiral' ? bossDef(state).spiral?.duration ?? 0 : 0;
       emit(state, attacker); boss.attack = null; boss.attackerId = null;
-      boss.nextAttackAt = state.time + bossRecovery(state);
+      boss.nextAttackAt = state.time + unwinding + bossRecovery(state);
     }
     return;
   }
@@ -277,7 +278,7 @@ export function updateBoss(state: RunState, dt: number): void {
     ? (def.pairAttack === 'laser' && !bridgeBurst ? 'beam' : 'burst')
     : boss.phase === 'core'
       ? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst')
-      : move === 'burst' ? 'burst' : move === 'fan' ? (def.fan ? 'fan' : 'burst') : 'beam';
+      : move === 'burst' ? 'burst' : move === 'fan' ? (def.fan ? 'fan' : 'burst') : move === 'spiral' ? (def.spiral ? 'spiral' : 'burst') : 'beam';
   const aimX = attack === 'beam' ? boss.x : state.player.x;
   const difficultyWarning = runScale(state).warning;
   const lockedLaser = boss.phase === 'batteries' && def.laser;
@@ -301,6 +302,8 @@ export function updateBoss(state: RunState, dt: number): void {
   boss.attackerId = selected.id;
   selected.aimX = aimX;
   selected.warning = warning;
+  // A spiral holds the hull still while it unwinds (its streams leave from the heart where it was released).
+  if (attack === 'spiral' && def.spiral) boss.holdUntil = Math.max(boss.holdUntil ?? 0, state.time + warning + def.spiral.duration);
   // Lanes are marked through the whole windup; they never move with the player or the swaying hull afterwards.
   for (const lane of lanes) {
     state.hazards.push({ id: state.nextId++, x: lane.x, width: lane.width, warning: selected.warning + BOSS_BEAM.warning,

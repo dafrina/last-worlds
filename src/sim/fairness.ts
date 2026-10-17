@@ -1,4 +1,4 @@
-import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, WORLD_INTENSITY, difficultyScales, kinematics, pulseReach, type Kinematics } from '../content/balance';
+import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, WORLD_INTENSITY, difficultyScales, kinematics, PULSAR_BURST, type Kinematics } from '../content/balance';
 import { REACTORS } from '../content/equipment';
 
 /** Top lateral speed of the slowest campaign drive (Precision): campaign attack admission assumes it. */
@@ -10,7 +10,7 @@ export function playerKinematics(state: Pick<RunState, 'pace' | 'config'>): Kine
 }
 import { BOSSES } from '../content/bosses';
 import { VIEW, type Enemy, type RunState } from '../shared/contracts';
-import { beamSpec, bossShots, diamondSide, enemyShots, type BulletKind, type ShotSpec } from './attacks';
+import { beamSpec, bossShots, diamondSide, enemyShots, pulsarBurst, type BulletKind, type ShotSpec } from './attacks';
 import { clamp, approach } from './geometry';
 import { bossPartOffset, bossPose, enemyClockRate, positionAfter } from './motion';
 import { bossShotScale } from './spawn';
@@ -52,14 +52,16 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     if (!attack || attack === 'beam') return [];
     const scale = bossShotScale(state);
     // The hull keeps maneuvering through the windup: predict from its pose at release.
-    const pose = state.boss!.phase === 'destroyed' ? { x: state.boss!.x, s: state.boss!.s } : bossPose(state.boss!, release);
+    // A spiral holds the hull still from the start of its windup, so it leaves from where the boss is now.
+    const pose = state.boss!.phase === 'destroyed' || attack === 'spiral' ? { x: state.boss!.x, s: state.boss!.s } : bossPose(state.boss!, release);
     const offset = bossPartOffset(enemy.bossPart, state.boss!.id);
     return bossShots(BOSSES[state.boss!.id], attack, pose.x + offset.x, pose.s + offset.s, aimX, scale, enemy.bossPart === 'core')
-      .map(shot => shotFootprint(release, shot)).filter((f): f is Footprint => f !== null);
+      .map(shot => shotFootprint(release + (shot.delay ?? 0), shot)).filter((f): f is Footprint => f !== null);
   }
   if (enemy.kind === 'pulsar') {
-    const at = positionAfter(enemy, warning, enemyClockRate(state, enemy)), reach = pulseReach(at.s);
-    return [{ x0: at.x - reach.half, x1: at.x + reach.half, t0: release + reach.from, t1: release + reach.until }];
+    const at = positionAfter(enemy, warning, enemyClockRate(state, enemy));
+    return pulsarBurst(at.x, at.s, aimX, ENEMIES.pulsar.shotSpeed * shotSpeedScale(state), PULSAR_BURST.shots, PULSAR_BURST.interval)
+      .map(shot => shotFootprint(release + shot.delay, shot)).filter((f): f is Footprint => f !== null);
   }
   if (BEAM_KINDS.has(enemy.kind)) {
     const beam = beamSpec(enemy.kind);
@@ -94,7 +96,7 @@ export function committedFootprints(state: RunState, horizon: number = FAIRNESS.
   const out: Footprint[] = [];
   for (const shot of state.projectiles) {
     if (shot.friendly || shot.ttl <= 0) continue;
-    const footprint = shotFootprint(state.time, shot, shot.ttl);
+    const footprint = shotFootprint(state.time + (shot.delay ?? 0), shot, shot.ttl);
     if (footprint && footprint.t0 <= state.time + horizon) out.push(footprint);
   }
   for (const hazard of state.hazards) {
@@ -171,7 +173,9 @@ export function assessSafety(state: RunState, footprints: readonly Footprint[]):
   let sealed = false;
   let reachable = true;
   let started = false;
-  for (let t = now; t <= now + horizon + 1e-9; t += slice) {
+  // Long patterns (a boss spiral's later streams) are judged to their end, not just over the usual horizon.
+  const until = Math.max(now + horizon, ...footprints.map(f => f.t1));
+  for (let t = now; t <= until + 1e-9; t += slice) {
     const simultaneous = footprints.filter(f => f.t0 <= t + window / 2 && f.t1 >= t - window / 2);
     if (simultaneous.length > 0) {
       minGap = Math.min(minGap, largestGap(simultaneous, left, right));

@@ -49,7 +49,7 @@ SHUTTER_R = 1.05            # hinge radius around the heart axis
 SHUTTER_Z = 2.06            # hinge height
 SHUTTER_APEX = 2.66         # closed dome apex height
 SHUTTER_PHI = [math.radians(45 + 90 * k) for k in range(4)]   # azimuth from +Z toward +X (glTF yaw)
-ENGINE_C = (0.0, 1.2, -14.3)
+ENGINE_C = (0.0, 1.2, -10.1)
 ENGINE_AXIS_TILT = math.radians(45.0)
 
 
@@ -78,24 +78,23 @@ SOCKETS = {
 EMPTIES = {
     "veil_bay_left": BAY_L, "veil_bay_right": BAY_R,
     "veil_engine_0": ENGINE_C,
-    "veil_engine_1": (-0.85, 1.3, -14.3), "veil_engine_2": (0.85, 1.3, -14.3),
+    "veil_engine_1": (-0.85, 1.3, -10.1), "veil_engine_2": (0.85, 1.3, -10.1),
 }
 
 # ----------------------------------------------------------------------------
 # Hull
 # ----------------------------------------------------------------------------
 
-HULL = [  # (y, half-width W, crest T, chine C, keel B), design y descending (bow -> stern). Long and narrow.
+HULL = [  # (y, half-width W, crest T, chine C, keel B), design y descending (bow -> stern). The blades make it wide.
     (6.9, 0.3, 1.5, 1.15, 0.85),
     (5.6, 0.75, 1.75, 1.2, 0.55),
     (3.8, 1.2, 1.92, 1.2, 0.3),
     (1.6, 1.5, 2.0, 1.2, 0.15),
     (-1.0, 1.6, 1.97, 1.2, 0.1),
     (-3.0, 1.6, 1.97, 1.2, 0.1),
-    (-6.0, 1.5, 1.95, 1.18, 0.15),
-    (-9.5, 1.3, 1.85, 1.12, 0.3),
-    (-12.5, 1.05, 1.72, 1.05, 0.45),
-    (-14.2, 0.9, 1.62, 1.0, 0.55),
+    (-5.6, 1.5, 1.95, 1.18, 0.15),
+    (-8.2, 1.25, 1.82, 1.1, 0.35),
+    (-10.0, 1.0, 1.66, 1.02, 0.5),
 ]
 PROW = (0.0, 7.9, 1.3)
 STERN = HULL[-1][0]
@@ -143,12 +142,13 @@ def ribbon_samples(outer, inner, n, lift):
 
 
 # Angular blades (right side; mirrored). Bezier edges root -> tip, nearly straight: knife-like, not wing-like.
-CANARD = ([P(0.75, 5.6, 1.5), P(1.6, 5.4, 1.42), P(2.5, 5.1, 1.36), P(3.05, 4.85, 1.38)],
-          [P(1.05, 4.2, 1.5), P(1.8, 4.35, 1.44), P(2.55, 4.6, 1.38), P(3.05, 4.85, 1.38)])
-MAIN = ([P(1.5, 1.4, 1.15), P(3.1, -0.6, 1.1), P(4.35, -3.6, 1.05), P(4.75, -7.6, 1.15)],
-        [P(1.55, -5.2, 1.15), P(2.6, -5.8, 1.1), P(3.8, -6.6, 1.08), P(4.75, -7.6, 1.15)])
-AFT = ([P(1.35, -8.4, 1.25), P(2.55, -9.7, 1.2), P(3.25, -11.9, 1.18), P(3.4, -14.4, 1.25)],
-       [P(1.12, -12.3, 1.28), P(1.9, -12.9, 1.24), P(2.7, -13.6, 1.2), P(3.4, -14.4, 1.25)])
+# Wide (17 October 2026, user: "make it wide"): the main blades span about 25 units, past both edges of the view.
+CANARD = ([P(0.75, 5.6, 1.5), P(2.6, 5.2, 1.42), P(4.8, 4.4, 1.36), P(6.3, 3.6, 1.38)],
+          [P(1.05, 4.2, 1.5), P(2.6, 3.9, 1.44), P(4.6, 3.6, 1.38), P(6.3, 3.6, 1.38)])
+MAIN = ([P(1.5, 1.4, 1.15), P(6.0, 0.4, 1.1), P(10.4, -1.9, 1.05), P(12.6, -5.4, 1.15)],
+        [P(1.55, -5.0, 1.15), P(5.0, -5.2, 1.1), P(9.0, -5.4, 1.08), P(12.6, -5.4, 1.15)])
+AFT = ([P(1.35, -6.4, 1.25), P(4.0, -7.1, 1.2), P(7.0, -8.5, 1.18), P(8.7, -10.4, 1.25)],
+       [P(1.1, -9.2, 1.28), P(3.2, -9.6, 1.24), P(6.0, -10.1, 1.2), P(8.7, -10.4, 1.25)])
 
 
 def tip_lift(t):
@@ -176,11 +176,10 @@ def build_hull(rng):
     half = HS(rng)
     # --- Layered armour: overlapping iridescent shard plates down each flank (clear of the heart and the bays).
     for k, (y0, ln, out) in enumerate(((6.2, 1.9, 0.35), (4.9, 2.0, 0.45), (1.3, 2.2, 0.55), (-3.9, 2.2, 0.6),
-                                       (-5.6, 2.2, 0.6), (-7.3, 2.2, 0.55), (-9.0, 2.1, 0.5), (-10.7, 2.0, 0.45),
-                                       (-12.3, 1.8, 0.35))):
+                                       (-5.6, 2.0, 0.55), (-7.2, 1.8, 0.45), (-8.6, 1.5, 0.35))):
         armour_plate(half, y0, ln, 0.12, out, 0.05 + 0.05 * (k % 2), k)
     # --- Flank honeycomb lattice over a teal under-glow (cut-outs, as on the fighters).
-    for (ya, yb) in ((3.4, 0.0), (-4.2, -10.0)):
+    for (ya, yb) in ((3.4, 0.0), (-4.2, -8.6)):
         n = 8
         A, Bc = [], []
         for i in range(n):
@@ -250,7 +249,7 @@ def build_hull(rng):
         tipp = root + d * 0.3 + Vector((0, 0, 0.34))
         shard_plate(half, [root - tvec * 0.24, tipp, root + tvec * 0.24], 0.04, 0.02, f"shell:{k + 6}", SHELL)
     # --- Teal veins along the chine.
-    pts = [P(hull_at(y)[0] + 0.01, y, hull_at(y)[2] + 0.02) for y in [6.0 - 19.4 * i / 15 for i in range(16)]]
+    pts = [P(hull_at(y)[0] + 0.01, y, hull_at(y)[2] + 0.02) for y in [6.0 - 15.6 * i / 15 for i in range(16)]]
     glow_line(half, pts, [(1.0, 0, 0.3)] * len(pts), 0.05, 0.02, TEAL)
     # --- Prow mandibles: two short silver blades flanking the ram.
     crescent(half, [P(0.35, 5.9, 1.45), P(0.85, 6.3, 1.4), P(0.95, 7.2, 1.36), P(0.55, 8.2, 1.34)],
@@ -265,7 +264,7 @@ def build_hull(rng):
     append(hs, half)
     append(hs, mirror_x(half))
     # --- Dorsal blade spine with vertebra shards and a teal slit (broken by the heart iris).
-    for (ya, yb) in ((6.4, 0.3), (-3.7, -13.8)):
+    for (ya, yb) in ((6.4, 0.3), (-3.7, -9.6)):
         n = max(3, int(abs(ya - yb) / 1.0) + 1)
         st = []
         for i in range(n):
@@ -448,7 +447,7 @@ def build_heart_wreck(rng):
 def node_rules():
     rules = {}
     for name, t in SOCKETS.items():
-        rules[name] = dict(t=t, x=(-5.6, 5.6), z=(-14.9, 8.3), y_max=TOP_MAX, y_min=-0.6)
+        rules[name] = dict(t=t, x=(-13.0, 13.0), z=(-10.8, 8.3), y_max=TOP_MAX, y_min=-0.6)
     for k in range(4):
         rules[f"veil_heart_shutter_{k}"]["yaw"] = SHUTTER_PHI[k]
     for name, t in EMPTIES.items():
@@ -541,15 +540,15 @@ def render_previews(objs, args):
     place_set(objs, LIVE, (0.0, 0.0, 0.0))
     kit.plane_obj("pv_mire", -40, 40, -40, 40, -0.02, pm["mire"])
     nf.preview_lights()
-    cam = kit.add_ortho_camera((0.0, 3.1, 0.0), 90.0, 24.0)
-    nf.setup_render(args.engine, args.samples, 1100, 1400)
+    cam = kit.add_ortho_camera((0.0, 1.2, 0.0), 90.0, 28.0)
+    nf.setup_render(args.engine, args.samples, 1400, 1100)
     kit.render(os.path.join(args.preview_dir, f"preview-veil-top{sfx}.png"))
     kit.clear_preview(keep)
     # 3. Hero 3/4 perspective.
     place_set(objs, LIVE, (0.0, 0.0, 0.0))
     kit.plane_obj("pv_mire", -60, 60, -60, 60, -0.02, pm["mire"])
     nf.preview_lights()
-    nf.perspective_camera((17.0, -20.5, 12.0), (0.0, -3.0, 0.8), lens=34.0)
+    nf.perspective_camera((20.0, -22.0, 14.0), (0.0, -1.5, 0.8), lens=30.0)
     nf.setup_render(args.engine, args.samples, 1800, 1100)
     kit.render(os.path.join(args.preview_dir, f"preview-veil-hero{sfx}.png"))
     kit.clear_preview(keep)

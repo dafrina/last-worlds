@@ -20,7 +20,7 @@ import { DEPARTURE } from './departure';
  * - 'cross': the core lane plus one side lane (alternating sides), so the open side alternates;
  * - 'burst' / 'fan': the core's aimed burst or fixed fan.
  */
-export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'burst' | 'fan';
+export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'burst' | 'fan' | 'spiral';
 
 export interface BossDefinition {
   id: BossId;
@@ -42,6 +42,8 @@ export interface BossDefinition {
   overload: { coreLaneWidth: number; batteryLaneWidth: number; active: number };
   /** Overload phase: the boss's own sequence of moves (docs/15, docs/17, docs/19, docs/20). */
   overloadMoves: readonly OverloadMove[];
+  /** The 'spiral' overload move (THE VEIL): `arms` streams turning at `turn` rad/s for `duration` s, a volley every `interval`. */
+  spiral?: { arms: number; turn: number; interval: number; duration: number; speed: number };
   recovery: number;
   /** Pause after each overload attack (defaults to `recovery`). */
   overloadRecovery?: number;
@@ -138,7 +140,9 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
     pairAttack: 'burst', coreAttack: 'fan-burst',
     warning: VEIL.warning, laser: null, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
-    overloadMoves: ['core-lane', 'fan', 'cross', 'burst', 'side-lanes', 'fan', 'cross', 'burst'], overloadRecovery: 0.45,
+    // 17 October (user): its last phase looses a spiral barrage from the heart for a few seconds.
+    overloadMoves: ['spiral', 'core-lane', 'fan', 'cross', 'spiral', 'burst', 'side-lanes', 'fan'], overloadRecovery: 0.45,
+    spiral: { arms: 4, turn: 1.7, interval: 0.12, duration: 3, speed: 4.8 },
     recovery: VEIL.recovery, transitionRecovery: VEIL.transitionRecovery,
     overloadFraction: VEIL.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: VEIL.podBurst, core: VEIL.heartBurst }, fan: VEIL.heartFan,

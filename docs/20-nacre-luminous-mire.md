@@ -71,11 +71,12 @@ Since 16 October the sortie has a 36 s fuel-depot stretch: the approach closes a
 ## THE VEIL (`src/content/veil.ts`, `src/render/veil-view.ts`)
 
 A giant alien warship in the design language of Nacre's fighters (Shard and Veil), redesigned on 17 October 2026 at the user's request: the first model read as round and animal-like ("an axolotl"). Modelled in Blender (`tools/blender/the_veil.py` → `public/assets/nacre/the-veil.glb`, 10,044 triangles, `art/the-veil/README.md`); the code-built rig only stands in while the model loads:
-- a long, narrow faceted black hull, about 21 × 9 units, with a ram prow and silver mandibles;
+- a faceted black hull about 18 units long with a ram prow and silver mandibles; its swept blades span about 25 units, so the ship is wider than it is long (user, 17 October: "make it wide");
 - a dorsal blade spine with vertebra shards and teal slits, broken by the heart's octagonal iris collar;
 - layered iridescent armour shards floating down both flanks, with honeycomb lattice and teal under-glow below;
 - swept knife blades: forward canards, solid main blades (silver leading band, violet inner band, teal edge, black spars) and aft blades;
-- two crystal-crowned pods on angular outriggers (the first pair), a faceted teal heart under four shutters that swing 105° open (the core), two launch bays at the front for its pods, and a stern engine block that sits beyond the top of the view.
+- two crystal-crowned pods on angular outriggers (the first pair), a faceted teal heart under four shutters that swing 105° open (the core), two launch bays at the front for its pods, and a stern engine block.
+- **Spiral barrage (17 October):** in the final phase THE VEIL looses a spiral from its heart: four streams turning at 1.7 rad/s for 3 s, a volley every 0.12 s, slow (4.8 units/s). It holds still while the spiral unwinds. The fairness director judges the whole pattern to its end (its horizon now extends to the last committed footprint), so a spiral that would seal the row never starts.
 
 It rises out of the mire on arrival and sinks back into it when destroyed.
 
@@ -97,7 +98,7 @@ Since 16 October Nacre flies its own Blender-modelled faction in the ORRERY / SH
 | `nacre_pod` | THE VEIL's pods (`veil-pods`) | small blade-cupped seed |
 | `nacre_pulsar` | Pulsar (17 October) | radial crown of iridescent petals and silver blades around a teal emitter heart |
 
-**Pulsar (17 October 2026, a new Nacre enemy mechanic):** it dives low (s ≈ 6.2–7.4), holds, and charges for 1.25 s while a faint circle marks its full reach. Then it releases a shockwave ring that expands to radius 7.4 at 8 units/s and hits the ship as its 0.6-wide band passes (one shield). You avoid it by staying outside the circle, not by threading bullets. The fairness director treats the ring's reach on the player row (`pulseReach`) as a footprint, padded in time, so there is always an escape; pairs fly 9.2 apart so two rings leave the middle open. It flies in Deep Bloom (`pulsar-solo` at 27 s and in the climax, `pulsar-pair` at 72 s) and in endless Nacre stints. 110 HP, 300 score.
+**Pulsar (17 October 2026):** it dives in and holds at s ≈ 9.5–10, marks a dashed teal line toward the player for 1.1 s, then fires a rapid burst stream of six fast shots (9 units/s, 0.08 s apart) down that line: step off it. The first version released a shockwave ring, which the user did not like. 110 HP, 300 score.
 
 Shell colour and the pearl sheen are baked into vertex colours; glow faces are teal `#3ff2d8` or amber `#ffa040`. The Vesper craft remain the fallback while the GLB loads.
 

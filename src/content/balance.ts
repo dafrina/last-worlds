@@ -142,17 +142,8 @@ export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bast
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3 };
-/** A Pulsar's shockwave: final radius, expansion speed (units/s) and the width of its damaging band. */
-export const PULSE = { radius: 7.4, speed: 8, band: 0.6 } as const;
-/** The ring's footprint on the player row (s = 0): when (after release) and how far across it can reach. */
-export function pulseReach(s: number): { from: number; until: number; half: number } {
-  // `half` is the hazard's own extent on the row (the planner adds the ship's radius): the ring touches a ship whose
-  // centre is within sqrt((R + r)² − s²) of the Pulsar's x.
-  const r = PULSE.radius, pr = VIEW.playerRadius, edge = Math.max(0, Math.abs(s) - pr);
-  const touch = Math.sqrt(Math.max(0, (r + pr) ** 2 - s * s));
-  // Padded in time on both sides, so the director's simultaneity window treats a ring conservatively.
-  return { from: Math.max(0, Math.min(edge, r) / PULSE.speed - 0.1), until: r / PULSE.speed + 0.2, half: Math.max(0, touch - pr) };
-}
+/** A Pulsar burst: shots in the stream and the gap between them (seconds). */
+export const PULSAR_BURST = { shots: 6, interval: 0.08 } as const;
 
 /** Ground targets move with the terrain scroll and are never airframe contact hazards. */
 /**
@@ -218,8 +209,8 @@ export const ENEMIES: Record<EnemyKind, {
   // Missile battery: ground target; straight, non-tracking missiles down its own marked column.
   missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 9.5, attackEvery: 1.1, warning: 1, score: 250, credits: 10 },
   // Fuel-tank skid (user request, 16 October): a harmless ground loot target that never fires; quick to burst.
-  // Pulsar (Nacre): holds low in the view and releases a shockwave ring (PULSE); stay outside its reach.
-  pulsar: { hp: 110, radius: 0.6, speed: 1.6, shotSpeed: 0, attackEvery: 2.8, warning: 1.25, score: 300, credits: 12 },
+  // Pulsar (Nacre): marks a line at the player, then fires a rapid burst stream down it (PULSAR_BURST).
+  pulsar: { hp: 110, radius: 0.6, speed: 1.6, shotSpeed: 9, attackEvery: 2.6, warning: 1.1, score: 300, credits: 12 },
   fuel: { hp: 40, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 0, attackEvery: Infinity, warning: 0, score: 50, credits: 6 },
 };
 

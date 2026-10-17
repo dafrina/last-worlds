@@ -112,7 +112,8 @@ export class FairnessTrace {
         // A slanted bullet hits every ship center within (R + r) / cos(angle) of its crossing: subtract R for its edge.
         const half = (R + shot.radius) * Math.hypot(shot.vx, shot.vs) / -shot.vs - R;
         const band = (R + shot.radius) / -shot.vs;
-        const t = now - STEP + crossing;
+        // A burst shot waits `delay` at its muzzle before it flies.
+        const t = now - STEP + crossing + (shot.delay ?? 0);
         const committed = source ? this.started.get(source.id) ?? now : now;
         const camera = source ? this.startCamera.get(source.id) ?? state.cameraX : state.cameraX;
         this.spans.push({ x0: x - half, x1: x + half, t0: t - band, t1: t + band, committed, camera, shot: shot.id });

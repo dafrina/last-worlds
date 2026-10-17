@@ -6,7 +6,7 @@ import type { Enemy, EnemyKind } from '../shared/contracts';
  * Authored attack shapes. The simulation emits exactly these shots, and the fairness director predicts
  * them from the same functions, so a prediction can never describe a different pattern than the one fired.
  */
-export interface ShotSpec { x: number; s: number; vx: number; vs: number; radius: number }
+export interface ShotSpec { x: number; s: number; vx: number; vs: number; radius: number; /** Seconds held at the muzzle before flying. */ delay?: number }
 export interface BeamSpec { readonly width: number; readonly warning: number; readonly active: number; readonly cost?: number }
 
 export const ENEMY_SHOT_RADIUS = 0.13;
@@ -51,7 +51,18 @@ export function enemyShots(kind: BulletKind, x: number, s: number, aimX: number,
 }
 
 /** Boss bursts (pair or core module), or Bastion-9's fixed core fan. */
-export function bossShots(def: BossDefinition, attack: 'burst' | 'fan', x: number, s: number, aimX: number, speedScale: number, fromCore = false): ShotSpec[] {
+export function bossShots(def: BossDefinition, attack: 'burst' | 'fan' | 'spiral', x: number, s: number, aimX: number, speedScale: number, fromCore = false): ShotSpec[] {
+  if (attack === 'spiral' && def.spiral) {
+    // A spiral barrage: every volley fires `arms` shots around the full circle, the pattern turning each volley.
+    const { arms, turn, interval, duration, speed } = def.spiral, shots: ShotSpec[] = [];
+    for (let v = 0, t = 0; t < duration - 1e-9; v++, t = v * interval) {
+      for (let k = 0; k < arms; k++) {
+        const angle = Math.PI + turn * t + k * 2 * Math.PI / arms;
+        shots.push({ x, s, vx: Math.sin(angle) * speed * speedScale, vs: Math.cos(angle) * speed * speedScale, radius: ENEMY_SHOT_RADIUS, delay: t });
+      }
+    }
+    return shots;
+  }
   const fan = attack === 'fan' && def.fan !== null;
   const burst = fromCore ? def.bursts.core : def.bursts.pair;
   const bolts = fan ? def.fan!.bolts : burst.bolts;
@@ -64,4 +75,13 @@ export function bossShots(def: BossDefinition, attack: 'burst' | 'fan', x: numbe
     shots.push({ x, s, vx: Math.sin(angle) * speed, vs: Math.cos(angle) * speed, radius: ENEMY_SHOT_RADIUS });
   }
   return shots;
+}
+
+/**
+ * A Pulsar burst (Nacre): PULSAR_BURST.shots shots down one line from (x, s) toward (aimX, 0), each `delay` later
+ * than the one before. Fired all at once; each waits at the muzzle for its delay (Projectile.delay).
+ */
+export function pulsarBurst(x: number, s: number, aimX: number, speed: number, shots: number, interval: number): (ShotSpec & { delay: number })[] {
+  const dx = aimX - x, ds = -s, length = Math.hypot(dx, ds) || 1;
+  return Array.from({ length: shots }, (_, i) => ({ x, s: s - 0.2, vx: dx / length * speed, vs: ds / length * speed, radius: ENEMY_SHOT_RADIUS, delay: i * interval }));
 }

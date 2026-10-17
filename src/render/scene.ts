@@ -7,7 +7,6 @@ import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
 import { loadCraftNodes, loadKhepriCraft, loadNacreCraft, type KhepriCraftNode, type NacreCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
-import { ENEMIES, PULSE } from '../content/balance';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
@@ -407,6 +406,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : look.environment === 'luna' && lunaEnvironment ? lunaEnvironment.texture
       : look.environment === 'mire' && mireEnvironment ? mireEnvironment.texture : environment.texture;
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
+    materials.prop.envMap = sky; materials.prop.needsUpdate = true;
     // On Luna the Khepri-built enemies wear steel-blue paint, so they read apart from the hero against grey regolith.
     (materials.enemyCraft.userData.paintSwap as { value: number }).value = next === 'luna' ? 1 : 0;
     // The see-through silhouette of half-buried batteries follows the paint: pale blue on Luna, warm elsewhere.
@@ -464,12 +464,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (!standIns.has(model)) standIns.set(model, craftGeometry(createEnemy(model, materials)));
     const geometry = standIns.get(model)!;
     // The fuel skid keeps its hazard red on every planet (Luna's steel-blue repaint is for the Khepri craft).
-    const mesh = new THREE.InstancedMesh(geometry, kind === 'fuel' ? materials.craft : materials.enemyCraft, ENEMY_CAPACITY);
+    const mesh = new THREE.InstancedMesh(geometry, kind === 'fuel' ? materials.prop : materials.enemyCraft, ENEMY_CAPACITY);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
     // Ground turrets cast into the High shadow map and take shadows; flying craft use readable blob shadows.
     mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
     let ghost: THREE.InstancedMesh | undefined;
-    if (GROUND_KINDS.has(kind)) {
+    // The see-through silhouette marks hidden threats; harmless fuel skids go without (their buried half read as wood).
+    if (GROUND_KINDS.has(kind) && kind !== 'fuel') {
       mesh.renderOrder = 2;
       ghost = new THREE.InstancedMesh(geometry, silhouetteMaterial, ENEMY_CAPACITY);
       ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
@@ -505,7 +506,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     for (const name of ['wreck_turret_0', 'wreck_turret_1', 'wreck_fuel'] as const) {
       const craft = nodes.get(name);
       if (!craft) continue;
-      const mesh = new THREE.InstancedMesh(craft.geometry, materials.craft, WRECK_CAPACITY);
+      const mesh = new THREE.InstancedMesh(craft.geometry, materials.prop, WRECK_CAPACITY);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Wreck ${name}`;
       mesh.castShadow = mesh.receiveShadow = true;
       for (let i = 0; i < WRECK_CAPACITY; i++) mesh.setColorAt(i, WHITE);
@@ -513,7 +514,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     }
     const missile = nodes.get('fx_missile');
     if (missile) {
-      missiles = new THREE.InstancedMesh(missile.geometry, materials.craft, 32);
+      missiles = new THREE.InstancedMesh(missile.geometry, materials.prop, 32);
       missiles.instanceMatrix.setUsage(THREE.DynamicDrawUsage); missiles.frustumCulled = false; missiles.count = 0; missiles.renderOrder = 10; missiles.name = 'Seeker Rack missiles';
       for (let i = 0; i < 32; i++) missiles.setColorAt(i, WHITE);
       scene.add(missiles);
@@ -746,17 +747,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const shockRings = [new THREE.RingGeometry(.93, 1, 160), new THREE.RingGeometry(.8, .93, 160)].map((geometry, k) => {
     geometry.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(geometry, shockMaterials[k]); mesh.renderOrder = 9; mesh.visible = false; mesh.frustumCulled = false; scene.add(mesh); return mesh;
-  });
-  // Pulsar shockwaves (Nacre): a faint circle at the blast's full reach while the Pulsar charges, then the expanding
-  // bright band (the part that hurts). One instanced draw each.
-  const pulseGeometry = [new THREE.RingGeometry(.97, 1, 96), new THREE.RingGeometry(1 - PULSE.band / PULSE.radius, 1, 96)].map(g => g.rotateX(-Math.PI / 2));
-  const pulseLayers = pulseGeometry.map((geometry, k) => {
-    const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
-    const mesh = new THREE.InstancedMesh(geometry, material, 24);
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9;
-    for (let i = 0; i < 24; i++) mesh.setColorAt(i, WHITE);
-    mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage); mesh.name = k ? 'Pulsar shockwaves' : 'Pulsar reach'; scene.add(mesh);
-    return mesh;
   });
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
@@ -1015,7 +1005,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             line(enemy.x + sx * r, enemy.s + sy * r, enemy.x + sx * r, enemy.s + sy * (r - length), tint);
           }
         }
-        if (enemy.warning > 0 && enemy.kind === 'needle') {
+        if (enemy.warning > 0 && enemy.kind === 'pulsar') {
+          // Pulsar windup: a dashed teal line from the Pulsar down its committed burst line, brightening as it charges.
+          const steps = 9;
+          for (let i = 0; i < steps; i++) {
+            const a = i / steps, b = (i + .55) / steps;
+            strip(THREE.MathUtils.lerp(enemy.x, enemy.aimX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(enemy.x, enemy.aimX, b), enemy.s * (1 - b), .09, 0x46f0dc);
+          }
+        } else if (enemy.warning > 0 && enemy.kind === 'needle') {
           // Needle windup: a dashed 0.4 lane down the whole view at its committed aim, with a faint fill.
           strip(enemy.aimX, VIEW.minS, enemy.aimX, VIEW.maxS, .4, 0x6a4020, laneFills);
           for (let s = VIEW.minS; s < VIEW.maxS; s += 1.2) for (const side of [-1, 1]) strip(enemy.aimX + side * .2, s, enemy.aimX + side * .2, Math.min(s + .7, VIEW.maxS), .055, 0xffc06a);
@@ -1118,7 +1115,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       pontoons.count = pontoonCount; pontoons.instanceMatrix.needsUpdate = true;
       let friendlyCount = 0, hostileCount = 0, missileCount = 0;
       for (const shot of state.projectiles) {
-        if (Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
+        if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
         transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);
         transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0);
         if (shot.special && missiles) {
@@ -1192,23 +1189,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       for (const [mesh, count] of [[telegraphs, stripCount], [flashLanes, flashCount], [laneFills, fillCount]] as const) {
         mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
-      // Pulsar charge circles and shockwave bands.
-      pulseLayers.forEach(mesh => { mesh.count = 0; });
-      const [reachLayer, bandLayer] = pulseLayers;
-      for (const enemy of state.enemies) {
-        if (enemy.kind !== 'pulsar' || enemy.hp <= 0 || enemy.warning <= 0 || reachLayer.count >= 24) continue;
-        const charge = 1 - enemy.warning / ENEMIES.pulsar.warning, glowing = .35 + .65 * charge * (.7 + .3 * Math.sin(state.time * 22));
-        transform.position.set(enemy.x, VIEW.flightHeight + .03, -enemy.s); transform.rotation.set(0, 0, 0); transform.scale.setScalar(PULSE.radius); transform.updateMatrix();
-        reachLayer.setMatrixAt(reachLayer.count, transform.matrix); reachLayer.setColorAt(reachLayer.count++, color.setHex(0x46f0dc).multiplyScalar(glowing));
-      }
-      for (const hazard of state.hazards) {
-        if (!hazard.ring || bandLayer.count >= 24) continue;
-        const r = Math.min(hazard.ring.radius, hazard.ring.speed * hazard.ring.age), fade = 1 - r / hazard.ring.radius;
-        if (r <= 0.05) continue;
-        transform.position.set(hazard.x, VIEW.flightHeight + .05, -hazard.ring.s); transform.rotation.set(0, 0, 0); transform.scale.setScalar(Math.max(r, PULSE.band)); transform.updateMatrix();
-        bandLayer.setMatrixAt(bandLayer.count, transform.matrix); bandLayer.setColorAt(bandLayer.count++, color.setHex(0x9ffff0).multiplyScalar(2.2 * (.35 + .65 * fade)));
-      }
-      pulseLayers.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; });
       const wave = state.shockwave;
       shockRings.forEach((ring, k) => {
         ring.visible = !!wave;

@@ -45,7 +45,7 @@ function createPanelTexture(): THREE.DataTexture {
  * metal, ivory and ochre as worn paint, and glow parts emit above the bloom threshold (engines, threat lights).
  * A warm rim term separates silhouettes from the terrain like the concept's hard-surface key light.
  */
-function createCraftMaterial(panel: THREE.Texture): THREE.MeshStandardMaterial {
+function createCraftMaterial(panel: THREE.Texture | null): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: panel, roughness: 1, metalness: 1, envMapIntensity: 0.9 });
   material.userData.paintSwap = { value: 0 };
   material.onBeforeCompile = shader => {
@@ -99,6 +99,8 @@ export function createMaterials() {
     craft: createCraftMaterial(panel),
     /** Same as `craft` for the code-built enemy batches, so their paint can be retinted per planet (`userData.paintSwap`). */
     enemyCraft: createCraftMaterial(panel),
+    /** Props in the craft format (fuel skids, wrecks, missiles): no ship panel seams, which streaked their paint like wood grain. */
+    prop: createCraftMaterial(null),
     /** How each authored part material bakes into the craft vertex attributes. */
     paint,
   };

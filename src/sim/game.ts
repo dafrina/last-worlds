@@ -1,4 +1,4 @@
-import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSE, WORLD_INTENSITY, pulseReach, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
+import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
@@ -10,7 +10,7 @@ import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
-import { DIAMOND_VOLLEY, SHOT_TTL, beamSpec, diamondSide, enemyShots, type BulletKind } from './attacks';
+import { DIAMOND_VOLLEY, SHOT_TTL, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete } from './motion';
 
@@ -330,10 +330,11 @@ function updateBeamRest(state: RunState, scale: DifficultyScale): boolean {
 
 function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void {
   if (enemy.kind === 'pulsar') {
-    // The shockwave ring: centred where the Pulsar is, expanding; marked on the player row while it can reach it.
-    const reach = pulseReach(enemy.s);
-    state.hazards.push({ id: state.nextId++, x: enemy.x, width: reach.half * 2, warning: reach.from, active: Math.max(0.05, reach.until - reach.from),
-      ttl: Math.max(PULSE.radius / PULSE.speed + 0.05, reach.until), cost: 1, ring: { s: enemy.s, radius: PULSE.radius, speed: PULSE.speed, band: PULSE.band, age: 0 } });
+    // A rapid burst stream down the committed line (emitted at once; each shot waits its turn at the muzzle).
+    const speed = ENEMIES.pulsar.shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot;
+    const shots = pulsarBurst(enemy.x, enemy.s, enemy.aimX, speed, PULSAR_BURST.shots, PULSAR_BURST.interval);
+    if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
+    for (const shot of shots) state.projectiles.push({ ...projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL), delay: shot.delay });
     return;
   }
   if (BEAM_KINDS.has(enemy.kind)) {
@@ -397,9 +398,11 @@ function projectile(state: RunState, x: number, s: number, vx: number, vs: numbe
 function updateProjectiles(state: RunState, previousPlayerX: number, dt: number): void {
   for (const shot of state.projectiles) {
     if (shot.ttl <= 0) continue;
-    const activeDt = Math.min(dt, shot.ttl);
     shot.previousX = shot.x;
     shot.previousS = shot.s;
+    // A burst shot waiting its turn at the muzzle neither moves nor hits.
+    if (shot.delay && shot.delay > 0) { shot.delay = Math.max(0, shot.delay - dt); continue; }
+    const activeDt = Math.min(dt, shot.ttl);
     if (shot.special) steerMissile(state, shot, activeDt);
     else if (shot.homingTargetId !== undefined) {
       const target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false);
@@ -441,19 +444,6 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
 
 function updateHazards(state: RunState, previousPlayerX: number, dt: number): void {
   for (const hazard of state.hazards) {
-    if (hazard.ring) {
-      // Shockwave ring: hits once where its band sweeps over the ship.
-      const ring = hazard.ring, before = ring.speed * ring.age;
-      ring.age += dt;
-      const after = Math.min(ring.radius, ring.speed * ring.age);
-      const near = Math.min(Math.hypot(previousPlayerX - hazard.x, ring.s), Math.hypot(state.player.x - hazard.x, ring.s));
-      const far = Math.max(Math.hypot(previousPlayerX - hazard.x, ring.s), Math.hypot(state.player.x - hazard.x, ring.s));
-      if (hazard.active > 0 && far + VIEW.playerRadius >= before - ring.band && near - VIEW.playerRadius <= after) { hitPlayer(state, hazard.cost ?? 1); hazard.active = 0; }
-      hazard.warning = Math.max(0, hazard.warning - dt);
-      if (hazard.warning === 0) hazard.active = Math.max(0, hazard.active - dt);
-      hazard.ttl -= dt;
-      continue;
-    }
     const warningBefore = hazard.warning;
     hazard.warning = Math.max(0, hazard.warning - dt);
     const activeTime = Math.max(0, dt - warningBefore);
@@ -464,7 +454,7 @@ function updateHazards(state: RunState, previousPlayerX: number, dt: number): vo
     }
     hazard.ttl -= dt;
   }
-  state.hazards = state.hazards.filter(hazard => hazard.ttl > 0 && (hazard.ring ? true : hazard.warning > 0 || hazard.active > 0));
+  state.hazards = state.hazards.filter(hazard => hazard.ttl > 0 && (hazard.warning > 0 || hazard.active > 0));
 }
 
 function updateContact(state: RunState, previousPlayerX: number): void {
