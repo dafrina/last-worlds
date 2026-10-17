@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BASTION } from '../../src/content/bastion';
 import { WARDEN } from '../../src/content/warden';
-import { WRECK_HOLD } from '../../src/content/bosses';
+import { BOSSES, WRECK_HOLD } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
@@ -97,7 +97,7 @@ describe('Bastion-9 mission', () => {
     state.phase = 'paused'; advance(state, 5);
     expect(state.time).toBe(before.time);
     // The wreck hold, then the extraction.
-    state.phase = 'playing'; advance(state, WRECK_HOLD + BASTION.extractionDuration - 1);
+    state.phase = 'playing'; advance(state, WRECK_HOLD + BOSSES.bastion.extractionDuration - 1);
     expect(state.phase).toBe('playing');
     advance(state, 1.1);
     expect(state.phase).toBe('complete');
@@ -112,8 +112,7 @@ describe('Bastion-9 mission', () => {
     advance(state, 4);
     expect(state.distance).toBeGreaterThan(d0 + 5);
     // Ground-anchored: the wreck's world position (distance + s) holds while its row falls behind the player.
-    // Distance is a closed-form integral of the resume ramp and the wreck integrates per step: a fixed ≤ 5 cm
-    // offset from the 2 s ramp that never grows afterwards.
+    // The wreck moves by exactly the distance flown, so it stays on its ground spot.
     expect(state.boss!.s).toBeLessThan(s0 - 5);
     const drift = state.distance + state.boss!.s - (d0 + s0);
     expect(Math.abs(drift)).toBeLessThan(.05);

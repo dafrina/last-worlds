@@ -13,7 +13,7 @@ test('campaign offers Cold Vector on Vesper and launches it without browser erro
   await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Cold Vector', exact: true }).click();
   await expect(page.locator('.mission-description')).toContainText('Helion Ark');
-  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
+  await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
   await expect.poll(async () => (await snapshot(page))?.phase).toBe('playing');
   expect((await snapshot(page)).config.mission).toBe('cold-vector');
   await expect(page.locator('canvas.flight-canvas')).toHaveAttribute('data-render-stats', /"calls":/);

@@ -32,7 +32,6 @@ export const HELION_ARK = {
   recovery: 0.55,
   transitionRecovery: 1.25,
   overloadFraction: 0.4,
-  extractionDuration: 4,
   bridgeBurst: { bolts: 3, spread: 0.09, speed: 7 },
   /** Finite Needle launches during the bridge phase: waves of two, one from each bay. */
   launches: { waves: 3, firstAfter: 2.5, interval: 7 },
@@ -42,7 +41,7 @@ export const HELION_ARK = {
    * water: from below the view to past the Ark's stern as it glides in (pivot s 26, stern about +7.3).
    */
   arena: {
-    decelStart: 184, decelDuration: 6, resumeDuration: 1,
+    decelStart: 184, decelDuration: 6,
     sway: 1.3, swayRate: 0.3, surge: 0.7, surgeRate: 0.22,
     platform: { from: -9, to: 35 },
   },

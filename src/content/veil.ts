@@ -26,7 +26,6 @@ export const VEIL = {
   recovery: 0.5,
   transitionRecovery: 1.3,
   overloadFraction: 0.4,
-  extractionDuration: 4,
   podBurst: { bolts: 4, spread: 0.085, speed: 6.6 },
   heartBurst: { bolts: 5, spread: 0.075, speed: 6.8 },
   heartFan: { bolts: 7, spacing: Math.PI / 18, speed: 5.2 },
@@ -39,7 +38,7 @@ export const VEIL = {
    * 5 * 181 + 5 * 6 / 2 = 920; `platform` is the s-range relative to the stop that must be open water.
    */
   arena: {
-    decelStart: 181, decelDuration: 6, resumeDuration: 1,
+    decelStart: 181, decelDuration: 6,
     sway: 1.4, swayRate: 0.26, surge: 0.8, surgeRate: 0.2,
     platform: { from: -9, to: 34 },
   },

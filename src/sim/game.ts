@@ -85,7 +85,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   // Boss missions end with extraction after the kill; the training sortie ends on time.
   if (state.phase === 'playing' && state.config.mode === 'campaign' && !missionBoss(state.config.mission) && state.time + 1e-8 >= BALANCE.campaignDuration) {
     state.phase = 'complete';
-    state.message = 'SORTIE COMPLETE';
+    state.message = 'MISSION COMPLETE';
     state.projectiles = [];
     state.hazards = [];
   }

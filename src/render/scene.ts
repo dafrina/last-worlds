@@ -657,8 +657,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (!iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
   };
   const planetReady = (next: PlanetId) => next === 'nacre' ? !!nacreBatches || !!vesperBatches : next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
-  /** Boss encounter (by start time) whose wreck already went out with a warp detonation. */
-  let wreckWarpedAt = -1;
   const jumpFx = createJumpFx(scene);
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
@@ -782,12 +780,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (plan.jump && state.time - state.sectorStartedAt > 8) preload(plan.jump.to);
       }
       const terrainUpdate = performance.now() - terrainStart;
-      // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna; every other boss is Bastion-9. Once a
-      // hyperdrive jump starts (endless, or the campaign's victory jump) the wreck is left behind with its planet
-      // instead of being dragged through the warp.
-      const warping = !!state.jump && state.time >= state.jump.startedAt, boss = warping ? null : state.boss;
-      // The wreck goes out with a last detonation the moment the warp begins.
-      if (warping && state.boss && wreckWarpedAt !== state.boss.startedAt) { wreckWarpedAt = state.boss.startedAt; fx.detonate(state.boss.x, -state.boss.s, state.boss.startedAt * 13); }
+      // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
+      // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
+      const boss = state.boss;
       const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil';
       {
         let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && boss

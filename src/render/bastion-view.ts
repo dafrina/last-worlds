@@ -319,8 +319,9 @@ export function createBastionView(scene: THREE.Scene) {
         minS: state.distance + placement.s - BASTION_FOOTPRINT.halfDepth - .4, maxS: state.distance + placement.s + BASTION_FOOTPRINT.halfDepth + .4 };
     },
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
-      const boss = state.boss;
-      root.visible = !!boss; markers.visible = !!boss;
+      // Only Bastion-9, and only while the scene gives it a seat (none during a warp).
+      const boss = state.boss && state.boss.id === 'bastion' ? state.boss : null;
+      root.visible = !!boss && !!placement; markers.visible = root.visible;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
       if (!boss || !placement) { shock.visible = false; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); encounter = -1; return; }
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); rig.parts.forEach(p => { p.open = 0; }); }

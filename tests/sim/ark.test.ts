@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FAIRNESS } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
 import { BOSSES, WRECK_HOLD } from '../../src/content/bosses';
+import { DEPARTURE } from '../../src/content/departure';
 import { COLD_VECTOR_SORTIE } from '../../src/content/encounters';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { arenaScroll, arenaStopDistance, bossTarget, overloadLanes, resolveBossPhase } from '../../src/sim/bastion';
@@ -35,7 +36,8 @@ describe('Cold Vector arena', () => {
     expect(arenaScroll(400, null, HELION_ARK.arena)).toEqual({ distance: 935, speed: 0 });
     // After the kill the scroll holds over the wreck, then resumes.
     expect(arenaScroll(300 + WRECK_HOLD, 300, HELION_ARK.arena)).toEqual({ distance: 935, speed: 0 });
-    expect(arenaScroll(300 + WRECK_HOLD + HELION_ARK.arena.resumeDuration, 300, HELION_ARK.arena).speed).toBeCloseTo(5, 9);
+    // Then the departure, as in endless: up to its speed over its ramp.
+    expect(arenaScroll(300 + WRECK_HOLD + DEPARTURE.ramp, 300, HELION_ARK.arena).speed).toBeCloseTo(DEPARTURE.speed, 9);
     // The approach ends before the relief; the Ark arrives after the terrain has nearly stopped.
     expect(COLD_VECTOR_SORTIE[COLD_VECTOR_SORTIE.length - 1].at).toBeLessThan(HELION_ARK.approachEndsAt);
     expect(HELION_ARK.arrivesAt).toBeGreaterThan(HELION_ARK.arena.decelStart);
@@ -165,7 +167,7 @@ describe('Helion Ark', () => {
     // Then it resumes for extraction and the wreck stays on the water, falling behind.
     expect(state.scrollSpeed).toBeGreaterThan(4.9);
     expect(state.boss!.s).toBeLessThan(s0 - 5);
-    advance(state, HELION_ARK.extractionDuration - 4 + 0.1);
+    advance(state, 0.1);
     expect(state.phase).toBe('complete');
   });
 

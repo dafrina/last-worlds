@@ -1,5 +1,6 @@
 import { BALANCE, ENDLESS_PROLOGUE_SECTORS, PACE, endlessRampSector } from './balance';
 import { BOSSES, WRECK_HOLD, missionBoss } from './bosses';
+import { DEPARTURE, WARP, departure } from './departure';
 import { runPlanet } from './missions';
 import { VIEW, type BossId, type PlanetId, type RunConfig } from '../shared/contracts';
 
@@ -28,11 +29,16 @@ export const ENDLESS_CYCLE = {
     /** Three seconds into the stop, as in the campaign arenas (two seconds sooner since 16 October). */
     arrivesAt: 78,
   },
-  /** After the kill: the scroll eases back up, then the hyperdrive jump. */
-  resumeDuration: 1,
-  jumpDuration: 3,
-  /** Keep one full outgoing-world section beyond the arena; the tilted camera sees past its far edge. */
-  postBossTerrain: VIEW.sectionLength,
+  /**
+   * After the kill and the wreck hold: the departure. The ship powers away, the scroll ramping from a stop to
+   * `departureSpeed` over `departureRamp` and holding it until `resumeDuration` ends, so the wreck falls out of the
+   * bottom of the frame (about 30 units) before the jump begins (user request, 17 October 2026). The jump then starts
+   * at that speed, surges, and settles to the next sector's cruise.
+   */
+  resumeDuration: DEPARTURE.duration,
+  jumpDuration: WARP.duration,
+  /** Outgoing-world terrain beyond the arena: covers the departure (about 30 units) plus the tilted camera's far view. */
+  postBossTerrain: VIEW.sectionLength * 2,
   /** The jump ends this far past the planet switch, so the next planet fills the whole view (−minS + 2). */
   jumpClearance: -VIEW.minS + 2,
   /** Pace eases from the previous sector's target over this many seconds (PACE.endless.easeSeconds). */
@@ -128,6 +134,8 @@ export function isFirstVisit(sector: number): boolean {
   return isPrologue(sector) || Math.floor((cycleSector(sector) - 1) / ENDLESS_CYCLE.sectorsPerPlanet) < ENDLESS_CYCLE.planets.length;
 }
 
+const departureDistance = () => departure(ENDLESS_CYCLE.resumeDuration).distance;
+
 const plans: EndlessSectorPlan[] = [];
 
 /** The fixed plan of an endless sector. Pure and deterministic; computed in order and cached. */
@@ -147,12 +155,14 @@ export function endlessSectorPlan(sector: number): EndlessSectorPlan {
     const stopDistance = startDistance + rampDistance(n, timeline.decelStart) + cruise * timeline.decelDuration / 2;
     const platform = BOSSES[boss].arena.platform;
     const switchDistance = stopDistance + platform.to + ENDLESS_CYCLE.postBossTerrain;
-    const startJump = stopDistance + cruise * ENDLESS_CYCLE.resumeDuration / 2;
+    const startJump = stopDistance + departureDistance();
     const endDistance = switchDistance + ENDLESS_CYCLE.jumpClearance;
-    const duration = ENDLESS_CYCLE.jumpDuration;
-    // Jump speed: cruise + (peak − cruise)·sin(π q) over the jump, covering exactly endDistance − startJump.
-    const peak = cruise + (endDistance - startJump - cruise * duration) * Math.PI / (2 * duration);
-    const flashDistance = startJump + cruise * duration / 2 + (peak - cruise) * duration / Math.PI;
+    const duration = ENDLESS_CYCLE.jumpDuration, depart = DEPARTURE.speed;
+    // Jump speed: from the departure speed easing linearly to cruise, plus surge·sin(π q), covering exactly
+    // endDistance − startJump. `peak` is the speed at the jump's middle (its flash).
+    const surge = (endDistance - startJump - duration * (depart + cruise) / 2) * Math.PI / (2 * duration);
+    const peak = (depart + cruise) / 2 + surge;
+    const flashDistance = startJump + depart * duration / 2 + (cruise - depart) * duration / 8 + surge * duration / Math.PI;
     plans.push({
       sector: n, planet, boss, startDistance, endDistance,
       stop: { boss, stopDistance, platform: { from: stopDistance + platform.from, to: stopDistance + platform.to } },
@@ -187,19 +197,15 @@ export function endlessScroll(plan: EndlessSectorPlan, tau: number, bossEnd: num
   const stop = plan.stop.stopDistance;
   // The scroll holds over the wreck for WRECK_HOLD after the kill, then resumes.
   if (bossEnd === null || tau <= bossEnd + WRECK_HOLD) return { distance: stop, speed: 0, phase: 'stopped' };
-  const resume = ENDLESS_CYCLE.resumeDuration;
-  const since = tau - bossEnd - WRECK_HOLD;
-  if (since < resume) {
-    const w = since / resume;
-    return { distance: stop + cruise * resume * (w ** 3 - w ** 4 / 2), speed: cruise * w * w * (3 - 2 * w), phase: 'resuming' };
-  }
-  const duration = ENDLESS_CYCLE.jumpDuration;
+  const resume = ENDLESS_CYCLE.resumeDuration, since = tau - bossEnd - WRECK_HOLD;
+  if (since < resume) { const d = departure(since); return { distance: stop + d.distance, speed: d.speed, phase: 'resuming' }; }
+  const duration = ENDLESS_CYCLE.jumpDuration, depart = DEPARTURE.speed;
   const q = (since - resume) / duration;
   if (q < 1) {
-    const extra = plan.jump.peak - cruise;
+    const surge = plan.jump.peak - (depart + cruise) / 2;
     return {
-      distance: plan.jump.startDistance + cruise * duration * q + extra * duration / Math.PI * (1 - Math.cos(Math.PI * q)),
-      speed: cruise + extra * Math.sin(Math.PI * q),
+      distance: plan.jump.startDistance + depart * duration * q + (cruise - depart) * duration * q * q / 2 + surge * duration / Math.PI * (1 - Math.cos(Math.PI * q)),
+      speed: depart + (cruise - depart) * q + surge * Math.sin(Math.PI * q),
       phase: 'jump',
     };
   }

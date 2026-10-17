@@ -5,7 +5,7 @@ import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
-import { REACTORS, SHIELD_TECH, SPECIALS } from '../content/equipment';
+import { CREDIT_MULTIPLIER, REACTORS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
 import { itemText, renderHangar } from './hangar';
 import './styles.css';
 
@@ -59,6 +59,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         </div>
         <div class="hud-right">
           <span class="score" aria-label="Score">000000</span>
+          <span class="hud-credits" aria-label="Campaign credits" hidden><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 11 6 6 11 1 6Z"/></svg><b>0</b></span>
           <button type="button" class="pause-button" aria-label="Pause flight" data-no-steer><span aria-hidden="true">Ⅱ</span></button>
         </div>
       </header>
@@ -118,6 +119,10 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const lives = find<HTMLElement>('.lives-icons');
   const shields = find<HTMLElement>('.shield-icons');
   const score = find<HTMLElement>('.score');
+  const hudCredits = find<HTMLElement>('.hud-credits');
+  /** Campaign: the saved balance when each run started, for the live coin counter. */
+  const startBalance = new WeakMap<RunState, number>();
+  let creditsShown = -1;
   const hints = find<HTMLElement>('.steering-hints');
   const message = find<HTMLElement>('.flight-message');
   let chargeShown = -1;
@@ -304,7 +309,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
     }
     find('#statistics-content').setAttribute('aria-labelledby', `stats-${statisticsMode}-tab`);
-    text('.stats-record-label', campaign ? 'SORTIES CLEARED' : 'BEST SCORE');
+    text('.stats-record-label', campaign ? 'MISSIONS CLEARED' : 'BEST SCORE');
     text('.stats-record-value', totals.flights ? (campaign ? String(totals.clears) : totals.bestScore.toLocaleString()) : '—');
     text('[data-stat="flights"]', String(totals.flights));
     text('[data-stat="kills"]', totals.kills.toLocaleString());
@@ -425,6 +430,17 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     specialButton.hidden = !playing;
     hints.hidden = !playing || state.time >= 3;
     score.hidden = state.config.mode !== 'endless';
+    // Campaign coin counter: the saved balance plus this run's pickups as they will be paid (×REWARDS.scale and the
+    // difficulty multiplier); mission, boss and first-clear rewards are added on the results screen.
+    hudCredits.hidden = state.config.mode !== 'campaign';
+    if (state.config.mode === 'campaign') {
+      if (!startBalance.has(state)) { startBalance.set(state, campaign.read().credits); creditsShown = -1; }
+      const live = startBalance.get(state)! + Math.floor(state.credits * REWARDS.scale * CREDIT_MULTIPLIER[state.config.difficulty ?? 'standard']);
+      if (live !== creditsShown) {
+        if (creditsShown >= 0 && live > creditsShown) { hudCredits.classList.remove('is-gain'); void hudCredits.offsetWidth; hudCredits.classList.add('is-gain'); }
+        creditsShown = live; hudCredits.querySelector('b')!.textContent = live.toLocaleString();
+      }
+    }
     const scoreText = String(Math.floor(state.score)).padStart(6, '0');
     if (score.textContent !== scoreText) score.textContent = scoreText;
     const nextIconKey = `${state.player.lives}/${state.player.shields}/${state.player.maxShields}`;
@@ -469,7 +485,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     } else if (changed && (state.phase === 'over' || state.phase === 'complete')) {
       const campaign = state.config.mode === 'campaign';
       text('.result-mode', campaign ? `CAMPAIGN / ${missionText(state.config.mission).name.toUpperCase()}` : `ENDLESS / ${(state.planet ?? 'khepri').toUpperCase()}`);
-      text('#results-title', state.phase === 'complete' ? 'SORTIE COMPLETE' : 'FLIGHT ENDED');
+      text('#results-title', state.phase === 'complete' ? 'MISSION COMPLETE' : 'FLIGHT ENDED');
       text('.result-subtitle', state.phase === 'complete'
         ? missionText(state.config.mission).complete
         : state.boss ? `${missionText(state.config.mission).boss ?? 'The enemy'} is still standing. Fly again.` : 'Every flight leaves a mark.');

@@ -50,7 +50,7 @@ test('the hangar buys, equips and ranks up campaign gear, and the launch flies i
   await page.getByRole('button', { name: 'BACK' }).click();
   await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Fan Cannon');
   await expect(page.locator('[data-loadout="shield"]')).toHaveText('Bulwark Array');
-  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
+  await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
   const state = await snapshot(page);
   expect(state.config).toMatchObject({ mode: 'campaign', weapon: 'fan', rank: 1, shield: 'bulwark' });
   expect(state.player.maxShields).toBe(4);
@@ -93,7 +93,7 @@ test('campaign observations stay separate and record the chosen difficulty', asy
   await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
-  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
+  await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
   expect((await snapshot(page)).config).toMatchObject({ mode: 'campaign', mission: 'training', difficulty: 'relaxed', weapon: 'seeker' });
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await page.getByRole('button', { name: 'RETURN TO MENU', exact: true }).click();
@@ -124,8 +124,8 @@ test('small-screen subpages keep back navigation and the launch action reachable
   const back = await page.getByRole('button', { name: 'BACK' }).boundingBox();
   const overlay = await page.locator('.flight-overlay').boundingBox();
   expect(back!.y).toBeGreaterThanOrEqual(overlay!.y);
-  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).scrollIntoViewIfNeeded();
-  await expect(page.getByRole('button', { name: /LAUNCH SORTIE/ })).toBeInViewport();
+  await page.getByRole('button', { name: /LAUNCH MISSION/ }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: /LAUNCH MISSION/ })).toBeInViewport();
   await page.screenshot({ path: info.outputPath('campaign-small-phone.png') });
   await page.keyboard.press('Escape');
   expect(await page.locator('.flight-overlay').evaluate(element => element.scrollTop)).toBe(0);

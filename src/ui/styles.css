@@ -362,3 +362,10 @@ button:disabled { cursor: default; }
 }
 @keyframes rotate-hint { 0%, 30% { transform: rotate(-90deg); } 60%, 100% { transform: rotate(0deg); } }
 @media (prefers-reduced-motion: reduce) { .rotate-notice svg { animation: none; } }
+/* Campaign coin counter in the HUD (top right): pulses gold on each gain. */
+.hud-credits { display: inline-flex; align-items: center; gap: 6px; color: #ffe2a6; font: 500 clamp(13px, 3.6vw, 17px) / 1 var(--mono); letter-spacing: 1px; text-shadow: 0 0 8px #ffb84a66; }
+.hud-credits[hidden] { display: none; }
+.hud-credits svg { width: .7em; height: .7em; fill: #ffd27a; filter: drop-shadow(0 0 4px #ffb84a); }
+.hud-credits.is-gain { animation: credit-gain .45s ease-out; }
+@keyframes credit-gain { 0% { transform: scale(1.25); color: #fff4d0; text-shadow: 0 0 14px #ffc860; } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .hud-credits.is-gain { animation: none; } }

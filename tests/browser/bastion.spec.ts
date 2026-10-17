@@ -9,9 +9,9 @@ test('a fresh campaign opens on Training; Rolling Thunder stays locked until Tra
   await missions.getByRole('radio', { name: 'Rolling Thunder', exact: true }).click();
   await expect(page.locator('.mission-description')).toContainText('Bastion-9');
   await expect(page.locator('.mission-record')).toContainText('LOCKED · CLEAR TRAINING');
-  await expect(page.getByRole('button', { name: /LAUNCH SORTIE/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /LAUNCH MISSION/ })).toBeDisabled();
   await missions.getByRole('radio', { name: 'Training', exact: true }).click();
-  await page.getByRole('button', { name: /LAUNCH SORTIE/ }).click();
+  await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await expect(page.locator('.pause-description')).toContainText('Training');
 });
@@ -30,7 +30,7 @@ test('fortress renders all active phases in the actual game renderer without bro
 
 test('boss destruction reaches victory and retry restores the complete encounter', async ({ page }) => {
   await page.goto('/tests/fixtures/bastion.html?phase=destroyed');
-  await expect(page.getByRole('heading', { name: 'SORTIE COMPLETE' })).toBeVisible({ timeout: 25000 });
+  await expect(page.getByRole('heading', { name: 'MISSION COMPLETE' })).toBeVisible({ timeout: 25000 });
   await expect(page.locator('.result-subtitle')).toContainText('Bastion-9 is down');
   await page.getByRole('button', { name: 'FLY AGAIN', exact: false }).click();
   await expect(page.locator('canvas.flight-canvas')).toHaveAttribute('data-encounter-state', /"phase":"playing"/);

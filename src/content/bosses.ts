@@ -4,12 +4,8 @@ import { HELION_ARK } from './ark';
 import { WARDEN } from './warden';
 import { VEIL } from './veil';
 
-/**
- * After a boss falls, the scroll holds over its wreck this long before it resumes (and, in endless, before the
- * hyperdrive jump), so the pilot sees the destruction play out (user request, 16 October 2026; 2.5 s until the user
- * asked later that day to halve the wait from kill to warp).
- */
-export const WRECK_HOLD = 1.5;
+export { WRECK_HOLD } from './departure';
+import { DEPARTURE } from './departure';
 
 /**
  * One shape for every campaign boss, built from each boss's own content file. Phases are shared:
@@ -54,7 +50,7 @@ export interface BossDefinition {
   fan: { bolts: number; spacing: number; speed: number } | null;
   /** Finite launches from deck bays in the core phase, plus `overloadWaves` more once overload begins. */
   launches: { waves: number; firstAfter: number; interval: number; overloadWaves?: number; template: 'ark-launch' | 'veil-pods'; bays: readonly { x: number; s: number }[] } | null;
-  arena: { decelStart: number; decelDuration: number; resumeDuration: number; sway: number; swayRate: number; surge: number; surgeRate: number; platform: { from: number; to: number } };
+  arena: { decelStart: number; decelDuration: number; sway: number; swayRate: number; surge: number; surgeRate: number; platform: { from: number; to: number } };
   shieldSupplies: Readonly<Record<Difficulty, readonly number[]>>;
   messages: { start: string; batteries: string; core: string; overload: string; destroyed: string; approach: string };
 }
@@ -73,12 +69,12 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     warning: BASTION.warning, laser: null, beamWarning: BASTION.beamWarning, overload: BASTION.overload,
     overloadMoves: ['core-lane', 'side-lanes', 'fan', 'cross', 'core-lane', 'burst'],
     recovery: BASTION.recovery, transitionRecovery: BASTION.transitionRecovery,
-    overloadFraction: BASTION.overloadFraction, extractionDuration: BASTION.extractionDuration,
+    overloadFraction: BASTION.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: BASTION.batteryBurst, core: BASTION.coreBurst }, fan: BASTION.coreFan, launches: null,
     arena: BASTION.arena, shieldSupplies: BASTION.shieldSupplies,
     messages: {
       start: 'BASTION-9 · BREAK BOTH BATTERIES', batteries: 'BREAK BOTH BATTERIES', core: 'CORE EXPOSED',
-      overload: 'CORE OVERLOAD · WATCH THE LANES', destroyed: 'BASTION-9 DESTROYED · EXTRACTION',
+      overload: 'CORE OVERLOAD · WATCH THE LANES', destroyed: 'BASTION-9 DESTROYED · JUMP',
       approach: 'FORTRESS APPROACH · READY YOUR SPECIAL',
     },
   },
@@ -97,13 +93,13 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     // launches two more drop-pod waves (user: the last laser section was always the same and a bit easy).
     overloadMoves: ['core-lane', 'burst', 'side-lanes', 'cross', 'burst', 'core-lane', 'cross', 'side-lanes'], overloadRecovery: 0.4,
     recovery: HELION_ARK.recovery, transitionRecovery: HELION_ARK.transitionRecovery,
-    overloadFraction: HELION_ARK.overloadFraction, extractionDuration: HELION_ARK.extractionDuration,
+    overloadFraction: HELION_ARK.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: HELION_ARK.bridgeBurst, core: HELION_ARK.bridgeBurst }, fan: null,
     launches: { ...HELION_ARK.launches, overloadWaves: 2, template: 'ark-launch', bays: HELION_ARK.bays },
     arena: HELION_ARK.arena, shieldSupplies: HELION_ARK.shieldSupplies,
     messages: {
       start: 'HELION ARK · BREAK BOTH RADIATORS', batteries: 'BREAK BOTH RADIATORS', core: 'BRIDGE EXPOSED',
-      overload: 'BRIDGE OVERLOAD · WATCH THE LANES', destroyed: 'HELION ARK DESTROYED · EXTRACTION',
+      overload: 'BRIDGE OVERLOAD · WATCH THE LANES', destroyed: 'HELION ARK DESTROYED · JUMP',
       approach: 'OPEN WATER · THE ARK IS INBOUND',
     },
   },
@@ -120,12 +116,12 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     warning: WARDEN.warning, laser: null, beamWarning: WARDEN.beamWarning, overload: WARDEN.overload,
     overloadMoves: ['core-lane', 'burst', 'side-lanes', 'cross'],
     recovery: WARDEN.recovery, transitionRecovery: WARDEN.transitionRecovery,
-    overloadFraction: WARDEN.overloadFraction, extractionDuration: WARDEN.extractionDuration,
+    overloadFraction: WARDEN.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: WARDEN.podBurst, core: WARDEN.commandBurst }, fan: null, launches: null,
     arena: WARDEN.arena, shieldSupplies: WARDEN.shieldSupplies,
     messages: {
       start: 'WARDEN-1 · BREAK BOTH TURRET PODS', batteries: 'BREAK BOTH TURRET PODS', core: 'COMMAND MODULE EXPOSED',
-      overload: 'REACTOR OVERLOAD · WATCH THE LANES', destroyed: 'WARDEN-1 DOWN · EXTRACTION',
+      overload: 'REACTOR OVERLOAD · WATCH THE LANES', destroyed: 'WARDEN-1 DOWN · JUMP',
       approach: 'OLD DEFENCE LANDER INBOUND · READY YOUR SPECIAL',
     },
   },
@@ -142,14 +138,14 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     warning: VEIL.warning, laser: null, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
     overloadMoves: ['core-lane', 'fan', 'cross', 'burst', 'side-lanes', 'fan', 'cross', 'burst'], overloadRecovery: 0.45,
     recovery: VEIL.recovery, transitionRecovery: VEIL.transitionRecovery,
-    overloadFraction: VEIL.overloadFraction, extractionDuration: VEIL.extractionDuration,
+    overloadFraction: VEIL.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: VEIL.podBurst, core: VEIL.heartBurst }, fan: VEIL.heartFan,
     // It deploys pod waves from its front bays while its heart is open, and more once it overloads.
     launches: { ...VEIL.launches, template: 'veil-pods', bays: VEIL.bays },
     arena: VEIL.arena, shieldSupplies: VEIL.shieldSupplies,
     messages: {
       start: 'THE VEIL · BURST BOTH GILL PODS', batteries: 'BURST BOTH GILL PODS', core: 'THE HEART IS OPEN',
-      overload: 'HEART OVERLOAD · WATCH THE LANES', destroyed: 'THE VEIL IS FALLING · EXTRACTION',
+      overload: 'HEART OVERLOAD · WATCH THE LANES', destroyed: 'THE VEIL IS FALLING · JUMP',
       approach: 'THE MIRE GOES QUIET · SOMETHING HUGE IS RISING',
     },
   },

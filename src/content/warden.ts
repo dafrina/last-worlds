@@ -24,7 +24,6 @@ export const WARDEN = {
   recovery: 0.65,
   transitionRecovery: 1.5,
   overloadFraction: 0.35,
-  extractionDuration: 4,
   podBurst: { bolts: 3, spread: 0.1, speed: 5.6 },
   commandBurst: { bolts: 4, spread: 0.085, speed: 5.8 },
   overload: { coreLaneWidth: 2.2, batteryLaneWidth: 1.3, active: 0.35 },
@@ -33,7 +32,7 @@ export const WARDEN = {
    * 5 * 126 + 5 * 6 / 2 = 645; `platform` is the s-range relative to the stop the arena levels.
    */
   arena: {
-    decelStart: 126, decelDuration: 6, resumeDuration: 1,
+    decelStart: 126, decelDuration: 6,
     sway: 0.8, swayRate: 0.3, surge: 0.5, surgeRate: 0.24,
     platform: { from: -9, to: 22 },
   },

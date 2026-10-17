@@ -3,6 +3,8 @@ import { createRenderer } from './render/scene';
 import { createUi } from './ui/game-ui';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
+import { bossTarget, resolveBossPhase } from './sim/bastion';
+import { WARP, warpSpeed } from './content/departure';
 
 const root = document.querySelector<HTMLElement>('#app')!;
 let run: RunState | null = null;
@@ -24,9 +26,11 @@ let warmupFrames = 2;
  *   arrive just after the jump's flash.
  */
 const AFTERGLOW_SECONDS = 2.6, VICTORY_SECONDS = 4.4;
-/** Victory jump: starts after a short cruise and runs as long as an endless jump; its flash lands at the midpoint. */
-const VICTORY_JUMP = { delay: 0.7, duration: 3, peak: 16 } as const;
-let afterglow: { source: RunState; state: RunState; left: number; accumulator: number; lastId: number; victory: boolean } | null = null;
+/**
+ * Victory warp: the same sequence as an endless planet jump (src/content/departure.ts). The run completes as the
+ * departure ends, so the warp starts at once, from the departure's speed; its flash lands at the midpoint.
+ */
+let afterglow: { source: RunState; state: RunState; left: number; accumulator: number; lastId: number; victory: boolean; warpFrom: number } | null = null;
 function updateAfterglow(frameSeconds: number) {
   if ((run?.phase === 'over' || run?.phase === 'complete') && afterglow?.source !== run) {
     try {
@@ -34,9 +38,9 @@ function updateAfterglow(frameSeconds: number) {
       state.phase = 'playing'; state.player.invulnerableUntil = victory ? -1 : Infinity;
       if (victory) {
         state.projectiles = []; state.hazards = [];
-        state.jump = { startedAt: state.time + VICTORY_JUMP.delay, duration: VICTORY_JUMP.duration, from: state.planet, to: state.planet };
+        state.jump = { startedAt: state.time, duration: WARP.duration, from: state.planet, to: state.planet };
       }
-      afterglow = { source: run, state, left: victory ? VICTORY_SECONDS : AFTERGLOW_SECONDS, accumulator: 0, lastId: state.nextId, victory };
+      afterglow = { source: run, state, left: victory ? VICTORY_SECONDS : AFTERGLOW_SECONDS, accumulator: 0, lastId: state.nextId, victory, warpFrom: Math.max(VIEW.scrollSpeed, state.scrollSpeed) };
     } catch { afterglow = null; }
   }
   if (!afterglow || afterglow.source !== run) return null;
@@ -44,11 +48,18 @@ function updateAfterglow(frameSeconds: number) {
   afterglow.left -= frameSeconds;
   const state = afterglow.state;
   if (afterglow.victory) {
-    // No simulation: time and the terrain scroll advance, surging through the jump (the hero stays in its row).
-    const jump = state.jump!, cruise = Math.max(VIEW.scrollSpeed, state.scrollSpeed);
+    // No simulation: time and the terrain scroll advance, surging through the warp (the hero stays in its row).
+    const jump = state.jump!;
     const q = Math.min(1, Math.max(0, (state.time - jump.startedAt) / jump.duration));
-    state.scrollSpeed = cruise + (VICTORY_JUMP.peak - cruise) * Math.sin(Math.PI * q);
+    state.scrollSpeed = warpSpeed(q, afterglow.warpFrom, VIEW.scrollSpeed, WARP.peak);
     state.time += frameSeconds; state.distance += state.scrollSpeed * frameSeconds;
+    // The boss wreck is anchored to the ground: it falls behind with the terrain instead of riding along with the
+    // ship into the warp.
+    if (state.boss) {
+      const fall = state.scrollSpeed * frameSeconds;
+      state.boss.s -= fall;
+      for (const enemy of state.enemies) if (enemy.bossPart) enemy.s -= fall;
+    }
     state.player.vx = 0;
     return state;
   }
@@ -238,7 +249,10 @@ if (import.meta.env.DEV) {
     value: {
       snapshot: () => run ? structuredClone(run) : null,
       // Look-dev only: ends the current flight as lost or complete, to capture the ending sequences.
-      end: (phase: 'over' | 'complete') => { if (run?.phase === 'playing') { run.phase = phase; run.message = phase === 'complete' ? 'SORTIE COMPLETE' : 'FLIGHT LOST'; if (phase === 'over') run.player.lives = 0; } },
+      // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
+      advance: (seconds: number) => { if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
+      killBoss: () => { if (!run?.boss) return; for (const part of ['left', 'right', 'core'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
+      end: (phase: 'over' | 'complete') => { if (run?.phase === 'playing') { run.phase = phase; run.message = phase === 'complete' ? 'MISSION COMPLETE' : 'FLIGHT LOST'; if (phase === 'over') run.player.lives = 0; } },
     },
     configurable: true,
   });

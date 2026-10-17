@@ -46,7 +46,7 @@ export const menuMarkup = `
       <span class="setup-label">LOADOUT</span><span class="hangar-link">HANGAR ›</span>
       <dl><div><dt>MAIN</dt><dd data-loadout="weapon"></dd></div><div><dt>SPECIAL</dt><dd data-loadout="special"></dd></div><div><dt>SHIELD</dt><dd data-loadout="shield"></dd></div><div><dt>REACTOR</dt><dd data-loadout="reactor"></dd></div></dl>
     </button>
-    <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH SORTIE <span aria-hidden="true">↗</span></button>
+    <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH MISSION <span aria-hidden="true">↗</span></button>
   </section>
   <section class="hangar-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="hangar-title" hidden>
     <button type="button" class="back-button" data-back="campaign-panel">← BACK</button>
@@ -54,7 +54,7 @@ export const menuMarkup = `
     <h2 id="hangar-title">HANGAR</h2>
     ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['reactor', 'Reactor']], 'weapon')}
     <ul class="hangar-items" aria-live="polite"></ul>
-    <p class="panel-note hangar-note">Credits come from campaign sorties. Changing equipped gear is free.</p>
+    <p class="panel-note hangar-note">Credits come from campaign missions. Changing equipped gear is free.</p>
   </section>
   <section class="statistics-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="statistics-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>

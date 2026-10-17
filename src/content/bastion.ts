@@ -19,7 +19,6 @@ export const BASTION = {
   recovery: 0.45,
   transitionRecovery: 1.25,
   overloadFraction: 0.4,
-  extractionDuration: 4,
   /** Battery phase: alternating aimed three-bolt bursts. Core phase: a fixed five-way fan alternating with an aimed five-bolt burst. */
   batteryBurst: { bolts: 3, spread: 0.095, speed: 6.6 },
   coreBurst: { bolts: 5, spread: 0.075, speed: 6.6 },
@@ -37,7 +36,7 @@ export const BASTION = {
    * (forward/back) of its post; `platform` is the s-range relative to the stop distance the arena must cover.
    */
   arena: {
-    decelStart: 132, decelDuration: 6, resumeDuration: 1,
+    decelStart: 132, decelDuration: 6,
     sway: 1.1, swayRate: 0.35, surge: 0.9, surgeRate: 0.27,
     platform: { from: -9, to: 26 },
   },

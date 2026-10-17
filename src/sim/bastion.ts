@@ -1,5 +1,6 @@
 import { BASTION } from '../content/bastion';
 import { REWARDS } from '../content/equipment';
+import { departure } from '../content/departure';
 import { BALANCE, FAIRNESS } from '../content/balance';
 import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, WRECK_HOLD, missionBoss, type BossDefinition } from '../content/bosses';
@@ -49,19 +50,18 @@ const ENDLESS_EXIT_PROTECTION = WRECK_HOLD + ENDLESS_CYCLE.resumeDuration + ENDL
  */
 export function arenaScroll(time: number, destroyedAt: number | null, arena: BossDefinition['arena'] = BASTION.arena): { distance: number; speed: number } {
   const v = VIEW.scrollSpeed;
-  const { decelStart: t0, decelDuration: span, resumeDuration: resume } = arena;
+  const { decelStart: t0, decelDuration: span } = arena;
   if (time <= t0) return { distance: v * time, speed: v };
   const stop = arenaStopDistance(arena);
   if (time < t0 + span) {
     const u = (time - t0) / span;
     return { distance: v * t0 + v * span * (u - u ** 3 + u ** 4 / 2), speed: v * (1 - u * u * (3 - 2 * u)) };
   }
-  // After the kill the scroll holds over the wreck for WRECK_HOLD, then resumes for extraction.
+  // After the kill: the wreck hold, then the departure (src/content/departure.ts), as in endless.
   const resumeAt = destroyedAt === null ? Infinity : destroyedAt + WRECK_HOLD;
   if (time <= resumeAt) return { distance: stop, speed: 0 };
-  const w = (time - resumeAt) / resume;
-  if (w < 1) return { distance: stop + v * resume * (w ** 3 - w ** 4 / 2), speed: v * w * w * (3 - 2 * w) };
-  return { distance: stop + v * resume / 2 + v * (time - resumeAt - resume), speed: v };
+  const d = departure(time - resumeAt);
+  return { distance: stop + d.distance, speed: d.speed };
 }
 
 /** World distance at which a boss arena's terrain stops: 675 for Rolling Thunder, 935 for Cold Vector. */
@@ -118,7 +118,7 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     boss.attackIndex = 0;
     if (def.launches?.overloadWaves) { boss.launchesLeft += def.launches.overloadWaves; boss.nextLaunchAt = Math.max(boss.nextLaunchAt, state.time + def.launches.firstAfter); }
   }
-  message(state, def.messages[phase], phase === 'destroyed' ? 8 : 3);
+  message(state, def.messages[phase], phase === 'destroyed' ? 4 : 3);
   if (phase === 'destroyed') {
     boss.deathEffectAt = state.time;
     boss.launchesLeft = 0;
@@ -215,8 +215,10 @@ export function updateBoss(state: RunState, dt: number): void {
     boss.x = pose.x;
     boss.s = pose.s;
   } else {
-    // The wreck is ground- or water-anchored: once extraction resumes the scroll, it falls behind.
-    boss.s -= state.scrollSpeed * dt;
+    // The wreck is ground- or water-anchored: once the departure resumes the scroll, it falls behind by exactly the
+    // distance flown (the scroll is a closed form of time, so this never drifts from the ground).
+    boss.s -= state.distance - (boss.wreckDistance ?? state.distance);
+    boss.wreckDistance = state.distance;
   }
   boss.vx = dt > 0 ? (boss.x - previousX) / dt : 0;
   boss.vs = dt > 0 ? (boss.s - previousS) / dt : 0;

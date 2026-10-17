@@ -251,7 +251,7 @@ export function createWardenView(scene: THREE.Scene) {
     },
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
       const boss = state.boss && state.boss.id === 'warden' ? state.boss : null;
-      root.visible = !!boss; markers.visible = !!boss;
+      root.visible = !!boss && !!placement; markers.visible = root.visible;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
       if (!boss || !placement) { shock.visible = false; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1; return; }
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); rig.parts.forEach(p => { p.open = 0; }); }

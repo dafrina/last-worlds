@@ -1,5 +1,18 @@
 # Build status
 
+## One post-boss sequence for both modes, live coin counter — 17 October 2026
+
+- **After every boss kill, campaign and endless alike** (`src/content/departure.ts`):
+  - a 1.5 s hold over the burning wreck;
+  - a 2 s departure: the scroll ramps to 20 units/s, so the ground-anchored wreck leaves the bottom of the frame;
+  - then a 3 s warp starting from that speed. Endless lands on the next planet; the campaign shows results after the flash.
+  - This replaces the 4 s extraction and fixes two bugs: the wreck being dragged into the warp, and Bastion-9 appearing on top during it. The wreck now moves by exactly the distance flown.
+  - Endless keeps two outgoing terrain sections after the arena so the departure stays on the old planet.
+- **Wording:** "sortie" is gone from the UI (MISSION COMPLETE, LAUNCH MISSION, MISSIONS CLEARED); boss kill lines end in "· JUMP".
+- **Campaign HUD:** a gold coin counter at the top right shows the saved balance plus this run's pickups at their paid rate, pulsing on each gain.
+- **Evidence:** 324/324 unit tests, 21/21 browser specs, production build; departure captures (endless Luna, campaign Training) and the HUD counter inspected.
+- **Not done:** no phone hardware test.
+
 ## Ship-relative steering, portrait only, wreck leaves before the warp, real fire-rate ramp — 17 October 2026
 
 - **Steering** is relative to the hero ship: hold left or right of it. The direction holds after the ship passes the finger; dragging across the ship switches it. Hints and How to Play are updated; docs/08 and AGENTS.md record the decision.

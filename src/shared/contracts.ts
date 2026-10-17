@@ -14,6 +14,8 @@ export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre';
 export type BossPart = 'left' | 'right' | 'core';
 export type BossId = 'bastion' | 'ark' | 'warden' | 'veil';
 export interface BossState {
+  /** World distance at the wreck's last update: it falls behind by the distance flown since (destroyed phase). */
+  wreckDistance?: number;
   phase: 'arrival' | 'batteries' | 'core' | 'overload' | 'destroyed';
   x: number; originX: number; s: number; startedAt: number; phaseStartedAt: number;
   nextAttackAt: number; attackIndex: number; attack: 'burst' | 'fan' | 'beam' | null;

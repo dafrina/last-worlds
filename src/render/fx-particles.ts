@@ -260,8 +260,6 @@ export function createFx(scene: THREE.Scene) {
       }
     },
     get particles() { return glow.live + smoke.live; },
-    /** Render-only detonation at a world point (a boss wreck leaving with the warp). */
-    detonate(x: number, z: number, seed: number, size = 2.5) { blast(x, z, seed, size); },
     dispose() {
       for (const target of [glow, smoke]) { scene.remove(target.mesh); target.mesh.dispose(); target.geometry.dispose(); target.material.dispose(); }
     },
