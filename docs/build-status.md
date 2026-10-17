@@ -1,5 +1,16 @@
 # Build status
 
+## Pulsar: a new Nacre enemy with shockwave rings — 17 October 2026
+
+- **Pulsar:** a radial Nacre organism (Blender `nacre_pulsar`, 2,100 triangles in `nacre-craft.glb`). It dives low, charges for 1.25 s with a faint circle marking its reach, then releases an expanding shockwave ring; stay outside the circle. See docs/20.
+- **Placement:** Deep Bloom (and endless Nacre) gets a single Pulsar at 27 s, a wide pair at 72 s and a single in the climax.
+- **Fairness:** the director treats the ring's reach on the row as a footprint, padded in time.
+- **Evidence:**
+  - 330/330 unit tests, including the new `tests/sim/pulsar.test.ts` and automatic formation and cue fairness for the Pulsar formations;
+  - 21/21 browser specs, production build;
+  - in-game capture of a Pulsar firing.
+- **Not done:** no phone hardware test.
+
 ## Tougher Needles, Diamonds and bosses; shield cells from the top; solid victory screen — 17 October 2026
 
 - **Needles** have 70 HP (was 50) and **Diamonds** (the Orrery on Nacre) 175 (was 130); both hold their attack runs 2 s longer.

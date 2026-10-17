@@ -34,7 +34,8 @@ export interface BossState {
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */
 /** `fuel` is a harmless ground loot target (a fuel-tank skid): it never attacks and drops what a ship drops. */
-export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel';
+/** `pulsar` (Nacre, 17 October 2026) charges and releases a shockwave ring instead of shots. */
+export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
 /**
  * A run's setup. The campaign loadout (weapon, special, shield, reactor, rank of the main weapon) applies only to the
@@ -73,8 +74,16 @@ export interface Projectile {
   special?: boolean;
 }
 /** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
-/** `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none). */
-export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number; source?: number }
+/**
+ * `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none).
+ * `ring`: a Pulsar shockwave instead of a lane, centred on (x, ring.s): its radius grows at `speed` from 0 to `radius`;
+ * the band (`band` wide) hits the player as it passes. `width`, `warning` and `active` describe its conservative
+ * footprint on the player row (where and when it can reach it) for the fairness director.
+ */
+export interface Hazard {
+  id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number; source?: number;
+  ring?: { s: number; radius: number; speed: number; band: number; age: number };
+}
 export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
 export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast'; x: number; s: number; ttl: number; duration: number }
 /** A hyperdrive jump between planets: about 3 s; the look switches at its midpoint (`startedAt + duration / 2`). */

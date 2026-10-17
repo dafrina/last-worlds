@@ -1,4 +1,4 @@
-import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
+import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSE, WORLD_INTENSITY, pulseReach, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
@@ -270,7 +270,7 @@ function updateEnemies(state: RunState, dt: number): void {
       if (enemy.kind === 'lancer' && state.hazards.filter(hazard => hazard.width >= beamSpec('lancer').width).length + state.enemies.filter(other => other.kind === 'lancer' && other.warning > 0).length >= scale.maxBeams) continue;
       // The aim commits now and never tracks afterwards: the player's x plus the authored bracket offset (a
       // Diamond adds its alternating wing side), or, for a missile battery, its own column.
-      const aimX = enemy.kind === 'missile' ? enemy.x
+      const aimX = enemy.kind === 'missile' || enemy.kind === 'pulsar' ? enemy.x
         : state.player.x + aimOffset(enemy) + (enemy.kind === 'diamond' ? diamondSide(enemy) * DIAMOND_VOLLEY.side : 0);
       const warning = stats.warning + scale.warning;
       // Director exclusion window: an attack that would break the hazard-union rules waits; it is never edited.
@@ -329,6 +329,13 @@ function updateBeamRest(state: RunState, scale: DifficultyScale): boolean {
 }
 
 function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void {
+  if (enemy.kind === 'pulsar') {
+    // The shockwave ring: centred where the Pulsar is, expanding; marked on the player row while it can reach it.
+    const reach = pulseReach(enemy.s);
+    state.hazards.push({ id: state.nextId++, x: enemy.x, width: reach.half * 2, warning: reach.from, active: Math.max(0.05, reach.until - reach.from),
+      ttl: Math.max(PULSE.radius / PULSE.speed + 0.05, reach.until), cost: 1, ring: { s: enemy.s, radius: PULSE.radius, speed: PULSE.speed, band: PULSE.band, age: 0 } });
+    return;
+  }
   if (BEAM_KINDS.has(enemy.kind)) {
     const beam = beamSpec(enemy.kind);
     state.hazards.push({ id: state.nextId++, x: enemy.aimX, width: beam.width, warning: beam.warning, active: beam.active, ttl: beam.warning + beam.active, source: enemy.id, ...(beam.cost ? { cost: beam.cost } : {}) });
@@ -434,6 +441,19 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
 
 function updateHazards(state: RunState, previousPlayerX: number, dt: number): void {
   for (const hazard of state.hazards) {
+    if (hazard.ring) {
+      // Shockwave ring: hits once where its band sweeps over the ship.
+      const ring = hazard.ring, before = ring.speed * ring.age;
+      ring.age += dt;
+      const after = Math.min(ring.radius, ring.speed * ring.age);
+      const near = Math.min(Math.hypot(previousPlayerX - hazard.x, ring.s), Math.hypot(state.player.x - hazard.x, ring.s));
+      const far = Math.max(Math.hypot(previousPlayerX - hazard.x, ring.s), Math.hypot(state.player.x - hazard.x, ring.s));
+      if (hazard.active > 0 && far + VIEW.playerRadius >= before - ring.band && near - VIEW.playerRadius <= after) { hitPlayer(state, hazard.cost ?? 1); hazard.active = 0; }
+      hazard.warning = Math.max(0, hazard.warning - dt);
+      if (hazard.warning === 0) hazard.active = Math.max(0, hazard.active - dt);
+      hazard.ttl -= dt;
+      continue;
+    }
     const warningBefore = hazard.warning;
     hazard.warning = Math.max(0, hazard.warning - dt);
     const activeTime = Math.max(0, dt - warningBefore);
@@ -444,7 +464,7 @@ function updateHazards(state: RunState, previousPlayerX: number, dt: number): vo
     }
     hazard.ttl -= dt;
   }
-  state.hazards = state.hazards.filter(hazard => hazard.ttl > 0 && (hazard.warning > 0 || hazard.active > 0));
+  state.hazards = state.hazards.filter(hazard => hazard.ttl > 0 && (hazard.ring ? true : hazard.warning > 0 || hazard.active > 0));
 }
 
 function updateContact(state: RunState, previousPlayerX: number): void {

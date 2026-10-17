@@ -7,6 +7,7 @@ import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
 import { loadCraftNodes, loadKhepriCraft, loadNacreCraft, type KhepriCraftNode, type NacreCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
+import { ENEMIES, PULSE } from '../content/balance';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
@@ -244,12 +245,12 @@ const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: numb
  */
 const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NacreCraftNode; scale: number }>> = {
   dart: { node: 'nacre_shard', scale: 1 }, needle: { node: 'nacre_shard', scale: 1.1 }, lancer: { node: 'nacre_veil', scale: 1.1 },
-  weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
+  weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, pulsar: { node: 'nacre_pulsar', scale: 1.1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
 };
 
 /** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
 const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
-  dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret',
+  dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret', pulsar: 'khepri_weaver',
 };
 /** Engine sockets (x, z) of the Khepri craft, from tools/blender/khepri_craft.py SOCKETS (glTF z toward the player). */
 const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [number, number])[]>> = {
@@ -258,7 +259,7 @@ const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [numbe
 };
 
 /** Every enemy kind the renderer draws (Khepri and Vesper); ground kinds stand on terrain or float on the sea. */
-const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel'];
+const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel', 'pulsar'];
 const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
 /** Loot props and ground wrecks (art/loot-props, Blender): the fuel skid target and what destroyed ground targets leave. */
 const LOOT_NODES = ['loot_fuel', 'wreck_turret_0', 'wreck_turret_1', 'wreck_fuel', 'fx_missile'] as const;
@@ -268,7 +269,7 @@ const WRECK_CAPACITY = 24;
 const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle', 'diamond', 'missile']);
 /** Code-built Khepri model each kind uses until (or unless) its Vesper model is available. */
 const KHEPRI_STAND_IN: Readonly<Record<EnemyKind, 'dart' | 'weaver' | 'turret' | 'lancer'>> = {
-  dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret', fuel: 'turret',
+  dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret', fuel: 'turret', pulsar: 'weaver',
 };
 /** Deck height of the render-only pontoon a ground battery rides on when the simulation seats it over open water. */
 const PONTOON_DECK = .14;
@@ -746,6 +747,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     geometry.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(geometry, shockMaterials[k]); mesh.renderOrder = 9; mesh.visible = false; mesh.frustumCulled = false; scene.add(mesh); return mesh;
   });
+  // Pulsar shockwaves (Nacre): a faint circle at the blast's full reach while the Pulsar charges, then the expanding
+  // bright band (the part that hurts). One instanced draw each.
+  const pulseGeometry = [new THREE.RingGeometry(.97, 1, 96), new THREE.RingGeometry(1 - PULSE.band / PULSE.radius, 1, 96)].map(g => g.rotateX(-Math.PI / 2));
+  const pulseLayers = pulseGeometry.map((geometry, k) => {
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
+    const mesh = new THREE.InstancedMesh(geometry, material, 24);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9;
+    for (let i = 0; i < 24; i++) mesh.setColorAt(i, WHITE);
+    mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage); mesh.name = k ? 'Pulsar shockwaves' : 'Pulsar reach'; scene.add(mesh);
+    return mesh;
+  });
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
   const effects = new THREE.InstancedMesh(new THREE.RingGeometry(.85, 1, 24), effectMaterial, 128);
@@ -1180,6 +1192,23 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       for (const [mesh, count] of [[telegraphs, stripCount], [flashLanes, flashCount], [laneFills, fillCount]] as const) {
         mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
+      // Pulsar charge circles and shockwave bands.
+      pulseLayers.forEach(mesh => { mesh.count = 0; });
+      const [reachLayer, bandLayer] = pulseLayers;
+      for (const enemy of state.enemies) {
+        if (enemy.kind !== 'pulsar' || enemy.hp <= 0 || enemy.warning <= 0 || reachLayer.count >= 24) continue;
+        const charge = 1 - enemy.warning / ENEMIES.pulsar.warning, glowing = .35 + .65 * charge * (.7 + .3 * Math.sin(state.time * 22));
+        transform.position.set(enemy.x, VIEW.flightHeight + .03, -enemy.s); transform.rotation.set(0, 0, 0); transform.scale.setScalar(PULSE.radius); transform.updateMatrix();
+        reachLayer.setMatrixAt(reachLayer.count, transform.matrix); reachLayer.setColorAt(reachLayer.count++, color.setHex(0x46f0dc).multiplyScalar(glowing));
+      }
+      for (const hazard of state.hazards) {
+        if (!hazard.ring || bandLayer.count >= 24) continue;
+        const r = Math.min(hazard.ring.radius, hazard.ring.speed * hazard.ring.age), fade = 1 - r / hazard.ring.radius;
+        if (r <= 0.05) continue;
+        transform.position.set(hazard.x, VIEW.flightHeight + .05, -hazard.ring.s); transform.rotation.set(0, 0, 0); transform.scale.setScalar(Math.max(r, PULSE.band)); transform.updateMatrix();
+        bandLayer.setMatrixAt(bandLayer.count, transform.matrix); bandLayer.setColorAt(bandLayer.count++, color.setHex(0x9ffff0).multiplyScalar(2.2 * (.35 + .65 * fade)));
+      }
+      pulseLayers.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; });
       const wave = state.shockwave;
       shockRings.forEach((ring, k) => {
         ring.visible = !!wave;

@@ -414,17 +414,67 @@ POD_SOCKETS = {"nacre_pod_engine_0": (0.0, 0.0, -0.41)}
 
 
 # ----------------------------------------------------------------------------
+# nacre_pulsar: radial pulse organism (17 Oct 2026) that charges and releases a shockwave ring
+# ----------------------------------------------------------------------------
+
+def build_pulsar(rng):
+    """A flattened radial organism: a faceted teal emitter heart in a black frame cage, a crown of eight
+    iridescent petals with silver crescent blades between them, two concentric emitter rings with teal slits
+    (they flare as it charges) and short trailing tendrils. Radially symmetric, so it reads from any side."""
+    hs = HS(rng)
+    verts, faces = icosahedron()
+    framed_poly(hs, verts, faces, Matrix.Diagonal((0.17, 0.17, 0.15, 1.0)), 0.3, 0.022, "frame", FRAME, "lamp", TEAL)
+    # Inner emitter ring (teal slits between black segments) and the outer bronze ring.
+    for k in range(8):
+        a0, a1 = 2 * math.pi * k / 8 + 0.05, 2 * math.pi * (k + 1) / 8 - 0.05
+        arc_band(hs, 0.27, 0.06, 0.05, a0, a1, 3, "frame", FRAME, ch=0.01)
+        am = (a0 + a1) / 2
+        arc_band(hs, 0.27, 0.024, 0.012, am - 0.22, am + 0.22, 2, "lamp", TEAL, ch=0.0, m=xform((0, 0, 0.03)))
+    for k in range(12):
+        a0, a1 = 2 * math.pi * k / 12 + 0.04, 2 * math.pi * (k + 1) / 12 - 0.04
+        arc_band(hs, 0.52, 0.07, 0.045, a0, a1, 3, "bronze" if k % 2 else "bronze_dk", BRONZE, ch=0.012, m=xform((0, 0, -0.01)))
+    # Petal crown: iridescent shard plates radiating out over the rings.
+    for k in range(8):
+        a = 2 * math.pi * (k + 0.5) / 8
+        d, n = Vector((math.cos(a), math.sin(a), 0.0)), Vector((-math.sin(a), math.cos(a), 0.0))
+        base, tip = d * 0.22 + Vector((0, 0, 0.04)), d * 0.66 + Vector((0, 0, -0.02))
+        mid = d * 0.42 + Vector((0, 0, 0.06))
+        shard_plate(hs, [base + n * 0.03, mid + n * 0.1, tip, mid - n * 0.1, base - n * 0.03], 0.03, 0.01,
+                    f"shell:{k % 4 + 1}", SHELL)
+        glow_line(hs, [base + Vector((0, 0, 0.02)), mid + Vector((0, 0, 0.05)), lerp(mid, tip, 0.6) + Vector((0, 0, 0.02))],
+                  [(0, 0, 1)] * 3, 0.012, 0.004, TEAL)
+    # Silver crescent blades between the petals, curling outward to sharp tips.
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        r = Matrix.Rotation(a, 4, "Z")
+        o = [r @ P(0.3, 0.04, 0.0), r @ P(0.5, 0.1, 0.0), r @ P(0.7, 0.06, -0.01), r @ P(0.8, -0.06, -0.02)]
+        i = [r @ P(0.32, -0.02, 0.0), r @ P(0.5, 0.0, 0.0), r @ P(0.66, -0.02, -0.01), r @ P(0.8, -0.06, -0.02)]
+        crescent(hs, o, i, 7, lambda t: 0.016 * (1 - t) + 0.002, (0, 0, 1), "blade", BLADE)
+    # Trailing tendrils beneath (they hang toward the ground).
+    for k in range(6):
+        a = 2 * math.pi * (k + 0.25) / 6
+        d = Vector((math.cos(a), math.sin(a), 0.0))
+        tube(hs, [d * 0.18 + Vector((0, 0, -0.05)), d * 0.28 + Vector((0, 0, -0.16)), d * 0.24 + Vector((0, 0, -0.27))],
+             [0.022, 0.014, 0.0], "frame_dk", FRAME, seg=5, apex_end=True)
+    return hs
+
+
+PULSAR_SOCKETS = {"nacre_pulsar_core": (0.0, 0.0, 0.0)}
+
+
+# ----------------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------------
 
 BUILDERS = {"nacre_shard": build_shard, "nacre_veil": build_veil_fighter, "nacre_orrery": build_orrery,
-            "nacre_spore": build_spore, "nacre_pod": build_pod}
+            "nacre_spore": build_spore, "nacre_pod": build_pod, "nacre_pulsar": build_pulsar}
 RULES = {
     "nacre_shard": dict(budget=2500, foot=(0.86, 1.36), y_min=-0.2, y_max=0.25),
     "nacre_veil": dict(budget=2500, foot=(1.56, 1.56), y_min=-0.2, y_max=0.25),
     "nacre_orrery": dict(budget=2500, foot=(1.84, 1.76), y_min=-0.3, y_max=0.3),
     "nacre_spore": dict(budget=2500, foot=(1.16, 1.16), y_min_exact=-0.05, y_max=1.0),
     "nacre_pod": dict(budget=2500, foot=(0.8, 0.96), y_min=-0.2, y_max=0.3),
+    "nacre_pulsar": dict(budget=2500, foot=(1.7, 1.7), y_min=-0.32, y_max=0.25),
 }
 
 
@@ -452,7 +502,7 @@ def main():
         cols = nf.bake(hs, name, ao_dist=0.22, ground=ground, scale=1.6)
         objs[name] = nf.make_object(name, hs, mats, (0.0, 0.0, 0.0), cols)
         print(f"CRAFT {name:16s} tris={hs.tris()}")
-    sk = {"nacre_shard": SHARD_SOCKETS, "nacre_veil": VEIL_SOCKETS, "nacre_pod": POD_SOCKETS}
+    sk = {"nacre_shard": SHARD_SOCKETS, "nacre_veil": VEIL_SOCKETS, "nacre_pod": POD_SOCKETS, "nacre_pulsar": PULSAR_SOCKETS}
     m_o = ring_matrix("X", ORRERY_RINGS[0][5])
     orr = {}
     for i, s in enumerate((-1, 1)):
@@ -484,7 +534,7 @@ def main():
 
 
 LAYOUT = [("nacre_shard", -3.3, 0.0), ("nacre_veil", -1.5, 0.0), ("nacre_orrery", 0.55, 0.0),
-          ("nacre_spore", 2.55, 0.0), ("nacre_pod", 4.1, 0.0)]
+          ("nacre_spore", 2.55, 0.0), ("nacre_pod", 4.1, 0.0), ("nacre_pulsar", 5.8, 0.0)]
 
 
 def render_previews(objs, args):

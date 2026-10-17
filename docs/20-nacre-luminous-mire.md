@@ -96,6 +96,9 @@ Since 16 October Nacre flies its own Blender-modelled faction in the ORRERY / SH
 | `nacre_orrery` | Diamond | nested segmented rings with two emitter arms |
 | `nacre_spore` | batteries (turret, missile) | framed pearl bulb on a base, muzzle pitched up 20° |
 | `nacre_pod` | THE VEIL's pods (`veil-pods`) | small blade-cupped seed |
+| `nacre_pulsar` | Pulsar (17 October) | radial crown of iridescent petals and silver blades around a teal emitter heart |
+
+**Pulsar (17 October 2026, a new Nacre enemy mechanic):** it dives low (s ≈ 6.2–7.4), holds, and charges for 1.25 s while a faint circle marks its full reach. Then it releases a shockwave ring that expands to radius 7.4 at 8 units/s and hits the ship as its 0.6-wide band passes (one shield). You avoid it by staying outside the circle, not by threading bullets. The fairness director treats the ring's reach on the player row (`pulseReach`) as a footprint, padded in time, so there is always an escape; pairs fly 9.2 apart so two rings leave the middle open. It flies in Deep Bloom (`pulsar-solo` at 27 s and in the climax, `pulsar-pair` at 72 s) and in endless Nacre stints. 110 HP, 300 score.
 
 Shell colour and the pearl sheen are baked into vertex colours; glow faces are teal `#3ff2d8` or amber `#ffa040`. The Vesper craft remain the fallback while the GLB loads.
 

@@ -430,8 +430,8 @@ export async function loadVesperCraft(url: string): Promise<Map<VesperCraftNode,
 /* ---------------------------------------------------------------- Nacre craft (docs/20, art/nacre-craft) */
 
 /** Nodes in nacre-craft.glb (after the ORRERY, SHARD and VEIL concepts): noses +Z, air craft pivot at their mid-plane. */
-export type NacreCraftNode = 'nacre_shard' | 'nacre_veil' | 'nacre_orrery' | 'nacre_spore' | 'nacre_pod';
-export const NACRE_CRAFT_NODES: readonly NacreCraftNode[] = ['nacre_shard', 'nacre_veil', 'nacre_orrery', 'nacre_spore', 'nacre_pod'];
+export type NacreCraftNode = 'nacre_shard' | 'nacre_veil' | 'nacre_orrery' | 'nacre_spore' | 'nacre_pod' | 'nacre_pulsar';
+export const NACRE_CRAFT_NODES: readonly NacreCraftNode[] = ['nacre_shard', 'nacre_veil', 'nacre_orrery', 'nacre_spore', 'nacre_pod', 'nacre_pulsar'];
 export interface NacreCraft { geometry: THREE.BufferGeometry; engines: [number, number][] }
 
 /**

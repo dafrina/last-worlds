@@ -1,4 +1,4 @@
-import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, WORLD_INTENSITY, difficultyScales, kinematics, type Kinematics } from '../content/balance';
+import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, WORLD_INTENSITY, difficultyScales, kinematics, pulseReach, type Kinematics } from '../content/balance';
 import { REACTORS } from '../content/equipment';
 
 /** Top lateral speed of the slowest campaign drive (Precision): campaign attack admission assumes it. */
@@ -56,6 +56,10 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     const offset = bossPartOffset(enemy.bossPart, state.boss!.id);
     return bossShots(BOSSES[state.boss!.id], attack, pose.x + offset.x, pose.s + offset.s, aimX, scale, enemy.bossPart === 'core')
       .map(shot => shotFootprint(release, shot)).filter((f): f is Footprint => f !== null);
+  }
+  if (enemy.kind === 'pulsar') {
+    const at = positionAfter(enemy, warning, enemyClockRate(state, enemy)), reach = pulseReach(at.s);
+    return [{ x0: at.x - reach.half, x1: at.x + reach.half, t0: release + reach.from, t1: release + reach.until }];
   }
   if (BEAM_KINDS.has(enemy.kind)) {
     const beam = beamSpec(enemy.kind);
