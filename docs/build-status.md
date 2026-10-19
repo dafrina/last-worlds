@@ -7,7 +7,7 @@
 - **Placement:** full-scale geometry replaces vertical squashing. Foundations sink no more than 0.35 units on suitable ground; higher/crowded ground keeps legacy emplacements. Deterministic cosmetic variation selects larger sites where space permits, with per-variant scatter clearings and spacing. No additional enemies, targeting, collisions, progression or save changes.
 - **Validation:** 333 existing unit tests plus two new placement regression tests passed; five focused asset/placement checks also passed after final geometry edits. The full browser suite passed **23/23** (5.2 min), including twelve world/size/quality combinations in the facility case and the VEIL core, overload and wreck. Typecheck, production build and diff whitespace check passed. The existing bundle-size advisory remains (1,073.45 kB JS / 307.43 kB gzip).
 - **Evidence and limits:** refreshed seven Blender previews; game captures cover all three worlds and both compound sizes. Software Chromium/SwiftShader; actual-phone frame rate, heat/battery use and Safari remain unverified. See [docs/22](22-cinematic-art-refinement.md) for budgets and reproduction commands.
-- **Release gate:** publish this validated increment through the existing main → Pages workflow, then compare live asset hashes and smoke-test the published endless launch, steering and pause.
+- **Release:** `f0876c7` deployed successfully in Pages run `39244037038`. Published SHA-256 hashes match all six local GLBs; live endless launch, steering and pause passed in Chromium 156.0.8078.4 with no page/console errors. The deployed JS bundle is `index-CimeIF9L.js`.
 
 ## Reference-led graphics refinement — 19 October 2026
 

@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "name": "veil",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":6,\"triangles\":26607,\"instances\":0,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"veil\":{\"model\":\"glb\",\"particles\":0},\"planet\":\"nacre\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.1,\"max\":496.7,\"over4\":3,\"frames\":78,\"renderMax\":942.6,\"updateMax\":493.4,\"animateMax\":0.3,\"prefetchMax\":5.1},\"calls\":72,\"passes\":{\"shadow\":22,\"main\":44,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":79724,\"geometries\":87,\"textures\":23,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0,\"large\":0},\"enemies\":0}"
+    },
+    {
+      "name": "vesper-facility-large",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":29,\"triangles\":35162,\"instances\":66,\"haulers\":1,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"veil\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"vesper\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.2,\"max\":337.2,\"over4\":3,\"frames\":78,\"renderMax\":631.1,\"updateMax\":332.4,\"animateMax\":2.2,\"prefetchMax\":5.6},\"calls\":55,\"passes\":{\"shadow\":12,\"main\":37,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":62824,\"geometries\":77,\"textures\":25,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":1,\"large\":1},\"enemies\":1}"
+    }
+  ],
+  "errors": []
+}
