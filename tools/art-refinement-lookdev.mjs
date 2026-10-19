@@ -10,9 +10,9 @@ const shots=process.argv[3] === 'all' ? ['nacre','khepri','vesper','veil','nacre
 const results=[];
 try {
 for(const name of shots){
- const low=name.endsWith('-low'), planet=name.replace('-low','').replace('-facility','');
- const url=planet==='veil' ? '/tests/fixtures/endless-arena.html?sector=10' : `/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper' && name.includes('facility')?100:210}&x=-3`;
- await page.goto(`http://127.0.0.1:4173${url}&inspect=1&quality=${low?'low':'high'}${name.endsWith('-facility')?'&facility=1':''}`);
+ const low=name.endsWith('-low'), planet=name.replace('-low','').replace('-facility','').replace('-large','').replace('-small','');
+ const url=planet==='veil' ? '/tests/fixtures/endless-arena.html?sector=10' : `/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper' && name.includes('facility')?695:210}&x=-3`;
+ await page.goto(`http://127.0.0.1:4173${url}&inspect=1&quality=${low?'low':'high'}${name.includes('-facility')?`&facility=${name.includes('-large')?'large':'small'}`:''}`);
  await page.waitForFunction(() => { const raw = document.querySelector('canvas.flight-canvas')?.getAttribute('data-render-stats'); if (!raw) return false; const data=JSON.parse(raw); return data.terrain.kit === 'glb' && data.terrain.shared === 'glb' && data.heroModel==='glb' && data.facilities.loaded; }, null, {timeout:90000});
  await page.waitForTimeout(3000);
  await page.screenshot({path:`lookdev/${label}/${name}.png`,timeout:90000});

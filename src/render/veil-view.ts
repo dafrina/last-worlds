@@ -9,8 +9,8 @@ import { applySurfaceFinish } from './surface-finish';
 /**
  * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
  * (public/assets/nacre/the-veil.glb, art/the-veil); a code-built stand-in renders until the model has loaded.
- * Render-only: it reads boss state and never applies damage. A faceted black hull with a dorsal blade spine and layered
- * iridescent armour shards, swept knife blades spanning about 25 units (wider than it is long), two crystal-crowned pods on
+ * Render-only: it reads boss state and never applies damage. A black carrier frame with raised layered crescent armour,
+ * recessed wing machinery and parked pod racks, spanning about 17.3 × 15.3 units, two crystal-crowned pods on
  * outriggers (the first pair of weak points), a faceted teal heart under four shutters (the core) and launch bays. It rises
  * out of the mire on arrival and sinks back into it when destroyed.
  */
@@ -21,7 +21,7 @@ const socket = (part: BossPart) => new THREE.Vector3(part === 'core' ? 0 : part 
 /** Hull footprint (x half-width, z half-depth) for the terrain exclusion (the blades overhang water anyway). */
 export const VEIL_FOOTPRINT = { halfWidth: 12.8, halfDepth: 9.5 } as const;
 /** How deep the hull starts under the mire as it rises, and how far it sinks when destroyed. */
-const RISE = 3.2, SINK = 4.2;
+const RISE = 4.4, SINK = 4.6;
 
 /** Its waterline seat: the target plane (VEIL.targetHeight above the mire) projects onto the logical rows. */
 export function veilPlacement(logicalS: number, sea: number): { baseHeight: number; s: number } {

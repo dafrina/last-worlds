@@ -1,5 +1,14 @@
 # Build status
 
+## Taller VEIL and expanded industrial compounds — 19 October 2026
+
+- **Model refinement through live Blender MCP:** THE VEIL is now 17.34 wide × 15.30 long, with raised armour decks, 4.10-high crown fins, real wing vent recesses, exposed conduit assemblies, layered access plates and ribbed pod hangars. Middle wings leave both fixed weak points visible; sockets, attacks and deployed pods are unchanged. The full model, including hidden wreck variants, is 25,706 triangles / 2.03 MB.
+- **Facilities:** both sizes on Khepri, Vesper and Nacre have turbine roofs, tank crowns, cooling fins, wall ribs, stairs and recessed doors. Larger sites add forward pump bays, raised catwalks and rear heat exchangers: 8.70 × 8.475 versus 6.60 × 5.90, or 1.89× the footprint. All six variants total 44,156 triangles / 3.79 MB.
+- **Placement:** full-scale geometry replaces vertical squashing. Foundations sink no more than 0.35 units on suitable ground; higher/crowded ground keeps legacy emplacements. Deterministic cosmetic variation selects larger sites where space permits, with per-variant scatter clearings and spacing. No additional enemies, targeting, collisions, progression or save changes.
+- **Validation:** 333 existing unit tests plus two new placement regression tests passed; five focused asset/placement checks also passed after final geometry edits. The full browser suite passed **23/23** (5.2 min), including twelve world/size/quality combinations in the facility case and the VEIL core, overload and wreck. Typecheck, production build and diff whitespace check passed. The existing bundle-size advisory remains (1,073.45 kB JS / 307.43 kB gzip).
+- **Evidence and limits:** refreshed seven Blender previews; game captures cover all three worlds and both compound sizes. Software Chromium/SwiftShader; actual-phone frame rate, heat/battery use and Safari remain unverified. See [docs/22](22-cinematic-art-refinement.md) for budgets and reproduction commands.
+- **Release gate:** publish this validated increment through the existing main → Pages workflow, then compare live asset hashes and smoke-test the published endless launch, steering and pause.
+
 ## Reference-led graphics refinement — 19 October 2026
 
 - **Models, through live Blender MCP:** new crescent-carrier THE VEIL (17,466 triangles including wreck states), detailed utility Scrapper (2,744), three large battery compounds (7,668 combined), and refined Nacre crags / Vesper pressure slabs / tighter Khepri basalt edges. Combat sockets, launch schedule, collision sizes and the hero's existing 1.1 scale remain unchanged.
@@ -9,7 +18,7 @@
 - **Evidence:** `docs/screenshots/art-refinement/`, `art/the-veil/preview-veil*.png`; details and reproducible commands in [docs/22](22-cinematic-art-refinement.md). Automated browser: Playwright 1.64 Chromium with SwiftShader, DPR 1, 390×844 and 430×932; existing viewport suite also checks small phones and desktop.
 - **Cost:** reviewed frozen High views used 37–72 draws, including shadows/post; dense Nacre submitted 180,917 triangles including shadow passes. Low removes shadow/post passes. Current JS bundle is 1,072.83 kB / 307.20 kB gzip; the existing chunk-size warning remains.
 - **Limits:** no actual iPhone/Android performance, sustained thermal or Safari validation. The result remains a real-time stylized interpretation of the supplied reference, not an offline-quality reproduction. No gameplay, progression, targeting, input or save changes.
-- **Release:** this validated increment is prepared for the existing `main` → GitHub Pages workflow at https://dafrina.github.io/last-worlds/; verify the workflow and live asset hashes for the release commit.
+- **Release:** `7472fc5` deployed successfully in Pages run `39205516955`. All six published GLBs matched local SHA-256 hashes; the live endless launch/steering/pause smoke check passed in Chromium 156.0.8078.4 with no page or console errors.
 
 ## Wide VEIL with a spiral finale, Pulsar bursts, cleaner fuel tanks — 17 October 2026
 

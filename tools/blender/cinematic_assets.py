@@ -92,9 +92,18 @@ def facilities():
     for planet in ['khepri','vesper','nacre']:
         mats=[vc.make_material(planet+'_facility_plate','vc',rough=.48,metal=.45),vc.make_material(planet+'_facility_frame','vc',rough=.36,metal=.78),
               vc.make_material(planet+'_facility_glow','glow',colour='#56cfc8' if planet=='nacre' else '#ef9a52',emission=2)]
-        h=vc.HS(random.Random('facility-'+planet)); paint='nacre' if planet=='nacre' else 'ice' if planet=='vesper' else 'ochre'
+        for large in [False,True]:
+            h=facility_mesh(planet,large)
+            model=obj('facility_'+planet+('_large' if large else ''),h,mats,ao=.42); all.append(model)
+    export('public/assets/shared/facility-compounds.glb',all)
+
+def facility_mesh(planet,large):
+        h=vc.HS(random.Random('facility-'+planet+str(large))); paint='nacre' if planet=='nacre' else 'ice' if planet=='vesper' else 'ochre'
+        dx=.95 if large else 0; dy=1.5 if large else 0
         # Recessed gun court at origin. Rear plant, side turbines, service decks and connecting conduits.
         for side in [-1,1]:
+            # Author the two wings locally, then spread/extend the large variant's plant.
+            start=len(h.verts)
             h.box((side*2.25,1.4,-.3),(2.1,5.8,.65),.04,'black',1)
             h.box((side*2.25,1.5,.15),(1.8,4.6,.25),.035,'metal',1)
             h.box((side*2.35,2.7,.85),(1.7,2.2,1.4),.055,paint,0)
@@ -104,8 +113,31 @@ def facilities():
                 h.box((side*3.16,2.02+k*.29,.95),(.025,.16,.6),.004,'black',1)
             # Tall, load-bearing support struts descend below uneven ground / into the mire.
             for y in [-1,1,3.8]: h.box((side*2.5,y,-.85),(.45,.5,1.8),.025,'black',1)
-            h.cyl((side*2.25,-.2,.6),(0,0,1),.6,1.2,12,.04,paint,mat=0)
-            for z in [.25,.95]: h.cyl((side*2.25,-.2,z),(0,0,1),.63,.08,12,.01,'metal',mat=1)
+            h.cyl((side*2.25,-.2,.3),(0,0,1),.6,1.2,16,.025,paint,mat=0)
+            for z in [.4,1.32]: h.cyl((side*2.25,-.2,z),(0,0,1),.63,.08,16,.01,'metal',mat=1)
+            # Tank crown, dark service hatches, cap bolts and a rear pipe elbow.
+            h.cyl((side*2.25,-.2,1.5),(0,0,1),.41,.10,16,.012,'black',mat=1)
+            h.cyl((side*2.25,-.2,1.59),(0,0,1),.23,.07,12,.008,'metal',mat=1)
+            for k in range(6):
+                a=k*math.tau/6
+                h.cyl((side*2.25+.5*math.cos(a),-.2+.5*math.sin(a),1.43),(0,0,1),.045,.09,6,.004,'metal',mat=1)
+            h.cyl((side*2.25,.4,.9),(0,1,0),.12,.85,10,.01,'metal',mat=1)
+            h.cyl((side*2.25,1.2,.4),(0,0,1),.15,.6,10,.01,'metal',mat=1)
+            # Raised roof equipment breaks up the formerly flat slab: turbine, cowling and cooling fins.
+            h.box((side*2.35,3.15,1.82),(1.1,.9,.38),.035,paint,0)
+            h.cyl((side*2.35,3.15,2.01),(0,0,1),.39,.11,16,.01,'black',mat=1)
+            h.cyl((side*2.35,3.15,2.12),(0,0,1),.13,.09,10,.008,'metal',mat=1)
+            for k in range(6):
+                a=k*math.tau/6
+                nf.tube(h,[Vector((side*2.35+.13*math.cos(a),3.15+.13*math.sin(a),2.15)),Vector((side*2.35+.34*math.cos(a+.3),3.15+.34*math.sin(a+.3),2.12))],.035,'metal',1,seg=4)
+            for k in range(4):
+                h.box((side*2.35,1.86+k*.23,1.83),(1,.09,.3),.006,'metal',1)
+                h.box((side*3.21,1.9+k*.4,.8),(.17,.10,1.4),.012,paint,0)
+            # Stairs into the court, stair stringers, wall ribs and recessed doors.
+            for k in range(5): h.box((side*1.19,-.95+k*.19,.02+k*.06),(.42,.21,.12),.008,'metal',1)
+            h.box((side*1.48,2.55,.7),(.035,.7,.95),.005,'black',1)
+            h.box((side*1.44,2.55,1.21),(.045,.85,.06),.005,'metal',1)
+            for y in [1.65,3.75]: h.box((side*1.44,y,.85),(.16,.14,1.5),.012,'metal',1)
             h.box((side*1.4,1.4,.37),(.18,4.7,.17),.018,'metal',1)
             for k in range(3): h.box((side*1.38,-.65+k*1.4,.5),(.035,.23,.045),.003,'lamp',2)
             # Railings and braces; large facets, no field of tiny repeated boxes.
@@ -117,22 +149,54 @@ def facilities():
                     x=side*(2.0+k*.35); y=3.0-k*.3; height=2.65-k*.35
                     solid(h,[(x-.13,y-.38),(x+.13,y-.26),(x+.18,y+.3),(x-.13,y+.42)],.55,height-.55,'nacre',0)
                     h.box((x,y-.36,1.5),(.035,.025,1.5),.003,'lamp',2)
+            else:
+                # Exhaust stack collars and a protected communications mast.
+                for x in [side*2.0,side*2.65]:
+                    h.cyl((x,3.65,1.6),(0,0,1),.16,.93,10,.012,'black',mat=1)
+                    h.cyl((x,3.65,2.43),(0,0,1),.21,.12,10,.01,'metal',mat=1)
+            if large:
+                # Additional forward pump bay and longer supporting deck, not a uniformly scaled clone.
+                h.box((side*2.25,1.6,-.3),(2.3,8.4,.65),.04,'black',1)
+                h.box((side*2.25,-1.8,.44),(1.75,1.4,.65),.04,paint,0)
+                for k in range(5): h.box((side*2.25,-2.27+k*.23,.82),(1.35,.09,.13),.006,'metal',1)
+                h.cyl((side*2.25,-1.8,.87),(0,0,1),.23,.16,12,.01,'black',mat=1)
+                for y in [-2.4,5.4]:h.box((side*2.5,y,-.85),(.5,.55,1.8),.025,'black',1)
+                h.box((side*2.35,4.8,.9),(1.7,1.15,1.5),.04,paint,0)
+                for k in range(4): h.box((side*2.35,4.4+k*.26,1.75),(1.4,.1,.18),.008,'metal',1)
+                # Elevated catwalk joins the rear control plant and side machine halls.
+                h.box((side*.95,4.8,1.3),(2.5,.6,.16),.018,'metal',1)
+                for x in [side*.3,side*1.6]:h.box((x,5.08,1.65),(.06,.06,.65),.005,'metal',1)
+                h.box((side*.95,5.08,1.97),(2.4,.05,.05),.006,'metal',1)
+                for vi in range(start,len(h.verts)): h.verts[vi][0]+=side*dx
+        # Back plant and its raised command cupola sit beyond the unobstructed central gun court.
+        start=len(h.verts)
         h.box((0,3.4,.1),(2.8,1.5,.4),.035,'black',1)
         h.box((0,3.6,1.05),(2.4,1.2,1.6),.045,paint,0)
         h.box((0,2.98,1.1),(1.75,.04,.85),.008,'black',1)
         for i in range(6): h.box((-.73+i*.29,2.95,1.12),(.13,.025,.63),.003,'metal',1)
         h.box((0,2.94,1.62),(1.6,.025,.045),.003,'lamp',2)
+        h.box((0,3.6,2.0),(1.5,.95,.3),.03,'metal',1)
+        h.box((0,3.55,2.3),(1.0,.65,.4),.025,paint,0)
+        h.box((0,3.21,2.3),(.7,.025,.18),.003,'black',1)
+        for x in [-.46,.46]:h.box((x,3.22,2.3),(.06,.06,.34),.004,'metal',1)
+        if large:
+            for vi in range(start,len(h.verts)): h.verts[vi][1]+=dy
+            # Twin rear heat exchangers and a transverse pipe manifold give the larger site a distinct silhouette.
+            for side in [-1,1]:
+                h.cyl((side*1.35,5.1,.25),(0,0,1),.46,2.3,12,.02,paint,mat=0)
+                for z in [.4,1.5,2.48]:h.cyl((side*1.35,5.1,z),(0,0,1),.5,.1,12,.01,'metal',mat=1)
+                h.cyl((side*1.35,5.1,2.58),(0,0,1),.25,.25,12,.008,'black',mat=1)
+                h.cyl((side*.65,5.1,1.8),(side,0,0),.11,2.1,10,.008,'metal',mat=1)
         # Split apron leaves the live gun and its target marker clear.
         for side in [-1,1]: h.box((side*.95,-.25,-.03),(.4,2.7,.16),.015,'metal',1)
-        model=obj('facility_'+planet,h,mats,ao=.5); all.append(model)
-    export('public/assets/shared/facility-compounds.glb',all)
+        return h
 
 def carrier_hull():
     h=vc.HS(random.Random('veil-carrier-20261018'))
     P=old.P
     # Narrow, black central spine, opening around the heart socket; separate top spear / bow petal.
-    nf.tube(h,[P(0,-7.8,1.5),P(0,-5,1.25),P(0,-3.1,1.2)], [.0,.7,.5],'frame',nf.FRAME,seg=10,apex_start=True)
-    nf.tube(h,[P(0,-.5,1.3),P(0,2.4,1.1),P(0,5.2,1.2)],[.6,.55,0],'frame',nf.FRAME,seg=10,apex_end=True)
+    nf.tube(h,[P(0,-9.1,2.2),P(0,-5,2.0),P(0,-3.1,1.2)], [.0,.7,.5],'frame',nf.FRAME,seg=10,apex_start=True)
+    nf.tube(h,[P(0,-.5,1.3),P(0,2.4,1.8),P(0,6.2,1.2)],[.6,.55,0],'frame',nf.FRAME,seg=10,apex_end=True)
     outlines=[
       # outer crescent — sharp backswept upper tip and hooked forward tip, with a wide open inner void
       ([(2.0,-6.6,1.6),(6.2,-6.4,1.6),(11.8,-1.8,1.3),(8.7,5.6,1.3)],[(2.0,-6.6,1.6),(4.1,-1.5,1.5),(6.2,2.0,1.2),(8.7,5.6,1.3)],.88),
@@ -143,8 +207,15 @@ def carrier_hull():
     ]
     for side in [-1,1]:
       for j,(oa,ia,th) in enumerate(outlines):
-        O=nf.bez_pts([P(side*x,y,z) for x,y,z in oa],25)
-        I=nf.bez_pts([P(side*x,y,z) for x,y,z in ia],25)
+        # Longer, narrower crescents, raised into three distinct armour decks around the heart.
+        lift=[.55,.95,.5][j]
+        O=nf.bez_pts([P(side*x*.9,y*1.1,z+lift) for x,y,z in oa],25)
+        I=nf.bez_pts([P(side*x*.9,y*1.1,z+lift) for x,y,z in ia],25)
+        # Bow the middle blades outward, keeping the fixed flank cores visible beneath the taller wings.
+        if j==1:
+          for k in range(25):
+            offset=P(side*1.1*math.sin(math.pi*k/24),0,0)
+            O[k]+=offset; I[k]+=offset
         # Curved armour has a dozen actual cross-section samples. Shared vertices give broad metallic
         # highlights, with a sharp rim and a separate underside; no paper-flat triangular wing panels.
         for bottom in [False, True]:
@@ -157,6 +228,7 @@ def carrier_hull():
             grid.append(row)
           for k in range(len(grid)-1):
             for u in range(cols):
+              if not bottom and j<2 and u in [4,5,6] and any(n-2<=k<n+1 for n in [7,12,17]): continue
               h.face((grid[k][u],grid[k+1][u],grid[k+1][u+1],grid[k][u+1]),
                      'shell_dk' if bottom else 'shell:'+str(j+3),'smooth',nf.SHELL,outward=(0,0,-1 if bottom else 1))
         # Thin machined rim and black recessed panel channels, tied to actual surface curvature.
@@ -171,20 +243,59 @@ def carrier_hull():
         # Teal inlays only inside armour gaps, not every edge.
         pts=[nf.lerp(O[k],I[k],.88)+P(0,0,.04) for k in range(4,20)]
         nf.tube(h,pts,.027,'lamp',nf.TEAL,seg=5,tags='smooth')
+        if j<2:
+          def surface(k,f,raise_z=0):
+            return nf.lerp(O[k],I[k],f)+P(0,0,math.sin(math.pi*f)**.85*(th*math.sin(math.pi*k/24)**.65+.018)+raise_z)
+          # Open slots cut into the actual top shell. Dark floors, side walls and ribs sit below the armour.
+          for k in [7,12,17]:
+            outer=[surface(n,.40,-.25) for n in range(k-2,k+2)]
+            inner=[surface(n,.70,-.25) for n in range(k-2,k+2)]
+            nf.band(h,outer,inner,.015,(0,0,1),'frame_dk',nf.FRAME,ridge=.5,facets=False)
+            border=[surface(n,.4) for n in range(k-2,k+2)]+[surface(n,.7) for n in reversed(range(k-2,k+2))]
+            for a,b in zip(border,border[1:]+border[:1]):
+              h.face(tuple(h.v(v) for v in [a,b,b-P(0,0,.25),a-P(0,0,.25)]),'frame','main',nf.FRAME,outward=(0,0,1))
+            nf.tube(h,border+[border[0]],.025,'blade_dk',nf.BLADE,seg=4)
+            for n in range(k-2,k+1):
+              nf.tube(h,[surface(n,.43,-.09),surface(n,.67,-.09)],.04,'blade_dk',nf.BLADE,seg=4)
+            nf.tube(h,[surface(k-2,.69,-.16),surface(k+1,.69,-.16)],.016,'lamp',nf.TEAL,seg=4)
+          # Individual access plates with substantial edge rails, not a flat surface texture.
+          for k in [9,15]:
+            a=[surface(n,.12,.09) for n in range(k-2,k+2)]
+            b=[surface(n,.29,.09) for n in range(k-2,k+2)]
+            nf.band(h,a,b,.06,(0,0,1),'shell:4',nf.SHELL,ridge=.1,facets=True)
       # Open lattice spars behind the shell make the crescent cutouts read as constructed machinery.
       for dx in [0,.6]:
         nf.tube(h,[P(side*(1.1+dx),-5.8,.8),P(side*(2.6+dx),-2.8,.6),P(side*(4.1+dx),.2,.5),P(side*(6.7+dx),3.6,.7)],
                 [.12,.32,.36,.08],'frame',nf.FRAME,seg=8,tags='smooth')
+      # Exposed stacked machinery rises into the void under the wing: conduits, radiators and ribbed shrouds.
+      for k in range(4):
+        x=side*(4.5+k*.55); y=-1.2+k*1.1; z=1.6
+        nf.tube(h,[P(x,y-.65,z),P(x,y+.65,z)],[.25,.22],'frame_dk',nf.FRAME,seg=8)
+        for d in [-.45,0,.45]:
+          nf.arc_band(h,.28,.045,.06,0,math.tau,12,'blade_dk',nf.BLADE,
+              m=Matrix.Translation(P(x,y+d,z)) @ Matrix.Rotation(math.pi/2,4,'X'),full=True)
+        nf.tube(h,[P(x-side*.32,y-.45,z+.1),P(x-side*.32,y+.5,z+.1)],.045,'bronze_dk',nf.BRONZE,seg=5)
+        nf.tube(h,[P(x+side*.24,y-.35,z+.1),P(x+side*.24,y+.3,z+.1)],.024,'lamp',nf.TEAL,seg=4)
+      # Crown fins create true height in the shoulder silhouette; dark feet stay visible below the violet plates.
+      for k in range(3):
+        x=side*(2.35+k*.72); y=-4.7+k*.55
+        nf.tube(h,[P(x,y+.5,1.3),P(x,y,3.4-k*.15),P(x,y-1.1,3.9-k*.2)],[.22,.16,0],'frame',nf.FRAME,seg=6,apex_end=True)
+        a=[P(x-side*.13,y+.8,2),P(x-side*.13,y,3.5-k*.15),P(x,y-1.2,4.1-k*.2)]
+        b=[P(x+side*.17,y+.8,2),P(x+side*.2,y-.1,3.5-k*.15),P(x,y-1.2,4.1-k*.2)]
+        nf.band(h,a,b,.06,(0,0,1),'shell:4',nf.SHELL,ridge=.12,facets=True)
       for k in range(6):
         y=-3.3+k*1.1; x=side*(4.3+math.sin(k/5*math.pi)*1.3)
         nf.tube(h,[P(side*2,y,1.0),P(x,y+.55,1.05),P(side*7.0,y+.2,1.05)],.09,'frame',nf.FRAME,seg=5)
       # Recessed hangars with four parked egg-like pods on each side (reference carrier bays).
       for k in range(4):
         x=side*(4.1+k*.77); y=2.7+k*.12
-        h.box((x,y,1.02),(.68,1.5,.16),.035,'frame_dk',nf.FRAME)
-        nf.tube(h,[P(x,y-.7,1.15),P(x,y-.12,1.43),P(x,y+.62,1.2)],[0,.33,0],'shell_dk',nf.SHELL,seg=12,tags='smooth',apex_start=True,apex_end=True)
-        nf.tube(h,[P(x,y-.25,1.66),P(x,y+.12,1.6)],.026,'lamp',nf.TEAL,seg=5)
-        nf.tube(h,[P(x-.3,y+.7,.96),P(x+.3,y+.7,.96)],.035,'blade_dk',nf.BLADE,seg=5)
+        h.box((x,y,1.35),(.68,1.5,.16),.035,'frame_dk',nf.FRAME)
+        nf.tube(h,[P(x,y-.7,1.5),P(x,y-.12,1.8),P(x,y+.62,1.55)],[0,.33,0],'shell_dk',nf.SHELL,seg=12,tags='smooth',apex_start=True,apex_end=True)
+        nf.tube(h,[P(x,y-.25,2.03),P(x,y+.12,1.97)],.026,'lamp',nf.TEAL,seg=5)
+        # Three-dimensional hangar mouth, ribs and overhead clamps shelter each parked pod.
+        nf.tube(h,[P(x-.36,y+.7,1.1),P(x-.36,y+.7,2.15),P(x,y+.7,2.38),P(x+.36,y+.7,2.15),P(x+.36,y+.7,1.1)],.065,'frame',nf.FRAME,seg=5)
+        nf.tube(h,[P(x,y-.6,2.3),P(x,y+.65,2.3)],.075,'blade_dk',nf.BLADE,seg=5)
+        for side_rib in [-1,1]:nf.tube(h,[P(x+side_rib*.32,y-.6,1.35),P(x+side_rib*.32,y+.65,1.35)],.06,'frame',nf.FRAME,seg=5)
       nf.tube(h,[P(side*.7,-.1,1.2),P(side*3.1,.4,1.4)],[.24,.2],'frame',nf.FRAME,seg=8)
       # The two functional launch sockets retain a real open throat beneath the forward blades.
       nf.arc_band(h,.42,.09,.13,0,2*math.pi,20,'frame',nf.FRAME,m=Matrix.Translation(P(side*1.7,2.6,1.8)),full=True)
@@ -192,11 +303,11 @@ def carrier_hull():
       # Cooling rings under the broad shoulder.
       nf.arc_band(h,.65,.14,.14,0,2*math.pi,24,'frame',nf.FRAME,m=Matrix.Translation(P(side*4,-2.5,1.5)),full=True)
     # Layered central lance, split around the heart so its shutter animation remains legible.
-    for a,b,width in [(-8,-4.1,.8),(-.3,4.7,1.2)]:
-      O=nf.bez_pts([P(0,a,1.7),P(-width,a+.8,2),P(-width,b-.8,2),P(0,b,1.6)],20)
-      I=nf.bez_pts([P(0,a,1.7),P(width,a+.8,2),P(width,b-.8,2),P(0,b,1.6)],20)
+    for a,b,width in [(-9.1,-4.1,.9),(-.3,6.2,1.25)]:
+      O=nf.bez_pts([P(0,a,2.2),P(-width,a+.8,2.65),P(-width,b-.8,2.65),P(0,b,1.8)],20)
+      I=nf.bez_pts([P(0,a,2.2),P(width,a+.8,2.65),P(width,b-.8,2.65),P(0,b,1.8)],20)
       nf.band(h,O,I,lambda t:.27*math.sin(math.pi*t)+.01,(0,0,1),'shell:4',nf.SHELL,ridge=.5,facets=False)
-      nf.tube(h,[P(0,a+.7,2.1),P(0,b-.65,2.1)],.025,'lamp',nf.TEAL,seg=5)
+      nf.tube(h,[nf.lerp(O[k],I[k],.5)+P(0,0,.27*math.sin(math.pi*k/19)+.035) for k in range(3,17)],.025,'lamp',nf.TEAL,seg=5)
     return h
 
 def veil():

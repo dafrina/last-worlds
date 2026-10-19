@@ -1258,7 +1258,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
-          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: {loaded: facilities.loaded, count: facilities.count}, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
+          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: {loaded: facilities.loaded, count: facilities.count, large: facilities.largeCount}, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
         });
         lastStatsTick = state.tick;
       }

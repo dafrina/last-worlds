@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Mesh, Vector3, type Group } from 'three';
+import { Box3, Mesh, Raycaster, Vector3, type Group } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 
 const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
@@ -32,7 +32,7 @@ describe('Blender cinematic asset contracts',()=>{
     expect(model.getObjectByName('hero_scrapper_engine_1')).toBeDefined();
   });
   it('preserves the VEIL combat sockets, hinges and wreck variants in the new carrier',async()=>{
-    const model=await asset('nacre/the-veil.glb'); validate(model,18000);
+    const model=await asset('nacre/the-veil.glb'); validate(model,26000);
     for(const [name,x,y,z] of [
       ['veil_pod_left',-3.1,2,.4],['veil_pod_right',3.1,2,.4],['veil_heart',0,2,-1.8],
       ['veil_bay_left',-1.7,1.8,2.6],['veil_bay_right',1.7,1.8,2.6],
@@ -45,14 +45,28 @@ describe('Blender cinematic asset contracts',()=>{
     const b=new Box3().setFromObject(model.getObjectByName('veil_hull')!);
     expect(Math.max(Math.abs(b.min.x),Math.abs(b.max.x))).toBeLessThan(12.8);
     expect(Math.max(Math.abs(b.min.z),Math.abs(b.max.z))).toBeLessThan(9.5);
+    // Taller armour must not mask the fixed weak-point crowns from the game camera.
+    const eye=new Vector3(0,Math.sin(55*Math.PI/180),Math.cos(55*Math.PI/180));
+    for(const x of [-3.1,3.1]){
+      const target=new Vector3(x,2.4,.4);
+      const hits=new Raycaster(target.addScaledVector(eye,20),eye.clone().negate(),0,19.95).intersectObject(model.getObjectByName('veil_hull')!,true);
+      expect(hits,`flank crown ${x} remains visible`).toHaveLength(0);
+    }
   });
   it('keeps each facility gun courtyard empty and each roof below its declared height',async()=>{
-    const model=await asset('shared/facility-compounds.glb'); validate(model,8000);
-    for(const planet of ['khepri','vesper','nacre']){
-      const node=model.getObjectByName(`facility_${planet}`); expect(node).toBeDefined();
+    const model=await asset('shared/facility-compounds.glb'); validate(model,46000);
+    for(const planet of ['khepri','vesper','nacre']) for(const large of [false,true]){
+      const node=model.getObjectByName(`facility_${planet}${large?'_large':''}`); expect(node).toBeDefined();
       const box=new Box3().setFromObject(node!);
-      expect(box.max.y).toBeLessThanOrEqual(2.651);
-      expect(box.max.x-box.min.x).toBeLessThan(6.7);
+      expect(box.max.y).toBeLessThanOrEqual(large?2.831:2.651);
+      expect(box.max.x-box.min.x).toBeLessThan(large?8.8:6.7);
+      expect(-box.max.z).toBeGreaterThan(large?-2.8:-1.8);
+      expect(-box.min.z).toBeLessThan(large?6.1:4.6);
+      if(large){
+        const small=new Box3().setFromObject(model.getObjectByName(`facility_${planet}`)!);
+        const ratio=(box.max.x-box.min.x)*(box.max.z-box.min.z)/((small.max.x-small.min.x)*(small.max.z-small.min.z));
+        expect(ratio).toBeGreaterThan(1.8); expect(ratio).toBeLessThan(2.2);
+      }
       node!.traverse(o=>{
         if(!(o instanceof Mesh))return;
         const p=o.geometry.getAttribute('position'),v=new Vector3();

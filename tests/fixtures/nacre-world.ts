@@ -14,6 +14,11 @@ if (q.has('facility')) {
   spawnMembers(state, 'battery-3', state.cameraX, 1, 8);
   state.enemies = state.enemies.slice(1, 2);
   state.enemies[0].x = state.cameraX; state.enemies[0].s = 8;
+  // Pick a stable cosmetic id for each authored size; the production selector still decides whether it fits.
+  if (['small', 'large'].includes(q.get('facility') ?? '')) {
+    const large = q.get('facility') === 'large';
+    for (let id = 100; id < 200; id++) if ((((Math.imul(id, 0x45d9f3b) ^ state.config.seed) >>> 0) % 3 === 0) === large) { state.enemies[0].id = id; break; }
+  }
 }
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start() {}, pause() {}, resume() {}, quit() {}, setMuted() {}, setQuality(quality) { renderer.setQuality(quality); },

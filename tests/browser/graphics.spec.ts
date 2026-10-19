@@ -10,14 +10,15 @@ function errorsOf(page:Page) {
 
 test('authored facilities load around the existing battery on every world and Low keeps targets',async({page},info)=>{
   test.setTimeout(150000); const errors=errorsOf(page);
-  for(const planet of ['nacre','khepri','vesper']) for(const quality of ['high','low']) {
-    await page.goto(`/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper'?100:210}&x=-3&facility=1&inspect=1&quality=${quality}`);
+  for(const planet of ['nacre','khepri','vesper']) for(const quality of ['high','low']) for(const size of ['small','large']) {
+    await page.goto(`/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper'?695:210}&x=-3&facility=${size}&inspect=1&quality=${quality}`);
     await expect.poll(async()=>{const s=await stats(page); return s.facilities?.loaded && s.heroModel==='glb' && s.terrain?.kit==='glb';},{timeout:30000}).toBe(true);
     const s=await stats(page);
     expect(s.facilities.count).toBe(1); expect(s.enemies).toBe(1); expect(s.planet).toBe(planet);
+    expect(s.facilities.large).toBe(size==='large'?1:0);
     expect(s.stream.viewFallbacks).toBe(0);
     if(quality==='low') { expect(s.passes.shadow).toBe(0); expect(s.passes.post).toBe(0); }
-    if(quality==='high')await page.screenshot({path:info.outputPath(`${planet}-compound.png`)});
+    if(quality==='high')await page.screenshot({path:info.outputPath(`${planet}-compound-${size}.png`)});
   }
   expect(errors).toEqual([]);
 });
