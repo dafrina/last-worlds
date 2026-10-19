@@ -94,12 +94,16 @@ export function createWater(): Water {
   float foam = ( 1.0 - smoothstep( 0.04, 0.2 + 0.16 * lap, vShore ) ) * smoothstep( 0.22, 0.62, breakup + 0.25 * ( 1.0 - smoothstep( 0.0, 0.08, vShore ) ) );
   foam = clamp( foam, 0.0, 1.0 );
   diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * mix( 0.92, 0.2, bloomAmount ) );`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.85, foam );')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor + seaNoise( vSea * 9.0 ) * .1, 0.85, foam );')
       // Nacre: the shoreline band glows (bioluminescent film) instead of reading as white foam.
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   // Swell normals (world space → view space); calmer and flatter right at the shore.
   vec2 waveSlope = swellGradient( vSea, waterTime ) * swell * mix( 0.45, 1.0, calm ) * ( 1.0 - foam * 0.7 );
+  // Short wind ripples catch the sky in narrow broken highlights, rather than broad blurry colour bands.
+  vec2 windUv = vSea * vec2( 2.8, 8.0 ) + vec2( waterTime * .17, waterTime * -.11 );
+  float chop = seaNoise( windUv + seaNoise( vSea * 1.3 ) * 3.0 );
+  waveSlope += vec2( seaNoise( windUv + 1.7 ) - .5, chop - .5 ) * .28 * ( 1.0 - foam );
   vec3 waveNormal = normalize( vec3( -waveSlope.x, 1.0, waveSlope.y ) );
   normal = normalize( ( viewMatrix * vec4( waveNormal, 0.0 ) ).xyz );`);
   };
@@ -110,10 +114,10 @@ export function createWater(): Water {
     setEnvironment(texture) { if (material.envMap !== texture) { material.envMap = texture; material.needsUpdate = true; } },
     setPlanet(planet) {
       const nacre = planet === 'nacre';
-      uniforms.deepColor.value.copy(linear(nacre ? 0x141d5a : 0x0d3557)); uniforms.shallowColor.value.copy(linear(nacre ? 0x131b52 : 0x1f6a8f));
-      uniforms.bloomTint.value.copy(linear(0x4e2c9c)); uniforms.bloomAmount.value = nacre ? 0.8 : 0;
+      uniforms.deepColor.value.copy(linear(nacre ? 0x292e4c : 0x17344e)); uniforms.shallowColor.value.copy(linear(nacre ? 0x35455c : 0x37667c));
+      uniforms.bloomTint.value.copy(linear(0x716485)); uniforms.bloomAmount.value = nacre ? 0.34 : 0;
       uniforms.foamColor.value.copy(linear(nacre ? 0x1a3c5a : 0xeef6fb)); uniforms.swell.value = nacre ? 0.6 : 1; uniforms.foamGlow.value = nacre ? 0.03 : 0;
-      material.roughness = nacre ? 0.16 : 0.12; material.envMapIntensity = nacre ? 0.45 : 0.32;
+      material.roughness = nacre ? 0.23 : 0.18; material.envMapIntensity = nacre ? 0.7 : 0.5;
     },
     dispose() { material.dispose(); },
   };

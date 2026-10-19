@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { EnemyKind } from '../shared/contracts';
+import { applySurfaceFinish } from './surface-finish';
 /** Code-built outpost stand-ins, used when the modelled infrastructure kit is missing. */
 export type PropKind = 'relay' | 'cargo' | 'landingPad' | 'track' | 'refinery';
 
@@ -49,7 +50,7 @@ function createCraftMaterial(panel: THREE.Texture | null): THREE.MeshStandardMat
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: panel, roughness: 1, metalness: 1, envMapIntensity: 0.9 });
   material.userData.paintSwap = { value: 0 };
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, { rimColor: { value: new THREE.Color(1, 0.78, 0.55) }, rimStrength: { value: 0.32 }, paintSwap: material.userData.paintSwap });
+    Object.assign(shader.uniforms, { rimColor: { value: new THREE.Color(.7, .8, 1) }, rimStrength: { value: 0.09 }, paintSwap: material.userData.paintSwap });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 pbr;\nvarying vec3 vPbr;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPbr = pbr;');
@@ -74,7 +75,7 @@ function createCraftMaterial(panel: THREE.Texture | null): THREE.MeshStandardMat
   #include <opaque_fragment>`);
   };
   material.customProgramCacheKey = () => 'authored-craft';
-  return material;
+  return applySurfaceFinish(material, 'metal', 1.2, .007);
 }
 
 /** Palette entry for craft: sRGB colour, roughness, metalness, glow (HDR emissive multiplier; 0 = lit surface). */
@@ -408,7 +409,7 @@ export async function loadVesperCraft(url: string): Promise<Map<VesperCraftNode,
       for (let i = 0; i < count; i++) {
         const r = vertex && !glow ? vertex.getX(i) : 1, g = vertex && !glow ? vertex.getY(i) : 1, b = vertex && !glow ? vertex.getZ(i) : 1;
         color.set([r * tint.r, g * tint.g, b * tint.b], i * 3);
-        pbr.set(glow ? [1, 0, 2.8] : [pale ? 0.34 : 0.26, 0.04, 0], i * 3);
+        pbr.set(glow ? [1, 0, 2.8] : [pale ? 0.38 : 0.29, pale ? .28 : .72, 0], i * 3);
       }
       const part = new THREE.BufferGeometry();
       part.setAttribute('position', source.getAttribute('position').clone());

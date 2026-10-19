@@ -169,6 +169,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   let distance = 0, origin = 0, lastCameraX = NaN, lastDistance = NaN, lastViewX = 0, dirty = true;
   /** Applied exclusion (grown by the slack), or null: hidden scenery under e.g. a boss fortress. */
   let exclusion: TerrainExclusion | null = null, requested: TerrainExclusion | null = null;
+  let facilityClearings: readonly TerrainExclusion[] = [];
 
   const nodeGeometry = (name: string) => kit.get(name) ?? infra.get(name) ?? shared.get(name);
   const nodeMaterial = (name: string) => name.startsWith('infra_') ? infraMaterial : SHARED.has(name) ? sharedMaterial : kitMaterial;
@@ -256,14 +257,23 @@ export function createTerrainView(options: TerrainViewOptions) {
   const casterMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
   /** World-space rectangle (minX, maxX, minZ, maxZ) whose caster pieces collapse, e.g. under the boss fortress. */
   const casterExclusion = { value: new THREE.Vector4(1, -1, 1, -1) };
+  const casterClearings = { value: Array.from({length:12}, () => new THREE.Vector4(1,-1,1,-1)) };
+  const casterClearingCount = { value: 0 };
   const casterDepth = new THREE.MeshDepthMaterial();
   casterDepth.onBeforeCompile = shader => {
     shader.uniforms.casterExclusion = casterExclusion;
+    shader.uniforms.casterClearings = casterClearings;
+    shader.uniforms.casterClearingCount = casterClearingCount;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 anchor;\nuniform vec4 casterExclusion;')
+      .replace('#include <common>', '#include <common>\nattribute vec2 anchor;\nuniform vec4 casterExclusion; uniform vec4 casterClearings[12]; uniform int casterClearingCount;')
       .replace('#include <project_vertex>', `#include <project_vertex>
   vec2 anchorWorld = ( modelMatrix * vec4( anchor.x, 0.0, anchor.y, 1.0 ) ).xz;
-  if ( anchorWorld.x > casterExclusion.x && anchorWorld.x < casterExclusion.y && anchorWorld.y > casterExclusion.z && anchorWorld.y < casterExclusion.w ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );`);
+  if ( anchorWorld.x > casterExclusion.x && anchorWorld.x < casterExclusion.y && anchorWorld.y > casterExclusion.z && anchorWorld.y < casterExclusion.w ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );
+  for ( int i = 0; i < 12; i++ ) {
+    if ( i >= casterClearingCount ) break;
+    vec4 c = casterClearings[i];
+    if ( anchorWorld.x > c.x && anchorWorld.x < c.y && anchorWorld.y > c.z && anchorWorld.y < c.w ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );
+  }`);
   };
   casterDepth.customProgramCacheKey = () => 'khepri-caster-depth';
   /** Position-only, vertex-welded copies of caster nodes (flat-shaded kit triangles share corners). */
@@ -594,6 +604,9 @@ export function createTerrainView(options: TerrainViewOptions) {
           // Cheap lateral reject first: the view is 12 wide in a 36-wide world, so most pieces fail here.
           if (data.boxes[b + 3] < viewLeft || data.boxes[b] > viewRight) continue;
           if (hide && data.boxes[b + 3] > hide.minX && data.boxes[b] < hide.maxX && data.boxes[b + 5] > hide.minZ && data.boxes[b + 2] < hide.maxZ) continue;
+          // Same box-centre anchor as the shadow proxy, so a removed rock cannot leave a ghost shadow.
+          const ax = (data.boxes[b] + data.boxes[b + 3]) / 2, as = view.startS - (data.boxes[b + 2] + data.boxes[b + 5]) / 2;
+          if (facilityClearings.some(c => ax > c.minX && ax < c.maxX && as > c.minS && as < c.maxS)) continue;
           worldBox.min.set(data.boxes[b] - CULL_MARGIN, data.boxes[b + 1], data.boxes[b + 2] + zShift - CULL_MARGIN);
           worldBox.max.set(data.boxes[b + 3] + CULL_MARGIN, data.boxes[b + 4], data.boxes[b + 5] + zShift + CULL_MARGIN);
           if (!frustum.intersectsBox(worldBox)) continue;
@@ -693,6 +706,11 @@ export function createTerrainView(options: TerrainViewOptions) {
       exclusion = { minX: rect.minX - EXCLUSION_SLACK, maxX: rect.maxX + EXCLUSION_SLACK, minS: rect.minS - EXCLUSION_SLACK, maxS: rect.maxS + EXCLUSION_SLACK };
       dirty = true;
     },
+    /** Stable, bounded render-only clearings for battery compounds. Never changes terrain or targeting. */
+    setFacilityClearings(rects: readonly TerrainExclusion[]) {
+      if (rects.length === facilityClearings.length && rects.every((r,i) => r.minX === facilityClearings[i].minX && r.minS === facilityClearings[i].minS)) return;
+      facilityClearings = rects.slice(0,12); dirty = true;
+    },
     /** Culls ground strips by exact boxes and recompacts piece instances when the view moved past the margin. */
     cull(camera: THREE.Camera) {
       viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -704,6 +722,8 @@ export function createTerrainView(options: TerrainViewOptions) {
       // Caster exclusion in world xz (z = distance − s); an inverted rectangle disables it.
       if (exclusion) casterExclusion.value.set(exclusion.minX, exclusion.maxX, distance - exclusion.maxS, distance - exclusion.minS);
       else casterExclusion.value.set(1, -1, 1, -1);
+      casterClearingCount.value = facilityClearings.length;
+      facilityClearings.forEach((c,i) => casterClearings.value[i].set(c.minX,c.maxX,distance-c.maxS,distance-c.minS));
       let calls = 0, triangles = 0;
       for (const view of views.values()) for (const cullable of view.cullables) {
         worldBox.copy(cullable.box).translate(offset.set(0, 0, view.group.position.z));

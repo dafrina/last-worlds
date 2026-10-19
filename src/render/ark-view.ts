@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HELION_ARK } from '../content/ark';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import type { FoamRing, Wake } from './water';
+import { applySurfaceFinish } from './surface-finish';
 
 /**
  * Helion Ark presentation (docs/17 §5), render-only: it reads the boss state and never applies damage or decides
@@ -99,8 +100,8 @@ function fallbackRig(): Rig {
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
   model.updateMatrixWorld(true);
-  const armor = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .32, metalness: .05, envMapIntensity: .8 });
-  const trim = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .38, metalness: .03, envMapIntensity: .8 });
+  const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .33, metalness: .68, envMapIntensity: 1.0 }), 'metal', .8, .02);
+  const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .41, metalness: .28, envMapIntensity: 1.0 }), 'metal', .8, .012);
   const lamps = glowMaterial(0xff7a26, 1.5), embers = glowMaterial(0xff5a1a, .9);
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(0xff7a26, 1.2)]));
   const owned: THREE.Material[] = [armor, trim, lamps, embers, ...heats.values()];

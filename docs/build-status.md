@@ -1,5 +1,16 @@
 # Build status
 
+## Reference-led graphics refinement — 19 October 2026
+
+- **Models, through live Blender MCP:** new crescent-carrier THE VEIL (17,466 triangles including wreck states), detailed utility Scrapper (2,744), three large battery compounds (7,668 combined), and refined Nacre crags / Vesper pressure slabs / tighter Khepri basalt edges. Combat sockets, launch schedule, collision sizes and the hero's existing 1.1 scale remain unchanged.
+- **Materials and environments:** planet reflections now reach all bosses; roughness variation and microfinish on ships, bosses, terrain pieces and infrastructure; restrained bloom and flora emission; broken water chop, subtler snow and ice fracture detail; sharper engineered Khepri roads. Facilities keep an open gun courtyard and clear nearby scenery and matching shadow proxies.
+- **Effects:** shaped engine cores, shock diamonds, brief explosion rings with fewer fire layers, shorter smoke, and a brief VEIL heart-opening pressure release. Existing bounded particle pools and quality tiers retained.
+- **Validation:** all 330 existing unit tests passed, plus 3 new Blender asset contract tests; all 21 existing browser tests passed, plus 2 new graphics tests covering all three facility variants on High/Low and VEIL core/overload/wreck states. Typecheck, production build and `git diff --check` passed. Nine deterministic look-dev captures completed with no page or shader-console errors; reviewed the facility and boss-phase test screenshots and regenerated Blender previews as well.
+- **Evidence:** `docs/screenshots/art-refinement/`, `art/the-veil/preview-veil*.png`; details and reproducible commands in [docs/22](22-cinematic-art-refinement.md). Automated browser: Playwright 1.64 Chromium with SwiftShader, DPR 1, 390×844 and 430×932; existing viewport suite also checks small phones and desktop.
+- **Cost:** reviewed frozen High views used 37–72 draws, including shadows/post; dense Nacre submitted 180,917 triangles including shadow passes. Low removes shadow/post passes. Current JS bundle is 1,072.83 kB / 307.20 kB gzip; the existing chunk-size warning remains.
+- **Limits:** no actual iPhone/Android performance, sustained thermal or Safari validation. The result remains a real-time stylized interpretation of the supplied reference, not an offline-quality reproduction. No gameplay, progression, targeting, input or save changes.
+- **Release:** this validated increment is prepared for the existing `main` → GitHub Pages workflow at https://dafrina.github.io/last-worlds/; verify the workflow and live asset hashes for the release commit.
+
 ## Wide VEIL with a spiral finale, Pulsar bursts, cleaner fuel tanks — 17 October 2026
 
 - **THE VEIL:** now wider than long (blades span about 25 units, hull about 18 long). Its final phase adds a spiral barrage from the heart.

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applySurfaceFinish } from './surface-finish';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BASTION } from '../content/bastion';
@@ -138,8 +139,8 @@ function fallbackRig(): Rig {
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
   model.updateMatrixWorld(true);
-  const armor = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .62, metalness: .45 });
-  const trim = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .72, metalness: .3 });
+  const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .48, metalness: .65 }), 'metal', .7, .022);
+  const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .78 }), 'metal', .8, .012);
   const lamps = glowMaterial(0xffa04a, 1.6);
   const treadMaps: THREE.Texture[] = [], owned: THREE.Material[] = [armor, trim, lamps];
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(part === 'core' ? 0xff7a30 : 0xff9a50, 1.2)]));

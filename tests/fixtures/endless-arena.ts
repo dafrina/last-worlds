@@ -21,6 +21,11 @@ state.player.invulnerableUntil = Infinity;
 startBoss(state, BOSSES[plan.boss]);
 const step = (seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) stepRun(state, EMPTY_INPUT); };
 step(BOSSES[plan.boss].arrivalDuration + 1 / 60);
+if (['core','overload'].includes(query.get('phase') ?? '')) {
+  bossTarget(state,'left')!.hp = bossTarget(state,'right')!.hp = 0;
+  resolveBossPhase(state);
+  if (query.get('phase') === 'overload') { bossTarget(state,'core')!.hp *= .39; resolveBossPhase(state); }
+}
 if (query.get('phase') === 'departure') {
   for (const part of ['left','right','core'] as const) bossTarget(state,part)!.hp = 0;
   resolveBossPhase(state); step(Number(query.get('t') ?? 0));
@@ -34,6 +39,9 @@ const observer = new ResizeObserver(() => { const rect=ui.canvas.getBoundingClie
 observer.observe(ui.canvas);
 let frames=0;
 function frame() {
+  if (query.has('inspect')) state.tick += 60;
+  // Pose inspection advances only presentation time, keeping the chosen battle phase in place.
+  if (query.has('pose')) state.time += 1 / 60;
   renderer.render(state,0); ui.update(state);
   ui.canvas.dataset.encounterState=JSON.stringify({ sector:state.sector,planet:state.planet,boss:state.boss?.id,phase:state.boss?.phase,
     distance:state.distance,switchDistance:plan.jump!.switchDistance,jump:!!state.jump,frames:++frames });

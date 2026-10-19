@@ -51,6 +51,7 @@ npm run test:browser
 | [Vesper — Glass Frontier](docs/17-vesper-glass-frontier.md) | The ice planet, its Blender kits, the Cold Vector mission and the Helion Ark boss |
 | [Endless planet cycle](docs/18-endless-planet-cycle.md) | Endless cycles planets with bosses and hyperdrive jumps |
 | [Package validation](docs/package-validation.md) | Completed documentation checks and untested implementation gates |
+| [October graphics refinement](docs/22-cinematic-art-refinement.md) | Blender assets, carrier rig, material finish, facility placement and visual QA |
 
 ## The recommended design
 

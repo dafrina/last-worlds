@@ -1,0 +1,41 @@
+{
+  "results": [
+    {
+      "name": "nacre",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":39,\"triangles\":116989,\"instances\":240,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"nacre\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.1,\"max\":244.5,\"over4\":2,\"frames\":69,\"renderMax\":1058.7,\"updateMax\":241.2,\"animateMax\":0.3,\"prefetchMax\":4.8},\"calls\":58,\"passes\":{\"shadow\":9,\"main\":43,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":180917,\"geometries\":90,\"textures\":25,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0},\"enemies\":0}"
+    },
+    {
+      "name": "khepri",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":36,\"triangles\":37497,\"instances\":72,\"haulers\":2,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"khepri\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.2,\"max\":243.2,\"over4\":2,\"frames\":101,\"renderMax\":524.1,\"updateMax\":239.3,\"animateMax\":0.8,\"prefetchMax\":5.7},\"calls\":55,\"passes\":{\"shadow\":9,\"main\":40,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":66110,\"geometries\":81,\"textures\":25,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0},\"enemies\":0}"
+    },
+    {
+      "name": "vesper",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":25,\"triangles\":51869,\"instances\":125,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"vesper\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.1,\"max\":409.5,\"over4\":11,\"frames\":69,\"renderMax\":580.8,\"updateMax\":405.4,\"animateMax\":0.6,\"prefetchMax\":13.7},\"calls\":37,\"passes\":{\"shadow\":2,\"main\":29,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":57879,\"geometries\":66,\"textures\":25,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0},\"enemies\":0}"
+    },
+    {
+      "name": "veil",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":6,\"triangles\":26607,\"instances\":0,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"nacre\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.3,\"max\":211.1,\"over4\":2,\"frames\":65,\"renderMax\":395.3,\"updateMax\":208.1,\"animateMax\":0.1,\"prefetchMax\":4.3},\"calls\":72,\"passes\":{\"shadow\":22,\"main\":44,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":63724,\"geometries\":84,\"textures\":23,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0},\"enemies\":0}"
+    },
+    {
+      "name": "nacre-low",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":39,\"triangles\":110968,\"instances\":179,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"nacre\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.2,\"max\":203.6,\"over4\":3,\"frames\":64,\"renderMax\":430.3,\"updateMax\":200.6,\"animateMax\":0.1,\"prefetchMax\":11.5},\"calls\":43,\"passes\":{\"shadow\":0,\"main\":43,\"post\":0},\"tier\":\"low\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":113718,\"geometries\":81,\"textures\":16,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0},\"enemies\":0}"
+    },
+    {
+      "name": "vesper-low",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":23,\"triangles\":51672,\"instances\":123,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"vesper\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.2,\"max\":268.6,\"over4\":2,\"frames\":73,\"renderMax\":379,\"updateMax\":265.1,\"animateMax\":0.7,\"prefetchMax\":3.8},\"calls\":27,\"passes\":{\"shadow\":0,\"main\":27,\"post\":0},\"tier\":\"low\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":54422,\"geometries\":62,\"textures\":17,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0},\"enemies\":0}"
+    },
+    {
+      "name": "nacre-facility",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":38,\"triangles\":112690,\"instances\":224,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"nacre\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.2,\"max\":292.9,\"over4\":3,\"frames\":66,\"renderMax\":505.8,\"updateMax\":289.8,\"animateMax\":0.1,\"prefetchMax\":4.4},\"calls\":63,\"passes\":{\"shadow\":11,\"main\":46,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":189284,\"geometries\":89,\"textures\":25,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":1},\"enemies\":1}"
+    },
+    {
+      "name": "khepri-facility",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":36,\"triangles\":36377,\"instances\":70,\"haulers\":2,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"khepri\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.3,\"max\":249.9,\"over4\":2,\"frames\":89,\"renderMax\":591.5,\"updateMax\":246.5,\"animateMax\":1,\"prefetchMax\":4.7},\"calls\":61,\"passes\":{\"shadow\":11,\"main\":44,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":71854,\"geometries\":81,\"textures\":25,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":1},\"enemies\":1}"
+    },
+    {
+      "name": "vesper-facility",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":22,\"triangles\":38689,\"instances\":67,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"particles\":0},\"planet\":\"vesper\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.1,\"max\":337.3,\"over4\":3,\"frames\":82,\"renderMax\":597.4,\"updateMax\":331.8,\"animateMax\":0.4,\"prefetchMax\":5.3},\"calls\":39,\"passes\":{\"shadow\":4,\"main\":29,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":51805,\"geometries\":63,\"textures\":24,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":1},\"enemies\":1}"
+    }
+  ],
+  "errors": []
+}

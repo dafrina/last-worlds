@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VEIL } from '../content/veil';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
+import { applySurfaceFinish } from './surface-finish';
 
 /**
  * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
@@ -47,10 +48,10 @@ export async function loadVeilModel(url: string): Promise<THREE.Group> {
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
   model.updateMatrixWorld(true);
-  const shell = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .26, metalness: .45, iridescence: 1, iridescenceIOR: 1.45, iridescenceThicknessRange: [180, 620], clearcoat: .6, clearcoatRoughness: .2, envMapIntensity: 1.3 });
-  const blade = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .24, metalness: .7, envMapIntensity: 1.25 });
-  const frame = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .45, metalness: .3 });
-  const bronze = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .32, metalness: .8, envMapIntensity: 1.1 });
+  const shell = applySurfaceFinish(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .38, metalness: .58, iridescence: .35, iridescenceIOR: 1.38, iridescenceThicknessRange: [220, 440], clearcoat: .18, clearcoatRoughness: .3, envMapIntensity: .85 }), 'metal', .6, .008);
+  const blade = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .28, metalness: .82, envMapIntensity: 1.15 }), 'metal', .6, .018);
+  const frame = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .48, metalness: .72 }), 'metal', 1.2, .018);
+  const bronze = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .8, envMapIntensity: 1.1 }));
   const sinew = glowMaterial(0x3ff2d8, 1.4), amber = glowMaterial(0xffa040, 1.6), engine = glowMaterial(0x6af6ff, 2.6);
   const owned: { dispose(): void }[] = [shell, blade, frame, bronze, sinew, amber, engine];
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(0x3ff2d8, 1.2)]));
@@ -305,6 +306,11 @@ export function createVeilView(scene: THREE.Scene) {
         if (part.wreck) part.wreck.visible = !living;
         // The heart's petals fold open once it can be damaged.
         const wantOpen = enemy.damageable !== false || !living ? 1 : 0;
+        if (enemy.bossPart === 'core' && wantOpen && part.open === 0 && dt > 0) {
+          // A short pressure release marks the mechanical transformation; reuses the bounded boss pools.
+          for (const side of [-1, 1]) steam(local(side * .9, 2.05, part.group.position.z), enemy.id + side * 11, .55);
+          flash(local(0, 2.15, part.group.position.z), 1.1, enemy.id, 0xb9fff0);
+        }
         part.open += THREE.MathUtils.clamp(wantOpen - part.open, -dt * 1.4, dt * 1.4);
         const eased = THREE.MathUtils.smoothstep(part.open, 0, 1);
         part.petals.forEach(petal => { petal.object.quaternion.slerpQuaternions(petal.closed, petal.open, eased); });

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createFacilityView } from './facility-view';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { arenaStopDistance } from '../sim/bastion';
@@ -184,15 +185,15 @@ interface PlanetLook {
 }
 const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
   khepri: {
-    background: 0x6a3a22, sunElevation: 38, sun: [0xffeedb, 4.0], hemisphere: [0xd9c6b2, 0x6a3420, 1.05], bounce: [0xd08050, 1.0],
+    background: 0x6a3a22, sunElevation: 38, sun: [0xffeedb, 3.6], hemisphere: [0xc6c9cc, 0x493627, .85], bounce: [0xc59d7b, .55],
     shadowIntensity: .82, blobShadow: 0x2a1a12, lowExposure: 1.0,
-    post: { exposure: 1.0, threshold: 1.0, knee: .35, strength: .7, lift: [.007, .0038, .0018], saturation: 1.0, contrast: 1.07, vignette: .24, haze: [0, 0, 0, 0] },
+    post: { exposure: 1.05, threshold: 1.25, knee: .25, strength: .38, lift: [.004, .003, .002], saturation: .9, contrast: 1.08, vignette: .18, haze: [.45, .36, .28, .025] },
     environment: 'desert',
   },
   vesper: {
-    background: 0x0d3557, sunElevation: 58, sun: [0xf2f6ff, 2.6], hemisphere: [0xa8c6ec, 0x4f6f8f, 1.35], bounce: [0x9fbcdc, .45],
+    background: 0x0d3557, sunElevation: 52, sun: [0xf2f6ff, 3.1], hemisphere: [0xb7c5d6, 0x405775, .85], bounce: [0x9fbcdc, .35],
     shadowIntensity: .72, blobShadow: 0x10243c, lowExposure: 1.0,
-    post: { exposure: 1.0, threshold: 1.2, knee: .3, strength: .75, lift: [.0025, .0045, .0085], saturation: 1.02, contrast: 1.05, vignette: .2,
+    post: { exposure: 1.0, threshold: 1.4, knee: .25, strength: .38, lift: [.0025, .0045, .0085], saturation: .9, contrast: 1.08, vignette: .16,
       haze: [.82, .9, .98, .025] },
     environment: 'ice',
   },
@@ -209,10 +210,10 @@ const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
   // cold-blue bounce that lights the camera-facing sides of the black rock (the concept's blue-lit crags), a bloom
   // threshold that lets the bioluminescence glow without washing out, and a faint violet mist.
   nacre: {
-    background: 0x1a1040, sunElevation: 34, sun: [0xdcd6ff, 4.1], hemisphere: [0x8c84dc, 0x24245e, 1.2], bounce: [0x6a98f0, 1.5],
+    background: 0x1b2035, sunElevation: 38, sun: [0xe8e2f5, 3.6], hemisphere: [0x9fa8bb, 0x1e2036, .9], bounce: [0x8094bd, .65],
     shadowIntensity: .7, blobShadow: 0x120a28, lowExposure: 1.08,
-    post: { exposure: 1.06, threshold: .9, knee: .35, strength: .75, lift: [.004, .003, .009], saturation: 1.04, contrast: 1.08, vignette: .26,
-      haze: [.36, .3, .62, .025] },
+    post: { exposure: 1.1, threshold: 1.2, knee: .25, strength: .4, lift: [.003, .004, .008], saturation: .92, contrast: 1.1, vignette: .18,
+      haze: [.32, .34, .47, .055] },
     environment: 'mire',
   },
 };
@@ -372,6 +373,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const sharedMaterial = createSharedMaterial();
   // Prefiltered desert sky: craft metals and outpost machinery reflect warm light instead of reading flat black.
   const environment = createDesertEnvironment(renderer, SUN);
+  scene.environment = environment.texture;
   materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
   let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null;
@@ -405,6 +407,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (look.environment === 'mire') mireEnvironment ??= createMireEnvironment(renderer, sunDirection(LOOKS.nacre.sunElevation));
     const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : look.environment === 'luna' && lunaEnvironment ? lunaEnvironment.texture
       : look.environment === 'mire' && mireEnvironment ? mireEnvironment.texture : environment.texture;
+    scene.environment = sky;
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
     materials.prop.envMap = sky; materials.prop.needsUpdate = true;
     // On Luna the Khepri-built enemies wear steel-blue paint, so they read apart from the hero against grey regolith.
@@ -451,6 +454,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   });
   // Every craft is one mesh with the shared craft material; enemies of a kind are one instanced draw.
   const hero = createHero(materials); hero.scale.setScalar(HERO_SCALE); scene.add(hero);
+  let heroModel = 'fallback';
+  loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/hero-scrapper.glb`, ['hero_scrapper'] as const).then(nodes => {
+    const model = nodes.get('hero_scrapper');
+    if (!model) return;
+    if (disposed) { model.geometry.dispose(); return; }
+    hero.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
+    hero.clear();
+    const mesh = new THREE.Mesh(model.geometry, materials.craft); mesh.castShadow = mesh.receiveShadow = true;
+    hero.add(mesh); heroModel = 'glb'; warmed = false;
+  }).catch(error => console.warn('Scrapper model unavailable; retaining the starter stand-in.', error));
+  const facilities = createFacilityView(scene, materials.prop, () => { warmed = false; });
   const ENEMY_CAPACITY = 32;
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
   // Ground targets on every terrain level (docs/13 §2), render-only: where terrain in front hides a turret,
@@ -1046,9 +1060,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       // Ground wrecks: a new run (or a rewind) clears them; a ground target killed on screen leaves one.
       if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
-      // New batteries on Khepri or Vesper ground get their emplacement (a quarter stand alone).
+      facilities.update(state, planet, groundNow);
+      terrain.setFacilityClearings(facilities.clearings);
+      // The compact legacy layout is retained for guns that cannot seat a larger compound.
       if (planet === 'khepri' || planet === 'vesper') for (const [id, spot] of groundNow) {
-        if (emplaced.has(id) || spot.afloat || spot.kind === 'fuel') continue;
+        if (emplaced.has(id) || spot.afloat || spot.kind === 'fuel' || facilities.contains(id)) continue;
         emplaced.add(id);
         const roll = Math.abs(Math.sin(id * 78.233) * 43758.5453 % 1);
         if (roll < .25) continue;
@@ -1236,13 +1252,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, planet, jump: jumpActive,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, veil: veil.stats, planet, jump: jumpActive,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
-          textures: renderer.info.memory.textures, particles: fx.particles, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
+          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: {loaded: facilities.loaded, count: facilities.count}, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
         });
         lastStatsTick = state.tick;
       }
@@ -1257,7 +1273,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         if (object instanceof THREE.InstancedMesh) object.dispose();
       };
-      fx.dispose(); scene.traverse(collect);
+      fx.dispose(); facilities.dispose(); scene.traverse(collect);
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());

@@ -14,7 +14,7 @@ import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 const ADDITIVE_CAPACITY = 240, ALPHA_CAPACITY = 72;
 /** Particle shapes in the shared shader. */
-const ROUND = 0, PLUME = 1, STAR = 2, CHIP = 3;
+const ROUND = 0, PLUME = 1, STAR = 2, CHIP = 3, RING = 4;
 
 const VERTEX = /* glsl */`
 attribute vec2 aParams; varying vec2 vParams; varying vec2 vUv; varying vec3 vColor;
@@ -26,10 +26,22 @@ const FRAGMENT = /* glsl */`
 uniform float additive; varying vec2 vParams; varying vec2 vUv; varying vec3 vColor;
 void main() {
   vec2 p = vUv - 0.5; float shape = vParams.y, a;
-  if ( shape < 0.5 ) a = smoothstep( 0.5, 0.0, length( p ) );
-  else if ( shape < 1.5 ) a = pow( clamp( vUv.y, 0.0, 1.0 ), 1.6 ) * smoothstep( 0.5, 0.05, abs( p.x ) );
+  if ( shape < 0.5 ) {
+    // Turbulent edges give smoke/fire volume without adding overlapping particle layers.
+    float folds = sin( p.x * 31.0 + sin( p.y * 23.0 ) ) * sin( p.y * 27.0 - p.x * 13.0 );
+    a = smoothstep( 0.49, 0.03, length( p ) + folds * .045 );
+  }
+  else if ( shape < 1.5 ) {
+    float tail = clamp( vUv.y, 0.0, 1.0 );
+    float width = .035 + .23 * pow( tail, .7 );
+    float body = smoothstep( width, width * .15, abs( p.x ) ) * pow( tail, .85 );
+    // A narrow core and shock diamonds, within the existing single plume quad.
+    float diamonds = pow( max( 0.0, cos( tail * 29.0 ) ), 6.0 ) * smoothstep( .10, .01, abs( p.x ) );
+    a = body * .65 + diamonds * tail * .5;
+  }
   else if ( shape < 2.5 ) a = max( exp( -abs( p.x ) * 40.0 ) * smoothstep( 0.5, 0.0, abs( p.y ) ), exp( -abs( p.y ) * 40.0 ) * smoothstep( 0.5, 0.0, abs( p.x ) ) ) + smoothstep( 0.18, 0.0, length( p ) );
-  else a = step( abs( p.x ) + abs( p.y ) * 0.8, 0.42 );
+  else if ( shape < 3.5 ) a = step( abs( p.x ) + abs( p.y ) * 0.8, 0.42 );
+  else a = smoothstep( .07, .015, abs( length( p ) - .39 ) );
   a *= vParams.x;
   if ( a < 0.003 ) discard;
   gl_FragColor = additive > 0.5 ? vec4( vColor * a, a ) : vec4( vColor, a );
@@ -107,7 +119,8 @@ export function createFx(scene: THREE.Scene) {
     const sea = surface?.splash(x, z) ?? null;
     if (sea !== null) spray(x, sea, z, n);
     flash(x, z, 1.5, .11, 0xfff1d0, 2.2);
-    const fire = full() ? 4 : 2;
+    if (full()) emit(glow, {x, y, z, life:.28, size:.45, grow:2.2, alpha:.42, shape:RING, flat:true, ...tint(0xe9c89f,1.1)});
+    const fire = full() ? 3 : 2;
     for (let k = 0; k < fire; k++) {
       const a = hash(n + k * 5.7) * Math.PI * 2, d = .12 + hash(n + k) * .22;
       emit(glow, { x: x + Math.cos(a) * d, y: y + k * .02, z: z + Math.sin(a) * d, vx: Math.cos(a) * .7, vz: Math.sin(a) * .7, life: .32 + hash(n + k * 2.1) * .22,
@@ -118,7 +131,7 @@ export function createFx(scene: THREE.Scene) {
     for (let k = 0; k < 3; k++) {
       const a = hash(n + k * 9.1) * Math.PI * 2;
       emit(smoke, { x: x + Math.cos(a) * .15, y: y - .1, z: z + Math.sin(a) * .15, vx: Math.cos(a) * .35, vy: .25, vz: Math.sin(a) * .35,
-        life: .8 + hash(n + k) * .4, size: .5, grow: 1.1, drag: 1.5, alpha: .42, shape: ROUND, drift: .5, ...tint(k === 1 ? 0x46382f : 0x2c2622, 1) });
+        life: .65 + hash(n + k) * .3, size: .4, grow: .8, drag: 1.5, alpha: .32, shape: ROUND, drift: .5, ...tint(k === 1 ? 0x5b5651 : 0x2b3036, 1) });
     }
     for (let k = 0; k < 5; k++) {
       const a = hash(n + k * 4.9 + 1) * Math.PI * 2, v = 2.2 + hash(n + k * 1.9) * 2.6;
