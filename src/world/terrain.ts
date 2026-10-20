@@ -38,8 +38,9 @@ export {
  * Pure planet scenery (Khepri, Vesper). Terrain never reads, schedules, or advances combat or loot.
  * 10: planet profiles and Vesper; Khepri's output is unchanged from 9 (fingerprints in terrain-vesper.test.ts).
  * 11: Khepri districts (docs/23); with `KHEPRI.districts = null` the output is exactly version 10's.
+ * 12: a much less populated Moon (rarer, smaller Luna outposts); other planets are unchanged.
  */
-export const TERRAIN_VERSION = 11;
+export const TERRAIN_VERSION = 12;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.

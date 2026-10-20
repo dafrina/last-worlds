@@ -10,7 +10,7 @@ import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
-import { DIAMOND_VOLLEY, SHOT_TTL, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
+import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete } from './motion';
 
@@ -269,8 +269,9 @@ function updateEnemies(state: RunState, dt: number): void {
       // Needle beams are narrow (0.4) and do not count against the wide-beam lane cap.
       if (enemy.kind === 'lancer' && state.hazards.filter(hazard => hazard.width >= beamSpec('lancer').width).length + state.enemies.filter(other => other.kind === 'lancer' && other.warning > 0).length >= scale.maxBeams) continue;
       // The aim commits now and never tracks afterwards: the player's x plus the authored bracket offset (a
-      // Diamond adds its alternating wing side), or, for a missile battery, its own column.
-      const aimX = enemy.kind === 'missile' || enemy.kind === 'pulsar' ? enemy.x
+      // Diamond adds its alternating wing side), or, for a missile battery, its own column. A Pulsar commits to the
+      // player's x for fairness; its stream then tracks the player shot by shot (Projectile.track).
+      const aimX = enemy.kind === 'missile' ? enemy.x : enemy.kind === 'pulsar' ? state.player.x
         : state.player.x + aimOffset(enemy) + (enemy.kind === 'diamond' ? diamondSide(enemy) * DIAMOND_VOLLEY.side : 0);
       const warning = stats.warning + scale.warning;
       // Director exclusion window: an attack that would break the hazard-union rules waits; it is never edited.
@@ -330,11 +331,11 @@ function updateBeamRest(state: RunState, scale: DifficultyScale): boolean {
 
 function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void {
   if (enemy.kind === 'pulsar') {
-    // A rapid burst stream down the committed line (emitted at once; each shot waits its turn at the muzzle).
+    // A rapid burst stream (emitted at once; each shot waits its turn at the muzzle, then aims at the player).
     const speed = ENEMIES.pulsar.shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot;
-    const shots = pulsarBurst(enemy.x, enemy.s, enemy.aimX, speed, PULSAR_BURST.shots, PULSAR_BURST.interval);
+    const shots = pulsarBurst(enemy.x, enemy.s, state.player.x, speed, PULSAR_BURST.shots, PULSAR_BURST.interval);
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
-    for (const shot of shots) state.projectiles.push({ ...projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL), delay: shot.delay });
+    for (const shot of shots) state.projectiles.push({ ...projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL), delay: shot.delay, track: true });
     return;
   }
   if (BEAM_KINDS.has(enemy.kind)) {
@@ -401,7 +402,11 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
     shot.previousX = shot.x;
     shot.previousS = shot.s;
     // A burst shot waiting its turn at the muzzle neither moves nor hits.
-    if (shot.delay && shot.delay > 0) { shot.delay = Math.max(0, shot.delay - dt); continue; }
+    if (shot.delay && shot.delay > 0) {
+      shot.delay = Math.max(0, shot.delay - dt);
+      if (shot.delay === 0 && shot.track) aimAtPlayer(shot, state.player.x);
+      continue;
+    }
     const activeDt = Math.min(dt, shot.ttl);
     if (shot.special) steerMissile(state, shot, activeDt);
     else if (shot.homingTargetId !== undefined) {

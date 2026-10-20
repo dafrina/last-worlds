@@ -10,7 +10,7 @@ export function playerKinematics(state: Pick<RunState, 'pace' | 'config'>): Kine
 }
 import { BOSSES } from '../content/bosses';
 import { VIEW, type Enemy, type RunState } from '../shared/contracts';
-import { beamSpec, bossShots, diamondSide, enemyShots, pulsarBurst, type BulletKind, type ShotSpec } from './attacks';
+import { aimAtPlayer, beamSpec, bossShots, diamondSide, enemyShots, pulsarBurst, type BulletKind, type ShotSpec } from './attacks';
 import { clamp, approach } from './geometry';
 import { bossPartOffset, bossPose, enemyClockRate, positionAfter } from './motion';
 import { bossShotScale } from './spawn';
@@ -59,8 +59,9 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
       .map(shot => shotFootprint(release + (shot.delay ?? 0), shot)).filter((f): f is Footprint => f !== null);
   }
   if (enemy.kind === 'pulsar') {
+    // Its stream will chase the ship: predicted down the line to where the ship is now (re-predicted every step).
     const at = positionAfter(enemy, warning, enemyClockRate(state, enemy));
-    return pulsarBurst(at.x, at.s, aimX, ENEMIES.pulsar.shotSpeed * shotSpeedScale(state), PULSAR_BURST.shots, PULSAR_BURST.interval)
+    return pulsarBurst(at.x, at.s, state.player.x, ENEMIES.pulsar.shotSpeed * shotSpeedScale(state), PULSAR_BURST.shots, PULSAR_BURST.interval)
       .map(shot => shotFootprint(release + shot.delay, shot)).filter((f): f is Footprint => f !== null);
   }
   if (BEAM_KINDS.has(enemy.kind)) {
@@ -96,7 +97,10 @@ export function committedFootprints(state: RunState, horizon: number = FAIRNESS.
   const out: Footprint[] = [];
   for (const shot of state.projectiles) {
     if (shot.friendly || shot.ttl <= 0) continue;
-    const footprint = shotFootprint(state.time + (shot.delay ?? 0), shot, shot.ttl);
+    // A tracking shot still at its muzzle will leave toward wherever the ship is then: predict it toward the ship now.
+    const path = shot.track && (shot.delay ?? 0) > 0 ? { ...shot } : shot;
+    if (path !== shot) aimAtPlayer(path, state.player.x);
+    const footprint = shotFootprint(state.time + (shot.delay ?? 0), path, shot.ttl);
     if (footprint && footprint.t0 <= state.time + horizon) out.push(footprint);
   }
   for (const hazard of state.hazards) {

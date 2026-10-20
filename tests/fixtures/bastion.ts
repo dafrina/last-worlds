@@ -10,6 +10,7 @@ import { BASTION } from '../../src/content/bastion';
 import { HELION_ARK } from '../../src/content/ark';
 import { WARDEN } from '../../src/content/warden';
 import { VEIL } from '../../src/content/veil';
+import { WARP, warpSpeed } from '../../src/content/departure';
 
 const query = new URLSearchParams(location.search);
 // `boss=ark` previews Cold Vector's Helion Ark on Vesper's open-water arena; without it this is Rolling Thunder's Bastion-9.
@@ -127,6 +128,27 @@ const renderer = createRenderer(ui.canvas);
 const observer = new ResizeObserver(() => { const rect = ui.canvas.getBoundingClientRect(); renderer.resize(rect.width, rect.height); });
 observer.observe(ui.canvas);
 let previous = performance.now(), accumulator = 0;
+/**
+ * `victory=T` (with `phase=destroyed`): the campaign's victory warp as main.ts plays it, T seconds in. The run steps
+ * to completion at load, then surges through a jump with no destination (from === to) for the afterglow's 4.4 s and
+ * holds; add `still` to freeze at T.
+ */
+let warpFrom = -1;
+function victoryWarp(elapsed: number) {
+  if (!query.has('victory') || state.phase !== 'complete') return;
+  if (warpFrom < 0) {
+    warpFrom = Math.max(VIEW.scrollSpeed, state.scrollSpeed); state.projectiles = []; state.hazards = [];
+    state.jump = { startedAt: state.time, duration: WARP.duration, from: state.planet, to: state.planet };
+  }
+  const since = state.time - state.jump!.startedAt;
+  if (since >= 4.4) return;
+  state.scrollSpeed = warpSpeed(Math.min(1, since / state.jump!.duration), warpFrom, VIEW.scrollSpeed, WARP.peak);
+  state.time += elapsed; state.distance += state.scrollSpeed * elapsed;
+}
+if (query.has('victory')) {
+  for (let guard = 0; state.phase === 'playing' && guard < 60 * 30; guard++) stepRun(state, EMPTY_INPUT);
+  for (let k = 0; k < Math.round(Number(query.get('victory') || 0) * 60); k++) victoryWarp(1 / 60);
+}
 // `hold=N` keeps the simulation still for N seconds so models load before a timed sequence (e.g. destruction) plays.
 const holdUntil = performance.now() + Number(query.get('hold') ?? 0) * 1000;
 function frame(now: number) {
@@ -136,6 +158,7 @@ function frame(now: number) {
     accumulator += elapsed > .25 ? 0 : Math.min(elapsed, STEP * 5);
     let special = controls.specialPressed;
     while (accumulator >= STEP) { stepRun(state, { ...controls, specialPressed: special }); special = false; accumulator -= STEP; }
+    victoryWarp(Math.min(elapsed, .1));
   }
   renderer.render(state, 0); ui.update(state);
   ui.canvas.dataset.encounterState = JSON.stringify({ phase: state.phase, boss: state.boss?.phase, lives: state.player.lives, time: state.time });

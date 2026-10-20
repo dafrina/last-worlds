@@ -1027,11 +1027,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
         }
         if (enemy.warning > 0 && enemy.kind === 'pulsar') {
-          // Pulsar windup: a dashed teal line from the Pulsar down its committed burst line, brightening as it charges.
-          const steps = 9;
+          // Pulsar windup: a dashed teal line from the Pulsar to the ship, following it (its stream will track the ship).
+          const steps = 9, targetX = state.player.x;
           for (let i = 0; i < steps; i++) {
             const a = i / steps, b = (i + .55) / steps;
-            strip(THREE.MathUtils.lerp(enemy.x, enemy.aimX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(enemy.x, enemy.aimX, b), enemy.s * (1 - b), .09, 0x46f0dc);
+            strip(THREE.MathUtils.lerp(enemy.x, targetX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(enemy.x, targetX, b), enemy.s * (1 - b), .09, 0x46f0dc);
           }
         } else if (enemy.warning > 0 && enemy.kind === 'needle') {
           // Needle windup: a dashed 0.4 lane down the whole view at its committed aim, with a faint fill.

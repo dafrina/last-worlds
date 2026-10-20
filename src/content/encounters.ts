@@ -304,7 +304,7 @@ export const DEEP_BLOOM: readonly EncounterCue[] = [
   { at: 16, id: 'n-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
   { at: 21, id: 'n-missiles', phase: 'pressure', formations: [f('missile-2')] },
   { at: 24, id: 'n-needle-line', phase: 'pressure', formations: [f('needle-line-3')] },
-  { at: 27, id: 'n-pulsar', phase: 'pressure', message: 'PULSAR · STEP OFF ITS BURST LINE', formations: [f('pulsar-solo')] },
+  { at: 27, id: 'n-pulsar', phase: 'pressure', message: 'PULSAR · ITS STREAM FOLLOWS YOU · KEEP MOVING', formations: [f('pulsar-solo')] },
   { at: 30, id: 'n-battery-3', phase: 'pressure', formations: [f('depot-3')] },
   { at: 33, id: 'n-diamond', phase: 'pressure', message: 'DIAMOND HEAVY', formations: [f('diamond-solo')] },
   { at: 40, id: 'n-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] },

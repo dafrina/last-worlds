@@ -117,12 +117,13 @@ function lunaColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: numb
 /* ---------------------------------------------------------------- outposts */
 
 /**
- * Sparse outposts from the Khepri infrastructure kit: a landing pad with a relay, a comm station with solar
- * panels, or an abandoned habitat. Most cells stay empty.
+ * Sparse outposts from the Khepri infrastructure kit: a landing pad with a habitat, a comm dish with a solar
+ * array, or an abandoned habitat. Most cells stay empty: the user asked for a much less populated Moon (20 October),
+ * so outposts are rarer (0.24 to 0.10) and each carries only a few pieces.
  */
 const LUNA_ARCHETYPES: readonly Archetype[] = ['landing', 'comm', 'abandoned'];
 const EXTENT: Readonly<Record<string, [number, number]>> = { landing: [3.9, 3.9], comm: [2.9, 2.9], abandoned: [2.4, 2.4] };
-const OUTPOST_CHANCE = 0.24;
+const OUTPOST_CHANCE = 0.1;
 
 interface LocalModule { kind: PlacedModule['kind']; node: string; u: number; v: number; yaw: number; scale?: number }
 function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] {
@@ -131,26 +132,20 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
   const shared = (node: string, u: number, v: number, yaw = 0) => m.push({ kind: 'shared', node, u, v, yaw });
   switch (archetype) {
     case 'landing':
-      // A small base, never a lone pad: the pad with a habitat, relay, solar power and a dish.
+      // A pad with a habitat and a light; sometimes a relay.
       infra('infra_landing_pad', -1.0, 0);
       infra('infra_habitat_0', 2.7, -2.4, Math.PI / 2);
-      infra('infra_relay', 3.0, -0.6);
-      shared('container_0', 2.8, 0.9, Math.PI / 2);
-      infra('infra_solar_array', 2.4, 2.6, Math.PI / 2);
-      if (h(1) < 0.5) infra('infra_comm_dish', -3.3, -3.0);
+      if (h(1) < 0.5) infra('infra_relay', 3.0, -0.6);
       infra('infra_light_mast', -3.4, 3.2);
       break;
     case 'comm':
       infra('infra_comm_dish', -0.9, 0.9);
-      infra('infra_solar_array', -1.1, -1.6); infra('infra_solar_array', 1.1, -1.6);
-      infra('infra_habitat_1', 1.6, 1.4, Math.PI / 2);
-      if (h(1) < 0.6) infra('infra_relay', -2.3, -0.4);
+      infra('infra_solar_array', 0, -1.6);
+      if (h(1) < 0.4) infra('infra_relay', -2.3, -0.4);
       break;
     default:
       infra('infra_habitat_0', -0.6, 0.4, h(2) * 0.6);
-      infra('infra_habitat_1', 1.2, 1.4, Math.PI / 2);
       shared(`container_${h(3) < 0.5 ? 0 : 1}`, 1.4, -1.2, h(4) * Math.PI);
-      infra('infra_solar_array', -0.8, -1.6, 0.3);
   }
   return m;
 }

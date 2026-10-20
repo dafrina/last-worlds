@@ -100,6 +100,11 @@ Since 16 October Nacre flies its own Blender-modelled faction in the ORRERY / SH
 
 **Pulsar (17 October 2026):** it dives in and holds at s ≈ 9.5–10, marks a dashed teal line toward the player for 1.1 s, then fires a rapid burst stream of six fast shots (9 units/s, 0.08 s apart) down that line: step off it. The first version released a shockwave ring, which the user did not like. 110 HP, 300 score.
 
+**Pulsar stream (20 October 2026, user request):**
+- **What changed:** the burst used to fly straight down its own column, which the user found dull. It now has ten shots, 0.1 s apart. Each one aims at the ship's position at the moment it leaves the muzzle (`Projectile.track`), so the stream hoses after a moving ship. The windup line follows the ship too.
+- **How to dodge:** keep moving through the stream. A ship that holds still takes it.
+- **Fairness:** the model predicts a waiting tracking shot toward where the ship is now. The perfect pilot still clears Deep Bloom without a hit, on veteran and on the slowest drive.
+
 Shell colour and the pearl sheen are baked into vertex colours; glow faces are teal `#3ff2d8` or amber `#ffa040`. The Vesper craft remain the fallback while the GLB loads.
 
 ## Endless

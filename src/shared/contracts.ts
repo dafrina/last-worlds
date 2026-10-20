@@ -74,6 +74,8 @@ export interface Projectile {
   special?: boolean;
   /** Seconds it waits at its muzzle before flying (a Pulsar burst is emitted at once and streams out). */
   delay?: number;
+  /** Re-aims at the player's position, at the same speed, the moment its delay ends (a Pulsar stream). */
+  track?: boolean;
 }
 /** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
 /** `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none). */

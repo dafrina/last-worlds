@@ -1,5 +1,16 @@
 # Build status
 
+## Victory warp holds deep space; Pulsar streams track the ship; a sparser Moon, 20 October 2026
+
+- **Victory warp:**
+  - **The bug:** the campaign's victory warp reuses the endless jump with no destination. After its flash, the veil lifted back onto the level the ship had just left, and the user saw the terrain again before the results.
+  - **The fix:** a jump with `from === to` now deepens to opaque deep space after the flash and keeps its streaks racing behind the results (`src/render/fx-jump.ts`). Endless jumps are unchanged.
+  - **Fixture:** `tests/fixtures/bastion.html?phase=destroyed&victory=T&still` previews the warp T seconds in.
+  - **Inspected:** frames at 0.3, 1, 1.5, 2.2, 3 and 4.4 s, with the results overlay hidden.
+- **Pulsar (Nacre):** ten tracking shots instead of six straight down; each aims at the ship as it leaves the muzzle (docs/20). The windup line follows the ship, the cue says "PULSAR · ITS STREAM FOLLOWS YOU · KEEP MOVING", and fairness predicts waiting tracking shots toward the ship. `tests/sim/pulsar.test.ts` covers the stream, per-shot aim, and a still versus a moving ship; the perfect-pilot runs still clear Deep Bloom without a hit.
+- **Moon:** the user asked for "much less populated" buildings and infrastructure on Luna. Outposts are rarer (chance 0.24 to 0.10), and each has fewer pieces (2–4 instead of 4–7). Terrain version is 12; other planets are unchanged (Khepri fingerprints pass). Luna's modular plants follow with facilities v3 (docs/25).
+- **Checks:** typecheck clean and 386/386 unit tests in the shared tree; snapshot checks are in the deploy commit. No phone test.
+
 ## Facility compounds v2: textured remodels after the facility sheets, 20 October 2026
 
 - **What:** the user found the large building complexes "super flat" and asked for remodels that are more interesting and "textured like the bosses", taking "the render arts as inspiration".

@@ -78,10 +78,18 @@ export function bossShots(def: BossDefinition, attack: 'burst' | 'fan' | 'spiral
 }
 
 /**
- * A Pulsar burst (Nacre): PULSAR_BURST.shots shots down one line from (x, s) toward (aimX, 0), each `delay` later
- * than the one before. Fired all at once; each waits at the muzzle for its delay (Projectile.delay).
+ * A Pulsar burst (Nacre): PULSAR_BURST.shots shots from (x, s), each `delay` later than the one before, all aimed at
+ * (aimX, 0) when emitted. Fired all at once; each waits at the muzzle for its delay (Projectile.delay) and, being a
+ * tracking shot, re-aims at the player as it leaves (aimAtPlayer). Fairness predicts the stream down the line to
+ * the player's position at commit: a ship that keeps moving is never where a shot arrives.
  */
 export function pulsarBurst(x: number, s: number, aimX: number, speed: number, shots: number, interval: number): (ShotSpec & { delay: number })[] {
   const dx = aimX - x, ds = -s, length = Math.hypot(dx, ds) || 1;
   return Array.from({ length: shots }, (_, i) => ({ x, s: s - 0.2, vx: dx / length * speed, vs: ds / length * speed, radius: ENEMY_SHOT_RADIUS, delay: i * interval }));
+}
+
+/** Points a shot at the player's row position `playerX` (s = 0), keeping its speed. */
+export function aimAtPlayer(shot: { x: number; s: number; vx: number; vs: number }, playerX: number): void {
+  const speed = Math.hypot(shot.vx, shot.vs), dx = playerX - shot.x, ds = -shot.s, length = Math.hypot(dx, ds) || 1;
+  shot.vx = dx / length * speed; shot.vs = ds / length * speed;
 }
