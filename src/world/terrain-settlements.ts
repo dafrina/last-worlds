@@ -1,5 +1,8 @@
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, landform, moodParams, smoothRange } from './terrain-layout';
 import { nearArena, type TerrainArena } from './terrain-arena';
+import { districtHidden, districtLotsNear, type DistrictTag } from './terrain-districts';
+import type { DistrictPolicy } from './settlement-grammars';
+import type { PlanetProfile } from './terrain-planet';
 
 /**
  * Settlement nodes (docs/13 §2 "Settlement network"): seeded outposts of varied archetypes, each with its
@@ -39,6 +42,8 @@ export interface PlacedModule {
   scale: number; pick: number;
   /** A fixed base height (e.g. a quay at sea level) instead of the pad level. */
   base?: number;
+  /** Detail the low graphics tier may skip (district lights, parked vehicles, crates); never a silhouette. */
+  cosmetic?: boolean;
 }
 export interface Settlement {
   id: string; cell: number; side: number; archetype: Archetype;
@@ -48,6 +53,10 @@ export interface Settlement {
   /** 0 = natural ground (wrecks), 1 = fully flattened pad. */
   flatten: number;
   modules: PlacedModule[];
+  /** District lots only (docs/23): the district, the hub's road gates, and the structure cap of its pieces. */
+  district?: DistrictTag;
+  gates?: readonly { x: number; s: number }[];
+  cap?: number;
 }
 
 interface LocalModule { kind: ModuleKind; node: string; u: number; v: number; yaw: number; scale?: number }
@@ -216,18 +225,23 @@ export function padDistance(site: Settlement, x: number, s: number): number {
 /** How strongly a pad flattens ground at a point (0 outside, 1 on the pad). */
 export const padInfluence = (site: Settlement, x: number, s: number) => site.flatten * (1 - smoothRange(0, 2.4, padDistance(site, x, s)));
 
+/** What settlementsNear needs of a planet: its outposts, and its districts when it has them. */
+export type SettlementSource = { settlement(seed: number, cell: number, side: number): Settlement | null; districts?: DistrictPolicy | null }
+  & Partial<Pick<PlanetProfile, 'id' | 'landform' | 'params' | 'local'>>;
 /**
- * Settlements whose cells could reach forward distances [s0, s1] on a planet (Khepri unless given); none stand
- * on a mission arena or its ramps.
+ * Settlements whose cells could reach forward distances [s0, s1] on a planet (Khepri's original outposts unless
+ * given); none stand on a mission arena or its ramps. District lots come with them; an arena close enough hides a
+ * whole district (docs/23 §4.6).
  */
-export function settlementsNear(seed: number, s0: number, s1: number, arena?: TerrainArena,
-  planet: { settlement(seed: number, cell: number, side: number): Settlement | null } = { settlement }): Settlement[] {
+export function settlementsNear(seed: number, s0: number, s1: number, arena?: TerrainArena, planet: SettlementSource = { settlement }): Settlement[] {
   const list: Settlement[] = [];
+  const reaches = (site: Settlement) => site.s + site.hs + 3 >= s0 && site.s - site.hs - 3 <= s1 && !nearArena(arena, site.s - site.hs - 3, site.s + site.hs + 3);
   for (let cell = Math.floor((s0 - 30) / SETTLEMENT_CELL); cell <= Math.floor((s1 + 30) / SETTLEMENT_CELL); cell++) {
     for (const side of [-1, 1]) {
       const site = planet.settlement(seed, cell, side);
-      if (site && site.s + site.hs + 3 >= s0 && site.s - site.hs - 3 <= s1 && !nearArena(arena, site.s - site.hs - 3, site.s + site.hs + 3)) list.push(site);
+      if (site && reaches(site) && !(site.district && districtHidden(site.district, site.district.policy, arena))) list.push(site);
     }
   }
+  if (planet.districts) for (const lot of districtLotsNear(seed, planet as Parameters<typeof districtLotsNear>[1], s0, s1, arena)) if (reaches(lot)) list.push(lot);
   return list;
 }

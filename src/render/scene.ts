@@ -14,7 +14,7 @@ import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, c
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
-import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
+import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
 import { createPostPipeline } from './post-pipeline';
 import { createFx, type Plume } from './fx-particles';
@@ -438,6 +438,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (disposed) { infra.forEach(geometry => geometry.dispose()); return; }
     terrain.setInfra(infra); warmed = false;
   }).catch(() => { /* Not shipped yet: the code-built outposts remain. */ });
+  // The district kit (docs/23): the refinery's processing tower; a code-built stand-in until it loads.
+  loadDistrictKit(`${import.meta.env.BASE_URL}assets/khepri/district-kit.glb`).then(nodes => {
+    if (disposed) { nodes.forEach(geometry => geometry.dispose()); return; }
+    terrain.setInfra(nodes); warmed = false;
+  }).catch(() => { /* The code-built tower remains. */ });
   // Shared pipes and tanks (docs/14), shaded from the Khepri palette; code-built stand-ins until they load.
   loadSharedKit(`${import.meta.env.BASE_URL}assets/shared/industrial-kit.glb`).then(shared => {
     if (disposed) { shared.forEach(geometry => geometry.dispose()); return; }
@@ -465,7 +470,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const mesh = new THREE.Mesh(model.geometry, materials.craft); mesh.castShadow = mesh.receiveShadow = true;
     hero.add(mesh); heroModel = 'glb'; warmed = false;
   }).catch(error => console.warn('Scrapper model unavailable; retaining the starter stand-in.', error));
-  const facilities = createFacilityView(scene, materials.prop, () => { warmed = false; });
+  const facilities = createFacilityView(scene, () => { warmed = false; });
   const ENEMY_CAPACITY = 32;
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
   // Ground targets on every terrain level (docs/13 §2), render-only: where terrain in front hides a turret,
@@ -1062,7 +1067,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       // Ground wrecks: a new run (or a rewind) clears them; a ground target killed on screen leaves one.
       if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
-      facilities.update(state, planet, groundNow);
+      // District pads are reserved (docs/23 §4.8): compounds and emplacement pieces keep out; batteries never move.
+      const reserved = terrain.reservedSites();
+      facilities.update(state, planet, groundNow, reserved);
       terrain.setFacilityClearings(facilities.clearings);
       // The compact legacy layout is retained for guns that cannot seat a larger compound.
       if (planet === 'khepri' || planet === 'vesper') for (const [id, spot] of groundNow) {
@@ -1078,6 +1085,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           for (const [ox, os] of spots) {
             const x = spot.groundX + ox * flip, worldS = spot.groundS + os;
             if (Math.abs(x) > VIEW.worldWidth / 2 - r) continue;
+            if (reserved.some(site => x + r > site.minX && x - r < site.maxX && worldS + r > site.minS && worldS - r < site.maxS)) continue;
             // Clear of every battery (its own too) and of the other emplacement pieces.
             let blocked = Math.hypot(ox, os) < r + .7;
             for (const [other, o] of groundNow) if (other !== id && Math.hypot(o.groundX - x, o.groundS - worldS) < r + .75) blocked = true;

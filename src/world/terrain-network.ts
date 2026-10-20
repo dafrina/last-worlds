@@ -1,9 +1,11 @@
-import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, routeCenter } from './terrain-layout';
+import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, routeCenter, smoothRange } from './terrain-layout';
 import { terrainHeight } from './terrain-ground';
 import { SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Settlement } from './terrain-settlements';
 import { finish, type Work } from './terrain-work';
 import { nearArena } from './terrain-arena';
 import { KHEPRI, worldOf, type PlanetProfile, type World, type WorldInput } from './terrain-planet';
+import { districtHidden, districtsNear, type DistrictPlan } from './terrain-districts';
+import { MODULES } from './settlement-modules';
 
 /**
  * Long-range settlement network (docs/13 §2): outposts are nodes of a seeded graph; each edge gets a
@@ -51,6 +53,8 @@ export const PIPE_TOP = SCENERY_MAX_HEIGHT - SUPPORT_HEIGHT;
 export interface IndustryPiece {
   id: string; node: SharedNode; x: number; s: number; y: number;
   rotation: number; pitch: number; roll: number; scaleY: number; scaleZ: number; group: string;
+  /** Detail the low graphics tier may skip (district crates). */
+  cosmetic?: boolean;
 }
 /** Tight local bounds of each node (min x, y, z, max x, y, z) before scaling and rotation. */
 export const SHARED_LOCAL_BOX: Readonly<Record<SharedNode, readonly number[]>> = Object.fromEntries(SHARED_NODES.map(node => {
@@ -92,6 +96,12 @@ export interface NetworkEdge { id: string; a: Endpoint; b: Endpoint; road: boole
 
 /** The point on a pad's edge facing a target, so paths leave from the outpost's side. */
 function gate(site: Settlement, tx: number, ts: number): Endpoint {
+  // A district hub has authored gates (docs/23): roads arrive at the one nearest the far end.
+  if (site.gates?.length) {
+    let best = site.gates[0], distance = Infinity;
+    for (const candidate of site.gates) { const d = Math.hypot(candidate.x - tx, candidate.s - ts); if (d < distance) { distance = d; best = candidate; } }
+    return { x: best.x, s: best.s, site };
+  }
   const dx = tx - site.x, ds = ts - site.s, length = Math.hypot(dx, ds) || 1;
   const reach = Math.min(Math.abs(dx) > 1e-6 ? site.hx / Math.abs(dx / length) : Infinity, Math.abs(ds) > 1e-6 ? site.hs / Math.abs(ds / length) : Infinity) + 0.4;
   return { x: clamp(site.x + dx / length * reach, -WORLD_HALF + 0.6, WORLD_HALF - 0.6), s: site.s + ds / length * reach, site };
@@ -99,24 +109,30 @@ function gate(site: Settlement, tx: number, ts: number): Endpoint {
 
 /** Edges owned by one settlement: the next outpost ahead on its side, sometimes a map exit or a cross link. */
 function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI): NetworkEdge[] {
+  // District lots join through their hub. A hub always gets a road (docs/23 §5): its chain looks further ahead (its
+  // own claimed cells are empty), and it falls back to a map exit. Pipelines never end at a district in this slice.
+  if (site.district?.role === 'lot') return [];
+  const district = site.district !== undefined;
   const INDUSTRIAL = planet.industrial, QUIET = planet.quiet;
   const edges: NetworkEdge[] = [], h = (k: number) => hash(seed ^ 0x7e7, site.cell * 31 + k, site.side > 0 ? 7 : 3);
   const make = (kind: NetworkEdge['kind'], target: Settlement | null, tx: number, ts: number, road: number, pipe: number): NetworkEdge => {
     const b: Endpoint = target ? gate(target, site.x, site.s) : { x: tx, s: ts, site: null };
     return { id: `${site.id}>${kind}`, a: gate(site, b.x, b.s), b, kind, road: h(edges.length * 3 + 1) < road, pipe: h(edges.length * 3 + 2) < pipe };
   };
-  for (let cell = site.cell + 1; cell <= site.cell + 3; cell++) {
+  for (let cell = site.cell + 1; cell <= site.cell + (district ? 5 : 3); cell++) {
     const next = planet.settlement(seed, cell, site.side);
     if (!next) continue;
     const quiet = QUIET.has(site.archetype) || QUIET.has(next.archetype);
     // A tank farm (pumping) always lies on a pipeline.
     const farm = site.archetype === 'pumping' || next.archetype === 'pumping';
     const industrial = farm ? 1 : INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.9 : INDUSTRIAL.has(site.archetype) || INDUSTRIAL.has(next.archetype) ? 0.55 : 0.2;
-    edges.push(make('chain', next, 0, 0, quiet ? 0.45 : 0.88, quiet ? 0 : industrial));
+    edges.push(make('chain', next, 0, 0, district ? 1 : quiet ? 0.45 : 0.88, district || next.district ? 0 : quiet ? 0 : industrial));
     break;
   }
   const farm = site.archetype === 'pumping' && !edges.some(edge => edge.pipe);
-  if (farm || h(20) < 0.42) edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, 0.7, farm ? 1 : QUIET.has(site.archetype) ? 0 : 0.45));
+  if (farm || h(20) < 0.42 || (district && !edges.length)) {
+    edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, district ? 1 : 0.7, district ? 0 : farm ? 1 : QUIET.has(site.archetype) ? 0 : 0.45));
+  }
   if (h(22) < 0.14 && !QUIET.has(site.archetype)) {
     const other = planet.settlement(seed, site.cell, -site.side) ?? planet.settlement(seed, site.cell + 1, -site.side);
     if (other && !QUIET.has(other.archetype)) edges.push(make('cross', other, 0, 0, 1, 0));
@@ -132,14 +148,21 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
 export function edgesNear(seed: number, s0: number, s1: number, input?: WorldInput | World): NetworkEdge[] {
   const edges: NetworkEdge[] = [], { arena, planet } = worldOf(input);
   if (planet.networks === false) return edges;
+  // A district an arena hides (docs/23 §4.6) takes the edges that touch it or pass beside it along: networks are
+  // laid on the arena-free world, where its pads still flatten the ground.
+  const hidden = planet.districts && arena
+    ? districtsNear(seed, planet, s0 - 3 * SETTLEMENT_CELL - 60, s1 + 6 * SETTLEMENT_CELL).filter(plan => districtHidden(plan, planet.districts!, arena)) : [];
   for (const site of settlementsNear(seed, s0 - 3 * SETTLEMENT_CELL - 10, s1 + 10, arena, planet)) {
     for (const edge of edgesOf(seed, site, planet)) {
       if (nearArena(arena, Math.min(edge.a.s, edge.b.s), Math.max(edge.a.s, edge.b.s), PIPE_MARGIN + 2 * PIPE_CELL)) continue;
+      if (hidden.length && hidden.some(plan => touches(edge, plan))) continue;
       if (Math.max(edge.a.s, edge.b.s) + 10 >= s0 && Math.min(edge.a.s, edge.b.s) - 10 <= s1) edges.push(edge);
     }
   }
   return edges;
 }
+const touches = (edge: NetworkEdge, plan: DistrictPlan) => edge.a.site?.district?.id === plan.id || edge.b.site?.district?.id === plan.id
+  || (Math.max(edge.a.s, edge.b.s) + PIPE_MARGIN >= plan.minS - 3 && Math.min(edge.a.s, edge.b.s) - PIPE_MARGIN <= plan.maxS + 3);
 
 /* ---------------------------------------------------------------- path search */
 
@@ -191,7 +214,9 @@ function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: numbe
   const reach = Math.max(whole, offset), x0 = -reach, columns = Math.round(2 * reach / cell) + 1;
   const s0 = Math.floor((Math.min(edge.a.s, edge.b.s) - margin) / cell) * cell, rows = Math.ceil((Math.max(edge.a.s, edge.b.s) + margin - s0) / cell) + 1;
   const heights = new Float64Array(columns * rows), extra = new Float64Array(columns * rows);
-  const pads = settlementsNear(seed, s0, s0 + rows * cell, undefined, world.planet).filter(site => site !== edge.a.site && site !== edge.b.site);
+  // Paths cross foreign pads only at a cost; an outpost's own pad is free, but a district's gates stand outside its
+  // pads, so its roads go round its pieces too.
+  const pads = settlementsNear(seed, s0, s0 + rows * cell, undefined, world.planet).filter(site => site.district || (site.id !== edge.a.site?.id && site.id !== edge.b.site?.id));
   for (let r = 0; r < rows; r++) {
     const s = s0 + r * cell, lane = routeCenter(seed, 1, s);
     for (let c = 0; c < columns; c++) {
@@ -202,6 +227,20 @@ function* gridSteps(seed: number, edge: NetworkEdge, cell: number, center: numbe
         + (ownPads && [edge.a.site, edge.b.site].some(site => site && padDistance(site, x, s) < -0.2) ? 4 : 0);
     }
     yield;
+  }
+  // District pieces are solid to every path, and so are the lots behind a district's hub: roads and pipelines go
+  // round them (docs/23 §4.8), never through; only the hub's yard is open to the roads arriving at its gates.
+  for (const site of settlementsNear(seed, s0, s0 + rows * cell, undefined, world.planet)) if (site.district?.role === 'lot') {
+    for (let r = Math.max(0, Math.ceil((site.s - site.hs - 0.5 - s0) / cell)); r <= Math.min(rows - 1, Math.floor((site.s + site.hs + 0.5 - s0) / cell)); r++)
+      for (let c = Math.max(0, Math.ceil((site.x - site.hx - 0.5 - x0) / cell)); c <= Math.min(columns - 1, Math.floor((site.x + site.hx + 0.5 - x0) / cell)); c++) {
+        if (padDistance(site, x0 + c * cell, s0 + r * cell) < 0.3) extra[r * columns + c] = Infinity;
+      }
+  }
+  for (const site of settlementsNear(seed, s0, s0 + rows * cell, undefined, world.planet)) if (site.district) for (const module of site.modules) {
+    const half = MODULES[module.node]?.half ?? [1, 1], turned = Math.abs(Math.sin(module.yaw)) > 0.5;
+    const hx = (turned ? half[1] : half[0]) + 0.6, hs = (turned ? half[0] : half[1]) + 0.6;
+    for (let r = Math.max(0, Math.ceil((module.s - hs - s0) / cell)); r <= Math.min(rows - 1, Math.floor((module.s + hs - s0) / cell)); r++)
+      for (let c = Math.max(0, Math.ceil((module.x - hx - x0) / cell)); c <= Math.min(columns - 1, Math.floor((module.x + hx - x0) / cell)); c++) extra[r * columns + c] = Infinity;
   }
   // Pipelines keep their pieces (a cell's centre plus a unit of pipe) off outpost modules.
   const crowded = new Uint8Array(columns * rows);
@@ -277,15 +316,41 @@ function* searchSteps(g: Grid, a: Endpoint, b: Endpoint, diagonal: boolean, maxS
 
 /* ---------------------------------------------------------------- roads */
 
-/** A road centreline resampled every 0.5 units: x, s, ground height, and cumulative length. */
-export interface RoadPath { id: string; x: Float64Array; s: Float64Array; y: Float64Array; length: Float64Array }
+/**
+ * How a road ends (user, 20 October: road ends blend into the ground): 'fade' narrows, sinks and fades out over its
+ * last units (dead ends, map exits, unfinished tracks); 'apron' runs on past the end as a short widening apron that
+ * fades out on the pad it serves; 'joined' continues into another road and is left as is.
+ */
+export type RoadEnd = 'fade' | 'apron' | 'joined';
+/** A road centreline resampled every 0.5 units: x, s, ground height, and cumulative length; how each end blends. */
+export interface RoadPath { id: string; x: Float64Array; s: Float64Array; y: Float64Array; length: Float64Array; ends?: readonly [RoadEnd, RoadEnd] }
+/**
+ * Road-end blending (world units): a fading end narrows to a rounded tip, sinks and fades over its last `taper`
+ * units on a worn-dirt patch reaching `wear` beyond it; an apron runs `apron` units flush onto its pad.
+ * Rollback: `taper = 0` restores the square-cut ends of terrain version 10.
+ */
+export const ROAD_ENDS = { taper: 3.5, apron: 2.5, wear: 2.5 };
+/** Opacity an apron starts from at its road's end (it thins over the road's last unit). */
+const APRON_START = 0.7;
+/** Where a road ends in the open or on a pad, the direction back into its road, and how strongly it wears the ground. */
+export interface RoadEndSpot { x: number; s: number; dx: number; ds: number; strength: number }
+/** Width (fraction of the road) and fade (1 = full road, 0 = gone) at distance d from a fading end. */
+export function fadeProfile(d: number, taper = ROAD_ENDS.taper): [number, number] {
+  if (taper <= 0 || d >= taper) return [1, 1];
+  // The last 15% rounds into a tip; before it the road narrows to 38% while it fades out.
+  const t = Math.max(0, d / taper), tip = 0.15;
+  const width = t >= tip ? 0.38 + 0.62 * smoothRange(tip, 1, t) : 0.38 * Math.sqrt(t / tip);
+  return [width, smoothRange(0, 1, t)];
+}
 export const ROAD_STEP = 0.5;
 /** Steepest grade a road may take between grid cells. */
 export const ROAD_MAX_SLOPE = 0.45;
 
 const roadMemo = new Map<string, RoadPath | null>();
+/** Memo keys name the planet and its district policy (the same edge id can join other sites when districts change). */
+const memoPrefix = (world: World) => world.planet.districts ? `${world.planet.id}+${world.planet.districts.id}` : world.planet.id;
 export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInput | World): Work<RoadPath | null> {
-  const world = worldOf(input).bare, key = `${world.planet.id}:${seed}:${edge.id}`;
+  const world = worldOf(input).bare, key = `${memoPrefix(world)}:${seed}:${edge.id}`;
   if (roadMemo.has(key)) return roadMemo.get(key)!;
   let result: RoadPath | null = null;
   if (edge.road) {
@@ -313,7 +378,11 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInp
       const y = xs.map((x, i) => g.ground(x, ss[i]));
       // Last guard: a road whose smoothed line still meets a hard grade is not built.
       const graded = y.every((height, i) => i === 0 || Math.abs(height - y[i - 1]) / ROAD_STEP <= ROAD_MAX_SLOPE * 1.6);
-      if (graded) result = { id: edge.id, x: Float64Array.from(xs), s: Float64Array.from(ss), y: Float64Array.from(y), length: Float64Array.from(lengths) };
+      // An end at an outpost's gate opens onto its pad; at a district gate an internal road continues; others fade.
+      const endOf = (end: Endpoint, x: number, s: number): RoadEnd => !end.site || Math.hypot(end.x - x, end.s - s) > 1.5 ? 'fade' : end.site.gates ? 'joined' : 'apron';
+      const last = xs.length - 1;
+      if (graded) result = { id: edge.id, x: Float64Array.from(xs), s: Float64Array.from(ss), y: Float64Array.from(y), length: Float64Array.from(lengths),
+        ends: [endOf(edge.a, xs[0], ss[0]), endOf(edge.b, xs[last], ss[last])] };
     }
   }
   if (roadMemo.size > 256) roadMemo.clear();
@@ -326,35 +395,177 @@ export const roadPath = (seed: number, edge: NetworkEdge, world?: WorldInput | W
 const RIBBON = [[-0.82, 0, 0.035, 0], [-0.5, 0.2, 0.055, 1], [0.5, 0.8, 0.055, 1], [0.82, 1, 0.035, 0]] as const;
 export interface RoadMesh { positions: Float32Array; uvs: Float32Array; alpha: Float32Array; shade: Float32Array; indices: Uint32Array }
 
-/** Ribbon quads for road segments starting inside a section (section-local z = −(s − startS)). */
+/**
+ * Ribbon quads for road segments starting inside a section (section-local z = −(s − startS)). Ends blend into the
+ * ground (RoadPath.ends): every vertex is a function of the global road alone, so a road ending at a section
+ * boundary shows no cut, and an apron belongs to the section holding its road's end sample.
+ */
 export function* roadRibbonSteps(seed: number, roads: readonly RoadPath[], startS: number, size: number, world?: WorldInput | World): Work<RoadMesh> {
-  const bare = worldOf(world).bare;
+  const bare = worldOf(world).bare, taper = ROAD_ENDS.taper, apron = ROAD_ENDS.apron;
   const positions: number[] = [], uvs: number[] = [], alpha: number[] = [], indices: number[] = [];
+  /**
+   * One cross-section: centre, unit normal, along-road texture coordinate, width scale and end fade (1 = full road).
+   * Each vertex rests on the highest ground a quarter unit either way along the road (the terrain mesh is finer than
+   * the ribbon), so ridges never break through a road; with the blending off it is the original single sample.
+   */
+  const section = (x0: number, s0: number, nx: number, ns: number, v: number, width: number, fade: number, rise = fade) => {
+    for (const [offset, u, lift, a] of RIBBON) {
+      const x = x0 + nx * offset * width, s = s0 + ns * offset * width;
+      let ground = terrainHeight(seed, x, s, bare);
+      if (taper > 0) ground = Math.max(ground, terrainHeight(seed, x + ns * 0.25, s - nx * 0.25, bare), terrainHeight(seed, x - ns * 0.25, s + nx * 0.25, bare));
+      // A fading end sinks gradually into the ground instead of hovering; an apron lies flush.
+      positions.push(x, ground + lift * rise - 0.04 * (1 - fade), -(s - startS));
+      uvs.push(u, v / 2); alpha.push(a * fade);
+    }
+  };
+  const strip = (base: number) => { for (let k = 0; k < RIBBON.length - 1; k++) indices.push(base + k, base + 4 + k, base + k + 1, base + k + 1, base + 4 + k, base + 4 + k + 1); };
   for (const road of roads) {
-    const n = road.x.length;
+    const n = road.x.length, total = road.length[n - 1], ends = road.ends ?? ['fade', 'fade'] as const;
     const normal = (i: number): [number, number] => {
       const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1), dx = road.x[b] - road.x[a], ds = road.s[b] - road.s[a], l = Math.hypot(dx, ds) || 1;
       return [-ds / l, dx / l];
     };
+    /**
+     * Width scale and fade at a sample: a fading end rounds off, narrows and fades out over its last `taper` units; an
+     * apron end starts to thin over the road's last unit (to APRON_START) and fades the rest of the way on its apron.
+     */
+    const profile = (j: number): [number, number] => {
+      let width = 1, fade = 1;
+      for (const [distance, kind] of [[road.length[j], ends[0]], [total - road.length[j], ends[1]]] as const) {
+        if (kind === 'fade') {
+          const [w, f] = fadeProfile(distance, taper);
+          width = Math.min(width, w); fade = Math.min(fade, f);
+        } else if (kind === 'apron' && taper > 0 && apron > 0 && distance < 1) fade = Math.min(fade, 1 - (1 - APRON_START) * smoothRange(1, 0, distance));
+      }
+      return [width, fade];
+    };
     for (let i = 0; i < n - 1; i++) {
       if (road.s[i] < startS || road.s[i] >= startS + size) continue;
       const base = positions.length / 3;
-      for (const j of [i, i + 1]) {
-        const [nx, ns] = normal(j);
-        for (const [offset, u, lift, a] of RIBBON) {
-          const x = road.x[j] + nx * offset, s = road.s[j] + ns * offset;
-          positions.push(x, terrainHeight(seed, x, s, bare) + lift, -(s - startS));
-          uvs.push(u, road.length[j] / 2); alpha.push(a);
-        }
-      }
-      for (let k = 0; k < RIBBON.length - 1; k++) indices.push(base + k, base + 4 + k, base + k + 1, base + k + 1, base + 4 + k, base + 4 + k + 1);
+      for (const j of [i, i + 1]) { const [nx, ns] = normal(j), [width, fade] = profile(j); section(road.x[j], road.s[j], nx, ns, road.length[j], width, fade); }
+      strip(base);
       if (i % 12 === 0) yield;
+    }
+    // Aprons: past an end that opens onto a pad, the ribbon runs on flush with the pad, widening and fading out.
+    if (taper > 0 && apron > 0 && n > 1) for (const end of [0, 1] as const) {
+      const j = end ? n - 1 : 0, k = end ? n - 2 : 1;
+      if (ends[end] !== 'apron' || road.s[j] < startS || road.s[j] >= startS + size) continue;
+      const dx = road.x[j] - road.x[k], ds = road.s[j] - road.s[k], l = Math.hypot(dx, ds) || 1, [nx, ns] = normal(j);
+      const steps = Math.max(1, Math.round(apron / ROAD_STEP));
+      let previous = -1;
+      for (let m = 0; m <= steps; m++) {
+        const x = road.x[j] + dx / l * m * ROAD_STEP, s = road.s[j] + ds / l * m * ROAD_STEP;
+        if (Math.abs(x) > WORLD_HALF - 0.2) break;
+        const t = smoothRange(0, steps, m), base = positions.length / 3;
+        section(x, s, nx, ns, end ? total + m * ROAD_STEP : -m * ROAD_STEP, 1 + 0.35 * t, APRON_START * (1 - t), 0.25);
+        if (previous >= 0) strip(previous);
+        previous = base;
+      }
     }
     yield;
   }
   return { positions: Float32Array.from(positions), uvs: Float32Array.from(uvs), alpha: Float32Array.from(alpha), shade: new Float32Array(alpha.length).fill(1), indices: Uint32Array.from(indices) };
 }
 export const roadRibbons = (seed: number, roads: readonly RoadPath[], startS: number, size: number, world?: WorldInput | World) => finish(roadRibbonSteps(seed, roads, startS, size, world));
+
+/**
+ * A district's internal roads (docs/23 §5): the spine from the hub yard through every lot to the last lot's yard,
+ * and a spur from the hub yard to each gate a network road actually reaches, so roads end at gates and yards, never
+ * in the open. Built on the arena-free world (as networks are); cached per plan.
+ */
+const districtRoadMemo = new Map<string, RoadPath[]>();
+export function* districtRoadsSteps(seed: number, plan: DistrictPlan, input?: WorldInput | World): Work<RoadPath[]> {
+  // Gates count only network roads this world keeps (an arena drops edges near it), so no spur ever dangles.
+  const full = worldOf(input), world = full.bare, key = `${memoPrefix(world)}|${full.key}:${seed}:${plan.id}`;
+  const known = districtRoadMemo.get(key);
+  if (known) return known;
+  // Where a network road reaches a gate, its tip: the internal road continues from exactly there.
+  const hub = plan.lots[0], tips = new Map<string, [number, number][]>();
+  for (const edge of edgesNear(seed, plan.minS - 40, plan.maxS + 1, full)) {
+    const end = edge.a.site?.id === hub.id ? 0 : edge.b.site?.id === hub.id ? 1 : -1;
+    if (!edge.road || end < 0) continue;
+    const road = yield* roadPathSteps(seed, edge, world);
+    if (!road) continue;
+    const tip = end === 0 ? 0 : road.x.length - 1;
+    let best = '', distance = Infinity;
+    for (const gate of plan.gates) { const d = Math.hypot(gate.x - road.x[tip], gate.s - road.s[tip]); if (d < distance) { distance = d; best = gate.id; } }
+    if (distance <= 1.5) tips.set(best, [...tips.get(best) ?? [], [road.x[tip], road.s[tip]]]);
+  }
+  const ground = (x: number, s: number) => terrainHeight(seed, x, s, world);
+  // The spine runs from the main gate (continuing its network road) through the hub yard and every lot to the last
+  // yard, where it opens onto the pad; other gates in use get a spur that joins the spine at the hub yard.
+  const [main, ...others] = plan.gates, mainTip = main && tips.get(main.id)?.[0];
+  const roads = [mainTip
+    ? roadThrough(`${plan.id}:road:spine`, [mainTip, [main.x, main.s], ...plan.spine], ground, ['joined', 'apron'])
+    : roadThrough(`${plan.id}:road:spine`, plan.spine, ground, ['apron', 'apron'])];
+  for (const gate of others) {
+    const tip = tips.get(gate.id)?.[0];
+    if (tip) roads.push(roadThrough(`${plan.id}:road:${gate.id}`, [tip, [gate.x, gate.s], plan.hubYard], ground, ['joined', 'joined']));
+  }
+  // Further network roads arriving at the same gate join it with a short link from their own tip.
+  for (const gate of plan.gates) (tips.get(gate.id) ?? []).slice(1).forEach((tip, k) => {
+    roads.push(roadThrough(`${plan.id}:road:${gate.id}:${k + 1}`, [tip, [gate.x, gate.s]], ground, ['joined', 'joined']));
+  });
+  yield;
+  if (districtRoadMemo.size > 64) districtRoadMemo.clear();
+  districtRoadMemo.set(key, roads);
+  return roads;
+}
+/** A road along authored points: corners rounded like network roads (two Chaikin passes), sampled every ROAD_STEP. */
+function roadThrough(id: string, corners: readonly (readonly [number, number])[], ground: (x: number, s: number) => number, ends: readonly [RoadEnd, RoadEnd]): RoadPath {
+  let points = corners.map(([x, s]) => [x, s] as [number, number]);
+  for (let pass = 0; pass < 2; pass++) {
+    const next: [number, number][] = [points[0]];
+    for (let i = 0; i < points.length - 1; i++) {
+      const [ax, as] = points[i], [bx, bs] = points[i + 1];
+      next.push([ax * 0.75 + bx * 0.25, as * 0.75 + bs * 0.25], [ax * 0.25 + bx * 0.75, as * 0.25 + bs * 0.75]);
+    }
+    next.push(points[points.length - 1]); points = next;
+  }
+  const xs: number[] = [points[0][0]], ss: number[] = [points[0][1]], lengths: number[] = [0];
+  let carry = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const [ax, as] = points[i], [bx, bs] = points[i + 1], span = Math.hypot(bx - ax, bs - as);
+    if (span < 1e-9) continue;
+    for (let t = ROAD_STEP - carry; t <= span; t += ROAD_STEP) {
+      xs.push(ax + (bx - ax) * t / span); ss.push(as + (bs - as) * t / span); lengths.push(lengths[lengths.length - 1] + ROAD_STEP);
+    }
+    carry = (carry + span) % ROAD_STEP;
+  }
+  // The authored end (a gate or a yard) is always the last sample.
+  const [ex, es] = points[points.length - 1], lx = xs[xs.length - 1], ls = ss[ss.length - 1], tail = Math.hypot(ex - lx, es - ls);
+  if (tail > 1e-6) { xs.push(ex); ss.push(es); lengths.push(lengths[lengths.length - 1] + tail); }
+  return { id, x: Float64Array.from(xs), s: Float64Array.from(ss), y: Float64Array.from(xs.map((x, i) => ground(x, ss[i]))), length: Float64Array.from(lengths), ends };
+}
+/**
+ * Every fading road end within [s0, s1] (network and district roads alike), for the dirt wear on the ground around
+ * it. Gathered from the same cached paths as the sections, so both sides of a seam see the same ends.
+ */
+export function* roadEndSpotsSteps(seed: number, s0: number, s1: number, input?: WorldInput | World): Work<RoadEndSpot[]> {
+  const world = worldOf(input), roads: RoadPath[] = [], spots: RoadEndSpot[] = [];
+  // Paths may wander past their endpoints (the search margin), so look a little wider than the range itself.
+  for (const edge of edgesNear(seed, s0 - 20, s1 + 20, world)) {
+    if (!edge.road) continue;
+    const road = yield* roadPathSteps(seed, edge, world);
+    if (road) roads.push(road);
+  }
+  const policy = world.planet.districts;
+  if (policy) for (const plan of districtsNear(seed, world.planet, s0 - 60, s1 + 60)) {
+    if (!districtHidden(plan, policy, world.arena)) roads.push(...yield* districtRoadsSteps(seed, plan, world));
+  }
+  for (const road of roads) for (const end of [0, 1] as const) {
+    // Dead ends dissolve into worn dirt; aprons leave a lighter wear on the pad they open onto.
+    const kind = road.ends?.[end] ?? 'fade';
+    if (kind === 'joined') continue;
+    const n = road.x.length, j = end ? n - 1 : 0, k = end ? Math.max(0, n - 5) : Math.min(n - 1, 4);
+    if (road.s[j] < s0 || road.s[j] > s1) continue;
+    const dx = road.x[k] - road.x[j], ds = road.s[k] - road.s[j], l = Math.hypot(dx, ds) || 1;
+    spots.push({ x: road.x[j], s: road.s[j], dx: dx / l, ds: ds / l, strength: kind === 'fade' ? 1 : 0.5 });
+  }
+  return spots;
+}
+/** Test hook: forgets cached paths (they are pure, so this never changes results). */
+export function resetNetworkMemos() { roadMemo.clear(); pipeMemo.clear(); districtRoadMemo.clear(); }
 
 /* ---------------------------------------------------------------- pipelines */
 
@@ -709,7 +920,7 @@ function* pipeLayoutSteps(g: Grid, found: { cells: PipeCell[]; reached: boolean 
 const pipeMemo = new Map<string, PipeRun>();
 /** One edge's pipeline (cached per edge, so every section extracts its own pieces identically). */
 export function* pipeRunSteps(seed: number, edge: NetworkEdge, input?: WorldInput | World): Work<PipeRun> {
-  const world = worldOf(input).bare, key = `${world.planet.id}:${seed}:${edge.id}`;
+  const world = worldOf(input).bare, key = `${memoPrefix(world)}:${seed}:${edge.id}`;
   if (pipeMemo.has(key)) return pipeMemo.get(key)!;
   let run: PipeRun = { pieces: [], reached: false, cells: 0 };
   if (edge.pipe) {

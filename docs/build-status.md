@@ -1,5 +1,57 @@
 # Build status
 
+## Facility compounds v2: textured remodels after the facility sheets, 20 October 2026
+
+- **What:** the user found the large building complexes "super flat" and asked for remodels that are more interesting and "textured like the bosses", taking "the render arts as inspiration".
+  - All six gun-court plants are rebuilt with the boss toolkit (`tools/blender/remodel_facilities.py`) after `art/concepts/facility-sheets`:
+    - Khepri: refinery columns, domed tanks, sawtooth sheds and banded pipes;
+    - Vesper: raked graphite reactor halls, octagonal heat exchangers and snow caps;
+    - Nacre: stone monoliths, glowing basins, and obelisks with crystals and crescent blades.
+  - Surfaces are baked like the bosses: one 2048² atlas per world, with colour, roughness/metal, normal and AO.
+  - Details: `art/facility-remodel/README.md`.
+- **Runtime:**
+  - Each world's GLB (`public/assets/<world>/facility-compounds-v2-remodel.glb`) loads when the run arrives there. It is released once its last plant has scrolled away.
+  - The view keeps the GLB materials (`loadTexturedNodes` in `models.ts`): one instanced draw per material, which is 2 per plant on Khepri and Vesper and 4 on Nacre.
+  - Until a world's file is ready, its batteries keep their smaller emplacements.
+  - Placement, the district reservations and the seat bounds are unchanged.
+- **Triangles per plant (small / large):** Khepri 15.3k / 23.2k, Vesper 9.8k / 17.1k, Nacre 6.6k / 9.5k. The v1 plants were about 7.4k each, untextured. The file sizes are 5.7, 5.2 and 4.4 MB.
+- **Checks:**
+  - typecheck clean; 370/370 unit tests, including the v2 seat-contract test for all three files and a new load/release test.
+  - Blender asserts the bounds, the court and the area ratio on every build.
+- **Evidence:**
+  - in-game before/after on every world, at High and both sizes: `docs/screenshots/facility-remodel/before-after.jpg`;
+  - authored game-view previews: `art/facility-remodel/previews.jpg`.
+- **Limits:** no phone test. Texture memory is three 2048² maps for the current world's plants, plus the outgoing world's during a planet change.
+
+## Khepri refinery districts and blended road ends (Phase 10a, docs/23), 20 October 2026
+
+- **What:** terrain version 11. Rare, seeded refinery districts on Khepri (docs/23 §6), built from existing kit nodes plus the integrator's `khepri_processing_tower` (`district-kit.glb`):
+  - a cargo hub;
+  - a process lot with the tower, halls, junction and a piped tank farm;
+  - internal roads joined to the network.
+  Every road end now blends into the ground: dead ends taper to a rounded tip and fade on worn gravel; outpost ends run onto their pads on a flush apron. Battery compounds keep off district pads (render-only).
+- **Where it appears:** slot 0 (s 440–606; preferred core s 520–580), which is Rolling Thunder's relief stretch before the Bastion arena and endless sector 2. Then one window every 720 units on Khepri. 44 of 60 seeds get a district in slot 0; for the rest the slot stays quiet.
+- **Rollback:** `PLANETS.khepri.districts = null` plus `ROAD_ENDS.taper = 0` give version 10 byte for byte (asserted against the recorded fingerprints).
+- **Checks:**
+  - typecheck clean; **368/368 unit tests**, 18 of them new (districts, registry, road ends, reservation, budget);
+  - Fingerprints: version 11 re-recorded, version 10 kept under the rollback switches;
+  - `npm run build` passes;
+  - Playwright: six relevant browser cases passed (three Bastion, endless flight, facilities on every world, Bastion model).
+- **Measured** (SwiftShader and Node; no phone):
+  - Terrain-only budget over districts: High at most 48 calls / 53.5k triangles, the same as before; Low at most 41.
+  - Whole frame in district views: 39–46 calls (before 36–44).
+  - Fixture flights through districts at 8 units/s: 0 fallbacks and 10–17 ms maximum terrain work at normal load (before 15–17 ms). One fallback per run in a final pass under load average 30–59 from other sessions; the load-independent stream tests show none.
+- **Evidence:**
+  - Captures: `lookdev/districts/` (before, after, road-ends).
+  - Curated set: `docs/screenshots/districts/*.jpg`.
+  - Fixture: `tests/fixtures/khepri-district.html?seed=11&distance=536.6&x=-9` (also `legacy=1`, `quality=low`, `battery=x,s`, `fly=from,to,speed`).
+- **Limits and next:**
+  - No external pipeline joins a district yet.
+  - The tower sits on the outer half and is not visible from the centre lane.
+  - Still to author: pipe manifold, plinths and retaining walls, power spire, bridge-gate, factory hall.
+  - Re-measure frame cost on a quiet machine and on a phone.
+  - Other planets' grammars wait for the Khepri review.
+
 ## WARDEN-1 reworked: bulky and layered, after its sheet, 20 October 2026
 
 - **Why:** the user found the first remodel "cheaply made" and asked for it to really look like their render: more imposing and bulky.

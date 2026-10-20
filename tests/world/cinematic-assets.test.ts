@@ -161,28 +161,38 @@ describe('Blender cinematic asset contracts',()=>{
       expect(new Raycaster(target.addScaledVector(eye,20),eye.clone().negate(),0,19.95).intersectObject(hull,true),`${name} visible above static armour`).toHaveLength(0);
     }
   });
+  // The plant around a ground battery: inside its seat (src/render/facility-view.ts SIZE), roof below the declared
+  // height, 1.8-2.2x the plan for the large one, and nothing above 0.25 over the gun's court.
+  function checkCompound(model: Group, planet: string, large: boolean) {
+    const node=model.getObjectByName(`facility_${planet}${large?'_large':''}`); expect(node).toBeDefined();
+    const box=new Box3().setFromObject(node!);
+    expect(box.max.y).toBeLessThanOrEqual(large?2.831:2.651);
+    expect(box.max.x-box.min.x).toBeLessThan(large?8.8:6.7);
+    expect(-box.max.z).toBeGreaterThan(large?-2.8:-1.8);
+    expect(-box.min.z).toBeLessThan(large?6.1:4.6);
+    if(large){
+      const small=new Box3().setFromObject(model.getObjectByName(`facility_${planet}`)!);
+      const ratio=(box.max.x-box.min.x)*(box.max.z-box.min.z)/((small.max.x-small.min.x)*(small.max.z-small.min.z));
+      expect(ratio).toBeGreaterThan(1.8); expect(ratio).toBeLessThan(2.2);
+    }
+    node!.traverse(o=>{
+      if(!(o instanceof Mesh))return;
+      const p=o.geometry.getAttribute('position'),v=new Vector3();
+      for(let i=0;i<p.count;i++){
+        v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);
+        if(Math.abs(v.x)<.65 && Math.abs(v.z)<.7) expect(v.y).toBeLessThan(.25);
+      }
+    });
+  }
   it('keeps each facility gun courtyard empty and each roof below its declared height',async()=>{
     const model=await asset('shared/facility-compounds.glb'); validate(model,46000);
-    for(const planet of ['khepri','vesper','nacre']) for(const large of [false,true]){
-      const node=model.getObjectByName(`facility_${planet}${large?'_large':''}`); expect(node).toBeDefined();
-      const box=new Box3().setFromObject(node!);
-      expect(box.max.y).toBeLessThanOrEqual(large?2.831:2.651);
-      expect(box.max.x-box.min.x).toBeLessThan(large?8.8:6.7);
-      expect(-box.max.z).toBeGreaterThan(large?-2.8:-1.8);
-      expect(-box.min.z).toBeLessThan(large?6.1:4.6);
-      if(large){
-        const small=new Box3().setFromObject(model.getObjectByName(`facility_${planet}`)!);
-        const ratio=(box.max.x-box.min.x)*(box.max.z-box.min.z)/((small.max.x-small.min.x)*(small.max.z-small.min.z));
-        expect(ratio).toBeGreaterThan(1.8); expect(ratio).toBeLessThan(2.2);
-      }
-      node!.traverse(o=>{
-        if(!(o instanceof Mesh))return;
-        const p=o.geometry.getAttribute('position'),v=new Vector3();
-        for(let i=0;i<p.count;i++){
-          v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);
-          if(Math.abs(v.x)<.65 && Math.abs(v.z)<.7) expect(v.y).toBeLessThan(.25);
-        }
-      });
+    for(const planet of ['khepri','vesper','nacre']) for(const large of [false,true]) checkCompound(model,planet,large);
+  });
+  it('keeps the same seat contract in the textured v2 compounds after the facility sheets',async()=>{
+    for(const planet of ['khepri','vesper','nacre']){
+      const model=await asset(`${planet}/facility-compounds-v2-remodel.glb`); validate(model,46000,true);
+      expect(model.getObjectByName('facility_remodel_v2')).toBeDefined();
+      for(const large of [false,true]) checkCompound(model,planet,large);
     }
   });
 });

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KIT, KIT_KINDS, NACRE_KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
 
@@ -360,6 +360,16 @@ function primitiveInfra(name: string): THREE.BufferGeometry | null {
     case 'infra_silo':
       add(new THREE.CylinderGeometry(0.42, 0.42, 1.45, 12).translate(0, 0.73, 0), OCHRE);
       add(new THREE.ConeGeometry(0.42, 0.3, 12).translate(0, 1.6, 0), GRAPHITE); lamp(0, 1.72, 0); break;
+    case 'khepri_processing_tower':
+      // Stand-in landmark: a footed core with two columns and a stack, pipe stubs mid-face, a beacon at 3.5.
+      box(3, 0.4, 3, 0, 0, 0, GRAPHITE); box(1.6, 2.2, 1.6, 0, 0.4, 0, OCHRE);
+      add(new THREE.CylinderGeometry(0.42, 0.42, 2.7, 10).translate(-0.85, 1.75, 0.6), GRAPHITE);
+      add(new THREE.CylinderGeometry(0.36, 0.36, 2.4, 10).translate(0.85, 1.6, -0.6), GRAPHITE);
+      add(new THREE.CylinderGeometry(0.16, 0.2, 0.9, 8).translate(0, 2.98, 0), RUST);
+      for (const [x, z, ry] of [[0, -1.25, 0], [0, 1.25, 0], [1.25, 0, Math.PI / 2], [-1.25, 0, Math.PI / 2]] as const) {
+        add(new THREE.CylinderGeometry(0.16, 0.16, 0.5, 8).rotateX(Math.PI / 2).rotateY(ry).translate(x, 0.35, z), GRAPHITE);
+      }
+      lamp(0, 3.45, 0); break;
     case 'wreck_0': case 'wreck_1':
       box(1.8, 0.3, 0.9, 0, 0, 0, RUST); box(0.7, 0.18, 1.3, 0.4, 0.15, 0, GRAPHITE);
       add(new THREE.ConeGeometry(0.2, 0.5, 4).rotateZ(1.2).translate(-0.8, 0.3, 0.2), linear(0x2fe0d4), 0.6); break;
@@ -373,6 +383,7 @@ function primitiveInfra(name: string): THREE.BufferGeometry | null {
 /** Bakes the code-built props (one mesh per material) into single vertex-coloured geometries at real size. */
 export function createFallbackInfra(materials: Materials): KitGeometries {
   const infra: KitGeometries = new Map();
+  for (const name of DISTRICT_NODES) { const geometry = primitiveInfra(name); if (geometry) infra.set(name, geometry); }
   for (const [name, { kind, size }] of Object.entries(INFRA_NODES)) {
     if (!kind) { const geometry = primitiveInfra(name); if (geometry) infra.set(name, geometry); continue; }
     const model = createScenicProp(kind, materials), parts: THREE.BufferGeometry[] = [];
@@ -399,6 +410,12 @@ export function createFallbackInfra(materials: Materials): KitGeometries {
   return infra;
 }
 
+/** District-kit nodes (district-kit.glb, tools/blender/khepri_district_kit.py): the registry's 'district-kit' modules. */
+export const DISTRICT_NODES: readonly string[] = Object.values(MODULES).filter(spec => spec.source === 'district-kit').map(spec => spec.node);
+/** Loads the district kit (same materials as khepri-infra.glb). Missing nodes keep their code-built stand-in. */
+export function loadDistrictKit(url: string): Promise<KitGeometries> {
+  return loadNodes(url, DISTRICT_NODES, node => extractNode(node, /light/i));
+}
 /** Loads the modelled infrastructure kit; amber `khepri_light` faces glow. Missing nodes keep their fallback. */
 export function loadKhepriInfra(url: string): Promise<KitGeometries> {
   return loadNodes(url, Object.keys(INFRA_NODES), node => extractNode(node, /light/i));

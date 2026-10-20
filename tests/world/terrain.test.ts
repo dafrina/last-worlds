@@ -171,8 +171,9 @@ describe('seeded Khepri landforms', () => {
         const x = section.positions[v * 3], y = section.positions[v * 3 + 1], s = section.startS - section.positions[v * 3 + 2];
         const albedo = terrainSample(seed, x, s);
         expect(albedo.height).toBeCloseTo(y, 5);
-        // Cliff-foot occlusion darkens by at most 28%; anything darker is a cast shadow.
-        if (section.colors[v * 3] < albedo.color[0] * 0.6) {
+        // Cliff-foot occlusion darkens by at most 28%; anything darker in every channel is a cast shadow (the gravel
+        // wear around fading road ends, docs/23, dulls the red but lifts the green).
+        if (section.colors[v * 3] < albedo.color[0] * 0.6 && section.colors[v * 3 + 1] < albedo.color[1] * 0.6) {
           shadowed++;
           let blocker = -Infinity;
           for (let d = 0.35; d <= 12; d += 0.35) blocker = Math.max(blocker, terrainHeight(seed, x + SUN_DIRECTION.x / horizontal * d, s + SUN_DIRECTION.s / horizontal * d));

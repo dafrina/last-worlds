@@ -994,7 +994,8 @@ def _bake_tree(mat, style, target):
     if not glow:
         albedo = mix(wear, albedo, srgb(style['wear'])[:3])
     # Dust or frost settles on roofs.
-    dust = math_node('MULTIPLY', math_node('MULTIPLY', remap(up, .6, .95), remap(noise(3.2, 6), .45, .75)), style['dust_amount'], clamp=True)
+    dust_noise = remap(noise(style.get('dust_scale', 3.2), 6), style.get('dust_lo', .45), style.get('dust_hi', .75))
+    dust = math_node('MULTIPLY', math_node('MULTIPLY', remap(up, .6, .95), dust_noise), style['dust_amount'], clamp=True)
     albedo = mix(dust, albedo, srgb(style['dust'])[:3])
     if glow:
         albedo_out = mix(0.0, (*colour,), (*colour,))

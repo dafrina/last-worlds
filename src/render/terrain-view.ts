@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  FLOE_FOOTPRINT, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, pieceBounds, routeOfInput, routedWorld,
-  terrainHeight, worldAt, worldOf,
+  FLOE_FOOTPRINT, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld,
+  terrainHeight, worldAt, worldOf, type DistrictSite,
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
@@ -67,6 +67,8 @@ interface SectionView {
   floes: readonly Floe[]; sea: number;
   /** Vent-stack tops (world x, y and forward s) for the live features. */
   vents: readonly { x: number; y: number; s: number }[];
+  /** District pads reaching the section (render-only reservations, docs/23). */
+  sites: readonly DistrictSite[];
 }
 interface Batch { mesh: THREE.InstancedMesh; capacity: number; triangles: number }
 export interface TerrainViewOptions {
@@ -120,7 +122,7 @@ const CASTER_NODES = new Set<string>([
   // Tall Nacre pieces (crags and the builders' ruins) ground themselves with real shadows on High too.
   ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
   'infra_refinery', 'infra_drill_rig', 'infra_silo', 'infra_comm_dish', 'infra_relay', 'infra_habitat_0', 'infra_habitat_1',
-  'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal',
+  'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'khepri_processing_tower',
 ]);
 
 const piecePosition = new THREE.Vector3(), pieceRotation = new THREE.Euler(), pieceQuaternion = new THREE.Quaternion(), pieceScale = new THREE.Vector3();
@@ -172,7 +174,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   let facilityClearings: readonly TerrainExclusion[] = [];
 
   const nodeGeometry = (name: string) => kit.get(name) ?? infra.get(name) ?? shared.get(name);
-  const nodeMaterial = (name: string) => name.startsWith('infra_') ? infraMaterial : SHARED.has(name) ? sharedMaterial : kitMaterial;
+  // Khepri infrastructure and the district kit (`khepri_*`, same materials) draw with the infra material.
+  const nodeMaterial = (name: string) => name.startsWith('infra_') || name.startsWith('khepri_') ? infraMaterial : SHARED.has(name) ? sharedMaterial : kitMaterial;
   function createMesh(geometry: THREE.BufferGeometry, material: THREE.Material, capacity: number, name: string) {
     const mesh = new THREE.InstancedMesh(geometry, material, capacity);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, color.setRGB(1, 1, 1));
@@ -369,16 +372,17 @@ export function createTerrainView(options: TerrainViewOptions) {
       const localS = prop.s - section.startS, z = -localS;
       transform.position.set(prop.x, prop.baseHeight, z); transform.rotation.set(0, prop.rotation, 0);
       transform.scale.set(1, 1, 1); transform.updateMatrix();
-      const size = INFRA_NODES[prop.node]?.size ?? [1, 1, 1], half = Math.hypot(size[0], size[2]) / 2 + 0.1;
+      // Contract bounds from the module registry (Khepri nodes: the same numbers as INFRA_NODES; Vesper nodes get their own).
+      const size = moduleSize(prop.node) ?? INFRA_NODES[prop.node]?.size ?? [1, 1, 1], half = Math.hypot(size[0], size[2]) / 2 + 0.1;
       const box = new THREE.Box3(new THREE.Vector3(prop.x - half, prop.baseHeight - 0.1, z - half), new THREE.Vector3(prop.x + half, prop.baseHeight + size[1] + 0.1, z + half));
-      push(prop.node, transform.matrix.clone(), new THREE.Color(1, 1, 1), box, false);
+      push(prop.node, transform.matrix.clone(), new THREE.Color(1, 1, 1), box, prop.cosmetic === true);
     }
     for (const piece of section.industry) {
       // Pipes are posed by generation (pitched runs, vertical risers, stretched supports); boxes cover the rotated piece.
       const bounds = pieceBounds(piece), margin = 0.05;
       const box = new THREE.Box3(new THREE.Vector3(bounds.minX - margin, bounds.minY - margin, -(bounds.maxS - section.startS) - margin),
         new THREE.Vector3(bounds.maxX + margin, bounds.maxY + margin, -(bounds.minS - section.startS) + margin));
-      push(piece.node, industryMatrix(piece, section.startS), new THREE.Color(1, 1, 1), box, false);
+      push(piece.node, industryMatrix(piece, section.startS), new THREE.Color(1, 1, 1), box, piece.cosmetic === true);
     }
     const prepared = new Map<string, Prepared>();
     for (const [name, list] of lists) {
@@ -451,7 +455,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   function* buildSteps(section: TerrainSection): Generator<void, SectionView, void> {
     const group = new THREE.Group(); group.name = `Khepri procedural section ${section.index}`;
     const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [], floes: section.floes ?? [], sea: section.water?.level ?? 0,
-      vents: section.instances.filter(piece => piece.kind === 'vent').map(piece => ({ x: piece.x, y: piece.y + piece.height * KIT.vent.height, s: piece.s })) };
+      vents: section.instances.filter(piece => piece.kind === 'vent').map(piece => ({ x: piece.x, y: piece.y + piece.height * KIT.vent.height, s: piece.s })),
+      sites: section.sites ?? [] };
     yield;
     yield* casterSteps(view);
     yield* buildGround(section, view);
@@ -705,6 +710,15 @@ export function createTerrainView(options: TerrainViewOptions) {
       requested = { ...rect };
       exclusion = { minX: rect.minX - EXCLUSION_SLACK, maxX: rect.maxX + EXCLUSION_SLACK, minS: rect.minS - EXCLUSION_SLACK, maxS: rect.maxS + EXCLUSION_SLACK };
       dirty = true;
+    },
+    /**
+     * District pads in the live window (world x, s): battery compounds and emplacements keep out of them, so no
+     * clearing ever hides a district piece (docs/23 §4.8). Render-only; targets never move.
+     */
+    reservedSites(): readonly TerrainExclusion[] {
+      const seen = new Map<string, TerrainExclusion>();
+      for (const view of views.values()) for (const site of view.sites) seen.set(site.id, site);
+      return [...seen.values()];
     },
     /** Stable, bounded render-only clearings for battery compounds. Never changes terrain or targeting. */
     setFacilityClearings(rects: readonly TerrainExclusion[]) {

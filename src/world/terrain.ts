@@ -1,10 +1,11 @@
 import { VIEW } from '../shared/contracts';
-import { SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, crater, mix, smoothRange } from './terrain-layout';
-import { rowPoint, terrainHeight, terrainRow, type TerrainPoint, type TerrainRow } from './terrain-ground';
+import { PALETTE, SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, crater, mix, smoothRange } from './terrain-layout';
+import { resetRowCache, rowPoint, terrainHeight, terrainRow, type TerrainPoint, type TerrainRow } from './terrain-ground';
 import { KIT, KIT_MAX_SCALE, TERRAIN_STRIPS, scatterKitSteps, type KitInstance, type KitKind, type ScatterField } from './terrain-scatter';
 import { finish, type Work } from './terrain-work';
 import { MODULE_HEIGHT, settlementsNear, type Archetype } from './terrain-settlements';
-import { SHARED_BOUNDS, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
+import { ROAD_ENDS, SHARED_BOUNDS, districtRoadsSteps, resetNetworkMemos, roadEndSpotsSteps, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
+import { districtHidden, districtPlanSteps, districtsNear, knownPlan, resetDistrictPlans, slotRange, type DistrictSite } from './terrain-districts';
 import { arenaWeight } from './terrain-arena';
 import { routeOfInput, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
 
@@ -13,6 +14,9 @@ export {
   landform, moodAt, moodOf, routeCalm, routeCenter, type Mood, type Route,
 } from './terrain-layout';
 export { terrainHeight } from './terrain-ground';
+export { PAD_MARGIN, districtHidden, districtPlan, districtsNear, slotRange, type DistrictPlan, type DistrictSite } from './terrain-districts';
+export { KHEPRI_DISTRICTS, KHEPRI_REFINERY, type DistrictPolicy, type LayoutGraph } from './settlement-grammars';
+export { MODULES, moduleSize, type ModuleSpec } from './settlement-modules';
 export { ARENA_LEVEL, ARENA_RAMP, arenaWeight, sameArena, type TerrainArena } from './terrain-arena';
 export {
   PLANETS, isRoute, routeOf, routeOfInput, routedWorld, sameWorld, worldAt, worldOf,
@@ -22,9 +26,9 @@ export {
 export { VESPER_PALETTE, VESPER_SEA_LEVEL } from './terrain-vesper';
 export { ARCHETYPES, MODULE_HEIGHT, SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Archetype, type Settlement } from './terrain-settlements';
 export {
-  PIPE_AXIS, PIPE_BEDDING, PIPE_CELL, PIPE_MAX_SLOPE, PIPE_TOP, ROAD_MAX_SLOPE, ROAD_STEP, SHARED_BOUNDS, SHARED_LOCAL_BOX, SHARED_NODES, SUPPORT_HEIGHT,
+  PIPE_AXIS, PIPE_BEDDING, PIPE_CELL, PIPE_MAX_SLOPE, PIPE_TOP, ROAD_ENDS, ROAD_MAX_SLOPE, ROAD_STEP, SHARED_BOUNDS, SHARED_LOCAL_BOX, SHARED_NODES, SUPPORT_HEIGHT,
   edgesNear, pieceBounds, pipePieces, pipeRun, roadPath, rotatePiece, sectionNetwork,
-  type IndustryPiece, type NetworkEdge, type PipeRun, type RoadMesh, type RoadPath, type SharedNode,
+  type IndustryPiece, type NetworkEdge, type PipeRun, type RoadEnd, type RoadMesh, type RoadPath, type SharedNode,
 } from './terrain-network';
 export {
   FLOE_FOOTPRINT, FLOE_SETS, KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, VESPER_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName, stripOf, type FloeSetKind, type KitInstance, type KitKind,
@@ -33,8 +37,9 @@ export {
 /**
  * Pure planet scenery (Khepri, Vesper). Terrain never reads, schedules, or advances combat or loot.
  * 10: planet profiles and Vesper; Khepri's output is unchanged from 9 (fingerprints in terrain-vesper.test.ts).
+ * 11: Khepri districts (docs/23); with `KHEPRI.districts = null` the output is exactly version 10's.
  */
-export const TERRAIN_VERSION = 10;
+export const TERRAIN_VERSION = 11;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.
@@ -57,6 +62,8 @@ export interface TerrainProp {
   baseHeight: number; height: number;
   /** Settlement it belongs to, and that settlement's archetype. */
   group: string; archetype: Archetype;
+  /** Detail the low graphics tier may skip. */
+  cosmetic?: boolean;
 }
 /** A contiguous index range covering one lateral strip of the section mesh. */
 export interface TerrainStrip { start: number; count: number; minX: number; maxX: number }
@@ -84,6 +91,8 @@ export interface TerrainSection {
   roadPaths: readonly RoadPath[];
   /** Planets with an ocean only: pack ice owned by this section (drift is presentation-only). */
   floes?: readonly Floe[];
+  /** District pads reaching this section: render-only reservations battery compounds keep out of (docs/23). */
+  sites?: readonly DistrictSite[];
   /**
    * Planets with an ocean only: the sea level and, per ground vertex, the signed distance to the waterline in
    * world units (positive over water, negative over land, clamped to ±1) for foam and depth tint.
@@ -127,19 +136,21 @@ export function terrainSample(seed: number, x: number, s: number, input?: Terrai
 
 /** Settlement modules owned by a section: modelled infrastructure, shared tanks and containers, and kit rubble. */
 function settlementPieces(seed: number, startS: number, size: number, world: World) {
-  const props: TerrainProp[] = [], industry: IndustryPiece[] = [], rubble: KitInstance[] = [], cap = world.planet.sceneryMax;
+  const props: TerrainProp[] = [], industry: IndustryPiece[] = [], rubble: KitInstance[] = [];
   for (const site of settlementsNear(seed, startS, startS + size, world.arena, world.planet)) for (const module of site.modules) {
     if (module.s < startS || module.s >= startS + size) continue;
+    // District lots carry their own structure cap (docs/23 §4.2); every other piece keeps the planet's scenery cap.
+    const cap = site.cap ?? world.planet.sceneryMax, detail = module.cosmetic ? { cosmetic: true } : {};
     const ground = terrainHeight(seed, module.x, module.s, world);
     if (module.kind === 'infra') {
       const height = MODULE_HEIGHT[module.node] ?? 1;
       const base = module.base ?? (site.flatten ? site.level : ground - (module.node.startsWith('wreck') ? 0.12 : 0));
       if (Math.abs(module.x) > WORLD_HALF - 0.4 || base + height > cap) continue;
-      props.push({ id: module.id, node: module.node, x: module.x, s: module.s, rotation: module.yaw, baseHeight: base, height, group: site.id, archetype: site.archetype });
+      props.push({ id: module.id, node: module.node, x: module.x, s: module.s, rotation: module.yaw, baseHeight: base, height, group: site.id, archetype: site.archetype, ...detail });
     } else if (module.kind === 'shared') {
       const node = module.node as SharedNode, bounds = SHARED_BOUNDS[node];
       if (site.level + bounds.height > cap || Math.abs(module.x) + Math.max(bounds.halfX, bounds.halfZ) > WORLD_HALF) continue;
-      industry.push({ id: module.id, node, x: module.x, s: module.s, y: site.level, rotation: module.yaw, pitch: 0, roll: 0, scaleY: 1, scaleZ: 1, group: site.id });
+      industry.push({ id: module.id, node, x: module.x, s: module.s, y: site.level, rotation: module.yaw, pitch: 0, roll: 0, scaleY: 1, scaleZ: 1, group: site.id, ...detail });
     } else {
       const kind = module.node as KitKind, spec = KIT[kind], scale = Math.min(KIT_MAX_SCALE, module.scale);
       const height = kind === 'rock' ? scale * 0.9 : scale;
@@ -175,6 +186,8 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   // Planet seams within reach of this section's pieces (none for one world): pieces keep clear of them.
   const seams = route ? planetSeams(route, startS - SEAM_CLEARANCE, startS + size + SEAM_CLEARANCE) : [];
   const clear = (s: number) => seams.every(seam => Math.abs(s - seam) >= SEAM_CLEARANCE);
+  // District plans this section's rows, outposts and network may read are planned first, in resumable steps.
+  yield* warmDistrictSteps(seed, source, startS - DISTRICT_WARM, startS + size + DISTRICT_WARM);
   const across = cellsX + 1, along = cellsS + 1, vertices = across * along;
   // Apron: rim detection on every side, plus a long shadow apron toward the sun (−x, +s).
   const near = RIM_CELLS, far = Math.max(SHADOW_STEPS * SHADOW_STRIDE, RIM_CELLS);
@@ -345,8 +358,13 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   };
   // Scatter keeps off the unit cells under roads, pipelines and settlement modules (each span's own).
   const networks: { pieces: IndustryPiece[]; roads: RoadPath[] }[] = [], settlements: ReturnType<typeof settlementPieces>[] = [];
+  const sites: DistrictSite[] = [];
   for (const span of spans) {
-    networks.push(yield* sectionNetworkSteps(seed, span.from, span.to - span.from, span.world));
+    const network = yield* sectionNetworkSteps(seed, span.from, span.to - span.from, span.world);
+    // District pipework and roads join the span's network pieces and roads (same ownership, occupancy and ribbons).
+    const district = yield* districtSectionSteps(seed, span.from, span.to - span.from, span.world);
+    network.pieces.push(...district.pieces); network.roads.push(...district.roads); sites.push(...district.sites);
+    networks.push(network);
     settlements.push(settlementPieces(seed, span.from, span.to - span.from, span.world));
   }
   const occupied = new Set<string>();
@@ -362,6 +380,35 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   for (const piece of [...networkPieces, ...settled.industry]) occupy(piece.x, piece.s, Math.max(SHARED_BOUNDS[piece.node].halfX, SHARED_BOUNDS[piece.node].halfZ) + 0.3);
   for (const prop of settled.props) occupy(prop.x, prop.s, prop.node === 'infra_landing_pad' ? 3.2 : prop.node === 'infra_refinery' ? 2.7 : 1);
   for (const road of networkRoads) for (let i = 0; i < road.x.length; i++) if (road.s[i] >= startS - 1 && road.s[i] < startS + size + 1) occupy(road.x[i], road.s[i], 1);
+  // Worn dirt where roads fade out (user, 20 October): the ground around each fading end darkens toward gravel.
+  if (ROAD_ENDS.taper > 0) {
+    const wear = new Float32Array(vertices), reach = ROAD_ENDS.wear + 2;
+    for (const span of spans) for (const spot of yield* roadEndSpotsSteps(seed, Math.max(startS, span.from) - reach, Math.min(startS + size, span.to) + reach, span.world)) {
+      const r0 = Math.max(0, Math.ceil((spot.s - reach - startS) / TERRAIN_STEP)), r1 = Math.min(cellsS, Math.floor((spot.s + reach - startS) / TERRAIN_STEP));
+      const c0 = Math.max(0, Math.ceil((spot.x - reach + WORLD_HALF) / TERRAIN_STEP)), c1 = Math.min(cellsX, Math.floor((spot.x + reach + WORLD_HALF) / TERRAIN_STEP));
+      for (let r = r0; r <= r1; r++) {
+        const s = startS + r * TERRAIN_STEP;
+        // Spans are half-open, except that the last one also owns the section's closing row (the seam row).
+        if (s < span.from || (s >= span.to && span.to < startS + size)) continue;
+        for (let c = c0; c <= c1; c++) {
+          // Distance to the end's last `wear` units (a capsule), strongest at the end, gone by its far side.
+          const x = -WORLD_HALF + c * TERRAIN_STEP, vx = x - spot.x, vs = s - spot.s;
+          const along = Math.min(1, Math.max(0, (vx * spot.dx + vs * spot.ds) / ROAD_ENDS.wear));
+          const d = Math.hypot(vx - spot.dx * along * ROAD_ENDS.wear, vs - spot.ds * along * ROAD_ENDS.wear);
+          const w = spot.strength * (1 - smoothRange(0.7, 2.4, d)) * (1 - smoothRange(0.35, 1, along));
+          if (w > wear[r * across + c]) wear[r * across + c] = w;
+        }
+      }
+    }
+    for (let v = 0; v < vertices; v++) {
+      const w = wear[v];
+      if (w <= 0) continue;
+      // Gravel keeps the ground's light (its luminance) but takes a duller, greyer tone: Khepri's worn dust.
+      const khepri = contexts[Math.floor(v / across)].world.planet.id === 'khepri', i = v * 3;
+      const luma = colors[i] * 0.2126 + colors[i + 1] * 0.7152 + colors[i + 2] * 0.0722;
+      for (let k = 0; k < 3; k++) colors[i + k] = mix(colors[i + k], luma * (khepri ? WEAR_TONE[k] : 1), 0.7 * w) * (1 - 0.22 * w);
+    }
+  }
   // Roads take the ground's baked cast shadow so they darken in shaded valleys too. Each span's roads sit on its world.
   const ribbons: RoadMesh[] = [];
   for (let k = 0; k < spans.length; k++) ribbons.push(yield* roadRibbonSteps(seed, networks[k].roads, startS, size, spans[k].world.bare));
@@ -385,6 +432,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     props: settled.props, instances, industry: [...settled.industry, ...networkPieces],
     roads, roadPaths: networkRoads,
   };
+  if (sites.length) section.sites = sites;
   if (sea !== null) {
     yield;
     const floes: Floe[] = [];
@@ -402,6 +450,35 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
 
 /** How far every piece (scenery, settlement, pipeline, floe) keeps from a planet seam, in world units. */
 export const SEAM_CLEARANCE = 3;
+/** Worn-dirt chroma (luminance 1) of Khepri ground around fading road ends: the grey-brown of its industrial dust. */
+const WEAR_TONE = (() => { const [r, g, b] = PALETTE.industrial, l = r * 0.2126 + g * 0.7152 + b * 0.0722; return [r / l, g / l, b / l] as const; })();
+/** How far around a section district plans are made ready (rows, outposts, network searches and their margins). */
+const DISTRICT_WARM = 200;
+
+/** Plans the districts of every planet along [from, to) that are not planned yet (resumable; results are identical). */
+function* warmDistrictSteps(seed: number, source: TerrainInput, from: number, to: number): Work<void> {
+  const route = routeOfInput(source), planets = new Map<string, World['planet']>();
+  for (const world of route ? route.spans(from, to).map(span => span.world) : [worldOf(source as WorldInput | World)]) planets.set(world.planet.id, world.planet);
+  for (const planet of planets.values()) {
+    if (!planet.districts) continue;
+    const [k0, k1] = slotRange(planet.districts, from, to);
+    for (let k = k0; k <= k1; k++) if (knownPlan(seed, planet, k) === undefined) yield* districtPlanSteps(seed, planet, k);
+  }
+}
+/** A span's district pipework (by anchor), roads touching it, and reserved pads, unless an arena hides the district. */
+function* districtSectionSteps(seed: number, startS: number, size: number, world: World): Work<{ pieces: IndustryPiece[]; roads: RoadPath[]; sites: DistrictSite[] }> {
+  const out: { pieces: IndustryPiece[]; roads: RoadPath[]; sites: DistrictSite[] } = { pieces: [], roads: [], sites: [] }, policy = world.planet.districts;
+  if (!policy) return out;
+  for (const plan of districtsNear(seed, world.planet, startS - 40, startS + size + 40)) {
+    if (districtHidden(plan, policy, world.arena)) continue;
+    for (const piece of plan.pieces) if (piece.s >= startS && piece.s < startS + size) out.pieces.push(piece);
+    for (const road of yield* districtRoadsSteps(seed, plan, world)) if (road.s.some(s => s >= startS - 1 && s < startS + size + 1)) out.roads.push(road);
+    for (const site of plan.sites) if (site.maxS >= startS && site.minS < startS + size) out.sites.push(site);
+  }
+  return out;
+}
+/** Test hook: forgets every cached plan, path and row (all pure; only needed when switching districts at run time). */
+export function resetTerrainCaches() { resetDistrictPlans(); resetNetworkMemos(); resetRowCache(); }
 /** Forward distances in [from, to] where a route changes planet. */
 function planetSeams(route: TerrainRoute, from: number, to: number): number[] {
   const spans = route.spans(from, to), seams: number[] = [];

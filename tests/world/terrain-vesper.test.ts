@@ -6,8 +6,8 @@ import { HELION_ARK } from '../../src/content/ark';
 import { arenaStopDistance } from '../../src/sim/bastion';
 import { missionArena } from '../../src/render/scene';
 import {
-  ARENA_RAMP, FLOE_SETS, KIT, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, roadPath, sectionSteps, settlementsNear,
-  terrainHeight, worldOf, type TerrainSection,
+  ARENA_RAMP, FLOE_SETS, KIT, PLANETS, ROAD_ENDS, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, resetTerrainCaches, roadPath,
+  sectionSteps, settlementsNear, terrainHeight, worldOf, type TerrainSection,
 } from '../../src/world/terrain';
 
 const VESPER = { planet: 'vesper' as const }, SEA = VESPER_SEA_LEVEL, HALF = VIEW.worldWidth / 2;
@@ -24,14 +24,28 @@ describe('planet profiles (docs/17 §2)', () => {
     const arena = { fromS: 566, toS: 601 };
     expect(generateTerrainSection(93, 16, arena)).toEqual(generateTerrainSection(93, 16, { planet: 'khepri', arena }));
     expect(worldOf(arena)).toBe(worldOf({ planet: 'khepri', arena }));
-    // Re-recorded 17 October 2026 (outpost districts, denser outposts, tank farms on pipelines, processing plants). A deliberate Khepri
-    // change updates these.
-    const recorded = new Map([['11:5', '1a3d335a519d4f15'], ['93:17', 'fb13f53000739644'], ['8831:0', '6f8ab45f5ca93567']]);
-    for (const [key, value] of recorded) {
-      const [seed, index] = key.split(':').map(Number);
-      expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);
-    }
-    expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('461ca4d8c9f0203f');
+    // Version 11 (20 October 2026: Khepri refinery districts and blended road ends, docs/23; 93:14 and 11:15 hold a
+    // district, 93:17 its quiet buffer's network, 11:5 road ends). A deliberate Khepri change updates these.
+    const recorded = new Map([['11:5', '0a35aa617c498347'], ['93:17', 'd2f697ee4aa9cbf5'], ['8831:0', '6f8ab45f5ca93567'],
+      ['93:14', 'a075fa7a78c1ae3f'], ['11:15', '339fca3c12a77833']]);
+    // Version 10 (recorded 17 October 2026): the rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0`
+    // must restore it exactly.
+    const legacy = new Map([['11:5', '1a3d335a519d4f15'], ['93:17', 'fb13f53000739644'], ['8831:0', '6f8ab45f5ca93567'],
+      ['93:14', 'ee056c613dce01b5'], ['11:15', 'cf32b85aed253436']]);
+    const check = (fingerprints: Map<string, string>) => {
+      for (const [key, value] of fingerprints) {
+        const [seed, index] = key.split(':').map(Number);
+        expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);
+      }
+      // The arena hides the slot's district and its quiet cells lie elsewhere: unchanged either way.
+      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('461ca4d8c9f0203f');
+    };
+    check(recorded);
+    const policy = PLANETS.khepri.districts, taper = ROAD_ENDS.taper;
+    try {
+      PLANETS.khepri.districts = null; ROAD_ENDS.taper = 0; resetTerrainCaches();
+      check(legacy);
+    } finally { PLANETS.khepri.districts = policy; ROAD_ENDS.taper = taper; resetTerrainCaches(); }
   });
 
   it('maps missions to planets; endless starts on Luna', () => {

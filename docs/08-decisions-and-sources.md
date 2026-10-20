@@ -127,3 +127,7 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **WARDEN-1 flies.** It hovers 1.1 above the ground on burning thrusters with a gentle bob, and drops to the ground when destroyed. Its render-only target height rises from 1.3 to 2.4 so the weak points stay on their camera rays; collisions and attacks are unchanged.
   - **THE VEIL has three pods abreast in each wing bay**, as in the concept art. The innermost is the weak point and the other two are the same egg pods; glowing petal seams make them read from the game camera.
   - **The hero keeps only its real model shadow on High.** The blob shadow stands in only on Low, which has no shadow maps.
+
+- 2026-10-20, facilities and districts (user decisions):
+  - **Facility compounds remodelled after the facility sheets.** The user found the large building complexes "super flat" and asked for remodels that are more interesting and "textured like the bosses", taking "the render arts as inspiration". The six v1 gun-court plants (flat vertex colours) are replaced by textured v2 plants per world (`art/facility-remodel/README.md`). The seat contract is unchanged.
+  - **Districts:** option A (Khepri refinery district prototype, docs/23 §6). The world may get more vertical space if a map needs it.

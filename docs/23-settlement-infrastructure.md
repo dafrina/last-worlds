@@ -675,3 +675,86 @@ Lot-local frame: u is lateral (+ toward the world edge) and v is forward (+s). T
 5. **Nacre battery compounds:** they reuse the human compound geometry. Is that acceptable, or should Nacre get its own later?
 6. **Battery compounds inside a district:** fall back to the small compound or legacy emplacement (proposed)?
 7. **Compound frequency:** refinery, plant, landing and mining are 64% of Khepri outposts today. Make them rarer when compounds gain internal links (a fingerprinted retune)?
+
+**Decisions (integrator, 20 October, on the user's approval):** 1 option A; 2 planet-level seeded slots; 3 preferred band, then the full window, else the slot stays quiet (no terrain softening); 4 stand-in first, then the integrator authors the tower (it shipped the same day, see §6); 5 and 7 deferred; 6 the small compound or the legacy emplacement, never hiding the landmark, battery position unchanged.
+
+---
+
+## 6. As built: Phase 10a (20 October 2026)
+
+`TERRAIN_VERSION` is 11. Khepri has refinery districts, and every road's ends now blend into the ground. Two data switches restore version 10 byte for byte: `PLANETS.khepri.districts = null` and `ROAD_ENDS.taper = 0`. A test asserts the recorded version 10 fingerprints with both switches set.
+
+### 6.1 What shipped
+
+| Area | As built | Where |
+| --- | --- | --- |
+| Module registry | 43 nodes (Khepri infra, shared kit, Vesper infra, the tower) with contract bounds, sockets, tiling, detail and shadow flags. A test proves it equals every legacy table (`MODULE_HEIGHT`, `SHARED_BOUNDS`, `INFRA_NODES`, `VESPER_INFRA_NODES`). Pipe sockets are measured against the shipped GLBs by ray tests: tanks, the hall's flat −x wall, the refinery's inlets, and the tower's stubs. | `src/world/settlement-modules.ts`, `tests/world/settlement-modules.test.ts` |
+| Grammar | `khepri.refinery` has two lots. The **hub** (8 × 10 pad) is the cargo zone: crawler tracks, parked haulers, freight, an optional admin block and an optional power relay with solar. The **process lot** (8.8 × 22.8 pad) holds `khepri_processing_tower`, one or two processing halls, the junction (inline valve and tee) and the tank farm on one header (tees feed 3–4 vertical tanks), plus storage tanks. Lot gaps are 5–7. Policy: slot k is s 440 + 720k … +166; preferred band 520–580; arena margins 40 before and 132 after; quiet buffer 15; lane clearance 2; `structureMax` 3.0. | `src/world/settlement-grammars.ts` |
+| Planner | Resumable search over a one-unit raw-ground lattice (one row per step), then seeded layout: flank, direction, lateral positions, gap, optional pieces. Lots must keep cut and fill ≤ 1.5 on the lattice and level steps ≤ 1.25, leave level room for the 3.5 tower, keep the lane clear and pass a road grade check across the gap. Pieces attach to pipe ends by socket (`attach`, `face`). | `src/world/terrain-districts.ts` |
+| Hooks | `KHEPRI.settlement` returns the hub for its anchor cell and nothing for claimed cells. `settlementsNear` adds lots and hides a district near an arena. `edgesOf` gives hubs roads only, looks 5 cells ahead and falls back to an exit. `gate()` uses hub gates. Network paths treat district pieces and the lots behind the hub as solid. `sectionSteps` warms plans, adds district pipework and roads per span, and sets `section.sites`. | `terrain-settlements.ts`, `terrain-planet.ts`, `terrain-network.ts`, `terrain.ts` |
+| Internal roads | A spine continues the main gate's network road (exactly from its tip) through the hub yard and the gap to the process yard. A spur runs from the other gate when a network road reaches it, and links cover any further roads at the same gate. A test proves that no joined end dangles in a campaign world. | `districtRoadsSteps` |
+| Road ends (all roads) | `fade` ends (dead ends, map exits, unfinished tracks) narrow over 3.5 units to 38% width, round into a tip, sink 0.04 and fade out, on a worn-gravel patch (vertex colours: Khepri's industrial dust tone, luminance kept). `apron` ends (at outposts) thin over their last unit and run 2.5 units flush onto the pad, widening and fading, with half-strength wear. `joined` ends continue into district roads. Ribbon vertices also rest on the highest ground a quarter unit either way, so terrain no longer pokes through roads. | `roadRibbonSteps`, `fadeProfile`, `roadEndSpotsSteps`; the wear pass in `sectionSteps` |
+| Render | Prop culling boxes come from the registry (Vesper props get real boxes). Props and pieces carry a `cosmetic` flag, so Low drops crates, a parked hauler and extra masts. `reservedSites()` exposes district pads. `khepri_*` nodes draw with the infra material, and the tower casts shadows. `loadDistrictKit` loads `district-kit.glb`, with a code-built tower stand-in until it loads. | `terrain-view.ts`, `terrain-kit.ts` |
+| Battery compounds | A compound never covers a district pad. The large one falls back to the small one, then to the legacy emplacement; emplacement pieces skip pads too. Render-only: battery positions and combat are unchanged. | `facility-view.ts` (`update(..., reserved)`), `scene.ts` |
+| Fixture | Rolling Thunder terrain frozen at any `seed`, `distance` and `x`, with `quality=low`, `battery=x,s`, `fly=from,to,speed` (terrain work timings) and `legacy=1` (both rollback switches). | `tests/fixtures/khepri-district.{html,ts}` |
+
+### 6.2 Deviations from §4–5
+
+- **Two lots, not three or four.** The envelope is about 12 × 38–40 (≈ 1.5 screens), not 48.
+  - The tank farm, junction and landmark share one flat process pad, so every internal pipe is a level run with no gaps.
+  - The cargo zone is the hub.
+- **No external pipeline joins a district in this slice.** Hub edges carry roads only, and pipelines to a hub are switched off, so no network pipe dangles near a district. Internal pipework is complete: tanks → junction → hall and tower. A purpose-built junction (§5.3 item 2) is the natural place for a later export line.
+- **Placement and arenas.** Plans stay planet-pure. An arena hides a whole district at query time (40 before, 132 after, beyond the ramp). Edges touching or running beside a hidden district are dropped, so roads never rest on pads that are not drawn.
+- **The landmark sits on the outer half** (|x| about 11). It is not visible from the centre lane. Moving it inward would bring its occlusion shadow over the lane.
+- **Feasibility:** 44 of 60 seeds get a district in slot 0 (73%), 33 of them in the preferred band; for the rest the slot stays quiet. Seeds 11 and 93 have one; 8831 and 4242 do not.
+- **Road-end blending was added at the user's request** (not in the original plan) and applies to every road on every planet with roads. The gravel tone is Khepri's; elsewhere the wear only darkens.
+
+### 6.3 Validation (20 October)
+
+- **Typecheck and build:** `npx tsc --noEmit -p .` is clean; `npm run build` passes (with the existing chunk-size warning).
+- **Unit tests: 368 of 368** (`npx vitest run`). New:
+  - `terrain-districts.test.ts` (14): plans in steps equal plans at once; window, world, lane, cap and terraces; nothing overlaps; pipes joined end to end, ending only at sockets or a closed valve; shuffled section order equal; nothing dropped at seams or the cap; flat pads under every prop; streaming at 5 and 11 units/s with 30 steps a frame and no fallback, with interleaved sections equal to sync; gates and roads with no dangling joins; quiet buffer; at most one district in Rolling Thunder; at most two per endless Khepri stint, 80 or more from seams; rollback; road-end fade, apron, join, seam safety and switch-off; gravel wear identical across a seam.
+  - `settlement-modules.test.ts` (2).
+  - A district budget sweep in `terrain-budget.test.ts`.
+  - The facility reservation case in `facility-placement.test.ts`.
+  - Re-recorded version 11 fingerprints, plus the version 10 set with the switches set, in `terrain-vesper.test.ts`.
+  - `terrain.test.ts`: the cast-shadow check now needs every channel darker, because wear dulls red but lifts green.
+- **Browser (Playwright, SwiftShader):** six relevant cases passed: three Bastion, endless flight, facilities on every world, and the Bastion model.
+- **Render budget** (Node sweep over the district window, seeds 11 and 93, shipped GLBs), version 10 → 11:
+  - High: at most 48 → 48 calls and 53.5k → 53.5k triangles; average 27.9k → 28.0k.
+  - Low: at most 41 → 41 calls; average 25.8k → 25.6k.
+- **Frame cost in the fixture** (432 × 768, DPR 2, High, whole frame including shadows and post): district views 39–46 calls (before 36–44) and 45–57k triangles (before 37–42k). Steep seed 15: 58–62 calls (before 53–58).
+- **Terrain work** (fixture flight, s 400 → 620 at 8 units/s):
+
+  | Run | Max work per frame | Frames over 4 ms | Fallbacks |
+  | --- | --- | --- | --- |
+  | Before, morning | 15–17 ms | 55–82 of 390 | 0 |
+  | After, midday | 10–17 ms | 26–57 of 390 | 0 |
+  | Final, load average about 30 | 127 / 246 ms | — | 1 per run |
+
+  The final run had heavy machine load from other sessions (load average 30–59). An A/B in Node under that load was inconclusive (±50% noise). The load-independent stream tests (fixed step budget) show 0 fallbacks. **Re-measure on a quiet machine and on a phone; no phone was tested.**
+- **Plan cost:** median 5–10 ms and maximum 43–95 ms per slot, depending on load, spread over resumable steps of about 0.25 ms.
+
+**Captures:**
+
+- `lookdev/districts/{before,after}/` (git-ignored), from the same seeds and views: seed 11 (near, far, centre lane, Low, battery inside), seed 93 (near, far; straddles the section boundary at 504), seed 15 (steep), and flights.
+- `lookdev/districts/road-ends/` holds before/after pairs from one build (`legacy=1`).
+- Curated JPEGs in `docs/screenshots/districts/`:
+
+  | Files | Shows |
+  | --- | --- |
+  | `district-seed11-before-after.jpg`, `district-seed93-before-after.jpg` | Districts before and after |
+  | `district-steep-seed15.jpg` | Steep site |
+  | `district-low-centre-battery.jpg` | Low tier, centre-lane view, battery inside a district |
+  | `road-end-*.jpg` | Zoomed road-end crops |
+  | `road-ends-*-full.jpg` | Road ends at full phone-view scale |
+
+### 6.4 Known limits and next
+
+- **Pieces still to author**, in priority order: pipe manifold or 4-way cross; foundation plinth or retaining wall (lots up to 1.5 cut and fill rely on pad banks today); power relay spire; bridge-gate; a large factory hall.
+- **External pipelines to districts** (Phase 5).
+- **Compound class retune and Vesper, Nacre and Luna grammars:** only after the Khepri review (brief, Phase 10).
+- **Visual review:**
+  - Junctions where several transparent road ribbons overlap still darken (this predates the change).
+  - The tower is not visible from the centre lane.
+  - Aprons at busy outposts overlap.

@@ -15,6 +15,8 @@ export interface TerrainRow {
 }
 /** A few recent rows are reused (rows are immutable), which cuts allocation in path search and seating. */
 const recentRows: TerrainRow[] = [];
+/** Test hook: forgets the reused rows (only needed when a planet's districts are switched at run time). */
+export function resetRowCache() { recentRows.length = 0; }
 export function terrainRow(seed: number, s: number, input?: TerrainInput): TerrainRow {
   // A route resolves the world of this row's own distance (planet stretch and nearest arena).
   const world = worldAt(input, s);

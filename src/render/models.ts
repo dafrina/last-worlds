@@ -500,6 +500,35 @@ export async function loadCraftNodes<N extends string>(url: string, names: reado
   return found;
 }
 
+/** One primitive of a textured node, in node space, with its authored (baked-atlas) material. */
+export interface TexturedPart { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial }
+
+/**
+ * Loads textured nodes (tools/blender/boss_remodel.py bakes) for instancing: one part per primitive, keeping the GLB's
+ * own materials (atlas, normal and metal/roughness maps, AO vertex colours; glow stays emissive). Materials are shared
+ * between nodes of the same file.
+ */
+export async function loadTexturedNodes<N extends string>(url: string, names: readonly N[]): Promise<Map<N, TexturedPart[]>> {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  const found = new Map<N, TexturedPart[]>();
+  for (const name of names) {
+    const node = gltf.scene.getObjectByName(name);
+    if (!node) continue;
+    node.updateMatrixWorld(true);
+    const inverse = node.matrixWorld.clone().invert(), parts: TexturedPart[] = [];
+    node.traverse(object => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const geometry = mesh.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
+      geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+      parts.push({ geometry, material: mesh.material as THREE.MeshStandardMaterial });
+    });
+    if (parts.length) found.set(name, parts);
+  }
+  gltf.scene.traverse(object => { if ((object as THREE.Mesh).isMesh) (object as THREE.Mesh).geometry.dispose(); });
+  return found;
+}
+
 /**
  * Floating black-ceramic pontoon under a ground battery that the simulation seats over open water (render-only):
  * a hexagonal barge riding at the waterline (deck top +0.14), a pale deck rim and an orange glow band, in the

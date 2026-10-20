@@ -7,6 +7,8 @@ import type { Work } from './terrain-work';
 import { VESPER } from './terrain-vesper';
 import { LUNA } from './terrain-luna';
 import { NACRE } from './terrain-nacre';
+import { districtSettlement } from './terrain-districts';
+import { KHEPRI_DISTRICTS, type DistrictPolicy } from './settlement-grammars';
 import { SCENERY_MAX_HEIGHT, clamp, mix } from './terrain-layout';
 
 /**
@@ -68,6 +70,11 @@ export interface PlanetProfile {
   industrial: ReadonlySet<string>; quiet: ReadonlySet<string>;
   /** False on a planet without roads or pipelines between settlements (Luna). */
   networks?: boolean;
+  /**
+   * District slots and layout (docs/23). Null or absent: the planet has no districts and its output is exactly the
+   * pre-district output (rollback switch: `KHEPRI.districts = null`).
+   */
+  districts?: DistrictPolicy | null;
 }
 
 export const KHEPRI: PlanetProfile = {
@@ -83,10 +90,12 @@ export const KHEPRI: PlanetProfile = {
   color: (row, x, point, slope, rim, out) => pointColor(row, x, point, slope, rim, out),
   shadowTint: null,
   sceneryMax: SCENERY_MAX_HEIGHT,
-  settlement,
+  // Outposts with districts applied (read at call time, so the rollback switch below takes effect at once).
+  settlement: (seed, cell, side) => districtSettlement(KHEPRI, settlement, seed, cell, side),
   scatter: scatterKitSteps,
   floes: function* () { return []; },
   industrial: new Set(['refinery', 'pumping', 'mining', 'plant']), quiet: new Set(['wreck', 'abandoned']),
+  districts: KHEPRI_DISTRICTS,
 };
 
 export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE };
