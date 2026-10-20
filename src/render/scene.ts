@@ -387,7 +387,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * background and blob shadows. It follows `state.planet` (the run's planet, which an endless jump switches at its
    * flash), so the switch happens under the flash and never mid-sector.
    */
+  /** Bright ground (Vesper's snow) washes out the pale hero bolts: they gain a dark outline and a deeper cyan there. */
+  let brightGround = false;
   const applyLook = (next: PlanetId) => {
+    brightGround = next === 'vesper';
     planet = next;
     const look = LOOKS[next];
     scene.background = new THREE.Color(look.background);
@@ -746,6 +749,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);
   const friendly = new THREE.InstancedMesh(projectileGeometry, friendlyMaterial, 1024);
+  const friendlyOutlineMaterial = new THREE.MeshBasicMaterial({ color: 0x041624, depthTest: false, depthWrite: false, transparent: true, toneMapped: false });
+  const friendlyOutline = new THREE.InstancedMesh(projectileGeometry, friendlyOutlineMaterial, 1024);
+  friendlyOutline.instanceMatrix.setUsage(THREE.DynamicDrawUsage); friendlyOutline.frustumCulled = false; friendlyOutline.renderOrder = 9;
+  friendlyOutline.count = 0; scene.add(friendlyOutline);
   const hostile = new THREE.InstancedMesh(projectileGeometry, hostileMaterial, 1024);
   const hostileCores = new THREE.InstancedMesh(projectileGeometry, hostileCoreMaterial, 1024);
   for (const mesh of [friendly, hostile, hostileCores]) {
@@ -1069,7 +1076,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
       // District pads are reserved (docs/23 §4.8): compounds and emplacement pieces keep out; batteries never move.
       const reserved = terrain.reservedSites();
-      facilities.update(state, planet, groundNow, reserved);
+      facilities.update(state, planet, groundNow, reserved, (x, s) => surfaceHeight(state.config.seed, x, s, world));
       terrain.setFacilityClearings(facilities.clearings);
       // The compact legacy layout is retained for guns that cannot seat a larger compound.
       if (planet === 'khepri' || planet === 'vesper') for (const [id, spot] of groundNow) {
@@ -1149,6 +1156,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0); transform.scale.setScalar(1.25); transform.updateMatrix();
           if (missileCount < missiles.instanceMatrix.count) missiles.setMatrixAt(missileCount++, transform.matrix);
         } else if (shot.friendly) {
+          if (brightGround && friendlyCount < friendly.instanceMatrix.count) {
+            transform.scale.set(.1, .05, .36); transform.updateMatrix(); friendlyOutline.setMatrixAt(friendlyCount, transform.matrix);
+          }
           transform.scale.set(.045, .045, .27); transform.updateMatrix();
           if (friendlyCount < friendly.instanceMatrix.count) friendly.setMatrixAt(friendlyCount++, transform.matrix);
         } else {
@@ -1170,6 +1180,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       if (missiles) { missiles.count = missileCount; missiles.instanceMatrix.needsUpdate = true; }
       friendly.count = friendlyCount; hostile.count = hostileCores.count = hostileCount;
+      friendlyOutline.count = brightGround ? friendlyCount : 0; friendlyOutline.instanceMatrix.needsUpdate = true;
+      friendlyMaterial.color.setHex(brightGround ? 0x1fd2ff : 0xbcfff8);
       for (const mesh of [friendly, hostile, hostileCores]) mesh.instanceMatrix.needsUpdate = true;
 
       pickupBatches.forEach(mesh => { mesh.count = 0; });
@@ -1268,7 +1280,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
-          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: {loaded: facilities.loaded, count: facilities.count, large: facilities.largeCount}, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
+          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
         });
         lastStatsTick = state.tick;
       }

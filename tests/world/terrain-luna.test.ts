@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
 import { runRoute } from '../../src/render/terrain-route';
-import { LUNA_SCENERY_MAX, lunaCraters } from '../../src/world/terrain-luna';
+import { LUNA_SCENERY_MAX, lunaCraters, lunaMare, lunaMoodOf } from '../../src/world/terrain-luna';
 import { KIT, generateTerrainSection, terrainHeight } from '../../src/world/terrain';
 
 const LUNA = { planet: 'luna' } as const;
@@ -35,6 +35,29 @@ describe('luna training world (docs/19)', () => {
     expect(bowls / samples).toBeGreaterThan(0.15);
     const heights = Array.from({ length: 800 }, (_, i) => terrainHeight(93, (i % 20) * 1.4 - 14, Math.floor(i / 20) * 5, LUNA));
     expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(1.5);
+  });
+
+  it('varies its relief (docs/26 §4): highlands stand over the maria, craters of every age, rilles and scarps', () => {
+    let mare = 0, highland = 0, fresh = 0, worn = 0, samples = 0;
+    const high: number[] = [], low: number[] = [];
+    for (let s = 0; s < 2400; s += 2.3) for (let x = -14; x <= 14; x += 2.9) {
+      samples++;
+      const h = terrainHeight(93, x, s, LUNA), m = lunaMare(93, x, s);
+      if (m > 0.9) { mare++; low.push(h); } else if (m < 0.1) { highland++; high.push(h); }
+    }
+    const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+    // Both kinds of ground along the route, the highlands well above the maria, and the highlands rugged.
+    expect(mare / samples).toBeGreaterThan(0.12); expect(highland / samples).toBeGreaterThan(0.35);
+    expect(mean(high) - mean(low)).toBeGreaterThan(1.5);
+    expect(Math.max(...high) - Math.min(...high)).toBeGreaterThan(4);
+    // Craters at four scales, fresh and deep or old and worn: their depth over radius varies widely.
+    for (let s = 0; s < 3000; s += 5) for (let x = -12; x <= 12; x += 3) {
+      const field = lunaCraters(93, x, s);
+      if (field.bowl > 0.97) { if (field.height < -1.2) fresh++; else if (field.height > -0.5) worn++; }
+    }
+    expect(fresh).toBeGreaterThan(10); expect(worn).toBeGreaterThan(10);
+    // The route passes highland, mare, basin-rim and crater-field regions.
+    expect(new Set(Array.from({ length: 16 }, (_, i) => lunaMoodOf(93, i))).size).toBe(4);
   });
 
   it('keeps outposts sparse', () => {

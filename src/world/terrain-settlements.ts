@@ -1,4 +1,4 @@
-import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, landform, moodParams, smoothRange } from './terrain-layout';
+import { SCENERY_MAX_HEIGHT, TERRAIN_MIN_HEIGHT, WORLD_HALF, clamp, hash, landform, moodParams, smoothRange } from './terrain-layout';
 import { nearArena, type TerrainArena } from './terrain-arena';
 import { districtHidden, districtLotsNear, type DistrictTag } from './terrain-districts';
 import type { DistrictPolicy } from './settlement-grammars';
@@ -11,7 +11,7 @@ import type { PlanetProfile } from './terrain-planet';
  */
 export type Archetype = 'refinery' | 'mining' | 'plant' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned'
   // Vesper (docs/17 §4).
-  | 'radiator' | 'missile' | 'cryo' | 'harbour';
+  | 'radiator' | 'missile' | 'cryo' | 'harbour' | 'exchanger' | 'reactor';
 export type KhepriArchetype = 'refinery' | 'mining' | 'plant' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned';
 export const ARCHETYPES: readonly KhepriArchetype[] = ['refinery', 'mining', 'plant', 'landing', 'comm', 'pumping', 'wreck', 'abandoned'];
 // Bigger facilities weigh more (user, 17 October: more houses and facilities on Khepri and Vesper).
@@ -182,7 +182,8 @@ export function settlement(seed: number, cell: number, side: number): Settlement
       // Candidates span the outer part of each side (about 0.38–0.85 of the half width), clear of the centre lane.
       const cx = side * WORLD_HALF * (0.38 + h(1 + k) * 0.47), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
       const mood = moodParams(seed, cs), heights = [[0, 0], [2.6, 0], [-2.6, 0], [0, 3], [0, -3]].map(([dx, ds]) => landform(seed, cx + dx, cs + ds, mood).height);
-      const relief = Math.max(...heights) - Math.min(...heights);
+      // Level ground first; a site high on a mesa costs more (its tallest pieces would sink the pad into the rock).
+      const relief = Math.max(...heights) - Math.min(...heights) + 0.5 * Math.max(0, heights[0] - 0.9);
       if (relief < best) { best = relief; x = cx; s = cs; }
     }
     // Weighted archetype, never the same as the previous cell on this side.
@@ -198,7 +199,7 @@ export function settlement(seed: number, cell: number, side: number): Settlement
     const local = compose(archetype, k => h(30 + k));
     const tallest = Math.max(...local.filter(module => module.kind !== 'kit').map(module => MODULE_HEIGHT[module.node] ?? 1));
     const raw = landform(seed, x, s, moodParams(seed, s)).height;
-    const level = clamp(Math.round(raw / 0.25) * 0.25, -6, SCENERY_MAX_HEIGHT - tallest - 0.05);
+    const level = clamp(Math.round(raw / 0.25) * 0.25, TERRAIN_MIN_HEIGHT + 1, SCENERY_MAX_HEIGHT - tallest - 0.05);
     x = Math.sign(x) * Math.min(Math.abs(x), WORLD_HALF - hx - 0.3);
     const cos = [1, 0, -1, 0][turns], sin = [0, 1, 0, -1][turns];
     const modules = local.map((module, i): PlacedModule => {

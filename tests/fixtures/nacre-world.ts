@@ -3,7 +3,12 @@ import { createRun } from '../../src/sim/game';
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
 import { spawnMembers } from '../../src/sim/spawn';
+import { facilityOptions } from '../../src/render/facility-view';
+import { arrangementsOf, plannedArrangement, type ArrangementId } from '../../src/render/facility-layouts';
+import type { FacilityWorld } from '../../src/render/facility-kit';
 const q = new URLSearchParams(location.search);
+// `fv=3` builds the modular compounds of docs/25 (the real kits; registry stand-ins only for a missing file), `fv=2` the v2 plants.
+if (q.get('fv') === '2' || q.get('fv') === '3') facilityOptions.version = Number(q.get('fv')) as 2 | 3;
 const state = createRun({ mode: 'campaign', mission: 'deep-bloom', seed: Number(q.get('seed') ?? 8831) });
 state.distance = Number(q.get('distance') ?? 100);
 state.time = state.distance / 5;
@@ -18,6 +23,11 @@ if (q.has('facility')) {
   if (['small', 'large'].includes(q.get('facility') ?? '')) {
     const large = q.get('facility') === 'large';
     for (let id = 100; id < 200; id++) if ((((Math.imul(id, 0x45d9f3b) ^ state.config.seed) >>> 0) % 3 === 0) === large) { state.enemies[0].id = id; break; }
+  }
+  // v3: `facility=<arrangement>` (docs/25) picks an id whose first-choice arrangement it is; the composer still checks the fit.
+  const world = (q.get('planet') ?? 'nacre') as FacilityWorld, wanted = q.get('facility') as ArrangementId;
+  if (arrangementsOf(world).includes(wanted)) {
+    for (let id = 100; id < 5000; id++) if (plannedArrangement(world, id, state.config.seed) === wanted) { state.enemies[0].id = id; break; }
   }
 }
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {

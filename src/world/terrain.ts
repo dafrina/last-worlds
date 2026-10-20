@@ -39,8 +39,11 @@ export {
  * 10: planet profiles and Vesper; Khepri's output is unchanged from 9 (fingerprints in terrain-vesper.test.ts).
  * 11: Khepri districts (docs/23); with `KHEPRI.districts = null` the output is exactly version 10's.
  * 12: a much less populated Moon (rarer, smaller Luna outposts); other planets are unchanged.
+ * 13: varied relief (docs/26): Khepri benches, mesas, buttes, deep canyons, dunes and escarpments over six moods
+ *     (−10 to 2.4, scenery cap 3.0); Vesper shelves at several levels with ice cliffs, nunataks and new outposts;
+ *     Luna highlands, maria, rilles, scarps and craters of every age. Nacre is unchanged.
  */
-export const TERRAIN_VERSION = 12;
+export const TERRAIN_VERSION = 13;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.

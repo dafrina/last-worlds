@@ -131,3 +131,12 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
 - 2026-10-20, facilities and districts (user decisions):
   - **Facility compounds remodelled after the facility sheets.** The user found the large building complexes "super flat" and asked for remodels that are more interesting and "textured like the bosses", taking "the render arts as inspiration". The six v1 gun-court plants (flat vertex colours) are replaced by textured v2 plants per world (`art/facility-remodel/README.md`). The seat contract is unchanged.
   - **Districts:** option A (Khepri refinery district prototype, docs/23 §6). The world may get more vertical space if a map needs it.
+  - **Facilities are modular, and not always a court** (user: "dont make it always have a open court design", "maybe these could be made modular as well?"). Plants are composed from per-world module kits by a seeded grammar with several arrangements per world; the U court is one option among them (docs/25).
+  - **Higher roofs** use the headroom under the unchanged flight plane: modules up to 3.25 on low ground.
+  - **Luna joins with much less** ("luna should get much less populated amount of buildings and infra"): about 30% of its batteries get a small, single-facility plant, and its outposts are rarer and smaller.
+  - **Terrain relief** (user: "nacre is pretty amazing but the others are a bit too flat often", "it feels like theres two plateaus"): Khepri, Vesper and Luna get multi-level, varied landforms. Relief extends downward to −10; the flight plane stays at 3.8 (docs/26). Nacre is unchanged.
+  - **Pulsar:** a stream of tracking shots (each aimed at the ship as it leaves the muzzle), ten instead of six straight down.
+  - **Victory warp:** it never lifts back onto the level; it holds deep space behind the results.
+  - **Boss touch-ups:** the Ark's dark spire, which read as a comical giant windshield, is now a compact light cowl; the Bastion loses the boxy pieces over its treads, and its front tread armour is cut back.
+  - **Vesper hero bolts:** a dark outline and a deeper cyan, so they read against snow.
+

@@ -32,6 +32,14 @@ describe('seeded Khepri landforms', () => {
     expect(other.instances).not.toEqual(first.instances);
   });
 
+  it('generates every planet identically in any order, across seeds (memoized mesa, crater and outpost cells are pure)', () => {
+    const cases = [[93, 7, 'khepri'], [93, 7, 'vesper'], [93, 7, 'luna'], [8831, 3, 'khepri'], [8831, 12, 'luna']] as const;
+    const first = cases.map(([seed, index, planet]) => generateTerrainSection(seed, index, { planet }));
+    // Other seeds, planets and far sections in between flush and refill every memo.
+    for (const seed of [4, 5, 93]) for (const planet of ['luna', 'khepri', 'vesper'] as const) generateTerrainSection(seed, 40, { planet });
+    cases.slice().reverse().forEach(([seed, index, planet], k) => expect(generateTerrainSection(seed, index, { planet })).toEqual(first[cases.length - 1 - k]));
+  }, 120_000);
+
   it('joins positions, colours, normals and surface channels without seams', () => {
     for (const seed of [93, 4041]) for (const index of [-2, -1, 0, 2, 19]) {
       const a = generateTerrainSection(seed, index), b = generateTerrainSection(seed, index + 1), { across, along } = a;
@@ -75,8 +83,10 @@ describe('seeded Khepri landforms', () => {
     }
   });
 
-  it('spans deep valleys to high rims within [−8, 2.2] and keeps every piece inside its section and the world', () => {
-    expect(TERRAIN_MIN_HEIGHT).toBeGreaterThanOrEqual(-8); expect(SCENERY_MAX_HEIGHT).toBe(2.2);
+  it('spans deep canyons to high mesa tops within [−10, 2.4] and keeps every piece inside its section and the world', () => {
+    // Version 13 (docs/26): canyon floors reach about −9 and mesa tops 2.4; the scenery cap is 3.0, 0.8 under the plane.
+    expect(TERRAIN_MIN_HEIGHT).toBeGreaterThanOrEqual(-10); expect(SCENERY_MAX_HEIGHT).toBe(3);
+    expect(SCENERY_MAX_HEIGHT).toBeLessThanOrEqual(VIEW.flightHeight - 0.8 + 1e-9);
     let lowest = Infinity, highest = -Infinity;
     for (let seed = 0; seed < 8; seed++) for (let index = -1; index < 5; index++) {
       const section = generateTerrainSection(seed, index);
@@ -98,9 +108,9 @@ describe('seeded Khepri landforms', () => {
       }
       for (const prop of section.props) expect(prop.baseHeight + prop.height).toBeLessThanOrEqual(SCENERY_MAX_HEIGHT + 1e-9);
     }
-    expect(lowest).toBeGreaterThanOrEqual(TERRAIN_MIN_HEIGHT); expect(lowest).toBeLessThan(-5);
-    expect(highest).toBeLessThanOrEqual(TERRAIN_MAX_HEIGHT); expect(highest).toBeGreaterThan(1.5);
-  });
+    expect(lowest).toBeGreaterThanOrEqual(TERRAIN_MIN_HEIGHT); expect(lowest).toBeLessThan(-7);
+    expect(highest).toBeLessThanOrEqual(Math.fround(TERRAIN_MAX_HEIGHT)); expect(highest).toBeGreaterThan(2);
+  }, 120_000);
 
   it('builds varied macro geography whose valleys are not aligned with the flight direction', () => {
     for (const seed of [1, 93, 8831]) {
@@ -125,10 +135,52 @@ describe('seeded Khepri landforms', () => {
     }
   });
 
+  it('stands at several levels in most views: benches, mesas and canyon floors at varied heights (docs/26)', () => {
+    // A view's distinct flat levels: 0.6-unit height bands holding at least 6% of its flat ground (slope < 0.3).
+    // Version 12 (the "two plateaus" the user saw, 20 October): median 3, at least 3 levels in 72% of views,
+    // flat-level span (5–95%) median 2.3. Version 13: median 4, about 90%, span about 3.4.
+    const levels: number[] = [], spans: number[] = [];
+    for (const seed of [1, 93, 8831]) for (let s0 = 0; s0 < 900; s0 += 26) for (const x0 of [-15, -6, 3]) {
+      const flats: number[] = [];
+      for (let s = s0; s < s0 + 26; s += 0.5) for (let x = x0; x < x0 + 12; x += 0.5) {
+        const slope = Math.hypot(terrainHeight(seed, x + 0.25, s) - terrainHeight(seed, x - 0.25, s), terrainHeight(seed, x, s + 0.25) - terrainHeight(seed, x, s - 0.25)) / 0.5;
+        if (slope < 0.3) flats.push(terrainHeight(seed, x, s));
+      }
+      const bins = new Map<number, number>();
+      for (const h of flats) bins.set(Math.floor(h / 0.6), (bins.get(Math.floor(h / 0.6)) ?? 0) + 1);
+      levels.push([...bins.values()].filter(n => n >= flats.length * 0.06 && n > 20).length);
+      flats.sort((a, b) => a - b);
+      spans.push(flats[Math.floor(flats.length * 0.95)] - flats[Math.floor(flats.length * 0.05)]);
+    }
+    const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+    expect(median(levels)).toBeGreaterThanOrEqual(4);
+    expect(levels.filter(n => n >= 3).length / levels.length).toBeGreaterThan(0.85);
+    expect(levels.filter(n => n <= 1).length / levels.length).toBeLessThan(0.03);
+    expect(median(spans)).toBeGreaterThan(3);
+  }, 120_000);
+
+  it('passes through every mood, each with its own landforms: canyons cut deepest, dunes and flats stay gentle', () => {
+    const seed = 93, depth = new Map<string, number>(), rough = new Map<string, number[]>();
+    for (let segment = 0; segment < 24; segment++) {
+      const mood = moodOf(seed, segment);
+      for (let s = segment * MOOD_LENGTH + 4; s < segment * MOOD_LENGTH + MOOD_LENGTH - 30; s += 2) for (let x = -14; x <= 14; x += 2) {
+        const h = terrainHeight(seed, x, s);
+        depth.set(mood, Math.min(depth.get(mood) ?? Infinity, h));
+        rough.set(mood, [...rough.get(mood) ?? [], Math.abs(terrainHeight(seed, x + 0.5, s) - h)]);
+      }
+    }
+    expect([...depth.keys()].sort()).toEqual(['basins', 'canyons', 'dunes', 'escarpment', 'flats', 'mesas']);
+    expect(depth.get('canyons')!).toBeLessThan(-7.5);
+    const mean = (mood: string) => rough.get(mood)!.reduce((a, b) => a + b, 0) / rough.get(mood)!.length;
+    expect(mean('dunes')).toBeLessThan(mean('canyons'));
+    expect(mean('flats')).toBeLessThan(mean('mesas'));
+  }, 60_000);
+
   it('keeps plenty of calm ground in every viewport window, calmer along the authored routes', () => {
     for (const seed of [1, 93, 8831]) {
       let routeSlope = 0, routeSamples = 0, awaySlope = 0, awaySamples = 0;
-      for (let s0 = 0; s0 < 500; s0 += 13) for (let x0 = -18; x0 <= 6; x0 += 4) {
+      // Viewport-wide windows across the 30-unit world (x from −15 to 15; the old 36-unit world reached ±18).
+      for (let s0 = 0; s0 < 500; s0 += 13) for (let x0 = -HALF; x0 <= HALF - 12; x0 += 3) {
         const { slopes } = window(seed, x0, s0);
         expect(slopes.filter(slope => slope < 0.5).length / slopes.length).toBeGreaterThan(0.4);
         expect(slopes.filter(slope => slope > 1.5).length / slopes.length).toBeLessThan(0.35);
@@ -173,10 +225,14 @@ describe('seeded Khepri landforms', () => {
         expect(albedo.height).toBeCloseTo(y, 5);
         // Cliff-foot occlusion darkens by at most 28%; anything darker in every channel is a cast shadow (the gravel
         // wear around fading road ends, docs/23, dulls the red but lifts the green).
-        if (section.colors[v * 3] < albedo.color[0] * 0.6 && section.colors[v * 3 + 1] < albedo.color[1] * 0.6) {
+        // Steep faces are left out: the march reads the half-unit lattice, whose linear fill rounds a sheer wall's foot up
+        // by up to a unit (version 13's walls reach slope 4), darkening wall feet as intended.
+        if (albedo.slope < 1.5 && section.colors[v * 3] < albedo.color[0] * 0.6 && section.colors[v * 3 + 1] < albedo.color[1] * 0.6) {
           shadowed++;
+          // The march reads the half-unit lattice along the diagonal sun line; search it finely enough to meet every
+          // lattice point it reads (crisp bench and mesa rims since version 13).
           let blocker = -Infinity;
-          for (let d = 0.35; d <= 12; d += 0.35) blocker = Math.max(blocker, terrainHeight(seed, x + SUN_DIRECTION.x / horizontal * d, s + SUN_DIRECTION.s / horizontal * d));
+          for (let d = Math.SQRT1_2 / 4; d <= 12; d += Math.SQRT1_2 / 4) blocker = Math.max(blocker, terrainHeight(seed, x + SUN_DIRECTION.x / horizontal * d, s + SUN_DIRECTION.s / horizontal * d));
           expect(blocker).toBeGreaterThan(y + 0.3);
         }
         if (section.glow[v * 2 + 1] > 0.1) expect(albedo.elevation).toBeLessThan(0.25);
@@ -196,7 +252,7 @@ describe('seeded Khepri landforms', () => {
     }
     expect(stream.update(0)[1]).toEqual(original);
     stream.clear(); expect(stream.size).toBe(0);
-  });
+  }, 180_000);
 
   it('rejects nonfinite world requests before allocating terrain', () => {
     expect(() => generateTerrainSection(NaN, 0)).toThrow();

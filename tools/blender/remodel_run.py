@@ -8,7 +8,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 started = time.time()
-module = importlib.import_module('remodel_' + args[0])
+here = os.path.dirname(os.path.abspath(__file__))
+module = importlib.import_module(('remodel_' if os.path.exists(os.path.join(here, 'remodel_%s.py' % args[0])) else '') + args[0])
 objects, result = module.build(export='--no-export' not in args, preview='--no-preview' not in args)
 if '--compare' in args and hasattr(module, 'compare'):
     module.compare(objects)

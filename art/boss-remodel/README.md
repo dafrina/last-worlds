@@ -5,8 +5,8 @@ The user disliked the decimated v4 imports of their three supplied GLBs ("they l
 | Boss | Runtime file | Triangles (on screen) | Vertices | Draw calls, live (all) | Size (textures) | Builder |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | WARDEN-1 | `public/assets/luna/warden-v5-remodel.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/remodel_warden.py` |
-| BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 22,176 (20,656) | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/remodel_bastion.py` |
-| HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,628 (6,940) | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
+| BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 21,648 | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/remodel_bastion.py` |
+| HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,892 | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
 | THE VEIL | `public/assets/nacre/the-veil-v5-remodel.glb` | 16,112 (14,654) | 28,291 | 24 (29) | 3.6 MB (2.4) | `tools/blender/remodel_veil.py` |
 
 How to read the columns:
@@ -67,3 +67,8 @@ Switch the filename in `src/render/boss-assets.ts`. The v4 approved copies, the 
 - In-game Chromium captures: `docs/screenshots/boss-remodel/`. `all-bosses-in-game.jpg` shows all four in their weak-point and core phases.
 
 No phone hardware was tested.
+
+**Touch-ups (20 October 2026, user):**
+- **Ark:** the tall dark spire over the bridge lens read as a giant canopy, so it is now a compact light cowl. A build-time ray check (`lens_cover`) asserts that it still hides the lens.
+- **Bastion:** the side skirts, stowage boxes and front fender over the treads are removed, and the shoulders are cut back at the front, so the tracks show.
+

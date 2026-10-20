@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { VIEW } from '../../src/shared/contracts';
 import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
-import { vesperMoodOf } from '../../src/world/terrain-vesper';
+import { vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
+import { NEUTRAL_MOOD } from '../../src/world/terrain-layout';
 import { HELION_ARK } from '../../src/content/ark';
 import { arenaStopDistance } from '../../src/sim/bastion';
 import { missionArena } from '../../src/render/scene';
 import {
-  ARENA_RAMP, FLOE_SETS, KIT, PLANETS, ROAD_ENDS, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, resetTerrainCaches, roadPath,
+  ARENA_RAMP, FLOE_SETS, KIT, MODULE_HEIGHT, PLANETS, ROAD_ENDS, TERRAIN_MAX_HEIGHT, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, resetTerrainCaches, roadPath,
   sectionSteps, settlementsNear, terrainHeight, worldOf, type TerrainSection,
 } from '../../src/world/terrain';
 
@@ -24,21 +25,22 @@ describe('planet profiles (docs/17 §2)', () => {
     const arena = { fromS: 566, toS: 601 };
     expect(generateTerrainSection(93, 16, arena)).toEqual(generateTerrainSection(93, 16, { planet: 'khepri', arena }));
     expect(worldOf(arena)).toBe(worldOf({ planet: 'khepri', arena }));
-    // Version 11 (20 October 2026: Khepri refinery districts and blended road ends, docs/23; 93:14 and 11:15 hold a
-    // district, 93:17 its quiet buffer's network, 11:5 road ends). A deliberate Khepri change updates these.
-    const recorded = new Map([['11:5', '0a35aa617c498347'], ['93:17', 'd2f697ee4aa9cbf5'], ['8831:0', '6f8ab45f5ca93567'],
-      ['93:14', 'a075fa7a78c1ae3f'], ['11:15', '339fca3c12a77833']]);
-    // Version 10 (recorded 17 October 2026): the rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0`
-    // must restore it exactly.
-    const legacy = new Map([['11:5', '1a3d335a519d4f15'], ['93:17', 'fb13f53000739644'], ['8831:0', '6f8ab45f5ca93567'],
-      ['93:14', 'ee056c613dce01b5'], ['11:15', 'cf32b85aed253436']]);
+    // Version 13 (20 October 2026: varied relief, docs/26; 93:14 and 11:14 hold a district, 93:17 its quiet buffer's
+    // network, 11:5 road ends). A deliberate Khepri change updates these. (Version 11/12: 11:5 0a35aa617c498347,
+    // 93:17 d2f697ee4aa9cbf5, 8831:0 6f8ab45f5ca93567, 93:14 a075fa7a78c1ae3f.)
+    const recorded = new Map([['11:5', 'fb5af95e9d76462a'], ['93:17', 'b08be9cab98c1d34'], ['8831:0', '53e11aa29980df19'],
+      ['93:14', '12eed214b6b85478'], ['11:14', 'ad7c69b8cb297efb']]);
+    // The rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0` still take out the districts and the
+    // blended road ends exactly, now on the version 13 landform.
+    const legacy = new Map([['11:5', '058fd03cd7591fb3'], ['93:17', '34b768320001a293'], ['8831:0', '5c0fe369c2d929a4'],
+      ['93:14', '4390825431da33cd'], ['11:14', 'b4a54115131a3abc']]);
     const check = (fingerprints: Map<string, string>) => {
       for (const [key, value] of fingerprints) {
         const [seed, index] = key.split(':').map(Number);
         expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);
       }
       // The arena hides the slot's district and its quiet cells lie elsewhere: unchanged either way.
-      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('461ca4d8c9f0203f');
+      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('b6dcd1566fb5ba00');
     };
     check(recorded);
     const policy = PLANETS.khepri.districts, taper = ROAD_ENDS.taper;
@@ -59,25 +61,29 @@ describe('planet profiles (docs/17 §2)', () => {
 describe('Vesper generator (docs/17 §4)', () => {
   const sections = [93, 8831].flatMap(seed => [2, 3, 8].map(index => ({ seed, section: generateTerrainSection(seed, index, VESPER) })));
 
-  it('lays snowy shelves (0.6–2.0) ending in sheer cliffs over a sea at −1.2, with water metadata', () => {
-    let land = 0, shelf = 0, wet = 0, cliffs = 0;
+  it('lays snowy shelves at several levels (−0.45 to 2.4) ending in sheer cliffs over a sea at −1.2, with water metadata', () => {
+    let land = 0, wet = 0, cliffs = 0;
+    const levels = new Map<number, number>();
     for (const { section } of sections) {
       const { across, along } = section;
       expect(section.water!.level).toBe(SEA);
       expect(section.water!.shore.length).toBe(across * along);
       for (let v = 0; v < across * along; v++) {
         const y = section.positions[v * 3 + 1], shore = section.water!.shore[v];
-        expect(y).toBeLessThanOrEqual(2);
+        expect(y).toBeLessThanOrEqual(Math.fround(TERRAIN_MAX_HEIGHT));
         expect(Math.abs(shore)).toBeLessThanOrEqual(1);
         expect(shore > 0).toBe(y < SEA);
-        if (y < SEA) wet++; else { land++; if (y >= 0.6) shelf++; }
+        if (y < SEA) wet++; else { land++; levels.set(Math.floor(y / 0.5), (levels.get(Math.floor(y / 0.5)) ?? 0) + 1); }
         // Sheer: vertices beside the waterline drop over a short distance.
         if (v % across < across - 1 && (y - SEA) * (section.positions[(v + 1) * 3 + 1] - SEA) < 0 && Math.abs(y - section.positions[(v + 1) * 3 + 1]) > 1.2) cliffs++;
       }
     }
     expect(wet / (wet + land)).toBeGreaterThan(0.2);
     expect(wet / (wet + land)).toBeLessThan(0.7);
-    expect(shelf / land).toBeGreaterThan(0.85);
+    // Version 13 (docs/26 §3): no single shelf level holds most of the ice; at least four half-unit bands hold 8% each
+    // (version 12: one band, 0.5–1.5, held nearly everything).
+    expect(Math.max(...levels.values()) / land).toBeLessThan(0.45);
+    expect([...levels.values()].filter(n => n >= land * 0.08).length).toBeGreaterThanOrEqual(4);
     expect(cliffs).toBeGreaterThan(50);
   });
 
@@ -159,7 +165,12 @@ describe('Vesper generator (docs/17 §4)', () => {
     let harbours = 0, piers = 0, tracks = 0, pipes = 0, reached = 0;
     for (const seed of [93, 8831, 11]) {
       for (const site of settlementsNear(seed, 0, 900, undefined, worldOf(VESPER).planet)) {
-        expect(site.level).toBeGreaterThanOrEqual(0.6);
+        // On ice above the sea, and at its own shelf's level: no pad sinks into a pit under the cap (docs/26 §5).
+        expect(site.level).toBeGreaterThanOrEqual(SEA + 0.75);
+        const raw = vesperLandform(seed, site.x, site.s, { seed, s: site.s, params: NEUTRAL_MOOD, local: vesperParams(seed, site.s), platform: 0 }).height;
+        // (The level snaps to quarter units and tops out at 2.25 under the highest ice.)
+        expect(Math.abs(site.level - raw)).toBeLessThanOrEqual(0.2);
+        for (const module of site.modules) if (module.kind !== 'kit' && module.base === undefined) expect(site.level + MODULE_HEIGHT[module.node]).toBeLessThanOrEqual(3 + 1e-9);
         if (site.archetype !== 'harbour') continue;
         harbours++;
         for (const module of site.modules) if (module.base !== undefined) {
@@ -183,6 +194,29 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect(harbours).toBeGreaterThan(0); expect(piers).toBeGreaterThan(0); expect(tracks).toBeGreaterThan(10);
     expect(reached / pipes).toBeGreaterThanOrEqual(0.8);
   });
+
+  it('shows a healthy share of outposts in view, every archetype of the facility sheet, fewer than Khepri (docs/26 §5)', () => {
+    // Buildings (outpost pieces and their tanks, halls and containers; pipes not counted) per km within |x| ≤ 7, the
+    // band the centred camera shows. Version 12: Vesper 54–63 against Khepri 89–118 (most outposts stood off to the
+    // sides, many sunk into pits under the scenery cap); version 13: Vesper 81–86 against Khepri 82–116.
+    const archetypes = new Set<string>();
+    let vesperTotal = 0, khepriTotal = 0;
+    for (const seed of [93, 8831, 11]) {
+      let vesper = 0, khepri = 0;
+      for (let index = 1; index <= 28; index++) {
+        for (const [planet, add] of [['vesper', (n: number) => { vesper += n; }], ['khepri', (n: number) => { khepri += n; }]] as const) {
+          const section = generateTerrainSection(seed, index, { planet });
+          add(section.props.filter(prop => Math.abs(prop.x) <= 7).length + section.industry.filter(piece => !piece.node.startsWith('pipe_') && Math.abs(piece.x) <= 7).length);
+        }
+      }
+      const km = 28 * VIEW.sectionLength / 1000;
+      expect(vesper / km).toBeGreaterThan(70);
+      vesperTotal += vesper; khepriTotal += khepri;
+      for (const site of settlementsNear(seed, 0, 3000, undefined, worldOf(VESPER).planet)) archetypes.add(site.archetype);
+    }
+    expect(vesperTotal).toBeLessThan(khepriTotal);
+    expect([...archetypes].sort()).toEqual(['cryo', 'exchanger', 'harbour', 'missile', 'plant', 'radiator', 'reactor']);
+  }, 180_000);
 
   it('opens the Cold Vector ocean arena (926–970): open water, nothing afloat on it, calm ramps with distant bergs only', () => {
     // The mission's arena comes from the Ark's own constants: the scroll stops at 935.

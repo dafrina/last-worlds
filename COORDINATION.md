@@ -118,3 +118,57 @@ No further edits to `facility-view.ts`, per the ownership handover.
 
 **2026-10-20 · Claude Code integrator · facility compounds v2 + districts deploy:** The districts subagent is done; the integrator now owns `facility-view.ts`. The six gun-court plants are remodelled as textured per-world GLBs after the facility sheets (`tools/blender/remodel_facilities.py`, `public/assets/<world>/facility-compounds-v2-remodel.glb`, `loadTexturedNodes` in `models.ts`, `facility-view.ts`). The view loads a world's plants on arrival; the placement logic, including the district reservations, is kept. Verifying in a snapshot, then deploying the district work, the processing tower and the compounds together. Not committed: Codex's audio files and `src/main.ts`, the `the_veil.py` experiment, the concept crops, `Zone.Identifier` files and `__pycache__`.
 
+
+**2026-10-20 · Facilities v3 subagent (World, Claude Code):** Implementing the TypeScript side of docs/25 (modular facility compounds v3) for the integrator, against the `FACILITY_MODULES` contract, with stand-in boxes until the kits exist. Editing only: new `src/render/facility-layouts.ts`, `src/render/facility-view.ts`, additive fields in `src/render/facility-kit.ts` if needed, new `tests/world/facility-layouts.test.ts`, `tests/world/facility-placement.test.ts`, one v3 test in `tests/world/cinematic-assets.test.ts`, `tests/fixtures/nacre-world.ts`, the facility case in `tests/browser/graphics.spec.ts`, an "As built" section in docs/25, my own build-status entry, and at most the facility hook lines in `src/render/scene.ts`. v2 stays live behind a `FACILITY_VERSION` constant. No Blender, assets, audio, `main.ts`, `src/world/**` or boss edits; no commits or pushes.
+
+**2026-10-20 · Claude Code integrator · modular facilities v3:** `20e0e9d` (v2 compounds + districts) is live. The user wants modular plants that are not always the U court, and taller roofs are welcome (docs/25-modular-facilities.md).
+- The integrator owns the kits: `tools/blender/facility_kit.py`, `public/assets/<world>/facility-kit-v3.glb`, the numbers in `src/render/facility-kit.ts`, and docs/25 except its "As built" section.
+- A subagent owns the composer and view: `src/render/facility-layouts.ts`, `facility-view.ts`, the facility tests and fixture, and docs/25's "As built".
+- Codex: no overlap with audio.
+
+
+**2026-10-20 · Facilities v3 subagent (World, Claude Code) · READY:** The TypeScript side of docs/25 is done for all four worlds and runs on the real kits. Per the coordinator, `FACILITY_VERSION = 3`; set it to 2 to roll back, and the v2 files are untouched. Nothing is committed.
+- **Files:**
+  - new: `src/render/facility-layouts.ts`, `tests/world/facility-layouts.test.ts`, `docs/screenshots/facility-remodel/v3-modular.jpg`;
+  - changed: `src/render/facility-view.ts`, `tests/world/facility-placement.test.ts`, one v3 kit test in `tests/world/cinematic-assets.test.ts`, `tests/fixtures/nacre-world.ts`, the two facility cases in `tests/browser/graphics.spec.ts` (the v2 case now pins `fv=2` and has a 300 s budget), the docs/25 §As built section, my build-status entry;
+  - `src/render/scene.ts`: one line, the stats read `facilities: facilities.stats`.
+- **Not touched:** `facility-kit.ts`.
+- **Checks:** typecheck clean; 386/386 unit tests; both browser facility cases pass under load average 33–41.
+
+**2026-10-20 · Terrain relief subagent (World, Claude Code):** Revamping terrain relief for Khepri, Vesper and Luna (user, 20 October: "too flat, two plateaus"), plus Vesper infrastructure density; Nacre stays as it is. Editing only: `src/world/**`, `src/render/terrain-view.ts`, `src/render/terrain-kit.ts`, `src/render/water.ts` if needed, `tests/world/terrain*.test.ts` and the settlement/district tests I must adapt, new `tests/fixtures/terrain-relief.{html,ts}`, new `docs/26-terrain-relief.md`, my own build-status section, captures under `lookdev/terrain-v13/` and `docs/screenshots/terrain/`. TERRAIN_VERSION goes to 13. Not touching facility files, audio, `main.ts`, `scene.ts`, sim, bosses or Blender. Any change to `VIEW.flightHeight` or other shared constants goes through the integrator first. No commits or pushes.
+
+**2026-10-20 · Facilities v3 subagent · round 2 READY:** The round 2 changes are done; nothing is committed. Details are in docs/25 §Round 2.
+- **Changes:**
+  - aprons on every Khepri, Vesper and Nacre plant, on the gun-aligned grid and seated tile by tile on the sampled terrain;
+  - a floor of 6 modules on those worlds, with denser templates, pipe runs and connectors;
+  - Luna unchanged.
+- **Files:** the same as in round 1, plus a second `scene.ts` hook (a terrain sampler passed to `facilities.update`). `src/world/**` is untouched.
+- **Checks:**
+  - typecheck clean; the facility, placement and kit suites pass (32/32);
+  - the full suite's only failures are 30 s timeouts in the terrain tests, under load average 35 while the terrain agent works;
+  - the v3 browser case passes.
+
+**2026-10-20 · Codex / sound design · READY:** Combat audio and the revised planet palettes are complete locally. Prefer handoff option 2: World commits/integrates the explicit audio files with its next stable release; no independent commit or push from this session.
+- **Files:** `src/main.ts` (audio hooks only); new `src/audio/engine.ts`, `events.ts`, `mixer.ts`, `samples.ts`, `score.ts`, `settings.ts`, `settings.css`; new `tests/audio/audio.test.ts`, `tests/browser/audio.spec.ts`, `tests/fixtures/audio-lab.html`, `tests/fixtures/audio-lab.ts`; new `tools/audio-preview.mjs`, `docs/24-sound-design.md`, `docs/screenshots/audio/{settings-phone.png,sound-room.png,metrics.json}`; only the new "Combat audio and distinct planet scores (Codex)" section of `docs/build-status.md` and this coordination entry. Do not stage other workers' shared-file hunks with audio.
+- **User review:** first pass liked overall; requested less similar instrumentation. Implemented soft Nacre pads, heavier saw bass/leads on Khepri, warm human piano/rounded bass/brushes on Luna. Vesper is retained. The served Sound room is refreshed: http://localhost:4173/lookdev/audio/index.html . Preview exports stay ignored under `lookdev/audio/` and are not runtime dependencies.
+- **Checks:** 350/350 units on isolated committed `5044422` + audio before the palette revision; final revised audio passes build/typecheck, 8/8 focused units and 4/4 browser audio cases. Latest shared-tree focused audio units/typecheck also passed. Existing menu/flight + audio browser coverage: 16/17 cases passed; legacy endless progress/movement timeout also reproduced with the pre-audio main.ts under software-rendering load, so not marked passed. Full combined latest-tree gate remains with the integrator. More detail in build-status.
+- **Measured:** zero clipping across six real-mixer exports, max peak 0.354, mono RMS >98%, PCM cache 7.07 MiB; voice caps 36 music / 20 effects. No actual-phone claim. No simulation, renderer, assets, terrain, UI ownership files or save progression edits.
+- **Suggested commit:** `Add layered combat audio and distinct adaptive planet scores`.
+
+**2026-10-20 · Codex / audio deployment:** User explicitly approved the revised audio and requested "nice push it". Codex now owns this audio release: preparing a snapshot of current committed `ff1e7d4` plus only the audio file set above, validating it, then committing/pushing audio and checking Pages. The active facility/terrain/model files and their shared-document hunks remain excluded and untouched. Please avoid a duplicate audio commit/deploy while this runs. This supersedes the earlier option-2 handoff for this increment.
+
+**2026-10-20 · Terrain relief subagent (World, Claude Code) · READY:** Terrain version 13 is in place (docs/26): varied relief on Khepri, Vesper and Luna, and Vesper's outposts fixed. Nacre is byte-identical, guarded by a fingerprint test. The flight plane is unchanged, and no shared constants or sim files were touched. Nothing is committed.
+- **Files:**
+  - `src/world/terrain-layout.ts`, `terrain.ts`, `terrain-vesper.ts`, `terrain-luna.ts`, `terrain-settlements.ts`;
+  - `terrain-nacre.ts` (an import only);
+  - `src/render/terrain-view.ts` (Vesper shadow casters);
+  - `tests/world/terrain.test.ts`, `terrain-vesper.test.ts`, `terrain-luna.test.ts`, `terrain-nacre.test.ts`, `terrain-pipes.test.ts`, `terrain-budget.test.ts` (a comment only);
+  - new: `tests/fixtures/terrain-relief.{html,ts}`, `docs/26-terrain-relief.md`, `docs/screenshots/terrain/before-after-{khepri,vesper,luna}.jpg`;
+  - my section at the top of `docs/build-status.md`.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 394/394, with the default config;
+  - browser:
+    - `vesper.spec`, `endless-clearance`, `bastion.spec` (all three), the VEIL rig case and the three boss reference cases pass. Under a load average of 25–50, four of them first timed out and then passed on re-run.
+    - The two facility cases in `graphics.spec.ts` fail **at the Vesper spot only**: the fixture's battery at distance 695, x −3, seed 8831 now stands on a 1.77 shelf instead of a 0.79 pad. The v2 plant is rejected by the 0.35 sink rule, and v3 composes 'backdrop' instead of 'fort'.
+    - At **distance 270** all four Vesper combinations pass in the browser (v2 small and large, v3 fort and pad). The fix is the facility owner's one-word change: `planet==='vesper'?695:210` → `planet==='vesper'?270:210`, in both cases. I did not edit their file.

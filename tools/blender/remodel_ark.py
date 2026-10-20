@@ -127,7 +127,7 @@ def tower(h):
     hi = [(0, 1.3), (.2, 1.45), (.45, 1.7), (.55, 2.0), (.55, 2.6), (.45, 2.9), (.1, 3.05)]
     full = lambda pts: pts + [(-x, y) for x, y in reversed(pts[1:-1])] + [(-pts[-1][0], pts[-1][1])]
     h.loft([[(x, y, 3.36) for x, y in full(lo)], [(x, y, 4.8) for x, y in full(hi)]], 'paint')
-    h.loft([[(x, y, 4.8) for x, y in full(hi)], [(x * .8, y, 4.88) for x, y in full(hi)]], 'metal')
+    h.loft([[(x, y, 4.8) for x, y in full(hi)], [(x * .8, y, 4.88) for x, y in full(hi)]], 'panel')  # mid grey: dark read as a canopy
     # Bridge windows: a hot band across the superstructure front.
     h.prism([(.72, 4.12), (.86, 4.12), (.96, 4.42), (.82, 4.42)], 'x', -.42, .42, 'glow')
     for s in (-1, 1):
@@ -198,28 +198,64 @@ def bridge(sc, mats):
 
 
 def shutters(sc, mats):
-    """The design sheet's tall centre spire, split down its glowing seam: its halves are the bridge
-    shutters and part sideways by 1.0 to expose the lens behind it (core phase)."""
+    """The bridge cowl over the lens, split down its glowing seam: its halves are the bridge shutters and part
+    sideways by 1.0 to expose the lens (core phase). Kept compact (user, 20 October: the tall dark spire read as a
+    giant canopy and made the ship look like a toy; a small cowl lets the hull read huge)."""
     out = []
     for s, tag in [(-1, 'a'), (1, 'b')]:
         h = br.Solids(['paint', 'panel', 'stripe', 'glow'])
-        # (y, |x|) outline per level: base on the deck, a waist ledge, and the apex.
-        levels = [(1.95, [(-1.25, .02), (-.55, .86), (1.2, .86), (1.25, .02)]),
-                  (3.4, [(-.75, .02), (-.3, .64), (1.1, .64), (1.15, .02)]),
-                  (5.2, [(.2, .02), (.3, .1), (.45, .1), (.5, .02)])]
+        # (y, |x|) outline per level: base on the deck, a waist ledge, and a low ridge.
+        levels = [(2.0, [(-.6, .02), (-.3, .66), (1.35, .66), (1.4, .02)]),
+                  (3.0, [(-.15, .02), (.05, .58), (1.25, .58), (1.3, .02)]),
+                  (3.6, [(.5, .02), (.6, .14), (1.0, .14), (1.05, .02)])]
         loops = []
         for z, pts in levels:
             ring = [(s * x, y, z) for y, x in pts]
             loops.append(ring if s > 0 else ring[::-1])
-        h.loft(loops, 'paint')
-        # Ledge plate at the waist, and the hot seam along the front edge.
-        lo, hi = sorted((s * .02, s * .7))
-        h.box((lo, -.7, 3.36), (hi, 1.12, 3.46), 'panel')
-        edge = [(-1.25, 1.95), (-.75, 3.4), (.2, 5.2)]
-        xa, xb = sorted((s * .02, s * .07))
-        h.loft([[(xa, y - .04, z), (xb, y - .04, z), (xb, y + .04, z), (xa, y + .04, z)] for y, z in edge], 'glow')
-        out.append(h.object('ark_bridge_shutter_' + tag, mats, (s * .45, 0.0, 3.2), sc, bevel=.015))
+        h.loft(loops, 'paint')  # the hull's light armour, not a dark canopy
+        # Ledge plate at the waist, small lit vision slits (scale cues), and the hot seam along the front edge.
+        lo, hi = sorted((s * .02, s * .56))
+        h.box((lo, .0, 2.97), (hi, 1.17, 3.05), 'panel')
+        for k in range(3):
+            y = .05 + k * .12
+            xa, xb = sorted((s * (.2 + k * .06), s * (.26 + k * .06)))
+            h.box((xa, y - .02, 2.62 + k * .03), (xb, y + .02, 2.68 + k * .03), 'glow')
+        edge = [(-.6, 2.0), (-.15, 3.0), (.5, 3.6)]
+        xa, xb = sorted((s * .02, s * .06))
+        h.loft([[(xa, y - .03, z), (xb, y - .03, z), (xb, y + .03, z), (xa, y + .03, z)] for y, z in edge], 'glow')
+        out.append(h.object('ark_bridge_shutter_' + tag, mats, (s * .35, 0.0, 2.7), sc, bevel=.015))
     return out
+
+
+def lens_cover(objects):
+    """Fraction of the bridge lens the closed cowl hides from the game camera (printed; must stay ~1)."""
+    from mathutils.bvhtree import BVHTree
+    import bmesh
+    lens = next(o for o in objects if o.name == 'ark_bridge')
+    cover = [o for o in objects if o.name.startswith('ark_bridge_shutter_') or o.name == 'ark_hull']
+    bm = bmesh.new()
+    for o in cover:
+        me = o.data.copy(); me.transform(o.matrix_world); bm.from_mesh(me); bpy_data_remove(me)
+    tree = BVHTree.FromBMesh(bm)
+    eye = Vector((0, -math.cos(math.radians(55)), math.sin(math.radians(55))))
+    centre = lens.matrix_world.translation
+    u, v = Vector((1, 0, 0)), eye.cross(Vector((1, 0, 0))).normalized()
+    hidden = total = 0
+    for i in range(9):
+        for k in range(9):
+            p = centre + u * (-.5 + i / 8) + v * (-.5 + k / 8)
+            if (p - centre).length > .52 or abs(p.x) < .03:
+                continue  # outside the lens, or on the glowing seam between the halves (open by design)
+            total += 1
+            hidden += tree.ray_cast(p + eye * .02, eye, 30)[0] is not None
+    bm.free()
+    print('ARK LENS COVER %.2f' % (hidden / total))
+    return hidden / total
+
+
+def bpy_data_remove(me):
+    import bpy
+    bpy.data.meshes.remove(me)
 
 
 def bay_doors(sc, mats):
@@ -259,6 +295,7 @@ def build(export=True, preview=True):
     objects += shutters(sc, mats)
     objects += bay_doors(sc, mats)
     bpy.context.view_layer.update()
+    assert lens_cover(objects) > .95, 'the closed cowl must hide the bridge lens'
     br.texture_bake(objects, 'ark', 'vesper')
     live = [o for o in objects if not o.name.endswith('_wreck')]
     br.bake_ao(objects, live, ground=-10)

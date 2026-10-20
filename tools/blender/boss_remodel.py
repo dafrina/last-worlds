@@ -995,7 +995,9 @@ def _bake_tree(mat, style, target):
         albedo = mix(wear, albedo, srgb(style['wear'])[:3])
     # Dust or frost settles on roofs.
     dust_noise = remap(noise(style.get('dust_scale', 3.2), 6), style.get('dust_lo', .45), style.get('dust_hi', .75))
-    dust = math_node('MULTIPLY', math_node('MULTIPLY', remap(up, .6, .95), dust_noise), style['dust_amount'], clamp=True)
+    # Ground decks (`*_deck`) are wide and flat: heavy dust or frost marbles them, so they take a light coat.
+    dust_amount = style['dust_amount'] * (.25 if mat.name.endswith('_deck') else 1)
+    dust = math_node('MULTIPLY', math_node('MULTIPLY', remap(up, .6, .95), dust_noise), dust_amount, clamp=True)
     albedo = mix(dust, albedo, srgb(style['dust'])[:3])
     if glow:
         albedo_out = mix(0.0, (*colour,), (*colour,))

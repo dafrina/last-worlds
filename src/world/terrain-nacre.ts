@@ -1,4 +1,4 @@
-import { WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type Landform, type MoodParams } from './terrain-layout';
+import { NEUTRAL_MOOD, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type Landform, type MoodParams } from './terrain-layout';
 import { KIT, type KitInstance, type KitKind, type ScatterField } from './terrain-scatter';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
@@ -16,7 +16,7 @@ export const NACRE_SEA_LEVEL = -0.6;
 const SEA = NACRE_SEA_LEVEL;
 /** Scenery cap: the same clearance under the flight plane (3.8) as Vesper's, so towers and crags can stand tall. */
 export const NACRE_SCENERY_MAX = 3.0;
-const NEUTRAL: MoodParams = { lift: 0, relief: 1, carve: 0, terrace: 0, mineral: 0, stacks: 0 };
+const NEUTRAL: MoodParams = NEUTRAL_MOOD;
 
 /* ---------------------------------------------------------------- masks */
 

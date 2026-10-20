@@ -31,6 +31,23 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
     expect(generateTerrainSection(8831, 3, NACRE).instances).not.toEqual(generateTerrainSection(93, 3, NACRE).instances);
   });
 
+  it('keeps its terrain exactly as it was: terrain version 13 (docs/26) changes Khepri, Vesper and Luna only', async () => {
+    // sha256 over a section's mesh, pieces, roads, floes and shore, recorded from version 12 (20 October 2026).
+    const crypto: { createHash(kind: string): { update(data: string | Uint8Array): void; digest(encoding: string): string } } = await import(['node', 'crypto'].join(':'));
+    const fingerprint = (section: ReturnType<typeof generateTerrainSection>) => {
+      const hash = crypto.createHash('sha256');
+      for (const key of ['positions', 'colors', 'normals', 'glow', 'edges', 'rock', 'indices'] as const) hash.update(new Uint8Array(section[key].buffer));
+      for (const array of [section.roads.positions, section.roads.uvs, section.roads.alpha, section.roads.shade, section.roads.indices]) hash.update(new Uint8Array(array.buffer));
+      hash.update(JSON.stringify([section.strips, section.props, section.instances, section.industry, section.roadPaths.map(r => [r.id, [...r.x], [...r.s], [...r.y]])]));
+      if (section.floes) hash.update(JSON.stringify(section.floes));
+      if (section.water) hash.update(new Uint8Array(section.water.shore.buffer));
+      return hash.digest('hex').slice(0, 16);
+    };
+    for (const [seed, index, value] of [[93, 2, 'c3464267cebdfd55'], [8831, 5, '8cfbbbcba0c67a88'], [11, 9, '2f05e3b2e0bcb07b']] as const) {
+      expect(fingerprint(generateTerrainSection(seed, index, NACRE)), `${seed}:${index}`).toBe(value);
+    }
+  });
+
   it('keeps every piece within the world, the terrain range and under the scenery cap', () => {
     for (const seed of [8831, 93]) for (let index = 0; index < 10; index++) {
       const section = generateTerrainSection(seed, index, NACRE);

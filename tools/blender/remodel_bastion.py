@@ -115,24 +115,17 @@ def shoulder_roof(x, y):
 
 
 def shoulders(s, h):
-    plan = [(1.0, -2.45), (2.35, -2.45), (2.72, -2.12), (3.05, -1.6), (3.5, -1.12), (3.5, .75), (1.0, .75)]
+    # Cut back over the belts at the front (user, 20 October: show more of the treads); the inboard nose stays.
+    plan = [(1.0, -2.45), (1.62, -2.45), (1.72, -1.9), (3.05, -1.9), (3.5, -1.45), (3.5, .75), (1.0, .75)]
     slab(h, mirror_plan(plan, s), shoulder_roof, 2.35, 'paint')
     # Raised armour plates with dark seams between them.
-    for plate in ([(1.3, -2.25), (2.25, -2.25), (2.62, -1.95), (2.62, -1.5), (1.3, -1.5)],
+    for plate in ([(1.25, -2.3), (1.55, -2.3), (1.66, -1.8), (2.62, -1.8), (2.62, -1.5), (1.25, -1.5)],
                   [(2.8, -1.45), (3.0, -1.45), (3.32, -1.08), (3.32, .55), (2.8, .55)],
                   [(1.3, -.55), (2.62, -.55), (2.62, .55), (1.3, .55)]):
         slab(h, mirror_plan(plate, s), lambda x, y: shoulder_roof(x, y) + .07, 2.6, 'panel')
-    # Gull-wing side skirt falling from the shoulder edge to the outer armour (front view trace).
-    # Only the middle of the side is winged (traced y -1.3..0.75); belts show fore and aft.
-    skirt = [(3.45, .75), (4.25, .72), (4.82, 1.05), (4.82, 2.0), (4.3, 2.42), (3.5, 2.66)]
-    h.loft([[(s * x, -1.05 + (z - .7) * -.2, z) for x, z in skirt], [(s * x, .75, z) for x, z in skirt]], 'paint')
-    h.prism([(s * x, z) for x, z in [(4.82, 1.15), (4.9, 1.2), (4.9, 1.8), (4.82, 1.85)]], 'y', -.95, .55, 'panel')
-    # Stowage box over the rear of the outer drum.
-    h.box((min(s * 3.85, s * 4.78), 1.15, 1.0), (max(s * 3.85, s * 4.78), 2.6, 2.42), 'paint', chamfer=.12)
-    h.box((min(s * 4.78, s * 4.86), 1.35, 1.25), (max(s * 4.78, s * 4.86), 2.4, 2.15), 'panel')
-    h.box((min(s * 4.0, s * 4.62), 1.3, 2.42), (max(s * 4.0, s * 4.62), 2.45, 2.5), 'steel', chamfer=.08)
-    fender = [(-3.58, 1.95), (-3.3, 2.45), (-1.0, 2.62), (-1.0, 2.42), (-3.1, 2.2)]
-    h.prism(fender, 'x', s * 1.66, s * 3.85, 'paint')
+    # The gull-wing side skirts, the stowage boxes over the outer drums and the front fender are gone (user,
+    # 20 October: no boxy pieces over the treads); a slim track guard runs along the shoulder's outer edge.
+    h.box((min(s * 3.45, s * 3.62), -1.45, 2.42), (max(s * 3.45, s * 3.62), .75, 2.62), 'panel', chamfer=.04)
     # Raised block behind each shoulder, and the outer strip beside it.
     rear = [(1.3, .62), (2.35, .62), (2.35, 2.82), (1.3, 2.82)]
     slab(h, mirror_plan(rear, s), lambda x, y: 3.5, 2.6, 'paint')

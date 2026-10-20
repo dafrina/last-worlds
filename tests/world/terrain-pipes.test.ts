@@ -101,7 +101,9 @@ describe('pipelines (docs/14: pitched runs, risers, trestles)', () => {
     expect(risers).toBeGreaterThan(5);
     expect(trestles).toBeGreaterThan(5);
     expect(Math.atan(steepest / Math.sqrt(1 - steepest * steepest))).toBeGreaterThan(Math.atan(ROAD_MAX_SLOPE));
-    expect(resting).toBeGreaterThan(0);
+    // Lines rest on the ground only where no rack fits under the scenery cap: since version 13 (cap 3.0, docs/26) that
+    // is rare, so a span may have none; every resting stretch is still checked above.
+    expect(resting).toBeGreaterThanOrEqual(0);
   });
 
   it('keeps pipelines off outpost modules', () => {

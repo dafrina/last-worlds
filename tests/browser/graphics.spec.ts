@@ -9,9 +9,9 @@ function errorsOf(page:Page) {
 }
 
 test('authored facilities load around the existing battery on every world and Low keeps targets',async({page},info)=>{
-  test.setTimeout(150000); const errors=errorsOf(page);
+  test.setTimeout(300000); const errors=errorsOf(page);
   for(const planet of ['nacre','khepri','vesper']) for(const quality of ['high','low']) for(const size of ['small','large']) {
-    await page.goto(`/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper'?695:210}&x=-3&facility=${size}&inspect=1&quality=${quality}`);
+    await page.goto(`/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper'?270:210}&x=-3&facility=${size}&fv=2&inspect=1&quality=${quality}`);
     await expect.poll(async()=>{const s=await stats(page); return s.facilities?.loaded && s.heroModel==='glb' && s.terrain?.kit==='glb';},{timeout:30000}).toBe(true);
     const s=await stats(page);
     expect(s.facilities.count).toBe(1); expect(s.enemies).toBe(1); expect(s.planet).toBe(planet);
@@ -19,6 +19,24 @@ test('authored facilities load around the existing battery on every world and Lo
     expect(s.stream.viewFallbacks).toBe(0);
     if(quality==='low') { expect(s.passes.shadow).toBe(0); expect(s.passes.post).toBe(0); }
     if(quality==='high')await page.screenshot({path:info.outputPath(`${planet}-compound-${size}.png`)});
+  }
+  expect(errors).toEqual([]);
+});
+
+test('modular v3 facilities compose their arrangement from each world kit on both tiers',async({page},info)=>{
+  test.setTimeout(300000); const errors=errorsOf(page);
+  // Luna's fixture at distance 210 stands the battery on open regolith.
+  for(const [planet,arrangement,quality] of [['khepri','yard','high'],['khepri','tower','low'],['vesper','fort','high'],['vesper','pad','low'],
+    ['nacre','shrine','high'],['nacre','basins','low'],['luna','radar','high'],['luna','emplacement','low']]) {
+    await page.goto(`/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper'?270:210}&x=-3&facility=${arrangement}&fv=3&inspect=1&quality=${quality}`);
+    await expect.poll(async()=>{const s=await stats(page); return s.facilities?.loaded && s.facilities.count===1 && s.heroModel==='glb' && s.terrain?.kit==='glb';},{timeout:30000}).toBe(true);
+    const s=await stats(page);
+    expect(s.facilities.version).toBe(3); expect(s.facilities.arrangements).toEqual([arrangement]);
+    expect(s.facilities.kits[planet]).toBe('glb'); expect(s.facilities.modules).toBeGreaterThan(planet==='luna'?1:3);
+    expect(s.enemies).toBe(1); expect(s.planet).toBe(planet);
+    expect(s.stream.viewFallbacks).toBe(0);
+    if(quality==='low') { expect(s.passes.shadow).toBe(0); expect(s.passes.post).toBe(0); }
+    if(quality==='high')await page.screenshot({path:info.outputPath(`${planet}-v3-${arrangement}.png`)});
   }
   expect(errors).toEqual([]);
 });

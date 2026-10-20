@@ -1,4 +1,4 @@
-import { WORLD_HALF, clamp, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
+import { NEUTRAL_MOOD, WORLD_HALF, clamp, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
 import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
 import { MODULE_HEIGHT, SETTLEMENT_CELL, districtLevel, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
 import type { Work } from './terrain-work';
@@ -9,9 +9,61 @@ import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
  * dark mare plains with fewer of them, and a handful of small outposts. No water, no roads, no pipelines.
  * Every piece reuses the Khepri kit and infrastructure models. Pure functions of seed and world coordinates.
  */
-const NEUTRAL: MoodParams = { lift: 0, relief: 1, carve: 0, terrace: 0, mineral: 0, stacks: 0 };
-/** Luna scenery keeps Khepri's clearance under the flight plane. */
-export const LUNA_SCENERY_MAX = 2.2;
+const NEUTRAL: MoodParams = NEUTRAL_MOOD;
+/** Luna's scenery cap: the same 0.8 clearance under the flight plane (3.8) as the other worlds (2.2 before version 13). */
+export const LUNA_SCENERY_MAX = 3.0;
+
+/* ---------------------------------------------------------------- moods */
+
+/**
+ * Regions along the route (docs/26 §4): cratered highlands, dark maria with rilles and wrinkle ridges, a basin rim of
+ * mountains (montes) around a mare, and a saturated crater field. Never the same twice in a row.
+ */
+export type LunaMood = 'highland' | 'mare' | 'basin' | 'craters';
+export const LUNA_MOODS: readonly LunaMood[] = ['highland', 'mare', 'basin', 'craters'];
+export interface LunaParams {
+  /** Bias toward mare plains (0 highland, 1 mostly mare). */ mare: number;
+  /** Mountain massifs (montes). */ montes: number;
+  /** Crater density. */ craters: number;
+  /** Sinuous rilles in the maria. */ rilles: number;
+  /** Lobate scarps across the highlands. */ scarps: number;
+}
+const LUNA_SETTINGS: Readonly<Record<LunaMood, LunaParams>> = {
+  highland: { mare: 0.1, montes: 0.55, craters: 1.1, rilles: 0.2, scarps: 1 },
+  mare: { mare: 1, montes: 0.1, craters: 0.65, rilles: 1, scarps: 0.3 },
+  basin: { mare: 0.55, montes: 1, craters: 0.85, rilles: 0.5, scarps: 0.6 },
+  craters: { mare: 0.25, montes: 0.3, craters: 1.35, rilles: 0.2, scarps: 0.5 },
+};
+const LUNA_LENGTH = 96, LUNA_BLEND = 26;
+function lunaPermutation(seed: number, block: number): LunaMood[] {
+  const order = [...LUNA_MOODS];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(hash(seed ^ 0xa1f0, block, i) * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+/** Luna's mood of a route segment: shuffled blocks, never the same mood twice in a row. */
+export function lunaMoodOf(seed: number, segment: number): LunaMood {
+  const block = Math.floor(segment / LUNA_MOODS.length), raw = lunaPermutation(seed, block);
+  if (raw[0] === lunaPermutation(seed, block - 1)[LUNA_MOODS.length - 1]) [raw[0], raw[1]] = [raw[1], raw[0]];
+  return raw[segment - block * LUNA_MOODS.length];
+}
+const LUNA_KEYS = Object.keys(LUNA_SETTINGS.highland) as (keyof LunaParams)[];
+let paramsMemo: { seed: number; s: number; value: LunaParams } | null = null;
+export function lunaParams(seed: number, s: number): LunaParams {
+  if (paramsMemo && paramsMemo.seed === seed && paramsMemo.s === s) return paramsMemo.value;
+  const segment = Math.floor(s / LUNA_LENGTH), t = smoothRange(LUNA_LENGTH - LUNA_BLEND, LUNA_LENGTH, s - segment * LUNA_LENGTH);
+  const a = LUNA_SETTINGS[lunaMoodOf(seed, segment)];
+  let value = a;
+  if (t > 0) {
+    const b = LUNA_SETTINGS[lunaMoodOf(seed, segment + 1)], out = { ...a };
+    for (const key of LUNA_KEYS) out[key] = mix(a[key], b[key], t);
+    value = out;
+  }
+  paramsMemo = { seed, s, value };
+  return value;
+}
 
 /* ---------------------------------------------------------------- craters */
 
@@ -19,20 +71,23 @@ interface CraterScale { cell: number; chance: number; radius: readonly [number, 
 /**
  * Crater families, largest first. Depth and rim are fractions of the radius; `floor` flattens the bowl (big
  * craters have broad flat floors and steep walls, small ones are simple bowls). A crater's reach (its ejecta
- * apron, 1.8 radii) stays inside its cell's 3 × 3 neighbourhood.
+ * apron, 1.8 radii) stays inside its cell's 3 × 3 neighbourhood. Each crater is fresh (deep, sharp rim), mature or
+ * old and degraded (shallow, soft rim), so their depths vary widely.
  */
 const CRATERS: readonly CraterScale[] = [
-  { cell: 40, chance: 0.7, radius: [7.5, 13], depth: 0.16, rim: 0.045, floor: 4, salt: 0xc4a1 },
-  { cell: 11, chance: 0.8, radius: [2.2, 4.4], depth: 0.26, rim: 0.07, floor: 2.6, salt: 0xc4a2 },
+  { cell: 44, chance: 0.72, radius: [7.5, 15], depth: 0.17, rim: 0.05, floor: 4, salt: 0xc4a1 },
+  { cell: 12, chance: 0.8, radius: [2.2, 4.8], depth: 0.3, rim: 0.08, floor: 2.6, salt: 0xc4a2 },
   { cell: 4.2, chance: 0.75, radius: [0.75, 1.6], depth: 0.3, rim: 0.08, floor: 2, salt: 0xc4a3 },
   { cell: 2, chance: 0.6, radius: [0.38, 0.7], depth: 0.28, rim: 0.07, floor: 2, salt: 0xc4a4 },
 ];
 const REACH = 1.8;
+/** Fresh, mature and degraded craters: depth and rim factors. */
+const AGES = [[1.6, 1.5], [1, 1], [0.45, 0.5]] as const;
 
-/** Mare (dark basalt plains): 0 on the highlands, 1 deep in a mare. */
+/** Mare (dark basalt plains): 0 on the highlands, 1 deep in a mare; the region's mood shifts how much is mare. */
 export function lunaMare(seed: number, x: number, s: number): number {
-  const wx = x + (noise(seed ^ 0xa1e2, x * 0.03, s * 0.03) - 0.5) * 18;
-  return smoothRange(0.56, 0.7, noise(seed ^ 0xa1e1, wx * 0.014, s * 0.011));
+  const wx = x + (noise(seed ^ 0xa1e2, x * 0.03, s * 0.03) - 0.5) * 18, bias = (lunaParams(seed, s).mare - 0.78) * 0.22;
+  return smoothRange(0.57, 0.63, noise(seed ^ 0xa1e1, wx * 0.02, s * 0.016) + bias);
 }
 
 export interface CraterField {
@@ -41,47 +96,80 @@ export interface CraterField {
   /** Bright fresh ejecta (0..1) around young craters. */ ejecta: number;
   /** Closeness to a rim crest (0..1), for boulders. */ rim: number;
 }
+interface Crater { cx: number; cs: number; r: number; depth: number; rim: number; floor: number; young: number; apron: number }
+const craterMemo = new Map<number, Crater | null>();
+let craterSeed = NaN;
+/** One cell's crater (pure in seed, family and cell; memoized): mare plains, being younger, keep fewer of them. */
+function craterAt(seed: number, family: number, i: number, j: number): Crater | null {
+  if (seed !== craterSeed) { craterMemo.clear(); craterSeed = seed; }
+  const key = ((j * 64 + i + 32) * 4) + family, known = craterMemo.get(key);
+  if (known !== undefined) return known;
+  const scale = CRATERS[family], h = (k: number) => hash(seed ^ scale.salt, i * 7 + k, j);
+  const cx = (i + 0.2 + h(0) * 0.6) * scale.cell, cs = (j + 0.2 + h(1) * 0.6) * scale.cell, roll = h(2);
+  const density = lunaParams(seed, cs).craters, chance = Math.min(0.95, scale.chance * density);
+  let crater: Crater | null = null;
+  if (roll <= chance && roll <= chance * (1 - 0.3 * lunaMare(seed, cx, cs))) {
+    const r = mix(scale.radius[0], scale.radius[1], h(3)), age = AGES[h(6) < 0.28 ? 0 : h(6) < 0.72 ? 1 : 2];
+    crater = { cx, cs, r, depth: scale.depth * r * age[0], rim: scale.rim * r * age[1], floor: scale.floor, young: h(4) < 0.17 ? 1 : 0, apron: 2.1 * (0.85 + h(5) * 0.3) };
+  }
+  if (craterMemo.size > 8192) craterMemo.clear();
+  craterMemo.set(key, crater);
+  return crater;
+}
 /** All craters touching a point, summed: bowl, raised rim and an ejecta apron that fades by 1.8 radii. */
 export function lunaCraters(seed: number, x: number, s: number): CraterField {
   const out: CraterField = { height: 0, bowl: 0, ejecta: 0, rim: 0 };
-  for (const scale of CRATERS) {
-    const ci = Math.floor(x / scale.cell), cj = Math.floor(s / scale.cell);
+  for (let family = 0; family < CRATERS.length; family++) {
+    const scale = CRATERS[family], ci = Math.floor(x / scale.cell), cj = Math.floor(s / scale.cell);
     for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-      const i = ci + di, j = cj + dj, h = (k: number) => hash(seed ^ scale.salt, i * 7 + k, j);
-      const cx = (i + 0.2 + h(0) * 0.6) * scale.cell, cs = (j + 0.2 + h(1) * 0.6) * scale.cell;
-      const r = mix(scale.radius[0], scale.radius[1], h(3)), d = Math.hypot(x - cx, s - cs) / r;
-      // Out of reach first (cheap); then mare plains, which are younger: fewer craters survive on them.
+      const c = craterAt(seed, family, ci + di, cj + dj);
+      if (!c) continue;
+      const d = Math.hypot(x - c.cx, s - c.cs) / c.r;
       if (d >= REACH) continue;
-      const roll = h(2);
-      if (roll > scale.chance || roll > scale.chance * (1 - 0.45 * lunaMare(seed, cx, cs))) continue;
-      const depth = scale.depth * r, rim = scale.rim * r;
       if (d < 1) {
-        // Flat-floored bowl rising steeply to the rim crest; big craters get a small central peak.
-        out.height += -depth + (depth + rim) * Math.pow(d, scale.floor);
-        if (r > 10.5) out.height += 0.5 * (1 - smoothRange(0, 0.2, d));
-        out.bowl = Math.max(out.bowl, 1 - Math.pow(d, scale.floor));
+        // Flat-floored bowl rising steeply to the rim crest; big craters slump into terraced walls and a central peak.
+        let wall = Math.pow(d, c.floor);
+        if (c.r > 7) wall = mix(wall, Math.floor(wall * 3) / 3 + smoothRange(0.6, 1, wall * 3 - Math.floor(wall * 3)) / 3, 0.4);
+        out.height += -c.depth + (c.depth + c.rim) * wall;
+        if (c.r > 7) out.height += c.depth * 0.38 * (1 - smoothRange(0, 0.16, d)) * (0.6 + 0.4 * ridgedNoise(seed, x, s));
+        out.bowl = Math.max(out.bowl, 1 - Math.pow(d, c.floor));
       } else {
         const t = 1 - smoothRange(1, REACH, d);
-        out.height += rim * t * t;
+        out.height += c.rim * t * t;
       }
       out.rim = Math.max(out.rim, 1 - smoothRange(0, 0.25, Math.abs(d - 1)));
       // About one crater in six is young, with a bright apron.
-      if (h(4) < 0.17) out.ejecta = Math.max(out.ejecta, (1 - smoothRange(0.9, 2.1 * (0.85 + h(5) * 0.3), d)) * (d > 0.85 ? 1 : 0.55));
+      if (c.young) out.ejecta = Math.max(out.ejecta, (1 - smoothRange(0.9, c.apron, d)) * (d > 0.85 ? 1 : 0.55));
     }
   }
   return out;
 }
+const ridgedNoise = (seed: number, x: number, s: number) => { const r = 1 - Math.abs(2 * noise(seed ^ 0xa1f5, x * 0.9, s * 0.9) - 1); return r * r; };
 
 /* ---------------------------------------------------------------- landform */
 
-/** Luna ground: rolling highlands and low mare plains, cratered; `channel` carries the bowl and `tone` the ejecta. */
+/**
+ * Luna ground (docs/26 §4): rugged highlands with mountain massifs and lobate scarps; dark mare plains a scarp below
+ * them, with wrinkle ridges and sinuous rilles; all cratered at four scales, fresh and deep or old and worn.
+ * `channel` carries the bowl and `tone` the ejecta.
+ */
 export function lunaLandform(seed: number, x: number, s: number): Landform & { tone: number } {
-  const mare = lunaMare(seed, x, s), craters = lunaCraters(seed, x, s);
-  const rolling = (noise(seed ^ 0xa1e3, x * 0.04, s * 0.035) - 0.5) * 1.3 + (noise(seed ^ 0xa1e4, x * 0.13, s * 0.12) - 0.5) * 0.35
-    + (noise(seed ^ 0xa1e5, x * 0.9, s * 0.9) - 0.5) * 0.04;
-  const base = mix(0.2 + rolling, -0.9 + rolling * 0.25, mare);
+  const p = lunaParams(seed, s), mare = lunaMare(seed, x, s), craters = lunaCraters(seed, x, s);
+  const rolling = (noise(seed ^ 0xa1e3, x * 0.04, s * 0.035) - 0.5) * 1.5 + (noise(seed ^ 0xa1e4, x * 0.13, s * 0.12) - 0.5) * 0.45
+    + (noise(seed ^ 0xa1e5, x * 0.9, s * 0.9) - 0.5) * 0.05;
+  const qx = x + (noise(seed ^ 0xa1e6, x * 0.05, s * 0.05) - 0.5) * 8, qs = s + (noise(seed ^ 0xa1e8, x * 0.05 + 3.3, s * 0.05) - 0.5) * 8;
+  // Montes: ridged massifs on the highlands, strongest in a basin's rim.
+  const montes = p.montes * Math.pow(1 - Math.abs(2 * noise(seed ^ 0xa1e9, qx * 0.06, qs * 0.055) - 1), 1.6) * (1 - mare);
+  // Lobate scarps: curving one-sided steps across the highlands, broken into finite lengths.
+  const scarp = p.scarps * smoothRange(-0.016, 0.016, noise(seed ^ 0xa1ea, qx * 0.045, qs * 0.04) - 0.5) * smoothRange(0.35, 0.6, noise(seed ^ 0xa1eb, x * 0.03, s * 0.03));
+  const highland = 0.55 + rolling * 1.15 + montes * 2.1 + scarp * 0.8;
+  // Maria: low dark plains with wrinkle ridges and sinuous flat-floored rilles.
+  const wrinkle = Math.pow(1 - Math.abs(2 * noise(seed ^ 0xa1ec, qx * 0.07, qs * 0.06) - 1), 3) * 0.7;
+  const rille = (1 - smoothRange(0.01, 0.03, Math.abs(noise(seed ^ 0xa1ed, qx * 0.04, qs * 0.03) - 0.5))) * p.rilles;
+  const plain = -1.6 + rolling * 0.5 + wrinkle - rille * 1.5;
+  const base = mix(highland, plain, mare);
   return {
-    height: clamp(base + craters.height, -4.5, 1.8), elevation: 1 - mare, channel: craters.bowl, pool: 0, vein: 99, vein2: 99, veins: 0,
+    height: clamp(base + craters.height, -5.5, 2.4), elevation: 1 - mare, channel: Math.max(craters.bowl, rille * mare * 0.6), pool: 0, vein: 99, vein2: 99, veins: 0,
     tone: craters.ejecta,
   };
 }
@@ -163,7 +251,7 @@ export function lunaSettlement(seed: number, cell: number, side: number): Settle
     for (let k = 0; k < 6; k++) {
       const cx = side * Math.min(WORLD_HALF * (0.4 + h(1 + k) * 0.45), WORLD_HALF - 4), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
       const heights = [[0, 0], [2.4, 0], [-2.4, 0], [0, 2.4], [0, -2.4]].map(([dx, ds]) => lunaLandform(seed, cx + dx, cs + ds).height);
-      const relief = Math.max(...heights) - Math.min(...heights);
+      const relief = Math.max(...heights) - Math.min(...heights) + 0.5 * Math.max(0, heights[0] - 1.2);
       if (relief < best) { best = relief; x = cx; s = cs; }
     }
     const archetype = LUNA_ARCHETYPES[Math.floor(h(20) * LUNA_ARCHETYPES.length)];
@@ -171,7 +259,7 @@ export function lunaSettlement(seed: number, cell: number, side: number): Settle
     const [hx, hs] = turns % 2 ? [hv, hu] : [hu, hv];
     const local = compose(archetype, k => h(30 + k));
     const tallest = Math.max(...local.map(module => MODULE_HEIGHT[module.node] ?? 1));
-    const level = clamp(Math.round(lunaLandform(seed, x, s).height / 0.25) * 0.25, -4, LUNA_SCENERY_MAX - tallest - 0.05);
+    const level = clamp(Math.round(lunaLandform(seed, x, s).height / 0.25) * 0.25, -5, LUNA_SCENERY_MAX - tallest - 0.05);
     x = Math.sign(x) * Math.min(Math.abs(x), WORLD_HALF - hx - 0.3);
     const cos = [1, 0, -1, 0][turns], sin = [0, 1, 0, -1][turns];
     const modules = local.map((module, i): PlacedModule => {
@@ -233,7 +321,7 @@ export function* lunaScatterSteps(seed: number, startS: number, size: number, te
 
 export const LUNA: PlanetProfile = {
   id: 'luna', seaLevel: null,
-  mood: (seed, s) => lunaMare(seed, 0, s) > 0.5 ? 'mare' : 'highland', params: () => NEUTRAL, local: () => null,
+  mood: (seed, s) => lunaMoodOf(seed, Math.floor(s / LUNA_LENGTH)), params: () => NEUTRAL, local: () => null,
   landform: (seed, x, s) => lunaLandform(seed, x, s),
   // Training has no arena; a flat pad level keeps the hook total.
   arena(row, _x, point) { point.height = mix(point.height, 0, row.platform); },

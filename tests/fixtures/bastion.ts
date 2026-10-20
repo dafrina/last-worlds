@@ -117,6 +117,11 @@ if (query.has('fuel')) for (const [dx, s] of [[-2.6, 10], [0, 8], [2.6, 11]]) {
 }
 // `fuel=kill`: fly on until the middle skid bursts (use with `still` to freeze its blast).
 if (query.get('fuel') === 'kill') for (let i = 0; i < 240 && !state.effects.some(effect => effect.kind === 'blast'); i++) stepRun(state, EMPTY_INPUT);
+// `shots`: twin streams of hero bolts ahead of the ship (render inspection; `still` keeps them in place).
+if (query.has('shots')) for (let i = 0; i < 10; i++) for (const dx of [-.3, .3]) {
+  const x = state.player.x + dx, s = 1.2 + i * 1.1;
+  state.projectiles.push({ id: state.nextId++, x, s, previousX: x, previousS: s - .3, vx: 0, vs: 18, friendly: true, damage: 1, radius: .08, ttl: 2 });
+}
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start(config: RunConfig) { state = createRun(config); },
   pause() { state.phase = 'paused'; input.clear(); },

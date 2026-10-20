@@ -1,5 +1,114 @@
 # Build status
 
+## Terrain relief, terrain version 13 (docs/26), 20 October 2026
+
+- **What:** the user found Khepri, Vesper and Luna "a bit too flat often … like there's two plateaus", and Vesper short of infrastructure. Nacre is unchanged byte for byte.
+  - Khepri: flat benches whose heights and riser sizes drift by region, sheer fixed-width risers, mesas and buttes at their own heights, deep ledged canyons (floors near −9), dunes and escarpments across six moods.
+  - Vesper: shelves stepping up from the coast in ice cliffs (dressed with the coast's ice-face kit), nunataks, taller ridges, deeper crevasses, six moods.
+  - Luna: highlands, montes, scarps, maria with rilles and wrinkle ridges, and fresh or worn craters.
+  - Details, cause analysis and numbers: docs/26.
+- **Vertical range:**
+  - the flight plane is unchanged (3.8), and no shared constant or sim file was touched;
+  - the terrain clamp goes from −8…2.0 to −10…2.4;
+  - the Khepri and Luna scenery caps go from 2.2 to 3.0, as on Vesper and Nacre.
+- **Vesper infrastructure:**
+  - Cause: the outposts existed but stood off the centre view (|x| 5.7–10.9) and were sunk into pits by the pad clamp (0.79 under the cap, with the shelves at 1.0–1.8). They also cast no real shadow on High.
+  - Fix:
+    - outposts now start from |x| 5.25;
+    - pads keep their own shelf's level, and pieces too tall for it swap to lower ones;
+    - two archetypes after the facility sheet: heat exchanger and thermal reactor;
+    - Vesper nodes cast shadows on High.
+  - Pieces per km within |x| ≤ 7 went from 54–63 to 81–86 (Khepri 82–116). Luna's outposts are unchanged.
+- **Files:**
+  - `src/world/terrain-layout.ts`, `terrain-vesper.ts`, `terrain-luna.ts`, `terrain-settlements.ts`;
+  - `terrain-nacre.ts` (an import only);
+  - `terrain.ts` (`TERRAIN_VERSION = 13`);
+  - `src/render/terrain-view.ts` (casters);
+  - tests: `tests/world/terrain.test.ts`, `terrain-vesper.test.ts`, `terrain-luna.test.ts`, `terrain-nacre.test.ts`, `terrain-pipes.test.ts`, `terrain-budget.test.ts`;
+  - new: the `tests/fixtures/terrain-relief.{html,ts}` fixture, `docs/26-terrain-relief.md`, `docs/screenshots/terrain/before-after-{khepri,vesper,luna}.jpg`.
+- **Checks (WSL, Node 24.16, load average 20–55):**
+  - typecheck clean;
+  - 394/394 unit tests, including:
+    - re-recorded Khepri fingerprints;
+    - a Nacre fingerprint guard;
+    - multi-level views, every mood present, cross-planet order independence;
+    - Vesper shelf levels, pads at their shelf, outpost density and archetypes;
+    - Luna relief variety.
+  - Render budget: High ≤ 54 draw calls and ≤ 75.4k triangles on Khepri, ≤ 49 and ≤ 67.7k on Vesper (limits 70 and 90k). Mean visible triangles rose about 25%.
+  - Section generation: Khepri 141–146 → 187–222 ms; Luna is faster.
+  - The streaming tests (no fallbacks at 5 and 11 units/s) pass.
+- **Browser (load average 25–50):**
+  - `vesper.spec`, `endless-clearance` and all three `bastion.spec` cases pass, as do the VEIL rig case and the three boss reference cases. Four of them first timed out under load and passed on re-run.
+  - The two facility cases in `graphics.spec.ts` fail only at their Vesper spot (distance 695 is now a 1.77 shelf). At distance 270 all four Vesper combinations pass; the change is proposed to the facility owner in COORDINATION.md.
+  - Streaming the fixture at 11 units/s: no fallbacks on Vesper and Luna. Through Khepri's district, versions 12 and 13 alike show at most one generation or view fallback at about 14 fps under this load. At 5 units/s there are none.
+- **Evidence:** `docs/screenshots/terrain/before-after-{khepri,vesper,luna}.jpg` (top row version 12, bottom row version 13; seed 93, 390×844 at DPR 2, real game view). Raw frames are in `lookdev/terrain-v13/`.
+- **Limits:**
+  - no phone test;
+  - Luna's gain is the most modest of the three: the airless soft light flattens its relief;
+  - battery seats with more than 1 unit of relief under a 1.2-unit footprint rose slightly (Khepri 18% → 21%, Vesper 16% → 20%, Luna 3% → 9%); they keep the render-only plinth;
+  - district slots that plan a district fell from 88 to 78 of 120.
+
+## Modular facility compounds v3, TypeScript side (docs/25), 20 October 2026
+
+- **What:** the seeded composer and the instanced view for the per-world module kits that the integrator built in Blender. The user asked for variety: "dont make it always have a open court design" and "maybe these could be made modular as well?".
+  - Khepri, Vesper and Nacre: 6–8 arrangements each.
+  - Luna: five single small facilities. About 30% of Luna's batteries get a plant (user: "much less populated").
+  - Details and readings of the rules: docs/25 §As built.
+- **Switch:** `FACILITY_VERSION = 3` in `src/render/facility-view.ts`. Set it to 2 to roll back to the v2 compounds, whose files are untouched.
+- **Files:**
+  - new: `src/render/facility-layouts.ts`, `tests/world/facility-layouts.test.ts`;
+  - changed: `src/render/facility-view.ts`, `tests/world/facility-placement.test.ts`, one v3 kit test in `tests/world/cinematic-assets.test.ts`, `tests/fixtures/nacre-world.ts` (`fv=2|3`, `facility=<arrangement>`), the facility cases in `tests/browser/graphics.spec.ts`, docs/25;
+  - `src/render/scene.ts`: one line, the QA stats now read `facilities.stats`.
+- **Checks (WSL, Node 24.16, Playwright Chromium with SwiftShader, load average 33–41):**
+  - typecheck clean;
+  - 386/386 unit tests, including 9 layout-rule tests, 5 new v3 view tests and the v3 kit contract test on all four kits;
+  - browser: the v3 facilities case (8 world/arrangement/tier combinations, real kits, no view fallbacks, no console errors) and the v2 case (12 combinations) both pass. The v2 case needed a 300 s budget under this load; at 150 s it stopped after 10 of 12 page loads, with no failed assertion.
+- **Evidence:** `docs/screenshots/facility-remodel/v3-modular.jpg`, five composed plants per world at 390×844, DPR 2. Raw frames are in `lookdev/facility-v3/`.
+- **Round 2 (evening):**
+  - ground aprons under every Khepri, Vesper and Nacre plant, seated on the sampled terrain tile by tile;
+  - at least 6 modules per plant on those worlds, with denser templates and pipe runs between neighbours;
+  - Luna unchanged;
+  - `scene.ts` gained a second hook: `facilities.update(..., reserved, (x, s) => surfaceHeight(state.config.seed, x, s, world))`;
+  - details: docs/25 §Round 2.
+  - **Checks:**
+    - typecheck clean;
+    - the facility layout, placement and kit-contract suites pass (32/32);
+    - the full suite passed 388/388 earlier in round 2. Its final runs (load average 35–50, while the terrain agent works) failed only on 30 s timeouts in terrain tests (`terrain*.test.ts`), which I did not touch;
+    - the v3 browser case passes (8 world/arrangement/tier combinations, real kits, no fallbacks or console errors);
+    - the v2 browser case passed in round 1 and its code path hasn't changed since. Its round 2 re-run stalled on a page load at load average 35, with no assertion failure.
+  - **Review sheet:** recaptured; four worlds × five plants.
+- **Limits:**
+  - no phone test;
+  - the composer is checked against registry footprints, not mesh silhouettes;
+  - a battery that spawns after its neighbour's plant was composed is protected only by that plant's original checks, as in v2;
+  - on rough ground, apron tiles are left out, so a plant on a dune can show gaps in its slab.
+
+## Boss touch-ups: a smaller bridge cowl on the Ark, open treads on the Bastion, 20 October 2026
+
+- **HELION ARK:** the user said the dark spire "looks so comical", like a giant windshield. It is now a compact cowl about half as wide and roughly half the height, in the hull's light paint, with small lit vision slits. The tower roof cap is mid-grey instead of dark. The closed cowl still hides the bridge lens; a build-time ray check confirms full cover, the glowing seam aside. The opened halves clear the core ray (asset test). 7,892 triangles.
+- **BASTION-9:** the user asked for no boxy pieces over the treads and more tread showing at the front. The gull-wing side skirts, the stowage boxes over the outer drums and the front fender are removed, and the shoulder armour is cut back over the belts at the front; it still carries the battery turrets. A slim guard runs along each shoulder edge. 21,648 triangles.
+- **Evidence:** in-game captures in `lookdev/boss-tweak/` (Ark at batteries and core, Bastion at batteries).
+
+## Modular facilities v3 live: integration and review, 20 October 2026
+
+- **What ships:** `FACILITY_VERSION = 3`. All four worlds compose modular plants from the textured kits (docs/25, art/facility-remodel/README.md). The v2 plants stay on disk as the rollback (set the version to 2).
+- **Review changes made by the integrator:**
+  - **Aprons:** they form one rectangular lot around a plant's buildings rather than following each footprint, so a plant reads as a single complex.
+  - **Gun pit:** the court has no margin, so the slab stops at the gun unless buildings stand in front of it.
+  - **Slopes:** apron skirts reach 1.1 deep and tiles tolerate ground up to 1.1 rough, so lots step down dunes and slopes as terraces instead of leaving holes.
+  - **Weathering:** aprons use a lightly weathered `deck` material (no marbled frost on Vesper).
+  - **Nacre:** its paving is a dark, desaturated violet, and its pool water glows at 0.7.
+  - **Registry:** pad and arc footprints corrected (Vesper pad [2.5, 2.5], Luna pad [2.4, 2.45], Nacre arc [.9, .38]).
+- **Evidence:** `docs/screenshots/facility-remodel/v3-modular.jpg`, five plants per world on all four worlds. Luna stays sparse.
+- **Checks:** recorded in the deploy commit (snapshot: typecheck, unit suite, build, browser suite). No phone test.
+
+## Hero bolts readable on Vesper's snow, 20 October 2026
+
+- **The problem:** the user found the hero's projectiles hard to see on Vesper. The pale cyan-white bolts (`0xbcfff8`) vanished against bright snow.
+- **The fix:** on Vesper, each bolt now has a dark navy outline (one extra instanced draw, only while on Vesper) and a deeper, saturated cyan core (`0x1fd2ff`). The other worlds keep the original look. Code: `src/render/scene.ts`, `brightGround`.
+- **Inspection:** `tests/fixtures/bastion.html?planet=vesper&battery=battery-2&at=24&roll=10&shots&still` freezes twin bolt streams ahead of the ship (`shots`).
+- **Checks:** typecheck clean; captures inspected on Vesper and Khepri.
+
 ## Victory warp holds deep space; Pulsar streams track the ship; a sparser Moon, 20 October 2026
 
 - **Victory warp:**

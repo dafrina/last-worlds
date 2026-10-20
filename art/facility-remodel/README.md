@@ -73,3 +73,24 @@ The builder asserts the seat bounds, the court and the area ratio before it bake
 The game-view previews go to `lookdev/facility-remodel/` (ignored) and are collected in `previews.jpg`. The in-game before/after sheet is `docs/screenshots/facility-remodel/before-after.jpg`.
 
 **Rollback:** the v1 file and its builder stay in place. Pointing `assetOf` in `facility-view.ts` back at the shared GLB needs the v1 single-material loader from git history (`7472fc5`..`32caf55`).
+
+## v3: modular kits (in progress, 20 October 2026)
+
+The user liked v2 but not its single inverted-U layout, and asked for modular plants. Each world now has a kit of textured modules, `public/assets/<world>/facility-kit-v3.glb`, built by `tools/blender/facility_kit.py`. A seeded layout in the game composes the modules around each battery (docs/25-modular-facilities.md).
+
+- **Contract:** `src/render/facility-kit.ts` is the only source of the numbers. The builder parses it and fails if any module leaves its footprint, top or foundation depth.
+- **Modules:** they are cut from the v2 builders, plus new pieces from the sheets. Each carries its own foundation. Fronts and both sides are detailed, because layouts turn modules a quarter; backs stay plain.
+
+| World | Modules | Triangles (all modules) | Size |
+| --- | --- | ---: | ---: |
+| Khepri | tank_l, tank_s, columns, tower (3.25), hall_l, hall_s, pump, refinery (2.95), spire (3.25, power relay spire), crane (extractor), crystals, pipe, wall, ring, apron | 18.3k | 4.1 MB |
+| Vesper | exchanger_l, exchanger_s, stacks, reactor (3.25, thermal reactor tower), hall_l, hall_s, tower (3.0, cryo-dock control tower), fuel, pylon (shield pylon, no guns), wall, pipe, pad (landing pad around the gun), ring, apron | 11.1k | 3.4 MB |
+| Nacre | basin_l, basin_s, hall_l, hall_s, obelisk (3.18, monolith relay), pump (3.05, mire pump tower), arc (shrine ring segment), pillar, stones, pool (around the gun), channel, ring, apron | 9.9k | 3.4 MB |
+| Luna | bunker (training command bunker), radar (3.25, radar/comms tower), hall_l, hall_s, tank_l, tank_s, capsules, cargo, power, beacon, wall, pipe, pad (hangar pad around the gun), ring | 13.4k | 3.6 MB |
+
+**Aprons:** 2 × 2 ground slabs (96 triangles) tile under each Khepri, Vesper and Nacre plant so its buildings read as one complex. Nacre's pool water glows at 0.7 strength, under its 2.2 rims, so the pools do not flood the frame.
+
+**Tall modules:** they use the headroom under the flight plane on low ground (top ≤ 3.25). The flight plane itself is unchanged.
+
+**Rebuild:** `remodel_run.py facility_kit [--world=khepri]` (the same headless command as above). The contact sheets go to `lookdev/facility-kit/`.
+

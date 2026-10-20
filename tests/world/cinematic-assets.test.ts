@@ -6,6 +6,7 @@ import { BASTION } from '../../src/content/bastion';
 import { HELION_ARK } from '../../src/content/ark';
 import { VEIL } from '../../src/content/veil';
 import { WARDEN } from '../../src/content/warden';
+import { FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
 
 const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
 // These checks exercise geometry/rigs in Node. Actual PNG decoding and materials are
@@ -194,5 +195,35 @@ describe('Blender cinematic asset contracts',()=>{
       expect(model.getObjectByName('facility_remodel_v2')).toBeDefined();
       for(const large of [false,true]) checkCompound(model,planet,large);
     }
+  });
+  // v3 modular kits (docs/25, src/render/facility-kit.ts): every registry module is a node in its world's kit, inside its
+  // declared footprint, foundation and top (reaching close to that top, so the height rule is not slack), textured with
+  // UVs. A world whose kit has not shipped yet is skipped.
+  it('keeps every v3 facility kit module inside its registry footprint, foundation and top',async()=>{
+    let checked=0;
+    for(const world of new Set(FACILITY_MODULES.map(module=>module.world))){
+      let model: Group;
+      try { model=await asset(`${world}/facility-kit-v3.glb`); } catch(error) { if((error as {code?:string}).code==='ENOENT') continue; throw error; }
+      checked++; validate(model,30000,true);
+      expect(model.getObjectByName('facility_kit_v3'),world).toBeDefined();
+      model.updateMatrixWorld(true);
+      for(const module of modulesOf(world)){
+        const node=model.getObjectByName(module.node); expect(node,module.node).toBeDefined();
+        const local=node!.matrixWorld.clone().invert(), v=new Vector3(), box=new Box3();
+        node!.traverse(o=>{
+          if(!(o instanceof Mesh))return;
+          const p=o.geometry.getAttribute('position');
+          for(let i=0;i<p.count;i++) box.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld).applyMatrix4(local));
+          for(const material of Array.isArray(o.material)?o.material:[o.material]) if(!/glow/i.test(material.name)) expect(material.map,`${module.node} albedo`).toBeTruthy();
+        });
+        const tol=.005;
+        expect(Math.max(-box.min.x,box.max.x),`${module.node} x`).toBeLessThanOrEqual(module.half[0]+tol);
+        expect(Math.max(-box.min.z,box.max.z),`${module.node} s`).toBeLessThanOrEqual(module.half[1]+tol);
+        expect(box.max.y,`${module.node} top`).toBeLessThanOrEqual(module.top+tol);
+        expect(box.max.y,`${module.node} reaches its top`).toBeGreaterThan(module.top-.25);
+        expect(box.min.y,`${module.node} foundation`).toBeGreaterThanOrEqual(-module.below-tol);
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });

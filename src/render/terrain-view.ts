@@ -122,7 +122,10 @@ const CASTER_NODES = new Set<string>([
   // Tall Nacre pieces (crags and the builders' ruins) ground themselves with real shadows on High too.
   ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
   'infra_refinery', 'infra_drill_rig', 'infra_silo', 'infra_comm_dish', 'infra_relay', 'infra_habitat_0', 'infra_habitat_1',
-  'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'khepri_processing_tower',
+  'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'khepri_processing_tower', 'facility',
+  // Vesper outposts ground themselves on the bright snow with real shadows on High (docs/26 §5).
+  'vesper_radiator_array', 'vesper_missile_site', 'vesper_cannon_site', 'vesper_cryo_dome', 'vesper_habitat_0', 'vesper_habitat_1',
+  'vesper_crane', 'vesper_comm_needle', 'vesper_icebreaker',
 ]);
 
 const piecePosition = new THREE.Vector3(), pieceRotation = new THREE.Euler(), pieceQuaternion = new THREE.Quaternion(), pieceScale = new THREE.Vector3();

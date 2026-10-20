@@ -70,7 +70,7 @@ describe('terrain render budget (docs/13 §4)', () => {
   }, 60_000);
 
   it('stays within the budget over refinery districts with the shipped models, and Low costs less there (docs/23)', async () => {
-    // Seeds 11 and 93 hold a district in slot 0 (s 538–576 and 492–529).
+    // Seeds 11 and 93 hold a district in slot 0 (s 498–535 and 494–531 since terrain version 13).
     const high = await sweep('high', true, [11, 93], 470, 600, true), low = await sweep('low', true, [11, 93], 470, 600, true);
     expect(high.calls).toBeLessThanOrEqual(70);
     expect(high.triangles).toBeLessThanOrEqual(90_000);
