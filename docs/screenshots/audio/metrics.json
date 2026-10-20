@@ -1,0 +1,80 @@
+{
+  "luna": {
+    "peak": 0.31451261043548584,
+    "rms": 0.03269388618496721,
+    "monoRms": 0.03256250839094418,
+    "clipped": 0,
+    "voices": 6,
+    "musicVoices": 6,
+    "effectsVoices": 0,
+    "peakVoices": 14,
+    "accepted": 216,
+    "dropped": 0,
+    "sampleBytes": 7412480
+  },
+  "khepri": {
+    "peak": 0.33408963680267334,
+    "rms": 0.0672013360870594,
+    "monoRms": 0.06713588787342005,
+    "clipped": 0,
+    "voices": 0,
+    "musicVoices": 0,
+    "effectsVoices": 0,
+    "peakVoices": 18,
+    "accepted": 458,
+    "dropped": 0,
+    "sampleBytes": 7412480
+  },
+  "nacre": {
+    "peak": 0.2236442267894745,
+    "rms": 0.04627450848431404,
+    "monoRms": 0.04564344359737827,
+    "clipped": 0,
+    "voices": 2,
+    "musicVoices": 2,
+    "effectsVoices": 0,
+    "peakVoices": 13,
+    "accepted": 219,
+    "dropped": 0,
+    "sampleBytes": 7412480
+  },
+  "vesper": {
+    "peak": 0.25124290585517883,
+    "rms": 0.033366092738978614,
+    "monoRms": 0.03318288552228846,
+    "clipped": 0,
+    "voices": 4,
+    "musicVoices": 4,
+    "effectsVoices": 0,
+    "peakVoices": 14,
+    "accepted": 150,
+    "dropped": 0,
+    "sampleBytes": 7412480
+  },
+  "effects": {
+    "peak": 0.3141374886035919,
+    "rms": 0.027485953589397705,
+    "monoRms": 0.027485953589397705,
+    "clipped": 0,
+    "voices": 0,
+    "musicVoices": 0,
+    "effectsVoices": 0,
+    "peakVoices": 2,
+    "accepted": 19,
+    "dropped": 0,
+    "sampleBytes": 7412480
+  },
+  "combat": {
+    "peak": 0.35355904698371887,
+    "rms": 0.0532473629669489,
+    "monoRms": 0.05254491493127525,
+    "clipped": 0,
+    "voices": 2,
+    "musicVoices": 2,
+    "effectsVoices": 0,
+    "peakVoices": 16,
+    "accepted": 355,
+    "dropped": 0,
+    "sampleBytes": 7412480
+  }
+}

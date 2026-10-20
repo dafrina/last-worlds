@@ -5,16 +5,15 @@ import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
 import { WARP, warpSpeed } from './content/departure';
+import { createGameAudio } from './audio/engine';
+import { mountAudioSettings } from './audio/settings';
 
 const root = document.querySelector<HTMLElement>('#app')!;
 let run: RunState | null = null;
 let accumulator = 0;
 let lastTime = performance.now();
 let pendingSpecial = false;
-let muted = false;
-let audioContext: AudioContext | undefined;
-let lastSoundAt = 0;
-let lastEffectId = 0;
+const audio = createGameAudio();
 let lastPauseReason = '';
 let maxFrameMs = 0;
 let warmupFrames = 2;
@@ -77,50 +76,8 @@ function updateAfterglow(frameSeconds: number) {
   return state;
 }
 
-function unlockAudio() {
-  if (muted) return;
-  try {
-    audioContext ??= new AudioContext();
-    void audioContext.resume().catch(() => undefined);
-  } catch { /* Sound is optional; blocked audio never interrupts the flight. */ }
-}
-
-// Bastion-9 audio cues: phase changes and module kills (presentation only; reads state, never writes it).
-let bossKey = '';
-function bossCues(state: RunState) {
-  const boss = state.boss;
-  const parts = state.enemies.filter(enemy => enemy.bossPart).map(enemy => `${enemy.bossPart}${enemy.hp > 0 ? 1 : 0}`).sort().join();
-  const key = boss ? `${boss.startedAt}|${boss.phase}|${parts}` : '';
-  if (key === bossKey) return;
-  const [previousStart, previousPhase, previousParts = ''] = bossKey.split('|');
-  bossKey = key;
-  if (!boss) return;
-  if (previousStart !== String(boss.startedAt)) { tone(55, 1.4, 0.07); tone(82, 1.1, 0.04); return; }
-  if (boss.phase !== previousPhase) {
-    if (boss.phase === 'batteries') tone(330, 0.25, 0.04);
-    if (boss.phase === 'core') { tone(260, 0.5, 0.05); tone(520, 0.35, 0.03); }
-    if (boss.phase === 'overload') tone(180, 0.7, 0.05);
-    if (boss.phase === 'destroyed') { tone(48, 2.2, 0.09); tone(70, 1.6, 0.06); }
-  } else if (parts !== previousParts) tone(64, 0.6, 0.08);
-}
-
-function tone(frequency: number, duration: number, volume: number) {
-  const context = audioContext;
-  if (muted || !context || context.state !== 'running') return;
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.type = 'triangle';
-  oscillator.frequency.setValueAtTime(frequency, context.currentTime);
-  oscillator.frequency.exponentialRampToValueAtTime(Math.max(30, frequency * 0.35), context.currentTime + duration);
-  gain.gain.setValueAtTime(volume, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + duration);
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + duration);
-  oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
-}
-
 function pause(reason = 'manual') {
+  audio.pause();
   if (run?.phase !== 'playing') return;
   run.phase = 'paused';
   lastPauseReason = reason;
@@ -131,8 +88,8 @@ function pause(reason = 'manual') {
 }
 
 function start(config: RunConfig) {
-  unlockAudio();
   run = createRun(config);
+  audio.start(run);
   input.clear();
   pendingSpecial = false;
   accumulator = 0;
@@ -140,7 +97,6 @@ function start(config: RunConfig) {
   warmupFrames = 2;
   maxFrameMs = 0;
   lastPauseReason = '';
-  lastEffectId = 0;
   ui.update(run);
 }
 
@@ -154,19 +110,21 @@ const ui = createUi(root, {
     lastTime = performance.now();
     warmupFrames = 1;
     run.phase = 'playing';
-    unlockAudio();
+    audio.resume();
     ui.update(run);
   },
   quit() {
+    audio.quit();
     input.clear();
     run = null;
     pendingSpecial = false;
     accumulator = 0;
     ui.showMenu();
   },
-  setMuted(value) { muted = value; if (!muted) unlockAudio(); },
+  setMuted(value) { audio.setSettings({ muted: value }); },
   setQuality(value) { renderer?.setQuality(value); },
 });
+const disposeAudioSettings = mountAudioSettings(root, audio);
 const input = createInput(ui.surface, ui.specialButton);
 let renderer: ReturnType<typeof createRenderer> | undefined;
 try {
@@ -193,6 +151,9 @@ window.addEventListener('pointerdown', () => {
   const orientation = screen.orientation as ScreenOrientation & { lock?: (kind: string) => Promise<void> };
   orientation?.lock?.('portrait').catch(() => { /* Not supported outside fullscreen or on iOS: the notice covers it. */ });
 }, { once: true });
+// Resume clicks start a countdown; unlock synchronously on the gesture, before that delayed callback.
+window.addEventListener('pointerdown', () => { if (run) audio.unlock(); });
+window.addEventListener('keydown', () => { if (run) audio.unlock(); });
 window.addEventListener('blur', () => { input.clear(); pause('blur'); });
 ui.canvas.addEventListener('webglcontextlost', (event) => {
   event.preventDefault();
@@ -223,18 +184,8 @@ function frame(now: number) {
       pendingSpecial = false;
       accumulator -= STEP;
     }
-    for (const effect of run.effects) {
-      if (effect.id <= lastEffectId) continue;
-      lastEffectId = effect.id;
-      if (now - lastSoundAt < 65) continue;
-      if (effect.kind === 'explosion') tone(95, 0.18, 0.04);
-      if (effect.kind === 'special') tone(220, 0.5, 0.06);
-      if (effect.kind === 'shield') tone(420, 0.13, 0.035);
-      if (effect.kind === 'pickup') tone(740, 0.09, 0.025);
-      lastSoundAt = now;
-    }
-    bossCues(run);
   }
+  if (run) audio.observe(run);
   const dying = updateAfterglow(frameSeconds);
   renderer?.render(dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
   ui.update(run);
@@ -248,6 +199,7 @@ if (import.meta.env.DEV) {
   Object.defineProperty(window, '__LAST_WORLDS__', {
     value: {
       snapshot: () => run ? structuredClone(run) : null,
+      audio: () => audio.diagnostics(),
       // Look-dev only: ends the current flight as lost or complete, to capture the ending sequences.
       // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
       advance: (seconds: number) => { if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
@@ -261,7 +213,7 @@ if (import.meta.env.DEV) {
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     observer.disconnect(); input.dispose(); ui.dispose(); renderer?.dispose();
-    void audioContext?.close();
+    disposeAudioSettings(); audio.dispose();
     // A full page refresh prevents duplicate loops/listeners after module edits.
     location.reload();
   });
