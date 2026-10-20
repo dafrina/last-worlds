@@ -1,6 +1,8 @@
 # Helion Ark (Vesper sea-carrier boss)
 
-Runtime file: `public/assets/vesper/helion-ark.glb` (967,516 bytes, sha256 `8bd2b64b00551d1286294271338ca07f075c785bc787010b0afa7b2704901b60`).
+**Current model, 20 October:** the user's approved imported GLB is adapted by `tools/blender/approved_bosses.py`, `ark()`, and selected as `vesper/helion-ark-v4-approved.glb` in `src/render/boss-assets.ts`. See [approved bosses](../approved-bosses/README.md) for current previews, budgets, materials, animation and filename rollback. Everything below records the historical v2 model; its old build commands are not the current production pipeline.
+
+Historical file: `public/assets/vesper/helion-ark.glb` (967,516 bytes, sha256 `8bd2b64b00551d1286294271338ca07f075c785bc787010b0afa7b2704901b60`).
 Contract: [docs/17-vesper-glass-frontier.md §3 and §5](../../docs/17-vesper-glass-frontier.md), plus the integrator brief of 15 October. The design follows the carrier in the right panel of `art/concepts/01-worlds-direction.png`: a long armoured hull, a stepped superstructure and orange window slits. The concept is a reference only; nothing is copied.
 
 ## Provenance

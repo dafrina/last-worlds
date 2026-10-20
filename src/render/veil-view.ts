@@ -5,12 +5,13 @@ import { VEIL } from '../content/veil';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 import { applySurfaceFinish } from './surface-finish';
+import { retainBossMaterials } from './approved-boss-materials';
 
 /**
  * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
  * (public/assets/nacre/the-veil.glb, art/the-veil); a code-built stand-in renders until the model has loaded.
  * Render-only: it reads boss state and never applies damage. A black carrier frame with raised layered crescent armour,
- * recessed wing machinery and parked pod racks, spanning about 17.3 × 15.3 units, two crystal-crowned pods on
+ * recessed wing machinery, curved egg shutters and parked pod hangars, two crystal-crowned pods on
  * outriggers (the first pair of weak points), a faceted teal heart under four shutters (the core) and launch bays. It rises
  * out of the mire on arrival and sinks back into it when destroyed.
  */
@@ -29,7 +30,9 @@ export function veilPlacement(logicalS: number, sea: number): { baseHeight: numb
 }
 
 interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D | null; petals: { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }[]; heat: THREE.MeshStandardMaterial; open: number }
-interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; dispose(): void }
+interface BayDoor { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }
+interface DockedPod { object: THREE.Object3D; position: THREE.Vector3 }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; approved?: boolean; doors?: BayDoor[]; pods?: DockedPod[]; flightPods?: THREE.InstancedMesh; dispose(): void }
 /** How far the code-built stand-in's petals fold open (radians). */
 const SHUTTER_OPEN = -1.15;
 /** the-veil.glb shutters open by rotating about their local +X hinge (art/the-veil/README.md recommends 100–110°). */
@@ -46,6 +49,7 @@ export async function loadVeilModel(url: string): Promise<THREE.Group> {
  * gets its own glow material so its heat can flare).
  */
 function modelRig(model: THREE.Group): Rig {
+  if (model.getObjectByName('veil_approved_v4')) return approvedRig(model);
   const chassis = new THREE.Group();
   model.updateMatrixWorld(true);
   const shell = applySurfaceFinish(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .38, metalness: .58, iridescence: .35, iridescenceIOR: 1.38, iridescenceThicknessRange: [220, 440], clearcoat: .18, clearcoatRoughness: .3, envMapIntensity: .85 }), 'metal', .6, .008);
@@ -54,6 +58,7 @@ function modelRig(model: THREE.Group): Rig {
   const bronze = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .8, envMapIntensity: 1.1 }));
   const sinew = glowMaterial(0x3ff2d8, 1.4), amber = glowMaterial(0xffa040, 1.6), engine = glowMaterial(0x6af6ff, 2.6);
   const owned: { dispose(): void }[] = [shell, blade, frame, bronze, sinew, amber, engine];
+  const paintMaps = new Set<THREE.Texture>();
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(0x3ff2d8, 1.2)]));
   heats.forEach(material => owned.push(material));
   const partOf = (name: string): BossPart | null => name.startsWith('veil_heart') ? 'core' : name.startsWith('veil_pod_left') ? 'left' : name.startsWith('veil_pod_right') ? 'right' : null;
@@ -61,7 +66,9 @@ function modelRig(model: THREE.Group): Rig {
     if (!(object instanceof THREE.Mesh)) return;
     let owner: THREE.Object3D | null = object;
     while (owner && !owner.name.startsWith('veil_')) owner = owner.parent;
-    const label = ((Array.isArray(object.material) ? object.material[0] : object.material) as THREE.Material).name ?? '';
+    const source = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.MeshStandardMaterial;
+    const label = source.name ?? '';
+    if (/shell/i.test(label) && source.map) { shell.map = source.map; paintMaps.add(source.map); }
     const part = owner ? partOf(owner.name) : null, wreck = owner?.name.endsWith('_wreck') ?? false;
     object.material = /glow/i.test(label) ? (part && !wreck ? heats.get(part)! : /amber/i.test(label) ? amber : owner?.name === 'veil_hull' && /engine/i.test(object.name) ? engine : sinew)
       : /blade/i.test(label) ? blade : /frame/i.test(label) ? frame : /bronze/i.test(label) ? bronze : shell;
@@ -83,7 +90,48 @@ function modelRig(model: THREE.Group): Rig {
     parts.set(part, { group, live, wreck, petals, heat: heats.get(part)!, open: 0 });
   }
   const bays = ['veil_bay_left', 'veil_bay_right'].map(name => node(name)?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3());
-  return { chassis, parts, engine, sinew, bays, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
+  return { chassis, parts, engine, sinew, bays, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); paintMaps.forEach(t => t.dispose()); } };
+}
+
+/** The approved imported carrier. No procedural exterior or replacement paint. */
+function approvedRig(model: THREE.Group): Rig {
+  model.updateMatrixWorld(true);
+  const chassis = new THREE.Group(), node = (name: string) => model.getObjectByName(name);
+  const materials = retainBossMaterials(model, 'veil_', name => name.startsWith('veil_heart') ? 'core' : name.startsWith('veil_pod_left') ? 'left' : name.startsWith('veil_pod_right') ? 'right' : null);
+  const fallbackGlow = glowMaterial(0x3ff2d8, 1.4);
+  const hull = node('veil_hull'); if (hull) chassis.attach(hull);
+  const parts = new Map<BossPart, PartRig>();
+  for (const part of PARTS) {
+    const group = new THREE.Group(); group.position.copy(socket(part)); chassis.add(group); group.updateMatrixWorld(true);
+    const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
+    const base = part === 'core' ? 'veil_heart' : `veil_pod_${part}`;
+    const live = [take(base)].filter(Boolean) as THREE.Object3D[], wreck = take(`${base}_wreck`);
+    if (wreck) wreck.visible = false;
+    const petals = part === 'core' ? [0, 1, 2, 3].map(k => take(`veil_heart_shutter_${k}`)).filter(Boolean).map(object => {
+      const closed = object!.quaternion.clone(), open = closed.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), MODEL_SHUTTER_OPEN));
+      return { object: object!, closed, open };
+    }) : [];
+    parts.set(part, { group, live, wreck, petals, heat: materials.heat.get(part) ?? fallbackGlow, open: 0 });
+  }
+  const doors = ['left', 'right'].map(side => node(`veil_bay_door_${side}`)).filter(Boolean).map(object => {
+    chassis.attach(object!);
+    const closed = object!.quaternion.clone(), open = closed.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -.9));
+    return { object: object!, closed, open };
+  });
+  const pods = [0, 1, 2, 3].map(i => node(`veil_drop_pod_${i}`)).filter(Boolean).map(object => {
+    chassis.attach(object!); return { object: object!, position: object!.position.clone() };
+  });
+  const pod = node('veil_flight_pod') as THREE.Mesh | undefined;
+  const flightPods = pod?.isMesh ? new THREE.InstancedMesh(pod.geometry, pod.material, 16) : undefined;
+  if (flightPods) {
+    flightPods.name = 'Approved VEIL deployed pods'; flightPods.count = 0; flightPods.frustumCulled = false;
+    flightPods.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    for (let i = 0; i < 16; i++) flightPods.setColorAt(i, new THREE.Color(1, 1, 1));
+    flightPods.instanceColor!.setUsage(THREE.DynamicDrawUsage);
+  }
+  const bays = pods.filter((_, i) => i % 2 === 0).map(p => p.position.clone());
+  return { chassis, parts, engine: fallbackGlow, sinew: materials.hull[0] ?? fallbackGlow, bays, approved: true, doors, pods, flightPods,
+    dispose() { flightPods?.removeFromParent(); flightPods?.dispose(); materials.dispose(); fallbackGlow.dispose(); } };
 }
 
 const glowMaterial = (color: number, intensity: number) =>
@@ -205,6 +253,8 @@ export function createVeilView(scene: THREE.Scene) {
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
   const tint = new THREE.Color(), world = new THREE.Vector3();
   let lastTime = -1, encounter = -1;
+  let bayOpen = 0, launchedAt = -Infinity;
+  const podTransform = new THREE.Object3D(), podTint = new THREE.Color();
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
   const hpSeen = new Map<number, number>(), hitAt = new Map<number, number>();
   /** Pods already seen (a new one bursts out of its bay). */
@@ -240,15 +290,29 @@ export function createVeilView(scene: THREE.Scene) {
       const boss = state.boss && state.boss.id === 'veil' ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
+      // Render launched combatants in world coordinates, independently of the chassis.
+      if (rig.flightPods) {
+        let count = 0;
+        for (const enemy of state.enemies) if (enemy.hp > 0 && enemy.formation?.template === 'veil-pods' && count < 16) {
+          const prior = hpSeen.get(enemy.id); hpSeen.set(enemy.id, enemy.hp);
+          if (prior !== undefined && enemy.hp < prior) hitAt.set(enemy.id, state.time);
+          podTransform.position.set(enemy.x, VIEW.flightHeight, -enemy.s);
+          podTransform.rotation.set(.12, 0, Math.sin(enemy.age * 2 + enemy.id) * .04); podTransform.updateMatrix();
+          rig.flightPods.setMatrixAt(count, podTransform.matrix);
+          const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
+          rig.flightPods.setColorAt(count++, podTint.setRGB(1 + kick * 2, 1 + kick, 1 + kick));
+        }
+        rig.flightPods.count = count; rig.flightPods.instanceMatrix.needsUpdate = true; rig.flightPods.instanceColor!.needsUpdate = true;
+      }
       if (!boss || !placement) { shock.visible = false; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1; return; }
-      if (encounter !== boss.startedAt) { encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); rig.parts.forEach(p => { p.open = 0; }); }
+      if (encounter !== boss.startedAt) { encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; }); }
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
       // Rising out of the mire during the arrival; a slow breathing bob while alive; sinking after its death.
       const rise = arriving ? 1 - THREE.MathUtils.smoothstep(age, 0, VEIL.arrivalDuration) : 0;
       const sink = destroyed ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
       const bob = destroyed ? 0 : Math.sin(state.time * .9) * .06;
-      root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * RISE - sink * SINK + bob, -placement.s);
+      root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * (rig.approved ? 8 : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
       root.updateMatrixWorld(true);
       rig.chassis.rotation.set(-sink * .12 + Math.sin(state.time * .6) * .01, 0, sink * .16 + Math.sin(state.time * .45) * .012);
       if ((arriving && rise > .05) || (destroyed && sink > 0 && sink < 1)) for (let k = 0; k < 3; k++) if (hash(state.time * 37 + k) < 22 * dt) {
@@ -274,9 +338,20 @@ export function createVeilView(scene: THREE.Scene) {
       // Pod launches: each new pod bursts out of the bay on its side with a teal flash and a puff of mist.
       for (const enemy of state.enemies) if (enemy.formation?.template === 'veil-pods' && !podsSeen.has(enemy.id)) {
         podsSeen.add(enemy.id);
-        const bay = local(Math.sign(enemy.x - boss.x || 1) * VEIL.bays[1].x, 1.9, -VEIL.bays[1].s);
+        launchedAt = state.time;
+        const dock = rig.pods?.find(p => Math.sign(p.position.x) === Math.sign(enemy.x - boss.x || 1));
+        const bay = dock ? local(dock.position.x, dock.position.y, dock.position.z) : local(Math.sign(enemy.x - boss.x || 1) * VEIL.bays[1].x, 1.9, -VEIL.bays[1].s);
         flash(bay, 1.2, enemy.id, 0x9ffff0); burst(bay, 8, enemy.id * 11, .7); steam(bay, enemy.id * 13, .8);
       }
+      // Doors anticipate the existing finite deployment schedule; they never schedule combat.
+      const launchAge = state.time - launchedAt;
+      const wantBay = !destroyed && ((boss.launchesLeft > 0 && boss.nextLaunchAt - state.time < 1.1) || launchAge < .85) ? 1 : 0;
+      bayOpen += THREE.MathUtils.clamp(wantBay - bayOpen, -dt * 2, dt * 2);
+      rig.doors?.forEach(door => door.object.quaternion.slerpQuaternions(door.closed, door.open, THREE.MathUtils.smoothstep(bayOpen, 0, 1)));
+      rig.pods?.forEach(pod => {
+        pod.object.position.copy(pod.position); pod.object.position.y -= bayOpen * .18;
+        pod.object.visible = !destroyed && launchAge > .55;
+      });
       if (podsSeen.size > 64) podsSeen.clear();
       let cursor = 0;
       const line = (x: number, s: number, xx: number, ss: number, color: number) => {
@@ -338,8 +413,9 @@ export function createVeilView(scene: THREE.Scene) {
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
-    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); },
-    get stats() { return { model: rig.bays.length ? 'glb' : 'fallback', particles: mist.count + sparks.count }; },
+    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); if (rig.flightPods) scene.add(rig.flightPods); },
+    get hasPodModel() { return !!rig.flightPods; },
+    get stats() { return { model: rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.count ?? 0, particles: mist.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
   };
 }

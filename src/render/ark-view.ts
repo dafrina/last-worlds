@@ -5,6 +5,7 @@ import { HELION_ARK } from '../content/ark';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import type { FoamRing, Wake } from './water';
 import { applySurfaceFinish } from './surface-finish';
+import { retainBossMaterials } from './approved-boss-materials';
 
 /**
  * Helion Ark presentation (docs/17 §5), render-only: it reads the boss state and never applies damage or decides
@@ -15,8 +16,8 @@ import { applySurfaceFinish } from './surface-finish';
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 const COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const PARTS = ['left', 'right', 'core'] as const;
-/** Assembled hull footprint (helion-ark.glb): x ±3.77, bow at local z +4.40, stern at −7.46 (local +z faces the player). */
-export const ARK_FOOTPRINT = { halfWidth: 3.8, bow: 4.4, stern: 7.46 } as const;
+/** Reference trimaran's visual footprint; target positions are independent of the outer hull. */
+export const ARK_FOOTPRINT = { halfWidth: 5.7, bow: 4.4, stern: 7.46 } as const;
 /** Combat sockets in the Ark's local frame (local z = −s offset): radiators (∓2.4, 0, +0.5), bridge (0, 0, −1.6). */
 export function arkSocket(part: BossPart): THREE.Vector3 {
   return part === 'core' ? new THREE.Vector3(0, 0, -HELION_ARK.bridgeS)
@@ -37,8 +38,8 @@ export async function loadArkModel(url: string): Promise<THREE.Group> {
 }
 
 interface Slider { object: THREE.Object3D; closed: THREE.Vector3; open: THREE.Vector3 }
-interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck?: THREE.Object3D; heat: THREE.MeshStandardMaterial; shutters: Slider[]; open: number }
-interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; doors: Slider[]; lamps: THREE.MeshStandardMaterial[]; model: boolean; dispose(): void }
+interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck?: THREE.Object3D; heat: THREE.MeshStandardMaterial; shutters: Slider[]; open: number; gun?: THREE.Object3D; gunYaw?: number }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; doors: Slider[]; lamps: THREE.MeshStandardMaterial[]; model: boolean; approved?: boolean; dispose(): void }
 
 const glowMaterial = (color: number, intensity: number) =>
   new THREE.MeshStandardMaterial({ color: 0x140804, emissive: color, emissiveIntensity: intensity, roughness: .5, metalness: .1, toneMapped: false });
@@ -46,6 +47,7 @@ const glowMaterial = (color: number, intensity: number) =>
 /** One merged, invisible shadow caster for the whole carrier (a single shadow draw); detailed meshes only receive. */
 const shadowProxyMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 function castShadows(chassis: THREE.Object3D) {
+  if (chassis.userData.approved) return;
   chassis.getObjectByName('ark-shadow-proxy')?.removeFromParent();
   chassis.updateMatrixWorld(true);
   const inverse = chassis.matrixWorld.clone().invert(), parts: THREE.BufferGeometry[] = [];
@@ -99,14 +101,17 @@ function fallbackRig(): Rig {
 /** Builds the rig from helion-ark.glb: every node is top-level and its translation is its socket (art/vesper-ark). */
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
+  const approved = !!model.getObjectByName('ark_approved_v4'); chassis.userData.approved = approved;
   model.updateMatrixWorld(true);
   const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .33, metalness: .68, envMapIntensity: 1.0 }), 'metal', .8, .02);
   const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .41, metalness: .28, envMapIntensity: 1.0 }), 'metal', .8, .012);
   const lamps = glowMaterial(0xff7a26, 1.5), embers = glowMaterial(0xff5a1a, .9);
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(0xff7a26, 1.2)]));
   const owned: THREE.Material[] = [armor, trim, lamps, embers, ...heats.values()];
+  const paintMaps = new Set<THREE.Texture>();
   const node = (name: string) => model.getObjectByName(name);
-  model.traverse(object => {
+  const retained = approved ? retainBossMaterials(model, 'ark_', name => name.includes('bridge') ? 'core' : name.includes('radiator_left') || name.includes('turret_left') ? 'left' : name.includes('radiator_right') || name.includes('turret_right') ? 'right' : null) : null;
+  if (!approved) model.traverse(object => {
     if (!(object instanceof THREE.Mesh)) return;
     let owner: THREE.Object3D = object;
     while (owner.parent && owner.parent !== model) owner = owner.parent;
@@ -114,7 +119,12 @@ function modelRig(model: THREE.Group): Rig {
     if (/glow/i.test(source.name)) {
       const part: BossPart | null = name.includes('bridge') && !name.includes('shutter') ? 'core' : name.includes('radiator_left') ? 'left' : name.includes('radiator_right') ? 'right' : null;
       object.material = name.includes('wreck') ? embers : part ? heats.get(part)! : lamps;
-    } else object.material = /trim/i.test(source.name) ? trim : armor;
+    } else {
+      const target = /trim/i.test(source.name) ? trim : armor;
+      const map = (source as THREE.MeshStandardMaterial).map;
+      if (map) { target.map = map; paintMaps.add(map); }
+      object.material = target;
+    }
   });
   const take = (parent: THREE.Object3D, name: string) => { const object = node(name); if (object) parent.attach(object); return object; };
   const parts = new Map<BossPart, PartRig>();
@@ -127,12 +137,13 @@ function modelRig(model: THREE.Group): Rig {
         const object = take(group, name);
         return object ? { object, closed: object.position.clone(), open: object.position.clone().add(new THREE.Vector3(i === 0 ? -1.0 : 1.0, 0, 0)) } : null;
       }).filter(Boolean) as Slider[];
-      parts.set(part, { group, live, heat: heats.get(part)!, shutters, open: 0 });
+      parts.set(part, { group, live, heat: retained?.heat.get(part) ?? heats.get(part)!, shutters, open: 0 });
     } else {
       const live = [take(group, `ark_radiator_${part}`)].filter(Boolean) as THREE.Object3D[];
       const wreck = take(group, `ark_radiator_${part}_wreck`);
       if (wreck) wreck.visible = false;
-      parts.set(part, { group, live, wreck, heat: heats.get(part)!, shutters: [], open: 1 });
+      const gun = take(group, `ark_turret_${part}`); if (gun) live.push(gun);
+      parts.set(part, { group, live, wreck, gun, gunYaw: 0, heat: retained?.heat.get(part) ?? heats.get(part)!, shutters: [], open: 1 });
     }
   }
   for (const name of ['ark_hull', 'ark_bay_left', 'ark_bay_right']) take(chassis, name);
@@ -141,8 +152,8 @@ function modelRig(model: THREE.Group): Rig {
     const object = take(chassis, `ark_bay_${side}_door`);
     return object ? { object, closed: object.position.clone(), open: object.position.clone().add(new THREE.Vector3(side === 'left' ? -.9 : .9, 0, 0)) } : null;
   }).filter(Boolean) as Slider[];
-  return { chassis, parts, doors, lamps: [lamps], model: true,
-    dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); } };
+  return { chassis, parts, doors, lamps: retained?.hull ?? [lamps], model: true, approved,
+    dispose() { if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
 /* ------------------------------------------------------------------ particles (spray, steam, sparks, smoke) */
@@ -289,14 +300,15 @@ export function createArkView(scene: THREE.Scene) {
       // Timed to the extraction: the resumed scroll carries the wreck out of view about 3 s after the kill.
       const list = destroyed ? THREE.MathUtils.smoothstep(phaseAge, .5, 2.2) : 0;
       const sink = destroyed ? THREE.MathUtils.smoothstep(phaseAge, 1.0, 3.4) : 0;
-      rig.chassis.position.y = Math.sin(state.time * .9) * .025 * (1 - list) - sink * 2.6;
+      // The reference tower reaches 4.8 units; include its rise from the listing pose.
+      rig.chassis.position.y = Math.sin(state.time * .9) * .025 * (1 - list) - sink * (rig.approved ? 7 : 5.8);
       rig.chassis.rotation.set(Math.sin(state.time * .6) * .006 - list * .05, 0, Math.sin(state.time * .7 + 1) * .008 + list * .22);
 
       // Motion over the water: combat-plane velocity plus the scroll (zero while the arena holds). The bow faces +z
       // (toward the player, −s), so forward speed is the negative of the ground-relative s speed.
       const forward = destroyed ? 0 : -((boss.vs ?? 0) + state.scrollSpeed), lateral = boss.vx ?? 0;
       const speed = Math.hypot(forward, lateral), heading = Math.PI + Math.atan2(lateral, Math.max(.01, forward)) * .5;
-      const bow = local(0, 0, ARK_FOOTPRINT.bow - .3), stern = local(0, 0, -ARK_FOOTPRINT.stern), centre = local(0, 0, -1.5);
+      const bow = local(0, 0, rig.approved ? 3.5 : ARK_FOOTPRINT.bow - .3), stern = local(0, 0, rig.approved ? -4 : -ARK_FOOTPRINT.stern), centre = local(0, 0, rig.approved ? -.2 : -1.5);
       // Gentle while it holds station (swell against the hull, a churned stern), strong while it glides in.
       const wakeStrength = destroyed ? Math.max(0, .3 - phaseAge * .06) : THREE.MathUtils.clamp(.18 + speed * .14, .18, .9);
       if (wakeStrength > 0) {
@@ -305,7 +317,12 @@ export function createArkView(scene: THREE.Scene) {
       }
       // Hull collar; while sinking it widens into a foam ring around the going-down hull.
       const spread = 1 + sink * .45;
-      rings3.push({ x: centre.x, z: centre.z, y: sea, yaw: 0, rx: 2.9 * spread, rz: 5.7 * spread, strength: destroyed ? .22 + .22 * Math.sin(Math.min(1, sink) * Math.PI) : .28 });
+      const foamStrength = destroyed ? .22 + .22 * Math.sin(Math.min(1, sink) * Math.PI) : rig.approved ? .16 : .28;
+      if (rig.approved) {
+        // The approved vessel has three separate hulls with open water between them.
+        for (const side of [-1, 1]) rings3.push({ x: centre.x + side * 3.2, z: centre.z, y: sea, yaw: 0, rx: 1.15 * spread, rz: 3.65 * spread, strength: foamStrength });
+        rings3.push({ x: centre.x, z: centre.z - 1.4, y: sea, yaw: 0, rx: .65 * spread, rz: 1.8 * spread, strength: foamStrength * .7 });
+      } else rings3.push({ x: centre.x, z: centre.z, y: sea, yaw: 0, rx: 4.8 * spread, rz: 5.7 * spread, strength: foamStrength });
       // Spray off the bow while it glides in (and a little while it surges), thrown up by the cutwater.
       sprayCarry += dt * Math.min(30, speed * 6);
       for (; sprayCarry >= 1; sprayCarry--) {
@@ -377,6 +394,11 @@ export function createArkView(scene: THREE.Scene) {
         }
         part.live.forEach(object => { object.visible = living; });
         if (part.wreck) part.wreck.visible = !living;
+        if (part.gun) {
+          const yaw = enemy.warning > 0 ? Math.atan2(enemy.aimX - enemy.x, enemy.s) : 0;
+          part.gunYaw = (part.gunYaw ?? 0) + (THREE.MathUtils.clamp(yaw, -.35, .35) - (part.gunYaw ?? 0)) * Math.min(1, dt * 7);
+          part.gun.rotation.y = part.gunYaw;
+        }
         // Bridge shutters slide open once the bridge is damageable (and stay open on a dead one).
         if (part.shutters.length) {
           // Open over 0.8 s from the start of the bridge phase; overload and the wreck keep them open.
@@ -409,7 +431,7 @@ export function createArkView(scene: THREE.Scene) {
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
-    get stats() { return { model: rig.model ? 'glb' : 'fallback', particles: mist.count + sparks.count }; },
+    get stats() { return { model: rig.model ? 'glb' : 'fallback', approved: !!rig.approved, particles: mist.count + sparks.count }; },
     dispose() {
       scene.remove(root); scene.remove(markers); rig.dispose(); mist.dispose(); sparks.dispose(); geometry.dispose(); (markers.material as THREE.Material).dispose();
       rings.forEach(({ mesh, material }) => { mesh.geometry.dispose(); material.dispose(); });

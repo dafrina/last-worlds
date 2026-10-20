@@ -1,5 +1,7 @@
 # Material, terrain and carrier refinement — 19 October 2026
 
+**Later boss update (20 October):** [the approved imported GLBs](../art/approved-bosses/README.md) supersede this document's VEIL asset, budget and build command. Use `approved_bosses.py` for Veil, Bastion and Ark; `boss_references.py` remains current only for Warden. `cinematic_assets.py` remains current for hero, facilities and terrain. The completed two-size facility work below is retained unchanged.
+
 This pass follows the user's October 18 reference: violet metallic crescent armour, black machinery, teal inlays, recessed pod bays and a rocky, luminous mire. It extends the existing game presentation; simulation, difficulty, saves, weapon patterns and target sockets are unchanged.
 
 ## Blender sources and assets
@@ -26,7 +28,7 @@ import sys, importlib
 sys.path.insert(0, r'\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies\tools\blender')
 import cinematic_assets as art
 art = importlib.reload(art)
-for task in ['hero', 'facilities', 'veil', 'terrain', 'previews']:
+for task in ['hero', 'facilities', 'terrain']:
     art.build(task)
 ```
 

@@ -26,6 +26,13 @@ if (['core','overload'].includes(query.get('phase') ?? '')) {
   resolveBossPhase(state);
   if (query.get('phase') === 'overload') { bossTarget(state,'core')!.hp *= .39; resolveBossPhase(state); }
 }
+// Advance the real finite deployment schedule before freezing a launch inspection.
+if (query.has('launch')) {
+  // The launch director correctly defers waves during respawn protection.
+  state.player.invulnerableUntil = 0;
+  step(Number(query.get('launch')));
+  state.player.invulnerableUntil = Infinity;
+}
 if (query.get('phase') === 'departure') {
   for (const part of ['left','right','core'] as const) bossTarget(state,part)!.hp = 0;
   resolveBossPhase(state); step(Number(query.get('t') ?? 0));

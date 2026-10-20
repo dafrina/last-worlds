@@ -4,17 +4,18 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WARDEN } from '../content/warden';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
+import { applySurfaceFinish } from './surface-finish';
 
 /**
  * WARDEN-1 presentation (docs/19 §2): a decommissioned human lunar defence lander, modelled in Blender
  * (public/assets/luna/warden.glb, art/warden); a code-built stand-in renders until the model has loaded. Render-only:
  * it reads boss state and never applies damage or decides anything the simulation uses. Clean grey-white panels,
- * hazard striping, blue solar wings, four landing legs; the command module (core) between two turret pods.
+ * recessed machinery, square shoulder armour and twin cannon turrets; the command core has sliding roof plates.
  * It descends on its thrusters during the arrival and settles on its legs.
  */
 const PARTS = ['left', 'right', 'core'] as const;
 /** Local footprint (x half-width, z half-depth) for seating and the terrain exclusion. */
-export const WARDEN_FOOTPRINT = { halfWidth: 3.0, halfDepth: 2.6 } as const;
+export const WARDEN_FOOTPRINT = { halfWidth: 3.5, halfDepth: 2.6 } as const;
 /** Local +z faces the player (smaller s). */
 const socket = (part: BossPart) => new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -WARDEN.podOffset : WARDEN.podOffset, 0, part === 'core' ? -WARDEN.commandS : 0);
 /** Height of the descent at the start of the arrival. */
@@ -48,6 +49,7 @@ function modelRig(model: THREE.Group): Rig {
   model.updateMatrixWorld(true);
   const beacon = glowMaterial(0xff3020, 2.4), thruster = glowMaterial(0x9fd8ff, 3), lamp = glowMaterial(0xff5a1e, 1.6);
   const owned: { dispose(): void }[] = [beacon, thruster, lamp];
+  const finished = new Set<THREE.Material>(), paintMaps = new Set<THREE.Texture>();
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(part === 'core' ? 0xff8a3c : 0xff9a50, 1.1)]));
   heats.forEach(material => owned.push(material));
   const partOf = (name: string): BossPart | null => name.startsWith('warden_core') ? 'core' : name.startsWith('warden_pod_left') ? 'left' : name.startsWith('warden_pod_right') ? 'right' : null;
@@ -58,7 +60,16 @@ function modelRig(model: THREE.Group): Rig {
     const material = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.Material;
     const part = owner ? partOf(owner.name) : null, wreck = owner?.name.endsWith('_wreck') ?? false;
     if (/glow/i.test(material.name ?? '')) { material.dispose(); object.material = part && !wreck ? heats.get(part)! : lamp; object.castShadow = false; }
-    else { owned.push(material); object.castShadow = true; }
+    else {
+      if (!finished.has(material)) {
+        finished.add(material); owned.push(material);
+        if (material instanceof THREE.MeshStandardMaterial) {
+          applySurfaceFinish(material, 'metal', .8, .012);
+          if (material.map) paintMaps.add(material.map);
+        }
+      }
+      object.castShadow = true;
+    }
     object.receiveShadow = true;
   });
   const node = (name: string) => model.getObjectByName(name);
@@ -82,7 +93,7 @@ function modelRig(model: THREE.Group): Rig {
     // A pod turns as a whole toward its aim while it winds up.
     parts.set(part, { group, live, wreck, shutters, heat: heats.get(part)!, gun: part === 'core' ? undefined : body ?? undefined, gunYaw: 0, open: 0 });
   }
-  return { chassis, parts, thrusters, beacon, model: true, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
+  return { chassis, parts, thrusters, beacon, model: true, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
 function hazardTexture(): THREE.Texture {

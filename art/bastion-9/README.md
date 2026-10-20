@@ -1,6 +1,8 @@
 # Bastion-9 production model
 
-Runtime file: `public/assets/khepri/bastion-9.glb` (1,692,096 bytes, sha256 `d3541a543036d8104dc439ad9abed22c8526de070200370c2ad5648bb2922fb3`).
+**Current model, 20 October:** the user's approved imported GLB is adapted by `tools/blender/approved_bosses.py`, `bastion()`, and selected as `khepri/bastion-9-v4-approved.glb` in `src/render/boss-assets.ts`. See [approved bosses](../approved-bosses/README.md) for current previews, budgets, materials, animation and filename rollback. Everything below records the historical v2 model; its old build commands are not the current production pipeline.
+
+Historical file: `public/assets/khepri/bastion-9.glb` (1,692,096 bytes, sha256 `d3541a543036d8104dc439ad9abed22c8526de070200370c2ad5648bb2922fb3`).
 Contract: [docs/15-bastion-slice.md, "Production asset contract"](../../docs/15-bastion-slice.md). The sockets match the functional box model in `src/render/bastion-view.ts`.
 
 ## Provenance

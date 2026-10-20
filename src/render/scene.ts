@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
@@ -443,7 +444,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     terrain.setShared(shared); emplacementGeometry = shared; warmed = false;
   }).catch(() => { /* Not shipped: the code-built stand-ins remain. */ });
   // The production fortress (docs/15) replaces the functional stand-in; if it fails, the stand-in remains.
-  loadBastionModel(`${import.meta.env.BASE_URL}assets/khepri/bastion-9.glb`).then(model => {
+  loadBastionModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.bastion}`).then(model => {
     if (disposed) return;
     bastion.setModel(model); warmed = false;
   }).catch(error => console.warn('Bastion-9 model unavailable; using the functional fortress.', error));
@@ -677,7 +678,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ensureWarden = () => {
     if (wardenRequested) return;
     wardenRequested = true;
-    loadWardenModel(`${import.meta.env.BASE_URL}assets/luna/warden.glb`).then(model => { if (!disposed) { warden.setModel(model); warmed = false; } })
+    loadWardenModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.warden}`).then(model => { if (!disposed) { warden.setModel(model); warmed = false; } })
       .catch(error => console.warn('WARDEN-1 model unavailable; using the code-built stand-in.', error));
   };
   let veilRequested = false;
@@ -685,14 +686,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ensureVeil = () => {
     if (veilRequested) return;
     veilRequested = true;
-    loadVeilModel(`${import.meta.env.BASE_URL}assets/nacre/the-veil.glb`).then(model => { if (!disposed) { veil.setModel(model); warmed = false; } })
+    loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.veil}`).then(model => { if (!disposed) { veil.setModel(model); warmed = false; } })
       .catch(error => console.warn('THE VEIL model unavailable; using the code-built stand-in.', error));
   };
   let arkRequested = false;
   const ensureArk = () => {
     if (arkRequested) return;
     arkRequested = true;
-    loadArkModel(`${import.meta.env.BASE_URL}assets/vesper/helion-ark.glb`).then(model => { if (!disposed) { ark.setModel(model); warmed = false; } })
+    loadArkModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.ark}`).then(model => { if (!disposed) { ark.setModel(model); warmed = false; } })
       .catch(error => console.warn('Helion Ark model unavailable; using the functional carrier.', error));
   };
   /*
@@ -979,7 +980,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
         const craftScale = nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
-        if (slot < ENEMY_CAPACITY) {
+        if (slot < ENEMY_CAPACITY && !(veil.hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale); transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
@@ -1252,7 +1253,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, veil: veil.stats, planet, jump: jumpActive,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, warden: warden.stats, veil: veil.stats, planet, jump: jumpActive,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },

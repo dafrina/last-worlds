@@ -1,5 +1,17 @@
 # Build status
 
+## Approved imported boss integration — 20 October 2026
+
+- **Source fidelity:** the user's three GLBs are the masters, verified byte-for-byte against Downloads and preserved outside public assets. No hull regeneration. Adapted through live Blender MCP with retained source geometry/UVs/PBR maps, selected moving parts and conservative static underside removal.
+- **Runtime assets:** THE VEIL 82,161 triangles / 4,487,084 bytes; BASTION-9 97,603 / 5,693,156; HELION ARK 92,464 / 5,399,400. Roughly 81–82% fewer triangles than the originals, including articulated parts and hidden wrecks. Working textures are 2k; the masters retain 4k. [Full handoff, build and rollback](../art/approved-bosses/README.md).
+- **Integration:** Veil has hinged source bay lips, extracted docked/deployed pods, opening core petals and existing finite phase-driven launches. Bastion has aimed turrets, recoiling forward cannons, opening armor and complete disabled battery wrecks. Ark retains its waterborne trimaran, keel, aiming deck guns, radiator/bridge phases, sliding doors and three hull foam collars. Existing targets, attacks, simulation, saves and controls are unchanged.
+- **Prior work completed:** Warden's 10,220-triangle reference-sheet model is retained. The three intervening procedural alien-boss studies are superseded and archived, never deployed as approved models. The v3 Veil study's late smoothing experiment has a known export warning; use archived published v2 assets for rollback. All six facility variants and prior terrain/hero improvements remain complete.
+- **Validation:** full **341/341 unit tests** (34 files), **27/27 browser cases** (8.7 min), typecheck and production build passed. After the final Veil flank-pod clearance adjustment, all nine asset checks and both Veil browser cases passed again; High/Low captures were refreshed and reviewed with no page/shader errors. The new camera-ray checks protect both flank targets and every exposed core. One earlier browser attempt was interrupted by a development reload during editing; the subsequent full run passed.
+- **Cost:** final frozen Veil High view submits 189,980 triangles across 55 draws including shadows/post; Low submits 108,365 across 32 draws with no shadow/post passes. These are scene-cost observations, not frame-rate claims. JS is 1,079.18 kB / 309.37 kB gzip; the existing chunk-size advisory remains.
+- **Evidence:** Blender previews and source/runtime hashes in `art/approved-bosses/`; browser screenshots in `docs/screenshots/approved-bosses/`.
+- **Limits:** automated Chromium/SwiftShader evidence, not actual-phone frame rate, thermal/battery or Safari validation. Approved Bastion tracks retain static source geometry; only its weapon assemblies articulate.
+- **Release:** validated and ready; Pages deployment verification pending.
+
 ## Taller VEIL and expanded industrial compounds — 19 October 2026
 
 - **Model refinement through live Blender MCP:** THE VEIL is now 17.34 wide × 15.30 long, with raised armour decks, 4.10-high crown fins, real wing vent recesses, exposed conduit assemblies, layered access plates and ribbed pod hangars. Middle wings leave both fixed weak points visible; sockets, attacks and deployed pods are unchanged. The full model, including hidden wreck variants, is 25,706 triangles / 2.03 MB.

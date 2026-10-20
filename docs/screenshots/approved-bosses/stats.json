@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "name": "veil",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":6,\"triangles\":26607,\"instances\":0,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"approved\":false,\"particles\":0},\"warden\":{\"model\":\"fallback\",\"particles\":0},\"veil\":{\"model\":\"glb\",\"approved\":true,\"bayOpen\":0,\"deployedPods\":0,\"particles\":0},\"planet\":\"nacre\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.2,\"max\":501.4,\"over4\":3,\"frames\":68,\"renderMax\":962.6,\"updateMax\":498,\"animateMax\":0.3,\"prefetchMax\":6.3},\"calls\":55,\"passes\":{\"shadow\":17,\"main\":32,\"post\":6},\"tier\":\"high\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":189980,\"geometries\":76,\"textures\":27,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0,\"large\":0},\"enemies\":0}"
+    },
+    {
+      "name": "veil-low",
+      "stats": "{\"sections\":3,\"terrain\":{\"calls\":6,\"triangles\":26607,\"instances\":0,\"haulers\":0,\"kit\":\"glb\",\"infra\":\"glb\",\"shared\":\"glb\"},\"stream\":{\"fallbacks\":0,\"startup\":3,\"prefetched\":0,\"viewFallbacks\":0},\"bastion\":{\"model\":\"glb\",\"particles\":0},\"ark\":{\"model\":\"fallback\",\"approved\":false,\"particles\":0},\"warden\":{\"model\":\"fallback\",\"particles\":0},\"veil\":{\"model\":\"glb\",\"approved\":true,\"bayOpen\":0,\"deployedPods\":0,\"particles\":0},\"planet\":\"nacre\",\"jump\":false,\"terrainWorkMs\":{\"last\":0.2,\"max\":198.2,\"over4\":5,\"frames\":64,\"renderMax\":695.9,\"updateMax\":195.2,\"animateMax\":0.9,\"prefetchMax\":10.9},\"calls\":32,\"passes\":{\"shadow\":0,\"main\":32,\"post\":0},\"tier\":\"low\",\"camera\":\"ortho\",\"pixelRatio\":1,\"antialias\":true,\"triangles\":108365,\"geometries\":75,\"textures\":19,\"particles\":0,\"heroModel\":\"glb\",\"facilities\":{\"loaded\":true,\"count\":0,\"large\":0},\"enemies\":0}"
+    }
+  ],
+  "errors": []
+}

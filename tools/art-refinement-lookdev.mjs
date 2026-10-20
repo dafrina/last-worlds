@@ -11,9 +11,10 @@ const results=[];
 try {
 for(const name of shots){
  const low=name.endsWith('-low'), planet=name.replace('-low','').replace('-facility','').replace('-large','').replace('-small','');
- const url=planet==='veil' ? '/tests/fixtures/endless-arena.html?sector=10' : `/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper' && name.includes('facility')?695:210}&x=-3`;
+ const sector={warden:1,bastion:4,ark:7,veil:10}[planet];
+ const url=sector ? `/tests/fixtures/endless-arena.html?sector=${sector}` : `/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper' && name.includes('facility')?695:210}&x=-3`;
  await page.goto(`http://127.0.0.1:4173${url}&inspect=1&quality=${low?'low':'high'}${name.includes('-facility')?`&facility=${name.includes('-large')?'large':'small'}`:''}`);
- await page.waitForFunction(() => { const raw = document.querySelector('canvas.flight-canvas')?.getAttribute('data-render-stats'); if (!raw) return false; const data=JSON.parse(raw); return data.terrain.kit === 'glb' && data.terrain.shared === 'glb' && data.heroModel==='glb' && data.facilities.loaded; }, null, {timeout:90000});
+ await page.waitForFunction(boss => { const raw = document.querySelector('canvas.flight-canvas')?.getAttribute('data-render-stats'); if (!raw) return false; const data=JSON.parse(raw); return data.terrain.kit === 'glb' && data.terrain.shared === 'glb' && data.heroModel==='glb' && data.facilities.loaded && (!boss || data[boss]?.model==='glb'); }, sector?planet:null, {timeout:90000});
  await page.waitForTimeout(3000);
  await page.screenshot({path:`lookdev/${label}/${name}.png`,timeout:90000});
  results.push({name,stats:await page.locator('canvas.flight-canvas').getAttribute('data-render-stats')});

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { applySurfaceFinish } from './surface-finish';
+import { retainBossMaterials } from './approved-boss-materials';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BASTION } from '../content/bastion';
@@ -20,7 +21,7 @@ const WHEELS: readonly [string, number][] = [
     ...[0, 1, 2, 3, 4, 5].map(i => [`bastion_roadwheel_${side}_${i}`, .3])]) as [string, number][],
 ];
 /** Local footprint of the hull (x half-width, z half-depth) for seating and the terrain exclusion. */
-export const BASTION_FOOTPRINT = { halfWidth: 3.8, halfDepth: 3.3 } as const;
+export const BASTION_FOOTPRINT = { halfWidth: 4.1, halfDepth: 3.9 } as const;
 const socket = (part: BossPart) => new THREE.Vector3(
   part === 'core' ? 0 : part === 'left' ? -BASTION.batteryOffset : BASTION.batteryOffset, 0, part === 'core' ? -BASTION.coreRowOffset : 0);
 
@@ -28,6 +29,8 @@ interface Shutter { object: THREE.Object3D; closed: THREE.Vector3; open: THREE.V
 interface PartRig {
   group: THREE.Group; live: THREE.Object3D[]; gun?: THREE.Object3D; gunYaw: number; wreck?: THREE.Object3D;
   shutters: Shutter[]; heat: THREE.MeshStandardMaterial[]; open: number;
+  auxiliaryGuns?: { object: THREE.Object3D; closed: THREE.Vector3 }[];
+  lastWarning?: number; recoil?: number;
 }
 interface Rig {
   chassis: THREE.Group; parts: Map<BossPart, PartRig>; treads: THREE.Texture[]; glow: THREE.MeshStandardMaterial[];
@@ -60,6 +63,7 @@ const glowMaterial = (color: number, intensity: number) =>
  */
 const shadowProxyMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 function castShadows(chassis: THREE.Object3D) {
+  if (chassis.userData.approved) return; // Articulated source guns keep their actual moving shadows.
   chassis.getObjectByName('bastion-shadow-proxy')?.removeFromParent();
   chassis.updateMatrixWorld(true);
   const inverse = chassis.matrixWorld.clone().invert(), parts: THREE.BufferGeometry[] = [];
@@ -138,17 +142,20 @@ function fallbackRig(): Rig {
 /** Builds the rig from bastion-9.glb, keeping each node's authored placement (docs/15 node contract). */
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
+  const approved = !!model.getObjectByName('bastion_approved_v4'); chassis.userData.approved = approved;
   model.updateMatrixWorld(true);
   const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .48, metalness: .65 }), 'metal', .7, .022);
   const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .78 }), 'metal', .8, .012);
   const lamps = glowMaterial(0xffa04a, 1.6);
   const treadMaps: THREE.Texture[] = [], owned: THREE.Material[] = [armor, trim, lamps];
+  const paintMaps = new Set<THREE.Texture>();
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(part === 'core' ? 0xff7a30 : 0xff9a50, 1.2)]));
   heats.forEach(material => owned.push(material));
   const node = (name: string) => model.getObjectByName(name);
   const partOf = (name: string): BossPart | null => name.includes('core') ? 'core' : name.includes('left') ? 'left' : name.includes('right') ? 'right' : null;
+  const retained = approved ? retainBossMaterials(model, 'bastion_', partOf) : null;
   // Replace authored materials with runtime ones (vertex colours kept); treads get a scrolling belt map.
-  model.traverse(object => {
+  if (!approved) model.traverse(object => {
     if (!(object instanceof THREE.Mesh)) return;
     const owner = object.parent?.name.startsWith('bastion_') ? object.parent.name : object.name;
     const source = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.Material;
@@ -159,7 +166,12 @@ function modelRig(model: THREE.Group): Rig {
     } else if (isTread) {
       const map = treadTexture(); treadMaps.push(map);
       const belt = (source.name.includes('trim') ? trim : armor).clone(); belt.map = map; owned.push(belt); object.material = belt;
-    } else object.material = source.name.includes('trim') ? trim : armor;
+    } else {
+      const target = source.name.includes('trim') ? trim : armor;
+      const map = (source as THREE.MeshStandardMaterial).map;
+      if (map) { target.map = map; paintMaps.add(map); }
+      object.material = target;
+    }
   });
   const parts = new Map<BossPart, PartRig>();
   for (const part of PARTS) {
@@ -169,6 +181,8 @@ function modelRig(model: THREE.Group): Rig {
     const live = [take(part === 'core' ? 'bastion_core' : `bastion_battery_${side}`)].filter(Boolean) as THREE.Object3D[];
     const gun = part === 'core' ? undefined : take(`bastion_gun_${side}`);
     if (gun) live.push(gun);
+    const extraGun = part === 'core' ? undefined : take(`bastion_forward_cannon_${side}`);
+    if (extraGun) live.push(extraGun);
     const wreck = part === 'core' ? undefined : take(`bastion_battery_${side}_wreck`);
     if (wreck) wreck.visible = false;
     const shutterNodes = (part === 'core' ? ['bastion_core_shutter_a', 'bastion_core_shutter_b'] : [`bastion_shutter_${side}`]).map(take).filter(Boolean) as THREE.Object3D[];
@@ -179,14 +193,15 @@ function modelRig(model: THREE.Group): Rig {
       const open = part === 'core' ? closed.clone().add(new THREE.Vector3(direction * 1.1, -.04, 0)) : closed.clone().add(new THREE.Vector3(0, -.12, -.75));
       return { object, closed, open };
     });
-    parts.set(part, { group, live, gun, gunYaw: 0, shutters, heat: [heats.get(part)!], open: 0 });
+    parts.set(part, { group, live, gun, gunYaw: 0, wreck, shutters, heat: [retained?.heat.get(part) ?? heats.get(part)!], open: 0,
+      auxiliaryGuns: extraGun ? [{ object: extraGun, closed: extraGun.position.clone() }] : [] });
   }
   // Everything else (hull, treads, lamps) rides on the chassis as authored.
   for (const name of ['bastion_hull', 'bastion_tread_left', 'bastion_tread_right']) { const object = node(name); if (object) chassis.attach(object); }
   // Sprockets, idlers and road wheels are separate nodes pivoting on their axles (older files lack them).
   const wheels = WHEELS.flatMap(([name, radius]) => { const object = node(name); if (!object) return []; chassis.attach(object); return [{ object, radius }]; });
-  return { chassis, parts, treads: treadMaps, glow: [lamps], wheels,
-    dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); treadMaps.forEach(t => t.dispose()); } };
+  return { chassis, parts, treads: treadMaps, glow: retained?.hull ?? [lamps], wheels,
+    dispose() { if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); treadMaps.forEach(t => t.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
 /* ------------------------------------------------------------------ particles */
@@ -325,7 +340,7 @@ export function createBastionView(scene: THREE.Scene) {
       root.visible = !!boss && !!placement; markers.visible = root.visible;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
       if (!boss || !placement) { shock.visible = false; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); encounter = -1; return; }
-      if (encounter !== boss.startedAt) { encounter = boss.startedAt; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); rig.parts.forEach(p => { p.open = 0; }); }
+      if (encounter !== boss.startedAt) { encounter = boss.startedAt; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); rig.parts.forEach(p => { p.open = 0; p.recoil = 0; p.lastWarning = 0; }); }
       root.position.set(placement.x ?? boss.x, placement.baseHeight, -placement.s);
       root.updateMatrixWorld(true);
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
@@ -414,6 +429,15 @@ export function createBastionView(scene: THREE.Scene) {
           const yaw = enemy.warning > 0 ? Math.atan2(enemy.aimX - enemy.x, enemy.s) : 0;
           part.gunYaw += (yaw - part.gunYaw) * Math.min(1, dt * 8); part.gun.rotation.y = part.gunYaw;
         }
+        part.recoil = Math.max(0, (part.recoil ?? 0) - dt * 6);
+        if ((part.lastWarning ?? 0) > 0 && enemy.warning <= 0 && living) part.recoil = 1;
+        part.lastWarning = enemy.warning;
+        part.auxiliaryGuns?.forEach(gun => {
+          gun.object.rotation.y = THREE.MathUtils.clamp(part.gunYaw, -.16, .16);
+          gun.object.position.copy(gun.closed);
+          // Recoil follows the authored firing stage, with no change to projectile timing.
+          gun.object.position.z -= .09 * (part.recoil ?? 0);
+        });
         // Heat: brighter as armour is lost; overload flickers; warnings flare.
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .55 + .45 * Math.sin(state.time * 14) : 1;

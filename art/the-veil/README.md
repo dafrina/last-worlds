@@ -1,6 +1,8 @@
 # THE VEIL — crescent carrier
 
-**Current asset, 19 October 2026:** `public/assets/nacre/the-veil.glb`, 2,026,292 bytes, 25,706 triangles including hidden wreck variants. Editable builder: `tools/blender/cinematic_assets.py`, `build('veil')`. This supersedes the older narrow/knife-wing hulls in `the_veil.py`; that file still supplies the preserved rig pieces and preview helpers.
+**Current model, 20 October:** the user's approved imported GLB is adapted by `tools/blender/approved_bosses.py`, `veil()`, and selected as `nacre/the-veil-v4-approved.glb` in `src/render/boss-assets.ts`. See [approved bosses](../approved-bosses/README.md) for current previews, budgets, materials, animation and filename rollback. Everything below records the historical v2 model; its old build commands are not the current production pipeline.
+
+**Historical asset, 19 October 2026:** `public/assets/nacre/the-veil.glb`, 2,026,292 bytes, 25,706 triangles including hidden wreck variants. Editable builder: `tools/blender/cinematic_assets.py`, `build('veil')`. This supersedes the older narrow/knife-wing hulls in `the_veil.py`; that file still supplies the preserved rig pieces and preview helpers.
 
 The user's latest carrier reference guides the shape: three overlapping crescent petals on each side, curved violet-metal armour, actual open spaces over black supporting spars, machined panel joins, teal inlays, eight decorative parked pods in ribbed hangars, and two launch throats. The follow-up adds taller crown fins, exposed conduit assemblies, cut-through wing vents with recessed floors and ribs, and raised access plates. The elongated central prow and upper spear frame the central pearl/heart. The silhouette is now **17.34 × 15.30 units**, with fins reaching **4.10 high**; the previous pass was 19.26 × 13.61. The camera shows a slice of it; lateral movement reveals the rest.
 

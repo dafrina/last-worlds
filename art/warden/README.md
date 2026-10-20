@@ -1,6 +1,8 @@
 # WARDEN-1 (Luna boss)
 
-Runtime file: `public/assets/luna/warden.glb` (702,784 bytes, sha256 `0997740c6695a99fd0059484c9cb41b4ebb248e007f9ff424fcd911c6401f867`).
+**Current model, 20 October:** the block-armoured platform is built by `tools/blender/boss_references.py`, `build('warden')`. See [boss-references](../boss-references/README.md) for current previews, sizes and validation. The older lander description and hashes below are historical; combat sockets and descent thrusters remain unchanged.
+
+Selected runtime file: `public/assets/luna/warden-v3-study.glb`, 10,220 triangles / 1,094,968 bytes. The previous 702,784-byte lander is archived as `warden-v2.glb`. Switch filenames in `src/render/boss-assets.ts` to roll back. Current hashes are in [the approved-boss manifest](../approved-bosses/manifest.json).
 Contract: [docs/19-luna-training.md §2](../../docs/19-luna-training.md) and `src/content/warden.ts`. The sockets match the simulation: target height 1.3, pods at x ∓2.1 / z 0 (radius 0.7), and the command module at z −0.9 (radius 1.15).
 
 **Design:** WARDEN-1 is a decommissioned **human** lunar defence lander, so it should read as human-built at a glance:

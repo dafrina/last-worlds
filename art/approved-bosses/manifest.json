@@ -1,0 +1,48 @@
+{
+  "sources": [
+    {
+      "file": "art/source/approved-bosses/futuristic-spacecraft-original.glb",
+      "bytes": 19893160,
+      "triangles": 455414,
+      "sha256": "38cb6692baa78078034827f8dbea32bf06c38e21099e48a5efa00bfae531b530"
+    },
+    {
+      "file": "art/source/approved-bosses/futuristic-starship-original.glb",
+      "bytes": 22208472,
+      "triangles": 501300,
+      "sha256": "917af842a9fdf0fb56b03617570bf1d53711381f930e7700e7c63f0555d06e99"
+    },
+    {
+      "file": "art/source/approved-bosses/futuristic-tank-original.glb",
+      "bytes": 22389420,
+      "triangles": 501970,
+      "sha256": "2171f02986750c62cb04d4bd8a2cc4ffcfbba659b97d5e65fea08d47482a08b4"
+    }
+  ],
+  "runtime": [
+    {
+      "file": "public/assets/nacre/the-veil-v4-approved.glb",
+      "bytes": 4487084,
+      "triangles": 82161,
+      "sha256": "6c3431874580f02de8894694377eee5486f9c42b67b1fe768b4052b419918aaf"
+    },
+    {
+      "file": "public/assets/khepri/bastion-9-v4-approved.glb",
+      "bytes": 5693156,
+      "triangles": 97603,
+      "sha256": "21c9c749f9b38a72ddf8ce04ba6511d266f22a2d0661abeefafbd82f60e81a26"
+    },
+    {
+      "file": "public/assets/vesper/helion-ark-v4-approved.glb",
+      "bytes": 5399400,
+      "triangles": 92464,
+      "sha256": "944534079f4bf7a6a8856b96f21c0d39fb6ca9aa29a97852ad112513b02df4c4"
+    },
+    {
+      "file": "public/assets/luna/warden-v3-study.glb",
+      "bytes": 1094968,
+      "triangles": 10220,
+      "sha256": "6044fef3b043eb09634ea349d18f97f68acdbb3f47b3106ba4792ebe72ca7e95"
+    }
+  ]
+}
