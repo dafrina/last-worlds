@@ -124,3 +124,6 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **HELION ARK:** it keeps the supplied layout, but its outriggers continue past the aft wing instead of ending abruptly ("cut off"). The centre hull is chunkier and longer, with the design sheet's tall split spire as the bridge armour. Combat geometry is unchanged.
   - Rollback is one filename per boss in `src/render/boss-assets.ts`; the v4 files stay published.
   - **WARDEN-1 is remodelled too**, after its design sheet: a tall command column whose seam is the core hatches, twin-barrel turret pods on chevron side blocks, thrusters and masts. It keeps its size and combat geometry.
+  - **WARDEN-1 flies.** It hovers 1.1 above the ground on burning thrusters with a gentle bob, and drops to the ground when destroyed. Its render-only target height rises from 1.3 to 2.4 so the weak points stay on their camera rays; collisions and attacks are unchanged.
+  - **THE VEIL has three pods abreast in each wing bay**, as in the concept art. The innermost is the weak point and the other two are the same egg pods; glowing petal seams make them read from the game camera.
+  - **The hero keeps only its real model shadow on High.** The blob shadow stands in only on Low, which has no shadow maps.

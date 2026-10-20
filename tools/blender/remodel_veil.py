@@ -370,10 +370,19 @@ def wing_parts(s, mats, sc):
         back = [mouth_point(u, d + .06, z) for u, d, z in [(m['s0'] + .1, m['back'] - .04, m['floor']), (m['s1'] - .1, m['back'] - .04, m['floor']),
                                                             (m['s1'] - .1, m['back'] - .04, m['floor'] + .12), (m['s0'] + .1, m['back'] - .04, m['floor'] + .12)]]
         loft(h, [mx(strip, s), mx(back, s)], 'glow', ('glow', 'glow'))
-        # The two stored pods behind the weak point (static).
-        for u in (1.78, 2.58):
-            c = mouth_point(u, .3, m['floor'] - .02)
-            pod(h, (s * c[0], c[1], c[2]), .36, .82, ROUND_PROFILE)
+        # A faint glowing back wall silhouettes the pods (the concept's lit bays).
+        wall = [mouth_point(u, m['back'] - .03, z) for u, z in [(m['s0'] + .15, m['floor'] + .08), (m['s1'] - .15, m['floor'] + .08),
+                                                                 (m['s1'] - .15, m['lid_out'] - .12), (m['s0'] + .15, m['lid_in'] - .12)]]
+        wall_back = [(x, y + .04, z) for x, y, z in wall]
+        loft(h, [mx(wall, s), mx(wall_back, s)], 'glow', ('glow', 'glow'))
+        # The concept's three pods abreast in each bay: the weak point (the innermost, a node of
+        # its own) and two stored pods beside it at the mouth, the same size and look.
+        first = Vector((POD_X, ray_y(POD_Z, POD_S))) - Vector(FRONT_A)
+        u0, d0 = first.dot(MOUTH_AXIS), first.dot(MOUTH_BACK)
+        for k in (1, 2):
+            u = u0 + k * (2.6 - u0) / 2
+            c = mouth_point(u, d0, POD_Z)
+            hangar_pod(h, (s * c[0], c[1], c[2]))
     return solid(build, 'veil_wing_parts_' + ('left' if s < 0 else 'right'), mats, sc, bevel=.03)
 
 
@@ -496,13 +505,13 @@ def rib(h, base, r, height, prof, a, f0, f1, w, out, mat):
     loft(h, rings, mat, (mat, mat))
 
 
-def pod(h, base, r, height, prof=DROP_PROFILE, slit=True, ribs=True, engine=False, seg=8):
+def pod(h, base, r, height, prof=DROP_PROFILE, slit=True, ribs=True, engine=False, seg=8, shell='shell', seams='metal'):
     """An egg pod: violet shell in four petal segments (dark seams), a cyan slit on its face,
     optionally an engine glow under its pointed bottom. base is the bottom point."""
-    egg(h, base, [(f * height, k * r) for f, k in prof], seg, 'shell')
+    egg(h, base, [(f * height, k * r) for f, k in prof], seg, shell)
     if ribs:
         for k in range(4):
-            rib(h, base, r, height, prof, math.pi / 4 + k * math.pi / 2, .14, .93, .025, .03, 'metal')
+            rib(h, base, r, height, prof, math.pi / 4 + k * math.pi / 2, .14, .93, .025, .03, seams)
     if slit:
         rib(h, base, r, height, prof, -math.pi / 2, .3, .78, .035, .035, 'glow')
     if engine:
@@ -515,27 +524,37 @@ def drop_pod(h, centre, scale=1.0):
     pod(h, (centre[0], centre[1], centre[2] - height * .5), r, height, engine=True)
 
 
+POD_R, POD_H, POD_Z = .42, .95, 3.8   # hangar pod size and centre height (the weak point's)
+
+
+def hangar_pod(h, c, r=POD_R, height=POD_H):
+    """A hangar pod as the concept sheet shows them, three abreast per wing: a round violet egg
+    with teal gill slits on its face and a glowing crystal crown."""
+    base = (c[0], c[1], c[2] - height * .52)
+    # Paler shell outlined by glowing petal seams, so each egg reads against the dark bay from above.
+    pod(h, base, r, height, ROUND_PROFILE, slit=False, shell='steel', seams='glow')
+    for a in (-.45, 0, .45):
+        d = Vector((math.sin(a), -math.cos(a), 0))
+        p = Vector(c) + d * r * .99
+        t = Vector((d.y, -d.x, 0)) * .035
+        loft(h, [[tuple(p + t + Vector((0, 0, -.28))), tuple(p - t + Vector((0, 0, -.28))), tuple(p - t + Vector((0, 0, .2))), tuple(p + t + Vector((0, 0, .2)))],
+                 [tuple(p + t + d * .05 + Vector((0, 0, -.26))), tuple(p - t + d * .05 + Vector((0, 0, -.26))), tuple(p - t + d * .05 + Vector((0, 0, .18))), tuple(p + t + d * .05 + Vector((0, 0, .18)))]],
+             'glow', ('glow', 'glow'))
+    egg(h, (c[0], c[1], base[2] + height * .9), [(0, .17), (.08, .14), (.2, .0)], 6, 'glow')
+    h.cylinder((c[0], c[1], 0), 'z', .24, base[2] + height * .86, base[2] + height * .93, 'metal', seg=8)
+
+
 def flank_pod(s, mats, sc, wreck=False):
-    """The weak point: the innermost hangar pod, pulled to the mouth on its target's camera ray."""
+    """The weak point: the innermost of the three hangar pods, pulled to the mouth on its target's camera ray."""
     nm = 'veil_pod_' + ('left' if s < 0 else 'right') + ('_wreck' if wreck else '')
-    cz = 3.8
+    cz = POD_Z
     c = (s * POD_X, ray_y(cz, POD_S), cz)
-    r, height = .42, .95
+    r, height = POD_R, POD_H
     base = (c[0], c[1], c[2] - height * .52)
 
     def build(h):
         if not wreck:
-            pod(h, base, r, height, ROUND_PROFILE, slit=False)
-            # Teal gill slits on the face and a crystal crown.
-            for a in (-.45, 0, .45):
-                d = Vector((math.sin(a), -math.cos(a), 0))
-                p = Vector(c) + d * r * .99
-                t = Vector((d.y, -d.x, 0)) * .035
-                loft(h, [[tuple(p + t + Vector((0, 0, -.28))), tuple(p - t + Vector((0, 0, -.28))), tuple(p - t + Vector((0, 0, .2))), tuple(p + t + Vector((0, 0, .2)))],
-                         [tuple(p + t + d * .05 + Vector((0, 0, -.26))), tuple(p - t + d * .05 + Vector((0, 0, -.26))), tuple(p - t + d * .05 + Vector((0, 0, .18))), tuple(p + t + d * .05 + Vector((0, 0, .18)))]],
-                     'glow', ('glow', 'glow'))
-            egg(h, (c[0], c[1], base[2] + height * .9), [(0, .17), (.08, .14), (.2, .0)], 6, 'glow')
-            h.cylinder((c[0], c[1], 0), 'z', .24, base[2] + height * .86, base[2] + height * .93, 'metal', seg=8)
+            hangar_pod(h, c)
         else:
             # A split husk: four shell shards splayed open around a burnt stub.
             h.cylinder((c[0], c[1], 0), 'z', .2, base[2], base[2] + .45, 'metal', seg=6, r2=.12)

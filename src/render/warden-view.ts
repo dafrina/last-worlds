@@ -23,7 +23,7 @@ const DESCENT = 4.5;
 
 interface Shutter { object: THREE.Object3D; closed: THREE.Vector3; open: THREE.Vector3 }
 interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D; shutters: Shutter[]; heat: THREE.MeshStandardMaterial; gun?: THREE.Object3D; gunYaw: number; open: number }
-interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; thrusters: THREE.Group; beacon: THREE.MeshStandardMaterial; model: boolean; dispose(): void }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; thrusters: THREE.Group; beacon: THREE.MeshStandardMaterial; model: boolean; hover?: number; dispose(): void }
 /** How far each of warden.glb's two core hatches slides outward along local x when the command module opens. */
 const HATCH_SLIDE = .8;
 
@@ -93,7 +93,9 @@ function modelRig(model: THREE.Group): Rig {
     // A pod turns as a whole toward its aim while it winds up.
     parts.set(part, { group, live, wreck, shutters, heat: heats.get(part)!, gun: part === 'core' ? undefined : body ?? undefined, gunYaw: 0, open: 0 });
   }
-  return { chassis, parts, thrusters, beacon, model: true, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); paintMaps.forEach(t => t.dispose()); } };
+  // The v5 remodel flies: its marker carries the hover height the model is built at.
+  const hover = Number(node('warden_remodel_v5')?.userData.hover ?? 0) || undefined;
+  return { chassis, parts, thrusters, beacon, model: true, hover, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
 function hazardTexture(): THREE.Texture {
@@ -268,17 +270,20 @@ export function createWardenView(scene: THREE.Scene) {
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); rig.parts.forEach(p => { p.open = 0; }); }
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
-      // Descent: high on its thrusters at first, easing onto its legs by the end of the arrival (render-only).
+      // Descent: high on its thrusters at first, easing down to its post by the end of the arrival (render-only).
       const landing = arriving ? 1 - THREE.MathUtils.smoothstep(age, 0, WARDEN.arrivalDuration) : 0;
-      root.position.set(placement.x ?? boss.x, placement.baseHeight + landing * landing * DESCENT, -placement.s);
+      // A flying Warden (v5) keeps its thrusters burning and bobs gently on them until it is destroyed.
+      const flying = !!rig.hover && !destroyed, bob = flying ? Math.sin(state.time * 1.4) * .06 : 0;
+      root.position.set(placement.x ?? boss.x, placement.baseHeight + landing * landing * DESCENT + bob, -placement.s);
       root.updateMatrixWorld(true);
-      rig.thrusters.visible = landing > .01;
-      rig.thrusters.children.forEach((flame, i) => { flame.scale.set(1, .6 + landing * .8 + .15 * Math.sin(state.time * 40 + i), 1); });
+      rig.thrusters.visible = landing > .01 || flying;
+      rig.thrusters.children.forEach((flame, i) => { flame.scale.set(1, (flying ? .75 : .6) + landing * .8 + .15 * Math.sin(state.time * 40 + i), 1); });
       if (arriving && landing < .35 && landing > .02 && hash(state.time * 23) < 18 * dt) puff(local((hash(state.time) - .5) * 3, 0, (hash(state.time + 1) - .5) * 3), state.time * 31, false, 1.4);
       rig.beacon.emissiveIntensity = destroyed ? 0 : Math.sin(state.time * 4) > .2 ? 2.6 : .3;
       // Destruction: sparks, flashes, a tilt onto a broken leg, then the reactor blast and a shock ring.
       const collapse = destroyed ? THREE.MathUtils.smoothstep(phaseAge, .9, 2.1) : 0;
-      rig.chassis.position.y = -collapse * .32; rig.chassis.rotation.set(-collapse * .06, 0, collapse * .14);
+      // A flying Warden drops out of the air onto the ground; a landed one tilts onto a broken leg.
+      rig.chassis.position.y = -collapse * (rig.hover ? rig.hover * .92 : .32); rig.chassis.rotation.set(-collapse * .06, 0, collapse * .14);
       if (destroyed) {
         const before = phaseAge - dt;
         for (let k = 0; k < 7; k++) { const at = .12 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * 3.6, 1.1, (hash(k + 5) - .5) * 3), 8, k * 13 + encounter, .8); }

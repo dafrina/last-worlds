@@ -43,7 +43,8 @@ The Warden's v3 study had 10,220 triangles and 1.1 MB.
   - **Turrets:** twin-barrel turret pods yaw about their targets on chevron side blocks.
   - **Body:** inner blocks with amber lights and vents, blue thruster bells (a `warden_jet` material, kept out of the view's glow handling), landing legs and two antenna masts. The beacon sits on the left mast tip.
   - **Paint:** nearly non-metallic, because Luna's black sky turns metallic white into grey.
-- **THE VEIL:** crescent wings with three-pod hangar mouths, scythe mandibles, a petal bud over the heart and a crown egg, folded toward the concept sheet. Its pods, bay hoods and flight pod follow the v4 contract.
+  - **Flight:** the Warden flies 1.1 above the ground (`HOVER`), and `WARDEN.targetHeight` is 1.3 + 1.1. Lifting the whole model keeps every weak point on its ray. The view keeps the thrusters burning with a gentle bob, and the craft drops to the ground when destroyed. It has no landing legs.
+- **THE VEIL:** crescent wings with three equal pods abreast in each hangar mouth, as in the concept art. The innermost is the weak point; glowing petal seams and a lit back wall make them read from the game camera. Also scythe mandibles, a petal bud over the heart and a crown egg, folded toward the concept sheet. Its pods, bay hoods and flight pod follow the v4 contract.
 
 ## Rebuild
 

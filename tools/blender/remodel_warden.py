@@ -10,7 +10,8 @@ armour halves (the core hatches; they slide apart by 0.8 to expose the reactor, 
 55-degree camera ray through the core target); twin-barrel turret pods (the weak points, yawing as a
 whole about their target) on top of big chevron side blocks; inner armour blocks with amber lights
 and vent grilles; blue thruster bells underneath; two antenna masts with orange tips. Backs and
-undersides plain. Blender axes: x right, y away from the player, z up; the ground is z = 0.
+undersides plain. It hovers HOVER above the ground on its thrusters (no landing legs).
+Blender axes: x right, y away from the player, z up; the ground is z = 0.
 """
 import math, os
 from mathutils import Vector, Matrix
@@ -18,6 +19,9 @@ import boss_remodel as br
 from boss_remodel import mirror_plan, slab, join
 
 POD_X, CORE_Y, TARGET_Z = 2.1, .9, 1.3
+# It flies (user, 20 October): the whole craft is built as if landed, then lifted by HOVER, and its
+# combat target height in src/content/warden.ts is 1.3 + HOVER, so every weak point stays on its ray.
+HOVER = 1.1
 LABEL = 'v5-remodel'
 # Weathered white armour, dark gunmetal machinery, orange lights; thrusters burn pale blue.
 PALETTE = dict(
@@ -42,7 +46,7 @@ def chamfer_box(h, lo, hi, mat, c=.08):
 
 
 def side_block(s, h):
-    """Big chevron armour block under each turret, with its thruster bells and a landing leg."""
+    """Big chevron armour block under each turret, with its thruster bells."""
     x0, x1 = sorted((s * 1.85, s * 3.3))
     # Front face slants back at the top (the sheet's bevelled block).
     prof = [(-1.55, .32), (1.25, .32), (1.25, 1.12), (-1.25, 1.12), (-1.6, .82)]
@@ -64,9 +68,6 @@ def side_block(s, h):
         h.cylinder((s * 2.6, y, 0), 'z', .42, .14, .34, 'metal', seg=14)
         h.cylinder((s * 2.6, y, 0), 'z', .34, .06, .14, 'steel', seg=14, r2=.38)
         h.cylinder((s * 2.6, y, 0), 'z', .26, .05, .07, 'jet', seg=12)
-    for y in (-1.3, 1.05):
-        h.box((s * 3.1 - .08, y - .08, 0), (s * 3.1 + .08, y + .08, .34), 'metal')
-        h.box((s * 3.1 - .16, y - .16, 0), (s * 3.1 + .16, y + .16, .05), 'steel')
 
 
 def inner_block(s, h):
@@ -189,7 +190,7 @@ def compare(objects):
     rows = []
     for view in ('game', 'top', 'side', 'front'):
         p = os.path.join(br.LOOKDEV, '_warden_%s.png' % view)
-        br.render_view(sc, view, (0, .1, 1.7), 8.5, p, 640, meshes, light='ice')
+        br.render_view(sc, view, (0, .1, 1.7 + HOVER), 9.5, p, 640, meshes, light='ice')
         rows.append([p])
     return br.compose([rows[0] + rows[1], rows[2] + rows[3]], os.path.join(br.LOOKDEV, 'warden-v5-compare.png'))
 
@@ -210,14 +211,16 @@ def build(export=True, preview=True):
     objects.append(reactor(sc, mats))
     objects.append(reactor(sc, mats, wreck=True))
     objects += hatches(sc, mats)
+    for o in objects:  # airborne: lift everything, pivots included
+        o.location.z += HOVER
     bpy.context.view_layer.update()
     br.texture_bake(objects, 'warden', 'luna')
     live = [o for o in objects if not o.name.endswith('_wreck')]
-    br.bake_ao(objects, live)
-    objects.append(br.marker('warden_beacon', (-.95, 1.15, 3.86), sc))
+    br.bake_ao(objects, live, ground=-10)  # no ground contact while it hovers
+    objects.append(br.marker('warden_beacon', (-.95, 1.15, 3.86 + HOVER), sc))
     for i, (x, y) in enumerate([(-2.6, -.7), (2.6, -.7), (-2.6, .55), (2.6, .55)]):
-        objects.append(br.marker('warden_thruster_%d' % i, (x, y, .06), sc))
-    objects.append(br.marker('warden_remodel_v5', sc=sc, note='Clean remodel after the WARDEN-1 design sheet'))
+        objects.append(br.marker('warden_thruster_%d' % i, (x, y, .06 + HOVER), sc))
+    objects.append(br.marker('warden_remodel_v5', sc=sc, hover=HOVER, note='Clean remodel after the WARDEN-1 design sheet'))
     result = None
     if export:
         path = os.path.join(br.ROOT, 'public', 'assets', 'luna', 'warden-%s.glb' % LABEL)
@@ -226,6 +229,6 @@ def build(export=True, preview=True):
         if o.name.endswith('_wreck'):
             o.hide_render = True
     if preview:
-        br.game_view(sc, (0, .1, 1.7), 8.5, os.path.join(br.LOOKDEV, 'warden-v5-game.png'),
+        br.game_view(sc, (0, .1, 1.7 + HOVER), 9.5, os.path.join(br.LOOKDEV, 'warden-v5-game.png'),
                      objects=[o for o in objects if o.type == 'MESH' and not o.hide_render], light='ice')
     return objects, result

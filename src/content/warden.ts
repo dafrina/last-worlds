@@ -12,7 +12,8 @@ export const WARDEN = {
   /** It descends from beyond the view (pivot s) onto its post. */
   entryS: 20,
   row: 12.5,
-  targetHeight: 1.3,
+  /** Weak points' height above the ground (render-only). The v5 Warden flies 1.1 above the ground (user, 20 October): 1.3 + 1.1. */
+  targetHeight: 2.4,
   podHp: 270,
   commandHp: 950,
   podRadius: 0.7,

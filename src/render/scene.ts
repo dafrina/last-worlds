@@ -924,7 +924,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         transform.rotation.set(0, 0, 0); transform.scale.set(width, 1, length); transform.updateMatrix();
         flightShadows.setMatrixAt(shadowCount++, transform.matrix);
       };
-      flightShadow(state.player.x, 0, 1.5 * HERO_SCALE, 1.8 * HERO_SCALE, VIEW.flightHeight);
+      // The hero casts its real model shadow on High; the blob stands in only on Low (no shadow maps).
+      if (quality !== 'high') flightShadow(state.player.x, 0, 1.5 * HERO_SCALE, 1.8 * HERO_SCALE, VIEW.flightHeight);
 
       // Instance counts per batch mesh: each enemy fills the batch of the model it actually uses (a Vesper kind keeps its
       // own model on any planet).

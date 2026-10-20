@@ -1,5 +1,19 @@
 # Build status
 
+## Flying WARDEN-1, three pods per Veil bay, single hero shadow, 20 October 2026
+
+- **WARDEN-1 flies** (user):
+  - **Model:** the v5 model is built 1.1 higher (`HOVER`) with no landing legs.
+  - **Target height:** `WARDEN.targetHeight` goes from 1.3 to 2.4. It is render-only (boss `groundHeight` affects only placement and markers), so collisions, attacks and fairness are unchanged.
+  - **Behaviour:** the thrusters keep burning with a ±0.06 bob, and on destruction the craft drops to the ground. Its shadow now falls well clear of it in game.
+- **THE VEIL:** three equal egg pods abreast in each wing bay, as in the concept. The innermost is the weak point. The two stored pods are now the same size as the weak point and sit at the mouth, with paler shells, glowing petal seams and a faintly lit back wall, so they read from the 55° camera. 17,000 triangles.
+- **Hero shadow** (user: two shadows): on High the hero now casts only its real model shadow, and the blob is drawn only on Low, which has no shadow maps. A Khepri before/after capture confirms the blob is gone and the model shadow stays.
+- **Concept sheets:** the user's facility sheets and the WARDEN-1 sheet are stored as reference JPEGs in `art/concepts/facility-sheets/` and `art/concepts/boss-sheets/`.
+- **Evidence** (snapshot of exactly this file set):
+  - typecheck clean, 342/342 unit tests, production build;
+  - browser: 26/27 in the full run. The one failure was a menu screenshot timing out at load average 31–45, caused by a parallel terrain job. `menu.spec.ts` then passed 6/6 with a 120 s per-test timeout. Nothing in this change touches the menu.
+- **Settlement and infrastructure audit:** `docs/23-settlement-infrastructure.md` covers Phase 1 of the user's brief plus the design. The user approved option A for vertical space and the Khepri refinery prototype, which is in progress.
+
 ## WARDEN-1 remodel v5 and fewer boss draw calls, 20 October 2026
 
 - **WARDEN-1** (`tools/blender/remodel_warden.py`): a clean remodel after the user's WARDEN-1 design sheet. There is no supplied GLB, so the sheet sets the shape and the v3 study sets the size.
