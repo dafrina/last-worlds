@@ -704,6 +704,8 @@ STYLES = {
                    streak='#5a5660', streak_amount=.1, wear='#e2e4ea', wear_amount=.4, grime=.06),
     'nacre': dict(tile=2.8, detail=.2, cells=1.6, seed=13, seam_dark=.35, dust='#5d4f8c', dust_amount=.15,
                   streak='#120c1e', streak_amount=.2, wear='#9e98c8', wear_amount=.5, grime=.2),
+    'luna': dict(tile=2.4, detail=.2, panel=.85, seed=17, seam_dark=.45, dust='#a19e98', dust_amount=.18,
+                 streak='#5f5d59', streak_amount=.16, wear='#f2f1ec', wear_amount=.45, grime=.14),
 }
 
 
@@ -1109,7 +1111,26 @@ def texture_bake(objects, prefix, style, size=2048, samples=8):
     for o in meshes:
         for slot in o.material_slots:
             name = slot.material.name.replace('__bake', '')
-            slot.material = bpy.data.materials[name] if 'glow' in name else surf
+            slot.material = bpy.data.materials[name] if 'glow' in name or name.endswith('_jet') else surf
+        merge_slots(o)
     for bake, _ in originals.values():
         bpy.data.materials.remove(bake)
     return paths
+
+
+def merge_slots(ob):
+    """One slot per distinct material: the glTF exporter writes a primitive (a draw call) per slot."""
+    me = ob.data
+    unique, remap = [], []
+    for m in me.materials:
+        if m not in unique:
+            unique.append(m)
+        remap.append(unique.index(m))
+    if len(unique) == len(me.materials):
+        return
+    indices = [remap[p.material_index] for p in me.polygons]
+    me.materials.clear()
+    for m in unique:
+        me.materials.append(m)
+    me.polygons.foreach_set('material_index', indices)
+    me.update()

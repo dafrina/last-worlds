@@ -1,5 +1,24 @@
 # Build status
 
+## WARDEN-1 remodel v5 and fewer boss draw calls, 20 October 2026
+
+- **WARDEN-1** (`tools/blender/remodel_warden.py`): a clean remodel after the user's WARDEN-1 design sheet. There is no supplied GLB, so the sheet sets the shape and the v3 study sets the size.
+  - **Command column:** the tall white column's glowing seam is the pair of core hatches. They slide 0.8 apart to expose a reactor on the core ray.
+  - **Turrets:** twin-barrel pods sit on chevron side blocks and yaw about their unchanged targets.
+  - **Body:** inner blocks, blue thruster bells, masts with the beacon, and landing legs.
+  - **Look and size:** a Luna texture style; the paints are nearly non-metallic, since metallic white went grey under the black sky. 9,896 triangles, 3.0 MB. Combat geometry is unchanged.
+- **Draw calls:** after the bake, slots sharing the one textured surface material are merged into one primitive per material. Live draws per boss:
+  - Bastion: 53 → 28.
+  - Ark: 33 → 18.
+  - Veil: 45 → 24.
+  - Warden: 27 → 13.
+  Geometry and textures are unchanged. The stats table is in `art/boss-remodel/README.md`.
+- **Tests:** the asset contract test now covers the selected Warden (camera rays through the pods and the opened core). Thruster jets join glow in the untextured exception.
+- **Evidence:**
+  - in-game captures of all four bosses in their weak-point and core phases, with no page errors (`docs/screenshots/boss-remodel/all-bosses-in-game.jpg`);
+  - typecheck clean, **342/342 unit tests**, production build, and **27/27 browser cases** (9.7 min, in a snapshot of exactly this file set).
+- **Not tested:** phone hardware.
+
 ## Boss remodels v5: clean models traced over the supplied GLBs, 20 October 2026
 
 - **Why:** the user disliked the decimated v4 imports ("they look wonky"). They asked for clean, simple models remodelled over their three GLBs that keep the proportions, plus suiting textures. Their design sheets set the shapes, and shape takes priority over detail.

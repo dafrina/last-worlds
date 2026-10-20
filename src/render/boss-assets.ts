@@ -7,5 +7,5 @@ export const BOSS_ASSETS = {
   veil: 'nacre/the-veil-v5-remodel.glb',
   bastion: 'khepri/bastion-9-v5-remodel.glb',
   ark: 'vesper/helion-ark-v5-remodel.glb',
-  warden: 'luna/warden-v3-study.glb',
+  warden: 'luna/warden-v5-remodel.glb',
 } as const;

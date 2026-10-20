@@ -5,6 +5,7 @@ import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { BASTION } from '../../src/content/bastion';
 import { HELION_ARK } from '../../src/content/ark';
 import { VEIL } from '../../src/content/veil';
+import { WARDEN } from '../../src/content/warden';
 
 const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
 // These checks exercise geometry/rigs in Node. Actual PNG decoding and materials are
@@ -40,11 +41,14 @@ describe('Blender cinematic asset contracts',()=>{
     veil: { node:'pod', x:VEIL.podOffset, y:VEIL.targetHeight, z:-VEIL.podS },
     bastion: { node:'battery', x:BASTION.batteryOffset, y:BASTION.targetHeight, z:0 },
     ark: { node:'radiator', x:HELION_ARK.radiatorOffset, y:HELION_ARK.targetHeight, z:-HELION_ARK.radiatorS },
+    warden: { node:'pod', x:WARDEN.podOffset, y:WARDEN.targetHeight, z:0 },
   } as const;
   const coreOf = {
     veil: { y:VEIL.targetHeight, z:-VEIL.heartS }, bastion: { y:BASTION.targetHeight, z:-BASTION.coreRowOffset },
-    ark: { y:HELION_ARK.targetHeight, z:-HELION_ARK.bridgeS },
+    ark: { y:HELION_ARK.targetHeight, z:-HELION_ARK.bridgeS }, warden: { y:WARDEN.targetHeight, z:-WARDEN.commandS },
   } as const;
+  // How far each sliding pair of core shutters opens in its view (the Veil's petals rotate instead).
+  const slideOf = { veil:0, bastion:1.1, ark:1, warden:.8 } as const;
   for (const spec of [
     { id:'veil', prefix:'veil', core:'veil_heart', width:{ v4:12.51, v5:12.51 },
       parts:['veil_bay_door_left','veil_bay_door_right','veil_flight_pod','veil_pod_left_wreck','veil_pod_right_wreck',...Array.from({length:4},(_,i)=>`veil_drop_pod_${i}`)],
@@ -55,6 +59,9 @@ describe('Blender cinematic asset contracts',()=>{
     { id:'ark', prefix:'ark', core:'ark_bridge', width:{ v4:9.51, v5:9.6 },
       parts:['ark_turret_left','ark_turret_right','ark_bay_left_door','ark_bay_right_door','ark_radiator_left_wreck','ark_radiator_right_wreck'],
       shutters:['ark_bridge_shutter_a','ark_bridge_shutter_b'] },
+    { id:'warden', prefix:'warden', core:'warden_core', width:{ v4:3.5, v5:7.0 },
+      parts:['warden_pod_left_wreck','warden_pod_right_wreck','warden_core_wreck','warden_beacon',...Array.from({length:4},(_,i)=>`warden_thruster_${i}`)],
+      shutters:['warden_core_hatch_0','warden_core_hatch_1'] },
   ] as const) it(`keeps the selected ${spec.id} model textured, bounded, articulated and its exposed core visible`,async()=>{
     const model=await asset(BOSS_ASSETS[spec.id]);
     const version = model.getObjectByName(`${spec.prefix}_remodel_v5`) ? 'v5' : 'v4';
@@ -67,7 +74,7 @@ describe('Blender cinematic asset contracts',()=>{
     hull.traverse(object=>{
       if(!(object instanceof Mesh))return;
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
-        if (version==='v5' && /glow/i.test(material.name)) continue; // emissive heat/lamps stay untextured
+        if (version==='v5' && /glow|jet/i.test(material.name)) continue; // emissive heat, lamps and thruster jets stay untextured
         expect(material.map,'albedo texture').toBeTruthy();
         expect(material.normalMap,'surface normals').toBeTruthy();
         expect(material.roughnessMap,'roughness variation').toBeTruthy();
@@ -86,7 +93,7 @@ describe('Blender cinematic asset contracts',()=>{
     for(const [i,name] of spec.shutters.entries()){
       const node=model.getObjectByName(name)!;
       if(spec.id==='veil')node.quaternion.multiply(new Quaternion().setFromAxisAngle(new Vector3(1,0,0),105*Math.PI/180));
-      else node.position.x+=(i===0?-1:1)*(spec.id==='bastion'?1.1:1);
+      else node.position.x+=(i===0?-1:1)*slideOf[spec.id];
     }
     model.updateMatrixWorld(true);
     const core=coreOf[spec.id];
