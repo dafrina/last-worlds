@@ -1,5 +1,27 @@
 # Build status
 
+## Boss remodels v5: clean models traced over the supplied GLBs, 20 October 2026
+
+- **Why:** the user disliked the decimated v4 imports ("they look wonky"). They asked for clean, simple models remodelled over their three GLBs that keep the proportions, plus suiting textures. Their design sheets set the shapes, and shape takes priority over detail.
+- **Models** (`tools/blender/boss_remodel.py`, plus `remodel_bastion.py`, `remodel_ark.py` and `remodel_veil.py`): new faceted Blender geometry traced over each source with `trace()` and height maps. No source mesh is exported.
+  - BASTION-9: 22,176 triangles.
+  - HELION ARK: 7,628 triangles.
+  - THE VEIL: 16,112 triangles.
+  Backs and undersides are plain. The same rig names are used, and each weak point sits on the 55° camera ray through its target. See [art/boss-remodel/README.md](../art/boss-remodel/README.md).
+- **Textures:** one baked 2048² atlas per boss (colour, roughness/metal, normal) with generated armour plating or Voronoi chitin cells, CC0 plate grime and per-world weathering. The glow parts stay emissive, and per-corner AO goes into the vertex colours.
+- **User decisions** (docs/08):
+  - BASTION-9 is 20% larger, combat geometry included: batteries at ±2.64, the core 1.62 behind, target height 1.74, radii 0.84 and 1.86, overload lanes 1.68 and 2.88. Its tracks run the whole hull length, and its render footprint is now 5.0 × 4.7.
+  - The Ark's outriggers run past the aft wing to y 5.85. Its centre hull is chunkier and longer and carries the design sheet's split spire as the bridge shutters. Its foam collars and stern wake follow the new hulls.
+- **Code:** `src/render/boss-assets.ts` selects the v5 files. The three views accept the `*_remodel_v5` marker through the existing authored-material rigs. The asset contract test is version-aware and takes its weak-point rays from the combat constants.
+- **Evidence:**
+  - typecheck clean; **341/341 unit tests**, including fairness with the larger Bastion and the v5 rig, budget, texture and camera-ray contracts;
+  - in-game Chromium captures of every boss in its weak-point and core phases, with no page errors (`docs/screenshots/boss-remodel/`);
+  - source-versus-remodel sheets in `art/boss-remodel/`.
+  - **27/27 browser cases**. The Veil pod-deployment case first failed: the textured flight pod loads as two meshes (shell plus glow), and the view instanced only a single mesh. `veil-view.ts` now instances every mesh of the pod.
+  The user reviewed each step's screenshots during the session.
+- **Limits:** no phone hardware test. The boss files are 2.6–4.4 MB each, mostly the three texture maps.
+- **Rollback:** one filename per boss. The v4, v3 and v2 files stay published, and the Bastion's v4 combat values are listed in docs/08.
+
 ## Approved imported boss integration — 20 October 2026
 
 - **Source fidelity:** the user's three GLBs are the masters, verified byte-for-byte against Downloads and preserved outside public assets. No hull regeneration. Adapted through live Blender MCP with retained source geometry/UVs/PBR maps, selected moving parts and conservative static underside removal.

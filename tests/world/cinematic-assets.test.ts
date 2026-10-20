@@ -2,6 +2,9 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { Box3, Mesh, Quaternion, Raycaster, Vector3, type Group } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
+import { BASTION } from '../../src/content/bastion';
+import { HELION_ARK } from '../../src/content/ark';
+import { VEIL } from '../../src/content/veil';
 
 const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
 // These checks exercise geometry/rigs in Node. Actual PNG decoding and materials are
@@ -30,35 +33,49 @@ function validate(model: Group, budget: number, textured=false) {
 }
 
 describe('Blender cinematic asset contracts',()=>{
+  // The selected boss assets (src/render/boss-assets.ts): v4 approved imports or v5 clean remodels
+  // (tools/blender/boss_remodel.py). Weak-point rays come from the combat constants, so a rescaled
+  // fortress is checked at its own targets.
+  const flankOf = {
+    veil: { node:'pod', x:VEIL.podOffset, y:VEIL.targetHeight, z:-VEIL.podS },
+    bastion: { node:'battery', x:BASTION.batteryOffset, y:BASTION.targetHeight, z:0 },
+    ark: { node:'radiator', x:HELION_ARK.radiatorOffset, y:HELION_ARK.targetHeight, z:-HELION_ARK.radiatorS },
+  } as const;
+  const coreOf = {
+    veil: { y:VEIL.targetHeight, z:-VEIL.heartS }, bastion: { y:BASTION.targetHeight, z:-BASTION.coreRowOffset },
+    ark: { y:HELION_ARK.targetHeight, z:-HELION_ARK.bridgeS },
+  } as const;
   for (const spec of [
-    { id:'veil', prefix:'veil', core:'veil_heart', y:2.2, z:-1.8, width:12.51,
+    { id:'veil', prefix:'veil', core:'veil_heart', width:{ v4:12.51, v5:12.51 },
       parts:['veil_bay_door_left','veil_bay_door_right','veil_flight_pod','veil_pod_left_wreck','veil_pod_right_wreck',...Array.from({length:4},(_,i)=>`veil_drop_pod_${i}`)],
       shutters:Array.from({length:4},(_,i)=>`veil_heart_shutter_${i}`) },
-    { id:'bastion', prefix:'bastion', core:'bastion_core', y:1.45, z:-1.35, width:8.01,
+    { id:'bastion', prefix:'bastion', core:'bastion_core', width:{ v4:8.01, v5:9.9 },
       parts:['bastion_gun_left','bastion_gun_right','bastion_forward_cannon_left','bastion_forward_cannon_right','bastion_battery_left_wreck','bastion_battery_right_wreck'],
       shutters:['bastion_core_shutter_a','bastion_core_shutter_b'] },
-    { id:'ark', prefix:'ark', core:'ark_bridge', y:1.6, z:-1.6, width:9.51,
+    { id:'ark', prefix:'ark', core:'ark_bridge', width:{ v4:9.51, v5:9.6 },
       parts:['ark_turret_left','ark_turret_right','ark_bay_left_door','ark_bay_right_door','ark_radiator_left_wreck','ark_radiator_right_wreck'],
       shutters:['ark_bridge_shutter_a','ark_bridge_shutter_b'] },
-  ] as const) it(`keeps approved ${spec.id} textured, reduced, articulated and its exposed core visible`,async()=>{
-    const model=await asset(BOSS_ASSETS[spec.id]);validate(model,120000,true);
-    expect(model.getObjectByName(`${spec.prefix}_approved_v4`)).toBeDefined();
+  ] as const) it(`keeps the selected ${spec.id} model textured, bounded, articulated and its exposed core visible`,async()=>{
+    const model=await asset(BOSS_ASSETS[spec.id]);
+    const version = model.getObjectByName(`${spec.prefix}_remodel_v5`) ? 'v5' : 'v4';
+    if (version==='v4') expect(model.getObjectByName(`${spec.prefix}_approved_v4`)).toBeDefined();
+    // v4 keeps the decimated source atlases; v5 is ~20k clean triangles with one baked surface atlas.
+    validate(model,version==='v5'?30000:120000,true);
     for(const name of [...spec.parts,...spec.shutters])expect(model.getObjectByName(name),name).toBeDefined();
     const hull=model.getObjectByName(`${spec.prefix}_hull`)!;
-    expect(new Box3().setFromObject(hull).getSize(new Vector3()).x).toBeLessThanOrEqual(spec.width);
+    expect(new Box3().setFromObject(hull).getSize(new Vector3()).x).toBeLessThanOrEqual(spec.width[version]);
     hull.traverse(object=>{
       if(!(object instanceof Mesh))return;
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
-        expect(material.map,'approved albedo retained').toBeTruthy();
-        expect(material.normalMap,'approved surface normals retained').toBeTruthy();
-        expect(material.roughnessMap,'approved roughness variation retained').toBeTruthy();
-        expect(material.metalnessMap,'approved metallic variation retained').toBeTruthy();
+        if (version==='v5' && /glow/i.test(material.name)) continue; // emissive heat/lamps stay untextured
+        expect(material.map,'albedo texture').toBeTruthy();
+        expect(material.normalMap,'surface normals').toBeTruthy();
+        expect(material.roughnessMap,'roughness variation').toBeTruthy();
+        expect(material.metalnessMap,'metallic variation').toBeTruthy();
       }
     });
     const eye=new Vector3(0,Math.sin(55*Math.PI/180),Math.cos(55*Math.PI/180));
-    const flank = spec.id==='veil' ? {node:'pod',x:3.1,y:2.2,z:.4}
-      : spec.id==='bastion' ? {node:'battery',x:2.2,y:1.45,z:0}
-      : {node:'radiator',x:2.4,y:1.6,z:.5};
+    const flank = flankOf[spec.id];
     for(const [side,sign] of [['left',-1],['right',1]] as const){
       const ray=new Raycaster(new Vector3(sign*flank.x,flank.y,flank.z).addScaledVector(eye,30),eye.clone().negate());
       const hits=ray.intersectObject(model.getObjectByName(`${spec.prefix}_${flank.node}_${side}`)!,true);
@@ -72,12 +89,13 @@ describe('Blender cinematic asset contracts',()=>{
       else node.position.x+=(i===0?-1:1)*(spec.id==='bastion'?1.1:1);
     }
     model.updateMatrixWorld(true);
-    const ray=new Raycaster(new Vector3(0,spec.y,spec.z).addScaledVector(eye,30),eye.clone().negate());
-    const core=ray.intersectObject(model.getObjectByName(spec.core)!,true);
-    expect(core.length,'combat row intersects the exposed source-fitted interior').toBeGreaterThan(0);
+    const core=coreOf[spec.id];
+    const ray=new Raycaster(new Vector3(0,core.y,core.z).addScaledVector(eye,30),eye.clone().negate());
+    const coreHits=ray.intersectObject(model.getObjectByName(spec.core)!,true);
+    expect(coreHits.length,'combat row intersects the exposed interior').toBeGreaterThan(0);
     const blockers=[hull,...spec.shutters.map(name=>model.getObjectByName(name)!)];
     const hits=ray.intersectObjects(blockers,true);
-    expect(hits[0]?.distance ?? Infinity,`${spec.id} static armour/shutters must clear the core`).toBeGreaterThan(core[0].distance-.01);
+    expect(hits[0]?.distance ?? Infinity,`${spec.id} static armour/shutters must clear the core`).toBeGreaterThan(coreHits[0].distance-.01);
   });
   it('keeps the Scrapper in its established visual footprint with two exhaust sockets',async()=>{
     const model=await asset('shared/hero-scrapper.glb'); validate(model,3000);

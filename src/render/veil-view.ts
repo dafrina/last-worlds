@@ -32,7 +32,7 @@ export function veilPlacement(logicalS: number, sea: number): { baseHeight: numb
 interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D | null; petals: { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }[]; heat: THREE.MeshStandardMaterial; open: number }
 interface BayDoor { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }
 interface DockedPod { object: THREE.Object3D; position: THREE.Vector3 }
-interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; approved?: boolean; doors?: BayDoor[]; pods?: DockedPod[]; flightPods?: THREE.InstancedMesh; dispose(): void }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; approved?: boolean; doors?: BayDoor[]; pods?: DockedPod[]; flightPods?: THREE.InstancedMesh[]; flightPodGroup?: THREE.Group; dispose(): void }
 /** How far the code-built stand-in's petals fold open (radians). */
 const SHUTTER_OPEN = -1.15;
 /** the-veil.glb shutters open by rotating about their local +X hinge (art/the-veil/README.md recommends 100–110°). */
@@ -49,7 +49,8 @@ export async function loadVeilModel(url: string): Promise<THREE.Group> {
  * gets its own glow material so its heat can flare).
  */
 function modelRig(model: THREE.Group): Rig {
-  if (model.getObjectByName('veil_approved_v4')) return approvedRig(model);
+  // v4 approved imports and v5 remodels (tools/blender/remodel_veil.py) share the authored-material rig.
+  if (model.getObjectByName('veil_approved_v4') || model.getObjectByName('veil_remodel_v5')) return approvedRig(model);
   const chassis = new THREE.Group();
   model.updateMatrixWorld(true);
   const shell = applySurfaceFinish(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .38, metalness: .58, iridescence: .35, iridescenceIOR: 1.38, iridescenceThicknessRange: [220, 440], clearcoat: .18, clearcoatRoughness: .3, envMapIntensity: .85 }), 'metal', .6, .008);
@@ -121,17 +122,23 @@ function approvedRig(model: THREE.Group): Rig {
   const pods = [0, 1, 2, 3].map(i => node(`veil_drop_pod_${i}`)).filter(Boolean).map(object => {
     chassis.attach(object!); return { object: object!, position: object!.position.clone() };
   });
-  const pod = node('veil_flight_pod') as THREE.Mesh | undefined;
-  const flightPods = pod?.isMesh ? new THREE.InstancedMesh(pod.geometry, pod.material, 16) : undefined;
-  if (flightPods) {
-    flightPods.name = 'Approved VEIL deployed pods'; flightPods.count = 0; flightPods.frustumCulled = false;
-    flightPods.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    for (let i = 0; i < 16; i++) flightPods.setColorAt(i, new THREE.Color(1, 1, 1));
-    flightPods.instanceColor!.setUsage(THREE.DynamicDrawUsage);
-  }
+  // A pod with several materials (v5: textured shell plus glow) loads as a group: instance each of its meshes.
+  const podMeshes: THREE.Mesh[] = [];
+  node('veil_flight_pod')?.traverse(object => { if ((object as THREE.Mesh).isMesh) podMeshes.push(object as THREE.Mesh); });
+  const flightPods = podMeshes.map(mesh => {
+    const batch = new THREE.InstancedMesh(mesh.geometry, mesh.material, 16);
+    batch.name = 'Approved VEIL deployed pods'; batch.count = 0; batch.frustumCulled = false;
+    batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    for (let i = 0; i < 16; i++) batch.setColorAt(i, new THREE.Color(1, 1, 1));
+    batch.instanceColor!.setUsage(THREE.DynamicDrawUsage);
+    return batch;
+  });
+  const flightPodGroup = flightPods.length ? new THREE.Group() : undefined;
+  flightPods.forEach(batch => flightPodGroup!.add(batch));
   const bays = pods.filter((_, i) => i % 2 === 0).map(p => p.position.clone());
-  return { chassis, parts, engine: fallbackGlow, sinew: materials.hull[0] ?? fallbackGlow, bays, approved: true, doors, pods, flightPods,
-    dispose() { flightPods?.removeFromParent(); flightPods?.dispose(); materials.dispose(); fallbackGlow.dispose(); } };
+  return { chassis, parts, engine: fallbackGlow, sinew: materials.hull[0] ?? fallbackGlow, bays, approved: true, doors, pods,
+    flightPods: flightPods.length ? flightPods : undefined, flightPodGroup,
+    dispose() { flightPodGroup?.removeFromParent(); flightPods.forEach(batch => batch.dispose()); materials.dispose(); fallbackGlow.dispose(); } };
 }
 
 const glowMaterial = (color: number, intensity: number) =>
@@ -298,11 +305,12 @@ export function createVeilView(scene: THREE.Scene) {
           if (prior !== undefined && enemy.hp < prior) hitAt.set(enemy.id, state.time);
           podTransform.position.set(enemy.x, VIEW.flightHeight, -enemy.s);
           podTransform.rotation.set(.12, 0, Math.sin(enemy.age * 2 + enemy.id) * .04); podTransform.updateMatrix();
-          rig.flightPods.setMatrixAt(count, podTransform.matrix);
           const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
-          rig.flightPods.setColorAt(count++, podTint.setRGB(1 + kick * 2, 1 + kick, 1 + kick));
+          podTint.setRGB(1 + kick * 2, 1 + kick, 1 + kick);
+          for (const batch of rig.flightPods) { batch.setMatrixAt(count, podTransform.matrix); batch.setColorAt(count, podTint); }
+          count++;
         }
-        rig.flightPods.count = count; rig.flightPods.instanceMatrix.needsUpdate = true; rig.flightPods.instanceColor!.needsUpdate = true;
+        for (const batch of rig.flightPods) { batch.count = count; batch.instanceMatrix.needsUpdate = true; batch.instanceColor!.needsUpdate = true; }
       }
       if (!boss || !placement) { shock.visible = false; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1; return; }
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; }); }
@@ -413,9 +421,9 @@ export function createVeilView(scene: THREE.Scene) {
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
-    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); if (rig.flightPods) scene.add(rig.flightPods); },
+    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
     get hasPodModel() { return !!rig.flightPods; },
-    get stats() { return { model: rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.count ?? 0, particles: mist.count + sparks.count }; },
+    get stats() { return { model: rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
   };
 }

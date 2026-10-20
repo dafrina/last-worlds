@@ -39,7 +39,7 @@ export async function loadArkModel(url: string): Promise<THREE.Group> {
 
 interface Slider { object: THREE.Object3D; closed: THREE.Vector3; open: THREE.Vector3 }
 interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck?: THREE.Object3D; heat: THREE.MeshStandardMaterial; shutters: Slider[]; open: number; gun?: THREE.Object3D; gunYaw?: number }
-interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; doors: Slider[]; lamps: THREE.MeshStandardMaterial[]; model: boolean; approved?: boolean; dispose(): void }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; doors: Slider[]; lamps: THREE.MeshStandardMaterial[]; model: boolean; approved?: boolean; remodel?: boolean; dispose(): void }
 
 const glowMaterial = (color: number, intensity: number) =>
   new THREE.MeshStandardMaterial({ color: 0x140804, emissive: color, emissiveIntensity: intensity, roughness: .5, metalness: .1, toneMapped: false });
@@ -101,7 +101,9 @@ function fallbackRig(): Rig {
 /** Builds the rig from helion-ark.glb: every node is top-level and its translation is its socket (art/vesper-ark). */
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
-  const approved = !!model.getObjectByName('ark_approved_v4'); chassis.userData.approved = approved;
+  // v4 approved copies and v5 remodels both carry authored PBR materials and the three-hull layout.
+  const remodel = !!model.getObjectByName('ark_remodel_v5');
+  const approved = remodel || !!model.getObjectByName('ark_approved_v4'); chassis.userData.approved = approved;
   model.updateMatrixWorld(true);
   const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .33, metalness: .68, envMapIntensity: 1.0 }), 'metal', .8, .02);
   const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .41, metalness: .28, envMapIntensity: 1.0 }), 'metal', .8, .012);
@@ -152,7 +154,7 @@ function modelRig(model: THREE.Group): Rig {
     const object = take(chassis, `ark_bay_${side}_door`);
     return object ? { object, closed: object.position.clone(), open: object.position.clone().add(new THREE.Vector3(side === 'left' ? -.9 : .9, 0, 0)) } : null;
   }).filter(Boolean) as Slider[];
-  return { chassis, parts, doors, lamps: retained?.hull ?? [lamps], model: true, approved,
+  return { chassis, parts, doors, lamps: retained?.hull ?? [lamps], model: true, approved, remodel,
     dispose() { if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
@@ -308,7 +310,8 @@ export function createArkView(scene: THREE.Scene) {
       // (toward the player, −s), so forward speed is the negative of the ground-relative s speed.
       const forward = destroyed ? 0 : -((boss.vs ?? 0) + state.scrollSpeed), lateral = boss.vx ?? 0;
       const speed = Math.hypot(forward, lateral), heading = Math.PI + Math.atan2(lateral, Math.max(.01, forward)) * .5;
-      const bow = local(0, 0, rig.approved ? 3.5 : ARK_FOOTPRINT.bow - .3), stern = local(0, 0, rig.approved ? -4 : -ARK_FOOTPRINT.stern), centre = local(0, 0, rig.approved ? -.2 : -1.5);
+      // The v5 outriggers run on past the aft wing to y 5.85 (art/boss-remodel): a longer stern wake.
+      const bow = local(0, 0, rig.approved ? 3.5 : ARK_FOOTPRINT.bow - .3), stern = local(0, 0, rig.remodel ? -5.6 : rig.approved ? -4 : -ARK_FOOTPRINT.stern), centre = local(0, 0, rig.approved ? -.2 : -1.5);
       // Gentle while it holds station (swell against the hull, a churned stern), strong while it glides in.
       const wakeStrength = destroyed ? Math.max(0, .3 - phaseAge * .06) : THREE.MathUtils.clamp(.18 + speed * .14, .18, .9);
       if (wakeStrength > 0) {
@@ -320,8 +323,10 @@ export function createArkView(scene: THREE.Scene) {
       const foamStrength = destroyed ? .22 + .22 * Math.sin(Math.min(1, sink) * Math.PI) : rig.approved ? .16 : .28;
       if (rig.approved) {
         // The approved vessel has three separate hulls with open water between them.
-        for (const side of [-1, 1]) rings3.push({ x: centre.x + side * 3.2, z: centre.z, y: sea, yaw: 0, rx: 1.15 * spread, rz: 3.65 * spread, strength: foamStrength });
-        rings3.push({ x: centre.x, z: centre.z - 1.4, y: sea, yaw: 0, rx: .65 * spread, rz: 1.8 * spread, strength: foamStrength * .7 });
+        // v5: outriggers y -3.6..5.85 around x +-3.15, centre hull y -2.45..5.25 (local z = -y).
+        const [outerZ, outerRz, midZ, midRx, midRz] = rig.remodel ? [-.9, 4.8, -1.2, 1.35, 3.95] : [0, 3.65, -1.4, .65, 1.8];
+        for (const side of [-1, 1]) rings3.push({ x: centre.x + side * 3.15, z: centre.z + outerZ, y: sea, yaw: 0, rx: 1.15 * spread, rz: outerRz * spread, strength: foamStrength });
+        rings3.push({ x: centre.x, z: centre.z + midZ, y: sea, yaw: 0, rx: midRx * spread, rz: midRz * spread, strength: foamStrength * .7 });
       } else rings3.push({ x: centre.x, z: centre.z, y: sea, yaw: 0, rx: 4.8 * spread, rz: 5.7 * spread, strength: foamStrength });
       // Spray off the bow while it glides in (and a little while it surges), thrown up by the cutwater.
       sprayCarry += dt * Math.min(30, speed * 6);

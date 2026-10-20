@@ -6,12 +6,13 @@ export const BASTION = {
   arrivalDuration: 3,
   batteryHp: 400,
   coreHp: 1600,
-  batteryRadius: 0.7,
-  coreRadius: 1.55,
-  batteryOffset: 2.2,
+  // The v5 fortress is 20% larger than v4, weak points included (user, 20 October 2026).
+  batteryRadius: 0.84,
+  coreRadius: 1.86,
+  batteryOffset: 2.64,
   row: 13,
-  coreRowOffset: 1.35,
-  targetHeight: 1.45,
+  coreRowOffset: 1.62,
+  targetHeight: 1.74,
   /** Windup for bursts and fans, and for marked overload lanes (plus the 0.15 s lane flash). */
   warning: 1,
   beamWarning: 1.25,
@@ -27,7 +28,7 @@ export const BASTION = {
    * Overload: lanes over the boss's own hit columns, alternating. The core lane covers the center of the core
    * column; the battery lanes cover both battery columns, leaving the core column open as the damage window.
    */
-  overload: { coreLaneWidth: 2.4, batteryLaneWidth: 1.4, active: 0.35 },
+  overload: { coreLaneWidth: 2.88, batteryLaneWidth: 1.68, active: 0.35 },
   /**
    * Static arena. The terrain scroll eases from VIEW.scrollSpeed to zero over `decelDuration` seconds from
    * `decelStart` (smoothstep velocity), so it stops at distance 5 * 132 + 5 * 6 / 2 = 675 world units, three

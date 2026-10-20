@@ -21,7 +21,7 @@ const WHEELS: readonly [string, number][] = [
     ...[0, 1, 2, 3, 4, 5].map(i => [`bastion_roadwheel_${side}_${i}`, .3])]) as [string, number][],
 ];
 /** Local footprint of the hull (x half-width, z half-depth) for seating and the terrain exclusion. */
-export const BASTION_FOOTPRINT = { halfWidth: 4.1, halfDepth: 3.9 } as const;
+export const BASTION_FOOTPRINT = { halfWidth: 5.0, halfDepth: 4.7 } as const; // v5 remodel: 20% larger than v4
 const socket = (part: BossPart) => new THREE.Vector3(
   part === 'core' ? 0 : part === 'left' ? -BASTION.batteryOffset : BASTION.batteryOffset, 0, part === 'core' ? -BASTION.coreRowOffset : 0);
 
@@ -142,7 +142,8 @@ function fallbackRig(): Rig {
 /** Builds the rig from bastion-9.glb, keeping each node's authored placement (docs/15 node contract). */
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
-  const approved = !!model.getObjectByName('bastion_approved_v4'); chassis.userData.approved = approved;
+  // v4 approved copies and v5 remodels both carry authored PBR materials and the articulated rig.
+  const approved = !!(model.getObjectByName('bastion_approved_v4') ?? model.getObjectByName('bastion_remodel_v5')); chassis.userData.approved = approved;
   model.updateMatrixWorld(true);
   const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .48, metalness: .65 }), 'metal', .7, .022);
   const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .78 }), 'metal', .8, .012);
