@@ -15,7 +15,7 @@ import { applySurfaceFinish } from './surface-finish';
  */
 const PARTS = ['left', 'right', 'core'] as const;
 /** Local footprint (x half-width, z half-depth) for seating and the terrain exclusion. */
-export const WARDEN_FOOTPRINT = { halfWidth: 3.5, halfDepth: 2.6 } as const;
+export const WARDEN_FOOTPRINT = { halfWidth: 3.9, halfDepth: 3.0 } as const; // v5 remodel: 7.6 wide, barrels reach 2.9 forward
 /** Local +z faces the player (smaller s). */
 const socket = (part: BossPart) => new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -WARDEN.podOffset : WARDEN.podOffset, 0, part === 'core' ? -WARDEN.commandS : 0);
 /** Height of the descent at the start of the arrival. */

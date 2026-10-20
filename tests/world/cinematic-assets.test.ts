@@ -59,7 +59,7 @@ describe('Blender cinematic asset contracts',()=>{
     { id:'ark', prefix:'ark', core:'ark_bridge', width:{ v4:9.51, v5:9.6 },
       parts:['ark_turret_left','ark_turret_right','ark_bay_left_door','ark_bay_right_door','ark_radiator_left_wreck','ark_radiator_right_wreck'],
       shutters:['ark_bridge_shutter_a','ark_bridge_shutter_b'] },
-    { id:'warden', prefix:'warden', core:'warden_core', width:{ v4:3.5, v5:7.0 },
+    { id:'warden', prefix:'warden', core:'warden_core', width:{ v4:3.5, v5:7.8 },
       parts:['warden_pod_left_wreck','warden_pod_right_wreck','warden_core_wreck','warden_beacon',...Array.from({length:4},(_,i)=>`warden_thruster_${i}`)],
       shutters:['warden_core_hatch_0','warden_core_hatch_1'] },
   ] as const) it(`keeps the selected ${spec.id} model textured, bounded, articulated and its exposed core visible`,async()=>{

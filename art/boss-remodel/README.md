@@ -4,7 +4,7 @@ The user disliked the decimated v4 imports of their three supplied GLBs ("they l
 
 | Boss | Runtime file | Triangles (on screen) | Vertices | Draw calls, live (all) | Size (textures) | Builder |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| WARDEN-1 | `public/assets/luna/warden-v5-remodel.glb` | 9,896 (8,176) | 18,572 | 13 (18) | 3.0 MB (2.2) | `tools/blender/remodel_warden.py` |
+| WARDEN-1 | `public/assets/luna/warden-v5-remodel.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/remodel_warden.py` |
 | BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 22,176 (20,656) | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/remodel_bastion.py` |
 | HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,628 (6,940) | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
 | THE VEIL | `public/assets/nacre/the-veil-v5-remodel.glb` | 16,112 (14,654) | 28,291 | 24 (29) | 3.6 MB (2.4) | `tools/blender/remodel_veil.py` |

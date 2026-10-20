@@ -1,5 +1,24 @@
 # Build status
 
+## WARDEN-1 reworked: bulky and layered, after its sheet, 20 October 2026
+
+- **Why:** the user found the first remodel "cheaply made" and asked for it to really look like their render: more imposing and bulky.
+- **Model** (`tools/blender/remodel_warden.py`): rebuilt from measurements off `art/concepts/boss-sheets/warden.jpg`, about 7.6 units across and stacked as the sheet shows:
+  - huge chevron side blocks over big blue-jet thruster housings, with white cladding on their flanks;
+  - heavy twin-barrel turret pods with armoured cheeks;
+  - inner armour towers with dark vent modules and small thrusters beneath;
+  - the tall octagonal command column, whose glowing slot is the seam of the core hatches, under a crowned cap with two masts;
+  - a plated rear deck.
+  Every white block carries raised plates, grooves, bolts, warning marks and orange lights, including roof edge lights for the game camera. The armour is brighter, nearly dielectric white.
+- **Stats:** 25,712 triangles (22,248 live), 47k vertices, 13 live draws, 4.6 MB including the three 2048² maps.
+- **Combat unchanged:**
+  - The turret pods yaw about their own centres on the camera ray through their targets (x ±2.1, height 2.4).
+  - The reactor bar sits on the core's ray behind the hatches.
+  - The render footprint grows to 3.9 × 3.0 (half sizes, terrain clearance), and the asset test width bound to 7.8.
+- **Evidence:**
+  - contract tests 10/10, plus in-game Chromium captures of the pods and core phases with no page errors;
+  - a snapshot of exactly this file set: typecheck clean, 342/342 unit tests, build, and **27/27 browser cases**. Those ran with a 120 s per-test timeout, because the parallel districts and audio sessions held the load average at 25–30.
+
 ## Flying WARDEN-1, three pods per Veil bay, single hero shadow, 20 October 2026
 
 - **WARDEN-1 flies** (user):
