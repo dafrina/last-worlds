@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createBastionTracks } from './bastion-tracks';
 import { applySurfaceFinish } from './surface-finish';
 import { retainBossMaterials } from './approved-boss-materials';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -34,7 +35,7 @@ interface PartRig {
 }
 interface Rig {
   chassis: THREE.Group; parts: Map<BossPart, PartRig>; treads: THREE.Texture[]; glow: THREE.MeshStandardMaterial[];
-  wheels: { object: THREE.Object3D; radius: number }[]; dispose(): void;
+  wheels: { object: THREE.Object3D; radius: number }[]; tracks?: ReturnType<typeof createBastionTracks>; dispose(): void;
 }
 
 export async function loadBastionModel(url: string): Promise<THREE.Group> {
@@ -200,9 +201,10 @@ function modelRig(model: THREE.Group): Rig {
   // Everything else (hull, treads, lamps) rides on the chassis as authored.
   for (const name of ['bastion_hull', 'bastion_tread_left', 'bastion_tread_right']) { const object = node(name); if (object) chassis.attach(object); }
   // Sprockets, idlers and road wheels are separate nodes pivoting on their axles (older files lack them).
-  const wheels = WHEELS.flatMap(([name, radius]) => { const object = node(name); if (!object) return []; chassis.attach(object); return [{ object, radius }]; });
-  return { chassis, parts, treads: treadMaps, glow: retained?.hull ?? [lamps], wheels,
-    dispose() { if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); treadMaps.forEach(t => t.dispose()); paintMaps.forEach(t => t.dispose()); } };
+  const wheels = WHEELS.flatMap(([name, radius]) => { const object = node(name); if (!object) return []; chassis.attach(object); return [{ object, radius: Number(object.userData.rolling_radius) || radius }]; });
+  const tracks = createBastionTracks(model, chassis);
+  return { chassis, parts, tracks, treads: treadMaps, glow: retained?.hull ?? [lamps], wheels,
+    dispose() { tracks.dispose(); if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); treadMaps.forEach(t => t.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
 /* ------------------------------------------------------------------ particles */
@@ -356,6 +358,7 @@ export function createBastionView(scene: THREE.Scene) {
       // Belts advance toward increasing v at the forward speed; wheels roll at ω = speed / rolling radius.
       treadOffset = (treadOffset - forward * dt / LINK_PITCH) % 1;
       rig.treads.forEach(map => { map.offset.y = treadOffset; });
+      rig.tracks?.advance(forward, dt);
       for (const wheel of rig.wheels) wheel.object.rotation.x += forward / wheel.radius * dt;
       emitCarry += dt * Math.min(26, Math.abs(groundSpeed) * 5 + Math.abs(boss.vx ?? 0) * 6);
       for (; emitCarry >= 1; emitCarry--) {
@@ -464,6 +467,6 @@ export function createBastionView(scene: THREE.Scene) {
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
-    get stats() { return { model: rig.treads.length > 0 || rig.glow.length > 0 ? 'glb' : 'fallback', particles: dust.count + sparks.count }; },
+    get stats() { return { model: rig.treads.length > 0 || rig.glow.length > 0 ? 'glb' : 'fallback', particles: dust.count + sparks.count, trackLinks: rig.tracks?.count ?? 0, trackTravel: rig.tracks?.travel ?? 0 }; },
   };
 }

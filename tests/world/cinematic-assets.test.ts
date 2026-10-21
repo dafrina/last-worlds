@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { Box3, Mesh, Quaternion, Raycaster, Vector3, type Group } from 'three';
+import { Box3, Group, InstancedMesh, Matrix4, Mesh, Quaternion, Raycaster, Vector3 } from 'three';
+import { createBastionTracks } from '../../src/render/bastion-tracks';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { BASTION } from '../../src/content/bastion';
@@ -35,6 +36,34 @@ function validate(model: Group, budget: number, textured=false) {
 }
 
 describe('Blender cinematic asset contracts',()=>{
+  it('circulates textured Bastion links in four draws; stopped time/ground motion leaves them still', async () => {
+    const model = await asset(BOSS_ASSETS.bastion), chassis = new Group();
+    const tracks = createBastionTracks(model, chassis);
+    try {
+      const meshes = chassis.children as InstancedMesh[];
+      expect(meshes).toHaveLength(4);
+      expect(tracks.count).toBeGreaterThan(190); expect(tracks.count).toBeLessThan(210);
+      const geometry = meshes[0].geometry;
+      expect(geometry.getAttribute('uv')).toBeDefined();
+      const initial = meshes.map(mesh => [...mesh.instanceMatrix.array]);
+      tracks.advance(2, 0); tracks.advance(0, 1);
+      expect(meshes.map(mesh => [...mesh.instanceMatrix.array])).toEqual(initial);
+      tracks.advance(2, .1);
+      expect(tracks.travel).toBeCloseTo(.2);
+      expect(meshes.map(mesh => [...mesh.instanceMatrix.array])).not.toEqual(initial);
+      // Every link stays on its own belt, with unit scale (no stretching at wraparound).
+      const matrix = new Matrix4(), p = new Vector3(), q = new Quaternion(), scale = new Vector3();
+      for (const mesh of meshes) for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, matrix); matrix.decompose(p,q,scale);
+        expect(Math.abs(p.x)).toBeCloseTo(mesh.name.endsWith('0_moving') ? 2.19 : 3.29);
+        expect(p.y).toBeGreaterThan(-.1); expect(p.y).toBeLessThan(2.5);
+        expect(scale.distanceTo(new Vector3(1,1,1))).toBeLessThan(1e-5);
+      }
+      tracks.advance(-2, .1);
+      expect(tracks.travel).toBeCloseTo(0);
+      expect(meshes.map(mesh => [...mesh.instanceMatrix.array])).toEqual(initial);
+    } finally { tracks.dispose(); }
+  });
   // The selected boss assets (src/render/boss-assets.ts): v4 approved imports or v5 clean remodels
   // (tools/blender/boss_remodel.py). Weak-point rays come from the combat constants, so a rescaled
   // fortress is checked at its own targets.

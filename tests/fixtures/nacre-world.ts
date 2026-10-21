@@ -18,7 +18,7 @@ state.message = ''; state.messageUntil = 0;
 if (q.has('facility')) {
   spawnMembers(state, 'battery-3', state.cameraX, 1, 8);
   state.enemies = state.enemies.slice(1, 2);
-  state.enemies[0].x = state.cameraX; state.enemies[0].s = 8;
+  state.enemies[0].x = Number(q.get('gunX') ?? state.cameraX); state.enemies[0].s = Number(q.get('gunS') ?? 8);
   // Pick a stable cosmetic id for each authored size; the production selector still decides whether it fits.
   if (['small', 'large'].includes(q.get('facility') ?? '')) {
     const large = q.get('facility') === 'large';
@@ -34,6 +34,7 @@ const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start() {}, pause() {}, resume() {}, quit() {}, setMuted() {}, setQuality(quality) { renderer.setQuality(quality); },
 });
 const renderer = createRenderer(ui.canvas);
+Object.assign(window, { __FACILITY_QA__: { pan(x: number) { state.cameraX = state.player.x = x; } } });
 renderer.setQuality(q.get('quality') === 'low' ? 'low' : 'high');
 const observer = new ResizeObserver(() => { const rect = ui.canvas.getBoundingClientRect(); renderer.resize(rect.width, rect.height); });
 observer.observe(ui.canvas);

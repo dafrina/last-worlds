@@ -65,7 +65,7 @@ describe('Helion Ark', () => {
     const [left, right, bridge] = (['left', 'right', 'core'] as const).map(part => bossTarget(state, part)!);
     expect(left.maxHp + right.maxHp + bridge.maxHp).toBeCloseTo(3000 * BOSS_TOUGHNESS.hp, 6);
     expect([left.radius, right.radius, bridge.radius]).toEqual([0.75, 0.75, 1]);
-    expect(left.x - boss.x).toBeCloseTo(-2.4, 9);
+    expect(left.x - boss.x).toBeCloseTo(-HELION_ARK.radiatorOffset, 9);
     expect(left.s - boss.s).toBeCloseTo(-0.5, 9);
     expect(bridge.s - boss.s).toBeCloseTo(1.6, 9);
     expect(acquireTarget(state)).toBeUndefined();
@@ -136,9 +136,9 @@ describe('Helion Ark', () => {
     const core = overloadLanes(0, 0, ARK);
     expect(core).toEqual([{ x: 0, width: HELION_ARK.overload.coreLaneWidth }]);
     const sides = overloadLanes(0, 1, ARK);
-    expect(sides.map(lane => lane.x)).toEqual([-2.4, 2.4]);
+    expect(sides.map(lane => lane.x)).toEqual([-HELION_ARK.radiatorOffset, HELION_ARK.radiatorOffset]);
     // The bridge column (radius 1) stays clear of the radiator lanes for a 0.42 collider.
-    const innerEdge = 2.4 - HELION_ARK.overload.batteryLaneWidth / 2;
+    const innerEdge = HELION_ARK.radiatorOffset - HELION_ARK.overload.batteryLaneWidth / 2;
     expect(innerEdge - VIEW.playerRadius).toBeGreaterThan(HELION_ARK.bridgeRadius);
     const state = encounter();
     openBridge(state);

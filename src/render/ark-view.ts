@@ -18,7 +18,7 @@ const COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const PARTS = ['left', 'right', 'core'] as const;
 /** Reference trimaran's visual footprint; target positions are independent of the outer hull. */
 export const ARK_FOOTPRINT = { halfWidth: 5.7, bow: 4.4, stern: 7.46 } as const;
-/** Combat sockets in the Ark's local frame (local z = −s offset): radiators (∓2.4, 0, +0.5), bridge (0, 0, −1.6). */
+/** Combat sockets in the Ark's local frame (local z = −s offset): radiators (∓radiatorOffset, 0, +0.5), bridge (0, 0, −1.6). */
 export function arkSocket(part: BossPart): THREE.Vector3 {
   return part === 'core' ? new THREE.Vector3(0, 0, -HELION_ARK.bridgeS)
     : new THREE.Vector3(part === 'left' ? -HELION_ARK.radiatorOffset : HELION_ARK.radiatorOffset, 0, -HELION_ARK.radiatorS);

@@ -73,6 +73,10 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       </button>
       <div class="flight-overlay" data-no-steer>
         ${menuMarkup}
+        <section class="loading-panel short-panel" role="status" aria-live="polite" hidden>
+          <p class="eyebrow">LAST WORLDS</p><h2>PREPARING<br>FLIGHT</h2>
+          <button type="button" class="arcade-button secondary" data-action="loading-cancel">RETURN TO MENU</button>
+        </section>
         <section class="pause-panel short-panel" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
           <p class="eyebrow">FLIGHT SUSPENDED</p><h2 id="pause-title">PAUSED</h2>
           <p class="pause-description"></p>
@@ -225,7 +229,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   let displayedPhase = 'menu';
   let lastConfig: RunConfig = { mode: 'endless', seed: 1 };
   let iconKey = '';
-  let error = false;
+  let error = false, loading = false;
   let muted = false;
   let currentPanel = 'menu-panel';
   let settingsParent = 'menu-panel';
@@ -296,6 +300,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   function onAction(action: string, handler: () => void) {
     find(`[data-action="${action}"]`).addEventListener('click', handler, options);
   }
+  onAction('loading-cancel', () => actions.quit());
   onAction('endless', () => launch({ mode: 'endless', seed: seed() }));
   onAction('campaign', () => { refreshCampaign(); showPanel('campaign-panel', '.campaign-panel .back-button'); preview.show(MISSION_PLANET[MISSION_ORDER[missionIndex][0]]); });
   onAction('hangar', () => { refreshHangar(); showPanel('hangar-panel', '.hangar-panel .back-button'); });
@@ -400,6 +405,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   }, options);
 
   function showMenu() {
+    loading = false;
     cancelResume();
     if (lastState) { settleAttempt(lastState); flightLog.observe(lastState, true); }
     error = false;
@@ -412,7 +418,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   }
 
   function update(state: RunState | null) {
-    if (error) return;
+    if (error || loading) return;
     if (!state) {
       if (displayedPhase !== 'menu') showMenu();
       return;
@@ -532,6 +538,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
 
   return {
     canvas, surface, specialButton, update, showMenu,
+    showLoading(active: boolean) {
+      if (loading === active || error) return;
+      loading = active;
+      if (!active) { displayedPhase = 'loading'; return; }
+      cancelResume();
+      surface.dataset.inputActive = 'false'; surface.classList.remove('is-playing');
+      hud.hidden = specialButton.hidden = hints.hidden = message.hidden = true;
+      showPanel('loading-panel', '[data-action="loading-cancel"]');
+    },
     showError(errorMessage: string) {
       cancelResume();
       error = true;

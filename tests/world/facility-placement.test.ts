@@ -91,6 +91,29 @@ async function modular(planets: ('khepri'|'vesper'|'nacre'|'luna')[] = ['khepri'
   return {scene,facility,close(){facility.dispose();}};
 }
 const drawn = (scene: Scene, world: string) => scene.children.filter((o): o is InstancedMesh=>o instanceof InstancedMesh && o.name.startsWith(`fk_${world}_`) && o.visible);
+for (const version of [2,3] as const) it(`v${version} retains a prefetched kit until arrival and bounds old-world retention`, async () => {
+  const scene = new Scene(), facility = createFacilityView(scene, () => {}, version);
+  const state = createRun({mode:'endless',seed:8831});
+  try {
+    await facility.prepare('khepri');
+    facility.update(state, 'khepri', new Map());
+    const ahead = facility.prepare('vesper');
+    expect(facility.isReady('vesper')).toBe(false);
+    await ahead;
+    const prefetched = facility.warmupObjects().filter(o=>o.name.includes('vesper'));
+    expect(prefetched.length).toBeGreaterThan(0);
+    for (let i=0;i<120;i++) { state.tick++; facility.update(state,'khepri',new Map()); }
+    expect(facility.isReady('vesper')).toBe(true);
+    expect(facility.warmupObjects()).toEqual(expect.arrayContaining(prefetched));
+    facility.update(state,'vesper',new Map([[1,seat()]]));
+    expect(facility.loaded).toBe(true); expect(facility.count).toBe(1);
+    await facility.prepare('nacre');
+    expect(facility.warmupObjects().some(o=>o.name.includes('khepri'))).toBe(false);
+    facility.update(state,'nacre',new Map()); state.distance += 100;
+    facility.update(state,'nacre',new Map());
+    expect(facility.warmupObjects().some(o=>o.name.includes('vesper'))).toBe(false);
+  } finally { facility.dispose(); }
+});
 describe('v3 modular facility view',()=>{
   afterEach(()=>{ facilityOptions.standIns=true; vi.restoreAllMocks(); });
   it('draws each composed module once, turned by its yaw, buildings sunk by the tallest module and ground pieces on the seat',async()=>{

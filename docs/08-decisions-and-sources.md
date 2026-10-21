@@ -140,3 +140,9 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **Boss touch-ups:** the Ark's dark spire, which read as a comical giant windshield, is now a compact light cowl; the Bastion loses the boxy pieces over its treads, and its front tread armour is cut back.
   - **Vesper hero bolts:** a dark outline and a deeper cyan, so they read against snow.
 
+- 2026-10-21 (user decisions):
+  - **HELION ARK radiator targets** move to x ±2.75, onto the radiator blocks ("half the ring is not over the model"); the targets' s and size are unchanged.
+  - **Bastion treads** must move (instanced links).
+  - **No late-appearing facilities, infrastructure or bosses:** flights and warps wait for their world's assets.
+  - **Terrain cliffs** (in progress): crisp cliff walls where the landform is a cliff, after `art/concepts/01-worlds-direction.png`, smooth hills elsewhere.
+

@@ -7,7 +7,7 @@ y 5.85 instead of stopping at 3.9, so they flank the tower. Aft wing, turret pla
 the ceramic-white palette follow the source; the centre hull is chunkier and longer
 (y -2.45..5.25, user request), its bow flanks carrying the launch-bay hatches.
 
-Combat sockets are unchanged (src/content/ark.ts): radiators x = +-2.4 at s -0.5, bridge s 1.6,
+Combat sockets (src/content/ark.ts): radiators x = +-2.75 at s -0.5 (centred on these blocks since 21 October), bridge s 1.6,
 target height 1.6; radiators and the bridge lens sit on the 55-degree camera ray through each.
 Bay doors are the prow's flank plates and slide 0.9 outward, as in v4. Waterline z = 0. Backs and
 undersides plain.

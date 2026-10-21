@@ -1,5 +1,22 @@
 # Build status
 
+## Moving Bastion treads, no late assets, Ark target rings on the model, 21 October 2026
+
+- **Bastion treads (brief and most of the code by Codex; finished and verified by the integrator):**
+  - **The problem:** the remodelled Bastion's tread bars were baked into its hull, so the tracks stood still.
+  - **The fix:** `bastion-9-v6-treads.glb` (made by `tools/blender/repair_bastion_treads.py` from the v5 remodel, which keeps the atlas and AO) carries one link template per belt, with the belt's profile in its properties. The view circulates 204 instanced links around the drums (`src/render/bastion-tracks.ts`). They roll with the chassis, stop with it, and stay stopped once it is destroyed. v5 remains the rollback.
+- **No late appearances (Codex's brief):**
+  - **Flight start:** a flight starts only after its world is prepared. The renderer's `prepare(planet)` loads the terrain kits, facility kit, boss model and craft, uploads the atlases and compiles shaders under a "Preparing flight" panel, which can return to the menu without starting a stale flight.
+  - **Endless warps:** a warp whose destination is not ready by the flash holds the simulation, without ticking, until it is.
+  - **Facilities:** plants are seated for batteries just outside the view, so a lateral pan never reveals one being built.
+- **HELION ARK target rings:** half of each radiator ring hung over the water. The radiator targets (`radiatorOffset`) moved from x ±2.4 to ±2.75, the centre of the radiator blocks, so rings, hits and overload lanes all sit on the model. The safe bridge column between the overload lanes widens. Ark tests now read the constant.
+- **Checks:**
+  - typecheck clean; unit tests pass (397 with Codex's set, simulation 246/246 after the ring change, including the perfect-pilot runs);
+  - 13/13 browser cases for readiness, Bastion, facilities and bosses;
+  - the full suite is in the deploy commit;
+  - Ark rings inspected in game;
+  - no phone test.
+
 ## Terrain relief, terrain version 13 (docs/26), 20 October 2026
 
 - **What:** the user found Khepri, Vesper and Luna "a bit too flat often … like there's two plateaus", and Vesper short of infrastructure. Nacre is unchanged byte for byte.

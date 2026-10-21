@@ -43,10 +43,11 @@ test('safe areas protect controls and the newly filled lower screen steers; resi
 });
 
 test('desktop keeps a centered undistorted portrait frame, including narrower windows', async ({ browser },info) => {
-  const context=await browser.newContext({viewport:{width:1440,height:900},hasTouch:false});
+  // A fresh context does not inherit the config's `use`: pass its baseURL instead of a fixed dev-server port.
+  const context=await browser.newContext({viewport:{width:1440,height:900},hasTouch:false,baseURL:info.project.use.baseURL});
   try {
     const page=await context.newPage();
-    await page.goto('http://127.0.0.1:4173/tests/fixtures/endless-arena.html?sector=1');
+    await page.goto('/tests/fixtures/endless-arena.html?sector=1');
     for(const size of [{width:1440,height:900},{width:1024,height:1200}]) {
       await page.setViewportSize(size);
       await expect.poll(async()=>{

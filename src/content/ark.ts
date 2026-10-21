@@ -17,7 +17,8 @@ export const HELION_ARK = {
   bridgeHp: 1800,
   radiatorRadius: 0.75,
   bridgeRadius: 1,
-  radiatorOffset: 2.4,
+  /** Centred on the radiator blocks of the remodel (was 2.4: half the ring hung over the water, user 21 October). */
+  radiatorOffset: 2.75,
   radiatorS: -0.5,
   bridgeS: 1.6,
   /** Deck launch bays (Needle launch points), relative to the pivot. */

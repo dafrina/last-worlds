@@ -372,3 +372,6 @@ button:disabled { cursor: default; }
 /* Campaign victory (17 October): after the warp's flash the background fades to solid dark, so no level map shows behind the results. */
 .flight-overlay.is-ending.is-victory { animation-name: ending-veil-solid; }
 @keyframes ending-veil-solid { from { background-color: #08142600; } to { background-color: #081426; } }
+
+/* No unfinished scenery is exposed while a destination is being prepared. */
+.flight-overlay[data-page="loading-panel"] { background: #07101c; }

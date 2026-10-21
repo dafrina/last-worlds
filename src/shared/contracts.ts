@@ -113,6 +113,9 @@ export const VIEW = { width: 12, worldWidth: 30, sectionLength: 36, elevation: 5
 export const STEP = 1 / 60;
 export const EMPTY_INPUT: InputFrame = { horizontal: 0, specialPressed: false, pausePressed: false };
 export interface GameRenderer {
+  /** Load the whole destination, including its boss, before a flight/warp exposes it. */
+  prepare(planet: PlanetId): Promise<void>;
+  isReady(planet: PlanetId): boolean;
   render(state: RunState, alpha: number): void;
   resize(width: number, height: number): void;
   setQuality(quality: GraphicsQuality): void;
@@ -131,5 +134,6 @@ export interface UiActions {
 export interface GameUi {
   canvas: HTMLCanvasElement; surface: HTMLElement; specialButton: HTMLButtonElement;
   update(state: RunState | null): void; showMenu(): void; showError(message: string): void;
+  showLoading(active: boolean): void;
   dispose(): void;
 }

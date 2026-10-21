@@ -421,7 +421,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
-    if (next === 'vesper') ensureCraft(next); else foam.clear();
+    if (next === 'vesper') { ensureCraft(next); ensureArk(); } else foam.clear();
     if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
@@ -431,40 +431,41 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     waterMaterial: water.material, onPlanet: next => { terrainPlanet = next; } });
   terrain.setShadowFrustum(sunlight.shadow.getFrustum());
   let disposed = false, warmed = false;
+  const uploaded = new WeakSet<THREE.Texture>();
   // The Blender kit streams in after start; fallback pieces render until (or unless) it arrives.
-  loadKhepriKit(`${import.meta.env.BASE_URL}assets/khepri/khepri-kit.glb`).then(kit => {
+  const terrainLoad = loadKhepriKit(`${import.meta.env.BASE_URL}assets/khepri/khepri-kit.glb`).then(kit => {
     if (disposed) { kit.forEach(geometry => geometry.dispose()); return; }
     terrain.setKit(kit); warmed = false;
   }).catch(error => console.warn('Khepri kit unavailable; using fallback scenery.', error));
   // Modelled outposts replace the code-built stand-ins when khepri-infra.glb exists (docs/13 §3b).
-  loadKhepriInfra(`${import.meta.env.BASE_URL}assets/khepri/khepri-infra.glb`).then(infra => {
+  const infraLoad = loadKhepriInfra(`${import.meta.env.BASE_URL}assets/khepri/khepri-infra.glb`).then(infra => {
     if (disposed) { infra.forEach(geometry => geometry.dispose()); return; }
     terrain.setInfra(infra); warmed = false;
   }).catch(() => { /* Not shipped yet: the code-built outposts remain. */ });
   // The district kit (docs/23): the refinery's processing tower; a code-built stand-in until it loads.
-  loadDistrictKit(`${import.meta.env.BASE_URL}assets/khepri/district-kit.glb`).then(nodes => {
+  const districtLoad = loadDistrictKit(`${import.meta.env.BASE_URL}assets/khepri/district-kit.glb`).then(nodes => {
     if (disposed) { nodes.forEach(geometry => geometry.dispose()); return; }
     terrain.setInfra(nodes); warmed = false;
   }).catch(() => { /* The code-built tower remains. */ });
   // Shared pipes and tanks (docs/14), shaded from the Khepri palette; code-built stand-ins until they load.
-  loadSharedKit(`${import.meta.env.BASE_URL}assets/shared/industrial-kit.glb`).then(shared => {
+  const sharedLoad = loadSharedKit(`${import.meta.env.BASE_URL}assets/shared/industrial-kit.glb`).then(shared => {
     if (disposed) { shared.forEach(geometry => geometry.dispose()); return; }
     terrain.setShared(shared); emplacementGeometry = shared; warmed = false;
   }).catch(() => { /* Not shipped: the code-built stand-ins remain. */ });
   // The production fortress (docs/15) replaces the functional stand-in; if it fails, the stand-in remains.
-  loadBastionModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.bastion}`).then(model => {
+  const bastionLoad = loadBastionModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.bastion}`).then(model => {
     if (disposed) return;
     bastion.setModel(model); warmed = false;
   }).catch(error => console.warn('Bastion-9 model unavailable; using the functional fortress.', error));
   // Detail maps are optional polish: any map that fails keeps its procedural stand-in.
-  loadKhepriTextures(`${import.meta.env.BASE_URL}assets/khepri/textures/`, Math.min(2, renderer.capabilities.getMaxAnisotropy())).then(textures => {
+  const texturesLoad = loadKhepriTextures(`${import.meta.env.BASE_URL}assets/khepri/textures/`, Math.min(2, renderer.capabilities.getMaxAnisotropy())).then(textures => {
     if (disposed) { Object.values(textures).forEach(texture => texture?.dispose()); return; }
     terrainMaterials.setTextures(textures); warmed = false;
   });
   // Every craft is one mesh with the shared craft material; enemies of a kind are one instanced draw.
   const hero = createHero(materials); hero.scale.setScalar(HERO_SCALE); scene.add(hero);
   let heroModel = 'fallback';
-  loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/hero-scrapper.glb`, ['hero_scrapper'] as const).then(nodes => {
+  const heroLoad = loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/hero-scrapper.glb`, ['hero_scrapper'] as const).then(nodes => {
     const model = nodes.get('hero_scrapper');
     if (!model) return;
     if (disposed) { model.geometry.dispose(); return; }
@@ -507,7 +508,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * batches use the shared enemy material, so Luna's steel-blue repaint applies to these models too.
    */
   let khepriEngines: ReadonlyMap<EnemyKind, readonly (readonly [number, number])[]> | null = null;
-  loadKhepriCraft(`${import.meta.env.BASE_URL}assets/khepri/khepri-craft.glb`).then(nodes => {
+  const khepriLoad = loadKhepriCraft(`${import.meta.env.BASE_URL}assets/khepri/khepri-craft.glb`).then(nodes => {
     if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
     for (const kind of ENEMY_KINDS) {
       if (kind === 'fuel') continue;
@@ -522,7 +523,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const wreckBatches = new Map<string, THREE.InstancedMesh>();
   /** Seeker Rack missiles (fx_missile), yawed along their flight; the plain shot stands in until the model loads. */
   let missiles: THREE.InstancedMesh | null = null;
-  loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/loot-props.glb`, LOOT_NODES).then(nodes => {
+  const lootLoad = loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/loot-props.glb`, LOOT_NODES).then(nodes => {
     if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
     const fuel = nodes.get('loot_fuel'), batch = enemyBatches.get('fuel');
     if (fuel && batch) { batch.mesh.geometry = fuel.geometry; if (batch.ghost) batch.ghost.geometry = fuel.geometry; }
@@ -597,10 +598,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let hitTick = 0;
   /** Nacre craft batches by node, created once nacre-craft.glb has loaded (Nacre runs only). */
   let nacreBatches: Map<NacreCraftNode, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number }> | null = null, nacreRequested = false;
+  let nacreLoad: Promise<void> | undefined;
   function ensureNacreCraft() {
-    if (nacreRequested) return;
+    if (nacreRequested) return nacreLoad!;
     nacreRequested = true;
-    loadNacreCraft(`${import.meta.env.BASE_URL}assets/nacre/nacre-craft.glb`).then(nodes => {
+    return nacreLoad = loadNacreCraft(`${import.meta.env.BASE_URL}assets/nacre/nacre-craft.glb`).then(nodes => {
       if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
       const batches = new Map<NacreCraftNode, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number }>();
       for (const [name, craft] of nodes) {
@@ -623,10 +625,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     }).catch(error => console.warn('Nacre craft unavailable (nacre-craft.glb); using Khepri and Vesper models.', error));
   }
   let vesperBatches: Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }> | null = null, craftRequested = false;
+  let craftLoad: Promise<void> | undefined;
   function ensureCraft(next: PlanetId | 'kinds') {
-    if (next === 'khepri' || next === 'luna' || craftRequested) return;
+    if (next === 'khepri' || next === 'luna') return Promise.resolve();
+    if (craftRequested) return craftLoad!;
     craftRequested = true;
-    loadVesperCraft(`${import.meta.env.BASE_URL}assets/vesper/vesper-craft.glb`).then(nodes => {
+    return craftLoad = loadVesperCraft(`${import.meta.env.BASE_URL}assets/vesper/vesper-craft.glb`).then(nodes => {
       if (disposed) { nodes.forEach(geometry => geometry.dispose()); return; }
       const batches = new Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }>();
       for (const kind of ENEMY_KINDS) {
@@ -681,41 +685,45 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ark = createArkView(scene);
   const warden = createWardenView(scene);
   const veil = createVeilView(scene);
-  let wardenRequested = false;
+  let wardenLoad: Promise<void> | undefined;
   /** WARDEN-1's production model (warden.glb) loads with Luna; the code-built stand-in renders until then. */
   const ensureWarden = () => {
-    if (wardenRequested) return;
-    wardenRequested = true;
-    loadWardenModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.warden}`).then(model => { if (!disposed) { warden.setModel(model); warmed = false; } })
+    if (wardenLoad) return wardenLoad;
+    return wardenLoad = loadWardenModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.warden}`).then(model => { if (!disposed) { warden.setModel(model); warmed = false; } })
       .catch(error => console.warn('WARDEN-1 model unavailable; using the code-built stand-in.', error));
   };
-  let veilRequested = false;
+  let veilLoad: Promise<void> | undefined;
   /** THE VEIL's production model (the-veil.glb) loads with Nacre; the code-built stand-in renders until then. */
   const ensureVeil = () => {
-    if (veilRequested) return;
-    veilRequested = true;
-    loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.veil}`).then(model => { if (!disposed) { veil.setModel(model); warmed = false; } })
+    if (veilLoad) return veilLoad;
+    return veilLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.veil}`).then(model => { if (!disposed) { veil.setModel(model); warmed = false; } })
       .catch(error => console.warn('THE VEIL model unavailable; using the code-built stand-in.', error));
   };
-  let arkRequested = false;
+  let arkLoad: Promise<void> | undefined;
   const ensureArk = () => {
-    if (arkRequested) return;
-    arkRequested = true;
-    loadArkModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.ark}`).then(model => { if (!disposed) { ark.setModel(model); warmed = false; } })
+    if (arkLoad) return arkLoad;
+    return arkLoad = loadArkModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.ark}`).then(model => { if (!disposed) { ark.setModel(model); warmed = false; } })
       .catch(error => console.warn('Helion Ark model unavailable; using the functional carrier.', error));
   };
   /*
    * Endless planet cycle (docs/18 §4): the next planet's render assets load during the boss sector, never mid-jump,
    * and stay cached. Khepri's load at start; Vesper's are its craft, the Helion Ark and its prefiltered sky.
    */
-  const preload = (next: PlanetId) => {
-    // Nacre flies its own craft (and keeps the Vesper models as a fallback): both load before the jump.
-    if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); ensureCraft('kinds'); return; }
-    if (next !== 'vesper') return;
-    ensureCraft('vesper'); ensureArk();
-    if (!iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
+  const prepared = new Set<PlanetId>();
+  const preloads = new Map<PlanetId, Promise<void>>();
+  const facilityPrefetches = new Map<PlanetId, Promise<void>>();
+  const preload = (next: PlanetId): Promise<void> => {
+    // Pin the next world's facility kit: the current-world update must not evict a prefetch.
+    const facilityLoad = facilities.prepare(next);
+    if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
+    facilityPrefetches.set(next, facilityLoad);
+    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'luna' ? ensureWarden() : bastionLoad;
+    if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
+    const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
+      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), next === 'nacre' ? ensureNacreCraft() : undefined]).then(() => { prepared.add(next); });
+    preloads.set(next, loading); return loading;
   };
-  const planetReady = (next: PlanetId) => next === 'nacre' ? !!nacreBatches || !!vesperBatches : next !== 'vesper' || (!!vesperBatches && !!iceEnvironment);
+  const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
   const jumpFx = createJumpFx(scene);
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
@@ -809,6 +817,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let drawingWidth = 1, drawingHeight = 1;
   const resizePost = () => post.setSize(drawingWidth * renderer.getPixelRatio(), drawingHeight * renderer.getPixelRatio());
   return {
+    prepare: preload,
+    isReady: planetReady,
     setQuality(next) {
       if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); resizePost();
@@ -901,10 +911,19 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // a boss's first frame never stalls on shader compilation and it glides in instead of popping up mid-view.
         const bossParts: THREE.Object3D[] = [];
         for (const name of ['Bastion-9', 'Helion Ark', 'WARDEN-1', 'THE VEIL']) scene.getObjectByName(name)?.traverse(object => { bossParts.push(object); });
-        const pieces = [...terrain.warmupObjects(), ...jumpFx.objects, ...bossParts];
+        const pieces = [...terrain.warmupObjects(), ...facilities.warmupObjects(), ...jumpFx.objects, ...bossParts];
         pieces.forEach(piece => { piece.userData.wasVisible = piece.visible; piece.visible = true; });
+        // Upload decoded atlases now, including hidden facility/boss materials. Shader compilation
+        // alone does not upload textures and otherwise defers that cost to the first visible draw.
+        scene.traverse(object => {
+          if (!(object instanceof THREE.Mesh)) return;
+          for (const material of Array.isArray(object.material) ? object.material : [object.material])
+            for (const value of Object.values(material)) if (value instanceof THREE.Texture && !uploaded.has(value)) {
+              renderer.initTexture(value); uploaded.add(value);
+            }
+        });
         renderer.compile(scene, camera);
-        pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true;
+        pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true; lastStatsTick = -Infinity;
       }
       placeSun(state.cameraX, state.distance);
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
@@ -969,7 +988,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (enemy.bossPart) continue;
         const isGround = GROUND_KINDS.has(enemy.kind);
         const visible = Math.abs(enemy.x - state.cameraX) < VIEW.width / 2 + 1 && enemy.s > VIEW.minS - 2 && enemy.s < VIEW.maxS + 3;
-        if (!visible) continue;
+        if (!visible && !isGround) continue;
         // A ground battery over open water rides a pontoon: its core sits PONTOON_DECK higher, still on its logical pixel.
         const afloat = isGround && world.planet.seaLevel !== null && surfaceHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) <= sea + 1e-6
           && terrainHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) < sea - .05;
@@ -978,6 +997,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, -Infinity, world)
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
         if (isGround && enemy.hp > 0) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight });
+        // A compound is much wider than its gun. Seat all live ground batteries ahead of the view,
+        // including lateral neighbours; only the small gun draw uses the tight visibility test.
+        if (!visible) continue;
         if (afloat) {
           if (pontoonCount < pontoons.instanceMatrix.count) {
             transform.position.set(placement.x ?? enemy.x, placement.baseHeight + Math.sin(state.time * 1.1 + enemy.id) * .012, -placement.s);

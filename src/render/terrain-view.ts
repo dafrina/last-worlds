@@ -164,7 +164,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   /** The planet the look shows (ground material, onPlanet); on a route it switches at a jump's flash. */
   let lookPlanet: PlanetId | null = null, viewFallbacks = 0;
   let water: THREE.Material | null = options.waterMaterial ?? null;
-  const loadedPlanets = new Set<PlanetId>(['khepri']);
+  const planetLoads = new Map<PlanetId, Promise<void>>();
   const views = new Map<number, SectionView>(), batches = new Map<string, Batch>();
   const pieces = new THREE.Group(); pieces.name = 'Khepri instanced scenery'; scene.add(pieces);
   const edgeGeometry = new THREE.BoxGeometry(0.06, 0.018, 1.5);
@@ -516,23 +516,22 @@ export function createTerrainView(options: TerrainViewOptions) {
     options.onPlanet?.(planet);
   }
   /** Loads a planet's own kits on first use (Vesper: ice kit and infrastructure; fallbacks render meanwhile). */
-  function ensurePlanet(planet: PlanetId) {
-    if (loadedPlanets.has(planet)) return;
-    loadedPlanets.add(planet);
-    if (planet === 'nacre') {
-      // Nacre's Blender kit (rock, flora, ruins); the light code-built stand-ins draw until it arrives.
-      const base = options.assetBase ?? (import.meta.env?.BASE_URL ?? './');
-      loadNacreKit(`${base}assets/nacre/nacre-kit.glb`).then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); })
-        .catch(error => console.warn('Nacre kit unavailable; using stand-ins.', error));
-      return;
-    }
-    if (planet !== 'vesper') return;
-    self.setInfra(createFallbackVesperInfra());
+  function ensurePlanet(planet: PlanetId): Promise<void> {
+    if (planetLoads.has(planet)) return planetLoads.get(planet)!;
     const base = options.assetBase ?? (import.meta.env?.BASE_URL ?? './');
-    loadVesperKit(`${base}assets/vesper/vesper-kit.glb`).then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); })
-      .catch(error => console.warn('Vesper kit unavailable; using fallback ice.', error));
-    loadVesperInfra(`${base}assets/vesper/vesper-infra.glb`).then(loaded => { if (!disposed) self.setInfra(loaded); else loaded.forEach(g => g.dispose()); })
-      .catch(error => console.warn('Vesper infrastructure unavailable; using stand-ins.', error));
+    const jobs: Promise<unknown>[] = [];
+    if (planet === 'nacre') jobs.push(loadNacreKit(`${base}assets/nacre/nacre-kit.glb`)
+      .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
+    if (planet === 'vesper') {
+      self.setInfra(createFallbackVesperInfra());
+      jobs.push(loadVesperKit(`${base}assets/vesper/vesper-kit.glb`)
+        .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
+      jobs.push(loadVesperInfra(`${base}assets/vesper/vesper-infra.glb`)
+        .then(loaded => { if (!disposed) self.setInfra(loaded); else loaded.forEach(g => g.dispose()); }));
+    }
+    // Failed requests settle too: retain a stable fallback instead of blocking a flight forever.
+    const loading = Promise.all(jobs.map(job => job.catch(error => console.warn(`${planet} scenery unavailable; retaining stand-ins.`, error)))).then(() => {});
+    planetLoads.set(planet, loading); return loading;
   }
   let disposed = false;
   /** Drifting pack ice (one dynamic batch per kit node), refilled every frame by animate(). */
@@ -649,6 +648,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   }
 
   const self = {
+    prepare: ensurePlanet,
     /**
      * Keeps the three-section window built for the seed and forward distance. `next` is the world:
      * `{ planet, arena }` (a bare arena still means Khepri; omit for Khepri without an arena), or a route

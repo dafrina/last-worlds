@@ -40,7 +40,9 @@ export interface FacilityView {
   /** The battery has a plant, or (v3) may still get one once its world's kit has loaded: no legacy emplacement yet. */
   contains(id: number): boolean;
   /** Starts loading a planet's plants ahead of its first battery. */
-  prepare(planet: PlanetId): void;
+  prepare(planet: PlanetId): Promise<void>;
+  isReady(planet: PlanetId): boolean;
+  warmupObjects(): THREE.Object3D[];
   /**
    * `reserved`: district pads (docs/23 §4.8). A compound never covers one; that battery keeps its legacy emplacement.
    * `ground` (v3): the terrain surface, sampled once per plant so each apron tile lies on the ground it covers.
@@ -89,13 +91,15 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
   /** Batteries seen while their world's kit was still loading: they wait for it instead of taking legacy pieces. */
   const waiting = new Set<number>();
   const transform = new THREE.Object3D();
+  const loads = new Map<PlanetId, Promise<void>>();
+  let prefetched: PlanetId | null = null;
   let disposed = false, config: RunState['config'] | null = null, lastTick = -1, current: PlanetId | null = null, drawn = 0;
   const ready = (planet: FacilityWorld) => { const kit = kits.get(planet); return typeof kit === 'object' ? kit : null; };
   function prepare(world: FacilityWorld) {
-    if (kits.has(world)) return;
+    if (loads.has(world)) return loads.get(world)!;
     kits.set(world, 'loading');
     const nodes = modulesOf(world).map(module => module.node), standIns = facilityOptions.standIns;
-    loadTexturedNodes(kitUrl(world), nodes).catch(error => {
+    const loading = loadTexturedNodes(kitUrl(world), nodes).catch(error => {
       if (!standIns) throw error;
       console.warn(`Facility kit for ${world} unavailable; drawing registry stand-ins (development only).`, error);
       return new Map<string, TexturedPart[]>();
@@ -128,6 +132,7 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
       });
       onReady();
     }).catch(error => { kits.set(world, 'failed'); console.warn(`Facility kit for ${world} unavailable; retaining the smaller battery emplacements.`, error); });
+    loads.set(world, loading); return loading;
   }
   return {
     get loaded() { return current !== null && ready(current) !== null; },
@@ -139,7 +144,9 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
         kits: Object.fromEntries([...kits].map(([world, kit]) => [world, typeof kit === 'object' ? kit.source : kit])), modules: drawn };
     },
     contains(id: number) { return waiting.has(id) || plants.some(p => p.id === id); },
-    prepare(planet: PlanetId) { prepare(planet); },
+    prepare(planet: PlanetId) { prefetched = planet; return prepare(planet); },
+    isReady(planet: PlanetId) { return kits.has(planet) && kits.get(planet) !== 'loading'; },
+    warmupObjects() { return [...kits.values()].flatMap(kit => typeof kit === 'object' ? [...kit.batches.values()].flat() : []); },
     update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved: readonly Reservation[] = [],
       ground?: (x: number, s: number) => number) {
       if (config !== state.config || state.tick < lastTick) { plants.length = 0; decided.clear(); waiting.clear(); config = state.config; }
@@ -179,7 +186,7 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
       kits.forEach((kit, site) => {
         if (typeof kit !== 'object') return;
         // A world left behind releases its kit once its last plant is gone (endless revisits reload it).
-        if (site !== planet && !plants.some(p => p.plant.world === site)) { kit.dispose(); kits.delete(site); return; }
+        if (site !== planet && site !== prefetched && !plants.some(p => p.plant.world === site)) { kit.dispose(); kits.delete(site); loads.delete(site); return; }
         // Unused nodes skip their draw entirely.
         kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.visible = mesh.count > 0; mesh.instanceMatrix.needsUpdate = true; }));
       });
@@ -257,13 +264,15 @@ const assetOf = (planet: Site) => `${import.meta.env.BASE_URL}assets/${planet}/f
 function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityView {
   const kits = new Map<Site, CompoundKit | 'loading' | 'failed'>(), compounds: Compound[] = [];
   const transform = new THREE.Object3D();
+  const loads = new Map<PlanetId, Promise<void>>();
+  let prefetched: PlanetId | null = null;
   let disposed = false, config: RunState['config'] | null = null, lastTick = -1, current: PlanetId | null = null;
   const ready = (planet: Site) => { const kit = kits.get(planet); return typeof kit === 'object' ? kit : null; };
   function prepare(planet: Site) {
-    if (kits.has(planet)) return;
+    if (loads.has(planet)) return loads.get(planet)!;
     kits.set(planet, 'loading');
     const nodes: Node[] = [`facility_${planet}`, `facility_${planet}_large`];
-    loadTexturedNodes(assetOf(planet), nodes).then(found => {
+    const loading = loadTexturedNodes(assetOf(planet), nodes).then(found => {
       const release = releaser(found.values());
       if (disposed || found.size !== nodes.length) {
         release();
@@ -283,6 +292,7 @@ function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityVi
       kits.set(planet, { batches, dispose() { batches.forEach(meshes => meshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); })); release(); } });
       onReady();
     }).catch(error => { kits.set(planet, 'failed'); console.warn(`Facility compounds for ${planet} unavailable; retaining the smaller battery emplacements.`, error); });
+    loads.set(planet, loading); return loading;
   }
   return {
     get loaded() { return current === 'luna' || (current !== null && ready(current) !== null); },
@@ -291,7 +301,9 @@ function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityVi
     get stats(): FacilityStats { return { version: 2, loaded: this.loaded, count: this.count, large: this.largeCount }; },
     contains(id: number) { return compounds.some(c => c.id === id); },
     get clearings() { return compounds.map(c => { const b = bounds(c.node); return { minX: c.x - b.halfX, maxX: c.x + b.halfX, minS: c.s + b.minS, maxS: c.s + b.maxS }; }); },
-    prepare(planet: PlanetId) { if (planet !== 'luna') prepare(planet); },
+    prepare(planet: PlanetId) { prefetched = planet; return planet === 'luna' ? Promise.resolve() : prepare(planet); },
+    isReady(planet: PlanetId) { return planet === 'luna' || (kits.has(planet) && kits.get(planet) !== 'loading'); },
+    warmupObjects() { return [...kits.values()].flatMap(kit => typeof kit === 'object' ? [...kit.batches.values()].flat() : []); },
     update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved: readonly Reservation[] = []) {
       if (config !== state.config || state.tick < lastTick) { compounds.length = 0; config = state.config; }
       lastTick = state.tick; current = planet;
@@ -332,7 +344,7 @@ function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityVi
       kits.forEach((kit, site) => {
         if (typeof kit !== 'object') return;
         // A planet left behind releases its atlases once its last plant is gone (endless revisits reload them).
-        if (site !== planet && !compounds.some(c => c.planet === site)) { kit.dispose(); kits.delete(site); return; }
+        if (site !== planet && site !== prefetched && !compounds.some(c => c.planet === site)) { kit.dispose(); kits.delete(site); loads.delete(site); return; }
         kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; }));
       });
     },

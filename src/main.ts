@@ -17,6 +17,8 @@ const audio = createGameAudio();
 let lastPauseReason = '';
 let maxFrameMs = 0;
 let warmupFrames = 2;
+let launchId = 0, startPaused = false, waitingForWorld = false;
+let loadingRun: RunState | null = null;
 /**
  * Ending afterglow (presentation only). The real run is over and is never stepped again; a throwaway copy keeps the
  * world moving while the results fade in, and nothing in the copy can reach the log, score or results.
@@ -77,6 +79,7 @@ function updateAfterglow(frameSeconds: number) {
 }
 
 function pause(reason = 'manual') {
+  if (loadingRun) startPaused = true;
   audio.pause();
   if (run?.phase !== 'playing') return;
   run.phase = 'paused';
@@ -87,17 +90,31 @@ function pause(reason = 'manual') {
   ui.update(run);
 }
 
-function start(config: RunConfig) {
-  run = createRun(config);
-  audio.start(run);
-  input.clear();
-  pendingSpecial = false;
-  accumulator = 0;
-  lastTime = performance.now();
-  warmupFrames = 2;
-  maxFrameMs = 0;
-  lastPauseReason = '';
-  ui.update(run);
+async function start(config: RunConfig) {
+  const id = ++launchId, candidate = createRun(config);
+  run = null; afterglow = null; loadingRun = candidate; startPaused = false;
+  candidate.phase = 'paused';
+  // Unlock on the initiating gesture; music starts only after loading finishes.
+  audio.quit(); audio.unlock(); input.clear();
+  ui.showLoading(true);
+  try {
+    await renderer?.prepare(candidate.planet);
+    if (id !== launchId) return;
+    // Compile and upload the actual destination under the loading panel, before its clock starts.
+    renderer?.render(candidate, 0);
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    if (id !== launchId) return;
+    run = candidate; loadingRun = null;
+    run.phase = startPaused || document.hidden || sideways?.matches ? 'paused' : 'playing';
+    audio.start(run); if (run.phase === 'paused') audio.pause();
+    pendingSpecial = false; accumulator = 0; lastTime = performance.now();
+    warmupFrames = 2; maxFrameMs = 0; lastPauseReason = startPaused ? 'loading-blur' : '';
+    ui.showLoading(false); ui.update(run);
+  } catch (error) {
+    if (id !== launchId) return;
+    loadingRun = null; console.error('Flight preparation failed', error);
+    ui.showError('The flight could not be prepared. Reload to try again.');
+  }
 }
 
 const ui = createUi(root, {
@@ -114,6 +131,7 @@ const ui = createUi(root, {
     ui.update(run);
   },
   quit() {
+    ++launchId; loadingRun = null; waitingForWorld = false;
     audio.quit();
     input.clear();
     run = null;
@@ -176,10 +194,21 @@ function frame(now: number) {
   // Actual background/blur events pause explicitly; neither path simulates unseen time.
   const frameSeconds = elapsed > 0.25 ? 0 : Math.min(elapsed, STEP * 5);
   if (elapsed > 0.25) accumulator = 0;
-  if (run?.phase === 'playing') {
+  // If an unusually slow connection outlasts the sector's prefetch, hold before the warp
+  // switches worlds. No combat ticks, inputs, or unseen flight time are consumed while waiting.
+  const destinationPending = () => !!(run?.jump && run.time + STEP >= run.jump.startedAt + run.jump.duration * .48
+    && renderer && !renderer.isReady(run.jump.to));
+  if (run?.jump) void renderer?.prepare(run.jump.to);
+  const pendingWorld = destinationPending();
+  if (pendingWorld !== waitingForWorld) {
+    waitingForWorld = pendingWorld; input.clear(); pendingSpecial = false; accumulator = 0;
+    if (pendingWorld) audio.pause(); else if (run?.phase === 'playing') audio.resume();
+  }
+  ui.showLoading(!!loadingRun || waitingForWorld);
+  if (run?.phase === 'playing' && !waitingForWorld) {
     pendingSpecial ||= controls.specialPressed;
     accumulator += frameSeconds;
-    while (accumulator >= STEP && run.phase === 'playing') {
+    while (accumulator >= STEP && run.phase === 'playing' && !destinationPending()) {
       stepRun(run, { horizontal: controls.horizontal, specialPressed: pendingSpecial, pausePressed: false }, STEP);
       pendingSpecial = false;
       accumulator -= STEP;
@@ -187,7 +216,7 @@ function frame(now: number) {
   }
   if (run) audio.observe(run);
   const dying = updateAfterglow(frameSeconds);
-  renderer?.render(dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
+  renderer?.render(loadingRun ?? dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
   ui.update(run);
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });
   requestAnimationFrame(frame);

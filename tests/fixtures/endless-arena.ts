@@ -41,6 +41,18 @@ const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start() {}, pause() {}, resume() {}, quit() {}, setMuted() {}, setQuality(q) { renderer.setQuality(q); },
 });
 const renderer = createRenderer(ui.canvas);
+// Render-only controls for the tread regression: keep the encounter/targets fixed.
+if (query.has('tracks')) {
+  state.scrollSpeed = 2; state.boss!.vs = 0;
+  Object.assign(window, { __TRACK_QA__: {
+    stop() { state.scrollSpeed = 0; state.boss!.vs = 0; },
+    destroy() {
+      state.scrollSpeed = 2;
+      for (const part of ['left','right','core'] as const) bossTarget(state, part)!.hp = 0;
+      resolveBossPhase(state);
+    },
+  } });
+}
 renderer.setQuality(query.get('quality') === 'low' ? 'low' : 'high');
 const observer = new ResizeObserver(() => { const rect=ui.canvas.getBoundingClientRect(); renderer.resize(rect.width,rect.height); });
 observer.observe(ui.canvas);
