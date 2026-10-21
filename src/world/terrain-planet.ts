@@ -71,6 +71,11 @@ export interface PlanetProfile {
   /** False on a planet without roads or pipelines between settlements (Luna). */
   networks?: boolean;
   /**
+   * Crisp cliffs (terrain version 14, docs/26 §10): vertex colours and the rock mask read the gentler one-sided slope,
+   * so rims and feet keep their flat side's colour and the ground shader draws walls per face. Off (Nacre): unchanged.
+   */
+  cliffs?: boolean;
+  /**
    * District slots and layout (docs/23). Null or absent: the planet has no districts and its output is exactly the
    * pre-district output (rollback switch: `KHEPRI.districts = null`).
    */
@@ -95,7 +100,7 @@ export const KHEPRI: PlanetProfile = {
   scatter: scatterKitSteps,
   floes: function* () { return []; },
   industrial: new Set(['refinery', 'pumping', 'mining', 'plant']), quiet: new Set(['wreck', 'abandoned']),
-  districts: KHEPRI_DISTRICTS,
+  districts: KHEPRI_DISTRICTS, cliffs: true,
 };
 
 export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE };

@@ -1,5 +1,30 @@
 # Build status
 
+## Crisp cliffs, terrain version 14 (docs/26 §10), 21 October 2026
+
+- **What:** the user disliked "rounded cliff faces" and asked for sharp walls where the land is a cliff and smooth hills elsewhere, true to `art/concepts/01-worlds-direction.png`. Nacre is unchanged, byte for byte and on screen.
+- **Cause:**
+  - every rim was a smoothstep profile;
+  - vertex normals were averaged across the rim;
+  - wall colour and texture were per-vertex blends that bled a cell onto every top (72–91% of rim vertices came out darker than their top).
+- **Fix:**
+  - **Generator:** hard-rimmed cliff profiles with a talus at the foot, for Khepri benches, mesas and canyons, Vesper ice steps, coasts, leads and crevasses, and Luna scarps, rilles and crater ledges. Rim and foot vertices take their flat side's colour.
+  - **Ground shader (`terrain-kit.ts`):**
+    - each triangle's own plane decides top or wall, so rims are hard edges;
+    - the walls' own material: Khepri columnar basalt, Vesper ice with vertical fractures, Luna darker regolith;
+    - flat-lying triangles at rims and feet shade by their own plane;
+    - walls and smooth hills keep smooth normals, and Luna keeps them everywhere.
+  - **Vesper:** crevasses run across the flight line, the route-parallel ice cliffs are gone, and harbours stand on open water with jetties.
+  - `terrain-view.ts` did not need to change.
+- **Checks (WSL, load average 4–20):**
+  - typecheck clean; 398/398 unit tests (default config);
+  - re-recorded Khepri fingerprints; Nacre fingerprint unchanged; new crisp-profile and rim-colour tests;
+  - budget on High: Khepri ≤ 55 calls and ≤ 77.2k triangles (75.4k before), Vesper ≤ 46 and ≤ 67.9k, Luna ≤ 20 and ≤ 46.6k; Low under High;
+  - generation cost unchanged.
+- **Browser streaming (SwiftShader, about 15 fps):** Vesper and Luna at 11 units/s and Khepri at 5 units/s have no fallbacks. Through Khepri's district at 11 units/s, v14 showed 0–2 fallbacks across five runs, against none for v13 in four runs. The new ground program shows a one-off render spike of about 230 ms there (about 15 ms on v13), likely its compile.
+- **Evidence:** `docs/screenshots/terrain/cliffs-{khepri,vesper,luna}.jpg` (top v13, bottom v14). Raw frames are in `lookdev/terrain-v14/`.
+- **Limits:** no phone test; rims on diagonals can show the 0.25 grid's small steps; no new wall geometry (Khepri's blocky columns come from the existing kit).
+
 ## Moving Bastion treads, no late assets, Ark target rings on the model, 21 October 2026
 
 - **Bastion treads (brief and most of the code by Codex; finished and verified by the integrator):**

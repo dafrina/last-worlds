@@ -14,7 +14,8 @@ test('campaign offers Cold Vector on Vesper and launches it without browser erro
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Cold Vector', exact: true }).click();
   await expect(page.locator('.mission-description')).toContainText('Helion Ark');
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
-  await expect.poll(async () => (await snapshot(page))?.phase).toBe('playing');
+  // Launch now waits for the planet's assets ("Preparing flight"), which can exceed the default 5 s under load.
+  await expect.poll(async () => (await snapshot(page))?.phase, { timeout: 30_000 }).toBe('playing');
   expect((await snapshot(page)).config.mission).toBe('cold-vector');
   await expect(page.locator('canvas.flight-canvas')).toHaveAttribute('data-render-stats', /"calls":/);
   await page.getByRole('button', { name: 'Pause flight' }).click();

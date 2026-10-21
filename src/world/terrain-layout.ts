@@ -203,15 +203,32 @@ function levelField(seed: number, x: number, s: number, mood: MoodParams, calm: 
 
 /**
  * Cuts a smooth level field into flat benches whose risers are `riser` world units wide whatever the slope (`slope` is
- * |∇level|). Where contours crowd closer than about 1.2 risers the field keeps its smooth slope, so a riser never
+ * |∇level|), each a crisp cliff (`cliff`: hard rim, talus foot). Where contours crowd closer than about 1.2 risers the field keeps its smooth slope, so a riser never
  * shrinks under two grid cells (no stair aliasing). `phase` offsets the bench heights; `strength` blends (0 = smooth).
  * `edges` (default: the level) is the field whose contours place the cliffs, so fine relief can make cliff lines wander
  * into spurs and bays without roughening the slopes in between; `slope` is then its gradient.
  */
 export function bench(level: number, slope: number, step: number, phase: number, riser: number, strength: number, edges = level): number {
   const spacing = step / Math.max(1e-4, slope), q = (edges - phase) / step, tier = Math.floor(q), up = (1 - (q - tier)) * spacing;
-  const benched = phase + (tier + smooth(1 - up / riser)) * step;
+  const benched = phase + (tier + cliff(1 - up / riser)) * step;
   return mix(level, benched, strength * smoothRange(1.2, 2.2, spacing / riser));
+}
+/**
+ * A cliff profile across its width, 0 at the foot and 1 at the rim (terrain version 14, docs/26 §10): the face is
+ * steepest at the rim, which meets the flat top in a hard crease, and eases into a talus at the foot. (Version 13
+ * used a smoothstep, which rounded both edges.)
+ */
+export const cliff = (t: number) => { const u = clamp(t); return u * u; };
+/** Cliff with a talus: a sheer face over the top `face` share of the width carries `drop` of the height (rim crease
+ * on top, a concave talus below). 0 at the foot, 1 at the rim. */
+/**
+ * A step that keeps a smoothstep's lower half (so a waterline or bank foot stays where it was) and then runs straight
+ * up into a hard rim crease, short of where the smoothstep would have rounded off. 0 at the foot, 1 on top.
+ */
+export const crispStep = (t: number) => { const u = clamp(t); return u < 0.5 ? u * u * (3 - 2 * u) : Math.min(1, 0.5 + 1.5 * (u - 0.5)); };
+export function cliffTalus(t: number, face = 0.45, drop = 0.75): number {
+  const u = clamp(t), knee = 1 - face;
+  return u >= knee ? 1 - drop + drop * (u - knee) / face : (1 - drop) * (u / knee) * (u / knee);
 }
 
 /**
@@ -294,8 +311,9 @@ function mesaSurface(seed: number, x: number, s: number): number {
     // apron carries the rest down below the ground.
     const cap = CAP_RISER + 0.12 * c.rise;
     if (out > cap + TALUS) continue;
-    let surface = c.top - c.rise * (0.62 * smoothRange(0, cap, out) + 0.5 * smoothRange(cap * 0.5, cap + TALUS, out));
-    if (c.tier > 0) surface = Math.max(surface, c.tierTop - (c.tierTop - c.top + 0.3) * smoothRange(0, CAP_RISER + 0.12 * (c.tierTop - c.top), (d - c.tier) * c.r));
+    // The rim is a hard crease: the cap rock falls away steepest at its edge (version 14; a smoothstep rounded it).
+    let surface = c.top - c.rise * (0.62 * (1 - cliff(1 - out / cap)) + 0.5 * smoothRange(cap * 0.5, cap + TALUS, out));
+    if (c.tier > 0) surface = Math.max(surface, c.tierTop - (c.tierTop - c.top + 0.3) * (1 - cliff(1 - (d - c.tier) * c.r / (CAP_RISER + 0.12 * (c.tierTop - c.top)))));
     if (surface > best) best = surface;
   }
   return best;
@@ -334,13 +352,14 @@ export function landform(seed: number, x: number, s: number, mood: MoodParams, c
   const t0 = along(field, 0x3c57, 0.034, 0.03), trunkGrad = Math.hypot(along(east, 0x3c57, 0.034, 0.03) - t0, along(north, 0x3c57, 0.034, 0.03) - t0) / PROBE;
   const trunkDistance = Math.abs(t0) / Math.max(trunkGrad, 1e-4), drop = Math.max(0, height - floor);
   const wall = Math.max(1.1, drop / 3), t = clamp((trunkDistance - mix(0.5, 3, mood.depth)) / wall), k = t * 3, ledge = Math.floor(k);
-  const profile = mix(smooth(t), (ledge + smoothRange(0.5, 1, k - ledge)) / 3, 0.7 * mood.depth);
+  // A sheer face under a hard rim with a talus below (ledged in deep canyons, each ledge with its own crisp rim).
+  const profile = mix(cliffTalus(t), (ledge + cliff((k - ledge - 0.45) / 0.55)) / 3, 0.7 * mood.depth);
   const trunk = (1 - profile) * mood.carve * graded;
   if (trunk > 0) height = mix(height, Math.min(height, floor), trunk);
   // Tributaries: narrower, shallower side canyons cut into the higher ground.
   const r0 = along(field, 0x3c58, 0.085, 0.075), tributaryGrad = Math.hypot(along(east, 0x3c58, 0.085, 0.075) - r0, along(north, 0x3c58, 0.085, 0.075) - r0) / PROBE;
   const sideFloor = Math.max(floor, height - 3.2), sideWall = Math.max(0.8, (height - sideFloor) / 2.2);
-  const tributary = (1 - smoothRange(0, 1, (Math.abs(r0) / Math.max(tributaryGrad, 1e-4) - 0.3) / sideWall)) * 0.8 * smoothRange(0.4, 0.7, e) * mood.carve * graded;
+  const tributary = (1 - cliff((Math.abs(r0) / Math.max(tributaryGrad, 1e-4) - 0.3) / sideWall)) * 0.8 * smoothRange(0.4, 0.7, e) * mood.carve * graded;
   if (tributary > 0) height = mix(height, Math.min(height, sideFloor), tributary);
   const channel = Math.max(trunk, tributary);
   // Mesas and buttes stand on whatever ground they rise from (canyon floors included).

@@ -179,3 +179,75 @@ The worst single step is in the same 10–28 ms band as before. The streaming te
 - Evidence: `docs/screenshots/terrain/before-after-{khepri,vesper,luna}.jpg`; raw frames in `lookdev/terrain-v13/{before,after}/`.
 
 **Rollback:** git. The district switches (`KHEPRI.districts = null`, `ROAD_ENDS.taper = 0`) still work; on version 13 they no longer reproduce version 10.
+
+## 10. Crisp cliffs (terrain version 14, 21 October 2026)
+
+User, 21 October: "i really dont like those rounded cliff faces, should be sharp and crisp cliffs in some places, real cliff walls, while in other places its still a smooth hill etc.". Later: "stay true to the concept art where there's sharp cliff walls" (`art/concepts/01-worlds-direction.png`):
+- Khepri: sheer, blocky columnar walls under flat tops.
+- Vesper: flat shelves ending in sheer, fractured ice walls.
+
+Nacre is unchanged, byte for byte; its look on screen is unchanged too.
+
+### Why faces read as rounded (version 13)
+
+1. **The profile.** Every rim used a smoothstep: bench risers, mesa caps, canyon walls and ledges, Vesper's coast and leads, Luna's scarps. A smoothstep has zero slope at the top, so each rim was built as a rounded bevel. Across a Khepri canyon wall, the heights at a 1/16-unit spacing went −3.94, −4.07, −4.40 … −6.74, −6.93, −6.98: an S-curve.
+2. **Normals.** Vertex normals are central differences over ±1 cell. The rim vertex averages the flat top and the wall, and the GPU spreads that average over the neighbouring triangles. The shading rolls over the rim across half a unit, about 16 px on a phone.
+3. **Colour.** The basalt or ice tint was a per-vertex slope blend. The central difference at a rim vertex is steep, so the wall colour bled a cell onto every top: 72–91% of rim vertices came out darker than the top beside them.
+4. **Wall texture.** It was weighted by that same per-vertex mask, so it faded in and out across the rim.
+
+The grid (0.25), the shadow march and the mesh are not the cause, and they are unchanged.
+
+### What changed
+
+- **Profiles** (`cliff`, `cliffTalus` and `crispStep` in `terrain-layout.ts`). A cliff is now steepest at its rim, which meets the flat top in a hard crease, and it eases into a talus at its foot.
+  - Khepri: bench risers, mesa and butte caps and their upper tiers, tributaries, and canyon walls. Canyon walls get a sheer face over the top 45% of their width carrying 75% of the drop; ledges each have their own crisp rim.
+  - Vesper: ice steps go through the same `bench`. Coast cliffs and lead banks use `crispStep`: it keeps a smoothstep's lower half, so the waterline and the 70% land share stay exactly where they were, then runs straight up into the rim. Crevasses have hard lips.
+  - Luna: scarps, rilles, and the ledges of big craters.
+- **Vertex colour** (`terrain.ts`, the `cliffs` planet flag). On Khepri, Vesper and Luna, colour and the rock mask read the gentler one-sided slope per axis. A rim or foot vertex keeps its flat side's colour; only vertices inside a wall take the wall's. Now 0% of rim vertices are darker than their top, and a test guards this.
+- **Ground shader** (`terrain-kit.ts`, inside a uniform branch, so Nacre pays nothing and renders exactly as before):
+  - each triangle's own plane, taken from screen derivatives as flat shading does, decides top or wall, so the line between a top triangle and a wall triangle is a hard edge;
+  - walls get their own material at the ground's baked light. Khepri: dark warm columnar basalt, vertical fractured columns each in its own tone with deep seams and vertical streaks. Vesper: blue ice with fractures stretched top to bottom. Luna: darker regolith;
+  - a flat-lying triangle whose smooth normal leans away from its plane, at a rim or a cliff foot, is shaded by its plane, so tops stay flat right up to their edge;
+  - wall faces keep their smooth normals: faceting them showed the height grid's steps;
+  - Luna keeps smooth normals everywhere, because its many small crater bowls faceted into blocks. Its walls still take the darker regolith per face;
+  - camera-facing walls are lifted a little more, so the dark faces still show their columns.
+- **Smooth ground stays smooth.** Dunes, swales, drifts and rolling highlands: the triangle planes and the smooth normals agree there, so nothing changes.
+- **Vesper:**
+  - Crevasses run diagonally across the flight line. In version 13 they ran along it, as long straight stripes down the view.
+  - The shelf level no longer pulls toward the mood's top along the routes, which drew route-parallel ice cliffs. Calm routes soften the steps instead.
+  - Harbours stand only where open water reaches past the first two pier spots, and an outpost on such a coast is a harbour half the time. Jetties went from about 2 per 900 units on two of five seeds to 5–15 on four of five.
+
+### Measurements (v13 → v14)
+
+**Rims** (rim vertices darker than their top): Khepri 91% → 0%, Vesper 72% → 0%, Luna 100% → 0%, the last of very few rims. Crisp rim vertices (level on one side, more than 0.6 drop within a cell on the other): Khepri 222 → 244, Vesper 140 → 284, over the same four sections.
+
+**Budget, High** (same sweep as §8: shipped kits, seeds 11, 93 and 8831):
+
+| World | v13 | v14 |
+| --- | --- | --- |
+| Khepri | ≤ 54 calls; ≤ 75.4k triangles, mean 47.0k | ≤ 55 calls; ≤ 77.2k, mean 47.7k |
+| Vesper | ≤ 49 calls; ≤ 67.7k, mean 41.8k | ≤ 46 calls; ≤ 67.9k, mean 41.8k |
+| Luna | ≤ 20 calls; ≤ 46.6k, mean 28.3k | ≤ 20 calls; ≤ 46.6k, mean 28.3k |
+
+Low stays under High. The terrain view is unchanged; only its integrator's own edits moved the Vesper calls.
+
+**Generation:** unchanged. Khepri 91–117 ms per section in both versions; Vesper 75–105 ms.
+
+**Networks and outposts:** roads per section 2.07 → 2.23 on Khepri and 1.62 → 1.60 on Vesper; buildings within |x| ≤ 7 run 91 → 97 and 89 → 92 per km.
+
+**Streaming:**
+- The unit tests at 5 and 11 units/s pass.
+- In the browser (SwiftShader, about 15 fps under load): Vesper and Luna at 11 units/s and Khepri at 5 units/s have no fallbacks.
+- Through Khepri's district at 11 units/s, v14 showed 0–2 fallbacks across five runs; v13 showed none in four runs, and one in an earlier session.
+- Section generation costs the same. The new ground program shows a one-off render spike of about 230 ms on SwiftShader (v13: about 15 ms). That is most likely its compile when the detail textures arrive. A real GPU should be faster, and loading the destination before the flight (asset readiness) should absorb it. Not measured on a phone.
+
+**Evidence:** `docs/screenshots/terrain/cliffs-{khepri,vesper,luna}.jpg`. Top row v13, bottom row v14; seed 93 at 390×844, DPR 2, real game view, the same spots. Raw frames are in `lookdev/terrain-v14/{before,after}/`.
+
+**Files:**
+- `src/world/terrain-layout.ts`, `terrain.ts` (`TERRAIN_VERSION = 14`), `terrain-planet.ts` (the `cliffs` flag), `terrain-vesper.ts`, `terrain-luna.ts`;
+- `src/render/terrain-kit.ts`;
+- tests: `tests/world/terrain.test.ts` (crisp profiles, rim colours), `terrain-vesper.test.ts` (fingerprints), `terrain-nacre.test.ts` (title only).
+
+**Limits:**
+- The height grid stays 0.25. Diagonal rims follow triangle edges, so a rim line can show small steps of about 8 px. Faceted walls were dropped for that reason.
+- Khepri's sheer, blocky column walls lean on the existing kit columns at rims and cliff feet. No new wall geometry was added.

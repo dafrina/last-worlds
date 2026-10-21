@@ -3,6 +3,7 @@ import {
   KIT, KIT_MAX_SCALE, MOOD_LENGTH, RETAINED_SECTIONS, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT,
   TERRAIN_STEP, createTerrainStream, generateTerrainSection, moodOf, routeCenter, terrainHeight, terrainSample, type TerrainSection,
 } from '../../src/world/terrain';
+import { cliff, cliffTalus, crispStep } from '../../src/world/terrain-layout';
 import { VIEW } from '../../src/shared/contracts';
 
 const HALF = VIEW.worldWidth / 2;
@@ -175,6 +176,32 @@ describe('seeded Khepri landforms', () => {
     expect(mean('dunes')).toBeLessThan(mean('canyons'));
     expect(mean('flats')).toBeLessThan(mean('mesas'));
   }, 60_000);
+
+  it('draws crisp cliffs (docs/26 §10): hard-rimmed profiles, and rim and foot vertices keep their flat side\'s colour', () => {
+    // The profiles: a hard crease at the rim (full slope there), easing into a talus at the foot.
+    expect(cliff(1)).toBe(1); expect(cliff(0)).toBe(0); expect(cliff(1.5)).toBe(1);
+    expect((cliff(1) - cliff(0.99)) / 0.01).toBeGreaterThan(1.9); expect((cliff(0.01) - cliff(0)) / 0.01).toBeLessThan(0.02);
+    expect(cliffTalus(1)).toBeCloseTo(1, 12); expect(cliffTalus(0)).toBe(0); expect((cliffTalus(1) - cliffTalus(0.99)) / 0.01).toBeGreaterThan(1.5);
+    // crispStep keeps a smoothstep's lower half (waterlines stay put) and reaches its rim sharply.
+    for (const u of [0, 0.1, 0.3, 0.49]) expect(crispStep(u)).toBeCloseTo(u * u * (3 - 2 * u), 12);
+    expect(crispStep(0.84)).toBe(1); expect((crispStep(0.83) - crispStep(0.82)) / 0.01).toBeCloseTo(1.5, 6);
+    // Rim vertices (level on one side, a drop of more than 0.6 within a cell on the other) are coloured as their top,
+    // never as the wall (version 13: 72–91% of them came out darker than the top beside them).
+    for (const planet of ['khepri', 'vesper', 'luna'] as const) {
+      let rims = 0, darker = 0;
+      for (const [seed, index] of [[93, 3], [93, 27], [8831, 8]] as const) {
+        const section = generateTerrainSection(seed, index, { planet }), { across, along } = section;
+        const y = (v: number) => section.positions[v * 3 + 1];
+        const lum = (v: number) => section.colors[v * 3] * 0.2126 + section.colors[v * 3 + 1] * 0.7152 + section.colors[v * 3 + 2] * 0.0722;
+        for (let r = 1; r < along - 1; r++) for (let c = 1; c < across - 1; c++) {
+          const v = r * across + c;
+          if (Math.abs(y(v + 1) - y(v)) < 0.03 && y(v) - y(v - 1) > 0.6) { rims++; if (lum(v) < lum(v + 1) * 0.8) darker++; }
+        }
+      }
+      if (planet !== 'luna') expect(rims, planet).toBeGreaterThan(100);
+      expect(darker / Math.max(1, rims), planet).toBeLessThan(0.05);
+    }
+  }, 120_000);
 
   it('keeps plenty of calm ground in every viewport window, calmer along the authored routes', () => {
     for (const seed of [1, 93, 8831]) {

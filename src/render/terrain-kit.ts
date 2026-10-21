@@ -619,6 +619,25 @@ const haze = () => ({
   hazeColor: { value: linear(0x6e6070) }, hazeTop: { value: -2.6 }, hazeBottom: { value: -7 }, hazeStrength: { value: 0.34 },
 });
 
+/** Unit-luminance chroma of an sRGB colour, linear (a wall hue the shader scales by the ground's own light). */
+function hueOf(hex: number): THREE.Color {
+  const { r, g, b } = linear(hex), l = r * 0.2126 + g * 0.7152 + b * 0.0722;
+  return new THREE.Color(r / l, g / l, b / l);
+}
+/**
+ * Wall materials for crisp cliffs (docs/26 §10, after art/concepts/01-worlds-direction.png): Khepri dark warm columnar
+ * basalt, Vesper blue ice split by vertical fractures, Luna darker regolith. `shade` scales the ground's light on the
+ * wall; `crease` turns on the hard rim and foot shading. Nacre has none (its smooth look stays exactly as it was).
+ */
+const KHEPRI_WALL = { hue: hueOf(0x6a4a36), shade: 0.82, columns: 1, crease: 1 };
+const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; columns: number; crease: number }>> = {
+  khepri: KHEPRI_WALL,
+  vesper: { hue: hueOf(0x5f9fd0), shade: 0.9, columns: 0, crease: 1 },
+  // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
+  // darker regolith per face.
+  luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0 },
+};
+
 /**
  * Ground, kit and infrastructure materials. Colour stays in the Khepri palette (vertex colours); textures
  * only add contrast-limited luminance detail and normals. Low tier drops normal maps; layout never changes.
@@ -638,8 +657,14 @@ export function createTerrainMaterials() {
   const ground = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, envMapIntensity: .18, normalScale: new THREE.Vector2(0.7, 0.7) });
   // Persistent uniform objects so a planet switch can retune them (Khepri values are the originals).
   const groundHaze = haze(), groundLook = { groundIce: {value: 0}, glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 } };
+  /**
+   * Crisp cliffs (terrain version 14, docs/26 §10): on Khepri, Vesper and Luna each triangle's own plane decides top or
+   * wall (hard rims, faceted wall shading, the wall's own material); Nacre keeps the smooth look exactly (cliffLook 0).
+   */
+  const cliffLook = { cliffLook: { value: 1 }, creaseLook: { value: KHEPRI_WALL.crease }, wallHue: { value: KHEPRI_WALL.hue.clone() },
+    wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns } };
   ground.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook);
+    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
@@ -649,6 +674,7 @@ attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying 
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
+uniform float cliffLook;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
 // across section joins (36·scale must be an integer).
 float khepriHash( vec2 p, float period ) { return fract( sin( dot( vec2( p.x, mod( p.y, period ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
@@ -699,7 +725,19 @@ float khepriCells( vec2 local, float scale ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.014, 0.055, 0.06 ), pool * 0.85 );
   // Cracks glow just below the bloom threshold; the crackle network inside pools reaches it (soft halo on High).
   totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * 0.12 + sparkle * 1.2 );`)
-      .replace('#include <map_fragment>', `float vRock = vSurface.z;
+      .replace('#include <map_fragment>', `// Crisp cliffs: the triangle's own plane (screen derivatives, as flat shading takes it) says top or wall, so a
+// rim is a hard edge between a top triangle and a wall triangle. Smooth ground keeps the vertex values (cliffLook 0:
+// exactly the version 13 path).
+// (A uniform branch: derivatives stay in uniform control flow, and worlds without cliffs pay nothing.) The world's up
+// axis in view space is the view matrix's second column, so the face's tilt is one dot product.
+vec3 cliffFace = vec3( 0.0, 0.0, 1.0 );
+float cliffUp = 1.0, cliffWall = 0.0;
+if ( cliffLook > 0.0 ) {
+  cliffFace = normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) );
+  cliffUp = abs( dot( cliffFace, viewMatrix[ 1 ].xyz ) );
+  cliffWall = cliffLook * smoothstep( 0.62, 0.42, cliffUp );
+}
+float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
 #ifdef USE_MAP
   // One dust tap; vertex-colour drift hides the tile repetition. Three taps in total on High (dust, rock, normal).
   float dustA = texture2D( map, vMapUv ).r * 2.0;
@@ -719,8 +757,18 @@ float khepriCells( vec2 local, float scale ) {
     float edge = fract( across * 2.7 );
     float seamLine = smoothstep( 0.0, 0.1, edge ) * smoothstep( 1.0, 0.88, edge );
     float rockDetail = rockD * tone * mix( 0.5, 1.0, seamLine );
+    // Columnar basalt (Khepri, after the concept art): sheer faces split into vertical fractured columns, each in its
+    // own tone with deep dark seams (anti-aliased in pixels) and vertical streaks.
+    if ( wallColumns > 0.0 ) {
+      float columnTone = 0.72 + 0.56 * fract( sin( columnIndex * 7.13 + 1.7 ) * 43758.5453 );
+      float columnWidth = max( fwidth( across * 2.7 ) * 1.5, 0.08 );
+      float columnSeam = smoothstep( 0.0, columnWidth, edge ) * smoothstep( 1.0, 1.0 - columnWidth, edge );
+      float streak = 0.88 + 0.24 * khepriNoise( vec2( across * 8.0, vLocal.y * 0.5 ), 1.0 );
+      rockDetail = mix( rockDetail, rockD * columnTone * streak * mix( 0.32, 1.0, columnSeam ), wallColumns );
+    }
     // Ice faces carry fine fracture strata instead of the desert's block masonry texture.
-    float fracture = khepriNoise( vec2( across + vLocal.y * .17, vLocal.y ), 4.0 );
+    // (Crisp-cliff worlds stretch the fractures vertically: the concept's blocky ice walls split top to bottom.)
+    float fracture = khepriNoise( mix( vec2( across + vLocal.y * .17, vLocal.y ), vec2( across * 2.2, vLocal.y * 0.3 ), cliffLook ), 4.0 );
     float iceStrata = .86 + .2 * fracture + .025 * sin( vLocal.y * 42.0 + fracture * 8.0 );
     detail = mix( dustA, mix( rockDetail, iceStrata, groundIce ), vRock );
   }
@@ -728,7 +776,20 @@ float khepriCells( vec2 local, float scale ) {
 #endif
   // Camera-facing cliff faces sit in the generator's baked (lower-sun) shade; lift them like warm bounce light
   // off the sunlit floor so columns keep readable detail instead of going black (both tiers).
-  diffuseColor.rgb *= 1.0 + 0.6 * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
+  // Crisp-cliff worlds lift them further, so the concept's dark faces still show their columns and fractures.
+  diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  // Walls take their own material after the vertex colours: the wall hue at the ground's light (baked shade kept).
+  if ( cliffWall > 0.0 ) diffuseColor.rgb = mix( diffuseColor.rgb, wallHue * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) * wallShade, cliffWall );`)
+      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+  // A flat-lying triangle whose smooth vertex normal leans away from its own plane borders a rim or a cliff foot: it is
+  // shaded by its plane, so a top stays flat right up to its edge (a hard rim) and a floor right up to the wall's foot.
+  // Walls keep their smooth normals (faceted walls would show the height grid's steps), and hills, dunes and swales,
+  // whose planes and normals agree, stay smooth.
+  if ( creaseLook > 0.0 ) {
+    float crease = creaseLook * smoothstep( 0.99, 0.94, dot( normal, cliffFace ) ) * smoothstep( 0.72, 0.88, cliffUp );
+    normal = normalize( mix( normal, cliffFace, crease ) );
+  }`)
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   ground.customProgramCacheKey = () => 'khepri-ground';
@@ -808,6 +869,10 @@ ${VESPER_KIT_SURFACE}`)
   const setPlanet = (planet: PlanetId) => {
     const vesper = planet === 'vesper', luna = planet === 'luna', nacre = planet === 'nacre', khepri = haze();
     groundLook.groundIce.value = vesper ? 1 : 0;
+    const wall = WALL_LOOK[planet];
+    cliffLook.cliffLook.value = wall ? 1 : 0;
+    cliffLook.creaseLook.value = wall?.crease ?? 0;
+    if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; }
     ground.color.setHex(vesper || luna ? 0xffffff : nacre ? 0xd5d9e1 : 0xc2c4c8);
     if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();
     const nextDetail = vesper ? snowTexture : null;

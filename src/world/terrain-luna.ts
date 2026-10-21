@@ -1,4 +1,4 @@
-import { NEUTRAL_MOOD, WORLD_HALF, clamp, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
+import { NEUTRAL_MOOD, WORLD_HALF, clamp, cliff, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
 import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
 import { MODULE_HEIGHT, SETTLEMENT_CELL, districtLevel, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
 import type { Work } from './terrain-work';
@@ -129,7 +129,7 @@ export function lunaCraters(seed: number, x: number, s: number): CraterField {
       if (d < 1) {
         // Flat-floored bowl rising steeply to the rim crest; big craters slump into terraced walls and a central peak.
         let wall = Math.pow(d, c.floor);
-        if (c.r > 7) wall = mix(wall, Math.floor(wall * 3) / 3 + smoothRange(0.6, 1, wall * 3 - Math.floor(wall * 3)) / 3, 0.4);
+        if (c.r > 7) wall = mix(wall, Math.floor(wall * 3) / 3 + cliff((wall * 3 - Math.floor(wall * 3) - 0.6) / 0.4) / 3, 0.4);
         out.height += -c.depth + (c.depth + c.rim) * wall;
         if (c.r > 7) out.height += c.depth * 0.38 * (1 - smoothRange(0, 0.16, d)) * (0.6 + 0.4 * ridgedNoise(seed, x, s));
         out.bowl = Math.max(out.bowl, 1 - Math.pow(d, c.floor));
@@ -161,11 +161,11 @@ export function lunaLandform(seed: number, x: number, s: number): Landform & { t
   // Montes: ridged massifs on the highlands, strongest in a basin's rim.
   const montes = p.montes * Math.pow(1 - Math.abs(2 * noise(seed ^ 0xa1e9, qx * 0.06, qs * 0.055) - 1), 1.6) * (1 - mare);
   // Lobate scarps: curving one-sided steps across the highlands, broken into finite lengths.
-  const scarp = p.scarps * smoothRange(-0.016, 0.016, noise(seed ^ 0xa1ea, qx * 0.045, qs * 0.04) - 0.5) * smoothRange(0.35, 0.6, noise(seed ^ 0xa1eb, x * 0.03, s * 0.03));
+  const scarp = p.scarps * cliff((noise(seed ^ 0xa1ea, qx * 0.045, qs * 0.04) - 0.5 + 0.016) / 0.032) * smoothRange(0.35, 0.6, noise(seed ^ 0xa1eb, x * 0.03, s * 0.03));
   const highland = 0.55 + rolling * 1.15 + montes * 2.1 + scarp * 0.8;
   // Maria: low dark plains with wrinkle ridges and sinuous flat-floored rilles.
   const wrinkle = Math.pow(1 - Math.abs(2 * noise(seed ^ 0xa1ec, qx * 0.07, qs * 0.06) - 1), 3) * 0.7;
-  const rille = (1 - smoothRange(0.01, 0.03, Math.abs(noise(seed ^ 0xa1ed, qx * 0.04, qs * 0.03) - 0.5))) * p.rilles;
+  const rille = (1 - cliff((Math.abs(noise(seed ^ 0xa1ed, qx * 0.04, qs * 0.03) - 0.5) - 0.01) / 0.02)) * p.rilles;
   const plain = -1.6 + rolling * 0.5 + wrinkle - rille * 1.5;
   const base = mix(highland, plain, mare);
   return {
@@ -332,5 +332,5 @@ export const LUNA: PlanetProfile = {
   scatter: lunaScatterSteps,
   floes: function* () { return []; },
   industrial: new Set(), quiet: new Set(LUNA_ARCHETYPES),
-  networks: false,
+  networks: false, cliffs: true,
 };

@@ -25,22 +25,22 @@ describe('planet profiles (docs/17 §2)', () => {
     const arena = { fromS: 566, toS: 601 };
     expect(generateTerrainSection(93, 16, arena)).toEqual(generateTerrainSection(93, 16, { planet: 'khepri', arena }));
     expect(worldOf(arena)).toBe(worldOf({ planet: 'khepri', arena }));
-    // Version 13 (20 October 2026: varied relief, docs/26; 93:14 and 11:14 hold a district, 93:17 its quiet buffer's
-    // network, 11:5 road ends). A deliberate Khepri change updates these. (Version 11/12: 11:5 0a35aa617c498347,
-    // 93:17 d2f697ee4aa9cbf5, 8831:0 6f8ab45f5ca93567, 93:14 a075fa7a78c1ae3f.)
-    const recorded = new Map([['11:5', 'fb5af95e9d76462a'], ['93:17', 'b08be9cab98c1d34'], ['8831:0', '53e11aa29980df19'],
-      ['93:14', '12eed214b6b85478'], ['11:14', 'ad7c69b8cb297efb']]);
+    // Version 14 (21 October 2026: crisp cliffs, docs/26 §10; 93:14 and 11:14 hold a district, 93:17 its quiet buffer's
+    // network, 11:5 road ends). A deliberate Khepri change updates these. (Version 13: 11:5 fb5af95e9d76462a,
+    // 93:17 b08be9cab98c1d34, 8831:0 53e11aa29980df19, 93:14 12eed214b6b85478, 11:14 ad7c69b8cb297efb.)
+    const recorded = new Map([['11:5', '6264a0925fd1cf0a'], ['93:17', 'e0f86d546be5a503'], ['8831:0', '90c9e92d18c19e9a'],
+      ['93:14', 'e3dc7b61ebd1e5fd'], ['11:14', '3829bbfc897fdd83']]);
     // The rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0` still take out the districts and the
-    // blended road ends exactly, now on the version 13 landform.
-    const legacy = new Map([['11:5', '058fd03cd7591fb3'], ['93:17', '34b768320001a293'], ['8831:0', '5c0fe369c2d929a4'],
-      ['93:14', '4390825431da33cd'], ['11:14', 'b4a54115131a3abc']]);
+    // blended road ends exactly, on the current landform.
+    const legacy = new Map([['11:5', '4d8df1555b35f5b5'], ['93:17', '6677051e0db55c3e'], ['8831:0', '90c9e92d18c19e9a'],
+      ['93:14', 'd7a500104038be2c'], ['11:14', 'f7909968bc2b18c8']]);
     const check = (fingerprints: Map<string, string>) => {
       for (const [key, value] of fingerprints) {
         const [seed, index] = key.split(':').map(Number);
         expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);
       }
       // The arena hides the slot's district and its quiet cells lie elsewhere: unchanged either way.
-      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('b6dcd1566fb5ba00');
+      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('7373b6428a732ee8');
     };
     check(recorded);
     const policy = PLANETS.khepri.districts, taper = ROAD_ENDS.taper;

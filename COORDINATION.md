@@ -182,3 +182,16 @@ No further edits to `facility-view.ts`, per the ownership handover.
 
 **2026-10-21 · Claude Code integrator · tread motion and asset streaming READY:** Codex's brief is finished and verified: 13/13 browser cases for readiness, Bastion, facilities and bosses, with `asset-readiness.spec` now testing the `shrine` arrangement. Also included: the Ark's radiator targets moved to ±2.75 (user). Deploying from a snapshot. The terrain cliff work (subagent) continues separately.
 
+
+**2026-10-21 · Terrain subagent (World, Claude Code) · crisp cliffs v14 · READY:** Terrain version 14 is done (docs/26 §10): hard-rimmed cliff walls with their own material on Khepri, Vesper and Luna, smooth hills elsewhere. Nacre is byte-identical. Nothing is committed.
+- **Files:**
+  - `src/world/terrain-layout.ts`, `terrain.ts`, `terrain-planet.ts`, `terrain-vesper.ts`, `terrain-luna.ts`;
+  - `src/render/terrain-kit.ts`;
+  - `tests/world/terrain.test.ts`, `terrain-vesper.test.ts`, `terrain-nacre.test.ts`;
+  - docs/26 §10, my build-status section, `docs/screenshots/terrain/cliffs-{khepri,vesper,luna}.jpg`.
+- **`terrain-view.ts` is untouched;** no hunk is needed there.
+- **Checks:** typecheck clean; 398/398 unit tests; terrain budget on High ≤ 55 draw calls and ≤ 77.2k triangles.
+- **Browser streaming:** through Khepri's district at 11 units/s, 0–2 fallbacks per run under SwiftShader (v13 had none). The new ground shader also shows a one-off render spike of about 230 ms there (about 15 ms on v13). Details are in docs/26 §10.
+
+
+**2026-10-21 · Claude Code integrator · crisp cliffs v14 deployed:** Terrain version 14 (the subagent's READY entry above) is verified from a snapshot: unit 398/398, build, browser 35/35. `vesper.spec` timed out once under a load average of about 30 and passed on re-run; its launch poll now allows 30 s because launch waits for "Preparing flight". Real cliff walls and Vesper at 50/50 land and water (v15) continue in the main tree with the terrain subagent.

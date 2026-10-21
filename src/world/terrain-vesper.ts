@@ -1,5 +1,5 @@
 import {
-  WORLD_HALF, bench, clamp, hash, mix, noise, routeCalm, smooth, smoothRange, NEUTRAL_MOOD, type Landform, type MoodParams,
+  WORLD_HALF, bench, clamp, cliff, crispStep, hash, mix, noise, routeCalm, smooth, smoothRange, NEUTRAL_MOOD, type Landform, type MoodParams,
 } from './terrain-layout';
 import { FLOE_FOOTPRINT, FLOE_SETS, KIT, kitNodeName, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
 import { MODULE_HEIGHT, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
@@ -115,19 +115,25 @@ const landThreshold = (p: VesperParams, platform: number) => mix(mix(0.66, 0.3, 
 export function vesperMasks(seed: number, x: number, s: number, p: VesperParams, platform: number) {
   const calm = routeCalm(seed, x, s), { qx, qs, mass } = shelfMass(seed, x, s);
   const threshold = landThreshold(p, platform);
-  // Sheer cliffs: membership flips within a few tenths of a unit.
-  let land = smoothRange(-1, 1, (mass - threshold) / 0.012);
-  // Open leads: narrow winding water channels across the shelves.
-  const lead = (1 - smoothRange(0.01, 0.032, Math.abs(noise(seed ^ 0x9a6, qx * 0.05, qs * 0.044) - 0.5))) * smoothRange(0.15, 0.4, p.leads);
-  land *= 1 - lead;
+  // Sheer cliffs: membership flips within a few tenths of a unit. `land` is the soft mask (colour and scatter);
+  // `edge` shapes the height: the same waterline, then straight up into a hard rim crease (version 14, docs/26 §10).
+  const coast = (mass - threshold) / 0.024 + 0.5;
+  let land = smoothRange(-1, 1, (mass - threshold) / 0.012), edge = crispStep(coast);
+  // Open leads: narrow winding water channels across the shelves, their banks crisp too.
+  const leadDistance = Math.abs(noise(seed ^ 0x9a6, qx * 0.05, qs * 0.044) - 0.5), leads = smoothRange(0.15, 0.4, p.leads);
+  const lead = (1 - smoothRange(0.01, 0.032, leadDistance)) * leads;
+  land *= 1 - lead; edge *= 1 - (1 - crispStep((leadDistance - 0.01) / 0.022)) * leads;
   const field = smoothRange(0.42, 0.62, noise(seed ^ 0x9a9, x * 0.05 + 2.3, s * 0.05)) * Math.min(1, p.crevasse * 1.4) * (1 - calm * 0.85);
-  const crack = (1 - smoothRange(0.008, 0.034, Math.abs(noise(seed ^ 0x9aa, qx * 0.34, qs * 0.11) - 0.5))) * field;
+  // Crevasses: sheer-sided cracks with hard lips, in sets running diagonally across the flight line (version 13's ran
+  // along it, long straight stripes down the view).
+  const crackU = qx * 0.8 + qs * 0.6, crackV = qs * 0.8 - qx * 0.6;
+  const crack = (1 - cliff((Math.abs(noise(seed ^ 0x9aa, crackU * 0.11, crackV * 0.34) - 0.5) - 0.008) / 0.026)) * field;
   const ridge = smoothRange(0.78, 0.97, ridged(noise(seed ^ 0x9a8, qx * 0.09, qs * 0.13))) * Math.min(1, p.ridge * 1.6) * (1 - calm * 0.7);
   const rock = smoothRange(0.68, 0.86, noise(seed ^ 0x9ab, x * 0.16, s * 0.15)) * Math.min(1, p.rock * 1.6) * (1 - calm * 0.6);
   // Wind-packed dunes: long, low ridges aligned with the prevailing wind (from the upper left), finite in length.
   const along = x * WIND_X + s * WIND_S, across = -x * WIND_S + s * WIND_X;
   const dune = smoothRange(0.5, 0.85, noise(seed ^ 0x9af, along * 0.07, across * 0.36)) * smoothRange(0.3, 0.7, noise(seed ^ 0x9b0, x * 0.04, s * 0.04));
-  return { land, crack, ridge, rock, mass, dune, threshold, calm };
+  return { land, edge, crack, ridge, rock, mass, dune, threshold, calm };
 }
 
 /**
@@ -141,13 +147,14 @@ function coastPlatform(seed: number, x: number, s: number, arena: TerrainArena):
 }
 /**
  * The smooth shelf level the ice cliffs are cut from: the mood's top, a regional swell, and a climb inland from the
- * coast (low ice feet at the water, higher shelves behind them). Never below the low ice foot.
+ * coast (low ice feet at the water, higher shelves behind them).
  */
-function shelfLevel(seed: number, x: number, s: number, p: VesperParams, threshold: number, calm: number): number {
+function shelfLevel(seed: number, x: number, s: number, p: VesperParams, threshold: number): number {
   const { mass } = shelfMass(seed, x, s), inland = smoothRange(0, 0.16, mass - threshold);
-  const level = p.top + (noise(seed ^ 0x9a7, x * 0.055, s * 0.05) - 0.5) * 0.9 + (noise(seed ^ 0x9b3, x * 0.07, s * 0.065) - 0.5) * 0.5 * p.stairs
+  // (Version 13 also pulled the level toward the mood's top along the routes, which drew long ice cliffs parallel to the
+  // flight line at the routes' edges; since version 14 calm routes soften the steps instead, in the landform.)
+  return p.top + (noise(seed ^ 0x9a7, x * 0.055, s * 0.05) - 0.5) * 0.9 + (noise(seed ^ 0x9b3, x * 0.07, s * 0.065) - 0.5) * 0.5 * p.stairs
     + (inland - 0.45) * p.step * p.stairs;
-  return mix(level, p.top, calm * 0.4);
 }
 /** Ice-cliff riser width between shelf levels (sheer, two grid cells) and the gradient probe. */
 const ICE_RISER = 0.5, ICE_PROBE = 0.3;
@@ -164,13 +171,13 @@ export function vesperLandform(seed: number, x: number, s: number, row: PlanetRo
   if (m.land > 0) {
     // Ragged ice edges: fine relief moves the cliff lines into spurs and bays without roughening the shelves.
     const jag = (u: number, v: number) => (noise(seed ^ 0x9b8, u * 0.3, v * 0.28) - 0.5) * 0.4;
-    const level = shelfLevel(seed, x, s, p, m.threshold, m.calm), edges = level + jag(x, s);
-    const gx = (shelfLevel(seed, x + ICE_PROBE, s, p, m.threshold, m.calm) + jag(x + ICE_PROBE, s) - edges) / ICE_PROBE;
-    const gs = (shelfLevel(seed, x, s + ICE_PROBE, p, m.threshold, m.calm) + jag(x, s + ICE_PROBE) - edges) / ICE_PROBE;
+    const level = shelfLevel(seed, x, s, p, m.threshold), edges = level + jag(x, s);
+    const gx = (shelfLevel(seed, x + ICE_PROBE, s, p, m.threshold) + jag(x + ICE_PROBE, s) - edges) / ICE_PROBE;
+    const gs = (shelfLevel(seed, x, s + ICE_PROBE, p, m.threshold) + jag(x, s + ICE_PROBE) - edges) / ICE_PROBE;
     const phase = noise(seed ^ 0x9b4, x * 0.02 + 1.7, s * 0.018) * p.step;
     // Snow ramps: here and there a step softens into a drift slope, so tracks can climb between shelf levels.
     const ramp = smoothRange(0.6, 0.74, noise(seed ^ 0x9b7, x * 0.07, s * 0.065));
-    top = clamp(bench(level, Math.hypot(gx, gs), p.step, phase, ICE_RISER, 0.92 * (1 - ramp), edges), SHELF_LOW, SHELF_HIGH);
+    top = clamp(bench(level, Math.hypot(gx, gs), p.step, phase, ICE_RISER, 0.92 * (1 - ramp) * (1 - m.calm * 0.5), edges), SHELF_LOW, SHELF_HIGH);
     top += (noise(seed ^ 0x9ad, x * 0.25, s * 0.3) - 0.5) * 0.14 + (noise(seed ^ 0x9ae, x * 1.3, s * 1.2) - 0.5) * 0.03;
     // Pressure ridges: jagged walls of broken ice; drifts: wind-packed snow; nunataks: dark rock peaks.
     top += m.ridge * (0.45 + 0.35 * ridged(noise(seed ^ 0x9b5, x * 0.6, s * 0.55)));
@@ -179,7 +186,7 @@ export function vesperLandform(seed: number, x: number, s: number, row: PlanetRo
     // Crevasses: deep, sheer cracks that never open to the sea (their floors stay ice).
     top = Math.max(Math.min(top, SEA + 0.35), top - m.crack * 1.5);
   }
-  const height = mix(seabed, top, m.land);
+  const height = mix(seabed, top, m.edge);
   return {
     height: clamp(height, -8, 2.4), elevation: m.land, channel: m.crack * m.land, pool: 0, vein: 99, vein2: 99, veins: 0,
     tone: m.rock * m.land,
@@ -364,11 +371,18 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
       let water = -1, edge = Infinity;
       [[1, 0], [0, 1], [-1, 0], [0, -1]].forEach(([dx, ds], turn) => {
         if (dx !== 0 && Math.abs(x + dx * 12) > WORLD_HALF) return;
-        for (let d = 2.5; d <= 6; d += 0.5) if (ground(x + dx * d, s + ds * d) < SEA) { if (d < edge) { edge = d; water = turn; } break; }
+        // Open water, not a narrow lead: the sea must reach on past where the jetty's first two piers would stand.
+        for (let d = 2.5; d <= 6; d += 0.5) if (ground(x + dx * d, s + ds * d) < SEA) {
+          const open = ground(x + dx * (d + 1.75), s + ds * (d + 1.75)) < SEA - 0.4 && ground(x + dx * (d + 3.75), s + ds * (d + 3.75)) < SEA - 0.4;
+          if (open && d < edge) { edge = d; water = turn; }
+          break;
+        }
       });
       const allowed = VESPER_ARCHETYPES.filter(a => a !== 'harbour' || water >= 0), total = allowed.reduce((sum, a) => sum + WEIGHTS[a], 0);
       let roll = hash(seed ^ 0x7e5f ^ (side > 0 ? 0x1000 : 0), cell, 4) * total, archetype: Archetype = allowed[allowed.length - 1];
       for (const a of allowed) { roll -= WEIGHTS[a]; if (roll <= 0) { archetype = a; break; } }
+      // An outpost on the open sea's edge is a harbour half the time: its jetty and crane stand over the water.
+      if (water >= 0 && hash(seed ^ 0x7e60 ^ (side > 0 ? 0x1000 : 0), cell, 4) < 0.5) archetype = 'harbour';
       // Harbours turn their quay toward the water; others take a seeded quarter turn.
       const turns = archetype === 'harbour' ? water : Math.floor(h(21) * 4), mirror = archetype === 'harbour' ? 1 : h(22) < 0.5 ? -1 : 1;
       const [hu, hv] = EXTENT[archetype], [hx, hs] = turns % 2 ? [hv, hu] : [hu, hv];
@@ -648,5 +662,5 @@ export const VESPER: PlanetProfile = {
   settlement: vesperSettlement,
   scatter: vesperScatterSteps,
   floes: vesperFloes,
-  industrial: new Set(['radiator', 'missile', 'cryo', 'exchanger', 'reactor']), quiet: new Set(),
+  industrial: new Set(['radiator', 'missile', 'cryo', 'exchanger', 'reactor']), quiet: new Set(), cliffs: true,
 };

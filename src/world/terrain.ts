@@ -42,8 +42,11 @@ export {
  * 13: varied relief (docs/26): Khepri benches, mesas, buttes, deep canyons, dunes and escarpments over six moods
  *     (−10 to 2.4, scenery cap 3.0); Vesper shelves at several levels with ice cliffs, nunataks and new outposts;
  *     Luna highlands, maria, rilles, scarps and craters of every age. Nacre is unchanged.
+ * 14: crisp cliffs (docs/26 §10): rims meet their tops in hard creases (benches, mesas, canyons, ice cliffs, leads,
+ *     crevasses, scarps); rim and foot vertices keep their flat side's colour; Vesper harbours stand on open water and
+ *     its crevasses run across the flight line. Nacre is unchanged.
  */
-export const TERRAIN_VERSION = 13;
+export const TERRAIN_VERSION = 14;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.
@@ -126,14 +129,24 @@ function rimAt(height: (dx: number, ds: number) => number): { drop: number; rise
 }
 const rimFactor = (drop: number, slope: number) => smoothRange(0.45, 1.2, drop) * (1 - smoothRange(0.6, 1.3, slope));
 
+/**
+ * Slope for a vertex's colour on planets with crisp cliffs (terrain version 14): per axis the gentler one-sided
+ * difference, so a rim or foot vertex takes its flat side's colour (a top or floor) and only vertices inside a wall
+ * take the wall's. Central differences blended the wall colour a cell onto every top edge.
+ */
+function crispSlope(forwardX: number, backX: number, forwardS: number, backS: number, step: number): number {
+  return Math.hypot(Math.abs(forwardX) < Math.abs(backX) ? forwardX : backX, Math.abs(forwardS) < Math.abs(backS) ? forwardS : backS) / step;
+}
+
 /** Coordinates are global: independent sections sample exactly the same values at shared points. */
 export function terrainSample(seed: number, x: number, s: number, input?: TerrainInput): TerrainSample {
   const row = terrainRow(seed, s, input), world = row.world, point = rowPoint(row, x), step = TERRAIN_STEP;
   const at = (dx: number, ds: number) => dx === 0 && ds === 0 ? point.height : terrainHeight(seed, x + dx * step, s + ds * step, input);
   const slope = Math.hypot((at(1, 0) - at(-1, 0)) / (2 * step), (at(0, 1) - at(0, -1)) / (2 * step));
   const { drop } = rimAt(at);
+  const tone = world.planet.cliffs ? crispSlope(at(1, 0) - point.height, point.height - at(-1, 0), at(0, 1) - point.height, point.height - at(0, -1), step) : slope;
   return {
-    height: point.height, color: world.planet.color(row, x, point, slope, rimFactor(drop, slope), [0, 0, 0]),
+    height: point.height, color: world.planet.color(row, x, point, tone, rimFactor(drop, tone), [0, 0, 0]),
     mineral: Math.max(point.veins, point.pool), elevation: point.elevation, slope, industrial: point.industrial,
   };
 }
@@ -261,8 +274,9 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
       shadow = Math.max(shadow, smoothRange(-0.1, 0.35, marchHeight(row + i * SHADOW_STRIDE, column - i * SHADOW_STRIDE) - point.height - i * rise));
     }
     const light = (1 - (1 - SHADOW_FLOOR) * shadow) * (1 - 0.28 * smoothRange(0.6, 2.4, foot) * (1 - smoothRange(0.6, 1.4, slope)));
-    const rowPlanet = contexts[row].world.planet, tint = rowPlanet.shadowTint;
-    rowPlanet.color(contexts[row], x, point, slope, rimFactor(drop, slope), albedo);
+    const rowPlanet = contexts[row].world.planet, tint = rowPlanet.shadowTint, here = heights[center];
+    const tone = rowPlanet.cliffs ? crispSlope(heights[center + 1] - here, here - heights[center - 1], heights[center + columns] - here, here - heights[center - columns], TERRAIN_STEP) : slope;
+    rowPlanet.color(contexts[row], x, point, tone, rimFactor(drop, tone), albedo);
     if (tint) {
       // Cool planets shade toward a luminous blue rather than black (snow keeps sky light in shadow).
       const lit = smoothRange(SHADOW_FLOOR, 1, light);
@@ -273,7 +287,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     positions[vertex * 3] = x; positions[vertex * 3 + 1] = point.height; positions[vertex * 3 + 2] = -row * TERRAIN_STEP;
     // Veins run across calm low ground and brighten where they gather at cliff feet.
     glow[vertex * 2] = Math.min(1, fVeins[vertex] * (1 - smoothRange(0.4, 0.9, slope)) * (1 + 0.8 * smoothRange(0.8, 2.2, foot))); glow[vertex * 2 + 1] = point.pool;
-    edges[vertex * 2] = fVein[vertex]; edges[vertex * 2 + 1] = fVein2[vertex]; rock[vertex] = smoothRange(0.6, 1.5, slope);
+    edges[vertex * 2] = fVein[vertex]; edges[vertex * 2 + 1] = fVein2[vertex]; rock[vertex] = smoothRange(0.6, 1.5, tone);
     slopes[vertex] = slope; drops[vertex] = drop; rises[vertex] = foot; shade[vertex] = light;
     gradients[vertex * 2] = dx; gradients[vertex * 2 + 1] = ds;
   }

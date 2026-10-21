@@ -31,7 +31,7 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
     expect(generateTerrainSection(8831, 3, NACRE).instances).not.toEqual(generateTerrainSection(93, 3, NACRE).instances);
   });
 
-  it('keeps its terrain exactly as it was: terrain version 13 (docs/26) changes Khepri, Vesper and Luna only', async () => {
+  it('keeps its terrain exactly as it was: terrain versions 13 and 14 (docs/26) change Khepri, Vesper and Luna only', async () => {
     // sha256 over a section's mesh, pieces, roads, floes and shore, recorded from version 12 (20 October 2026).
     const crypto: { createHash(kind: string): { update(data: string | Uint8Array): void; digest(encoding: string): string } } = await import(['node', 'crypto'].join(':'));
     const fingerprint = (section: ReturnType<typeof generateTerrainSection>) => {
