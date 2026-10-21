@@ -465,6 +465,19 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
       // Vent stacks are outpost plant: they stand on the fringe of a pad, never alone on the shelf.
       const scale = 0.9 + h(3) * 0.2;
       add({ kind: 'vent', x, s, y: ground, scale, height: scale, rotation: turn(h(5)), cosmetic: false }, h(6));
+    } else if (slope < 0.6 && drop < 0.4 && m.land > 0.9 && m.crack < 0.05 && m.ridge < 0.3) {
+      // Scattered stones on the snow plains (after the cliff-study concept): small, squat outcrops alone or in loose
+      // groups of up to four, thicker in stony patches and thinner along the routes. The first of a group stays on
+      // the low tier.
+      const stony = smoothRange(0.5, 0.8, noise(seed ^ 0x7c3b, x * 0.14, s * 0.14));
+      if (h(20) >= (0.09 + stony * 0.25) * (1 - m.calm * 0.5)) continue;
+      const members = 1 + Math.floor(h(21) * h(21) * 4);
+      for (let k = 0; k < members; k++) {
+        const ox = x + (k ? (h(22 + k) - 0.5) * 0.9 : 0), os = s + (k ? (h(26 + k) - 0.5) * 0.9 : 0);
+        if (k && (terrain.slope(ox, os) > 0.6 || terrain.drop(ox, os) > 0.4 || terrain.height(ox, os) < SEA || terrain.blocked(ox, os))) continue;
+        const scale = (k ? 0.3 : 0.45) + h(30 + k) * h(30 + k) * (k ? 0.4 : 0.55);
+        add({ kind: 'outcrop', x: ox, s: os, y: terrain.height(ox, os), scale, height: scale * (0.55 + h(34 + k) * 0.4), rotation: turn(h(38 + k)), cosmetic: k > 0 }, h(42 + k));
+      }
     }
   }
   // Ice-shelf walls (docs/26 §11, after the concept's right panel): fractured, blocky, snow-capped walls stand in every

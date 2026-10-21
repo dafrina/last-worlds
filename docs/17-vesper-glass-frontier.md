@@ -7,7 +7,7 @@ Design v0.6 · 15 October 2026. The user approved this plan: a new campaign miss
 - **Ocean is the base.** A deep blue animated water plane fills everything below sea level. It has gentle swell normals, sun glints and depth-tinted colour, with white foam where it meets ice. Khepri has no water.
 - **Ice shelves instead of basalt mesas:** broad snowy plateaus ending in sheer, fractured blue-white ice cliffs with overhangs and undercuts at the waterline.
 - **Pack ice instead of canyons:** broken floes and small icebergs in the open water between shelves, drifting slowly. The drift is presentation-only, derived from seed and time.
-- **Crevasse fields** across shelves (narrow, deep blue cracks), plus pressure ridges, snow drifts and a few dark rock outcrops poking through the snow.
+- **Crevasse fields** across shelves (narrow, deep blue cracks), plus pressure ridges, snow drifts and a few dark rock outcrops poking through the snow. Small stones (the outcrop pieces at 0.45–1.0 scale, squat) lie scattered across the flat snow alone or in loose groups, thicker in stony patches and thinner along the routes, after `lookdev/cliff-study/vesper.png` (21 October).
 - **Light:** high, pale, slightly cool sun; blue shadows; white-blue distance haze; ice sparkle glints. No falling snow or weather that could hide shots (docs/03 §1).
 - **Palette:**
   - snow `#e9eef3`, shaded snow `#b9c8d8`;

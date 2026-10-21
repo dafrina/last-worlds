@@ -1,5 +1,15 @@
 # Build status
 
+## Vesper: scattered stones on the snow plains, 21 October 2026
+
+User request: add the small rocks scattered on Vesper's snow plains, like the concept `lookdev/cliff-study/vesper.png`.
+
+- **What:** `vesperScatterSteps` (`src/world/terrain-vesper.ts`) places small, squat `rock_outcrop` pieces on flat open snow. They come alone or in loose groups of up to four, at scale 0.45–1.0 for a group's first stone and 0.3–0.7 for the rest, with height 0.55–0.95 of scale. They are thicker in noise-driven stony patches and thinner along the routes, and they stay off slopes, rims, crevasses, ridges, pads and pipelines. The first stone of a group is essential, so Low shows a sparser field; the rest are cosmetic. This uses no new model, and the existing placements are unchanged (new hash slots only). It is presentation-only and touches no simulation.
+- **Cost (High, SwiftShader, same four views):** terrain triangles +2.5k to +3.6k, terrain draw calls +0 to +3, instances +23 to +47 per view; within Vesper's budget.
+- **Checks:** typecheck clean; unit tests 399/399; `graphics.spec.ts` 7/7.
+- **Evidence:** `docs/screenshots/terrain/rocks-vesper.jpg`, with the top row before and the bottom row after (seeds 93 and 8831, terrain-relief fixture, 390×844).
+- **Limits:** No phone test. The stones are charcoal kit rock, a little darker than the concept's grey-brown.
+
 ## Two-screen world, screen-half steering, passable Pulsar streams, cliff wall pieces and rock textures, 21 October 2026
 
 User decisions, each recorded in docs/08:
