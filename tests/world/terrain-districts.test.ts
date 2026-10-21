@@ -34,7 +34,8 @@ const overlap = (a: { minX: number; maxX: number; minS: number; maxS: number }, 
 describe('Khepri refinery districts (docs/23 §5)', () => {
   it('plans a district in most slots, identically whether planned at once or in resumable steps', () => {
     const found = plans();
-    expect(found.length).toBeGreaterThanOrEqual(26);
+    // 23 of 40 seeds in the 24-wide world (21 October; at least 26 in the 30-wide world): less room beside the lane.
+    expect(found.length).toBeGreaterThanOrEqual(22);
     // The sides, directions and positions vary with the seed.
     expect(new Set(found.map(([, plan]) => plan.side)).size).toBe(2);
     expect(new Set(found.map(([, plan]) => plan.dir)).size).toBe(2);
@@ -313,9 +314,10 @@ describe('road ends blend into the ground (user, 20 October)', () => {
   });
 
   it('wears the ground to gravel around fading ends, identically on both sides of a section seam', () => {
-    // Seed 11's road settlement:10:1>chain fades out in the open near s 337 (section 9).
-    const plain = (() => { const taper = ROAD_ENDS.taper; try { ROAD_ENDS.taper = 0; resetTerrainCaches(); return generateTerrainSection(11, 9); } finally { ROAD_ENDS.taper = taper; resetTerrainCaches(); } })();
-    const worn = generateTerrainSection(11, 9);
+    // Seed 11's road settlement:12:1>chain fades out in the open in section 11 (the 24-wide world, 21 October; the
+    // 30-wide world had settlement:10:1>chain in section 9).
+    const plain = (() => { const taper = ROAD_ENDS.taper; try { ROAD_ENDS.taper = 0; resetTerrainCaches(); return generateTerrainSection(11, 11); } finally { ROAD_ENDS.taper = taper; resetTerrainCaches(); } })();
+    const worn = generateTerrainSection(11, 11);
     let darker = 0;
     for (let v = 0; v < worn.colors.length / 3; v++) {
       const before = plain.colors[v * 3] + plain.colors[v * 3 + 1] + plain.colors[v * 3 + 2], after = worn.colors[v * 3] + worn.colors[v * 3 + 1] + worn.colors[v * 3 + 2];
@@ -323,7 +325,7 @@ describe('road ends blend into the ground (user, 20 October)', () => {
     }
     expect(darker).toBeGreaterThan(40);
     // The shared boundary row of two neighbours carries the same colours (wear included).
-    const next = generateTerrainSection(11, 10), across = worn.across;
+    const next = generateTerrainSection(11, 12), across = worn.across;
     for (let c = 0; c < across; c++) for (let k = 0; k < 3; k++) expect(next.colors[c * 3 + k]).toBe(worn.colors[((worn.along - 1) * across + c) * 3 + k]);
   });
 

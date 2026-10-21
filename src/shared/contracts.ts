@@ -109,7 +109,7 @@ export interface RunState {
   /** Shockwave in progress: a ring expanding from where the ship fired it; `hit` lists targets it already struck. */
   shockwave?: { x: number; s: number; startedAt: number; hit: number[]; cameraX: number } | null;
 }
-export const VIEW = { width: 12, worldWidth: 30, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
+export const VIEW = { width: 12, worldWidth: 24, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;
 export const EMPTY_INPUT: InputFrame = { horizontal: 0, specialPressed: false, pausePressed: false };
 export interface GameRenderer {
@@ -123,8 +123,6 @@ export interface GameRenderer {
 }
 export interface GameInput {
   sample(): InputFrame; clear(): void; dispose(): void;
-  /** Where the hero ship is across the play surface (0 = left edge, 1 = right edge): steering is relative to it. */
-  setAnchor?(fraction: number): void;
 }
 export interface UiActions {
   start(config: RunConfig): void; pause(): void; resume(): void; quit(): void;

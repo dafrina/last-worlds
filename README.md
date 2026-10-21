@@ -15,7 +15,7 @@ npm ci
 npm run dev -- --port 4173
 ```
 
-Open `http://localhost:4173`. Hold left or right of your ship to steer; tap the bottom-center button for the special. On desktop use A/D or arrows, Space, and Escape. High/Low graphics and sound controls are in the menu and pause panel.
+Open `http://localhost:4173`. Hold the left or right half of the screen to steer; tap the bottom-center button for the special. On desktop use A/D or arrows, Space, and Escape. High/Low graphics and sound controls are in the menu and pause panel.
 
 ```sh
 npm run typecheck

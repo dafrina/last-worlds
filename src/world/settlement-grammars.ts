@@ -99,7 +99,9 @@ export const KHEPRI_REFINERY: LayoutGraph = {
   gaps: [5, 6, 7], maxCut: 1.5, maxStep: 1.25,
   lots: [
     {
-      id: 'hub', role: 'hub', archetype: 'refinery', half: [3.6, 4.6], u: [9, 9.5, 10], tallest: 1.6,
+      // Lot centres (|x|) for the 24-wide world (21 October; 9–10 in the 30-wide world): the pad keeps 2 units from
+      // the centre route on its inside and stays inside the world's edge (0.3) on its outside.
+      id: 'hub', role: 'hub', archetype: 'refinery', half: [3.6, 4.6], u: [6, 6.8, 7.6], tallest: 1.6,
       gates: [{ id: 'end', at: [-2.4, -5.4] }, { id: 'inner', at: [-4.4, -1] }],
       yard: [-2.4, -1], spine: [-2.4, 5.0],
       pieces: [
@@ -115,7 +117,7 @@ export const KHEPRI_REFINERY: LayoutGraph = {
       ],
     },
     {
-      id: 'process', role: 'lot', archetype: 'refinery', half: [4, 11], u: [9, 9.5, 10], tallest: 3.5,
+      id: 'process', role: 'lot', archetype: 'refinery', half: [4, 11], u: [6.4, 6.85, 7.3], tallest: 3.5,
       yard: [-3.3, -3.5], spine: [-3.3, -11.4],
       // The processing tower takes the landmark line on the stub in the middle of its +b face.
       landmark: { node: 'khepri_processing_tower', at: [2, -6.5] },

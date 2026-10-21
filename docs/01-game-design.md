@@ -61,7 +61,7 @@ A tap in the main viewport starts movement; it does not select an enemy. Ordinar
 
 ### Orientation, HUD, and wider map
 
-Fit a consistent 9:16 viewport showing 12 world units horizontally. This is a window into a 30-unit-wide world (2.5 screens; narrowed from 36 on 15 October), not a movement boundary. Terrain sections 30 wide and 36 long connect forward; the camera begins over the middle slice and follows lateral travel after the ship leaves a central dead zone. The player can find side routes, caches, and optional fights while forward scrolling continues. See [wide map and camera](10-wide-map-and-camera.md).
+Fit a consistent 9:16 viewport showing 12 world units horizontally. This is a window into a 24-unit-wide world (2 screens; narrowed from 30 on 21 October and from 36 on 15 October), not a movement boundary. Terrain sections 24 wide and 36 long connect forward; the camera begins over the middle slice and follows lateral travel after the ship leaves a central dead zone. The player can find side routes, caches, and optional fights while forward scrolling continues. See [wide map and camera](10-wide-map-and-camera.md).
 
 Different phone shapes fit the same tactical viewport without revealing extra world width. True outer world limits remain visible and distinct from screen edges. No camera rotation or zoom while steering.
 

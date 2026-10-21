@@ -314,6 +314,7 @@ export function* lunaScatterSteps(seed: number, startS: number, size: number, te
       add({ kind: 'rock', x, s, y: ground - 0.04, scale, height: scale * 0.8, rotation: turn(h(5)), cosmetic: true }, h(6));
     }
   }
+  // (No cliff walls on Luna, docs/26 §11: its scarps are gentle steps, never the sheer faces the walls need.)
   return [...essential, ...cosmetic];
 }
 

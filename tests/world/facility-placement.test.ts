@@ -70,7 +70,8 @@ describe('v2 facility placement and target visibility',()=>{
   it('uses the smaller plant near world edges and leaves high or crowded ground to existing emplacements',async()=>{
     const state=createRun({mode:'endless',seed:8831});
     for(const [batteries,expectedCount,expectedLarge] of [
-      [new Map([[1,seat(11)]]),1,0],
+      // 4 inside the edge: the large plant (half width 4.6) overhangs it, the small one (3.6) fits.
+      [new Map([[1,seat(VIEW.worldWidth/2-4)]]),1,0],
       [new Map([[1,seat(0,1.8)]]),0,0],
       [new Map([[1,seat()],[2,seat(1)]]),0,0],
     ] as const){

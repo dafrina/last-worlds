@@ -31,8 +31,11 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
     expect(generateTerrainSection(8831, 3, NACRE).instances).not.toEqual(generateTerrainSection(93, 3, NACRE).instances);
   });
 
-  it('keeps its terrain exactly as it was: terrain versions 13 and 14 (docs/26) change Khepri, Vesper and Luna only', async () => {
-    // sha256 over a section's mesh, pieces, roads, floes and shore, recorded from version 12 (20 October 2026).
+  it('keeps its terrain exactly as it was: terrain versions 13 to 15 (docs/26) change Khepri, Vesper and Luna only', async () => {
+    // sha256 over a section's mesh, pieces, roads, floes and shore. Recorded again for the 24-wide world (21 October
+    // 2026): Nacre's own code is unchanged, but its lattices span the narrower world (WORLD_HALF 15 → 12) and its calm
+    // follows the moved side routes (ROUTE_AXES ±9.5 → ±7.5). Version 14 with those two changes gives these same values.
+    // (Version 12–14, 30 wide: 93:2 c3464267cebdfd55, 8831:5 8cfbbbcba0c67a88, 11:9 2f05e3b2e0bcb07b.)
     const crypto: { createHash(kind: string): { update(data: string | Uint8Array): void; digest(encoding: string): string } } = await import(['node', 'crypto'].join(':'));
     const fingerprint = (section: ReturnType<typeof generateTerrainSection>) => {
       const hash = crypto.createHash('sha256');
@@ -43,7 +46,7 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
       if (section.water) hash.update(new Uint8Array(section.water.shore.buffer));
       return hash.digest('hex').slice(0, 16);
     };
-    for (const [seed, index, value] of [[93, 2, 'c3464267cebdfd55'], [8831, 5, '8cfbbbcba0c67a88'], [11, 9, '2f05e3b2e0bcb07b']] as const) {
+    for (const [seed, index, value] of [[93, 2, 'f2551344e94b4399'], [8831, 5, 'c919485f87ba3755'], [11, 9, '79ba0f705fa2b4a7']] as const) {
       expect(fingerprint(generateTerrainSection(seed, index, NACRE)), `${seed}:${index}`).toBe(value);
     }
   });
@@ -74,7 +77,8 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
       if (terrainHeight(seed, x, s, NACRE) > SEA) land++;
       if (nacreMasks(seed, x, s).rock > 0.3) rock++;
     }
-    expect(land / samples).toBeGreaterThan(0.35); expect(land / samples).toBeLessThan(0.65);
+    // (0.345 across the 24-wide world, 21 October: the calm centre lane takes a larger share of the samples.)
+    expect(land / samples).toBeGreaterThan(0.33); expect(land / samples).toBeLessThan(0.65);
     expect(rock / samples).toBeGreaterThan(0.05);
   });
 

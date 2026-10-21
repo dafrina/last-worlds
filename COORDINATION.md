@@ -195,3 +195,46 @@ No further edits to `facility-view.ts`, per the ownership handover.
 
 
 **2026-10-21 · Claude Code integrator · crisp cliffs v14 deployed:** Terrain version 14 (the subagent's READY entry above) is verified from a snapshot: unit 398/398, build, browser 35/35. `vesper.spec` timed out once under a load average of about 30 and passed on re-run; its launch poll now allows 30 s because launch waits for "Preparing flight". Real cliff walls and Vesper at 50/50 land and water (v15) continue in the main tree with the terrain subagent.
+
+**2026-10-21 · Claude Code integrator · width 24, screen-half steering, Pulsar gaps (in the main tree, not yet committed):** User decisions: world 24 units (2 screens), down from 30; steering back to the left and right screen halves; evading means weaving between projectiles, not hiding at the edge. Integrator files:
+- `src/shared/contracts.ts` (`VIEW.worldWidth` 24; `setAnchor` removed), `src/input/controls.ts`, `src/main.ts`, `src/ui/game-ui.ts`, `src/ui/menu-markup.ts`;
+- `src/content/balance.ts` (`PULSAR_BURST.interval` 0.1 → 0.2, so a stream has gaps the ship can pass through);
+- tests: `tests/sim/bastion.test.ts`, `pulsar.test.ts`, `pilots.ts` (the perfect pilot knows its own position), `tests/world/facility-placement.test.ts`, `tests/browser/flight.spec.ts`;
+- docs: AGENTS.md (#1, #12), README, docs/01, 08, 10, 12.
+
+The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50, rock textures) and owns the world tests at the new width. Everything ships together, at the user's request.
+
+**2026-10-21 · Terrain subagent (World, Claude Code) · v15 cliff walls, Vesper 50/50, rock textures, width 24 · READY:** Terrain version 15 is done at width 24 (docs/26 §11). Nothing is committed. The main tree already holds it (on top of `d6c96b9`).
+- **Walls:** real wall geometry along the crisp cliffs (`src/world/terrain-walls.ts`), deterministic and chunk-independent. Khepri gets `cliff_wall_*`, Vesper gets `ice_wall_*` on coasts and shelf steps, Luna and Nacre get none. They never sit on roads, pads, districts or arenas, never exceed the cap, and never collide.
+- **Vesper:**
+  - land share 0.486–0.507 (mean 0.496);
+  - fjord-like inlets;
+  - outposts search 14 spots;
+  - pipelines are planned only where at most half the line crosses water.
+- **Textures:**
+  - cliff-rock maps on Khepri and Luna walls, ice-wall maps on Vesper's, with ledges level; normal maps on High only;
+  - the kit walls have their own program;
+  - Vesper shading: flat facets, lit faces pale cyan-white, shadowed faces deep saturated blue, snow on the rim only; the ground's ice walls match (smooth normal, to avoid grid stairs);
+  - the maps load in prepare, and missing maps fall back.
+- **Width 24 retunes (my files):**
+  - route axes ±7.5;
+  - district lot positions, lattice and link grade (0.62);
+  - Khepri outpost spread.
+- **Fingerprints:** Khepri and Nacre are re-recorded with the reason. Nacre's code is unchanged, and v14 at the same width and route axes gives the same hashes.
+- **One edit outside my files, as asked:** `tests/browser/graphics.spec.ts`, Vesper facility spot 270 → 200 (two places); 270 is open water now.
+- **Files:**
+  - `src/world/terrain-walls.ts` (new), `terrain-scatter.ts`, `terrain-vesper.ts`, `terrain-luna.ts`, `terrain.ts`, `terrain-layout.ts`, `terrain-settlements.ts`, `terrain-districts.ts`, `settlement-grammars.ts`, `terrain-network.ts`;
+  - `src/render/terrain-kit.ts`, `terrain-view.ts`;
+  - `tests/world/terrain.test.ts`, `terrain-vesper.test.ts`, `terrain-nacre.test.ts`, `terrain-districts.test.ts`, `terrain-budget.test.ts`, `tests/browser/graphics.spec.ts`;
+  - docs/26 §11, my build-status section, `docs/screenshots/terrain/walls-{khepri,vesper,luna}.jpg`, `walls-vesper-concept.jpg`.
+- **Checks:**
+  - typecheck clean;
+  - **unit tests: 399/399 for the whole suite at width 24** (default config);
+  - `graphics.spec` 7/7;
+  - budget on High: Khepri ≤ 63 calls and ≤ 77.7k triangles, Vesper ≤ 46 and ≤ 62.5k, Luna ≤ 24 and ≤ 49.4k;
+  - no fallbacks in fixture flights at 5 and 11 units/s;
+  - real start flow: longest render 5–11 ms in the first 12 s of flight (prepare absorbs the compile).
+  - No phone test.
+
+
+**2026-10-21 · Claude Code integrator · terrain v15, width 24, screen-half steering, Pulsar gaps: deployed:** verified from a snapshot: typecheck clean, unit tests 399/399, build passes, browser 35/35.

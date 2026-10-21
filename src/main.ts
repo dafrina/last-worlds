@@ -185,9 +185,6 @@ function frame(now: number) {
   if (warmupFrames > 0) warmupFrames--;
   maxFrameMs = Math.max(maxFrameMs, elapsed * 1000);
   lastTime = now;
-  // Steering is relative to the hero ship: tell the input where it is across the play surface.
-  const anchorRun = afterglow?.state ?? run;
-  if (anchorRun) input.setAnchor?.((anchorRun.player.x - anchorRun.cameraX) / VIEW.width + .5);
   const controls = input.sample();
   if (controls.pausePressed) pause();
   // A foreground rendering hitch drops its backlog without opening a pause menu.

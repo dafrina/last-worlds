@@ -107,6 +107,21 @@ function gate(site: Settlement, tx: number, ts: number): Endpoint {
   return { x: clamp(site.x + dx / length * reach, -WORLD_HALF + 0.6, WORLD_HALF - 0.6), s: site.s + ds / length * reach, site };
 }
 
+/**
+ * The most water a planned pipeline's straight line may cross (share of its length), on planets with a sea: lines up to
+ * half over water still trestle across leads (9 in 10 of those planned are built); wider ones were never built.
+ */
+const PIPE_WATER = 0.5;
+/** Share of the straight line from a to b over water (raw landform, before roads and arenas). */
+function waterAlong(seed: number, planet: PlanetProfile, a: { x: number; s: number }, b: { x: number; s: number }): number {
+  let water = 0;
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20, x = a.x + (b.x - a.x) * t, s = a.s + (b.s - a.s) * t;
+    if (planet.landform(seed, x, s, { seed, s, params: planet.params(seed, s), local: planet.local(seed, s), platform: 0 }).height < planet.seaLevel!) water++;
+  }
+  return water / 21;
+}
+
 /** Edges owned by one settlement: the next outpost ahead on its side, sometimes a map exit or a cross link. */
 function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI): NetworkEdge[] {
   // District lots join through their hub. A hub always gets a road (docs/23 §5): its chain looks further ahead (its
@@ -116,8 +131,12 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
   const INDUSTRIAL = planet.industrial, QUIET = planet.quiet;
   const edges: NetworkEdge[] = [], h = (k: number) => hash(seed ^ 0x7e7, site.cell * 31 + k, site.side > 0 ? 7 : 3);
   const make = (kind: NetworkEdge['kind'], target: Settlement | null, tx: number, ts: number, road: number, pipe: number): NetworkEdge => {
-    const b: Endpoint = target ? gate(target, site.x, site.s) : { x: tx, s: ts, site: null };
-    return { id: `${site.id}>${kind}`, a: gate(site, b.x, b.s), b, kind, road: h(edges.length * 3 + 1) < road, pipe: h(edges.length * 3 + 2) < pipe };
+    const b: Endpoint = target ? gate(target, site.x, site.s) : { x: tx, s: ts, site: null }, a = gate(site, b.x, b.s);
+    const edge = { id: `${site.id}>${kind}`, a, b, kind, road: h(edges.length * 3 + 1) < road, pipe: h(edges.length * 3 + 2) < pipe };
+    // Over a sea a pipeline is planned only where at most half its line crosses water (terrain version 15: Vesper is
+    // half water, and the 24-wide world leaves a long run little room to go round); wider water is never bridged.
+    if (edge.pipe && planet.seaLevel !== null) edge.pipe = waterAlong(seed, planet, a, b) <= PIPE_WATER;
+    return edge;
   };
   for (let cell = site.cell + 1; cell <= site.cell + (district ? 5 : 3); cell++) {
     const next = planet.settlement(seed, cell, site.side);

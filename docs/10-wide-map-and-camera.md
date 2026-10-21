@@ -4,9 +4,9 @@ Design v0.2. The user explicitly replaced a fixed screen-width corridor with a w
 
 ## 1. Geometry and feel
 
-Dimensions (15 October 2026, user decision): terrain sections 30 world units wide and 36 long, with a portrait viewport showing 12 units horizontally, so the world is 2.5 screens wide. The camera starts centered. Sections connect along forward travel to form campaign routes or endless terrain; they do not enclose the game in one finite square.
+Dimensions (21 October 2026, user decision; 30 wide from 15 October): terrain sections 24 world units wide and 36 long, with a portrait viewport showing 12 units horizontally, so the world is 2 screens wide. The user narrowed it because at 2.5 screens squadrons lost the ship: a player could slide from one far side to the other and outrun every attack instead of dodging, and beam ships could not find a lane. The camera starts centered. Sections connect along forward travel to form campaign routes or endless terrain; they do not enclose the game in one finite square.
 
-The ship is free to move across the entire world width. Screen edges are not world walls. World x spans −15 to +15; with the 0.42 collider the ship center clamps to [−14.58, +14.58]. The camera center spans [−9, +9], ensuring the viewport stays inside the map. Mandatory squadrons anchor to the camera but at most ±7, so a squadron never pins the ship against a world edge. At the outer map boundary the ship approaches the screen edge naturally. Mark actual world limits with readable terrain/flight-boundary cues; never invisible viewport clamping.
+The ship is free to move across the entire world width. Screen edges are not world walls. World x spans −12 to +12; with the 0.42 collider the ship center clamps to [−11.58, +11.58]. The camera center spans [−6, +6], ensuring the viewport stays inside the map. Mandatory squadrons anchor to the camera but at most ±4, so a squadron never pins the ship against a world edge. At the outer map boundary the ship approaches the screen edge naturally. Mark actual world limits with readable terrain/flight-boundary cues; never invisible viewport clamping.
 
 **Responsive viewport (user request, 16 October 2026):** phones fill the available dynamic viewport height (`100dvh`) and use their full width when taller than 9:16. Wider touch devices and landscape phones keep a centered portrait field at full height; desktop retains a fitted 9:16 frame with side rails when space permits. The camera preserves the 12-unit width, 55° elevation, forward screen-up motion and fixed player row. Extra phone height extends the foreground below the canonical combat area; its top stays anchored, so it never reveals approaching enemies earlier or stretches models. Horizontal camera movement does not rotate the flight direction.
 
@@ -16,7 +16,7 @@ Canvas resize updates projection, shadow coverage and post-processing together t
 
 Use a 2.5-unit half-width dead zone around the camera center. While the ship stays inside it, camera x stays still. Beyond it, camera target x follows enough to keep the ship at the dead-zone edge, clamped to map bounds. Move toward that target at up to 17 units/s at campaign pace (raised from 14 on 14 October with the faster ship; endless scales it with its pace from 14 to 18.7), slightly faster than the fastest ship; tune for smooth motion without losing forward threat visibility. A tiny interpolation ease is presentation only; authoritative visibility follows the simulation camera.
 
-Camera x is explicit fixed-step state driven by player world x, not a DOM scroll or renderer-only guess. Input steers relative to the hero ship's position on screen (since 17 October; previously the screen halves), with the bottom-center special button owning its pointer. Cross-screen steering and camera movement must not invert controls.
+Camera x is explicit fixed-step state driven by player world x, not a DOM scroll or renderer-only guess. Input uses the left and right screen halves (restored 21 October after steering relative to the ship from 17 October), with the bottom-center special button owning its pointer. Cross-screen steering and camera movement must not invert controls.
 
 No automatic camera jumps toward pickups or side quests. Do not recenter the map after releasing steering or losing a life. Respawn in a safe position near the current region. A menu restart may return to the authored starting point. Camera shake is optional, tiny, and unrelated to exploration.
 
@@ -24,7 +24,7 @@ No automatic camera jumps toward pickups or side quests. Do not recenter the map
 
 Authored side routes provide different enemy groups, caches, scenery, and firing positions. Telegraph a turn far enough ahead to reach it with the slowest drive. The player chooses what to engage or pass, while terrain continues scrolling. This is route exploration within a scrolling shooter, not a free-roaming map or a demand for vertical controls.
 
-Start the prototype with a center patrol, a left optional cache, and a right optional turret group on one 30-unit-wide section. Place a landmark where it can be seen before the lateral commitment, or use a subtle temporary world-edge signal. No permanent minimap or new HUD meter at launch.
+Start the prototype with a center patrol, a left optional cache, and a right optional turret group on one 24-unit-wide section. Place a landmark where it can be seen before the lateral commitment, or use a subtle temporary world-edge signal. No permanent minimap or new HUD meter at launch.
 
 Use stable world IDs and states. Leaving the viewport does not reset enemy HP, respawn a cache, regenerate its reward, reroll loot, or permit repeated discovery bonuses. Unseen rewards are not automatically collected at sector end. Advance ordinary world-relative motion offscreen; only expensive visual details may sleep. Record authored encounters and seeded caches with stable IDs; procedural world layout cannot rewrite the battle schedule.
 

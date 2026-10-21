@@ -35,7 +35,10 @@ describe('Bastion-9 mission', () => {
     advance(state, 3);
     expect(state.boss?.phase).toBe('batteries');
     expect(acquireTarget(state)).toBeUndefined();
+    // Waiting never wins. In the 2-screen world (24 units) a battery stays in view even from the world edge, so the
+    // idle ship is hit: give it lives enough to outlast the wait.
     state.player.x = -(VIEW.worldWidth / 2 - 1); state.cameraX = -(VIEW.worldWidth - VIEW.width) / 2;
+    state.player.lives = 1000;
     advance(state, 180);
     expect(state.phase).toBe('playing');
     expect(state.boss?.phase).toBe('batteries');
@@ -79,10 +82,15 @@ describe('Bastion-9 mission', () => {
   it('cancels offscreen windups and grants a fresh warning on return', () => {
     const state = encounter(); advance(state, 4.5);
     expect(state.boss!.attack).not.toBeNull();
-    state.player.x = VIEW.worldWidth / 2 - 1; state.cameraX = (VIEW.worldWidth - VIEW.width) / 2; advance(state, 1);
+    // The far edge on the side away from the winding battery puts that battery out of view (the other battery stays
+    // in view in the 24-unit world and may start its own windup after the 0.6 s pause, so check within it).
+    const side = -Math.sign(state.enemies.find(enemy => enemy.id === state.boss!.attackerId)!.x) || 1;
+    state.player.x = side * (VIEW.worldWidth / 2 - 1); state.cameraX = side * (VIEW.worldWidth - VIEW.width) / 2; advance(state, .2);
     expect(state.boss!.attack).toBeNull();
     expect(state.projectiles.filter(shot => !shot.friendly)).toHaveLength(0);
-    state.player.x = 0; state.cameraX = 0; stepRun(state, EMPTY_INPUT);
+    // Back in the middle, the next windup (after the pause) starts with the full warning.
+    state.player.x = 0; state.cameraX = 0;
+    for (let i = 0; i < 120 && !state.enemies.some(enemy => enemy.warning > 0); i++) stepRun(state, EMPTY_INPUT);
     expect(state.enemies.some(enemy => enemy.warning >= BASTION.warning - STEP)).toBe(true);
   });
 

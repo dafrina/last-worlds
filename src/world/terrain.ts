@@ -14,6 +14,7 @@ export {
   landform, moodAt, moodOf, routeCalm, routeCenter, type Mood, type Route,
 } from './terrain-layout';
 export { terrainHeight } from './terrain-ground';
+export { WALL_CELL, cliffWallSteps, type WallOptions } from './terrain-walls';
 export { PAD_MARGIN, districtHidden, districtPlan, districtsNear, slotRange, type DistrictPlan, type DistrictSite } from './terrain-districts';
 export { KHEPRI_DISTRICTS, KHEPRI_REFINERY, type DistrictPolicy, type LayoutGraph } from './settlement-grammars';
 export { MODULES, moduleSize, type ModuleSpec } from './settlement-modules';
@@ -31,7 +32,8 @@ export {
   type IndustryPiece, type NetworkEdge, type PipeRun, type RoadEnd, type RoadMesh, type RoadPath, type SharedNode,
 } from './terrain-network';
 export {
-  FLOE_FOOTPRINT, FLOE_SETS, KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, VESPER_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName, stripOf, type FloeSetKind, type KitInstance, type KitKind,
+  FLOE_FOOTPRINT, FLOE_SETS, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName, stripOf,
+  type CliffKitKind, type FloeSetKind, type KitInstance, type KitKind,
 } from './terrain-scatter';
 
 /**
@@ -45,8 +47,11 @@ export {
  * 14: crisp cliffs (docs/26 §10): rims meet their tops in hard creases (benches, mesas, canyons, ice cliffs, leads,
  *     crevasses, scarps); rim and foot vertices keep their flat side's colour; Vesper harbours stand on open water and
  *     its crevasses run across the flight line. Nacre is unchanged.
+ * 15: real cliff walls (docs/26 §11): columnar basalt walls along Khepri's cliffs and fractured ice-shelf walls along
+ *     Vesper's steps and coasts (cliff kits); Vesper half land, half water with fjord-like inlets. Luna and Nacre are
+ *     unchanged.
  */
-export const TERRAIN_VERSION = 14;
+export const TERRAIN_VERSION = 15;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.

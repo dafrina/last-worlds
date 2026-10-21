@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
 
@@ -64,8 +64,24 @@ class Builder {
   }
 }
 
+/**
+ * Stand-in for a columnar basalt cliff wall (the cliff kit's `cliff_wall` contract: x ±1.05, z −0.6…0.35, base y 0,
+ * top exactly 1): a back block filling the slope and a row of hexagonal columns of uneven height in front.
+ */
+function cliffWallStandIn(variant: number): THREE.BufferGeometry {
+  const builder = new Builder(), seed = 9001 + variant * 31;
+  // (About 280 triangles, near the shipped pieces' budget, so a missing kit never strains the terrain budget.)
+  for (let i = 0; i < 3; i++) builder.prism(-0.7 + i * 0.7, -0.3, 0.32, 0.97 + rand(seed, i) * 0.03, 5, rand(seed, i + 9) * 3, 0, 0);
+  for (let i = 0; i < 5; i++) {
+    const x = -0.84 + i * 0.42 + (rand(seed, i + 20) - 0.5) * 0.06, z = 0.06 + (rand(seed, i + 30) - 0.5) * 0.16;
+    builder.prism(x, z, 0.2 + rand(seed, i + 40) * 0.04, i === 2 ? 1 : 0.72 + rand(seed, i + 50) * 0.26, 5, rand(seed, i + 60) * 3, 0, 0);
+  }
+  return builder.geometry();
+}
+
 function fallbackPiece(kind: KitKind, variant: number): THREE.BufferGeometry {
-  if ((VESPER_KIT_KINDS as readonly string[]).includes(kind)) return vesperFallbackPiece(kind, variant);
+  if (kind === 'cliffWall') return cliffWallStandIn(variant);
+  if ((VESPER_KIT_KINDS as readonly string[]).includes(kind) || kind === 'iceWall') return vesperFallbackPiece(kind, variant);
   if ((NACRE_KIT_KINDS as readonly string[]).includes(kind)) return createNacrePiece(kind, variant);
   const builder = new Builder(), seed = (KIT_KINDS as readonly string[]).indexOf(kind) * 101 + variant * 13;
   const cluster = (count: number, spreadX: number, spreadZ: number, minTop: number, size: number) => {
@@ -171,6 +187,10 @@ function vesperFallbackPiece(kind: KitKind, variant: number): THREE.BufferGeomet
     }
   };
   switch (kind) {
+    case 'iceWall':
+      // Stand-in ice-shelf wall: blocky slabs across the segment, snow-capped, the middle one reaching the top.
+      for (let i = 0; i < 4; i++) slab(-0.78 + i * 0.52, -0.12 + rand(seed, i + 7) * 0.08, 0.3, 0.42, 0, i === 1 ? 1 : 0.84 + rand(seed, i + 9) * 0.15, 5, ICE, SNOW);
+      break;
     case 'iceCliff':
       for (let i = 0; i < 4; i++) slab(-0.9 + i * 0.6, rand(seed, i + 7) * 0.1, 0.36, 0.45, -0.15, 0.82 + rand(seed, i + 9) * 0.18, 5, ICE, SNOW);
       break;
@@ -193,7 +213,7 @@ function vesperFallbackPiece(kind: KitKind, variant: number): THREE.BufferGeomet
 /** Simple procedural stand-ins so the game renders before (or without) the Blender kits. */
 export function createFallbackKit(): KitGeometries {
   const kit: KitGeometries = new Map();
-  for (const kind of [...KIT_KINDS, ...VESPER_KIT_KINDS, ...NACRE_KIT_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) {
+  for (const kind of [...KIT_KINDS, ...VESPER_KIT_KINDS, ...NACRE_KIT_KINDS, ...KHEPRI_CLIFF_KINDS, ...VESPER_CLIFF_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) {
     const geometry = normalizeKitGeometry(fallbackPiece(kind, v), kind);
     if (geometry) kit.set(kitNodeName(kind, v), geometry);
   }
@@ -299,6 +319,13 @@ export function loadVesperKit(url: string): Promise<KitGeometries> { return load
  * `nacre_glow` material glow with their own COLOR_0 (weight = its brightest channel; see the Nacre kit look).
  */
 export function loadNacreKit(url: string): Promise<KitGeometries> { return loadKit(url, NACRE_KIT_KINDS, /glow/i); }
+/**
+ * Loads a world's cliff kit (`<world>/cliff-kit.glb`, docs/26 §11): Khepri's columnar basalt walls (also Luna's) or
+ * Vesper's ice-shelf walls. Nodes it lacks keep their stand-ins.
+ */
+export function loadCliffKit(url: string, planet: 'khepri' | 'vesper'): Promise<KitGeometries> {
+  return loadKit(url, planet === 'vesper' ? VESPER_CLIFF_KINDS : KHEPRI_CLIFF_KINDS);
+}
 function loadKit(url: string, kinds: readonly KitKind[], emissive?: RegExp): Promise<KitGeometries> {
   const names = kinds.flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v)));
   // Longest prefix first: `ice_cliff_0` must not match a shorter prefix.
@@ -461,16 +488,25 @@ export function createWaterMaterial(): THREE.MeshStandardMaterial {
 export interface KhepriTextures {
   groundDetail: THREE.Texture | null;
   basaltDetail: THREE.Texture | null; basaltNormal: THREE.Texture | null;
+  /** Layered cliff rock (Poly Haven `cliff_side`, docs/26 §11) on Khepri's and Luna's walls: x along, y up the wall. */
+  cliffDetail: THREE.Texture | null; cliffNormal: THREE.Texture | null;
 }
 const TEXTURE_FILES: Record<keyof KhepriTextures, string> = {
   groundDetail: 'khepri-ground-detail.jpg',
   basaltDetail: 'khepri-basalt-detail.jpg', basaltNormal: 'khepri-basalt-normal.jpg',
+  cliffDetail: 'cliff-rock-detail.jpg', cliffNormal: 'cliff-rock-normal.jpg',
 };
+/** Vesper's fractured ice-wall maps (docs/26 §11), loaded with the planet's scenery (the terrain view's prepare). */
+interface WallTextures { detail: THREE.Texture | null; normal: THREE.Texture | null }
+const VESPER_WALL_FILES: Record<keyof WallTextures, string> = { detail: 'ice-wall-detail.jpg', normal: 'ice-wall-normal.jpg' };
 
 /** Loads each map independently; a failed map stays null and its procedural fallback remains. */
-export async function loadKhepriTextures(base: string, anisotropy: number): Promise<KhepriTextures> {
+export function loadKhepriTextures(base: string, anisotropy: number): Promise<KhepriTextures> {
+  return loadDataTextures(base, TEXTURE_FILES, anisotropy);
+}
+async function loadDataTextures<K extends string>(base: string, files: Record<K, string>, anisotropy: number): Promise<Record<K, THREE.Texture | null>> {
   const loader = new THREE.TextureLoader();
-  const entries = await Promise.all(Object.entries(TEXTURE_FILES).map(async ([key, file]) => {
+  const entries = await Promise.all(Object.entries<string>(files).map(async ([key, file]) => {
     try {
       const texture = await loader.loadAsync(`${base}${file}`);
       // Detail maps hold luminance ratios (0.5 = neutral) and normals hold vectors: both are data.
@@ -483,7 +519,7 @@ export async function loadKhepriTextures(base: string, anisotropy: number): Prom
       return [key, null] as const;
     }
   }));
-  return Object.fromEntries(entries) as unknown as KhepriTextures;
+  return Object.fromEntries(entries) as Record<K, THREE.Texture | null>;
 }
 
 /**
@@ -559,8 +595,83 @@ export function createDetailTexture(): THREE.DataTexture {
 export const GROUND_TILE = 6;
 /** World units per basalt detail tile on cliff columns and mesa tops. */
 const BASALT_TILE = 1.3, FACE_TILE = 2.2;
+/**
+ * World units per cliff-rock or ice-wall tile (docs/26 §11), on the ground's wall triangles and the kit's wall pieces
+ * alike: the rock's ledges read from the 55° camera without the tile repeating along a rim.
+ */
+const WALL_TILE = 3.5;
+/** Wall detail strength per planet (luminance contrast) and the wall normal map's strength (High only). */
+const WALL_DETAIL: Partial<Record<PlanetId, { contrast: number; normal: number }>> = {
+  khepri: { contrast: 0.95, normal: 0.9 }, vesper: { contrast: 0.75, normal: 0.7 }, luna: { contrast: 0.75, normal: 0.8 },
+};
 
 const GLOW_VERTEX = '#include <common>\nattribute float glow;\nvarying float vGlow;\nvarying float vHazeY;';
+/**
+ * Wall pieces' detail (docs/26 §11): faces carry the full rock (or ice) map; tops keep a quieter grain, so a rim stays
+ * a clean edge. The grain is kept apart for the Vesper ice colouring after the vertex colours.
+ */
+const WALL_DETAIL_FRAGMENT = `#ifdef USE_MAP
+  float wallGrain = 1.0 + ( texture2D( map, vMapUv ).r * 2.0 - 1.0 ) * wallContrast * mix( 1.0, 0.35, vWallTop ) * ( 1.0 - clamp( vGlow, 0.0, 1.0 ) );
+#else
+  float wallGrain = 1.0;
+#endif
+  diffuseColor.rgb *= wallGrain;`;
+/**
+ * Wall faces match the ground's own wall triangles (docs/26 §10–11): lifted where they face the camera, like bounce
+ * light off the floor, so the rock's ledges read on the shaded side. On Vesper they become the concept's glacier ice,
+ * pale blue-white high up and deep blue toward the foot (following the piece's own colour ramp), under clean snow caps;
+ * on Khepri their rust caps darken to weathered rock.
+ */
+const WALL_COLOR_FRAGMENT = `
+  float wallIceShade = 0.0;
+  vec3 wallFacet = vec3( 0.0, 0.0, 1.0 );
+  if ( vesperLook > 0.5 ) {
+    // Crisp ice (user, 21 October: "a bit more crisp and pointy"): each flat facet's own plane against the sun splits
+    // pale cyan-white lit faces from deep, saturated blue shadowed ones, over the kit's own colours (ice blue faces,
+    // abyss-blue cracks that stay dark, snow on the rim only).
+    wallFacet = normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) );
+    float iceSun = 0.5;
+    #if NUM_DIR_LIGHTS > 0
+      iceSun = dot( wallFacet, directionalLights[ 0 ].direction );
+    #endif
+    float iceLight = dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ), crack = 1.0 - smoothstep( 0.04, 0.14, iceLight );
+    float cap = smoothstep( 0.5, 0.85, vWallTop ), iceLit = smoothstep( -0.05, 0.3, iceSun ) * ( 1.0 - crack );
+    vec3 iceShade = diffuseColor.rgb * vec3( 0.55, 0.8, 1.15 ), iceBright = mix( diffuseColor.rgb, vec3( 0.62, 0.86, 1.0 ) * wallGrain, 0.6 );
+    diffuseColor.rgb = mix( mix( iceShade, iceBright, iceLit ), vec3( 0.9, 0.94, 0.98 ) * ( 0.94 + 0.06 * wallGrain ), cap );
+    wallIceShade = ( 1.0 - iceLit ) * ( 1.0 - cap );
+    // Shadowed ice keeps its colour (a little light through the ice) instead of going grey.
+    totalEmissiveRadiance += vec3( 0.004, 0.035, 0.13 ) * wallIceShade;
+  } else {
+    // Khepri: the caps read as the rock itself (the concept's dark, weathered column tops), not as bright slabs.
+    vec3 capRock = vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.45, 1.0, 0.8 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, capRock, 0.5 ) * 0.42, vWallTop );
+  }
+  diffuseColor.rgb *= 1.0 + ( vesperLook > 0.5 ? 0.25 : 1.1 ) * ( 1.0 - vWallTop ) * clamp( normalize( vNormal ).z * 1.4, 0.0, 1.0 );`;
+/**
+ * Wall pieces' map coordinates (docs/26 §11): faces take u along the piece (its own x, or z on its ends, in world units
+ * after the instance's stretch) and v up in world units, so ledges stay level however tall a piece is scaled; tops
+ * take the world-planar map. Each piece shifts u by its position, so neighbours do not repeat the same rock.
+ */
+const WALL_UV_VERTEX = `#include <uv_vertex>
+  #ifdef USE_INSTANCING
+    mat4 wallMatrix = instanceMatrix;
+  #else
+    mat4 wallMatrix = mat4( 1.0 );
+  #endif
+  vec3 wallScale = vec3( length( wallMatrix[ 0 ].xyz ), length( wallMatrix[ 1 ].xyz ), length( wallMatrix[ 2 ].xyz ) );
+  vec3 wallPosition = ( wallMatrix * vec4( position, 1.0 ) ).xyz;
+  // The face's normal under the instance's stretch (inverse scale): a top stays a top at any wall height.
+  vec3 wallFacing = normalize( normal / wallScale );
+  vWallTop = smoothstep( 0.55, 0.8, wallFacing.y );
+  float wallShift = dot( wallMatrix[ 3 ].xz, vec2( 0.37, 0.61 ) );
+  vec2 wallUv = ( abs( wallFacing.y ) > 0.7 ? wallPosition.xz
+    : vec2( ( abs( wallFacing.x ) > abs( wallFacing.z ) ? position.z * wallScale.z : position.x * wallScale.x ) + wallShift, wallPosition.y ) ) * wallTile;
+  #ifdef USE_MAP
+    vMapUv = wallUv;
+  #endif
+  #ifdef USE_NORMALMAP
+    vNormalMapUv = wallUv;
+  #endif`;
 const GLOW_FRAGMENT = '#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying float vGlow;';
 const EMISSIVE = '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowColor * vGlow;';
 /**
@@ -654,6 +765,11 @@ export function createTerrainMaterials() {
   const uniforms = {
     rockMap: { value: fallback as THREE.Texture }, faceScale: { value: 1 / FACE_TILE }, kitTile: { value: 1 / BASALT_TILE },
   };
+  /**
+   * Wall maps (docs/26 §11): wallMapOn 1 while the planet's cliff-rock or ice-wall map is the rockMap; the wall normal
+   * map's strength (0 = off: Low tier, a missing map, or Nacre).
+   */
+  const wallMaps = { wallNormal: { value: flatNormal as THREE.Texture }, wallNormalOn: { value: 0 }, wallMapOn: { value: 0 } };
   const ground = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, envMapIntensity: .18, normalScale: new THREE.Vector2(0.7, 0.7) });
   // Persistent uniform objects so a planet switch can retune them (Khepri values are the originals).
   const groundHaze = haze(), groundLook = { groundIce: {value: 0}, glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 } };
@@ -664,7 +780,7 @@ export function createTerrainMaterials() {
   const cliffLook = { cliffLook: { value: 1 }, creaseLook: { value: KHEPRI_WALL.crease }, wallHue: { value: KHEPRI_WALL.hue.clone() },
     wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns } };
   ground.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook);
+    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
@@ -675,6 +791,7 @@ attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying 
       .replace('#include <common>', `#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
 uniform float cliffLook;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;
+uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
 // across section joins (36·scale must be an integer).
 float khepriHash( vec2 p, float period ) { return fract( sin( dot( vec2( p.x, mod( p.y, period ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
@@ -730,10 +847,11 @@ float khepriCells( vec2 local, float scale ) {
 // exactly the version 13 path).
 // (A uniform branch: derivatives stay in uniform control flow, and worlds without cliffs pay nothing.) The world's up
 // axis in view space is the view matrix's second column, so the face's tilt is one dot product.
-vec3 cliffFace = vec3( 0.0, 0.0, 1.0 );
+vec3 cliffFace = vec3( 0.0, 0.0, 1.0 ), cliffDx = vec3( 0.0 ), cliffDy = vec3( 0.0 );
 float cliffUp = 1.0, cliffWall = 0.0;
 if ( cliffLook > 0.0 ) {
-  cliffFace = normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) );
+  cliffDx = dFdx( vViewPosition ); cliffDy = dFdy( vViewPosition );
+  cliffFace = normalize( cross( cliffDx, cliffDy ) );
   cliffUp = abs( dot( cliffFace, viewMatrix[ 1 ].xyz ) );
   cliffWall = cliffLook * smoothstep( 0.62, 0.42, cliffUp );
 }
@@ -741,7 +859,9 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
 #ifdef USE_MAP
   // One dust tap; vertex-colour drift hides the tile repetition. Three taps in total on High (dust, rock, normal).
   float dustA = texture2D( map, vMapUv ).r * 2.0;
-  // Steep faces: basalt detail projected on the vertical plane they face, with columnar striation.
+  // Steep faces: basalt detail projected on the vertical plane they face, with columnar striation. With a wall map
+  // (version 15: cliff rock, or Vesper's ice wall) the map's x runs along the wall and its y up it, so the rock's
+  // ledges lie level instead of stretching down the drop.
   // The across-face coordinate follows the face's own horizontal direction continuously, so walls running
   // diagonally keep straight columns instead of flipping between x and z projections (chevron stripes).
   // Flat ground (most pixels) skips this path; derivatives are taken outside the branch.
@@ -770,6 +890,8 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     // (Crisp-cliff worlds stretch the fractures vertically: the concept's blocky ice walls split top to bottom.)
     float fracture = khepriNoise( mix( vec2( across + vLocal.y * .17, vLocal.y ), vec2( across * 2.2, vLocal.y * 0.3 ), cliffLook ), 4.0 );
     float iceStrata = .86 + .2 * fracture + .025 * sin( vLocal.y * 42.0 + fracture * 8.0 );
+    // Vesper with its ice-wall map: the map's fractured ice, its blocky vertical splits kept from the strata.
+    iceStrata = mix( iceStrata, rockD * ( .9 + .1 * fracture ), wallMapOn );
     detail = mix( dustA, mix( rockDetail, iceStrata, groundIce ), vRock );
   }
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast;
@@ -777,10 +899,25 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // Camera-facing cliff faces sit in the generator's baked (lower-sun) shade; lift them like warm bounce light
   // off the sunlit floor so columns keep readable detail instead of going black (both tiers).
   // Crisp-cliff worlds lift them further, so the concept's dark faces still show their columns and fractures.
-  diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
+  // (Vesper's ice walls keep their facet contrast instead: little lift there.)
+  diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * ( 1.0 - 0.75 * groundIce ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   // Walls take their own material after the vertex colours: the wall hue at the ground's light (baked shade kept).
-  if ( cliffWall > 0.0 ) diffuseColor.rgb = mix( diffuseColor.rgb, wallHue * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) * wallShade, cliffWall );`)
+  if ( cliffWall > 0.0 ) diffuseColor.rgb = mix( diffuseColor.rgb, wallHue * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) * wallShade, cliffWall );
+  // Vesper's ice walls match the kit's ice shards (docs/26 §11): the face against the sun splits pale cyan-white lit ice
+  // from deep, saturated blue shadowed ice, at the ground's baked light. (By the smooth normal: per triangle, the 0.25
+  // height grid read as pixel stairs along every crevasse. The kit's shards carry the hard facets.)
+  if ( groundIce > 0.5 && cliffWall > 0.0 ) {
+    float iceSun = 0.5;
+    #if NUM_DIR_LIGHTS > 0
+      iceSun = dot( normalize( vNormal ), directionalLights[ 0 ].direction );
+    #endif
+    float iceLit = smoothstep( -0.05, 0.3, iceSun ), baked = clamp( dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) / 0.8, 0.4, 1.0 );
+    // Shadowed ice deepens toward the waterline, like the kit's ramp; shallow crevasse lips stay a lighter blue.
+    vec3 iceShade = mix( vec3( 0.03, 0.17, 0.46 ), vec3( 0.2, 0.45, 0.78 ), smoothstep( -1.0, 1.6, vLocal.y ) ), iceBright = vec3( 0.6, 0.84, 1.0 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, mix( iceShade, iceBright, iceLit ) * baked * ( 0.82 + 0.18 * detail ), cliffWall );
+    totalEmissiveRadiance += vec3( 0.004, 0.035, 0.13 ) * ( 1.0 - iceLit ) * cliffWall;
+  }`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
   // A flat-lying triangle whose smooth vertex normal leans away from its own plane borders a rim or a cliff foot: it is
   // shaded by its plane, so a top stays flat right up to its edge (a hard rim) and a floor right up to the wall's foot.
@@ -789,7 +926,21 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   if ( creaseLook > 0.0 ) {
     float crease = creaseLook * smoothstep( 0.99, 0.94, dot( normal, cliffFace ) ) * smoothstep( 0.72, 0.88, cliffUp );
     normal = normalize( mix( normal, cliffFace, crease ) );
-  }`)
+  }
+  // Wall relief (High): the wall map's normals on wall triangles only, in the frame the wall uv spans (screen
+  // derivatives, as three's own normal maps do without tangents). Tops and rims keep their crisp planes.
+#ifdef USE_MAP
+  if ( wallNormalOn > 0.0 && cliffWall > 0.01 ) {
+    vec3 wallN = textureGrad( wallNormal, faceUv, faceDx, faceDy ).xyz * 2.0 - 1.0;
+    vec3 wallQ1 = cross( -cliffDy, normal ), wallQ0 = cross( normal, -cliffDx );
+    vec3 wallT = wallQ1 * faceDx.x + wallQ0 * faceDy.x, wallB = wallQ1 * faceDx.y + wallQ0 * faceDy.y;
+    float wallDet = max( dot( wallT, wallT ), dot( wallB, wallB ) );
+    if ( wallDet > 0.0 ) {
+      vec3 relief = normalize( ( wallT * wallN.x + wallB * wallN.y ) * ( wallNormalOn * inversesqrt( wallDet ) ) + normal * wallN.z );
+      normal = normalize( mix( normal, relief, cliffWall ) );
+    }
+  }
+#endif`)
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   ground.customProgramCacheKey = () => 'khepri-ground';
@@ -818,12 +969,19 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   };
   infra.customProgramCacheKey = () => 'khepri-infra';
   const kit = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.85, 0.85) });
-  kit.onBeforeCompile = shader => {
+  /**
+   * Cliff walls (docs/26 §11): the kit's look on the wall pieces (cliff_wall_*, ice_wall_*), with the planet's wall map
+   * laid along each piece (x along the rim, y up in world units), so the rock's ledges stay level at any height scale.
+   * Its own program instead of a per-vertex flag: no extra draws (one batch per node either way).
+   */
+  const kitWall = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.9, 0.9) });
+  const wallLook = { wallTile: { value: 1 / WALL_TILE }, wallContrast: { value: WALL_DETAIL.khepri!.contrast } };
+  const kitShader = (wall: boolean) => (shader: THREE.WebGLProgramParametersWithUniforms) => {
     // Crystal growths and mineral crack faces are true glows (bloom on High); basalt stays matte.
-    Object.assign(shader.uniforms, uniforms, haze(), time, kitLook, kitGlow);
+    Object.assign(shader.uniforms, uniforms, haze(), time, kitLook, kitGlow, wall ? wallLook : {});
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;\nvarying float vPieceY;`)
-      .replace('#include <uv_vertex>', `#include <uv_vertex>
+      .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;\nvarying float vPieceY;${wall ? '\nuniform float wallTile;\nvarying float vWallTop;' : ''}`)
+      .replace('#include <uv_vertex>', wall ? WALL_UV_VERTEX : `#include <uv_vertex>
   // Cheap box projection in section space: one planar axis per (flat) face, immune to instance scaling.
   #ifdef USE_INSTANCING
     vec3 boxPosition = ( instanceMatrix * vec4( position, 1.0 ) ).xyz;
@@ -842,27 +1000,39 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;\nvPieceY = position.y;')
       .replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD)
+      .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD + (wall ? '\nuniform float wallContrast;\nvarying float vWallTop;' : ''))
       // Nacre's flora emits its own vertex colour (teal, violet, orange) instead of the shared glow colour.
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 1.8, nacreLook ) * vGlow;' + VESPER_KIT_EMISSIVE)
-      .replace('#include <map_fragment>', `#ifdef USE_MAP
+      .replace('#include <map_fragment>', wall ? WALL_DETAIL_FRAGMENT + VESPER_KIT_SURFACE : `#ifdef USE_MAP
   float detail = texture2D( map, vMapUv ).r * 2.0;
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - clamp( vGlow, 0.0, 1.0 ) ) * ( 1.0 - vesperLook * .65 );
 #endif
 ${VESPER_KIT_SURFACE}`)
       // Luna (docs/19): after the vertex colours, the Khepri basalt pieces turn to grey rock (luminance kept, lifted).
       .replace('#include <color_fragment>', `#include <color_fragment>
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.5, 1.48, 1.44 ), lunaLook );`)
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.5, 1.48, 1.44 ), lunaLook );${wall ? WALL_COLOR_FRAGMENT : ''}`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.2, vesperIce );')
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
+    // Wall tops keep their own plane (most of the relief stays on the faces).
+    if (wall) shader.fragmentShader = shader.fragmentShader
+      // Vesper's ice shards keep hard, flat facets (the kit is flat-shaded; this holds under any interpolation).
+      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  if ( vesperLook > 0.5 ) normal = wallFacet;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  normal = normalize( mix( normal, nonPerturbedNormal, vWallTop * 0.75 ) );`);
   };
+  kit.onBeforeCompile = kitShader(false);
   kit.customProgramCacheKey = () => 'khepri-kit';
+  kitWall.onBeforeCompile = kitShader(true);
+  kitWall.customProgramCacheKey = () => 'khepri-kit-wall';
+  kit.userData.wallMaterial = kitWall;
   applySurfaceFinish(kit, 'stone', 1.5, .045);
   applySurfaceFinish(infra, 'metal', .8, .018);
 
   const roads = createRoadMaterial(), dustTrack = roads.map;
   let snowTrack: THREE.DataTexture | null = null;
   let textures: KhepriTextures | null = null, normals = true;
+  /** The planet whose wall maps are on (docs/26 §11) and Vesper's ice-wall maps once loaded. */
+  let wallPlanet: PlanetId = 'khepri', vesperWalls: WallTextures | null = null, vesperWallsLoad: Promise<void> | null = null;
   /** Vesper's snow detail while that planet is active (null on Khepri). */
   let snowDetail: THREE.DataTexture | null = null, snowTexture: THREE.DataTexture | null = null;
   /** Retunes the ground and roads for a planet: Vesper snow takes its own ripple detail, cool haze and snow tracks. */
@@ -876,7 +1046,9 @@ ${VESPER_KIT_SURFACE}`)
     ground.color.setHex(vesper || luna ? 0xffffff : nacre ? 0xd5d9e1 : 0xc2c4c8);
     if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();
     const nextDetail = vesper ? snowTexture : null;
-    if (nextDetail !== snowDetail) { snowDetail = nextDetail; apply(); }
+    const walls = planet !== wallPlanet;
+    wallPlanet = planet;
+    if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
     groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters.
@@ -885,18 +1057,43 @@ ${VESPER_KIT_SURFACE}`)
     roads.map = vesper ? snowTrack : dustTrack; roads.needsUpdate = true;
   };
   ground.userData.setPlanet = setPlanet;
+  /**
+   * A planet's own wall maps, for the terrain view's prepare (docs/26 §11): Vesper's ice walls load with its scenery,
+   * so nothing appears late; Khepri's and Luna's cliff rock comes with the Khepri textures. A failed map settles too
+   * (null: the procedural wall detail remains).
+   */
+  ground.userData.loadPlanetTextures = (planet: PlanetId, base: string): Promise<void> => {
+    if (planet !== 'vesper') return Promise.resolve();
+    return vesperWallsLoad ??= loadDataTextures(`${base}assets/vesper/textures/`, VESPER_WALL_FILES, 2).then(loaded => {
+      if (disposed) { Object.values(loaded).forEach(texture => texture?.dispose()); return; }
+      vesperWalls = loaded; apply();
+    });
+  };
+  let disposed = false;
   const apply = () => {
     ground.map = snowDetail ?? textures?.groundDetail ?? fallback;
     kit.map = snowDetail ?? textures?.basaltDetail ?? fallback;
-    uniforms.rockMap.value = textures?.basaltDetail ?? fallback;
+    // Walls (docs/26 §11): Vesper's ice-wall maps, cliff rock on Khepri and Luna (Luna's walls grey it as usual);
+    // without one, the version 14 basalt detail and procedural ice strata remain. Nacre has no walls.
+    const vesper = wallPlanet === 'vesper', look = WALL_DETAIL[wallPlanet];
+    const wallMap = !look ? null : vesper ? vesperWalls?.detail ?? null : textures?.cliffDetail ?? null;
+    const wallNormal = !look || !normals ? null : vesper ? vesperWalls?.normal ?? null : textures?.cliffNormal ?? null;
+    uniforms.rockMap.value = wallMap ?? textures?.basaltDetail ?? fallback;
+    uniforms.faceScale.value = wallMap ? 1 / WALL_TILE : 1 / FACE_TILE;
+    wallMaps.wallMapOn.value = wallMap ? 1 : 0;
+    wallMaps.wallNormal.value = wallNormal ?? flatNormal;
+    wallMaps.wallNormalOn.value = wallNormal ? look!.normal : 0;
+    wallLook.wallContrast.value = look?.contrast ?? WALL_DETAIL.khepri!.contrast;
+    kitWall.map = wallMap ?? kit.map;
+    kitWall.normalMap = wallNormal;
     // The ground stays without a normal map on every tier: at full-screen coverage its derivative-based
     // tangent frame is the most expensive term, and the luminance detail already carries the grain.
     ground.normalMap = null;
     kit.normalMap = normals && !snowDetail ? textures?.basaltNormal ?? null : null;
-    ground.needsUpdate = true; kit.needsUpdate = true;
+    ground.needsUpdate = true; kit.needsUpdate = true; kitWall.needsUpdate = true;
   };
   return {
-    ground, kit, infra, roads,
+    ground, kit, kitWall, infra, roads,
     /** Planet look (ground grain, haze, road surface); the terrain view also calls it through ground.userData. */
     setPlanet,
     /** Presentation time for blinking beacons (seconds); never read by the simulation. */
@@ -905,7 +1102,10 @@ ${VESPER_KIT_SURFACE}`)
     /** Low tier skips normal maps (a cosmetic cost), never layout or colour. */
     setNormalMaps(enabled: boolean) { if (enabled !== normals) { normals = enabled; apply(); } },
     /** Prefiltered desert sky for machinery reflections (graphite metal and paint); terrain stays matte. */
-    setEnvironment(texture: THREE.Texture | null) { infra.envMap = texture; kit.envMap = texture; kit.envMapIntensity = .35; infra.needsUpdate = true; kit.needsUpdate = true; },
+    setEnvironment(texture: THREE.Texture | null) {
+      infra.envMap = texture; kit.envMap = texture; kit.envMapIntensity = .35; kitWall.envMap = texture; kitWall.envMapIntensity = .35;
+      infra.needsUpdate = true; kit.needsUpdate = true; kitWall.needsUpdate = true;
+    },
     /**
      * Planet look of the kit and infrastructure materials (graphics rig; the ground has its own setPlanet).
      * Khepri restores the original values exactly. Vesper: kit pieces read their COLOR_0 as ice (saturated blue,
@@ -920,8 +1120,10 @@ ${VESPER_KIT_SURFACE}`)
       infra.roughness = vesper ? 0.4 : 0.55; infra.metalness = vesper ? 0.06 : 0.3; infra.envMapIntensity = vesper ? 0.8 : 0.55;
     },
     dispose() {
-      ground.dispose(); kit.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); snowTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
+      ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); snowTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
       if (textures) Object.values(textures).forEach(texture => texture?.dispose());
+      if (vesperWalls) Object.values(vesperWalls).forEach(texture => texture?.dispose());
+      disposed = true;
     },
   };
 }

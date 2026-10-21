@@ -4,13 +4,14 @@ import {
 import { FLOE_FOOTPRINT, FLOE_SETS, KIT, kitNodeName, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
 import { MODULE_HEIGHT, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
 import type { Work } from './terrain-work';
+import { cliffWallSteps } from './terrain-walls';
 import type { Floe, PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import { arenaWeight, type TerrainArena } from './terrain-arena';
 
 /**
- * Vesper, the Glass Frontier (docs/17 §1, §4): mostly land. Big snowy ice shelves (0.6–2.0) cover about 70%
- * of the route (tested over long stretches); they end in sheer ice cliffs over a sea at −1.2 and are broken by
- * open leads, inlets and occasional bays, with a pack-ice sea of drifting floes now and then. Crevasse fields,
+ * Vesper, the Glass Frontier (docs/17 §1, §4; docs/26): half land, half water since terrain version 15 (user,
+ * 21 October; 70% land before). Flat-topped ice shelves at several levels end in sheer, fractured ice walls over a sea
+ * at −1.2 and are broken by open leads, fjord-like inlets and bays, with a pack-ice sea of drifting floes now and then. Crevasse fields,
  * pressure ridges, snow drifts and a few dark rock outcrops dress the shelves. Pure functions of seed and
  * world coordinates, like Khepri.
  */
@@ -36,24 +37,25 @@ export interface VesperParams {
   /** Typical shelf top height. */ top: number;
   /** Height of one ice-cliff step between shelf levels (docs/26 §3). */ step: number;
   /** How far the shelves climb inland from the coast, in levels. */ stairs: number;
+  /** Wide, winding sea inlets (fjords) cutting into the shelves (version 15). */ inlets: number;
 }
 /**
- * Land shares measured over long routes (seeds 93, 8831, 11, 4242, 7; docs/26 §3): the six moods keep the planet at
- * about 70% land. Shelves stand at several levels: low ice feet at the coast, stepping up inland in ice cliffs.
+ * Land shares measured over long routes (seeds 93, 8831, 11, 4242, 7; docs/26 §11): the six moods and the inlets keep
+ * the planet at about 50% land (0.49–0.51 per seed). Shelves stand at several levels: low ice feet at the coast, stepping up inland in ice cliffs.
  */
 const MOOD_SETTINGS: Readonly<Record<VesperMood, VesperParams>> = {
   // Shelf coast: big shelves and their cliffs against open water, leads and scattered floes.
-  shelf: { land: 0.66, leads: 0.7, crevasse: 0.3, ridge: 0.4, rock: 0.45, floes: 0.5, top: 0.9, step: 1.05, stairs: 1.6 },
+  shelf: { land: 0.5, leads: 0.75, crevasse: 0.3, ridge: 0.4, rock: 0.45, floes: 0.5, top: 0.9, step: 1.05, stairs: 1.6, inlets: 0.9 },
   // Pack-ice sea: mostly water crowded with floes and bergs, a few low shelf islands.
-  pack: { land: 0.25, leads: 0.3, crevasse: 0.1, ridge: 0.5, rock: 0.2, floes: 1, top: 0.55, step: 0.8, stairs: 0.8 },
+  pack: { land: 0.2, leads: 0.3, crevasse: 0.1, ridge: 0.5, rock: 0.2, floes: 1, top: 0.55, step: 0.8, stairs: 0.8, inlets: 0.2 },
   // Crevasse plateau: a high continuous shelf torn by crevasse fields.
-  crevasse: { land: 0.86, leads: 0.35, crevasse: 1, ridge: 0.45, rock: 0.25, floes: 0.35, top: 1.4, step: 1.15, stairs: 1.4 },
+  crevasse: { land: 0.68, leads: 0.4, crevasse: 1, ridge: 0.45, rock: 0.25, floes: 0.35, top: 1.4, step: 1.15, stairs: 1.4, inlets: 0.4 },
   // Radiator plains: broad, quiet shelves at two or three levels (the factions' radiator fields).
-  radiator: { land: 0.8, leads: 0.45, crevasse: 0.15, ridge: 0.2, rock: 0.3, floes: 0.45, top: 1.0, step: 1.25, stairs: 1.2 },
+  radiator: { land: 0.62, leads: 0.5, crevasse: 0.15, ridge: 0.2, rock: 0.3, floes: 0.45, top: 1.0, step: 1.25, stairs: 1.2, inlets: 0.5 },
   // Icefall: an ice plateau stepping up in many short cliffs, with pressure ridges along the steps.
-  icefall: { land: 0.7, leads: 0.4, crevasse: 0.55, ridge: 0.7, rock: 0.35, floes: 0.4, top: 1.0, step: 0.8, stairs: 2.4 },
+  icefall: { land: 0.54, leads: 0.45, crevasse: 0.55, ridge: 0.7, rock: 0.35, floes: 0.4, top: 1.0, step: 0.8, stairs: 2.4, inlets: 0.6 },
   // Nunataks: dark rock peaks breaking through the ice, snow-capped, between broad shelves.
-  nunatak: { land: 0.62, leads: 0.45, crevasse: 0.3, ridge: 0.3, rock: 1, floes: 0.45, top: 0.9, step: 1.05, stairs: 1.4 },
+  nunatak: { land: 0.48, leads: 0.5, crevasse: 0.3, ridge: 0.3, rock: 1, floes: 0.45, top: 0.9, step: 1.05, stairs: 1.4, inlets: 0.8 },
 };
 const MOOD_LENGTH = 96, MOOD_BLEND = 26;
 function permutation(seed: number, block: number): VesperMood[] {
@@ -123,6 +125,9 @@ export function vesperMasks(seed: number, x: number, s: number, p: VesperParams,
   const leadDistance = Math.abs(noise(seed ^ 0x9a6, qx * 0.05, qs * 0.044) - 0.5), leads = smoothRange(0.15, 0.4, p.leads);
   const lead = (1 - smoothRange(0.01, 0.032, leadDistance)) * leads;
   land *= 1 - lead; edge *= 1 - (1 - crispStep((leadDistance - 0.01) / 0.022)) * leads;
+  // Fjord-like inlets (version 15): wide winding arms of the sea reaching into the shelves, sheer-walled too.
+  const inletDistance = Math.abs(noise(seed ^ 0x9b9, qx * 0.026, qs * 0.022) - 0.5), inlets = Math.min(1, p.inlets);
+  land *= 1 - (1 - smoothRange(0.02, 0.05, inletDistance)) * inlets; edge *= 1 - (1 - crispStep((inletDistance - 0.02) / 0.03)) * inlets;
   const field = smoothRange(0.42, 0.62, noise(seed ^ 0x9a9, x * 0.05 + 2.3, s * 0.05)) * Math.min(1, p.crevasse * 1.4) * (1 - calm * 0.85);
   // Crevasses: sheer-sided cracks with hard lips, in sets running diagonally across the flight line (version 13's ran
   // along it, long straight stripes down the view).
@@ -355,12 +360,14 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
   const ground = (x: number, s: number) => vesperLandform(seed, x, s, { seed, s, params: NEUTRAL, local: vesperParams(seed, s), platform: 0 }).height;
   if (h(0) < OUTPOST_CHANCE) {
     let x = 0, s = 0, best = Infinity;
-    for (let k = 0; k < 9; k++) {
+    // (Fourteen tries since version 15: half of Vesper is water now, so dry, level shelf takes more finding.)
+    for (let k = 0; k < 14; k++) {
       // Candidates from about a third of the half width out (some in view beside the centre lane), clamped up front (largest
       // pad) so a harbour's measured edge distance stays valid.
-      const cx = side * Math.min(WORLD_HALF * (0.35 + h(1 + k) * 0.48), WORLD_HALF - 4.1), cs = cell * CELL + 8 + h(10 + k) * 14;
+      const cx = side * Math.min(WORLD_HALF * (0.35 + h(140 + 2 * k) * 0.48), WORLD_HALF - 4.1), cs = cell * CELL + 8 + h(141 + 2 * k) * 14;
       const heights = [[0, 0], [2.6, 0], [-2.6, 0], [0, 3], [0, -3]].map(([dx, ds]) => ground(cx + dx, cs + ds));
-      if (Math.min(...heights) < SEA + 0.5) continue;
+      // Dry shelf all round, and the centre high enough that the pad's least level (SEA + 0.75) keeps its shelf's height.
+      if (Math.min(...heights) < SEA + 0.5 || heights[0] < SEA + 0.6) continue;
       // Flat shelf first, and low shelf over high (tall masts and tanks only fit under the cap on the lower levels).
       const cost = Math.max(...heights) - Math.min(...heights) + 0.5 * Math.max(0, heights[0] - 1.1);
       if (cost < best) { best = cost; x = cx; s = cs; }
@@ -460,67 +467,14 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
       add({ kind: 'vent', x, s, y: ground, scale, height: scale, rotation: turn(h(5)), cosmetic: false }, h(6));
     }
   }
-  // Ice-cliff faces: one long wall per lattice cell where a shelf cliff meets open water. A wall stands flush
-  // in the face (front just out from the cliff foot, body inside the shelf) with its top just under the rim, so
-  // neighbours read as one continuous faceted face with an undercut waterline, not a row of pillars in front of
-  // it. Base at sea level, +Z out to sea, long axis along the edge. Now and then a calved block lies at the foot.
-  const lattice = CLIFF_CELL, across = Math.floor(WORLD_HALF * 2 / lattice);
-  for (let j = Math.floor(startS / lattice); j < Math.ceil((startS + size) / lattice); j++) for (let i = 0; i < across; i++) {
-    if (i === 0) yield;
-    const h = (k: number) => hash(seed ^ 0x7c2b, i * 43 + k, j);
-    if (terrain.platform((j + 0.5) * lattice) >= 0.5) continue;
-    let found: { x: number; s: number } | null = null;
-    for (let k = 0; k < 9 && !found; k++) {
-      const x = -WORLD_HALF + (i + 0.2 + (k % 3) * 0.3) * lattice, s = (j + 0.2 + Math.floor(k / 3) * 0.3) * lattice;
-      if (terrain.height(x, s) < SEA && terrain.rise(x, s) > 1.2) found = { x, s };
-    }
-    if (!found) continue;
-    const gx = terrain.gradientX(found.x, found.s), gs = terrain.gradientS(found.x, found.s), steepness = Math.hypot(gx, gs);
-    if (steepness < 0.05) continue;
-    const ux = gx / steepness, us = gs / steepness;
-    if (terrain.height(found.x - ux * 1.8, found.s - us * 1.8) > SEA - 0.3) continue;
-    let foot = -1;
-    for (let d = 0.25; d <= 1.75; d += 0.25) if (terrain.height(found.x + ux * d, found.s + us * d) >= SEA) { foot = d; break; }
-    if (foot < 0) continue;
-    const top = Math.min(CAP, terrain.height(found.x + ux * (foot + 1.2), found.s + us * (foot + 1.2)));
-    if (top - SEA < 0.6 || h(2) > 0.8) continue;
-    // The wall's front face (half its depth, 0.48 × scale, out from its centre) sits 0.12 seaward of the foot.
-    const scale = 1.45 + h(3) * 0.2, inset = 0.48 * scale - 0.12, fx = found.x + ux * (foot + inset), fs = found.s + us * (foot + inset);
-    add({ kind: 'iceCliff', x: fx, s: fs, y: SEA, scale, height: (top - SEA) * 0.92, rotation: Math.atan2(-ux, us), cosmetic: false }, h(5), 1);
-    if (h(6) < 0.25) {
-      const d = 0.5 + h(7) * 0.8, block = 0.6 + h(8) * 0.4;
-      add({ kind: 'serac', x: found.x + ux * foot - ux * d + (h(9) - 0.5) * 1.2, s: found.s + us * foot - us * d, y: SEA - 0.3, scale: block, height: 0.4 + h(10) * 0.4, rotation: h(11) * Math.PI * 2, cosmetic: true }, h(12), 1);
-    }
-  }
-  // Inner ice cliffs between shelf levels (docs/26 §3): the same faceted wall pieces stand flush in each step, front
-  // at its foot and top just under its rim, one per lattice cell along it, so a level change reads as an ice face
-  // (as on the coast) rather than a smeared snow bank. Never in water, on pads or in an arena.
-  for (let j = Math.floor(startS / lattice); j < Math.ceil((startS + size) / lattice); j++) for (let i = 0; i < across; i++) {
-    if (i === 0) yield;
-    const h = (k: number) => hash(seed ^ 0x7c2d, i * 47 + k, j);
-    if (h(0) > 0.92 || terrain.platform((j + 0.5) * lattice) > 0) continue;
-    let found: { x: number; s: number } | null = null;
-    for (let k = 0; k < 25 && !found; k++) {
-      const x = -WORLD_HALF + (i + 0.1 + (k % 5) * 0.2) * lattice, s = (j + 0.1 + Math.floor(k / 5) * 0.2) * lattice;
-      if (terrain.height(x, s) > SEA + 0.25 && terrain.slope(x, s) > 1.1 && !terrain.blocked(x, s) && terrain.industrial(x, s) < 0.05) found = { x, s };
-    }
-    if (!found) continue;
-    const gx = terrain.gradientX(found.x, found.s), gs = terrain.gradientS(found.x, found.s), n = Math.hypot(gx, gs);
-    const ux = gx / n, us = gs / n;
-    // Foot and rim: walk down and up the step until the ground levels out.
-    let down = 0, up = 0;
-    while (down < 1.5 && terrain.slope(found.x - ux * (down + 0.125), found.s - us * (down + 0.125)) > 0.6) down += 0.125;
-    while (up < 1.5 && terrain.slope(found.x + ux * (up + 0.125), found.s + us * (up + 0.125)) > 0.6) up += 0.125;
-    const fx = found.x - ux * (down + 0.125), fs = found.s - us * (down + 0.125), tx = found.x + ux * (up + 0.125), ts = found.s + us * (up + 0.125);
-    const base = terrain.height(fx, fs), top = Math.min(CAP, terrain.height(tx, ts));
-    if (top - base < 0.45 || base < SEA + 0.2 || terrain.industrial(tx, ts) > 0.05 || terrain.blocked(fx, fs)) continue;
-    // The wall's front face (0.48 × scale out from its centre) stands 0.1 in front of the foot.
-    const scale = 1.25 + h(3) * 0.15, inset = 0.48 * scale - 0.1;
-    add({ kind: 'iceCliff', x: fx + ux * inset, s: fs + us * inset, y: base - 0.08, scale, height: (top - base + 0.08) * 0.95, rotation: Math.atan2(-ux, us), cosmetic: false }, h(5));
-  }
+  // Ice-shelf walls (docs/26 §11, after the concept's right panel): fractured, blocky, snow-capped walls stand in every
+  // shelf step and along every coast cliff, those over the sea on the waterline. (They replace version 14's coast and
+  // inner `iceCliff` dressing.)
+  // Shelf steps and coasts only: not the narrow crevasses, pressure ridges or rock peaks (they keep their own pieces).
+  const shelfEdge = (x: number, s: number) => { const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0); return m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.3; };
+  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 0.45, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
-const CLIFF_CELL = 3.4;
 
 /* ---------------------------------------------------------------- floes */
 

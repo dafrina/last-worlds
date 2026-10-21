@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  FLOE_FOOTPRINT, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld,
+  FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld, VESPER_CLIFF_KINDS,
   terrainHeight, worldAt, worldOf, type DistrictSite,
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
-  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadNacreKit, loadVesperInfra, loadVesperKit,
+  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
   type KitGeometries,
 } from './terrain-kit';
 
@@ -120,7 +120,7 @@ const CASTER_STRIPS = 4;
  */
 const CASTER_NODES = new Set<string>([
   // Tall Nacre pieces (crags and the builders' ruins) ground themselves with real shadows on High too.
-  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
+  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars', 'cliffWall', 'iceWall'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
   'infra_refinery', 'infra_drill_rig', 'infra_silo', 'infra_comm_dish', 'infra_relay', 'infra_habitat_0', 'infra_habitat_1',
   'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'khepri_processing_tower', 'facility',
   // Vesper outposts ground themselves on the bright snow with real shadows on High (docs/26 §5).
@@ -178,7 +178,11 @@ export function createTerrainView(options: TerrainViewOptions) {
 
   const nodeGeometry = (name: string) => kit.get(name) ?? infra.get(name) ?? shared.get(name);
   // Khepri infrastructure and the district kit (`khepri_*`, same materials) draw with the infra material.
-  const nodeMaterial = (name: string) => name.startsWith('infra_') || name.startsWith('khepri_') ? infraMaterial : SHARED.has(name) ? sharedMaterial : kitMaterial;
+  // Cliff walls (docs/26 §11) take the kit's wall material: the planet's rock or ice map laid along each wall.
+  const wallMaterial = (kitMaterial.userData.wallMaterial as THREE.Material | undefined) ?? kitMaterial;
+  const isWall = (name: string) => name.startsWith(`${KIT.cliffWall.prefix}_`) || name.startsWith(`${KIT.iceWall.prefix}_`);
+  const nodeMaterial = (name: string) => name.startsWith('infra_') || name.startsWith('khepri_') ? infraMaterial : SHARED.has(name) ? sharedMaterial
+    : isWall(name) ? wallMaterial : kitMaterial;
   function createMesh(geometry: THREE.BufferGeometry, material: THREE.Material, capacity: number, name: string) {
     const mesh = new THREE.InstancedMesh(geometry, material, capacity);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, color.setRGB(1, 1, 1));
@@ -522,6 +526,13 @@ export function createTerrainView(options: TerrainViewOptions) {
     const jobs: Promise<unknown>[] = [];
     if (planet === 'nacre') jobs.push(loadNacreKit(`${base}assets/nacre/nacre-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
+    // Cliff walls (docs/26 §11): Khepri's columnar basalt walls and Vesper's ice-shelf walls.
+    const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' ? 'khepri' : null;
+    if (cliffs) jobs.push(loadCliffKit(`${base}assets/${cliffs}/cliff-kit.glb`, cliffs)
+      .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
+    // The planet's own wall maps (Vesper's ice walls), so walls never sharpen late; failures settle (procedural detail).
+    const wallMaps = (groundMaterial.userData.loadPlanetTextures as ((planet: PlanetId, base: string) => Promise<void>) | undefined)?.(planet, base);
+    if (wallMaps) jobs.push(wallMaps);
     if (planet === 'vesper') {
       self.setInfra(createFallbackVesperInfra());
       jobs.push(loadVesperKit(`${base}assets/vesper/vesper-kit.glb`)
@@ -895,7 +906,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     },
     /** Every node batch, made visible, so a warm-up compile covers all scenery programs. */
     warmupObjects(): THREE.Object3D[] {
-      for (const kind of KIT_KINDS) for (let v = 0; v < KIT[kind].variants; v++) batch(kitNodeName(kind, v));
+      for (const kind of [...KIT_KINDS, ...KHEPRI_CLIFF_KINDS, ...VESPER_CLIFF_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) batch(kitNodeName(kind, v));
       for (const name of [...Object.keys(INFRA_NODES), ...SHARED_NODES]) batch(name);
       return [...batches.values()].map(entry => entry.mesh);
     },

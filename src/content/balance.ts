@@ -145,8 +145,11 @@ export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turr
 /**
  * A Pulsar burst: shots in the stream and the gap between them (seconds). Each shot aims at the player's position as
  * it leaves the muzzle, so the stream hoses after a moving ship (user, 20 October: was six shots straight down).
+ * The gap is 0.2 s (was 0.1, 21 October): at 0.1 the shots flew about 1 unit apart, a solid wall for the 0.42 ship,
+ * so the only escape was running ahead of the stream, and in the 2-screen world that ends pinned at the edge. The
+ * user wants the ship to "evade between the projectiles not just hide at screen edge".
  */
-export const PULSAR_BURST = { shots: 10, interval: 0.1 } as const;
+export const PULSAR_BURST = { shots: 10, interval: 0.2 } as const;
 
 /** Ground targets move with the terrain scroll and are never airframe contact hazards. */
 /**

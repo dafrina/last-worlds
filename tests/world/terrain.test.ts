@@ -4,6 +4,9 @@ import {
   TERRAIN_STEP, createTerrainStream, generateTerrainSection, moodOf, routeCenter, terrainHeight, terrainSample, type TerrainSection,
 } from '../../src/world/terrain';
 import { cliff, cliffTalus, crispStep } from '../../src/world/terrain-layout';
+import { WALL_CELL } from '../../src/world/terrain-walls';
+import { padDistance, settlementsNear } from '../../src/world/terrain-settlements';
+import { PLANETS, VESPER_SEA_LEVEL } from '../../src/world/terrain';
 import { VIEW } from '../../src/shared/contracts';
 
 const HALF = VIEW.worldWidth / 2;
@@ -101,7 +104,9 @@ describe('seeded Khepri landforms', () => {
       expect(Math.max(...section.indices)).toBeLessThan(section.positions.length / 3);
       expect(section.strips.reduce((sum, strip) => sum + strip.count, 0)).toBe(section.indices.length);
       for (const instance of section.instances) {
-        expect(instance.s).toBeGreaterThanOrEqual(section.startS); expect(instance.s).toBeLessThan(section.startS + section.size);
+        // Cliff walls belong to the section holding their lattice cell's centre, so a wall may stand up to a cell beyond it.
+        const reach = instance.kind === 'cliffWall' || instance.kind === 'iceWall' ? WALL_CELL + 1 : 0;
+        expect(instance.s).toBeGreaterThanOrEqual(section.startS - reach); expect(instance.s).toBeLessThan(section.startS + section.size + reach);
         expect(Math.abs(instance.x) + KIT[instance.kind].radius * instance.scale).toBeLessThanOrEqual(HALF + 1e-9);
         expect(top(instance)).toBeLessThanOrEqual(SCENERY_MAX_HEIGHT + 1e-9);
         expect(instance.height).toBeGreaterThan(0); expect(instance.scale).toBeLessThanOrEqual(KIT_MAX_SCALE);
@@ -203,20 +208,62 @@ describe('seeded Khepri landforms', () => {
     }
   }, 120_000);
 
+  it('stands real cliff walls along the cliffs (docs/26 §11): front downhill, top at the rim, clear of roads and pads', () => {
+    for (const [planet, kind] of [['khepri', 'cliffWall'], ['vesper', 'iceWall']] as const) {
+      let walls = 0;
+      for (const [seed, index] of [[93, 27], [8831, 8], [11, 20]] as const) {
+        const section = generateTerrainSection(seed, index, { planet }), world = { planet };
+        const pads = settlementsNear(seed, section.startS - 10, section.startS + section.size + 10, undefined, PLANETS[planet]);
+        for (const wall of section.instances.filter(piece => piece.kind === 'cliffWall' || piece.kind === 'iceWall')) {
+          walls++;
+          // Only the world's own wall pieces, from the cliff kit (never reused older pieces), under the scenery cap.
+          expect(wall.kind).toBe(kind);
+          expect(wall.y + wall.height * KIT[wall.kind].height).toBeLessThanOrEqual(PLANETS[planet].sceneryMax + 1e-9);
+          expect(wall.scale).toBeGreaterThanOrEqual(0.85); expect(wall.scale).toBeLessThanOrEqual(1.15);
+          // Local +Z (the front) points downhill: the ground a unit in front is lower than a unit behind.
+          const fx = Math.sin(wall.rotation), fs = -Math.cos(wall.rotation);
+          const ahead = Math.max(planet === 'vesper' ? VESPER_SEA_LEVEL : -Infinity, terrainHeight(seed, wall.x + fx, wall.s + fs, world));
+          expect(ahead).toBeLessThan(terrainHeight(seed, wall.x - fx, wall.s - fs, world));
+          // The top meets the ground just behind the wall: flush with its rim, or with the bench it reaches on a
+          // stepped cliff (the next tier gets its own wall). It never floats over the top nor sinks below it.
+          const top = wall.y + wall.height;
+          let meets = false, previous = terrainHeight(seed, wall.x, wall.s, world);
+          for (let d = 0.1; d <= 1.4 + 1e-9 && !meets; d += 0.1) {
+            const ground = Math.min(PLANETS[planet].sceneryMax, terrainHeight(seed, wall.x - fx * d, wall.s - fs * d, world));
+            meets = Math.abs(ground - top) < 0.45 || (previous - top) * (ground - top) < 0;
+            previous = ground;
+          }
+          expect(meets, `${planet} ${seed} wall at ${wall.x.toFixed(2)}, ${wall.s.toFixed(2)}`).toBe(true);
+          // Never on a road or an outpost or district pad.
+          for (const road of section.roadPaths) for (let i = 0; i < road.x.length; i++) expect(Math.hypot(road.x[i] - wall.x, road.s[i] - wall.s)).toBeGreaterThan(0.5);
+          for (const pad of pads) expect(padDistance(pad, wall.x, wall.s)).toBeGreaterThan(-0.5);
+        }
+      }
+      expect(walls, planet).toBeGreaterThan(60);
+    }
+    // Luna and Nacre have none.
+    for (const planet of ['luna', 'nacre'] as const) expect(generateTerrainSection(93, 27, { planet }).instances.some(piece => piece.kind === 'cliffWall' || piece.kind === 'iceWall')).toBe(false);
+  }, 180_000);
+
   it('keeps plenty of calm ground in every viewport window, calmer along the authored routes', () => {
     for (const seed of [1, 93, 8831]) {
-      let routeSlope = 0, routeSamples = 0, awaySlope = 0, awaySamples = 0;
-      // Viewport-wide windows across the 30-unit world (x from −15 to 15; the old 36-unit world reached ±18).
+      let centre = 0, sides = 0, routeSamples = 0, across = 0, acrossSamples = 0;
+      // Viewport-wide windows across the 24-unit world (x from −12 to 12; 21 October, the 30-unit world reached ±15).
       for (let s0 = 0; s0 < 500; s0 += 13) for (let x0 = -HALF; x0 <= HALF - 12; x0 += 3) {
         const { slopes } = window(seed, x0, s0);
         expect(slopes.filter(slope => slope < 0.5).length / slopes.length).toBeGreaterThan(0.4);
         expect(slopes.filter(slope => slope > 1.5).length / slopes.length).toBeLessThan(0.35);
       }
       for (let s = 0; s < 800; s += 2.3) {
-        for (const route of [0, 1, 2] as const) { routeSlope += slopeAt(seed, routeCenter(seed, route, s), s); routeSamples++; }
-        for (const x of [-6, 6, -16, 16]) { awaySlope += slopeAt(seed, x, s); awaySamples++; }
+        centre += slopeAt(seed, routeCenter(seed, 1, s), s);
+        sides += (slopeAt(seed, routeCenter(seed, 0, s), s) + slopeAt(seed, routeCenter(seed, 2, s), s)) / 2; routeSamples++;
+        for (let x = -11; x <= 11; x += 2) { across += slopeAt(seed, x, s); acrossSamples++; }
       }
-      expect(routeSlope / routeSamples).toBeLessThan(awaySlope / awaySamples);
+      // The centre route, where the camera rests, is calmer than the world across its width. The optional side routes
+      // are only softly calmed: in the 24-wide world (21 October) they run through the rougher outer belt, and stay
+      // near the average there.
+      expect(centre / routeSamples).toBeLessThan(across / acrossSamples);
+      expect(sides / routeSamples).toBeLessThan(across / acrossSamples * 1.15);
     }
   });
 

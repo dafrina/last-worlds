@@ -122,7 +122,9 @@ export function perfectPilot(): Pilot {
     if (history.length > REACTION_TICKS + 1) history.shift();
     if (state.tick % 3 === 0 || target === null) {
       const seen = history[0];
-      const footprints = committedFootprints(seen, 3.4);
+      // Threats are perceived 0.2 s late, but the pilot knows where its own ship is: tracking shots still at a muzzle
+      // will aim at it there, not where it was.
+      const footprints = committedFootprints({ ...seen, player: state.player }, 3.4);
       const result = planEvasion(state, footprints, preferredX(seen), target);
       target = result.target;
       direct = result.direct === true;

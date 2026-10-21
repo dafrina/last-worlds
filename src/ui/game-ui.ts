@@ -49,7 +49,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       <p>LOW ORBIT.<br>NO WAY BACK.</p>
       <span class="rail-foot">LAST WORLDS<br>FLIGHT COMMAND</span>
     </aside>
-    <section class="flight-frame" tabindex="0" aria-label="Flight area. Hold left or right of your ship to steer." data-input-active="false">
+    <section class="flight-frame" tabindex="0" aria-label="Flight area. Hold the left or right half to steer." data-input-active="false">
       <canvas class="flight-canvas" aria-label="Three-dimensional arcade flight"></canvas>
       <div class="flight-grain" aria-hidden="true"></div>
       <header class="flight-hud" hidden>
@@ -64,7 +64,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         </div>
       </header>
       <div class="steering-hints" aria-hidden="true" hidden>
-        <span><b>‹</b> HOLD LEFT OF SHIP</span><span>HOLD RIGHT OF SHIP <b>›</b></span>
+        <span><b>‹</b> HOLD LEFT</span><span>HOLD RIGHT <b>›</b></span>
       </div>
       <p class="flight-message" role="status" hidden></p>
       <button type="button" class="special-button" aria-label="Activate shockwave" data-no-steer hidden>

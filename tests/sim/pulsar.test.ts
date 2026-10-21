@@ -28,7 +28,7 @@ describe('Pulsar burst (Nacre; tracking stream since 20 October 2026)', () => {
     const state = armed(0);
     stepRun(state, EMPTY_INPUT);
     const shots = state.projectiles.filter(shot => !shot.friendly), aimed = new Map<number, number>();
-    for (let i = 0; i < 1.2 / STEP; i++) {
+    for (let i = 0; i < (PULSAR_BURST.shots * PULSAR_BURST.interval + 0.2) / STEP; i++) {
       // The ship slides across while the stream leaves; remember its x at each shot's release.
       state.player.x = -3 + i * STEP * 5;
       state.nextVolleyAt = Infinity;

@@ -25,22 +25,24 @@ describe('planet profiles (docs/17 §2)', () => {
     const arena = { fromS: 566, toS: 601 };
     expect(generateTerrainSection(93, 16, arena)).toEqual(generateTerrainSection(93, 16, { planet: 'khepri', arena }));
     expect(worldOf(arena)).toBe(worldOf({ planet: 'khepri', arena }));
-    // Version 14 (21 October 2026: crisp cliffs, docs/26 §10; 93:14 and 11:14 hold a district, 93:17 its quiet buffer's
-    // network, 11:5 road ends). A deliberate Khepri change updates these. (Version 13: 11:5 fb5af95e9d76462a,
-    // 93:17 b08be9cab98c1d34, 8831:0 53e11aa29980df19, 93:14 12eed214b6b85478, 11:14 ad7c69b8cb297efb.)
-    const recorded = new Map([['11:5', '6264a0925fd1cf0a'], ['93:17', 'e0f86d546be5a503'], ['8831:0', '90c9e92d18c19e9a'],
-      ['93:14', 'e3dc7b61ebd1e5fd'], ['11:14', '3829bbfc897fdd83']]);
+    // Version 15 (21 October 2026: cliff walls, docs/26 §11, in the 24-wide world: VIEW.worldWidth 30 → 24 moves the
+    // edge, the side routes and the outposts, so every Khepri section changes). 93:14 and 11:14 hold a district, 93:17
+    // the quiet buffer's network, 11:5 a fading road end. A deliberate Khepri change updates these. (Version 14, 30
+    // wide: 11:5 6264a0925fd1cf0a, 93:17 e0f86d546be5a503, 8831:0 90c9e92d18c19e9a, 93:14 e3dc7b61ebd1e5fd, 11:14
+    // 3829bbfc897fdd83.)
+    const recorded = new Map([['11:5', '84081784ea55aee1'], ['93:17', '7c282c4d5369bfeb'], ['8831:0', 'd05a930b9d9eaae4'],
+      ['93:14', '0720d390ce865bc1'], ['11:14', 'b947c188f94f5283']]);
     // The rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0` still take out the districts and the
     // blended road ends exactly, on the current landform.
-    const legacy = new Map([['11:5', '4d8df1555b35f5b5'], ['93:17', '6677051e0db55c3e'], ['8831:0', '90c9e92d18c19e9a'],
-      ['93:14', 'd7a500104038be2c'], ['11:14', 'f7909968bc2b18c8']]);
+    const legacy = new Map([['11:5', '45c03df0179dc50a'], ['93:17', '1055237f890a2b1e'], ['8831:0', 'a9f21e4fd32df97e'],
+      ['93:14', '81783157fd17dfaa'], ['11:14', '9696bdd8b5dc6f80']]);
     const check = (fingerprints: Map<string, string>) => {
       for (const [key, value] of fingerprints) {
         const [seed, index] = key.split(':').map(Number);
         expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);
       }
       // The arena hides the slot's district and its quiet cells lie elsewhere: unchanged either way.
-      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('7373b6428a732ee8');
+      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('1b8fee2d05d52c0a');
     };
     check(recorded);
     const policy = PLANETS.khepri.districts, taper = ROAD_ENDS.taper;
@@ -87,7 +89,7 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect(cliffs).toBeGreaterThan(50);
   });
 
-  it('is mostly land: about 70% shelf, land or rock and 30% open water over long stretches of the route', () => {
+  it('is half land, half water over long stretches of the route (user, 21 October; 70/30 before terrain version 15)', () => {
     // Land is anything at or above the waterline across the whole world width (the camera pans over all of it);
     // water is leads, inlets, bays and pack-ice seas (floes float on water and count as water).
     const fractions = [93, 8831, 11, 4242, 7].map(seed => {
@@ -96,8 +98,8 @@ describe('Vesper generator (docs/17 §4)', () => {
       return land / total;
     });
     const mean = fractions.reduce((sum, value) => sum + value, 0) / fractions.length;
-    expect(mean).toBeGreaterThanOrEqual(0.65); expect(mean).toBeLessThanOrEqual(0.75);
-    for (const fraction of fractions) { expect(fraction).toBeGreaterThan(0.6); expect(fraction).toBeLessThan(0.8); }
+    expect(mean).toBeGreaterThanOrEqual(0.45); expect(mean).toBeLessThanOrEqual(0.55);
+    for (const fraction of fractions) { expect(fraction).toBeGreaterThan(0.4); expect(fraction).toBeLessThan(0.6); }
   });
 
   it('joins seams and streams incrementally exactly like synchronous generation', () => {
@@ -117,7 +119,7 @@ describe('Vesper generator (docs/17 §4)', () => {
   });
 
   it('floats pack ice on open water with stable ids, and keeps every piece under Vesper’s cap', () => {
-    // The usual sections plus two in each seed's first pack-ice sea (rarer now that Vesper is mostly land).
+    // The usual sections plus two in each seed's first pack-ice sea.
     const pack = [93, 8831].flatMap(seed => {
       let segment = 1;
       while (vesperMoodOf(seed, segment) !== 'pack') segment++;
@@ -210,7 +212,8 @@ describe('Vesper generator (docs/17 §4)', () => {
         }
       }
       const km = 28 * VIEW.sectionLength / 1000;
-      expect(vesper / km).toBeGreaterThan(70);
+      // (Version 15 turned half of Vesper to water, user 21 October: 56–93 per km since.)
+      expect(vesper / km).toBeGreaterThan(50);
       vesperTotal += vesper; khepriTotal += khepri;
       for (const site of settlementsNear(seed, 0, 3000, undefined, worldOf(VESPER).planet)) archetypes.add(site.archetype);
     }

@@ -77,6 +77,6 @@ export const menuMarkup = `
   <section class="help-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
     <button type="button" class="back-button" data-help-back>← BACK</button>
     <p class="eyebrow">FLIGHT MANUAL</p><h2 id="help-title">HOLD YOUR<br>LINE.</h2>
-    <ol class="control-guide"><li><span>01</span><div><h3>STEER</h3><p>Hold anywhere left or right of your ship. It keeps going that way while you hold.</p></div></li><li><span>02</span><div><h3>LINE UP</h3><p>Your main weapon fires when a target enters its firing path.</p></div></li><li><span>03</span><div><h3>BREAK THROUGH</h3><p>Tap the center button for a shockwave. It is ready again when its ring is full.</p></div></li></ol>
+    <ol class="control-guide"><li><span>01</span><div><h3>STEER</h3><p>Hold the left or right half of the screen.</p></div></li><li><span>02</span><div><h3>LINE UP</h3><p>Your main weapon fires when a target enters its firing path.</p></div></li><li><span>03</span><div><h3>BREAK THROUGH</h3><p>Tap the center button for a shockwave. It is ready again when its ring is full.</p></div></li></ol>
     <dl class="keyboard-controls"><div><dt>STEER</dt><dd>A / D or ← / →</dd></div><div><dt>SPECIAL</dt><dd>Space</dd></div><div><dt>PAUSE</dt><dd>Esc</dd></div></dl>
   </section>`;

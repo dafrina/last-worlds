@@ -1,4 +1,5 @@
 import { finish, type Work } from './terrain-work';
+import { cliffWallSteps } from './terrain-walls';
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type MoodParams } from './terrain-layout';
 
 /** Kit pieces from public/assets/khepri/khepri-kit.glb (docs/13 §3); base-center pivots, +Y up. */
@@ -13,10 +14,20 @@ export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'flo
  */
 export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'glassTube' | 'goblet' | 'lilyRaft' | 'mossTuft'
   | 'ruinTower' | 'ruinFort' | 'ruinRing' | 'ruinBridge' | 'ruinPillars' | 'ruinRubble';
-export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind;
+/**
+ * Cliff walls (terrain version 15, docs/26 §11): 2-unit wall segments set along cliff rims, base-centre pivot, front
+ * (the outward, downhill face) toward +Z, top at exactly 1 (placement scales y by the local drop). Khepri's columnar
+ * basalt (public/assets/khepri/cliff-kit.glb; Luna repaints it grey) and Vesper's fractured ice-shelf walls
+ * (public/assets/vesper/cliff-kit.glb).
+ */
+export type CliffKitKind = 'cliffWall' | 'iceWall';
+export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | CliffKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
 export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
+/** Cliff kits, one file per world: Khepri's (also drawn on Luna) and Vesper's. */
+export const KHEPRI_CLIFF_KINDS: readonly CliffKitKind[] = ['cliffWall'];
+export const VESPER_CLIFF_KINDS: readonly CliffKitKind[] = ['iceWall'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
   'ruinTower', 'ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
@@ -56,6 +67,10 @@ export const KIT: Readonly<Record<KitKind, {
   drift: { prefix: 'snow_drift', variants: 2, halfX: 0.86, halfZ: 0.51, height: 0.33, exactTop: false, radius: Math.hypot(0.86, 0.51) },
   outcrop: { prefix: 'rock_outcrop', variants: 3, halfX: 0.44, halfZ: 0.35, height: 0.81, exactTop: false, radius: Math.hypot(0.44, 0.35) },
   vent: { prefix: 'vent_stack', variants: 2, halfX: 0.4, halfZ: 0.35, height: 0.98, exactTop: false, radius: Math.hypot(0.4, 0.35) },
+  // Cliff walls: x −1.05…1.05 (2-unit segments that overlap a little), z −0.6 (back, into the slope) … +0.35 (front
+  // relief), base at y 0 and top at exactly 1.
+  cliffWall: { prefix: 'cliff_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
+  iceWall: { prefix: 'ice_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   // Nacre (nacre-kit.glb, art/nacre-kit/README.md; code-built stand-ins in src/render/nacre-kit.ts). Pieces marked
   // exactTop top out at exactly 1 (instance height = world height); rafts float with their waterline at y = 0.
   mireRock: { prefix: 'nacre_rock', variants: 3, halfX: 0.75, halfZ: 0.75, height: 1, exactTop: true, radius: Math.hypot(0.75, 0.75) },
@@ -203,7 +218,8 @@ export function* scatterKitSteps(seed: number, startS: number, size: number, ter
       // Cliff feet: columnar pieces fill the face from its foot (stacked columns, not paving), with
       // talus, fallen columns and boulders below and now and then a towering stack or hoodoo.
       const closeness = smoothRange(1, 3, rise), face = h(11);
-      if (face < 0.62) {
+      // (Version 15: cliff walls stand in the faces themselves, so the foot fill is sparser.)
+      if (face < 0.22) {
         const kind = h(12) < 0.36 ? 'wall' : 'clump', top = Math.min(SCENERY_MAX_HEIGHT, ground + rise * (0.5 + h(13) * 0.45));
         add({ kind, x, s, y: ground - 0.1, scale: 0.9 + h(14) * 0.3, height: top - ground + 0.1,
           rotation: kind === 'wall' ? along + (h(15) - 0.5) * 0.3 : turn(h(15)), cosmetic: false }, h(16), 1);
@@ -222,7 +238,7 @@ export function* scatterKitSteps(seed: number, startS: number, size: number, ter
       }
     } else if (drop > 0.7 && slope < 1) {
       // Rims and ledges: sparse groups of protruding columns, occasionally a spire or rosette.
-      if (pick > 0.24) continue;
+      if (pick > 0.15) continue;
       const kind = h(5) < 0.08 * mood.stacks ? 'rosette' : h(5) < 0.14 ? 'spire' : 'column';
       const members = kind === 'column' ? 2 + Math.floor(h(10) * 2) : 1;
       for (let m = 0; m < members; m++) {
@@ -271,6 +287,8 @@ export function* scatterKitSteps(seed: number, startS: number, size: number, ter
       }
     }
   }
+  // Columnar basalt walls along every cliff (docs/26 §11).
+  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'cliffWall', salt: 0x3a11, minDrop: 0.6, cap: SCENERY_MAX_HEIGHT })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
 export const scatterKit = (seed: number, startS: number, size: number, terrain: ScatterField) => finish(scatterKitSteps(seed, startS, size, terrain));

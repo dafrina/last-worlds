@@ -22,8 +22,11 @@ const FLOOR_LEVEL = -6.3, RELIEF = 2 - FLOOR_LEVEL;
 /** Authored routes (center patrol, west/east optional routes) get softly calmer terrain, never walls. */
 export type Route = 0 | 1 | 2;
 export const ROUTES: readonly Route[] = [0, 1, 2];
-/** Side routes sit about two thirds of the way out (±9.5 in the 30-wide world), where the camera can still centre them. */
-export const ROUTE_AXES = [-9.5, 0, 9.5] as const;
+/**
+ * Side routes sit about two thirds of the way out, where the camera can nearly centre them: ±7.5 in the 24-wide world
+ * (21 October; ±9.5 in the 30-wide world before).
+ */
+export const ROUTE_AXES = [-7.5, 0, 7.5] as const;
 
 /** Low warm sun from the upper left and beyond the top of the view; shadows fall to the lower right. */
 const SUN_ELEVATION = 28 * Math.PI / 180;

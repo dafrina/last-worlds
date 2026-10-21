@@ -82,21 +82,31 @@ test('two touches can steer and use the centered special independently', async (
   await page.screenshot({ path: 'test-results/touch-special-phone.png' });
 });
 
-test('steering is relative to the ship and a held touch keeps its direction after the ship passes it', async ({ page, context }) => {
+test('steering uses the screen halves, wherever the ship is', async ({ page, context }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
   await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
   const frame = (await page.locator('.flight-frame').boundingBox())!;
   const y = frame.y + frame.height * 0.6, client = await context.newCDPSession(page);
-  // Just right of the ship (which starts in the middle): it steers right and keeps going past the finger.
-  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: frame.x + frame.width * 0.56, y }] });
-  await expect.poll(async () => (await snapshot(page)).player.vx).toBeGreaterThan(0);
+  const touch = async (fraction: number) => client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: frame.x + frame.width * fraction, y }] });
+  const release = async () => {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(async () => Math.abs((await snapshot(page)).player.vx)).toBeLessThan(0.01);
+  };
+  // Fly the ship right of the screen centre.
+  await touch(0.9);
   await expect.poll(async () => { const s = await snapshot(page); return (s.player.x - s.cameraX) / 12 + 0.5; }, { timeout: 8000 }).toBeGreaterThan(0.62);
-  expect((await snapshot(page)).player.vx).toBeGreaterThan(0);
-  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await release();
+  // A touch in the right half but left of the ship still steers right (user, 21 October: halves, not the ship).
+  await touch(0.55);
+  await expect.poll(async () => (await snapshot(page)).player.vx).toBeGreaterThan(0);
+  await release();
+  await touch(0.45);
+  await expect.poll(async () => (await snapshot(page)).player.vx).toBeLessThan(0);
+  await release();
 });
 
-test('sliding a held steering touch across the ship reverses direction', async ({ page, context }) => {
+test('sliding a held steering touch across the middle reverses direction', async ({ page, context }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
   await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');

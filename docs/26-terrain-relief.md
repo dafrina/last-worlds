@@ -251,3 +251,140 @@ Low stays under High. The terrain view is unchanged; only its integrator's own e
 **Limits:**
 - The height grid stays 0.25. Diagonal rims follow triangle edges, so a rim line can show small steps of about 8 px. Faceted walls were dropped for that reason.
 - Khepri's sheer, blocky column walls lean on the existing kit columns at rims and cliff feet. No new wall geometry was added.
+
+## 11. Cliff walls, Vesper half water, rock textures (terrain version 15, 21 October 2026)
+
+User, 21 October:
+- "yes do the real wall geometry too, especially vesper can look much more closer to the concept";
+- "vesper has a bit too much snowy plains, could use some more water ... make it 50/50" (replaces 70/30);
+- "make rocky textures too so it looks more detailed".
+
+During this version the world also narrowed from 30 to 24 units (user decision, 21 October). Everything below is measured at width 24.
+
+### Walls (`src/world/terrain-walls.ts`)
+
+Real wall geometry now stands along the crisp cliffs of version 14. The heightfield keeps its cliff; the wall pieces stand in it.
+
+- **Deterministic and chunk-independent.** There is one candidate per 1.6-unit lattice cell. The section holding a cell's centre owns it, so each cell is decided once, by one section, in any load order.
+- **Finding the face.** A cell takes the steepest of 16 probes (slope at least 1.4) and slides along the cliff toward the cell's centre, so segments space out evenly along a rim. It then walks up to the rim (until the slope drops under 0.7) and down to the foot of the sheer face (until it drops under 1.2). The drop must be at least 0.6 on Khepri and 0.45 on Vesper.
+- **Placing the piece:**
+  - front (+Z) out and downhill;
+  - top flush with the rim (+0.03), foot 0.12 under the ground; a foot over water stands just under the waterline;
+  - y scaled by the drop, x stretched by ±15%, variant chosen by the seed;
+  - pieces are 2.1 units wide on a 1.6 lattice, so neighbours overlap a little.
+- **Stepped cliffs:** each tier gets its own wall, flush with its own bench.
+- **Never:**
+  - on roads, outpost or district pads, industrial ground, arena platforms or ramps;
+  - past the world's edge or over the scenery cap (3.0);
+  - on knife-edge ridges or slivers of shelf (the ground must continue behind the wall).
+- **Never collision.** Walls are scenery kit instances: no target proxies, never blocking shots.
+- **Khepri:** benches, mesas, canyons and escarpments get `cliff_wall_0..3` from `public/assets/khepri/cliff-kit.glb`. The rim crowns and foot rubble are thinned (0.24 → 0.15 and 0.62 → 0.22), so the walls stay readable.
+- **Vesper:** coast cliffs and shelf steps get `ice_wall_0..3` from `public/assets/vesper/cliff-kit.glb`. This replaces the old `ice_cliff` passes along cliffs. Only shelf edges qualify: not crevasses, pressure ridges or rock outcrops, which looked like stray slabs.
+- **Luna:** no walls. Its scarps never reach a slope of 1.4, and the brief allowed Luna walls "only if it works".
+- **Nacre:** no walls.
+- `KIT.cliffWall` and `KIT.iceWall` (halfX 1.05, halfZ 0.6, height 1, exact top) have code-built stand-ins until the GLBs load. The terrain view loads each world's cliff kit in its prepare step (`ensurePlanet`), Khepri's included; a failed load settles with the stand-ins.
+
+### Vesper half land, half water
+
+- Lower shelf masses in every mood, plus fjord-like inlets: a noise band cuts narrow arms of sea into the shelf with sheer sides.
+- **Land share:** 0.486–0.507 over five seeds and 3 km (mean 0.496). The test bounds are now 0.45–0.55 for the mean and 0.4–0.6 per seed.
+- **Outposts:** a site tries 14 spots (5 before). Its centre must stand at least 0.6 above the sea, so the pad's lowest level keeps its shelf's height.
+- **Pipelines:** on a planet with a sea, a pipeline is planned only where at most half of its straight line crosses water. Wider runs were never built anyway (9 in 10 of the remaining planned lines are built). Khepri's network is unchanged.
+- **Width 24, v14 → v15 on Vesper:**
+  - roads per section 1.42 → 0.63;
+  - pipe pieces per km 1593 → 508;
+  - buildings per km within |x| ≤ 7: 175 → 129 (Khepri 184).
+  - Half the planet is water now, so the outpost test's floor drops from 70 to 50 per km.
+
+### Rock and ice textures
+
+Four maps come from Poly Haven CC0 `cliff_side` through `tools/blender/cliff_textures.py`; provenance is in `art/source/polyhaven/README.md`. Each is 512 px, tileable, x along the wall and y up:
+- `khepri/textures/cliff-rock-{detail,normal}.jpg` on Khepri and Luna (Luna's walls grey it as usual);
+- `vesper/textures/ice-wall-{detail,normal}.jpg` on Vesper.
+
+**Ground wall triangles** (`terrain-kit.ts`):
+- The wall map replaces the basalt detail, at one tile per 3.5 units along the wall and up the drop, so the ledges lie level instead of stretching down it.
+- Khepri keeps its columnar seams over the rock. Vesper's ice uses the map's fractures with the vertical splits kept.
+- On High, the wall normal map is applied to wall triangles only, using a screen-derivative tangent frame (as three.js does without tangents). Low skips it. Tops and rims keep their crisp planes.
+
+**Kit wall pieces** use their own program, `kitWall` ('khepri-kit-wall'), so the other kit pieces pay nothing:
+- u runs along the piece (its own x, stretched) and v up in world units, so ledges stay level at any height scale. Each piece offsets u by its position. Tops take the world-planar map with a quieter grain, and keep 75% of their own plane.
+- Faces turned toward the camera are lifted like the ground's walls, so the ledges read on the shaded side (only slightly on Vesper).
+- Khepri's rust caps darken to weathered rock instead of bright slabs.
+- **Vesper, "crisp and pointy"** (user, 21 October, after the first captures; Khepri and Luna were approved as they were):
+  - The coordinator rebuilt `ice_wall_0..3` as narrow, flat-shaded fractured shards: 144–186 triangles, an outward ridge splitting light and shadow, broken pointed tips, and a sawtooth snow rim.
+  - In the shader, each facet keeps its flat normal. Its own plane against the sun splits pale cyan-white lit ice from deep, saturated blue shadowed ice, over the kit's colours: abyss-blue cracks stay dark, and snow stays on the rim only.
+  - Shadowed ice gives back a little blue light instead of going grey.
+  - The first version had taken its tone from a luminance ramp: the shared kit's saturation test never saw vertex colours, so the pieces rendered as grey concrete.
+- **Vesper's ground walls match:**
+  - lit ice is pale cyan-white and shadowed ice deep blue, deepening toward the waterline (shallow crevasse lips stay a lighter blue);
+  - there is little camera-facing lift;
+  - the tone follows the smooth normal. Taken per triangle, the 0.25 height grid read as pixel stairs along every crevasse; the kit's shards carry the hard facets.
+
+**Loading:**
+- Khepri's and Luna's maps load with the Khepri textures, which the renderer's prepare already awaits.
+- Vesper's load in the terrain view's prepare, through the ground material's `loadPlanetTextures` hook.
+- A missing map stays null and the version 14 procedural detail remains.
+
+**Cost:**
+- About 312 KiB of JPEG (cliff rock 2 × about 117 KiB, ice 2 × about 40 KiB).
+- About 1.4 MiB of GPU memory per map with mipmaps (5.6 MiB in all).
+- One more program (the kit wall), compiled in the warm-up.
+- On High, one more texture tap on ground wall pixels; none on Low.
+
+### Width 24 retunes (21 October)
+
+Constants tuned for the old 15 half-width:
+- **Side routes:** ±9.5 → ±7.5 (`ROUTE_AXES`).
+- **District lots:** centres at |x| 6.0–7.6 (hub) and 6.4–7.3 (process lot), down from 9–10 (`settlement-grammars.ts`).
+- **District lattice:** now |x| 1–12 (`terrain-districts.ts`).
+- **Link grade:** the emulated grade between district lots is 0.72 → 0.62. A spine's slight curve found a steeper dip than the straight-line emulation.
+- **Outpost spread:** Khepri candidates span 0.42–0.82 of the half width (0.38–0.85 before).
+- **Districts:** 23 of 40 seeds still hold one in slot 0 (at least 26 at width 30).
+
+Nacre's code is unchanged. Its output changes only through `WORLD_HALF` and the route axes: version 14 with those two changes gives the same fingerprints as version 15.
+
+### Measurements
+
+**Budget, High** (shipped kits including the cliff kits; seeds 11, 93 and 8831, s 0–400; camera across its whole ±6 range):
+
+| World | v14, width 24 | v15, width 24 |
+| --- | --- | --- |
+| Khepri | ≤ 61 calls; ≤ 79.4k triangles, mean 45.8k | ≤ 63 calls; ≤ 77.7k, mean 46.9k |
+| Vesper | ≤ 56 calls; ≤ 71.6k, mean 39.3k | ≤ 46 calls; ≤ 62.5k, mean 38.3k (sharper shards) |
+| Luna | ≤ 24 calls; ≤ 49.4k, mean 27.4k | unchanged |
+
+- Low stays under High.
+- At width 30, v14 measured Khepri ≤ 55 calls and 77.2k triangles, Vesper ≤ 46 and 67.9k (§10). The narrower world puts more outposts and district pieces in view at once, which adds calls; triangles stay about the same.
+- The walls cost Khepri two calls. On Vesper they replace the old ice cliffs and less shelf to build on, so calls drop.
+
+**Streaming** (browser fixture, SwiftShader, about 15 fps):
+- No fallbacks for either version: Khepri's district (seed 93, s 400–560) and Vesper (s 100–400) at 11 units/s, Khepri's canyon (s 900–1060) at 5 units/s, Luna at 11 units/s.
+- Longest render: Khepri 16.9 ms (v14 16.8), Vesper 13 ms (v14 14).
+- Luna shows a one-off spike of 67–135 ms in both versions (v14 126 ms).
+
+**Real start flow** (menu → ENDLESS → flight, SwiftShader, High, two runs each):
+- Ready after 1.9–2.2 s (v14 1.7–2.2 s).
+- Longest render in the first 12 s of flight: 5–11 ms (v14 7–8 ms).
+- So prepare's warm-up absorbs the new programs. The 230 ms spike noted for version 14 (§10) came from the fixture, which skips prepare.
+- Not measured on a phone.
+
+**Browser:** `graphics.spec.ts` 7/7. Its Vesper facility spot moved from distance 270 to 200 (seed 8831, x −3), because 270 is open water now. All four Vesper cases seat there: v2 small and large, v3 fort and pad.
+
+**Tests:** 399/399 unit tests at width 24 (default config). The new wall test checks every planet's wall kind, cap, scale, a downhill front, a top that meets the ground behind it, distance from roads and pads, and none on Luna or Nacre. Khepri and Nacre fingerprints are re-recorded for the width, with the reason in each test.
+
+**Evidence:**
+- `docs/screenshots/terrain/walls-{khepri,vesper,luna}.jpg`: top row v14, bottom row v15, both at width 24; seed 93, 390×844, DPR 2, the same spots. They include a Khepri canyon (d 985) and a Vesper coast (d 280) framed like the concept panels.
+- `docs/screenshots/terrain/walls-vesper-concept.jpg`: the concept's right panel beside v15 (the sharper shards).
+- Raw frames are in `lookdev/terrain-v15/{before,after}/`.
+
+**Files:**
+- `src/world/terrain-walls.ts` (new), `terrain-scatter.ts`, `terrain-vesper.ts`, `terrain-luna.ts` (a comment), `terrain.ts` (`TERRAIN_VERSION = 15`), `terrain-layout.ts` (route axes), `terrain-settlements.ts`, `terrain-districts.ts`, `settlement-grammars.ts`, `terrain-network.ts` (the pipeline water rule);
+- `src/render/terrain-kit.ts`, `terrain-view.ts`;
+- tests: `tests/world/terrain.test.ts`, `terrain-vesper.test.ts`, `terrain-nacre.test.ts`, `terrain-districts.test.ts`, `terrain-budget.test.ts`, and `tests/browser/graphics.spec.ts` (the Vesper facility spot).
+
+**Limits:**
+- No phone test.
+- Wall pieces overlap at tight bends, and a two-tier canyon wall shows two rows of caps.
+- The ice-wall colouring and the Khepri cap tone are judged from SwiftShader captures only.
+- Vesper's crevasse lips still step along the 0.25 grid (as in version 14), now in a stronger blue.

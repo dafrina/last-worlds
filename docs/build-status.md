@@ -1,5 +1,78 @@
 # Build status
 
+## Two-screen world, screen-half steering, passable Pulsar streams, cliff wall pieces and rock textures, 21 October 2026
+
+User decisions, each recorded in docs/08:
+- the world is narrower, 24 units (2 screens) instead of 30;
+- steering is back to the screen halves;
+- evading means weaving between projectiles, "not just hide at screen edge";
+- cliff walls get rocky textures, and Vesper's walls are "a bit more crisp and pointy".
+
+- **Width:** `VIEW.worldWidth` 24. The camera reaches ±6 (was ±9), squadron anchors ±4 (was ±7), the ship's centre ±11.58. Everything derived from VIEW follows. The terrain retunes are in the section below.
+- **Steering:** the left half steers left and the right half steers right. A held finger sliding across the middle switches direction (3% dead band). `GameInput.setAnchor` is gone. The hints, How to Play, the aria label, README, AGENTS #1 and docs/10 say so again.
+- **Pulsar streams:** the shot interval is 0.2 s (was 0.1), still 10 shots. At 0.1 the shots were about 1 unit apart, a solid wall for the 0.42 ship, so the only escape was running ahead of the stream; in the 2-screen world that ended pinned at the edge. An edge safe zone was tried and dropped at the user's word. Now the gaps are passable.
+- **Perfect pilot:** test pilots perceive threats 0.2 s late but now know their own position. With that, the perfect pilot clears Deep Bloom without a hit for every weapon and difficulty. Before, veteran with Pulse took one hit: the pilot held still under a tracking stream because it judged its own position 0.2 s late.
+- **Bastion tests:** two tests assumed a ship could wait unseen at the world edge. At width 24 a battery stays in view, so they now check their actual rules: waiting never wins, and an out-of-view windup cancels and comes back with a full warning.
+- **Cliff wall pieces (`tools/blender/cliff_kit.py`):** built new after the concept's cliffs, at the user's request ("no reuse").
+  - Khepri: `cliff_wall_0..3`, cleaved dark slabs to a dusty rim, crystal seams, rubble; 146–213 triangles.
+  - Vesper: `ice_wall_0..3`, rebuilt on the "crisp and pointy" note. Narrow fractured shards with sharp outward ridges, wide masses with two ridges, broken pointed tips, a sawtooth snow rim, pointed shards at the foot; 144–186 triangles.
+  - Every piece is at most 250 triangles, with its top exactly 1.
+- **Rock textures (`tools/blender/cliff_textures.py`):** 512 px detail and normal maps from Poly Haven's CC0 `cliff_side`, recorded in art/source/polyhaven/README.md. Khepri and Luna get layered, fractured rock; Vesper gets the same layering smoothed into ice.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 399/399 at width 24;
+  - browser 35/35 (snapshot, SwiftShader);
+  - Not tested on a phone.
+
+## Cliff walls, Vesper half water, rock textures: terrain version 15 at width 24 (docs/26 §11), 21 October 2026
+
+- **What:**
+  - real wall geometry along the crisp cliffs (user: "especially vesper can look much more closer to the concept");
+  - Vesper about 50/50 land and water (user, replacing 70/30);
+  - rocky and icy wall textures (user: "make rocky textures too");
+  - the terrain side of the world narrowing to 24 units (user decision, same day).
+- **Walls:**
+  - Placement: a deterministic, chunk-independent pass (`src/world/terrain-walls.ts`), with fronts facing out and downhill and tops flush with the rim or bench.
+  - Kits: Khepri `cliff_wall_*` and Vesper `ice_wall_*`, from the new cliff kits.
+  - Never on roads, pads, districts or arenas; never past the world's edge or the cap; never collision.
+  - None on Luna (its scarps are not sheer enough) or Nacre.
+- **Vesper:**
+  - land share 0.486–0.507, mean 0.496, over five seeds;
+  - fjord-like inlets;
+  - outposts search 14 spots;
+  - pipelines are planned only where at most half the line crosses water.
+- **Textures** (`terrain-kit.ts`):
+  - **Maps:** cliff rock (Khepri, Luna) and ice-wall maps on the ground's wall triangles and on the wall pieces. Ledges lie level, one tile per 3.5 units; normal maps on High only.
+  - **Material:** the kit walls have their own program, and Khepri caps darken to rock.
+  - **Vesper, "crisp and pointy" (user):** the coordinator rebuilt the shards. Each flat facet against the sun is pale cyan-white when lit and deep saturated blue in shadow, with snow on the rim only, and the ground's ice walls match.
+  - Khepri and Luna were approved as captured.
+  - **Loading:** the maps load in prepare, and a missing map falls back to the version 14 detail.
+  - **Cost:** about 312 KiB to download and about 5.6 MiB of GPU memory.
+- **Width 24 retunes:**
+  - side routes ±7.5;
+  - district lot positions, lattice and link grade;
+  - Khepri outpost spread.
+  - Khepri and Nacre fingerprints are re-recorded. Nacre's code is unchanged: version 14 with the same width and route axes gives the same hashes.
+- **Checks (WSL, SwiftShader):**
+  - **Unit tests:** 399/399 for the whole suite at width 24 (default config).
+  - **Typecheck:** clean.
+  - **Budget on High, width 24:**
+    - Khepri ≤ 63 calls and ≤ 77.7k triangles (v14 at 24: 61, 79.4k);
+    - Vesper ≤ 46 and ≤ 62.5k (v14: 56, 71.6k);
+    - Luna unchanged (≤ 24, 49.4k).
+  - **Browser:** `graphics.spec` 7/7; its Vesper facility spot moved from 270 to 200, since 270 is water now.
+  - **Streaming:** no fallbacks in fixture flights through Khepri's district and Vesper at 11 units/s or Khepri's canyon at 5 units/s.
+  - **Real start flow (menu → ENDLESS):** longest render in the first 12 s of flight 5–11 ms (v14 7–8 ms), so prepare absorbs the compile.
+- **Evidence:**
+  - `docs/screenshots/terrain/walls-{khepri,vesper,luna}.jpg` (top v14, bottom v15, both at width 24);
+  - `docs/screenshots/terrain/walls-vesper-concept.jpg`;
+  - raw frames in `lookdev/terrain-v15/`.
+- **Limits:**
+  - no phone test;
+  - two-tier canyon walls show two rows of caps;
+  - fewer districts fit at width 24 (23 of 40 seeds, against at least 26);
+  - Vesper has fewer roads and pipes, because half of it is water.
+
 ## Crisp cliffs, terrain version 14 (docs/26 §10), 21 October 2026
 
 - **What:** the user disliked "rounded cliff faces" and asked for sharp walls where the land is a cliff and smooth hills elsewhere, true to `art/concepts/01-worlds-direction.png`. Nacre is unchanged, byte for byte and on screen.

@@ -1,4 +1,4 @@
-import { clamp, hash, routeCenter, smoothRange, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT } from './terrain-layout';
+import { WORLD_HALF, clamp, hash, routeCenter, smoothRange, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT } from './terrain-layout';
 import { ARENA_RAMP, type TerrainArena } from './terrain-arena';
 import { SETTLEMENT_CELL, padDistance, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
 import { MODULES } from './settlement-modules';
@@ -40,10 +40,13 @@ type Planet = Pick<PlanetProfile, 'id' | 'landform' | 'params' | 'local'> & { di
 
 /** Pads extend this far beyond a lot's layout extents (rounded pad corners keep clear of the pieces). */
 export const PAD_MARGIN = 0.4;
-/** Steepest road grade between half-unit samples across a lot gap (the network's final road guard). */
-const LINK_GRADE = 0.72;
-/** Raw-ground lattice across each flank: integer |x| from LATTICE_U0 to LATTICE_U1. */
-const LATTICE_U0 = 3, LATTICE_U1 = 15;
+/**
+ * Steepest road grade between half-unit samples across a lot gap, emulated on the straight line (the network's final
+ * road guard is 0.8). 0.72 until the 24-wide world (21 October), where a spine's slight curve found a steeper dip.
+ */
+const LINK_GRADE = 0.62;
+/** Raw-ground lattice across each flank: integer |x| from LATTICE_U0 to LATTICE_U1 (the world's edge). */
+const LATTICE_U0 = 1, LATTICE_U1 = Math.ceil(WORLD_HALF);
 
 const plans = new Map<string, DistrictPlan | null>();
 /** Test hook: forgets every plan (plans are pure, so this never changes results). */

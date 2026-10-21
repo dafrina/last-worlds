@@ -21,7 +21,7 @@ Design v0.2 · 13 October 2026 · working title Last Worlds
 - Maps extend beyond the horizontal viewport; lateral camera tracking enables exploration and alternate evasive routes.
 - Hero tiers must have fundamentally different airframes. The accepted battered utility starter must appear smaller in gameplay; preserve the latest accepted artwork.
 - Campaign has selectable difficulty levels. Endless ramps difficulty within every run, independently of campaign difficulty and advancement.
-- **Steering relative to the ship (17 October 2026, replaces the screen halves):** a touch left of the hero ship steers left, right of it steers right, and the direction holds while the finger stays down, even after the ship passes under it. Dragging the finger across to the other side of the ship switches direction. Still no drag-to-position steering.
+- **Steering relative to the ship (17 October 2026, replaces the screen halves; reverted to the screen halves on 21 October):** a touch left of the hero ship steers left, right of it steers right, and the direction holds while the finger stays down, even after the ship passes under it. Dragging the finger across to the other side of the ship switches direction. Still no drag-to-position steering.
 - **Portrait only (17 October 2026):** the installed app is locked to portrait (web manifest; the browser's orientation lock where allowed); a phone turned sideways sees a "turn your phone upright" notice and the flight pauses.
 
 The user did not approve every numerical value, planet name, ship design, scope count, or implementation choice in this package. Those are proposed defaults, clearly separated below.
@@ -111,7 +111,7 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **Enemy fire:** about 35% faster in total, enemies only; the player's cadence is unchanged.
   - **World and controls:** the world is 30 units wide (2.5 screens). A held steering touch that slides across the middle switches direction.
   - **Bosses:** each mission boss fights in a static arena where the scroll stops (Bastion-9 on a flat platform, the Helion Ark on open water).
-  - **Vesper:** added as the second playable planet, with the Cold Vector mission and the Helion Ark (docs/17); about 70% land and 30% water.
+  - **Vesper:** added as the second playable planet, with the Cold Vector mission and the Helion Ark (docs/17); about 70% land and 30% water (50/50 since terrain v15, 21 October).
   - **Endless:** it cycles planets with a hyperdrive jump after each planet's boss (docs/18).
   - **Endless bosses must be killed:** no timeout or retreat; the run continues only after the kill. This replaces docs/03 §8's "the boss retreats after 60 s overtime".
 
@@ -144,5 +144,9 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **HELION ARK radiator targets** move to x ±2.75, onto the radiator blocks ("half the ring is not over the model"); the targets' s and size are unchanged.
   - **Bastion treads** must move (instanced links).
   - **No late-appearing facilities, infrastructure or bosses:** flights and warps wait for their world's assets.
-  - **Terrain cliffs** (in progress): crisp cliff walls where the landform is a cliff, after `art/concepts/01-worlds-direction.png`, smooth hills elsewhere.
+  - **Terrain cliffs**: crisp cliff walls where the landform is a cliff, after `art/concepts/01-worlds-direction.png`, smooth hills elsewhere. Terrain v14 shipped the hard-rimmed walls; v15 adds real wall geometry, built new after the concept's cliffs ("no reuse, look at the concepts cliffs"): `cliff_wall` on Khepri and `ice_wall` on Vesper (`tools/blender/cliff_kit.py`).
+  - **Vesper land and water: 50/50** (terrain v15), replacing about 70% land and 30% water: "vesper has a bit too much snowy plains, could use some more water ... we could make it 50/50 to make the terrain more interesting".
+  - **World width 24 units (2 screens)**, down from 30 (2.5 screens): "maybe it would be better to have less horizontal world space? ... laser small ships ... dont find the right space to aim, also other ships seem to not follow and we can basically just evade from far left to far right and back", then "lets make width 2". Camera ±6, squadron anchors ±4, ship ±11.58.
+  - **Steering back to the screen halves:** "Left half of screen goes left right half goes right". This replaces steering relative to the ship (17 October); a held finger sliding across the middle still switches direction.
+  - **Rocky cliff textures:** cliff walls get a layered, fractured rock face, softened to ice layering on Vesper ("make rocky textures too so it looks more detailed"). The textures are derived from Poly Haven's CC0 `cliff_side` by `tools/blender/cliff_textures.py`; colour stays with the planet palette.
 

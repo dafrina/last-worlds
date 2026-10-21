@@ -6,18 +6,22 @@ import { configureCamera } from '../../src/render/scene';
 import { INFRA_NODES, createFallbackInfra, createFallbackShared, extractKitNode, extractNode, extractSharedNode, type KitGeometries } from '../../src/render/terrain-kit';
 import { createMaterials } from '../../src/render/models';
 import { createTerrainView } from '../../src/render/terrain-view';
-import { KIT, KIT_KINDS, SHARED_NODES, kitNodeName } from '../../src/world/terrain';
+import { KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, SHARED_NODES, kitNodeName, type KitKind } from '../../src/world/terrain';
 
-const KIT_FILE = 'public/assets/khepri/khepri-kit.glb';
+const KIT_FILE = 'public/assets/khepri/khepri-kit.glb', CLIFF_FILE = 'public/assets/khepri/cliff-kit.glb';
 const fs: { existsSync(path: string): boolean; readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
 
 async function shippedKit(): Promise<KitGeometries | null> {
   if (!fs.existsSync(KIT_FILE)) return null;
-  const gltf = await new Promise<GLTF>((resolve, reject) => new GLTFLoader().parse(fs.readFileSync(KIT_FILE).slice().buffer, '', resolve, reject));
   const kit: KitGeometries = new Map();
-  for (const kind of KIT_KINDS) for (let v = 0; v < KIT[kind].variants; v++) {
-    const node = gltf.scene.getObjectByName(kitNodeName(kind, v)), geometry = node && extractKitNode(node, kind);
-    if (geometry) kit.set(kitNodeName(kind, v), geometry);
+  // The terrain kit, and the cliff walls from their own kit (docs/26 §11), as the terrain view loads them.
+  for (const [file, kinds] of [[KIT_FILE, KIT_KINDS], [CLIFF_FILE, KHEPRI_CLIFF_KINDS]] as const) {
+    if (!fs.existsSync(file)) continue;
+    const gltf = await new Promise<GLTF>((resolve, reject) => new GLTFLoader().parse(fs.readFileSync(file).slice().buffer, '', resolve, reject));
+    for (const kind of kinds as readonly KitKind[]) for (let v = 0; v < KIT[kind].variants; v++) {
+      const node = gltf.scene.getObjectByName(kitNodeName(kind, v)), geometry = node && extractKitNode(node, kind);
+      if (geometry) kit.set(kitNodeName(kind, v), geometry);
+    }
   }
   return kit;
 }
@@ -45,7 +49,9 @@ async function sweep(quality: 'high' | 'low', withKit: boolean, seeds: readonly 
   view.setQuality(quality);
   const height = VIEW.width * 16 / 9, camera = new OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, height / 2, -height / 2, 0.1, 100);
   let calls = 0, triangles = 0, total = 0, samples = 0;
-  for (const seed of seeds) for (let distance = from; distance < to; distance += 4.5) for (let x = -12; x <= 12; x += 1.5) {
+  // Every camera position across the world (±6 in the 24-wide world, 21 October).
+  const limit = (VIEW.worldWidth - VIEW.width) / 2;
+  for (const seed of seeds) for (let distance = from; distance < to; distance += 4.5) for (let x = -limit; x <= limit; x += 1.5) {
     view.update(seed, distance); configureCamera(camera, x); view.cull(camera); view.animate(distance / 4, x); view.cull(camera);
     calls = Math.max(calls, view.stats.calls); triangles = Math.max(triangles, view.stats.triangles);
     total += view.stats.triangles; samples++;

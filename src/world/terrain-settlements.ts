@@ -179,8 +179,9 @@ export function settlement(seed: number, cell: number, side: number): Settlement
     // Prefer the calmest of a few candidate spots: outposts settle on flat ground at any terrain level.
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 5; k++) {
-      // Candidates span the outer part of each side (about 0.38–0.85 of the half width), clear of the centre lane.
-      const cx = side * WORLD_HALF * (0.38 + h(1 + k) * 0.47), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
+      // Candidates span the outer part of each side (about 0.42–0.82 of the half width since the 24-wide world, 21
+      // October; 0.38–0.85 before), clear of the centre lane.
+      const cx = side * WORLD_HALF * (0.42 + h(1 + k) * 0.4), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
       const mood = moodParams(seed, cs), heights = [[0, 0], [2.6, 0], [-2.6, 0], [0, 3], [0, -3]].map(([dx, ds]) => landform(seed, cx + dx, cs + ds, mood).height);
       // Level ground first; a site high on a mesa costs more (its tallest pieces would sink the pad into the rock).
       const relief = Math.max(...heights) - Math.min(...heights) + 0.5 * Math.max(0, heights[0] - 0.9);
