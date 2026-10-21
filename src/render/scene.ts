@@ -122,6 +122,19 @@ export function configureCamera(camera: THREE.OrthographicCamera | THREE.Perspec
 }
 
 /**
+ * How much further a perspective camera follows the simulation's camera toward the world edges (render only): the view
+ * is narrower at the ship's row than at its centre, so with the camera at its usual limit a ship hugging an edge would be
+ * cut off. The factor puts the camera where the ship, up to its wingtips, stays inside the view at its row (25°: 1.10).
+ */
+export function perspectiveFollow(fov: number): number {
+  const probe = new THREE.PerspectiveCamera(fov, 9 / 16, 1, 260);
+  configureCamera(probe, 0);
+  const halfWidth = 1 / new THREE.Vector3(1, VIEW.flightHeight, 0).project(probe).x;
+  const limit = VIEW.worldWidth / 2 - VIEW.width / 2, edge = VIEW.worldWidth / 2 - VIEW.playerRadius + .55;
+  return Math.max(1, (edge - halfWidth) / limit);
+}
+
+/**
  * Perspective seating (render-only): follow the camera ray through the logical flight-plane target down to
  * terrain + core height, so the physical core covers its logical target pixel under any lens.
  */
@@ -331,6 +344,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const camera = cameraMode === 'perspective' ? new THREE.PerspectiveCamera(lens, 9 / 16, 1, 260)
     : cameraMode === 'rectified' ? new THREE.PerspectiveCamera(20, 9 / 16, 1, 260)
     : new THREE.OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, TACTICAL_HEIGHT / 2, -TACTICAL_HEIGHT / 2, .1, 100);
+  const follow = cameraMode === 'perspective' ? perspectiveFollow(lens) : 1;
   const placeCamera = (x: number) => {
     if (cameraMode === 'rectified') configureRectified(camera as THREE.PerspectiveCamera, x, rectifiedDepth, viewportAspect); else configureCamera(camera, x);
   };
@@ -826,6 +840,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const resizePost = () => post.setSize(drawingWidth * renderer.getPixelRatio(), drawingHeight * renderer.getPixelRatio());
   return {
     prepare: preload,
+    launchWarp: mode => jumpFx.launch(mode),
     isReady: planetReady,
     setQuality(next) {
       if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
@@ -851,7 +866,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       void alpha;
       const terrainStart = performance.now();
       // The run's schedule drives the terrain (docs/18 §3): planet stretches and boss arenas by distance; a campaign is one planet.
-      terrain.update(state.config.seed, state.distance, runRoute(state.config)); placeCamera(state.cameraX); terrain.cull(camera);
+      terrain.update(state.config.seed, state.distance, runRoute(state.config)); placeCamera(state.cameraX * follow); terrain.cull(camera);
       /** The streamed world under the ship (planet and arena); seating given it resolves each distance on the route. */
       const world = terrain.world, arena = world.arena;
       const lookPlanet: PlanetId = lookOverride ? terrainPlanet : state.planet ?? runPlanet(state.config);
@@ -1034,9 +1049,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         if (isGround && !afloat && plinthCount < plinths.instanceMatrix.count) {
           let lowest = placement.baseHeight;
-          for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, surfaceHeight(state.config.seed, enemy.x + dx, state.distance + placement.s + ds, world));
+          // (At the seated x: under a perspective lens the ray moves a gun sideways off its logical x.)
+          const seatX = placement.x ?? enemy.x;
+          for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, surfaceHeight(state.config.seed, seatX + dx, state.distance + placement.s + ds, world));
           if (placement.baseHeight - lowest > .08) {
-            transform.position.set(enemy.x, lowest - .12, -placement.s); transform.rotation.set(0, 0, 0);
+            transform.position.set(seatX, lowest - .12, -placement.s); transform.rotation.set(0, 0, 0);
             transform.scale.set(1, placement.baseHeight + .06 - (lowest - .12), 1); transform.updateMatrix();
             plinths.setMatrixAt(plinthCount++, transform.matrix);
           }

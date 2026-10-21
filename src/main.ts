@@ -19,6 +19,8 @@ let maxFrameMs = 0;
 let warmupFrames = 2;
 let launchId = 0, startPaused = false, waitingForWorld = false;
 let loadingRun: RunState | null = null;
+/** The launch warp runs at least this long (ms); past SLOW_LOADING_MS the loading panel shows over it. */
+const MIN_LOADING_MS = 1000, SLOW_LOADING_MS = 8000;
 /**
  * Ending afterglow (presentation only). The real run is over and is never stepped again; a throwaway copy keeps the
  * world moving while the results fade in, and nothing in the copy can reach the log, score or results.
@@ -96,13 +98,28 @@ async function start(config: RunConfig) {
   candidate.phase = 'paused';
   // Unlock on the initiating gesture; music starts only after loading finishes.
   audio.quit(); audio.unlock(); input.clear();
-  ui.showLoading(true);
+  // The launch warp plays while the world is prepared (user, 21 October): opaque deep space with the ship cruising; endless,
+  // with more to load, simply warps longer. A slow load shows the panel over it, with its way back to the menu.
+  ui.showLoading(true); ui.setLoadingWarp(true); renderer?.launchWarp('cruise');
+  const shownAt = performance.now();
+  let panel = false;
+  const slow = setTimeout(() => { if (id === launchId) { panel = true; ui.setLoadingWarp(false); } }, SLOW_LOADING_MS);
   try {
     await renderer?.prepare(candidate.planet);
     if (id !== launchId) return;
     // Compile and upload the actual destination under the loading panel, before its clock starts.
     renderer?.render(candidate, 0);
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    if (id !== launchId) return;
+    // The warp runs at least MIN_LOADING_MS (user, 21 October: the loading screen was "so abrupt"), then breaks out: the
+    // flight starts at the flash and the veil lifts onto the world.
+    const hold = MIN_LOADING_MS - (performance.now() - shownAt);
+    if (hold > 0) await new Promise<void>(resolve => setTimeout(resolve, hold));
+    if (id !== launchId) return;
+    clearTimeout(slow);
+    if (panel) { await ui.fadeLoading(); if (id !== launchId) return; }
+    const flash = renderer?.launchWarp('arrive') ?? 0;
+    if (flash > 0) await new Promise<void>(resolve => setTimeout(resolve, flash * 1000));
     if (id !== launchId) return;
     run = candidate; loadingRun = null;
     run.phase = startPaused || document.hidden || sideways?.matches ? 'paused' : 'playing';
@@ -111,6 +128,7 @@ async function start(config: RunConfig) {
     warmupFrames = 2; maxFrameMs = 0; lastPauseReason = startPaused ? 'loading-blur' : '';
     ui.showLoading(false); ui.update(run);
   } catch (error) {
+    clearTimeout(slow); renderer?.launchWarp('off');
     if (id !== launchId) return;
     loadingRun = null; console.error('Flight preparation failed', error);
     ui.showError('The flight could not be prepared. Reload to try again.');
@@ -131,7 +149,7 @@ const ui = createUi(root, {
     ui.update(run);
   },
   quit() {
-    ++launchId; loadingRun = null; waitingForWorld = false;
+    ++launchId; loadingRun = null; waitingForWorld = false; renderer?.launchWarp('off');
     audio.quit();
     input.clear();
     run = null;

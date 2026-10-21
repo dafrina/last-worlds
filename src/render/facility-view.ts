@@ -29,6 +29,8 @@ export interface FacilityStats {
   large: number;
   /** v3: each plant's arrangement, its kit source per world, and the module instances drawn this frame. */
   arrangements?: ArrangementId[]; kits?: Record<string, string>; modules?: number;
+  /** v3: the tallest foundation drawn under a building or tank this frame (render QA; at most FOUNDATION_MAX). */
+  floating?: number;
 }
 export interface FacilityView {
   /** The current planet's plants are ready (v2: Luna has none). */
@@ -86,7 +88,17 @@ interface Kit { source: 'glb' | 'stand-in' | 'mixed'; batches: Map<string, THREE
  */
 function createModularView(scene: THREE.Scene, onReady: () => void): FacilityView {
   /** Each plant with the height every module is drawn at (NaN: an apron tile the terrain is too rough for). */
-  const kits = new Map<FacilityWorld, Kit | 'loading' | 'failed'>(), plants: { id: number; plant: FacilityPlant; y: number[] }[] = [];
+  const kits = new Map<FacilityWorld, Kit | 'loading' | 'failed'>(), plants: { id: number; plant: FacilityPlant; y: number[]; lows: number[] }[] = [];
+  /**
+   * Foundations (terrain version 16): a block under each building or tank standing over lower ground, down to the lowest
+   * ground under it, in the world's foundation colour. One draw.
+   */
+  const foundations = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, .5, 0),
+    new THREE.MeshStandardMaterial({ color: FOUNDATION_COLOR.khepri, roughness: .92, metalness: .05 }), PLANTS * 24);
+  foundations.name = 'facility foundations'; foundations.count = 0; foundations.frustumCulled = false;
+  foundations.castShadow = foundations.receiveShadow = true; foundations.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(foundations);
+  let floating = 0, foundationPlanet: PlanetId | null = null;
   /** Batteries already composed (with or without a plant): composition runs once per battery. */
   const decided = new Set<number>();
   /** Batteries seen while their world's kit was still loading: they wait for it instead of taking legacy pieces. */
@@ -144,7 +156,8 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
     get clearings() { return plants.map(({ plant }) => ({ ...plant.bounds })); },
     get stats(): FacilityStats {
       return { version: 3, loaded: this.loaded, count: plants.length, large: 0, arrangements: plants.map(p => p.plant.arrangement),
-        kits: Object.fromEntries([...kits].map(([world, kit]) => [world, typeof kit === 'object' ? kit.source : kit])), modules: drawn };
+        kits: Object.fromEntries([...kits].map(([world, kit]) => [world, typeof kit === 'object' ? kit.source : kit])), modules: drawn,
+        floating: Math.round(floating * 100) / 100 };
     },
     contains(id: number) { return waiting.has(id) || plants.some(p => p.id === id); },
     prepare(planet: PlanetId) { prefetched = planet; return prepare(planet); },
@@ -169,11 +182,12 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
         for (const [other, gun] of batteries) if (other !== id) others.push({ x: gun.groundX, s: gun.groundS });
         const plant = composeFacility(planet, id, state.config.seed, { x: seat.groundX, s: seat.groundS, base: seat.base },
           { batteries: others, reserved, plants: plants.map(p => p.plant) });
-        if (plant) plants.push({ id, plant, y: heightsOf(plant, ground) });
+        if (plant) plants.push({ id, plant, ...heightsOf(plant, ground) });
       }
       kits.forEach(kit => { if (typeof kit === 'object') kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.count = 0; })); });
-      drawn = 0;
-      for (const { plant, y } of plants) {
+      drawn = 0; floating = 0; foundations.count = 0;
+      if (foundationPlanet !== planet) { foundationPlanet = planet; (foundations.material as THREE.MeshStandardMaterial).color.setHex(FOUNDATION_COLOR[planet]); }
+      for (const { plant, y, lows } of plants) {
         const kit = ready(plant.world), b = plant.bounds;
         if (!kit || b.minX > state.cameraX + VIEW.width / 2 + 3 || b.maxX < state.cameraX - VIEW.width / 2 - 3
           || b.minS - state.distance > VIEW.maxS + 6 || b.maxS - state.distance < VIEW.minS - 3) continue;
@@ -184,8 +198,17 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
           transform.rotation.set(0, module.yaw, 0); transform.updateMatrix();
           for (const mesh of meshes) if (mesh.count < mesh.instanceMatrix.count) mesh.setMatrixAt(mesh.count++, transform.matrix);
           drawn++;
+          // A building or tank over lower ground stands on its foundation, down to the lowest ground under it.
+          const drop = y[i] - lows[i];
+          if (drop > .06 && foundations.count < foundations.instanceMatrix.count) {
+            const [hx, hs] = MODULES_BY_NODE.get(module.node)!.half;
+            transform.position.y = lows[i] - .12; transform.scale.set(hx * 1.9, drop + .14, hs * 1.9); transform.updateMatrix();
+            foundations.setMatrixAt(foundations.count++, transform.matrix); transform.scale.set(1, 1, 1);
+            floating = Math.max(floating, drop);
+          }
         }
       }
+      foundations.instanceMatrix.needsUpdate = true;
       kits.forEach((kit, site) => {
         if (typeof kit !== 'object') return;
         // A world left behind releases its kit once its last plant is gone (endless revisits reload it).
@@ -194,9 +217,15 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
         kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.visible = mesh.count > 0; mesh.instanceMatrix.needsUpdate = true; }));
       });
     },
-    dispose() { disposed = true; kits.forEach(kit => { if (typeof kit === 'object') kit.dispose(); }); kits.clear(); },
+    dispose() {
+      disposed = true; kits.forEach(kit => { if (typeof kit === 'object') kit.dispose(); }); kits.clear();
+      scene.remove(foundations); foundations.geometry.dispose(); (foundations.material as THREE.Material).dispose(); foundations.dispose();
+    },
   };
 }
+
+/** Foundation blocks under buildings over lower ground: concrete in each world's tone (version 16). */
+const FOUNDATION_COLOR: Readonly<Record<PlanetId, number>> = { khepri: 0x5a4434, luna: 0xa9abae, vesper: 0x8c97a3, nacre: 0x2a2440 };
 
 /**
  * Draw heights: buildings sink with the plant (rule 3); flat pieces lie on the seat's ground. With a terrain sampler, each
@@ -205,10 +234,27 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
  * and the tile under the gun stays at the gun's own ground.
  */
 const ROUGH = 1.1;
-function heightsOf(plant: FacilityPlant, ground?: (x: number, s: number) => number): number[] {
-  return plant.modules.map(m => {
+/**
+ * Buildings and tanks (terrain version 16; user, 21 October: "many of the gas tanks … are somewhere in the sky", and "place
+ * a base below for these cases as you do for the compound tiles"): each keeps the plant's level, or rises onto higher
+ * ground under its own footprint, and stands on a foundation block reaching down to the lowest ground under it. On a
+ * cliff (more than FOUNDATION_MAX of drop under it), or where it would rise too close to the flight plane, it is left
+ * out (NaN).
+ */
+const FOUNDATION_MAX = 2.4;
+function heightsOf(plant: FacilityPlant, ground?: (x: number, s: number) => number): { y: number[]; lows: number[] } {
+  const lows: number[] = [];
+  const y = plant.modules.map(m => {
     const module = MODULES_BY_NODE.get(m.node)!;
-    if (!module.flat) return plant.base;
+    if (!module.flat) {
+      if (!ground) { lows.push(plant.base); return plant.base; }
+      const [hx, hs] = module.half, r = Math.max(hx, hs) - .1, x = plant.x + m.x, s = plant.s + m.s;
+      const samples = [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].map(([dx, ds]) => ground(x + dx * r, s + ds * r));
+      const hi = Math.max(...samples), lo = Math.min(...samples), seat = Math.max(plant.base, hi - .05);
+      lows.push(lo);
+      return seat - lo > FOUNDATION_MAX || seat + module.top > VIEW.flightHeight - .45 ? NaN : seat;
+    }
+    lows.push(-Infinity);
     if (!ground || !module.roles.includes('apron')) return plant.ground;
     const [hx, hs] = module.half, x = plant.x + m.x, s = plant.s + m.s;
     const samples = [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, ds]) => ground(x + dx * (hx - .1), s + ds * (hs - .1)));
@@ -216,6 +262,7 @@ function heightsOf(plant: FacilityPlant, ground?: (x: number, s: number) => numb
     if (Math.abs(m.x) < hx && Math.abs(m.s) < hs) return hi <= plant.ground + .1 ? plant.ground : NaN;
     return hi - lo > ROUGH ? NaN : hi - .02;
   });
+  return { y, lows };
 }
 
 // ── Stand-ins (development and tests only). Delete this block and `facilityOptions.standIns` once all three kits ship. ──

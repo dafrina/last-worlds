@@ -375,3 +375,20 @@ button:disabled { cursor: default; }
 
 /* No unfinished scenery is exposed while a destination is being prepared. */
 .flight-overlay[data-page="loading-panel"] { background: #07101c; }
+
+/* Loading (21 October): the panel fades in with a sweeping bar, stays at least a second, and the overlay fades out over the
+   prepared scene before the flight starts. */
+.loading-panel:not([hidden]) { animation: ending-fade .35s ease-out both; }
+.loading-bar { width: min(220px, 60%); height: 3px; margin: -8px auto 28px; border-radius: 2px; background: #9fd4ff1f; overflow: hidden; }
+.loading-bar span { display: block; width: 40%; height: 100%; background: linear-gradient(90deg, #9fd4ff00, #9fd4ff, #9fd4ff00); animation: loading-sweep 1.1s ease-in-out infinite; }
+@keyframes loading-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.flight-overlay.is-leaving { opacity: 0; transition: opacity .45s ease-in; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .loading-panel:not([hidden]) { animation: none; }
+  .loading-bar span { animation: none; width: 100%; opacity: .45; }
+  .flight-overlay.is-leaving { transition-duration: .15s; }
+}
+
+/* Launch warp (21 October): while a flight is prepared the warp plays alone; the panel shows only for a slow load. */
+.flight-overlay.is-warping { background: transparent !important; pointer-events: none; }
+.flight-overlay.is-warping .loading-panel { visibility: hidden; }

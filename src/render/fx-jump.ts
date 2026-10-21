@@ -13,8 +13,13 @@ import { VIEW, type RunState } from '../shared/contracts';
  * - A jump with no destination (the campaign's victory warp: `from === to`) never lifts back onto the level the
  *   ship left (user, 20 October): after the flash the veil deepens to opaque deep space and the streaks keep racing
  *   at cruise behind the results, on the wall clock once the frozen victory state stops advancing.
+ * - The launch warp (user, 21 October: "use the warp animation instead [of the loading panel] and for endless it'll be
+ *   just a longer warp"): while a flight's world is prepared the ship cruises through opaque deep space on the wall
+ *   clock; on arrival a flash breaks out and the veil lifts onto the world over ARRIVE seconds.
  */
 const STREAKS = 120, MAX_HOLD = 4, PLANE_Y = VIEW.flightHeight - .45;
+/** Launch warp: seconds from arrival to the clear world, and to the flash's peak (when the flight starts). */
+export const ARRIVE = .95, ARRIVE_FLASH = .14;
 const VEIL_VERTEX = /* glsl */`void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`;
 const VEIL_FRAGMENT = /* glsl */`
 uniform float veil; uniform float flash; uniform vec3 veilColor; uniform vec3 flashColor;
@@ -71,6 +76,8 @@ export function createJumpFx(scene: THREE.Scene) {
   streaks.frustumCulled = false; streaks.renderOrder = 12; streaks.visible = false; streaks.name = 'jump streaks';
   scene.add(veil, streaks);
   let travel = 0, lastTime = -1, lastWall = -1, holdStart = -Infinity, lift = 1, wasJumping = false;
+  /** The launch warp: off, cruising while the world is prepared, or arriving (since `launchAt`, wall seconds). */
+  let launch: 'off' | 'cruise' | 'arrive' = 'off', launchAt = 0;
 
   return {
     /**
@@ -81,7 +88,20 @@ export function createJumpFx(scene: THREE.Scene) {
       let dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
       const wall = performance.now() / 1000, wallDt = lastWall < 0 ? 0 : Math.min(.1, wall - lastWall); lastWall = wall;
       const jump = state.jump, terminal = !!jump && jump.from === jump.to;
-      let veilAmount = 0, flash = 0, intensity = 0;
+      let veilAmount = 0, flash = 0, intensity = 0, cruise = false;
+      if (launch !== 'off' && !jump) {
+        // The launch warp runs on the wall clock: the prepared run is still paused.
+        const since = wall - launchAt;
+        if (launch === 'arrive' && since >= ARRIVE) launch = 'off';
+        else {
+          const out = launch === 'arrive' ? THREE.MathUtils.smoothstep(since, ARRIVE_FLASH * .8, ARRIVE) : 0;
+          veilAmount = 1 - out; cruise = true; dt = wallDt;
+          if (!reducedMotion) {
+            intensity = .9 * (1 - out);
+            if (launch === 'arrive') flash = Math.exp(-(((since - ARRIVE_FLASH) / .07) ** 2)) * 1.2;
+          }
+        }
+      }
       if (jump) {
         const q = THREE.MathUtils.clamp((state.time - jump.startedAt) / jump.duration, 0, 1);
         wasJumping = true; lift = 0;
@@ -105,15 +125,26 @@ export function createJumpFx(scene: THREE.Scene) {
           if (lift >= 1) { wasJumping = false; holdStart = -Infinity; }
         }
       }
-      // Streaks travel with the hyperdrive speed (scroll), never with wall time; they stretch as it peaks.
-      travel += dt * (.35 + state.scrollSpeed * .09);
-      streakUniforms.travel.value = travel; streakUniforms.stretch.value = .6 + state.scrollSpeed * .28; streakUniforms.intensity.value = intensity;
+      // Streaks travel with the hyperdrive speed (scroll), never with wall time; they stretch as it peaks. (The launch warp
+      // cruises at a fixed hyperdrive speed.)
+      const speed = cruise ? 9 : state.scrollSpeed;
+      travel += dt * (.35 + speed * .09);
+      streakUniforms.travel.value = travel; streakUniforms.stretch.value = .6 + speed * .28; streakUniforms.intensity.value = intensity;
       // The veil amount is perceptual; High blends in linear light, where the same darkening needs a denser veil.
       veilUniforms.veil.value = linearBlend ? 1 - Math.pow(1 - veilAmount, 2.2) : veilAmount; veilUniforms.flash.value = flash;
       const centre = (VIEW.minS + VIEW.maxS) / 2;
       veil.position.set(state.cameraX, PLANE_Y, -centre); streaks.position.set(state.cameraX, PLANE_Y + .02, 0);
       veil.visible = veilAmount > .002 || flash > .002; streaks.visible = intensity > .002;
       return veil.visible || streaks.visible;
+    },
+    /**
+     * The launch warp: 'cruise' while a flight's world is prepared, 'arrive' to break out (returns ARRIVE_FLASH, the delay
+     * to the flash, when the flight should start), 'off' to drop it (a cancelled launch).
+     */
+    launch(mode: 'cruise' | 'arrive' | 'off'): number {
+      if (mode === 'arrive' && launch === 'off') return 0;
+      launch = mode; launchAt = performance.now() / 1000;
+      return mode === 'arrive' ? ARRIVE_FLASH : 0;
     },
     /** Hidden meshes the renderer's warm-up compile should include (no shader compile on the first jump). */
     get objects(): THREE.Object3D[] { return [veil, streaks]; },

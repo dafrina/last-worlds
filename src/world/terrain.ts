@@ -60,6 +60,15 @@ export const TERRAIN_VERSION = 16;
  * rims and canyon walls that cross the grid diagonally without visible stair steps.
  */
 export const TERRAIN_STEP = 0.25;
+/**
+ * Ground beyond each world edge (terrain version 16): the perspective camera (docs/08, 21 October) sees wider at the far
+ * end of the view than the world's 24 units, so the section mesh carries this apron of natural ground past both edges.
+ * Only ground: pieces, pads, roads and gameplay stay inside the world. The aprons are lateral strips of their own,
+ * culled like the others, so they cost nothing while the camera is away from an edge.
+ */
+export const MESH_APRON = 5;
+/** Half the ground mesh's width: the world's half width plus the apron. */
+export const MESH_HALF = WORLD_HALF + MESH_APRON;
 export const RETAINED_SECTIONS = 3;
 /** Cast-shadow march: steps of SHADOW_STRIDE cells (half a unit) diagonally toward the sun, about 11 units in all. */
 const SHADOW_STEPS = 16, SHADOW_STRIDE = Math.round(0.5 / TERRAIN_STEP);
@@ -199,8 +208,8 @@ export function generateTerrainSection(seed: number, index: number, world?: Terr
 /** Resumable section generation: yields between rows and passes so a frame can stop after a few ms. */
 export function* sectionSteps(seed: number, index: number, input?: TerrainInput): Work<TerrainSection> {
   if (!Number.isInteger(index) || !Number.isFinite(seed)) throw new Error('Terrain requires a finite seed and integer section index.');
-  // The section mesh spans the world's width (x) and the section's length (s); cells are TERRAIN_STEP square.
-  const size = VIEW.sectionLength, startS = index * size, cellsX = WORLD_HALF * 2 / TERRAIN_STEP, cellsS = size / TERRAIN_STEP;
+  // The section mesh spans the world's width and its aprons (x) and the section's length (s); cells are TERRAIN_STEP square.
+  const size = VIEW.sectionLength, startS = index * size, cellsX = MESH_HALF * 2 / TERRAIN_STEP, cellsS = size / TERRAIN_STEP;
   // One world, or a route: every row (aprons included) and height query resolves the world of its own distance,
   // so both sides of a seam agree; scatter, settlements, networks and floes run per single-world span. A planet
   // switch inside the section splits it (docs/18 §3): a hard seam under the jump's flash, inside an arena's calm.
@@ -233,7 +242,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     if (row >= 0 && row <= cellsS) contexts[row] = ctx;
     for (let column = -far; column <= cellsX + near; column++) {
       if ((farRow || column < -near) && column & 1) continue;
-      const point = rowPoint(ctx, -WORLD_HALF + column * TERRAIN_STEP);
+      const point = rowPoint(ctx, -MESH_HALF + column * TERRAIN_STEP);
       heights[at(row, column)] = point.height;
       if (row >= 0 && row <= cellsS && column >= 0 && column <= cellsX) {
         const v = row * across + column;
@@ -262,7 +271,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   const rimOffsets = RIM_OFFSETS.map(([dx, ds]) => ds * columns + dx);
   for (let row = 0; row <= cellsS; row++) for (let column = 0; column <= cellsX; column++) {
     if (column === 0) yield;
-    const vertex = row * across + column, center = at(row, column), x = -WORLD_HALF + column * TERRAIN_STEP;
+    const vertex = row * across + column, center = at(row, column), x = -MESH_HALF + column * TERRAIN_STEP;
     const point = scratch;
     point.height = heights[center]; point.channel = fChannel[vertex]; point.industrial = fIndustrial[vertex]; point.pool = fPool[vertex];
     point.elevation = elevation[vertex]; (point as { tone?: number }).tone = fTone[vertex];
@@ -319,7 +328,11 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     if (R % 8 === 0) yield;
   }
   const indices = new Uint16Array(cellsS * cellsX * 6), strips: TerrainStrip[] = [];
-  const stripCells = cellsX / TERRAIN_STRIPS;
+  // Strips in cells: the left apron, the world's TERRAIN_STRIPS, the right apron.
+  const apronCells = MESH_APRON / TERRAIN_STEP, stripCells = (cellsX - 2 * apronCells) / TERRAIN_STRIPS;
+  const stripRanges: [number, number][] = [[0, apronCells],
+    ...Array.from({ length: TERRAIN_STRIPS }, (_, strip): [number, number] => [apronCells + strip * stripCells, apronCells + (strip + 1) * stripCells]),
+    [cellsX - apronCells, cellsX]];
   const vertexAt = (row: number, column: number) => row * across + column;
   // Each quad splits along its flatter diagonal, so triangle edges follow rims and canyon walls (contours)
   // instead of cutting across them into a sawtooth.
@@ -331,9 +344,9 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     }
   };
   let cursor = 0;
-  for (let strip = 0; strip < TERRAIN_STRIPS; strip++) {
+  for (const [from, to] of stripRanges) {
     const start = cursor;
-    for (let R = 0; R < blocksS; R++) for (let C = strip * stripCells / 2; C < (strip + 1) * stripCells / 2; C++) {
+    for (let R = 0; R < blocksS; R++) for (let C = from / 2; C < to / 2; C++) {
       const row = R * 2, column = C * 2;
       if (!isFlat(R, C)) {
         for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
@@ -353,12 +366,11 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
       }
     }
     yield;
-    strips.push({ start, count: cursor - start, minX: -WORLD_HALF + strip * stripCells * TERRAIN_STEP,
-      maxX: -WORLD_HALF + (strip + 1) * stripCells * TERRAIN_STEP });
+    strips.push({ start, count: cursor - start, minX: -MESH_HALF + from * TERRAIN_STEP, maxX: -MESH_HALF + to * TERRAIN_STEP });
   }
   // Scatter probes read the section's own grids (bilinear); heights fall back to exact evaluation outside them.
   const vertexField = (values: Float32Array | { at(i: number): number }, stride = 1, offset = 0) => (x: number, s: number) => {
-    const u = Math.min(cellsX, Math.max(0, (x + WORLD_HALF) / TERRAIN_STEP)), v = Math.min(cellsS, Math.max(0, (s - startS) / TERRAIN_STEP));
+    const u = Math.min(cellsX, Math.max(0, (x + MESH_HALF) / TERRAIN_STEP)), v = Math.min(cellsS, Math.max(0, (s - startS) / TERRAIN_STEP));
     const c0 = Math.min(cellsX - 1, Math.floor(u)), r0 = Math.min(cellsS - 1, Math.floor(v)), fu = u - c0, fv = v - r0;
     const value = (r: number, c: number) => (values as Float32Array)[(r * across + c) * stride + offset];
     return (value(r0, c0) * (1 - fu) + value(r0, c0 + 1) * fu) * (1 - fv) + (value(r0 + 1, c0) * (1 - fu) + value(r0 + 1, c0 + 1) * fu) * fv;
@@ -367,7 +379,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   yield;
   const field: ScatterField = {
     height(x, s) {
-      const u = (x + WORLD_HALF) / TERRAIN_STEP, v = (s - startS) / TERRAIN_STEP;
+      const u = (x + MESH_HALF) / TERRAIN_STEP, v = (s - startS) / TERRAIN_STEP;
       // The grid is full resolution only within the near apron (the far apron is sparse, for shadows).
       if (u < -near || u >= cellsX + near || v < -near || v >= cellsS + near) return terrainHeight(seed, x, s, source);
       const c0 = Math.floor(u), r0 = Math.floor(v), fu = u - c0, fv = v - r0;
@@ -411,14 +423,14 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     const wear = new Float32Array(vertices), reach = ROAD_ENDS.wear + 2;
     for (const span of spans) for (const spot of yield* roadEndSpotsSteps(seed, Math.max(startS, span.from) - reach, Math.min(startS + size, span.to) + reach, span.world)) {
       const r0 = Math.max(0, Math.ceil((spot.s - reach - startS) / TERRAIN_STEP)), r1 = Math.min(cellsS, Math.floor((spot.s + reach - startS) / TERRAIN_STEP));
-      const c0 = Math.max(0, Math.ceil((spot.x - reach + WORLD_HALF) / TERRAIN_STEP)), c1 = Math.min(cellsX, Math.floor((spot.x + reach + WORLD_HALF) / TERRAIN_STEP));
+      const c0 = Math.max(0, Math.ceil((spot.x - reach + MESH_HALF) / TERRAIN_STEP)), c1 = Math.min(cellsX, Math.floor((spot.x + reach + MESH_HALF) / TERRAIN_STEP));
       for (let r = r0; r <= r1; r++) {
         const s = startS + r * TERRAIN_STEP;
         // Spans are half-open, except that the last one also owns the section's closing row (the seam row).
         if (s < span.from || (s >= span.to && span.to < startS + size)) continue;
         for (let c = c0; c <= c1; c++) {
           // Distance to the end's last `wear` units (a capsule), strongest at the end, gone by its far side.
-          const x = -WORLD_HALF + c * TERRAIN_STEP, vx = x - spot.x, vs = s - spot.s;
+          const x = -MESH_HALF + c * TERRAIN_STEP, vx = x - spot.x, vs = s - spot.s;
           const along = Math.min(1, Math.max(0, (vx * spot.dx + vs * spot.ds) / ROAD_ENDS.wear));
           const d = Math.hypot(vx - spot.dx * along * ROAD_ENDS.wear, vs - spot.ds * along * ROAD_ENDS.wear);
           const w = spot.strength * (1 - smoothRange(0.7, 2.4, d)) * (1 - smoothRange(0.35, 1, along));

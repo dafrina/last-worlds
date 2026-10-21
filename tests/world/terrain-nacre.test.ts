@@ -34,7 +34,7 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
   it('keeps its terrain exactly as recorded: terrain version 16 raised its massifs (docs/26 §12)', async () => {
     // sha256 over a section's mesh, pieces, roads, floes and shore. Recorded again for version 16 (21 October 2026, user:
     // "Nacre can also use some more elevation changes and mountains"): taller stepped massifs, wider rock masks, rolling
-    // island hills and brighter ridge light. (Version 15, 24 wide: 93:2 f2551344e94b4399, 8831:5 c919485f87ba3755, 11:9
+    // island hills and brighter ridge light; and the mesh's 5-unit aprons beyond the world edges (perspective camera). (Version 15, 24 wide: 93:2 f2551344e94b4399, 8831:5 c919485f87ba3755, 11:9
     // 79ba0f705fa2b4a7; versions 12–14, 30 wide: 93:2 c3464267cebdfd55, 8831:5 8cfbbbcba0c67a88, 11:9 2f05e3b2e0bcb07b.)
     const crypto: { createHash(kind: string): { update(data: string | Uint8Array): void; digest(encoding: string): string } } = await import(['node', 'crypto'].join(':'));
     const fingerprint = (section: ReturnType<typeof generateTerrainSection>) => {
@@ -46,7 +46,7 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
       if (section.water) hash.update(new Uint8Array(section.water.shore.buffer));
       return hash.digest('hex').slice(0, 16);
     };
-    for (const [seed, index, value] of [[93, 2, '38226233c9e229c9'], [8831, 5, '3c2e855afce8a877'], [11, 9, 'ba0908870f05a77c']] as const) {
+    for (const [seed, index, value] of [[93, 2, '426df75da9e653d6'], [8831, 5, 'a23865256b893493'], [11, 9, '8befa0927c02ba69']] as const) {
       expect(fingerprint(generateTerrainSection(seed, index, NACRE)), `${seed}:${index}`).toBe(value);
     }
   });

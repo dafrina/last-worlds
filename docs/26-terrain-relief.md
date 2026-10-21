@@ -446,6 +446,8 @@ Terrain draw calls and triangles stay inside the 70 / 90k budget. Vesper ≤ 40 
 - The wall test exempts wrecks, which lie on natural ground and are not pads.
 - Nacre's range bound is 2.4.
 
+**Edge apron** (added after the perspective camera shipped): the section mesh continues `MESH_APRON` (5) units past both world edges as natural ground. The perspective view is wider at its far end than the world, and at the camera's edge the top corners showed the background. The aprons are their own lateral strips, culled while off screen; scatter, pads and roads stay inside the world.
+
 **Evidence:** `docs/screenshots/terrain/v16-{vesper,luna,nacre,khepri}.jpg`, top row version 15 and bottom row version 16, at the same spots (terrain-relief fixture, 390×844).
 
 **Limits:**

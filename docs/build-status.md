@@ -1,5 +1,34 @@
 # Build status
 
+## Perspective follow-ups: edge apron, edge follow, compound foundations, loading fade, 21 October 2026
+
+User, after the perspective release ("the new perspective is goated"):
+- the loading screen is "so abrupt";
+- flying to an edge shows a cutoff in the map;
+- "many of the gas tanks and stationary enemies are somewhere in the sky";
+- "place a base below for these cases as you do for the compound tiles".
+
+- **Edge apron (`MESH_APRON = 5`, `src/world/terrain.ts`):** the ground mesh continues 5 units past each world edge as natural terrain (ground only; pieces, pads, roads and gameplay stay inside the world). The aprons are lateral strips of their own, culled while off screen. A perspective view is wider at its far end than the 24-unit world, so at the camera's edge the top corners showed the background. The dashed world-border marks stay on the world-edge strips. Khepri and Nacre fingerprints were re-recorded.
+- **Edge follow (`perspectiveFollow`, `src/render/scene.ts`):** under a perspective lens the view is narrower at the ship's row (±5.5 at 25°) than at its centre, so a ship at the edge (x 11.58) was cut off. The camera now follows the simulation's camera x a little further (×1.10 at 25°, derived from the lens). Render only; the simulation's camera and visibility are unchanged.
+- **Compound foundations (`src/render/facility-view.ts`):**
+  - Cause: every building and tank of a battery compound was drawn at the gun's height, with only apron tiles following the ground. On slopes and steps (more of them since terrain v16) pieces hung in the air.
+  - Fix: each piece keeps the plant's level, or rises onto higher ground under its footprint, and stands on a foundation block down to the lowest ground under it. The blocks are one instanced draw, concrete in each world's tone. A piece over a cliff (more than 2.4 drop) is left out. `facilities.floating` in the render stats reports the tallest foundation.
+  - Turret plinths now stand at the gun's seated x; under the lens a gun's ray moves it sideways off its logical x.
+- **Launch warp instead of the loading panel (`src/main.ts`, `src/render/fx-jump.ts`, `src/ui/game-ui.ts`):** user, "use the warp animation instead and for endless it'll be just a longer warp".
+  - While a flight's world is prepared, the hero cruises through opaque deep space with racing streaks (the jump effect's launch mode, on the wall clock). It runs for at least 1 s (`MIN_LOADING_MS`).
+  - It then breaks out: the flight starts at the flash, and the veil lifts onto the world over 0.95 s. Endless, with more to load, warps longer.
+  - The panel, with its way back to the menu, shows over the warp only when a load runs past 8 s (`SLOW_LOADING_MS`), and then fades out.
+  - Reduced motion: no streaks and no flash, only the veil.
+  - A cancelled or failed launch drops the warp.
+  - Measured in Chromium, SwiftShader: campaign (Training) playing about 2.3 s after launch, endless about 3.2 s; the endless warp and the campaign's flash were inspected in captures.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 399/399;
+  - build passes;
+  - browser 35/35 (Chromium, SwiftShader; the flight, menu and viewport specs wait for a launched flight with `tests/browser/launch.ts`, up to 30 s, since a launch warps at least a second);
+  - edge flights on Khepri and Vesper inspected at both extremes (`lookdev/edges2/`).
+  - No phone test.
+
 ## Terrain v16 (relief, cracks, compounds) and world colours, 21 October 2026
 
 User requests (docs/08, 21 October):

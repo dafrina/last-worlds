@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { RunState } from '../../src/shared/contracts';
+import { flying } from './launch';
 
 const snapshot = (page: Page): Promise<RunState> => page.evaluate(() =>
   (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
@@ -28,6 +29,7 @@ test('safe areas protect controls and the newly filled lower screen steers; resi
   // Emulate a notched standalone viewport: browser device presets do not supply CSS safe-area insets.
   await page.addStyleTag({content:':root { --safe-top: 47px; --safe-bottom: 34px; }'});
   await page.getByRole('button',{name:'ENDLESS',exact:true}).click();
+  await flying(page);
   const hud=(await page.locator('.flight-hud').boundingBox())!, special=(await page.locator('.special-button').boundingBox())!;
   expect(hud.y).toBeGreaterThanOrEqual(57);
   expect(special.y+special.height).toBeLessThanOrEqual(844-46);

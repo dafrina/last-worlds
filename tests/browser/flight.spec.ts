@@ -1,6 +1,7 @@
 import { seedCampaign, veteranPilot } from './campaign-save';
 import { expect, test, type Page } from '@playwright/test';
 import type { RunState } from '../../src/shared/contracts';
+import { flying } from './launch';
 
 async function snapshot(page: Page): Promise<RunState> {
   return page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
@@ -21,7 +22,7 @@ test('endless starts fairly, tracks the wide map, and freezes on pause', async (
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /LAST/ })).toBeVisible();
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
-  await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
+  await flying(page);
   let state = await snapshot(page);
   expect(state.player.weapon).toBe('pulse');
   expect(state.player.lives).toBe(3);
@@ -49,6 +50,7 @@ test('campaign choices apply to training and never leak to endless', async ({ pa
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
+  await flying(page);
   let state = await snapshot(page);
   expect(state.config.mode).toBe('campaign');
   expect(state.player.weapon).toBe('seeker');
@@ -57,6 +59,7 @@ test('campaign choices apply to training and never leak to endless', async ({ pa
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await page.getByRole('button', { name: 'RETURN TO MENU', exact: true }).click();
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await flying(page);
   state = await snapshot(page);
   expect(state.player.weapon).toBe('pulse');
   expect(state.player.lives).toBe(3);
@@ -66,6 +69,7 @@ test('campaign choices apply to training and never leak to endless', async ({ pa
 test('two touches can steer and use the centered special independently', async ({ page, context }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await flying(page);
   const frame = await page.locator('.flight-frame').boundingBox();
   const special = await page.locator('.special-button').boundingBox();
   expect(frame).not.toBeNull();
@@ -85,7 +89,7 @@ test('two touches can steer and use the centered special independently', async (
 test('steering uses the screen halves, wherever the ship is', async ({ page, context }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
-  await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
+  await flying(page);
   const frame = (await page.locator('.flight-frame').boundingBox())!;
   const y = frame.y + frame.height * 0.6, client = await context.newCDPSession(page);
   const touch = async (fraction: number) => client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: frame.x + frame.width * fraction, y }] });
@@ -109,7 +113,7 @@ test('steering uses the screen halves, wherever the ship is', async ({ page, con
 test('sliding a held steering touch across the middle reverses direction', async ({ page, context }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
-  await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
+  await flying(page);
   const frame = (await page.locator('.flight-frame').boundingBox())!;
   const y = frame.y + frame.height * 0.6, client = await context.newCDPSession(page);
   await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: frame.x + frame.width * 0.2, y }] });
@@ -132,7 +136,7 @@ test('held steering touches cancel iOS long-press gestures but buttons keep thei
   });
   expect(await prevented('[data-action="endless"]')).toBe(false);
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
-  await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
+  await flying(page);
   expect(await prevented('.flight-canvas')).toBe(true);
   expect(await prevented('.special-button')).toBe(true);
   expect(await prevented('.pause-button')).toBe(false);

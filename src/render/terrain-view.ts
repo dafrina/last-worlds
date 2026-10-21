@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld, VESPER_CLIFF_KINDS,
+  FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MESH_HALF, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld, VESPER_CLIFF_KINDS,
   terrainHeight, worldAt, worldOf, type DistrictSite,
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
@@ -430,7 +430,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (const [name, attribute] of Object.entries(attributes)) geometry.setAttribute(name, attribute);
       geometry.setIndex(index); geometry.setDrawRange(strip.start, strip.count);
       const box = new THREE.Box3(new THREE.Vector3(strip.minX, Infinity, -section.size), new THREE.Vector3(strip.maxX, -Infinity, 0));
-      const first = Math.round((strip.minX + VIEW.worldWidth / 2) / TERRAIN_STEP), last = Math.round((strip.maxX + VIEW.worldWidth / 2) / TERRAIN_STEP);
+      const first = Math.round((strip.minX + MESH_HALF) / TERRAIN_STEP), last = Math.round((strip.maxX + MESH_HALF) / TERRAIN_STEP);
       for (let row = 0; row < section.along; row++) for (let column = first; column <= last; column++) {
         const y = section.positions[(row * section.across + column) * 3 + 1];
         box.min.y = Math.min(box.min.y, y); box.max.y = Math.max(box.max.y, y);
@@ -443,9 +443,11 @@ export function createTerrainView(options: TerrainViewOptions) {
       const cullable: Cullable = { object: holder, box, triangles: strip.count / 3 };
       view.cullables.push(cullable);
       yield;
-      // World limits read as quiet surveyed flight-border lines on the outermost strips only.
-      if (b !== 0 && b !== section.strips.length - 1) continue;
-      const x = (b === 0 ? -1 : 1) * (VIEW.worldWidth / 2 - 0.06);
+      // World limits read as quiet surveyed flight-border lines on the strips at the world's edges (the aprons beyond
+      // them are plain ground, terrain version 16).
+      const side = Math.abs(strip.minX + VIEW.worldWidth / 2) < 1e-6 ? -1 : Math.abs(strip.maxX - VIEW.worldWidth / 2) < 1e-6 ? 1 : 0;
+      if (!side) continue;
+      const x = side * (VIEW.worldWidth / 2 - 0.06);
       const marks = new THREE.InstancedMesh(edgeGeometry, boundaryMaterial, Math.ceil(section.size / 3));
       let i = 0;
       for (let s = 0; s < section.size; s += 3) {

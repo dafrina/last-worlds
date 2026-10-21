@@ -116,6 +116,11 @@ export interface GameRenderer {
   /** Load the whole destination, including its boss, before a flight/warp exposes it. */
   prepare(planet: PlanetId): Promise<void>;
   isReady(planet: PlanetId): boolean;
+  /**
+   * The launch warp over a flight's preparation: 'cruise' while its world loads, 'arrive' to break out onto it (returns
+   * the seconds to the flash, when the flight starts), 'off' for a cancelled launch. Render only.
+   */
+  launchWarp(mode: 'cruise' | 'arrive' | 'off'): number;
   render(state: RunState, alpha: number): void;
   resize(width: number, height: number): void;
   setQuality(quality: GraphicsQuality): void;
@@ -133,5 +138,9 @@ export interface GameUi {
   canvas: HTMLCanvasElement; surface: HTMLElement; specialButton: HTMLButtonElement;
   update(state: RunState | null): void; showMenu(): void; showError(message: string): void;
   showLoading(active: boolean): void;
+  /** Fades the loading overlay out; resolves once it is gone. */
+  fadeLoading(): Promise<void>;
+  /** While loading: true shows the launch warp alone (the panel hidden, the overlay clear); false shows the panel. */
+  setLoadingWarp(warp: boolean): void;
   dispose(): void;
 }

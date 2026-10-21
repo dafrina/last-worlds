@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { seedCampaign, veteranPilot } from './campaign-save';
 import type { RunState } from '../../src/shared/contracts';
+import { flying } from './launch';
 
 const snapshot = (page: Page): Promise<RunState> => page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
 
@@ -51,6 +52,7 @@ test('the hangar buys, equips and ranks up campaign gear, and the launch flies i
   await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Fan Cannon');
   await expect(page.locator('[data-loadout="shield"]')).toHaveText('Bulwark Array');
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
+  await flying(page);
   const state = await snapshot(page);
   expect(state.config).toMatchObject({ mode: 'campaign', weapon: 'fan', rank: 1, shield: 'bulwark' });
   expect(state.player.maxShields).toBe(4);
@@ -58,6 +60,7 @@ test('the hangar buys, equips and ranks up campaign gear, and the launch flies i
 
 test('pause settings preserve the frozen flight and statistics persist without duplication', async ({ page }, info) => {
   await page.goto('/'); await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await flying(page);
   await page.getByRole('button', { name: /Activate shockwave/ }).click();
   await expect.poll(async () => (await snapshot(page)).specialsUsed).toBe(1);
   await page.getByRole('button', { name: 'Pause flight' }).click();
@@ -94,6 +97,7 @@ test('campaign observations stay separate and record the chosen difficulty', asy
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
+  await flying(page);
   expect((await snapshot(page)).config).toMatchObject({ mode: 'campaign', mission: 'training', difficulty: 'relaxed', weapon: 'seeker' });
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await page.getByRole('button', { name: 'RETURN TO MENU', exact: true }).click();
@@ -107,6 +111,7 @@ test('campaign observations stay separate and record the chosen difficulty', asy
 test('unavailable storage leaves a usable session log and menu', async ({ page }) => {
   await page.addInitScript(() => { Storage.prototype.setItem = () => { throw new Error('Storage disabled'); }; });
   await page.goto('/'); await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await flying(page);
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await page.getByRole('button', { name: 'RETURN TO MENU', exact: true }).click();
   await page.getByRole('button', { name: 'STATISTICS' }).click();

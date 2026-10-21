@@ -247,3 +247,11 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Camera:** the release camera is perspective at 25° (`DEFAULT_CAMERA`; `?camera=ortho` shows the old view).
 - **Checks:** typecheck clean, unit tests 399/399, build passes, browser 35/35. No phone test.
 - **Untouched:** `tools/blender/the_veil.py` (someone else's uncommitted edit) and `art/concepts/nacre-refinement/`.
+
+**2026-10-21 · Claude Code · perspective follow-ups and the launch warp: deployed:**
+- **Changes:**
+  - ground aprons past the world edges (`MESH_APRON = 5`);
+  - lens-aware edge follow;
+  - foundations under compound buildings, and turret plinths at the gun's seated x;
+  - a launch warp instead of the loading panel (the panel shows only for a load longer than 8 s).
+- **Checks:** typecheck clean, unit tests 399/399, build passes, browser 35/35. No phone test.

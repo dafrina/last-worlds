@@ -6,7 +6,7 @@ import {
 import { cliff, cliffTalus, crispStep } from '../../src/world/terrain-layout';
 import { WALL_CELL } from '../../src/world/terrain-walls';
 import { padDistance, settlementsNear } from '../../src/world/terrain-settlements';
-import { PLANETS, VESPER_SEA_LEVEL } from '../../src/world/terrain';
+import { MESH_APRON, PLANETS, VESPER_SEA_LEVEL } from '../../src/world/terrain';
 import { VIEW } from '../../src/shared/contracts';
 
 const HALF = VIEW.worldWidth / 2;
@@ -48,7 +48,8 @@ describe('seeded Khepri landforms', () => {
     for (const seed of [93, 4041]) for (const index of [-2, -1, 0, 2, 19]) {
       const a = generateTerrainSection(seed, index), b = generateTerrainSection(seed, index + 1), { across, along } = a;
       expect(along).toBe(VIEW.sectionLength / TERRAIN_STEP + 1);
-      expect(across).toBe(VIEW.worldWidth / TERRAIN_STEP + 1);
+      // The mesh spans the world and its aprons beyond both edges (terrain version 16).
+      expect(across).toBe((VIEW.worldWidth + 2 * MESH_APRON) / TERRAIN_STEP + 1);
       for (let column = 0; column < across; column++) {
         const end = (along - 1) * across + column, start = column;
         expect(a.positions[end * 3 + 1]).toBe(b.positions[start * 3 + 1]);
@@ -96,7 +97,7 @@ describe('seeded Khepri landforms', () => {
       const section = generateTerrainSection(seed, index);
       let normalError = 0;
       for (let i = 0; i < section.positions.length; i += 3) {
-        expect(Math.abs(section.positions[i])).toBeLessThanOrEqual(HALF);
+        expect(Math.abs(section.positions[i])).toBeLessThanOrEqual(HALF + MESH_APRON);
         lowest = Math.min(lowest, section.positions[i + 1]); highest = Math.max(highest, section.positions[i + 1]);
         normalError = Math.max(normalError, Math.abs(Math.hypot(...section.normals.slice(i, i + 3)) - 1));
       }

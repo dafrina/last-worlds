@@ -75,6 +75,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         ${menuMarkup}
         <section class="loading-panel short-panel" role="status" aria-live="polite" hidden>
           <p class="eyebrow">LAST WORLDS</p><h2>PREPARING<br>FLIGHT</h2>
+          <div class="loading-bar" aria-hidden="true"><span></span></div>
           <button type="button" class="arcade-button secondary" data-action="loading-cancel">RETURN TO MENU</button>
         </section>
         <section class="pause-panel short-panel" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
@@ -271,6 +272,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   }
   function showPanel(className: string, focusSelector?: string) {
     if (className !== 'results-panel') overlay.classList.remove('is-ending', 'is-victory', 'is-settled');
+    // (A loading panel shown over the launch warp keeps the warp state; setLoadingWarp decides.)
+    overlay.classList.remove('is-leaving');
     overlay.hidden = false;
     currentPanel = className;
     overlay.dataset.page = className;
@@ -538,9 +541,22 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
 
   return {
     canvas, surface, specialButton, update, showMenu,
+    /**
+     * Fades the loading overlay out over the prepared scene (user, 21 October: the loading screen was "so abrupt"); resolves
+     * when it is gone, so the flight's clock starts after the fade. Reduced motion: a short plain fade.
+     */
+    fadeLoading(): Promise<void> {
+      if (!loading || error) return Promise.resolve();
+      overlay.classList.add('is-leaving');
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      return new Promise(resolve => setTimeout(resolve, reduced ? 150 : 450));
+    },
+    setLoadingWarp(warp: boolean) { overlay.classList.toggle('is-warping', warp); },
     showLoading(active: boolean) {
       if (loading === active || error) return;
       loading = active;
+      if (active) overlay.classList.remove('is-leaving');
+      else overlay.classList.remove('is-warping');
       if (!active) { displayedPhase = 'loading'; return; }
       cancelResume();
       surface.dataset.inputActive = 'false'; surface.classList.remove('is-playing');
@@ -550,6 +566,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     showError(errorMessage: string) {
       cancelResume();
       error = true;
+      overlay.classList.remove('is-leaving', 'is-warping');
       surface.dataset.inputActive = 'false';
       surface.classList.remove('is-playing');
       hud.hidden = specialButton.hidden = hints.hidden = message.hidden = true;
