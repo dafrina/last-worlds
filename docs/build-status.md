@@ -1,5 +1,23 @@
 # Build status
 
+## Ground enemies fixed to the world, sharper Vesper water, 21 October 2026
+
+User:
+- "The turrets and tanks are still mostly floating. For example over water in Vesper and midair in Nacre";
+- "take screenshots in quick succession during flight to notice it";
+- "improve the sharpness of the water in Vesper".
+
+- **Cause, from a rapid screencast (CDP frames):** under the perspective camera, ground enemies were seated where the camera ray through their logical flight-plane position met the ground (`rayPlacement`). That ray tilts as a row scrolls down the screen, so the ground point moved through the world by about D × 0.66 over a screen pass, where D is the depth below the flight plane: about 4–5 units over Vesper's sea, 2 on ordinary ground. Turrets skated over water and terrain, and their compounds (placed once, at first sight) were left behind, at the wrong height.
+- **Fix (`src/render/scene.ts`):** ground enemies are seated world-fixed under every lens, as the orthographic view seats them (`groundPlacement`), so they scroll exactly with the terrain and their compounds, foundations and tanks stay under them. The cost is a small visual offset from the logical target near the screen edges (about 0.4 sideways over land, about 0.7 over Vesper's deep sea at the very edge; the hit radii are 0.55–0.62). Bosses keep ray seating, because their arenas stand still. Rapid frames confirm turrets now move with the rocks around them.
+- **Hero entrance:** a run launched through the warp skips the entrance animation (2.6× scale and a roll). Frozen at time 0 under the warp, it showed an oversized, rolled ship.
+- **Vesper water (`src/render/water.ts`):**
+  - roughness 0.18 → 0.07, for tight glints;
+  - sharp-crested ridged ripples in two crossing trains;
+  - sparse whitecaps stretched across the wind, edges anti-aliased in pixels;
+  - deeper navy against brighter shallows.
+  - Nacre's mire is unchanged. Evidence: `docs/screenshots/terrain/v16-water.jpg` (before above, after below).
+- **Checks:** typecheck clean; unit tests 399/399; build passes; browser 35/35 (Chromium, SwiftShader). `asset-readiness.spec.ts` now checks the launch warp during a held cold load, then the slow-load panel and its cancel. No phone test.
+
 ## Perspective follow-ups: edge apron, edge follow, compound foundations, loading fade, 21 October 2026
 
 User, after the perspective release ("the new perspective is goated"):

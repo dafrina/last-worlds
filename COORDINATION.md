@@ -255,3 +255,10 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - foundations under compound buildings, and turret plinths at the gun's seated x;
   - a launch warp instead of the loading panel (the panel shows only for a load longer than 8 s).
 - **Checks:** typecheck clean, unit tests 399/399, build passes, browser 35/35. No phone test.
+
+**2026-10-21 · Claude Code · ground enemies fixed to the world, sharper Vesper water: deployed:**
+- **Changes:**
+  - ground enemies use `groundPlacement` under every lens (perspective ray seating slid them over the ground);
+  - warp launches skip the hero entrance;
+  - Vesper water has crisp ripples, whitecaps and tight glints.
+- **Checks:** typecheck clean, unit tests 399/399, build passes, browser 35/35. No phone test.

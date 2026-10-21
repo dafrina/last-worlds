@@ -146,6 +146,8 @@ export function createJumpFx(scene: THREE.Scene) {
       launch = mode; launchAt = performance.now() / 1000;
       return mode === 'arrive' ? ARRIVE_FLASH : 0;
     },
+    /** The launch warp is cruising or arriving. */
+    get launching() { return launch !== 'off'; },
     /** Hidden meshes the renderer's warm-up compile should include (no shader compile on the first jump). */
     get objects(): THREE.Object3D[] { return [veil, streaks]; },
     dispose() {

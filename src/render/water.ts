@@ -21,6 +21,7 @@ uniform float waterScroll;
 varying float vShore; varying float vDepth; varying vec2 vSea;`;
 const WATER_FRAGMENT_HEAD = /* glsl */`
 uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell; uniform float foamGlow; uniform vec3 bloomTint; uniform float bloomAmount;
+uniform float crisp;
 varying float vShore; varying float vDepth; varying vec2 vSea;
 float seaHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
 float seaNoise( vec2 p ) {
@@ -53,6 +54,7 @@ export function createWater(): Water {
   const linear = (hex: number) => new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
   const uniforms = {
     waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 }, foamGlow: { value: 0 }, bloomTint: { value: new THREE.Color() }, bloomAmount: { value: 0 },
+    crisp: { value: 0 },
     deepColor: { value: linear(0x0d3557) }, shallowColor: { value: linear(0x1f6a8f) }, foamColor: { value: linear(0xeef6fb) },
   };
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0, envMapIntensity: 0.32 });
@@ -93,7 +95,19 @@ export function createWater(): Water {
   float breakup = seaNoise( vSea * vec2( 3.1, 2.3 ) + vec2( waterTime * 0.12, 0.0 ) );
   float foam = ( 1.0 - smoothstep( 0.04, 0.2 + 0.16 * lap, vShore ) ) * smoothstep( 0.22, 0.62, breakup + 0.25 * ( 1.0 - smoothstep( 0.0, 0.08, vShore ) ) );
   foam = clamp( foam, 0.0, 1.0 );
-  diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * mix( 0.92, 0.2, bloomAmount ) );`)
+  diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * mix( 0.92, 0.2, bloomAmount ) );
+  // Vesper (crisp, 21 October: "improve the sharpness of the water"): sparse small whitecaps on the open sea, hard-edged
+  // in pixels (fwidth), riding the swell; none in the calm water at the shore.
+  if ( crisp > 0.0 ) {
+    // Crests stretched across the wind (thin streaks, not flakes), broken inside, few and small.
+    vec2 capUv = vSea * vec2( 3.2, 9.0 ) + vec2( waterTime * .06, waterTime * -.1 );
+    float cap = seaNoise( capUv ) * .6 + seaNoise( capUv * 2.3 + 4.0 ) * .4;
+    float capEdge = max( fwidth( cap ), 1e-4 ) * 1.2, level = .83 - .03 * sin( waterTime * .9 + seaNoise( vSea * .4 ) * 6.2832 );
+    float whitecap = smoothstep( level - capEdge, level + capEdge, cap ) * smoothstep( .35, .6, seaNoise( vSea * .9 + 2.0 ) ) * calm * crisp;
+    whitecap *= .55 + .45 * seaNoise( capUv * 4.1 + 9.0 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, foamColor * .9, whitecap * .75 );
+    foam = max( foam, whitecap * .5 );
+  }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor + seaNoise( vSea * 9.0 ) * .1, 0.85, foam );')
       // Nacre: the shoreline band glows (bioluminescent film) instead of reading as white foam.
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;')
@@ -103,7 +117,16 @@ export function createWater(): Water {
   // Short wind ripples catch the sky in narrow broken highlights, rather than broad blurry colour bands.
   vec2 windUv = vSea * vec2( 2.8, 8.0 ) + vec2( waterTime * .17, waterTime * -.11 );
   float chop = seaNoise( windUv + seaNoise( vSea * 1.3 ) * 3.0 );
-  waveSlope += vec2( seaNoise( windUv + 1.7 ) - .5, chop - .5 ) * .28 * ( 1.0 - foam );
+  waveSlope += vec2( seaNoise( windUv + 1.7 ) - .5, chop - .5 ) * .28 * ( 1.0 - foam ) * ( 1.0 - .5 * crisp );
+  // Vesper: sharp-crested ripples (ridged noise) in two crossing trains, so the sun breaks into crisp small glints.
+  if ( crisp > 0.0 ) {
+    vec2 r1 = vSea * vec2( 3.4, 5.2 ) + vec2( waterTime * .21, -waterTime * .3 ), r2 = vSea * vec2( -4.6, 3.9 ) + vec2( -waterTime * .26, waterTime * .17 );
+    float a = seaNoise( r1 ), b = seaNoise( r2 ), ea = .01;
+    vec2 ga = vec2( seaNoise( r1 + vec2( ea, 0.0 ) ) - a, seaNoise( r1 + vec2( 0.0, ea ) ) - a ) / ea;
+    vec2 gb = vec2( seaNoise( r2 + vec2( ea, 0.0 ) ) - b, seaNoise( r2 + vec2( 0.0, ea ) ) - b ) / ea;
+    // Ridged: the slope flips sign across each crest, which sharpens it into a line.
+    waveSlope += ( sign( a - .5 ) * ga * vec2( 3.4, 5.2 ) + sign( b - .5 ) * gb * vec2( -4.6, 3.9 ) ) * .018 * crisp * calm * ( 1.0 - foam );
+  }
   vec3 waveNormal = normalize( vec3( -waveSlope.x, 1.0, waveSlope.y ) );
   normal = normalize( ( viewMatrix * vec4( waveNormal, 0.0 ) ).xyz );`);
   };
@@ -114,10 +137,12 @@ export function createWater(): Water {
     setEnvironment(texture) { if (material.envMap !== texture) { material.envMap = texture; material.needsUpdate = true; } },
     setPlanet(planet) {
       const nacre = planet === 'nacre';
-      uniforms.deepColor.value.copy(linear(nacre ? 0x292e4c : 0x17344e)); uniforms.shallowColor.value.copy(linear(nacre ? 0x35455c : 0x37667c));
+      // (Vesper since 21 October: deeper navy against brighter shallows, crisp ripples and whitecaps, tighter glints.)
+      uniforms.deepColor.value.copy(linear(nacre ? 0x292e4c : 0x0f2b45)); uniforms.shallowColor.value.copy(linear(nacre ? 0x35455c : 0x2f6e88));
+      uniforms.crisp.value = nacre ? 0 : 1;
       uniforms.bloomTint.value.copy(linear(0x716485)); uniforms.bloomAmount.value = nacre ? 0.34 : 0;
       uniforms.foamColor.value.copy(linear(nacre ? 0x1a3c5a : 0xeef6fb)); uniforms.swell.value = nacre ? 0.6 : 1; uniforms.foamGlow.value = nacre ? 0.03 : 0;
-      material.roughness = nacre ? 0.23 : 0.18; material.envMapIntensity = nacre ? 0.7 : 0.5;
+      material.roughness = nacre ? 0.23 : 0.07; material.envMapIntensity = nacre ? 0.7 : 0.5;
     },
     dispose() { material.dispose(); },
   };

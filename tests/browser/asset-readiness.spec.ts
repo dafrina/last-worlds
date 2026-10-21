@@ -21,8 +21,12 @@ test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot
   await page.getByRole('button', {name:/LAUNCH MISSION/}).click();
   try {
     await expect.poll(() => requested.length).toBe(2);
-    await expect(page.locator('.loading-panel')).toBeVisible();
-    expect(await snapshot(page)).toBeNull(); // No combat can run under the loader.
+    // The launch warp plays while the assets load (21 October); no combat can run under it.
+    await expect(page.locator('.flight-overlay')).toHaveClass(/is-warping/);
+    expect(await snapshot(page)).toBeNull();
+    // A load that runs past SLOW_LOADING_MS (8 s) shows the panel over the warp, with its way back to the menu.
+    await expect(page.locator('.loading-panel')).toBeVisible({ timeout: 15000 });
+    expect(await snapshot(page)).toBeNull();
     await page.screenshot({path:info.outputPath('cold-launch.png')});
     await page.locator('[data-action="loading-cancel"]').click();
     release();
@@ -32,7 +36,7 @@ test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot
     await page.getByRole('button', {name:/CAMPAIGN FLIGHT/}).click();
     await page.getByRole('button', {name:/LAUNCH MISSION/}).click();
     await expect(page.locator('.loading-panel')).toBeHidden({timeout:30000});
-    await expect.poll(async()=> (await snapshot(page))?.phase).toBe('playing');
+    await expect.poll(async()=> (await snapshot(page))?.phase, { timeout: 30000 }).toBe('playing');
     const state = await snapshot(page);
     expect(state.time).toBeLessThan(3); expect(state.boss).toBeNull();
     expect((await stats(page)).ark.model).toBe('glb');

@@ -747,6 +747,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
   const jumpFx = createJumpFx(scene);
+  /** The run whose launch warp has played (its hero skips the entrance animation). */
+  let warpLaunched: RunState['config'] | null = null;
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
   const reducedMotion = () => query.get('motion') === 'reduce' || !!motionQuery?.matches;
@@ -954,7 +956,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       hero.visible = heroAlive;
       // Mission-start entrance (render-only): the hero starts close to the camera (large, out along the view ray, so it
       // keeps its screen position under the orthographic lens) and drops to flight height with one barrel roll.
-      const entrance = state.time < HERO_ENTRANCE ? 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3) : 1;
+      // A run launched through the warp (21 October) has its entrance in the warp's breakout: the hero flies at its normal
+      // size and attitude from the first frame, never frozen at the entrance's oversized start under the veil.
+      if (jumpFx.launching) warpLaunched = state.config;
+      const entrance = warpLaunched === state.config || state.time >= HERO_ENTRANCE ? 1 : 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3);
       const lift = (1 - entrance) * HERO_ENTRANCE_LIFT;
       hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION), lift * Math.cos(ELEVATION));
       hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
@@ -1016,8 +1021,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const afloat = isGround && world.planet.seaLevel !== null && surfaceHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) <= sea + 1e-6
           && terrainHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) < sea - .05;
         const coreHeight = enemy.groundHeight + (afloat ? PONTOON_DECK : 0);
+        // Ground pieces stay fixed to the world under every lens (user, 21 October: turrets and tanks "floating"): seated as the
+        // orthographic view seats them, so they scroll exactly with the terrain and their compounds stay under them. Under a
+        // perspective lens the camera ray through a fixed logical row tilts as the row scrolls, so ray seating slid them
+        // over the ground (several units over Vesper's deep sea). The cost is a small visual offset from the logical
+        // target at the screen edges (about 0.4 sideways over land), inside the hit radii. Bosses keep ray seating: their
+        // arenas stand still.
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
-          : perspective ? rayPlacement(camera, state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, -Infinity, world)
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
         if (isGround && enemy.hp > 0) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight });
         // A compound is much wider than its gun. Seat all live ground batteries ahead of the view,
