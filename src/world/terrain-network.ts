@@ -136,6 +136,7 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
     // Over a sea a pipeline is planned only where at most half its line crosses water (terrain version 15: Vesper is
     // half water, and the 24-wide world leaves a long run little room to go round); wider water is never bridged.
     if (edge.pipe && planet.seaLevel !== null) edge.pipe = waterAlong(seed, planet, a, b) <= PIPE_WATER;
+    if (planet.pipes === false) edge.pipe = false;
     return edge;
   };
   for (let cell = site.cell + 1; cell <= site.cell + (district ? 5 : 3); cell++) {
@@ -152,9 +153,12 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
   if (farm || h(20) < 0.42 || (district && !edges.length)) {
     edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, district ? 1 : 0.7, district ? 0 : farm ? 1 : QUIET.has(site.archetype) ? 0 : 0.45));
   }
-  if (h(22) < 0.14 && !QUIET.has(site.archetype)) {
-    const other = planet.settlement(seed, site.cell, -site.side) ?? planet.settlement(seed, site.cell + 1, -site.side);
-    if (other && !QUIET.has(other.archetype)) edges.push(make('cross', other, 0, 0, 1, 0));
+  // Cross links: a compound built on both sides of its cell is joined across the route most of the time (version 16; the
+  // left side owns the link), elsewhere now and then.
+  const facing = site.side < 0 ? planet.settlement(seed, site.cell, 1) : null;
+  if (!QUIET.has(site.archetype) && (facing ? h(22) < 0.6 : h(22) < 0.14)) {
+    const other = facing ?? planet.settlement(seed, site.cell, -site.side) ?? planet.settlement(seed, site.cell + 1, -site.side);
+    if (other && !QUIET.has(other.archetype)) edges.push(make('cross', other, 0, 0, 1, facing && INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(other.archetype) ? 0.5 : 0));
   }
   return edges.filter(edge => edge.road || edge.pipe);
 }

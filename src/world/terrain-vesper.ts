@@ -2,7 +2,7 @@ import {
   WORLD_HALF, bench, clamp, cliff, crispStep, hash, mix, noise, routeCalm, smooth, smoothRange, NEUTRAL_MOOD, type Landform, type MoodParams,
 } from './terrain-layout';
 import { FLOE_FOOTPRINT, FLOE_SETS, KIT, kitNodeName, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
-import { MODULE_HEIGHT, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
+import { MODULE_HEIGHT, compoundSlot, districtLevel, type Archetype, type CompoundSlot, type PlacedModule, type Settlement } from './terrain-settlements';
 import type { Work } from './terrain-work';
 import { cliffWallSteps } from './terrain-walls';
 import type { Floe, PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
@@ -11,11 +11,12 @@ import { arenaWeight, type TerrainArena } from './terrain-arena';
 /**
  * Vesper, the Glass Frontier (docs/17 §1, §4; docs/26): half land, half water since terrain version 15 (user,
  * 21 October; 70% land before). Flat-topped ice shelves at several levels end in sheer, fractured ice walls over a sea
- * at −1.2 and are broken by open leads, fjord-like inlets and bays, with a pack-ice sea of drifting floes now and then. Crevasse fields,
+ * at −3.6 (−1.2 before version 16: the lower sea makes the ice walls as tall as Khepri's canyons, user 21 October) and
+ * are broken by open leads, fjord-like inlets and bays, with a pack-ice sea of drifting floes now and then. Crevasse fields,
  * pressure ridges, snow drifts and a few dark rock outcrops dress the shelves. Pure functions of seed and
  * world coordinates, like Khepri.
  */
-export const VESPER_SEA_LEVEL = -1.2;
+export const VESPER_SEA_LEVEL = -3.6;
 const SEA = VESPER_SEA_LEVEL;
 /**
  * Vesper's scenery cap: the same 0.8 clearance under the flight plane (3.8) that Khepri's 2.2 kept under the
@@ -38,24 +39,27 @@ export interface VesperParams {
   /** Height of one ice-cliff step between shelf levels (docs/26 §3). */ step: number;
   /** How far the shelves climb inland from the coast, in levels. */ stairs: number;
   /** Wide, winding sea inlets (fjords) cutting into the shelves (version 15). */ inlets: number;
+  /** Ice plateaus: tabular blocks standing a tier or two over the shelf on sheer walls (version 16). */ mesa: number;
 }
 /**
  * Land shares measured over long routes (seeds 93, 8831, 11, 4242, 7; docs/26 §11): the six moods and the inlets keep
  * the planet at about 50% land (0.49–0.51 per seed). Shelves stand at several levels: low ice feet at the coast, stepping up inland in ice cliffs.
  */
 const MOOD_SETTINGS: Readonly<Record<VesperMood, VesperParams>> = {
+  // (Version 16, user 21 October, "more elevation and crazy landscaping": the sea is 2.4 lower, so the tops come down
+  // with it while the highest shelves stay near the cap; the levels step in taller cliffs; ice plateaus rise above them.)
   // Shelf coast: big shelves and their cliffs against open water, leads and scattered floes.
-  shelf: { land: 0.5, leads: 0.75, crevasse: 0.3, ridge: 0.4, rock: 0.45, floes: 0.5, top: 0.9, step: 1.05, stairs: 1.6, inlets: 0.9 },
+  shelf: { land: 0.5, leads: 0.75, crevasse: 0.3, ridge: 0.4, rock: 0.45, floes: 0.5, top: -0.7, step: 1.6, stairs: 1.6, inlets: 0.9, mesa: 0.5 },
   // Pack-ice sea: mostly water crowded with floes and bergs, a few low shelf islands.
-  pack: { land: 0.2, leads: 0.3, crevasse: 0.1, ridge: 0.5, rock: 0.2, floes: 1, top: 0.55, step: 0.8, stairs: 0.8, inlets: 0.2 },
+  pack: { land: 0.2, leads: 0.3, crevasse: 0.1, ridge: 0.5, rock: 0.2, floes: 1, top: -1.9, step: 1.1, stairs: 0.8, inlets: 0.2, mesa: 0.2 },
   // Crevasse plateau: a high continuous shelf torn by crevasse fields.
-  crevasse: { land: 0.68, leads: 0.4, crevasse: 1, ridge: 0.45, rock: 0.25, floes: 0.35, top: 1.4, step: 1.15, stairs: 1.4, inlets: 0.4 },
+  crevasse: { land: 0.68, leads: 0.4, crevasse: 1, ridge: 0.45, rock: 0.25, floes: 0.35, top: 0.5, step: 1.7, stairs: 1.4, inlets: 0.4, mesa: 0.4 },
   // Radiator plains: broad, quiet shelves at two or three levels (the factions' radiator fields).
-  radiator: { land: 0.62, leads: 0.5, crevasse: 0.15, ridge: 0.2, rock: 0.3, floes: 0.45, top: 1.0, step: 1.25, stairs: 1.2, inlets: 0.5 },
+  radiator: { land: 0.62, leads: 0.5, crevasse: 0.15, ridge: 0.2, rock: 0.3, floes: 0.45, top: -0.4, step: 1.8, stairs: 1.2, inlets: 0.5, mesa: 0.3 },
   // Icefall: an ice plateau stepping up in many short cliffs, with pressure ridges along the steps.
-  icefall: { land: 0.54, leads: 0.45, crevasse: 0.55, ridge: 0.7, rock: 0.35, floes: 0.4, top: 1.0, step: 0.8, stairs: 2.4, inlets: 0.6 },
+  icefall: { land: 0.54, leads: 0.45, crevasse: 0.55, ridge: 0.7, rock: 0.35, floes: 0.4, top: -0.2, step: 1.2, stairs: 2.6, inlets: 0.6, mesa: 0.7 },
   // Nunataks: dark rock peaks breaking through the ice, snow-capped, between broad shelves.
-  nunatak: { land: 0.48, leads: 0.5, crevasse: 0.3, ridge: 0.3, rock: 1, floes: 0.45, top: 0.9, step: 1.05, stairs: 1.4, inlets: 0.8 },
+  nunatak: { land: 0.48, leads: 0.5, crevasse: 0.3, ridge: 0.3, rock: 1, floes: 0.45, top: -0.8, step: 1.5, stairs: 1.4, inlets: 0.8, mesa: 0.5 },
 };
 const MOOD_LENGTH = 96, MOOD_BLEND = 26;
 function permutation(seed: number, block: number): VesperMood[] {
@@ -138,7 +142,7 @@ export function vesperMasks(seed: number, x: number, s: number, p: VesperParams,
   // Wind-packed dunes: long, low ridges aligned with the prevailing wind (from the upper left), finite in length.
   const along = x * WIND_X + s * WIND_S, across = -x * WIND_S + s * WIND_X;
   const dune = smoothRange(0.5, 0.85, noise(seed ^ 0x9af, along * 0.07, across * 0.36)) * smoothRange(0.3, 0.7, noise(seed ^ 0x9b0, x * 0.04, s * 0.04));
-  return { land, edge, crack, ridge, rock, mass, dune, threshold, calm };
+  return { land, edge, crack, ridge, rock, mass, dune, threshold, calm, qx, qs };
 }
 
 /**
@@ -158,13 +162,28 @@ function shelfLevel(seed: number, x: number, s: number, p: VesperParams, thresho
   const { mass } = shelfMass(seed, x, s), inland = smoothRange(0, 0.16, mass - threshold);
   // (Version 13 also pulled the level toward the mood's top along the routes, which drew long ice cliffs parallel to the
   // flight line at the routes' edges; since version 14 calm routes soften the steps instead, in the landform.)
-  return p.top + (noise(seed ^ 0x9a7, x * 0.055, s * 0.05) - 0.5) * 0.9 + (noise(seed ^ 0x9b3, x * 0.07, s * 0.065) - 0.5) * 0.5 * p.stairs
+  // (Version 16: twice the regional swell, so neighbouring shelves stand tiers apart.)
+  return p.top + (noise(seed ^ 0x9a7, x * 0.055, s * 0.05) - 0.5) * 2 + (noise(seed ^ 0x9b3, x * 0.07, s * 0.065) - 0.5) * 1.1 * p.stairs
     + (inland - 0.45) * p.step * p.stairs;
 }
 /** Ice-cliff riser width between shelf levels (sheer, two grid cells) and the gradient probe. */
 const ICE_RISER = 0.5, ICE_PROBE = 0.3;
 /** The lowest shelf (an ice foot just above the sea) and the highest ice. */
 const SHELF_LOW = SEA + 0.75, SHELF_HIGH = 2.3;
+/**
+ * Ice plateaus (version 16): a warped blob field lifts tabular blocks of ice one or two tiers over the shelf they stand
+ * on, behind sheer walls a few tenths wide (crispStep, as on the coast), so a plateau reads like Khepri's mesas.
+ */
+function icePlateau(seed: number, qx: number, qs: number, p: VesperParams, calm: number): number {
+  if (p.mesa <= 0) return 0;
+  const field = noise(seed ^ 0x9c1, qx * 0.075, qs * 0.07) * 0.75 + noise(seed ^ 0x9c2, qx * 0.21, qs * 0.2) * 0.25;
+  const threshold = mix(0.8, 0.6, p.mesa) + calm * 0.08;
+  const block = crispStep((field - threshold) / 0.03 + 0.5);
+  if (block <= 0) return 0;
+  // A second tier on the plateau's core here and there.
+  const tier = crispStep((field - threshold - 0.09) / 0.03 + 0.5) * smoothRange(0.45, 0.6, noise(seed ^ 0x9c3, qx * 0.05, qs * 0.05));
+  return (block + tier * 0.8) * p.step * (0.85 + 0.3 * noise(seed ^ 0x9c4, qx * 0.04, qs * 0.04));
+}
 /**
  * Vesper ground: seabed under the water; on land, shelves at several levels separated by sheer ice cliffs (stepping up
  * inland from the coast), with snow drifts, pressure ridges, crevasse fields and dark nunataks breaking through.
@@ -183,13 +202,15 @@ export function vesperLandform(seed: number, x: number, s: number, row: PlanetRo
     // Snow ramps: here and there a step softens into a drift slope, so tracks can climb between shelf levels.
     const ramp = smoothRange(0.6, 0.74, noise(seed ^ 0x9b7, x * 0.07, s * 0.065));
     top = clamp(bench(level, Math.hypot(gx, gs), p.step, phase, ICE_RISER, 0.92 * (1 - ramp) * (1 - m.calm * 0.5), edges), SHELF_LOW, SHELF_HIGH);
+    top += icePlateau(seed, m.qx, m.qs, p, m.calm);
     top += (noise(seed ^ 0x9ad, x * 0.25, s * 0.3) - 0.5) * 0.14 + (noise(seed ^ 0x9ae, x * 1.3, s * 1.2) - 0.5) * 0.03;
-    // Pressure ridges: jagged walls of broken ice; drifts: wind-packed snow; nunataks: dark rock peaks.
-    top += m.ridge * (0.45 + 0.35 * ridged(noise(seed ^ 0x9b5, x * 0.6, s * 0.55)));
+    // Pressure ridges: jagged walls of broken ice; drifts: wind-packed snow; nunataks: dark rock peaks (version 16: taller,
+    // mountains of rock standing up to about three units over the ice).
+    top += m.ridge * (0.6 + 0.6 * ridged(noise(seed ^ 0x9b5, x * 0.6, s * 0.55)));
     top += m.dune * 0.38 * (1 - m.crack);
-    if (m.rock > 0) top += m.rock * (0.5 + 1.1 * smooth(ridged(noise(seed ^ 0x9b6, x * 0.3, s * 0.28)) * m.rock));
+    if (m.rock > 0) top += m.rock * (0.9 + 2.4 * smooth(ridged(noise(seed ^ 0x9b6, x * 0.3, s * 0.28)) * m.rock));
     // Crevasses: deep, sheer cracks that never open to the sea (their floors stay ice).
-    top = Math.max(Math.min(top, SEA + 0.35), top - m.crack * 1.5);
+    top = Math.max(Math.min(top, SEA + 0.35), top - m.crack * 2.4);
   }
   const height = mix(seabed, top, m.edge);
   return {
@@ -225,7 +246,8 @@ function vesperColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
   const bare = rock * (0.35 + 0.65 * smoothRange(0.3, 0.9, slope));
   for (let c = 0; c < 3; c++) {
     let snow = mix(P.snow[c], P.snowShade[c], shade + (1 - point.elevation) * 0.3);
-    snow = mix(snow, P.iceDeep[c], point.channel * 0.85);
+    // (A pad that flattened a crevasse keeps its snow: version 16.)
+    snow = mix(snow, P.iceDeep[c], point.channel * 0.85 * (1 - (point.industrial ?? 0)));
     snow = mix(snow, P.snow[c], rim * (1 - steep) * 0.4);
     const ice = mix(P.iceDeep[c], P.iceLight[c], cliff) * (0.9 + fine * 0.2);
     out[c] = mix(mix(snow, ice, steep), P.rock[c] * (0.9 + fine * 0.2), bare);
@@ -248,7 +270,10 @@ const EXTENT: Readonly<Record<string, [number, number]>> = {
   radiator: [3.6, 3.8], missile: [3.0, 3.2], cryo: [3.0, 3.0], plant: [3.2, 3.2], exchanger: [3.5, 3.2], reactor: [3.0, 3.0], harbour: [2.6, 3.6],
 };
 const CELL = 30;
-/** Chance that a cell's flank holds an outpost when it finds dry, level shelf (0.88 before version 13). */
+/**
+ * Chance that a cell's flank holds an outpost when it finds dry, level shelf (0.88 before version 13), scaled since
+ * version 16 by the district level (compounds in busy stretches, empty shelf between).
+ */
 const OUTPOST_CHANCE = 0.92;
 /**
  * Lower stand-ins for pieces too tall for a pad's room under the scenery cap, so a pad on a high shelf keeps its level
@@ -350,29 +375,61 @@ function compose(archetype: string, h: (k: number) => number, edge: number, room
 /** Shared industrial nodes are 'shared' modules wherever a swap lands; Vesper nodes are 'infra'. */
 const MODULE_KIND = (node: string): 'infra' | 'shared' | null => node.startsWith('vesper_') ? 'infra' : /^(tank_|container_|pipe_|facility$)/.test(node) ? 'shared' : null;
 
-const memo = new Map<string, Settlement | null>();
-/** The Vesper settlement candidate of one cell and side: on shelf ice only (never on water). */
+/** Probes over the largest pad (centre first), a unit or so apart. */
+const PAD_PROBES: readonly (readonly [number, number])[] = [[0, 0], ...[-3, -2, -1, 0, 1, 2, 3].flatMap(dx =>
+  [-3, -2, -1, 0, 1, 2, 3].map(ds => [dx, ds] as const))];
+const memo = new Map<string, Settlement | null>(), spots = new Map<string, boolean>();
+const vesperGround = (seed: number, x: number, s: number) =>
+  vesperLandform(seed, x, s, { seed, s, params: NEUTRAL, local: vesperParams(seed, s), platform: 0 }).height;
+/** The best dry, level pad spot among a cell side's candidates within a slot, or null where there is only water. */
+function padSpot(seed: number, cell: number, side: number, h: (k: number) => number, slot: Pick<CompoundSlot, 'from' | 'to' | 'inner' | 'outer'>) {
+  let x = 0, s = 0, best = Infinity;
+  // (Fourteen tries since version 15, twenty since 16: half of Vesper is water, and the deeper relief breaks it up more.)
+  for (let k = 0; k < 20; k++) {
+    // Candidates from about a third of the half width out (some in view beside the centre lane), clamped up front (largest
+    // pad) so a harbour's measured edge distance stays valid.
+    const cx = side * Math.min(WORLD_HALF * (slot.inner + h(140 + 2 * k) * (slot.outer - slot.inner)), WORLD_HALF - 4.1);
+    const cs = cell * CELL + slot.from + h(141 + 2 * k) * (slot.to - slot.from);
+    // The whole pad on a grid (version 16: a lead between five probes once ran across a pad, and pads never flatten
+    // water, so with the deeper sea it left a trench under the tanks).
+    const heights = PAD_PROBES.map(([dx, ds]) => vesperGround(seed, cx + dx, cs + ds));
+    // Mostly dry shelf: a narrow lead under the pad is filled like a causeway (terrain-ground), wider water is no place for
+    // an outpost. The centre stands high enough that the pad's least level (SEA + 0.75) keeps its shelf's height.
+    const dry = heights.filter(height => height >= SEA + 0.1);
+    if (dry.length < heights.length * 0.85 || heights[0] < SEA + 0.6) continue;
+    // Flat shelf first, and low shelf over high (tall masts and tanks only fit under the cap on the lower levels).
+    const cost = Math.max(...dry) - Math.min(...dry) + 0.5 * Math.max(0, heights[0] - 1.1) + 0.15 * (heights.length - dry.length);
+    if (cost < best) { best = cost; x = cx; s = cs; }
+  }
+  return best < Infinity ? { x, s } : null;
+}
+const OPEN_SLOT = { from: 8, to: 22, inner: 0.35, outer: 0.83 } as const;
+/**
+ * A cell side's partner-free test for compounds: its seeded roll (busier in districts, version 16; 0.92 everywhere
+ * before) and dry shelf somewhere in the cell. Memoized.
+ */
+function vesperPresent(seed: number, cell: number, side: number): boolean {
+  const key = `${seed}:${cell}:${side}`, known = spots.get(key);
+  if (known !== undefined) return known;
+  const h = (k: number) => hash(seed ^ 0x7e5e ^ (side > 0 ? 0x1000 : 0), cell * 211 + k, 5);
+  const present = h(0) < OUTPOST_CHANCE * (0.75 + 0.6 * districtLevel(seed ^ 0x7e5e, cell)) && padSpot(seed, cell, side, h, OPEN_SLOT) !== null;
+  if (spots.size > 4096) spots.clear();
+  spots.set(key, present);
+  return present;
+}
+/** The Vesper settlement candidate of one cell and side: on shelf ice only (never on water), in compounds. */
 export function vesperSettlement(seed: number, cell: number, side: number): Settlement | null {
   const key = `${seed}:${cell}:${side}`;
   if (memo.has(key)) return memo.get(key)!;
   const h = (k: number) => hash(seed ^ 0x7e5e ^ (side > 0 ? 0x1000 : 0), cell * 211 + k, 5);
   let result: Settlement | null = null;
-  const ground = (x: number, s: number) => vesperLandform(seed, x, s, { seed, s, params: NEUTRAL, local: vesperParams(seed, s), platform: 0 }).height;
-  if (h(0) < OUTPOST_CHANCE) {
-    let x = 0, s = 0, best = Infinity;
-    // (Fourteen tries since version 15: half of Vesper is water now, so dry, level shelf takes more finding.)
-    for (let k = 0; k < 14; k++) {
-      // Candidates from about a third of the half width out (some in view beside the centre lane), clamped up front (largest
-      // pad) so a harbour's measured edge distance stays valid.
-      const cx = side * Math.min(WORLD_HALF * (0.35 + h(140 + 2 * k) * 0.48), WORLD_HALF - 4.1), cs = cell * CELL + 8 + h(141 + 2 * k) * 14;
-      const heights = [[0, 0], [2.6, 0], [-2.6, 0], [0, 3], [0, -3]].map(([dx, ds]) => ground(cx + dx, cs + ds));
-      // Dry shelf all round, and the centre high enough that the pad's least level (SEA + 0.75) keeps its shelf's height.
-      if (Math.min(...heights) < SEA + 0.5 || heights[0] < SEA + 0.6) continue;
-      // Flat shelf first, and low shelf over high (tall masts and tanks only fit under the cap on the lower levels).
-      const cost = Math.max(...heights) - Math.min(...heights) + 0.5 * Math.max(0, heights[0] - 1.1);
-      if (cost < best) { best = cost; x = cx; s = cs; }
-    }
-    if (best < Infinity) {
+  const ground = (x: number, s: number) => vesperGround(seed, x, s);
+  const slot = compoundSlot((c, sd) => vesperPresent(seed, c, sd), cell, side, 0.15, h(23), [OPEN_SLOT.inner, OPEN_SLOT.outer]);
+  if (slot) {
+    // The compound's slot first; a cell whose dry shelf lies outside it keeps that spot (it is still beside its partner).
+    const spot = padSpot(seed, cell, side, h, slot) ?? padSpot(seed, cell, side, h, OPEN_SLOT)!;
+    const { x, s } = spot;
+    {
       // A shelf edge within reach makes a harbour possible: find the nearest water in the four directions.
       // (Never toward the near world edge: the jetty must fit inside the world.)
       let water = -1, edge = Infinity;
@@ -385,6 +442,8 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
           break;
         }
       });
+      // (Version 16: only from a low ice foot; on the tall shelves the jetty would hang far under the crane.)
+      if (ground(x, s) > SEA + 2.2) water = -1;
       const allowed = VESPER_ARCHETYPES.filter(a => a !== 'harbour' || water >= 0), total = allowed.reduce((sum, a) => sum + WEIGHTS[a], 0);
       let roll = hash(seed ^ 0x7e5f ^ (side > 0 ? 0x1000 : 0), cell, 4) * total, archetype: Archetype = allowed[allowed.length - 1];
       for (const a of allowed) { roll -= WEIGHTS[a]; if (roll <= 0) { archetype = a; break; } }

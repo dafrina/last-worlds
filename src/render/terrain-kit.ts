@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WORLD_PAINT_GLSL, setWorldPaint, worldGlow, worldPaintUniforms } from './world-paint';
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -551,6 +552,52 @@ export function createSnowDetailTexture(): THREE.DataTexture {
   return texture;
 }
 
+/**
+ * Crack network for open ground (terrain version 16, after the concept's ice plains; runtime-generated, tileable, linear
+ * data): R = polygonal plate cracks (jittered Voronoi edges about a ninth of the tile apart, warped so they run jagged,
+ * each edge its own strength so the network breaks off in places), G = a finer crisscross of thin lines, patchy.
+ * 0 = no crack, 1 = the darkest line core.
+ */
+export function createCrackTexture(): THREE.DataTexture {
+  const size = 512, data = new Uint8Array(size * size * 4);
+  const wrap = (v: number, n: number) => ((v % n) + n) % n;
+  const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  /** Tileable value noise over `period` cells of the tile. */
+  const value = (period: number, x: number, y: number, salt: number) => {
+    const gx = x / size * period, gy = y / size * period, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), v = (a: number, b: number) => rand(salt, wrap(a, period) * 977 + wrap(b, period));
+    return (v(ix, iy) * (1 - sx) + v(ix + 1, iy) * sx) * (1 - sy) + (v(ix, iy + 1) * (1 - sx) + v(ix + 1, iy + 1) * sx) * sy;
+  };
+  /** Voronoi edge distance (pixels, half of F2 − F1) on a jittered `grid`, and a strength for the edge found. */
+  const cells = (grid: number, x: number, y: number, salt: number): [number, number] => {
+    const cell = size / grid, cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+    let f1 = Infinity, f2 = Infinity, a = 0, b = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const gi = wrap(cx + i, grid), gj = wrap(cy + j, grid), id = gj * grid + gi;
+      const px = (cx + i + 0.1 + 0.8 * rand(salt, id)) * cell, py = (cy + j + 0.1 + 0.8 * rand(salt + 1, id)) * cell;
+      const d = Math.hypot(x - px, y - py);
+      if (d < f1) { f2 = f1; b = a; f1 = d; a = id; } else if (d < f2) { f2 = d; b = id; }
+    }
+    return [(f2 - f1) / 2, rand(salt + 2, Math.min(a, b) * 4099 + Math.max(a, b))];
+  };
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    // Jagged runs: warp the lookup by a few pixels of tileable noise at two scales.
+    const wx = x + (value(16, x, y, 301) - 0.5) * 9 + (value(48, x, y, 303) - 0.5) * 3;
+    const wy = y + (value(16, x, y, 302) - 0.5) * 9 + (value(48, x, y, 304) - 0.5) * 3;
+    const [plate, plateStrength] = cells(9, wx, wy, 311);
+    const plates = (1 - smooth(0.6, 1.9, plate)) * smooth(0.18, 0.5, plateStrength) * (0.55 + 0.45 * plateStrength);
+    const [fine, fineStrength] = cells(23, wx * 1.07 + 13, wy * 0.93 + 7, 321);
+    const patch = smooth(0.42, 0.68, value(6, x, y, 331));
+    const fines = (1 - smooth(0.35, 1.2, fine)) * smooth(0.45, 0.75, fineStrength) * patch;
+    data.set([Math.round(plates * 255), Math.round(fines * 255), 0, 255], (y * size + x) * 4);
+  }
+  const texture = new THREE.DataTexture(data, size, size);
+  texture.colorSpace = THREE.NoColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true; texture.anisotropy = 4; texture.needsUpdate = true;
+  return texture;
+}
+
 export function createDetailTexture(): THREE.DataTexture {
   const size = 256, data = new Uint8Array(size * size * 4);
   const lattice = (period: number, x: number, y: number, salt: number) => {
@@ -770,6 +817,11 @@ export function createTerrainMaterials() {
    * map's strength (0 = off: Low tier, a missing map, or Nacre).
    */
   const wallMaps = { wallNormal: { value: flatNormal as THREE.Texture }, wallNormalOn: { value: 0 }, wallMapOn: { value: 0 } };
+  /**
+   * Crack network on open ground (version 16; Vesper's ice plains and Luna's regolith, after the concepts): crackLook 0
+   * leaves Khepri and Nacre exactly as they were. crackTint is the line colour as a multiplier.
+   */
+  const crackLook = { crackMap: { value: flatNormal as THREE.Texture }, crackLook: { value: 0 }, crackTint: { value: new THREE.Vector3(1, 1, 1) } };
   const ground = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, envMapIntensity: .18, normalScale: new THREE.Vector2(0.7, 0.7) });
   // Persistent uniform objects so a planet switch can retune them (Khepri values are the originals).
   const groundHaze = haze(), groundLook = { groundIce: {value: 0}, glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 } };
@@ -780,7 +832,7 @@ export function createTerrainMaterials() {
   const cliffLook = { cliffLook: { value: 1 }, creaseLook: { value: KHEPRI_WALL.crease }, wallHue: { value: KHEPRI_WALL.hue.clone() },
     wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns } };
   ground.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps);
+    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps, crackLook);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
@@ -792,6 +844,7 @@ attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying 
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
 uniform float cliffLook;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
+uniform sampler2D crackMap;\nuniform float crackLook;\nuniform vec3 crackTint;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
 // across section joins (36·scale must be an integer).
 float khepriHash( vec2 p, float period ) { return fract( sin( dot( vec2( p.x, mod( p.y, period ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
@@ -895,6 +948,13 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     detail = mix( dustA, mix( rockDetail, iceStrata, groundIce ), vRock );
   }
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast;
+  // Cracks across open ground (version 16): plate cracks every ~9 units' tile and a finer crisscross on a 4-unit tile,
+  // both dividing the 36-unit section so they run on across its joins. Walls keep their own material.
+  if ( crackLook > 0.0 ) {
+    float plates = texture2D( crackMap, vLocal.xz / 9.0 ).r, hairlines = texture2D( crackMap, vLocal.xz / 4.0 + vec2( 0.37, 0.61 ) ).g;
+    float cracked = clamp( plates + hairlines * 0.55, 0.0, 1.0 ) * crackLook * ( 1.0 - vRock );
+    diffuseColor.rgb *= mix( vec3( 1.0 ), crackTint, cracked );
+  }
 #endif
   // Camera-facing cliff faces sit in the generator's baked (lower-sun) shade; lift them like warm bounce light
   // off the sunlit floor so columns keep readable detail instead of going black (both tiers).
@@ -907,15 +967,29 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // Vesper's ice walls match the kit's ice shards (docs/26 §11): the face against the sun splits pale cyan-white lit ice
   // from deep, saturated blue shadowed ice, at the ground's baked light. (By the smooth normal: per triangle, the 0.25
   // height grid read as pixel stairs along every crevasse. The kit's shards carry the hard facets.)
+  // Version 16: the face splits into vertical fractured columns, like the kit's shards and the concept's ice walls. Each
+  // column (and each block of it, broken at uneven ledges) leans its own way to the sun, with abyss-blue seams between.
+  // (Derivatives are taken here, outside the per-pixel branch.)
+  vec2 iceDir = normalize( vFace.xz + vec2( 1e-4, 0.0 ) );
+  float iceColumn = dot( vLocal.xz, vec2( -iceDir.y, iceDir.x ) ) * 0.75, iceSeamWidth = max( fwidth( iceColumn ) * 1.3, 0.06 );
   if ( groundIce > 0.5 && cliffWall > 0.0 ) {
     float iceSun = 0.5;
     #if NUM_DIR_LIGHTS > 0
       iceSun = dot( normalize( vNormal ), directionalLights[ 0 ].direction );
     #endif
+    float iceIndex = floor( iceColumn ), iceEdge = fract( iceColumn );
+    float iceBlock = floor( vLocal.y * 0.45 + fract( sin( iceIndex * 5.31 ) * 43758.5453 ) );
+    float iceLean = fract( sin( iceIndex * 19.17 + 3.1 ) * 43758.5453 ) * 2.0 - 1.0 + 0.5 * ( fract( sin( iceIndex * 7.7 + iceBlock * 91.3 ) * 43758.5453 ) - 0.5 );
+    // A ridge down each column splits it into two facets, one toward the light and one away (a prism, like the shards).
+    float iceRidge = 0.35 + 0.3 * fract( sin( iceIndex * 3.73 + iceBlock * 17.1 ) * 43758.5453 );
+    iceLean += iceEdge < iceRidge ? -0.45 : 0.45;
+    float iceSeam = smoothstep( 0.0, iceSeamWidth, iceEdge ) * smoothstep( 1.0, 1.0 - iceSeamWidth, iceEdge );
+    iceSun += iceLean * 0.5;
     float iceLit = smoothstep( -0.05, 0.3, iceSun ), baked = clamp( dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) / 0.8, 0.4, 1.0 );
     // Shadowed ice deepens toward the waterline, like the kit's ramp; shallow crevasse lips stay a lighter blue.
-    vec3 iceShade = mix( vec3( 0.03, 0.17, 0.46 ), vec3( 0.2, 0.45, 0.78 ), smoothstep( -1.0, 1.6, vLocal.y ) ), iceBright = vec3( 0.6, 0.84, 1.0 );
-    diffuseColor.rgb = mix( diffuseColor.rgb, mix( iceShade, iceBright, iceLit ) * baked * ( 0.82 + 0.18 * detail ), cliffWall );
+    vec3 iceShade = mix( vec3( 0.03, 0.17, 0.46 ), vec3( 0.2, 0.45, 0.78 ), smoothstep( -3.4, 1.6, vLocal.y ) ), iceBright = vec3( 0.6, 0.84, 1.0 );
+    vec3 iceTone = mix( vec3( 0.015, 0.08, 0.26 ), mix( iceShade, iceBright, iceLit ), iceSeam );
+    diffuseColor.rgb = mix( diffuseColor.rgb, iceTone * baked * ( 0.82 + 0.18 * detail ), cliffWall );
     totalEmissiveRadiance += vec3( 0.004, 0.035, 0.13 ) * ( 1.0 - iceLit ) * cliffWall;
   }`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
@@ -948,9 +1022,11 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   const infra = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3, envMapIntensity: 0.55 });
   /** Planet look of the infrastructure lamps: Khepri amber; Vesper's orange radiator glow (see setLook). */
   const infraGlow = { glowColor: { value: linear(0xffb060).multiplyScalar(3.4) }, detailContrast: { value: 0 } };
+  /** World paint of the outposts (src/render/world-paint.ts; version 16, user 21 October). */
+  const infraPaint = worldPaintUniforms();
   infra.onBeforeCompile = shader => {
-    // Amber work lights and beacons sit above the bloom threshold (true glows); hulls stay below it.
-    Object.assign(shader.uniforms, haze(), time, infraGlow, { lunaLook: kitLook.lunaLook });
+    // Work lights and beacons sit above the bloom threshold (true glows); hulls stay below it.
+    Object.assign(shader.uniforms, haze(), time, infraGlow, infraPaint);
     shader.vertexShader = shader.vertexShader.replace('#include <common>', `${GLOW_VERTEX}\nuniform float beaconTime;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   // Amber beacons blink: each instance gets its own phase from its position; some lamps stay steady.
@@ -961,10 +1037,11 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   #endif
   float beaconPulse = beaconPhase < 0.35 ? 1.0 : 0.25 + 0.75 * smoothstep( 0.55, 0.75, fract( beaconTime * ( 0.45 + beaconPhase * 0.4 ) + beaconPhase ) );
   vGlow = glow * beaconPulse;`).replace('#include <project_vertex>', HAZE_VERTEX);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + '\nuniform float lunaLook;')
-      // Luna (docs/19): human-built hardware in clean white-grey instead of Khepri's rust and ochre paint (lamps keep glowing).
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + WORLD_PAINT_GLSL)
+      // The world's paint (Luna's clean white hardware, docs/19; Vesper's metallic white; Nacre's dark green and purple;
+      // a rustier Khepri). Lamps keep glowing in the world's glow colour (setLook).
       .replace('#include <color_fragment>', `#include <color_fragment>
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.55, 1.58, 1.64 ), lunaLook );`)
+  diffuseColor.rgb = worldRepaint( diffuseColor.rgb );`)
       .replace('#include <emissivemap_fragment>', EMISSIVE).replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   infra.customProgramCacheKey = () => 'khepri-infra';
@@ -1029,12 +1106,12 @@ ${VESPER_KIT_SURFACE}`)
   applySurfaceFinish(infra, 'metal', .8, .018);
 
   const roads = createRoadMaterial(), dustTrack = roads.map;
-  let snowTrack: THREE.DataTexture | null = null;
+  let snowTrack: THREE.DataTexture | null = null, lunaTrack: THREE.DataTexture | null = null;
   let textures: KhepriTextures | null = null, normals = true;
   /** The planet whose wall maps are on (docs/26 §11) and Vesper's ice-wall maps once loaded. */
   let wallPlanet: PlanetId = 'khepri', vesperWalls: WallTextures | null = null, vesperWallsLoad: Promise<void> | null = null;
   /** Vesper's snow detail while that planet is active (null on Khepri). */
-  let snowDetail: THREE.DataTexture | null = null, snowTexture: THREE.DataTexture | null = null;
+  let snowDetail: THREE.DataTexture | null = null, snowTexture: THREE.DataTexture | null = null, crackTexture: THREE.DataTexture | null = null;
   /** Retunes the ground and roads for a planet: Vesper snow takes its own ripple detail, cool haze and snow tracks. */
   const setPlanet = (planet: PlanetId) => {
     const vesper = planet === 'vesper', luna = planet === 'luna', nacre = planet === 'nacre', khepri = haze();
@@ -1050,11 +1127,17 @@ ${VESPER_KIT_SURFACE}`)
     wallPlanet = planet;
     if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
+    // Cracks (version 16): blue-grey lines in Vesper's snow and ice, dark fractures in Luna's regolith.
+    if ((vesper || luna) && !crackTexture) crackTexture = createCrackTexture();
+    crackLook.crackMap.value = crackTexture ?? flatNormal;
+    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : 0;
+    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : [0.5, 0.5, 0.52]) as [number, number, number]);
     groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters.
     groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : khepri.hazeStrength.value;
     if (vesper && !snowTrack) snowTrack = createRoadTexture('snow');
-    roads.map = vesper ? snowTrack : dustTrack; roads.needsUpdate = true;
+    if (luna && !lunaTrack) lunaTrack = createRoadTexture('regolith');
+    roads.map = vesper ? snowTrack : luna ? lunaTrack : dustTrack; roads.needsUpdate = true;
   };
   ground.userData.setPlanet = setPlanet;
   /**
@@ -1063,6 +1146,8 @@ ${VESPER_KIT_SURFACE}`)
    * (null: the procedural wall detail remains).
    */
   ground.userData.loadPlanetTextures = (planet: PlanetId, base: string): Promise<void> => {
+    // The crack network (version 16) is built here, in prepare (before a flight or a jump), never at the switch itself.
+    if ((planet === 'vesper' || planet === 'luna') && !crackTexture) crackTexture = createCrackTexture();
     if (planet !== 'vesper') return Promise.resolve();
     return vesperWallsLoad ??= loadDataTextures(`${base}assets/vesper/textures/`, VESPER_WALL_FILES, 2).then(loaded => {
       if (disposed) { Object.values(loaded).forEach(texture => texture?.dispose()); return; }
@@ -1115,12 +1200,15 @@ ${VESPER_KIT_SURFACE}`)
     setLook(planet: PlanetId) {
       const vesper = planet === 'vesper';
       kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0; kitLook.nacreLook.value = planet === 'nacre' ? 1 : 0;
-      kitGlow.glowColor.value.copy(vesper ? linear(0xff7a26).multiplyScalar(3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
-      infraGlow.glowColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
-      infra.roughness = vesper ? 0.4 : 0.55; infra.metalness = vesper ? 0.06 : 0.3; infra.envMapIntensity = vesper ? 0.8 : 0.55;
+      // (Version 16: Vesper's radiator and lamp bands glow blue, the world's glow, instead of orange.)
+      kitGlow.glowColor.value.copy(vesper ? worldGlow('vesper', 3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
+      infraGlow.glowColor.value.copy(worldGlow(planet, vesper ? 3.6 : 3.4));
+      setWorldPaint(infraPaint, planet, 'building');
+      // Vesper's hardware reads as brushed metal and white enamel (black ceramic before version 16).
+      infra.roughness = vesper ? 0.35 : 0.55; infra.metalness = vesper ? 0.45 : 0.3; infra.envMapIntensity = vesper ? 0.9 : 0.55;
     },
     dispose() {
-      ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); snowTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
+      ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); lunaTrack?.dispose(); snowTexture?.dispose(); crackTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
       if (textures) Object.values(textures).forEach(texture => texture?.dispose());
       if (vesperWalls) Object.values(vesperWalls).forEach(texture => texture?.dispose());
       disposed = true;
@@ -1227,6 +1315,13 @@ export function createFallbackShared(): KitGeometries {
   return kit;
 }
 
+/** Shared-kit colours per world (sRGB): metal, paint, wear, dust. Khepri's metal is rusted steel since version 16. */
+const SHARED_PALETTE: Readonly<Record<PlanetId, readonly [number, number, number, number]>> = {
+  khepri: [0x4a382c, 0xb8602a, 0xc8a888, 0xa8683a],
+  luna: [0xb4b7bb, 0xeceeef, 0xf4f4f2, 0x9a9893],
+  vesper: [0x76828e, 0xe8eef4, 0xd3dae1, 0xe3ebf2],
+  nacre: [0x221c36, 0x2f4c3c, 0x4a3a6c, 0x2a2440],
+};
 /** Khepri palette for the shared kit (docs/14 §2): graphite metal, ochre/rust paint, ochre dust, amber lamps. */
 export function createSharedMaterial(): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.55, envMapIntensity: 0.55 });
@@ -1234,13 +1329,17 @@ export function createSharedMaterial(): THREE.MeshStandardMaterial {
     metalColor: { value: linear(0x3e4044) }, paintColor: { value: linear(0xb06a2e) }, wearColor: { value: linear(0xc8b8a0) },
     dustColor: { value: linear(0xa8683a) }, lampColor: { value: linear(0xffb060).multiplyScalar(3.4) },
   };
-  /** Planet palette for the mask-driven kit (docs/17 §3): Vesper reads black ceramic, orange heat bands and frost. */
+  /**
+   * Planet palette for the mask-driven kit (docs/17 §3; version 16, user 21 October): the Moon white enamel with orange
+   * lamps, Khepri rusted steel and orange paint, Vesper brushed metal and white enamel with blue lamps, Nacre dark violet
+   * steel and moss-green paint with purple lamps.
+   */
   material.userData.setPlanet = (planet: PlanetId) => {
-    const vesper = planet === 'vesper', luna = planet === 'luna';
-    palette.metalColor.value.copy(linear(vesper ? 0x15181b : 0x3e4044)); palette.paintColor.value.copy(linear(vesper ? 0xd2541a : luna ? 0xd6dade : 0xb06a2e));
-    palette.wearColor.value.copy(linear(vesper || luna ? 0xd3dae1 : 0xc8b8a0)); palette.dustColor.value.copy(linear(vesper ? 0xe3ebf2 : luna ? 0x9a9893 : 0xa8683a));
-    palette.lampColor.value.copy(linear(vesper ? 0xff7a26 : 0xffb060).multiplyScalar(vesper ? 3.6 : 3.4));
-    material.metalness = vesper ? 0.15 : 0.55; material.roughness = vesper ? 0.4 : 0.55;
+    const [metal, paint, wear, dust] = SHARED_PALETTE[planet];
+    palette.metalColor.value.copy(linear(metal)); palette.paintColor.value.copy(linear(paint));
+    palette.wearColor.value.copy(linear(wear)); palette.dustColor.value.copy(linear(dust));
+    palette.lampColor.value.copy(worldGlow(planet, planet === 'vesper' ? 3.6 : 3.4));
+    material.metalness = planet === 'luna' ? 0.3 : 0.55; material.roughness = planet === 'vesper' ? 0.35 : 0.55;
   };
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, haze(), palette);
@@ -1265,16 +1364,18 @@ export function createSharedMaterial(): THREE.MeshStandardMaterial {
 /* ---------------------------------------------------------------- roads */
 
 /** Tileable graded-dust road texture: berms at the edges, a lighter graded bed and two tyre ruts (u across, v along). */
-function createRoadTexture(surface: 'dust' | 'snow' = 'dust'): THREE.DataTexture {
-  const width = 128, height = 256, data = new Uint8Array(width * height * 4), snow = surface === 'snow';
-  // Snow tracks: packed pale snow with blue-grey tread ruts between soft white berms.
-  const berm = new THREE.Color(snow ? 0xf2f6fa : 0x83654d), bed = new THREE.Color(snow ? 0xc9d6e2 : 0x605a52), rut = new THREE.Color(snow ? 0x8ea4bb : 0x3c3731), color = new THREE.Color();
+function createRoadTexture(surface: 'dust' | 'snow' | 'regolith' = 'dust'): THREE.DataTexture {
+  const width = 128, height = 256, data = new Uint8Array(width * height * 4), snow = surface === 'snow', regolith = surface === 'regolith';
+  // Snow tracks: packed pale snow with blue-grey tread ruts between soft white berms. Regolith (Luna's rover tracks,
+  // version 16): packed grey dust with dark tread ruts, no engineered shoulders.
+  const berm = new THREE.Color(snow ? 0xf2f6fa : regolith ? 0x9a9893 : 0x83654d), bed = new THREE.Color(snow ? 0xc9d6e2 : regolith ? 0x7b7975 : 0x605a52);
+  const rut = new THREE.Color(snow ? 0x8ea4bb : regolith ? 0x4f4d4a : 0x3c3731), color = new THREE.Color();
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const u = (x + 0.5) / width, grain = 0.92 + rand(31, y * width + x) * 0.16, wobble = Math.sin(y / height * Math.PI * 2) * 0.012;
     const inBed = u > 0.16 && u < 0.84, rutLine = Math.min(Math.abs(u - 0.34 - wobble), Math.abs(u - 0.66 - wobble));
     color.copy(inBed ? bed : berm);
     if (inBed && rutLine < 0.045) color.lerp(rut, 0.65 * (1 - rutLine / 0.045));
-    if (!snow) {
+    if (!snow && !regolith) {
       // Crisp engineered shoulders, expansion joints and restrained worn centre dashes.
       if (Math.abs(u - .18) < .012 || Math.abs(u - .82) < .012) color.setHex(0xaaa08a);
       if (inBed && y % 64 < 2) color.multiplyScalar(.62);

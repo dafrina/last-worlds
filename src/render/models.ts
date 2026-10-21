@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WORLD_PAINT_GLSL, worldPaintUniforms } from './world-paint';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -48,14 +49,16 @@ function createPanelTexture(): THREE.DataTexture {
  */
 function createCraftMaterial(panel: THREE.Texture | null): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: panel, roughness: 1, metalness: 1, envMapIntensity: 0.9 });
-  material.userData.paintSwap = { value: 0 };
+  // Per-world paint (src/render/world-paint.ts): enemies take their world's colours; the hero's material keeps amount 0.
+  const paint = worldPaintUniforms();
+  material.userData.worldPaint = paint;
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, { rimColor: { value: new THREE.Color(.7, .8, 1) }, rimStrength: { value: 0.09 }, paintSwap: material.userData.paintSwap });
+    Object.assign(shader.uniforms, { rimColor: { value: new THREE.Color(.7, .8, 1) }, rimStrength: { value: 0.09 } }, paint);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 pbr;\nvarying vec3 vPbr;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPbr = pbr;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPbr;\nuniform vec3 rimColor;\nuniform float rimStrength;\nuniform float paintSwap;')
+      .replace('#include <common>', `#include <common>\nvarying vec3 vPbr;\nuniform vec3 rimColor;\nuniform float rimStrength;${WORLD_PAINT_GLSL}`)
       .replace('#include <map_fragment>', `float glowMask = step( 0.01, vPbr.z );
   vec3 glowTint = diffuseColor.rgb;
   #ifdef USE_MAP
@@ -63,15 +66,16 @@ function createCraftMaterial(panel: THREE.Texture | null): THREE.MeshStandardMat
     diffuseColor.rgb *= mix( 1.0 + ( texture2D( map, vMapUv ).r * 2.0 - 1.0 ) * 1.35, 1.0, glowMask );
   #endif
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.015 ), glowMask );`)
-      // Paint swap (0..1), after the vertex paint: warm ochre and rust turn steel blue (channels reversed); glow parts keep theirs.
-      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.bgr, paintSwap * ( 1.0 - glowMask ) );')
+      // World paint, after the vertex paint: hulls move toward the world's ramp, glow parts take its glow colour.
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  diffuseColor.rgb = mix( worldRepaint( diffuseColor.rgb ), diffuseColor.rgb, glowMask );
+  glowTint = worldReglow( glowTint );`)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vPbr.x;')
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vPbr.y;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowTint * vPbr.z;')
       .replace('#include <opaque_fragment>', `vec3 rimView = isOrthographic ? vec3( 0.0, 0.0, 1.0 ) : normalize( vViewPosition );
   float rim = pow( 1.0 - clamp( abs( dot( normal, rimView ) ), 0.0, 1.0 ), 3.0 );
-  // The warm rim turns cool with the paint swap (Luna), so no amber edge remains on the blue craft.
-  outgoingLight += mix( rimColor, rimColor.bgr, paintSwap ) * rim * rimStrength * ( 1.0 - glowMask );
+  outgoingLight += rimColor * rim * rimStrength * ( 1.0 - glowMask );
   #include <opaque_fragment>`);
   };
   material.customProgramCacheKey = () => 'authored-craft';
@@ -98,7 +102,7 @@ export function createMaterials() {
     warning: new THREE.MeshBasicMaterial({ color: 0xfbc175, transparent: true, opacity: 0.76, depthWrite: false, depthTest: false }),
     /** Shared single-draw material for hero and enemy craft. */
     craft: createCraftMaterial(panel),
-    /** Same as `craft` for the code-built enemy batches, so their paint can be retinted per planet (`userData.paintSwap`). */
+    /** Same as `craft` for every enemy batch, so their paint takes the world's colours (`userData.worldPaint`). */
     enemyCraft: createCraftMaterial(panel),
     /** Props in the craft format (fuel skids, wrecks, missiles): no ship panel seams, which streaked their paint like wood grain. */
     prop: createCraftMaterial(null),

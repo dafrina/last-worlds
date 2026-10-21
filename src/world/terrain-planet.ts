@@ -68,8 +68,10 @@ export interface PlanetProfile {
   floes(seed: number, startS: number, size: number, field: ScatterField, arena: TerrainArena | undefined): Work<Floe[]>;
   /** Archetypes whose links carry pipelines more often, and quiet ones that never do. */
   industrial: ReadonlySet<string>; quiet: ReadonlySet<string>;
-  /** False on a planet without roads or pipelines between settlements (Luna). */
+  /** False on a planet without roads or pipelines between settlements. */
   networks?: boolean;
+  /** False on a planet whose network is roads only (Luna's rover tracks, version 16). */
+  pipes?: boolean;
   /**
    * Crisp cliffs (terrain version 14, docs/26 §10): vertex colours and the rock mask read the gentler one-sided slope,
    * so rims and feet keep their flat side's colour and the ground shader draws walls per face. Off (Nacre): unchanged.

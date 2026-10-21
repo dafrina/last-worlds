@@ -42,7 +42,8 @@ export function nacreMasks(seed: number, x: number, s: number, platform = 0): Na
   land *= 1 - channel * 0.9;
   // Massifs rise from the island interiors (how far inland: mass above the threshold), calmer near the routes.
   const inland = smoothRange(threshold + 0.01, threshold + 0.1, mass);
-  const rock = inland * smoothRange(0.3, 0.52, noise(seed ^ 0xb1a7, x * 0.09, s * 0.08)) * land * (1 - calm * 0.3);
+  // (Version 16: more of the islands carry a massif; 0.3–0.52 before.)
+  const rock = inland * smoothRange(0.24, 0.46, noise(seed ^ 0xb1a7, x * 0.09, s * 0.08)) * land * (1 - calm * 0.3);
   const glow = smoothRange(0.45, 0.7, noise(seed ^ 0xb1a8, x * 0.2 + 7.7, s * 0.19));
   const grove = land * (1 - rock) * smoothRange(0.3, 0.55, noise(seed ^ 0xb1a9, x * 0.13 + 1.9, s * 0.12));
   return { land, rock, glow, grove };
@@ -58,13 +59,17 @@ export function nacreLandform(seed: number, x: number, s: number, row: PlanetRow
   const bed = SEA - 0.45 - noise(seed ^ 0xb1aa, x * 0.09, s * 0.08) * 0.8;
   const crag = ridged(noise(seed ^ 0xb1ad, x * 0.2, s * 0.18)) * 0.6 + ridged(noise(seed ^ 0xb1ae, x * 0.5, s * 0.46)) * 0.4;
   const shore = SEA + 0.1 + noise(seed ^ 0xb1ab, x * 0.15, s * 0.14) * 0.22 + (noise(seed ^ 0xb1ac, x * 0.9, s * 0.9) - 0.5) * 0.08;
-  let peak = Math.pow(m.rock, 0.7) * (0.25 + crag * 0.55);
-  // Broken ledges: heights snap toward steps of 0.2, so the rock ground reads as stacked ledges, not smooth hills.
-  const stepped = Math.floor(peak / 0.2) * 0.2 + smoothRange(0.7, 1, (peak / 0.2) % 1) * 0.2;
-  peak = mix(peak, stepped, 0.7);
+  // Version 16 (user, 21 October: "more elevation changes and mountains"): the massifs are real mountains of rock, up to
+  // about three units over the shore in stacked ledges (0.8 before), with the crags standing on them; the islands roll
+  // in low hills between them.
+  let peak = Math.pow(m.rock, 0.6) * (0.6 + crag * 2.8);
+  // Broken ledges: heights snap toward steps of 0.35, so the rock ground reads as stacked ledges, not smooth hills.
+  const stepped = Math.floor(peak / 0.35) * 0.35 + smoothRange(0.65, 1, (peak / 0.35) % 1) * 0.35;
+  peak = mix(peak, stepped, 0.75);
+  const hills = smoothRange(0.35, 0.8, noise(seed ^ 0xb1af, x * 0.11, s * 0.1)) * 0.75 * smoothRange(0.2, 0.9, m.land) * (1 - m.rock);
   const moss = m.land * (1 - m.rock) * m.glow;
   return {
-    height: clamp(mix(bed, shore + peak, m.land), -4, 2), elevation: m.land, channel: m.rock,
+    height: clamp(mix(bed, shore + hills + peak, m.land), -4, 2.4), elevation: m.land, channel: m.rock,
     pool: 0, vein: 99, vein2: 99, veins: 0, tone: moss,
   };
 }
@@ -95,7 +100,8 @@ function nacreColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: num
     value = mix(value, P.teal[c], glow * 0.6);
     value = mix(value, P.mud[c], shore * 0.55);
     // Crags: near-black faceted rock; rims and ledge tops catch a cold blue light.
-    const rock = mix(P.rock[c], P.rockLit[c], rim * 0.85 + (1 - steep) * 0.2);
+    // (Version 16: ridges and ledge tops catch more of the light, so the taller massifs read in the dark.)
+    const rock = mix(P.rock[c], P.rockLit[c], Math.min(1, rim * 1.2 + (1 - steep) * 0.3));
     value = mix(value, rock, Math.max(steep * 0.9, crag * 0.8));
     out[c] = value * (0.88 + fine * 0.24);
   }

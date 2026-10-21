@@ -26,6 +26,7 @@ import { createVeilView, loadVeilModel, veilPlacement } from './veil-view';
 import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { BASTION } from '../content/bastion';
+import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 /** Per-frame CPU budget for generating the next terrain section ahead of need. */
@@ -103,8 +104,13 @@ export function bastionPlacement(seed: number, distance: number, x: number, logi
   return { baseHeight, s };
 }
 
-/** Experimental slight perspective (look-dev switch `?camera=perspective`): a long lens keeps parallax small. */
-export const PERSPECTIVE_FOV = 20;
+/**
+ * The release camera (user, 21 October 2026: "Set it to 25 fov for the next release"): a perspective lens of 25°
+ * vertical field of view, placed so the tactical height fits at the centre depth. `?camera=ortho` shows the previous
+ * orthographic camera; to revert, set DEFAULT_CAMERA back to 'ortho'.
+ */
+export const DEFAULT_CAMERA: 'ortho' | 'perspective' | 'rectified' = 'perspective';
+export const PERSPECTIVE_FOV = 25;
 
 export function configureCamera(camera: THREE.OrthographicCamera | THREE.PerspectiveCamera, x: number): void {
   const centerS = (VIEW.minS + VIEW.maxS) / 2;
@@ -316,8 +322,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   renderer.info.autoReset = false;
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x6a3a22);
   const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
-  // Look-dev only: `?camera=perspective[&fov=15..25]` or `?camera=rectified[&depth=60]`. Orthographic stays the default.
-  const cameraMode = query.get('camera') === 'perspective' ? 'perspective' : query.get('camera') === 'rectified' ? 'rectified' : 'ortho';
+  // DEFAULT_CAMERA unless a look-dev switch asks for another: `?camera=ortho`, `?camera=perspective[&fov=15..30]` or
+  // `?camera=rectified[&depth=60]`.
+  const asked = query.get('camera'), cameraMode = asked === 'ortho' || asked === 'perspective' || asked === 'rectified' ? asked : DEFAULT_CAMERA;
   const perspective = cameraMode !== 'ortho';
   const lens = Number(query.get('fov')) || PERSPECTIVE_FOV, rectifiedDepth = Number(query.get('depth')) || 60.5;
   let viewportAspect = 9 / 16;
@@ -414,10 +421,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     scene.environment = sky;
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
     materials.prop.envMap = sky; materials.prop.needsUpdate = true;
-    // On Luna the Khepri-built enemies wear steel-blue paint, so they read apart from the hero against grey regolith.
-    (materials.enemyCraft.userData.paintSwap as { value: number }).value = next === 'luna' ? 1 : 0;
-    // The see-through silhouette of half-buried batteries follows the paint: pale blue on Luna, warm elsewhere.
-    silhouetteMaterial.color.setHex(next === 'luna' ? 0x9ad3ff : 0xffd39a);
+    // Enemies wear their world's paint (src/render/world-paint.ts): white with orange glow on the Moon, rust and orange on
+    // Khepri, metallic white with blue glow on Vesper, dark green and purple with purple glow on Nacre. The hero keeps its own.
+    setWorldPaint(materials.enemyCraft.userData.worldPaint as WorldPaintUniforms, next, 'craft');
+    // The see-through silhouette of half-buried batteries follows the world's glow.
+    silhouetteMaterial.color.copy(worldGlow(next)).lerp(new THREE.Color(1, 1, 1), 0.45);
     sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
@@ -607,7 +615,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const batches = new Map<NacreCraftNode, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number }>();
       for (const [name, craft] of nodes) {
         const ground = name === 'nacre_spore';
-        const mesh = new THREE.InstancedMesh(craft.geometry, materials.craft, ENEMY_CAPACITY);
+        const mesh = new THREE.InstancedMesh(craft.geometry, materials.enemyCraft, ENEMY_CAPACITY);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Nacre ${name}`;
         mesh.castShadow = mesh.receiveShadow = ground;
         for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
@@ -638,7 +646,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const craft = VESPER_CRAFT[kind as keyof typeof VESPER_CRAFT] as typeof VESPER_CRAFT[keyof typeof VESPER_CRAFT] | undefined;
         const geometry = craft && nodes.get(craft.node);
         if (!geometry) continue;
-        const mesh = new THREE.InstancedMesh(geometry, materials.craft, ENEMY_CAPACITY);
+        const mesh = new THREE.InstancedMesh(geometry, materials.enemyCraft, ENEMY_CAPACITY);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${kind} craft`;
         mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
         let ghost: THREE.InstancedMesh | undefined;

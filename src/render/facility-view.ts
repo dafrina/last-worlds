@@ -3,6 +3,7 @@ import { VIEW, type PlanetId, type RunState } from '../shared/contracts';
 import { MODULES_BY_NODE, modulesOf, type FacilityWorld, type ModuleRole } from './facility-kit';
 import { composeFacility, nodeBudget, type ArrangementId, type FacilityPlant } from './facility-layouts';
 import { loadTexturedNodes, type TexturedPart } from './models';
+import { paintMaterial } from './world-paint';
 
 /**
  * Which compounds the game builds around ground batteries:
@@ -118,6 +119,8 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
       const release = releaser(parts.values()), budget = nodeBudget(world), batches = new Map<string, THREE.InstancedMesh[]>();
       for (const [node, list] of parts) batches.set(node, list.map(part => {
         part.material.envMapIntensity = .85;
+        // The world's paint (src/render/world-paint.ts, user 21 October), never the stand-ins' plain colours.
+        if (part.material.name !== 'facility_stand_in') paintMaterial(part.material, world, 'facility');
         const mesh = new THREE.InstancedMesh(part.geometry, part.material, PLANTS * (budget.get(node) ?? 1));
         mesh.name = node; mesh.count = 0; mesh.visible = false; mesh.frustumCulled = false;
         // Flat ground pieces (aprons, rings, pads, pools, channels) only receive shadows.
@@ -282,6 +285,7 @@ function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityVi
       const batches = new Map<Node, THREE.InstancedMesh[]>();
       for (const [name, parts] of found) batches.set(name, parts.map(part => {
         part.material.envMapIntensity = .85;
+        paintMaterial(part.material, planet, 'facility');
         const mesh = new THREE.InstancedMesh(part.geometry, part.material, CAPACITY);
         mesh.name = name; mesh.count = 0; mesh.frustumCulled = false;
         mesh.castShadow = !/glow/i.test(part.material.name); mesh.receiveShadow = true;

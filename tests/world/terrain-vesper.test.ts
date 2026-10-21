@@ -25,17 +25,17 @@ describe('planet profiles (docs/17 §2)', () => {
     const arena = { fromS: 566, toS: 601 };
     expect(generateTerrainSection(93, 16, arena)).toEqual(generateTerrainSection(93, 16, { planet: 'khepri', arena }));
     expect(worldOf(arena)).toBe(worldOf({ planet: 'khepri', arena }));
-    // Version 15 (21 October 2026: cliff walls, docs/26 §11, in the 24-wide world: VIEW.worldWidth 30 → 24 moves the
-    // edge, the side routes and the outposts, so every Khepri section changes). 93:14 and 11:14 hold a district, 93:17
-    // the quiet buffer's network, 11:5 a fading road end. A deliberate Khepri change updates these. (Version 14, 30
-    // wide: 11:5 6264a0925fd1cf0a, 93:17 e0f86d546be5a503, 8831:0 90c9e92d18c19e9a, 93:14 e3dc7b61ebd1e5fd, 11:14
-    // 3829bbfc897fdd83.)
-    const recorded = new Map([['11:5', '84081784ea55aee1'], ['93:17', '7c282c4d5369bfeb'], ['8831:0', 'd05a930b9d9eaae4'],
-      ['93:14', '0720d390ce865bc1'], ['11:14', 'b947c188f94f5283']]);
+    // Version 16 (21 October 2026: outposts stand in compounds, docs/26 §12; Khepri's landform is unchanged, its outposts
+    // and their networks move). 93:14 and 11:14 hold a district, 93:17 the quiet buffer's network, 11:5 a fading road
+    // end. A deliberate Khepri change updates these. (Version 15: 11:5 84081784ea55aee1, 93:17 7c282c4d5369bfeb, 8831:0
+    // d05a930b9d9eaae4, 93:14 0720d390ce865bc1, 11:14 b947c188f94f5283. Version 14, 30 wide: 11:5 6264a0925fd1cf0a,
+    // 93:17 e0f86d546be5a503, 8831:0 90c9e92d18c19e9a, 93:14 e3dc7b61ebd1e5fd, 11:14 3829bbfc897fdd83.)
+    const recorded = new Map([['11:5', 'cbcb8dc678df5078'], ['93:17', '1607ca29590f9231'], ['8831:0', 'a9f21e4fd32df97e'],
+      ['93:14', '0635ae0ecceb6bf3'], ['11:14', '6b21b051fc7a3f36']]);
     // The rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0` still take out the districts and the
     // blended road ends exactly, on the current landform.
-    const legacy = new Map([['11:5', '45c03df0179dc50a'], ['93:17', '1055237f890a2b1e'], ['8831:0', 'a9f21e4fd32df97e'],
-      ['93:14', '81783157fd17dfaa'], ['11:14', '9696bdd8b5dc6f80']]);
+    const legacy = new Map([['11:5', 'c235fed77bd85c77'], ['93:17', '1607ca29590f9231'], ['8831:0', 'a9f21e4fd32df97e'],
+      ['93:14', 'eedc9e251d50642f'], ['11:14', '0dcef6ccf4408422']]);
     const check = (fingerprints: Map<string, string>) => {
       for (const [key, value] of fingerprints) {
         const [seed, index] = key.split(':').map(Number);

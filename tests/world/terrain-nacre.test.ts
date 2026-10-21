@@ -31,11 +31,11 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
     expect(generateTerrainSection(8831, 3, NACRE).instances).not.toEqual(generateTerrainSection(93, 3, NACRE).instances);
   });
 
-  it('keeps its terrain exactly as it was: terrain versions 13 to 15 (docs/26) change Khepri, Vesper and Luna only', async () => {
-    // sha256 over a section's mesh, pieces, roads, floes and shore. Recorded again for the 24-wide world (21 October
-    // 2026): Nacre's own code is unchanged, but its lattices span the narrower world (WORLD_HALF 15 → 12) and its calm
-    // follows the moved side routes (ROUTE_AXES ±9.5 → ±7.5). Version 14 with those two changes gives these same values.
-    // (Version 12–14, 30 wide: 93:2 c3464267cebdfd55, 8831:5 8cfbbbcba0c67a88, 11:9 2f05e3b2e0bcb07b.)
+  it('keeps its terrain exactly as recorded: terrain version 16 raised its massifs (docs/26 §12)', async () => {
+    // sha256 over a section's mesh, pieces, roads, floes and shore. Recorded again for version 16 (21 October 2026, user:
+    // "Nacre can also use some more elevation changes and mountains"): taller stepped massifs, wider rock masks, rolling
+    // island hills and brighter ridge light. (Version 15, 24 wide: 93:2 f2551344e94b4399, 8831:5 c919485f87ba3755, 11:9
+    // 79ba0f705fa2b4a7; versions 12–14, 30 wide: 93:2 c3464267cebdfd55, 8831:5 8cfbbbcba0c67a88, 11:9 2f05e3b2e0bcb07b.)
     const crypto: { createHash(kind: string): { update(data: string | Uint8Array): void; digest(encoding: string): string } } = await import(['node', 'crypto'].join(':'));
     const fingerprint = (section: ReturnType<typeof generateTerrainSection>) => {
       const hash = crypto.createHash('sha256');
@@ -46,7 +46,7 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
       if (section.water) hash.update(new Uint8Array(section.water.shore.buffer));
       return hash.digest('hex').slice(0, 16);
     };
-    for (const [seed, index, value] of [[93, 2, 'f2551344e94b4399'], [8831, 5, 'c919485f87ba3755'], [11, 9, '79ba0f705fa2b4a7']] as const) {
+    for (const [seed, index, value] of [[93, 2, '38226233c9e229c9'], [8831, 5, '3c2e855afce8a877'], [11, 9, 'ba0908870f05a77c']] as const) {
       expect(fingerprint(generateTerrainSection(seed, index, NACRE)), `${seed}:${index}`).toBe(value);
     }
   });
@@ -54,7 +54,7 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
   it('keeps every piece within the world, the terrain range and under the scenery cap', () => {
     for (const seed of [8831, 93]) for (let index = 0; index < 10; index++) {
       const section = generateTerrainSection(seed, index, NACRE);
-      for (let i = 1; i < section.positions.length; i += 3) { expect(section.positions[i]).toBeGreaterThanOrEqual(-4); expect(section.positions[i]).toBeLessThanOrEqual(2); }
+      for (let i = 1; i < section.positions.length; i += 3) { expect(section.positions[i]).toBeGreaterThanOrEqual(-4); expect(section.positions[i]).toBeLessThanOrEqual(Math.fround(2.4)); }
       for (const piece of section.instances) {
         const spec = KIT[piece.kind];
         expect(NACRE_KIT_KINDS).toContain(piece.kind);

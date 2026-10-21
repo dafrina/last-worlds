@@ -1,5 +1,5 @@
 import { TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT, clamp, mix, type Mood, type MoodParams } from './terrain-layout';
-import { padInfluence, settlementsNear, type Settlement } from './terrain-settlements';
+import { padDistance, padInfluence, settlementsNear, type Settlement } from './terrain-settlements';
 import { arenaWeight, type TerrainArena } from './terrain-arena';
 import { worldAt, type PlanetPoint, type TerrainInput, type World } from './terrain-planet';
 
@@ -33,10 +33,12 @@ export type TerrainPoint = PlanetPoint;
 export function rowPoint(row: TerrainRow, x: number): TerrainPoint {
   const planet = row.world.planet, form = planet.landform(row.seed, x, row.s, row);
   let industrial = 0, height = form.height;
-  // Pads flatten ground, never water (a harbour keeps its cliff and the sea in front of it).
+  // Pads flatten ground. Water only right under a pad (version 16): an outpost across a narrow lead fills it at pad
+  // level like a causeway, its rim a sheer quay edge. A harbour keeps its cliff and the sea in front of it.
   const dry = planet.seaLevel === null || form.height >= planet.seaLevel;
-  if (dry) for (const site of row.sites) {
-    const influence = padInfluence(site, x, row.s);
+  for (const site of row.sites) {
+    if (!dry && (site.archetype === 'harbour' || padDistance(site, x, row.s) > 0)) continue;
+    const influence = dry ? padInfluence(site, x, row.s) : site.flatten;
     if (influence > industrial) { industrial = influence; height = mix(form.height, site.level, influence); }
   }
   // The landform object is fresh per call, so it is completed in place instead of copied (less garbage).

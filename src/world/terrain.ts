@@ -50,8 +50,11 @@ export {
  * 15: real cliff walls (docs/26 §11): columnar basalt walls along Khepri's cliffs and fractured ice-shelf walls along
  *     Vesper's steps and coasts (cliff kits); Vesper half land, half water with fjord-like inlets. Luna and Nacre are
  *     unchanged.
+ * 16: relief and compounds (docs/26 §12): Vesper's sea at −3.6 with taller shelf steps, ice plateaus and peaks; Nacre's
+ *     massifs raised into stepped mountains; outposts stand in compounds joined by roads and pipes on every world, Luna's
+ *     bases in pairs on rover tracks; a lead under a pad is filled at pad level.
  */
-export const TERRAIN_VERSION = 15;
+export const TERRAIN_VERSION = 16;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.

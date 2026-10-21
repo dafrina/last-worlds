@@ -388,3 +388,68 @@ Nacre's code is unchanged. Its output changes only through `WORLD_HALF` and the 
 - Wall pieces overlap at tight bends, and a two-tier canyon wall shows two rows of caps.
 - The ice-wall colouring and the Khepri cap tone are judged from SwiftShader captures only.
 - Vesper's crevasse lips still step along the 0.25 grid (as in version 14), now in a stronger blue.
+
+## 12. Relief, cracks and compounds (terrain version 16, 21 October 2026)
+
+User, 21 October:
+- "I love how elevated and rocky and mountainous Khepri looks. Please add more elevation and crazy landscaping on Vesper as well. Nacre can also use some more elevation changes and mountains."
+- "add more base terrain texture like in the concept art. Finely detailed crack-like patterns across the vast plains … especially Vesper … those fine crisscross lines across the ice and snow."
+- "The cliff sides on Vesper don't look quite as sharp as on Khepri."
+- "Gas tanks and other tanks are randomly generated across the landscape sometimes … everything infrastructure should be more cluttered together, with pipes and roads connecting several features and bases. Same for landing pads on the Moon."
+
+Khepri's landform is unchanged. Terrain stays scenery: nothing here reads or changes combat, collisions, targeting, timing or loot.
+
+### Vesper relief (`src/world/terrain-vesper.ts`)
+
+- **Sea at −3.6** (−1.2 before; `VESPER_SEA_LEVEL`). Everything that floats or swims reads the planet's sea level, so it moves with it: the Helion Ark (`arkPlacement`), ground batteries on pontoons, floes, piers and icebreakers, splashes. The arena, the seabed and the colour ramps are relative to the sea.
+- **Shelf levels** span the new range: mood tops −1.9…0.5, taller steps (1.1–1.8), twice the regional swell. A shelf now stands one to four tiers over the water, and coast walls are 4–6 units tall.
+- **Ice plateaus** (`icePlateau`): a warped blob field lifts tabular blocks one or two tiers over their shelf behind sheer `crispStep` walls, like Khepri's mesas (`mesa` per mood, 0.2–0.7).
+- **Taller features:** pressure ridges 0.6–1.2, nunatak peaks up to about 3 over the ice, crevasses 2.4 deep (their floors stay ice).
+- **Harbours** only from a low ice foot (centre under SEA + 2.2), so a jetty never hangs far under its crane.
+- **Pads:** a crevasse's tint no longer shows through a pad that flattened it.
+- **Measured** (dry land per 12 × 26 view, seeds 1, 93 and 8831, s 0–900, the p5–p95 height span): Vesper median 2.05 → **3.52** (Khepri 3.55), views flatter than 1.5: 17% → 4%.
+
+### Sharper ice walls (`src/render/terrain-kit.ts`)
+
+The ground's ice walls split into vertical fractured columns (about 1.3 units wide, in blocks about 2.2 tall broken at uneven ledges). Each column leans its own way to the sun and is split by a ridge into a lit and a shadowed facet, with abyss-blue seams between columns. This is the concept's blocky ice, matching the kit's shards. The shadow ramp follows the deeper range.
+
+### Cracks on the plains (`createCrackTexture`)
+
+A tileable 512² crack network is generated at prepare time (about 150 ms on desktop; never at a planet switch): polygonal plate cracks (jagged, broken edges) and a patchy finer crisscross. The ground shader samples it at two scales (9- and 4-unit tiles, both dividing the 36-unit section) on open ground only, walls excluded. Vesper's lines are blue-grey, Luna's dark regolith fractures; Khepri and Nacre are unchanged (`crackLook` 0).
+
+### Nacre relief (`src/world/terrain-nacre.ts`)
+
+The massifs are real mountains: up to about 3 over the shore in 0.35 ledges (0.8 before), over a wider rock mask, with rolling hills on the islands and brighter ridge light. The terrain range is now −4…2.4. Dry-land span per view: median 0.6 → **2.24**; views flatter than 1.5: 100% → 5%.
+
+### Compounds (`compoundSlot`, `src/world/terrain-settlements.ts`)
+
+- An outpost stands beside a partner: the next or previous cell on its side, or the other side of its own cell. Without one it stands only now and then (15%; Luna 20%). It then moves toward its partners: toward the shared cell edge, and inward when both sides are built.
+- **Cross links:** a cell built on both sides is joined across the route 60% of the time (the left side owns the link), with a pipeline half the time between industrial sites.
+- **Vesper:** a cell is present when its roll passes (now scaled by the district level) and dry shelf exists in it (a memoized search, so cells never recurse). Pads are probed over their whole area. A narrow lead under a pad is filled at pad level like a causeway (`terrain-ground.ts`; the pad's rim is a sheer quay), so up to 15% of a pad may stand over water. Harbours still keep the open sea in front of them.
+- **Luna:** bases come in pairs facing across the route (the other side of a base's cell is built two times in three): a landing field (the pad always beside a habitat block, cargo and a light) and a comm station or quarters. Rover tracks (`pipes: false`, a grey regolith road surface) join them.
+- **Measured** (seeds 1, 93, 8831, 11 and 4242 over 3 km; lone = more than 10 units from any other pad):
+
+| World | Sites/km | Nearest gap, median | Lone | On a road or pipe |
+| --- | --- | --- | --- | --- |
+| Khepri | 48.9 → 47.4 | 7.6 → 5.4 | 30% → 17% | 95% → 95% |
+| Vesper | 20.3 → 30.3 | 10.5 → 5.2 | 53% → 24% | 94% → 98% |
+| Luna | 6.7 → 9.1 | 49.7 → 5.1 | 94% → 7% | 0% → 78% |
+
+### Render cost (terrain-relief fixture, High, SwiftShader, the six fixed views)
+
+Terrain draw calls and triangles stay inside the 70 / 90k budget. Vesper ≤ 40 calls (39 before) and ≤ 66.1k triangles (65.1k). Nacre ≤ 45 (47) and ≤ 105k (102k; the same view, already the peak). Khepri ≤ 53 (52); one view gains 9 calls where a compound now stands. Luna ≤ 25 (23).
+
+### Tests
+
+- Khepri and Nacre fingerprints were re-recorded, with the reason in each test.
+- The road-end test follows seed 11's road to section 5.
+- The wall test exempts wrecks, which lie on natural ground and are not pads.
+- Nacre's range bound is 2.4.
+
+**Evidence:** `docs/screenshots/terrain/v16-{vesper,luna,nacre,khepri}.jpg`, top row version 15 and bottom row version 16, at the same spots (terrain-relief fixture, 390×844).
+
+**Limits:**
+- No phone test.
+- On narrow crevasse walls the ice columns read as a zigzag.
+- Nacre's darker palette hides some of its new relief.
+- The crack texture costs about 150 ms of main-thread time per session, on desktop; it is unmeasured on phones.

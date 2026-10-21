@@ -1,5 +1,42 @@
 # Build status
 
+## Terrain v16 (relief, cracks, compounds) and world colours, 21 October 2026
+
+User requests (docs/08, 21 October):
+- more elevation and "crazy landscaping" on Vesper, mountains on Nacre;
+- crack detail on the plains;
+- sharper Vesper cliffs;
+- infrastructure clustered and connected, pads beside buildings on the Moon;
+- per-world colours for enemies, buildings and infrastructure;
+- a perspective FOV 30 test run.
+
+- **Terrain (docs/26 §12):**
+  - Vesper's sea is at −3.6, with taller shelf steps, ice plateaus and taller ridges and peaks. Its dry-land relief per view (median span) went 2.05 → 3.52, against Khepri's 3.55. The Ark and everything afloat follow the sea level.
+  - Nacre's massifs are stepped mountains: span 0.6 → 2.24.
+  - Vesper's ground ice walls are faceted columns.
+  - A crack network covers Vesper's and Luna's plains.
+  - Outposts stand in compounds on every world. Lone outposts: Khepri 30% → 17%, Vesper 53% → 24%, Luna 94% → 7%. Luna has rover tracks, and its landing pads stand beside a base.
+  - `TERRAIN_VERSION = 16`. Khepri's landform is unchanged.
+- **World colours (`src/render/world-paint.ts`):** a brightness-keeping recolour of the shaders; models are unchanged.
+  - Enemies: Vesper's and Nacre's craft moved from the hero's material to the enemy material, so the hero keeps its own paint.
+  - Outposts (`infra`), the shared industrial kit, and the battery compounds' GLB materials.
+  - The Moon is white with orange glow, Khepri rust and orange, Vesper metallic white with blue glow, Nacre dark green and purple with purple glow. Luna's old channel-swap repaint is gone.
+  - Bosses and the hero keep their approved paint.
+- **Camera:** the release camera is perspective at 25° (`DEFAULT_CAMERA`, `PERSPECTIVE_FOV` in `src/render/scene.ts`; user, after the FOV test runs). `?camera=ortho` shows the old view; `DEFAULT_CAMERA = 'ortho'` reverts.
+- **FOV 30 test run:** `lookdev/fov30-compare/{training,bastion,cold-vector,deep-bloom}.jpg`, orthographic beside `?camera=perspective&fov=30`, the same 16 shots on the previously deployed build (seed 8831).
+- **Checks:**
+  - typecheck clean;
+  - unit tests 399/399, with Khepri and Nacre fingerprints re-recorded and reasons given;
+  - production build passes;
+  - browser 35/35 with the perspective camera (Playwright Chromium, SwiftShader; the endless-clearance case was rerun alone after a trace-file clash with a parallel capture), and 35/35 with the orthographic camera before the switch;
+  - render cost inside the terrain budget (docs/26 §12).
+  - No phone test.
+- **Evidence:** `docs/screenshots/terrain/v16-{vesper,luna,nacre,khepri}.jpg` (version 15 above, version 16 below); `docs/screenshots/v16-levels.jpg` (the 16 level and boss shots).
+- **Limits:**
+  - Nacre's dark palette hides some of the new relief.
+  - On narrow crevasse walls the ice columns read as a zigzag.
+  - The crack texture costs about 150 ms at prepare on desktop; unmeasured on phones.
+
 ## Vesper: scattered stones on the snow plains, 21 October 2026
 
 User request: add the small rocks scattered on Vesper's snow plains, like the concept `lookdev/cliff-study/vesper.png`.

@@ -1,6 +1,6 @@
 import { NEUTRAL_MOOD, WORLD_HALF, clamp, cliff, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
 import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
-import { MODULE_HEIGHT, SETTLEMENT_CELL, districtLevel, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
+import { MODULE_HEIGHT, SETTLEMENT_CELL, compoundSlot, districtLevel, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 
@@ -220,10 +220,11 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
   const shared = (node: string, u: number, v: number, yaw = 0) => m.push({ kind: 'shared', node, u, v, yaw });
   switch (archetype) {
     case 'landing':
-      // A pad with a habitat and a light; sometimes a relay.
+      // A pad beside its base, never alone (version 16, user 21 October): a habitat block, cargo and a light; often a relay.
       infra('infra_landing_pad', -1.0, 0);
-      infra('infra_habitat_0', 2.7, -2.4, Math.PI / 2);
-      if (h(1) < 0.5) infra('infra_relay', 3.0, -0.6);
+      infra('infra_habitat_0', 2.7, -2.4, Math.PI / 2); infra('infra_habitat_1', 2.8, 2.2, Math.PI / 2);
+      if (h(1) < 0.6) infra('infra_relay', 3.0, -0.2);
+      shared(`container_${h(2) < 0.5 ? 0 : 1}`, 1.7, -3.2, Math.PI / 2);
       infra('infra_light_mast', -3.4, 3.2);
       break;
     case 'comm':
@@ -238,6 +239,15 @@ function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] 
   return m;
 }
 
+/**
+ * Luna's partner-free roll: the sparse district chance, and (version 16) the other side of a base's cell is built too
+ * two times in three, so bases stand in pairs facing across the route, joined by rover tracks.
+ */
+function lunaPresent(seed: number, cell: number, side: number): boolean {
+  const chance = OUTPOST_CHANCE * (0.25 + 1.6 * districtLevel(seed ^ 0xa1e7, cell));
+  const roll = (sd: number) => hash(seed ^ 0xa1e7 ^ (sd > 0 ? 0x1000 : 0), cell * 211, 6);
+  return roll(side) < chance || (roll(-side) < chance && hash(seed ^ 0xa1e8, cell, side > 0 ? 1 : 2) < 0.65);
+}
 const memo = new Map<string, Settlement | null>();
 /** The Luna outpost of one cell and side, or null (about one candidate in four), on the flattest nearby ground. */
 export function lunaSettlement(seed: number, cell: number, side: number): Settlement | null {
@@ -245,16 +255,20 @@ export function lunaSettlement(seed: number, cell: number, side: number): Settle
   if (memo.has(key)) return memo.get(key)!;
   const h = (k: number) => hash(seed ^ 0xa1e7 ^ (side > 0 ? 0x1000 : 0), cell * 211 + k, 6);
   let result: Settlement | null = null;
-  // Bases gather in districts (districtLevel) instead of standing alone; Luna stays sparse overall.
-  if (h(0) < OUTPOST_CHANCE * (0.25 + 1.6 * districtLevel(seed ^ 0xa1e7, cell))) {
+  // Bases gather in districts (districtLevel) instead of standing alone, and since version 16 in compounds; Luna stays
+  // sparse overall.
+  const slot = compoundSlot((c, sd) => lunaPresent(seed, c, sd), cell, side, 0.2, h(23), [0.4, 0.85]);
+  if (slot) {
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 6; k++) {
-      const cx = side * Math.min(WORLD_HALF * (0.4 + h(1 + k) * 0.45), WORLD_HALF - 4), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
+      const cx = side * Math.min(WORLD_HALF * (slot.inner + h(1 + k) * (slot.outer - slot.inner)), WORLD_HALF - 4);
+      const cs = cell * SETTLEMENT_CELL + slot.from + h(10 + k) * (slot.to - slot.from);
       const heights = [[0, 0], [2.4, 0], [-2.4, 0], [0, 2.4], [0, -2.4]].map(([dx, ds]) => lunaLandform(seed, cx + dx, cs + ds).height);
       const relief = Math.max(...heights) - Math.min(...heights) + 0.5 * Math.max(0, heights[0] - 1.2);
       if (relief < best) { best = relief; x = cx; s = cs; }
     }
-    const archetype = LUNA_ARCHETYPES[Math.floor(h(20) * LUNA_ARCHETYPES.length)];
+    // A pair is a working base: the left side is its landing field, the right its comm station or quarters.
+    const archetype = slot.across ? (side < 0 ? 'landing' : h(20) < 0.6 ? 'comm' : 'abandoned') : LUNA_ARCHETYPES[Math.floor(h(20) * LUNA_ARCHETYPES.length)];
     const turns = Math.floor(h(21) * 4), mirror = h(22) < 0.5 ? -1 : 1, [hu, hv] = EXTENT[archetype];
     const [hx, hs] = turns % 2 ? [hv, hu] : [hu, hv];
     const local = compose(archetype, k => h(30 + k));
@@ -332,6 +346,7 @@ export const LUNA: PlanetProfile = {
   settlement: lunaSettlement,
   scatter: lunaScatterSteps,
   floes: function* () { return []; },
-  industrial: new Set(), quiet: new Set(LUNA_ARCHETYPES),
-  networks: false, cliffs: true,
+  // Rover tracks join a base's buildings (version 16); no pipelines on the Moon.
+  industrial: new Set(), quiet: new Set(['abandoned']),
+  pipes: false, cliffs: true,
 };

@@ -164,6 +164,39 @@ export function districtLevel(seed: number, cell: number): number {
   return Math.min(1, Math.max(0, (level - 0.25) / 0.6));
 }
 
+/**
+ * Compounds (terrain version 16; user, 21 October: "everything infrastructure should be more cluttered together, with
+ * pipes and roads connecting several features and bases"). An outpost stands beside a partner: the next or previous
+ * cell on its side, or the other side of its own cell. Without one it stands only now and then (`lone`). It then moves
+ * toward its partners: toward the cell edge they share, and inward when the other side is built too. So neighbouring pads
+ * stand a few units apart, and the chain and cross links of the network join them.
+ * `present` must be a cheap, partner-free test (a seeded roll, or a memoized dry-spot search), so cells never recurse.
+ */
+export interface CompoundSlot {
+  /** Forward range of the candidates within the cell (units from its start). */
+  from: number; to: number;
+  /** Lateral range as shares of the half width. */
+  inner: number; outer: number;
+  /** The other side of this cell is built too (a cross link is likely). */
+  across: boolean;
+}
+export function compoundSlot(present: (cell: number, side: number) => boolean, cell: number, side: number, lone: number, roll: number,
+  lateral: readonly [number, number] = [0.42, 0.82]): CompoundSlot | null {
+  if (!present(cell, side)) return null;
+  const next = present(cell + 1, side), previous = present(cell - 1, side), across = present(cell, -side);
+  if (!next && !previous && !across && roll >= lone) return null;
+  // Toward the neighbours: the upper end of the cell for the next one, the lower end for the previous one, both: the middle.
+  const [from, to] = next && previous ? [9, 21] : next ? [17, 25] : previous ? [5, 13] : [8, 22];
+  // Both sides built: closer in, so the two pads face each other across the route.
+  const [inner, outer] = across ? [lateral[0], lateral[0] + (lateral[1] - lateral[0]) * 0.45] : lateral;
+  return { from, to, inner, outer, across };
+}
+
+/** Khepri's partner-free roll: the district chance, a little higher where the other side's roll is busy. */
+function khepriPresent(seed: number, cell: number, side: number): boolean {
+  const district = districtLevel(seed, cell), across = hash(seed ^ 0x5e77 ^ (side > 0 ? 0 : 0x1000), cell * 211, 3) < 0.15 + 0.75 * district;
+  return hash(seed ^ 0x5e77 ^ (side > 0 ? 0x1000 : 0), cell * 211, 3) < 0.42 + 1.2 * district + (across ? 0.12 : 0);
+}
 const memo = new Map<string, Settlement | null>();
 /** The settlement candidate of one cell and side, or null. Memoized; the cache never changes values. */
 export function settlement(seed: number, cell: number, side: number): Settlement | null {
@@ -173,15 +206,15 @@ export function settlement(seed: number, cell: number, side: number): Settlement
   let result: Settlement | null = null;
   // Outposts gather in districts along the route with empty stretches between (user, 17 October: lone outposts in
   // the middle of nowhere made little sense): a slow district noise sets the chance, and the other side of a busy
-  // cell is likelier to be built up too.
-  const district = districtLevel(seed, cell), across = hash(seed ^ 0x5e77 ^ (side > 0 ? 0 : 0x1000), cell * 211, 3) < 0.15 + 0.75 * district;
-  if (h(0) < 0.42 + 1.2 * district + (across ? 0.12 : 0)) {
+  // cell is likelier to be built up too. Since version 16 they also stand in compounds (compoundSlot).
+  const slot = compoundSlot((c, sd) => khepriPresent(seed, c, sd), cell, side, 0.15, h(23));
+  if (slot) {
     // Prefer the calmest of a few candidate spots: outposts settle on flat ground at any terrain level.
     let x = 0, s = 0, best = Infinity;
     for (let k = 0; k < 5; k++) {
       // Candidates span the outer part of each side (about 0.42–0.82 of the half width since the 24-wide world, 21
-      // October; 0.38–0.85 before), clear of the centre lane.
-      const cx = side * WORLD_HALF * (0.42 + h(1 + k) * 0.4), cs = cell * SETTLEMENT_CELL + 8 + h(10 + k) * 14;
+      // October; 0.38–0.85 before), clear of the centre lane, in the compound's slot.
+      const cx = side * WORLD_HALF * (slot.inner + h(1 + k) * (slot.outer - slot.inner)), cs = cell * SETTLEMENT_CELL + slot.from + h(10 + k) * (slot.to - slot.from);
       const mood = moodParams(seed, cs), heights = [[0, 0], [2.6, 0], [-2.6, 0], [0, 3], [0, -3]].map(([dx, ds]) => landform(seed, cx + dx, cs + ds, mood).height);
       // Level ground first; a site high on a mesa costs more (its tallest pieces would sink the pad into the rock).
       const relief = Math.max(...heights) - Math.min(...heights) + 0.5 * Math.max(0, heights[0] - 0.9);

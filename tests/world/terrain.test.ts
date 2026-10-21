@@ -234,9 +234,9 @@ describe('seeded Khepri landforms', () => {
             previous = ground;
           }
           expect(meets, `${planet} ${seed} wall at ${wall.x.toFixed(2)}, ${wall.s.toFixed(2)}`).toBe(true);
-          // Never on a road or an outpost or district pad.
+          // Never on a road or an outpost or district pad. (A wreck lies on natural ground: no pad.)
           for (const road of section.roadPaths) for (let i = 0; i < road.x.length; i++) expect(Math.hypot(road.x[i] - wall.x, road.s[i] - wall.s)).toBeGreaterThan(0.5);
-          for (const pad of pads) expect(padDistance(pad, wall.x, wall.s)).toBeGreaterThan(-0.5);
+          for (const pad of pads) if (pad.flatten > 0) expect(padDistance(pad, wall.x, wall.s)).toBeGreaterThan(-0.5);
         }
       }
       expect(walls, planet).toBeGreaterThan(60);

@@ -240,3 +240,10 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 **2026-10-21 · Claude Code integrator · terrain v15, width 24, screen-half steering, Pulsar gaps: deployed:** verified from a snapshot: typecheck clean, unit tests 399/399, build passes, browser 35/35.
 
 **2026-10-21 · Claude Code · Vesper scattered stones: deployed:** small snow-capped `rock_outcrop` stones are now scattered across Vesper's flat snow plains (`vesperScatterSteps`), after `lookdev/cliff-study/vesper.png`. Files: `src/world/terrain-vesper.ts`, docs/17, build-status, `docs/screenshots/terrain/rocks-vesper.jpg`. Checks: typecheck clean, unit tests 399/399, build passes, browser 35/35. No phone test. `tools/blender/the_veil.py` (someone else's uncommitted edit) was left untouched.
+
+**2026-10-21 · Claude Code · terrain v16, world colours, perspective camera fov 25: deployed:**
+- **Terrain:** Vesper's sea is at −3.6, with taller shelves, ice plateaus and faceted ice walls. Vesper and Luna get a crack network. Nacre's massifs are mountains. Outposts stand in compounds on every world, and Luna has rover tracks. `TERRAIN_VERSION = 16`; see docs/26 §12.
+- **World colours:** `src/render/world-paint.ts`, applied to enemies, outposts, the shared kit and battery compounds.
+- **Camera:** the release camera is perspective at 25° (`DEFAULT_CAMERA`; `?camera=ortho` shows the old view).
+- **Checks:** typecheck clean, unit tests 399/399, build passes, browser 35/35. No phone test.
+- **Untouched:** `tools/blender/the_veil.py` (someone else's uncommitted edit) and `art/concepts/nacre-refinement/`.

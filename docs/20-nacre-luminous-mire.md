@@ -17,7 +17,7 @@ The reference is the middle panel of `art/concepts/01-worlds-direction.png`.
   - coasts are three noise octaves plus a fine fringe, cut by channels;
   - low mossy shelves sit 0.1–0.35 above the water;
   - rock-mask interiors rise in 0.2-unit ledges up to about 0.75 (the heightfield gives the base; the crag pieces make the mountains).
-- **Massifs:** the rock mask carries tall jagged outcrops, gathered in heaps by a cluster field and tallest on the mask's core:
+- **Massifs** (raised into stepped mountains up to about 3 over the shore in terrain version 16, docs/26 §12): the rock mask carries tall jagged outcrops, gathered in heaps by a cluster field and tallest on the mask's core:
   - `mireCrag` pieces are 1.8–3.0 tall at scale 0.9–1.2, and now and then a landmark spire reaches the scenery cap (3.0);
   - `mireRock` heaps fill the margins, stand on the islands and fringe the shores;
   - black rock and crags rise from the shallows.

@@ -14,7 +14,7 @@ Design v0.6 · 15 October 2026. The user approved this plan: a new campaign miss
   - ice-cliff blue `#8fc3e6` → deep `#2e6f9e`;
   - ocean `#0d3557` → shallows `#1f6a8f`;
   - rock charcoal `#2a2d31`;
-  - faction black ceramic `#15181b`, radiator orange glow `#ff7a26`.
+  - faction hardware metallic white and brushed steel with blue glow `#52c2ff` since 21 October (user; black ceramic `#15181b` with orange `#ff7a26` before; `src/render/world-paint.ts`).
 - **Moods along the route:** shelf coast, open pack-ice sea, crevasse plateau, radiator plains.
 
 ## 2. Planet abstraction (shared code, per-planet data)
@@ -39,7 +39,7 @@ The shared industrial kit (pipes, tanks, containers) is reused through its palet
 
 ## 4. World generation (Vesper profile)
 
-- **Sea level:** about −1.2. Shelves reach 0.6–2.0, ice cliffs drop to the water, and the seabed below the water is darkened and hazed.
+- **Sea level:** −3.6 since terrain version 16 (−1.2 before; docs/26 §12). Shelves stand one to four tiers over the water, ice cliffs drop 4–6 units to it, and the seabed below the water is darkened and hazed.
 - **Landforms:** large shelf masses broken by open leads (water channels), crevasse fields on the shelves, pack-ice seas with floes, and pressure ridges.
 - **Variety:** route variety follows the same rules as Khepri (moods, no repeated rhythm, calm combat lanes, budgets, seams, determinism, incremental generation).
 - **Settlements** sit on shelves: radiator fields, missile sites, harbours at shelf edges, cryo stations. Snow-track roads and heated pipelines connect them; pipelines may cross leads on trestles.
