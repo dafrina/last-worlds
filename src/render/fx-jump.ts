@@ -10,14 +10,18 @@ import { VIEW, type RunState } from '../shared/contracts';
  * - A bright flash at the midpoint (the planet switch) blooms on High; the new planet then streams in as the veil lifts.
  * - Reduced motion: no streaks and no flash, only a slow fade to deep blue and back.
  * - If the next planet's assets are not ready at the flash, the veil holds (up to `MAX_HOLD`) instead of popping.
+ * - The flash ends the streaks (user, 22 October: the stars sliding on after the white flash looked wonky): they fade
+ *   out under its peak, and the flash fades straight into the new world, or into the results.
  * - A jump with no destination (the campaign's victory warp: `from === to`) never lifts back onto the level the
- *   ship left (user, 20 October): after the flash the veil deepens to opaque deep space and the streaks keep racing
- *   at cruise behind the results, on the wall clock once the frozen victory state stops advancing.
+ *   ship left (user, 20 October): under the flash the veil turns to opaque deep space, and the results arrive as the
+ *   flash fades (src/ui/styles.css).
  * - The launch warp (user, 21 October: "use the warp animation instead [of the loading panel] and for endless it'll be
  *   just a longer warp"): while a flight's world is prepared the ship cruises through opaque deep space on the wall
  *   clock; on arrival a flash breaks out and the veil lifts onto the world over ARRIVE seconds.
  */
 const STREAKS = 120, MAX_HOLD = 4, PLANE_Y = VIEW.flightHeight - .45;
+/** A flash that rises quickly and fades out more slowly (the world or the results emerge through it). */
+const flashAt = (t: number, peak: number, rise: number, fade: number) => Math.exp(-(((t - peak) / (t < peak ? rise : fade)) ** 2)) * 1.2;
 /** Launch warp: seconds from arrival to the clear world, and to the flash's peak (when the flight starts). */
 export const ARRIVE = .95, ARRIVE_FLASH = .14;
 const VEIL_VERTEX = /* glsl */`void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`;
@@ -94,31 +98,34 @@ export function createJumpFx(scene: THREE.Scene) {
         const since = wall - launchAt;
         if (launch === 'arrive' && since >= ARRIVE) launch = 'off';
         else {
-          const out = launch === 'arrive' ? THREE.MathUtils.smoothstep(since, ARRIVE_FLASH * .8, ARRIVE) : 0;
+          const arriving = launch === 'arrive';
+          // The veil lifts from the flash's peak; the streaks are gone under it.
+          const out = arriving ? THREE.MathUtils.smoothstep(since, ARRIVE_FLASH, ARRIVE - .2) : 0;
           veilAmount = 1 - out; cruise = true; dt = wallDt;
           if (!reducedMotion) {
-            intensity = .9 * (1 - out);
-            if (launch === 'arrive') flash = Math.exp(-(((since - ARRIVE_FLASH) / .07) ** 2)) * 1.2;
+            intensity = .9 * (arriving ? 1 - THREE.MathUtils.smoothstep(since, ARRIVE_FLASH - .06, ARRIVE_FLASH + .02) : 1);
+            if (arriving) flash = flashAt(since, ARRIVE_FLASH, .07, .16);
           }
         }
       }
       if (jump) {
         const q = THREE.MathUtils.clamp((state.time - jump.startedAt) / jump.duration, 0, 1);
         wasJumping = true; lift = 0;
-        // Into deep space over the first third, out after the flash (or held while assets finish). A victory warp
-        // has nowhere to land: it deepens to opaque space instead and keeps cruising.
-        const into = THREE.MathUtils.smoothstep(q, .06, .38), out = terminal ? 0 : ready ? THREE.MathUtils.smoothstep(q, .62, 1) : 0;
+        // Into deep space over the first third; the flash at the midpoint ends the streaks and fades straight into the new
+        // world as the veil lifts (or the veil holds while assets finish). A victory warp has nowhere to land: under the
+        // flash its veil turns to opaque space, behind the results.
+        const into = THREE.MathUtils.smoothstep(q, .06, .38), out = terminal ? 0 : ready ? THREE.MathUtils.smoothstep(q, .5, .78) : 0;
         veilAmount = (reducedMotion ? .96 : .88) * into * (1 - out);
-        if (terminal) veilAmount += (1 - veilAmount) * THREE.MathUtils.smoothstep(q, .5, .85);
+        if (terminal) veilAmount += (1 - veilAmount) * THREE.MathUtils.smoothstep(q, .44, .52);
         if (!reducedMotion) {
-          flash = Math.exp(-(((q - .5) / .045) ** 2)) * 1.2;
-          intensity = terminal ? (q < .5 ? Math.sin(Math.PI * q) : Math.max(.6, Math.sin(Math.PI * q))) : Math.sin(Math.PI * q) * (1 - out * .7);
+          flash = flashAt(q, .5, .045, .09);
+          intensity = Math.sin(Math.PI * q) * (1 - THREE.MathUtils.smoothstep(q, .46, .52));
         }
         if (terminal && dt === 0) dt = wallDt;
-        if (!ready && q >= .62) holdStart = Math.min(holdStart === -Infinity ? state.time : holdStart, state.time);
+        if (!ready && q >= .5) holdStart = Math.min(holdStart === -Infinity ? state.time : holdStart, state.time);
       } else if (wasJumping) {
         // After the sim's jump ends: keep the veil until the new planet is ready (bounded), then lift it.
-        if (!ready && holdStart > -Infinity && state.time - holdStart < MAX_HOLD) { veilAmount = reducedMotion ? .96 : .88; intensity = reducedMotion ? 0 : .35; }
+        if (!ready && holdStart > -Infinity && state.time - holdStart < MAX_HOLD) veilAmount = reducedMotion ? .96 : .88;
         else {
           lift = Math.min(1, lift + dt / .6);
           veilAmount = (reducedMotion ? .96 : .88) * (1 - lift) * (holdStart > -Infinity ? 1 : 0);

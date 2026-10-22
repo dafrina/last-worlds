@@ -4,9 +4,17 @@ import { FORMATIONS, type FormationTemplate, type Keyframe } from '../content/fo
 import { VIEW, type BossId, type BossState, type Enemy, type FormationMember, type RunState } from '../shared/contracts';
 import { toFlightPlane } from '../shared/lens';
 
-/** Linear keyframe interpolation; past the last keyframe the final segment continues (the exit). */
-export function keyframeAt(path: readonly Keyframe[], t: number): { x: number; s: number } {
-  if (t <= path[0][0]) return { x: path[0][1], s: path[0][2] };
+/**
+ * Linear keyframe interpolation; past the last keyframe the final segment continues (the exit). Before the first keyframe
+ * a path holds its entry point (a lagged member waiting to enter), or with `before` continues its first segment backwards
+ * (a ground formation spawned ahead of its authored time, src/sim/game.ts).
+ */
+export function keyframeAt(path: readonly Keyframe[], t: number, before = false): { x: number; s: number } {
+  if (t <= path[0][0] && !(before && t < path[0][0])) return { x: path[0][1], s: path[0][2] };
+  if (t < path[0][0]) {
+    const [t0, x0, s0] = path[0], [t1, x1, s1] = path[1], u = (t - t0) / (t1 - t0);
+    return { x: x0 + (x1 - x0) * u, s: s0 + (s1 - s0) * u };
+  }
   let i = 1;
   while (i < path.length - 1 && t > path[i][0]) i += 1;
   const [t0, x0, s0] = path[i - 1];
@@ -31,7 +39,8 @@ export function memberPosition(member: FormationMember, age: number): { x: numbe
   const slot = template.slots[member.slot];
   const t = age - (slot.lag ?? 0);
   const side = member.mirror * (slot.flip ? -1 : 1);
-  const point = keyframeAt(template.path, t);
+  // Ground formations ride the terrain: before their authored time they are further along the same track.
+  const point = keyframeAt(template.path, t, template.entry === 'ground');
   let swayX = 0;
   let swayS = 0;
   if (template.sway && t > 0) {

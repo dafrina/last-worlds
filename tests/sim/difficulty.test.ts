@@ -10,6 +10,7 @@ import { dodgerPilot, fly, hunterPilot, idlePilot, perfectPilot, type Pilot } fr
  * playtests remain the release gate.
  */
 const OFFSETS = [-1.5, -0.5, 0, 0.5, 1.5];
+const FIRE_SEEDS = [50, 51, 52, 53, 54, 55, 56, 57, 58, 59];
 const SECTORS_1_TO_3 = 3 * BALANCE.sectorDuration;
 
 function median(values: number[]): number {
@@ -77,11 +78,15 @@ describe('difficulty bots', () => {
 
   it('Relaxed, Standard and Veteran apply clearly different pressure in the same authored sortie', () => {
     const pressure = (difficulty: Difficulty) => {
-      // Fire faced by a pilot who is never hit (no respawn pauses) and clears squadrons like a strong player.
-      const strong = createRun({ mode: 'campaign', mission: 'training', difficulty, seed: 53 });
-      const shots = new Set<number>();
-      const clean = fly(strong, perfectPilot(), 120, { noPickups: true, onTick: s => { for (const shot of s.projectiles) if (!shot.friendly) shots.add(shot.id); } });
-      expect(clean.hits).toBe(0);
+      // Fire faced by a pilot who is never hit (no respawn pauses) and clears squadrons like a strong player, averaged over
+      // ten seeds: on one seed the Veteran/Standard ratio alone ranges 1.11-1.51 with where the batteries happen to land.
+      const fire = FIRE_SEEDS.map(seed => {
+        const strong = createRun({ mode: 'campaign', mission: 'training', difficulty, seed });
+        const shots = new Set<number>();
+        const clean = fly(strong, perfectPilot(), 120, { noPickups: true, onTick: s => { for (const shot of s.projectiles) if (!shot.friendly) shots.add(shot.id); } });
+        if (seed === 53) expect(clean.hits).toBe(0);
+        return shots.size / 2;
+      });
       // Hits taken per minute by the mid-skill hunter with lives to spare (settings have different life counts).
       const hits = OFFSETS.map(x => {
         const state = createRun({ mode: 'campaign', mission: 'training', difficulty, seed: 53 });
@@ -90,7 +95,7 @@ describe('difficulty bots', () => {
         return fly(state, hunterPilot(), 120).hits / 2;
       });
       const runs = spread({ mode: 'campaign', mission: 'training', difficulty, seed: 53 }, hunterPilot, 120);
-      return { shotsPerMinute: shots.size / 2, hitsPerMinute: median(hits), livesLost: median(runs.map(run => run.log.livesLost)) };
+      return { shotsPerMinute: fire.reduce((sum, value) => sum + value, 0) / fire.length, hitsPerMinute: median(hits), livesLost: median(runs.map(run => run.log.livesLost)) };
     };
     const relaxed = pressure('relaxed');
     const standard = pressure('standard');
@@ -103,5 +108,5 @@ describe('difficulty bots', () => {
     expect(standard.livesLost).toBeGreaterThanOrEqual(1);
     expect(standard.hitsPerMinute).toBeGreaterThan(relaxed.hitsPerMinute * 1.1);
     expect(veteran.hitsPerMinute).toBeGreaterThanOrEqual(standard.hitsPerMinute * 0.85);
-  });
+    }, 120000);
 });

@@ -174,6 +174,9 @@ export function createTerrainView(options: TerrainViewOptions) {
   const stats: TerrainStats = { calls: 0, triangles: 0, instances: 0, haulers: 0, kit: kitSource, infra: infraSource, shared: sharedSource };
   let distance = 0, origin = 0, lastCameraX = NaN, lastDistance = NaN, dirty = true;
   const lastFootprint: ViewFootprint = { minX: -VIEW.width / 2, maxX: VIEW.width / 2, minS: VIEW.minS, maxS: VIEW.maxS };
+  /** Inside the camera's ground footprint (x, s from the player row) with a margin: drifting ice, haulers and vents. */
+  const inView = (x: number, s: number, margin: number) => x > lastFootprint.minX - margin && x < lastFootprint.maxX + margin
+    && s > lastFootprint.minS - margin && s < lastFootprint.maxS + margin;
   /** Applied exclusion (grown by the slack), or null: hidden scenery under e.g. a boss fortress. */
   let exclusion: TerrainExclusion | null = null, requested: TerrainExclusion | null = null;
   let facilityClearings: readonly TerrainExclusion[] = [];
@@ -831,7 +834,7 @@ export function createTerrainView(options: TerrainViewOptions) {
           const segX = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), segS = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1), segL = Math.hypot(segX, segS) || 1;
           const lane = HAULER_LANE * THREE.MathUtils.smoothstep(Math.min(along, total - along), 0, 1.5);
           const x = road.x[i] + (road.x[i + 1] - road.x[i]) * f + segS / segL * lane, s = road.s[i] + (road.s[i + 1] - road.s[i]) * f - segX / segL * lane;
-          if (Math.abs(x - cameraX) > 7.5 || s - distance < -9 || s - distance > 30) continue;
+          if (!inView(x, s - distance, 1.5)) continue;
           if (exclusion && x > exclusion.minX && x < exclusion.maxX && s > exclusion.minS && s < exclusion.maxS) continue;
           const y = road.y[i] + (road.y[i + 1] - road.y[i]) * f;
           const dx = (road.x[i + 1] - road.x[i]) * (forward ? 1 : -1), ds = (road.s[i + 1] - road.s[i]) * (forward ? 1 : -1);
@@ -867,7 +870,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       // Pack ice drifts slowly around its base position (seed + time only; never collision or targets).
       const visible = new Map<string, Floe[]>(), seaOf = new Map<Floe, number>();
       for (const view of views.values()) for (const floe of view.floes) {
-        if (Math.abs(floe.x - cameraX) > 8.6 || floe.s - distance < -9 || floe.s - distance > 30) continue;
+        if (!inView(floe.x, floe.s - distance, 2.6)) continue;
         if (exclusion && floe.x > exclusion.minX && floe.x < exclusion.maxX && floe.s > exclusion.minS && floe.s < exclusion.maxS) continue;
         const name = kitNodeName(floe.kind, floe.variant), list = visible.get(name) ?? [];
         list.push(floe); visible.set(name, list); seaOf.set(floe, view.sea);
@@ -902,7 +905,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       // Vent tops near the view (steam), skipping any exclusion like the instances themselves.
       ventUsed = 0;
       for (const view of views.values()) for (const vent of view.vents) {
-        if (Math.abs(vent.x - cameraX) > VIEW.width / 2 + 1 || vent.s - distance < -9 || vent.s - distance > 30) continue;
+        if (!inView(vent.x, vent.s - distance, 1)) continue;
         if (exclusion && vent.x > exclusion.minX && vent.x < exclusion.maxX && vent.s > exclusion.minS && vent.s < exclusion.maxS) continue;
         const feature = ventFeatures[ventUsed] ??= { x: 0, y: 0, z: 0 };
         feature.x = vent.x; feature.y = vent.y; feature.z = distance - vent.s; ventUsed++;

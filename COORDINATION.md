@@ -271,3 +271,11 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - fairness trace and test-pilot updates.
 - **Checks:** typecheck clean, unit tests 402/402, build passes, browser 35/35. No phone test.
 - **Design change, recorded in docs/08:** gameplay now reads the terrain height under ground enemies.
+
+**2026-10-22 · Claude Code · ground formations ahead of their cue, warp flash: deployed:**
+- **Changes:**
+  - ground formations spawn up to 7 units ahead on their track, unhittable until their cue (`leadGround`), admitted with their actual timing;
+  - floes, haulers and vents use the view footprint;
+  - the warp flash ends the streaks, and the victory results arrive at the flash.
+- **Checks:** typecheck clean, unit tests 405/405, build passes, browser 35/35. No phone test.
+- **For review (docs/08):** two re-scoped tests; Relaxed is about 15% hotter for a strong pilot.

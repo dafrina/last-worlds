@@ -20,18 +20,22 @@ export function bossShotScale(state: RunState): number {
  * Spawns every member of a squadron template that flies at the scale's rank, as one group. `anchorS` shifts
  * the template's forward keyframes (launches from a moving boss bay).
  */
-export function spawnMembers(state: RunState, formation: FormationId, anchorX: number, mirror: 1 | -1, anchorS?: number, scale: DifficultyScale = runScale(state)): void {
+export function spawnMembers(state: RunState, formation: FormationId, anchorX: number, mirror: 1 | -1, anchorS?: number, scale: DifficultyScale = runScale(state),
+  /** Starting age: negative for a ground formation spawned ahead of its authored time (further along its track). */
+  age = 0): void {
   const template = FORMATIONS[formation];
   const group = state.nextId;
   template.slots.forEach((slot, index) => {
     if (!slotFlies(slot, scale.rank)) return;
     const member: FormationMember = { template: template.id, slot: index, anchorX, mirror, group, ...(anchorS !== undefined ? { anchorS } : {}) };
-    const at = memberPosition(member, 0);
+    const at = memberPosition(member, age);
     const hp = ENEMIES[slot.kind].hp * scale.hp;
     const enemy = {
       id: state.nextId++, kind: slot.kind, x: at.x, s: at.s, originX: anchorX, hp, maxHp: hp,
-      radius: ENEMIES[slot.kind].radius, age: 0, nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
+      radius: ENEMIES[slot.kind].radius, age, nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
       warning: 0, aimX: at.x, groundHeight: groundHeight(slot.kind), formation: member,
+      // Spawned ahead of its time it is still beyond the top edge: shots cannot hit it until its authored entry.
+      ...(age < 0 ? { damageable: false } : {}),
     };
     // Ground enemies stand on the terrain, seen through the release lens (src/sim/ground.ts).
     anchorGround(state, enemy);

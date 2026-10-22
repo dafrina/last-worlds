@@ -227,9 +227,10 @@ button:disabled { cursor: default; }
 .flight-overlay.is-ending.is-settled { pointer-events: auto; }
 .flight-overlay.is-ending .results-panel { animation: ending-rise .9s cubic-bezier(.2, .7, .2, 1) 1.45s both; }
 .flight-overlay.is-ending .results-panel h2 { animation: ending-title 1.6s ease-out 1.4s both; }
-.flight-overlay.is-ending.is-victory { animation-delay: 2.15s; }
-.flight-overlay.is-ending.is-victory .results-panel { animation-delay: 2.35s; }
-.flight-overlay.is-ending.is-victory .results-panel h2 { animation-delay: 2.3s; }
+/* Victory: the results arrive as the warp's flash (1.5 s) fades (user, 22 October), with no streaks between them. */
+.flight-overlay.is-ending.is-victory { animation-delay: 1.5s; animation-duration: .7s; }
+.flight-overlay.is-ending.is-victory .results-panel { animation-delay: 1.65s; }
+.flight-overlay.is-ending.is-victory .results-panel h2 { animation-delay: 1.6s; }
 @keyframes ending-veil { from { background-color: #08142600; } to { background-color: #081426f7; } }
 @keyframes ending-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @keyframes ending-title { from { letter-spacing: 6px; opacity: 0; } to { letter-spacing: -1.6px; opacity: 1; } }
@@ -285,7 +286,7 @@ button:disabled { cursor: default; }
 .loadout-line { margin: 2px 0 14px; color: #7f97b1; font: 8px / 1.6 var(--mono); letter-spacing: .8px; text-align: center; }
 @keyframes planet-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
 @keyframes gentle-hint { 0%, 100% { opacity: .9; } 50% { opacity: .3; } }
-@media (prefers-reduced-motion: reduce) { .planet-stage.is-switching .planet-preview { animation: none; } .flight-overlay.is-ending .results-panel, .flight-overlay.is-ending .results-panel h2 { animation: ending-fade .8s ease-out 1.2s both; } .flight-overlay.is-ending.is-victory .results-panel, .flight-overlay.is-ending.is-victory .results-panel h2 { animation-delay: 2.3s; } .special-button.is-ready { animation: none; box-shadow: inset 0 0 0 1px #acc2d633, 0 0 16px 3px #7fd8ff99; } .steering-hints { animation: none; } .arcade-button:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .planet-stage.is-switching .planet-preview { animation: none; } .flight-overlay.is-ending .results-panel, .flight-overlay.is-ending .results-panel h2 { animation: ending-fade .8s ease-out 1.2s both; } .flight-overlay.is-ending.is-victory .results-panel, .flight-overlay.is-ending.is-victory .results-panel h2 { animation-delay: 1.6s; } .special-button.is-ready { animation: none; box-shadow: inset 0 0 0 1px #acc2d633, 0 0 16px 3px #7fd8ff99; } .steering-hints { animation: none; } .arcade-button:active { transform: none; } }
 @media (max-width: 980px) { .flight-rail { display: none; } }
 /* Phones use the full live viewport. Wider touch devices keep a portrait playfield, full height. */
 @media (max-width: 600px), (max-height: 560px), (pointer: coarse) {

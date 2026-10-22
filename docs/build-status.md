@@ -1,5 +1,25 @@
 # Build status
 
+## Ground formations come into view ahead of their cue; the warp flash ends the streaks, 22 October 2026
+
+User:
+- "Facilities, turrets, tanks and even ice shelves pop in too late still on iPhone Air";
+- "After the white flash the animation briefly stays visible which looks wonky. I think the white flash should fade into the result screen or into the game without the sliding stars visible again first".
+
+- **Ice floes, haulers and vents (`src/render/terrain-view.ts`):** their draw ranges still used fixed orthographic numbers; they now use the camera's ground footprint like the rest of the scenery.
+- **Ground formations spawn ahead (`src/sim/game.ts` `leadGround`, `src/sim/motion.ts`, `src/sim/spawn.ts`, `src/sim/airspace.ts`):**
+  - Cause: under the lens a battery's compound reaches up to 5 units toward the player from its gun, so at spawn it was already inside the top of the screen (rows 16.4-18.2 against the edge at 19.8); over deep ground the gun itself was at the edge.
+  - A cue's ground formations now spawn up to 7 units further along their own track (1.4 s early at the nominal scroll), with a negative age, so they reach their authored entry exactly at the cue time. Until then they cannot be hit (player shots fly on to s = 35) and cannot fire.
+  - The whole cue is admitted early with its actual timing (ground members at their real age, the rest delayed to its time); the rest spawns at the cue time.
+  - With a still camera a run is tick-for-tick identical to before (only the enemy list order differs). The gameplay difference is the lateral anchor of view-anchored ground formations, taken 1.4 s earlier. See docs/08 for the measured effects.
+- **Warp flash (`src/render/fx-jump.ts`, `src/ui/styles.css`):** the streaks fade out under the flash's peak and never return; the flash rises quickly and fades more slowly. A planet jump's veil lifts from the flash (gone by q 0.78), the launch warp's from its flash, and the victory warp's veil turns opaque under the flash while the results arrive at 1.5 s (was 2.15 s). Holding for a slow destination shows the veil without streaks.
+- **Tests:**
+  - New: ground formations spawn ahead beyond the top edge, cannot be hit early, and have the authored age at the cue (`tests/sim/ground-lens.test.ts`).
+  - Re-scoped (docs/08): the difficulty test averages strong-pilot fire over ten seeds; Rolling Thunder Standard with fan or seeker flies seed 54, and seed 53 gets a fairness test (one fair hit at the world edge).
+  - Found, not changed: on Rolling Thunder seed 54 with fan, the trace flags the boss's 5-shot overload fan for touching both edge strips and the centre (gaps about 3 units, above the 1.74 minimum). That is pre-existing boss content; the run takes no hit.
+- **Visual evidence (look-dev, 420x912, the iPhone Air viewport):** step sequences in Training, Cold Vector and Deep Bloom show compounds, batteries and floes entering from the top edge (`docs/screenshots/terrain/air-ground-lead.jpg`). Frozen frames of a real endless jump (Luna to Khepri) show streaks until the flash, white at 6.0 s, and the white fading straight into Khepri by 6.5 s (`docs/screenshots/warp/flash-into-world.jpg`).
+- **Checks:** typecheck clean; unit tests 405/405; build passes; browser 35/35. No phone test: the iPhone Air result is unverified on hardware.
+
 ## Ground enemies through the lens, no scenery pop-in, 22 October 2026
 
 User:

@@ -104,6 +104,8 @@ export interface RunState {
   projectiles: Projectile[]; hazards: Hazard[]; pickups: Pickup[]; effects: Effect[];
   score: number; kills: number; credits: number; livesLost: number; specialsUsed: number;
   nextId: number; nextVolleyAt: number; nextEncounterAt: number; encounterIndex: number;
+  /** The cue (sector, index) whose ground formations already spawned ahead of its time (src/sim/game.ts, leadGround). */
+  groundLead?: { sector: number; index: number } | null;
   lootRng: number; chargeKillTimes: number[]; message: string; messageUntil: number;
   boss: BossState | null;
   /** Needle beam rest bookkeeping (difficulty `beamRest`): start of the current continuous beam run, last beam moment, rest end. */

@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { configureCamera } from '../../src/render/scene';
 import { LENS_FOLLOW, LENS_FOV, fromFlightPlane, toFlightPlane } from '../../src/shared/lens';
-import { VIEW } from '../../src/shared/contracts';
+import { EMPTY_INPUT, STEP, VIEW } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
 import { spawnMembers } from '../../src/sim/spawn';
+import { memberPosition, trackAfter } from '../../src/sim/motion';
 import { groundSeat, runRoute } from '../../src/world/run-route';
 
 /** The release camera exactly as the renderer builds it, for a simulation camera x. */
@@ -52,6 +53,33 @@ describe('ground enemies under the release lens (21 October)', () => {
           expect(enemy.x).toBeCloseTo(seen.x, 9); expect(enemy.s).toBeCloseTo(seen.s, 9);
         }
       }
+    }
+  });
+
+  it('spawns ground formations ahead, beyond the top edge, so they reach their authored entry at the cue time (22 October)', () => {
+    const state = createRun({ mode: 'campaign', mission: 'training', seed: 53 });
+    state.player.invulnerableUntil = Infinity;
+    let led: number[] = [], due = 0;
+    while (!led.length && state.time < 60) {
+      stepRun(state, EMPTY_INPUT);
+      led = state.enemies.filter(enemy => enemy.ground && enemy.age < 0).map(enemy => enemy.id);
+      due = state.nextEncounterAt;
+    }
+    expect(led.length).toBeGreaterThan(0);
+    // Ahead of its time a member is beyond the top edge and cannot be hit (shots fly on past the edge).
+    for (const enemy of state.enemies.filter(enemy => led.includes(enemy.id))) {
+      expect(enemy.s).toBeGreaterThan(VIEW.maxS);
+      expect(enemy.damageable).toBe(false);
+    }
+    while (state.time + 1e-9 < due) stepRun(state, EMPTY_INPUT);
+    const members = state.enemies.filter(enemy => led.includes(enemy.id));
+    expect(members.length).toBe(led.length);
+    for (const enemy of members) {
+      // After the cue's tick: exactly as old as a member spawned at the cue (one tick), on the same track, and a target.
+      expect(enemy.age).toBeCloseTo(STEP, 9);
+      const track = trackAfter(enemy, 0), entry = memberPosition(enemy.formation!, STEP);
+      expect(track.x).toBeCloseTo(entry.x, 9); expect(track.s).toBeCloseTo(entry.s, 9);
+      expect(enemy.damageable).toBeUndefined();
     }
   });
 });

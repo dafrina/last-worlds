@@ -535,7 +535,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       overlay.classList.add('is-ending');
       overlay.classList.toggle('is-victory', state.phase === 'complete');
       if (endingTimer !== null) clearTimeout(endingTimer);
-      endingTimer = setTimeout(() => { endingTimer = null; overlay.classList.add('is-settled'); }, state.phase === 'complete' ? 2600 : 1500);
+      endingTimer = setTimeout(() => { endingTimer = null; overlay.classList.add('is-settled'); }, state.phase === 'complete' ? 2300 : 1500);
     }
   }
 

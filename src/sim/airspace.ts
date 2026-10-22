@@ -22,20 +22,26 @@ export function resolveAnchor(state: Pick<RunState, 'cameraX'>, placement: Forma
   return placement.anchor === 'world' ? placement.x ?? 0 : clamp(state.cameraX + (placement.x ?? 0), -ANCHOR_LIMIT, ANCHOR_LIMIT);
 }
 
-export interface PlannedMember { member: FormationMember; kind: EnemyKind }
+/**
+ * A member a cue would spawn. `age` is its starting age (negative for a ground formation spawned ahead of its time) and
+ * `delay` the seconds until it spawns (the air part of a cue whose ground formations spawn ahead).
+ */
+export interface PlannedMember { member: FormationMember; kind: EnemyKind; age?: number; delay?: number }
 
-/** Members a list of placements would spawn now. Planned groups get negative ids until they spawn. */
-export function plannedMembers(state: RunState, placements: readonly FormationPlacement[], rank: FormationRank): PlannedMember[] {
+/** Members a list of placements would spawn now (or as `timing` says). Planned groups get negative ids until they spawn. */
+export function plannedMembers(state: RunState, placements: readonly FormationPlacement[], rank: FormationRank,
+  timing?: (placement: FormationPlacement) => { age: number; delay: number }): PlannedMember[] {
   return placements.flatMap((placement, index) => {
     const template = FORMATIONS[placement.formation];
-    const anchorX = resolveAnchor(state, placement);
+    const anchorX = resolveAnchor(state, placement), when = timing?.(placement);
     return template.slots.flatMap((slot, slotIndex) => slotFlies(slot, rank)
-      ? [{ kind: slot.kind, member: { template: template.id, slot: slotIndex, anchorX, mirror: placement.mirror ? -1 as const : 1 as const, group: -1 - index } }]
+      ? [{ kind: slot.kind, member: { template: template.id, slot: slotIndex, anchorX, mirror: placement.mirror ? -1 as const : 1 as const, group: -1 - index }, ...when }]
       : []);
   });
 }
 
-interface Track { group: number; air: boolean; radius: number; at(t: number): { x: number; s: number } }
+/** A track's position `t` seconds ahead, or null while it has not spawned yet. */
+interface Track { group: number; air: boolean; radius: number; at(t: number): { x: number; s: number } | null }
 
 /** The visible band plus a margin: squadrons still above the view (entering or leaving) cannot be seen to overlap. */
 const inAirspace = (s: number) => s > VIEW.minS && s < VIEW.maxS + 1.5;
@@ -46,7 +52,7 @@ function sample(tracks: readonly Track[], t: number): Map<number, GroupSample> {
   const groups = new Map<number, GroupSample>();
   for (const track of tracks) {
     const p = track.at(t);
-    if (!inAirspace(p.s)) continue;
+    if (!p || !inAirspace(p.s)) continue;
     let g = groups.get(track.group);
     if (!g) { g = { air: track.air, x0: Infinity, x1: -Infinity, s0: Infinity, s1: -Infinity, points: [] }; groups.set(track.group, g); }
     g.x0 = Math.min(g.x0, p.x - track.radius); g.x1 = Math.max(g.x1, p.x + track.radius);
@@ -92,9 +98,9 @@ export function airspaceClear(state: RunState, planned: readonly PlannedMember[]
     const rate = enemyClockRate(state, enemy);
     return { group: enemy.formation!.group, air: !GROUND_KINDS.has(enemy.kind), radius: enemy.radius, at: (t: number) => t === 0 ? { x: enemy.x, s: enemy.s } : positionAfter(enemy, t, rate) };
   });
-  const fresh: Track[] = planned.map(({ member, kind }) => {
+  const fresh: Track[] = planned.map(({ member, kind, age = 0, delay = 0 }) => {
     const rate = GROUND_KINDS.has(kind) ? state.scrollSpeed / VIEW.scrollSpeed : airClockRate(state);
-    return { group: member.group, air: !GROUND_KINDS.has(kind), radius: ENEMIES[kind].radius, at: (t: number) => memberPosition(member, t * rate) };
+    return { group: member.group, air: !GROUND_KINDS.has(kind), radius: ENEMIES[kind].radius, at: (t: number) => t + 1e-9 < delay ? null : memberPosition(member, age + (t - delay) * rate) };
   });
   const freshGroups = new Set(fresh.map(track => track.group));
   const tracks = live.concat(fresh);

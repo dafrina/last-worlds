@@ -9,6 +9,7 @@ import { REACTOR_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, W
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
+import { FORMATIONS } from '../content/formations';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
 import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
@@ -163,6 +164,7 @@ function updateDirector(state: RunState): void {
   const cues = endless ? endlessPlaylist(state.sector) : campaignPlaylist(state.config.mission ?? 'training');
   const start = endless ? state.sectorStartedAt : 0;
   const cue = cues[state.encounterIndex];
+  if (cue) leadGround(state, cue);
   if (!cue || state.time + 1e-8 < state.nextEncounterAt) return;
   // Two-flank entries are announced first; a stale or overwritten alert is shown again in full.
   const alert = cueAlert(cue);
@@ -174,16 +176,52 @@ function updateDirector(state: RunState): void {
   // Admit a complete authored group; never silently trim its composition. Surviving enemies count against
   // the live threat budget and the entity ceiling, so a late group waits instead of stacking.
   const scale = scales(state);
+  // A cue whose ground formations already spawned ahead (leadGround) admits and spawns the rest of it now.
+  const led = state.groundLead?.sector === state.sector && state.groundLead.index === state.encounterIndex;
+  const rest: EncounterCue = led ? { ...cue, formations: cue.formations.filter(placement => !isGround(placement)) } : cue;
+  if (!admits(state, rest, scale)) return;
+  spawnCue(state, rest, scale);
+  state.encounterIndex += 1;
+  state.nextEncounterAt = cues[state.encounterIndex] ? start + cues[state.encounterIndex].at : Infinity;
+}
+
+/**
+ * Admit a complete authored group: the live threat budget, the entity ceiling and a clear airspace. `timing` predicts
+ * a cue whose ground formations spawn ahead (leadGround) as it will actually fly.
+ */
+function admits(state: RunState, cue: EncounterCue, scale: DifficultyScale, timing?: (placement: FormationPlacement) => { age: number; delay: number }): boolean {
   const roster = cueRoster(cue, scale.rank);
   const alive = state.enemies.filter(enemy => enemy.hp > 0 && !enemy.bossPart);
   const liveThreat = alive.reduce((sum, enemy) => sum + THREAT_COST[enemy.kind], 0);
   const cueThreat = roster.reduce((sum, kind) => sum + THREAT_COST[kind], 0);
-  if (alive.length + roster.length > BALANCE.maxEnemies || liveThreat + cueThreat > scale.threatBudget) return;
+  if (alive.length + roster.length > BALANCE.maxEnemies || liveThreat + cueThreat > scale.threatBudget) return false;
   // Squadrons never overlap: the cue waits until its airspace is clear.
-  if (!airspaceClear(state, plannedMembers(state, cue.formations, scale.rank))) return;
-  spawnCue(state, cue, scale);
-  state.encounterIndex += 1;
-  state.nextEncounterAt = cues[state.encounterIndex] ? start + cues[state.encounterIndex].at : Infinity;
+  return airspaceClear(state, plannedMembers(state, cue.formations, scale.rank, timing));
+}
+
+/**
+ * Ground formations spawn ahead (22 October): up to GROUND_LEAD units further along their own track than their authored
+ * entry, so under the release lens a battery and its compound come into view from beyond the top edge instead of
+ * appearing inside it. Their starting age puts them exactly at the authored entry at the cue's time, so everything on
+ * screen keeps the authored timing; they cannot fire earlier (their firing windows are in the same age). The whole cue
+ * is admitted now; the rest of it spawns at its time. A cue with an entry alert, one that is already due, or one that
+ * is not admitted now spawns as before.
+ */
+const GROUND_LEAD = 7;
+const isGround = (placement: FormationPlacement) => FORMATIONS[placement.formation].entry === 'ground';
+function leadGround(state: RunState, cue: EncounterCue): void {
+  if (state.groundLead?.sector === state.sector && state.groundLead.index === state.encounterIndex) return;
+  const ground = cue.formations.filter(isGround);
+  if (!ground.length || cueAlert(cue) || state.scrollSpeed <= 0.5) return;
+  const early = state.nextEncounterAt - state.time;
+  if (early <= 1e-8 || early > GROUND_LEAD / state.scrollSpeed) return;
+  // The clock ground members run on: the scroll's share of the nominal speed (src/sim/motion.ts, enemyClockRate).
+  const age = -early * state.scrollSpeed / VIEW.scrollSpeed, scale = scales(state);
+  // The whole cue must be admitted as it will fly: the ground formations from now, further along their track, and the
+  // rest of it from its time.
+  if (!admits(state, cue, scale, placement => isGround(placement) ? { age, delay: 0 } : { age: 0, delay: early })) return;
+  for (const placement of ground) spawnMembers(state, placement.formation, resolveAnchor(state, placement), placement.mirror ? -1 : 1, undefined, scale, age);
+  state.groundLead = { sector: state.sector, index: state.encounterIndex };
 }
 
 function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): void {
@@ -250,6 +288,8 @@ function updateEnemies(state: RunState, dt: number): void {
     advanceEnemy(enemy, dt, enemyClockRate(state, enemy));
     // A ground enemy's anchor rides the terrain; its gameplay position is the anchor seen through the lens.
     projectGround(state, enemy);
+    // A ground formation spawned ahead (leadGround) becomes a target at its authored entry.
+    if (enemy.damageable === false && enemy.age > -1e-6) delete enemy.damageable;
     // Fuel skids are harmless loot: they ride the terrain and never wind up.
     if (enemy.kind === 'fuel') continue;
     if (!canAttack(state, enemy)) {
