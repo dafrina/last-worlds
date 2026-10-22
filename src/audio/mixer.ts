@@ -24,6 +24,8 @@ export class AudioMixer {
   private voices: Voice[] = [];
   private cooldown = new Map<Sound, number>();
   private music: GainNode;
+  private boss: GainNode;
+  private bossFade = { from: 0, target: 0, start: 0, end: 0 };
   private effects: GainNode;
   private duck: GainNode;
   private gate: GainNode;
@@ -40,6 +42,7 @@ export class AudioMixer {
     this.settings = { ...settings };
     const gain = (level: number) => { const node = context.createGain(); node.gain.value = level; this.nodes.push(node); return node; };
     this.music = gain(settings.music * .72); this.effects = gain(settings.effects);
+    this.boss = gain(0); this.boss.connect(this.music);
     this.duck = gain(1); this.gate = gain(0);
     const highpass = context.createBiquadFilter();
     highpass.type = 'highpass'; highpass.frequency.value = 32; highpass.Q.value = .5;
@@ -110,6 +113,19 @@ export class AudioMixer {
     this.ramp(this.gate.gain, active && !this.settings.muted ? .85 : 0, active ? .06 : .006);
     if (!active) this.stop();
   }
+  bossMixAt(at = this.context.currentTime) {
+    const { from, target, start, end } = this.bossFade;
+    const progress = end <= start ? 1 : Math.min(1, Math.max(0, (at - start) / (end - start)));
+    return from + (target - from) * progress;
+  }
+  bossActiveAt(at: number) { return this.bossFade.target > 0 || this.bossMixAt(at) > 0; }
+  setBossIntensity(intensity: number, seconds: number, at = this.context.currentTime) {
+    const from = this.bossMixAt(at), target = intensity >= 2 ? 1 : intensity > 0 ? .85 : 0;
+    this.boss.gain.cancelAndHoldAtTime(at);
+    if (seconds > 0) this.boss.gain.linearRampToValueAtTime(target, at + seconds);
+    else this.boss.gain.setValueAtTime(target, at);
+    this.bossFade = { from, target, start: at, end: at + Math.max(0, seconds) };
+  }
   private release(voice: Voice) {
     const index = this.voices.indexOf(voice);
     if (index >= 0) this.voices.splice(index, 1);
@@ -120,7 +136,7 @@ export class AudioMixer {
     try { voice.source.stop(at + .018); } catch { /* Already stopped. */ }
     // Disconnect onended; keeping the fade avoids a discontinuity when stealing a voice.
   }
-  private play(id: SampleId, at: number, rate: number, volume: number, pan: number, group: Group, priority: number, wet = 0) {
+  private play(id: SampleId, at: number, rate: number, volume: number, pan: number, group: Group, priority: number, wet = 0, boss = false) {
     if (!this.active || this.settings.muted || this.settings[group] === 0) return;
     this.voices.filter(v => v.end <= this.context.currentTime).forEach(v => this.release(v));
     const pool = this.voices.filter(v => v.group === group && v.end > at);
@@ -133,9 +149,9 @@ export class AudioMixer {
     const source = this.context.createBufferSource(), gain = this.context.createGain(), panner = this.context.createStereoPanner();
     source.buffer = this.buffer(id); source.playbackRate.value = rate;
     gain.gain.value = volume; panner.pan.value = pan;
-    source.connect(gain).connect(panner).connect(group === 'music' ? this.music : this.effects);
+    source.connect(gain).connect(panner).connect(group === 'music' ? boss ? this.boss : this.music : this.effects);
     const voice: Voice = { source, gain, pan: panner, group, priority, end: at + source.buffer.duration / rate };
-    if (wet > 0 && group === 'music') {
+    if (wet > 0 && group === 'music' && !boss) {
       const send = this.context.createGain(); send.gain.value = wet;
       panner.connect(send); send.connect(this.reverb); send.connect(this.delay); voice.send = send;
     }
@@ -154,11 +170,13 @@ export class AudioMixer {
       this.duck.gain.setTargetAtTime(1, at + .22, .26);
     }
   }
-  note(note: Note, at: number) {
+  note(note: Note, at: number, boss = false) {
+    if (boss && !this.bossActiveAt(at)) return;
     const pad = note.instrument === 'pad' || note.instrument === 'bloom-pad';
     const bass = ['bass', 'round-bass', 'saw-bass', 'kick'].includes(note.instrument);
     const base = bass ? 36 : pad ? 48 : 60;
-    this.play(note.instrument, at + (note.offset ?? 0), 2 ** ((note.pitch - base) / 12), note.gain, note.pan, 'music', pad ? 0 : 1, note.wet);
+    // Added rhythm may be thinned under pressure; it must never steal the level's lead or sustained pads.
+    this.play(note.instrument, at + (note.offset ?? 0), 2 ** ((note.pitch - base) / 12), note.gain, note.pan, 'music', boss ? -1 : pad ? 0 : 1, note.wet, boss);
   }
   stopGroup(group: Group) {
     for (const voice of this.voices.filter(v => v.group === group)) this.stopVoice(voice);
@@ -173,6 +191,7 @@ export class AudioMixer {
       voices: this.voices.length, musicVoices: this.voices.filter(v => v.group === 'music').length,
       effectsVoices: this.voices.filter(v => v.group === 'effects').length,
       peakVoices: this.peakVoices, accepted: this.accepted, dropped: this.dropped,
+      bossMix: this.bossMixAt(), bossTarget: this.bossFade.target,
       sampleBytes: [...this.buffers.values()].reduce((n, b) => n + b.length * 4 * b.numberOfChannels, 0),
     };
   }

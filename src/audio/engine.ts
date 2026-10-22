@@ -1,7 +1,7 @@
 import type { PlanetId, RunState } from '../shared/contracts';
 import { SoundObserver } from './events';
 import { AudioMixer, type AudioSettings } from './mixer';
-import { scoreStep, ScoreClock } from './score';
+import { bossStep, scoreStep, ScoreClock, THEMES } from './score';
 
 export const AUDIO_STORAGE_KEY = 'last-worlds.audio.v1';
 export const DEFAULT_AUDIO: Readonly<AudioSettings> = { muted: false, music: .55, effects: .8 };
@@ -23,7 +23,8 @@ export function createGameAudio() {
   function schedule() {
     if (!active || !mixer || context?.state !== 'running' || settings.muted || terminal) return;
     for (const slot of clock.take(context.currentTime, planet)) {
-      for (const note of scoreStep(planet, slot.step, tension)) mixer.note(note, slot.at);
+      for (const note of scoreStep(planet, slot.step)) mixer.note(note, slot.at);
+      if (mixer.bossActiveAt(slot.at)) for (const note of bossStep(planet, slot.step)) mixer.note(note, slot.at, true);
     }
   }
   function halt() {
@@ -80,6 +81,7 @@ export function createGameAudio() {
     start(state: RunState) {
       mixer?.stop(); observer.reset(state);
       planet = state.planet; tension = 0; terminal = false; active = true;
+      mixer?.setBossIntensity(0, 0);
       clearInterval(timer); timer = undefined; clock.reset((context?.currentTime ?? 0) + .035);
       unlock();
     },
@@ -90,9 +92,15 @@ export function createGameAudio() {
         planet = state.planet;
         // Fade existing notes; new tonal centre enters after the jump flash without a doubled beat.
         mixer.stopGroup('music'); clock.reset(context.currentTime + .07);
+        mixer.setBossIntensity(0, 0); tension = 0;
       }
-      tension = !state.boss || state.boss.phase === 'destroyed' ? 0
+      const nextTension = !state.boss || state.boss.phase === 'destroyed' ? 0
         : state.boss.phase === 'overload' || state.boss.phase === 'core' ? 2 : 1;
+      if (nextTension !== tension) {
+        tension = nextTension;
+        // Only the additive stem moves. Neither the score position nor the level fader restarts.
+        mixer.setBossIntensity(tension, 240 / THEMES[planet].bpm);
+      }
       for (const cue of cues) mixer.cue(cue);
       if (state.phase === 'over' || state.phase === 'complete') {
         if (!terminal) {
@@ -106,7 +114,7 @@ export function createGameAudio() {
     },
     pause() { active = false; halt(); },
     resume() { active = true; unlock(); },
-    quit() { active = false; terminal = false; halt(); },
+    quit() { active = false; terminal = false; tension = 0; mixer?.setBossIntensity(0, 0); halt(); },
     diagnostics() {
       let rms = 0;
       if (mixer && context?.state === 'running') {
@@ -115,7 +123,8 @@ export function createGameAudio() {
         for (const n of samples) rms += n * n;
         rms = Math.sqrt(rms / samples.length);
       }
-      return { state: context?.state ?? 'locked', active, planet, tension, terminal, ...settings, rms, ...mixer?.diagnostics() };
+      return { state: context?.state ?? 'locked', active, planet, tension, terminal,
+        scoreStep: clock.step, nextBeatAt: clock.nextAt, ...settings, rms, ...mixer?.diagnostics() };
     },
     dispose() {
       disposed = true; active = false;

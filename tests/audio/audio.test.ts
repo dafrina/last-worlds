@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SoundObserver } from '../../src/audio/events';
 import { sanitizeSettings } from '../../src/audio/engine';
 import { synthesize, SAMPLE_IDS } from '../../src/audio/samples';
-import { ScoreClock, scoreStep, THEMES } from '../../src/audio/score';
+import { ScoreClock, bossStep, scoreStep, THEMES } from '../../src/audio/score';
 import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, type PlanetId } from '../../src/shared/contracts';
 
@@ -62,15 +62,30 @@ describe('authored music and bounded scheduler', () => {
   it('has distinct scores, coherent phrase variation, and stronger boss arrangements', () => {
     const signatures = [];
     for (const planet of Object.keys(THEMES) as PlanetId[]) {
-      const normal = Array.from({ length: 512 }, (_, s) => scoreStep(planet, s, 0));
-      const boss = Array.from({ length: 512 }, (_, s) => scoreStep(planet, s, 2));
-      expect(boss.flat().length).toBeGreaterThan(normal.flat().length);
+      const normal = Array.from({ length: 512 }, (_, s) => scoreStep(planet, s));
+      const stem = Array.from({ length: 512 }, (_, s) => bossStep(planet, s));
+      expect(stem.flat().length).toBeGreaterThan(400);
+      expect(stem.flat().every(n => n.wet === 0 && !['pad', 'bloom-pad', 'piano', 'glass', 'saw-lead'].includes(n.instrument))).toBe(true);
       expect(normal.slice(0, 128)).not.toEqual(normal.slice(128, 256));
       expect(normal.slice(256, 384).flat().length).toBeLessThan(normal.slice(128, 256).flat().length);
       expect(normal.flat().every(n => Number.isFinite(n.pitch) && n.gain > 0 && n.gain <= .5)).toBe(true);
       signatures.push(JSON.stringify(normal));
     }
     expect(new Set(signatures).size).toBe(4);
+  });
+  it('keeps added bass on the level riff and harmony across every chord and phrase', () => {
+    for (const planet of Object.keys(THEMES) as PlanetId[]) {
+      const theme = THEMES[planet];
+      for (let step = 0; step < 512; step++) {
+        const root = theme.root - 12 + theme.chords[Math.floor(step / 32) % 4][0];
+        const riff = theme.bass[step % 16];
+        const bass = bossStep(planet, step).filter(n => n.instrument.endsWith('bass'));
+        for (const n of bass) {
+          expect(n.pitch - root).toBe(riff >= 0 ? riff : step % 4 === 2 ? 12 : 0);
+          expect(n.pan).toBe(0);
+        }
+      }
+    }
   });
   it('schedules ahead, never duplicates notes, and drops missed beats after a stall', () => {
     const clock = new ScoreClock(); clock.reset(.035);

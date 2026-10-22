@@ -39,11 +39,11 @@ export const THEMES: Record<PlanetId, Theme> = {
 };
 
 /** A score step is a sixteenth note. Sparse openings, evolving phrases, a breakdown, then return. */
-export function scoreStep(planet: PlanetId, step: number, tension: number): Note[] {
+export function scoreStep(planet: PlanetId, step: number): Note[] {
   const theme = THEMES[planet], bar = Math.floor(step / 16), beat = step % 16;
   const phrase = Math.floor(bar / 8) % 4, chordIndex = Math.floor(bar / 2) % 4;
   const chord = theme.chords[chordIndex], root = theme.root;
-  const notes: Note[] = [], breakdown = phrase === 2 && tension === 0;
+  const notes: Note[] = [], breakdown = phrase === 2;
   const human = planet === 'luna', bloom = planet === 'nacre', foundry = planet === 'khepri';
   const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = .1) => {
     // Small, authored-feeling timing/velocity inflections, private to music; Vesper retains its approved mix.
@@ -65,10 +65,10 @@ export function scoreStep(planet: PlanetId, step: number, tension: number): Note
   }
   const bass = theme.bass[beat];
   if (bass >= 0 && (!breakdown || beat === 0)) add(foundry ? 'saw-bass' : human || bloom ? 'round-bass' : 'bass',
-    root - 12 + chord[0] + bass, (foundry ? .42 : bloom ? .21 : human ? .28 : .30) + tension * .035);
+    root - 12 + chord[0] + bass, foundry ? .42 : bloom ? .21 : human ? .28 : .30);
   if (theme.kick.includes(beat) && (!breakdown || beat === 0)) add('kick', 36, bloom ? .27 : human ? .34 : .41);
   if (beat === 4 || beat === 12) {
-    if (!breakdown && (bar > 1 || tension > 0)) add(human || bloom ? 'brush' : 'snare',
+    if (!breakdown && bar > 1) add(human || bloom ? 'brush' : 'snare',
       60, foundry ? .20 : bloom ? .075 : .13, 0, human ? .04 : .13);
   }
   if (theme.hats.includes(beat) && !breakdown) {
@@ -78,7 +78,7 @@ export function scoreStep(planet: PlanetId, step: number, tension: number): Note
   // Second half of each phrase answers the lead one octave down, without a constantly repeating top line.
   const index = bar % 4 >= 2 ? (16 - beat) % 16 : beat;
   const melody = theme.melody[index];
-  if (melody >= 0 && (bar % 2 === 0 || phrase === 1 || tension > 0) && (!bloom || beat % 4 === 0)) {
+  if (melody >= 0 && (bar % 2 === 0 || phrase === 1) && (!bloom || beat % 4 === 0)) {
     const transposition = chord[0] + (phrase === 3 ? 12 : 0);
     add(human ? 'piano' : foundry ? 'saw-lead' : bloom ? 'bloom-pad' : 'glass',
       root + melody + transposition, bloom ? .17 : foundry ? .12 : breakdown ? .105 : .14,
@@ -86,12 +86,38 @@ export function scoreStep(planet: PlanetId, step: number, tension: number): Note
   }
   if (planet === 'khepri' && beat % 6 === 3 && !breakdown) add('metal', 56 + chordIndex * 2, .075, -.3, .24);
   if (human && beat === 10 && bar % 2 === 1) add('piano', root + chord[1] + 12, .10, -.15, .14);
-  // Boss pressure adds a low ostinato and denser percussion, preserving the planet's harmonic identity.
-  if (tension > 0 && beat % (tension > 1 ? 2 : 4) === 0) {
-    add(human ? 'brush' : bloom ? 'round-bass' : 'metal', 40 + chord[0],
-      .055 + tension * .015, beat % 4 === 0 ? -.2 : .2, human ? .04 : .18);
-    if (!theme.kick.includes(beat) && beat % 4 === 0) add('kick', 36, .23);
+  return notes;
+}
+
+/** Additive boss stem: same harmony, sixteenths and phrase position as the untouched level score.
+ * Dry, centred low end avoids reverb build-up; no duplicate lead/pad track or second transport. */
+export function bossStep(planet: PlanetId, step: number): Note[] {
+  const theme = THEMES[planet], bar = Math.floor(step / 16), beat = step % 16;
+  const chord = theme.chords[Math.floor(bar / 2) % 4];
+  const human = planet === 'luna', foundry = planet === 'khepri', bloom = planet === 'nacre';
+  const notes: Note[] = [];
+  const add = (instrument: Instrument, pitch: number, gain: number, pan = 0) => {
+    const offset = human ? (beat % 2 ? .014 + .003 * Math.sin(step) : .003 * (1 + Math.sin(step * 1.7))) : 0;
+    notes.push({ instrument, pitch, gain: human ? gain * (.93 + .07 * Math.sin(step * 2.3 + pitch)) : gain,
+      pan, wet: 0, offset });
+  };
+  // Reinforce the existing riff, filling its rests with roots/octaves rather than a competing melody.
+  const riff = theme.bass[beat];
+  if (riff >= 0 || beat % 4 === 0 || (!human && beat % 4 === 2)) {
+    const interval = riff >= 0 ? riff : beat % 4 === 2 ? 12 : 0;
+    add(foundry ? 'saw-bass' : 'round-bass', theme.root - 12 + chord[0] + interval,
+      foundry ? .18 : bloom ? .28 : human ? .20 : .27);
   }
+  // Each world keeps its feel: played backbeat, driving foundry, rolling bloom, spacious half-time ice.
+  const kicks = human ? [0, 6, 8, 14] : foundry ? [0, 4, 8, 12, 14] : bloom ? [0, 6, 8, 11, 14] : [0, 3, 8, 14];
+  const breakdown = Math.floor(bar / 8) % 4 === 2;
+  if (kicks.includes(beat)) add('kick', 36, !breakdown && theme.kick.includes(beat) ? .13 : .32);
+  const backbeat = planet === 'vesper' ? beat === 8 : beat === 4 || beat === 12;
+  if (backbeat) add(human || bloom ? 'brush' : 'snare', 60, bloom ? .16 : human ? .21 : .18);
+  if (beat % 2 === 0) add('hat', beat % 4 === 2 ? 62 : 60, beat % 4 === 2 ? .075 : .035, beat % 4 === 2 ? .22 : -.22);
+  if (foundry && [3, 7, 11, 15].includes(beat)) add('metal', 55 + chord[0], .065, beat < 8 ? -.3 : .3);
+  // Small turnarounds at the end of the existing eight-bar phrases; never change their length.
+  if (bar % 8 === 7 && beat >= 13) add(human || bloom ? 'brush' : 'snare', 58 + (beat - 13), .07 + (beat - 13) * .025, (beat - 14) * .16);
   return notes;
 }
 

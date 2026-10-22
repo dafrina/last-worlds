@@ -17,7 +17,16 @@ try {
       window.__AUDIO_LAB__.renderPreview(theme === 'combat' ? 'nacre' : theme, theme === 'effects' ? 37 : 28, theme === 'combat'), theme);
     await writeFile(path.join(output, `${theme}.wav`), Buffer.from(result.wav, 'base64'));
     metrics[theme] = result.metrics;
-    console.log(theme, JSON.stringify(result.metrics));
+    console.log(theme, JSON.stringify({ peak: result.metrics.peak, rms: result.metrics.rms, clipped: result.metrics.clipped }));
+  }
+  for (const theme of ['luna', 'khepri', 'nacre', 'vesper']) {
+    for (const version of ['boss', 'transition']) {
+      const result = await page.evaluate(async ({ theme, version }) =>
+        window.__AUDIO_LAB__.renderPreview(theme, 34, false, version), { theme, version });
+      await writeFile(path.join(output, `${theme}-${version}.wav`), Buffer.from(result.wav, 'base64'));
+      metrics[`${theme}-${version}`] = result.metrics;
+      console.log(`${theme}-${version}`, JSON.stringify({ peak: result.metrics.peak, rms: result.metrics.rms, clipped: result.metrics.clipped }));
+    }
   }
   await writeFile(path.join(output, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n');
   const tracks = [
@@ -38,10 +47,21 @@ main{max-width:940px;margin:auto;padding:48px 24px}header{margin-bottom:32px}h1{
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
 article{border:1px solid #294052;background:#0d1c2c;padding:24px}h2{font-size:20px;margin:10px 0}
 article p{color:#9eb4c8;font-size:13px;min-height:40px}audio{width:100%;height:40px;color-scheme:dark}
+label{display:block;color:#9eb4c8;font-size:12px;margin-bottom:12px}select{margin-left:8px;background:#14293c;color:#dfebf4;border:1px solid #38536b;padding:8px;font:inherit}
 footer{color:#819bad;font-size:12px;margin-top:28px}
 </style><main><header><span class="eyebrow">LAST WORLDS / AUDIO</span><h1>Sound room</h1>
-<p>Four original planet scores and the new combat sounds. These excerpts use the game's actual audio mixer. Play one at a time to hear the intended balance.</p></header>
-<section class="grid">${tracks.map(([id, planet, title, detail]) => `<article><span class="eyebrow">${planet}</span><h2>${title}</h2><p>${detail}</p><audio controls preload="none" aria-label="${title}" src="${id}.wav"></audio></article>`).join('')}</section>
-<footer>In the game, change Music and Effects in Settings. Music gains intensity during boss fights. Original synthesis and arrangements; no downloaded loops.</footer></main>
-<script>document.addEventListener('play', event => { for (const player of document.querySelectorAll('audio')) if (player !== event.target) player.pause(); }, true);</script></html>`);
+<p>The same four planet scores, with synchronized bass and rhythm for boss battles. The transition previews begin in level mode, build into the fight, then return to the original music.</p></header>
+<section class="grid">${tracks.map(([id, planet, title, detail]) => {
+  const stem = !['effects', 'combat'].includes(id);
+  const changes = stem ? metrics[`${id}-transition`].transitions : [];
+  const timing = stem ? `<p>Transition preview: boss at ${changes[0].at.toFixed(1)}s · final phase at ${changes[1].at.toFixed(1)}s · fades back at ${changes[2].at.toFixed(1)}s.</p>` : '';
+  return `<article><span class="eyebrow">${planet}</span><h2>${title}</h2><p>${detail}</p>
+  ${stem ? `<label>Listen<select aria-label="${planet} version"><option value="${id}-transition.wav">Level → boss → level</option><option value="${id}.wav">Original level</option><option value="${id}-boss.wav">Boss version</option></select></label>` : ''}
+  <audio controls preload="none" aria-label="${title}" src="${id}${stem ? '-transition' : ''}.wav"></audio>${timing}</article>`;
+}).join('')}</section>
+<footer>These excerpts use the game's actual mixer. In game, boss bass and rhythm fade over one bar; the original score continues on the same clock. Change Music and Effects in Settings.</footer></main>
+<script>
+document.addEventListener('play', event => { for (const player of document.querySelectorAll('audio')) if (player !== event.target) player.pause(); }, true);
+document.addEventListener('change', event => { if (event.target.tagName !== 'SELECT') return; const player=event.target.closest('article').querySelector('audio'); const at=player.currentTime, playing=!player.paused; player.preload='metadata'; player.src=event.target.value; player.addEventListener('loadedmetadata',()=>{player.currentTime=Math.min(at,player.duration-.1);if(playing)player.play().catch(()=>{});},{once:true}); player.load(); });
+</script></html>`);
 } finally { await browser.close(); }

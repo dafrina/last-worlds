@@ -1,22 +1,37 @@
 import { AudioMixer } from '../../src/audio/mixer';
 import { createGameAudio } from '../../src/audio/engine';
-import { THEMES, scoreStep } from '../../src/audio/score';
+import { THEMES, bossStep, scoreStep } from '../../src/audio/score';
 import { type Sound } from '../../src/audio/samples';
 import { createRun } from '../../src/sim/game';
+import { startBoss } from '../../src/sim/bastion';
 import type { PlanetId } from '../../src/shared/contracts';
 
 /** Offline evidence is rendered through the same samples, arrangement and buses used in play. */
-export async function renderPreview(theme: PlanetId | 'effects', seconds = 28, combat = false) {
+export async function renderPreview(theme: PlanetId | 'effects', seconds = 28, combat = false, version: 'level' | 'boss' | 'transition' = 'level') {
   const rate = 44_100, ctx = new OfflineAudioContext(2, Math.ceil(seconds * rate), rate);
   const mixer = new AudioMixer(ctx, { muted: false, effects: .8, music: .55 });
   mixer.warm(); mixer.setActive(true);
   // Monotonic scheduling preserves the real-time voice allocation semantics.
   const events: { at: number; run: () => void }[] = [];
+  const transitions: { at: number; intensity: number; fade: number }[] = [];
   if (theme !== 'effects') {
     const stepTime = 60 / THEMES[theme].bpm / 4;
+    const barTime = stepTime * 16;
+    if (version === 'boss') transitions.push({ at: 0, intensity: 2, fade: 0 });
+    else if (version === 'transition') {
+      // Enter mid-phrase, then return to the original bed without losing any score time.
+      transitions.push({ at: .05 + barTime * 2, intensity: 1, fade: barTime },
+        { at: .05 + barTime * 5, intensity: 2, fade: barTime },
+        { at: .05 + barTime * 8, intensity: 0, fade: barTime });
+    } else if (combat) transitions.push({ at: seconds / 2, intensity: 2, fade: barTime });
+    for (const change of transitions) events.push({ at: change.at,
+      run: () => mixer.setBossIntensity(change.intensity, change.fade, change.at) });
     for (let step = 0; step * stepTime < seconds - 2; step++) {
       const at = .05 + step * stepTime;
-      events.push({ at, run: () => scoreStep(theme, step, combat && at > seconds / 2 ? 2 : 0).forEach(n => mixer.note(n, at)) });
+      events.push({ at, run: () => {
+        scoreStep(theme, step).forEach(n => mixer.note(n, at));
+        if (mixer.bossActiveAt(at)) bossStep(theme, step).forEach(n => mixer.note(n, at, true));
+      } });
     }
   }
   if (theme === 'effects') {
@@ -54,12 +69,31 @@ export async function renderPreview(theme: PlanetId | 'effects', seconds = 28, c
   }
   let binary = '';
   for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-  const metrics = { peak, rms: Math.sqrt(sum / result.length / 2), monoRms: Math.sqrt(mono / result.length), clipped, ...mixer.diagnostics() };
+  // One-second low-band and full-band measurements make level/boss A-B checks reproducible.
+  const windows: { rms: number; bassRms: number }[] = [];
+  let low = 0;
+  const alpha = 1 - Math.exp(-2 * Math.PI * 180 / rate);
+  for (let start = 0; start < left.length; start += rate) {
+    let full = 0, bass = 0;
+    const end = Math.min(start + rate, left.length);
+    for (let i = start; i < end; i++) {
+      const mono = (left[i] + right[i]) / 2;
+      low += alpha * (mono - low); full += mono * mono; bass += low * low;
+    }
+    windows.push({ rms: Math.sqrt(full / (end - start)), bassRms: Math.sqrt(bass / (end - start)) });
+  }
+  const metrics = { peak, rms: Math.sqrt(sum / result.length / 2), monoRms: Math.sqrt(mono / result.length),
+    clipped, windows, transitions, ...mixer.diagnostics() };
   mixer.dispose();
   return { wav: btoa(binary), metrics };
 }
 
 const live = createGameAudio(), run = createRun({ mode: 'campaign', mission: 'deep-bloom', seed: 1 });
-document.querySelector('#start')!.addEventListener('click', () => live.start(run));
+document.querySelector('#start')!.addEventListener('click', () => { run.boss = null; live.start(run); });
 document.querySelector('#stop')!.addEventListener('click', () => live.pause());
-Object.assign(window, { __AUDIO_LAB__: { renderPreview, live, AudioMixer } });
+document.querySelector('#boss')!.addEventListener('click', () => { startBoss(run); live.observe(run); });
+document.querySelector('#level')!.addEventListener('click', () => {
+  if (run.boss) run.boss.phase = 'destroyed';
+  live.observe(run);
+});
+Object.assign(window, { __AUDIO_LAB__: { renderPreview, live, run, startBoss, AudioMixer } });
