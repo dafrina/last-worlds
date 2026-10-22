@@ -1025,11 +1025,13 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
       iceSeam = mix( iceSeam, smoothstep( 0.0, iceSeamWidthX, iceX.x ) * smoothstep( 1.0, 1.0 - iceSeamWidthX, iceX.x ) * iceBlend.x
         + smoothstep( 0.0, iceSeamWidthZ, iceZ.x ) * smoothstep( 1.0, 1.0 - iceSeamWidthZ, iceZ.x ) * iceBlend.y, iceBend );
     }
-    iceSun += iceLean * 0.5;
+    // Faint facets only (23 October): the walls carry the fractured look; a bare face with strong column facets read as
+    // grey streaks (user: "doesn't look great").
+    iceSun += iceLean * 0.18;
     float iceLit = smoothstep( -0.05, 0.3, iceSun ), baked = clamp( dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) / 0.8, 0.4, 1.0 );
     // Shadowed ice deepens toward the waterline, like the kit's ramp; shallow crevasse lips stay a lighter blue.
     vec3 iceShade = mix( vec3( 0.03, 0.17, 0.46 ), vec3( 0.2, 0.45, 0.78 ), smoothstep( -3.4, 1.6, vLocal.y ) ), iceBright = vec3( 0.68, 0.88, 1.0 );
-    vec3 iceTone = mix( vec3( 0.015, 0.08, 0.26 ), mix( iceShade, iceBright, iceLit ), iceSeam );
+    vec3 iceTone = mix( vec3( 0.015, 0.08, 0.26 ), mix( iceShade, iceBright, iceLit ), 0.55 + 0.45 * iceSeam );
     // The ice map at its strength (x).
     float iceDetail = clamp( detail, 0.0, 2.0 );
     diffuseColor.rgb = mix( diffuseColor.rgb, iceTone * baked * ( 1.0 + ( iceDetail - 1.0 ) * iceCrisp.x ), cliffWall );

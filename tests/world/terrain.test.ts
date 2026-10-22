@@ -220,7 +220,8 @@ describe('seeded Khepri landforms', () => {
           // Only the world's own wall pieces, from the cliff kit (never reused older pieces), under the scenery cap.
           expect(wall.kind).toBe(kind);
           expect(wall.y + wall.height * KIT[wall.kind].height).toBeLessThanOrEqual(PLANETS[planet].sceneryMax + 1e-9);
-          expect(wall.scale).toBeGreaterThanOrEqual(0.85); expect(wall.scale).toBeLessThanOrEqual(1.15);
+          // (Vesper's small islands take smaller pieces since version 19: 0.55-0.85.)
+          expect(wall.scale).toBeGreaterThanOrEqual(planet === 'vesper' ? 0.55 : 0.85); expect(wall.scale).toBeLessThanOrEqual(1.15);
           // Local +Z (the front) points downhill: the ground a unit in front is lower than a unit behind.
           const fx = Math.sin(wall.rotation), fs = -Math.cos(wall.rotation);
           const ahead = Math.max(planet === 'vesper' ? VESPER_SEA_LEVEL : -Infinity, terrainHeight(seed, wall.x + fx, wall.s + fs, world));
@@ -240,7 +241,8 @@ describe('seeded Khepri landforms', () => {
           for (const pad of pads) if (pad.flatten > 0) expect(padDistance(pad, wall.x, wall.s)).toBeGreaterThan(-0.5);
         }
       }
-      expect(walls, planet).toBeGreaterThan(60);
+      // (Vesper carries fewer since version 19: no walls on small steps, stair tiers or faces turned away from the camera.)
+      expect(walls, planet).toBeGreaterThan(planet === 'vesper' ? 40 : 60);
     }
     // Luna and Nacre have none.
     for (const planet of ['luna', 'nacre'] as const) expect(generateTerrainSection(93, 27, { planet }).instances.some(piece => piece.kind === 'cliffWall' || piece.kind === 'iceWall')).toBe(false);

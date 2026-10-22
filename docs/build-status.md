@@ -1,5 +1,38 @@
 # Build status
 
+## Vesper cliffs where they count (terrain v19), boss entry corridors, Vesper fog, Pulsar fix, 23 October 2026
+
+User:
+- "the pulsar still continues its ray when dying mid-shooting";
+- "Vesper is really slow and there's a lot of fucked cliffs";
+- "we can optimize by rendering such cliffs only on camera-facing cliffs";
+- "huge faces of walls not having them and rendering ugly moiré wavy texture again while there's excessive amounts on small landmark features or not so high cliffs";
+- "don't render land central top as the boss rides right through it, on Vesper";
+- "those smaller islands should maybe have just small clusters ... big cliffs could utilize it much better where there's also more land behind the cliff so the seam is seamless";
+- "3 rows of cliffs";
+- "the huge fat cliff doesn't get any";
+- "take the new fog settings".
+
+- **Measured first (a tally of every Vesper cliff cell by outcome and face height, seeds 11, 55, 93):**
+  - only about 30% of tall faces (3+ units) had walls, no more than small steps;
+  - about 20% of tall faces were refused because the face lay in a crevasse or pressure-ridge region;
+  - 5–8% were refused beside outpost pads (the pad's 2.4-unit falloff reached the rim);
+  - small steps (1–2) were walled as readily as big cliffs.
+- **Vesper wall rules (`src/world/terrain-walls.ts` options, `terrain-vesper.ts`):**
+  - **faces turned away from the camera:** none whose face points more than 0.75 away (`maxAway`). The camera looks forward and down, so such a face hides behind its own shelf. At 0.45 the diagonal coasts lost their crisp jagged rim, so it stays 0.75;
+  - **minimum drop:** 1.2 (was 0.7);
+  - **big faces:** every face of 1.8 or more, crevasse and ridge regions included (rock peaks still refuse ice);
+  - **beside outpost pads:** walls stand there (`padReach` 0.6, was 0.05);
+  - **land behind the rim:** at least 2.5 units at about rim height, or 1.5 for a face 3+ tall (`landBehind`). A thin bar standing 5 high out of the sea is a big cliff;
+  - **small features:** about half their cells take a 55–70% piece instead of a ring (`onNarrow`), and never on a knife edge;
+  - **stepped shelves:** only the big tier, i.e. no wall on a tier whose foot is a bench under 2.5 wide unless it is 3+ tall (`stairBench`).
+- **Result per 36-unit section:** 35 walls, down from 58 deployed (−40% wall triangles), with as many on big faces as before. Khepri is unchanged, and its fingerprints hold.
+- **Bare faces (`src/render/terrain-kit.ts`):** faint facets and soft seams instead of grey column streaks.
+- **Boss entry corridor (`src/world/terrain-arena.ts`):** the clearing runs on as wide as its core from the boss row to 40 past the stop, along x 0, where every boss glides in from 20–30 beyond its row (the Ark crossed shelf ice at the top of the view).
+- **Vesper fog:** the user's playground settings (low mist over the sea and down the cliffs; haze 0.155).
+- **Pulsar:** a burst still waiting at its muzzle is dropped when the Pulsar is shot down (`Projectile.source`); test in `tests/sim/pulsar.test.ts`.
+- **Checks:** typecheck; unit tests 415/415; build; browser BROWSER_RESULT. No phone test. The frame rate on Vesper is unmeasured on hardware: the change cuts wall triangles and overdraw, not every Vesper cost.
+
 ## Hunters (aces), shield shells, last-life alarm and a boss big bang, 23 October 2026
 
 User: "add hunters/aces ... stronger tiers of enemies we already have, but they have a visible spherical shield that's glowing in the planet's glow. They get 3 extra shields/hits and they don't follow strict patterns but would follow the hero when we retreat to the sides ... 1-2 max at a time, maybe 3-5 per level max ... they have to be killed ... maybe even into the boss fight"; "the hero ship gets a glowing shield in blue that disappears when the shields are gone"; "if there's just one life left ... an orange-red alarm glow around the edges"; "improve the boss explosion, I want a big big bang"; "a barrage of smaller explosions on critical parts of the boss"; "be critical about the changes I request".
@@ -37,7 +70,7 @@ User: "change the boss terrains? Just keep it flat around where the boss is, but
 - **Bosses arrive at the map's centre** (x 0; they arrived over the camera, within ±4, before), so the clearing is always under them. The camera still pans freely.
 - **Scatter:** Khepri rings the clearing's edge with rim columns and formations (the world edges before) and sprinkles small stones on the floor; Luna's floor keeps small stones; nothing taller than 0.4 stands in the core (bosses roll over it). Vesper floes and Nacre pieces keep out of the clearing only.
 - **Water arenas:** Vesper's coast pulls back up to 3 units past the clearing (bays); some seeds frame the Ark with shelves and cliffs, others leave open sea.
-- **Tests:** arena tests now check the core oval (flat, small stones only), relief beyond the clearing, every boss's manoeuvre inside the core, and shelves or islands beyond it; the Khepri arena fingerprint is re-recorded (10efb595655970d6).
+- **Tests:** arena tests now check the core oval (flat, small stones only), relief beyond the clearing, every boss's manoeuvre inside the core, and shelves or islands beyond it; the Khepri arena fingerprint is re-recorded.
 - **Checks:** released from a clean worktree: typecheck clean; unit tests 407/407; build; browser 36/36 (35 in the full run: the Bastion-9 renderer spec timed out on a screenshot while unit sweeps loaded the machine, and passed alone). No phone test.
 
 ## Vesper cliffs: fractured ice walls, crisp ice texture, no moiré on curved walls, 22 October 2026
@@ -1219,3 +1252,17 @@ Status: local changes ready for World's coordinated integration; no independent 
 ## 15 October 2026 · UI release validation
 
 The user requested deployment of the reviewed UI increment on top of the already deployed gameplay commit `dde50a5`. The exact combined checkout passed all **180 unit tests**, **14 browser tests**, TypeScript and the production build before commit/push. Browser output: `lookdev/ui-deploy-qa`. Source changes are limited to the menu, local statistics, browser theme color, associated tests, screenshots and documentation. The existing bundle-size warning and actual-phone validation limits remain.
+
+## 23 October 2026 · Synchronized boss music (Codex)
+
+Completed the user's same-song boss variants for Luna, Khepri, Nacre and Vesper. The approved level arrangement continues unchanged; a dry bass/percussion stem follows the same sixteenth-note clock and current harmony. Boss arrival fades it to 85% over one bar, core/overload to 100%, defeat back to zero. No lead/pad duplication or timeline restart. Music settings, pause, retry and planet changes cover both layers; the existing combat sounds and events.ts are untouched. No additional samples, runtime downloads, or simulation changes.
+
+Validation:
+- Typecheck and production build passed (existing large renderer-chunk warning).
+- Audio unit tests: 9/9 passed. Full combined unit run: 414 passed, 1 failed in the concurrent terrain work, tests/world/terrain.test.ts:228 (front-downhill cliff assertion). Reported to World in COORDINATION.md; left outside this task's ownership.
+- Audio browser suite: 6/6 passed, including live boss fades/clock continuity, later phase/defeat, pause/resume/retry, four level/boss/transition PCM comparisons, mute, submixes, headroom, mono and bounded voices. Final output: lookdev/audio-boss-verified. Browser tests isolate the Vite WebSocket so concurrent file writes cannot reset a live AudioContext.
+- Exact comparison against shipped 2d08b81: all 2,048 original level score steps match (4 planets x 512 sixteenths).
+- Four boss mixes and four transition excerpts rendered through the runtime mixer. Max peak 0.458, zero clipping or dropped notes in the excerpts, max music voices 29/36, mono RMS retention above 99%, sample cache unchanged at 7.07 MiB. Low-band energy (180 Hz low-pass, matched seconds 2-25) increases 2.02-3.10x. Evidence: docs/screenshots/audio/boss-metrics.json.
+- Reviewed Sound room at desktop and 390px phone width; verified audio playback and version switching preserve position, no horizontal overflow or console errors. Evidence: docs/screenshots/audio/boss-sound-room.png. Playable local previews: http://localhost:4173/lookdev/audio/index.html, regenerated by node tools/audio-preview.mjs.
+
+Ready for World's integration and deployment; no independent commit or push. Actual phone speaker balance, Safari audio/device behavior and subjective listening approval remain unverified. Terrain failure belongs to the combined release gate, not the isolated audio checks.

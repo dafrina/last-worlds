@@ -28,29 +28,38 @@ export function arenaWeight(arena: TerrainArena | undefined, s: number): number 
  * Every boss stops with its platform starting 9 before the stop (`platform.from` −9) and fights at rows 11.5–13, so
  * the centre sits a fixed `centre` past `fromS` (tests/world/terrain-arena.test.ts checks every boss).
  */
-export const ARENA_CLEARING = { centre: 9 + 12.5, halfX: 5.6, halfS: 7.5, wobble: 2.8, fade: 2.5 } as const;
+export const ARENA_CLEARING = { centre: 9 + 12.5, halfX: 5.6, halfS: 7.5, wobble: 2.8, fade: 2.5, entry: 9 + 40 } as const;
+/**
+ * Units outside the clearing's fixed core: the oval over the fight, and a corridor as wide as it from the boss row up to
+ * `entry` past the arena's start (user, 23 October: the Helion Ark glided in through shelf ice at the top of the view).
+ * Every boss arrives along x 0 from 20–30 beyond its row, its hull reaching some 7 further.
+ */
+function clearingOutside(arena: TerrainArena, x: number, s: number): number {
+  const c = ARENA_CLEARING, centre = arena.fromS + c.centre, end = arena.fromS + c.entry;
+  // (Exact on the oval's axes, close enough between them.)
+  const oval = (Math.hypot(x / c.halfX, (s - centre) / c.halfS) - 1) * Math.min(c.halfX, c.halfS);
+  const corridor = s < centre ? Infinity : Math.hypot(Math.max(0, Math.abs(x) - c.halfX), Math.max(0, s - end));
+  return Math.min(oval, corridor);
+}
 /** The arena's weight at a point: 1 in the boss clearing, 0 outside it, irregular in between. */
 export function arenaAt(arena: TerrainArena | undefined, seed: number, x: number, s: number): number {
   const along = arenaWeight(arena, s);
   if (along <= 0) return 0;
-  const c = ARENA_CLEARING, centre = arena!.fromS + c.centre;
-  // Units outside the core oval (exact on its axes, close enough between them).
-  const outside = (Math.hypot(x / c.halfX, (s - centre) / c.halfS) - 1) * Math.min(c.halfX, c.halfS);
-  if (outside <= 0) return along;
+  const c = ARENA_CLEARING, outside = clearingOutside(arena!, x, s);
+  if (outside <= 0) return 1;
   const edge = smoothRange(0.2, 0.8, noise(seed ^ 0xa7c1, x * 0.16, s * 0.14) * 0.65 + noise(seed ^ 0xa7c2, x * 0.42, s * 0.39) * 0.35) * 2 * c.wobble;
-  return along * (1 - smoothRange(edge, edge + c.fade, outside));
+  return 1 - smoothRange(edge, edge + c.fade, outside);
 }
-/** Whether a point lies in the clearing's fixed core oval (always flat, whatever the noise does to its edge). */
+/** Whether a point lies in the clearing's fixed core, the oval or the entry corridor (always flat, whatever the noise does to its edge). */
 export function inArenaCore(arena: TerrainArena | undefined, x: number, s: number): boolean {
   if (!arena) return false;
-  const c = ARENA_CLEARING;
-  return Math.hypot(x / c.halfX, (s - arena.fromS - c.centre) / c.halfS) <= 1 && arenaWeight(arena, s) >= 1;
+  return clearingOutside(arena, x, s) <= 0 && arenaWeight(arena, s) > 0;
 }
 /** Whether a point lies beyond the clearing's widest possible edge (the planet's own terrain there). */
 export function beyondArenaClearing(arena: TerrainArena | undefined, x: number, s: number): boolean {
   if (!arena) return true;
   const c = ARENA_CLEARING;
-  return (Math.hypot(x / c.halfX, (s - arena.fromS - c.centre) / c.halfS) - 1) * Math.min(c.halfX, c.halfS) >= 2 * c.wobble + c.fade;
+  return arenaWeight(arena, s) <= 0 || clearingOutside(arena, x, s) >= 2 * c.wobble + c.fade;
 }
 /** Whether [s0, s1] reaches the arena or its ramps (widened by `margin`). */
 export function nearArena(arena: TerrainArena | undefined, s0: number, s1: number, margin = 0): boolean {

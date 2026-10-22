@@ -557,9 +557,19 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
   // Ice-shelf walls (docs/26 §11, after the concept's right panel): fractured, blocky, snow-capped walls stand in every
   // shelf step and along every coast cliff, those over the sea on the waterline. (They replace version 14's coast and
   // inner `iceCliff` dressing.)
-  // Shelf steps and coasts only: not the narrow crevasses, pressure ridges or rock peaks (they keep their own pieces).
-  const shelfEdge = (x: number, s: number) => { const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0); return m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.12; };
-  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 0.7, rimSpan: 0.7, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
+  // Shelf steps and coasts, never rock peaks. A big face (1.8 or more) gets its wall wherever it is: in a crevasse or a
+  // pressure-ridge region it is still a sheer shelf face, and bare it showed the heightfield's texture (user, 23 October:
+  // "huge faces of walls not having them"). Lower faces only away from crevasses and ridges (they keep their own pieces).
+  // Nothing under 1.2 (version 19: was 0.7; small steps and landmarks were crowded with walls).
+  const shelfEdge = (x: number, s: number, drop: number) => {
+    const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0);
+    return drop >= 1.8 ? m.rock < 0.3 : m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.12;
+  };
+  // Small islands, spurs and narrow strips (too little land behind the rim for a full wall) get small clusters instead
+  // of a ring: about half their cells take a wall piece at 55–70% size, shallower too, so it never overhangs the narrow
+  // land behind it (user, 23 October: "those smaller islands should maybe have just small clusters").
+  const narrowFace = (wall: KitInstance, pick: number) => pick < 0.5 ? { ...wall, scale: 0.55 + pick * 0.3, cosmetic: true } : null;
+  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, landBehind: 2.5, stairBench: 2.5, onNarrow: narrowFace, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
 

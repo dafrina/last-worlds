@@ -387,7 +387,7 @@ function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void
     const speed = ENEMIES.pulsar.shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot;
     const shots = pulsarBurst(enemy.x, enemy.s, state.player.x, speed, PULSAR_BURST.shots, PULSAR_BURST.interval);
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
-    for (const shot of shots) state.projectiles.push({ ...projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL), delay: shot.delay, track: true });
+    for (const shot of shots) state.projectiles.push({ ...projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL), delay: shot.delay, track: true, source: enemy.id });
     return;
   }
   if (BEAM_KINDS.has(enemy.kind)) {
@@ -558,6 +558,8 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   // A hunter's shield takes the damage first.
   enemy.hp -= absorbHunterShield(enemy, damage);
   if (enemy.hp > 0) return;
+  // A burst still waiting at its muzzle dies with its source (a Pulsar shot down mid-stream stops streaming).
+  if (state.projectiles.some(shot => shot.source === enemy.id)) state.projectiles = state.projectiles.filter(shot => shot.source !== enemy.id || !((shot.delay ?? 0) > 0));
   state.kills += 1;
   const reward = enemy.hunter ? HUNTERS.reward : 1;
   state.score += enemy.bossPart ? (enemy.bossPart === 'core' ? 5000 : 500) : ENEMIES[enemy.kind].score * reward;

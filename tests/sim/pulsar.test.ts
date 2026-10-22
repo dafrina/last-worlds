@@ -24,6 +24,24 @@ describe('Pulsar burst (Nacre; tracking stream since 20 October 2026)', () => {
     expect(ENEMIES.pulsar.shotSpeed).toBeGreaterThan(8);
   });
 
+  it('stops streaming when it is shot down mid-burst: shots still at its muzzle never leave', () => {
+    const state = armed(2);
+    stepRun(state, EMPTY_INPUT);
+    for (let i = 0; i < 0.5 / STEP; i++) { state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT); }
+    const flying = state.projectiles.filter(shot => !shot.friendly && !((shot.delay ?? 0) > 0)).length;
+    expect(flying).toBeGreaterThan(0);
+    expect(flying).toBeLessThan(PULSAR_BURST.shots);
+    // A friendly shot kills it on the next step.
+    const pulsar = state.enemies.find(enemy => enemy.kind === 'pulsar')!;
+    pulsar.hp = 1;
+    state.projectiles.push({ id: state.nextId++, x: pulsar.x, s: pulsar.s - 0.5, previousX: pulsar.x, previousS: pulsar.s - 0.5, vx: 0, vs: 30, friendly: true, damage: 10, radius: .1, ttl: 1 });
+    stepRun(state, EMPTY_INPUT);
+    expect(state.enemies.some(enemy => enemy.id === pulsar.id && enemy.hp > 0)).toBe(false);
+    // Only the shots already in flight remain.
+    expect(state.projectiles.filter(shot => !shot.friendly).length).toBeLessThanOrEqual(flying);
+    expect(state.projectiles.some(shot => !shot.friendly && (shot.delay ?? 0) > 0)).toBe(false);
+  });
+
   it('aims every shot at where the ship is as that shot leaves the muzzle', () => {
     const state = armed(0);
     stepRun(state, EMPTY_INPUT);

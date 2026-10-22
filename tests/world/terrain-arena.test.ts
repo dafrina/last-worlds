@@ -31,6 +31,8 @@ describe('mission arena platform', () => {
       // The whole manoeuvre (row ± surge) stays well inside the core oval.
       expect(Math.abs(boss.row - row) + boss.arena.surge, boss.id).toBeLessThan(ARENA_CLEARING.halfS - 3);
       expect(boss.arena.sway, boss.id).toBeLessThan(ARENA_CLEARING.halfX - 3.8);
+      // It glides in along the entry corridor: from beyond the view to its row, hull and all, nothing stands in the way.
+      expect(boss.entryS + 7, boss.id).toBeLessThanOrEqual(ARENA_CLEARING.entry - 9);
     }
   });
 

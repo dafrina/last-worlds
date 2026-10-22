@@ -211,7 +211,8 @@ export interface PlanetLook {
   environment: 'desert' | 'ice' | 'luna' | 'mire';
 }
 /** Tuned by the user in the light playground (playground.html, 22 October): brighter sky fill and bounce, a higher sun on
- * Khepri, stronger bloom on Khepri and Nacre, and each level's fog. Vesper keeps its shipped light (its cliffs). */
+ * Khepri, stronger bloom on Khepri and Nacre, and each level's fog. Vesper keeps its shipped light (its cliffs) with the
+ * user's fog (23 October). */
 const LOOKS: Record<PlanetId, PlanetLook> = {
   khepri: {
     background: 0x6a3a22, sunElevation: 67, sun: [0xffeedb, 7], hemisphere: [0xc6c9cc, 0x493627, 1.7], bounce: [0xc59d7b, .79],
@@ -225,9 +226,9 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
     background: 0x0d3557, sunElevation: 52, sun: [0xf2f6ff, 3.1], hemisphere: [0xb7c5d6, 0x405775, .85], bounce: [0x9fbcdc, .35],
     shadowIntensity: .72, blobShadow: 0x10243c, lowExposure: 1,
     post: { exposure: 1, threshold: 1.4, knee: .25, strength: .38, lift: [.0025, .0045, .0085], saturation: .9, contrast: 1.08, vignette: .16,
-      haze: [.82, .9, .98, .025],
-      // No fog: a mist over the water greyed the deep navy sea (22 October); Vesper keeps its shipped look.
-      fog: { color: 0xc4d8ea, energy: .85, height: [-2.6, -3.8, 0], distance: [48, .035, 0] } },
+      haze: [.82, .9, .98, .155],
+      // The user's playground fog (23 October): a pale low mist over the sea and down the cliffs, the shelves clear.
+      fog: { color: 0xc4d8ea, energy: 1.09, height: [-2.3, -9.05, .24], distance: [40.5, .041, .12] } },
     environment: 'ice',
   },
   // Luna, Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and

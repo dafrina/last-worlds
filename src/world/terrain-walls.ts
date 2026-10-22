@@ -24,10 +24,38 @@ export interface WallOptions {
   cap: number;
   /** Planets with a sea: a wall over water stands on the waterline (its foot just under the surface). */
   sea?: number;
+  /**
+   * Walls whose face turns away from the camera further than this (the forward share of the face's direction, 0 sideways,
+   * 1 straight away) are not placed (Vesper, version 19, user 23 October: "only render camera-facing cliffs"). The camera
+   * looks forward and down, so such a face is hidden behind its own shelf; the terrain already draws the rim.
+   */
+  maxAway?: number;
   /** Rim probes this far to either side along the rim: the top follows the highest (Vesper, version 18). */
   rimSpan?: number;
-  /** Planet filter on the cliff face (Luna: highland scarps only). */
-  accept?: (x: number, s: number) => boolean;
+  /** Planet filter on the cliff face, given the face's drop (Luna: highland scarps only). */
+  accept?: (x: number, s: number, drop: number) => boolean;
+  /**
+   * How far an outpost pad's flattening may reach the wall's probes (0.05 by default: well clear of pads). Vesper allows
+   * 0.6 (version 19): its harbour outposts stand at the cliffs, and their pads' falloff left long faces beside them bare.
+   */
+  padReach?: number;
+  /**
+   * Land behind the rim, in units, that must carry on at about the rim's height (within 40% of the drop) for a wall to
+   * stand (Vesper, version 19, user 23 October: "big cliffs ... where there's also more land behind the cliff so the seam
+   * is seamless"): no walls on small islands, spurs and slivers, where they stood alone or overhung.
+   */
+  landBehind?: number;
+  /**
+   * Stepped shelves (Vesper, version 19, user 23 October: "3 rows of cliffs"): a tier whose foot is a bench narrower than
+   * this (the ground drops steeply again within it) gets no wall unless the tier is 3 or more tall itself; the big tier
+   * below keeps its walls.
+   */
+  stairBench?: number;
+  /**
+   * A face with too little land behind it (a small island or spur): given the wall it would have had and a seeded roll,
+   * the planet returns a smaller piece in its place, or null for none.
+   */
+  onNarrow?: (wall: KitInstance, pick: number) => KitInstance | null;
 }
 /** Probe step for slopes and walks along the gradient (world units). */
 const PROBE = 0.125, WALK = 0.1;
@@ -38,7 +66,7 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
   const gradient = (x: number, s: number): [number, number] => [
     (height(x + PROBE, s) - height(x - PROBE, s)) / (2 * PROBE), (height(x, s + PROBE) - height(x, s - PROBE)) / (2 * PROBE)];
   const slope = (x: number, s: number) => { const [gx, gs] = gradient(x, s); return Math.hypot(gx, gs); };
-  const clear = (x: number, s: number) => Math.abs(x) < WORLD_HALF - 0.3 && !terrain.blocked(x, s) && terrain.industrial(x, s) < 0.05;
+  const clear = (x: number, s: number) => Math.abs(x) < WORLD_HALF - 0.3 && !terrain.blocked(x, s) && terrain.industrial(x, s) < (o.padReach ?? 0.05);
   // Cells whose centre lies in this section (half-open), so each cell belongs to exactly one section.
   for (let j = Math.ceil(startS / cell - 0.5); (j + 0.5) * cell < startS + size; j++) {
     yield;
@@ -58,7 +86,8 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       // Slide along the cliff toward the cell's centre (even spacing along a rim), if the face continues there.
       const t = (cx - fx) * -us + (cs - fs) * ux, sx = fx - us * t, ss = fs + ux * t;
       if (slope(sx, ss) > 1.1) { fx = sx; fs = ss; [gx, gs] = gradient(fx, fs); n = Math.hypot(gx, gs); ux = gx / n; us = gs / n; }
-      if (o.accept && !o.accept(fx, fs)) continue;
+      // The face points downhill, (−ux, −us): skip it when it turns away from the camera (its forward share −us).
+      if (o.maxAway !== undefined && -us > o.maxAway) continue;
       // Up to the rim (the ground levels out) and down to the foot of the sheer face (the talus starts).
       let up = 0, down = 0;
       while (up < 2.5 && slope(fx + ux * (up + WALK), fs + us * (up + WALK)) > 0.7) up += WALK;
@@ -71,23 +100,41 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       let base = height(px, ps);
       if (o.sea !== undefined && base < o.sea) base = o.sea - 0.25;
       if (top - base < o.minDrop) continue;
+      if (o.accept && !o.accept(fx, fs, top - base)) continue;
       // The pivot stands into the face from its foot: the front relief just out from the foot, the body inside the
       // slope, the top (just over the rim height) reaching back onto the top.
       const width = Math.hypot(rx - px, rs - ps), inset = Math.min(1.2, Math.max(0.3, width * 0.5));
       const x = px + ux * inset, s = ps + us * inset;
-      // Only against ground that carries on behind the wall: no walls on knife-edge ridges or slivers of shelf.
+      const tall = top - base >= 3;
+      if (o.stairBench && !tall) {
+        let stair = false;
+        for (let d = 0.5; d <= o.stairBench + 1e-9 && !stair; d += 0.5) stair = height(px - ux * d, ps - us * d) < base - 0.8;
+        if (stair) continue;
+      }
+      let narrow = false;
+      if (o.landBehind) {
+        // A tall face needs less land behind it (1.5, enough for the wall's own depth): seen from the camera its face matters more than the depth of its top (a
+        // thin bar of shelf standing 5 high out of the sea is a big cliff).
+        const behind = tall ? Math.min(1.5, o.landBehind) : o.landBehind, floor = top - Math.max(0.35, (top - base) * 0.4);
+        for (let d = 0.5; d <= behind + 1e-9 && !narrow; d += 0.5) narrow = height(rx + ux * d, rs + us * d) < floor;
+        for (const side of [-1, 1]) if (!narrow) narrow = height(rx + ux * behind / 2 - us * side, rs + us * behind / 2 + ux * side) < floor;
+        if (narrow && !o.onNarrow) continue;
+      }
+      // Only against ground that carries on behind the wall: no walls (nor smaller pieces) on knife-edge ridges or slivers.
       if (height(x + ux * 1.1, s + us * 1.1) < base + (top - base) * 0.5) continue;
       if (!clear(x, s) || !clear(px, ps) || !clear(rx, rs) || !clear(x - us * 1, s + ux * 1) || !clear(x + us * 1, s - ux * 1)) continue;
       const y = base - 0.12, rise = Math.min(o.cap, top + 0.03) - y, spec = KIT[o.kind], scale = 0.85 + h(2) * 0.3;
       // Never on an arena's platform or ramps (the wall's own row, not just its cell's), never past the world's edge.
       if (rise < o.minDrop * 0.8 || Math.abs(x) + spec.radius * scale > WORLD_HALF || terrain.platform(x, s) > 0 || terrain.platform(rx, rs) > 0) continue;
-      out.push({
+      const wall: KitInstance = {
         kind: o.kind, variant: Math.floor(h(1) * spec.variants), x, s, y,
         // A ±15% stretch along the rim; segments stay continuous at about one per cell.
         scale, height: rise / spec.height,
         // +Z (the front) out and downhill: the rotation that maps local +Z to world (−ux, −us).
         rotation: Math.atan2(-ux, us), shade: terrain.shade(x, s), cosmetic: false,
-      });
+      };
+      const placed = narrow ? o.onNarrow!(wall, h(3)) : wall;
+      if (placed) out.push(placed);
     }
   }
   return out;
