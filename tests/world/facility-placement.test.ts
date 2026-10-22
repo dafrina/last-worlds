@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BoxGeometry, Euler, InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Scene, Vector3 } from 'three';
-import { createFacilityView, facilityOptions } from '../../src/render/facility-view';
+import { createFacilityView, facilityOptions, standsOn } from '../../src/render/facility-view';
 import { composeFacility, plantBase, wantsPlant } from '../../src/render/facility-layouts';
 import { MODULES_BY_NODE } from '../../src/render/facility-kit';
 import { loadTexturedNodes } from '../../src/render/models';
@@ -148,10 +148,13 @@ describe('v3 modular facility view',()=>{
   it('lays each apron tile on the terrain it covers and leaves out tiles on ground too rough for it',async()=>{
     const state=createRun({mode:'endless',seed:8831}), v=await modular(['khepri']);
     try {
-      // A ramp rising behind the gun (gentle) and a cliff far to its left (rough).
-      const ground=(x: number,s: number)=>(x < -2.2 ? 3 : 0) + Math.max(0,s-10)*.1 + .4;
-      v.facility.update(state,'khepri',new Map([[1,seat(0,.4)]]),[],ground);
-      const plant=composeFacility('khepri',1,state.config.seed,{x:0,s:10,base:.4})!;
+      // A ramp rising behind the gun (gentle) and a cliff far to its left (rough), on low ground where the tall landmarks
+      // still keep their roofs under the flight plane.
+      const base=-.6, ground=(x: number,s: number)=>(x < -2.2 ? 3 : 0) + Math.max(0,s-10)*.1 + base;
+      v.facility.update(state,'khepri',new Map([[1,seat(0,base)]]),[],ground);
+      // The view composes against the same ground (buildings only where it can seat them, 22 October).
+      const plant=composeFacility('khepri',1,state.config.seed,{x:0,s:10,base},{stands:standsOn(ground)})!;
+      expect(v.facility.stats.arrangements).toEqual([plant.arrangement]);
       const tiles=plant.modules.filter(m=>m.node==='fk_khepri_apron');
       const mesh=drawn(v.scene,'khepri').find(m=>m.name==='fk_khepri_apron')!, m=new Matrix4(), p=new Vector3();
       const heights=Array.from({length:mesh.count},(_,i)=>{mesh.getMatrixAt(i,m);return p.setFromMatrixPosition(m).clone();});
@@ -160,7 +163,7 @@ describe('v3 modular facility view',()=>{
         const at=heights.find(h=>Math.abs(h.x-tile.x)<1e-6 && Math.abs(-h.z-(10+tile.s))<1e-6);
         const samples=[[0,0],[-.9,-.9],[.9,-.9],[-.9,.9],[.9,.9]].map(([dx,ds])=>ground(tile.x+dx,10+tile.s+ds));
         const hi=Math.max(...samples), lo=Math.min(...samples);
-        if(tile.x===0 && tile.s===0) expect(at?.y).toBeCloseTo(.4); // the gun's own tile keeps the gun's ground
+        if(tile.x===0 && tile.s===0) expect(at?.y).toBeCloseTo(base); // the gun's own tile keeps the gun's ground
         else if(hi-lo>.6) { rough++; expect(at,`${tile.x},${tile.s}`).toBeUndefined(); }
         else expect(at?.y,`${tile.x},${tile.s}`).toBeCloseTo(hi-.02); // just above the highest ground under it
       }

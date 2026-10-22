@@ -90,9 +90,9 @@ const PALETTE: Record<FacilityWorld, Readonly<Record<string, readonly string[]>>
 
 /**
  * Share of a world's eligible batteries that get a plant (seeded per battery); the rest keep the legacy emplacement.
- * Luna stays sparse (user, 20 October: "much less populated amount of buildings and infra").
+ * Luna keeps small sites; raised from .3 to .6 at the user's request on 22 October.
  */
-export const PLANT_CHANCE: Readonly<Record<FacilityWorld, number>> = { khepri: 1, vesper: 1, nacre: 1, luna: .3 };
+export const PLANT_CHANCE: Readonly<Record<FacilityWorld, number>> = { khepri: 1, vesper: 1, nacre: 1, luna: .6 };
 /**
  * Fewest modules a plant may have, not counting aprons or the plain ring. A sparser layout first retries with every
  * optional slot built, then gives way to another arrangement. Luna keeps its single small facilities.
@@ -104,6 +104,12 @@ export const MIN_MODULES: Readonly<Record<FacilityWorld, number>> = { khepri: 6,
  * `links` single pipe pieces bridging a gap between neighbouring modules that one piece spans.
  */
 export const GROUND = { margin: .4, slack: 1.6, max: 48, links: 3 } as const;
+/**
+ * How a world paves a plant: `lot`, one clean slab around every building; `buildings`, slabs only under and just around
+ * each building (not its pipe runs) and the gun's court, so a spread-out plant has no bare paving between its buildings
+ * (user, 22 October: "reduce the amount of empty aprons for khepri").
+ */
+export const APRON_FIT: Readonly<Record<FacilityWorld, 'lot' | 'buildings'>> = { khepri: 'buildings', vesper: 'lot', nacre: 'lot', luna: 'lot' };
 
 const ALL_WORLDS: readonly FacilityWorld[] = ['khepri', 'vesper', 'nacre'];
 const ring = (chance: number): Slot => ({ key: 'court', pick: ['@court'], at: [0, 0], court: true, chance });
@@ -297,6 +303,12 @@ export interface FacilityContext {
   plants?: readonly Pick<FacilityPlant, 'arrangement' | 'x' | 's' | 'bounds'>[];
   /** Half width the plant stays inside (default FACILITY_RULES.edge). */
   edge?: number;
+  /**
+   * Whether a building or tank can stand at world (x, s) on the real ground (the renderer's seat test: no foundation
+   * deeper than its limit over a rim, roof under the flight plane). A module that cannot is dropped or the arrangement
+   * gives way, so a plant never keeps paving for a building that is not drawn (user, 22 October: empty aprons on Khepri).
+   */
+  stands?: (node: string, x: number, s: number, base: number) => boolean;
 }
 
 // ── Seeded hashing: a stable function of (battery id, run seed, world), never shared with combat. ──
@@ -466,7 +478,8 @@ function check(pieces: readonly Piece[], seat: FacilitySeat, context: FacilityCo
     if (hidesGun(piece, top, 0, 0) && !offend(piece)) return false;
     // Rule 4: inside the world, off district pads, clear of other plants, other batteries outside and in sight.
     const world = { minX: r.minX + seat.x, maxX: r.maxX + seat.x, minS: r.minS + seat.s, maxS: r.maxS + seat.s };
-    let bad = world.minX < -edge || world.maxX > edge
+    let bad = (!isFlat(piece.module) && !!context.stands && !context.stands(piece.module.node, seat.x + piece.x, seat.s + piece.s, seat.base))
+      || world.minX < -edge || world.maxX > edge
       || (context.reserved ?? []).some(pad => rectsOverlap(world, pad))
       || (context.plants ?? []).some(plant => rectsOverlap(world, plant.bounds, FACILITY_RULES.plantGap));
     for (const gun of context.batteries ?? []) {
@@ -535,8 +548,10 @@ function aprons(world: FacilityWorld, pieces: readonly Piece[], seat: FacilitySe
   // One clean lot: the rectangle around every building (plus the margin), and the gun's own court without it, so
   // the slab stops at the gun unless buildings stand in front of it (user review, 20 October).
   const buildings = pieces.filter(p => !p.court).map(rectOf);
-  const hull = unionOf(buildings, buildings[0] ?? rectOf(COURT));
-  const targets = [{ minX: hull.minX - GROUND.margin, maxX: hull.maxX + GROUND.margin, minS: hull.minS - GROUND.margin, maxS: hull.maxS + GROUND.margin }, rectOf(COURT)];
+  const grow = (r: Rect): Rect => ({ minX: r.minX - GROUND.margin, maxX: r.maxX + GROUND.margin, minS: r.minS - GROUND.margin, maxS: r.maxS + GROUND.margin });
+  const targets = APRON_FIT[world] === 'buildings'
+    ? [...pieces.filter(p => !p.court && p.module.roles[0] !== 'pipe').map(p => grow(rectOf(p))), rectOf(COURT)]
+    : [grow(unionOf(buildings, buildings[0] ?? rectOf(COURT))), rectOf(COURT)];
   for (let i = Math.ceil((within.minX + hx) / period - 1e-9); i * period + hx <= within.maxX + 1e-9; i++)
     for (let k = Math.ceil((within.minS + hs) / period - 1e-9); k * period + hs <= within.maxS + 1e-9 && out.length < GROUND.max; k++) {
       const tile: Piece = { key: 'apron', module: apron, x: i * period, s: k * period, hx, hs, yaw: 0, court: false, optional: true, run: true };

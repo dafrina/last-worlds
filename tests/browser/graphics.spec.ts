@@ -25,10 +25,11 @@ test('authored facilities load around the existing battery on every world and Lo
 
 test('modular v3 facilities compose their arrangement from each world kit on both tiers',async({page},info)=>{
   test.setTimeout(300000); const errors=errorsOf(page);
-  // Luna's fixture at distance 210 stands the battery on open regolith.
+  // Spots where both of a world's arrangements stand on the real ground (compounds keep only buildings their ground can
+  // seat, and each planet's fixture flies its own mission, 22 October): Vesper 150, Luna 180 (open regolith), else 210.
   for(const [planet,arrangement,quality] of [['khepri','yard','high'],['khepri','tower','low'],['vesper','fort','high'],['vesper','pad','low'],
     ['nacre','shrine','high'],['nacre','basins','low'],['luna','radar','high'],['luna','emplacement','low']]) {
-    await page.goto(`/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper'?190:210}&x=-3&facility=${arrangement}&fv=3&inspect=1&quality=${quality}`);
+    await page.goto(`/tests/fixtures/nacre-world.html?planet=${planet}&distance=${planet==='vesper'?150:planet==='luna'?180:210}&x=-3&facility=${arrangement}&fv=3&inspect=1&quality=${quality}`);
     await expect.poll(async()=>{const s=await stats(page); return s.facilities?.loaded && s.facilities.count===1 && s.heroModel==='glb' && s.terrain?.kit==='glb';},{timeout:30000}).toBe(true);
     const s=await stats(page);
     expect(s.facilities.version).toBe(3); expect(s.facilities.arrangements).toEqual([arrangement]);

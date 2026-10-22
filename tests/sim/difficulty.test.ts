@@ -10,7 +10,7 @@ import { dodgerPilot, fly, hunterPilot, idlePilot, perfectPilot, type Pilot } fr
  * playtests remain the release gate.
  */
 const OFFSETS = [-1.5, -0.5, 0, 0.5, 1.5];
-const FIRE_SEEDS = [50, 51, 52, 53, 54, 55, 56, 57, 58, 59];
+const FIRE_SEEDS = [50, 51, 52, 53, 54, 55, 56, 57, 58, 59], HIT_SEEDS = [53, 54, 55];
 const SECTORS_1_TO_3 = 3 * BALANCE.sectorDuration;
 
 function median(values: number[]): number {
@@ -87,15 +87,16 @@ describe('difficulty bots', () => {
         if (seed === 53) expect(clean.hits).toBe(0);
         return shots.size / 2;
       });
-      // Hits taken per minute by the mid-skill hunter with lives to spare (settings have different life counts).
-      const hits = OFFSETS.map(x => {
-        const state = createRun({ mode: 'campaign', mission: 'training', difficulty, seed: 53 });
+      // Hits taken per minute by the mid-skill hunter with lives to spare (settings have different life counts): the median
+      // over start offsets, averaged over three seeds (one hit more or less on a single seed moved the ratio by 0.1-0.2).
+      const hits = HIT_SEEDS.map(seed => median(OFFSETS.map(x => {
+        const state = createRun({ mode: 'campaign', mission: 'training', difficulty, seed });
         state.player.x = x;
         state.player.lives = 99;
         return fly(state, hunterPilot(), 120).hits / 2;
-      });
+      })));
       const runs = spread({ mode: 'campaign', mission: 'training', difficulty, seed: 53 }, hunterPilot, 120);
-      return { shotsPerMinute: fire.reduce((sum, value) => sum + value, 0) / fire.length, hitsPerMinute: median(hits), livesLost: median(runs.map(run => run.log.livesLost)) };
+      return { shotsPerMinute: fire.reduce((sum, value) => sum + value, 0) / fire.length, hitsPerMinute: hits.reduce((sum, value) => sum + value, 0) / hits.length, livesLost: median(runs.map(run => run.log.livesLost)) };
     };
     const relaxed = pressure('relaxed');
     const standard = pressure('standard');

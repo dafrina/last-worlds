@@ -1,5 +1,44 @@
 # Build status
 
+## Taller Khepri and Vesper buildings, Nacre ruin facilities, more Moon outposts (Codex); no empty aprons, 22 October 2026
+
+User: taller buildings ("one or two taller buildings") on Khepri and Vesper; alien Nacre buildings matching the scattered
+ruin towers; more Moon buildings. Built by Codex with live Blender MCP; integrated and released by Claude Code after
+Codex ran out of tokens.
+
+- **Kits (`src/render/facility-kit.ts` `FACILITY_KIT_ASSETS`):** Khepri and Vesper use `facility-kit-v4-taller.glb` (Khepri
+  process tower 3.25 → 4.81 and small machine hall 1.95 → 2.85; Vesper control tower 3.0 → 4.44; footprints, atlases and
+  triangle counts unchanged); Nacre uses `facility-kit-v4-ruins.glb` (dark stepped ruins, split monoliths and seams, every
+  module remodelled); Luna keeps v3. The v3 files stay for rollback (change a filename back). Scripts:
+  `tools/blender/taller_facility_towers.py`, `tools/blender/nacre_ruin_facilities.py`, previews
+  `tools/blender/preview_facility_heights.py`; renders in `art/facility-height-previews/` and `art/nacre-facility-ruins/`.
+- **Heights:** `MODULE_TOP_MAX` 3.25 → 4.81; the absolute roof clearance (tops under 3.7, the flight plane is 3.8) still
+  holds, so the tall towers only seat on low ground (elsewhere the composer swaps in a shorter module).
+- **Moon:** outpost candidate chance .10 → .18 (terrain version 17) and battery plants .3 → .6.
+- **Review evidence:** model sheets in game paint and light (every Nacre module new beside old; the three taller modules
+  beside v3), compounds on Khepri, Vesper and Nacre terrain at 420x912 High, and Moon outposts in flight on Training.
+  In game the Nacre ruins' glow takes Nacre's purple world paint (`world-paint.ts`), not the amber/teal of the Blender renders.
+- **Tests:** Codex updated the asset, layout and Luna tests (kit filenames, the 4.81 limit, Luna plant rate .5-.7 and outpost
+  counts; Luna sections may now include rover tracks). Terrain v17 moved one hit on seed 53 in the difficulty test's mid-skill
+  pilot (Veteran/Standard 0.83 against 0.85; seeds 50-57 range 0.91-1.20 and are unchanged), so that measure is now the
+  mean over seeds 53-55 (0.97).
+- **Empty aprons on Khepri (user: "reduce the amount of empty aprons for khepri"):** the empty paving was buildings that were
+  composed but never drawn. Since the 21 October foundations, the renderer hides a building whose real ground cannot seat it
+  (over a rim deeper than the foundation limit, or a roof too close to the flight plane) but kept its aprons; across sampled
+  seats 14% of Khepri, 28% of Vesper and 22% of Nacre buildings were hidden. Now the composer asks the same seat test
+  (`FacilityContext.stands`, `standsOn` in facility-view.ts): such a building is dropped or the arrangement gives way, so
+  every composed building is drawn; about 19-32% of seats keep the plain emplacement instead of a half-empty compound.
+  Khepri also paves only under and around its buildings and the gun's court (`APRON_FIT`), not one lot around all of them.
+  Tests: `tests/world/facility-layouts.test.ts` (no building or paving where the ground cannot seat it); the apron placement test
+  in `tests/world/facility-placement.test.ts` composes its reference plant with the same seat test, on ground low enough for the landmarks.
+- **Facility fixture:** `tests/fixtures/nacre-world.ts` flies each planet's own mission (Khepri Rolling Thunder, Vesper Cold
+  Vector, Luna Training); it flew Deep Bloom repainted, so battery seats (simulation, Nacre terrain) and plants (rendered
+  terrain) disagreed. The arrangement browser test moved to spots where both arrangements stand: Vesper 150, Luna 180.
+- **Menu test:** 60 s budget (three viewports, the campaign page and the hangar take about 30 s under software WebGL; the
+  last release ran it in 31 s on the same machine).
+- **Checks (release worktree, without the in-progress lighting work):** typecheck clean; unit tests 406/406; build passes;
+  browser 36/36 (the files re-run alone after a run loaded by look-dev captures). No phone test.
+
 ## Performance pass 1: no mid-flight shader compiles, `?perf` overlay, no world-border dashes, 22 October 2026
 
 User:

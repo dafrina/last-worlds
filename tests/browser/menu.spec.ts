@@ -6,6 +6,8 @@ import { flying } from './launch';
 const snapshot = (page: Page): Promise<RunState> => page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
 
 test('home stays compact on phones and campaign setup has its own page', async ({ page }, info) => {
+  // Three viewports, the campaign page (its planet preview) and the hangar: about 30 s under software WebGL.
+  test.setTimeout(60000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport); await page.goto('/');

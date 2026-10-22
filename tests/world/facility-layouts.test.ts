@@ -47,7 +47,7 @@ function audit(plant: FacilityPlant, seat: FacilitySeat, context: FacilityContex
     const module = MODULES_BY_NODE.get(m.node)!;
     return { ...m, module, poly: polygon(m.x, m.s, module.half, m.yaw), flat: !!module.flat || module.top <= .2 };
   });
-  const limit = Math.min(3.25, 3.7 - seat.base);
+  const limit = Math.min(4.81, 3.7 - seat.base);
   // Rule 3: heights, the sink and the roof clearance.
   expect(plant.top).toBe(Math.max(...modules.map(m => m.module.top)));
   if (plant.top > limit + 1e-9) broken.push(`rule 3: top ${plant.top} over ${limit}`);
@@ -94,7 +94,7 @@ function audit(plant: FacilityPlant, seat: FacilitySeat, context: FacilityContex
   return broken;
 }
 
-/** Battery ids that get a plant on this world (Luna leaves most batteries without one). */
+/** Battery ids that get a plant on this world (Luna still leaves some batteries without one). */
 const planted = (world: FacilityWorld, seed: number, count: number) => {
   const ids: number[] = [];
   for (let id = 1; ids.length < count; id++) if (wantsPlant(world, id, seed)) ids.push(id);
@@ -229,17 +229,17 @@ describe('modular facility layouts (docs/25)', () => {
     }
   });
 
-  it('leaves most Luna batteries bare and keeps every other world fully planted', () => {
+  it('plants more Luna batteries while retaining open ground and fully planting other worlds', () => {
     for (const world of WORLDS) {
       const ids = Array.from({ length: 2000 }, (_, i) => i + 1), rate = ids.filter(id => wantsPlant(world, id, 8831)).length / ids.length;
-      if (world === 'luna') { expect(rate).toBeGreaterThan(.2); expect(rate).toBeLessThan(.4); } else expect(rate).toBe(1);
-      expect(PLANT_CHANCE[world]).toBeCloseTo(world === 'luna' ? .3 : 1);
+      if (world === 'luna') { expect(rate).toBeGreaterThan(.5); expect(rate).toBeLessThan(.7); } else expect(rate).toBe(1);
+      expect(PLANT_CHANCE[world]).toBeCloseTo(world === 'luna' ? .6 : 1);
       // The decision is seeded per battery and run, like the layout.
       expect(ids.slice(0, 50).map(id => wantsPlant(world, id, 8831))).toEqual(ids.slice(0, 50).map(id => wantsPlant(world, id, 8831)));
     }
     let plants = 0;
     for (let id = 1; id <= 1000; id++) if (composeFacility('luna', id, 8831, { x: 0, s: 50, base: .2 })) plants++;
-    expect(plants / 1000).toBeGreaterThan(.2); expect(plants / 1000).toBeLessThan(.4);
+    expect(plants / 1000).toBeGreaterThan(.5); expect(plants / 1000).toBeLessThan(.7);
   });
 
   it('lays aprons under every module of a plant on Khepri, Vesper and Nacre, and keeps them off neighbours', () => {
@@ -265,5 +265,23 @@ describe('modular facility layouts (docs/25)', () => {
       { batteries: [{ x: 13, s: id * 5 + 1 }], reserved: [{ minX: 9, maxX: 11, minS: id * 5, maxS: id * 5 + 4 }] });
     // Under 2 ms each even on a loaded CI runner (typically ~0.1 ms).
     expect((performance.now() - start) / 400).toBeLessThan(2);
+  });
+
+  it('never keeps a building, or paving for it, where the real ground cannot seat it (22 October, empty aprons)', () => {
+    // A rim: the ground east of the gun cannot take buildings.
+    const stands = (_node: string, x: number) => x < 1.2;
+    let plants = 0, eastBuildings = 0;
+    for (let id = 1; id <= 300; id++) {
+      const plant = composeFacility('khepri', id, 8831, { x: 0, s: 50, base: .2 }, { stands });
+      if (!plant) continue;
+      plants++;
+      for (const m of plant.modules) if (!MODULES_BY_NODE.get(m.node)!.flat && plant.x + m.x >= 1.2) eastBuildings++;
+      // Khepri paves only around what is built: every apron tile touches a building or the gun's court.
+      const buildings = plant.modules.filter(m => !MODULES_BY_NODE.get(m.node)!.flat);
+      for (const tile of plant.modules.filter(m => m.node === 'fk_khepri_apron'))
+        expect(Math.abs(tile.x) < 2.5 && Math.abs(tile.s) < 2.5 || buildings.some(b => Math.abs(b.x - tile.x) < 3 && Math.abs(b.s - tile.s) < 3)).toBe(true);
+    }
+    expect(plants).toBeGreaterThan(50);
+    expect(eastBuildings).toBe(0);
   });
 });

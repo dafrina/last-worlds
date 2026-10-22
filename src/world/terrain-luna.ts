@@ -6,7 +6,7 @@ import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 
 /**
  * Luna, Khepri's moon and the training ground (docs/19): grey regolith pocked with impact craters at three scales, smooth
- * dark mare plains with fewer of them, and a handful of small outposts. No water, no roads, no pipelines.
+ * dark mare plains with fewer of them, and small outposts joined by rover tracks. No water or pipelines.
  * Every piece reuses the Khepri kit and infrastructure models. Pure functions of seed and world coordinates.
  */
 const NEUTRAL: MoodParams = NEUTRAL_MOOD;
@@ -206,12 +206,12 @@ function lunaColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: numb
 
 /**
  * Sparse outposts from the Khepri infrastructure kit: a landing pad with a habitat, a comm dish with a solar
- * array, or an abandoned habitat. Most cells stay empty: the user asked for a much less populated Moon (20 October),
- * so outposts are rarer (0.24 to 0.10) and each carries only a few pieces.
+ * array, or an abandoned habitat. Most cells stay empty. User, 22 October: more visible Moon buildings;
+ * candidate chance rises from .10 to .18, keeping the same small sites and terrain-fit rules.
  */
 const LUNA_ARCHETYPES: readonly Archetype[] = ['landing', 'comm', 'abandoned'];
 const EXTENT: Readonly<Record<string, [number, number]>> = { landing: [3.9, 3.9], comm: [2.9, 2.9], abandoned: [2.4, 2.4] };
-const OUTPOST_CHANCE = 0.1;
+const OUTPOST_CHANCE = 0.18;
 
 interface LocalModule { kind: PlacedModule['kind']; node: string; u: number; v: number; yaw: number; scale?: number }
 function compose(archetype: Archetype, h: (k: number) => number): LocalModule[] {
@@ -249,7 +249,7 @@ function lunaPresent(seed: number, cell: number, side: number): boolean {
   return roll(side) < chance || (roll(-side) < chance && hash(seed ^ 0xa1e8, cell, side > 0 ? 1 : 2) < 0.65);
 }
 const memo = new Map<string, Settlement | null>();
-/** The Luna outpost of one cell and side, or null (about one candidate in four), on the flattest nearby ground. */
+/** The Luna outpost of one cell and side, or null, on the flattest nearby ground. */
 export function lunaSettlement(seed: number, cell: number, side: number): Settlement | null {
   const key = `${seed}:${cell}:${side}`;
   if (memo.has(key)) return memo.get(key)!;

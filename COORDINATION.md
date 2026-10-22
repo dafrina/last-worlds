@@ -287,3 +287,21 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - `?perf` frame-time overlay;
   - world-border dashes removed (user request).
 - **Checks:** typecheck clean, unit tests 405/405, build passes, browser 36/36 (a new test asserts no mid-flight shader compiles). No phone test.
+
+**2026-10-22 · Codex / taller Khepri and Vesper buildings:** Read the integrator's handoff: tread/loading work shipped in `92c5354`, cliff work shipped in v14–16. No duplicate implementation or release. Latest user request is taller buildings on Khepri and Vesper. Owning selected facility landmarks (Blender MCP), their registry/layout height and visibility rules, focused tests and docs. Will preserve the active performance work in `scene.ts`, `post-pipeline.ts`, and `fx-particles.ts`, and the Veil experiment. No agents. Target two taller structural silhouettes per requested world, with guns kept readable, versioned assets and isolated release validation.
+
+**2026-10-22 · Codex scope correction:** User clarified "no forget it all", "just the buildings height", "i want one or two taller buildings". Current task is ONLY two height increases: Khepri tower and Vesper control tower. No cliffs, no further tread/loading work, no additional building designs. Keep existing footprint, paint and details, use live Blender MCP, retain v3 files for rollback. Existing terrain/flight clearance and gun-visibility rules continue to apply.
+
+**2026-10-22 · Codex preview request:** User asked to see the models first, then added a building and asked whether the tank is shared. Preparing isolated original/taller Blender previews, including Khepri's small machine hall. No deployment; current v4 files and registry edits are review drafts. Shared facility modules are already instanced per world. Preserve the other session's active rendering/main.ts edits.
+
+
+**2026-10-22 · Codex / Nacre ruin architecture + Moon density:** User requests alien Nacre buildings matching existing scattered ruin towers, and more Moon buildings. Owning a new versioned Nacre facility GLB/script, facility kit mapping, Luna facility probability/outpost chance, focused docs/tests and visual QA. Keeping existing renderer/performance/main.ts and Veil edits untouched. Khepri/Vesper height drafts remain unshipped; no deployment during this art review.
+
+**2026-10-22 · Claude Code · integrated Codex's facility work (Codex out of tokens): deployed:**
+- **Changes:**
+  - Codex's taller Khepri and Vesper buildings (v4-taller kits), Nacre ruin kit (v4-ruins), Moon outposts .18 and plants .6 (terrain v17);
+  - compounds keep only buildings their ground can seat;
+  - Khepri paves only around its buildings;
+  - the facility fixture flies each planet's own mission.
+- **Not included:** the obsolete `tools/blender/the_veil.py` edit (discarded at the user's request), and Claude Code's in-progress fog, explosions and light playground.
+- **Checks:** released from a clean worktree: typecheck, unit tests 406/406, build, browser 36/36 (the files re-run alone after a run loaded by look-dev captures). No phone test.

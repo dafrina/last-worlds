@@ -53,8 +53,9 @@ export {
  * 16: relief and compounds (docs/26 §12): Vesper's sea at −3.6 with taller shelf steps, ice plateaus and peaks; Nacre's
  *     massifs raised into stepped mountains; outposts stand in compounds joined by roads and pipes on every world, Luna's
  *     bases in pairs on rover tracks; a lead under a pad is filled at pad level.
+ * 17: more frequent Luna outposts (.10 to .18); other planets and relief are unchanged.
  */
-export const TERRAIN_VERSION = 16;
+export const TERRAIN_VERSION = 17;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.

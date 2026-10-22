@@ -10,7 +10,9 @@ import type { FacilityWorld } from '../../src/render/facility-kit';
 const q = new URLSearchParams(location.search);
 // `fv=3` builds the modular compounds of docs/25 (the real kits; registry stand-ins only for a missing file), `fv=2` the v2 plants.
 if (q.get('fv') === '2' || q.get('fv') === '3') facilityOptions.version = Number(q.get('fv')) as 2 | 3;
-const state = createRun({ mode: 'campaign', mission: 'deep-bloom', seed: Number(q.get('seed') ?? 8831) });
+// Each planet flies its own mission, so the simulation's ground (battery seats, src/sim/ground.ts) is the terrain on screen.
+const MISSION = { khepri: 'bastion', vesper: 'cold-vector', nacre: 'deep-bloom', luna: 'training' } as const;
+const state = createRun({ mode: 'campaign', mission: MISSION[(q.get('planet') ?? 'nacre') as keyof typeof MISSION] ?? 'deep-bloom', seed: Number(q.get('seed') ?? 8831) });
 state.distance = Number(q.get('distance') ?? 100);
 state.time = state.distance / 5;
 state.tick = Math.round(state.time * 60);

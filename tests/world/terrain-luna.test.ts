@@ -16,12 +16,13 @@ describe('luna training world (docs/19)', () => {
     for (const s of [0, 500, 3000]) expect(route.worldAt(s).planet.id).toBe('luna');
   });
 
-  it('is deterministic and dry, with no roads or pipelines, and keeps scenery under its cap', () => {
+  it('is deterministic and dry, with no pipelines, and keeps scenery under its cap', () => {
     for (const seed of [93, 4242]) for (const index of [0, 3, 7]) {
       const section = generateTerrainSection(seed, index, LUNA);
       expect(generateTerrainSection(seed, index, LUNA)).toEqual(section);
       expect(section.water).toBeUndefined(); expect(section.floes).toBeUndefined();
-      expect(section.roadPaths).toHaveLength(0); expect(section.industry.every(piece => !piece.node.startsWith('pipe_'))).toBe(true);
+      // Version 16 already connects lunar bases with rover tracks; denser v17 reaches them in these samples.
+      expect(section.industry.every(piece => !piece.node.startsWith('pipe_'))).toBe(true);
       for (const kit of section.instances) expect(kit.y + kit.height * KIT[kit.kind].height).toBeLessThanOrEqual(LUNA_SCENERY_MAX + 1e-9);
       for (const prop of section.props) expect(prop.baseHeight + prop.height).toBeLessThanOrEqual(LUNA_SCENERY_MAX + 1e-9);
       // Only Khepri kit pieces are reused (no new models).
@@ -60,9 +61,10 @@ describe('luna training world (docs/19)', () => {
     expect(new Set(Array.from({ length: 16 }, (_, i) => lunaMoodOf(93, i))).size).toBe(4);
   });
 
-  it('keeps outposts sparse', () => {
+  it('shows more outposts without filling every section with bases', () => {
     let outposts = 0;
     for (let index = 0; index < 30; index++) outposts += new Set(generateTerrainSection(93, index, LUNA).props.map(prop => prop.group)).size;
-    expect(outposts).toBeGreaterThan(0); expect(outposts).toBeLessThan(30);
+    // User 22 October: increase building frequency. This route previously had fewer than 30 appearances.
+    expect(outposts).toBeGreaterThan(30); expect(outposts).toBeLessThan(50);
   });
 });

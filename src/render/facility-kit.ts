@@ -12,6 +12,11 @@ import type { PlanetId } from '../shared/contracts';
  */
 /** Every world has a kit (Luna joined at the user's request: "what about moon?", 20 October). */
 export type FacilityWorld = PlanetId;
+/** Versioned kits: change a filename to restore the previous building heights. */
+export const FACILITY_KIT_ASSETS: Readonly<Record<FacilityWorld, string>> = {
+  khepri: 'facility-kit-v4-taller.glb', vesper: 'facility-kit-v4-taller.glb',
+  nacre: 'facility-kit-v4-ruins.glb', luna: 'facility-kit-v3.glb',
+};
 export type ModuleRole =
   | 'hall' | 'tank' | 'column' | 'landmark' | 'pump' | 'pipe' | 'wall' | 'detail' | 'pad' | 'ring' | 'arc' | 'pool' | 'apron';
 /** Quarter turns (1 = 90° counter-clockwise seen from above, three.js yaw). Turn 2 shows the camera the plain back. */
@@ -46,8 +51,8 @@ function m(world: FacilityWorld, name: string, half: readonly [number, number], 
   return { node: `fk_${world}_${name}`, world, half, top, below: .6, roles, turns, ...extra };
 }
 
-/** Tallest a module may be anywhere (roofs stay 0.45 under the flight plane at 3.8 on ground at 0.1). */
-export const MODULE_TOP_MAX = 3.25;
+/** The two taller towers seat on lower terrain; the existing absolute roof-clearance rule still applies. */
+export const MODULE_TOP_MAX = 4.81;
 /** Modules taller than the v2 plants (2.65) only seat on low ground (see docs/25 §heights). */
 export const TALL = 2.65;
 
@@ -56,9 +61,9 @@ export const FACILITY_MODULES: readonly FacilityModule[] = [
   m('khepri', 'tank_l', [.85, .85], 1.8, ['tank'], ALL),
   m('khepri', 'tank_s', [.4, .4], .7, ['tank', 'detail'], 'free', { below: .4 }),
   m('khepri', 'columns', [.75, .55], 2.3, ['column'], FRONT),
-  m('khepri', 'tower', [.65, .65], 3.25, ['landmark', 'column'], FIXED),
+  m('khepri', 'tower', [.65, .65], 4.81, ['landmark', 'column'], FIXED),
   m('khepri', 'hall_l', [.95, 1.75], 2.0, ['hall'], FRONT),
-  m('khepri', 'hall_s', [.95, .9], 1.95, ['hall'], FRONT),
+  m('khepri', 'hall_s', [.95, .9], 2.85, ['hall'], FRONT),
   m('khepri', 'pump', [.8, .55], 1.55, ['pump'], FRONT, { below: .5 }),
   m('khepri', 'refinery', [1.2, .75], 3.0, ['landmark'], FIXED),
   m('khepri', 'spire', [.8, .8], 3.25, ['landmark'], FIXED),
@@ -75,7 +80,7 @@ export const FACILITY_MODULES: readonly FacilityModule[] = [
   m('vesper', 'reactor', [.8, .8], 3.25, ['landmark'], FIXED),
   m('vesper', 'hall_l', [.95, 1.75], 1.95, ['hall'], FRONT),
   m('vesper', 'hall_s', [.95, .9], 1.9, ['hall'], FRONT),
-  m('vesper', 'tower', [.6, .6], 3.0, ['landmark', 'column'], FIXED),
+  m('vesper', 'tower', [.6, .6], 4.44, ['landmark', 'column'], FIXED),
   m('vesper', 'fuel', [.8, .55], 1.25, ['tank', 'detail'], FRONT, { below: .4 }),
   m('vesper', 'pylon', [.45, .45], 2.6, ['column', 'landmark'], ALL),
   m('vesper', 'wall', [1.02, .35], .9, ['wall'], ALL, { below: .5, tiles: 2 }),
@@ -83,7 +88,7 @@ export const FACILITY_MODULES: readonly FacilityModule[] = [
   m('vesper', 'pad', [2.5, 2.5], .2, ['pad'], FIXED, { flat: true }),
   m('vesper', 'ring', [.98, .98], .05, ['ring'], FIXED, { below: .05, flat: true }),
   m('vesper', 'apron', [1, 1], .04, ['apron'], ALL, { below: 1.1, flat: true, tiles: 2 }),
-  // Nacre: lavender stone, crescent blades, glowing basins and seams (nacre.jpg). Plants may stand in the mire.
+  // Nacre: dark stepped ruins, split monoliths, amber seams and teal conduits (v4). Plants may stand in the mire.
   m('nacre', 'basin_l', [.85, .85], 1.45, ['tank', 'pool'], ALL),
   m('nacre', 'basin_s', [.62, .62], 1.2, ['tank', 'pool'], ALL),
   m('nacre', 'hall_l', [.95, 1.75], 2.3, ['hall'], FRONT),

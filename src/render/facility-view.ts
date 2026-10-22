@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { VIEW, type PlanetId, type RunState } from '../shared/contracts';
-import { MODULES_BY_NODE, modulesOf, type FacilityWorld, type ModuleRole } from './facility-kit';
+import { FACILITY_KIT_ASSETS, MODULES_BY_NODE, modulesOf, type FacilityWorld, type ModuleRole } from './facility-kit';
 import { composeFacility, nodeBudget, type ArrangementId, type FacilityPlant } from './facility-layouts';
 import { loadTexturedNodes, type TexturedPart } from './models';
 import { paintMaterial } from './world-paint';
@@ -79,7 +79,7 @@ function releaser(parts: Iterable<TexturedPart[]>) {
 
 /** Plants alive at once (as v2); the terrain view takes at most 12 clearings. */
 const PLANTS = 12;
-const kitUrl = (world: FacilityWorld) => `${import.meta.env.BASE_URL}assets/${world}/facility-kit-v3.glb`;
+const kitUrl = (world: FacilityWorld) => `${import.meta.env.BASE_URL}assets/${world}/${FACILITY_KIT_ASSETS[world]}`;
 interface Kit { source: 'glb' | 'stand-in' | 'mixed'; batches: Map<string, THREE.InstancedMesh[]>; dispose(): void }
 
 /**
@@ -182,7 +182,7 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
         const others: { x: number; s: number }[] = [];
         for (const [other, gun] of batteries) if (other !== id) others.push({ x: gun.groundX, s: gun.groundS });
         const plant = composeFacility(planet, id, state.config.seed, { x: seat.groundX, s: seat.groundS, base: seat.base },
-          { batteries: others, reserved, plants: plants.map(p => p.plant) });
+          { batteries: others, reserved, plants: plants.map(p => p.plant), ...(ground ? { stands: standsOn(ground) } : {}) });
         if (plant) plants.push({ id, plant, ...heightsOf(plant, ground) });
       }
       kits.forEach(kit => { if (typeof kit === 'object') kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.count = 0; })); });
@@ -249,17 +249,26 @@ const ROUGH = 1.1;
  * out (NaN).
  */
 const FOUNDATION_MAX = 2.4;
+/** Where a building or tank stands on the real ground (its seat and the lowest ground under it), or a NaN seat. */
+function standOf(node: string, x: number, s: number, base: number, ground: (x: number, s: number) => number): { seat: number; low: number } {
+  const module = MODULES_BY_NODE.get(node)!, [hx, hs] = module.half, r = Math.max(hx, hs) - .1;
+  const samples = [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].map(([dx, ds]) => ground(x + dx * r, s + ds * r));
+  const hi = Math.max(...samples), low = Math.min(...samples), seat = Math.max(base, hi - .05);
+  return { seat: seat - low > FOUNDATION_MAX || seat + module.top > VIEW.flightHeight - .45 ? NaN : seat, low };
+}
+/** The composer's seat test (FacilityContext.stands): the same rule the plant is drawn by. */
+export const standsOn = (ground: (x: number, s: number) => number) =>
+  (node: string, x: number, s: number, base: number) => !Number.isNaN(standOf(node, x, s, base, ground).seat);
+
 function heightsOf(plant: FacilityPlant, ground?: (x: number, s: number) => number): { y: number[]; lows: number[] } {
   const lows: number[] = [];
   const y = plant.modules.map(m => {
     const module = MODULES_BY_NODE.get(m.node)!;
     if (!module.flat) {
       if (!ground) { lows.push(plant.base); return plant.base; }
-      const [hx, hs] = module.half, r = Math.max(hx, hs) - .1, x = plant.x + m.x, s = plant.s + m.s;
-      const samples = [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].map(([dx, ds]) => ground(x + dx * r, s + ds * r));
-      const hi = Math.max(...samples), lo = Math.min(...samples), seat = Math.max(plant.base, hi - .05);
-      lows.push(lo);
-      return seat - lo > FOUNDATION_MAX || seat + module.top > VIEW.flightHeight - .45 ? NaN : seat;
+      const { seat, low } = standOf(m.node, plant.x + m.x, plant.s + m.s, plant.base, ground);
+      lows.push(low);
+      return seat;
     }
     lows.push(-Infinity);
     if (!ground || !module.roles.includes('apron')) return plant.ground;

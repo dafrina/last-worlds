@@ -7,7 +7,7 @@ import { BASTION } from '../../src/content/bastion';
 import { HELION_ARK } from '../../src/content/ark';
 import { VEIL } from '../../src/content/veil';
 import { WARDEN } from '../../src/content/warden';
-import { FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
+import { FACILITY_KIT_ASSETS, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
 
 const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
 // These checks exercise geometry/rigs in Node. Actual PNG decoding and materials are
@@ -232,7 +232,7 @@ describe('Blender cinematic asset contracts',()=>{
     let checked=0;
     for(const world of new Set(FACILITY_MODULES.map(module=>module.world))){
       let model: Group;
-      try { model=await asset(`${world}/facility-kit-v3.glb`); } catch(error) { if((error as {code?:string}).code==='ENOENT') continue; throw error; }
+      try { model=await asset(`${world}/${FACILITY_KIT_ASSETS[world]}`); } catch(error) { if((error as {code?:string}).code==='ENOENT') continue; throw error; }
       checked++; validate(model,30000,true);
       expect(model.getObjectByName('facility_kit_v3'),world).toBeDefined();
       model.updateMatrixWorld(true);
