@@ -2,9 +2,9 @@ import { WORLD_HALF, hash, noise, smoothRange } from './terrain-layout';
 
 /**
  * A mission arena: a stretch of world s where a set-piece fight holds the scroll (Rolling Thunder's
- * Bastion-9). Inside it the ground settles into a broad, flat, clean dusty platform across the full width,
- * framed by low banks, rim columns and a few low formations at the world edges, and it eases in (and out)
- * over ARENA_RAMP units. Endless and training never pass one; with no arena every function here is inert,
+ * Bastion-9). Inside it the ground around the boss settles into a flat, clean platform (`arenaAt`, the boss clearing,
+ * since 22 October; it was the full width before), ringed by low rim columns and formations, and the planet's own
+ * terrain carries on around it. Endless and training never pass one; with no arena every function here is inert,
  * so all generation output is unchanged.
  */
 export interface TerrainArena { readonly fromS: number; readonly toS: number }
@@ -17,6 +17,40 @@ export const ARENA_LEVEL = 0;
 export function arenaWeight(arena: TerrainArena | undefined, s: number): number {
   if (!arena) return 0;
   return smoothRange(arena.fromS - ARENA_RAMP, arena.fromS, s) * (1 - smoothRange(arena.toS, arena.toS + ARENA_RAMP, s));
+}
+/**
+ * The boss clearing (user, 22 October 2026: "keep it flat around where the boss is, but have features elsewhere"; "don't
+ * make it a strict oval"). Only the ground around the boss settles into the arena's platform (paving, open water or
+ * plain); beyond it the planet's own terrain carries on, at the sides and under the ship. A fixed oval over the boss's
+ * whole manoeuvre (hull, sway and surge, anchored at x 0) is always flat; past it the edge wanders out by up to
+ * `2 × wobble` in irregular bays and spurs (two octaves of noise), then fades over `fade`.
+ *
+ * Every boss stops with its platform starting 9 before the stop (`platform.from` −9) and fights at rows 11.5–13, so
+ * the centre sits a fixed `centre` past `fromS` (tests/world/terrain-arena.test.ts checks every boss).
+ */
+export const ARENA_CLEARING = { centre: 9 + 12.5, halfX: 5.6, halfS: 7.5, wobble: 2.8, fade: 2.5 } as const;
+/** The arena's weight at a point: 1 in the boss clearing, 0 outside it, irregular in between. */
+export function arenaAt(arena: TerrainArena | undefined, seed: number, x: number, s: number): number {
+  const along = arenaWeight(arena, s);
+  if (along <= 0) return 0;
+  const c = ARENA_CLEARING, centre = arena!.fromS + c.centre;
+  // Units outside the core oval (exact on its axes, close enough between them).
+  const outside = (Math.hypot(x / c.halfX, (s - centre) / c.halfS) - 1) * Math.min(c.halfX, c.halfS);
+  if (outside <= 0) return along;
+  const edge = smoothRange(0.2, 0.8, noise(seed ^ 0xa7c1, x * 0.16, s * 0.14) * 0.65 + noise(seed ^ 0xa7c2, x * 0.42, s * 0.39) * 0.35) * 2 * c.wobble;
+  return along * (1 - smoothRange(edge, edge + c.fade, outside));
+}
+/** Whether a point lies in the clearing's fixed core oval (always flat, whatever the noise does to its edge). */
+export function inArenaCore(arena: TerrainArena | undefined, x: number, s: number): boolean {
+  if (!arena) return false;
+  const c = ARENA_CLEARING;
+  return Math.hypot(x / c.halfX, (s - arena.fromS - c.centre) / c.halfS) <= 1 && arenaWeight(arena, s) >= 1;
+}
+/** Whether a point lies beyond the clearing's widest possible edge (the planet's own terrain there). */
+export function beyondArenaClearing(arena: TerrainArena | undefined, x: number, s: number): boolean {
+  if (!arena) return true;
+  const c = ARENA_CLEARING;
+  return (Math.hypot(x / c.halfX, (s - arena.fromS - c.centre) / c.halfS) - 1) * Math.min(c.halfX, c.halfS) >= 2 * c.wobble + c.fade;
 }
 /** Whether [s0, s1] reaches the arena or its ramps (widened by `margin`). */
 export function nearArena(arena: TerrainArena | undefined, s0: number, s1: number, margin = 0): boolean {

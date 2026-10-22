@@ -7,7 +7,7 @@ import { HELION_ARK } from '../../src/content/ark';
 import { arenaStopDistance } from '../../src/sim/bastion';
 import { missionArena } from '../../src/render/scene';
 import {
-  ARENA_RAMP, FLOE_SETS, KIT, MODULE_HEIGHT, PLANETS, ROAD_ENDS, TERRAIN_MAX_HEIGHT, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, resetTerrainCaches, roadPath,
+  ARENA_RAMP, FLOE_SETS, beyondArenaClearing, inArenaCore, KIT, MODULE_HEIGHT, PLANETS, ROAD_ENDS, TERRAIN_MAX_HEIGHT, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, resetTerrainCaches, roadPath,
   sectionSteps, settlementsNear, terrainHeight, worldOf, type TerrainSection,
 } from '../../src/world/terrain';
 
@@ -42,7 +42,7 @@ describe('planet profiles (docs/17 §2)', () => {
         expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);
       }
       // The arena hides the slot's district and its quiet cells lie elsewhere: unchanged either way.
-      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('98d769d4c1ab737e');
+      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('10efb595655970d6');
     };
     check(recorded);
     const policy = PLANETS.khepri.districts, taper = ROAD_ENDS.taper;
@@ -221,7 +221,7 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect([...archetypes].sort()).toEqual(['cryo', 'exchanger', 'harbour', 'missile', 'plant', 'radiator', 'reactor']);
   }, 180_000);
 
-  it('opens the Cold Vector ocean arena (926–970): open water, nothing afloat on it, calm ramps with distant bergs only', () => {
+  it('opens the Cold Vector ocean arena (926–970): open water around the Ark, nothing afloat there, shelves beyond', () => {
     // The mission's arena comes from the Ark's own constants: the scroll stops at 935.
     const config = { mode: 'campaign', mission: 'cold-vector', seed: 93 } as Parameters<typeof missionArena>[0];
     const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena };
@@ -230,21 +230,22 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 666, toS: 701 });
     expect(missionArena({ ...config, mode: 'endless' })).toBeUndefined();
     for (const seed of [93, 8831, 11]) {
-      for (let s = arena.fromS; s <= arena.toS; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) expect(terrainHeight(seed, x, s, world)).toBeLessThan(SEA - 0.5);
-      const inside = (s: number) => s >= arena.fromS && s <= arena.toS, ramp = (s: number) => !inside(s) && s > arena.fromS - ARENA_RAMP && s < arena.toS + ARENA_RAMP;
       let land = 0;
+      for (let s = arena.fromS; s <= arena.toS; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
+        const height = terrainHeight(seed, x, s, world);
+        if (inArenaCore(arena, x, s)) expect(height).toBeLessThan(SEA - 0.5);
+        else if (beyondArenaClearing(arena, x, s) && height >= SEA) land++;
+      }
+      // Shelves frame the clearing: shelf ice inside the arena, beyond the clearing (the arena was all open water before).
+      expect(land).toBeGreaterThan(0);
+      const inside = (s: number) => s >= arena.fromS - ARENA_RAMP && s <= arena.toS + ARENA_RAMP;
       for (let index = Math.floor((arena.fromS - ARENA_RAMP) / VIEW.sectionLength); index <= Math.floor((arena.toS + ARENA_RAMP) / VIEW.sectionLength); index++) {
         const section = generateTerrainSection(seed, index, world);
-        for (const floe of section.floes!) {
-          expect(inside(floe.s)).toBe(false);
-          if (ramp(floe.s)) { expect(floe.kind).toBe('iceberg'); expect(Math.abs(floe.x)).toBeGreaterThan(HALF - 4); }
-        }
-        for (const piece of section.instances) expect(inside(piece.s)).toBe(false);
+        // Nothing afloat or standing in the clearing; no outposts anywhere in the arena.
+        for (const floe of section.floes!) expect(inArenaCore(arena, floe.x, floe.s)).toBe(false);
+        for (const piece of section.instances) expect(inArenaCore(arena, piece.x, piece.s)).toBe(false);
         for (const prop of section.props) expect(inside(prop.s)).toBe(false);
       }
-      // The shelf edge pulls back but still frames the approach: there is shelf ice on the ramp before the platform.
-      for (let s = arena.fromS - ARENA_RAMP; s < arena.fromS - 10; s += 1) for (let x = -HALF; x <= HALF; x += 1) if (terrainHeight(seed, x, s, world) >= SEA) land++;
-      expect(land).toBeGreaterThan(0);
       // Far from the arena nothing changes.
       expect(generateTerrainSection(seed, 3, world)).toEqual(generateTerrainSection(seed, 3, VESPER));
     }

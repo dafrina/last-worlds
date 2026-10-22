@@ -43,7 +43,6 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
   for (let j = Math.ceil(startS / cell - 0.5); (j + 0.5) * cell < startS + size; j++) {
     yield;
     const cs = (j + 0.5) * cell;
-    if (terrain.platform(cs) > 0) continue;
     for (let i = 0; i < columns; i++) {
       const h = (k: number) => hash(seed ^ o.salt, i * 59 + k, j);
       const cx = -WORLD_HALF + (i + 0.5) * cell;
@@ -81,7 +80,7 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       if (!clear(x, s) || !clear(px, ps) || !clear(rx, rs) || !clear(x - us * 1, s + ux * 1) || !clear(x + us * 1, s - ux * 1)) continue;
       const y = base - 0.12, rise = Math.min(o.cap, top + 0.03) - y, spec = KIT[o.kind], scale = 0.85 + h(2) * 0.3;
       // Never on an arena's platform or ramps (the wall's own row, not just its cell's), never past the world's edge.
-      if (rise < o.minDrop * 0.8 || Math.abs(x) + spec.radius * scale > WORLD_HALF || terrain.platform(s) > 0 || terrain.platform(rs) > 0) continue;
+      if (rise < o.minDrop * 0.8 || Math.abs(x) + spec.radius * scale > WORLD_HALF || terrain.platform(x, s) > 0 || terrain.platform(rx, rs) > 0) continue;
       out.push({
         kind: o.kind, variant: Math.floor(h(1) * spec.variants), x, s, y,
         // A ±15% stretch along the rim; segments stay continuous at about one per cell.

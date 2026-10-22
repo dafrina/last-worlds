@@ -1,5 +1,16 @@
 # Build status
 
+## Boss arenas: flat only around the boss, terrain beyond, 22 October 2026
+
+User: "change the boss terrains? Just keep it flat around where the boss is, but have features elsewhere because it looks way too flat now in comparison"; "don't make it a strict oval"; "maybe allow vegetation or rocks to be spawned still since the land based bosses just run over it".
+
+- **Clearing (`src/world/terrain-arena.ts`, `arenaAt`):** an arena now settles only a clearing around the boss into its platform (Khepri paving, Luna's level floor, open water on Vesper and Nacre). A fixed core oval (5.6 × 7.5 half axes, centred on the boss rows, 21.5 past the arena's start) covers every boss's hull, sway and surge and is always flat; its edge wanders out by up to 5.6 more in irregular bays and spurs (two octaves of noise), then fades over 2.5. Beyond it the planet's own terrain and scatter carry on: canyons, craters, islands, ice shelves. Outposts, roads and pipes stay out of the whole arena as before.
+- **Bosses arrive at the map's centre** (x 0; they arrived over the camera, within ±4, before), so the clearing is always under them. The camera still pans freely.
+- **Scatter:** Khepri rings the clearing's edge with rim columns and formations (the world edges before) and sprinkles small stones on the floor; Luna's floor keeps small stones; nothing taller than 0.4 stands in the core (bosses roll over it). Vesper floes and Nacre pieces keep out of the clearing only.
+- **Water arenas:** Vesper's coast pulls back up to 3 units past the clearing (bays); some seeds frame the Ark with shelves and cliffs, others leave open sea.
+- **Tests:** arena tests now check the core oval (flat, small stones only), relief beyond the clearing, every boss's manoeuvre inside the core, and shelves or islands beyond it; the Khepri arena fingerprint is re-recorded (10efb595655970d6).
+- **Checks:** released from a clean worktree: typecheck clean; unit tests 407/407; build; browser 36/36 (35 in the full run: the Bastion-9 renderer spec timed out on a screenshot while unit sweeps loaded the machine, and passed alone). No phone test.
+
 ## Vesper cliffs: fractured ice walls, crisp ice texture, no moiré on curved walls, 22 October 2026
 
 User:

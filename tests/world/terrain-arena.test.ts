@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { VIEW } from '../../src/shared/contracts';
+import { BOSSES } from '../../src/content/bosses';
 import {
-  ARENA_LEVEL, ARENA_RAMP, KIT, TERRAIN_STEP, createTerrainStream, generateTerrainSection, terrainHeight, terrainSample, type TerrainArena,
+  ARENA_CLEARING, ARENA_LEVEL, ARENA_RAMP, KIT, TERRAIN_STEP, beyondArenaClearing, createTerrainStream, generateTerrainSection, inArenaCore,
+  terrainHeight, terrainSample, type TerrainArena,
 } from '../../src/world/terrain';
 
 /** Rolling Thunder's Bastion-9 platform: the scroll stops at 675; the fight needs s 666–701 (BASTION.arena). */
@@ -19,32 +21,40 @@ describe('mission arena platform', () => {
       expect(generateTerrainSection(seed, index, ARENA)).toEqual(generateTerrainSection(seed, index));
     }
     expect(terrainHeight(93, 3, 120, ARENA)).toBe(terrainHeight(93, 3, 120));
-    expect(terrainHeight(93, 3, 620, ARENA)).not.toBe(terrainHeight(93, 3, 620));
+    expect(terrainHeight(93, 3, ARENA.fromS + ARENA_CLEARING.centre, ARENA)).not.toBe(terrainHeight(93, 3, ARENA.fromS + ARENA_CLEARING.centre));
   });
 
-  it('settles into a broad flat paved floor across the full width, with only a low lip at the edges', () => {
+  it('centres the clearing on every boss: platforms start 9 before the stop, and the boss rows sit in the core', () => {
+    for (const boss of Object.values(BOSSES)) {
+      expect(boss.arena.platform.from, boss.id).toBe(-9);
+      const row = ARENA_CLEARING.centre - 9;
+      // The whole manoeuvre (row ± surge) stays well inside the core oval.
+      expect(Math.abs(boss.row - row) + boss.arena.surge, boss.id).toBeLessThan(ARENA_CLEARING.halfS - 3);
+      expect(boss.arena.sway, boss.id).toBeLessThan(ARENA_CLEARING.halfX - 3.8);
+    }
+  });
+
+  it('settles into a flat paved floor around the boss, and keeps the planet’s own relief beyond the clearing', () => {
     for (const seed of SEEDS) {
-      let banks = 0;
-      for (let s = ARENA.fromS; s <= ARENA.toS; s += 1.5) for (let x = -HALF; x <= HALF; x += 0.5) {
+      let core = 0, relief = 0;
+      for (let s = ARENA.fromS; s <= ARENA.toS; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
         const height = terrainHeight(seed, x, s, ARENA);
-        if (Math.abs(x) <= HALF - 1.6) {
+        if (inArenaCore(ARENA, x, s)) {
+          core++;
           expect(Math.abs(height - ARENA_LEVEL)).toBeLessThan(0.25);
           // Gentle relief only (worn paving joints a few centimetres deep): no step over 0.16 per half unit.
           expect(Math.abs(terrainHeight(seed, x + TERRAIN_STEP, s, ARENA) - height)).toBeLessThan(0.16);
           expect(Math.abs(terrainHeight(seed, x, s + TERRAIN_STEP, ARENA) - height)).toBeLessThan(0.16);
-        } else {
-          expect(height).toBeLessThan(0.9);
-          if (height > 0.3) banks++;
-        }
-        const sample = terrainSample(seed, x, s, ARENA);
-        expect(sample.height).toBe(height);
-        expect(sample.mineral).toBe(0);
+          expect(terrainSample(seed, x, s, ARENA).mineral).toBe(0);
+        } else if (beyondArenaClearing(ARENA, x, s) && Math.abs(height - ARENA_LEVEL) > 0.5) relief++;
+        expect(terrainSample(seed, x, s, ARENA).height).toBe(height);
       }
-      expect(banks).toBeGreaterThan(20);
+      expect(core).toBeGreaterThan(200);
+      expect(relief).toBeGreaterThan(100);
     }
   });
 
-  it('keeps outposts, roads, pipelines and tall scatter off the platform and its ramps; frames its edges', () => {
+  it('keeps outposts, roads and pipelines off the arena, only small stones in the clearing, and rings its edge', () => {
     for (const seed of SEEDS) {
       let framing = 0;
       for (const index of sectionsOver(ARENA.fromS - ARENA_RAMP, ARENA.toS + ARENA_RAMP)) {
@@ -54,11 +64,9 @@ describe('mission arena platform', () => {
         for (const road of section.roadPaths) for (const s of road.s) expect(inside(s)).toBe(false);
         for (const piece of section.instances) {
           const top = piece.height * KIT[piece.kind].height, at = `${piece.kind} at ${piece.x.toFixed(1)},${piece.s.toFixed(1)}`;
-          // The ramp in (and out) carries nothing tall.
-          if (inside(piece.s) && (piece.s < ARENA.fromS || piece.s > ARENA.toS)) expect(top, at).toBeLessThanOrEqual(0.6);
-          if (piece.s < ARENA.fromS || piece.s > ARENA.toS) continue;
-          if (Math.abs(piece.x) < HALF - 2.4) expect(top, at).toBeLessThan(0.4);
-          else { expect(top).toBeLessThan(2.2); if (piece.kind === 'column' || piece.kind === 'clump' || piece.kind === 'wall') framing++; }
+          // The boss rolls over the clearing: small stones only.
+          if (inArenaCore(ARENA, piece.x, piece.s)) expect(top, at).toBeLessThan(0.4);
+          else if (!beyondArenaClearing(ARENA, piece.x, piece.s) && (piece.kind === 'column' || piece.kind === 'clump' || piece.kind === 'wall')) framing++;
         }
         // Seating queries agree with the mesh.
         for (let v = 0; v < section.across * section.along; v += 97) {

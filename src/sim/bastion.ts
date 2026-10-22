@@ -76,7 +76,9 @@ export function arenaStopDistance(arena: BossDefinition['arena'] = BASTION.arena
 export function startBoss(state: RunState, which: BossDefinition | null = state.config.mode === 'campaign' ? missionBoss(state.config.mission) : null): void {
   const def = which;
   if (state.boss || !def) return;
-  const x = clamp(state.cameraX, -ANCHOR_LIMIT, ANCHOR_LIMIT);
+  // At the map's centre (22 October; it arrived over the camera before, within ±4): the world shapes its arena's flat
+  // clearing around that spot (src/world/terrain-arena.ts, arenaAt), and the rest of the arena keeps its terrain.
+  const x = 0;
   state.boss = { id: def.id, phase: 'arrival', x, originX: x, s: def.entryS, startedAt: state.time,
     phaseStartedAt: state.time, nextAttackAt: Infinity, attackIndex: 0, attack: null,
     attackerId: null, deathEffectAt: Infinity, vx: 0, vs: 0, launchesLeft: 0, nextLaunchAt: Infinity };

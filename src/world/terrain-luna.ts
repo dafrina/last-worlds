@@ -311,8 +311,15 @@ export function* lunaScatterSteps(seed: number, startS: number, size: number, te
     if (i === 0) yield;
     const h = (k: number) => hash(seed ^ 0x7c3c, i * 41 + k, j);
     const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.8) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.8) * cell;
-    if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s) || terrain.platform(s) > 0) continue;
-    const ground = terrain.height(x, s), slope = terrain.slope(x, s), pick = h(2);
+    if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s)) continue;
+    const ground = terrain.height(x, s), slope = terrain.slope(x, s), pick = h(2), platform = terrain.platform(x, s);
+    // The boss clearing keeps a sprinkle of small stones (the lander settles among them, user 22 October); its fringe
+    // thins the usual scatter.
+    if (platform >= 0.5) {
+      if (pick < 0.04) { const scale = 0.22 + h(3) * 0.2; add({ kind: 'rock', x, s, y: ground - 0.04, scale, height: scale * 0.8, rotation: turn(h(5)), cosmetic: true }, h(6)); }
+      continue;
+    }
+    if (platform > 0 && h(30) < platform * 2) continue;
     const craters = lunaCraters(seed, x, s), mare = lunaMare(seed, x, s), rough = (craters.rim * 0.7 + craters.ejecta * 0.5) * (1 - mare * 0.7);
     if (rough > 0.35 && slope < 1.6 && pick < 0.05 * rough) {
       const scale = 0.55 + h(3) * 0.5;
@@ -339,7 +346,7 @@ export const LUNA: PlanetProfile = {
   mood: (seed, s) => lunaMoodOf(seed, Math.floor(s / LUNA_LENGTH)), params: () => NEUTRAL, local: () => null,
   landform: (seed, x, s) => lunaLandform(seed, x, s),
   // Training has no arena; a flat pad level keeps the hook total.
-  arena(row, _x, point) { point.height = mix(point.height, 0, row.platform); },
+  arena(_row, _x, point, weight) { point.height = mix(point.height, 0, weight); },
   color: lunaColor,
   shadowTint: null,
   sceneryMax: LUNA_SCENERY_MAX,

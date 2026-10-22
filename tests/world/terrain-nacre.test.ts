@@ -5,7 +5,7 @@ import { VIEW } from '../../src/shared/contracts';
 import { missionArena } from '../../src/render/scene';
 import { createFallbackKit, extractKitNode } from '../../src/render/terrain-kit';
 import { NACRE_SCENERY_MAX, NACRE_SEA_LEVEL, nacreMasks } from '../../src/world/terrain-nacre';
-import { KIT, NACRE_KIT_KINDS, generateTerrainSection, kitNodeName, terrainHeight, type KitKind } from '../../src/world/terrain';
+import { KIT, NACRE_KIT_KINDS, generateTerrainSection, inArenaCore, kitNodeName, terrainHeight, type KitKind } from '../../src/world/terrain';
 
 const NACRE = { planet: 'nacre' as const }, SEA = NACRE_SEA_LEVEL, HALF = VIEW.worldWidth / 2;
 const KIT_FILE = 'public/assets/nacre/nacre-kit.glb';
@@ -97,14 +97,19 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
     for (const kind of ['ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'] as const) expect(counts.get(kind) ?? 0).toBeGreaterThan(0);
   });
 
-  it('opens the Deep Bloom arena: open mire with nothing standing on the platform', () => {
+  it('opens the Deep Bloom arena: open mire around the boss with nothing standing in it, islands beyond', () => {
     const config = { mode: 'campaign', mission: 'deep-bloom', seed: 93 } as Parameters<typeof missionArena>[0];
     const arena = missionArena(config)!, world = { planet: 'nacre' as const, arena };
     expect(arena).toBeDefined();
     for (const seed of [93, 8831]) {
-      for (let s = arena.fromS + 10; s <= arena.toS - 10; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) expect(terrainHeight(seed, x, s, world)).toBeLessThan(SEA - 0.2);
+      let land = 0;
+      for (let s = arena.fromS; s <= arena.toS; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
+        const height = terrainHeight(seed, x, s, world);
+        if (inArenaCore(arena, x, s)) expect(height).toBeLessThan(SEA - 0.2); else if (height > SEA) land++;
+      }
+      expect(land).toBeGreaterThan(0);
       for (let index = Math.floor(arena.fromS / VIEW.sectionLength); index <= Math.floor(arena.toS / VIEW.sectionLength); index++) {
-        for (const piece of generateTerrainSection(seed, index, world).instances) expect(piece.s > arena.fromS + 2 && piece.s < arena.toS - 2).toBe(false);
+        for (const piece of generateTerrainSection(seed, index, world).instances) expect(inArenaCore(arena, piece.x, piece.s)).toBe(false);
       }
     }
   });

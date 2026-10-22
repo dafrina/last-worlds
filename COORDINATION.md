@@ -321,3 +321,8 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - terrain v18: rock kept back from Vesper shelf edges, charcoal only on steep rock, no dark stones near cliffs, walls only on drops ≥ 0.7, Vesper wall tops follow the highest rim (`rimSpan`; Khepri unchanged).
 - **Not included:** the hunter/ace draft (`src/sim/hunters.ts`, not wired in yet).
 - **Checks:** typecheck, unit tests 406/406, build, browser 36/36 (run alone). No phone test.
+
+**2026-10-22 · Claude Code · boss arenas (flat clearing around the boss): deployed:**
+- **Changes:** arenas flatten only an irregular clearing around the boss (small stones allowed on land); the planet's terrain carries on around it; bosses arrive at x 0. Khepri arena fingerprint re-recorded.
+- **Not included:** hunters/aces, shield shells, last-life alarm, boss big bang (in progress).
+- **Checks:** released from a clean worktree: typecheck, unit tests 407/407, build, browser 36/36 (one spec re-run alone after a load timeout). No phone test.

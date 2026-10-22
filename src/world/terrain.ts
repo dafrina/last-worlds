@@ -6,7 +6,7 @@ import { finish, type Work } from './terrain-work';
 import { MODULE_HEIGHT, settlementsNear, type Archetype } from './terrain-settlements';
 import { ROAD_ENDS, SHARED_BOUNDS, districtRoadsSteps, resetNetworkMemos, roadEndSpotsSteps, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 import { districtHidden, districtPlanSteps, districtsNear, knownPlan, resetDistrictPlans, slotRange, type DistrictSite } from './terrain-districts';
-import { arenaWeight } from './terrain-arena';
+import { arenaAt, arenaWeight } from './terrain-arena';
 import { routeOfInput, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
 
 export {
@@ -18,7 +18,7 @@ export { WALL_CELL, cliffWallSteps, type WallOptions } from './terrain-walls';
 export { PAD_MARGIN, districtHidden, districtPlan, districtsNear, slotRange, type DistrictPlan, type DistrictSite } from './terrain-districts';
 export { KHEPRI_DISTRICTS, KHEPRI_REFINERY, type DistrictPolicy, type LayoutGraph } from './settlement-grammars';
 export { MODULES, moduleSize, type ModuleSpec } from './settlement-modules';
-export { ARENA_LEVEL, ARENA_RAMP, arenaWeight, sameArena, type TerrainArena } from './terrain-arena';
+export { ARENA_CLEARING, ARENA_LEVEL, ARENA_RAMP, arenaAt, arenaWeight, beyondArenaClearing, inArenaCore, sameArena, type TerrainArena } from './terrain-arena';
 export {
   PLANETS, isRoute, routeOf, routeOfInput, routedWorld, sameWorld, worldAt, worldOf,
   type Floe, type PlanetId, type PlanetProfile, type RouteSchedule, type RouteSpan, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainWorld,
@@ -392,7 +392,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     slope: vertexField(slopes), drop: vertexField(drops), rise: vertexField(rises),
     gradientX: vertexField(gradients, 2, 0), gradientS: vertexField(gradients, 2, 1),
     elevation: vertexField(elevation), industrial: vertexField(industry), veins: vertexField(glow, 2, 0), pool: vertexField(glow, 2, 1),
-    shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s, source).params, platform: (s: number) => arenaWeight(worldAt(source, s).arena, s),
+    shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s, source).params, platform: (x: number, s: number) => arenaAt(worldAt(source, s).arena, seed, x, s),
     tone: vertexField(fTone),
     blocked: (x: number, s: number) => occupied.has(`${Math.floor(x)}:${Math.floor(s)}`),
     crater: (x: number, s: number) => crater(seed, x, s).rim,

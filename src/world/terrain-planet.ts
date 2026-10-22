@@ -56,8 +56,8 @@ export interface PlanetProfile {
   /** Planet-specific row data (moods beyond Khepri's parameters). */
   local(seed: number, s: number): unknown;
   landform(seed: number, x: number, s: number, row: PlanetRow): Landform;
-  /** Applies a mission arena's weight (row.platform > 0) to a point in place. */
-  arena(row: PlanetRow, x: number, point: PlanetPoint): void;
+  /** Applies a mission arena's weight at a point (the boss clearing, `arenaAt`) to it in place. */
+  arena(row: PlanetRow, x: number, point: PlanetPoint, weight: number): void;
   color(row: PlanetRow, x: number, point: PlanetPoint, slope: number, rim: number, out: [number, number, number]): [number, number, number];
   /** Optional cool shadow tint (multiplier where fully shaded); Khepri keeps plain darkening. */
   shadowTint: readonly [number, number, number] | null;
@@ -88,8 +88,8 @@ export const KHEPRI: PlanetProfile = {
   id: 'khepri', seaLevel: null,
   mood: moodAt, params: moodParams, local: () => null,
   landform: (seed, x, s, row) => landform(seed, x, s, row.params),
-  arena(row, x, point) {
-    const w = row.platform, paving = arenaPaving(row.seed, x, row.s);
+  arena(row, x, point, w) {
+    const paving = arenaPaving(row.seed, x, row.s);
     point.height = mix(point.height, arenaGround(row.seed, x, row.s, paving), w); point.elevation = mix(point.elevation, 0.56, w);
     point.platform = w; point.paving = paving.crack; point.plate = paving.tone;
     point.channel *= 1 - w; point.pool *= 1 - w; point.veins *= 1 - w; point.industrial *= 1 - w;

@@ -6,7 +6,7 @@ import { missionArena } from '../../src/render/scene';
 import { runRoute } from '../../src/render/terrain-route';
 import { NACRE_SEA_LEVEL } from '../../src/world/terrain-nacre';
 import {
-  ARENA_LEVEL, SEAM_CLEARANCE, TERRAIN_STEP, VESPER_SEA_LEVEL, createTerrainStream, generateTerrainSection, sectionSteps, terrainHeight, type TerrainSection,
+  ARENA_LEVEL, SEAM_CLEARANCE, inArenaCore, TERRAIN_STEP, VESPER_SEA_LEVEL, createTerrainStream, generateTerrainSection, sectionSteps, terrainHeight, type TerrainSection,
 } from '../../src/world/terrain';
 
 const SEA = VESPER_SEA_LEVEL, HALF = VIEW.worldWidth / 2, L = VIEW.sectionLength, SEED = 93;
@@ -54,14 +54,16 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
   it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water', () => {
     const arenas = schedule.arenas(0, 8000);
     expect(arenas.map(arena => arena.boss).slice(0, 5)).toEqual(['warden', 'bastion', 'ark', 'veil', 'bastion']);
-    for (const arena of arenas.slice(0, 4)) for (let s = arena.from + 0.5; s < arena.to; s += 2) for (let x = -HALF; x <= HALF; x += 1) {
+    for (const arena of arenas.slice(0, 4)) for (let s = arena.from + 0.5; s < arena.to; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
+      // The boss clearing (its core oval); the planet's own terrain carries on around it.
+      if (!inArenaCore({ fromS: arena.from, toS: arena.to }, x, s)) continue;
       const height = terrainHeight(SEED, x, s, route);
-      // Luna's craters level out to a flat floor (height 0) over the platform; the ramps blend into it.
-      if (arena.planet === 'luna') { if (s > arena.from + 10 && s < arena.to - 10) expect(Math.abs(height)).toBeLessThan(0.05); continue; }
-      // Nacre's islands recede: the platform itself is open mire.
-      if (arena.planet === 'nacre') { if (s > arena.from + 10 && s < arena.to - 10) expect(height).toBeLessThan(NACRE_SEA_LEVEL - 0.2); continue; }
-      // Khepri's paved floor spans the width but for a low lip at the edges (as in Rolling Thunder).
-      if (arena.planet === 'khepri') expect(Math.abs(height - ARENA_LEVEL)).toBeLessThan(Math.abs(x) <= HALF - 1.6 ? 0.25 : 0.9);
+      // Luna's craters level out to a flat floor (height 0).
+      if (arena.planet === 'luna') expect(Math.abs(height)).toBeLessThan(0.05);
+      // Nacre's islands recede: open mire.
+      else if (arena.planet === 'nacre') expect(height).toBeLessThan(NACRE_SEA_LEVEL - 0.2);
+      // Khepri's paved floor (as in Rolling Thunder).
+      else if (arena.planet === 'khepri') expect(Math.abs(height - ARENA_LEVEL)).toBeLessThan(0.25);
       else expect(height).toBeLessThan(SEA - 0.5);
     }
   });

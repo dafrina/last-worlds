@@ -6,7 +6,7 @@ import { MODULE_HEIGHT, compoundSlot, districtLevel, type Archetype, type Compou
 import type { Work } from './terrain-work';
 import { cliffWallSteps } from './terrain-walls';
 import type { Floe, PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
-import { arenaWeight, type TerrainArena } from './terrain-arena';
+import { arenaAt, type TerrainArena } from './terrain-arena';
 
 /**
  * Vesper, the Glass Frontier (docs/17 §1, §4; docs/26): half land, half water since terrain version 15 (user,
@@ -150,13 +150,13 @@ export function vesperMasks(seed: number, x: number, s: number, p: VesperParams,
 }
 
 /**
- * An ocean arena's weight for the coastline around it: the platform range itself is open water (weight 1), and on
- * the ramps the open water reaches out by up to 9 units in places, so the shelf edge that frames the arena is an
- * irregular coast with bays rather than one straight line. Never below the row's own weight.
+ * An ocean arena's weight for the coastline around it: the boss clearing is open water (weight 1), and the open water
+ * reaches out by up to 3 units more in places, so the shelf edge that frames it is an irregular coast with bays.
  */
 function coastPlatform(seed: number, x: number, s: number, arena: TerrainArena): number {
-  const reach = 9 * smoothRange(0.3, 0.75, noise(seed ^ 0xa7e1, x * 0.11, s * 0.07));
-  return Math.max(arenaWeight(arena, s), arenaWeight(arena, s + reach), arenaWeight(arena, s - reach));
+  const reach = 3 * smoothRange(0.3, 0.75, noise(seed ^ 0xa7e1, x * 0.11, s * 0.07));
+  return Math.max(arenaAt(arena, seed, x, s), arenaAt(arena, seed, x, s + reach), arenaAt(arena, seed, x, s - reach),
+    arenaAt(arena, seed, x + reach, s), arenaAt(arena, seed, x - reach, s));
 }
 /**
  * The smooth shelf level the ice cliffs are cut from: the mood's top, a regional swell, and a climb inland from the
@@ -517,7 +517,7 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     const h = (k: number) => hash(seed ^ 0x7c1a, i * 41 + k, j);
     const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.8) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.8) * cell;
     if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s)) continue;
-    const platform = terrain.platform(s);
+    const platform = terrain.platform(x, s);
     if (platform >= 0.5 || (platform > 0 && h(30) < platform * 2)) continue;
     const ground = terrain.height(x, s), slope = terrain.slope(x, s), rise = terrain.rise(x, s), drop = terrain.drop(x, s), pick = h(2);
     const gx = terrain.gradientX(x, s), gs = terrain.gradientS(x, s), steepness = Math.hypot(gx, gs);
@@ -590,7 +590,7 @@ const pickSet = (pick: number): FloeSetKind => pick < 0.42 ? 'floeTripleC' : pic
 function bigPlate(seed: number, i: number, j: number, arena: TerrainArena | undefined): BigPlate | null {
   const h = (k: number) => hash(seed ^ 0xb16e, i * 53 + k, j);
   const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.5) * FIELD_CELL, s = (j + 0.5 + (h(1) - 0.5) * 0.5) * FIELD_CELL;
-  if (h(2) > 0.55 || arenaWeight(arena, s) > 0 || packDensity(seed, x, s, vesperParams(seed, s)) < 0.62) return null;
+  if (h(2) > 0.55 || arenaAt(arena, seed, x, s) > 0 || packDensity(seed, x, s, vesperParams(seed, s)) < 0.62) return null;
   const kind = pickSet(h(5));
   // Sets keep their cracks narrow (offsets × 1.0–1.3: the pieces have only begun to drift apart).
   return { kind, x, s, yaw: h(3) * Math.PI * 2, scale: kind === 'floePairB' ? 1.3 + h(4) * 0.5 : 1 + h(4) * 0.25, spread: 1 + h(6) * 0.3 };
@@ -654,7 +654,7 @@ export function* vesperFloes(seed: number, startS: number, size: number, terrain
       const h = (k: number) => hash(seed ^ salt, i * 37 + k, j);
       const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.3) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.3) * cell;
       if (s < startS || s >= startS + size || inside(s)) continue;
-      decide(x, s, packDensity(seed, x, s, vesperParams(seed, s)), arenaWeight(arena, s), h, i, j);
+      decide(x, s, packDensity(seed, x, s, vesperParams(seed, s)), arenaAt(arena, seed, x, s), h, i, j);
     }
   };
   yield* place(PLATE_CELL, 0xf10e, (x, s, d, platform, h, i, j) => {
@@ -696,7 +696,7 @@ export const VESPER: PlanetProfile = {
   mood: (seed, s) => vesperMoodOf(seed, Math.floor(s / MOOD_LENGTH)), params: () => NEUTRAL, local: vesperParams,
   landform: vesperLandform,
   // The ocean arena is shaped in the landform itself (shelves recede); the seabed just deepens a little.
-  arena(row, _x, point) { point.height = Math.min(point.height, mix(point.height, SEA - 2.6, row.platform)); },
+  arena(_row, _x, point, weight) { point.height = Math.min(point.height, mix(point.height, SEA - 2.6, weight)); },
   color: vesperColor,
   shadowTint: [0.62, 0.74, 1],
   sceneryMax: VESPER_SCENERY_MAX,

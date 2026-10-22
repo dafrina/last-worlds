@@ -2,7 +2,7 @@ import { NEUTRAL_MOOD, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRan
 import { KIT, type KitInstance, type KitKind, type ScatterField } from './terrain-scatter';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
-import { arenaWeight, type TerrainArena } from './terrain-arena';
+import { arenaAt, type TerrainArena } from './terrain-arena';
 
 /**
  * Nacre, the Luminous Mire (docs/03 §1, docs/20), after the middle panel of art/concepts/01-worlds-direction.png:
@@ -55,7 +55,7 @@ export function nacreMasks(seed: number, x: number, s: number, platform = 0): Na
  * glow (the speckles themselves are moss-tuft pieces).
  */
 export function nacreLandform(seed: number, x: number, s: number, row: PlanetRow): Landform & { tone: number } {
-  const m = nacreMasks(seed, x, s, row.arena ? Math.max(arenaWeight(row.arena, s), row.platform) : row.platform);
+  const m = nacreMasks(seed, x, s, arenaAt(row.arena, seed, x, s));
   const bed = SEA - 0.45 - noise(seed ^ 0xb1aa, x * 0.09, s * 0.08) * 0.8;
   const crag = ridged(noise(seed ^ 0xb1ad, x * 0.2, s * 0.18)) * 0.6 + ridged(noise(seed ^ 0xb1ae, x * 0.5, s * 0.46)) * 0.4;
   const shore = SEA + 0.1 + noise(seed ^ 0xb1ab, x * 0.15, s * 0.14) * 0.22 + (noise(seed ^ 0xb1ac, x * 0.9, s * 0.9) - 0.5) * 0.08;
@@ -139,7 +139,7 @@ export function* nacreScatterSteps(seed: number, startS: number, size: number, t
   const turn = (pick: number) => pick * Math.PI * 2;
   /** Glowing flora keeps most of its light in shade (instance tint multiplies the emitted colour). */
   const glowShade = (x: number, s: number) => 0.7 + 0.3 * terrain.shade(x, s);
-  const open = (x: number, s: number) => terrain.platform(s) === 0 && !terrain.blocked(x, s);
+  const open = (x: number, s: number) => terrain.platform(x, s) === 0 && !terrain.blocked(x, s);
   /** Lowest ground under a footprint (centre and four points at `r`), so pieces never float on slopes. */
   const floor = (x: number, s: number, r: number) => Math.min(terrain.height(x, s), terrain.height(x + r, s), terrain.height(x - r, s), terrain.height(x, s + r), terrain.height(x, s - r));
   const ruins: Disc[] = [], big: Disc[] = [];
@@ -330,7 +330,7 @@ export const NACRE: PlanetProfile = {
   mood: () => 'mire', params: () => NEUTRAL, local: () => null,
   landform: nacreLandform,
   // The boss arena is shaped in the landform itself (the islands recede into open mire); the bed deepens a little.
-  arena(row, _x, point) { point.height = Math.min(point.height, mix(point.height, SEA - 1.2, row.platform)); },
+  arena(_row, _x, point, weight) { point.height = Math.min(point.height, mix(point.height, SEA - 1.2, weight)); },
   color: nacreColor,
   shadowTint: [0.66, 0.58, 1],
   sceneryMax: NACRE_SCENERY_MAX,

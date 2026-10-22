@@ -1,6 +1,6 @@
 import { TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT, clamp, mix, type Mood, type MoodParams } from './terrain-layout';
 import { padDistance, padInfluence, settlementsNear, type Settlement } from './terrain-settlements';
-import { arenaWeight, type TerrainArena } from './terrain-arena';
+import { arenaAt, arenaWeight, type TerrainArena } from './terrain-arena';
 import { worldAt, type PlanetPoint, type TerrainInput, type World } from './terrain-planet';
 
 /** Everything constant along one forward row: planet and mood, the settlement pads that reach it, and any arena. */
@@ -45,8 +45,8 @@ export function rowPoint(row: TerrainRow, x: number): TerrainPoint {
   const point = form as TerrainPoint;
   point.height = clamp(height, TERRAIN_MIN_HEIGHT, TERRAIN_MAX_HEIGHT); point.industrial = industrial;
   point.pool = form.pool * (1 - industrial); point.veins = form.veins * (1 - industrial);
-  // A mission arena reshapes its stretch (never in endless or training: platform is 0 there).
-  if (row.platform > 0) planet.arena(row, x, point);
+  // A mission arena reshapes the boss clearing (never in endless or training: platform is 0 there).
+  if (row.platform > 0) { const weight = arenaAt(row.arena, row.seed, x, row.s); if (weight > 0) planet.arena(row, x, point, weight); }
   return point;
 }
 /**
