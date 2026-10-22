@@ -137,8 +137,12 @@ export function vesperMasks(seed: number, x: number, s: number, p: VesperParams,
   // along it, long straight stripes down the view).
   const crackU = qx * 0.8 + qs * 0.6, crackV = qs * 0.8 - qx * 0.6;
   const crack = (1 - cliff((Math.abs(noise(seed ^ 0x9aa, crackU * 0.11, crackV * 0.34) - 0.5) - 0.008) / 0.026)) * field;
+  // Rock keeps a unit or two back from every coast, lead and inlet (version 18): where it reached a shelf edge the
+  // cliff had no ice wall (rock faces keep none) and its bare heightfield face read as a dark, blurred smear.
+  const inland = smoothRange(0.03, 0.1, mass - threshold) * (1 - (1 - smoothRange(0.04, 0.12, leadDistance)) * leads)
+    * (1 - (1 - smoothRange(0.06, 0.13, inletDistance)) * inlets);
   const ridge = smoothRange(0.78, 0.97, ridged(noise(seed ^ 0x9a8, qx * 0.09, qs * 0.13))) * Math.min(1, p.ridge * 1.6) * (1 - calm * 0.7);
-  const rock = smoothRange(0.68, 0.86, noise(seed ^ 0x9ab, x * 0.16, s * 0.15)) * Math.min(1, p.rock * 1.6) * (1 - calm * 0.6);
+  const rock = smoothRange(0.68, 0.86, noise(seed ^ 0x9ab, x * 0.16, s * 0.15)) * Math.min(1, p.rock * 1.6) * (1 - calm * 0.6) * inland;
   // Wind-packed dunes: long, low ridges aligned with the prevailing wind (from the upper left), finite in length.
   const along = x * WIND_X + s * WIND_S, across = -x * WIND_S + s * WIND_X;
   const dune = smoothRange(0.5, 0.85, noise(seed ^ 0x9af, along * 0.07, across * 0.36)) * smoothRange(0.3, 0.7, noise(seed ^ 0x9b0, x * 0.04, s * 0.04));
@@ -240,10 +244,11 @@ function vesperColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
     return out;
   }
   const drift = noise(seed ^ 0x51a7, x * 0.07, s * 0.05), fine = noise(seed ^ 0x51a8, x * 1.1, s * 1.1);
-  const steep = smoothRange(0.9, 2.4, slope), shade = smoothRange(0.35, 0.8, drift) * 0.35;
+  const steep = smoothRange(0.9, 2.4, slope) * (1 - smoothRange(0.05, 0.3, point.tone ?? 0)), shade = smoothRange(0.35, 0.8, drift) * 0.35;
   const cliff = smoothRange(SEA, 1.6, point.height), rock = smoothRange(0.25, 0.6, point.tone ?? 0);
-  // Snow caps stay on the flat tops of outcrops; their flanks show charcoal rock.
-  const bare = rock * (0.35 + 0.65 * smoothRange(0.3, 0.9, slope));
+  // Snow caps stay on the flat tops of outcrops; only their steep flanks show charcoal rock (version 18: gentle flanks
+  // in charcoal read as a dark, blurred smear at the grid's resolution).
+  const bare = rock * smoothRange(1, 1.5, slope);
   for (let c = 0; c < 3; c++) {
     let snow = mix(P.snow[c], P.snowShade[c], shade + (1 - point.elevation) * 0.3);
     // (A pad that flattened a crevasse keeps its snow: version 16.)
@@ -498,6 +503,15 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     (placed.cosmetic ? cosmetic : essential).push(placed);
   };
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
+  // Dark stones keep off cliffs (user, 22 October): none within about a unit of a sheer face, above or below it, where
+  // they sat on the rim of an ice wall or against its face.
+  const nearCliff = (x: number, s: number) => {
+    for (let k = 0; k < 16; k++) {
+      const r = k < 8 ? 0.55 : 1.1, a = (k % 8) * Math.PI / 4 + (k < 8 ? 0 : Math.PI / 8);
+      if (terrain.slope(x + Math.cos(a) * r, s + Math.sin(a) * r) > 1.3) return true;
+    }
+    return false;
+  };
   for (let j = Math.floor(startS / cell); j < Math.ceil((startS + size) / cell); j++) for (let i = 0; i < columns; i++) {
     if (i === 0) yield;
     const h = (k: number) => hash(seed ^ 0x7c1a, i * 41 + k, j);
@@ -515,7 +529,7 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     } else if (m.ridge > 0.5 && pick < 0.12) {
       const scale = 0.85 + h(3) * 0.3;
       add({ kind: 'ridge', x, s, y: ground, scale, height: scale, rotation: Math.atan2(-gx, gs) + Math.PI / 2 + (h(4) - 0.5) * 0.4, cosmetic: h(7) > 0.6 }, h(5));
-    } else if (m.rock > 0.3 && pick < 0.32) {
+    } else if (m.rock > 0.3 && pick < 0.32 && !nearCliff(x, s)) {
       const scale = 0.8 + h(3) * 0.5;
       add({ kind: 'outcrop', x, s, y: ground, scale, height: scale, rotation: turn(h(5)), cosmetic: false }, h(6));
     } else if (drop > 0.9 && slope < 1 && pick < 0.025) {
@@ -534,6 +548,7 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
       for (let k = 0; k < members; k++) {
         const ox = x + (k ? (h(22 + k) - 0.5) * 0.9 : 0), os = s + (k ? (h(26 + k) - 0.5) * 0.9 : 0);
         if (k && (terrain.slope(ox, os) > 0.6 || terrain.drop(ox, os) > 0.4 || terrain.height(ox, os) < SEA || terrain.blocked(ox, os))) continue;
+        if (nearCliff(ox, os)) continue;
         const scale = (k ? 0.3 : 0.45) + h(30 + k) * h(30 + k) * (k ? 0.4 : 0.55);
         add({ kind: 'outcrop', x: ox, s: os, y: terrain.height(ox, os), scale, height: scale * (0.55 + h(34 + k) * 0.4), rotation: turn(h(38 + k)), cosmetic: k > 0 }, h(42 + k));
       }
@@ -543,8 +558,8 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
   // shelf step and along every coast cliff, those over the sea on the waterline. (They replace version 14's coast and
   // inner `iceCliff` dressing.)
   // Shelf steps and coasts only: not the narrow crevasses, pressure ridges or rock peaks (they keep their own pieces).
-  const shelfEdge = (x: number, s: number) => { const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0); return m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.3; };
-  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 0.45, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
+  const shelfEdge = (x: number, s: number) => { const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0); return m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.12; };
+  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 0.7, rimSpan: 0.7, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
 

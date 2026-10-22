@@ -7,9 +7,10 @@ more closer to the concept") built new after the concept's cliffs, not reused ki
 - Khepri (left panel): sheer walls of large dark charcoal-brown slabs in vertical cleavage with crevices, most
   topping out at one flat, sand-dusted rim; a few broken lower or cleaved horizontally; teal crystal seams in some
   cracks; rubble at the foot.
-- Vesper (right panel): a flat-topped ice shelf ending in narrow, fractured ice shards with sharp outward ridges
-  (pale lit facets, deep blue shadow and cracks), broken tips at varied heights under a sawtooth snow rim, pointed
-  shards at the foot (crisper and more pointed since 21 October, at the user's request).
+- Vesper (right panel): a flat-topped ice shelf ending in a sharp, fractured ice face (since 22 October; narrow V-ridged
+  shards and then columns read as pillars): irregular jagged chunks of every size overlapping at their own depths, a
+  broken rim of them, deep shadow between, snow on every surface that faces up, chunks fallen at the foot
+  (`fractured_wall`, reusable in rock for a fractured mountain world).
 
 Each node is one 2-unit wall segment that tiles along x (AO is baked with its neighbours repeated). Frame, as in
 the other kits: glTF +Y up, front (the outward, downhill face) toward glTF +Z (Blender -y), pivot at the base
@@ -36,6 +37,8 @@ import vesper_kit as vk  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HALF_X, FRONT, BACK, BASE = 1.05, -0.35, 0.6, -0.15   # Blender: front is -y
 VARIANTS = 4
+# Triangles per 2-unit segment (650 since the fractured walls of 22 October; dozens stand in view).
+TRI_BUDGET = 650
 
 
 def chop(rng, x0, x1, lo, hi):
@@ -158,67 +161,99 @@ def khepri_colour_fn(hs):
 ICE, SNOW, VROCK = 0, 1, 2
 
 
-def shard(hs, lo_poly, hi_poly, z0, z1, side, top, mat, tag="main", fall=0.0):
-    """A column between two rings with the same vertex count (a lean or taper between them). `fall`: the top
-    drops by this much toward the front, so a pointed plan gives a pointed, broken tip."""
-    if kit.poly_area(hi_poly) < 0:
-        lo_poly, hi_poly = list(reversed(lo_poly)), list(reversed(hi_poly))
-    n = len(hi_poly)
-    lo = [hs.v((x, y, z0)) for x, y in lo_poly]
-    hi = [hs.v((x, y, z1 - fall * kit.clamp((BACK - y) / (BACK - FRONT), 0.0, 1.0))) for x, y in hi_poly]
-    for i in range(n):
-        j = (i + 1) % n
-        nx, ny = vk.outward_normal(hi_poly[i], hi_poly[j])
-        hs.face((lo[i], lo[j], hi[j], hi[i]), side, tag, mat, outward=(nx, ny, 0.0))
-    hs.face(tuple(hi), top, "top", mat if top != "snow" else SNOW, outward=(0, 0, 1))
+def fractured_block(hs, box, planes, paint, mat, snow_mat=None, snow=.72):
+    """A block of rock or ice fractured by planes: the box (x0, x1, y0, y1, z0, z1) is cut by each (point, normal) plane,
+    the outer side cleared and the cut filled, so every fracture is a sharp planar facet. Faces pointing up become
+    snow when `snow_mat` is given."""
+    import bmesh
+    x0, x1, y0, y1, z0, z1 = box
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co = Vector((x0 + (v.co.x + .5) * (x1 - x0), y0 + (v.co.y + .5) * (y1 - y0), z0 + (v.co.z + .5) * (z1 - z0)))
+    for co, no in planes:
+        before = len(bm.verts)
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=Vector(co), plane_no=Vector(no).normalized(), clear_outer=True)
+        bmesh.ops.holes_fill(bm, edges=bm.edges[:], sides=0)
+        if len(bm.verts) < 4:  # a cut that took the whole block: not this one
+            bm.free()
+            return fractured_block(hs, box, [], paint, mat, snow_mat, snow) if planes else None
+        del before
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.verts.index_update()
+    base = len(hs.verts)
+    for v in bm.verts:
+        hs.v((v.co.x, v.co.y, v.co.z))
+    for f in bm.faces:
+        up = snow_mat is not None and f.normal.z > snow
+        hs.face(tuple(base + v.index for v in f.verts), "snow" if up else paint, "main", snow_mat if up else mat, outward=tuple(f.normal))
+    bm.free()
+
+
+def fracture_planes(rng, center, half, cuts, flat_top=False):
+    """Planes carving a box (centre, half extents) into a jagged stone: each a random direction (half of them facing
+    the front, for big facets on the face) at 55-95% of the box's reach that way, so each cut takes a corner or an edge.
+    `flat_top`: no cut leans up enough to break the top (a chunk flush with the rim)."""
+    planes = []
+    for k in range(cuts):
+        n = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1)))
+        if k % 2 == 0:
+            n.y = -abs(n.y) - .8          # toward the front
+        if flat_top:
+            n.z = min(n.z, .25)
+        n.normalize()
+        reach = abs(n.x) * half[0] + abs(n.y) * half[1] + abs(n.z) * half[2]
+        planes.append((tuple(Vector(center) + n * reach * rng.uniform(.55, .95)), tuple(n)))
+    return planes
+
+
+def fractured_wall(rng, idx, paint, mat, snow_mat=None):
+    """A sharp, fractured cliff face (user, 22 October: "go all out on rocky sharp looking cliffs, more detailed and
+    sharper"; "it's still columns ... irregular shapes that overlap would look better"; reusable for a fractured mountain
+    world): no column grid. A row of jagged chunks breaks the rim, more chunks of every size overlap across the face at
+    their own depths (ledges, overhangs, deep shadow between them), each a box carved by fracture planes in random
+    directions; a dark mass behind closes every gap. Every chunk is clipped to the segment's box."""
+    hs = HS(rng)
+    snow_paint = "snow" if snow_mat is not None else paint
+    # The dark mass behind: gaps between chunks read as deep shadow, never as sky.
+    prism(hs, [(-HALF_X, BACK - .26), (HALF_X, BACK - .26), (HALF_X, BACK), (-HALF_X, BACK)], BASE, .9, paint, snow_paint,
+          mat, snow_mat if snow_mat is not None else mat, tag="crack")
+    clip = [((-HALF_X, 0, 0), (-1, 0, 0)), ((HALF_X, 0, 0), (1, 0, 0)), ((0, FRONT, 0), (0, -1, 0)), ((0, BACK, 0), (0, 1, 0)), ((0, 0, BASE), (0, 0, -1))]
+
+    def chunk(cx, cz, w, h, d, front, flush=False):
+        cy = min(BACK - d / 2, front + d / 2)
+        half = (w / 2, d / 2, h / 2)
+        box = (cx - half[0], cx + half[0], cy - half[1], cy + half[1], cz - half[2], cz + half[2])
+        planes = fracture_planes(rng, (cx, cy, cz), half, rng.randint(4, 6), flat_top=flush) + clip
+        if flush:  # a clean top, exactly at the rim
+            planes.append(((0, 0, 1.0), (0, 0, 1)))
+        # Snow lies only on the flush rim (user, 22 October: snow on every ledge read as stacked cubes).
+        fractured_block(hs, box, planes, paint, mat, snow_mat if flush else None)
+
+    # The rim: a row of chunks, uneven in size and depth; most flush with the shelf (user, 22 October: "make sure at
+    # least 60-70% is flush at the top", then "ice not always flush": four in five), the rest broken lower.
+    x = -HALF_X - rng.uniform(.0, .15)
+    while x < HALF_X:
+        w, h = rng.uniform(.18, .4), rng.uniform(.3, .55)
+        flush = rng.random() < .8
+        cz = 1.04 - h / 2 if flush else 1.0 - h * rng.uniform(.55, .75)
+        chunk(x + w / 2, cz, w, h, rng.uniform(.5, .85), FRONT + rng.uniform(.04, .2), flush)
+        x += w * rng.uniform(.6, .85)   # overlapping neighbours
+    # The face: narrow, tall chunks (spiky, user 22 October) overlapping at their own depths.
+    for _ in range(rng.randint(10, 14)):
+        w, h = rng.uniform(.14, .4), rng.uniform(.3, .7)
+        chunk(rng.uniform(-HALF_X + .1, HALF_X - .1), rng.uniform(BASE + h * .4, .78), w, h, rng.uniform(.35, .75), FRONT + rng.uniform(.0, .22))
+    for _ in range(2 + idx % 2):  # chunks fallen at the foot
+        cx, cy, r = rng.uniform(-.85, .85), rng.uniform(FRONT + .04, FRONT + .14), rng.uniform(.05, .09)
+        tip = Vector((cx + rng.uniform(-r, r), cy + rng.uniform(-r * .5, r * .5), BASE + r * rng.uniform(1.5, 2.5)))
+        pts = [Vector((cx + rng.uniform(-r, r), cy + rng.uniform(-r * .6, r * .6), BASE + rng.uniform(0, r * .6))) for _ in range(5)] + [tip]
+        vk.hull_hs(hs, [Vector((p.x, max(FRONT + .005, p.y), p.z)) for p in pts], paint)
+    return hs
 
 
 def vesper_wall(rng, idx):
-    """Crisp, pointed ice (user, 21 October: "vesper could be a bit more crisp and pointy"): narrow fractured shards,
-    each a sharp outward ridge (a V in plan) whose two faces split light and shadow, leaning out a little toward the
-    top; broken tips at varied heights that drop steeply to the front; a sawtooth snow rim; pointed shards fallen at
-    the foot. After the concept's right panel."""
-    hs = HS(rng)
-    prism(hs, [(-HALF_X, BACK - .14), (HALF_X, BACK - .14), (HALF_X, BACK), (-HALF_X, BACK)], BASE, .9, "ice", "snow", ICE, SNOW, tag="crack")
-    cols = chop(rng, -HALF_X, HALF_X, .22, .62)
-    broken = set(rng.sample(range(len(cols)), 1 + (idx % 2)))
-    for k, (a, b) in enumerate(cols):
-        g = rng.uniform(.006, .016)
-        a, b = a + g, b - g
-        w = b - a
-        # Most shards stand forward; some are set back, so the face is a fractured mass, not a fence.
-        depth = rng.uniform(.14, .26) if rng.random() < .3 else rng.uniform(.0, .1)
-        y0 = FRONT + depth
-        if w > .42:
-            # A wide mass: two ridges with a notch between them.
-            t1, t2 = a + w * rng.uniform(.18, .34), a + w * rng.uniform(.66, .82)
-            notch = (t1 + t2) / 2 + rng.uniform(-.04, .04)
-            ridge = [(t2, y0 + rng.uniform(0, .05)), (notch, y0 + rng.uniform(.09, .16)), (t1, y0 + rng.uniform(0, .05))]
-        else:
-            ridge = [(a + w * rng.uniform(.3, .7), y0)]
-        sa, sb = y0 + rng.uniform(.1, .2), y0 + rng.uniform(.1, .2)   # shoulders well behind the ridges
-        hi_poly = [(b, BACK), (b, min(BACK - .05, sb))] + ridge + [(a, min(BACK - .05, sa)), (a, BACK)]
-        lean = rng.uniform(.04, .1)                                 # the foot sits back: the face leans out
-        lo_poly = [(x, min(BACK, y + lean)) if y < BACK - 1e-6 else (x, y) for x, y in hi_poly]
-        if k in broken:
-            top, fall = rng.uniform(.48, .7), rng.uniform(.18, .32)
-        else:
-            top, fall = rng.uniform(.8, .97), rng.uniform(.08, .28)
-        shard(hs, lo_poly, hi_poly, BASE, top, "ice", "ice", ICE, fall=fall)
-        if k in broken or top < .86:  # the shelf continues behind a broken shard
-            back = [(a, BACK), (a, BACK - .26), (b, BACK - .26), (b, BACK)]
-            prism(hs, back, top - .05, .92, "ice", "ice", ICE, ICE)
-    # Sawtooth snow rim, top exactly 1: teeth point out over the face, notches cut back between them.
-    xs = [-HALF_X + .01 + i * (2 * HALF_X - .02) / 8 for i in range(9)]
-    front = [(x, FRONT + (.02 + rng.uniform(0, .05) if i % 2 else .14 + rng.uniform(0, .08))) for i, x in enumerate(xs)]
-    poly = [(HALF_X - .01, BACK)] + list(reversed(front)) + [(-HALF_X + .01, BACK)]
-    prism(hs, poly, .9, 1.0, "snow", "snow", SNOW, SNOW)
-    for _ in range(2 + idx % 2):  # pointed shards fallen at the foot
-        cx, cy, r = rng.uniform(-.85, .85), rng.uniform(FRONT + .04, FRONT + .14), rng.uniform(.05, .09)
-        tip = Vector((cx + rng.uniform(-r, r), cy + rng.uniform(-r * .5, r * .5), BASE + r * rng.uniform(3.0, 4.5)))
-        pts = [Vector((cx + rng.uniform(-r, r), cy + rng.uniform(-r * .6, r * .6), BASE + rng.uniform(0, r * .6))) for _ in range(5)] + [tip]
-        vk.hull_hs(hs, [Vector((p.x, max(FRONT + .005, p.y), p.z)) for p in pts], "ice")
-    return hs
+    """Vesper's ice walls: the fractured cliff in glacier ice under snow (after lookdev/cliff-study/vesper.png)."""
+    return fractured_wall(rng, idx, "ice", ICE, SNOW)
 
 
 def vesper_colour_fn(hs):
@@ -245,7 +280,7 @@ def check(name, hs):
     if min(ys) < FRONT - 1e-6 or max(ys) > BACK + 1e-6: problems.append('y %.3f..%.3f' % (min(ys), max(ys)))
     if abs(max(zs) - 1.0) > 1e-6: problems.append('top %.4f' % max(zs))
     if min(zs) < BASE - 1e-6: problems.append('base %.3f' % min(zs))
-    if hs.tris() > 250: problems.append('tris %d > 250' % hs.tris())  # dozens per view (terrain budget)
+    if hs.tris() > TRI_BUDGET: problems.append('tris %d > %d' % (hs.tris(), TRI_BUDGET))  # dozens per view (terrain budget)
     return [f'{name}: {p}' for p in problems]
 
 
@@ -266,7 +301,7 @@ def build(world, preview=None):
         problems += check(name, hs)
         cols = vc.bake(hs, name, dict(glow=set(), ao=.35, ground=0.0, colour_fn=colour(hs), tile=('x', 2.0)))
         objs[name] = vc.make_object(name, hs, mats, (0.0, 0.0, 0.0), cols)
-        nodes[name] = dict(budget=250, foot=(2 * HALF_X, 1.2), y_min_exact=BASE, y_max_exact=1.0)
+        nodes[name] = dict(budget=TRI_BUDGET, foot=(2 * HALF_X, 1.2), y_min_exact=BASE, y_max_exact=1.0)
         print('CLIFF %-14s tris=%d' % (name, hs.tris()))
     if problems:
         raise SystemExit('Cliff kit contract:\n  ' + '\n  '.join(problems))

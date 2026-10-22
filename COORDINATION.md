@@ -314,3 +314,10 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - `playground.html` (static levels, live look tuning; the dev server saves to lookdev/playground-looks.json).
 - **Not included:** the in-progress Vesper cliff work (moiré fix, crisp ice texture, cornice rim, proud shards).
 - **Checks:** released from a clean worktree: typecheck, unit tests 406/406, build, browser 36/36. No phone test.
+
+**2026-10-22 · Claude Code · Vesper cliffs (fractured ice walls, crisp ice, terrain v18): deployed:**
+- **Changes:**
+  - Vesper's cliff kit rebuilt as fractured, overlapping narrow ice chunks; most of the rim flush with snow only there; crisp procedural ice map; no moiré on curved walls (hybrid wall mapping);
+  - terrain v18: rock kept back from Vesper shelf edges, charcoal only on steep rock, no dark stones near cliffs, walls only on drops ≥ 0.7, Vesper wall tops follow the highest rim (`rimSpan`; Khepri unchanged).
+- **Not included:** the hunter/ace draft (`src/sim/hunters.ts`, not wired in yet).
+- **Checks:** typecheck, unit tests 406/406, build, browser 36/36 (run alone). No phone test.

@@ -54,8 +54,10 @@ export {
  *     massifs raised into stepped mountains; outposts stand in compounds joined by roads and pipes on every world, Luna's
  *     bases in pairs on rover tracks; a lead under a pad is filled at pad level.
  * 17: more frequent Luna outposts (.10 to .18); other planets and relief are unchanged.
+ * 18: Vesper cliffs: rock keeps back from shelf edges, dark stones keep off cliffs, walls only on drops of 0.7 or more;
+ *     Vesper's wall tops follow the highest rim across their width; other planets are unchanged.
  */
-export const TERRAIN_VERSION = 17;
+export const TERRAIN_VERSION = 18;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.

@@ -649,7 +649,7 @@ const BASALT_TILE = 1.3, FACE_TILE = 2.2;
 const WALL_TILE = 3.5;
 /** Wall detail strength per planet (luminance contrast) and the wall normal map's strength (High only). */
 const WALL_DETAIL: Partial<Record<PlanetId, { contrast: number; normal: number }>> = {
-  khepri: { contrast: 0.95, normal: 0.9 }, vesper: { contrast: 0.75, normal: 0.7 }, luna: { contrast: 0.75, normal: 0.8 },
+  khepri: { contrast: 0.95, normal: 0.9 }, vesper: { contrast: 1.2, normal: 0.9 }, luna: { contrast: 0.75, normal: 0.8 },
 };
 
 const GLOW_VERTEX = '#include <common>\nattribute float glow;\nvarying float vGlow;\nvarying float vHazeY;';
@@ -787,6 +787,14 @@ function hueOf(hex: number): THREE.Color {
  * basalt, Vesper blue ice split by vertical fractures, Luna darker regolith. `shade` scales the ground's light on the
  * wall; `crease` turns on the hard rim and foot shading. Nacre has none (its smooth look stays exactly as it was).
  */
+/** Vesper's ice-wall map on terrain walls: its strength and its sampling sharpness (see the iceCrisp uniform). */
+const ICE_CRISP: [number, number] = [0.45, 1];
+/** Look-dev: `?icecrisp=strength,sharpness` overrides ICE_CRISP. */
+const iceCrispOverride = (): [number, number] | null => {
+  if (typeof location === 'undefined') return null;
+  const asked = new URLSearchParams(location.search).get('icecrisp')?.split(',').map(Number);
+  return asked && asked.length === 2 && asked.every(Number.isFinite) ? [asked[0], asked[1]] : null;
+};
 const KHEPRI_WALL = { hue: hueOf(0x6a4a36), shade: 0.82, columns: 1, crease: 1 };
 const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; columns: number; crease: number }>> = {
   khepri: KHEPRI_WALL,
@@ -830,7 +838,10 @@ export function createTerrainMaterials() {
    * wall (hard rims, faceted wall shading, the wall's own material); Nacre keeps the smooth look exactly (cliffLook 0).
    */
   const cliffLook = { cliffLook: { value: 1 }, creaseLook: { value: KHEPRI_WALL.crease }, wallHue: { value: KHEPRI_WALL.hue.clone() },
-    wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns } };
+    wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns },
+    // Vesper's ice walls (user, 22 October: "more crispy ... darker sharp texture like in the original concept"): how much the
+    // ice map shapes the wall (x) and its sampling sharpness (y: derivative scale; under 1 samples a sharper level).
+    iceCrisp: { value: new THREE.Vector2(...ICE_CRISP) } };
   ground.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps, crackLook);
     shader.vertexShader = shader.vertexShader
@@ -840,9 +851,22 @@ attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying 
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurface = surface;\nvVeins = veins;\nvLocal = position;\nvFace = normal;')
       .replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
+      .replace('#include <common>', `#include <common>
+// How fast (per pixel) a wall's facing direction may swing before its maps leave the along-face mapping (see wallBend).
+#define WALL_BEND_START 0.005
+#define WALL_BEND_FULL 0.018
+// One set of fractured ice columns along a column coordinate: the position across its column (x) and the column's lean to
+// the sun (y), each column broken into blocks at uneven ledges with a ridge splitting it into two facets.
+vec2 iceColumns( float column, float height ) {
+  float iceIndex = floor( column ), iceEdge = fract( column );
+  float iceBlock = floor( height * 0.45 + fract( sin( iceIndex * 5.31 ) * 43758.5453 ) );
+  float iceLean = fract( sin( iceIndex * 19.17 + 3.1 ) * 43758.5453 ) * 2.0 - 1.0 + 0.5 * ( fract( sin( iceIndex * 7.7 + iceBlock * 91.3 ) * 43758.5453 ) - 0.5 );
+  float iceRidge = 0.35 + 0.3 * fract( sin( iceIndex * 3.73 + iceBlock * 17.1 ) * 43758.5453 );
+  return vec2( iceEdge, iceLean + ( iceEdge < iceRidge ? -0.45 : 0.45 ) );
+}
+uniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
-uniform float cliffLook;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;
+uniform float cliffLook;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
 uniform sampler2D crackMap;\nuniform float crackLook;\nuniform vec3 crackTint;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
@@ -921,9 +945,19 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   vec2 faceDir = normalize( vFace.xz + vec2( 1e-4, 0.0 ) );
   float across = dot( vLocal.xz, vec2( -faceDir.y, faceDir.x ) );
   vec2 faceUv = vec2( across, vLocal.y ) * faceScale, faceDx = dFdx( faceUv ), faceDy = dFdy( faceUv );
+  // Where the face's direction swings from pixel to pixel (a wall curving, or tipping toward a rim or foot), the along-face
+  // coordinate bends with it and squeezes the map's cracks into wavy contour bands (user, 22 October: "like texture
+  // moire"). There the wall maps (rock, Vesper's ice cracks and their normals) take two fixed projections, along x and
+  // along z, blended by the way the face points; straight walls keep the crisp along-face mapping. (wallBend: 0 straight.)
+  float wallBend = smoothstep( WALL_BEND_START, WALL_BEND_FULL, length( fwidth( faceDir ) ) );
+  vec3 localDx = dFdx( vLocal ), localDy = dFdy( vLocal );
+  vec2 wallUvX = vec2( vLocal.z, vLocal.y ) * faceScale, wallDxX = vec2( localDx.z, localDx.y ) * faceScale, wallDyX = vec2( localDy.z, localDy.y ) * faceScale;
+  vec2 wallUvZ = vec2( vLocal.x, vLocal.y ) * faceScale, wallDxZ = vec2( localDx.x, localDx.y ) * faceScale, wallDyZ = vec2( localDy.x, localDy.y ) * faceScale;
+  vec2 wallBlend = pow( abs( faceDir ), vec2( 6.0 ) ); wallBlend /= wallBlend.x + wallBlend.y;
   float detail = dustA;
   if ( vRock > 0.01 ) {
-    float rockD = textureGrad( rockMap, faceUv, faceDx, faceDy ).r * 2.0;
+    float rockD = textureGrad( rockMap, faceUv, faceDx * iceCrisp.y, faceDy * iceCrisp.y ).r * 2.0;
+    if ( wallBend > 0.0 ) rockD = mix( rockD, ( textureGrad( rockMap, wallUvX, wallDxX, wallDyX ).r * wallBlend.x + textureGrad( rockMap, wallUvZ, wallDxZ, wallDyZ ).r * wallBlend.y ) * 2.0, wallBend );
     float columnIndex = floor( across * 2.7 );
     // Per-column tone from an ALU hash rather than another texture tap.
     float tone = 0.82 + 0.36 * fract( sin( columnIndex * 12.9898 + floor( vLocal.y * 0.9 + columnIndex * 0.37 ) * 78.233 ) * 43758.5453 );
@@ -970,26 +1004,35 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // Version 16: the face splits into vertical fractured columns, like the kit's shards and the concept's ice walls. Each
   // column (and each block of it, broken at uneven ledges) leans its own way to the sun, with abyss-blue seams between.
   // (Derivatives are taken here, outside the per-pixel branch.)
-  vec2 iceDir = normalize( vFace.xz + vec2( 1e-4, 0.0 ) );
+  // The columns are cut along the face; where its direction swings (a curving wall) they move onto two fixed projections
+  // (along z for faces toward ±x, along x for faces toward ±z), so they never bend into contour-like bands (22 October).
+  vec2 iceDir = normalize( vFace.xz + vec2( 1e-4, 0.0 ) ), iceBlend = pow( abs( iceDir ), vec2( 24.0 ) );
+  iceBlend /= iceBlend.x + iceBlend.y;
+  float iceBend = smoothstep( WALL_BEND_START, WALL_BEND_FULL, length( fwidth( iceDir ) ) );
   float iceColumn = dot( vLocal.xz, vec2( -iceDir.y, iceDir.x ) ) * 0.75, iceSeamWidth = max( fwidth( iceColumn ) * 1.3, 0.06 );
+  float iceColumnX = vLocal.z * 0.75, iceColumnZ = vLocal.x * 0.75;
+  float iceSeamWidthX = max( fwidth( iceColumnX ) * 1.3, 0.06 ), iceSeamWidthZ = max( fwidth( iceColumnZ ) * 1.3, 0.06 );
   if ( groundIce > 0.5 && cliffWall > 0.0 ) {
     float iceSun = 0.5;
     #if NUM_DIR_LIGHTS > 0
       iceSun = dot( normalize( vNormal ), directionalLights[ 0 ].direction );
     #endif
-    float iceIndex = floor( iceColumn ), iceEdge = fract( iceColumn );
-    float iceBlock = floor( vLocal.y * 0.45 + fract( sin( iceIndex * 5.31 ) * 43758.5453 ) );
-    float iceLean = fract( sin( iceIndex * 19.17 + 3.1 ) * 43758.5453 ) * 2.0 - 1.0 + 0.5 * ( fract( sin( iceIndex * 7.7 + iceBlock * 91.3 ) * 43758.5453 ) - 0.5 );
-    // A ridge down each column splits it into two facets, one toward the light and one away (a prism, like the shards).
-    float iceRidge = 0.35 + 0.3 * fract( sin( iceIndex * 3.73 + iceBlock * 17.1 ) * 43758.5453 );
-    iceLean += iceEdge < iceRidge ? -0.45 : 0.45;
-    float iceSeam = smoothstep( 0.0, iceSeamWidth, iceEdge ) * smoothstep( 1.0, 1.0 - iceSeamWidth, iceEdge );
+    vec2 iceA = iceColumns( iceColumn, vLocal.y );
+    float iceLean = iceA.y, iceSeam = smoothstep( 0.0, iceSeamWidth, iceA.x ) * smoothstep( 1.0, 1.0 - iceSeamWidth, iceA.x );
+    if ( iceBend > 0.0 ) {
+      vec2 iceX = iceColumns( iceColumnX, vLocal.y ), iceZ = iceColumns( iceColumnZ, vLocal.y );
+      iceLean = mix( iceLean, iceX.y * iceBlend.x + iceZ.y * iceBlend.y, iceBend );
+      iceSeam = mix( iceSeam, smoothstep( 0.0, iceSeamWidthX, iceX.x ) * smoothstep( 1.0, 1.0 - iceSeamWidthX, iceX.x ) * iceBlend.x
+        + smoothstep( 0.0, iceSeamWidthZ, iceZ.x ) * smoothstep( 1.0, 1.0 - iceSeamWidthZ, iceZ.x ) * iceBlend.y, iceBend );
+    }
     iceSun += iceLean * 0.5;
     float iceLit = smoothstep( -0.05, 0.3, iceSun ), baked = clamp( dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) / 0.8, 0.4, 1.0 );
     // Shadowed ice deepens toward the waterline, like the kit's ramp; shallow crevasse lips stay a lighter blue.
-    vec3 iceShade = mix( vec3( 0.03, 0.17, 0.46 ), vec3( 0.2, 0.45, 0.78 ), smoothstep( -3.4, 1.6, vLocal.y ) ), iceBright = vec3( 0.6, 0.84, 1.0 );
+    vec3 iceShade = mix( vec3( 0.03, 0.17, 0.46 ), vec3( 0.2, 0.45, 0.78 ), smoothstep( -3.4, 1.6, vLocal.y ) ), iceBright = vec3( 0.68, 0.88, 1.0 );
     vec3 iceTone = mix( vec3( 0.015, 0.08, 0.26 ), mix( iceShade, iceBright, iceLit ), iceSeam );
-    diffuseColor.rgb = mix( diffuseColor.rgb, iceTone * baked * ( 0.82 + 0.18 * detail ), cliffWall );
+    // The ice map at its strength (x).
+    float iceDetail = clamp( detail, 0.0, 2.0 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, iceTone * baked * ( 1.0 + ( iceDetail - 1.0 ) * iceCrisp.x ), cliffWall );
     totalEmissiveRadiance += vec3( 0.004, 0.035, 0.13 ) * ( 1.0 - iceLit ) * cliffWall;
   }`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
@@ -1005,14 +1048,23 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // derivatives, as three's own normal maps do without tangents). Tops and rims keep their crisp planes.
 #ifdef USE_MAP
   if ( wallNormalOn > 0.0 && cliffWall > 0.01 ) {
-    vec3 wallN = textureGrad( wallNormal, faceUv, faceDx, faceDy ).xyz * 2.0 - 1.0;
+    // The along-face frame on straight walls; where the face bends, the same two projections as the wall map, blended.
     vec3 wallQ1 = cross( -cliffDy, normal ), wallQ0 = cross( normal, -cliffDx );
+    vec3 wallN = textureGrad( wallNormal, faceUv, faceDx, faceDy ).xyz * 2.0 - 1.0;
     vec3 wallT = wallQ1 * faceDx.x + wallQ0 * faceDy.x, wallB = wallQ1 * faceDx.y + wallQ0 * faceDy.y;
     float wallDet = max( dot( wallT, wallT ), dot( wallB, wallB ) );
-    if ( wallDet > 0.0 ) {
-      vec3 relief = normalize( ( wallT * wallN.x + wallB * wallN.y ) * ( wallNormalOn * inversesqrt( wallDet ) ) + normal * wallN.z );
-      normal = normalize( mix( normal, relief, cliffWall ) );
+    vec3 relief = wallDet > 0.0 ? normalize( ( wallT * wallN.x + wallB * wallN.y ) * ( wallNormalOn * inversesqrt( wallDet ) ) + normal * wallN.z ) : normal;
+    if ( wallBend > 0.0 ) {
+    vec3 wallNX = textureGrad( wallNormal, wallUvX, wallDxX, wallDyX ).xyz * 2.0 - 1.0, wallNZ = textureGrad( wallNormal, wallUvZ, wallDxZ, wallDyZ ).xyz * 2.0 - 1.0;
+    vec3 wallTX = wallQ1 * wallDxX.x + wallQ0 * wallDyX.x, wallBX = wallQ1 * wallDxX.y + wallQ0 * wallDyX.y;
+    vec3 wallTZ = wallQ1 * wallDxZ.x + wallQ0 * wallDyZ.x, wallBZ = wallQ1 * wallDxZ.y + wallQ0 * wallDyZ.y;
+    float wallDetX = max( dot( wallTX, wallTX ), dot( wallBX, wallBX ) ), wallDetZ = max( dot( wallTZ, wallTZ ), dot( wallBZ, wallBZ ) );
+    vec3 wallBump = vec3( 0.0 );
+    if ( wallDetX > 0.0 ) wallBump += ( wallTX * wallNX.x + wallBX * wallNX.y ) * ( inversesqrt( wallDetX ) * wallBlend.x );
+    if ( wallDetZ > 0.0 ) wallBump += ( wallTZ * wallNZ.x + wallBZ * wallNZ.y ) * ( inversesqrt( wallDetZ ) * wallBlend.y );
+    relief = normalize( mix( relief, normalize( wallBump * wallNormalOn + normal * ( wallNX.z * wallBlend.x + wallNZ.z * wallBlend.y ) ), wallBend ) );
     }
+    normal = normalize( mix( normal, relief, cliffWall ) );
   }
 #endif`)
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
@@ -1119,6 +1171,7 @@ ${VESPER_KIT_SURFACE}`)
     const wall = WALL_LOOK[planet];
     cliffLook.cliffLook.value = wall ? 1 : 0;
     cliffLook.creaseLook.value = wall?.crease ?? 0;
+    const crisp: [number, number] = vesper ? iceCrispOverride() ?? ICE_CRISP : [0.18, 1]; cliffLook.iceCrisp.value.set(...crisp);
     if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; }
     ground.color.setHex(vesper || luna ? 0xffffff : nacre ? 0xd5d9e1 : 0xc2c4c8);
     if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();

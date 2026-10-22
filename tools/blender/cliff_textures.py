@@ -8,17 +8,19 @@ vectors. Both stay tileable: every filter here wraps around the edges.
 Sources (CC0, Poly Haven, in art/source/polyhaven/):
 - `cliff_side`: layered, fractured cliff rock. Khepri and Luna walls use it directly; the image's ledges run
   horizontally (image x = along the wall, image y = up).
-- The same source, smoothed and with less contrast, gives Vesper's ice walls their layering and fractures without
-  the rock grain.
+- Vesper's ice walls (since 22 October: the user wanted them "more crispy ... darker sharp texture like in the original
+  concept"; the smoothed rock gave soft, low-contrast strata) are procedural: long near-vertical fractures as sharp
+  dark lines with a bright lip, branching cross-cracks, faceted plates between them and faint strata, at 1024 px.
 
-Outputs (512 px JPG):
+Outputs (512 px JPG; Vesper's 1024 px):
 - public/assets/khepri/textures/cliff-rock-detail.jpg, cliff-rock-normal.jpg
 - public/assets/vesper/textures/ice-wall-detail.jpg, ice-wall-normal.jpg
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
-        --python "$(wslpath -w tools/blender/cliff_textures.py)"
+        --python "$(wslpath -w tools/blender/cliff_textures.py)" [-- --only vesper]
 """
 import os
+import sys
 
 import bpy
 import numpy as np
@@ -93,7 +95,78 @@ def save(a, path, quality=90):
           f'  {os.path.getsize(path) // 1024} KB')
 
 
+def blur_xy(a, sx, sy):
+    """Periodic anisotropic Gaussian blur (FFT): sx across, sy up the wall."""
+    fy = np.fft.fftfreq(a.shape[0])[:, None]
+    fx = np.fft.fftfreq(a.shape[1])[None, :]
+    kernel = np.exp(-2 * np.pi ** 2 * ((sx * fx) ** 2 + (sy * fy) ** 2))
+    return np.real(np.fft.ifft2(np.fft.fft2(a) * kernel))
+
+
+def ice_maps(n=1024, seed=22):
+    """Crisp fractured glacier ice, tileable both ways (image x = along the wall, image y = up): returns the luminance
+    detail (0.5 neutral) and the height field its normals come from."""
+    rng = np.random.default_rng(seed)
+    rows, cols = np.arange(n, dtype=np.float32), np.arange(n, dtype=np.float32)[None, :]
+    # Long fractures running up the face: straight runs with kinks (piecewise linear, periodic in y so the map tiles).
+    count = 13
+    lines = []
+    for bx in np.sort(rng.uniform(0, n, count)):
+        ys = np.cumsum(rng.uniform(70, 190, 12)); ys = ys[ys < n - 40]
+        ys = np.concatenate([[0.0], ys, [float(n)]])
+        xs = bx + rng.uniform(-14, 14, len(ys)); xs[-1] = xs[0]
+        lines.append(np.interp(rows, ys, xs) % n)
+    lines = np.stack(lines).astype(np.float32)               # (count, rows): x of each fracture per row
+    diff = (cols[None, :, :] - lines[:, :, None] + n / 2) % n - n / 2   # (count, rows, cols) signed periodic distance
+    dist = np.abs(diff)
+    nearest = dist.argmin(axis=0)
+    d = np.take_along_axis(dist, nearest[None], 0)[0]
+    side = np.sign(np.take_along_axis(diff, nearest[None], 0)[0])
+    # Fracture width varies along each line (hairlines to open cracks).
+    width = (0.6 + 1.6 * (0.5 + 0.5 * np.sin(rows[:, None] / n * 2 * np.pi * 3 + nearest * 1.7))).astype(np.float32)
+    core = np.clip(1.0 - (d - width) / 1.1, 0.0, 1.0)              # 1 inside the crack, anti-aliased over ~1 px
+    lip = np.clip(1.0 - np.abs(d - width - 1.6) / 1.4, 0.0, 1.0) * (side > 0)   # a bright fresh edge on one side
+    # Plates: the strip to the right of each fracture, each its own tone and tilt, with vertical streaks inside.
+    right = (cols[None, :, :] - lines[:, :, None]) % n
+    plate = right.argmin(axis=0)
+    across = np.take_along_axis(right, plate[None], 0)[0]
+    tones, tilts = rng.uniform(-0.08, 0.08, count), rng.uniform(-1.0, 1.0, count)
+    streaks = blur_xy(rng.standard_normal((n, n)).astype(np.float32), 1.5, 30.0)
+    streaks = streaks / max(float(streaks.std()), 1e-6)
+    strata = 0.5 + 0.5 * np.sin(rows[:, None] / n * 2 * np.pi * 9 + blur_xy(rng.standard_normal((n, n)).astype(np.float32), 40, 8) * 6)
+    lum = 0.5 + tones[plate] + 0.03 * streaks + 0.02 * (strata - 0.5) + 0.05 * tilts[plate] * (across / 60.0 - 0.5).clip(-1, 1)
+    # Cross-cracks branching off the fractures: short diagonal segments, sharp and dark.
+    cross = np.zeros((n, n), dtype=np.float32)
+    for _ in range(34):
+        y0 = rng.uniform(0, n); i = rng.integers(0, count); x0 = lines[i, int(y0) % n]
+        angle = np.radians(rng.uniform(25, 70)) * rng.choice((-1, 1)); length = rng.uniform(25, 90)
+        dx, dy = np.sin(angle) * rng.choice((-1, 1)), np.cos(angle)
+        ys = np.arange(int(y0 - length) - 4, int(y0 + length) + 5)
+        xs = np.arange(int(x0 - length) - 4, int(x0 + length) + 5)
+        py, px = np.meshgrid(ys.astype(np.float32), xs.astype(np.float32), indexing='ij')
+        t = np.clip((px - x0) * dx + (py - y0) * dy, 0, length)
+        dd = np.hypot(px - (x0 + dx * t), py - (y0 + dy * t))
+        w = rng.uniform(0.5, 1.2)
+        seg = np.clip(1.0 - (dd - w) / 1.0, 0.0, 1.0) * np.clip(1.0 - t / length, 0.25, 1.0)
+        np.maximum.at(cross, (ys[:, None] % n, xs[None, :] % n), seg)
+    crack = np.maximum(core, cross * 0.85)
+    lum = lum * (1.0 - 0.82 * crack) + 0.16 * lip * (1.0 - crack)
+    # Height: plates tilted their own way, fractures cut in.
+    height = tilts[plate] * across * 0.035 - 2.2 * crack + 0.15 * streaks
+    return np.clip(lum, 0.04, 0.96).astype(np.float32), height.astype(np.float32)
+
+
+def height_normals(height, strength=1.4):
+    """OpenGL-convention normals from a periodic height field."""
+    gx = (np.roll(height, -1, axis=1) - np.roll(height, 1, axis=1)) * 0.5 * strength
+    gy = (np.roll(height, 1, axis=0) - np.roll(height, -1, axis=0)) * 0.5 * strength   # rows run from the top
+    v = np.stack([-gx, -gy, np.ones_like(height)], axis=-1)
+    v /= np.linalg.norm(v, axis=-1, keepdims=True)
+    return v * 0.5 + 0.5
+
+
 def run():
+    only = sys.argv[sys.argv.index('--only') + 1] if '--only' in sys.argv else None
     scene = bpy.context.scene
     # Write data values unchanged (no view transform on save).
     scene.view_settings.view_transform = 'Standard'
@@ -103,12 +176,15 @@ def run():
     nor = shrink(load('cliff_side_nor_gl_1k.jpg'))
     khepri = os.path.join(ROOT, 'public', 'assets', 'khepri', 'textures')
     vesper = os.path.join(ROOT, 'public', 'assets', 'vesper', 'textures')
-    # Rock: crisp grain, ledges and cracks at full strength.
-    save(detail(lum, 0.17), os.path.join(khepri, 'cliff-rock-detail.jpg'))
-    save(normals(nor), os.path.join(khepri, 'cliff-rock-normal.jpg'))
-    # Ice: the same layering and fractures, grain smoothed away, gentler relief.
-    save(detail(lum, 0.11, smooth=1.6, large=56.0), os.path.join(vesper, 'ice-wall-detail.jpg'))
-    save(normals(nor, smooth=2.2, flatten=0.6), os.path.join(vesper, 'ice-wall-normal.jpg'))
+    if only != 'vesper':
+        # Rock: crisp grain, ledges and cracks at full strength.
+        save(detail(lum, 0.17), os.path.join(khepri, 'cliff-rock-detail.jpg'))
+        save(normals(nor), os.path.join(khepri, 'cliff-rock-normal.jpg'))
+    if only != 'khepri':
+        # Ice: crisp procedural fractures (see ice_maps).
+        ice, height = ice_maps()
+        save(ice, os.path.join(vesper, 'ice-wall-detail.jpg'), quality=94)
+        save(height_normals(height), os.path.join(vesper, 'ice-wall-normal.jpg'), quality=94)
 
 
 if __name__ == '__main__':

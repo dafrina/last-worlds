@@ -1,5 +1,26 @@
 # Build status
 
+## Vesper cliffs: fractured ice walls, crisp ice texture, no moiré on curved walls, 22 October 2026
+
+User:
+- "something ... fucked up vesper cliffs, looks weird when before they looked amazing" (a screenshot: "like texture moire");
+- "the texture could be more crispy and have darker sharp texture like in the original concept"; "the upmost edge of the cliff ... is also just a zigzag";
+- "maybe some new models would help. It's just triangular pillars at this point"; "go all out on rocky sharp looking cliffs, more detailed and sharper. You can then reuse them for a fractured mountain world"; "irregular shapes that overlap"; "at least 60-70% is flush at the top"; "the individual chunks can be narrower leading to more spiky cliffs" (approved in game: "in game it looks great").
+
+- **Cause of the moiré:** not the performance deploy (the builds before and after it render identically). Since terrain v16 Vesper's walls are tall; the terrain walls cut their ice map and columns along a direction taken from the smoothed normal, which swings on curved walls and squeezed the cracks into wavy contour bands.
+- **Fix (`src/render/terrain-kit.ts`):** straight walls keep the along-face mapping; where the face's direction swings from pixel to pixel (`wallBend`, from `fwidth` of the direction), the wall map, its normals and the ice columns move onto two fixed projections (along x and along z) blended by the face's direction. (Projections everywhere softened the texture: "lost some of their crisp textures".)
+- **New wall models (`tools/blender/cliff_kit.py` `fractured_wall`, `public/assets/vesper/cliff-kit.glb`):** the V-ridged shard prisms and their sawtooth snow rim are replaced by irregular, overlapping fractured chunks: each a box carved by four to six fracture planes in random directions (half toward the front, for big facets), narrow and tall (spiky); a row of them makes the rim, about four in five flush with the shelf (a clean top at the rim, no upward cuts, snow on top) and the rest broken a little lower; more overlap across the face at their own depths (ice tops, no snow); a dark mass behind closes the gaps; chunks fallen at the foot. Clipped to the segment's box (the kit contract); up to 650 triangles per segment (was 250). `fractured_wall(rng, idx, paint, mat, snow_mat)` takes rock instead of ice for a fractured mountain world.
+- **Crisp ice (`tools/blender/cliff_textures.py`, `--only vesper`):** a procedural 1024 px map replaces the smoothed rock photo: straight fractures with kinks as sharp dark lines with a bright lip, faceted plates between them, short cross-cracks, faint strata; normals from the same height field. Stronger on the walls (wall pieces' contrast 0.75 → 1.2, normals 0.7 → 0.9; terrain walls' map strength 0.18 → 0.45, `?icecrisp=strength,sharpness`).
+- **Cleanup after the first look in game (terrain v18; user: "ice not always flush or standalone chunks, the ice shelves look weird and there's some hazy glitch top left ... prevent the dark stones from rendering on cliffs"):**
+  - snow only on the flush rim chunks (snow on every ledge read as stacked cubes); four in five rim chunks flush, the rest only a little lower;
+  - walls only on drops of 0.7 or more (was 0.45: lone slivers on small steps); Vesper's wall tops follow the highest rim across the segment (`rimSpan`; Khepri unchanged, fingerprints intact);
+  - the "hazy glitch" was two things: vent steam drifting over the cliff (kept), and nunatak rock reaching shelf edges, whose gentle flanks were coloured charcoal and whose coast had no ice walls (rock faces get none), so the bare heightfield read as a dark blurred smear. Rock now keeps back from coasts, leads and inlets; only flanks steeper than 1–1.5 show charcoal; rock ground no longer takes the blue cliff-ice tint; walls are refused on rock above 0.12 (was 0.3; one stood alone on a flank);
+  - dark stones (rock outcrops and the plain stones) keep about a unit from any sheer face;
+  - left as is (user: "leave it"): a narrow sliver of shelf between a coast and a lead shows bare heightfield facets at the waterline.
+- **Tried and dropped:** procedural fracture lines in the shaders (too sparse), a stricter wall-slope threshold (the bands were on near-vertical walls), harsher light (the walls face away from the sun), wall segments pushed proud of the face and a separate snow cornice ("wonky": stacked plates and steps), wide blocky chunks.
+- **Look-dev:** `lookdev/cliffs.spec.ts` renders a mission's start for a seed (`SEED`, `MISSION`, `QUERY`, `DPR`); `lookdev/tools/grid.mjs` and `crop.mjs` make comparison sheets.
+- **Checks:** typecheck clean; unit tests 406/406; build passes; browser 36/36 (run alone). No phone test: the walls carry up to 650 triangles per segment now (was 250).
+
 ## Fog per level, new explosions and the light playground, 22 October 2026
 
 User:

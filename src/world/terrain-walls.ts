@@ -24,6 +24,8 @@ export interface WallOptions {
   cap: number;
   /** Planets with a sea: a wall over water stands on the waterline (its foot just under the surface). */
   sea?: number;
+  /** Rim probes this far to either side along the rim: the top follows the highest (Vesper, version 18). */
+  rimSpan?: number;
   /** Planet filter on the cliff face (Luna: highland scarps only). */
   accept?: (x: number, s: number) => boolean;
 }
@@ -63,7 +65,10 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       while (up < 2.5 && slope(fx + ux * (up + WALK), fs + us * (up + WALK)) > 0.7) up += WALK;
       while (down < 3 && slope(fx - ux * (down + WALK), fs - us * (down + WALK)) > 1.2) down += WALK;
       const rx = fx + ux * (up + WALK), rs = fs + us * (up + WALK), px = fx - ux * down, ps = fs - us * down;
-      const top = height(rx, rs);
+      // The rim's height across the segment's width, not just at its middle (version 18): the top stays flush where the
+      // rim rises to one side instead of letting the bare cliff show over it.
+      let top = height(rx, rs);
+      if (o.rimSpan) for (const side of [-o.rimSpan, o.rimSpan]) top = Math.max(top, Math.min(top + 0.25, height(rx - us * side, rs + ux * side)));
       let base = height(px, ps);
       if (o.sea !== undefined && base < o.sea) base = o.sea - 0.25;
       if (top - base < o.minDrop) continue;
