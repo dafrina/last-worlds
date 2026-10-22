@@ -262,3 +262,12 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - warp launches skip the hero entrance;
   - Vesper water has crisp ripples, whitecaps and tight glints.
 - **Checks:** typecheck clean, unit tests 399/399, build passes, browser 35/35. No phone test.
+
+**2026-10-22 · Claude Code · ground enemies through the lens, footprint culling: deployed:**
+- **Changes:**
+  - `src/shared/lens.ts` (the lens, pure) and `src/sim/ground.ts` (terrain anchors);
+  - `src/world/run-route.ts` (moved from render);
+  - `src/render/view-footprint.ts` (draw ranges);
+  - fairness trace and test-pilot updates.
+- **Checks:** typecheck clean, unit tests 402/402, build passes, browser 35/35. No phone test.
+- **Design change, recorded in docs/08:** gameplay now reads the terrain height under ground enemies.

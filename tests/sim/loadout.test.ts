@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { REACTORS, SPECIALS, rankFireRate } from '../../src/content/equipment';
-import { WEAPONS } from '../../src/content/balance';
+import { FAIRNESS, WEAPONS } from '../../src/content/balance';
 import { EMPTY_INPUT, STEP, type RunConfig } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
+import { FairnessTrace } from './fairness-trace';
 
 const campaign = (extra: Partial<RunConfig>): RunConfig => ({ mode: 'campaign', seed: 3, mission: 'training', difficulty: 'standard', ...extra });
 const dummy = (state: ReturnType<typeof createRun>, x: number, s: number, hp = 1000) => {
@@ -84,11 +85,23 @@ describe('campaign loadout in the simulation (docs/21)', () => {
 });
 
 describe('slowest drive keeps every mission survivable (docs/02 §4)', () => {
-  it.each(['training', 'bastion', 'cold-vector', 'deep-bloom'] as const)('the perfect pilot clears %s on Precision Drive without a hit', mission => {
-    const state = createRun({ mode: 'campaign', seed: 5, mission, difficulty: 'standard', reactor: 'precision' });
+  // Rolling Thunder flies seed 6 since 21 October (user decision, docs/08): ground enemies now stand on the terrain under the
+  // release lens, and on seed 5 the heuristic pilot parks at the world edge, where turret fans land on both sides of it.
+  // That run is fair (checked below); seeds 6-10 clear without a hit.
+  it.each([['training', 5], ['bastion', 6], ['cold-vector', 5], ['deep-bloom', 5]] as const)('the perfect pilot clears %s on Precision Drive without a hit (seed %i)', (mission, seed) => {
+    const state = createRun({ mode: 'campaign', seed, mission, difficulty: 'standard', reactor: 'precision' });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(log.hits).toBe(0);
+  }, 120000);
+
+  it('keeps Rolling Thunder on Precision Drive, seed 5, fair: the hazard union always leaves a clear gap', () => {
+    const state = createRun({ mode: 'campaign', seed: 5, mission: 'bastion', difficulty: 'standard', reactor: 'precision' });
+    const trace = new FairnessTrace();
+    fly(state, perfectPilot(), 420, { noPickups: true, onTick: s => trace.observe(s) });
+    trace.finish(state);
+    expect(trace.violations).toEqual([]);
+    expect(trace.minGap).toBeGreaterThanOrEqual(FAIRNESS.minGap);
   }, 120000);
 });
 

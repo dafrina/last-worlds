@@ -4,6 +4,7 @@ import { MODULES_BY_NODE, modulesOf, type FacilityWorld, type ModuleRole } from 
 import { composeFacility, nodeBudget, type ArrangementId, type FacilityPlant } from './facility-layouts';
 import { loadTexturedNodes, type TexturedPart } from './models';
 import { paintMaterial } from './world-paint';
+import type { ViewFootprint } from './view-footprint';
 
 /**
  * Which compounds the game builds around ground batteries:
@@ -51,7 +52,7 @@ export interface FacilityView {
    * `ground` (v3): the terrain surface, sampled once per plant so each apron tile lies on the ground it covers.
    */
   update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved?: readonly Reservation[],
-    ground?: (x: number, s: number) => number): void;
+    ground?: (x: number, s: number) => number, view?: ViewFootprint): void;
   dispose(): void;
 }
 
@@ -164,7 +165,7 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
     isReady(planet: PlanetId) { return kits.has(planet) && kits.get(planet) !== 'loading'; },
     warmupObjects() { return [...kits.values()].flatMap(kit => typeof kit === 'object' ? [...kit.batches.values()].flat() : []); },
     update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved: readonly Reservation[] = [],
-      ground?: (x: number, s: number) => number) {
+      ground?: (x: number, s: number) => number, view: ViewFootprint = legacyView(state)) {
       if (config !== state.config || state.tick < lastTick) { plants.length = 0; decided.clear(); waiting.clear(); config = state.config; }
       lastTick = state.tick; current = planet;
       for (let i = plants.length - 1; i >= 0; i--) if (plants[i].plant.bounds.maxS - state.distance < VIEW.minS - 4) plants.splice(i, 1);
@@ -189,8 +190,9 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
       if (foundationPlanet !== planet) { foundationPlanet = planet; (foundations.material as THREE.MeshStandardMaterial).color.setHex(FOUNDATION_COLOR[planet]); }
       for (const { plant, y, lows } of plants) {
         const kit = ready(plant.world), b = plant.bounds;
-        if (!kit || b.minX > state.cameraX + VIEW.width / 2 + 3 || b.maxX < state.cameraX - VIEW.width / 2 - 3
-          || b.minS - state.distance > VIEW.maxS + 6 || b.maxS - state.distance < VIEW.minS - 3) continue;
+        // The camera's ground footprint (src/render/view-footprint.ts), so no plant pops in at the lens's wider far end.
+        if (!kit || b.minX > view.maxX + 1 || b.maxX < view.minX - 1
+          || b.minS - state.distance > view.maxS + 1 || b.maxS - state.distance < view.minS - 1) continue;
         for (const [i, module] of plant.modules.entries()) {
           const meshes = kit.batches.get(module.node);
           if (!meshes || Number.isNaN(y[i])) continue;
@@ -223,6 +225,11 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
     },
   };
 }
+
+/** The orthographic view's rectangle with the old margins, for callers that pass no footprint (tests, fixtures). */
+const legacyView = (state: RunState): ViewFootprint => ({
+  minX: state.cameraX - VIEW.width / 2 - 3, maxX: state.cameraX + VIEW.width / 2 + 3, minS: VIEW.minS - 3, maxS: VIEW.maxS + 6,
+});
 
 /** Foundation blocks under buildings over lower ground: concrete in each world's tone (version 16). */
 const FOUNDATION_COLOR: Readonly<Record<PlanetId, number>> = { khepri: 0x5a4434, luna: 0xa9abae, vesper: 0x8c97a3, nacre: 0x2a2440 };
@@ -355,7 +362,8 @@ function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityVi
     prepare(planet: PlanetId) { prefetched = planet; return planet === 'luna' ? Promise.resolve() : prepare(planet); },
     isReady(planet: PlanetId) { return planet === 'luna' || (kits.has(planet) && kits.get(planet) !== 'loading'); },
     warmupObjects() { return [...kits.values()].flatMap(kit => typeof kit === 'object' ? [...kit.batches.values()].flat() : []); },
-    update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved: readonly Reservation[] = []) {
+    update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved: readonly Reservation[] = [],
+      _ground?: (x: number, s: number) => number, view: ViewFootprint = legacyView(state)) {
       if (config !== state.config || state.tick < lastTick) { compounds.length = 0; config = state.config; }
       lastTick = state.tick; current = planet;
       for (let i = compounds.length - 1; i >= 0; i--) if (compounds[i].s - state.distance < VIEW.minS - 10) compounds.splice(i, 1);
@@ -387,7 +395,7 @@ function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityVi
       kits.forEach(kit => { if (typeof kit === 'object') kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.count = 0; })); });
       for (const c of compounds) {
         const meshes = ready(c.planet)?.batches.get(c.node), s = c.s - state.distance;
-        if (!meshes || Math.abs(c.x - state.cameraX) > VIEW.width / 2 + bounds(c.node).halfX || s > VIEW.maxS + 9 || s < VIEW.minS - 8) continue;
+        if (!meshes || c.x + bounds(c.node).halfX < view.minX - 1 || c.x - bounds(c.node).halfX > view.maxX + 1 || s > view.maxS + 9 || s < view.minS - 8) continue;
         transform.position.set(c.x, c.y, -s); transform.rotation.set(0, 0, 0);
         transform.scale.set(1, 1, 1); transform.updateMatrix();
         for (const mesh of meshes) mesh.setMatrixAt(mesh.count++, transform.matrix);

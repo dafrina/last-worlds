@@ -12,7 +12,8 @@ import { spawnMembers } from './spawn';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
 import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
-import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete } from './motion';
+import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete, positionAfter } from './motion';
+import { projectGround } from './ground';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -247,10 +248,12 @@ function updateEnemies(state: RunState, dt: number): void {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
     const stats = ENEMIES[enemy.kind];
     advanceEnemy(enemy, dt, enemyClockRate(state, enemy));
+    // A ground enemy's anchor rides the terrain; its gameplay position is the anchor seen through the lens.
+    projectGround(state, enemy);
     // Fuel skids are harmless loot: they ride the terrain and never wind up.
     if (enemy.kind === 'fuel') continue;
     if (!canAttack(state, enemy)) {
-      if (enemy.warning > 0) { enemy.nextAttack = enemy.age + 0.6; windups -= 1; if (enemy.lock) enemy.lock.hold = 0; }
+      if (enemy.warning > 0) { enemy.nextAttack = enemy.age + 0.6; windups -= 1; if (enemy.lock) enemy.lock.hold = 0; if (enemy.ground) enemy.ground.muzzle = undefined; }
       enemy.warning = 0;
       continue;
     }
@@ -280,6 +283,8 @@ function updateEnemies(state: RunState, dt: number): void {
       if (BEAM_KINDS.has(enemy.kind) && swingCrowds(state, enemy, aimX)) { enemy.nextAttack = enemy.age + FAIRNESS.retryDelay; continue; }
       enemy.aimX = aimX;
       enemy.warning = warning;
+      // A ground enemy's attack leaves from the point the director forecast for it (src/sim/ground.ts).
+      if (enemy.ground) enemy.ground.muzzle = positionAfter(enemy, warning, enemyClockRate(state, enemy));
       // Beam ships swing over their lane and fire straight down from it (see applyBeamLock).
       if (BEAM_KINDS.has(enemy.kind)) { const beam = beamSpec(enemy.kind); enemy.lock = { total: warning, hold: beam.warning + beam.active, release: BEAM_LOCK_RELEASE }; }
       windups += 1;
@@ -345,7 +350,9 @@ function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void
   }
   const side = enemy.kind === 'diamond' ? diamondSide(enemy) : 0;
   enemy.volleys = (enemy.volleys ?? 0) + 1;
-  const shots = enemyShots(enemy.kind as BulletKind, enemy.x, enemy.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot, side);
+  const muzzle = enemy.ground?.muzzle ?? enemy;
+  if (enemy.ground) enemy.ground.muzzle = undefined;
+  const shots = enemyShots(enemy.kind as BulletKind, muzzle.x, muzzle.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot, side);
   // A full projectile pool skips the whole volley; a fixed pattern is never trimmed bullet by bullet.
   if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
   for (const shot of shots) state.projectiles.push(projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL));

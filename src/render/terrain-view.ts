@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
   FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MESH_HALF, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld, VESPER_CLIFF_KINDS,
@@ -171,7 +172,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   const transform = new THREE.Object3D(), color = new THREE.Color();
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), worldBox = new THREE.Box3(), offset = new THREE.Vector3();
   const stats: TerrainStats = { calls: 0, triangles: 0, instances: 0, haulers: 0, kit: kitSource, infra: infraSource, shared: sharedSource };
-  let distance = 0, origin = 0, lastCameraX = NaN, lastDistance = NaN, lastViewX = 0, dirty = true;
+  let distance = 0, origin = 0, lastCameraX = NaN, lastDistance = NaN, dirty = true;
+  const lastFootprint: ViewFootprint = { minX: -VIEW.width / 2, maxX: VIEW.width / 2, minS: VIEW.minS, maxS: VIEW.maxS };
   /** Applied exclusion (grown by the slack), or null: hidden scenery under e.g. a boss fortress. */
   let exclusion: TerrainExclusion | null = null, requested: TerrainExclusion | null = null;
   let facilityClearings: readonly TerrainExclusion[] = [];
@@ -608,7 +610,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   function compact() {
     const counts = new Map<string, number>();
     origin = views.size ? Math.min(...[...views.values()].map(view => view.startS)) : 0;
-    const viewLeft = lastViewX - VIEW.width / 2 - CULL_MARGIN - 0.5, viewRight = lastViewX + VIEW.width / 2 + CULL_MARGIN + 0.5;
+    // The lateral prefilter spans the camera's ground footprint (wider at a perspective lens's far end), then the frustum decides.
+    const viewLeft = lastFootprint.minX - CULL_MARGIN - 0.5, viewRight = lastFootprint.maxX + CULL_MARGIN + 0.5;
     let instances = 0;
     for (const view of views.values()) {
       const zShift = distance - view.startS, matrixShift = origin - view.startS;
@@ -746,7 +749,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
       frustum.setFromProjectionMatrix(viewProjection);
       if (dirty || Math.abs(camera.position.x - lastCameraX) > RECOMPACT || Math.abs(distance - lastDistance) > RECOMPACT) {
-        lastViewX = camera.position.x; compact(); dirty = false; lastCameraX = camera.position.x; lastDistance = distance;
+        viewFootprint(camera, undefined, undefined, lastFootprint); compact(); dirty = false; lastCameraX = camera.position.x; lastDistance = distance;
       }
       pieces.position.z = distance - origin;
       // Caster exclusion in world xz (z = distance − s); an inverted rectangle disables it.

@@ -58,6 +58,20 @@ export interface Enemy {
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
   warning: number; aimX: number; groundHeight: number;
   bossPart?: BossPart; damageable?: boolean; formation?: FormationMember;
+  /**
+   * A ground enemy's anchor on the terrain (src/shared/lens.ts; 21 October): fixed in the world, it scrolls with the
+   * ground, and its gameplay position (x, s) is where the lens's line of sight through its core crosses the flight plane.
+   * `dx`/`ds` offset the anchor from the formation track (set once at spawn); `x`/`s` are the anchor now (s from the
+   * player row); `base` is the ground or pontoon deck under it.
+   */
+  ground?: {
+    dx: number; ds: number; x: number; s: number; base: number; afloat: boolean; cameraX: number;
+    /**
+     * The gameplay point a committed attack leaves from, fixed when the windup starts (the forecast the director admitted),
+     * so a camera move during the windup cannot shift a shot away from what was checked. Cleared once it fires.
+     */
+    muzzle?: { x: number; s: number };
+  };
   /** Volleys released so far (the Diamond alternates its wing each volley). */
   volleys?: number;
   /**

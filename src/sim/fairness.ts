@@ -69,7 +69,8 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     const t0 = release + beam.warning;
     return [{ x0: aimX - beam.width / 2, x1: aimX + beam.width / 2, t0, t1: t0 + beam.active }];
   }
-  const at = positionAfter(enemy, warning, enemyClockRate(state, enemy));
+  // A ground enemy already in its windup fires from its fixed muzzle point.
+  const at = (enemy.warning > 0 ? enemy.ground?.muzzle : undefined) ?? positionAfter(enemy, warning, enemyClockRate(state, enemy));
   const speed = ENEMIES[enemy.kind].shotSpeed * shotSpeedScale(state);
   const side = enemy.kind === 'diamond' ? diamondSide(enemy) : 0;
   return enemyShots(enemy.kind as BulletKind, at.x, at.s, aimX, speed, side)

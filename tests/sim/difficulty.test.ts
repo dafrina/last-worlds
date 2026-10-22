@@ -33,8 +33,9 @@ describe('difficulty bots', () => {
       const log = fly(createRun({ mode: 'endless', seed }), idlePilot(), 60);
       return log.firstLifeLostAt;
     });
-    expect(new Set(times).size).toBe(1);
-    expect(times[0]).not.toBeNull();
+    // Endless encounters are seed-independent; since 21 October ground enemies stand on each seed's own terrain (seen
+    // through the release lens, src/sim/ground.ts), so the moment may differ by a tick or so between seeds.
+    for (const time of times) { expect(time).not.toBeNull(); expect(Math.abs(time! - times[0]!)).toBeLessThanOrEqual(0.1); }
     expect(times[0]!).toBeGreaterThanOrEqual(25);
     expect(times[0]!).toBeLessThanOrEqual(40);
   });

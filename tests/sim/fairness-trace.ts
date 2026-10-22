@@ -57,6 +57,10 @@ export class FairnessTrace {
   private readonly cameras: { t: number; x: number }[] = [];
   private evaluatedUntil = -Infinity;
 
+  /** Tracking shots still waiting at their muzzle (recorded when they leave). */
+  private readonly waitingTracks = new Set<number>();
+  /** Ground enemies' fixed muzzle points while their windups run (cleared by the sim when they fire). */
+  private readonly muzzles = new Map<number, { x: number; s: number }>();
   constructor(private readonly lag = 0.6) {}
 
   private fail(rule: Violation['rule'], time: number, detail: string) {
@@ -75,7 +79,10 @@ export class FairnessTrace {
       this.last.delete(id);
     }
     for (const enemy of state.enemies) {
-      this.last.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, aimX: enemy.aimX, warning: enemy.warning });
+      // A ground enemy fires from the muzzle point fixed when its windup started (src/sim/ground.ts), not from where the
+      // lens shows it at release: match its shots there.
+      const from = enemy.ground?.muzzle ?? enemy;
+      this.last.set(enemy.id, { kind: enemy.kind, x: from.x, s: from.s, aimX: enemy.aimX, warning: enemy.warning });
       const before = this.previousWarning.get(enemy.id) ?? 0;
       if (enemy.warning > 0 && before === 0) {
         this.windups += 1;
@@ -84,11 +91,28 @@ export class FairnessTrace {
         const visible = Math.abs(enemy.x - state.cameraX) <= VIEW.width / 2 - enemy.radius + 1e-6 && enemy.s > 3.5 && enemy.s + enemy.radius <= VIEW.maxS + 1e-6;
         if (!visible) this.fail('offscreen', now, `${enemy.kind}#${enemy.id} started a windup at x=${enemy.x.toFixed(2)} s=${enemy.s.toFixed(2)} cam=${state.cameraX.toFixed(2)}`);
       }
-      if (before > 0 && enemy.warning === 0) released.push({ id: enemy.id, kind: enemy.kind, x: enemy.x, s: enemy.s, aimX: enemy.aimX });
+      if (before > 0 && enemy.warning === 0) {
+        const fired = this.muzzles.get(enemy.id) ?? enemy;
+        released.push({ id: enemy.id, kind: enemy.kind, x: fired.x, s: fired.s, aimX: enemy.aimX });
+      }
+      if (enemy.ground?.muzzle) this.muzzles.set(enemy.id, enemy.ground.muzzle); else if (enemy.warning === 0) this.muzzles.delete(enemy.id);
       this.previousWarning.set(enemy.id, enemy.warning);
     }
     for (const shot of state.projectiles) {
-      if (shot.friendly || this.seenShots.has(shot.id)) continue;
+      if (shot.friendly) continue;
+      // A tracking shot (a Pulsar stream) aims when it leaves the muzzle, which is when the director forecasts it: record
+      // its row crossing then, judged in the view of that moment.
+      const waiting = this.waitingTracks.has(shot.id);
+      if (waiting && !((shot.delay ?? 0) > 0)) {
+        this.waitingTracks.delete(shot.id);
+        if (shot.vs < 0) {
+          const crossing = shot.previousS / -shot.vs, x = shot.previousX + shot.vx * crossing;
+          const half = (R + shot.radius) * Math.hypot(shot.vx, shot.vs) / -shot.vs - R, band = (R + shot.radius) / -shot.vs, at = now - STEP + crossing;
+          this.spans.push({ x0: x - half, x1: x + half, t0: at - band, t1: at + band, committed: now, camera: state.cameraX, shot: shot.id });
+        }
+        continue;
+      }
+      if (this.seenShots.has(shot.id)) continue;
       this.seenShots.add(shot.id);
       this.hostileShots += 1;
       // Emission origin: projectiles record where they were before this tick's movement.
@@ -105,6 +129,7 @@ export class FairnessTrace {
           if (lock + TICK < FAIRNESS.lockFloor) this.fail('lock', now, `${source.kind} lock-to-impact ${lock.toFixed(3)} s`);
         }
       }
+      if (shot.track && (shot.delay ?? 0) > 0) { this.waitingTracks.add(shot.id); continue; }
       if (shot.vs < 0) {
         // Shots never steer, so the row crossing is known at release. Record it even if a hit consumes it.
         const crossing = shot.previousS / -shot.vs;
@@ -114,8 +139,9 @@ export class FairnessTrace {
         const band = (R + shot.radius) / -shot.vs;
         // A burst shot waits `delay` at its muzzle before it flies.
         const t = now - STEP + crossing + (shot.delay ?? 0);
-        const committed = source ? this.started.get(source.id) ?? now : now;
-        const camera = source ? this.startCamera.get(source.id) ?? state.cameraX : state.cameraX;
+        // (A tracking shot leaving at once aims now: its view is this moment's, like the waiting ones above.)
+        const committed = source && !shot.track ? this.started.get(source.id) ?? now : now;
+        const camera = source && !shot.track ? this.startCamera.get(source.id) ?? state.cameraX : state.cameraX;
         this.spans.push({ x0: x - half, x1: x + half, t0: t - band, t1: t + band, committed, camera, shot: shot.id });
       }
     }

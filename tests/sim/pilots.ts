@@ -2,7 +2,7 @@ import { BALANCE } from '../../src/content/balance';
 import { playerKinematics } from '../../src/sim/fairness';
 import { endlessPlanet, endlessSectorPlan, paceInSector } from '../../src/content/endless';
 import { EMPTY_INPUT, VIEW, type InputFrame, type RunState } from '../../src/shared/contracts';
-import { committedFootprints, planEvasion } from '../../src/sim/fairness';
+import { committedFootprints, planEvasion, type Footprint } from '../../src/sim/fairness';
 import { stepRun } from '../../src/sim/game';
 
 /** A deterministic scripted pilot. Pilots never press the special. */
@@ -112,6 +112,23 @@ function perceive(state: RunState): RunState {
   };
 }
 
+/**
+ * A shallow shot (mostly sideways) stays within hitting distance of the ship's row for a long stretch: a good pilot keeps
+ * clear of everything it sweeps there, not only of its crossing. (The committed footprints model each shot at its row
+ * crossing, which is exact for a ship holding still but lets a ship moving against a sideways shot fly into it.)
+ */
+function sweptShallow(state: RunState): Footprint[] {
+  const out: Footprint[] = [];
+  for (const shot of state.projectiles) {
+    if (shot.friendly || shot.ttl <= 0 || (shot.delay ?? 0) > 0 || shot.vs >= -1e-6 || Math.abs(shot.vx) < Math.abs(shot.vs)) continue;
+    const reach = VIEW.playerRadius + shot.radius, enter = Math.max(0, (shot.s - reach) / -shot.vs), leave = (shot.s + reach) / -shot.vs;
+    if (leave <= 0) continue;
+    const a = shot.x + shot.vx * enter, b = shot.x + shot.vx * leave;
+    out.push({ x0: Math.min(a, b) - shot.radius, x1: Math.max(a, b) + shot.radius, t0: state.time + enter, t1: state.time + leave });
+  }
+  return out;
+}
+
 export function perfectPilot(): Pilot {
   const history: RunState[] = [];
   let plan: InputFrame = EMPTY_INPUT;
@@ -124,7 +141,7 @@ export function perfectPilot(): Pilot {
       const seen = history[0];
       // Threats are perceived 0.2 s late, but the pilot knows where its own ship is: tracking shots still at a muzzle
       // will aim at it there, not where it was.
-      const footprints = committedFootprints({ ...seen, player: state.player }, 3.4);
+      const footprints = [...committedFootprints({ ...seen, player: state.player }, 3.4), ...sweptShallow(seen)];
       const result = planEvasion(state, footprints, preferredX(seen), target);
       target = result.target;
       direct = result.direct === true;

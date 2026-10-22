@@ -2,6 +2,7 @@ import { ENEMIES, WORLD_INTENSITY, difficultyScales, kinematics, type Difficulty
 import { FORMATIONS, slotFlies, type FormationId } from '../content/formations';
 import type { FormationMember, RunState } from '../shared/contracts';
 import { groundHeight, memberPosition } from './motion';
+import { anchorGround } from './ground';
 
 export function runScale(state: RunState): DifficultyScale {
   return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
@@ -27,10 +28,13 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
     const member: FormationMember = { template: template.id, slot: index, anchorX, mirror, group, ...(anchorS !== undefined ? { anchorS } : {}) };
     const at = memberPosition(member, 0);
     const hp = ENEMIES[slot.kind].hp * scale.hp;
-    state.enemies.push({
+    const enemy = {
       id: state.nextId++, kind: slot.kind, x: at.x, s: at.s, originX: anchorX, hp, maxHp: hp,
       radius: ENEMIES[slot.kind].radius, age: 0, nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
       warning: 0, aimX: at.x, groundHeight: groundHeight(slot.kind), formation: member,
-    });
+    };
+    // Ground enemies stand on the terrain, seen through the release lens (src/sim/ground.ts).
+    anchorGround(state, enemy);
+    state.enemies.push(enemy);
   });
 }

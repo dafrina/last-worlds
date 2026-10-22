@@ -3,6 +3,7 @@ import { createRun } from '../../src/sim/game';
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
 import { spawnMembers } from '../../src/sim/spawn';
+import { anchorGround } from '../../src/sim/ground';
 import { facilityOptions } from '../../src/render/facility-view';
 import { arrangementsOf, plannedArrangement, type ArrangementId } from '../../src/render/facility-layouts';
 import type { FacilityWorld } from '../../src/render/facility-kit';
@@ -19,6 +20,8 @@ if (q.has('facility')) {
   spawnMembers(state, 'battery-3', state.cameraX, 1, 8);
   state.enemies = state.enemies.slice(1, 2);
   state.enemies[0].x = Number(q.get('gunX') ?? state.cameraX); state.enemies[0].s = Number(q.get('gunS') ?? 8);
+  // Re-anchor the battery on the terrain at its new spot (ground enemies stand at a lens anchor, src/sim/ground.ts).
+  state.enemies[0].ground = undefined; anchorGround(state, state.enemies[0]);
   // Pick a stable cosmetic id for each authored size; the production selector still decides whether it fits.
   if (['small', 'large'].includes(q.get('facility') ?? '')) {
     const large = q.get('facility') === 'large';

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
-import { SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
+import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { arenaStopDistance } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
@@ -27,6 +27,9 @@ import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { BASTION } from '../content/bastion';
 import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint';
+import { viewFootprint, type ViewFootprint } from './view-footprint';
+import { PONTOON_DECK } from '../world/run-route';
+import { LENS_FOV, lensFollow } from '../shared/lens';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 /** Per-frame CPU budget for generating the next terrain section ahead of need. */
@@ -110,7 +113,11 @@ export function bastionPlacement(seed: number, distance: number, x: number, logi
  * orthographic camera; to revert, set DEFAULT_CAMERA back to 'ortho'.
  */
 export const DEFAULT_CAMERA: 'ortho' | 'perspective' | 'rectified' = 'perspective';
-export const PERSPECTIVE_FOV = 25;
+/**
+ * The lens (src/shared/lens.ts): the simulation projects ground enemies through the same numbers, so look-dev lenses
+ * (`?fov=`, `?camera=ortho|rectified`) show ground targets slightly off their gameplay positions; the release lens is exact.
+ */
+export const PERSPECTIVE_FOV = LENS_FOV;
 
 export function configureCamera(camera: THREE.OrthographicCamera | THREE.PerspectiveCamera, x: number): void {
   const centerS = (VIEW.minS + VIEW.maxS) / 2;
@@ -126,13 +133,7 @@ export function configureCamera(camera: THREE.OrthographicCamera | THREE.Perspec
  * is narrower at the ship's row than at its centre, so with the camera at its usual limit a ship hugging an edge would be
  * cut off. The factor puts the camera where the ship, up to its wingtips, stays inside the view at its row (25°: 1.10).
  */
-export function perspectiveFollow(fov: number): number {
-  const probe = new THREE.PerspectiveCamera(fov, 9 / 16, 1, 260);
-  configureCamera(probe, 0);
-  const halfWidth = 1 / new THREE.Vector3(1, VIEW.flightHeight, 0).project(probe).x;
-  const limit = VIEW.worldWidth / 2 - VIEW.width / 2, edge = VIEW.worldWidth / 2 - VIEW.playerRadius + .55;
-  return Math.max(1, (edge - halfWidth) / limit);
-}
+export const perspectiveFollow = (fov: number): number => lensFollow(fov);
 
 /**
  * Perspective seating (render-only): follow the camera ray through the logical flight-plane target down to
@@ -291,8 +292,8 @@ const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle', 'diam
 const KHEPRI_STAND_IN: Readonly<Record<EnemyKind, 'dart' | 'weaver' | 'turret' | 'lancer'>> = {
   dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret', fuel: 'turret', pulsar: 'weaver',
 };
-/** Deck height of the render-only pontoon a ground battery rides on when the simulation seats it over open water. */
-const PONTOON_DECK = .14;
+// The pontoon deck under a ground battery over open water: PONTOON_DECK (src/world/run-route.ts, shared with the
+// simulation's ground seats).
 const WHITE = new THREE.Color(1, 1, 1);
 /** Hit flash (render-only): a craft struck by any shot glows over-bright for this long, fading out. */
 const HIT_FLASH = .12;
@@ -747,6 +748,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
   const jumpFx = createJumpFx(scene);
+  const footprint: ViewFootprint = { minX: 0, maxX: 0, minS: 0, maxS: 0 };
   /** The run whose launch warp has played (its hero skips the entrance animation). */
   let warpLaunched: RunState['config'] | null = null;
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -869,6 +871,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const terrainStart = performance.now();
       // The run's schedule drives the terrain (docs/18 §3): planet stretches and boss arenas by distance; a campaign is one planet.
       terrain.update(state.config.seed, state.distance, runRoute(state.config)); placeCamera(state.cameraX * follow); terrain.cull(camera);
+      // What the camera sees of the ground this frame: every draw range below reads it (no pop-in at the lens's far end).
+      const view = viewFootprint(camera, TERRAIN_MIN_HEIGHT, SCENERY_MAX_HEIGHT + 1, footprint);
       /** The streamed world under the ship (planet and arena); seating given it resolves each distance on the route. */
       const world = terrain.world, arena = world.arena;
       const lookPlanet: PlanetId = lookOverride ? terrainPlanet : state.planet ?? runPlanet(state.config);
@@ -1015,19 +1019,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       for (const enemy of state.enemies) {
         if (enemy.bossPart) continue;
         const isGround = GROUND_KINDS.has(enemy.kind);
-        const visible = Math.abs(enemy.x - state.cameraX) < VIEW.width / 2 + 1 && enemy.s > VIEW.minS - 2 && enemy.s < VIEW.maxS + 3;
+        const visible = enemy.x > view.minX - 1 && enemy.x < view.maxX + 1 && enemy.s > view.minS - 2 && enemy.s < view.maxS + 3;
         if (!visible && !isGround) continue;
-        // A ground battery over open water rides a pontoon: its core sits PONTOON_DECK higher, still on its logical pixel.
-        const afloat = isGround && world.planet.seaLevel !== null && surfaceHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) <= sea + 1e-6
+        // Ground enemies stand at their anchor on the terrain (src/sim/ground.ts, 21 October): fixed in the world, scrolling
+        // with it, while the simulation's position is that anchor seen through the same lens (src/shared/lens.ts), so model,
+        // compound, shots and hits agree on screen. Over open water the anchor is a pontoon deck. (Enemies without an
+        // anchor, from raw test fixtures, keep the orthographic seat.)
+        const anchor = isGround ? enemy.ground : undefined;
+        const afloat = anchor ? anchor.afloat : isGround && world.planet.seaLevel !== null && surfaceHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) <= sea + 1e-6
           && terrainHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) < sea - .05;
         const coreHeight = enemy.groundHeight + (afloat ? PONTOON_DECK : 0);
-        // Ground pieces stay fixed to the world under every lens (user, 21 October: turrets and tanks "floating"): seated as the
-        // orthographic view seats them, so they scroll exactly with the terrain and their compounds stay under them. Under a
-        // perspective lens the camera ray through a fixed logical row tilts as the row scrolls, so ray seating slid them
-        // over the ground (several units over Vesper's deep sea). The cost is a small visual offset from the logical
-        // target at the screen edges (about 0.4 sideways over land), inside the hit radii. Bosses keep ray seating: their
-        // arenas stand still.
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
+          : anchor ? { x: anchor.x, s: anchor.s, baseHeight: anchor.base - (anchor.afloat ? PONTOON_DECK : 0) }
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
         if (isGround && enemy.hp > 0) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight });
         // A compound is much wider than its gun. Seat all live ground batteries ahead of the view,
@@ -1133,7 +1136,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
       // District pads are reserved (docs/23 §4.8): compounds and emplacement pieces keep out; batteries never move.
       const reserved = terrain.reservedSites();
-      facilities.update(state, planet, groundNow, reserved, (x, s) => surfaceHeight(state.config.seed, x, s, world));
+      facilities.update(state, planet, groundNow, reserved, (x, s) => surfaceHeight(state.config.seed, x, s, world), view);
       terrain.setFacilityClearings(facilities.clearings);
       // The compact legacy layout is retained for guns that cannot seat a larger compound.
       if (planet === 'khepri' || planet === 'vesper') for (const [id, spot] of groundNow) {
@@ -1181,7 +1184,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       wreckBatches.forEach(mesh => { mesh.count = 0; });
       for (const wreck of wrecks) {
         const mesh = wreckBatches.get(wreck.node);
-        if (!mesh || Math.abs(wreck.x - state.cameraX) > VIEW.width / 2 + 2) continue;
+        if (!mesh || wreck.x < view.minX - 2 || wreck.x > view.maxX + 2) continue;
         transform.position.set(wreck.x, wreck.y, -(wreck.worldS - state.distance)); transform.rotation.set(0, wreck.yaw, 0); transform.scale.setScalar(1); transform.updateMatrix();
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
@@ -1190,7 +1193,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       emplacementBatches.forEach(mesh => { mesh.count = 0; });
       for (const piece of emplacements) {
         const mesh = emplacementMesh(piece.node);
-        if (!mesh || mesh.count >= mesh.instanceMatrix.count || Math.abs(piece.x - state.cameraX) > VIEW.width / 2 + 3) continue;
+        if (!mesh || mesh.count >= mesh.instanceMatrix.count || piece.x < view.minX - 3 || piece.x > view.maxX + 3) continue;
         transform.position.set(piece.x, piece.y, -(piece.worldS - state.distance)); transform.rotation.set(0, piece.yaw, 0); transform.scale.setScalar(1); transform.updateMatrix();
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }

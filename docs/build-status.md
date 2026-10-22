@@ -1,5 +1,27 @@
 # Build status
 
+## Ground enemies through the lens, no scenery pop-in, 22 October 2026
+
+User:
+- "A lot of buildings are popping in too late again. Maybe that's also because of the camera change";
+- "your approximation thing just doesn't hold up ... I want a proper solution" (turrets and tanks floating, glitches with what hides what).
+
+- **The lens as shared math (`src/shared/lens.ts`):** the release camera's 25° lens, the eye position for a simulation camera x, the edge follow (×1.10), and projection onto and off the flight plane. Pure: no Three.js. The renderer builds its camera from the same numbers, and a unit test checks that the projection matches a real Three.js camera to 1e-9 in screen space.
+- **Ground enemies (`src/sim/ground.ts`):**
+  - At spawn, each turret, missile battery or fuel skid is anchored where the lens's line of sight through its authored position first meets the terrain, or the sea on a pontoon. The anchor is solved for row 10 (mid-screen, inside the authored firing band), so its on-screen path stays within about ±1 unit of the authored one on ordinary ground.
+  - The anchor is fixed in the world. Each tick the enemy's gameplay position is its core seen through the lens, and the renderer draws it at its anchor, so it never slides or floats, and the depth buffer orders it correctly.
+  - The run's route (`src/world/run-route.ts`, moved from render) and the ground seat (`groundSeat`, with the pontoon deck) are shared by the simulation and the renderer.
+  - Forecasts (`positionAfter`) project through the lens; the raw track is `trackAfter`.
+  - A committed ground attack leaves from the muzzle point fixed at windup start (the forecast the director admitted), so a camera move during the windup cannot shift it.
+- **No pop-in (`src/render/view-footprint.ts`):** every draw range comes from the camera's actual ground footprint each frame (the frustum's corner rays cut at the lowest ground and the highest scenery). This covers the scenery instances' lateral prefilter, battery compounds, wrecks, emplacement pieces and the enemy draw window. Before, they used the orthographic rectangle (camera x ±8.7, a few units past the top row). At the edge, the lens shows x −3…16 and up to s 37.
+- **Tests:**
+  - `tests/sim/ground-lens.test.ts` is new: the lens matches the camera, and anchors stay fixed on the ground while the gameplay position follows the lens.
+  - Fairness trace: a ground enemy's shot is matched at its muzzle. A tracking shot (a Pulsar stream) is judged in the view of the moment it leaves the muzzle, which is when it aims.
+  - The perfect pilot also keeps clear of the stretch a shallow shot sweeps near its row.
+  - The idle-ship test allows a tick of difference between seeds (ground enemies stand on each seed's terrain).
+  - Rolling Thunder on Precision Drive flies seed 6, and seed 5 gets a fairness test (user decision, docs/08).
+- **Checks:** typecheck clean; unit tests 402/402; build passes; browser 35/35. Fixtures that move a spawned battery re-anchor it (`anchorGround`), and the facility test's Vesper spot moved from 200 to 190, where all four compounds fit the anchored seat. No phone test.
+
 ## Ground enemies fixed to the world, sharper Vesper water, 21 October 2026
 
 User:

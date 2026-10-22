@@ -2,6 +2,7 @@ import { ENEMIES, GROUND_KINDS, WORLD_INTENSITY } from '../content/balance';
 import { BOSSES } from '../content/bosses';
 import { FORMATIONS, type FormationTemplate, type Keyframe } from '../content/formations';
 import { VIEW, type BossId, type BossState, type Enemy, type FormationMember, type RunState } from '../shared/contracts';
+import { toFlightPlane } from '../shared/lens';
 
 /** Linear keyframe interpolation; past the last keyframe the final segment continues (the exit). */
 export function keyframeAt(path: readonly Keyframe[], t: number): { x: number; s: number } {
@@ -77,6 +78,12 @@ export const airClockRate = (state: Pick<RunState, 'pace' | 'planet'>) => state.
  * template; the legacy single-enemy motion (straight descent, weaver sine) remains for raw test fixtures.
  */
 export function positionAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; s: number } {
+  const track = trackAfter(enemy, ahead, rate), g = enemy.ground;
+  // A ground enemy is seen through the lens: its anchor rides the track, projected with the last tick's camera.
+  return g ? toFlightPlane(g.cameraX, track.x + g.dx, g.base + enemy.groundHeight, track.s + g.ds) : track;
+}
+/** The raw track: the formation path (or legacy motion) that a ground enemy's anchor rides, before the lens. */
+export function trackAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; s: number } {
   if (enemy.bossPart) return { x: enemy.x, s: enemy.s };
   const clock = ahead * rate;
   if (enemy.formation) return memberPosition(enemy.formation, enemy.age + clock);
@@ -85,7 +92,7 @@ export function positionAfter(enemy: Enemy, ahead: number, rate = 1): { x: numbe
 }
 
 export function advanceEnemy(enemy: Enemy, dt: number, rate = 1): void {
-  const next = positionAfter(enemy, dt, rate);
+  const next = trackAfter(enemy, dt, rate);
   enemy.age += dt * rate;
   enemy.x = next.x;
   enemy.s = next.s;

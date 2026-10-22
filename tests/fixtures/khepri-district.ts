@@ -9,6 +9,7 @@ import { createRun } from '../../src/sim/game';
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
 import { spawnMembers } from '../../src/sim/spawn';
+import { anchorGround } from '../../src/sim/ground';
 import { PLANETS, ROAD_ENDS } from '../../src/world/terrain';
 
 const q = new URLSearchParams(location.search);
@@ -27,6 +28,8 @@ if (battery) {
   spawnMembers(state, 'battery-3', battery[0], 1, battery[1] - state.distance);
   state.enemies = state.enemies.slice(1, 2);
   state.enemies[0].x = battery[0]; state.enemies[0].s = battery[1] - state.distance;
+  // Re-anchor the battery on the terrain at its new spot (ground enemies stand at a lens anchor, src/sim/ground.ts).
+  state.enemies[0].ground = undefined; anchorGround(state, state.enemies[0]);
 }
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start() {}, pause() {}, resume() {}, quit() {}, setMuted() {}, setQuality(quality) { renderer.setQuality(quality); },
