@@ -22,7 +22,7 @@ function drawn(scene: Scene, distance: number) {
 describe('terrain exclusion (boss arena)', () => {
   it('hides scenery instances under the rectangle while set, restores them when cleared, and leaves generation alone', () => {
     const scene = new Scene(), material = new MeshBasicMaterial();
-    const view = createTerrainView({ scene, groundMaterial: material, kitMaterial: material, infraMaterial: material, boundaryMaterial: material,
+    const view = createTerrainView({ scene, groundMaterial: material, kitMaterial: material, infraMaterial: material,
       sharedMaterial: material, roadMaterial: material, fallbackInfra: createFallbackInfra(createMaterials()), fallbackShared: createFallbackShared() });
     const height = VIEW.width * 16 / 9, camera = new OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, height / 2, -height / 2, 0.1, 100);
     const seed = 93, distance = 60, before = generateTerrainSection(seed, 2);

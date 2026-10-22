@@ -74,7 +74,7 @@ interface SectionView {
 interface Batch { mesh: THREE.InstancedMesh; capacity: number; triangles: number }
 export interface TerrainViewOptions {
   scene: THREE.Scene;
-  groundMaterial: THREE.Material; kitMaterial: THREE.Material; infraMaterial: THREE.Material; boundaryMaterial: THREE.Material;
+  groundMaterial: THREE.Material; kitMaterial: THREE.Material; infraMaterial: THREE.Material;
   /** Palette-from-masks material for the shared industrial kit (docs/14). */
   sharedMaterial: THREE.Material;
   /** Road ribbon material (graded dust, ruts, berms). */
@@ -156,7 +156,7 @@ const triangleCount = (geometry: THREE.BufferGeometry) => (geometry.index ? geom
  * calls stay bounded by the node count and triangles by what is actually on screen. Presentation only.
  */
 export function createTerrainView(options: TerrainViewOptions) {
-  const { scene, groundMaterial, kitMaterial, infraMaterial, boundaryMaterial, sharedMaterial, roadMaterial } = options;
+  const { scene, groundMaterial, kitMaterial, infraMaterial, sharedMaterial, roadMaterial } = options;
   let kit: KitGeometries = createFallbackKit(), infra: KitGeometries = new Map(options.fallbackInfra), shared: KitGeometries = new Map(options.fallbackShared);
   let kitSource: TerrainStats['kit'] = 'fallback', infraSource: TerrainStats['infra'] = 'fallback', sharedSource: TerrainStats['shared'] = 'fallback';
   let quality: GraphicsQuality = 'high', seed: number | null = null, stream = createTerrainStream(0);
@@ -168,7 +168,6 @@ export function createTerrainView(options: TerrainViewOptions) {
   const planetLoads = new Map<PlanetId, Promise<void>>();
   const views = new Map<number, SectionView>(), batches = new Map<string, Batch>();
   const pieces = new THREE.Group(); pieces.name = 'Khepri instanced scenery'; scene.add(pieces);
-  const edgeGeometry = new THREE.BoxGeometry(0.06, 0.018, 1.5);
   const transform = new THREE.Object3D(), color = new THREE.Color();
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), worldBox = new THREE.Box3(), offset = new THREE.Vector3();
   const stats: TerrainStats = { calls: 0, triangles: 0, instances: 0, haulers: 0, kit: kitSource, infra: infraSource, shared: sharedSource };
@@ -448,20 +447,6 @@ export function createTerrainView(options: TerrainViewOptions) {
       const cullable: Cullable = { object: holder, box, triangles: strip.count / 3 };
       view.cullables.push(cullable);
       yield;
-      // World limits read as quiet surveyed flight-border lines on the strips at the world's edges (the aprons beyond
-      // them are plain ground, terrain version 16).
-      const side = Math.abs(strip.minX + VIEW.worldWidth / 2) < 1e-6 ? -1 : Math.abs(strip.maxX - VIEW.worldWidth / 2) < 1e-6 ? 1 : 0;
-      if (!side) continue;
-      const x = side * (VIEW.worldWidth / 2 - 0.06);
-      const marks = new THREE.InstancedMesh(edgeGeometry, boundaryMaterial, Math.ceil(section.size / 3));
-      let i = 0;
-      for (let s = 0; s < section.size; s += 3) {
-        transform.position.set(x, terrainHeight(section.seed, x, section.startS + s, route ?? world) + 0.035, -s);
-        transform.rotation.set(0, 0, 0); transform.scale.set(1, 1, 1); transform.updateMatrix(); marks.setMatrixAt(i++, transform.matrix);
-      }
-      marks.count = i; marks.computeBoundingSphere(); holder.add(marks); view.instanced.push(marks);
-      cullable.triangles += i * 12;
-      yield;
     }
   }
 
@@ -654,6 +639,24 @@ export function createTerrainView(options: TerrainViewOptions) {
       entry.mesh.instanceColor!.clearUpdateRanges(); entry.mesh.instanceColor!.addUpdateRange(0, count * 3); entry.mesh.instanceColor!.needsUpdate = true;
     }
     stats.instances = instances;
+  }
+
+  let standIns: THREE.Object3D[] | null = null;
+  /** One hidden triangle per section-built material, with every attribute those shaders read. */
+  function warmStandIns(): THREE.Object3D[] {
+    if (standIns) return standIns;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, -50, 0, .01, -50, 0, 0, -50, .01]), 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(6), 2));
+    geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
+    for (const name of ['alpha', 'shade', 'shore', 'depth']) geometry.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3), 1));
+    water ??= createWaterMaterial();
+    const road = new THREE.Mesh(geometry, roadMaterial), sea = new THREE.Mesh(geometry, water);
+    road.renderOrder = 1; road.receiveShadow = sea.receiveShadow = true;
+    standIns = [road, sea];
+    for (const mesh of standIns) { mesh.visible = false; mesh.frustumCulled = false; mesh.name = 'warm-up stand-in'; scene.add(mesh); }
+    return standIns;
   }
 
   function rebuildAll() {
@@ -912,11 +915,15 @@ export function createTerrainView(options: TerrainViewOptions) {
       }
       ventFeatures.length = ventUsed;
     },
-    /** Every node batch, made visible, so a warm-up compile covers all scenery programs. */
+    /**
+     * Every node batch, made visible, so a warm-up compile covers all scenery programs; plus hidden stand-ins for the
+     * per-section meshes (roads, water) that no section may have built yet (performance, 22 October:
+     * the road program compiled on the first road section, mid-flight).
+     */
     warmupObjects(): THREE.Object3D[] {
       for (const kind of [...KIT_KINDS, ...KHEPRI_CLIFF_KINDS, ...VESPER_CLIFF_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) batch(kitNodeName(kind, v));
       for (const name of [...Object.keys(INFRA_NODES), ...SHARED_NODES]) batch(name);
-      return [...batches.values()].map(entry => entry.mesh);
+      return [...[...batches.values()].map(entry => entry.mesh), ...warmStandIns()];
     },
     get stats(): Readonly<TerrainStats> { return stats; },
     /** Where haulers kick up dust this frame (presentation only). */
@@ -927,12 +934,13 @@ export function createTerrainView(options: TerrainViewOptions) {
       views.forEach(disposeView); views.clear(); stream.clear();
       discardPrebuilt();
       batches.forEach(entry => entry.mesh.dispose()); batches.clear(); scene.remove(pieces);
+      if (standIns) { standIns.forEach(mesh => scene.remove(mesh)); (standIns[0] as THREE.Mesh).geometry.dispose(); standIns = null; }
       haulers.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); haulers.clear();
       floeMeshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); floeMeshes.clear();
       if (water && !options.waterMaterial) water.dispose();
       disposed = true;
       kit.forEach(geometry => geometry.dispose()); infra.forEach(geometry => geometry.dispose()); shared.forEach(geometry => geometry.dispose());
-      edgeGeometry.dispose(); casterMaterial.dispose(); casterDepth.dispose(); proxies.clear();
+      casterMaterial.dispose(); casterDepth.dispose(); proxies.clear();
     },
     /** Rebuilds live sections, e.g. after a layout-affecting change; kept for completeness. */
     rebuild: rebuildAll,

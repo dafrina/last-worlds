@@ -392,7 +392,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const bastion = createBastionView(scene);
   const terrainMaterials = createTerrainMaterials();
   const groundMaterial = terrainMaterials.ground, kitMaterial = terrainMaterials.kit;
-  const boundaryMaterial = new THREE.MeshBasicMaterial({ color: 0xd8c08a, transparent: true, opacity: .52 });
   const sharedMaterial = createSharedMaterial();
   // Prefiltered desert sky: craft metals and outpost machinery reflect warm light instead of reading flat black.
   const environment = createDesertEnvironment(renderer, SUN);
@@ -449,7 +448,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
-  const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra, boundaryMaterial,
+  const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra,
     sharedMaterial, roadMaterial: terrainMaterials.roads, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared(),
     waterMaterial: water.material, onPlanet: next => { terrainPlanet = next; } });
   terrain.setShadowFrustum(sunlight.shadow.getFrustum());
@@ -754,7 +753,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
   const reducedMotion = () => query.get('motion') === 'reduce' || !!motionQuery?.matches;
-  let jumpActive = false;
+  let jumpActive = false, lastRenderTime = 0, warmedJump = -1, hiddenWarm = false;
+  const knownPrograms = new WeakSet<object>();
   const transform = new THREE.Object3D(), color = new THREE.Color();
 
   const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 32;
@@ -844,13 +844,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const resizePost = () => post.setSize(drawingWidth * renderer.getPixelRatio(), drawingHeight * renderer.getPixelRatio());
   return {
     prepare: preload,
-    launchWarp: mode => jumpFx.launch(mode),
+    // Each launch warms every program in its real form under the warp (see the warm-up in render).
+    launchWarp: mode => { if (mode === 'cruise') warmed = false; return jumpFx.launch(mode); },
     isReady: planetReady,
     setQuality(next) {
       if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); resizePost();
       // Shadow maps are a High-tier feature; toggling them recompiles the affected programs once.
       renderer.shadowMap.enabled = sunlight.castShadow = next === 'high';
+      warmed = false;
       scene.traverse(object => { const material = (object as THREE.Mesh).material; (Array.isArray(material) ? material : material ? [material] : []).forEach(m => { m.needsUpdate = true; }); });
       lastStatsTick=-Infinity;
     },
@@ -868,6 +870,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       renderer.info.reset();
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
       void alpha;
+      lastRenderTime = state.time; hiddenWarm = false;
       const terrainStart = performance.now();
       // The run's schedule drives the terrain (docs/18 §3): planet stretches and boss arenas by distance; a campaign is one planet.
       terrain.update(state.config.seed, state.distance, runRoute(state.config)); placeCamera(state.cameraX * follow); terrain.cull(camera);
@@ -933,6 +936,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         terrainWork.animateMax = Math.max(terrainWork.animateMax, prefetchStart - animateStart);
         terrainWork.prefetchMax = Math.max(terrainWork.prefetchMax, now - prefetchStart);
       }
+      // A planet jump warms the next world's programs at its flash, while the screen is white.
+      const flashing = !!state.jump && state.time >= state.jump.startedAt + state.jump.duration * .48;
+      if (flashing && warmedJump !== state.jump!.startedAt) { warmedJump = state.jump!.startedAt; warmed = false; }
       if (!warmed) {
         // Preview rendering warms all authored craft/material programs before the first fight.
         // Instance-color attributes above are allocated now, avoiding a new program on first loot/hit.
@@ -941,7 +947,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const bossParts: THREE.Object3D[] = [];
         for (const name of ['Bastion-9', 'Helion Ark', 'WARDEN-1', 'THE VEIL']) scene.getObjectByName(name)?.traverse(object => { bossParts.push(object); });
         const pieces = [...terrain.warmupObjects(), ...facilities.warmupObjects(), ...jumpFx.objects, ...bossParts];
-        pieces.forEach(piece => { piece.userData.wasVisible = piece.visible; piece.visible = true; });
+        // Every object is drawn once in its real form (performance, 22 October: programs compiled mid-flight stalled
+        // frames by 50-400 ms): hidden ones shown and nothing culled, so empty instanced batches, the shield and the
+        // effects compile too.
+        const restore: [THREE.Object3D, boolean, boolean][] = [];
+        scene.traverse(object => { restore.push([object, object.visible, object.frustumCulled]); object.visible = true; object.frustumCulled = false; });
+        for (const piece of pieces) piece.traverse(object => { if (!restore.some(([seen]) => seen === object)) restore.push([object, object.visible, object.frustumCulled]); object.visible = true; object.frustumCulled = false; });
         // Upload decoded atlases now, including hidden facility/boss materials. Shader compilation
         // alone does not upload textures and otherwise defers that cost to the first visible draw.
         scene.traverse(object => {
@@ -951,8 +962,21 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
               renderer.initTexture(value); uploaded.add(value);
             }
         });
-        renderer.compile(scene, camera);
-        pieces.forEach(piece => { piece.visible = piece.userData.wasVisible; }); warmed = true; lastStatsTick = -Infinity;
+        hiddenWarm = state.tick === 0 || jumpFx.launching || flashing;
+        if (hiddenWarm) {
+          // Hidden (a flight's first frame under the launch warp, or a jump's flash): one real frame through the actual pipeline compiles
+          // every variant, the HDR target's untoned programs and the shadow pass's depth programs included. The frame
+          // below draws over it.
+          if (quality === 'high') post.render(scene, camera); else { renderer.setRenderTarget(null); renderer.render(scene, camera); }
+        } else {
+          // Mid-flight (a later planet's kits arrived): compile for the target the scene draws into, in the background
+          // where the browser compiles in parallel, so the flight does not stall.
+          renderer.setRenderTarget(quality === 'high' ? post.target : null);
+          void renderer.compileAsync(scene, camera).catch(() => undefined);
+          renderer.setRenderTarget(null);
+        }
+        for (const [object, visible, culled] of restore) { object.visible = visible; object.frustumCulled = culled; }
+        warmed = true; lastStatsTick = -Infinity;
       }
       placeSun(state.cameraX, state.distance);
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
@@ -1331,6 +1355,29 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         passes.shadow = passes.post = 0; passes.main = renderer.info.render.calls;
       }
       if (state.tick > 0) terrainWork.renderMax = Math.max(terrainWork.renderMax, performance.now() - renderStart);
+      // Development evidence: shader programs compiled after the warm-up stall a frame (a hang on phones).
+      if (import.meta.env.DEV && warmed) {
+        const programs = renderer.info.programs ?? [];
+        const log = ((window as unknown as { __lateShaders?: string[] }).__lateShaders ??= []);
+        for (const program of programs) if (!knownPrograms.has(program)) {
+          knownPrograms.add(program);
+          log.push(`${state.time.toFixed(2)} created ${program.name} ${(performance.now() - renderStart).toFixed(0)}ms ${program.cacheKey.replace(/\s+/g, ' ').slice(0, 300)}`);
+        }
+        // A program compiled ahead but first used now also stalls (the driver finishes compiling on first use).
+        for (const program of programs as unknown as { name: string; cacheKey: string; getUniforms(): unknown; __watched?: boolean; __used?: boolean }[]) {
+          if (program.__watched) continue;
+          // Programs created by a hidden warm-up render were used by it already.
+          program.__watched = true; program.__used = hiddenWarm;
+          const original = program.getUniforms.bind(program);
+          program.getUniforms = () => {
+            if (!program.__used) {
+              program.__used = true;
+              ((window as unknown as { __lateShaders?: string[] }).__lateShaders ??= []).push(`${lastRenderTime.toFixed(2)} first-use ${program.name} ${program.cacheKey.replace(/\s+/g, ' ').slice(0, 300)}`);
+            }
+            return original();
+          };
+        }
+      }
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({

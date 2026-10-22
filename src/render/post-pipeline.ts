@@ -200,6 +200,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
       draw(composite, null);
       renderer.autoClear = previousAutoClear;
     },
+    /** The HDR scene target: programs that draw into it compile untoned and linear (the warm-up compiles for it). */
+    get target() { return sceneTarget; },
     settings: composite.uniforms,
     /** Bloom threshold and knee (linear radiance), e.g. per planet so sunlit snow never smears. */
     setThreshold(threshold: number, knee: number) { prefilter.uniforms.threshold.value = threshold; prefilter.uniforms.knee.value = knee; },

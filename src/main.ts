@@ -1,6 +1,7 @@
 import { createRun, stepRun } from './sim/game';
 import { createRenderer } from './render/scene';
 import { createUi } from './ui/game-ui';
+import { createPerfOverlay } from './ui/perf-overlay';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
@@ -197,6 +198,10 @@ ui.canvas.addEventListener('webglcontextlost', (event) => {
   ui.showError('Graphics were interrupted. Reload to restart this prototype flight.');
 });
 
+/** `?perf`: the diagnostic frame-time overlay (src/ui/perf-overlay.ts), for measuring flights on phones. */
+const perf = new URLSearchParams(location.search).has('perf') ? createPerfOverlay(document.body, ui.canvas) : null;
+let perfLast = performance.now(), simStart = 0;
+
 function frame(now: number) {
   // Scene creation and initial shader compilation are loading, not active flight time.
   const elapsed = warmupFrames > 0 ? 0 : Math.max(0, (now - lastTime) / 1000);
@@ -223,6 +228,7 @@ function frame(now: number) {
   if (run?.phase === 'playing' && !waitingForWorld) {
     pendingSpecial ||= controls.specialPressed;
     accumulator += frameSeconds;
+    simStart = performance.now();
     while (accumulator >= STEP && run.phase === 'playing' && !destinationPending()) {
       stepRun(run, { horizontal: controls.horizontal, specialPressed: pendingSpecial, pausePressed: false }, STEP);
       pendingSpecial = false;
@@ -230,8 +236,11 @@ function frame(now: number) {
     }
   }
   if (run) audio.observe(run);
+  const simMs = simStart > 0 ? performance.now() - simStart : 0;
   const dying = updateAfterglow(frameSeconds);
+  const renderStart = performance.now();
   renderer?.render(loadingRun ?? dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
+  perf?.frame(now - perfLast, simMs, performance.now() - renderStart); perfLast = now; simStart = 0;
   ui.update(run);
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });
   requestAnimationFrame(frame);

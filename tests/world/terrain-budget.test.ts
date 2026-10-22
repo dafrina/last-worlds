@@ -38,7 +38,7 @@ async function shippedNodes(file: string, names: readonly string[], extract: (no
 /** Runs the real section streaming and strip culling against the gameplay camera, without WebGL. */
 async function sweep(quality: 'high' | 'low', withKit: boolean, seeds: readonly number[] = [11, 93, 8831], from = 0, to = 200, infrastructure = false) {
   const scene = new Scene(), material = new MeshBasicMaterial();
-  const view = createTerrainView({ scene, groundMaterial: material, kitMaterial: material, infraMaterial: material, boundaryMaterial: material,
+  const view = createTerrainView({ scene, groundMaterial: material, kitMaterial: material, infraMaterial: material,
     sharedMaterial: material, roadMaterial: material, fallbackInfra: createFallbackInfra(createMaterials()), fallbackShared: createFallbackShared() });
   const kit = withKit ? await shippedKit() : null;
   if (kit) view.setKit(kit);

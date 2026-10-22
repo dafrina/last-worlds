@@ -279,3 +279,11 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - the warp flash ends the streaks, and the victory results arrive at the flash.
 - **Checks:** typecheck clean, unit tests 405/405, build passes, browser 35/35. No phone test.
 - **For review (docs/08):** two re-scoped tests; Relaxed is about 15% hotter for a strong pilot.
+
+**2026-10-22 · Claude Code · performance pass 1: deployed:**
+- **Changes:**
+  - the shader warm-up draws one real frame through the actual pipeline (HDR target, shadow pass, every object shown) under the launch warp and at each jump's flash;
+  - mid-flight kit arrivals use `compileAsync`;
+  - `?perf` frame-time overlay;
+  - world-border dashes removed (user request).
+- **Checks:** typecheck clean, unit tests 405/405, build passes, browser 36/36 (a new test asserts no mid-flight shader compiles). No phone test.

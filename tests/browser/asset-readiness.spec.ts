@@ -72,3 +72,22 @@ test('Bastion links roll, stop with the chassis, and stay stopped on destruction
   await page.waitForTimeout(300);
   expect((await stats(page)).bastion.trackTravel).toBe(stopped);
 });
+
+test('no shader program compiles mid-flight: the launch warm-up covers facilities, roads and the HDR target', async ({ page }) => {
+  // Performance, 22 October: programs compiled on first appearance stalled frames by 50-400 ms.
+  test.setTimeout(120000);
+  await seedCampaign(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
+  await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Rolling Thunder', exact: true }).click();
+  await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
+  await expect.poll(async () => (await snapshot(page))?.phase, { timeout: 60_000 }).toBe('playing');
+  // Fly through the first batteries, their compounds and the district roads, rendering along the way.
+  for (let i = 0; i < 30; i++) {
+    await page.evaluate(() => (window as any).__LAST_WORLDS__.advance(.5));
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  }
+  expect((await snapshot(page)).time).toBeGreaterThan(14);
+  const late = await page.evaluate(() => ((window as any).__lateShaders as string[] ?? []).filter(line => !line.startsWith('0.00')));
+  expect(late).toEqual([]);
+});

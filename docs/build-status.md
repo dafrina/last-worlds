@@ -1,5 +1,26 @@
 # Build status
 
+## Performance pass 1: no mid-flight shader compiles, `?perf` overlay, no world-border dashes, 22 October 2026
+
+User:
+- "performance optimization - sometimes there's frame drops or slight hangs, and I want to increase projectiles at some point ... where we would likely lag more if we don't address performance";
+- "also remove the dashed line on the world border".
+
+- **Measurement (headless Chrome, CPU profile and frame log, 120x260 so the software GPU does not dominate):**
+  - The main thread is mostly idle on a desktop CPU; this machine has no hardware GPU in WSL (llvmpipe at best), so GPU cost on phones is still unmeasured.
+  - Shader programs compiled mid-flight in every mission, stalling single frames by 50-400 ms (desktop, software GL): at 0.2 s into each flight, when the first battery compound appeared (5-30 s), on the first road section and for some shadow programs.
+  - Causes: the warm-up compiled for the screen, but on High the scene draws into the HDR target (other tone mapping and output space); `renderer.compile` never compiles shadow-pass programs; objects hidden at warm-up time (the shield) and materials no section had built yet (roads) were skipped; a kit loaded while the menu was showing compiled in the background and was first used mid-flight.
+- **Fix (`src/render/scene.ts`, `src/render/terrain-view.ts`, `src/render/post-pipeline.ts`):** the warm-up draws one real frame through the actual pipeline, shadows included, with every object shown and nothing culled, under the launch warp and again at each planet jump's flash; hidden stand-ins carry the road and water materials. Mid-flight (a later planet's kit arriving) it compiles in the background for the right target (`compileAsync`). A quality change re-warms.
+  - Evidence: 60 s of Training, Cold Vector, Deep Bloom and Rolling Thunder each with no program created or first used after launch (dev log `window.__lateShaders`); the worst render call fell from 274 ms to under 17 ms.
+  - Test: `tests/browser/asset-readiness.spec.ts` flies Rolling Thunder for 15 s and asserts no late programs.
+- **`?perf` overlay (`src/ui/perf-overlay.ts`):** add `?perf` to the URL for fps, frame-time p50/p95/max, long frames (over 50 ms) and the worst, simulation and render milliseconds (average/max) and draw calls, triangles, pixel ratio and tier. Diagnostic only.
+- **World border:** the dashed survey line along the world edges is gone (user request); the edge apron stays plain ground.
+- **Found, next:**
+  - Terrain generation allocates about 15 MB/s while prefetching (70% of all allocation; `landform`, `levelField`, `noise`), which feeds garbage-collection pauses; candidate: generate sections in a worker.
+  - The simulation averages 20-40 µs per tick but spikes to 13-35 ms on single ticks (Node, endless): `airspaceClear` while a cue waits (also each tick of a ground lead) and `anchorGround`'s 70 terrain probes per ground enemy, each rebuilding a terrain row.
+  - Projectiles are instanced (rendering scales); the cap is 520.
+- **Checks:** typecheck clean; unit tests 405/405; build passes; browser 36/36. No phone test.
+
 ## Ground formations come into view ahead of their cue; the warp flash ends the streaks, 22 October 2026
 
 User:
