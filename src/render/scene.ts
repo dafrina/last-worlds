@@ -29,7 +29,7 @@ import { BASTION } from '../content/bastion';
 import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint';
 import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
-import { LENS_FOV, lensFollow } from '../shared/lens';
+import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 /** Per-frame CPU budget for generating the next terrain section ahead of need. */
@@ -197,47 +197,68 @@ const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
  * slightly cool sun with blue shadows from a cool sky fill, snow kept just under the bloom threshold so it reads
  * bright white without clipping or smearing, a cool shadow lift and a faint white-blue haze toward the horizon.
  */
-interface PlanetLook {
+export interface PlanetLook {
   background: number; sunElevation: number; sun: [number, number]; hemisphere: [number, number, number]; bounce: [number, number];
   shadowIntensity: number; blobShadow: number; lowExposure: number;
   post: { exposure: number; threshold: number; knee: number; strength: number; lift: [number, number, number]; saturation: number; contrast: number; vignette: number;
-    haze: [number, number, number, number] };
+    haze: [number, number, number, number];
+    /**
+     * World fog per level (user, 22 October): colour (sRGB hex) and its radiance, height fog [top, full at, amount] set in
+     * the lower half of the level's terrain (measured heights), and distance haze [start, density, amount] within it.
+     */
+    fog: { color: number; energy: number; height: [number, number, number]; distance: [number, number, number] } };
   environment: 'desert' | 'ice' | 'luna' | 'mire';
 }
-const LOOKS: Readonly<Record<PlanetId, PlanetLook>> = {
+/** Tuned by the user in the light playground (playground.html, 22 October): brighter sky fill and bounce, a higher sun on
+ * Khepri, stronger bloom on Khepri and Nacre, and each level's fog. Vesper keeps its shipped light (its cliffs). */
+const LOOKS: Record<PlanetId, PlanetLook> = {
   khepri: {
-    background: 0x6a3a22, sunElevation: 38, sun: [0xffeedb, 3.6], hemisphere: [0xc6c9cc, 0x493627, .85], bounce: [0xc59d7b, .55],
-    shadowIntensity: .82, blobShadow: 0x2a1a12, lowExposure: 1.0,
-    post: { exposure: 1.05, threshold: 1.25, knee: .25, strength: .38, lift: [.004, .003, .002], saturation: .9, contrast: 1.08, vignette: .18, haze: [.45, .36, .28, .025] },
+    background: 0x6a3a22, sunElevation: 67, sun: [0xffeedb, 7], hemisphere: [0xc6c9cc, 0x493627, 1.7], bounce: [0xc59d7b, .79],
+    shadowIntensity: .8, blobShadow: 0x2a1a12, lowExposure: 1,
+    post: { exposure: 1.09, threshold: 1.21, knee: .25, strength: .79, lift: [.004, .003, .002], saturation: .9, contrast: 1.08, vignette: .18,
+      haze: [.45, .36, .28, .08],
+      fog: { color: 0xc8916a, energy: .81, height: [-1.05, -7, .17], distance: [39.5, .041, .16] } },
     environment: 'desert',
   },
   vesper: {
     background: 0x0d3557, sunElevation: 52, sun: [0xf2f6ff, 3.1], hemisphere: [0xb7c5d6, 0x405775, .85], bounce: [0x9fbcdc, .35],
-    shadowIntensity: .72, blobShadow: 0x10243c, lowExposure: 1.0,
-    post: { exposure: 1.0, threshold: 1.4, knee: .25, strength: .38, lift: [.0025, .0045, .0085], saturation: .9, contrast: 1.08, vignette: .16,
-      haze: [.82, .9, .98, .025] },
+    shadowIntensity: .72, blobShadow: 0x10243c, lowExposure: 1,
+    post: { exposure: 1, threshold: 1.4, knee: .25, strength: .38, lift: [.0025, .0045, .0085], saturation: .9, contrast: 1.08, vignette: .16,
+      haze: [.82, .9, .98, .025],
+      // No fog: a mist over the water greyed the deep navy sea (22 October); Vesper keeps its shipped look.
+      fog: { color: 0xc4d8ea, energy: .85, height: [-2.6, -3.8, 0], distance: [48, .035, 0] } },
     environment: 'ice',
   },
   // Luna, Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and
-  // only a faint grey fill (regolith bounce), so shade stays readable on a phone without any haze.
+  // a faint grey fill (regolith bounce); a pale dust veil over the low ground and a darker top (user's playground tuning).
   luna: {
     background: 0x07080a, sunElevation: 30, sun: [0xfffaf2, 4.2], hemisphere: [0x8e939c, 0x4a4845, .75], bounce: [0xa8a6a0, .7],
-    shadowIntensity: .88, blobShadow: 0x111214, lowExposure: 1.0,
-    post: { exposure: 1.0, threshold: 1.05, knee: .35, strength: .6, lift: [.003, .003, .0036], saturation: .96, contrast: 1.09, vignette: .26,
-      haze: [0, 0, 0, 0] },
+    shadowIntensity: .88, blobShadow: 0x111214, lowExposure: 1,
+    post: { exposure: 1, threshold: 1.05, knee: .35, strength: .6, lift: [.003, .003, .0036], saturation: .96, contrast: 1.09, vignette: .26,
+      haze: [0, 0, 0, .1],
+      fog: { color: 0xffffff, energy: .49, height: [3.1, -6.35, .39], distance: [38.5, .029, .07] } },
     environment: 'luna',
   },
   // Nacre (docs/20): a lilac sun under a violet sky, strong violet sky fill so the dark islands stay readable, a strong
   // cold-blue bounce that lights the camera-facing sides of the black rock (the concept's blue-lit crags), a bloom
   // threshold that lets the bioluminescence glow without washing out, and a faint violet mist.
   nacre: {
-    background: 0x1b2035, sunElevation: 38, sun: [0xe8e2f5, 3.6], hemisphere: [0x9fa8bb, 0x1e2036, .9], bounce: [0x8094bd, .65],
-    shadowIntensity: .7, blobShadow: 0x120a28, lowExposure: 1.08,
-    post: { exposure: 1.1, threshold: 1.2, knee: .25, strength: .4, lift: [.003, .004, .008], saturation: .92, contrast: 1.1, vignette: .18,
-      haze: [.32, .34, .47, .055] },
+    background: 0x1b2035, sunElevation: 33, sun: [0xe8e2f5, 6.2], hemisphere: [0x9fa8bb, 0x1e2036, 1.53], bounce: [0x8094bd, 1.66],
+    shadowIntensity: .73, blobShadow: 0x120a28, lowExposure: 1.09,
+    post: { exposure: 1.1, threshold: 1.2, knee: .25, strength: 1.18, lift: [.005, .004, .008], saturation: .92, contrast: 1.1, vignette: .42,
+      haze: [.32, .34, .47, .085],
+      fog: { color: 0x6a5c9a, energy: 1.35, height: [.2, -3.75, .33], distance: [48, .115, .45] } },
     environment: 'mire',
   },
 };
+const DEFAULT_LOOKS: Readonly<Record<PlanetId, PlanetLook>> = structuredClone(LOOKS);
+// Look-dev: `?lookset=vesper.sun.1:4.2,vesper.hemisphere.2:.5` sets look values by path at startup (development only).
+if (import.meta.env?.DEV && typeof location !== 'undefined') for (const entry of (new URLSearchParams(location.search).get('lookset') ?? '').split(',').filter(Boolean)) {
+  const [path, value] = entry.split(':'), keys = path.split('.'), last = keys.pop()!;
+  const parent = keys.reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], LOOKS) as Record<string, number> | undefined;
+  if (parent && last in parent && Number.isFinite(Number(value))) parent[last] = Number(value);
+}
+const KHEPRI_SUN_ELEVATION = LOOKS.khepri.sunElevation;
 /** Unit vector toward a planet's sun: the shared upper-left azimuth (shadows to the lower right) at its elevation. */
 function sunDirection(elevationDegrees: number): THREE.Vector3 {
   const elevation = THREE.MathUtils.degToRad(elevationDegrees);
@@ -387,7 +408,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   // High tier: HDR scene + selective bloom + graded composite in 6 full-screen draws; Low renders direct.
   const post = createPostPipeline(renderer, { exposure: 1.0, threshold: 1.0, knee: .35, strength: .7,
-    lift: new THREE.Color(.007, .0038, .0018), saturation: 1.0, contrast: 1.07, vignette: .24, haze: new THREE.Vector4(0, 0, 0, 0) });
+    lift: new THREE.Color(.007, .0038, .0018), saturation: 1.0, contrast: 1.07, vignette: .24, haze: new THREE.Vector4(0, 0, 0, 0),
+    fogColor: new THREE.Color(), fogHeight: new THREE.Vector3(), fogDistance: new THREE.Vector3() });
   const materials = createMaterials();
   const bastion = createBastionView(scene);
   const terrainMaterials = createTerrainMaterials();
@@ -410,12 +432,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    */
   /** Bright ground (Vesper's snow) washes out the pale hero bolts: they gain a dark outline and a deeper cyan there. */
   let brightGround = false;
-  const applyLook = (next: PlanetId) => {
-    brightGround = next === 'vesper';
-    planet = next;
-    const look = LOOKS[next];
+  /** Lights, grade and fog of a look: cheap, no material changes (the playground tunes these live). */
+  const applyLight = (next: PlanetId, look: PlanetLook) => {
     scene.background = new THREE.Color(look.background);
-    sun.copy(next === 'khepri' ? SUN : sunDirection(look.sunElevation));
+    sun.copy(next === 'khepri' && look.sunElevation === KHEPRI_SUN_ELEVATION ? SUN : sunDirection(look.sunElevation));
     bounceOffset.set(-sun.x, .32, -sun.z).normalize().multiplyScalar(30);
     sunlight.color.setHex(look.sun[0]); sunlight.intensity = look.sun[1]; sunlight.shadow.intensity = look.shadowIntensity;
     hemisphere.color.setHex(look.hemisphere[0]); hemisphere.groundColor.setHex(look.hemisphere[1]); hemisphere.intensity = look.hemisphere[2];
@@ -425,7 +445,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     settings.exposure.value = look.post.exposure; settings.strength.value = look.post.strength; settings.saturation.value = look.post.saturation;
     settings.contrast.value = look.post.contrast; settings.vignette.value = look.post.vignette; settings.lift.value.setRGB(...look.post.lift);
     settings.haze.value.set(...look.post.haze); post.setThreshold(look.post.threshold, look.post.knee);
+    // World fog (`?fog=0` turns it off for look-dev comparisons).
+    const fog = look.post.fog, fogOff = query.get('fog') === '0';
+    settings.fogColor.value.setHex(fog.color).multiplyScalar(fog.energy);
+    settings.fogHeight.value.set(fog.height[0], fog.height[1], fogOff ? 0 : fog.height[2]);
+    settings.fogDistance.value.set(fog.distance[0], fog.distance[1], fogOff ? 0 : fog.distance[2]);
     renderer.toneMappingExposure = look.lowExposure;
+  };
+  const applyLook = (next: PlanetId) => {
+    brightGround = next === 'vesper';
+    planet = next;
+    const look = LOOKS[next];
+    applyLight(next, look);
     shadowMaterial.color.setHex(look.blobShadow);
     if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation));
     if (look.environment === 'luna') lunaEnvironment ??= createLunaEnvironment(renderer, sunDirection(LOOKS.luna.sunElevation));
@@ -844,6 +875,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const resizePost = () => post.setSize(drawingWidth * renderer.getPixelRatio(), drawingHeight * renderer.getPixelRatio());
   return {
     prepare: preload,
+    /** The playground (playground.html): a level's look as shipped, and a live replacement for it. */
+    lookOf: (world: PlanetId) => structuredClone(DEFAULT_LOOKS[world]),
+    tuneLook(world: PlanetId, look: PlanetLook) {
+      LOOKS[world] = structuredClone(look);
+      if (world === planet) { applyLight(world, LOOKS[world]); shadowMaterial.color.setHex(LOOKS[world].blobShadow); }
+    },
     // Each launch warms every program in its real form under the warp (see the warm-up in render).
     launchWarp: mode => { if (mode === 'cruise') warmed = false; return jumpFx.launch(mode); },
     isReady: planetReady,
@@ -1334,10 +1371,20 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;
       // Vesper: debris that falls on open water throws snow-white spray; vent stacks breathe steam.
       const seaHeight = world.planet.seaLevel;
+      // An explosion's light lands where the view ray through it meets the ground (or the sea), like a ground target.
+      const ground = (x: number, z: number) => {
+        const seat = (y: number) => { const at = fromFlightPlane(state.cameraX, x, -z, y); return { at, gap: y - surfaceHeight(state.config.seed, at.x, state.distance + at.s, world) }; };
+        let above: number = VIEW.flightHeight, below = above;
+        for (let y = above - 1; y >= TERRAIN_MIN_HEIGHT - 1; y -= 1) { if (seat(y).gap <= 0) { below = y; break; } above = y; }
+        if (below === VIEW.flightHeight) return null;
+        for (let i = 0; i < 6; i++) { const mid = (above + below) / 2; if (seat(mid).gap > 0) above = mid; else below = mid; }
+        const y = (above + below) / 2, { at } = seat(y);
+        return { x: at.x, y, z: -at.s };
+      };
       fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && seaHeight !== null ? {
         splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < seaHeight - .05 ? seaHeight : null,
-        vents: collectVents(state.cameraX),
-      } : null);
+        vents: collectVents(state.cameraX), ground,
+      } : { splash: () => null, vents: [], ground });
       // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
       water.update(state.time, state.distance);
       const arkFoam = ark.foam;

@@ -257,6 +257,8 @@ if (import.meta.env.DEV) {
       // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
       advance: (seconds: number) => { if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
       killBoss: () => { if (!run?.boss) return; for (const part of ['left', 'right', 'core'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
+      // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
+      boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
       end: (phase: 'over' | 'complete') => { if (run?.phase === 'playing') { run.phase = phase; run.message = phase === 'complete' ? 'MISSION COMPLETE' : 'FLIGHT LOST'; if (phase === 'over') run.player.lives = 0; } },
     },
     configurable: true,

@@ -1,5 +1,19 @@
 # Build status
 
+## Fog per level, new explosions and the light playground, 22 October 2026
+
+User:
+- "improve explosions and add fog and show me screenshots";
+- "the fog should start pretty low in the vertical world so that only the lower half of the terrain has visible fog ... mountainous areas stay clear of the fog, and definitely per level setting";
+- "create a playground where I can play on static versions of the levels with fog and light ... so I can give you the settings I like best for each".
+
+- **Fog (`src/render/post-pipeline.ts`, `src/render/scene.ts`):** world fog in the High tier's composite pass, from a depth texture on the HDR scene target (no material changes; Low has none). Height fog below each level's fog top, thicker far away where the line of sight crosses more of it, and a distance haze only inside that low layer, so ridges and plateaus stay clear. Bright emissive pixels (shots, engines, explosions) are spared. Per level in `LOOKS[planet].post.fog`; `?fog=0` turns it off for comparisons.
+- **The user's playground settings** (lookdev/playground-looks.json) are the shipped looks for Khepri, Nacre and Luna: brighter sky fill and bounce, Khepri's sun at 67° and 7.0, stronger bloom on Khepri and Nacre, each level's fog (Luna gets a pale low dust veil). Vesper keeps its shipped light and no fog: the raised sea mist and a 68° sun washed out its sea and cliffs ("looks weird").
+- **Explosions (`src/render/fx-particles.ts`):** a white-hot flash, fire that cools from yellow-white to deep red, two delayed secondary bursts, a fast thin shockwave, embers thrown on arcs, more debris and a smoke plume that billows up, darkens and pales. Their light falls on the ground where the view ray through them meets the terrain: a disc blended as destination × (1 + light), so it brightens the ground and nearby hulls by their own colour. Fuel blasts light a wider area. Low keeps the flash, the fireball and sparks.
+- **Light playground (`playground.html`, `src/playground/`):** the real renderer, terrain, infrastructure and kits of each campaign level, frozen (no enemies, no simulation): pick a level, scrub along it, move the ship, fly forward, set off explosions, switch High/Low. A panel tunes each level's look live (`renderer.tuneLook`): sun, sky and bounce light, shadows, fog, exposure, bloom and grade; changed values are highlighted. Settings persist in the browser; the dev server also writes them to lookdev/playground-looks.json (Vite middleware, development only) and reads them back on reload; "Copy settings" gives the JSON on any build.
+- **Look-dev:** `?lookset=vesper.sun.1:4.2,...` overrides look values by path at startup (development only).
+- **Checks:** typecheck clean; unit tests 406/406; build passes (the playground is a second page); browser 36/36. No phone test: the fog's extra depth-texture read and the explosions' ground-light pass are unmeasured on hardware (use `?perf`).
+
 ## Taller Khepri and Vesper buildings, Nacre ruin facilities, more Moon outposts (Codex); no empty aprons, 22 October 2026
 
 User: taller buildings ("one or two taller buildings") on Khepri and Vesper; alien Nacre buildings matching the scattered

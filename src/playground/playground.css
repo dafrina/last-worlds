@@ -1,0 +1,31 @@
+:root { color-scheme: dark; }
+html, body { margin: 0; height: 100%; background: #0b0f17; color: #dce6f2; font: 13px/1.35 system-ui, -apple-system, sans-serif; }
+#playground { display: flex; height: 100dvh; overflow: hidden; }
+/* The game's portrait frame: 9:16 by height on desktop, the full screen on a phone. */
+.pg-stage { position: relative; flex: none; height: 100%; aspect-ratio: 9 / 16; max-width: 100vw; background: #000; }
+.pg-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.pg-hud { position: absolute; left: 8px; top: calc(env(safe-area-inset-top, 0px) + 8px); padding: 3px 7px; border-radius: 4px; background: #000a; font: 11px ui-monospace, Menlo, monospace; pointer-events: none; }
+.pg-panel { flex: 1; min-width: 300px; max-width: 420px; height: 100%; overflow-y: auto; box-sizing: border-box; padding: 10px 14px 24px; background: #121925; border-left: 1px solid #253247; }
+.pg-panel header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.pg-sync { color: #8fb2d6; font-size: 11px; }
+.pg-panel label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; margin: 6px 0; }
+.pg-panel label input[type=range] { grid-column: 1 / -1; width: 100%; }
+.pg-panel label output { color: #9fb6cf; font: 11px ui-monospace, Menlo, monospace; grid-row: 1; grid-column: 2; }
+.pg-panel label.is-changed { color: #ffd38a; }
+.pg-panel .pg-row { display: flex; gap: 8px; align-items: center; }
+.pg-panel select, .pg-panel input[type=number] { background: #0b111b; color: inherit; border: 1px solid #2c3b52; border-radius: 4px; padding: 3px 5px; }
+.pg-panel input[type=color] { width: 44px; height: 24px; border: 0; padding: 0; background: none; }
+.pg-panel details { margin: 10px 0; border-top: 1px solid #253247; padding-top: 6px; }
+.pg-panel summary { cursor: pointer; font-weight: 600; color: #b8d4f0; }
+.pg-panel button { background: #1d2a3d; color: inherit; border: 1px solid #36506f; border-radius: 5px; padding: 6px 10px; cursor: pointer; }
+.pg-panel button:hover { background: #26384f; }
+.pg-panel footer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.pg-toggle { display: none; }
+/* Phones: the level fills the screen and the panel slides up from the bottom. */
+@media (max-width: 760px) {
+  .pg-stage { width: 100%; height: 100%; aspect-ratio: auto; }
+  .pg-toggle { display: block; position: fixed; right: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); z-index: 5;
+    background: #1d2a3dee; color: #dce6f2; border: 1px solid #36506f; border-radius: 6px; padding: 8px 12px; font: inherit; }
+  .pg-panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; height: 58dvh; transform: translateY(100%); transition: transform .2s; z-index: 4; border-left: 0; border-top: 1px solid #253247; }
+  .pg-panel.is-open { transform: none; }
+}

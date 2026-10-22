@@ -138,6 +138,9 @@ export interface GameRenderer {
    */
   launchWarp(mode: 'cruise' | 'arrive' | 'off'): number;
   render(state: RunState, alpha: number): void;
+  /** Playground only (playground.html): a level's shipped look, and a live replacement for it (render/scene.ts PlanetLook). */
+  lookOf?(planet: PlanetId): unknown;
+  tuneLook?(planet: PlanetId, look: unknown): void;
   resize(width: number, height: number): void;
   setQuality(quality: GraphicsQuality): void;
   dispose(): void;

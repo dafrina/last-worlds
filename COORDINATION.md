@@ -305,3 +305,12 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - the facility fixture flies each planet's own mission.
 - **Not included:** the obsolete `tools/blender/the_veil.py` edit (discarded at the user's request), and Claude Code's in-progress fog, explosions and light playground.
 - **Checks:** released from a clean worktree: typecheck, unit tests 406/406, build, browser 36/36 (the files re-run alone after a run loaded by look-dev captures). No phone test.
+
+**2026-10-22 · Claude Code · fog per level, new explosions, light playground: deployed:**
+- **Changes:**
+  - world fog in the High composite (depth texture), low per level;
+  - the user's playground looks for Khepri, Nacre and Luna (Vesper unchanged, no fog);
+  - explosions with cooling fire, embers, smoke and ground light;
+  - `playground.html` (static levels, live look tuning; the dev server saves to lookdev/playground-looks.json).
+- **Not included:** the in-progress Vesper cliff work (moiré fix, crisp ice texture, cornice rim, proud shards).
+- **Checks:** released from a clean worktree: typecheck, unit tests 406/406, build, browser 36/36. No phone test.

@@ -12,7 +12,7 @@ import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
  * readable core of each effect and drops most secondary particles (docs/05 §9: particles are reduced first).
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
-const ADDITIVE_CAPACITY = 240, ALPHA_CAPACITY = 72;
+const ADDITIVE_CAPACITY = 400, ALPHA_CAPACITY = 160, LIGHT_CAPACITY = 24;
 /** Particle shapes in the shared shader. */
 const ROUND = 0, PLUME = 1, STAR = 2, CHIP = 3, RING = 4;
 
@@ -49,48 +49,76 @@ void main() {
 
 interface Particle {
   x: number; y: number; z: number; vx: number; vy: number; vz: number;
+  /** Negative while a delayed particle waits to appear. */
   age: number; life: number; size: number; grow: number; stretch: number;
-  r: number; g: number; b: number; alpha: number; shape: number; flat: boolean; drag: number; fall: number;
+  /** Colour at birth and at the end of life (fire cools, smoke pales). */
+  r: number; g: number; b: number; r2: number; g2: number; b2: number; alpha: number; shape: number; flat: boolean; drag: number; fall: number;
   /** Fraction of the scroll speed the particle drifts with (1 = rests on the ground, 0 = rides the flight plane). */
   drift: number;
 }
 /** An engine plume in world space: nozzle at (x, z), extending `length` along z (positive = toward the player). */
 export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number; round?: boolean }
 /** Planet surface hooks (Vesper): sea height under a world point (null over land) and steam vents (world space). */
-export interface FxSurface { splash(x: number, z: number): number | null; vents: readonly { x: number; y: number; z: number }[] }
+export interface FxSurface {
+  splash(x: number, z: number): number | null; vents: readonly { x: number; y: number; z: number }[];
+  /** Where the view ray through a flight-plane point (x, z) meets the ground: an explosion's light lands there. */
+  ground?(x: number, z: number): { x: number; y: number; z: number } | null;
+}
 const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 
-function layer(scene: THREE.Scene, capacity: number, additive: boolean) {
+/**
+ * Ground light (22 October, "improve explosions"): a soft disc on the terrain that brightens what it covers in proportion
+ * to its own colour (destination × (1 + light)), so an explosion lights the ground and nearby hulls instead of painting
+ * an orange sticker over them.
+ */
+const LIGHT_FRAGMENT = /* glsl */`
+varying vec2 vParams; varying vec2 vUv; varying vec3 vColor;
+void main() {
+  float d = length( vUv - 0.5 ) * 2.0, a = vParams.x * pow( max( 0.0, 1.0 - d * d ), 2.0 );
+  if ( a < 0.003 ) discard;
+  gl_FragColor = vec4( vColor * a, 1.0 );
+}`;
+
+function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = false) {
   const geometry = new THREE.PlaneGeometry(1, 1);
   const params = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2).setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('aParams', params);
-  const material = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: FRAGMENT, uniforms: { additive: { value: additive ? 1 : 0 } },
-    // Glows draw over everything like the other combat markers; smoke and ground dust respect terrain depth.
-    transparent: true, depthWrite: false, depthTest: !additive, toneMapped: false, side: THREE.DoubleSide,
-    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  const material = light
+    ? new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: LIGHT_FRAGMENT, transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
+      side: THREE.DoubleSide, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.DstColorFactor, blendDst: THREE.OneFactor })
+    : new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: FRAGMENT, uniforms: { additive: { value: additive ? 1 : 0 } },
+      // Glows draw over everything like the other combat markers; smoke and ground dust respect terrain depth.
+      transparent: true, depthWrite: false, depthTest: !additive, toneMapped: false, side: THREE.DoubleSide,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
   const mesh = new THREE.InstancedMesh(geometry, material, capacity);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
-  mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = additive ? 6 : 5; mesh.name = additive ? 'fx glow' : 'fx smoke';
+  mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = light ? 4 : additive ? 6 : 5; mesh.name = light ? 'fx ground light' : additive ? 'fx glow' : 'fx smoke';
   scene.add(mesh);
   const pool: Particle[] = [];
-  for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0, drift: 0 });
+  for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, r2: 1, g2: 1, b2: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0, drift: 0 });
   let live = 0;
   return { mesh, params, pool, get live() { return live; }, set live(n: number) { live = n; }, capacity, geometry, material };
 }
 
 export function createFx(scene: THREE.Scene) {
-  const glow = layer(scene, ADDITIVE_CAPACITY, true), smoke = layer(scene, ALPHA_CAPACITY, false);
+  const glow = layer(scene, ADDITIVE_CAPACITY, true), smoke = layer(scene, ALPHA_CAPACITY, false), ground = layer(scene, LIGHT_CAPACITY, true, true);
   const transform = new THREE.Object3D(), color = new THREE.Color();
   let quality: GraphicsQuality = 'high', lastTime = -1, lastTick = -1, lastEffect = -1, lastShot = -1, seed = 0;
 
-  const emit = (target: typeof glow, p: Partial<Particle> & { x: number; y: number; z: number; life: number; size: number }) => {
+  const emit = (target: typeof glow, p: Partial<Particle> & { x: number; y: number; z: number; life: number; size: number; delay?: number }) => {
     if (target.live >= target.capacity) return;
     const q = target.pool[target.live++];
-    q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx ?? 0; q.vy = p.vy ?? 0; q.vz = p.vz ?? 0; q.age = 0; q.life = p.life;
+    q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx ?? 0; q.vy = p.vy ?? 0; q.vz = p.vz ?? 0; q.age = -(p.delay ?? 0); q.life = p.life;
     q.size = p.size; q.grow = p.grow ?? 0; q.stretch = p.stretch ?? 1; q.alpha = p.alpha ?? 1; q.shape = p.shape ?? ROUND;
     q.flat = p.flat ?? false; q.drag = p.drag ?? 0; q.fall = p.fall ?? 0; q.r = p.r ?? 1; q.g = p.g ?? 1; q.b = p.b ?? 1; q.drift = p.drift ?? 0;
+    q.r2 = p.r2 ?? q.r; q.g2 = p.g2 ?? q.g; q.b2 = p.b2 ?? q.b;
   };
   const tint = (hex: number, energy: number) => { color.setHex(hex).multiplyScalar(energy); return { r: color.r, g: color.g, b: color.b }; };
+  /** A colour ramp from `hex` at birth to `end` at death. */
+  const ramp = (hex: number, energy: number, end: number, endEnergy: number) => {
+    const from = tint(hex, energy); color.setHex(end).multiplyScalar(endEnergy);
+    return { ...from, r2: color.r, g2: color.g, b2: color.b };
+  };
   const full = () => quality === 'high';
 
   /** Short additive fan of streaks, mostly in the flight plane. */
@@ -114,35 +142,67 @@ export function createFx(scene: THREE.Scene) {
     }
   }
   let surface: FxSurface | null = null;
+  /** The explosion's light on the ground (and hulls) around it, where the view ray through it meets the terrain. */
+  function light(x: number, z: number, size: number, life: number, hex: number, energy: number, delay = 0) {
+    const at = surface?.ground?.(x, z);
+    if (!at) return;
+    emit(ground, { x: at.x, y: at.y + .05, z: at.z, life, size, grow: size * .25, alpha: 1, flat: true, delay, ...tint(hex, energy) });
+  }
+  /**
+   * An airframe or battery going up (22 October, "improve explosions"): a white-hot flash and its light on the ground,
+   * a fireball that cools from yellow-white to deep red with two late secondary bursts, a fast thin shockwave, embers
+   * thrown out on arcs, debris chips and a smoke plume that billows up, darkens and lingers. Low keeps the flash, the
+   * fireball and a few sparks.
+   */
   function explosion(x: number, z: number, n: number) {
     const y = VIEW.flightHeight + .06;
     const sea = surface?.splash(x, z) ?? null;
     if (sea !== null) spray(x, sea, z, n);
-    flash(x, z, 1.5, .11, 0xfff1d0, 2.2);
-    if (full()) emit(glow, {x, y, z, life:.28, size:.45, grow:2.2, alpha:.42, shape:RING, flat:true, ...tint(0xe9c89f,1.1)});
-    const fire = full() ? 3 : 2;
+    flash(x, z, 1.7, .1, 0xfff6e0, 2.8);
+    emit(glow, { x, y, z, life: .38, size: 1.9, grow: 1.2, alpha: .45, shape: ROUND, ...ramp(0xffb060, 1.4, 0xff5a1a, .3) });
+    light(x, z, 5.5, .5, 0xff9a48, .75);
+    const fire = full() ? 5 : 2;
     for (let k = 0; k < fire; k++) {
-      const a = hash(n + k * 5.7) * Math.PI * 2, d = .12 + hash(n + k) * .22;
-      emit(glow, { x: x + Math.cos(a) * d, y: y + k * .02, z: z + Math.sin(a) * d, vx: Math.cos(a) * .7, vz: Math.sin(a) * .7, life: .32 + hash(n + k * 2.1) * .22,
-        size: .42 + k * .1, grow: .9, drag: 3, alpha: .95, shape: ROUND, ...tint(k === 0 ? 0xffe2a8 : k === 1 ? 0xffa04a : 0xff6a28, 2.4 - k * .35) });
+      const a = hash(n + k * 5.7) * Math.PI * 2, d = .1 + hash(n + k) * .26, v = .5 + hash(n + k * 1.3) * .6;
+      emit(glow, { x: x + Math.cos(a) * d, y: y + k * .02, z: z + Math.sin(a) * d, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: .25,
+        life: .4 + hash(n + k * 2.1) * .3, size: .38 + hash(n + k * 4.3) * .22, grow: 1.1, drag: 2.6, alpha: .95, shape: ROUND,
+        ...ramp(k < 2 ? 0xfff0c0 : 0xffc070, 3 - k * .2, 0xc8300c, .55) });
+    }
+    if (full()) {
+      // Two secondary bursts a beat later, off to the sides.
+      for (let k = 0; k < 2; k++) {
+        const a = hash(n + k * 8.3 + 2) * Math.PI * 2, d = .35 + hash(n + k * 6.1) * .3, delay = .08 + k * .07 + hash(n + k) * .05;
+        emit(glow, { x: x + Math.cos(a) * d, y, z: z + Math.sin(a) * d, life: .36, size: .32, grow: 1.3, drag: 2, alpha: .9, delay, shape: ROUND,
+          ...ramp(0xffe2a0, 2.6, 0xd2400f, .5) });
+      }
+      emit(glow, { x, y, z, life: .24, size: .5, grow: 3.4, alpha: .55, shape: RING, flat: true, ...ramp(0xfff0d8, 1.6, 0xff9a50, .6) });
+      // Embers: bright points thrown up and out, falling back on short arcs.
+      for (let k = 0; k < 8; k++) {
+        const a = hash(n + k * 3.7 + 5) * Math.PI * 2, v = 2.2 + hash(n + k * 2.3) * 2.8;
+        emit(glow, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1.6 + hash(n + k * 1.1) * 2.4, fall: 7, drag: 1.4,
+          life: .5 + hash(n + k * 5.9) * .4, size: .07 + hash(n + k * 2.9) * .05, alpha: 1, shape: ROUND, ...ramp(0xfff0b0, 3.2, 0xff4010, 1.2) });
+      }
     }
     sparks(x, z, full() ? 9 : 5, 0xffc078, 6.5, n * 3.3);
     if (!full()) return;
-    for (let k = 0; k < 3; k++) {
-      const a = hash(n + k * 9.1) * Math.PI * 2;
-      emit(smoke, { x: x + Math.cos(a) * .15, y: y - .1, z: z + Math.sin(a) * .15, vx: Math.cos(a) * .35, vy: .25, vz: Math.sin(a) * .35,
-        life: .65 + hash(n + k) * .3, size: .4, grow: .8, drag: 1.5, alpha: .32, shape: ROUND, drift: .5, ...tint(k === 1 ? 0x5b5651 : 0x2b3036, 1) });
-    }
+    // Smoke: dark and dense at first, billowing up and paling as it thins; it drifts with the ground.
     for (let k = 0; k < 5; k++) {
-      const a = hash(n + k * 4.9 + 1) * Math.PI * 2, v = 2.2 + hash(n + k * 1.9) * 2.6;
-      emit(smoke, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: -.4, life: .45 + hash(n + k) * .25, size: .11 + hash(n + k * 3) * .07,
-        drag: 1.2, fall: 6, alpha: .95, shape: CHIP, drift: .5, ...tint(0x1b1714, 1) });
+      const a = hash(n + k * 9.1) * Math.PI * 2, d = .1 + hash(n + k * 1.7) * .25;
+      emit(smoke, { x: x + Math.cos(a) * d, y: y - .1, z: z + Math.sin(a) * d, vx: Math.cos(a) * .3, vy: .45 + hash(n + k * 3.9) * .3, vz: Math.sin(a) * .3,
+        life: 1.1 + hash(n + k) * .6, size: .38 + hash(n + k * 2.2) * .18, grow: 1.5, drag: 1.3, alpha: .5, delay: .06 + k * .03, shape: ROUND, drift: .5,
+        ...ramp(k % 2 ? 0x2a2420 : 0x3a3330, 1, 0x6e6a66, 1) });
+    }
+    for (let k = 0; k < 8; k++) {
+      const a = hash(n + k * 4.9 + 1) * Math.PI * 2, v = 2.2 + hash(n + k * 1.9) * 2.8;
+      emit(smoke, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: .6 + hash(n + k * 7.7) * 1.4, life: .55 + hash(n + k) * .3, size: .09 + hash(n + k * 3) * .08,
+        drag: 1.2, fall: 7, alpha: .95, shape: CHIP, drift: .5, ...tint(0x1b1714, 1) });
     }
   }
 
   /** A big orange fireball with a ring of fire and debris (fuel skids; `size` 2–3 for a boss wreck's last detonation). */
   function blast(x: number, z: number, n: number, size: number) {
-    flash(x, z, 3.4 * size, .32 + .1 * size, 0xff8a30, 3);
+    flash(x, z, 2.8 * size, .28 + .1 * size, 0xff8a30, 2.4);
+    light(x, z, 9 * size, .8, 0xff8a38, .95);
     const ring = full() ? 6 + Math.round(size * 2) : 3 + Math.round(size);
     for (let k = 0; k < ring; k++) { const a = k / ring * Math.PI * 2; explosion(x + Math.cos(a) * 1.1 * size, z + Math.sin(a) * 1.1 * size, n * 7 + k); }
     sparks(x, z, (full() ? 22 : 10) * Math.ceil(size), 0xffc070, 7.5 * Math.sqrt(size), n);
@@ -184,6 +244,11 @@ export function createFx(scene: THREE.Scene) {
       const p = target.pool[i];
       p.age += dt;
       if (p.age >= p.life) continue;
+      if (p.age < 0) {
+        // Still waiting to appear: keep it, motionless.
+        if (write !== i) { const keep = target.pool[write]; target.pool[write] = p; target.pool[i] = keep; }
+        write++; continue;
+      }
       const damp = Math.exp(-p.drag * dt);
       p.vx *= damp; p.vz *= damp; p.vy = p.vy * damp - p.fall * dt;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
@@ -195,13 +260,13 @@ export function createFx(scene: THREE.Scene) {
   function write(target: typeof glow, extra = 0) {
     const params = target.params.array as Float32Array;
     for (let i = 0; i < target.live; i++) {
-      const p = target.pool[i], t = p.age / p.life, size = Math.max(.01, p.size + p.grow * t);
+      const p = target.pool[i], t = Math.max(0, p.age / p.life), size = Math.max(.01, p.size + p.grow * t);
       transform.position.set(p.x, p.y, p.z);
       if (p.flat) transform.rotation.set(-Math.PI / 2, 0, Math.atan2(-p.vx, -p.vz));
       else transform.rotation.set(-ELEVATION, 0, 0);
       transform.scale.set(size, size * p.stretch, 1); transform.updateMatrix();
-      target.mesh.setMatrixAt(i, transform.matrix); target.mesh.setColorAt(i, color.setRGB(p.r, p.g, p.b));
-      params[i * 2] = p.alpha * (1 - t * t); params[i * 2 + 1] = p.shape;
+      target.mesh.setMatrixAt(i, transform.matrix); target.mesh.setColorAt(i, color.setRGB(p.r + (p.r2 - p.r) * t, p.g + (p.g2 - p.g) * t, p.b + (p.b2 - p.b) * t));
+      params[i * 2] = p.age < 0 ? 0 : p.alpha * (1 - t * t); params[i * 2 + 1] = p.shape;
     }
     target.mesh.count = target.live + extra;
   }
@@ -261,20 +326,21 @@ export function createFx(scene: THREE.Scene) {
             size: .1, grow: .55, drag: 1.5, alpha: .5, shape: ROUND, drift: .25, ...tint(0xd8dde2, 1) });
         }
       }
-      step(glow, dt); step(smoke, dt);
+      step(glow, dt); step(smoke, dt); step(ground, dt);
       // The ground scrolls toward the player: ground dust moves with it, air smoke partly, glows ride the flight plane.
       // Uses the run's live scroll speed when the simulation exposes it (endless ramp, boss stop).
       const scroll = (state as RunState & { scrollSpeed?: number }).scrollSpeed ?? VIEW.scrollSpeed;
       for (let i = 0; i < smoke.live; i++) smoke.pool[i].z += scroll * dt * smoke.pool[i].drift;
-      write(glow); write(smoke); overlay(state, plumes);
-      for (const target of [glow, smoke]) {
+      for (let i = 0; i < ground.live; i++) ground.pool[i].z += scroll * dt;
+      write(glow); write(smoke); write(ground); overlay(state, plumes);
+      for (const target of [glow, smoke, ground]) {
         target.mesh.instanceMatrix.needsUpdate = true; target.params.needsUpdate = true;
         if (target.mesh.instanceColor) target.mesh.instanceColor.needsUpdate = true;
       }
     },
     get particles() { return glow.live + smoke.live; },
     dispose() {
-      for (const target of [glow, smoke]) { scene.remove(target.mesh); target.mesh.dispose(); target.geometry.dispose(); target.material.dispose(); }
+      for (const target of [glow, smoke, ground]) { scene.remove(target.mesh); target.mesh.dispose(); target.geometry.dispose(); target.material.dispose(); }
     },
   };
 }

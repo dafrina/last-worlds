@@ -25,6 +25,11 @@ export interface PostSettings {
   vignette: number;
   /** Distance haze toward the top of the frame: linear RGB in xyz, amount in w (0 = none). */
   haze: THREE.Vector4;
+  /**
+   * World fog (22 October, "add fog"), from the scene's depth: its colour (linear radiance); height fog settling in low
+   * ground (top and bottom world heights, amount); distance haze (start distance, density, amount).
+   */
+  fogColor: THREE.Color; fogHeight: THREE.Vector3; fogDistance: THREE.Vector3;
 }
 
 const VERTEX = /* glsl */`
@@ -82,7 +87,26 @@ const COMPOSITE = /* glsl */`
 uniform sampler2D scene; uniform sampler2D bloom; uniform vec2 texel;
 uniform float exposure; uniform float strength; uniform vec3 lift; uniform float saturation; uniform float contrast; uniform float vignette; uniform vec2 aspect;
 uniform vec4 haze;
+uniform sampler2D depthMap; uniform mat4 viewInverse; uniform mat4 projectionInverse;
+uniform vec3 fogColor; uniform vec3 fogHeight; uniform vec3 fogDistance;
 varying vec2 vUv;
+/**
+ * World fog from the scene depth (user, 22 October: "only the lower half of the terrain ... mountainous areas stay clear"):
+ * it lies in the low ground below each level's fog top, thicker far away where the line of sight crosses more of it.
+ * Emissive cores (shots, engines, explosions) keep their punch.
+ */
+vec3 fog( vec3 color ) {
+  float depth = texture2D( depthMap, vUv ).r;
+  if ( depth >= 1.0 || fogHeight.z + fogDistance.z <= 0.0 ) return color;
+  vec4 view = projectionInverse * vec4( vUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0 );
+  vec3 world = ( viewInverse * vec4( view.xyz / view.w, 1.0 ) ).xyz;
+  float distance = length( world - viewInverse[ 3 ].xyz );
+  float low = fogHeight.z * smoothstep( fogHeight.x, fogHeight.y, world.y ) * mix( 0.55, 1.0, smoothstep( 38.0, 68.0, distance ) );
+  // The distance haze lives in the same low layer: far valleys turn misty while ridges and plateaus stay clear.
+  float far = fogDistance.z * ( 1.0 - exp( -fogDistance.y * max( 0.0, distance - fogDistance.x ) ) ) * smoothstep( fogHeight.x + 1.2, fogHeight.x - 0.8, world.y );
+  float amount = ( 1.0 - ( 1.0 - low ) * ( 1.0 - far ) ) * ( 1.0 - smoothstep( 1.2, 3.0, max( color.r, max( color.g, color.b ) ) ) );
+  return mix( color, fogColor, amount );
+}
 /** Compressed (Reinhard) luma, so FXAA edge detection behaves on HDR input. */
 float edgeLuma( vec3 c ) { float l = dot( c, vec3( 0.299, 0.587, 0.114 ) ) * exposure; return l / ( 1.0 + l ); }
 /**
@@ -121,7 +145,7 @@ vec3 srgb( vec3 c ) {
   return mix( c * 12.92, pow( c, vec3( 0.41666 ) ) * 1.055 - vec3( 0.055 ), step( vec3( 0.0031308 ), c ) );
 }
 void main() {
-  vec3 color = antialiased( vUv ) + texture2D( bloom, vUv ).rgb * strength;
+  vec3 color = fog( antialiased( vUv ) ) + texture2D( bloom, vUv ).rgb * strength;
   color *= exposure;
   // Warm lift in the deepest tones only: shadows read as warm umber, never as night.
   float luma = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
@@ -151,6 +175,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
   // Scene in HDR (antialiased by FXAA in the composite; an MSAA half-float target was the costliest step);
   // bloom chain at ¼, ⅛, 1/16.
   const sceneTarget = hdr(1, 1, true);
+  // The scene's depth feeds the world fog in the composite.
+  sceneTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
   const quarter = hdr(1, 1), eighth = hdr(1, 1), sixteenth = hdr(1, 1), upEighth = hdr(1, 1), upQuarter = hdr(1, 1);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const triangle = new THREE.BufferGeometry();
@@ -167,6 +193,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
     strength: { value: settings.strength }, lift: { value: settings.lift }, saturation: { value: settings.saturation }, contrast: { value: settings.contrast },
     vignette: { value: settings.vignette }, aspect: { value: new THREE.Vector2(1, 1) }, texel: { value: new THREE.Vector2(1, 1) },
     haze: { value: settings.haze.clone() },
+    depthMap: { value: sceneTarget.depthTexture }, viewInverse: { value: new THREE.Matrix4() }, projectionInverse: { value: new THREE.Matrix4() },
+    fogColor: { value: settings.fogColor.clone() }, fogHeight: { value: settings.fogHeight.clone() }, fogDistance: { value: settings.fogDistance.clone() },
   });
   const quad = new THREE.Mesh(triangle, prefilter); quad.frustumCulled = false;
   let width = 1, height = 1;
@@ -189,6 +217,7 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
     render(scene: THREE.Object3D, view: THREE.Camera) {
       const previousAutoClear = renderer.autoClear;
       renderer.setRenderTarget(sceneTarget); renderer.render(scene, view);
+      composite.uniforms.viewInverse.value.copy(view.matrixWorld); composite.uniforms.projectionInverse.value.copy(view.projectionMatrixInverse);
       renderer.autoClear = false;
       prefilter.uniforms.texel.value.set(1 / width, 1 / height); draw(prefilter, quarter);
       down.uniforms.source.value = quarter.texture; down.uniforms.texel.value.set(1 / quarter.width, 1 / quarter.height); draw(down, eighth);
