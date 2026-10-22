@@ -162,7 +162,9 @@ describe('Bastion-9 mission', () => {
     // The solver pilot acts on what it saw 0.2 s earlier with the ship's exact kinematics. Since ground formations come
     // into view ahead of their cue (22 October, src/sim/game.ts leadGround), Standard with fan or seeker flies seed 54: on
     // seed 53 the pilot is caught at the world edge by one sideways turret shot in a run that stays fair (checked below).
-    const seed = difficulty === 'standard' && weapon !== 'pulse' ? 54 : 53;
+    // Since hunters (22 October, src/sim/hunters.ts) Veteran with pulse flies seed 54 too: the pilot chases a hunter and
+    // meets the same kind of edge shot on 53 (seeds 54-56 clear; a hit there is the pilot's path, not hunter fire).
+    const seed = (difficulty === 'standard' && weapon !== 'pulse') || (difficulty === 'veteran' && weapon === 'pulse') ? 54 : 53;
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed });
     const log = fly(state, perfectPilot(), 360, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

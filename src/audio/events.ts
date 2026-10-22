@@ -62,13 +62,16 @@ export class SoundObserver {
         cue('explosion', effect.x, .65 + .25 * Math.max(0, 1 - effect.s / VIEW.maxS), effect.id);
       }
       if (effect.kind === 'blast' && explosions++ < 3) cue('heavy', effect.x, .85, effect.id);
+      // A boss's last detonation (the big bang): its own death roar, never held back by the quota.
+      if (effect.kind === 'bossBlast') cue('boss-death', effect.x, 1, effect.id);
       if (effect.kind === 'hit' && hits++ < 2) cue('impact', effect.x, .65, effect.id);
       if (effect.kind === 'pickup' && !upgraded && pickups++ === 0) cue('pickup', effect.x, .7, effect.id);
     }
     const boss = state.boss;
     const key = boss ? `${boss.id}:${boss.startedAt}:${boss.phase}` : '';
     if (boss && key !== this.boss) {
-      if (boss.phase === 'destroyed') cue('boss-death', boss.x);
+      // The kill opens the barrage of module explosions; the death roar waits for the big bang (bossBlast above).
+      if (boss.phase === 'destroyed') cue('heavy', boss.x, .9);
       else if (!this.boss || this.boss.split(':').slice(0, 2).join(':') !== key.split(':').slice(0, 2).join(':')) cue('boss-arrival', boss.x);
       else cue('boss-phase', boss.x, .8);
     }

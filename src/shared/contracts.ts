@@ -79,6 +79,12 @@ export interface Enemy {
    * it, holds while the beam is live, then eases back onto its path. Seconds: total windup, hold left, release left.
    */
   lock?: { total: number; hold: number; release: number };
+  /**
+   * A hunter (ace, src/sim/hunters.ts): no authored path; it roams and follows the ship to the sides. `shield` is what is
+   * left of its shield (charges × `perCharge`, taken before the hull); `vx`/`vs` its velocity; `tx`/`ts` its waypoint,
+   * re-picked at age `retarget` (`waypoint` counts the picks, for its rolls, keyed by `key`: its level and spawn number).
+   */
+  hunter?: { key: number; shield: number; perCharge: number; vx: number; vs: number; tx: number; ts: number; retarget: number; waypoint: number };
 }
 export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;
@@ -95,7 +101,8 @@ export interface Projectile {
 /** `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none). */
 export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number; source?: number }
 export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
-export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast'; x: number; s: number; ttl: number; duration: number }
+/** `bossBlast`: a destroyed boss's last detonation (render only, like every effect). */
+export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast' | 'bossBlast'; x: number; s: number; ttl: number; duration: number }
 /** A hyperdrive jump between planets: about 3 s; the look switches at its midpoint (`startedAt + duration / 2`). */
 export interface JumpState { startedAt: number; duration: number; from: PlanetId; to: PlanetId }
 export interface RunState {
@@ -124,6 +131,8 @@ export interface RunState {
   lance?: { until: number } | null;
   /** Shockwave in progress: a ring expanding from where the ship fired it; `hit` lists targets it already struck. */
   shockwave?: { x: number; s: number; startedAt: number; hit: number[]; cameraX: number } | null;
+  /** Hunter bookkeeping for the current level or endless sector: hunters spawned and the last spawn window used. */
+  hunters?: { sector: number; spawned: number; window: number };
 }
 export const VIEW = { width: 12, worldWidth: 24, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;

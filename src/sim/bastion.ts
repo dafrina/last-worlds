@@ -82,8 +82,9 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
   state.boss = { id: def.id, phase: 'arrival', x, originX: x, s: def.entryS, startedAt: state.time,
     phaseStartedAt: state.time, nextAttackAt: Infinity, attackIndex: 0, attack: null,
     attackerId: null, deathEffectAt: Infinity, vx: 0, vs: 0, launchesLeft: 0, nextLaunchAt: Infinity };
-  // This authored relief is the boundary between approach and the boss encounter.
-  state.enemies = [];
+  // This authored relief is the boundary between approach and the boss encounter. Hunters stay: they must be shot down
+  // (src/sim/hunters.ts).
+  state.enemies = state.enemies.filter(enemy => enemy.hunter && enemy.hp > 0);
   clearThreats(state);
   // Campaign difficulty, or the endless ramp at this sector.
   const scale = runScale(state).hp;
@@ -128,8 +129,42 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     state.player.invulnerableUntil = state.time + (campaign ? WRECK_HOLD + def.extractionDuration : ENDLESS_EXIT_PROTECTION);
     // Credits are campaign-only; endless scores the kill through the core's 5,000 points.
     if (campaign) state.credits += REWARDS.boss;
-    // Launched fighters go down with their carrier: nothing dangerous remains during extraction.
+    // Launched fighters and hunters go down with their carrier: nothing dangerous remains during extraction.
+    for (const enemy of state.enemies) if (enemy.hunter && enemy.hp > 0 && state.effects.length < BALANCE.maxEffects) {
+      state.effects.push({ id: state.nextId++, kind: 'explosion', x: enemy.x, s: enemy.s, ttl: .5, duration: .5 });
+    }
     state.enemies = state.enemies.filter(enemy => enemy.bossPart);
+  }
+}
+
+/**
+ * A destroyed boss's death (user, 22 October: "a big big bang"; "a barrage of smaller explosions on critical parts"):
+ * explosions chain across its modules and hull, quickening, then the whole hull goes up in one detonation, all inside
+ * the wreck hold before the departure. Cosmetic effects only, at fixed offsets (no random stream).
+ */
+const DEATH = { barrage: 1.75, first: .2, last: .08, blastAt: 1.85, ring: .6, ringEvery: .05 } as const;
+function deathSequence(state: RunState, boss: NonNullable<RunState['boss']>): void {
+  const age = state.time - boss.phaseStartedAt, push = (kind: 'explosion' | 'bossBlast', x: number, s: number, duration: number) => {
+    if (state.effects.length < BALANCE.maxEffects) state.effects.push({ id: state.nextId++, kind, x, s, ttl: duration, duration });
+  };
+  if (age < DEATH.barrage && state.time >= boss.deathEffectAt) {
+    // The modules first (both side parts, then the core), then points across the hull, round and round.
+    const parts = (['left', 'right', 'core'] as const).map(part => bossPartOffset(part, boss.id));
+    const spots = [...parts, { x: -1.9, s: -1.1 }, { x: 1.7, s: 1.3 }, { x: .4, s: -1.6 }, { x: -1.2, s: 1.5 }, { x: 2.2, s: -.4 }];
+    const index = Math.round(age / DEATH.last), spot = spots[index % spots.length], jitter = Math.sin(index * 2.3) * .35;
+    push('explosion', boss.x + spot.x + jitter, boss.s + spot.s + Math.cos(index * 1.7) * .3, .7);
+    boss.deathEffectAt = state.time + DEATH.first + (DEATH.last - DEATH.first) * age / DEATH.barrage;
+  }
+  // The last detonation, then its shockwave of explosions racing outward over the hull and the ground around it.
+  const core = bossPartOffset('core', boss.id), cx = boss.x + core.x * .5, cs = boss.s + core.s * .5;
+  if (age >= DEATH.blastAt && age < DEATH.blastAt + DEATH.ring && state.time >= boss.deathEffectAt) {
+    const k = Math.round((age - DEATH.blastAt) / DEATH.ringEvery);
+    if (k === 0) push('bossBlast', cx, cs, 1.6);
+    else {
+      const angle = k * 2.4, reach = 1.2 + 3.2 * (age - DEATH.blastAt) / DEATH.ring;
+      push('explosion', cx + Math.cos(angle) * reach, cs + Math.sin(angle) * reach * .8, .7);
+    }
+    boss.deathEffectAt = state.time + DEATH.ringEvery;
   }
 }
 
@@ -231,11 +266,7 @@ export function updateBoss(state: RunState, dt: number): void {
     enemy.s = boss.s + offset.s;
   }
   if (boss.phase === 'destroyed') {
-    if (state.time >= boss.deathEffectAt && state.time - boss.phaseStartedAt < 2.4) {
-      const offset = Math.sin((state.time - boss.phaseStartedAt) * 9) * 2.5;
-      if (state.effects.length < BALANCE.maxEffects) state.effects.push({ id: state.nextId++, kind: 'explosion', x: boss.x + offset, s: boss.s + Math.cos(offset) * 1.5, ttl: .7, duration: .7 });
-      boss.deathEffectAt = state.time + .24;
-    }
+    deathSequence(state, boss);
     // The campaign ends after the wreck hold and extraction; endless continues with the hyperdrive jump (src/sim/endless.ts).
     if (state.config.mode === 'campaign' && state.time - boss.phaseStartedAt + 1e-8 >= WRECK_HOLD + def.extractionDuration) {
       state.phase = 'complete'; state.projectiles = []; state.hazards = [];

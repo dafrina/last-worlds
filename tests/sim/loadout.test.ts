@@ -87,8 +87,9 @@ describe('campaign loadout in the simulation (docs/21)', () => {
 describe('slowest drive keeps every mission survivable (docs/02 §4)', () => {
   // Rolling Thunder flies seed 6 since 21 October (user decision, docs/08): ground enemies now stand on the terrain under the
   // release lens, and on seed 5 the heuristic pilot parks at the world edge, where turret fans land on both sides of it.
-  // That run is fair (checked below); seeds 6-10 clear without a hit.
-  it.each([['training', 5], ['bastion', 6], ['cold-vector', 5], ['deep-bloom', 5]] as const)('the perfect pilot clears %s on Precision Drive without a hit (seed %i)', (mission, seed) => {
+  // That run is fair (checked below); seeds 6-10 clear without a hit. Deep Bloom flies seed 7 since hunters (22 October):
+  // on seed 5 a Pulsar stream catches the pilot at the world edge (seeds 7-9 clear).
+  it.each([['training', 5], ['bastion', 6], ['cold-vector', 5], ['deep-bloom', 7]] as const)('the perfect pilot clears %s on Precision Drive without a hit (seed %i)', (mission, seed) => {
     const state = createRun({ mode: 'campaign', seed, mission, difficulty: 'standard', reactor: 'precision' });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');

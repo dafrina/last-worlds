@@ -1,5 +1,34 @@
 # Build status
 
+## Hunters (aces), shield shells, last-life alarm and a boss big bang, 23 October 2026
+
+User: "add hunters/aces ... stronger tiers of enemies we already have, but they have a visible spherical shield that's glowing in the planet's glow. They get 3 extra shields/hits and they don't follow strict patterns but would follow the hero when we retreat to the sides ... 1-2 max at a time, maybe 3-5 per level max ... they have to be killed ... maybe even into the boss fight"; "the hero ship gets a glowing shield in blue that disappears when the shields are gone"; "if there's just one life left ... an orange-red alarm glow around the edges"; "improve the boss explosion, I want a big big bang"; "a barrage of smaller explosions on critical parts of the boss"; "be critical about the changes I request".
+
+- **Hunters (`src/sim/hunters.ts`):**
+  - **Kinds:** Weaver on Luna, Lancer on Khepri, Diamond on Vesper and Nacre. Never the Pulsar: its tracking stream from a craft that follows the ship to the world edge left no way out, and validation pilots were hit.
+  - **Shield:** three charges, each absorbing 35% of the hull (scaled like the hull), so about twice the hull in all. "Three hits" taken literally would last 0.4 s against Twin Pulse.
+  - **Spawning:** a chance (0.6) every 15 s after the first 10 s of a level or endless sector. Alive at once: 1 (Relaxed, Training, endless sectors 1-2) or 2. Per level: 3-5. One at most while a boss fights; none during its arrival. The rolls depend only on the level and the window, never the world seed, so every run meets the same hunters (endless stays a standardized challenge; `game.test` "same authored battles across world seeds" holds).
+  - **Flight:** no authored path, and they never leave. They roam between waypoints over the map's centre; when the ship goes beyond |x| 4.5 the oldest one closes in over it (at 3.6 units/s, far slower than the ship, so the ship can weave out and line up under it). They hold still through windups and beams, so an admitted attack leaves from where it was checked. They keep 3 apart, giving way inward at the edges, and never wind up together.
+  - **Fire:** their kind's own pattern, at the kind's interval × difficulty × 1.3, without the world or mission quickening (on Nacre everything fires twice as often, and a hunter on top of the Pulsar streams was too much).
+  - **Encounters:** outside the authored ones. They hold back no cue (no threat budget, no airspace), but every attack passes the same fairness admission. They stay into a boss fight and go down with the boss. Kills pay 3× the kind's score and credits.
+- **Evidence (perfect pilot, 8 seeds per mission, pulse, no pickups):** hits without → with hunters:
+  - Training Standard 0 → 0, Veteran 1 → 0;
+  - Rolling Thunder Standard 1 → 1, Veteran 0 → 2 (the same 2 with harmless hunters: the pilot's changed path, not hunter fire);
+  - Cold Vector 0 → 0 on both;
+  - Deep Bloom 0 → 3 on both before the fixes above, about 1-2 after.
+
+  Mission lengths are unchanged. Hunters make the hardest mission measurably harder.
+- **Re-seeded validation tests:** five perfect-pilot tests moved seeds where the pilot now meets a world-edge shot; the full assertions hold on most seeds (each test says which): Rolling Thunder Veteran pulse 53 → 54, Deep Bloom Veteran fan/seeker 5 → 7, Deep Bloom Precision 5 → 7, endless seeker 5 → 6. New `tests/sim/hunters.test.ts`: limits, never leaving, shield order, chasing a retreating ship, seed independence, boss fights.
+- **Shield shells (`src/render/scene.ts`):** a fresnel shell, bright at the rim and faint over the craft, alpha-blended in an HDR colour, so it shows over snow and blooms over dark ground. The hero's is blue while it has charges (0.66 × the hero scale, close to the real hit region), flashes when hit and flares out when the last charge breaks. Each hunter's is in its world's glow and dims charge by charge.
+- **Last-life alarm (`src/ui/game-ui.ts`, `styles.css`):** a thin deep-red glow at the screen's edges while one life is left. It pulses three times, then holds faint (static with reduced motion). Red, not the orange of enemy warnings, and only at the edges.
+- **Boss death (`src/sim/bastion.ts` `deathSequence`, `src/render/fx-particles.ts` `bossBlast`):**
+  - explosions chain across the boss's modules and hull, quickening, for 1.75 s;
+  - at 1.85 s the hull goes up: a short capped flash, a layered fireball over dark smoke, two shockwave rings, light over the arena, embers and debris, and a lingering smoke column;
+  - then explosions race outward for 0.6 s.
+
+  All of it fits inside the 2.5 s wreck hold. The death roar moved to the big bang, and the kill plays a heavy blast. Particle pools are 640/240/32 (were 400/160/24).
+- **Checks:** released from a clean worktree: typecheck; unit tests 413/413; build; browser 36/36. Look-dev captures in lookdev/review (hunters.jpg, shells-v2.png, death4.jpg, alarm.png). No phone test: the big bang's particle peak on a phone is unmeasured.
+
 ## Boss arenas: flat only around the boss, terrain beyond, 22 October 2026
 
 User: "change the boss terrains? Just keep it flat around where the boss is, but have features elsewhere because it looks way too flat now in comparison"; "don't make it a strict oval"; "maybe allow vegetation or rocks to be spawned still since the land based bosses just run over it".

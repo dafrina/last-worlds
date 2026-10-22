@@ -15,6 +15,7 @@ import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShot
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete, positionAfter } from './motion';
 import { projectGround } from './ground';
+import { HUNTERS, absorbHunterShield, updateHunters } from './hunters';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -62,6 +63,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   movePlayer(state, input.horizontal, dt);
   updateDirector(state);
   updateShieldSupplies(state, previousTime);
+  updateHunters(state, dt);
   updateEnemies(state, dt);
   updateBoss(state, dt);
   if (state.phase !== 'playing') return;
@@ -191,7 +193,8 @@ function updateDirector(state: RunState): void {
  */
 function admits(state: RunState, cue: EncounterCue, scale: DifficultyScale, timing?: (placement: FormationPlacement) => { age: number; delay: number }): boolean {
   const roster = cueRoster(cue, scale.rank);
-  const alive = state.enemies.filter(enemy => enemy.hp > 0 && !enemy.bossPart);
+  // Hunters fly outside the authored encounters: they hold back no cue (their attacks still pass the fairness check).
+  const alive = state.enemies.filter(enemy => enemy.hp > 0 && !enemy.bossPart && !enemy.hunter);
   const liveThreat = alive.reduce((sum, enemy) => sum + THREAT_COST[enemy.kind], 0);
   const cueThreat = roster.reduce((sum, kind) => sum + THREAT_COST[kind], 0);
   if (alive.length + roster.length > BALANCE.maxEnemies || liveThreat + cueThreat > scale.threatBudget) return false;
@@ -301,12 +304,16 @@ function updateEnemies(state: RunState, dt: number): void {
       enemy.warning = Math.max(0, enemy.warning - dt);
       if (enemy.warning === 0) {
         emitAttack(state, enemy, scale);
-        enemy.nextAttack = enemy.age + stats.attackEvery * scale.cadence * missionCadence(state);
+        // Hunters keep their own steady pace: the difficulty's, never the world's or mission's quickening (on Nacre, where
+        // everything fires twice as often, a hunter on top of the Pulsar streams was too much).
+        enemy.nextAttack = enemy.age + stats.attackEvery * scale.cadence * (enemy.hunter ? HUNTERS.cadence : missionCadence(state));
         windups -= 1;
       }
     } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy) && state.time >= state.player.invulnerableUntil - 0.3) {
       // Readability caps: a bounded number of simultaneous windups and of marked beam lanes.
       if (windups >= scale.maxWindups) continue;
+      // Hunters never wind up together: one hunter's attack at a time.
+      if (enemy.hunter && state.enemies.some(other => other !== enemy && other.hunter && other.warning > 0)) { enemy.nextAttack = enemy.age + 0.4; continue; }
       // Needle beam rest: no new beam until the rest is over.
       if (resting && enemy.kind === 'needle') { enemy.nextAttack = enemy.age + 0.25; continue; }
       // Needle beams are narrow (0.4) and do not count against the wide-beam lane cap.
@@ -547,11 +554,13 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
 
 function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean): void {
   if (enemy.hp <= 0 || enemy.damageable === false) return;
-  enemy.hp -= damage;
   addEffect(state, 'hit', enemy.x, enemy.s, 0.12);
+  // A hunter's shield takes the damage first.
+  enemy.hp -= absorbHunterShield(enemy, damage);
   if (enemy.hp > 0) return;
   state.kills += 1;
-  state.score += enemy.bossPart ? (enemy.bossPart === 'core' ? 5000 : 500) : ENEMIES[enemy.kind].score;
+  const reward = enemy.hunter ? HUNTERS.reward : 1;
+  state.score += enemy.bossPart ? (enemy.bossPart === 'core' ? 5000 : 500) : ENEMIES[enemy.kind].score * reward;
   addEffect(state, 'explosion', enemy.x, enemy.s, 0.5);
   if (mainWeapon) {
     state.chargeKillTimes = state.chargeKillTimes.filter(time => state.time - time < 1);
@@ -561,7 +570,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
     }
   }
   if (!enemy.bossPart && state.pickups.length < BALANCE.maxPickups - 1) {
-    state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits, ttl: 12 });
+    state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits * reward, ttl: 12 });
   }
   if (enemy.kind === 'fuel') {
     // The skid goes up: everything close by takes the blast, and other skids chain.

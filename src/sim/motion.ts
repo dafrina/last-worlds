@@ -93,7 +93,9 @@ export function positionAfter(enemy: Enemy, ahead: number, rate = 1): { x: numbe
 }
 /** The raw track: the formation path (or legacy motion) that a ground enemy's anchor rides, before the lens. */
 export function trackAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; s: number } {
-  if (enemy.bossPart) return { x: enemy.x, s: enemy.s };
+  // Boss modules and hunters (src/sim/hunters.ts) are moved by their own updates; predictions hold them where they are
+  // (a hunter holds still through its windup, so an attack leaves from where it was admitted).
+  if (enemy.bossPart || enemy.hunter) return { x: enemy.x, s: enemy.s };
   const clock = ahead * rate;
   if (enemy.formation) return memberPosition(enemy.formation, enemy.age + clock);
   const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + clock) * 1.6) * 1.2 : enemy.x;

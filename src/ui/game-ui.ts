@@ -52,6 +52,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     <section class="flight-frame" tabindex="0" aria-label="Flight area. Hold the left or right half to steer." data-input-active="false">
       <canvas class="flight-canvas" aria-label="Three-dimensional arcade flight"></canvas>
       <div class="flight-grain" aria-hidden="true"></div>
+      <div class="last-life-alarm" aria-hidden="true"></div>
       <header class="flight-hud" hidden>
         <div class="protection-icons">
           <div class="lives-icons" role="img" aria-label="3 lives remaining"></div>
@@ -129,6 +130,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const startBalance = new WeakMap<RunState, number>();
   let creditsShown = -1;
   const hints = find<HTMLElement>('.steering-hints');
+  const lastLifeAlarm = find<HTMLElement>('.last-life-alarm');
   const message = find<HTMLElement>('.flight-message');
   let chargeShown = -1;
   let endingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -438,6 +440,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     hud.hidden = !playing;
     specialButton.hidden = !playing;
     hints.hidden = !playing || state.time >= 3;
+    // The last life: a red glow at the screen's edges (user, 22 October).
+    lastLifeAlarm.classList.toggle('is-on', playing && state.player.lives === 1);
     score.hidden = state.config.mode !== 'endless';
     // Campaign coin counter: the saved balance plus this run's pickups as they will be paid (×REWARDS.scale and the
     // difficulty multiplier); mission, boss and first-clear rewards are added on the results screen.

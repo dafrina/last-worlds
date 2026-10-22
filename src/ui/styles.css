@@ -64,6 +64,18 @@ button:disabled { cursor: default; }
   border: 7px solid #050b1612;
   z-index: 1;
 }
+/*
+ * Last-life alarm (user, 22 October): a thin red glow along the screen's edges while one life is left. It pulses three
+ * times when it comes on, then holds faint and steady; red rather than the orange of enemy warnings, and only at the
+ * very edges, so it never covers a threat.
+ */
+.last-life-alarm {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity .5s ease-out;
+  box-shadow: inset 0 0 46px 8px #e3101c8c, inset 0 0 0 3px #ff2a2a66;
+}
+.last-life-alarm.is-on { opacity: .9; animation: last-life-pulse 1.2s ease-in-out 3; }
+@keyframes last-life-pulse { 0%, 100% { opacity: .9; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .last-life-alarm.is-on { animation: none; } }
 .flight-rail {
   width: 158px;
   flex: 0 0 158px;

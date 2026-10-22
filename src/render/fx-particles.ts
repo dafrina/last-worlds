@@ -12,7 +12,7 @@ import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
  * readable core of each effect and drops most secondary particles (docs/05 §9: particles are reduced first).
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
-const ADDITIVE_CAPACITY = 400, ALPHA_CAPACITY = 160, LIGHT_CAPACITY = 24;
+const ADDITIVE_CAPACITY = 640, ALPHA_CAPACITY = 240, LIGHT_CAPACITY = 32;
 /** Particle shapes in the shared shader. */
 const ROUND = 0, PLUME = 1, STAR = 2, CHIP = 3, RING = 4;
 
@@ -208,6 +208,59 @@ export function createFx(scene: THREE.Scene) {
     sparks(x, z, (full() ? 22 : 10) * Math.ceil(size), 0xffc070, 7.5 * Math.sqrt(size), n);
   }
 
+  /**
+   * A boss's last detonation (user, 22 October: "a big big bang"): a blinding core that swells into a towering fireball,
+   * cooling from white through orange to deep red; two shockwave rings racing out across the view; the light of it over
+   * the whole arena; a ring of secondary blasts; hundreds of embers and debris on long arcs; and a smoke column that
+   * lingers over the wreck. The flash is brief and capped (no full-screen white). Low keeps the core, the rings, the
+   * blasts and fewer sparks.
+   */
+  function bossBlast(x: number, z: number, n: number) {
+    const y = VIEW.flightHeight + .1;
+    flash(x, z, 6, .16, 0xfff0d0, 2);
+    light(x, z, 26, 1.8, 0xff7a28, 1.2);
+    light(x, z, 12, .6, 0xffd090, 1.2, .05);
+    // The fireball: a small white-hot heart inside layered fire that swells and cools from orange to deep red (kept below
+    // white: overlapping additive layers wash out to a pale ball).
+    // Dark smoke at once, under the fire: the contrast that makes the fireball read over bright ground.
+    if (full()) for (let k = 0; k < 10; k++) {
+      const a = hash(n + k * 6.1 + 4) * Math.PI * 2, d = .5 + hash(n + k * 1.4) * 2;
+      emit(smoke, { x: x + Math.cos(a) * d, y: y - .3, z: z + Math.sin(a) * d, vx: Math.cos(a) * 1.4, vz: Math.sin(a) * 1.4, vy: .3, life: 1.6 + hash(n + k) * .8,
+        size: 1.6 + hash(n + k * 2.8) * 1, grow: 1.8, drag: 1.2, alpha: .75, delay: .04, shape: ROUND, drift: .4, ...ramp(0x1c1612, 1, 0x4a4440, 1) });
+    }
+    emit(glow, { x, y: y + .2, z, life: .4, size: 2.2, grow: 1.8, alpha: .9, shape: ROUND, ...ramp(0xfff0c0, 2, 0xff7a20, .8) });
+    for (let k = 0; k < (full() ? 18 : 7); k++) {
+      const a = hash(n + k * 3.3) * Math.PI * 2, d = .2 + hash(n + k) * 2.2, v = .8 + hash(n + k * 1.9) * 1.8;
+      emit(glow, { x: x + Math.cos(a) * d, y: y + .1 + k * .02, z: z + Math.sin(a) * d, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: .5,
+        life: .7 + hash(n + k * 2.7) * .7, size: 1.1 + hash(n + k * 4.1) * 1.2, grow: 1.8, drag: 1.4, alpha: .9, delay: hash(n + k * 5) * .3, shape: ROUND,
+        ...ramp(k % 3 ? 0xffa040 : 0xffd070, 2.2, 0x901404, .4) });
+    }
+    // Shockwaves: a fast hot ring and a slower, wider one.
+    emit(glow, { x, y, z, life: .7, size: 1.2, grow: 22, alpha: .75, shape: RING, flat: true, ...ramp(0xffc070, 2.2, 0xff4a10, .4) });
+    emit(glow, { x, y: y - .02, z, life: 1.3, size: 1.5, grow: 15, alpha: .45, delay: .12, shape: RING, flat: true, ...ramp(0xff9a48, 1.5, 0x9a2008, .25) });
+    // (The explosions racing outward after it come from the simulation, one at a time: src/sim/bastion.ts deathSequence.)
+    sparks(x, z, full() ? 40 : 20, 0xffc070, 11, n * 1.7);
+    if (!full()) return;
+    // Embers and burning debris on long arcs.
+    for (let k = 0; k < 70; k++) {
+      const a = hash(n + k * 2.9 + 11) * Math.PI * 2, v = 3 + hash(n + k * 1.3) * 7;
+      emit(glow, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 2 + hash(n + k * 4.7) * 5, fall: 6, drag: .9,
+        life: .9 + hash(n + k * 6.1) * 1.1, size: .09 + hash(n + k * 2.1) * .1, alpha: 1, delay: hash(n + k) * .2, shape: ROUND, ...ramp(0xfff2b8, 3.4, 0xff3a0c, 1) });
+    }
+    for (let k = 0; k < 24; k++) {
+      const a = hash(n + k * 5.3 + 7) * Math.PI * 2, v = 2.5 + hash(n + k * 3.7) * 5;
+      emit(smoke, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1.5 + hash(n + k * 8.1) * 3.5, fall: 7, drag: .9,
+        life: .9 + hash(n + k) * .6, size: .14 + hash(n + k * 1.1) * .16, alpha: .95, shape: CHIP, drift: .5, ...tint(0x1d1814, 1) });
+    }
+    // The smoke column: dark, billowing up and out, lingering over the wreck.
+    for (let k = 0; k < 16; k++) {
+      const a = hash(n + k * 7.7 + 3) * Math.PI * 2, d = hash(n + k * 2.6) * 2.2;
+      emit(smoke, { x: x + Math.cos(a) * d, y: y - .2, z: z + Math.sin(a) * d, vx: Math.cos(a) * .5, vy: .6 + hash(n + k * 3.4) * .6, vz: Math.sin(a) * .5,
+        life: 2.4 + hash(n + k) * 1.4, size: 1.1 + hash(n + k * 1.6) * .8, grow: 2.2, drag: .8, alpha: .55, delay: .25 + k * .05, shape: ROUND, drift: .4,
+        ...ramp(k % 2 ? 0x241e1a : 0x332c28, 1, 0x5e5955, 1) });
+    }
+  }
+
   /** New snapshot events → particle spawns. Rewinds (a new run, retry) reset the cursors. */
   function spawn(state: RunState) {
     if (state.tick < lastTick || seed !== state.config.seed) { lastEffect = -1; lastShot = -1; glow.live = 0; smoke.live = 0; seed = state.config.seed; }
@@ -219,6 +272,7 @@ export function createFx(scene: THREE.Scene) {
       const z = -effect.s;
       if (effect.kind === 'explosion') explosion(effect.x, z, effect.id);
       else if (effect.kind === 'blast') blast(effect.x, z, effect.id, 1);
+      else if (effect.kind === 'bossBlast') bossBlast(effect.x, z, effect.id);
       else if (effect.kind === 'hit') { flash(effect.x, z, .38, .07, 0xffd2a0, 1.8); sparks(effect.x, z, full() ? 5 : 3, 0xffb070, 4.2, effect.id); }
       else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, 0x9ffff2, 5, effect.id);
       else if (effect.kind === 'pickup') for (let i = 0; i < (full() ? 4 : 2); i++) emit(glow, { x: effect.x + (hash(effect.id + i) - .5) * .5, y: VIEW.flightHeight + .1,

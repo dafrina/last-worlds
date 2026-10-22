@@ -256,6 +256,8 @@ if (import.meta.env.DEV) {
       // Look-dev only: ends the current flight as lost or complete, to capture the ending sequences.
       // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
       advance: (seconds: number) => { if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
+      // Look-dev only: the lives left (the last-life alarm shows at one).
+      setLives: (lives: number) => { if (run) run.player.lives = lives; },
       killBoss: () => { if (!run?.boss) return; for (const part of ['left', 'right', 'core'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
       // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
       boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },

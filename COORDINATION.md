@@ -326,3 +326,8 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Changes:** arenas flatten only an irregular clearing around the boss (small stones allowed on land); the planet's terrain carries on around it; bosses arrive at x 0. Khepri arena fingerprint re-recorded.
 - **Not included:** hunters/aces, shield shells, last-life alarm, boss big bang (in progress).
 - **Checks:** released from a clean worktree: typecheck, unit tests 407/407, build, browser 36/36 (one spec re-run alone after a load timeout). No phone test.
+
+**2026-10-23 · Claude Code · hunters, shield shells, last-life alarm, boss big bang: deployed:**
+- **Changes:** shielded hunters (src/sim/hunters.ts), the hero's and hunters' shield shells, the last-life edge alarm, boss death barrage and big bang; five perfect-pilot tests re-seeded (documented in each).
+- **Not included:** the Pulsar burst fix and Vesper wall culling (next).
+- **Checks:** released from a clean worktree: typecheck, unit tests 413/413, build, browser 36/36. No phone test.

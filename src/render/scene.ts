@@ -4,6 +4,7 @@ import { createFacilityView } from './facility-view';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { arenaStopDistance } from '../sim/bastion';
+import { HUNTERS, hunterCharges } from '../sim/hunters';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
@@ -806,6 +807,39 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const shieldMaterial = new THREE.MeshBasicMaterial({ color: 0xb1fff1, transparent: true, opacity: .35, depthWrite: false, depthTest: false });
   const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial); shield.scale.setScalar(HERO_SCALE);
   shield.rotation.x = -ELEVATION; shield.renderOrder = 8; scene.add(shield);
+  // Energy shields (user, 22 October): the hero's blue shell while it has shield charges, and each hunter's shell in its
+  // world's glow. Bright at the rim and faint over the craft, so the ship's real (smaller) hit region stays readable.
+  const shellGeometry = new THREE.SphereGeometry(1, 32, 16);
+  const shellMaterial = () => new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Color() }, energy: { value: 1 }, time: { value: 0 } },
+    vertexShader: `varying vec3 vNormal; varying vec3 vView; varying vec3 vLocal;
+      void main() { vec4 world = modelMatrix * vec4(position, 1.0); vNormal = normalize(mat3(modelMatrix) * normal);
+        vView = normalize(cameraPosition - world.xyz); vLocal = position; gl_Position = projectionMatrix * viewMatrix * world; }`,
+    fragmentShader: `uniform vec3 color; uniform float energy; uniform float time; varying vec3 vNormal; varying vec3 vView; varying vec3 vLocal;
+      void main() { float facing = abs(dot(normalize(vNormal), normalize(vView))); float rim = pow(1.0 - facing, 2.2);
+        float ripple = .82 + .18 * sin(vLocal.y * 13.0 + vLocal.x * 8.0 - time * 3.2);
+        float a = clamp((rim * .85 + .04) * ripple * energy, 0.0, .9);
+        // Blended, not added: an HDR-bright colour shows as a coloured rim over snow and still blooms over dark ground.
+        gl_FragColor = vec4(color * (1.2 + energy), a); }`,
+    transparent: true, depthWrite: false,
+  });
+  const shell = (hex: number) => { const mesh = new THREE.Mesh(shellGeometry, shellMaterial()); (mesh.material as THREE.ShaderMaterial).uniforms.color.value.setHex(hex); mesh.renderOrder = 7; mesh.visible = false; scene.add(mesh); return mesh; };
+  const heroShell = shell(0x4aa8ff);
+  /** Hunter shells by world glow; one per live hunter (at most a few on screen). */
+  const HUNTER_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8 };
+  const hunterShells = Array.from({ length: 4 }, () => shell(0xffffff));
+  /** Shield charges seen last frame (hero: −1) and when a shell broke, for its last flare. */
+  const shellSeen = new Map<number, number>(), shellBroke = new Map<number, number>();
+  const SHELL_BREAK = .35;
+  /** A shell's energy: by charges left, a flash when hit, a short flare as its last charge breaks (0 when gone). */
+  const shellEnergy = (id: number, charges: number, max: number, hitAt: number, time: number): { energy: number; grow: number } => {
+    const before = shellSeen.get(id);
+    if (before !== undefined && before > 0 && charges === 0) shellBroke.set(id, time);
+    shellSeen.set(id, charges);
+    if (charges > 0) return { energy: (.55 + .45 * charges / max) * (1 + 1.4 * Math.max(0, 1 - (time - hitAt) / .3)), grow: 1 };
+    const u = (time - (shellBroke.get(id) ?? -9)) / SHELL_BREAK;
+    return u >= 0 && u < 1 ? { energy: 2.2 * (1 - u), grow: 1 + .45 * u } : { energy: 0, grow: 1 };
+  };
 
   // Shots never hide behind ground: no depth test, and `transparent` puts them in the last (transparent) list so
   // they draw after roads and other blended ground passes, which would otherwise paint over them.
@@ -1032,6 +1066,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
       shield.visible = heroAlive && state.time < state.player.invulnerableUntil;
       shieldMaterial.opacity = .34;
+      {
+        const { energy, grow } = shellEnergy(-1, heroAlive ? state.player.shields : 0, Math.max(1, state.player.maxShields), state.player.lastHitAt, state.time);
+        heroShell.visible = heroAlive && entrance > .9 && energy > 0;
+        heroShell.position.copy(hero.position); heroShell.scale.setScalar(.66 * HERO_SCALE * grow);
+        const uniforms = (heroShell.material as THREE.ShaderMaterial).uniforms; uniforms.energy.value = energy; uniforms.time.value = state.time;
+      }
       // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
       plumes.length = 0;
       const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
@@ -1193,6 +1233,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
         }
       }
+      // Hunter shells (src/sim/hunters.ts): one per live hunter in view, in the world's glow, dimming charge by charge.
+      let shellCount = 0;
+      for (const enemy of state.enemies) {
+        if (!enemy.hunter || enemy.hp <= 0 || shellCount >= hunterShells.length) continue;
+        const { energy, grow } = shellEnergy(enemy.id, hunterCharges(enemy), HUNTERS.shield.charges, enemyHitAt.get(enemy.id) ?? -9, state.time);
+        if (energy <= 0) continue;
+        const mesh = hunterShells[shellCount++], uniforms = (mesh.material as THREE.ShaderMaterial).uniforms;
+        mesh.position.set(enemy.x, VIEW.flightHeight, -enemy.s); mesh.scale.setScalar((enemy.radius * 1.6 + .25) * grow);
+        uniforms.color.value.setHex(HUNTER_GLOW[planet]); uniforms.energy.value = energy * 1.4; uniforms.time.value = state.time + enemy.id; mesh.visible = true;
+      }
+      for (let i = shellCount; i < hunterShells.length; i++) hunterShells[i].visible = false;
+      for (const id of shellSeen.keys()) if (id >= 0 && !state.enemies.some(enemy => enemy.id === id)) { shellSeen.delete(id); shellBroke.delete(id); }
       // Ground wrecks: a new run (or a rewind) clears them; a ground target killed on screen leaves one.
       if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
       // District pads are reserved (docs/23 §4.8): compounds and emplacement pieces keep out; batteries never move.
@@ -1361,11 +1413,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (effect.kind === 'special') continue;
         if (effectCount >= effects.instanceMatrix.count) break;
         const age = Math.max(0, Math.min(1, 1 - effect.ttl / effect.duration));
-        const radius = effect.kind === 'blast' ? .4 + age * 3 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
+        const radius = effect.kind === 'bossBlast' ? 1 + age * 11 : effect.kind === 'blast' ? .4 + age * 3 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
         transform.position.set(effect.x, VIEW.flightHeight + .04, -effect.s);
         transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(radius); transform.updateMatrix();
         effects.setMatrixAt(effectCount, transform.matrix);
-        const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' ? 0xf9b67f : 0x97e7da;
+        const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : 0x97e7da;
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
       }
       effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;
