@@ -57,9 +57,8 @@ export {
  * 18: Vesper cliffs: rock keeps back from shelf edges, dark stones keep off cliffs, walls only on drops of 0.7 or more;
  *     Vesper's wall tops follow the highest rim across their width; other planets are unchanged.
  * 19: Vesper's ice walls: none whose face turns away from the camera (hidden behind its own shelf), none under a 1.2
- *     drop, every face of 1.8 or more (crevasse and ridge regions too) and beside outpost pads, but only where the land
- *     carries on behind the rim (small islands and spurs get clusters of smaller pieces instead; a face 3 or more tall
- *     needs only 1.5 units of land), and on stepped shelves only the big tier;
+ *     drop, every face of 1.8 or more (crevasse and ridge regions too) and beside outpost pads, and only in runs of
+ *     three or more along a rim (no lone pieces);
  *     others unchanged.
  */
 export const TERRAIN_VERSION = 19;

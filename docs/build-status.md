@@ -19,14 +19,17 @@ User:
   - 5–8% were refused beside outpost pads (the pad's 2.4-unit falloff reached the rim);
   - small steps (1–2) were walled as readily as big cliffs.
 - **Vesper wall rules (`src/world/terrain-walls.ts` options, `terrain-vesper.ts`):**
-  - **faces turned away from the camera:** none whose face points more than 0.75 away (`maxAway`). The camera looks forward and down, so such a face hides behind its own shelf. At 0.45 the diagonal coasts lost their crisp jagged rim, so it stays 0.75;
+  - **faces turned away from the camera:** none whose face points more than 0.75 away (`maxAway`). The camera looks forward and down, so such a face hides behind its own shelf. At 0.45 the diagonal coasts lost their crisp jagged rim;
   - **minimum drop:** 1.2 (was 0.7);
   - **big faces:** every face of 1.8 or more, crevasse and ridge regions included (rock peaks still refuse ice);
   - **beside outpost pads:** walls stand there (`padReach` 0.6, was 0.05);
-  - **land behind the rim:** at least 2.5 units at about rim height, or 1.5 for a face 3+ tall (`landBehind`). A thin bar standing 5 high out of the sea is a big cliff;
-  - **small features:** about half their cells take a 55–70% piece instead of a ring (`onNarrow`), and never on a knife edge;
-  - **stepped shelves:** only the big tier, i.e. no wall on a tier whose foot is a bench under 2.5 wide unless it is 3+ tall (`stairBench`).
-- **Result per 36-unit section:** 35 walls, down from 58 deployed (−40% wall triangles), with as many on big faces as before. Khepri is unchanged, and its fingerprints hold.
+  - **runs:** walls stand only in runs of three or more along one rim (`minRun`, neighbours within 1.7 cells facing within 45°), so there are no lone pieces. A run that reaches the section edge is kept.
+- **Tried and dropped the same day:**
+  - a "land behind the rim" rule, with small pieces on small features;
+  - a staircase rule (only the big tier).
+
+  Stacked together with the run rule they broke runs apart and stripped whole coasts bare (user: "we're running in circles"); the staircase rule alone stripped coasts and islands while barely thinning the stairs. **Why Khepri has none of this:** its cliffs come from mesas with one sheer face and a talus (long, continuous, evenly tall), which is what per-cell wall placement assumes. Vesper's edges are stacked noise (benches, leads, inlets, crevasses, plateaus), short and broken, so the walls are judged as runs.
+- **Result per 36-unit section:** 37 walls, down from 58 deployed (−37% wall triangles), with big faces filled. Khepri is unchanged, and its fingerprints hold.
 - **Bare faces (`src/render/terrain-kit.ts`):** faint facets and soft seams instead of grey column streaks.
 - **Boss entry corridor (`src/world/terrain-arena.ts`):** the clearing runs on as wide as its core from the boss row to 40 past the stop, along x 0, where every boss glides in from 20–30 beyond its row (the Ark crossed shelf ice at the top of the view).
 - **Vesper fog:** the user's playground settings (low mist over the sea and down the cliffs; haze 0.155).

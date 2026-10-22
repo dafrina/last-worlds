@@ -565,11 +565,7 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0);
     return drop >= 1.8 ? m.rock < 0.3 : m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.12;
   };
-  // Small islands, spurs and narrow strips (too little land behind the rim for a full wall) get small clusters instead
-  // of a ring: about half their cells take a wall piece at 55–70% size, shallower too, so it never overhangs the narrow
-  // land behind it (user, 23 October: "those smaller islands should maybe have just small clusters").
-  const narrowFace = (wall: KitInstance, pick: number) => pick < 0.5 ? { ...wall, scale: 0.55 + pick * 0.3, cosmetic: true } : null;
-  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, landBehind: 2.5, stairBench: 2.5, onNarrow: narrowFace, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
+  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
 

@@ -40,22 +40,11 @@ export interface WallOptions {
    */
   padReach?: number;
   /**
-   * Land behind the rim, in units, that must carry on at about the rim's height (within 40% of the drop) for a wall to
-   * stand (Vesper, version 19, user 23 October: "big cliffs ... where there's also more land behind the cliff so the seam
-   * is seamless"): no walls on small islands, spurs and slivers, where they stood alone or overhung.
+   * Walls stand in runs (Vesper, version 19, user 23 October: lone pieces on broken shelf edges): a wall is kept only if
+   * it belongs to a run of at least this many along one rim (neighbours within 1.7 cells, facing within 45°). A run
+   * touching the section's edge is kept (the rest of it lies in the next section).
    */
-  landBehind?: number;
-  /**
-   * Stepped shelves (Vesper, version 19, user 23 October: "3 rows of cliffs"): a tier whose foot is a bench narrower than
-   * this (the ground drops steeply again within it) gets no wall unless the tier is 3 or more tall itself; the big tier
-   * below keeps its walls.
-   */
-  stairBench?: number;
-  /**
-   * A face with too little land behind it (a small island or spur): given the wall it would have had and a seeded roll,
-   * the planet returns a smaller piece in its place, or null for none.
-   */
-  onNarrow?: (wall: KitInstance, pick: number) => KitInstance | null;
+  minRun?: number;
 }
 /** Probe step for slopes and walks along the gradient (world units). */
 const PROBE = 0.125, WALK = 0.1;
@@ -105,21 +94,6 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       // slope, the top (just over the rim height) reaching back onto the top.
       const width = Math.hypot(rx - px, rs - ps), inset = Math.min(1.2, Math.max(0.3, width * 0.5));
       const x = px + ux * inset, s = ps + us * inset;
-      const tall = top - base >= 3;
-      if (o.stairBench && !tall) {
-        let stair = false;
-        for (let d = 0.5; d <= o.stairBench + 1e-9 && !stair; d += 0.5) stair = height(px - ux * d, ps - us * d) < base - 0.8;
-        if (stair) continue;
-      }
-      let narrow = false;
-      if (o.landBehind) {
-        // A tall face needs less land behind it (1.5, enough for the wall's own depth): seen from the camera its face matters more than the depth of its top (a
-        // thin bar of shelf standing 5 high out of the sea is a big cliff).
-        const behind = tall ? Math.min(1.5, o.landBehind) : o.landBehind, floor = top - Math.max(0.35, (top - base) * 0.4);
-        for (let d = 0.5; d <= behind + 1e-9 && !narrow; d += 0.5) narrow = height(rx + ux * d, rs + us * d) < floor;
-        for (const side of [-1, 1]) if (!narrow) narrow = height(rx + ux * behind / 2 - us * side, rs + us * behind / 2 + ux * side) < floor;
-        if (narrow && !o.onNarrow) continue;
-      }
       // Only against ground that carries on behind the wall: no walls (nor smaller pieces) on knife-edge ridges or slivers.
       if (height(x + ux * 1.1, s + us * 1.1) < base + (top - base) * 0.5) continue;
       if (!clear(x, s) || !clear(px, ps) || !clear(rx, rs) || !clear(x - us * 1, s + ux * 1) || !clear(x + us * 1, s - ux * 1)) continue;
@@ -133,9 +107,25 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
         // +Z (the front) out and downhill: the rotation that maps local +Z to world (−ux, −us).
         rotation: Math.atan2(-ux, us), shade: terrain.shade(x, s), cosmetic: false,
       };
-      const placed = narrow ? o.onNarrow!(wall, h(3)) : wall;
-      if (placed) out.push(placed);
+      out.push(wall);
     }
   }
-  return out;
+  return o.minRun ? inRuns(out, o.minRun, startS, size) : out;
+}
+
+/** The walls that belong to runs of at least `min` along one rim, or to runs that reach the section's edges. */
+function inRuns(walls: KitInstance[], min: number, startS: number, size: number): KitInstance[] {
+  const reach = WALL_CELL * 1.7, parent = walls.map((_, i) => i);
+  const root = (i: number): number => parent[i] === i ? i : (parent[i] = root(parent[i]));
+  for (let i = 0; i < walls.length; i++) for (let j = i + 1; j < walls.length; j++) {
+    const a = walls[i], b = walls[j], turn = Math.abs(Math.atan2(Math.sin(a.rotation - b.rotation), Math.cos(a.rotation - b.rotation)));
+    if (Math.hypot(a.x - b.x, a.s - b.s) < reach && turn < Math.PI / 4) parent[root(i)] = root(j);
+  }
+  const runs = new Map<number, { size: number; edge: boolean }>();
+  for (let i = 0; i < walls.length; i++) {
+    const run = runs.get(root(i)) ?? { size: 0, edge: false };
+    run.size++; run.edge ||= walls[i].s - startS < reach || startS + size - walls[i].s < reach;
+    runs.set(root(i), run);
+  }
+  return walls.filter((_, i) => { const run = runs.get(root(i))!; return run.size >= min || run.edge; });
 }
