@@ -1,5 +1,28 @@
 # Build status
 
+## Enemy beams redrawn (all worlds); darker Amnion sinew strands, 23 October 2026
+
+User:
+- the lasers "look dated under the new graphics and also extend way beyond the enemies past them to the top of the screen";
+- "I also dont like the dashed warning indicator. Maybe make it a faint red preview which then turns white with a red glow ... make the laser glow in the color of the glow on their specific planet";
+- normal shots keep their dashed lines;
+- "the fleshy strings are still way too bright".
+
+- **Beams (`src/render/scene.ts`, render only):**
+  - **Extent:** every beam runs from its source down: a Needle at its aim, a locked beam ship, the boss column, else the boss's row. It never runs up past the source.
+  - **Warning:** a faint red veil with a thin red centre, flaring brighter through its last 0.2 s (the Needle's old fire cue).
+  - **Live:** a white-hot core in a halo of the planet's glow (`PLANET_GLOW`, shared with the hunter shields), shimmering, with a flare at the emitter.
+  - **Removed:** the dashed lane edges and the old orange lane mesh.
+  - **Unchanged:** shot telegraphs (Pulsar, missile column, Diamond) keep their dashes. The simulation is untouched.
+- **Open readability question:** on Vesper and Nacre the glow is cyan or teal, close to the player's own shots. Offered to the user: a faint red fringe on live beams.
+- **Strands:** the sinew strands' baked colours are darkened to the canyon walls' blood tone, with a dim wet sheen.
+- **THE CRADLE:** parked on branch `cradle-wip`; the user is making a Tripo reference model.
+- **Checks:**
+  - typecheck;
+  - unit tests 424/424;
+  - captures `lookdev/review/beam1.jpg` and `amnion36.jpg`.
+- **No phone test.**
+
 ## Amnion: sharp geology, ruins, blood strands, darker flesh, red shots; quicker hunters, 23 October 2026
 
 User:

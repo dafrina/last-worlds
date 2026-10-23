@@ -720,19 +720,12 @@ def colour_fn_for(hs, name):
         if kind == "marrow":
             return mix(C["flesh_dark"], C["flesh"], .4 + j * .3)
         if kind in ("blood", "goo"):
-            # Glistening blood-red sinew: a wet pink sheen on top, deep red sides, lit orange underneath by the yolk.
+            # Dark wet sinew (user, 23 October: the strings were "way too bright", lit as if no shading reached them):
+            # the canyon walls' dark blood tone, a dim wet sheen on top, a faint warm cast underneath from the yolk.
             if n.z < -.2:
-                return mix(kit.hex_linear("#5a0e0c"), kit.hex_linear("#d0602a"), -n.z * .6)
-            col = mix(kit.hex_linear("#7a1210"), kit.hex_linear("#c4362a"), kit.smoothstep(-.2, .6, n.z) * .8 + j * .1)
-            return mix(col, kit.hex_linear("#ff9a88"), kit.smoothstep(.82, 1.0, n.z) * .6)
-        if kind == "goo_old":
-            # Wet stretched sinew: glistening pink on top (brightest where it faces straight up), stretched paler and
-            # thinner toward the middle, lit warm orange underneath by the yolk below.
-            mid = math.sin(math.pi * kit.clamp((p.x + 1) / 2, 0, 1))
-            if n.z < 0:
-                return mix(C["flesh_dark"], kit.hex_linear("#c4551e"), -n.z * .55 + mid * .2)
-            col = mix(mix(C["flesh"], C["sinew"], .55 + mid * .3), kit.hex_linear("#d88a70"), mid * .25)
-            return mix(col, kit.hex_linear("#f2c0aa"), kit.smoothstep(.8, 1.0, n.z) * .55 + j * .08)
+                return mix(kit.hex_linear("#220504"), kit.hex_linear("#5a2010"), -n.z * .4)
+            col = mix(kit.hex_linear("#2e0706"), kit.hex_linear("#5c1410"), kit.smoothstep(-.2, .6, n.z) * .8 + j * .1)
+            return mix(col, kit.hex_linear("#9a4a3e"), kit.smoothstep(.85, 1.0, n.z) * .35)
         if kind == "sinew":
             return mix(mix(C["flesh"], C["sinew"], .6), kit.hex_linear("#c8806c"), kit.clamp(n.z, 0, 1) * .5 + j * .15)
         if kind in ("flesh",):

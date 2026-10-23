@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
-import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
+import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
 import { arenaStopDistance } from '../sim/bastion';
@@ -742,10 +742,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const telegraphs = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .85,
     depthTest: false, depthWrite: false }), 512);
   const flashLanes = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55,
-    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 32);
+    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 128);
   // Soft lane and column fills under the dashed edges: a light veil that reads on snow and on water alike.
   const laneFills = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .26,
-    depthTest: false, depthWrite: false }), 32);
+    depthTest: false, depthWrite: false }), 64);
   for (const mesh of [telegraphs, flashLanes, laneFills]) {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9; scene.add(mesh);
@@ -841,7 +841,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const shell = (hex: number) => { const mesh = new THREE.Mesh(shellGeometry, shellMaterial()); (mesh.material as THREE.ShaderMaterial).uniforms.color.value.setHex(hex); mesh.renderOrder = 7; mesh.visible = false; scene.add(mesh); return mesh; };
   const heroShell = shell(0x4aa8ff);
   /** Hunter shells by world glow; one per live hunter (at most a few on screen). */
-  const HUNTER_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a };
+  /** Each planet's glow: hunter shields and the halo of enemy beams wear it. */
+  const PLANET_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a };
   const hunterShells = Array.from({ length: 4 }, () => shell(0xffffff));
   /** Shield charges seen last frame (hero: −1) and when a shell broke, for its last flare. */
   const shellSeen = new Map<number, number>(), shellBroke = new Map<number, number>();
@@ -900,11 +901,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const fx = createFx(scene);
   const plumes: Plume[] = [];
 
-  const laneGeometry = new THREE.PlaneGeometry(1, VIEW.maxS - VIEW.minS);
-  laneGeometry.rotateX(-Math.PI / 2);
-  const laneMaterial = new THREE.MeshBasicMaterial({ color: 0xff6f48, opacity: .34, transparent: true, depthWrite: false, depthTest: false });
-  const lanes = new THREE.InstancedMesh(laneGeometry, laneMaterial, 32);
-  lanes.instanceMatrix.setUsage(THREE.DynamicDrawUsage); lanes.frustumCulled = false; lanes.renderOrder = 5; lanes.count = 0; scene.add(lanes);
 
   const lineVertices = new Float32Array(16384 * 3), lineColors = new Float32Array(16384 * 3);
   const lineGeometry = new THREE.BufferGeometry();
@@ -1126,6 +1122,26 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
         if (layer === telegraphs) stripCount++; else if (layer === flashLanes) flashCount++; else fillCount++;
       };
+      /*
+       * Enemy beams (user, 23 October: the dashed lanes "look dated under the new graphics"; "make it a faint red preview
+       * which then turns white with a red glow ... maybe make the laser glow in the color of the glow on their specific
+       * planet"). The preview: a faint red veil from the source down with a thin red centre, flaring brighter through its
+       * last 0.2 s (`flare` 0 … 1), the cue that it fires. The live beam: a white-hot core in a halo of the planet's glow,
+       * shimmering, with a flare at the emitter. Shots keep their dashed paths.
+       */
+      const beamPreview = (x: number, top: number, width: number, flare: number) => {
+        const breathe = .8 + .2 * Math.sin(state.time * 9);
+        strip(x, top, x, VIEW.minS, width, 0xff2a1e, laneFills, (.55 + flare * .6) * breathe);
+        strip(x, top, x, VIEW.minS, Math.min(.08, width * .25), 0xff4a36, flashLanes, (.5 + flare * 1.6) * breathe);
+        if (flare > 0) strip(x, top, x, VIEW.minS, width * .9, 0xff3424, flashLanes, flare * .7);
+      };
+      const beamLive = (x: number, top: number, width: number, source?: Enemy) => {
+        const glow = PLANET_GLOW[planet], shimmer = .85 + .15 * Math.sin(state.time * 55 + x * 7);
+        strip(x, top, x, VIEW.minS, width * 1.9, glow, flashLanes, .35 * shimmer);
+        strip(x, top, x, VIEW.minS, width * 1.05, glow, flashLanes, 1.1 * shimmer);
+        strip(x, top, x, VIEW.minS, Math.max(.07, width * .38), 0xffffff, flashLanes, 2.4 * shimmer);
+        if (source) plumes.push({ x: source.kind === 'needle' ? source.aimX : x, z: -top + .4, length: .01, width: Math.max(.8, width * 1.4), hex: glow, energy: 3.2, round: true });
+      };
       // Vesper flies its own faction's craft once loaded (Khepri models meanwhile).
       const activeBatches = planet === 'vesper' && vesperBatches ? vesperBatches : enemyBatches;
       let lineCursor = 0;
@@ -1221,9 +1237,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             strip(THREE.MathUtils.lerp(enemy.x, targetX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(enemy.x, targetX, b), enemy.s * (1 - b), .09, 0x46f0dc);
           }
         } else if (enemy.warning > 0 && enemy.kind === 'needle') {
-          // Needle windup: a dashed 0.4 lane down the whole view at its committed aim, with a faint fill.
-          strip(enemy.aimX, VIEW.minS, enemy.aimX, VIEW.maxS, .4, 0x6a4020, laneFills);
-          for (let s = VIEW.minS; s < VIEW.maxS; s += 1.2) for (const side of [-1, 1]) strip(enemy.aimX + side * .2, s, enemy.aimX + side * .2, Math.min(s + .7, VIEW.maxS), .055, 0xffc06a);
+          // Needle windup: the beam's faint red preview at its committed aim, from the Needle down (beamPreview).
+          beamPreview(enemy.aimX, enemy.s, .4, 0);
         } else if (enemy.warning > 0 && enemy.kind === 'missile') {
           // Missile battery: a straight marked column from the battery down past the player row (non-tracking).
           strip(enemy.x, enemy.s, enemy.x, VIEW.minS, .4, 0x6a2c1a, laneFills);
@@ -1260,7 +1275,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (energy <= 0) continue;
         const mesh = hunterShells[shellCount++], uniforms = (mesh.material as THREE.ShaderMaterial).uniforms;
         mesh.position.set(enemy.x, VIEW.flightHeight, -enemy.s); mesh.scale.setScalar((enemy.radius * 1.6 + .25) * grow);
-        uniforms.color.value.setHex(HUNTER_GLOW[planet]); uniforms.energy.value = energy * 1.4; uniforms.time.value = state.time + enemy.id; mesh.visible = true;
+        uniforms.color.value.setHex(PLANET_GLOW[planet]); uniforms.energy.value = energy * 1.4; uniforms.time.value = state.time + enemy.id; mesh.visible = true;
       }
       for (let i = shellCount; i < hunterShells.length; i++) hunterShells[i].visible = false;
       for (const id of shellSeen.keys()) if (id >= 0 && !state.enemies.some(enemy => enemy.id === id)) { shellSeen.delete(id); shellBroke.delete(id); }
@@ -1391,7 +1406,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
       pickupBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
-      let laneCount = 0;
       // Siege Lance (campaign special): a bright piercing beam straight ahead from the ship's nose while it fires.
       if (state.lance && state.time < state.lance.until) {
         const left = state.lance.until - state.time, flare = Math.min(1, left / .12) * (.85 + .15 * Math.sin(state.time * 60));
@@ -1399,26 +1413,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         strip(state.player.x, .5, state.player.x, VIEW.maxS + 2, .32, 0xffffff, flashLanes, 2.6 * flare);
       }
       for (const hazard of state.hazards) {
-        // A Needle's narrow lane flashes bright for its last 0.2 s before the beam (Khepri lanes are all wider).
-        if (hazard.width <= .45 && hazard.warning > 0) {
-          const pulse = .6 + .4 * Math.sin(state.time * 40);
-          strip(hazard.x, VIEW.minS, hazard.x, VIEW.maxS, hazard.width, 0xffd6a0, flashLanes, 1.8 * pulse);
-          const source = state.enemies.find(enemy => enemy.kind === 'needle' && Math.abs(enemy.aimX - hazard.x) < 1e-6);
-          if (source) plumes.push({ x: source.x, z: -source.s + .5, length: .01, width: .8, hex: 0xffe0b0, energy: 3, round: true });
-        }
-        if (hazard.active > 0 && hazard.warning <= 0 && laneCount < lanes.instanceMatrix.count) {
-          // A live beam starts at whatever fired it (a locked beam ship, or the boss column right above it) and runs down.
-          const source = state.enemies.find(enemy => enemy.hp > 0 && (enemy.bossPart ? Math.abs(enemy.x - hazard.x) < hazard.width / 2 + .3 : !!enemy.lock && Math.abs(enemy.x - hazard.x) < .05));
-          const top = Math.min(VIEW.maxS, source ? source.s : VIEW.maxS), length = top - VIEW.minS;
-          transform.position.set(hazard.x, VIEW.flightHeight + .02, -(VIEW.minS + top) / 2);
-          transform.rotation.set(0, 0, 0); transform.scale.set(hazard.width, 1, length / (VIEW.maxS - VIEW.minS)); transform.updateMatrix(); lanes.setMatrixAt(laneCount++, transform.matrix);
-        }
-        for (const side of [-1, 1]) {
-          const x = hazard.x + side * hazard.width / 2;
-          for (let s = VIEW.minS; s < VIEW.maxS; s += 1.2) line(x, s, x, Math.min(s + .7, VIEW.maxS), hazard.warning > 0 ? 0xffc987 : 0xff9c77);
-        }
+        // A beam runs from whatever fires it (a Needle at its aim, a locked beam ship, the boss column over it; else the
+        // boss's row) down past the bottom of the view, never up past its source (user, 23 October: lasers "extend way
+        // beyond the enemies past them to the top of the screen").
+        const source = state.enemies.find(enemy => enemy.hp > 0 && (enemy.bossPart ? Math.abs(enemy.x - hazard.x) < hazard.width / 2 + .3
+          : enemy.kind === 'needle' ? Math.abs(enemy.aimX - hazard.x) < 1e-6 : !!enemy.lock && Math.abs(enemy.x - hazard.x) < .05));
+        const top = Math.min(VIEW.maxS, source ? source.s : state.boss ? state.boss.s : VIEW.maxS);
+        if (hazard.warning > 0) beamPreview(hazard.x, top, hazard.width, hazard.warning <= .2 ? 1 - hazard.warning / .2 : 0);
+        else if (hazard.active > 0) beamLive(hazard.x, top, hazard.width, source);
       }
-      lanes.count = laneCount; lanes.instanceMatrix.needsUpdate = true;
       for (const [mesh, count] of [[telegraphs, stripCount], [flashLanes, flashCount], [laneFills, fillCount]] as const) {
         mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
