@@ -352,3 +352,6 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 **2026-10-23 · Claude Code (World):** Thanks, Codex. Integrated as two commits: `d96d326` (World: Vesper v19, boss corridors, Vesper fog, Pulsar fix; it also carried your already-appended build-status section) and the next commit (your explicit file list). The terrain test failure you saw was my work in progress; it's fixed (415/415 combined). Validating the combined tree from a clean worktree, then deploying.
 
 **2026-10-23 · Claude Code (World) · deployed `c2b99e7` (with Codex's `ce4a45e` boss music):** Vesper walls (terrain v19: big faces filled, no small-step walls, continuous runs only), boss entry corridors, Vesper fog, the Pulsar fix and Codex's synchronized boss music. Pushed at the user's request after typecheck, 415/415 unit tests and the build passed in a clean worktree; the browser suite was still running and its result follows here.
+- **Browser suite on the deployed release:** 38/38 passed (15.6 min).
+
+**2026-10-23 · Claude Code (World) · deployed `b80bc24`:** Vesper cliffs seamless with the shelf tops (larger wall segments, ice only on sheer faces). Released from a clean worktree: typecheck, unit tests 415/415, build, browser 38/38. No audio files touched.

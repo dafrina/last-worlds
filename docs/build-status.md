@@ -11,7 +11,7 @@ User: "the cliff models are too small in area or something, it doesn't look seam
   - its vertex colour from slope 1.5 (was 0.9).
 
   Shoulders stay snow.
-- **Checks:** typecheck; unit tests 415/415; build; browser BROWSER_RESULT. No phone test.
+- **Checks:** released from a clean worktree: typecheck; unit tests 415/415; build; browser 38/38. No phone test.
 
 ## Vesper cliffs where they count (terrain v19), boss entry corridors, Vesper fog, Pulsar fix, 23 October 2026
 
