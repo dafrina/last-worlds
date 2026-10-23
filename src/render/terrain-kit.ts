@@ -87,6 +87,7 @@ function amnionStandIn(kind: KitKind, variant: number): THREE.BufferGeometry {
   else if (kind === 'boneSpire') builder.prism(0, 0, 0.25, 1, 5, variant, 0, 0);
   else if (kind === 'nest' || kind === 'broodNest') builder.prism(0, 0, 0.95, kind === 'nest' ? 0.3 : 1, 9, variant, 0, 0);
   else if (kind === 'hive') builder.prism(0, 0, 0.55, 1, 6, variant, 0, 0);
+  else if (kind === 'broodRuin') for (let i = 0; i < 6; i++) builder.prism(Math.cos(i * 1.05) * 0.75, Math.sin(i * 1.05) * 0.75, 0.1, 0.5 + (i % 3) * 0.25, 5, i, 0, 0);
   else if (kind === 'sinewWeb') for (let i = 0; i < 5; i++) builder.prism(-0.8 + i * 0.4, 0, 0.03, -0.1, 4, i, 0, -0.4);
   else builder.prism(0, 0, 0.2, 0.25, 5, variant, 0, 0);
   const geometry = builder.geometry(), colour = kind === 'eggClutch' ? egg : kind === 'nest' ? flesh : bone, count = geometry.getAttribute('position').count;
@@ -823,7 +824,8 @@ const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; col
   khepri: KHEPRI_WALL,
   vesper: { hue: hueOf(0x5f9fd0), shade: 0.9, columns: 0, crease: 1 },
   // Amnion (docs/27): dark flesh canyon walls, faintly striated like sinew.
-  amnion: { hue: hueOf(0x4e2422), shade: 0.6, columns: 0.5, crease: 1 },
+  // Dark blood-red flesh (user, 23 October: "make the flesh a bit darker"); the mountain strata's risers take it too.
+  amnion: { hue: hueOf(0x3c1816), shade: 0.24, columns: 0.5, crease: 1 },
   // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
   // darker regolith per face.
   luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0 },

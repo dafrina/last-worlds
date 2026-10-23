@@ -859,7 +859,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Shots never hide behind ground: no depth test, and `transparent` puts them in the last (transparent) list so
   // they draw after roads and other blended ground passes, which would otherwise paint over them.
   const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true });
-  const HOSTILE_WARM = [0xff8869, 0xffe7c4] as const, HOSTILE_COLD = [0xb056ff, 0xf6e8ff] as const;
+  // Amnion's shots are a hot red with a near-white core (user, 23 October: "make the enemy shots red"): the core and the
+  // bloom carry them over the dark red flesh.
+  const HOSTILE_WARM = [0xff8869, 0xffe7c4] as const, HOSTILE_BLOOD = [0xff1e1e, 0xfff2ee] as const;
   const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false, transparent: true });
   const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);
@@ -1339,7 +1341,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       let friendlyCount = 0, hostileCount = 0, missileCount = 0;
       // Hostile shots are warm everywhere but Amnion, whose glowing yolk canyons are warm themselves: there they are violet
       // with a pale core, apart from the yolk and from the player's own white-cyan shots (docs/27).
-      hostileMaterial.color.setHex(planet === 'amnion' ? HOSTILE_COLD[0] : HOSTILE_WARM[0]); hostileCoreMaterial.color.setHex(planet === 'amnion' ? HOSTILE_COLD[1] : HOSTILE_WARM[1]);
+      hostileMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[0] : HOSTILE_WARM[0]); hostileCoreMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[1] : HOSTILE_WARM[1]);
       for (const shot of state.projectiles) {
         if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
         transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);

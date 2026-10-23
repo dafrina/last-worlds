@@ -28,18 +28,20 @@ export const HUNTERS = {
   /** Score and credits over the base kind. */
   reward: 3,
   /** Roaming band (s ahead of the player row) and cruise speed and acceleration at pace 1. */
-  row: { min: 10.5, max: 15 }, speed: 3.6, accel: 7,
+  row: { min: 10.5, max: 15 }, speed: 6, accel: 14,
   /**
    * The ship counts as retreating to a side beyond this |x|; a hunter then closes to `chaseS` ahead, right over it (an
    * offset to one side would back away whenever the ship moved under it to shoot, so the fixed guns could never line up).
-   * It is much slower than the ship, so it trails a weaving ship and the ship can line up under it.
+   * It is half the ship's speed (user, 23 October: "quicker to follow the player"), so it still trails a weaving ship
+   * and the ship can line up under it, and it follows sooner.
    */
-  side: 4.5, chaseS: 10,
+  side: 3.5, chaseS: 10,
   /**
    * Multiplier on the kind's repeat-attack interval (with the difficulty's, but not the world's or mission's quickening):
-   * hunters come on top of the authored waves, so they fire a little less often.
+   * aces fire more often than their kind (user, 23 October: "quicker to shoot"); every attack still passes the fairness
+   * admission.
    */
-  cadence: 1.3,
+  cadence: 0.85,
   /** Hunters keep this far apart. */
   spacing: 3,
   /** Seconds of age before the first windup (it is still diving in). */

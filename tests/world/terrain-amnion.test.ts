@@ -3,7 +3,7 @@ import { VIEW } from '../../src/shared/contracts';
 import { AMNION_SCENERY_MAX, AMNION_TUSK_MAX } from '../../src/world/terrain-amnion';
 import { AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, KIT, generateTerrainSection } from '../../src/world/terrain';
 
-const AMNION = { planet: 'amnion' as const }, HALF = VIEW.worldWidth / 2, TUSKS = new Set(['boneSpire', 'broodNest', 'hive']);
+const AMNION = { planet: 'amnion' as const }, HALF = VIEW.worldWidth / 2, TUSKS = new Set(['boneSpire', 'broodNest', 'hive', 'broodRuin']);
 
 describe('Amnion scenery (docs/27)', () => {
   it('keeps the tusks 0.4 under the flight plane and everything else under the 3.0 cap', () => {

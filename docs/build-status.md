@@ -1,5 +1,40 @@
 # Build status
 
+## Amnion: sharp geology, ruins, blood strands, darker flesh, red shots; quicker hunters, 23 October 2026
+
+User:
+- "too uniform, same width canyons and too rounded features ... sharp and hostile and biological edged";
+- "why did you lose the fleshy bloody strings";
+- "occasional huge clusters with gigantic horns kinda like a ruin", then "big areas on the base but also high and imposing" and "even higher horns";
+- "make the flesh a bit darker";
+- "make the enemy shots red too";
+- the strata: "that looks cool tho", then "not so many";
+- "spice up the hunters. Make them quicker to shoot and quicker to follow the player".
+
+- **Geology (`src/world/terrain-amnion.ts`):**
+  - tapering crevasses, from slits to chasms, with pointed ends;
+  - a serrated lip of its own on each side, with fangs;
+  - broken, tilted crust plates;
+  - blade crests, with tall strata on about a third of the massifs.
+- **Ruins:**
+  - a site lattice (`ruinSite`): a clearing with a jagged sunken courtyard, 2.7 deep;
+  - a new kit piece, `amn_ruin` (7–8k triangles, at most one in view): a broken torn-bone ring, a cracked heart, and gigantic tusks (vault, snapped, fallen);
+  - egg heaps along the courtyard wall.
+- **Strands:** thick beaded blood-red sticky strands with glowing drips are back, three variants, one with a goo sheet. The goo sheets had sunk into the dark canyons and fog.
+- **Look:**
+  - darker flesh: wall hue `#3c1816` at shade 0.24, palette flesh and floor darker;
+  - hostile shots red with a white core, checked over bone and flesh in `lookdev/review/amnion35.jpg`.
+- **Hunters:** quicker to follow and to fire. The first-attack delay is kept because of the fairness check (docs/08). Every fairness check passes.
+- **Tooling:**
+  - the test hook's `advance(seconds, exposed)` can step the run with the ship exposed, since enemies hold fire on an invulnerable ship;
+  - the fx capture has a `hostile:<n>` step.
+- **Kit:** 37k triangles, 4.6 MB; the cap was raised to 5 MB, in line with the other big assets.
+- **Checks:**
+  - typecheck;
+  - unit tests 424/424;
+  - captures `lookdev/review/amnion27.jpg`–`amnion35.jpg`.
+- **No phone test.**
+
 ## Amnion brood kit: torn-bone tusks, irregular nests, pearl eggs, the level lowered, 23 October 2026
 
 User, reviewing:

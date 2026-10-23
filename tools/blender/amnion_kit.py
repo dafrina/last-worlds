@@ -85,14 +85,14 @@ def mound(hs, rng, x, y, rx, ry, h, paint="flesh", mat=FLESH, n=9):
     hull(hs, pts, paint, mat)
 
 
-def horn(hs, rng, x, y, h, r, bend, heading, sides=8, rings=10, paint="horn", lean=0.0, flare=.6, flute=.08, z0=SINK):
+def horn(hs, rng, x, y, h, r, bend, heading, sides=8, rings=10, paint="horn", lean=0.0, flare=.6, flute=.08, z0=SINK, cut=1.0):
     """A tusk-like bone horn (after the concept's great tusks): a flared, fluted base tapering along a curve to a sharp
     tip. Its centre line moves `lean` * h * t + `bend` * h * t² toward `heading` (lean out, then curve back in when
-    `bend` is negative). Smooth-shaded."""
+    `bend` is negative). With `cut` < 1 it is snapped off there, ending in a jagged break (the ruins). Smooth-shaded."""
     ca, sa = math.cos(heading), math.sin(heading)
     loops = []
     for k in range(rings):
-        t = k / (rings - 1)
+        t = k / (rings - 1) * cut
         z = z0 + (h - z0) * t
         off = h * (lean * t + bend * t * t)
         rr = r * (1 - .93 * t ** 1.1) * (1 + flare * (1 - t) ** 4)
@@ -103,6 +103,20 @@ def horn(hs, rng, x, y, h, r, bend, heading, sides=8, rings=10, paint="horn", le
         for i in range(sides):
             a = (i + .5) * TAU / sides
             hs.face((lo[i], lo[(i + 1) % sides], hi[(i + 1) % sides], hi[i]), paint, "smooth", BONE, outward=(math.cos(a), math.sin(a), 0.0))
+    if cut < 1.0:
+        # The break: shards of the rim standing up and down round a hollow, dark marrow inside.
+        t = cut
+        off = h * (lean * t + bend * t * t)
+        zc = z0 + (h - z0) * t
+        rr = r * (1 - .93 * t ** 1.1) * (1 + flare * (1 - t) ** 4)
+        jag = [hs.v((x + ca * off + rr * math.cos((i + .5) * TAU / sides), y + sa * off + rr * math.sin((i + .5) * TAU / sides),
+                     zc + rr * rng.uniform(.4, 2.2) * (1 if i % 2 else .2))) for i in range(sides)]
+        core = hs.v((x + ca * off, y + sa * off, zc - rr * .6))
+        for i in range(sides):
+            hs.face((loops[-1][i], loops[-1][(i + 1) % sides], jag[i]), paint, "smooth", BONE, outward=(math.cos((i + .5) * TAU / sides), math.sin((i + .5) * TAU / sides), .3))
+            hs.face((loops[-1][(i + 1) % sides], jag[(i + 1) % sides], jag[i]), paint, "smooth", BONE, outward=(math.cos((i + 1) * TAU / sides), math.sin((i + 1) * TAU / sides), .3))
+            hs.face((jag[i], jag[(i + 1) % sides], core), "marrow", "main", FLESH, outward=(0.0, 0.0, 1.0))
+        return
     off = h * (lean * 1.03 + bend * 1.06)
     tip = hs.v((x + ca * off, y + sa * off, h + (h - z0) * .035))
     for i in range(sides):
@@ -307,10 +321,10 @@ def build_eggs(rng, idx):
     return hs
 
 
-def tusk(hs, rng, x, y, h, r, heading, lean, bend, web=True):
+def tusk(hs, rng, x, y, h, r, heading, lean, bend, web=True, cut=1.0, rings=8):
     """A great bone tusk growing out of torn webbing over a dark flesh bed (the concept's tusks)."""
     flare = .45
-    horn(hs, rng, x, y, h, r, bend=bend, heading=heading, lean=lean, flare=flare, flute=.05, sides=8, rings=8)
+    horn(hs, rng, x, y, h, r, bend=bend, heading=heading, lean=lean, flare=flare, flute=.05, sides=8, rings=rings, cut=cut)
     if web:
         # The webbing leaves the tusk a third of the way up, from just inside its surface there.
         t = .4
@@ -461,6 +475,116 @@ def build_hive(rng, idx):
     return hs
 
 
+def build_ruin(rng, idx):
+    """A brood ruin (user, 23 October: "occasional huge clusters with gigantic horns kinda like a ruin of some kind like
+    in the concept top right", "big areas on the base but also high and imposing"). It stands on the floor of a sunken
+    courtyard (the terrain digs it):
+    - a broken ring wall of torn bone lining the courtyard, three arcs with ragged breaks between;
+    - a cracked glowing heart in the middle;
+    - gigantic tusks round the ring, two of them arching over the heart like a broken vault, two snapped off, one
+      fallen across the floor;
+    - bone debris.
+    Authored 2 across and 1 high; the runtime scales it to the courtyard (about 8–9 across) and about 7 high, from the
+    courtyard floor to the tusk cap."""
+    hs = HS(rng)
+    WALL = .38  # the courtyard wall's height in authored units (2.7 world over about 7)
+
+    def wall(r):
+        return kit.clamp((r - .7) / .08, 0, 1) * (WALL + .06) - kit.clamp((r - .86) / .12, 0, 1) * .08
+
+    # Three arcs of the ring wall, ragged where they break off.
+    start = rng.uniform(0, TAU)
+    spans = [rng.uniform(1.4, 1.9) for _ in range(3)]
+    gap = (TAU - sum(spans)) / 3
+    a0 = start
+    for span in spans:
+        n = max(6, int(span / .12))
+        outer = [(math.cos(a0 + span * k / n) * .98, math.sin(a0 + span * k / n) * .98) for k in range(n + 1)]
+        inner = [(math.cos(a0 + span * k / n) * rng.uniform(.68, .72), math.sin(a0 + span * k / n) * rng.uniform(.68, .72)) for k in range(n, -1, -1)]
+        # Ragged ends: a broken edge stepping in.
+        loop = outer + [(math.cos(a0 + span) * .84, math.sin(a0 + span) * .84)] + inner + [(math.cos(a0) * .86, math.sin(a0) * .86)]
+        mid = a0 + span / 2
+
+        def candidate(mid=mid, span=span):
+            a = mid + rng.uniform(-.45, .45) * span
+            d = rng.uniform(.75, .93)
+            ra = rng.uniform(.03, .055)
+            return (math.cos(a) * d, math.sin(a) * d, ra, ra * rng.uniform(.5, .8), a + rng.uniform(-.3, .3))
+
+        def fits(pts, a0=a0, span=span):
+            for px, py in pts:
+                d = math.hypot(px, py)
+                rel = (math.atan2(py, px) - a0) % TAU
+                if not (.73 < d < .95 and .06 < rel < span - .06):
+                    return False
+            return True
+
+        holes = pack_holes(rng, candidate, fits, int(span * 6), .02, tries=700)
+        perforated(hs, loop, None, holes, lambda px, py: wall(math.hypot(px, py)), .03)
+        a0 += span + gap
+    # The heart: a great cracked egg glowing from within, broken shell plates round it.
+    ovum(hs, rng, 0.0, 0.0, .11, .1, lit=True, sides=10)
+    for k in range(6):
+        a = rng.uniform(0, TAU)
+        d = rng.uniform(.13, .22)
+        pts = [(math.cos(a) * d + rng.uniform(-.04, .04), math.sin(a) * d + rng.uniform(-.04, .04), SINK + rng.uniform(0, .02)) for _ in range(3)]
+        pts += [(math.cos(a) * d + rng.uniform(-.03, .03), math.sin(a) * d + rng.uniform(-.03, .03), rng.uniform(.04, .1)) for _ in range(2)]
+        hull(hs, pts, ("shell", rng.uniform(0, 1)), BONE)
+    # Gigantic tusks round the ring.
+    heights = [1.0, .94, rng.uniform(.8, .88), rng.uniform(.68, .76), rng.uniform(.56, .64), rng.uniform(.45, .52), rng.uniform(.36, .42)] + ([rng.uniform(.3, .36)] if idx else [])
+    angles, a = [], rng.uniform(0, TAU)
+    for k in range(len(heights)):
+        a += TAU / len(heights) * rng.uniform(.7, 1.3)
+        angles.append(a)
+    for k, (h, a) in enumerate(zip(heights, angles)):
+        d = rng.uniform(.74, .84)
+        x, y = math.cos(a) * d, math.sin(a) * d
+        r = .06 + .1 * h
+        if k < 2:
+            # The broken vault: the two tallest arch in over the heart, their tips crossing above it.
+            a = angles[0] + (0 if k == 0 else math.pi + rng.uniform(-.35, .35))
+            x, y = math.cos(a) * d, math.sin(a) * d
+            lean = .1
+            tusk(hs, rng, x, y, h, r, a, lean, -(d - .12) / h - lean, rings=11)
+        elif k in (3, 5):
+            # Snapped off partway up.
+            tusk(hs, rng, x, y, h, r, a + rng.uniform(-.4, .4), rng.uniform(.04, .14), rng.uniform(.1, .3), cut=rng.uniform(.45, .65))
+        else:
+            tusk(hs, rng, x, y, h, r, a + rng.uniform(-.5, .5), rng.uniform(.05, .16), rng.uniform(.15, .38))
+    # A fallen tusk lying across the floor, and loose debris.
+    a = rng.uniform(0, TAU)
+    horn(hs, rng, math.cos(a) * .55, math.sin(a) * .55, .16, .05, bend=.2, heading=a + math.pi + .5, lean=1.9, flare=.3, flute=.05, sides=7, rings=9)
+    for k in range(10):
+        a, d, sz = rng.uniform(0, TAU), rng.uniform(.25, .68), rng.uniform(.02, .05)
+        x, y = math.cos(a) * d, math.sin(a) * d
+        pts = [(x + rng.uniform(-sz, sz) * 1.6, y + rng.uniform(-sz, sz), SINK + rng.uniform(0, .02)) for _ in range(4)]
+        pts += [(x + rng.uniform(-sz, sz), y + rng.uniform(-sz, sz) * .6, sz * rng.uniform(.6, 1.6)) for _ in range(2)]
+        hull(hs, pts, "bone", BONE)
+    return hs
+
+
+def sticky(hs, rng, y0, y1, z0, z1, sag, r0, segs=14, sides=6):
+    """A sticky strand of bloody sinew across x −1 … +1 (user, 23 October: strands that "read sticky", hanging): thick
+    and glistening where it clings to each wall, thinning toward a sagging middle, swelling into beads along it.
+    Returns the beads (x, y, z) for drips."""
+    beads = [(rng.uniform(.2, .8), rng.uniform(.5, .9)) for _ in range(rng.choice((1, 2, 3)))]
+    loops, out = [], []
+    for k in range(segs + 1):
+        t = k / segs
+        x, y = -1 + 2 * t, y0 + (y1 - y0) * t
+        z = z0 + (z1 - z0) * t - sag * 4 * t * (1 - t)
+        rr = r0 * (.3 + .7 * abs(2 * t - 1) ** 1.6) * (1 + sum(amp * math.exp(-((t - bt) / .035) ** 2) for bt, amp in beads))
+        loops.append([hs.v((x, y + rr * math.cos(i * TAU / sides), z + rr * math.sin(i * TAU / sides))) for i in range(sides)])
+    for lo, hi in zip(loops, loops[1:]):
+        for i in range(sides):
+            a = (i + .5) * TAU / sides
+            hs.face((lo[i], hi[i], hi[(i + 1) % sides], lo[(i + 1) % sides]), "blood", "smooth", FLESH, outward=(0.0, math.cos(a), math.sin(a)))
+    for bt, _ in beads:
+        z = z0 + (z1 - z0) * bt - sag * 4 * bt * (1 - bt)
+        out.append((-1 + 2 * bt, y0 + (y1 - y0) * bt, z - r0 * .3))
+    return out
+
+
 def goo(hs, rng, yc, za, zb, sag, w0, neck, holes, nx=12, ny=5):
     """A sheet of sticky sinew stretched across x −1 … +1 (after the concept's stretched goo): thick and wide where it
     clings to the walls, necking in and thinning toward the middle, sagging there, torn through with oval holes.
@@ -527,26 +651,22 @@ def drip(hs, rng, x, y, z, length, r):
 
 
 def build_web(rng, idx):
-    """Sticky goo across a crevasse (user, 23 October: strands "too stringy and uniform ... should read sticky", like
-    the concept): stretched sinew sheets, thick at the walls and necking in, sagging, holed, with drips of glowing yolk
-    hanging under them. Variant 0 one broad sheet, 1 two narrower sheets at different sags, 2 a sheet anchored lower on
-    one side with a torn strand hanging down the far wall. The runtime scales x to the crevasse's width."""
+    """Sticky bloody sinew across a crevasse (user, 23 October: first "fleshy strings ... hanging between the cliffs so
+    the glow shimmers between them", then "too stringy and uniform ... should read sticky", then "why did you lose
+    the fleshy bloody strings"): thick beaded strands, glistening blood red, sagging by different amounts and a little
+    askew, with drips of glowing yolk; variant 2 adds a torn goo sheet. The runtime scales x to the crevasse's width."""
     hs = HS(rng)
-    if idx == 0:
-        sheets = [(rng.uniform(-.06, .06), -.02, -rng.uniform(.05, .15), rng.uniform(.34, .42), .3, .66, 3)]
-    elif idx == 1:
-        sheets = [(-.2, -.03, -rng.uniform(.0, .1), rng.uniform(.18, .24), .16, .55, 1),
-                  (.22, -.06, -rng.uniform(.1, .2), rng.uniform(.46, .54), .13, .5, 1)]
-    else:
-        sheets = [(0.0, 0.0, -rng.uniform(.3, .38), rng.uniform(.26, .32), .36, .7, 4)]
-    under = []
-    for yc, za, zb, sag, w0, neck, holes in sheets:
-        under += goo(hs, rng, yc, za, zb, sag, w0, neck, holes)
-    rng.shuffle(under)
-    for x, y, z in under[:2 + idx]:
-        drip(hs, rng, x, y, z, min(rng.uniform(.12, .4), z + .82), rng.uniform(.018, .026))
+    count = (4, 3, 2)[idx]
+    beads = []
+    for k in range(count):
+        yc = rng.uniform(-.35, .35)
+        beads += sticky(hs, rng, yc + rng.uniform(-.08, .08), yc + rng.uniform(-.12, .12), -rng.uniform(0, .08), -rng.uniform(0, .25),
+                        rng.uniform(.15, .65), rng.uniform(.045, .085))
     if idx == 2:
-        drip(hs, rng, .95, rng.uniform(-.15, .15), -.02, .62, .034)
+        beads += goo(hs, rng, rng.uniform(-.1, .1), -.02, -rng.uniform(.1, .25), rng.uniform(.3, .4), rng.uniform(.26, .32), .62, 3)
+    rng.shuffle(beads)
+    for x, y, z in beads[:2 + idx]:
+        drip(hs, rng, x, y, z, min(rng.uniform(.1, .35), z + .82), rng.uniform(.018, .026))
     return hs
 
 
@@ -597,7 +717,15 @@ def colour_fn_for(hs, name):
                 return kit.mul3(mix(kit.hex_linear("#5a2a20"), C["stain"], kit.clamp(n.z + .5, 0, 1) * .6), kit.lerp(.5, 1.0, ao))
             col = mix(C["stain"], C["bone"], kit.smoothstep(.0, .25, p.z) * .7 + kit.clamp(n.z, 0, 1) * .3)
             return kit.mul3(mix(col, C["bone_lit"], kit.smoothstep(.85, 1.0, n.z) * .3), kit.lerp(.45, 1.0, ao) * (.94 + .1 * j))
-        if kind == "goo":
+        if kind == "marrow":
+            return mix(C["flesh_dark"], C["flesh"], .4 + j * .3)
+        if kind in ("blood", "goo"):
+            # Glistening blood-red sinew: a wet pink sheen on top, deep red sides, lit orange underneath by the yolk.
+            if n.z < -.2:
+                return mix(kit.hex_linear("#5a0e0c"), kit.hex_linear("#d0602a"), -n.z * .6)
+            col = mix(kit.hex_linear("#7a1210"), kit.hex_linear("#c4362a"), kit.smoothstep(-.2, .6, n.z) * .8 + j * .1)
+            return mix(col, kit.hex_linear("#ff9a88"), kit.smoothstep(.82, 1.0, n.z) * .6)
+        if kind == "goo_old":
             # Wet stretched sinew: glistening pink on top (brightest where it faces straight up), stretched paler and
             # thinner toward the middle, lit warm orange underneath by the yolk below.
             mid = math.sin(math.pi * kit.clamp((p.x + 1) / 2, 0, 1))
@@ -628,7 +756,8 @@ PIECES = {
     # Landmarks (Amnion's buildings) and the crevasse webs; the landmarks top out at exactly 1 (scaled in the game).
     "amn_broodnest": (build_broodnest, 2, 1.0, True, None, 4800),
     "amn_hive": (build_hive, 2, 0.95, True, None, 3400),
-    "amn_web": (build_web, 3, 1.05, False, 0.1, 1000),
+    "amn_web": (build_web, 3, 1.05, False, 0.1, 1100),
+    "amn_ruin": (build_ruin, 2, 1.45, True, None, 8000),
 }
 
 
@@ -660,7 +789,8 @@ def main():
     for name, prefix, fn, idx, rule in node_list():
         hs = fn(random.Random(f"{SEED}:{name}"), idx)
         vc.triangulate_nonplanar(hs, tol=1e-7)  # tiny egg facets: near-planar ngons would split with stray normals
-        centre_xy(hs)
+        if not name.startswith("amn_ruin"):
+            centre_xy(hs)  # (a ruin keeps its true centre: it must sit on the middle of its courtyard)
         cols = vc.bake(hs, name, dict(glow=set(), ao=0.35, ground=0.0, colour_fn=colour_fn_for(hs, name)))
         # Gloss marker: vertex alpha 0 on the pearl shells (the runtime turns it into a smooth, shiny surface).
         corner = 0
@@ -676,7 +806,7 @@ def main():
         nodes[name] = rule
         x0, x1, y0, y1, _, z1 = hs.bounds()
         print(f"AKIT {name:14s} tris={hs.tris():5d} authored_height={authored:.3f} x={x0:.2f}..{x1:.2f} y={y0:.2f}..{y1:.2f} top={z1:.3f}")
-    vc.publish(args.glb, "amnion_kit.py", dict(materials=MAT_NAMES, nodes=nodes, max_bytes=3_200_000), "AKIT")
+    vc.publish(args.glb, "amnion_kit.py", dict(materials=MAT_NAMES, nodes=nodes, max_bytes=5_000_000), "AKIT")
     if args.preview_dir:
         os.makedirs(args.preview_dir, exist_ok=True)
         pm = glow_material("amnion_glow_preview", preview=True)

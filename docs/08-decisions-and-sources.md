@@ -181,3 +181,11 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **Tusk cap:** Amnion's tusk pieces may reach 3.4, 0.4 under the flight plane, instead of the 3.0 used by all other scenery. Pieces under the plane can never cover ships or shots from the camera above it.
   - **Shape rules:** tusks grow from torn, dough-like webbing with real holes. Nests are irregular. Never a uniform ring of spikes.
   - **Pearl eggs:** the shells are pearlescent with a real glint. They are marked glossy by vertex alpha, which the shared kit shader reads; other kits are unchanged.
+- 2026-10-23, quicker hunters (user: "spice up the hunters. Make them quicker to shoot and quicker to follow the player"):
+  - **Flight:** speed 3.6 → 6 (half the ship's 12), acceleration 7 → 14.
+  - **Chase:** they follow a ship past |x| 3.5 instead of 4.5.
+  - **Fire rate:** 0.85× their kind's interval instead of 1.3×.
+  - **First attack:** stays 2.2 s after arrival. At 1.2–1.6 s the first windup started while the hunter was still diving in above the view, a beam was marked for only 0.8 s, and the hazard-union fairness check failed.
+  - **Evidence:** every fairness check passes. The perfect pilot clears 22 of 36 Veteran Deep Bloom runs (seeds 1–12, three weapons) without a hit, against 19 with the old hunters, so the misses are path noise. Veteran Deep Bloom now flies seed 7 for every weapon.
+- 2026-10-23, Amnion: hostile shots are red with a white core (they were violet), the flesh is darker, the geology is sharper and more varied, and ruins appear (docs/27).
+

@@ -10,8 +10,8 @@ import { arenaAt } from './terrain-arena';
  * bone crust, cracked into plates and dimpled with egg hollows, split by deep sheer-walled canyons whose dark flesh-red
  * floors carry a glowing yolk river and pools. Dry, hot and calcified, where Nacre is wet and cool. The canyons wind
  * along the flight, with narrower side cracks; bone mountains with sharp ridged crests rise from the plateau interiors
- * (user, 23 October: "definitely also add mountains not only mesa canyons"). Hostile shots are violet here
- * (src/render/scene.ts) so they never hide in the warm glow. Pure functions of seed and world coordinates.
+ * (user, 23 October: "definitely also add mountains not only mesa canyons"). Hostile shots are hot red with a white core here
+ * (src/render/scene.ts), the core carrying them over the dark flesh. Pure functions of seed and world coordinates.
  *
  * Milestone 1 is the ground and its light only: the bone-and-sinew cliff walls, egg clutches, spires, nests and bridges
  * come from a Blender kit next (no scatter until then).
@@ -35,7 +35,7 @@ export const AMNION_SCENERY_MAX = 3.0;
  * the camera above it; the margin only keeps the thin tips from crowding the ships' layer.
  */
 export const AMNION_TUSK_MAX = 3.4;
-const TUSKS: ReadonlySet<string> = new Set(['boneSpire', 'broodNest', 'hive']);
+const TUSKS: ReadonlySet<string> = new Set(['boneSpire', 'broodNest', 'hive', 'broodRuin']);
 const NEUTRAL: MoodParams = NEUTRAL_MOOD;
 
 /* ---------------------------------------------------------------- masks */
@@ -49,35 +49,63 @@ export interface AmnionMasks {
   /** Egg hollow on the plateau, 0 … 1 (shallow pits where clutches sit). */ hollow: number;
   /** Distance to the nearest canyon centre in its noise units over its half-width (0 centre, 1 lip). */ across: number;
   /** Bone massif (mountains) weight, 0 … 1: only in plateau interiors, well back from the canyon lips. */ massif: number;
+  /** A ruin's clearing (no crevasse, no mountain), 0 … 1. */ clear: number;
+  /** A ruin's sunken courtyard, 0 … 1 (1 on its floor). */ pit: number;
+  /** Distance to the ruin's centre over the courtyard radius (99 far from any ruin). */ ruin: number;
 }
 /**
- * Jagged crevasses (user, 23 October: "the concept shows jagged zigzag crevasses, not those windy canyons"): two lanes
- * down the world, each a chain of straight runs that turn at sharp angles every 5–9 units, broken off for stretches so
- * crevasses start and end; their lips jog in and out every 1.2 units (broken crust plates, not a clean line); narrower
- * straight side cracks branch off at some turns. Pure functions of seed and position.
+ * Jagged crevasses (user, 23 October: "the concept shows jagged zigzag crevasses, not those windy canyons", then "too
+ * uniform, same width canyons and too rounded ... sharp and hostile and biological edged"): two lanes down the world,
+ * each a chain of straight runs that turn at sharp angles every 5–9 units, broken off for stretches. The width is set
+ * at every turn, so a crevasse tapers from narrow slits to wide chasms, and it closes to a pointed wedge where it
+ * breaks off. Each lip has its own two-scale serration and, now and then, a fang jutting into the gap. Narrower side
+ * cracks run off some turns to a point. Pure functions of seed and position.
  */
-const LANES = [-5.5, 5.5], KNOT = 7, JAG = 1.2;
+const LANES = [-5.5, 5.5], KNOT = 7, TOOTH = 1.4, SERRATION = 0.45, FANG = 2.6, TIP = 0.12;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 function knot(seed: number, lane: number, k: number): [number, number] {
   const s = (k + (hash(seed ^ 0xa1d1, lane, k) - 0.5) * 0.55) * KNOT;
   const x = clamp(LANES[lane] + (hash(seed ^ 0xa1d2, lane, k) - 0.5) * 10, -WORLD_HALF + 1.5, WORLD_HALF - 1.5);
   return [x, s];
 }
-/** Distance from (x, s) to the segment a–b over its half-width (with the lip's jog along the segment), 1 at the lip. */
-function segmentAcross(x: number, s: number, ax: number, as: number, bx: number, bs: number, half: number, jagSeed: number): number {
-  const vx = bx - ax, vs = bs - as, length = Math.hypot(vx, vs) || 1;
-  const t = clamp(((x - ax) * vx + (s - as) * vs) / (length * length), 0, 1);
-  const u = t * length / JAG, i = Math.floor(u);
-  const jog = lerp(hash(jagSeed, i, 7), hash(jagSeed, i + 1, 7), u - i) * 2 - 1;
-  return Math.hypot(x - ax - vx * t, s - as - vs * t) / (half * (1 + 0.22 * jog));
+/** Half-width at a turn: a third narrow slits (0.85–1.2), half canyons (1.5–2.7), a fifth wide chasms (3–4.6). */
+function knotHalf(seed: number, lane: number, k: number): number {
+  const r = hash(seed ^ 0xa1d4, lane, k);
+  return r < 0.3 ? 0.85 + r / 0.3 * 0.35 : r < 0.78 ? 1.5 + (r - 0.3) / 0.48 * 1.2 : 3 + (r - 0.78) / 0.22 * 1.6;
 }
-/** A main crevasse segment: from a to b, its half-width; null where its lane is unbroken crust. */
-export interface CrevasseSegment { ax: number; as: number; bx: number; bs: number; half: number; lane: number; k: number }
+/** A lane is unbroken crust for stretches of three segments, about one stretch in four. */
+const broken = (seed: number, lane: number, k: number) => hash(seed ^ 0xa1d3, lane, Math.floor(k / 3)) < 0.25;
+/** A piecewise-linear zigzag in −1 … 1 (sharp corners, never smooth). */
+function zigzag(seed: number, u: number, side: number): number {
+  const i = Math.floor(u);
+  return lerp(hash(seed, i, side), hash(seed, i + 1, side), u - i) * 2 - 1;
+}
+/** The same zigzag closed round a ring of n teeth (`turn` 0 … 1 once round): no seam where the angle wraps. */
+function ringZigzag(seed: number, turn: number, n: number): number {
+  const u = turn * n, i = Math.floor(u);
+  return lerp(hash(seed, i % n, 0), hash(seed, (i + 1) % n, 0), u - i) * 2 - 1;
+}
+/**
+ * Distance from (x, s) to the segment a–b over its local half-width, 1 at the lip. The half-width tapers from halfA to
+ * halfB; each side's lip has its own serration (teeth every 1.4, finer every 0.45) and its own occasional fang.
+ */
+function segmentAcross(x: number, s: number, ax: number, as: number, bx: number, bs: number, halfA: number, halfB: number, jagSeed: number): number {
+  const vx = bx - ax, vs = bs - as, length = Math.hypot(vx, vs) || 1;
+  const t = clamp(((x - ax) * vx + (s - as) * vs) / (length * length), 0, 1), along = t * length;
+  const side = (x - ax) * vs - (s - as) * vx >= 0 ? 1 : 0;
+  const serrate = 0.28 * zigzag(jagSeed, along / TOOTH, side) + 0.12 * zigzag(jagSeed ^ 0x5e, along / SERRATION, side);
+  const f = along / FANG, fi = Math.floor(f), fang = hash(jagSeed ^ 0xfa, fi, side) < 0.4
+    ? Math.max(0, 1 - Math.abs(f - fi - 0.5) / 0.16) * (0.35 + 0.3 * hash(jagSeed ^ 0xfb, fi, side)) : 0;
+  const half = Math.max(TIP, lerp(halfA, halfB, t)) * Math.max(0.3, 1 + serrate - fang);
+  return Math.hypot(x - ax - vx * t, s - as - vs * t) / half;
+}
+/** A main crevasse segment from a to b: its half-width at each end (pointed where the lane breaks off). */
+export interface CrevasseSegment { ax: number; as: number; bx: number; bs: number; halfA: number; halfB: number; lane: number; k: number }
 export function crevasseSegment(seed: number, lane: number, k: number): CrevasseSegment | null {
-  // Each lane runs in stretches of three segments: about one stretch in four is unbroken crust.
-  if (hash(seed ^ 0xa1d3, lane, Math.floor(k / 3)) < 0.25) return null;
+  if (broken(seed, lane, k)) return null;
   const [ax, as] = knot(seed, lane, k), [bx, bs] = knot(seed, lane, k + 1);
-  return { ax, as, bx, bs, half: 1.5 + hash(seed ^ 0xa1d4, lane, k) * 1.5, lane, k };
+  const halfA = broken(seed, lane, k - 1) ? TIP : knotHalf(seed, lane, k), halfB = broken(seed, lane, k + 1) ? TIP : knotHalf(seed, lane, k + 1);
+  return { ax, as, bx, bs, halfA, halfB, lane, k };
 }
 /** Every main crevasse segment that reaches [s0, s1). */
 export function crevasseSegments(seed: number, s0: number, s1: number): CrevasseSegment[] {
@@ -95,17 +123,57 @@ function crevasse(seed: number, x: number, s: number): { across: number; main: n
   for (let lane = 0; lane < LANES.length; lane++) for (let k = k0 - 2; k <= k0 + 1; k++) {
     const segment = crevasseSegment(seed, lane, k);
     if (!segment) continue;
-    const { ax, as, bx, bs, half } = segment;
-    const a = segmentAcross(x, s, ax, as, bx, bs, half, seed ^ (lane * 977 + k * 31));
+    const { ax, as, bx, bs, halfA, halfB } = segment;
+    const a = segmentAcross(x, s, ax, as, bx, bs, halfA, halfB, seed ^ (lane * 977 + k * 31));
     across = Math.min(across, a); main = Math.min(main, a);
-    // A side crack from this turn, at a steep angle off the lane, narrower.
+    // A side crack from this turn, at a steep angle off the lane, narrowing to a point.
     if (hash(seed ^ 0xa1d5, lane, k) < 0.4) {
       const side = hash(seed ^ 0xa1d6, lane, k) < 0.5 ? -1 : 1, angle = (0.9 + hash(seed ^ 0xa1d7, lane, k) * 0.6) * side;
       const len = 4 + hash(seed ^ 0xa1d8, lane, k) * 4, cx = ax + Math.sin(angle) * len, cs = as + Math.cos(angle) * len * 0.6;
-      across = Math.min(across, segmentAcross(x, s, ax, as, cx, cs, 0.8 + hash(seed ^ 0xa1d9, lane, k) * 0.5, seed ^ (lane * 541 + k * 17 + 3)));
+      across = Math.min(across, segmentAcross(x, s, ax, as, cx, cs, 0.9 + hash(seed ^ 0xa1d9, lane, k) * 0.5, TIP, seed ^ (lane * 541 + k * 17 + 3)));
     }
   }
   return { across, main };
+}
+
+/**
+ * Broken crust plates (user, 23 October: "too rounded"): cells about 3.4 across, each its own slab raised or sunk a
+ * little and tilted, split from its neighbours by a sharp crack. Returns the slab offset and the crack (1 on it).
+ */
+function plates(seed: number, x: number, s: number): { offset: number; crack: number } {
+  const size = 3.4, gx = Math.floor(x / size), gs = Math.floor(s / size);
+  let f1 = 99, f2 = 99, cx = 0, cs = 0, id = 0;
+  for (let dx = -1; dx <= 1; dx++) for (let ds = -1; ds <= 1; ds++) {
+    const px = (gx + dx + hash(seed ^ 0xa2a1, gx + dx, gs + ds)) * size, ps = (gs + ds + hash(seed ^ 0xa2a2, gx + dx, gs + ds)) * size;
+    const d = Math.hypot(x - px, s - ps);
+    if (d < f1) { f2 = f1; f1 = d; cx = px; cs = ps; id = hash(seed ^ 0xa2a3, gx + dx, gs + ds); } else if (d < f2) f2 = d;
+  }
+  const tilt = (id * 6.283), lean = 0.05 * hash(seed ^ 0xa2a4, Math.round(cx * 7), Math.round(cs * 7));
+  return { offset: (id - 0.5) * 0.24 + ((x - cx) * Math.cos(tilt) + (s - cs) * Math.sin(tilt)) * lean, crack: 1 - smoothRange(0, 0.14, f2 - f1) };
+}
+
+/**
+ * Ruins (user, 23 October: "occasional huge clusters with gigantic horns kinda like a ruin", "big areas on the base but
+ * also high and imposing"): at most one per 64 units of flight, each a broad clearing (no crevasse, no mountain) round
+ * a sunken courtyard 8–9 across whose floor lies 2.7 under the plateau ("even higher horns"), so its tusks rise about
+ * 7 from the floor to the tusk cap. The ruin piece stands on the courtyard floor.
+ */
+export const RUIN_ROW = 64, RUIN_FLOOR = -3.6;
+export interface RuinSite { x: number; s: number; r: number }
+export function ruinSite(seed: number, row: number): RuinSite | null {
+  if (row < 1 || hash(seed ^ 0xa3a1, row, 0) > 0.6) return null;
+  return { x: (hash(seed ^ 0xa3a2, row, 0) - 0.5) * 7, s: (row + 0.5 + (hash(seed ^ 0xa3a3, row, 0) - 0.5) * 0.4) * RUIN_ROW, r: 4 + hash(seed ^ 0xa3a4, row, 0) * 0.6 };
+}
+function nearestRuin(seed: number, x: number, s: number): { site: RuinSite; d: number } | null {
+  const row = Math.floor(s / RUIN_ROW);
+  let best: { site: RuinSite; d: number } | null = null;
+  for (let r = row - 1; r <= row + 1; r++) {
+    const site = ruinSite(seed, r);
+    if (!site) continue;
+    const d = Math.hypot(x - site.x, s - site.s) / site.r;
+    if (!best || d < best.d) best = { site, d };
+  }
+  return best;
 }
 
 /** Amnion's masks at a point (landform, colour and scatter). An arena weight flattens the plateau around the boss. */
@@ -114,7 +182,7 @@ export function amnionMasks(seed: number, x: number, s: number, platform = 0): A
   const qx = x + (noise(seed ^ 0xa1a1, x * 0.045, s * 0.04) - 0.5) * 9, qs = s + (noise(seed ^ 0xa1a2, x * 0.045 + 5.1, s * 0.04) - 0.5) * 9;
   const { across, main } = crevasse(seed, x, s);
   // Sheer lips (crispStep), and no canyon inside the boss clearing.
-  const plateau = Math.max(crispStep((across - 0.82) / 0.36 + 0.5), platform);
+  const plateau = Math.max(crispStep((across - 0.86) / 0.24 + 0.5), platform);
   // The yolk: a narrow channel down a main crevasse's middle, broken into runs and pools (dark flesh between).
   const flow = smoothRange(0.38, 0.6, noise(seed ^ 0xa1da, x * 0.16, s * 0.12));
   const yolk = (1 - smoothRange(0.06, 0.22 + 0.12 * flow, main)) * (0.25 + 0.75 * flow) * (1 - platform);
@@ -125,7 +193,17 @@ export function amnionMasks(seed: number, x: number, s: number, platform = 0): A
   const back = smoothRange(1.15, 1.7, across);
   // (Fewer, bigger massifs: about one tenth of the ground; the crust between stays smooth slabs, as in the concept.)
   const massif = smoothRange(0.56, 0.72, noise(seed ^ 0xa1c1, qx * 0.035, qs * 0.03)) * back * (1 - calm * 0.4) * (1 - platform);
-  return { plateau, yolk, tier, hollow: hollow * (1 - massif), across, massif };
+  // A ruin's clearing and its sunken courtyard (sheer-walled, with a jagged rim of its own).
+  const near = nearestRuin(seed, x, s), ruin = near ? near.d : 99;
+  const clear = (1 - smoothRange(1.25, 1.9, ruin)) * (1 - platform);
+  // The courtyard's rim: big irregular teeth and a finer serration (never a clean circle).
+  const turnAt = near ? (Math.atan2(s - near.site.s, x - near.site.x) / (2 * Math.PI) + 1) % 1 : 0;
+  const rim = near ? 1 + 0.13 * ringZigzag(seed ^ 0xa3a5, turnAt, 11) + 0.05 * ringZigzag(seed ^ 0xa3a6, turnAt, 38) : 1;
+  const sunk = (1 - crispStep((ruin / rim - 0.97) / 0.08 + 0.5)) * (1 - platform);
+  return {
+    plateau: Math.max(plateau, clear), yolk: yolk * (1 - clear), tier: tier * (1 - clear), hollow: hollow * (1 - massif) * (1 - clear),
+    across: mix(across, 9, clear), massif: massif * (1 - clear), clear, pit: sunk, ruin,
+  };
 }
 
 /**
@@ -135,10 +213,19 @@ export function amnionMasks(seed: number, x: number, s: number, platform = 0): A
  */
 export function amnionLandform(seed: number, x: number, s: number, row: PlanetRow): Landform & { tone: number } {
   const m = amnionMasks(seed, x, s, arenaAt(row.arena, seed, x, s));
-  const dome = (noise(seed ^ 0xa1b1, x * 0.11, s * 0.1) - 0.5) * 0.14 + (noise(seed ^ 0xa1b2, x * 0.5, s * 0.46) - 0.5) * 0.03;
-  // Mountains: sharp ridged crests (two octaves) on the massifs, up to the cap.
-  const crest = ridged(noise(seed ^ 0xa1c2, x * 0.22, s * 0.19)) * 0.7 + ridged(noise(seed ^ 0xa1c3, x * 0.52, s * 0.47)) * 0.3;
-  const mountain = Math.pow(m.massif, 0.7) * (0.45 + 3.3 * crest);
+  // The crust: broken, tilted plates split by sharp cracks (user, 23 October: "too rounded"), a faint swell under them.
+  const slab = plates(seed, x, s), calmCrust = 1 - m.massif;
+  const dome = (noise(seed ^ 0xa1b1, x * 0.11, s * 0.1) - 0.5) * 0.08 + (slab.offset - slab.crack * 0.14) * calmCrust;
+  // Mountains: blade crests (cubed ridges, two octaves, the finer one stretched into spines) cut into stepped strata
+  // with sharp risers ("sharp and hostile"), on the massifs, up to the cap. Every riser takes the flesh colour of the
+  // canyon walls, a red maze of ledges over the bone (user, 23 October: "that looks cool tho, i like it!"), then "reduce
+  // the maze like structures a bit, its cool a little but not so many".
+  const blade = (v: number) => { const r = 1 - Math.abs(2 * v - 1); return r * r * r; };
+  const crest = blade(noise(seed ^ 0xa1c2, x * 0.26, s * 0.21)) * 0.65 + blade(noise(seed ^ 0xa1c3, x * 0.9, s * 0.35)) * 0.35;
+  // Strata only on about a third of the massifs, and tall ones ("its cool a little but not so many").
+  const rise = Math.pow(m.massif, 0.7) * (0.45 + 3.4 * crest), STRATUM = 0.65;
+  const stepped = Math.floor(rise / STRATUM) * STRATUM + STRATUM * crispStep(((rise / STRATUM) % 1 - 0.55) / 0.3 + 0.5);
+  const mountain = mix(rise, stepped, smoothRange(0.58, 0.66, noise(seed ^ 0xa1c4, x * 0.045, s * 0.04)));
   const top = Math.min(PEAK, PLATEAU + m.tier * TIER + dome - m.hollow * 0.35 + mountain);
   // Crevasse floors at different heights (user, 23 October: "the bottom of the canyons could be more different
   // heights"): deeper and shallower stretches, fleshy mounds, and a ledge along the walls partway down.
@@ -156,8 +243,11 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
   const crust = noise(seed ^ 0xa1b4, x * 0.18, s * 0.16);
   return {
     // `channel` carries the massif weight (the terrain grid keeps only its known fields; Amnion's colour reads it).
-    height: clamp(mix(floor, top, m.plateau), -5, 2.4), elevation: m.plateau, channel: m.massif,
-    pool: pools * (1 - m.plateau), vein, vein2, veins: fissures, tone: crust,
+    // A ruin's courtyard floor: flesh, cracked with yolk fissures, a glowing pool at its heart.
+    height: clamp(mix(mix(floor, top, m.plateau), RUIN_FLOOR + (slab.offset - slab.crack * 0.1) * 0.6, m.pit), -5, 2.4),
+    elevation: m.plateau * (1 - m.pit * 0.85), channel: m.massif,
+    pool: Math.max(pools * (1 - m.plateau), m.pit * (1 - smoothRange(0.18, 0.34, m.ruin)) * 0.9),
+    vein, vein2, veins: Math.max(fissures, m.pit * smoothRange(0.35, 0.55, noise(seed ^ 0xa1e7, x * 0.3, s * 0.3))), tone: crust,
   };
 }
 
@@ -169,8 +259,9 @@ const linear = (hex: number): readonly [number, number, number] => {
 };
 /** Brood palette, linear RGB (concept: pale bone crust, ochre stains, sinew-pink lips, dark flesh walls and floors). */
 export const AMNION_PALETTE = {
-  bone: linear(0xe4dccd), boneShade: linear(0xc6baa4), stain: linear(0xb09878), sinew: linear(0x9a5a4c),
-  flesh: linear(0x5a1d1a), floor: linear(0x34100f), hollow: linear(0x8a6a50),
+  bone: linear(0xe4dccd), boneShade: linear(0xc6baa4), stain: linear(0xb09878), sinew: linear(0x7e4236),
+  // Darker flesh (user, 23 October: "make the flesh a bit darker").
+  flesh: linear(0x44120f), floor: linear(0x260a09), hollow: linear(0x8a6a50),
 } as const;
 
 function amnionColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: number }, slope: number, rim: number, out: [number, number, number]) {
@@ -228,7 +319,7 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
       const x = SITE_LANES[lane] + (h(1 + tryIndex) - 0.5) * 6, s = (row + 0.5 + (h(11 + tryIndex) - 0.5) * 0.6) * SITE_ROW;
       if (s < startS - 4 || s >= startS + size + 4) break;
       const m = amnionMasks(seed, x, s);
-      if (m.plateau < 0.99 || m.across < 1.9 || m.massif > 0.3 || terrain.platform(x, s) > 0 || terrain.blocked(x, s)) continue;
+      if (m.plateau < 0.99 || m.across < 1.9 || m.massif > 0.3 || m.clear > 0.02 || terrain.platform(x, s) > 0 || terrain.blocked(x, s)) continue;
       const nest = h(30) < 0.6, scale = nest ? 2.6 + h(31) * 0.5 : 2.0 + h(31) * 0.4, ground = terrain.height(x, s);
       landmarks.push({ x, s, r: (nest ? 0.9 : 0.6) * scale + 0.6 });
       add({ kind: nest ? 'broodNest' : 'hive', x, s, y: ground - 0.08, scale, height: AMNION_TUSK_MAX - ground + 0.08 - h(32) * 0.3, rotation: turn(h(33)), cosmetic: false }, h(34));
@@ -238,6 +329,18 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
         add({ kind: 'eggClutch', x: x + Math.cos(a) * d, s: s + Math.sin(a) * d, y: terrain.height(x + Math.cos(a) * d, s + Math.sin(a) * d) - 0.04, scale: size, height: size, rotation: turn(h(39 + k)), cosmetic: false }, h(41 + k));
       }
       break;
+    }
+  }
+  // The ruins: one piece on each courtyard floor, egg heaps along the courtyard wall, nothing else in the clearing.
+  for (let row = Math.floor(startS / RUIN_ROW) - 1; row <= Math.floor((startS + size) / RUIN_ROW) + 1; row++) {
+    const site = ruinSite(seed, row);
+    if (!site || site.s < startS || site.s >= startS + size || terrain.platform(site.x, site.s) > 0) continue;
+    const h = (k: number) => hash(seed ^ 0xa3b1, row, k), y = RUIN_FLOOR - 0.1;
+    landmarks.push({ x: site.x, s: site.s, r: site.r * 1.9 });
+    add({ kind: 'broodRuin', x: site.x, s: site.s, y, scale: site.r * 0.98, height: AMNION_TUSK_MAX - y, rotation: turn(h(0)), cosmetic: false }, h(1));
+    for (let k = 0; k < 3; k++) {
+      const a = turn(h(2)) + k * (1.6 + h(3 + k) * 0.8), d = site.r * 0.72, size = 1.6 + h(6 + k) * 0.7, ex = site.x + Math.cos(a) * d, es = site.s + Math.sin(a) * d;
+      add({ kind: 'eggClutch', x: ex, s: es, y: terrain.height(ex, es) - 0.04, scale: size, height: size, rotation: turn(h(9 + k)), cosmetic: false }, h(12 + k));
     }
   }
   const nearLandmark = (x: number, s: number) => landmarks.some(l => Math.hypot(l.x - x, l.s - s) < l.r);
@@ -293,12 +396,12 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
   // different depths, sagging into the gap; a few more low over the floor.
   for (const seg of crevasseSegments(seed, startS, startS + size)) {
     const vx = seg.bx - seg.ax, vs = seg.bs - seg.as, length = Math.hypot(vx, vs), dx = vx / length, ds = vs / length;
-    const rotation = Math.atan2(dx, -ds), span = seg.half * 0.85;
+    const rotation = Math.atan2(dx, -ds);
     for (let t = 0.6, k = 0; t < length - 0.6; k++) {
       const h = (n: number) => hash(seed ^ 0xa7e1, seg.lane * 977 + seg.k * 31 + k, n);
-      const x = seg.ax + dx * t, s = seg.as + ds * t;
+      const x = seg.ax + dx * t, s = seg.as + ds * t, span = lerp(seg.halfA, seg.halfB, t / length) * 0.85;
       t += h(0) < 0.45 ? 0.7 + h(6) * 0.5 : 2.2 + h(6) * 2.6;
-      if (s < startS || s >= startS + size || terrain.platform(x, s) > 0) continue;
+      if (s < startS || s >= startS + size || terrain.platform(x, s) > 0 || amnionMasks(seed, x, s).clear > 0.1) continue;
       // The lower of the two lips (strands anchor just under it).
       const lip = Math.min(terrain.height(x - ds * span * 1.15, s + dx * span * 1.15), terrain.height(x + ds * span * 1.15, s - dx * span * 1.15));
       const low = h(1) < 0.25, floor = terrain.height(x, s);
