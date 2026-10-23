@@ -15,7 +15,7 @@ export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'flo
 export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'glassTube' | 'goblet' | 'lilyRaft' | 'mossTuft'
   | 'ruinTower' | 'ruinFort' | 'ruinRing' | 'ruinBridge' | 'ruinPillars' | 'ruinRubble';
 /** Amnion's brood kit (amnion-kit.glb, docs/27, tools/blender/amnion_kit.py). */
-export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards';
+export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards' | 'broodNest' | 'hive' | 'sinewWeb';
 /**
  * Cliff walls (terrain version 15, docs/26 §11): 2-unit wall segments set along cliff rims, base-centre pivot, front
  * (the outward, downhill face) toward +Z, top at exactly 1 (placement scales y by the local drop). Khepri's columnar
@@ -31,7 +31,7 @@ export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 
 export const KHEPRI_CLIFF_KINDS: readonly CliffKitKind[] = ['cliffWall'];
 export const VESPER_CLIFF_KINDS: readonly CliffKitKind[] = ['iceWall'];
 export const AMNION_CLIFF_KINDS: readonly CliffKitKind[] = ['fleshWall'];
-export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards'];
+export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards', 'broodNest', 'hive', 'sinewWeb'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
   'ruinTower', 'ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
@@ -80,6 +80,11 @@ export const KIT: Readonly<Record<KitKind, {
   boneSpire: { prefix: 'amn_spire', variants: 3, halfX: 0.3, halfZ: 0.3, height: 1, exactTop: true, radius: Math.hypot(0.3, 0.3) },
   nest: { prefix: 'amn_nest', variants: 2, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.hypot(1, 1) },
   boneShards: { prefix: 'amn_shards', variants: 3, halfX: 0.32, halfZ: 0.3, height: 0.3, exactTop: false, radius: Math.hypot(0.32, 0.3) },
+  // Landmarks (Amnion's buildings), scaled up to 4–5 across and 2.5–3 high; webs hang from their anchor (y 0) across
+  // x −1 … 1 (scaled to a crevasse's width), their sag scaled by the instance height.
+  broodNest: { prefix: 'amn_broodnest', variants: 2, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.hypot(1, 1) },
+  hive: { prefix: 'amn_hive', variants: 2, halfX: 0.6, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(0.6, 0.6) },
+  sinewWeb: { prefix: 'amn_web', variants: 3, halfX: 1.05, halfZ: 0.45, height: 1, exactTop: false, radius: 1.05 },
   // Amnion's canyon walls (docs/27): flesh lobes and sinews tucked under the plateau's own bone edge.
   fleshWall: { prefix: 'flesh_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   // Nacre (nacre-kit.glb, art/nacre-kit/README.md; code-built stand-ins in src/render/nacre-kit.ts). Pieces marked

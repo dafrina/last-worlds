@@ -16,6 +16,8 @@ import { arenaAt } from './terrain-arena';
  * Milestone 1 is the ground and its light only: the bone-and-sinew cliff walls, egg clutches, spires, nests and bridges
  * come from a Blender kit next (no scatter until then).
  */
+/** Landmark site lattice: rows along s, three lanes across the world. */
+const SITE_ROW = 16, SITE_LANES = [-7.5, 0, 7.5];
 /** Plateau tiers, the canyon floor and the highest crest (world height; the terrain's own cap is 2.4). */
 const PLATEAU = 0.3, TIER = 0.5, FLOOR = -3.3, PEAK = 2.4;
 /** The plateau's base level (the boss stands on it). */
@@ -57,15 +59,31 @@ function segmentAcross(x: number, s: number, ax: number, as: number, bx: number,
   const jog = lerp(hash(jagSeed, i, 7), hash(jagSeed, i + 1, 7), u - i) * 2 - 1;
   return Math.hypot(x - ax - vx * t, s - as - vs * t) / (half * (1 + 0.22 * jog));
 }
+/** A main crevasse segment: from a to b, its half-width; null where its lane is unbroken crust. */
+export interface CrevasseSegment { ax: number; as: number; bx: number; bs: number; half: number; lane: number; k: number }
+export function crevasseSegment(seed: number, lane: number, k: number): CrevasseSegment | null {
+  // Each lane runs in stretches of three segments: about one stretch in four is unbroken crust.
+  if (hash(seed ^ 0xa1d3, lane, Math.floor(k / 3)) < 0.25) return null;
+  const [ax, as] = knot(seed, lane, k), [bx, bs] = knot(seed, lane, k + 1);
+  return { ax, as, bx, bs, half: 1.5 + hash(seed ^ 0xa1d4, lane, k) * 1.5, lane, k };
+}
+/** Every main crevasse segment that reaches [s0, s1). */
+export function crevasseSegments(seed: number, s0: number, s1: number): CrevasseSegment[] {
+  const out: CrevasseSegment[] = [];
+  for (let lane = 0; lane < LANES.length; lane++) for (let k = Math.floor(s0 / KNOT) - 2; k <= Math.floor(s1 / KNOT) + 1; k++) {
+    const segment = crevasseSegment(seed, lane, k);
+    if (segment && Math.max(segment.as, segment.bs) >= s0 && Math.min(segment.as, segment.bs) < s1) out.push(segment);
+  }
+  return out;
+}
 /** Nearest crevasse at a point: over its half-width (1 at the lip) and whether it is a main crevasse (with yolk). */
 function crevasse(seed: number, x: number, s: number): { across: number; main: number } {
   let across = 99, main = 99;
   const k0 = Math.floor(s / KNOT);
   for (let lane = 0; lane < LANES.length; lane++) for (let k = k0 - 2; k <= k0 + 1; k++) {
-    // Each lane runs in stretches of three segments: about one stretch in four is unbroken crust.
-    if (hash(seed ^ 0xa1d3, lane, Math.floor(k / 3)) < 0.25) continue;
-    const [ax, as] = knot(seed, lane, k), [bx, bs] = knot(seed, lane, k + 1);
-    const half = 1.5 + hash(seed ^ 0xa1d4, lane, k) * 1.5;
+    const segment = crevasseSegment(seed, lane, k);
+    if (!segment) continue;
+    const { ax, as, bx, bs, half } = segment;
     const a = segmentAcross(x, s, ax, as, bx, bs, half, seed ^ (lane * 977 + k * 31));
     across = Math.min(across, a); main = Math.min(main, a);
     // A side crack from this turn, at a steep angle off the lane, narrower.
@@ -186,11 +204,30 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
     (placed.cosmetic ? cosmetic : essential).push(placed);
   };
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
+  // Landmarks (Amnion's buildings: user, 23 October, "the nests in this level replace the buildings ... big and high"):
+  // a site lattice, rows every SITE_ROW along s and three lanes, each site taken by chance; it seeks open plateau well
+  // back from any crevasse and holds a brood nest or a hive spire, scaled up to 4–5 across and up to the cap.
+  const landmarks: { x: number; s: number; r: number }[] = [];
+  for (let row = Math.floor(startS / SITE_ROW) - 1; row <= Math.ceil((startS + size) / SITE_ROW); row++) for (let lane = 0; lane < SITE_LANES.length; lane++) {
+    const h = (k: number) => hash(seed ^ 0xa7d1, row * 7 + lane, k);
+    if (h(0) > 0.5) continue;
+    for (let tryIndex = 0; tryIndex < 8; tryIndex++) {
+      const x = SITE_LANES[lane] + (h(1 + tryIndex) - 0.5) * 6, s = (row + 0.5 + (h(11 + tryIndex) - 0.5) * 0.6) * SITE_ROW;
+      if (s < startS - 4 || s >= startS + size + 4) break;
+      const m = amnionMasks(seed, x, s);
+      if (m.plateau < 0.99 || m.across < 1.9 || m.massif > 0.3 || terrain.platform(x, s) > 0 || terrain.blocked(x, s)) continue;
+      const nest = h(30) < 0.6, scale = nest ? 2.8 + h(31) * 0.6 : 2.6 + h(31) * 0.7, ground = terrain.height(x, s);
+      landmarks.push({ x, s, r: (nest ? 1 : 0.6) * scale + 0.6 });
+      add({ kind: nest ? 'broodNest' : 'hive', x, s, y: ground - 0.08, scale, height: Math.min(CAP - ground + 0.08, nest ? 2.4 + h(32) * 0.5 : 2.6 + h(32) * 0.5), rotation: turn(h(33)), cosmetic: false }, h(34));
+      break;
+    }
+  }
+  const nearLandmark = (x: number, s: number) => landmarks.some(l => Math.hypot(l.x - x, l.s - s) < l.r);
   for (let j = Math.floor(startS / cell); j < Math.ceil((startS + size) / cell); j++) for (let i = 0; i < columns; i++) {
     if (i === 0) yield;
     const h = (k: number) => hash(seed ^ 0xa7c5, i * 43 + k, j);
     const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.8) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.8) * cell;
-    if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s)) continue;
+    if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s) || nearLandmark(x, s)) continue;
     const ground = terrain.height(x, s), slope = terrain.slope(x, s), drop = terrain.drop(x, s), pick = h(2), platform = terrain.platform(x, s);
     if (platform >= 0.3) {
       if (pick < 0.05) add({ kind: 'boneShards', x, s, y: ground - 0.03, scale: 0.7 + h(3) * 0.5, height: 0.7 + h(4) * 0.6, rotation: turn(h(5)), cosmetic: true }, h(6));
@@ -224,6 +261,25 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
       add({ kind: 'eggClutch', x, s, y: ground - 0.04, scale, height: scale, rotation: turn(h(85)), cosmetic: false }, h(86));
     } else if (plateau && pick > 0.88) {
       add({ kind: 'boneShards', x, s, y: ground - 0.03, scale: 0.7 + h(87) * 0.6, height: 0.6 + h(88) * 0.8, rotation: turn(h(89)), cosmetic: true }, h(90));
+    }
+  }
+  // Sinew webs (user, 23 October: "fleshy strings ... hanging between the cliffs so the glow shimmers between them"):
+  // along every main crevasse segment, every 1.6–3 units, strung across it from lip to lip (scaled to its width) at
+  // different depths, sagging into the gap; a few more low over the floor.
+  for (const seg of crevasseSegments(seed, startS, startS + size)) {
+    const vx = seg.bx - seg.ax, vs = seg.bs - seg.as, length = Math.hypot(vx, vs), dx = vx / length, ds = vs / length;
+    const rotation = Math.atan2(dx, -ds), span = seg.half * 0.85;
+    for (let t = 0.6, k = 0; t < length - 0.6; k++) {
+      const h = (n: number) => hash(seed ^ 0xa7e1, seg.lane * 977 + seg.k * 31 + k, n);
+      const x = seg.ax + dx * t, s = seg.as + ds * t;
+      t += 1.6 + h(0) * 1.4;
+      if (s < startS || s >= startS + size || terrain.platform(x, s) > 0) continue;
+      // The lower of the two lips (strands anchor just under it).
+      const lip = Math.min(terrain.height(x - ds * span * 1.15, s + dx * span * 1.15), terrain.height(x + ds * span * 1.15, s - dx * span * 1.15));
+      const low = h(1) < 0.25, floor = terrain.height(x, s);
+      const y = low ? floor + 0.5 + h(2) * 0.6 : lip - 0.15 - h(2) * Math.max(0, (lip - floor) * 0.55);
+      if (y - floor < 0.3) continue;
+      add({ kind: 'sinewWeb', x, s, y, scale: span * (low ? 0.8 : 1.05), height: low ? 0.4 + h(3) * 0.4 : 0.8 + h(3) * 1.2, rotation, cosmetic: h(4) > 0.6 }, h(5));
     }
   }
   const canyonLip = (x: number, s: number) => amnionMasks(seed, x, s).massif < 0.25;

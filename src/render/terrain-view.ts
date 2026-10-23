@@ -121,7 +121,7 @@ const CASTER_STRIPS = 4;
  */
 const CASTER_NODES = new Set<string>([
   // Tall Nacre pieces (crags and the builders' ruins) ground themselves with real shadows on High too.
-  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars', 'cliffWall', 'iceWall', 'fleshWall', 'boneSpire', 'nest'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
+  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars', 'cliffWall', 'iceWall', 'fleshWall', 'boneSpire', 'nest', 'broodNest', 'hive'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
   'infra_refinery', 'infra_drill_rig', 'infra_silo', 'infra_comm_dish', 'infra_relay', 'infra_habitat_0', 'infra_habitat_1',
   'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'khepri_processing_tower', 'facility',
   // Vesper outposts ground themselves on the bright snow with real shadows on High (docs/26 §5).

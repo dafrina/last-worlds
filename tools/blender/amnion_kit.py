@@ -57,7 +57,7 @@ def mix(a, b, t):
 # Geometry helpers (Blender space: x right, y away from the camera = glTF -Z, z up)
 # ----------------------------------------------------------------------------
 
-def egg(hs, rng, x, y, r, tilt=(0.0, 0.0), sides=6, lit=False):
+def egg(hs, rng, x, y, r, tilt=(0.0, 0.0), sides=8, lit=False):
     """A low-poly egg (convex hull of rings on a prolate ellipsoid), its narrow end up and leaning a little. Most are matte
     cream shells; a `lit` one glows gold from within (after the concept: only some eggs glow)."""
     pts = []
@@ -185,6 +185,91 @@ def build_shards(rng, idx):
     return hs
 
 
+def sac(hs, rng, x, y, z0, r, h, sides=8):
+    """A glowing heart sac: a tall ovoid hull, brightest at its crown (the nest's core)."""
+    pts = []
+    for k, t in enumerate((0.0, .25, .55, .82)):
+        rr = r * (.75, 1.0, .92, .55)[k]
+        for i in range(sides):
+            a = (i + .5 * (k % 2)) * TAU / sides
+            pts.append((x + rr * math.cos(a), y + rr * math.sin(a), z0 + h * t))
+    pts.append((x, y, z0 + h))
+    hull(hs, pts, ("glow", "sac"), GLOW)
+
+
+def build_broodnest(rng, idx):
+    """A landmark brood nest (replaces buildings on Amnion: user, 23 October, "go all out on making them big and
+    high"): a crown of tall bone horns rising from a flesh-and-bone ring and curving inward over a glowing heart sac on
+    a yolk pool, eggs piled at the foot. Authored about 1 unit across; the runtime scales it to 4–5 units and 2.5–3 high."""
+    hs = HS(rng)
+    # The pool and its fleshy rim.
+    rim = [hs.v((math.cos(i * TAU / 12) * .38, math.sin(i * TAU / 12) * .38, .05)) for i in range(12)]
+    centre = hs.v((0.0, 0.0, .03))
+    for i in range(12):
+        hs.face((rim[i], rim[(i + 1) % 12], centre), ("glow", "dimyolk"), "pool", GLOW, outward=(0.0, 0.0, 1.0))
+    for i in range(12):
+        a0, a1 = i * TAU / 12, (i + 1) * TAU / 12
+        pts = [(math.cos(a) * rr, math.sin(a) * rr, z) for a in (a0, a1) for rr, z in ((.36, .03), (.68, .03), (.52, .18))] + \
+              [(math.cos(a) * rr, math.sin(a) * rr, SINK) for a in (a0, a1) for rr in (.36, .68)]
+        hull(hs, pts, "flesh", FLESH)
+    sac(hs, rng, 0.0, 0.0, .02, .16, .5 + idx * .1)
+    # The crown: tall horns from the rim, leaning out then curving back in over the sac.
+    horns = 9 + idx
+    for k in range(horns):
+        a = k * TAU / horns + rng.uniform(-.1, .1)
+        x, y = math.cos(a) * .62, math.sin(a) * .62
+        h = rng.uniform(.88, 1.0) if k % 2 == 0 else rng.uniform(.62, .8)
+        horn(hs, rng, x, y, h, rng.uniform(.1, .135), bend=-rng.uniform(.18, .3), heading=a, sides=5, rings=7)
+    # Eggs piled at the foot, outside the rim.
+    for k in range(8):
+        a = rng.uniform(0, TAU)
+        egg(hs, rng, math.cos(a) * rng.uniform(.72, .9), math.sin(a) * rng.uniform(.72, .9), rng.uniform(.07, .11), lit=(k % 3 == 0))
+    return hs
+
+
+def build_hive(rng, idx):
+    """A landmark hive spire: a tall cluster of ribbed bone horns around glowing pods, like a cathedral of bone (after
+    the concept's spires with lit cores). About 1 unit across before scaling."""
+    hs = HS(rng)
+    mound(hs, rng, 0, 0, .45, .4, .12, paint="bonefoot", mat=BONE)
+    for k in range(3):
+        a = k * TAU / 3 + rng.uniform(-.3, .3)
+        sac(hs, rng, math.cos(a) * .12, math.sin(a) * .12, .05, .1, rng.uniform(.3, .45))
+    tall = 7 + idx
+    for k in range(tall):
+        a = k * TAU / tall + rng.uniform(-.15, .15)
+        d = rng.uniform(.18, .34)
+        h = 1.0 if k == 0 else rng.uniform(.5, .92)
+        horn(hs, rng, math.cos(a) * d, math.sin(a) * d, h, rng.uniform(.1, .15), bend=rng.uniform(-.15, .12), heading=a, sides=5, rings=7)
+    return hs
+
+
+def strand(hs, x0, z0, x1, z1, sag, r, y=0.0, segs=8, sides=4):
+    """A sinew strand hanging between (x0, z0) and (x1, z1), sagging `sag` at its middle, tapering toward its middle."""
+    loops = []
+    for k in range(segs + 1):
+        t = k / segs
+        x, z = x0 + (x1 - x0) * t, z0 + (z1 - z0) * t - sag * 4 * t * (1 - t)
+        rr = r * (1 - .45 * math.sin(t * math.pi))
+        loops.append([hs.v((x, y + rr * math.cos(i * TAU / sides), z + rr * math.sin(i * TAU / sides))) for i in range(sides)])
+    for lo, hi in zip(loops, loops[1:]):
+        for i in range(sides):
+            a = (i + .5) * TAU / sides
+            hs.face((lo[i], hi[i], hi[(i + 1) % sides], lo[(i + 1) % sides]), "sinew", "main", FLESH, outward=(0.0, math.cos(a), math.sin(a)))
+
+
+def build_web(rng, idx):
+    """Sinew strands spanning a crevasse (user, 23 October: "fleshy strings ... hanging between the cliffs so the glow
+    shimmers between them"): three to six strands across x −1 … +1, anchored near the top, sagging into the gap at
+    different depths and a little apart along y. The runtime scales x to the crevasse's width."""
+    hs = HS(rng)
+    for k in range(4 + idx):
+        y = rng.uniform(-.4, .4)
+        z0, z1 = rng.uniform(-.05, .0), rng.uniform(-.25, .0)
+        strand(hs, -1.0, z0, 1.0, z1, rng.uniform(.2, .8), rng.uniform(.04, .07), y=y)
+    return hs
+
+
 def colour_fn_for(hs, name):
     zs = [v[2] for v in hs.verts]
     zhi = max(zs)
@@ -198,9 +283,15 @@ def colour_fn_for(hs, name):
             if paint[1] == "egg":
                 # Amber shells, brighter toward the crown and where they face up (the core shows through).
                 return mix(mix(C["egg_shell"], C["egg_lit"], kit.smoothstep(-.2, .9, n.z) * .7 + j * .2), C["egg_core"], kit.smoothstep(.75, 1.0, n.z) * .5)
+            if paint[1] == "dimyolk":
+                return mix(kit.hex_linear("#7a3c0c"), C["yolk"], (1 - kit.clamp(math.hypot(p.x, p.y) / .38, 0, 1)) * .5)
+            if paint[1] == "sac":
+                return mix(C["egg_lit"], C["yolk_hot"], kit.smoothstep(.2, 1.0, p.z / max(zhi, 1e-3)) * .8 + kit.clamp(n.z, 0, 1) * .2)
             return mix(C["yolk"], C["yolk_hot"], (1 - kit.clamp(math.hypot(p.x, p.y) / .78, 0, 1)) * .6 + j * .15)
         if kind == "shell":
             return kit.mul3(mix(C["shell_shade"], mix(C["shell"], C["shell_lit"], kit.clamp(n.z, 0, 1)), kit.smoothstep(-.6, .4, n.z) + j * .1), kit.lerp(.6, 1.0, ao))
+        if kind == "sinew":
+            return mix(mix(C["flesh"], C["sinew"], .6), kit.hex_linear("#c8806c"), kit.clamp(n.z, 0, 1) * .5 + j * .15)
         if kind in ("flesh",):
             return kit.mul3(mix(C["flesh_dark"], C["flesh"], kit.smoothstep(-.1, .2, p.z) * .7 + j * .3), kit.lerp(.5, 1.0, ao))
         # Bone: pale along its length (it is seen from above), a little stained low, palest where it faces up.
@@ -219,6 +310,10 @@ PIECES = {
     "amn_spire": (build_spire, 3, 0.55, True, None, 420),
     "amn_nest": (build_nest, 2, 1.1, True, None, 1200),
     "amn_shards": (build_shards, 3, 0.55, False, 0.45, 160),
+    # Landmarks (Amnion's buildings) and the crevasse webs; the landmarks top out at exactly 1 (scaled in the game).
+    "amn_broodnest": (build_broodnest, 2, 1.0, True, None, 2600),
+    "amn_hive": (build_hive, 2, 0.6, True, None, 1800),
+    "amn_web": (build_web, 3, 1.05, False, 0.1, 800),
 }
 
 
@@ -226,7 +321,8 @@ def node_list():
     out = []
     for prefix, (fn, variants, half, top, ymax, budget) in PIECES.items():
         for i in range(variants):
-            rule = dict(budget=budget, x=(-half, half), z=(-half, half), y_min=-0.15, mats=MAT_NAMES)
+            # Webs hang from their anchor (rim height) down into the crevasse; every other piece stands on its base.
+            rule = dict(budget=budget, x=(-half, half), z=(-half, half), y_min=-1.0 if prefix == "amn_web" else -0.15, mats=MAT_NAMES)
             if top:
                 rule["y_max_exact"] = 1.0
             else:

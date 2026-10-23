@@ -85,7 +85,9 @@ function amnionStandIn(kind: KitKind, variant: number): THREE.BufferGeometry {
   const builder = new Builder(), bone = new THREE.Color(0xcfc4ae), flesh = new THREE.Color(0x5a1d1a), egg = new THREE.Color(0xc89048);
   if (kind === 'eggClutch') { builder.prism(0, 0, 0.5, 0.1, 7, variant, 0, 0); for (let i = 0; i < 4; i++) builder.prism(Math.cos(i * 1.6) * 0.25, Math.sin(i * 1.6) * 0.22, 0.14, 0.55, 6, i, 0, 0); }
   else if (kind === 'boneSpire') builder.prism(0, 0, 0.25, 1, 5, variant, 0, 0);
-  else if (kind === 'nest') builder.prism(0, 0, 0.95, 0.3, 9, variant, 0, 0);
+  else if (kind === 'nest' || kind === 'broodNest') builder.prism(0, 0, 0.95, kind === 'nest' ? 0.3 : 1, 9, variant, 0, 0);
+  else if (kind === 'hive') builder.prism(0, 0, 0.55, 1, 6, variant, 0, 0);
+  else if (kind === 'sinewWeb') for (let i = 0; i < 5; i++) builder.prism(-0.8 + i * 0.4, 0, 0.03, -0.1, 4, i, 0, -0.4);
   else builder.prism(0, 0, 0.2, 0.25, 5, variant, 0, 0);
   const geometry = builder.geometry(), colour = kind === 'eggClutch' ? egg : kind === 'nest' ? flesh : bone, count = geometry.getAttribute('position').count;
   geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3).map((_, i) => i % 3 === 0 ? colour.r : i % 3 === 1 ? colour.g : colour.b), 3));
@@ -951,7 +953,7 @@ float khepriCells( vec2 local, float scale ) {
   // Cracks glow just below the bloom threshold; the crackle network inside pools reaches it (soft halo on High).
   // A molten pool (Amnion's yolk) glows unevenly, brightest in its thick middle; a crystal bed glows in its crackle.
   float molten = pool * ( 1.0 - poolCells ) * ( 0.45 + 0.9 * khepriNoise( vLocal.xz * 0.9, 0.7 ) ) * smoothstep( 0.35, 0.9, pool );
-  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * poolGlow + sparkle * 1.2 * poolCells + molten * 1.6 );`)
+  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * poolGlow + sparkle * 1.2 * poolCells + molten );`)
       .replace('#include <map_fragment>', `// Crisp cliffs: the triangle's own plane (screen derivatives, as flat shading takes it) says top or wall, so a
 // rim is a hard edge between a top triangle and a wall triangle. Smooth ground keeps the vertex values (cliffLook 0:
 // exactly the version 13 path).
