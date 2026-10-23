@@ -153,5 +153,5 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       expect(stream.stats.prefetched).toBeGreaterThanOrEqual(2);
       for (const section of stream.update(previous)) expect(section).toEqual(generateTerrainSection(SEED, section.index, route));
     }
-  });
+  }, 60_000); // Streams every planet's terrain at jump speed: about 9 s here, three times that on a slow CI runner (23 October).
 });
