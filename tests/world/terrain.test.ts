@@ -220,7 +220,8 @@ describe('seeded Khepri landforms', () => {
           // Only the world's own wall pieces, from the cliff kit (never reused older pieces), under the scenery cap.
           expect(wall.kind).toBe(kind);
           expect(wall.y + wall.height * KIT[wall.kind].height).toBeLessThanOrEqual(PLANETS[planet].sceneryMax + 1e-9);
-          expect(wall.scale).toBeGreaterThanOrEqual(0.85); expect(wall.scale).toBeLessThanOrEqual(1.15);
+          // (Vesper's segments are larger since version 19, 1.2–1.5, so their tops reach back over the terrain's rim.)
+          expect(wall.scale).toBeGreaterThanOrEqual(planet === 'vesper' ? 1.2 : 0.85); expect(wall.scale).toBeLessThanOrEqual(planet === 'vesper' ? 1.5 : 1.15);
           // Local +Z (the front) points downhill: the ground a unit in front is lower than a unit behind.
           const fx = Math.sin(wall.rotation), fs = -Math.cos(wall.rotation);
           const ahead = Math.max(planet === 'vesper' ? VESPER_SEA_LEVEL : -Infinity, terrainHeight(seed, wall.x + fx, wall.s + fs, world));

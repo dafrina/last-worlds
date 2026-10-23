@@ -45,6 +45,12 @@ export interface WallOptions {
    * touching the section's edge is kept (the rest of it lies in the next section).
    */
   minRun?: number;
+  /**
+   * The segments' scale range (0.85–1.15 by default). Vesper's are larger (user, 23 October: "the cliff models are too
+   * small in area ... not seamless with the tops"): wider, so neighbours overlap without gaps, and deeper, so their snowy
+   * tops reach back over the terrain's own rounded rim; the top stays flush with the rim (height is set separately).
+   */
+  scale?: readonly [number, number];
 }
 /** Probe step for slopes and walks along the gradient (world units). */
 const PROBE = 0.125, WALK = 0.1;
@@ -97,7 +103,7 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       // Only against ground that carries on behind the wall: no walls (nor smaller pieces) on knife-edge ridges or slivers.
       if (height(x + ux * 1.1, s + us * 1.1) < base + (top - base) * 0.5) continue;
       if (!clear(x, s) || !clear(px, ps) || !clear(rx, rs) || !clear(x - us * 1, s + ux * 1) || !clear(x + us * 1, s - ux * 1)) continue;
-      const y = base - 0.12, rise = Math.min(o.cap, top + 0.03) - y, spec = KIT[o.kind], scale = 0.85 + h(2) * 0.3;
+      const y = base - 0.12, rise = Math.min(o.cap, top + 0.03) - y, spec = KIT[o.kind], scale = o.scale ? o.scale[0] + h(2) * (o.scale[1] - o.scale[0]) : 0.85 + h(2) * 0.3;
       // Never on an arena's platform or ramps (the wall's own row, not just its cell's), never past the world's edge.
       if (rise < o.minDrop * 0.8 || Math.abs(x) + spec.radius * scale > WORLD_HALF || terrain.platform(x, s) > 0 || terrain.platform(rx, rs) > 0) continue;
       const wall: KitInstance = {

@@ -841,7 +841,11 @@ export function createTerrainMaterials() {
     wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns },
     // Vesper's ice walls (user, 22 October: "more crispy ... darker sharp texture like in the original concept"): how much the
     // ice map shapes the wall (x) and its sampling sharpness (y: derivative scale; under 1 samples a sharper level).
-    iceCrisp: { value: new THREE.Vector2(...ICE_CRISP) } };
+    iceCrisp: { value: new THREE.Vector2(...ICE_CRISP) },
+    // How upright a terrain face must be to shade as a wall (the up component of its normal: fully a wall at y, not at all
+    // at x). Vesper's cliffs are near-vertical: only its truly sheer faces turn to ice (23 October: at Khepri's 0.62–0.42,
+    // single steep triangles on rounded shoulders showed as blue facets beside the ice walls).
+    cliffSteep: { value: new THREE.Vector2(0.62, 0.42) } };
   ground.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps, crackLook);
     shader.vertexShader = shader.vertexShader
@@ -866,7 +870,7 @@ vec2 iceColumns( float column, float height ) {
 }
 uniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
-uniform float cliffLook;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform vec2 iceCrisp;
+uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
 uniform sampler2D crackMap;\nuniform float crackLook;\nuniform vec3 crackTint;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
@@ -930,7 +934,7 @@ if ( cliffLook > 0.0 ) {
   cliffDx = dFdx( vViewPosition ); cliffDy = dFdy( vViewPosition );
   cliffFace = normalize( cross( cliffDx, cliffDy ) );
   cliffUp = abs( dot( cliffFace, viewMatrix[ 1 ].xyz ) );
-  cliffWall = cliffLook * smoothstep( 0.62, 0.42, cliffUp );
+  cliffWall = cliffLook * smoothstep( cliffSteep.x, cliffSteep.y, cliffUp );
 }
 float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
 #ifdef USE_MAP
@@ -1173,6 +1177,7 @@ ${VESPER_KIT_SURFACE}`)
     const wall = WALL_LOOK[planet];
     cliffLook.cliffLook.value = wall ? 1 : 0;
     cliffLook.creaseLook.value = wall?.crease ?? 0;
+    cliffLook.cliffSteep.value.set(vesper ? 0.42 : 0.62, vesper ? 0.3 : 0.42);
     const crisp: [number, number] = vesper ? iceCrispOverride() ?? ICE_CRISP : [0.18, 1]; cliffLook.iceCrisp.value.set(...crisp);
     if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; }
     ground.color.setHex(vesper || luna ? 0xffffff : nacre ? 0xd5d9e1 : 0xc2c4c8);

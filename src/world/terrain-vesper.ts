@@ -244,7 +244,8 @@ function vesperColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
     return out;
   }
   const drift = noise(seed ^ 0x51a7, x * 0.07, s * 0.05), fine = noise(seed ^ 0x51a8, x * 1.1, s * 1.1);
-  const steep = smoothRange(0.9, 2.4, slope) * (1 - smoothRange(0.05, 0.3, point.tone ?? 0)), shade = smoothRange(0.35, 0.8, drift) * 0.35;
+  // Only true cliff faces turn to blue ice (version 19: from 0.9, rounded shoulders showed the grid as blue facets).
+  const steep = smoothRange(1.5, 3, slope) * (1 - smoothRange(0.05, 0.3, point.tone ?? 0)), shade = smoothRange(0.35, 0.8, drift) * 0.35;
   const cliff = smoothRange(SEA, 1.6, point.height), rock = smoothRange(0.25, 0.6, point.tone ?? 0);
   // Snow caps stay on the flat tops of outcrops; only their steep flanks show charcoal rock (version 18: gentle flanks
   // in charcoal read as a dark, blurred smear at the grid's resolution).
@@ -565,7 +566,7 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0);
     return drop >= 1.8 ? m.rock < 0.3 : m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.12;
   };
-  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
+  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, scale: [1.2, 1.5], cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
 

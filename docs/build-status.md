@@ -1,5 +1,18 @@
 # Build status
 
+## Vesper cliffs seamless with the shelf tops, 23 October 2026
+
+User: "the cliff models are too small in area or something, it doesn't look seamless with the tops of the mountains".
+
+- **Seen at 3× zoom:** the wall segments reached only about 0.6 behind their pivot, so the terrain's own rounded rim showed between and behind them, and the ground shader painted every terrain triangle steeper than about 52° as ice. On rounded shoulders single triangles crossed that line and showed as blue facets beside the walls.
+- **Larger segments (`WallOptions.scale`, Vesper 1.2–1.5, was 0.85–1.15):** wider, so neighbours overlap without gaps, and deeper, so their snowy tops reach back over the rim; the top stays flush (height is separate). Khepri is unchanged (byte-identical fingerprints).
+- **Ice only on sheer faces:**
+  - Vesper's ground shader turns a face to ice from about 65° (`cliffSteep` 0.42–0.3, Khepri keeps 0.62–0.42);
+  - its vertex colour from slope 1.5 (was 0.9).
+
+  Shoulders stay snow.
+- **Checks:** typecheck; unit tests 415/415; build; browser BROWSER_RESULT. No phone test.
+
 ## Vesper cliffs where they count (terrain v19), boss entry corridors, Vesper fog, Pulsar fix, 23 October 2026
 
 User:
@@ -34,7 +47,7 @@ User:
 - **Boss entry corridor (`src/world/terrain-arena.ts`):** the clearing runs on as wide as its core from the boss row to 40 past the stop, along x 0, where every boss glides in from 20–30 beyond its row (the Ark crossed shelf ice at the top of the view).
 - **Vesper fog:** the user's playground settings (low mist over the sea and down the cliffs; haze 0.155).
 - **Pulsar:** a burst still waiting at its muzzle is dropped when the Pulsar is shot down (`Projectile.source`); test in `tests/sim/pulsar.test.ts`.
-- **Checks:** typecheck; unit tests 415/415; build; browser BROWSER_RESULT. No phone test. The frame rate on Vesper is unmeasured on hardware: the change cuts wall triangles and overdraw, not every Vesper cost.
+- **Checks:** released from a clean worktree: typecheck; unit tests 415/415; build; browser 38/38 (with Codex's boss music). No phone test. The frame rate on Vesper is unmeasured on hardware: the change cuts wall triangles and overdraw, not every Vesper cost.
 
 ## Hunters (aces), shield shells, last-life alarm and a boss big bang, 23 October 2026
 
