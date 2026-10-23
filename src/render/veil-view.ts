@@ -294,7 +294,8 @@ export function createVeilView(scene: THREE.Scene) {
         minS: state.distance + placement.s - 8.5, maxS: state.distance + placement.s + 11 };
     },
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
-      const boss = state.boss && state.boss.id === 'veil' ? state.boss : null;
+      // THE CRADLE (Amnion) wears this model as an openly marked stand-in until its own exists (docs/27, milestone 4).
+      const boss = state.boss && (state.boss.id === 'veil' || state.boss.id === 'cradle') ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
       // Render launched combatants in world coordinates, independently of the chassis.

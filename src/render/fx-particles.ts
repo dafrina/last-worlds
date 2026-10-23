@@ -287,7 +287,8 @@ export function createFx(scene: THREE.Scene) {
       if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + 1) continue;
       // Muzzle flash at the logical origin; colour follows the shot's team.
       if (shot.friendly) flash(shot.previousX, -shot.previousS, .3, .06, 0xd8fff9, 1.5);
-      else flash(shot.previousX, -shot.previousS, .42, .09, 0xff9a78, 1.25);
+      // (Amnion's hostile shots are violet: src/render/scene.ts.)
+      else flash(shot.previousX, -shot.previousS, .42, .09, state.planet === 'amnion' ? 0xc27aff : 0xff9a78, 1.25);
     }
     lastShot = maxShot;
   }

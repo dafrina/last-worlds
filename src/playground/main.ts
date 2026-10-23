@@ -17,6 +17,7 @@ const LEVELS: readonly { mission: Mission; name: string; planet: PlanetId }[] = 
   { mission: 'bastion', name: 'Rolling Thunder · Khepri', planet: 'khepri' },
   { mission: 'cold-vector', name: 'Cold Vector · Vesper', planet: 'vesper' },
   { mission: 'deep-bloom', name: 'Deep Bloom · Nacre', planet: 'nacre' },
+  { mission: 'brood-strike', name: 'Brood Strike · Amnion', planet: 'amnion' },
 ];
 const STORE = 'last-worlds.playground.looks', VIEW_STORE = 'last-worlds.playground.view';
 

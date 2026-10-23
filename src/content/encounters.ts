@@ -333,6 +333,48 @@ export const DEEP_BLOOM: readonly EncounterCue[] = [
 ];
 
 /**
+ * Brood Strike over Amnion, the brood wastes (docs/27, 23 October 2026): the final campaign mission, on Deep Bloom's
+ * proven timing grid (intro, pressure, a recovery pair to the flanks, climax, relief before THE CRADLE) with its own
+ * mix: drone flights (weavers and darts) over the canyons, nest spires (batteries) and spore mortars (missile
+ * batteries) on the plateaus, egg-sac depots to burst, heavies in the climax, and only two Pulsars (a tracking stream is
+ * the hardest thing to read over the glowing canyons). Enemy craft and ground pieces keep their kinds' behaviour.
+ */
+export const BROOD_STRIKE: readonly EncounterCue[] = [
+  { at: 2, id: 'b-first-drones', phase: 'intro', message: 'BROOD STRIKE · DRONES OVER THE CANYONS', formations: [f('line-weaver-4'), f('fuel-pair')] },
+  { at: 8, id: 'b-first-darts', phase: 'intro', formations: [f('arrow-3')] },
+  { at: 12, id: 'b-first-spires', phase: 'intro', message: 'NEST SPIRES ON THE PLATEAU', formations: [f('battery-2')] },
+  { at: 16, id: 'b-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
+  { at: 21, id: 'b-mortars', phase: 'pressure', message: 'SPORE MORTARS · EACH FIRES DOWN ITS OWN COLUMN', formations: [f('missile-2')] },
+  { at: 24, id: 'b-darts', phase: 'pressure', formations: [f('line-dart-4')] },
+  { at: 27, id: 'b-eggs', phase: 'pressure', message: 'EGG SACS · BURST THEM', formations: [f('depot-3')] },
+  { at: 30, id: 'b-needles', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 33, id: 'b-heavy', phase: 'pressure', message: 'BROOD HEAVY', formations: [f('diamond-solo')] },
+  { at: 40, id: 'b-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] },
+  { at: 45, id: 'b-mortars-3', phase: 'pressure', formations: [f('missile-3')] },
+  { at: 51, id: 'b-west', phase: 'recovery', message: 'EGG FIELD · WEST', formations: [world('fuel-depot', -7.5)], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } },
+  { at: 56, id: 'b-east', phase: 'recovery', message: 'LONE SPIRE · EAST', formations: [world('battery-2', 7.5)] },
+  { at: 62, id: 'b-drone-line', phase: 'pressure', formations: [f('line-weaver-4', 1)] },
+  { at: 66, id: 'b-spires-mid', phase: 'pressure', formations: [f('battery-3')] },
+  { at: 69, id: 'b-needle-column', phase: 'pressure', formations: [f('needle-column-5')] },
+  { at: 72, id: 'b-pulsar', phase: 'pressure', message: 'PULSAR · ITS STREAM FOLLOWS YOU · KEEP MOVING', formations: [f('pulsar-solo')] },
+  { at: 75, id: 'b-eggs-mid', phase: 'pressure', formations: [f('depot-missile')] },
+  { at: 78, id: 'b-snake-2', phase: 'pressure', formations: [f('snake-weaver-5')] },
+  { at: 84, id: 'b-heavy-2', phase: 'pressure', formations: [f('diamond-lancer')] },
+  { at: 90, id: 'b-climax-convoy', phase: 'climax', message: 'THE BROOD RISES', formations: [f('diamond-convoy')] },
+  { at: 95, id: 'b-climax-spires', phase: 'climax', formations: [f('battery-3')] },
+  { at: 101, id: 'b-climax-drones', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] },
+  { at: 106, id: 'b-climax-mortars', phase: 'climax', formations: [f('missile-3')] },
+  { at: 110, id: 'b-climax-darts', phase: 'climax', formations: [f('arrow-5')] },
+  { at: 113, id: 'b-climax-pulsar', phase: 'climax', formations: [f('pulsar-solo', -1)] },
+  { at: 116, id: 'b-climax-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] },
+  { at: 122, id: 'b-climax-eggs', phase: 'climax', formations: [f('depot-3')] },
+  { at: 126, id: 'b-climax-drones-2', phase: 'climax', formations: [f('line-weaver-4', -1)] },
+  { at: 131, id: 'b-last-needles', phase: 'climax', message: 'LAST SWARM · THE NEST IS AHEAD', formations: [f('needle-column-5', 0, true)] },
+  { at: 137, id: 'b-last-mortars', phase: 'climax', formations: [f('missile-2')] },
+  { at: 142, id: 'b-relief', phase: 'recovery', formations: [] },
+];
+
+/**
  * Inserts an authored block into a sequence at `at`: the block's cues start there (their `at` is relative) and every
  * later cue moves back by `length` seconds.
  */
@@ -366,6 +408,17 @@ export const COLD_VECTOR_SORTIE = extend(COLD_VECTOR, 89, 28, [
   { at: 21, id: 'v-x-depot-2', phase: 'pressure', formations: [f('depot-missile')] },
   { at: 23, id: 'v-x-diamond-2', phase: 'pressure', formations: [f('diamond-solo')] },
 ]);
+export const BROOD_STRIKE_SORTIE = extend(BROOD_STRIKE, 62, 36, [
+  { at: 0, id: 'b-x-eggs', phase: 'pressure', message: 'EGG SACS IN THE BONE FIELD', formations: [f('depot-3')] },
+  { at: 2, id: 'b-x-drones', phase: 'pressure', formations: [f('line-weaver-4', -1)] },
+  { at: 8, id: 'b-x-needles', phase: 'pressure', formations: [f('needle-line-3')] },
+  { at: 12, id: 'b-x-eggs-2', phase: 'pressure', formations: [f('depot-missile')] },
+  { at: 15, id: 'b-x-snake', phase: 'pressure', formations: [f('snake-weaver-5')] },
+  { at: 21, id: 'b-x-heavy', phase: 'pressure', formations: [f('diamond-solo')] },
+  { at: 25, id: 'b-x-eggs-3', phase: 'pressure', formations: [f('depot-2')] },
+  { at: 28, id: 'b-x-column', phase: 'pressure', formations: [f('needle-column-5', 0, true)] },
+  { at: 33, id: 'b-x-mortars', phase: 'pressure', formations: [f('missile-2')] },
+]);
 export const DEEP_BLOOM_SORTIE = extend(DEEP_BLOOM, 62, 36, [
   { at: 0, id: 'n-x-depot', phase: 'pressure', message: 'FUEL DEPOTS IN THE GROVE', formations: [f('depot-3')] },
   { at: 2, id: 'n-x-weavers', phase: 'pressure', formations: [f('line-weaver-4', -1)] },
@@ -379,7 +432,8 @@ export const DEEP_BLOOM_SORTIE = extend(DEEP_BLOOM, 62, 36, [
 ]);
 
 export function campaignPlaylist(mission: MissionId): readonly EncounterCue[] {
-  return mission === 'bastion' ? ROLLING_THUNDER_SORTIE : mission === 'deep-bloom' ? DEEP_BLOOM_SORTIE : mission === 'cold-vector' ? COLD_VECTOR_SORTIE : TRAINING_SORTIE;
+  return mission === 'bastion' ? ROLLING_THUNDER_SORTIE : mission === 'deep-bloom' ? DEEP_BLOOM_SORTIE : mission === 'cold-vector' ? COLD_VECTOR_SORTIE
+    : mission === 'brood-strike' ? BROOD_STRIKE_SORTIE : TRAINING_SORTIE;
 }
 
 /**

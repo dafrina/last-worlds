@@ -71,7 +71,7 @@ describe('authored music and bounded scheduler', () => {
       expect(normal.flat().every(n => Number.isFinite(n.pitch) && n.gain > 0 && n.gain <= .5)).toBe(true);
       signatures.push(JSON.stringify(normal));
     }
-    expect(new Set(signatures).size).toBe(4);
+    expect(new Set(signatures).size).toBe(Object.keys(THEMES).length);
   });
   it('keeps added bass on the level riff and harmony across every chord and phrase', () => {
     for (const planet of Object.keys(THEMES) as PlanetId[]) {

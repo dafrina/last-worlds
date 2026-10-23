@@ -139,7 +139,7 @@ function beginSector(state: RunState): void {
 }
 
 const MISSION_TITLES: Readonly<Record<MissionId, string>> = {
-  training: 'TRAINING · LUNA', bastion: 'ROLLING THUNDER · KHEPRI', 'deep-bloom': 'DEEP BLOOM · NACRE', 'cold-vector': 'COLD VECTOR · VESPER',
+  training: 'TRAINING · LUNA', bastion: 'ROLLING THUNDER · KHEPRI', 'deep-bloom': 'DEEP BLOOM · NACRE', 'cold-vector': 'COLD VECTOR · VESPER', 'brood-strike': 'BROOD STRIKE · AMNION',
 };
 
 function updateDirector(state: RunState): void {

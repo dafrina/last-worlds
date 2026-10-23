@@ -799,6 +799,8 @@ const KHEPRI_WALL = { hue: hueOf(0x6a4a36), shade: 0.82, columns: 1, crease: 1 }
 const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; columns: number; crease: number }>> = {
   khepri: KHEPRI_WALL,
   vesper: { hue: hueOf(0x5f9fd0), shade: 0.9, columns: 0, crease: 1 },
+  // Amnion (docs/27): dark flesh canyon walls, faintly striated like sinew.
+  amnion: { hue: hueOf(0x4e2422), shade: 0.6, columns: 0.5, crease: 1 },
   // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
   // darker regolith per face.
   luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0 },
@@ -832,7 +834,10 @@ export function createTerrainMaterials() {
   const crackLook = { crackMap: { value: flatNormal as THREE.Texture }, crackLook: { value: 0 }, crackTint: { value: new THREE.Vector3(1, 1, 1) } };
   const ground = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, envMapIntensity: .18, normalScale: new THREE.Vector2(0.7, 0.7) });
   // Persistent uniform objects so a planet switch can retune them (Khepri values are the originals).
-  const groundHaze = haze(), groundLook = { groundIce: {value: 0}, glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 } };
+  // The ground's glow: Khepri's teal mineral veins and crystal pools, or Amnion's yolk (docs/27): the colour, the tint of
+  // a vein's and a pool's dark bed, and how strongly a pool itself glows (Amnion's molten yolk far more than a crystal bed).
+  const groundHaze = haze(), groundLook = { groundIce: {value: 0}, glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 },
+    veinTint: { value: new THREE.Vector3(0.02, 0.16, 0.15) }, poolTint: { value: new THREE.Vector3(0.014, 0.055, 0.06) }, poolGlow: { value: 0.12 } };
   /**
    * Crisp cliffs (terrain version 14, docs/26 §10): on Khepri, Vesper and Luna each triangle's own plane decides top or
    * wall (hard rims, faceted wall shading, the wall's own material); Nacre keeps the smooth look exactly (cliffLook 0).
@@ -868,7 +873,7 @@ vec2 iceColumns( float column, float height ) {
   float iceRidge = 0.35 + 0.3 * fract( sin( iceIndex * 3.73 + iceBlock * 17.1 ) * 43758.5453 );
   return vec2( iceEdge, iceLean + ( iceEdge < iceRidge ? -0.45 : 0.45 ) );
 }
-uniform vec3 glowColor;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
+uniform vec3 glowColor;\nuniform vec3 veinTint;\nuniform vec3 poolTint;\nuniform float poolGlow;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
 uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
@@ -919,10 +924,10 @@ float khepriCells( vec2 local, float scale ) {
     shore = ( smoothstep( 0.24, 0.4, level ) - smoothstep( 0.4, 0.6, level ) ) * 0.6;
   }
   diffuseColor.rgb *= 1.0 - crack * 0.5;
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.02, 0.16, 0.15 ), vein * 0.75 );
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.014, 0.055, 0.06 ), pool * 0.85 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, veinTint, vein * 0.75 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, poolTint, pool * 0.85 );
   // Cracks glow just below the bloom threshold; the crackle network inside pools reaches it (soft halo on High).
-  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * 0.12 + sparkle * 1.2 );`)
+  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * poolGlow + sparkle * 1.2 );`)
       .replace('#include <map_fragment>', `// Crisp cliffs: the triangle's own plane (screen derivatives, as flat shading takes it) says top or wall, so a
 // rim is a hard edge between a top triangle and a wall triangle. Smooth ground keeps the vertex values (cliffLook 0:
 // exactly the version 13 path).
@@ -1187,11 +1192,18 @@ ${VESPER_KIT_SURFACE}`)
     wallPlanet = planet;
     if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
+    const amnion = planet === 'amnion';
+    groundLook.glowColor.value.copy(amnion ? linear(0xffb42a).multiplyScalar(1.6) : linear(0x8ffcf0).multiplyScalar(0.75));
+    groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : [0.02, 0.16, 0.15]) as [number, number, number]);
+    groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : [0.014, 0.055, 0.06]) as [number, number, number]);
+    // A dark flesh bed with the yolk in its crackle and a low glow of its own (a full glow read as a flat lava band).
+    groundLook.poolGlow.value = amnion ? 0.22 : 0.12;
     // Cracks (version 16): blue-grey lines in Vesper's snow and ice, dark fractures in Luna's regolith.
-    if ((vesper || luna) && !crackTexture) crackTexture = createCrackTexture();
+    // (Amnion's bone crust takes them too: dark fractures between its plates.)
+    if ((vesper || luna || planet === 'amnion') && !crackTexture) crackTexture = createCrackTexture();
     crackLook.crackMap.value = crackTexture ?? flatNormal;
-    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : 0;
-    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : [0.5, 0.5, 0.52]) as [number, number, number]);
+    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : 0;
+    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : [0.5, 0.5, 0.52]) as [number, number, number]);
     groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters.
     groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : khepri.hazeStrength.value;
@@ -1381,6 +1393,7 @@ const SHARED_PALETTE: Readonly<Record<PlanetId, readonly [number, number, number
   luna: [0xb4b7bb, 0xeceeef, 0xf4f4f2, 0x9a9893],
   vesper: [0x76828e, 0xe8eef4, 0xd3dae1, 0xe3ebf2],
   nacre: [0x221c36, 0x2f4c3c, 0x4a3a6c, 0x2a2440],
+  amnion: [0x3a2a22, 0xc8b496, 0x8a6a50, 0xb89a78],
 };
 /** Khepri palette for the shared kit (docs/14 §2): graphite metal, ochre/rust paint, ochre dust, amber lamps. */
 export function createSharedMaterial(): THREE.MeshStandardMaterial {

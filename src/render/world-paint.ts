@@ -21,14 +21,16 @@ export const WORLD_PAINT: Readonly<Record<PlanetId, WorldPaint>> = {
   khepri: { dark: 0x2c1a10, light: 0xcc7a40, glow: 0xff9040, accent: 0xffc070 },
   vesper: { dark: 0x56616d, light: 0xf2f6fa, glow: 0x52c2ff, accent: 0xd8f1ff },
   nacre: { dark: 0x140e24, light: 0x3c5e4c, glow: 0xb46cff, accent: 0x6a3fb0 },
+  // Amnion (docs/27): flesh-dark to bone, with yolk glow.
+  amnion: { dark: 0x3a1814, light: 0xd8c8a8, glow: 0xffc23a, accent: 0xb04a3a },
 };
 /** How far each kind of thing moves toward its world's ramp (0 keeps its authored paint). */
 export type PaintTarget = 'craft' | 'building' | 'facility';
 const AMOUNT: Readonly<Record<PaintTarget, Readonly<Record<PlanetId, number>>>> = {
   // Khepri's craft and buildings are already rust and ochre: a light touch there.
-  craft: { luna: 0.85, khepri: 0.35, vesper: 0.75, nacre: 0.65 },
-  building: { luna: 0.9, khepri: 0.3, vesper: 0.85, nacre: 0.7 },
-  facility: { luna: 0.75, khepri: 0.25, vesper: 0.7, nacre: 0.55 },
+  craft: { luna: 0.85, khepri: 0.35, vesper: 0.75, nacre: 0.65, amnion: 0.7 },
+  building: { luna: 0.9, khepri: 0.3, vesper: 0.85, nacre: 0.7, amnion: 0.75 },
+  facility: { luna: 0.75, khepri: 0.25, vesper: 0.7, nacre: 0.55, amnion: 0.6 },
 };
 
 export interface WorldPaintUniforms {

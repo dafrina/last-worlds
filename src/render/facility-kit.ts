@@ -16,6 +16,8 @@ export type FacilityWorld = PlanetId;
 export const FACILITY_KIT_ASSETS: Readonly<Record<FacilityWorld, string>> = {
   khepri: 'facility-kit-v4-taller.glb', vesper: 'facility-kit-v4-taller.glb',
   nacre: 'facility-kit-v4-ruins.glb', luna: 'facility-kit-v3.glb',
+  // Amnion's brood facilities come with its Blender kit (docs/27, milestone 2); until then it builds no plants.
+  amnion: 'facility-kit-v4-ruins.glb',
 };
 export type ModuleRole =
   | 'hall' | 'tank' | 'column' | 'landmark' | 'pump' | 'pipe' | 'wall' | 'detail' | 'pad' | 'ring' | 'arc' | 'pool' | 'apron';

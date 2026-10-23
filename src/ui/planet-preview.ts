@@ -9,14 +9,14 @@ import { rowPoint, terrainRow } from '../world/terrain-ground';
 const TEXTURE_W = 240, TEXTURE_H = 120, BLEND = 24, SPACING = 0.6, SEED = 93;
 const SIZE = 200;
 /** Atmosphere glow at the limb (CSS colour) per world; airless Luna gets only a faint grey edge. */
-const ATMOSPHERE: Readonly<Record<PlanetId, string>> = { khepri: '232, 138, 80', vesper: '150, 205, 255', luna: '190, 190, 195', nacre: '170, 120, 255' };
-const ATMOSPHERE_STRENGTH: Readonly<Record<PlanetId, number>> = { khepri: 0.55, vesper: 0.6, luna: 0.18, nacre: 0.7 };
+const ATMOSPHERE: Readonly<Record<PlanetId, string>> = { khepri: '232, 138, 80', vesper: '150, 205, 255', luna: '190, 190, 195', nacre: '170, 120, 255', amnion: '235, 185, 110' };
+const ATMOSPHERE_STRENGTH: Readonly<Record<PlanetId, number>> = { khepri: 0.55, vesper: 0.6, luna: 0.18, nacre: 0.7, amnion: 0.5 };
 
 type Texture = Uint8ClampedArray;
 const textures = new Map<PlanetId, Texture>();
 const pending = new Map<PlanetId, Generator<void, Texture, void>>();
 /** Flat base tone (sRGB) shown while a world's texture is still baking. */
-const PLACEHOLDER: Readonly<Record<PlanetId, readonly [number, number, number]>> = { khepri: [176, 92, 50], vesper: [205, 218, 230], luna: [150, 148, 144], nacre: [70, 50, 120] };
+const PLACEHOLDER: Readonly<Record<PlanetId, readonly [number, number, number]>> = { khepri: [176, 92, 50], vesper: [205, 218, 230], luna: [150, 148, 144], nacre: [70, 50, 120], amnion: [200, 180, 150] };
 
 /** Advances a world's bake for about `budget` ms; true once its texture exists. */
 function advance(planet: PlanetId, budget: number): boolean {

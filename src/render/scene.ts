@@ -3,6 +3,7 @@ import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
 import { VIEW, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
+import { AMNION_PLATEAU } from '../world/terrain-amnion';
 import { arenaStopDistance } from '../sim/bastion';
 import { HUNTERS, hunterCharges } from '../sim/hunters';
 import { missionBoss } from '../content/bosses';
@@ -252,6 +253,17 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
       fog: { color: 0x6a5c9a, energy: 1.35, height: [.2, -3.75, .33], distance: [48, .115, .45] } },
     environment: 'mire',
   },
+  // Amnion (docs/27, a first look to tune in the playground): a warm afternoon sun low from the upper left over pale bone
+  // (long shadows, as in the concept), warm sky fill, a flesh-red bounce in the canyons, a bloom that lets the yolk glow
+  // without washing the bone out, and a warm mist that stays down in the canyons.
+  amnion: {
+    background: 0x2a1a14, sunElevation: 36, sun: [0xfff4e6, 4.8], hemisphere: [0xd2cdc2, 0x3a1a14, .7], bounce: [0xb07a68, .6],
+    shadowIntensity: .8, blobShadow: 0x2a1410, lowExposure: 1,
+    post: { exposure: 1, threshold: 1.15, knee: .3, strength: .85, lift: [.006, .004, .003], saturation: 1, contrast: 1.1, vignette: .3,
+      haze: [.6, .54, .48, .04],
+      fog: { color: 0x8a3a2a, energy: .7, height: [-1.2, -3.2, .18], distance: [45, .04, .05] } },
+    environment: 'desert',
+  },
 };
 const DEFAULT_LOOKS: Readonly<Record<PlanetId, PlanetLook>> = structuredClone(LOOKS);
 // Look-dev: `?lookset=vesper.sun.1:4.2,vesper.hemisphere.2:.5` sets look values by path at startup (development only).
@@ -477,7 +489,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
     if (next === 'vesper') { ensureCraft(next); ensureArk(); } else foam.clear();
-    if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); }
+    // (Amnion flies Nacre's organic craft and THE VEIL's model as stand-ins until its own exist: docs/27.)
+    if (next === 'nacre' || next === 'amnion') { ensureNacreCraft(); ensureVeil(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
@@ -772,10 +785,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const facilityLoad = facilities.prepare(next);
     if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
     facilityPrefetches.set(next, facilityLoad);
-    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'luna' ? ensureWarden() : bastionLoad;
+    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' || next === 'amnion' ? ensureVeil() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
-      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), next === 'nacre' ? ensureNacreCraft() : undefined]).then(() => { prepared.add(next); });
+      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
@@ -827,7 +840,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const shell = (hex: number) => { const mesh = new THREE.Mesh(shellGeometry, shellMaterial()); (mesh.material as THREE.ShaderMaterial).uniforms.color.value.setHex(hex); mesh.renderOrder = 7; mesh.visible = false; scene.add(mesh); return mesh; };
   const heroShell = shell(0x4aa8ff);
   /** Hunter shells by world glow; one per live hunter (at most a few on screen). */
-  const HUNTER_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8 };
+  const HUNTER_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a };
   const hunterShells = Array.from({ length: 4 }, () => shell(0xffffff));
   /** Shield charges seen last frame (hero: −1) and when a shell broke, for its last flare. */
   const shellSeen = new Map<number, number>(), shellBroke = new Map<number, number>();
@@ -845,6 +858,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Shots never hide behind ground: no depth test, and `transparent` puts them in the last (transparent) list so
   // they draw after roads and other blended ground passes, which would otherwise paint over them.
   const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true });
+  const HOSTILE_WARM = [0xff8869, 0xffe7c4] as const, HOSTILE_COLD = [0xb056ff, 0xf6e8ff] as const;
   const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false, transparent: true });
   const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);
@@ -960,7 +974,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
       // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
       const boss = state.boss;
-      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil';
+      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil' || boss?.id === 'cradle';
       {
         let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && boss
           ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
@@ -969,8 +983,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (isWarden) terrain.setExclusion(warden.footprint(state, seat));
       }
       {
-        // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water.
-        const mire = world.planet.seaLevel ?? 0;
+        // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. (THE CRADLE's stand-in sits
+        // on Amnion's plateau.)
+        const mire = world.planet.seaLevel ?? (planet === 'amnion' ? AMNION_PLATEAU : 0);
         let seat: { x?: number; s: number; baseHeight: number } | null = isVeil && boss ? veilPlacement(boss.s, mire) : null;
         if (isVeil && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, VEIL.targetHeight, mire, world);
         veil.update(state, seat);
@@ -1147,7 +1162,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           placement.baseHeight += PONTOON_DECK;
         }
         if (VESPER_KINDS.has(enemy.kind) && !craftRequested) ensureCraft('kinds');
-        const nacreNode: NacreCraftNode | null = planet === 'nacre' && nacreBatches && enemy.kind !== 'fuel' ? (enemy.formation?.template === 'veil-pods' ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
+        const nacreNode: NacreCraftNode | null = (planet === 'nacre' || planet === 'amnion') && nacreBatches && enemy.kind !== 'fuel' ? (enemy.formation?.template === 'veil-pods' ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
         const nacreBatch = nacreNode ? nacreBatches!.get(nacreNode) : undefined;
         const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
@@ -1321,6 +1336,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       plinths.count = plinthCount; plinths.instanceMatrix.needsUpdate = true;
       pontoons.count = pontoonCount; pontoons.instanceMatrix.needsUpdate = true;
       let friendlyCount = 0, hostileCount = 0, missileCount = 0;
+      // Hostile shots are warm everywhere but Amnion, whose glowing yolk canyons are warm themselves: there they are violet
+      // with a pale core, apart from the yolk and from the player's own white-cyan shots (docs/27).
+      hostileMaterial.color.setHex(planet === 'amnion' ? HOSTILE_COLD[0] : HOSTILE_WARM[0]); hostileCoreMaterial.color.setHex(planet === 'amnion' ? HOSTILE_COLD[1] : HOSTILE_WARM[1]);
       for (const shot of state.projectiles) {
         if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
         transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);

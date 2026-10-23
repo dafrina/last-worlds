@@ -1,5 +1,23 @@
 # Build status
 
+## Amnion · Brood Wastes, milestone 1: ground, light and the Brood Strike mission, 23 October 2026
+
+User: "new level ... the vibe is biological wasteland and eggs and biological enemies and facilities/buildings"; "Amnion, brood strike, the cradle. start on it"; "definitely also add mountains not only mesa canyons".
+
+- **World (docs/27):** `src/world/terrain-amnion.ts`:
+  - bone-crust plateaus in two tiers with egg hollows;
+  - bone mountains with sharp crests;
+  - sheer flesh canyons with a glowing yolk river.
+
+  Its look, ground glow and flesh walls; Brood Strike (the final campaign mission, after Deep Bloom) with its own authored playlist; THE CRADLE's content.
+- **Readability:** hostile shots and muzzle flashes are violet on Amnion. The first pass's cyan was too close to the player's own shots.
+- **Stand-ins, openly marked:** Nacre's craft for the enemies, THE VEIL's model for THE CRADLE, and a transposed Nacre arrangement as the music (Codex asked for the real theme).
+- **Fixed on the way:** the hunters' kind table hid a missing planet behind an `as` cast, and Amnion's first hunter crashed the run. It is now `satisfies`, so the next world can't miss it.
+- **Tests:**
+  - `tests/sim/amnion.test.ts`: campaign place and boss, and the perfect pilot clears Brood Strike without a hit (pulse and fan on Standard, seeker on Veteran);
+  - the Brood Strike playlist in the authored-cue checks, and its hazard-union fairness on all three difficulties.
+- **Checks:** typecheck; unit tests 423/423; build; browser BROWSER_RESULT. No phone test.
+
 ## Vesper cliffs seamless with the shelf tops, 23 October 2026
 
 User: "the cliff models are too small in area or something, it doesn't look seamless with the tops of the mountains".

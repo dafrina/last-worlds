@@ -232,7 +232,7 @@ const legacyView = (state: RunState): ViewFootprint => ({
 });
 
 /** Foundation blocks under buildings over lower ground: concrete in each world's tone (version 16). */
-const FOUNDATION_COLOR: Readonly<Record<PlanetId, number>> = { khepri: 0x5a4434, luna: 0xa9abae, vesper: 0x8c97a3, nacre: 0x2a2440 };
+const FOUNDATION_COLOR: Readonly<Record<PlanetId, number>> = { khepri: 0x5a4434, luna: 0xa9abae, vesper: 0x8c97a3, nacre: 0x2a2440, amnion: 0x5a3a2c };
 
 /**
  * Draw heights: buildings sink with the plant (rule 3); flat pieces lie on the seat's ground. With a terrain sampler, each

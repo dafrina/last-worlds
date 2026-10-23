@@ -1,7 +1,7 @@
 /** Menu-only surfaces. Gameplay HUD and input stay in game-ui.ts. */
 
 /** Campaign missions in selector (and unlock) order: CAMPAIGN_ORDER in src/content/equipment.ts. */
-export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector'], ['deep-bloom', 'Deep Bloom']] as const;
+export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector'], ['deep-bloom', 'Deep Bloom'], ['brood-strike', 'Brood Strike']] as const;
 const creditGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 11 6 6 11 1 6Z"/></svg>';
 
 /**

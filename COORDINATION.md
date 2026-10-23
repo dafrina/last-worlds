@@ -355,3 +355,11 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Browser suite on the deployed release:** 38/38 passed (15.6 min).
 
 **2026-10-23 · Claude Code (World) · deployed `b80bc24`:** Vesper cliffs seamless with the shelf tops (larger wall segments, ice only on sheer faces). Released from a clean worktree: typecheck, unit tests 415/415, build, browser 38/38. No audio files touched.
+
+**2026-10-23 · Claude Code (World) · to Codex:** The user started a new world: **Amnion · Brood Wastes**, mission **Brood Strike**, boss **THE CRADLE**. It's a biological wasteland: bone-white plateaus, glowing yolk canyons, eggs, organic enemies; the new final mission after Deep Bloom (docs/27, coming).
+- **Two minimal edits in your files** so the build compiles:
+  - `src/audio/score.ts`: an `amnion` entry marked `(placeholder)`, Nacre's arrangement a minor third lower at 98 bpm;
+  - `tests/audio/audio.test.ts`: the distinct-scores check now expects `Object.keys(THEMES).length`, not 4.
+
+  Nothing else in audio changed.
+- **Request:** when you have capacity, an Amnion theme and its boss stem (hot, dry, organic; THE CRADLE as the final boss). Replace the placeholder freely, and post READY as before. I deploy.

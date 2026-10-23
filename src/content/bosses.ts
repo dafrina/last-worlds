@@ -3,6 +3,7 @@ import { BASTION } from './bastion';
 import { HELION_ARK } from './ark';
 import { WARDEN } from './warden';
 import { VEIL } from './veil';
+import { CRADLE } from './cradle';
 
 export { WRECK_HOLD } from './departure';
 /** Every boss 15% tougher with 10% shorter recoveries (user, 17 October 2026: "10-20% more difficult"). */
@@ -155,10 +156,35 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       approach: 'THE MIRE GOES QUIET · SOMETHING HUGE IS RISING',
     },
   },
+  cradle: {
+    id: 'cradle', name: 'THE CRADLE',
+    arrivesAt: CRADLE.arrivesAt, approachEndsAt: CRADLE.approachEndsAt, arrivalDuration: CRADLE.arrivalDuration,
+    entryS: CRADLE.entryS, row: CRADLE.row, targetHeight: CRADLE.targetHeight,
+    parts: {
+      left: { x: -CRADLE.sacOffset, s: CRADLE.sacS, radius: CRADLE.sacRadius, hp: CRADLE.sacHp },
+      right: { x: CRADLE.sacOffset, s: CRADLE.sacS, radius: CRADLE.sacRadius, hp: CRADLE.sacHp },
+      core: { x: 0, s: CRADLE.heartS, radius: CRADLE.heartRadius, hp: CRADLE.heartHp },
+    },
+    pairAttack: 'burst', coreAttack: 'fan-burst',
+    warning: CRADLE.warning, laser: null, beamWarning: CRADLE.beamWarning, overload: CRADLE.overload,
+    overloadMoves: ['core-lane', 'spiral', 'fan', 'side-lanes', 'burst', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
+    spiral: { arms: 4, turn: 1.7, interval: 0.12, duration: 3, speed: 4.8 },
+    recovery: CRADLE.recovery, transitionRecovery: CRADLE.transitionRecovery,
+    overloadFraction: CRADLE.overloadFraction, extractionDuration: DEPARTURE.duration,
+    bursts: { pair: CRADLE.sacBurst, core: CRADLE.heartBurst }, fan: CRADLE.heartFan,
+    // Hatchling waves from its brood bays while its heart is open, and more once it overloads.
+    launches: { ...CRADLE.launches, template: 'veil-pods', bays: CRADLE.bays },
+    arena: CRADLE.arena, shieldSupplies: CRADLE.shieldSupplies,
+    messages: {
+      start: 'THE CRADLE · BURST BOTH BROOD SACS', batteries: 'BURST BOTH BROOD SACS', core: 'THE NEST HEART IS OPEN',
+      overload: 'THE BROOD IS WAKING · WATCH THE LANES', destroyed: 'THE CRADLE IS BURNING · JUMP',
+      approach: 'THE GROUND IS MOVING · THE CRADLE STIRS',
+    },
+  },
 };
 
 /** The boss that ends a campaign mission, if any. */
-export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark' };
+export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark', 'brood-strike': 'cradle' };
 
 export function missionBoss(mission: MissionId | undefined): BossDefinition | null {
   const id = mission ? MISSION_BOSS[mission] : null;

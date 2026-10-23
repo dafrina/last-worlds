@@ -138,7 +138,8 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
  * more slowly; Rolling Thunder carries the full pressure. Endless never reads it.
  */
 // 15 October (user): Rolling Thunder slightly harder (×0.92); Deep Bloom, now the final mission, the hardest (×0.92).
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92 };
+// 23 October: Brood Strike, the new final mission, starts at Deep Bloom's pressure (to be tuned after play).
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3 };
@@ -164,6 +165,8 @@ export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: 
   khepri: { flight: 1.05, shot: 1.05, cadence: 0.8 },
   vesper: { flight: 1.07, shot: 1.07, cadence: 0.62 },
   nacre: { flight: 1.1, shot: 1.1, cadence: 0.5 },
+  // Amnion (23 October) starts at Nacre's intensity; it is not harder until it has been played.
+  amnion: { flight: 1.1, shot: 1.1, cadence: 0.5 },
 };
 /**
  * A destroyed fuel skid explodes (user request, 16 October 2026): every damageable target whose body is within

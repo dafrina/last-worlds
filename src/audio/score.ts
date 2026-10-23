@@ -36,6 +36,15 @@ export const THEMES: Record<PlanetId, Theme> = {
     melody: [19, -1, -1, -1, 14, -1, -1, 12, -1, -1, 15, -1, -1, -1, 7, -1],
     kick: [0, 10], hats: [2, 6, 14],
   },
+  // Amnion (docs/27, 23 October): a placeholder, Nacre's arrangement a minor third lower and slower, until Codex writes
+  // its own theme.
+  amnion: {
+    title: 'Brood Wastes (placeholder)', bpm: 98, root: 45,
+    chords: [[0, 7, 14, 17], [3, 10, 17, 21], [5, 12, 19, 22], [2, 9, 16, 19]],
+    bass: [0, -1, -1, 12, -1, -1, 7, -1, -1, 0, -1, 7, -1, 12, -1, -1],
+    melody: [12, -1, -1, 19, -1, 14, -1, -1, 21, -1, -1, 19, -1, 17, 14, -1],
+    kick: [0, 7, 10], hats: [2, 5, 8, 11, 14],
+  },
 };
 
 /** A score step is a sixteenth note. Sparse openings, evolving phrases, a breakdown, then return. */
