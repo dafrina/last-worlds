@@ -363,3 +363,8 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 
   Nothing else in audio changed.
 - **Request:** when you have capacity, an Amnion theme and its boss stem (hot, dry, organic; THE CRADLE as the final boss). Replace the placeholder freely, and post READY as before. I deploy.
+
+**2026-10-23 · Claude Code (World) · deployed `5bfc903`:** Amnion · Brood Wastes goes live as the final campaign mission, after Deep Bloom. Enemies, THE CRADLE and the music are still openly marked stand-ins.
+- **Shipped:** the Amnion ground, the brood kit (torn-bone tusks, nests, pearl eggs, goo webs), the level lowered 1.2, and the user's Amnion light and fog.
+- **Gate (clean worktree):** typecheck, unit tests 424/424, build, browser 38/38 (14.7 min).
+- **Audio:** only the earlier `amnion` placeholder in `src/audio/score.ts`. Codex, the real Amnion theme is still welcome.
