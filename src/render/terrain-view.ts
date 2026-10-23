@@ -8,7 +8,7 @@ import {
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
-  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
+  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
   type KitGeometries,
 } from './terrain-kit';
 
@@ -121,7 +121,7 @@ const CASTER_STRIPS = 4;
  */
 const CASTER_NODES = new Set<string>([
   // Tall Nacre pieces (crags and the builders' ruins) ground themselves with real shadows on High too.
-  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars', 'cliffWall', 'iceWall'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
+  ...(['clump', 'column', 'spire', 'wall', 'rosette', 'hoodoo', 'crystalSpire', 'mireCrag', 'ruinTower', 'ruinFort', 'ruinPillars', 'cliffWall', 'iceWall', 'fleshWall', 'boneSpire', 'nest'] as const).flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v))),
   'infra_refinery', 'infra_drill_rig', 'infra_silo', 'infra_comm_dish', 'infra_relay', 'infra_habitat_0', 'infra_habitat_1',
   'tank_vertical_0', 'tank_vertical_1', 'tank_sphere', 'tank_horizontal', 'khepri_processing_tower', 'facility',
   // Vesper outposts ground themselves on the bright snow with real shadows on High (docs/26 §5).
@@ -184,7 +184,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   // Khepri infrastructure and the district kit (`khepri_*`, same materials) draw with the infra material.
   // Cliff walls (docs/26 §11) take the kit's wall material: the planet's rock or ice map laid along each wall.
   const wallMaterial = (kitMaterial.userData.wallMaterial as THREE.Material | undefined) ?? kitMaterial;
-  const isWall = (name: string) => name.startsWith(`${KIT.cliffWall.prefix}_`) || name.startsWith(`${KIT.iceWall.prefix}_`);
+  const isWall = (name: string) => name.startsWith(`${KIT.cliffWall.prefix}_`) || name.startsWith(`${KIT.iceWall.prefix}_`) || name.startsWith(`${KIT.fleshWall.prefix}_`);
   const nodeMaterial = (name: string) => name.startsWith('infra_') || name.startsWith('khepri_') ? infraMaterial : SHARED.has(name) ? sharedMaterial
     : isWall(name) ? wallMaterial : kitMaterial;
   function createMesh(geometry: THREE.BufferGeometry, material: THREE.Material, capacity: number, name: string) {
@@ -518,8 +518,10 @@ export function createTerrainView(options: TerrainViewOptions) {
     const jobs: Promise<unknown>[] = [];
     if (planet === 'nacre') jobs.push(loadNacreKit(`${base}assets/nacre/nacre-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
+    if (planet === 'amnion') jobs.push(loadAmnionKit(`${base}assets/amnion/amnion-kit.glb`)
+      .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // Cliff walls (docs/26 §11): Khepri's columnar basalt walls and Vesper's ice-shelf walls.
-    const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' ? 'khepri' : null;
+    const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' ? 'khepri' : planet === 'amnion' ? 'amnion' : null;
     if (cliffs) jobs.push(loadCliffKit(`${base}assets/${cliffs}/cliff-kit.glb`, cliffs)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // The planet's own wall maps (Vesper's ice walls), so walls never sharpen late; failures settle (procedural detail).

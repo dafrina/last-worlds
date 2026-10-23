@@ -19,7 +19,7 @@ centre. Bounds: x -1.05 .. 1.05, glTF z -0.6 (back, into the slope) .. +0.35 (fr
 material (the kit loader makes those faces glow).
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
-        --python "$(wslpath -w tools/blender/cliff_kit.py)" -- [--world khepri|vesper] [--preview DIR]
+        --python "$(wslpath -w tools/blender/cliff_kit.py)" -- [--world khepri|vesper|amnion] [--preview DIR]
 """
 import argparse, math, os, random, sys
 
@@ -207,7 +207,7 @@ def fracture_planes(rng, center, half, cuts, flat_top=False):
     return planes
 
 
-def fractured_wall(rng, idx, paint, mat, snow_mat=None):
+def fractured_wall(rng, idx, paint, mat, snow_mat=None, face=(10, 14)):
     """A sharp, fractured cliff face (user, 22 October: "go all out on rocky sharp looking cliffs, more detailed and
     sharper"; "it's still columns ... irregular shapes that overlap would look better"; reusable for a fractured mountain
     world): no column grid. A row of jagged chunks breaks the rim, more chunks of every size overlap across the face at
@@ -240,7 +240,7 @@ def fractured_wall(rng, idx, paint, mat, snow_mat=None):
         chunk(x + w / 2, cz, w, h, rng.uniform(.5, .85), FRONT + rng.uniform(.04, .2), flush)
         x += w * rng.uniform(.6, .85)   # overlapping neighbours
     # The face: narrow, tall chunks (spiky, user 22 October) overlapping at their own depths.
-    for _ in range(rng.randint(10, 14)):
+    for _ in range(rng.randint(*face)):
         w, h = rng.uniform(.14, .4), rng.uniform(.3, .7)
         chunk(rng.uniform(-HALF_X + .1, HALF_X - .1), rng.uniform(BASE + h * .4, .78), w, h, rng.uniform(.35, .75), FRONT + rng.uniform(.0, .22))
     for _ in range(2 + idx % 2):  # chunks fallen at the foot
@@ -272,6 +272,84 @@ def vesper_colour_fn(hs):
     return fn
 
 
+# ----------------------------------------------------------------------------- Amnion
+FLESH, BONE = 0, 1
+AMNION = {k: kit.hex_linear(v) for k, v in dict(
+    flesh_dark="#240a0a", flesh="#561816", flesh_lit="#82302a", sinew="#9c4c40", sinew_lit="#cf8674",
+    bone="#ddd3c0", bone_shade="#b4a58c", crack="#120404").items()}
+# Fallen chunks at the foot are hulls painted through vesper_kit's paint-to-material table.
+vk.PAINT_MAT.setdefault("flesh", FLESH)
+vk.PAINT_MAT.setdefault("sinew", FLESH)
+vk.PAINT_MAT.setdefault("lip", BONE)
+
+
+def vtube(hs, rings, sides, paint, mat, tag="main", cap=False):
+    """A vertical tube through horizontal elliptical rings (x, y, z, rx, ry), bottom to top; `cap` closes its top."""
+    loops = []
+    for x, y, z, rx, ry in rings:
+        loops.append([hs.v((x + rx * math.cos(k * math.tau / sides), y + ry * math.sin(k * math.tau / sides), z)) for k in range(sides)])
+    for lo, hi in zip(loops, loops[1:]):
+        for k in range(sides):
+            a = (k + .5) * math.tau / sides
+            hs.face((lo[k], lo[(k + 1) % sides], hi[(k + 1) % sides], hi[k]), paint, tag, mat, outward=(math.cos(a), math.sin(a), 0.0))
+    if cap:
+        hs.face(tuple(loops[-1]), paint, "top", mat, outward=(0.0, 0.0, 1.0))
+
+
+def amnion_wall(rng, idx):
+    """Amnion's canyon walls (docs/27, after the user's brood-wastes concept): organic, not fractured rock. Bulging
+    vertical flesh lobes overlap across the face (muscle and organ folds, each swelling and narrowing down its height,
+    rounding off just under the rim), and a few sinews sag between them. The plateau's own crisp edge is the bone crust
+    (a separate bone lip read as stepped stone blocks: user, 23 October, "seamless with the tops"). A dark flesh mass
+    behind fills every gap."""
+    hs = HS(rng)
+    prism(hs, [(-HALF_X, BACK - .3), (HALF_X, BACK - .3), (HALF_X, BACK), (-HALF_X, BACK)], BASE, .86, "flesh", "flesh", FLESH, FLESH, tag="crack")
+    # Lobes: evenly spread with jitter, each its own girth, lean and swell.
+    n = rng.randint(5, 6)
+    for j in range(n):
+        rx = rng.uniform(.2, .3)
+        x0 = kit.clamp(-HALF_X + (j + .5) * 2 * HALF_X / n + rng.uniform(-.08, .08), -HALF_X + rx * 1.25, HALF_X - rx * 1.25)
+        squash, lean, phase, out = rng.uniform(.6, .9), rng.uniform(-.14, .14), rng.uniform(0, math.tau), rng.uniform(0, .12)
+        rings = []
+        top = rng.uniform(.93, 1.0) if j else 1.0
+        for k, z in enumerate((BASE, BASE + .3, .38, .64, top - .08, top)):
+            r = rx * (.72 + .42 * math.sin(phase + k * 1.3)) * (.55 if k == 5 else 1.0)
+            ry = r * squash
+            rings.append((kit.clamp(x0 + lean * (z - BASE), -HALF_X + r, HALF_X - r), FRONT + ry + out * (1 - .5 * min(k, 4) / 4), z, r, ry))
+        vtube(hs, rings, 8, "flesh", FLESH, cap=True)
+    # Sinews: tapered strands hanging from under the lip, sagging out from the face between their ends.
+    for _ in range(rng.randint(3, 4)):
+        x, r = rng.uniform(-HALF_X + .15, HALF_X - .15), rng.uniform(.022, .032)
+        drift, zl = rng.uniform(-.12, .12), BASE + rng.uniform(.05, .35)
+        rings = []
+        for k, z in enumerate((zl, (zl + .9) * .5 - .1, .9)):
+            sag = (.02 if k == 1 else .06)
+            rr = r * (1.0 if k == 2 else .7)
+            rings.append((x + drift * (1 - k / 2), FRONT + rr + sag, z, rr, rr))
+        vtube(hs, rings, 3, "sinew", FLESH, tag="sinew")
+    for _ in range(2 + idx % 2):  # flesh fallen at the foot
+        cx, cy, r = rng.uniform(-.85, .85), rng.uniform(FRONT + .04, FRONT + .14), rng.uniform(.05, .08)
+        pts = [Vector((cx + rng.uniform(-r, r), cy + rng.uniform(-r * .6, r * .6), BASE + rng.uniform(0, r * .8))) for _ in range(6)]
+        vk.hull_hs(hs, [Vector((p.x, max(FRONT + .005, p.y), p.z)) for p in pts], "flesh")
+    return hs
+
+
+def amnion_colour_fn(hs):
+    def fn(paint, p, n, ao, fi):
+        if hs.ftag[fi] == "crack":
+            return AMNION["crack"]
+        if paint in ("snow", "lip"):   # the bone-crust lip (its top lit, its ragged front edge shaded)
+            return kit.mul3(kit.mix3(AMNION["bone_shade"], AMNION["bone"], kit.clamp(n.z, 0, 1)), kit.lerp(.7, 1.0, ao))
+        if paint == "sinew" or hs.ftag[fi] == "sinew":
+            return kit.mul3(kit.mix3(AMNION["sinew"], AMNION["sinew_lit"], kit.clamp(.4 - n.y * .5, 0, 1)), kit.lerp(.55, 1.0, ao))
+        # Flesh: dark low and in the crevices, warmer where a face turns up or to the light.
+        low = kit.clamp((p.z - BASE) / (1.0 - BASE), 0, 1)
+        col = kit.mix3(AMNION["flesh_dark"], AMNION["flesh"], low)
+        col = kit.mix3(col, AMNION["flesh_lit"], kit.clamp(.25 + n.z * .5 - n.y * .25, 0, 1) * .6)
+        return kit.mul3(col, kit.lerp(.4, 1.0, ao))
+    return fn
+
+
 # ----------------------------------------------------------------------------- build
 def check(name, hs):
     xs, ys, zs = ([v[i] for v in hs.verts] for i in range(3))
@@ -290,6 +368,9 @@ def build(world, preview=None):
         mats = [vc.make_material('khepri_basalt', 'vc', rough=.88, metal=0.0),
                 vc.make_material('khepri_mineral', 'vc', rough=.3, metal=0.0)]
         prefix, make, colour, names = 'cliff_wall', khepri_wall, khepri_colour_fn, ('khepri_basalt', 'khepri_mineral')
+    elif world == 'amnion':
+        mats = [vc.make_material('amnion_flesh', 'vc', rough=.45, metal=0.0), vc.make_material('amnion_bone', 'vc', rough=.9, metal=0.0)]
+        prefix, make, colour, names = 'flesh_wall', amnion_wall, amnion_colour_fn, ('amnion_flesh',)  # bone is unused (no lip)
     else:
         mats = [vc.make_material(n, 'vc', rough=r, metal=0.0) for n, r in zip(vk.MAT_NAMES, (.12, .85, .9))]
         prefix, make, colour, names = 'ice_wall', vesper_wall, vesper_colour_fn, vk.MAT_NAMES[:2]  # rock is unused
@@ -326,8 +407,8 @@ def render_run(objs, world, out_dir):
         inst.location = (-7.0 + k * 2.0, 0.0, 0.0)
         inst.scale = (1.0, 1.0, 2.4)
         run.append(inst)
-    top = br.material('preview_top', '#b8743f' if world == 'khepri' else '#eef3f7', .9, 0)
-    low = br.material('preview_low', '#a0602f' if world == 'khepri' else '#13385c', .9 if world == 'khepri' else .2, 0)
+    top = br.material('preview_top', {'khepri': '#b8743f', 'amnion': '#ddd3c0'}.get(world, '#eef3f7'), .9, 0)
+    low = br.material('preview_low', {'khepri': '#a0602f', 'amnion': '#34100f'}.get(world, '#13385c'), .9 if world != 'vesper' else .2, 0)
     for nm, (y0, y1, z, m) in {'plateau': (.35, 8, 2.4, top), 'floor': (-8, .2, 0.0, low)}.items():
         me = bpy.data.meshes.new(nm)
         me.from_pydata([(-9, y0, z), (9, y0, z), (9, y1, z), (-9, y1, z)], [], [(0, 1, 2, 3)])
@@ -343,7 +424,7 @@ def render_run(objs, world, out_dir):
 if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     ap = argparse.ArgumentParser(prog='cliff_kit.py')
-    ap.add_argument('--world', choices=('khepri', 'vesper'), default=None)
+    ap.add_argument('--world', choices=('khepri', 'vesper', 'amnion'), default=None)
     ap.add_argument('--preview', default=None)
     args = ap.parse_args(argv)
     for w in ([args.world] if args.world else ['khepri', 'vesper']):

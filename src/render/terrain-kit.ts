@@ -3,7 +3,7 @@ import { WORLD_PAINT_GLSL, setWorldPaint, worldGlow, worldPaintUniforms } from '
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
 
@@ -80,10 +80,24 @@ function cliffWallStandIn(variant: number): THREE.BufferGeometry {
   return builder.geometry();
 }
 
+/** Amnion's loading stand-ins (docs/27): plain shapes in the kit's colours until amnion-kit.glb arrives. */
+function amnionStandIn(kind: KitKind, variant: number): THREE.BufferGeometry {
+  const builder = new Builder(), bone = new THREE.Color(0xcfc4ae), flesh = new THREE.Color(0x5a1d1a), egg = new THREE.Color(0xc89048);
+  if (kind === 'eggClutch') { builder.prism(0, 0, 0.5, 0.1, 7, variant, 0, 0); for (let i = 0; i < 4; i++) builder.prism(Math.cos(i * 1.6) * 0.25, Math.sin(i * 1.6) * 0.22, 0.14, 0.55, 6, i, 0, 0); }
+  else if (kind === 'boneSpire') builder.prism(0, 0, 0.25, 1, 5, variant, 0, 0);
+  else if (kind === 'nest') builder.prism(0, 0, 0.95, 0.3, 9, variant, 0, 0);
+  else builder.prism(0, 0, 0.2, 0.25, 5, variant, 0, 0);
+  const geometry = builder.geometry(), colour = kind === 'eggClutch' ? egg : kind === 'nest' ? flesh : bone, count = geometry.getAttribute('position').count;
+  geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3).map((_, i) => i % 3 === 0 ? colour.r : i % 3 === 1 ? colour.g : colour.b), 3));
+  return geometry;
+}
+
 function fallbackPiece(kind: KitKind, variant: number): THREE.BufferGeometry {
-  if (kind === 'cliffWall') return cliffWallStandIn(variant);
+  // (Amnion's flesh walls borrow the basalt stand-in's shape while their kit loads.)
+  if (kind === 'cliffWall' || kind === 'fleshWall') return cliffWallStandIn(variant);
   if ((VESPER_KIT_KINDS as readonly string[]).includes(kind) || kind === 'iceWall') return vesperFallbackPiece(kind, variant);
   if ((NACRE_KIT_KINDS as readonly string[]).includes(kind)) return createNacrePiece(kind, variant);
+  if ((AMNION_KIT_KINDS as readonly string[]).includes(kind)) return amnionStandIn(kind, variant);
   const builder = new Builder(), seed = (KIT_KINDS as readonly string[]).indexOf(kind) * 101 + variant * 13;
   const cluster = (count: number, spreadX: number, spreadZ: number, minTop: number, size: number) => {
     for (let i = 0; i < count; i++) {
@@ -214,7 +228,7 @@ function vesperFallbackPiece(kind: KitKind, variant: number): THREE.BufferGeomet
 /** Simple procedural stand-ins so the game renders before (or without) the Blender kits. */
 export function createFallbackKit(): KitGeometries {
   const kit: KitGeometries = new Map();
-  for (const kind of [...KIT_KINDS, ...VESPER_KIT_KINDS, ...NACRE_KIT_KINDS, ...KHEPRI_CLIFF_KINDS, ...VESPER_CLIFF_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) {
+  for (const kind of [...KIT_KINDS, ...VESPER_KIT_KINDS, ...NACRE_KIT_KINDS, ...KHEPRI_CLIFF_KINDS, ...VESPER_CLIFF_KINDS, ...AMNION_CLIFF_KINDS]) for (let v = 0; v < KIT[kind].variants; v++) {
     const geometry = normalizeKitGeometry(fallbackPiece(kind, v), kind);
     if (geometry) kit.set(kitNodeName(kind, v), geometry);
   }
@@ -320,12 +334,14 @@ export function loadVesperKit(url: string): Promise<KitGeometries> { return load
  * `nacre_glow` material glow with their own COLOR_0 (weight = its brightest channel; see the Nacre kit look).
  */
 export function loadNacreKit(url: string): Promise<KitGeometries> { return loadKit(url, NACRE_KIT_KINDS, /glow/i); }
+/** Amnion's brood kit (docs/27): egg cores and yolk emit their own colour like Nacre's flora. */
+export function loadAmnionKit(url: string): Promise<KitGeometries> { return loadKit(url, AMNION_KIT_KINDS, /glow/i); }
 /**
  * Loads a world's cliff kit (`<world>/cliff-kit.glb`, docs/26 §11): Khepri's columnar basalt walls (also Luna's) or
  * Vesper's ice-shelf walls. Nodes it lacks keep their stand-ins.
  */
-export function loadCliffKit(url: string, planet: 'khepri' | 'vesper'): Promise<KitGeometries> {
-  return loadKit(url, planet === 'vesper' ? VESPER_CLIFF_KINDS : KHEPRI_CLIFF_KINDS);
+export function loadCliffKit(url: string, planet: 'khepri' | 'vesper' | 'amnion'): Promise<KitGeometries> {
+  return loadKit(url, planet === 'vesper' ? VESPER_CLIFF_KINDS : planet === 'amnion' ? AMNION_CLIFF_KINDS : KHEPRI_CLIFF_KINDS);
 }
 function loadKit(url: string, kinds: readonly KitKind[], emissive?: RegExp): Promise<KitGeometries> {
   const names = kinds.flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v)));
@@ -650,6 +666,8 @@ const WALL_TILE = 3.5;
 /** Wall detail strength per planet (luminance contrast) and the wall normal map's strength (High only). */
 const WALL_DETAIL: Partial<Record<PlanetId, { contrast: number; normal: number }>> = {
   khepri: { contrast: 0.95, normal: 0.9 }, vesper: { contrast: 1.2, normal: 0.9 }, luna: { contrast: 0.75, normal: 0.8 },
+  // Amnion's flesh walls keep their own colour: only a soft grain.
+  amnion: { contrast: 0.35, normal: 0.4 },
 };
 
 const GLOW_VERTEX = '#include <common>\nattribute float glow;\nvarying float vGlow;\nvarying float vHazeY;';
@@ -837,7 +855,11 @@ export function createTerrainMaterials() {
   // The ground's glow: Khepri's teal mineral veins and crystal pools, or Amnion's yolk (docs/27): the colour, the tint of
   // a vein's and a pool's dark bed, and how strongly a pool itself glows (Amnion's molten yolk far more than a crystal bed).
   const groundHaze = haze(), groundLook = { groundIce: {value: 0}, glowColor: { value: linear(0x8ffcf0).multiplyScalar(0.75) }, detailContrast: { value: 1.4 },
-    veinTint: { value: new THREE.Vector3(0.02, 0.16, 0.15) }, poolTint: { value: new THREE.Vector3(0.014, 0.055, 0.06) }, poolGlow: { value: 0.12 } };
+    veinTint: { value: new THREE.Vector3(0.02, 0.16, 0.15) }, poolTint: { value: new THREE.Vector3(0.014, 0.055, 0.06) }, poolGlow: { value: 0.12 },
+    // How much a pool shows Khepri's crystal crackle (1) or glows molten instead (0: Amnion's yolk).
+    poolCells: { value: 1 },
+    // Vein line width in pixels (1: Khepri's hairline mineral cracks; Amnion's yolk fissures are wider).
+    veinWidth: { value: 1 } };
   /**
    * Crisp cliffs (terrain version 14, docs/26 §10): on Khepri, Vesper and Luna each triangle's own plane decides top or
    * wall (hard rims, faceted wall shading, the wall's own material); Nacre keeps the smooth look exactly (cliffLook 0).
@@ -873,7 +895,7 @@ vec2 iceColumns( float column, float height ) {
   float iceRidge = 0.35 + 0.3 * fract( sin( iceIndex * 3.73 + iceBlock * 17.1 ) * 43758.5453 );
   return vec2( iceEdge, iceLean + ( iceEdge < iceRidge ? -0.45 : 0.45 ) );
 }
-uniform vec3 glowColor;\nuniform vec3 veinTint;\nuniform vec3 poolTint;\nuniform float poolGlow;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
+uniform vec3 glowColor;\nuniform vec3 veinTint;\nuniform vec3 poolTint;\nuniform float poolGlow;\nuniform float poolCells;\nuniform float veinWidth;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
 uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
@@ -905,8 +927,8 @@ float khepriCells( vec2 local, float scale ) {
   // (|d| / fwidth(d)): a ~1 px luminous core inside a ~3 px dark fissure lip. Brightness breaks up along the
   // crack (periodic value noise, seamless across 36-unit sections), so networks read as cracks, not lightning.
   vec2 pixels = abs( vVeins ) / max( fwidth( vVeins ), vec2( 1e-4 ) );
-  vec2 cores = vec2( 1.0 ) - smoothstep( vec2( 0.2 ), vec2( 0.85 ), pixels );
-  vec2 lips = vec2( 1.0 ) - smoothstep( vec2( 0.7 ), vec2( 2.4 ), pixels );
+  vec2 cores = vec2( 1.0 ) - smoothstep( vec2( 0.2 * veinWidth ), vec2( 0.85 * veinWidth ), pixels );
+  vec2 lips = vec2( 1.0 ) - smoothstep( vec2( 0.7 * veinWidth ), vec2( 2.4 * veinWidth ), pixels );
   float vein = 0.0, crack = 0.0, shore = 0.0, pool = 0.0, sparkle = 0.0;
   if ( vSurface.x > 0.01 || vSurface.y > 0.12 ) {
     float patchy = smoothstep( 0.3, 0.72, khepriNoise( vLocal.xz, 0.5 ) );
@@ -927,7 +949,9 @@ float khepriCells( vec2 local, float scale ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, veinTint, vein * 0.75 );
   diffuseColor.rgb = mix( diffuseColor.rgb, poolTint, pool * 0.85 );
   // Cracks glow just below the bloom threshold; the crackle network inside pools reaches it (soft halo on High).
-  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * poolGlow + sparkle * 1.2 );`)
+  // A molten pool (Amnion's yolk) glows unevenly, brightest in its thick middle; a crystal bed glows in its crackle.
+  float molten = pool * ( 1.0 - poolCells ) * ( 0.45 + 0.9 * khepriNoise( vLocal.xz * 0.9, 0.7 ) ) * smoothstep( 0.35, 0.9, pool );
+  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * poolGlow + sparkle * 1.2 * poolCells + molten * 1.6 );`)
       .replace('#include <map_fragment>', `// Crisp cliffs: the triangle's own plane (screen derivatives, as flat shading takes it) says top or wall, so a
 // rim is a hard edge between a top triangle and a wall triangle. Smooth ground keeps the vertex values (cliffLook 0:
 // exactly the version 13 path).
@@ -1193,11 +1217,13 @@ ${VESPER_KIT_SURFACE}`)
     if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
     const amnion = planet === 'amnion';
-    groundLook.glowColor.value.copy(amnion ? linear(0xffb42a).multiplyScalar(1.6) : linear(0x8ffcf0).multiplyScalar(0.75));
+    groundLook.glowColor.value.copy(amnion ? linear(0xffd23a).multiplyScalar(1.7) : linear(0x8ffcf0).multiplyScalar(0.75));
     groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : [0.02, 0.16, 0.15]) as [number, number, number]);
     groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : [0.014, 0.055, 0.06]) as [number, number, number]);
     // A dark flesh bed with the yolk in its crackle and a low glow of its own (a full glow read as a flat lava band).
     groundLook.poolGlow.value = amnion ? 0.22 : 0.12;
+    groundLook.poolCells.value = amnion ? 0.15 : 1;
+    groundLook.veinWidth.value = amnion ? 3 : 1;
     // Cracks (version 16): blue-grey lines in Vesper's snow and ice, dark fractures in Luna's regolith.
     // (Amnion's bone crust takes them too: dark fractures between its plates.)
     if ((vesper || luna || planet === 'amnion') && !crackTexture) crackTexture = createCrackTexture();
@@ -1271,7 +1297,7 @@ ${VESPER_KIT_SURFACE}`)
      */
     setLook(planet: PlanetId) {
       const vesper = planet === 'vesper';
-      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0; kitLook.nacreLook.value = planet === 'nacre' ? 1 : 0;
+      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0; kitLook.nacreLook.value = planet === 'nacre' || planet === 'amnion' ? 1 : 0;
       // (Version 16: Vesper's radiator and lamp bands glow blue, the world's glow, instead of orange.)
       kitGlow.glowColor.value.copy(vesper ? worldGlow('vesper', 3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
       infraGlow.glowColor.value.copy(worldGlow(planet, vesper ? 3.6 : 3.4));

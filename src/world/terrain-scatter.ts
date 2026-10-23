@@ -14,20 +14,24 @@ export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'flo
  */
 export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'glassTube' | 'goblet' | 'lilyRaft' | 'mossTuft'
   | 'ruinTower' | 'ruinFort' | 'ruinRing' | 'ruinBridge' | 'ruinPillars' | 'ruinRubble';
+/** Amnion's brood kit (amnion-kit.glb, docs/27, tools/blender/amnion_kit.py). */
+export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards';
 /**
  * Cliff walls (terrain version 15, docs/26 §11): 2-unit wall segments set along cliff rims, base-centre pivot, front
  * (the outward, downhill face) toward +Z, top at exactly 1 (placement scales y by the local drop). Khepri's columnar
  * basalt (public/assets/khepri/cliff-kit.glb; Luna repaints it grey) and Vesper's fractured ice-shelf walls
  * (public/assets/vesper/cliff-kit.glb).
  */
-export type CliffKitKind = 'cliffWall' | 'iceWall';
-export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | CliffKitKind;
+export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall';
+export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | CliffKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
 export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
 /** Cliff kits, one file per world: Khepri's (also drawn on Luna) and Vesper's. */
 export const KHEPRI_CLIFF_KINDS: readonly CliffKitKind[] = ['cliffWall'];
 export const VESPER_CLIFF_KINDS: readonly CliffKitKind[] = ['iceWall'];
+export const AMNION_CLIFF_KINDS: readonly CliffKitKind[] = ['fleshWall'];
+export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
   'ruinTower', 'ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
@@ -71,6 +75,13 @@ export const KIT: Readonly<Record<KitKind, {
   // relief), base at y 0 and top at exactly 1.
   cliffWall: { prefix: 'cliff_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   iceWall: { prefix: 'ice_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
+  // Amnion (amnion-kit.glb, docs/27): egg clutches and shards at real size; spires and nests top out at exactly 1.
+  eggClutch: { prefix: 'amn_eggs', variants: 3, halfX: 0.6, halfZ: 0.55, height: 0.6, exactTop: false, radius: Math.hypot(0.6, 0.55) },
+  boneSpire: { prefix: 'amn_spire', variants: 3, halfX: 0.3, halfZ: 0.3, height: 1, exactTop: true, radius: Math.hypot(0.3, 0.3) },
+  nest: { prefix: 'amn_nest', variants: 2, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.hypot(1, 1) },
+  boneShards: { prefix: 'amn_shards', variants: 3, halfX: 0.32, halfZ: 0.3, height: 0.3, exactTop: false, radius: Math.hypot(0.32, 0.3) },
+  // Amnion's canyon walls (docs/27): flesh lobes and sinews tucked under the plateau's own bone edge.
+  fleshWall: { prefix: 'flesh_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   // Nacre (nacre-kit.glb, art/nacre-kit/README.md; code-built stand-ins in src/render/nacre-kit.ts). Pieces marked
   // exactTop top out at exactly 1 (instance height = world height); rafts float with their waterline at y = 0.
   mireRock: { prefix: 'nacre_rock', variants: 3, halfX: 0.75, halfZ: 0.75, height: 1, exactTop: true, radius: Math.hypot(0.75, 0.75) },
