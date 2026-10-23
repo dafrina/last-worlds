@@ -1,5 +1,27 @@
 # Build status
 
+## No more dashed telegraphs: aim rays, chevron columns, solid boss aims (all worlds), 23 October 2026
+
+User:
+- "I really dont like the dashed lines anymore what can we do for normal enemies?";
+- "why some of the ground targets draw a warning like a laser even tho they shoot balls";
+- "the bosses lasers also adjusted right".
+
+- **Aimed shots** (regular craft, turrets, Pulsar, Diamond): an aim ray in the planet's shot colour, solid, bright at the muzzle and fading toward its target. It brightens as the shot charges, under a swelling muzzle glow. Turrets show their three-round fan; the Pulsar's ray follows the ship; a Diamond's ray runs from its firing wing to a solid landing bracket.
+- **Missile batteries** (straight shots): chevrons sliding down the column, no lane. The beam-like lane was the confusion the user described.
+- **Lancers** (beam ships): their windup is now the beams' red preview, from the Lancer down.
+- **Bosses:**
+  - burst aims are a single solid line in all four boss views;
+  - boss beam lanes use the new beam preview and live beam, from the part that fires them down (checked on Bastion-9, `lookdev/review/bossbeam.jpg`).
+- **Timing:** all telegraph timing is the simulation's, unchanged.
+- **Look-dev hooks:**
+  - `bossOverload()` and the fx steps `overload`, `beam:warn|live`, `windup`.
+- **Checks:**
+  - typecheck;
+  - unit tests 424/424;
+  - captures `lookdev/review/tele3.jpg` and `bossbeam.jpg`.
+- **No phone test.**
+
 ## Enemy beams redrawn (all worlds); darker Amnion sinew strands, 23 October 2026
 
 User:

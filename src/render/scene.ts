@@ -6,6 +6,8 @@ import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, w
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
 import { arenaStopDistance } from '../sim/bastion';
 import { HUNTERS, hunterCharges } from '../sim/hunters';
+import { beamSpec } from '../sim/attacks';
+import { ENEMIES } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
@@ -1127,7 +1129,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
        * which then turns white with a red glow ... maybe make the laser glow in the color of the glow on their specific
        * planet"). The preview: a faint red veil from the source down with a thin red centre, flaring brighter through its
        * last 0.2 s (`flare` 0 … 1), the cue that it fires. The live beam: a white-hot core in a halo of the planet's glow,
-       * shimmering, with a flare at the emitter. Shots keep their dashed paths.
+       * shimmering, with a flare at the emitter.
        */
       const beamPreview = (x: number, top: number, width: number, flare: number) => {
         const breathe = .8 + .2 * Math.sin(state.time * 9);
@@ -1142,6 +1144,33 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         strip(x, top, x, VIEW.minS, Math.max(.07, width * .38), 0xffffff, flashLanes, 2.4 * shimmer);
         if (source) plumes.push({ x: source.kind === 'needle' ? source.aimX : x, z: -top + .4, length: .01, width: Math.max(.8, width * 1.4), hex: glow, energy: 3.2, round: true });
       };
+      /*
+       * Shot telegraphs (user, 23 October: "I really dont like the dashed lines anymore"; "why some of the ground targets
+       * draw a warning like a laser even tho they shoot balls"), in the shot colour so they never read as a beam or as
+       * the player's fire. Timing is the simulation's, unchanged. An aim ray: a solid thin line bright at the muzzle,
+       * fading toward its target, brightening as the shot charges (`charge` 0 … 1), and a swelling muzzle glow. A shot
+       * column (a straight-firing battery): chevrons sliding down it.
+       */
+      const shotHex = planet === 'amnion' ? HOSTILE_BLOOD[0] : HOSTILE_WARM[0];
+      const muzzle = (x: number, s: number, charge: number) =>
+        plumes.push({ x, z: -s + .3, length: .01, width: .45 + charge * .5, hex: shotHex, energy: 1.2 + charge * 2.4, round: true });
+      const aimRay = (x0: number, s0: number, x1: number, s1: number, charge: number) => {
+        const steps = 7;
+        for (let i = 0; i < steps; i++) {
+          const a = i / steps, b = (i + 1) / steps, fade = Math.pow(1 - a, 1.3);
+          strip(THREE.MathUtils.lerp(x0, x1, a), THREE.MathUtils.lerp(s0, s1, a), THREE.MathUtils.lerp(x0, x1, b), THREE.MathUtils.lerp(s0, s1, b), .22, shotHex, laneFills, .7 * fade);
+          strip(THREE.MathUtils.lerp(x0, x1, a), THREE.MathUtils.lerp(s0, s1, a), THREE.MathUtils.lerp(x0, x1, b), THREE.MathUtils.lerp(s0, s1, b), .07, shotHex, flashLanes, (.8 + charge * 1.6) * fade);
+        }
+      };
+      const shotColumn = (x: number, top: number, charge: number) => {
+        // Chevrons only, no veil: a veiled column read as a beam lane.
+        const span = top - VIEW.minS;
+        for (let k = 0; k < 6; k++) {
+          const s = top - .5 - ((state.time * 4 + k * span / 6) % (span - .5));
+          for (const side of [-1, 1]) strip(x + side * .3, s + .3, x, s, .12, shotHex, flashLanes, (1.6 + charge * 1.6) * (1 - (top - s) / span * .45));
+        }
+      };
+      const chargeOf = (enemy: Enemy) => 1 - Math.min(1, enemy.warning / Math.max(.1, ENEMIES[enemy.kind].warning));
       // Vesper flies its own faction's craft once loaded (Khepri models meanwhile).
       const activeBatches = planet === 'vesper' && vesperBatches ? vesperBatches : enemyBatches;
       let lineCursor = 0;
@@ -1230,41 +1259,28 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
         }
         if (enemy.warning > 0 && enemy.kind === 'pulsar') {
-          // Pulsar windup: a dashed teal line from the Pulsar to the ship, following it (its stream will track the ship).
-          const steps = 9, targetX = state.player.x;
-          for (let i = 0; i < steps; i++) {
-            const a = i / steps, b = (i + .55) / steps;
-            strip(THREE.MathUtils.lerp(enemy.x, targetX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(enemy.x, targetX, b), enemy.s * (1 - b), .09, 0x46f0dc);
-          }
+          // Pulsar windup: an aim ray to the ship, following it (its stream will track the ship).
+          aimRay(enemy.x, enemy.s, state.player.x, 0, chargeOf(enemy)); muzzle(enemy.x, enemy.s, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'needle') {
           // Needle windup: the beam's faint red preview at its committed aim, from the Needle down (beamPreview).
           beamPreview(enemy.aimX, enemy.s, .4, 0);
         } else if (enemy.warning > 0 && enemy.kind === 'missile') {
-          // Missile battery: a straight marked column from the battery down past the player row (non-tracking).
-          strip(enemy.x, enemy.s, enemy.x, VIEW.minS, .4, 0x6a2c1a, laneFills);
-          for (let s = enemy.s - .2; s > VIEW.minS; s -= 1.0) for (const side of [-1, 1]) strip(enemy.x + side * .2, s, enemy.x + side * .2, Math.max(s - .6, VIEW.minS), .055, 0xff9a6a);
-          strip(enemy.x - .3, enemy.s - .45, enemy.x, enemy.s - .75, .06, 0xffc28a); strip(enemy.x + .3, enemy.s - .45, enemy.x, enemy.s - .75, .06, 0xffc28a);
+          // Missile battery: a straight shot column from the battery down past the player row (non-tracking).
+          shotColumn(enemy.x, enemy.s, chargeOf(enemy)); muzzle(enemy.x, enemy.s, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'diamond') {
-          // Diamond: the firing wing and the side it brackets (the volley lands 1.2 to that side of the committed x).
-          const side = (enemy.volleys ?? 0) % 2 === 0 ? -1 : 1, wing = enemy.x + side * .55;
-          for (let i = 0; i < 6; i++) {
-            const a = i / 6, b = (i + .45) / 6;
-            strip(THREE.MathUtils.lerp(wing, enemy.aimX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(wing, enemy.aimX, b), enemy.s * (1 - b), .06, 0xffa874);
-          }
-          strip(enemy.aimX - side * .35, .7, enemy.aimX, .35, .06, 0xffc28a); strip(enemy.aimX - side * .35, 0, enemy.aimX, .35, .06, 0xffc28a);
+          // Diamond: an aim ray from the firing wing, and a bracket on the side it lands (1.2 to that side of the aim).
+          const side = (enemy.volleys ?? 0) % 2 === 0 ? -1 : 1, wing = enemy.x + side * .55, charge = chargeOf(enemy);
+          aimRay(wing, enemy.s, enemy.aimX, 0, charge); muzzle(wing, enemy.s, charge);
+          strip(enemy.aimX - side * .35, .7, enemy.aimX, .35, .07, shotHex, flashLanes, .9 + charge); strip(enemy.aimX - side * .35, 0, enemy.aimX, .35, .07, shotHex, flashLanes, .9 + charge);
+        } else if (enemy.warning > 0 && enemy.kind === 'lancer') {
+          // Lancer: a beam ship; its windup is the beam's red preview from the Lancer down at its aim.
+          beamPreview(enemy.aimX, enemy.s, beamSpec('lancer').width, 0);
         } else if (enemy.warning > 0) {
-          const targetX = enemy.aimX;
-          if (enemy.kind === 'lancer') {
-            for (let s = VIEW.minS; s < VIEW.maxS; s += 1.2) {
-              line(targetX - .4, s, targetX - .4, s + .6, 0xe2ac69);
-              line(targetX + .4, s, targetX + .4, s + .6, 0xe2ac69);
-            }
-          } else {
-            for (let i = 0; i < 6; i++) {
-              const a = i / 6, b = (i + .4) / 6;
-              line(THREE.MathUtils.lerp(enemy.x, targetX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(enemy.x, targetX, b), enemy.s * (1 - b), 0xbd815d);
-            }
-          }
+          // Aimed shots: a ray to where they will cross the player's row; a turret's three-round spread shows its fan.
+          const charge = chargeOf(enemy), angles = enemy.kind === 'turret' ? [-.14, 0, .14] : [0];
+          const aim = Math.atan2(enemy.aimX - enemy.x, enemy.s);
+          for (const turn of angles) aimRay(enemy.x, enemy.s, enemy.x + Math.tan(aim + turn) * enemy.s, 0, charge * (turn ? .7 : 1));
+          muzzle(enemy.x, enemy.s, charge);
         }
       }
       // Hunter shells (src/sim/hunters.ts): one per live hunter in view, in the world's glow, dimming charge by charge.

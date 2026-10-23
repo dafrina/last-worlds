@@ -410,10 +410,8 @@ export function createVeilView(scene: THREE.Scene) {
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * r, enemy.s + s * (r - .25), color);
         }
         if (enemy.warning > 0 && boss.attack === 'burst') {
-          for (let i = 0; i < 6; i++) {
-            const a = i / 6, b = (i + .45) / 6;
-            line(THREE.MathUtils.lerp(enemy.x, enemy.aimX, a), enemy.s * (1 - a), THREE.MathUtils.lerp(enemy.x, enemy.aimX, b), enemy.s * (1 - b), 0xd1a275);
-          }
+          // Its aim: one solid line to where the burst crosses the player's row (no dashes: user, 23 October).
+          line(enemy.x, enemy.s, enemy.aimX, 0, 0xd1a275);
         }
       }
       const groundShift = state.scrollSpeed * dt;

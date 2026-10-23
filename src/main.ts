@@ -259,6 +259,8 @@ if (import.meta.env.DEV) {
       advance: (seconds: number, exposed = false) => { if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = exposed ? Math.min(run.player.invulnerableUntil, run.time) : Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
       // Look-dev only: the lives left (the last-life alarm shows at one).
       setLives: (lives: number) => { if (run) run.player.lives = lives; },
+      // Look-dev: the flanks down and the core into its overload (a boss's beam lanes).
+      bossOverload: () => { if (!run?.boss) return; for (const part of ['left', 'right'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); const core = bossTarget(run, 'core'); if (core) core.hp = core.maxHp * .35; resolveBossPhase(run); },
       killBoss: () => { if (!run?.boss) return; for (const part of ['left', 'right', 'core'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
       // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
       boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
