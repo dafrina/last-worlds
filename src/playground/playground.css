@@ -29,3 +29,6 @@ html, body { margin: 0; height: 100%; background: #0b0f17; color: #dce6f2; font:
   .pg-panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; height: 58dvh; transform: translateY(100%); transition: transform .2s; z-index: 4; border-left: 0; border-top: 1px solid #253247; }
   .pg-panel.is-open { transform: none; }
 }
+
+/* The boss controls show only while the boss fight is on. */
+.pg-boss[hidden] { display: none; }

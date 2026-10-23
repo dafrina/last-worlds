@@ -10,17 +10,19 @@ import { BASTION } from '../../src/content/bastion';
 import { HELION_ARK } from '../../src/content/ark';
 import { WARDEN } from '../../src/content/warden';
 import { VEIL } from '../../src/content/veil';
+import { CRADLE } from '../../src/content/cradle';
 import { WARP, warpSpeed } from '../../src/content/departure';
 
 const query = new URLSearchParams(location.search);
 // `boss=ark` previews Cold Vector's Helion Ark on Vesper's open-water arena; without it this is Rolling Thunder's Bastion-9.
-const ark = query.get('boss') === 'ark', warden = query.get('boss') === 'warden', veil = query.get('boss') === 'veil';
-let state = createRun({ mode: 'campaign', mission: ark ? 'cold-vector' : warden ? 'training' : veil ? 'deep-bloom' : 'bastion', seed: Number(query.get('seed') ?? 8831) });
+const ark = query.get('boss') === 'ark', warden = query.get('boss') === 'warden', veil = query.get('boss') === 'veil', cradle = query.get('boss') === 'cradle';
+let state = createRun({ mode: 'campaign', mission: ark ? 'cold-vector' : warden ? 'training' : veil ? 'deep-bloom' : cradle ? 'brood-strike' : 'bastion', seed: Number(query.get('seed') ?? 8831) });
 function prepare() {
   if (query.get('mode') === 'jump') return prepareJump();
   if (ark) return prepareArk();
   if (warden) return prepareWarden();
   if (veil) return prepareVeil();
+  if (cradle) return prepareCradle();
   state.time = BASTION.arrivesAt;
   // The arena scroll is a closed form of time: the terrain is decelerating toward its stop as the fortress rolls in.
   const scroll = arenaScroll(state.time, null); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
@@ -46,6 +48,26 @@ function prepareVeil() {
   bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
   if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
   if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
+}
+/**
+ * THE CRADLE on Amnion (`boss=cradle`): `arrival` (`t` seconds into its rise out of the canyon), `batteries`, `core`,
+ * `launch` (the heart phase just before the first hatchling wave, bay doors opening; `t` seconds later), `overload`,
+ * `destroyed` (`t` seconds into the sequence); `approach&t=N` previews Brood Strike itself.
+ */
+function prepareCradle() {
+  const phase = query.get('phase') ?? 'batteries', at = Number(query.get('t') ?? (phase === 'arrival' ? 1.5 : 0));
+  const step = (seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) stepRun(state, EMPTY_INPUT); };
+  if (phase === 'approach') { step(at); return; }
+  state.time = CRADLE.arrivesAt;
+  const scroll = arenaScroll(state.time, null, CRADLE.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  if (phase === 'arrival') { step(at); return; }
+  step(CRADLE.arrivalDuration + 1 / 60);
+  if (phase === 'batteries') return;
+  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
+  if (phase === 'launch') { step(Math.max(0, state.boss!.nextLaunchAt - state.time - .35) + at); return; }
+  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
+  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
+  if (phase === 'core') step(at);
 }
 /** WARDEN-1 on Luna (`boss=warden`): `arrival` (`t` seconds into the descent), `batteries`, `core`, `overload`, `destroyed`. */
 function prepareWarden() {

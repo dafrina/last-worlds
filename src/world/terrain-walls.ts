@@ -24,6 +24,8 @@ export interface WallOptions {
   cap: number;
   /** Planets with a sea: a wall over water stands on the waterline (its foot just under the surface). */
   sea?: number;
+  /** Walls inside a mission arena too (Amnion: THE CRADLE rises out of a flesh canyon there). */
+  arenas?: boolean;
   /**
    * Walls whose face turns away from the camera further than this (the forward share of the face's direction, 0 sideways,
    * 1 straight away) are not placed (Vesper, version 19, user 23 October: "only render camera-facing cliffs"). The camera
@@ -105,7 +107,7 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       if (!clear(x, s) || !clear(px, ps) || !clear(rx, rs) || !clear(x - us * 1, s + ux * 1) || !clear(x + us * 1, s - ux * 1)) continue;
       const y = base - 0.12, rise = Math.min(o.cap, top + 0.03) - y, spec = KIT[o.kind], scale = o.scale ? o.scale[0] + h(2) * (o.scale[1] - o.scale[0]) : 0.85 + h(2) * 0.3;
       // Never on an arena's platform or ramps (the wall's own row, not just its cell's), never past the world's edge.
-      if (rise < o.minDrop * 0.8 || Math.abs(x) + spec.radius * scale > WORLD_HALF || terrain.platform(x, s) > 0 || terrain.platform(rx, rs) > 0) continue;
+      if (rise < o.minDrop * 0.8 || Math.abs(x) + spec.radius * scale > WORLD_HALF || (!o.arenas && (terrain.platform(x, s) > 0 || terrain.platform(rx, rs) > 0))) continue;
       const wall: KitInstance = {
         kind: o.kind, variant: Math.floor(h(1) * spec.variants), x, s, y,
         // A ±15% stretch along the rim; segments stay continuous at about one per cell.

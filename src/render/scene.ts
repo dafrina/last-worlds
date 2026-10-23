@@ -26,7 +26,7 @@ import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
-import { createVeilView, loadVeilModel, veilPlacement } from './veil-view';
+import { CRADLE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
 import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { BASTION } from '../content/bastion';
@@ -492,8 +492,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
     if (next === 'vesper') { ensureCraft(next); ensureArk(); } else foam.clear();
-    // (Amnion flies Nacre's organic craft and THE VEIL's model as stand-ins until its own exist: docs/27.)
-    if (next === 'nacre' || next === 'amnion') { ensureNacreCraft(); ensureVeil(); }
+    // (Amnion flies Nacre's organic craft as a stand-in until its own faction exists; THE CRADLE has its own model: docs/27.)
+    if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); }
+    if (next === 'amnion') { ensureNacreCraft(); ensureCradle(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
@@ -756,6 +757,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ark = createArkView(scene);
   const warden = createWardenView(scene);
   const veil = createVeilView(scene);
+  const cradle = createVeilView(scene, CRADLE_STYLE);
   let wardenLoad: Promise<void> | undefined;
   /** WARDEN-1's production model (warden.glb) loads with Luna; the code-built stand-in renders until then. */
   const ensureWarden = () => {
@@ -769,6 +771,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (veilLoad) return veilLoad;
     return veilLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.veil}`).then(model => { if (!disposed) { veil.setModel(model); warmed = false; } })
       .catch(error => console.warn('THE VEIL model unavailable; using the code-built stand-in.', error));
+  };
+  let cradleLoad: Promise<void> | undefined;
+  /** THE CRADLE's model (the-cradle.glb) loads with Amnion. */
+  const ensureCradle = () => {
+    if (cradleLoad) return cradleLoad;
+    return cradleLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.cradle}`).then(model => { if (!disposed) { cradle.setModel(model); warmed = false; } })
+      .catch(error => console.warn('THE CRADLE model unavailable; using the code-built stand-in.', error));
   };
   let arkLoad: Promise<void> | undefined;
   const ensureArk = () => {
@@ -788,7 +797,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const facilityLoad = facilities.prepare(next);
     if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
     facilityPrefetches.set(next, facilityLoad);
-    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' || next === 'amnion' ? ensureVeil() : next === 'luna' ? ensureWarden() : bastionLoad;
+    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
       terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : undefined]).then(() => { prepared.add(next); });
@@ -975,7 +984,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
       // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
       const boss = state.boss;
-      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil' || boss?.id === 'cradle';
+      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle';
       {
         let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && boss
           ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
@@ -984,15 +993,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (isWarden) terrain.setExclusion(warden.footprint(state, seat));
       }
       {
-        // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. (THE CRADLE's stand-in sits
-        // on Amnion's plateau.)
-        const mire = world.planet.seaLevel ?? (planet === 'amnion' ? AMNION_PLATEAU : 0);
-        let seat: { x?: number; s: number; baseHeight: number } | null = isVeil && boss ? veilPlacement(boss.s, mire) : null;
-        if (isVeil && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, VEIL.targetHeight, mire, world);
-        veil.update(state, seat);
-        if (isVeil) terrain.setExclusion(veil.footprint(state, seat));
+        // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. THE CRADLE's island rises
+        // out of the flesh canyon its arena digs (src/world/terrain-amnion.ts, `emergence`) and hovers over the plateau:
+        // its seat is raised by the hover, so its target plane still projects onto the logical rows.
+        for (const [view, mine, ground, style] of [[veil, isVeil, world.planet.seaLevel ?? 0, VEIL_STYLE], [cradle, isCradle, AMNION_PLATEAU + CRADLE_STYLE.hover, CRADLE_STYLE]] as const) {
+          const height = style.content.targetHeight;
+          let seat: { x?: number; s: number; baseHeight: number } | null = mine && boss ? veilPlacement(boss.s, ground, height) : null;
+          if (mine && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, height, ground, world);
+          view.update(state, seat);
+          if (mine) terrain.setExclusion(view.footprint(state, seat));
+        }
       }
-      if (!isArk && !isWarden && !isVeil) {
+      if (!isArk && !isWarden && !isVeil && !isCradle) {
         let bossPlacement: { x?: number; s: number; baseHeight: number } | null = boss ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena) : null;
         if (boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
         bastion.update(state, bossPlacement);
@@ -1216,7 +1228,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
         const craftScale = nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
-        if (slot < ENEMY_CAPACITY && !(veil.hasPodModel && enemy.formation?.template === 'veil-pods')) {
+        if (slot < ENEMY_CAPACITY && !((state.boss?.id === 'cradle' ? cradle : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale); transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
@@ -1521,7 +1533,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, warden: warden.stats, veil: veil.stats, planet, jump: jumpActive,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, warden: warden.stats, veil: veil.stats, cradle: cradle.stats, planet, jump: jumpActive,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },

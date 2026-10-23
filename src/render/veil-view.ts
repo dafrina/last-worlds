@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VEIL } from '../content/veil';
+import { CRADLE } from '../content/cradle';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 import { applySurfaceFinish } from './surface-finish';
@@ -18,15 +19,15 @@ import { retainBossMaterials } from './approved-boss-materials';
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation), COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const PARTS = ['left', 'right', 'core'] as const;
 /** Local +z faces the player (smaller s). */
-const socket = (part: BossPart) => new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -VEIL.podOffset : VEIL.podOffset, 0, part === 'core' ? -VEIL.heartS : -VEIL.podS);
+const socket = (style: CarrierStyle, part: BossPart) => { const c = style.content; return new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -c.podOffset : c.podOffset, 0, part === 'core' ? -c.heartS : -c.podS); };
 /** Hull footprint (x half-width, z half-depth) for the terrain exclusion (the blades overhang water anyway). */
 export const VEIL_FOOTPRINT = { halfWidth: 12.8, halfDepth: 9.5 } as const;
 /** How deep the hull starts under the mire as it rises, and how far it sinks when destroyed. */
 const RISE = 4.4, SINK = 4.6;
 
-/** Its waterline seat: the target plane (VEIL.targetHeight above the mire) projects onto the logical rows. */
-export function veilPlacement(logicalS: number, sea: number): { baseHeight: number; s: number } {
-  return { baseHeight: sea, s: logicalS - (sea + VEIL.targetHeight - VIEW.flightHeight) * COT_ELEVATION };
+/** Its seat: the target plane (`targetHeight` above the mire, or THE CRADLE's hover) projects onto the logical rows. */
+export function veilPlacement(logicalS: number, sea: number, targetHeight: number = VEIL.targetHeight): { baseHeight: number; s: number } {
+  return { baseHeight: sea, s: logicalS - (sea + targetHeight - VIEW.flightHeight) * COT_ELEVATION };
 }
 
 interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D | null; petals: { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }[]; heat: THREE.MeshStandardMaterial; open: number }
@@ -38,6 +39,31 @@ const SHUTTER_OPEN = -1.15;
 /** the-veil.glb shutters open by rotating about their local +X hinge (art/the-veil/README.md recommends 100–110°). */
 const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
 
+/**
+ * A carrier boss this view draws. THE VEIL (Nacre) and THE CRADLE (Amnion) share the rig contract (a hull, flank weak
+ * points with wrecks, a heart with a wreck under hinged shutters, bay doors, docked pods and a launched pod) and the
+ * combat sockets; each has its own node prefix, model markers, shutter opening and spark colour.
+ */
+export interface CarrierStyle {
+  id: 'veil' | 'cradle'; name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
+  /** The boss's own combat sockets, target plane, arrival and bays (src/content/veil.ts, src/content/cradle.ts). */
+  content: { podOffset: number; podS: number; heartS: number; targetHeight: number; arrivalDuration: number; bays: readonly { x: number; s: number }[] };
+  /** Hull footprint for the terrain exclusion: half width, and its reach toward the player (front) and away (back). */
+  footprint: { halfWidth: number; front: number; back: number };
+}
+export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', markers: ['veil_approved_v4', 'veil_remodel_v5'], shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
+  content: { podOffset: VEIL.podOffset, podS: VEIL.podS, heartS: VEIL.heartS, targetHeight: VEIL.targetHeight, arrivalDuration: VEIL.arrivalDuration, bays: VEIL.bays },
+  // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
+  footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 8.5, back: 11 } };
+/**
+ * THE CRADLE (tools/blender/remodel_cradle.py): six claws unfold 42° outward from over its core. Its floating island
+ * rises out of the canyon and hovers 0.8 over the plateau (user, 23 October: "after rising it hovers slightly").
+ */
+export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', markers: ['cradle_approved_v2', 'cradle_remodel_v1'], shutterOpen: THREE.MathUtils.degToRad(42), spark: 0xffc860, hover: .8,
+  content: { podOffset: CRADLE.sacOffset, podS: CRADLE.sacS, heartS: CRADLE.heartS, targetHeight: CRADLE.targetHeight, arrivalDuration: CRADLE.arrivalDuration, bays: CRADLE.bays },
+  // the-cradle-v2-approved.glb (70% of the reference placement): arms to x +-6, prow 2.3 toward the player, ring 6.3 away.
+  footprint: { halfWidth: 6.2, front: 2.5, back: 6.7 } };
+
 export async function loadVeilModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
 }
@@ -48,9 +74,10 @@ export async function loadVeilModel(url: string): Promise<THREE.Group> {
  * runtime ones: an iridescent nacre shell, pale metallic blades, a black frame, and teal/amber glow (each weak point
  * gets its own glow material so its heat can flare).
  */
-function modelRig(model: THREE.Group): Rig {
-  // v4 approved imports and v5 remodels (tools/blender/remodel_veil.py) share the authored-material rig.
-  if (model.getObjectByName('veil_approved_v4') || model.getObjectByName('veil_remodel_v5')) return approvedRig(model);
+function modelRig(model: THREE.Group, style: CarrierStyle): Rig {
+  // v4 approved imports and v5 remodels (tools/blender/remodel_veil.py), and THE CRADLE (remodel_cradle.py), share the
+  // authored-material rig.
+  if (style.markers.some(marker => model.getObjectByName(marker))) return approvedRig(model, style);
   const chassis = new THREE.Group();
   model.updateMatrixWorld(true);
   const shell = applySurfaceFinish(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .38, metalness: .58, iridescence: .35, iridescenceIOR: 1.38, iridescenceThicknessRange: [220, 440], clearcoat: .18, clearcoatRoughness: .3, envMapIntensity: .85 }), 'metal', .6, .008);
@@ -79,7 +106,7 @@ function modelRig(model: THREE.Group): Rig {
   const hull = node('veil_hull'); if (hull) chassis.attach(hull);
   const parts = new Map<BossPart, PartRig>();
   for (const part of PARTS) {
-    const group = new THREE.Group(); group.position.copy(socket(part)); chassis.add(group); group.updateMatrixWorld(true);
+    const group = new THREE.Group(); group.position.copy(socket(style, part)); chassis.add(group); group.updateMatrixWorld(true);
     const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
     const base = part === 'core' ? 'veil_heart' : `veil_pod_${part}`;
     const live = [take(base)].filter(Boolean) as THREE.Object3D[];
@@ -95,39 +122,42 @@ function modelRig(model: THREE.Group): Rig {
 }
 
 /** The approved imported carrier. No procedural exterior or replacement paint. */
-function approvedRig(model: THREE.Group): Rig {
+function approvedRig(model: THREE.Group, style: CarrierStyle): Rig {
   model.updateMatrixWorld(true);
-  const chassis = new THREE.Group(), node = (name: string) => model.getObjectByName(name);
-  const materials = retainBossMaterials(model, 'veil_', name => name.startsWith('veil_heart') ? 'core' : name.startsWith('veil_pod_left') ? 'left' : name.startsWith('veil_pod_right') ? 'right' : null);
-  const fallbackGlow = glowMaterial(0x3ff2d8, 1.4);
-  const hull = node('veil_hull'); if (hull) chassis.attach(hull);
+  const p = style.prefix, chassis = new THREE.Group(), node = (name: string) => model.getObjectByName(p + name);
+  const materials = retainBossMaterials(model, p, name => name.startsWith(p + 'heart') ? 'core' : name.startsWith(p + 'pod_left') ? 'left' : name.startsWith(p + 'pod_right') ? 'right' : null);
+  const fallbackGlow = glowMaterial(style.spark, 1.4);
+  const hull = node('hull'); if (hull) chassis.attach(hull);
   const parts = new Map<BossPart, PartRig>();
   for (const part of PARTS) {
-    const group = new THREE.Group(); group.position.copy(socket(part)); chassis.add(group); group.updateMatrixWorld(true);
+    const group = new THREE.Group(); group.position.copy(socket(style, part)); chassis.add(group); group.updateMatrixWorld(true);
     const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
-    const base = part === 'core' ? 'veil_heart' : `veil_pod_${part}`;
+    const base = part === 'core' ? 'heart' : `pod_${part}`;
     const live = [take(base)].filter(Boolean) as THREE.Object3D[], wreck = take(`${base}_wreck`);
     if (wreck) wreck.visible = false;
-    const petals = part === 'core' ? [0, 1, 2, 3].map(k => take(`veil_heart_shutter_${k}`)).filter(Boolean).map(object => {
-      const closed = object!.quaternion.clone(), open = closed.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), MODEL_SHUTTER_OPEN));
-      return { object: object!, closed, open };
-    }) : [];
+    // Shutters `heart_shutter_0` on, as many as the model has (THE VEIL four, THE CRADLE eight).
+    const shutters: THREE.Object3D[] = [];
+    for (let k = 0; part === 'core'; k++) { const object = take(`heart_shutter_${k}`); if (!object) break; shutters.push(object); }
+    const petals = shutters.map(object => {
+      const closed = object.quaternion.clone(), open = closed.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), style.shutterOpen));
+      return { object, closed, open };
+    });
     parts.set(part, { group, live, wreck, petals, heat: materials.heat.get(part) ?? fallbackGlow, open: 0 });
   }
-  const doors = ['left', 'right'].map(side => node(`veil_bay_door_${side}`)).filter(Boolean).map(object => {
+  const doors = ['left', 'right'].map(side => node(`bay_door_${side}`)).filter(Boolean).map(object => {
     chassis.attach(object!);
     const closed = object!.quaternion.clone(), open = closed.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -.9));
     return { object: object!, closed, open };
   });
-  const pods = [0, 1, 2, 3].map(i => node(`veil_drop_pod_${i}`)).filter(Boolean).map(object => {
+  const pods = [0, 1, 2, 3].map(i => node(`drop_pod_${i}`)).filter(Boolean).map(object => {
     chassis.attach(object!); return { object: object!, position: object!.position.clone() };
   });
   // A pod with several materials (v5: textured shell plus glow) loads as a group: instance each of its meshes.
   const podMeshes: THREE.Mesh[] = [];
-  node('veil_flight_pod')?.traverse(object => { if ((object as THREE.Mesh).isMesh) podMeshes.push(object as THREE.Mesh); });
+  node('flight_pod')?.traverse(object => { if ((object as THREE.Mesh).isMesh) podMeshes.push(object as THREE.Mesh); });
   const flightPods = podMeshes.map(mesh => {
     const batch = new THREE.InstancedMesh(mesh.geometry, mesh.material, 16);
-    batch.name = 'Approved VEIL deployed pods'; batch.count = 0; batch.frustumCulled = false;
+    batch.name = `${style.name} deployed pods`; batch.count = 0; batch.frustumCulled = false;
     batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (let i = 0; i < 16; i++) batch.setColorAt(i, new THREE.Color(1, 1, 1));
     batch.instanceColor!.setUsage(THREE.DynamicDrawUsage);
@@ -160,7 +190,7 @@ function crescent(length: number, width: number, bend: number, thickness: number
   return geometry;
 }
 
-function buildRig(): Rig {
+function buildRig(style: CarrierStyle): Rig {
   const chassis = new THREE.Group();
   const shell = new THREE.MeshStandardMaterial({ color: 0x4a2b7c, roughness: .3, metalness: .65, envMapIntensity: 1.2 });
   const bone = new THREE.MeshStandardMaterial({ color: 0xcfc2ea, roughness: .35, metalness: .55, envMapIntensity: 1.1 });
@@ -211,7 +241,7 @@ function buildRig(): Rig {
 
   const parts = new Map<BossPart, PartRig>();
   for (const part of PARTS) {
-    const core = part === 'core', group = new THREE.Group(); group.position.copy(socket(part)); chassis.add(group);
+    const core = part === 'core', group = new THREE.Group(); group.position.copy(socket(style, part)); chassis.add(group);
     const heat = glowMaterial(0x3ff2d8, 1.2); owned.push(heat);
     const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number) => {
       const object = new THREE.Mesh(geometry, material); object.position.set(x, y, z); object.castShadow = true; object.receiveShadow = true; group.add(object); return object;
@@ -220,10 +250,10 @@ function buildRig(): Rig {
     const petals: PartRig['petals'] = [];
     if (core) {
       // The heart: a glowing sphere in a dark iris ring, behind four membrane petals that fold open.
-      live.push(mesh(new THREE.SphereGeometry(.72, 20, 12), heat, 0, VEIL.targetHeight - .3, 0));
-      live.push(mesh(new THREE.TorusGeometry(.92, .16, 8, 24).rotateX(Math.PI / 2), flesh, 0, VEIL.targetHeight - .15, 0));
+      live.push(mesh(new THREE.SphereGeometry(.72, 20, 12), heat, 0, style.content.targetHeight - .3, 0));
+      live.push(mesh(new THREE.TorusGeometry(.92, .16, 8, 24).rotateX(Math.PI / 2), flesh, 0, style.content.targetHeight - .15, 0));
       for (let k = 0; k < 4; k++) {
-        const hinge = new THREE.Group(); hinge.position.set(0, VEIL.targetHeight + .02, 0); hinge.rotation.y = k * Math.PI / 2 + Math.PI / 4; group.add(hinge);
+        const hinge = new THREE.Group(); hinge.position.set(0, style.content.targetHeight + .02, 0); hinge.rotation.y = k * Math.PI / 2 + Math.PI / 4; group.add(hinge);
         const petal = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6, 0, Math.PI / 2, 0, Math.PI / 2), shell); petal.scale.set(1, .35, 1); petal.castShadow = true; hinge.add(petal);
         const closed = hinge.quaternion.clone(), open = new THREE.Quaternion().setFromEuler(new THREE.Euler(SHUTTER_OPEN, hinge.rotation.y, 0, 'YXZ'));
         petals.push({ object: hinge, closed, open });
@@ -233,21 +263,21 @@ function buildRig(): Rig {
       const sac = mesh(new THREE.SphereGeometry(.85, 16, 10), shell, 0, 1.75, 0); sac.scale.set(1, .7, 1.35); live.push(sac);
       for (let k = 0; k < 3; k++) { const slit = mesh(new THREE.BoxGeometry(.08, .06, .9), heat, (k - 1) * .3, 2.3 - Math.abs(k - 1) * .05, 0); live.push(slit); }
     }
-    const wreck = mesh(core ? new THREE.SphereGeometry(.7, 10, 6) : new THREE.SphereGeometry(.65, 10, 6), flesh, 0, core ? VEIL.targetHeight - .4 : 1.6, 0);
+    const wreck = mesh(core ? new THREE.SphereGeometry(.7, 10, 6) : new THREE.SphereGeometry(.65, 10, 6), flesh, 0, core ? style.content.targetHeight - .4 : 1.6, 0);
     wreck.scale.set(1, .4, 1.2); wreck.visible = false;
     parts.set(part, { group, live, wreck, petals, heat, open: 0 });
   }
   return { chassis, parts, engine, sinew, bays: [], dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
 }
 
-export function createVeilView(scene: THREE.Scene) {
-  const root = new THREE.Group(); root.name = 'THE VEIL'; root.visible = false; scene.add(root);
-  let rig = buildRig(); root.add(rig.chassis);
+export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_STYLE) {
+  const root = new THREE.Group(); root.name = style.name; root.visible = false; scene.add(root);
+  let rig = buildRig(style); root.add(rig.chassis);
   const rings = new Map<BossPart, { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }>();
   for (const part of PARTS) {
     const core = part === 'core', material = new THREE.MeshBasicMaterial({ color: 0xffb77c, depthTest: false, depthWrite: false });
     const ring = new THREE.RingGeometry(core ? .95 : .3, core ? 1.2 : .48, core ? 32 : 16); ring.rotateX(-Math.PI / 2);
-    const mesh = new THREE.Mesh(ring, material); mesh.renderOrder = 4; mesh.position.copy(socket(part)).setY(VEIL.targetHeight); root.add(mesh); rings.set(part, { mesh, material });
+    const mesh = new THREE.Mesh(ring, material); mesh.renderOrder = 4; mesh.position.copy(socket(style, part)).setY(style.content.targetHeight); root.add(mesh); rings.set(part, { mesh, material });
   }
   const shock = new THREE.Mesh(new THREE.RingGeometry(.9, 1, 96).rotateX(-Math.PI / 2),
     new THREE.MeshBasicMaterial({ color: new THREE.Color(0x7ffff0).multiplyScalar(2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }));
@@ -289,13 +319,11 @@ export function createVeilView(scene: THREE.Scene) {
   return {
     footprint(state: RunState, placement: { s: number } | null) {
       if (!state.boss || !placement) return null;
-      return { minX: state.boss.x - VEIL_FOOTPRINT.halfWidth, maxX: state.boss.x + VEIL_FOOTPRINT.halfWidth,
-        // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
-        minS: state.distance + placement.s - 8.5, maxS: state.distance + placement.s + 11 };
+      const f = style.footprint;
+      return { minX: state.boss.x - f.halfWidth, maxX: state.boss.x + f.halfWidth, minS: state.distance + placement.s - f.front, maxS: state.distance + placement.s + f.back };
     },
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
-      // THE CRADLE (Amnion) wears this model as an openly marked stand-in until its own exists (docs/27, milestone 4).
-      const boss = state.boss && (state.boss.id === 'veil' || state.boss.id === 'cradle') ? state.boss : null;
+      const boss = state.boss && state.boss.id === style.id ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
       // Render launched combatants in world coordinates, independently of the chassis.
@@ -318,9 +346,10 @@ export function createVeilView(scene: THREE.Scene) {
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
       // Rising out of the mire during the arrival; a slow breathing bob while alive; sinking after its death.
-      const rise = arriving ? 1 - THREE.MathUtils.smoothstep(age, 0, VEIL.arrivalDuration) : 0;
+      const rise = arriving ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
       const sink = destroyed ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
-      const bob = destroyed ? 0 : Math.sin(state.time * .9) * .06;
+      // A hovering carrier (THE CRADLE) bobs wider and slower on the air it floats on.
+      const bob = destroyed ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
       root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * (rig.approved ? 8 : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
       root.updateMatrixWorld(true);
       rig.chassis.rotation.set(-sink * .12 + Math.sin(state.time * .6) * .01, 0, sink * .16 + Math.sin(state.time * .45) * .012);
@@ -336,7 +365,7 @@ export function createVeilView(scene: THREE.Scene) {
           const at = .4 + k * .18, spot = local((hash(k + 21) - .5) * (k % 2 ? 4 : 16), 1.8, (hash(k + 23) - .5) * 13 - 1);
           if (before < at && phaseAge >= at) { flash(spot, 2.2 + hash(k), k); ichor(spot, 1.6 + hash(k + 40), k * 17 + encounter); }
         }
-        if (before < 1.9 && phaseAge >= 1.9) { const heart = local(0, VEIL.targetHeight, -VEIL.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }
+        if (before < 1.9 && phaseAge >= 1.9) { const heart = local(0, style.content.targetHeight, -style.content.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }
       }
       const ring = THREE.MathUtils.clamp((phaseAge - 1.9) / 1.2, 0, 1);
       shock.visible = destroyed && ring > 0 && ring < 1;
@@ -349,7 +378,7 @@ export function createVeilView(scene: THREE.Scene) {
         podsSeen.add(enemy.id);
         launchedAt = state.time;
         const dock = rig.pods?.find(p => Math.sign(p.position.x) === Math.sign(enemy.x - boss.x || 1));
-        const bay = dock ? local(dock.position.x, dock.position.y, dock.position.z) : local(Math.sign(enemy.x - boss.x || 1) * VEIL.bays[1].x, 1.9, -VEIL.bays[1].s);
+        const bay = dock ? local(dock.position.x, dock.position.y, dock.position.z) : local(Math.sign(enemy.x - boss.x || 1) * style.content.bays[1].x, 1.9, -style.content.bays[1].s);
         flash(bay, 1.2, enemy.id, 0x9ffff0); burst(bay, 8, enemy.id * 11, .7); steam(bay, enemy.id * 13, .8);
       }
       // Doors anticipate the existing finite deployment schedule; they never schedule combat.
@@ -420,9 +449,9 @@ export function createVeilView(scene: THREE.Scene) {
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
-    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
+    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
     get hasPodModel() { return !!rig.flightPods; },
-    get stats() { return { model: rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
+    get stats() { return { model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
   };
 }

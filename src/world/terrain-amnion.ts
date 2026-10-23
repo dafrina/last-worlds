@@ -3,7 +3,7 @@ import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
 import { cliffWallSteps } from './terrain-walls';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
-import { arenaAt } from './terrain-arena';
+import { ARENA_CLEARING, arenaAt, arenaWeight } from './terrain-arena';
 
 /**
  * Amnion, the Brood Wastes (docs/27, user 23 October 2026, after art/concepts/amnion-brood-wastes): pale plateaus of
@@ -241,13 +241,60 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
   const fissures = (1 - smoothRange(0.3, 0.7, m.plateau)) * smoothRange(0.35, 0.55, noise(seed ^ 0xa1e7, x * 0.3, s * 0.3));
   const pools = m.yolk * smoothRange(0.5, 0.7, noise(seed ^ 0xa1e8, x * 0.35, s * 0.3));
   const crust = noise(seed ^ 0xa1b4, x * 0.18, s * 0.16);
-  return {
+  const ground: Landform & { tone: number } = {
     // `channel` carries the massif weight (the terrain grid keeps only its known fields; Amnion's colour reads it).
     // A ruin's courtyard floor: flesh, cracked with yolk fissures, a glowing pool at its heart.
     height: clamp(mix(mix(floor, top, m.plateau), RUIN_FLOOR + (slab.offset - slab.crack * 0.1) * 0.6, m.pit), -5, 2.4),
     elevation: m.plateau * (1 - m.pit * 0.85), channel: m.massif,
     pool: Math.max(pools * (1 - m.plateau), m.pit * (1 - smoothRange(0.18, 0.34, m.ruin)) * 0.9),
     vein, vein2, veins: Math.max(fissures, m.pit * smoothRange(0.35, 0.55, noise(seed ^ 0xa1e7, x * 0.3, s * 0.3))), tone: crust,
+  };
+  return row.arena ? emergence(seed, x, s, row.arena.fromS + ARENA_CLEARING.centre, arenaWeight(row.arena, s), ground) : ground;
+}
+
+/**
+ * THE CRADLE's emergence site (user, 23 October: "since it will arise from the ground you can style the terrain
+ * accordingly", then "make sure it raises from a fleshy canyon"): a wide canyon across the whole arena, its sheer walls
+ * dark flesh (and flesh wall pieces along its lips), its serrated lips broken in teeth, a dim yolk glow far down on its
+ * floor. The boss's floating island rises out of it and hovers over it. On both sides the crust is heaved up toward the
+ * lips in broken, tilted plates split by glowing fissures, and two narrower serrated chasms cut diagonally through.
+ * Blends into the planet's own ground about 16 out. The canyon sits `ahead` past the arena's centre, under the island:
+ * the model stands further than its logical row (its target plane projects there from the plateau) and its island lies
+ * behind its pivot.
+ */
+// Fitted to THE CRADLE (the-cradle-v2-approved.glb, 24 October): it rises in place (no slide) and spans 2.3 toward the
+// player to 6.35 away from its pivot, which sits 1.65 past its row (its 1.54 target plane over the 0.8 hover), with 0.8 of
+// surge either way: its middle is 3.2 past the clearing's centre, and the canyon's narrowest stretch (0.87 of halfS)
+// clears it by 0.4.
+export const EMERGENCE = { ahead: 3.2, halfS: 6.4, floor: -7.5, heaveX: 12, heaveS: 9.5, heave: 1.4, chasm: -4.2, reach: 16 } as const;
+function emergence(seed: number, x: number, s: number, centre: number, along: number, ground: Landform & { tone: number }): Landform & { tone: number } {
+  const E = EMERGENCE, ds = s - centre - E.ahead, far = Math.hypot(x / (E.reach * 1.4), ds / E.reach);
+  const weight = along * (1 - smoothRange(0.8, 1, far));
+  if (weight <= 0) return ground;
+  // The canyon across the arena: each lip its own serration (big teeth and a finer saw), never narrower than the island.
+  const side = ds > 0 ? 1 : 0;
+  const lip = E.halfS * (1 + 0.1 * (zigzag(seed ^ 0xa4a1, x / 1.6, side) + 1) + 0.04 * zigzag(seed ^ 0xa4a2, x / 0.5, side));
+  const canyon = 1 - crispStep((Math.abs(ds) / lip - 0.96) / 0.1 + 0.5);
+  // The heave: broken plates tilted up toward the lips, fissures running out from them.
+  const q = Math.max(0, Math.abs(ds) - lip) / (E.heaveS - E.halfS), slab = plates(seed ^ 0x5a, x, s);
+  const fissure = 1 - smoothRange(0.05, 0.16, Math.abs(zigzag(seed ^ 0xa4a3, x / 2.2, side) * 0.5 + 0.5 - ((x / 2.2) % 1 + 1) % 1));
+  const heave = PLATEAU + Math.pow(Math.max(0, 1 - q), 1.3) * E.heave * (1 - smoothRange(8, 12, Math.abs(x)) * 0.5) + slab.offset * 1.6 - slab.crack * 0.3 - fissure * smoothRange(0.05, 0.3, q) * (1 - q) * 0.8;
+  // Two narrower serrated chasms running diagonally out from the canyon.
+  let chasm = 0;
+  for (const [angle, salt] of [[0.62, 0xa4b1], [-0.55, 0xa4b2]] as const) {
+    const across = x * Math.cos(angle) - ds * Math.sin(angle), length = x * Math.sin(angle) + ds * Math.cos(angle);
+    const half = 1.4 * (1 + 0.25 * zigzag(seed ^ salt, length / 1.3, across > 0 ? 1 : 0) + 0.1 * zigzag(seed ^ salt ^ 0x5e, length / 0.45, across > 0 ? 1 : 0));
+    chasm = Math.max(chasm, (1 - crispStep((Math.abs(across) / half - 0.86) / 0.24 + 0.5)) * smoothRange(5, 7, Math.abs(length)));
+  }
+  const floor = E.floor + (noise(seed ^ 0xa4c1, x * 0.3, s * 0.3) - 0.5) * 1.2 + slab.offset;
+  const height = mix(mix(heave, E.chasm + slab.offset, chasm), floor, canyon);
+  const open = Math.max(canyon, chasm);
+  return {
+    ...ground,
+    height: clamp(mix(ground.height, height, weight), -8.5, 2.4),
+    elevation: mix(ground.elevation, 1 - open, weight), channel: ground.channel * (1 - weight),
+    pool: mix(ground.pool, Math.max(canyon * 0.3 * smoothRange(0.45, 0.6, noise(seed ^ 0xa4c2, x * 0.25, s * 0.25)), chasm * 0.3), weight),
+    veins: mix(ground.veins, Math.max(open * 0.8, fissure * smoothRange(0.05, 0.3, q) * (1 - q)), weight),
   };
 }
 
@@ -413,7 +460,7 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
   const canyonLip = (x: number, s: number) => amnionMasks(seed, x, s).massif < 0.25;
   for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, {
     kind: 'fleshWall', salt: 0x7c4e, minDrop: 1.5, rimSpan: 0.7, maxAway: 0.75, minRun: 3, scale: [1.2, 1.5],
-    cap: CAP, accept: canyonLip,
+    cap: CAP, accept: canyonLip, arenas: true,
   })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
@@ -423,7 +470,8 @@ export const AMNION: PlanetProfile = {
   mood: () => 'brood', params: () => NEUTRAL, local: () => null,
   landform: amnionLandform,
   // The boss clearing is shaped in the landform (no canyon there, one plateau level); the clearing core stays flat.
-  arena(_row, _x, point, weight) { point.height = mix(point.height, PLATEAU, weight * 0.85); },
+  // The arena's ground is THE CRADLE's emergence site, shaped in the landform (`emergence`): nothing more to flatten.
+  arena() { /* shaped in amnionLandform */ },
   color: amnionColor,
   shadowTint: [0.86, 0.66, 0.6],
   sceneryMax: AMNION_SCENERY_MAX,

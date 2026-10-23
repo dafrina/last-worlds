@@ -47,7 +47,7 @@ The concept image is a reference, never a runtime background or a finished asset
    - violet hostile shots;
    - THE CRADLE's content (`src/content/cradle.ts`) and the Brood Strike playlist;
    - menu, campaign order and playground.
-   - **Stand-ins, openly marked:** Nacre's organic craft for the enemies, THE VEIL's model for THE CRADLE (seated on the plateau), and Nacre's arrangement a minor third lower as the music (Codex writes the real theme).
+   - **Stand-ins, openly marked:** Nacre's organic craft for the enemies and Nacre's arrangement a minor third lower as the music (Codex writes the real theme). THE VEIL's model stood in for THE CRADLE until 24 October.
 2. **Brood kit in Blender (in progress, `tools/blender/amnion_kit.py`):**
    - **Done:**
      - flesh canyon walls;
@@ -69,7 +69,15 @@ The concept image is a reference, never a runtime background or a finished asset
        - the shells are marked glossy by vertex alpha 0, which the runtime stores as a negative glow;
        - the kit shader gives glossy faces low roughness and a sharp sun glint, since small shells smear the physical highlight.
 3. **The biological enemy faction:** Blender models on the existing kinds' behaviour.
-4. **THE CRADLE:** its own model, an arrival up the canyon, and the sac and heart reveals.
+4. **THE CRADLE (done, 24 October):** the user's Tripo GLB itself, adapted in Blender (`tools/blender/approved_cradle.py`, `public/assets/amnion/the-cradle-v2-approved.glb`, about 111k triangles, 6.0 MB), like the other approved bosses. The user rejected two hand-built rebuilds ("its still wrong. keep to the glb you have which is fully detailed. start fresh").
+   - **Structure,** as the user described it: an inner core with the egg on flesh eggs surrounded by six shields; the wings with their outer shields, which "extend below to look like floating rocks". No turret nodes.
+   - **Cut by shape.** Tripo split the mesh into arbitrary pieces, so each part is cut by shape:
+     - the egg by an ellipsoid;
+     - each inner shield's upper part by its sector round the nest above a cut height, keeping only painted bone (the atlas tells bone from flesh) and closing over thin cracks. The shields hinge on the cut line and swing 42° outward for the core phase;
+     - the brood sacs are the flesh bulges at the front flanks.
+   - **Floating rock:** a boulder mass hangs under each of the five outer shields, painted from the model's own rock slabs, with smaller chunks floating beside it.
+   - **Size:** 70% of the reference placement ("the model seems pretty big no?"). It rises straight up out of its canyon (it used to slide in from row 30 and plough through the canyon wall), and the canyon is fitted to its footprint and sway.
+   - **Combat points:** the core target and the sacs keep their tested positions, within half a unit of the egg and the bulges; closer values made the overload fan seal the view. The hatchling bays are at x ±1.96, s −1.68.
 5. **Music:** Codex, through `COORDINATION.md`.
 6. **Endless:** Amnion joins the planet cycle.
 

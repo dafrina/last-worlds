@@ -187,5 +187,6 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **Fire rate:** 0.85× their kind's interval instead of 1.3×.
   - **First attack:** stays 2.2 s after arrival. At 1.2–1.6 s the first windup started while the hunter was still diving in above the view, a beam was marked for only 0.8 s, and the hazard-union fairness check failed.
   - **Evidence:** every fairness check passes. The perfect pilot clears 22 of 36 Veteran Deep Bloom runs (seeds 1–12, three weapons) without a hit, against 19 with the old hunters, so the misses are path noise. Veteran Deep Bloom now flies seed 7 for every weapon.
+- 2026-10-24, THE CRADLE's model (user; docs/27): the user's Tripo GLB itself, adapted, not a rebuild ("keep to the glb you have which is fully detailed. start fresh"). The structure is an inner core with the egg on flesh eggs surrounded by 5–6 shields that open for the final fight, and wings with 4–5 outer shields that extend below as floating rock. No turret nodes. It rises from a crevasse without clipping its walls, at 70% of its first size ("pretty big"). The light playground gets a boss-fight toggle ("can i preview it somewhere?").
 - 2026-10-23, Amnion: hostile shots are red with a white core (they were violet), the flesh is darker, the geology is sharper and more varied, and ruins appear (docs/27).
 

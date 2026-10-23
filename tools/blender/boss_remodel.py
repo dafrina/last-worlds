@@ -13,10 +13,14 @@ import numpy as np
 from mathutils import Vector, Matrix
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SOURCES = {'veil': 'futuristic-spacecraft-original.glb', 'bastion': 'futuristic-tank-original.glb', 'ark': 'futuristic-starship-original.glb'}
+SOURCES = {'veil': 'futuristic-spacecraft-original.glb', 'bastion': 'futuristic-tank-original.glb', 'ark': 'futuristic-starship-original.glb',
+           'cradle': 'cradle-tripo-original.glb'}
 # Placement of each source in game space (Blender axes: x right, y = -glTF z, z up), as used by
 # the v4 adaptation the game was tuned against: game = source * scale + offset.
-PLACEMENT = {'veil': (12.5, (0, .9, .15)), 'bastion': (9.6, (0, -.12, .03)), 'ark': (9.5, (0, .2, -.18))}  # Bastion: 20% larger than v4 (user, 20 Oct)
+# Bastion: 20% larger than v4 (user, 20 Oct). THE CRADLE: its Tripo reference (23 Oct), a first placement, tuned to the
+# combat sockets next.
+PLACEMENT = {'veil': (12.5, (0, .9, .15)), 'bastion': (9.6, (0, -.12, .03)), 'ark': (9.5, (0, .2, -.18)),
+             'cradle': (17.0, (0, 2.9, -1.6))}
 LOOKDEV = os.path.join(ROOT, 'lookdev', 'boss-remodel')
 
 
@@ -45,7 +49,7 @@ def source_mesh(boss):
     if key in bpy.data.meshes:
         return bpy.data.meshes[key]
     # Reuse an import already in this session (approved_bosses.py names it this way).
-    earlier = bpy.data.objects.get('approved_source_' + {'veil': 'spacecraft', 'bastion': 'tank', 'ark': 'starship'}[boss])
+    earlier = bpy.data.objects.get('approved_source_' + {'veil': 'spacecraft', 'bastion': 'tank', 'ark': 'starship'}.get(boss, boss))
     if earlier and earlier.type == 'MESH' and len(earlier.data.polygons) > 100000:
         return earlier.data
     before = set(bpy.data.objects)
@@ -409,6 +413,9 @@ CAMERAS = {  # view -> (eye direction from the centre, camera rotation in degree
     'side': ((1, 0, 0), (90, 0, 90)),
     'front': ((0, -1, 0), (90, 0, 0)),
 }
+# The concept sheets' hero view: from the front-left, about 38 degrees above the horizon.
+_d = Vector((-.42, -.72, .55)).normalized()
+CAMERAS['three_quarter'] = (tuple(_d), tuple(math.degrees(a) for a in _d.to_track_quat('Z', 'Y').to_euler()))
 
 
 def render_view(sc, view, centre, size, path, res=1200, objects=None, light='desert', engine='BLENDER_EEVEE'):
@@ -706,6 +713,9 @@ STYLES = {
                   streak='#120c1e', streak_amount=.2, wear='#9e98c8', wear_amount=.5, grime=.2),
     'luna': dict(tile=2.4, detail=.2, panel=.85, seed=17, seam_dark=.45, dust='#a19e98', dust_amount=.18,
                  streak='#5f5d59', streak_amount=.16, wear='#f2f1ec', wear_amount=.45, grime=.14),
+    # Amnion (THE CRADLE): organic cells like Nacre's, bone dust in the seams, dried blood streaks.
+    'amnion': dict(tile=2.4, detail=.25, cells=1.3, seed=19, seam_dark=.42, dust='#c8b496', dust_amount=.16,
+                   streak='#3a0c0a', streak_amount=.28, wear='#efe6d6', wear_amount=.45, grime=.18),
 }
 
 

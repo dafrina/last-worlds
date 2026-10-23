@@ -8,6 +8,7 @@ The user disliked the decimated v4 imports of their three supplied GLBs ("they l
 | BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 21,648 | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/remodel_bastion.py` |
 | HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,892 | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
 | THE VEIL | `public/assets/nacre/the-veil-v5-remodel.glb` | 16,112 (14,654) | 28,291 | 24 (29) | 3.6 MB (2.4) | `tools/blender/remodel_veil.py` |
+| THE CRADLE (24 October, over the user's Tripo reference) | `public/assets/amnion/the-cradle-v1.glb` | 49,592 (live parts) | | | 3.2 MB (no textures) | `tools/blender/remodel_cradle.py` |
 
 How to read the columns:
 - **Triangles:** the whole file. The figure in brackets leaves out the hidden wreck variants and the Veil's instanced flight-pod template.

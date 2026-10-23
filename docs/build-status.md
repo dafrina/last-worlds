@@ -1,5 +1,39 @@
 # Build status
 
+
+## THE CRADLE: the user's Tripo GLB adapted as the boss, a playground boss fight, released, 24 October 2026
+
+User:
+- "another session started work on the newest boss, please complete the work, the lower part needs to be adressed according to the tripo glb";
+- "keep in mind how it should be animated, as it shoudl rise from a crevace and open up its egg core for the final fight and the pod deployment";
+- "naw dude you need to rework the shields ... more biological and irregular and antique"; "also the holes like stretched dough"; "the model seems pretty big no? also its rising frm a crevace but clips through the cliffs";
+- then: "its still wrong. keep to the glb you have which is fully detailed. start fresh. theres an inner core with the egg on flesheggs surrounded by 5-6 shields, then theres the wings with 4-5 outer shields that kinda extend below to look like floating rocks. forget the turret nodes";
+- "when youre done completely integrate and deploy".
+
+- **Model:** `tools/blender/approved_cradle.py`, run through Blender MCP, produces `public/assets/amnion/the-cradle-v2-approved.glb` (about 111k triangles, 6.0 MB). It is the user's Tripo GLB itself (1.56M triangles, 4K atlases), adapted the way BASTION-9, the HELION ARK and THE VEIL were: mesh, UVs, normals and paint are kept, reduced, with 2K colour and roughness maps, a 1K normal map, and the egg and the amber hollows glowing.
+- **Parts, cut by shape:** Tripo's 229 pieces are arbitrary (one holds half the egg, a shield and the flesh beside it).
+  - The egg is cut by an ellipsoid.
+  - Each of the six inner shields' upper part is cut by its sector round the nest above a cut height. Only painted bone is kept (the atlas tells bone from red flesh), closed over thin cracks and reduced to its main piece. The shields hinge on the cut line and swing 42° outward; the stumps stay like joints.
+  - The brood sacs are the flesh bulges at the front flanks. There are no turrets.
+  - Under each of the five outer shields hangs a boulder mass of floating rock, painted from the body's own rock slabs, with chunks floating beside it.
+  - The hatchling drone is the Blender-built one.
+- **Size and rise:**
+  - The boss is 70% of the reference placement, about one screen wide. THE CRADLE's style in the shared carrier view now carries its own sockets, target plane, arrival, bays and footprint (it used THE VEIL's).
+  - It rises straight up out of its canyon (`CRADLE.entryS` = its row). Before, it slid in from row 30 and ploughed through the canyon wall while rising.
+  - The emergence canyon is centred on its footprint and wide enough for its sway (`EMERGENCE` ahead 3.2, halfS 6.4).
+- **Combat values:**
+  - target plane 1.54; core and sacs at their tested positions, within half a unit of the egg and the bulges;
+  - closer values made the overload fan seal the view, which the fairness test caught;
+  - hit radii 1.0 and 0.72; beam lanes scaled to 1.7 and 1.12; hatchling bays at x ±1.96, s −1.68.
+- **Earlier passes, superseded:** two hand-built rebuilds (`tools/blender/remodel_cradle.py`, `the-cradle-v1.glb`, removed): a traced lower part with brood-bay doors, then faceted plates with torn dough webbing. The user rejected both.
+- **Light playground:** a **Boss fight** toggle runs the level's boss live (the ship holds the "Ship x" slider and cannot die), with buttons to replay the arrival, open the core, overload it and destroy it. The playground has no browser test.
+- **Checked:**
+  - typecheck clean; unit tests 424/424;
+  - renderer captures through `tests/fixtures/bastion.html?boss=cradle&phase=…` (new): rise, hover, core, launch;
+  - browser suite 38/38 on the release snapshot (17.0 min, Playwright exit 0);
+  - **No phone test.** At 111k triangles THE CRADLE is the heaviest boss (THE VEIL's adaptation was 82k), alone on screen.
+- **Evidence:** `docs/screenshots/boss-remodel/cradle-v2-model.jpg` (game view, front, ¾, side) and `cradle-v2-in-game.jpg` (rising at 1.5 s and 3 s, hovering with the sac rings, core open, hatchlings launching).
+
 ## No more dashed telegraphs: aim rays, chevron columns, solid boss aims (all worlds), 23 October 2026
 
 User:

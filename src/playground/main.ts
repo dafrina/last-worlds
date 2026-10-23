@@ -4,11 +4,18 @@
  * and kits of each campaign level, frozen: no enemies, no combat, no simulation steps. A panel tunes each level's look
  * live (lights, grade, bloom, fog); settings persist in the browser, the dev server also writes them to
  * lookdev/playground-looks.json, and "Copy settings" puts them on the clipboard. Presentation only.
+ *
+ * "Boss fight" (user, 24 October: "can i preview it somewhere? maybe add a feature to the playground with a toggle boss
+ * fight") runs the level's boss for real in its arena: the simulation steps, the ship hovers where "Ship x" puts it and
+ * cannot die, and buttons replay the arrival, burst the flank weak points (the core phase: shutters open, launches),
+ * overload the core or destroy it.
  */
-import { createRun } from '../sim/game';
+import { createRun, stepRun } from '../sim/game';
+import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
+import { missionBoss } from '../content/bosses';
 import { createRenderer, type PlanetLook } from '../render/scene';
 import type { GraphicsQuality, PlanetId, RunConfig, RunState } from '../shared/contracts';
-import { VIEW } from '../shared/contracts';
+import { EMPTY_INPUT, STEP, VIEW } from '../shared/contracts';
 import './playground.css';
 
 type Mission = NonNullable<RunConfig['mission']>;
@@ -83,8 +90,8 @@ const defaults = Object.fromEntries(LEVELS.map(level => [level.planet, renderer.
 /** The tuned looks (only levels that differ from their shipped look are saved). */
 const looks = Object.fromEntries(LEVELS.map(level => [level.planet, structuredClone(defaults[level.planet])])) as Record<PlanetId, PlanetLook>;
 
-interface ViewSettings { mission: Mission; distance: number; x: number; fly: boolean; speed: number; quality: GraphicsQuality; ship: boolean; seed: number }
-const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, ...load<Partial<ViewSettings>>(VIEW_STORE) };
+interface ViewSettings { mission: Mission; distance: number; x: number; fly: boolean; speed: number; quality: GraphicsQuality; ship: boolean; seed: number; boss: boolean }
+const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, boss: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
 const level = () => LEVELS.find(entry => entry.mission === view.mission) ?? LEVELS[1];
 
 let state: RunState = makeState();
@@ -92,7 +99,26 @@ function makeState(): RunState {
   const run = createRun({ mode: 'campaign', mission: view.mission, difficulty: 'standard', seed: view.seed });
   run.enemies = []; run.projectiles = []; run.hazards = []; run.pickups = []; run.nextEncounterAt = Infinity; run.nextVolleyAt = Infinity;
   run.player.invulnerableUntil = -1; run.message = ''; run.messageUntil = 0;
+  if (view.boss) {
+    // The boss's own arena: the scroll as it eases to its stop, then the boss arrives (as the boss fixture sets it up).
+    const def = missionBoss(view.mission);
+    if (def) {
+      run.time = def.arrivesAt;
+      const scroll = arenaScroll(run.time, null, def.arena); run.distance = scroll.distance; run.scrollSpeed = scroll.speed;
+      startBoss(run, def);
+    }
+  }
   return run;
+}
+/** Boss controls: the flank weak points down (core phase), the core into overload, or everything destroyed. */
+function bossAct(act: string) {
+  if (!state.boss) return;
+  if (act === 'replay') { state = makeState(); return; }
+  if (state.boss.phase === 'arrival') return;
+  const kill = (part: 'left' | 'right' | 'core', hp = 0) => { const target = bossTarget(state, part); if (target) target.hp = hp; };
+  if (act === 'flanks' || act === 'overload' || act === 'destroy') { kill('left'); kill('right'); resolveBossPhase(state); }
+  if (act === 'overload') { const core = bossTarget(state, 'core'); if (core) { core.hp = Math.min(core.hp, core.maxHp * .39); resolveBossPhase(state); } }
+  if (act === 'destroy') { kill('core'); resolveBossPhase(state); }
 }
 
 // ── Saving: the browser, the dev server's file (lookdev/playground-looks.json) and the clipboard. ──
@@ -137,6 +163,8 @@ scene.innerHTML = `
   <label>Quality <select data-view="quality"><option value="high">High</option><option value="low">Low</option></select></label>
   <label class="pg-row"><input data-view="ship" type="checkbox"> Show the ship</label>
   <label>Terrain seed <input data-view="seed" type="number" min="1" step="1"></label>
+  <label class="pg-row"><input data-view="boss" type="checkbox"> Boss fight (the level's boss, live; the ship cannot die)</label>
+  <div class="pg-row pg-boss"><button type="button" data-boss="replay">Replay arrival</button><button type="button" data-boss="flanks">Open the core</button><button type="button" data-boss="overload">Overload</button><button type="button" data-boss="destroy">Destroy</button></div>
   <div class="pg-row"><button type="button" data-act="boom">Explosion</button><button type="button" data-act="blast">Fuel blast</button></div>`;
 const groups = root.querySelector<HTMLElement>('.pg-groups')!;
 function buildControls() {
@@ -175,6 +203,12 @@ scene.addEventListener('input', event => {
   save(VIEW_STORE, view);
   if (view.quality !== previous.quality) renderer.setQuality(view.quality);
   if (view.mission !== previous.mission || view.seed !== previous.seed) void switchLevel();
+  else if (key === 'boss') { state = makeState(); syncBoss(); }
+});
+function syncBoss() { root.querySelector<HTMLElement>('.pg-boss')!.hidden = !view.boss; }
+root.addEventListener('click', event => {
+  const act = (event.target as HTMLElement).dataset?.boss;
+  if (act) bossAct(act);
 });
 root.addEventListener('click', async event => {
   const act = (event.target as HTMLElement).dataset?.act;
@@ -207,20 +241,33 @@ function resize() {
 }
 new ResizeObserver(resize).observe(stage);
 
-let last = performance.now(), frames = 0, fpsAt = last;
+let last = performance.now(), frames = 0, fpsAt = last, accumulator = 0;
 function frame(now: number) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
-  if (view.fly) { view.distance += view.speed * dt; if (view.distance > 1600) view.distance = 0; }
-  state.time += dt; state.tick += 1;
-  state.distance = view.distance; state.scrollSpeed = view.fly ? view.speed : 0;
-  state.player.x = view.x; state.cameraX = Math.max(-(VIEW.worldWidth - VIEW.width) / 2, Math.min((VIEW.worldWidth - VIEW.width) / 2, view.x));
-  state.player.lives = view.ship ? 3 : 0;
-  renderer.render(state, 0);
+  if (view.boss && state.boss) {
+    // The fight runs for real at the fixed step; the ship holds its slider position and cannot die.
+    accumulator += dt;
+    while (accumulator >= STEP) {
+      accumulator -= STEP;
+      state.player.x = view.x; state.player.vx = 0;
+      if (state.phase === 'playing') stepRun(state, EMPTY_INPUT);
+      state.player.lives = Math.max(state.player.lives, 2);
+    }
+    renderer.render(state, accumulator / STEP);
+  } else {
+    if (view.fly) { view.distance += view.speed * dt; if (view.distance > 1600) view.distance = 0; }
+    state.time += dt; state.tick += 1;
+    state.distance = view.distance; state.scrollSpeed = view.fly ? view.speed : 0;
+    state.player.x = view.x; state.cameraX = Math.max(-(VIEW.worldWidth - VIEW.width) / 2, Math.min((VIEW.worldWidth - VIEW.width) / 2, view.x));
+    state.player.lives = view.ship ? 3 : 0;
+    renderer.render(state, 0);
+  }
   frames++;
   if (now - fpsAt > 1000) {
     const distance = scene.querySelector<HTMLInputElement>('[data-view="distance"]');
     if (view.fly && distance) { distance.value = String(Math.round(view.distance)); distance.parentElement!.querySelector('output')!.textContent = String(Math.round(view.distance)); }
-    if (!hud.textContent?.startsWith('Loading')) hud.textContent = `${level().name} · ${Math.round(frames * 1000 / (now - fpsAt))} fps`;
+    const fight = view.boss && state.boss ? ` · ${state.boss.id.toUpperCase()} ${state.phase === 'playing' ? state.boss.phase : 'cleared'}` : '';
+    if (!hud.textContent?.startsWith('Loading')) hud.textContent = `${level().name}${fight} · ${Math.round(frames * 1000 / (now - fpsAt))} fps`;
     frames = 0; fpsAt = now;
   }
   requestAnimationFrame(frame);
@@ -232,6 +279,7 @@ restore(fromFile ?? load(STORE));
 for (const { planet } of LEVELS) renderer.tuneLook!(planet, looks[planet]);
 renderer.setQuality(view.quality);
 syncView();
+syncBoss();
 await switchLevel();
 resize();
 requestAnimationFrame(frame);

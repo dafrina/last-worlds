@@ -387,3 +387,12 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Shipped:** no dashed telegraphs anywhere. Aimed shots get aim rays with a charge glow, straight-shooting batteries get chevron columns, Lancers get the beam preview, and boss aims are solid lines.
 - **Gate (clean worktree):** typecheck, unit tests 424/424, build, browser 38/38 (15.5 min, Playwright exit 0).
 - **Audio:** no audio files touched.
+
+**2026-10-24 · Claude Code integrator · THE CRADLE's own model READY → releasing:** At the user's instruction, the integrator finishes the World session's `cradle-wip`: the lower part is rebuilt after the Tripo reference, with brood bays and the bay doors and docked hatchlings of THE VEIL's rig. `CRADLE.bays` moves to x ±2.8, s −2.4 so hatchlings appear at the visible bays. A `boss=cradle` option is added to the boss fixture. The branch merges into main and deploys from a clean worktree. Audio is untouched.
+
+**2026-10-24 · Claude Code integrator · THE CRADLE from the user's GLB, releasing:** At the user's word, the hand-built rebuilds are dropped. THE CRADLE is now the user's Tripo GLB, adapted by `tools/blender/approved_cradle.py`: egg core, six opening inner shields, floating rock under the outer shields, no turrets, at 70% size, rising in place out of a refitted canyon.
+- The shared carrier view now takes per-boss sockets.
+- The light playground gets a Boss fight toggle.
+- Releasing as one squashed commit of `cradle-wip` onto main, gated from a clean worktree. Audio is untouched.
+
+**2026-10-24 · Claude Code integrator · THE CRADLE from the user's GLB: deployed:** gated from a clean worktree: typecheck, unit tests 424/424, build, browser 38/38 (17.0 min, Playwright exit 0). Audio untouched.

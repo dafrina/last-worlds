@@ -9,4 +9,6 @@ export const BOSS_ASSETS = {
   bastion: 'khepri/bastion-9-v6-treads.glb',
   ark: 'vesper/helion-ark-v5-remodel.glb',
   warden: 'luna/warden-v5-remodel.glb',
+  /** v2 = the user's Tripo GLB itself, adapted in Blender (tools/blender/approved_cradle.py, 24 October 2026). */
+  cradle: 'amnion/the-cradle-v2-approved.glb',
 } as const;

@@ -17,6 +17,12 @@
       "bytes": 22389420,
       "triangles": 501970,
       "sha256": "2171f02986750c62cb04d4bd8a2cc4ffcfbba659b97d5e65fea08d47482a08b4"
+    },
+    {
+      "file": "art/source/approved-bosses/cradle-tripo-original.glb",
+      "bytes": 55997240,
+      "triangles": 1559054,
+      "sha256": "e2bfc57d30a30120f128fe27a9670239819d94b25897cf3652a8d1a7014a1384"
     }
   ],
   "runtime": [
@@ -43,6 +49,12 @@
       "bytes": 1094968,
       "triangles": 10220,
       "sha256": "6044fef3b043eb09634ea349d18f97f68acdbb3f47b3106ba4792ebe72ca7e95"
+    },
+    {
+      "file": "public/assets/amnion/the-cradle-v2-approved.glb",
+      "bytes": 5985024,
+      "triangles": 111137,
+      "sha256": "0e26ff819c31923c90cf692765fecf441cfe96384876360960ca218c86fd5644"
     }
   ]
 }
