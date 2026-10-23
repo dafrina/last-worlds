@@ -18,12 +18,24 @@ import { arenaAt } from './terrain-arena';
  */
 /** Landmark site lattice: rows along s, three lanes across the world. */
 const SITE_ROW = 16, SITE_LANES = [-7.5, 0, 7.5];
-/** Plateau tiers, the canyon floor and the highest crest (world height; the terrain's own cap is 2.4). */
-const PLATEAU = 0.3, TIER = 0.5, FLOOR = -3.3, PEAK = 2.4;
+/**
+ * Plateau tiers, the canyon floor and the highest crest (world height; the terrain's own cap is 2.4). The whole level
+ * sits 1.2 lower than at first (user, 23 October: "lower the whole level a bit" so the tusks can grow under the flight
+ * plane, and "make the canyons slightly less deep": 3.0 under the plateau instead of 3.6); the mountains keep their
+ * peaks, so they gained relief.
+ */
+const PLATEAU = -0.9, TIER = 0.5, FLOOR = -3.9, PEAK = 2.4;
 /** The plateau's base level (the boss stands on it). */
 export const AMNION_PLATEAU = PLATEAU;
 /** Scenery cap: the same clearance under the flight plane (3.8) as Vesper's and Nacre's. */
 export const AMNION_SCENERY_MAX = 3.0;
+/**
+ * The tusks alone (great tusks, brood nests, tusk groves) may rise higher (user, 23 October: "the spikes could be even
+ * higher"): 0.4 under the flight plane instead of 0.8. Anything under the plane can never cover a ship or a shot from
+ * the camera above it; the margin only keeps the thin tips from crowding the ships' layer.
+ */
+export const AMNION_TUSK_MAX = 3.4;
+const TUSKS: ReadonlySet<string> = new Set(['boneSpire', 'broodNest', 'hive']);
 const NEUTRAL: MoodParams = NEUTRAL_MOOD;
 
 /* ---------------------------------------------------------------- masks */
@@ -126,7 +138,7 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
   const dome = (noise(seed ^ 0xa1b1, x * 0.11, s * 0.1) - 0.5) * 0.14 + (noise(seed ^ 0xa1b2, x * 0.5, s * 0.46) - 0.5) * 0.03;
   // Mountains: sharp ridged crests (two octaves) on the massifs, up to the cap.
   const crest = ridged(noise(seed ^ 0xa1c2, x * 0.22, s * 0.19)) * 0.7 + ridged(noise(seed ^ 0xa1c3, x * 0.52, s * 0.47)) * 0.3;
-  const mountain = Math.pow(m.massif, 0.7) * (0.3 + 2.1 * crest);
+  const mountain = Math.pow(m.massif, 0.7) * (0.45 + 3.3 * crest);
   const top = Math.min(PEAK, PLATEAU + m.tier * TIER + dome - m.hollow * 0.35 + mountain);
   // Crevasse floors at different heights (user, 23 October: "the bottom of the canyons could be more different
   // heights"): deeper and shallower stretches, fleshy mounds, and a ledge along the walls partway down.
@@ -144,7 +156,7 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
   const crust = noise(seed ^ 0xa1b4, x * 0.18, s * 0.16);
   return {
     // `channel` carries the massif weight (the terrain grid keeps only its known fields; Amnion's colour reads it).
-    height: clamp(mix(floor, top, m.plateau), -4, 2.4), elevation: m.plateau, channel: m.massif,
+    height: clamp(mix(floor, top, m.plateau), -5, 2.4), elevation: m.plateau, channel: m.massif,
     pool: pools * (1 - m.plateau), vein, vein2, veins: fissures, tone: crust,
   };
 }
@@ -198,7 +210,8 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
   const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number) => {
     const spec = KIT[instance.kind];
     if (instance.s < startS || instance.s >= startS + size || Math.abs(instance.x) + spec.radius * instance.scale > WORLD_HALF) return;
-    if (instance.y + instance.height * spec.height > CAP) instance = { ...instance, height: (CAP - instance.y) / spec.height };
+    const cap = TUSKS.has(instance.kind) ? AMNION_TUSK_MAX : CAP;
+    if (instance.y + instance.height * spec.height > cap) instance = { ...instance, height: (cap - instance.y) / spec.height };
     if (instance.height <= 0.05) return;
     const placed: KitInstance = { ...instance, variant: Math.min(spec.variants - 1, Math.floor(pick * spec.variants)), shade: terrain.shade(instance.x, instance.s) };
     (placed.cosmetic ? cosmetic : essential).push(placed);
@@ -216,9 +229,14 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
       if (s < startS - 4 || s >= startS + size + 4) break;
       const m = amnionMasks(seed, x, s);
       if (m.plateau < 0.99 || m.across < 1.9 || m.massif > 0.3 || terrain.platform(x, s) > 0 || terrain.blocked(x, s)) continue;
-      const nest = h(30) < 0.6, scale = nest ? 2.8 + h(31) * 0.6 : 2.6 + h(31) * 0.7, ground = terrain.height(x, s);
-      landmarks.push({ x, s, r: (nest ? 1 : 0.6) * scale + 0.6 });
-      add({ kind: nest ? 'broodNest' : 'hive', x, s, y: ground - 0.08, scale, height: Math.min(CAP - ground + 0.08, nest ? 2.4 + h(32) * 0.5 : 2.6 + h(32) * 0.5), rotation: turn(h(33)), cosmetic: false }, h(34));
+      const nest = h(30) < 0.6, scale = nest ? 2.6 + h(31) * 0.5 : 2.0 + h(31) * 0.4, ground = terrain.height(x, s);
+      landmarks.push({ x, s, r: (nest ? 0.9 : 0.6) * scale + 0.6 });
+      add({ kind: nest ? 'broodNest' : 'hive', x, s, y: ground - 0.08, scale, height: AMNION_TUSK_MAX - ground + 0.08 - h(32) * 0.3, rotation: turn(h(33)), cosmetic: false }, h(34));
+      // Egg heaps pressed against it (separate pieces: the landmark is stretched tall, eggs must stay round).
+      for (let k = 0; k < (nest ? 2 : 1); k++) {
+        const a = turn(h(35)) + k * (2.2 + h(36) * 1.6), d = scale * (nest ? 0.62 : 0.4), size = 1.3 + h(37 + k) * 0.6;
+        add({ kind: 'eggClutch', x: x + Math.cos(a) * d, s: s + Math.sin(a) * d, y: terrain.height(x + Math.cos(a) * d, s + Math.sin(a) * d) - 0.04, scale: size, height: size, rotation: turn(h(39 + k)), cosmetic: false }, h(41 + k));
+      }
       break;
     }
   }
@@ -234,22 +252,28 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
       continue;
     }
     const m = amnionMasks(seed, x, s), plateau = m.plateau > 0.95, edge = plateau && drop > 1.2;
-    if (plateau && slope < 0.7 && (m.hollow > 0.35 || (edge && pick < 0.3) || pick < 0.035)) {
-      // Egg clutches: piled in hollows, crowding the edges over the canyons, scattered on open crust.
+    if (plateau && slope < 0.7 && ((m.hollow > 0.35 && pick < 0.3) || (edge && pick < 0.12) || pick < 0.012)) {
+      // Egg heaps (fewer and bigger, as in the concept: the big eggs about a ship across): piled in hollows, crowding
+      // the edges over the canyons, now and then on open crust.
       const members = 1 + Math.floor(h(20) * (m.hollow > 0.35 ? 3 : 2));
       for (let k = 0; k < members; k++) {
-        const ox = x + (k ? (h(22 + k) - 0.5) * 1.1 : 0), os = s + (k ? (h(26 + k) - 0.5) * 1.1 : 0);
+        const ox = x + (k ? (h(22 + k) - 0.5) * 1.6 : 0), os = s + (k ? (h(26 + k) - 0.5) * 1.6 : 0);
         if (k && (terrain.slope(ox, os) > 0.8 || terrain.blocked(ox, os))) continue;
-        const scale = 1.0 + h(30 + k) * 0.8;
+        const scale = 1.5 + h(30 + k) * 0.8;
         add({ kind: 'eggClutch', x: ox, s: os, y: terrain.height(ox, os) - 0.04, scale, height: scale, rotation: turn(h(34 + k)), cosmetic: k > 0 }, h(38 + k));
       }
-    } else if (plateau && (m.massif > 0.35 || edge) && slope < 1.4 && pick < (m.massif > 0.35 ? 0.09 : 0.06)) {
-      // Horn clusters: two to five curved bone horns of mixed height.
-      const members = 2 + Math.floor(h(40) * 4);
+    } else if (plateau && (m.massif > 0.35 || edge) && slope < 1.4 && pick < (m.massif > 0.35 ? 0.025 : 0.018)) {
+      // Great tusks (user, 23 October: "the horns are absolutely underwhelming"): one to three big tusk pieces, the
+      // first up to the cap, often with an egg heap pressed against its foot as in the concept.
+      const members = 1 + Math.floor(h(40) * 3);
       for (let k = 0; k < members; k++) {
-        const ox = x + (k ? (h(42 + k) - 0.5) * 1.2 : 0), os = s + (k ? (h(48 + k) - 0.5) * 1.2 : 0);
-        const scale = 1.2 + h(54 + k) * 0.7, tall = (k ? 1.1 : 1.8) + h(60 + k) * (k ? 1 : 1);
+        const ox = x + (k ? (h(42 + k) - 0.5) * 1.8 : 0), os = s + (k ? (h(48 + k) - 0.5) * 1.8 : 0);
+        const scale = (k ? 1.1 : 1.4) + h(54 + k) * 0.5, tall = (k ? 2.2 : 3.4) + h(60 + k) * 1.0;
         add({ kind: 'boneSpire', x: ox, s: os, y: terrain.height(ox, os) - 0.06, scale, height: tall, rotation: turn(h(66 + k)), cosmetic: k > 1 }, h(72 + k));
+      }
+      if (h(41) < 0.5) {
+        const a = turn(h(76)), ox = x + Math.cos(a) * 0.9, os = s + Math.sin(a) * 0.9;
+        if (terrain.slope(ox, os) < 0.8 && !terrain.blocked(ox, os)) add({ kind: 'eggClutch', x: ox, s: os, y: terrain.height(ox, os) - 0.04, scale: 1.1 + h(77) * 0.5, height: 1.1 + h(77) * 0.5, rotation: turn(h(78)), cosmetic: true }, h(79));
       }
     } else if (plateau && m.massif < 0.15 && slope < 0.35 && drop < 0.4 && pick < 0.004) {
       // A brood nest on open, flat plateau.
@@ -264,7 +288,8 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
     }
   }
   // Sinew webs (user, 23 October: "fleshy strings ... hanging between the cliffs so the glow shimmers between them"):
-  // along every main crevasse segment, every 1.6–3 units, strung across it from lip to lip (scaled to its width) at
+  // then "too stringy and uniform ... should read sticky": goo sheets strung lip to lip along every main crevasse
+  // segment (scaled to its width), in irregular bunches (often two or three close together, then a long gap), at
   // different depths, sagging into the gap; a few more low over the floor.
   for (const seg of crevasseSegments(seed, startS, startS + size)) {
     const vx = seg.bx - seg.ax, vs = seg.bs - seg.as, length = Math.hypot(vx, vs), dx = vx / length, ds = vs / length;
@@ -272,7 +297,7 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
     for (let t = 0.6, k = 0; t < length - 0.6; k++) {
       const h = (n: number) => hash(seed ^ 0xa7e1, seg.lane * 977 + seg.k * 31 + k, n);
       const x = seg.ax + dx * t, s = seg.as + ds * t;
-      t += 1.6 + h(0) * 1.4;
+      t += h(0) < 0.45 ? 0.7 + h(6) * 0.5 : 2.2 + h(6) * 2.6;
       if (s < startS || s >= startS + size || terrain.platform(x, s) > 0) continue;
       // The lower of the two lips (strands anchor just under it).
       const lip = Math.min(terrain.height(x - ds * span * 1.15, s + dx * span * 1.15), terrain.height(x + ds * span * 1.15, s - dx * span * 1.15));

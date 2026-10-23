@@ -76,14 +76,14 @@ export const KIT: Readonly<Record<KitKind, {
   cliffWall: { prefix: 'cliff_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   iceWall: { prefix: 'ice_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   // Amnion (amnion-kit.glb, docs/27): egg clutches and shards at real size; spires and nests top out at exactly 1.
-  eggClutch: { prefix: 'amn_eggs', variants: 3, halfX: 0.6, halfZ: 0.55, height: 0.6, exactTop: false, radius: Math.hypot(0.6, 0.55) },
-  boneSpire: { prefix: 'amn_spire', variants: 3, halfX: 0.3, halfZ: 0.3, height: 1, exactTop: true, radius: Math.hypot(0.3, 0.3) },
+  eggClutch: { prefix: 'amn_eggs', variants: 3, halfX: 0.63, halfZ: 0.46, height: 0.63, exactTop: false, radius: Math.hypot(0.63, 0.46) },
+  boneSpire: { prefix: 'amn_spire', variants: 3, halfX: 0.69, halfZ: 0.78, height: 1, exactTop: true, radius: Math.hypot(0.69, 0.78) },
   nest: { prefix: 'amn_nest', variants: 2, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.hypot(1, 1) },
   boneShards: { prefix: 'amn_shards', variants: 3, halfX: 0.32, halfZ: 0.3, height: 0.3, exactTop: false, radius: Math.hypot(0.32, 0.3) },
   // Landmarks (Amnion's buildings), scaled up to 4–5 across and 2.5–3 high; webs hang from their anchor (y 0) across
   // x −1 … 1 (scaled to a crevasse's width), their sag scaled by the instance height.
-  broodNest: { prefix: 'amn_broodnest', variants: 2, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.hypot(1, 1) },
-  hive: { prefix: 'amn_hive', variants: 2, halfX: 0.6, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(0.6, 0.6) },
+  broodNest: { prefix: 'amn_broodnest', variants: 2, halfX: 0.86, halfZ: 0.84, height: 1, exactTop: true, radius: Math.hypot(0.86, 0.84) },
+  hive: { prefix: 'amn_hive', variants: 2, halfX: 0.6, halfZ: 0.7, height: 1, exactTop: true, radius: Math.hypot(0.6, 0.7) },
   sinewWeb: { prefix: 'amn_web', variants: 3, halfX: 1.05, halfZ: 0.45, height: 1, exactTop: false, radius: 1.05 },
   // Amnion's canyon walls (docs/27): flesh lobes and sinews tucked under the plateau's own bone edge.
   fleshWall: { prefix: 'flesh_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },

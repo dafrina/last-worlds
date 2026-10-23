@@ -44,7 +44,26 @@ The concept image is a reference, never a runtime background or a finished asset
    - THE CRADLE's content (`src/content/cradle.ts`) and the Brood Strike playlist;
    - menu, campaign order and playground.
    - **Stand-ins, openly marked:** Nacre's organic craft for the enemies, THE VEIL's model for THE CRADLE (seated on the plateau), and Nacre's arrangement a minor third lower as the music (Codex writes the real theme).
-2. **Brood kit in Blender:** bone-and-sinew canyon walls (runs along the sheer canyon lips, like Khepri's mesas), egg clutches, bone spires and horns, ribbed nests with glowing cores, bone bridges over canyons, and egg-sac depots for the fuel role.
+2. **Brood kit in Blender (in progress, `tools/blender/amnion_kit.py`):**
+   - **Done:**
+     - flesh canyon walls;
+     - egg heaps;
+     - great tusks;
+     - brood nests and tusk groves (Amnion's buildings);
+     - goo webs across the crevasses.
+   - **Still to do:**
+     - torn-bone bridges over the crevasses (the concept's perforated spans);
+     - egg-sac depots for the fuel role.
+   - **Shape rules after the 23 October review** ("too small and way too comic like", "make them closer to the concept", "tears in the spikes base, like tearing apart by spreading it like a dough"):
+     - **Torn webbing:** tusks grow out of a membrane torn with real oval holes, packed big then small and stretched along the spread. It is built with Blender's triangle fill, so the holes cost a few hundred triangles, never a subdivided grid. The rims curl under, and they are dark flesh.
+     - **Nests:** a torn bone bowl round a glowing pool. Four or five tusks of very different size and lean rise from the bowl at irregular gaps. Never a symmetric ring of spikes; the ring round a glowing core was rejected as "way too uniform".
+     - **Eggs:** heaped as in the concept. Big eggs form the core, smaller ones stack on and between them, and tiny ones fill the gaps. Only one in six glows.
+     - **Eggs on landmarks:** they are separate pieces. The landmark is stretched tall, and its eggs must stay round.
+     - **Pearl shells** ("this perlescent color with shine"):
+       - the body is pale nacre, turning to pastel pink, lilac, teal and gold toward the rim;
+       - the camera never turns, so baking the shift by the normal stands in for iridescence;
+       - the shells are marked glossy by vertex alpha 0, which the runtime stores as a negative glow;
+       - the kit shader gives glossy faces low roughness and a sharp sun glint, since small shells smear the physical highlight.
 3. **The biological enemy faction:** Blender models on the existing kinds' behaviour.
 4. **THE CRADLE:** its own model, an arrival up the canyon, and the sac and heart reveals.
 5. **Music:** Codex, through `COORDINATION.md`.
@@ -54,9 +73,10 @@ The concept image is a reference, never a runtime background or a finished asset
 
 | | Value |
 | --- | --- |
-| Plateau tiers | 0.3 and 0.8 (domed ±0.17, egg hollows −0.35) |
-| Mountains | Up to the 2.4 cap: two octaves of ridged crests on massifs about 28% of the area, set back from the canyon lips |
-| Canyon floor | About −3.3, sagging toward the yolk |
+| Plateau tiers | −0.9 and −0.4 (domed ±0.17, egg hollows −0.35). The level was lowered 1.2 on 23 October ("lower the whole level a bit" so the tusks can grow) |
+| Mountains | Up to the 2.4 cap: two octaves of ridged crests on the massifs, set back from the canyon lips. The peaks stayed when the level went down, so the mountains gained 1.2 of relief |
+| Canyon floor | About −3.9, sagging toward the yolk: 3.0 under the plateau (it was 3.6; "make the canyons slightly less deep") |
+| Scenery caps | 3.0 for everything, and 3.4 for the tusks alone (great tusks, nests and groves): 0.4 under the flight plane. Anything under the plane never covers a ship or a shot from the camera above it, so the margin is only about clutter |
 | Canyons | Main canyons wind along s, 5–9 units wide; narrower side cracks in patches; together about 30% of the area |
 | Boss clearing | One plateau level, no canyon |
 | Colour | Bone, darker stained bone on mountain flanks and folds, pale crests; sinew at the lips, dark flesh walls and floors |

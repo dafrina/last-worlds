@@ -1,5 +1,45 @@
 # Build status
 
+## Amnion brood kit: torn-bone tusks, irregular nests, pearl eggs, the level lowered, 23 October 2026
+
+User, reviewing:
+- "too stringy and uniform ... should read sticky";
+- "the horns are absolutely underwhelming ... make the nests high and horn-like";
+- "the eggs on the nests should be clustered together";
+- "way too small and way too comic like ... I especially hate the one with multiple spikes in a circle enclosing the egg";
+- "closer to the concept";
+- "tears in the spikes base, like tearing apart by spreading it like a dough";
+- "the spikes could be even higher";
+- "this perlescent color with shine";
+- "lower the whole level a bit ... make the canyons slightly less deep".
+
+- **Tusks and nests (`tools/blender/amnion_kit.py`):**
+  - Great tusks grow from torn webbing, with holes cut by Blender's triangle fill (about 500 triangles a tusk) and rims of dark flesh.
+  - Nests are a torn bone bowl round a glowing pool with four or five irregular tusks.
+  - Groves are two or three tusks fanning from one mass of webbing.
+  - The ring of spikes round a core is gone.
+- **Eggs:**
+  - packed heaps (big core, stacked smaller eggs, tiny ones in the gaps), only one in six glowing;
+  - pearl shells with a real sun glint, through a gloss marker in the shared kit shader (`src/render/terrain-kit.ts`), with no other kit changed;
+  - eggs at landmarks are separate pieces, so they stay round.
+- **Webs:** stretched goo sheets, necked and holed, with glowing drips, in irregular bunches. They are not yet reviewed in game, because no crevasse web fell in the capture frames.
+- **Level:**
+  - Amnion is 1.2 lower and its canyons 3.0 deep;
+  - the tusks reach 3.4, 0.4 under the flight plane;
+  - tusks and egg heaps are fewer and much bigger.
+- **Cost:**
+  - the kit is 21.5k triangles over 18 nodes, 2.7 MB (the byte cap was raised from 1.5 to 3.2 MB);
+  - landmarks are at most 4.8k triangles, but there are about two per screen.
+- **Tests:** `tests/world/terrain-amnion.test.ts` checks that tusks stay under 3.4 and 0.4 below the plane, everything else under 3.0, and every piece inside the world.
+- **Checks:**
+  - typecheck;
+  - unit tests 424/424;
+  - in-game captures (`lookdev/review/amnion22.jpg`, `amnion23-eggs.png`).
+- **Not done:**
+  - the browser release suite has not been run on this change;
+  - no phone test;
+  - not deployed.
+
 ## Amnion · Brood Wastes, milestone 1: ground, light and the Brood Strike mission, 23 October 2026
 
 User: "new level ... the vibe is biological wasteland and eggs and biological enemies and facilities/buildings"; "Amnion, brood strike, the cradle. start on it"; "definitely also add mountains not only mesa canyons".

@@ -267,7 +267,10 @@ export function extractNode(node: THREE.Object3D, emissive: RegExp, allEmissive 
     const sourceColor = source.getAttribute('color'), glow = new Float32Array(count);
     if (sourceColor) {
       part.setAttribute('color', new THREE.Float32BufferAttribute(toFloat3(sourceColor, count, tint), 3));
-      for (let i = 0; i < count; i++) glow[i] = glowing ? Math.max(sourceColor.getX(i), sourceColor.getY(i), sourceColor.getZ(i)) : 0;
+      // Glow is the brightest channel on emissive faces; a vertex alpha under 1 on other faces marks gloss (stored as a
+      // negative glow, so no kit needs another attribute: Amnion's pearl egg shells).
+      const alpha = sourceColor.itemSize === 4;
+      for (let i = 0; i < count; i++) glow[i] = glowing ? Math.max(sourceColor.getX(i), sourceColor.getY(i), sourceColor.getZ(i)) : alpha ? -(1 - sourceColor.getW(i)) : 0;
     } else {
       const flat = glowing ? tint : (tint.getHex() !== 0xffffff ? tint : SIDE);
       part.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: count }, () => [flat.r, flat.g, flat.b]).flat(), 3));
@@ -1168,10 +1171,21 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD + (wall ? '\nuniform float wallContrast;\nvarying float vWallTop;' : ''))
       // Nacre's flora emits its own vertex colour (teal, violet, orange) instead of the shared glow colour.
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 1.8, nacreLook ) * vGlow;' + VESPER_KIT_EMISSIVE)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 1.8, nacreLook ) * max( vGlow, 0.0 );' + VESPER_KIT_EMISSIVE)
+      // Glossy faces (a negative glow: Amnion's pearl egg shells) keep a smooth surface and a sharp sun highlight.
+      .replace('#include <lights_physical_fragment>', `float kitGloss = clamp( -vGlow, 0.0, 1.0 );
+  roughnessFactor = mix( roughnessFactor, 0.14, kitGloss );
+  normal = normalize( mix( normal, nonPerturbedNormal, kitGloss ) );
+  #include <lights_physical_fragment>`)
+      // Small shells smear the physical highlight (geometry roughness): add a sharp glint from the sun.
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+  #if NUM_DIR_LIGHTS > 0
+    vec3 glintHalf = normalize( directionalLights[ 0 ].direction + normalize( vViewPosition ) );
+    reflectedLight.directSpecular += directionalLights[ 0 ].color * pow( max( dot( normal, glintHalf ), 0.0 ), 48.0 ) * 0.45 * kitGloss;
+  #endif`)
       .replace('#include <map_fragment>', wall ? WALL_DETAIL_FRAGMENT + VESPER_KIT_SURFACE : `#ifdef USE_MAP
   float detail = texture2D( map, vMapUv ).r * 2.0;
-  diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - clamp( vGlow, 0.0, 1.0 ) ) * ( 1.0 - vesperLook * .65 );
+  diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - clamp( abs( vGlow ), 0.0, 1.0 ) ) * ( 1.0 - vesperLook * .65 );
 #endif
 ${VESPER_KIT_SURFACE}`)
       // Luna (docs/19): after the vertex colours, the Khepri basalt pieces turn to grey rock (luminance kept, lifted).

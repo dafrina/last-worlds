@@ -175,3 +175,9 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **Boss deaths (user):** a barrage of explosions over the boss's modules, then one big detonation and an outward ring of explosions, inside the wreck hold.
   - **Vesper cliffs where they count (user, 23 October):** ice walls on every big face (including crevasses, ridges and beside outposts), none on small steps or on faces turned away from the camera, and only in continuous runs (no lone pieces); bosses' entry paths stay clear.
   - **New world (user, 23 October):** Amnion · Brood Wastes, mission Brood Strike, boss THE CRADLE (docs/27). It is the final campaign mission and starts at Deep Bloom's pressure. Its hostile shots are violet for readability over the yolk glow. It has mountains as well as mesa canyons.
+
+- 2026-10-23, Amnion scenery (user decisions while reviewing the brood kit; docs/27):
+  - **Lower level:** the whole Amnion level sits 1.2 lower, and its canyons are 3.0 deep instead of 3.6. This was the user's suggestion ("lower the whole level a bit if youre capped by the flight plane", "make the canyons slightly less deep").
+  - **Tusk cap:** Amnion's tusk pieces may reach 3.4, 0.4 under the flight plane, instead of the 3.0 used by all other scenery. Pieces under the plane can never cover ships or shots from the camera above it.
+  - **Shape rules:** tusks grow from torn, dough-like webbing with real holes. Nests are irregular. Never a uniform ring of spikes.
+  - **Pearl eggs:** the shells are pearlescent with a real glint. They are marked glossy by vertex alpha, which the shared kit shader reads; other kits are unchanged.
