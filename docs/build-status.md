@@ -30,6 +30,7 @@ User, reviewing:
 - **Cost:**
   - the kit is 21.5k triangles over 18 nodes, 2.7 MB (the byte cap was raised from 1.5 to 3.2 MB);
   - landmarks are at most 4.8k triangles, but there are about two per screen.
+- **Light and fog:** the user's playground look for Amnion, tuned on the lowered level: sun at 29° and strength 8, shadow 0.75, haze 0.085, and a warm mist (`#894b2a`, energy 1.27) rising out of the canyons to 1.2.
 - **Tests:** `tests/world/terrain-amnion.test.ts` checks that tusks stay under 3.4 and 0.4 below the plane, everything else under 3.0, and every piece inside the world.
 - **Checks:**
   - typecheck;

@@ -253,15 +253,16 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
       fog: { color: 0x6a5c9a, energy: 1.35, height: [.2, -3.75, .33], distance: [48, .115, .45] } },
     environment: 'mire',
   },
-  // Amnion (docs/27, a first look to tune in the playground): a warm afternoon sun low from the upper left over pale bone
-  // (long shadows, as in the concept), warm sky fill, a flesh-red bounce in the canyons, a bloom that lets the yolk glow
-  // without washing the bone out, and a warm mist that stays down in the canyons.
+  // Amnion (docs/27): a warm afternoon sun low from the upper left over pale bone (long shadows, as in the concept), warm
+  // sky fill, a flesh-red bounce in the canyons and a bloom that lets the yolk glow without washing the bone out. Sun,
+  // shadow, haze and the warm mist rising out of the canyons are the user's playground settings (23 October, tuned on
+  // the lowered level).
   amnion: {
-    background: 0x2a1a14, sunElevation: 36, sun: [0xfff4e6, 4.8], hemisphere: [0xd2cdc2, 0x3a1a14, .7], bounce: [0xb07a68, .6],
-    shadowIntensity: .8, blobShadow: 0x2a1410, lowExposure: 1,
+    background: 0x2a1a14, sunElevation: 29, sun: [0xfff4e6, 8], hemisphere: [0xd2cdc2, 0x3a1a14, .7], bounce: [0xb07a68, .61],
+    shadowIntensity: .75, blobShadow: 0x2a1410, lowExposure: 1,
     post: { exposure: 1, threshold: 1.15, knee: .3, strength: .85, lift: [.006, .004, .003], saturation: 1, contrast: 1.1, vignette: .3,
-      haze: [.6, .54, .48, .04],
-      fog: { color: 0x8a3a2a, energy: .7, height: [-1.2, -3.2, .18], distance: [45, .04, .05] } },
+      haze: [.6, .54, .48, .085],
+      fog: { color: 0x894b2a, energy: 1.27, height: [1.2, -4.55, .42], distance: [45, .04, .05] } },
     environment: 'desert',
   },
 };
