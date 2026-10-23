@@ -375,3 +375,10 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Gate (clean worktree):** typecheck, unit tests 424/424, build, browser 38/38 (16.3 min).
 - **Audio:** no audio files touched.
 - **Next, for the following release:** THE CRADLE's own model and its emergence arena, then a rework of enemy beams (all worlds).
+
+**2026-10-23 · Claude Code (World) · deployed `4f9e572`:**
+- **Shipped:** enemy beams redrawn on all worlds (a faint red preview, then a white-hot core in the planet's glow, from the source down only; no dashed lanes), and darker Amnion sinew strands.
+- **Gate (clean worktree):** typecheck, unit tests 424/424, build, browser 38/38 (16.2 min, second run). The first run hit load timeouts; it was not deployed.
+- **Gate fix:** the release command piped Playwright through `tail`, which hid its exit code. I now check Playwright's own status.
+- **THE CRADLE:** parked on branch `cradle-wip` until the user's Tripo reference model arrives.
+- **Audio:** no audio files touched.
