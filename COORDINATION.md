@@ -382,3 +382,8 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Gate fix:** the release command piped Playwright through `tail`, which hid its exit code. I now check Playwright's own status.
 - **THE CRADLE:** parked on branch `cradle-wip` until the user's Tripo reference model arrives.
 - **Audio:** no audio files touched.
+
+**2026-10-23 · Claude Code (World) · deployed `0c3eb04`:**
+- **Shipped:** no dashed telegraphs anywhere. Aimed shots get aim rays with a charge glow, straight-shooting batteries get chevron columns, Lancers get the beam preview, and boss aims are solid lines.
+- **Gate (clean worktree):** typecheck, unit tests 424/424, build, browser 38/38 (15.5 min, Playwright exit 0).
+- **Audio:** no audio files touched.
