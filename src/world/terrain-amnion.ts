@@ -76,7 +76,7 @@ function knotHalf(seed: number, lane: number, k: number): number {
 /** A lane is unbroken crust for stretches of three segments, about one stretch in four. */
 const broken = (seed: number, lane: number, k: number) => hash(seed ^ 0xa1d3, lane, Math.floor(k / 3)) < 0.25;
 /** A piecewise-linear zigzag in −1 … 1 (sharp corners, never smooth). */
-function zigzag(seed: number, u: number, side: number): number {
+export function zigzag(seed: number, u: number, side: number): number {
   const i = Math.floor(u);
   return lerp(hash(seed, i, side), hash(seed, i + 1, side), u - i) * 2 - 1;
 }
@@ -116,8 +116,9 @@ export function crevasseSegments(seed: number, s0: number, s1: number): Crevasse
   }
   return out;
 }
-/** Nearest crevasse at a point: over its half-width (1 at the lip) and whether it is a main crevasse (with yolk). */
-function crevasse(seed: number, x: number, s: number): { across: number; main: number } {
+/** Nearest crevasse at a point: over its half-width (1 at the lip) and whether it is a main crevasse (with yolk). Umbra
+ * reuses the layout with its own seed (docs/28). */
+export function crevasse(seed: number, x: number, s: number): { across: number; main: number } {
   let across = 99, main = 99;
   const k0 = Math.floor(s / KNOT);
   for (let lane = 0; lane < LANES.length; lane++) for (let k = k0 - 2; k <= k0 + 1; k++) {

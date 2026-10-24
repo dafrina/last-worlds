@@ -62,8 +62,9 @@ export const SHIELD_IDS = Object.keys(SHIELD_TECH) as ShieldTechId[];
 export const REACTOR_IDS = Object.keys(REACTORS) as ReactorId[];
 
 /** Campaign missions in unlock order: clearing one (on any difficulty) unlocks the next. */
-// Brood Strike (Amnion, docs/27) is the final mission since 23 October: it opens once Deep Bloom is cleared.
-export const CAMPAIGN_ORDER: readonly MissionId[] = ['training', 'bastion', 'cold-vector', 'deep-bloom', 'brood-strike'];
+// Brood Strike (Amnion, docs/27) opens once Deep Bloom is cleared; Final Horizon (Umbra, docs/28) is the final mission since
+// 24 October and opens once Brood Strike is cleared.
+export const CAMPAIGN_ORDER: readonly MissionId[] = ['training', 'bastion', 'cold-vector', 'deep-bloom', 'brood-strike', 'final-horizon'];
 
 /**
  * Mission income (docs/11 §4), all scaled by `scale` (halved on 16 October: the user found the payout too high). With

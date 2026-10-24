@@ -139,7 +139,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
  */
 // 15 October (user): Rolling Thunder slightly harder (×0.92); Deep Bloom, now the final mission, the hardest (×0.92).
 // 23 October: Brood Strike, the new final mission, starts at Deep Bloom's pressure (to be tuned after play).
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92 };
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92, 'final-horizon': 0.92 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3 };
@@ -167,6 +167,8 @@ export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: 
   nacre: { flight: 1.1, shot: 1.1, cadence: 0.5 },
   // Amnion (23 October) starts at Nacre's intensity; it is not harder until it has been played.
   amnion: { flight: 1.1, shot: 1.1, cadence: 0.5 },
+  // Umbra (24 October) as Amnion: the final planet is not made harder before it has been played.
+  umbra: { flight: 1.1, shot: 1.1, cadence: 0.5 },
 };
 /**
  * A destroyed fuel skid explodes (user request, 16 October 2026): every damageable target whose body is within
@@ -197,7 +199,10 @@ export const WEAPONS: Record<WeaponId, {
 }> = {
   pulse: { label: 'Twin Pulse', cadence: 0.125, speed: 30, range: 22, damage: 6, radius: 0.095, angles: [0, 0], offsets: [-0.2, 0.2] },
   fan: { label: 'Fan Cannon', cadence: 1 / 3, speed: 26, range: 18, damage: 5, radius: 0.11, angles: [-12, -6, 0, 6, 12], offsets: [0, 0, 0, 0, 0] },
-  seeker: { label: 'Seeker Array', cadence: 0.48, speed: 19, range: 19, damage: 18, radius: 0.13, angles: [-5, 5], offsets: [-0.23, 0.23] },
+  // 24 October (user): "can you make the seeker missiles for the main weapon make less damage like the fan burst? there
+  // should be incentive to use the other weapons": 18 → 12 a missile (75 → 50 damage a second, every shot homing), under an
+  // aimed Twin Pulse (96) and a close Fan (75).
+  seeker: { label: 'Seeker Array', cadence: 0.48, speed: 19, range: 19, damage: 12, radius: 0.13, angles: [-5, 5], offsets: [-0.23, 0.23] },
 };
 
 export const ENEMIES: Record<EnemyKind, {

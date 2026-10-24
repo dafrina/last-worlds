@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
 import { BASTION } from '../../src/content/bastion';
-import { ALERT_LEAD, BROOD_STRIKE, COLD_VECTOR, DEEP_BLOOM, ENDLESS_SECTORS, ROLLING_THUNDER, TRAINING, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
+import { ALERT_LEAD, BROOD_STRIKE, COLD_VECTOR, DEEP_BLOOM, ENDLESS_SECTORS, FINAL_HORIZON, ROLLING_THUNDER, TRAINING, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
 import { FORMATIONS, FORMATION_IDS, slotFlies, type FormationId, type FormationTemplate } from '../../src/content/formations';
 import { VIEW, type Difficulty, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { BOSS_BEAM, ENEMY_SHOT_RADIUS, LANCER_BEAM } from '../../src/sim/attacks';
@@ -119,7 +119,7 @@ describe('warning and aim-lock floors', () => {
 
 describe('authored cue sequences', () => {
   const sequences: [string, readonly EncounterCue[]][] = [
-    ['training', TRAINING], ['rolling-thunder', ROLLING_THUNDER], ['deep-bloom', DEEP_BLOOM], ['cold-vector', COLD_VECTOR], ['brood-strike', BROOD_STRIKE],
+    ['training', TRAINING], ['rolling-thunder', ROLLING_THUNDER], ['deep-bloom', DEEP_BLOOM], ['cold-vector', COLD_VECTOR], ['brood-strike', BROOD_STRIKE], ['final-horizon', FINAL_HORIZON],
     ['endless-opening', ENDLESS_SECTORS.opening], ['endless-pressure', ENDLESS_SECTORS.pressure], ['endless-peak', ENDLESS_SECTORS.peak],
     ['endless-vesper-opening', ENDLESS_SECTORS.vesperOpening], ['endless-vesper-pressure', ENDLESS_SECTORS.vesperPressure],
     ['endless-vesper-peak', ENDLESS_SECTORS.vesperPeak],
@@ -269,6 +269,7 @@ describe('cue sequence hazard unions', () => {
       { label: `rolling-thunder/${difficulty}`, config: { mode: 'campaign' as const, mission: 'bastion' as const, difficulty, seed: 21 }, seconds: 300, sector: 1 },
       { label: `deep-bloom/${difficulty}`, config: { mode: 'campaign' as const, mission: 'deep-bloom' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
       { label: `brood-strike/${difficulty}`, config: { mode: 'campaign' as const, mission: 'brood-strike' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
+      { label: `final-horizon/${difficulty}`, config: { mode: 'campaign' as const, mission: 'final-horizon' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
       { label: `cold-vector/${difficulty}`, config: { mode: 'campaign' as const, mission: 'cold-vector' as const, difficulty, seed: 21 }, seconds: 330, sector: 1 },
     ]),
     // Sectors 1-5: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump into Vesper. Endless continues

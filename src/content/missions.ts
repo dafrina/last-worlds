@@ -9,6 +9,7 @@ export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
   'deep-bloom': 'nacre',
   'cold-vector': 'vesper',
   'brood-strike': 'amnion',
+  'final-horizon': 'umbra',
 };
 
 /** The planet a run starts over: its mission's planet in the campaign; endless opens on Luna (docs/19). */

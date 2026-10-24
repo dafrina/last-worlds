@@ -16,6 +16,8 @@ export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'g
   | 'ruinTower' | 'ruinFort' | 'ruinRing' | 'ruinBridge' | 'ruinPillars' | 'ruinRubble';
 /** Amnion's brood kit (amnion-kit.glb, docs/27, tools/blender/amnion_kit.py). */
 export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards' | 'broodNest' | 'hive' | 'broodRuin' | 'sinewWeb';
+/** Umbra's obsidian kit (umbra-kit.glb, docs/28, tools/blender/umbra_kit.py). */
+export type UmbraKitKind = 'umbPeak' | 'umbSpire' | 'umbShards' | 'umbFloat' | 'umbMonolith' | 'umbPylon' | 'umbGate' | 'umbReactor' | 'umbObelisk' | 'umbPad' | 'umbDock';
 /**
  * Cliff walls (terrain version 15, docs/26 §11): 2-unit wall segments set along cliff rims, base-centre pivot, front
  * (the outward, downhill face) toward +Z, top at exactly 1 (placement scales y by the local drop). Khepri's columnar
@@ -23,7 +25,7 @@ export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards' | 
  * (public/assets/vesper/cliff-kit.glb).
  */
 export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall';
-export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | CliffKitKind;
+export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | UmbraKitKind | CliffKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
 export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
@@ -32,6 +34,7 @@ export const KHEPRI_CLIFF_KINDS: readonly CliffKitKind[] = ['cliffWall'];
 export const VESPER_CLIFF_KINDS: readonly CliffKitKind[] = ['iceWall'];
 export const AMNION_CLIFF_KINDS: readonly CliffKitKind[] = ['fleshWall'];
 export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards', 'broodNest', 'hive', 'broodRuin', 'sinewWeb'];
+export const UMBRA_KIT_KINDS: readonly UmbraKitKind[] = ['umbPeak', 'umbSpire', 'umbShards', 'umbFloat', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbPad', 'umbDock'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
   'ruinTower', 'ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
@@ -89,6 +92,21 @@ export const KIT: Readonly<Record<KitKind, {
   sinewWeb: { prefix: 'amn_web', variants: 3, halfX: 1.05, halfZ: 0.45, height: 1, exactTop: false, radius: 1.05 },
   // Amnion's canyon walls (docs/27): flesh lobes and sinews tucked under the plateau's own bone edge.
   fleshWall: { prefix: 'flesh_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
+  // Umbra (umbra-kit.glb, tools/blender/umbra_kit.py, docs/28; halves measured from the kit): sharp rocks, spires and the
+  // faction's structures top out at exactly 1; shards and pads at real size; floating cliffs and the crescent dock from
+  // their lowest spike tip (y 0) to their top (y 1).
+  // Sharp obsidian rocks (crags), on and around the hills.
+  umbPeak: { prefix: 'umb_peak', variants: 4, halfX: 1, halfZ: 0.9, height: 1, exactTop: true, radius: Math.hypot(1, 0.9) },
+  umbSpire: { prefix: 'umb_spire', variants: 4, halfX: 0.42, halfZ: 0.42, height: 1, exactTop: true, radius: Math.hypot(0.42, 0.42) },
+  umbShards: { prefix: 'umb_shards', variants: 3, halfX: 0.3, halfZ: 0.28, height: 0.36, exactTop: false, radius: Math.hypot(0.3, 0.28) },
+  umbFloat: { prefix: 'umb_float', variants: 3, halfX: 0.84, halfZ: 0.7, height: 1, exactTop: true, radius: Math.hypot(0.84, 0.7) },
+  umbMonolith: { prefix: 'umb_monolith', variants: 2, halfX: 0.5, halfZ: 0.5, height: 1, exactTop: true, radius: Math.hypot(0.5, 0.5) },
+  umbPylon: { prefix: 'umb_pylon', variants: 1, halfX: 0.36, halfZ: 0.36, height: 1, exactTop: true, radius: Math.hypot(0.36, 0.36) },
+  umbGate: { prefix: 'umb_gate', variants: 1, halfX: 0.8, halfZ: 0.29, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.29) },
+  umbReactor: { prefix: 'umb_reactor', variants: 1, halfX: 0.53, halfZ: 0.41, height: 1, exactTop: true, radius: Math.hypot(0.53, 0.41) },
+  umbObelisk: { prefix: 'umb_obelisk', variants: 2, halfX: 0.22, halfZ: 0.22, height: 1, exactTop: true, radius: Math.hypot(0.22, 0.22) },
+  umbPad: { prefix: 'umb_pad', variants: 2, halfX: 0.7, halfZ: 0.7, height: 0.17, exactTop: false, radius: Math.hypot(0.7, 0.7) },
+  umbDock: { prefix: 'umb_dock', variants: 1, halfX: 0.7, halfZ: 0.86, height: 1, exactTop: true, radius: Math.hypot(0.7, 0.86) },
   // Nacre (nacre-kit.glb, art/nacre-kit/README.md; code-built stand-ins in src/render/nacre-kit.ts). Pieces marked
   // exactTop top out at exactly 1 (instance height = world height); rafts float with their waterline at y = 0.
   mireRock: { prefix: 'nacre_rock', variants: 3, halfX: 0.75, halfZ: 0.75, height: 1, exactTop: true, radius: Math.hypot(0.75, 0.75) },

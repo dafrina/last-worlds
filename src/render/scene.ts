@@ -4,6 +4,7 @@ import { createFacilityView } from './facility-view';
 import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
+import { UMBRA_PLATEAU } from '../world/terrain-umbra';
 import { arenaStopDistance } from '../sim/bastion';
 import { HUNTERS, hunterCharges } from '../sim/hunters';
 import { beamSpec } from '../sim/attacks';
@@ -11,10 +12,10 @@ import { ENEMIES } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
-import { loadCraftNodes, loadKhepriCraft, loadNacreCraft, type KhepriCraftNode, type NacreCraftNode } from './models';
+import { loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadUmbraCraft, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
-import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
+import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createVoidEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
@@ -26,7 +27,7 @@ import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
-import { CRADLE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
+import { CRADLE_STYLE, ECLIPSE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
 import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { BASTION } from '../content/bastion';
@@ -211,7 +212,7 @@ export interface PlanetLook {
      * the lower half of the level's terrain (measured heights), and distance haze [start, density, amount] within it.
      */
     fog: { color: number; energy: number; height: [number, number, number]; distance: [number, number, number] } };
-  environment: 'desert' | 'ice' | 'luna' | 'mire';
+  environment: 'desert' | 'ice' | 'luna' | 'mire' | 'void';
 }
 /** Tuned by the user in the light playground (playground.html, 22 October): brighter sky fill and bounce, a higher sun on
  * Khepri, stronger bloom on Khepri and Nacre, and each level's fog. Vesper keeps its shipped light (its cliffs) with the
@@ -267,6 +268,17 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
       fog: { color: 0x894b2a, energy: 1.27, height: [1.2, -4.55, .42], distance: [45, .04, .05] } },
     environment: 'desert',
   },
+  // Umbra (docs/28): an eternal eclipse. No sun, only a cold violet-white rim light low from the upper left, a violet
+  // sky fill and a strong violet bounce on the camera-facing sides so the black glass reads (as Nacre's blue bounce does
+  // for its dark rock), the eclipse's sky in every glossy surface, and the canyons lost in a glowing purple fog.
+  umbra: {
+    background: 0x0a0812, sunElevation: 30, sun: [0xe2dcff, 4.4], hemisphere: [0x4a4662, 0x0a0812, .75], bounce: [0x6a5ab0, .85],
+    shadowIntensity: .7, blobShadow: 0x05040a, lowExposure: 1.1,
+    post: { exposure: 1.12, threshold: 1.1, knee: .3, strength: 1.05, lift: [.006, .004, .012], saturation: .95, contrast: 1.1, vignette: .4,
+      haze: [.32, .26, .55, .09],
+      fog: { color: 0x8a7cc8, energy: 1.15, height: [-2.3, -5.6, .5], distance: [44, .06, .22] } },
+    environment: 'void',
+  },
 };
 const DEFAULT_LOOKS: Readonly<Record<PlanetId, PlanetLook>> = structuredClone(LOOKS);
 // Look-dev: `?lookset=vesper.sun.1:4.2,vesper.hemisphere.2:.5` sets look values by path at startup (development only).
@@ -306,6 +318,17 @@ const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NacreCraf
   dart: { node: 'nacre_shard', scale: 1 }, needle: { node: 'nacre_shard', scale: 1.1 }, lancer: { node: 'nacre_veil', scale: 1.1 },
   weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, pulsar: { node: 'nacre_pulsar', scale: 1.1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
 };
+
+/**
+ * The Umbral fleet (docs/28, tools/blender/umbra_craft.py): on Umbra every kind flies an Umbral model, and THE ECLIPSE's
+ * drone waves use the drone (scaled to a pod's size). Plume colour is violet.
+ */
+const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: UmbraCraftNode; scale: number }>> = {
+  dart: { node: 'umbra_interceptor', scale: 1 }, needle: { node: 'umbra_interceptor', scale: 0.9 }, weaver: { node: 'umbra_fighter', scale: 0.95 },
+  lancer: { node: 'umbra_hunter', scale: 1.05 }, diamond: { node: 'umbra_carrier', scale: 1 }, pulsar: { node: 'umbra_artillery', scale: 1 },
+  turret: { node: 'umbra_turret', scale: 1 }, missile: { node: 'umbra_turret', scale: 1 },
+};
+const UMBRA_DRONE_SCALE = 1.45;
 
 /** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
 const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
@@ -437,7 +460,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   scene.environment = environment.texture;
   materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
-  let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null;
+  let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null, voidEnvironment: THREE.WebGLRenderTarget | null = null;
   const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [];
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
   /** Look-dev only: `?planet=` makes the terrain stream another planet; the look then follows the terrain's report. */
@@ -478,8 +501,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation));
     if (look.environment === 'luna') lunaEnvironment ??= createLunaEnvironment(renderer, sunDirection(LOOKS.luna.sunElevation));
     if (look.environment === 'mire') mireEnvironment ??= createMireEnvironment(renderer, sunDirection(LOOKS.nacre.sunElevation));
+    if (look.environment === 'void') voidEnvironment ??= createVoidEnvironment(renderer, sunDirection(LOOKS.umbra.sunElevation));
     const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : look.environment === 'luna' && lunaEnvironment ? lunaEnvironment.texture
-      : look.environment === 'mire' && mireEnvironment ? mireEnvironment.texture : environment.texture;
+      : look.environment === 'mire' && mireEnvironment ? mireEnvironment.texture : look.environment === 'void' && voidEnvironment ? voidEnvironment.texture : environment.texture;
     scene.environment = sky;
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
     materials.prop.envMap = sky; materials.prop.needsUpdate = true;
@@ -495,6 +519,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     // (Amnion flies Nacre's organic craft as a stand-in until its own faction exists; THE CRADLE has its own model: docs/27.)
     if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); }
     if (next === 'amnion') { ensureNacreCraft(); ensureCradle(); }
+    if (next === 'umbra') { ensureUmbraCraft(); ensureEclipse(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
@@ -669,31 +694,44 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const enemyHp = new Map<number, number>(), enemyHitAt = new Map<number, number>(), hitColor = new THREE.Color();
   let hitTick = 0;
   /** Nacre craft batches by node, created once nacre-craft.glb has loaded (Nacre runs only). */
-  let nacreBatches: Map<NacreCraftNode, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number }> | null = null, nacreRequested = false;
+  type FactionBatch = { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number };
+  /** One instanced batch per faction node (a ground node also gets its see-through silhouette), on the enemy material. */
+  function factionBatches<N extends string>(nodes: Map<N, NacreCraft>, label: string, groundNode: N, plume: (name: N) => number): Map<N, FactionBatch> {
+    const batches = new Map<N, FactionBatch>();
+    for (const [name, craft] of nodes) {
+      const ground = name === groundNode;
+      const mesh = new THREE.InstancedMesh(craft.geometry, materials.enemyCraft, ENEMY_CAPACITY);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `${label} ${name}`;
+      mesh.castShadow = mesh.receiveShadow = ground;
+      for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
+      mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
+      let ghost: THREE.InstancedMesh | undefined;
+      if (ground) {
+        mesh.renderOrder = 2;
+        ghost = new THREE.InstancedMesh(craft.geometry, silhouetteMaterial, ENEMY_CAPACITY);
+        ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
+      }
+      scene.add(mesh); batches.set(name, { mesh, ghost, engines: craft.engines, plume: plume(name) });
+    }
+    return batches;
+  }
+  /** The Umbral fleet's batches, created once umbra-craft.glb has loaded (Umbra runs only). */
+  let umbraBatches: Map<UmbraCraftNode, FactionBatch> | null = null, umbraLoad: Promise<void> | undefined;
+  function ensureUmbraCraft() {
+    return umbraLoad ??= loadUmbraCraft(`${import.meta.env.BASE_URL}assets/umbra/umbra-craft.glb`).then(nodes => {
+      if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
+      umbraBatches = factionBatches(nodes, 'Umbra', 'umbra_turret', () => 0x8a6cff); warmed = false;
+    }).catch(error => console.warn('Umbral fleet unavailable (umbra-craft.glb); using Khepri and Vesper models.', error));
+  }
+  let nacreBatches: Map<NacreCraftNode, FactionBatch> | null = null, nacreRequested = false;
   let nacreLoad: Promise<void> | undefined;
   function ensureNacreCraft() {
     if (nacreRequested) return nacreLoad!;
     nacreRequested = true;
     return nacreLoad = loadNacreCraft(`${import.meta.env.BASE_URL}assets/nacre/nacre-craft.glb`).then(nodes => {
       if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
-      const batches = new Map<NacreCraftNode, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number }>();
-      for (const [name, craft] of nodes) {
-        const ground = name === 'nacre_spore';
-        const mesh = new THREE.InstancedMesh(craft.geometry, materials.enemyCraft, ENEMY_CAPACITY);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Nacre ${name}`;
-        mesh.castShadow = mesh.receiveShadow = ground;
-        for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
-        mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
-        let ghost: THREE.InstancedMesh | undefined;
-        if (ground) {
-          mesh.renderOrder = 2;
-          ghost = new THREE.InstancedMesh(craft.geometry, silhouetteMaterial, ENEMY_CAPACITY);
-          ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
-        }
-        // The Shard's engines glow amber like its seams (art/nacre-craft); the others burn teal.
-        scene.add(mesh); batches.set(name, { mesh, ghost, engines: craft.engines, plume: name === 'nacre_shard' ? 0xffa040 : 0x46f0dc });
-      }
-      nacreBatches = batches; warmed = false;
+      // The Shard's engines glow amber like its seams (art/nacre-craft); the others burn teal.
+      nacreBatches = factionBatches(nodes, 'Nacre', 'nacre_spore', name => name === 'nacre_shard' ? 0xffa040 : 0x46f0dc); warmed = false;
     }).catch(error => console.warn('Nacre craft unavailable (nacre-craft.glb); using Khepri and Vesper models.', error));
   }
   let vesperBatches: Map<EnemyKind, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }> | null = null, craftRequested = false;
@@ -758,6 +796,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const warden = createWardenView(scene);
   const veil = createVeilView(scene);
   const cradle = createVeilView(scene, CRADLE_STYLE);
+  const eclipse = createVeilView(scene, ECLIPSE_STYLE);
   let wardenLoad: Promise<void> | undefined;
   /** WARDEN-1's production model (warden.glb) loads with Luna; the code-built stand-in renders until then. */
   const ensureWarden = () => {
@@ -779,6 +818,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     return cradleLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.cradle}`).then(model => { if (!disposed) { cradle.setModel(model); warmed = false; } })
       .catch(error => console.warn('THE CRADLE model unavailable; using the code-built stand-in.', error));
   };
+  let eclipseLoad: Promise<void> | undefined;
+  /** THE ECLIPSE's model loads with Umbra. */
+  const ensureEclipse = () => {
+    if (eclipseLoad) return eclipseLoad;
+    return eclipseLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.eclipse}`).then(model => { if (!disposed) { eclipse.setModel(model); warmed = false; } })
+      .catch(error => console.warn('THE ECLIPSE model unavailable; using the code-built stand-in.', error));
+  };
   let arkLoad: Promise<void> | undefined;
   const ensureArk = () => {
     if (arkLoad) return arkLoad;
@@ -797,10 +843,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const facilityLoad = facilities.prepare(next);
     if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
     facilityPrefetches.set(next, facilityLoad);
-    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'luna' ? ensureWarden() : bastionLoad;
+    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
-      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : undefined]).then(() => { prepared.add(next); });
+      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
@@ -853,7 +899,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const heroShell = shell(0x4aa8ff);
   /** Hunter shells by world glow; one per live hunter (at most a few on screen). */
   /** Each planet's glow: hunter shields and the halo of enemy beams wear it. */
-  const PLANET_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a };
+  const PLANET_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a, umbra: 0x9a7cff };
   const hunterShells = Array.from({ length: 4 }, () => shell(0xffffff));
   /** Shield charges seen last frame (hero: −1) and when a shell broke, for its last flare. */
   const shellSeen = new Map<number, number>(), shellBroke = new Map<number, number>();
@@ -984,7 +1030,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
       // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
       const boss = state.boss;
-      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle';
+      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle', isEclipse = boss?.id === 'eclipse';
       {
         let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && boss
           ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
@@ -996,7 +1042,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. THE CRADLE's island rises
         // out of the flesh canyon its arena digs (src/world/terrain-amnion.ts, `emergence`) and hovers over the plateau:
         // its seat is raised by the hover, so its target plane still projects onto the logical rows.
-        for (const [view, mine, ground, style] of [[veil, isVeil, world.planet.seaLevel ?? 0, VEIL_STYLE], [cradle, isCradle, AMNION_PLATEAU + CRADLE_STYLE.hover, CRADLE_STYLE]] as const) {
+        for (const [view, mine, ground, style] of [[veil, isVeil, world.planet.seaLevel ?? 0, VEIL_STYLE], [cradle, isCradle, AMNION_PLATEAU + CRADLE_STYLE.hover, CRADLE_STYLE],
+          [eclipse, isEclipse, UMBRA_PLATEAU + ECLIPSE_STYLE.hover, ECLIPSE_STYLE]] as const) {
           const height = style.content.targetHeight;
           let seat: { x?: number; s: number; baseHeight: number } | null = mine && boss ? veilPlacement(boss.s, ground, height) : null;
           if (mine && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, height, ground, world);
@@ -1004,7 +1051,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           if (mine) terrain.setExclusion(view.footprint(state, seat));
         }
       }
-      if (!isArk && !isWarden && !isVeil && !isCradle) {
+      if (!isArk && !isWarden && !isVeil && !isCradle && !isEclipse) {
         let bossPlacement: { x?: number; s: number; baseHeight: number } | null = boss ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena) : null;
         if (boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
         bastion.update(state, bossPlacement);
@@ -1222,13 +1269,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           placement.baseHeight += PONTOON_DECK;
         }
         if (VESPER_KINDS.has(enemy.kind) && !craftRequested) ensureCraft('kinds');
-        const nacreNode: NacreCraftNode | null = (planet === 'nacre' || planet === 'amnion') && nacreBatches && enemy.kind !== 'fuel' ? (enemy.formation?.template === 'veil-pods' ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
-        const nacreBatch = nacreNode ? nacreBatches!.get(nacreNode) : undefined;
+        const pod = enemy.formation?.template === 'veil-pods';
+        const nacreNode: NacreCraftNode | null = (planet === 'nacre' || planet === 'amnion') && nacreBatches && enemy.kind !== 'fuel' ? (pod ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
+        const umbraNode: UmbraCraftNode | null = planet === 'umbra' && umbraBatches && enemy.kind !== 'fuel' ? (pod ? 'umbra_drone' : UMBRA_CRAFT[enemy.kind].node) : null;
+        // The world's own faction (Nacre's craft also stand in on Amnion), else Vesper's or Khepri's models.
+        const nacreBatch = umbraNode ? umbraBatches!.get(umbraNode) : nacreNode ? nacreBatches!.get(nacreNode) : undefined;
         const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
-        const craftScale = nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
-        if (slot < ENEMY_CAPACITY && !((state.boss?.id === 'cradle' ? cradle : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
+        const craftScale = umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
+          : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
+        if (slot < ENEMY_CAPACITY && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale); transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
@@ -1373,7 +1424,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
       emplacementBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
-      for (const set of [enemyBatches, vesperBatches, nacreBatches] as const) if (set) for (const batch of set.values()) {
+      for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
         batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true; if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;
         if (batch.ghost) batch.ghost.count = count;
@@ -1533,7 +1584,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, warden: warden.stats, veil: veil.stats, cradle: cradle.stats, planet, jump: jumpActive,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, warden: warden.stats, veil: veil.stats, cradle: cradle.stats, eclipse: eclipse.stats, planet, jump: jumpActive,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
@@ -1558,7 +1609,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose();
       renderer.dispose();
     },

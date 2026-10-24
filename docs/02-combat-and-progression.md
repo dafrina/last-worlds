@@ -30,7 +30,7 @@ Main fire is automatic only with a valid firing path. A target must be alive, da
 | Twin Pulse | Narrow reliable fire | Two bolts × 6 damage, 8 volleys/s, speed 30, range 22, half-width 0.55 | Starter |
 | Fan Cannon | Wide close/mid-range coverage | Five pellets × 5 damage, 3 volleys/s; angles −12°, −6°, 0°, 6°, 12°; speed 26, range 18 | 250 credits |
 | Rail Lance | Precision and piercing | Instant trace, 72 damage, 1.5 shots/s, three targets total with ×0.7 retention per next target; range 24, half-width 0.35 | 450 credits |
-| Seeker Pods | Homing fire | Consistent paired launches; acquire visible forward targets within a bounded cone and steer after launch; starting values are now in runtime content | Proposed 450 credits |
+| Seeker Pods | Homing fire | Consistent paired launches; acquire visible forward targets within a bounded cone and steer after launch; 12 damage a missile since 24 October (was 18: homing made it the strongest main; now 50 damage a second against an aimed Pulse's 96 and a close Fan's 75) | Proposed 450 credits |
 
 All mains can defeat mandatory enemies. Pulse stays straight and Fan preserves its fixed spread even when acquiring different targets. Seeker projectiles explicitly home; this is a weapon-family property, never a universal aiming correction. Burst sub-shots re-check eligibility; already emitted projectiles continue independently. Seeker acquires only visible forward targets at launch and continues its committed flight when the camera moves; do not acquire unseen replacements. The current viewport, not the entire wide map, limits acquisition. Side missions cannot filter targets or protect collateral.
 

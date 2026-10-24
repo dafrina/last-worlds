@@ -358,6 +358,16 @@ export function createMireEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.
   });
 }
 
+/**
+ * Umbra's sky for reflections (docs/28): no sun, an eclipse. A black zenith, the corona's violet band round the horizon
+ * and a dim violet glow from the fog below; the eclipsed sun is only a faint ring of light. Glossy obsidian mirrors it.
+ */
+export function createVoidEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3): THREE.WebGLRenderTarget {
+  return skyEnvironment(renderer, sun, {
+    zenith: [0.02, 0.018, 0.035], horizon: [0.3, 0.27, 0.5], ground: [0.05, 0.04, 0.09], disc: [1.2, 1.0, 1.8], halo: [0.5, 0.4, 0.85],
+  });
+}
+
 interface SkyPalette { zenith: readonly number[]; horizon: readonly number[]; ground: readonly number[]; disc: readonly number[]; halo: readonly number[] }
 function skyEnvironment(renderer: THREE.WebGLRenderer, sun: THREE.Vector3, palette: SkyPalette): THREE.WebGLRenderTarget {
   const vec = (c: readonly number[]) => `vec3( ${c.map(v => v.toFixed(3)).join(', ')} )`;
@@ -449,6 +459,15 @@ export interface NacreCraft { geometry: THREE.BufferGeometry; engines: [number, 
  */
 export function loadNacreCraft(url: string): Promise<Map<NacreCraftNode, NacreCraft>> { return loadCraftNodes(url, NACRE_CRAFT_NODES); }
 
+/**
+ * Nodes in umbra-craft.glb (docs/28, tools/blender/umbra_craft.py): the Umbral fleet after the UMBRA concept's ship classes,
+ * deep black glossy glass (`umbra_obsidian`) with violet glow; noses +Z, air craft pivot at their blade plane, the turret
+ * at its base.
+ */
+export type UmbraCraftNode = 'umbra_interceptor' | 'umbra_fighter' | 'umbra_hunter' | 'umbra_carrier' | 'umbra_artillery' | 'umbra_turret' | 'umbra_drone';
+export const UMBRA_CRAFT_NODES: readonly UmbraCraftNode[] = ['umbra_interceptor', 'umbra_fighter', 'umbra_hunter', 'umbra_carrier', 'umbra_artillery', 'umbra_turret', 'umbra_drone'];
+export function loadUmbraCraft(url: string): Promise<Map<UmbraCraftNode, NacreCraft>> { return loadCraftNodes(url, UMBRA_CRAFT_NODES); }
+
 /** Nodes in khepri-craft.glb (art/khepri-craft): the Khepri faction after the KHEPRI concept column. */
 export type KhepriCraftNode = 'khepri_dart' | 'khepri_lancer' | 'khepri_weaver' | 'khepri_turret';
 export const KHEPRI_CRAFT_NODES: readonly KhepriCraftNode[] = ['khepri_dart', 'khepri_lancer', 'khepri_weaver', 'khepri_turret'];
@@ -456,7 +475,8 @@ export function loadKhepriCraft(url: string): Promise<Map<KhepriCraftNode, Nacre
 
 /**
  * Loads faction craft nodes from a GLB into the shared craft format (Khepri and Nacre craft; Vesper keeps its own
- * loader). Material classes by name: glow, blade, bronze, frame; anything else is a shell or plate.
+ * loader). Material classes by name: glow, blade, bronze, frame, obsidian (Umbra's black glass: glossy, not metal); anything
+ * else is a shell or plate.
  */
 export async function loadCraftNodes<N extends string>(url: string, names: readonly N[]): Promise<Map<N, NacreCraft>> {
   const gltf = await new GLTFLoader().loadAsync(url);
@@ -476,7 +496,7 @@ export async function loadCraftNodes<N extends string>(url: string, names: reado
       const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
       const label = material.name ?? '', glow = /glow/i.test(label);
       const pbrOf: [number, number, number] = glow ? [1, 0, 2.8] : /blade/i.test(label) ? [0.28, 0.6, 0] : /bronze/i.test(label) ? [0.34, 0.75, 0]
-        : /frame/i.test(label) ? [0.42, 0.4, 0] : /plate/i.test(label) ? [0.45, 0.35, 0] : [0.26, 0.35, 0];
+        : /frame/i.test(label) ? [0.42, 0.4, 0] : /plate/i.test(label) ? [0.45, 0.35, 0] : /obsidian/i.test(label) ? [0.12, 0, 0] : [0.26, 0.35, 0];
       const emissive = material.emissive && material.emissive.getHex() !== 0 ? material.emissive : material.color;
       const tint = glow ? emissive : material.color;
       const source = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();

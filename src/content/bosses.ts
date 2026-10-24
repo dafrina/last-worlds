@@ -4,6 +4,7 @@ import { HELION_ARK } from './ark';
 import { WARDEN } from './warden';
 import { VEIL } from './veil';
 import { CRADLE } from './cradle';
+import { ECLIPSE } from './eclipse';
 
 export { WRECK_HOLD } from './departure';
 /** Every boss 15% tougher with 10% shorter recoveries (user, 17 October 2026: "10-20% more difficult"). */
@@ -181,10 +182,35 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       approach: 'THE GROUND IS MOVING · THE CRADLE STIRS',
     },
   },
+  eclipse: {
+    id: 'eclipse', name: 'THE ECLIPSE',
+    arrivesAt: ECLIPSE.arrivesAt, approachEndsAt: ECLIPSE.approachEndsAt, arrivalDuration: ECLIPSE.arrivalDuration,
+    entryS: ECLIPSE.entryS, row: ECLIPSE.row, targetHeight: ECLIPSE.targetHeight,
+    parts: {
+      left: { x: -ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
+      right: { x: ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
+      core: { x: 0, s: ECLIPSE.reactorS, radius: ECLIPSE.reactorRadius, hp: ECLIPSE.reactorHp },
+    },
+    pairAttack: 'burst', coreAttack: 'fan-burst',
+    warning: ECLIPSE.warning, laser: null, beamWarning: ECLIPSE.beamWarning, overload: ECLIPSE.overload,
+    overloadMoves: ['core-lane', 'spiral', 'fan', 'side-lanes', 'burst', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
+    spiral: { arms: 4, turn: 1.7, interval: 0.12, duration: 3, speed: 4.8 },
+    recovery: ECLIPSE.recovery, transitionRecovery: ECLIPSE.transitionRecovery,
+    overloadFraction: ECLIPSE.overloadFraction, extractionDuration: DEPARTURE.duration,
+    bursts: { pair: ECLIPSE.ventBurst, core: ECLIPSE.reactorBurst }, fan: ECLIPSE.reactorFan,
+    // Drone waves from its vents while its reactor is open, and more once it overloads.
+    launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: ECLIPSE.bays },
+    arena: ECLIPSE.arena, shieldSupplies: ECLIPSE.shieldSupplies,
+    messages: {
+      start: 'THE ECLIPSE · BREAK BOTH ENERGY VENTS', batteries: 'BREAK BOTH ENERGY VENTS', core: 'THE REACTOR IS OPEN',
+      overload: 'REACTOR OVERLOAD · WATCH THE LANES', destroyed: 'THE ECLIPSE IS FALLING · JUMP',
+      approach: 'THE LIGHT IS DYING · THE ECLIPSE AWAKENS',
+    },
+  },
 };
 
 /** The boss that ends a campaign mission, if any. */
-export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark', 'brood-strike': 'cradle' };
+export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark', 'brood-strike': 'cradle', 'final-horizon': 'eclipse' };
 
 export function missionBoss(mission: MissionId | undefined): BossDefinition | null {
   const id = mission ? MISSION_BOSS[mission] : null;

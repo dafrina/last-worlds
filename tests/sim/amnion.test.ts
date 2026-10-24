@@ -8,8 +8,8 @@ import { createRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
 
 describe('Brood Strike over Amnion (docs/27)', () => {
-  it('is the final campaign mission, over Amnion, against THE CRADLE', () => {
-    expect(CAMPAIGN_ORDER.at(-1)).toBe('brood-strike');
+  it('follows Deep Bloom and opens Final Horizon, over Amnion, against THE CRADLE', () => {
+    expect(CAMPAIGN_ORDER.slice(-3)).toEqual(['deep-bloom', 'brood-strike', 'final-horizon']);
     expect(MISSION_PLANET['brood-strike']).toBe('amnion');
     expect(missionBoss('brood-strike')?.id).toBe('cradle');
     expect(campaignPlaylist('brood-strike').length).toBeGreaterThan(35);

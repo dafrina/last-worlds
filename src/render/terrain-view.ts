@@ -8,7 +8,7 @@ import {
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
-  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
+  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadUmbraKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
   type KitGeometries,
 } from './terrain-kit';
 
@@ -519,6 +519,8 @@ export function createTerrainView(options: TerrainViewOptions) {
     if (planet === 'nacre') jobs.push(loadNacreKit(`${base}assets/nacre/nacre-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     if (planet === 'amnion') jobs.push(loadAmnionKit(`${base}assets/amnion/amnion-kit.glb`)
+      .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
+    if (planet === 'umbra') jobs.push(loadUmbraKit(`${base}assets/umbra/umbra-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // Cliff walls (docs/26 §11): Khepri's columnar basalt walls and Vesper's ice-shelf walls.
     const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' ? 'khepri' : planet === 'amnion' ? 'amnion' : null;

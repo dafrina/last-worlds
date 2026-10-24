@@ -6,6 +6,7 @@ import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { BASTION } from '../../src/content/bastion';
 import { HELION_ARK } from '../../src/content/ark';
 import { VEIL } from '../../src/content/veil';
+import { ECLIPSE } from '../../src/content/eclipse';
 import { WARDEN } from '../../src/content/warden';
 import { FACILITY_KIT_ASSETS, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
 
@@ -72,13 +73,18 @@ describe('Blender cinematic asset contracts',()=>{
     bastion: { node:'battery', x:BASTION.batteryOffset, y:BASTION.targetHeight, z:0 },
     ark: { node:'radiator', x:HELION_ARK.radiatorOffset, y:HELION_ARK.targetHeight, z:-HELION_ARK.radiatorS },
     warden: { node:'pod', x:WARDEN.podOffset, y:WARDEN.targetHeight, z:0 },
+    eclipse: { node:'pod', x:ECLIPSE.ventOffset, y:ECLIPSE.targetHeight, z:-ECLIPSE.ventS },
   } as const;
   const coreOf = {
     veil: { y:VEIL.targetHeight, z:-VEIL.heartS }, bastion: { y:BASTION.targetHeight, z:-BASTION.coreRowOffset },
     ark: { y:HELION_ARK.targetHeight, z:-HELION_ARK.bridgeS }, warden: { y:WARDEN.targetHeight, z:-WARDEN.commandS },
+    // THE ECLIPSE's near spike hides the reactor's very centre from the camera; its ring and lens either side show (x 0.6).
+    eclipse: { y:ECLIPSE.targetHeight, z:-ECLIPSE.reactorS, x:0.6 },
   } as const;
   // How far each sliding pair of core shutters opens in its view (the Veil's petals rotate instead).
-  const slideOf = { veil:0, bastion:1.1, ark:1, warden:.8 } as const;
+  const slideOf = { veil:0, bastion:1.1, ark:1, warden:.8, eclipse:0 } as const;
+  // Carriers' shutters swing open about their local x instead (THE VEIL's petals 105°, THE ECLIPSE's armour 50°).
+  const swingOf: Partial<Record<keyof typeof slideOf, number>> = { veil:105, eclipse:50 };
   for (const spec of [
     // v6 remodel (24 October): no docked pods, hoods or arms under the bow (they were the source's pod sketches).
     { id:'veil', prefix:'veil', core:'veil_heart', width:{ v4:12.51, v5:12.51, r6:12.51 },
@@ -91,18 +97,22 @@ describe('Blender cinematic asset contracts',()=>{
     { id:'ark', prefix:'ark', core:'ark_bridge', width:{ v4:9.51, v5:9.6, v6:9.6 },
       parts:['ark_turret_left','ark_turret_right','ark_radiator_left_wreck','ark_radiator_right_wreck'],
       shutters:['ark_bridge_shutter_a','ark_bridge_shutter_b'] },
+    // THE ECLIPSE (24 October): the user's crescent GLB lying flat, 20 units from horn to horn (docs/28).
+    { id:'eclipse', prefix:'eclipse', core:'eclipse_heart', width:{ e1:20 },
+      parts:['eclipse_pod_left_wreck','eclipse_pod_right_wreck','eclipse_heart_wreck'],
+      shutters:Array.from({length:6},(_,i)=>`eclipse_heart_shutter_${i}`) },
     { id:'warden', prefix:'warden', core:'warden_core', width:{ v4:3.5, v5:7.8 },
       parts:['warden_pod_left_wreck','warden_pod_right_wreck','warden_core_wreck','warden_beacon',...Array.from({length:4},(_,i)=>`warden_thruster_${i}`)],
       shutters:['warden_core_hatch_0','warden_core_hatch_1'] },
   ] as const) it(`keeps the selected ${spec.id} model textured, bounded, articulated and its exposed core visible`,async()=>{
     const model=await asset(BOSS_ASSETS[spec.id]);
     const version = model.getObjectByName(`${spec.prefix}_remodel_v6`) ? 'r6' : model.getObjectByName(`${spec.prefix}_remodel_v5`) ? 'v5'
-      : model.getObjectByName(`${spec.prefix}_approved_v6`) ? 'v6' : 'v4';
+      : model.getObjectByName(`${spec.prefix}_approved_v6`) ? 'v6' : model.getObjectByName(`${spec.prefix}_approved_v1`) ? 'e1' : 'v4';
     const remodel = version === 'v5' || version === 'r6';
     if (version==='v4') expect(model.getObjectByName(`${spec.prefix}_approved_v4`)).toBeDefined();
     // v4 keeps the decimated source atlases; v5 is ~20k clean triangles with one baked surface atlas; v6 adapts the user's
     // new GLB within THE VEIL's 80k (user, 24 October: "lets raise the max to the veils 80k").
-    validate(model,remodel?30000:version==='v6'?80000:120000,true);
+    validate(model,remodel?30000:version==='v6'||version==='e1'?80000:120000,true);
     for(const name of [...spec.parts,...spec.shutters])expect(model.getObjectByName(name),name).toBeDefined();
     const hull=model.getObjectByName(`${spec.prefix}_hull`)!;
     expect(new Box3().setFromObject(hull).getSize(new Vector3()).x).toBeLessThanOrEqual((spec.width as unknown as Record<string, number>)[version]);
@@ -127,12 +137,13 @@ describe('Blender cinematic asset contracts',()=>{
     }
     for(const [i,name] of spec.shutters.entries()){
       const node=model.getObjectByName(name)!;
-      if(spec.id==='veil')node.quaternion.multiply(new Quaternion().setFromAxisAngle(new Vector3(1,0,0),105*Math.PI/180));
+      const swing = swingOf[spec.id];
+      if(swing)node.quaternion.multiply(new Quaternion().setFromAxisAngle(new Vector3(1,0,0),swing*Math.PI/180));
       else node.position.x+=(i===0?-1:1)*slideOf[spec.id];
     }
     model.updateMatrixWorld(true);
     const core=coreOf[spec.id];
-    const ray=new Raycaster(new Vector3(0,core.y,core.z).addScaledVector(eye,30),eye.clone().negate());
+    const ray=new Raycaster(new Vector3('x' in core ? core.x : 0,core.y,core.z).addScaledVector(eye,30),eye.clone().negate());
     const coreHits=ray.intersectObject(model.getObjectByName(spec.core)!,true);
     expect(coreHits.length,'combat row intersects the exposed interior').toBeGreaterThan(0);
     const blockers=[hull,...spec.shutters.map(name=>model.getObjectByName(name)!)];

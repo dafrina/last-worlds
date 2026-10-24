@@ -7,12 +7,12 @@ export type WeaponId = 'pulse' | 'fan' | 'seeker';
 export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance';
 export type ShieldTechId = 'standard' | 'bulwark' | 'flux';
 export type ReactorId = 'balanced' | 'vector' | 'precision';
-export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike';
+export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'final-horizon';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
-export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre' | 'amnion';
+export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre' | 'amnion' | 'umbra';
 /** Boss modules. Bastion-9: batteries and core. Helion Ark: radiators (left/right) and bridge (core). */
 export type BossPart = 'left' | 'right' | 'core';
-export type BossId = 'bastion' | 'ark' | 'warden' | 'veil' | 'cradle';
+export type BossId = 'bastion' | 'ark' | 'warden' | 'veil' | 'cradle' | 'eclipse';
 export interface BossState {
   /** World distance at the wreck's last update: it falls behind by the distance flown since (destroyed phase). */
   wreckDistance?: number;

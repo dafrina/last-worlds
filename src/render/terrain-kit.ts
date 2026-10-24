@@ -3,7 +3,7 @@ import { WORLD_PAINT_GLSL, setWorldPaint, worldGlow, worldPaintUniforms } from '
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
 
@@ -342,6 +342,8 @@ export function loadVesperKit(url: string): Promise<KitGeometries> { return load
 export function loadNacreKit(url: string): Promise<KitGeometries> { return loadKit(url, NACRE_KIT_KINDS, /glow/i); }
 /** Amnion's brood kit (docs/27): egg cores and yolk emit their own colour like Nacre's flora. */
 export function loadAmnionKit(url: string): Promise<KitGeometries> { return loadKit(url, AMNION_KIT_KINDS, /glow/i); }
+/** Umbra's obsidian kit (docs/28): violet seams and halos emit their own colour like Amnion's yolk. */
+export function loadUmbraKit(url: string): Promise<KitGeometries> { return loadKit(url, UMBRA_KIT_KINDS, /glow/i); }
 /**
  * Loads a world's cliff kit (`<world>/cliff-kit.glb`, docs/26 §11): Khepri's columnar basalt walls (also Luna's) or
  * Vesper's ice-shelf walls. Nodes it lacks keep their stand-ins.
@@ -674,6 +676,8 @@ const WALL_DETAIL: Partial<Record<PlanetId, { contrast: number; normal: number }
   khepri: { contrast: 0.95, normal: 0.9 }, vesper: { contrast: 1.2, normal: 0.9 }, luna: { contrast: 0.75, normal: 0.8 },
   // Amnion's flesh walls keep their own colour: only a soft grain.
   amnion: { contrast: 0.35, normal: 0.4 },
+  // Umbra's obsidian (docs/28): faint grain, the gloss does the work.
+  umbra: { contrast: 0.4, normal: 0.5 },
 };
 
 const GLOW_VERTEX = '#include <common>\nattribute float glow;\nvarying float vGlow;\nvarying float vHazeY;';
@@ -829,6 +833,8 @@ const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; col
   // cracks stay bone (user, 24 October: "fix these regular red strikes"): over pale bone the wall hue drew them as bright
   // red stripes, straightened by the height grid.
   amnion: { hue: hueOf(0x3c1816), shade: 0.24, columns: 0.5, crease: 1, fleshOnly: 1 },
+  // Umbra (docs/28): black glass with a cold violet cast on every steep face (spike flanks and canyon walls alike).
+  umbra: { hue: hueOf(0x262238), shade: 0.85, columns: 0, crease: 0, fleshOnly: 0 },
   // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
   // darker regolith per face.
   luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0, fleshOnly: 0 },
@@ -1242,23 +1248,30 @@ ${VESPER_KIT_SURFACE}`)
     wallPlanet = planet;
     if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
-    const amnion = planet === 'amnion';
-    groundLook.glowColor.value.copy(amnion ? linear(0xffd23a).multiplyScalar(1.7) : linear(0x8ffcf0).multiplyScalar(0.75));
-    groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : [0.02, 0.16, 0.15]) as [number, number, number]);
-    groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : [0.014, 0.055, 0.06]) as [number, number, number]);
+    const amnion = planet === 'amnion', umbra = planet === 'umbra';
+    groundLook.glowColor.value.copy(amnion ? linear(0xffd23a).multiplyScalar(1.7) : umbra ? linear(0x8a6cff).multiplyScalar(1.9) : linear(0x8ffcf0).multiplyScalar(0.75));
+    groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : umbra ? [0.05, 0.03, 0.16] : [0.02, 0.16, 0.15]) as [number, number, number]);
+    groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : umbra ? [0.04, 0.025, 0.12] : [0.014, 0.055, 0.06]) as [number, number, number]);
     // A dark flesh bed with the yolk in its crackle and a low glow of its own (a full glow read as a flat lava band).
-    groundLook.poolGlow.value = amnion ? 0.22 : 0.12;
+    // (Umbra: a faint violet glow down in the canyon fog.)
+    groundLook.poolGlow.value = amnion ? 0.22 : umbra ? 0.3 : 0.12;
     groundLook.poolCells.value = amnion ? 0.15 : 1;
-    groundLook.veinWidth.value = amnion ? 3 : 1;
+    // Umbra's faults are thin glowing lines along its shattered plates.
+    groundLook.veinWidth.value = amnion ? 3 : umbra ? 1.3 : 1;
+    // Umbra's obsidian is glossy (docs/28: "obsidian black shiney surfaces"): it mirrors the eclipse's violet sky.
+    // (A satin sheen: as a mirror the ground drew a bright jagged line along every canyon lip.)
+    ground.roughness = umbra ? 0.55 : 1; ground.envMapIntensity = umbra ? .4 : .18;
     // Cracks (version 16): blue-grey lines in Vesper's snow and ice, dark fractures in Luna's regolith.
     // (Amnion's bone crust takes them too: dark fractures between its plates.)
-    if ((vesper || luna || planet === 'amnion') && !crackTexture) crackTexture = createCrackTexture();
+    if ((vesper || luna || planet === 'amnion' || umbra) && !crackTexture) crackTexture = createCrackTexture();
     crackLook.crackMap.value = crackTexture ?? flatNormal;
-    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : 0;
-    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : [0.5, 0.5, 0.52]) as [number, number, number]);
-    groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : khepri.hazeColor.value);
-    // Luna has no air: no haze in its craters.
-    groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : khepri.hazeStrength.value;
+    // (Umbra's cracks are the concept's slab seams: their edges catch the light, so the line lightens the black glass.)
+    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : umbra ? 0.8 : 0;
+    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : umbra ? [3.2, 2.9, 4.2] : [0.5, 0.5, 0.52]) as [number, number, number]);
+    groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : umbra ? linear(0x6a5aa8) : khepri.hazeColor.value);
+    // Luna has no air: no haze in its craters. Umbra's canyons vanish into a glowing purple fog from just under the lip.
+    groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : umbra ? 0.7 : khepri.hazeStrength.value;
+    groundHaze.hazeTop.value = umbra ? -2.1 : khepri.hazeTop.value; groundHaze.hazeBottom.value = umbra ? -5.6 : khepri.hazeBottom.value;
     if (vesper && !snowTrack) snowTrack = createRoadTexture('snow');
     if (luna && !lunaTrack) lunaTrack = createRoadTexture('regolith');
     roads.map = vesper ? snowTrack : luna ? lunaTrack : dustTrack; roads.needsUpdate = true;
@@ -1323,13 +1336,15 @@ ${VESPER_KIT_SURFACE}`)
      */
     setLook(planet: PlanetId) {
       const vesper = planet === 'vesper';
-      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0; kitLook.nacreLook.value = planet === 'nacre' || planet === 'amnion' ? 1 : 0;
+      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0; kitLook.nacreLook.value = planet === 'nacre' || planet === 'amnion' || planet === 'umbra' ? 1 : 0;
       // (Version 16: Vesper's radiator and lamp bands glow blue, the world's glow, instead of orange.)
       kitGlow.glowColor.value.copy(vesper ? worldGlow('vesper', 3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
       infraGlow.glowColor.value.copy(worldGlow(planet, vesper ? 3.6 : 3.4));
       setWorldPaint(infraPaint, planet, 'building');
       // Vesper's hardware reads as brushed metal and white enamel (black ceramic before version 16).
       infra.roughness = vesper ? 0.35 : 0.55; infra.metalness = vesper ? 0.45 : 0.3; infra.envMapIntensity = vesper ? 0.9 : 0.55;
+      // Umbra's kit is black glass (docs/28): it reads by mirroring the eclipse's violet sky in its facets and edges.
+      kit.envMapIntensity = planet === 'umbra' ? 1.1 : .35;
     },
     dispose() {
       ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); lunaTrack?.dispose(); snowTexture?.dispose(); crackTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
@@ -1446,6 +1461,7 @@ const SHARED_PALETTE: Readonly<Record<PlanetId, readonly [number, number, number
   vesper: [0x76828e, 0xe8eef4, 0xd3dae1, 0xe3ebf2],
   nacre: [0x221c36, 0x2f4c3c, 0x4a3a6c, 0x2a2440],
   amnion: [0x3a2a22, 0xc8b496, 0x8a6a50, 0xb89a78],
+  umbra: [0x16141e, 0x2e2a40, 0x4a4460, 0x24202e],
 };
 /** Khepri palette for the shared kit (docs/14 §2): graphite metal, ochre/rust paint, ochre dust, amber lamps. */
 export function createSharedMaterial(): THREE.MeshStandardMaterial {

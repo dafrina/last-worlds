@@ -29,6 +29,12 @@
       "bytes": 70612772,
       "triangles": 1889737,
       "sha256": "a70bb5a35a5fffb1fe5b2d761932e0c4636c21da1fba31b85fbabef9b154c601"
+    },
+    {
+      "file": "art/source/approved-bosses/eclipse-tripo-original.glb",
+      "bytes": 64817084,
+      "triangles": 1908258,
+      "sha256": "f828a5765e8f97bd9ae95eecee2153173d5c130541c6a2ca8bc8928a954ffe6f"
     }
   ],
   "runtime": [
@@ -67,6 +73,12 @@
       "bytes": 6215152,
       "triangles": 70504,
       "sha256": "118d5d2d735ec079094c921f1c09880cce5f1da47d9f53d871734080ac6cbb14"
+    },
+    {
+      "file": "public/assets/umbra/the-eclipse-v1-approved.glb",
+      "bytes": 5364212,
+      "triangles": 78907,
+      "sha256": "ef86c4bef8f1600e04bdc15284d32f84ba85ec2c5540348a713fccaf93ce11ef"
     }
   ]
 }

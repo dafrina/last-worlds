@@ -1,6 +1,54 @@
 # Build status
 
 
+## Umbra, the final planet: Final Horizon and THE ECLIPSE; Seeker Array weaker, 24 October 2026
+
+User:
+- "new planet: [concept sheets] create the map, i think i like the crevasces geometry of amnion for this, but everything above the main plane should be very pointy spikey mountains instead ... obsidian black shiney surfaces and floating cliffs etc vanishing into a purple glowy fog. I like the infrastructures in these concepts too, and the alien ships too which should be deep black shiney and smooth surfaced. The boss: "C:\Users\DavidFarina\Downloads\crescent winged spaceship 3d model.glb" fix the one missing peak of one wing";
+- "btw the boss should be very large tho like a final boss";
+- the ground reviews, in order: "its all very rounded up tho, i want sharp edges and spikey mountains"; "theres a lot of jagegd edges too ... not sharp and pointy jagged but like steps"; "too triangular and the cliffs look too uniform"; "look how triangular and soft and steppy some parts look"; "also the cliffs look bad, can u remove the models there"; "now everything too flat and smooth, stay true to the concept please with cracks in the terrain, and i quite liked earliers version with the hills better than just spikes everywhere the spikes are too small and pointy, should more look like sharp rocks"; "also the infra models look kinda flat and bland";
+- "can you make the seeker missiles for the main weapon make less damage like the fan burst? there should be incentive to use the ther weapons".
+
+- **Design:** `docs/28-umbra-eternal-eclipse.md`. Concepts are in `art/concepts/umbra/`.
+- **Mission:** Final Horizon (`final-horizon`, "FINAL HORIZON · UMBRA") is the last campaign mission, after Brood Strike.
+  - It uses Brood Strike's grid and pressure. Amnion's world intensity and cadence 0.92: the final planet is not made harder before it has been played.
+  - Hunters are lancers.
+- **Ground** (`src/world/terrain-umbra.ts`):
+  - Amnion's crevasse generator with its own seed. Canyons fall from the plateau at −1.8 to about −5.6, into a lavender fog with a faint glow (ground haze and level fog).
+  - Shattered obsidian plates, slightly tilted, with a crack network whose edges catch the light. Violet glowing faults appear in patches.
+  - Faceted hills: flat-faced pyramids whose heights are fixed at their apex, so every face is a true plane.
+  - The look is in `src/render/scene.ts` (`LOOKS.umbra`, the new `void` reflection sky) and `src/render/terrain-kit.ts`:
+    - the ground is satin-glossy (roughness 0.55);
+    - the kit mirrors the sky (env 1.1);
+    - Umbra's walls are cold violet-black, with crease shading off.
+- **Kit** (helper, headless Blender: `tools/blender/umbra_kit.py` → `public/assets/umbra/umbra-kit.glb`, 23,057 triangles, 2.3 MB; previews in `art/umbra-kit/`):
+  - sharp obsidian rocks (`umb_peak`, as accents on and around the hills), spires, shards and floating cliffs over the canyons;
+  - the concept's structures, reworked to its layered depth: monolith towers, eclipse gates, arc reactors, shield pylons, obelisks, pads, and now and then a crescent dock.
+  - The cliff shards along the lips were built (the `umbra` branch of `tools/blender/cliff_kit.py`), then removed at the user's word. Their runtime support is gone; the GLB is not shipped.
+- **Fleet** (helper: `tools/blender/umbra_craft.py` → `public/assets/umbra/umbra-craft.glb`, seven ships, 11,938 triangles):
+  - interceptor (dart, needle), heavy fighter (weaver), elite hunter (lancer), drone carrier (diamond), artillery ship (pulsar), defense turret (turret, missile), and THE ECLIPSE's drone;
+  - deep black glossy glass (`umbra_obsidian`: roughness 0.12, no metal) with violet cores; violet plumes.
+- **THE ECLIPSE** (helper: `tools/blender/approved_eclipse.py` → `public/assets/umbra/the-eclipse-v1-approved.glb`, 78,907 triangles, 5.4 MB):
+  - The user's GLB lies flat (its front view is the concept's top view), 20 units from horn to horn. It rises out of an abyss across the whole world and hovers over it, its horns running off both screen edges.
+  - The broken left horn's tip is the right one's, mirrored and stitched; the seam isn't visible in the before/after crops.
+  - The rig is THE VEIL's carrier rig:
+    - energy vents on the inner wings at x ±5.15 (radius 1.1);
+    - the reactor (radius 1.2) under six armour sectors that roll outward 50°;
+    - drone waves from the vents' inner ends.
+  - Fight timing and pressure are THE CRADLE's (`src/content/eclipse.ts`).
+- **Seeker Array:** damage per missile 18 → 12 (`src/content/balance.ts`), so 75 → 50 damage a second, every shot homing. That is under an aimed Twin Pulse (96) and a close Fan (75).
+- **Checked:**
+  - typecheck clean; unit tests: see the gate below;
+  - `tests/sim/umbra.test.ts` (campaign place; perfect pilot without a hit on seed 5 with each weapon) and `tests/world/terrain-umbra.test.ts` (caps, kinds, hills, canyons);
+  - the fairness table and runs include Final Horizon;
+  - the boss asset test covers THE ECLIPSE (rig, 80k budget, camera rays to both vents and to the open reactor at x 0.6: the near spike hides the reactor's very centre);
+  - the Seeker change kept every perfect-pilot run on the other worlds within its time;
+  - renderer captures in the light playground and the boss fixture (`boss=eclipse`, now with `god=1` for the mission's approach): `lookdev/umbra/review/`.
+  - **No phone test.**
+- **Open:**
+  - Umbra's music is a placeholder; Codex is asked in `COORDINATION.md`.
+  - The user asked "why are the pods in nacre yellow?". THE VEIL's launched pods render dark violet with teal slits, so I asked which pods are meant.
+
 ## Amnion: no more red stripes on the bone terraces, 24 October 2026
 
 User: "after deploy fix these regular red strikes" (a screenshot of a bone mesa striped with bright red vertical and diagonal bands).

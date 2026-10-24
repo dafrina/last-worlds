@@ -45,6 +45,14 @@ export const THEMES: Record<PlanetId, Theme> = {
     melody: [12, -1, -1, 19, -1, 14, -1, -1, 21, -1, -1, 19, -1, 17, 14, -1],
     kick: [0, 7, 10], hats: [2, 5, 8, 11, 14],
   },
+  // Umbra (docs/28, 24 October): a placeholder, slow and low on a minor-second shade, until Codex writes its own theme.
+  umbra: {
+    title: 'Eternal Eclipse (placeholder)', bpm: 84, root: 41,
+    chords: [[0, 7, 12, 15], [1, 8, 13, 17], [5, 12, 17, 20], [3, 10, 15, 19]],
+    bass: [0, -1, -1, -1, 1, -1, -1, 0, -1, -1, 5, -1, -1, 3, -1, -1],
+    melody: [15, -1, -1, -1, 13, -1, 12, -1, -1, -1, 20, -1, 19, -1, -1, -1],
+    kick: [0, 8], hats: [4, 12],
+  },
 };
 
 /** A score step is a sixteenth note. Sparse openings, evolving phrases, a breakdown, then return. */

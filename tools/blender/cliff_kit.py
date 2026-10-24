@@ -19,7 +19,13 @@ centre. Bounds: x -1.05 .. 1.05, glTF z -0.6 (back, into the slope) .. +0.35 (fr
 material (the kit loader makes those faces glow).
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
-        --python "$(wslpath -w tools/blender/cliff_kit.py)" -- [--world khepri|vesper|amnion] [--preview DIR]
+        --python "$(wslpath -w tools/blender/cliff_kit.py)" -- [--world khepri|vesper|amnion|umbra] [--preview DIR]
+
+Umbra (`--world umbra`, after art/concepts/umbra; no flat caps or ledges: a first draft read as stairs): `void_wall`
+segments of tall, narrow, overlapping black-glass shards, each ending in a point (most just under the lip, one to three
+reaching the top), some hanging into the fog in a point, knife ridges whose bevels catch the light, a few thin violet
+fissures; built by umbra_kit.build_void_wall (the Umbra kit's shapes, colours and gloss), with `umbra_obsidian` (vertex
+alpha 0: glossy) and `umbra_glow` (emits its own COLOR_0: load with an emissive pattern matching /glow/) materials.
 """
 import argparse, math, os, random, sys
 
@@ -371,6 +377,19 @@ def build(world, preview=None):
     elif world == 'amnion':
         mats = [vc.make_material('amnion_flesh', 'vc', rough=.45, metal=0.0), vc.make_material('amnion_bone', 'vc', rough=.9, metal=0.0)]
         prefix, make, colour, names = 'flesh_wall', amnion_wall, amnion_colour_fn, ('amnion_flesh',)  # bone is unused (no lip)
+    elif world == 'umbra':
+        import umbra_kit as uk
+        from nacre_kit import glow_material
+        # Indices follow umbra_kit (obsidian 0, alloy 1, glow 2); the walls use obsidian and glow only.
+        mats = [vc.make_material('umbra_obsidian', 'vc', rough=.12, metal=0.0), vc.make_material('umbra_alloy', 'vc', rough=.2, metal=0.0),
+                glow_material('umbra_glow')]
+        prefix, names = 'void_wall', ('umbra_obsidian', 'umbra_glow')
+
+        def make(rng, i):
+            return uk.build_void_wall(rng, i, HALF_X, FRONT, BACK, BASE)
+
+        def colour(hs):
+            return uk.colour_fn_for(hs, 'void_wall', reach=.2)
     else:
         mats = [vc.make_material(n, 'vc', rough=r, metal=0.0) for n, r in zip(vk.MAT_NAMES, (.12, .85, .9))]
         prefix, make, colour, names = 'ice_wall', vesper_wall, vesper_colour_fn, vk.MAT_NAMES[:2]  # rock is unused
@@ -381,6 +400,8 @@ def build(world, preview=None):
         vk.fit_top(hs, 1.0)
         problems += check(name, hs)
         cols = vc.bake(hs, name, dict(glow=set(), ao=.35, ground=0.0, colour_fn=colour(hs), tile=('x', 2.0)))
+        if world == 'umbra':
+            uk.gloss_alpha(hs, cols)   # black glass: vertex alpha 0 marks every non-glowing face glossy
         objs[name] = vc.make_object(name, hs, mats, (0.0, 0.0, 0.0), cols)
         nodes[name] = dict(budget=TRI_BUDGET, foot=(2 * HALF_X, 1.2), y_min_exact=BASE, y_max_exact=1.0)
         print('CLIFF %-14s tris=%d' % (name, hs.tris()))
@@ -389,7 +410,10 @@ def build(world, preview=None):
     path = os.path.join(ROOT, 'public', 'assets', world, 'cliff-kit.glb')
     vc.publish(path, 'cliff_kit.py', dict(materials=list(names), nodes=nodes, max_bytes=800_000), 'CLIFF')
     if preview:
-        render_run(objs, world, preview)
+        if world == 'umbra':
+            uk.cliff_run(objs, preview)
+        else:
+            render_run(objs, world, preview)
 
 
 def render_run(objs, world, out_dir):
@@ -424,7 +448,7 @@ def render_run(objs, world, out_dir):
 if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     ap = argparse.ArgumentParser(prog='cliff_kit.py')
-    ap.add_argument('--world', choices=('khepri', 'vesper', 'amnion'), default=None)
+    ap.add_argument('--world', choices=('khepri', 'vesper', 'amnion', 'umbra'), default=None)
     ap.add_argument('--preview', default=None)
     args = ap.parse_args(argv)
     for w in ([args.world] if args.world else ['khepri', 'vesper']):

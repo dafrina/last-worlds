@@ -22,7 +22,7 @@ export const HUNTERS = {
    * The kind each world sends: a strong craft it already flies. Never the Pulsar: its stream tracks the ship, and a
    * tracking stream from a craft that follows the ship to the world edge left no way out (validation pilots were hit).
    */
-  kinds: { luna: 'weaver', khepri: 'lancer', vesper: 'diamond', nacre: 'diamond', amnion: 'diamond' } satisfies Readonly<Record<PlanetId, EnemyKind>>,
+  kinds: { luna: 'weaver', khepri: 'lancer', vesper: 'diamond', nacre: 'diamond', amnion: 'diamond', umbra: 'lancer' } satisfies Readonly<Record<PlanetId, EnemyKind>>,
   /** Shield charges, each absorbing this share of the kind's hull (scaled with the hull): about twice the hull in all. */
   shield: { charges: 3, share: 0.35 },
   /** Score and credits over the base kind. */

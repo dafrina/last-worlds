@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VEIL } from '../content/veil';
 import { CRADLE } from '../content/cradle';
+import { ECLIPSE } from '../content/eclipse';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 import { applySurfaceFinish } from './surface-finish';
@@ -45,7 +46,7 @@ const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
  * combat sockets; each has its own node prefix, model markers, shutter opening and spark colour.
  */
 export interface CarrierStyle {
-  id: 'veil' | 'cradle'; name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
+  id: 'veil' | 'cradle' | 'eclipse'; name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
   /** The boss's own combat sockets, target plane, arrival and bays (src/content/veil.ts, src/content/cradle.ts). */
   content: { podOffset: number; podS: number; heartS: number; targetHeight: number; arrivalDuration: number; bays: readonly { x: number; s: number }[] };
   /** Hull footprint for the terrain exclusion: half width, and its reach toward the player (front) and away (back). */
@@ -63,6 +64,15 @@ export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', pr
   content: { podOffset: CRADLE.sacOffset, podS: CRADLE.sacS, heartS: CRADLE.heartS, targetHeight: CRADLE.targetHeight, arrivalDuration: CRADLE.arrivalDuration, bays: CRADLE.bays },
   // the-cradle-v2-approved.glb (70% of the reference placement): arms to x +-6, prow 2.3 toward the player, ring 6.3 away.
   footprint: { halfWidth: 6.2, front: 2.5, back: 6.7 } };
+/**
+ * THE ECLIPSE (tools/blender/approved_eclipse.py, docs/28): the final boss, lying flat over the abyss, 20 units from horn
+ * to horn (x ±10, 3.9 toward the player and 8.8 away from its pivot, 3.2 below it to 3.5 above). Its reactor's six armour
+ * sectors roll outward over their feet; it rises out of the abyss and hovers 1.2 over the plateau's level, its top under
+ * the flight plane.
+ */
+export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE', prefix: 'eclipse_', markers: ['eclipse_approved_v1'], shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
+  content: { podOffset: ECLIPSE.ventOffset, podS: ECLIPSE.ventS, heartS: ECLIPSE.reactorS, targetHeight: ECLIPSE.targetHeight, arrivalDuration: ECLIPSE.arrivalDuration, bays: ECLIPSE.bays },
+  footprint: { halfWidth: 10.2, front: 4.2, back: 9.1 } };
 
 export async function loadVeilModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
