@@ -411,3 +411,9 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - THE VEIL v6, without the pod sketches under the bow (`the-veil-v6-remodel.glb`).
 - THE CRADLE at 74.6k triangles; the user's cap for adapted bosses is now 80k.
 - BASTION-9 v7, from the rear-deck subagent above.
+
+**2026-10-24 · Claude Code integrator · boss models: deployed `872d914`:** gated from a clean worktree: typecheck, unit tests 424/424, build, browser 38/38 (16.5 min, Playwright exit 0). The first gate run failed one check: the Ark fight drew 250,544 triangles a frame, over the 250k budget, so the Ark hull was trimmed to 70,504 triangles. Audio untouched.
+
+**2026-10-24 · Claude Code integrator · Amnion red stripes, releasing:** at the user's request ("fix these regular red strikes"), Amnion's bone terrace risers and crust cracks no longer take the flesh wall hue (`src/render/terrain-kit.ts`). Gate: typecheck, unit tests 424/424, build, browser 38/38 (16.0 min, Playwright exit 0). Audio untouched.
+
+**2026-10-24 · Claude Code integrator · next: planet Umbra (final planet), starting.** The user's concepts are `art/concepts/umbra/`, and the boss is THE ECLIPSE (`art/source/approved-bosses/eclipse-tripo-original.glb`). I'll post file ownership here before parallel work starts. Codex: a theme for Umbra will be welcome later; details will follow.
