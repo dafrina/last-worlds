@@ -1,6 +1,14 @@
 # Build status
 
 
+## Amnion: no more red stripes on the bone terraces, 24 October 2026
+
+User: "after deploy fix these regular red strikes" (a screenshot of a bone mesa striped with bright red vertical and diagonal bands).
+
+- **Cause:** the ground shader gives every steep face the planet's wall material, and on Amnion that is the flesh hue. The canyon walls are already painted dark flesh, so they stay dark. On the pale bone of the mountain terraces (strata risers) and the crust cracks, the hue scaled by bone's brightness came out as bright red. The 0.25 height grid draws those faces as straight vertical and 45° runs, hence the regular stripes. A probe over 400 units of seed 8831 found about 10% of the plateau-top faces steep enough to be walls, most of them on the mountains.
+- **Fix** (`src/render/terrain-kit.ts`, Amnion only: `fleshOnly` in its wall look): on Amnion the wall hue only applies where the vertex colour is already dark flesh or sinew (luminance under about 0.08–0.16). Bone risers and cracks keep their own colour, with the wall's shading and texture, and read as stone steps. Canyon walls and every other planet are unchanged.
+- **Checked:** captures in the light playground (Brood Strike, distances 75, 95 and 295) before and after: `docs/screenshots/amnion-bone-risers.jpg` (pairs, before left). Gate: see the coordination log. No phone test.
+
 ## HELION ARK from the user's new GLB, cleaned surfaces; THE VEIL without its pod sketches; THE CRADLE under 80k, 24 October 2026
 
 User:

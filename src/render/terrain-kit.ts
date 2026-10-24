@@ -819,16 +819,19 @@ const iceCrispOverride = (): [number, number] | null => {
   const asked = new URLSearchParams(location.search).get('icecrisp')?.split(',').map(Number);
   return asked && asked.length === 2 && asked.every(Number.isFinite) ? [asked[0], asked[1]] : null;
 };
-const KHEPRI_WALL = { hue: hueOf(0x6a4a36), shade: 0.82, columns: 1, crease: 1 };
-const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; columns: number; crease: number }>> = {
+const KHEPRI_WALL = { hue: hueOf(0x6a4a36), shade: 0.82, columns: 1, crease: 1, fleshOnly: 0 };
+/** `fleshOnly` 1: only faces the generator already paints dark (flesh, sinew) take the wall hue; pale ground stays itself. */
+const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; columns: number; crease: number; fleshOnly: number }>> = {
   khepri: KHEPRI_WALL,
-  vesper: { hue: hueOf(0x5f9fd0), shade: 0.9, columns: 0, crease: 1 },
+  vesper: { hue: hueOf(0x5f9fd0), shade: 0.9, columns: 0, crease: 1, fleshOnly: 0 },
   // Amnion (docs/27): dark flesh canyon walls, faintly striated like sinew.
-  // Dark blood-red flesh (user, 23 October: "make the flesh a bit darker"); the mountain strata's risers take it too.
-  amnion: { hue: hueOf(0x3c1816), shade: 0.24, columns: 0.5, crease: 1 },
+  // Dark blood-red flesh (user, 23 October: "make the flesh a bit darker"). The mountain strata's risers and the crust's
+  // cracks stay bone (user, 24 October: "fix these regular red strikes"): over pale bone the wall hue drew them as bright
+  // red stripes, straightened by the height grid.
+  amnion: { hue: hueOf(0x3c1816), shade: 0.24, columns: 0.5, crease: 1, fleshOnly: 1 },
   // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
   // darker regolith per face.
-  luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0 },
+  luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0, fleshOnly: 0 },
 };
 
 /**
@@ -872,7 +875,7 @@ export function createTerrainMaterials() {
    * wall (hard rims, faceted wall shading, the wall's own material); Nacre keeps the smooth look exactly (cliffLook 0).
    */
   const cliffLook = { cliffLook: { value: 1 }, creaseLook: { value: KHEPRI_WALL.crease }, wallHue: { value: KHEPRI_WALL.hue.clone() },
-    wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns },
+    wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns }, wallFleshOnly: { value: 0 },
     // Vesper's ice walls (user, 22 October: "more crispy ... darker sharp texture like in the original concept"): how much the
     // ice map shapes the wall (x) and its sampling sharpness (y: derivative scale; under 1 samples a sharper level).
     iceCrisp: { value: new THREE.Vector2(...ICE_CRISP) },
@@ -904,7 +907,7 @@ vec2 iceColumns( float column, float height ) {
 }
 uniform vec3 glowColor;\nuniform vec3 veinTint;\nuniform vec3 poolTint;\nuniform float poolGlow;\nuniform float poolCells;\nuniform float veinWidth;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
-uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform vec2 iceCrisp;
+uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform float wallFleshOnly;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
 uniform sampler2D crackMap;\nuniform float crackLook;\nuniform vec3 crackTint;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
@@ -1037,7 +1040,12 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * ( 1.0 - 0.75 * groundIce ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   // Walls take their own material after the vertex colours: the wall hue at the ground's light (baked shade kept).
-  if ( cliffWall > 0.0 ) diffuseColor.rgb = mix( diffuseColor.rgb, wallHue * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) * wallShade, cliffWall );
+  // (wallFleshOnly: only where the vertex colour is already dark flesh or sinew; pale bone keeps its colour.)
+  float wallTint = cliffWall;
+#ifdef USE_COLOR
+  wallTint *= 1.0 - wallFleshOnly * smoothstep( 0.08, 0.16, dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) );
+#endif
+  if ( wallTint > 0.0 ) diffuseColor.rgb = mix( diffuseColor.rgb, wallHue * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) * wallShade, wallTint );
   // Vesper's ice walls match the kit's ice shards (docs/26 §11): the face against the sun splits pale cyan-white lit ice
   // from deep, saturated blue shadowed ice, at the ground's baked light. (By the smooth normal: per triangle, the 0.25
   // height grid read as pixel stairs along every crevasse. The kit's shards carry the hard facets.)
@@ -1226,7 +1234,7 @@ ${VESPER_KIT_SURFACE}`)
     cliffLook.creaseLook.value = wall?.crease ?? 0;
     cliffLook.cliffSteep.value.set(vesper ? 0.42 : 0.62, vesper ? 0.3 : 0.42);
     const crisp: [number, number] = vesper ? iceCrispOverride() ?? ICE_CRISP : [0.18, 1]; cliffLook.iceCrisp.value.set(...crisp);
-    if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; }
+    if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; cliffLook.wallFleshOnly.value = wall.fleshOnly; }
     ground.color.setHex(vesper || luna ? 0xffffff : nacre ? 0xd5d9e1 : 0xc2c4c8);
     if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();
     const nextDetail = vesper ? snowTexture : null;
