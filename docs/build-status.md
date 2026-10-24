@@ -1,6 +1,56 @@
 # Build status
 
 
+## HELION ARK from the user's new GLB, cleaned surfaces; THE VEIL without its pod sketches; THE CRADLE under 80k, 24 October 2026
+
+User:
+- "do this one next "C:\Users\DavidFarina\Downloads\futuristic spaceship 3d model.glb" thats the ark";
+- "lets raise the max to the veils 80k"; "forget the front diamonds that are pod sketches";
+- "clean it up, the surfaces look way too mushy, rebuild the hull panels yourself maybe or something";
+- "opimize the veil too, mainly remove its two tentacles in its front those were actually also sketches of its pods"; "then after youre done deploy".
+
+- **HELION ARK v6:** `tools/blender/approved_ark.py` `build_clean()`, through Blender MCP, makes `public/assets/vesper/helion-ark-v6-approved.glb` (70,504 triangles, 6.2 MB). The hull is reduced to ratio 0.025: at 0.029 (77,002 triangles) the Ark fight drew 250,544 triangles a frame on High, over the browser suite's 250,000 budget. The source, `art/source/approved-bosses/ark-tripo-original.glb` (1.89M triangles, 70.6 MB, hash in the manifest), is kept untouched.
+  - **Parts, cut by position:** the tower's pointed front armour split down the middle (the bridge shutters, sliding apart); the two side deck superstructures (the radiators, with wrecks); the deck turrets on them (aimed); the rest as hull. The two diamond pod sketches in front are dropped. The bridge lens is the Blender-built one inside the armour. No bay doors: the Needles launch from the open prow.
+  - **Placement:** x 9.5, sunk 0.9 to ride the sea, shifted so the bridge projects onto its socket. The radiators then sit at x ±2.98, s 2.97 (were ±2.75, −0.5), and `HELION_ARK.radiatorRadius` grows 0.75 → 0.9 for the broad superstructures. The perfect pilot still clears every difficulty and weapon in time.
+  - **Cleaned surfaces ("mushy"):** each part is planarized: faces grown into plates by normal (26°, never across a 38° crease), each plate fitted to its plane, vertices moved to where their plates' planes meet, then hard edges at 28°. Large light plates are re-plated: one even tone per plate taken from the supplied paint, with generated armour plates, seams and light grime. Machinery, turrets, domes and the painted orange stripes and glows keep the supplied paint. Everything is baked onto one fresh 2K atlas (colour, roughness/metal, normal, emission). Metal is damped under Vesper's bright sky.
+  - **Rejected passes:** plating only the plates the region test found missed the sculpted tower armour; plating with the paint averaged over texel blocks kept its smears.
+- **THE VEIL v6:** `tools/blender/remodel_veil.py` makes `public/assets/nacre/the-veil-v6-remodel.glb` (14,760 triangles, 3.5 MB; v5 17,000). The two pods hanging on arms under the bow, their hoods and the arms are gone; they came from the source's floating crystals, which were pod sketches. The flight pod stays; launches flash under the bow at the gameplay bays (x ±1.7, s −2.6), as before. The rig already tolerates missing docked pods and hoods (`approvedRig`).
+- **THE CRADLE:** re-exported at 74,578 triangles, 4.5 MB (was 111,137, 6.0 MB), defaults `build(ratio=.037, part_ratio=.15)`, with an 80k budget check in the builder. It looks the same in game.
+- **80k cap:** adapted bosses (`approved_*`) stay at or under 80,000 triangles; the builders raise an error over it, and the asset test checks v6.
+- **Checked:**
+  - typecheck clean; unit tests 424/424 (`cinematic-assets` covers the Ark v6 and Veil v6 rigs, budgets and camera rays to every weak point and the open cores);
+  - renderer captures through `tests/fixtures/bastion.html?boss=ark|veil|cradle&phase=…`: GLB models, no page errors;
+  - the browser suite on the release snapshot: see the coordination log.
+  - **No phone test.**
+- **Evidence:** `docs/screenshots/boss-remodel/ark-v6-clean-in-game.jpg` (before / after, radiators and bridge open), `veil-v6-in-game.jpg` (v5 / v6, gill pods and heart open), `cradle-v2-80k-in-game.jpg`.
+- **Not used any more:** `vesper/helion-ark-v5-remodel.glb` and `nacre/the-veil-v5-remodel.glb` stay in `public/` for rollback.
+
+## Bastion-9: rear tubes replaced with greebles and turrets, 24 October 2026
+
+User: "also remove the weird silver tubes on the back of the bastion-9, and replace that with some geeble or turrets".
+
+- **The tubes:** six steel (silver) cylinders in `exhausts()` of `tools/blender/remodel_bastion.py`, all part of `bastion_hull`. Two were the source's big pale tubes, lying on the rear shoulders at x ±2.3 (y 0.95–4.2, top 4.3) on a saddle block, with glowing muzzle discs. The other four were the aft exhaust pipes at x ±0.72 and ±1.18, which stuck out past the tail.
+- **What replaced them** (`rear_deck()`, same paint, panel, dark-metal and tread materials, nothing silver):
+  - **Rear shoulders:** a small, static twin-barrel turret on each, on an octagonal mount (x ±2.4, y 2.15). It is smaller than a battery and has no glowing eye, so the batteries stay the targets. Each also has an ammunition box with a lid and feed chute, and a louvred vent block on the outer strip.
+  - **Aft:** louvred exhaust housings beside the tail (a dark grille under five louvres), and an armoured duct with clamp bands in the channel where the outer pipe ran.
+- **Unchanged:** every rig node, name, pivot and combat socket, the wreck variants, the four link templates with their belt data, and the `bastion_remodel_v5` and `bastion_treads_v6` markers. Per-node bounds of all non-hull parts match v6. The hull gains 2,248 triangles: the file has 20,024 (v6: 17,776), and the asset test budget is 30,000.
+- **Pipeline:**
+  - **Rebuild is exact:** before the change, a headless rebuild of the source reproduced `bastion-9-v5-remodel.glb` byte for byte.
+  - **Runner:** the new `tools/blender/bastion_v7.py` rebuilds the hull. It bakes the atlas and AO to a git-ignored intermediate, `lookdev/bastion-rear/bastion-9-v7-hull.glb`, then runs the tread extraction into `public/assets/khepri/bastion-9-v7.glb` (4.5 MB).
+  - **Tread extraction:** `repair_bastion_treads.py` now takes source and output paths and runs headless. It picks the rearmost straight link as each belt's template, so rebuilds are deterministic.
+  - **Reproducible:** a second run of the runner reproduced v7 byte for byte.
+  - **Rollback:** v5 and v6 stay. `src/render/boss-assets.ts` now points at v7.
+- **Checked:**
+  - **Typecheck:** `npx tsc --noEmit -p .` passed (exit 0).
+  - **Unit tests:** `npx vitest run` gave 423/424. The one failure is `tests/sim/ark.test.ts` ("perfect pilot clears Cold Vector"). It is a sim test in the Helion Ark files the integrator is changing right now, and it cannot depend on a GLB. The Bastion files on their own (`cinematic-assets`, `sim/bastion`, `bastion-projection`) passed 34/34.
+  - **Browser spec:** `tests/browser/bastion.spec.ts` ran on its own vite at port 4187. The third run passed 3/3 (Playwright exit 0). The first two runs failed 2 of 3 on the 30 s test timeout (Playwright exit 1) while concurrent SwiftShader captures held the load average at 17–20. The screenshots show the boss rendered in every phase.
+  - **Real renderer:** captures of the fixture (`?phase=batteries&still`, `?phase=core&still`, at 1x and 2x) loaded the GLB model with 204 instanced track links and no page errors.
+- **Evidence:**
+  - **Before/after sheets:** `docs/screenshots/boss-remodel/bastion-rear.jpg` (game camera close-up of the rear deck, and from behind and above) and `lookdev/bastion-rear/bastion-rear-before-after.jpg` (also the full game view and top view).
+  - **Single renders:** `lookdev/bastion-rear/{before,after}-*.png`.
+  - **In game:** `lookdev/bastion-rear/game-{batteries,core}-{1x,2x}.png`.
+- **Not tested:** no phone test. The decorative turrets don't fire. Watch in play whether players take them for targets.
+
 ## THE CRADLE: the user's Tripo GLB adapted as the boss, a playground boss fight, released, 24 October 2026
 
 User:

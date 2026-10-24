@@ -51,7 +51,7 @@ export interface CarrierStyle {
   /** Hull footprint for the terrain exclusion: half width, and its reach toward the player (front) and away (back). */
   footprint: { halfWidth: number; front: number; back: number };
 }
-export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', markers: ['veil_approved_v4', 'veil_remodel_v5'], shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
+export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', markers: ['veil_approved_v4', 'veil_remodel_v5', 'veil_remodel_v6'], shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
   content: { podOffset: VEIL.podOffset, podS: VEIL.podS, heartS: VEIL.heartS, targetHeight: VEIL.targetHeight, arrivalDuration: VEIL.arrivalDuration, bays: VEIL.bays },
   // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
   footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 8.5, back: 11 } };

@@ -10,6 +10,11 @@ ray through each target meets the armour; the reactor hatches part sideways.
 The game camera looks from the front at 55 degrees: backs, undersides and rear-facing ends
 are never seen, so they stay plain (user note, 20 October).
 
+v7 (24 October 2026): the rear deck's silver tubes are replaced by turrets and greebles (rear_deck()).
+Build it with tools/blender/bastion_v7.py, which bakes this hull and then extracts the tread links
+into public/assets/khepri/bastion-9-v7.glb. build() alone writes only the git-ignored intermediate,
+so the v5 rollback file is never overwritten.
+
 Blender axes: x right, y away from the player (glTF -z), z up. Ground at z = 0.
 """
 import math, os
@@ -19,7 +24,7 @@ from boss_remodel import mirror_plan, slab, join
 
 SCALE = 1.2  # relative to the v4 adaptation (documentation; the reference placement carries it)
 TAN = math.tan(math.radians(35))  # the camera ray loses TAN of y per unit of height
-LABEL = 'v5-remodel'
+LABEL = 'v7'  # v5-remodel until 24 October 2026
 # Sampled from the supplied atlas: dark rusted copper and weathered metal, small hot accents.
 PALETTE = dict(
     paint=('#7a4024', .48, .5, None), panel=('#43291d', .58, .5, None), metal=('#2a221e', .46, .7, None),
@@ -201,19 +206,58 @@ def body(h):
             h.prism([(2.65, 3.05), (3.45, 3.05), (3.45, 3.25), (3.1, 3.62), (2.75, 3.62)], 'x', s * x - .04, s * x + .04, 'steel')
 
 
-def exhausts(s, h):
-    """Aft exhausts, and the two big upper cannons."""
-    for x, r, z, y1 in [(1.18, .17, 2.78, 4.4), (.72, .14, 2.78, 4.3)]:
-        h.cylinder((s * x, 0, z), 'y', r, 2.4, y1 - .2, 'steel', seg=10)
-        h.cylinder((s * x, 0, z), 'y', r * 1.12, y1 - .2, y1, 'metal', seg=10)
-    # The source's two big pale tubes, turned forward as the sheet's upper cannons with glowing muzzles.
-    cx = s * 2.3
-    lo, hi = sorted((s * 1.95, s * 2.65))
-    h.box((lo, 1.7, 3.5), (hi, 3.3, 3.7), 'metal', chamfer=.08)
-    h.cylinder((cx, 0, 3.98), 'y', .32, 1.35, 3.9, 'steel', seg=12)
-    h.cylinder((cx, 0, 3.98), 'y', .38, .95, 1.35, 'metal', seg=12)
-    h.cylinder((cx, 0, 3.98), 'y', .36, 3.9, 4.2, 'metal', seg=12)
-    h.cylinder((cx, 0, 3.98), 'y', .22, .92, .95, 'glow', seg=10)
+def xs(s, a, b):
+    """The x interval |x| in [a, b] on side s, as (lo, hi)."""
+    return tuple(sorted((s * a, s * b)))
+
+
+def rear_deck(s, h):
+    """Rear deck (v7, 24 October 2026). The user asked for the silver tubes on the back to go, with greebles or
+    turrets instead: the source's two big pale tubes on the rear shoulders and the four aft exhaust pipes are
+    gone. Each rear shoulder now carries a small static twin-barrel turret (smaller than a battery and without
+    its glowing eye, so the batteries stay the targets) with an ammunition box; louvred exhaust housings and an
+    armoured duct sit where the pipes ran. Paint, panel and dark metal only: nothing silver."""
+    # Point-defence turret on an octagonal mount, where the tube's saddle covered the rear block's outer slots.
+    cx, cy = s * 2.4, 2.15
+    h.cylinder((cx, cy, 0), 'z', .52, 3.26, 3.6, 'metal', seg=8, phase=math.pi / 8)
+    h.cylinder((cx, cy, 0), 'z', .46, 3.6, 3.67, 'panel', seg=8, phase=math.pi / 8)
+    # Faceted housing: sloped glacis to the front (-y), flat flanks and rear.
+    base = [(-.34, -.36), (.34, -.36), (.43, -.12), (.43, .44), (-.43, .44), (-.43, -.12)]
+    top = [(-.25, -.08), (.25, -.08), (.33, .04), (.33, .36), (-.33, .36), (-.33, .04)]
+    h.loft([[(cx + x, cy + y, 3.67) for x, y in base], [(cx + x, cy + y, 4.07) for x, y in top]], 'paint')
+    h.loft([[(cx + x * .8, cy + .05 + y * .8, 4.07) for x, y in top],
+            [(cx + x * .8, cy + .05 + y * .8, 4.12) for x, y in top]], 'panel')
+    h.box((cx + s * .16 - .09, cy + .1, 4.12), (cx + s * .16 + .09, cy + .3, 4.24), 'metal', chamfer=.03)  # sight
+    for k in range(3):  # flank armour ribs
+        y = cy + .04 + k * .12
+        lo, hi = sorted((cx + s * .41, cx + s * .47))
+        h.box((lo, y, 3.71), (hi, y + .06, 3.95), 'panel')
+    # Mantlet and twin barrels with sleeves and muzzle brakes, pointing forward over the shoulder.
+    h.box((cx - .25, cy - .44, 3.74), (cx + .25, cy - .24, 4.0), 'metal', chamfer=.05)
+    for bx in (-.13, .13):
+        h.cylinder((cx + bx, 0, 3.87), 'y', .1, cy - .4, cy - .64, 'metal', seg=8, phase=math.pi / 8)
+        h.cylinder((cx + bx, 0, 3.87), 'y', .075, cy - .64, cy - .9, 'metal', seg=8)
+        h.cylinder((cx + bx, 0, 3.87), 'y', .1, cy - .9, cy - 1.02, 'metal', seg=8, phase=math.pi / 8)
+    # Ammunition box in the gap ahead of the mount, with a lid and a feed chute to the turret.
+    h.box((xs(s, 2.38, 2.68)[0], .78, 3.26), (xs(s, 2.38, 2.68)[1], 1.42, 3.54), 'metal', chamfer=.04)
+    h.box((xs(s, 2.42, 2.64)[0], .84, 3.54), (xs(s, 2.42, 2.64)[1], 1.36, 3.58), 'panel')
+    h.box((xs(s, 2.46, 2.6)[0], 1.42, 3.3), (xs(s, 2.46, 2.6)[1], 1.7, 3.48), 'panel')
+    # Louvred vent block on the outer strip behind the turret.
+    h.box((xs(s, 2.78, 3.06)[0], 2.5, 3.5), (xs(s, 2.78, 3.06)[1], 2.78, 3.56), 'tread')
+    for k in range(3):
+        y = 2.52 + k * .09
+        h.box((xs(s, 2.8, 3.04)[0], y, 3.53), (xs(s, 2.8, 3.04)[1], y + .045, 3.6), 'panel')
+    # Exhaust housing beside the tail, where the pipes left the hull: dark grille under transverse louvres.
+    lo, hi = xs(s, .57, 1.38)
+    h.prism([(3.25, 2.6), (4.25, 2.6), (4.25, 2.88), (4.14, 2.98), (3.25, 2.98)], 'x', lo, hi, 'metal')
+    h.box((xs(s, .63, 1.32)[0], 3.34, 2.98), (xs(s, .63, 1.32)[1], 4.08, 3.0), 'tread')
+    for k in range(5):
+        y = 3.36 + k * .15
+        h.box((xs(s, .65, 1.3)[0], y, 2.99), (xs(s, .65, 1.3)[1], y + .07, 3.06), 'panel')
+    # Armoured duct along the engine block, in the channel the outer pipe ran through, with clamp bands.
+    h.box((xs(s, 1.0, 1.3)[0], 2.4, 2.62), (xs(s, 1.0, 1.3)[1], 3.3, 2.92), 'panel', chamfer=.03)
+    for y in (2.5, 2.82, 3.14):
+        h.box((xs(s, .97, 1.33)[0], y, 2.6), (xs(s, .97, 1.33)[1], y + .07, 2.96), 'metal')
     h.box((min(s * 1.9, s * 2.7), 2.4, 2.4), (max(s * 1.9, s * 2.7), 3.2, 2.85), 'metal')
 
 
@@ -289,10 +333,10 @@ def reactor(sc, mats):
 
 
 def compare(objects):
-    br.compare('bastion', objects, os.path.join(br.LOOKDEV, 'bastion-v5-compare.png'), (0, -.1, 2.4), 11.5)
+    br.compare('bastion', objects, os.path.join(br.LOOKDEV, 'bastion-%s-compare.png' % LABEL), (0, -.1, 2.4), 11.5)
 
 
-def build(export=True, preview=True):
+def build(export=True, preview=True, path=None):
     import bpy
     sc = br.scene('Last Worlds — Remodel BASTION')
     mats = materials()
@@ -300,7 +344,7 @@ def build(export=True, preview=True):
     for s in (-1, 1):
         tracks(s, hull)
         shoulders(s, hull)
-        exhausts(s, hull)
+        rear_deck(s, hull)
     body(hull)
     objects = [hull.object('bastion_hull', mats, (0, 0, 0), sc, bevel=.03)]
     for s in (-1, 1):
@@ -318,13 +362,14 @@ def build(export=True, preview=True):
                              note='Clean remodel traced over the supplied GLB; no source geometry exported'))
     result = None
     if export:
-        path = os.path.join(br.ROOT, 'public', 'assets', 'khepri', 'bastion-9-%s.glb' % LABEL)
+        path = path or os.path.join(br.ROOT, 'lookdev', 'bastion-rear', 'bastion-9-%s-hull.glb' % LABEL)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         result = br.export(path, objects, 'Last Worlds — BASTION-9 remodel traced over the user-supplied GLB')
     for o in objects:
         if o.name.endswith('_wreck'):
             o.hide_render = True
     if preview:
         os.makedirs(br.LOOKDEV, exist_ok=True)
-        br.game_view(sc, (0, .1, 2.4), 12.5, os.path.join(br.LOOKDEV, 'bastion-v5-game.png'),
+        br.game_view(sc, (0, .1, 2.4), 12.5, os.path.join(br.LOOKDEV, 'bastion-%s-game.png' % LABEL),
                      objects=[o for o in objects if o.type == 'MESH' and not o.name.endswith('_wreck')])
     return objects, result

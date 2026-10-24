@@ -64,7 +64,7 @@ The shared industrial kit (pipes, tanks, containers) is reused through its palet
 
 All of them follow the fairness rules and the validator, and the perfect pilot must clear every weapon × difficulty combination.
 
-**Helion Ark:** a hovering industrial carrier riding just above the water.
+**Helion Ark:** a hovering industrial carrier riding just above the water. Since 24 October the model is the user's GLB, adapted and cleaned (`helion-ark-v6-approved.glb`; docs/08).
 - **Scale and height:** its targets use the combat-plane contract; its wings are scenery, not a hidden collision box. It is long and low; its top stays below the flight plane (`VIEW.flightHeight` 3.8).
 - **Phases:**
   1. two radiator weapons (alternating lane lasers);

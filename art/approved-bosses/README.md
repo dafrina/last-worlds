@@ -9,9 +9,10 @@ The PNGs here are Blender authoring previews at the game's 55° elevation. Actua
 | THE VEIL | 455,414 | 82,161 | 4,487,084 | `nacre/the-veil-v4-approved.glb` |
 | BASTION-9 | 501,970 | 97,603 | 5,693,156 | `khepri/bastion-9-v4-approved.glb` |
 | HELION ARK | 501,300 | 92,464 | 5,399,400 | `vesper/helion-ark-v4-approved.glb` |
-| THE CRADLE (24 October, `tools/blender/approved_cradle.py`) | 1,559,054 | 111,137 | 5985024 | `amnion/the-cradle-v2-approved.glb` |
+| THE CRADLE (24 October, `tools/blender/approved_cradle.py`) | 1,559,054 | 74,578 | 4,509,908 | `amnion/the-cradle-v2-approved.glb` |
+| HELION ARK v6 (24 October, the user's new GLB, `tools/blender/approved_ark.py` `build_clean()`) | 1,889,737 | 70,504 | 6,215,152 | `vesper/helion-ark-v6-approved.glb` |
 
-Counts include hidden wrecks, moving parts and the Veil's reusable flight-pod template; they are not per-frame totals. This is approximately an **81–82% triangle reduction**, with a 120k whole-asset regression ceiling. The Veil was compared at roughly 178k and 85k before conservative underside removal; its lower version retained the crescent silhouette and layered surfaces at the game camera. There is no 40k target overriding visible quality.
+Counts include hidden wrecks, moving parts and the Veil's reusable flight-pod template; they are not per-frame totals. Since 24 October an adapted boss stays at or under **80,000 triangles** (user: "lets raise the max to the veils 80k"); THE CRADLE was cut from 111,137 to fit. The HELION ARK v6 drops the source's two diamond pod sketches in front, and its surfaces are cleaned: planarized flat plates, the large light plates re-plated with generated plates and seams, the machinery and painted glows on the supplied paint (`build_clean()`; user: "the surfaces look way too mushy"). This is approximately an **81–82% triangle reduction**, with a 120k whole-asset regression ceiling. The Veil was compared at roughly 178k and 85k before conservative underside removal; its lower version retained the crescent silhouette and layered surfaces at the game camera. There is no 40k target overriding visible quality.
 
 ## Preserved source and rollback
 

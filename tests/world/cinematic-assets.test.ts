@@ -80,31 +80,36 @@ describe('Blender cinematic asset contracts',()=>{
   // How far each sliding pair of core shutters opens in its view (the Veil's petals rotate instead).
   const slideOf = { veil:0, bastion:1.1, ark:1, warden:.8 } as const;
   for (const spec of [
-    { id:'veil', prefix:'veil', core:'veil_heart', width:{ v4:12.51, v5:12.51 },
-      parts:['veil_bay_door_left','veil_bay_door_right','veil_flight_pod','veil_pod_left_wreck','veil_pod_right_wreck',...Array.from({length:4},(_,i)=>`veil_drop_pod_${i}`)],
+    // v6 remodel (24 October): no docked pods, hoods or arms under the bow (they were the source's pod sketches).
+    { id:'veil', prefix:'veil', core:'veil_heart', width:{ v4:12.51, v5:12.51, r6:12.51 },
+      parts:['veil_flight_pod','veil_pod_left_wreck','veil_pod_right_wreck'],
       shutters:Array.from({length:4},(_,i)=>`veil_heart_shutter_${i}`) },
     { id:'bastion', prefix:'bastion', core:'bastion_core', width:{ v4:8.01, v5:9.9 },
       parts:['bastion_gun_left','bastion_gun_right','bastion_forward_cannon_left','bastion_forward_cannon_right','bastion_battery_left_wreck','bastion_battery_right_wreck'],
       shutters:['bastion_core_shutter_a','bastion_core_shutter_b'] },
-    { id:'ark', prefix:'ark', core:'ark_bridge', width:{ v4:9.51, v5:9.6 },
-      parts:['ark_turret_left','ark_turret_right','ark_bay_left_door','ark_bay_right_door','ark_radiator_left_wreck','ark_radiator_right_wreck'],
+    // v6 (24 October) adapts the user's new Ark GLB: no bay doors (the Needles launch from the open prow).
+    { id:'ark', prefix:'ark', core:'ark_bridge', width:{ v4:9.51, v5:9.6, v6:9.6 },
+      parts:['ark_turret_left','ark_turret_right','ark_radiator_left_wreck','ark_radiator_right_wreck'],
       shutters:['ark_bridge_shutter_a','ark_bridge_shutter_b'] },
     { id:'warden', prefix:'warden', core:'warden_core', width:{ v4:3.5, v5:7.8 },
       parts:['warden_pod_left_wreck','warden_pod_right_wreck','warden_core_wreck','warden_beacon',...Array.from({length:4},(_,i)=>`warden_thruster_${i}`)],
       shutters:['warden_core_hatch_0','warden_core_hatch_1'] },
   ] as const) it(`keeps the selected ${spec.id} model textured, bounded, articulated and its exposed core visible`,async()=>{
     const model=await asset(BOSS_ASSETS[spec.id]);
-    const version = model.getObjectByName(`${spec.prefix}_remodel_v5`) ? 'v5' : 'v4';
+    const version = model.getObjectByName(`${spec.prefix}_remodel_v6`) ? 'r6' : model.getObjectByName(`${spec.prefix}_remodel_v5`) ? 'v5'
+      : model.getObjectByName(`${spec.prefix}_approved_v6`) ? 'v6' : 'v4';
+    const remodel = version === 'v5' || version === 'r6';
     if (version==='v4') expect(model.getObjectByName(`${spec.prefix}_approved_v4`)).toBeDefined();
-    // v4 keeps the decimated source atlases; v5 is ~20k clean triangles with one baked surface atlas.
-    validate(model,version==='v5'?30000:120000,true);
+    // v4 keeps the decimated source atlases; v5 is ~20k clean triangles with one baked surface atlas; v6 adapts the user's
+    // new GLB within THE VEIL's 80k (user, 24 October: "lets raise the max to the veils 80k").
+    validate(model,remodel?30000:version==='v6'?80000:120000,true);
     for(const name of [...spec.parts,...spec.shutters])expect(model.getObjectByName(name),name).toBeDefined();
     const hull=model.getObjectByName(`${spec.prefix}_hull`)!;
-    expect(new Box3().setFromObject(hull).getSize(new Vector3()).x).toBeLessThanOrEqual(spec.width[version]);
+    expect(new Box3().setFromObject(hull).getSize(new Vector3()).x).toBeLessThanOrEqual((spec.width as unknown as Record<string, number>)[version]);
     hull.traverse(object=>{
       if(!(object instanceof Mesh))return;
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
-        if (version==='v5' && /glow|jet/i.test(material.name)) continue; // emissive heat, lamps and thruster jets stay untextured
+        if (remodel && /glow|jet/i.test(material.name)) continue; // emissive heat, lamps and thruster jets stay untextured
         expect(material.map,'albedo texture').toBeTruthy();
         expect(material.normalMap,'surface normals').toBeTruthy();
         expect(material.roughnessMap,'roughness variation').toBeTruthy();

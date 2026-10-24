@@ -103,7 +103,7 @@ function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
   // v4 approved copies and v5 remodels both carry authored PBR materials and the three-hull layout.
   const remodel = !!model.getObjectByName('ark_remodel_v5');
-  const approved = remodel || !!model.getObjectByName('ark_approved_v4'); chassis.userData.approved = approved;
+  const approved = remodel || !!model.getObjectByName('ark_approved_v4') || !!model.getObjectByName('ark_approved_v6'); chassis.userData.approved = approved;
   model.updateMatrixWorld(true);
   const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .33, metalness: .68, envMapIntensity: 1.0 }), 'metal', .8, .02);
   const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .41, metalness: .28, envMapIntensity: 1.0 }), 'metal', .8, .012);

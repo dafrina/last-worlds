@@ -7,7 +7,7 @@ The user disliked the decimated v4 imports of their three supplied GLBs ("they l
 | WARDEN-1 | `public/assets/luna/warden-v5-remodel.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/remodel_warden.py` |
 | BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 21,648 | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/remodel_bastion.py` |
 | HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,892 | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
-| THE VEIL | `public/assets/nacre/the-veil-v5-remodel.glb` | 16,112 (14,654) | 28,291 | 24 (29) | 3.6 MB (2.4) | `tools/blender/remodel_veil.py` |
+| THE VEIL | `public/assets/nacre/the-veil-v6-remodel.glb` (24 October; v5 had the bow pods) | 14,760 (13,302) | 26,009 | 14 (19) | 3.5 MB (2.3) | `tools/blender/remodel_veil.py` |
 | THE CRADLE (24 October, over the user's Tripo reference) | `public/assets/amnion/the-cradle-v1.glb` | 49,592 (live parts) | | | 3.2 MB (no textures) | `tools/blender/remodel_cradle.py` |
 
 How to read the columns:
@@ -45,7 +45,7 @@ The Warden's v3 study had 10,220 triangles and 1.1 MB.
   - **Body:** inner blocks with amber lights and vents, blue thruster bells (a `warden_jet` material, kept out of the view's glow handling), landing legs and two antenna masts. The beacon sits on the left mast tip.
   - **Paint:** nearly non-metallic, because Luna's black sky turns metallic white into grey.
   - **Flight:** the Warden flies 1.1 above the ground (`HOVER`), and `WARDEN.targetHeight` is 1.3 + 1.1. Lifting the whole model keeps every weak point on its ray. The view keeps the thrusters burning with a gentle bob, and the craft drops to the ground when destroyed. It has no landing legs.
-- **THE VEIL:** crescent wings with three equal pods abreast in each hangar mouth, as in the concept art. The innermost is the weak point; glowing petal seams and a lit back wall make them read from the game camera. Also scythe mandibles, a petal bud over the heart and a crown egg, folded toward the concept sheet. Its pods, bay hoods and flight pod follow the v4 contract.
+- **THE VEIL:** crescent wings with three equal pods abreast in each hangar mouth, as in the concept art. The innermost is the weak point; glowing petal seams and a lit back wall make them read from the game camera. Also scythe mandibles, a petal bud over the heart and a crown egg, folded toward the concept sheet. Its flight pod follows the v4 contract. v6 (24 October) drops the two pods hanging on arms under the bow and their hoods: the source's floating crystals in front were the concept sheet's pod sketches (user: "remove its two tentacles in its front those were actually also sketches of its pods"). Launched pods now drop from under the bow at the gameplay bays.
 
 ## Rebuild
 

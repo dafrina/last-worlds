@@ -225,7 +225,10 @@ def rocks(sc, mat, fc, fuv, rgb, cls):
     return ob
 
 
-def build(ratio=.07, part_ratio=.18, label=LABEL):
+BUDGET = 80000   # user, 24 October: "lets raise the max to the veils 80k" (the v2 export was 111k)
+
+
+def build(ratio=.037, part_ratio=.15, label=LABEL):
     src = source()
     sc = bpy.data.scenes.get('Last Worlds — THE CRADLE approved') or bpy.data.scenes.new('Last Worlds — THE CRADLE approved')
     bpy.context.window.scene = sc
@@ -267,6 +270,12 @@ def build(ratio=.07, part_ratio=.18, label=LABEL):
     import remodel_cradle as rc
     pod = rc.flight_pod(rc.materials(), sc)
     objects.append(pod)
+    total = 0
+    for o in objects:
+        if o.type == 'MESH':
+            o.data.calc_loop_triangles(); total += len(o.data.loop_triangles)
+    if total > BUDGET:
+        raise RuntimeError('THE CRADLE over its %d-triangle budget: %d' % (BUDGET, total))
     tag = ab.marker('cradle_approved_v2'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = ratio; objects.append(tag)
     path = os.path.join(br.ROOT, 'public', 'assets', 'amnion', 'the-cradle-%s.glb' % label)
     bpy.ops.object.select_all(action='DESELECT')

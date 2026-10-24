@@ -64,9 +64,9 @@ describe('Helion Ark', () => {
     expect(boss.s).toBeCloseTo(HELION_ARK.entryS, 1);
     const [left, right, bridge] = (['left', 'right', 'core'] as const).map(part => bossTarget(state, part)!);
     expect(left.maxHp + right.maxHp + bridge.maxHp).toBeCloseTo(3000 * BOSS_TOUGHNESS.hp, 6);
-    expect([left.radius, right.radius, bridge.radius]).toEqual([0.75, 0.75, 1]);
+    expect([left.radius, right.radius, bridge.radius]).toEqual([HELION_ARK.radiatorRadius, HELION_ARK.radiatorRadius, 1]);
     expect(left.x - boss.x).toBeCloseTo(-HELION_ARK.radiatorOffset, 9);
-    expect(left.s - boss.s).toBeCloseTo(-0.5, 9);
+    expect(left.s - boss.s).toBeCloseTo(HELION_ARK.radiatorS, 9);
     expect(bridge.s - boss.s).toBeCloseTo(1.6, 9);
     expect(acquireTarget(state)).toBeUndefined();
     advance(state, HELION_ARK.arrivalDuration - 0.1);

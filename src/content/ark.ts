@@ -15,11 +15,15 @@ export const HELION_ARK = {
   targetHeight: 1.6,
   radiatorHp: 600,
   bridgeHp: 1800,
-  radiatorRadius: 0.75,
+  // 0.9 (24 October; was 0.75): the new model's radiators are broad deck superstructures, and further back (s 2.97).
+  radiatorRadius: 0.9,
   bridgeRadius: 1,
-  /** Centred on the radiator blocks of the remodel (was 2.4: half the ring hung over the water, user 21 October). */
-  radiatorOffset: 2.75,
-  radiatorS: -0.5,
+  /**
+   * The two side deck superstructures of the user's new Ark model (helion-ark-v6-approved.glb, 24 October), measured in
+   * tools/blender/approved_ark.py; they stand behind the bridge (the v5 remodel's radiators sat at x 2.75, s -0.5).
+   */
+  radiatorOffset: 2.98,
+  radiatorS: 2.97,
   bridgeS: 1.6,
   /** Deck launch bays (Needle launch points), relative to the pivot. */
   bays: [{ x: -0.75, s: -2 }, { x: 0.75, s: -2 }],

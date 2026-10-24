@@ -1,24 +1,38 @@
-"""Restore articulation in the approved v5 asset; run through live Blender MCP.
+"""Restore articulation in a built Bastion remodel (v5 -> v6, v7 hull -> v7).
 
 Extract the existing bevelled grouser bars, preserving their UVs and baked PBR atlas.
 Keep one link template per belt; the renderer instances it around the original belt
 profile. Nothing else is remodelled or rebaked. v5 remains available for rollback.
+
+Live Blender MCP: run() repeats the original v5 -> v6 extraction. Headless (24 October 2026):
+
+    cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
+        --python "$(wslpath -w tools/blender/repair_bastion_treads.py)" -- <source.glb> <out.glb>
+
+tools/blender/bastion_v7.py runs the v7 rebuild and this extraction in one headless session.
 """
 from pathlib import Path
+import sys
 import bpy
 import bmesh
 import math
 from mathutils import Vector
 
 ROOT = Path(r'\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies')
+V5 = ROOT / 'public/assets/khepri/bastion-9-v5-remodel.glb'
+V6 = ROOT / 'public/assets/khepri/bastion-9-v6-treads.glb'
 
 
-def run():
-    scene = bpy.data.scenes.get('Bastion Tread Repair') or bpy.data.scenes.new('Bastion Tread Repair')
-    bpy.context.window.scene = scene
+def run(src=V5, out=V6):
+    if bpy.context.window is None:  # headless: the startup scene, emptied
+        scene = bpy.context.scene
+        scene.name = 'Bastion Tread Repair'
+    else:
+        scene = bpy.data.scenes.get('Bastion Tread Repair') or bpy.data.scenes.new('Bastion Tread Repair')
+        bpy.context.window.scene = scene
     for obj in list(scene.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
-    bpy.ops.import_scene.gltf(filepath=str(ROOT / 'public/assets/khepri/bastion-9-v5-remodel.glb'))
+    bpy.ops.import_scene.gltf(filepath=str(src))
     hull = next(o for o in scene.objects if o.name == 'bastion_hull')
     bm = bmesh.new()
     bm.from_mesh(hull.data)
@@ -65,8 +79,10 @@ def run():
 
     removed = set()
     for (side, belt), parts in belts.items():
-        # A straight upper-run link gives local x=width, y=travel, z=normal.
-        faces, center = next((faces, center) for faces, center in parts if abs(center.z - 2.37) < .001)
+        # A straight upper-run link gives local x=width, y=travel, z=normal. The rearmost one, so
+        # rebuilds pick the same template (vertex-set order is arbitrary).
+        faces, center = max(((faces, center) for faces, center in parts if abs(center.z - 2.37) < .001),
+                            key=lambda part: part[1].y)
         mesh = hull.data.copy()
         retain_faces(mesh, faces)
         for vertex in mesh.vertices:
@@ -98,11 +114,11 @@ def run():
     # Blender 5.2's dynamic enum reports no RNA items. Its live operator validation
     # reports ('GLB', 'GLTF_SEPARATE'); the verified binary identifier is GLB.
     fmt = next((value for value in formats if value == 'GLB'), 'GLB')
-    out = ROOT / 'public/assets/khepri/bastion-9-v6-treads.glb'
     bpy.ops.export_scene.gltf(filepath=str(out), export_format=fmt, use_selection=True, use_active_scene=True,
                               export_extras=True, export_animations=False)
     print(f'Preserved hull/atlas; extracted {sum(map(len, belts.values()))} links into four instancing templates: {out}')
 
 
 if __name__ == '__main__':
-    run()
+    args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+    run(*args[:2]) if len(args) >= 2 else run()

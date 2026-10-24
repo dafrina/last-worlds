@@ -396,3 +396,18 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - Releasing as one squashed commit of `cradle-wip` onto main, gated from a clean worktree. Audio is untouched.
 
 **2026-10-24 · Claude Code integrator · THE CRADLE from the user's GLB: deployed:** gated from a clean worktree: typecheck, unit tests 424/424, build, browser 38/38 (17.0 min, Playwright exit 0). Audio untouched.
+
+**2026-10-24 · Claude Code (Bastion rear subagent) · start:** At the user's request, removing the silver tubes on Bastion-9's rear and replacing them with Blender greebles/turrets. Headless Blender only (no MCP). Files: `tools/blender/remodel_bastion.py`, `tools/blender/repair_bastion_treads.py` (or a new bastion runner), new `public/assets/khepri/bastion-9-v7.glb`, the bastion line in `src/render/boss-assets.ts`, `lookdev/bastion-rear/`, one section in `docs/build-status.md`, `docs/screenshots/boss-remodel/bastion-rear.jpg`, one line in `docs/08-*`. Not touching Ark/CRADLE/Vesper files. No commit or push; own vite on 4187.
+
+**2026-10-24 · Claude Code (Bastion rear subagent) · READY (not committed):** Bastion-9's silver tubes are gone: the two big pale tubes on the rear shoulders and the four aft exhaust pipes. In their place: small static twin-barrel turrets with ammunition boxes, louvred exhaust housings and an armoured duct. Rig, sockets and markers are unchanged.
+- **Files:** `tools/blender/remodel_bastion.py`, `tools/blender/repair_bastion_treads.py` (now takes paths and runs headless), new `tools/blender/bastion_v7.py`, new `public/assets/khepri/bastion-9-v7.glb`, the bastion line in `src/render/boss-assets.ts` (the ark line there is the integrator's), the top section of `docs/build-status.md`, one line in `docs/08-*`, new `docs/screenshots/boss-remodel/bastion-rear.jpg`.
+- **Checks:**
+  - **Typecheck:** exit 0.
+  - **Unit tests:** vitest 423/424. The failure is `tests/sim/ark.test.ts`, in the integrator's in-progress Ark files. The Bastion files on their own passed 34/34.
+  - **Browser spec:** `bastion.spec.ts` on port 4187 passed 3/3 (Playwright exit 0) on the third run. The first two runs timed out under load average 17–20 from concurrent captures.
+
+**2026-10-24 · Claude Code integrator · boss models, releasing:** releasing four boss model changes together, as one squashed commit gated from a clean worktree. Audio is untouched.
+- HELION ARK v6, the user's new GLB with cleaned surfaces (`helion-ark-v6-approved.glb`, `tools/blender/approved_ark.py`): radiators at x ±2.98, s 2.97, radius 0.9.
+- THE VEIL v6, without the pod sketches under the bow (`the-veil-v6-remodel.glb`).
+- THE CRADLE at 74.6k triangles; the user's cap for adapted bosses is now 80k.
+- BASTION-9 v7, from the rear-deck subagent above.

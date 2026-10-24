@@ -1,4 +1,9 @@
-"""THE VEIL v5: a clean faceted remodel traced over the user's supplied crescent carrier GLB.
+"""THE VEIL v6: a clean faceted remodel traced over the user's supplied crescent carrier GLB.
+
+v6 (24 October 2026; user: "remove its two tentacles in its front those were actually also sketches of its pods"): the
+pods hanging under the bow, their hoods and the arms carrying them are gone; the source's floating crystals in front were
+the concept sheet's pod sketches, not parts of the ship. The launched pod (veil_flight_pod) stays; pods now drop from
+under the bow at the gameplay bays (x +-1.7, s -2.6), where the view flashes each launch.
 
 Outlines, heights and depths come from boss_remodel.trace / height maps over the supplied model
 (art/source/approved-bosses/futuristic-spacecraft-original.glb) at the v4 placement
@@ -10,13 +15,12 @@ The masses, in the source's layout:
   an open hangar in the front face holding three pods, horns curling in toward the crown);
 - the centre: a keeled thorax on a cross axle, two big scythe mandibles, a collar, a tall bud of
   four petals over the heart, small fins beside it, and a crown egg hovering above;
-- pods hanging under the bow (the gameplay launch bays at x +-1.7, s -2.6).
+- (v5 only) pods hanging under the bow on arms, read from the sketches; removed in v6.
 
 Combat sockets are unchanged. Each flank weak point is the innermost hangar pod, set at the mouth
 where the 55-degree camera ray through its fixed target (x +-3.1, s -0.4, height 2.2) meets it.
 The heart sits on the ray through (0, 1.8, 2.2) inside the bud; the petals hinge about their local
 x axis (glTF yaw = azimuth) and flip outward when the view opens them by 105 degrees.
-The docked pods hang under the bow on the bay ray, under hinged hoods (the bay doors).
 
 Concept sheet notes (20 October) folded in where the source allows: darker raised rim with a cyan
 seam under it, a glowing seam down the bud, a dark collar with cyan lights, dark framework with
@@ -34,7 +38,7 @@ from mathutils import Vector, Matrix
 import boss_remodel as br
 from boss_remodel import join
 
-LABEL = 'v5-remodel'
+LABEL = 'v6-remodel'
 TAN = math.tan(math.radians(35))  # the camera ray loses TAN of y per unit of height
 TARGET_Z = 2.2                    # VEIL.targetHeight
 POD_X, POD_S, HEART_S = 3.1, -0.4, 1.8
@@ -476,7 +480,6 @@ def crown(h):
 def centre_parts(mats, sc):
     def build(h):
         thorax(h)
-        legs(h)
         crown(h)
         for s in (-1, 1):
             mandible(h, s)
@@ -717,17 +720,15 @@ def build(export=True, preview=True):
     objects.append(heart(mats, sc))
     objects.append(heart(mats, sc, wreck=True))
     objects += [petal(k, mats, sc) for k in range(4)]
-    objects += bay_doors(mats, sc)
-    objects += docked_pods(mats, sc)
-    objects.append(flight_pod(mats, sc))
+    objects.append(flight_pod(mats, sc))   # v6: no docked pods, hoods or arms (they were pod sketches)
     bpy.context.view_layer.update()
     br.texture_bake(objects, 'veil', 'nacre')
     live = [o for o in objects if not o.name.endswith('_wreck') and o.name != 'veil_flight_pod']
     br.bake_ao(objects, live, reach=2.2)
     for name, g in EMPTIES.items():
         objects.append(br.marker(name, (g[0], -g[2], g[1]), sc))
-    objects.append(br.marker('veil_remodel_v5', sc=sc, source_file=br.SOURCES['veil'],
-                             note='Clean remodel traced over the supplied GLB; no source geometry exported'))
+    objects.append(br.marker('veil_remodel_v6', sc=sc, source_file=br.SOURCES['veil'],
+                             note='Clean remodel traced over the supplied GLB; no source geometry exported; no pod sketches'))
     result = None
     if export:
         path = os.path.join(br.ROOT, 'public', 'assets', 'nacre', 'the-veil-%s.glb' % LABEL)
@@ -738,8 +739,8 @@ def build(export=True, preview=True):
     if preview:
         os.makedirs(br.LOOKDEV, exist_ok=True)
         shown = [o for o in objects if o.type == 'MESH' and not o.hide_render]
-        br.game_view(sc, (0, .3, 3.6), 14, os.path.join(br.LOOKDEV, 'veil-v5-game.png'), objects=shown, light='nacre')
+        br.game_view(sc, (0, .3, 3.6), 14, os.path.join(br.LOOKDEV, 'veil-%s-game.png' % LABEL), objects=shown, light='nacre')
         open_pose(objects)
-        br.game_view(sc, (0, .3, 3.6), 14, os.path.join(br.LOOKDEV, 'veil-v5-game-open.png'), objects=shown, light='nacre')
+        br.game_view(sc, (0, .3, 3.6), 14, os.path.join(br.LOOKDEV, 'veil-%s-game-open.png' % LABEL), objects=shown, light='nacre')
         open_pose(objects, 0)
     return objects, result
