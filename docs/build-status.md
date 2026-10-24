@@ -1,6 +1,25 @@
 # Build status
 
 
+## Umbra, second pass: sharp fractured hills, sparse cracked cliffs, stone structures; a black bloom blob fixed, 24 October 2026
+
+User, on the first Umbra release:
+- "why is there rounding on the edges? i want it sharp. also, variate the hills more, its so many triangles which is also why it looks wrong. now add the cliff models back but sparsely";
+- "generally, it should be less spikey as a vibe and more cracked and sharp";
+- "the triangular mountains still look off", "make them more irregular shapes";
+- "and rework the infrastructures, they should be stoney/sharp/clean not just smooth".
+
+- **Hills:** the kit's eight fractured obsidian massifs (`umb_hill`, 172–518 triangles each) now overlap into the hill ranges, larger toward a region's heart. Each is a few exactly planar faces broken along cracks with razor edges. The ground under them is the flat plateau again: as heightfield pyramids, the 0.25 grid rounded or stepped every ridge.
+- **Less spiky:** the needle spires became rare, at canyon edges only; shards are fewer. The cliff shards were rebuilt as cracked glass slabs and are back along about a quarter of the lips (`cliffWallSteps` with a patchy accept). Their tops stand a little over the lip (the new `overtop` option).
+- **Structures:** reworked as worked stone: crisp faceted tiers (12–26 sides) with chamfers and block joints, satin rather than mirror gloss, the silhouettes and glow slits kept.
+- **Cracks:** the plateau's crack network is stronger (crack look 1, lighter edge tint).
+- **Two rendering fixes:**
+  - The kit's sun glint is now a per-planet uniform (`kitGlint`), 0.05 on Umbra. It was made for small round egg shells, and on Umbra's large flat facets it lit whole faces white.
+  - **A black blob on High:** an invalid (NaN) pixel in the kit's gloss shading was spread by the bloom's low-resolution blur into a blocky black circle. Low tier had no blob. Fixes:
+    - the kit's gloss normal is normalized safely (`src/render/terrain-kit.ts`);
+    - the bloom prefilter drops any NaN or infinite pixel (`src/render/post-pipeline.ts`), so a single bad pixel can never spread again on any world.
+- **Checked:** typecheck clean; Umbra tests (`terrain-umbra`, `umbra`, the boss asset test) pass; playground captures (`lookdev/umbra/review/terrain-m5-hills.png`). Gate: see the coordination log. **No phone test.**
+
 ## Umbra, the final planet: Final Horizon and THE ECLIPSE; Seeker Array weaker, 24 October 2026
 
 User:

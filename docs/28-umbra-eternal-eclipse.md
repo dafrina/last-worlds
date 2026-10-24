@@ -17,16 +17,20 @@ The concept images are references, never runtime backgrounds or finished assets 
   - "look how triangular and soft and steppy some parts look";
   - "also the cliffs look bad, can u remove the models there";
   - "now everything too flat and smooth, stay true to the concept please with cracks in the terrain, and i quite liked earliers version with the hills better than just spikes everywhere the spikes are too small and pointy, should more look like sharp rocks";
-  - "also the infra models look kinda flat and bland".
+  - "also the infra models look kinda flat and bland";
+  - "why is there rounding on the edges? i want it sharp. also, variate the hills more, its so many triangles which is also why it looks wrong. now add the cliff models back but sparsely";
+  - "generally, it should be less spikey as a vibe and more cracked and sharp";
+  - "looks pretty nice now but the triangular mountains still look off", "make them more irregular shapes";
+  - "and rework the infrastructures, they should be stoney/sharp/clean not just smooth".
 
 ## Identity
 
 - **Black glass under an eclipse.** No sun: a cold violet-white rim light, a violet sky fill and bounce, and the eclipse's corona in every glossy surface (the `void` reflection sky in `src/render/models.ts`).
 - **Ground:**
   - one plateau of shattered obsidian plates, each its own tone and tilted a hair its own way, split by a crack network whose edges catch the light, and cracked by thin glowing violet faults in patches (the concept's "energy faults");
-  - Amnion's jagged crevasses with its generator and a seed of their own, falling away into a glowing lavender fog; their sheer walls stand bare;
-  - faceted hills: flat-faced pyramids with straight, glossy ridges;
-  - sharp obsidian rocks from the kit on and around the hills;
+  - Amnion's jagged crevasses with their own seed, falling away into a glowing lavender fog. Cracked glass-slab cliffs line only scattered stretches of the lips, about a quarter of them;
+  - hills: the kit's fractured obsidian massifs (`umb_hill`, eight forms), overlapping into ranges, each a few large exactly planar faces broken along cracks, with razor edges;
+  - sharp obsidian rocks, and only now and then a needle spire at a canyon edge ("less spikey as a vibe and more cracked and sharp");
   - floating cliffs drifting in the fog.
 - **The faction's structures:** monolith towers, eclipse gates, arc reactors, shield pylons, obelisks, landing pads, and now and then a crescent dock floating over a wide canyon.
 - **The Umbral fleet:** deep black, glossy, smooth, blade-like ships with violet cores.
@@ -47,7 +51,8 @@ The concept images are references, never runtime backgrounds or finished assets 
    - with each pyramid's height fixed once at its apex (never scaled point by point), every face is a true plane;
    - smooth-shaded, that reads as clean facets with a glossy highlight along each ridge.
 3. **Kit peaks only** (a dense forest of blade peaks on a flat plateau): "too flat and smooth ... the spikes are too small and pointy".
-4. **Now:** the faceted hills are back, with fewer kit pieces on and around them, remodelled as chunky sharp rocks. The cliff shards along the lips were removed. The shared crease shading is off on Umbra, because it drew a sawtooth along the ridges.
+4. **Faceted heightfield hills again, with rocks:** "why is there rounding on the edges? i want it sharp ... variate the hills more". A heightfield can't keep a ridge sharp.
+5. **Now:** the hills are kit models (`umb_hill`), fractured massifs with exactly planar faces, so the ground under them is the flat plateau. The kit's sun glint (meant for small round shells) is turned down on Umbra: on large flat facets it lit whole faces white.
 
 ## Campaign place and pressure
 
@@ -90,10 +95,11 @@ The concept images are references, never runtime backgrounds or finished assets 
 ## Milestones
 
 1. **Ground, light, mission and wiring:** done on 24 October, in review with the user.
-2. **Kit:**
-   - **Done:** spires, shards, floating cliffs, structures, the crescent dock.
-   - **In progress:** the sharp rocks, and richer structures.
-   - **Removed:** the cliff shards.
+2. **Kit (done):**
+   - hills, sharp rocks, spires, shards and floating cliffs;
+   - sparse cracked cliffs;
+   - the structures as worked stone: crisp faceted tiers with block joints, glow slits and layered depth;
+   - the crescent dock.
 3. **The Umbral fleet:** done (`umbra-craft.glb`, seven ships). Each kind flies its own ship, and THE ECLIPSE's drones use the drone (`UMBRA_CRAFT` in `src/render/scene.ts`). The `umbra_obsidian` material class is glossy, roughness 0.12 and no metal.
 4. **THE ECLIPSE:** done (`the-eclipse-v1-approved.glb`). It is in the boss asset test (rig, budget, rays).
 5. **Music:** Codex.

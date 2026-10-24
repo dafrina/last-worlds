@@ -43,6 +43,8 @@ uniform sampler2D source; uniform vec2 texel; uniform float threshold; uniform f
 varying vec2 vUv;
 vec3 bright( vec3 c ) {
   float l = max( c.r, max( c.g, c.b ) );
+  // An invalid scene pixel (NaN or infinity) never enters the chain: the blur spread one into a black blob (Umbra, 24 October).
+  if ( !( l >= 0.0 && l < 65000.0 ) ) return vec3( 0.0 );
   float soft = clamp( l - threshold + knee, 0.0, 2.0 * knee );
   soft = soft * soft / ( 4.0 * knee + 1e-4 );
   float w = max( soft, l - threshold ) / max( l, 1e-4 );

@@ -3,6 +3,7 @@ import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import { ARENA_CLEARING, arenaAt, arenaWeight } from './terrain-arena';
+import { cliffWallSteps } from './terrain-walls';
 import { crevasse, crevasseSegments, zigzag } from './terrain-amnion';
 
 /**
@@ -10,26 +11,26 @@ import { crevasse, crevasseSegments, zigzag } from './terrain-amnion';
  * obsidian plateaus, black and glossy, cracked by thin glowing violet faults; Amnion's jagged crevasses ("i like the
  * crevasces geometry of amnion for this") falling away into a glowing purple fog; and above the plateau only "very
  * pointy spikey mountains". "Much simpler" than Amnion: one plateau level of shattered glass plates split by cracks, no
- * tiers, hollows, strata or ruins. The mountains are faceted hills (flat-faced pyramids) with the kit's sharp obsidian
- * rocks on and around them (user, 24 October: "i quite liked earliers version with the hills better than just spikes
- * everywhere ... should more look like sharp rocks"). Floating cliffs drift in the canyons; the canyons' own sheer walls
- * stand bare (the kit's cliff shards along the lips were removed at the user's word). Pure functions of seed and
- * position.
+ * tiers, hollows, strata or ruins. The hills are the kit's fractured obsidian massifs, a few large planar faces broken
+ * along cracks, overlapping into ranges, with sharp rocks among them (user, 24 October: "why is there rounding on the
+ * edges? i want it sharp. also, variate the hills more"; "less spikey as a vibe and more cracked and sharp"): as
+ * heightfield pyramids their ridges were rounded or stepped by the 0.25 grid. Floating cliffs drift in the canyons; the kit's cliff shards line
+ * only scattered stretches of the lips. Pure functions of seed and position.
  */
 /** Umbra's own crevasse layout from Amnion's generator. */
 const SALT = 0x0b5c;
 /**
- * The plateau, the crevasse floor (deep, lost in the fog) and the highest hilltop (the terrain's own cap is 2.4). The
- * plateau sits 0.9 under Amnion's so the hills rise over 4 units ("i want sharp edges and spikey mountains").
+ * The plateau and the crevasse floor (deep, lost in the fog). The plateau sits 0.9 under Amnion's so the hills rise over
+ * 5 units to the spire cap ("i want sharp edges and spikey mountains").
  */
-const PLATEAU = -1.8, FLOOR = -5.6, PEAK = 2.4;
+const PLATEAU = -1.8, FLOOR = -5.6;
 /** The plateau's level (THE ECLIPSE's seat is measured from it). */
 export const UMBRA_PLATEAU = PLATEAU;
 /** Scenery cap: the same clearance under the flight plane (3.8) as Amnion's. */
 export const UMBRA_SCENERY_MAX = 3.0;
 /** Spires and landmarks may rise to 0.4 under the flight plane, as Amnion's tusks. */
 export const UMBRA_SPIRE_MAX = 3.4;
-const TALL: ReadonlySet<string> = new Set(['umbPeak', 'umbSpire', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbDock']);
+const TALL: ReadonlySet<string> = new Set(['umbHill', 'umbPeak', 'umbSpire', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbDock']);
 const NEUTRAL: MoodParams = NEUTRAL_MOOD;
 /** Landmark site lattice: rows along s, three lanes across the world (Amnion's, sparser). */
 const SITE_ROW = 18, SITE_LANES = [-7.5, 0, 7.5];
@@ -41,11 +42,6 @@ export interface UmbraMasks {
   /** Distance to the nearest crevasse over its half-width (0 centre, 1 lip). */ across: number;
   /** Spike-mountain weight, 0 … 1: only on the plateau, well back from the canyon lips. */ massif: number;
 }
-/** The hill regions alone (no crevasse term): a hill's weight at its apex. */
-function massifRegion(seed: number, x: number, s: number): number {
-  const qx = x + (noise(seed ^ 0xb1a1, x * 0.045, s * 0.04) - 0.5) * 9, qs = s + (noise(seed ^ 0xb1a2, x * 0.045 + 5.1, s * 0.04) - 0.5) * 9;
-  return smoothRange(0.52, 0.68, noise(seed ^ 0xb1c1, qx * 0.04, qs * 0.035));
-}
 export function umbraMasks(seed: number, x: number, s: number, platform = 0): UmbraMasks {
   const calm = routeCalm(seed, x, s);
   const qx = x + (noise(seed ^ 0xb1a1, x * 0.045, s * 0.04) - 0.5) * 9, qs = s + (noise(seed ^ 0xb1a2, x * 0.045 + 5.1, s * 0.04) - 0.5) * 9;
@@ -55,34 +51,6 @@ export function umbraMasks(seed: number, x: number, s: number, platform = 0): Um
   const back = smoothRange(1.15, 1.7, across);
   const massif = smoothRange(0.52, 0.68, noise(seed ^ 0xb1c1, qx * 0.04, qs * 0.035)) * back * (1 - calm * 0.4) * (1 - platform);
   return { plateau, across, massif };
-}
-
-/**
- * Hills: on a jittered lattice, each cell may hold a three- to five-sided pyramid with flat faces and straight ridges,
- * its apex leaning off centre. Each hill's height is fixed once, by `weight` at its apex, never scaled point by point, so
- * every face stays a true plane (user, 24 October: "too triangular"). Returns the tallest hill's height at the point.
- */
-const HILL_CELL = 3.2;
-function hills(seed: number, x: number, s: number, tall: number, weight: (x: number, s: number) => number): number {
-  const gx = Math.floor(x / HILL_CELL), gs = Math.floor(s / HILL_CELL);
-  let top = 0;
-  for (let dx = -1; dx <= 1; dx++) for (let ds = -1; ds <= 1; ds++) {
-    const h = (k: number) => hash(seed ^ (0xb2a0 + k), gx + dx, gs + ds);
-    if (h(0) > 0.85) continue;
-    const r = 1.3 + h(3) * 1.3, height = tall * (0.55 + 0.45 * h(4)), sides = 3 + Math.floor(h(5) * 3), turn = h(6) * Math.PI * 2;
-    // The apex leans up to a third of the base radius off the base centre.
-    const cx = (gx + dx + 0.2 + h(1) * 0.6) * HILL_CELL, cs = (gs + ds + 0.2 + h(2) * 0.6) * HILL_CELL;
-    const ax = cx + (h(7) - 0.5) * r * 0.66, as = cs + (h(8) - 0.5) * r * 0.66, w = weight(ax, as);
-    if (w < 0.05) continue;
-    // Pyramid: the largest projection onto the face directions, over the base inradius (1 at the base edge).
-    let d = 0;
-    for (let k = 0; k < sides; k++) {
-      const a = turn + k * Math.PI * 2 / sides;
-      d = Math.max(d, ((x - ax) * Math.cos(a) + (s - as) * Math.sin(a)) / r);
-    }
-    if (d < 1) top = Math.max(top, height * w * (1 - d));
-  }
-  return top;
 }
 
 /**
@@ -108,9 +76,8 @@ function shards(seed: number, x: number, s: number): { offset: number; tone: num
  */
 export function umbraLandform(seed: number, x: number, s: number, row: PlanetRow): Landform & { tone: number } {
   const arena = arenaAt(row.arena, seed, x, s), m = umbraMasks(seed, x, s, arena), plate = shards(seed, x, s);
-  // The plates calm to one plane under the hills, so the hills' faces stay planar.
-  const flat = 1 - smoothRange(0, 0.15, m.massif);
-  const top = PLATEAU + plate.offset * flat + (arena > 0 ? 0 : hills(seed, x, s, PEAK - PLATEAU, (ax, as) => massifRegion(seed, ax, as)));
+  // The plates calm to one plane under the hills (kit models), so they stand flush.
+  const top = PLATEAU + plate.offset * (1 - smoothRange(0, 0.15, m.massif));
   // The crevasse floor rolls gently, lost in the fog.
   const floor = FLOOR + (noise(seed ^ 0xb1b3, x * 0.08, s * 0.06) - 0.5) * 1.2;
   // Energy faults (the concept's luminous fractures): two crossing families of jagged contour lines, as Amnion's yolk
@@ -237,20 +204,20 @@ function* umbraScatterSteps(seed: number, startS: number, size: number, terrain:
       continue;
     }
     const m = umbraMasks(seed, x, s), plateau = m.plateau > 0.95, edge = plateau && drop > 1.2;
-    if (plateau && m.massif > 0.2 && ground < 0.2 && pick < 0.03) {
+    if (plateau && m.massif > 0.25 && pick < 0.13 * m.massif) {
+      // The hills: overlapping fractured massifs, larger and higher toward a region's heart.
+      const scale = 2 + h(95) * 1.6, height = Math.max(1.5, scale * (0.75 + h(96) * 0.45) * (0.7 + 0.3 * m.massif));
+      add({ kind: 'umbHill', x, s, y: ground - 0.1, scale, height, rotation: turn(h(97)), cosmetic: false }, h(98));
+    } else if (plateau && m.massif > 0.1 && pick > 0.985) {
       // Sharp obsidian rocks on and around the hills (the kit's crags, authored about 1.8 wide and 1 high), as accents on
       // the plateau and the lower slopes: as high as about 0.8–1.2 times their width.
       const scale = 1.5 + h(91) * 1.0, height = scale * (1.6 + h(92) * 0.6);
       add({ kind: 'umbPeak', x, s, y: ground - 0.1, scale, height, rotation: turn(h(93)), cosmetic: false }, h(94));
-    } else if (plateau && (m.massif > 0.1 || edge) && slope < 0.6 && pick < 0.02) {
-      // Needle spires: one to three, the first tall (2–2.5 times as high as they are wide: spiky, never needles).
-      const members = 1 + Math.floor(h(40) * 3);
-      for (let k = 0; k < members; k++) {
-        const ox = x + (k ? (h(42 + k) - 0.5) * 1.6 : 0), os = s + (k ? (h(48 + k) - 0.5) * 1.6 : 0);
-        const scale = (k ? 0.9 : 1.3) + h(54 + k) * 0.5, tall = scale * (2 + h(60 + k) * 0.5);
-        add({ kind: 'umbSpire', x: ox, s: os, y: terrain.height(ox, os) - 0.06, scale, height: tall, rotation: turn(h(66 + k)), cosmetic: k > 1 }, h(72 + k));
-      }
-    } else if (plateau && slope < 0.5 && pick > 0.9) {
+    } else if (plateau && edge && slope < 0.6 && pick < 0.004) {
+      // Now and then a lone needle spire at a canyon edge ("less spikey as a vibe and more cracked and sharp").
+      const scale = 1.3 + h(54) * 0.5, tall = scale * (2 + h(60) * 0.5);
+      add({ kind: 'umbSpire', x, s, y: ground - 0.06, scale, height: tall, rotation: turn(h(66)), cosmetic: false }, h(72));
+    } else if (plateau && slope < 0.5 && pick > 0.96) {
       add({ kind: 'umbShards', x, s, y: ground - 0.03, scale: 0.8 + h(87) * 0.6, height: 0.7 + h(88) * 0.8, rotation: turn(h(89)), cosmetic: true }, h(90));
     }
   }
@@ -269,7 +236,15 @@ function* umbraScatterSteps(seed: number, startS: number, size: number, terrain:
       add({ kind: dock ? 'umbDock' : 'umbFloat', x: x + (h(5) - 0.5) * half * 0.6, s, y: top - depth, scale, height: depth, rotation: turn(h(6)), cosmetic: !dock && h(7) > 0.7 }, h(8));
     }
   }
-  // No cliff models along the lips (user, 24 October: "the cliffs look bad, can u remove the models there").
+  // Obsidian cliff shards along the lips, sparsely: only in scattered stretches, about a quarter of the lips (user, 24
+  // October: first "the cliffs look bad, can u remove the models there", then "now add the cliff models back but sparsely").
+  const sparse = (x: number, s: number) => umbraMasks(seed, x, s).massif < 0.25 && noise(seed ^ 0xb7f1, x * 0.09, s * 0.07) > 0.62;
+  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, {
+    kind: 'voidWall', salt: 0x7c5e, minDrop: 1.5, rimSpan: 0.7, maxAway: 0.75, minRun: 3, scale: [1.2, 1.6],
+    cap: UMBRA_SCENERY_MAX, accept: sparse, arenas: true,
+    // The shards' tallest spikes stand a little over the lip (their bodies still reach it).
+    overtop: 0.09,
+  })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
 

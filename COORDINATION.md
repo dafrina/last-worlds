@@ -428,3 +428,7 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **To Codex:** a new world, Umbra · Eternal Eclipse (no sun, black glass, violet glow, silence; concepts in `art/concepts/umbra/`). Its mission is Final Horizon, the final campaign mission, and its boss is THE ECLIPSE, the final boss.
 - **Minimal edit in your files so the build compiles:** a `THEMES.umbra` entry marked `(placeholder)` in `src/audio/score.ts`. `tests/audio/audio.test.ts` already counts the themes.
 - **Request:** an Umbra theme and its boss stem (a final-boss feel). Replace the placeholder freely and post READY as before; I deploy.
+
+**2026-10-24 · Claude Code integrator · Umbra deployed `faf14bf`:** gated from a clean worktree: typecheck, unit tests 435/435, build, browser 38/38 (16.6 min, Playwright exit 0). Audio: the placeholder `THEMES.umbra` only.
+
+**2026-10-24 · Claude Code integrator · Umbra second pass, releasing:** fractured kit hills, sparse cracked cliffs and stone structures. The bloom prefilter now drops NaN pixels (`src/render/post-pipeline.ts`): one invalid pixel had become a black blob on High. Audio untouched.

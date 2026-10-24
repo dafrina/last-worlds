@@ -58,7 +58,7 @@ SINK = -0.1
 # the glass itself stays near black; light lives on its bevelled edges, in its gloss and in the seams.
 C = {k: kit.hex_linear(v) for k, v in dict(
     deep="#07060b", lit="#15121d", edge="#2f2a44", edge_hi="#5f5880", sheen="#24202f", bounce="#2a1d66", crack="#040307",
-    alloy="#0c0b11", alloy_lit="#16141e", alloy_edge="#3a3550",
+    alloy="#121019", alloy_lit="#1e1b29", alloy_edge="#3a3550",
     glow="#7b5cff", glow_hot="#b7a4ff",
 ).items()}
 
@@ -174,7 +174,7 @@ def seam(hs, rng, rings, apex, fi, span, w, paint=("glow", "seam"), lift=0.0035)
             hs.face((l0, r0, r1, l1), paint, "main", GLOW, outward=tuple(nrm))
 
 
-def step_disc(hs, cx, cy, r, z0, z1, seg=28, ch=0.012, paint="alloy", mat=ALLOY, sy=1.0, rot=0.0, smooth=True):
+def step_disc(hs, cx, cy, r, z0, z1, seg=28, ch=0.012, paint="alloy", mat=ALLOY, sy=1.0, rot=0.0, smooth=False):
     """A round (or with sy != 1 elliptical) stepped plinth: a short shaft with a chamfered top edge."""
     angles = [rot + i * TAU / seg for i in range(seg)]
     ring = lambda rr, z: [hs.v((cx + math.cos(a) * rr, cy + math.sin(a) * rr * sy, z)) for a in angles]  # noqa: E731
@@ -386,10 +386,11 @@ def build_spire(rng, idx):
     return hs
 
 
-def crag(hs, rng, pts, bevel_w=.018, seam=False, tries_pts=None):
+def crag(hs, rng, pts, bevel_w=.018, seam=False, tries_pts=None, dissolve=12.0, facets=False):
     """One broken rock mass of black glass: the convex hull of `pts` (big flat facets, hard edges, sharp corners), every
     edge bevelled by bevel_w (the narrow chamfers, tag 'edge', are what catches the light). With `seam`, a thin violet
-    crack runs down its biggest steep facet."""
+    crack runs down its biggest steep facet. `facets` (the hills): each facet is written as its own fan of triangles
+    painted ("obs", facet id), so a facet shades and colours as one clean plane, never as triangle noise."""
     import bmesh
     bm = bmesh.new()
     for p in pts:
@@ -401,7 +402,7 @@ def crag(hs, rng, pts, bevel_w=.018, seam=False, tries_pts=None):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     # The hull is all triangles: merge the near-coplanar ones into the rock's real facets first, so only true edges
     # (not triangulation diagonals) get a bevel.
-    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(12.0), verts=bm.verts[:], edges=bm.edges[:])
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(dissolve), verts=bm.verts[:], edges=bm.edges[:])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bev = bmesh.ops.bevel(bm, geom=bm.edges[:] + bm.verts[:], offset=bevel_w, offset_type="OFFSET", segments=1, profile=.5,
                           affect="EDGES", clamp_overlap=True)
@@ -414,7 +415,13 @@ def crag(hs, rng, pts, bevel_w=.018, seam=False, tries_pts=None):
     best = None
     for f in bm.faces:
         n = f.normal
-        hs.face(tuple(base + v.index for v in f.verts), "obs", "edge" if f in chamfers else "main", OBS, outward=tuple(n))
+        if facets:
+            ids = [base + v.index for v in f.verts]
+            gid = len(hs.faces)
+            for k in range(1, len(ids) - 1):   # every facet is convex (hull facets, bevel strips and corners)
+                hs.face((ids[0], ids[k], ids[k + 1]), ("obs", gid), "edge" if f in chamfers else "main", OBS, outward=tuple(n))
+        else:
+            hs.face(tuple(base + v.index for v in f.verts), "obs", "edge" if f in chamfers else "main", OBS, outward=tuple(n))
         if seam and f not in chamfers and abs(n.z) < .55 and n.y < .2:
             area = f.calc_area()
             if best is None or area > best[0]:
@@ -545,6 +552,234 @@ def build_peak(rng, idx):
         mass(.5, .06, .42, .38, .72, rot=rng.uniform(-.3, .3), top="point", lean=(.08, 0.0))
         mass(-.74, -.08, .3, .3, .46, top="slant", lean=(-.1, 0.0))
         blocks(2, .62, .82)
+    return hs
+
+
+def cut_solid(hs, rng, planes, box=(-1.75, 1.75, -1.55, 1.55, SINK, 1.4), bevel_w=.005, seam=False, shift=(0.0, 0.0, 0.0),
+              cracks=(), bottom=SINK, bevel_front=None):
+    """A convex landform cut from a block by planes [(point, outward normal)]: every cut leaves one large, exactly
+    planar facet, the cuts meet in hard straight edges (a thin flat bevel on each, tag 'edge', catches the light by
+    its orientation). Facets are written as fans painted ("obs", facet id): each shades and colours as one plane.
+    `cracks` [(point, normal, glow)]: faces lying on those planes are fracture faces (dark, tag 'crack'; or a faint violet
+    glow); `shift` moves the finished piece (a slab broken off and shifted along its fracture)."""
+    import bmesh
+    x0, x1, y0, y1, z0, z1 = box
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co = Vector((x0 + (v.co.x + .5) * (x1 - x0), y0 + (v.co.y + .5) * (y1 - y0), z0 + (v.co.z + .5) * (z1 - z0)))
+    for co, no in planes:
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=Vector(co), plane_no=Vector(no).normalized(),
+                               clear_outer=True)
+        bmesh.ops.holes_fill(bm, edges=bm.edges[:], sides=0)
+        if len(bm.verts) < 4:
+            bm.free()
+            return
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(1.0), verts=bm.verts[:], edges=bm.edges[:])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    chamfers = set()
+    if bevel_w > 0:
+        edges = bm.edges[:]
+        if bevel_front is not None:
+            # Only the sharp edges on the side that faces the canyon (cheaper: the back is never seen).
+            edges = [e for e in edges if len(e.link_faces) == 2 and (e.verts[0].co.y + e.verts[1].co.y) * .5 < bevel_front and
+                     e.link_faces[0].normal.angle(e.link_faces[1].normal) > math.radians(20)]
+        if edges:
+            vs = list({v for e in edges for v in e.verts})
+            bev = bmesh.ops.bevel(bm, geom=edges + vs, offset=bevel_w, offset_type="OFFSET", segments=1, profile=.5,
+                                  affect="EDGES", clamp_overlap=True)
+            chamfers = set(bev["faces"])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.verts.index_update()
+    base = len(hs.verts)
+    sh = Vector(shift)
+    for v in bm.verts:
+        hs.v(tuple(v.co + sh))
+    best = None
+    for f in bm.faces:
+        n = f.normal
+        c = f.calc_center_median()
+        if n.z < -.99 and c.z < bottom + 1e-4:
+            continue   # the buried bottom
+        ids = [base + v.index for v in f.verts]
+        gid = len(hs.faces)
+        crack = None
+        for co, no, glow in cracks:
+            nv = Vector(no).normalized()
+            if f not in chamfers and abs((c - Vector(co)).dot(nv)) < 1e-4 and abs(n.dot(nv)) > .999:
+                crack = glow
+        for k in range(1, len(ids) - 1):
+            tri = (ids[0], ids[k], ids[k + 1])
+            pa, pb, pc = (Vector(hs.verts[i]) for i in tri)
+            cr = (pb - pa).cross(pc - pa)
+            if cr.length < 1e-6 or abs(cr.normalized().dot(n)) < .9:
+                continue   # cuts leave collinear corners on some facets: their fan slivers have (next to) no area
+            if crack is True:
+                hs.face(tri, ("glow", "faint"), "main", GLOW, outward=tuple(n))
+            elif crack is False:
+                hs.face(tri, ("obs", gid), "crack", OBS, outward=tuple(n))
+            else:
+                hs.face(tri, ("obs", gid), "edge" if f in chamfers else "main", OBS, outward=tuple(n))
+        if crack is not None:
+            continue
+        if seam and f not in chamfers and .25 < n.z < .8 and n.y < .1:
+            area = f.calc_area()
+            if best is None or area > best[0]:
+                best = (area, [v.co + sh for v in f.verts], n.copy(), f.calc_center_median() + sh)
+    bm.free()
+    if best:
+        # A fault crack of light across the biggest facet that looks toward the camera.
+        _, corners, n, c = best
+        top = max(corners, key=lambda q: q.z)
+        low = min(corners, key=lambda q: q.z)
+        start, end = top.lerp(c, .35), low.lerp(c, .35)
+        side = n.cross(Vector((0.0, 0.0, 1.0)))
+        side = side.normalized() if side.length > 1e-6 else Vector((1.0, 0.0, 0.0))
+        prev = None
+        for k in range(7):
+            t = k / 6
+            p = start.lerp(end, t) + side * rng.uniform(-.05, .05) * math.sin(math.pi * t) + n * .004
+            w = .008 * math.sin(math.pi * min(1.0, t * 1.15 + .08))
+            l, r = hs.v(tuple(p - side * w)), hs.v(tuple(p + side * w))
+            if prev is not None:
+                hs.face((prev[0], prev[1], r, l), ("glow", "seam"), "main", GLOW, outward=tuple(n))
+            prev = (l, r)
+
+
+def fractured(hs, rng, planes, fracs, glow=(), **kw):
+    """A solid (cut_solid's planes) broken along fracture planes `fracs` [(point, normal, gap, drop, slide)]: every piece
+    on the far side of a fracture is shifted off it by `gap`, sunk by `drop` and slid along it by `slide` (broken off
+    and shifted), so each crack shows as a dark groove between sharp edges; fractures listed in `glow` glow faintly."""
+    k = len(fracs)
+    cracks = [(co, no, i in glow) for i, (co, no, *_rest) in enumerate(fracs)]
+    for mask in range(2 ** k):
+        extra, shift = [], Vector((0.0, 0.0, 0.0))
+        for i, (co, no, gap, drop, slide) in enumerate(fracs):
+            nv = Vector(no).normalized()
+            if mask >> i & 1:
+                extra.append((co, tuple(-nv)))
+                along = nv.cross(Vector((0.0, 0.0, 1.0)))
+                along = along.normalized() if along.length > 1e-6 else Vector((1.0, 0.0, 0.0))
+                shift += nv * gap + Vector((0.0, 0.0, -drop)) + along * slide
+            else:
+                extra.append((co, tuple(nv)))
+        shift.z = max(shift.z, -.05)   # (a piece beyond two cracks sinks no deeper than one: base −0.1 − 0.05)
+        cut_solid(hs, rng, list(planes) + extra, shift=tuple(shift), cracks=cracks, **kw)
+
+
+def frac(az, slope, through, gap=.02, drop=.0, slide=.0):
+    """A fracture plane for `fractured` (az/slope as face_plane: slope 90 is a vertical crack)."""
+    co, no = face_plane(az, slope, through)
+    return (co, no, gap, min(drop, .05), slide)   # (a sunk piece never passes the contract's base: −0.1 − 0.05)
+
+
+def face_plane(az, slope, through):
+    """A cutting plane through `through` whose kept side faces outward toward azimuth `az` (degrees, Blender x = 0,
+    +y = 90: away from the camera) and slopes `slope` degrees from horizontal (90: a sheer wall; over 90 overhangs)."""
+    a, t = math.radians(az), math.radians(slope)
+    return (through, (math.cos(a) * math.sin(t), math.sin(a) * math.sin(t), math.cos(t)))
+
+
+def build_hill(rng, idx):
+    """Obsidian hills (integrator, 24 October: heightfield hills read rounded and "so many triangles"; the user wants them
+    "sharp", "more varied", and "less spikey as a vibe and more cracked and sharp"): large FRACTURED massifs of black
+    glass. Each is one to three convex solids cut from a block by a handful of planes (every face one large clean
+    plane, hard straight edges, a thin flat bevel on each edge catching the light by its orientation), then broken
+    along steep fracture planes into slabs shifted against each other: each crack a dark groove between razor edges, a
+    few glowing faintly violet. No needles, no spikes, no rounding, no triangle noise. Eight forms: a fractured peak
+    with a long shoulder, a cracked knife ridge, a split mesa with a tilted top beside a broken butte, fused summits, a
+    slab broken loose and lifted at one edge, a low cracked shield with one sharp crest, a stepped double ridge, a
+    massif split by a deep notch. Authored about 3 wide (x) by 2.6 deep and 1 high; placed at scale 2-4, height
+    1.5-4.2. Satin gloss on the big faces (the edges stay glossy)."""
+    hs = HS(rng)
+    J = lambda d: rng.uniform(-d, d)  # noqa: E731
+
+    def summit(cx, cy, h, slopes, azs, foot):
+        # The planes of a summit: faces all round through points just below it, each its own slope, a sheer foot ring
+        # limiting the spread, a chip off one edge (no perfect pyramid).
+        planes = []
+        for az, sl in zip(azs, slopes):
+            d = rng.uniform(0, .06)
+            planes.append(face_plane(az, sl, (cx + math.cos(math.radians(az)) * d, cy + math.sin(math.radians(az)) * d, h)))
+        for k in range(6):
+            az = k * 60 + J(12)
+            planes.append(face_plane(az, 82, (cx + math.cos(math.radians(az)) * foot, cy + math.sin(math.radians(az)) * foot * .9, 0.0)))
+        az = azs[rng.randrange(len(azs))] + rng.choice((-1, 1)) * rng.uniform(25, 40)
+        planes.append(face_plane(az, rng.uniform(32, 42), (cx + math.cos(math.radians(az)) * .32, cy + math.sin(math.radians(az)) * .32, h * .62)))
+        return planes
+
+    def crack(cx, cy, az, slope=None, gap=None, drop=None, slide=None):
+        g = gap if gap is not None else rng.uniform(.012, .03)
+        return frac(az, slope if slope is not None else rng.uniform(64, 86), (cx, cy, .5), g * 1.6 + .006,
+                    drop if drop is not None else rng.uniform(.0, .05), slide if slide is not None else J(.025))
+
+    if idx == 0:
+        # A fractured peak, a long cracked shoulder sloping away along +x.
+        fractured(hs, rng, summit(-.45, .02, 1.0, (52, 58, 47, 61, 44), (95 + J(10), 160 + J(10), 215 + J(10), 280 + J(10), 345 + J(10)), 1.1),
+                  [crack(-.32, -.05, -65 + J(10), gap=.03, drop=.06), crack(-.7, .2, 160 + J(10), gap=.016)], glow=(0,))
+        fractured(hs, rng, [face_plane(-90 + J(6), 48, (.4, -.02, .5)), face_plane(90 + J(6), 52, (.4, .04, .5)),
+                            face_plane(0, 21, (-.2, 0.0, .62)), face_plane(-35, 40, (1.0, -.3, .12)), face_plane(35, 42, (1.0, .3, .12)),
+                            face_plane(0, 70, (1.45, 0.0, 0.0))],
+                  [crack(.55, 0.0, 15 + J(15), gap=.022, drop=.04), crack(.2, .1, 100 + J(15), gap=.014, drop=.02)])
+    elif idx == 1:
+        # A knife ridge along x, broken across into three blocks that have slipped against each other.
+        fractured(hs, rng, [face_plane(-90, 58, (0.0, -.02, 1.0)), face_plane(90, 63, (0.0, .02, 1.0)),
+                            face_plane(0, 24, (.12, 0.0, 1.0)), face_plane(180, 30, (-.08, 0.0, 1.0)),
+                            face_plane(-12, 9, (.7, 0.0, .78)), face_plane(195, 14, (-.75, 0.0, .8)),
+                            face_plane(0, 66, (1.4, 0.0, 0.0)), face_plane(180, 62, (-1.4, 0.0, 0.0)),
+                            face_plane(-60, 55, (.9, -.4, .3)), face_plane(125, 50, (-.9, .45, .32))],
+                  [crack(.38, 0.0, 8 + J(10), slope=78, gap=.028, drop=.07), crack(-.5, 0.0, 172 + J(10), slope=72, gap=.02, drop=.03)])
+    elif idx == 2:
+        # A mesa with one big tilted top, split through by a crack (the far block sunk a little); a broken butte beside.
+        walls = [face_plane(k * 51.4 + J(10), rng.uniform(72, 80), (-.3 + math.cos(math.radians(k * 51.4)) * .95,
+                                                                     .05 + math.sin(math.radians(k * 51.4)) * .88, 0.0)) for k in range(7)]
+        fractured(hs, rng, walls + [face_plane(200, 9, (-.3, .05, .92))], [crack(-.15, .05, 20 + J(10), slope=84, gap=.03, drop=.08)], glow=(0,))
+        fractured(hs, rng, [face_plane(k * 72 + J(10), 76, (.95 + math.cos(math.radians(k * 72)) * .3, -.45 + math.sin(math.radians(k * 72)) * .26, 0.0))
+                            for k in range(5)] + [face_plane(160, 12, (.95, -.45, .5))], [crack(.95, -.45, 100 + J(20), gap=.018, drop=.05)])
+    elif idx == 3:
+        # Fused summits of three heights, the tallest cracked through.
+        fractured(hs, rng, summit(-.5, .15, 1.0, (55, 50, 60, 47), (40 + J(10), 135 + J(10), 220 + J(10), 310 + J(10)), .95),
+                  [crack(-.45, .1, -40 + J(10), gap=.025, drop=.05), crack(-.65, .3, 120 + J(10), gap=.014)], glow=(1,))
+        fractured(hs, rng, summit(.5, -.2, .8, (52, 57, 46, 55), (10 + J(10), 100 + J(10), 200 + J(10), 280 + J(10)), .85),
+                  [crack(.55, -.25, 75 + J(15), gap=.016)])
+        fractured(hs, rng, summit(.15, .62, .6, (50, 45, 55), (60 + J(10), 170 + J(10), 300 + J(10)), .7), [])
+    elif idx == 4:
+        # A slab of glass broken loose and lifted at one edge, itself cracked across, its raised edge a broken overhang.
+        fractured(hs, rng, [face_plane(180, 26, (0.0, 0.0, .5)), face_plane(0, 180 - 26, (0.0, 0.0, .5 - .34)),
+                            face_plane(-90, 84, (0.0, -1.05, 0.0)), face_plane(90, 80, (0.0, 1.0, 0.0)),
+                            face_plane(8, 104, (1.02, .3, .7)), face_plane(-14, 98, (1.0, -.45, .7)),
+                            face_plane(180, 70, (-1.5, 0.0, 0.0))],
+                  [crack(.25, .0, 12 + J(10), slope=70, gap=.03, drop=.06), crack(-.4, .25, 105 + J(10), slope=80, gap=.018, drop=.02)], glow=(1,))
+        fractured(hs, rng, [face_plane(k * 90 + J(15), 70, (1.15 + math.cos(math.radians(k * 90)) * .25, .55 + math.sin(math.radians(k * 90)) * .22, 0.0))
+                            for k in range(4)] + [face_plane(150, 35, (1.15, .55, .32))], [])
+    elif idx == 5:
+        # A low, wide shield of broad shallow facets cracked into plates, one sharp crest rising out of it.
+        fractured(hs, rng, [face_plane(k * 45 + J(10), rng.uniform(17, 25), (0.0, 0.0, .52)) for k in range(8)] +
+                  [face_plane(k * 60 + J(10), 80, (math.cos(math.radians(k * 60)) * 1.45, math.sin(math.radians(k * 60)) * 1.25, 0.0)) for k in range(6)],
+                  [crack(-.35, -.2, -30 + J(10), gap=.02, drop=.03), crack(.5, .3, 60 + J(10), gap=.016, drop=.02), crack(.1, -.6, -110 + J(10), gap=.014)],
+                  glow=(2,))
+        fractured(hs, rng, [face_plane(-80, 57, (.05, -.02, 1.0)), face_plane(100, 60, (.05, .02, 1.0)),
+                            face_plane(10, 38, (.35, 0.0, 1.0)), face_plane(190, 33, (-.3, 0.0, 1.0)),
+                            face_plane(0, 75, (.9, 0.0, 0.0)), face_plane(180, 75, (-.85, 0.0, 0.0))], [])
+    elif idx == 6:
+        # A stepped double ridge, both ridges cracked across at different places.
+        fractured(hs, rng, [face_plane(-90, 52, (0.0, -.55, .6)), face_plane(90, 64, (0.0, -.5, .6)),
+                            face_plane(5, 18, (.0, -.5, .6)), face_plane(185, 22, (-.1, -.5, .6)),
+                            face_plane(0, 62, (1.35, 0.0, 0.0)), face_plane(180, 62, (-1.35, 0.0, 0.0))],
+                  [crack(.3, -.5, 5 + J(10), gap=.024, drop=.05), crack(-.6, -.5, 170 + J(10), gap=.016, drop=.03)])
+        fractured(hs, rng, [face_plane(-90, 50, (0.0, .35, 1.0)), face_plane(90, 60, (0.0, .4, 1.0)),
+                            face_plane(-8, 26, (.25, .38, 1.0)), face_plane(175, 18, (.1, .38, 1.0)),
+                            face_plane(0, 60, (1.3, .4, 0.0)), face_plane(180, 64, (-1.3, .4, 0.0))],
+                  [crack(-.45, .4, 170 + J(10), gap=.028, drop=.06), crack(.7, .4, 12 + J(10), gap=.016)], glow=(0,))
+    else:
+        # A massif split by a deep notch, each half cracked again.
+        fractured(hs, rng, [face_plane(-10, 66, (-.12, 0.0, .36)), face_plane(150, 45, (-.75, .05, .92)), face_plane(215, 52, (-.75, .05, .92)),
+                            face_plane(75, 58, (-.7, .05, .92)), face_plane(-75, 50, (-.7, .05, .92)), face_plane(180, 80, (-1.45, 0.0, 0.0))],
+                  [crack(-.85, .0, 200 + J(10), gap=.024, drop=.05), crack(-.5, -.3, -70 + J(10), gap=.016, drop=.02)])
+        fractured(hs, rng, [face_plane(190, 64, (.12, 0.0, .34)), face_plane(30, 47, (.8, .1, 1.0)), face_plane(-35, 55, (.8, .1, 1.0)),
+                            face_plane(105, 60, (.78, .1, 1.0)), face_plane(-100, 52, (.78, .1, 1.0)), face_plane(0, 80, (1.45, 0.0, 0.0))],
+                  [crack(.6, -.1, -50 + J(10), gap=.02, drop=.04)], glow=(0,))
     return hs
 
 
@@ -730,6 +965,20 @@ def stepped_tower(hs, rng, x, y, h, w, rot, z0, slit=False, steps=2, n=6):
         cut = rng.uniform(.5, .9) * rng.choice((-1, 1))
         bprism(hs, poly, zs[k] - (.01 if k else 0), zs[k + 1], slope=(ca * cut * (1 if k == steps - 1 else .35), sa * cut * (1 if k == steps - 1 else .35)),
                bev=min(.008, w * .12))
+        # A cut-block joint round the step: a thin dark groove where two blocks are laid one on the other.
+        if zs[k + 1] - zs[k] > .12:
+            zj = zs[k] + (zs[k + 1] - zs[k]) * rng.uniform(.3, .6)
+            pc = (sum(p[0] for p in poly) / len(poly), sum(p[1] for p in poly) / len(poly))
+            for i in range(len(poly)):
+                (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % len(poly)]
+                ex, ey = x1 - x0, y1 - y0
+                el = math.hypot(ex, ey) or 1.0
+                nx, ny = ey / el, -ex / el
+                if nx * ((x0 + x1) * .5 - pc[0]) + ny * ((y0 + y1) * .5 - pc[1]) < 0:
+                    nx, ny = -nx, -ny
+                o = .0015
+                q = [(x0 + nx * o, y0 + ny * o, zj), (x1 + nx * o, y1 + ny * o, zj), (x1 + nx * o, y1 + ny * o, zj + .005), (x0 + nx * o, y0 + ny * o, zj + .005)]
+                hs.face(tuple(hs.v(p) for p in q), "alloy", "crack", ALLOY, outward=(nx, ny, 0.0))
     if slit:
         # A slit of light up the facet that looks most outward (local -v), from near the foot to under the first step.
         m = len(first)
@@ -761,13 +1010,33 @@ def glow_band(hs, cx, cy, r, z0, z1, a0, a1, seg, sy=1.0, paint=("glow", "seam")
         hs.face(tuple(hs.v(p) for p in q), paint, "main", GLOW, outward=(math.cos(tm), math.sin(tm) / sy, 0.0))
 
 
-def tiers(hs, rng, r, levels=(.03, .06, .085, .105), shrink=(1.0, .84, .7, .58), seg=40, sy=1.0, bands=True, cx=0.0, cy=0.0):
-    """A stepped round (sy < 1: oval) base in several tiers, each with a chamfered edge that catches the light, light
-    showing in broken arcs at the foot of each riser. Returns the top height."""
+def stone_joints(hs, rng, cx, cy, r, z0, z1, seg, rot, sy=1.0, count=None, inner=.62):
+    """Cut-block joints on a faceted tier (worked stone, user 24 October: "stoney/sharp/clean not just smooth"): thin
+    dark grooves down the riser and across the top at some of its facets, as between laid blocks."""
+    count = count or max(3, seg // 3)
+    ap = r * math.cos(math.pi / seg)
+    for i in sorted(rng.sample(range(seg), min(count, seg))):
+        a = rot + (i + .5) * TAU / seg
+        ca, sa = math.cos(a), math.sin(a)
+        tx, ty = -sa * .0035, ca * .0035 * sy
+        ox, oy = cx + ca * (ap + .0015), cy + sa * (ap + .0015) * sy
+        q = [(ox - tx, oy - ty, z0 + .002), (ox + tx, oy + ty, z0 + .002), (ox + tx, oy + ty, z1 - .006), (ox - tx, oy - ty, z1 - .006)]
+        hs.face(tuple(hs.v(p) for p in q), "alloy", "crack", ALLOY, outward=(ca, sa / sy, 0.0))
+        r0, r1 = ap - .008, r * inner
+        q = [(cx + ca * r0 - sa * .0035, cy + (sa * r0 + ca * .0035) * sy, z1 + .0012), (cx + ca * r0 + sa * .0035, cy + (sa * r0 - ca * .0035) * sy, z1 + .0012),
+             (cx + ca * r1 + sa * .0035, cy + (sa * r1 - ca * .0035) * sy, z1 + .0012), (cx + ca * r1 - sa * .0035, cy + (sa * r1 + ca * .0035) * sy, z1 + .0012)]
+        hs.face(tuple(hs.v(p) for p in q), "alloy", "crack", ALLOY, outward=(0.0, 0.0, 1.0))
+
+
+def tiers(hs, rng, r, levels=(.03, .06, .085, .105), shrink=(1.0, .84, .7, .58), seg=20, sy=1.0, bands=True, cx=0.0, cy=0.0):
+    """A stepped round (sy < 1: oval) base in several tiers of faceted stone (flat facets, crisp chamfered edges that
+    catch the light, cut-block joints), light showing in broken arcs at the foot of each riser. Returns the top."""
     prev = SINK
     for k, (z, f) in enumerate(zip(levels, shrink)):
         rr = r * f
         step_disc(hs, cx, cy, rr, prev - (0 if k == 0 else .008), z, seg=seg, ch=.007, sy=sy, rot=k * .05)
+        nxt = shrink[k + 1] / f if k + 1 < len(shrink) else .3
+        stone_joints(hs, rng, cx, cy, rr, max(prev, 0.0), z, seg, k * .05, sy=sy, inner=nxt)
         if bands and k > 0:
             a = rng.uniform(0, TAU)
             for _ in range(rng.choice((2, 3))):
@@ -787,8 +1056,9 @@ def fins_round(hs, rng, r, count, z0, hmin, hmax, rmin=.018, rmax=.03, sy=1.0, c
         if skip and skip(a):
             continue
         x, y = cx + math.cos(a) * r, cy + math.sin(a) * r * sy
-        tower(hs, rng, x, y, rng.uniform(hmin, hmax), rng.uniform(rmin, rmax), a + math.pi / 2, flank=1, tip=rng.uniform(-.6, .6),
-              z0=z0, lean=(math.cos(a) * .25, math.sin(a) * .25))
+        # Stubby chiselled stones rather than thorns (less spiky).
+        tower(hs, rng, x, y, rng.uniform(hmin, hmax) * .7, rng.uniform(rmin, rmax) * 1.2, a + math.pi / 2, flank=1, tip=rng.uniform(-.6, .6),
+              z0=z0, lean=(math.cos(a) * .15, math.sin(a) * .15), thick=(.7, .9))
 
 
 def torus(hs, cx, cy, z, R, rw, rh, seg=36, tilt=(0.0, 0.0), paint="alloy", mat=ALLOY, inner_glow=None):
@@ -816,14 +1086,16 @@ def torus(hs, cx, cy, z, R, rw, rh, seg=36, tilt=(0.0, 0.0), paint="alloy", mat=
                     GLOW if glow else mat, outward=out)
 
 
-def horn8(hs, rng, pts, widths, depth, plane_y=0.0, centre=(0.0, 0.5), fins=0, studs=0, paint="alloy", mat=ALLOY):
+def horn8(hs, rng, pts, widths, depth, plane_y=0.0, centre=(0.0, 0.5), fins=0, studs=0, paint="alloy", mat=ALLOY, grooves_every=True):
     """A thick curved horn swept along (x, z) points in the plane y = plane_y: an eight-cornered section (the inner
     cutting edge and the back's corners bevelled: tag 'edge'), small fins standing off its back and studs of light
     along its face; ends in a point."""
     path = [Vector((px, plane_y, pz)) for px, pz in pts]
     prof = [(1.5, -.1), (1.5, .1), (.45, 1.0), (-.45, 1.0), (-1.0, .45), (-1.0, -.45), (-.45, -1.0), (.45, -1.0)]
     edges = {0, 3, 5, 7}
-    rings, frames = [], []
+    rings, frames, pinch = [], [], []
+    # Plates: every few sections a V-groove runs round the horn (a joint between laid stone plates).
+    grooves = set(range(2, len(path) - 2, 3)) if grooves_every else set()
     for k, c in enumerate(path):
         a, b = path[max(k - 1, 0)], path[min(k + 1, len(path) - 1)]
         t = (b - a).normalized()
@@ -832,15 +1104,24 @@ def horn8(hs, rng, pts, widths, depth, plane_y=0.0, centre=(0.0, 0.5), fins=0, s
             nrm = -nrm
         bi = Vector((0.0, 1.0, 0.0))
         w = widths[k]
-        rings.append([tuple(c + nrm * (u * w) + bi * (v * w * depth)) for u, v in prof])
         frames.append((c, nrm, t, w))
+        if k in grooves:
+            for dc, s_, p_ in ((-.007, 1.0, False), (0.0, .8, True), (.007, 1.0, False)):
+                cc = c + t * dc
+                rings.append([tuple(cc + nrm * (u * w * s_) + bi * (v * w * depth * s_)) for u, v in prof])
+                pinch.append(p_)
+        else:
+            rings.append([tuple(c + nrm * (u * w) + bi * (v * w * depth)) for u, v in prof])
+            pinch.append(False)
     idx = [[hs.v(p) for p in ring] for ring in rings]
     n = len(prof)
     for k in range(len(idx) - 1):
-        cen = (path[k] + path[k + 1]) * 0.5
+        cen = Vector(_centroid(rings[k] + rings[k + 1]))
+        groove = pinch[k] or pinch[k + 1]
         for i in range(n):
             j = (i + 1) % n
-            hs.face((idx[k][i], idx[k][j], idx[k + 1][j], idx[k + 1][i]), paint, "edge" if i in edges else "main", mat, center=tuple(cen))
+            hs.face((idx[k][i], idx[k][j], idx[k + 1][j], idx[k + 1][i]), paint, "crack" if groove else ("edge" if i in edges else "main"), mat,
+                    center=tuple(cen))
     a, b = path[-2], path[-1]
     apex = hs.v(tuple(b + (b - a).normalized() * widths[-1] * 3.0))
     for i in range(n):
@@ -850,7 +1131,7 @@ def horn8(hs, rng, pts, widths, depth, plane_y=0.0, centre=(0.0, 0.5), fins=0, s
     for k in sorted(rng.sample(upper, min(fins, len(upper)))):
         c, nrm, t, w = frames[k]
         base = c - nrm * w * .6
-        L = w * rng.uniform(1.6, 2.4)
+        L = w * rng.uniform(1.1, 1.6)   # short stone fins (user, 24 October: "less spikey as a vibe")
         tip = base - nrm * L + t * L * rng.uniform(.3, .7)
         r = w * .45
         yA, yB = plane_y + w * depth * .45, plane_y - w * depth * .45
@@ -949,12 +1230,12 @@ def build_gate(rng, idx):
     another, curling in toward each other over a beam of light, fins off their backs and studs of light along them,
     small towers standing inside the gate, all on a long tiered plinth."""
     hs = HS(rng)
-    zt = tiers(hs, rng, .8, levels=(.03, .055, .075), shrink=(1.0, .86, .72), seg=44, sy=.36)
+    zt = tiers(hs, rng, .8, levels=(.03, .055, .075), shrink=(1.0, .86, .72), seg=26, sy=.36)
     for side in (-1, 1):
         for layer, (R, cz, y0, th0, th1, w0, fins, studs) in enumerate((
-                (.5, .5, 0.0, 240, 110, .11, 3, 4),
-                (.57, .43, .1, 234, 125, .085, 2, 2),
-                (.62, .37, .19, 230, 136, .065, 2, 0))):
+                (.5, .5, 0.0, 240, 110, .11, 2, 4),
+                (.57, .43, .1, 234, 125, .085, 1, 2),
+                (.62, .37, .19, 230, 136, .065, 0, 0))):
             pts, widths = [], []
             steps = 13 - layer * 2
             for k in range(steps + 1):
@@ -985,7 +1266,7 @@ def claw(hs, rng, a, z0, z1, r0, rmid, r1, w, depth=.5, steps=6):
         widths.append(w * (1 - .6 * t) + .006)
     # Sweep in a local plane through the axis, then rotate into place.
     local = HS(rng)
-    horn8(local, rng, pts, widths, depth, plane_y=0.0, centre=(0.0, (z0 + z1) * .5))
+    horn8(local, rng, pts, widths, depth, plane_y=0.0, centre=(0.0, (z0 + z1) * .5), grooves_every=False)
     base = len(hs.verts)
     for v in local.verts:
         hs.v((v[0] * ca - v[1] * sa, v[0] * sa + v[1] * ca, v[2]))
@@ -1001,7 +1282,7 @@ def build_reactor(rng, idx):
     claw plates in two layers, a needle with a crown of small spikes above it, a beam below, and on either side a pair
     of tall bevelled crescent blades, on a tiered base."""
     hs = HS(rng)
-    zt = tiers(hs, rng, .4, levels=(.03, .055, .08), seg=32)
+    zt = tiers(hs, rng, .4, levels=(.03, .055, .08), seg=16)
     zc, rc = .54, .075
     pts = []
     for k, t in enumerate((-.85, -.45, 0.0, .45, .85)):
@@ -1049,7 +1330,7 @@ def build_obelisk(rng, idx):
     """The concept's OBELISK: a tall needle of black alloy collared and slit with light, glowing at its foot, standing in
     a crown of small fins on a tiered base; variant 1 is three blades fused into one spire, light in their seams."""
     hs = HS(rng)
-    zt = tiers(hs, rng, .22, levels=(.03, .055, .075), seg=24)
+    zt = tiers(hs, rng, .22, levels=(.03, .055, .075), seg=12)
     if idx == 0:
         knife(hs, rng, 0, 0, 1.0, .1, z0=zt - .01, flank=1, thick=(.9, 1.0), tip=.0, paint="alloy", mat=ALLOY,
               prof=((0.0, 1.0), (.08, .8), (.6, .46), (.9, .18)), seams=(1, 4), seam_span=(1, 3), seam_w=.018, bevel=.1)
@@ -1075,7 +1356,7 @@ def build_pad(rng, idx):
     with a sunken glowing well, light along its edges and small corner pylons."""
     hs = HS(rng)
     if idx == 0:
-        zt = tiers(hs, rng, .7, levels=(.05, .08, .1), shrink=(1.0, .82, .62), seg=44)
+        zt = tiers(hs, rng, .7, levels=(.05, .08, .1), shrink=(1.0, .82, .62), seg=22)
         step_disc(hs, 0, 0, .1, zt - .005, zt + .02, seg=16, ch=.005)
         glow_arc(hs, 0, 0, zt + .0215, .035, .052, 0, TAU, 12, paint=("glow", "hot"))
         fins_round(hs, rng, .62, 7, .02, .07, .13, rmin=.02, rmax=.03)
@@ -1224,16 +1505,18 @@ def loft_polys(hs, levels, paint, mat, top=None, bottom=None, cap_top=False, tag
 
 
 def build_void_wall(rng, idx, half_x, front, back, base):
-    """Umbra's canyon walls (user, 24 October: "the canyons will have just spikey rock cliffs", then, about a first
-    draft with flat caps, "i want sharp edges", "not ... jagged but like steps"): one segment of tall, narrow,
-    overlapping black-glass shards in three depths, every one ending in a point (most just under the lip, a few rising
-    to it, some short ones hanging down into the fog in a point too), each with a knife ridge toward the canyon whose
-    bevel catches the light; widths, heights and leans irregular so neighbouring segments never repeat a rhythm; a few
-    blades thrust out of the face and up out of the fog; now and then a thin violet fissure. Blender frame: front (the
-    canyon side, toward the camera) is -y; x ±half_x, y front … back, z base … 1 (the top: a spike tip)."""
+    """Umbra's canyon walls, third pass (user, 24 October: first "spikey rock cliffs", then about flat caps "not ...
+    jagged but like steps", then "less spikey as a vibe and more cracked and sharp"): one segment of broad slabs of
+    black glass standing side by side along the lip, each cut by a few planes into big clean facets meeting in hard
+    edges (an angled front ridge, angled sides, a top tilted back into the slope behind a sharp chamfered front edge,
+    never a level cap or visible tread; now and then a short point), each broken along a steep crack and the broken piece slipped a little
+    down and out, so dark cracks run down the face; at most one crack per segment glows faintly violet. Slab widths,
+    depths and top heights irregular so neighbouring segments never repeat a rhythm. Blender frame: front (the canyon
+    side, toward the camera) is -y; x ±half_x, y front … back, z base … 1."""
     hs = HS(rng)
+    J = lambda d: rng.uniform(-d, d)  # noqa: E731
     wall_y = back - .3
-    # The dark mass behind, kept under the lip (gaps between shards read as deep shadow, never as sky).
+    # The dark mass behind, kept under the lip (gaps between slabs read as deep shadow, never as sky).
     q = [(-half_x, wall_y), (half_x, wall_y), (half_x, back), (-half_x, back)]
     lo = [hs.v((x, y, base)) for x, y in q]
     hi = [hs.v((x, y, .72)) for x, y in q]
@@ -1241,93 +1524,51 @@ def build_void_wall(rng, idx, half_x, front, back, base):
         j = (i + 1) % 4
         hs.face((lo[i], lo[j], hi[j], hi[i]), "obs", "crack", OBS, outward=out)
     hs.face(tuple(hi), "obs", "crack", OBS, outward=(0, 0, 1))
-    # Shards left to right, overlapping; three depth layers; tips at irregular heights (never a rising or falling run).
-    x = -half_x - .02
-    shards = []
-    while x < half_x - .02:
-        w = rng.choice((.07, .09, .11, .14, .18, .23, .3)) * rng.uniform(.85, 1.15)
-        layer = rng.choices((0, 1, 2), (.45, .35, .2))[0]
-        shards.append((x + w * .5, w, layer))
-        x += w * rng.uniform(.62, .95)
-    tops = []
-    for k in range(len(shards)):
-        roll = rng.random()
-        t = rng.uniform(.82, .95) if roll < .5 else rng.uniform(.6, .82) if roll < .85 else rng.uniform(.38, .6)
-        if tops and abs(t - tops[-1]) < .05:
-            t = max(.38, t - rng.uniform(.08, .18))
-        tops.append(t)
-    for k in rng.sample(range(len(shards)), min(len(shards), rng.randint(1, 3))):
-        tops[k] = 1.0
-    seam_on = set(rng.sample(range(len(shards)), (1, 0, 2, 1)[idx % 4]))
-    for k, ((cx, w, layer), top) in enumerate(zip(shards, tops)):
-        cx = min(max(cx, -half_x + w * .5), half_x - w * .5)
-        yf = front + (rng.uniform(.0, .05), rng.uniform(.07, .14), rng.uniform(.16, .26))[layer]
-        yb = back - .26
-        foot = base if rng.random() < .6 else rng.uniform(.0, .3)
-        if foot > top - .25:
-            foot = base
-        lean_x = rng.uniform(-.1, .1)
-        room = half_x - abs(cx) - w * .5
-        if lean_x * cx > 0:
-            lean_x = math.copysign(min(abs(lean_x), max(room - .012, 0.0) / 1.2), lean_x)
-        ridge = rng.uniform(-.25, .25)
-        bev = min(.024, w * .16)
-
-        def section(z, s):
-            # Knife-edged: a narrow bevel at the front ridge, cheeks back to the wall; narrower as it rises.
-            ox = cx + lean_x * (z - base)
-            hw = w * .5 * s
-            m = ox + ridge * hw
-            cy = yf + (1 - s) * .03
-            return [(ox - hw, yb), (ox - hw * .9, cy + w * rng.uniform(.35, .6)), (m - bev, cy), (m + bev, cy),
-                    (ox + hw * .9, cy + w * rng.uniform(.35, .6)), (ox + hw, yb)]
-        z0 = foot + .1 if foot > base else base
-        z2 = top - (top - foot) * rng.uniform(.14, .22)
-        levels = [(z0, section(z0, 1.0))]
-        if w > .15:   # wide shards get a waist (a second band of facets); narrow ones run straight to the point
-            z1 = foot + (top - foot) * rng.uniform(.4, .55)
-            levels.append((z1, section(z1, rng.uniform(.85, 1.0))))
-        levels.append((z2, section(z2, rng.uniform(.6, .8))))
-        p = levels[-1][1]
-        tip = ((p[2][0] + p[3][0]) * .5 + rng.uniform(-.01, .01), p[2][1] + rng.uniform(.02, .06), top)
-        bottom = None
-        if foot > base:
-            p0 = levels[0][1]
-            bottom = ((p0[2][0] + p0[3][0]) * .5, p0[2][1] + .05, foot)
-        first = len(hs.faces)
-        rings = loft_polys(hs, levels, "obs", OBS, top=tip, bottom=bottom)
-        for fi in range(first, len(hs.faces)):
-            if (fi - first) % 6 == 2:
-                hs.ftag[fi] = "edge"
-        if k in seam_on:
-            pts = [[tuple(hs.verts[i]) for i in ring] for ring in rings]
-            seam(hs, rng, pts, tip, rng.choice((1, 3)), (0, 2), .014)
-    # Blades thrust out of the face, pointing down toward the fog, and a few rising out of the fog in front.
-    for _ in range(rng.randint(1, 3)):
-        x = rng.uniform(-half_x + .15, half_x - .15)
-        z0 = rng.uniform(.35, .7)
-        L = rng.uniform(.2, .36)
-        knife(hs, rng, x, front + .24, z0 - L, rng.uniform(.03, .05), z0=z0, down=True, flank=1, rot=math.pi / 2 + rng.uniform(-.4, .4),
-              lean=(rng.uniform(-.15, .15), -rng.uniform(.18, .3)), prof=((0.0, 1.0), (.5, .55)), tip=rng.uniform(-.4, .4))
-    for _ in range(rng.randint(1, 2)):
-        x = rng.uniform(-half_x + .15, half_x - .15)
-        knife(hs, rng, x, front + .05, rng.uniform(.4, .7), rng.uniform(.03, .05), z0=base, flank=1, rot=rng.uniform(-.5, .5),
-              lean=(rng.uniform(-.08, .08), rng.uniform(.0, .06)), prof=((0.0, 1.0), (.5, .7), (.85, .35)), tip=rng.uniform(-.4, .4))
-    # A fissure deep in a gap: thin violet light running down the dark mass from just under the lip into the fog.
-    if idx % 2 == 0:
-        x = rng.uniform(-half_x + .3, half_x - .3)
-        z = .68
-        pts = []
-        while z > base:
-            pts.append((x + rng.uniform(-.006, .006), z))
-            z -= rng.uniform(.12, .2)
-        pts.append((x, base))
-        for (x0, z0), (x1, z1) in zip(pts, pts[1:]):
-            w0 = .006 if z0 < .6 else .003
-            quad = [hs.v((x0 - w0, wall_y - .004, z0)), hs.v((x0 + w0, wall_y - .004, z0)), hs.v((x1 + .006, wall_y - .004, z1)), hs.v((x1 - .006, wall_y - .004, z1))]
-            hs.face(quad, ("glow", "seam"), "main", GLOW, outward=(0, -1, 0))
-    for v in hs.verts:   # leaning shards at the ends stay inside the segment; a seam lifted off a facet stays above the base
+    # Slabs across the segment.
+    cuts, x = [-half_x], -half_x
+    while half_x - x > .55:
+        x += rng.uniform(.38, .72)
+        cuts.append(min(x, half_x - .3))
+        x = cuts[-1]
+    cuts.append(half_x)
+    glow_slab = rng.randrange(len(cuts) - 1) if idx % 2 == 0 else -1
+    points = set(rng.sample(range(len(cuts) - 1), 1)) if rng.random() < .6 else set()
+    prev_top = None
+    for k, (a, b) in enumerate(zip(cuts, cuts[1:])):
+        mid, w = (a + b) * .5 + J(.04), b - a
+        y0 = front + rng.choice((rng.uniform(.0, .06), rng.uniform(.08, .18)))
+        top = 1.0 if rng.random() < .55 else rng.uniform(.84, .97)
+        if prev_top is not None and abs(top - prev_top) < .04:
+            top = max(.82, top - rng.uniform(.06, .12))
+        prev_top = top
+        planes = [
+            face_plane(180 + J(20), 84 + J(5), (a - .015, 0.0, .5)), face_plane(J(20), 84 + J(5), (b + .015, 0.0, .5)),
+            # The front: two facets meeting in a ridge somewhere across it, each leaning back a little.
+            face_plane(-90 - rng.uniform(12, 30), 80 + J(6), (mid + J(w * .2), y0, .5)),
+            face_plane(-90 + rng.uniform(12, 30), 80 + J(6), (mid + J(w * .2), y0, .5)),
+        ]
+        if k in points:
+            # A short point: two steep top planes meeting in a ridge that peaks at the lip.
+            planes += [face_plane(-90 - rng.uniform(25, 45), 48, (mid, y0 + .12, top)), face_plane(-90 + rng.uniform(25, 45), 48, (mid, y0 + .12, top))]
+        else:
+            # The top tilts back into the slope (hidden behind the lip by the terrain), so the slab's highest line is its
+            # sharp front edge, chamfered steeply toward the canyon: a jagged lip line, never a visible tread.
+            planes += [face_plane(90 + J(25), rng.uniform(16, 28), (mid, y0 + .06, top)),
+                       face_plane(-90 + J(20), rng.uniform(56, 66), (mid, y0 + .02, top - rng.uniform(.05, .09)))]
+        # A steep crack down the face, the outer piece slipped down and out a little.
+        crack_az = rng.choice((0, 180)) + J(35)
+        fr = [frac(crack_az, rng.uniform(62, 80), (mid + J(w * .25), y0 + .1, rng.uniform(.4, .75)), rng.uniform(.012, .022),
+                   rng.uniform(.015, .05), J(.015))]
+        if w > .55 and rng.random() < .5:
+            fr.append(frac(rng.choice((0, 180)) + J(35), rng.uniform(55, 75), (mid + J(w * .3), y0 + .1, rng.uniform(.2, .5)),
+                           rng.uniform(.01, .018), rng.uniform(.01, .03), J(.01)))
+        # (Bevels only on the canyon side's sharp edges: dozens of segments stand in view, 650 triangles each.)
+        # (The slab ends at the lip line, where its top is highest: no level cap behind it to lie flush with the plateau.)
+        fractured(hs, rng, planes, fr, glow=(0,) if k == glow_slab else (), box=(a - .06, b + .06, front, back - .3, base, 1.0),
+                  bevel_w=.004, bottom=base, bevel_front=front + .26)
+    for v in hs.verts:   # pieces slipped along their cracks stay inside the segment and above the base
         v[0] = min(max(v[0], -half_x), half_x)
+        v[1] = max(v[1], front)
         v[2] = max(v[2], base)
     vc.triangulate_nonplanar(hs, tol=1e-6)
     return hs
@@ -1367,14 +1608,21 @@ def colour_fn_for(hs, name, sources=None, reach=0.16, rock=False):
                 b += w * (1 - d / reach) ** 2
         return kit.clamp(b, 0.0, 1.0)
 
+    groups = {}
+
     def fn(paint, p, n, ao, fi):
         kind = paint if isinstance(paint, str) else paint[0]
         j = jit[fi]
+        if kind == "obs" and not isinstance(paint, str):
+            # A hill facet written as several triangles: one depth of black for the whole plane.
+            j = groups.setdefault(paint[1], random.Random(f"{SEED}:facet:{name}:{paint[1]}").uniform(0.0, 1.0))
         if kind == "glow":
             if paint[1] == "hot":
                 return C["glow_hot"]
             if paint[1] == "dim":
                 return kit.mul3(C["glow"], .55)
+            if paint[1] == "faint":
+                return kit.mul3(C["glow"], .32)
             return C["glow"]
         tag = hs.ftag[fi]
         if tag == "crack":
@@ -1405,11 +1653,15 @@ def colour_fn_for(hs, name, sources=None, reach=0.16, rock=False):
     return fn
 
 
-def gloss_alpha(hs, cols, gloss=None):
-    """Vertex alpha: 0 on every obsidian and alloy face (full gloss), 1 on glow faces."""
+def gloss_alpha(hs, cols, gloss=None, broad_up=None, broad=None):
+    """Vertex alpha: 0 on every obsidian and alloy face (full gloss), 1 on glow faces. The hills' big facets are satin
+    instead (a large glossy plane mirroring the sky flashes white): `broad` on every facet but the edge bevels (which
+    stay fully glossy, so only the edges glint), `broad_up` on the facets turned mostly up."""
     corner = 0
-    for f, m in zip(hs.faces, hs.fmat):
+    for f, m, t in zip(hs.faces, hs.fmat, hs.ftag):
         a = 1.0 if m == GLOW else (0.0 if gloss is None else gloss)
+        if broad is not None and m != GLOW and t != "edge":
+            a = broad_up if broad_up is not None and kit.face_normal(hs.verts, f).z > .55 else broad
         for c in range(corner, corner + len(f)):
             cols[c] = (cols[c][0], cols[c][1], cols[c][2], a)
         corner += len(f)
@@ -1430,6 +1682,7 @@ PIECES = {
     "umb_pad": (build_pad, 2, 0.7, 0.7, 0.17, 1500),
     "umb_dock": (build_dock, 1, 0.7, 0.86, True, 3000),
     "umb_peak": (build_peak, 4, 1.0, 0.9, True, 1000),
+    "umb_hill": (build_hill, 8, 1.5, 1.3, True, 900),
 }
 
 
@@ -1457,7 +1710,7 @@ def build_all(focus=None):
         hs = fn(random.Random(f"{SEED}:{name}"), idx)
         vc.triangulate_nonplanar(hs, tol=1e-6)
         centre_xy(hs)
-        if prefix == "umb_peak":
+        if prefix in ("umb_peak", "umb_hill"):
             # Mountains fill their footprint (integrator: about 1.0 x 0.9): an overshooting foot shard shrinks the massif
             # a little in plan (shape kept), never past the contract.
             hx, hz = PIECES[prefix][2], PIECES[prefix][3]
@@ -1476,8 +1729,10 @@ def build_all(focus=None):
         if "y_max_exact" in rule:
             fit_top(hs, 1.0)
         cols = vc.bake(hs, name, dict(glow=set(), ao=0.3, ground=None if prefix in FLOATING else 0.0,
-                                      colour_fn=colour_fn_for(hs, name, rock=prefix == "umb_peak")))
-        gloss_alpha(hs, cols)
+                                      colour_fn=colour_fn_for(hs, name, rock=prefix in ("umb_peak", "umb_hill"))))
+        stone = prefix in ("umb_monolith", "umb_pylon", "umb_gate", "umb_reactor", "umb_obelisk", "umb_pad", "umb_dock")
+        gloss_alpha(hs, cols, broad_up=.6 if prefix == "umb_hill" else .45 if stone else None,
+                    broad=.3 if prefix == "umb_hill" else .32 if stone else None)
         objs[name] = vc.make_object(name, hs, mats, (0.0, 0.0, 0.0), cols)
         nodes[name] = rule
         x0, x1, y0, y1, z0, z1 = hs.bounds()
@@ -1508,7 +1763,12 @@ def preview_materials(attr):
         vcn = m.node_tree.nodes.new("ShaderNodeVertexColor")
         vcn.layer_name = attr
         m.node_tree.links.new(vcn.outputs["Color"], b.inputs["Base Color"])
-        b.inputs["Roughness"].default_value = rough
+        # The runtime's gloss: roughness = mix(0.86, rough, 1 - alpha).
+        mr = m.node_tree.nodes.new("ShaderNodeMapRange")
+        mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 0.0, 1.0
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = rough, .86
+        m.node_tree.links.new(vcn.outputs["Alpha"], mr.inputs["Value"])
+        m.node_tree.links.new(mr.outputs["Result"], b.inputs["Roughness"])
         try:
             b.inputs["Coat Weight"].default_value = .35 if name == "umbra_obsidian" else .15
             b.inputs["Coat Roughness"].default_value = .05
@@ -1826,6 +2086,16 @@ def infra_sheet(objs, scene, dirs):
             objs[name].scale = (1.0, 1.0, 1.0)
             objs[name].hide_render = True
     scene.render.resolution_y = 1200
+    # A close look at the worked stone (faceted tiers, joints, chamfers, plate grooves): the monolith and the gate.
+    for name, loc, stretch in (("umb_monolith_0", (-.65, 0.0, 0.0), 1.0), ("umb_gate_0", (.75, .3, 0.0), 1.3)):
+        o = objs[name]
+        o.hide_render, o.location, o.scale = False, loc, (1.0, 1.0, stretch)
+    for view, tag in (("three_quarter", "infra-closeup-34"), ("game", "infra-closeup-game")):
+        camera(scene, (0.05, .15, .45), 2.9, view)
+        for d in dirs:
+            render(scene, os.path.join(d, f"umbra-kit-{tag}.png"))
+    for name in ("umb_monolith_0", "umb_gate_0"):
+        objs[name].hide_render, objs[name].scale = True, (1.0, 1.0, 1.0)
     bpy.data.objects.remove(g, do_unlink=True)
     if not os.path.exists(CONCEPT):
         return
@@ -1849,6 +2119,50 @@ def infra_sheet(objs, scene, dirs):
         print("UKIT preview", out.filepath_raw)
         bpy.data.images.remove(out)
         bpy.data.images.remove(img)
+
+
+def hills(objs, scene, dirs, cliff_path):
+    """The obsidian hills (umb_hill): the eight alone, then a range of them overlapping at the integrator's scales (2-4,
+    height 1.5-4.2) with a few sharp rocks, on the dark plateau beside the fogged canyon and its walls."""
+    for o in objs.values():
+        o.hide_render = True
+    names = [f"umb_hill_{k}" for k in range(8)]
+    for k, name in enumerate(names):
+        o = objs[name]
+        o.hide_render = False
+        o.location = ((k % 4 - 1.5) * 3.4, (k // 4) * 3.2, 0.0)
+    g = kit.plane_obj("preview_ground", -60, 60, -30, 60, 0.0, ground_material("preview_ground_hills", 12.0, 30.0))
+    for view, tag, ortho in (("game", "hills-game", 14.5), ("three_quarter", "hills-34", 15.0)):
+        camera(scene, (0.0, 1.6, .5), ortho, view)
+        for d in dirs:
+            render(scene, os.path.join(d, f"umbra-kit-{tag}.png"))
+    for name in names:
+        objs[name].hide_render = True
+    bpy.data.objects.remove(g, do_unlink=True)
+    if not os.path.exists(cliff_path):
+        return
+    walls, attr = import_glb(cliff_path)
+    apply_preview(walls.values(), attr)
+    made = canyon_scene(scene, walls)
+    rng = random.Random(f"{SEED}:hillrange")
+    # Overlapping hills along the far plateau, a few on the near one; rocks as accents at their feet.
+    spots = [(-8.6, 4.2), (-5.4, 2.8), (-2.6, 5.4), (-.4, 2.6), (2.6, 4.6), (5.2, 2.9), (8.0, 4.8), (-6.8, 7.4), (3.6, 7.8), (-3.0, -6.2), (4.4, -6.6)]
+    order = [0, 3, 1, 5, 6, 2, 7, 4, 1, 5, 3]
+    for (x, y), k in zip(spots, order):
+        s_ = rng.uniform(2.0, 3.6)
+        h = min(4.2, max(1.5, s_ * rng.uniform(.75, 1.25)))
+        made.append(place(scene, objs[names[k]], (x, y, -.08), rng.uniform(-.6, .6) + (math.pi if rng.random() < .3 else 0.0), (s_, s_, h)))
+    for x, y in ((-3.9, 1.6), (1.4, 1.5), (6.6, 1.7), (-1.2, -4.6)):
+        s_ = rng.uniform(1.4, 2.0)
+        made.append(place(scene, objs[f"umb_peak_{rng.randrange(4)}"], (x, y, -.06), rng.uniform(0, TAU), (s_, s_, s_ * rng.uniform(1.6, 2.1))))
+    for view, tag, ortho, target in (("game", "hillrange-game", 22.0, (0.0, 2.0, 0.0)), ("three_quarter", "hillrange-34", 22.0, (0.0, 2.0, .5))):
+        camera(scene, target, ortho, view)
+        for d in dirs:
+            render(scene, os.path.join(d, f"umbra-kit-{tag}.png"))
+    for o in made:
+        bpy.data.objects.remove(o, do_unlink=True)
+    for o in walls.values():
+        bpy.data.objects.remove(o, do_unlink=True)
 
 
 def import_glb(path):
@@ -1907,12 +2221,14 @@ def preview_kit(objs, args):
     apply_preview(objs.values())
     setup_preview(scene)
     focus = args.focus.split(",") if args.focus else None
-    if not focus or any(f not in ("umb_peak", "infra") for f in focus):
-        lineup(objs, scene, dirs, [f for f in focus if f != "infra"] if focus else None)
+    if not focus or any(f not in ("umb_peak", "infra", "umb_hill") for f in focus):
+        lineup(objs, scene, dirs, [f for f in focus if f not in ("infra", "umb_hill")] if focus else None)
     if not focus or "umb_peak" in focus:
         peaks(objs, scene, dirs)
     if not focus or "infra" in focus:
         infra_sheet(objs, scene, dirs)
+    if not focus or "umb_hill" in focus:
+        hills(objs, scene, dirs, os.path.join(os.path.dirname(args.glb), "cliff-kit.glb"))
     if focus:
         return
     cliff = os.path.join(os.path.dirname(args.glb), "cliff-kit.glb")

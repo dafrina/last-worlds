@@ -523,7 +523,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     if (planet === 'umbra') jobs.push(loadUmbraKit(`${base}assets/umbra/umbra-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // Cliff walls (docs/26 §11): Khepri's columnar basalt walls and Vesper's ice-shelf walls.
-    const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' ? 'khepri' : planet === 'amnion' ? 'amnion' : null;
+    const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' ? 'khepri' : planet === 'amnion' ? 'amnion' : planet === 'umbra' ? 'umbra' : null;
     if (cliffs) jobs.push(loadCliffKit(`${base}assets/${cliffs}/cliff-kit.glb`, cliffs)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // The planet's own wall maps (Vesper's ice walls), so walls never sharpen late; failures settle (procedural detail).

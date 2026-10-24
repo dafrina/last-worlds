@@ -17,14 +17,14 @@ export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'g
 /** Amnion's brood kit (amnion-kit.glb, docs/27, tools/blender/amnion_kit.py). */
 export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards' | 'broodNest' | 'hive' | 'broodRuin' | 'sinewWeb';
 /** Umbra's obsidian kit (umbra-kit.glb, docs/28, tools/blender/umbra_kit.py). */
-export type UmbraKitKind = 'umbPeak' | 'umbSpire' | 'umbShards' | 'umbFloat' | 'umbMonolith' | 'umbPylon' | 'umbGate' | 'umbReactor' | 'umbObelisk' | 'umbPad' | 'umbDock';
+export type UmbraKitKind = 'umbHill' | 'umbPeak' | 'umbSpire' | 'umbShards' | 'umbFloat' | 'umbMonolith' | 'umbPylon' | 'umbGate' | 'umbReactor' | 'umbObelisk' | 'umbPad' | 'umbDock';
 /**
  * Cliff walls (terrain version 15, docs/26 §11): 2-unit wall segments set along cliff rims, base-centre pivot, front
  * (the outward, downhill face) toward +Z, top at exactly 1 (placement scales y by the local drop). Khepri's columnar
  * basalt (public/assets/khepri/cliff-kit.glb; Luna repaints it grey) and Vesper's fractured ice-shelf walls
  * (public/assets/vesper/cliff-kit.glb).
  */
-export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall';
+export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall' | 'voidWall';
 export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | UmbraKitKind | CliffKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
@@ -34,7 +34,8 @@ export const KHEPRI_CLIFF_KINDS: readonly CliffKitKind[] = ['cliffWall'];
 export const VESPER_CLIFF_KINDS: readonly CliffKitKind[] = ['iceWall'];
 export const AMNION_CLIFF_KINDS: readonly CliffKitKind[] = ['fleshWall'];
 export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards', 'broodNest', 'hive', 'broodRuin', 'sinewWeb'];
-export const UMBRA_KIT_KINDS: readonly UmbraKitKind[] = ['umbPeak', 'umbSpire', 'umbShards', 'umbFloat', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbPad', 'umbDock'];
+export const UMBRA_CLIFF_KINDS: readonly CliffKitKind[] = ['voidWall'];
+export const UMBRA_KIT_KINDS: readonly UmbraKitKind[] = ['umbHill', 'umbPeak', 'umbSpire', 'umbShards', 'umbFloat', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbPad', 'umbDock'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
   'ruinTower', 'ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'];
 /** Data-driven kit table: node prefix, variant count, contract bounds (half extents) and node height. */
@@ -92,9 +93,13 @@ export const KIT: Readonly<Record<KitKind, {
   sinewWeb: { prefix: 'amn_web', variants: 3, halfX: 1.05, halfZ: 0.45, height: 1, exactTop: false, radius: 1.05 },
   // Amnion's canyon walls (docs/27): flesh lobes and sinews tucked under the plateau's own bone edge.
   fleshWall: { prefix: 'flesh_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
-  // Umbra (umbra-kit.glb, tools/blender/umbra_kit.py, docs/28; halves measured from the kit): sharp rocks, spires and the
-  // faction's structures top out at exactly 1; shards and pads at real size; floating cliffs and the crescent dock from
-  // their lowest spike tip (y 0) to their top (y 1).
+  // Umbra (umbra-kit.glb and cliff-kit.glb, tools/blender/umbra_kit.py, docs/28; halves measured from the kit):
+  // knife-edged obsidian shards on the canyon-wall contract; sharp rocks, spires and the faction's structures top out at
+  // exactly 1; shards and pads at real size; floating cliffs and the crescent dock from their lowest spike tip (y 0) to
+  // their top (y 1).
+  voidWall: { prefix: 'void_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
+  // The hills: fractured obsidian massifs, each a few large planar faces broken along cracks (razor edges).
+  umbHill: { prefix: 'umb_hill', variants: 8, halfX: 1.5, halfZ: 1.3, height: 1, exactTop: true, radius: Math.hypot(1.5, 1.3) },
   // Sharp obsidian rocks (crags), on and around the hills.
   umbPeak: { prefix: 'umb_peak', variants: 4, halfX: 1, halfZ: 0.9, height: 1, exactTop: true, radius: Math.hypot(1, 0.9) },
   umbSpire: { prefix: 'umb_spire', variants: 4, halfX: 0.42, halfZ: 0.42, height: 1, exactTop: true, radius: Math.hypot(0.42, 0.42) },

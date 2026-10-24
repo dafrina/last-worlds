@@ -3,7 +3,7 @@ import { WORLD_PAINT_GLSL, setWorldPaint, worldGlow, worldPaintUniforms } from '
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
 
@@ -348,8 +348,10 @@ export function loadUmbraKit(url: string): Promise<KitGeometries> { return loadK
  * Loads a world's cliff kit (`<world>/cliff-kit.glb`, docs/26 §11): Khepri's columnar basalt walls (also Luna's) or
  * Vesper's ice-shelf walls. Nodes it lacks keep their stand-ins.
  */
-export function loadCliffKit(url: string, planet: 'khepri' | 'vesper' | 'amnion'): Promise<KitGeometries> {
-  return loadKit(url, planet === 'vesper' ? VESPER_CLIFF_KINDS : planet === 'amnion' ? AMNION_CLIFF_KINDS : KHEPRI_CLIFF_KINDS);
+export function loadCliffKit(url: string, planet: 'khepri' | 'vesper' | 'amnion' | 'umbra'): Promise<KitGeometries> {
+  return loadKit(url, planet === 'vesper' ? VESPER_CLIFF_KINDS : planet === 'amnion' ? AMNION_CLIFF_KINDS : planet === 'umbra' ? UMBRA_CLIFF_KINDS : KHEPRI_CLIFF_KINDS,
+    // Umbra's shards carry glowing violet fissures on `umbra_glow` (COLOR_0 sets the glow, as its kit).
+    planet === 'umbra' ? /glow/i : undefined);
 }
 function loadKit(url: string, kinds: readonly KitKind[], emissive?: RegExp): Promise<KitGeometries> {
   const names = kinds.flatMap(kind => Array.from({ length: KIT[kind].variants }, (_, v) => kitNodeName(kind, v)));
@@ -755,7 +757,7 @@ const EMISSIVE = '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glow
  * its blue base, plus a crisp bright rim along the top edge; snow and ice tops carry sparse sun-glints.
  */
 const VESPER_KIT_HEAD = `
-uniform float vesperLook; uniform float lunaLook; uniform float nacreLook; uniform float beaconTime; varying float vPieceY;
+uniform float vesperLook; uniform float lunaLook; uniform float nacreLook; uniform float kitGlint; uniform float beaconTime; varying float vPieceY;
 float vesperHash( vec2 p ) { return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ); }`;
 const VESPER_KIT_SURFACE = `
   float vesperIce = 0.0, vesperSnow = 0.0;
@@ -847,7 +849,7 @@ const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; col
 export function createTerrainMaterials() {
   const time = { beaconTime: { value: 0 } };
   /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material); lunaLook greys the basalt. */
-  const kitLook = { vesperLook: { value: 0 }, lunaLook: { value: 0 }, nacreLook: { value: 0 } };
+  const kitLook = { vesperLook: { value: 0 }, lunaLook: { value: 0 }, nacreLook: { value: 0 }, kitGlint: { value: 0.45 } };
   /** Kit glow: Khepri's mineral cyan; on Vesper the only glowing faces it draws are radiator/lamp bands (orange). */
   const kitGlow = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } };
   const fallback = createDetailTexture();
@@ -1191,13 +1193,15 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
       // Glossy faces (a negative glow: Amnion's pearl egg shells) keep a smooth surface and a sharp sun highlight.
       .replace('#include <lights_physical_fragment>', `float kitGloss = clamp( -vGlow, 0.0, 1.0 );
   roughnessFactor = mix( roughnessFactor, 0.14, kitGloss );
-  normal = normalize( mix( normal, nonPerturbedNormal, kitGloss ) );
+  // (Safe: where the two normals oppose, their mix is zero, and normalizing it gave NaN.)
+  vec3 kitNormal = mix( normal, nonPerturbedNormal, kitGloss );
+  normal = dot( kitNormal, kitNormal ) > 1e-8 ? normalize( kitNormal ) : nonPerturbedNormal;
   #include <lights_physical_fragment>`)
       // Small shells smear the physical highlight (geometry roughness): add a sharp glint from the sun.
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
   #if NUM_DIR_LIGHTS > 0
     vec3 glintHalf = normalize( directionalLights[ 0 ].direction + normalize( vViewPosition ) );
-    reflectedLight.directSpecular += directionalLights[ 0 ].color * pow( max( dot( normal, glintHalf ), 0.0 ), 48.0 ) * 0.45 * kitGloss;
+    reflectedLight.directSpecular += directionalLights[ 0 ].color * pow( max( dot( normal, glintHalf ), 0.0 ), 48.0 ) * kitGlint * kitGloss;
   #endif`)
       .replace('#include <map_fragment>', wall ? WALL_DETAIL_FRAGMENT + VESPER_KIT_SURFACE : `#ifdef USE_MAP
   float detail = texture2D( map, vMapUv ).r * 2.0;
@@ -1266,8 +1270,8 @@ ${VESPER_KIT_SURFACE}`)
     if ((vesper || luna || planet === 'amnion' || umbra) && !crackTexture) crackTexture = createCrackTexture();
     crackLook.crackMap.value = crackTexture ?? flatNormal;
     // (Umbra's cracks are the concept's slab seams: their edges catch the light, so the line lightens the black glass.)
-    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : umbra ? 0.8 : 0;
-    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : umbra ? [3.2, 2.9, 4.2] : [0.5, 0.5, 0.52]) as [number, number, number]);
+    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : umbra ? 1 : 0;
+    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : umbra ? [4.2, 3.8, 5.4] : [0.5, 0.5, 0.52]) as [number, number, number]);
     groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : umbra ? linear(0x6a5aa8) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters. Umbra's canyons vanish into a glowing purple fog from just under the lip.
     groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : umbra ? 0.7 : khepri.hazeStrength.value;
@@ -1345,6 +1349,8 @@ ${VESPER_KIT_SURFACE}`)
       infra.roughness = vesper ? 0.35 : 0.55; infra.metalness = vesper ? 0.45 : 0.3; infra.envMapIntensity = vesper ? 0.9 : 0.55;
       // Umbra's kit is black glass (docs/28): it reads by mirroring the eclipse's violet sky in its facets and edges.
       kit.envMapIntensity = planet === 'umbra' ? 1.1 : .35;
+      // (The glint is for small round shells: on Umbra's large flat facets it lit a whole face white.)
+      kitLook.kitGlint.value = planet === 'umbra' ? 0.05 : 0.45;
     },
     dispose() {
       ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); lunaTrack?.dispose(); snowTexture?.dispose(); crackTexture?.dispose(); fallback.dispose(); flatNormal.dispose();

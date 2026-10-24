@@ -401,7 +401,7 @@ def build(world, preview=None):
         problems += check(name, hs)
         cols = vc.bake(hs, name, dict(glow=set(), ao=.35, ground=0.0, colour_fn=colour(hs), tile=('x', 2.0)))
         if world == 'umbra':
-            uk.gloss_alpha(hs, cols)   # black glass: vertex alpha 0 marks every non-glowing face glossy
+            uk.gloss_alpha(hs, cols, broad_up=.6, broad=.45)   # black glass: satin faces (a big glossy plane mirrors the fog white), glossy edges
         objs[name] = vc.make_object(name, hs, mats, (0.0, 0.0, 0.0), cols)
         nodes[name] = dict(budget=TRI_BUDGET, foot=(2 * HALF_X, 1.2), y_min_exact=BASE, y_max_exact=1.0)
         print('CLIFF %-14s tris=%d' % (name, hs.tris()))
