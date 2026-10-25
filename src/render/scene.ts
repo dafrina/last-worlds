@@ -30,6 +30,7 @@ import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-vi
 import { CRADLE_STYLE, ECLIPSE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
 import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
+import { WRAITH } from '../content/wraith';
 import { BASTION } from '../content/bastion';
 import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint';
 import { viewFootprint, type ViewFootprint } from './view-footprint';
@@ -317,6 +318,7 @@ const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: numb
 const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NacreCraftNode; scale: number }>> = {
   dart: { node: 'nacre_shard', scale: 1 }, needle: { node: 'nacre_shard', scale: 1.1 }, lancer: { node: 'nacre_veil', scale: 1.1 },
   weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, pulsar: { node: 'nacre_pulsar', scale: 1.1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
+  wraith: { node: 'nacre_veil', scale: 1 },
 };
 
 /**
@@ -327,12 +329,14 @@ const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: UmbraCraf
   dart: { node: 'umbra_interceptor', scale: 1 }, needle: { node: 'umbra_interceptor', scale: 0.9 }, weaver: { node: 'umbra_fighter', scale: 0.95 },
   lancer: { node: 'umbra_hunter', scale: 1.05 }, diamond: { node: 'umbra_carrier', scale: 1 }, pulsar: { node: 'umbra_artillery', scale: 1 },
   turret: { node: 'umbra_turret', scale: 1 }, missile: { node: 'umbra_turret', scale: 1 },
+  wraith: { node: 'umbra_hunter', scale: 1 },
 };
 const UMBRA_DRONE_SCALE = 1.45;
 
 /** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
 const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
   dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret', pulsar: 'khepri_weaver',
+  wraith: 'khepri_lancer',
 };
 /** Engine sockets (x, z) of the Khepri craft, from tools/blender/khepri_craft.py SOCKETS (glTF z toward the player). */
 const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [number, number])[]>> = {
@@ -341,7 +345,7 @@ const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [numbe
 };
 
 /** Every enemy kind the renderer draws (Khepri and Vesper); ground kinds stand on terrain or float on the sea. */
-const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel', 'pulsar'];
+const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel', 'pulsar', 'wraith'];
 const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
 /** Loot props and ground wrecks (art/loot-props, Blender): the fuel skid target and what destroyed ground targets leave. */
 const LOOT_NODES = ['loot_fuel', 'wreck_turret_0', 'wreck_turret_1', 'wreck_fuel', 'fx_missile'] as const;
@@ -352,6 +356,7 @@ const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle', 'diam
 /** Code-built Khepri model each kind uses until (or unless) its Vesper model is available. */
 const KHEPRI_STAND_IN: Readonly<Record<EnemyKind, 'dart' | 'weaver' | 'turret' | 'lancer'>> = {
   dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret', fuel: 'turret', pulsar: 'weaver',
+  wraith: 'lancer',
 };
 // The pontoon deck under a ground battery over open water: PONTOON_DECK (src/world/run-route.ts, shared with the
 // simulation's ground seats).
@@ -518,8 +523,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (next === 'vesper') { ensureCraft(next); ensureArk(); } else foam.clear();
     // (Amnion flies Nacre's organic craft as a stand-in until its own faction exists; THE CRADLE has its own model: docs/27.)
     if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); }
-    if (next === 'amnion') { ensureNacreCraft(); ensureCradle(); }
-    if (next === 'umbra') { ensureUmbraCraft(); ensureEclipse(); }
+    if (next === 'amnion') { ensureNacreCraft(); ensurePredator(next); ensureCradle(); }
+    if (next === 'umbra') { ensureUmbraCraft(); ensurePredator(next); ensureEclipse(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
@@ -696,11 +701,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** Nacre craft batches by node, created once nacre-craft.glb has loaded (Nacre runs only). */
   type FactionBatch = { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh; engines: [number, number][]; plume: number };
   /** One instanced batch per faction node (a ground node also gets its see-through silhouette), on the enemy material. */
-  function factionBatches<N extends string>(nodes: Map<N, NacreCraft>, label: string, groundNode: N, plume: (name: N) => number): Map<N, FactionBatch> {
+  function factionBatches<N extends string>(nodes: Map<N, NacreCraft>, label: string, groundNode: N | null, plume: (name: N) => number, material = materials.enemyCraft): Map<N, FactionBatch> {
     const batches = new Map<N, FactionBatch>();
     for (const [name, craft] of nodes) {
       const ground = name === groundNode;
-      const mesh = new THREE.InstancedMesh(craft.geometry, materials.enemyCraft, ENEMY_CAPACITY);
+      const mesh = new THREE.InstancedMesh(craft.geometry, material, ENEMY_CAPACITY);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `${label} ${name}`;
       mesh.castShadow = mesh.receiveShadow = ground;
       for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
@@ -714,6 +719,19 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       scene.add(mesh); batches.set(name, { mesh, ghost, engines: craft.engines, plume: plume(name) });
     }
     return batches;
+  }
+  const predatorBatches = new Map<string, FactionBatch>(), predatorLoads = new Map<PlanetId, Promise<void>>();
+  function ensurePredator(next: PlanetId): Promise<void> | undefined {
+    if (next !== 'amnion' && next !== 'umbra') return undefined;
+    if (predatorLoads.has(next)) return predatorLoads.get(next);
+    const name = next === 'amnion' ? 'amnion_brood_heavy' : 'umbra_wraith';
+    const file = next === 'amnion' ? 'brood-heavy-v1.glb' : 'wraith-v1.glb';
+    const loading = loadCraftNodes(`${import.meta.env.BASE_URL}assets/${next}/${file}`, [name]).then(nodes => {
+      if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
+      for (const [key, batch] of factionBatches(nodes, 'Predator', null, () => 0x8a6cff, materials.alienCraft)) predatorBatches.set(key, batch);
+      warmed = false;
+    }).catch(error => console.warn(`${name} unavailable; using faction fallback.`, error));
+    predatorLoads.set(next, loading); return loading;
   }
   /** The Umbral fleet's batches, created once umbra-craft.glb has loaded (Umbra runs only). */
   let umbraBatches: Map<UmbraCraftNode, FactionBatch> | null = null, umbraLoad: Promise<void> | undefined;
@@ -846,7 +864,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
-      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined]).then(() => { prepared.add(next); });
+      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
@@ -1057,7 +1075,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         bastion.update(state, bossPlacement);
         // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
         terrain.setExclusion(bastion.footprint(state, bossPlacement));
-      }
+      } else bastion.update(state, null); // Clear the previous fortress and its FX on every boss/world switch.
       // Waterline on the sea; targets (local height 1.6) project onto their logical rows (rayPlacement under a lens).
       const sea = world.planet.seaLevel ?? 0;
       let arkSeat: { x?: number; s: number; baseHeight: number } | null = null;
@@ -1273,15 +1291,26 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const nacreNode: NacreCraftNode | null = (planet === 'nacre' || planet === 'amnion') && nacreBatches && enemy.kind !== 'fuel' ? (pod ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
         const umbraNode: UmbraCraftNode | null = planet === 'umbra' && umbraBatches && enemy.kind !== 'fuel' ? (pod ? 'umbra_drone' : UMBRA_CRAFT[enemy.kind].node) : null;
         // The world's own faction (Nacre's craft also stand in on Amnion), else Vesper's or Khepri's models.
-        const nacreBatch = umbraNode ? umbraBatches!.get(umbraNode) : nacreNode ? nacreBatches!.get(nacreNode) : undefined;
+        const predator = pod ? undefined : (planet === 'amnion' && enemy.kind === 'diamond' ? predatorBatches.get('amnion_brood_heavy')
+          : planet === 'umbra' && enemy.kind === 'wraith' ? predatorBatches.get('umbra_wraith') : undefined);
+        const nacreBatch = predator ?? (umbraNode ? umbraBatches!.get(umbraNode) : nacreNode ? nacreBatches!.get(nacreNode) : undefined);
         const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
-        const craftScale = umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
+        const craftScale = predator ? (enemy.kind === 'wraith' ? .72 : .82) : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
           : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
         if (slot < ENEMY_CAPACITY && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
-          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale); transform.updateMatrix();
+          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale);
+          const blink = enemy.blink, phase = blink ? (state.time - blink.startedAt) / WRAITH.teleport : 1;
+          if (blink && phase >= 0 && phase < 1) {
+            const t = phase * phase * (3 - 2 * phase), stretch = Math.sin(phase * Math.PI);
+            transform.position.set(THREE.MathUtils.lerp(blink.fromX, enemy.x, t), VIEW.flightHeight, -THREE.MathUtils.lerp(blink.fromS, enemy.s, t));
+            transform.scale.multiply(new THREE.Vector3(1 + stretch * 1.3, 1 - stretch * .7, 1 - stretch * .7));
+            // A single bounded streak, rather than overlapping transparent copies of the whole craft.
+            line(blink.fromX, blink.fromS, enemy.x, enemy.s, 0x8c6cdb);
+          }
+          transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
           const seen = enemyHp.get(enemy.id); enemyHp.set(enemy.id, enemy.hp);
           if (seen !== undefined && enemy.hp < seen) enemyHitAt.set(enemy.id, state.time);
@@ -1349,7 +1378,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Hunter shells (src/sim/hunters.ts): one per live hunter in view, in the world's glow, dimming charge by charge.
       let shellCount = 0;
       for (const enemy of state.enemies) {
-        if (!enemy.hunter || enemy.hp <= 0 || shellCount >= hunterShells.length) continue;
+        if (!enemy.hunter || enemy.hp <= 0 || shellCount >= hunterShells.length || (enemy.blink && state.time - enemy.blink.startedAt < WRAITH.teleport)) continue;
         const { energy, grow } = shellEnergy(enemy.id, hunterCharges(enemy), HUNTERS.shield.charges, enemyHitAt.get(enemy.id) ?? -9, state.time);
         if (energy <= 0) continue;
         const mesh = hunterShells[shellCount++], uniforms = (mesh.material as THREE.ShaderMaterial).uniforms;
@@ -1424,7 +1453,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
       emplacementBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
-      for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches] as const) if (set) for (const batch of set.values()) {
+      for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches, predatorBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
         batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true; if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;
         if (batch.ghost) batch.ghost.count = count;
@@ -1591,6 +1620,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
           textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
+          predators: Object.fromEntries([...predatorBatches].map(([name, batch]) => [name, batch.mesh.count])),
         });
         lastStatsTick = state.tick;
       }

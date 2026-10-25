@@ -1505,18 +1505,21 @@ def loft_polys(hs, levels, paint, mat, top=None, bottom=None, cap_top=False, tag
 
 
 def build_void_wall(rng, idx, half_x, front, back, base):
-    """Umbra's canyon walls, third pass (user, 24 October: first "spikey rock cliffs", then about flat caps "not ...
-    jagged but like steps", then "less spikey as a vibe and more cracked and sharp"): one segment of broad slabs of
-    black glass standing side by side along the lip, each cut by a few planes into big clean facets meeting in hard
-    edges (an angled front ridge, angled sides, a top tilted back into the slope behind a sharp chamfered front edge,
-    never a level cap or visible tread; now and then a short point), each broken along a steep crack and the broken piece slipped a little
-    down and out, so dark cracks run down the face; at most one crack per segment glows faintly violet. Slab widths,
-    depths and top heights irregular so neighbouring segments never repeat a rhythm. Blender frame: front (the canyon
-    side, toward the camera) is -y; x ±half_x, y front … back, z base … 1."""
+    """Umbra's canyon walls, fourth pass (user, 24 October, after the fractured hills: "i love the new sharp hills, can
+    you not do something similar for the cliffs?"): the sheer obsidian canyon wall itself, in the hills' language. One
+    to three convex solids per segment, each cut by a handful of planes so every face is one large, exactly planar
+    facet: two or three big front planes leaning back a little and meeting in vertical ridges, dropping into the fog;
+    the top tilted back into the slope behind a sharp chamfered front edge, notched by oblique cuts into a jagged lip
+    line; solids meeting in angled joint cracks. Each solid broken along steep fracture planes, the pieces shifted a
+    little (a sheet sheared off the face and slipped down, a diagonal break), so the cracks are dark grooves between
+    razor edges; at most one glows faintly violet. Thin flat bevels on the canyon side's sharp edges, lit by their
+    orientation. The cuts differ strongly between the four variants and the ends are open cuts, so overlapping
+    neighbours (by about 15%) join into one continuous fractured wall with no repeating rhythm. Blender frame: front
+    (the canyon side, toward the camera) is -y; x ±half_x, y front … back, z base … 1."""
     hs = HS(rng)
     J = lambda d: rng.uniform(-d, d)  # noqa: E731
     wall_y = back - .3
-    # The dark mass behind, kept under the lip (gaps between slabs read as deep shadow, never as sky).
+    # The dark mass behind (anything seen between the solids reads as deep shadow, never as sky).
     q = [(-half_x, wall_y), (half_x, wall_y), (half_x, back), (-half_x, back)]
     lo = [hs.v((x, y, base)) for x, y in q]
     hi = [hs.v((x, y, .72)) for x, y in q]
@@ -1524,48 +1527,45 @@ def build_void_wall(rng, idx, half_x, front, back, base):
         j = (i + 1) % 4
         hs.face((lo[i], lo[j], hi[j], hi[i]), "obs", "crack", OBS, outward=out)
     hs.face(tuple(hi), "obs", "crack", OBS, outward=(0, 0, 1))
-    # Slabs across the segment.
-    cuts, x = [-half_x], -half_x
-    while half_x - x > .55:
-        x += rng.uniform(.38, .72)
-        cuts.append(min(x, half_x - .3))
-        x = cuts[-1]
-    cuts.append(half_x)
-    glow_slab = rng.randrange(len(cuts) - 1) if idx % 2 == 0 else -1
-    points = set(rng.sample(range(len(cuts) - 1), 1)) if rng.random() < .6 else set()
-    prev_top = None
-    for k, (a, b) in enumerate(zip(cuts, cuts[1:])):
-        mid, w = (a + b) * .5 + J(.04), b - a
-        y0 = front + rng.choice((rng.uniform(.0, .06), rng.uniform(.08, .18)))
-        top = 1.0 if rng.random() < .55 else rng.uniform(.84, .97)
-        if prev_top is not None and abs(top - prev_top) < .04:
-            top = max(.82, top - rng.uniform(.06, .12))
-        prev_top = top
-        planes = [
-            face_plane(180 + J(20), 84 + J(5), (a - .015, 0.0, .5)), face_plane(J(20), 84 + J(5), (b + .015, 0.0, .5)),
-            # The front: two facets meeting in a ridge somewhere across it, each leaning back a little.
-            face_plane(-90 - rng.uniform(12, 30), 80 + J(6), (mid + J(w * .2), y0, .5)),
-            face_plane(-90 + rng.uniform(12, 30), 80 + J(6), (mid + J(w * .2), y0, .5)),
-        ]
-        if k in points:
-            # A short point: two steep top planes meeting in a ridge that peaks at the lip.
-            planes += [face_plane(-90 - rng.uniform(25, 45), 48, (mid, y0 + .12, top)), face_plane(-90 + rng.uniform(25, 45), 48, (mid, y0 + .12, top))]
-        else:
-            # The top tilts back into the slope (hidden behind the lip by the terrain), so the slab's highest line is its
-            # sharp front edge, chamfered steeply toward the canyon: a jagged lip line, never a visible tread.
-            planes += [face_plane(90 + J(25), rng.uniform(16, 28), (mid, y0 + .06, top)),
-                       face_plane(-90 + J(20), rng.uniform(56, 66), (mid, y0 + .02, top - rng.uniform(.05, .09)))]
-        # A steep crack down the face, the outer piece slipped down and out a little.
-        crack_az = rng.choice((0, 180)) + J(35)
-        fr = [frac(crack_az, rng.uniform(62, 80), (mid + J(w * .25), y0 + .1, rng.uniform(.4, .75)), rng.uniform(.012, .022),
-                   rng.uniform(.015, .05), J(.015))]
-        if w > .55 and rng.random() < .5:
-            fr.append(frac(rng.choice((0, 180)) + J(35), rng.uniform(55, 75), (mid + J(w * .3), y0 + .1, rng.uniform(.2, .5)),
-                           rng.uniform(.01, .018), rng.uniform(.01, .03), J(.01)))
-        # (Bevels only on the canyon side's sharp edges: dozens of segments stand in view, 650 triangles each.)
-        # (The slab ends at the lip line, where its top is highest: no level cap behind it to lie flush with the plateau.)
-        fractured(hs, rng, planes, fr, glow=(0,) if k == glow_slab else (), box=(a - .06, b + .06, front, back - .3, base, 1.0),
-                  bevel_w=.004, bottom=base, bevel_front=front + .26)
+    # Where the solids meet: two (variant 1: three) joints at irregular places, each an angled crack.
+    joints = {0: [rng.uniform(-.35, .1)], 1: [rng.uniform(-.55, -.3), rng.uniform(.2, .45)], 2: [], 3: [rng.uniform(.0, .4)]}[idx]
+    bounds = [-half_x - .02] + joints + [half_x + .02]
+    glow_solid = rng.randrange(len(bounds) - 1) if idx in (0, 2) else -1
+    for k, (a, b) in enumerate(zip(bounds, bounds[1:])):
+        w, mid = b - a, (a + b) * .5
+        # Relief: a protruding solid or a recessed one; variant 1's middle solid is a buttress standing forward.
+        y0 = front + (rng.uniform(.0, .05) if (idx == 1 and k == 1) or rng.random() < .5 else rng.uniform(.07, .17))
+        top = 1.0 if rng.random() < .6 else rng.uniform(.88, .97)
+        planes = []
+        # Ends and joints: open cuts at the segment ends, angled cracks where two solids meet.
+        planes.append(face_plane(180 + J(14), rng.uniform(80, 88), (a + (.012 if k else 0.0), 0.0, .5)))
+        planes.append(face_plane(J(14), rng.uniform(80, 88), (b - (.012 if k < len(bounds) - 2 else 0.0), 0.0, .5)))
+        # The face: big planes leaning back a little, meeting in vertical ridges.
+        nf = 3 if (idx == 2 or w > 1.1) else 2
+        for f in range(nf):
+            xf = a + w * (f + .5) / nf + J(w * .12)
+            yaw = (f - (nf - 1) / 2) * rng.uniform(14, 26) + J(8)
+            planes.append(face_plane(-90 + yaw, rng.uniform(80, 87), (xf, y0 + J(.03), .5)))
+        if idx == 3 or rng.random() < .35:
+            # A lower facet leaning back further: the face kinks into the fog.
+            planes.append(face_plane(-90 + J(20), rng.uniform(64, 72), (mid + J(w * .2), y0 + .05, .3)))
+        # The lip: the top tilted back into the slope, a sharp chamfered front edge, oblique notches.
+        planes.append(face_plane(90 + J(20), rng.uniform(16, 26), (mid, y0 + .06, top)))
+        planes.append(face_plane(-90 + J(18), rng.uniform(56, 64), (mid, y0 + .02, top - rng.uniform(.05, .09))))
+        for _ in range(rng.choice((1, 2)) if w > .6 else 1):
+            xn = a + w * rng.uniform(.15, .85)
+            planes.append(face_plane(-90 + rng.choice((-1, 1)) * rng.uniform(30, 55), rng.uniform(48, 62), (xn, y0 + .02, top - rng.uniform(.1, .2))))
+        # Fractures: a sheet sheared off the face and slipped down, and/or a steep diagonal break.
+        fr = []
+        if rng.random() < .55:
+            fr.append(frac(-90 + J(20), rng.uniform(82, 88), (mid, y0 + rng.uniform(.04, .07), .5), rng.uniform(.01, .018), rng.uniform(.02, .045), J(.008)))
+        fr.append(frac(rng.choice((0, 180)) + J(35), rng.uniform(58, 78), (mid + J(w * .3), y0 + .1, rng.uniform(.3, .7)),
+                       rng.uniform(.012, .022), rng.uniform(.01, .035), J(.008)))
+        if idx == 2:
+            fr.append(frac(rng.choice((0, 180)) + J(30), rng.uniform(55, 70), (mid + J(w * .3), y0 + .1, rng.uniform(.25, .6)),
+                           rng.uniform(.012, .02), rng.uniform(.01, .03), J(.008)))
+        fractured(hs, rng, planes, fr, glow=(len(fr) - 1,) if k == glow_solid else (), box=(a - .05, b + .05, front, wall_y, base, 1.0),
+                  bevel_w=.0035, bottom=base, bevel_front=front + .26)
     for v in hs.verts:   # pieces slipped along their cracks stay inside the segment and above the base
         v[0] = min(max(v[0], -half_x), half_x)
         v[1] = max(v[1], front)
@@ -2204,10 +2204,11 @@ def canyon_scene(scene, walls):
     made.append(box_obj("canyon_fog", -14, 14, -3.4, .55, -DROP - .2, -.5, mats["fog"]))
     # A run of walls along the far lip: front toward the camera (-y), top flush with the lip, scaled by the drop.
     names = sorted(walls)
-    order = [names[i % len(names)] for i in (0, 2, 1, 3, 0, 1, 3, 2, 1, 0, 2, 3)]
+    # Overlapping by about 15% (the integrator's spacing), variants in an order that never repeats a run.
+    order = [names[i % len(names)] for i in (0, 2, 1, 3, 0, 1, 3, 2, 1, 0, 2, 3, 1, 2)]
+    step = 2.1 * 1.25 * .85
     for k, name in enumerate(order):
-        made.append(place(scene, walls[name], (-12.0 + k * 2.1 * 1.25 + .3 * ((k * 7) % 3 - 1) * .1, .5 + .04 * ((k * 5) % 3), -DROP),
-                          scale=(1.25, 1.25, DROP)))
+        made.append(place(scene, walls[name], (-13.5 + k * step, .5 + .04 * ((k * 5) % 3), -DROP), scale=(1.25, 1.25, DROP)))
     return made
 
 
@@ -2264,7 +2265,8 @@ def preview_kit(objs, args):
 
 
 def cliff_run(objs, out_dir):
-    """The cliff kit alone in its canyon (tools/blender/cliff_kit.py --world umbra --preview DIR)."""
+    """The cliff kit in its canyon (tools/blender/cliff_kit.py --world umbra --preview DIR): a long run along the far lip
+    with fog below, the published hills of umbra-kit.glb on the plateaus beside it when the kit is there."""
     scene = bpy.context.scene
     os.makedirs(out_dir, exist_ok=True)
     apply_preview(objs.values())
@@ -2272,9 +2274,19 @@ def cliff_run(objs, out_dir):
         o.hide_render = True
     setup_preview(scene, res=(1400, 1050))
     canyon_scene(scene, objs)
-    camera(scene, (0.0, .5, -1.2), 9.0, "game")
+    kit_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "public", "assets", "umbra", "umbra-kit.glb")
+    if os.path.exists(kit_path):
+        kit_objs, attr = import_glb(kit_path)
+        apply_preview(kit_objs.values(), attr)
+        rng = random.Random(f"{SEED}:cliffhills")
+        for (x, y), k in zip(((-9.0, 4.4), (-4.2, 5.6), (1.2, 4.0), (6.4, 5.2), (10.6, 4.2), (-6.0, -6.4), (5.0, -6.8)), (0, 6, 3, 7, 1, 5, 2)):
+            src = kit_objs.get(f"umb_hill_{k}")
+            if src is not None:
+                s_ = rng.uniform(2.2, 3.2)
+                place(scene, src, (x, y, -.08), rng.uniform(-.5, .5), (s_, s_, min(4.2, max(1.5, s_ * rng.uniform(.8, 1.2)))))
+    camera(scene, (0.0, 1.5, -1.2), 15.0, "game")
     render(scene, os.path.join(out_dir, "umbra-cliff-run.png"))
-    camera(scene, (0.0, .5, -1.2), 10.0, "three_quarter")
+    camera(scene, (0.0, 1.5, -1.2), 16.0, "three_quarter")
     render(scene, os.path.join(out_dir, "umbra-cliff-run-34.png"))
     # Close up without fog: the shards' facets and lit bevels.
     for o in scene.objects:

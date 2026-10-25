@@ -68,6 +68,11 @@ const HEAVY_HOLD = (holdS: number, hold: number): readonly Keyframe[] => [
 
 const templates = [
   {
+    id: 'wraith-solo', name: 'Umbral Wraith', entry: 'top',
+    path: TOP_HOLD(14, 16), fireFrom: 1.2, fireUntil: 18,
+    slots: [{ kind: 'wraith', dx: 0, fire: 0 }],
+  },
+  {
     id: 'arrow-5', name: 'Arrowhead of five darts', entry: 'top',
     path: TOP_HOLD(10.5, 7.5), sway: { axis: 'x', amp: 0.9, period: 4.6 }, fireFrom: 0.9, fireUntil: 8.9,
     slots: [

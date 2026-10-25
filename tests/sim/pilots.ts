@@ -1,4 +1,4 @@
-import { BALANCE } from '../../src/content/balance';
+import { BALANCE, BEAM_KINDS } from '../../src/content/balance';
 import { playerKinematics } from '../../src/sim/fairness';
 import { endlessPlanet, endlessSectorPlan, paceInSector } from '../../src/content/endless';
 import { EMPTY_INPUT, VIEW, type InputFrame, type RunState } from '../../src/shared/contracts';
@@ -83,12 +83,15 @@ export function beamAwareHunterPilot(): Pilot {
 
 /** Target to align with: the nearest damageable enemy in view, so automatic fire can clear content. */
 export function preferredX(state: RunState): number {
-  let best: { x: number; score: number } | null = null;
+  let best: { x: number; score: number; resistant: boolean } | null = null;
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.damageable === false || enemy.s < 1.5 || enemy.s > VIEW.maxS - 0.5) continue;
     if (Math.abs(enemy.x - state.cameraX) > VIEW.width / 2 - 0.3) continue;
     const score = enemy.s + 0.8 * Math.abs(enemy.x - state.player.x);
-    if (!best || score < best.score) best = { x: enemy.x, score };
+    // A Seeker pilot clears softer threats before a long shield fight, except beam craft:
+    // their persistent lane hazards still deserve immediate attention through the armour.
+    const resistant = state.player.weapon === 'seeker' && (enemy.hunter?.shield ?? 0) > 0 && !BEAM_KINDS.has(enemy.kind);
+    if (!best || (!resistant && best.resistant) || (resistant === best.resistant && score < best.score)) best = { x: enemy.x, score, resistant };
   }
   // Nothing to shoot in view during a boss fight: head back to the boss (the game shows RETURN LEFT/RIGHT).
   if (!best && state.boss && state.boss.phase !== 'destroyed') return state.boss.x;
@@ -104,7 +107,9 @@ function perceive(state: RunState): RunState {
   return {
     ...state,
     player: { ...state.player },
-    enemies: state.enemies.map(enemy => ({ ...enemy })),
+    enemies: state.enemies.map(enemy => ({ ...enemy, hunter: enemy.hunter ? { ...enemy.hunter } : undefined,
+      blink: enemy.blink ? { ...enemy.blink, destination: enemy.blink.destination ? { ...enemy.blink.destination } : undefined } : undefined,
+      lock: enemy.lock ? { ...enemy.lock } : undefined })),
     projectiles: state.projectiles.filter(shot => !shot.friendly).map(shot => ({ ...shot })),
     hazards: state.hazards.map(hazard => ({ ...hazard })),
     pickups: [], effects: [], chargeKillTimes: [],

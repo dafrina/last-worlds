@@ -64,7 +64,7 @@ The concept images are references, never runtime backgrounds or finished assets 
   - energy cells to break (depots);
   - drone carriers (diamonds) and elite hunters (lancers);
   - two artillery ships (Pulsars).
-- **Hunters on Umbra:** lancers (the elite hunter class).
+- **Hunters on Umbra:** Wraiths (25 October), the new teleporting predator. Three authored normal Wraith appearances replace individual formations in Final Horizon; no terrain generation changes. See [phase predators](29-phase-predators.md) for its feint, teleport and rapid triplet sequence.
 - **The perfect pilot** clears Final Horizon on seed 5 with each weapon and no hit (`tests/sim/umbra.test.ts`). On other seeds it takes a single mission hit on some runs, never from THE ECLIPSE; the fairness checks pass.
 
 ## THE ECLIPSE

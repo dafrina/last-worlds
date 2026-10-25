@@ -35,7 +35,7 @@ export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */
 /** `fuel` is a harmless ground loot target (a fuel-tank skid): it never attacks and drops what a ship drops. */
 /** `pulsar` (Nacre, 17 October 2026) fires a rapid burst stream down one committed line. */
-export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar';
+export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
 /**
  * A run's setup. The campaign loadout (weapon, special, shield, reactor, rank of the main weapon) applies only to the
@@ -74,6 +74,10 @@ export interface Enemy {
   };
   /** Volleys released so far (the Diamond alternates its wing each volley). */
   volleys?: number;
+  /** Umbra Wraith: one shared active-time clock for teleport, two attacks/exit (or unlimited hunter attacks). */
+  blink?: { fromX: number; fromS: number; startedAt: number; readyAt: number; attacks: number; exitAt?: number;
+    /** Planned destination during the feint; cleared when the warp actually starts. */
+    destination?: { x: number; s: number } };
   /**
    * Beam lock (Needle, Lancer): the ship swings over its committed lane during the windup, fires straight down from
    * it, holds while the beam is live, then eases back onto its path. Seconds: total windup, hold left, release left.
@@ -90,6 +94,8 @@ export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;
   vx: number; vs: number; friendly: boolean; damage: number; radius: number;
   ttl: number; homingTargetId?: number;
+  /** Main weapon at launch, retained through pickups and lost locks; special missiles do not set this. */
+  weapon?: WeaponId;
   /** Fired by a special (Seeker Rack): its kills never charge the special. */
   special?: boolean;
   /** Seconds it waits at its muzzle before flying (a Pulsar burst is emitted at once and streams out). */

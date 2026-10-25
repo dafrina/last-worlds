@@ -1,6 +1,6 @@
 import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
-import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState } from '../shared/contracts';
+import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
@@ -16,6 +16,7 @@ import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete, positionAfter } from './motion';
 import { projectGround } from './ground';
 import { HUNTERS, absorbHunterShield, updateHunters } from './hunters';
+import { updateWraith } from './wraith';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -290,6 +291,7 @@ function updateEnemies(state: RunState, dt: number): void {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
     const stats = ENEMIES[enemy.kind];
     advanceEnemy(enemy, dt, enemyClockRate(state, enemy));
+    if (enemy.kind === 'wraith') { windups += updateWraith(state, enemy, dt, scale, windups); continue; }
     // A ground enemy's anchor rides the terrain; its gameplay position is the anchor seen through the lens.
     projectGround(state, enemy);
     // A ground formation spawned ahead (leadGround) becomes a target at its authored entry.
@@ -440,6 +442,7 @@ function fireMain(state: RunState): void {
     const shot = projectile(state, state.player.x + weapon.offsets[index], MUZZLE,
       Math.sin(angle * DEG) * weapon.speed, Math.cos(angle * DEG) * weapon.speed,
       true, weapon.damage * power, weapon.radius, weapon.range / weapon.speed);
+    shot.weapon = state.player.weapon;
     if (state.player.weapon === 'seeker') shot.homingTargetId = target.id;
     state.projectiles.push(shot);
   });
@@ -489,7 +492,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       }
       if (target) {
         shot.ttl = 0;
-        damageEnemy(state, target, shot.damage, !shot.special);
+        damageEnemy(state, target, shot.damage, !shot.special, shot.special ? undefined : shot.weapon);
         // Core destruction clears danger before later bullets in this same tick can hit.
         if (target.bossPart === 'core' && target.hp <= 0) resolveBossPhase(state);
       }
@@ -553,11 +556,11 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
   setMessage(state, 'FIGHTER RESTORED', 2);
 }
 
-function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean): void {
+function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean, weapon?: WeaponId): void {
   if (enemy.hp <= 0 || enemy.damageable === false) return;
   addEffect(state, 'hit', enemy.x, enemy.s, 0.12);
   // A hunter's shield takes the damage first.
-  enemy.hp -= absorbHunterShield(enemy, damage);
+  enemy.hp -= absorbHunterShield(enemy, damage, weapon);
   if (enemy.hp > 0) return;
   // A burst still waiting at its muzzle dies with its source (a Pulsar shot down mid-stream stops streaming).
   if (state.projectiles.some(shot => shot.source === enemy.id)) state.projectiles = state.projectiles.filter(shot => shot.source !== enemy.id || !((shot.delay ?? 0) > 0));

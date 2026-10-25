@@ -68,7 +68,7 @@ The concept image is a reference, never a runtime background or a finished asset
        - the camera never turns, so baking the shift by the normal stands in for iridescence;
        - the shells are marked glossy by vertex alpha 0, which the runtime stores as a negative glow;
        - the kit shader gives glossy faces low roughness and a sharp sun glint, since small shells smear the physical highlight.
-3. **The biological enemy faction:** Blender models on the existing kinds' behaviour.
+3. **The biological enemy faction:** Blender models on the existing kinds' behaviour. **25 October:** the round `diamond` class and its hunter variant now use a dedicated brood heavy: irregular bone plates, an open toothed mouth and dark hanging sinews (`brood-heavy-v1.glb`, 15,268 triangles). The other classes still borrow Nacre craft. See [phase predators](29-phase-predators.md).
 4. **THE CRADLE (done, 24 October):** the user's Tripo GLB itself, adapted in Blender (`tools/blender/approved_cradle.py`, `public/assets/amnion/the-cradle-v2-approved.glb`, about 111k triangles, 6.0 MB), like the other approved bosses. The user rejected two hand-built rebuilds ("its still wrong. keep to the glb you have which is fully detailed. start fresh").
    - **Structure,** as the user described it: an inner core with the egg on flesh eggs surrounded by six shields; the wings with their outer shields, which "extend below to look like floating rocks". No turret nodes.
    - **Cut by shape.** Tripo split the mesh into arbitrary pieces, so each part is cut by shape:

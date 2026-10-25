@@ -142,7 +142,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92, 'final-horizon': 0.92 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
-export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3 };
+export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3 };
 /**
  * A Pulsar burst: shots in the stream and the gap between them (seconds). Each shot aims at the player's position as
  * it leaves the muzzle, so the stream hoses after a moving ship (user, 20 October: was six shots straight down).
@@ -225,6 +225,7 @@ export const ENEMIES: Record<EnemyKind, {
   // Fuel-tank skid (user request, 16 October): a harmless ground loot target that never fires; quick to burst.
   // Pulsar (Nacre): tracks the player through its windup, then streams a burst whose every shot aims at the player (PULSAR_BURST).
   pulsar: { hp: 110, radius: 0.6, speed: 1.6, shotSpeed: 9, attackEvery: 2.6, warning: 1.1, score: 300, credits: 12 },
+  wraith: { hp: 105, radius: 0.58, speed: 2.5, shotSpeed: 16, attackEvery: 5, warning: 0.9, score: 400, credits: 16 },
   fuel: { hp: 40, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 0, attackEvery: Infinity, warning: 0, score: 50, credits: 6 },
 };
 

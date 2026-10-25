@@ -47,7 +47,7 @@ function createPanelTexture(): THREE.DataTexture {
  * metal, ivory and ochre as worn paint, and glow parts emit above the bloom threshold (engines, threat lights).
  * A warm rim term separates silhouettes from the terrain like the concept's hard-surface key light.
  */
-function createCraftMaterial(panel: THREE.Texture | null): THREE.MeshStandardMaterial {
+function createCraftMaterial(panel: THREE.Texture | null, metalFinish = true): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: panel, roughness: 1, metalness: 1, envMapIntensity: 0.9 });
   // Per-world paint (src/render/world-paint.ts): enemies take their world's colours; the hero's material keeps amount 0.
   const paint = worldPaintUniforms();
@@ -79,7 +79,7 @@ function createCraftMaterial(panel: THREE.Texture | null): THREE.MeshStandardMat
   #include <opaque_fragment>`);
   };
   material.customProgramCacheKey = () => 'authored-craft';
-  return applySurfaceFinish(material, 'metal', 1.2, .007);
+  return metalFinish ? applySurfaceFinish(material, 'metal', 1.2, .007) : material;
 }
 
 /** Palette entry for craft: sRGB colour, roughness, metalness, glow (HDR emissive multiplier; 0 = lit surface). */
@@ -104,6 +104,8 @@ export function createMaterials() {
     craft: createCraftMaterial(panel),
     /** Same as `craft` for every enemy batch, so their paint takes the world's colours (`userData.worldPaint`). */
     enemyCraft: createCraftMaterial(panel),
+    /** Living bone and smooth black glass retain their authored paint, without industrial panel seams. */
+    alienCraft: createCraftMaterial(null, false),
     /** Props in the craft format (fuel skids, wrecks, missiles): no ship panel seams, which streaked their paint like wood grain. */
     prop: createCraftMaterial(null),
     /** How each authored part material bakes into the craft vertex attributes. */
@@ -495,7 +497,9 @@ export async function loadCraftNodes<N extends string>(url: string, names: reado
       if (!mesh.isMesh) return;
       const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
       const label = material.name ?? '', glow = /glow/i.test(label);
-      const pbrOf: [number, number, number] = glow ? [1, 0, 2.8] : /blade/i.test(label) ? [0.28, 0.6, 0] : /bronze/i.test(label) ? [0.34, 0.75, 0]
+      const pbrOf: [number, number, number] = /^(brood_|wraith_)/i.test(label)
+        ? [material.roughness, material.metalness, glow ? material.emissiveIntensity : 0]
+        : glow ? [1, 0, 2.8] : /blade/i.test(label) ? [0.28, 0.6, 0] : /bronze/i.test(label) ? [0.34, 0.75, 0]
         : /frame/i.test(label) ? [0.42, 0.4, 0] : /plate/i.test(label) ? [0.45, 0.35, 0] : /obsidian/i.test(label) ? [0.12, 0, 0] : [0.26, 0.35, 0];
       const emissive = material.emissive && material.emissive.getHex() !== 0 ? material.emissive : material.color;
       const tint = glow ? emissive : material.color;

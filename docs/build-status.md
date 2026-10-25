@@ -1,5 +1,16 @@
 # Build status
 
+## Phase predators, shield resistance, boss isolation and approved Umbra cliffs · 25 October 2026
+
+- **Wraith (Umbra only):** authored black glossy carapace with hooked spines and tendrils. A visible aim feint precedes its cross-field warp; it fires a tight three-round burst about 0.15 seconds after materializing. Three Final Horizon encounters and Umbra hunters use it. Normal enemies attack twice; hunters repeat after a five-second rest. Fairness checks include the planned destination and each delayed round. See [design and timing](29-phase-predators.md).
+- **Amnion brood heavy:** replaces the Nacre Orrery for the round `diamond` enemy and its hunter version, keeping their behavior. Irregular bone plates surround an open toothed mouth, with flesh and tendrils. Both predators use versioned GLBs exported via live Blender MCP, 15,268 / 11,984 triangles and 271,492 / 195,024 bytes respectively.
+- **Main Seeker against hunter shields:** 80% damage reduction while a shield remains, full damage to bare hull; other mains and specials unchanged. Projectile provenance prevents bypassing this with a weapon pickup or lost lock. The preliminary 90% reduction was reduced to 80% after campaign balance runs.
+- **Carrier pods:** only the active carrier may draw deployed pods. Previously loaded Cradle/Eclipse batches overlaid Veil's pods, causing the yellow appearance. No approved Veil material was recolored.
+- **Boss changes:** inactive Bastion is explicitly cleared every frame; all six bosses now hide their roots, pods and effects when inactive. Playground level changes reject stale asynchronous preparation completions.
+- **Terrain:** the user approved releasing Claude's current playground state. Includes the existing Umbra second pass below and its pending fourth-pass cliff GLB/source: fewer large planar fractured wall solids with sharp lips and dark joints. Codex has not regenerated or changed those models.
+- **Checked:** 446/446 unit tests, including all campaign/endless/fairness tests; typecheck and production build; 2/2 asset tests after a type-only import correction; targeted browser 7/7 (Playwright Chromium, SwiftShader, desktop host with phone viewport). Low/High predator captures and the Veil pod launch after loading all carriers were visually inspected under `lookdev/phase-predators/browser-final/`. Existing test seeds, completion limits and no-hit/no-special assertions are retained. The scripted Seeker pilot now clears softer threats first except beam craft, and delayed observations copy nested state.
+- **Release gate:** full browser suite **41/41 passed** (18.6 minutes, exit 0), including graphics, all boss poses, controls, audio, menu/save and mobile viewport checks. Production build/typecheck and all 446 unit tests pass. Pages deployment verification follows the push. No actual-phone test or performance claim.
+
 
 ## Umbra, second pass: sharp fractured hills, sparse cracked cliffs, stone structures; a black bloom blob fixed, 24 October 2026
 

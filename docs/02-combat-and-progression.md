@@ -36,6 +36,8 @@ All mains can defeat mandatory enemies. Pulse stays straight and Fan preserves i
 
 The homing family replaces the earlier Arc proposal in the four-family MVP plan. Chaining Arc remains a possible later weapon. The first prototype implements Pulse, Fan, and Seeker; Rail is later milestone content.
 
+**25 October 2026, hunter armour:** main Seeker missiles deal 20% of their normal damage to an active hunter shield. Other mains and specials retain their damage. Once the shield is depleted, Seeker hull damage returns to normal; a shield-breaking hit spends only the shield portion at reduced efficiency. Weapon identity travels with each projectile, so switching mains or losing a homing lock cannot bypass this resistance. This deliberately lengthens Seeker-only ace fights; it does not change enemy hull HP or introduce another protection resource.
+
 ## 3. Special weapons
 
 Campaign equips one special. Endless begins with Shockwave; later run-only swaps are available regardless of campaign unlocks. One full recharge equals one activation; pressing spends it completely. No spare-charge inventory or numeric energy meter. Holding does not repeat; use edge-trigger input and a 0.5-second input debounce.

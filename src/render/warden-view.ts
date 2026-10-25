@@ -359,7 +359,7 @@ export function createWardenView(scene: THREE.Scene) {
     },
     /** Swap the code-built stand-in for the production model once warden.glb has loaded. */
     setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); },
-    get stats() { return { model: rig.model ? 'glb' : 'fallback', particles: dust.count + sparks.count }; },
+    get stats() { return { visible: root.visible, model: rig.model ? 'glb' : 'fallback', particles: dust.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
   };
 }

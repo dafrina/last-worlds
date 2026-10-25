@@ -227,11 +227,14 @@ root.addEventListener('click', async event => {
   }
 });
 
+let levelRevision = 0;
 async function switchLevel() {
-  state = makeState();
-  hud.textContent = `Loading ${level().name}…`;
-  await renderer.prepare(level().planet);
-  renderer.tuneLook!(level().planet, looks[level().planet]);
+  const revision = ++levelRevision, next = level(), nextState = makeState();
+  hud.textContent = `Loading ${next.name}…`;
+  await renderer.prepare(next.planet);
+  if (revision !== levelRevision) return;
+  state = nextState; accumulator = 0;
+  renderer.tuneLook!(next.planet, looks[next.planet]);
   hud.textContent = '';
   buildControls();
 }

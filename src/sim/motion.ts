@@ -66,6 +66,7 @@ export function inFiringWindow(enemy: Enemy): boolean {
 
 /** True once a member has flown its whole authored path (it is then removed when out of view). */
 export function pathComplete(enemy: Enemy): boolean {
+  if (enemy.blink?.exitAt !== undefined) return true;
   if (!enemy.formation) return false;
   const path = formationTemplate(enemy.formation).path;
   return pathTime(enemy.formation, enemy.age) >= path[path.length - 1][0];
@@ -95,7 +96,7 @@ export function positionAfter(enemy: Enemy, ahead: number, rate = 1): { x: numbe
 export function trackAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; s: number } {
   // Boss modules and hunters (src/sim/hunters.ts) are moved by their own updates; predictions hold them where they are
   // (a hunter holds still through its windup, so an attack leaves from where it was admitted).
-  if (enemy.bossPart || enemy.hunter) return { x: enemy.x, s: enemy.s };
+  if (enemy.bossPart || enemy.hunter || (enemy.blink && (enemy.warning > 0 || Number.isFinite(enemy.blink.startedAt)))) return { x: enemy.x, s: enemy.s };
   const clock = ahead * rate;
   if (enemy.formation) return memberPosition(enemy.formation, enemy.age + clock);
   const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + clock) * 1.6) * 1.2 : enemy.x;

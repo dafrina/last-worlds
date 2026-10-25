@@ -434,7 +434,7 @@ export function createArkView(scene: THREE.Scene) {
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
-    get stats() { return { model: rig.model ? 'glb' : 'fallback', approved: !!rig.approved, particles: mist.count + sparks.count }; },
+    get stats() { return { visible: root.visible, model: rig.model ? 'glb' : 'fallback', approved: !!rig.approved, particles: mist.count + sparks.count }; },
     dispose() {
       scene.remove(root); scene.remove(markers); rig.dispose(); mist.dispose(); sparks.dispose(); geometry.dispose(); (markers.material as THREE.Material).dispose();
       rings.forEach(({ mesh, material }) => { mesh.geometry.dispose(); material.dispose(); });

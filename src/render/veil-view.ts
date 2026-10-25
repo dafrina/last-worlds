@@ -328,7 +328,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
 
   return {
     footprint(state: RunState, placement: { s: number } | null) {
-      if (!state.boss || !placement) return null;
+      if (!state.boss || state.boss.id !== style.id || !placement) return null;
       const f = style.footprint;
       return { minX: state.boss.x - f.halfWidth, maxX: state.boss.x + f.halfWidth, minS: state.distance + placement.s - f.front, maxS: state.distance + placement.s + f.back };
     },
@@ -339,7 +339,8 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       // Render launched combatants in world coordinates, independently of the chassis.
       if (rig.flightPods) {
         let count = 0;
-        for (const enemy of state.enemies) if (enemy.hp > 0 && enemy.formation?.template === 'veil-pods' && count < 16) {
+        // All carrier rigs may already be loaded after visiting other worlds. Only this encounter owns its pods.
+        for (const enemy of state.enemies) if (boss && placement && enemy.hp > 0 && enemy.formation?.template === 'veil-pods' && count < 16) {
           const prior = hpSeen.get(enemy.id); hpSeen.set(enemy.id, enemy.hp);
           if (prior !== undefined && enemy.hp < prior) hitAt.set(enemy.id, state.time);
           podTransform.position.set(enemy.x, VIEW.flightHeight, -enemy.s);
@@ -461,7 +462,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
     setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
     get hasPodModel() { return !!rig.flightPods; },
-    get stats() { return { model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
+    get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
   };
 }

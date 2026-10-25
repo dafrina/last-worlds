@@ -1,5 +1,5 @@
 import { ENEMIES, endlessRampSector } from '../content/balance';
-import { VIEW, type Enemy, type EnemyKind, type PlanetId, type RunState } from '../shared/contracts';
+import { VIEW, type Enemy, type EnemyKind, type PlanetId, type RunState, type WeaponId } from '../shared/contracts';
 import { approach, clamp } from './geometry';
 import { airClockRate } from './motion';
 import { runScale } from './spawn';
@@ -22,9 +22,9 @@ export const HUNTERS = {
    * The kind each world sends: a strong craft it already flies. Never the Pulsar: its stream tracks the ship, and a
    * tracking stream from a craft that follows the ship to the world edge left no way out (validation pilots were hit).
    */
-  kinds: { luna: 'weaver', khepri: 'lancer', vesper: 'diamond', nacre: 'diamond', amnion: 'diamond', umbra: 'lancer' } satisfies Readonly<Record<PlanetId, EnemyKind>>,
+  kinds: { luna: 'weaver', khepri: 'lancer', vesper: 'diamond', nacre: 'diamond', amnion: 'diamond', umbra: 'wraith' } satisfies Readonly<Record<PlanetId, EnemyKind>>,
   /** Shield charges, each absorbing this share of the kind's hull (scaled with the hull): about twice the hull in all. */
-  shield: { charges: 3, share: 0.35 },
+  shield: { charges: 3, share: 0.35, seekerDamage: 0.2 },
   /** Score and credits over the base kind. */
   reward: 3,
   /** Roaming band (s ahead of the player row) and cruise speed and acceleration at pace 1. */
@@ -72,12 +72,15 @@ function roll(a: number, b: number, c = 0): number {
 export const hunterCharges = (enemy: Enemy) => enemy.hunter ? Math.max(0, Math.ceil(enemy.hunter.shield / enemy.hunter.perCharge - 1e-9)) : 0;
 
 /** Takes a hit on a hunter's shield first; returns the damage that reaches the hull. */
-export function absorbHunterShield(enemy: Enemy, damage: number): number {
+export function absorbHunterShield(enemy: Enemy, damage: number, mainWeapon?: WeaponId): number {
   const shield = enemy.hunter;
   if (!shield || shield.shield <= 0) return damage;
-  const absorbed = Math.min(shield.shield, damage);
+  // Hunter armour scatters the main Seeker's blast. Other guns and charged specials keep their full effect.
+  const effectiveness = mainWeapon === 'seeker' ? HUNTERS.shield.seekerDamage : 1;
+  const absorbed = Math.min(shield.shield, damage * effectiveness);
   shield.shield -= absorbed;
-  return damage - absorbed;
+  // Only damage spent breaking the shield is reduced; the remainder reaches the now unshielded hull normally.
+  return Math.max(0, damage - absorbed / effectiveness);
 }
 
 /** The director's chances and the hunters' own flight. Call every step before the enemies update. */
@@ -90,7 +93,7 @@ export function updateHunters(state: RunState, dt: number): void {
 }
 
 /** The level's key for its rolls: the endless sector, or the campaign mission. */
-const MISSION_KEYS: Readonly<Record<string, number>> = { training: 101, bastion: 102, 'cold-vector': 103, 'deep-bloom': 104 };
+const MISSION_KEYS: Readonly<Record<string, number>> = { training: 101, bastion: 102, 'cold-vector': 103, 'deep-bloom': 104, 'brood-strike': 105, 'final-horizon': 106 };
 const levelKey = (state: RunState) => state.config.mode === 'endless' ? state.sector : MISSION_KEYS[state.config.mission ?? 'training'];
 
 function spawnHunters(state: RunState): void {
@@ -129,6 +132,7 @@ function spawnHunters(state: RunState): void {
  */
 function steer(state: RunState, enemy: Enemy, hunters: readonly Enemy[], chasing: boolean, dt: number): void {
   const hunter = enemy.hunter!;
+  if (enemy.kind === 'wraith' && enemy.blink && Number.isFinite(enemy.blink.startedAt)) return;
   if (enemy.warning > 0 || enemy.lock) { hunter.vx = 0; hunter.vs = 0; return; }
   const half = VIEW.width / 2 - 1, rate = airClockRate(state);
   let tx: number, ts: number;

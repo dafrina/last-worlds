@@ -70,11 +70,12 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     return [{ x0: aimX - beam.width / 2, x1: aimX + beam.width / 2, t0, t1: t0 + beam.active }];
   }
   // A ground enemy already in its windup fires from its fixed muzzle point.
-  const at = (enemy.warning > 0 ? enemy.ground?.muzzle : undefined) ?? positionAfter(enemy, warning, enemyClockRate(state, enemy));
+  const at = (enemy.kind === 'wraith' ? enemy.blink?.destination : undefined)
+    ?? (enemy.warning > 0 ? enemy.ground?.muzzle : undefined) ?? positionAfter(enemy, warning, enemyClockRate(state, enemy));
   const speed = ENEMIES[enemy.kind].shotSpeed * shotSpeedScale(state);
   const side = enemy.kind === 'diamond' ? diamondSide(enemy) : 0;
   return enemyShots(enemy.kind as BulletKind, at.x, at.s, aimX, speed, side)
-    .map(shot => shotFootprint(release, shot)).filter((f): f is Footprint => f !== null);
+    .map(shot => shotFootprint(release + (shot.delay ?? 0), shot)).filter((f): f is Footprint => f !== null);
 }
 
 /** Airframes that will cross the player row inside the horizon are contact hazards. */

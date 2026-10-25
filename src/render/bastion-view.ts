@@ -465,6 +465,6 @@ export function createBastionView(scene: THREE.Scene) {
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },
-    get stats() { return { model: rig.treads.length > 0 || rig.glow.length > 0 ? 'glb' : 'fallback', particles: dust.count + sparks.count, trackLinks: rig.tracks?.count ?? 0, trackTravel: rig.tracks?.travel ?? 0 }; },
+    get stats() { return { visible: root.visible, model: rig.treads.length > 0 || rig.glow.length > 0 ? 'glb' : 'fallback', particles: dust.count + sparks.count, trackLinks: rig.tracks?.count ?? 0, trackTravel: rig.tracks?.travel ?? 0 }; },
   };
 }
