@@ -48,12 +48,12 @@ test('audio unlocks on launch, pauses silently, resumes, and remembers separate 
   expect(errors).toEqual([]);
 });
 
-test('four real offline mixes and a crowded combat mix have headroom and survive mono playback', async ({ page }) => {
+test('six real offline mixes and a crowded combat mix have headroom and survive mono playback', async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto('/tests/fixtures/audio-lab.html');
   await page.waitForFunction(() => '__AUDIO_LAB__' in window);
   const signatures = [];
-  for (const planet of ['luna', 'khepri', 'nacre', 'vesper'] as PlanetId[]) {
+  for (const planet of ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'umbra'] as PlanetId[]) {
     const metrics = await page.evaluate(async planet => {
       const lab = (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__;
       return (await lab.renderPreview(planet, 12, planet === 'nacre')).metrics;
@@ -66,7 +66,7 @@ test('four real offline mixes and a crowded combat mix have headroom and survive
     expect(metrics.peakVoices).toBeLessThanOrEqual(56);
     signatures.push(metrics.rms);
   }
-  expect(new Set(signatures).size).toBe(4);
+  expect(new Set(signatures).size).toBe(6);
 });
 
 test('submix silence and hard voice limits are enforced in the actual Web Audio graph', async ({ page }) => {
@@ -152,7 +152,7 @@ test('all boss stems add low-end energy, preserve the level before/after fades, 
   test.setTimeout(120_000);
   await page.goto('/tests/fixtures/audio-lab.html');
   await page.waitForFunction(() => '__AUDIO_LAB__' in window);
-  for (const planet of ['luna', 'khepri', 'nacre', 'vesper'] as PlanetId[]) {
+  for (const planet of ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'umbra'] as PlanetId[]) {
     const mixes = await page.evaluate(async planet => {
       const { renderPreview } = (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__;
       const level = (await renderPreview(planet, 34)).metrics;

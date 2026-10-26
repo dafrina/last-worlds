@@ -15,7 +15,7 @@ import { anchorGround } from '../../src/sim/ground';
 import type { MissionId, RunState } from '../../src/shared/contracts';
 
 const q = new URLSearchParams(location.search);
-const MISSION: Readonly<Record<string, MissionId>> = { khepri: 'bastion', vesper: 'cold-vector', luna: 'training', nacre: 'deep-bloom' };
+const MISSION: Readonly<Record<string, MissionId>> = { khepri: 'bastion', vesper: 'cold-vector', luna: 'training', nacre: 'deep-bloom', amnion: 'brood-strike', umbra: 'final-horizon' };
 interface View { planet?: string; seed?: number; distance?: number; x?: number; battery?: string | null }
 function make(view: View): RunState {
   const state = createRun({ mode: 'campaign', mission: MISSION[view.planet ?? 'khepri'] ?? 'bastion', seed: view.seed ?? 93 });

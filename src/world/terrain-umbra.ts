@@ -1,4 +1,4 @@
-import { NEUTRAL_MOOD, WORLD_HALF, clamp, crispStep, hash, mix, noise, routeCalm, smoothRange, type Landform, type MoodParams } from './terrain-layout';
+import { NEUTRAL_MOOD, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type Landform, type MoodParams } from './terrain-layout';
 import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
@@ -46,7 +46,9 @@ export function umbraMasks(seed: number, x: number, s: number, platform = 0): Um
   const calm = routeCalm(seed, x, s);
   const qx = x + (noise(seed ^ 0xb1a1, x * 0.045, s * 0.04) - 0.5) * 9, qs = s + (noise(seed ^ 0xb1a2, x * 0.045 + 5.1, s * 0.04) - 0.5) * 9;
   const { across } = crevasse(seed ^ SALT, x, s);
-  const plateau = Math.max(crispStep((across - 0.86) / 0.24 + 0.5), platform);
+  // One straight face from foot to lip, with an actual corner at each end. The old eased lower half and averaged
+  // rim lighting made the canyon itself read as a soft bank between the sharp kit pieces. Preserve the old lip .94.
+  const plateau = Math.max(clamp((across - .74) / .20), platform);
   // Spike mountains in their own regions (about a sixth of the ground), back from any lip so the canyons keep their shape.
   const back = smoothRange(1.15, 1.7, across);
   const massif = smoothRange(0.52, 0.68, noise(seed ^ 0xb1c1, qx * 0.04, qs * 0.035)) * back * (1 - calm * 0.4) * (1 - platform);
@@ -106,7 +108,7 @@ function abyss(seed: number, x: number, s: number, centre: number, along: number
   if (weight <= 0) return ground;
   const side = ds > 0 ? 1 : 0;
   const lip = A.halfS * (1 + 0.1 * (zigzag(seed ^ 0xb4a1, x / 1.6, side) + 1) + 0.04 * zigzag(seed ^ 0xb4a2, x / 0.5, side));
-  const open = 1 - crispStep((Math.abs(ds) / lip - 0.96) / 0.1 + 0.5);
+  const open = 1 - clamp((Math.abs(ds) / lip - .91) / (1 / 12));
   const floor = A.floor + (noise(seed ^ 0xb4c1, x * 0.3, s * 0.3) - 0.5) * 1.2;
   const height = mix(PLATEAU, floor, open);
   return {
@@ -143,7 +145,7 @@ function umbraColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: num
 /* ---------------------------------------------------------------- dressing */
 
 /**
- * Obsidian dressing (kit: umbra-kit.glb and cliff-kit.glb, tools/blender/umbra_kit.py): spiky obsidian cliffs along every
+ * Obsidian dressing (kit: umbra-kit.glb and cliff-kit-v2.glb): fractured obsidian walls along selected
  * crevasse lip; clusters of needle spires on the spike mountains and along the edges; shard clutter on the plateau;
  * floating cliffs over the wide crevasses, lost in the fog; and on open plateau the faction's structures (monolith
  * towers, shield pylons, eclipse gates, arc reactors, obelisks) with small platforms beside them. The boss arena keeps
@@ -162,10 +164,31 @@ function* umbraScatterSteps(seed: number, startS: number, size: number, terrain:
   };
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   // Landmarks: the faction's structures on open plateau, well back from the crevasses, on a sparse site lattice.
-  const LANDMARKS = ['umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk'] as const;
+  const LANDMARKS = ['umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbDock'] as const;
   // Scale and height of each structure, after the kit's comparison sheet with the concept (tools/blender/umbra_kit.py).
   const LANDMARK_SIZE: Readonly<Record<(typeof LANDMARKS)[number], readonly [number, number]>> = {
-    umbMonolith: [3, 3.6], umbPylon: [2.6, 3.9], umbGate: [3.4, 4.4], umbReactor: [2.6, 3.1], umbObelisk: [1.8, 3.4],
+    umbMonolith: [3, 3.6], umbPylon: [2.6, 3.9], umbGate: [3.4, 4.4], umbReactor: [2.6, 3.1], umbObelisk: [1.8, 3.4], umbDock: [2.6, 2.2],
+  };
+  // A centre probe can sit on a narrow peninsula while both wings hang over the canyon. Check a grid over the
+  // entire rotated footprint (including its interior), with a small foundation margin. Keep the base slightly
+  // buried in the lowest supporting point; a tilted plate then meets the foundation instead of leaving daylight.
+  const supportedBase = function* (kind: keyof typeof KIT, x: number, s: number, scale: number, rotation: number): Work<number | null> {
+    const spec = KIT[kind], hx = spec.halfX * scale + .12, hz = spec.halfZ * scale + .12;
+    const nx = Math.ceil(hx * 2 / .3), nz = Math.ceil(hz * 2 / .3), c = Math.cos(rotation), sn = Math.sin(rotation);
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i <= nx; i++) {
+      if (i % 3 === 0) yield; // Keep rare large footprint checks within the terrain stream's cooperative work budget.
+      for (let j = 0; j <= nz; j++) {
+        const dx = -hx + hx * 2 * i / nx, dz = -hz + hz * 2 * j / nz;
+        const px = x + c * dx + sn * dz, ps = s + sn * dx - c * dz;
+        if (Math.abs(px) > WORLD_HALF || umbraMasks(seed, px, ps).plateau < .999
+          || terrain.platform(px, ps) > 0 || terrain.blocked(px, ps)) return null;
+        const y = terrain.height(px, ps);
+        lo = Math.min(lo, y); hi = Math.max(hi, y);
+        if (lo < PLATEAU - .3 || hi - lo > .22) return null;
+      }
+    }
+    return lo - .045;
   };
   const landmarks: { x: number; s: number; r: number }[] = [];
   for (let row = Math.floor(startS / SITE_ROW) - 1; row <= Math.ceil((startS + size) / SITE_ROW); row++) for (let lane = 0; lane < SITE_LANES.length; lane++) {
@@ -176,18 +199,24 @@ function* umbraScatterSteps(seed: number, startS: number, size: number, terrain:
       if (s < startS - 4 || s >= startS + size + 4) break;
       const m = umbraMasks(seed, x, s);
       if (m.plateau < 0.99 || m.across < 1.9 || m.massif > 0.25 || terrain.platform(x, s) > 0 || terrain.blocked(x, s) || terrain.slope(x, s) > 0.4) continue;
-      const kind = LANDMARKS[Math.floor(h(30) * LANDMARKS.length)], ground = terrain.height(x, s), [base, tall] = LANDMARK_SIZE[kind];
+      const kind = LANDMARKS[Math.floor(h(30) * LANDMARKS.length)], [base, tall] = LANDMARK_SIZE[kind];
       const scale = base * (0.9 + h(31) * 0.2), height = tall * (0.9 + h(32) * 0.2);
-      landmarks.push({ x, s, r: KIT[kind].radius * scale + 0.6 });
       // The gate's and the reactor's arcs face the camera (their front is ±z), the others turn freely.
       const rotation = kind === 'umbGate' || kind === 'umbReactor' ? (h(33) < 0.5 ? 0 : Math.PI) + (h(36) - 0.5) * 0.3 : turn(h(33));
-      add({ kind, x, s, y: ground - 0.06, scale, height, rotation, cosmetic: false }, h(34));
+      const baseY = yield* supportedBase(kind, x, s, scale, rotation);
+      if (baseY === null) continue;
+      landmarks.push({ x, s, r: KIT[kind].radius * scale + 0.6 });
+      // The dock's old floating model has hanging spikes below its deck. Bury them up to the underside of the
+      // lower deck (0.33 of the normalized model height), so the crescent itself rests on the plateau.
+      add({ kind, x, s, y: baseY - (kind === 'umbDock' ? height * .33 : 0), scale, height, rotation, cosmetic: false }, h(34));
       // A platform or two beside it.
       for (let k = 0; k < 2; k++) {
         if (h(35 + k) < 0.4) continue;
         const a = turn(h(37 + k)), d = KIT[kind].radius * scale + 0.9, px = x + Math.cos(a) * d, ps = s + Math.sin(a) * d;
-        if (terrain.slope(px, ps) > 0.3 || terrain.blocked(px, ps)) continue;
-        add({ kind: 'umbPad', x: px, s: ps, y: terrain.height(px, ps) - 0.02, scale: 1 + h(39 + k) * 0.4, height: 1, rotation: turn(h(41 + k)), cosmetic: true }, h(43 + k));
+        const padScale = 1 + h(39 + k) * .4, padRotation = turn(h(41 + k));
+        const padY = yield* supportedBase('umbPad', px, ps, padScale, padRotation);
+        if (padY === null) continue;
+        add({ kind: 'umbPad', x: px, s: ps, y: padY, scale: padScale, height: 1, rotation: padRotation, cosmetic: true }, h(43 + k));
       }
       break;
     }
@@ -229,21 +258,21 @@ function* umbraScatterSteps(seed: number, startS: number, size: number, terrain:
       const half = seg.halfA + (seg.halfB - seg.halfA) * (t / length), x = seg.ax + vx * t / length, s = seg.as + vs * t / length;
       t += 3 + h(0) * 4;
       if (half < 1.5 || h(1) > 0.6 || s < startS || s >= startS + size || terrain.platform(x, s) > 0) continue;
-      // Now and then the faction's crescent dock instead, a little higher.
-      const dock = h(9) < 0.12 && half > 2.4;
-      const scale = dock ? 2.4 + h(2) * 0.4 : Math.min(half * 0.7, 1.3 + h(2) * 0.3), depth = dock ? 2.2 : 1.4 + h(3) * 0.4;
-      const top = dock ? PLATEAU + 0.2 : PLATEAU - 0.2 - h(4) * 1.6;
-      add({ kind: dock ? 'umbDock' : 'umbFloat', x: x + (h(5) - 0.5) * half * 0.6, s, y: top - depth, scale, height: depth, rotation: turn(h(6)), cosmetic: !dock && h(7) > 0.7 }, h(8));
+      // Only the rock fragments float. Crescent docks belong to the supported landmark sites above.
+      const scale = Math.min(half * 0.7, 1.3 + h(2) * 0.3), depth = 1.4 + h(3) * 0.4;
+      const top = PLATEAU - 0.2 - h(4) * 1.6;
+      add({ kind: 'umbFloat', x: x + (h(5) - 0.5) * half * 0.6, s, y: top - depth, scale, height: depth, rotation: turn(h(6)), cosmetic: h(7) > 0.7 }, h(8));
     }
   }
-  // Obsidian cliff shards along the lips, sparsely: only in scattered stretches, about a quarter of the lips (user, 24
-  // October: first "the cliffs look bad, can u remove the models there", then "now add the cliff models back but sparsely").
-  const sparse = (x: number, s: number) => umbraMasks(seed, x, s).massif < 0.25 && noise(seed ^ 0xb7f1, x * 0.09, s * 0.07) > 0.62;
+  // Longer but still broken stretches of fractured wall. A little more of the sharp shoulder stands over the
+  // heightfield's rounded lip; the approved hill kit and the canyon layout are unchanged (user, 25 October).
+  const sparse = (x: number, s: number) => umbraMasks(seed, x, s).massif < 0.25 && noise(seed ^ 0xb7f1, x * 0.09, s * 0.07) > 0.52;
   for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, {
     kind: 'voidWall', salt: 0x7c5e, minDrop: 1.5, rimSpan: 0.7, maxAway: 0.75, minRun: 3, scale: [1.2, 1.6],
     cap: UMBRA_SCENERY_MAX, accept: sparse, arenas: true,
-    // The shards' tallest spikes stand a little over the lip (their bodies still reach it).
-    overtop: 0.09,
+    // Keep the approved lip position while extending the lower faces below the canyon floor; short foot probes on a
+    // jagged wall can stop on a shelf and otherwise leave its lower cut visible through the fog.
+    overtop: 0.14, footDepth: 4, footFloor: ABYSS.floor - 1.5,
   })) essential.push(wall);
   return [...essential, ...cosmetic];
 }

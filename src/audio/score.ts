@@ -6,7 +6,7 @@ interface Theme {
   title: string; bpm: number; root: number; chords: readonly (readonly number[])[];
   bass: readonly number[]; melody: readonly number[]; kick: readonly number[]; hats: readonly number[];
 }
-/** Four authored 32-bar arrangements. Offsets are semitones; -1 means rest, never a random note. */
+/** Six authored 32-bar arrangements. Offsets are semitones; -1 means rest, never a random note. */
 export const THEMES: Record<PlanetId, Theme> = {
   luna: {
     title: 'Far Side Signal', bpm: 94, root: 50,
@@ -36,27 +36,25 @@ export const THEMES: Record<PlanetId, Theme> = {
     melody: [19, -1, -1, -1, 14, -1, -1, 12, -1, -1, 15, -1, -1, -1, 7, -1],
     kick: [0, 10], hats: [2, 6, 14],
   },
-  // Amnion (docs/27, 23 October): a placeholder, Nacre's arrangement a minor third lower and slower, until Codex writes
-  // its own theme.
   amnion: {
-    title: 'Brood Wastes (placeholder)', bpm: 98, root: 45,
-    chords: [[0, 7, 14, 17], [3, 10, 17, 21], [5, 12, 19, 22], [2, 9, 16, 19]],
-    bass: [0, -1, -1, 12, -1, -1, 7, -1, -1, 0, -1, 7, -1, 12, -1, -1],
-    melody: [12, -1, -1, 19, -1, 14, -1, -1, 21, -1, -1, 19, -1, 17, 14, -1],
-    kick: [0, 7, 10], hats: [2, 5, 8, 11, 14],
+    title: 'Something Beneath the Skin', bpm: 92, root: 43,
+    chords: [[0, 7, 13], [1, 8, 12], [-5, 2, 8], [-2, 5, 12]],
+    bass: [0, -1, 0, -1, -1, -1, -1, 7, -1, -1, 0, -1, -1, 12, -1, -1],
+    melody: [12, -1, -1, 13, -1, -1, -1, 18, -1, -1, 13, -1, -1, 12, -1, -1],
+    kick: [0, 2, 9, 11], hats: [3, 7, 10, 14],
   },
-  // Umbra (docs/28, 24 October): a placeholder, slow and low on a minor-second shade, until Codex writes its own theme.
   umbra: {
-    title: 'Eternal Eclipse (placeholder)', bpm: 84, root: 41,
-    chords: [[0, 7, 12, 15], [1, 8, 13, 17], [5, 12, 17, 20], [3, 10, 15, 19]],
-    bass: [0, -1, -1, -1, 1, -1, -1, 0, -1, -1, 5, -1, -1, 3, -1, -1],
-    melody: [15, -1, -1, -1, 13, -1, 12, -1, -1, -1, 20, -1, 19, -1, -1, -1],
-    kick: [0, 8], hats: [4, 12],
+    title: 'A Line Through Silence', bpm: 90, root: 42,
+    chords: [[0, 12, 19], [1, 13, 18], [-5, 7, 14], [-1, 11, 17]],
+    bass: [0, -1, -1, -1, -1, -1, 12, -1, 0, -1, -1, -1, -1, -1, -1, -1],
+    melody: [24, -1, -1, -1, -1, -1, 25, -1, -1, -1, 19, -1, -1, -1, 18, -1],
+    kick: [0, 8], hats: [2, 6, 10, 14],
   },
 };
 
 /** A score step is a sixteenth note. Sparse openings, evolving phrases, a breakdown, then return. */
 export function scoreStep(planet: PlanetId, step: number): Note[] {
+  if (planet === 'amnion' || planet === 'umbra') return finalWorldStep(planet, step);
   const theme = THEMES[planet], bar = Math.floor(step / 16), beat = step % 16;
   const phrase = Math.floor(bar / 8) % 4, chordIndex = Math.floor(bar / 2) % 4;
   const chord = theme.chords[chordIndex], root = theme.root;
@@ -109,6 +107,7 @@ export function scoreStep(planet: PlanetId, step: number): Note[] {
 /** Additive boss stem: same harmony, sixteenths and phrase position as the untouched level score.
  * Dry, centred low end avoids reverb build-up; no duplicate lead/pad track or second transport. */
 export function bossStep(planet: PlanetId, step: number): Note[] {
+  if (planet === 'amnion' || planet === 'umbra') return finalWorldStep(planet, step, true);
   const theme = THEMES[planet], bar = Math.floor(step / 16), beat = step % 16;
   const chord = theme.chords[Math.floor(bar / 2) % 4];
   const human = planet === 'luna', foundry = planet === 'khepri', bloom = planet === 'nacre';
@@ -135,6 +134,50 @@ export function bossStep(planet: PlanetId, step: number): Note[] {
   if (foundry && [3, 7, 11, 15].includes(beat)) add('metal', 55 + chord[0], .065, beat < 8 ? -.3 : .3);
   // Small turnarounds at the end of the existing eight-bar phrases; never change their length.
   if (bar % 8 === 7 && beat >= 13) add(human || bloom ? 'brush' : 'snare', 58 + (beat - 13), .07 + (beat - 13) * .025, (beat - 14) * .16);
+  return notes;
+}
+
+/** The final worlds have their own instrumentation, phrasing and rhythm. Boss layers only reinforce the same
+ * bass/harmony and clock; the breathing membrane / precise needle motifs continue through the crossfade. */
+function finalWorldStep(planet: 'amnion' | 'umbra', step: number, boss = false): Note[] {
+  const theme = THEMES[planet], bar = Math.floor(step / 16) % 32, beat = step % 16;
+  const phrase = Math.floor(bar / 8), breakdown = phrase === 2, organic = planet === 'amnion';
+  const chord = theme.chords[Math.floor(bar / 2) % 4], root = theme.root + chord[0];
+  const notes: Note[] = [];
+  const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = 0, offset = 0) =>
+    notes.push({ instrument, pitch, gain, pan, wet: boss ? 0 : wet, offset });
+  const bass = theme.bass[beat], bassVoice = organic ? 'bio-bass' : 'void-bass';
+  if (boss) {
+    if (bass >= 0 || beat % 2 === 0) add(bassVoice, root - 12 + (bass >= 0 ? bass : beat % 4 === 2 ? 12 : 0), organic ? .29 : .31);
+    const kicks = organic ? [0, 2, 6, 9, 11, 14] : [0, 4, 8, 12];
+    if (kicks.includes(beat)) add(organic ? 'heart' : 'kick', 36, organic ? .34 : .27);
+    if (beat % 2 === 0 || organic && beat === 15) add(organic ? 'bone' : 'void-tick', 60,
+      beat % 4 === 0 ? .10 : .065, beat % 4 === 0 ? -.16 : .16);
+    if (bar % 8 === 7 && beat >= 13) add(organic ? 'bone' : 'void-tick', 60 + (beat - 13) * 2, .10, (beat - 14) * .18);
+    return notes;
+  }
+  if (beat === 0 && bar % 2 === 0) {
+    // Open fifth plus one uneasy colour on Amnion; Umbra leaves a clean octave and a distant upper interval.
+    chord.forEach((interval, i) => add(organic ? 'breath-pad' : 'void-air', theme.root + interval,
+      organic ? .18 : .12, (i - 1) * .22, organic ? .28 : .42));
+  }
+  if (bass >= 0 && (!breakdown || beat === 0)) add(bassVoice, root - 12 + bass, organic ? .27 : .28);
+  if (theme.kick.includes(beat) && (!breakdown || beat === 0)) {
+    // Paired, uneven heartbeats versus the precise eight-note void pulse.
+    add(organic ? 'heart' : 'kick', 36, organic ? (beat === 2 || beat === 11 ? .19 : .32) : .26);
+  }
+  if (theme.hats.includes(beat) && !breakdown && (bar > 1 || beat === 6)) {
+    add(organic ? 'bone' : 'void-tick', 60 + (organic ? bar % 3 : 0), organic ? .075 : .05,
+      beat < 8 ? -.2 : .2, organic ? .08 : .12, organic && beat % 2 ? .018 : 0);
+  }
+  // The motif speaks, then leaves a bar of space. Phrase two answers it; the third strips back to a distant call.
+  const index = phrase === 1 && bar % 2 ? (beat + 6) % 16 : beat;
+  const melody = theme.melody[index];
+  if (melody >= 0 && (bar % 2 === 0 || phrase === 1) && (!breakdown || beat === 0)) {
+    add(organic ? 'nerve' : 'needle', root + melody + (phrase === 3 ? -12 : 0),
+      organic ? .12 : .16, Math.sin(bar * 1.7 + beat) * .28, organic ? .24 : .48);
+  }
+  if (phrase === 3 && beat === 12 && bar % 2) add(organic ? 'nerve' : 'needle', root + (organic ? 13 : 24), .08, -.2, .4);
   return notes;
 }
 

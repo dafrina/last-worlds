@@ -1,6 +1,6 @@
 import type { Cue } from './events';
 import type { Note } from './score';
-import { noiseSource, SAMPLE_RATE, synthesize, type SampleId, type Sound } from './samples';
+import { noiseSource, SAMPLE_IDS, SAMPLE_RATE, synthesize, type SampleId, type Sound } from './samples';
 
 export interface AudioSettings { muted: boolean; music: number; effects: number }
 type Group = 'music' | 'effects';
@@ -89,9 +89,7 @@ export class AudioMixer {
   }
   warm() {
     // Cached once on the first gesture; no sample synthesis in the dense combat/music paths.
-    const ids: SampleId[] = [...Object.keys(LEVELS) as Sound[], 'kick', 'snare', 'hat', 'metal', 'bass', 'keys', 'glass', 'pad',
-      'bloom-pad', 'saw-bass', 'saw-lead', 'piano', 'round-bass', 'brush'];
-    ids.forEach(id => this.buffer(id));
+    SAMPLE_IDS.forEach(id => this.buffer(id));
   }
   private ramp(param: AudioParam, target: number, seconds = .025, at = this.context.currentTime) {
     param.cancelAndHoldAtTime(at);
@@ -172,8 +170,8 @@ export class AudioMixer {
   }
   note(note: Note, at: number, boss = false) {
     if (boss && !this.bossActiveAt(at)) return;
-    const pad = note.instrument === 'pad' || note.instrument === 'bloom-pad';
-    const bass = ['bass', 'round-bass', 'saw-bass', 'kick'].includes(note.instrument);
+    const pad = ['pad', 'bloom-pad', 'breath-pad', 'void-air'].includes(note.instrument);
+    const bass = note.instrument.endsWith('bass') || note.instrument === 'kick' || note.instrument === 'heart';
     const base = bass ? 36 : pad ? 48 : 60;
     // Added rhythm may be thinned under pressure; it must never steal the level's lead or sustained pads.
     this.play(note.instrument, at + (note.offset ?? 0), 2 ** ((note.pitch - base) / 12), note.gain, note.pan, 'music', boss ? -1 : pad ? 0 : 1, note.wet, boss);

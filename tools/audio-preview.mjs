@@ -12,14 +12,14 @@ try {
   await page.goto(`${process.env.AUDIO_PREVIEW_URL ?? 'http://127.0.0.1:4173'}/tests/fixtures/audio-lab.html`);
   await page.waitForFunction(() => window.__AUDIO_LAB__);
   const metrics = {};
-  for (const theme of ['luna', 'khepri', 'nacre', 'vesper', 'effects', 'combat']) {
+  for (const theme of ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'umbra', 'effects', 'combat']) {
     const result = await page.evaluate(async theme =>
       window.__AUDIO_LAB__.renderPreview(theme === 'combat' ? 'nacre' : theme, theme === 'effects' ? 37 : 28, theme === 'combat'), theme);
     await writeFile(path.join(output, `${theme}.wav`), Buffer.from(result.wav, 'base64'));
     metrics[theme] = result.metrics;
     console.log(theme, JSON.stringify({ peak: result.metrics.peak, rms: result.metrics.rms, clipped: result.metrics.clipped }));
   }
-  for (const theme of ['luna', 'khepri', 'nacre', 'vesper']) {
+  for (const theme of ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'umbra']) {
     for (const version of ['boss', 'transition']) {
       const result = await page.evaluate(async ({ theme, version }) =>
         window.__AUDIO_LAB__.renderPreview(theme, 34, false, version), { theme, version });
@@ -34,6 +34,8 @@ try {
     ['khepri', 'KHEPRI', 'Foundry Afterimage', 'Gritty saw synths and heavy bass · 118 BPM'],
     ['nacre', 'NACRE', 'Dreams Beneath the Bloom', 'Soft drifting pads and a gentle pulse · 106 BPM'],
     ['vesper', 'VESPER', 'Below the Ice Line', 'Glacial bells and space between the beats · 88 BPM'],
+    ['amnion', 'AMNION', 'Something Beneath the Skin', 'Breathing membranes, uneasy nerve tones and paired heartbeats · 92 BPM'],
+    ['umbra', 'UMBRA', 'A Line Through Silence', 'Clean glass needles, distant air and a precise deep pulse · 90 BPM'],
     ['effects', 'COMBAT SOUNDS', 'Weapons, impacts & explosions', 'Lasers, shields, specials, bosses and warp'],
     ['combat', 'IN THE MIX', 'Nacre under fire', 'Music with repeated volleys, explosions and a shield break'],
   ];
@@ -50,7 +52,7 @@ article p{color:#9eb4c8;font-size:13px;min-height:40px}audio{width:100%;height:4
 label{display:block;color:#9eb4c8;font-size:12px;margin-bottom:12px}select{margin-left:8px;background:#14293c;color:#dfebf4;border:1px solid #38536b;padding:8px;font:inherit}
 footer{color:#819bad;font-size:12px;margin-top:28px}
 </style><main><header><span class="eyebrow">LAST WORLDS / AUDIO</span><h1>Sound room</h1>
-<p>The same four planet scores, with synchronized bass and rhythm for boss battles. The transition previews begin in level mode, build into the fight, then return to the original music.</p></header>
+<p>Six planet scores, each with its own voice. Amnion breathes; Umbra cuts through the silence. The transition previews begin in level mode, build into the boss fight, then return to the original music.</p></header>
 <section class="grid">${tracks.map(([id, planet, title, detail]) => {
   const stem = !['effects', 'combat'].includes(id);
   const changes = stem ? metrics[`${id}-transition`].transitions : [];

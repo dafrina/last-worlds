@@ -78,7 +78,7 @@ The concept image is a reference, never a runtime background or a finished asset
    - **Floating rock:** a boulder mass hangs under each of the five outer shields, painted from the model's own rock slabs, with smaller chunks floating beside it.
    - **Size:** 70% of the reference placement ("the model seems pretty big no?"). It rises straight up out of its canyon (it used to slide in from row 30 and plough through the canyon wall), and the canyon is fitted to its footprint and sway.
    - **Combat points:** the core target and the sacs keep their tested positions, within half a unit of the egg and the bulges; closer values made the overload fan seal the view. The hatchling bays are at x ±1.96, s −1.68.
-5. **Music:** Codex, through `COORDINATION.md`.
+5. **Music:** *Something Beneath the Skin*, 92 BPM, implemented 25 October. Original biological-horror score: breathing formants, uneasy nerve tones, organic bass, irregular paired heartbeats and dry bone clicks. Authored 32-bar arc and a stronger synchronized bass/rhythm layer for THE CRADLE; see [sound design](24-sound-design.md). Replaces the earlier transposed Nacre placeholder.
 6. **Endless:** Amnion joins the planet cycle.
 
 ## Terrain (milestone 1)

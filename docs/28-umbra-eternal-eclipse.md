@@ -28,11 +28,13 @@ The concept images are references, never runtime backgrounds or finished assets 
 - **Black glass under an eclipse.** No sun: a cold violet-white rim light, a violet sky fill and bounce, and the eclipse's corona in every glossy surface (the `void` reflection sky in `src/render/models.ts`).
 - **Ground:**
   - one plateau of shattered obsidian plates, each its own tone and tilted a hair its own way, split by a crack network whose edges catch the light, and cracked by thin glowing violet faults in patches (the concept's "energy faults");
-  - Amnion's jagged crevasses with their own seed, falling away into a glowing lavender fog. Cracked glass-slab cliffs line only scattered stretches of the lips, about a quarter of them;
+  - Amnion's jagged crevasses with their own seed, falling away into a glowing lavender fog. Fractured glass walls line broken stretches of the lips; the 25 October revision uses broader oblique faces, cleavage cracks and sharper shoulders over the heightfield edge;
+  - **26 October, approved in the playground:** the underlying canyon itself also has a straight wall profile with hard foot/rim corners, including THE ECLIPSE's abyss. Exposed steep triangles use their own face normals instead of blending into the plateau. This removes the rounded lighting between the scattered wall models; flat ground and other planets keep their previous shading;
+  - **Deeper wall feet:** the cliff kit continues four world units below its sampled foot, at least down to −10, keeping its top anchored. The follow-up at seed 8833 / distance 928 exposed a fog mismatch at the abyss-floor intersection: kit walls now share the ground's violet height fog, which becomes opaque below −8.2 in the deep abyss. Upper scenery and other planets retain their previous fog. No transparent layers or extra draw calls;
   - hills: the kit's fractured obsidian massifs (`umb_hill`, eight forms), overlapping into ranges, each a few large exactly planar faces broken along cracks, with razor edges;
   - sharp obsidian rocks, and only now and then a needle spire at a canyon edge ("less spikey as a vibe and more cracked and sharp");
   - floating cliffs drifting in the fog.
-- **The faction's structures:** monolith towers, eclipse gates, arc reactors, shield pylons, obelisks, landing pads, and now and then a crescent dock floating over a wide canyon.
+- **The faction's structures:** monolith towers, eclipse gates, arc reactors, shield pylons, obelisks, landing pads and crescent docks on supported plateau. Every rotated footprint is sampled across its edges and interior, including small satellite pads. Canyon crossings and uneven sites are rejected. The old dock's hanging spikes are buried to its lower deck. Only the rock fragments float in canyons.
 - **The Umbral fleet:** deep black, glossy, smooth, blade-like ships with violet cores.
 - **THE ECLIPSE:** a crescent carrier about 20 units from horn to horn, lying flat over an abyss with its horns away from the player.
 
@@ -86,11 +88,12 @@ The concept images are references, never runtime backgrounds or finished assets 
 
 - **Ground:** `src/world/terrain-umbra.ts`. The kit kinds are in `src/world/terrain-scatter.ts`.
 - **Look:** `src/render/scene.ts` (`LOOKS.umbra`, `void` sky), `src/render/terrain-kit.ts` (glow, gloss, haze, wall look), `src/render/models.ts` (`createVoidEnvironment`).
-- **Kit:** `tools/blender/umbra_kit.py` and the `umbra` branch of `tools/blender/cliff_kit.py` (`public/assets/umbra/umbra-kit.glb`, `cliff-kit.glb`; previews in `art/umbra-kit/`).
+- **Kit:** approved hills/structures remain in `tools/blender/umbra_kit.py` and `public/assets/umbra/umbra-kit.glb`. Active cliffs: `tools/blender/umbra_cliffs_v2.py`, `public/assets/umbra/cliff-kit-v2.glb`, authored/exported through live Blender MCP in an isolated scene. Four variants, 203–315 triangles each, 122,564 bytes total. The old `cliff-kit.glb` and its builder remain for rollback; change the Umbra filename in `src/render/terrain-view.ts`.
+- **Floating rock undersides (26 October):** `tools/blender/umbra_floats_v2.py` / `public/assets/umbra/floating-shards-v2.glb` replaces only the three float nodes after both kits have loaded. Original flat fractured tops and placement retained; a few broad cleaved wedges replace the hanging needles. 75–99 triangles each, 30,992 bytes total. Authored through live Blender MCP in its own scene. Omit the optional floating-kit URL in `terrain-view.ts` to restore the original three models; no other kit geometry changes.
 - **Fleet:** `tools/blender/umbra_craft.py` (`public/assets/umbra/umbra-craft.glb`).
 - **Content:** `src/content/eclipse.ts`, `src/content/bosses.ts`, `src/content/encounters.ts` (`FINAL_HORIZON`).
 - **Tests:** `tests/sim/umbra.test.ts` (campaign place, perfect pilot), `tests/world/terrain-umbra.test.ts` (caps, flat plateau), and the fairness table (`tests/sim/fairness.test.ts`).
-- **Music:** a placeholder theme in `src/audio/score.ts` until Codex writes Umbra's own (requested in `COORDINATION.md`).
+- **Music:** *A Line Through Silence*, 90 BPM: clean struck-glass needles, pure-tone air and a precise low pulse. Original 32-bar arrangement with a synchronized bass/rhythm boss layer; see [sound design](24-sound-design.md).
 
 ## Milestones
 
@@ -102,5 +105,5 @@ The concept images are references, never runtime backgrounds or finished assets 
    - the crescent dock.
 3. **The Umbral fleet:** done (`umbra-craft.glb`, seven ships). Each kind flies its own ship, and THE ECLIPSE's drones use the drone (`UMBRA_CRAFT` in `src/render/scene.ts`). The `umbra_obsidian` material class is glossy, roughness 0.12 and no metal.
 4. **THE ECLIPSE:** done (`the-eclipse-v1-approved.glb`). It is in the boss asset test (rig, budget, rays).
-5. **Music:** Codex.
+5. **Music:** implemented 25 October, level and boss layers.
 6. **Endless:** Umbra joins the planet cycle later.

@@ -343,7 +343,15 @@ export function loadNacreKit(url: string): Promise<KitGeometries> { return loadK
 /** Amnion's brood kit (docs/27): egg cores and yolk emit their own colour like Nacre's flora. */
 export function loadAmnionKit(url: string): Promise<KitGeometries> { return loadKit(url, AMNION_KIT_KINDS, /glow/i); }
 /** Umbra's obsidian kit (docs/28): violet seams and halos emit their own colour like Amnion's yolk. */
-export function loadUmbraKit(url: string): Promise<KitGeometries> { return loadKit(url, UMBRA_KIT_KINDS, /glow/i); }
+export async function loadUmbraKit(url: string, floatingUrl?: string): Promise<KitGeometries> {
+  const [kit, floating] = await Promise.all([
+    loadKit(url, UMBRA_KIT_KINDS, /glow/i),
+    floatingUrl ? loadKit(floatingUrl, ['umbFloat'], /glow/i) : Promise.resolve<KitGeometries>(new Map()),
+  ]);
+  // Apply the three replacement nodes only after both loads settle, so completion order cannot restore old spikes.
+  floating.forEach((geometry, name) => { kit.get(name)?.dispose(); kit.set(name, geometry); });
+  return kit;
+}
 /**
  * Loads a world's cliff kit (`<world>/cliff-kit.glb`, docs/26 §11): Khepri's columnar basalt walls (also Luna's) or
  * Vesper's ice-shelf walls. Nodes it lacks keep their stand-ins.
@@ -797,14 +805,17 @@ const HAZE_VERTEX = `#include <project_vertex>
   #endif`;
 /** Cool teal/violet haze settling in deep valleys against the warm sun (docs/13 §1). */
 const HAZE_FRAGMENT = `#include <opaque_fragment>
-  gl_FragColor.rgb = mix( gl_FragColor.rgb, hazeColor, smoothstep( hazeTop, hazeBottom, vHazeY ) * hazeStrength );`;
-const HAZE_UNIFORMS = '\nuniform vec3 hazeColor;\nuniform float hazeTop;\nuniform float hazeBottom;\nuniform float hazeStrength;\nvarying float vHazeY;';
+  float depthHaze = smoothstep( hazeTop, hazeBottom, vHazeY ) * hazeStrength;
+  // Umbra's deep abyss becomes opaque fog below the ordinary canyon layer, hiding the buried wall/floor joins.
+  depthHaze = mix( depthHaze, 1.0, hazeAbyss * smoothstep( -5.6, -8.2, vHazeY ) );
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, hazeColor, depthHaze );`;
+const HAZE_UNIFORMS = '\nuniform vec3 hazeColor;\nuniform float hazeTop;\nuniform float hazeBottom;\nuniform float hazeStrength;\nuniform float hazeAbyss;\nvarying float vHazeY;';
 /**
  * Haze tuned for valley floors near −6 and rims near 2: a faint dusky violet that *lifts* the depths (its
  * radiance sits above a shadowed valley floor), so deep canyons read as distance and air, never as night.
  */
 const haze = () => ({
-  hazeColor: { value: linear(0x6e6070) }, hazeTop: { value: -2.6 }, hazeBottom: { value: -7 }, hazeStrength: { value: 0.34 },
+  hazeColor: { value: linear(0x6e6070) }, hazeTop: { value: -2.6 }, hazeBottom: { value: -7 }, hazeStrength: { value: 0.34 }, hazeAbyss: { value: 0 },
 });
 
 /** Unit-luminance chroma of an sRGB colour, linear (a wall hue the shader scales by the ground's own light). */
@@ -836,7 +847,7 @@ const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; col
   // red stripes, straightened by the height grid.
   amnion: { hue: hueOf(0x3c1816), shade: 0.24, columns: 0.5, crease: 1, fleshOnly: 1 },
   // Umbra (docs/28): black glass with a cold violet cast on every steep face (spike flanks and canyon walls alike).
-  umbra: { hue: hueOf(0x262238), shade: 0.85, columns: 0, crease: 0, fleshOnly: 0 },
+  umbra: { hue: hueOf(0x262238), shade: 0.85, columns: 0, crease: 1, fleshOnly: 0 },
   // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
   // darker regolith per face.
   luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0, fleshOnly: 0 },
@@ -883,6 +894,7 @@ export function createTerrainMaterials() {
    * wall (hard rims, faceted wall shading, the wall's own material); Nacre keeps the smooth look exactly (cliffLook 0).
    */
   const cliffLook = { cliffLook: { value: 1 }, creaseLook: { value: KHEPRI_WALL.crease }, wallHue: { value: KHEPRI_WALL.hue.clone() },
+    wallFacets: { value: 0 },
     wallShade: { value: KHEPRI_WALL.shade }, wallColumns: { value: KHEPRI_WALL.columns }, wallFleshOnly: { value: 0 },
     // Vesper's ice walls (user, 22 October: "more crispy ... darker sharp texture like in the original concept"): how much the
     // ice map shapes the wall (x) and its sampling sharpness (y: derivative scale; under 1 samples a sharper level).
@@ -917,6 +929,7 @@ uniform vec3 glowColor;\nuniform vec3 veinTint;\nuniform vec3 poolTint;\nuniform
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
 uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform float wallFleshOnly;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
+uniform float wallFacets;
 uniform sampler2D crackMap;\nuniform float crackLook;\nuniform vec3 crackTint;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
 // across section joins (36·scale must be an integer).
@@ -1096,12 +1109,15 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
   // A flat-lying triangle whose smooth vertex normal leans away from its own plane borders a rim or a cliff foot: it is
   // shaded by its plane, so a top stays flat right up to its edge (a hard rim) and a floor right up to the wall's foot.
-  // Walls keep their smooth normals (faceted walls would show the height grid's steps), and hills, dunes and swales,
-  // whose planes and normals agree, stay smooth.
+  // Other worlds keep their established smooth wall normals. Umbra opts into hard face normals just below.
+  // Hills, dunes and swales whose planes and normals agree stay smooth.
   if ( creaseLook > 0.0 ) {
     float crease = creaseLook * smoothstep( 0.99, 0.94, dot( normal, cliffFace ) ) * smoothstep( 0.72, 0.88, cliffUp );
     normal = normalize( mix( normal, cliffFace, crease ) );
   }
+  // Umbra's bare canyon faces are rock planes too. Averaging the wall normal with the plateau above made every
+  // exposed rim look inflated, even beside a razor-edged model. Apply only to steep faces; flat ground stays smooth.
+  if ( wallFacets > 0.5 && cliffUp < 0.88 ) normal = cliffFace;
   // Wall relief (High): the wall map's normals on wall triangles only, in the frame the wall uv spans (screen
   // derivatives, as three's own normal maps do without tangents). Tops and rims keep their crisp planes.
 #ifdef USE_MAP
@@ -1163,9 +1179,10 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
    */
   const kitWall = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.9, 0.9) });
   const wallLook = { wallTile: { value: 1 / WALL_TILE }, wallContrast: { value: WALL_DETAIL.khepri!.contrast } };
+  const kitHaze = haze();
   const kitShader = (wall: boolean) => (shader: THREE.WebGLProgramParametersWithUniforms) => {
     // Crystal growths and mineral crack faces are true glows (bloom on High); basalt stays matte.
-    Object.assign(shader.uniforms, uniforms, haze(), time, kitLook, kitGlow, wall ? wallLook : {});
+    Object.assign(shader.uniforms, uniforms, kitHaze, time, kitLook, kitGlow, wall ? wallLook : {});
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;\nvarying float vPieceY;${wall ? '\nuniform float wallTile;\nvarying float vWallTop;' : ''}`)
       .replace('#include <uv_vertex>', wall ? WALL_UV_VERTEX : `#include <uv_vertex>
@@ -1242,6 +1259,7 @@ ${VESPER_KIT_SURFACE}`)
     const wall = WALL_LOOK[planet];
     cliffLook.cliffLook.value = wall ? 1 : 0;
     cliffLook.creaseLook.value = wall?.crease ?? 0;
+    cliffLook.wallFacets.value = planet === 'umbra' ? 1 : 0;
     cliffLook.cliffSteep.value.set(vesper ? 0.42 : 0.62, vesper ? 0.3 : 0.42);
     const crisp: [number, number] = vesper ? iceCrispOverride() ?? ICE_CRISP : [0.18, 1]; cliffLook.iceCrisp.value.set(...crisp);
     if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; cliffLook.wallFleshOnly.value = wall.fleshOnly; }
@@ -1276,6 +1294,15 @@ ${VESPER_KIT_SURFACE}`)
     // Luna has no air: no haze in its craters. Umbra's canyons vanish into a glowing purple fog from just under the lip.
     groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : umbra ? 0.7 : khepri.hazeStrength.value;
     groundHaze.hazeTop.value = umbra ? -2.1 : khepri.hazeTop.value; groundHaze.hazeBottom.value = umbra ? -5.6 : khepri.hazeBottom.value;
+    groundHaze.hazeAbyss.value = umbra ? 1 : 0;
+    // Umbra's wall feet already continue below the floor. Different fog on those meshes made their intersection
+    // read as an exposed cut: the floor vanished into violet haze while the rock stayed dark. Match both surfaces.
+    const sceneryHaze = umbra ? groundHaze : khepri;
+    kitHaze.hazeColor.value.copy(sceneryHaze.hazeColor.value);
+    kitHaze.hazeTop.value = sceneryHaze.hazeTop.value;
+    kitHaze.hazeBottom.value = sceneryHaze.hazeBottom.value;
+    kitHaze.hazeStrength.value = sceneryHaze.hazeStrength.value;
+    kitHaze.hazeAbyss.value = sceneryHaze.hazeAbyss.value;
     if (vesper && !snowTrack) snowTrack = createRoadTexture('snow');
     if (luna && !lunaTrack) lunaTrack = createRoadTexture('regolith');
     roads.map = vesper ? snowTrack : luna ? lunaTrack : dustTrack; roads.needsUpdate = true;

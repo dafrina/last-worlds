@@ -58,6 +58,10 @@ export interface WallOptions {
    * umbra_kit.py) put their tallest spikes at the top, so lifting it lets them stand above the lip.
    */
   overtop?: number;
+  /** Additional depth below the sampled foot, keeping the rim at the same height. Hides exposed ends in deep canyons. */
+  footDepth?: number;
+  /** Lowest floor the wall must reach, even when its downhill probe ends on an intermediate shelf. */
+  footFloor?: number;
 }
 /** Probe step for slopes and walks along the gradient (world units). */
 const PROBE = 0.125, WALK = 0.1;
@@ -110,7 +114,7 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       // Only against ground that carries on behind the wall: no walls (nor smaller pieces) on knife-edge ridges or slivers.
       if (height(x + ux * 1.1, s + us * 1.1) < base + (top - base) * 0.5) continue;
       if (!clear(x, s) || !clear(px, ps) || !clear(rx, rs) || !clear(x - us * 1, s + ux * 1) || !clear(x + us * 1, s - ux * 1)) continue;
-      const y = base - 0.12, rise = Math.min(o.cap, top + 0.03 + (o.overtop ?? 0) * (top - base)) - y, spec = KIT[o.kind], scale = o.scale ? o.scale[0] + h(2) * (o.scale[1] - o.scale[0]) : 0.85 + h(2) * 0.3;
+      const y = Math.min(base - 0.12 - (o.footDepth ?? 0), o.footFloor ?? Infinity), rise = Math.min(o.cap, top + 0.03 + (o.overtop ?? 0) * (top - base)) - y, spec = KIT[o.kind], scale = o.scale ? o.scale[0] + h(2) * (o.scale[1] - o.scale[0]) : 0.85 + h(2) * 0.3;
       // Never on an arena's platform or ramps (the wall's own row, not just its cell's), never past the world's edge.
       if (rise < o.minDrop * 0.8 || Math.abs(x) + spec.radius * scale > WORLD_HALF || (!o.arenas && (terrain.platform(x, s) > 0 || terrain.platform(rx, rs) > 0))) continue;
       const wall: KitInstance = {
