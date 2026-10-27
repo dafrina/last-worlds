@@ -41,7 +41,7 @@ export function diamondSide(enemy: Pick<Enemy, 'volleys'>): -1 | 1 {
 export function enemyShots(kind: BulletKind, x: number, s: number, aimX: number, speed: number, side: -1 | 0 | 1 = 0): ShotSpec[] {
   const originX = kind === 'diamond' ? x + side * DIAMOND_VOLLEY.wing : x;
   const count = kind === 'wraith' ? WRAITH.rounds : kind === 'weaver' ? 2 : kind === 'turret' || kind === 'diamond' ? 3 : 1;
-  const aim = Math.atan2(aimX - originX, -(s - 0.2));
+  const aim = kind === 'missile' ? Math.PI : Math.atan2(aimX - originX, -(s - 0.2));
   const shots: ShotSpec[] = [];
   for (let i = 0; i < count; i += 1) {
     const angle = aim + (kind === 'turret' ? (i - 1) * 0.14 : kind === 'diamond' ? (i - 1) * DIAMOND_VOLLEY.spread : 0);

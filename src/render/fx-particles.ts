@@ -103,6 +103,7 @@ function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = 
 export function createFx(scene: THREE.Scene) {
   const glow = layer(scene, ADDITIVE_CAPACITY, true), smoke = layer(scene, ALPHA_CAPACITY, false), ground = layer(scene, LIGHT_CAPACITY, true, true);
   const transform = new THREE.Object3D(), color = new THREE.Color();
+  let lastDistance = 0, anchoredEmission = false;
   let quality: GraphicsQuality = 'high', lastTime = -1, lastTick = -1, lastEffect = -1, lastShot = -1, seed = 0;
 
   const emit = (target: typeof glow, p: Partial<Particle> & { x: number; y: number; z: number; life: number; size: number; delay?: number }) => {
@@ -110,7 +111,7 @@ export function createFx(scene: THREE.Scene) {
     const q = target.pool[target.live++];
     q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx ?? 0; q.vy = p.vy ?? 0; q.vz = p.vz ?? 0; q.age = -(p.delay ?? 0); q.life = p.life;
     q.size = p.size; q.grow = p.grow ?? 0; q.stretch = p.stretch ?? 1; q.alpha = p.alpha ?? 1; q.shape = p.shape ?? ROUND;
-    q.flat = p.flat ?? false; q.drag = p.drag ?? 0; q.fall = p.fall ?? 0; q.r = p.r ?? 1; q.g = p.g ?? 1; q.b = p.b ?? 1; q.drift = p.drift ?? 0;
+    q.flat = p.flat ?? false; q.drag = p.drag ?? 0; q.fall = p.fall ?? 0; q.r = p.r ?? 1; q.g = p.g ?? 1; q.b = p.b ?? 1; q.drift = anchoredEmission ? 1 : p.drift ?? 0;
     q.r2 = p.r2 ?? q.r; q.g2 = p.g2 ?? q.g; q.b2 = p.b2 ?? q.b;
   };
   const tint = (hex: number, energy: number) => { color.setHex(hex).multiplyScalar(energy); return { r: color.r, g: color.g, b: color.b }; };
@@ -269,6 +270,7 @@ export function createFx(scene: THREE.Scene) {
     for (const effect of state.effects) {
       if (effect.id <= lastEffect) continue;
       maxEffect = Math.max(maxEffect, effect.id);
+      anchoredEmission = state.boss?.phase === 'destroyed' && ['explosion', 'blast', 'bossBlast'].includes(effect.kind);
       const z = -effect.s;
       if (effect.kind === 'explosion') explosion(effect.x, z, effect.id);
       else if (effect.kind === 'blast') blast(effect.x, z, effect.id, 1);
@@ -279,6 +281,7 @@ export function createFx(scene: THREE.Scene) {
         z: z + (hash(effect.id + i * 3) - .5) * .5, life: .25, size: .32, grow: -.2, shape: STAR, alpha: 1, ...tint(0xfff4d8, 1.6) });
       else if (effect.kind === 'special') flash(effect.x, z, 2.2, .16, 0xc8fff8, 1.6);
     }
+    anchoredEmission = false;
     lastEffect = maxEffect;
     let maxShot = lastShot;
     for (const shot of state.projectiles) {
@@ -359,6 +362,9 @@ export function createFx(scene: THREE.Scene) {
     setQuality(next: GraphicsQuality) { quality = next; },
     /** Advance by simulation time (frozen while paused or in still fixtures) and rebuild both instanced layers. */
     update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = [], planetSurface: FxSurface | null = null) {
+      const shift = lastTime < 0 || state.time < lastTime || seed !== state.config.seed ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
+      // Move only existing particles; new effects already use this snapshot's world position.
+      for (const layer of [glow, smoke, ground]) for (let i = 0; i < layer.live; i++) layer.pool[i].z += shift * (layer === ground ? 1 : layer.pool[i].drift);
       const previous = lastTime, dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
       surface = planetSurface;
       spawn(state);
@@ -382,11 +388,6 @@ export function createFx(scene: THREE.Scene) {
         }
       }
       step(glow, dt); step(smoke, dt); step(ground, dt);
-      // The ground scrolls toward the player: ground dust moves with it, air smoke partly, glows ride the flight plane.
-      // Uses the run's live scroll speed when the simulation exposes it (endless ramp, boss stop).
-      const scroll = (state as RunState & { scrollSpeed?: number }).scrollSpeed ?? VIEW.scrollSpeed;
-      for (let i = 0; i < smoke.live; i++) smoke.pool[i].z += scroll * dt * smoke.pool[i].drift;
-      for (let i = 0; i < ground.live; i++) ground.pool[i].z += scroll * dt;
       write(glow); write(smoke); write(ground); overlay(state, plumes);
       for (const target of [glow, smoke, ground]) {
         target.mesh.instanceMatrix.needsUpdate = true; target.params.needsUpdate = true;

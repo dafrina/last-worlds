@@ -239,6 +239,8 @@ export function particleLayer(scene: THREE.Scene, capacity: number, additive: bo
   const live: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color();
   return {
     emit(p: Omit<Particle, 'age'>) { if (live.length < capacity) live.push({ ...p, age: 0 }); },
+    /** Scroll existing particles before emitting this frame's world-anchored puffs. */
+    shift(distance: number) { for (const p of live) p.z += distance; },
     step(dt: number, groundShift: number) {
       for (let i = live.length - 1; i >= 0; i--) {
         const p = live[i]; p.age += dt;
@@ -293,6 +295,7 @@ export function createBastionView(scene: THREE.Scene) {
   const markers = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }));
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
   const tint = new THREE.Color(), world = new THREE.Vector3();
+  let lastDistance = 0;
   let lastTime = -1, emitCarry = 0, treadOffset = 0, encounter = -1;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
   /** Last seen hp and last damaging hit per boss part (by enemy id), for impact flares. */
@@ -341,7 +344,9 @@ export function createBastionView(scene: THREE.Scene) {
       // Only Bastion-9, and only while the scene gives it a seat (none during a warp).
       const boss = state.boss && state.boss.id === 'bastion' ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
+      const groundShift = lastTime < 0 || state.time < lastTime ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
+      dust.shift(groundShift); sparks.shift(groundShift);
       if (!boss || !placement) { shock.visible = false; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); encounter = -1; return; }
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); rig.parts.forEach(p => { p.open = 0; p.recoil = 0; p.lastWarning = 0; }); }
       root.position.set(placement.x ?? boss.x, placement.baseHeight, -placement.s);
@@ -460,8 +465,7 @@ export function createBastionView(scene: THREE.Scene) {
         }
       }
       rig.glow.forEach(material => { material.emissiveIntensity = destroyed ? Math.max(0, 1.6 - phaseAge * .8) : 1.4 + .3 * Math.sin(state.time * 3); });
-      const groundShift = state.scrollSpeed * dt;
-      dust.step(dt, groundShift); sparks.step(dt, groundShift);
+      dust.step(dt, 0); sparks.step(dt, 0);
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },

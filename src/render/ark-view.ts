@@ -190,6 +190,8 @@ function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) 
   const live: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color();
   return {
     emit(p: Omit<Particle, 'age'>) { if (live.length < capacity) live.push({ ...p, age: 0 }); },
+    /** Scroll existing particles before emitting this frame's world-anchored puffs. */
+    shift(distance: number) { for (const p of live) p.z += distance; },
     step(dt: number, groundShift: number) {
       for (let i = live.length - 1; i >= 0; i--) {
         const p = live[i]; p.age += dt;
@@ -238,6 +240,7 @@ export function createArkView(scene: THREE.Scene) {
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
   const tint = new THREE.Color(), world = new THREE.Vector3();
   const rings3: FoamRing[] = [], wakes: Wake[] = [];
+  let lastDistance = 0;
   let lastTime = -1, encounter = -1, sprayCarry = 0, doorsOpen = 0, lastNextLaunch = Infinity, lastLaunchAt = -Infinity;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
   /** Last seen hp and last damaging hit per boss part (by enemy id), for impact flares. */
@@ -287,7 +290,9 @@ export function createArkView(scene: THREE.Scene) {
       const boss = state.boss && state.boss.id === 'ark' ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
       rings3.length = 0; wakes.length = 0;
+      const groundShift = lastTime < 0 || state.time < lastTime ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
+      mist.shift(groundShift); sparks.shift(groundShift);
       if (!boss || !placement) { mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); encounter = -1; return; }
       if (encounter !== boss.startedAt) {
         encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); doorsOpen = 0; lastNextLaunch = Infinity; lastLaunchAt = -Infinity;
@@ -429,8 +434,7 @@ export function createArkView(scene: THREE.Scene) {
         }
       }
       rig.lamps.forEach(material => { material.emissiveIntensity = destroyed ? Math.max(0, 1.5 - phaseAge * .5) : 1.4 + .25 * Math.sin(state.time * 2.6); });
-      const groundShift = state.scrollSpeed * dt;
-      mist.step(dt, groundShift); sparks.step(dt, groundShift);
+      mist.step(dt, 0); sparks.step(dt, 0);
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },

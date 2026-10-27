@@ -1,3 +1,4 @@
+import { createBeamLight, createPhaseHoles } from './combat-light';
 import * as THREE from 'three';
 import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
@@ -725,7 +726,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (next !== 'amnion' && next !== 'umbra') return undefined;
     if (predatorLoads.has(next)) return predatorLoads.get(next);
     const name = next === 'amnion' ? 'amnion_brood_heavy' : 'umbra_wraith';
-    const file = next === 'amnion' ? 'brood-heavy-v1.glb' : 'wraith-v1.glb';
+    const file = next === 'amnion' ? 'brood-heavy-v1.glb' : 'wraith-v2.glb';
     const loading = loadCraftNodes(`${import.meta.env.BASE_URL}assets/${next}/${file}`, [name]).then(nodes => {
       if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
       for (const [key, batch] of factionBatches(nodes, 'Predator', null, () => 0x8a6cff, materials.alienCraft)) predatorBatches.set(key, batch);
@@ -869,6 +870,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
   const jumpFx = createJumpFx(scene);
+  const beamLight = createBeamLight(scene), phaseHoles = createPhaseHoles(scene);
   const footprint: ViewFootprint = { minX: 0, maxX: 0, minS: 0, maxS: 0 };
   /** The run whose launch warp has played (its hero skips the entrance animation). */
   let warpLaunched: RunState['config'] | null = null;
@@ -1192,6 +1194,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick < hitTick) { enemyHp.clear(); enemyHitAt.clear(); }
       hitTick = state.tick;
       for (const [id] of enemyHp) if (!state.enemies.some(enemy => enemy.id === id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
+      beamLight.begin(); phaseHoles.begin();
       let pontoonCount = 0, stripCount = 0, flashCount = 0, fillCount = 0; pontoonRings.length = 0;
       const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
         const index = layer === telegraphs ? stripCount : layer === flashLanes ? flashCount : fillCount;
@@ -1209,17 +1212,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
        * shimmering, with a flare at the emitter.
        */
       const beamPreview = (x: number, top: number, width: number, flare: number) => {
-        const breathe = .8 + .2 * Math.sin(state.time * 9);
+        const breathe = 1;
+        plumes.push({ x, z: -top, length: .01, width: .3 + flare * Math.max(.5, width), hex: 0xff563c, energy: .6 + flare * 3, round: true });
         strip(x, top, x, VIEW.minS, width, 0xff2a1e, laneFills, (.55 + flare * .6) * breathe);
         strip(x, top, x, VIEW.minS, Math.min(.08, width * .25), 0xff4a36, flashLanes, (.5 + flare * 1.6) * breathe);
         if (flare > 0) strip(x, top, x, VIEW.minS, width * .9, 0xff3424, flashLanes, flare * .7);
       };
-      const beamLive = (x: number, top: number, width: number, source?: Enemy) => {
-        const glow = PLANET_GLOW[planet], shimmer = .85 + .15 * Math.sin(state.time * 55 + x * 7);
-        strip(x, top, x, VIEW.minS, width * 1.9, glow, flashLanes, .35 * shimmer);
-        strip(x, top, x, VIEW.minS, width * 1.05, glow, flashLanes, 1.1 * shimmer);
-        strip(x, top, x, VIEW.minS, Math.max(.07, width * .38), 0xffffff, flashLanes, 2.4 * shimmer);
-        if (source) plumes.push({ x: source.kind === 'needle' ? source.aimX : x, z: -top + .4, length: .01, width: Math.max(.8, width * 1.4), hex: glow, energy: 3.2, round: true });
+      const beamLive = (x: number, top: number, width: number, _source?: Enemy) => {
+        const glow = PLANET_GLOW[planet];
+        beamLight.add(x, top, width, glow);
+        plumes.push({ x, z: -top, length: .01, width: Math.max(.7, width * 1.15), hex: glow, energy: 3.2, round: true });
+        plumes.push({ x, z: -top, length: .01, width: Math.max(.25, width * .35), hex: 0xffffff, energy: 3.5, round: true });
       };
       /*
        * Shot telegraphs (user, 23 October: "I really dont like the dashed lines anymore"; "why some of the ground targets
@@ -1243,8 +1246,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // Chevrons only, no veil: a veiled column read as a beam lane.
         const span = top - VIEW.minS;
         for (let k = 0; k < 6; k++) {
-          const s = top - .5 - ((state.time * 4 + k * span / 6) % (span - .5));
-          for (const side of [-1, 1]) strip(x + side * .3, s + .3, x, s, .12, shotHex, flashLanes, (1.6 + charge * 1.6) * (1 - (top - s) / span * .45));
+          const s = top - .5 - ((state.time * .8 + k * span / 6) % (span - .5));
+          for (const side of [-1, 1]) strip(x + side * .3, s + .3, x, s, .12, shotHex, flashLanes, (.65 + charge * .65) * (1 - (top - s) / span * .45));
         }
       };
       const chargeOf = (enemy: Enemy) => 1 - Math.min(1, enemy.warning / Math.max(.1, ENEMIES[enemy.kind].warning));
@@ -1297,18 +1300,20 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
-        const craftScale = predator ? (enemy.kind === 'wraith' ? .72 : .82) : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
+        const craftScale = predator ? (enemy.kind === 'wraith' ? .76 : .82) : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
           : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
         if (slot < ENEMY_CAPACITY && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale);
           const blink = enemy.blink, phase = blink ? (state.time - blink.startedAt) / WRAITH.teleport : 1;
           if (blink && phase >= 0 && phase < 1) {
-            const t = phase * phase * (3 - 2 * phase), stretch = Math.sin(phase * Math.PI);
-            transform.position.set(THREE.MathUtils.lerp(blink.fromX, enemy.x, t), VIEW.flightHeight, -THREE.MathUtils.lerp(blink.fromS, enemy.s, t));
-            transform.scale.multiply(new THREE.Vector3(1 + stretch * 1.3, 1 - stretch * .7, 1 - stretch * .7));
-            // A single bounded streak, rather than overlapping transparent copies of the whole craft.
-            line(blink.fromX, blink.fromS, enemy.x, enemy.s, 0x8c6cdb);
+            // Collapse at departure and unfold at arrival; never fly across the gap.
+            const departing = phase < .5, u = departing ? phase * 2 : (phase - .5) * 2;
+            const size = departing ? 1 - u * u : u * u;
+            transform.position.set(departing ? blink.fromX : enemy.x, VIEW.flightHeight, -(departing ? blink.fromS : enemy.s));
+            transform.scale.multiplyScalar(Math.max(.001, size));
+            phaseHoles.add(blink.fromX, blink.fromS, 2.4 * Math.max(0, 1 - phase * 2));
+            phaseHoles.add(enemy.x, enemy.s, 2.4 * Math.max(0, 1 - Math.abs(phase - .55) / .45));
           }
           transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
@@ -1355,10 +1360,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           aimRay(enemy.x, enemy.s, state.player.x, 0, chargeOf(enemy)); muzzle(enemy.x, enemy.s, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'needle') {
           // Needle windup: the beam's faint red preview at its committed aim, from the Needle down (beamPreview).
-          beamPreview(enemy.aimX, enemy.s, .4, 0);
+          beamPreview(enemy.aimX, enemy.s, .4, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'missile') {
           // Missile battery: a straight shot column from the battery down past the player row (non-tracking).
-          shotColumn(enemy.x, enemy.s, chargeOf(enemy)); muzzle(enemy.x, enemy.s, chargeOf(enemy));
+          const at = enemy.ground?.muzzle ?? enemy;
+          shotColumn(at.x, at.s, chargeOf(enemy)); muzzle(at.x, at.s, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'diamond') {
           // Diamond: an aim ray from the firing wing, and a bracket on the side it lands (1.2 to that side of the aim).
           const side = (enemy.volleys ?? 0) % 2 === 0 ? -1 : 1, wing = enemy.x + side * .55, charge = chargeOf(enemy);
@@ -1366,7 +1372,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           strip(enemy.aimX - side * .35, .7, enemy.aimX, .35, .07, shotHex, flashLanes, .9 + charge); strip(enemy.aimX - side * .35, 0, enemy.aimX, .35, .07, shotHex, flashLanes, .9 + charge);
         } else if (enemy.warning > 0 && enemy.kind === 'lancer') {
           // Lancer: a beam ship; its windup is the beam's red preview from the Lancer down at its aim.
-          beamPreview(enemy.aimX, enemy.s, beamSpec('lancer').width, 0);
+          beamPreview(enemy.aimX, enemy.s, beamSpec('lancer').width, chargeOf(enemy));
         } else if (enemy.warning > 0) {
           // Aimed shots: a ray to where they will cross the player's row; a turret's three-round spread shows its fan.
           const charge = chargeOf(enemy), angles = enemy.kind === 'turret' ? [-.14, 0, .14] : [0];
@@ -1524,12 +1530,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // A beam runs from whatever fires it (a Needle at its aim, a locked beam ship, the boss column over it; else the
         // boss's row) down past the bottom of the view, never up past its source (user, 23 October: lasers "extend way
         // beyond the enemies past them to the top of the screen").
-        const source = state.enemies.find(enemy => enemy.hp > 0 && (enemy.bossPart ? Math.abs(enemy.x - hazard.x) < hazard.width / 2 + .3
+        const source = state.enemies.find(enemy => (enemy.hp > 0 || enemy.bossPart) && (enemy.bossPart ? Math.abs(enemy.x - hazard.x) < hazard.width / 2 + .3
           : enemy.kind === 'needle' ? Math.abs(enemy.aimX - hazard.x) < 1e-6 : !!enemy.lock && Math.abs(enemy.x - hazard.x) < .05));
         const top = Math.min(VIEW.maxS, source ? source.s : state.boss ? state.boss.s : VIEW.maxS);
-        if (hazard.warning > 0) beamPreview(hazard.x, top, hazard.width, hazard.warning <= .2 ? 1 - hazard.warning / .2 : 0);
+        if (hazard.warning > 0) beamPreview(hazard.x, top, hazard.width, 1 - Math.min(1, hazard.warning / 1.4));
         else if (hazard.active > 0) beamLive(hazard.x, top, hazard.width, source);
       }
+      beamLight.end(); phaseHoles.end();
       for (const [mesh, count] of [[telegraphs, stripCount], [flashLanes, flashCount], [laneFills, fillCount]] as const) {
         mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
@@ -1640,7 +1647,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
       terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
-      sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose();
+      sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose();
       renderer.dispose();
     },
   };

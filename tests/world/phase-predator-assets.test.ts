@@ -6,6 +6,7 @@ describe('isolated Blender predator exports', () => {
   it.each([
     ['amnion/brood-heavy-v1.glb', 'amnion_brood_heavy'],
     ['umbra/wraith-v1.glb', 'umbra_wraith'],
+    ['umbra/wraith-v2.glb', 'umbra_wraith'],
   ])('%s contains only its own hierarchy and stays within its authored budget', (file, root) => {
     const buffer = fs.readFileSync(`public/assets/${file}`), decode = new TextDecoder();
     expect(decode.decode(buffer.subarray(0, 4))).toBe('glTF');

@@ -158,3 +158,12 @@ The 14 October pass added squadrons and a 25% faster pace (scroll 4 → 5, Balan
 Fewer bullets now reach the row per minute than on 14 October, but each squadron fires faster and the larger ship is far easier to hit. The current column also includes the later 15 October changes: repeat intervals about 17% shorter (Dart 1.0 s, Weaver 1.25 s, battery 1.15 s, Lancer 2.15 s), a quicker Bastion-9 recovery (0.6 s), and no shield refill on respawn (6 hits per Standard run instead of 12).
 
 The perfect pilot proves that a surviving path exists for a pilot who reads every warning; it is not a model of human play. Phone playtests remain the gate for readability and fun.
+
+## Combat presentation revision · 27 October 2026
+
+- Seeker Rack distributes its eight missiles across visible targets, with a 0.3-second outward flight before guidance/acceleration. Reacquisition prefers the least-covered eligible target, then distance. Main Seeker and its hunter-shield resistance are unchanged.
+- Missile batteries fire a strictly vertical round at base speed 16, with a 1.45-second windup and 1.9-second repeat recovery before difficulty/world scaling. The slow arrow flow shows the committed muzzle column rather than flickering rapidly.
+- Veil, Cradle and Eclipse introduce spirals when their cores are exposed, never during the opening battery phase. Each has a different core sequence and spiral rhythm/direction; existing attack admission remains responsible for reachable gaps.
+- Lasers use a continuous transverse shader gradient, narrow white core and a charging light at the emitter. Boss wreck smoke follows actual world-distance deltas, including accelerated departure. Launch warp fully occludes the terrain.
+
+These values are runtime content in `src/content/`, not changes to the original specification seed files.

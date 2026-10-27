@@ -590,7 +590,7 @@ export function createSnowDetailTexture(): THREE.DataTexture {
  * Crack network for open ground (terrain version 16, after the concept's ice plains; runtime-generated, tileable, linear
  * data): R = polygonal plate cracks (jittered Voronoi edges about a ninth of the tile apart, warped so they run jagged,
  * each edge its own strength so the network breaks off in places), G = a finer crisscross of thin lines, patchy.
- * 0 = no crack, 1 = the darkest line core.
+ * B = continuous wider bevel depression (Umbra polish only). R/G: 0 = no crack, 1 = the darkest line core.
  */
 export function createCrackTexture(): THREE.DataTexture {
   const size = 512, data = new Uint8Array(size * size * 4);
@@ -623,7 +623,10 @@ export function createCrackTexture(): THREE.DataTexture {
     const [fine, fineStrength] = cells(23, wx * 1.07 + 13, wy * 0.93 + 7, 321);
     const patch = smooth(0.42, 0.68, value(6, x, y, 331));
     const fines = (1 - smooth(0.35, 1.2, fine)) * smooth(0.45, 0.75, fineStrength) * patch;
-    data.set([Math.round(plates * 255), Math.round(fines * 255), 0, 255], (y * size + x) * 4);
+    // B is a continuous wider depression profile for Umbra's polished bevels.
+    // Keep it independent of the patchy hairlines: those stay matte at phone resolution.
+    const bevel = (1 - smooth(0.6, 4.5, plate)) * smooth(0.18, 0.5, plateStrength);
+    data.set([Math.round(plates * 255), Math.round(fines * 255), Math.round(bevel * 255), 255], (y * size + x) * 4);
   }
   const texture = new THREE.DataTexture(data, size, size);
   texture.colorSpace = THREE.NoColorSpace;
@@ -878,8 +881,8 @@ export function createTerrainMaterials() {
    * Crack network on open ground (version 16; Vesper's ice plains and Luna's regolith, after the concepts): crackLook 0
    * leaves Khepri and Nacre exactly as they were. crackTint is the line colour as a multiplier.
    */
-  const crackLook = { crackMap: { value: flatNormal as THREE.Texture }, crackLook: { value: 0 }, crackTint: { value: new THREE.Vector3(1, 1, 1) } };
-  const ground = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, envMapIntensity: .18, normalScale: new THREE.Vector2(0.7, 0.7) });
+  const crackLook = { crackMap: { value: flatNormal as THREE.Texture }, crackLook: { value: 0 }, crackRelief: { value: 0 }, crackTint: { value: new THREE.Vector3(1, 1, 1) } };
+  const ground = new THREE.MeshPhysicalMaterial({ vertexColors: true, map: fallback, roughness: 1, metalness: 0, clearcoat: 0, clearcoatRoughness: .26, envMapIntensity: .18, normalScale: new THREE.Vector2(0.7, 0.7) });
   // Persistent uniform objects so a planet switch can retune them (Khepri values are the originals).
   // The ground's glow: Khepri's teal mineral veins and crystal pools, or Amnion's yolk (docs/27): the colour, the tint of
   // a vein's and a pool's dark bed, and how strongly a pool itself glows (Amnion's molten yolk far more than a crystal bed).
@@ -908,9 +911,9 @@ export function createTerrainMaterials() {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
-attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;`)
+attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;\nvarying vec4 vCrackClip;`)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurface = surface;\nvVeins = veins;\nvLocal = position;\nvFace = normal;')
-      .replace('#include <project_vertex>', HAZE_VERTEX);
+      .replace('#include <project_vertex>', HAZE_VERTEX + '\nvCrackClip = gl_Position;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 // How fast (per pixel) a wall's facing direction may swing before its maps leave the along-face mapping (see wallBend).
@@ -930,7 +933,7 @@ uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${H
 uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform float wallFleshOnly;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
 uniform float wallFacets;
-uniform sampler2D crackMap;\nuniform float crackLook;\nuniform vec3 crackTint;
+uniform sampler2D crackMap;\nuniform float crackLook;\nuniform float crackRelief;\nvarying vec4 vCrackClip;\nuniform vec3 crackTint;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
 // across section joins (36·scale must be an integer).
 float khepriHash( vec2 p, float period ) { return fract( sin( dot( vec2( p.x, mod( p.y, period ) ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
@@ -982,7 +985,7 @@ float khepriCells( vec2 local, float scale ) {
   // Cracks glow just below the bloom threshold; the crackle network inside pools reaches it (soft halo on High).
   // A molten pool (Amnion's yolk) glows unevenly, brightest in its thick middle; a crystal bed glows in its crackle.
   float molten = pool * ( 1.0 - poolCells ) * ( 0.45 + 0.9 * khepriNoise( vLocal.xz * 0.9, 0.7 ) ) * smoothstep( 0.35, 0.9, pool );
-  totalEmissiveRadiance += glowColor * ( vein * 1.15 + shore * 0.3 + pool * poolGlow + sparkle * 1.2 * poolCells + molten );`)
+  totalEmissiveRadiance += glowColor * ( vein * 1.15 * ( 1.0 - crackRelief ) + shore * 0.3 + pool * poolGlow + sparkle * 1.2 * poolCells + molten );`)
       .replace('#include <map_fragment>', `// Crisp cliffs: the triangle's own plane (screen derivatives, as flat shading takes it) says top or wall, so a
 // rim is a hard edge between a top triangle and a wall triangle. Smooth ground keeps the vertex values (cliffLook 0:
 // exactly the version 13 path).
@@ -1050,8 +1053,12 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // both dividing the 36-unit section so they run on across its joins. Walls keep their own material.
   if ( crackLook > 0.0 ) {
     float plates = texture2D( crackMap, vLocal.xz / 9.0 ).r, hairlines = texture2D( crackMap, vLocal.xz / 4.0 + vec2( 0.37, 0.61 ) ).g;
-    float cracked = clamp( plates + hairlines * 0.55, 0.0, 1.0 ) * crackLook * ( 1.0 - vRock );
+    float seam = clamp( plates + hairlines * 0.55, 0.0, 1.0 );
+    float cracked = mix( seam, smoothstep( .035, .55, seam ), crackRelief ) * crackLook * ( 1.0 - vRock );
     diffuseColor.rgb *= mix( vec3( 1.0 ), crackTint, cracked );
+    // Broad, matte cut edges keep dark fissures legible without making the network glow.
+    float rim = smoothstep(.015,.08,seam)*(1.-smoothstep(.16,.4,seam));
+    diffuseColor.rgb += vec3(.04,.037,.048)*rim*crackRelief*(1.-vRock);
   }
 #endif
   // Camera-facing cliff faces sit in the generator's baked (lower-sun) shade; lift them like warm bounce light
@@ -1107,6 +1114,7 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     totalEmissiveRadiance += vec3( 0.004, 0.035, 0.13 ) * ( 1.0 - iceLit ) * cliffWall;
   }`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+
   // A flat-lying triangle whose smooth vertex normal leans away from its own plane borders a rim or a cliff foot: it is
   // shaded by its plane, so a top stays flat right up to its edge (a hard rim) and a floor right up to the wall's foot.
   // Other worlds keep their established smooth wall normals. Umbra opts into hard face normals just below.
@@ -1139,6 +1147,37 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     relief = normalize( mix( relief, normalize( wallBump * wallNormalOn + normal * ( wallNX.z * wallBlend.x + wallNZ.z * wallBlend.y ) ), wallBend ) );
     }
     normal = normalize( mix( normal, relief, cliffWall ) );
+  }
+#endif`)
+      .replace('#include <clearcoat_normal_fragment_maps>', `#include <clearcoat_normal_fragment_maps>
+#if defined(USE_MAP) && defined(USE_CLEARCOAT)
+  if ( crackRelief > 0.0 && cliffUp > 0.88 ) {
+    // Continuous bevel normals follow the crack itself. Camera motion changes the BRDF's
+    // view vector, so the specular reflection travels along an edge rather than occupying
+    // random fixed patches. Filter the slope over at least a pixel to avoid sparkling aliases.
+    vec2 crackUv = vLocal.xz / 9.0;
+    vec2 stepUv = max(vec2(1.5 / 512.0), fwidth(crackUv) * .65);
+    float east = texture2D(crackMap, crackUv + vec2(stepUv.x,0.)).b;
+    float west = texture2D(crackMap, crackUv - vec2(stepUv.x,0.)).b;
+    float north = texture2D(crackMap, crackUv + vec2(0.,stepUv.y)).b;
+    float south = texture2D(crackMap, crackUv - vec2(0.,stepUv.y)).b;
+    vec2 slope = vec2(east-west,north-south) / (18.0 * stepUv);
+    clearcoatNormal = normalize(normal + mat3(viewMatrix) * vec3(slope.x*.055,0.,slope.y*.055));
+  }
+#endif`)
+      .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+#if defined(USE_MAP) && defined(USE_CLEARCOAT)
+  if ( crackRelief > 0.0 ) {
+    float bevel = texture2D(crackMap, vLocal.xz / 9.0).b;
+    float edge = smoothstep(.04,.22,bevel)*(1.-smoothstep(.78,.98,bevel))*(1.-vRock);
+    float screenY = vCrackClip.y / vCrackClip.w * .5 + .5;
+    float glintWindow = smoothstep(.25,.36,screenY)*(1.-smoothstep(.64,.75,screenY));
+    // The whole crack can reflect; only the light/view alignment chooses the bright segment.
+    // Keep subpixel edges satin instead of sharpening them into bright single-pixel glitter.
+    float resolved = 1.-smoothstep(.08,.38,fwidth(bevel));
+    material.clearcoat *= edge*glintWindow*resolved;
+    vec3 coatDerivative = max(abs(dFdx(clearcoatNormal)), abs(dFdy(clearcoatNormal)));
+    material.clearcoatRoughness = min(1.,material.clearcoatRoughness + .35*max(max(coatDerivative.x,coatDerivative.y),coatDerivative.z));
   }
 #endif`)
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
@@ -1272,7 +1311,7 @@ ${VESPER_KIT_SURFACE}`)
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
     const amnion = planet === 'amnion', umbra = planet === 'umbra';
     groundLook.glowColor.value.copy(amnion ? linear(0xffd23a).multiplyScalar(1.7) : umbra ? linear(0x8a6cff).multiplyScalar(1.9) : linear(0x8ffcf0).multiplyScalar(0.75));
-    groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : umbra ? [0.05, 0.03, 0.16] : [0.02, 0.16, 0.15]) as [number, number, number]);
+    groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : umbra ? [0.004, 0.003, 0.008] : [0.02, 0.16, 0.15]) as [number, number, number]);
     groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : umbra ? [0.04, 0.025, 0.12] : [0.014, 0.055, 0.06]) as [number, number, number]);
     // A dark flesh bed with the yolk in its crackle and a low glow of its own (a full glow read as a flat lava band).
     // (Umbra: a faint violet glow down in the canyon fog.)
@@ -1283,13 +1322,16 @@ ${VESPER_KIT_SURFACE}`)
     // Umbra's obsidian is glossy (docs/28: "obsidian black shiney surfaces"): it mirrors the eclipse's violet sky.
     // (A satin sheen: as a mirror the ground drew a bright jagged line along every canyon lip.)
     ground.roughness = umbra ? 0.55 : 1; ground.envMapIntensity = umbra ? .4 : .18;
+    const edgeCoat = umbra ? .24 : 0;
+    if (ground.clearcoat !== edgeCoat) { ground.clearcoat = edgeCoat; ground.needsUpdate = true; }
     // Cracks (version 16): blue-grey lines in Vesper's snow and ice, dark fractures in Luna's regolith.
     // (Amnion's bone crust takes them too: dark fractures between its plates.)
     if ((vesper || luna || planet === 'amnion' || umbra) && !crackTexture) crackTexture = createCrackTexture();
     crackLook.crackMap.value = crackTexture ?? flatNormal;
-    // (Umbra's cracks are the concept's slab seams: their edges catch the light, so the line lightens the black glass.)
+    crackLook.crackRelief.value = umbra ? 1 : 0;
+    // Umbra: dark recessed slab seams; their beveled normals catch scene lighting, never emissive lines.
     crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : umbra ? 1 : 0;
-    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : umbra ? [4.2, 3.8, 5.4] : [0.5, 0.5, 0.52]) as [number, number, number]);
+    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : umbra ? [0.08, 0.07, 0.12] : [0.5, 0.5, 0.52]) as [number, number, number]);
     groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : umbra ? linear(0x6a5aa8) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters. Umbra's canyons vanish into a glowing purple fog from just under the lip.
     groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : umbra ? 0.7 : khepri.hazeStrength.value;

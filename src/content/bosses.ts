@@ -44,8 +44,12 @@ export interface BossDefinition {
   overload: { coreLaneWidth: number; batteryLaneWidth: number; active: number };
   /** Overload phase: the boss's own sequence of moves (docs/15, docs/17, docs/19, docs/20). */
   overloadMoves: readonly OverloadMove[];
-  /** The 'spiral' overload move (THE VEIL): `arms` streams turning at `turn` rad/s for `duration` s, a volley every `interval`. */
-  spiral?: { arms: number; turn: number; interval: number; duration: number; speed: number };
+  coreMoves?: readonly ('burst' | 'fan' | 'spiral')[];
+  /**
+   * The 'spiral' core/overload move: `arms` streams turning at `turn` rad/s for `duration` s, a volley every `interval`;
+   * `rest` (s) holds the next attack until a slow spiral's streams have cleared the screen.
+   */
+  spiral?: { arms: number; turn: number; interval: number; duration: number; speed: number; rest?: number };
   recovery: number;
   /** Pause after each overload attack (defaults to `recovery`). */
   overloadRecovery?: number;
@@ -144,6 +148,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     warning: VEIL.warning, laser: null, beamWarning: VEIL.beamWarning, overload: VEIL.overload,
     // 17 October (user): its last phase looses a spiral barrage from the heart for a few seconds.
     overloadMoves: ['spiral', 'core-lane', 'fan', 'cross', 'spiral', 'burst', 'side-lanes', 'fan'], overloadRecovery: 0.45,
+    coreMoves: ['spiral', 'fan', 'burst', 'fan'],
     spiral: { arms: 4, turn: 1.7, interval: 0.12, duration: 3, speed: 4.8 },
     recovery: VEIL.recovery, transitionRecovery: VEIL.transitionRecovery,
     overloadFraction: VEIL.overloadFraction, extractionDuration: DEPARTURE.duration,
@@ -169,7 +174,10 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     pairAttack: 'burst', coreAttack: 'fan-burst',
     warning: CRADLE.warning, laser: null, beamWarning: CRADLE.beamWarning, overload: CRADLE.overload,
     overloadMoves: ['core-lane', 'spiral', 'fan', 'side-lanes', 'burst', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
-    spiral: { arms: 4, turn: 1.7, interval: 0.12, duration: 3, speed: 4.8 },
+    coreMoves: ['spiral', 'burst', 'fan', 'burst'],
+    // Its slow, wide spiral rests 1.4 s: its streams still crossed the screen when the next burst and a hatchling wave's
+    // charging shots came, sealing both edges and the centre (tests/sim/fairness, Brood Strike, 27 October).
+    spiral: { arms: 3, turn: -1.35, interval: 0.15, duration: 3.2, speed: 5.1, rest: 1.4 },
     recovery: CRADLE.recovery, transitionRecovery: CRADLE.transitionRecovery,
     overloadFraction: CRADLE.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: CRADLE.sacBurst, core: CRADLE.heartBurst }, fan: CRADLE.heartFan,
@@ -194,7 +202,8 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     pairAttack: 'burst', coreAttack: 'fan-burst',
     warning: ECLIPSE.warning, laser: null, beamWarning: ECLIPSE.beamWarning, overload: ECLIPSE.overload,
     overloadMoves: ['core-lane', 'spiral', 'fan', 'side-lanes', 'burst', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
-    spiral: { arms: 4, turn: 1.7, interval: 0.12, duration: 3, speed: 4.8 },
+    coreMoves: ['spiral', 'burst', 'burst', 'fan'],
+    spiral: { arms: 4, turn: -2.05, interval: 0.16, duration: 2.6, speed: 5 },
     recovery: ECLIPSE.recovery, transitionRecovery: ECLIPSE.transitionRecovery,
     overloadFraction: ECLIPSE.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: ECLIPSE.ventBurst, core: ECLIPSE.reactorBurst }, fan: ECLIPSE.reactorFan,

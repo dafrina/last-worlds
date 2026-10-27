@@ -98,6 +98,8 @@ export interface Projectile {
   weapon?: WeaponId;
   /** Fired by a special (Seeker Rack): its kills never charge the special. */
   special?: boolean;
+  /** Initial outward flight before a special missile can steer. */
+  spreadRemaining?: number;
   /** Seconds it waits at its muzzle before flying (a Pulsar burst is emitted at once and streams out). */
   delay?: number;
   /** Re-aims at the player's position, at the same speed, the moment its delay ends (a Pulsar stream). */

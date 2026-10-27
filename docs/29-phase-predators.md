@@ -50,3 +50,9 @@ Active hunter shields absorb main Seeker hits at 20% effectiveness: five times t
 - `tests/browser/faction-regressions.spec.ts`: all six playground bosses in one renderer, loaded carrier pod ownership, boss toggle-off, and both predators on Low/High.
 - `/tests/fixtures/phase-predators.html?planet=umbra` (or `amnion`) is a development-only rendering fixture. Blender renders and browser screenshots are under `lookdev/phase-predators/`.
 - Actual phone performance remains a hardware check; desktop SwiftShader results are not phone measurements.
+
+## Wraith presentation v2 · 27 October 2026
+
+`public/assets/umbra/wraith-v2.glb` is the larger swept-wing black/violet fighter based on the user's latest reference: a spear nose, scalloped wings, raised engine shoulders, dorsal fins and recessed violet filaments. Authored/exported through live Blender MCP with `tools/blender/wraith_v2.py` in an isolated scene. It has 11,312 triangles and is 312,232 bytes; v1 remains available for rollback by changing the loader filename. No hitbox or attack timing changed.
+
+The existing 0.2-second transit now collapses the model at departure and expands it at arrival through small dark disks with violet rims. It no longer slides visibly across the field. The feint, three-shot timing, post-arrival delay, cooldown and hunter repetition remain unchanged.

@@ -229,6 +229,7 @@ export function createWardenView(scene: THREE.Scene) {
   const markers = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }));
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
   const tint = new THREE.Color(), world = new THREE.Vector3();
+  let lastDistance = 0;
   let lastTime = -1, encounter = -1;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
   /** Last seen hp and last damaging hit per part (by enemy id), for impact flares. */
@@ -265,7 +266,9 @@ export function createWardenView(scene: THREE.Scene) {
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
       const boss = state.boss && state.boss.id === 'warden' ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
+      const groundShift = lastTime < 0 || state.time < lastTime ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
+      dust.shift(groundShift); sparks.shift(groundShift);
       if (!boss || !placement) { shock.visible = false; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1; return; }
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; dust.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); rig.parts.forEach(p => { p.open = 0; }); }
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
@@ -352,8 +355,7 @@ export function createWardenView(scene: THREE.Scene) {
           line(enemy.x, enemy.s, enemy.aimX, 0, 0xd1a275);
         }
       }
-      const groundShift = state.scrollSpeed * dt;
-      dust.step(dt, groundShift); sparks.step(dt, groundShift);
+      dust.step(dt, 0); sparks.step(dt, 0);
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
     },

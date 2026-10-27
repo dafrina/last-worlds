@@ -113,6 +113,7 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
   for (const enemy of state.enemies) if (enemy.bossPart) {
     enemy.damageable = enemy.hp > 0 && (phase === 'batteries' ? enemy.bossPart !== 'core' : phase === 'core' || phase === 'overload' ? enemy.bossPart === 'core' : false);
   }
+  if (phase === 'core' && def.coreMoves) boss.attackIndex = 0;
   if (phase === 'core' && def.launches) {
     boss.launchesLeft = def.launches.waves;
     boss.nextLaunchAt = state.time + def.launches.firstAfter;
@@ -289,7 +290,7 @@ export function updateBoss(state: RunState, dt: number): void {
     }
     attacker.warning = Math.max(0, attacker.warning - dt);
     if (attacker.warning === 0) {
-      const unwinding = boss.attack === 'spiral' ? bossDef(state).spiral?.duration ?? 0 : 0;
+      const spiral = bossDef(state).spiral, unwinding = boss.attack === 'spiral' && spiral ? spiral.duration + (spiral.rest ?? 0) : 0;
       emit(state, attacker); boss.attack = null; boss.attackerId = null;
       boss.nextAttackAt = state.time + unwinding + bossRecovery(state);
     }
@@ -310,7 +311,7 @@ export function updateBoss(state: RunState, dt: number): void {
   const attack = boss.phase === 'batteries'
     ? (def.pairAttack === 'laser' && !bridgeBurst ? 'beam' : 'burst')
     : boss.phase === 'core'
-      ? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst')
+      ? (def.coreMoves?.[boss.attackIndex % def.coreMoves.length] ?? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst'))
       : move === 'burst' ? 'burst' : move === 'fan' ? (def.fan ? 'fan' : 'burst') : move === 'spiral' ? (def.spiral ? 'spiral' : 'burst') : 'beam';
   const aimX = attack === 'beam' ? boss.x : state.player.x;
   const difficultyWarning = runScale(state).warning;

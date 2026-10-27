@@ -107,3 +107,9 @@ The concept images are references, never runtime backgrounds or finished assets 
 4. **THE ECLIPSE:** done (`the-eclipse-v1-approved.glb`). It is in the boss asset test (rig, budget, rays).
 5. **Music:** implemented 25 October, level and boss layers.
 6. **Endless:** Umbra joins the planet cycle later.
+
+## Plains crack revision · 27 October 2026
+
+Umbra's plains have dark cut seams instead of emissive purple crack lines. A widened dark mask and faint matte rim keep the network readable without reflections. The crack texture's blue channel now stores a continuous bevel profile; its filtered gradient drives a separate polished reflection layer, leaving the ground's diffuse normals intact. Every main crack edge is eligible, with no random sparse highlight patches or time animation: the actual light and changing view vector determine where the reflection falls and how it travels along an edge while flying.
+
+Polish fades in across the middle 50% of screen height, as requested. Mip filtering, pixel-sized slope sampling and normal-derivative roughness suppress subpixel glitter. The polished layer is low strength and non-emissive, without increasing bloom. Fine hairline cracks stay matte. Broad fault-line emission is disabled on Umbra; abyss/pool light, terrain shape and cliff meshes are unchanged. Other planets keep their original crack channels and materials without the polished layer.

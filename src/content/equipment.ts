@@ -38,7 +38,7 @@ export const SPECIALS = {
   // Falloff (user, 17 October: too strong next to Seeker Rack): full damage within `full`, fading linearly to `minShare`
   // at `reach`; it clears hostile shots only within `clear` of the ship.
   shockwave: { label: 'Shockwave', recharge: 45, price: 0, blurb: 'A ring bursts out from your ship: it clears nearby shots and hits hardest up close.', speed: 26, reach: 20, full: 3, minShare: 0.2, clear: 8 },
-  'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 300, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 5, speed: 21, accel: 34, turn: 4.5 },
+  'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 300, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 9, speed: 21, accel: 34, turn: 4.5, spreadTime: .3 },
   'siege-lance': { label: 'Siege Lance', recharge: 40, price: 400, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
 } as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; blurb: string; [tuning: string]: string | number }>>;
 

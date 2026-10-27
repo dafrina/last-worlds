@@ -221,7 +221,7 @@ export const ENEMIES: Record<EnemyKind, {
   // kill one in a whole pass.
   diamond: { hp: 175, radius: 0.6, speed: 1.2, shotSpeed: 6.8, attackEvery: 1, warning: 0.95, score: 400, credits: 16 },
   // Missile battery: ground target; straight, non-tracking missiles down its own marked column.
-  missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 9.5, attackEvery: 1.1, warning: 1, score: 250, credits: 10 },
+  missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 16, attackEvery: 1.9, warning: 1.45, score: 250, credits: 10 },
   // Fuel-tank skid (user request, 16 October): a harmless ground loot target that never fires; quick to burst.
   // Pulsar (Nacre): tracks the player through its windup, then streams a burst whose every shot aims at the player (PULSAR_BURST).
   pulsar: { hp: 110, radius: 0.6, speed: 1.6, shotSpeed: 9, attackEvery: 2.6, warning: 1.1, score: 300, credits: 12 },

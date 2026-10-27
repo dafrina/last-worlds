@@ -4,7 +4,7 @@ import { VIEW, type RunState } from '../shared/contracts';
 /**
  * Hyperdrive jump between planets (docs/18 §4), render-only and phone-cheap: two draws while active, none otherwise.
  *
- * - A veil plane just under the flight plane darkens the world to deep space; the hero, shots and markers stay on top.
+ * - A depth-independent veil covers the world with deep space, including terrain above the flight plane.
  * - Star streaks on that plane race past, toward the bottom of the screen, fanning out from a point beyond the top
  *   (the ship flies up-screen); their length and speed follow the jump's speed profile. The camera never moves.
  * - A bright flash at the midpoint (the planet switch) blooms on High; the new planet then streams in as the veil lifts.
@@ -59,7 +59,7 @@ export function createJumpFx(scene: THREE.Scene) {
   };
   // Premultiplied blending: the veil darkens what is below, the flash adds light on top of it.
   const veil = new THREE.Mesh(new THREE.PlaneGeometry(60, 80).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
-    vertexShader: VEIL_VERTEX, fragmentShader: VEIL_FRAGMENT, uniforms: veilUniforms, transparent: true, depthWrite: false, toneMapped: false,
+    vertexShader: VEIL_VERTEX, fragmentShader: VEIL_FRAGMENT, uniforms: veilUniforms, transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
     blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
   }));
   veil.frustumCulled = false; veil.renderOrder = 11; veil.visible = false; veil.name = 'jump veil';
@@ -74,7 +74,7 @@ export function createJumpFx(scene: THREE.Scene) {
   streakGeometry.setAttribute('aStreak', new THREE.InstancedBufferAttribute(params, 4));
   streakGeometry.instanceCount = STREAKS;
   const streaks = new THREE.Mesh(streakGeometry, new THREE.ShaderMaterial({
-    vertexShader: STREAK_VERTEX, fragmentShader: STREAK_FRAGMENT, uniforms: streakUniforms, transparent: true, depthWrite: false, toneMapped: false,
+    vertexShader: STREAK_VERTEX, fragmentShader: STREAK_FRAGMENT, uniforms: streakUniforms, transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
     blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   }));
   streaks.frustumCulled = false; streaks.renderOrder = 12; streaks.visible = false; streaks.name = 'jump streaks';
@@ -115,7 +115,7 @@ export function createJumpFx(scene: THREE.Scene) {
         // world as the veil lifts (or the veil holds while assets finish). A victory warp has nowhere to land: under the
         // flash its veil turns to opaque space, behind the results.
         const into = THREE.MathUtils.smoothstep(q, .06, .38), out = terminal ? 0 : ready ? THREE.MathUtils.smoothstep(q, .5, .78) : 0;
-        veilAmount = (reducedMotion ? .96 : .88) * into * (1 - out);
+        veilAmount = into * (1 - out);
         if (terminal) veilAmount += (1 - veilAmount) * THREE.MathUtils.smoothstep(q, .44, .52);
         if (!reducedMotion) {
           flash = flashAt(q, .5, .045, .09);
@@ -125,10 +125,10 @@ export function createJumpFx(scene: THREE.Scene) {
         if (!ready && q >= .5) holdStart = Math.min(holdStart === -Infinity ? state.time : holdStart, state.time);
       } else if (wasJumping) {
         // After the sim's jump ends: keep the veil until the new planet is ready (bounded), then lift it.
-        if (!ready && holdStart > -Infinity && state.time - holdStart < MAX_HOLD) veilAmount = reducedMotion ? .96 : .88;
+        if (!ready && holdStart > -Infinity && state.time - holdStart < MAX_HOLD) veilAmount = 1;
         else {
           lift = Math.min(1, lift + dt / .6);
-          veilAmount = (reducedMotion ? .96 : .88) * (1 - lift) * (holdStart > -Infinity ? 1 : 0);
+          veilAmount = (1 - lift) * (holdStart > -Infinity ? 1 : 0);
           if (lift >= 1) { wasJumping = false; holdStart = -Infinity; }
         }
       }

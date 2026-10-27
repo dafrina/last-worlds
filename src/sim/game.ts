@@ -630,15 +630,21 @@ function updateShockwave(state: RunState): void {
   if (radius > spec.reach) state.shockwave = null;
 }
 
-/** Seeker Rack: missiles fan out from the ship, each homing on one of the nearest visible targets ahead (armed first). */
+/** Seeker Rack: fan out first, then home on targets distributed across the visible horizontal span. */
 function launchSeekerRack(state: RunState): void {
   const rack = SPECIALS['seeker-rack'];
-  const targets = seekerTargets(state);
+  const candidates = seekerTargets(state);
+  // Sample the entire visible horizontal span, not just the nearest cluster.
+  const ordered = candidates.sort((a, b) => a.x - b.x || a.s - b.s || a.id - b.id);
+  const targets = ordered.length <= rack.missiles ? ordered : Array.from({ length: rack.missiles }, (_, i) => ordered[Math.round(i * (ordered.length - 1) / (rack.missiles - 1))]);
   for (let i = 0; i < rack.missiles; i++) {
     // Fanned out to both sides of the rack (±70°), alternating, so they peel away before turning in.
     const side = i % 2 ? 1 : -1, angle = side * (0.35 + Math.floor(i / 2) * 0.27);
     const shot = projectile(state, state.player.x + side * 0.3, 0.2, Math.sin(angle) * rack.launchSpeed, Math.cos(angle) * rack.launchSpeed, true, rack.damage, 0.18, 3);
-    if (targets.length) shot.homingTargetId = targets[i % targets.length].id;
+    // Pair the leftmost launch with the leftmost target to avoid crossing the rack.
+    const lane = side < 0 ? 3 - Math.floor(i / 2) : 4 + Math.floor(i / 2);
+    if (targets.length) shot.homingTargetId = targets[Math.min(targets.length - 1, Math.floor(lane * targets.length / rack.missiles))].id;
+    shot.spreadRemaining = rack.spreadTime;
     shot.special = true;
     state.projectiles.push(shot);
   }
@@ -647,13 +653,17 @@ function launchSeekerRack(state: RunState): void {
 
 /**
  * A Seeker Rack missile: it leaves the rack slowly, fanned out, then accelerates to full speed and turns hard onto its
- * target. When its target is gone it takes the nearest visible target ahead, or flies straight on.
+ * target. When its target is gone it prefers an unassigned visible target ahead, then distance, or flies straight on.
  */
 function steerMissile(state: RunState, shot: Projectile, dt: number): void {
   const rack = SPECIALS['seeker-rack'];
+  if ((shot.spreadRemaining ?? 0) > 0) { shot.spreadRemaining = Math.max(0, shot.spreadRemaining! - dt); return; }
   let target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false && isVisible(state, enemy.x, enemy.s, enemy.radius));
   if (!target) {
-    target = seekerTargets(state).filter(enemy => enemy.s > shot.s - 1)[0];
+    target = seekerTargets(state).filter(enemy => enemy.s > shot.s - 1).sort((a, b) => {
+      const assigned = (id: number) => state.projectiles.filter(other => other !== shot && other.special && other.ttl > 0 && other.homingTargetId === id).length;
+      return assigned(a.id) - assigned(b.id) || Math.hypot(a.x - shot.x, a.s - shot.s) - Math.hypot(b.x - shot.x, b.s - shot.s) || a.id - b.id;
+    })[0];
     shot.homingTargetId = target?.id;
   }
   const current = Math.atan2(shot.vx, shot.vs), desired = target ? Math.atan2(target.x - shot.x, target.s - shot.s) : 0;
