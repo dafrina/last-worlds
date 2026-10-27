@@ -1,5 +1,6 @@
 import { createBeamLight, createPhaseHoles } from './combat-light';
 import { HERO_STENCIL } from './hero-stencil';
+import { drawnShot, launchFrom, type Launch } from './shot-launch';
 import * as THREE from 'three';
 import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
@@ -197,6 +198,8 @@ const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
  * for the model 10% larger. Render-only: collision stays the simulation's 0.42 radius.
  */
 export const HERO_SCALE = 1.1;
+/** A battery's shot column: chevron spacing and how fast they flow down it, relative to the battery (units, units/s). */
+const CHEVRON_GAP = 2, CHEVRON_FLOW = 2.2;
 /** Mission-start entrance: duration (s) and how far along the view ray toward the camera the hero starts. */
 const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
 
@@ -818,7 +821,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const telegraphs = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .85,
     depthTest: false, depthWrite: false }), 512);
   const flashLanes = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55,
-    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 128);
+    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 192);
   // Soft lane and column fills under the dashed edges: a light veil that reads on snow and on water alike.
   const laneFills = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .26,
     depthTest: false, depthWrite: false }), 64);
@@ -904,6 +907,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
   const jumpFx = createJumpFx(scene);
+  /**
+   * Ground batteries' rounds as drawn (src/render/shot-launch.ts): each battery's forecast muzzle and drawn spot while it
+   * winds up, and the launch of each round it released.
+   */
+  const batteryWindups = new Map<number, { muzzle: { x: number; s: number }; x: number; s: number }>();
+  const launches = new Map<number, Launch>(), seenShots = new Set<number>(), liveShots = new Set<number>();
+  let launchTick = -1;
   const beamLight = createBeamLight(scene), phaseHoles = createPhaseHoles(scene);
   const footprint: ViewFootprint = { minX: 0, maxX: 0, minS: 0, maxS: 0 };
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -1269,12 +1279,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         strip(x0, s0, x1, s1, .3, shotHex, rayFills, .9);
         strip(x0, s0, x1, s1, .1, shotHex, rayCores, .8 + charge * 1.6);
       };
-      const shotColumn = (x: number, top: number, charge: number) => {
-        // Chevrons only, no veil: a veiled column read as a beam lane.
-        const span = top - VIEW.minS;
-        for (let k = 0; k < 6; k++) {
-          const s = top - .5 - ((state.time * .8 + k * span / 6) % (span - .5));
-          for (const side of [-1, 1]) strip(x + side * .3, s + .3, x, s, .12, shotHex, flashLanes, (.65 + charge * .65) * (1 - (top - s) / span * .45));
+      /*
+       * A battery's shot column (user, 27 October: the arrows looked frozen, and the column and its muzzle stayed put on
+       * screen while the ground scrolled under them): it hangs from the battery as it scrolls, through the point on the
+       * player's row its shot will cross (the forecast muzzle's column), and chevrons at a fixed spacing flow down it.
+       * Chevrons only, no veil: a veiled column read as a beam lane.
+       */
+      const shotColumn = (x0: number, s0: number, aimX: number, charge: number) => {
+        const dx = aimX - x0, ds = -Math.max(.5, s0), length = Math.hypot(dx, ds), ux = dx / length, us = ds / length;
+        const span = (s0 - VIEW.minS) / -us, flow = (state.time * CHEVRON_FLOW) % CHEVRON_GAP;
+        for (let d = .5 + flow; d < span; d += CHEVRON_GAP) {
+          const x = x0 + ux * d, s = s0 + us * d, energy = (.65 + charge * .65) * (1 - d / span * .45) * THREE.MathUtils.smoothstep(d, .5, .5 + CHEVRON_GAP);
+          for (const side of [-1, 1]) strip(x - (ux + side * us) * .3, s - (us - side * ux) * .3, x, s, .12, shotHex, flashLanes, energy);
         }
       };
       const chargeOf = (enemy: Enemy) => 1 - Math.min(1, enemy.warning / Math.max(.1, ENEMIES[enemy.kind].warning));
@@ -1390,8 +1406,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           beamPreview(enemy.aimX, enemy.s, .4, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'missile') {
           // Missile battery: a straight shot column from the battery down past the player row (non-tracking).
-          const at = enemy.ground?.muzzle ?? enemy;
-          shotColumn(at.x, at.s, chargeOf(enemy)); muzzle(at.x, at.s, chargeOf(enemy));
+          shotColumn(enemy.x, enemy.s, enemy.ground?.muzzle?.x ?? enemy.x, chargeOf(enemy)); muzzle(enemy.x, enemy.s, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'diamond') {
           // Diamond: an aim ray from the firing wing, and a bracket on the side it lands (1.2 to that side of the aim).
           const side = (enemy.volleys ?? 0) % 2 === 0 ? -1 : 1, wing = enemy.x + side * .55, charge = chargeOf(enemy);
@@ -1494,12 +1509,33 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       flightShadows.count = shadowCount; flightShadows.instanceMatrix.needsUpdate = true;
       plinths.count = plinthCount; plinths.instanceMatrix.needsUpdate = true;
       pontoons.count = pontoonCount; pontoons.instanceMatrix.needsUpdate = true;
+      // A round a ground battery released since the last frame is drawn leaving from the battery as drawn.
+      if (state.tick < launchTick) { batteryWindups.clear(); launches.clear(); seenShots.clear(); }
+      launchTick = state.tick;
+      const releasedBatteries: { muzzle: { x: number; s: number }; x: number; s: number }[] = [];
+      for (const [id, windup] of batteryWindups) {
+        const battery = state.enemies.find(enemy => enemy.id === id);
+        if (battery?.ground?.muzzle) continue;
+        releasedBatteries.push(battery ? { ...windup, x: battery.x, s: battery.s } : windup); batteryWindups.delete(id);
+      }
+      for (const enemy of state.enemies) if (enemy.ground?.muzzle) batteryWindups.set(enemy.id, { muzzle: { ...enemy.ground.muzzle }, x: enemy.x, s: enemy.s });
+      liveShots.clear(); for (const shot of state.projectiles) liveShots.add(shot.id);
+      for (const id of seenShots) if (!liveShots.has(id)) { seenShots.delete(id); launches.delete(id); }
+      for (const shot of state.projectiles) {
+        if (shot.friendly || seenShots.has(shot.id)) continue;
+        seenShots.add(shot.id);
+        for (const battery of releasedBatteries) {
+          const launch = launchFrom(shot, battery.muzzle, battery);
+          if (launch) { launches.set(shot.id, launch); break; }
+        }
+      }
       let friendlyCount = 0, hostileCount = 0, missileCount = 0;
       // Hostile shots are warm everywhere but Amnion, whose glowing yolk canyons are warm themselves: there they are violet
       // with a pale core, apart from the yolk and from the player's own white-cyan shots (docs/27).
       hostileMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[0] : HOSTILE_WARM[0]); hostileCoreMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[1] : HOSTILE_WARM[1]);
-      for (const shot of state.projectiles) {
-        if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + .5 || shot.s < VIEW.minS - 1 || shot.s > VIEW.maxS + 1) continue;
+      for (const sim of state.projectiles) {
+        if (sim.delay || Math.abs(sim.x - state.cameraX) > VIEW.width / 2 + .5 || sim.s < VIEW.minS - 1 || sim.s > VIEW.maxS + 1) continue;
+        const launch = sim.friendly ? undefined : launches.get(sim.id), shot = launch ? { ...sim, ...drawnShot(sim, launch) } : sim;
         transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);
         transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0);
         if (shot.special && missiles) {
@@ -1603,7 +1639,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && seaHeight !== null ? {
         splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < seaHeight - .05 ? seaHeight : null,
         vents: collectVents(state.cameraX), ground,
-      } : { splash: () => null, vents: [], ground });
+      } : { splash: () => null, vents: [], ground }, id => launches.get(id));
       // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
       water.update(state.time, state.distance);
       const arkFoam = ark.foam;

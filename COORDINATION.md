@@ -486,3 +486,8 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Stencil:** the canvas and High's scene target now carry stencil; the hero writes value 1. Overlays that must never cover the ship use `AROUND_HERO`.
 - **Untouched:** audio, terrain and sim.
 - **Gate:** typecheck, build, unit 461/461, browser 40/44 under a foreign e2e load (unchanged `main` failed the same flight test under that load). After the load dropped, the four failures' specs passed (9 tests, exit 0). Pushing `main` now.
+
+**2026-10-27 · Claude Code integrator · deployed `ed12ec3`:** Pages run 40576772966 succeeded. The live bundles match the local build and carry the hero stencil; the production endless launch smoke test has zero page errors. No phone test.
+
+**2026-10-27 · Claude Code integrator · battery arrows and rounds anchored to the map, releasing:** render-only: `src/render/{scene,fx-particles,shot-launch}.ts`; fixture `combat-light` gains a live `battery` stage. The simulation's forecast muzzle firing is unchanged: moving it raised perfect-pilot hits from 5 to 8–9 of 18 flights. Audio, terrain and sim untouched.
+- **Gate:** typecheck, unit 463/463, build, browser 44/44 (Playwright exit 0). Pushing `main` now.

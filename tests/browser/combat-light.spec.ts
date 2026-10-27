@@ -17,6 +17,10 @@ test('smooth beams, charging origins and Umbra facets compile on Low and High', 
     await page.evaluate(() => (window as any).__LIGHT_QA__.move(354, 1));
     await page.waitForTimeout(500);
     await page.screenshot({ path: info.outputPath(`umbra-plains-moved-${quality}.png`) });
+    // Ground batteries winding up and firing while the ship sweeps (their columns and rounds start at the battery as drawn).
+    await page.evaluate(() => (window as any).__LIGHT_QA__.setup('battery'));
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: info.outputPath(`batteries-${quality}.png`) });
   }
   expect(errors).toEqual([]);
 });

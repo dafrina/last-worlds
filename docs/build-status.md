@@ -1,6 +1,25 @@
 # Build status
 
 
+## Battery arrows and rounds anchored to the map, 27 October 2026
+
+User: "the ground turrets with the arrow indicator has the arrows non animated at all and it moves with the world, same with where the projectile spawns, it kinda doesnt look like its anchored to the map".
+
+- **Cause:**
+  - **The column:** a battery's windup was drawn from the forecast muzzle (`Enemy.ground.muzzle`, the point it will fire from), which Codex's combat pass used for the column and its glow. That point is fixed on screen at windup start, about 1.45 s of scroll (up to about 6 units) below the battery. So the column stayed put while the battery and the ground scrolled toward it.
+  - **The arrows:** they slid at 0.8 u/s and looked frozen.
+  - **The rounds:** the simulation fires from that forecast. When the player steers during the windup, the camera's sideways follow shifts a ground battery across the view (lens parallax). Measured: median 0.5–0.9 units away, at most 2.3.
+- **Rejected: moving the firing point in the simulation.** Rounds fired from the battery's actual position, each aimed through its forecast twin's crossing, still left the perfect pilot hit on 8–9 of 18 flights, against 5 on `main`. The fairness trace also misattributed shots when the scroll slowed during a windup. The forecast exists so a camera move cannot shift a shot away from what the fairness director checked, so the simulation is unchanged.
+- **Fix (render-only):**
+  - **Column (`src/render/scene.ts`):** it hangs from the battery as drawn, through the point on the player's row its missile will cross. Chevrons at a fixed 2-unit spacing flow down it at 2.2 u/s relative to the battery. The muzzle glow sits on the battery.
+  - **Rounds (`src/render/shot-launch.ts`, `scene.ts`, `fx-particles.ts`):** each round is drawn leaving from the battery as drawn, in a straight line to where the simulation's round crosses the player's row, and its muzzle flash plays at the battery. From that row on, the drawn round is the simulated round; hits, fairness and difficulty are unchanged.
+- **Checked:**
+  - unit tests 463/463, including `tests/render/shot-launch.test.ts` (the drawn round starts at the battery, meets the simulated round at the row, and travels in a straight line);
+  - the combat-light browser spec, which now runs a live battery stage on Low and High;
+  - before/after on Khepri (`combat-light.html?stage=battery&mission=bastion&spawn=missile-3&from=790&until=814`, plus 826 and 838): `docs/screenshots/battery-column-before-after.jpg`, before on the left;
+  - release gate (clean worktree of `origin/main` plus this change): typecheck, unit tests 463/463, build, browser tests 44/44 (20.0 min, Playwright exit 0);
+  - not checked: no phone test.
+
 ## Aim rays, the ship through the warp, the entrance drop and boss blasts under the ship, 27 October 2026
 
 User: "the warning laser indicators for normal projectile shots ... the gradient looks staggered and the end of the indicators has a weird dark blocky background"; "for the warp the ship should be visible still"; "the fly again still shows the terrain/level before warping"; "the barrel roll drop i assume happens during warp so were already at flying plane when the level loaded"; "the ship seems to fly under the bosse explosion at least on khepri but might be general".

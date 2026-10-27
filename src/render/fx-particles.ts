@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { AROUND_HERO } from './hero-stencil';
+import { drawnShot, type Launch } from './shot-launch';
 
 /**
  * Presentation-only effects (docs/04 §5): engine plumes, muzzle flashes, impact sparks, explosions (fireball,
@@ -110,6 +111,8 @@ export function createFx(scene: THREE.Scene) {
   const layers = [glow, smoke, ground, wreckGlow, wreckSmoke];
   const transform = new THREE.Object3D(), color = new THREE.Color();
   let lastDistance = 0, anchoredEmission = false;
+  /** Ground batteries' rounds as drawn (src/render/shot-launch.ts), from the renderer. */
+  let launchOf: (id: number) => Launch | undefined = () => undefined;
   let quality: GraphicsQuality = 'high', lastTime = -1, lastTick = -1, lastEffect = -1, lastShot = -1, seed = 0;
 
   const emit = (into: typeof glow, p: Partial<Particle> & { x: number; y: number; z: number; life: number; size: number; delay?: number }) => {
@@ -298,8 +301,11 @@ export function createFx(scene: THREE.Scene) {
       if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + 1) continue;
       // Muzzle flash at the logical origin; colour follows the shot's team.
       if (shot.friendly) flash(shot.previousX, -shot.previousS, .3, .06, 0xd8fff9, 1.5);
-      // (Amnion's hostile shots are violet: src/render/scene.ts.)
-      else flash(shot.previousX, -shot.previousS, .42, .09, state.planet === 'amnion' ? 0xff3a2e : 0xff9a78, 1.25);
+      // (Amnion's hostile shots are violet: src/render/scene.ts.) A ground battery's round flashes at the battery as drawn.
+      else {
+        const launch = launchOf(shot.id), at = launch ? drawnShot({ x: shot.previousX, s: shot.previousS, vx: shot.vx, vs: shot.vs }, launch) : { x: shot.previousX, s: shot.previousS };
+        flash(at.x, -at.s, .42, .09, state.planet === 'amnion' ? 0xff3a2e : 0xff9a78, 1.25);
+      }
     }
     lastShot = maxShot;
   }
@@ -369,7 +375,9 @@ export function createFx(scene: THREE.Scene) {
   return {
     setQuality(next: GraphicsQuality) { quality = next; },
     /** Advance by simulation time (frozen while paused or in still fixtures) and rebuild both instanced layers. */
-    update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = [], planetSurface: FxSurface | null = null) {
+    update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = [], planetSurface: FxSurface | null = null,
+      launches: (id: number) => Launch | undefined = () => undefined) {
+      launchOf = launches;
       const shift = lastTime < 0 || state.time < lastTime || seed !== state.config.seed ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       // Move only existing particles; new effects already use this snapshot's world position.
       for (const layer of layers) for (let i = 0; i < layer.live; i++) layer.pool[i].z += shift * (layer === ground ? 1 : layer.pool[i].drift);
