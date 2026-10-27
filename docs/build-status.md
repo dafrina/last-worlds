@@ -1,6 +1,41 @@
 # Build status
 
 
+## Aim rays, the ship through the warp, the entrance drop and boss blasts under the ship, 27 October 2026
+
+User: "the warning laser indicators for normal projectile shots ... the gradient looks staggered and the end of the indicators has a weird dark blocky background"; "for the warp the ship should be visible still"; "the fly again still shows the terrain/level before warping"; "the barrel roll drop i assume happens during warp so were already at flying plane when the level loaded"; "the ship seems to fly under the bosse explosion at least on khepri but might be general".
+
+- **Aim rays (`src/render/scene.ts`):**
+  - **Why they looked wrong:** the rays had not changed since 23 October. Each was 7 flat steps, and the fill faded by darkening its colour, not its opacity. On bright ground (Luna, Vesper) that left grey blocks along the tail.
+  - **Now:** one quad per ray. Its vertex alpha fades smoothly from the muzzle toward the target and softly toward the edges, and its colour stays the shot colour.
+  - **Evidence:** `docs/screenshots/aim-rays-before-after.jpg`; fixture stage `combat-light.html?stage=aim&mission=…`.
+- **Fly again (`src/render/fx-jump.ts`):**
+  - **Cause:** after a victory warp, the jump effect's "lift the veil" bookkeeping overrode the next launch veil to 0 for about 0.6 s, so the new level showed while it loaded.
+  - **Fix:** a new launch clears it.
+  - **Test:** `tests/render/fx-jump.test.ts` reproduced the bug before the fix.
+- **The ship through the warp (`src/render/hero-stencil.ts`, `scene.ts`, `post-pipeline.ts`, `fx-jump.ts`):**
+  - **The mask:** the hero marks its pixels in the stencil. The craft material is shared with pontoons, so the hero's own draw switches the stencil write on and off around itself: render state only, no extra shader.
+  - **Drawing around it:** the veil, flash and streaks draw around the mark. The streaks pass under the ship.
+  - **Stencil buffers:** the canvas and High's HDR target now carry one (depth texture `DEPTH24_STENCIL8`; the fog still reads its depth).
+- **Entrance drop (`scene.ts`):**
+  - **Before:** a run launched through the warp skipped the barrel-roll drop.
+  - **Now:** the ship cruises the warp in the drop's starting pose (close to the camera), and the drop with its roll plays from the breakout as the world appears.
+  - **Evidence:** `docs/screenshots/warp/launch-ship-and-drop.jpg`.
+- **Boss blasts under the ship (`src/render/fx-particles.ts`):**
+  - **Change:** a destroyed boss's explosions (Codex's `anchoredEmission`) go to a second particle pair that draws around the hero.
+  - **Unchanged:** the ship's own hits, life-loss explosion and special stay on top of it.
+  - **Evidence:** `docs/screenshots/boss-blast-under-ship.jpg` (a blast at the ship on Khepri: before, the fireball washed the ship out and the smoke darkened it). Fixture: `endless-arena.html?…&phase=departure&blast=…`; `live=1` steps the real departure.
+- **Checked:**
+  - **Captures:** the real endless launch, and "Fly again" after a victory.
+  - **Unit tests:** the combat-effects test reads the wreck layer and checks its stencil.
+  - **Browser:** the warp check moves the world under a fixed ship (the frame above the ship must not change on Low and High) and then moves only the ship (the frame must change). With the veil's stencil removed, that check fails.
+  - **Release gate** (clean worktree of `origin/main` plus this batch):
+    - typecheck, build, and unit tests 461/461 pass;
+    - browser tests 40/44 at first (Playwright exit 1, 36.7 min), while another project's e2e suite loaded the machine to about 30–35 on 16 cores. All four failures were timeouts: an audio preview render, the endless clearance frame poll, and two flight polls waiting on the ship to move;
+    - under the same load, unchanged `origin/main` failed the same flight test;
+    - once the load dropped, the release passed the whole flight spec, the clearance test and the audio test (9 tests, exit 0).
+  - **Not checked:** no phone test.
+
 ## Warp hides the world on High, 27 October 2026
 
 User: "the issue was that we see the terrain thats being loaded. I wanted it not to be opaque but a solid dark overlay instead of being able to see the level during the warp".

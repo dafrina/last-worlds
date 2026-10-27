@@ -170,7 +170,7 @@ void main() {
 export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: PostSettings) {
   const hdr = (width: number, height: number, depth = false) => {
     const target = new THREE.WebGLRenderTarget(width, height, {
-      type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: depth, samples: 0,
+      type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: depth, stencilBuffer: depth, samples: 0,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false,
     });
     target.texture.colorSpace = THREE.LinearSRGBColorSpace;
@@ -179,8 +179,9 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
   // Scene in HDR (antialiased by FXAA in the composite; an MSAA half-float target was the costliest step);
   // bloom chain at ¼, ⅛, 1/16.
   const sceneTarget = hdr(1, 1, true);
-  // The scene's depth feeds the world fog in the composite.
-  sceneTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
+  // The scene's depth feeds the world fog in the composite; its stencil marks the hero (src/render/hero-stencil.ts).
+  sceneTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedInt248Type);
+  sceneTarget.depthTexture.format = THREE.DepthStencilFormat;
   const quarter = hdr(1, 1), eighth = hdr(1, 1), sixteenth = hdr(1, 1), upEighth = hdr(1, 1), upQuarter = hdr(1, 1);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const triangle = new THREE.BufferGeometry();

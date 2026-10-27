@@ -1,4 +1,5 @@
 import { createBeamLight, createPhaseHoles } from './combat-light';
+import { HERO_STENCIL } from './hero-stencil';
 import * as THREE from 'three';
 import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
@@ -389,7 +390,8 @@ export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3, sun =
 }
 
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+  // The stencil marks the hero's pixels: the jump veil and a boss's death blasts never cover the ship (src/render/hero-stencil.ts).
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', stencil: true });
   let quality: GraphicsQuality='high';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -567,6 +569,20 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   });
   // Every craft is one mesh with the shared craft material; enemies of a kind are one instanced draw.
   const hero = createHero(materials); hero.scale.setScalar(HERO_SCALE); scene.add(hero);
+  /**
+   * The hero writes HERO_STENCIL where it is drawn. The craft material is shared (pontoons), so the hero's own draw
+   * switches the stencil write on and off around itself: render state only, never a different shader.
+   */
+  const markHero = (object: THREE.Object3D) => object.traverse(child => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.onBeforeRender = (_r, _s, _c, _g, material) => {
+      material.stencilWrite = true; material.stencilRef = HERO_STENCIL; material.stencilFunc = THREE.AlwaysStencilFunc; material.stencilZPass = THREE.ReplaceStencilOp;
+    };
+    child.onAfterRender = (_r, _s, _c, _g, material) => {
+      material.stencilWrite = false; material.stencilRef = 0; material.stencilZPass = THREE.KeepStencilOp;
+    };
+  });
+  markHero(hero);
   let heroModel = 'fallback';
   const heroLoad = loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/hero-scrapper.glb`, ['hero_scrapper'] as const).then(nodes => {
     const model = nodes.get('hero_scrapper');
@@ -575,7 +591,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     hero.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
     hero.clear();
     const mesh = new THREE.Mesh(model.geometry, materials.craft); mesh.castShadow = mesh.receiveShadow = true;
-    hero.add(mesh); heroModel = 'glb'; warmed = false;
+    hero.add(mesh); markHero(mesh); heroModel = 'glb'; warmed = false;
   }).catch(error => console.warn('Scrapper model unavailable; retaining the starter stand-in.', error));
   const facilities = createFacilityView(scene, () => { warmed = false; });
   const ENEMY_CAPACITY = 32;
@@ -806,7 +822,25 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Soft lane and column fills under the dashed edges: a light veil that reads on snow and on water alike.
   const laneFills = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .26,
     depthTest: false, depthWrite: false }), 64);
-  for (const mesh of [telegraphs, flashLanes, laneFills]) {
+  /*
+   * Aim rays (user, 27 October: the fade "looks staggered and the end of the indicators has a weird dark blocky
+   * background"): one quad per ray whose vertex alpha fades smoothly from the muzzle toward the target and softly toward
+   * its edges. The fade is in opacity, never in colour: a colour fade darkened bright ground into grey blocks.
+   */
+  const rayGeometry = new THREE.PlaneGeometry(1, 1, 4, 8); rayGeometry.rotateX(-Math.PI / 2);
+  const rayPosition = rayGeometry.getAttribute('position'), rayAlpha = new Float32Array(rayPosition.count * 4);
+  for (let i = 0; i < rayPosition.count; i++) {
+    // The strip's local +z end is its target (x2, s2), −z its muzzle; x runs across it.
+    const along = rayPosition.getZ(i) + .5, across = Math.abs(rayPosition.getX(i)) * 2;
+    rayAlpha.set([1, 1, 1, (.1 + .9 * Math.pow(1 - along, 1.3)) * (1 - across * across)], i * 4);
+  }
+  rayGeometry.setAttribute('color', new THREE.BufferAttribute(rayAlpha, 4));
+  const rayFills = new THREE.InstancedMesh(rayGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .3, vertexColors: true,
+    depthTest: false, depthWrite: false }), 64);
+  const rayCores = new THREE.InstancedMesh(rayGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55, vertexColors: true,
+    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 64);
+  const lanes = [telegraphs, flashLanes, laneFills, rayFills, rayCores], laneCounts = new Map<THREE.InstancedMesh, number>();
+  for (const mesh of lanes) {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9; scene.add(mesh);
   }
@@ -872,8 +906,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const jumpFx = createJumpFx(scene);
   const beamLight = createBeamLight(scene), phaseHoles = createPhaseHoles(scene);
   const footprint: ViewFootprint = { minX: 0, maxX: 0, minS: 0, maxS: 0 };
-  /** The run whose launch warp has played (its hero skips the entrance animation). */
-  let warpLaunched: RunState['config'] | null = null;
   const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   /** Reduced motion turns the jump into a plain fade (OS setting; `?motion=reduce` for look-dev). */
   const reducedMotion = () => query.get('motion') === 'reduce' || !!motionQuery?.matches;
@@ -1151,10 +1183,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       hero.visible = heroAlive;
       // Mission-start entrance (render-only): the hero starts close to the camera (large, out along the view ray, so it
       // keeps its screen position under the orthographic lens) and drops to flight height with one barrel roll.
-      // A run launched through the warp (21 October) has its entrance in the warp's breakout: the hero flies at its normal
-      // size and attitude from the first frame, never frozen at the entrance's oversized start under the veil.
-      if (jumpFx.launching) warpLaunched = state.config;
-      const entrance = warpLaunched === state.config || state.time >= HERO_ENTRANCE ? 1 : 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3);
+      // Under the launch warp the hero cruises in that start pose, over the veil; the flight starts at the warp's breakout,
+      // so the drop plays as the world appears (user, 27 October: the drop had been skipped under the warp).
+      const entrance = state.time >= HERO_ENTRANCE ? 1 : 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3);
       const lift = (1 - entrance) * HERO_ENTRANCE_LIFT;
       hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION), lift * Math.cos(ELEVATION));
       hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
@@ -1195,14 +1226,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       hitTick = state.tick;
       for (const [id] of enemyHp) if (!state.enemies.some(enemy => enemy.id === id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
       beamLight.begin(); phaseHoles.begin();
-      let pontoonCount = 0, stripCount = 0, flashCount = 0, fillCount = 0; pontoonRings.length = 0;
+      let pontoonCount = 0; laneCounts.clear(); pontoonRings.length = 0;
       const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
-        const index = layer === telegraphs ? stripCount : layer === flashLanes ? flashCount : fillCount;
+        const index = laneCounts.get(layer) ?? 0;
         if (index >= layer.instanceMatrix.count) return;
         transform.position.set((x1 + x2) / 2, VIEW.flightHeight + .035, -(s1 + s2) / 2);
         transform.rotation.set(0, Math.atan2(x2 - x1, -(s2 - s1)), 0); transform.scale.set(width, 1, Math.hypot(x2 - x1, s2 - s1)); transform.updateMatrix();
         layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
-        if (layer === telegraphs) stripCount++; else if (layer === flashLanes) flashCount++; else fillCount++;
+        laneCounts.set(layer, index + 1);
       };
       /*
        * Enemy beams (user, 23 October: the dashed lanes "look dated under the new graphics"; "make it a faint red preview
@@ -1228,19 +1259,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
        * Shot telegraphs (user, 23 October: "I really dont like the dashed lines anymore"; "why some of the ground targets
        * draw a warning like a laser even tho they shoot balls"), in the shot colour so they never read as a beam or as
        * the player's fire. Timing is the simulation's, unchanged. An aim ray: a solid thin line bright at the muzzle,
-       * fading toward its target, brightening as the shot charges (`charge` 0 … 1), and a swelling muzzle glow. A shot
-       * column (a straight-firing battery): chevrons sliding down it.
+       * fading smoothly toward its target (the ray layers' vertex alpha), brightening as the shot charges (`charge` 0 … 1),
+       * and a swelling muzzle glow. A shot column (a straight-firing battery): chevrons sliding down it.
        */
       const shotHex = planet === 'amnion' ? HOSTILE_BLOOD[0] : HOSTILE_WARM[0];
       const muzzle = (x: number, s: number, charge: number) =>
         plumes.push({ x, z: -s + .3, length: .01, width: .45 + charge * .5, hex: shotHex, energy: 1.2 + charge * 2.4, round: true });
       const aimRay = (x0: number, s0: number, x1: number, s1: number, charge: number) => {
-        const steps = 7;
-        for (let i = 0; i < steps; i++) {
-          const a = i / steps, b = (i + 1) / steps, fade = Math.pow(1 - a, 1.3);
-          strip(THREE.MathUtils.lerp(x0, x1, a), THREE.MathUtils.lerp(s0, s1, a), THREE.MathUtils.lerp(x0, x1, b), THREE.MathUtils.lerp(s0, s1, b), .22, shotHex, laneFills, .7 * fade);
-          strip(THREE.MathUtils.lerp(x0, x1, a), THREE.MathUtils.lerp(s0, s1, a), THREE.MathUtils.lerp(x0, x1, b), THREE.MathUtils.lerp(s0, s1, b), .07, shotHex, flashLanes, (.8 + charge * 1.6) * fade);
-        }
+        strip(x0, s0, x1, s1, .3, shotHex, rayFills, .9);
+        strip(x0, s0, x1, s1, .1, shotHex, rayCores, .8 + charge * 1.6);
       };
       const shotColumn = (x: number, top: number, charge: number) => {
         // Chevrons only, no veil: a veiled column read as a beam lane.
@@ -1537,8 +1564,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         else if (hazard.active > 0) beamLive(hazard.x, top, hazard.width, source);
       }
       beamLight.end(); phaseHoles.end();
-      for (const [mesh, count] of [[telegraphs, stripCount], [flashLanes, flashCount], [laneFills, fillCount]] as const) {
-        mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      for (const mesh of lanes) {
+        mesh.count = laneCounts.get(mesh) ?? 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
       const wave = state.shockwave;
       shockRings.forEach((ring, k) => {

@@ -478,3 +478,11 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 **2026-10-27 · Claude Code integrator · warp fix and playground, deploying:** the user reported seeing the terrain during the warp. On High, the post fog and haze, drawn after the jump veil from the scene's depth, traced the hidden terrain.
 - **Fix:** the veil reports its cover (`fx-jump.ts`) and the composite fades fog and haze by it (`post-pipeline.ts`, `scene.ts`). The warp browser check now covers Low and High.
 - **Gate:** typecheck, build, unit 460/460, browser 42/44. The two failures were load timeouts during a concurrent foreign e2e run; both passed when rerun alone. Pushing `main` now.
+
+**2026-10-27 · Claude Code integrator · deployed `29edd1c`:** Pages run 40541618263 succeeded. The live scene bundle matches the local build and carries the veil cover, `playground.html` is served, and the production endless launch smoke test has zero page errors. No phone test.
+
+**2026-10-27 · Claude Code integrator · aim rays, ship through the warp, entrance drop, boss blasts under the ship, releasing:** at the user's request ("continue and deploy after").
+- **Files:** `src/render/{scene,fx-jump,fx-particles,post-pipeline,hero-stencil}.ts`; fixtures `combat-light` (aim stage, `ship()`) and `endless-arena` (`live`, `blast`); tests.
+- **Stencil:** the canvas and High's scene target now carry stencil; the hero writes value 1. Overlays that must never cover the ship use `AROUND_HERO`.
+- **Untouched:** audio, terrain and sim.
+- **Gate:** typecheck, build, unit 461/461, browser 40/44 under a foreign e2e load (unchanged `main` failed the same flight test under that load). After the load dropped, the four failures' specs passed (9 tests, exit 0). Pushing `main` now.

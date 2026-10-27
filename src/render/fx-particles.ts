@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
+import { AROUND_HERO } from './hero-stencil';
 
 /**
  * Presentation-only effects (docs/04 §5): engine plumes, muzzle flashes, impact sparks, explosions (fireball,
@@ -10,9 +11,11 @@ import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
  * Two instanced draws in total: an additive layer (glows; HDR colours bloom on High) and an alpha layer (smoke
  * and debris). Friendly flashes are cyan-white, hostile ones warm coral, matching their shots. Low keeps the
  * readable core of each effect and drops most secondary particles (docs/05 §9: particles are reduced first).
+ * A destroyed boss's blasts go to a second pair that draws around the hero's stencil (user, 27 October: the ship
+ * seemed to fly under the boss's explosion): the wreck burns below the ship, which still shows its own hits on top.
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
-const ADDITIVE_CAPACITY = 640, ALPHA_CAPACITY = 240, LIGHT_CAPACITY = 32;
+const ADDITIVE_CAPACITY = 640, ALPHA_CAPACITY = 240, LIGHT_CAPACITY = 32, WRECK_ADDITIVE_CAPACITY = 384, WRECK_ALPHA_CAPACITY = 160;
 /** Particle shapes in the shared shader. */
 const ROUND = 0, PLUME = 1, STAR = 2, CHIP = 3, RING = 4;
 
@@ -79,7 +82,7 @@ void main() {
   gl_FragColor = vec4( vColor * a, 1.0 );
 }`;
 
-function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = false) {
+function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = false, underHero = false) {
   const geometry = new THREE.PlaneGeometry(1, 1);
   const params = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2).setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('aParams', params);
@@ -89,10 +92,11 @@ function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = 
     : new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: FRAGMENT, uniforms: { additive: { value: additive ? 1 : 0 } },
       // Glows draw over everything like the other combat markers; smoke and ground dust respect terrain depth.
       transparent: true, depthWrite: false, depthTest: !additive, toneMapped: false, side: THREE.DoubleSide,
-      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, ...(underHero ? AROUND_HERO : {}) });
   const mesh = new THREE.InstancedMesh(geometry, material, capacity);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
-  mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = light ? 4 : additive ? 6 : 5; mesh.name = light ? 'fx ground light' : additive ? 'fx glow' : 'fx smoke';
+  mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = light ? 4 : additive ? 6 : 5;
+  mesh.name = (underHero ? 'fx wreck ' : 'fx ') + (light ? 'ground light' : additive ? 'glow' : 'smoke');
   scene.add(mesh);
   const pool: Particle[] = [];
   for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, r2: 1, g2: 1, b2: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0, drift: 0 });
@@ -102,11 +106,15 @@ function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = 
 
 export function createFx(scene: THREE.Scene) {
   const glow = layer(scene, ADDITIVE_CAPACITY, true), smoke = layer(scene, ALPHA_CAPACITY, false), ground = layer(scene, LIGHT_CAPACITY, true, true);
+  const wreckGlow = layer(scene, WRECK_ADDITIVE_CAPACITY, true, false, true), wreckSmoke = layer(scene, WRECK_ALPHA_CAPACITY, false, false, true);
+  const layers = [glow, smoke, ground, wreckGlow, wreckSmoke];
   const transform = new THREE.Object3D(), color = new THREE.Color();
   let lastDistance = 0, anchoredEmission = false;
   let quality: GraphicsQuality = 'high', lastTime = -1, lastTick = -1, lastEffect = -1, lastShot = -1, seed = 0;
 
-  const emit = (target: typeof glow, p: Partial<Particle> & { x: number; y: number; z: number; life: number; size: number; delay?: number }) => {
+  const emit = (into: typeof glow, p: Partial<Particle> & { x: number; y: number; z: number; life: number; size: number; delay?: number }) => {
+    // A destroyed boss's blasts burn below the ship (the wreck pair draws around the hero).
+    const target = anchoredEmission ? into === glow ? wreckGlow : into === smoke ? wreckSmoke : into : into;
     if (target.live >= target.capacity) return;
     const q = target.pool[target.live++];
     q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx ?? 0; q.vy = p.vy ?? 0; q.vz = p.vz ?? 0; q.age = -(p.delay ?? 0); q.life = p.life;
@@ -364,7 +372,7 @@ export function createFx(scene: THREE.Scene) {
     update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = [], planetSurface: FxSurface | null = null) {
       const shift = lastTime < 0 || state.time < lastTime || seed !== state.config.seed ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       // Move only existing particles; new effects already use this snapshot's world position.
-      for (const layer of [glow, smoke, ground]) for (let i = 0; i < layer.live; i++) layer.pool[i].z += shift * (layer === ground ? 1 : layer.pool[i].drift);
+      for (const layer of layers) for (let i = 0; i < layer.live; i++) layer.pool[i].z += shift * (layer === ground ? 1 : layer.pool[i].drift);
       const previous = lastTime, dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
       surface = planetSurface;
       spawn(state);
@@ -387,16 +395,16 @@ export function createFx(scene: THREE.Scene) {
             size: .1, grow: .55, drag: 1.5, alpha: .5, shape: ROUND, drift: .25, ...tint(0xd8dde2, 1) });
         }
       }
-      step(glow, dt); step(smoke, dt); step(ground, dt);
-      write(glow); write(smoke); write(ground); overlay(state, plumes);
-      for (const target of [glow, smoke, ground]) {
+      for (const target of layers) { step(target, dt); write(target); }
+      overlay(state, plumes);
+      for (const target of layers) {
         target.mesh.instanceMatrix.needsUpdate = true; target.params.needsUpdate = true;
         if (target.mesh.instanceColor) target.mesh.instanceColor.needsUpdate = true;
       }
     },
-    get particles() { return glow.live + smoke.live; },
+    get particles() { return glow.live + smoke.live + wreckGlow.live + wreckSmoke.live; },
     dispose() {
-      for (const target of [glow, smoke, ground]) { scene.remove(target.mesh); target.mesh.dispose(); target.geometry.dispose(); target.material.dispose(); }
+      for (const target of layers) { scene.remove(target.mesh); target.mesh.dispose(); target.geometry.dispose(); target.material.dispose(); }
     },
   };
 }

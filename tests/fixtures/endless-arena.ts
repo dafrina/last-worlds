@@ -36,6 +36,8 @@ if (query.has('launch')) {
 if (query.get('phase') === 'departure') {
   for (const part of ['left','right','core'] as const) bossTarget(state,part)!.hp = 0;
   resolveBossPhase(state); step(Number(query.get('t') ?? 0));
+  // A death blast this far up from the ship's row (the ship must stay on top of the wreck's fire).
+  if (query.has('blast')) state.effects.push({ id: state.nextId++, kind: 'bossBlast', x: state.player.x, s: Number(query.get('blast')), ttl: 1.6, duration: 1.6 });
 }
 const ui = createUi(document.querySelector<HTMLElement>('#app')!, {
   start() {}, pause() {}, resume() {}, quit() {}, setMuted() {}, setQuality(q) { renderer.setQuality(q); },
@@ -61,6 +63,8 @@ function frame() {
   if (query.has('inspect')) state.tick += 60;
   // Pose inspection advances only presentation time, keeping the chosen battle phase in place.
   if (query.has('pose')) state.time += 1 / 60;
+  // The real departure, one tick per frame (slow motion where frames are slow): the scroll resumes under the wreck.
+  if (query.has('live')) stepRun(state, EMPTY_INPUT);
   renderer.render(state,0); ui.update(state);
   ui.canvas.dataset.encounterState=JSON.stringify({ sector:state.sector,planet:state.planet,boss:state.boss?.id,phase:state.boss?.phase,
     distance:state.distance,switchDistance:plan.jump!.switchDistance,jump:!!state.jump,frames:++frames });

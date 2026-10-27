@@ -23,18 +23,27 @@ test('smooth beams, charging origins and Umbra facets compile on Low and High', 
 
 // High's post fog and haze are drawn after the veil from the scene's depth: they traced the hidden terrain (user,
 // 27 October: "a solid dark overlay instead of being able to see the level during the warp"), so both tiers are checked.
-test('opaque launch warp conceals terrain even when the world below changes', async ({ page }, info) => {
+// The ship stays visible over the veil (user, 27 October): the frame changes when only the ship moves.
+test('opaque launch warp conceals terrain even when the world below changes, but never the ship', async ({ page }, info) => {
   test.setTimeout(180000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const quality of ['low', 'high']) {
     await page.goto(`/tests/fixtures/combat-light.html?stage=warp&quality=${quality}`);
     await expect(page.locator('body')).toHaveAttribute('data-ready', '1', { timeout: 60000 });
     await page.waitForTimeout(1000);
-    const canvas = page.locator('canvas').first();
-    const before = await canvas.screenshot();
-    await page.evaluate(() => (window as any).__LIGHT_QA__.move(928, -4));
+    const canvas = page.locator('canvas').first(), box = (await canvas.boundingBox())!;
+    // The world under the veil: everything above the ship's row (High's shadows still shade the ship as the world moves).
+    const sky = { x: box.x, y: box.y, width: box.width, height: Math.round(box.height * .55) };
+    const before = await page.screenshot({ clip: sky });
+    await page.evaluate(() => (window as any).__LIGHT_QA__.move(928, 0));
     await page.waitForTimeout(1000);
-    const after = await canvas.screenshot({ path: info.outputPath(`opaque-warp-${quality}.png`) });
+    const after = await page.screenshot({ clip: sky });
+    await canvas.screenshot({ path: info.outputPath(`opaque-warp-${quality}.png`) });
     expect(after.equals(before), `${quality} warp shows the world below`).toBe(true);
+    const parked = await canvas.screenshot();
+    await page.evaluate(() => (window as any).__LIGHT_QA__.ship(-3));
+    await page.waitForTimeout(1000);
+    const moved = await canvas.screenshot({ path: info.outputPath(`warp-ship-${quality}.png`) });
+    expect(moved.equals(parked), `${quality} warp hides the ship`).toBe(false);
   }
 });

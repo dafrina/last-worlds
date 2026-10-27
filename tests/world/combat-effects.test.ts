@@ -5,6 +5,7 @@ import { createRun } from '../../src/sim/game';
 import { startBoss } from '../../src/sim/bastion';
 import { particleLayer } from '../../src/render/bastion-view';
 import { createJumpFx } from '../../src/render/fx-jump';
+import { HERO_STENCIL } from '../../src/render/hero-stencil';
 
 it('boss death smoke follows exact world distance even when the presentation clock is paused', () => {
   const scene = new THREE.Scene(), fx = createFx(scene);
@@ -12,8 +13,12 @@ it('boss death smoke follows exact world distance even when the presentation clo
   startBoss(state); state.boss!.phase = 'destroyed';
   state.effects.push({ id: state.nextId++, kind: 'bossBlast', x: 0, s: 12, ttl: 3, duration: 3 });
   fx.update(state, []);
-  const smoke = scene.getObjectByName('fx smoke') as THREE.InstancedMesh;
+  // A destroyed boss burns in the wreck layer, which draws around the hero (user, 27 October: the ship flew under it).
+  const smoke = scene.getObjectByName('fx wreck smoke') as THREE.InstancedMesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
   expect(smoke.count).toBeGreaterThan(0);
+  expect((scene.getObjectByName('fx smoke') as THREE.InstancedMesh).count).toBe(0);
+  expect(smoke.material.stencilWrite && smoke.material.stencilFunc).toBe(THREE.NotEqualStencilFunc);
+  expect(smoke.material.stencilRef).toBe(HERO_STENCIL);
   const before = new THREE.Matrix4(), after = new THREE.Matrix4(); smoke.getMatrixAt(0, before);
   state.distance += 47; state.tick++; state.scrollSpeed = 999;
   fx.update(state, []); smoke.getMatrixAt(0, after);

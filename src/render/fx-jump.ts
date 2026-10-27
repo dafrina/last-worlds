@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VIEW, type RunState } from '../shared/contracts';
+import { AROUND_HERO } from './hero-stencil';
 
 /**
  * Hyperdrive jump between planets (docs/18 §4), render-only and phone-cheap: two draws while active, none otherwise.
@@ -18,6 +19,8 @@ import { VIEW, type RunState } from '../shared/contracts';
  * - The launch warp (user, 21 October: "use the warp animation instead [of the loading panel] and for endless it'll be
  *   just a longer warp"): while a flight's world is prepared the ship cruises through opaque deep space on the wall
  *   clock; on arrival a flash breaks out and the veil lifts onto the world over ARRIVE seconds.
+ * - The ship stays visible through every warp (user, 27 October): veil, flash and streaks draw around the hero's
+ *   stencil (src/render/hero-stencil.ts), the streaks passing under it.
  */
 const STREAKS = 120, MAX_HOLD = 4, PLANE_Y = VIEW.flightHeight - .45;
 /** A flash that rises quickly and fades out more slowly (the world or the results emerge through it). */
@@ -60,7 +63,7 @@ export function createJumpFx(scene: THREE.Scene) {
   // Premultiplied blending: the veil darkens what is below, the flash adds light on top of it.
   const veil = new THREE.Mesh(new THREE.PlaneGeometry(60, 80).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
     vertexShader: VEIL_VERTEX, fragmentShader: VEIL_FRAGMENT, uniforms: veilUniforms, transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
-    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, ...AROUND_HERO,
   }));
   veil.frustumCulled = false; veil.renderOrder = 11; veil.visible = false; veil.name = 'jump veil';
   const streakUniforms = {
@@ -75,7 +78,7 @@ export function createJumpFx(scene: THREE.Scene) {
   streakGeometry.instanceCount = STREAKS;
   const streaks = new THREE.Mesh(streakGeometry, new THREE.ShaderMaterial({
     vertexShader: STREAK_VERTEX, fragmentShader: STREAK_FRAGMENT, uniforms: streakUniforms, transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
-    blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending, side: THREE.DoubleSide, ...AROUND_HERO,
   }));
   streaks.frustumCulled = false; streaks.renderOrder = 12; streaks.visible = false; streaks.name = 'jump streaks';
   scene.add(veil, streaks);
@@ -150,6 +153,9 @@ export function createJumpFx(scene: THREE.Scene) {
      */
     launch(mode: 'cruise' | 'arrive' | 'off'): number {
       if (mode === 'arrive' && launch === 'off') return 0;
+      // A new flight leaves the last one's jump behind: after a victory warp, its veil lift overrode the launch veil and
+      // showed the new world being prepared ("Fly again", user 27 October).
+      if (mode === 'cruise') { wasJumping = false; holdStart = -Infinity; lift = 1; }
       launch = mode; launchAt = performance.now() / 1000;
       return mode === 'arrive' ? ARRIVE_FLASH : 0;
     },
