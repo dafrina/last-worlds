@@ -153,6 +153,11 @@ export function createJumpFx(scene: THREE.Scene) {
       launch = mode; launchAt = performance.now() / 1000;
       return mode === 'arrive' ? ARRIVE_FLASH : 0;
     },
+    /**
+     * How much of the world the veil hides this frame, in the blend's own space (the High post pass fades its depth fog
+     * and haze by it: they are drawn after the veil and otherwise traced the hidden terrain, user 27 October).
+     */
+    get cover() { return veil.visible ? veilUniforms.veil.value : 0; },
     /** The launch warp is cruising or arriving. */
     get launching() { return launch !== 'off'; },
     /** Hidden meshes the renderer's warm-up compile should include (no shader compile on the first jump). */

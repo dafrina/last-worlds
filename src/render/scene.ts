@@ -302,7 +302,7 @@ function sunDirection(elevationDegrees: number): THREE.Vector3 {
  * sizes; engines are the authored exhaust sockets (art/vesper-craft/README.md).
  */
 // Keyed by kind name so the table also covers the Vesper kinds (needle, diamond, missile) the combat side adds.
-const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: number; engines: readonly (readonly [number, number])[] }>> = {
+export const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: number; engines: readonly (readonly [number, number])[] }>> = {
   dart: { node: 'vesper_needle', scale: 1.25, engines: [[-.065, -.48], [.065, -.48]] },
   lancer: { node: 'vesper_needle', scale: 1.45, engines: [[-.065, -.48], [.065, -.48]] },
   weaver: { node: 'vesper_diamond', scale: 1.05, engines: [[-.14, -.58], [0, -.58], [.14, -.58]] },
@@ -316,7 +316,7 @@ const VESPER_CRAFT: Readonly<Record<string, { node: VesperCraftNode; scale: numb
  * Nacre's own craft (art/nacre-craft, after the ORRERY, SHARD and VEIL concepts): on Nacre every kind flies a Nacre
  * model, and THE VEIL's pod waves use the pod. Plume colour is teal.
  */
-const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NacreCraftNode; scale: number }>> = {
+export const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NacreCraftNode; scale: number }>> = {
   dart: { node: 'nacre_shard', scale: 1 }, needle: { node: 'nacre_shard', scale: 1.1 }, lancer: { node: 'nacre_veil', scale: 1.1 },
   weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, pulsar: { node: 'nacre_pulsar', scale: 1.1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
   wraith: { node: 'nacre_veil', scale: 1 },
@@ -326,16 +326,16 @@ const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NacreCraf
  * The Umbral fleet (docs/28, tools/blender/umbra_craft.py): on Umbra every kind flies an Umbral model, and THE ECLIPSE's
  * drone waves use the drone (scaled to a pod's size). Plume colour is violet.
  */
-const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: UmbraCraftNode; scale: number }>> = {
+export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: UmbraCraftNode; scale: number }>> = {
   dart: { node: 'umbra_interceptor', scale: 1 }, needle: { node: 'umbra_interceptor', scale: 0.9 }, weaver: { node: 'umbra_fighter', scale: 0.95 },
   lancer: { node: 'umbra_hunter', scale: 1.05 }, diamond: { node: 'umbra_carrier', scale: 1 }, pulsar: { node: 'umbra_artillery', scale: 1 },
   turret: { node: 'umbra_turret', scale: 1 }, missile: { node: 'umbra_turret', scale: 1 },
   wraith: { node: 'umbra_hunter', scale: 1 },
 };
-const UMBRA_DRONE_SCALE = 1.45;
+export const UMBRA_DRONE_SCALE = 1.45;
 
 /** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
-const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
+export const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
   dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret', pulsar: 'khepri_weaver',
   wraith: 'khepri_lancer',
 };
@@ -353,7 +353,7 @@ const LOOT_NODES = ['loot_fuel', 'wreck_turret_0', 'wreck_turret_1', 'wreck_fuel
 /** At most this many wrecks stay on the ground at once (oldest go first). */
 const WRECK_CAPACITY = 24;
 /** Vesper faction kinds: always their own models once vesper-craft.glb is in, on any planet. */
-const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle', 'diamond', 'missile']);
+export const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle', 'diamond', 'missile']);
 /** Code-built Khepri model each kind uses until (or unless) its Vesper model is available. */
 const KHEPRI_STAND_IN: Readonly<Record<EnemyKind, 'dart' | 'weaver' | 'turret' | 'lancer'>> = {
   dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret', fuel: 'turret', pulsar: 'weaver',
@@ -1582,6 +1582,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const arkFoam = ark.foam;
       foam.update(state.time, [...collectFloeRings(), ...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
       jumpActive = jumpFx.update(state, reducedMotion(), planetReady(state.jump?.to ?? state.planet ?? planet), quality === 'high');
+      post.settings.cover.value = jumpFx.cover;
       lineGeometry.setDrawRange(0, lineCursor);
       lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
       const renderStart = performance.now();

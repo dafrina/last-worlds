@@ -7,7 +7,7 @@ test('playground never retains a previous boss, its particles or its carrier pod
   test.setTimeout(300000);
   await page.setViewportSize({ width: 1100, height: 900 });
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  await page.addInitScript(() => localStorage.setItem('last-worlds.playground.view', JSON.stringify({ mission: 'bastion', boss: true, quality: 'low' })));
+  await page.addInitScript(() => localStorage.setItem('last-worlds.playground.view', JSON.stringify({ mission: 'bastion', boss: true, quality: 'low', tab: 'level' })));
   await page.goto('/playground.html');
   await expect.poll(() => visible(page), { timeout: 60000 }).toEqual(['bastion']);
   for (const [mission, id] of [['cold-vector', 'ark'], ['training', 'warden'], ['brood-strike', 'cradle'], ['final-horizon', 'eclipse'], ['deep-bloom', 'veil']]) {
@@ -22,6 +22,8 @@ test('playground never retains a previous boss, its particles or its carrier pod
   }
   // All three carrier models are now loaded. Only THE VEIL may draw its launched pods.
   await expect(page.locator('.pg-hud')).toContainText('VEIL batteries', { timeout: 45000 });
+  // The boss controls live on the playground's Boss tab, the level picker on its Level tab.
+  await page.locator('[data-tab="boss"]').click();
   await page.locator('[data-boss="flanks"]').click();
   await expect.poll(async () => (await stats(page)).veil?.deployedPods, { timeout: 60000 }).toBeGreaterThan(0);
   const pods = await stats(page);
@@ -31,7 +33,9 @@ test('playground never retains a previous boss, its particles or its carrier pod
   await expect.poll(() => visible(page)).toEqual([]);
   const clear = await stats(page);
   for (const id of ids) { expect(clear[id].particles).toBe(0); expect(clear[id].deployedPods ?? 0).toBe(0); }
+  await page.locator('[data-tab="level"]').click();
   await page.locator('[data-view="mission"]').selectOption('bastion');
+  await page.locator('[data-tab="boss"]').click();
   await page.locator('[data-view="boss"]').check();
   await expect.poll(() => visible(page), { timeout: 60000 }).toEqual(['bastion']);
   await page.screenshot({ path: info.outputPath('bastion-after-world-cycle.png') });

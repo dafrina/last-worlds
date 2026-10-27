@@ -21,16 +21,20 @@ test('smooth beams, charging origins and Umbra facets compile on Low and High', 
   expect(errors).toEqual([]);
 });
 
+// High's post fog and haze are drawn after the veil from the scene's depth: they traced the hidden terrain (user,
+// 27 October: "a solid dark overlay instead of being able to see the level during the warp"), so both tiers are checked.
 test('opaque launch warp conceals terrain even when the world below changes', async ({ page }, info) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/tests/fixtures/combat-light.html?stage=warp&quality=low');
-  await expect(page.locator('body')).toHaveAttribute('data-ready', '1', { timeout: 60000 });
-  await page.waitForTimeout(1000);
-  const canvas = page.locator('canvas').first();
-  const before = await canvas.screenshot();
-  await page.evaluate(() => (window as any).__LIGHT_QA__.move(928, -4));
-  await page.waitForTimeout(1000);
-  const after = await canvas.screenshot({ path: info.outputPath('opaque-warp.png') });
-  expect(after.equals(before)).toBe(true);
+  for (const quality of ['low', 'high']) {
+    await page.goto(`/tests/fixtures/combat-light.html?stage=warp&quality=${quality}`);
+    await expect(page.locator('body')).toHaveAttribute('data-ready', '1', { timeout: 60000 });
+    await page.waitForTimeout(1000);
+    const canvas = page.locator('canvas').first();
+    const before = await canvas.screenshot();
+    await page.evaluate(() => (window as any).__LIGHT_QA__.move(928, -4));
+    await page.waitForTimeout(1000);
+    const after = await canvas.screenshot({ path: info.outputPath(`opaque-warp-${quality}.png`) });
+    expect(after.equals(before), `${quality} warp shows the world below`).toBe(true);
+  }
 });

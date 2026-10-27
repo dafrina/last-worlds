@@ -32,3 +32,19 @@ html, body { margin: 0; height: 100%; background: #0b0f17; color: #dce6f2; font:
 
 /* The boss controls show only while the boss fight is on. */
 .pg-boss[hidden] { display: none; }
+
+/* Tabs (27 October): Level, Look, Boss, Enemies, Models. */
+.pg-tabs { display: flex; gap: 4px; margin: 0 0 10px; flex-wrap: wrap; }
+.pg-tabs button { flex: 1; padding: 6px 4px; }
+.pg-panel button.is-on { background: #2f4a6e; border-color: #6b9ad0; }
+.pg-panel [data-pane][hidden] { display: none; }
+.pg-note { color: #8fa6bf; margin: 6px 0; }
+.pg-dim { color: #8fa6bf; font-size: 12px; }
+.pg-panel .pg-wrap { flex-wrap: wrap; gap: 6px; }
+.pg-kind { border-left: 2px solid #2c3b52; padding: 4px 0 6px 8px; margin: 8px 0; }
+.pg-kind.is-off { opacity: .55; }
+.pg-model-info { margin: 8px 0; padding: 8px; background: #0b111b; border: 1px solid #253247; border-radius: 6px; min-height: 3.5em; }
+/* The model viewer covers the level while the Models tab is open. */
+.pg-viewer { position: absolute; inset: 0; }
+.pg-viewer[hidden] { display: none; }
+.pg-viewer-canvas { display: block; width: 100%; height: 100%; touch-action: none; }

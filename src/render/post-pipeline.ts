@@ -91,6 +91,7 @@ uniform float exposure; uniform float strength; uniform vec3 lift; uniform float
 uniform vec4 haze;
 uniform sampler2D depthMap; uniform mat4 viewInverse; uniform mat4 projectionInverse;
 uniform vec3 fogColor; uniform vec3 fogHeight; uniform vec3 fogDistance;
+uniform float cover;
 varying vec2 vUv;
 /**
  * World fog from the scene depth (user, 22 October: "only the lower half of the terrain ... mountainous areas stay clear"):
@@ -99,14 +100,15 @@ varying vec2 vUv;
  */
 vec3 fog( vec3 color ) {
   float depth = texture2D( depthMap, vUv ).r;
-  if ( depth >= 1.0 || fogHeight.z + fogDistance.z <= 0.0 ) return color;
+  if ( depth >= 1.0 || fogHeight.z + fogDistance.z <= 0.0 || cover >= 1.0 ) return color;
   vec4 view = projectionInverse * vec4( vUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0 );
   vec3 world = ( viewInverse * vec4( view.xyz / view.w, 1.0 ) ).xyz;
   float distance = length( world - viewInverse[ 3 ].xyz );
   float low = fogHeight.z * smoothstep( fogHeight.x, fogHeight.y, world.y ) * mix( 0.55, 1.0, smoothstep( 38.0, 68.0, distance ) );
   // The distance haze lives in the same low layer: far valleys turn misty while ridges and plateaus stay clear.
   float far = fogDistance.z * ( 1.0 - exp( -fogDistance.y * max( 0.0, distance - fogDistance.x ) ) ) * smoothstep( fogHeight.x + 1.2, fogHeight.x - 0.8, world.y );
-  float amount = ( 1.0 - ( 1.0 - low ) * ( 1.0 - far ) ) * ( 1.0 - smoothstep( 1.2, 3.0, max( color.r, max( color.g, color.b ) ) ) );
+  // Under a full-screen cover (the jump veil) the fog fades with the world: it never paints the hidden terrain's shapes.
+  float amount = ( 1.0 - ( 1.0 - low ) * ( 1.0 - far ) ) * ( 1.0 - smoothstep( 1.2, 3.0, max( color.r, max( color.g, color.b ) ) ) ) * ( 1.0 - cover );
   return mix( color, fogColor, amount );
 }
 /** Compressed (Reinhard) luma, so FXAA edge detection behaves on HDR input. */
@@ -155,7 +157,7 @@ void main() {
   color = clamp( neutral( color ), 0.0, 1.0 );
   color = mix( vec3( dot( color, vec3( 0.2126, 0.7152, 0.0722 ) ) ), color, saturation );
   // Planet air: a faint haze thickening toward the far (upper) edge of the view.
-  color = mix( color, haze.rgb, haze.a * smoothstep( 0.4, 1.0, vUv.y ) );
+  color = mix( color, haze.rgb, haze.a * ( 1.0 - cover ) * smoothstep( 0.4, 1.0, vUv.y ) );
   vec2 p = ( vUv - 0.5 ) * aspect;
   color *= 1.0 - vignette * smoothstep( 0.35, 0.95, dot( p, p ) * 2.0 );
   // Ordered dither hides 8-bit banding in the vignette and haze gradients.
@@ -197,6 +199,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
     haze: { value: settings.haze.clone() },
     depthMap: { value: sceneTarget.depthTexture }, viewInverse: { value: new THREE.Matrix4() }, projectionInverse: { value: new THREE.Matrix4() },
     fogColor: { value: settings.fogColor.clone() }, fogHeight: { value: settings.fogHeight.clone() }, fogDistance: { value: settings.fogDistance.clone() },
+    /** How much of the world a full-screen overlay hides this frame (0..1, the jump veil); fog and haze fade under it. */
+    cover: { value: 0 },
   });
   const quad = new THREE.Mesh(triangle, prefilter); quad.frustumCulled = false;
   let width = 1, height = 1;

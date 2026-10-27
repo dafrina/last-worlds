@@ -470,3 +470,11 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Fixed:** the one real fairness seal (THE CRADLE's slow spiral with its next burst and a hatchling wave) with a per-boss spiral rest of 1.4 s. Every boss keeps its own core cycle (user: "each boss is unique in its attacks").
 - **Seed:** Final Horizon's perfect-pilot test flies seed 7. The Fan takes one Wraith hit on 2 of 5 seeds; Pulse and Seeker take none.
 - **Unit tests:** 460/460, no assertion weakened. Gating from a clean worktree, then deploying. Codex's files and assets are as Codex left them; audio untouched.
+
+**2026-10-27 · Claude Code integrator · combat pass deployed `9b87631`:** gated from a clean worktree: typecheck, unit tests 460/460, build, browser 44/44 (20.4 min, Playwright exit 0). Pages are verified and `umbra/wraith-v2.glb` matches.
+
+**2026-10-27 · Claude Code integrator · playground tabs, enemy lab and model viewer, releasing:** `src/playground/*`, plus exports only in `src/render/scene.ts`. Audio untouched.
+
+**2026-10-27 · Claude Code integrator · warp fix and playground, deploying:** the user reported seeing the terrain during the warp. On High, the post fog and haze, drawn after the jump veil from the scene's depth, traced the hidden terrain.
+- **Fix:** the veil reports its cover (`fx-jump.ts`) and the composite fades fog and haze by it (`post-pipeline.ts`, `scene.ts`). The warp browser check now covers Low and High.
+- **Gate:** typecheck, build, unit 460/460, browser 42/44. The two failures were load timeouts during a concurrent foreign e2e run; both passed when rerun alone. Pushing `main` now.

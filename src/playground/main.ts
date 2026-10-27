@@ -9,6 +9,12 @@
  * fight") runs the level's boss for real in its arena: the simulation steps, the ship hovers where "Ship x" puts it and
  * cannot die, and buttons replay the arrival, burst the flank weak points (the core phase: shutters open, launches),
  * overload the core or destroy it.
+ *
+ * Organised in tabs (user, 27 October: "can you make a model viewer for each enemy and the hero. maybe organise the
+ * playground some better too ... classify them by type/tier of enemy and make me able to simulate its attacks or
+ * something, also placed in the playground on the real map"): Level, Look, Boss, Enemies (the roster by tier, spawned
+ * live over the real map: src/playground/lab.ts) and Models (a turntable viewer for the hero, every faction's craft and
+ * the bosses: src/playground/viewer.ts).
  */
 import { createRun, stepRun } from '../sim/game';
 import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
@@ -16,6 +22,10 @@ import { missionBoss } from '../content/bosses';
 import { createRenderer, type PlanetLook } from '../render/scene';
 import type { GraphicsQuality, PlanetId, RunConfig, RunState } from '../shared/contracts';
 import { EMPTY_INPUT, STEP, VIEW } from '../shared/contracts';
+import { FORMATIONS } from '../content/formations';
+import { ROSTER, hunterKind, modelOf, statsLine, viewerModels, WORLDS } from './roster';
+import { attackNow, holdDirector, labClock, spawnFormation, spawnHunter } from './lab';
+import { createModelViewer } from './viewer';
 import './playground.css';
 
 type Mission = NonNullable<RunConfig['mission']>;
@@ -69,18 +79,26 @@ const load = <T>(key: string): T | null => { try { const text = localStorage.get
 const save = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: keep going */ } };
 
 const root = document.getElementById('playground')!;
+const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['models', 'Models']] as const;
+type Tab = (typeof TABS)[number][0];
 root.innerHTML = `
-  <div class="pg-stage"><canvas class="pg-canvas"></canvas><div class="pg-hud"></div></div>
+  <div class="pg-stage"><canvas class="pg-canvas"></canvas><div class="pg-viewer" hidden></div><div class="pg-hud"></div></div>
   <button class="pg-toggle" type="button">Settings</button>
   <aside class="pg-panel">
-    <header><strong>Light playground</strong><span class="pg-sync"></span></header>
-    <section class="pg-scene"></section>
-    <div class="pg-groups"></div>
-    <footer>
-      <button type="button" data-act="copy">Copy settings</button>
-      <button type="button" data-act="reset">Reset this level</button>
-      <button type="button" data-act="reset-all">Reset all</button>
-    </footer>
+    <header><strong>Playground</strong><span class="pg-sync"></span></header>
+    <nav class="pg-tabs">${TABS.map(([id, name]) => `<button type="button" data-tab="${id}">${name}</button>`).join('')}</nav>
+    <section class="pg-scene" data-pane="level"></section>
+    <section data-pane="look">
+      <div class="pg-groups"></div>
+      <footer>
+        <button type="button" data-act="copy">Copy settings</button>
+        <button type="button" data-act="reset">Reset this level</button>
+        <button type="button" data-act="reset-all">Reset all</button>
+      </footer>
+    </section>
+    <section class="pg-boss-pane" data-pane="boss"></section>
+    <section class="pg-lab" data-pane="enemies"></section>
+    <section class="pg-models" data-pane="models"></section>
   </aside>`;
 const canvas = root.querySelector<HTMLCanvasElement>('.pg-canvas')!, stage = root.querySelector<HTMLElement>('.pg-stage')!;
 const hud = root.querySelector<HTMLElement>('.pg-hud')!, panel = root.querySelector<HTMLElement>('.pg-panel')!, sync = root.querySelector<HTMLElement>('.pg-sync')!;
@@ -91,8 +109,13 @@ const defaults = Object.fromEntries(LEVELS.map(level => [level.planet, renderer.
 /** The tuned looks (only levels that differ from their shipped look are saved). */
 const looks = Object.fromEntries(LEVELS.map(level => [level.planet, structuredClone(defaults[level.planet])])) as Record<PlanetId, PlanetLook>;
 
-interface ViewSettings { mission: Mission; distance: number; x: number; fly: boolean; speed: number; quality: GraphicsQuality; ship: boolean; seed: number; boss: boolean }
-const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, boss: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
+interface ViewSettings {
+  mission: Mission; distance: number; x: number; fly: boolean; speed: number; quality: GraphicsQuality; ship: boolean; seed: number; boss: boolean;
+  /** The enemy lab is live (enemies over the map, the world flying on); the open tab; the viewer's model and light. */
+  lab: boolean; tab: Tab; model: string; wire: boolean; spin: boolean; worldLight: boolean;
+}
+const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, boss: false,
+  lab: false, tab: 'level', model: 'shared/hero-scrapper.glb#hero_scrapper', wire: false, spin: true, worldLight: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
 const level = () => LEVELS.find(entry => entry.mission === view.mission) ?? LEVELS[1];
 
 let state: RunState = makeState();
@@ -100,7 +123,11 @@ function makeState(): RunState {
   const run = createRun({ mode: 'campaign', mission: view.mission, difficulty: 'standard', seed: view.seed });
   run.enemies = []; run.projectiles = []; run.hazards = []; run.pickups = []; run.nextEncounterAt = Infinity; run.nextVolleyAt = Infinity;
   run.player.invulnerableUntil = -1; run.message = ''; run.messageUntil = 0;
-  if (view.boss) {
+  if (view.lab) {
+    // The lab flies the real map from the panel's position: the mission's clock where its scroll is there (lab.ts).
+    run.time = labClock(view.mission, view.distance).time;
+    holdDirector(run);
+  } else if (view.boss) {
     // The boss's own arena: the scroll as it eases to its stop, then the boss arrives (as the boss fixture sets it up).
     const def = missionBoss(view.mission);
     if (def) {
@@ -164,9 +191,96 @@ scene.innerHTML = `
   <label>Quality <select data-view="quality"><option value="high">High</option><option value="low">Low</option></select></label>
   <label class="pg-row"><input data-view="ship" type="checkbox"> Show the ship</label>
   <label>Terrain seed <input data-view="seed" type="number" min="1" step="1"></label>
-  <label class="pg-row"><input data-view="boss" type="checkbox"> Boss fight (the level's boss, live; the ship cannot die)</label>
-  <div class="pg-row pg-boss"><button type="button" data-boss="replay">Replay arrival</button><button type="button" data-boss="flanks">Open the core</button><button type="button" data-boss="overload">Overload</button><button type="button" data-boss="destroy">Destroy</button></div>
   <div class="pg-row"><button type="button" data-act="boom">Explosion</button><button type="button" data-act="blast">Fuel blast</button></div>`;
+const bossPane = root.querySelector<HTMLElement>('.pg-boss-pane')!;
+bossPane.innerHTML = `
+  <label class="pg-row"><input data-view="boss" type="checkbox"> Boss fight (the level's boss, live; the ship cannot die)</label>
+  <p class="pg-note">Steer with "Ship x" on the Level tab.</p>
+  <div class="pg-row pg-boss"><button type="button" data-boss="replay">Replay arrival</button><button type="button" data-boss="flanks">Open the core</button><button type="button" data-boss="overload">Overload</button><button type="button" data-boss="destroy">Destroy</button></div>`;
+
+// ── Enemies: the roster by tier, spawned live over the level's real map (lab.ts, roster.ts). ──
+const labPane = root.querySelector<HTMLElement>('.pg-lab')!;
+const GROUND: ReadonlySet<string> = new Set(['turret', 'missile', 'fuel']);
+const kindName = (kind: string) => ROSTER.flatMap(tier => tier.kinds).find(entry => entry.kind === kind)?.name ?? kind;
+function buildLab() {
+  const planet = level().planet, hunter = hunterKind(planet);
+  labPane.innerHTML = `
+    <label class="pg-row"><input data-view="lab" type="checkbox"> Enemy lab: live over this level's map, flying on from "Position" (Level tab); the ship cannot die</label>
+    <div class="pg-row"><button type="button" data-lab="attack">Attack now</button><button type="button" data-lab="clear">Clear</button><button type="button" data-lab="restart">Restart here</button></div>
+    <p class="pg-note">Models as this world flies them. Its hunter is a shielded ${kindName(hunter)}. Steer the ship with "Ship x".</p>
+    ${ROSTER.map(tier => `<details open><summary>${tier.title} <span class="pg-dim">${tier.note}</span></summary>${tier.kinds.map(entry => {
+      const model = modelOf(planet, entry.kind), off = entry.worlds && !entry.worlds.includes(planet);
+      return `<div class="pg-kind${off ? ' is-off' : ''}">
+        <div><strong>${entry.name}</strong> <span class="pg-dim">${entry.role}${entry.kind === hunter ? ' · this world\'s hunter' : ''}${off ? ' · not flown on this world' : ''}</span></div>
+        <div class="pg-dim">${model.node ?? model.file} · ${statsLine(entry.kind)}</div>
+        <div class="pg-dim">${entry.attack}</div>
+        <div class="pg-row pg-wrap"><button type="button" data-spawn="${entry.solo}">Spawn</button>${entry.squad ? `<button type="button" data-spawn="${entry.squad}">${FORMATIONS[entry.squad].name}</button>` : ''}${GROUND.has(entry.kind) ? '' : `<button type="button" data-hunter="${entry.kind}">As hunter</button>`}<button type="button" data-show="${model.file}#${model.node}">Model</button></div>
+      </div>`;
+    }).join('')}</details>`).join('')}
+    <details><summary>Every formation</summary><div class="pg-row pg-wrap">${Object.values(FORMATIONS).filter(template => template.entry !== 'bay').map(template => `<button type="button" data-spawn="${template.id}">${template.name}</button>`).join('')}</div></details>`;
+  syncView();
+}
+/** Turns the lab on (the boss fight off) for a spawn from the roster. */
+function ensureLab() {
+  if (view.lab) return;
+  view.lab = true; view.boss = false; save(VIEW_STORE, view); state = makeState(); syncView(); syncBoss();
+}
+labPane.addEventListener('click', event => {
+  const target = (event.target as HTMLElement).closest<HTMLElement>('button');
+  if (!target) return;
+  const { spawn, hunter, lab, show } = target.dataset;
+  if (spawn) { ensureLab(); spawnFormation(state, spawn as keyof typeof FORMATIONS); }
+  if (hunter) { ensureLab(); spawnHunter(state, hunter as Parameters<typeof spawnHunter>[1]); }
+  if (lab === 'attack') attackNow(state);
+  if (lab === 'clear') { state.enemies = state.enemies.filter(enemy => enemy.bossPart); state.projectiles = state.projectiles.filter(shot => shot.friendly); }
+  if (lab === 'restart') state = makeState();
+  if (show) { view.model = show; save(VIEW_STORE, view); switchTab('models'); }
+});
+
+// ── Models: a turntable viewer for the hero, every faction's craft, the loot skid and the bosses (viewer.ts). ──
+const modelsPane = root.querySelector<HTMLElement>('.pg-models')!, viewerHost = root.querySelector<HTMLElement>('.pg-viewer')!;
+const viewer = createModelViewer(viewerHost), MODELS = viewerModels();
+modelsPane.innerHTML = `
+  <div class="pg-row pg-wrap"><label class="pg-row"><input data-view="spin" type="checkbox"> Turn</label><label class="pg-row"><input data-view="wire" type="checkbox"> Wireframe</label><label class="pg-row"><input data-view="worldLight" type="checkbox"> This level's light</label></div>
+  <div class="pg-model-info"></div>
+  ${[...new Set(MODELS.map(model => model.group))].map(group => `<details open><summary>${group}</summary><div class="pg-row pg-wrap">${MODELS.filter(model => model.group === group).map(model => `<button type="button" data-model="${model.id}">${model.label}</button>`).join('')}</div></details>`).join('')}`;
+const modelInfo = modelsPane.querySelector<HTMLElement>('.pg-model-info')!;
+async function showModel(id: string) {
+  const model = MODELS.find(entry => entry.id === id) ?? MODELS[0];
+  for (const button of modelsPane.querySelectorAll<HTMLElement>('[data-model]')) button.classList.toggle('is-on', button.dataset.model === model.id);
+  modelInfo.textContent = `Loading ${model.label}…`;
+  const info = await viewer.show(model);
+  if (!info) { modelInfo.textContent = `${model.label}: not found in ${model.file}`; return; }
+  modelInfo.innerHTML = `<strong>${model.label}</strong> <span class="pg-dim">${model.group}</span>
+    <div class="pg-dim">${model.file}${model.node ? ` · node ${model.node}` : ''}</div>
+    <div>${info.triangles.toLocaleString()} triangles · ${info.size.join(' × ')} units (x, height, z) · materials ${info.materials.join(', ')}</div>
+    ${model.uses.length ? `<div class="pg-dim">Flies as: ${model.uses.join('; ')}</div>` : ''}`;
+}
+modelsPane.addEventListener('click', event => {
+  const id = (event.target as HTMLElement).closest<HTMLElement>('[data-model]')?.dataset.model;
+  if (id) { view.model = id; save(VIEW_STORE, view); void showModel(id); }
+});
+/** The viewer's light: a neutral studio, or the open level's sun, sky fill and background. */
+function applyViewerLight() {
+  if (!view.worldLight) { viewer.studio(); return; }
+  const look = looks[level().planet];
+  viewer.setLight(look.sun[0], look.sun[1], look.hemisphere[0], look.hemisphere[1], look.hemisphere[2], look.background);
+}
+
+// ── Tabs ──
+function switchTab(tab: Tab) {
+  view.tab = tab; save(VIEW_STORE, view);
+  for (const pane of root.querySelectorAll<HTMLElement>('[data-pane]')) pane.hidden = pane.dataset.pane !== tab;
+  for (const button of root.querySelectorAll<HTMLElement>('[data-tab]')) button.classList.toggle('is-on', button.dataset.tab === tab);
+  viewerHost.hidden = tab !== 'models';
+  if (tab === 'models') { resize(); viewer.setWireframe(view.wire); viewer.setAutoRotate(view.spin); applyViewerLight(); viewer.start(); void showModel(view.model); }
+  else viewer.stop();
+}
+root.querySelector('.pg-tabs')!.addEventListener('click', event => {
+  const tab = (event.target as HTMLElement).dataset?.tab as Tab | undefined;
+  if (tab) switchTab(tab);
+});
+
 const groups = root.querySelector<HTMLElement>('.pg-groups')!;
 function buildControls() {
   const look = looks[level().planet];
@@ -188,13 +302,13 @@ groups.addEventListener('input', event => {
   persist();
 });
 function syncView() {
-  for (const input of scene.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-view]')) {
+  for (const input of root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('.pg-panel [data-view]')) {
     const key = input.dataset.view as keyof ViewSettings, value = view[key];
     if (input instanceof HTMLInputElement && input.type === 'checkbox') input.checked = value as boolean; else input.value = String(value);
     const output = input.parentElement?.querySelector('output'); if (output) output.textContent = String(value);
   }
 }
-scene.addEventListener('input', event => {
+root.querySelector('.pg-panel')!.addEventListener('input', event => {
   const input = event.target as HTMLInputElement, key = input.dataset.view as keyof ViewSettings | undefined;
   if (!key) return;
   const value = input.type === 'checkbox' ? input.checked : input.type === 'range' || input.type === 'number' ? Number(input.value) : input.value;
@@ -202,9 +316,17 @@ scene.addEventListener('input', event => {
   (view as unknown as Record<string, unknown>)[key] = value;
   const output = input.parentElement?.querySelector('output'); if (output) output.textContent = String(value);
   save(VIEW_STORE, view);
+  // The boss fight and the lab both run the simulation: one at a time.
+  if (key === 'boss' && view.boss) view.lab = false;
+  if (key === 'lab' && view.lab) view.boss = false;
+  if (key === 'boss' || key === 'lab') syncView();
   if (view.quality !== previous.quality) renderer.setQuality(view.quality);
   if (view.mission !== previous.mission || view.seed !== previous.seed) void switchLevel();
-  else if (key === 'boss') { state = makeState(); syncBoss(); }
+  else if (key === 'boss' || key === 'lab') { state = makeState(); syncBoss(); }
+  if (key === 'wire') viewer.setWireframe(view.wire);
+  if (key === 'spin') viewer.setAutoRotate(view.spin);
+  if (key === 'worldLight') applyViewerLight();
+  if (key === 'mission') { buildLab(); if (view.tab === 'models') applyViewerLight(); }
 });
 function syncBoss() { root.querySelector<HTMLElement>('.pg-boss')!.hidden = !view.boss; }
 root.addEventListener('click', event => {
@@ -242,13 +364,28 @@ async function switchLevel() {
 function resize() {
   const rect = stage.getBoundingClientRect();
   renderer.resize(rect.width, rect.height);
+  viewer.resize(rect.width, rect.height);
 }
 new ResizeObserver(resize).observe(stage);
 
 let last = performance.now(), frames = 0, fpsAt = last, accumulator = 0;
 function frame(now: number) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
-  if (view.boss && state.boss) {
+  if (view.lab && view.tab !== 'models') {
+    // The lab runs for real at the fixed step over the real map; the ship holds its slider position and cannot die. Short of
+    // the boss's approach it starts over at the panel's position (the campaign's playlist, hunters and boss stay out).
+    accumulator += dt;
+    while (accumulator >= STEP) {
+      accumulator -= STEP;
+      state.player.x = view.x; state.player.vx = 0; holdDirector(state);
+      if (state.phase === 'playing') stepRun(state, EMPTY_INPUT);
+      state.player.lives = Math.max(state.player.lives, 2);
+      if (state.time > labClock(view.mission, view.distance).limit) { const enemies = state.enemies; state = makeState(); state.enemies = enemies; }
+    }
+    renderer.render(state, accumulator / STEP);
+  } else if (view.tab === 'models') {
+    // The viewer draws on its own canvas; the level waits.
+  } else if (view.boss && state.boss) {
     // The fight runs for real at the fixed step; the ship holds its slider position and cannot die.
     accumulator += dt;
     while (accumulator >= STEP) {
@@ -270,7 +407,7 @@ function frame(now: number) {
   if (now - fpsAt > 1000) {
     const distance = scene.querySelector<HTMLInputElement>('[data-view="distance"]');
     if (view.fly && distance) { distance.value = String(Math.round(view.distance)); distance.parentElement!.querySelector('output')!.textContent = String(Math.round(view.distance)); }
-    const fight = view.boss && state.boss ? ` · ${state.boss.id.toUpperCase()} ${state.phase === 'playing' ? state.boss.phase : 'cleared'}` : '';
+    const fight = view.lab ? ` · enemy lab · ${state.enemies.filter(enemy => enemy.hp > 0).length} enemies` : view.boss && state.boss ? ` · ${state.boss.id.toUpperCase()} ${state.phase === 'playing' ? state.boss.phase : 'cleared'}` : '';
     if (!hud.textContent?.startsWith('Loading')) hud.textContent = `${level().name}${fight} · ${Math.round(frames * 1000 / (now - fpsAt))} fps`;
     frames = 0; fpsAt = now;
   }
@@ -282,8 +419,10 @@ const fromFile = await fetch('./__playground/looks').then(response => response.o
 restore(fromFile ?? load(STORE));
 for (const { planet } of LEVELS) renderer.tuneLook!(planet, looks[planet]);
 renderer.setQuality(view.quality);
+buildLab();
 syncView();
 syncBoss();
+switchTab(view.tab);
 await switchLevel();
 resize();
 requestAnimationFrame(frame);

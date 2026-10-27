@@ -1,5 +1,55 @@
 # Build status
 
+
+## Warp hides the world on High, 27 October 2026
+
+User: "the issue was that we see the terrain thats being loaded. I wanted it not to be opaque but a solid dark overlay instead of being able to see the level during the warp".
+
+- **Cause:** on High, the post pass draws the world fog and the top haze after the veil, from the scene's depth. So during the launch warp and the planet jumps, the fog traced the hidden terrain in its own colour: Umbra's canyons in lavender, even a boss silhouette. Low has no post pass and was already solid. Codex's check covered only Low.
+- **Fix:**
+  - The veil now reports how much it covers (`jumpFx.cover`, `src/render/fx-jump.ts`).
+  - The composite fades its fog and haze by that amount (`cover` uniform, `src/render/post-pipeline.ts`, set each frame in `src/render/scene.ts`).
+  - Under the warp, High is solid deep space with only the streaks, the same as Low. As the veil lifts, the fog returns with the world.
+- **Checked:**
+  - captures of the warp fixture on Umbra, before and after the fix;
+  - the real endless launch from the menu on High;
+  - `tests/browser/combat-light.spec.ts` now checks that the warp frame stays unchanged on both Low and High while the world below moves. Without the fix it fails on High.
+- **The playground test** (`tests/browser/faction-regressions.spec.ts`) now opens the Boss and Level tabs before using their controls, which moved there with the new tabs.
+- **Release gate** (clean worktree of `origin/main` plus the playground and this fix):
+  - typecheck, build, and unit tests 460/460 pass;
+  - browser tests 42/44 at first (Playwright exit 1, 36.1 min). The two failures were timeouts (the Ark pose fixture, a menu click), both while another project's e2e suite loaded the machine to about 37 on 16 cores;
+  - both reran alone and passed (4 tests, exit 0).
+- **Not checked:** no phone test.
+
+## Playground: tabs, an enemy lab on the real map and a model viewer, 27 October 2026
+
+User: "can you make a model viewer for each enemy and the hero. maybe organise the playgrtound some better too to support this. also classify them by type/tier of enemy and make me able to simulate its attacks or something, also placed in the playground on the real map".
+
+- **Tabs:** the playground (`playground.html`) has Level, Look, Boss, Enemies and Models tabs. The look tuning, its saving and the boss fight are unchanged.
+- **Enemies (the lab, `src/playground/lab.ts`, `roster.ts`):**
+  - **The roster** is grouped by tier:
+    - I light fighters (dart, needle);
+    - II escorts (weaver, lancer);
+    - III heavies (diamond, pulsar);
+    - IV predators (the Wraith, Umbra's);
+    - ground (battery, missile battery, fuel depot).
+  - **Each kind's card** shows the model it flies on the open world, read from the renderer's own tables, so the roster can't disagree with the game. It also shows its hp, radius, attack timing and shot speed, and what its attack does.
+  - **Spawning:** "Spawn" puts a single one into the live simulation; a squad button puts in its formation; "As hunter" spawns the shielded ace. Every formation is available.
+  - **The map:** they fly and attack over the level's real terrain. The world flies on from the Level tab's position: the mission's clock is set where its scroll is there, and it starts over short of the boss's approach.
+  - **Out of the lab:** the campaign's playlist, hunters and boss.
+  - **Controls:** "Attack now" makes every enemy wind up at once. The ship holds "Ship x" and cannot die.
+- **Models (`src/playground/viewer.ts`):**
+  - **What it lists:** the hero, each faction's craft (Khepri and Luna, Vesper, Nacre and Amnion, Amnion's brood heavy, the Umbral fleet with the Wraith), the loot skid and every boss. Each comes with its triangles, size, materials and who flies it where.
+  - **How it shows them:** on a turntable in its own renderer, framed to the portrait view. Turn, wireframe, and a neutral studio or the level's own light.
+  - **"Model"** on an enemy card opens its model.
+- **Renderer:** the craft tables in `src/render/scene.ts` are exported for the roster; nothing else changed.
+- **Checked:**
+  - captures of the lab on Umbra (interceptors, batteries, a Wraith hunter, a carrier, "Attack now") and on Khepri (a lancer-led diamond, missile batteries, a pulsar);
+  - the viewer on the carrier, THE ECLIPSE and the hero;
+  - no page errors;
+  - screenshot: `docs/screenshots/playground-enemy-lab.png`.
+  - The playground has no browser test.
+
 ## Umbra cliff faces, grounded structures and final-world scores · 25–26 October 2026
 
 - **Cliffs:** four new versioned Blender wall variants in `umbra/cliff-kit-v2.glb`, broad oblique facets, cleavage seams and hard shoulders. 203–315 triangles per variant, 122,564 bytes total; exported via live Blender MCP in an isolated scene. More broken stretches of the canyon lips use them. After the user's playground review, the underlying canyon and boss abyss also have straight wall profiles and hard face/rim normals, approved on 26 October. Their kit faces extend four units deeper to hide exposed lower cuts, keeping the upper rim anchored and adding no triangles or draws. The approved hill models and other worlds' terrain remain unchanged; the old cliff GLB remains available for rollback.
