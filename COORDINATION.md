@@ -520,3 +520,5 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **On `cd886f7`:** typecheck, build, menu 7/7 (exit 0), and the playground Weapons tab inspected live.
 - **Load:** an unrelated project's e2e suite (`~/git/cdp-wt-256`) had pushed load to about 47 and spoiled two earlier runs; this gate ran after it ended.
 - **Not tested:** no phone test.
+
+**2026-10-28 · Claude Code · deployed `696af91`:** Pages run 40732711136 succeeded. Both live bundles carry Rail Driver and Gravity Well, the hero kits are served, and the production endless smoke test has zero page errors. No phone test.
