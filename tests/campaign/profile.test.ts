@@ -86,7 +86,7 @@ describe('ship parts and v1 migration', () => {
     const profile = store.read();
     expect(profile.version).toBe(2);
     expect(profile.credits).toBe(1850); // 100 + two retired 500-credit ranks + two 250-credit drives + Flux 250.
-    expect(profile.ranks).toEqual({ pulse: 2, fan: 2, seeker: 2 });
+    expect(profile.ranks).toEqual({ pulse: 2, fan: 2, seeker: 2, rail: 0 });
     expect(profile.loadout).toMatchObject({ weapon: 'fan', shield: 'bulwark', ship: 'scrapper' });
     expect(profile.missions).toEqual(legacy().missions);
     expect(profile.receipts).toEqual(legacy().receipts);
@@ -138,5 +138,15 @@ describe('ship parts and v1 migration', () => {
     expect(store.upgrade('pulse')).toBe(false);
     expect(store.read().credits).toBe(balance);
     expect(store.buy('weapon', 'ironclad')).toBe(false);
+  });
+
+  it('loads a version-2 save written before the Rail Driver existed, its rank starting at 0, and keeps it intact', () => {
+    const old = freshProfile() as unknown as { credits: number; ranks: Record<string, number> };
+    old.credits = 900; old.ranks.pulse = 2; delete old.ranks.rail;
+    const raw = JSON.stringify(old), storage = memory(raw), store = createCampaignProfile(storage);
+    expect(store.read()).toMatchObject({ credits: 900, ranks: { pulse: 2, rail: 0 } });
+    expect(store.status()).toBe('saved');
+    expect(store.buy('weapon', 'rail')).toBe(true);
+    expect(store.read()).toMatchObject({ credits: 300, owned: { weapon: ['pulse', 'rail'] } });
   });
 });

@@ -24,7 +24,7 @@ export const HUNTERS = {
    */
   kinds: { luna: 'weaver', khepri: 'lancer', vesper: 'diamond', nacre: 'diamond', amnion: 'diamond', umbra: 'wraith' } satisfies Readonly<Record<PlanetId, EnemyKind>>,
   /** Shield charges, each absorbing this share of the kind's hull (scaled with the hull): about twice the hull in all. */
-  shield: { charges: 3, share: 0.35, seekerDamage: 0.2 },
+  shield: { charges: 3, share: 0.35, seekerDamage: 0.2, railDamage: 1.5 },
   /** Score and credits over the base kind. */
   reward: 3,
   /** Roaming band (s ahead of the player row) and cruise speed and acceleration at pace 1. */
@@ -75,8 +75,9 @@ export const hunterCharges = (enemy: Enemy) => enemy.hunter ? Math.max(0, Math.c
 export function absorbHunterShield(enemy: Enemy, damage: number, mainWeapon?: WeaponId): number {
   const shield = enemy.hunter;
   if (!shield || shield.shield <= 0) return damage;
-  // Hunter armour scatters the main Seeker's blast. Other guns and charged specials keep their full effect.
-  const effectiveness = mainWeapon === 'seeker' ? HUNTERS.shield.seekerDamage : 1;
+  // Hunter armour scatters the main Seeker's blast; a Rail Driver slug punches through it (docs/32 §1.5). Other guns and
+  // charged specials keep their full effect.
+  const effectiveness = mainWeapon === 'seeker' ? HUNTERS.shield.seekerDamage : mainWeapon === 'rail' ? HUNTERS.shield.railDamage : 1;
   const absorbed = Math.min(shield.shield, damage * effectiveness);
   shield.shield -= absorbed;
   // Only damage spent breaking the shield is reduced; the remainder reaches the now unshielded hull normally.

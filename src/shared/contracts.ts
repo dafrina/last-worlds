@@ -2,9 +2,9 @@
 export type Mode = 'campaign' | 'endless';
 export type Difficulty = 'relaxed' | 'standard' | 'veteran';
 export type GraphicsQuality = 'high' | 'low';
-export type WeaponId = 'pulse' | 'fan' | 'seeker';
+export type WeaponId = 'pulse' | 'fan' | 'seeker' | 'rail';
 /** Campaign equipment slots besides the main weapon (docs/02 §3–4, src/content/equipment.ts). */
-export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance';
+export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance' | 'gravity-well';
 export type ShieldTechId = 'standard' | 'bulwark' | 'aegis';
 export type ShipId = 'scrapper' | 'ironclad' | 'interceptor' | 'spectre';
 export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'final-horizon';
@@ -89,6 +89,8 @@ export interface Enemy {
    * re-picked at age `retarget` (`waypoint` counts the picks, for its rolls, keyed by `key`: its level and spawn number).
    */
   hunter?: { key: number; shield: number; perCharge: number; vx: number; vs: number; tx: number; ts: number; retarget: number; waypoint: number };
+  /** Displacement a Gravity Well dragged this craft off its authored path (docs/32 §2.2); kept after the well ends. */
+  pull?: { x: number; s: number };
 }
 export interface Projectile {
   id: number; x: number; s: number; previousX: number; previousS: number;
@@ -106,6 +108,8 @@ export interface Projectile {
   track?: boolean;
   /** The enemy that fired it, for a burst still waiting at its muzzle: those shots never leave once it is shot down. */
   source?: number;
+  /** A piercing Rail Driver slug (docs/32 §1.4): the enemies it already damaged. It flies on through all but boss parts. */
+  pierced?: number[];
 }
 /** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
 /** `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none). */
@@ -143,6 +147,11 @@ export interface RunState {
   lance?: { until: number } | null;
   /** Shockwave in progress: a ring expanding from where the ship fired it; `hit` lists targets it already struck. */
   shockwave?: { x: number; s: number; startedAt: number; hit: number[]; cameraX: number } | null;
+  /**
+   * Gravity Well in progress (docs/32 §2): a singularity fixed in the world at (x, s), pulling from `armedAt` until
+   * `until`, when it collapses. `swallowed` counts hostile shots it took (render and audio read it).
+   */
+  well?: { x: number; s: number; startedAt: number; armedAt: number; until: number; swallowed: number } | null;
   /** Hunter bookkeeping for the current level or endless sector: hunters spawned and the last spawn window used. */
   hunters?: { sector: number; spawned: number; window: number };
 }

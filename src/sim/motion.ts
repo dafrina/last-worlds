@@ -97,9 +97,13 @@ export function trackAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; 
   // Boss modules and hunters (src/sim/hunters.ts) are moved by their own updates; predictions hold them where they are
   // (a hunter holds still through its windup, so an attack leaves from where it was admitted).
   if (enemy.bossPart || enemy.hunter || (enemy.blink && (enemy.warning > 0 || Number.isFinite(enemy.blink.startedAt)))) return { x: enemy.x, s: enemy.s };
-  const clock = ahead * rate;
-  if (enemy.formation) return memberPosition(enemy.formation, enemy.age + clock);
-  const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + clock) * 1.6) * 1.2 : enemy.x;
+  const clock = ahead * rate, pull = enemy.pull;
+  // A Gravity Well's drag (docs/32 §2.2) stays as an offset on positions recomputed from the path each step.
+  if (enemy.formation) {
+    const point = memberPosition(enemy.formation, enemy.age + clock);
+    return pull ? { x: point.x + pull.x, s: point.s + pull.s } : point;
+  }
+  const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + clock) * 1.6) * 1.2 + (pull?.x ?? 0) : enemy.x;
   return { x, s: enemy.s - ENEMIES[enemy.kind].speed * clock };
 }
 

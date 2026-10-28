@@ -47,10 +47,12 @@ export function freshProfile(): CampaignProfile {
   return {
     version: 2, credits: 0,
     owned: { weapon: [STARTER.weapon], special: [STARTER.special], shield: [STARTER.shield], ship: [STARTER.ship] },
-    ranks: { pulse: 0, fan: 0, seeker: 0 }, loadout: { ...STARTER }, missions: {}, receipts: [],
+    ranks: { pulse: 0, fan: 0, seeker: 0, rail: 0 }, loadout: { ...STARTER }, missions: {}, receipts: [],
   };
 }
 
+/** Main weapons added after version-2 saves existed; a save without their rank is still valid. */
+const LATER_WEAPONS: readonly WeaponId[] = ['rail'];
 const count = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 0;
 function decode(raw: string): CampaignProfile {
   const data = JSON.parse(raw) as CampaignProfile;
@@ -63,6 +65,8 @@ function decode(raw: string): CampaignProfile {
     && savedOwned[slot].every(id => (ids as readonly string[]).includes(id))
     && savedOwned[slot].includes((defaults as Record<string, string>)[slot]));
   const loadoutValid = ownedValid && savedLoadout && Object.keys(slots).every(slot => savedOwned[slot].includes(savedLoadout[slot]));
+  // A weapon added after a save was written has no rank in it yet: it starts at 0 (the Rail Driver, docs/32).
+  if (data?.ranks && typeof data.ranks === 'object') for (const id of LATER_WEAPONS) data.ranks[id] ??= 0;
   const ranksValid = data?.ranks && WEAPON_IDS.every(id => count(data.ranks[id]) && data.ranks[id] <= (legacy ? 3 : MAX_RANK));
   const missionsValid = data?.missions && typeof data.missions === 'object' && Object.entries(data.missions).every(([id, record]) =>
     (CAMPAIGN_ORDER as readonly string[]).includes(id) && record && typeof record.firstClearPaid === 'boolean'

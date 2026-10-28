@@ -257,6 +257,9 @@ if (import.meta.env.DEV) {
       // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
       // `exposed` (look-dev captures of enemy fire) keeps the ship vulnerable: enemies hold fire on an invulnerable ship.
       advance: (seconds: number, exposed = false) => { if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = exposed ? Math.min(run.player.invulnerableUntil, run.time) : Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
+      // Look-dev only: launch a flight with any config (a campaign loadout without a save), and fire the special.
+      launch: (config: RunConfig) => { void start(config); },
+      special: () => { if (run?.phase === 'playing') { run.player.specialCharge = 1; stepRun(run, { horizontal: 0, specialPressed: true, pausePressed: false }, STEP); } },
       // Look-dev only: the lives left (the last-life alarm shows at one).
       setLives: (lives: number) => { if (run) run.player.lives = lives; },
       // The flank weak points only (look-dev captures of a boss's core phase).

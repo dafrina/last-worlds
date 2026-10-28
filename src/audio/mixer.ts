@@ -6,13 +6,13 @@ export interface AudioSettings { muted: boolean; music: number; effects: number 
 type Group = 'music' | 'effects';
 interface Voice { source: AudioBufferSourceNode; gain: GainNode; pan: StereoPannerNode; send?: GainNode; group: Group; priority: number; end: number }
 const LEVELS: Record<Sound, number> = {
-  pulse: .23, fan: .25, seeker: .24, enemy: .10, impact: .13, explosion: .37, heavy: .43,
+  pulse: .23, fan: .25, seeker: .24, rail: .3, enemy: .10, impact: .13, explosion: .37, heavy: .43,
   shield: .4, 'shield-break': .48, life: .48, pickup: .19, upgrade: .28, ready: .25,
-  shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, warning: .25, beam: .28,
+  shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, 'gravity-well': .42, warning: .25, beam: .28,
   'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .28, loss: .27,
 };
 const PRIORITY: Partial<Record<Sound, number>> = {
-  impact: 0, enemy: 0, explosion: 1, heavy: 2, pulse: 2, fan: 2, seeker: 2,
+  impact: 0, enemy: 0, explosion: 1, heavy: 2, pulse: 2, fan: 2, seeker: 2, rail: 3,
   shield: 4, 'shield-break': 5, life: 5, 'boss-death': 5,
 };
 const COOLDOWN: Partial<Record<Sound, number>> = { impact: .055, enemy: .12, explosion: .045, heavy: .1, warning: .3, beam: .14 };

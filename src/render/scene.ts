@@ -1012,6 +1012,30 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     geometry.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(geometry, shockMaterials[k]); mesh.renderOrder = 9; mesh.visible = false; mesh.frustumCulled = false; scene.add(mesh); return mesh;
   });
+  // Gravity Well (docs/32 §3): a black core in a spinning accretion ring, with faint rings at its pull and core radii.
+  const wellSpec = SPECIALS['gravity-well'];
+  const well = new THREE.Group(); well.visible = false; scene.add(well);
+  const wellCore = new THREE.Mesh(new THREE.SphereGeometry(.5, 24, 16), new THREE.MeshBasicMaterial({ color: 0x020205, depthTest: false, depthWrite: false }));
+  const wellRingMaterial = new THREE.MeshBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: .9, depthTest: false, depthWrite: false,
+    blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
+  const wellAccretion = new THREE.Mesh(new THREE.RingGeometry(.58, 1.05, 64, 1).rotateX(-Math.PI / 2), wellRingMaterial);
+  const wellHalo = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.6, 64, 1).rotateX(-Math.PI / 2), wellRingMaterial.clone());
+  const wellReach = [wellSpec.pullRadius, wellSpec.coreRadius].map(radius => new THREE.Mesh(new THREE.RingGeometry(radius - .04, radius, 96).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0x9ff8ff, transparent: true, opacity: .2, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })));
+  // Swirl texture on the accretion ring: brighter arcs, so its spin reads.
+  const swirl = wellAccretion.geometry.getAttribute('position'), swirlColor = new Float32Array(swirl.count * 3);
+  for (let i = 0; i < swirl.count; i++) {
+    const a = Math.atan2(swirl.getZ(i), swirl.getX(i)), r = Math.hypot(swirl.getX(i), swirl.getZ(i)), k = (.55 + .45 * Math.sin(a * 3 + r * 6)) * (r < .8 ? 1.4 : .8);
+    swirlColor.set([k, k, k], i * 3);
+  }
+  wellAccretion.geometry.setAttribute('color', new THREE.BufferAttribute(swirlColor, 3)); wellRingMaterial.vertexColors = true;
+  for (const mesh of [wellHalo, ...wellReach, wellAccretion, wellCore]) { mesh.renderOrder = 9; mesh.frustumCulled = false; well.add(mesh); }
+  wellCore.renderOrder = 10;
+  let wellSwallowed = 0, wellFlashAt = -1;
+  // Rail Driver slugs (docs/32 §3): render-only trails from muzzle to head, fading out after the slug is gone; a fresh
+  // slug kicks the hero back a touch.
+  const railTrails = new Map<number, { x0: number; s0: number; x: number; s: number; endedAt?: number }>();
+  let railKickAt = -1, railTick = -1;
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
   const effects = new THREE.InstancedMesh(new THREE.RingGeometry(.85, 1, 24), effectMaterial, 128);
@@ -1198,6 +1222,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const entrance = state.time >= HERO_ENTRANCE ? 1 : 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3);
       const lift = (1 - entrance) * HERO_ENTRANCE_LIFT;
       hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION), lift * Math.cos(ELEVATION));
+      // Rail Driver recoil (render only): a short kick back, springing home in 0.1 s.
+      if (railKickAt >= 0 && state.time >= railKickAt) hero.position.z += .06 * Math.max(0, 1 - (state.time - railKickAt) / .1);
       hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
       hero.rotation.z = -state.player.vx * .016 + (1 - entrance) * Math.PI * 2;
       shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
@@ -1533,8 +1559,31 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Hostile shots are warm everywhere but Amnion, whose glowing yolk canyons are warm themselves: there they are violet
       // with a pale core, apart from the yolk and from the player's own white-cyan shots (docs/27).
       hostileMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[0] : HOSTILE_WARM[0]); hostileCoreMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[1] : HOSTILE_WARM[1]);
+      // A new run (or a replay) restarts the tick: drop the old run's trails.
+      if (state.tick < railTick) { railTrails.clear(); railKickAt = -1; }
+      railTick = state.tick;
+      for (const trail of railTrails.values()) trail.endedAt ??= state.time;
       for (const sim of state.projectiles) {
-        if (sim.delay || Math.abs(sim.x - state.cameraX) > VIEW.width / 2 + .5 || sim.s < VIEW.minS - 1 || sim.s > VIEW.maxS + 1) continue;
+        if (!sim.pierced) continue;
+        const trail = railTrails.get(sim.id);
+        if (trail) { trail.x = sim.x; trail.s = sim.s; trail.endedAt = undefined; }
+        else { railTrails.set(sim.id, { x0: sim.x - sim.vx * .02, s0: .55, x: sim.x, s: sim.s }); railKickAt = state.time; }
+      }
+      for (const [id, trail] of railTrails) {
+        const fade = trail.endedAt === undefined ? 1 : 1 - (state.time - trail.endedAt) / .14;
+        if (fade <= 0) { railTrails.delete(id); continue; }
+        // Tapered: faint near the muzzle, brighter toward the slug, so it reads as a shot, not a standing beam.
+        const head = Math.min(trail.s, VIEW.maxS + 1), u = (k: number) => [trail.x0 + (trail.x - trail.x0) * k, trail.s0 + (head - trail.s0) * k] as const;
+        for (let k = 0; k < 3; k++) {
+          const [xa, sa] = u(k / 3), [xb, sb] = u((k + 1) / 3), glow = (.35 + .4 * k) * fade;
+          strip(xa, sa, xb, sb, .12 + .04 * k, 0x5ff3ff, flashLanes, glow);
+          strip(xa, sa, xb, sb, .04, 0xffffff, flashLanes, glow * 1.5);
+        }
+        // The slug itself: a white-hot streak at the head while it flies.
+        if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2), trail.x, head, .17, 0xffffff, flashLanes, 2.6);
+      }
+      for (const sim of state.projectiles) {
+        if (sim.delay || sim.pierced || Math.abs(sim.x - state.cameraX) > VIEW.width / 2 + .5 || sim.s < VIEW.minS - 1 || sim.s > VIEW.maxS + 1) continue;
         const launch = sim.friendly ? undefined : launches.get(sim.id), shot = launch ? { ...sim, ...drawnShot(sim, launch) } : sim;
         transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);
         transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0);
@@ -1611,6 +1660,22 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         ring.position.set(wave.x, VIEW.flightHeight + .05, -wave.s); ring.scale.setScalar(radius);
         shockMaterials[k].opacity = (k ? .22 : .95) * fade;
       });
+      // Gravity Well: flies from the nose to its anchor while arming, then spins; swallowing a shot flashes the ring.
+      const live = state.well;
+      well.visible = !!live;
+      if (live) {
+        const arm = Math.min(1, (state.time - live.startedAt) / Math.max(1e-3, live.armedAt - live.startedAt)), ease = 1 - (1 - arm) ** 3;
+        const sPos = .6 + (live.s - .6) * ease, ending = Math.max(0, 1 - (live.until - state.time) / .35);
+        if (live.swallowed > wellSwallowed) wellFlashAt = state.time;
+        wellSwallowed = live.swallowed;
+        const wellFlash = wellFlashAt < 0 ? 0 : Math.max(0, 1 - (state.time - wellFlashAt) * 5);
+        well.position.set(live.x, VIEW.flightHeight + .06, -sPos);
+        well.scale.setScalar((.35 + .65 * ease) * (1 - .55 * ending));
+        wellAccretion.rotation.y = state.time * 3.4; wellHalo.rotation.y = -state.time * 1.3;
+        wellRingMaterial.opacity = .75 + .25 * wellFlash;
+        (wellHalo.material as THREE.MeshBasicMaterial).opacity = (.22 + .3 * wellFlash) * ease;
+        wellReach.forEach((ring, k) => { (ring.material as THREE.MeshBasicMaterial).opacity = (k ? .16 : .2) * ease * (.8 + .2 * Math.sin(state.time * 5 + k)); ring.scale.setScalar(1 / Math.max(.2, (.35 + .65 * ease) * (1 - .55 * ending))); });
+      } else wellSwallowed = 0;
       let effectCount = 0;
       for (const effect of state.effects) {
         if (effect.kind === 'special') continue;

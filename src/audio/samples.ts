@@ -3,9 +3,9 @@ import { SPECIALS } from '../content/equipment';
 /** Original, deterministic sound sources. No downloads, runtime oscillators or gameplay RNG. */
 export const SAMPLE_RATE = 32_000;
 export type Sound =
-  | 'pulse' | 'fan' | 'seeker' | 'enemy' | 'impact' | 'explosion' | 'heavy'
+  | 'pulse' | 'fan' | 'seeker' | 'rail' | 'enemy' | 'impact' | 'explosion' | 'heavy'
   | 'shield' | 'shield-break' | 'life' | 'pickup' | 'upgrade' | 'ready'
-  | 'shockwave' | 'seeker-rack' | 'siege-lance' | 'warning' | 'beam'
+  | 'shockwave' | 'seeker-rack' | 'siege-lance' | 'gravity-well' | 'warning' | 'beam'
   | 'boss-arrival' | 'boss-phase' | 'boss-death' | 'warp' | 'win' | 'loss';
 export type Instrument = 'kick' | 'snare' | 'hat' | 'metal' | 'bass' | 'keys' | 'glass' | 'pad'
   | 'bloom-pad' | 'saw-bass' | 'saw-lead' | 'piano' | 'round-bass' | 'brush'
@@ -15,9 +15,9 @@ const TAU = Math.PI * 2;
 const sin = Math.sin;
 const exp = Math.exp;
 const durations: Record<SampleId, number> = {
-  pulse: .18, fan: .24, seeker: .34, enemy: .2, impact: .13, explosion: .85, heavy: 1.6,
+  pulse: .18, fan: .24, seeker: .34, rail: .42, enemy: .2, impact: .13, explosion: .85, heavy: 1.6,
   shield: .48, 'shield-break': .95, life: 1.6, pickup: .28, upgrade: .78, ready: .65,
-  shockwave: 1.65, 'seeker-rack': .8, 'siege-lance': SPECIALS['siege-lance'].duration, warning: .65, beam: .85,
+  shockwave: 1.65, 'seeker-rack': .8, 'siege-lance': SPECIALS['siege-lance'].duration, 'gravity-well': 1.6, warning: .65, beam: .85,
   'boss-arrival': 2.8, 'boss-phase': 1.1, 'boss-death': 3.6, warp: 3.1, win: 2.1, loss: 2.1,
   kick: .42, snare: .24, hat: .09, metal: .33, bass: .48, keys: 2.4, glass: 3.1, pad: 7.5,
   'bloom-pad': 8.5, 'saw-bass': .65, 'saw-lead': 1.1, piano: 2.8, 'round-bass': .65, brush: .22,
@@ -69,6 +69,14 @@ export function synthesize(id: SampleId, rate = SAMPLE_RATE): Float32Array {
         const after = Math.max(0, t - .62);
         v += (sin(TAU * 47 * after) * .3 + low * 1.5) * exp(-after * 1.8) * Math.min(1, after * 70);
       }
+    } else if (id === 'rail') {
+      // Rail Driver (docs/32 §4): a heavy dry crack, a falling zap, a low kick and a short inharmonic metal ring.
+      phase += TAU * (180 + 2600 * exp(-t * 60)) / rate;
+      const crack = high * exp(-t * 140) * .9;
+      const zap = sin(phase) * exp(-t * 34) * .45;
+      const kick = sin(TAU * (52 * t + 9 * (1 - exp(-t * 40)))) * exp(-t * 16) * .55;
+      const ring = (sin(TAU * 1873 * t) * .5 + sin(TAU * 2931 * t) * .3 + sin(TAU * 4410 * t) * .2) * exp(-t * 11) * .22;
+      v = crack + zap + kick + ring;
     } else if (id === 'impact') {
       v = high * exp(-t * 90) * .7 + sin(TAU * 1380 * t + sin(TAU * 2200 * t)) * exp(-t * 65) * .25;
     } else if (id === 'shield' || id === 'shield-break') {
@@ -87,8 +95,13 @@ export function synthesize(id: SampleId, rate = SAMPLE_RATE): Float32Array {
         const f = midi(notes[j]), attack = Math.min(1, a * 500);
         v += sin(TAU * f * a + .7 * sin(TAU * f * 2 * a) * exp(-a * 20)) * exp(-a * (id === 'pickup' ? 28 : 5)) * attack * .3;
       }
-    } else if (['shockwave', 'seeker-rack', 'siege-lance', 'beam', 'warp'].includes(id)) {
-      if (id === 'seeker-rack') {
+    } else if (['shockwave', 'seeker-rack', 'siege-lance', 'gravity-well', 'beam', 'warp'].includes(id)) {
+      if (id === 'gravity-well') {
+        // A low hum rising as the singularity opens, with a breathy inward suck (the collapse plays the heavy blast).
+        phase += TAU * (48 + 46 * q * q) / rate;
+        const swell = Math.min(1, t * 6) * (1 - q) ** .7;
+        v = (sin(phase + sin(phase * .5) * 1.4) * .55 + Math.tanh(slow * 6) * .5 + low * .9 * (.3 + .7 * q)) * swell;
+      } else if (id === 'seeker-rack') {
         for (let j = 0; j < 4; j++) {
           const a = t - j * .065;
           if (a > 0) v += (low * 2 + sin(TAU * (230 * a + 240 * a * a)) * .4) * exp(-a * 15);

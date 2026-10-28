@@ -202,6 +202,10 @@ export const WEAPONS: Record<WeaponId, {
   // should be incentive to use the other weapons": 18 → 12 a missile (75 → 50 damage a second, every shot homing), under an
   // aimed Twin Pulse (96) and a close Fan (75).
   seeker: { label: 'Seeker Array', cadence: 0.48, speed: 19, range: 19, damage: 12, radius: 0.13, angles: [-5, 5], offsets: [-0.23, 0.23] },
+  // Rail Driver (docs/32 §1, user 28 October): a slow, near-instant slug that pierces every target in its line. 64 damage
+  // a second on a lone target, under Twin Pulse (96); each enemy lined up behind adds as much again. 40 a slug (the first
+  // draft) out-killed Pulse on bosses too: the centred slug never misses where Pulse's offset twins partly do (docs/32 §1.7).
+  rail: { label: 'Rail Driver', cadence: 0.5, speed: 90, range: 21, damage: 32, radius: 0.12, angles: [0], offsets: [0] },
 };
 
 export const ENEMIES: Record<EnemyKind, {

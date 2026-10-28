@@ -12,5 +12,6 @@ const patterns: Record<WeaponId, readonly (readonly WeaponStep[])[]> = {
   fan: [[fan(5, WEAPONS.fan.cadence)], [fan(9, WEAPONS.fan.cadence)], [fan(9, 2 / 9)]],
   seeker: [[shot(-5, -.23, .24), shot(5, .23, .24)], [{ angles: [-5, 5], offsets: [-.23, .23], wait: .32 }],
     [shot(-5, -.23, .08), shot(5, .23, .08), shot(-5, -.23, .08), shot(5, .23, .24)]],
+  rail: [[shot(0, 0, WEAPONS.rail.cadence)], [shot(0, 0, 1 / 3)], [{ angles: [0, 0], offsets: [-.3, .3], wait: .45 }]],
 };
 export const weaponSequence = (weapon: WeaponId, rank: number): readonly WeaponStep[] => patterns[weapon][weaponRank(rank)];

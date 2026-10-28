@@ -3,7 +3,7 @@ import type { Pickup, WeaponId } from '../shared/contracts';
 
 /** Icon per drop: the three protection/economy drops and one per main weapon, so a weapon drop names its gun. */
 export type PickupIcon = 'shield' | 'power' | 'credit' | `weapon-${WeaponId}`;
-export const PICKUP_ICONS: readonly PickupIcon[] = ['shield', 'power', 'credit', 'weapon-pulse', 'weapon-fan', 'weapon-seeker'];
+export const PICKUP_ICONS: readonly PickupIcon[] = ['shield', 'power', 'credit', 'weapon-pulse', 'weapon-fan', 'weapon-seeker', 'weapon-rail'];
 export const pickupIcon = (pickup: Pick<Pickup, 'kind' | 'weapon'>): PickupIcon =>
   pickup.kind === 'weapon' ? `weapon-${pickup.weapon ?? 'pulse'}` : pickup.kind;
 
@@ -15,7 +15,8 @@ const SIZE = 256, C = SIZE / 2;
  * Drop icons painted once on canvases (render-only). Antialiased 2D paths with mipmaps replace the old thin
  * flat-shape geometry, which shimmered and stair-stepped at phone resolution. Each category keeps a distinct
  * frame shape (hexagon shield, diamond power, square-diamond credit, rounded rectangle weapon) so it reads
- * without relying on colour; weapon drops show their firing pattern: twin bolts, a five-way fan, homing arcs.
+ * without relying on colour; weapon drops show their firing pattern: twin bolts, a five-way fan, homing arcs, one slug
+ * piercing a column of targets.
  */
 export function createPickupIconTextures(maxAnisotropy = 4): Map<PickupIcon, THREE.CanvasTexture> {
   const textures = new Map<PickupIcon, THREE.CanvasTexture>();
@@ -32,7 +33,7 @@ export function createPickupIconTextures(maxAnisotropy = 4): Map<PickupIcon, THR
 }
 
 const TINT: Record<PickupIcon, string> = {
-  shield: '#8ff0dc', power: '#ffe2a6', credit: '#ffd06a', 'weapon-pulse': '#d4bcff', 'weapon-fan': '#d4bcff', 'weapon-seeker': '#d4bcff',
+  shield: '#8ff0dc', power: '#ffe2a6', credit: '#ffd06a', 'weapon-pulse': '#d4bcff', 'weapon-fan': '#d4bcff', 'weapon-seeker': '#d4bcff', 'weapon-rail': '#d4bcff',
 };
 
 function polygon(g: CanvasRenderingContext2D, sides: number, radius: number, rotation: number): void {
@@ -84,6 +85,12 @@ function paint(g: CanvasRenderingContext2D, icon: PickupIcon): void {
       g.beginPath(); g.moveTo(C, C + 44); g.lineTo(C + Math.sin(r) * 92, C + 44 - Math.cos(r) * 92); g.stroke();
     }
     g.beginPath(); g.arc(C, C + 44, 12, 0, Math.PI * 2); g.fill();
+  } else if (icon === 'weapon-rail') {
+    // One heavy slug piercing a column of three targets.
+    g.lineWidth = 10;
+    for (const y of [-30, 0, 30]) { g.beginPath(); g.arc(C, C + y, 17, 0, Math.PI * 2); g.stroke(); }
+    g.lineWidth = 14; g.beginPath(); g.moveTo(C, C + 60); g.lineTo(C, C - 60); g.stroke();
+    g.beginPath(); g.moveTo(C - 15, C - 46); g.lineTo(C, C - 72); g.lineTo(C + 15, C - 46); g.closePath(); g.fill();
   } else {
     // Two homing arcs curling onto a target ring.
     g.lineWidth = 12;

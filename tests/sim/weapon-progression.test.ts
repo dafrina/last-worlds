@@ -27,7 +27,7 @@ function collect(state: RunState, kind: Pickup['kind'], weapon?: WeaponId) {
 }
 
 describe('shared three-tier weapons', () => {
-  it.each(['pulse', 'fan', 'seeker'] as const)('%s uses identical patterns and fixed projectile damage in both modes', weapon => {
+  it.each(['pulse', 'fan', 'seeker', 'rail'] as const)('%s uses identical patterns and fixed projectile damage in both modes', weapon => {
     for (const rank of [0, 1, 2]) {
       const campaign = emissions(arena(weapon, rank), 1), endless = emissions(arena(weapon, rank, true), 1);
       expect(endless).toEqual(campaign);

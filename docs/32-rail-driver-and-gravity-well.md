@@ -1,8 +1,8 @@
 # 32 · Rail Driver and Gravity Well
 
-Status: **spec, approved in principle by the user on 28 October 2026** ("i love that, implement it. i also like the
-gravity well idea", then "just spec it up"). Nothing is implemented. All numbers are provisional starting points, to be
-tuned in play. They are not measured.
+Status: approved by the user on 28 October 2026 ("i love that, implement it. i also like the gravity well idea"), and
+**implemented on 28 October** (§7 lists what was built and measured). Numbers are tuned against the scripted pilot only.
+They have not been tuned in human play.
 
 Ownership: **Claude Code implements all of this** (sim, data, hangar, tests, render, VFX and audio), but only **after
 Codex's campaign batch (docs/30) is finished and integrated** (user, 28 October 2026). Until then, equipment, contracts,
@@ -26,20 +26,20 @@ its envelope. It never aims and never homes.
 | `cadence` | 0.5 s | Tier 1. Quantised to 30 ticks. |
 | `speed` | 90 u/s | Near-instant. Collision is already swept per tick (`segmentCircleHit`), so 1.5 u per tick does not tunnel. |
 | `range` | 21 | About to the top of the view (`VIEW.maxS` 19.8 from `MUZZLE`). Pulse's is 22. |
-| `damage` | 40 | Per target, per slug. Fixed across tiers (docs/30). |
+| `damage` | 32 | Per target, per slug. Fixed across tiers (docs/30). The first draft had 40; see §1.7. |
 | `radius` | 0.12 | |
 | `angles` / `offsets` | `[0]` / `[0]` | |
 
-Single-target damage: 80/s. Pulse tier 1 does 96/s, Fan 75/s and Seeker 50/s, so Rail is the weakest on a lone target
-and gains with every enemy lined up behind it.
+Single-target damage: 64/s. Pulse tier 1 does 96/s, Fan 75/s and Seeker 50/s, so Rail is among the weakest on a lone
+target and gains with every enemy lined up behind it.
 
 ### 1.2 Tiers (`weapon-tiers.ts`, docs/30 rule: more shots, never more damage per shot)
 
 | Tier | Pattern | Lone target | Pulse, for comparison |
 | --- | --- | --- | --- |
-| 1 | one slug every 0.5 s (30 ticks) | 80/s | 96/s |
-| 2 | one slug every 1/3 s (20 ticks) | 120/s | 144/s |
-| 3 | two parallel slugs at offsets ±0.3, every 0.45 s (27 ticks) | about 178/s when both slugs touch | about 180/s |
+| 1 | one slug every 0.5 s (30 ticks) | 64/s | 96/s |
+| 2 | one slug every 1/3 s (20 ticks) | 96/s | 144/s |
+| 3 | two parallel slugs at offsets ±0.3, every 0.45 s (27 ticks) | about 142/s when both slugs touch | about 180/s |
 
 ```ts
 rail: [[shot(0, 0, .5)], [shot(0, 0, 1 / 3)], [{ angles: [0, 0], offsets: [-.3, .3], wait: .45 }]],
@@ -211,3 +211,39 @@ Damage goes through `damageEnemy(..., mainWeapon = false)`, so it gives no speci
 - Tune `collapse` and `pullSpeed` against Amnion broods, the densest air waves, so the well never wipes a whole wave
   outright.
 - Rail in endless: should its pickup weight be lower than the others' at first?
+
+## 7. Implementation record (28 October 2026)
+
+- **Sim:** `WEAPONS.rail` (balance.ts), tiers (weapon-tiers.ts), `railHits` (game.ts), `HUNTERS.shield.railDamage`,
+  `SPECIALS['gravity-well']` (equipment.ts), and `updateWell`, `pullable` and `inWellCore` (game.ts). The pull offset is
+  `Enemy.pull`, added in `trackAfter` (motion.ts).
+- **Campaign:** Rail costs 600 and Gravity Well 450. A version-2 save written before Rail existed loads with Rail at rank
+  0 (`LATER_WEAPONS`, profile.ts).
+- **Endless:** two late drops now give Rail instead of another gun: the peak sector's `e3-west` (was Fan) and Vesper's
+  pressure-sector `ev2-west` (was Seeker). The drop budget is unchanged: three Fan, three Seeker, two Rail.
+- **Presentation:**
+  - Rail: a muzzle-to-head trail in the hero's cyan, fading over 0.14 s; a white-hot slug streak; a 0.06 recoil kick;
+    a pickup icon of a slug piercing three rings; a crack sound.
+  - Gravity Well: a black core in a spinning swirl ring, faint pull-radius and core-radius rings, a flight from the nose
+    while arming, a flash on each swallow; a hum on launch, with the existing heavy blast at the collapse.
+  - Not built: the High-quality lens distortion and the drawn spiral of swallowed shots.
+- **Tests:** tests/sim/rail-and-well.test.ts, Rail in the shared-tier test, and the old-save test in
+  tests/campaign/profile.test.ts.
+
+### Survey (§1.7)
+
+The scripted perfect pilot flew every mission with Pulse and Rail at tiers 1 and 3, all on Standard. Every run cleared
+without a hit.
+
+Boss time-to-kill with 40 damage per slug averaged 8% faster than Pulse at tier 1. The centred slug never misses where
+Pulse's offset twin bolts partly do, so Rail was not weaker on a lone target as intended. At **32**, Rail's boss time
+(tier 1) is slower than Pulse's:
+
+| Mission | Pulse | Rail |
+| --- | --- | --- |
+| Cold Vector | 117 s | 140 s |
+| Deep Bloom | 129 s | 142 s |
+
+Rail still gets about 1.5–2× the kills on lined-up waves; this is the intended payoff. A slug speed of 45 instead of 90
+changed little. **Watch in play** whether its kill rate (and the credits from it) makes Rail the default choice.
+

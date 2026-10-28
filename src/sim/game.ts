@@ -47,7 +47,7 @@ export function createRun(config: RunConfig): RunState {
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0,
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
     lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
-    chargeKillTimes: [], boss: null, lance: null, shockwave: null,
+    chargeKillTimes: [], boss: null, lance: null, shockwave: null, well: null,
     message: normalized.mode === 'endless' ? 'SECTOR 01 · LUNA' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
   };
 }
@@ -73,6 +73,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   fireMain(state);
   updateLance(state, dt);
   updateShockwave(state);
+  updateWell(state, dt);
   updateProjectiles(state, previousPlayerX, dt);
   resolveBossPhase(state);
   updateHazards(state, previousPlayerX, dt);
@@ -316,6 +317,8 @@ function updateEnemies(state: RunState, dt: number): void {
     } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy) && state.time >= state.player.invulnerableUntil - 0.3) {
       // Readability caps: a bounded number of simultaneous windups and of marked beam lanes.
       if (windups >= scale.maxWindups) continue;
+      // Caught in a Gravity Well's core: no new attack until it is out (docs/32 §2.1).
+      if (inWellCore(state, enemy)) continue;
       // Hunters never wind up together: one hunter's attack at a time.
       if (enemy.hunter && state.enemies.some(other => other !== enemy && other.hunter && other.warning > 0)) { enemy.nextAttack = enemy.age + 0.4; continue; }
       // Needle beam rest: no new beam until the rest is over.
@@ -447,6 +450,7 @@ function fireMain(state: RunState): void {
       true, weapon.damage, weapon.radius, weapon.range / weapon.speed);
     shot.weapon = weaponId;
     if (weaponId === 'seeker') shot.homingTargetId = target.id;
+    if (weaponId === 'rail') shot.pierced = [];
     state.projectiles.push(shot);
   });
   state.mainSequence.index = (state.mainSequence.index + 1) % sequence.length;
@@ -486,7 +490,8 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
     shot.x += shot.vx * activeDt;
     shot.s += shot.vs * activeDt;
     shot.ttl -= dt;
-    if (shot.friendly) {
+    if (shot.friendly && shot.pierced) railHits(state, shot);
+    else if (shot.friendly) {
       let target: Enemy | undefined;
       let first = Infinity;
       for (const enemy of state.enemies) {
@@ -507,6 +512,28 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
     }
   }
   state.projectiles = state.projectiles.filter(shot => shot.ttl > 0 && Math.abs(shot.x) < VIEW.worldWidth / 2 + 10 && shot.s > VIEW.minS - 5 && shot.s < 35);
+}
+
+/**
+ * A Rail Driver slug's sweep this tick (docs/32 §1.4): every target along it takes the slug's damage once, in order along
+ * the path. A boss part takes it and stops the slug, so one slug never strikes several parts of a boss.
+ */
+function railHits(state: RunState, shot: Projectile): void {
+  const pierced = shot.pierced!, hits: { enemy: Enemy; t: number }[] = [];
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.damageable === false || pierced.includes(enemy.id)) continue;
+    const t = segmentCircleHit(shot.previousX, shot.previousS, shot.x, shot.s, enemy.x, enemy.s, enemy.radius + shot.radius);
+    if (t !== null) hits.push({ enemy, t });
+  }
+  hits.sort((a, b) => a.t - b.t || a.enemy.id - b.enemy.id);
+  for (const { enemy } of hits) {
+    pierced.push(enemy.id);
+    damageEnemy(state, enemy, shot.damage, true, 'rail');
+    if (!enemy.bossPart) continue;
+    shot.ttl = 0;
+    if (enemy.bossPart === 'core' && enemy.hp <= 0) resolveBossPhase(state);
+    return;
+  }
 }
 
 function updateHazards(state: RunState, previousPlayerX: number, dt: number): void {
@@ -603,6 +630,13 @@ function useSpecial(state: RunState): void {
     setMessage(state, 'SIEGE LANCE', 1);
     return;
   }
+  if (special === 'gravity-well') {
+    // Fixed in the world where it was aimed: moving the ship or the camera never drags it along (like the Shockwave).
+    const well = SPECIALS['gravity-well'], armedAt = state.time + well.arm;
+    state.well = { x: state.player.x, s: well.ahead, startedAt: state.time, armedAt, until: armedAt + well.duration, swallowed: 0 };
+    setMessage(state, 'GRAVITY WELL', 1);
+    return;
+  }
   state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + BALANCE.special.invulnerability);
   // The ring bursts out from the ship (user request, 16 October 2026) and sweeps the view; see updateShockwave.
   state.shockwave = { x: state.player.x, s: 0, startedAt: state.time, hit: [], cameraX: state.cameraX };
@@ -681,6 +715,52 @@ function seekerTargets(state: RunState): Enemy[] {
   return state.enemies
     .filter(enemy => enemy.hp > 0 && enemy.damageable !== false && enemy.s > MUZZLE && isVisible(state, enemy.x, enemy.s, enemy.radius))
     .sort((a, b) => (a.kind === 'fuel' ? 1 : 0) - (b.kind === 'fuel' ? 1 : 0) || a.s - b.s || a.id - b.id);
+}
+
+/**
+ * Whether a craft can be dragged by a Gravity Well (docs/32 §2.2): free air craft only. Ground targets, bosses and the
+ * teleporting Wraith never move, and a craft winding up or firing stays where its attack was warned until it is done.
+ */
+function pullable(enemy: Enemy): boolean {
+  return enemy.hp > 0 && !enemy.bossPart && !enemy.ground && !GROUND_KINDS.has(enemy.kind) && enemy.kind !== 'wraith'
+    && enemy.warning <= 0 && !enemy.lock;
+}
+/** Whether a target sits in an armed well's core, where it burns and cannot start an attack. */
+export function inWellCore(state: RunState, enemy: Enemy): boolean {
+  const well = state.well;
+  return !!well && state.time >= well.armedAt && Math.hypot(enemy.x - well.x, enemy.s - well.s) <= SPECIALS['gravity-well'].coreRadius + enemy.radius;
+}
+
+/**
+ * Gravity Well (docs/32 §2): once armed, it drags free air craft in (hunters at half strength), burns targets in its
+ * core and removes every hostile shot that comes within `swallowRadius`. A shot is never bent: it is either untouched or
+ * gone. At the end it collapses, damaging each target in reach once.
+ */
+function updateWell(state: RunState, dt: number): void {
+  const well = state.well;
+  if (!well || state.time < well.armedAt) return;
+  const spec = SPECIALS['gravity-well'];
+  const before = state.projectiles.length;
+  state.projectiles = state.projectiles.filter(shot => shot.friendly || Math.hypot(shot.x - well.x, shot.s - well.s) > spec.swallowRadius);
+  well.swallowed += before - state.projectiles.length;
+  const collapse = state.time >= well.until;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || enemy.damageable === false || !isVisible(state, enemy.x, enemy.s, 0)) continue;
+    const dx = well.x - enemy.x, ds = well.s - enemy.s, distance = Math.hypot(dx, ds);
+    if (collapse) {
+      const reach = Math.max(0, distance - enemy.radius);
+      if (reach <= spec.collapseRadius) damageEnemy(state, enemy, spec.collapse * (1 - (1 - spec.collapseEdge) * reach / spec.collapseRadius), false);
+      continue;
+    }
+    if (distance <= spec.coreRadius + enemy.radius) damageEnemy(state, enemy, spec.dps * dt, false);
+    if (!pullable(enemy) || distance >= spec.pullRadius || distance < 1e-3) continue;
+    const speed = spec.pullSpeed * (1 - distance / spec.pullRadius) * (enemy.hunter ? 0.5 : 1);
+    const step = Math.min(speed * dt, Math.max(0, distance - 0.4)) / distance;
+    // Applied now and kept as an offset, so a craft flying an authored path carries on from where it was dragged.
+    enemy.x += dx * step; enemy.s += ds * step;
+    enemy.pull = { x: (enemy.pull?.x ?? 0) + dx * step, s: (enemy.pull?.s ?? 0) + ds * step };
+  }
+  if (collapse) { addEffect(state, 'blast', well.x, well.s, 0.9); state.well = null; }
 }
 
 /** Siege Lance: while active, its beam damages every target ahead whose body touches the lane over the ship. */
