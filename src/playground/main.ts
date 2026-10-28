@@ -21,7 +21,9 @@ import { createRun, stepRun } from '../sim/game';
 import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { createRenderer, type PlanetLook } from '../render/scene';
-import type { GraphicsQuality, PlanetId, RunConfig, RunState } from '../shared/contracts';
+import type { GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';
+import { ENEMIES, WEAPONS } from '../content/balance';
+import { SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
 import { EMPTY_INPUT, STEP, VIEW } from '../shared/contracts';
 import { FORMATIONS } from '../content/formations';
 import { ROSTER, hunterKind, modelOf, statsLine, viewerModels, WORLDS } from './roster';
@@ -80,7 +82,7 @@ const load = <T>(key: string): T | null => { try { const text = localStorage.get
 const save = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: keep going */ } };
 
 const root = document.getElementById('playground')!;
-const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['models', 'Models'], ['hangar', 'Hangar']] as const;
+const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['weapons', 'Weapons'], ['models', 'Models'], ['hangar', 'Hangar']] as const;
 type Tab = (typeof TABS)[number][0];
 root.innerHTML = `
   <div class="pg-stage"><canvas class="pg-canvas"></canvas><div class="pg-viewer" hidden></div><div class="pg-hud"></div></div>
@@ -99,6 +101,7 @@ root.innerHTML = `
     </section>
     <section class="pg-boss-pane" data-pane="boss"></section>
     <section class="pg-lab" data-pane="enemies"></section>
+    <section class="pg-weapons" data-pane="weapons"></section>
     <section class="pg-models" data-pane="models"></section>
     <section class="pg-hangar" data-pane="hangar"></section>
   </aside>`;
@@ -115,14 +118,17 @@ interface ViewSettings {
   mission: Mission; distance: number; x: number; fly: boolean; speed: number; quality: GraphicsQuality; ship: boolean; seed: number; boss: boolean;
   /** The enemy lab is live (enemies over the map, the world flying on); the open tab; the viewer's model and light. */
   lab: boolean; tab: Tab; model: string; wire: boolean; spin: boolean; worldLight: boolean;
+  /** Weapons tab: the hero's main weapon and tier (0–2), and its special; the hero fires in the lab while that tab is open. */
+  weapon: WeaponId; tier: number; special: SpecialId;
 }
 const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, boss: false,
-  lab: false, tab: 'level', model: 'shared/hero-scrapper.glb#hero_scrapper', wire: false, spin: true, worldLight: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
+  lab: false, tab: 'level', model: 'shared/hero-scrapper.glb#hero_scrapper', wire: false, spin: true, worldLight: false,
+  weapon: 'rail', tier: 0, special: 'gravity-well', ...load<Partial<ViewSettings>>(VIEW_STORE) };
 const level = () => LEVELS.find(entry => entry.mission === view.mission) ?? LEVELS[1];
 
 let state: RunState = makeState();
 function makeState(): RunState {
-  const run = createRun({ mode: 'campaign', mission: view.mission, difficulty: 'standard', seed: view.seed });
+  const run = createRun({ mode: 'campaign', mission: view.mission, difficulty: 'standard', seed: view.seed, weapon: view.weapon, special: view.special, rank: view.tier });
   run.enemies = []; run.projectiles = []; run.hazards = []; run.pickups = []; run.nextEncounterAt = Infinity; run.nextVolleyAt = Infinity;
   run.player.invulnerableUntil = -1; run.message = ''; run.messageUntil = 0;
   if (view.lab) {
@@ -237,6 +243,67 @@ labPane.addEventListener('click', event => {
   if (lab === 'clear') { state.enemies = state.enemies.filter(enemy => enemy.bossPart); state.projectiles = state.projectiles.filter(shot => shot.friendly); }
   if (lab === 'restart') state = makeState();
   if (show) { view.model = show; save(VIEW_STORE, view); switchTab('models'); }
+});
+
+// ── Weapons: the hero's guns and specials, firing live in the lab at spawned targets (docs/32). ──
+const weaponsPane = root.querySelector<HTMLElement>('.pg-weapons')!;
+let specialQueued = false;
+const firing = () => view.lab && view.tab === 'weapons';
+function buildWeapons() {
+  const weapon = WEAPONS[view.weapon], special = SPECIALS[view.special];
+  const on = (yes: boolean) => yes ? ' class="is-on"' : '';
+  weaponsPane.innerHTML = `
+    <label class="pg-row"><input data-view="lab" type="checkbox"> Live over this level's map (Level tab), the ship firing; it cannot die</label>
+    <p class="pg-note">Steer with "Ship x" (Level tab) or the buttons below. Targets drift down from the top.</p>
+    <h4>Main weapon</h4>
+    <div class="pg-row pg-wrap">${WEAPON_IDS.map(id => `<button type="button" data-weapon="${id}"${on(id === view.weapon)}>${WEAPONS[id].label}</button>`).join('')}</div>
+    <div class="pg-row pg-wrap">${[0, 1, 2].map(tier => `<button type="button" data-tier="${tier}"${on(tier === view.tier)}>Tier ${tier + 1}</button>`).join('')}</div>
+    <p class="pg-dim">${WEAPON_BLURB[view.weapon]} ${WEAPON_TIERS[view.weapon][view.tier]} · ${weapon.damage} a hit · range ${weapon.range}</p>
+    <h4>Special</h4>
+    <div class="pg-row pg-wrap">${SPECIAL_IDS.map(id => `<button type="button" data-special="${id}"${on(id === view.special)}>${SPECIALS[id].label}</button>`).join('')}</div>
+    <p class="pg-dim">${special.blurb}</p>
+    <div class="pg-row pg-wrap"><button type="button" data-fire="special">Fire special</button></div>
+    <h4>Targets</h4>
+    <div class="pg-row pg-wrap">
+      <button type="button" data-target="column">Column above the ship</button>
+      <button type="button" data-target="snake-weaver-5">Weaver column</button>
+      <button type="button" data-target="arrow-5">Arrowhead</button>
+      <button type="button" data-target="line-weaver-4">Line abreast</button>
+      <button type="button" data-target="hunter">Hunter</button>
+      <button type="button" data-target="attack">Enemies fire now</button>
+      <button type="button" data-target="clear">Clear</button>
+    </div>
+    <div class="pg-row pg-wrap"><button type="button" data-nudge="-2">◀ Ship</button><button type="button" data-nudge="0">Centre</button><button type="button" data-nudge="2">Ship ▶</button></div>`;
+  syncView();
+}
+weaponsPane.addEventListener('click', event => {
+  const target = (event.target as HTMLElement).closest<HTMLElement>('button');
+  if (!target) return;
+  const data = target.dataset;
+  if (data.weapon || data.tier) {
+    if (data.weapon) view.weapon = data.weapon as WeaponId;
+    if (data.tier) view.tier = Number(data.tier);
+    state.player.weapon = view.weapon; state.player.power = view.tier; state.mainSequence = undefined; state.nextVolleyAt = state.time;
+  }
+  if (data.special) { view.special = data.special as SpecialId; state.config.special = view.special; state.well = null; state.lance = null; state.shockwave = null; }
+  if (data.fire) { ensureLab(); specialQueued = true; }
+  if (data.nudge !== undefined) { view.x = data.nudge === '0' ? 0 : Math.max(-11, Math.min(11, view.x + Number(data.nudge))); syncView(); }
+  if (data.target) {
+    ensureLab();
+    const planet = level().planet;
+    if (data.target === 'column') {
+      // Four harmless darts in a line straight above the ship: the Rail Driver's ideal shot.
+      for (const s of [11, 13.5, 16, 18.5]) {
+        const hp = ENEMIES.dart.hp;
+        state.enemies.push({ id: state.nextId++, kind: 'dart', x: view.x, s, originX: view.x, hp, maxHp: hp, radius: ENEMIES.dart.radius, age: 0, nextAttack: Infinity, warning: 0, aimX: view.x, groundHeight: VIEW.flightHeight });
+      }
+    } else if (data.target === 'hunter') spawnHunter(state, hunterKind(planet));
+    else if (data.target === 'attack') attackNow(state);
+    else if (data.target === 'clear') { state.enemies = state.enemies.filter(enemy => enemy.bossPart); state.projectiles = []; state.well = null; }
+    else spawnFormation(state, data.target as keyof typeof FORMATIONS);
+  }
+  save(VIEW_STORE, view);
+  if (data.weapon || data.tier || data.special) buildWeapons();
 });
 
 // ── Models: a turntable viewer for the hero, every faction's craft, the loot skid and the bosses (viewer.ts). ──
@@ -416,8 +483,13 @@ function frame(now: number) {
     accumulator += dt;
     while (accumulator >= STEP) {
       accumulator -= STEP;
+      // The Weapons tab lets the hero fire (the lab otherwise holds its guns) and fires a queued special.
+      const volley = state.nextVolleyAt;
       state.player.x = view.x; state.player.vx = 0; holdDirector(state);
-      if (state.phase === 'playing') stepRun(state, EMPTY_INPUT);
+      if (firing()) state.nextVolleyAt = Number.isFinite(volley) ? volley : state.time;
+      if (specialQueued) state.player.specialCharge = 1;
+      if (state.phase === 'playing') stepRun(state, specialQueued ? { ...EMPTY_INPUT, specialPressed: true } : EMPTY_INPUT);
+      specialQueued = false;
       state.player.lives = Math.max(state.player.lives, 2);
       if (state.time > labClock(view.mission, view.distance).limit) { const enemies = state.enemies; state = makeState(); state.enemies = enemies; }
     }
@@ -459,6 +531,7 @@ restore(fromFile ?? load(STORE));
 for (const { planet } of LEVELS) renderer.tuneLook!(planet, looks[planet]);
 renderer.setQuality(view.quality);
 buildLab();
+buildWeapons();
 syncView();
 syncBoss();
 switchTab(view.tab);

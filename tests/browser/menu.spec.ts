@@ -62,6 +62,8 @@ test('the hangar buys, equips and ranks up campaign gear, and the launch flies i
 });
 
 test('pause settings preserve the frozen flight and statistics persist without duplication', async ({ page }, info) => {
+  // An endless launch, a pause round trip and a reload: 25–30 s under SwiftShader since at least 7278d87, at the default limit.
+  test.setTimeout(60000);
   await page.goto('/'); await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
   await flying(page);
   await page.getByRole('button', { name: /Activate shockwave/ }).click();
