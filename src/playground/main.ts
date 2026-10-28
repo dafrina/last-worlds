@@ -16,6 +16,7 @@
  * live over the real map: src/playground/lab.ts) and Models (a turntable viewer for the hero, every faction's craft and
  * the bosses: src/playground/viewer.ts).
  */
+import { HERO_CHASSIS, HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, assembleHero, randomHeroBuild, type HeroBuild, type HeroChassis, type HeroDesign, type HeroSlot } from '../render/hero-assembly';
 import { createRun, stepRun } from '../sim/game';
 import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
@@ -79,7 +80,7 @@ const load = <T>(key: string): T | null => { try { const text = localStorage.get
 const save = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: keep going */ } };
 
 const root = document.getElementById('playground')!;
-const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['models', 'Models']] as const;
+const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['models', 'Models'], ['hangar', 'Hangar']] as const;
 type Tab = (typeof TABS)[number][0];
 root.innerHTML = `
   <div class="pg-stage"><canvas class="pg-canvas"></canvas><div class="pg-viewer" hidden></div><div class="pg-hud"></div></div>
@@ -99,6 +100,7 @@ root.innerHTML = `
     <section class="pg-boss-pane" data-pane="boss"></section>
     <section class="pg-lab" data-pane="enemies"></section>
     <section class="pg-models" data-pane="models"></section>
+    <section class="pg-hangar" data-pane="hangar"></section>
   </aside>`;
 const canvas = root.querySelector<HTMLCanvasElement>('.pg-canvas')!, stage = root.querySelector<HTMLElement>('.pg-stage')!;
 const hud = root.querySelector<HTMLElement>('.pg-hud')!, panel = root.querySelector<HTMLElement>('.pg-panel')!, sync = root.querySelector<HTMLElement>('.pg-sync')!;
@@ -267,13 +269,50 @@ function applyViewerLight() {
   viewer.setLight(look.sun[0], look.sun[1], look.hemisphere[0], look.hemisphere[1], look.hemisphere[2], look.background);
 }
 
+// ── Hangar: the modular hero ships (src/render/hero-assembly.ts), any chassis, one design per slot, recoloured. ──
+const HANGAR_STORE = 'last-worlds.playground.hangar';
+const hangarPane = root.querySelector<HTMLElement>('.pg-hangar')!;
+const hangar: HeroBuild = load<HeroBuild>(HANGAR_STORE) ?? { chassis: 'scrapper', parts: { hull: 'a', wings: 'a', engines: 'a', cockpit: 'a' } };
+function hangarControls() {
+  const paint = { ...HERO_DEFAULT_PAINT[hangar.chassis], ...hangar.paint };
+  hangarPane.innerHTML = `
+    <div class="pg-row pg-wrap">${HERO_CHASSIS.map(chassis => `<button type="button" data-chassis="${chassis}" class="${chassis === hangar.chassis ? 'is-on' : ''}">${chassis[0].toUpperCase() + chassis.slice(1)}</button>`).join('')}</div>
+    ${HERO_SLOTS.map(slot => `<div class="pg-row"><span class="pg-dim" style="min-width:5em">${slot}</span>${HERO_DESIGNS.map(design => `<button type="button" data-slot="${slot}" data-design="${design}" class="${hangar.parts[slot] === design ? 'is-on' : ''}">${design.toUpperCase()}</button>`).join('')}</div>`).join('')}
+    <div class="pg-row pg-wrap">${(['primary', 'secondary', 'glow'] as const).map(role => `<label class="pg-color">${role} <input data-paint="${role}" type="color" value="${hex(paint[role])}"></label>`).join('')}</div>
+    <div class="pg-row pg-wrap"><button type="button" data-hangar="shuffle">Shuffle parts</button><button type="button" data-hangar="reset">Default paint</button></div>
+    <div class="pg-hangar-info pg-dim"></div>`;
+}
+async function showHangar(controls = true) {
+  save(HANGAR_STORE, hangar); if (controls) hangarControls();
+  const { object } = await assembleHero(hangar);
+  const info = viewer.showObject(object);
+  hangarPane.querySelector<HTMLElement>('.pg-hangar-info')!.textContent = `${info.triangles.toLocaleString()} triangles · ${info.size.join(' × ')} units`;
+}
+hangarPane.addEventListener('click', event => {
+  const target = (event.target as HTMLElement).closest<HTMLElement>('button');
+  if (!target) return;
+  if (target.dataset.chassis) { hangar.chassis = target.dataset.chassis as HeroChassis; hangar.paint = undefined; }
+  else if (target.dataset.slot) hangar.parts[target.dataset.slot as HeroSlot] = target.dataset.design as HeroDesign;
+  else if (target.dataset.hangar === 'shuffle') hangar.parts = randomHeroBuild(hangar.chassis).parts;
+  else if (target.dataset.hangar === 'reset') hangar.paint = undefined;
+  else return;
+  void showHangar();
+});
+hangarPane.addEventListener('input', event => {
+  const input = event.target as HTMLInputElement, role = input.dataset.paint as 'primary' | 'secondary' | 'glow' | undefined;
+  if (!role) return;
+  hangar.paint = { ...hangar.paint, [role]: parseInt(input.value.slice(1), 16) };
+  void showHangar(false);
+});
+
 // ── Tabs ──
 function switchTab(tab: Tab) {
   view.tab = tab; save(VIEW_STORE, view);
   for (const pane of root.querySelectorAll<HTMLElement>('[data-pane]')) pane.hidden = pane.dataset.pane !== tab;
   for (const button of root.querySelectorAll<HTMLElement>('[data-tab]')) button.classList.toggle('is-on', button.dataset.tab === tab);
-  viewerHost.hidden = tab !== 'models';
+  viewerHost.hidden = tab !== 'models' && tab !== 'hangar';
   if (tab === 'models') { resize(); viewer.setWireframe(view.wire); viewer.setAutoRotate(view.spin); applyViewerLight(); viewer.start(); void showModel(view.model); }
+  else if (tab === 'hangar') { resize(); viewer.setWireframe(false); viewer.setAutoRotate(true); viewer.studio(); viewer.start(); void showHangar(); }
   else viewer.stop();
 }
 root.querySelector('.pg-tabs')!.addEventListener('click', event => {

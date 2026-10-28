@@ -7,7 +7,8 @@ runtime transforms: the game merges the chosen part nodes into one mesh. Parts a
 the central hit region, handling and gun origins never change.
 
 Node names: hero_<chassis>_<slot>_<design>, slot in hull | wings | engines | cockpit, design a | b | c. Each engines
-design carries its own exhaust empties hero_<chassis>_engines_<design>_plume_<i> (the engine glow sockets).
+design carries its own exhaust empties hero_<chassis>_engines_<design>_engine_<i> (the engine glow sockets, named as the
+game's craft loader expects: src/render/models.ts loadCraftNodes).
 
 Conventions as the Scrapper before it (tools/blender/cinematic_assets.py): Blender x right, y forward (the nose, glTF
 -z, up the screen), z up; 1 unit = 1 game unit before the game's HERO_SCALE; centred on the hit region.
@@ -35,7 +36,7 @@ PLATE, FRAME, GLOW = 0, 1, 2
 PAINTS = dict(vc.PAINTS, ivory=('#c8c9bd', .2, '#ece7d5'), rust=('#78442f', .25, '#b17852'),
               ochre=('#88673e', .25, '#baa17d'), metal=('#454e58', .35, '#9baab4'), black=('#10171e', .15, '#455564'),
               # Ironclad: olive armour on dark steel, hazard-stripe accents.
-              olive=('#4f5a36', .2, '#7d8a5a'), steel=('#33383d', .3, '#6b747c'), hazard=('#b58a1c', .2, '#e2b84a'),
+              olive=('#3d4528', .2, '#69744a'), steel=('#2a2e33', .3, '#5d666e'), hazard=('#b58a1c', .2, '#e2b84a'),
               # Interceptor: pearl and cobalt.
               pearl=('#d9dde2', .15, '#f4f6f8'), cobalt=('#1f4f9a', .2, '#4c80cc'), navy=('#141c2c', .2, '#34445e'),
               # Spectre: obsidian with pale silver.
@@ -187,156 +188,209 @@ def box_plate(h, cx, cy, z, hx, hy, height, paint, mat=PLATE):
     solid(h, [(cx - hx, cy - hy), (cx + hx, cy - hy), (cx + hx, cy + hy), (cx - hx, cy + hy)], z, height, paint, mat)
 
 
+def spike(h, base, direction, length, r, paint, mat=PLATE, sides=4):
+    """A four-sided spike from `base` along `direction`."""
+    h.cyl(base, direction, r, length, sides, .0, paint, mat=mat, r1=.0001, smooth=False)
+
+
 # ============================================================================= Ironclad (armoured fighter)
-# A heavy armoured fighter: thick layered olive armour on dark steel, hazard-stripe accents, amber glow; blocky and
-# broad (about 1.4 wide). Anchors: the hit region at the origin; the cockpit seat (0, 0.2, 0.16); wing roots under the
-# hull at x +-0.25, out to x +-0.7; the engines at the tail, y -0.55 back to the nozzles near y -0.85.
-IRONCLAD_PLUMES = dict(a=[(-.2, -.86, 0), (.2, -.86, 0)], b=[(-.26, -.84, 0), (0, -.88, .02), (.26, -.84, 0)],
-                       c=[(-.42, -.78, -.02), (-.24, -.82, .02), (.24, -.82, .02), (.42, -.78, -.02)])
+# A heavy armoured fighter (user, 28 October: "more bulky and aggressive, more fear inducing"): massive stepped armour,
+# rams, tusks and spikes, dark olive on gunmetal with hazard stripes, glowing red eye slits and red exhausts; about 1.5
+# wide. Anchors: the hit region at the origin; the cockpit seat (0, 0.2, 0.2); wing roots under the hull at x +-0.25, out
+# to x +-0.75; the engines at the tail, y -0.55 back to the nozzles near y -0.9.
+IRONCLAD_PLUMES = dict(a=[(-.2, -.88, 0), (.2, -.88, 0)], b=[(-.28, -.9, 0), (0, -.94, .03), (.28, -.9, 0)],
+                       c=[(-.44, -.84, -.02), (-.24, -.88, .02), (.24, -.88, .02), (.44, -.84, -.02)])
+
+
+def red_eyes(h, y, z, x0=.08):
+    for side in (-1, 1):
+        h.box((side * x0, y, z), (.07, .012, .022), .0, 'lamp', GLOW)
 
 
 def ironclad_hull(h, design):
-    if design == 'a':   # The bulwark: a thick octagonal slab under a second, smaller armour layer; steel side skirts.
-        oct_ = [(-.22, -.6), (.22, -.6), (.3, -.35), (.3, .3), (.18, .62), (-.18, .62), (-.3, .3), (-.3, -.35)]
-        solid(h, oct_, -.12, .2, 'steel', FRAME)
-        solid(h, [(-.18, -.45), (.18, -.45), (.22, .2), (.12, .5), (-.12, .5), (-.22, .2)], .08, .07, 'olive')
+    if design == 'a':   # The juggernaut: three stepped armour layers, a ram spike on the prow, red eye slits.
+        solid(h, [(-.24, -.62), (.24, -.62), (.32, -.35), (.32, .28), (.2, .6), (-.2, .6), (-.32, .28), (-.32, -.35)], -.14, .2, 'steel', FRAME)
+        solid(h, [(-.22, -.5), (.22, -.5), (.27, .2), (.15, .52), (-.15, .52), (-.27, .2)], .06, .08, 'olive')
+        solid(h, [(-.15, -.35), (.15, -.35), (.18, .1), (.09, .38), (-.09, .38), (-.18, .1)], .14, .07, 'olive')
+        spike(h, (0, .58, -.02), (0, 1, 0), .32, .07, 'steel', FRAME)
+        red_eyes(h, .6, .02)
         for side in (-1, 1):
-            box_plate(h, side * .31, -.1, -.1, .025, .32, .14, 'olive')
-        for y in (-.4, -.32):
-            box_plate(h, 0, y, .15, .16, .025, .015, 'hazard')
-    elif design == 'b':   # The wedge: an armoured prow narrowing to a blade, olive top plates, a hazard chevron.
-        solid(h, [(-.28, -.6), (.28, -.6), (.3, .0), (.12, .55), (0, .72), (-.12, .55), (-.3, .0)], -.11, .18, 'steel', FRAME)
-        solid(h, [(-.2, -.5), (.2, -.5), (.22, .0), (0, .55), (-.22, .0)], .07, .06, 'olive')
+            spike(h, (side * .3, .22, .0), (side * .5, .7, .2), .22, .045, 'steel', FRAME)
+            box_plate(h, side * .32, -.15, -.12, .03, .36, .16, 'olive')
+        for y in (-.42, -.34):
+            box_plate(h, 0, y, .21, .14, .022, .015, 'hazard')
+    elif design == 'b':   # The warhammer: a wide hammerhead prow with twin forward tusks.
+        solid(h, [(-.26, -.62), (.26, -.62), (.28, .2), (.42, .38), (.42, .58), (-.42, .58), (-.42, .38), (-.28, .2)], -.13, .2, 'steel', FRAME)
+        solid(h, [(-.2, -.5), (.2, -.5), (.22, .2), (.36, .38), (.36, .5), (-.36, .5), (-.36, .38), (-.22, .2)], .07, .07, 'olive')
         for side in (-1, 1):
-            solid(h, mirrored([(.0, .3), (.16, .1), (.16, .04), (.0, .24)], side), .13, .015, 'hazard')
-    else:   # The citadel: a boxy hull with twin raised armour ridges and bolted-on side armour boxes.
-        solid(h, [(-.26, -.6), (.26, -.6), (.26, .45), (.16, .6), (-.16, .6), (-.26, .45)], -.12, .19, 'steel', FRAME)
+            spike(h, (side * .32, .56, -.02), (side * .12, 1, 0), .34, .06, 'steel', FRAME)
+            solid(h, mirrored([(.05, .5), (.32, .5), (.3, .44), (.05, .44)], side), .14, .015, 'hazard')
+        red_eyes(h, .585, .03, .18)
+    else:   # The bastion: a spiked armour collar, dorsal armour fins, bolted side armour.
+        solid(h, [(-.28, -.62), (.28, -.62), (.3, .42), (.18, .62), (-.18, .62), (-.3, .42)], -.14, .21, 'steel', FRAME)
         for side in (-1, 1):
-            box_plate(h, side * .12, -.05, .07, .045, .5, .1, 'olive')
-            for y in (-.35, .05, .35):
-                h.box((side * .3, y, -.02), (.08, .16, .14), .01, 'olive', PLATE)
-        box_plate(h, 0, .5, .07, .1, .06, .03, 'hazard')
+            box_plate(h, side * .13, -.08, .07, .05, .5, .12, 'olive')
+            solid(h, [(side * .11, -.45), (side * .15, -.45), (side * .15, .25), (side * .11, .25)], .19, .12, 'olive')
+            for y in (-.38, .02, .36):
+                h.box((side * .32, y, -.03), (.09, .17, .16), .01, 'olive', PLATE)
+            for k in range(3):
+                spike(h, (side * (.18 + k * .06), .58 - k * .05, .02), (side * .4, 1, .3), .18, .035, 'steel', FRAME)
+        red_eyes(h, .62, .0, .07)
+        box_plate(h, 0, .48, .07, .1, .06, .03, 'hazard')
 
 
 def ironclad_wings(h, design):
     for side in (-1, 1):
-        if design == 'a':   # Stub slabs: short, thick armoured trapezoids, a heavy cannon under each.
-            solid(h, mirrored([(.25, .2), (.62, .1), (.66, -.3), (.25, -.36)], side), -.07, .1, 'olive')
-            h.cyl((side * .48, .42, -.1), (0, -1, 0), .045, .5, 10, .004, 'steel', mat=FRAME, smooth=True)
-            box_plate(h, side * .58, -.1, .03, .05, .14, .02, 'hazard')
-        elif design == 'b':   # Swept heavy wings with a thick armoured leading edge.
-            solid(h, mirrored([(.25, .22), (.72, -.2), (.7, -.36), (.25, -.24)], side), -.05, .06, 'olive')
-            solid(h, mirrored([(.25, .26), (.73, -.17), (.72, -.22), (.25, .2)], side), -.06, .1, 'steel', FRAME)
-            h.box((side * .66, -.27, .0), (.04, .1, .12), .006, 'hazard', PLATE)
-        else:   # Sponsons: no wings, but side pods with missile racks.
-            h.box((side * .46, -.05, -.02), (.24, .66, .16), .014, 'olive', PLATE)
+        if design == 'a':   # Cannon slabs: short, very thick armour with a heavy twin cannon and a spike.
+            solid(h, mirrored([(.25, .22), (.66, .12), (.7, -.32), (.25, -.38)], side), -.09, .13, 'olive')
+            for dz in (-.13, -.05):
+                h.cyl((side * .5, .55, dz), (0, -1, 0), .045, .62, 10, .004, 'steel', mat=FRAME, smooth=True)
+            spike(h, (side * .68, -.1, .0), (side, -.2, 0), .2, .05, 'steel', FRAME)
+            box_plate(h, side * .6, -.12, .04, .05, .14, .02, 'hazard')
+        elif design == 'b':   # Serrated swept wings: a heavy armoured leading edge broken into teeth.
+            solid(h, mirrored([(.25, .24), (.78, -.22), (.74, -.4), (.25, -.26)], side), -.06, .07, 'olive')
+            solid(h, mirrored([(.25, .28), (.79, -.19), (.77, -.24), (.25, .22)], side), -.07, .11, 'steel', FRAME)
+            for k in range(4):
+                t = .2 + k * .2
+                x, y = .25 + (.79 - .25) * t, .28 + (-.19 - .28) * t
+                spike(h, (side * x, y, .0), (side * .5, 1, 0), .12, .03, 'steel', FRAME)
+            h.box((side * .7, -.3, .0), (.05, .1, .14), .006, 'hazard', PLATE)
+        else:   # Sponsons: armoured side pods with spiked missile racks.
+            h.box((side * .48, -.05, -.02), (.26, .7, .18), .014, 'olive', PLATE)
             for k in range(3):
-                h.cyl((side * (.4 + k * .06), .34, .08), (0, -1, 0), .022, .3, 8, .002, 'steel', mat=FRAME, smooth=True)
-                h.box((side * (.4 + k * .06), .345, .08), (.02, .01, .02), .0, 'lamp', GLOW)
+                h.cyl((side * (.41 + k * .065), .38, .09), (0, -1, 0), .024, .32, 8, .002, 'steel', mat=FRAME, smooth=True)
+                h.box((side * (.41 + k * .065), .385, .09), (.02, .01, .02), .0, 'lamp', GLOW)
+            spike(h, (side * .6, .2, .0), (side, .4, 0), .2, .05, 'steel', FRAME)
+            spike(h, (side * .6, -.25, .0), (side, -.2, 0), .18, .045, 'steel', FRAME)
             box_plate(h, side * .32, -.05, .0, .07, .1, .05, 'steel', FRAME)
 
 
 def ironclad_engines(h, design):
-    if design == 'a':   # Twin heavy box engines with glowing grilles.
+    if design == 'a':   # Twin heavy box engines with big red grilles and exhaust fins.
         for side in (-1, 1):
-            h.box((side * .2, -.68, .0), (.24, .38, .18), .012, 'steel', FRAME)
-            for k in range(3):
-                h.box((side * .2, -.875, -.05 + k * .05), (.18, .012, .02), .0, 'lamp', GLOW)
-    elif design == 'b':   # A tri-drive: a big centre cylinder between two smaller ones.
-        for x, r, z in ((-.26, .08, 0), (0, .11, .02), (.26, .08, 0)):
-            h.cyl((x, -.5, z), (0, -1, 0), r, .34, 12, .008, 'steel', mat=FRAME, smooth=True)
-            h.cyl((x, -.84, z), (0, -1, 0), r * .7, .02, 10, .0, 'lamp', mat=GLOW, smooth=True)
-        h.box((0, -.6, .0), (.5, .1, .08), .008, 'olive', PLATE)
-    else:   # Quad sponson cans, staggered.
-        for x, z in ((-.42, -.02), (-.24, .02), (.24, .02), (.42, -.02)):
-            h.cyl((x, -.45, z), (0, -1, 0), .07, .36, 12, .006, 'olive', mat=PLATE, smooth=True)
-            h.cyl((x, -.81, z), (0, -1, 0), .05, .012, 10, .0, 'lamp', mat=GLOW, smooth=True)
+            h.box((side * .2, -.68, .0), (.27, .38, .22), .014, 'steel', FRAME)
+            for k in range(4):
+                h.box((side * .2, -.875, -.075 + k * .05), (.21, .012, .022), .0, 'lamp', GLOW)
+            spike(h, (side * .32, -.76, .08), (side * .3, -1, .3), .14, .03, 'steel', FRAME)
+    elif design == 'b':   # A tri-drive: a huge centre cylinder between two big ones, armoured collars.
+        for x, r, z in ((-.28, .1, 0), (0, .14, .03), (.28, .1, 0)):
+            h.cyl((x, -.5, z), (0, -1, 0), r, .4, 14, .01, 'steel', mat=FRAME, smooth=True)
+            h.cyl((x, -.56, z), (0, -1, 0), r * 1.08, .06, 14, .004, 'olive', mat=PLATE, smooth=True)
+            h.cyl((x, -.905, z), (0, -1, 0), r * .75, .02, 12, .0, 'lamp', mat=GLOW, smooth=True)
+        h.box((0, -.6, .0), (.6, .12, .1), .008, 'olive', PLATE)
+    else:   # Quad armoured cans, staggered, with flared nozzles.
+        for x, z in ((-.44, -.02), (-.24, .02), (.24, .02), (.44, -.02)):
+            h.cyl((x, -.45, z), (0, -1, 0), .08, .4, 12, .006, 'olive', mat=PLATE, smooth=True)
+            h.cyl((x, -.84, z), (0, -1, 0), .08, .04, 12, .004, 'steel', mat=FRAME, r1=.1, smooth=True)
+            h.cyl((x, -.885, z), (0, -1, 0), .07, .012, 10, .0, 'lamp', mat=GLOW, smooth=True)
         for side in (-1, 1):
-            h.box((side * .33, -.55, .0), (.2, .12, .08), .008, 'steel', FRAME)
+            h.box((side * .34, -.55, .0), (.22, .14, .1), .008, 'steel', FRAME)
 
 
 def ironclad_cockpit(h, design):
-    if design == 'a':   # An armoured hood with a single glowing slit.
-        solid(h, [(-.13, .05), (.13, .05), (.1, .36), (-.1, .36)], .14, .1, 'olive')
-        h.box((0, .35, .2), (.16, .02, .02), .0, 'lamp', GLOW)
-    elif design == 'b':   # A blister turret: a low dome with a twin gun.
-        h.cyl((0, .2, .15), (0, 0, 1), .13, .06, 14, .008, 'steel', mat=FRAME, r1=.09, smooth=True)
-        h.cyl((0, .2, .21), (0, 0, 1), .08, .04, 12, .006, 'black', mat=FRAME, r1=.04, smooth=True)
-        for x in (-.04, .04):
-            h.box((x, .38, .22), (.02, .22, .02), .002, 'steel', FRAME)
-    else:   # A sunken bridge: low dark glass behind armour louvres.
-        solid(h, [(-.15, .0), (.15, .0), (.12, .32), (-.12, .32)], .14, .04, 'black', FRAME)
+    if design == 'a':   # A sloped armoured hood with a single red slit.
+        solid(h, [(-.14, .05), (.14, .05), (.1, .38), (-.1, .38)], .2, .1, 'olive')
+        h.box((0, .37, .26), (.17, .02, .022), .0, 'lamp', GLOW)
+        spike(h, (0, .1, .3), (0, -.3, 1), .14, .03, 'steel', FRAME)
+    elif design == 'b':   # A gun turret: a low armoured dome with a heavy twin gun.
+        h.cyl((0, .18, .2), (0, 0, 1), .15, .07, 14, .008, 'steel', mat=FRAME, r1=.1, smooth=True)
+        h.cyl((0, .18, .27), (0, 0, 1), .09, .04, 12, .006, 'olive', mat=PLATE, r1=.05, smooth=True)
+        for x in (-.045, .045):
+            h.box((x, .4, .28), (.03, .3, .03), .003, 'steel', FRAME)
+        h.box((0, .3, .26), (.12, .012, .015), .0, 'lamp', GLOW)
+    else:   # A sunken bridge behind armour louvres, a red visor line.
+        solid(h, [(-.16, .0), (.16, .0), (.13, .34), (-.13, .34)], .2, .04, 'black', FRAME)
         for y in (.06, .14, .22):
-            box_plate(h, 0, y, .18, .14, .015, .02, 'olive')
+            box_plate(h, 0, y, .24, .15, .016, .02, 'olive')
+        h.box((0, .33, .23), (.2, .012, .015), .0, 'lamp', GLOW)
 
 
 # ============================================================================= Interceptor (assault interceptor)
-# A narrow split-boom interceptor (docs/04): pearl white and cobalt, blue glow; long and narrow (about 1.35 wide, 1.6
-# long). Anchors: the hit region at the origin; a narrow fuselage (|x| < 0.13) from y -0.45 to a long nose; wing roots
-# under it at x +-0.1; the booms (the engines slot) at x +-0.36 from y 0.2 back to y -0.8; the cockpit seat (0, 0.3, 0.1).
-INTERCEPTOR_PLUMES = dict(a=[(-.36, -.82, 0), (.36, -.82, 0)], b=[(-.36, -.8, 0), (.36, -.8, 0)],
-                          c=[(-.36, -.78, 0), (.36, -.78, 0), (0, -.6, 0)])
+# A sleek, very aggressive split-boom fighter (docs/04; user, 28 October: "sleek and very aggressive fighter like"): knife
+# noses, sharp chines and canards, long pointed wings, spear-tipped booms with canted fins; pearl and cobalt with black
+# accents, blue glow; about 1.4 wide, 1.7 long. Anchors: the hit region at the origin; a narrow fuselage (|x| < 0.14)
+# from y -0.45 to a long nose; wing roots under it at x +-0.1; the booms (the engines slot) at x +-0.36 from y 0.35
+# back to y -0.82; the cockpit seat (0, 0.32, 0.08).
+INTERCEPTOR_PLUMES = dict(a=[(-.36, -.84, 0), (.36, -.84, 0)], b=[(-.36, -.82, 0), (.36, -.82, 0)],
+                          c=[(-.36, -.8, 0), (.36, -.8, 0), (0, -.62, 0)])
 
 
 def interceptor_hull(h, design):
-    if design == 'a':   # The lance: a long needle nose, cobalt spine stripe.
-        solid(h, [(-.12, -.45), (.12, -.45), (.13, .3), (.05, .7), (0, .86), (-.05, .7), (-.13, .3)], -.07, .13, 'pearl')
-        solid(h, [(-.03, -.4), (.03, -.4), (.03, .7), (-.03, .7)], .06, .01, 'cobalt')
-    elif design == 'b':   # The shark: a wider chined body with side intakes.
-        solid(h, [(-.12, -.45), (.12, -.45), (.17, .1), (.1, .55), (0, .72), (-.1, .55), (-.17, .1)], -.06, .12, 'pearl')
+    if design == 'a':   # The viper: a knife nose, sharp chines widening to the wing roots, a black spine.
+        solid(h, [(-.13, -.45), (.13, -.45), (.17, .05), (.06, .62), (0, .95), (-.06, .62), (-.17, .05)], -.06, .11, 'pearl')
+        solid(h, [(-.025, -.4), (.025, -.4), (.02, .78), (-.02, .78)], .05, .012, 'black', FRAME)
         for side in (-1, 1):
-            h.box((side * .15, .05, -.01), (.06, .2, .07), .006, 'navy', FRAME)
-            solid(h, mirrored([(.1, .55), (.17, .1), (.2, .05), (.12, .55)], side), -.02, .02, 'cobalt')
-    else:   # The arrow: an arrowhead nose with small canards.
-        solid(h, [(-.11, -.45), (.11, -.45), (.12, .35), (.18, .45), (0, .8), (-.18, .45), (-.12, .35)], -.065, .12, 'pearl')
+            solid(h, mirrored([(.06, .62), (.2, .0), (.22, -.05), (.08, .62)], side), -.02, .015, 'cobalt')
+    elif design == 'b':   # The hornet: raked angular intakes and small canards behind a short sharp nose.
+        solid(h, [(-.12, -.45), (.12, -.45), (.14, .3), (.05, .65), (0, .82), (-.05, .65), (-.14, .3)], -.06, .11, 'pearl')
         for side in (-1, 1):
-            solid(h, mirrored([(.1, .5), (.28, .42), (.28, .38), (.1, .4)], side), .0, .02, 'cobalt')
+            solid(h, mirrored([(.12, -.1), (.2, .0), (.2, .32), (.12, .26)], side), -.05, .09, 'black', FRAME)
+            solid(h, mirrored([(.12, .45), (.3, .38), (.31, .35), (.12, .38)], side), .02, .015, 'cobalt')
+    else:   # The talon: an arrowhead nose with forward-swept canards and a dorsal blade.
+        solid(h, [(-.11, -.45), (.11, -.45), (.12, .3), (.2, .4), (0, .9), (-.2, .4), (-.12, .3)], -.06, .11, 'pearl')
+        for side in (-1, 1):
+            solid(h, mirrored([(.1, .48), (.27, .56), (.29, .52), (.1, .4)], side), .0, .015, 'cobalt')
+        solid(h, [(-.012, -.3), (.012, -.3), (.012, .2), (-.012, .2)], .05, .1, 'black', FRAME)
 
 
 def interceptor_wings(h, design):
     for side in (-1, 1):
-        if design == 'a':   # Forward-swept, the interceptor's signature.
-            solid(h, mirrored([(.1, -.1), (.62, .18), (.66, .1), (.1, -.3)], side), -.03, .04, 'pearl')
-            solid(h, mirrored([(.5, .12), (.64, .2), (.66, .12), (.52, .05)], side), .01, .01, 'cobalt')
-        elif design == 'b':   # A clean delta joining the booms.
-            solid(h, mirrored([(.1, .3), (.6, -.4), (.1, -.42)], side), -.03, .035, 'pearl')
-            solid(h, mirrored([(.1, .3), (.6, -.4), (.55, -.4), (.1, .22)], side), .005, .01, 'cobalt')
-        else:   # Long, thin swept-back wings with tip fins.
-            solid(h, mirrored([(.1, .08), (.7, -.2), (.7, -.28), (.1, -.14)], side), -.025, .03, 'pearl')
-            solid(h, mirrored([(.68, -.12), (.72, -.12), (.72, -.32), (.68, -.32)], side), -.08, .18, 'cobalt')
+        if design == 'a':   # Long forward-swept wings, needle tips, a black stripe.
+            solid(h, mirrored([(.1, .02), (.72, .3), (.76, .22), (.6, .02), (.1, -.36)], side), -.025, .035, 'pearl')
+            solid(h, mirrored([(.42, .16), (.74, .29), (.75, .25), (.44, .11)], side), .012, .008, 'black', FRAME)
+        elif design == 'b':   # A cranked arrow delta with sharp tips.
+            solid(h, mirrored([(.1, .32), (.3, .0), (.7, -.42), (.62, -.42), (.1, -.4)], side), -.025, .03, 'pearl')
+            solid(h, mirrored([(.1, .32), (.3, .0), (.7, -.42), (.66, -.42), (.28, -.02), (.1, .26)], side), .005, .01, 'cobalt')
+        else:   # Long, thin swept-back blades with canted tip fins.
+            solid(h, mirrored([(.1, .2), (.76, -.26), (.74, -.34), (.4, -.24), (.1, -.24)], side), -.022, .028, 'pearl')
+            solid(h, mirrored([(.1, .2), (.76, -.26), (.75, -.29), (.1, .15)], side), .008, .008, 'black', FRAME)
+            fin = mirrored([(.72, -.16), (.75, -.16), (.75, -.36), (.72, -.36)], side)
+            lo = [h.v((x, y, -.02)) for x, y in fin]
+            hi = [h.v((x + side * .06, y, .16)) for x, y in fin]
+            h.face(tuple(hi), 'cobalt', 'main', PLATE, outward=(side * -.9, 0, .4))
+            h.face(tuple(reversed(lo)), 'cobalt', 'main', PLATE, outward=(0, 0, -1))
+            for i in range(4):
+                j = (i + 1) % 4
+                a, b = fin[i], fin[j]
+                h.face((lo[i], lo[j], hi[j], hi[i]), 'cobalt', 'edge', PLATE, outward=(b[1] - a[1], a[0] - b[0], 0))
 
 
 def interceptor_engines(h, design):
     for side in (-1, 1):
         x = side * .36
-        if design == 'a':   # Twin booms with angled tail fins (the split boom).
-            h.cyl((x, .2, .0), (0, -1, 0), .065, .98, 12, .006, 'pearl', mat=PLATE, smooth=True)
-            h.cyl((x, -.78, .0), (0, -1, 0), .05, .02, 10, .0, 'lamp', mat=GLOW, smooth=True)
-            solid(h, mirrored([(.34, -.5), (.46, -.72), (.46, -.78), (.34, -.74)], side), .04, .015, 'cobalt')
-        elif design == 'b':   # Twin booms joined by a tailplane.
-            h.cyl((x, .15, .0), (0, -1, 0), .07, .93, 12, .006, 'pearl', mat=PLATE, smooth=True)
-            h.cyl((x, -.78, .0), (0, -1, 0), .055, .02, 10, .0, 'lamp', mat=GLOW, smooth=True)
-            if side > 0:
-                box_plate(h, 0, -.68, .02, .38, .05, .02, 'cobalt')
+        if design == 'a':   # Spear booms: a pointed front, canted tail fins (the split boom).
+            h.cyl((x, .35, .0), (0, -1, 0), .0001, .22, 10, .0, 'black', mat=FRAME, r1=.06, smooth=True)
+            h.cyl((x, .13, .0), (0, -1, 0), .06, .93, 10, .005, 'pearl', mat=PLATE, smooth=True)
+            h.cyl((x, -.8, .0), (0, -1, 0), .045, .02, 10, .0, 'lamp', mat=GLOW, smooth=True)
+            solid(h, mirrored([(.34, -.48), (.5, -.74), (.5, -.8), (.34, -.74)], side), .03, .012, 'cobalt')
+        elif design == 'b':   # Booms joined by a sharp tailplane, black intake tips.
+            h.cyl((x, .3, .0), (0, -1, 0), .0001, .16, 10, .0, 'cobalt', mat=PLATE, r1=.065, smooth=True)
+            h.cyl((x, .14, .0), (0, -1, 0), .065, .94, 10, .005, 'pearl', mat=PLATE, smooth=True)
+            h.cyl((x, -.8, .0), (0, -1, 0), .05, .02, 10, .0, 'lamp', mat=GLOW, smooth=True)
+            for lean in (-1, 1):   # Canted twin fins on each boom: a root along the boom, a swept tip leaning out.
+                points = ((x + lean * .03, -.5, .03), (x + lean * .03, -.78, .03), (x + lean * .13, -.8, .19), (x + lean * .13, -.66, .19))
+                for face_out in ((-lean, 0, .3), (lean, 0, -.3)):   # Both sides, each with its own vertices.
+                    h.face(tuple(h.v(p) for p in points), 'black', 'main', FRAME, outward=face_out)
         else:   # Booms with ring nacelles, and a small centre booster.
-            h.cyl((x, .1, .0), (0, -1, 0), .05, .7, 10, .005, 'pearl', mat=PLATE, smooth=True)
-            h.cyl((x, -.6, .0), (0, -1, 0), .1, .16, 14, .008, 'cobalt', mat=PLATE, smooth=True)
-            h.cyl((x, -.77, .0), (0, -1, 0), .07, .015, 12, .0, 'lamp', mat=GLOW, smooth=True)
+            h.cyl((x, .3, .0), (0, -1, 0), .0001, .16, 10, .0, 'black', mat=FRAME, r1=.05, smooth=True)
+            h.cyl((x, .14, .0), (0, -1, 0), .05, .72, 10, .005, 'pearl', mat=PLATE, smooth=True)
+            h.cyl((x, -.6, .0), (0, -1, 0), .1, .18, 14, .008, 'cobalt', mat=PLATE, r1=.08, smooth=True)
+            h.cyl((x, -.79, .0), (0, -1, 0), .065, .015, 12, .0, 'lamp', mat=GLOW, smooth=True)
             if side > 0:
-                h.cyl((0, -.4, .0), (0, -1, 0), .05, .2, 10, .004, 'navy', mat=FRAME, smooth=True)
-                h.cyl((0, -.6, .0), (0, -1, 0), .035, .01, 8, .0, 'lamp', mat=GLOW, smooth=True)
+                h.cyl((0, -.42, .0), (0, -1, 0), .05, .2, 10, .004, 'black', mat=FRAME, smooth=True)
+                h.cyl((0, -.62, .0), (0, -1, 0), .035, .01, 8, .0, 'lamp', mat=GLOW, smooth=True)
 
 
 def interceptor_cockpit(h, design):
-    if design == 'a':   # A long teardrop canopy.
-        h.cyl((0, .45, .06), (0, -1, 0), .07, .34, 12, .006, 'navy', mat=FRAME, r1=.04, smooth=True)
-    elif design == 'b':   # A tandem canopy: two seats under one frame.
-        for y in (.48, .3):
-            h.cyl((0, y, .07), (0, -1, 0), .065, .14, 10, .005, 'navy', mat=FRAME, smooth=True)
-        h.box((0, .39, .13), (.015, .36, .015), .002, 'pearl', PLATE)
-    else:   # A flush faceted visor.
-        solid(h, [(-.08, .25), (.08, .25), (.05, .55), (0, .6), (-.05, .55)], .06, .03, 'navy', FRAME)
-        h.box((0, .5, .095), (.06, .01, .01), .0, 'lamp', GLOW)
+    if design == 'a':   # A long, low teardrop canopy.
+        h.cyl((0, .55, .05), (0, -1, 0), .06, .4, 12, .006, 'navy', mat=FRAME, r1=.03, smooth=True)
+    elif design == 'b':   # A tandem canopy under one sharp frame.
+        for y in (.52, .34):
+            h.cyl((0, y, .06), (0, -1, 0), .058, .16, 10, .005, 'navy', mat=FRAME, r1=.045, smooth=True)
+        h.box((0, .42, .115), (.012, .38, .012), .002, 'pearl', PLATE)
+    else:   # A flush faceted visor, a blue line across it.
+        solid(h, [(-.08, .25), (.08, .25), (.05, .58), (0, .66), (-.05, .58)], .05, .03, 'navy', FRAME)
+        h.box((0, .5, .085), (.07, .01, .01), .0, 'lamp', GLOW)
 
 
 # ============================================================================= Spectre (exotic)
@@ -424,7 +478,7 @@ CHASSIS = dict(
     scrapper=dict(hull=scrapper_hull, wings=scrapper_wings, engines=scrapper_engines, cockpit=scrapper_cockpit,
                   plumes=SCRAPPER_PLUMES, mats=('scrapper_plate', 'scrapper_frame', 'scrapper_glow'), glow='#78f9f1'),
     ironclad=dict(hull=ironclad_hull, wings=ironclad_wings, engines=ironclad_engines, cockpit=ironclad_cockpit,
-                  plumes=IRONCLAD_PLUMES, mats=('ironclad_plate', 'ironclad_frame', 'ironclad_glow'), glow='#ffb04a'),
+                  plumes=IRONCLAD_PLUMES, mats=('ironclad_plate', 'ironclad_frame', 'ironclad_glow'), glow='#ff4a24'),
     interceptor=dict(hull=interceptor_hull, wings=interceptor_wings, engines=interceptor_engines, cockpit=interceptor_cockpit,
                      plumes=INTERCEPTOR_PLUMES, mats=('interceptor_plate', 'interceptor_frame', 'interceptor_glow'), glow='#5aa8ff'),
     spectre=dict(hull=spectre_hull, wings=spectre_wings, engines=spectre_engines, cockpit=spectre_cockpit,
@@ -471,7 +525,7 @@ def main():
             nodes[ob.name] = dict(budget=BUDGET[slot], mats=names, x=(-.95, .95), z=(-.95, .95))
     for design in DESIGNS:
         for i, p in enumerate(spec['plumes'][design]):
-            name = 'hero_%s_engines_%s_plume_%d' % (args.chassis, design, i)
+            name = 'hero_%s_engines_%s_engine_%d' % (args.chassis, design, i)
             vc.make_empty(name, (p[0], p[2], -p[1]))
             nodes[name] = dict(empty=True, t=(p[0], p[2], -p[1]))
     vc.publish(args.glb, 'hero_kit.py', dict(materials=names, nodes=nodes, max_bytes=600_000), 'HKIT')

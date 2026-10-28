@@ -83,6 +83,21 @@ export function createModelViewer(host: HTMLElement) {
       copy.traverse(child => { const mesh = child as THREE.Mesh; if (mesh.isMesh) for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(m.name || '(unnamed)'); });
       return { triangles: triangles(copy), size: [size.x, size.y, size.z].map(v => Math.round(v * 100) / 100) as [number, number, number], materials: [...materials] };
     },
+    /** Shows an object built in code (a hangar build: src/render/hero-assembly.ts), centred on the grid and framed. */
+    showObject(object: THREE.Object3D): ViewerInfo {
+      ++revision;
+      if (shown) scene.remove(shown);
+      const holder = new THREE.Group(); holder.add(object);
+      const box = new THREE.Box3().setFromObject(holder), size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
+      const extent = Math.max(size.x, size.y, size.z) || 1, fit = 2 / extent;
+      holder.scale.setScalar(fit); holder.position.set(-centre.x * fit, -box.min.y * fit, -centre.z * fit);
+      scene.add(holder); shown = holder; setWire(holder);
+      radius = new THREE.Box3().setFromObject(holder).getBoundingSphere(new THREE.Sphere()).radius;
+      controls.target.set(0, size.y * fit * 0.5, 0); frame();
+      const materials = new Set<string>();
+      object.traverse(child => { const mesh = child as THREE.Mesh; if (mesh.isMesh) for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(m.name || '(unnamed)'); });
+      return { triangles: triangles(object), size: [size.x, size.y, size.z].map(v => Math.round(v * 100) / 100) as [number, number, number], materials: [...materials] };
+    },
     setWireframe(on: boolean) { wire = on; if (shown) setWire(shown); },
     setAutoRotate(on: boolean) { controls.autoRotate = on; },
     /** A world's light instead of the neutral studio (its sun, sky fill and background). */
