@@ -42,7 +42,7 @@ SLOTS = ('hull', 'wings', 'engines', 'cockpit')
 ROLE_ALPHA = dict(ivory=.75, rust=.5, ochre=.5)
 DESIGNS = ('a', 'b', 'c')
 # A whole ship stays near 2,500 triangles; the Scrapper's original barrel engines (about 1,400) are the heaviest part.
-BUDGET = dict(hull=760, wings=640, engines=1400, cockpit=320)
+BUDGET = dict(hull=760, wings=640, engines=1400, cockpit=360)
 
 
 def solid(h, points, z, height, paint, mat=PLATE):
@@ -64,99 +64,117 @@ def mirrored(points, side):
 
 
 # ============================================================================= Scrapper (starter, basic)
-# A cheap rusty salvage fighter (docs/04): patched metal, faded ivory paint, exposed but serviceable twin engines.
-# Anchors: hit region at the origin; cockpit seat (0, 0.24, 0.10); engine mounts hugging the fuselage at x +-0.29, from
-# y 0.15 back to the nozzles at y -0.5 (plumes there); wing roots under the engine pods at x +-0.28, the wings reaching
-# out to x +-0.62 ... 0.72, so each wing design draws the outer silhouette (the first layout hid the wings behind
-# engines at x +-0.38). About 1.25 wide: still the smallest chassis.
-SCRAPPER_PLUMES = dict(a=[(-.29, -.52, 0), (.29, -.52, 0)], b=[(-.29, -.46, 0), (.29, -.46, 0)], c=[(-.29, -.5, -.01), (.29, -.5, -.01)])
+# A cheap rusty salvage fighter (docs/04): patched metal, faded ivory paint, exposed but serviceable engines. Each slot's
+# three designs differ in silhouette and paint, not just detail (user, 28 October: "make them a bit more different").
+# Anchors, shared by every design: the hit region at the origin; the cockpit seat on the hull's spine (0, 0.14, 0.1);
+# wing roots under the hull at x +-0.15, the wings drawing the outer silhouette out to x +-0.6 ... 0.72; the engines at
+# the hull's flanks and tail (twin at x +-0.29, quad at x +-0.24 and +-0.37, or one central thruster behind the tail),
+# their plumes at the nozzles. About 1.25 to 1.45 wide: still the smallest chassis.
+SCRAPPER_PLUMES = dict(a=[(-.29, -.52, 0), (.29, -.52, 0)],
+                       b=[(-.24, -.48, -.03), (-.37, -.48, .02), (.24, -.48, -.03), (.37, -.48, .02)],
+                       c=[(0, -.8, 0), (-.24, -.43, 0), (.24, -.43, 0)])
+
+
+def bent_tip(h, outline, x0, droop, paint):
+    """A wingtip panel whose outer part bends down by `droop` per unit of span past x0."""
+    lo = [h.v((x, y, -.03 - (abs(x) - x0) * droop)) for x, y in outline]
+    hi = [h.v((x, y, .015 - (abs(x) - x0) * droop)) for x, y in outline]
+    h.face(tuple(hi), paint, 'main', PLATE, outward=(0, 0, 1))
+    h.face(tuple(reversed(lo)), paint, 'main', PLATE, outward=(0, 0, -1))
+    for i in range(len(outline)):
+        j = (i + 1) % len(outline)
+        a, b = outline[i], outline[j]
+        h.face((lo[i], lo[j], hi[j], hi[i]), paint, 'edge', PLATE, outward=(b[1] - a[1], a[0] - b[0], 0))
 
 
 def scrapper_hull(h, design):
-    if design == 'a':   # The tug: the original hexagonal fuselage, an ivory stripe.
+    if design == 'a':   # The tug: the original hexagonal rust fuselage, an ivory stripe.
         solid(h, [(-.14, -.47), (.14, -.47), (.19, .24), (.1, .6), (-.1, .6), (-.19, .24)], -.09, .18, 'rust')
         solid(h, [(-.1, .15), (.1, .15), (.105, .39), (0, .61), (-.105, .39)], .09, .035, 'ivory')
         h.box((-.08, -.3, .105), (.09, .16, .028), .005, 'ivory', PLATE)
         h.box((.07, .44, .15), (.055, .07, .015), .003, 'rust', PLATE)
-    elif design == 'b':   # The ram: a blunt, broad armoured hull with a black plough over the nose, ochre patches.
-        solid(h, [(-.18, -.46), (.18, -.46), (.22, .18), (.17, .5), (-.17, .5), (-.22, .18)], -.1, .2, 'rust')
-        solid(h, [(-.17, .5), (.17, .5), (.12, .64), (-.12, .64)], -.08, .15, 'black', FRAME)
-        for x, y in ((-.12, .3), (.13, -.1), (-.1, -.32)):
-            h.box((x, y, .1), (.1, .12, .02), .004, 'ochre', PLATE)
-        for y in (-.4, -.2, 0.0):
-            h.box((0, y, .11), (.3, .02, .015), .002, 'metal', FRAME)
-    else:   # The spine: a narrow keel with exposed frame ribs and fuel tanks slung under it.
-        solid(h, [(-.11, -.5), (.11, -.5), (.13, .3), (.05, .66), (-.05, .66), (-.13, .3)], -.07, .15, 'rust')
-        solid(h, [(-.06, .3), (.06, .3), (.03, .62), (-.03, .62)], .08, .02, 'ivory')
-        for y in (-.36, -.2, -.04, .12):
-            h.box((0, y, .02), (.32, .035, .16), .004, 'metal', FRAME)
-        for x in (-.07, .07):
-            h.cyl((x, .1, -.1), (0, -1, 0), .05, .5, 10, .006, 'ochre', PLATE)
+    elif design == 'b':   # The flat-iron: a broad, short, flat delta in ivory, rust edges, a black nose cap.
+        solid(h, [(-.31, -.46), (.31, -.46), (.24, .0), (.08, .5), (-.08, .5), (-.24, .0)], -.07, .13, 'ivory')
+        solid(h, [(-.08, .5), (.08, .5), (.03, .62), (-.03, .62)], -.05, .09, 'black', FRAME)
+        for side in (-1, 1):
+            solid(h, mirrored([(.2, -.46), (.31, -.46), (.24, -.05), (.17, -.05)], side), .06, .02, 'rust')
+        for x, y in ((-.12, -.25), (.14, -.1)):
+            h.box((x, y, .07), (.09, .1, .015), .003, 'ochre', PLATE)
+    else:   # The needle: a long dark-metal keel ending in a forked twin-prong nose, lamps at the prong tips.
+        solid(h, [(-.1, -.5), (.1, -.5), (.12, .25), (.06, .42), (-.06, .42), (-.12, .25)], -.07, .15, 'metal', FRAME)
+        for x in (-.06, .06):
+            h.box((x, .6, .0), (.045, .38, .07), .006, 'black', FRAME)
+            h.box((x, .795, .0), (.03, .012, .04), .0, 'lamp', GLOW)
+        solid(h, [(-.07, -.2), (.07, -.2), (.06, .3), (-.06, .3)], .08, .02, 'rust')
+        for y in (-.36, -.2):
+            h.box((0, y, .02), (.26, .03, .14), .004, 'rust', PLATE)
 
 
 def scrapper_wings(h, design):
     for side in (-1, 1):
-        if design == 'a':   # Swept salvage wings with a gun rail and patch plates (the original).
-            solid(h, mirrored([(.27, .2), (.66, -.14), (.62, -.31), (.27, -.18)], side), -.04, .055, 'ivory')
+        if design == 'a':   # Swept salvage wings with a gun rail and patch plates (the original), rooted under the hull.
+            solid(h, mirrored([(.15, .22), (.66, -.14), (.62, -.31), (.15, -.2)], side), -.04, .055, 'ivory')
             h.box((side * .46, -.24, .0), (.26, .06, .06), .008, 'metal', FRAME)
             for x, y in ((side * .44, -.1), (side * .56, -.2)):
                 h.box((x, y, .025), (.025, .025, .012), .002, 'metal', FRAME)
             solid(h, mirrored([(.5, -.05), (.6, -.15), (.58, -.22), (.48, -.12)], side), .015, .012, 'rust')
-        elif design == 'b':   # Straight box wings with vertical end plates, cross-braced.
-            solid(h, mirrored([(.27, .1), (.64, .08), (.64, -.22), (.27, -.24)], side), -.035, .05, 'ivory')
-            solid(h, mirrored([(.63, .12), (.68, .12), (.68, -.26), (.63, -.26)], side), -.09, .22, 'rust')
-            for y in (-.16, .02):
-                h.box((side * .46, y, .022), (.34, .02, .012), .002, 'metal', FRAME)
-            h.box((side * .5, -.08, .025), (.08, .08, .01), .002, 'ochre', PLATE)
-        else:   # Forward-swept gull wings, their tips bent down.
-            solid(h, mirrored([(.27, -.05), (.56, .22), (.62, .13), (.27, -.24)], side), -.03, .045, 'ivory')
-            tip = mirrored([(.56, .22), (.68, .16), (.72, .03), (.62, .13)], side)
-            lo = [h.v((x, y, -.03 - (abs(x) - .56) * .9)) for x, y in tip]
-            hi = [h.v((x, y, .015 - (abs(x) - .56) * .9)) for x, y in tip]
-            h.face(tuple(hi), 'rust', 'main', PLATE, outward=(0, 0, 1))
-            h.face(tuple(reversed(lo)), 'rust', 'main', PLATE, outward=(0, 0, -1))
-            for i in range(4):
-                j = (i + 1) % 4
-                a, b = tip[i], tip[j]
-                h.face((lo[i], lo[j], hi[j], hi[i]), 'rust', 'edge', PLATE, outward=(b[1] - a[1], a[0] - b[0], 0))
-            h.box((side * .44, -.02, .02), (.12, .05, .012), .002, 'metal', FRAME)
+        elif design == 'b':   # The biplane: two stacked straight panels, the upper one forward, joined by end plates.
+            solid(h, mirrored([(.15, .0), (.58, -.02), (.58, -.22), (.15, -.22)], side), -.09, .04, 'ivory')
+            solid(h, mirrored([(.15, .1), (.62, .08), (.62, -.12), (.15, -.12)], side), .1, .04, 'ivory')
+            solid(h, mirrored([(.58, .1), (.64, .1), (.64, -.24), (.58, -.24)], side), -.1, .26, 'rust')
+            for y in (-.15, .02):
+                h.box((side * .4, y, .04), (.02, .02, .2), .002, 'metal', FRAME)
+        else:   # The gull: big forward-swept wings, tips bent down, a gun pod on each tip.
+            solid(h, mirrored([(.15, -.08), (.6, .24), (.68, .14), (.15, -.3)], side), -.03, .045, 'ivory')
+            bent_tip(h, mirrored([(.6, .24), (.72, .17), (.76, .04), (.68, .14)], side), .6, .9, 'rust')
+            h.cyl((side * .7, .38, -.08), (0, -1, 0), .035, .34, 8, .004, 'metal', mat=FRAME, smooth=True)
+            h.box((side * .7, .39, -.08), (.03, .012, .03), .0, 'lamp', GLOW)
+            h.box((side * .4, -.02, .02), (.12, .05, .012), .002, 'metal', FRAME)
 
 
 def scrapper_engines(h, design):
+    if design == 'c':   # One big central thruster jutting out behind the tail, small side vents.
+        h.cyl((0, -.3, .0), (0, -1, 0), .15, .46, 16, .012, 'ochre', mat=PLATE, smooth=True)
+        for y in (-.42, -.6):
+            h.cyl((0, y, .0), (0, -1, 0), .155, .025, 16, .003, 'metal', mat=FRAME, smooth=True)
+        h.cyl((0, -.76, .0), (0, -1, 0), .13, .04, 16, .004, 'black', mat=FRAME, smooth=True)
+        h.cyl((0, -.8, .0), (0, -1, 0), .1, .012, 12, .0, 'lamp', mat=GLOW, smooth=True)
+        for side in (-1, 1):
+            h.box((side * .24, -.36, .0), (.08, .14, .06), .006, 'rust', PLATE)
+            h.box((side * .24, -.43, .0), (.06, .012, .03), .0, 'lamp', GLOW)
+        return
     for side in (-1, 1):
-        x = side * .29
         if design == 'a':   # Twin barrels: long rusted cylinders with clamp rings and a black nozzle.
+            x = side * .29
             h.cyl((x, .15, .0), (0, -1, 0), .092, .59, 16, .009, 'rust', mat=PLATE, smooth=True)
             h.cyl((x, -.435, .0), (0, -1, 0), .095, .07, 16, .006, 'black', mat=FRAME, smooth=True)
             h.cyl((x, -.505, .0), (0, -1, 0), .06, .012, 12, .0, 'lamp', mat=GLOW, smooth=True)
             for y in (-.27, -.06, .13):
                 h.cyl((x, y, .0), (0, 1, 0), .096, .022, 16, .003, 'metal', mat=FRAME, smooth=True)
-        elif design == 'b':   # Turbo cans: short fat pods with a wide intake ring and a big glowing nozzle.
-            h.cyl((x, .06, .0), (0, -1, 0), .115, .44, 16, .012, 'ochre', mat=PLATE, smooth=True)
-            h.cyl((x, .1, .0), (0, 1, 0), .125, .05, 16, .004, 'metal', mat=FRAME, smooth=True)
-            h.cyl((x, -.38, .0), (0, -1, 0), .105, .06, 16, .006, 'black', mat=FRAME, smooth=True)
-            h.cyl((x, -.445, .0), (0, -1, 0), .08, .012, 12, .0, 'lamp', mat=GLOW, smooth=True)
-        else:   # Ducted blocks: square exhaust ducts with twin glowing slots and a cooling fin on top.
-            h.box((x, -.15, .0), (.17, .64, .16), .012, 'rust', PLATE)
-            h.box((x, -.47, -.01), (.14, .04, .11), .006, 'black', FRAME)
-            for dz in (-.035, .02):
-                h.box((x, -.495, dz), (.1, .012, .025), .0, 'lamp', GLOW)
-            h.box((x, -.12, .1), (.02, .36, .06), .003, 'metal', FRAME)
+        else:   # Quad: two small thrusters a side, staggered in height, on a shared clamp.
+            for x, z in ((side * .24, -.03), (side * .37, .02)):
+                h.cyl((x, .05, z), (0, -1, 0), .065, .48, 12, .006, 'rust', mat=PLATE, smooth=True)
+                h.cyl((x, -.43, z), (0, -1, 0), .068, .04, 12, .004, 'black', mat=FRAME, smooth=True)
+                h.cyl((x, -.47, z), (0, -1, 0), .045, .01, 10, .0, 'lamp', mat=GLOW, smooth=True)
+            h.box((side * .305, -.1, .0), (.2, .06, .1), .006, 'metal', FRAME)
 
 
 def scrapper_cockpit(h, design):
-    if design == 'a':   # A dark glass slab in an ivory frame (the original).
+    if design == 'a':   # A dark glass slab in a metal frame (the original).
         solid(h, [(-.102, .02), (.102, .02), (.078, .27), (-.078, .27)], .11, .07, 'black', FRAME)
         for x in (-.1, .1):
             h.box((x, .14, .15), (.012, .26, .012), .002, 'metal', FRAME)
-    elif design == 'b':   # A bubble canopy on a metal ring.
-        h.cyl((0, .14, .1), (0, 0, 1), .12, .03, 14, .004, 'metal', mat=FRAME, smooth=True)
-        h.cyl((0, .14, .13), (0, 0, 1), .11, .07, 14, .01, 'black', mat=FRAME, r1=.06, smooth=True)
-        h.box((0, .14, .21), (.02, .2, .012), .002, 'metal', FRAME)
-    else:   # An armoured hood with a narrow glowing visor slit.
+    elif design == 'b':   # A tall bubble canopy with a radar mast behind it.
+        h.cyl((0, .16, .1), (0, 0, 1), .12, .03, 14, .004, 'metal', mat=FRAME, smooth=True)
+        h.cyl((0, .16, .13), (0, 0, 1), .11, .12, 14, .01, 'black', mat=FRAME, r1=.04, smooth=True)
+        h.box((0, -.02, .22), (.02, .02, .24), .002, 'metal', FRAME)
+        h.cyl((0, -.02, .34), (0, 1, .4), .07, .015, 10, .002, 'ivory', mat=PLATE, smooth=True)
+    else:   # An armoured hood with twin glowing visor slits and a small turret ring on top.
         solid(h, [(-.12, .0), (.12, .0), (.1, .3), (-.1, .3)], .1, .09, 'ochre')
-        h.box((0, .29, .155), (.15, .02, .022), .0, 'lamp', GLOW)
-        h.box((0, .12, .2), (.03, .24, .015), .003, 'metal', FRAME)
+        for z in (.15, .175):
+            h.box((0, .29, z), (.15, .02, .012), .0, 'lamp', GLOW)
+        h.cyl((0, .1, .19), (0, 0, 1), .065, .04, 12, .004, 'metal', mat=FRAME, smooth=True)
+        h.box((0, .2, .21), (.02, .2, .02), .002, 'black', FRAME)
 
 
 CHASSIS = dict(scrapper=dict(hull=scrapper_hull, wings=scrapper_wings, engines=scrapper_engines, cockpit=scrapper_cockpit,
@@ -199,7 +217,7 @@ def main():
         for design in DESIGNS:
             ob = build_part(args.chassis, slot, design, mats)
             parts[(slot, design)] = ob
-            nodes[ob.name] = dict(budget=BUDGET[slot], mats=names, x=(-.75, .75), z=(-.8, .8))
+            nodes[ob.name] = dict(budget=BUDGET[slot], mats=names, x=(-.8, .8), z=(-.85, .85))
     for design in DESIGNS:
         for i, p in enumerate(spec['plumes'][design]):
             name = 'hero_%s_engines_%s_plume_%d' % (args.chassis, design, i)
