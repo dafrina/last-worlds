@@ -522,3 +522,10 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Not tested:** no phone test.
 
 **2026-10-28 · Claude Code · deployed `696af91`:** Pages run 40732711136 succeeded. Both live bundles carry Rail Driver and Gravity Well, the hero kits are served, and the production endless smoke test has zero page errors. No phone test.
+
+**2026-10-28 · Claude Code · releasing `ff38bed`:** at the user's requests.
+- **Gravity Well:** a wider, stronger pull and a real lens (`598ce80`).
+- **Ship configurator:** Hangar → Ships with a turntable, B/C designs bought with credits, paint; each campaign chassis flies its own build (`87d2a33`; AGENTS.md invariant 14 and docs/08 updated).
+- **Roads, terrain version 20:** curved, no partial roads (`ff38bed`).
+- **Gate on `ff38bed`:** typecheck, unit 498/498, build, browser 45/45 (Playwright exit 0, load 7 at start).
+- **Not tested:** no phone test.
