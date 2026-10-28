@@ -531,3 +531,5 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Not tested:** no phone test.
 
 **2026-10-28 · Claude Code · deployed `2dd9fb5`:** Pages run 40756872094 succeeded. The live bundles carry the shipyard and the well lens, and the production endless smoke test has zero page errors. No phone test.
+
+**2026-10-28 · Claude Code · roads, releasing `77b7ed9`:** terrain version 21, at the user's word. Khepri builds roads only where they serve something (then a little less strict on request). Sea planets keep roads that run down to the shore, restoring Vesper's tracks lost in version 20. Gate on `77b7ed9`: unit 498/498, browser 45/45 (Playwright exit 0). No phone test.
