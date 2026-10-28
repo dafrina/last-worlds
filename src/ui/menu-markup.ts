@@ -44,7 +44,7 @@ export const menuMarkup = `
     <div class="setup-group"><span class="setup-label" id="difficulty-label">DIFFICULTY</span>${selector('difficulty', 'Campaign difficulty', [['relaxed', 'Relaxed'], ['standard', 'Standard'], ['veteran', 'Veteran']], 'standard')}</div>
     <button type="button" class="loadout-summary" data-action="hangar" aria-label="Open the hangar to change or buy equipment">
       <span class="setup-label">LOADOUT</span><span class="hangar-link">HANGAR ›</span>
-      <dl><div><dt>MAIN</dt><dd data-loadout="weapon"></dd></div><div><dt>SPECIAL</dt><dd data-loadout="special"></dd></div><div><dt>SHIELD</dt><dd data-loadout="shield"></dd></div><div><dt>REACTOR</dt><dd data-loadout="reactor"></dd></div></dl>
+      <dl><div><dt>MAIN</dt><dd data-loadout="weapon"></dd></div><div><dt>SPECIAL</dt><dd data-loadout="special"></dd></div><div><dt>SHIELD</dt><dd data-loadout="shield"></dd></div><div><dt>SHIP</dt><dd data-loadout="ship"></dd></div></dl>
     </button>
     <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH MISSION <span aria-hidden="true">↗</span></button>
   </section>
@@ -52,7 +52,7 @@ export const menuMarkup = `
     <button type="button" class="back-button" data-back="campaign-panel">← BACK</button>
     <div class="eyebrow campaign-eyebrow"><span>CAMPAIGN</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span></div>
     <h2 id="hangar-title">HANGAR</h2>
-    ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['reactor', 'Reactor']], 'weapon')}
+    ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['ship', 'Ships']], 'weapon')}
     <ul class="hangar-items" aria-live="polite"></ul>
     <p class="panel-note hangar-note">Credits come from campaign missions. Changing equipped gear is free.</p>
   </section>

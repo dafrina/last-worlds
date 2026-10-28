@@ -1,3 +1,4 @@
+import { weaponSequence } from '../content/weapon-tiers';
 import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
@@ -5,7 +6,7 @@ import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
 import { runPlanet } from '../content/missions';
-import { REACTOR_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, rankFireRate } from '../content/equipment';
+import { SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
@@ -29,18 +30,18 @@ export function createRun(config: RunConfig): RunState {
     ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...STARTER, rank: 0 }
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', mission: config.mission ?? 'training',
       weapon: pick(config.weapon, WEAPON_IDS, STARTER.weapon), special: pick(config.special, SPECIAL_IDS, STARTER.special),
-      shield: pick(config.shield, SHIELD_IDS, STARTER.shield), reactor: pick(config.reactor, REACTOR_IDS, STARTER.reactor),
-      rank: Math.max(0, Math.min(MAX_RANK, Math.floor(config.rank ?? 0))) };
+      shield: pick(config.shield, SHIELD_IDS, STARTER.shield), ship: pick(config.ship, SHIP_IDS, STARTER.ship),
+      rank: weaponRank(config.rank ?? 0) };
   const shieldTech = SHIELD_TECH[normalized.shield!];
   const pace = normalized.mode === 'endless' ? paceInSector(1, 0) : PACE.campaign;
   return {
     config: normalized, phase: 'playing', tick: 0, time: 0, distance: 0, sector: 1, cameraX: 0,
     pace, scrollSpeed: kinematics(pace).scroll, planet: runPlanet(normalized), jump: null, sectorStartedAt: 0,
     player: {
-      x: 0, vx: 0, lives: normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives,
-      shields: shieldTech.charges, maxShields: shieldTech.charges,
+      x: 0, vx: 0, lives: normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives + SHIPS[normalized.ship!].extraLives,
+      shields: shieldTech.charges, maxShields: MAX_SHIELDS,
       specialCharge: 1, invulnerableUntil: 0, lastHitAt: -100,
-      weapon: normalized.weapon!, power: 0,
+      weapon: normalized.weapon!, power: normalized.mode === 'campaign' ? normalized.rank! : 0,
     },
     enemies: [], projectiles: [], hazards: [], pickups: [], effects: [],
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0,
@@ -119,7 +120,7 @@ function updatePace(state: RunState, dt: number): void {
 
 function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   const player = state.player;
-  // Campaign handling follows the equipped reactor (campaign pace is 1); endless flies the Balanced Drive at its pace.
+  // All ships share the same handling; endless scales it with pace.
   const movement = playerKinematics(state);
   player.vx = approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
   const limit = VIEW.worldWidth / 2 - VIEW.playerRadius;
@@ -418,11 +419,11 @@ export function acquireTarget(state: RunState, weaponId = state.player.weapon): 
     if (weaponId === 'seeker') {
       eligible = Math.abs(enemy.x - state.player.x) <= Math.min(5.5, 0.5 + enemy.s * 0.3) + enemy.radius;
     } else {
-      eligible = weapon.angles.some((angle, index) => {
-        const x = state.player.x + weapon.offsets[index];
+      eligible = weaponSequence(weaponId, state.player.power).some(step => step.angles.some((angle, index) => {
+        const x = state.player.x + step.offsets[index];
         return segmentCircleHit(x, MUZZLE, x + Math.sin(angle * DEG) * weapon.range, MUZZLE + Math.cos(angle * DEG) * weapon.range,
           enemy.x, enemy.s, enemy.radius + weapon.radius) !== null;
-      });
+      }));
     }
     // Armed enemies come first; a harmless fuel skid is targeted only when nothing armed is in the envelope.
     const rank = enemy.kind === 'fuel' ? 1 : 0, bestRank = best?.kind === 'fuel' ? 1 : 0;
@@ -435,19 +436,22 @@ function fireMain(state: RunState): void {
   if (state.time + 1e-8 < state.nextVolleyAt) return;
   const target = acquireTarget(state);
   if (!target) return;
-  const weapon = WEAPONS[state.player.weapon];
-  if (state.projectiles.length + weapon.angles.length > BALANCE.maxProjectiles) return;
-  const power = BALANCE.power[clamp(state.player.power, 0, BALANCE.power.length - 1)];
-  weapon.angles.forEach((angle, index) => {
-    const shot = projectile(state, state.player.x + weapon.offsets[index], MUZZLE,
+  const weaponId = state.player.weapon, rank = weaponRank(state.player.power);
+  const weapon = WEAPONS[weaponId], sequence = weaponSequence(weaponId, rank);
+  if (state.mainSequence?.weapon !== weaponId || state.mainSequence.rank !== rank) state.mainSequence = { weapon: weaponId, rank, index: 0 };
+  const step = sequence[state.mainSequence.index];
+  if (state.projectiles.length + step.angles.length > BALANCE.maxProjectiles) return;
+  step.angles.forEach((angle, index) => {
+    const shot = projectile(state, state.player.x + step.offsets[index], MUZZLE,
       Math.sin(angle * DEG) * weapon.speed, Math.cos(angle * DEG) * weapon.speed,
-      true, weapon.damage * power, weapon.radius, weapon.range / weapon.speed);
-    shot.weapon = state.player.weapon;
-    if (state.player.weapon === 'seeker') shot.homingTargetId = target.id;
+      true, weapon.damage, weapon.radius, weapon.range / weapon.speed);
+    shot.weapon = weaponId;
+    if (weaponId === 'seeker') shot.homingTargetId = target.id;
     state.projectiles.push(shot);
   });
-  // Campaign ranks raise the rate of fire (rank 3 doubles it).
-  state.nextVolleyAt = state.time + weapon.cadence / (state.config.mode === 'campaign' ? rankFireRate(state.config.rank ?? 0) : 1);
+  state.mainSequence.index = (state.mainSequence.index + 1) % sequence.length;
+  const boosted = state.config.mode === 'campaign' && state.time < (state.overdriveUntil ?? 0);
+  state.nextVolleyAt = state.time + step.wait / (boosted ? 1.25 : 1);
 }
 
 function projectile(state: RunState, x: number, s: number, vx: number, vs: number, friendly: boolean, damage: number, radius: number, ttl: number): Projectile {
@@ -571,7 +575,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   if (mainWeapon) {
     state.chargeKillTimes = state.chargeKillTimes.filter(time => state.time - time < 1);
     if (state.chargeKillTimes.length < 3) {
-      state.player.specialCharge = Math.min(1, state.player.specialCharge + BALANCE.special.killCharge);
+      state.player.specialCharge = Math.min(1, state.player.specialCharge + BALANCE.special.killCharge * (state.config.mode === 'campaign' ? SHIPS[state.config.ship ?? 'scrapper'].killCharge : 1));
       state.chargeKillTimes.push(state.time);
     }
   }
@@ -590,6 +594,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
 
 function useSpecial(state: RunState): void {
   state.player.specialCharge = 0;
+  if (state.config.mode === 'campaign') state.overdriveUntil = state.time + SHIPS[state.config.ship ?? 'scrapper'].overdrive;
   state.specialsUsed += 1;
   const special = state.config.special ?? 'shockwave';
   if (special === 'seeker-rack') return launchSeekerRack(state);
@@ -694,7 +699,7 @@ function updatePickups(state: RunState, dt: number): void {
     pickup.ttl -= dt;
     pickup.s -= BALANCE.pickup.speed * state.pace * dt;
     let distance = Math.hypot(pickup.x - state.player.x, pickup.s);
-    if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius && distance > 0.001) {
+    if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius * (state.config.mode === 'campaign' ? SHIPS[state.config.ship ?? 'scrapper'].pickupReach : 1) && distance > 0.001) {
       const pull = Math.min(distance, BALANCE.pickup.magnetSpeed * state.pace * dt);
       pickup.x += (state.player.x - pickup.x) / distance * pull;
       pickup.s += -pickup.s / distance * pull;
@@ -705,7 +710,7 @@ function updatePickups(state: RunState, dt: number): void {
     addEffect(state, 'pickup', pickup.x, pickup.s, 0.3);
     switch (pickup.kind) {
       case 'shield':
-        // A cell restores the shield technology's amount (Flux restores both of its charges).
+        // Each rare cell adds one charge, up to the universal capacity of five.
         if (state.player.shields < state.player.maxShields) state.player.shields = Math.min(state.player.maxShields, state.player.shields + SHIELD_TECH[state.config.shield ?? 'standard'].cell);
         else if (state.config.mode === 'campaign') state.credits += 5;
         else state.score += 100;
@@ -720,7 +725,7 @@ function updatePickups(state: RunState, dt: number): void {
       case 'weapon':
         if (state.config.mode === 'endless' && pickup.weapon) {
           if (state.player.weapon === pickup.weapon) givePower(state);
-          else { state.player.weapon = pickup.weapon; setMessage(state, `${WEAPONS[pickup.weapon].label.toUpperCase()} EQUIPPED`, 2.5); }
+          else { state.player.weapon = pickup.weapon; state.player.power = 0; state.mainSequence = undefined; state.nextVolleyAt = state.time; setMessage(state, `${WEAPONS[pickup.weapon].label.toUpperCase()} EQUIPPED`, 2.5); }
         }
         break;
     }
@@ -729,9 +734,9 @@ function updatePickups(state: RunState, dt: number): void {
 }
 
 function givePower(state: RunState): void {
-  if (state.player.power < BALANCE.power.length - 1) state.player.power += 1;
+  if (state.player.power < MAX_RANK) state.player.power += 1;
   else state.score += 1000;
-  setMessage(state, `WEAPON POWER ${state.player.power + 1}`, 2);
+  setMessage(state, `WEAPON TIER ${state.player.power + 1}`, 2);
 }
 
 function updateResources(state: RunState, dt: number): void {

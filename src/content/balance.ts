@@ -26,7 +26,6 @@ export const BALANCE = {
   special: { killCharge: 0.03, damage: 180, invulnerability: 1 },
   /** Pickups drift toward the player row at `speed` times the pace; the magnet pulls at `magnetSpeed` times the pace. */
   pickup: { radius: 0.65, magnetRadius: 1.6, speed: VIEW.scrollSpeed, magnetSpeed: 7.5 },
-  power: [1, 1.15, 1.35, 1.55, 1.8],
 } as const;
 
 /**

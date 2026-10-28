@@ -70,7 +70,7 @@ describe('weapon families and target acquisition', () => {
     expect(acquireTarget(state, 'seeker')?.id).toBe(enemy.id);
     state.player.weapon = 'seeker';
     stepRun(state, EMPTY_INPUT);
-    expect(state.projectiles).toHaveLength(2);
+    expect(state.projectiles).toHaveLength(1);
     expect(state.projectiles.every(shot => shot.homingTargetId === enemy.id)).toBe(true);
     advance(state, 0.2);
     expect(state.projectiles.every(shot => shot.vx > 0)).toBe(true);
@@ -163,11 +163,11 @@ describe('lives, shield charges, and special', () => {
     state.cameraX = 8.5;
     state.player.shields = 0;
     state.player.weapon = 'fan';
-    state.player.power = 3;
+    state.player.power = 2;
     hitPlayer(state, 1);
     expect(state.player.x).toBe(11);
     expect(state.cameraX).toBe(8.5);
-    expect(state.player.power).toBe(2);
+    expect(state.player.power).toBe(1);
     expect(state.player.weapon).toBe('fan');
   });
 

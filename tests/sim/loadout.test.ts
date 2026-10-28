@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { REACTORS, SPECIALS, rankFireRate } from '../../src/content/equipment';
-import { FAIRNESS, WEAPONS } from '../../src/content/balance';
+import { SHIPS, SPECIALS } from '../../src/content/equipment';
+import { FAIRNESS } from '../../src/content/balance';
 import { EMPTY_INPUT, STEP, type RunConfig } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
@@ -14,39 +14,36 @@ const dummy = (state: ReturnType<typeof createRun>, x: number, s: number, hp = 1
 
 describe('campaign loadout in the simulation (docs/21)', () => {
   it('endless ignores every campaign choice and flies the canonical starter', () => {
-    const state = createRun({ mode: 'endless', seed: 1, weapon: 'seeker', special: 'siege-lance', shield: 'bulwark', reactor: 'vector', rank: 3 });
-    expect(state.config).toMatchObject({ weapon: 'pulse', special: 'shockwave', shield: 'standard', reactor: 'balanced', rank: 0 });
-    expect(state.player.maxShields).toBe(3);
+    const state = createRun({ mode: 'endless', seed: 1, weapon: 'seeker', special: 'siege-lance', shield: 'bulwark', ship: 'ironclad', rank: 3 });
+    expect(state.config).toMatchObject({ weapon: 'pulse', special: 'shockwave', shield: 'standard', ship: 'scrapper', rank: 0 });
+    expect(state.player.maxShields).toBe(5);
   });
 
-  it('shield technology sets the reserve and what a cell restores', () => {
-    expect(createRun(campaign({ shield: 'bulwark' })).player.maxShields).toBe(4);
-    const flux = createRun(campaign({ shield: 'flux' }));
-    expect(flux.player.maxShields).toBe(2);
-    flux.player.shields = 0;
-    flux.pickups.push({ id: flux.nextId++, kind: 'shield', x: flux.player.x, s: .6, value: 1, ttl: 5 });
-    stepRun(flux, EMPTY_INPUT);
-    expect(flux.player.shields).toBe(2);
-  });
-
-  it('the reactor sets top speed in the campaign', () => {
-    for (const reactor of ['balanced', 'vector', 'precision'] as const) {
-      const state = createRun(campaign({ reactor }));
-      for (let i = 0; i < 30; i++) stepRun(state, { ...EMPTY_INPUT, horizontal: 1 });
-      expect(Math.abs(state.player.vx)).toBeCloseTo(REACTORS[reactor].speed, 5);
-    }
-  });
-
-  it('main weapon rank raises the rate of fire up to double (campaign only)', () => {
-    expect(rankFireRate(3)).toBe(2);
-    for (const rank of [0, 3]) {
-      const state = createRun(campaign({ weapon: 'pulse', rank }));
-      dummy(state, 0, 8, 1e6);
+  it('shield equipment sets starting charges, while every cell fills one toward five', () => {
+    for (const [shield, charges] of [['standard', 3], ['bulwark', 4], ['aegis', 5]] as const) {
+      const state = createRun(campaign({ shield }));
+      expect(state.player.shields).toBe(charges);
+      expect(state.player.maxShields).toBe(5);
+      state.player.shields = 0;
+      state.pickups.push({ id: state.nextId++, kind: 'shield', x: 0, s: .6, value: 1, ttl: 5 });
       stepRun(state, EMPTY_INPUT);
-      expect(state.nextVolleyAt - state.time).toBeCloseTo(WEAPONS.pulse.cadence / rankFireRate(rank) - STEP + STEP, 6);
+      expect(state.player.shields).toBe(1);
     }
+  });
+
+  it('all chassis share normal handling', () => {
+    for (const ship of Object.keys(SHIPS) as (keyof typeof SHIPS)[]) {
+      const state = createRun(campaign({ ship }));
+      for (let i = 0; i < 30; i++) stepRun(state, { ...EMPTY_INPUT, horizontal: 1 });
+      expect(Math.abs(state.player.vx)).toBeCloseTo(12, 5);
+    }
+  });
+
+  it('campaign starts at the purchased tier and endless always starts at tier one', () => {
+    for (const rank of [0, 1, 2]) expect(createRun(campaign({ rank })).player.power).toBe(rank);
     const endless = createRun({ mode: 'endless', seed: 1, rank: 3 });
     expect(endless.config.rank).toBe(0);
+    expect(endless.player.power).toBe(0);
   });
 
   it('each special recharges on its own time', () => {
@@ -84,20 +81,20 @@ describe('campaign loadout in the simulation (docs/21)', () => {
   });
 });
 
-describe('slowest drive keeps every mission survivable (docs/02 §4)', () => {
+describe('shared chassis handling keeps missions survivable', () => {
   // Rolling Thunder flies seed 6 since 21 October (user decision, docs/08): ground enemies now stand on the terrain under the
   // release lens, and on seed 5 the heuristic pilot parks at the world edge, where turret fans land on both sides of it.
   // That run is fair (checked below); seeds 6-10 clear without a hit. Deep Bloom flies seed 7 since hunters (22 October):
   // on seed 5 a Pulsar stream catches the pilot at the world edge (seeds 7-9 clear).
-  it.each([['training', 5], ['bastion', 6], ['cold-vector', 5], ['deep-bloom', 7]] as const)('the perfect pilot clears %s on Precision Drive without a hit (seed %i)', (mission, seed) => {
-    const state = createRun({ mode: 'campaign', seed, mission, difficulty: 'standard', reactor: 'precision' });
+  it.each([['training', 5], ['bastion', 6], ['cold-vector', 5], ['deep-bloom', 7]] as const)('the perfect pilot clears %s with shared handling without a hit (seed %i)', (mission, seed) => {
+    const state = createRun({ mode: 'campaign', seed, mission, difficulty: 'standard', ship: 'scrapper' });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(log.hits).toBe(0);
   }, 120000);
 
-  it('keeps Rolling Thunder on Precision Drive, seed 5, fair: the hazard union always leaves a clear gap', () => {
-    const state = createRun({ mode: 'campaign', seed: 5, mission: 'bastion', difficulty: 'standard', reactor: 'precision' });
+  it('keeps Rolling Thunder with shared handling, seed 5, fair: the hazard union always leaves a clear gap', () => {
+    const state = createRun({ mode: 'campaign', seed: 5, mission: 'bastion', difficulty: 'standard', ship: 'scrapper' });
     const trace = new FairnessTrace();
     fly(state, perfectPilot(), 420, { noPickups: true, onTick: s => trace.observe(s) });
     trace.finish(state);

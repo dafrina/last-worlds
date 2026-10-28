@@ -1,12 +1,8 @@
 import { BEAM_KINDS, ENEMIES, FAIRNESS, GROUND_KINDS, WORLD_INTENSITY, difficultyScales, kinematics, PULSAR_BURST, type Kinematics } from '../content/balance';
-import { REACTORS } from '../content/equipment';
-
-/** Top lateral speed of the slowest campaign drive (Precision): campaign attack admission assumes it. */
-const SLOWEST_DRIVE = Math.min(...Object.values(REACTORS).map(reactor => reactor.speed));
-/** The ship's actual handling: the equipped reactor in the campaign (pace 1), the Balanced Drive at the pace in endless. */
+/** Keep the conservative authored admission bound while all chassis use normal handling. */
+const SLOWEST_DRIVE = 11;
 export function playerKinematics(state: Pick<RunState, 'pace' | 'config'>): Kinematics {
-  const base = kinematics(state.pace), reactor = REACTORS[state.config.reactor ?? 'balanced'];
-  return state.config.mode === 'campaign' ? { ...base, speed: reactor.speed, acceleration: reactor.acceleration, braking: reactor.braking } : base;
+  return kinematics(state.pace);
 }
 import { BOSSES } from '../content/bosses';
 import { VIEW, type Enemy, type RunState } from '../shared/contracts';

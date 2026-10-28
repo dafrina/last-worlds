@@ -197,3 +197,7 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
 - 2026-10-24, BASTION-9's rear deck (user: "remove the weird silver tubes on the back of the bastion-9, and replace that with some geeble or turrets"): the two big pale tubes on the rear shoulders and the four aft exhaust pipes are gone. In their place: small static twin-barrel turrets, smaller than the batteries and without glow so the batteries stay the targets, with ammunition boxes, louvred exhaust housings and an armoured duct. Rig and combat sockets are unchanged (`bastion-9-v7.glb`, `tools/blender/bastion_v7.py`).
 - 2026-10-23, Amnion: hostile shots are red with a white core (they were violet), the flesh is darker, the geology is sharper and more varied, and ruins appear (docs/27).
 
+
+## 28 October 2026 — collectible chassis and shared weapon tiers
+
+User approved main/special/shield/ship as the four slots, replacing handling reactors. Chassis have named campaign perks and are assembled from finite named parts; all use the existing hero model for now. Weapon upgrades add projectile volume/cadence, keeping damage per projectile unchanged; exactly two upgrades. Endless uses the same tiers via upgrade and duplicate-weapon pickups and resets to tier 1 when changing weapon family. Campaign shield equipment starts at 3/4/5; pickup capacity is five by default in either mode, one charge per cell. See docs/30 for implementation, costs, initial part recipes and migration.

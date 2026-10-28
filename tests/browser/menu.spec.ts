@@ -57,7 +57,8 @@ test('the hangar buys, equips and ranks up campaign gear, and the launch flies i
   await flying(page);
   const state = await snapshot(page);
   expect(state.config).toMatchObject({ mode: 'campaign', weapon: 'fan', rank: 1, shield: 'bulwark' });
-  expect(state.player.maxShields).toBe(4);
+  expect(state.player.maxShields).toBe(5);
+  expect(state.player.shields).toBe(4);
 });
 
 test('pause settings preserve the frozen flight and statistics persist without duplication', async ({ page }, info) => {
@@ -142,4 +143,43 @@ test('small-screen subpages keep back navigation and the launch action reachable
   await expect(page.getByRole('tab', { name: 'ENDLESS' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'BACK' })).toBeFocused();
+});
+
+
+test('ships assemble from mission parts, persist, and launch with their perk and five starting shields', async ({ page }, info) => {
+  test.setTimeout(90000);
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await seedCampaign(page, profile => { veteranPilot(profile); profile.owned.ship = ['scrapper']; });
+  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: /Open the hangar/ }).click();
+  await page.getByRole('radio', { name: 'Ships', exact: true }).click();
+  await expect(page.locator('.hangar-note')).toContainText('same ship model');
+  const ironclad = page.locator('.hangar-item', { has: page.getByRole('heading', { name: 'Ironclad', exact: true }) });
+  await expect(ironclad.locator('.ship-parts')).toContainText('✓ Frame');
+  const spectre = page.locator('.hangar-item', { has: page.getByRole('heading', { name: 'Spectre', exact: true }) });
+  await expect(spectre.getByRole('button', { name: '1 / 3 PARTS' })).toBeDisabled();
+  await page.screenshot({ path: info.outputPath('ship-collection.png') });
+  await ironclad.getByRole('button', { name: 'ASSEMBLE' }).click();
+  await expect(ironclad).toContainText('EQUIPPED');
+  await page.getByRole('radio', { name: 'Shield', exact: true }).click();
+  await page.locator('.hangar-item', { hasText: 'Aegis Array' }).getByRole('button', { name: 'EQUIP', exact: true }).click();
+  await page.getByRole('radio', { name: 'Main', exact: true }).click();
+  const pulse = page.locator('.hangar-item', { hasText: 'Twin Pulse' });
+  await pulse.getByRole('button', { name: 'UPGRADE · 150 CR' }).click();
+  await pulse.getByRole('button', { name: 'UPGRADE · 300 CR' }).click();
+  await expect(pulse).toContainText('TIER 3 · Four-shot burst');
+  await expect(pulse.locator('.rank-pips i')).toHaveCount(2);
+  await expect(pulse.getByRole('button', { name: /UPGRADE/ })).toHaveCount(0);
+  await page.reload(); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await expect(page.locator('[data-loadout="ship"]')).toHaveText('Ironclad');
+  await page.getByRole('radio', { name: 'Training', exact: true }).click();
+  await page.getByRole('button', { name: /LAUNCH MISSION/ }).click(); await flying(page);
+  const state = await snapshot(page);
+  expect(state.config).toMatchObject({ ship: 'ironclad', rank: 2, shield: 'aegis' });
+  expect(state.player).toMatchObject({ lives: 4, shields: 5, maxShields: 5, power: 2 });
+  await page.getByRole('button', { name: 'Pause flight' }).click();
+  await expect(page.locator('.pause-tech')).toContainText('Ironclad');
+  await expect(page.locator('.pause-weapon')).toContainText('TIER 3');
+  await page.screenshot({ path: info.outputPath('chassis-flight.png') });
+  expect(errors).toEqual([]);
 });

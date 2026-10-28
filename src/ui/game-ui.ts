@@ -5,7 +5,7 @@ import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
-import { CREDIT_MULTIPLIER, REACTORS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
+import { CREDIT_MULTIPLIER, SHIPS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
 import { itemText, renderHangar } from './hangar';
 import './styles.css';
 
@@ -82,7 +82,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         <section class="pause-panel short-panel" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
           <p class="eyebrow">FLIGHT SUSPENDED</p><h2 id="pause-title">PAUSED</h2>
           <p class="pause-description"></p>
-          <dl class="pause-loadout"><div><dt>MAIN</dt><dd class="pause-weapon"></dd></div><div><dt>SPECIAL</dt><dd class="pause-special"></dd></div><div><dt>SHIELD / REACTOR</dt><dd class="pause-tech"></dd></div></dl>
+          <dl class="pause-loadout"><div><dt>MAIN</dt><dd class="pause-weapon"></dd></div><div><dt>SPECIAL</dt><dd class="pause-special"></dd></div><div><dt>SHIELD / SHIP</dt><dd class="pause-tech"></dd></div></dl>
           <p class="resume-countdown" role="status" hidden></p>
           <button type="button" class="arcade-button primary" data-action="resume">RESUME <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="quit">RETURN TO MENU</button>
@@ -92,7 +92,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="eyebrow result-mode"></p><h2 id="results-title">FLIGHT<br>ENDED</h2>
           <p class="result-subtitle"></p>
           <dl class="result-stats"><div class="result-score-row"><dt>SCORE</dt><dd class="result-score"></dd></div><div><dt>HOSTILES DOWN</dt><dd class="result-kills"></dd></div><div><dt>FLIGHT TIME</dt><dd class="result-time"></dd></div><div class="result-sector-row"><dt>SECTOR REACHED</dt><dd class="result-sector"></dd></div></dl>
-          <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-unlock" hidden></p></div>
+          <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-unlock" hidden></p><p class="result-salvage" hidden></p></div>
           <button type="button" class="arcade-button primary" data-action="retry">FLY AGAIN <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="menu">RETURN TO MENU</button>
           <p class="panel-note result-note"></p>
@@ -197,7 +197,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   function refreshCampaign() {
     const profile = campaign.read();
     for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = profile.credits.toLocaleString();
-    for (const slot of ['weapon', 'special', 'shield', 'reactor'] as const) text(`[data-loadout="${slot}"]`, itemText(slot, profile.loadout[slot]).name);
+    for (const slot of ['weapon', 'special', 'shield', 'ship'] as const) text(`[data-loadout="${slot}"]`, itemText(slot, profile.loadout[slot]).name);
     showMission(missionIndex);
   }
   let hangarSlot: Slot = 'weapon';
@@ -205,9 +205,11 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     renderHangar(find<HTMLElement>('.hangar-items'), campaign.read(), hangarSlot, {
       buy(slot, id) { if (campaign.buy(slot, id)) campaign.equip(slot, id); refreshHangar(); },
       equip(slot, id) { campaign.equip(slot, id); refreshHangar(); },
+      assemble(ship) { if (campaign.assemble(ship)) campaign.equip('ship', ship); refreshHangar(); },
       upgrade(weapon) { campaign.upgrade(weapon); refreshHangar(); },
     });
     for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = campaign.read().credits.toLocaleString();
+    text('.hangar-note', hangarSlot === 'ship' ? 'Parts come from the listed mission clears, on any difficulty. All chassis currently share the same ship model.' : 'Credits come from campaign missions. Changing equipped gear is free.');
   }
   selectorListeners.set('mission', value => showMission(MISSION_ORDER.findIndex(([id]) => id === value)));
   for (const arrow of shell.querySelectorAll<HTMLElement>('[data-mission-step]')) {
@@ -491,9 +493,9 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       text('.pause-description', state.config.mode === 'endless'
         ? `Endless · Sector ${state.sector}`
         : `${missionText(state.config.mission).name} · ${difficultyNames[state.config.difficulty ?? 'standard']}`);
-      text('.pause-weapon', weaponNames[state.player.weapon]);
+      text('.pause-weapon', `${weaponNames[state.player.weapon]} · TIER ${state.player.power + 1}`);
       text('.pause-special', SPECIALS[state.config.special ?? 'shockwave'].label);
-      text('.pause-tech', `${SHIELD_TECH[state.config.shield ?? 'standard'].label.split(' ')[0]} / ${REACTORS[state.config.reactor ?? 'balanced'].label.split(' ')[0]}`);
+      text('.pause-tech', `${SHIELD_TECH[state.config.shield ?? 'standard'].label.split(' ')[0]} / ${SHIPS[state.config.ship ?? 'scrapper'].label.split(' ')[0]}`);
       showPanel('pause-panel', '[data-action="resume"]');
     } else if (changed && (state.phase === 'over' || state.phase === 'complete')) {
       const campaign = state.config.mode === 'campaign';
@@ -523,6 +525,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         text('.result-breakdown', parts.join(' · '));
         text('.result-earned b', `+${pay.total.toLocaleString()} CR`);
         text('.result-earned span', `BALANCE ${pay.balance.toLocaleString()} CR`);
+        const salvage = find<HTMLElement>('.result-salvage'); salvage.hidden = !pay.salvage.length;
+        salvage.textContent = `PARTS RECOVERED · ${pay.salvage.join(' · ')}`;
         const unlock = find<HTMLElement>('.result-unlock');
         unlock.hidden = !pay.unlocked;
         if (pay.unlocked) {

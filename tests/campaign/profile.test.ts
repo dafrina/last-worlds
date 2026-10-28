@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN_KEY, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
+import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, freshProfile, shipParts, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
 import { RANK_PRICES, REWARDS, STARTER } from '../../src/content/equipment';
 
 function memory(initial?: string) {
@@ -53,7 +53,7 @@ describe('campaign profile (docs/21)', () => {
     expect(store.read().ranks.fan).toBe(1);
     expect(store.read().credits).toBe(before - 250 - RANK_PRICES[0]);
     const config = campaignConfig(store.read(), 'training', 'standard', 7);
-    expect(config).toMatchObject({ mode: 'campaign', weapon: 'fan', rank: 1, special: 'shockwave', shield: 'standard', reactor: 'balanced' });
+    expect(config).toMatchObject({ mode: 'campaign', weapon: 'fan', rank: 1, special: 'shockwave', shield: 'standard', ship: 'scrapper' });
   });
 
   it('persists through storage and never overwrites an unreadable save', () => {
@@ -66,5 +66,77 @@ describe('campaign profile (docs/21)', () => {
     store.settle(clear('p2'));
     expect(broken.values.get(CAMPAIGN_KEY)).toBe('{"version":9,"credits":"lots"}');
     expect(store.read().credits).toBe(195);
+  });
+});
+
+
+describe('ship parts and v1 migration', () => {
+  const legacy = () => ({ ...freshProfile(), version: 1, credits: 100,
+    owned: { weapon: ['pulse', 'fan', 'seeker'], special: ['shockwave'], shield: ['standard', 'bulwark', 'flux'], reactor: ['balanced', 'vector', 'precision'] },
+    ranks: { pulse: 3, fan: 2, seeker: 3 },
+    loadout: { weapon: 'fan', special: 'shockwave', shield: 'flux', reactor: 'vector' },
+    missions: { training: { clears: { relaxed: 0, standard: 1, veteran: 0 }, best: { standard: 110 }, firstClearPaid: true } },
+    receipts: [{ id: 'old-flight', total: 195 }],
+  });
+
+  it('backs up the exact old save, preserves progress and refunds retired purchases once', () => {
+    const raw = JSON.stringify(legacy()), storage = memory(raw), store = createCampaignProfile(storage);
+    expect(store.status()).toBe('saved');
+    expect(storage.getItem(CAMPAIGN_BACKUP_KEY)).toBe(raw);
+    const profile = store.read();
+    expect(profile.version).toBe(2);
+    expect(profile.credits).toBe(1850); // 100 + two retired 500-credit ranks + two 250-credit drives + Flux 250.
+    expect(profile.ranks).toEqual({ pulse: 2, fan: 2, seeker: 2 });
+    expect(profile.loadout).toMatchObject({ weapon: 'fan', shield: 'bulwark', ship: 'scrapper' });
+    expect(profile.missions).toEqual(legacy().missions);
+    expect(profile.receipts).toEqual(legacy().receipts);
+    expect(createCampaignProfile(storage).read()).toEqual(profile);
+    expect(store.settle(clear('old-flight')).repeat).toBe(true);
+    expect(store.read().credits).toBe(1850);
+  });
+
+  it('does not overwrite the original if its migration backup cannot be written', () => {
+    const raw = JSON.stringify(legacy()), storage = memory(raw);
+    const store = createCampaignProfile({ ...storage, setItem() { throw new Error('full'); } });
+    expect(store.status()).toBe('session');
+    expect(store.read().credits).toBe(1850);
+    store.upgrade('fan');
+    expect(storage.getItem(CAMPAIGN_KEY)).toBe(raw);
+    expect(store.read().credits).toBe(1850);
+  });
+
+  it('collects named parts on clears only, assembles once, and persists the selected chassis', () => {
+    const storage = memory(), store = createCampaignProfile(storage);
+    expect(store.buy('ship', 'ironclad')).toBe(false);
+    expect(store.equip('ship', 'ironclad')).toBe(false);
+    expect(store.assemble('ironclad')).toBe(false);
+    store.settle(clear('failed', { outcome: 'failed' }));
+    expect(shipParts(store.read(), 'ironclad').filter(p => p.collected)).toHaveLength(0);
+    expect(store.settle(clear('training')).salvage).toContain('Ironclad Frame');
+    expect(store.settle(clear('training')).salvage).toEqual([]);
+    expect(store.settle(clear('training-again')).salvage).toEqual([]);
+    store.settle(clear('khepri', { mission: 'bastion', difficulty: 'relaxed' }));
+    expect(store.assemble('ironclad')).toBe(false);
+    store.settle(clear('vesper', { mission: 'cold-vector', difficulty: 'veteran' }));
+    const credits = store.read().credits;
+    expect(store.assemble('ironclad')).toBe(true);
+    expect(store.assemble('ironclad')).toBe(false);
+    expect(store.read().credits).toBe(credits);
+    expect(store.equip('ship', 'ironclad')).toBe(true);
+    expect(campaignConfig(createCampaignProfile(storage).read(), 'training', 'standard', 1).ship).toBe('ironclad');
+  });
+
+  it('enforces the two-upgrade limit and sequential shield purchases', () => {
+    const profile = freshProfile(); profile.credits = 5000;
+    const store = createCampaignProfile(memory(JSON.stringify(profile)));
+    expect(store.buy('shield', 'aegis')).toBe(false);
+    expect(store.buy('shield', 'bulwark')).toBe(true);
+    expect(store.buy('shield', 'aegis')).toBe(true);
+    expect(store.upgrade('pulse')).toBe(true);
+    expect(store.upgrade('pulse')).toBe(true);
+    const balance = store.read().credits;
+    expect(store.upgrade('pulse')).toBe(false);
+    expect(store.read().credits).toBe(balance);
+    expect(store.buy('weapon', 'ironclad')).toBe(false);
   });
 });

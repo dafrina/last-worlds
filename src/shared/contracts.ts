@@ -5,8 +5,8 @@ export type GraphicsQuality = 'high' | 'low';
 export type WeaponId = 'pulse' | 'fan' | 'seeker';
 /** Campaign equipment slots besides the main weapon (docs/02 §3–4, src/content/equipment.ts). */
 export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance';
-export type ShieldTechId = 'standard' | 'bulwark' | 'flux';
-export type ReactorId = 'balanced' | 'vector' | 'precision';
+export type ShieldTechId = 'standard' | 'bulwark' | 'aegis';
+export type ShipId = 'scrapper' | 'ironclad' | 'interceptor' | 'spectre';
 export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'final-horizon';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
 export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre' | 'amnion' | 'umbra';
@@ -38,12 +38,12 @@ export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
 /**
- * A run's setup. The campaign loadout (weapon, special, shield, reactor, rank of the main weapon) applies only to the
+ * A run's setup. The campaign loadout (weapon, special, shield, ship, rank of the main weapon) applies only to the
  * campaign; createRun gives every endless run the canonical starter.
  */
 export interface RunConfig {
   mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId;
-  special?: SpecialId; shield?: ShieldTechId; reactor?: ReactorId; rank?: number;
+  special?: SpecialId; shield?: ShieldTechId; ship?: ShipId; rank?: number;
 }
 export interface Player {
   x: number; vx: number; lives: number; shields: number; maxShields: number;
@@ -120,6 +120,8 @@ export interface RunState {
   sector: number; cameraX: number; player: Player; enemies: Enemy[];
   projectiles: Projectile[]; hazards: Hazard[]; pickups: Pickup[]; effects: Effect[];
   score: number; kills: number; credits: number; livesLost: number; specialsUsed: number;
+  mainSequence?: { weapon: WeaponId; rank: number; index: number };
+  overdriveUntil?: number;
   nextId: number; nextVolleyAt: number; nextEncounterAt: number; encounterIndex: number;
   /** The cue (sector, index) whose ground formations already spawned ahead of its time (src/sim/game.ts, leadGround). */
   groundLead?: { sector: number; index: number } | null;
