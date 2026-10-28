@@ -39,15 +39,19 @@ export function loadHeroKit(chassis: HeroChassis, base = (import.meta.env?.BASE_
   return files.get(file)!;
 }
 
-/** Tints the faces of a paint role, keeping each vertex's baked lightness. */
-function tint(geometry: THREE.BufferGeometry, role: number, colour: THREE.Color) {
+const luminance = (r: number, g: number, b: number) => r * .2126 + g * .7152 + b * .0722;
+/**
+ * Repaints the faces of a paint role from the kit's paint to `colour`, keeping each vertex's baked shade (its lightness
+ * relative to the kit paint), so a dark colour stays dark and a light one light.
+ */
+function tint(geometry: THREE.BufferGeometry, role: number, colour: THREE.Color, from: THREE.Color) {
   const attribute = geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
   if (!attribute || attribute.itemSize < 4) return;
-  const lum = colour.r * .2126 + colour.g * .7152 + colour.b * .0722 || 1e-3;
+  const base = luminance(from.r, from.g, from.b) || 1e-3;
   for (let i = 0; i < attribute.count; i++) {
     if (Math.abs(attribute.getW(i) - role) > .06) continue;
-    const r = attribute.getX(i), g = attribute.getY(i), b = attribute.getZ(i), light = r * .2126 + g * .7152 + b * .0722;
-    attribute.setXYZ(i, colour.r / lum * light, colour.g / lum * light, colour.b / lum * light);
+    const shade = Math.min(1.6, luminance(attribute.getX(i), attribute.getY(i), attribute.getZ(i)) / base);
+    attribute.setXYZ(i, Math.min(1, colour.r * shade), Math.min(1, colour.g * shade), Math.min(1, colour.b * shade));
   }
   attribute.needsUpdate = true;
 }
@@ -76,8 +80,8 @@ export async function assembleHero(build: HeroBuild): Promise<{ object: THREE.Gr
         return copied;
       });
       mesh.material = Array.isArray(mesh.material) ? materials : materials[0];
-      if (paint.primary !== defaults.primary) tint(mesh.geometry, ROLE.primary, primary);
-      if (paint.secondary !== defaults.secondary) tint(mesh.geometry, ROLE.secondary, secondary);
+      if (paint.primary !== defaults.primary) tint(mesh.geometry, ROLE.primary, primary, new THREE.Color(defaults.primary));
+      if (paint.secondary !== defaults.secondary) tint(mesh.geometry, ROLE.secondary, secondary, new THREE.Color(defaults.secondary));
     });
     object.add(copy);
   }
