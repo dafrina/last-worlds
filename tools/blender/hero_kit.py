@@ -49,19 +49,77 @@ SLOTS = ('hull', 'wings', 'engines', 'cockpit')
 ROLE_ALPHA = dict(ivory=.75, rust=.5, ochre=.5, olive=.75, hazard=.5, pearl=.75, cobalt=.5, obsidian=.75, silver=.5)
 DESIGNS = ('a', 'b', 'c')
 # A whole ship stays near 2,500 triangles; the Scrapper's original barrel engines (about 1,400) are the heaviest part.
-BUDGET = dict(hull=760, wings=640, engines=1400, cockpit=360)
+# The bevelled finish (refine) roughly triples a part; a whole ship now runs about 2,000 to 6,000 triangles, still a single
+# draw (user, 28 October: "make them more sophisticated").
+BUDGET = dict(hull=3400, wings=3200, engines=4600, cockpit=1400)
 
 
-def solid(h, points, z, height, paint, mat=PLATE):
-    """A chamfered-free planar plate in Blender x/y, `height` thick from z (the Scrapper's hard-surface plates)."""
+def inset(points, d):
+    """The outline offset inward by d (mitred, capped at 2.5 d on sharp corners), whichever way it winds."""
+    area = sum(points[i][0] * points[(i + 1) % len(points)][1] - points[(i + 1) % len(points)][0] * points[i][1] for i in range(len(points)))
+    turn = 1 if area > 0 else -1
+    out = []
+    for i, (px, py) in enumerate(points):
+        ax, ay = points[i - 1]
+        bx, by = points[(i + 1) % len(points)]
+        n = []
+        for (ux, uy), (vx, vy) in (((ax, ay), (px, py)), ((px, py), (bx, by))):
+            l = math.hypot(vx - ux, vy - uy) or 1
+            n.append((-(vy - uy) / l * turn, (vx - ux) / l * turn))
+        mx, my = n[0][0] + n[1][0], n[0][1] + n[1][1]
+        ml = math.hypot(mx, my) or 1
+        cos_half = max(.4, (mx * n[0][0] + my * n[0][1]) / ml)
+        out.append((px + mx / ml * d / cos_half, py + my / ml * d / cos_half))
+    return out
+
+
+def area_of(points):
+    return .5 * sum(points[i][0] * points[(i + 1) % len(points)][1] - points[(i + 1) % len(points)][0] * points[i][1] for i in range(len(points)))
+
+
+def panel_of(points, depth):
+    """The outline inset by `depth` if it stays a clean, same-way-round, non-crossing outline with every edge kept;
+    else None."""
+    inner = inset(points, depth)
+    a0, a1 = area_of(points), area_of(inner)
+    if a0 * a1 <= 0 or abs(a1) < abs(a0) * .25:
+        return None
+    for i in range(len(points)):
+        j = (i + 1) % len(points)
+        ox, oy = points[j][0] - points[i][0], points[j][1] - points[i][1]
+        ix, iy = inner[j][0] - inner[i][0], inner[j][1] - inner[i][1]
+        if ox * ix + oy * iy <= 0:
+            return None
+    return inner
+
+
+def solid(h, points, z, height, paint, mat=PLATE, panel=True):
+    """A planar plate in Blender x/y, `height` thick from z: straight sides for its lower part, then a chamfered band up to
+    a slightly inset top (user, 28 October: the parts "look blocky"; machined armour panels catch the light on their edges)."""
+    d = min(.035, height * .45)
+    if d < .006:
+        top_ring, mid = points, height
+    else:
+        top_ring, mid = inset(points, d), height - d * .8
     lo = [h.v((x, y, z)) for x, y in points]
-    hi = [h.v((x, y, z + height)) for x, y in points]
+    md = [h.v((x, y, z + mid)) for x, y in points]
+    hi = [h.v((x, y, z + height)) for x, y in top_ring]
     h.face(tuple(hi), paint, 'main', mat, outward=(0, 0, 1))
     h.face(tuple(reversed(lo)), paint, 'main', mat, outward=(0, 0, -1))
     for i in range(len(points)):
         j = (i + 1) % len(points)
         a, b = points[i], points[j]
-        h.face((lo[i], lo[j], hi[j], hi[i]), paint, 'edge', mat, outward=(b[1] - a[1], a[0] - b[0], 0))
+        side = (b[1] - a[1], a[0] - b[0], 0)
+        h.face((lo[i], lo[j], md[j], md[i]), paint, 'edge', mat, outward=side)
+        if mid < height:
+            h.face((md[i], md[j], hi[j], hi[i]), paint, 'edge', mat, outward=(side[0], side[1], math.hypot(*side[:2])))
+    # Panelling: a large plate carries a slightly raised inner panel with its own chamfer, so its broad face breaks into
+    # machined sections (same paint: a recolour reaches it).
+    size = math.sqrt(abs(area_of(top_ring)))
+    if panel and mat == PLATE and size > .2 and height > .025:
+        inner = panel_of(top_ring, max(.035, size * .16))
+        if inner:
+            solid(h, inner, z + height, .012, paint, mat, panel=False)
 
 
 def mirrored(points, side):
@@ -489,10 +547,13 @@ CHASSIS = dict(
 # ============================================================================= build, verify, preview
 def build_part(chassis, slot, design, mats):
     h = vc.HS(random.Random('hero-kit:%s:%s:%s' % (chassis, slot, design)))
+    # Rounder cylinders (engines, barrels, booms): half as many sides again; four- and six-sided spikes stay sharp.
+    cyl = h.cyl
+    h.cyl = lambda p0, axis, r, length, seg, *a, **k: cyl(p0, axis, r, length, seg if seg <= 6 else max(seg, round(seg * 1.5)), *a, **k)
     CHASSIS[chassis][slot](h, design)
     vc.triangulate_nonplanar(h)
     name = 'hero_%s_%s_%s' % (chassis, slot, design)
-    colours = vc.bake(h, name, dict(glow={GLOW}, paints=PAINTS, ao=.12, ground=None))
+    colours = vc.bake(h, name, dict(glow={GLOW}, paints=PAINTS, ao=.2, ground=None))
     corner = 0
     for f, paint in zip(h.faces, h.fpaint):
         a = ROLE_ALPHA.get(paint if isinstance(paint, str) else paint[0], 1.0)
@@ -500,8 +561,64 @@ def build_part(chassis, slot, design, mats):
             colours[c] = (colours[c][0], colours[c][1], colours[c][2], a)
         corner += len(f)
     ob = vc.make_object(name, h, mats, (0.0, 0.0, 0.0), colours)
-    print('HKIT %-28s tris=%4d' % (name, h.tris()))
+    refine(ob)
+    print('HKIT %-28s tris=%4d (before bevel %d)' % (name, sum(len(p.vertices) - 2 for p in ob.data.polygons), h.tris()))
     return ob
+
+
+def refine(ob):
+    """Hard-surface finish (user, 28 October: "make them more sophisticated"): every edge sharper than 35 degrees gets a
+    small bevel with hardened normals, so flat panels shade flat and their edges catch the light. Bevel faces
+    blend the colours either side; their paint role snaps to the painted side, so a recolour reaches them too."""
+    me = ob.data
+    me.polygons.foreach_set('use_smooth', [True] * len(me.polygons))
+    me.set_sharp_from_angle(angle=math.radians(35))
+    bevel = ob.modifiers.new('bevel', 'BEVEL')
+    bevel.width, bevel.segments, bevel.limit_method, bevel.angle_limit = .012, 1, 'ANGLE', math.radians(35)
+    bevel.harden_normals, bevel.miter_outer = True, 'MITER_ARC'
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.modifier_apply(modifier=bevel.name)
+    # No zero-area slivers (a bevel meeting a tight corner leaves some; their normals are undefined).
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.dissolve_degenerate(bm, dist=1e-5, edges=bm.edges[:])
+    bm.to_mesh(ob.data)
+    bm.free()
+    # Triangles now, as the exporter would cut them, so the UVs below are projected per exported face.
+    tri = ob.modifiers.new('triangulate', 'TRIANGULATE')
+    tri.keep_custom_normals = True
+    bpy.ops.object.modifier_apply(modifier=tri.name)
+    me = ob.data
+    attr = me.color_attributes[vc.COLOR_ATTR]
+    colours = [0.0] * (len(attr.data) * 4)
+    attr.data.foreach_get('color', colours)
+    for k in range(3, len(colours), 4):
+        a = colours[k]
+        colours[k] = 1.0 if a > .97 else .75 if a > .6 else .5
+    # Edge highlights: the bevel's own faces (narrow strips along every hard edge) are lighter, like worn paint on machined
+    # edges, so panels and plates read outlined even at the ship's small size in flight. Glow faces stay as they are.
+    glow, lit = {i for i, m in enumerate(me.materials) if m and 'glow' in m.name}, 0
+    for poly in me.polygons:
+        if poly.material_index in glow or poly.area > .0016:
+            continue
+        verts = [me.vertices[v].co for v in poly.vertices]
+        span = max((a - b).length for a in verts for b in verts)
+        if span < 1e-6 or poly.area / (span * span) > .08:
+            continue
+        lit += 1
+        for li in poly.loop_indices:
+            c = li * 4
+            # Toward a pale worn-metal tone: a multiply did nothing on dark armour.
+            colours[c:c + 3] = [colours[c + j] + (.42 - colours[c + j]) * .3 for j in range(3)]
+    attr.data.foreach_set('color', colours)
+    print('HKIT %s edge highlights on %d of %d faces' % (ob.name, lit, len(me.polygons)))
+    # One UV for the whole part, in the middle of a plate of the game's panel map (src/render/models.ts
+    # createPanelTexture; texel 17, 114, thirteen texels from any seam): on a ship this small the box-projected seams
+    # tiled into a brick pattern; the geometric panels above carry the detail. (glTF v is Blender's 1 - v.)
+    uv = me.uv_layers['UVMap'].data
+    for loop in uv:
+        loop.uv = (.1367, 1 - .8945)
 
 
 def main():
@@ -522,13 +639,13 @@ def main():
         for design in DESIGNS:
             ob = build_part(args.chassis, slot, design, mats)
             parts[(slot, design)] = ob
-            nodes[ob.name] = dict(budget=BUDGET[slot], mats=names, x=(-.95, .95), z=(-.95, .95))
+            nodes[ob.name] = dict(budget=BUDGET[slot], mats=names, x=(-.95, .95), z=(-.95, .95), uv='flat')
     for design in DESIGNS:
         for i, p in enumerate(spec['plumes'][design]):
             name = 'hero_%s_engines_%s_engine_%d' % (args.chassis, design, i)
             vc.make_empty(name, (p[0], p[2], -p[1]))
             nodes[name] = dict(empty=True, t=(p[0], p[2], -p[1]))
-    vc.publish(args.glb, 'hero_kit.py', dict(materials=names, nodes=nodes, max_bytes=600_000), 'HKIT')
+    vc.publish(args.glb, 'hero_kit.py', dict(materials=names, nodes=nodes, max_bytes=3_000_000), 'HKIT')
     if args.preview_dir:
         render_previews(args, parts, mats)
 
@@ -555,6 +672,10 @@ def render_previews(args, parts, mats):
     for view in ('game', 'top'):
         br.render_view(scene, view, (0, 0, 0), 6.6, os.path.join(args.preview_dir, '%s-%s.png' % (args.chassis, view)), res=1200,
                        objects=shown, light='desert')
+    # Close-ups of the three presets (top row), to judge the finish.
+    for k in range(3):
+        br.render_view(scene, 'game', ((k - 1) * 2.0, 2.0, 0), 1.9, os.path.join(args.preview_dir, '%s-close-%s.png' % (args.chassis, DESIGNS[k])), res=700,
+                       objects=shown[k * 4:k * 4 + 4], light='desert')
 
 
 if __name__ == '__main__':

@@ -592,7 +592,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let heroModel = 'fallback';
   // The hero is the flight's ship as the player built it (docs/31): its chassis's kit parts, repainted, as one craft. Endless
   // and the menus fly the default Scrapper; campaign visual unlocks never reach endless (AGENTS.md invariant 14).
-  let heroKey = '', heroEngines: [number, number][] = [[-.38, .7], [.38, .7]], heroGlow = 0x7ff6ea;
+  // `heroShown` is the look on screen; while the requested look (`heroKey`) is loading the hero stays hidden, so a launch
+  // never flashes the previous ship (user, 28 October: "the base ship is briefly visible" under the warp).
+  let heroKey = '', heroShown = '', heroEngines: [number, number][] = [[-.38, .7], [.38, .7]], heroGlow = 0x7ff6ea;
   const heroOf = (config: RunConfig): [ShipId, HeroLook] => config.mode === 'campaign' ? [config.ship ?? 'scrapper', config.hero ?? DEFAULT_LOOK] : ['scrapper', DEFAULT_LOOK];
   const showHero = (ship: ShipId, look: HeroLook): Promise<void> => {
     const key = heroLookKey(ship, look);
@@ -607,7 +609,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       hero.add(mesh); markHero(mesh); heroModel = 'glb'; warmed = false;
       if (model.engines.length) heroEngines = model.engines;
       heroGlow = look.paint?.glow ?? HERO_DEFAULT_PAINT[ship].glow;
-    }).catch(error => console.warn('Hero model unavailable; retaining the current ship.', error));
+      heroShown = key;
+    }).catch(error => { if (key === heroKey) heroShown = key; console.warn('Hero model unavailable; retaining the current ship.', error); });
     return heroPending;
   };
   let heroPending: Promise<void> = Promise.resolve();
@@ -1290,7 +1293,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       placeSun(state.cameraX, state.distance);
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
       const heroAlive = state.player.lives > 0;
-      hero.visible = heroAlive;
+      hero.visible = heroAlive && heroShown === heroKey;
       // Mission-start entrance (render-only): the hero starts close to the camera (large, out along the view ray, so it
       // keeps its screen position under the orthographic lens) and drops to flight height with one barrel roll.
       // Under the launch warp the hero cruises in that start pose, over the veil; the flight starts at the warp's breakout,

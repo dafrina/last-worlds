@@ -32,8 +32,15 @@ Each chassis has four **slots**: `hull`, `wings`, `engines` and `cockpit`. Each 
   Every part node sits at the kit origin.
 - **Size.** Each part stays inside x and z (glTF) of ±0.95; the publish step verifies this. The Scrapper is about 1.25
   to 1.45 wide, the Ironclad and Interceptor about 1.4 to 1.6, and the Spectre about 1.7.
-- **Budget.** A whole ship stays under about 2,500 triangles (most builds use 500 to 1,500). The limits per part are
-  hull 760, wings 640, engines 1,400 and cockpit 360.
+- **Finish (user, 28 October: the parts "look blocky ... make them more sophisticated").** Every plate has a straight
+  lower side, a chamfered band and a slightly inset top. Large plates carry a raised inner panel. Every edge over 35° gets
+  a one-step bevel with hardened normals, and the bevel's own faces are lighter (edge wear), so panels read outlined.
+  Cylinders have half as many sides again. Bevel faces take the paint role of their painted side, so recolouring reaches
+  them.
+- **UVs:** one UV for the whole part, mid-plate in the game's panel map. Box-projected seams tiled into a brick pattern on
+  ships this small; the verifier's box-UV rule is waived for hero nodes (`uv='flat'`).
+- **Budget.** A whole ship runs about 1,500 to 7,000 triangles, as one draw. The limits per part are hull 3,400, wings
+  3,200, engines 4,600 and cockpit 1,400.
 - **Materials.** Each kit has three materials: `<chassis>_plate`, `<chassis>_frame` and `<chassis>_glow`. These class
   names are the ones `loadCraftNodes` understands.
 

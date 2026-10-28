@@ -101,13 +101,15 @@ async function start(config: RunConfig) {
   audio.quit(); audio.unlock(); input.clear();
   // The launch warp plays while the world is prepared (user, 21 October): opaque deep space with the ship cruising; endless,
   // with more to load, simply warps longer. A slow load shows the panel over it, with its way back to the menu.
+  // The flight's ship starts loading before the warp shows it cruising (the renderer hides it until it is the right one).
+  const heroReady = renderer?.prepareHero?.(candidate.config);
   ui.showLoading(true); ui.setLoadingWarp(true); renderer?.launchWarp('cruise');
   const shownAt = performance.now();
   let panel = false;
   const slow = setTimeout(() => { if (id === launchId) { panel = true; ui.setLoadingWarp(false); } }, SLOW_LOADING_MS);
   try {
     // The world and the ship the flight shows (its chassis and look) load together under the warp.
-    await Promise.all([renderer?.prepare(candidate.planet), renderer?.prepareHero?.(candidate.config)]);
+    await Promise.all([renderer?.prepare(candidate.planet), heroReady]);
     if (id !== launchId) return;
     // Compile and upload the actual destination under the loading panel, before its clock starts.
     renderer?.render(candidate, 0);
