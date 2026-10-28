@@ -92,16 +92,32 @@ uniform vec4 haze;
 uniform sampler2D depthMap; uniform mat4 viewInverse; uniform mat4 projectionInverse;
 uniform vec3 fogColor; uniform vec3 fogHeight; uniform vec3 fogDistance;
 uniform float cover;
+uniform vec4 lens; uniform float lensSwirl; uniform float ratio;
 varying vec2 vUv;
+/**
+ * Gravity Well lens (docs/32 §3; user, 28 October: "actually distort the view underneath"): inside its radius the image is
+ * drawn from further out and twisted, so the world underneath looks sucked in and swirled. lens: centre (uv), radius
+ * (fraction of the view height), strength (0 = off).
+ */
+vec2 lensed( vec2 uv ) {
+  if ( lens.w <= 0.0 ) return uv;
+  vec2 d = ( uv - lens.xy ) * vec2( ratio, 1.0 );
+  float r = length( d );
+  if ( r >= lens.z ) return uv;
+  float f = 1.0 - r / lens.z; f *= f;
+  float a = lensSwirl * f, c = cos( a ), s = sin( a );
+  d = mat2( c, s, -s, c ) * d * ( 1.0 + lens.w * f * 1.8 );
+  return clamp( lens.xy + d / vec2( ratio, 1.0 ), vec2( 0.0 ), vec2( 1.0 ) );
+}
 /**
  * World fog from the scene depth (user, 22 October: "only the lower half of the terrain ... mountainous areas stay clear"):
  * it lies in the low ground below each level's fog top, thicker far away where the line of sight crosses more of it.
  * Emissive cores (shots, engines, explosions) keep their punch.
  */
-vec3 fog( vec3 color ) {
-  float depth = texture2D( depthMap, vUv ).r;
+vec3 fog( vec3 color, vec2 uv ) {
+  float depth = texture2D( depthMap, uv ).r;
   if ( depth >= 1.0 || fogHeight.z + fogDistance.z <= 0.0 || cover >= 1.0 ) return color;
-  vec4 view = projectionInverse * vec4( vUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0 );
+  vec4 view = projectionInverse * vec4( uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0 );
   vec3 world = ( viewInverse * vec4( view.xyz / view.w, 1.0 ) ).xyz;
   float distance = length( world - viewInverse[ 3 ].xyz );
   float low = fogHeight.z * smoothstep( fogHeight.x, fogHeight.y, world.y ) * mix( 0.55, 1.0, smoothstep( 38.0, 68.0, distance ) );
@@ -149,7 +165,8 @@ vec3 srgb( vec3 c ) {
   return mix( c * 12.92, pow( c, vec3( 0.41666 ) ) * 1.055 - vec3( 0.055 ), step( vec3( 0.0031308 ), c ) );
 }
 void main() {
-  vec3 color = fog( antialiased( vUv ) ) + texture2D( bloom, vUv ).rgb * strength;
+  vec2 uv = lensed( vUv );
+  vec3 color = fog( antialiased( uv ), uv ) + texture2D( bloom, uv ).rgb * strength;
   color *= exposure;
   // Warm lift in the deepest tones only: shadows read as warm umber, never as night.
   float luma = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
@@ -202,6 +219,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
     fogColor: { value: settings.fogColor.clone() }, fogHeight: { value: settings.fogHeight.clone() }, fogDistance: { value: settings.fogDistance.clone() },
     /** How much of the world a full-screen overlay hides this frame (0..1, the jump veil); fog and haze fade under it. */
     cover: { value: 0 },
+    /** Gravity Well lens: centre uv, radius (view heights) and strength (0 off); its twist; the view's width / height. */
+    lens: { value: new THREE.Vector4(.5, .5, 0, 0) }, lensSwirl: { value: 0 }, ratio: { value: 1 },
   });
   const quad = new THREE.Mesh(triangle, prefilter); quad.frustumCulled = false;
   let width = 1, height = 1;
@@ -219,6 +238,7 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
       sixteenth.setSize(Math.max(1, q[0] >> 2), Math.max(1, q[1] >> 2));
       composite.uniforms.aspect.value.set(width / Math.max(width, height) * 1.25, height / Math.max(width, height));
       composite.uniforms.texel.value.set(1 / width, 1 / height);
+      composite.uniforms.ratio.value = width / height;
     },
     /** Renders the scene into the HDR target, then bloom and the graded composite to the canvas. */
     render(scene: THREE.Object3D, view: THREE.Camera) {

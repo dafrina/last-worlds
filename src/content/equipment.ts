@@ -38,7 +38,7 @@ export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
  * - Siege Lance: a 0.9-wide piercing beam straight ahead from the ship for 2.4 s at 360 damage/s; the ship may steer
  *   it (0.8 s at 450/s until the user found it too short, 16 October).
  * - Gravity Well (docs/32 §2): a singularity `ahead` of the ship, fixed in the world. After `arm` s it pulls free air
- *   craft within `pullRadius` (up to `pullSpeed` at its centre), burns those within `coreRadius` at `dps` (they cannot
+ *   craft within `pullRadius` (`pullSpeed` near its centre, easing off toward the edge), burns those within `coreRadius` at `dps` (they cannot
  *   start an attack there) and removes hostile shots within `swallowRadius`, for `duration` s; then it collapses:
  *   `collapse` damage within `collapseRadius`, falling to `collapseEdge` of it at the edge.
  */
@@ -49,7 +49,8 @@ export const SPECIALS = {
   'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 300, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 9, speed: 21, accel: 34, turn: 4.5, spreadTime: .3 },
   'siege-lance': { label: 'Siege Lance', recharge: 40, price: 400, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
   'gravity-well': { label: 'Gravity Well', recharge: 40, price: 450, blurb: 'A singularity ahead pulls enemies together and swallows their shots, then collapses.',
-    ahead: 9, arm: 0.35, duration: 2.6, pullRadius: 4.5, pullSpeed: 4, coreRadius: 1.6, dps: 40, swallowRadius: 3.5, collapse: 200, collapseRadius: 3, collapseEdge: 0.5 },
+    // User, 28 October: "the radius should be bigger and sucking in ships" (was pull 4.5 at up to 4/s, core 1.6, swallow 3.5).
+    ahead: 9, arm: 0.35, duration: 2.6, pullRadius: 7, pullSpeed: 7, coreRadius: 2, dps: 40, swallowRadius: 4.5, collapse: 200, collapseRadius: 3.5, collapseEdge: 0.5 },
 } as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; blurb: string; [tuning: string]: string | number }>>;
 
 /** All ships can collect up to five shields. Equipment changes the starting reserve only. */

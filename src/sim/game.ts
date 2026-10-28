@@ -754,7 +754,8 @@ function updateWell(state: RunState, dt: number): void {
     }
     if (distance <= spec.coreRadius + enemy.radius) damageEnemy(state, enemy, spec.dps * dt, false);
     if (!pullable(enemy) || distance >= spec.pullRadius || distance < 1e-3) continue;
-    const speed = spec.pullSpeed * (1 - distance / spec.pullRadius) * (enemy.hunter ? 0.5 : 1);
+    // Strong through most of the reach, easing off only toward its edge: craft are visibly sucked in.
+    const speed = spec.pullSpeed * (1 - (distance / spec.pullRadius) ** 2) * (enemy.hunter ? 0.5 : 1);
     const step = Math.min(speed * dt, Math.max(0, distance - 0.4)) / distance;
     // Applied now and kept as an offset, so a craft flying an authored path carries on from where it was dragged.
     enemy.x += dx * step; enemy.s += ds * step;

@@ -116,12 +116,12 @@ different kind of defence from Shockwave.
 | `ahead` | 9 | Anchor `s` ahead of the ship. The anchor `x` is the ship's x at activation, fixed in **world** space and not following the camera (docs/02 §3, like Shockwave's footprint). |
 | `arm` | 0.35 s | Travel time to the anchor (render only; the sim anchors at once and is active after `arm`). |
 | `duration` | 2.6 s | Pull phase. |
-| `pullRadius` | 4.5 | |
-| `pullSpeed` | 4 u/s at the centre, falling linearly to 0 at `pullRadius` | |
-| `coreRadius` | 1.6 | Inside it, enemies take `dps` and cannot *start* an attack. |
+| `pullRadius` | 7 | Was 4.5 (user, 28 October: "the radius should be bigger and sucking in ships"). |
+| `pullSpeed` | 7 u/s, times 1 − (distance / `pullRadius`)² | Strong through most of the reach (was 4, falling off linearly). |
+| `coreRadius` | 2 | Inside it, enemies take `dps` and cannot *start* an attack. |
 | `dps` | 40 | |
-| `swallowRadius` | 3.5 | Hostile shots that enter it are removed. |
-| `collapse` | 200 damage within 3, falling to 50% at the edge | Applied once at the end. |
+| `swallowRadius` | 4.5 | Hostile shots that enter it are removed. |
+| `collapse` | 200 damage within 3.5, falling to 50% at the edge | Applied once at the end. |
 
 Rough total on a caught enemy: 2.6 × 40 + 200 ≈ 300. For comparison: Shockwave 180 per target close up, Seeker Rack
 8 × 40, Siege Lance about 860 on a single column.
@@ -226,7 +226,12 @@ Damage goes through `damageEnemy(..., mainWeapon = false)`, so it gives no speci
     a pickup icon of a slug piercing three rings; a crack sound.
   - Gravity Well: a black core in a spinning swirl ring, faint pull-radius and core-radius rings, a flight from the nose
     while arming, a flash on each swallow; a hum on launch, with the existing heavy blast at the collapse.
-  - Not built: the High-quality lens distortion and the drawn spiral of swallowed shots.
+  - Lens (user, 28 October: "actually distort the view underneath"): the frame inside the swallow radius is drawn from
+    further out and twisted, so the world underneath looks sucked in. High does it in the post composite
+    (post-pipeline.ts, `lensed`). Low copies the drawn frame while a well is out and redraws the disc through the same
+    warp. Sized to the swallow radius: any shot whose aim ray it bends is removed there, and the ship's row is never
+    warped.
+  - Not built: a drawn spiral of swallowed shots.
 - **Tests:** tests/sim/rail-and-well.test.ts, Rail in the shared-tier test, and the old-save test in
   tests/campaign/profile.test.ts.
 

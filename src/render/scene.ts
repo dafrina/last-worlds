@@ -1032,6 +1032,29 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   for (const mesh of [wellHalo, ...wellReach, wellAccretion, wellCore]) { mesh.renderOrder = 9; mesh.frustumCulled = false; well.add(mesh); }
   wellCore.renderOrder = 10;
   let wellSwallowed = 0, wellFlashAt = -1;
+  // The well's lens (user, 28 October: "actually distort the view underneath"). High warps the frame in the post composite;
+  // Low copies the drawn frame while a well is out and redraws the disc around it through the same warp.
+  const wellLens = { on: false, x: .5, y: .5, radius: 0, strength: 0, swirl: 0 };
+  const lensPoint = new THREE.Vector3(), lensEdge = new THREE.Vector3(), drawingSize = new THREE.Vector2();
+  const lensScene = new THREE.Scene(), lensCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const lensMaterial = new THREE.ShaderMaterial({
+    uniforms: { frame: { value: null }, lens: { value: new THREE.Vector4() }, lensSwirl: { value: 0 }, ratio: { value: 1 } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4( position.xy, 0.0, 1.0 ); }',
+    fragmentShader: `uniform sampler2D frame; uniform vec4 lens; uniform float lensSwirl; uniform float ratio; varying vec2 vUv;
+      void main() {
+        vec2 d = ( vUv - lens.xy ) * vec2( ratio, 1.0 );
+        float r = length( d );
+        if ( r >= lens.z ) discard;
+        float f = 1.0 - r / lens.z; f *= f;
+        float a = lensSwirl * f, c = cos( a ), s = sin( a );
+        d = mat2( c, s, -s, c ) * d * ( 1.0 + lens.w * f * 1.8 );
+        gl_FragColor = texture2D( frame, clamp( lens.xy + d / vec2( ratio, 1.0 ), vec2( 0.0 ), vec2( 1.0 ) ) );
+      }`,
+    depthTest: false, depthWrite: false, toneMapped: false,
+  });
+  const lensQuad = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3)), lensMaterial);
+  lensQuad.frustumCulled = false; lensScene.add(lensQuad);
+  let lensFrame: THREE.FramebufferTexture | null = null;
   // Rail Driver slugs (docs/32 §3): render-only trails from muzzle to head, fading out after the slug is gone; a fresh
   // slug kicks the hero back a touch.
   const railTrails = new Map<number, { x0: number; s0: number; x: number; s: number; endedAt?: number }>();
@@ -1201,6 +1224,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           // every variant, the HDR target's untoned programs and the shadow pass's depth programs included. The frame
           // below draws over it.
           if (quality === 'high') post.render(scene, camera); else { renderer.setRenderTarget(null); renderer.render(scene, camera); }
+          renderer.compile(lensScene, lensCamera);
         } else {
           // Mid-flight (a later planet's kits arrived): compile for the target the scene draws into, in the background
           // where the browser compiles in parallel, so the flight does not stall.
@@ -1670,12 +1694,23 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         wellSwallowed = live.swallowed;
         const wellFlash = wellFlashAt < 0 ? 0 : Math.max(0, 1 - (state.time - wellFlashAt) * 5);
         well.position.set(live.x, VIEW.flightHeight + .06, -sPos);
-        well.scale.setScalar((.35 + .65 * ease) * (1 - .55 * ending));
+        const grow = 1.35 * (.35 + .65 * ease) * (1 - .55 * ending);
+        well.scale.setScalar(grow);
         wellAccretion.rotation.y = state.time * 3.4; wellHalo.rotation.y = -state.time * 1.3;
         wellRingMaterial.opacity = .75 + .25 * wellFlash;
         (wellHalo.material as THREE.MeshBasicMaterial).opacity = (.22 + .3 * wellFlash) * ease;
-        wellReach.forEach((ring, k) => { (ring.material as THREE.MeshBasicMaterial).opacity = (k ? .16 : .2) * ease * (.8 + .2 * Math.sin(state.time * 5 + k)); ring.scale.setScalar(1 / Math.max(.2, (.35 + .65 * ease) * (1 - .55 * ending))); });
-      } else wellSwallowed = 0;
+        wellReach.forEach((ring, k) => { (ring.material as THREE.MeshBasicMaterial).opacity = (k ? .16 : .2) * ease * (.8 + .2 * Math.sin(state.time * 5 + k)); ring.scale.setScalar(1 / Math.max(.2, grow)); });
+        // The lens: on screen where the well is, as wide as its swallow radius (every shot it bends there is removed anyway, and
+        // the ship's row is never warped), deepening as it nears its collapse.
+        well.updateMatrixWorld();
+        lensPoint.set(live.x, VIEW.flightHeight, -sPos).project(camera); lensEdge.set(live.x + wellSpec.swallowRadius, VIEW.flightHeight, -sPos).project(camera);
+        const aspect = drawingWidth / Math.max(1, drawingHeight);
+        wellLens.on = true; wellLens.x = lensPoint.x * .5 + .5; wellLens.y = lensPoint.y * .5 + .5;
+        wellLens.radius = Math.abs(lensEdge.x - lensPoint.x) * .5 * aspect * ease;
+        wellLens.strength = (.45 + .45 * ending) * ease * (1 - Math.max(0, (state.time - live.until + .06) / .06));
+        wellLens.swirl = (1.5 + .6 * Math.sin(state.time * 2.2)) * ease;
+      } else { wellSwallowed = 0; wellLens.on = false; }
+      post.settings.lens.value.set(wellLens.x, wellLens.y, wellLens.radius, wellLens.on ? wellLens.strength : 0); post.settings.lensSwirl.value = wellLens.swirl;
       let effectCount = 0;
       for (const effect of state.effects) {
         if (effect.kind === 'special') continue;
@@ -1721,6 +1756,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       } else {
         renderer.setRenderTarget(null); renderer.render(scene, camera);
         passes.shadow = passes.post = 0; passes.main = renderer.info.render.calls;
+        if (wellLens.on && wellLens.strength > 0) {
+          renderer.getDrawingBufferSize(drawingSize);
+          if (!lensFrame || lensFrame.image.width !== drawingSize.x || lensFrame.image.height !== drawingSize.y) { lensFrame?.dispose(); lensFrame = new THREE.FramebufferTexture(drawingSize.x, drawingSize.y); }
+          renderer.copyFramebufferToTexture(lensFrame);
+          lensMaterial.uniforms.frame.value = lensFrame; lensMaterial.uniforms.ratio.value = drawingSize.x / Math.max(1, drawingSize.y);
+          lensMaterial.uniforms.lens.value.set(wellLens.x, wellLens.y, wellLens.radius, wellLens.strength); lensMaterial.uniforms.lensSwirl.value = wellLens.swirl;
+          const clear = renderer.autoClear; renderer.autoClear = false; renderer.render(lensScene, lensCamera); renderer.autoClear = clear;
+        }
       }
       if (state.tick > 0) terrainWork.renderMax = Math.max(terrainWork.renderMax, performance.now() - renderStart);
       // Development evidence: shader programs compiled after the warm-up stall a frame (a hang on phones).
@@ -1776,6 +1819,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
       terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
+      lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose();
       renderer.dispose();
     },
