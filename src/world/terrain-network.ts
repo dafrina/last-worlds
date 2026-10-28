@@ -129,7 +129,7 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
   if (site.district?.role === 'lot') return [];
   const district = site.district !== undefined;
   const INDUSTRIAL = planet.industrial, QUIET = planet.quiet;
-  const edges: NetworkEdge[] = [], h = (k: number) => hash(seed ^ 0x7e7, site.cell * 31 + k, site.side > 0 ? 7 : 3);
+  const edges: NetworkEdge[] = [], h = (k: number) => hash(seed ^ 0x7e7, site.cell * 31 + k, site.side > 0 ? 7 : 3), purposeful = planet.roads === 'purposeful';
   const make = (kind: NetworkEdge['kind'], target: Settlement | null, tx: number, ts: number, road: number, pipe: number): NetworkEdge => {
     const b: Endpoint = target ? gate(target, site.x, site.s) : { x: tx, s: ts, site: null }, a = gate(site, b.x, b.s);
     const edge = { id: `${site.id}>${kind}`, a, b, kind, road: h(edges.length * 3 + 1) < road, pipe: h(edges.length * 3 + 2) < pipe };
@@ -146,12 +146,15 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
     // A tank farm (pumping) always lies on a pipeline.
     const farm = site.archetype === 'pumping' || next.archetype === 'pumping';
     const industrial = farm ? 1 : INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.9 : INDUSTRIAL.has(site.archetype) || INDUSTRIAL.has(next.archetype) ? 0.55 : 0.2;
-    edges.push(make('chain', next, 0, 0, district ? 1 : quiet ? 0.45 : 0.88, district || next.district ? 0 : quiet ? 0 : industrial));
+    // A purposeful network links works to works and anything to a district; elsewhere most neighbours get a road.
+    const road = district || next.district ? 1 : purposeful ? (INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.85 : 0) : quiet ? 0.45 : 0.88;
+    edges.push(make('chain', next, 0, 0, road, district || next.district ? 0 : quiet ? 0 : industrial));
     break;
   }
   const farm = site.archetype === 'pumping' && !edges.some(edge => edge.pipe);
   if (farm || h(20) < 0.42 || (district && !edges.length)) {
-    edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, district ? 1 : 0.7, district ? 0 : farm ? 1 : QUIET.has(site.archetype) ? 0 : 0.45));
+    // A purposeful network leaves the map only from a district (its hub always has a road somewhere).
+    edges.push(make('exit', null, site.side * (WORLD_HALF - 0.4), site.s + (h(21) - 0.5) * 18, district ? 1 : purposeful ? 0 : 0.7, district ? 0 : farm ? 1 : QUIET.has(site.archetype) ? 0 : 0.45));
   }
   // Cross links: a compound built on both sides of its cell is joined across the route most of the time (version 16; the
   // left side owns the link), elsewhere now and then.
@@ -407,7 +410,11 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInp
         const candidate = resample(roundCorners(points, radius));
         if (gradedLine(candidate) && openLine(g, candidate.xs, candidate.ss, nodes)) { line = candidate; break; }
       }
-      const { xs, ss, lengths, y } = line, graded = gradedLine(line);
+      const { xs, ss, lengths, y } = line;
+      // A purposeful network builds no meandering road: at most half again the direct distance (plus a little), unless
+      // it serves a district, which must be reached.
+      const serves = edge.a.site?.district || edge.b.site?.district, direct = Math.hypot(edge.b.x - edge.a.x, edge.b.s - edge.a.s);
+      const graded = gradedLine(line) && (world.planet.roads !== 'purposeful' || !!serves || lengths[lengths.length - 1] <= direct * 1.5 + 4);
       // An end at an outpost's gate opens onto its pad; at a district gate an internal road continues; others fade.
       const endOf = (end: Endpoint, x: number, s: number): RoadEnd => !end.site || Math.hypot(end.x - x, end.s - s) > 1.5 ? 'fade' : end.site.gates ? 'joined' : 'apron';
       const last = xs.length - 1;

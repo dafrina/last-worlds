@@ -38,7 +38,8 @@ describe('settlement network (docs/13 §2)', () => {
     expect(again.industry).toEqual(first.industry);
     expect(again.roads).toEqual(first.roads);
     const ids = new Map<string, number>(), segments = new Map<string, number>();
-    for (let index = 0; index < 10; index++) {
+    // Twenty sections: Khepri builds roads only where they serve something since version 21, so ten held too few.
+    for (let index = 0; index < 20; index++) {
       const section = generateTerrainSection(8831, index);
       for (const piece of section.industry) ids.set(piece.id, (ids.get(piece.id) ?? 0) + 1);
       for (const road of section.roadPaths) segments.set(road.id, road.x.length - 1);
@@ -51,7 +52,8 @@ describe('settlement network (docs/13 §2)', () => {
   it('finds paths that follow the ground and never climb cliffs', () => {
     for (const seed of [1, 93, 8831]) {
       let roads = 0, pipes = 0, exits = 0, longest = 0;
-      for (const edge of edgesNear(seed, 0, 600)) {
+      // 1,200 units: Khepri builds roads only where they serve something since version 21, so 600 held too few.
+      for (const edge of edgesNear(seed, 0, 1200)) {
         const road = roadPath(seed, edge);
         if (road) {
           roads++;

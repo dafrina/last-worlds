@@ -331,7 +331,8 @@ describe('road ends blend into the ground (user, 20 October)', () => {
 
   it('marks every network road end: aprons at outposts, joins at district gates, fades in the open', () => {
     const kinds = new Map<RoadEnd, number>();
-    for (const seed of [11, 93]) for (const edge of edgesNear(seed, 0, 700, WORLD)) {
+    // Four seeds over 1,000 units: Khepri builds roads only where they serve something since version 21.
+    for (const seed of [11, 93, 5, 8831]) for (const edge of edgesNear(seed, 0, 1000, WORLD)) {
       const path = edge.road ? roadPath(seed, edge, WORLD) : null;
       if (!path) continue;
       expect(path.ends).toBeDefined();

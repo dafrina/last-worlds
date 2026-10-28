@@ -30,15 +30,18 @@ describe('planet profiles (docs/17 §2)', () => {
     // end. A deliberate Khepri change updates these. (Version 15: 11:5 84081784ea55aee1, 93:17 7c282c4d5369bfeb, 8831:0
     // d05a930b9d9eaae4, 93:14 0720d390ce865bc1, 11:14 b947c188f94f5283. Version 14, 30 wide: 11:5 6264a0925fd1cf0a,
     // 93:17 e0f86d546be5a503, 8831:0 90c9e92d18c19e9a, 93:14 e3dc7b61ebd1e5fd, 11:14 3829bbfc897fdd83.)
+    // Version 21 (28 October 2026): Khepri's roads only where they serve something (works to works, districts, facing
+    // compounds; no meanders). (Version 20: 11:5 b8a9ccd8cff8cbfe, 93:14 10f9aa7f1cf4a57b, 11:14 f1f33bfa91b42115; legacy 11:5
+    // a56a6c4901ef40c3, 93:14 5ea8309c56efda4d, 11:14 88bb97bd1dcd9b46.)
     // Version 20 (28 October 2026): roads straightened and curved (district roads too), partial roads no longer built. (Version 19: 11:5
     // e00567c3297502de, 93:14 1e9365cc6e5332b2, 11:14 fc6d5a4b5ae53608; legacy 11:5 69299a4fe79c13ef, 93:14
     // aa1b91571f267314, 11:14 c8308ba3d774a54f.)
-    const recorded = new Map([['11:5', 'b8a9ccd8cff8cbfe'], ['93:17', '4662497471aeb69d'], ['8831:0', '0af0ef5231085b24'],
-      ['93:14', '10f9aa7f1cf4a57b'], ['11:14', 'f1f33bfa91b42115']]);
+    const recorded = new Map([['11:5', '0092c2abedbd98cf'], ['93:17', '4662497471aeb69d'], ['8831:0', '0af0ef5231085b24'],
+      ['93:14', 'a3bb6c7412f4c8f9'], ['11:14', '6737fa24a69211af']]);
     // The rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0` still take out the districts and the
     // blended road ends exactly, on the current landform.
-    const legacy = new Map([['11:5', 'a56a6c4901ef40c3'], ['93:17', '4662497471aeb69d'], ['8831:0', '0af0ef5231085b24'],
-      ['93:14', '5ea8309c56efda4d'], ['11:14', '88bb97bd1dcd9b46']]);
+    const legacy = new Map([['11:5', '0587a46149e8ed94'], ['93:17', '4662497471aeb69d'], ['8831:0', '0af0ef5231085b24'],
+      ['93:14', 'b69217949ec23f37'], ['11:14', 'd53c4b06fceaafdd']]);
     const check = (fingerprints: Map<string, string>) => {
       for (const [key, value] of fingerprints) {
         const [seed, index] = key.split(':').map(Number);

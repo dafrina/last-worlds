@@ -64,8 +64,11 @@ export {
  *     straightened over open ground and curved at every corner (up to 4 units), and only built when they reach their
  *     goal (partial runs had ended in the open or against cliffs; about a quarter of Khepri's roads). District roads
  *     curve on a 2.5-unit radius.
+ * 21: Khepri's roads only where they serve something (user, 28 October: "everywhere without purpose"): between two
+ *     industrial sites, to and from districts, across the route between facing compounds, never to the map edge
+ *     except from a district, and never meandering (at most 1.5 times the direct distance plus 4). Other planets unchanged.
  */
-export const TERRAIN_VERSION = 20;
+export const TERRAIN_VERSION = 21;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.

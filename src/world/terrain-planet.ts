@@ -70,6 +70,12 @@ export interface PlanetProfile {
   floes(seed: number, startS: number, size: number, field: ScatterField, arena: TerrainArena | undefined): Work<Floe[]>;
   /** Archetypes whose links carry pipelines more often, and quiet ones that never do. */
   industrial: ReadonlySet<string>; quiet: ReadonlySet<string>;
+  /**
+   * 'purposeful' (Khepri, terrain version 21; user, 28 October: roads "everywhere without purpose"): a road only where it
+   * serves something: between two industrial sites, to and from a district, across the route between facing compounds,
+   * and only when it runs reasonably direct. Otherwise any outpost may get a road to its neighbour or the map edge.
+   */
+  roads?: 'purposeful';
   /** False on a planet without roads or pipelines between settlements. */
   networks?: boolean;
   /** False on a planet whose network is roads only (Luna's rover tracks, version 16). */
@@ -103,7 +109,7 @@ export const KHEPRI: PlanetProfile = {
   settlement: (seed, cell, side) => districtSettlement(KHEPRI, settlement, seed, cell, side),
   scatter: scatterKitSteps,
   floes: function* () { return []; },
-  industrial: new Set(['refinery', 'pumping', 'mining', 'plant']), quiet: new Set(['wreck', 'abandoned']),
+  industrial: new Set(['refinery', 'pumping', 'mining', 'plant']), quiet: new Set(['wreck', 'abandoned']), roads: 'purposeful',
   districts: KHEPRI_DISTRICTS, cliffs: true,
 };
 
