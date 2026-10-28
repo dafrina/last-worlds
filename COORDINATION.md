@@ -529,3 +529,5 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Roads, terrain version 20:** curved, no partial roads (`ff38bed`).
 - **Gate on `ff38bed`:** typecheck, unit 498/498, build, browser 45/45 (Playwright exit 0, load 7 at start).
 - **Not tested:** no phone test.
+
+**2026-10-28 · Claude Code · deployed `2dd9fb5`:** Pages run 40756872094 succeeded. The live bundles carry the shipyard and the well lens, and the production endless smoke test has zero page errors. No phone test.
