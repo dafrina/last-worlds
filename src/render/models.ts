@@ -482,20 +482,36 @@ export function loadKhepriCraft(url: string): Promise<Map<KhepriCraftNode, Nacre
  */
 export async function loadCraftNodes<N extends string>(url: string, names: readonly N[]): Promise<Map<N, NacreCraft>> {
   const gltf = await new GLTFLoader().loadAsync(url);
+  const found = craftFromScene(gltf.scene, names);
+  gltf.scene.traverse(object => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose(); (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(material => material.dispose());
+  });
+  return found;
+}
+
+/**
+ * The craft conversion of loadCraftNodes from an already loaded scene, which it leaves untouched (a shared, cached kit).
+ * `recolour` may hand over a repainted copy of a mesh's geometry and material (the hero's paint, src/render/hero-craft.ts).
+ */
+export function craftFromScene<N extends string>(root: THREE.Object3D, names: readonly N[],
+  recolour?: (mesh: THREE.Mesh, material: THREE.MeshStandardMaterial) => { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial }): Map<N, NacreCraft> {
   const found = new Map<N, NacreCraft>();
   for (const name of names) {
-    const node = gltf.scene.getObjectByName(name);
+    const node = root.getObjectByName(name);
     if (!node) continue;
     node.updateMatrixWorld(true);
     const inverse = node.matrixWorld.clone().invert(), parts: THREE.BufferGeometry[] = [], engines: [number, number][] = [];
     // Engine empties may be children of the node or top-level siblings named <node>_engine_N.
-    gltf.scene.traverse(object => {
+    root.traverse(object => {
       if (object.name.startsWith(`${name}_engine_`)) { const p = object.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse); engines.push([p.x, p.z]); }
     });
     node.traverse(object => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
-      const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+      const original = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+      const painted = recolour?.(mesh, original), material = painted?.material ?? original, geometry = painted?.geometry ?? mesh.geometry;
       const label = material.name ?? '', glow = /glow/i.test(label);
       const pbrOf: [number, number, number] = /^(brood_|wraith_)/i.test(label)
         ? [material.roughness, material.metalness, glow ? material.emissiveIntensity : 0]
@@ -503,7 +519,7 @@ export async function loadCraftNodes<N extends string>(url: string, names: reado
         : /frame/i.test(label) ? [0.42, 0.4, 0] : /plate/i.test(label) ? [0.45, 0.35, 0] : /obsidian/i.test(label) ? [0.12, 0, 0] : [0.26, 0.35, 0];
       const emissive = material.emissive && material.emissive.getHex() !== 0 ? material.emissive : material.color;
       const tint = glow ? emissive : material.color;
-      const source = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+      const source = geometry.index ? geometry.toNonIndexed() : geometry.clone();
       const count = source.getAttribute('position').count, color = new Float32Array(count * 3), pbr = new Float32Array(count * 3), vertex = source.getAttribute('color');
       for (let i = 0; i < count; i++) {
         const r = vertex && !glow ? vertex.getX(i) : 1, g = vertex && !glow ? vertex.getY(i) : 1, b = vertex && !glow ? vertex.getZ(i) : 1;
@@ -516,15 +532,11 @@ export async function loadCraftNodes<N extends string>(url: string, names: reado
       part.setAttribute('color', new THREE.BufferAttribute(color, 3)); part.setAttribute('pbr', new THREE.BufferAttribute(pbr, 3));
       part.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
       parts.push(part); source.dispose();
+      if (painted) { painted.geometry.dispose(); painted.material.dispose(); }
     });
     const merged = mergeGeometries(parts); parts.forEach(part => part.dispose());
     if (merged) { merged.computeBoundingBox(); merged.computeBoundingSphere(); found.set(name, { geometry: merged, engines }); }
   }
-  gltf.scene.traverse(object => {
-    const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.geometry.dispose(); (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(material => material.dispose());
-  });
   return found;
 }
 

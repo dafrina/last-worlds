@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, freshProfile, shipParts, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
 import { RANK_PRICES, REWARDS, STARTER } from '../../src/content/equipment';
+import { HERO_DESIGN_PRICES } from '../../src/content/hero-parts';
 
 function memory(initial?: string) {
   const values = new Map<string, string>();
@@ -148,5 +149,28 @@ describe('ship parts and v1 migration', () => {
     expect(store.status()).toBe('saved');
     expect(store.buy('weapon', 'rail')).toBe(true);
     expect(store.read()).toMatchObject({ credits: 300, owned: { weapon: ['pulse', 'rail'] } });
+  });
+
+  it('sells B and C part designs for owned ships once, fits only owned designs, and launches with the look', () => {
+    const store = createCampaignProfile(memory());
+    store.settle(clear('c1', { credits: 2000 }));
+    expect(store.buyDesign('ironclad', 'wings', 'b')).toBe(false); // not an owned ship
+    const before = store.read().credits;
+    expect(store.setLook('scrapper', { parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' } })).toBe(false);
+    expect(store.buyDesign('scrapper', 'hull', 'b')).toBe(true);
+    expect(store.buyDesign('scrapper', 'hull', 'b')).toBe(false);
+    expect(store.read().credits).toBe(before - HERO_DESIGN_PRICES.b);
+    expect(store.setLook('scrapper', { parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' }, paint: { primary: 0x803020 } })).toBe(true);
+    expect(campaignConfig(store.read(), 'training', 'standard', 1).hero).toEqual({ parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' }, paint: { primary: 0x803020 } });
+  });
+
+  it('cleans broken ship looks on load instead of refusing the save', () => {
+    const saved = { ...freshProfile(), credits: 7, designs: ['scrapper:hull:b', 'bogus', 'scrapper:wings:a'],
+      looks: { scrapper: { parts: { hull: 'b', wings: 'c', engines: 'a', cockpit: 'a' } }, ironclad: { parts: { hull: 'z' } } } };
+    const profile = createCampaignProfile(memory(JSON.stringify(saved))).read();
+    expect(profile.credits).toBe(7);
+    expect(profile.designs).toEqual(['scrapper:hull:b']);
+    // Wings C was never bought: it falls back to A. The malformed Ironclad look is dropped.
+    expect(profile.looks).toEqual({ scrapper: { parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' } } });
   });
 });

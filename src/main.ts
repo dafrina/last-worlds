@@ -106,7 +106,8 @@ async function start(config: RunConfig) {
   let panel = false;
   const slow = setTimeout(() => { if (id === launchId) { panel = true; ui.setLoadingWarp(false); } }, SLOW_LOADING_MS);
   try {
-    await renderer?.prepare(candidate.planet);
+    // The world and the ship the flight shows (its chassis and look) load together under the warp.
+    await Promise.all([renderer?.prepare(candidate.planet), renderer?.prepareHero?.(candidate.config)]);
     if (id !== launchId) return;
     // Compile and upload the actual destination under the loading panel, before its clock starts.
     renderer?.render(candidate, 0);
@@ -160,6 +161,7 @@ const ui = createUi(root, {
   },
   setMuted(value) { audio.setSettings({ muted: value }); },
   setQuality(value) { renderer?.setQuality(value); },
+  heroTurntable: (ship, look, size, frames) => renderer?.heroTurntable?.(ship, look, size, frames) ?? Promise.resolve(null),
 });
 const disposeAudioSettings = mountAudioSettings(root, audio);
 const input = createInput(ui.surface, ui.specialButton);

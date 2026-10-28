@@ -1,8 +1,9 @@
 import { missionText } from './missions';
 import { MAX_RANK, RANK_PRICES, SHIPS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, WEAPON_TIERS } from '../content/equipment';
 import { WEAPONS } from '../content/balance';
-import { SLOT_ITEMS, itemPrice, shipParts, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
-import type { ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
+import { SLOT_ITEMS, itemPrice, lookOf, ownsDesign, shipParts, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
+import type { HeroDesign, HeroLook, HeroSlot, ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
+import { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroLookKey } from '../content/hero-parts';
 
 /** Player-facing name and one-line description of any equipment item. */
 export function itemText(slot: Slot, id: ItemId): { name: string; blurb: string } {
@@ -64,4 +65,74 @@ export function renderHangar(list: HTMLElement, profile: CampaignProfile, slot: 
     }
     return item;
   }));
+}
+
+export interface ShipyardActions {
+  buyDesign(ship: ShipId, slot: HeroSlot, design: HeroDesign): void;
+  setLook(ship: ShipId, look: HeroLook): void;
+  /** The game renderer's turntable strip of a look (UiActions.heroTurntable), or null without one. */
+  turntable(ship: ShipId, look: HeroLook): Promise<HTMLCanvasElement | null>;
+}
+const TURNTABLE_SIZE = 192, TURNTABLE_FRAMES = 36;
+const strips = new Map<string, Promise<HTMLCanvasElement | null>>();
+let spinning = 0;
+const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
+
+/**
+ * The shipyard (docs/31; user, 28 October: "seeing the ship in a hangar like preview"): the equipped ship turning, its four
+ * part slots with designs A–C (A comes with the ship; B and C are bought with credits, then free to switch), and its paint.
+ * Cosmetic only: no part changes handling, the hit region or any stat.
+ */
+export function renderShipyard(host: HTMLElement, profile: CampaignProfile, actions: ShipyardActions): void {
+  const ship = profile.loadout.ship, look = lookOf(profile, ship), paint = { ...HERO_DEFAULT_PAINT[ship], ...look.paint };
+  const title = document.createElement('h3'); title.className = 'shipyard-title'; title.textContent = `${SHIPS[ship].label.toUpperCase()} · YOUR BUILD`;
+  const canvas = document.createElement('canvas'); canvas.className = 'shipyard-preview';
+  canvas.width = canvas.height = TURNTABLE_SIZE; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', `${SHIPS[ship].label} preview`);
+  const rows = HERO_SLOTS.map(slot => {
+    const row = document.createElement('div'); row.className = 'shipyard-slot';
+    const label = document.createElement('span'); label.textContent = HERO_SLOT_NAMES[slot].toUpperCase(); row.append(label);
+    for (const design of HERO_DESIGNS) {
+      const owned = ownsDesign(profile, ship, slot, design), fitted = look.parts[slot] === design, price = HERO_DESIGN_PRICES[design];
+      const choice = document.createElement('button');
+      choice.type = 'button'; choice.className = `shipyard-design${fitted ? ' is-on' : owned ? '' : ' is-locked'}`;
+      choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} · ${price}`;
+      choice.setAttribute('aria-pressed', String(fitted));
+      choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, buy for ${price} credits`}`);
+      choice.disabled = !owned && profile.credits < price;
+      choice.addEventListener('click', () => {
+        if (!owned) actions.buyDesign(ship, slot, design);
+        actions.setLook(ship, { ...look, parts: { ...look.parts, [slot]: design } });
+      });
+      row.append(choice);
+    }
+    return row;
+  });
+  const colours = document.createElement('div'); colours.className = 'shipyard-paint';
+  for (const [role, name] of [['primary', 'PAINT'], ['secondary', 'TRIM'], ['glow', 'GLOW']] as const) {
+    const field = document.createElement('label'), input = document.createElement('input');
+    input.type = 'color'; input.value = hex(paint[role]);
+    input.addEventListener('change', () => actions.setLook(ship, { ...look, paint: { ...look.paint, [role]: parseInt(input.value.slice(1), 16) } }));
+    field.append(input, name); colours.append(field);
+  }
+  const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'hangar-action'; reset.textContent = 'DEFAULT PAINT';
+  reset.disabled = !look.paint; reset.addEventListener('click', () => actions.setLook(ship, { parts: look.parts }));
+  colours.append(reset);
+  host.replaceChildren(title, canvas, ...rows, colours);
+
+  // The turntable: drawn once per look by the game's renderer, then animated here frame by frame.
+  const key = heroLookKey(ship, look);
+  if (!strips.has(key)) { if (strips.size > 8) strips.delete(strips.keys().next().value!); strips.set(key, actions.turntable(ship, look)); }
+  const run = ++spinning;
+  void strips.get(key)!.then(strip => {
+    const context = canvas.getContext('2d');
+    if (!strip || !context || run !== spinning) return;
+    const draw = (now: number) => {
+      if (run !== spinning || !canvas.isConnected) return;
+      const frame = Math.floor(now / 110) % TURNTABLE_FRAMES;
+      context.clearRect(0, 0, TURNTABLE_SIZE, TURNTABLE_SIZE);
+      context.drawImage(strip, frame * TURNTABLE_SIZE, 0, TURNTABLE_SIZE, TURNTABLE_SIZE, 0, 0, TURNTABLE_SIZE, TURNTABLE_SIZE);
+      if (!canvas.closest('[hidden]') && !document.hidden) requestAnimationFrame(draw); else setTimeout(() => requestAnimationFrame(draw), 400);
+    };
+    requestAnimationFrame(draw);
+  });
 }

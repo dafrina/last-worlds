@@ -39,6 +39,9 @@ import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint
 import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
+import { loadHeroCraft } from './hero-craft';
+import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey } from '../content/hero-parts';
+import type { HeroLook, RunConfig, ShipId } from '../shared/contracts';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 /** Per-frame CPU budget for generating the next terrain section ahead of need. */
@@ -587,15 +590,61 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   });
   markHero(hero);
   let heroModel = 'fallback';
-  const heroLoad = loadCraftNodes(`${import.meta.env.BASE_URL}assets/shared/hero-scrapper.glb`, ['hero_scrapper'] as const).then(nodes => {
-    const model = nodes.get('hero_scrapper');
-    if (!model) return;
-    if (disposed) { model.geometry.dispose(); return; }
-    hero.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
-    hero.clear();
-    const mesh = new THREE.Mesh(model.geometry, materials.craft); mesh.castShadow = mesh.receiveShadow = true;
-    hero.add(mesh); markHero(mesh); heroModel = 'glb'; warmed = false;
-  }).catch(error => console.warn('Scrapper model unavailable; retaining the starter stand-in.', error));
+  // The hero is the flight's ship as the player built it (docs/31): its chassis's kit parts, repainted, as one craft. Endless
+  // and the menus fly the default Scrapper; campaign visual unlocks never reach endless (AGENTS.md invariant 14).
+  let heroKey = '', heroEngines: [number, number][] = [[-.38, .7], [.38, .7]], heroGlow = 0x7ff6ea;
+  const heroOf = (config: RunConfig): [ShipId, HeroLook] => config.mode === 'campaign' ? [config.ship ?? 'scrapper', config.hero ?? DEFAULT_LOOK] : ['scrapper', DEFAULT_LOOK];
+  const showHero = (ship: ShipId, look: HeroLook): Promise<void> => {
+    const key = heroLookKey(ship, look);
+    if (key === heroKey) return heroPending;
+    heroKey = key;
+    heroPending = loadHeroCraft(ship, look).then(model => {
+      if (!model) return;
+      if (disposed || key !== heroKey) { model.geometry.dispose(); return; }
+      hero.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
+      hero.clear();
+      const mesh = new THREE.Mesh(model.geometry, materials.craft); mesh.castShadow = mesh.receiveShadow = true;
+      hero.add(mesh); markHero(mesh); heroModel = 'glb'; warmed = false;
+      if (model.engines.length) heroEngines = model.engines;
+      heroGlow = look.paint?.glow ?? HERO_DEFAULT_PAINT[ship].glow;
+    }).catch(error => console.warn('Hero model unavailable; retaining the current ship.', error));
+    return heroPending;
+  };
+  let heroPending: Promise<void> = Promise.resolve();
+  const heroLoad = showHero('scrapper', DEFAULT_LOOK);
+  /**
+   * The hangar's turntable (docs/31): a ship's look drawn by this renderer into a small target, once per change, as a strip
+   * of views turning a full circle. Menus never open a second WebGL context on phones; the strip animates on a 2D canvas.
+   */
+  async function heroTurntable(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null> {
+    const model = await loadHeroCraft(ship, look);
+    if (!model || disposed) { model?.geometry.dispose(); return null; }
+    const stage = new THREE.Scene(), mesh = new THREE.Mesh(model.geometry, materials.craft);
+    stage.environment = scene.environment;
+    const key = new THREE.DirectionalLight(0xfff1dc, 2.6); key.position.set(-3, 5, 2);
+    const rim = new THREE.DirectionalLight(0x9fc4ff, 1.1); rim.position.set(3, 2, -4);
+    stage.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a2622, 1.1), key, rim, mesh);
+    const view = new THREE.PerspectiveCamera(26, 1, .1, 40);
+    const radius = model.geometry.boundingSphere?.radius ?? 1;
+    view.position.set(0, radius * 2.5, radius * 3.6); view.lookAt(0, 0, 0);
+    const target = new THREE.WebGLRenderTarget(size, size, { samples: 4 });
+    target.texture.colorSpace = THREE.SRGBColorSpace;
+    const strip = document.createElement('canvas'); strip.width = size * frames; strip.height = size;
+    const context = strip.getContext('2d'), pixels = new Uint8Array(size * size * 4), image = context?.createImageData(size, size);
+    const previous = renderer.getRenderTarget(), clear = renderer.getClearColor(new THREE.Color()), alpha = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0);
+    for (let i = 0; i < frames && context && image; i++) {
+      mesh.rotation.y = -Math.PI / 5 + i / frames * Math.PI * 2;
+      renderer.setRenderTarget(target); renderer.clear(); renderer.render(stage, view);
+      renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
+      // WebGL rows run bottom-up: flip into the canvas.
+      for (let row = 0; row < size; row++) image.data.set(pixels.subarray((size - 1 - row) * size * 4, (size - row) * size * 4), row * size * 4);
+      context.putImageData(image, i * size, 0);
+    }
+    renderer.setRenderTarget(previous); renderer.setClearColor(clear, alpha);
+    target.dispose(); model.geometry.dispose();
+    return strip;
+  }
   const facilities = createFacilityView(scene, () => { warmed = false; });
   const ENEMY_CAPACITY = 32;
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
@@ -1089,6 +1138,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const resizePost = () => post.setSize(drawingWidth * renderer.getPixelRatio(), drawingHeight * renderer.getPixelRatio());
   return {
     prepare: preload,
+    prepareHero: config => showHero(...heroOf(config)),
+    heroTurntable,
     /** The playground (playground.html): a level's look as shipped, and a live replacement for it. */
     lookOf: (world: PlanetId) => structuredClone(DEFAULT_LOOKS[world]),
     tuneLook(world: PlanetId, look: PlanetLook) {
@@ -1117,6 +1168,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       lastStatsTick = -Infinity;
     },
     render(state, alpha) {
+      void showHero(...heroOf(state.config));
       if (disposed) return;
       renderer.info.reset();
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
@@ -1263,8 +1315,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       plumes.length = 0;
       const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
       const heroLength = (.5 + Math.abs(state.player.vx) * .03) * flicker(0) * HERO_SCALE;
-      if (heroAlive && entrance > .9) for (const side of [-1, 1]) plumes.push({ x: state.player.x + side * .38 * HERO_SCALE * Math.cos(hero.rotation.z), z: .7 * HERO_SCALE, length: heroLength,
-        width: .2 * HERO_SCALE, hex: 0x7ff6ea, energy: 2.6 });
+      // Plumes at the ship's own engine sockets, in its glow (thinner where there are more of them).
+      if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) plumes.push({ x: state.player.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), z: ez * HERO_SCALE, length: heroLength,
+        width: .2 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), hex: heroGlow, energy: 2.6 });
       let shadowCount = 0, plinthCount = 0;
       const flightShadow = (x: number, s: number, width: number, length: number, height: number) => {
         if (shadowCount >= flightShadows.instanceMatrix.count) return;

@@ -6,7 +6,7 @@ import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
 import { CREDIT_MULTIPLIER, SHIPS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
-import { itemText, renderHangar } from './hangar';
+import { itemText, renderHangar, renderShipyard } from './hangar';
 import './styles.css';
 
 const shipGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 15 10 21 15 21 19 14 17 14 21 10 21 10 17 3 19 3 15 9 10Z"/></svg>';
@@ -210,8 +210,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       assemble(ship) { if (campaign.assemble(ship)) campaign.equip('ship', ship); refreshHangar(); },
       upgrade(weapon) { campaign.upgrade(weapon); refreshHangar(); },
     });
+    const yard = find<HTMLElement>('.shipyard');
+    yard.hidden = hangarSlot !== 'ship';
+    if (hangarSlot === 'ship') renderShipyard(yard, campaign.read(), {
+      buyDesign(ship, slot, design) { campaign.buyDesign(ship, slot, design); },
+      setLook(ship, look) { campaign.setLook(ship, look); refreshHangar(); },
+      turntable: (ship, look) => actions.heroTurntable?.(ship, look, 192, 36) ?? Promise.resolve(null),
+    });
     for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = campaign.read().credits.toLocaleString();
-    text('.hangar-note', hangarSlot === 'ship' ? 'Parts come from the listed mission clears, on any difficulty. All chassis currently share the same ship model.' : 'Credits come from campaign missions. Changing equipped gear is free.');
+    text('.hangar-note', hangarSlot === 'ship' ? 'Ships come from the listed mission clears, on any difficulty. Their parts and paint are cosmetic: B and C designs cost credits once, then switch freely.' : 'Credits come from campaign missions. Changing equipped gear is free.');
   }
   selectorListeners.set('mission', value => showMission(MISSION_ORDER.findIndex(([id]) => id === value)));
   for (const arrow of shell.querySelectorAll<HTMLElement>('[data-mission-step]')) {

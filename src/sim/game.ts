@@ -7,6 +7,7 @@ import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
 import { runPlanet } from '../content/missions';
 import { SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
+import { validLook } from '../content/hero-parts';
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
@@ -31,7 +32,7 @@ export function createRun(config: RunConfig): RunState {
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', mission: config.mission ?? 'training',
       weapon: pick(config.weapon, WEAPON_IDS, STARTER.weapon), special: pick(config.special, SPECIAL_IDS, STARTER.special),
       shield: pick(config.shield, SHIELD_IDS, STARTER.shield), ship: pick(config.ship, SHIP_IDS, STARTER.ship),
-      rank: weaponRank(config.rank ?? 0) };
+      rank: weaponRank(config.rank ?? 0), ...(validLook(config.hero) ? { hero: validLook(config.hero)! } : {}) };
   const shieldTech = SHIELD_TECH[normalized.shield!];
   const pace = normalized.mode === 'endless' ? paceInSector(1, 0) : PACE.campaign;
   return {

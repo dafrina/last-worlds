@@ -53,6 +53,7 @@ export const menuMarkup = `
     <div class="eyebrow campaign-eyebrow"><span>CAMPAIGN</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span></div>
     <h2 id="hangar-title">HANGAR</h2>
     ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['ship', 'Ships']], 'weapon')}
+    <section class="shipyard" aria-label="Shipyard" hidden></section>
     <ul class="hangar-items" aria-live="polite"></ul>
     <p class="panel-note hangar-note">Credits come from campaign missions. Changing equipped gear is free.</p>
   </section>

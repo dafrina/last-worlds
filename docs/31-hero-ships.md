@@ -1,7 +1,7 @@
 # 31 · Modular hero ships
 
-Status: models and a preview tool (28 October 2026). The models are done. Using them in the game, unlocks, the
-campaign hangar UI and saves are integration work (Codex, docs/30) and have not been started.
+Status: in the game since 28 October 2026. Each campaign chassis flies its own build; Hangar → Ships has the
+configurator (§ In the game). The playground's Hangar tab is the look-dev view.
 
 ## What exists
 
@@ -58,7 +58,24 @@ vertex's shade relative to the default paint, so dark colours stay dark and ligh
 material and takes its own tint. The default paint for each chassis is `HERO_DEFAULT_PAINT`; it must match the kit
 (`PAINTS` in `hero_kit.py`).
 
-## Integration notes (not done; for Codex/integrator)
+## In the game
+
+- **Look:** `HeroLook` (src/shared/contracts.ts) is one design per slot plus optional paint. The campaign save keeps
+  `designs` (bought `ship:slot:design` ids) and `looks` (one per ship), both optional (src/campaign/profile.ts:
+  `buyDesign`, `setLook`, `ownsDesign`, `lookOf`, `cleanLooks`).
+- **Run config:** `RunConfig.hero` carries the look for the campaign; `createRun` drops it in endless. The simulation
+  never reads it.
+- **Flight:** src/render/hero-craft.ts loads the four kit nodes through `craftFromScene` with the paint applied, merges
+  them into one craft draw, and takes the plumes from the propulsion part's engine sockets. The renderer's
+  `prepareHero` runs alongside the world under the launch warp.
+- **Hangar:** src/ui/hangar.ts `renderShipyard`.
+  - Designs A–C per slot: A is free; B and C are bought with credits (`HERO_DESIGN_PRICES`, src/content/hero-parts.ts)
+    and then switch freely.
+  - Paint, trim and glow pickers, and Default paint.
+  - The turntable: `GameRenderer.heroTurntable` draws 36 views into a strip once per look, and the hangar animates it
+    on a 2D canvas (no second WebGL context).
+
+## Integration notes (original handoff, now done)
 
 - The game currently loads `hero-scrapper.glb` through `loadCraftNodes` (src/render/scene.ts). A build can use the same
   path. Load the four part nodes of the build from the kit, merge them, and take the engine sockets of the engines node.

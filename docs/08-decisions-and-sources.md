@@ -201,3 +201,14 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
 ## 28 October 2026 — collectible chassis and shared weapon tiers
 
 User approved main/special/shield/ship as the four slots, replacing handling reactors. Chassis have named campaign perks and are assembled from finite named parts; all use the existing hero model for now. Weapon upgrades add projectile volume/cadence, keeping damage per projectile unchanged; exactly two upgrades. Endless uses the same tiers via upgrade and duplicate-weapon pickups and resets to tier 1 when changing weapon family. Campaign shield equipment starts at 3/4/5; pickup capacity is five by default in either mode, one charge per cell. See docs/30 for implementation, costs, initial part recipes and migration.
+
+## 28 October 2026 — ship configurator, Rail Driver, Gravity Well
+
+- **Ship looks (user: "i would've imagined seeing a preview of the ships in the hangar like we do in playground. Where is the configurator in game?"):** this replaces "all chassis use the existing hero model". Each chassis now flies its own modular model from docs/31: hull, wings, propulsion and cockpit, designs A–C, plus paint (paint, trim, glow).
+  - Hangar → Ships shows the equipped ship turning. It is drawn by the game's own renderer, so the menus open no second WebGL context.
+  - **Unlocks (user: "for now buy with credits, it'll be changed later on"):** A comes with the ship. B costs 80 credits and C 160, each per part, once; switching and paint are free (`HERO_DESIGN_PRICES`, src/content/hero-parts.ts).
+  - Cosmetic only: the same hit region, handling and gun origins.
+  - Endless always flies the default Scrapper.
+  - Old version-2 saves load unchanged; broken looks are cleaned, never refused.
+- **Rail Driver and Gravity Well:** see docs/32. The well's reach was enlarged and it got a real lens (user: "the radius should be bigger and sucking in ships with a distorted lens effect ... actually distort the view underneath").
+

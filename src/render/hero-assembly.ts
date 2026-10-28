@@ -10,26 +10,17 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, heroKitFile, heroPartNode } from '../content/hero-parts';
+import type { HeroDesign, HeroSlot, ShipId } from '../shared/contracts';
 
-export const HERO_CHASSIS = ['scrapper', 'ironclad', 'interceptor', 'spectre'] as const;
-export type HeroChassis = (typeof HERO_CHASSIS)[number];
-export const HERO_SLOTS = ['hull', 'wings', 'engines', 'cockpit'] as const;
-export type HeroSlot = (typeof HERO_SLOTS)[number];
-export const HERO_DESIGNS = ['a', 'b', 'c'] as const;
-export type HeroDesign = (typeof HERO_DESIGNS)[number];
-/** A ship as the player built it: one design per slot, and optional paint (linear-free hex colours). */
+export { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, heroKitFile, heroPartNode };
+export type { HeroDesign, HeroSlot };
+export const HERO_CHASSIS: readonly ShipId[] = ['scrapper', 'ironclad', 'interceptor', 'spectre'];
+export type HeroChassis = ShipId;
+/** A ship as the player built it: one design per slot, and optional paint (sRGB hex colours). */
 export interface HeroBuild { chassis: HeroChassis; parts: Record<HeroSlot, HeroDesign>; paint?: { primary?: number; secondary?: number; glow?: number } }
-
-export const heroKitFile = (chassis: HeroChassis) => `shared/hero-${chassis}-kit.glb`;
-export const heroPartNode = (chassis: HeroChassis, slot: HeroSlot, design: HeroDesign) => `hero_${chassis}_${slot}_${design}`;
-/** The kit's own colours (as authored): what a build without paint shows. */
-export const HERO_DEFAULT_PAINT: Record<HeroChassis, { primary: number; secondary: number; glow: number }> = {
-  scrapper: { primary: 0xc8c9bd, secondary: 0x78442f, glow: 0x78f9f1 },
-  ironclad: { primary: 0x3d4528, secondary: 0xb58a1c, glow: 0xff4a24 },
-  interceptor: { primary: 0xd9dde2, secondary: 0x1f4f9a, glow: 0x5aa8ff },
-  spectre: { primary: 0x17141e, secondary: 0xa9adb8, glow: 0xb46cff },
-};
-const ROLE = { primary: .75, secondary: .5 } as const;
+/** Vertex-colour alpha of each paint role. */
+export const ROLE = { primary: .75, secondary: .5 } as const;
 
 const files = new Map<string, Promise<GLTF>>();
 /** Loads a chassis kit once (shared by every build of that chassis). */
@@ -44,7 +35,7 @@ const luminance = (r: number, g: number, b: number) => r * .2126 + g * .7152 + b
  * Repaints the faces of a paint role from the kit's paint to `colour`, keeping each vertex's baked shade (its lightness
  * relative to the kit paint), so a dark colour stays dark and a light one light.
  */
-function tint(geometry: THREE.BufferGeometry, role: number, colour: THREE.Color, from: THREE.Color) {
+export function tint(geometry: THREE.BufferGeometry, role: number, colour: THREE.Color, from: THREE.Color) {
   const attribute = geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
   if (!attribute || attribute.itemSize < 4) return;
   const base = luminance(from.r, from.g, from.b) || 1e-3;

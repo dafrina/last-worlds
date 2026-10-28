@@ -155,7 +155,7 @@ test('ships assemble from mission parts, persist, and launch with their perk and
   await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await page.getByRole('button', { name: /Open the hangar/ }).click();
   await page.getByRole('radio', { name: 'Ships', exact: true }).click();
-  await expect(page.locator('.hangar-note')).toContainText('same ship model');
+  await expect(page.locator('.hangar-note')).toContainText('cosmetic');
   const ironclad = page.locator('.hangar-item', { has: page.getByRole('heading', { name: 'Ironclad', exact: true }) });
   await expect(ironclad.locator('.ship-parts')).toContainText('✓ Frame');
   const spectre = page.locator('.hangar-item', { has: page.getByRole('heading', { name: 'Spectre', exact: true }) });
@@ -163,6 +163,13 @@ test('ships assemble from mission parts, persist, and launch with their perk and
   await page.screenshot({ path: info.outputPath('ship-collection.png') });
   await ironclad.getByRole('button', { name: 'ASSEMBLE' }).click();
   await expect(ironclad).toContainText('EQUIPPED');
+  // The shipyard (docs/31): the equipped ship's look; a B design is bought once with credits, then fitted.
+  const yard = page.locator('.shipyard');
+  await expect(yard).toContainText('IRONCLAD · YOUR BUILD');
+  await yard.getByRole('button', { name: /Wings design B, buy for 80 credits/ }).click();
+  await expect(yard.getByRole('button', { name: 'Wings design B' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.credit-balance b').first()).toHaveText('4,920');
+  await page.screenshot({ path: info.outputPath('shipyard.png') });
   await page.getByRole('radio', { name: 'Shield', exact: true }).click();
   await page.locator('.hangar-item', { hasText: 'Aegis Array' }).getByRole('button', { name: 'EQUIP', exact: true }).click();
   await page.getByRole('radio', { name: 'Main', exact: true }).click();
@@ -177,7 +184,7 @@ test('ships assemble from mission parts, persist, and launch with their perk and
   await page.getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click(); await flying(page);
   const state = await snapshot(page);
-  expect(state.config).toMatchObject({ ship: 'ironclad', rank: 2, shield: 'aegis' });
+  expect(state.config).toMatchObject({ ship: 'ironclad', rank: 2, shield: 'aegis', hero: { parts: { hull: 'a', wings: 'b', engines: 'a', cockpit: 'a' } } });
   expect(state.player).toMatchObject({ lives: 4, shields: 5, maxShields: 5, power: 2 });
   await page.getByRole('button', { name: 'Pause flight' }).click();
   await expect(page.locator('.pause-tech')).toContainText('Ironclad');

@@ -41,9 +41,16 @@ export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; p
  * A run's setup. The campaign loadout (weapon, special, shield, ship, rank of the main weapon) applies only to the
  * campaign; createRun gives every endless run the canonical starter.
  */
+/** Modular hero ships (docs/31): four visual part slots, three designs each, mixed within one chassis. */
+export type HeroSlot = 'hull' | 'wings' | 'engines' | 'cockpit';
+export type HeroDesign = 'a' | 'b' | 'c';
+/** How the player built a chassis: one design per slot, and optional paint (sRGB hex). Cosmetic only. */
+export interface HeroLook { parts: Record<HeroSlot, HeroDesign>; paint?: { primary?: number; secondary?: number; glow?: number } }
 export interface RunConfig {
   mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId;
   special?: SpecialId; shield?: ShieldTechId; ship?: ShipId; rank?: number;
+  /** The campaign ship's look (cosmetic: the simulation never reads it). Endless always flies the default Scrapper. */
+  hero?: HeroLook;
 }
 export interface Player {
   x: number; vx: number; lives: number; shields: number; maxShields: number;
@@ -173,6 +180,10 @@ export interface GameRenderer {
   tuneLook?(planet: PlanetId, look: unknown): void;
   resize(width: number, height: number): void;
   setQuality(quality: GraphicsQuality): void;
+  /** Loads the ship a flight shows (its chassis and look; endless always the default Scrapper) before it is exposed. */
+  prepareHero?(config: RunConfig): Promise<void>;
+  /** The hangar's turntable of a ship's look: `frames` square views of `size` pixels side by side (UiActions.heroTurntable). */
+  heroTurntable?(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null>;
   dispose(): void;
 }
 export interface GameInput {
@@ -182,6 +193,11 @@ export interface UiActions {
   start(config: RunConfig): void; pause(): void; resume(): void; quit(): void;
   setMuted(muted: boolean): void;
   setQuality(quality: GraphicsQuality): void;
+  /**
+   * A turntable of a ship's look for the hangar, drawn by the game's own renderer (menus never open a second WebGL
+   * context): a strip of `frames` square views side by side, or null without a renderer.
+   */
+  heroTurntable?(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null>;
 }
 export interface GameUi {
   canvas: HTMLCanvasElement; surface: HTMLElement; specialButton: HTMLButtonElement;
