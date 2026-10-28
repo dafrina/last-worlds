@@ -377,30 +377,37 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInp
   if (roadMemo.has(key)) return roadMemo.get(key)!;
   let result: RoadPath | null = null;
   if (edge.road) {
-    const g = yield* gridSteps(seed, edge, 1, 0.5, 8, false, world), nodes = yield* searchSteps(g, edge.a, edge.b, true, ROAD_MAX_SLOPE, 0.4, 10);
+    // A road reaches its goal or is not built (user, 28 October: roads that "don't make sense"; a partial run ended in
+    // the open or against a cliff).
+    const g = yield* gridSteps(seed, edge, 1, 0.5, 8, false, world), nodes = yield* searchSteps(g, edge.a, edge.b, true, ROAD_MAX_SLOPE, 0.4, Infinity);
     if (nodes && nodes.length > 1) {
-      let points = nodes.map(node => [g.x0 + (node % g.columns) * g.cell, g.s0 + Math.floor(node / g.columns) * g.cell]);
-      // Chaikin smoothing gives gently curved roads; the endpoints stay on searched cells next to the gates.
-      for (let pass = 0; pass < 2; pass++) {
-        const next = [points[0]];
+      const raw = nodes.map(node => [g.x0 + (node % g.columns) * g.cell, g.s0 + Math.floor(node / g.columns) * g.cell]);
+      const resample = (points: number[][]) => {
+        const xs: number[] = [points[0][0]], ss: number[] = [points[0][1]], lengths: number[] = [0];
+        let carry = 0;
         for (let i = 0; i < points.length - 1; i++) {
-          const [ax, as] = points[i], [bx, bs] = points[i + 1];
-          next.push([ax * 0.75 + bx * 0.25, as * 0.75 + bs * 0.25], [ax * 0.25 + bx * 0.75, as * 0.25 + bs * 0.75]);
+          const [ax, as] = points[i], [bx, bs] = points[i + 1], span = Math.hypot(bx - ax, bs - as);
+          for (let t = ROAD_STEP - carry; t <= span; t += ROAD_STEP) {
+            xs.push(ax + (bx - ax) * t / span); ss.push(as + (bs - as) * t / span); lengths.push(lengths[lengths.length - 1] + ROAD_STEP);
+          }
+          carry = (carry + span) % ROAD_STEP;
         }
-        next.push(points[points.length - 1]); points = next;
-      }
-      const xs: number[] = [points[0][0]], ss: number[] = [points[0][1]], lengths: number[] = [0];
-      let carry = 0;
-      for (let i = 0; i < points.length - 1; i++) {
-        const [ax, as] = points[i], [bx, bs] = points[i + 1], span = Math.hypot(bx - ax, bs - as);
-        for (let t = ROAD_STEP - carry; t <= span; t += ROAD_STEP) {
-          xs.push(ax + (bx - ax) * t / span); ss.push(as + (bs - as) * t / span); lengths.push(lengths[lengths.length - 1] + ROAD_STEP);
-        }
-        carry = (carry + span) % ROAD_STEP;
-      }
-      const y = xs.map((x, i) => g.ground(x, ss[i]));
+        return { xs, ss, lengths, y: xs.map((x, i) => g.ground(x, ss[i])) };
+      };
       // Last guard: a road whose smoothed line still meets a hard grade is not built.
-      const graded = y.every((height, i) => i === 0 || Math.abs(height - y[i - 1]) / ROAD_STEP <= ROAD_MAX_SLOPE * 1.6);
+      const gradedLine = (line: ReturnType<typeof resample>) => line.y.every((height, i) => i === 0 || Math.abs(height - line.y[i - 1]) / ROAD_STEP <= ROAD_MAX_SLOPE * 1.6);
+      // Curved roads (user, 28 October: "lots of hard edges"): first the searched cells, straightened wherever a direct line
+      // stays on gentle, dry, open ground, then every corner rounded with up to a 4-unit curve. Where the curves would meet
+      // a harder grade, the road keeps the original gentle smoothing of the searched cells.
+      // Where a wide curve would leave the grade (a climb round a ridge), tighter ones are tried, on the straightened line
+      // and then on the searched one, before the old smoothing.
+      const straight = straighten(g, raw, nodes), merged = mergeRuns(raw);
+      let line = resample(chaikin(raw, 2));
+      for (const [points, radius] of [[straight, 4], [straight, 2.5], [straight, 1.5], [merged, 1.5]] as const) {
+        const candidate = resample(roundCorners(points, radius));
+        if (gradedLine(candidate) && openLine(g, candidate.xs, candidate.ss, nodes)) { line = candidate; break; }
+      }
+      const { xs, ss, lengths, y } = line, graded = gradedLine(line);
       // An end at an outpost's gate opens onto its pad; at a district gate an internal road continues; others fade.
       const endOf = (end: Endpoint, x: number, s: number): RoadEnd => !end.site || Math.hypot(end.x - x, end.s - s) > 1.5 ? 'fade' : end.site.gates ? 'joined' : 'apron';
       const last = xs.length - 1;
@@ -413,6 +420,79 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInp
   return result;
 }
 export const roadPath = (seed: number, edge: NetworkEdge, world?: WorldInput | World) => finish(roadPathSteps(seed, edge, world));
+
+/** Corner cutting (Chaikin): each pass replaces every segment by its quarter points; the ends stay. */
+function chaikin(points: number[][], passes: number): number[][] {
+  for (let pass = 0; pass < passes; pass++) {
+    const next = [points[0]];
+    for (let i = 0; i < points.length - 1; i++) {
+      const [ax, as] = points[i], [bx, bs] = points[i + 1];
+      next.push([ax * 0.75 + bx * 0.25, as * 0.75 + bs * 0.25], [ax * 0.25 + bx * 0.75, as * 0.25 + bs * 0.75]);
+    }
+    next.push(points[points.length - 1]); points = next;
+  }
+  return points;
+}
+/** Grid cell under a point (clamped), and whether a road may run over it: dry, not a pad or piece it did not already cross. */
+const cellAt = (g: Grid, x: number, s: number) => Math.min(g.rows - 1, Math.max(0, Math.round((s - g.s0) / g.cell))) * g.columns + Math.min(g.columns - 1, Math.max(0, Math.round((x - g.x0) / g.cell)));
+function openLine(g: Grid, xs: readonly number[], ss: readonly number[], path: readonly number[]): boolean {
+  const own = new Set(path);
+  for (let i = 0; i < xs.length; i++) {
+    const cell = cellAt(g, xs[i], ss[i]);
+    if (own.has(cell)) continue;
+    if (g.extra[cell] >= 4 || g.ground(xs[i], ss[i]) < g.sea) return false;
+  }
+  return true;
+}
+/** Whether the straight run a→b keeps to the road grade over open, dry ground (sampled every quarter unit). */
+function straightRun(g: Grid, a: number[], b: number[], path: ReadonlySet<number>): boolean {
+  const span = Math.hypot(b[0] - a[0], b[1] - a[1]), steps = Math.max(1, Math.ceil(span / 0.25));
+  let previous = g.ground(a[0], a[1]);
+  for (let k = 1; k <= steps; k++) {
+    const x = a[0] + (b[0] - a[0]) * k / steps, s = a[1] + (b[1] - a[1]) * k / steps, height = g.ground(x, s), cell = cellAt(g, x, s);
+    if (Math.abs(height - previous) / (span / steps) > ROAD_MAX_SLOPE || height < g.sea || (!path.has(cell) && g.extra[cell] >= 4)) return false;
+    previous = height;
+  }
+  return true;
+}
+/** String pulling: from each kept cell, the furthest later cell (within 24) reachable in a straight run. */
+function straighten(g: Grid, points: number[][], path: readonly number[]): number[][] {
+  const own = new Set(path), kept = [points[0]];
+  for (let i = 0; i < points.length - 1;) {
+    let j = Math.min(points.length - 1, i + 24);
+    while (j > i + 1 && !straightRun(g, points[i], points[j], own)) j--;
+    kept.push(points[j]); i = j;
+  }
+  return kept;
+}
+/** The searched cells with straight runs merged: only the cells where the heading changes. */
+function mergeRuns(points: number[][]): number[][] {
+  const out = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const [ax, as] = out[out.length - 1], [px, ps] = points[i], [bx, bs] = points[i + 1];
+    if (Math.abs((px - ax) * (bs - ps) - (ps - as) * (bx - px)) > 1e-9) out.push(points[i]);
+  }
+  out.push(points[points.length - 1]);
+  return out;
+}
+/** Rounds each corner with a quadratic curve reaching up to `radius` along both legs (at most half of either). */
+function roundCorners(points: number[][], radius = 4): number[][] {
+  if (points.length < 3) return points;
+  const out = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const [px, ps] = points[i], a = points[i - 1], b = points[i + 1];
+    const inLength = Math.hypot(px - a[0], ps - a[1]), outLength = Math.hypot(b[0] - px, b[1] - ps);
+    const d = Math.min(radius, inLength / 2, outLength / 2);
+    if (d < 1e-6) { out.push(points[i]); continue; }
+    const start = [px - (px - a[0]) / inLength * d, ps - (ps - a[1]) / inLength * d], end = [px + (b[0] - px) / outLength * d, ps + (b[1] - ps) / outLength * d];
+    for (let k = 0; k <= 8; k++) {
+      const t = k / 8, u = 1 - t;
+      out.push([u * u * start[0] + 2 * u * t * px + t * t * end[0], u * u * start[1] + 2 * u * t * ps + t * t * end[1]]);
+    }
+  }
+  out.push(points[points.length - 1]);
+  return out;
+}
 
 /** Ribbon cross-section: outer berm, road edge, road edge, outer berm (offsets, u, lift above ground, alpha). */
 const RIBBON = [[-0.82, 0, 0.035, 0], [-0.5, 0.2, 0.055, 1], [0.5, 0.8, 0.055, 1], [0.82, 1, 0.035, 0]] as const;
@@ -534,17 +614,12 @@ export function* districtRoadsSteps(seed: number, plan: DistrictPlan, input?: Wo
   districtRoadMemo.set(key, roads);
   return roads;
 }
-/** A road along authored points: corners rounded like network roads (two Chaikin passes), sampled every ROAD_STEP. */
+/**
+ * A road along authored points, sampled every ROAD_STEP: corners curved like network roads (version 20), on a tighter
+ * radius between a district's pieces.
+ */
 function roadThrough(id: string, corners: readonly (readonly [number, number])[], ground: (x: number, s: number) => number, ends: readonly [RoadEnd, RoadEnd]): RoadPath {
-  let points = corners.map(([x, s]) => [x, s] as [number, number]);
-  for (let pass = 0; pass < 2; pass++) {
-    const next: [number, number][] = [points[0]];
-    for (let i = 0; i < points.length - 1; i++) {
-      const [ax, as] = points[i], [bx, bs] = points[i + 1];
-      next.push([ax * 0.75 + bx * 0.25, as * 0.75 + bs * 0.25], [ax * 0.25 + bx * 0.75, as * 0.25 + bs * 0.75]);
-    }
-    next.push(points[points.length - 1]); points = next;
-  }
+  const points = roundCorners(corners.map(([x, s]) => [x, s]), 2.5) as [number, number][];
   const xs: number[] = [points[0][0]], ss: number[] = [points[0][1]], lengths: number[] = [0];
   let carry = 0;
   for (let i = 0; i < points.length - 1; i++) {

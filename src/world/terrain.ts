@@ -60,8 +60,12 @@ export {
  *     drop, every face of 1.8 or more (crevasse and ridge regions too) and beside outpost pads, and only in runs of
  *     three or more along a rim (no lone pieces);
  *     others unchanged.
+ * 20: roads (every planet with networks; user, 28 October: "lots of hard edges and sometimes they don't make sense"):
+ *     straightened over open ground and curved at every corner (up to 4 units), and only built when they reach their
+ *     goal (partial runs had ended in the open or against cliffs; about a quarter of Khepri's roads). District roads
+ *     curve on a 2.5-unit radius.
  */
-export const TERRAIN_VERSION = 19;
+export const TERRAIN_VERSION = 20;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.
