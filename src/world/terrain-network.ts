@@ -147,7 +147,9 @@ function edgesOf(seed: number, site: Settlement, planet: PlanetProfile = KHEPRI)
     const farm = site.archetype === 'pumping' || next.archetype === 'pumping';
     const industrial = farm ? 1 : INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.9 : INDUSTRIAL.has(site.archetype) || INDUSTRIAL.has(next.archetype) ? 0.55 : 0.2;
     // A purposeful network links works to works and anything to a district; elsewhere most neighbours get a road.
-    const road = district || next.district ? 1 : purposeful ? (INDUSTRIAL.has(site.archetype) && INDUSTRIAL.has(next.archetype) ? 0.85 : 0) : quiet ? 0.45 : 0.88;
+    // (User, 28 October, after the first cut: "lower the threshold a bit": works beside other outposts get a road half the time.)
+    const works = Number(INDUSTRIAL.has(site.archetype)) + Number(INDUSTRIAL.has(next.archetype));
+    const road = district || next.district ? 1 : purposeful ? (works === 2 ? 0.85 : works === 1 && !quiet ? 0.5 : 0) : quiet ? 0.45 : 0.88;
     edges.push(make('chain', next, 0, 0, road, district || next.district ? 0 : quiet ? 0 : industrial));
     break;
   }
@@ -382,7 +384,14 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInp
   if (edge.road) {
     // A road reaches its goal or is not built (user, 28 October: roads that "don't make sense"; a partial run ended in
     // the open or against a cliff).
-    const g = yield* gridSteps(seed, edge, 1, 0.5, 8, false, world), nodes = yield* searchSteps(g, edge.a, edge.b, true, ROAD_MAX_SLOPE, 0.4, Infinity);
+    // On a planet with a sea, a road that cannot reach its goal still stands if it runs down to the water's edge (user,
+    // 28 October: "there's almost no roads on vesper"; Vesper's ice roads mostly end at the shore).
+    const g = yield* gridSteps(seed, edge, 1, 0.5, 8, false, world), found = yield* searchSteps(g, edge.a, edge.b, true, ROAD_MAX_SLOPE, 0.4, g.wet ? 10 : Infinity);
+    const goal = cellAt(g, edge.b.x, edge.b.s), last = found?.[found.length - 1] ?? -1;
+    const shore = (cell: number) => { const c = cell % g.columns, r = Math.floor(cell / g.columns);
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) { const cc = c + dc, rr = r + dr; if (cc >= 0 && cc < g.columns && rr >= 0 && rr < g.rows && g.wet?.[rr * g.columns + cc]) return true; }
+      return false; };
+    const nodes = found && (last === goal || Math.hypot(g.x0 + (last % g.columns) * g.cell - edge.b.x, g.s0 + Math.floor(last / g.columns) * g.cell - edge.b.s) <= 1.5 || shore(last)) ? found : null;
     if (nodes && nodes.length > 1) {
       const raw = nodes.map(node => [g.x0 + (node % g.columns) * g.cell, g.s0 + Math.floor(node / g.columns) * g.cell]);
       const resample = (points: number[][]) => {
@@ -411,10 +420,10 @@ export function* roadPathSteps(seed: number, edge: NetworkEdge, input?: WorldInp
         if (gradedLine(candidate) && openLine(g, candidate.xs, candidate.ss, nodes)) { line = candidate; break; }
       }
       const { xs, ss, lengths, y } = line;
-      // A purposeful network builds no meandering road: at most half again the direct distance (plus a little), unless
-      // it serves a district, which must be reached.
+      // A purposeful network builds no meandering road: at most 1.8 times the direct distance (plus a little), unless it
+      // serves a district, which must be reached.
       const serves = edge.a.site?.district || edge.b.site?.district, direct = Math.hypot(edge.b.x - edge.a.x, edge.b.s - edge.a.s);
-      const graded = gradedLine(line) && (world.planet.roads !== 'purposeful' || !!serves || lengths[lengths.length - 1] <= direct * 1.5 + 4);
+      const graded = gradedLine(line) && (world.planet.roads !== 'purposeful' || !!serves || lengths[lengths.length - 1] <= direct * 1.8 + 4);
       // An end at an outpost's gate opens onto its pad; at a district gate an internal road continues; others fade.
       const endOf = (end: Endpoint, x: number, s: number): RoadEnd => !end.site || Math.hypot(end.x - x, end.s - s) > 1.5 ? 'fade' : end.site.gates ? 'joined' : 'apron';
       const last = xs.length - 1;

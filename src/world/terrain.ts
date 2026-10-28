@@ -64,9 +64,11 @@ export {
  *     straightened over open ground and curved at every corner (up to 4 units), and only built when they reach their
  *     goal (partial runs had ended in the open or against cliffs; about a quarter of Khepri's roads). District roads
  *     curve on a 2.5-unit radius.
- * 21: Khepri's roads only where they serve something (user, 28 October: "everywhere without purpose"): between two
- *     industrial sites, to and from districts, across the route between facing compounds, never to the map edge
- *     except from a district, and never meandering (at most 1.5 times the direct distance plus 4). Other planets unchanged.
+ * 21: Khepri's roads only where they serve something (user, 28 October: "everywhere without purpose", then "lower the
+ *     threshold a bit"): between two industrial sites, half the time beside one, to and from districts, across the route
+ *     between facing compounds, never to the map edge except from a district, and never meandering (at most 1.8 times
+ *     the direct distance plus 4). On a sea planet a road that cannot reach its goal stands when it runs down to the
+ *     shore (Vesper: "there's almost no roads on vesper" after version 20 dropped every partial road).
  */
 export const TERRAIN_VERSION = 21;
 /**
