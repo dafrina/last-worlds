@@ -1,6 +1,20 @@
 # Build status
 
 
+## Launch: the warp shows at once, 29 October 2026
+
+User: "clicking to start a level takes a few seconds before even the warp appears ... Cant we preload the ship model or is it something else?"
+
+- **Cause (CPU profile of the live build, headless Chromium):** it was not the ship. The default Scrapper loads at boot; a campaign look's files only hold the warp's end, never its start. Two things ran before the warp's first frame:
+  - **The sounds:** the first launch of a page synthesized all 49 audio samples inside the tap (`mixer.warm()`): 2.0 s of main thread in the profile, about 0.75 s in Node.
+  - **The first warp frame:** it generated the new run's terrain (0.7 s) and compiled and uploaded every program in the scene before the warp was on screen (`launchWarp('cruise')` reset the warm-up), on every launch.
+- **Fix:**
+  - **Sounds (`src/audio/sample-bank.ts`, `sample-worker.ts`):** a module worker synthesizes the samples at boot; a mixer takes each one when it first plays it. A sample not made yet is made on the spot; without a worker, samples are made one per task on the main thread. The tap now only opens the audio context.
+  - **Warp (`src/render/scene.ts` `holdFrame`, `src/main.ts`):** until the world is prepared, a cruising launch draws only the warp and the ship over the last frame's world, which the opaque veil hides. `launchWarp('ready')` follows after at least two frames on screen; the next frame builds and warms the flight under the warp (user: "if it hangs during the warp its fine thats what its for").
+  - **Ship files:** the campaign screen starts downloading the saved look's design files (`preloadHeroLook`), so a launch finds them cached.
+- **Checked:** frames after the tap (SwiftShader, 360×760): live 55 ms, then 1,555 ms; new 55, 71, then 405 ms (the build frame, under the warp). Main-thread work in the tap: 92 ms, against 2.2 s before. Screenshots show the warp and ship at once, then the flight. Typecheck and build pass.
+- **Not checked:** no phone test. The build frame still hitches the warp once, by design.
+
 ## Battery arrows and rounds anchored to the map, 27 October 2026
 
 User: "the ground turrets with the arrow indicator has the arrows non animated at all and it moves with the world, same with where the projectile spawns, it kinda doesnt look like its anchored to the map".

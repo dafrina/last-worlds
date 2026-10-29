@@ -39,7 +39,7 @@ import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint
 import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
-import { loadHeroModel } from './hero-craft';
+import { loadHeroModel, preloadHeroLook } from './hero-craft';
 import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey } from '../content/hero-parts';
 import type { HeroLook, RunConfig, ShipId } from '../shared/contracts';
 
@@ -1138,11 +1138,44 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   renderer.shadowMap.render = (lights, shadowScene, view) => {
     const before = renderer.info.render.calls; renderShadows(lights, shadowScene, view); passes.shadow += renderer.info.render.calls - before;
   };
+  /** The hero's place, size and roll this frame; returns how far its mission-start entrance has played (0 to 1). */
+  function poseHero(state: RunState): number {
+    hero.visible = state.player.lives > 0 && heroShown === heroKey;
+    // Mission-start entrance (render-only): the hero starts close to the camera (large, out along the view ray, so it
+    // keeps its screen position under the orthographic lens) and drops to flight height with one barrel roll.
+    // Under the launch warp the hero cruises in that start pose, over the veil; the flight starts at the warp's breakout,
+    // so the drop plays as the world appears (user, 27 October: the drop had been skipped under the warp).
+    const entrance = state.time >= HERO_ENTRANCE ? 1 : 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3);
+    const lift = (1 - entrance) * HERO_ENTRANCE_LIFT;
+    hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION), lift * Math.cos(ELEVATION));
+    // Rail Driver recoil (render only): a short kick back, springing home in 0.1 s.
+    if (railKickAt >= 0 && state.time >= railKickAt) hero.position.z += .06 * Math.max(0, 1 - (state.time - railKickAt) / .1);
+    hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
+    hero.rotation.z = -state.player.vx * .016 + (1 - entrance) * Math.PI * 2;
+    return entrance;
+  }
+  /**
+   * A launch-warp frame before the flight's world is prepared (performance, 29 October: the warp's first frame generated
+   * the new terrain and compiled every program, so a tap showed nothing for seconds). The opaque veil hides the world, so
+   * the last frame's world stays as it was and only the warp and the cruising ship move. The full frame after
+   * `launchWarp('ready')` generates and warms the destination, under the warp (user: "if it hangs during the warp its
+   * fine thats what its for").
+   */
+  function holdFrame(state: RunState) {
+    placeCamera(state.cameraX * follow);
+    poseHero(state);
+    shield.visible = heroShell.visible = false;
+    jumpFx.update(state, reducedMotion(), false, quality === 'high');
+    post.settings.cover.value = jumpFx.cover;
+    if (quality === 'high') post.render(scene, camera); else { renderer.setRenderTarget(null); renderer.render(scene, camera); }
+  }
+  let launchHold = false;
   let drawingWidth = 1, drawingHeight = 1;
   const resizePost = () => post.setSize(drawingWidth * renderer.getPixelRatio(), drawingHeight * renderer.getPixelRatio());
   return {
     prepare: preload,
     prepareHero: config => showHero(...heroOf(config)),
+    preloadHero: preloadHeroLook,
     heroTurntable,
     /** The playground (playground.html): a level's look as shipped, and a live replacement for it. */
     lookOf: (world: PlanetId) => structuredClone(DEFAULT_LOOKS[world]),
@@ -1150,8 +1183,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       LOOKS[world] = structuredClone(look);
       if (world === planet) { applyLight(world, LOOKS[world]); shadowMaterial.color.setHex(LOOKS[world].blobShadow); }
     },
-    // Each launch warms every program in its real form under the warp (see the warm-up in render).
-    launchWarp: mode => { if (mode === 'cruise') warmed = false; return jumpFx.launch(mode); },
+    // Each launch warms every program in its real form under the warp (see the warm-up in render), in the first full
+    // frame after 'ready'; until then the warp only holds (holdFrame).
+    launchWarp: mode => {
+      launchHold = mode === 'cruise';
+      if (mode === 'ready') return 0;
+      if (mode === 'cruise') warmed = false;
+      return jumpFx.launch(mode);
+    },
     isReady: planetReady,
     setQuality(next) {
       if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
@@ -1175,6 +1214,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       void showHero(...heroOf(state.config));
       if (disposed) return;
       renderer.info.reset();
+      if (launchHold) { holdFrame(state); return; }
       // Interpolation is presentation-only; the view follows the exact authoritative camera.
       void alpha;
       lastRenderTime = state.time; hiddenWarm = false;
@@ -1294,18 +1334,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       placeSun(state.cameraX, state.distance);
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
       const heroAlive = state.player.lives > 0;
-      hero.visible = heroAlive && heroShown === heroKey;
-      // Mission-start entrance (render-only): the hero starts close to the camera (large, out along the view ray, so it
-      // keeps its screen position under the orthographic lens) and drops to flight height with one barrel roll.
-      // Under the launch warp the hero cruises in that start pose, over the veil; the flight starts at the warp's breakout,
-      // so the drop plays as the world appears (user, 27 October: the drop had been skipped under the warp).
-      const entrance = state.time >= HERO_ENTRANCE ? 1 : 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3);
-      const lift = (1 - entrance) * HERO_ENTRANCE_LIFT;
-      hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION), lift * Math.cos(ELEVATION));
-      // Rail Driver recoil (render only): a short kick back, springing home in 0.1 s.
-      if (railKickAt >= 0 && state.time >= railKickAt) hero.position.z += .06 * Math.max(0, 1 - (state.time - railKickAt) / .1);
-      hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
-      hero.rotation.z = -state.player.vx * .016 + (1 - entrance) * Math.PI * 2;
+      const entrance = poseHero(state);
       shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
       shield.visible = heroAlive && state.time < state.player.invulnerableUntil;
       shieldMaterial.opacity = .34;

@@ -47,8 +47,8 @@ export function createGameAudio() {
     try {
       if (!context) {
         context = new AudioContext({ latencyHint: 'interactive' });
+        // Buffers come from the samples made at boot (sample-bank.ts), never synthesized all at once in the tap.
         mixer = new AudioMixer(context, settings);
-        mixer.warm();
         context.addEventListener('statechange', () => {
           if (context?.state === 'running') {
             // wake resets a stopped clock. A late initial statechange must not double the opening beat.

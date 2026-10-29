@@ -7,6 +7,7 @@ import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
 import { WARP, warpSpeed } from './content/departure';
 import { createGameAudio } from './audio/engine';
+import { prefetchSamples } from './audio/sample-bank';
 import { mountAudioSettings } from './audio/settings';
 
 const root = document.querySelector<HTMLElement>('#app')!;
@@ -15,6 +16,8 @@ let accumulator = 0;
 let lastTime = performance.now();
 let pendingSpecial = false;
 const audio = createGameAudio();
+// Sound samples are made in a worker from boot, never inside the first launch's tap (src/audio/sample-bank.ts).
+prefetchSamples();
 let lastPauseReason = '';
 let maxFrameMs = 0;
 let warmupFrames = 2;
@@ -104,14 +107,18 @@ async function start(config: RunConfig) {
   // The flight's ship starts loading before the warp shows it cruising (the renderer hides it until it is the right one).
   const heroReady = renderer?.prepareHero?.(candidate.config);
   ui.showLoading(true); ui.setLoadingWarp(true); renderer?.launchWarp('cruise');
+  // The warp is on screen before the flight is built (user, 29 October: the tap "hangs" before even the warp appears):
+  // preparation ends no earlier than two frames from now, the first of them a cruise-only frame.
+  const shown = new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   const shownAt = performance.now();
   let panel = false;
   const slow = setTimeout(() => { if (id === launchId) { panel = true; ui.setLoadingWarp(false); } }, SLOW_LOADING_MS);
   try {
     // The world and the ship the flight shows (its chassis and look) load together under the warp.
-    await Promise.all([renderer?.prepare(candidate.planet), heroReady]);
+    await Promise.all([renderer?.prepare(candidate.planet), heroReady, shown]);
     if (id !== launchId) return;
-    // Compile and upload the actual destination under the loading panel, before its clock starts.
+    // Build, compile and upload the actual destination under the warp, before its clock starts (a held warp frame).
+    renderer?.launchWarp('ready');
     renderer?.render(candidate, 0);
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     if (id !== launchId) return;
@@ -164,6 +171,7 @@ const ui = createUi(root, {
   setMuted(value) { audio.setSettings({ muted: value }); },
   setQuality(value) { renderer?.setQuality(value); },
   heroTurntable: (ship, look, size, frames) => renderer?.heroTurntable?.(ship, look, size, frames) ?? Promise.resolve(null),
+  preloadHero: (ship, look) => renderer?.preloadHero?.(ship, look),
 });
 const disposeAudioSettings = mountAudioSettings(root, audio);
 const input = createInput(ui.surface, ui.specialButton);

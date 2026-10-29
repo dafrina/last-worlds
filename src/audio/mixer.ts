@@ -1,6 +1,7 @@
 import type { Cue } from './events';
 import type { Note } from './score';
-import { noiseSource, SAMPLE_IDS, SAMPLE_RATE, synthesize, type SampleId, type Sound } from './samples';
+import { noiseSource, SAMPLE_IDS, SAMPLE_RATE, type SampleId, type Sound } from './samples';
+import { takeSample } from './sample-bank';
 
 export interface AudioSettings { muted: boolean; music: number; effects: number }
 type Group = 'music' | 'effects';
@@ -80,15 +81,15 @@ export class AudioMixer {
   private buffer(id: SampleId) {
     let buffer = this.buffers.get(id);
     if (!buffer) {
-      const samples = synthesize(id);
+      const samples = takeSample(id);
       buffer = this.context.createBuffer(1, samples.length, SAMPLE_RATE);
       buffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
       this.buffers.set(id, buffer);
     }
     return buffer;
   }
+  /** Every buffer now (offline renders). The game takes them as they first play, from samples made at boot. */
   warm() {
-    // Cached once on the first gesture; no sample synthesis in the dense combat/music paths.
     SAMPLE_IDS.forEach(id => this.buffer(id));
   }
   private ramp(param: AudioParam, target: number, seconds = .025, at = this.context.currentTime) {

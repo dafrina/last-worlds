@@ -22,6 +22,12 @@ export async function loadHeroModel(ship: ShipId, look: HeroLook = DEFAULT_LOOK,
   return { object: mesh, engines: model.engines, radius: model.geometry.boundingSphere?.radius ?? 1, dispose: () => model.geometry.dispose() };
 }
 
+/** Starts downloading a look's design files, so its launch finds them cached (the campaign screen). */
+export function preloadHeroLook(ship: ShipId, look: HeroLook, base?: string) {
+  if (!HERO_REMODELLED.has(ship)) return;
+  for (const design of new Set(HERO_SLOTS.map(slot => look.parts[slot]))) loadDesign(ship, design, base).catch(() => undefined);
+}
+
 const designFiles = new Map<string, Promise<GLTF>>();
 function loadDesign(ship: ShipId, design: HeroDesign, base = (import.meta.env?.BASE_URL ?? './') + 'assets/'): Promise<GLTF> {
   const file = base + heroDesignFile(ship, design);

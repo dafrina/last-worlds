@@ -4,7 +4,7 @@ import { MISSION_ORDER, menuMarkup } from './menu-markup';
 import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
-import { campaignConfig, cleared, createCampaignProfile, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
+import { campaignConfig, cleared, createCampaignProfile, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
 import { CREDIT_MULTIPLIER, SHIPS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
 import { itemText, renderHangar, renderShipyard } from './hangar';
 import './styles.css';
@@ -201,6 +201,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = profile.credits.toLocaleString();
     for (const slot of ['weapon', 'special', 'shield', 'ship'] as const) text(`[data-loadout="${slot}"]`, itemText(slot, profile.loadout[slot]).name);
     showMission(missionIndex);
+    actions.preloadHero?.(profile.loadout.ship, lookOf(profile, profile.loadout.ship));
   }
   let hangarSlot: Slot = 'weapon';
   function refreshHangar() {

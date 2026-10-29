@@ -170,10 +170,11 @@ export interface GameRenderer {
   prepare(planet: PlanetId): Promise<void>;
   isReady(planet: PlanetId): boolean;
   /**
-   * The launch warp over a flight's preparation: 'cruise' while its world loads, 'arrive' to break out onto it (returns
-   * the seconds to the flash, when the flight starts), 'off' for a cancelled launch. Render only.
+   * The launch warp over a flight's preparation: 'cruise' while its world loads (only the warp is drawn, over the last
+   * frame's world), 'ready' once it is loaded (the next frame builds and warms the flight under the warp), 'arrive' to
+   * break out onto it (returns the seconds to the flash, when the flight starts), 'off' for a cancelled launch. Render only.
    */
-  launchWarp(mode: 'cruise' | 'arrive' | 'off'): number;
+  launchWarp(mode: 'cruise' | 'ready' | 'arrive' | 'off'): number;
   render(state: RunState, alpha: number): void;
   /** Playground only (playground.html): a level's shipped look, and a live replacement for it (render/scene.ts PlanetLook). */
   lookOf?(planet: PlanetId): unknown;
@@ -182,6 +183,8 @@ export interface GameRenderer {
   setQuality(quality: GraphicsQuality): void;
   /** Loads the ship a flight shows (its chassis and look; endless always the default Scrapper) before it is exposed. */
   prepareHero?(config: RunConfig): Promise<void>;
+  /** Starts downloading a look's ship files ahead of a launch (the campaign screen). */
+  preloadHero?(ship: ShipId, look: HeroLook): void;
   /** The hangar's turntable of a ship's look: `frames` square views of `size` pixels side by side (UiActions.heroTurntable). */
   heroTurntable?(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null>;
   dispose(): void;
@@ -198,6 +201,8 @@ export interface UiActions {
    * context): a strip of `frames` square views side by side, or null without a renderer.
    */
   heroTurntable?(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null>;
+  /** Starts downloading the ship a campaign launch will fly (GameRenderer.preloadHero). */
+  preloadHero?(ship: ShipId, look: HeroLook): void;
 }
 export interface GameUi {
   canvas: HTMLCanvasElement; surface: HTMLElement; specialButton: HTMLButtonElement;
