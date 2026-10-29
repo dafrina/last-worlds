@@ -10,10 +10,10 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, heroKitFile, heroPartNode } from '../content/hero-parts';
+import { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, heroDesigns, heroKitFile, heroPartNode } from '../content/hero-parts';
 import type { HeroDesign, HeroSlot, ShipId } from '../shared/contracts';
 
-export { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, heroKitFile, heroPartNode };
+export { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, heroDesigns, heroKitFile, heroPartNode };
 export type { HeroDesign, HeroSlot };
 export const HERO_CHASSIS: readonly ShipId[] = ['scrapper', 'ironclad', 'interceptor', 'spectre'];
 export type HeroChassis = ShipId;
@@ -84,6 +84,6 @@ export async function assembleHero(build: HeroBuild): Promise<{ object: THREE.Gr
 
 /** A seeded random build of a chassis (the hangar's "shuffle"). */
 export function randomHeroBuild(chassis: HeroChassis, random = Math.random): HeroBuild {
-  const pick = () => HERO_DESIGNS[Math.floor(random() * HERO_DESIGNS.length)];
+  const designs = heroDesigns(chassis), pick = () => designs[Math.floor(random() * designs.length)];
   return { chassis, parts: { hull: pick(), wings: pick(), engines: pick(), cockpit: pick() } };
 }

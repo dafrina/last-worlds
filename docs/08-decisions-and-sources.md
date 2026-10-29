@@ -212,3 +212,11 @@ User approved main/special/shield/ship as the four slots, replacing handling rea
   - Old version-2 saves load unchanged; broken looks are cleaned, never refused.
 - **Rail Driver and Gravity Well:** see docs/32. The well's reach was enlarged and it got a real lens (user: "the radius should be bigger and sucking in ships with a distorted lens effect ... actually distort the view underneath").
 
+## 29 October 2026 — hero ships remodelled over the user's Tripo models
+
+- **Source (user: "Make them look less childish and more realistic"):** Codex drew twenty concepts (art/concepts/hero-modular), the user made Tripo models of them (art/source/hero, not in git). The script-built kits are replaced chassis by chassis.
+- **Remodel, not cut (user: cut Tripo parts "will be a mess once we start mixing and matching. I suppose we need to remodel them all ourself, just using the model as a style and size reference"; "stay closer to the model, especially the wing shape"; approved on the Scrapper concept: "remodeling yields better results"):** each design is a clean hard-surface model measured off its levelled Tripo model, with the Tripo paint, wear and fine detail baked on (tools/blender/hero_remodel.py). Every part sits on one plane: Tripo had read the concepts' three-quarter view partly as depth ("staggered").
+- **Mixing (user: "they can intersect no problem", "but it should somewhat look good"):** designs stay faithful to their models; mixed parts may overlap but never float. Each chassis has standard joints (wing mounting plates, a rear bulkhead, the cockpit deck with a skirt down into the hull) that every design is built to, so parts need no runtime offsets.
+- **Five designs per slot** on a remodelled chassis (A–E; D and E cost 240 and 320 credits). Old saves keep their bought B and C, which now show the remodelled designs.
+- **Done:** Scrapper 1–5 (Tug, Flat-iron, Hauler, Prospector, Courier), about 1,700 to 6,200 triangles and 1.0 to 1.3 MB each. Ironclad, Interceptor and Spectre follow the same way.
+

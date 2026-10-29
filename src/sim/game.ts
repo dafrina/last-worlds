@@ -32,7 +32,7 @@ export function createRun(config: RunConfig): RunState {
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', mission: config.mission ?? 'training',
       weapon: pick(config.weapon, WEAPON_IDS, STARTER.weapon), special: pick(config.special, SPECIAL_IDS, STARTER.special),
       shield: pick(config.shield, SHIELD_IDS, STARTER.shield), ship: pick(config.ship, SHIP_IDS, STARTER.ship),
-      rank: weaponRank(config.rank ?? 0), ...(validLook(config.hero) ? { hero: validLook(config.hero)! } : {}) };
+      rank: weaponRank(config.rank ?? 0), ...(validLook(config.hero, pick(config.ship, SHIP_IDS, STARTER.ship)) ? { hero: validLook(config.hero, pick(config.ship, SHIP_IDS, STARTER.ship))! } : {}) };
   const shieldTech = SHIELD_TECH[normalized.shield!];
   const pace = normalized.mode === 'endless' ? paceInSector(1, 0) : PACE.campaign;
   return {

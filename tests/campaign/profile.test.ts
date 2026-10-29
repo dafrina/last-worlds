@@ -164,6 +164,20 @@ describe('ship parts and v1 migration', () => {
     expect(campaignConfig(store.read(), 'training', 'standard', 1).hero).toEqual({ parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' }, paint: { primary: 0x803020 } });
   });
 
+  it('offers designs D and E only on a remodelled chassis (docs/31), and drops them from a kit chassis on load', () => {
+    const store = createCampaignProfile(memory());
+    store.settle(clear('c1', { credits: 2000 }));
+    const before = store.read().credits;
+    expect(store.buyDesign('scrapper', 'wings', 'e')).toBe(true);
+    expect(store.read().credits).toBe(before - HERO_DESIGN_PRICES.e);
+    expect(store.setLook('scrapper', { parts: { hull: 'a', wings: 'e', engines: 'a', cockpit: 'a' } })).toBe(true);
+    const saved = { ...freshProfile(), owned: { ...freshProfile().owned, ship: ['scrapper', 'ironclad'] }, designs: ['ironclad:hull:d', 'scrapper:hull:d'],
+      looks: { ironclad: { parts: { hull: 'd', wings: 'a', engines: 'a', cockpit: 'a' } } } };
+    const profile = createCampaignProfile(memory(JSON.stringify(saved))).read();
+    expect(profile.designs).toEqual(['scrapper:hull:d']);
+    expect(profile.looks).toEqual({});
+  });
+
   it('cleans broken ship looks on load instead of refusing the save', () => {
     const saved = { ...freshProfile(), credits: 7, designs: ['scrapper:hull:b', 'bogus', 'scrapper:wings:a'],
       looks: { scrapper: { parts: { hull: 'b', wings: 'c', engines: 'a', cockpit: 'a' } }, ironclad: { parts: { hull: 'z' } } } };

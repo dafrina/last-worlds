@@ -3,7 +3,7 @@ import { MAX_RANK, RANK_PRICES, SHIPS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, WEAP
 import { WEAPONS } from '../content/balance';
 import { SLOT_ITEMS, itemPrice, lookOf, ownsDesign, shipParts, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
 import type { HeroDesign, HeroLook, HeroSlot, ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
-import { HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroLookKey } from '../content/hero-parts';
+import { HERO_DEFAULT_PAINT, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroDesigns, heroLookKey } from '../content/hero-parts';
 
 /** Player-facing name and one-line description of any equipment item. */
 export function itemText(slot: Slot, id: ItemId): { name: string; blurb: string } {
@@ -80,7 +80,8 @@ const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
 
 /**
  * The shipyard (docs/31; user, 28 October: "seeing the ship in a hangar like preview"): the equipped ship turning, its four
- * part slots with designs A–C (A comes with the ship; B and C are bought with credits, then free to switch), and its paint.
+ * part slots with their designs (A comes with the ship, the rest are bought with credits and then free to switch; a
+ * remodelled chassis has A–E, the others A–C), and its paint.
  * Cosmetic only: no part changes handling, the hit region or any stat.
  */
 export function renderShipyard(host: HTMLElement, profile: CampaignProfile, actions: ShipyardActions): void {
@@ -91,7 +92,7 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
   const rows = HERO_SLOTS.map(slot => {
     const row = document.createElement('div'); row.className = 'shipyard-slot';
     const label = document.createElement('span'); label.textContent = HERO_SLOT_NAMES[slot].toUpperCase(); row.append(label);
-    for (const design of HERO_DESIGNS) {
+    for (const design of heroDesigns(ship)) {
       const owned = ownsDesign(profile, ship, slot, design), fitted = look.parts[slot] === design, price = HERO_DESIGN_PRICES[design];
       const choice = document.createElement('button');
       choice.type = 'button'; choice.className = `shipyard-design${fitted ? ' is-on' : owned ? '' : ' is-locked'}`;

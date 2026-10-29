@@ -12,8 +12,31 @@ configurator (§ In the game). The playground's Hangar tab is the look-dev view.
 | `interceptor` | assault interceptor | knife noses, sharp wings, spear booms with canted fins; pearl, cobalt, black | blue `#5aa8ff` |
 | `spectre` | exotic | obsidian flying wing with silver edges | violet `#b46cff` |
 
-Each chassis has four **slots**: `hull`, `wings`, `engines` and `cockpit`. Each slot has three **designs**: `a`, `b` and
-`c`. A build picks one design per slot, and any mix within a chassis fits together. Parts never mix across chassis.
+Each chassis has four **slots**: `hull`, `wings`, `engines` and `cockpit`. A build picks one design per slot, and any mix
+within a chassis fits together. Parts never mix across chassis. A **remodelled** chassis (`HERO_REMODELLED`, so far the
+Scrapper) has five designs per slot, `a`–`e`; the others still have three, `a`–`c`, in their script-built kits (below).
+
+## Remodelled chassis (29 October 2026)
+
+The user rejected the script-built kits as comical and made Tripo models of twenty concepts (art/source/hero/README.md).
+Their parts are remodelled, not cut out (docs/08, 29 October):
+
+- **Reference:** `tools/blender/hero_tripo.py` levels each Tripo model onto one plane, scales it to its chassis and
+  splits it into the four slots (`SPECS`: outlines read off gridded top and side views).
+- **Remodel:** `tools/blender/hero_remodel.py`, one function per design, builds clean hard-surface parts measured off
+  that reference, then bakes the Tripo base colour, roughness-metal and normal maps onto them in Cycles. Output:
+  `public/assets/shared/hero/<chassis>-<design>.glb`, its four part nodes sharing one material (base and normal 1024 px,
+  roughness-metal 512 px) plus a glow material, and its engine sockets. About 1,700 to 6,200 triangles, 1.0 to 1.3 MB.
+- **Standard joints** (`JOINTS`): a wing mounting plate on each hull side, a rear bulkhead every propulsion reaches
+  forward to, and a cockpit deck with every cockpit's skirt reaching down into the hull. Every design is built to them,
+  so parts sit unmoved in any mix. Designs stay faithful to their models; mixed parts may overlap but never float (user:
+  "they can intersect no problem", "but it should somewhat look good").
+- **Runtime:** `loadHeroModel` (src/render/hero-craft.ts) loads each design file once and shares its geometry; a look gets
+  its own copies of the materials. Paint: texels near the model's own paint or trim colour (`HERO_DEFAULT_PAINT`, the
+  median the bake prints) take the chosen colour at their own brightness; the glow material takes the glow colour.
+- **Review sheets:** `art/hero-tripo/` (remodel against Tripo, mixed builds).
+
+## Script-built kits (Ironclad, Interceptor, Spectre until remodelled)
 
 - Source: `tools/blender/hero_kit.py`, run in headless Blender. The build command and the anchors for each chassis are in
   its comments.
@@ -76,7 +99,8 @@ material and takes its own tint. The default paint for each chassis is `HERO_DEF
   them into one craft draw, and takes the plumes from the propulsion part's engine sockets. The renderer's
   `prepareHero` runs alongside the world under the launch warp.
 - **Hangar:** src/ui/hangar.ts `renderShipyard`.
-  - Designs A–C per slot: A is free; B and C are bought with credits (`HERO_DESIGN_PRICES`, src/content/hero-parts.ts)
+  - Designs per slot (`heroDesigns`): A–E on a remodelled chassis, A–C on a kit chassis. A is free; the rest are bought
+    with credits (`HERO_DESIGN_PRICES`: 80, 160, 240, 320; src/content/hero-parts.ts)
     and then switch freely.
   - Paint, trim and glow pickers, and Default paint.
   - The turntable: `GameRenderer.heroTurntable` draws 36 views into a strip once per look, and the hangar animates it

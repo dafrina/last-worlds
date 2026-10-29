@@ -1,6 +1,6 @@
 import { CAMPAIGN_ORDER, CREDIT_MULTIPLIER, MAX_RANK, RANK_PRICES, SHIPS, SHIP_IDS, SHIP_PART_NAMES, REWARDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, WEAPON_PRICES, type Loadout } from '../content/equipment';
 import type { Difficulty, HeroDesign, HeroLook, HeroSlot, MissionId, ShipId, RunConfig, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
-import { DEFAULT_LOOK, HERO_DESIGNS, HERO_DESIGN_PRICES, HERO_SLOTS, heroDesignId, validLook } from '../content/hero-parts';
+import { DEFAULT_LOOK, HERO_DESIGN_PRICES, HERO_SLOTS, heroDesignId, heroDesigns, validLook } from '../content/hero-parts';
 
 /**
  * Campaign progression (docs/21): one local profile with the credit balance, owned equipment, main-weapon ranks,
@@ -103,19 +103,19 @@ function decode(raw: string): CampaignProfile {
  * ids are dropped, and a look keeps only designs the profile owns (others fall back to A).
  */
 function cleanLooks(profile: CampaignProfile): CampaignProfile {
-  const known = new Set(SHIP_IDS.flatMap(ship => HERO_SLOTS.flatMap(slot => HERO_DESIGNS.filter(d => d !== 'a').map(d => heroDesignId(ship, slot, d)))));
+  const known = new Set(SHIP_IDS.flatMap(ship => HERO_SLOTS.flatMap(slot => heroDesigns(ship).filter(d => d !== 'a').map(d => heroDesignId(ship, slot, d)))));
   if (profile.designs !== undefined) profile.designs = Array.isArray(profile.designs) ? [...new Set(profile.designs.filter(id => known.has(id)))] : [];
   if (profile.looks !== undefined) {
     const looks: Partial<Record<ShipId, HeroLook>> = {};
     for (const ship of SHIP_IDS) {
-      const look = validLook(profile.looks?.[ship]);
+      const look = validLook(profile.looks?.[ship], ship);
       if (look) looks[ship] = { ...look, parts: Object.fromEntries(HERO_SLOTS.map(slot => [slot, ownsDesign(profile, ship, slot, look.parts[slot]) ? look.parts[slot] : 'a'])) as HeroLook['parts'] };
     }
     profile.looks = looks;
   }
   return profile;
 }
-/** Whether a profile may fit a part design: A always, B and C once bought. */
+/** Whether a profile may fit a part design: A always, the others once bought. */
 export const ownsDesign = (profile: CampaignProfile, ship: ShipId, slot: HeroSlot, design: HeroDesign) =>
   design === 'a' || (profile.designs ?? []).includes(heroDesignId(ship, slot, design));
 /** A ship's chosen look (the default for one never customised). */
@@ -217,10 +217,10 @@ export function createCampaignProfile(storage?: ProfileStorage) {
         return true;
       });
     },
-    /** Buys a B or C part design for an owned ship if affordable; returns whether it was bought. */
+    /** Buys a part design (B onward) for an owned ship if affordable; returns whether it was bought. */
     buyDesign(ship: ShipId, slot: HeroSlot, design: HeroDesign): boolean {
       return transact(p => {
-        if (!p.owned.ship.includes(ship) || !HERO_SLOTS.includes(slot) || !HERO_DESIGNS.includes(design) || ownsDesign(p, ship, slot, design)) return false;
+        if (!p.owned.ship.includes(ship) || !HERO_SLOTS.includes(slot) || !heroDesigns(ship).includes(design) || ownsDesign(p, ship, slot, design)) return false;
         const price = HERO_DESIGN_PRICES[design];
         if (p.credits < price) return false;
         p.credits -= price; p.designs = [...(p.designs ?? []), heroDesignId(ship, slot, design)];
@@ -230,7 +230,7 @@ export function createCampaignProfile(storage?: ProfileStorage) {
     /** Sets an owned ship's look (free): every part owned, paint whole colours. Returns whether it was saved. */
     setLook(ship: ShipId, look: HeroLook): boolean {
       return transact(p => {
-        const clean = validLook(look);
+        const clean = validLook(look, ship);
         if (!clean || !p.owned.ship.includes(ship) || !HERO_SLOTS.every(slot => ownsDesign(p, ship, slot, clean.parts[slot]))) return false;
         p.looks = { ...p.looks, [ship]: clean };
         return true;

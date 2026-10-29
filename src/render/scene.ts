@@ -39,7 +39,7 @@ import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint
 import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
-import { loadHeroCraft } from './hero-craft';
+import { loadHeroModel } from './hero-craft';
 import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey } from '../content/hero-parts';
 import type { HeroLook, RunConfig, ShipId } from '../shared/contracts';
 
@@ -590,7 +590,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   });
   markHero(hero);
   let heroModel = 'fallback';
-  // The hero is the flight's ship as the player built it (docs/31): its chassis's kit parts, repainted, as one craft. Endless
+  // The hero is the flight's ship as the player built it (docs/31): its chassis's parts, repainted (src/render/hero-craft.ts). Endless
   // and the menus fly the default Scrapper; campaign visual unlocks never reach endless (AGENTS.md invariant 14).
   // `heroShown` is the look on screen; while the requested look (`heroKey`) is loading the hero stays hidden, so a launch
   // never flashes the previous ship (user, 28 October: "the base ship is briefly visible" under the warp).
@@ -600,13 +600,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const key = heroLookKey(ship, look);
     if (key === heroKey) return heroPending;
     heroKey = key;
-    heroPending = loadHeroCraft(ship, look).then(model => {
+    heroPending = loadHeroModel(ship, look, materials.craft).then(model => {
       if (!model) return;
-      if (disposed || key !== heroKey) { model.geometry.dispose(); return; }
-      hero.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
-      hero.clear();
-      const mesh = new THREE.Mesh(model.geometry, materials.craft); mesh.castShadow = mesh.receiveShadow = true;
-      hero.add(mesh); markHero(mesh); heroModel = 'glb'; warmed = false;
+      if (disposed || key !== heroKey) { model.dispose(); return; }
+      heroDispose(); hero.clear();
+      model.object.traverse(object => { if (object instanceof THREE.Mesh) object.castShadow = object.receiveShadow = true; });
+      hero.add(model.object); markHero(model.object); heroDispose = model.dispose; heroModel = 'glb'; warmed = false;
       if (model.engines.length) heroEngines = model.engines;
       heroGlow = look.paint?.glow ?? HERO_DEFAULT_PAINT[ship].glow;
       heroShown = key;
@@ -614,21 +613,23 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     return heroPending;
   };
   let heroPending: Promise<void> = Promise.resolve();
+  /** Frees what the hero on screen owns (the stand-in's geometry; a loaded look's own materials, never shared files). */
+  let heroDispose = () => hero.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
   const heroLoad = showHero('scrapper', DEFAULT_LOOK);
   /**
    * The hangar's turntable (docs/31): a ship's look drawn by this renderer into a small target, once per change, as a strip
    * of views turning a full circle. Menus never open a second WebGL context on phones; the strip animates on a 2D canvas.
    */
   async function heroTurntable(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null> {
-    const model = await loadHeroCraft(ship, look);
-    if (!model || disposed) { model?.geometry.dispose(); return null; }
-    const stage = new THREE.Scene(), mesh = new THREE.Mesh(model.geometry, materials.craft);
+    const model = await loadHeroModel(ship, look, materials.craft);
+    if (!model || disposed) { model?.dispose(); return null; }
+    const stage = new THREE.Scene(), mesh = new THREE.Group().add(model.object);
     stage.environment = scene.environment;
     const key = new THREE.DirectionalLight(0xfff1dc, 2.6); key.position.set(-3, 5, 2);
     const rim = new THREE.DirectionalLight(0x9fc4ff, 1.1); rim.position.set(3, 2, -4);
     stage.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a2622, 1.1), key, rim, mesh);
     const view = new THREE.PerspectiveCamera(26, 1, .1, 40);
-    const radius = model.geometry.boundingSphere?.radius ?? 1;
+    const radius = model.radius;
     view.position.set(0, radius * 2.5, radius * 3.6); view.lookAt(0, 0, 0);
     const target = new THREE.WebGLRenderTarget(size, size, { samples: 4 });
     target.texture.colorSpace = THREE.SRGBColorSpace;
@@ -645,7 +646,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       context.putImageData(image, i * size, 0);
     }
     renderer.setRenderTarget(previous); renderer.setClearColor(clear, alpha);
-    target.dispose(); model.geometry.dispose();
+    target.dispose(); model.dispose();
     return strip;
   }
   const facilities = createFacilityView(scene, () => { warmed = false; });

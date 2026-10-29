@@ -16,7 +16,9 @@
  * live over the real map: src/playground/lab.ts) and Models (a turntable viewer for the hero, every faction's craft and
  * the bosses: src/playground/viewer.ts).
  */
-import { HERO_CHASSIS, HERO_DEFAULT_PAINT, HERO_DESIGNS, HERO_SLOTS, assembleHero, randomHeroBuild, type HeroBuild, type HeroChassis, type HeroDesign, type HeroSlot } from '../render/hero-assembly';
+import { HERO_CHASSIS, HERO_DEFAULT_PAINT, HERO_SLOTS, assembleHero, heroDesigns, randomHeroBuild, type HeroBuild, type HeroChassis, type HeroDesign, type HeroSlot } from '../render/hero-assembly';
+import { loadHeroModel } from '../render/hero-craft';
+import { HERO_REMODELLED } from '../content/hero-parts';
 import { createRun, stepRun } from '../sim/game';
 import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
@@ -344,21 +346,29 @@ function hangarControls() {
   const paint = { ...HERO_DEFAULT_PAINT[hangar.chassis], ...hangar.paint };
   hangarPane.innerHTML = `
     <div class="pg-row pg-wrap">${HERO_CHASSIS.map(chassis => `<button type="button" data-chassis="${chassis}" class="${chassis === hangar.chassis ? 'is-on' : ''}">${chassis[0].toUpperCase() + chassis.slice(1)}</button>`).join('')}</div>
-    ${HERO_SLOTS.map(slot => `<div class="pg-row"><span class="pg-dim" style="min-width:5em">${slot}</span>${HERO_DESIGNS.map(design => `<button type="button" data-slot="${slot}" data-design="${design}" class="${hangar.parts[slot] === design ? 'is-on' : ''}">${design.toUpperCase()}</button>`).join('')}</div>`).join('')}
+    ${HERO_SLOTS.map(slot => `<div class="pg-row"><span class="pg-dim" style="min-width:5em">${slot}</span>${heroDesigns(hangar.chassis).map(design => `<button type="button" data-slot="${slot}" data-design="${design}" class="${hangar.parts[slot] === design ? 'is-on' : ''}">${design.toUpperCase()}</button>`).join('')}</div>`).join('')}
     <div class="pg-row pg-wrap">${(['primary', 'secondary', 'glow'] as const).map(role => `<label class="pg-color">${role} <input data-paint="${role}" type="color" value="${hex(paint[role])}"></label>`).join('')}</div>
     <div class="pg-row pg-wrap"><button type="button" data-hangar="shuffle">Shuffle parts</button><button type="button" data-hangar="reset">Default paint</button></div>
     <div class="pg-hangar-info pg-dim"></div>`;
 }
 async function showHangar(controls = true) {
   save(HANGAR_STORE, hangar); if (controls) hangarControls();
-  const { object } = await assembleHero(hangar);
+  // A remodelled chassis is drawn as the game draws it (textured parts); the others as their kit.
+  const object = HERO_REMODELLED.has(hangar.chassis)
+    ? (await loadHeroModel(hangar.chassis, { parts: hangar.parts, paint: hangar.paint }))?.object
+    : (await assembleHero(hangar)).object;
+  if (!object) return;
   const info = viewer.showObject(object);
   hangarPane.querySelector<HTMLElement>('.pg-hangar-info')!.textContent = `${info.triangles.toLocaleString()} triangles · ${info.size.join(' × ')} units`;
 }
 hangarPane.addEventListener('click', event => {
   const target = (event.target as HTMLElement).closest<HTMLElement>('button');
   if (!target) return;
-  if (target.dataset.chassis) { hangar.chassis = target.dataset.chassis as HeroChassis; hangar.paint = undefined; }
+  if (target.dataset.chassis) {
+    hangar.chassis = target.dataset.chassis as HeroChassis; hangar.paint = undefined;
+    const designs = heroDesigns(hangar.chassis);
+    for (const slot of HERO_SLOTS) if (!designs.includes(hangar.parts[slot])) hangar.parts[slot] = 'a';
+  }
   else if (target.dataset.slot) hangar.parts[target.dataset.slot as HeroSlot] = target.dataset.design as HeroDesign;
   else if (target.dataset.hangar === 'shuffle') hangar.parts = randomHeroBuild(hangar.chassis).parts;
   else if (target.dataset.hangar === 'reset') hangar.paint = undefined;

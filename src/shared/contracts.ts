@@ -43,7 +43,7 @@ export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; p
  */
 /** Modular hero ships (docs/31): four visual part slots, three designs each, mixed within one chassis. */
 export type HeroSlot = 'hull' | 'wings' | 'engines' | 'cockpit';
-export type HeroDesign = 'a' | 'b' | 'c';
+export type HeroDesign = 'a' | 'b' | 'c' | 'd' | 'e';
 /** How the player built a chassis: one design per slot, and optional paint (sRGB hex). Cosmetic only. */
 export interface HeroLook { parts: Record<HeroSlot, HeroDesign>; paint?: { primary?: number; secondary?: number; glow?: number } }
 export interface RunConfig {

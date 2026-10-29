@@ -6,3 +6,6 @@ playwright-report/
 *.log
 lookdev/
 __pycache__/
+
+# The user's Tripo source models (about 70 MB each; art/source/hero/README.md)
+art/source/hero/*.glb
