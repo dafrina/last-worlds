@@ -16,4 +16,4 @@ and size reference"):
 2. `tools/blender/hero_remodel.py` builds clean parts over those references to each chassis's standard joints, and
    bakes the Tripo paint, wear and surface detail onto them. Output: `public/assets/shared/hero/<chassis>-<design>.glb`.
 
-Done: Scrapper 1–5, Ironclad 1–5, Interceptor 1–5. Still on its earlier script-built kit: Spectre.
+Done: all 20 (Scrapper, Ironclad, Interceptor and Spectre 1–5). The Crescent (Spectre 2) keeps its model's ring drives tilted about 28° (user: "i liked that they were tilted").

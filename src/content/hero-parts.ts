@@ -11,7 +11,7 @@ import type { HeroDesign, HeroLook, HeroSlot, ShipId } from '../shared/contracts
 export const HERO_SLOTS: readonly HeroSlot[] = ['hull', 'wings', 'engines', 'cockpit'];
 export const HERO_DESIGNS: readonly HeroDesign[] = ['a', 'b', 'c', 'd', 'e'];
 /** Chassis rebuilt from the user's Tripo models: five designs, one textured file per design. */
-export const HERO_REMODELLED: ReadonlySet<ShipId> = new Set<ShipId>(['scrapper', 'ironclad', 'interceptor']);
+export const HERO_REMODELLED: ReadonlySet<ShipId> = new Set<ShipId>(['scrapper', 'ironclad', 'interceptor', 'spectre']);
 /** The designs a chassis offers in each slot. */
 export const heroDesigns = (ship: ShipId): readonly HeroDesign[] => HERO_REMODELLED.has(ship) ? HERO_DESIGNS : HERO_DESIGNS.slice(0, 3);
 export const HERO_SLOT_NAMES: Readonly<Record<HeroSlot, string>> = { hull: 'Hull', wings: 'Wings', engines: 'Propulsion', cockpit: 'Cockpit' };
@@ -28,7 +28,7 @@ export const HERO_DEFAULT_PAINT: Readonly<Record<ShipId, { primary: number; seco
   scrapper: { primary: 0x948b80, secondary: 0x704b38, glow: 0x78f9f1 },
   ironclad: { primary: 0x66665f, secondary: 0x9c6e38, glow: 0xff4a24 },
   interceptor: { primary: 0xbab5ac, secondary: 0x6f5337, glow: 0x5aa8ff },
-  spectre: { primary: 0x17141e, secondary: 0xa9adb8, glow: 0xb46cff },
+  spectre: { primary: 0x5e5a5b, secondary: 0x6e4d3d, glow: 0xb46cff },
 };
 export const DEFAULT_LOOK: HeroLook = { parts: { hull: 'a', wings: 'a', engines: 'a', cockpit: 'a' } };
 

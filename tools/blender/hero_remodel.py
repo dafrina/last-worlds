@@ -41,7 +41,7 @@ BAKE_SIZE = 2048
 # every panel line while one design costs about 11 MB of GPU memory instead of 64.
 TEXTURE_SIZE = dict(base=1024, normal=1024, rm=512)
 # Bake reach (cage extrusion, ray distance) where a remodel sits further from its Tripo surface than usual.
-REACH = {'ironclad-4': (.2, .6)}
+REACH = {'ironclad-4': (.2, .6), 'spectre-2': (.2, .6)}
 
 # The standard joints of each chassis: every design is built to them, so a part of one design attaches to the hull of
 # another without moving (user, 29 October: parts may intersect when mixed, but nothing may float, and mixes should
@@ -65,6 +65,10 @@ JOINTS = dict(
     interceptor=dict(wing_mount=dict(x=.14, y0=-.2, y1=.1, z0=-.05, z1=.04),
                      bulkhead=dict(y=-.5, w=.07, z0=-.08, z1=.06),
                      seat=dict(z=.1)),
+    # Flying wings round a slim core: the wings join at a side rail; all drives sit in the rear cassette.
+    spectre=dict(wing_mount=dict(x=.18, y0=-.25, y1=-.05, z0=-.05, z1=.05),
+                 bulkhead=dict(y=-.5, w=.1, z0=-.1, z1=.08),
+                 seat=dict(z=.12)),
 )
 
 
@@ -196,6 +200,11 @@ class Mesh:
         """Rotate everything about the line x = x0, z = 0 (along y): positive raises the outer end (dihedral)."""
         bmesh.ops.rotate(self.bm, verts=self.bm.verts[:], cent=(x0, 0, 0),
                          matrix=Matrix.Rotation(math.radians(-degrees), 3, 'Y'))
+        return self
+
+    def pitch(self, cy, cz, degrees):
+        """Rotate everything about the line y = cy, z = cz (along x): positive tips the front up."""
+        bmesh.ops.rotate(self.bm, verts=self.bm.verts[:], cent=(0, cy, cz), matrix=Matrix.Rotation(math.radians(degrees), 3, 'X'))
         return self
 
     def move(self, dx, dy, dz):
@@ -1085,7 +1094,260 @@ def interceptor_5():
     return parts, [(-.21, -.91, .01), (.21, -.91, .01)]
 
 
-DESIGNS = {'interceptor-1': interceptor_1, 'interceptor-2': interceptor_2, 'interceptor-3': interceptor_3,
+def arc(cx, cy, r, a0, a1, n=8):
+    """Points on a circle round (cx, cy) from angle a0 to a1 (degrees, 0 along +x, counter-clockwise)."""
+    return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * k / n)), cy + r * math.sin(math.radians(a0 + (a1 - a0) * k / n)))
+            for k in range(n + 1)]
+
+
+def ring(x, z, r_in, r_out, y0, y1, segments=24):
+    """A ring drive along y: a tube of radii r_in to r_out from y0 (front) to y1 (rear), round the axis (x, z)."""
+    return x, z, [(r_in, y0), (r_out, y0), (r_out, y1), (r_in, y1), (r_in, y0)]
+
+
+# Spectre 1, Manta: a lens core with a beak and nose gun pods, an eye slit under a lid, broad curved manta wings drooping
+# at the tips, three gimballed drive rings in a triangle with dark vanes.
+def spectre_1():
+    J = JOINTS['spectre']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, [(0, zb), (w * .7, zb * .6), (w, 0), (w * .7, zt * .7), (0, zt), (-w * .7, zt * .7), (-w, 0),
+                                    (-w * .7, zb * .6)])
+    hull.loft([st(b['y'] - .1, .1, .08, -.12), st(b['y'], .14, .1, -.16), st(-.2, .2, .13, -.2), st(.15, .2, .13, -.18),
+               st(.5, .13, .1, -.1), st(.75, .06, .06, -.05), st(.86, .01, .02, -.01)])
+    for x in (.2, .14):                                                             # nose gun pods
+        cx, prof = spear(x, .45 + (.2 - x), .72, .025, .84)
+        hull.lathe(cx, .02, prof, segments=10, mirror=True)
+    hull.box(.15, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    lid = lambda w, zt: [(w, 0), (w, s['z']), (w * .6, zt), (-w * .6, zt), (-w, s['z']), (-w, 0)]
+    cockpit.loft([(.38, lid(.04, .15)), (.45, lid(.08, .19)), (.62, lid(.07, .18)), (.7, lid(.03, .15))])
+    cockpit.box(-.05, .05, .6, .63, .135, .155, bevel=0, mat=1)                    # eye slit
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .26, m['y0'], .3, -.04, .04)
+    manta = Mesh()
+    manta.prism([(.17, .5), (.3, .4), (.45, .3), (.6, .17), (.75, .0), (.84, -.2), (.89, -.42), (.87, -.48), (.75, -.37),
+                 (.6, -.3), (.45, -.3), (.34, -.34), (.27, -.45), (.22, -.6), (.17, -.6)], -.022, .022, chamfer=.008)
+    wings.merge(manta.tilt(.2, -11)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.1, .1, -.6, b['y'], -.08, .06)
+    engines.box(-.22, .22, -.62, -.56, -.12, .16, bevel=.02)                        # cassette frame
+    for x, z, ri, ro in ((-.15, .1, .045, .065), (.15, .1, .045, .065), (0, -.03, .065, .095)):
+        cx, cz, prof = ring(x, z, ri, ro, -.58, -.82)
+        engines.lathe(cx, cz, prof, segments=20, caps=False)
+        engines.disc(x, -.7, z, ri)
+    engines.prism([(.3, -.55), (.33, -.55), (.33, -.85), (.3, -.8)], -.12, .1, chamfer=.006, mirror=True)  # vanes
+    engines.box(.2, .32, -.66, -.6, -.03, .03, mirror=True)
+    parts['engines'] = engines
+    return parts, [(-.15, -.83, .1), (.15, -.83, .1), (0, -.83, -.03)]
+
+
+# Spectre 2, Crescent: a forked core of two forward blades round a bridge, a caged violet crystal, long knife wings on
+# rail arms pointing forward, two large hollow ring drives with copper spokes.
+def spectre_2():
+    J = JOINTS['spectre']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, section(w, w * .75, w * .6, zb, zb * .5, zt * .5, zt))
+    hull.loft([st(b['y'] - .08, .17, .12, -.14), st(-.35, .17, .13, -.15), st(-.1, .14, .12, -.13), st(.35, .08, .1, -.08),
+               st(.6, .04, .06, -.04), st(.72, .01, .02, -.01)])
+    # The forked prongs: broad curved blades either side of the cockpit, a raised ridge along each.
+    hull.prism([(.09, -.05), (.2, -.02), (.27, .2), (.28, .45), (.24, .7), (.17, .93), (.15, .75), (.12, .45), (.09, .2)],
+               -.05, .05, chamfer=.012, mirror=True)
+    hull.prism([(.17, .05), (.2, .05), (.22, .5), (.17, .85), (.165, .5)], .05, .075, chamfer=.006, mirror=True)
+    hull.box(.1, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.box(-.07, .07, .18, .58, 0, s['z'], bevel=.01)                          # containment base
+    gem = lambda w, zt: [(w, s['z']), (w * .5, zt), (-w * .5, zt), (-w, s['z'])]
+    cockpit.loft([(.2, gem(.01, s['z'] + .02)), (.3, gem(.065, s['z'] + .13)), (.47, gem(.065, s['z'] + .13)),
+                  (.58, gem(.01, s['z'] + .02))], mat=1)
+    for y in (.21, .56):
+        cockpit.box(-.075, .075, y - .012, y + .012, s['z'], s['z'] + .11, bevel=.004)  # cage frames
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .32, -.29, -.03, -.05, .05)
+    wings.box(.3, .74, -.28, -.12, -.035, .035, bevel=.012)                         # rail arm
+    wings.rod((.32, -.27, .03), (.6, -.27, .03), .014, segments=8)                  # piston along the arm
+    knife = Mesh()
+    # A broad curved knife: pointed forward tip, widest across the arm, tapering to a rear point.
+    knife.prism([(.38, .8), (.47, .6), (.56, .38), (.66, .14), (.77, -.12), (.87, -.38), (.91, -.56), (.88, -.7),
+                 (.8, -.5), (.68, -.26), (.57, -.02), (.48, .24), (.41, .52)], -.03, .03, chamfer=.01)
+    knife.prism([(.42, .62), (.5, .42), (.62, .14), (.76, -.18), (.84, -.42), (.8, -.42), (.72, -.18), (.58, .12),
+                 (.46, .42), (.4, .6)], .03, .05, chamfer=.006)                     # raised ridge
+    wings.merge(knife).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    # The reactor: a broad housing from the bulkhead back between the two ring drives, as wide as the hull where they meet.
+    rh = lambda y, w, zt, zb: (y, section(w, w * .85, w * .7, zb, zb * .5, zt * .6, zt))
+    engines.loft([rh(b['y'] + .05, .16, .12, -.14), rh(-.56, .22, .14, -.17), rh(-.72, .2, .13, -.16), rh(-.88, .12, .1, -.12),
+                  rh(-.95, .07, .07, -.08)])
+    # The ring drives, tilted like the model's: each face turned back and up about 28 degrees.
+    rings = Mesh()
+    for x in (-.25, .25):
+        torus = [(.14, -.6), (.19, -.61), (.235, -.65), (.26, -.71), (.265, -.77), (.255, -.84), (.22, -.9), (.17, -.92),
+                 (.15, -.9), (.15, -.77), (.14, -.63), (.14, -.6)]                  # a deep rounded drum, hollow
+        rings.lathe(x, -.02, torus, segments=28, caps=False)
+        rings.lathe(x, -.02, [(.135, -.76), (.148, -.76), (.148, -.81), (.135, -.81), (.135, -.76)], segments=28,
+                    caps=False, mat=1)                                             # violet rim inside
+        rings.lathe(x, -.02, [(.0, -.84), (.045, -.84), (.045, -.78), (.0, -.78)], segments=12, caps=False)   # hub
+        for k in range(6):                                                          # copper spokes
+            a = 2 * math.pi * k / 6
+            rings.rod((x + .145 * math.cos(a), -.81, -.02 + .145 * math.sin(a)), (x, -.81, -.02), .009, segments=5)
+        sx = 1 if x > 0 else -1
+        rings.box(min(.12 * sx, .2 * sx), max(.12 * sx, .2 * sx), -.72, -.6, -.1, .08, bevel=.015)   # collars into the housing
+    engines.merge(rings.pitch(-.76, -.02, -28))
+    parts['engines'] = engines
+    return parts, [(-.25, -0.901, 0.055), (.25, -0.901, 0.055)]
+
+
+# Spectre 3, Wedge: a pentagonal stealth core with nose guns, a narrow polygonal canopy, broken-delta wings with pale
+# root blades and tip edges, four slim drive slots in a wedge cassette.
+def spectre_3():
+    J = JOINTS['spectre']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    hull.prism([(0, .76), (.1, .5), (.2, .2), (.26, .0), (.28, -.4), (.2, -.62), (-.2, -.62), (-.28, -.4), (-.26, .0), (-.2, .2),
+                (-.1, .5)], -.15, .1, chamfer=.04)
+    hull.prism([(0, .6), (.07, .35), (.1, .0), (.1, -.5), (-.1, -.5), (-.1, .0), (-.07, .35)], .08, .15, chamfer=.03)  # roof
+    for x in (.03, .07):
+        hull.rod((x, .45, .02), (x, .86, .02), .01, mirror=True)
+    hull.box(.2, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.loft(canopy(-.02, .48, .05, s['z'], s['z'] + .1, .5))
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .3, -.4, .05, -.04, .04)
+    delta = Mesh()
+    delta.prism([(.24, .05), (.45, -.02), (.75, -.12), (.85, -.18), (.88, -.4), (.75, -.5), (.6, -.42), (.55, -.55), (.42, -.6),
+                 (.35, -.45), (.24, -.45)], -.02, .02, chamfer=.006)
+    delta.prism([(.3, .15), (.34, .15), (.36, -.12), (.3, -.1)], .0, .1, chamfer=.006)      # pale root blade
+    wings.merge(delta.tilt(.24, -7)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.08, .08, -.62, b['y'], -.08, .06)
+    engines.prism([(.2, -.58), (.24, -.7), (.2, -.86), (-.2, -.86), (-.24, -.7), (-.2, -.58)], -.14, .1, chamfer=.03)
+    for x in (-.15, -.05, .05, .15):
+        engines.box(x - .03, x + .03, -.87, -.858, -.1, .07, bevel=.004)          # slot frames
+        engines.box(x - .012, x + .012, -.875, -.865, -.08, .05, bevel=0, mat=1)
+    parts['engines'] = engines
+    return parts, [(x, -.88, -.015) for x in (-.15, -.05, .05, .15)]
+
+
+# Spectre 4, Veil: an armoured spine with pale dorsal ribs and side guns, a dark teardrop canopy, layered feather wings
+# sweeping back and down, one wide oval slit drive.
+def spectre_4():
+    J = JOINTS['spectre']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, [(0, zb), (w * .7, zb * .6), (w, 0), (w * .7, zt * .7), (0, zt), (-w * .7, zt * .7), (-w, 0),
+                                    (-w * .7, zb * .6)])
+    hull.loft([st(-.55, .14, .14, -.14), st(-.4, .1, .12, -.12), st(.2, .1, .12, -.12), st(.5, .07, .1, -.08),
+               st(.66, .03, .05, -.03), st(.75, .004, .01, -.004)])
+    for y in (-.3, -.2, -.1, 0, .1):                                                # dorsal ribs
+        hull.box(-.07, .07, y - .015, y + .015, .09, .13, bevel=.006)
+    hull.rod((.22, .08, .0), (.22, .45, .0), .012, mirror=True)                     # side guns
+    hull.box(.08, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.loft(canopy(.22, .58, .07, s['z'] - .02, s['z'] + .08, .4))
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .26, -.3, .3, -.05, .05)
+    fan = Mesh()
+    for k, (yr, tip) in enumerate(((.3, (.9, .0)), (.16, (.9, -.24)), (.02, (.84, -.47)), (-.12, (.73, -.68)), (-.26, (.6, -.8)))):
+        tx, ty = tip
+        fan.prism([(.22, yr), (.22 + (tx - .22) * .6, yr + (ty - yr) * .45 + .05), (tx, ty), (tx - .08, ty - .03),
+                   (.22 + (tx - .22) * .55, yr + (ty - yr) * .6 - .14), (.22, yr - .22)], -.01 - k * .014, .012 - k * .014,
+                  chamfer=.005)                                                    # overlapping feather plates
+    wings.merge(fan.tilt(.22, -14)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.08, .08, -.5, b['y'], -.08, .06)
+    oval = [(.27 * math.cos(a), .2 * math.sin(a)) for a in (2 * math.pi * k / 16 for k in range(16))]
+    engines.loft([(-.45, [(x * .7, z * .7) for x, z in oval]), (-.55, oval), (-.86, oval), (-.9, [(x * .85, z * .85) for x, z in oval])])
+    engines.box(-.14, .14, -.905, -.895, -.025, .025, bevel=0, mat=1)               # slit glow
+    engines.rod((.33, -.45, .0), (.33, -.82, .0), .01, mirror=True)
+    parts['engines'] = engines
+    return parts, [(0, -.91, 0)]
+
+
+# Spectre 5, Orrery: a drum core in concentric collars with a nose spine and guns, a round violet lens, two crescent wing
+# halves forming an almost closed ring on side arms, four small drive rings in paired housings.
+def spectre_5():
+    J = JOINTS['spectre']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    hull.stack(0, -.1, [(.2, -.22), (.28, -.14), (.3, -.02), (.3, .06), (.24, .12), (.12, .14)], segments=28, turn=0)
+    hull.stack(0, -.1, [(.31, -.02), (.33, -.0), (.33, .04), (.31, .06)], segments=28, turn=0)    # collar
+    st = lambda y, w, zt, zb: (y, section(w, w * .7, w * .7, zb, zb * .5, zt * .5, zt))
+    hull.loft([st(b['y'] - .25, .1, .1, -.12), st(-.3, .1, .1, -.12)])
+    hull.loft([st(.15, .1, .12, -.1), st(.6, .07, .1, -.06), st(.86, .03, .06, -.03)])
+    for x in (.04, .1):
+        hull.rod((x, .55, .05), (x, .88 - x, .05), .01, mirror=True)
+    hull.box(.25, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.stack(0, .26, [(.09, 0), (.09, s['z'] + .02), (.085, s['z'] + .05), (.06, s['z'] + .07)], segments=20, turn=0)
+    cockpit.stack(0, .26, [(.055, s['z'] + .065), (.04, s['z'] + .085), (.0, s['z'] + .09)], segments=20, turn=0, mat=1)
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .66, -.17, -.05, -.035, .035, bevel=.01)                # side arm
+    # Each half: thick across the arm, tapering to a sharp forward tip and a blunt rear end; a pale raised outer rim.
+    outer = [(.3, .63), (.45, .62), (.6, .56), (.72, .46), (.82, .3), (.87, .1), (.88, -.1), (.86, -.32), (.8, -.52), (.7, -.68),
+             (.55, -.8), (.38, -.88)]
+    inner = [(.36, -.78), (.48, -.66), (.57, -.48), (.62, -.25), (.62, -.05), (.58, .15), (.52, .3), (.44, .42), (.34, .55)]
+    wings.prism((outer + inner)[::-1], -.045, .045, chamfer=.012)
+    toward = lambda pts, k: [(x * k, -.1 + (y + .1) * k) for x, y in pts]
+    wings.prism((outer[1:-1] + toward(outer[1:-1], .93)[::-1])[::-1], .045, .065, chamfer=.006)   # pale outer rim
+    for y in (-.13, -.07):                                                          # struts along the arm
+        wings.rod((.3, y, .04), (.64, y, .04), .01, segments=6)
+    wings.mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.08, .08, -.62, b['y'], -.08, .06)
+    for x in (-.13, .13):
+        engines.box(x - .085, x + .085, -.85, -.55, -.17, .17, bevel=.025)          # paired housing
+        for z in (-.085, .085):
+            cx, cz, prof = ring(x, z, .045, .065, -.82, -.87, segments=18)
+            engines.lathe(cx, cz, prof, segments=18, caps=False)
+            engines.disc(x, -.855, z, .045)
+    parts['engines'] = engines
+    return parts, [(x, -.88, z) for x in (-.13, .13) for z in (-.085, .085)]
+
+
+DESIGNS = {'spectre-1': spectre_1, 'spectre-2': spectre_2, 'spectre-3': spectre_3, 'spectre-4': spectre_4,
+           'spectre-5': spectre_5,
+           'interceptor-1': interceptor_1, 'interceptor-2': interceptor_2, 'interceptor-3': interceptor_3,
            'interceptor-4': interceptor_4, 'interceptor-5': interceptor_5,
            'ironclad-1': ironclad_1, 'ironclad-2': ironclad_2, 'ironclad-3': ironclad_3, 'ironclad-4': ironclad_4,
            'ironclad-5': ironclad_5, 'scrapper-1': scrapper_1, 'scrapper-2': scrapper_2, 'scrapper-3': scrapper_3, 'scrapper-4': scrapper_4,
