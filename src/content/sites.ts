@@ -110,7 +110,9 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
   },
   'gate-ring': {
     id: 'gate-ring', name: 'GATE RING', worlds: [...UMBRAL, 'amnion'], weight: 1, core: CORE,
-    loot: { kind: 'credit', value: 30 }, endless: { kind: 'power', score: 0 },
+    // Campaign: a budgeted shield cell (user, 29 October: "Credits on campaign instead of power is fine but you can also
+    // drop shields"); endless: a power cell.
+    loot: { kind: 'shield', value: 1 }, endless: { kind: 'power', score: 0 },
     guard: on([...UMBRAL, 'amnion'], [g('site-mixed-2'), g('solo-weaver', -1.5)]),
   },
   'brood-hive': {
