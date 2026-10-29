@@ -216,7 +216,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     if (hangarSlot === 'ship') renderShipyard(yard, campaign.read(), {
       buyDesign(ship, slot, design) { campaign.buyDesign(ship, slot, design); },
       setLook(ship, look) { campaign.setLook(ship, look); refreshHangar(); },
-      turntable: (ship, look) => actions.heroTurntable?.(ship, look, 192, 36) ?? Promise.resolve(null),
+      picture: (ship, look, width, height) => actions.heroPreview?.(ship, look, width, height) ?? Promise.resolve(null),
+      preload: (ship, look) => actions.preloadHero?.(ship, look),
     });
     for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = campaign.read().credits.toLocaleString();
     text('.hangar-note', hangarSlot === 'ship' ? 'Ships come from the listed mission clears, on any difficulty. Their parts and paint are cosmetic: B and C designs cost credits once, then switch freely.' : 'Credits come from campaign missions. Changing equipped gear is free.');

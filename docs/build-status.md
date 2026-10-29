@@ -1,6 +1,18 @@
 # Build status
 
 
+## Hangar: a large still of the ship, parts preloaded, designs tried on before buying, 29 October 2026
+
+User: "make the hangar/ship preview better. It lags as fuck, preload the parts, and make them previewable. And make the image bigger, maybe not needed to turn".
+
+- **Cause:** every look change rendered 36 turntable views, each with a synchronous GPU read-back, and the design files downloaded only when first shown.
+- **Fix:**
+  - `heroPreview` (src/render/scene.ts) draws one still per look, cached; the picture is panel-wide (360 × 230, drawn at 2×), a high three-quarter view of the nose; the last picture stays up while the next renders.
+  - Opening the shipyard preloads every design file of the chassis.
+  - Tapping an unbought design tries it on (PREVIEW · <slot> <design>, BUY, PUT BACK); the design rows are now five even columns.
+- **Checked:** browser shots at 390 × 844 (open, hull D tried on, wings E tried on), zero page errors; `tests/browser/menu.spec.ts` 7/7 (its shipyard test now tries on, then buys); unit tests 499/499; typecheck.
+- **Not checked:** no phone test.
+
 ## Launch: the warp shows at once, 29 October 2026
 
 User: "clicking to start a level takes a few seconds before even the warp appears ... Cant we preload the ship model or is it something else?"

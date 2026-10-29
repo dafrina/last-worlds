@@ -107,8 +107,11 @@ material and takes its own tint. The default paint for each chassis is `HERO_DEF
     with credits (`HERO_DESIGN_PRICES`: 80, 160, 240, 320; src/content/hero-parts.ts)
     and then switch freely.
   - Colour and glow pickers, and Default paint. Looks saved with a trim colour keep it unused.
-  - The turntable: `GameRenderer.heroTurntable` draws 36 views into a strip once per look, and the hangar animates it
-    on a 2D canvas (no second WebGL context).
+  - The picture (user, 29 October: the turning preview "lags as fuck, preload the parts, and make them previewable. And
+    make the image bigger, maybe not needed to turn"): `GameRenderer.heroPreview` draws one still per look (it drew 36
+    views, each read back from the GPU), 720 × 460 for a panel-wide 360 × 230 picture, cached per look; the previous
+    picture stays up until the next is ready. Opening the shipyard starts loading every design file of the chassis.
+  - Try before buying: tapping an unbought design shows it on the ship with BUY and PUT BACK; buying fits it.
 
 ## Integration notes (original handoff, now done)
 

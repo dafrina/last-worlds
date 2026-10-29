@@ -163,11 +163,15 @@ test('ships assemble from mission parts, persist, and launch with their perk and
   await page.screenshot({ path: info.outputPath('ship-collection.png') });
   await ironclad.getByRole('button', { name: 'ASSEMBLE' }).click();
   await expect(ironclad).toContainText('EQUIPPED');
-  // The shipyard (docs/31): the equipped ship's look; a B design is bought once with credits, then fitted.
+  // The shipyard (docs/31): the equipped ship's look; an unbought B design is tried on first, then bought once and fitted.
   const yard = page.locator('.shipyard');
   await expect(yard).toContainText('IRONCLAD · YOUR BUILD');
-  await yard.getByRole('button', { name: /Wings design B, buy for 80 credits/ }).click();
+  await yard.getByRole('button', { name: /Wings design B, preview; costs 80 credits/ }).click();
+  await expect(yard.locator('.shipyard-offer')).toContainText('PREVIEW · WINGS B');
+  await expect(page.locator('.credit-balance b').first()).toHaveText('5,000');
+  await yard.getByRole('button', { name: 'BUY · 80 CR' }).click();
   await expect(yard.getByRole('button', { name: 'Wings design B' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(yard.locator('.shipyard-offer')).toBeHidden();
   await expect(page.locator('.credit-balance b').first()).toHaveText('4,920');
   await page.screenshot({ path: info.outputPath('shipyard.png') });
   await page.getByRole('radio', { name: 'Shield', exact: true }).click();

@@ -191,8 +191,8 @@ export interface GameRenderer {
   prepareHero?(config: RunConfig): Promise<void>;
   /** Starts downloading a look's ship files ahead of a launch (the campaign screen). */
   preloadHero?(ship: ShipId, look: HeroLook): void;
-  /** The hangar's turntable of a ship's look: `frames` square views of `size` pixels side by side (UiActions.heroTurntable). */
-  heroTurntable?(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null>;
+  /** The hangar's picture of a ship's look: one still of `width` × `height` pixels (UiActions.heroPreview). */
+  heroPreview?(ship: ShipId, look: HeroLook, width: number, height: number): Promise<HTMLCanvasElement | null>;
   dispose(): void;
 }
 export interface GameInput {
@@ -203,10 +203,10 @@ export interface UiActions {
   setMuted(muted: boolean): void;
   setQuality(quality: GraphicsQuality): void;
   /**
-   * A turntable of a ship's look for the hangar, drawn by the game's own renderer (menus never open a second WebGL
-   * context): a strip of `frames` square views side by side, or null without a renderer.
+   * A picture of a ship's look for the hangar, drawn by the game's own renderer (menus never open a second WebGL
+   * context): one still of `width` × `height` pixels, or null without a renderer.
    */
-  heroTurntable?(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null>;
+  heroPreview?(ship: ShipId, look: HeroLook, width: number, height: number): Promise<HTMLCanvasElement | null>;
   /** Starts downloading the ship a campaign launch will fly (GameRenderer.preloadHero). */
   preloadHero?(ship: ShipId, look: HeroLook): void;
 }

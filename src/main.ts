@@ -170,7 +170,7 @@ const ui = createUi(root, {
   },
   setMuted(value) { audio.setSettings({ muted: value }); },
   setQuality(value) { renderer?.setQuality(value); },
-  heroTurntable: (ship, look, size, frames) => renderer?.heroTurntable?.(ship, look, size, frames) ?? Promise.resolve(null),
+  heroPreview: (ship, look, width, height) => renderer?.heroPreview?.(ship, look, width, height) ?? Promise.resolve(null),
   preloadHero: (ship, look) => renderer?.preloadHero?.(ship, look),
 });
 const disposeAudioSettings = mountAudioSettings(root, audio);
