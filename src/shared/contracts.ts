@@ -35,6 +35,10 @@ export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */
 /** `fuel` is a harmless ground loot target (a fuel-tank skid): it never attacks and drops what a ship drops. */
 /** `pulsar` (Nacre, 17 October 2026) fires a rapid burst stream down one committed line. */
+/** Strike sites (docs/33): optional side-route targets, one model each with a finish per world. */
+export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot', 'relay-station', 'freight-terminal',
+  'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool'] as const;
+export type SiteId = (typeof SITE_IDS)[number];
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
 /**
@@ -65,6 +69,8 @@ export interface Enemy {
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
   warning: number; aimX: number; groundHeight: number;
   bossPart?: BossPart; damageable?: boolean; formation?: FormationMember;
+  /** A strike site's core target (docs/33): its death drops the site's loot. */
+  site?: SiteId;
   /**
    * A ground enemy's anchor on the terrain (src/shared/lens.ts; 21 October): fixed in the world, it scrolls with the
    * ground, and its gameplay position (x, s) is where the lens's line of sight through its core crosses the flight plane.
@@ -121,7 +127,7 @@ export interface Projectile {
 /** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
 /** `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none). */
 export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number; source?: number }
-export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
+export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit' | 'part'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
 /** `bossBlast`: a destroyed boss's last detonation (render only, like every effect). */
 export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast' | 'bossBlast'; x: number; s: number; ttl: number; duration: number }
 /** A hyperdrive jump between planets: about 3 s; the look switches at its midpoint (`startedAt + duration / 2`). */

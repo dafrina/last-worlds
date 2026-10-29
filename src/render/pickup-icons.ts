@@ -5,7 +5,8 @@ import type { Pickup, WeaponId } from '../shared/contracts';
 export type PickupIcon = 'shield' | 'power' | 'credit' | `weapon-${WeaponId}`;
 export const PICKUP_ICONS: readonly PickupIcon[] = ['shield', 'power', 'credit', 'weapon-pulse', 'weapon-fan', 'weapon-seeker', 'weapon-rail'];
 export const pickupIcon = (pickup: Pick<Pickup, 'kind' | 'weapon'>): PickupIcon =>
-  pickup.kind === 'weapon' ? `weapon-${pickup.weapon ?? 'pulse'}` : pickup.kind;
+  // A part shows the credit icon until it has its own (docs/33, workstream B).
+  pickup.kind === 'weapon' ? `weapon-${pickup.weapon ?? 'pulse'}` : pickup.kind === 'part' ? 'credit' : pickup.kind;
 
 /** World size of an icon sprite (the frame fills about 80% of it; the rest is its glow). */
 export const PICKUP_ICON_SIZE = 1.15;

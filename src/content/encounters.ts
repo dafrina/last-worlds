@@ -1,4 +1,4 @@
-import type { EnemyKind, MissionId, WeaponId } from '../shared/contracts';
+import type { EnemyKind, MissionId, SiteId, WeaponId } from '../shared/contracts';
 import { FORMATIONS, slotFlies, type FormationId, type FormationRank } from './formations';
 import { ENDLESS_CYCLE, cycleSector, endlessPlanet, isFirstVisit, isPrologue } from './endless';
 
@@ -23,6 +23,8 @@ export interface EncounterCue {
   readonly phase: PacingPhase;
   readonly formations: readonly FormationPlacement[];
   readonly message?: string;
+  /** A strike site's side route (docs/33): which site and on which side; its guard is in `formations`. */
+  readonly site?: { readonly id: SiteId; readonly side: -1 | 1 };
   readonly pickup?: { readonly x: number; readonly s: number; readonly kind: 'credit' | 'power' | 'weapon'; readonly value: number; readonly weapon?: WeaponId };
 }
 
