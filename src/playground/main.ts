@@ -347,7 +347,7 @@ function hangarControls() {
   hangarPane.innerHTML = `
     <div class="pg-row pg-wrap">${HERO_CHASSIS.map(chassis => `<button type="button" data-chassis="${chassis}" class="${chassis === hangar.chassis ? 'is-on' : ''}">${chassis[0].toUpperCase() + chassis.slice(1)}</button>`).join('')}</div>
     ${HERO_SLOTS.map(slot => `<div class="pg-row"><span class="pg-dim" style="min-width:5em">${slot}</span>${heroDesigns(hangar.chassis).map(design => `<button type="button" data-slot="${slot}" data-design="${design}" class="${hangar.parts[slot] === design ? 'is-on' : ''}">${design.toUpperCase()}</button>`).join('')}</div>`).join('')}
-    <div class="pg-row pg-wrap">${(['primary', 'secondary', 'glow'] as const).map(role => `<label class="pg-color">${role} <input data-paint="${role}" type="color" value="${hex(paint[role])}"></label>`).join('')}</div>
+    <div class="pg-row pg-wrap">${(['primary', 'glow'] as const).map(role => `<label class="pg-color">${role} <input data-paint="${role}" type="color" value="${hex(paint[role])}"></label>`).join('')}</div>
     <div class="pg-row pg-wrap"><button type="button" data-hangar="shuffle">Shuffle parts</button><button type="button" data-hangar="reset">Default paint</button></div>
     <div class="pg-hangar-info pg-dim"></div>`;
 }

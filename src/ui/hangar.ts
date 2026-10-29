@@ -81,7 +81,7 @@ const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
 /**
  * The shipyard (docs/31; user, 28 October: "seeing the ship in a hangar like preview"): the equipped ship turning, its four
  * part slots with their designs (A comes with the ship, the rest are bought with credits and then free to switch; a
- * remodelled chassis has A–E, the others A–C), and its paint.
+ * remodelled chassis has A–E, the others A–C), and its colour and glow.
  * Cosmetic only: no part changes handling, the hit region or any stat.
  */
 export function renderShipyard(host: HTMLElement, profile: CampaignProfile, actions: ShipyardActions): void {
@@ -109,7 +109,7 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
     return row;
   });
   const colours = document.createElement('div'); colours.className = 'shipyard-paint';
-  for (const [role, name] of [['primary', 'PAINT'], ['secondary', 'TRIM'], ['glow', 'GLOW']] as const) {
+  for (const [role, name] of [['primary', 'COLOUR'], ['glow', 'GLOW']] as const) {
     const field = document.createElement('label'), input = document.createElement('input');
     input.type = 'color'; input.value = hex(paint[role]);
     input.addEventListener('change', () => actions.setLook(ship, { ...look, paint: { ...look.paint, [role]: parseInt(input.value.slice(1), 16) } }));

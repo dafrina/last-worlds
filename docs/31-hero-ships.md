@@ -32,8 +32,12 @@ Their parts are remodelled, not cut out (docs/08, 29 October):
   so parts sit unmoved in any mix. Designs stay faithful to their models; mixed parts may overlap but never float (user:
   "they can intersect no problem", "but it should somewhat look good").
 - **Runtime:** `loadHeroModel` (src/render/hero-craft.ts) loads each design file once and shares its geometry; a look gets
-  its own copies of the materials. Paint: texels near the model's own paint or trim colour (`HERO_DEFAULT_PAINT`, the
-  median the bake prints) take the chosen colour at their own brightness; the glow material takes the glow colour.
+  its own copies of the materials. Paint is one ship colour and one glow (user, 29 October: "Lets just make one color for
+  the ship and one for glow"): every texel takes the ship colour at its brightness relative to the model's paint
+  (`HERO_DEFAULT_PAINT.primary`, the median the bake prints), so panels, wear and shading stay; texels lit in the
+  model's glow colour, the glow material and the plumes take the glow. The first rule matched texels to a paint and a
+  trim swatch: it reached about half of the Scrapper and Interceptor textures and none of the brown rust, which is why
+  most parts stayed brown.
 - **Review sheets:** `art/hero-tripo/` (remodel against Tripo, mixed builds).
 
 ## Script-built kits (retired 29 October; kept as the fallback path)
@@ -102,7 +106,7 @@ material and takes its own tint. The default paint for each chassis is `HERO_DEF
   - Designs per slot (`heroDesigns`): A–E on a remodelled chassis, A–C on a kit chassis. A is free; the rest are bought
     with credits (`HERO_DESIGN_PRICES`: 80, 160, 240, 320; src/content/hero-parts.ts)
     and then switch freely.
-  - Paint, trim and glow pickers, and Default paint.
+  - Colour and glow pickers, and Default paint. Looks saved with a trim colour keep it unused.
   - The turntable: `GameRenderer.heroTurntable` draws 36 views into a strip once per look, and the hangar animates it
     on a 2D canvas (no second WebGL context).
 

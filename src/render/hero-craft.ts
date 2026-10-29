@@ -38,7 +38,7 @@ async function loadRemodel(ship: ShipId, look: HeroLook, base?: string): Promise
     if (!copies.has(material)) {
       const copy = (material as THREE.MeshStandardMaterial).clone();
       if (/glow/i.test(copy.name)) { copy.color.setHex(paint.glow); copy.emissive.setHex(paint.glow); }
-      else repaint(copy, defaults, paint);
+      else repaint(copy, defaults, paint);   // the trim colour (`secondary`) is no longer offered; old looks keep it unused
       copies.set(material, copy);
     }
     return copies.get(material)!;
@@ -67,27 +67,31 @@ async function loadRemodel(ship: ShipId, look: HeroLook, base?: string): Promise
 }
 
 /**
- * The paint of a textured part: texels near the model's own paint or trim colour (same tone, at least half as bright)
- * take the chosen colour at their own brightness, so wear, panels and shading stay. Unchanged paint costs nothing.
+ * The paint of a textured part (user, 29 October: "Lets just make one color for the ship and one for glow"): every texel
+ * takes the ship colour at its own brightness relative to the model's paint, so panels, wear and shading stay; texels lit in
+ * the model's glow colour take the glow colour instead. The earlier rule matched texels to a measured paint and trim
+ * swatch and missed most of the baked Tripo finish (the trim reached none of it), so the brown rust never changed. The
+ * model's own look costs nothing.
  */
-function repaint(material: THREE.MeshStandardMaterial, from: { primary: number; secondary: number }, to: { primary: number; secondary: number }) {
-  if (from.primary === to.primary && from.secondary === to.secondary) return;
+function repaint(material: THREE.MeshStandardMaterial, from: { primary: number; glow: number }, to: { primary: number; glow: number }) {
+  if (from.primary === to.primary && from.glow === to.glow) return;
   const colour = (hex: number) => new THREE.Color(hex);
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, {
       heroFromP: { value: colour(from.primary) }, heroToP: { value: colour(to.primary) }, heroP: { value: from.primary === to.primary ? 0 : 1 },
-      heroFromS: { value: colour(from.secondary) }, heroToS: { value: colour(to.secondary) }, heroS: { value: from.secondary === to.secondary ? 0 : 1 },
+      heroFromG: { value: colour(from.glow) }, heroToG: { value: colour(to.glow) }, heroG: { value: from.glow === to.glow ? 0 : 1 },
     });
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 heroFromP, heroToP, heroFromS, heroToS; uniform float heroP, heroS;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 heroFromP, heroToP, heroFromG, heroToG; uniform float heroP, heroG;')
       .replace('#include <map_fragment>', `#include <map_fragment>
       {
         const vec3 W = vec3( .2126, .7152, .0722 );
         vec3 c = diffuseColor.rgb; float l = max( dot( c, W ), 1e-4 );
-        float lp = max( dot( heroFromP, W ), 1e-4 ), ls = max( dot( heroFromS, W ), 1e-4 );
-        float wp = heroP * ( 1. - smoothstep( .1, .3, length( c / l - heroFromP / lp ) ) ) * smoothstep( lp * .35, lp * .6, l );
-        float ws = heroS * ( 1. - smoothstep( .15, .4, length( c / l - heroFromS / ls ) ) ) * smoothstep( ls * .3, ls * .55, l ) * ( 1. - wp );
-        diffuseColor.rgb = mix( mix( c, heroToS * ( l / ls ), ws ), heroToP * ( l / lp ), wp );
+        float lp = max( dot( heroFromP, W ), 1e-4 ), lg = max( dot( heroFromG, W ), 1e-4 );
+        float chroma = max( c.r, max( c.g, c.b ) ) - min( c.r, min( c.g, c.b ) );
+        float glow = ( 1. - smoothstep( .25, .5, length( c / l - heroFromG / lg ) ) ) * smoothstep( .06, .15, chroma );
+        vec3 painted = mix( c, min( heroToP * ( l / lp ), vec3( 1. ) ), heroP );
+        diffuseColor.rgb = mix( painted, mix( c, min( heroToG * ( l / lg ), vec3( 1. ) ), heroG ), glow );
       }`);
   };
   material.customProgramCacheKey = () => 'hero-paint';
