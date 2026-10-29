@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, freshProfile, shipParts, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
-import { RANK_PRICES, REWARDS, STARTER } from '../../src/content/equipment';
-import { HERO_DESIGN_PRICES } from '../../src/content/hero-parts';
+import { RANK_PRICES, REWARDS, SHIP_IDS, STARTER } from '../../src/content/equipment';
+import { HERO_DESIGN_PRICES, HERO_REMODELLED } from '../../src/content/hero-parts';
 
 function memory(initial?: string) {
   const values = new Map<string, string>();
@@ -171,8 +171,11 @@ describe('ship parts and v1 migration', () => {
     expect(store.buyDesign('scrapper', 'wings', 'e')).toBe(true);
     expect(store.read().credits).toBe(before - HERO_DESIGN_PRICES.e);
     expect(store.setLook('scrapper', { parts: { hull: 'a', wings: 'e', engines: 'a', cockpit: 'a' } })).toBe(true);
-    const saved = { ...freshProfile(), owned: { ...freshProfile().owned, ship: ['scrapper', 'ironclad'] }, designs: ['ironclad:hull:d', 'scrapper:hull:d'],
-      looks: { ironclad: { parts: { hull: 'd', wings: 'a', engines: 'a', cockpit: 'a' } } } };
+    // While some chassis are still kits (docs/31), a D on one of them is dropped on load and its look cleaned.
+    const kit = SHIP_IDS.find(ship => !HERO_REMODELLED.has(ship));
+    if (!kit) return;
+    const saved = { ...freshProfile(), owned: { ...freshProfile().owned, ship: ['scrapper', kit] }, designs: [`${kit}:hull:d`, 'scrapper:hull:d'],
+      looks: { [kit]: { parts: { hull: 'd', wings: 'a', engines: 'a', cockpit: 'a' } } } };
     const profile = createCampaignProfile(memory(JSON.stringify(saved))).read();
     expect(profile.designs).toEqual(['scrapper:hull:d']);
     expect(profile.looks).toEqual({});

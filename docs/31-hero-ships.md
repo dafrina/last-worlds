@@ -14,7 +14,7 @@ configurator (§ In the game). The playground's Hangar tab is the look-dev view.
 
 Each chassis has four **slots**: `hull`, `wings`, `engines` and `cockpit`. A build picks one design per slot, and any mix
 within a chassis fits together. Parts never mix across chassis. A **remodelled** chassis (`HERO_REMODELLED`, so far the
-Scrapper and the Ironclad) has five designs per slot, `a`–`e`; the others still have three, `a`–`c`, in their script-built kits (below).
+Scrapper, Ironclad and Interceptor) has five designs per slot, `a`–`e`; the others still have three, `a`–`c`, in their script-built kits (below).
 
 ## Remodelled chassis (29 October 2026)
 
@@ -36,7 +36,7 @@ Their parts are remodelled, not cut out (docs/08, 29 October):
   median the bake prints) take the chosen colour at their own brightness; the glow material takes the glow colour.
 - **Review sheets:** `art/hero-tripo/` (remodel against Tripo, mixed builds).
 
-## Script-built kits (Interceptor, Spectre until remodelled)
+## Script-built kits (the Spectre until remodelled)
 
 - Source: `tools/blender/hero_kit.py`, run in headless Blender. The build command and the anchors for each chassis are in
   its comments.

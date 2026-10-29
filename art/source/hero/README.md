@@ -16,4 +16,4 @@ and size reference"):
 2. `tools/blender/hero_remodel.py` builds clean parts over those references to each chassis's standard joints, and
    bakes the Tripo paint, wear and surface detail onto them. Output: `public/assets/shared/hero/<chassis>-<design>.glb`.
 
-Done: Scrapper 1–5, Ironclad 1–5. Still on their earlier script-built kits: Interceptor, Spectre.
+Done: Scrapper 1–5, Ironclad 1–5, Interceptor 1–5. Still on its earlier script-built kit: Spectre.

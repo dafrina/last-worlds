@@ -61,6 +61,10 @@ JOINTS = dict(
     ironclad=dict(wing_mount=dict(x=.28, y0=-.3, y1=.1, z0=-.07, z1=.07),
                   bulkhead=dict(y=-.45, w=.1, z0=-.12, z1=.08),
                   seat=dict(z=.2)),
+    # Slim spear hulls; the two boom axes (|x| near .2) belong to propulsion and sit over the wing roots.
+    interceptor=dict(wing_mount=dict(x=.14, y0=-.2, y1=.1, z0=-.05, z1=.04),
+                     bulkhead=dict(y=-.5, w=.07, z0=-.08, z1=.06),
+                     seat=dict(z=.1)),
 )
 
 
@@ -835,7 +839,255 @@ def ironclad_5():
     return parts, [(-.26 + k * .13, -.92, -.02) for k in range(5)]
 
 
-DESIGNS = {'ironclad-1': ironclad_1, 'ironclad-2': ironclad_2, 'ironclad-3': ironclad_3, 'ironclad-4': ironclad_4,
+def canopy(y0, y1, w, z0, z1, mid=.4):
+    """A long low canopy with its skirt down to the mid-plane: rings from y0 to y1, widest at `mid` of its length."""
+    ring = lambda k, h: [(w * k, 0), (w * k, z0), (w * k * .6, z0 + (z1 - z0) * h), (-w * k * .6, z0 + (z1 - z0) * h),
+                         (-w * k, z0), (-w * k, 0)]
+    ym = y0 + (y1 - y0) * mid
+    return [(y0, ring(.6, .5)), (y0 + (ym - y0) * .4, ring(.95, .9)), (ym, ring(1, 1)),
+            (ym + (y1 - ym) * .6, ring(.75, .75)), (y1, ring(.25, .3))]
+
+
+def spear(x, y0, y1, r, tip):
+    """A spear-pointed boom along y: radius r from y0 (rear) to y1, then a point out to `tip`."""
+    return x, [(r * .8, y0), (r, y0 + .03), (r, y1), (r * .5, y1 + (tip - y1) * .6), (.004, tip)]
+
+
+# Interceptor 1, Viper: a knife core with chines and nose gun pods, a teardrop canopy, long swept blade wings with a
+# root fin, two spear booms with canted tail fins.
+def interceptor_1():
+    J = JOINTS['interceptor']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, [(0, zb), (w * .6, zb * .6), (w, 0), (w * .6, zt * .7), (0, zt), (-w * .6, zt * .7), (-w, 0),
+                                    (-w * .6, zb * .6)])
+    hull.loft([st(b['y'] - .07, .05, .05, -.05), st(b['y'], .07, .07, -.08), st(-.2, .1, .1, -.12), st(.15, .11, .11, -.12),
+               st(.45, .08, .08, -.08), st(.7, .04, .05, -.04), st(.9, .004, .01, -.004)])
+    for x, y0, y1, tip in ((.1, .25, .58, .8), (.058, .5, .62, .72)):              # nose gun pods
+        cx, prof = spear(x, y0, y1, .022, tip)
+        hull.lathe(cx, -.01, prof, segments=10, mirror=True)
+    hull.box(.09, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)          # wing mounting plates
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.loft(canopy(.0, .4, .05, s['z'], s['z'] + .085, .45))
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .2, m['y0'], m['y1'], -.04, .03)
+    blade = Mesh()
+    blade.prism([(.17, .28), (.24, .25), (.88, -.66), (.84, -.66), (.36, -.2), (.17, -.2)], -.012, .012, chamfer=.004)
+    blade.prism([(.2, .3), (.26, .26), (.26, .0), (.2, .02)], .0, .015, chamfer=.004)
+    wings.merge(blade)
+    fin = Mesh()
+    fin.prism([(.23, .3), (.25, .3), (.25, .05), (.23, .05)], .0, .14, chamfer=.004)   # root fin, canted outward
+    wings.merge(fin.tilt(.24, 70)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.06, .06, -.6, b['y'], -.06, .04)                                  # yoke to the bulkhead
+    engines.box(.05, .16, -.42, -.34, -.04, .02, mirror=True)                       # boom struts
+    boom = [(.035, -.89), (.055, -.86), (.055, -.6), (.05, -.3), (.045, -.15), (.025, -.05), (.004, .0)]
+    engines.lathe(.2, -.01, boom, segments=14, mirror=True)
+    engines.disc(.2, -.885, -.01, .035, mirror=True)
+    fins = Mesh()
+    for zsgn in (1, -1):                                                            # canted tail fins, mirrored below
+        fin = Mesh()
+        fin.prism([(.2, -.62), (.2, -.8), (.33, -.86), (.33, -.78)], -.006, .006, chamfer=.002)
+        fins.merge(fin.tilt(.2, 35 * zsgn).move(0, 0, -.01))
+    engines.merge(fins.mirror())
+    parts['engines'] = engines
+    return parts, [(-.2, -.9, -.01), (.2, -.9, -.01)]
+
+
+# Interceptor 2, Hornet: a twin-prong nose with canards and broad intake shoulders, a stepped tandem canopy, cranked
+# deltas with drooped tip forks and outer guns, two box booms joined by a tailplane, square nozzles.
+def interceptor_2():
+    J = JOINTS['interceptor']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, section(w, w * .8, w * .7, zb, zb * .5, zt * .5, zt))
+    hull.loft([st(b['y'] - .08, .06, .06, -.06), st(b['y'], .09, .09, -.1), st(-.2, .13, .11, -.13),
+               st(.05, .2, .12, -.13), st(.22, .18, .12, -.12), st(.4, .1, .11, -.09), st(.62, .08, .09, -.07)])
+    for x in (-.035, .035):                                                         # nose prongs
+        hull.loft([(.6, shifted(section(.03, .025, .025, -.06, -.03, .04, .07), x)),
+                   (.88, shifted(section(.012, .01, .01, -.02, -.01, .01, .02), x))])
+    hull.prism([(.08, .56), (.24, .6), (.24, .63), (.08, .66)], -.01, .01, chamfer=.003, mirror=True)  # canards
+    hull.box(.12, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.loft(canopy(-.05, .48, .065, s['z'], s['z'] + .1, .3))
+    cockpit.box(-.07, .07, .2, .24, s['z'] + .02, s['z'] + .1, bevel=.006)          # frame between the seats
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .22, m['y0'], m['y1'], -.04, .03)
+    plan = Mesh()
+    plan.prism([(.18, .17), (.36, .14), (.78, .0), (.78, -.2), (.62, -.16), (.42, -.32), (.18, -.32)], -.014, .014, chamfer=.004)
+    plan.box(.68, .72, -.15, .08, .0, .04, bevel=.006)                               # gun housing
+    plan.rod((.7, .05, .02), (.7, .33, .02), .009, segments=6)
+    fork = Mesh()
+    fork.prism([(.78, .15), (.82, .15), (.82, -.42), (.78, -.3)], -.008, .008, chamfer=.003)
+    plan.merge(fork.tilt(.78, -60))
+    wings.merge(plan.tilt(.18, -10)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.06, .06, -.62, b['y'], -.06, .04)
+    boxs = section(.055, .045, .045, -.11, -.07, .1, .14)
+    for sgn in (1, -1):
+        engines.loft([(-.28, shifted(section(.04, .03, .03, -.06, -.04, .05, .08), .21 * sgn)), (-.36, shifted(boxs, .21 * sgn)),
+                      (-.88, shifted(boxs, .21 * sgn))])
+    engines.box(-.2, .2, -.78, -.68, -.02, .03, bevel=.008)                          # tailplane
+    engines.box(.17, .25, -.885, -.875, -.06, .09, bevel=0, mat=1, mirror=True)
+    parts['engines'] = engines
+    return parts, [(-.21, -.89, .015), (.21, -.89, .015)]
+
+
+# Interceptor 3, Talon: a keel core with a dorsal blade, a flush faceted visor, long swept falcon wings with upright tip
+# knives, skeletal cage booms round ring nozzles with long forward cannons.
+def interceptor_3():
+    J = JOINTS['interceptor']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, [(0, zb), (w * .7, zb * .5), (w, 0), (w * .6, zt * .7), (0, zt), (-w * .6, zt * .7), (-w, 0),
+                                    (-w * .7, zb * .5)])
+    hull.loft([st(-.72, .03, .04, -.04), st(b['y'] - .05, .08, .07, -.09), st(-.1, .13, .11, -.13), st(.2, .12, .11, -.12),
+               st(.5, .07, .07, -.07), st(.75, .03, .04, -.03), st(.88, .003, .01, -.003)])
+    hull.prism([(.0, -.35), (.01, -.35), (.01, .2), (.0, .25)], .09, .16, chamfer=.003, mirror=True)  # dorsal blade
+    hull.box(.1, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.loft(canopy(.02, .38, .055, s['z'], s['z'] + .06, .4))
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .2, m['y0'], .04, -.04, .03)
+    plan = Mesh()
+    plan.prism([(.15, .04), (.3, .0), (.72, -.32), (.74, -.55), (.52, -.47), (.32, -.38), (.15, -.3)], -.012, .012, chamfer=.004)
+    knife = Mesh()
+    knife.prism([(.72, -.08), (.76, -.12), (.76, -.8), (.72, -.6)], .0, .02, chamfer=.004)
+    plan.merge(knife.tilt(.74, 80))
+    wings.merge(plan.tilt(.15, -6)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.06, .06, -.62, b['y'], -.06, .04)
+    engines.box(.05, .14, -.4, -.32, -.04, .02, mirror=True)
+    for y in (-.32, -.5, -.68, -.84):                                               # cage rings
+        engines.lathe(.2, 0, [(.0, y), (.1, y), (.1, y - .03), (.0, y - .03)], segments=16, mirror=True, caps=False)
+    for k in range(6):                                                              # cage ribs
+        a = 2 * math.pi * k / 6
+        engines.rod((.2 + .095 * math.cos(a), -.32, .095 * math.sin(a)), (.2 + .095 * math.cos(a), -.87, .095 * math.sin(a)),
+                    .006, segments=5, mirror=True)
+    engines.lathe(.2, 0, [(.03, -.3), (.06, -.4), (.06, -.8), (.07, -.86), (.05, -.87)], segments=14, mirror=True, caps=False)
+    engines.disc(.2, -.86, 0, .05, mirror=True)
+    for x in (.18,):                                                                 # long forward cannons
+        engines.rod((x, -.3, .06), (x, .66, .06), .012, mirror=True)
+        engines.rod((x, .6, .06), (x, .67, .06), .018, mirror=True)
+    engines.lathe(0, 0, [(.02, -.72), (.03, -.74), (.03, -.8), (.02, -.82)], segments=10)   # centre booster
+    parts['engines'] = engines
+    return parts, [(-.2, -.88, 0), (.2, -.88, 0), (0, -.82, 0)]
+
+
+# Interceptor 4, Lance: a needle core with a sensor probe, a raised bubble canopy, clipped trapezoid wings with pylons
+# and tip rails, two long armoured booms with twin vertical stabilisers and buried round nozzles.
+def interceptor_4():
+    J = JOINTS['interceptor']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, section(w, w * .7, w * .6, zb, zb * .5, zt * .5, zt))
+    hull.loft([st(-.8, .05, .05, -.06), st(-.6, .08, .08, -.1), st(-.1, .1, .1, -.12), st(.3, .085, .09, -.09),
+               st(.6, .05, .06, -.05), st(.82, .015, .02, -.015)])
+    hull.rod((0, .8, 0), (0, .95, 0), .006, segments=6)                              # sensor probe
+    hull.box(.08, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.loft(canopy(.05, .48, .05, s['z'], s['z'] + .1, .4))
+    cockpit.box(-.055, .055, .2, .23, s['z'], s['z'] + .1, bevel=.005)               # bubble frame
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .2, m['y0'], m['y1'], -.04, .03)
+    plan = Mesh()
+    plan.prism([(.13, .08), (.55, -.03), (.58, -.07), (.58, -.18), (.13, -.18)], -.012, .012, chamfer=.004)
+    for x in (.38, .44):                                                            # pylons and stores
+        plan.box(x - .01, x + .01, -.18, -.06, -.06, -.01, bevel=.003)
+        plan.rod((x, -.24, -.065), (x, -.05, -.065), .015, segments=8)
+    plan.rod((.58, -.2, .0), (.58, .1, .0), .01, segments=8)                         # tip rail
+    wings.merge(plan.tilt(.13, -4)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.06, .06, -.6, b['y'], -.06, .04)
+    boom = section(.05, .045, .04, -.07, -.04, .05, .08)
+    for sgn in (1, -1):
+        engines.loft([(-.2, shifted(section(.03, .025, .02, -.04, -.02, .03, .05), .17 * sgn)), (-.3, shifted(boom, .17 * sgn)),
+                      (-.86, shifted(boom, .17 * sgn)), (-.9, shifted(section(.04, .035, .03, -.055, -.03, .04, .06), .17 * sgn))])
+    engines.disc(.17, -.905, 0, .035, mirror=True)
+    engines.prism([(.21, -.62), (.23, -.62), (.23, -.82), (.21, -.8)], .04, .33, chamfer=.004, mirror=True)   # stabilisers
+    engines.prism([(.21, -.66), (.23, -.66), (.23, -.82), (.21, -.8)], -.15, -.04, chamfer=.004, mirror=True)
+    parts['engines'] = engines
+    return parts, [(-.17, -.91, 0), (.17, -.91, 0)]
+
+
+# Interceptor 5, Kestrel: a flat shovel nose with recessed nose cannons, a wraparound three-pane canopy, gull wings swept
+# forward to tip plates, two broad flattened booms with wide vectoring nozzles.
+def interceptor_5():
+    J = JOINTS['interceptor']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, section(w, w * .85, w * .8, zb, zb * .5, zt * .5, zt))
+    hull.loft([st(-.6, .1, .08, -.1), st(-.3, .14, .1, -.13), st(.2, .2, .1, -.12), st(.45, .19, .08, -.1),
+               st(.7, .16, .05, -.07), st(.86, .14, .03, -.04)])
+    for x in (.065, .1):                                                            # nose cannons
+        hull.box(x - .018, x + .018, .5, .66, .02, .05, bevel=.004, mirror=True)
+        hull.rod((x, .62, .035), (x, .74, .035), .01, segments=8, mirror=True)
+    hull.box(.14, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.loft(canopy(-.15, .3, .11, s['z'], s['z'] + .12, .35))
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .26, m['y0'], m['y1'], -.04, .03)
+    inner, outer = Mesh(), Mesh()
+    inner.prism([(.22, -.08), (.36, -.03), (.36, -.33), (.22, -.42)], -.012, .012, chamfer=.004)
+    outer.prism([(.36, -.03), (.72, .1), (.76, .08), (.76, -.06), (.45, -.25), (.36, -.33)], -.012, .012, chamfer=.004)
+    outer.prism([(.75, .12), (.79, .12), (.79, -.12), (.75, -.1)], -.06, .08, chamfer=.004)   # tip plate
+    wings.merge(inner.tilt(.22, 14)).merge(outer.move(0, 0, .035).tilt(.36, 5)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.06, .06, -.62, b['y'], -.06, .04)
+    flat = section(.065, .055, .05, -.12, -.07, .1, .14)
+    for sgn in (1, -1):
+        engines.loft([(-.3, shifted(section(.05, .04, .035, -.07, -.04, .06, .09), .21 * sgn)), (-.38, shifted(flat, .21 * sgn)),
+                      (-.86, shifted(flat, .21 * sgn)), (-.9, shifted(section(.06, .05, .045, -.1, -.06, .08, .12), .21 * sgn))])
+    for z in (-.05, .0, .05):                                                        # vectoring vanes
+        engines.box(.165, .255, -.91, -.9, z - .006, z + .006, bevel=0, mirror=True)
+    engines.box(.165, .255, -.905, -.895, -.08, .1, bevel=0, mat=1, mirror=True)
+    parts['engines'] = engines
+    return parts, [(-.21, -.91, .01), (.21, -.91, .01)]
+
+
+DESIGNS = {'interceptor-1': interceptor_1, 'interceptor-2': interceptor_2, 'interceptor-3': interceptor_3,
+           'interceptor-4': interceptor_4, 'interceptor-5': interceptor_5,
+           'ironclad-1': ironclad_1, 'ironclad-2': ironclad_2, 'ironclad-3': ironclad_3, 'ironclad-4': ironclad_4,
            'ironclad-5': ironclad_5, 'scrapper-1': scrapper_1, 'scrapper-2': scrapper_2, 'scrapper-3': scrapper_3, 'scrapper-4': scrapper_4,
            'scrapper-5': scrapper_5}
 
