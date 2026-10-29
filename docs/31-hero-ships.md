@@ -97,18 +97,27 @@ material and takes its own tint. The default paint for each chassis is `HERO_DEF
 - **Look:** `HeroLook` (src/shared/contracts.ts) is one design per slot plus optional paint. The campaign save keeps
   `designs` (bought `ship:slot:design` ids) and `looks` (one per ship), both optional (src/campaign/profile.ts:
   `buyDesign`, `setLook`, `ownsDesign`, `lookOf`, `cleanLooks`).
-- **Run config:** `RunConfig.hero` carries the look for the campaign; `createRun` drops it in endless. The simulation
-  never reads it.
+- **Run config:** `RunConfig.hero` carries the look for the campaign. The simulation never reads it.
+- **Endless flies the ship's cosmetics (user, 29 October; docs/33 § 2):** an endless launch takes the campaign's equipped
+  chassis and its look (`endlessConfig`, src/campaign/profile.ts) as `RunConfig.heroShip` and `hero`; `createRun` keeps
+  them (a chassis that does not exist, or a look that does not fit it, is dropped and the default Scrapper shows). Nothing
+  in the simulation reads them: endless still flies the starter (`ship` stays the Scrapper, default weapons, no chassis
+  perks, the same hit region and handling). The renderer shows `shownHero(config)` (src/content/hero-parts.ts).
+  `tests/sim/endless-cosmetics.test.ts` flies the same endless seed under every chassis and look and gets the same run.
 - **Flight:** src/render/hero-craft.ts loads the four kit nodes through `craftFromScene` with the paint applied, merges
   them into one craft draw, and takes the plumes from the propulsion part's engine sockets. The renderer's
   `prepareHero` runs alongside the world under the launch warp.
 - **Hangar:** src/ui/hangar.ts `renderShipyard`.
   - Designs per slot (`heroDesigns`): A–E on a remodelled chassis, A–C on a kit chassis. A is free; the rest are bought
-    with credits (`HERO_DESIGN_PRICES`: 80, 160, 240, 320; src/content/hero-parts.ts)
-    and then switch freely.
+    with parts plus credits (user, 29 October; docs/33; src/content/hero-parts.ts `HERO_DESIGN_PARTS` and
+    `HERO_DESIGN_PRICES`: B 1 part + 80, C 1 + 160, D 2 + 240, E 3 + 320 credits, provisional) and then switch freely.
+    Buying needs both; designs bought before parts existed stay owned.
   - Colour and glow pickers, and Default paint. Looks saved with a trim colour keep it unused.
-  - The turntable: `GameRenderer.heroTurntable` draws 36 views into a strip once per look, and the hangar animates it
-    on a 2D canvas (no second WebGL context).
+  - The picture (user, 29 October: the turning preview "lags as fuck, preload the parts, and make them previewable. And
+    make the image bigger, maybe not needed to turn"): `GameRenderer.heroPreview` draws one still per look (it drew 36
+    views, each read back from the GPU), 720 × 460 for a panel-wide 360 × 230 picture, cached per look; the previous
+    picture stays up until the next is ready. Opening the shipyard starts loading every design file of the chassis.
+  - Try before buying: tapping an unbought design shows it on the ship with BUY and PUT BACK; buying fits it.
 
 ## Integration notes (original handoff, now done)
 
@@ -119,7 +128,7 @@ material and takes its own tint. The default paint for each chassis is `HERO_DEF
 - `assembleHero` is fine for menus and hangars (cloned meshes, standard materials). In flight, use the shared craft
   material (one draw).
 - Unlocks, saved builds and the campaign hangar UI belong to docs/30's owner. Endless uses its own starter (AGENTS.md
-  invariant 6).
+  invariant 6) and, since 29 October, the campaign ship's looks as cosmetics only (above).
 
 ## Open
 

@@ -89,6 +89,23 @@ describe('observational flight log', () => {
     expect(log.read().endless).toMatchObject({ flights: 60, kills: 60, seconds: 180 });
   });
 
+  it('counts strike sites destroyed per mode, and reads logs written before sites existed (docs/33)', () => {
+    const storage = memory(), log = createFlightLog(storage);
+    const endless = createRun({ mode: 'endless', seed: 1 }), campaign = createRun({ mode: 'campaign', seed: 2 });
+    log.observe(endless); log.observe(campaign);
+    endless.time = 30; endless.sites!.destroyed = 2; log.observe(endless, true);
+    campaign.time = 40; campaign.sites!.destroyed = 1; log.observe(campaign, true);
+    expect(log.read().endless.sites).toBe(2);
+    expect(log.read().campaign.sites).toBe(1);
+    expect(log.read().recent.map(record => record.sites)).toEqual([1, 2]);
+    // An older log (no site counts anywhere) still loads, with none counted.
+    const old = JSON.parse(JSON.stringify(log.read()));
+    delete old.endless.sites; delete old.campaign.sites; for (const record of old.recent) delete record.sites;
+    const reopened = createFlightLog({ getItem: () => JSON.stringify(old), setItem() {} });
+    expect(reopened.status()).toBe('saved');
+    expect(reopened.read().endless.sites).toBe(0);
+  });
+
   it('does not count late-attached debug scenarios as real flights', () => {
     const log = createFlightLog(memory());
     const run = createRun({ mode: 'campaign', seed: 1 }); run.time = 120; run.phase = 'complete';

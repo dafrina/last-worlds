@@ -19,6 +19,7 @@ import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWin
 import { projectGround } from './ground';
 import { HUNTERS, absorbHunterShield, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
+import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -27,8 +28,12 @@ export function createRun(config: RunConfig): RunState {
   // A canonical config prevents campaign menu choices from leaking into an endless replay.
   // Endless always flies the canonical starter; the campaign takes its loadout, falling back to the starter per slot.
   const pick = <T,>(value: T | undefined, allowed: readonly T[], fallback: T) => value !== undefined && allowed.includes(value) ? value : fallback;
+  // Endless shows the campaign's equipped chassis and look as cosmetics only (docs/33 § 2): `heroShip` and `hero`, which
+  // nothing in the simulation reads; it still flies the starter (ship, loadout, handling, hit region, no perks).
+  const heroShip = config.mode === 'endless' && config.heroShip !== undefined && SHIP_IDS.includes(config.heroShip) ? config.heroShip : undefined;
+  const endlessLook = heroShip ? validLook(config.hero, heroShip) : null;
   const normalized: RunConfig = config.mode === 'endless'
-    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...STARTER, rank: 0 }
+    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...STARTER, rank: 0, ...(heroShip ? { heroShip } : {}), ...(endlessLook ? { hero: endlessLook } : {}) }
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', mission: config.mission ?? 'training',
       weapon: pick(config.weapon, WEAPON_IDS, STARTER.weapon), special: pick(config.special, SPECIAL_IDS, STARTER.special),
       shield: pick(config.shield, SHIELD_IDS, STARTER.shield), ship: pick(config.ship, SHIP_IDS, STARTER.ship),
@@ -45,7 +50,7 @@ export function createRun(config: RunConfig): RunState {
       weapon: normalized.weapon!, power: normalized.mode === 'campaign' ? normalized.rank! : 0,
     },
     enemies: [], projectiles: [], hazards: [], pickups: [], effects: [],
-    score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0,
+    score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0, parts: 0, sites: { destroyed: 0, shieldClaims: [] },
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
     lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
     chargeKillTimes: [], boss: null, lance: null, shockwave: null, well: null,
@@ -238,7 +243,9 @@ function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): v
   if (cue.pickup && state.pickups.length < BALANCE.maxPickups - 1) {
     state.pickups.push({ id: state.nextId++, ...cue.pickup, ttl: 12 });
   }
-  if (cue.message) setMessage(state, cue.message, 3.5);
+  // A strike site's message names what it drops in this mode (src/sim/sites.ts).
+  const message = siteCueMessage(state, cue);
+  if (message) setMessage(state, message, 3.5);
 }
 
 /** Spawns every member flying at this rank. View anchors resolve to the camera, clamped inside the map. */
@@ -251,10 +258,12 @@ function updateShieldSupplies(state: RunState, previousTime: number): void {
   const times: readonly number[] = state.config.mode === 'campaign'
     ? (missionBoss(state.config.mission)?.shieldSupplies ?? supplies.campaign)[state.config.difficulty ?? 'standard']
     : [state.sectorStartedAt + supplies.endlessAt];
-  for (const at of times) {
+  for (const [index, at] of times.entries()) {
     // Match the director's floating-point tolerance on both sides of the crossing.
     // Active time never rewinds on respawn or resume, so no separate receipt is needed.
     if (previousTime + 1e-8 >= at || state.time + 1e-8 < at) continue;
+    // A shield site's cell already delivered this supply early (src/sim/sites.ts, invariant 11).
+    if (supplyClaimed(state, index)) continue;
     const halfView = VIEW.width / 2 - supplies.viewMargin;
     const left = state.cameraX - halfView;
     const right = state.cameraX + halfView;
@@ -607,6 +616,8 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
       state.chargeKillTimes.push(state.time);
     }
   }
+  // A strike site's core drops its site's loot instead (src/sim/sites.ts) and never bursts like a fuel skid.
+  if (enemy.site) { destroySiteCore(state, enemy); return; }
   if (!enemy.bossPart && state.pickups.length < BALANCE.maxPickups - 1) {
     state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits * reward, ttl: 12 });
   }
@@ -800,6 +811,10 @@ function updatePickups(state: RunState, dt: number): void {
       case 'credit':
         if (state.config.mode === 'campaign') state.credits += pickup.value;
         else state.score += 50;
+        break;
+      case 'part':
+        // Parts are campaign only (docs/33): banked with the attempt like credits. Endless never drops one.
+        if (state.config.mode === 'campaign') state.parts = (state.parts ?? 0) + pickup.value;
         break;
       case 'power':
         if (state.config.mode === 'endless') givePower(state);

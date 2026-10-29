@@ -134,7 +134,11 @@ function sweptShallow(state: RunState): Footprint[] {
   return out;
 }
 
-export function perfectPilot(): Pilot {
+/**
+ * `prefer` (optional) overrides where the pilot wants to be when it has a choice (e.g. a strike site and its loot): it gets
+ * what the pilot perceived (0.2 s late, no pickups) and the state now (for pickups).
+ */
+export function perfectPilot(prefer?: (seen: RunState, now: RunState) => number | null): Pilot {
   const history: RunState[] = [];
   let plan: InputFrame = EMPTY_INPUT;
   let target: number | null = null;
@@ -147,7 +151,7 @@ export function perfectPilot(): Pilot {
       // Threats are perceived 0.2 s late, but the pilot knows where its own ship is: tracking shots still at a muzzle
       // will aim at it there, not where it was.
       const footprints = [...committedFootprints({ ...seen, player: state.player }, 3.4), ...sweptShallow(seen)];
-      const result = planEvasion(state, footprints, preferredX(seen), target);
+      const result = planEvasion(state, footprints, prefer?.(seen, state) ?? preferredX(seen), target);
       target = result.target;
       direct = result.direct === true;
       plan = { ...EMPTY_INPUT, horizontal: result.input };

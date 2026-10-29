@@ -41,7 +41,7 @@ import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
 import { loadHeroModel, preloadHeroLook } from './hero-craft';
-import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey } from '../content/hero-parts';
+import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey, shownHero } from '../content/hero-parts';
 import type { HeroLook, RunConfig, ShipId } from '../shared/contracts';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
@@ -596,7 +596,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // `heroShown` is the look on screen; while the requested look (`heroKey`) is loading the hero stays hidden, so a launch
   // never flashes the previous ship (user, 28 October: "the base ship is briefly visible" under the warp).
   let heroKey = '', heroShown = '', heroEngines: [number, number][] = [[-.38, .7], [.38, .7]], heroGlow = 0x7ff6ea;
-  const heroOf = (config: RunConfig): [ShipId, HeroLook] => config.mode === 'campaign' ? [config.ship ?? 'scrapper', config.hero ?? DEFAULT_LOOK] : ['scrapper', DEFAULT_LOOK];
+  // Endless shows the campaign's equipped chassis and look as cosmetics (docs/33 § 2; src/content/hero-parts.ts).
+  const heroOf = shownHero;
   const showHero = (ship: ShipId, look: HeroLook): Promise<void> => {
     const key = heroLookKey(ship, look);
     if (key === heroKey) return heroPending;
@@ -618,37 +619,40 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let heroDispose = () => hero.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
   const heroLoad = showHero('scrapper', DEFAULT_LOOK);
   /**
-   * The hangar's turntable (docs/31): a ship's look drawn by this renderer into a small target, once per change, as a strip
-   * of views turning a full circle. Menus never open a second WebGL context on phones; the strip animates on a 2D canvas.
+   * The hangar's ship picture (docs/31): a ship's look drawn by this renderer into a target once per look, as one still
+   * (user, 29 October: the turning preview "lags as fuck ... make the image bigger, maybe not needed to turn"; it drew 36
+   * views, each read back from the GPU). Menus never open a second WebGL context on phones.
    */
-  async function heroTurntable(ship: ShipId, look: HeroLook, size: number, frames: number): Promise<HTMLCanvasElement | null> {
+  async function heroPreview(ship: ShipId, look: HeroLook, width: number, height: number): Promise<HTMLCanvasElement | null> {
     const model = await loadHeroModel(ship, look, materials.craft);
     if (!model || disposed) { model?.dispose(); return null; }
     const stage = new THREE.Scene(), mesh = new THREE.Group().add(model.object);
     stage.environment = scene.environment;
-    const key = new THREE.DirectionalLight(0xfff1dc, 2.6); key.position.set(-3, 5, 2);
-    const rim = new THREE.DirectionalLight(0x9fc4ff, 1.1); rim.position.set(3, 2, -4);
+    const key = new THREE.DirectionalLight(0xfff1dc, 2.6); key.position.set(-3, 5, 3);
+    const rim = new THREE.DirectionalLight(0x9fc4ff, 1.3); rim.position.set(3, 2, -4);
     stage.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a2622, 1.1), key, rim, mesh);
-    const view = new THREE.PerspectiveCamera(26, 1, .1, 40);
-    const radius = model.radius;
-    view.position.set(0, radius * 2.5, radius * 3.6); view.lookAt(0, 0, 0);
-    const target = new THREE.WebGLRenderTarget(size, size, { samples: 4 });
+    // A high three-quarter view of the nose: the ship banks slightly toward the light.
+    mesh.rotation.set(0, Math.PI * .78, 0);
+    const view = new THREE.PerspectiveCamera(22, width / height, .1, 40), radius = model.radius;
+    // The bounding sphere overstates a flat ship's size: frame a little inside it.
+    const fit = radius / Math.sin(THREE.MathUtils.degToRad(view.fov / 2)) * .66;
+    view.position.set(0, fit * .62, fit * .79); view.lookAt(0, -radius * .05, 0);
+    const target = new THREE.WebGLRenderTarget(width, height, { samples: 4 });
     target.texture.colorSpace = THREE.SRGBColorSpace;
-    const strip = document.createElement('canvas'); strip.width = size * frames; strip.height = size;
-    const context = strip.getContext('2d'), pixels = new Uint8Array(size * size * 4), image = context?.createImageData(size, size);
+    const still = document.createElement('canvas'); still.width = width; still.height = height;
+    const context = still.getContext('2d'), image = context?.createImageData(width, height), pixels = new Uint8Array(width * height * 4);
     const previous = renderer.getRenderTarget(), clear = renderer.getClearColor(new THREE.Color()), alpha = renderer.getClearAlpha();
     renderer.setClearColor(0x000000, 0);
-    for (let i = 0; i < frames && context && image; i++) {
-      mesh.rotation.y = -Math.PI / 5 + i / frames * Math.PI * 2;
-      renderer.setRenderTarget(target); renderer.clear(); renderer.render(stage, view);
-      renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
-      // WebGL rows run bottom-up: flip into the canvas.
-      for (let row = 0; row < size; row++) image.data.set(pixels.subarray((size - 1 - row) * size * 4, (size - row) * size * 4), row * size * 4);
-      context.putImageData(image, i * size, 0);
-    }
+    renderer.setRenderTarget(target); renderer.clear(); renderer.render(stage, view);
+    renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
     renderer.setRenderTarget(previous); renderer.setClearColor(clear, alpha);
+    // WebGL rows run bottom-up: flip into the canvas.
+    if (context && image) {
+      for (let row = 0; row < height; row++) image.data.set(pixels.subarray((height - 1 - row) * width * 4, (height - row) * width * 4), row * width * 4);
+      context.putImageData(image, 0, 0);
+    }
     target.dispose(); model.dispose();
-    return strip;
+    return still;
   }
   const facilities = createFacilityView(scene, () => { warmed = false; });
   // Strike sites (docs/33): site models around their core targets (src/render/site-view.ts).
@@ -1179,7 +1183,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     prepare: preload,
     prepareHero: config => showHero(...heroOf(config)),
     preloadHero: preloadHeroLook,
-    heroTurntable,
+    heroPreview,
     /** The playground (playground.html): a level's look as shipped, and a live replacement for it. */
     lookOf: (world: PlanetId) => structuredClone(DEFAULT_LOOKS[world]),
     tuneLook(world: PlanetId, look: PlanetLook) {

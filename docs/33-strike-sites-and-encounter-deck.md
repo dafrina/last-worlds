@@ -77,6 +77,83 @@ Economy (provisional, to be measured with the test pilot): designs cost B 1 part
 credits; a parts site drops 1 part, a rare one 3. Report parts per mission (Standard, perfect pilot collecting) before
 fixing the numbers.
 
+### 3.1 As built (workstream B, 29 October 2026)
+
+Runtime sources: `src/content/sites.ts` (the table below; `sitePool`, `siteCue`), the site formations in the
+"Strike sites" block of `src/content/formations.ts`, `src/sim/sites.ts` (message, loot, shield budget), the core hook in
+`src/sim/spawn.ts`, and `damageEnemy` / `updatePickups` / `updateShieldSupplies` in `src/sim/game.ts`.
+
+**Layout.** A site sits `SITE_X` = 7.5 units out on its side (world-anchored; the west site mirrors the east one). It
+rides its own ground track (`SITE_TRACK`), `SITE_LEAD` = 9 units further out than a battery's, so the whole site scrolls in
+from beyond the top edge even when its cue spawns at its time; the director's `leadGround` can lead it further, as any
+ground formation. Guards sit in rings around the core at least 2.55 units away (the airspace separation plus its margin,
+they are other squadrons), within x ±10.5 so every member can be lined up. Each guard's first windup waits until it is
+fully in view. All site formations pass the formation fairness tests (`tests/sim/fairness.test.ts`, every scale, both
+mirrors).
+
+**The core** is formation `site-core-<site>`: a harmless ground target of kind `fuel` (an explicit proxy that never
+attacks, ranked after armed targets, threat cost 0) that spawnMembers marks with `Enemy.site`, the site's hit points
+(× the difficulty's or endless ramp's hp scale) and radius 0.7. It never bursts like a fuel skid and drops no credits of
+its own: its death scores 500 and drops the site's loot where it stood. The sealed vault has three seals (55 hp, radius
+0.5); its loot drops with the last one. **Render (workstream C):** a site core is drawn as the site, not as a fuel skid
+or fuel wreck; skip `enemy.site` in the enemy batches and wrecks.
+
+| Site | Worlds: guard (threat) | Core hp | Campaign loot | Endless loot |
+| --- | --- | --- | --- | --- |
+| Crash site | Luna, Khepri: turret trio + weaver (8); Vesper: missile trio + Needle (8); Nacre, Amnion, Umbra: two turrets and a missile battery + weaver (8) | 80 | 1 part | power cell + 1,000 |
+| Airfield | Luna, Khepri: turret trio + **a scrambled dart pair** (8); Vesper: missile trio + Needle (8) | 80 | 1 part | power cell + 1,000 |
+| Salvage yard (rare, weight 0.3) | Luna, Khepri: turret ring of four + three-dart arrowhead (11); Vesper: missile trio + Diamond (10) | 150 | 3 parts | power cell + 3,000 |
+| Shield depot | Luna, Khepri: turret pair (4); Vesper: missile pair (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
+| Relay station | Luna, Khepri: turret pair + dart (5); Vesper: missile pair (4); Amnion: turret and missile battery + dart (5) | 80 | 30 credits | 1,500 score |
+| Freight terminal | Luna, Khepri: turret trio (6); Vesper: missile trio (6); Amnion: mixed trio (6) | 80 | 40 credits | a weapon (the next in Pulse → Fan → Seeker → Rail) |
+| Dark spaceport | Umbra, Nacre: mixed trio + Needle (8) | 80 | 1 part | power cell + 1,000 |
+| Prism reactor | Umbra, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
+| Sealed vault (rare, weight 0.3) | Umbra, Nacre: wide ring of two turrets and a missile battery + Diamond (10); **three seals** | 3 × 55 | 3 parts | power cell + 3,000 |
+| Gate ring | Umbra, Nacre, Amnion: turret and missile battery + weaver (6) | 80 | 30 credits | power cell |
+| Brood hive | Amnion, Nacre: mixed trio + weaver (8) | 80 | 1 part | power cell + 1,000 |
+| Spawning pool | Amnion, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
+
+Every guard flies only kinds that already fly on its world (tested). **Weapon and power loot in the campaign:** the plan's
+"weapon" (freight terminal) and "power / weapon" (gate ring) cannot pay out in the campaign, where weapons and their tiers
+are bought, never picked up (docs/30; the campaign ignores weapon and power pickups). They pay 40 and 30 credits there;
+open question for the user.
+
+**Messages** are the site's own, naming what it drops in the run's mode: `AIRFIELD · WEST · PARTS` (campaign),
+`AIRFIELD · WEST · POWER` (endless), `SHIELD DEPOT · EAST · SHIELD`, `RELAY STATION · EAST · CREDITS` / `· BONUS`.
+
+**Shield budget (invariant 11).** A shield site's cell is a budgeted shield supply delivered early, never an extra one: it
+takes the next supply still to come in the mission (the mission's or boss's `shieldSupplies` for the difficulty; endless:
+this sector's, else the next sector's), and that supply is then skipped (`RunState.sites.shieldClaims`,
+`supplyClaimed`). With no supply left to take, the site pays 10 credits (campaign) or 500 score (endless). The cells a run
+can collect therefore never exceed its supply schedule (`tests/sim/sites.test.ts`).
+
+**Parts** (`Pickup.kind 'part'`, one pickup per part, an orange octagon with a cog) count in `RunState.parts` in the
+campaign and are banked with the attempt in full whatever its outcome (docs/21 § 7). Endless never drops one.
+
+**Statistics** (invariant 13, observation only): the flight log counts sites destroyed per mode (`FlightTotals.sites`,
+`FlightRecord.sites`; older logs read as 0). It is not shown on the Statistics page yet.
+
+**Measured (29 October; `SITE_ECONOMY=<file> npx vitest run tests/sim/site-economy.test.ts`).** Each mission's authored
+side routes (Training 2, Rolling Thunder 1, the others 2) replaced by each of its world's parts sites in turn, Standard,
+the perfect pilot steering for site cores and parts (`tests/sim/site-harness.ts`), seeds 5, 6 and 7, no life lost in any
+run. Parts banked per site encounter, and the expected parts per mission when the side slots draw from the world's pool
+by weight:
+
+| Mission | Tier-1 Twin Pulse: per encounter | expected / mission | Tier-3 Twin Pulse: per encounter | expected / mission | if every part were collected |
+| --- | --- | --- | --- | --- | --- |
+| Training (Luna) | crash 0.50, airfield 0.67, salvage 0.50 | 0.50 | 0.83, 0.83, 2.00 | 0.86 | 1.09 |
+| Rolling Thunder (Khepri) | 0.33, 0.33, 0 | 0.13 | 0.67, 1.00, 2.00 | 0.43 | 0.55 |
+| Cold Vector (Vesper) | 0.83, 0.83, 1.50 | 0.80 | 1.00, 1.00, 1.83 | 0.96 | 1.09 |
+| Deep Bloom (Nacre) | crash 0.83, spaceport 0.50, vault 0, hive 0.83 | 0.69 | 1.00, 1.00, 1.50, 1.00 | 1.10 | 1.24 |
+| Brood Strike (Amnion) | crash 1.00, hive 1.00 | 0.67 | 1.00, 1.00 | 0.67 | 0.67 |
+| Final Horizon (Umbra) | crash 0.50, spaceport 0.67, vault 0 | 0.54 | 1.00, 0.83, 1.50 | 1.06 | 1.35 |
+
+So a mission yields about 0.5–1 part (fewer on Rolling Thunder, which has one side slot; the deck's slot count decides).
+One chassis's designs cost 28 parts (7 per slot), all four 112: a B design takes one or two missions, a full chassis
+dozens. The pilot is cautious under aimed turret fire (it leaves a core's lane whenever a shot is committed there), so the
+tier-1 figures on the turret worlds are pessimistic; missile-battery guards (their own columns) leave the lane under the
+core open.
+
 ## 4. Encounter deck
 
 The director (src/sim/game.ts `updateDirector`) keeps consuming a concrete `EncounterCue[]`. What changes is where that
