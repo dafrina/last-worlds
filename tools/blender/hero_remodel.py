@@ -40,6 +40,8 @@ BAKE_SIZE = 2048
 # Runtime texture sizes: the ship is about 130 px wide in flight and 192 px on the hangar turntable, so 1024 px keeps
 # every panel line while one design costs about 11 MB of GPU memory instead of 64.
 TEXTURE_SIZE = dict(base=1024, normal=1024, rm=512)
+# Bake reach (cage extrusion, ray distance) where a remodel sits further from its Tripo surface than usual.
+REACH = {'ironclad-4': (.2, .6)}
 
 # The standard joints of each chassis: every design is built to them, so a part of one design attaches to the hull of
 # another without moving (user, 29 October: parts may intersect when mixed, but nothing may float, and mixes should
@@ -54,6 +56,11 @@ JOINTS = dict(
     scrapper=dict(wing_mount=dict(x=.245, y0=-.09, y1=.07, z0=-.07, z1=.05),
                   bulkhead=dict(y=-.25, w=.1, z0=-.11, z1=.05),
                   seat=dict(z=.11)),
+    # The Ironclads' wing roots sit anywhere from the shoulders to the tail, so their plate is long; on the broad hulls it
+    # lies inside the armour, on the narrow ones it reads as a pylon.
+    ironclad=dict(wing_mount=dict(x=.28, y0=-.3, y1=.1, z0=-.07, z1=.07),
+                  bulkhead=dict(y=-.45, w=.1, z0=-.12, z1=.08),
+                  seat=dict(z=.2)),
 )
 
 
@@ -219,6 +226,10 @@ class Mesh:
         o = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(o)
         return o
+
+
+def shifted(points, dx):
+    return [(x + dx, z) for x, z in points]
 
 
 def section(ws, wb, wt, zb, zl, zu, zt):
@@ -575,7 +586,257 @@ def scrapper_5():
     return parts, [(-.19, -.82, .05), (.19, -.82, .05)]
 
 
-DESIGNS = {'scrapper-1': scrapper_1, 'scrapper-2': scrapper_2, 'scrapper-3': scrapper_3, 'scrapper-4': scrapper_4,
+# Ironclad 1, Juggernaut: a broad terraced citadel with a ram prow and nose guns, a sloped bunker hood with a red visor
+# slit, slab armour sponsons with twin cannons, two squared engine boxes with red louvres.
+def ironclad_1():
+    J = JOINTS['ironclad']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, section(w, w * .5, w * .72, zb, zb * .55, zt * .55, zt))
+    hull.loft([st(b['y'], .2, .17, -.18), st(-.4, .3, .2, -.22), st(-.25, .4, .21, -.27), st(.32, .37, .21, -.26),
+               st(.47, .27, .2, -.22), st(.56, .155, .17, -.15), st(.78, .15, .13, -.1), st(.84, .1, .11, -.07),
+               st(.875, .06, .09, -.05)])
+    hull.box(-.08, .08, -.78, b['y'], -.15, .1)                                     # rear spine between the engines
+    hull.box(-.1, .1, -.4, .55, .2, .235, bevel=.01)                               # raised centre deck
+    hull.box(.3, .385, -.35, .3, .2, .225, bevel=.008, mirror=True)                # terraced side decks
+    hull.box(.2, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)          # wing mounting plates (inside)
+    for x, y0, tip in ((.2, .52, .86), (.125, .6, .79)):                            # nose guns
+        hull.rod((x, y0, .04), (x, tip, .04), .015, mirror=True)
+        hull.rod((x, tip - .04, .04), (x, tip, .04), .021, mirror=True)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    hood = lambda w, zt: [(w, 0), (w, s['z'] + .02), (w * .7, zt), (-w * .7, zt), (-w, s['z'] + .02), (-w, 0)]
+    cockpit.loft([(.235, hood(.085, .25)), (.29, hood(.09, .295)), (.42, hood(.085, .295)), (.47, hood(.07, .245))])
+    cockpit.box(-.05, .05, .44, .462, .248, .266, bevel=0, mat=1)                  # red visor slit
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .45, -.12, .2, -.08, .08)                              # root bracket to the sponson
+    wings.prism([(.43, -.62), (.6, -.67), (.8, -.5), (.8, .26), (.64, .42), (.43, .4)], -.14, .12, chamfer=.03)
+    wings.box(.5, .69, .0, .3, .1, .2, bevel=.012)                                  # cannon housing
+    for x in (.55, .635):
+        wings.rod((x, .25, .165), (x, .57, .165), .015)
+        wings.rod((x, .52, .165), (x, .575, .165), .021)
+    wings.box(.74, .81, -.45, .2, -.08, .06, bevel=.01)                             # outer armour strake
+    wings.mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.12, .12, -.5, b['y'], b['z0'], b['z1'] - .02)                       # yoke plate on the bulkhead
+    box = section(.16, .12, .12, -.2, -.13, .1, .17)
+    for sgn in (1, -1):
+        engines.loft([(-.45, shifted(box, .26 * sgn)), (-.85, shifted(box, .26 * sgn)),
+                      (-.875, shifted(section(.14, .1, .1, -.17, -.11, .08, .14), .26 * sgn))])
+    for z in (-.09, -.045, .0, .045, .09):                                          # red louvres
+        engines.box(.18, .34, -.885, -.874, z - .01, z + .01, bevel=0, mat=1, mirror=True)
+    parts['engines'] = engines
+    return parts, [(-.26, -.88, .0), (.26, -.88, .0)]
+
+
+# Ironclad 2, Warhammer: a hammerhead ram with two tusks on a narrow mechanical waist, a domed command turret, swept
+# scythe wings drooping outward with gun clusters, three round turbines on a rear bridge.
+def ironclad_2():
+    J = JOINTS['ironclad']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    hull.prism([(.42, .27), (.46, .33), (.46, .48), (.4, .55), (.12, .58), (-.12, .58), (-.4, .55), (-.46, .48), (-.46, .33),
+                (-.42, .27)], -.05, .11, chamfer=.025)                              # hammerhead
+    for x in (-.44, .44):                                                           # tusks
+        hull.lathe(x, .03, [(.0, .74), (.012, .7), (.03, .52), (.03, .45)], segments=10)
+    st = lambda y, w, zt, zb: (y, section(w, w * .7, w * .7, zb, zb * .5, zt * .5, zt))
+    hull.loft([st(-.62, .34, .08, -.08), st(-.55, .3, .1, -.12), st(-.48, .16, .12, -.15), st(.3, .135, .13, -.15),
+               st(.6, .09, .1, -.06), st(.76, .06, .06, -.03)])
+    for x in (.035, .075):                                                          # nose guns
+        hull.rod((x, .6, .03), (x, .88 - x, .03), .013, mirror=True)
+    hull.lathe(.175, -.02, [(.04, -.08), (.05, -.1), (.05, -.43), (.04, -.45)], segments=12, mirror=True)
+    hull.box(.16, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)          # wing mounting plates
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.stack(0, .0, [(.105, 0), (.112, .14), (.112, .165), (.1, .19), (.08, .225), (.045, .245), (0, .25)],
+                  segments=16, turn=0)
+    for x in (-.03, .03):                                                           # periscope eyes
+        cockpit.box(x - .012, x + .012, .07, .1, .2, .225, bevel=.003, mat=1)
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .34, -.3, .08, -.05, .05)                              # root block on the mounting plate
+    blade = Mesh()
+    blade.prism([(.26, .06), (.55, .03), (.68, -.05), (.75, -.15), (.78, -.35), (.76, -.55), (.66, -.88), (.6, -.74),
+                 (.5, -.6), (.38, -.53), (.26, -.5)], -.025, .035, chamfer=.01)
+    blade.box(.47, .59, -.06, .12, .02, .09, bevel=.01)                             # gun cluster housing
+    for x in (.49, .53, .57):
+        blade.rod((x, .05, .06), (x, .35, .06), .012)
+    wings.merge(blade.tilt(.26, -22)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.1, .1, -.6, b['y'], -.08, .06)                                    # yoke to the bulkhead
+    engines.box(-.37, .37, -.66, -.58, -.08, .08, bevel=.015)                       # engine bridge
+    turbine = [(.08, -.58), (.115, -.6), (.115, -.64), (.125, -.645), (.125, -.67), (.11, -.675), (.11, -.82),
+               (.122, -.83), (.122, -.87), (.1, -.88), (.07, -.86)]
+    for x, z in ((-.235, 0), (0, .02), (.235, 0)):
+        engines.lathe(x, z, turbine, segments=20, caps=False)
+        engines.disc(x, -.855, z, .065)
+    parts['engines'] = engines
+    return parts, [(-.235, -.89, 0), (0, -.89, .02), (.235, -.89, 0)]
+
+
+# Ironclad 3, Bastion: an octagonal fortress with a raised collar round a sunken shuttered bridge, missile-rack pods on
+# open triangular braces, four armoured cans in two pairs with flared bells.
+def ironclad_3():
+    J = JOINTS['ironclad']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    hull.prism([(.32, -.2), (.42, -.08), (.42, .52), (.3, .68), (.17, .73), (-.17, .73), (-.3, .68), (-.42, .52),
+                (-.42, -.08), (-.32, -.2)], -.28, .24, chamfer=.05)                 # fortress block
+    hull.box(.17, .3, .0, .62, .2, .33, bevel=.015, mirror=True)                    # collar walls round the bridge
+    hull.box(-.3, .3, .55, .66, .2, .32, bevel=.015)
+    hull.box(-.3, .3, -.08, .02, .2, .3, bevel=.015)
+    hull.box(-.22, .22, b['y'], -.15, -.2, .15, bevel=.02)                          # rear section
+    for x in (-.03, .03):
+        hull.rod((x, .7, .25), (x, .88, .25), .008, segments=6)                     # antennas
+    hull.box(.3, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)           # wing mounting plates (inside)
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    cockpit.box(-.135, .135, .12, .53, 0, s['z'] + .06, bevel=.01)                  # sunken bridge
+    for y in (.28, .36, .44):                                                       # shutter slats
+        cockpit.box(-.12, .12, y - .025, y + .025, s['z'] + .06, s['z'] + .085, bevel=.006)
+    cockpit.box(-.08, .08, .47, .5, s['z'] + .03, s['z'] + .055, bevel=0, mat=1)
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .44, -.12, .2, -.06, .06)                              # root block on the mounting plate
+    wings.rod((.4, .17, .0), (.66, .1, .0), .028, segments=10)                     # triangular braces
+    wings.rod((.4, -.1, .0), (.66, .0, .0), .028, segments=10)
+    wings.rod((.45, .15, .0), (.6, .02, .0), .018, segments=8)
+    wings.box(.63, .87, -.2, .45, -.17, .13, bevel=.03)                             # missile pod
+    for x in (.7, .78):
+        for z in (-.07, .05):
+            wings.rod((x, .44, z), (x, .47, z), .03, segments=10)                   # tube mouths
+    for x in (.67, .71):
+        wings.rod((x, -.2, -.1), (x, -.25, -.1), .01, segments=6)
+    wings.mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.08, .08, -.47, b['y'], -.08, .06)                                  # yoke on the bulkhead
+    def can(y0):
+        return [(.07, y0), (.1, y0 - .02), (.1, -.62), (.112, -.625), (.112, -.65), (.1, -.655), (.1, -.7), (.115, -.75),
+                (.125, -.85), (.11, -.86), (.075, -.8)]
+    for x, y0 in ((.37, -.3), (.145, -.45)):
+        engines.lathe(x, 0, can(y0), segments=18, mirror=True, caps=False)
+        engines.disc(x, -.8, 0, .07, mirror=True)
+    engines.box(.15, .3, -.45, -.35, -.06, .06, mirror=True)                       # frame between the pairs
+    parts['engines'] = engines
+    return parts, [(x, -.86, 0) for x in (-.37, -.145, .145, .37)]
+
+
+# Ironclad 4, Breaker: a split wedge of two long armoured jaws round a recessed cannon, a raised periscope tower, broad
+# blunt delta wings with forward hardpoints and tip posts, two huge annular thrusters.
+def ironclad_4():
+    J = JOINTS['ironclad']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    hull.prism([(.06, .1), (.3, .05), (.3, .15), (.13, .88), (.075, .88), (.06, .8)], -.06, .1, chamfer=.015, mirror=True)
+    hull.rod((0, .05, .02), (0, .74, .02), .03, segments=12)                        # recessed cannon
+    hull.rod((0, .7, .02), (0, .76, .02), .042, segments=12)
+    st = lambda y, w, zt, zb: (y, section(w, w * .7, w * .7, zb, zb * .5, zt * .5, zt))
+    hull.loft([st(-.5, .14, .12, -.15), st(-.3, .17, .15, -.18), st(.05, .17, .15, -.18), st(.15, .12, .1, -.1)])
+    hull.box(.14, .22, -.3, -.05, -.1, .08, bevel=.012, mirror=True)               # side units
+    hull.box(.16, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)          # wing mounting plates
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    tw = lambda w, zt: [(w, 0), (w, zt - .04), (w * .75, zt), (-w * .75, zt), (-w, zt - .04), (-w, 0)]
+    cockpit.loft([(-.26, tw(.06, .19)), (-.21, tw(.075, .27)), (.0, tw(.07, .27)), (.04, tw(.05, .19))])
+    for y in (-.16, -.08):                                                         # periscope windows
+        cockpit.box(.073, .078, y - .025, y + .025, .21, .245, bevel=0, mat=1, mirror=True)
+    for x in (-.04, .04):
+        cockpit.rod((x, -.1, .26), (x, -.1, .33), .006, segments=5)
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .32, m['y0'], m['y1'], -.05, .05)                       # root block on the mounting plate
+    delta = Mesh()
+    delta.prism([(.27, .15), (.38, .17), (.8, -.07), (.82, -.12), (.82, -.5), (.64, -.66), (.42, -.64), (.27, -.58)],
+                -.025, .035, chamfer=.012)
+    for x in (.46, .5, .54):                                                       # hardpoint tubes
+        delta.rod((x, .03, .05), (x, .21, .05), .019, segments=10)
+    delta.rod((.82, -.25, -.06), (.82, -.25, .08), .009, segments=6)                # tip post
+    wings.merge(delta.tilt(.27, -16)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.1, .1, -.5, b['y'], -.08, .06)                                    # yoke on the bulkhead
+    ring = [(.1, -.42), (.13, -.45), (.16, -.52), (.17, -.6), (.17, -.82), (.155, -.9), (.12, -.9), (.105, -.86)]
+    engines.lathe(.23, 0, ring, segments=24, mirror=True, caps=False)
+    for y in (-.66, -.74):
+        engines.lathe(.23, 0, [(.0, y), (.177, y), (.177, y - .015), (.0, y - .015)], segments=24, mirror=True, caps=False)
+    engines.disc(.23, -.86, 0, .1, mirror=True)
+    parts['engines'] = engines
+    return parts, [(-.23, -.9, 0), (.23, -.9, 0)]
+
+
+# Ironclad 5, Siege: a long slab spine with railgun rails to the nose and stepped shoulders, a heavy-framed canopy,
+# canted blade sponsons on joint arms with ventral fins and long guns, a wide drive block with five rectangular exhausts.
+def ironclad_5():
+    J = JOINTS['ironclad']
+    m, s, b = J['wing_mount'], J['seat'], J['bulkhead']
+    parts = {}
+
+    hull = Mesh()
+    st = lambda y, w, zt, zb: (y, section(w, w * .85, w * .85, zb, zb * .6, zt * .6, zt))
+    hull.loft([st(-.62, .24, .1, -.18), st(.3, .24, .13, -.2), st(.45, .2, .12, -.17), st(.56, .17, .11, -.14),
+               st(.7, .13, .1, -.1), st(.8, .1, .08, -.07), st(.86, .05, .06, -.04)])
+    for x in (-.025, .025):                                                         # railgun rails
+        hull.box(x - .012, x + .012, -.5, .86, .12, .16, bevel=.004)
+    hull.rod((0, .8, .14), (0, .92, .14), .014, segments=8)
+    hull.rod((.12, .5, .1), (.12, .85, .1), .012, mirror=True)                       # shoulder guns
+    hull.box(.2, m['x'], m['y0'], m['y1'], m['z0'], m['z1'], mirror=True)          # wing mounting plates
+    parts['hull'] = hull
+
+    cockpit = Mesh()
+    can = lambda w, zt: [(w, 0), (w, s['z'] - .02), (w * .7, zt), (-w * .7, zt), (-w, s['z'] - .02), (-w, 0)]
+    cockpit.loft([(-.17, can(.06, .2)), (-.12, can(.075, .265)), (.03, can(.075, .27)), (.09, can(.05, .2))])
+    cockpit.box(-.008, .008, -.13, .06, .26, .28, bevel=.003)                      # frame spine
+    parts['cockpit'] = cockpit
+
+    wings = Mesh()
+    wings.box(m['x'] - .02, .34, -.3, -.2, -.05, .05)                               # root block on the mounting plate
+    wings.rod((.24, -.26, 0), (.47, -.26, 0), .045, segments=12)                   # joint arm
+    blade = Mesh()
+    blade.prism([(.45, -.12), (.55, -.06), (.68, -.3), (.68, -.6), (.6, -.72), (.46, -.65)], -.035, .035, chamfer=.01)
+    blade.box(.6, .645, -.65, -.3, -.26, .0, bevel=.008)                            # ventral fin
+    blade.box(.47, .54, -.4, -.15, .03, .08, bevel=.008)                            # gun mount
+    blade.rod((.505, -.35, .065), (.505, .07, .065), .014)
+    blade.rod((.505, .03, .065), (.505, .075, .065), .02)
+    wings.merge(blade.tilt(.45, -8)).mirror()
+    parts['wings'] = wings
+
+    engines = Mesh()
+    engines.box(-.1, .1, -.62, b['y'], -.08, .06)                                    # yoke to the bulkhead
+    engines.box(-.36, .36, -.9, -.6, -.18, .08, bevel=.02)                          # drive block
+    for k in range(5):
+        x = -.26 + k * .13
+        engines.box(x - .055, x + .055, -.91, -.895, -.1, .06, bevel=.006)          # exhaust frames
+        engines.box(x - .035, x + .035, -.915, -.905, -.07, .035, bevel=0, mat=1)   # glow
+    parts['engines'] = engines
+    return parts, [(-.26 + k * .13, -.92, -.02) for k in range(5)]
+
+
+DESIGNS = {'ironclad-1': ironclad_1, 'ironclad-2': ironclad_2, 'ironclad-3': ironclad_3, 'ironclad-4': ironclad_4,
+           'ironclad-5': ironclad_5, 'scrapper-1': scrapper_1, 'scrapper-2': scrapper_2, 'scrapper-3': scrapper_3, 'scrapper-4': scrapper_4,
            'scrapper-5': scrapper_5}
 
 
@@ -604,7 +865,7 @@ def unwrap(objects):
     bpy.ops.object.mode_set(mode='OBJECT')
 
 
-def bake(targets, sources, src_mat, key):
+def bake(targets, sources, src_mat, key, reach=(.1, .3)):
     """Bake the reference's base colour, roughness-metal and normal onto the targets' shared UV atlas."""
     sc = bpy.context.scene
     for o in targets + sources:
@@ -613,8 +874,7 @@ def bake(targets, sources, src_mat, key):
     sc.cycles.device = 'CPU'
     sc.cycles.samples = 4
     sc.render.bake.use_selected_to_active = True
-    sc.render.bake.cage_extrusion = .1
-    sc.render.bake.max_ray_distance = .3
+    sc.render.bake.cage_extrusion, sc.render.bake.max_ray_distance = reach
     sc.render.bake.margin = 6
     sc.render.bake.use_clear = False   # each part bakes into its own islands of the shared atlas
     nt = src_mat.node_tree
@@ -780,7 +1040,7 @@ def build(name, args):
         for view in ('front', 'game', 'top'):
             preview(os.path.join(args.preview_dir, f'{name}-tripo-{view}.png'), sources, view)
     unwrap(targets)
-    images = bake(targets, sources, src_mat, key)
+    images = bake(targets, sources, src_mat, key, REACH.get(name, (.1, .3)))
     report_paint = paint_of(images['base'])
     mat = finish_material(key + '_skin', chassis, images)
     for o in targets:

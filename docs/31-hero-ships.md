@@ -14,7 +14,7 @@ configurator (§ In the game). The playground's Hangar tab is the look-dev view.
 
 Each chassis has four **slots**: `hull`, `wings`, `engines` and `cockpit`. A build picks one design per slot, and any mix
 within a chassis fits together. Parts never mix across chassis. A **remodelled** chassis (`HERO_REMODELLED`, so far the
-Scrapper) has five designs per slot, `a`–`e`; the others still have three, `a`–`c`, in their script-built kits (below).
+Scrapper and the Ironclad) has five designs per slot, `a`–`e`; the others still have three, `a`–`c`, in their script-built kits (below).
 
 ## Remodelled chassis (29 October 2026)
 
@@ -27,7 +27,7 @@ Their parts are remodelled, not cut out (docs/08, 29 October):
   that reference, then bakes the Tripo base colour, roughness-metal and normal maps onto them in Cycles. Output:
   `public/assets/shared/hero/<chassis>-<design>.glb`, its four part nodes sharing one material (base and normal 1024 px,
   roughness-metal 512 px) plus a glow material, and its engine sockets. About 1,700 to 6,200 triangles, 1.0 to 1.3 MB.
-- **Standard joints** (`JOINTS`): a wing mounting plate on each hull side, a rear bulkhead every propulsion reaches
+- **Standard joints** (`JOINTS`, per chassis): a wing mounting plate on each hull side, a rear bulkhead every propulsion reaches
   forward to, and a cockpit deck with every cockpit's skirt reaching down into the hull. Every design is built to them,
   so parts sit unmoved in any mix. Designs stay faithful to their models; mixed parts may overlap but never float (user:
   "they can intersect no problem", "but it should somewhat look good").
@@ -36,7 +36,7 @@ Their parts are remodelled, not cut out (docs/08, 29 October):
   median the bake prints) take the chosen colour at their own brightness; the glow material takes the glow colour.
 - **Review sheets:** `art/hero-tripo/` (remodel against Tripo, mixed builds).
 
-## Script-built kits (Ironclad, Interceptor, Spectre until remodelled)
+## Script-built kits (Interceptor, Spectre until remodelled)
 
 - Source: `tools/blender/hero_kit.py`, run in headless Blender. The build command and the anchors for each chassis are in
   its comments.
