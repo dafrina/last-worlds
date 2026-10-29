@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import type { Pickup, WeaponId } from '../shared/contracts';
 
-/** Icon per drop: the three protection/economy drops and one per main weapon, so a weapon drop names its gun. */
-export type PickupIcon = 'shield' | 'power' | 'credit' | `weapon-${WeaponId}`;
-export const PICKUP_ICONS: readonly PickupIcon[] = ['shield', 'power', 'credit', 'weapon-pulse', 'weapon-fan', 'weapon-seeker', 'weapon-rail'];
+/** Icon per drop: the protection and economy drops (a part, docs/33, too) and one per main weapon, so a weapon drop names its gun. */
+export type PickupIcon = 'shield' | 'power' | 'credit' | 'part' | `weapon-${WeaponId}`;
+export const PICKUP_ICONS: readonly PickupIcon[] = ['shield', 'power', 'credit', 'part', 'weapon-pulse', 'weapon-fan', 'weapon-seeker', 'weapon-rail'];
 export const pickupIcon = (pickup: Pick<Pickup, 'kind' | 'weapon'>): PickupIcon =>
-  // A part shows the credit icon until it has its own (docs/33, workstream B).
-  pickup.kind === 'weapon' ? `weapon-${pickup.weapon ?? 'pulse'}` : pickup.kind === 'part' ? 'credit' : pickup.kind;
+  pickup.kind === 'weapon' ? `weapon-${pickup.weapon ?? 'pulse'}` : pickup.kind;
 
 /** World size of an icon sprite (the frame fills about 80% of it; the rest is its glow). */
 export const PICKUP_ICON_SIZE = 1.15;
@@ -15,7 +14,7 @@ const SIZE = 256, C = SIZE / 2;
 /**
  * Drop icons painted once on canvases (render-only). Antialiased 2D paths with mipmaps replace the old thin
  * flat-shape geometry, which shimmered and stair-stepped at phone resolution. Each category keeps a distinct
- * frame shape (hexagon shield, diamond power, square-diamond credit, rounded rectangle weapon) so it reads
+ * frame shape (hexagon shield, diamond power, square-diamond credit, octagon part, rounded rectangle weapon) so it reads
  * without relying on colour; weapon drops show their firing pattern: twin bolts, a five-way fan, homing arcs, one slug
  * piercing a column of targets.
  */
@@ -34,7 +33,7 @@ export function createPickupIconTextures(maxAnisotropy = 4): Map<PickupIcon, THR
 }
 
 const TINT: Record<PickupIcon, string> = {
-  shield: '#8ff0dc', power: '#ffe2a6', credit: '#ffd06a', 'weapon-pulse': '#d4bcff', 'weapon-fan': '#d4bcff', 'weapon-seeker': '#d4bcff', 'weapon-rail': '#d4bcff',
+  shield: '#8ff0dc', power: '#ffe2a6', credit: '#ffd06a', part: '#ff9e6a', 'weapon-pulse': '#d4bcff', 'weapon-fan': '#d4bcff', 'weapon-seeker': '#d4bcff', 'weapon-rail': '#d4bcff',
 };
 
 function polygon(g: CanvasRenderingContext2D, sides: number, radius: number, rotation: number): void {
@@ -54,6 +53,7 @@ function paint(g: CanvasRenderingContext2D, icon: PickupIcon): void {
     if (icon === 'shield') polygon(g, 6, 98, Math.PI / 6);
     else if (icon === 'power') polygon(g, 4, 108, -Math.PI / 2);
     else if (icon === 'credit') polygon(g, 4, 100, -Math.PI / 2);
+    else if (icon === 'part') polygon(g, 8, 102, Math.PI / 8);
     else roundedRect(g, 196, 150, 30);
   };
   g.save(); g.shadowColor = tint; g.shadowBlur = 26; frame(); g.fillStyle = 'rgba(14, 24, 30, 0.88)'; g.fill(); g.restore();
@@ -73,6 +73,15 @@ function paint(g: CanvasRenderingContext2D, icon: PickupIcon): void {
   } else if (icon === 'credit') {
     polygon(g, 4, 46, -Math.PI / 2); g.fill();
     g.shadowBlur = 0; g.fillStyle = 'rgba(14, 24, 30, 0.9)'; polygon(g, 4, 20, -Math.PI / 2); g.fill();
+  } else if (icon === 'part') {
+    // A cog: eight teeth around a hub with a bore (the rare currency that buys ship designs).
+    g.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const a0 = (i / 16) * Math.PI * 2, a1 = ((i + 1) / 16) * Math.PI * 2, r = i % 2 ? 40 : 56;
+      g.arc(C, C, r, a0, a1);
+    }
+    g.closePath(); g.fill();
+    g.shadowBlur = 0; g.fillStyle = 'rgba(14, 24, 30, 0.9)'; g.beginPath(); g.arc(C, C, 17, 0, Math.PI * 2); g.fill();
   } else if (icon === 'weapon-pulse') {
     // Twin straight bolts.
     g.lineWidth = 18;

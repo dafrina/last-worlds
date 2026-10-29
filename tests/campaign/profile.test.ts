@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, freshProfile, shipParts, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
+import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, PROFILE_VERSION, freshProfile, shipParts, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
 import { RANK_PRICES, REWARDS, SHIP_IDS, STARTER } from '../../src/content/equipment';
-import { HERO_DESIGN_PRICES, HERO_REMODELLED } from '../../src/content/hero-parts';
+import { HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_REMODELLED } from '../../src/content/hero-parts';
 
 function memory(initial?: string) {
   const values = new Map<string, string>();
@@ -85,7 +85,8 @@ describe('ship parts and v1 migration', () => {
     expect(store.status()).toBe('saved');
     expect(storage.getItem(CAMPAIGN_BACKUP_KEY)).toBe(raw);
     const profile = store.read();
-    expect(profile.version).toBe(2);
+    expect(profile.version).toBe(3);
+    expect(profile.parts).toBe(0);
     expect(profile.credits).toBe(1850); // 100 + two retired 500-credit ranks + two 250-credit drives + Flux 250.
     expect(profile.ranks).toEqual({ pulse: 2, fan: 2, seeker: 2, rail: 0 });
     expect(profile.loadout).toMatchObject({ weapon: 'fan', shield: 'bulwark', ship: 'scrapper' });
@@ -153,7 +154,7 @@ describe('ship parts and v1 migration', () => {
 
   it('sells B and C part designs for owned ships once, fits only owned designs, and launches with the look', () => {
     const store = createCampaignProfile(memory());
-    store.settle(clear('c1', { credits: 2000 }));
+    store.settle(clear('c1', { credits: 2000, parts: 10 }));
     expect(store.buyDesign('ironclad', 'wings', 'b')).toBe(false); // not an owned ship
     const before = store.read().credits;
     expect(store.setLook('scrapper', { parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' } })).toBe(false);
@@ -166,7 +167,7 @@ describe('ship parts and v1 migration', () => {
 
   it('offers designs D and E only on a remodelled chassis (docs/31), and drops them from a kit chassis on load', () => {
     const store = createCampaignProfile(memory());
-    store.settle(clear('c1', { credits: 2000 }));
+    store.settle(clear('c1', { credits: 2000, parts: 10 }));
     const before = store.read().credits;
     expect(store.buyDesign('scrapper', 'wings', 'e')).toBe(true);
     expect(store.read().credits).toBe(before - HERO_DESIGN_PRICES.e);
@@ -189,5 +190,72 @@ describe('ship parts and v1 migration', () => {
     expect(profile.designs).toEqual(['scrapper:hull:b']);
     // Wings C was never bought: it falls back to A. The malformed Ironclad look is dropped.
     expect(profile.looks).toEqual({ scrapper: { parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' } } });
+  });
+});
+
+describe('parts (docs/33): the save, banking and design prices', () => {
+  /** A version-2 save as the game wrote it before parts: with bought designs and a look. */
+  const v2 = () => {
+    const { parts: _parts, ...profile } = { ...freshProfile(), version: 2, credits: 420, designs: ['scrapper:hull:b'],
+      looks: { scrapper: { parts: { hull: 'b', wings: 'a', engines: 'a', cockpit: 'a' } } }, receipts: [{ id: 'old', total: 90 }] };
+    return profile;
+  };
+
+  it('migrates a version-2 save to version 3 with no parts, keeping its designs, after backing up the exact original', () => {
+    const raw = JSON.stringify(v2()), storage = memory(raw), store = createCampaignProfile(storage);
+    expect(store.status()).toBe('saved');
+    expect(storage.getItem(CAMPAIGN_V2_BACKUP_KEY)).toBe(raw);
+    const profile = store.read();
+    expect(profile).toMatchObject({ version: PROFILE_VERSION, parts: 0, credits: 420, designs: ['scrapper:hull:b'] });
+    expect(JSON.parse(storage.getItem(CAMPAIGN_KEY)!)).toEqual(profile);
+    expect(store.settle(clear('old')).repeat).toBe(true);
+    // Reloading the migrated save neither migrates nor backs up again.
+    storage.values.set(CAMPAIGN_V2_BACKUP_KEY, 'kept');
+    expect(createCampaignProfile(storage).read()).toEqual(store.read());
+    expect(storage.getItem(CAMPAIGN_V2_BACKUP_KEY)).toBe('kept');
+  });
+
+  it('never overwrites a version-2 save whose backup cannot be written, nor a save with a broken parts balance', () => {
+    const raw = JSON.stringify(v2()), storage = memory(raw);
+    const store = createCampaignProfile({ ...storage, setItem() { throw new Error('full'); } });
+    expect(store.status()).toBe('session');
+    expect(store.read()).toMatchObject({ parts: 0, credits: 420 });
+    expect(storage.getItem(CAMPAIGN_KEY)).toBe(raw);
+    for (const parts of [-1, 1.5, '3', null]) {
+      const bad = JSON.stringify({ ...freshProfile(), parts }), broken = memory(bad);
+      const reader = createCampaignProfile(broken);
+      expect(reader.status(), String(parts)).toBe('unreadable');
+      reader.settle(clear('x', { parts: 2 }));
+      expect(broken.values.get(CAMPAIGN_KEY)).toBe(bad);
+    }
+  });
+
+  it('banks an attempt\'s parts in full whatever its outcome, exactly once per attempt', () => {
+    const storage = memory(), store = createCampaignProfile(storage);
+    expect(store.settle(clear('won', { parts: 2 }))).toMatchObject({ parts: 2, partsBalance: 2 });
+    expect(store.settle(clear('lost', { outcome: 'failed', bossKilled: false, credits: 30, parts: 1 }))).toMatchObject({ parts: 1, partsBalance: 3 });
+    expect(store.settle(clear('left', { outcome: 'abandoned', bossKilled: false, credits: 0, parts: 3 }))).toMatchObject({ parts: 3, partsBalance: 6 });
+    // Reopening results or settling again pays nothing more, and reports what was banked.
+    expect(store.settle(clear('lost', { outcome: 'failed', bossKilled: false, credits: 30, parts: 1 }))).toMatchObject({ repeat: true, parts: 1, partsBalance: 6 });
+    expect(createCampaignProfile(storage).read().parts).toBe(6);
+    expect(store.settle(clear('none'))).toMatchObject({ parts: 0, partsBalance: 6 });
+  });
+
+  it('prices designs B–E in parts plus credits, and buying needs both', () => {
+    expect(HERO_DESIGN_PARTS).toEqual({ a: 0, b: 1, c: 1, d: 2, e: 3 });
+    expect(HERO_DESIGN_PRICES).toEqual({ a: 0, b: 80, c: 160, d: 240, e: 320 });
+    const store = createCampaignProfile(memory());
+    store.settle(clear('rich', { credits: 2000 }));
+    expect(store.buyDesign('scrapper', 'hull', 'b')).toBe(false); // credits but no parts
+    store.settle(clear('parts', { parts: 3, credits: 0, bossKilled: false, outcome: 'failed' }));
+    const before = store.read();
+    expect(store.buyDesign('scrapper', 'hull', 'e')).toBe(true);
+    expect(store.read()).toMatchObject({ parts: before.parts - 3, credits: before.credits - 320 });
+    expect(store.buyDesign('scrapper', 'wings', 'b')).toBe(false); // no parts left
+    // Parts but no credits.
+    const poor = freshProfile(); poor.parts = 5;
+    const broke = createCampaignProfile(memory(JSON.stringify(poor)));
+    expect(broke.buyDesign('scrapper', 'hull', 'b')).toBe(false);
+    expect(broke.read()).toMatchObject({ parts: 5, credits: 0 });
   });
 });

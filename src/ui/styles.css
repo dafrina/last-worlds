@@ -320,6 +320,10 @@ button:disabled { cursor: default; }
 .credit-balance { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: #ffd27a; letter-spacing: 1px; }
 .credit-balance svg { width: 9px; height: 9px; fill: #ffd27a; filter: drop-shadow(0 0 4px #ffb84a); }
 .credit-balance b { font-weight: 600; color: #ffe2a6; }
+.parts-balance { display: inline-flex; align-items: center; gap: 5px; color: #ff9e6a; letter-spacing: 1px; }
+.parts-balance svg { width: 9px; height: 9px; fill: #ff9e6a; filter: drop-shadow(0 0 4px #ff7a3a); }
+.parts-balance b { font-weight: 600; color: #ffc4a0; }
+.result-parts { margin: 6px 0 0; text-align: center; color: #ffc4a0; font: 700 12px / 1 var(--mono); letter-spacing: 1px; }
 .planet-stage.is-locked .planet-preview { filter: grayscale(.85) brightness(.45); }
 .mission-record { margin: -6px 0 14px; text-align: center; color: #7fd8ff; font: 8px / 1.5 var(--mono); letter-spacing: 1.2px; }
 .mission-record.is-locked { color: #ffb36b; }

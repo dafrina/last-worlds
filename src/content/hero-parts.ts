@@ -1,4 +1,4 @@
-import type { HeroDesign, HeroLook, HeroSlot, ShipId } from '../shared/contracts';
+import type { HeroDesign, HeroLook, HeroSlot, RunConfig, ShipId } from '../shared/contracts';
 
 /**
  * Modular hero ships (docs/31): each chassis (ship) is built from four part slots. A remodelled chassis
@@ -16,10 +16,11 @@ export const HERO_REMODELLED: ReadonlySet<ShipId> = new Set<ShipId>(['scrapper',
 export const heroDesigns = (ship: ShipId): readonly HeroDesign[] => HERO_REMODELLED.has(ship) ? HERO_DESIGNS : HERO_DESIGNS.slice(0, 3);
 export const HERO_SLOT_NAMES: Readonly<Record<HeroSlot, string>> = { hull: 'Hull', wings: 'Wings', engines: 'Propulsion', cockpit: 'Cockpit' };
 /**
- * Campaign credits per part design (user, 28 October: "for now buy with credits, it'll be changed later on"). Design A
- * comes with the chassis.
+ * A part design costs parts plus credits (user, 29 October; docs/33 § 3, provisional until parts per mission are
+ * measured): `HERO_DESIGN_PRICES` the credits, `HERO_DESIGN_PARTS` the parts. Design A comes with the chassis.
  */
 export const HERO_DESIGN_PRICES: Readonly<Record<HeroDesign, number>> = { a: 0, b: 80, c: 160, d: 240, e: 320 };
+export const HERO_DESIGN_PARTS: Readonly<Record<HeroDesign, number>> = { a: 0, b: 1, c: 1, d: 2, e: 3 };
 /**
  * The models' own colours: what a look without paint shows. A remodelled chassis gives the median of its baked paint and
  * rust (tools/blender/hero_remodel.py prints them per design); a recolour finds them by colour.
@@ -51,4 +52,12 @@ export function validLook(value: unknown, ship?: ShipId): HeroLook | null {
   if (look.paint !== undefined && (typeof look.paint !== 'object' || !colour(look.paint.primary) || !colour(look.paint.secondary) || !colour(look.paint.glow))) return null;
   const parts = Object.fromEntries(HERO_SLOTS.map(slot => [slot, look.parts[slot]])) as HeroLook['parts'];
   return look.paint ? { parts, paint: { ...look.paint } } : { parts };
+}
+
+/**
+ * The ship a flight shows: the campaign's chassis and look; in endless the campaign's equipped chassis and look as
+ * cosmetics (docs/33 § 2: `heroShip`, `hero`), the default Scrapper without them. Render only.
+ */
+export function shownHero(config: RunConfig): [ShipId, HeroLook] {
+  return config.mode === 'campaign' ? [config.ship ?? 'scrapper', config.hero ?? DEFAULT_LOOK] : [config.heroShip ?? 'scrapper', config.hero ?? DEFAULT_LOOK];
 }

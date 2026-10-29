@@ -1,4 +1,4 @@
-import { VIEW, type EnemyKind } from '../shared/contracts';
+import { SITE_IDS, VIEW, type EnemyKind, type SiteId } from '../shared/contracts';
 
 /**
  * Authored squadron templates. A leader path is a list of keyframes relative to the placement anchor; every
@@ -65,6 +65,25 @@ const NEEDLE_HOLD = (holdS: number, hold: number): readonly Keyframe[] => [
 const HEAVY_HOLD = (holdS: number, hold: number): readonly Keyframe[] => [
   [0, 0, 23], [2.4, 0, holdS + 1], [2.4 + hold, 0, holdS], [4.4 + hold, 0, 24],
 ];
+
+/*
+ * ---- Strike sites (docs/33 § 3; workstream B, 29 October 2026) ----
+ * A site rides its own ground track, SITE_LEAD units further out than a battery's, so its whole layout (about 4–6 units
+ * across) comes into view from beyond the top edge even when its cue spawns at its time rather than ahead of it. Guards
+ * sit around the core (the site's centre on the track) at least AIRSPACE.separation plus its prediction margin away
+ * (they are other squadrons), and each guard's first windup waits until it is fully in view.
+ */
+export const SITE_LEAD = 9;
+const SITE_TRACK: readonly Keyframe[] = [[0, 0, 22 + SITE_LEAD], [(36 + SITE_LEAD) / VIEW.scrollSpeed, 0, -14]];
+const SITE_FIRE = { fireFrom: (22 + SITE_LEAD - 18.8) / VIEW.scrollSpeed, fireUntil: (22 + SITE_LEAD - 3.6) / VIEW.scrollSpeed } as const;
+/** Guard seats (dx, ds) around a site's core, in firing order. */
+const RING_2 = [[-2.8, -1], [2.8, 1]] as const;
+const RING_3 = [[-2.8, -1], [2.8, -1], [0, 2.8]] as const;
+const RING_4 = [[-2.8, -1.2], [2.8, -1.2], [-2.2, 2.2], [2.2, 2.2]] as const;
+/** Wider, for the sealed vault's three seals. */
+const RING_VAULT = [[-3, -2.2], [3, -2.2], [0, 3.6]] as const;
+const siteGuard = (kinds: readonly ('turret' | 'missile')[], ring: readonly (readonly [number, number])[]): readonly FormationSlot[] =>
+  ring.map(([dx, ds], i) => ({ kind: kinds[i], dx, ds, fire: Math.max(i * 0.6, (ds - 0.15) / VIEW.scrollSpeed + 0.05) }));
 
 const templates = [
   {
@@ -365,6 +384,35 @@ const templates = [
       { kind: 'dart', dx: -1.7, ds: -0.9, lag: 0.7, flip: true, fire: 1.5 },
     ],
   },
+  // ---- Strike sites (docs/33 § 3; workstream B): guards and cores on the site track (SITE_TRACK) ----
+  { id: 'site-turrets-2', name: 'Site turret pair', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['turret', 'turret'], RING_2) },
+  { id: 'site-turrets-3', name: 'Site turret trio', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['turret', 'turret', 'turret'], RING_3) },
+  { id: 'site-turrets-4', name: 'Site turret ring', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['turret', 'turret', 'turret', 'turret'], RING_4) },
+  { id: 'site-missiles-2', name: 'Site missile pair', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['missile', 'missile'], RING_2) },
+  { id: 'site-missiles-3', name: 'Site missile trio', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['missile', 'missile', 'missile'], RING_3) },
+  { id: 'site-mixed-2', name: 'Site turret and missile battery', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['turret', 'missile'], RING_2) },
+  { id: 'site-mixed-3', name: 'Site turrets and a missile battery', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['turret', 'turret', 'missile'], RING_3) },
+  { id: 'site-mixed-4', name: 'Site mixed ring', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['turret', 'turret', 'missile', 'missile'], RING_4) },
+  { id: 'site-vault-guard', name: 'Sealed vault guard ring', entry: 'ground', path: SITE_TRACK, ...SITE_FIRE, slots: siteGuard(['turret', 'turret', 'missile'], RING_VAULT) },
+  {
+    // The airfield's flourish (docs/33 § 3): a dart pair scrambles from the runway beyond the top edge as the field comes
+    // into view, dives over it and is gone (the dive pair's pattern, held back 2.4 s).
+    id: 'site-scramble', name: 'Scrambled dart pair', entry: 'top',
+    path: [[0, 0, 24], [2.4, 0, 24], [6.9, 0, -8]], fireFrom: 3.1, fireUntil: 4.6,
+    slots: [
+      { kind: 'dart', dx: -2.3, fire: 0 },
+      { kind: 'dart', dx: 2.3, fire: 0.4 },
+    ],
+  },
+  // Each site's core (`site-core-<site>`): a harmless ground target at the site's centre on its track, which
+  // src/sim/sites.ts marks with its site, hit points and radius as it spawns. The sealed vault has three seal crystals.
+  ...SITE_IDS.map(site => ({
+    id: `site-core-${site}` as const, name: `Strike site core (${site})`, entry: 'ground' as const, path: SITE_TRACK,
+    fireFrom: Infinity, fireUntil: Infinity, harmless: true as const,
+    slots: site === 'sealed-vault'
+      ? [{ kind: 'fuel' as const, dx: -1, ds: -0.4, fire: 0 }, { kind: 'fuel' as const, dx: 1, ds: -0.4, fire: 0 }, { kind: 'fuel' as const, dx: 0, ds: 1, fire: 0 }]
+      : [{ kind: 'fuel' as const, dx: 0, fire: 0 }],
+  })),
 ] as const satisfies readonly FormationTemplate[];
 
 export type FormationId = (typeof templates)[number]['id'];
@@ -372,6 +420,12 @@ export const FORMATIONS: Readonly<Record<FormationId, FormationTemplate>> = Obje
   templates.map(template => [template.id, template as FormationTemplate]),
 ) as unknown as Record<FormationId, FormationTemplate>;
 export const FORMATION_IDS = templates.map(template => template.id) as readonly FormationId[];
+/** A strike site's core formation (docs/33), and the site a core formation belongs to (null for any other formation). */
+export const siteCoreFormation = (site: SiteId): FormationId => `site-core-${site}`;
+export function coreSite(formation: string): SiteId | null {
+  const site = formation.startsWith('site-core-') ? formation.slice('site-core-'.length) : '';
+  return (SITE_IDS as readonly string[]).includes(site) ? site as SiteId : null;
+}
 
 const RANK_ORDER: Readonly<Record<FormationRank, number>> = { standard: 0, veteran: 1 };
 

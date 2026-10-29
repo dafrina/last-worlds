@@ -3,7 +3,7 @@ import { MAX_RANK, RANK_PRICES, SHIPS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, WEAP
 import { WEAPONS } from '../content/balance';
 import { SLOT_ITEMS, itemPrice, lookOf, ownsDesign, shipParts, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
 import type { HeroDesign, HeroLook, HeroSlot, ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
-import { HERO_DEFAULT_PAINT, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroDesigns, heroLookKey } from '../content/hero-parts';
+import { HERO_DEFAULT_PAINT, HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroDesigns, heroLookKey } from '../content/hero-parts';
 
 /** Player-facing name and one-line description of any equipment item. */
 export function itemText(slot: Slot, id: ItemId): { name: string; blurb: string } {
@@ -87,9 +87,9 @@ const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
 
 /**
  * The shipyard (docs/31; user, 28 October: "seeing the ship in a hangar like preview"): a large still of the ship, its four
- * part slots with their designs (A comes with the ship, the rest are bought and then free to switch; a remodelled chassis
- * has A–E, the others A–C), and its colour and glow. An unbought design can be tried on before buying. Every design file
- * of the chassis starts loading when the shipyard opens, so switching is quick.
+ * part slots with their designs (A comes with the ship, the rest are bought with parts and credits, docs/33, and then free
+ * to switch; a remodelled chassis has A–E, the others A–C), and its colour and glow. An unbought design can be tried on
+ * before buying. Every design file of the chassis starts loading when the shipyard opens, so switching is quick.
  * Cosmetic only: no part changes handling, the hit region or any stat.
  */
 export function renderShipyard(host: HTMLElement, profile: CampaignProfile, actions: ShipyardActions): void {
@@ -106,13 +106,15 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
     const row = document.createElement('div'); row.className = 'shipyard-slot';
     const label = document.createElement('span'); label.textContent = HERO_SLOT_NAMES[slot].toUpperCase(); row.append(label);
     for (const design of heroDesigns(ship)) {
-      const owned = ownsDesign(profile, ship, slot, design), fitted = look.parts[slot] === design, price = HERO_DESIGN_PRICES[design];
+      const owned = ownsDesign(profile, ship, slot, design), fitted = look.parts[slot] === design;
+      // A design costs parts plus credits (docs/33); buying needs both, trying it on is free.
+      const price = HERO_DESIGN_PRICES[design], parts = HERO_DESIGN_PARTS[design];
       const tried = trying?.slot === slot && trying.design === design;
       const choice = document.createElement('button');
       choice.type = 'button'; choice.className = `shipyard-design${fitted ? ' is-on' : owned ? '' : ' is-locked'}${tried ? ' is-trying' : ''}`;
-      choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} · ${price}`;
+      choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} ${parts}P ${price}`;
       choice.setAttribute('aria-pressed', String(fitted || tried));
-      choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, preview; costs ${price} credits`}`);
+      choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, preview; costs ${parts} ${parts === 1 ? 'part' : 'parts'} and ${price} credits`}`);
       choice.addEventListener('click', () => {
         if (owned) { trying = null; if (!fitted) actions.setLook(ship, { ...look, parts: { ...look.parts, [slot]: design } }); else again(); }
         else { trying = tried ? null : { ship, slot, design }; again(); }
@@ -123,10 +125,10 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
   });
   const offer = document.createElement('div'); offer.className = 'shipyard-offer';
   if (trying) {
-    const { slot, design } = trying, price = HERO_DESIGN_PRICES[design];
+    const { slot, design } = trying, price = HERO_DESIGN_PRICES[design], parts = HERO_DESIGN_PARTS[design];
     const note = document.createElement('span'); note.textContent = `PREVIEW · ${HERO_SLOT_NAMES[slot].toUpperCase()} ${design.toUpperCase()}`;
-    const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'hangar-action'; buy.textContent = `BUY · ${price} CR`;
-    buy.disabled = profile.credits < price;
+    const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'hangar-action'; buy.textContent = `BUY · ${parts}P + ${price} CR`;
+    buy.disabled = profile.credits < price || profile.parts < parts;
     buy.addEventListener('click', () => {
       trying = null;
       actions.buyDesign(ship, slot, design);

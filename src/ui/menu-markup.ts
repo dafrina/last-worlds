@@ -3,6 +3,8 @@
 /** Campaign missions in selector (and unlock) order: CAMPAIGN_ORDER in src/content/equipment.ts. */
 export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thunder'], ['cold-vector', 'Cold Vector'], ['deep-bloom', 'Deep Bloom'], ['brood-strike', 'Brood Strike'], ['final-horizon', 'Final Horizon']] as const;
 const creditGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 11 6 6 11 1 6Z"/></svg>';
+/** Parts (docs/33): an octagonal nut, as on the part pickup. */
+const partGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M4 1H8L11 4V8L8 11H4L1 8V4ZM6 4A2 2 0 1 0 6.01 4Z"/></svg>';
 
 /**
  * A segmented selector (no dropdowns): one radio button per choice, the checked one lit with a glowing indicator.
@@ -29,7 +31,7 @@ export const menuMarkup = `
   </section>
   <section class="campaign-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>
-    <div class="eyebrow campaign-eyebrow"><h2 id="campaign-title">CAMPAIGN</h2><span aria-hidden="true">·</span><span class="mission-count">2 / 3</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span></div>
+    <div class="eyebrow campaign-eyebrow"><h2 id="campaign-title">CAMPAIGN</h2><span aria-hidden="true">·</span><span class="mission-count">2 / 3</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
     <div class="planet-stage">
       <button type="button" class="mission-arrow" data-mission-step="-1" aria-label="Previous mission">‹</button>
       <canvas class="planet-preview" aria-hidden="true"></canvas>
@@ -50,7 +52,7 @@ export const menuMarkup = `
   </section>
   <section class="hangar-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="hangar-title" hidden>
     <button type="button" class="back-button" data-back="campaign-panel">← BACK</button>
-    <div class="eyebrow campaign-eyebrow"><span>CAMPAIGN</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span></div>
+    <div class="eyebrow campaign-eyebrow"><span>CAMPAIGN</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
     <h2 id="hangar-title">HANGAR</h2>
     ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['ship', 'Ships']], 'weapon')}
     <section class="shipyard" aria-label="Shipyard" hidden></section>

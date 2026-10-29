@@ -4,7 +4,7 @@ import { MISSION_ORDER, menuMarkup } from './menu-markup';
 import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
-import { campaignConfig, cleared, createCampaignProfile, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
+import { campaignConfig, cleared, createCampaignProfile, endlessConfig, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
 import { CREDIT_MULTIPLIER, SHIPS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
 import { itemText, renderHangar, renderShipyard } from './hangar';
 import './styles.css';
@@ -94,7 +94,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="eyebrow result-mode"></p><h2 id="results-title">FLIGHT<br>ENDED</h2>
           <p class="result-subtitle"></p>
           <dl class="result-stats"><div class="result-score-row"><dt>SCORE</dt><dd class="result-score"></dd></div><div><dt>HOSTILES DOWN</dt><dd class="result-kills"></dd></div><div><dt>FLIGHT TIME</dt><dd class="result-time"></dd></div><div class="result-sector-row"><dt>SECTOR REACHED</dt><dd class="result-sector"></dd></div></dl>
-          <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-unlock" hidden></p><p class="result-salvage" hidden></p></div>
+          <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-parts" hidden></p><p class="result-unlock" hidden></p><p class="result-salvage" hidden></p></div>
           <button type="button" class="arcade-button primary" data-action="retry">FLY AGAIN <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="menu">RETURN TO MENU</button>
           <p class="panel-note result-note"></p>
@@ -198,10 +198,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   /** Credit balance, loadout summary and the selected mission's lock state, from the saved profile. */
   function refreshCampaign() {
     const profile = campaign.read();
-    for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = profile.credits.toLocaleString();
+    showBalances(profile);
     for (const slot of ['weapon', 'special', 'shield', 'ship'] as const) text(`[data-loadout="${slot}"]`, itemText(slot, profile.loadout[slot]).name);
     showMission(missionIndex);
     actions.preloadHero?.(profile.loadout.ship, lookOf(profile, profile.loadout.ship));
+  }
+  /** Credit and parts balances (docs/33) on the campaign and hangar pages. */
+  function showBalances(profile = campaign.read()) {
+    for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = profile.credits.toLocaleString();
+    for (const balance of shell.querySelectorAll('.parts-balance b')) balance.textContent = profile.parts.toLocaleString();
   }
   let hangarSlot: Slot = 'weapon';
   function refreshHangar() {
@@ -219,8 +224,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       picture: (ship, look, width, height) => actions.heroPreview?.(ship, look, width, height) ?? Promise.resolve(null),
       preload: (ship, look) => actions.preloadHero?.(ship, look),
     });
-    for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = campaign.read().credits.toLocaleString();
-    text('.hangar-note', hangarSlot === 'ship' ? 'Ships come from the listed mission clears, on any difficulty. Their parts and paint are cosmetic: B and C designs cost credits once, then switch freely.' : 'Credits come from campaign missions. Changing equipped gear is free.');
+    showBalances();
+    text('.hangar-note', hangarSlot === 'ship' ? 'Ships come from the listed mission clears, on any difficulty. Their designs and paint are cosmetic: a design costs parts and credits once, then switches freely. Parts come from strike sites.' : 'Credits come from campaign missions. Changing equipped gear is free.');
   }
   selectorListeners.set('mission', value => showMission(MISSION_ORDER.findIndex(([id]) => id === value)));
   for (const arrow of shell.querySelectorAll<HTMLElement>('[data-mission-step]')) {
@@ -306,7 +311,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     if (!id || state.config.mode !== 'campaign') return null;
     const outcome: AttemptOutcome = state.phase === 'complete' ? 'complete' : state.phase === 'over' ? 'failed' : 'abandoned';
     return campaign.settle({ id, mission: state.config.mission ?? 'training', difficulty: state.config.difficulty ?? 'standard', outcome,
-      credits: state.credits, bossKilled: state.boss?.phase === 'destroyed', seconds: state.time });
+      credits: state.credits, bossKilled: state.boss?.phase === 'destroyed', seconds: state.time, parts: state.parts ?? 0 });
   }
   function launch(config: RunConfig) {
     cancelResume();
@@ -319,7 +324,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     find(`[data-action="${action}"]`).addEventListener('click', handler, options);
   }
   onAction('loading-cancel', () => actions.quit());
-  onAction('endless', () => launch({ mode: 'endless', seed: seed() }));
+  // Endless flies the campaign's equipped ship as cosmetics only (docs/33 § 2): its starter loadout never changes.
+  onAction('endless', () => launch(endlessConfig(campaign.read(), seed())));
   onAction('campaign', () => { refreshCampaign(); showPanel('campaign-panel', '.campaign-panel .back-button'); preview.show(MISSION_PLANET[MISSION_ORDER[missionIndex][0]]); });
   onAction('hangar', () => { refreshHangar(); showPanel('hangar-panel', '.hangar-panel .back-button'); });
   selectorListeners.set('slot', value => { hangarSlot = value as Slot; refreshHangar(); });
@@ -523,7 +529,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       find<HTMLElement>('.result-score-row').hidden = campaign;
       text('.result-note', campaign
         ? `${difficultyNames[state.config.difficulty ?? 'standard']} · ${weaponNames[state.config.weapon ?? 'pulse']}`
-        : 'Every endless flight starts with the same fighter.');
+        : 'Every endless flight starts with the same loadout.');
       // Campaign: bank the attempt (once) and show what it earned and anything it unlocked.
       const pay = settleAttempt(state);
       find<HTMLElement>('.result-credits').hidden = !pay;
@@ -536,6 +542,9 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         text('.result-breakdown', parts.join(' · '));
         text('.result-earned b', `+${pay.total.toLocaleString()} CR`);
         text('.result-earned span', `BALANCE ${pay.balance.toLocaleString()} CR`);
+        // Parts from strike sites (docs/33), banked in full whatever the outcome.
+        const partsLine = find<HTMLElement>('.result-parts'); partsLine.hidden = !pay.parts;
+        partsLine.textContent = `+${pay.parts} ${pay.parts === 1 ? 'PART' : 'PARTS'} · ${pay.partsBalance} IN THE HANGAR`;
         const salvage = find<HTMLElement>('.result-salvage'); salvage.hidden = !pay.salvage.length;
         salvage.textContent = `PARTS RECOVERED · ${pay.salvage.join(' · ')}`;
         const unlock = find<HTMLElement>('.result-unlock');

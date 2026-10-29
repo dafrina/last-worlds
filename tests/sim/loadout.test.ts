@@ -19,7 +19,7 @@ describe('campaign loadout in the simulation (docs/21)', () => {
     expect(state.player.maxShields).toBe(5);
   });
 
-  it('carries a campaign ship\'s look as cosmetics only; endless always flies the default Scrapper', () => {
+  it('carries a campaign ship\'s look as cosmetics only; endless shows one only on its cosmetic heroShip (docs/33)', () => {
     const hero = { parts: { hull: 'c', wings: 'b', engines: 'a', cockpit: 'a' } } as const;
     expect(createRun(campaign({ ship: 'ironclad', hero })).config.hero).toEqual(hero);
     expect(createRun({ mode: 'endless', seed: 1, ship: 'ironclad', hero }).config.hero).toBeUndefined();

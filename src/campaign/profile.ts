@@ -1,28 +1,36 @@
 import { CAMPAIGN_ORDER, CREDIT_MULTIPLIER, MAX_RANK, RANK_PRICES, SHIPS, SHIP_IDS, SHIP_PART_NAMES, REWARDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, WEAPON_PRICES, type Loadout } from '../content/equipment';
 import type { Difficulty, HeroDesign, HeroLook, HeroSlot, MissionId, ShipId, RunConfig, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
-import { DEFAULT_LOOK, HERO_DESIGN_PRICES, HERO_SLOTS, heroDesignId, heroDesigns, validLook } from '../content/hero-parts';
+import { DEFAULT_LOOK, HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_SLOTS, heroDesignId, heroDesigns, validLook } from '../content/hero-parts';
 
 /**
- * Campaign progression (docs/21): one local profile with the credit balance, owned equipment, main-weapon ranks,
- * the equipped four-slot loadout, mission clears (which unlock the next mission) and banked attempt receipts.
- * Campaign only: endless never reads or writes it. Every change re-reads storage first and writes the whole profile;
- * banking an attempt is idempotent by attempt ID. An unreadable or unknown save is never overwritten: the profile
- * then runs in memory for the session and says so.
+ * Campaign progression (docs/21): one local profile with the credit and parts balances, owned equipment, main-weapon
+ * ranks, the equipped four-slot loadout, mission clears (which unlock the next mission) and banked attempt receipts.
+ * Endless never writes it; it reads only the equipped ship's look, as cosmetics (`endlessConfig`, docs/33 § 2). Every
+ * change re-reads storage first and writes the whole profile; banking an attempt is idempotent by attempt ID. An
+ * unreadable or unknown save is never overwritten: the profile then runs in memory for the session and says so. An older
+ * schema is migrated, and the exact original is kept under its version's backup key before the migrated save replaces it.
  */
 export const CAMPAIGN_KEY = 'last-worlds.campaign.v1';
+/** The backup of a version-1 save, written once before its migration replaced it. */
 export const CAMPAIGN_BACKUP_KEY = 'last-worlds.campaign.v1.backup';
+/** The backup of a version-2 save (before parts, docs/33), written once before its migration replaced it. */
+export const CAMPAIGN_V2_BACKUP_KEY = 'last-worlds.campaign.v2.backup';
+export const PROFILE_VERSION = 3;
 export type Slot = 'weapon' | 'special' | 'shield' | 'ship';
 export type ItemId = WeaponId | SpecialId | ShieldTechId | ShipId;
 export interface MissionRecord { clears: Record<Difficulty, number>; best: Partial<Record<Difficulty, number>>; firstClearPaid: boolean }
 export interface CampaignProfile {
-  version: 2;
+  /** 3 since 29 October 2026 (the parts balance); versions 2 and 1 are migrated on load. */
+  version: 3;
   credits: number;
+  /** Parts (docs/33): the campaign's second, rare currency, from strike sites; ship designs cost parts plus credits. */
+  parts: number;
   owned: { weapon: WeaponId[]; special: SpecialId[]; shield: ShieldTechId[]; ship: ShipId[] };
   ranks: Record<WeaponId, number>;
   loadout: Loadout;
   missions: Partial<Record<MissionId, MissionRecord>>;
   /** Banked attempts (newest first, bounded): reopening results or a repeated call never pays twice. */
-  receipts: { id: string; total: number }[];
+  receipts: { id: string; total: number; parts?: number }[];
   /**
    * Modular ship parts bought (docs/31): `ship:slot:design` ids of B and C designs (A comes with the chassis), and each
    * ship's chosen look. Cosmetic; added after version-2 saves existed, so both are optional.
@@ -37,10 +45,14 @@ export interface AttemptResult {
   id: string; mission: MissionId; difficulty: Difficulty; outcome: AttemptOutcome;
   /** The run's credits: collected pickups plus the boss reward if the boss fell. */
   credits: number; bossKilled: boolean; seconds: number;
+  /** Parts collected in the run (docs/33); banked in full, whatever the outcome. */
+  parts?: number;
 }
 export interface Payout {
   collected: number; boss: number; mission: number; multiplier: number; firstClear: number; total: number;
   balance: number; unlocked: MissionId | null; repeat: boolean; salvage: string[];
+  /** Parts this attempt banked, and the parts balance after it. */
+  parts: number; partsBalance: number;
 }
 
 const RECEIPT_LIMIT = 200;
@@ -52,7 +64,7 @@ export function itemPrice(slot: Slot, id: ItemId): number {
 
 export function freshProfile(): CampaignProfile {
   return {
-    version: 2, credits: 0,
+    version: 3, credits: 0, parts: 0,
     owned: { weapon: [STARTER.weapon], special: [STARTER.special], shield: [STARTER.shield], ship: [STARTER.ship] },
     ranks: { pulse: 0, fan: 0, seeker: 0, rail: 0 }, loadout: { ...STARTER }, missions: {}, receipts: [],
   };
@@ -63,7 +75,12 @@ const LATER_WEAPONS: readonly WeaponId[] = ['rail'];
 const count = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 0;
 function decode(raw: string): CampaignProfile {
   const data = JSON.parse(raw) as CampaignProfile;
-  const legacy = (data.version as number) === 1;
+  // Version 2 had no parts balance (docs/33): it starts with none. Everything else is read exactly as before.
+  if ((data?.version as number) === 2) {
+    if (data.parts !== undefined) throw new Error('Unsupported campaign profile');
+    data.parts = 0; data.version = 3;
+  }
+  const legacy = (data?.version as number) === 1;
   const slots = legacy ? { weapon: WEAPON_IDS, special: SPECIAL_IDS, shield: ['standard', 'bulwark', 'flux'], reactor: ['balanced', 'vector', 'precision'] } : SLOT_ITEMS;
   const defaults = legacy ? { ...STARTER, reactor: 'balanced' } : STARTER;
   const savedOwned = data?.owned as unknown as Record<string, string[]>;
@@ -78,14 +95,14 @@ function decode(raw: string): CampaignProfile {
   const missionsValid = data?.missions && typeof data.missions === 'object' && Object.entries(data.missions).every(([id, record]) =>
     (CAMPAIGN_ORDER as readonly string[]).includes(id) && record && typeof record.firstClearPaid === 'boolean'
     && (['relaxed', 'standard', 'veteran'] as const).every(d => count(record.clears?.[d])));
-  const receiptsValid = Array.isArray(data?.receipts) && data.receipts.every(r => r && typeof r.id === 'string' && count(r.total));
-  if ((!legacy && data?.version !== 2) || !count(data.credits) || !ownedValid || !loadoutValid || !ranksValid || !missionsValid || !receiptsValid) {
+  const receiptsValid = Array.isArray(data?.receipts) && data.receipts.every(r => r && typeof r.id === 'string' && count(r.total) && (r.parts === undefined || count(r.parts)));
+  if ((!legacy && data?.version !== 3) || !count(data.credits) || (!legacy && !count(data.parts)) || !ownedValid || !loadoutValid || !ranksValid || !missionsValid || !receiptsValid) {
     throw new Error('Unsupported campaign profile');
   }
   if (!legacy) return cleanLooks(data);
   // Keep all records/receipts and every still-supported purchase. Retired purchases are refunded exactly once.
   const migrated = structuredClone(data);
-  migrated.version = 2;
+  migrated.version = 3; migrated.parts = 0;
   for (const id of WEAPON_IDS) {
     if (migrated.ranks[id] === 3) { migrated.ranks[id] = 2; migrated.credits += 500; }
   }
@@ -140,7 +157,7 @@ export function shipParts(profile: CampaignProfile, ship: ShipId) {
 }
 
 /** Credits an attempt banks (docs/11 §4); `firstClear` is paid only on the mission's first success. */
-export function payout(profile: CampaignProfile, result: AttemptResult): Omit<Payout, 'balance' | 'unlocked' | 'repeat' | 'salvage'> {
+export function payout(profile: CampaignProfile, result: AttemptResult): Omit<Payout, 'balance' | 'unlocked' | 'repeat' | 'salvage' | 'parts' | 'partsBalance'> {
   const multiplier = CREDIT_MULTIPLIER[result.difficulty];
   const boss = result.outcome === 'complete' && result.bossKilled ? REWARDS.boss : 0;
   const collected = Math.max(0, Math.floor(result.credits) - (result.bossKilled ? REWARDS.boss : 0));
@@ -157,6 +174,15 @@ export function campaignConfig(profile: CampaignProfile, mission: MissionId, dif
   return { mode: 'campaign', seed, mission, difficulty, weapon, special, shield, ship, rank: profile.ranks[weapon], hero: lookOf(profile, ship) };
 }
 
+/**
+ * The run config for an endless launch: the equipped ship's chassis model and look as cosmetics only (docs/33 § 2;
+ * `heroShip`, `hero`). Nothing else of the profile: createRun gives endless the starter loadout whatever it is passed.
+ */
+export function endlessConfig(profile: CampaignProfile, seed: number): RunConfig {
+  const ship = profile.loadout.ship;
+  return { mode: 'endless', seed, heroShip: ship, hero: lookOf(profile, ship) };
+}
+
 export function createCampaignProfile(storage?: ProfileStorage) {
   let profile = freshProfile();
   let status: 'saved' | 'session' | 'unreadable' = storage ? 'saved' : 'session';
@@ -167,10 +193,12 @@ export function createCampaignProfile(storage?: ProfileStorage) {
       if (raw !== null) {
         const next = decode(raw);
         profile = next;
-        if (JSON.parse(raw).version === 1) {
-          // Do not replace the original unless an exact backup was safely stored first.
+        const version = JSON.parse(raw).version;
+        if (version !== PROFILE_VERSION) {
+          // Do not replace the original unless an exact backup was safely stored first (one key per old version).
+          const backup = version === 1 ? CAMPAIGN_BACKUP_KEY : CAMPAIGN_V2_BACKUP_KEY;
           try {
-            if (storage.getItem(CAMPAIGN_BACKUP_KEY) === null) storage.setItem(CAMPAIGN_BACKUP_KEY, raw);
+            if (storage.getItem(backup) === null) storage.setItem(backup, raw);
             storage.setItem(CAMPAIGN_KEY, JSON.stringify(next));
           } catch { status = 'session'; }
         }
@@ -217,13 +245,13 @@ export function createCampaignProfile(storage?: ProfileStorage) {
         return true;
       });
     },
-    /** Buys a part design (B onward) for an owned ship if affordable; returns whether it was bought. */
+    /** Buys a part design (B onward) for an owned ship if both its parts and its credits are affordable; returns whether it was bought. */
     buyDesign(ship: ShipId, slot: HeroSlot, design: HeroDesign): boolean {
       return transact(p => {
         if (!p.owned.ship.includes(ship) || !HERO_SLOTS.includes(slot) || !heroDesigns(ship).includes(design) || ownsDesign(p, ship, slot, design)) return false;
-        const price = HERO_DESIGN_PRICES[design];
-        if (p.credits < price) return false;
-        p.credits -= price; p.designs = [...(p.designs ?? []), heroDesignId(ship, slot, design)];
+        const credits = HERO_DESIGN_PRICES[design], parts = HERO_DESIGN_PARTS[design];
+        if (p.credits < credits || p.parts < parts) return false;
+        p.credits -= credits; p.parts -= parts; p.designs = [...(p.designs ?? []), heroDesignId(ship, slot, design)];
         return true;
       });
     },
@@ -244,16 +272,19 @@ export function createCampaignProfile(storage?: ProfileStorage) {
         return true;
       });
     },
-    /** Banks one attempt exactly once (by its ID): credits, clears, best time, first-clear receipt and unlocks. */
+    /** Banks one attempt exactly once (by its ID): credits, parts, clears, best time, first-clear receipt and unlocks. */
     settle(result: AttemptResult): Payout {
       return transact(p => {
         const earlier = p.receipts.find(receipt => receipt.id === result.id);
         const pay = payout(p, result);
-        if (earlier) return { ...pay, total: earlier.total, balance: p.credits, unlocked: null, repeat: true, salvage: [] };
+        if (earlier) return { ...pay, total: earlier.total, balance: p.credits, unlocked: null, repeat: true, salvage: [], parts: earlier.parts ?? 0, partsBalance: p.parts };
+        // Parts are banked in full with any outcome, a failed or abandoned attempt included (docs/33 § 2).
+        const parts = Math.max(0, Math.floor(result.parts ?? 0));
         const before = unlockedMissions(p);
         const salvage = result.outcome === 'complete' && !cleared(p, result.mission)
           ? SHIP_IDS.flatMap(ship => shipParts(p, ship).filter(part => part.mission === result.mission).map(part => `${SHIPS[ship].label} ${part.name}`)) : [];
         p.credits += pay.total;
+        p.parts += parts;
         if (result.outcome === 'complete') {
           const record = p.missions[result.mission] ?? { clears: { relaxed: 0, standard: 0, veteran: 0 }, best: {}, firstClearPaid: false };
           record.clears[result.difficulty] += 1;
@@ -261,9 +292,9 @@ export function createCampaignProfile(storage?: ProfileStorage) {
           if (pay.firstClear) record.firstClearPaid = true;
           p.missions[result.mission] = record;
         }
-        p.receipts = [{ id: result.id, total: pay.total }, ...p.receipts].slice(0, RECEIPT_LIMIT);
+        p.receipts = [{ id: result.id, total: pay.total, ...(parts ? { parts } : {}) }, ...p.receipts].slice(0, RECEIPT_LIMIT);
         const unlocked = unlockedMissions(p).find(mission => !before.includes(mission)) ?? null;
-        return { ...pay, balance: p.credits, unlocked, repeat: false, salvage };
+        return { ...pay, balance: p.credits, unlocked, repeat: false, salvage, parts, partsBalance: p.parts };
       });
     },
   };

@@ -53,8 +53,16 @@ export interface HeroLook { parts: Record<HeroSlot, HeroDesign>; paint?: { prima
 export interface RunConfig {
   mode: Mode; seed: number; difficulty?: Difficulty; weapon?: WeaponId; mission?: MissionId;
   special?: SpecialId; shield?: ShieldTechId; ship?: ShipId; rank?: number;
-  /** The campaign ship's look (cosmetic: the simulation never reads it). Endless always flies the default Scrapper. */
+  /**
+   * The ship's look (cosmetic: the simulation never reads it): the campaign chassis's in the campaign; in endless the
+   * campaign's equipped chassis and look as cosmetics only (docs/33 § 2), shown on `heroShip`.
+   */
   hero?: HeroLook;
+  /**
+   * Endless only: the chassis model the flight shows (the campaign's equipped ship, docs/33 § 2). Cosmetic: endless
+   * still flies the starter (`ship` stays the Scrapper: its loadout, handling, hit region and no chassis perks).
+   */
+  heroShip?: ShipId;
 }
 export interface Player {
   x: number; vx: number; lives: number; shields: number; maxShields: number;
@@ -167,6 +175,13 @@ export interface RunState {
   well?: { x: number; s: number; startedAt: number; armedAt: number; until: number; swallowed: number } | null;
   /** Hunter bookkeeping for the current level or endless sector: hunters spawned and the last spawn window used. */
   hunters?: { sector: number; spawned: number; window: number };
+  /** Parts collected this attempt (docs/33; campaign only, banked with the attempt like credits). */
+  parts?: number;
+  /**
+   * Strike sites (docs/33, src/sim/sites.ts): sites destroyed this run, and the budgeted shield supplies a shield site's
+   * cell has already taken (`sector:index` of the supply; that supply is then skipped, invariant 11).
+   */
+  sites?: { destroyed: number; shieldClaims: string[] };
 }
 export const VIEW = { width: 12, worldWidth: 24, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;
