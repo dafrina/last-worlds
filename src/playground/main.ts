@@ -31,6 +31,10 @@ import { FORMATIONS } from '../content/formations';
 import { ROSTER, hunterKind, modelOf, statsLine, viewerModels, WORLDS } from './roster';
 import { attackNow, holdDirector, labClock, spawnFormation, spawnHunter } from './lab';
 import { createModelViewer } from './viewer';
+import { destroySites, hitSites, placeSite, type SiteSpot } from './sites-lab';
+import { SITES } from '../content/sites';
+import { SITE_MODELS } from '../render/site-models';
+import { SITE_IDS, type SiteId } from '../shared/contracts';
 import './playground.css';
 
 type Mission = NonNullable<RunConfig['mission']>;
@@ -84,7 +88,7 @@ const load = <T>(key: string): T | null => { try { const text = localStorage.get
 const save = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: keep going */ } };
 
 const root = document.getElementById('playground')!;
-const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['weapons', 'Weapons'], ['models', 'Models'], ['hangar', 'Hangar']] as const;
+const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['weapons', 'Weapons'], ['sites', 'Sites'], ['models', 'Models'], ['hangar', 'Hangar']] as const;
 type Tab = (typeof TABS)[number][0];
 root.innerHTML = `
   <div class="pg-stage"><canvas class="pg-canvas"></canvas><div class="pg-viewer" hidden></div><div class="pg-hud"></div></div>
@@ -104,6 +108,7 @@ root.innerHTML = `
     <section class="pg-boss-pane" data-pane="boss"></section>
     <section class="pg-lab" data-pane="enemies"></section>
     <section class="pg-weapons" data-pane="weapons"></section>
+    <section class="pg-sites" data-pane="sites"></section>
     <section class="pg-models" data-pane="models"></section>
     <section class="pg-hangar" data-pane="hangar"></section>
   </aside>`;
@@ -122,10 +127,12 @@ interface ViewSettings {
   lab: boolean; tab: Tab; model: string; wire: boolean; spin: boolean; worldLight: boolean;
   /** Weapons tab: the hero's main weapon and tier (0–2), and its special; the hero fires in the lab while that tab is open. */
   weapon: WeaponId; tier: number; special: SpecialId;
+  /** Sites tab: the lab's world holds still (no simulation steps) for a steady look at a site. */
+  hold: boolean;
 }
 const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, boss: false,
   lab: false, tab: 'level', model: 'shared/hero-scrapper.glb#hero_scrapper', wire: false, spin: true, worldLight: false,
-  weapon: 'rail', tier: 0, special: 'gravity-well', ...load<Partial<ViewSettings>>(VIEW_STORE) };
+  weapon: 'rail', tier: 0, special: 'gravity-well', hold: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
 const level = () => LEVELS.find(entry => entry.mission === view.mission) ?? LEVELS[1];
 
 let state: RunState = makeState();
@@ -308,6 +315,43 @@ weaponsPane.addEventListener('click', event => {
   if (data.weapon || data.tier || data.special) buildWeapons();
 });
 
+// ── Sites: strike-site models around fake site cores over the level's real map (sites-lab.ts, docs/33). ──
+const sitesPane = root.querySelector<HTMLElement>('.pg-sites')!;
+function buildSites() {
+  const planet = level().planet;
+  sitesPane.innerHTML = `
+    <label class="pg-row"><input data-view="lab" type="checkbox"> Live over this level's map (Level tab: level and position)</label>
+    <label class="pg-row"><input data-view="hold" type="checkbox"> Hold the world still</label>
+    <div class="pg-row pg-wrap"><button type="button" data-site-act="hit">Hit the cores</button><button type="button" data-site-act="destroy">Destroy the cores</button><button type="button" data-site-act="clear">Clear</button></div>
+    <p class="pg-note">A site's core is a harmless ground target; the site stands around it in this world's finish and stays, destroyed, after the core falls.</p>
+    ${SITE_IDS.map(id => {
+      const model = SITE_MODELS[id], here = SITES[id].worlds.includes(planet) && !!model?.finishes.includes(planet);
+      const note = !model ? 'not modelled yet' : model.finishes.includes(planet) ? `finishes: ${model.finishes.join(', ')}` : `no ${planet} finish (${model.finishes.join(', ')})`;
+      return `<div class="pg-kind${here ? '' : ' is-off'}"><div><strong>${SITES[id].name}</strong> <span class="pg-dim">${note}</span></div>
+        <div class="pg-row pg-wrap"><button type="button" data-site="${id}" data-spot="-1">West</button><button type="button" data-site="${id}" data-spot="0">Ahead</button><button type="button" data-site="${id}" data-spot="1">East</button></div></div>`;
+    }).join('')}`;
+  syncView();
+}
+const siteLab = {
+  place(site: SiteId, spot: SiteSpot, row?: number) { ensureLab(); return placeSite(state, site, spot, row); },
+  destroy() { destroySites(state); },
+  hit() { hitSites(state); },
+  clear() { state.enemies = state.enemies.filter(enemy => !enemy.site); },
+  /** Removes lingering effects (a held world never ages its kill explosion). */
+  calm() { state.effects = []; },
+};
+// Lookdev automation (development builds only): window.siteLab.place('airfield', 1).
+if (import.meta.env.DEV) (window as unknown as { siteLab: typeof siteLab }).siteLab = siteLab;
+sitesPane.addEventListener('click', event => {
+  const target = (event.target as HTMLElement).closest<HTMLElement>('button');
+  if (!target) return;
+  const { site, spot, siteAct } = target.dataset;
+  if (site) siteLab.place(site as SiteId, Number(spot) as SiteSpot);
+  if (siteAct === 'destroy') siteLab.destroy();
+  if (siteAct === 'hit') siteLab.hit();
+  if (siteAct === 'clear') siteLab.clear();
+});
+
 // ── Models: a turntable viewer for the hero, every faction's craft, the loot skid and the bosses (viewer.ts). ──
 const modelsPane = root.querySelector<HTMLElement>('.pg-models')!, viewerHost = root.querySelector<HTMLElement>('.pg-viewer')!;
 const viewer = createModelViewer(viewerHost), MODELS = viewerModels();
@@ -442,7 +486,7 @@ root.querySelector('.pg-panel')!.addEventListener('input', event => {
   if (key === 'wire') viewer.setWireframe(view.wire);
   if (key === 'spin') viewer.setAutoRotate(view.spin);
   if (key === 'worldLight') applyViewerLight();
-  if (key === 'mission') { buildLab(); if (view.tab === 'models') applyViewerLight(); }
+  if (key === 'mission') { buildLab(); buildSites(); if (view.tab === 'models') applyViewerLight(); }
 });
 function syncBoss() { root.querySelector<HTMLElement>('.pg-boss')!.hidden = !view.boss; }
 root.addEventListener('click', event => {
@@ -498,6 +542,8 @@ function frame(now: number) {
       state.player.x = view.x; state.player.vx = 0; holdDirector(state);
       if (firing()) state.nextVolleyAt = Number.isFinite(volley) ? volley : state.time;
       if (specialQueued) state.player.specialCharge = 1;
+      // Held (Sites tab): no simulation step; only the clock and the effects age, so a kill's explosion plays out.
+      if (view.hold && view.tab === 'sites') { state.player.x = view.x; state.time += STEP; state.tick++; state.effects = state.effects.filter(effect => (effect.ttl -= STEP) > 0); continue; }
       if (state.phase === 'playing') stepRun(state, specialQueued ? { ...EMPTY_INPUT, specialPressed: true } : EMPTY_INPUT);
       specialQueued = false;
       state.player.lives = Math.max(state.player.lives, 2);
@@ -542,6 +588,7 @@ for (const { planet } of LEVELS) renderer.tuneLook!(planet, looks[planet]);
 renderer.setQuality(view.quality);
 buildLab();
 buildWeapons();
+buildSites();
 syncView();
 syncBoss();
 switchTab(view.tab);
