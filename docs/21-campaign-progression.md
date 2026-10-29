@@ -10,7 +10,7 @@
   - A locked mission shows a dimmed globe, "LOCKED · CLEAR … TO UNLOCK" and a disabled launch.
   - A cleared mission shows its best time and the hardest difficulty it was cleared on.
   - The campaign page opens on the furthest unlocked mission, or on a mission just unlocked.
-- **Credits** are the one campaign currency, shown at the top of the Campaign and Hangar pages.
+- **Credits** are the main campaign currency, shown at the top of the Campaign and Hangar pages; **parts** (since 29 October, § 7) are the rare second one, beside them.
 - **Loadout:** the Campaign page summarises the four equipped slots. Tapping it opens the **Hangar**.
 - **Hangar:** a slot selector (Main, Special, Shield, Reactor) and one card per item.
   - An equipped item glows. An owned item offers EQUIP (free). An item not yet owned shows its price; the button is disabled while unaffordable. Buying an item also equips it.
@@ -38,7 +38,7 @@
 
 Every special still charges 3% per main-weapon kill. Seeker Rack and Siege Lance kills never charge it. No shield technology regenerates passively. All standard patterns remain survivable on the slowest drive: campaign attack admission (the fairness director) assumes Precision Drive's top speed whatever is equipped, and the perfect pilot clears all four missions on Precision Drive with zero hits (`tests/sim/loadout.test.ts`).
 
-**Endless isolation:** `createRun` gives every endless run the canonical starter (Twin Pulse rank 0, Shockwave, Standard Array, Balanced Drive), whatever the config says. Endless never reads or writes the campaign profile.
+**Endless isolation:** `createRun` gives every endless run the canonical starter (Twin Pulse rank 0, Shockwave, Standard Array, Balanced Drive), whatever the config says. Endless never writes the campaign profile; since 29 October it reads only the equipped ship's chassis and look, shown as cosmetics (§ 7, docs/31).
 
 ## 3. Economy
 
@@ -75,6 +75,27 @@ Credit pickups (4 / 8 / 16 / 10 by enemy class, 6 per fuel skid), salvage caches
   - the Precision Drive survivability check.
 - **Browser:** the specs cover a fresh profile (Training only, Rolling Thunder locked), a Hangar purchase, equip and upgrade that the launch then flies, and seeded veteran profiles for the existing flows.
 - **Screens inspected:** campaign page, hangar, results payout and unlock, and Siege Lance and Seeker Rack in flight.
+
+## 7. Parts, the second currency (29 October 2026, docs/33)
+
+- **Parts** come only from strike sites in the campaign (docs/33 § 3.1), one pickup per part. A run counts them in
+  `RunState.parts`; endless never drops one.
+- **Banking:** the attempt's parts are banked in full with any outcome (complete, failed or abandoned), in the same
+  idempotent transaction as its credits: the attempt receipt records them (`receipts[].parts`), so settling again or
+  reopening results never pays twice. The results screen shows `+N PARTS · M IN THE HANGAR`.
+- **Prices:** ship designs B–E cost parts plus credits (`HERO_DESIGN_PARTS` and `HERO_DESIGN_PRICES`,
+  src/content/hero-parts.ts): B 1 + 80, C 1 + 160, D 2 + 240, E 3 + 320. Buying needs both. Designs already owned stay
+  owned. Credits still buy weapons, ranks, specials and shields.
+- **Hangar:** the campaign and hangar pages show the parts balance beside the credits; a design button shows both costs
+  (`B 1P 80`).
+- **Save, schema version 3:** the profile gains `parts` (a whole number ≥ 0). A version-2 save is migrated on load with
+  no parts; the exact original is first kept under `last-worlds.campaign.v2.backup` (version 1 keeps its own
+  `last-worlds.campaign.v1.backup`), and if that backup cannot be written the original is left untouched and the profile
+  runs for the session. A save with a broken parts balance, or a newer unknown version, is unreadable and never
+  overwritten. An older build reading a version-3 save treats it the same way: it never overwrites it.
+- **Endless** reads only the equipped ship's chassis and look from the profile, as cosmetics (`endlessConfig`; docs/31);
+  it never writes the profile.
+- **Measured** parts per mission: docs/33 § 3.1 (about 0.5–1 on Standard).
 
 ## 6. Not yet built
 

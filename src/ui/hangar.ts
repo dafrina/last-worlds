@@ -3,7 +3,7 @@ import { MAX_RANK, RANK_PRICES, SHIPS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, WEAP
 import { WEAPONS } from '../content/balance';
 import { SLOT_ITEMS, itemPrice, lookOf, ownsDesign, shipParts, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
 import type { HeroDesign, HeroLook, HeroSlot, ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
-import { HERO_DEFAULT_PAINT, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroDesigns, heroLookKey } from '../content/hero-parts';
+import { HERO_DEFAULT_PAINT, HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroDesigns, heroLookKey } from '../content/hero-parts';
 
 /** Player-facing name and one-line description of any equipment item. */
 export function itemText(slot: Slot, id: ItemId): { name: string; blurb: string } {
@@ -80,7 +80,7 @@ const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
 
 /**
  * The shipyard (docs/31; user, 28 October: "seeing the ship in a hangar like preview"): the equipped ship turning, its four
- * part slots with their designs (A comes with the ship, the rest are bought with credits and then free to switch; a
+ * part slots with their designs (A comes with the ship, the rest are bought with parts and credits, docs/33, and then free to switch; a
  * remodelled chassis has A–E, the others A–C), and its colour and glow.
  * Cosmetic only: no part changes handling, the hit region or any stat.
  */
@@ -93,13 +93,15 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
     const row = document.createElement('div'); row.className = 'shipyard-slot';
     const label = document.createElement('span'); label.textContent = HERO_SLOT_NAMES[slot].toUpperCase(); row.append(label);
     for (const design of heroDesigns(ship)) {
-      const owned = ownsDesign(profile, ship, slot, design), fitted = look.parts[slot] === design, price = HERO_DESIGN_PRICES[design];
+      const owned = ownsDesign(profile, ship, slot, design), fitted = look.parts[slot] === design;
+      // A design costs parts plus credits (docs/33); buying needs both.
+      const price = HERO_DESIGN_PRICES[design], parts = HERO_DESIGN_PARTS[design];
       const choice = document.createElement('button');
       choice.type = 'button'; choice.className = `shipyard-design${fitted ? ' is-on' : owned ? '' : ' is-locked'}`;
-      choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} · ${price}`;
+      choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} ${parts}P ${price}`;
       choice.setAttribute('aria-pressed', String(fitted));
-      choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, buy for ${price} credits`}`);
-      choice.disabled = !owned && profile.credits < price;
+      choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, buy for ${parts} ${parts === 1 ? 'part' : 'parts'} and ${price} credits`}`);
+      choice.disabled = !owned && (profile.credits < price || profile.parts < parts);
       choice.addEventListener('click', () => {
         if (!owned) actions.buyDesign(ship, slot, design);
         actions.setLook(ship, { ...look, parts: { ...look.parts, [slot]: design } });

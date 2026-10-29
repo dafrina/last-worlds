@@ -1,5 +1,6 @@
 import { ENEMIES, WORLD_INTENSITY, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
-import { FORMATIONS, slotFlies, type FormationId } from '../content/formations';
+import { FORMATIONS, coreSite, slotFlies, type FormationId } from '../content/formations';
+import { SITES } from '../content/sites';
 import type { FormationMember, RunState } from '../shared/contracts';
 import { groundHeight, memberPosition } from './motion';
 import { anchorGround } from './ground';
@@ -25,14 +26,16 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   age = 0): void {
   const template = FORMATIONS[formation];
   const group = state.nextId;
+  // A strike site's core (docs/33): its site, and the site's hit points and radius instead of its kind's.
+  const site = coreSite(template.id), core = site ? SITES[site].core : null;
   template.slots.forEach((slot, index) => {
     if (!slotFlies(slot, scale.rank)) return;
     const member: FormationMember = { template: template.id, slot: index, anchorX, mirror, group, ...(anchorS !== undefined ? { anchorS } : {}) };
     const at = memberPosition(member, age);
-    const hp = ENEMIES[slot.kind].hp * scale.hp;
+    const hp = (core?.hp ?? ENEMIES[slot.kind].hp) * scale.hp;
     const enemy = {
       id: state.nextId++, kind: slot.kind, x: at.x, s: at.s, originX: anchorX, hp, maxHp: hp,
-      radius: ENEMIES[slot.kind].radius, age, nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
+      radius: core?.radius ?? ENEMIES[slot.kind].radius, age, ...(site ? { site } : {}), nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
       warning: 0, aimX: at.x, groundHeight: groundHeight(slot.kind), formation: member,
       // Spawned ahead of its time it is still beyond the top edge: shots cannot hit it until its authored entry.
       ...(age < 0 ? { damageable: false } : {}),

@@ -11,7 +11,7 @@ export async function seedCampaign(page: Page, change: (profile: CampaignProfile
   await page.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [CAMPAIGN_KEY, JSON.stringify(profile)] as const);
 }
 export function veteranPilot(profile: CampaignProfile) {
-  profile.credits = 5000;
+  profile.credits = 5000; profile.parts = 12;
   profile.owned = { weapon: ['pulse', 'fan', 'seeker'], special: ['shockwave', 'seeker-rack', 'siege-lance'], shield: ['standard', 'bulwark', 'aegis'], ship: ['scrapper', 'ironclad', 'interceptor', 'spectre'] };
   for (const mission of ['training', 'bastion', 'cold-vector', 'deep-bloom'] as const) {
     profile.missions[mission] = { clears: { relaxed: 0, standard: 1, veteran: 0 }, best: { standard: 200 }, firstClearPaid: true };

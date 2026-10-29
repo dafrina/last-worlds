@@ -40,7 +40,7 @@ import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
 import { loadHeroModel, preloadHeroLook } from './hero-craft';
-import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey } from '../content/hero-parts';
+import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey, shownHero } from '../content/hero-parts';
 import type { HeroLook, RunConfig, ShipId } from '../shared/contracts';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
@@ -595,7 +595,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // `heroShown` is the look on screen; while the requested look (`heroKey`) is loading the hero stays hidden, so a launch
   // never flashes the previous ship (user, 28 October: "the base ship is briefly visible" under the warp).
   let heroKey = '', heroShown = '', heroEngines: [number, number][] = [[-.38, .7], [.38, .7]], heroGlow = 0x7ff6ea;
-  const heroOf = (config: RunConfig): [ShipId, HeroLook] => config.mode === 'campaign' ? [config.ship ?? 'scrapper', config.hero ?? DEFAULT_LOOK] : ['scrapper', DEFAULT_LOOK];
+  // Endless shows the campaign's equipped chassis and look as cosmetics (docs/33 § 2; src/content/hero-parts.ts).
+  const heroOf = shownHero;
   const showHero = (ship: ShipId, look: HeroLook): Promise<void> => {
     const key = heroLookKey(ship, look);
     if (key === heroKey) return heroPending;

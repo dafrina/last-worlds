@@ -9,15 +9,19 @@ export interface FlightRecord {
   id: string; mode: Mode; difficulty: Difficulty; mission: string; ruleset: string;
   outcome: Outcome; seconds: number; kills: number; livesLost: number; specials: number;
   score: number; sector: number;
+  /** Strike sites destroyed (docs/33); added on 29 October 2026, so older records lack it (read as 0). */
+  sites?: number;
 }
 export interface FlightTotals {
   flights: number; clears: number; lost: number; retired: number;
   seconds: number; kills: number; livesLost: number; specials: number;
   bestScore: number; bestSector: number; longest: number;
+  /** Strike sites destroyed, per mode like everything else here (invariant 13: observed, never rewarded). */
+  sites: number;
 }
 interface LogData { version: 1; ruleset: string; campaign: FlightTotals; endless: FlightTotals; recent: FlightRecord[] }
 export interface LogStorage { getItem(key: string): string | null; setItem(key: string, value: string): void }
-const emptyTotals = (): FlightTotals => ({ flights: 0, clears: 0, lost: 0, retired: 0, seconds: 0, kills: 0, livesLost: 0, specials: 0, bestScore: 0, bestSector: 0, longest: 0 });
+const emptyTotals = (): FlightTotals => ({ flights: 0, clears: 0, lost: 0, retired: 0, seconds: 0, kills: 0, livesLost: 0, specials: 0, bestScore: 0, bestSector: 0, longest: 0, sites: 0 });
 const emptyLog = (): LogData => ({ version: 1, ruleset: FLIGHT_LOG_RULESET, campaign: emptyTotals(), endless: emptyTotals(), recent: [] });
 const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 export function recordId(): string {
@@ -29,13 +33,15 @@ export function recordId(): string {
 
 function decode(raw: string): LogData {
   const data = JSON.parse(raw) as LogData;
+  // Logs written before strike sites (docs/33) have no site counts: they start at none.
+  for (const totals of [data?.campaign, data?.endless]) if (totals && typeof totals === 'object') totals.sites ??= 0;
   const totalsValid = (totals: FlightTotals) => totals && Object.keys(emptyTotals()).every(key => finite(totals[key as keyof FlightTotals]));
   if (data?.version !== 1 || data.ruleset !== FLIGHT_LOG_RULESET || !totalsValid(data.campaign) || !totalsValid(data.endless)
     || !Array.isArray(data.recent) || data.recent.length > 50 || !data.recent.every(record =>
       record && typeof record.id === 'string' && ['campaign', 'endless'].includes(record.mode)
       && ['relaxed', 'standard', 'veteran'].includes(record.difficulty) && typeof record.mission === 'string'
       && record.ruleset === FLIGHT_LOG_RULESET && ['interrupted', 'complete', 'lost', 'retired'].includes(record.outcome)
-      && [record.seconds, record.kills, record.livesLost, record.specials, record.score, record.sector].every(finite))) {
+      && [record.seconds, record.kills, record.livesLost, record.specials, record.score, record.sector, record.sites ?? 0].every(finite))) {
     throw new Error('Unsupported flight log');
   }
   return data;
@@ -73,12 +79,13 @@ export function createFlightLog(storage?: LogStorage, makeId: () => string = rec
       mission: missionText(state.config.mission).name, ruleset: FLIGHT_LOG_RULESET,
       outcome: state.phase === 'complete' ? 'complete' : state.phase === 'over' ? 'lost' : finish ? 'retired' : 'interrupted',
       seconds: state.time, kills: state.kills, livesLost: state.livesLost, specials: state.specialsUsed,
-      score: Math.floor(state.score), sector: state.sector,
+      score: Math.floor(state.score), sector: state.sector, sites: state.sites?.destroyed ?? 0,
     };
     if (previous && JSON.stringify(record) === JSON.stringify(previous)) return;
     const totals = data[record.mode];
     if (!previous) totals.flights += 1;
     for (const key of ['seconds', 'kills', 'livesLost', 'specials'] as const) totals[key] += Math.max(0, record[key] - (previous?.[key] ?? 0));
+    totals.sites += Math.max(0, (record.sites ?? 0) - (previous?.sites ?? 0));
     if (terminal || finish) {
       if (record.outcome === 'complete') totals.clears += 1;
       if (record.outcome === 'lost') totals.lost += 1;
