@@ -214,8 +214,15 @@ ui.canvas.addEventListener('webglcontextlost', (event) => {
 /** `?perf`: the diagnostic frame-time overlay (src/ui/perf-overlay.ts), for measuring flights on phones. */
 const perf = new URLSearchParams(location.search).has('perf') ? createPerfOverlay(document.body, ui.canvas) : null;
 let perfLast = performance.now(), simStart = 0;
+/**
+ * Development-only perf bench (tools/perf-bench.mjs): every rendered frame steps exactly `steps` ticks with a scripted
+ * weave, so a measured flight repeats tick for tick whatever the machine's speed; it records each frame's JS work (ms).
+ */
+let bench: { steps: number; lives: number; frames: { sim: number; render: number; total: number }[] } | null = null;
+const benchSteer = (tick: number): -1 | 0 | 1 => { const phase = tick % 420; return phase < 150 ? 1 : phase < 210 ? 0 : phase < 360 ? -1 : 0; };
 
 function frame(now: number) {
+  const frameStart = performance.now();
   // Scene creation and initial shader compilation are loading, not active flight time.
   const elapsed = warmupFrames > 0 ? 0 : Math.max(0, (now - lastTime) / 1000);
   if (warmupFrames > 0) warmupFrames--;
@@ -238,13 +245,14 @@ function frame(now: number) {
     if (pendingWorld) audio.pause(); else if (run?.phase === 'playing') audio.resume();
   }
   ui.showLoading(!!loadingRun || waitingForWorld);
+  const benching = !!bench && run?.phase === 'playing' && !waitingForWorld;
   if (run?.phase === 'playing' && !waitingForWorld) {
     pendingSpecial ||= controls.specialPressed;
     pendingDash ??= controls.dashPressed;
-    accumulator += frameSeconds;
+    if (bench) { accumulator = bench.steps * STEP + 1e-9; run.player.lives = Math.max(run.player.lives, bench.lives); } else accumulator += frameSeconds;
     simStart = performance.now();
     while (accumulator >= STEP && run.phase === 'playing' && !destinationPending()) {
-      stepRun(run, { horizontal: controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
+      stepRun(run, { horizontal: bench ? benchSteer(run.tick) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
       pendingSpecial = false; pendingDash = undefined;
       accumulator -= STEP;
     }
@@ -254,8 +262,10 @@ function frame(now: number) {
   const dying = updateAfterglow(frameSeconds);
   const renderStart = performance.now();
   renderer?.render(loadingRun ?? dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
-  perf?.frame(now - perfLast, simMs, performance.now() - renderStart); perfLast = now; simStart = 0;
+  const renderMs = performance.now() - renderStart;
+  perf?.frame(now - perfLast, simMs, renderMs); perfLast = now; simStart = 0;
   ui.update(run);
+  if (bench && benching) bench.frames.push({ sim: simMs, render: renderMs, total: performance.now() - frameStart });
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });
   requestAnimationFrame(frame);
 }
@@ -283,6 +293,11 @@ if (import.meta.env.DEV) {
       killBoss: () => { if (!run?.boss) return; for (const part of ['left', 'right', 'core'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
       // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
       boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
+      // Perf bench (tools/perf-bench.mjs): fixed ticks per frame and a scripted weave; `benchStop` returns the frame timings.
+      bench: (steps = 1, lives = 5) => { bench = { steps, lives, frames: [] }; },
+      benchFrames: () => bench?.frames.length ?? -1,
+      benchStop: () => { const frames = bench?.frames ?? []; bench = null; return frames; },
+      setQuality: (quality: 'high' | 'low') => renderer?.setQuality(quality),
       end: (phase: 'over' | 'complete') => { if (run?.phase === 'playing') { run.phase = phase; run.message = phase === 'complete' ? 'MISSION COMPLETE' : 'FLIGHT LOST'; if (phase === 'over') run.player.lives = 0; } },
     },
     configurable: true,

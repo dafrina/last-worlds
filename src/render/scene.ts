@@ -399,6 +399,54 @@ export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3, sun =
     right3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 0), up3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 1) };
 }
 
+/**
+ * Where a craft's shadow lands (render-only, Low tier's blob): the point under (x, s) at `height` projected away from the
+ * sun onto the ground, refined twice for the ground height there. Matches the High shadow map's offset for any planet's sun.
+ */
+export function blobLanding(sun: THREE.Vector3, x: number, s: number, height: number, ground: (x: number, s: number) => number) {
+  const kx = -sun.x / Math.max(.05, sun.y), ks = sun.z / Math.max(.05, sun.y);
+  let y = ground(x, s), lx = x, ls = s;
+  for (let i = 0; i < 2; i++) {
+    const drop = Math.max(0, height - y);
+    lx = x + kx * drop; ls = s + ks * drop; y = ground(lx, ls);
+  }
+  return { x: lx, s: ls, y };
+}
+
+/**
+ * Dynamic instanced data (performance, 30 October): three.js uploads a whole attribute when it has no update range, so
+ * each frame re-sent every pool's full capacity (about 0.8 MB). Upload only the live instances, and skip drawing an
+ * empty batch (an empty visible batch still costs its program and uniform setup every frame).
+ */
+export function liveInstances(mesh: THREE.InstancedMesh, count: number, extra: readonly (THREE.BufferAttribute | null | undefined)[] = []) {
+  mesh.count = count; mesh.visible = count > 0;
+  for (const attribute of [mesh.instanceMatrix, mesh.instanceColor, ...extra]) {
+    if (!attribute) continue;
+    attribute.clearUpdateRanges();
+    if (count > 0) { attribute.addUpdateRange(0, count * attribute.itemSize); attribute.needsUpdate = true; }
+  }
+}
+
+/**
+ * QA evidence for the render-list cost (polish pass, 30 October): objects in the scene graph, those that would be visited
+ * for drawing (visible chain), drawable meshes among them, and visible instanced batches with nothing to draw.
+ */
+function graphStats(scene: THREE.Scene) {
+  let objects = 0, visible = 0, drawables = 0, emptyBatches = 0, autoMatrix = 0, casters = 0;
+  const walk = (object: THREE.Object3D) => {
+    objects++; if (object.matrixAutoUpdate) autoMatrix++;
+    if (!object.visible) { object.traverse(() => { objects++; }); objects--; return; }
+    visible++;
+    if ((object as THREE.Mesh).isMesh || (object as THREE.LineSegments).isLine || (object as THREE.Points).isPoints) {
+      drawables++; if (object.castShadow) casters++;
+      if ((object as THREE.InstancedMesh).isInstancedMesh && (object as THREE.InstancedMesh).count === 0) emptyBatches++;
+    }
+    for (const child of object.children) walk(child);
+  };
+  walk(scene);
+  return { objects, visible, drawables, emptyBatches, autoMatrix, casters };
+}
+
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The stencil marks the hero's pixels: the jump veil and a boss's death blasts never cover the ship (src/render/hero-stencil.ts).
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', stencil: true });
@@ -675,8 +723,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     // The fuel skid keeps its hazard red on every planet (Luna's steel-blue repaint is for the Khepri craft).
     const mesh = new THREE.InstancedMesh(geometry, kind === 'fuel' ? materials.prop : materials.enemyCraft, ENEMY_CAPACITY);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
-    // Ground turrets cast into the High shadow map and take shadows; flying craft use readable blob shadows.
-    mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
+    // Every craft casts into the High shadow map and takes shadows, like the hero (polish pass, 30 October: the
+    // flying craft's blob shadows read "whack" beside the hero's real one); Low draws sun-placed blobs for all.
+    mesh.castShadow = mesh.receiveShadow = true;
     let ghost: THREE.InstancedMesh | undefined;
     // The see-through silhouette marks hidden threats; harmless fuel skids go without (their buried half read as wood).
     if (GROUND_KINDS.has(kind) && kind !== 'fuel') {
@@ -790,7 +839,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const ground = name === groundNode;
       const mesh = new THREE.InstancedMesh(craft.geometry, material, ENEMY_CAPACITY);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `${label} ${name}`;
-      mesh.castShadow = mesh.receiveShadow = ground;
+      mesh.castShadow = mesh.receiveShadow = true;
       for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
       mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
       let ghost: THREE.InstancedMesh | undefined;
@@ -851,7 +900,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (!geometry) continue;
         const mesh = new THREE.InstancedMesh(geometry, materials.enemyCraft, ENEMY_CAPACITY);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${kind} craft`;
-        mesh.castShadow = mesh.receiveShadow = GROUND_KINDS.has(kind);
+        mesh.castShadow = mesh.receiveShadow = true;
         let ghost: THREE.InstancedMesh | undefined;
         if (GROUND_KINDS.has(kind)) {
           mesh.renderOrder = 2;
@@ -1368,9 +1417,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       let shadowCount = 0, plinthCount = 0;
       const flightShadow = (x: number, s: number, width: number, length: number, height: number) => {
         if (shadowCount >= flightShadows.instanceMatrix.count) return;
-        // Shadows fall to the lower right, away from the upper-left sun; offset kept modest for readability.
-        const groundX = x + height * .22, groundS = s - height * .08;
-        const groundY = surfaceHeight(state.config.seed, groundX, state.distance + groundS, world);
+        // Where the High tier's real shadow falls: along the active planet's sun onto the ground under it (blobLanding).
+        const { x: groundX, s: groundS, y: groundY } = blobLanding(sun, x, s, height, (gx, gs) => surfaceHeight(state.config.seed, gx, state.distance + gs, world));
         transform.position.set(groundX, groundY + .07, -groundS);
         transform.rotation.set(0, 0, 0); transform.scale.set(width, 1, length); transform.updateMatrix();
         flightShadows.setMatrixAt(shadowCount++, transform.matrix);
@@ -1531,8 +1579,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             plinths.setMatrixAt(plinthCount++, transform.matrix);
           }
         }
-        // Flying craft keep the readable blob shadow on both tiers; ground turrets cast real shadows on High.
-        if (!isGround || quality !== 'high') flightShadow(enemy.x, placement.s,
+        // Every craft casts its real model shadow on High (like the hero); Low places a blob where that shadow falls.
+        if (quality !== 'high') flightShadow(enemy.x, placement.s,
           enemy.kind === 'weaver' || enemy.kind === 'diamond' ? 2.2 : 1.5, enemy.kind === 'lancer' ? 2.3 : enemy.kind === 'diamond' ? 2.1 : 1.9, isGround ? enemy.groundHeight : VIEW.flightHeight);
         if (!isGround) {
           // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
@@ -1648,7 +1696,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         transform.position.set(wreck.x, wreck.y, -(wreck.worldS - state.distance)); transform.rotation.set(0, wreck.yaw, 0); transform.scale.setScalar(1); transform.updateMatrix();
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
-      wreckBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+      wreckBatches.forEach(mesh => liveInstances(mesh, mesh.count));
       for (let i = emplacements.length - 1; i >= 0; i--) if (emplacements[i].worldS - state.distance < VIEW.minS - 4) emplacements.splice(i, 1);
       emplacementBatches.forEach(mesh => { mesh.count = 0; });
       for (const piece of emplacements) {
@@ -1657,15 +1705,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         transform.position.set(piece.x, piece.y, -(piece.worldS - state.distance)); transform.rotation.set(0, piece.yaw, 0); transform.scale.setScalar(1); transform.updateMatrix();
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
-      emplacementBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+      emplacementBatches.forEach(mesh => liveInstances(mesh, mesh.count));
       for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches, predatorBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
-        batch.mesh.count = count; batch.mesh.instanceMatrix.needsUpdate = true; if (batch.mesh.instanceColor) batch.mesh.instanceColor.needsUpdate = true;
-        if (batch.ghost) batch.ghost.count = count;
+        liveInstances(batch.mesh, count);
+        if (batch.ghost) { batch.ghost.count = count; batch.ghost.visible = count > 0; }
       }
-      flightShadows.count = shadowCount; flightShadows.instanceMatrix.needsUpdate = true;
-      plinths.count = plinthCount; plinths.instanceMatrix.needsUpdate = true;
-      pontoons.count = pontoonCount; pontoons.instanceMatrix.needsUpdate = true;
+      liveInstances(flightShadows, shadowCount); liveInstances(plinths, plinthCount); liveInstances(pontoons, pontoonCount);
       // A round a ground battery released since the last frame is drawn leaving from the battery as drawn.
       if (state.tick < launchTick) { batteryWindups.clear(); launches.clear(); seenShots.clear(); }
       launchTick = state.tick;
@@ -1769,11 +1815,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         line(x, shot.s, x - Math.sign(dx) * .2, shot.s + .2, 0xffa174);
         line(x, shot.s, x - Math.sign(dx) * .2, shot.s - .2, 0xffa174);
       }
-      if (missiles) { missiles.count = missileCount; missiles.instanceMatrix.needsUpdate = true; }
-      friendly.count = friendlyCount; hostile.count = hostileCores.count = hostileCount;
-      friendlyOutline.count = brightGround ? friendlyCount : 0; friendlyOutline.instanceMatrix.needsUpdate = true;
+      if (missiles) liveInstances(missiles, missileCount);
+      liveInstances(friendly, friendlyCount); liveInstances(hostile, hostileCount); liveInstances(hostileCores, hostileCount);
+      liveInstances(friendlyOutline, brightGround ? friendlyCount : 0);
       friendlyMaterial.color.setHex(brightGround ? 0x1fd2ff : 0xbcfff8);
-      for (const mesh of [friendly, hostile, hostileCores]) mesh.instanceMatrix.needsUpdate = true;
 
       pickupBatches.forEach(mesh => { mesh.count = 0; });
       for (const pickup of state.pickups) {
@@ -1786,7 +1831,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         transform.scale.setScalar(breathe * (pickup.ttl < 2 ? fade : 1)); transform.updateMatrix();
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
-      pickupBatches.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+      pickupBatches.forEach(mesh => liveInstances(mesh, mesh.count));
       // Siege Lance (campaign special): a bright piercing beam straight ahead from the ship's nose while it fires.
       if (state.lance && state.time < state.lance.until) {
         const left = state.lance.until - state.time, flare = Math.min(1, left / .12) * (.85 + .15 * Math.sin(state.time * 60));
@@ -1804,9 +1849,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         else if (hazard.active > 0) beamLive(hazard.x, top, hazard.width, source);
       }
       beamLight.end(); phaseHoles.end();
-      for (const mesh of lanes) {
-        mesh.count = laneCounts.get(mesh) ?? 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      }
+      for (const mesh of lanes) liveInstances(mesh, laneCounts.get(mesh) ?? 0);
       const wave = state.shockwave;
       shockRings.forEach((ring, k) => {
         ring.visible = !!wave;
@@ -1854,7 +1897,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : 0x97e7da;
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
       }
-      effects.count = effectCount; effects.instanceMatrix.needsUpdate = true; if (effects.instanceColor) effects.instanceColor.needsUpdate = true;
+      liveInstances(effects, effectCount);
       // Vesper: debris that falls on open water throws snow-white spray; vent stacks breathe steam.
       const seaHeight = world.planet.seaLevel;
       // An explosion's light lands where the view ray through it meets the ground (or the sea), like a ground target.
@@ -1877,8 +1920,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       foam.update(state.time, [...collectFloeRings(), ...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
       jumpActive = jumpFx.update(state, reducedMotion(), planetReady(state.jump?.to ?? state.planet ?? planet), quality === 'high');
       post.settings.cover.value = jumpFx.cover;
-      lineGeometry.setDrawRange(0, lineCursor);
-      lineGeometry.getAttribute('position').needsUpdate = true; lineGeometry.getAttribute('color').needsUpdate = true;
+      lineGeometry.setDrawRange(0, lineCursor); lines.visible = lineCursor > 0;
+      for (const name of ['position', 'color']) {
+        const attribute = lineGeometry.getAttribute(name) as THREE.BufferAttribute;
+        attribute.clearUpdateRanges();
+        if (lineCursor > 0) { attribute.addUpdateRange(0, lineCursor * 3); attribute.needsUpdate = true; }
+      }
       const renderStart = performance.now();
       passes.shadow = 0;
       if (quality === 'high') {
@@ -1928,9 +1975,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
-          triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
+          triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, programs: renderer.info.programs?.length ?? 0,
           textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, sites: sites.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
           predators: Object.fromEntries([...predatorBatches].map(([name, batch]) => [name, batch.mesh.count])),
+          graph: graphStats(scene),
         });
         lastStatsTick = state.tick;
       }
