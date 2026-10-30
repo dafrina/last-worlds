@@ -601,3 +601,5 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - **Deck round 2:** WIP `7b3f1aa` on `worktree-agent-ad99b5490a5b4b17a`, not measured, 3 seed-pinned tests failing. The agent has stopped.
 - **After round 2:** merge it, then **one** gate and **one** deploy for everything (user: no per-feature gates).
 - This session stops working on the project now.
+
+**2026-10-30 · Claude Code (Moon training level session) · deployed `0aeb470`: the combined release.** It includes strike sites (B and C), deck rounds 1 and 2, Codex's global chassis perks with the Interceptor sidestep, and the boss-forecast fix, as the handoff above set out. Gate on `0aeb470`: typecheck; unit 647 passed / 2 skipped; build; browser 48/48 (Playwright exit 0). Pages run 41121988636 succeeded, the live bundles match the build, and the live endless smoke test has zero errors. No phone test. The open points are in docs/build-status.md. integrator-next = main = `0aeb470` plus this record.

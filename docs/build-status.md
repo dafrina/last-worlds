@@ -1,6 +1,32 @@
 # Build status
 
 
+## Release: strike sites, parts, the encounter deck, chassis perks, 30 October 2026
+
+One gate and one deploy for everything (user: "do not run gates or anything, we do thjat in the very end deploying all features"). Live as `0aeb470`.
+
+- **In it** (docs/33, docs/34, docs/08 29–30 October):
+  - Twelve strike sites with Blender models in 36 world finishes, seated on flat dry ground.
+  - Parts, a campaign currency (save v3): every site rolls for a part at 25–75% by guard threat; the salvage yard and sealed vault drop 3. Designs cost parts plus credits.
+  - Endless flies the equipped ship's look.
+  - The encounter deck: seeded pool draws per attempt, 1–4 sites per campaign mission (2 most likely), about one per endless sector.
+  - Codex's global chassis perks; the Interceptor's double-tap is a 2.8-unit sidestep drawn as a barrel roll.
+  - The boss fan forecast counts the hull's coming hold (THE CRADLE).
+- **Measured** (perfect pilot, seeds 1–48 × three weapons, hits on the fixed lists → the deck; docs/33 § 4.1):
+  - every campaign cell is within the band. Rolling Thunder Veteran 39 → 39; Final Horizon Standard 10 → 19, at the band's edge;
+  - endless sectors 1–9: 38 → 39; the boss run: 88 → 85;
+  - the pilot that ignores sites: 47 → 47;
+  - parts per mission for the site hunter at tier 1: 0.54–1.15.
+- **Gate on `0aeb470`** (clean worktree, machine quiet): typecheck; unit 647 passed, 2 skipped (report-only sweeps); build; browser 48/48, Playwright exit 0.
+- **Live:** Pages run 41121988636 succeeded; the live bundle names match the build; the site models are served; the production endless smoke test has zero page errors.
+- **Not checked:** no phone test.
+- **Open, after the release:**
+  - site placement: cliff-rim seats, squashed tall sites, the Vesper crash site's slab;
+  - parts are sometimes lost under guard fire;
+  - the site-pad shader's cost on phones;
+  - the site GLBs are uncompressed (10.6 MB in total);
+  - the user found endless Vesper's lasers tough (30 October, on the preview, not yet retested live).
+
 ## Hangar: a large still of the ship, parts preloaded, designs tried on before buying, 29 October 2026
 
 User: "make the hangar/ship preview better. It lags as fuck, preload the parts, and make them previewable. And make the image bigger, maybe not needed to turn".
