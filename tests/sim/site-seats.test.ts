@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRun } from '../../src/sim/game';
 import { MATCH_ROW, lineOfSightGround } from '../../src/sim/ground';
-import { GUARD_CLEARANCE, SITE_DROP_MAX, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
+import { CORE_CLEARANCE, GUARD_CLEARANCE, SITE_DROP_MAX, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
 import { spawnMembers } from '../../src/sim/spawn';
 import { FORMATIONS, siteCoreFormation, type FormationId } from '../../src/content/formations';
 import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT, SITE_X, sitePool } from '../../src/content/sites';
@@ -31,10 +31,10 @@ const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper']);
 /**
  * Regression bounds on the footprint's unevenness at the chosen seats (ground spread, 10th to 90th percentile), measured
  * 30 October with about 10% headroom. The window is small (the core stays in its guards' ring, src/sim/sites.ts
- * SEAT_SEARCH), so on Amnion's pitted flesh plains and Umbra's plates cut by narrow canyons most seats still straddle a pit
- * or a crack: the foundations fill it.
+ * SEAT_SEARCH; SEAT_WIDE only for a seat over heavy relief), so on Amnion's pitted flesh plains and some of Umbra's plates
+ * cut by narrow canyons a seat still straddles a pit or a crack: the render's site pad levels it.
  */
-const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.8, khepri: 3.1, vesper: 4.0, nacre: 2.2, amnion: 5.0, umbra: 4.3 };
+const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, umbra: 4.3 };
 /** How far into the footprint's edge a guard may stand at worst (the models keep their rim clear of structures). */
 const GUARD_RIM = .6;
 const quantile = (values: number[], f: number) => [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * f)];
@@ -60,13 +60,13 @@ describe('strike-site seats', () => {
       // Never over open water, except the worlds whose sites are built for it (Nacre's mire, Vesper's ice-shelf decks).
       if (!WATER_BUILT.has(world)) expect(seat.wet).toBe(0);
     }
-    // Guards keep their whole clearance band in four seats of five, and stand on the footprint's rim in at most one in twenty.
-    expect(clear / seats.length).toBeGreaterThanOrEqual(.78);
-    expect(seats.filter(({ intrusion }) => intrusion >= GUARD_CLEARANCE).length / seats.length).toBeLessThanOrEqual(.06);
+    // Guards keep their whole clearance band in six seats of seven, and stand on the footprint's rim in at most one in thirty.
+    expect(clear / seats.length).toBeGreaterThanOrEqual(.85);
+    expect(seats.filter(({ intrusion }) => intrusion >= GUARD_CLEARANCE).length / seats.length).toBeLessThanOrEqual(.03);
     // Ground poking through the floor is rare and low.
     expect(quantile(above, .9)).toBeLessThanOrEqual(.7);
-    // The search never does worse than the authored spot at the median, and the tail is bounded.
-    expect(quantile(spread, .5)).toBeLessThanOrEqual(quantile(authored, .5) + 1e-9);
+    // The search does better than the authored spot at the median, and the tail is bounded.
+    expect(quantile(spread, .5)).toBeLessThanOrEqual(quantile(authored, .5) * .85);
     expect(quantile(spread, .9)).toBeLessThanOrEqual(SPREAD_P90[world]);
   });
 
@@ -99,7 +99,7 @@ describe('strike-site seats', () => {
         }
         for (const core of cores) {
           expect(core.groundHeight).toBe(SITE_CORE_HEIGHT[site]);
-          expect(core.ground!.base + core.groundHeight, `${site} ${world}: core under the flight plane`).toBeLessThanOrEqual(VIEW.flightHeight - .45 + 1e-9);
+          expect(core.ground!.base + core.groundHeight, `${site} ${world}: core under the flight plane`).toBeLessThanOrEqual(VIEW.flightHeight - CORE_CLEARANCE + 1e-9);
           // Its gameplay position (its proxy) is where its drawn core is seen through the lens.
           const seen = toFlightPlane(state.cameraX, core.ground!.x, core.ground!.base + core.groundHeight, core.ground!.s);
           expect(seen.x).toBeCloseTo(core.x, 6); expect(seen.s).toBeCloseTo(core.s, 6);
