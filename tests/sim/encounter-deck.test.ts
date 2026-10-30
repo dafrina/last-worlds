@@ -142,22 +142,27 @@ describe('encounter deck: guard rails', () => {
     }
   });
 
-  it('draws nothing heavier than the nominal beside a Pulsar or the Wraith, nor shortly after a strike site', () => {
-    const scarce = (cue: EncounterCue) => cueRoster(cue, 'veteran').some(kind => (SCARCE as readonly string[]).includes(kind));
-    let beside = 0, after = 0;
-    for (const deck of DECK_TEMPLATES) for (const seed of SEEDS.slice(0, 50)) {
-      const entries = resolveDeck(deck, seed);
-      entries.forEach((entry, i) => {
-        const slot = deck.slots[i];
-        if (slot.kind !== 'pool' || entry.fallback || entry.outside) return;
-        const near = [entries[i - 1], entries[i + 1]].some(other => other && Math.abs(other.cue.at - entry.cue.at) <= PAIR_WINDOW && scarce(other.cue));
-        const site = entries.slice(0, i).some(other => other.site && entry.cue.at - other.cue.at <= SITE_CALM);
-        if (!near && !site) return;
-        if (near) beside++; else after++;
-        expect(entry.cost, `${deck.id}/${seed} ${slot.id}`).toBeLessThanOrEqual(placementCost(slot.nominal));
-      });
+  it('flies a Pulsar\'s or the Wraith\'s stretch as authored, and nothing heavier than the nominal shortly after a strike site', () => {
+    let stretch = 0, after = 0;
+    for (const deck of DECK_TEMPLATES) {
+      const scarceAt = deck.slots.filter(slot => cueRoster({ at: 0, id: '', phase: 'pressure', formations: slot.kind === 'fixed' ? slot.cue.formations : slot.kind === 'pool' ? slot.nominal : [] }, 'veteran')
+        .some(kind => (SCARCE as readonly string[]).includes(kind))).map(slotAt);
+      for (const seed of SEEDS.slice(0, 50)) {
+        const entries = resolveDeck(deck, seed);
+        entries.forEach((entry, i) => {
+          const slot = deck.slots[i];
+          if (slot.kind !== 'pool') return;
+          if (scarceAt.some(at => Math.abs(at - slot.at) <= PAIR_WINDOW)) {
+            stretch++;
+            expect(entry.cue.formations, `${deck.id}/${seed} ${slot.id}`).toBe(slot.nominal);
+          } else if (!entry.fallback && !entry.outside && entries.slice(0, i).some(other => other.site && entry.cue.at - other.cue.at <= SITE_CALM)) {
+            after++;
+            expect(entry.cost, `${deck.id}/${seed} ${slot.id}`).toBeLessThanOrEqual(placementCost(slot.nominal));
+          }
+        });
+      }
     }
-    expect(beside).toBeGreaterThan(100);
+    expect(stretch).toBeGreaterThan(100);
     expect(after).toBeGreaterThan(100);
   });
 
@@ -243,6 +248,18 @@ describe('encounter deck: content', () => {
         if (slot.pickup) expect(Math.sign(cue.pickup!.x)).toBe(cue.site!.side);
       });
     }
+  });
+
+  it('stands two sites within SITE_CALM of each other on opposite sides', () => {
+    let pairs = 0;
+    for (const deck of DECK_TEMPLATES) for (const seed of SEEDS) {
+      const sites = resolveTemplate(deck, seed).filter(cue => cue.site);
+      for (let i = 1; i < sites.length; i++) if (sites[i].at - sites[i - 1].at <= SITE_CALM) {
+        pairs++;
+        expect(sites[i].site!.side, `${deck.id}/${seed}`).toBe(-sites[i - 1].site!.side);
+      }
+    }
+    expect(pairs).toBeGreaterThan(100);
   });
 
   it('draws sites by their weight and sides evenly', () => {

@@ -201,11 +201,11 @@ fixed on every seed, and its two side slots (39 s and 44 s) teach the side route
 
 | Arc | Side slots (s) | Sites per run |
 | --- | --- | --- |
-| Training | 39, 44 (they teach the side route) | 2 |
+| Training | 39, 44, on opposite sides (they teach the side route) | 2 |
 | Rolling Thunder | 41 (where its salvage route was) | 1 |
-| Cold Vector | 48, 53 | 2 |
+| Cold Vector | 48, 53, on opposite sides | 2 |
 | Deep Bloom, Brood Strike, Final Horizon | 51 (the old east route at 56 s is an empty relief) | 1 |
-| Endless Luna prologue | 39, 44 (Training's) | 2 |
+| Endless Luna prologue | 39, 44, on opposite sides (Training's) | 2 |
 | Endless Khepri and Vesper stages | their west route (31–44 s); the old east route after the climax is an empty relief | 1 |
 | Endless Nacre opening / pressure / peak | 51 (Deep Bloom's) / none / 52 (the second half 1 s later) | 1 / 0 / 1 |
 
@@ -236,21 +236,24 @@ new formations, and no Pulsar or Wraith wave: they fly only in their arc slots.
 - the drawn wave has the nominal's role and **attack character** (`waveCharacter`): fighters (darts and weavers), beams
   (Needles and Lancers), heavies (Diamonds), Pulsars or the Wraith in the air; aimed turret batteries or missile batteries
   (which fire down their own columns) on the ground. The arcs pair characters deliberately, a Pulsar's tracking stream
-  beside missile batteries and never beside aimed turrets, so the deck varies the formation, its mirror and offset, and
-  never what a stretch asks of the pilot. Without this rule (30 October) a turret battery drawn into a missile slot beside
+  beside missile batteries and never beside aimed turrets, so the deck varies the formation and its mirror, and never what
+  a stretch asks of the pilot. Without this rule (30 October) a turret battery drawn into a missile slot beside
   the Pulsar pair, or a Pulsar drawn into a heavy's slot two cues from it, nearly tripled the perfect pilot's hits on Deep
   Bloom (Veteran Seeker 17 against 6 over 24 seeds);
-- it costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`; but no more than the nominal beside a Pulsar
-  or the Wraith (the cue before or after within `PAIR_WINDOW`: on Final Horizon a third missile battery drawn beside the
-  artillery ship pushed the pilot to the world edge, where its stream caught it) or within `SITE_CALM` (15 s) after a
-  strike site (the main battle resumes while a pilot who took the site is still out by the edge);
+- it costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`; but no more than the nominal within
+  `SITE_CALM` (15 s) after a strike site (the main battle resumes while a pilot who took the site is still out by the
+  edge);
 - no wave twice in a row, nor the same as the next fixed cue; where the pool allows, not the same as the last wave of its
-  role either; no site twice in a row;
+  role either; no site twice in a row, and a second site within `SITE_CALM` of another stands on the other side (two on
+  one side ran into each other: the seat search can move a core several units back onto the previous site's ground);
 - cues within 5 s of each other (`PAIR_WINDOW`) cost together no more than the arc's nominal pair (at least 10): two
   heavy waves never stack beyond what the arc authored;
 - the wave after a strike site fits the Standard threat budget beside the site's guard where the pool allows;
-- Pulsars and the Wraith (`SCARCE`) fly only in the slots the arc put them in, exactly as authored, with no mirror or
-  offset (in endless sector 9 a mirrored Pulsar pair took most of the extra hits); the pools carry none;
+- a Pulsar's or the Wraith's stretch (`SCARCE`) flies exactly as authored: their own slots and every slot within
+  `PAIR_WINDOW` of one fly their nominal, and the pools carry no Pulsar or Wraith wave. The arcs pair them deliberately
+  (a Pulsar pair after a Needle column, missile batteries beside it); a third missile battery drawn beside Final
+  Horizon's artillery ship, a mirrored Pulsar pair or a Needle line instead of the column before it in endless sector 9
+  each pushed the pilot to the world edge, where the tracking stream caught it;
 - after a Needle column (`LINGERING`), the next air cue is no Needle squadron and the next site has no air guard: the
   column's last members lock their beam lanes as their path ends, which the airspace prediction cannot foresee, and a
   Needle squadron diving in behind it shared its band (found by the cue-sequence union tests);
@@ -273,8 +276,51 @@ airspace observer no longer requires separation between them. Under the release 
 near the bottom of the view come up to a unit closer than authored, so the ring's 2.55-unit seats read as overlapping
 the core. The guard keeps the rule against every other squadron.
 
-**Measured** (perfect pilot, Standard, starter loadout; `DECK_REPORT=<file> DECK_TARGET=mission:<id>|sector:<n>
-DECK_SEEDS=1-30 [DECK_PILOT=perfect|weaver|sites] npx vitest run tests/sim/deck-report.test.ts`): see the table below.
+**Measured** (30 October, on the final code with workstream C's site seats, 6812ba2). Hits the perfect pilot takes
+(`perfectPilot()`, no pickups, no special) over seeds 1–48, the three main weapons together (144 flights per row), against
+the fixed lists of 67cdfad on the same seeds. Campaign missions fly whole; endless sectors from their start
+(`enterSector`) until the next sector begins, Twin Pulse. Band: the fixed lists' count plus 25 % or plus one hit per 16
+flights, whichever is larger.
+
+| Mission | Standard: fixed → deck | Veteran: fixed → deck | Mission (288 flights) |
+| --- | --- | --- | --- |
+| Training | 0 → 0 | 5 → 9 | 5 → 9 |
+| Rolling Thunder | 37 → 31 | 39 → 50 (+28 %, just above the band) | 76 → 81 |
+| Cold Vector | 5 → 11 | 14 → 8 | 19 → 19 |
+| Deep Bloom | 38 → 34 | 60 → 52 | 98 → 86 |
+| Brood Strike | 19 → 25 | 27 → 24 | 46 → 49 |
+| Final Horizon | 10 → 9 | 29 → 20 | 39 → 29 |
+
+| Endless sector | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 1–9 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Fixed → deck (48 flights each) | 0 → 0 | 1 → 1 | 4 → 5 | 2 → 8 | 4 → 1 | 4 → 4 | 1 → 3 | 16 → 12 | 6 → 12 | 38 → 46 |
+
+Every mission and endless 1–9 as a whole sit in the band. No flight loses a life (one did on the fixed lists); the only
+completion that moved is the Fan at Veteran, which outlasts its 420 s window against THE CRADLE on 32 of 48 seeds
+(against 28) and against THE ECLIPSE on 4 (against 13). Above
+it: Rolling Thunder Veteran (its draws: the same perfect pilot steering only for the main battle and ignoring the site
+takes 25 hits against 19 over seeds 1–24, so the site is not the cause), endless sectors 4 (Khepri's pressure stage and
+Bastion-9) and 9 (Nacre's pressure stage), each a handful of hits at the world edge after a different squadron order. A
+pilot that ignores the sites takes 47 hits against 47 over seven checked cells (Training Veteran, Rolling Thunder
+Standard and Veteran, Cold Vector Standard, Deep Bloom Veteran, Brood Strike Standard, Final Horizon Veteran; seeds 1–24):
+the sites add no danger to the main battle's path.
+
+**Economy** (Standard, Twin Pulse tier 1, pickups collected, seeds 1–24): parts banked per mission by the perfect pilot
+(it only takes a site that comes into its view) and by the site-hunting perfect pilot (`perfectPilot(siteSeeker)`), and
+the perfect pilot's credits against the fixed lists.
+
+| Mission | Parts, perfect pilot | Parts, site-hunting pilot (sites destroyed) | Credits, perfect pilot: fixed → deck |
+| --- | --- | --- | --- |
+| Training | 0.17 | 0.42 (1.58) | 276 → 274 |
+| Rolling Thunder | 0 | 0.08 (0.58) | 274 → 297 |
+| Cold Vector | 0.08 | 0.42 (1.75) | 409 → 449 |
+| Deep Bloom | 0 | 0.25 (0.58) | 327 → 351 |
+| Brood Strike | 0.21 | 0.33 (0.79) | 313 → 362 |
+| Final Horizon | 0.04 | 0.33 (0.83) | 367 → 380 |
+
+So a player who goes for the sites banks about a part every two to four missions at tier 1: slow, as the user wanted, and
+slower on the missions with one site. Reproduce a row with `DECK_REPORT=<file> DECK_TARGET=mission:<id>|sector:<n>
+DECK_SEEDS=1-48 [DECK_PILOT=perfect|weaver|sites] npx vitest run tests/sim/deck-report.test.ts` (one target per process).
 
 ## 5. Workstreams and file ownership
 

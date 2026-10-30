@@ -92,11 +92,12 @@ export const SITE_CALM = 15;
  */
 export const LINGERING: readonly FormationId[] = ['needle-column-5'];
 /**
- * Kinds that fly only where and as the arc put them: a Pulsar's tracking stream and a Wraith's arrival are the hardest
- * things to read (docs/27, docs/29), so no draw adds one and their slots fly their nominal exactly (on endless Nacre a
- * mirrored Pulsar pair took most of the extra hits, 30 October); the pools carry none. A slot
- * beside one (within PAIR_WINDOW) draws nothing heavier than its nominal: on Final Horizon a third missile battery drawn
- * beside the artillery ship's stream pushed the pilot to the world edge, where the stream caught it (30 October).
+ * Kinds whose stretch flies exactly as the arc authored it: a Pulsar's tracking stream and a Wraith's arrival are the
+ * hardest things to read (docs/27, docs/29), and the arcs pair them deliberately (a Pulsar pair after a Needle column,
+ * missile batteries beside it, never aimed turrets). So no draw adds one (the pools carry none), and their slot and every
+ * slot within PAIR_WINDOW of it fly their nominal (30 October: a third missile battery drawn beside Final Horizon's
+ * artillery ship, a mirrored Pulsar pair or a Needle line instead of the column before it in endless sector 9 each pushed
+ * the pilot to the world edge, where the stream caught it).
  */
 export const SCARCE: readonly EnemyKind[] = ['pulsar', 'wraith'];
 const NEEDLES: ReadonlySet<FormationId> = new Set(['needle-solo', 'needle-line-3', 'needle-column-5']);
@@ -798,12 +799,14 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
   const pools = DECK_POOLS[template.world];
   // Teaching arcs: a pool slot whose nominal introduces a formation flies it as authored (fixed by the arc alone).
   const seen = new Set<FormationId>();
-  // A slot whose nominal flies a Pulsar or the Wraith flies it exactly as authored too (SCARCE).
+  // A Pulsar's or the Wraith's stretch flies exactly as authored too: its own slot and the slots within PAIR_WINDOW of it
+  // (SCARCE).
+  const scarceAt = template.slots.filter(slot => flies(formationsOf(slot), SCARCE)).map(slotAt);
   const locked = template.slots.map(slot => {
     const ids = formationsOf(slot).map(p => p.formation);
     const fresh = template.teach && slot.kind === 'pool' && ids.some(id => !seen.has(id));
     for (const id of ids) seen.add(id);
-    return fresh || (slot.kind === 'pool' && flies(slot.nominal, SCARCE));
+    return fresh || (slot.kind === 'pool' && scarceAt.some(at => Math.abs(at - slot.at) <= PAIR_WINDOW));
   });
   const introduced = new Set<FormationId>();
   const out: Resolved[] = [];
@@ -820,7 +823,10 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
       const fresh = pool.length > 1 ? pool.filter(definition => definition.id !== lastSite) : pool;
       const clear = lingering() ? fresh.filter(definition => (definition.guard[template.world] ?? []).every(p => isGroundFormation(p.formation))) : fresh;
       const site = weighted(clear.length ? clear : fresh, roll);
-      const sideOf: -1 | 1 = roll() < 0.5 ? -1 : 1;
+      // A second site within SITE_CALM of another stands on the other side: two on one side ran into each other's ground.
+      const drawn: -1 | 1 = roll() < 0.5 ? -1 : 1;
+      const near = [...out].reverse().find(entry => entry.site && slot.at - entry.cue.at <= SITE_CALM)?.cue.site;
+      const sideOf: -1 | 1 = near ? (near.side < 0 ? 1 : -1) : drawn;
       const cue = siteCue(site.id, sideOf, slot.at, template.world);
       const placed: EncounterCue = slot.pickup ? { ...cue, pickup: { ...slot.pickup, x: sideOf * Math.abs(slot.pickup.x) } } : cue;
       out.push({ ...resolvedOf(placed), role: null, key: `site:${site.id}`, site: site.id });
@@ -837,13 +843,9 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         const nextKey = decided && formationsOf(next).length ? waveKey(formationsOf(next)) : null;
         const cap = (other: number) => Math.max(other + nominalCost, PAIR_FLOOR);
         const site = previous?.site && slot.at - previous.cue.at <= SIDE_WINDOW ? previous : null;
-        // Beside a Pulsar or the Wraith (the cue before or after within PAIR_WINDOW), nothing heavier than the nominal: the
-        // arc gives a tracking stream light company (SCARCE).
-        const scarceNear = (!!previous && slot.at - previous.cue.at <= PAIR_WINDOW && flies(previous.cue.formations, SCARCE))
-          || (!!next && slotAt(next) - slot.at <= PAIR_WINDOW && flies(formationsOf(next), SCARCE));
-        // Shortly after a strike site, likewise (SITE_CALM).
+        // Shortly after a strike site, nothing heavier than the nominal (SITE_CALM).
         const afterSite = out.some(entry => entry.site && slot.at - entry.cue.at <= SITE_CALM);
-        const range = scarceNear || afterSite ? { ...band(nominalCost), max: nominalCost + 1e-9 } : band(nominalCost);
+        const range = afterSite ? { ...band(nominalCost), max: nominalCost + 1e-9 } : band(nominalCost);
         // Strictly: never the previous cue's wave nor the last wave of the same role. If nothing fits, only never the
         // previous cue's.
         const fitting = (strict: boolean, anyCharacter = false) => pools[slot.phase].filter(wave => {
