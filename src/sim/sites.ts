@@ -3,11 +3,13 @@ import { missionBoss } from '../content/bosses';
 import type { EncounterCue } from '../content/encounters';
 import { WEAPON_IDS } from '../content/equipment';
 import { SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, siteMessage } from '../content/sites';
-import { VIEW, type Enemy, type Pickup, type RunState, type WeaponId } from '../shared/contracts';
+import { VIEW, type Enemy, type Pickup, type RunState, type SiteId, type WeaponId } from '../shared/contracts';
 import { fromFlightPlane, lensEye } from '../shared/lens';
 import { groundSeat, runRoute } from '../world/run-route';
 import { worldAt } from '../world/terrain';
+import { coreSite, FORMATIONS } from '../content/formations';
 import { MATCH_ROW, lineOfSightGround, projectGround } from './ground';
+import { groundHeight, memberPosition } from './motion';
 
 /**
  * Strike sites in the simulation (docs/33 § 3). A site's guard and core are ordinary formations of its cue (content/
@@ -87,30 +89,40 @@ function pushLoot(state: RunState, pickup: Pickup): void {
 
 /*
  * ---- Seats (workstream C, 30 October; user: "make sure none of these cross heavy cliffs") ----
- * A site stands on the most even dry ground near its authored place. Before a site's ground formations spawn, the seat
- * search (pure: the run's terrain and the camera of that tick, never randomness) picks the centre whose footprint
- * (SITE_FOOTPRINT) is flattest, dry, low enough and close to the side route, and the floor level the site is built at.
- * Every member's track is shifted so its line of sight lands there; the core then rests on the site's floor (not the raw
- * terrain under its centre), so the model built around it and its gameplay position stay one point. Guard batteries
- * keep their own ground around it. The renderer stands the site on that floor and fills any drop under it with
- * foundations (src/render/site-view.ts).
+ * A site stands on the most even dry ground near its authored place. As a site's core spawns, the seat search (pure: the
+ * run's terrain and the camera of that tick, never randomness) picks the centre whose footprint (SITE_FOOTPRINT) is
+ * flattest, dry, low enough and close to the side route, and the floor level the site is built at. The core's track is
+ * shifted so its line of sight lands there and the core rests on the site's floor (not the raw terrain under its centre),
+ * so the model built around it and its gameplay position stay one point. The guard batteries keep exactly their authored
+ * places and timing (the cue's fairness is untouched); the search only takes seats whose footprint stays clear of every
+ * guard. The renderer stands the site on that floor and fills any drop under it with foundations (src/render/site-view.ts).
  */
 /**
- * Search window around the authored centre on the ground: at most `inward` toward the map's centre (never outward: the
- * guards' outer ring stays where the ship can line it up) and `ds` forward or back (about 1.6 s of the cue's timing),
- * so the main battle's safe path and the guards' firing rows are kept. Only side-route sites (|x| ≥ `side`) are moved.
+ * Search window around the authored centre on the ground: up to `lateral` in or out (never past `maxX`, so the whole site
+ * stays inside the world and the ship can line up its core), and `back` toward the camera or `ahead` away from it (a
+ * site moved `back` still comes into view from beyond the top edge: its core spawns about 11 units out). Seats that
+ * keep every guard battery of the cue GUARD_CLEARANCE outside the footprint are taken first. Only side-route sites
+ * (|x| >= `side`) are moved.
  */
-export const SEAT_SEARCH = { inward: 1.5, ds: 8, maxX: 9, side: 5 } as const;
-/** The core height the guards' tracks aim with (the batteries' own). */
+export const SEAT_SEARCH = { lateral: 2, back: 7, ahead: 4, maxX: 9, side: 5 } as const;
+/** Guard batteries stand at least this far outside a site's footprint (their own plinth, and a little ground between). */
+export const GUARD_CLEARANCE = .3;
+/** The core height the authored centre is solved with (the batteries' own). */
 const SEAT_AIM = .85;
-/** Sites never stand higher than this (their tallest core must stay well under the flight plane). */
-const SEAT_HIGH = 1.4;
+/** Sites prefer ground no higher than this (a tall site's core and roof must stay under the flight plane). */
+const SEAT_HIGH = .8;
+/** …and never higher than this unless nothing nearby is lower: the tallest core (1.95) must stay 0.45 under the flight plane. */
+export const SEAT_LIMIT = 1.4;
+/** A site core's centre stays at least this far under the flight plane (docs/25 rule 3's roof clearance). */
+export const CORE_CLEARANCE = .45;
+/** The deepest drop under a site's floor its foundations fill (src/render/site-view.ts); the search keeps seats within it. */
+export const SITE_DROP_MAX = 7;
 export interface SiteSeat {
   /** The site's centre on the ground (world x, world s) and its floor level. */
   x: number; s: number; base: number;
   /** The footprint under it: ground spread (10th to 90th percentile), the most ground above the floor, the deepest drop
-   * under it, and the share over open water. */
-  spread: number; above: number; drop: number; wet: number;
+   * under it, the mean drop (the foundations' fill), and the share over open water. */
+  spread: number; above: number; drop: number; fill: number; wet: number;
 }
 /** A world whose sites are built for shallow water (Nacre's mire). */
 const WET_WORLDS: ReadonlySet<string> = new Set(['nacre']);
@@ -126,39 +138,77 @@ export function footprintGround(state: RunState, x: number, s: number, nx = 6, n
   heights.sort((a, b) => a - b);
   const at = (f: number) => heights[Math.min(heights.length - 1, Math.floor(heights.length * f))];
   // The floor: high enough that hardly any ground pokes through it; any drop under it is foundation (site-view.ts).
-  const base = at(.92);
-  return { x, s, base, spread: at(.9) - at(.1), above: heights[heights.length - 1] - base, drop: base - heights[0], wet: wet / heights.length };
+  const base = at(.95), fill = heights.reduce((sum, h) => sum + Math.max(0, base - h), 0) / heights.length;
+  return { x, s, base, spread: at(.9) - at(.1), above: heights[heights.length - 1] - base, drop: base - heights[0], fill, wet: wet / heights.length };
 }
 function seatCost(state: RunState, seat: SiteSeat, dx: number, ds: number): number {
   const wet = WET_WORLDS.has(worldAt(runRoute(state.config), seat.s).planet.id) ? 0 : seat.wet;
-  return seat.spread + 2 * seat.above + .25 * Math.min(seat.drop, 4) + 6 * wet + 2 * Math.max(0, seat.base - SEAT_HIGH) + .06 * Math.abs(dx) + .02 * Math.abs(ds);
+  return seat.spread + 4 * seat.above + .25 * seat.drop + 2 * Math.max(0, seat.drop - (SITE_DROP_MAX - 2)) + 1.5 * seat.fill + 6 * wet + 2 * Math.max(0, seat.base - SEAT_HIGH)
+    + 20 * Math.max(0, seat.base - SEAT_LIMIT) + .06 * Math.abs(dx) + .02 * Math.abs(ds);
+}
+/** Ground points (world x, s) a site must keep clear of: its cue's guard batteries. */
+export type GuardSpot = { x: number; s: number };
+/** How far guards stand inside a site's footprint grown by GUARD_CLEARANCE, centred at (x, s): 0 when all are clear. */
+export function guardIntrusion(guards: readonly GuardSpot[], x: number, s: number): number {
+  let sum = 0;
+  for (const guard of guards) {
+    const inX = SITE_FOOTPRINT.x + GUARD_CLEARANCE - Math.abs(guard.x - x);
+    const inS = Math.min(guard.s - s - (SITE_FOOTPRINT.s[0] - GUARD_CLEARANCE), SITE_FOOTPRINT.s[1] + GUARD_CLEARANCE - (guard.s - s));
+    if (inX > 0 && inS > 0) sum += Math.min(inX, inS);
+  }
+  return sum;
+}
+/** Whether a site centred at (x, s) keeps every guard GUARD_CLEARANCE outside its footprint. */
+export const guardsClear = (guards: readonly GuardSpot[], x: number, s: number) => guardIntrusion(guards, x, s) <= 1e-9;
+/** A guard on the footprint costs far more than any unevenness: the search takes a clear seat whenever one exists. */
+const INTRUSION_COST = 40;
+/**
+ * Where the guard batteries of a site's cue will stand (world x, s): every ground slot of the site's guard on this world
+ * (content/sites.ts), anchored as anchorGround anchors it. The core of a cue spawns with its guards (same anchor side, same
+ * age), so `anchorX`, `mirror` and `age` are the core's.
+ */
+export function guardSpots(state: RunState, site: SiteId, anchorX: number, mirror: 1 | -1, age: number): GuardSpot[] {
+  const side = Math.sign(anchorX) || 1, out: GuardSpot[] = [];
+  for (const placement of SITES[site].guard[state.planet] ?? []) {
+    const template = FORMATIONS[placement.formation];
+    if (template.entry !== 'ground' || coreSite(template.id)) continue;
+    const guardX = anchorX + side * (placement.x ?? 0), guardMirror = placement.mirror ? -mirror as 1 | -1 : mirror;
+    template.slots.forEach((slot, index) => {
+      const at = memberPosition({ template: template.id, slot: index, anchorX: guardX, mirror: guardMirror, group: 0 }, age);
+      const ahead = at.s - MATCH_ROW, hit = lineOfSightGround(state, at.x, ahead, groundHeight(slot.kind));
+      out.push({ x: hit.at.x, s: state.distance + ahead + hit.at.s });
+    });
+  }
+  return out;
 }
 const seats = new WeakMap<RunState, { tick: number; key: string; seat: SiteSeat }>();
 /**
- * The seat for a site whose centre is authored at gameplay `anchorX` on a ground track now at row `trackS`. The same
- * inputs in the same tick give the same seat (cached: the guard and the core of a cue spawn together).
+ * The seat for a site whose centre is authored at gameplay `anchorX` on a ground track now at row `trackS`, clear of
+ * `guards`. The same inputs in the same tick give the same seat (cached: the sealed vault's seals share one).
  */
-export function siteSeat(state: RunState, anchorX: number, trackS: number): SiteSeat {
-  const key = `${anchorX.toFixed(4)}:${trackS.toFixed(4)}:${state.distance}:${state.cameraX}`, cached = seats.get(state);
+export function siteSeat(state: RunState, anchorX: number, trackS: number, guards: readonly GuardSpot[] = []): SiteSeat {
+  const key = `${anchorX.toFixed(4)}:${trackS.toFixed(4)}:${state.distance}:${state.cameraX}:${guards.length}`, cached = seats.get(state);
   if (cached && cached.tick === state.tick && cached.key === key) return cached.seat;
   const ahead = trackS - MATCH_ROW, nominal = lineOfSightGround(state, anchorX, ahead, SEAT_AIM);
-  const x0 = nominal.at.x, s0 = state.distance + ahead + nominal.at.s, out = Math.sign(x0) || 1;
-  // A camera far to the other side spreads the authored spot outward: the search then reaches further in, never past maxX.
-  const reach = SEAT_SEARCH.inward + Math.max(0, Math.abs(x0) - SEAT_SEARCH.maxX), allowed = (x: number) => Math.abs(x) <= SEAT_SEARCH.maxX + 1e-9;
-  // Coarse: a 0.5 × 2 grid with a 3 × 4 footprint sample; fine: around the best, the full sample.
-  let best = { cost: Infinity, dx: 0, ds: 0 };
-  for (let dx = -reach; dx <= 1e-9; dx += .5) for (let ds = -SEAT_SEARCH.ds; ds <= SEAT_SEARCH.ds + 1e-9; ds += 2) {
-    const x = x0 + out * dx;
+  const x0 = nominal.at.x, s0 = state.distance + ahead + nominal.at.s;
+  const allowed = (x: number) => Math.abs(x) <= SEAT_SEARCH.maxX + 1e-9;
+  // A camera far to the other side spreads the authored spot outward: the window then starts at maxX.
+  const cx = Math.sign(x0) * Math.min(Math.abs(x0), SEAT_SEARCH.maxX);
+  const cost = (seat: SiteSeat) => seatCost(state, seat, seat.x - x0, seat.s - s0) + INTRUSION_COST * guardIntrusion(guards, seat.x, seat.s);
+  // Coarse: a 0.5 grid with a 5 × 6 footprint sample; fine: around the best, the full sample.
+  let best = { cost: Infinity, x: cx, s: s0 };
+  for (let dx = -SEAT_SEARCH.lateral; dx <= SEAT_SEARCH.lateral + 1e-9; dx += .5) for (let ds = -SEAT_SEARCH.back; ds <= SEAT_SEARCH.ahead + 1e-9; ds += .5) {
+    const x = cx + dx, s = s0 + ds;
     if (!allowed(x)) continue;
-    const cost = seatCost(state, footprintGround(state, x, s0 + ds, 3, 4), dx, ds);
-    if (cost < best.cost) best = { cost, dx, ds };
+    const c = cost(footprintGround(state, x, s, 5, 6));
+    if (c < best.cost) best = { cost: c, x, s };
   }
-  let seat = footprintGround(state, Math.sign(x0) * Math.min(Math.abs(x0), SEAT_SEARCH.maxX), s0), bestCost = Infinity;
-  for (const fx of [-.25, 0, .25]) for (const fs of [-1, 0, 1]) {
-    const dx = Math.min(0, Math.max(-reach, best.dx + fx)), ds = best.ds + fs, x = x0 + out * dx;
-    if (!allowed(x)) continue;
-    const candidate = footprintGround(state, x, s0 + ds), cost = seatCost(state, candidate, dx, ds);
-    if (cost < bestCost) { bestCost = cost; seat = candidate; }
+  let seat = footprintGround(state, best.x, best.s), bestCost = Infinity;
+  for (const fx of [-.25, 0, .25]) for (const fs of [-.25, 0, .25]) {
+    const x = best.x + fx, s = Math.min(s0 + SEAT_SEARCH.ahead, Math.max(s0 - SEAT_SEARCH.back, best.s + fs));
+    if (!allowed(x) || Math.abs(x - cx) > SEAT_SEARCH.lateral + 1e-9) continue;
+    const candidate = footprintGround(state, x, s), c = cost(candidate);
+    if (c < bestCost) { bestCost = c; seat = candidate; }
   }
   seats.set(state, { tick: state.tick, key, seat });
   return seat;
@@ -178,7 +228,10 @@ export function seatTrack(state: RunState, seat: SiteSeat, trackS: number, core:
  * seat itself; the sealed vault's seals keep their offsets around it.
  */
 export function seatCore(state: RunState, core: Enemy, seat: SiteSeat): void {
-  const at = fromFlightPlane(state.cameraX, core.x, MATCH_ROW, seat.base + core.groundHeight), dx = at.x - core.x, ds = at.s - MATCH_ROW;
-  core.ground = { dx, ds, x: core.x + dx, s: core.s + ds, base: seat.base, afloat: false, cameraX: state.cameraX };
+  // On ground higher than SEAT_LIMIT (nothing lower in reach) a tall site sinks into it: its core stays CORE_CLEARANCE
+  // under the flight plane.
+  const base = Math.min(seat.base, VIEW.flightHeight - CORE_CLEARANCE - core.groundHeight);
+  const at = fromFlightPlane(state.cameraX, core.x, MATCH_ROW, base + core.groundHeight), dx = at.x - core.x, ds = at.s - MATCH_ROW;
+  core.ground = { dx, ds, x: core.x + dx, s: core.s + ds, base, afloat: false, cameraX: state.cameraX };
   projectGround(state, core);
 }

@@ -1,46 +1,114 @@
 import { describe, expect, it } from 'vitest';
 import { createRun } from '../../src/sim/game';
-import { footprintGround, siteSeat, type SiteSeat } from '../../src/sim/sites';
-import { SITE_FOOTPRINT, SITE_X } from '../../src/content/sites';
-import type { MissionId, PlanetId } from '../../src/shared/contracts';
+import { MATCH_ROW, lineOfSightGround } from '../../src/sim/ground';
+import { GUARD_CLEARANCE, SITE_DROP_MAX, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
+import { spawnMembers } from '../../src/sim/spawn';
+import { FORMATIONS, siteCoreFormation, type FormationId } from '../../src/content/formations';
+import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT, SITE_X, sitePool } from '../../src/content/sites';
+import { toFlightPlane, lensEye } from '../../src/shared/lens';
+import { SITE_IDS, VIEW, type MissionId, type PlanetId, type SiteId } from '../../src/shared/contracts';
 
 /**
  * Strike-site seats (src/sim/sites.ts, workstream C; user, 30 October: "make sure none of these cross heavy cliffs"):
- * many runs on every world, each side and camera, the site's footprint at its chosen seat against its authored spot.
+ * many runs on every world, each side and camera and each of the world's sites with its own guard ring, the site's
+ * footprint at its chosen seat against its authored spot (where the line of sight through its track meets the ground).
  */
 const WORLDS: readonly [PlanetId, MissionId][] = [['luna', 'training'], ['khepri', 'bastion'], ['vesper', 'cold-vector'], ['nacre', 'deep-bloom'], ['amnion', 'brood-strike'], ['umbra', 'final-horizon']];
-function survey(mission: MissionId) {
-  const seats: { seat: SiteSeat; authored: SiteSeat }[] = [];
-  for (let seed = 1; seed <= 8; seed++) for (const distance of [40, 160, 280, 400]) for (const side of [-1, 1]) for (const camera of [-6, 0, 6]) {
+function survey(world: PlanetId, mission: MissionId) {
+  const seats: { seat: SiteSeat; authored: SiteSeat; site: SiteId; intrusion: number }[] = [], pool = sitePool(world).map(site => site.id);
+  let k = 0;
+  for (let seed = 1; seed <= 8; seed++) for (const distance of [40, 160, 280, 400]) for (const side of [-1, 1] as const) for (const camera of [-6, 0, 6]) {
     const state = createRun({ mode: 'campaign', mission, difficulty: 'standard', seed });
     state.distance = distance; state.cameraX = camera;
-    const seat = siteSeat(state, side * SITE_X, 31);
-    seats.push({ seat, authored: footprintGround(state, side * 8, distance + 23) });
+    // Each of the world's sites in turn, with its own guard ring to keep clear.
+    const site = pool[k++ % pool.length], guards = guardSpots(state, site, side * SITE_X, side, 0);
+    const seat = siteSeat(state, side * SITE_X, 31, guards), sight = lineOfSightGround(state, side * SITE_X, 31 - MATCH_ROW, .85).at;
+    seats.push({ seat, authored: footprintGround(state, sight.x, distance + 31 - MATCH_ROW + sight.s), site, intrusion: guardIntrusion(guards, seat.x, seat.s) });
   }
   return seats;
 }
 const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper']);
+/**
+ * Regression bounds on the footprint's unevenness at the chosen seats (ground spread, 10th to 90th percentile), measured
+ * 30 October with about 15% headroom. Amnion's flesh plains are pitted everywhere and Umbra's plates are cut by narrow
+ * canyons; there, one seat in ten still straddles a pit or a crack, which the foundations fill.
+ */
+const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.8, vesper: 2.7, nacre: 2.1, amnion: 4.6, umbra: 4.3 };
 const quantile = (values: number[], f: number) => [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * f)];
 
 describe('strike-site seats', () => {
-  for (const [world, mission] of WORLDS) it(`${world}: sites stand on even ground, dry unless built for the mire`, () => {
-    const seats = survey(mission), spread = seats.map(({ seat }) => seat.spread), authored = seats.map(({ authored }) => authored.spread);
+  for (const [world, mission] of WORLDS) it(`${world}: sites stand on even ground, dry unless built for the mire, clear of their guards`, () => {
+    const seats = survey(world, mission), spread = seats.map(({ seat }) => seat.spread), authored = seats.map(({ authored }) => authored.spread);
+    const above = seats.map(({ seat }) => seat.above), clear = seats.filter(({ intrusion }) => intrusion === 0).length;
     console.info(world, 'spread p50/p90/max', [.5, .9, 1].map(f => quantile(spread, f).toFixed(2)).join('/'), 'authored', [.5, .9, 1].map(f => quantile(authored, f).toFixed(2)).join('/'),
-      'above max', Math.max(...seats.map(({ seat }) => seat.above)).toFixed(2), 'drop max', Math.max(...seats.map(({ seat }) => seat.drop)).toFixed(2),
-      'wet', seats.filter(({ seat }) => seat.wet > 0).length, '/', seats.length);
-    for (const { seat } of seats) {
+      'above p90/max', quantile(above, .9).toFixed(2), Math.max(...above).toFixed(2), 'drop max', Math.max(...seats.map(({ seat }) => seat.drop)).toFixed(2),
+      'fill p50/p90/max', [.5, .9, 1].map(f => quantile(seats.map(({ seat }) => seat.fill), f).toFixed(2)).join('/'),
+      'wet', seats.filter(({ seat }) => seat.wet > 0).length, '/', seats.length, 'base max', Math.max(...seats.map(({ seat }) => seat.base)).toFixed(2),
+      'guards clear', clear, '/', seats.length, 'deepest', Math.max(...seats.map(({ intrusion }) => intrusion)).toFixed(2));
+    for (const { seat, intrusion, site } of seats) {
       // Inside the world.
       expect(Math.abs(seat.x) + SITE_FOOTPRINT.x).toBeLessThanOrEqual(12 + 1e-9);
+      // No guard battery ever stands on the footprint (at worst inside the clearance band around it).
+      expect(intrusion, `${world} ${site}`).toBeLessThan(GUARD_CLEARANCE);
       // Never buried: almost nothing of the ground rises over the site's floor, and the drop under it stays within what
-      // the foundations reach (src/render/site-view.ts SITE_FOUNDATION_MAX).
-      expect(seat.above).toBeLessThanOrEqual(2);
-      expect(seat.drop).toBeLessThanOrEqual(6.5);
+      // the foundations fill.
+      expect(seat.above).toBeLessThanOrEqual(2.1);
+      expect(seat.drop).toBeLessThanOrEqual(SITE_DROP_MAX);
       // Never over open water, except the worlds whose sites are built for it (Nacre's mire, Vesper's ice-shelf decks).
       if (!WATER_BUILT.has(world)) expect(seat.wet).toBe(0);
     }
-    // The search does much better than the authored spot: the median footprint at most half as uneven, and on the
-    // calmer worlds nine in ten within 1.5.
-    expect(quantile(spread, .5)).toBeLessThanOrEqual(Math.max(.1, quantile(authored, .5) / 2));
-    if (world === 'luna' || world === 'khepri' || world === 'nacre') expect(quantile(spread, .9)).toBeLessThanOrEqual(1.5);
+    // Guards almost always keep their whole clearance band too.
+    expect(clear / seats.length).toBeGreaterThanOrEqual(.93);
+    // Ground poking through the floor is rare and low.
+    expect(quantile(above, .9)).toBeLessThanOrEqual(.6);
+    // The search does much better than the authored spot: the median footprint at most 0.65 as uneven, and the tail bounded.
+    expect(quantile(spread, .5)).toBeLessThanOrEqual(Math.max(.1, quantile(authored, .5) * .65));
+    expect(quantile(spread, .9)).toBeLessThanOrEqual(SPREAD_P90[world]);
+  });
+
+  it('spawns every site\'s guard as authored and its core on the seat: guards off the footprint, the core on its floor under the flight plane, seen where its proxy is', () => {
+    const eye = lensEye(0).y, spreadAt = (y: number) => (eye - y) / (eye - VIEW.flightHeight);
+    for (const site of SITE_IDS) for (const [world, mission] of WORLDS) {
+      if (!SITES[site].worlds.includes(world)) continue;
+      for (const seed of [3, 7]) for (const side of [-1, 1] as const) {
+        const state = createRun({ mode: 'campaign', mission, difficulty: 'standard', seed });
+        state.distance = 150; state.enemies = [];
+        const first = state.nextId;
+        const ground = (SITES[site].guard[world] ?? []).filter(placement => FORMATIONS[placement.formation].entry === 'ground');
+        // Without the seat (the same guard formations spawned alone) the guards stand exactly where they do with it.
+        const alone = createRun({ mode: 'campaign', mission, difficulty: 'standard', seed });
+        alone.distance = 150; alone.enemies = [];
+        for (const placement of ground) spawnMembers(alone, placement.formation, side * SITE_X, side);
+        for (const formation of [...ground.map(placement => placement.formation), siteCoreFormation(site)] as FormationId[])
+          spawnMembers(state, formation, side * SITE_X, side);
+        const spawned = state.enemies.filter(enemy => enemy.id >= first), cores = spawned.filter(enemy => enemy.site === site), guards = spawned.filter(enemy => !enemy.site);
+        expect(cores.length, `${site} ${world}`).toBe(site === 'sealed-vault' ? 3 : 1);
+        expect(guards.map(enemy => [enemy.x, enemy.s, enemy.age])).toEqual(alone.enemies.map(enemy => [enemy.x, enemy.s, enemy.age]));
+        // The site's centre: a core's anchor less its seat in the group (the vault's seals sit around it), as the renderer finds it.
+        const core0 = cores[0], slot = FORMATIONS[core0.formation!.template as FormationId].slots[core0.formation!.slot];
+        const k = spreadAt(core0.ground!.base + core0.groundHeight);
+        const centre = { x: core0.ground!.x - (slot.dx ?? 0) * core0.formation!.mirror * k, s: core0.ground!.s - (slot.ds ?? 0) * k };
+        for (const guard of guards) {
+          const dx = Math.abs(guard.ground!.x - centre.x), ds = guard.ground!.s - centre.s;
+          expect(dx >= SITE_FOOTPRINT.x || ds <= SITE_FOOTPRINT.s[0] || ds >= SITE_FOOTPRINT.s[1], `${site} ${world} seed ${seed} side ${side}: guard at (${dx.toFixed(2)}, ${ds.toFixed(2)}) on the footprint`).toBe(true);
+        }
+        for (const core of cores) {
+          expect(core.groundHeight).toBe(SITE_CORE_HEIGHT[site]);
+          expect(core.ground!.base + core.groundHeight, `${site} ${world}: core under the flight plane`).toBeLessThanOrEqual(VIEW.flightHeight - .45 + 1e-9);
+          // Its gameplay position (its proxy) is where its drawn core is seen through the lens.
+          const seen = toFlightPlane(state.cameraX, core.ground!.x, core.ground!.base + core.groundHeight, core.ground!.s);
+          expect(seen.x).toBeCloseTo(core.x, 6); expect(seen.s).toBeCloseTo(core.s, 6);
+          // Still on its side route, inside the world.
+          expect(Math.abs(core.ground!.x), `${site} ${world}`).toBeGreaterThan(4);
+          expect(Math.abs(core.ground!.x), `${site} ${world}`).toBeLessThanOrEqual(12 - SITE_FOOTPRINT.x + (site === 'sealed-vault' ? 1.2 : .05));
+        }
+      }
+    }
+  });
+
+  it('is deterministic: the same run, tick and camera give the same seat', () => {
+    const make = () => { const state = createRun({ mode: 'campaign', mission: 'bastion', difficulty: 'standard', seed: 5 }); state.distance = 220; state.cameraX = 2; return state; };
+    const a = make(), b = make();
+    expect(siteSeat(a, SITE_X, 31, guardSpots(a, 'airfield', SITE_X, 1, 0))).toEqual(siteSeat(b, SITE_X, 31, guardSpots(b, 'airfield', SITE_X, 1, 0)));
   });
 });

@@ -4,9 +4,7 @@ import { SITES, SITE_CORE_HEIGHT } from '../content/sites';
 import { VIEW, type FormationMember, type RunState } from '../shared/contracts';
 import { groundHeight, memberPosition } from './motion';
 import { anchorGround } from './ground';
-import { SEAT_SEARCH, seatCore, seatTrack, siteSeat } from './sites';
-/** The guard batteries' core height, the seat search's aim. */
-const SEAT_AIM_HEIGHT = .85;
+import { SEAT_SEARCH, guardSpots, seatCore, seatTrack, siteSeat, type SiteSeat } from './sites';
 
 export function runScale(state: RunState): DifficultyScale {
   return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
@@ -31,13 +29,14 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   const group = state.nextId;
   // A strike site's core (docs/33): its site, and the site's hit points, radius and core height instead of its kind's.
   const site = coreSite(template.id), core = site ? SITES[site].core : null;
-  // A strike site's ground formations (its guard and core) stand on the even dry seat found near its authored place
-  // (src/sim/sites.ts): the same seat for every member of the cue, each member's track shifted onto it.
-  const seat = template.entry === 'ground' && template.id.startsWith('site-') && Math.abs(anchorX) >= SEAT_SEARCH.side
-    ? siteSeat(state, anchorX, memberPosition({ template: template.id, slot: 0, anchorX, mirror, group }, age).s - (template.slots[0].ds ?? 0)) : null;
-  if (seat) {
+  // A strike site's core (harmless: it never fires) stands on the even dry seat found near its authored place, clear of
+  // its cue's guards (src/sim/sites.ts), its track shifted onto it; the site is drawn around it. The guards keep their
+  // authored place and timing, so the cue's fairness is exactly as authored.
+  let seat: SiteSeat | null = null;
+  if (site && template.entry === 'ground' && Math.abs(anchorX) >= SEAT_SEARCH.side) {
     const trackS = memberPosition({ template: template.id, slot: 0, anchorX, mirror, group }, age).s - (template.slots[0].ds ?? 0);
-    const shift = seatTrack(state, seat, trackS, site ? SITE_CORE_HEIGHT[site] : SEAT_AIM_HEIGHT);
+    seat = siteSeat(state, anchorX, trackS, guardSpots(state, site, anchorX, mirror, age));
+    const shift = seatTrack(state, seat, trackS, SITE_CORE_HEIGHT[site]);
     anchorX = shift.anchorX; age -= shift.shiftS / VIEW.scrollSpeed;
   }
   template.slots.forEach((slot, index) => {
