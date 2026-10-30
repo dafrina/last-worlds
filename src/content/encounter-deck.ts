@@ -278,7 +278,7 @@ const ROLLING_THUNDER: readonly DeckSlot[] = [
   fix({ at: 2, id: 'r-arrow', phase: 'intro', formations: [f('arrow-3')] }),
   fix({ at: 7, id: 'r-ground', phase: 'intro', formations: [f('battery-2')] }),
   draw({ at: 11, id: 'r-line', phase: 'pressure', formations: [f('line-dart-4')] }),
-  draw({ at: 16, id: 'r-battery', phase: 'pressure', formations: [f('battery-3')] }, 4),
+  draw({ at: 16, id: 'r-battery', phase: 'pressure', formations: [f('battery-3')] }, 3),
   draw({ at: 18, id: 'r-echelon', phase: 'pressure', formations: [f('echelon-4')] }),
   draw({ at: 24, id: 'r-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
   fix({ at: 27, id: 'r-battery-2', phase: 'pressure', message: 'FUEL DEPOT · ONE SHOT SETS IT OFF', formations: [f('depot-2')] }),
@@ -286,16 +286,18 @@ const ROLLING_THUNDER: readonly DeckSlot[] = [
   draw({ at: 36, id: 'r-dive', phase: 'pressure', formations: [f('dive-pair')] }),
   // One strike site where the old salvage route was: a second one held the threat budget until the fuel depot after the
   // recovery arrived on top of it, the pilot still out at a site by the world edge (docs/33 § 4.1).
-  side({ at: 41, id: 'r-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 }, rank: 1 }),
+  // No site at 41 s: it stood 6 s before the fixed fuel depot, and an airfield there sealed the lanes with it (seed 53).
+  // The old salvage route's credits stay.
+  fix({ at: 41, id: 'r-west', phase: 'recovery', formations: [], pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } }),
   draw({ at: 47, id: 'r-pincer', phase: 'pressure', formations: [f('pincer-4')] }),
   draw({ at: 51, id: 'r-battery-4', phase: 'pressure', formations: [f('battery-4')] }),
   draw({ at: 54, id: 'r-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] }),
-  draw({ at: 60, id: 'r-battery-3', phase: 'pressure', formations: [f('depot-3')] }, 3),
+  draw({ at: 60, id: 'r-battery-3', phase: 'pressure', formations: [f('depot-3')] }, 2),
   draw({ at: 63, id: 'r-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true), f('fuel-depot')] }),
   fix({ at: 69, id: 'r-arrow-5', phase: 'climax', message: 'FORTRESS ESCORT · BREAK THROUGH', formations: [f('arrow-5')] }),
   draw({ at: 73, id: 'r-battery-climax', phase: 'climax', formations: [f('battery-3')] }),
   draw({ at: 76, id: 'r-diamond-climax', phase: 'climax', formations: [f('diamond-lancer')] }),
-  draw({ at: 82, id: 'r-battery-4-climax', phase: 'climax', formations: [f('battery-4')] }),
+  draw({ at: 82, id: 'r-battery-4-climax', phase: 'climax', formations: [f('battery-4')] }, 4),
   draw({ at: 84, id: 'r-snake-climax', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 89, id: 'r-pincer-climax', phase: 'climax', formations: [f('pincer-4')] }),
   draw({ at: 93, id: 'r-last', phase: 'climax', formations: [f('battery-2')] }),
@@ -640,7 +642,7 @@ const ROLLING_THUNDER_SORTIE = extend(ROLLING_THUNDER, 47, 24, [
   draw({ at: 3, id: 'r-x-line', phase: 'pressure', formations: [f('line-dart-4')] }),
   draw({ at: 9, id: 'r-x-depot-2', phase: 'pressure', formations: [f('depot-2')] }),
   draw({ at: 11, id: 'r-x-snake', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] }),
-  draw({ at: 17, id: 'r-x-battery', phase: 'pressure', formations: [f('battery-3')] }, 2),
+  draw({ at: 17, id: 'r-x-battery', phase: 'pressure', formations: [f('battery-3')] }, 1),
   draw({ at: 19, id: 'r-x-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
 ]);
 const COLD_VECTOR_SORTIE = extend(COLD_VECTOR, 89, 28, [
