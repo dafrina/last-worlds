@@ -177,8 +177,15 @@ export function siteLootLabel(id: SiteId, mode: Mode): string {
   const kind = mode === 'campaign' ? definition.loot.kind : definition.endless.kind;
   return { part: 'PARTS', shield: 'SHIELD', credit: 'CREDITS', weapon: 'WEAPON', power: 'POWER', score: 'BONUS' }[kind];
 }
-/** A site's own message (docs/33 § 3), e.g. `AIRFIELD · WEST · PARTS`. */
-export const siteMessage = (id: SiteId, side: -1 | 1, mode: Mode) => `${SITES[id].name} · ${side < 0 ? 'WEST' : 'EAST'} · ${siteLootLabel(id, mode)}`;
+/**
+ * A site's own message (docs/33 § 3), e.g. `AIRFIELD · WEST · PARTS`. In the campaign a site whose own loot isn't parts
+ * adds `PARTS?` for its part roll (user, 30 October: "potential [parts in that orange]"). The flight HUD colours the loot
+ * words in their pickup icons' tints (src/content/pickup-tints.ts).
+ */
+export function siteMessage(id: SiteId, side: -1 | 1, mode: Mode, planet?: PlanetId): string {
+  const loot = siteLootLabel(id, mode), roll = mode === 'campaign' && loot !== 'PARTS' && planet && (sitePartChance(id, planet) ?? 0) > 0;
+  return `${SITES[id].name} · ${side < 0 ? 'WEST' : 'EAST'} · ${loot}${roll ? ' · PARTS?' : ''}`;
+}
 
 /**
  * A site's side-route cue at `at` seconds, `side` −1 west or 1 east: its world's guard and its core, world-anchored on
@@ -190,7 +197,7 @@ export function siteCue(id: SiteId, side: -1 | 1, at: number, planet: PlanetId):
   const placements = [...(definition.guard[planet] ?? []), { formation: siteCoreFormation(id) }];
   return {
     at, id: `site-${id}-${planet}-${at}`, phase: 'recovery', site: { id, side },
-    message: siteMessage(id, side, 'campaign'),
+    message: siteMessage(id, side, 'campaign', planet),
     formations: placements.map(placement => ({ ...placement, anchor: 'world', x: side * (SITE_X + (placement.x ?? 0)), mirror: side < 0 ? !placement.mirror : !!placement.mirror })),
   };
 }

@@ -1,4 +1,6 @@
-import type { Difficulty, GameUi, GraphicsQuality, MissionId, RunConfig, RunState, UiActions, WeaponId } from '../shared/contracts';
+import { VIEW, type Difficulty, type GameUi, type GraphicsQuality, type MissionId, type RunConfig, type RunState, type UiActions, type WeaponId } from '../shared/contracts';
+import { SITES } from '../content/sites';
+import { PICKUP_TINTS } from '../content/pickup-tints';
 import { missionText } from './missions';
 import { MISSION_ORDER, menuMarkup } from './menu-markup';
 import { createPlanetPreview, prebakePlanets } from './planet-preview';
@@ -70,6 +72,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         <span><b>‹</b> HOLD LEFT</span><span>HOLD RIGHT <b>›</b></span>
       </div>
       <p class="flight-message" role="status" hidden></p>
+      <span class="site-marker" aria-hidden="true" hidden>?</span>
       <button type="button" class="special-button" aria-label="Activate shockwave" data-no-steer hidden>
         <span class="charge-ring" aria-hidden="true"></span>
         <svg class="special-glyph" viewBox="0 0 24 28" aria-hidden="true"><path d="M14 2 4 16H11L9 26 20 11H13Z"/></svg>
@@ -134,6 +137,9 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const hints = find<HTMLElement>('.steering-hints');
   const lastLifeAlarm = find<HTMLElement>('.last-life-alarm');
   const message = find<HTMLElement>('.flight-message');
+  let messageShown = '';
+  const siteMarker = find<HTMLElement>('.site-marker');
+  let markerShown = '';
   let chargeShown = -1;
   let endingTimer: ReturnType<typeof setTimeout> | null = null;
   /*
@@ -501,8 +507,20 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     if (chargeStep !== chargeShown) { chargeShown = chargeStep; specialButton.style.setProperty('--charge', String(chargeStep / 100)); }
     // A lost flight keeps its last word on screen through the afterglow, until the results veil covers it.
     const activeMessage = playing && state.messageUntil > state.time ? state.message : state.phase === 'over' || state.phase === 'complete' ? state.message : '';
-    if (message.textContent !== activeMessage) message.textContent = activeMessage;
+    if (messageShown !== activeMessage) { messageShown = activeMessage; showMessage(message, activeMessage); }
     message.hidden = !activeMessage;
+    // A strike site off to the side: a faint "?" at that screen edge, level with it (user, 30 October: "render a question
+    // mark icon, very subtle in gray maybe on the edge of the screen like an indicator").
+    let marker = '';
+    const core = playing ? state.enemies.find(enemy => enemy.site && enemy.hp > 0 && enemy.s > VIEW.minS + 1 && enemy.s < VIEW.maxS + 10) : undefined;
+    if (core && Math.abs(core.x - state.cameraX) > VIEW.width / 2 - .5) {
+      const level = 100 * (1 - (core.s - VIEW.minS) / (VIEW.maxS - VIEW.minS));
+      marker = `${core.x < state.cameraX ? 'left' : 'right'}:${Math.round(Math.min(78, Math.max(16, level)))}`;
+    }
+    if (markerShown !== marker) {
+      markerShown = marker; siteMarker.hidden = !marker;
+      if (marker) { const [side, top] = marker.split(':'); siteMarker.dataset.side = side; siteMarker.style.top = `${top}%`; }
+    }
 
     if (playing) {
       overlay.hidden = true;
@@ -605,4 +623,27 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     },
     dispose() { preview.stop(); if (lastState) flightLog.observe(lastState, false, true); cancelResume(); if (endingTimer !== null) clearTimeout(endingTimer); abort.abort(); shell.remove(); },
   };
+}
+
+const SITE_NAMES = new Set(Object.values(SITES).map(site => site.name));
+const LOOT_TINTS: Readonly<Record<string, string>> = {
+  PARTS: PICKUP_TINTS.part, 'PARTS?': PICKUP_TINTS.part, SHIELD: PICKUP_TINTS.shield, CREDITS: PICKUP_TINTS.credit,
+  POWER: PICKUP_TINTS.power, WEAPON: PICKUP_TINTS.weapon,
+};
+/**
+ * The flight message. A strike site's (`AIRFIELD · WEST · PARTS`, docs/33) is highlighted (user, 30 October: "color the
+ * text ... potential [parts in that orange] or [shields in that icon blue]"): the site's name bright, its side with an
+ * arrow, each loot word in its pickup icon's tint.
+ */
+function showMessage(element: HTMLElement, text: string) {
+  const words = text.split(' · ');
+  if (!SITE_NAMES.has(words[0])) { element.textContent = text; return; }
+  element.replaceChildren(...words.flatMap((word, index) => {
+    const span = document.createElement('span');
+    span.textContent = word;
+    if (index === 0) span.className = 'message-site';
+    else if (word === 'WEST' || word === 'EAST') { span.className = 'message-side'; span.textContent = word === 'WEST' ? '◂ WEST' : 'EAST ▸'; }
+    else if (LOOT_TINTS[word]) { span.className = word.endsWith('?') ? 'message-loot is-maybe' : 'message-loot'; span.style.color = LOOT_TINTS[word]; }
+    return index ? [document.createTextNode(' · '), span] : [span];
+  }));
 }

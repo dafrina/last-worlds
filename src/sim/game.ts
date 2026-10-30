@@ -10,7 +10,7 @@ import { runPlanet } from '../content/missions';
 import { SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
 import { validLook } from '../content/hero-parts';
 import { updateEndless } from './endless';
-import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './bastion';
+import { arenaScroll, resolveBossPhase, showsHints, startBoss, updateBoss } from './bastion';
 import { spawnMembers } from './spawn';
 import { FORMATIONS } from '../content/formations';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
@@ -251,8 +251,9 @@ function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): v
   if (cue.pickup && state.pickups.length < BALANCE.maxPickups - 1) {
     state.pickups.push({ id: state.nextId++, ...cue.pickup, ttl: 12 });
   }
-  // A strike site's message names what it drops in this mode (src/sim/sites.ts).
-  const message = siteCueMessage(state, cue);
+  // A strike site's message names what it drops in this mode (src/sim/sites.ts). A wave's own hint shows on Luna only
+  // (showsHints); a pickup's announcement shows everywhere.
+  const message = cue.site || cue.pickup || showsHints(state) ? siteCueMessage(state, cue) : undefined;
   if (message) setMessage(state, message, 3.5);
 }
 

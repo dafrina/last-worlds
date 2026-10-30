@@ -21,6 +21,11 @@ import { bossShotScale, runScale, spawnMembers } from './spawn';
 function message(state: RunState, text: string, duration = 3) {
   state.message = text; state.messageUntil = state.time + duration;
 }
+/**
+ * Hint texts teach on Luna only (user, 30 October: wave and boss hints, "No need for those messages outside of the luna
+ * level"): elsewhere a boss announces just its name, and its phase hints stay silent; its fall still shows.
+ */
+export const showsHints = (state: RunState) => state.planet === 'luna';
 
 function clearThreats(state: RunState) {
   state.projectiles = state.projectiles.filter(shot => shot.friendly);
@@ -94,7 +99,7 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
       x: x + spec.x, s: def.entryS + spec.s, originX: x, hp, maxHp: hp, radius: spec.radius, age: 0,
       nextAttack: Infinity, warning: 0, aimX: x, groundHeight: def.targetHeight });
   }
-  message(state, def.messages.start, 5);
+  message(state, showsHints(state) ? def.messages.start : def.name, 5);
 }
 /** Name kept for the Rolling Thunder fixtures and tests; starts whichever boss the mission has. */
 export const startBastion = startBoss;
@@ -122,7 +127,7 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     boss.attackIndex = 0;
     if (def.launches?.overloadWaves) { boss.launchesLeft += def.launches.overloadWaves; boss.nextLaunchAt = Math.max(boss.nextLaunchAt, state.time + def.launches.firstAfter); }
   }
-  message(state, def.messages[phase], phase === 'destroyed' ? 4 : 3);
+  if (phase === 'destroyed' || showsHints(state)) message(state, def.messages[phase], phase === 'destroyed' ? 4 : 3);
   if (phase === 'destroyed') {
     boss.deathEffectAt = state.time;
     boss.launchesLeft = 0;

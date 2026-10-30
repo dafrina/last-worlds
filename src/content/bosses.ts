@@ -82,9 +82,11 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     overloadFraction: BASTION.overloadFraction, extractionDuration: DEPARTURE.duration,
     bursts: { pair: BASTION.batteryBurst, core: BASTION.coreBurst }, fan: BASTION.coreFan, launches: null,
     arena: BASTION.arena, shieldSupplies: BASTION.shieldSupplies,
+    // Overload texts name the moves the boss really cycles (user, 30 October: "watch the overloads text appear on a boss
+    // but i felt the spiral"): lanes alone only where the overload is lanes and bursts.
     messages: {
       start: 'BASTION-9 · BREAK BOTH BATTERIES', batteries: 'BREAK BOTH BATTERIES', core: 'CORE EXPOSED',
-      overload: 'CORE OVERLOAD · WATCH THE LANES', destroyed: 'BASTION-9 DESTROYED · JUMP',
+      overload: 'CORE OVERLOAD · LANES AND FANS', destroyed: 'BASTION-9 DESTROYED · JUMP',
       approach: 'FORTRESS APPROACH · READY YOUR SPECIAL',
     },
   },
@@ -158,7 +160,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     arena: VEIL.arena, shieldSupplies: VEIL.shieldSupplies,
     messages: {
       start: 'THE VEIL · BURST BOTH GILL PODS', batteries: 'BURST BOTH GILL PODS', core: 'THE HEART IS OPEN',
-      overload: 'HEART OVERLOAD · WATCH THE LANES', destroyed: 'THE VEIL IS FALLING · JUMP',
+      overload: 'HEART OVERLOAD · SPIRALS AND LANES', destroyed: 'THE VEIL IS FALLING · JUMP',
       approach: 'THE MIRE GOES QUIET · SOMETHING HUGE IS RISING',
     },
   },
@@ -186,7 +188,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     arena: CRADLE.arena, shieldSupplies: CRADLE.shieldSupplies,
     messages: {
       start: 'THE CRADLE · BURST BOTH BROOD SACS', batteries: 'BURST BOTH BROOD SACS', core: 'THE NEST HEART IS OPEN',
-      overload: 'THE BROOD IS WAKING · WATCH THE LANES', destroyed: 'THE CRADLE IS BURNING · JUMP',
+      overload: 'THE BROOD IS WAKING · SPIRALS AND LANES', destroyed: 'THE CRADLE IS BURNING · JUMP',
       approach: 'THE GROUND IS MOVING · THE CRADLE STIRS',
     },
   },
@@ -212,7 +214,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     arena: ECLIPSE.arena, shieldSupplies: ECLIPSE.shieldSupplies,
     messages: {
       start: 'THE ECLIPSE · BREAK BOTH ENERGY VENTS', batteries: 'BREAK BOTH ENERGY VENTS', core: 'THE REACTOR IS OPEN',
-      overload: 'REACTOR OVERLOAD · WATCH THE LANES', destroyed: 'THE ECLIPSE IS FALLING · JUMP',
+      overload: 'REACTOR OVERLOAD · SPIRALS AND LANES', destroyed: 'THE ECLIPSE IS FALLING · JUMP',
       approach: 'THE LIGHT IS DYING · THE ECLIPSE AWAKENS',
     },
   },

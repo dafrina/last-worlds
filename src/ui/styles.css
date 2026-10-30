@@ -153,6 +153,20 @@ button:disabled { cursor: default; }
   font: 11px / 1.5 var(--mono); letter-spacing: 1px; text-transform: uppercase;
   text-shadow: 0 1px 3px #000;
 }
+/* A strike site's message (docs/33): the name bright, the side in steel blue, loot words in their icons' tints. */
+.flight-message .message-site { color: #fff; font-weight: 700; }
+.flight-message .message-side { color: #9fd0ff; }
+.flight-message .message-loot { font-weight: 700; }
+.flight-message .message-loot.is-maybe { opacity: .8; }
+/* A strike site off to the side: a faint grey "?" at that edge (user: "very subtle"). */
+.site-marker {
+  position: absolute; z-index: 3; width: 20px; height: 20px; margin-top: -10px; pointer-events: none;
+  border: 1px solid #c9d3de; border-radius: 50%; color: #c9d3de; opacity: .3;
+  font: 600 12px / 18px var(--mono); text-align: center;
+}
+.site-marker[hidden] { display: none; }
+.site-marker[data-side="left"] { left: 6px; }
+.site-marker[data-side="right"] { right: 6px; }
 
 /* Navigation lives above the existing flight viewport; no combat layout changes. */
 .flight-overlay {

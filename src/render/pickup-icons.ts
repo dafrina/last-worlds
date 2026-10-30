@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Pickup, WeaponId } from '../shared/contracts';
+import { PICKUP_TINTS } from '../content/pickup-tints';
 
 /** Icon per drop: the protection and economy drops (a part, docs/33, too) and one per main weapon, so a weapon drop names its gun. */
 export type PickupIcon = 'shield' | 'power' | 'credit' | 'part' | `weapon-${WeaponId}`;
@@ -33,7 +34,8 @@ export function createPickupIconTextures(maxAnisotropy = 4): Map<PickupIcon, THR
 }
 
 const TINT: Record<PickupIcon, string> = {
-  shield: '#8ff0dc', power: '#ffe2a6', credit: '#ffd06a', part: '#ff9e6a', 'weapon-pulse': '#d4bcff', 'weapon-fan': '#d4bcff', 'weapon-seeker': '#d4bcff', 'weapon-rail': '#d4bcff',
+  shield: PICKUP_TINTS.shield, power: PICKUP_TINTS.power, credit: PICKUP_TINTS.credit, part: PICKUP_TINTS.part,
+  'weapon-pulse': PICKUP_TINTS.weapon, 'weapon-fan': PICKUP_TINTS.weapon, 'weapon-seeker': PICKUP_TINTS.weapon, 'weapon-rail': PICKUP_TINTS.weapon,
 };
 
 function polygon(g: CanvasRenderingContext2D, sides: number, radius: number, rotation: number): void {

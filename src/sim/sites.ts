@@ -27,7 +27,7 @@ const sites = (state: RunState) => state.sites ??= { destroyed: 0, shieldClaims:
 
 /** The message a site cue shows: its own, with what it drops in this run's mode (e.g. `AIRFIELD · WEST · PARTS`). */
 export function siteCueMessage(state: RunState, cue: EncounterCue): string | undefined {
-  return cue.site ? siteMessage(cue.site.id, cue.site.side, state.config.mode) : cue.message;
+  return cue.site ? siteMessage(cue.site.id, cue.site.side, state.config.mode, state.planet) : cue.message;
 }
 
 /** The run's budgeted shield supplies still to come (their claim keys), soonest first. */
