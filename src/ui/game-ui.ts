@@ -627,7 +627,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
 
 const SITE_NAMES = new Set(Object.values(SITES).map(site => site.name));
 const LOOT_TINTS: Readonly<Record<string, string>> = {
-  PARTS: PICKUP_TINTS.part, 'PARTS?': PICKUP_TINTS.part, SHIELD: PICKUP_TINTS.shield, CREDITS: PICKUP_TINTS.credit,
+  PARTS: PICKUP_TINTS.part, 'PARTS?': PICKUP_TINTS.part, SHIELD: PICKUP_TINTS.shield, 'SHIELD?': PICKUP_TINTS.shield, CREDITS: PICKUP_TINTS.credit,
   POWER: PICKUP_TINTS.power, WEAPON: PICKUP_TINTS.weapon,
 };
 /**
@@ -643,7 +643,7 @@ function showMessage(element: HTMLElement, text: string) {
     span.textContent = word;
     if (index === 0) span.className = 'message-site';
     else if (word === 'WEST' || word === 'EAST') { span.className = 'message-side'; span.textContent = word === 'WEST' ? '◂ WEST' : 'EAST ▸'; }
-    else if (LOOT_TINTS[word]) { span.className = word.endsWith('?') ? 'message-loot is-maybe' : 'message-loot'; span.style.color = LOOT_TINTS[word]; }
+    else if (LOOT_TINTS[word]) { span.className = 'message-loot'; span.style.color = LOOT_TINTS[word]; }
     return index ? [document.createTextNode(' · '), span] : [span];
   }));
 }

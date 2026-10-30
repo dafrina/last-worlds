@@ -178,13 +178,17 @@ export function siteLootLabel(id: SiteId, mode: Mode): string {
   return { part: 'PARTS', shield: 'SHIELD', credit: 'CREDITS', weapon: 'WEAPON', power: 'POWER', score: 'BONUS' }[kind];
 }
 /**
- * A site's own message (docs/33 § 3), e.g. `AIRFIELD · WEST · PARTS`. In the campaign a site whose own loot isn't parts
- * adds `PARTS?` for its part roll (user, 30 October: "potential [parts in that orange]"). The flight HUD colours the loot
- * words in their pickup icons' tints (src/content/pickup-tints.ts).
+ * A site's own message (docs/33 § 3), e.g. `SALVAGE YARD · WEST · PARTS`. Every loot word that isn't guaranteed carries a
+ * `?` (user, 30 October: "make question marks also for shields? Is not guaranteed"): a part roll is `PARTS?` (a parts
+ * site's own, or a campaign site's extra one), a budgeted shield `SHIELD?`. The flight HUD colours the loot words in their
+ * pickup icons' tints (src/content/pickup-tints.ts).
  */
 export function siteMessage(id: SiteId, side: -1 | 1, mode: Mode, planet?: PlanetId): string {
-  const loot = siteLootLabel(id, mode), roll = mode === 'campaign' && loot !== 'PARTS' && planet && (sitePartChance(id, planet) ?? 0) > 0;
-  return `${SITES[id].name} · ${side < 0 ? 'WEST' : 'EAST'} · ${loot}${roll ? ' · PARTS?' : ''}`;
+  const label = siteLootLabel(id, mode), definition = SITES[id];
+  const rolled = mode === 'campaign' && planet !== undefined && (sitePartChance(id, planet) ?? 0) > 0;
+  const loot = label === 'SHIELD' ? 'SHIELD?' : label === 'PARTS' && !(definition.loot.value > 1) ? 'PARTS?' : label;
+  const extra = rolled && label !== 'PARTS' ? ' · PARTS?' : '';
+  return `${definition.name} · ${side < 0 ? 'WEST' : 'EAST'} · ${loot}${extra}`;
 }
 
 /**

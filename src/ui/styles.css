@@ -157,11 +157,10 @@ button:disabled { cursor: default; }
 .flight-message .message-site { color: #fff; font-weight: 700; }
 .flight-message .message-side { color: #9fd0ff; }
 .flight-message .message-loot { font-weight: 700; }
-.flight-message .message-loot.is-maybe { opacity: .8; }
 /* A strike site off to the side: a faint grey "?" at that edge (user: "very subtle"). */
 .site-marker {
   position: absolute; z-index: 3; width: 20px; height: 20px; margin-top: -10px; pointer-events: none;
-  border: 1px solid #c9d3de; border-radius: 50%; color: #c9d3de; opacity: .3;
+  border: 1.5px solid #d6dee8; border-radius: 50%; color: #e4eaf1; opacity: .6; background: #0b1b3055;
   font: 600 12px / 18px var(--mono); text-align: center;
 }
 .site-marker[hidden] { display: none; }

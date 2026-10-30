@@ -66,9 +66,10 @@ describe('strike site content (docs/33 § 3)', () => {
 
   it('builds a complete cue: the guard and core world-anchored on the drawn side, and the site\'s own message', () => {
     const west = siteCue('airfield', -1, 41, 'khepri'), east = siteCue('airfield', 1, 41, 'khepri');
-    expect(west).toMatchObject({ at: 41, phase: 'recovery', site: { id: 'airfield', side: -1 }, message: 'AIRFIELD · WEST · PARTS' });
-    expect(east.message).toBe('AIRFIELD · EAST · PARTS');
-    expect(siteCue('shield-depot', 1, 0, 'luna').message).toBe('SHIELD DEPOT · EAST · SHIELD · PARTS?'); // its part roll (user, 30 October)
+    expect(west).toMatchObject({ at: 41, phase: 'recovery', site: { id: 'airfield', side: -1 }, message: 'AIRFIELD · WEST · PARTS?' });
+    expect(east.message).toBe('AIRFIELD · EAST · PARTS?');
+    expect(siteCue('salvage-yard', 1, 0, 'luna').message).toBe('SALVAGE YARD · EAST · PARTS'); // three, guaranteed
+    expect(siteCue('shield-depot', 1, 0, 'luna').message).toBe('SHIELD DEPOT · EAST · SHIELD? · PARTS?'); // nothing guaranteed gets a ? (user, 30 October)
     for (const cue of [west, east]) {
       expect(cue.formations.every(placement => placement.anchor === 'world')).toBe(true);
       const core = cue.formations.find(placement => placement.formation === siteCoreFormation('airfield'));
