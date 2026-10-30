@@ -5,6 +5,7 @@ import { drawnShot, launchFrom, type Launch } from './shot-launch';
 import * as THREE from 'three';
 import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
+import { createSiteView } from './site-view';
 import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
 import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
@@ -657,6 +658,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     return still;
   }
   const facilities = createFacilityView(scene, () => { warmed = false; });
+  // Strike sites (docs/33): site models around their core targets (src/render/site-view.ts).
+  const sites = createSiteView(scene, () => { warmed = false; });
   const ENEMY_CAPACITY = 32;
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
   // Ground targets on every terrain level (docs/13 §2), render-only: where terrain in front hides a turret,
@@ -962,7 +965,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
-      terrain.prepare(next), facilityLoad, bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined]).then(() => { prepared.add(next); });
+      terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
   };
   const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
@@ -1309,7 +1312,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // a boss's first frame never stalls on shader compilation and it glides in instead of popping up mid-view.
         const bossParts: THREE.Object3D[] = [];
         for (const name of ['Bastion-9', 'Helion Ark', 'WARDEN-1', 'THE VEIL']) scene.getObjectByName(name)?.traverse(object => { bossParts.push(object); });
-        const pieces = [...terrain.warmupObjects(), ...facilities.warmupObjects(), ...jumpFx.objects, ...bossParts];
+        const pieces = [...terrain.warmupObjects(), ...facilities.warmupObjects(), ...sites.warmupObjects(), ...jumpFx.objects, ...bossParts];
         // Every object is drawn once in its real form (performance, 22 October: programs compiled mid-flight stalled
         // frames by 50-400 ms): hidden ones shown and nothing culled, so empty instanced batches, the shield and the
         // effects compile too.
@@ -1450,6 +1453,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         lineVertices.set([x1, VIEW.flightHeight + .03, -s1, x2, VIEW.flightHeight + .03, -s2], lineCursor * 3);
         lineColors.set([color.r, color.g, color.b, color.r, color.g, color.b], lineCursor * 3); lineCursor += 2;
       };
+      // Strike sites first: a site core's own model is left out below (the site draws its core).
+      sites.update(state, planet, view, (x, s) => surfaceHeight(state.config.seed, x, s, world));
       const groundNow = new Map<number, GroundSeen>();
       for (const enemy of state.enemies) {
         if (enemy.bossPart) continue;
@@ -1467,12 +1472,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
           : anchor ? { x: anchor.x, s: anchor.s, baseHeight: anchor.base - (anchor.afloat ? PONTOON_DECK : 0) }
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
-        if (isGround && enemy.hp > 0) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight });
+        // A site core seats no compound or emplacement and leaves no wreck: its site stands there (site-view.ts).
+        const siteCore = sites.hidesCore(enemy.id);
+        if (isGround && enemy.hp > 0 && !enemy.site) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight });
         // A compound is much wider than its gun. Seat all live ground batteries ahead of the view,
         // including lateral neighbours; only the small gun draw uses the tight visibility test.
         if (!visible) continue;
         if (afloat) {
-          if (pontoonCount < pontoons.instanceMatrix.count) {
+          if (!siteCore && pontoonCount < pontoons.instanceMatrix.count) {
             transform.position.set(placement.x ?? enemy.x, placement.baseHeight + Math.sin(state.time * 1.1 + enemy.id) * .012, -placement.s);
             transform.rotation.set(0, enemy.id * .7, 0); transform.scale.setScalar(1); transform.updateMatrix(); pontoons.setMatrixAt(pontoonCount++, transform.matrix);
             pontoonRings.push({ x: placement.x ?? enemy.x, z: -placement.s, y: sea, yaw: 0, rx: .8, rz: .8, strength: .55 });
@@ -1492,7 +1499,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
         const craftScale = predator ? (enemy.kind === 'wraith' ? .76 : .82) : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
           : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
-        if (slot < ENEMY_CAPACITY && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
+        if (slot < ENEMY_CAPACITY && !siteCore && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale);
           const blink = enemy.blink, phase = blink ? (state.time - blink.startedAt) / WRAITH.teleport : 1;
@@ -1512,7 +1519,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           const kick = Math.max(0, 1 - (state.time - (enemyHitAt.get(enemy.id) ?? -9)) / HIT_FLASH);
           batch.mesh.setColorAt(slot, hitColor.setRGB(1 + 1.9 * kick, 1 + 1.6 * kick, 1 + 1.2 * kick));
         }
-        if (isGround && !afloat && plinthCount < plinths.instanceMatrix.count) {
+        if (isGround && !afloat && !siteCore && plinthCount < plinths.instanceMatrix.count) {
           let lowest = placement.baseHeight;
           // (At the seated x: under a perspective lens the ray moves a gun sideways off its logical x.)
           const seatX = placement.x ?? enemy.x;
@@ -1585,9 +1592,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Ground wrecks: a new run (or a rewind) clears them; a ground target killed on screen leaves one.
       if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
       // District pads are reserved (docs/23 §4.8): compounds and emplacement pieces keep out; batteries never move.
-      const reserved = terrain.reservedSites();
+      // Strike sites are reserved too, and their clearings come first (the terrain takes at most 12).
+      const siteClearings = sites.clearings;
+      const reserved = [...terrain.reservedSites(), ...siteClearings];
       facilities.update(state, planet, groundNow, reserved, (x, s) => surfaceHeight(state.config.seed, x, s, world), view);
-      terrain.setFacilityClearings(facilities.clearings);
+      terrain.setFacilityClearings([...siteClearings, ...facilities.clearings]);
       // The compact legacy layout is retained for guns that cannot seat a larger compound.
       if (planet === 'khepri' || planet === 'vesper') for (const [id, spot] of groundNow) {
         if (emplaced.has(id) || spot.afloat || spot.kind === 'fuel' || facilities.contains(id)) continue;
@@ -1919,7 +1928,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
-          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
+          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, sites: sites.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
           predators: Object.fromEntries([...predatorBatches].map(([name, batch]) => [name, batch.mesh.count])),
         });
         lastStatsTick = state.tick;
@@ -1935,7 +1944,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         if (object instanceof THREE.InstancedMesh) object.dispose();
       };
-      fx.dispose(); facilities.dispose(); scene.traverse(collect);
+      fx.dispose(); facilities.dispose(); sites.dispose(); scene.traverse(collect);
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());

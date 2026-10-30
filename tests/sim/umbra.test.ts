@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { missionBoss } from '../../src/content/bosses';
-import { campaignPlaylist } from '../../src/content/encounters';
+import { resolvePlaylist } from '../../src/content/encounter-deck';
 import { MISSION_PLANET } from '../../src/content/missions';
 import { CAMPAIGN_ORDER } from '../../src/content/equipment';
 import type { Difficulty, WeaponId } from '../../src/shared/contracts';
@@ -12,7 +12,7 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     expect(CAMPAIGN_ORDER.at(-1)).toBe('final-horizon');
     expect(MISSION_PLANET['final-horizon']).toBe('umbra');
     expect(missionBoss('final-horizon')?.id).toBe('eclipse');
-    expect(campaignPlaylist('final-horizon').length).toBeGreaterThan(35);
+    for (const seed of [1, 2, 3]) expect(resolvePlaylist({ mode: 'campaign', mission: 'final-horizon' }, 1, seed).length).toBeGreaterThan(35);
   });
 
   it.each([['pulse', 'standard'], ['fan', 'standard'], ['seeker', 'veteran']] as [WeaponId, Difficulty][])('the perfect pilot clears it with %s on %s without a hit', (weapon, difficulty) => {

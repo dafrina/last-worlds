@@ -1,6 +1,7 @@
 import { weaponSequence } from '../content/weapon-tiers';
 import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
-import { ALERT_LEAD, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue, type FormationPlacement } from '../content/encounters';
+import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue, type FormationPlacement } from '../content/encounters';
+import { resolvePlaylist } from '../content/encounter-deck';
 import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
@@ -179,7 +180,8 @@ function updateDirector(state: RunState): void {
       return;
     }
   }
-  const cues = endless ? endlessPlaylist(state.sector) : campaignPlaylist(state.config.mission ?? 'training');
+  // The encounter deck (docs/33 § 4): the arc resolved with this attempt's seed (endless: per sector). Pure and memoized.
+  const cues = resolvePlaylist(state.config, state.sector, state.config.seed);
   const start = endless ? state.sectorStartedAt : 0;
   const cue = cues[state.encounterIndex];
   if (cue) leadGround(state, cue);

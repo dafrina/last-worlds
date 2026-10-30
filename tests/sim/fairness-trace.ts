@@ -176,7 +176,14 @@ export class FairnessTrace {
     this.spans = this.spans.filter(span => span.shot === undefined || flying.has(span.shot) || now >= span.t0 - 0.05);
     // Squadron airspace as actually flown: no two squadrons may overlap or share rows.
     const groups = [...liveGroups(state)];
+    // A strike site's core and its guard ring are one authored layout (docs/33 § 3): the core is a harmless proxy that the
+    // ring surrounds, and the release lens (src/sim/ground.ts) draws ground seats up to about a unit closer together than
+    // the authored ring near the bottom of the view. The guard keeps the rule against every other squadron.
+    const cores = new Set(state.enemies.filter(enemy => enemy.site && enemy.formation).map(enemy => enemy.formation!.group));
+    const guards = new Set(state.enemies.filter(enemy => !enemy.site && GROUND_KINDS.has(enemy.kind) && enemy.formation?.template.startsWith('site-')).map(enemy => enemy.formation!.group));
+    const siteLayout = (a: number, b: number) => (cores.has(a) && guards.has(b)) || (cores.has(b) && guards.has(a));
     for (let i = 0; i < groups.length; i += 1) for (let j = i + 1; j < groups.length; j += 1) {
+      if (siteLayout(groups[i][0], groups[j][0])) continue;
       if (airspaceConflict(groups[i][1], groups[j][1])) this.fail('airspace', now, `squadrons ${groups[i][0]} and ${groups[j][0]} overlap`);
     }
     this.airspaceTicks += 1;

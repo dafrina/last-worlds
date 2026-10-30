@@ -1,40 +1,37 @@
 import type { EncounterCue } from '../../src/content/encounters';
 import { FORMATIONS } from '../../src/content/formations';
 import { SITES, siteCue } from '../../src/content/sites';
-import { VIEW, type MissionId, type PlanetId, type RunState, type SiteId } from '../../src/shared/contracts';
+import { VIEW, type PlanetId, type RunConfig, type RunState, type SiteId } from '../../src/shared/contracts';
 
 /**
- * Strike-site test harness (docs/33): until the encounter deck (workstream A) draws sites into side slots, tests inject
- * site cues into the authored playlists. A test file mocks src/content/encounters so that `campaignPlaylist` and
- * `endlessPlaylist` consult `injection` first:
+ * Strike-site test harness (docs/33). The encounter deck draws sites into side slots by the run's seed; tests that need
+ * particular sites inject them into the resolved playlists. A test file mocks src/content/encounter-deck so that
+ * `resolvePlaylist` consults `injection` first:
  *
- *   vi.mock('../../src/content/encounters', async importOriginal => {
- *     const actual = await importOriginal<typeof import('../../src/content/encounters')>();
+ *   vi.mock('../../src/content/encounter-deck', async importOriginal => {
+ *     const actual = await importOriginal<typeof import('../../src/content/encounter-deck')>();
  *     const { injection } = await import('./site-harness');
- *     return { ...actual, campaignPlaylist: (m: MissionId) => injection.campaign?.(m, actual.campaignPlaylist(m)) ?? actual.campaignPlaylist(m),
- *       endlessPlaylist: (s: number) => injection.endless?.(s, actual.endlessPlaylist(s)) ?? actual.endlessPlaylist(s) };
+ *     return { ...actual, resolvePlaylist: (config: Pick<RunConfig, 'mode' | 'mission'>, sector: number, seed: number) => {
+ *       const base = actual.resolvePlaylist(config, sector, seed);
+ *       return injection.playlist?.(config, sector, base) ?? base;
+ *     } };
  *   });
  */
 export const injection: {
-  campaign?: (mission: MissionId, base: readonly EncounterCue[]) => readonly EncounterCue[] | undefined;
-  endless?: (sector: number, base: readonly EncounterCue[]) => readonly EncounterCue[] | undefined;
+  playlist?: (config: Pick<RunConfig, 'mode' | 'mission'>, sector: number, base: readonly EncounterCue[]) => readonly EncounterCue[] | undefined;
 } = {};
 
-/** The authored side routes of a playlist: recovery cues whose squadrons are world-anchored off the centre line. */
-export const sideRoutes = (cues: readonly EncounterCue[]) => cues.filter(cue => cue.phase === 'recovery'
-  && cue.formations.length > 0 && cue.formations.every(placement => placement.anchor === 'world' && Math.abs(placement.x ?? 0) > 3));
+/** The side routes of a playlist: its strike-site cues (the deck's side slots). */
+export const sideRoutes = (cues: readonly EncounterCue[]) => cues.filter(cue => cue.site);
 
-/**
- * A playlist whose side routes are strike sites, as the deck's side slots will be: the i-th side route becomes
- * `sites[i % sites.length]`, at its time and on its side.
- */
+/** A playlist whose side slots show `sites`: the i-th site cue becomes `sites[i % sites.length]`, at its time and on its side. */
 export function withSites(cues: readonly EncounterCue[], sites: readonly SiteId[], planet: PlanetId): EncounterCue[] {
   const routes = sideRoutes(cues);
   return cues.map(cue => {
     const index = routes.indexOf(cue);
     if (index < 0 || !sites.length) return cue;
-    const side = Math.sign(cue.formations[0].x ?? 1) as -1 | 1;
-    return siteCue(sites[index % sites.length], side, cue.at, planet);
+    const placed = siteCue(sites[index % sites.length], cue.site!.side, cue.at, planet);
+    return cue.pickup ? { ...placed, pickup: cue.pickup } : placed;
   });
 }
 

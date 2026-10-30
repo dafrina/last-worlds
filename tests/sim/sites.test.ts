@@ -1,24 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, FUEL_BLAST, GROUND_KINDS, THREAT_COST } from '../../src/content/balance';
-import { campaignPlaylist, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
-import { endlessPlanet } from '../../src/content/endless';
-import { CAMPAIGN_ORDER } from '../../src/content/equipment';
-import { FORMATIONS, SITE_LEAD, siteCoreFormation } from '../../src/content/formations';
-import { MISSION_PLANET } from '../../src/content/missions';
-import { ENDLESS_PART_SCORE, SHIELD_FALLBACK_CREDITS, SITES, SITE_SCORE, SITE_X, siteCue, sitePool } from '../../src/content/sites';
+import { cueRoster, type EncounterCue } from '../../src/content/encounters';
+import { authoredKinds } from '../../src/content/encounter-deck';
+import { FORMATIONS, siteCoreFormation } from '../../src/content/formations';
+import { ENDLESS_PART_SCORE, SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, SITE_X, siteCue, sitePool } from '../../src/content/sites';
+import { fromFlightPlane } from '../../src/shared/lens';
 import { EMPTY_INPUT, SITE_IDS, VIEW, type EnemyKind, type PlanetId, type RunConfig, type RunState, type SiteId } from '../../src/shared/contracts';
 import { createRun, spawnFormation, stepRun } from '../../src/sim/game';
 import { enterSector } from './pilots';
 
 const PLANETS: readonly PlanetId[] = ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'];
 /** Every enemy kind the authored playlists already fly on a world (campaign missions and endless sectors). */
-const worldKinds = (() => {
-  const kinds = new Map<PlanetId, Set<EnemyKind>>(PLANETS.map(planet => [planet, new Set()]));
-  const add = (planet: PlanetId, cues: readonly EncounterCue[]) => { for (const cue of cues) for (const kind of cueRoster(cue, 'veteran')) kinds.get(planet)!.add(kind); };
-  for (const mission of CAMPAIGN_ORDER) add(MISSION_PLANET[mission], campaignPlaylist(mission));
-  for (let sector = 1; sector <= 12; sector++) add(endlessPlanet(sector), endlessPlaylist(sector));
-  return kinds;
-})();
+const worldKinds = new Map<PlanetId, Set<EnemyKind>>(PLANETS.map(planet => [planet, authoredKinds(planet)]));
 const threat = (cue: EncounterCue) => cueRoster(cue, 'veteran').reduce((sum, kind) => sum + THREAT_COST[kind], 0);
 
 /** A run with an empty sky: no authored cue will spawn (src/sim/game.ts updateDirector waits for nextEncounterAt). */
@@ -97,8 +90,12 @@ describe('a site core in the simulation', () => {
     const [core] = cores(state);
     expect(core).toMatchObject({ site: 'crash-site', kind: 'fuel', radius: SITES['crash-site'].core.radius, hp: SITES['crash-site'].core.hp * DIFFICULTIES.veteran.hp });
     expect(GROUND_KINDS.has(core.kind) && core.ground).toBeTruthy();
-    // Its layout (and the model drawn around it) scrolls in from beyond the top edge.
-    expect(core.s).toBeGreaterThan(VIEW.maxS + SITE_LEAD - 2);
+    // Its layout (and the model drawn around it) scrolls in from beyond the top edge: the near edge of its footprint, on
+    // its floor, is still past where the top edge's line of sight meets that floor (a seat on rough ground may stand up to
+    // 7 nearer the camera than authored, src/sim/sites.ts SEAT_WIDE).
+    const top = fromFlightPlane(state.cameraX, core.ground!.x, VIEW.maxS, core.ground!.base);
+    expect(core.ground!.s + SITE_FOOTPRINT.s[0]).toBeGreaterThan(top.s);
+    expect(core.s).toBeGreaterThan(VIEW.maxS + 3);
     let seen = false;
     for (let i = 0; i < 60 * 9 && cores(state).length; i++) {
       stepRun(state, EMPTY_INPUT);

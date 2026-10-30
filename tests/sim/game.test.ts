@@ -2,7 +2,7 @@ import { WARDEN } from '../../src/content/warden';
 import { SPECIALS } from '../../src/content/equipment';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, ENDLESS_RAMP, difficultyScales } from '../../src/content/balance';
-import { TRAINING } from '../../src/content/encounters';
+import { resolvePlaylist } from '../../src/content/encounter-deck';
 import { EMPTY_INPUT, STEP, VIEW, type Enemy, type RunState } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { segmentCircleHit } from '../../src/sim/geometry';
@@ -12,7 +12,7 @@ const CAMERA_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
 
 function quietRun(): RunState {
   const state = createRun({ mode: 'campaign', seed: 17 });
-  state.encounterIndex = TRAINING.length;
+  state.encounterIndex = resolvePlaylist(state.config, 1, state.config.seed).length;
   state.nextEncounterAt = Infinity;
   return state;
 }
