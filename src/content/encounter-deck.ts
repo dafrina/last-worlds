@@ -41,9 +41,10 @@ export type DeckSlot =
   | { readonly kind: 'fixed'; readonly cue: EncounterCue }
   /**
    * `site` (campaign only): the slot is the arc's `site`-th strike site place when the attempt's site count reaches it
-   * (SITE_COUNT); the site then stands in for the slot's ground battery, otherwise the slot draws as usual.
+   * (SITE_COUNT); the site then stands in for the slot's ground battery, otherwise the slot draws as usual. `endlessSite`
+   * (endless only): the stage's strike site always stands in for this slot's battery.
    */
-  | { readonly kind: 'pool'; readonly at: number; readonly id: string; readonly phase: DeckPhase; readonly nominal: readonly FormationPlacement[]; readonly pickup?: CuePickup; readonly site?: number }
+  | { readonly kind: 'pool'; readonly at: number; readonly id: string; readonly phase: DeckPhase; readonly nominal: readonly FormationPlacement[]; readonly pickup?: CuePickup; readonly site?: number; readonly endlessSite?: true }
   /**
    * A strike site's side route. `pickup` (optional) is placed on the drawn side (its x mirrored). `rank` (campaign only):
    * the slot flies its site when the attempt's site count reaches it, otherwise it is an empty relief.
@@ -230,6 +231,12 @@ function draw(cue: EncounterCue, site?: number): DeckSlot {
   return { kind: 'pool', at: cue.at, id: cue.id, phase: cue.phase, nominal: cue.formations, ...(cue.pickup ? { pickup: cue.pickup } : {}), ...(site ? { site } : {}) };
 }
 const side = (slot: { at: number; id: string; pickup?: CuePickup; rank?: number }): DeckSlot => ({ kind: 'side', ...slot });
+/**
+ * An endless stage's strike site standing in for a ground battery (Khepri, 30 October): an extra site in the recovery,
+ * with the Khepri hunter (a Lancer, which follows the ship to the side) after it, pinned the pilot at the world edge (the
+ * boss run took 32% more hits than the fixed lists); standing in for a battery keeps the arc's pressure as authored.
+ */
+const endlessSite = (cue: EncounterCue): DeckSlot => ({ ...draw(cue), endlessSite: true } as DeckSlot);
 /** A slot's time. */
 export const slotAt = (slot: DeckSlot) => slot.kind === 'fixed' ? slot.cue.at : slot.at;
 /** The slot moved by `dt` seconds (and renamed with `prefix`). */
@@ -315,9 +322,9 @@ const SECTOR_OPENING: readonly DeckSlot[] = [
   draw({ at: 30, id: 'e1-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
   draw({ at: 33, id: 'e1-battery-2', phase: 'pressure', formations: [f('battery-2')] }),
   draw({ at: 36, id: 'e1-arrow-5', phase: 'pressure', formations: [f('arrow-5')] }),
-  side({ at: 44, id: 'e1-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 5 } }),
+  fix({ at: 44, id: 'e1-west', phase: 'recovery', formations: [], pickup: { kind: 'credit', x: -7.5, s: 18, value: 5 } }),
   fix({ at: 50, id: 'e1-diamond', phase: 'pressure', message: 'SEEKER ARRAY AHEAD · COLLECT TO EQUIP', formations: [f('diamond-lancer')], pickup: { kind: 'weapon', x: -2, s: 17, value: 1, weapon: 'seeker' } }),
-  draw({ at: 54, id: 'e1-battery', phase: 'pressure', formations: [f('battery-3')] }),
+  endlessSite({ at: 54, id: 'e1-battery', phase: 'pressure', formations: [f('battery-3')] }),
   draw({ at: 58, id: 'e1-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] }),
   draw({ at: 63, id: 'e1-line-dart', phase: 'pressure', formations: [f('line-dart-4')] }),
   draw({ at: 66, id: 'e1-battery-3', phase: 'pressure', formations: [f('battery-2')] }),
@@ -338,9 +345,9 @@ const SECTOR_PRESSURE: readonly DeckSlot[] = [
   draw({ at: 20, id: 'e2-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
   draw({ at: 23, id: 'e2-battery-2', phase: 'pressure', formations: [f('battery-2')] }),
   draw({ at: 26, id: 'e2-line', phase: 'pressure', formations: [f('line-dart-4')] }),
-  side({ at: 33, id: 'e2-west', pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } }),
+  fix({ at: 33, id: 'e2-west', phase: 'recovery', formations: [], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } }),
   draw({ at: 38, id: 'e2-pincer', phase: 'pressure', formations: [f('pincer-4')] }),
-  draw({ at: 41, id: 'e2-battery', phase: 'pressure', formations: [f('battery-3')] }),
+  endlessSite({ at: 41, id: 'e2-battery', phase: 'pressure', formations: [f('battery-3')] }),
   draw({ at: 44, id: 'e2-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] }),
   draw({ at: 49, id: 'e2-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] }),
   draw({ at: 52, id: 'e2-battery-3', phase: 'pressure', formations: [f('battery-2')] }),
@@ -365,9 +372,9 @@ const SECTOR_PEAK: readonly DeckSlot[] = [
   draw({ at: 19, id: 'e3-battery-2', phase: 'pressure', formations: [f('battery-2')] }),
   draw({ at: 21, id: 'e3-echelon', phase: 'pressure', formations: [f('echelon-4')] }),
   draw({ at: 25, id: 'e3-arrow', phase: 'pressure', formations: [f('arrow-5')] }),
-  side({ at: 31, id: 'e3-west', pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'rail' } }),
+  fix({ at: 31, id: 'e3-west', phase: 'recovery', formations: [], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'rail' } }),
   draw({ at: 36, id: 'e3-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] }),
-  draw({ at: 38, id: 'e3-battery-3', phase: 'pressure', formations: [f('battery-3')] }),
+  endlessSite({ at: 38, id: 'e3-battery-3', phase: 'pressure', formations: [f('battery-3')] }),
   draw({ at: 41, id: 'e3-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] }),
   draw({ at: 44, id: 'e3-arrow-2', phase: 'pressure', formations: [f('arrow-5')] }),
   draw({ at: 46, id: 'e3-battery-late', phase: 'pressure', formations: [f('battery-4')] }),
@@ -817,7 +824,7 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
   const seen = new Set<FormationId>();
   // The campaign's strike-site count for this attempt (SITE_COUNT): its ranked site places up to it fly their sites.
   const count = template.campaign ? weighted(SITE_COUNT, roll).count : Infinity;
-  const standIn = (slot: DeckSlot) => !!template.campaign && slot.kind === 'pool' && slot.site !== undefined && slot.site <= count;
+  const standIn = (slot: DeckSlot) => slot.kind === 'pool' && (template.campaign ? slot.site !== undefined && slot.site <= count : !!slot.endlessSite);
   // A Pulsar's or the Wraith's stretch flies exactly as authored too: its own slot and the slots within PAIR_WINDOW of it
   // (SCARCE). A site standing in for a battery introduces nothing: the battery's next slot does.
   const scarceAt = template.slots.filter(slot => flies(formationsOf(slot), SCARCE)).map(slotAt);

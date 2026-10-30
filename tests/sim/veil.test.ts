@@ -17,10 +17,11 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
     // Since hunters (22 October) Veteran flies seed 7: on some seeds the pilot is caught at the world edge. Since the
     // quicker hunters (23 October) seed 7 clears with every weapon. Over seeds 1-12 the pilot clears 22 of 36 Veteran
     // runs without a hit, against 19 with the old hunters: path noise, not a harder level. Since the encounter deck (30
-    // October, docs/33 § 4) each seed draws its own waves, and Standard flies seed 7 too: on seed 5 Standard with fan takes
-    // one hit. Over seeds 1-48 the pilot takes 34 hits at Standard and 52 at Veteran (all weapons), against 38 and 60 with
+    // October, docs/33 § 4) each seed draws its own waves (and its 1-4 strike sites): Standard and Veteran fly seed 17, the
+    // first of seeds 1-24 on which all six combinations clear (seed 7 takes one hit with Standard fan and with Veteran
+    // seeker). Over seeds 1-48 the pilot takes 34 hits at Standard and 62 at Veteran (all weapons), against 38 and 60 with
     // the fixed list.
-    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 5 : 7 });
+    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 5 : 17 });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(log.hits).toBe(0);

@@ -244,9 +244,14 @@ describe('encounter deck: content', () => {
       for (const seed of SEEDS) counts[resolveTemplate(deck, seed).filter(cue => cue.site).length]++;
       SITE_COUNT.forEach(({ count, weight }) => expect(Math.abs(counts[count] / SEEDS.length - weight), `${deck.id} ${count} sites`).toBeLessThan(0.1));
     }
-    // Endless: its side routes only (Nacre's pressure stage, Deep Bloom's middle and climax, has no recovery to hold one).
-    const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side').length;
-    for (const [name, deck] of Object.entries(ENDLESS_DECKS)) expect(sides(deck), name).toBe(name === 'prologue' ? 2 : name === 'nacrePressure' ? 0 : 1);
+    // Endless: one site per stage (two in the prologue, Training's side routes; none in Nacre's pressure stage, Deep Bloom's
+    // middle and climax, which has no recovery to hold one). Khepri's stages stand theirs in for a turret battery.
+    const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side' || (slot.kind === 'pool' && slot.endlessSite)).length;
+    for (const [name, deck] of Object.entries(ENDLESS_DECKS)) {
+      expect(sides(deck), name).toBe(name === 'prologue' ? 2 : name === 'nacrePressure' ? 0 : 1);
+      for (const seed of SEEDS.slice(0, 50)) expect(resolveTemplate(deck, seed).filter(cue => cue.site).length, `${name}/${seed}`).toBe(sides(deck));
+    }
+    for (const name of ['khepriOpening', 'khepriPressure', 'khepriPeak'] as const) expect(ENDLESS_DECKS[name].slots.some(slot => slot.kind === 'side'), name).toBe(false);
     for (const deck of DECK_TEMPLATES) for (const seed of SEEDS.slice(0, 50)) {
       const cues = resolveTemplate(deck, seed);
       deck.slots.forEach((slot, i) => {
