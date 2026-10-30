@@ -1,4 +1,5 @@
 import { createBeamLight, createPhaseHoles } from './combat-light';
+import { SHIP_PERKS } from '../sim/ship-perks';
 import { HERO_STENCIL } from './hero-stencil';
 import { drawnShot, launchFrom, type Launch } from './shot-launch';
 import * as THREE from 'three';
@@ -205,6 +206,8 @@ export const HERO_SCALE = 1.1;
 const CHEVRON_GAP = 2, CHEVRON_FLOW = 2.2;
 /** Mission-start entrance: duration (s) and how far along the view ray toward the camera the hero starts. */
 const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
+/** The Interceptor's barrel roll over its sidestep, and the speed streaks it leaves (seconds; render only). */
+const DASH_ROLL = .3, DASH_STREAK = .28;
 
 /**
  * Per-planet light and grade (docs/13 §1, docs/17 §1). Khepri's values are the shipped look. Vesper: a high, pale,
@@ -1156,6 +1159,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (railKickAt >= 0 && state.time >= railKickAt) hero.position.z += .06 * Math.max(0, 1 - (state.time - railKickAt) / .1);
     hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
     hero.rotation.z = -state.player.vx * .016 + (1 - entrance) * Math.PI * 2;
+    // Interceptor Barrel Roll: one roll into the sidestep (user, 30 October: "the roll is just visual for the side dash"),
+    // most of the turn while the ship slides, settling just after the dash ends.
+    const dash = state.player.dash, rollAge = dash ? (state.time - dash.startedAt) / DASH_ROLL : 1;
+    if (dash && rollAge >= 0 && rollAge < 1) hero.rotation.z -= dash.direction * Math.PI * 2 * (1 - Math.pow(1 - rollAge, 3));
     return entrance;
   }
   /**
@@ -1696,8 +1703,32 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // The slug itself: a white-hot streak at the head while it flies.
         if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2), trail.x, head, .17, 0xffffff, flashLanes, 2.6);
       }
+      // Interceptor Barrel Roll: two speed streaks from where the dash started to the ship's trailing wing, fading out.
+      const dash = state.player.dash, dashFade = dash ? 1 - (state.time - dash.startedAt) / DASH_STREAK : 0;
+      if (dash && dashFade > 0 && dashFade <= 1) {
+        const tail = state.player.x - dash.direction * .45;
+        if ((tail - dash.fromX) * dash.direction > .1) for (const s of [-.12, .16]) strip(dash.fromX, s, tail, s, .05, 0x5ff3ff, flashLanes, dashFade * 1.4);
+      }
       for (const sim of state.projectiles) {
         if (sim.delay || sim.pierced || Math.abs(sim.x - state.cameraX) > VIEW.width / 2 + .5 || sim.s < VIEW.minS - 1 || sim.s > VIEW.maxS + 1) continue;
+        if (sim.reflected) {
+          const orbit = sim.orbit;
+          if (orbit) {
+            const end = orbit.angle + orbit.direction * Math.PI * orbit.elapsed / SHIP_PERKS.reflectDuration;
+            const span = Math.min(orbit.elapsed / SHIP_PERKS.reflectDuration * Math.PI, 1.3);
+            for (let i = 0; i < 8; i++) {
+              const a = end - orbit.direction * span * (1 - i / 8), b = end - orbit.direction * span * (1 - (i + 1) / 8);
+              // A narrow dark backing keeps the arc readable over Luna snow without extra bloom.
+              strip(state.player.x + Math.cos(a) * orbit.radius, Math.sin(a) * orbit.radius,
+                state.player.x + Math.cos(b) * orbit.radius, Math.sin(b) * orbit.radius, .09, 0x392354, telegraphs, 1);
+              strip(state.player.x + Math.cos(a) * orbit.radius, Math.sin(a) * orbit.radius,
+                state.player.x + Math.cos(b) * orbit.radius, Math.sin(b) * orbit.radius, .045, 0xb58aff, flashLanes, .35 + i * .1);
+            }
+          } else {
+            const speed = Math.hypot(sim.vx, sim.vs) || 1;
+            strip(sim.x - sim.vx / speed * .45, sim.s - sim.vs / speed * .45, sim.x, sim.s, .065, 0xb58aff, flashLanes, 1);
+          }
+        }
         const launch = sim.friendly ? undefined : launches.get(sim.id), shot = launch ? { ...sim, ...drawnShot(sim, launch) } : sim;
         transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);
         transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0);

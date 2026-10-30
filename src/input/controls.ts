@@ -1,4 +1,5 @@
 import type { GameInput, InputFrame } from '../shared/contracts';
+import { SHIP_PERKS } from '../sim/ship-perks';
 
 export type PointerRole = 'left' | 'right' | 'special';
 
@@ -7,11 +8,19 @@ export type PointerRole = 'left' | 'right' | 'special';
  * steers right (user decision, 21 October 2026, back from steering relative to the ship). A held steering finger that
  * slides across the middle switches direction (user decision, 14 October); the special button's pointer never steers.
  */
-export function createControlState() {
+export function createControlState(now: () => number = () => performance.now()) {
   const pointers = new Map<number, PointerRole>();
   const keys = new Set<string>();
   let specialPressed = false;
   let pausePressed = false;
+  let dashPressed: -1 | 1 | undefined;
+  let lastTap: { direction: -1 | 1; at: number } | undefined;
+  const tap = (direction: -1 | 1) => {
+    const at = now();
+    if (lastTap?.direction === direction && at - lastTap.at <= SHIP_PERKS.doubleTapMs) {
+      dashPressed = direction; lastTap = undefined;
+    } else lastTap = { direction, at };
+  };
   const leftKeys = ['ArrowLeft', 'KeyA'];
   const rightKeys = ['ArrowRight', 'KeyD'];
   const acceptedKeys = new Set([...leftKeys, ...rightKeys, 'Space', 'Escape']);
@@ -19,10 +28,13 @@ export function createControlState() {
   return {
     pointerDown(id: number, role: PointerRole) {
       if (pointers.has(id)) return;
+      // Two simultaneously held fingers are not a double tap.
+      if (role !== 'special' && ![...pointers.values()].some(r => r !== 'special')) tap(role === 'left' ? -1 : 1);
       pointers.set(id, role);
       if (role === 'special') specialPressed = true;
     },
     pointerUp(id: number) { pointers.delete(id); },
+    pointerCancel(id: number) { pointers.delete(id); lastTap = undefined; dashPressed = undefined; },
     /** A held steering pointer now over the other half steers that way; special pointers keep their role. */
     pointerMove(id: number, side: 'left' | 'right') {
       const role = pointers.get(id);
@@ -32,7 +44,10 @@ export function createControlState() {
     keyDown(code: string, repeat = false) {
       if (!acceptedKeys.has(code)) return false;
       if (keys.has(code) || repeat) return true;
+      const held = [...leftKeys, ...rightKeys].some(key => keys.has(key)) || [...pointers.values()].some(role => role !== 'special');
       keys.add(code);
+      if (!held && leftKeys.includes(code)) tap(-1);
+      if (!held && rightKeys.includes(code)) tap(1);
       if (code === 'Space') specialPressed = true;
       if (code === 'Escape') pausePressed = true;
       return true;
@@ -44,7 +59,8 @@ export function createControlState() {
       const left = roles.includes('left') || leftKeys.some((key) => keys.has(key));
       const right = roles.includes('right') || rightKeys.some((key) => keys.has(key));
       const horizontal = left === right ? 0 : left ? -1 : 1;
-      const frame: InputFrame = { horizontal, specialPressed, pausePressed };
+      const frame: InputFrame = { horizontal, specialPressed, pausePressed, ...(dashPressed ? { dashPressed } : {}) };
+      dashPressed = undefined;
       specialPressed = false;
       pausePressed = false;
       return frame;
@@ -54,6 +70,8 @@ export function createControlState() {
       keys.clear();
       specialPressed = false;
       pausePressed = false;
+      dashPressed = undefined;
+      lastTap = undefined;
     },
   };
 }
@@ -69,6 +87,7 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
     try { element.setPointerCapture?.(id); } catch { /* Pointer may already be canceled. */ }
   };
   const release = (event: PointerEvent) => state.pointerUp(event.pointerId);
+  const cancel = (event: PointerEvent) => state.pointerCancel(event.pointerId);
 
   surface.addEventListener('pointerdown', (event) => {
     if (!active() || event.button !== 0) return;
@@ -120,11 +139,12 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
   surface.addEventListener('contextmenu', (event) => { if (active()) event.preventDefault(); }, options);
   for (const element of [surface, specialButton]) {
     element.addEventListener('pointerup', release, options);
-    element.addEventListener('pointercancel', release, options);
-    element.addEventListener('lostpointercapture', release, options);
+    element.addEventListener('pointercancel', cancel, options);
+    // Normal pointer-up also releases capture: preserve double-tap memory in that case.
+    element.addEventListener('lostpointercapture', event => { if (state.roleOf(event.pointerId)) cancel(event); }, options);
   }
   window.addEventListener('pointerup', release, options);
-  window.addEventListener('pointercancel', release, options);
+  window.addEventListener('pointercancel', cancel, options);
   window.addEventListener('keydown', (event) => {
     if (!active() || isField(event.target)) return;
     if (event.target instanceof Element && event.target.closest('button') &&

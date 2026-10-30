@@ -1,5 +1,7 @@
 # Combat, equipment, and progression
 
+> **30 October 2026 update:** Chassis perks now apply in both modes. Scrapper: 40% wider pickup attraction; Ironclad: +1 starting life; Interceptor: double-tap steering barrel roll; Spectre: shielded near-miss reflection. This replaces the old kill-charge/overdrive bonuses and cosmetic-only endless chassis rule. See [global ship perks](34-global-ship-perks.md). Modular parts/paint remain cosmetic; endless equipment still resets.
+
 Design v0.4 · 14 October 2026. Runtime values in `src/content/balance.ts` govern the playable prototype; unimplemented equipment below remains provisional. These proposals incorporate the user's simplified resources, four campaign equipment slots, minimal icon HUD, and complete separation of campaign from endless. Numbers remain untested starting values.
 
 ## 1. Lives and shield charges

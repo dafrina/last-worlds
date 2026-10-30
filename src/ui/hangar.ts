@@ -11,7 +11,7 @@ export function itemText(slot: Slot, id: ItemId): { name: string; blurb: string 
   if (slot === 'special') return { name: SPECIALS[id as SpecialId].label, blurb: `${SPECIALS[id as SpecialId].blurb} Recharge ${SPECIALS[id as SpecialId].recharge} s.` };
   if (slot === 'shield') return { name: SHIELD_TECH[id as ShieldTechId].label, blurb: SHIELD_TECH[id as ShieldTechId].blurb };
   const ship = SHIPS[id as ShipId];
-  return { name: ship.label, blurb: ship.blurb };
+  return { name: ship.label, blurb: `${ship.perk} · ${ship.blurb}` };
 }
 
 export interface HangarActions { buy(slot: Slot, id: ItemId): void; equip(slot: Slot, id: ItemId): void; upgrade(weapon: WeaponId): void; assemble(ship: ShipId): void }
@@ -149,7 +149,9 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
   const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'hangar-action'; reset.textContent = 'DEFAULT PAINT';
   reset.disabled = !look.paint; reset.addEventListener('click', () => actions.setLook(ship, { parts: look.parts }));
   colours.append(reset);
-  host.replaceChildren(title, canvas, offer, ...rows, colours);
+  const perk = document.createElement('p'); perk.className = 'shipyard-perk';
+  perk.textContent = `${SHIPS[ship].perk} · ${SHIPS[ship].blurb}`;
+  host.replaceChildren(title, perk, canvas, offer, ...rows, colours);
 
   // The picture: drawn once per look by the game's renderer and cached; the previous one stays up until it is ready.
   const context = canvas.getContext('2d');

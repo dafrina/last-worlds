@@ -175,7 +175,7 @@ export function campaignConfig(profile: CampaignProfile, mission: MissionId, dif
 }
 
 /**
- * The run config for an endless launch: the equipped ship's chassis model and look as cosmetics only (docs/33 § 2;
+ * The run config for an endless launch: the equipped ship's chassis (including its global perk) and cosmetic look (
  * `heroShip`, `hero`). Nothing else of the profile: createRun gives endless the starter loadout whatever it is passed.
  */
 export function endlessConfig(profile: CampaignProfile, seed: number): RunConfig {

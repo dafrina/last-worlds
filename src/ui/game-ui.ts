@@ -324,7 +324,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     find(`[data-action="${action}"]`).addEventListener('click', handler, options);
   }
   onAction('loading-cancel', () => actions.quit());
-  // Endless flies the campaign's equipped ship as cosmetics only (docs/33 § 2): its starter loadout never changes.
+  // Endless uses the equipped ship and its perk; weapons, shield array and weapon tier start at baseline.
   onAction('endless', () => launch(endlessConfig(campaign.read(), seed())));
   onAction('campaign', () => { refreshCampaign(); showPanel('campaign-panel', '.campaign-panel .back-button'); preview.show(MISSION_PLANET[MISSION_ORDER[missionIndex][0]]); });
   onAction('hangar', () => { refreshHangar(); showPanel('hangar-panel', '.hangar-panel .back-button'); });

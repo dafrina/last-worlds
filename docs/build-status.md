@@ -1771,3 +1771,19 @@ Implemented docs/32 on top of Codex's progression batch (committed as `6066076`)
 - **Tests:** tests/sim/rail-and-well.test.ts (12), Rail in the shared-tier test, and an old-save test.
 - **Browser:** Luna and Umbra screenshots of Rail (tiers 1 and 3) and the Well inspected, in WSL Chromium with SwiftShader.
 - **Not tested:** no actual phone test. The High-quality lens distortion and the drawn spiral of swallowed shots were not built.
+
+## 30 October 2026 — Global chassis perks (Codex)
+
+Implemented the user's four named chassis perks and explicit global-mode correction: Scrapper attracts pickups 40% farther, Ironclad adds one starting life, Interceptor double-taps the same steering side/direction to roll (0.42 s evade / 3 s cooldown), Spectre reflects shielded genuine near misses (0.32 s curve / 1.2 s cooldown). Removed Interceptor kill-charge and Spectre special-triggered overdrive. Selected endless chassis now supplies its perk; weapons/special/shield equipment and weapon tiers still reset. Designs/paint remain cosmetic. Perk descriptions appear in every hangar ship-selector card and the selected ship preview. No new save format, HUD meter or terrain/model edit.
+
+Validation: TypeScript and production build pass, existing large-bundle advisory remains. 51 distinct focused unit/input tests passed across six files (50 first, plus a cancellation/alias regression; final affected input/perk subset 23/23). Three focused Playwright browser cases passed across targeted runs: hangar selector/equip descriptions, Spectre arc and Interceptor keyboard roll fixture, and actual Endless launch with double-tap DOM events through main.ts's pending-input/fixed-step loop. Inspected 390x844 hangar and in-flight screenshots. Fixed the previously missing roll forwarding in the main loop and preserved gestures across render frames. Early end-to-end test failures: corrected a test's wrong ENDLESS button label; CDP touch gestures were delivered >1 s apart under SwiftShader and correctly failed the 280 ms window, so the final test delivers both pointer gestures in one browser task. No gameplay timing was loosened. WSL Chromium / Playwright 1.64.0, software WebGL; no physical-phone timing/performance claim. Full unit/browser release suites not rerun; no commit, push or deployment.
+
+Development preview: http://localhost:4173/tests/fixtures/ship-perks.html. Contract and tuning documented in docs/34-global-ship-perks.md. Claude's strike-site/encounter/model work remains separate and must preserve the narrow shared-file edits in game.ts, contracts.ts, main.ts and scene.ts.
+
+## 30 October 2026 — Interceptor Barrel Roll is a sidestep (Claude Code)
+
+User: "the interceptor barrel roll is not how imagined, it just does a stupid roll but the idea was a quick sideswipe to evade quickly"; "the side dash is fine but also a barrel roll, the roll is just visual for the side dash".
+- **Before (Codex's first version):** a 0.42 s roll in place that made the ship immune to hits; it did not move.
+- **Now:** the double-tap dashes the ship 2.8 units to that side in 0.16 s (`sidestep` in src/sim/ship-perks.ts, applied in `movePlayer`), drawn as one barrel roll over 0.3 s with two speed streaks. The ship leaves the dash at full steering speed. No invulnerability: the swept hit test covers the dash, so evading means getting out of the line. Cooldown 3 s, world edges respected. The input and state fields are now `dashPressed`, `player.dash`, `dashReadyAt`.
+- **Checks:** typecheck; `tests/sim/ship-perks.test.ts` and `tests/input/roll.test.ts` 18/18, with new dash, carry-on, cooldown, edge and hit-along-the-dash tests. Frames from `tests/fixtures/ship-perks.html` inspected: the ship slides and rolls, edge-on at frame 6, level by frame 18. The full gate waits for the combined release (user, 30 October). No phone test.
+

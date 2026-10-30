@@ -13,16 +13,16 @@ const dummy = (state: ReturnType<typeof createRun>, x: number, s: number, hp = 1
 };
 
 describe('campaign loadout in the simulation (docs/21)', () => {
-  it('endless ignores every campaign choice and flies the canonical starter', () => {
+  it('endless ignores every campaign choice and flies the starter equipment plus the selected ship perk', () => {
     const state = createRun({ mode: 'endless', seed: 1, weapon: 'seeker', special: 'siege-lance', shield: 'bulwark', ship: 'ironclad', rank: 3 });
-    expect(state.config).toMatchObject({ weapon: 'pulse', special: 'shockwave', shield: 'standard', ship: 'scrapper', rank: 0 });
+    expect(state.config).toMatchObject({ weapon: 'pulse', special: 'shockwave', shield: 'standard', ship: 'ironclad', rank: 0 });
     expect(state.player.maxShields).toBe(5);
   });
 
-  it('carries a campaign ship\'s look as cosmetics only; endless shows one only on its cosmetic heroShip (docs/33)', () => {
+  it('keeps modular parts cosmetic while either mode can select a chassis', () => {
     const hero = { parts: { hull: 'c', wings: 'b', engines: 'a', cockpit: 'a' } } as const;
     expect(createRun(campaign({ ship: 'ironclad', hero })).config.hero).toEqual(hero);
-    expect(createRun({ mode: 'endless', seed: 1, ship: 'ironclad', hero }).config.hero).toBeUndefined();
+    expect(createRun({ mode: 'endless', seed: 1, ship: 'ironclad', hero }).config.hero).toEqual(hero);
     expect(createRun(campaign({ hero: { parts: { hull: 'x' } } as never })).config.hero).toBeUndefined();
   });
 

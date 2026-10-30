@@ -20,26 +20,24 @@ function flight(config: RunConfig, seconds = 75): RunState {
 }
 const withoutConfig = ({ config: _config, ...rest }: RunState) => rest;
 
-describe('endless flies the campaign ship as cosmetics only (docs/33 § 2)', () => {
-  it('keeps the chassis model and look, and nothing else of the campaign', () => {
+describe('endless flies the campaign ship as cosmetic parts and global chassis perks', () => {
+  it('keeps the chassis perk and look while resetting campaign equipment', () => {
     const state = createRun({ mode: 'endless', seed: 1, heroShip: 'spectre', hero: look, ship: 'ironclad', weapon: 'rail', special: 'gravity-well', shield: 'aegis', rank: 2 });
-    expect(state.config).toMatchObject({ ...STARTER, rank: 0, heroShip: 'spectre', hero: look });
+    expect(state.config).toMatchObject({ ...STARTER, ship: 'spectre', rank: 0, heroShip: 'spectre', hero: look });
     expect(state.player).toMatchObject({ lives: 3, shields: 3, weapon: 'pulse', power: 0 });
     // A look that does not fit the chassis, or an unknown chassis, is dropped: the default Scrapper shows.
     expect(createRun({ mode: 'endless', seed: 1, heroShip: 'bogus' as never, hero: look }).config).not.toHaveProperty('heroShip');
     expect(createRun({ mode: 'endless', seed: 1, heroShip: 'ironclad', hero: { parts: { hull: 'z' } } as never }).config.hero).toBeUndefined();
   });
 
-  it('flies exactly the same endless run whatever chassis and look it shows: loadout, handling, perks and hit region', () => {
-    const base = flight({ mode: 'endless', seed: 23 });
-    expect(base.kills).toBeGreaterThan(10);
-    expect(base.specialsUsed).toBeGreaterThan(0);
+  it('keeps starter weapons, shields, handling and hit region for all chassis; parts stay cosmetic', () => {
     for (const ship of SHIP_IDS) {
-      const shown = flight({ mode: 'endless', seed: 23, heroShip: ship, hero: look, ship, weapon: 'seeker', rank: 2 });
-      expect(withoutConfig(shown), ship).toEqual(withoutConfig(base));
-      expect(playerKinematics(shown)).toEqual(playerKinematics(base));
+      const base = flight({ mode: 'endless', seed: 23, heroShip: ship }, 10);
+      const painted = flight({ mode: 'endless', seed: 23, heroShip: ship, hero: look, weapon: 'seeker', rank: 2 }, 10);
+      expect(withoutConfig(painted)).toEqual(withoutConfig(base));
+      expect(playerKinematics(painted)).toEqual(playerKinematics(base));
+      expect(painted.config).toMatchObject({ ...STARTER, ship, rank: 0 });
     }
-    // The hit region is the one shared collider (docs/31): no config field reaches it.
     expect(VIEW.playerRadius).toBe(0.42);
   });
 
@@ -54,8 +52,8 @@ describe('endless flies the campaign ship as cosmetics only (docs/33 § 2)', () 
     expect(shownHero(createRun(config).config)).toEqual(['interceptor', look]);
     expect(shownHero(createRun({ mode: 'endless', seed: 9 }).config)).toEqual(['scrapper', DEFAULT_LOOK]);
     expect(shownHero(createRun({ mode: 'campaign', seed: 9, ship: 'ironclad', hero: look }).config)).toEqual(['ironclad', look]);
-    // Endless still flies the starter whatever the profile holds.
-    expect(createRun(config).config).toMatchObject(STARTER);
+    // Endless keeps starter equipment while selecting the equipped chassis perk.
+    expect(createRun(config).config).toMatchObject({ ...STARTER, ship: 'interceptor' });
     expect(stepRun(createRun(config), EMPTY_INPUT)).toBeUndefined();
   });
 });

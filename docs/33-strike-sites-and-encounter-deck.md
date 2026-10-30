@@ -1,5 +1,7 @@
 # 33 · Strike sites and the encounter deck
 
+> **30 October user override:** The selected chassis perk now applies in endless as well as campaign; only modular parts and paint are cosmetic. Starter weapon/special/shield equipment still resets. See [global ship perks](34-global-ship-perks.md).
+
 Status: planned 29 October 2026; three parallel workstreams (§ 5). Decisions: docs/08, 29 October (strike sites, parts,
 encounter deck, endless cosmetics).
 

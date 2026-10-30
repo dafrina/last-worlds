@@ -15,6 +15,7 @@ let run: RunState | null = null;
 let accumulator = 0;
 let lastTime = performance.now();
 let pendingSpecial = false;
+let pendingDash: -1 | 1 | undefined;
 const audio = createGameAudio();
 // Sound samples are made in a worker from boot, never inside the first launch's tap (src/audio/sample-bank.ts).
 prefetchSamples();
@@ -91,7 +92,7 @@ function pause(reason = 'manual') {
   run.phase = 'paused';
   lastPauseReason = reason;
   input.clear();
-  pendingSpecial = false;
+  pendingSpecial = false; pendingDash = undefined;
   accumulator = 0;
   ui.update(run);
 }
@@ -135,7 +136,7 @@ async function start(config: RunConfig) {
     run = candidate; loadingRun = null;
     run.phase = startPaused || document.hidden || sideways?.matches ? 'paused' : 'playing';
     audio.start(run); if (run.phase === 'paused') audio.pause();
-    pendingSpecial = false; accumulator = 0; lastTime = performance.now();
+    pendingSpecial = false; pendingDash = undefined; accumulator = 0; lastTime = performance.now();
     warmupFrames = 2; maxFrameMs = 0; lastPauseReason = startPaused ? 'loading-blur' : '';
     ui.showLoading(false); ui.update(run);
   } catch (error) {
@@ -151,7 +152,7 @@ const ui = createUi(root, {
   resume() {
     if (run?.phase !== 'paused') return;
     input.clear();
-    pendingSpecial = false;
+    pendingSpecial = false; pendingDash = undefined;
     accumulator = 0;
     lastTime = performance.now();
     warmupFrames = 1;
@@ -164,7 +165,7 @@ const ui = createUi(root, {
     audio.quit();
     input.clear();
     run = null;
-    pendingSpecial = false;
+    pendingSpecial = false; pendingDash = undefined;
     accumulator = 0;
     ui.showMenu();
   },
@@ -233,17 +234,18 @@ function frame(now: number) {
   if (run?.jump) void renderer?.prepare(run.jump.to);
   const pendingWorld = destinationPending();
   if (pendingWorld !== waitingForWorld) {
-    waitingForWorld = pendingWorld; input.clear(); pendingSpecial = false; accumulator = 0;
+    waitingForWorld = pendingWorld; input.clear(); pendingSpecial = false; pendingDash = undefined; accumulator = 0;
     if (pendingWorld) audio.pause(); else if (run?.phase === 'playing') audio.resume();
   }
   ui.showLoading(!!loadingRun || waitingForWorld);
   if (run?.phase === 'playing' && !waitingForWorld) {
     pendingSpecial ||= controls.specialPressed;
+    pendingDash ??= controls.dashPressed;
     accumulator += frameSeconds;
     simStart = performance.now();
     while (accumulator >= STEP && run.phase === 'playing' && !destinationPending()) {
-      stepRun(run, { horizontal: controls.horizontal, specialPressed: pendingSpecial, pausePressed: false }, STEP);
-      pendingSpecial = false;
+      stepRun(run, { horizontal: controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
+      pendingSpecial = false; pendingDash = undefined;
       accumulator -= STEP;
     }
   }

@@ -40,10 +40,10 @@ export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot
   'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool'] as const;
 export type SiteId = (typeof SITE_IDS)[number];
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
-export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean }
+export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean; dashPressed?: -1 | 1 }
 /**
  * A run's setup. The campaign loadout (weapon, special, shield, ship, rank of the main weapon) applies only to the
- * campaign; createRun gives every endless run the canonical starter.
+ * campaign; createRun gives endless starter equipment and the selected chassis perk.
  */
 /** Modular hero ships (docs/31): four visual part slots, three designs each, mixed within one chassis. */
 export type HeroSlot = 'hull' | 'wings' | 'engines' | 'cockpit';
@@ -55,16 +55,20 @@ export interface RunConfig {
   special?: SpecialId; shield?: ShieldTechId; ship?: ShipId; rank?: number;
   /**
    * The ship's look (cosmetic: the simulation never reads it): the campaign chassis's in the campaign; in endless the
-   * campaign's equipped chassis and look as cosmetics only (docs/33 § 2), shown on `heroShip`.
+   * equipped chassis's modular parts and paint. Parts/paint are cosmetic; chassis perks work in both modes.
    */
   hero?: HeroLook;
   /**
-   * Endless only: the chassis model the flight shows (the campaign's equipped ship, docs/33 § 2). Cosmetic: endless
-   * still flies the starter (`ship` stays the Scrapper: its loadout, handling, hit region and no chassis perks).
+   * Endless launch chassis (from the equipped ship). createRun copies it to `ship` for its global perk;
+   * main/special/shield equipment and weapon tier still use the canonical starter.
    */
   heroShip?: ShipId;
 }
 export interface Player {
+  /** The Interceptor's last sidestep (src/sim/ship-perks.ts): when and which way, from where. */
+  dash?: { startedAt: number; direction: -1 | 1; fromX: number };
+  dashReadyAt?: number;
+  reflectReadyAt?: number;
   x: number; vx: number; lives: number; shields: number; maxShields: number;
   specialCharge: number; invulnerableUntil: number; lastHitAt: number;
   weapon: WeaponId; power: number;
@@ -114,6 +118,9 @@ export interface Enemy {
   pull?: { x: number; s: number };
 }
 export interface Projectile {
+  /** Gravitic Shield return fire; not a main/special missile and never grants special kill charge. */
+  reflected?: boolean;
+  orbit?: { angle: number; radius: number; direction: -1 | 1; elapsed: number };
   id: number; x: number; s: number; previousX: number; previousS: number;
   vx: number; vs: number; friendly: boolean; damage: number; radius: number;
   ttl: number; homingTargetId?: number;
@@ -146,7 +153,6 @@ export interface RunState {
   projectiles: Projectile[]; hazards: Hazard[]; pickups: Pickup[]; effects: Effect[];
   score: number; kills: number; credits: number; livesLost: number; specialsUsed: number;
   mainSequence?: { weapon: WeaponId; rank: number; index: number };
-  overdriveUntil?: number;
   nextId: number; nextVolleyAt: number; nextEncounterAt: number; encounterIndex: number;
   /** The cue (sector, index) whose ground formations already spawned ahead of its time (src/sim/game.ts, leadGround). */
   groundLead?: { sector: number; index: number } | null;

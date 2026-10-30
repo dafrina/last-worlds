@@ -101,37 +101,3 @@ describe('shared three-tier weapons', () => {
     }
   });
 });
-
-describe('campaign chassis perks', () => {
-  it('adds one reserve life over the selected difficulty baseline, never to endless', () => {
-    for (const difficulty of ['relaxed', 'standard', 'veteran'] as const) {
-      const base = createRun({ mode: 'campaign', difficulty, seed: 1 });
-      expect(createRun({ mode: 'campaign', difficulty, ship: 'ironclad', seed: 1 }).player.lives).toBe(base.player.lives + 1);
-    }
-    expect(createRun({ mode: 'endless', ship: 'ironclad', rank: 2, shield: 'aegis', seed: 1 })).toEqual(createRun({ mode: 'endless', seed: 1 }));
-  });
-  it('Scrapper attracts distant pickups only in campaign', () => {
-    const a = arena(), b = arena('pulse', 0, true);
-    for (const state of [a, b]) { state.pickups.push({ id: state.nextId++, kind: 'credit', x: 2, s: .1, value: 5, ttl: 5 }); stepRun(state, EMPTY_INPUT); }
-    expect(a.pickups[0].x).toBeLessThan(2); expect(b.pickups[0].x).toBe(2);
-  });
-  it('Interceptor increases bounded main-kill recharge, not passive recharge or special kills', () => {
-    for (const ship of ['scrapper', 'interceptor'] as const) {
-      const state = arena(); state.config.ship = ship; state.player.specialCharge = 0; state.nextVolleyAt = Infinity;
-      state.enemies[0].hp = 1;
-      state.projectiles.push({ id: state.nextId++, x: 0, s: 15, previousX: 0, previousS: 15, vx: 0, vs: 120, friendly: true, damage: 6, weapon: 'pulse', radius: .1, ttl: 1 });
-      stepRun(state, EMPTY_INPUT);
-      expect(state.player.specialCharge).toBeCloseTo((ship === 'interceptor' ? .045 : .03) + STEP / 45);
-    }
-  });
-  it('Spectre briefly boosts firing cadence after a special without changing shot damage', () => {
-    const state = arena(); state.config.ship = 'spectre';
-    stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
-    expect(state.overdriveUntil).toBeCloseTo(state.time + 3);
-    expect(state.nextVolleyAt - state.time).toBeCloseTo(WEAPONS.pulse.cadence / 1.25);
-    expect(state.projectiles.filter(p => p.friendly).every(p => p.damage === WEAPONS.pulse.damage)).toBe(true);
-    state.time = state.overdriveUntil! + 1; state.nextVolleyAt = 0;
-    stepRun(state, EMPTY_INPUT);
-    expect(state.nextVolleyAt - state.time).toBeCloseTo(WEAPONS.pulse.cadence);
-  });
-});

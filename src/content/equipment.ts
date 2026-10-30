@@ -63,16 +63,16 @@ export const SHIELD_TECH = {
 
 export interface ShipSpec {
   label: string; blurb: string; model: string;
-  extraLives: number; pickupReach: number; killCharge: number; overdrive: number;
+  extraLives: number; pickupReach: number; perk: string;
   /** Frame, propulsion and core respectively. One guaranteed part per listed mission clear, any difficulty. */
   parts: readonly MissionId[];
 }
-/** Shared art is intentional for this progression slice. All chassis use identical handling and hit regions. */
+/** Global chassis perks. Part designs remain cosmetic; ordinary handling and hit regions are shared. */
 export const SHIPS: Readonly<Record<ShipId, ShipSpec>> = {
-  scrapper: { label: 'Scrapper', blurb: 'Salvage rig · 40% wider pickup attraction.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1.4, killCharge: 1, overdrive: 0, parts: [] },
-  ironclad: { label: 'Ironclad', blurb: 'Reserve fighter · one extra starting life.', model: 'shared/hero-scrapper.glb', extraLives: 1, pickupReach: 1, killCharge: 1, overdrive: 0, parts: ['training', 'bastion', 'cold-vector'] },
-  interceptor: { label: 'Interceptor', blurb: 'Assault core · 50% more special charge from main-weapon kills.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, killCharge: 1.5, overdrive: 0, parts: ['bastion', 'cold-vector', 'deep-bloom'] },
-  spectre: { label: 'Spectre', blurb: 'Alien core · specials boost main firing rate 25% for three seconds.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, killCharge: 1, overdrive: 3, parts: ['deep-bloom', 'brood-strike', 'final-horizon'] },
+  scrapper: { label: 'Scrapper', perk: 'Salvage Rig', blurb: '40% wider pickup attraction. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1.4, parts: [] },
+  ironclad: { label: 'Ironclad', perk: 'Reserve Life', blurb: 'One extra starting life. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 1, pickupReach: 1, parts: ['training', 'bastion', 'cold-vector'] },
+  interceptor: { label: 'Interceptor', perk: 'Barrel Roll', blurb: 'Double-tap a steering side (or A/D or arrow key) to roll sideways out of the line of fire. 3 s cooldown. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, parts: ['bastion', 'cold-vector', 'deep-bloom'] },
+  spectre: { label: 'Spectre', perk: 'Gravitic Shield', blurb: 'While shielded, a near-miss bullet curves around your shield and returns fire. One at a time; 1.2 s cooldown. Direct hits and beams still hurt. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, parts: ['deep-bloom', 'brood-strike', 'final-horizon'] },
 };
 export const SHIP_PART_NAMES = ['Frame', 'Propulsion', 'Core'] as const;
 

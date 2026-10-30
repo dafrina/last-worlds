@@ -20,20 +20,20 @@ import { projectGround } from './ground';
 import { HUNTERS, absorbHunterShield, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
+import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
 
 export function createRun(config: RunConfig): RunState {
-  // A canonical config prevents campaign menu choices from leaking into an endless replay.
-  // Endless always flies the canonical starter; the campaign takes its loadout, falling back to the starter per slot.
+  // Normalize equipment separately from chassis: endless resets equipment but keeps its selected global ship perk.
   const pick = <T,>(value: T | undefined, allowed: readonly T[], fallback: T) => value !== undefined && allowed.includes(value) ? value : fallback;
-  // Endless shows the campaign's equipped chassis and look as cosmetics only (docs/33 § 2): `heroShip` and `hero`, which
-  // nothing in the simulation reads; it still flies the starter (ship, loadout, handling, hit region, no perks).
-  const heroShip = config.mode === 'endless' && config.heroShip !== undefined && SHIP_IDS.includes(config.heroShip) ? config.heroShip : undefined;
+  // Chassis perks are global (30 October user decision); only equipment upgrades stay campaign-specific.
+  const requestedShip = config.heroShip ?? config.ship;
+  const heroShip = config.mode === 'endless' && requestedShip !== undefined && SHIP_IDS.includes(requestedShip) ? requestedShip : undefined;
   const endlessLook = heroShip ? validLook(config.hero, heroShip) : null;
   const normalized: RunConfig = config.mode === 'endless'
-    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...STARTER, rank: 0, ...(heroShip ? { heroShip } : {}), ...(endlessLook ? { hero: endlessLook } : {}) }
+    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...STARTER, ship: heroShip ?? STARTER.ship, rank: 0, ...(heroShip ? { heroShip } : {}), ...(endlessLook ? { hero: endlessLook } : {}) }
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', mission: config.mission ?? 'training',
       weapon: pick(config.weapon, WEAPON_IDS, STARTER.weapon), special: pick(config.special, SPECIAL_IDS, STARTER.special),
       shield: pick(config.shield, SHIELD_IDS, STARTER.shield), ship: pick(config.ship, SHIP_IDS, STARTER.ship),
@@ -44,7 +44,7 @@ export function createRun(config: RunConfig): RunState {
     config: normalized, phase: 'playing', tick: 0, time: 0, distance: 0, sector: 1, cameraX: 0,
     pace, scrollSpeed: kinematics(pace).scroll, planet: runPlanet(normalized), jump: null, sectorStartedAt: 0,
     player: {
-      x: 0, vx: 0, lives: normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives + SHIPS[normalized.ship!].extraLives,
+      x: 0, vx: 0, lives: (normalized.mode === 'endless' ? 3 : DIFFICULTIES[normalized.difficulty!].lives) + SHIPS[normalized.ship!].extraLives,
       shields: shieldTech.charges, maxShields: MAX_SHIELDS,
       specialCharge: 1, invulnerableUntil: 0, lastHitAt: -100,
       weapon: normalized.weapon!, power: normalized.mode === 'campaign' ? normalized.rank! : 0,
@@ -67,6 +67,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   const previousTime = state.time;
   state.tick += 1;
   state.time += dt;
+  updateShipPerk(state, input, dt);
   updatePace(state, dt);
   movePlayer(state, input.horizontal, dt);
   updateDirector(state);
@@ -129,9 +130,14 @@ function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   const player = state.player;
   // All ships share the same handling; endless scales it with pace.
   const movement = playerKinematics(state);
-  player.vx = approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
+  // An Interceptor sidestep overrides steering while it lasts (src/sim/ship-perks.ts); its speed is the ship's velocity, so
+  // the swept hit tests and the drawn bank follow it.
+  const dash = sidestep(state, dt);
+  player.vx = dash ? dash.dx / dt : approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
   const limit = VIEW.worldWidth / 2 - VIEW.playerRadius;
   player.x = clamp(player.x + player.vx * dt, -limit, limit);
+  // It ends at full steering speed, as if the ship had been steering that way: held, it carries on; released, it brakes.
+  if (dash?.done) player.vx = dash.direction * movement.speed;
   if (Math.abs(player.x) >= limit && Math.sign(player.vx) === Math.sign(player.x)) player.vx = 0;
   const offset = player.x - state.cameraX;
   let target = state.cameraX;
@@ -464,8 +470,7 @@ function fireMain(state: RunState): void {
     state.projectiles.push(shot);
   });
   state.mainSequence.index = (state.mainSequence.index + 1) % sequence.length;
-  const boosted = state.config.mode === 'campaign' && state.time < (state.overdriveUntil ?? 0);
-  state.nextVolleyAt = state.time + step.wait / (boosted ? 1.25 : 1);
+  state.nextVolleyAt = state.time + step.wait;
 }
 
 function projectile(state: RunState, x: number, s: number, vx: number, vs: number, friendly: boolean, damage: number, radius: number, ttl: number): Projectile {
@@ -484,6 +489,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       continue;
     }
     const activeDt = Math.min(dt, shot.ttl);
+    if (orbitReflectedShot(state, shot, activeDt)) continue;
     if (shot.special) steerMissile(state, shot, activeDt);
     else if (shot.homingTargetId !== undefined) {
       const target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false);
@@ -511,7 +517,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       }
       if (target) {
         shot.ttl = 0;
-        damageEnemy(state, target, shot.damage, !shot.special, shot.special ? undefined : shot.weapon);
+        damageEnemy(state, target, shot.damage, !shot.special && !shot.reflected, shot.special ? undefined : shot.weapon);
         // Core destruction clears danger before later bullets in this same tick can hit.
         if (target.bossPart === 'core' && target.hp <= 0) resolveBossPhase(state);
       }
@@ -519,7 +525,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       shot.x - (previousPlayerX + (state.player.x - previousPlayerX) * activeDt / dt), shot.s, 0, 0, VIEW.playerRadius + shot.radius) !== null) {
       shot.ttl = 0;
       hitPlayer(state, shot.damage);
-    }
+    } else catchNearMiss(state, shot, previousPlayerX);
   }
   state.projectiles = state.projectiles.filter(shot => shot.ttl > 0 && Math.abs(shot.x) < VIEW.worldWidth / 2 + 10 && shot.s > VIEW.minS - 5 && shot.s < 35);
 }
@@ -612,7 +618,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   if (mainWeapon) {
     state.chargeKillTimes = state.chargeKillTimes.filter(time => state.time - time < 1);
     if (state.chargeKillTimes.length < 3) {
-      state.player.specialCharge = Math.min(1, state.player.specialCharge + BALANCE.special.killCharge * (state.config.mode === 'campaign' ? SHIPS[state.config.ship ?? 'scrapper'].killCharge : 1));
+      state.player.specialCharge = Math.min(1, state.player.specialCharge + BALANCE.special.killCharge);
       state.chargeKillTimes.push(state.time);
     }
   }
@@ -633,7 +639,6 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
 
 function useSpecial(state: RunState): void {
   state.player.specialCharge = 0;
-  if (state.config.mode === 'campaign') state.overdriveUntil = state.time + SHIPS[state.config.ship ?? 'scrapper'].overdrive;
   state.specialsUsed += 1;
   const special = state.config.special ?? 'shockwave';
   if (special === 'seeker-rack') return launchSeekerRack(state);
@@ -792,7 +797,7 @@ function updatePickups(state: RunState, dt: number): void {
     pickup.ttl -= dt;
     pickup.s -= BALANCE.pickup.speed * state.pace * dt;
     let distance = Math.hypot(pickup.x - state.player.x, pickup.s);
-    if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius * (state.config.mode === 'campaign' ? SHIPS[state.config.ship ?? 'scrapper'].pickupReach : 1) && distance > 0.001) {
+    if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius * SHIPS[state.config.ship ?? 'scrapper'].pickupReach && distance > 0.001) {
       const pull = Math.min(distance, BALANCE.pickup.magnetSpeed * state.pace * dt);
       pickup.x += (state.player.x - pickup.x) / distance * pull;
       pickup.s += -pickup.s / distance * pull;

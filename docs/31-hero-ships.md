@@ -1,5 +1,7 @@
 # 31 · Modular hero ships
 
+> **30 October 2026 update:** Chassis perks now apply in both modes. Scrapper: 40% wider pickup attraction; Ironclad: +1 starting life; Interceptor: double-tap steering barrel roll; Spectre: shielded near-miss reflection. This replaces the old kill-charge/overdrive bonuses and cosmetic-only endless chassis rule. See [global ship perks](34-global-ship-perks.md). Modular parts/paint remain cosmetic; endless equipment still resets.
+
 Status: in the game since 28 October 2026. Each campaign chassis flies its own build; Hangar → Ships has the
 configurator (§ In the game). The playground's Hangar tab is the look-dev view.
 
