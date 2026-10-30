@@ -31,7 +31,7 @@ import { FORMATIONS } from '../content/formations';
 import { ROSTER, hunterKind, modelOf, statsLine, viewerModels, WORLDS } from './roster';
 import { attackNow, holdDirector, labClock, spawnFormation, spawnHunter } from './lab';
 import { createModelViewer } from './viewer';
-import { destroySites, hitSites, placeSite, type SiteSpot } from './sites-lab';
+import { destroySites, hitSites, placeSite, siteSeats, type SiteSpot } from './sites-lab';
 import { SITES } from '../content/sites';
 import { SITE_MODELS } from '../render/site-models';
 import { SITE_IDS, type SiteId } from '../shared/contracts';
@@ -339,6 +339,10 @@ const siteLab = {
   clear() { state.enemies = state.enemies.filter(enemy => !enemy.site); },
   /** Removes lingering effects (a held world never ages its kill explosion). */
   calm() { state.effects = []; },
+  /** Moves the world on by `units` (fresh ground for the next site; the last one scrolls out) and clears every enemy. */
+  /** Each placed core's seat and the ground under its footprint (lookdev checks). */
+  seats() { return siteSeats(state); },
+  skip(units: number) { ensureLab(); state.distance += units; state.enemies = state.enemies.filter(enemy => enemy.bossPart); state.projectiles = []; state.effects = []; },
 };
 // Lookdev automation (development builds only): window.siteLab.place('airfield', 1).
 if (import.meta.env.DEV) (window as unknown as { siteLab: typeof siteLab }).siteLab = siteLab;
