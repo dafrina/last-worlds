@@ -1455,6 +1455,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       };
       // Strike sites first: a site core's own model is left out below (the site draws its core).
       sites.update(state, planet, view, (x, s) => surfaceHeight(state.config.seed, x, s, world));
+      terrainMaterials.setSitePads(sites.pads, sites.keeps, state.distance);
       const groundNow = new Map<number, GroundSeen>();
       for (const enemy of state.enemies) {
         if (enemy.bossPart) continue;

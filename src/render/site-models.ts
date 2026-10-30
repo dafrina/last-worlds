@@ -9,10 +9,11 @@ import type { PlanetId, SiteId } from '../shared/contracts';
  * Nodes per finish: `site_<id>_<finish>_body` (the site), `_core` (the target, hidden once destroyed) and `_ruin` (the
  * broken core, shown once destroyed); `<id>` with underscores. Frame: the pivot is the core target's ground point, so a
  * site anchors to its core enemy; x lateral, s away from the camera (glTF −z), the detailed front facing the camera; the
- * core's centre stands SITE_CORE_HEIGHT above the pivot. Foundations reach `below` under the pivot for uneven ground.
+ * core's centre stands its site's SITE_CORE_HEIGHT (src/content/sites.ts) above the pivot, and every model fits inside
+ * SITE_FOOTPRINT there. The sealed vault's `_core` and `_ruin` are one seal, drawn at each seal's own anchor. Foundations reach `below` under the pivot for uneven ground.
  *
- * Phase 1 (29 October) models one site per family; the other eight follow after the user's review. A site without a
- * model here shows its core enemy's own model.
+ * Every site has a model on every world it appears on (phase 2, 30 October); a finish that fails to load leaves its
+ * cores their own model.
  */
 export interface SiteModel {
   finishes: readonly PlanetId[];
@@ -26,16 +27,22 @@ export interface SiteModel {
   spin?: number;
 }
 
-/** The ground targets' core height (GROUND_HEIGHT in src/sim/motion.ts): every site's core is centred there. */
-export const SITE_CORE_HEIGHT = 0.85;
 /** docs/25 rule 3: roofs stay 0.45 under the flight plane; a site on high ground is squashed about its core to keep that. */
 export const SITE_ROOF_CLEARANCE = 0.45;
 
 export const SITE_MODELS: Readonly<Partial<Record<SiteId, SiteModel>>> = {
-  'crash-site': { finishes: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'], x: [-2.95, 3.0], s: [-2.1, 2.3], top: 1.3, below: .7 },
-  'airfield': { finishes: ['luna', 'khepri', 'vesper'], x: [-2.7, 3.0], s: [-3.2, 3.25], top: 2.05, below: 1.3 },
-  'prism-reactor': { finishes: ['umbra', 'nacre'], x: [-2.8, 2.8], s: [-2.45, 2.75], top: 2.95, below: 1.15, spin: .45 },
-  'brood-hive': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.6], s: [-1.7, 2.95], top: 2.35, below: 1.05 },
+  'crash-site': { finishes: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'], x: [-2.95, 2.9], s: [-2.5, 2.7], top: 1.55, below: .7 },
+  'airfield': { finishes: ['luna', 'khepri', 'vesper'], x: [-2.7, 3.0], s: [-3.2, 3.3], top: 2.95, below: 1.3 },
+  'salvage-yard': { finishes: ['luna', 'khepri', 'vesper'], x: [-3.0, 3.0], s: [-2.9, 3.3], top: 2.9, below: 1.0 },
+  'shield-depot': { finishes: ['luna', 'khepri', 'vesper'], x: [-2.7, 2.7], s: [-2.6, 3.05], top: 2.1, below: 1.0 },
+  'relay-station': { finishes: ['luna', 'khepri', 'vesper', 'amnion'], x: [-2.9, 3.0], s: [-2.75, 3.1], top: 3.1, below: 1.0 },
+  'freight-terminal': { finishes: ['luna', 'khepri', 'vesper', 'amnion'], x: [-3.0, 3.0], s: [-3.05, 3.3], top: 2.2, below: 1.0 },
+  'dark-spaceport': { finishes: ['umbra', 'nacre'], x: [-3.0, 3.0], s: [-3.05, 3.15], top: 3.2, below: 1.1 },
+  'prism-reactor': { finishes: ['umbra', 'nacre'], x: [-2.8, 2.8], s: [-2.45, 2.75], top: 2.9, below: 1.1, spin: .45 },
+  'sealed-vault': { finishes: ['umbra', 'nacre'], x: [-2.75, 2.8], s: [-2.55, 3.2], top: 2.6, below: 1.1 },
+  'gate-ring': { finishes: ['umbra', 'nacre', 'amnion'], x: [-2.75, 2.7], s: [-2.85, 2.75], top: 2.95, below: 1.1 },
+  'brood-hive': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.6], s: [-1.95, 2.95], top: 2.3, below: 1.05 },
+  'spawning-pool': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.45], s: [-2.5, 2.85], top: 2.5, below: .95 },
 };
 
 export type SitePart = 'body' | 'core' | 'ruin';

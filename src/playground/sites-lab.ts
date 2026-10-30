@@ -5,6 +5,7 @@
  * look. The renderer draws the site around the core. Presentation testing only: the campaign never runs this.
  */
 import { spawnMembers } from '../sim/spawn';
+import { footprintGround } from '../sim/sites';
 import { SITE_LEAD, FORMATIONS } from '../content/formations';
 import { siteCue } from '../content/sites';
 import { VIEW, type PlanetId, type RunState, type SiteId } from '../shared/contracts';
@@ -44,4 +45,12 @@ export function destroySites(state: RunState) {
 /** A site core takes a hit (the core's glow flashes). */
 export function hitSites(state: RunState) {
   for (const enemy of state.enemies) if (enemy.site && enemy.hp > 1) enemy.hp -= 1;
+}
+
+/** Lookdev: each site core's seat (world x, s, floor) and the footprint's ground there (spread, drop, above). */
+export function siteSeats(state: RunState) {
+  return state.enemies.filter(enemy => enemy.site && enemy.ground).map(enemy => {
+    const x = enemy.ground!.x, s = state.distance + enemy.ground!.s, ground = footprintGround(state, x, s);
+    return { site: enemy.site, x: +x.toFixed(2), s: +s.toFixed(2), base: +enemy.ground!.base.toFixed(2), spread: +ground.spread.toFixed(2), drop: +ground.drop.toFixed(2), above: +ground.above.toFixed(2), distance: state.distance, camera: state.cameraX };
+  });
 }

@@ -856,6 +856,60 @@ const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; col
   luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0, fleshOnly: 0 },
 };
 
+/** Strike-site pads the ground levels at once, and ground batteries it keeps the terrain under (docs/33 § 6). */
+export const SITE_PADS = 4;
+export const SITE_PAD_KEEPS = 8;
+/**
+ * A strike site's pad: its world rectangle, the floor it levels the ground to, the blend band around it, and the highest it
+ * fills ground up to (the floor; a site on a deck over the sea fills the seabed only to just under the water, so it stands
+ * in the shallows rather than on an island).
+ */
+export interface SitePad { minX: number; maxX: number; minS: number; maxS: number; level: number; blend: number; fill: number }
+/** A ground battery near a pad (world x, s): the terrain within `radius` stays as it is, so it never floats or sinks. */
+export interface SitePadKeep { x: number; s: number; radius: number }
+/** The ground at a pad: cut down to its floor, filled up to its fill height (never lowered below its own height). */
+export function sitePadGround(pad: SitePad, ground: number, weight: number): number {
+  const target = ground >= pad.level ? pad.level : Math.max(ground, Math.min(pad.level, pad.fill));
+  return ground + (target - ground) * weight;
+}
+/**
+ * How much a pad levels the ground at (x, s): 1 over its rectangle, easing to 0 a blend band outside it (smoothstep), and
+ * back to 0 near a kept battery. The ground shader's SITE_PAD_NORMAL does the same; site-view.ts uses it for foundations.
+ */
+export function sitePadWeight(pad: SitePad, x: number, s: number, keeps: readonly SitePadKeep[] = []): number {
+  const d = Math.max(pad.minX - x, x - pad.maxX, pad.minS - s, s - pad.maxS), t = Math.min(1, Math.max(0, d / pad.blend));
+  let w = 1 - t * t * (3 - 2 * t);
+  for (const keep of keeps) {
+    const u = Math.min(1, Math.max(0, (Math.hypot(x - keep.x, s - keep.s) - keep.radius * .5) / (keep.radius * .5)));
+    w *= u * u * (3 - 2 * u);
+  }
+  return w;
+}
+const SITE_PAD_VERTEX = `uniform vec4 sitePadRects[${SITE_PADS}];\nuniform vec3 sitePadLevels[${SITE_PADS}];\nuniform int sitePadCount;
+uniform vec3 sitePadKeeps[${SITE_PAD_KEEPS}];\nuniform int sitePadKeepCount;\nfloat sitePadWeight = 0.0;\nfloat sitePadLevel = 0.0;\nfloat sitePadFill = 0.0;\nfloat sitePadTarget = 0.0;`;
+// The strongest pad at this vertex (world x and three.js z), less near kept batteries; the normal turns up as it levels.
+const SITE_PAD_NORMAL = `#include <beginnormal_vertex>
+if ( sitePadCount > 0 ) {
+  vec3 padAt = ( modelMatrix * vec4( position, 1.0 ) ).xyz;
+  for ( int i = 0; i < ${SITE_PADS}; i++ ) {
+    if ( i >= sitePadCount ) break;
+    vec4 r = sitePadRects[ i ]; vec3 l = sitePadLevels[ i ];
+    float d = max( max( r.x - padAt.x, padAt.x - r.y ), max( r.z - padAt.z, padAt.z - r.w ) );
+    float w = 1.0 - smoothstep( 0.0, l.y, d );
+    if ( w > sitePadWeight ) { sitePadWeight = w; sitePadLevel = l.x; sitePadFill = l.z; }
+  }
+  for ( int i = 0; i < ${SITE_PAD_KEEPS}; i++ ) {
+    if ( i >= sitePadKeepCount ) break;
+    vec3 k = sitePadKeeps[ i ];
+    sitePadWeight *= smoothstep( k.z * 0.5, k.z, distance( padAt.xz, k.xy ) );
+  }
+  // Cut down to the floor, or filled up to the fill height; ground already between the two keeps its height and normal.
+  float padY = padAt.y;
+  sitePadTarget = padY >= sitePadLevel ? sitePadLevel : min( sitePadLevel, sitePadFill );
+  if ( padY < sitePadLevel && padY >= sitePadTarget ) sitePadWeight = 0.0;
+  objectNormal = normalize( mix( objectNormal, vec3( 0.0, 1.0, 0.0 ), sitePadWeight ) );
+}`;
+
 /**
  * Ground, kit and infrastructure materials. Colour stays in the Khepri palette (vertex colours); textures
  * only add contrast-limited luminance detail and normals. Low tier drops normal maps; layout never changes.
@@ -906,13 +960,24 @@ export function createTerrainMaterials() {
     // at x). Vesper's cliffs are near-vertical: only its truly sheer faces turn to ice (23 October: at Khepri's 0.62–0.42,
     // single steep triangles on rounded shoulders showed as blue facets beside the ice walls).
     cliffSteep: { value: new THREE.Vector2(0.62, 0.42) } };
+  /**
+   * Strike-site pads (docs/33 § 6; user, 30 October: "make sure none of these cross heavy cliffs"): render only, the ground
+   * under a site is levelled to its floor. Each pad is a world rectangle (x, three.js z) flat inside, blending back to the
+   * terrain over a `blend` band around it; the ground under the batteries near it stays as it is (they stand where the
+   * simulation anchored them). Never terrain data or targeting: the simulation's ground is untouched.
+   */
+  const sitePads = { sitePadRects: { value: Array.from({ length: SITE_PADS }, () => new THREE.Vector4(1, -1, 1, -1)) },
+    sitePadLevels: { value: Array.from({ length: SITE_PADS }, () => new THREE.Vector3(0, 1, 0)) }, sitePadCount: { value: 0 },
+    sitePadKeeps: { value: Array.from({ length: SITE_PAD_KEEPS }, () => new THREE.Vector3(0, 0, 1)) }, sitePadKeepCount: { value: 0 } };
   ground.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps, crackLook);
+    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps, crackLook, sitePads);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
-attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;\nvarying vec4 vCrackClip;`)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurface = surface;\nvVeins = veins;\nvLocal = position;\nvFace = normal;')
+attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;\nvarying vec4 vCrackClip;
+${SITE_PAD_VERTEX}`)
+      .replace('#include <beginnormal_vertex>', SITE_PAD_NORMAL)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurface = vec4(surface.xy, surface.z * (1.0 - sitePadWeight), surface.w);\nvVeins = veins;\nvLocal = position;\nvFace = normalize(mix(normal, vec3(0.0, 1.0, 0.0), sitePadWeight));\ntransformed.y = mix(transformed.y, sitePadTarget - modelMatrix[3].y, sitePadWeight);')
       .replace('#include <project_vertex>', HAZE_VERTEX + '\nvCrackClip = gl_Position;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
@@ -1389,6 +1454,20 @@ ${VESPER_KIT_SURFACE}`)
   };
   return {
     ground, kit, kitWall, infra, roads,
+    /**
+     * The strike-site pads this frame (world x, s; floor level; blend), at most SITE_PADS; `distance` maps s to three.js z.
+     * Render only (src/render/site-view.ts `pads`).
+     */
+    setSitePads(pads: readonly SitePad[], keeps: readonly SitePadKeep[], distance: number) {
+      const count = Math.min(SITE_PADS, pads.length), kept = count ? Math.min(SITE_PAD_KEEPS, keeps.length) : 0;
+      for (let i = 0; i < count; i++) {
+        const pad = pads[i];
+        sitePads.sitePadRects.value[i].set(pad.minX, pad.maxX, distance - pad.maxS, distance - pad.minS);
+        sitePads.sitePadLevels.value[i].set(pad.level, pad.blend, pad.fill);
+      }
+      for (let i = 0; i < kept; i++) sitePads.sitePadKeeps.value[i].set(keeps[i].x, distance - keeps[i].s, keeps[i].radius);
+      sitePads.sitePadCount.value = count; sitePads.sitePadKeepCount.value = kept;
+    },
     /** Planet look (ground grain, haze, road surface); the terrain view also calls it through ground.userData. */
     setPlanet,
     /** Presentation time for blinking beacons (seconds); never read by the simulation. */
