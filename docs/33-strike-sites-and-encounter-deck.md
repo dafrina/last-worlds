@@ -102,18 +102,18 @@ or fuel wreck; skip `enemy.site` in the enemy batches and wrecks.
 
 | Site | Worlds: guard (threat) | Core hp | Campaign loot | Endless loot |
 | --- | --- | --- | --- | --- |
-| Crash site | Luna, Khepri: turret trio + weaver (8); Vesper: missile trio + Needle (8); Nacre, Amnion, Umbra: two turrets and a missile battery + weaver (8) | 80 | 1 part | power cell + 1,000 |
-| Airfield | Luna, Khepri: turret trio + **a scrambled dart pair** (8); Vesper: missile trio + Needle (8) | 80 | 1 part | power cell + 1,000 |
+| Crash site | Luna, Khepri: turret trio + weaver (8); Vesper: missile trio + Needle (8); Nacre, Amnion, Umbra: two turrets and a missile battery + weaver (8) | 80 | part roll (75 %) | power cell + 1,000 |
+| Airfield | Luna, Khepri: turret trio + **a scrambled dart pair** (8); Vesper: missile trio + Needle (8) | 80 | part roll (75 %) | power cell + 1,000 |
 | Salvage yard (rare, weight 0.3) | Luna, Khepri: turret ring of four + three-dart arrowhead (11); Vesper: missile trio + Diamond (10) | 150 | 3 parts | power cell + 3,000 |
-| Shield depot | Luna, Khepri: turret pair (4); Vesper: missile pair (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
-| Relay station | Luna, Khepri: turret pair + dart (5); Vesper: missile pair (4); Amnion: turret and missile battery + dart (5) | 80 | 30 credits | 1,500 score |
-| Freight terminal | Luna, Khepri: turret trio (6); Vesper: missile trio (6); Amnion: mixed trio (6) | 80 | 40 credits | a weapon (the next in Pulse → Fan → Seeker → Rail) |
-| Dark spaceport | Umbra, Nacre: mixed trio + Needle (8) | 80 | 1 part | power cell + 1,000 |
-| Prism reactor | Umbra, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
+| Shield depot | Luna, Khepri: turret pair (4); Vesper: missile pair (4) | 80 | shield cell (budgeted) + part roll (25 %) | shield cell (budgeted) |
+| Relay station | Luna, Khepri: turret pair + dart (5); Vesper: missile pair (4); Amnion: turret and missile battery + dart (5) | 80 | 30 credits + part roll (37.5 %; Vesper 25 %) | 1,500 score |
+| Freight terminal | Luna, Khepri: turret trio (6); Vesper: missile trio (6); Amnion: mixed trio (6) | 80 | 40 credits + part roll (50 %) | a weapon (the next in Pulse → Fan → Seeker → Rail) |
+| Dark spaceport | Umbra, Nacre: mixed trio + Needle (8) | 80 | part roll (75 %) | power cell + 1,000 |
+| Prism reactor | Umbra, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) + part roll (25 %) | shield cell (budgeted) |
 | Sealed vault (rare, weight 0.3) | Umbra, Nacre: wide ring of two turrets and a missile battery + Diamond (10); **three seals** | 3 × 55 | 3 parts | power cell + 3,000 |
-| Gate ring | Umbra, Nacre, Amnion: turret and missile battery + weaver (6) | 80 | shield cell (budgeted) | power cell |
-| Brood hive | Amnion, Nacre: mixed trio + weaver (8) | 80 | 1 part | power cell + 1,000 |
-| Spawning pool | Amnion, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
+| Gate ring | Umbra, Nacre, Amnion: turret and missile battery + weaver (6) | 80 | shield cell (budgeted) + part roll (50 %) | power cell |
+| Brood hive | Amnion, Nacre: mixed trio + weaver (8) | 80 | part roll (75 %) | power cell + 1,000 |
+| Spawning pool | Amnion, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) + part roll (25 %) | shield cell (budgeted) |
 
 Every guard flies only kinds that already fly on its world (tested). **Weapon and power loot in the campaign:** the plan's
 "weapon" (freight terminal) and "power / weapon" (gate ring) cannot pay out in the campaign, where weapons and their tiers
@@ -133,10 +133,20 @@ can collect therefore never exceed its supply schedule (`tests/sim/sites.test.ts
 **Parts** (`Pickup.kind 'part'`, one pickup per part, an orange octagon with a cog) count in `RunState.parts` in the
 campaign and are banked with the attempt in full whatever its outcome (docs/21 § 7). Endless never drops one.
 
+**Every site rolls for a part** (user, 30 October: "raise parts probability to 0.25-0.75 per site", "Every site rolls";
+docs/08). In the campaign each destroyed site drops one part, 0.8 units beside its core, with a chance linear in its
+guard's threat on that world (`sitePartChance`, `PART_CHANCE`): 25 % at threat 4, 75 % at threat 8. So 75 % for the crash
+site, airfield, dark spaceport and brood hive; 50 % for the freight terminal and gate ring; 37.5 % for the relay station
+(25 % on Vesper); 25 % for the shield depot, prism reactor and spawning pool. It comes besides the site's own loot; the
+four parts sites no longer drop a guaranteed part (the roll is it), and the salvage yard and sealed vault keep their
+guaranteed 3 (no roll). The roll is its own hash (`partRoll` in src/sim/sites.ts: run seed, sector, site, sites destroyed
+so far), never `Math.random` and never the loot stream. Messages keep naming the main loot (`· PARTS` on the parts sites).
+
 **Statistics** (invariant 13, observation only): the flight log counts sites destroyed per mode (`FlightTotals.sites`,
 `FlightRecord.sites`; older logs read as 0). It is not shown on the Statistics page yet.
 
-**Measured (29 October; `SITE_ECONOMY=<file> npx vitest run tests/sim/site-economy.test.ts`).** Each mission's authored
+**Measured, round 1 (29 October, before the part roll and the deck's 1–4 sites; the round-2 economy is in § 4.1;
+`SITE_ECONOMY=<file> npx vitest run tests/sim/site-economy.test.ts`).** Each mission's authored
 side routes (Training 2, Rolling Thunder 1, the others 2) replaced by each of its world's parts sites in turn, Standard,
 the perfect pilot steering for site cores and parts (`tests/sim/site-harness.ts`), seeds 5, 6 and 7, no life lost in any
 run. Parts banked per site encounter, and the expected parts per mission when the side slots draw from the world's pool
@@ -175,7 +185,7 @@ list comes from:
   a band, not match one number.
 - Training's teaching order stays fixed.
 
-### 4.1 As built (workstream A, 29–30 October 2026)
+### 4.1 As built (workstream A, 29–30 October 2026; round 2, 30 October)
 
 Runtime source: `src/content/encounter-deck.ts` (templates, pools, guard rails, `resolvePlaylist`); the director asks it
 for the run's list (`resolvePlaylist(state.config, state.sector, state.config.seed)`, memoized in a small bounded cache
@@ -187,41 +197,51 @@ cutoffs and arrivals, the endless sector cycle and pace ramp and the shield-supp
 
 - `fix(cue)`: flies as written. Every intro cue, every cue with a message (teaching steps, set pieces, power-cell and
   weapon opportunities) and every relief.
-- `draw(cue)`: a pool slot; `cue.formations` is its **nominal** wave (what the arc flew before the deck) and fixes the
-  slot's role (an air squadron, or ground batteries), its attack character (below) and its threat cost; its pickup stays
-  with the slot.
-- `side({ at, id, pickup? })`: a strike site (§ 3), drawn from `sitePool(world)` by `SiteDefinition.weight`, west or east
-  by the roll, built with `siteCue(id, side, at, world)`; a slot's pickup moves to the drawn side.
+- `draw(cue, rank?)`: a pool slot; `cue.formations` is its **nominal** wave (what the arc flew before the deck) and fixes
+  the slot's role (an air squadron, or ground batteries), its attack character (below) and its threat cost; its pickup
+  stays with the slot. With a `rank` it is also a campaign site place (a stand-in, below); `endlessSite(cue)` is an
+  endless stage's stand-in.
+- `side({ at, id, pickup?, rank? })`: a strike site (§ 3), drawn from `sitePool(world)` by `SiteDefinition.weight`, west
+  or east by the roll, built with `siteCue(id, side, at, world)`; a slot's pickup moves to the drawn side. In the
+  campaign its `rank` decides whether the attempt flies it (below).
+- A site in either kind of slot is drawn the same way; no site twice in a row.
 
 Templates: the six missions (`CAMPAIGN_DECKS`) and ten endless stages (`ENDLESS_DECKS`: the Luna prologue, then opening,
 pressure and peak stages for Khepri, Vesper and Nacre). Teaching arcs (every mission, the prologue and the opening
 stage of each world's first endless visit) fly a slot whose nominal introduces a formation as authored, and draw only
 formations already introduced, so squadrons appear in their authored order. Training's teaching sequence is therefore
-fixed on every seed, and its two side slots (39 s and 44 s) teach the side route.
+fixed on every seed, and its first site, always at 39 s on a side route, teaches the side route.
 
-**Side slots** (the old `SALVAGE ROUTE · WEST`, `OPTIONAL OUTPOST · EAST`, `LONE TURRET · EAST`, … routes are gone):
+**Strike sites per run** (the old `SALVAGE ROUTE · WEST`, `OPTIONAL OUTPOST · EAST`, `LONE TURRET · EAST`, … routes are
+gone). **Campaign:** a seeded count per attempt (`SITE_COUNT`, drawn first from the deck stream; user, 30 October: "keep
+sites 1-4, with 2 being most probable"): one 20 %, two 45 %, three 25 %, four 10 %. Every mission offers four ranked site
+places and the attempt flies the first `count`. A place is either a **side** slot (`side({ …, rank })`: an empty relief
+when unused, as the old east routes were) or a **stand-in** (`draw(cue, rank)`: a pool slot whose ground battery the site
+replaces when used, so the arc's pressure stays as authored and the site adds no admission lag; unused, it draws as
+usual). A site standing in for a battery that introduced a formation moves that introduction to the battery's next slot.
 
-| Arc | Side slots (s) | Sites per run |
-| --- | --- | --- |
-| Training | 39, 44, on opposite sides (they teach the side route) | 2 |
-| Rolling Thunder | 41 (where its salvage route was) | 1 |
-| Cold Vector | 48, 53, on opposite sides | 2 |
-| Deep Bloom, Brood Strike, Final Horizon | 51 (the old east route at 56 s is an empty relief) | 1 |
-| Endless Luna prologue | 39, 44, on opposite sides (Training's) | 2 |
-| Endless Khepri and Vesper stages | their west route (31–44 s); the old east route after the climax is an empty relief | 1 |
-| Endless Nacre opening / pressure / peak | 51 (Deep Bloom's) / none / 52 (the second half 1 s later) | 1 / 0 / 1 |
+| Mission | rank 1 | rank 2 | rank 3 | rank 4 |
+| --- | --- | --- | --- | --- |
+| Training | 39 s side (teaches the side route) | 63 s stand-in, battery-3 | 85 s stand-in, battery-3 | 44 s side |
+| Rolling Thunder | 64 s stand-in, battery-3 | 84 s stand-in, depot-3 | 16 s stand-in, battery-3 | 106 s stand-in, battery-4 |
+| Cold Vector | 48 s side | 75 s stand-in, missile-3 | 101 s stand-in, missile-3 | 53 s side |
+| Deep Bloom, Brood Strike, Final Horizon | 51 s side | 74 s stand-in, depot-missile | 95 s stand-in, missile-2 | 142 s stand-in, missile-3 |
 
-Only Training and Cold Vector keep **two** sites (30 October, measured; Cold Vector's recovery is followed by missile
-batteries, which fire down their own columns). A strike site's guard (threat 8–11 for a parts site) holds that much of
-the live threat budget while it scrolls through, and its air guard waits for clear airspace; with the list already running
-5–15 s behind its times there, two sites back to back were admitted on top of the next pressure block (the fuel depots,
-egg sacs and energy cells: aimed turret batteries) while the pilot was still out at a site near the world edge. With two
-sites the perfect pilot took about twice the fixed lists' hits on the last three missions (Brood Strike Standard Fan 7
-against 1, Final Horizon Veteran Seeker 9 against 6 over 24 seeds), and Rolling Thunder Veteran most of its extra hits
-from the depots after its sites. A second site in the intro, where the list is still on time, was tried too: on Deep
-Bloom it drew the pilot to the edge just before the Pulsar lesson. Nacre's pressure stage (Deep Bloom's middle and
-climax) has no recovery at all; the site the deck first squeezed in before its climax roughly quadrupled the hits in
-endless sector 9, so it flies none, as its fixed list had no side route.
+Rolling Thunder's 41 s recovery keeps the old salvage route's 25 credits as a plain relief and holds no site: an airfield
+there (its scrambled dart pair) sealed the lanes together with the fixed fuel depot at 47 s (Standard Fan, seed 53, the
+hazard-union check). Two sites within `SITE_CALM` (15 s) of each other stand on opposite sides. Measured over seeds 1–48:
+the attempts drew 1/2/3/4 sites 15/16/12/5 times (Training), 12/17/14/5 (Rolling Thunder), 10/18/14/6 (Cold Vector),
+9/19/12/8 (Deep Bloom), 8/26/10/4 (Brood Strike) and 12/20/8/8 (Final Horizon), and every drawn site flew: the late
+places (106 s, 142 s) were dropped by the boss approach once each in 288 flights (Rolling Thunder 106 s, Deep Bloom 142 s).
+
+**Endless** keeps one site per stage: the Luna prologue Training's two side slots (39 s, 44 s); Vesper's stages and
+Nacre's opening and peak a side slot (their west route, Deep Bloom's 51 s, and 52 s between the peak's halves); Nacre's
+pressure stage none (Deep Bloom's middle and climax has no recovery to hold one; a site squeezed in before its climax
+roughly quadrupled sector 9's hits in round 1). **Khepri's three stages stand their site in for a turret battery**
+(`endlessSite`: 54 s, 41 s, 38 s; their old west recoveries keep their credit and weapon pickups as plain reliefs): with a
+side-route site there the endless boss run took 116 hits against the fixed lists' 88 (seeds 1–48, three weapons), almost
+all at the world edge with Khepri's hunter, a Lancer that follows the ship to the side; without any site 76 on seeds 1–24
+against 49. As stand-ins: 85.
 
 **Pools** (`DECK_POOLS[world][phase]`): authored waves (`w(...)`) built only from formations and kinds the world already
 flies (tested against the nominal arcs): one air squadron, or one ground battery, optionally with harmless skids (two
@@ -242,9 +262,12 @@ new formations, and no Pulsar or Wraith wave: they fly only in their arc slots.
   a stretch asks of the pilot. Without this rule (30 October) a turret battery drawn into a missile slot beside
   the Pulsar pair, or a Pulsar drawn into a heavy's slot two cues from it, nearly tripled the perfect pilot's hits on Deep
   Bloom (Veteran Seeker 17 against 6 over 24 seeds);
-- it costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`; but no more than the nominal within
-  `SITE_CALM` (15 s) after a strike site (the main battle resumes while a pilot who took the site is still out by the
-  edge);
+- it costs between 0.65 and 1 times the nominal (`BAND`), at the Standard rank and, for the upper bound, at the Veteran
+  rank too (Veteran adds members to the dart squadrons): a draw never asks more of the pilot than the wave the arc authored
+  there (30 October; round 1 allowed up to 1.5 times and measured Rolling Thunder Veteran 28 % and the endless boss run
+  33 % above the fixed lists; user: "Tune those down");
+- it uses only formations its own arc flies (teaching arcs: only those already introduced); round 1 let endless stages
+  draw from their whole world pool;
 - no wave twice in a row, nor the same as the next fixed cue; where the pool allows, not the same as the last wave of its
   role either; no site twice in a row, and a second site within `SITE_CALM` of another stands on the other side (two on
   one side ran into each other: the seat search can move a core several units back onto the previous site's ground);
@@ -278,51 +301,57 @@ airspace observer no longer requires separation between them. Under the release 
 near the bottom of the view come up to a unit closer than authored, so the ring's 2.55-unit seats read as overlapping
 the core. The guard keeps the rule against every other squadron.
 
-**Measured** (30 October, on the final code with workstream C's site seats, 6812ba2). Hits the perfect pilot takes
-(`perfectPilot()`, no pickups, no special) over seeds 1–48, the three main weapons together (144 flights per row), against
-the fixed lists of 67cdfad on the same seeds. Campaign missions fly whole; endless sectors from their start
-(`enterSector`) until the next sector begins, Twin Pulse. Band: the fixed lists' count plus 25 % or plus one hit per 16
-flights, whichever is larger.
+**Measured** (30 October, round 2, on d6b95e9). Hits the perfect pilot takes (`perfectPilot()`, no pickups, no special)
+over seeds 1–48, the three main weapons together (144 flights per cell), against the fixed lists of 67cdfad on the same
+seeds. Campaign missions fly whole; endless sectors from their start (`enterSector`) until the next sector begins, Twin
+Pulse. Band: the fixed lists' count plus 25 % or plus one hit per 16 flights, whichever is larger.
 
 | Mission | Standard: fixed → deck | Veteran: fixed → deck | Mission (288 flights) |
 | --- | --- | --- | --- |
-| Training | 0 → 0 | 5 → 9 | 5 → 9 |
-| Rolling Thunder | 37 → 31 | 39 → 50 (+28 %, just above the band) | 76 → 81 |
-| Cold Vector | 5 → 11 | 14 → 8 | 19 → 19 |
-| Deep Bloom | 38 → 34 | 60 → 52 | 98 → 86 |
-| Brood Strike | 19 → 25 | 27 → 24 | 46 → 49 |
-| Final Horizon | 10 → 9 | 29 → 20 | 39 → 29 |
+| Training | 0 → 1 | 5 → 5 | 5 → 6 |
+| Rolling Thunder | 37 → 16 | 39 → 39 | 76 → 55 |
+| Cold Vector | 5 → 4 | 14 → 16 | 19 → 20 |
+| Deep Bloom | 38 → 34 | 60 → 62 | 98 → 96 |
+| Brood Strike | 19 → 25 | 27 → 30 | 46 → 55 |
+| Final Horizon | 10 → 19 (at the band's edge) | 29 → 30 | 39 → 49 |
 
 | Endless sector | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 1–9 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Fixed → deck (48 flights each) | 0 → 0 | 1 → 1 | 4 → 5 | 2 → 8 | 4 → 1 | 4 → 4 | 1 → 3 | 16 → 12 | 6 → 12 | 38 → 46 |
+| Fixed → deck (48 flights each) | 0 → 0 | 1 → 3 | 4 → 6 | 2 → 2 | 4 → 2 | 4 → 3 | 1 → 1 | 16 → 13 | 6 → 9 | 38 → 39 |
 
-Every mission and endless 1–9 as a whole sit in the band. No flight loses a life (one did on the fixed lists); the only
-completion that moved is the Fan at Veteran, which outlasts its 420 s window against THE CRADLE on 32 of 48 seeds
-(against 28) and against THE ECLIPSE on 4 (against 13). Above
-it: Rolling Thunder Veteran (its draws: the same perfect pilot steering only for the main battle and ignoring the site
-takes 25 hits against 19 over seeds 1–24, so the site is not the cause), endless sectors 4 (Khepri's pressure stage and
-Bastion-9) and 9 (Nacre's pressure stage), each a handful of hits at the world edge after a different squadron order. A
-pilot that ignores the sites takes 47 hits against 47 over seven checked cells (Training Veteran, Rolling Thunder
-Standard and Veteran, Cold Vector Standard, Deep Bloom Veteran, Brood Strike Standard, Final Horizon Veteran; seeds 1–24):
-the sites add no danger to the main battle's path.
+**The endless boss run** (sectors 1–8 in one flight, bosses killed, the perfect pilot with each main weapon at power 0,
+no pickups; seeds 1–48): 88 → 85 hits; runs without a hit 29 → 30 (Twin Pulse), 25 → 25 (Fan), 18 → 24 (Seeker).
 
-**Economy** (Standard, Twin Pulse tier 1, pickups collected, seeds 1–24): parts banked per mission by the perfect pilot
-(it only takes a site that comes into its view) and by the site-hunting perfect pilot (`perfectPilot(siteSeeker)`), and
-the perfect pilot's credits against the fixed lists.
+Every cell sits in the band. One flight loses a life (Deep Bloom Veteran Fan; one did on the fixed lists too). Completion
+moved only for the Fan at Veteran, which outlasts its 420 s window against THE CRADLE on 33 of 48 seeds (28 on the fixed
+lists) and against THE ECLIPSE on 9 (13). A pilot that ignores the sites (steering only for the main battle) takes 47
+hits against 47 over nine cells on seeds 1–24 (Training Veteran Pulse, Rolling Thunder Standard Fan and Veteran with all
+three weapons, Cold Vector Standard Pulse, Deep Bloom Veteran Seeker, Brood Strike Standard Fan, Final Horizon Veteran
+Seeker): the sites add no danger to the main battle's path.
 
-| Mission | Parts, perfect pilot | Parts, site-hunting pilot (sites destroyed) | Credits, perfect pilot: fixed → deck |
-| --- | --- | --- | --- |
-| Training | 0.17 | 0.42 (1.58) | 276 → 274 |
-| Rolling Thunder | 0 | 0.08 (0.58) | 274 → 297 |
-| Cold Vector | 0.08 | 0.42 (1.75) | 409 → 449 |
-| Deep Bloom | 0 | 0.25 (0.58) | 327 → 351 |
-| Brood Strike | 0.21 | 0.33 (0.79) | 313 → 362 |
-| Final Horizon | 0.04 | 0.33 (0.83) | 367 → 380 |
+**Economy** (Standard, Twin Pulse, pickups collected, seeds 1–48): parts banked per mission by the perfect pilot (it takes
+a site only when one comes into its view) and by the site-hunting perfect pilot (`perfectPilot(siteSeeker)`), at tier 1
+and tier 3 of the Twin Pulse; and the perfect pilot's credits (tier 1, seeds 1–24) against the fixed lists.
 
-So a player who goes for the sites banks about a part every two to four missions at tier 1: slow, as the user wanted, and
-slower on the missions with one site. Reproduce a row with `DECK_REPORT=<file> DECK_TARGET=mission:<id>|sector:<n>
-DECK_SEEDS=1-48 [DECK_PILOT=perfect|weaver|sites] npx vitest run tests/sim/deck-report.test.ts` (one target per process).
+| Mission | Parts, perfect pilot: tier 1 / tier 3 | Parts, site hunter: tier 1 / tier 3 (sites destroyed, tier 1) | Hits, site hunter tier 1 | Credits: fixed → deck |
+| --- | --- | --- | --- | --- |
+| Training | 0.19 / 0.54 | 0.83 / 1.29 (1.48) | 0 | 276 → 256 |
+| Rolling Thunder | 0.17 / 0.67 | 0.54 / 1.19 (1.25) | 8 | 274 → 289 |
+| Cold Vector | 0.17 / 0.48 | 1.15 / 1.38 (2.19) | 2 | 409 → 412 |
+| Deep Bloom | 0.10 / 0.44 | 0.75 / 1.42 (1.67) | 15 | 327 → 314 |
+| Brood Strike | 0.27 / 0.46 | 0.90 / 1.02 (1.90) | 4 | 313 → 347 |
+| Final Horizon | 0.19 / 0.83 | 1.13 / 1.58 (1.90) | 5 | 367 → 384 |
+
+So a player who goes for the sites banks about one part per mission at tier 1 and 1–1.6 at tier 3, in the 0.5–1.5 the
+user asked for; one who ignores them banks a part every four to ten missions. **Parts lost under fire** (a destroyed
+site's part never collected): about 3 % for the site hunter at tier 1 (7 of about 260), 8 % at tier 3 and 15 % for the
+perfect pilot at tier 3, which kills cores from farther away and does not go for the drop. The site hunter takes more
+hits than the perfect pilot on Deep Bloom (15 against 10 over 48 flights at Standard Pulse) and Rolling Thunder (8
+against 5): taking a site is optional and has a price there.
+
+Reproduce: `DECK_REPORT=<file> DECK_TARGET=mission:<id>|sector:<n> DECK_SEEDS=1-48 [DECK_PILOT=perfect|weaver|sites] npx
+vitest run tests/sim/deck-report.test.ts` (one target per process); the table above came from the measuring probes
+described in the deck's handoff (not in the repository).
 
 ## 5. Workstreams and file ownership
 
