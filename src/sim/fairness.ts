@@ -47,9 +47,12 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     // Overload lanes already exist as marked hazards from the start of their windup.
     if (!attack || attack === 'beam') return [];
     const scale = bossShotScale(state);
-    // The hull keeps maneuvering through the windup: predict from its pose at release.
+    // The hull keeps maneuvering through the windup: predict from its pose at release, less any hold still to come (it
+    // holds still while its own lanes charge and fire, src/sim/bastion.ts updateBoss; ignoring that put THE CRADLE's fan
+    // 0.18 off, enough to seal both edges and the center).
     // A spiral holds the hull still from the start of its windup, so it leaves from where the boss is now.
-    const pose = state.boss!.phase === 'destroyed' || attack === 'spiral' ? { x: state.boss!.x, s: state.boss!.s } : bossPose(state.boss!, release);
+    const boss = state.boss!, held = (boss.heldFor ?? 0) + Math.max(0, Math.min(boss.holdUntil ?? 0, release) - state.time);
+    const pose = boss.phase === 'destroyed' || attack === 'spiral' ? { x: boss.x, s: boss.s } : bossPose({ ...boss, heldFor: held }, release);
     const offset = bossPartOffset(enemy.bossPart, state.boss!.id);
     return bossShots(BOSSES[state.boss!.id], attack, pose.x + offset.x, pose.s + offset.s, aimX, scale, enemy.bossPart === 'core')
       .map(shot => shotFootprint(release + (shot.delay ?? 0), shot)).filter((f): f is Footprint => f !== null);
