@@ -109,14 +109,15 @@ or fuel wreck; skip `enemy.site` in the enemy batches and wrecks.
 | Dark spaceport | Umbra, Nacre: mixed trio + Needle (8) | 80 | 1 part | power cell + 1,000 |
 | Prism reactor | Umbra, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
 | Sealed vault (rare, weight 0.3) | Umbra, Nacre: wide ring of two turrets and a missile battery + Diamond (10); **three seals** | 3 × 55 | 3 parts | power cell + 3,000 |
-| Gate ring | Umbra, Nacre, Amnion: turret and missile battery + weaver (6) | 80 | 30 credits | power cell |
+| Gate ring | Umbra, Nacre, Amnion: turret and missile battery + weaver (6) | 80 | shield cell (budgeted) | power cell |
 | Brood hive | Amnion, Nacre: mixed trio + weaver (8) | 80 | 1 part | power cell + 1,000 |
 | Spawning pool | Amnion, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) | shield cell (budgeted) |
 
 Every guard flies only kinds that already fly on its world (tested). **Weapon and power loot in the campaign:** the plan's
 "weapon" (freight terminal) and "power / weapon" (gate ring) cannot pay out in the campaign, where weapons and their tiers
-are bought, never picked up (docs/30; the campaign ignores weapon and power pickups). They pay 40 and 30 credits there;
-open question for the user.
+are bought, never picked up (docs/30; the campaign ignores weapon and power pickups). In the campaign the freight terminal pays
+40 credits and the gate ring a budgeted shield cell (user, 29 October: "Credits on campaign instead of power is fine but
+you can also drop shields"). Parts stay slow at the prices above (user: "No parts should be slow").
 
 **Messages** are the site's own, naming what it drops in the run's mode: `AIRFIELD · WEST · PARTS` (campaign),
 `AIRFIELD · WEST · POWER` (endless), `SHIELD DEPOT · EAST · SHIELD`, `RELAY STATION · EAST · CREDITS` / `· BONUS`.
