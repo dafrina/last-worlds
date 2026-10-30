@@ -627,7 +627,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
 
 const SITE_NAMES = new Set(Object.values(SITES).map(site => site.name));
 const LOOT_TINTS: Readonly<Record<string, string>> = {
-  PARTS: PICKUP_TINTS.part, 'PARTS?': PICKUP_TINTS.part, SHIELD: PICKUP_TINTS.shield, 'SHIELD?': PICKUP_TINTS.shield, CREDITS: PICKUP_TINTS.credit,
+  PARTS: PICKUP_TINTS.part, SHIELD: PICKUP_TINTS.shield, CREDITS: PICKUP_TINTS.credit,
   POWER: PICKUP_TINTS.power, WEAPON: PICKUP_TINTS.weapon,
 };
 /**
