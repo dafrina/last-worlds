@@ -195,77 +195,134 @@ Shared contracts (integrator, before the workstreams start):
 
 ## 6. Site models and render (workstream C)
 
-Phase 1 (30 October): the pipeline, the render and one site per family: the crash site, the airfield, the prism reactor
-and the brood hive. The other eight follow after the user's review of `art/strike-sites/`.
+Phase 1 (30 October): the pipeline, the render and one site per family. The user's review ("the airfield on luna looks
+floating, and make sure none of these cross heavy cliffs") added the fixes below; phase 2 (30 October) modelled the other
+eight. Every site now has a model on every world it appears on.
 
 **Models.** Hand-built in Blender by `tools/blender/strike_sites.py` from the boss/facility toolkit's faceted solids
 (user: "just model them yourself … the existing infra is good inspiration"): flat paints, baked AO in the vertex
 colours, glow materials named `*glow*`; no textures. Shape over texture, for the 55° camera. The concept sheet
 (`art/concepts/strike-sites/00-all-sites.png`) is a reference only.
 
-| Site | Finishes | Core (the target) | Triangles per finish | File per finish |
+| Site | Finishes | Core (the target) | Triangles per file | File per finish |
 | --- | --- | --- | --- | --- |
-| Crash site | luna, khepri, vesper, nacre, amnion, umbra | the freighter's reactor in the break | 4.1–5.0k | 270–340 KB |
-| Airfield | luna, khepri, vesper | the control tower's glazed cab | 3.5–3.8k | 235–255 KB |
-| Prism reactor | umbra, nacre (ruin) | the floating crystal (it turns) | 3.0–3.3k | 190–220 KB |
-| Brood hive | amnion, nacre | the heart-sac under the ribcage | 5.2k | 340 KB |
+| Crash site | luna, khepri, vesper, nacre, amnion, umbra | the freighter's reactor in the break | 4.8–5.7k | 325–388 KB |
+| Airfield | luna, khepri, vesper | the control tower's glazed cab | 4.7–4.9k | 311–320 KB |
+| Salvage yard | luna, khepri, vesper | the pod on the gantry's hook | 3.7–3.9k | 260–271 KB |
+| Shield depot | luna, khepri, vesper | the generator drum under the field dome | 6.1–6.4k | 371–386 KB |
+| Relay station | luna, khepri, vesper, amnion (overrun) | the dish's feed horn | 2.7–5.0k | 178–332 KB |
+| Freight terminal | luna, khepri, vesper, amnion (overrun) | the lit weapons container | 3.8–6.4k | 265–442 KB |
+| Dark spaceport | umbra, nacre (ruin) | the crystal in the spire's face | 2.6–3.4k | 169–228 KB |
+| Prism reactor | umbra, nacre (ruin) | the floating crystal (it turns) | 3.8–4.7k | 251–316 KB |
+| Sealed vault | umbra, nacre (ruin) | three seal crystals (one node, drawn at each seal) | 2.8–3.6k | 178–236 KB |
+| Gate ring | umbra, nacre (ruin), amnion (brood-crusted) | the membrane in the ring | 3.0–4.3k | 213–299 KB |
+| Brood hive | amnion, nacre | the heart-sac under the ribcage | 5.9–6.0k | 394–400 KB |
+| Spawning pool | amnion, nacre | the pod on the stalk | 4.3k | 284–285 KB |
 
-A facility plant is about 6–10k triangles (Khepri modules 0.4–4k each), so a site costs less than one plant.
+Triangles per file count the body, one core and one ruin. A facility plant is about 6–10k triangles (Khepri modules
+0.4–4k each), so a site costs less than one plant. A world loads its own finishes only: 1.1 MB (Umbra) to 2.1 MB (Amnion) per world, against
+4–5.7 MB for a world's facility kit.
 
-**Finishes.** One palette per world (`PALETTE` in the builder), derived from the facility kits and world docs. Frontier
-sites: Luna white panels with amber, Khepri bone and rust with the concept's teal reactor, Vesper white and graphite
-with blue glow and snow drifts and caps. Exotic worlds: the crash site wears Nacre moss, fronds and mire puddles, Amnion's
-shared brood growths (`brood_growths`: bone arches, chitin plates, resin, eggs, spikes; the set the overrun relay
-station and freight terminal will reuse), Umbra obsidian shards. The prism reactor is glossy obsidian with violet seams
-on Umbra and a pale overgrown ruin on Nacre (missing and sunken blocks, snapped and fallen horns, teal crystal). The brood
-hive is bone and flesh with a yolk sac on Amnion, lavender bone and violet chitin with a violet sac on Nacre.
+**Finishes.** One palette per world (`BASE` and `WORLD` in the builder), derived from the facility kits and world docs.
+Frontier sites: Luna white panels with amber, Khepri bone and rust with the concept's teal reactor, Vesper white and
+graphite with blue glow, snow on roofs and on the aprons (never spilling past their edges). The Amnion overrun (relay
+station, freight terminal; the crash site on Amnion too) is one shared set, `brood_growths`: bone arches, chitin crusts,
+resin pools, egg clutches and spikes. Umbral sites are glossy obsidian with violet seams on Umbra (lifted off the dark
+ground, 30 October) and pale overgrown ruins with teal crystals on Nacre (missing and sunken blocks, snapped and fallen
+blades and stones, moss, fronds, mire puddles); the gate ring is crusted with the brood's growths on Amnion. The crystal
+cores (prism reactor, dark spaceport, sealed vault) are faceted `prism_glow` with a bright heart; the shield depot's dome
+is a lit `field_glow` lattice.
+
+**Phase-1 fixes (user review, 30 October).**
+1. Grounding: sites seat on even ground (below) and the terrain under them is levelled to their floor (site pads).
+2. Guards off the footprint: the guard rings (`RING_*` in content/formations.ts) stand outside `SITE_FOOTPRINT`, and the
+   seat search keeps every guard battery clear of the site (below).
+3. Crash site: a longer, thicker freighter broken in two at the end of a scorched furrow, cargo modules on its spine,
+   bright hull and glowing break so it reads on dark Nacre and Umbra ground.
+4. Prism reactor: a broken crown of seven sharp blades leaning out (two gaps; the back ones tallest) round a smaller
+   dais, and a big faceted crystal floating well above them on a beam, so the gap reads from the game camera: a crown with
+   a crystal over it, not a saucer.
+5. Airfield: a longer runway, a taller control tower (cab 1.85 up, under the height rule).
+6. Destroyed states (and the integrator's review: "the same model, darker"): every ruin carries the blast (`devastate` in
+   the builder): a jagged scorch splash draped over the site's aprons and the ground out to its bounds, twelve pale ash
+   streaks blasted out from the core, nine chunky debris pieces thrown off it and embers; the ash and the embers keep
+   their colour in the wreck, so the blast reads on charcoal and on dark ground. The core's spot is broken or caved in.
+7. Sealed vault: one model for the group of three seals (B's `formation.group`); each seal's crystal stands before a tall
+   standing stone (the third rests on the vault's first tier, framed in light).
+8. Relay station (user, 30 October: "turn the satelite dish of the relay station so its better visible"): the dish is
+   turned three-quarters to the camera about its feed horn (38° up, yawed 63° west), so the bowl reads as an ellipse with
+   its rim, back shell, struts and horn; the pedestal and yoke follow the hub.
 
 **File layout.** `public/assets/shared/sites/<site>-<finish>.glb`, so a world loads only its own finishes. Each holds
-`site_<id>_<finish>_body` (the site), `_core` (the target, hidden once destroyed) and `_ruin` (the broken core, shown
-once destroyed); `<id>` with underscores. Frame: the pivot is the core's ground anchor; x lateral, s away from the camera
-(glTF −z), the detailed front toward the camera; the core is centred 0.85 over the pivot (the ground targets' core
-height). `src/render/site-models.ts` (`SITE_MODELS`) is the single source of finishes and bounds: the builder parses it
-and asserts every node against it, and `tests/world/site-models.test.ts` checks the GLBs against it.
+`site_<id>_<finish>_body` (the site), `_core` (the target, hidden once destroyed) and `_ruin` (the broken core with its
+scorch and debris, shown once destroyed); `<id>` with underscores. Frame: the pivot is the core's ground anchor (the
+vault's centre between its seals); x lateral, s away from the camera (glTF −z), the detailed front toward the camera; the
+core's centre stands `SITE_CORE_HEIGHT[site]` over the pivot (content/sites.ts; the simulation anchors the core with it).
+`src/render/site-models.ts` (`SITE_MODELS`) is the single source of finishes and bounds: the builder parses it and asserts
+every node against it, and `tests/world/site-models.test.ts` checks the GLBs against it.
 
 **Rules the builder and the tests keep.**
-- Top ≤ 3.25 (docs/25 rule 3); 4–6 units across; the whole site inside the world at 7.5 out.
-- Line of sight (docs/25 rule 2): nothing in front of the core (|x| < 0.9) rises above 0.75 + 1.43·(−s).
-- Guards: nothing stands on, or hides, the guard batteries' ring spots (`RING_2`/`RING_3` in content/formations.ts;
-  `GUARD_SPOTS` in the builder, a check only). The prism reactor's horn ring and the brood hive's spine leave the back
-  open for that reason.
-- Foundations: slabs, mounds and blocks reach 0.7–1.3 below the pivot for uneven ground.
+- Inside `SITE_FOOTPRINT` (|x| ≤ 3, s −3.2 to 3.3); top ≤ 3.25 (docs/25 rule 3); 4–6 units across.
+- Line of sight (docs/25 rule 2): rays from every core, and from the guard batteries' spots, toward the camera never meet
+  the site.
+- Guards: nothing stands on a guard battery's spot (the rings' spots, `GUARD_SPOTS` in the builder, a check only).
+- Foundations: slabs, mounds and blocks reach 0.7–1.3 below the pivot.
 
-**Render** (`src/render/site-view.ts`, hooked into `src/render/scene.ts`):
-- Every live enemy with `site` set and a ground anchor gets its site in the current world's finish, placed at the
-  anchor (world x, world s, ground height) and scrolling with the ground. The site draws the core: scene.ts leaves the
-  core's own craft model, ghost silhouette, plinth and pontoon out (`hidesCore`), and a site core never seats a compound
-  or emplacement or leaves a wreck. A site without a model on that world keeps the core's own model.
-- **Uneven ground:** the site is lifted onto the ground three quarters of the way up its footprint, at most 0.4 over the
-  anchor (`SITE_RISE_MAX`); the core rises with it, so its glow can stand up to 0.4 over the target's proxy (about 0.3 on
-  screen). On a seat high enough that its top would come within 0.45 of the flight plane, it is squashed about its core
-  (the core stays put; the foundation covers the raised floor).
+**Seats** (`src/sim/sites.ts`, simulation; in their own commits). A side-route site's harmless core spawns on the flattest
+dry ground near its authored centre: the search (pure: the run's terrain and the spawn tick's camera, never randomness)
+reaches 0.5 in, 3 back and 0.5 ahead, and only takes seats whose footprint keeps every guard battery of the cue (where
+`anchorGround` will stand it, `guardSpots`) 0.3 outside it. When the best of those would straddle a cliff, a trench or a
+pit (spread over 1.5, a drop over 2.5 or ground 0.8 over the floor), it also tries 2 in and 7 back (`SEAT_WIDE`) and takes
+that seat if it is clearly better. Moving the core toward the camera costs 0.5 a unit: a core run ahead of its guards'
+ring is killed while they still fire and its part falls under their fire (Training, seeds 5–9 at ranks 0 and 2, the
+site-hunting perfect pilot: a destroyed site's part lost in 1 of 10 runs with the cores where authored, 6 of 10 before
+this cost, 2 of 10 now). Tall sites prefer lower ground (the prism reactor under 0.3, the airfield 0.4). The floor is the
+footprint's 95th-percentile height; the core rests on it, so its gameplay position is where its model draws it. The
+guards keep their authored places and timing: the cue is exactly as fair as authored. Measured over 192 seats per world
+(`tests/sim/site-seats.test.ts`): median footprint spread 0.5 (Vesper) to 0.7 (Khepri), 1.4 on Umbra's cracked plates and
+2.3 on Amnion's pitted plains (authored: 0.8 to 3.5); guards fully clear in 85–98%, at a footprint's rim (at most 0.55 in)
+in 0–2%. What unevenness is left the render's site pad levels.
+
+**Render** (`src/render/site-view.ts`, hooked into `src/render/scene.ts` in two places: `update` before the enemies, and
+the site pads after it):
+- Every live enemy with `site` set and a ground anchor gets its site in the current world's finish, placed at the anchor
+  less the core's seat in its group (world x, world s, the floor) and scrolling with the ground. The site draws the core:
+  scene.ts leaves the core's own craft model, ghost silhouette, plinth and pontoon out (`hidesCore`), and a site core
+  never seats a compound or emplacement or leaves a wreck. A finish that fails to load leaves its cores their own model.
+- **Site pads** (render only, `src/render/terrain-kit.ts`): the ground shader levels the terrain over each nearby site's
+  rectangle to its floor (cut and fill), easing back to the terrain across a 0.9 band around it; the ground within 1.1 of
+  a guard battery stays as it is, so no battery floats or sinks. On a deck over the sea (Nacre's mire, Vesper's sea) the
+  seabed fills only to just under the water: the site stands in the shallows. Four pads and eight kept batteries at once.
+  Never terrain data or targeting.
+- **Foundations** fill what the pad leaves under the floor (beside a kept battery), in the world's ground tone.
+- **High ground:** a site whose top would still come within 0.45 of the flight plane is squashed about its core (the core
+  stays put; at least to 35%); a floating crystal (the prism reactor's) keeps its own shape.
 - **Destroyed:** a core that vanishes with the simulation's kill explosion at its position (or has no hit points left)
   leaves its site destroyed: the core hidden, the ruin shown, the structure in darkened twin materials (16% of its paint
-  toward charcoal) and its lamps out, until it scrolls out of view. A core that leaves without a kill explosion leaves
-  the site intact. A hit on the core flashes its glow.
-- **Clearings:** each site's rectangle is a terrain clearing (sites first; the terrain takes 12) and is reserved from
-  battery compounds and emplacements, so neither scenery nor a plant stands in it.
+  toward charcoal) with its lamps out and its embers smouldering, until it scrolls out of view. A core that leaves without
+  a kill explosion leaves the site intact. A hit on the core flashes its glow.
+- **Clearings:** each site's rectangle and its pad band are terrain clearings (sites first; the terrain takes 12) and are
+  reserved from battery compounds and emplacements, so neither scenery nor a plant stands in them.
 - **Loading:** `renderer.prepare(planet)` loads the world's site finishes with the rest of the planet; one hidden
   instance per finish (live and destroyed materials) joins the warm-up, so nothing compiles mid-flight. A world's sites
   are released after it is left (endless revisits reload them).
-- QA: `data-render-stats.sites` = {loaded, count, destroyed, drawn, files, sites[{id, site, finish, destroyed, rise, squash}]}.
+- QA: `data-render-stats.sites` = {loaded, count, destroyed, drawn, foundations, files, sites[{key, site, finish, cores,
+  destroyed, base, squash}]}.
 
 **Lab:** the playground's Sites tab (`playground.html`, `src/playground/sites-lab.ts`): West and East place the real
 site (its authored guard and core from `siteCue`) on the side route; Ahead places a lone core in front of the ship;
 "Hold the world still" freezes the simulation (only the clock and effects age); "Hit" and "Destroy" the cores.
-Development builds expose `window.siteLab` for lookdev automation.
+Development builds expose `window.siteLab` (`place`, `destroy`, `hit`, `clear`, `calm`, `skip`, `seats`) for lookdev automation.
 
 **Rebuild:**
 ```
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup \
   --python '\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies\tools\blender\strike_sites.py' -- [--site=airfield] [--no-export] [--preview]
 ```
-About 10 s for all four sites. `--preview` renders every finish from the game camera into `lookdev/strike-sites/`.
+About 3 minutes for all twelve sites with previews (Windows Blender 5.2, headless). `--preview` renders every finish,
+intact and destroyed, from the game camera into `lookdev/strike-sites/`. Review sheets (in game): `art/strike-sites/`.
 
-**Open:** the multi-core sealed vault needs a group anchor (one model for its three seals) when it is modelled; sites over
-open water (Vesper's sea, Nacre's mire) stand on the pontoon deck height; terrain pipelines and roads are not cleared.
+**Open:** roads and pipelines are not cleared (a road through a pad keeps its own height); on Amnion many seats still
+straddle a pit, which the pad levels (searching wider always would need the guards to move with the site, a fairness
+change); a tall site on a high plateau with nothing lower in reach is still squashed (to 35% at most); the pad's shader
+cost on phones is unmeasured (four rectangles and eight points per ground vertex, only while a site is near).
