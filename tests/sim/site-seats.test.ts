@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRun } from '../../src/sim/game';
 import { MATCH_ROW, lineOfSightGround } from '../../src/sim/ground';
-import { GUARD_CLEARANCE, SITE_DROP_MAX, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
+import { CORE_CLEARANCE, GUARD_CLEARANCE, SITE_DROP_MAX, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
 import { spawnMembers } from '../../src/sim/spawn';
 import { FORMATIONS, siteCoreFormation, type FormationId } from '../../src/content/formations';
 import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT, SITE_X, sitePool } from '../../src/content/sites';
@@ -99,7 +99,7 @@ describe('strike-site seats', () => {
         }
         for (const core of cores) {
           expect(core.groundHeight).toBe(SITE_CORE_HEIGHT[site]);
-          expect(core.ground!.base + core.groundHeight, `${site} ${world}: core under the flight plane`).toBeLessThanOrEqual(VIEW.flightHeight - .45 + 1e-9);
+          expect(core.ground!.base + core.groundHeight, `${site} ${world}: core under the flight plane`).toBeLessThanOrEqual(VIEW.flightHeight - CORE_CLEARANCE + 1e-9);
           // Its gameplay position (its proxy) is where its drawn core is seen through the lens.
           const seen = toFlightPlane(state.cameraX, core.ground!.x, core.ground!.base + core.groundHeight, core.ground!.s);
           expect(seen.x).toBeCloseTo(core.x, 6); expect(seen.s).toBeCloseTo(core.s, 6);

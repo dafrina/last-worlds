@@ -115,14 +115,24 @@ export const SEAT_SEARCH = { inward: .5, outward: 0, back: 3, ahead: .5, maxX: 9
  */
 export const SEAT_WIDE = { inward: 2, outward: 0, back: 7, ahead: .5, gain: .5 } as const;
 type SeatWindow = { readonly inward: number; readonly outward: number; readonly back: number; readonly ahead: number };
-/** A footprint over heavy relief: a large height spread, a deep drop under the floor or ground rising through it. */
-export const seatRough = (seat: SiteSeat) => seat.spread > 1.5 || seat.drop > 2.5 || seat.above > .8;
+/**
+ * A footprint over heavy relief (a large height spread, a deep drop under the floor or ground rising through it), or a tall
+ * site on ground so high its roof would have to be squashed under the flight plane (`high`: seatHigh).
+ */
+export const seatRough = (seat: SiteSeat, high = SEAT_HIGH) => seat.spread > 1.5 || seat.drop > 2.5 || seat.above > .8 || seat.base > high + .6;
 /** Guard batteries stand at least this far outside a site's footprint (their own plinth, and a little ground between). */
 export const GUARD_CLEARANCE = .3;
 /** The core height the authored centre is solved with (the batteries' own). */
 const SEAT_AIM = .85;
 /** Sites prefer ground no higher than this (a tall site's core and roof must stay under the flight plane). */
 const SEAT_HIGH = .8;
+/**
+ * …and a tall site lower still: its roof stands about 1.1 over its core, and stays CORE_CLEARANCE under the flight plane
+ * there (the renderer must otherwise squash it, or sink a floating crystal's crown; integrator, 30 October: the prism
+ * reactor's crown and crystal must read). The prism reactor (core 1.95) prefers ground under 0.3, the airfield 0.4; a
+ * tall site on higher ground also tries the wider window (seatRough).
+ */
+export const seatHigh = (core: number) => Math.min(SEAT_HIGH, VIEW.flightHeight - CORE_CLEARANCE - core - 1.1);
 /** …and never higher than this unless nothing nearby is lower: the tallest core (1.95) must stay 0.45 under the flight plane. */
 export const SEAT_LIMIT = 1.4;
 /** A site core's centre stays at least this far under the flight plane (docs/25 rule 3's roof clearance). */
@@ -153,9 +163,9 @@ export function footprintGround(state: RunState, x: number, s: number, nx = 6, n
   const base = at(.95), fill = heights.reduce((sum, h) => sum + Math.max(0, base - h), 0) / heights.length;
   return { x, s, base, spread: at(.9) - at(.1), above: heights[heights.length - 1] - base, drop: base - heights[0], fill, wet: wet / heights.length };
 }
-function seatCost(state: RunState, seat: SiteSeat, dx: number, ds: number): number {
+function seatCost(state: RunState, seat: SiteSeat, dx: number, ds: number, high = SEAT_HIGH): number {
   const wet = WET_WORLDS.has(worldAt(runRoute(state.config), seat.s).planet.id) ? 0 : seat.wet;
-  return seat.spread + 4 * seat.above + .25 * seat.drop + 2 * Math.max(0, seat.drop - (SITE_DROP_MAX - 2)) + 1.5 * seat.fill + 6 * wet + 2 * Math.max(0, seat.base - SEAT_HIGH)
+  return seat.spread + 4 * seat.above + .25 * seat.drop + 2 * Math.max(0, seat.drop - (SITE_DROP_MAX - 2)) + 1.5 * seat.fill + 6 * wet + 3 * Math.max(0, seat.base - high)
     + 20 * Math.max(0, seat.base - SEAT_LIMIT) + .06 * Math.abs(dx) + .02 * Math.abs(ds);
 }
 /** Ground points (world x, s) a site must keep clear of: its cue's guard batteries. */
@@ -196,16 +206,16 @@ export function guardSpots(state: RunState, site: SiteId, anchorX: number, mirro
 const seats = new WeakMap<RunState, { tick: number; key: string; seat: SiteSeat }>();
 /**
  * The seat for a site whose centre is authored at gameplay `anchorX` on a ground track now at row `trackS`, clear of
- * `guards`. The same inputs in the same tick give the same seat (cached: the sealed vault's seals share one).
+ * `guards`, for a core `core` over the floor. The same inputs in the same tick give the same seat (cached: the sealed vault's seals share one).
  */
-export function siteSeat(state: RunState, anchorX: number, trackS: number, guards: readonly GuardSpot[] = []): SiteSeat {
-  const key = `${anchorX.toFixed(4)}:${trackS.toFixed(4)}:${state.distance}:${state.cameraX}:${guards.length}`, cached = seats.get(state);
+export function siteSeat(state: RunState, anchorX: number, trackS: number, guards: readonly GuardSpot[] = [], core = SEAT_AIM): SiteSeat {
+  const key = `${anchorX.toFixed(4)}:${trackS.toFixed(4)}:${state.distance}:${state.cameraX}:${guards.length}:${core}`, cached = seats.get(state), high = seatHigh(core);
   if (cached && cached.tick === state.tick && cached.key === key) return cached.seat;
   const ahead = trackS - MATCH_ROW, nominal = lineOfSightGround(state, anchorX, ahead, SEAT_AIM);
   const x0 = nominal.at.x, s0 = state.distance + ahead + nominal.at.s, out = Math.sign(x0) || 1;
   // A camera far to the other side spreads the authored spot outward: the window then starts at maxX.
   const cx = out * Math.min(Math.abs(x0), SEAT_SEARCH.maxX);
-  const cost = (seat: SiteSeat) => seatCost(state, seat, seat.x - x0, seat.s - s0) + INTRUSION_COST * guardIntrusion(guards, seat.x, seat.s);
+  const cost = (seat: SiteSeat) => seatCost(state, seat, seat.x - x0, seat.s - s0, high) + INTRUSION_COST * guardIntrusion(guards, seat.x, seat.s);
   const search = (window: SeatWindow) => {
     const allowed = (x: number) => Math.abs(x) <= SEAT_SEARCH.maxX + 1e-9 && out * (x - cx) >= -window.inward - 1e-9 && out * (x - cx) <= window.outward + 1e-9;
     // Coarse: a 0.5 grid with a 5 × 6 footprint sample; fine: around the best, the full sample.
@@ -227,7 +237,7 @@ export function siteSeat(state: RunState, anchorX: number, trackS: number, guard
   };
   let found = search(SEAT_SEARCH);
   // A seat that would straddle a cliff, a trench or a pit: the wider window, if it finds clearly better ground.
-  if (seatRough(found.seat)) {
+  if (seatRough(found.seat, high)) {
     const wide = search(SEAT_WIDE);
     if (wide.cost < found.cost - SEAT_WIDE.gain) found = wide;
   }

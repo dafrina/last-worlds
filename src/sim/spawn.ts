@@ -35,7 +35,7 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   let seat: SiteSeat | null = null;
   if (site && template.entry === 'ground' && Math.abs(anchorX) >= SEAT_SEARCH.side) {
     const trackS = memberPosition({ template: template.id, slot: 0, anchorX, mirror, group }, age).s - (template.slots[0].ds ?? 0);
-    seat = siteSeat(state, anchorX, trackS, guardSpots(state, site, anchorX, mirror, age));
+    seat = siteSeat(state, anchorX, trackS, guardSpots(state, site, anchorX, mirror, age), SITE_CORE_HEIGHT[site]);
     const shift = seatTrack(state, seat, trackS, SITE_CORE_HEIGHT[site]);
     anchorX = shift.anchorX; age -= shift.shiftS / VIEW.scrollSpeed;
   }
