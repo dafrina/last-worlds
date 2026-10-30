@@ -2,8 +2,8 @@ import { BALANCE } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import type { EncounterCue } from '../content/encounters';
 import { WEAPON_IDS } from '../content/equipment';
-import { SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, siteMessage } from '../content/sites';
-import { VIEW, type Enemy, type Pickup, type RunState, type SiteId, type WeaponId } from '../shared/contracts';
+import { SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, siteMessage, sitePartChance } from '../content/sites';
+import { SITE_IDS, VIEW, type Enemy, type Pickup, type RunState, type SiteId, type WeaponId } from '../shared/contracts';
 import { fromFlightPlane, lensEye } from '../shared/lens';
 import { groundSeat, runRoute } from '../world/run-route';
 import { worldAt } from '../world/terrain';
@@ -57,10 +57,14 @@ export function destroySiteCore(state: RunState, core: Enemy): void {
   const drop = (kind: Pickup['kind'], value: number, dx = 0, weapon?: WeaponId) => pushLoot(state, { id: state.nextId++, kind, x: core.x + dx, s: core.s, value, ttl: 12, ...(weapon ? { weapon } : {}) });
   const kind = campaign ? definition.loot.kind : definition.endless.kind;
   if (!campaign) state.score += definition.endless.score;
+  // Campaign: every site rolls for one part (content/sites.ts sitePartChance), besides its own loot.
+  const chance = campaign ? sitePartChance(id, state.planet) : null;
+  if (chance !== null && partRoll(state, id, record.destroyed) < chance) drop('part', 1, 0.8);
   switch (kind) {
     case 'part':
-      // One pickup per part, side by side.
-      for (let i = 0; i < definition.loot.value; i++) drop('part', 1, (i - (definition.loot.value - 1) / 2) * 0.8);
+      // The salvage yard and the sealed vault: their guaranteed parts, one pickup each, side by side. The parts sites'
+      // single part is the roll above.
+      if (definition.loot.value > 1) for (let i = 0; i < definition.loot.value; i++) drop('part', 1, (i - (definition.loot.value - 1) / 2) * 0.8);
       break;
     case 'credit': drop('credit', definition.loot.value); break;
     case 'power': drop('power', 1); break;
@@ -75,6 +79,16 @@ export function destroySiteCore(state: RunState, core: Enemy): void {
     }
     case 'score': break;
   }
+}
+
+/**
+ * A destroyed site's part roll in [0, 1): its own stream (never the loot or combat streams, never Math.random), keyed by the
+ * run seed, the sector, the site and how many sites the run had destroyed before it.
+ */
+function partRoll(state: RunState, id: SiteId, destroyed: number): number {
+  let h = 0x70617274; // "part"
+  for (const v of [state.config.seed, state.sector, SITE_IDS.indexOf(id), destroyed]) { h = Math.imul(h ^ (v >>> 0), 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; }
+  return (h >>> 0) / 4294967296;
 }
 
 /** Loot is never lost to the pickup ceiling: when it is full, the oldest credit drop makes room. */
