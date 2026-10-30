@@ -232,3 +232,11 @@ User approved main/special/shield/ship as the four slots, replacing handling rea
 ## 30 October 2026 — Chassis perks are global
 
 User approved Spectre shielded near-miss reflection, requested the other chassis perks too, and clarified "perks are global not only campaign". Implemented Scrapper pickup reach, Ironclad reserve life, Interceptor double-tap roll, and Spectre Gravitic Shield in both modes, with descriptions in the hangar selector. This supersedes cosmetic-only endless chassis and the old Interceptor/Spectre bonuses; endless equipment progression still resets, cosmetic parts remain stat-free. See docs/34-global-ship-perks.md and the validation entry in build-status.md.
+
+## 30 October 2026 — Strike sites per mission, part chances, deck difficulty
+
+User answers after reviewing the merged strike sites and encounter deck:
+- **Sites per campaign mission (user: "keep sites 1-4, with 2 being most probable"):** a seeded count of 1–4 strike sites per attempt, 2 the most likely, spaced so a pilot out at one site is not caught by the next wave. Endless keeps about one per sector.
+- **Every site rolls for a part (user: "raise parts probability to 0.25-0.75 per site"; chose "Every site rolls"):** in the campaign, each destroyed site drops 1 part with a chance from 25% (lightly guarded) to 75% (well guarded), besides its own loot. The four parts sites no longer guarantee one; the salvage yard and the sealed vault keep their 3. Endless never drops parts. Replaces the guaranteed single part of docs/33 § 3.
+- **Deck difficulty (user: "Tune those down"):** arcs measured above the fixed lists' band (Rolling Thunder Veteran, endless sectors 4 and 9, the endless boss run) are tuned back to within noise before release.
+- **Site placement leftovers (user: "Ship now, fix after"):** cliff-rim seats (Khepri and Amnion crash site, Amnion relay station and freight terminal, Vesper shield depot), tall sites squashed on high plateaus and the Vesper crash site's slab ship as they are and are fixed in a later pass.
