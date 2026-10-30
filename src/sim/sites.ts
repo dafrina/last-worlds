@@ -101,12 +101,22 @@ function pushLoot(state: RunState, pickup: Pickup): void {
  * Search window around the authored centre on the ground: up to `inward` toward the map's centre or `outward` toward
  * its edge (never past `maxX`), and `back` toward the camera or `ahead` away from it. The window is small on purpose: the
  * core stays inside its guards' ring and near its authored time, so the guards defend it as authored and its loot falls
- * where the site's economy was measured (tests/sim/site-economy.test.ts; wider windows, 4.5 back or 2 in, flattened the
- * seats a lot more but let the core run ahead of its guards and its part fall under their fire). The ring's inner and
- * rear guards bound it anyway. Seats that keep every guard battery of the cue GUARD_CLEARANCE outside the footprint are
- * taken first; any unevenness left is filled by the foundations. Only side-route sites (|x| >= `side`) are moved.
+ * where the site's economy was measured (tests/sim/site-economy.test.ts; always searching wider let the core run ahead of
+ * its guards and its part fall under their fire). The ring's inner and rear guards bound it anyway. Over heavy relief
+ * SEAT_WIDE takes over. Seats that keep every guard battery of the cue GUARD_CLEARANCE outside the footprint are taken
+ * first; any unevenness left is levelled by the render's site pad. Only side-route sites (|x| >= `side`) are moved.
  */
 export const SEAT_SEARCH = { inward: .5, outward: 0, back: 3, ahead: .5, maxX: 9, side: 5 } as const;
+/**
+ * Only when the best seat in SEAT_SEARCH would straddle a cliff, a trench or a pit (`seatRough`; integrator, 30 October:
+ * "moving out of the window is better than foundations spanning a canyon"): this wider window, 2 in and 7 back, taken if
+ * it costs at least `gain` less. The core then stands nearer the camera than its guards' ring, so it comes into view
+ * earlier; the guards keep their authored places and timing.
+ */
+export const SEAT_WIDE = { inward: 2, outward: 0, back: 7, ahead: .5, gain: .5 } as const;
+type SeatWindow = { readonly inward: number; readonly outward: number; readonly back: number; readonly ahead: number };
+/** A footprint over heavy relief: a large height spread, a deep drop under the floor or ground rising through it. */
+export const seatRough = (seat: SiteSeat) => seat.spread > 1.5 || seat.drop > 2.5 || seat.above > .8;
 /** Guard batteries stand at least this far outside a site's footprint (their own plinth, and a little ground between). */
 export const GUARD_CLEARANCE = .3;
 /** The core height the authored centre is solved with (the batteries' own). */
@@ -195,25 +205,34 @@ export function siteSeat(state: RunState, anchorX: number, trackS: number, guard
   const x0 = nominal.at.x, s0 = state.distance + ahead + nominal.at.s, out = Math.sign(x0) || 1;
   // A camera far to the other side spreads the authored spot outward: the window then starts at maxX.
   const cx = out * Math.min(Math.abs(x0), SEAT_SEARCH.maxX);
-  const allowed = (x: number) => Math.abs(x) <= SEAT_SEARCH.maxX + 1e-9 && out * (x - cx) >= -SEAT_SEARCH.inward - 1e-9 && out * (x - cx) <= SEAT_SEARCH.outward + 1e-9;
   const cost = (seat: SiteSeat) => seatCost(state, seat, seat.x - x0, seat.s - s0) + INTRUSION_COST * guardIntrusion(guards, seat.x, seat.s);
-  // Coarse: a 0.5 grid with a 5 × 6 footprint sample; fine: around the best, the full sample.
-  let best = { cost: Infinity, x: cx, s: s0 };
-  for (let dx = -SEAT_SEARCH.inward; dx <= SEAT_SEARCH.outward + 1e-9; dx += .5) for (let ds = -SEAT_SEARCH.back; ds <= SEAT_SEARCH.ahead + 1e-9; ds += .5) {
-    const x = cx + out * dx, s = s0 + ds;
-    if (!allowed(x)) continue;
-    const c = cost(footprintGround(state, x, s, 5, 6));
-    if (c < best.cost) best = { cost: c, x, s };
+  const search = (window: SeatWindow) => {
+    const allowed = (x: number) => Math.abs(x) <= SEAT_SEARCH.maxX + 1e-9 && out * (x - cx) >= -window.inward - 1e-9 && out * (x - cx) <= window.outward + 1e-9;
+    // Coarse: a 0.5 grid with a 5 × 6 footprint sample; fine: around the best, the full sample.
+    let best = { cost: Infinity, x: cx, s: s0 };
+    for (let dx = -window.inward; dx <= window.outward + 1e-9; dx += .5) for (let ds = -window.back; ds <= window.ahead + 1e-9; ds += .5) {
+      const x = cx + out * dx, s = s0 + ds;
+      if (!allowed(x)) continue;
+      const c = cost(footprintGround(state, x, s, 5, 6));
+      if (c < best.cost) best = { cost: c, x, s };
+    }
+    let seat = footprintGround(state, best.x, best.s), bestCost = Infinity;
+    for (const fx of [-.25, 0, .25]) for (const fs of [-.25, 0, .25]) {
+      const x = best.x + fx, s = Math.min(s0 + window.ahead, Math.max(s0 - window.back, best.s + fs));
+      if (!allowed(x)) continue;
+      const candidate = footprintGround(state, x, s), c = cost(candidate);
+      if (c < bestCost) { bestCost = c; seat = candidate; }
+    }
+    return { seat, cost: bestCost };
+  };
+  let found = search(SEAT_SEARCH);
+  // A seat that would straddle a cliff, a trench or a pit: the wider window, if it finds clearly better ground.
+  if (seatRough(found.seat)) {
+    const wide = search(SEAT_WIDE);
+    if (wide.cost < found.cost - SEAT_WIDE.gain) found = wide;
   }
-  let seat = footprintGround(state, best.x, best.s), bestCost = Infinity;
-  for (const fx of [-.25, 0, .25]) for (const fs of [-.25, 0, .25]) {
-    const x = best.x + fx, s = Math.min(s0 + SEAT_SEARCH.ahead, Math.max(s0 - SEAT_SEARCH.back, best.s + fs));
-    if (!allowed(x)) continue;
-    const candidate = footprintGround(state, x, s), c = cost(candidate);
-    if (c < bestCost) { bestCost = c; seat = candidate; }
-  }
-  seats.set(state, { tick: state.tick, key, seat });
-  return seat;
+  seats.set(state, { tick: state.tick, key, seat: found.seat });
+  return found.seat;
 }
 /**
  * The track that puts a member's line of sight on the seat at the moment it crosses MATCH_ROW: its anchor x, and how much
