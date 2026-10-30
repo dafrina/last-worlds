@@ -1,5 +1,6 @@
 import type { EncounterCue, FormationPlacement } from './encounters';
-import { siteCoreFormation, type FormationId } from './formations';
+import { THREAT_COST } from './balance';
+import { FORMATIONS, siteCoreFormation, slotFlies, type FormationId } from './formations';
 import type { Mode, PlanetId, SiteId } from '../shared/contracts';
 
 /**
@@ -149,6 +150,21 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
     guard: on(BROOD, [g('site-mixed-2')]),
   },
 };
+
+/**
+ * Every site rolls for a part (user, 30 October: "Every site rolls"; campaign only): 25% for a guard of threat 4 (the lightly
+ * guarded shield sites) up to 75% for 8 (the old parts sites), linear in the guard's threat on that world. The salvage yard
+ * and the sealed vault keep their guaranteed 3 parts and roll nothing (null).
+ */
+export const PART_CHANCE = { min: 0.25, max: 0.75, minThreat: 4, maxThreat: 8 } as const;
+export function sitePartChance(id: SiteId, planet: PlanetId): number | null {
+  const definition = SITES[id];
+  if (definition.loot.kind === 'part' && definition.loot.value > 1) return null;
+  const threat = (definition.guard[planet] ?? []).reduce((sum, placement) => sum + FORMATIONS[placement.formation].slots
+    .filter(slot => slotFlies(slot, 'standard')).reduce((total, slot) => total + THREAT_COST[slot.kind], 0), 0);
+  const t = Math.min(1, Math.max(0, (threat - PART_CHANCE.minThreat) / (PART_CHANCE.maxThreat - PART_CHANCE.minThreat)));
+  return PART_CHANCE.min + t * (PART_CHANCE.max - PART_CHANCE.min);
+}
 
 /** The sites a world can show, in SITE_IDS order. */
 export function sitePool(planet: PlanetId): SiteDefinition[] {

@@ -52,7 +52,9 @@ describe('difficulty bots', () => {
   });
 
   it('the perfect pilot survives endless sectors 1-4 without the special or any pickup', () => {
-    const state = createRun({ mode: 'endless', seed: 5 });
+    // Seed 2 since the encounter deck (30 October, docs/33 § 4): each seed draws its own waves, and seed 5 takes one hit.
+    // Over seeds 1-24 the pilot clears sectors 1-4 without a hit on 20 seeds, against 19 with the fixed lists.
+    const state = createRun({ mode: 'endless', seed: 2 });
     const log = fly(state, perfectPilot(), 4 * BALANCE.sectorDuration - 0.5, { noPickups: true });
     expect(state.sector).toBe(4);
     expect(log.phase).toBe('playing');

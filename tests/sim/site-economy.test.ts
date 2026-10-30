@@ -35,12 +35,15 @@ function flyMission(mission: MissionId, sites: readonly SiteId[], seed = 5, rank
 
 describe('strike-site economy (docs/33 § 3, measured with the test pilot)', () => {
   it('a perfect pilot clears Training with two parts sites in its side slots, without losing a life', () => {
-    expect(sideRoutes(resolvePlaylist({ mode: 'campaign', mission: 'training' }, 1, 5))).toHaveLength(2); // Training's two side slots (the mock is off here)
+    // Training's sites this attempt (the mock is off here): 1-4 by the deck's count (docs/33 § 4.1).
+    const routes = sideRoutes(resolvePlaylist({ mode: 'campaign', mission: 'training' }, 1, 5)).length;
+    expect(routes).toBeGreaterThanOrEqual(1); expect(routes).toBeLessThanOrEqual(4);
     const { state, log, parts, destroyed } = flyMission('training', ['crash-site', 'airfield'], 5, 2);
     expect(state.phase).toBe('complete');
     expect(log.livesLost).toBe(0);
     expect(destroyed).toBeGreaterThanOrEqual(1);
-    expect(parts).toBe(destroyed);
+    // Since 30 October each of these sites rolls for its single part (75% on Luna), so at most one part per site.
+    expect(parts).toBeLessThanOrEqual(destroyed);
   });
 
   /*

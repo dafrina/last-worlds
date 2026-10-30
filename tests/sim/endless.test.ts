@@ -165,8 +165,11 @@ describe('endless bosses and jumps', () => {
   }, 120000);
 
   it.each(['pulse', 'fan', 'seeker'] as WeaponId[])('the perfect pilot kills the first three bosses with %s at power 0 in sectors 1-8 without a hit', weapon => {
-    // Seeker flies seed 6 since hunters (22 October): on seed 5 the pilot takes one hit (seeds 6 and 7 clear).
-    const state = createRun({ mode: 'endless', seed: weapon === 'seeker' ? 6 : 5 });
+    // Seeker flies seed 6 since hunters (22 October): on seed 5 the pilot takes one hit (seeds 6 and 7 clear). Since the
+    // encounter deck (30 October, docs/33 § 4) each seed draws its own waves: Twin Pulse flies seed 7 (seed 5 takes one hit).
+    // Over seeds 1-48 the run clears without a hit on 30 (pulse), 25 (fan) and 24 (seeker) seeds, against 29, 25 and 18
+    // with the fixed lists.
+    const state = createRun({ mode: 'endless', seed: weapon === 'seeker' ? 6 : weapon === 'pulse' ? 7 : 5 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;

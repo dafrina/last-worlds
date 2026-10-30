@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import {
-  BAND, CAMPAIGN_DECKS, SCARCE, SITE_CALM, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
+  BAND, CAMPAIGN_DECKS, SCARCE, SITE_CALM, SITE_COUNT, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
   placementCost, placementRole, resolveDeck, resolvePlaylist, resolveTemplate, slotAt, varied, waveCharacter, type DeckTemplate,
 } from '../../src/content/encounter-deck';
 import { cueRoster, type EncounterCue } from '../../src/content/encounters';
@@ -73,7 +73,8 @@ describe('encounter deck: guard rails', () => {
       const entries = resolveDeck(deck, seed);
       entries.forEach((entry, i) => {
         const slot = deck.slots[i];
-        if (slot.kind !== 'pool') return;
+        // A site standing in for the slot's battery is checked with the sites below.
+        if (slot.kind !== 'pool' || entry.site) return;
         draws++;
         if (entry.fallback) { fallbacks++; expect(entry.cue.formations).toBe(slot.nominal); return; }
         // After a lingering Needle column, or where its character offers only a repeat of the previous wave, the slot may
@@ -102,7 +103,7 @@ describe('encounter deck: guard rails', () => {
     for (const deck of DECK_TEMPLATES) for (const seed of SEEDS.slice(0, 50)) {
       resolveDeck(deck, seed).forEach((entry, i) => {
         const slot = deck.slots[i];
-        if (slot.kind !== 'pool' || entry.fallback || entry.cue.formations === slot.nominal) return;
+        if (slot.kind !== 'pool' || entry.site || entry.fallback || entry.cue.formations === slot.nominal) return;
         const match = DECK_POOLS[deck.world][slot.phase].some(wave => [false, true].some(mirror => wave.offsets.some(offset =>
           JSON.stringify(varied(wave, mirror, offset)) === JSON.stringify(entry.cue.formations))));
         expect(match, `${deck.id}/${seed} ${slot.id}`).toBe(true);
@@ -117,14 +118,17 @@ describe('encounter deck: guard rails', () => {
         for (const cue of cues) for (const p of cue.formations) if (!seen.has(p.formation)) seen.set(p.formation, cue.id);
         return seen;
       };
-      const authored = firsts(nominalPlaylist(deck).concat());
       for (const seed of SEEDS.slice(0, 50)) {
-        const cues = resolveTemplate(deck, seed).filter(cue => !cue.site);
+        const entries = resolveDeck(deck, seed);
+        // The arc as authored for this attempt: a site standing in for a battery moves its introduction to its next slot.
+        const nominal = deck.slots.flatMap((slot, i) => slot.kind === 'fixed' ? [slot.cue] : slot.kind === 'pool' && !entries[i].site ? [{ id: slot.id, formations: slot.nominal }] : []);
+        const authored = firsts(nominal);
+        const cues = entries.map(entry => entry.cue).filter(cue => !cue.site);
         const drawn = firsts(cues);
         for (const [formation, id] of drawn) expect(id, `${deck.id}/${seed} ${formation}`).toBe(authored.get(formation));
         // The introducing cue flies its authored formations.
         for (const id of new Set(authored.values())) expect(cues.find(cue => cue.id === id)?.formations, `${deck.id}/${seed} ${id}`)
-          .toEqual(nominalPlaylist(deck).find(cue => cue.id === id)!.formations);
+          .toEqual(nominal.find(cue => cue.id === id)!.formations);
       }
     }
   });
@@ -175,7 +179,10 @@ describe('encounter deck: guard rails', () => {
       const cues = resolveTemplate(training, seed);
       // Every teaching step (message) at its time with its squadron, and the side slots teach the side route.
       expect(cues.filter(cue => cue.message && !cue.site)).toEqual(reference.filter(cue => cue.message && !cue.site));
-      expect(cues.filter(cue => cue.site).map(cue => cue.at)).toEqual([39, 44]);
+      // Its first site always stands at 39 s; the attempt's count adds 63 s, 85 s and 44 s in that order.
+      const at = cues.filter(cue => cue.site).map(cue => cue.at);
+      expect(at[0]).toBe(39);
+      for (const t of at) expect([39, 44, 63, 85]).toContain(t);
     }
   });
 });
@@ -228,24 +235,32 @@ describe('encounter deck: content', () => {
     }
   });
 
-  it('places two strike sites on Training and Cold Vector, one on the other missions, one per endless stage (two in the Luna prologue, none in Nacre\'s pressure stage)', () => {
-    const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side').length;
-    // Rolling Thunder and the last three missions hold one site in their recovery: two back to back held the threat budget
-    // until the turret battery after the recovery arrived on top of them (measured: docs/33 § 4.1).
-    const expected: Record<string, number> = { training: 2, 'rolling-thunder': 1, 'cold-vector': 2, 'deep-bloom': 1, 'brood-strike': 1, 'final-horizon': 1 };
-    for (const deck of Object.values(CAMPAIGN_DECKS)) expect(sides(deck), deck.id).toBe(expected[deck.id]);
-    // Nacre's pressure stage (Deep Bloom's middle and climax) has no recovery to hold one.
-    for (const [name, deck] of Object.entries(ENDLESS_DECKS)) expect(sides(deck), name).toBe(name === 'prologue' ? 2 : name === 'nacrePressure' ? 0 : 1);
+  it('flies 1-4 strike sites per campaign attempt (2 the most likely), one per endless stage (two in the Luna prologue, none in Nacre\'s pressure stage)', () => {
+    const places = (deck: DeckTemplate) => deck.slots.filter(slot => (slot.kind === 'side' && slot.rank !== undefined) || (slot.kind === 'pool' && slot.site !== undefined)).length;
+    // Every campaign arc offers four ranked site places (user, 30 October: "keep sites 1-4, with 2 being most probable").
+    for (const deck of Object.values(CAMPAIGN_DECKS)) expect(places(deck), deck.id).toBe(4);
+    for (const deck of Object.values(CAMPAIGN_DECKS)) {
+      const counts = [0, 0, 0, 0, 0];
+      for (const seed of SEEDS) counts[resolveTemplate(deck, seed).filter(cue => cue.site).length]++;
+      SITE_COUNT.forEach(({ count, weight }) => expect(Math.abs(counts[count] / SEEDS.length - weight), `${deck.id} ${count} sites`).toBeLessThan(0.1));
+    }
+    // Endless: one site per stage (two in the prologue, Training's side routes; none in Nacre's pressure stage, Deep Bloom's
+    // middle and climax, which has no recovery to hold one). Khepri's stages stand theirs in for a turret battery.
+    const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side' || (slot.kind === 'pool' && slot.endlessSite)).length;
+    for (const [name, deck] of Object.entries(ENDLESS_DECKS)) {
+      expect(sides(deck), name).toBe(name === 'prologue' ? 2 : name === 'nacrePressure' ? 0 : 1);
+      for (const seed of SEEDS.slice(0, 50)) expect(resolveTemplate(deck, seed).filter(cue => cue.site).length, `${name}/${seed}`).toBe(sides(deck));
+    }
+    for (const name of ['khepriOpening', 'khepriPressure', 'khepriPeak'] as const) expect(ENDLESS_DECKS[name].slots.some(slot => slot.kind === 'side'), name).toBe(false);
     for (const deck of DECK_TEMPLATES) for (const seed of SEEDS.slice(0, 50)) {
       const cues = resolveTemplate(deck, seed);
       deck.slots.forEach((slot, i) => {
-        if (slot.kind !== 'side') return;
         const cue = cues[i];
-        expect(cue.site, `${deck.id}/${seed} ${slot.id}`).toBeDefined();
-        expect(sitePool(deck.world).map(site => site.id)).toContain(cue.site!.id);
+        if (!cue.site) { if (slot.kind === 'side') expect(deck.campaign, `${deck.id}/${seed} ${slot.id}`).toBe(true); return; }
+        expect(sitePool(deck.world).map(site => site.id)).toContain(cue.site.id);
         // The guard and core sit on the drawn side; a slot's pickup moves there with it.
-        for (const placement of cue.formations) expect(Math.sign(placement.x ?? 0)).toBe(cue.site!.side);
-        if (slot.pickup) expect(Math.sign(cue.pickup!.x)).toBe(cue.site!.side);
+        for (const placement of cue.formations) expect(Math.sign(placement.x ?? 0)).toBe(cue.site.side);
+        if (slot.kind !== 'fixed' && slot.pickup) expect(Math.sign(cue.pickup!.x)).toBe(cue.site.side);
       });
     }
   });
@@ -281,7 +296,7 @@ describe('encounter deck: flown', () => {
   it('spawns the drawn strike sites in a real run', () => {
     const state = createRun({ mode: 'campaign', mission: 'training', difficulty: 'standard', seed: 3 });
     const sites = new Set<string>();
-    fly(state, perfectPilot(), 60, { onTick: s => { for (const enemy of s.enemies) if (enemy.site) sites.add(enemy.site); } });
+    fly(state, perfectPilot(), 200, { onTick: s => { for (const enemy of s.enemies) if (enemy.site) sites.add(enemy.site); } });
     expect([...sites].sort()).toEqual(resolvePlaylist(state.config, 1, 3).flatMap(cue => cue.site ? [cue.site.id] : []).sort());
   });
 });
