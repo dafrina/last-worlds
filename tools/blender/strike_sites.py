@@ -348,6 +348,14 @@ def crash_site(world):
         p = P(t, -R * .45 * (1 - k * .18), AZ + R * .7 * (1 - k * .2))
         obox(body, p.x, p.y, .07, .05, p.z - .05, p.z + .07, th, 'glass', minor=True)
     beam(body, P(1.35, 0, AZ + R), P(1.35, 0, AZ + R + .45), .04, .04, 'steel')  # antenna
+    # Cargo modules still clamped to the spine: what makes it a freighter from above.
+    for t, half, mat in ((-2.0, .26, 'stripe'), (-1.48, .22, 'accent')):
+        p = P(t, 0, AZ + R - .08)
+        obox(body, p.x, p.y, half, .3, p.z, p.z + .26, th, mat)
+        obox(body, p.x, p.y, half + .015, .315, p.z + .26, p.z + .29, th, 'steel', minor=True)
+    for t in (-2.25, -1.74, -1.22):  # clamps over the modules
+        beam(body, P(t, -.42, AZ + .25), P(t, 0, AZ + R + .3), .05, .04, 'steel')
+        beam(body, P(t, 0, AZ + R + .3), P(t, .42, AZ + .25), .05, .04, 'steel')
     beam(body, P(1.3, 0, AZ + R + .3), P(1.42, 0, AZ + R + .3), .1, .02, 'steel')
     # The reactor cradle in the break, conduits to both halves (body); the reactor itself is the core.
     body.major.box((-.34, -.3, -.4), (.34, .3, .5), 'metal', chamfer=.08)
