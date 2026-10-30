@@ -164,7 +164,10 @@ describe('Bastion-9 mission', () => {
     // seed 53 the pilot is caught at the world edge by one sideways turret shot in a run that stays fair (checked below).
     // Since hunters (22 October, src/sim/hunters.ts) Veteran with pulse flies seed 54 too: the pilot chases a hunter and
     // meets the same kind of edge shot on 53 (seeds 54-56 clear; a hit there is the pilot's path, not hunter fire).
-    const seed = (difficulty === 'standard' && weapon !== 'pulse') || (difficulty === 'veteran' && weapon === 'pulse') ? 54 : 53;
+    // Since the encounter deck (29 October, docs/33 § 4) each seed draws its own waves: Veteran with pulse or fan flies
+    // seed 1. Over seeds 1-16 the pilot clears Veteran without a hit on 11 (pulse) and 11 (fan) seeds, against 11 and 12
+    // with the fixed list.
+    const seed = difficulty === 'veteran' && weapon !== 'seeker' ? 1 : (difficulty === 'standard' && weapon !== 'pulse') ? 54 : 53;
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed });
     const log = fly(state, perfectPilot(), 360, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

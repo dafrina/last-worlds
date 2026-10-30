@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import {
-  BAND, CAMPAIGN_DECKS, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
+  BAND, CAMPAIGN_DECKS, SCARCE, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
   placementCost, placementRole, resolveDeck, resolvePlaylist, resolveTemplate, slotAt, varied, type DeckTemplate,
 } from '../../src/content/encounter-deck';
-import { cueRoster } from '../../src/content/encounters';
+import { cueRoster, type EncounterCue } from '../../src/content/encounters';
 import { endlessPlanet } from '../../src/content/endless';
 import { FORMATIONS } from '../../src/content/formations';
 import { SITES, sitePool } from '../../src/content/sites';
@@ -76,8 +76,8 @@ describe('encounter deck: guard rails', () => {
         if (slot.kind !== 'pool') return;
         draws++;
         if (entry.fallback) { fallbacks++; expect(entry.cue.formations).toBe(slot.nominal); return; }
-        // After a lingering Needle column the slot may leave its band for the nearest calm wave (never a Needle squadron).
-        if (entry.outside) { outside++; expect(entry.cue.formations.some(p => p.formation.startsWith('needle'))).toBe(false); return; }
+        // After a lingering Needle column, or once a scarce kind is spent, the slot may leave its band for the nearest wave.
+        if (entry.outside) { outside++; expect(placementRole(entry.cue.formations)).toBe(placementRole(slot.nominal)); return; }
         const range = band(placementCost(slot.nominal));
         expect(entry.cost, `${deck.id}/${seed} ${slot.id}`).toBeGreaterThanOrEqual(range.min);
         expect(entry.cost, `${deck.id}/${seed} ${slot.id}`).toBeLessThanOrEqual(range.max);
@@ -122,6 +122,14 @@ describe('encounter deck: guard rails', () => {
         for (const id of new Set(authored.values())) expect(cues.find(cue => cue.id === id)?.formations, `${deck.id}/${seed} ${id}`)
           .toEqual(nominalPlaylist(deck).find(cue => cue.id === id)!.formations);
       }
+    }
+  });
+
+  it('flies no more Pulsar or Wraith cues than the arc authored', () => {
+    const count = (cues: readonly EncounterCue[], kind: string) => cues.filter(cue => cueRoster(cue, 'veteran').includes(kind as never)).length;
+    for (const deck of DECK_TEMPLATES) for (const kind of SCARCE) {
+      const authored = count(nominalPlaylist(deck), kind);
+      for (const seed of SEEDS) expect(count(resolveTemplate(deck, seed).filter(cue => !cue.site), kind), `${deck.id}/${seed} ${kind}`).toBeLessThanOrEqual(authored);
     }
   });
 

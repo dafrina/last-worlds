@@ -173,6 +173,74 @@ list comes from:
   a band, not match one number.
 - Training's teaching order stays fixed.
 
+### 4.1 As built (workstream A, 29–30 October 2026)
+
+Runtime source: `src/content/encounter-deck.ts` (templates, pools, guard rails, `resolvePlaylist`); the director asks it
+for the run's list (`resolvePlaylist(state.config, state.sector, state.config.seed)`, memoized in a small bounded cache
+outside the run state). `src/content/encounters.ts` keeps the shared types (`EncounterCue`, `FormationPlacement`),
+`f()`, `cueRoster` and `cueAlert`; the fixed lists it used to hold are now the templates' slots.
+
+**Templates.** Every arc is the list it was before, slot by slot, at the same times (mission lengths, boss approach
+cutoffs and arrivals, the endless sector cycle and pace ramp and the shield-supply schedule are untouched):
+
+- `fix(cue)`: flies as written. Every intro cue, every cue with a message (teaching steps, set pieces, power-cell and
+  weapon opportunities) and every relief.
+- `draw(cue)`: a pool slot; `cue.formations` is its **nominal** wave (what the arc flew before the deck) and fixes the
+  slot's role (an air squadron, or ground batteries) and threat cost; its pickup stays with the slot.
+- `side({ at, id, pickup? })`: a strike site (§ 3), drawn from `sitePool(world)` by `SiteDefinition.weight`, west or east
+  by the roll, built with `siteCue(id, side, at, world)`; a slot's pickup moves to the drawn side.
+
+Templates: the six missions (`CAMPAIGN_DECKS`) and ten endless stages (`ENDLESS_DECKS`: the Luna prologue, then opening,
+pressure and peak stages for Khepri, Vesper and Nacre). Teaching arcs (every mission, the prologue and the opening
+stage of each world's first endless visit) fly a slot whose nominal introduces a formation as authored, and draw only
+formations already introduced, so squadrons appear in their authored order. Training's teaching sequence is therefore
+fixed on every seed, and its two side slots (39 s and 44 s) teach the side route.
+
+**Side slots** (the old `SALVAGE ROUTE · WEST`, `OPTIONAL OUTPOST · EAST`, `LONE TURRET · EAST`, … routes are gone):
+two per campaign mission (Rolling Thunder gained one: its dive pair flies at 33 s, the sites at 37 s and 42 s), one per
+endless stage (its west route; the old east route after the climax is now an empty relief), two in the Luna prologue
+(Training's). Endless Nacre: the opening keeps Deep Bloom's west slot, the pressure stage gains one before its climax
+(27 s, later cues 3 s later) and the peak one between its halves (52 s, the second half 1 s later).
+
+**Pools** (`DECK_POOLS[world][phase]`): authored waves (`w(...)`) built only from formations and kinds the world already
+flies (tested against the nominal arcs): one air squadron, or one ground battery, optionally with harmless skids (two
+air squadrons in one cue could never share the airspace). Each wave allows its validated mirror and the lateral offsets
+in `SHIFT` (±1–1.5 for narrow squadrons and batteries, none for wide, side-entry and two-flank ones). New waves over the
+fixed lists: Luna `dive-pair + fuel-pair`, `arrow-3 + fuel-pair`, `solo-lancer` in pressure, `line-weaver-4` in the
+climax; Khepri `line-weaver-4` in the climax; Vesper `needle-solo` in pressure, `diamond-solo` in
+the climax; Nacre `line-weaver-4 + fuel-pair`, `pulsar-pair` and `diamond-solo` in the climax; Amnion and Umbra each
+other's mixes (Umbra adds the Wraith). No new formations.
+
+**Guard rails** (`resolveDeck`):
+- the drawn wave has the nominal's role and costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`;
+- no wave twice in a row, nor the same as the next fixed cue; where the pool allows, not the same as the last wave of its
+  role either; no site twice in a row;
+- cues within 5 s of each other (`PAIR_WINDOW`) cost together no more than the arc's nominal pair (at least 10): two
+  heavy waves never stack beyond what the arc authored;
+- the wave after a strike site fits the Standard threat budget beside the site's guard where the pool allows;
+- a resolved list flies no more Pulsar or Wraith cues than its arc (`SCARCE`);
+- after a Needle column (`LINGERING`), the next air cue is no Needle squadron and the next site has no air guard: the
+  column's last members lock their beam lanes as their path ends, which the airspace prediction cannot foresee, and a
+  Needle squadron diving in behind it shared its band (found by the cue-sequence union tests);
+- a slot with no fitting wave flies its nominal (about 1% of draws).
+
+The seeded roll is its own stream (mulberry32 over a hash of the run seed, the template and, in endless, the sector),
+used by nothing else; no `Math.random`. Endless resolves each sector anew, so a later visit to a stage differs.
+
+**How to add a wave:** append `w('formation')` (or `w(['formation', 'fuel-pair'])`, options `weight`, `mirror`,
+`offsets`) to a world's phase in `DECK_POOLS`, with a `SHIFT` entry for a new formation that tolerates offsets. It is
+drawn wherever its role and cost suit a slot. `tests/sim/encounter-deck.test.ts` checks roster faithfulness, that every
+variation stays in view at its windups and is admitted into an empty sky at every rank, and the guard rails over 200
+seeds; `tests/sim/deck-balance.test.ts` samples the balance band.
+
+**Validator note** (tests/sim/fairness-trace.ts): a site's core and its own guard ring are one authored layout; the
+airspace observer no longer requires separation between them. Under the release lens (src/sim/ground.ts) ground seats
+near the bottom of the view come up to a unit closer than authored, so the ring's 2.55-unit seats read as overlapping
+the core. The guard keeps the rule against every other squadron.
+
+**Measured** (perfect pilot, Standard, starter loadout; `DECK_REPORT=<file> DECK_TARGET=mission:<id>|sector:<n>
+DECK_SEEDS=1-30 [DECK_PILOT=perfect|weaver|sites] npx vitest run tests/sim/deck-report.test.ts`): see the table below.
+
 ## 5. Workstreams and file ownership
 
 Three agents, each in its own git worktree, merged by the integrator (Claude Code main session), who owns the release

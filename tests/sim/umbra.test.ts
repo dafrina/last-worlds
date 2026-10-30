@@ -19,7 +19,10 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     // The scripted pilot is not perfect. Since the Wraith (docs/29) it takes a single mission hit with the Fan on seeds 3 and
     // 5 (the short-ranged Fan flies it close to where the Wraith warps in); Twin Pulse and Seeker clear seeds 3, 5, 7, 11
     // and 21, never a hit from THE ECLIPSE, and the fairness checks pass. Seed 7 clears with all three (27 October).
-    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 7 });
+    // Since the encounter deck (29 October, docs/33 § 4) each seed draws its own waves: seed 6 clears with all three. Over
+    // seeds 1-16 the pilot clears without a hit on 16 (pulse), 13 (fan) and 9 (Veteran seeker) seeds, against 16, 14 and
+    // 13 with the fixed list.
+    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 6 });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('eclipse');

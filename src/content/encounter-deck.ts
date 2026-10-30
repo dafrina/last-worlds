@@ -84,9 +84,23 @@ export const SIDE_WINDOW = 6;
  * band), nor a strike site with an air guard, where the pool allows.
  */
 export const LINGERING: readonly FormationId[] = ['needle-column-5'];
+/**
+ * Kinds whose authored count an arc keeps as a ceiling: a resolved list flies no more cues with them than the arc's nominal
+ * (a Pulsar's tracking stream and a Wraith's arrival are the hardest things to read; docs/27, docs/29).
+ */
+export const SCARCE: readonly EnemyKind[] = ['pulsar', 'wraith'];
 const NEEDLES: ReadonlySet<FormationId> = new Set(['needle-solo', 'needle-line-3', 'needle-column-5']);
 
 const isGroundFormation = (formation: FormationId) => FORMATIONS[formation].entry === 'ground';
+/** EXPERIMENT (probe switches; removed before commit). */
+export const DECK_TUNING = { character: false, oneSide: false };
+export type WaveCharacter = 'fighter' | 'beam' | 'heavy' | 'pulsar' | 'wraith' | 'turret' | 'missile' | 'none';
+/** A wave's attack character: what its armed members do (the arc's rhythm pairs them deliberately). */
+export function waveCharacter(placements: readonly FormationPlacement[]): WaveCharacter {
+  const kinds = new Set(placements.filter(p => !FORMATIONS[p.formation].harmless).flatMap(p => FORMATIONS[p.formation].slots.map(slot => slot.kind)));
+  return kinds.has('pulsar') ? 'pulsar' : kinds.has('wraith') ? 'wraith' : kinds.has('diamond') ? 'heavy' : kinds.has('needle') || kinds.has('lancer') ? 'beam'
+    : kinds.has('missile') ? 'missile' : kinds.has('turret') ? 'turret' : kinds.size ? 'fighter' : 'none';
+}
 /** Threat cost of placements at Standard rank (balance.ts THREAT_COST). */
 export function placementCost(placements: readonly FormationPlacement[]): number {
   return placements.reduce((sum, placement) => sum + FORMATIONS[placement.formation].slots
@@ -752,7 +766,7 @@ interface Resolved {
   readonly site?: SiteId;
   /** A pool slot that found no fitting wave and flew its nominal. */
   readonly fallback?: true;
-  /** A draw outside the slot's band: the calm wave nearest it after a lingering column (LINGERING). */
+  /** A draw outside the slot's band: the calm wave nearest it after a lingering column (LINGERING), or the nearest wave once its nominal's scarce kind is spent (SCARCE). */
   readonly outside?: true;
 }
 
@@ -779,6 +793,13 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
     return fresh;
   });
   const introduced = new Set<FormationId>();
+  // Scarce kinds: the arc's nominal count, less what its fixed and introducing slots will fly anyway, is what draws may use.
+  const scarceIn = (placements: readonly FormationPlacement[]) => SCARCE.filter(kind => placements.some(p => FORMATIONS[p.formation].slots.some(slot => slot.kind === kind)));
+  const spare = new Map<EnemyKind, number>(SCARCE.map(kind => [kind, 0]));
+  template.slots.forEach((slot, i) => {
+    for (const kind of scarceIn(formationsOf(slot))) spare.set(kind, spare.get(kind)! + (slot.kind === 'pool' && !locked[i] ? 1 : 0));
+  });
+  const affords = (placements: readonly FormationPlacement[]) => scarceIn(placements).every(kind => spare.get(kind)! > 0);
   const out: Resolved[] = [];
   const budget = DIFFICULTIES.standard.threatBudget;
   /** Whether the last air cue so far flew a lingering squadron. */
@@ -787,6 +808,7 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
   template.slots.forEach((slot, index) => {
     const previous = out[out.length - 1];
     if (slot.kind === 'fixed') out.push(resolvedOf(slot.cue));
+    else if (slot.kind === 'side' && DECK_TUNING.oneSide && out.some(entry => entry.site && slot.at - entry.cue.at <= 10)) out.push(resolvedOf({ at: slot.at, id: slot.id, phase: 'recovery', formations: [] }));
     else if (slot.kind === 'side') {
       const pool = sitePool(template.world);
       const lastSite = [...out].reverse().find(entry => entry.site)?.site;
@@ -815,11 +837,11 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         // previous cue's.
         const fitting = (strict: boolean) => pools[slot.phase].filter(wave => {
           const cost = placementCost(wave.formations), key = waveKey(wave.formations);
-          return placementRole(wave.formations) === role && cost >= range.min && cost <= range.max
+          return placementRole(wave.formations) === role && (!DECK_TUNING.character || waveCharacter(wave.formations) === waveCharacter(slot.nominal)) && cost >= range.min && cost <= range.max
             && (!template.teach || wave.formations.every(p => introduced.has(p.formation)))
             && key !== previous?.key && key !== nextKey && (!strict || key !== lastOfRole?.key)
             && (!previous || previous.site || slot.at - previous.cue.at > PAIR_WINDOW || cost + previous.cost <= cap(previous.nominal))
-            && (ahead === null || cost + ahead <= cap(ahead));
+            && (ahead === null || cost + ahead <= cap(ahead)) && affords(wave.formations);
         });
         const strict = fitting(true), fits = strict.length ? strict : fitting(false);
         // After a lingering column, no Needle squadron (LINGERING).
@@ -828,7 +850,7 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         let settled = linger ? fits.filter(calmWave) : fits;
         if (linger && !settled.length) {
           // No calm wave in the band: the calm air wave of the phase nearest the nominal's cost (the lighter on a tie).
-          const calm = pools[slot.phase].filter(wave => placementRole(wave.formations) === 'air' && calmWave(wave) && waveKey(wave.formations) !== previous?.key
+          const calm = pools[slot.phase].filter(wave => placementRole(wave.formations) === 'air' && calmWave(wave) && waveKey(wave.formations) !== previous?.key && affords(wave.formations)
             && (!template.teach || wave.formations.every(p => introduced.has(p.formation))));
           const nearest = Math.min(...calm.map(wave => Math.abs(placementCost(wave.formations) - nominalCost)));
           const near = calm.filter(wave => Math.abs(placementCost(wave.formations) - nominalCost) === nearest);
@@ -838,12 +860,25 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         const calm = settled.length ? settled : fits;
         // After a strike site, prefer a wave that fits the Standard budget beside the site's guard.
         const light = site ? calm.filter(wave => placementCost(wave.formations) + site.cost <= budget) : calm;
-        const choices = light.length ? light : calm;
-        if (!choices.length) out.push({ ...resolvedOf(nominalCue), fallback: true });
+        let choices = light.length ? light : calm;
+        if (!choices.length && !affords(slot.nominal)) {
+          // The nominal's scarce kind is spent: the wave of the slot's role nearest its cost (the lighter on a tie).
+          const others = pools[slot.phase].filter(wave => placementRole(wave.formations) === role && affords(wave.formations) && waveKey(wave.formations) !== previous?.key
+            && (!template.teach || wave.formations.every(p => introduced.has(p.formation))));
+          const nearest = Math.min(...others.map(wave => Math.abs(placementCost(wave.formations) - nominalCost)));
+          const near = others.filter(wave => Math.abs(placementCost(wave.formations) - nominalCost) === nearest);
+          const lightest = Math.min(...near.map(wave => placementCost(wave.formations)));
+          choices = near.filter(wave => placementCost(wave.formations) === lightest).map(wave => ({ ...wave, outside: true }));
+        }
+        if (!choices.length) {
+          for (const kind of scarceIn(slot.nominal)) spare.set(kind, spare.get(kind)! - 1);
+          out.push({ ...resolvedOf(nominalCue), fallback: true });
+        }
         else {
           const wave = weighted(choices, roll);
           const mirror = wave.mirror && roll() < 0.5;
           const offset = wave.offsets[Math.floor(roll() * wave.offsets.length)];
+          for (const kind of scarceIn(wave.formations)) spare.set(kind, spare.get(kind)! - 1);
           const entry = resolvedOf({ ...nominalCue, formations: varied(wave, mirror, offset) }, nominalCost);
           out.push((wave as DeckWave & { outside?: true }).outside ? { ...entry, outside: true } : entry);
         }
