@@ -1,9 +1,12 @@
 import { ENEMIES, WORLD_INTENSITY, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { FORMATIONS, coreSite, slotFlies, type FormationId } from '../content/formations';
-import { SITES } from '../content/sites';
-import type { FormationMember, RunState } from '../shared/contracts';
+import { SITES, SITE_CORE_HEIGHT } from '../content/sites';
+import { VIEW, type FormationMember, type RunState } from '../shared/contracts';
 import { groundHeight, memberPosition } from './motion';
 import { anchorGround } from './ground';
+import { SEAT_SEARCH, seatCore, seatTrack, siteSeat } from './sites';
+/** The guard batteries' core height, the seat search's aim. */
+const SEAT_AIM_HEIGHT = .85;
 
 export function runScale(state: RunState): DifficultyScale {
   return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
@@ -26,8 +29,17 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   age = 0): void {
   const template = FORMATIONS[formation];
   const group = state.nextId;
-  // A strike site's core (docs/33): its site, and the site's hit points and radius instead of its kind's.
+  // A strike site's core (docs/33): its site, and the site's hit points, radius and core height instead of its kind's.
   const site = coreSite(template.id), core = site ? SITES[site].core : null;
+  // A strike site's ground formations (its guard and core) stand on the even dry seat found near its authored place
+  // (src/sim/sites.ts): the same seat for every member of the cue, each member's track shifted onto it.
+  const seat = template.entry === 'ground' && template.id.startsWith('site-') && Math.abs(anchorX) >= SEAT_SEARCH.side
+    ? siteSeat(state, anchorX, memberPosition({ template: template.id, slot: 0, anchorX, mirror, group }, age).s - (template.slots[0].ds ?? 0)) : null;
+  if (seat) {
+    const trackS = memberPosition({ template: template.id, slot: 0, anchorX, mirror, group }, age).s - (template.slots[0].ds ?? 0);
+    const shift = seatTrack(state, seat, trackS, site ? SITE_CORE_HEIGHT[site] : SEAT_AIM_HEIGHT);
+    anchorX = shift.anchorX; age -= shift.shiftS / VIEW.scrollSpeed;
+  }
   template.slots.forEach((slot, index) => {
     if (!slotFlies(slot, scale.rank)) return;
     const member: FormationMember = { template: template.id, slot: index, anchorX, mirror, group, ...(anchorS !== undefined ? { anchorS } : {}) };
@@ -36,12 +48,13 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
     const enemy = {
       id: state.nextId++, kind: slot.kind, x: at.x, s: at.s, originX: anchorX, hp, maxHp: hp,
       radius: core?.radius ?? ENEMIES[slot.kind].radius, age, ...(site ? { site } : {}), nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
-      warning: 0, aimX: at.x, groundHeight: groundHeight(slot.kind), formation: member,
+      warning: 0, aimX: at.x, groundHeight: site ? SITE_CORE_HEIGHT[site] : groundHeight(slot.kind), formation: member,
       // Spawned ahead of its time it is still beyond the top edge: shots cannot hit it until its authored entry.
       ...(age < 0 ? { damageable: false } : {}),
     };
     // Ground enemies stand on the terrain, seen through the release lens (src/sim/ground.ts).
-    anchorGround(state, enemy);
+    // A site's core rests on its site's floor (one with the model built around it); other ground enemies on the terrain.
+    if (seat && site) seatCore(state, enemy, seat); else anchorGround(state, enemy);
     state.enemies.push(enemy);
   });
 }

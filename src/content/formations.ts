@@ -76,12 +76,17 @@ const HEAVY_HOLD = (holdS: number, hold: number): readonly Keyframe[] => [
 export const SITE_LEAD = 9;
 const SITE_TRACK: readonly Keyframe[] = [[0, 0, 22 + SITE_LEAD], [(36 + SITE_LEAD) / VIEW.scrollSpeed, 0, -14]];
 const SITE_FIRE = { fireFrom: (22 + SITE_LEAD - 18.8) / VIEW.scrollSpeed, fireUntil: (22 + SITE_LEAD - 3.6) / VIEW.scrollSpeed } as const;
-/** Guard seats (dx, ds) around a site's core, in firing order. */
-const RING_2 = [[-2.8, -1], [2.8, 1]] as const;
-const RING_3 = [[-2.8, -1], [2.8, -1], [0, 2.8]] as const;
-const RING_4 = [[-2.8, -1.2], [2.8, -1.2], [-2.2, 2.2], [2.2, 2.2]] as const;
-/** Wider, for the sealed vault's three seals. */
-const RING_VAULT = [[-3, -2.2], [3, -2.2], [0, 3.6]] as const;
+/**
+ * Guard seats (dx, ds) around a site's core, in firing order. Each stands outside every site's footprint (content/sites.ts
+ * SITE_FOOTPRINT: |x| ≤ 3, s −3.2 to 3.3; on the ground the lens spreads them about 7% further), so no battery stands on
+ * a runway, an apron or a building (workstream C, 30 October). tools/blender/strike_sites.py checks the models against
+ * these spots, so keep one ring per line.
+ */
+const RING_2 = [[-3.5, -1], [3.1, 1]] as const;
+const RING_3 = [[-3.5, -1.2], [3.1, -1.2], [0, 3.7]] as const;
+const RING_4 = [[-3.5, -1.4], [3.1, -1.4], [-2.4, 3.7], [2.4, 3.7]] as const;
+/** For the sealed vault's three seals: wider. */
+const RING_VAULT = [[-3.5, -2.2], [3.1, -2.2], [0, 3.9]] as const;
 const siteGuard = (kinds: readonly ('turret' | 'missile')[], ring: readonly (readonly [number, number])[]): readonly FormationSlot[] =>
   ring.map(([dx, ds], i) => ({ kind: kinds[i], dx, ds, fire: Math.max(i * 0.6, (ds - 0.15) / VIEW.scrollSpeed + 0.05) }));
 

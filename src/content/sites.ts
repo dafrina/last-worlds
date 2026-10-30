@@ -42,6 +42,31 @@ export interface SiteDefinition {
 
 /** How far out a site sits from the map's centre line (docs/33 § 3: "about 7.5 units out"). */
 export const SITE_X = 7.5;
+/**
+ * The ground every site model fits around its centre (the core's ground point; workstream C, 30 October): |x| ≤ `x`,
+ * s from `s[0]` to `s[1]`. The seat search (src/sim/sites.ts) finds flat dry ground for it, and the guards' ring spots
+ * (content/formations.ts RING_*) stand outside it. src/render/site-models.ts asserts every model inside it.
+ */
+export const SITE_FOOTPRINT = { x: 3.0, s: [-3.2, 3.3] } as const;
+/**
+ * Each site's core height over its ground: the target's centre, where the model draws it (a tower's cab, a floating
+ * crystal, a hook's load). The simulation anchors the core with it (its `groundHeight`). One entry per line:
+ * tools/blender/strike_sites.py parses them.
+ */
+export const SITE_CORE_HEIGHT: Readonly<Record<SiteId, number>> = {
+  'crash-site': 1.05,
+  'airfield': 1.85,
+  'salvage-yard': 1.6,
+  'shield-depot': .85,
+  'relay-station': 1.9,
+  'freight-terminal': .85,
+  'dark-spaceport': 1.9,
+  'prism-reactor': 1.95,
+  'sealed-vault': 1.45,
+  'gate-ring': 1.55,
+  'brood-hive': .85,
+  'spawning-pool': 1.45,
+};
 /** Score for destroying a site's core, in both modes. */
 export const SITE_SCORE = 500;
 /** Endless score bonus per part a parts site would have dropped in the campaign. */
