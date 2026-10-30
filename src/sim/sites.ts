@@ -98,13 +98,15 @@ function pushLoot(state: RunState, pickup: Pickup): void {
  * guard. The renderer stands the site on that floor and fills any drop under it with foundations (src/render/site-view.ts).
  */
 /**
- * Search window around the authored centre on the ground: up to `lateral` in or out (never past `maxX`, so the whole site
- * stays inside the world and the ship can line up its core), and `back` toward the camera or `ahead` away from it (a
- * site moved `back` still comes into view from beyond the top edge: its core spawns about 11 units out). Seats that
- * keep every guard battery of the cue GUARD_CLEARANCE outside the footprint are taken first. Only side-route sites
- * (|x| >= `side`) are moved.
+ * Search window around the authored centre on the ground: up to `inward` toward the map's centre or `outward` toward
+ * its edge (never past `maxX`), and `back` toward the camera or `ahead` away from it. The window is small on purpose: the
+ * core stays inside its guards' ring and near its authored time, so the guards defend it as authored and its loot falls
+ * where the site's economy was measured (tests/sim/site-economy.test.ts; wider windows, 4.5 back or 2 in, flattened the
+ * seats a lot more but let the core run ahead of its guards and its part fall under their fire). The ring's inner and
+ * rear guards bound it anyway. Seats that keep every guard battery of the cue GUARD_CLEARANCE outside the footprint are
+ * taken first; any unevenness left is filled by the foundations. Only side-route sites (|x| >= `side`) are moved.
  */
-export const SEAT_SEARCH = { lateral: 2, back: 7, ahead: 4, maxX: 9, side: 5 } as const;
+export const SEAT_SEARCH = { inward: .5, outward: 0, back: 3, ahead: .5, maxX: 9, side: 5 } as const;
 /** Guard batteries stand at least this far outside a site's footprint (their own plinth, and a little ground between). */
 export const GUARD_CLEARANCE = .3;
 /** The core height the authored centre is solved with (the batteries' own). */
@@ -190,15 +192,15 @@ export function siteSeat(state: RunState, anchorX: number, trackS: number, guard
   const key = `${anchorX.toFixed(4)}:${trackS.toFixed(4)}:${state.distance}:${state.cameraX}:${guards.length}`, cached = seats.get(state);
   if (cached && cached.tick === state.tick && cached.key === key) return cached.seat;
   const ahead = trackS - MATCH_ROW, nominal = lineOfSightGround(state, anchorX, ahead, SEAT_AIM);
-  const x0 = nominal.at.x, s0 = state.distance + ahead + nominal.at.s;
-  const allowed = (x: number) => Math.abs(x) <= SEAT_SEARCH.maxX + 1e-9;
+  const x0 = nominal.at.x, s0 = state.distance + ahead + nominal.at.s, out = Math.sign(x0) || 1;
   // A camera far to the other side spreads the authored spot outward: the window then starts at maxX.
-  const cx = Math.sign(x0) * Math.min(Math.abs(x0), SEAT_SEARCH.maxX);
+  const cx = out * Math.min(Math.abs(x0), SEAT_SEARCH.maxX);
+  const allowed = (x: number) => Math.abs(x) <= SEAT_SEARCH.maxX + 1e-9 && out * (x - cx) >= -SEAT_SEARCH.inward - 1e-9 && out * (x - cx) <= SEAT_SEARCH.outward + 1e-9;
   const cost = (seat: SiteSeat) => seatCost(state, seat, seat.x - x0, seat.s - s0) + INTRUSION_COST * guardIntrusion(guards, seat.x, seat.s);
   // Coarse: a 0.5 grid with a 5 × 6 footprint sample; fine: around the best, the full sample.
   let best = { cost: Infinity, x: cx, s: s0 };
-  for (let dx = -SEAT_SEARCH.lateral; dx <= SEAT_SEARCH.lateral + 1e-9; dx += .5) for (let ds = -SEAT_SEARCH.back; ds <= SEAT_SEARCH.ahead + 1e-9; ds += .5) {
-    const x = cx + dx, s = s0 + ds;
+  for (let dx = -SEAT_SEARCH.inward; dx <= SEAT_SEARCH.outward + 1e-9; dx += .5) for (let ds = -SEAT_SEARCH.back; ds <= SEAT_SEARCH.ahead + 1e-9; ds += .5) {
+    const x = cx + out * dx, s = s0 + ds;
     if (!allowed(x)) continue;
     const c = cost(footprintGround(state, x, s, 5, 6));
     if (c < best.cost) best = { cost: c, x, s };
@@ -206,7 +208,7 @@ export function siteSeat(state: RunState, anchorX: number, trackS: number, guard
   let seat = footprintGround(state, best.x, best.s), bestCost = Infinity;
   for (const fx of [-.25, 0, .25]) for (const fs of [-.25, 0, .25]) {
     const x = best.x + fx, s = Math.min(s0 + SEAT_SEARCH.ahead, Math.max(s0 - SEAT_SEARCH.back, best.s + fs));
-    if (!allowed(x) || Math.abs(x - cx) > SEAT_SEARCH.lateral + 1e-9) continue;
+    if (!allowed(x)) continue;
     const candidate = footprintGround(state, x, s), c = cost(candidate);
     if (c < bestCost) { bestCost = c; seat = candidate; }
   }

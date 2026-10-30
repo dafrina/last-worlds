@@ -14,17 +14,18 @@ import type { EnemyKind, MissionId, PlanetId, RunConfig, SiteId } from '../share
  * - **fixed** slots fly as written: intros, every cue with a message (teaching steps, set pieces, weapon and power
  *   opportunities), reliefs;
  * - **pool** slots (`pressure`, `climax`) draw an authored wave from their world's pool for that phase: the same role as
- *   the slot's nominal wave (air squadron or ground battery), a threat cost near the nominal's, and one of the wave's
- *   allowed variations (the validated mirror image, a small lateral offset). The nominal is what the arc flew before the
- *   deck and what a slot falls back to when no pool wave fits;
+ *   the slot's nominal wave (air squadron or ground battery) and the same attack character (`waveCharacter`), a threat
+ *   cost near the nominal's, and one of the wave's allowed variations (the validated mirror image, a small lateral
+ *   offset). The nominal is what the arc flew before the deck and what a slot falls back to when no pool wave fits;
  * - **side** slots draw a strike site (docs/33 § 3) from the world's site pool by its weight, on a side drawn by the roll.
  *
  * Waves and attacks stay authored, never assembled from parts (AGENTS.md invariant 8 as narrowed in docs/08, 29
  * October): only their order and their variations are drawn. Every drawn cue still passes the director's admission
  * (threat budget, entity ceiling, airspace) and the fairness checks unchanged.
  *
- * Guard rails: no wave twice in a row (nor the same site twice in a row), and where the pool allows not the same wave as
- * the last one of its role either; a per-slot threat band; consecutive cues within
+ * Guard rails: each slot keeps its attack character, so Pulsars and the Wraith fly only where the arc put them; no wave
+ * twice in a row (nor the same site twice in a row), and where the pool allows not the same wave as the last one of its
+ * role either; a per-slot threat band; consecutive cues within
  * PAIR_WINDOW seconds may together cost no more than the arc put there (at least PAIR_FLOOR), so two heavy waves never
  * stack; the wave after a strike site fits the Standard threat budget together with the site's guard where the pool
  * allows; on teaching arcs (every campaign mission, the Luna prologue and the opening sector of each world's first endless
@@ -85,22 +86,26 @@ export const SIDE_WINDOW = 6;
  */
 export const LINGERING: readonly FormationId[] = ['needle-column-5'];
 /**
- * Kinds whose authored count an arc keeps as a ceiling: a resolved list flies no more cues with them than the arc's nominal
- * (a Pulsar's tracking stream and a Wraith's arrival are the hardest things to read; docs/27, docs/29).
+ * Kinds that fly only where the arc put them: a Pulsar's tracking stream and a Wraith's arrival are the hardest things to
+ * read (docs/27, docs/29), so no draw, fallback included, adds one, and their slots keep their authored spacing.
  */
 export const SCARCE: readonly EnemyKind[] = ['pulsar', 'wraith'];
 const NEEDLES: ReadonlySet<FormationId> = new Set(['needle-solo', 'needle-line-3', 'needle-column-5']);
 
 const isGroundFormation = (formation: FormationId) => FORMATIONS[formation].entry === 'ground';
-/** EXPERIMENT (probe switches; removed before commit). */
-export const DECK_TUNING = { character: false, oneSide: false };
+/**
+ * A wave's attack character: what its armed members do. The arcs pair characters deliberately (a Pulsar's tracking stream
+ * beside missile batteries that fire down their own columns, never beside aimed turrets; Needle beams between weaver
+ * flights), so a pool slot draws only waves of its nominal's character: fighters (darts and weavers), beams (Needles and
+ * Lancers), heavies (Diamonds), Pulsars, the Wraith; aimed turret batteries or missile batteries on the ground.
+ */
 export type WaveCharacter = 'fighter' | 'beam' | 'heavy' | 'pulsar' | 'wraith' | 'turret' | 'missile' | 'none';
-/** A wave's attack character: what its armed members do (the arc's rhythm pairs them deliberately). */
 export function waveCharacter(placements: readonly FormationPlacement[]): WaveCharacter {
   const kinds = new Set(placements.filter(p => !FORMATIONS[p.formation].harmless).flatMap(p => FORMATIONS[p.formation].slots.map(slot => slot.kind)));
   return kinds.has('pulsar') ? 'pulsar' : kinds.has('wraith') ? 'wraith' : kinds.has('diamond') ? 'heavy' : kinds.has('needle') || kinds.has('lancer') ? 'beam'
     : kinds.has('missile') ? 'missile' : kinds.has('turret') ? 'turret' : kinds.size ? 'fighter' : 'none';
 }
+const flies = (placements: readonly FormationPlacement[], kinds: readonly EnemyKind[]) => placements.some(p => FORMATIONS[p.formation].slots.some(slot => kinds.includes(slot.kind)));
 /** Threat cost of placements at Standard rank (balance.ts THREAT_COST). */
 export function placementCost(placements: readonly FormationPlacement[]): number {
   return placements.reduce((sum, placement) => sum + FORMATIONS[placement.formation].slots
@@ -482,8 +487,10 @@ const DEEP_BLOOM: readonly DeckSlot[] = [
   fix({ at: 33, id: 'n-diamond', phase: 'pressure', message: 'DIAMOND HEAVY', formations: [f('diamond-solo')] }),
   draw({ at: 40, id: 'n-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 45, id: 'n-missiles-3', phase: 'pressure', formations: [f('missile-3')] }),
+  // One strike site in the recovery; the old east route is a relief. Two sites back to back held the threat budget
+  // until the next pressure block arrived on top of them, while the pilot was still out at a site (docs/33 § 4.1).
   side({ at: 51, id: 'n-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } }),
-  side({ at: 56, id: 'n-east' }),
+  relief(56, 'n-east'),
   draw({ at: 62, id: 'n-weaver-line', phase: 'pressure', formations: [f('line-weaver-4', 1)] }),
   draw({ at: 66, id: 'n-battery-mid', phase: 'pressure', formations: [f('battery-3')] }),
   draw({ at: 69, id: 'n-needle-column', phase: 'pressure', formations: [f('needle-column-5')] }),
@@ -524,8 +531,9 @@ const BROOD_STRIKE: readonly DeckSlot[] = [
   fix({ at: 33, id: 'b-heavy', phase: 'pressure', message: 'BROOD HEAVY', formations: [f('diamond-solo')] }),
   draw({ at: 40, id: 'b-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 45, id: 'b-mortars-3', phase: 'pressure', formations: [f('missile-3')] }),
+  // One strike site in the recovery, as on Deep Bloom.
   side({ at: 51, id: 'b-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } }),
-  side({ at: 56, id: 'b-east' }),
+  relief(56, 'b-east'),
   draw({ at: 62, id: 'b-drone-line', phase: 'pressure', formations: [f('line-weaver-4', 1)] }),
   draw({ at: 66, id: 'b-spires-mid', phase: 'pressure', formations: [f('battery-3')] }),
   draw({ at: 69, id: 'b-needle-column', phase: 'pressure', formations: [f('needle-column-5')] }),
@@ -567,8 +575,9 @@ const FINAL_HORIZON: readonly DeckSlot[] = [
   fix({ at: 33, id: 'u-carrier', phase: 'pressure', message: 'DRONE CARRIER', formations: [f('diamond-solo')] }),
   draw({ at: 40, id: 'u-snake-left', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 45, id: 'u-mortars-3', phase: 'pressure', formations: [f('missile-3')] }),
+  // One strike site in the recovery, as on Deep Bloom.
   side({ at: 51, id: 'u-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } }),
-  side({ at: 56, id: 'u-east' }),
+  relief(56, 'u-east'),
   draw({ at: 62, id: 'u-fighter-line', phase: 'pressure', formations: [f('line-weaver-4', 1)] }),
   draw({ at: 66, id: 'u-turrets-mid', phase: 'pressure', formations: [f('battery-3')] }),
   draw({ at: 69, id: 'u-needle-column', phase: 'pressure', formations: [f('needle-column-5')] }),
@@ -662,12 +671,11 @@ const DEEP_BLOOM_SORTIE = extend(DEEP_BLOOM, 62, 36, [
 const LUNA_PROLOGUE: readonly DeckSlot[] = TRAINING.filter(slot => slotAt(slot) < ENDLESS_CYCLE.bossSector.approachEndsAt);
 
 /**
- * Endless Nacre: the first stint opens with Deep Bloom's first 88 s (one strike site: its east slot becomes a relief),
+ * Endless Nacre: the first stint opens with Deep Bloom's first 88 s (its one strike site),
  * then its middle and climax (shifted to start near 2 s, a strike site before the climax); later visits fly the climax
  * arc throughout, a strike site between its two halves. A boss sector's cutoff trims each list.
  */
-const NACRE_OPENING: readonly DeckSlot[] = DEEP_BLOOM.filter(slot => slotAt(slot) < 88)
-  .map(slot => slot.kind === 'side' && slot.id === 'n-east' ? relief(slot.at, 'en1-relief') : slot);
+const NACRE_OPENING: readonly DeckSlot[] = DEEP_BLOOM.filter(slot => slotAt(slot) < 88);
 const NACRE_PRESSURE: readonly DeckSlot[] = extend(DEEP_BLOOM.filter(slot => slotAt(slot) >= 62 && slotAt(slot) < 142).map(slot => moved(slot, -60, 'en2-')),
   27, 3, [side({ at: 0, id: 'en2-site' })]);
 const NACRE_PEAK: readonly DeckSlot[] = [
@@ -766,7 +774,7 @@ interface Resolved {
   readonly site?: SiteId;
   /** A pool slot that found no fitting wave and flew its nominal. */
   readonly fallback?: true;
-  /** A draw outside the slot's band: the calm wave nearest it after a lingering column (LINGERING), or the nearest wave once its nominal's scarce kind is spent (SCARCE). */
+  /** A draw outside the slot's band and character: the calm wave nearest it after a lingering column (LINGERING). */
   readonly outside?: true;
 }
 
@@ -793,13 +801,6 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
     return fresh;
   });
   const introduced = new Set<FormationId>();
-  // Scarce kinds: the arc's nominal count, less what its fixed and introducing slots will fly anyway, is what draws may use.
-  const scarceIn = (placements: readonly FormationPlacement[]) => SCARCE.filter(kind => placements.some(p => FORMATIONS[p.formation].slots.some(slot => slot.kind === kind)));
-  const spare = new Map<EnemyKind, number>(SCARCE.map(kind => [kind, 0]));
-  template.slots.forEach((slot, i) => {
-    for (const kind of scarceIn(formationsOf(slot))) spare.set(kind, spare.get(kind)! + (slot.kind === 'pool' && !locked[i] ? 1 : 0));
-  });
-  const affords = (placements: readonly FormationPlacement[]) => scarceIn(placements).every(kind => spare.get(kind)! > 0);
   const out: Resolved[] = [];
   const budget = DIFFICULTIES.standard.threatBudget;
   /** Whether the last air cue so far flew a lingering squadron. */
@@ -808,7 +809,6 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
   template.slots.forEach((slot, index) => {
     const previous = out[out.length - 1];
     if (slot.kind === 'fixed') out.push(resolvedOf(slot.cue));
-    else if (slot.kind === 'side' && DECK_TUNING.oneSide && out.some(entry => entry.site && slot.at - entry.cue.at <= 10)) out.push(resolvedOf({ at: slot.at, id: slot.id, phase: 'recovery', formations: [] }));
     else if (slot.kind === 'side') {
       const pool = sitePool(template.world);
       const lastSite = [...out].reverse().find(entry => entry.site)?.site;
@@ -821,7 +821,7 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
       out.push({ ...resolvedOf(placed), role: null, key: `site:${site.id}`, site: site.id });
     } else {
       const nominalCue: EncounterCue = { at: slot.at, id: slot.id, phase: slot.phase, formations: slot.nominal, ...(slot.pickup ? { pickup: slot.pickup } : {}) };
-      const nominalCost = placementCost(slot.nominal), role = placementRole(slot.nominal);
+      const nominalCost = placementCost(slot.nominal), role = placementRole(slot.nominal), character = waveCharacter(slot.nominal);
       if (locked[index]) out.push(resolvedOf(nominalCue));
       else {
         const lastOfRole = [...out].reverse().find(entry => entry.role === role);
@@ -835,13 +835,14 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         const range = band(nominalCost);
         // Strictly: never the previous cue's wave nor the last wave of the same role. If nothing fits, only never the
         // previous cue's.
-        const fitting = (strict: boolean) => pools[slot.phase].filter(wave => {
+        const fitting = (strict: boolean, anyCharacter = false) => pools[slot.phase].filter(wave => {
           const cost = placementCost(wave.formations), key = waveKey(wave.formations);
-          return placementRole(wave.formations) === role && (!DECK_TUNING.character || waveCharacter(wave.formations) === waveCharacter(slot.nominal)) && cost >= range.min && cost <= range.max
+          return placementRole(wave.formations) === role && (anyCharacter ? !flies(wave.formations, SCARCE) : waveCharacter(wave.formations) === character)
+            && cost >= range.min && cost <= range.max
             && (!template.teach || wave.formations.every(p => introduced.has(p.formation)))
             && key !== previous?.key && key !== nextKey && (!strict || key !== lastOfRole?.key)
             && (!previous || previous.site || slot.at - previous.cue.at > PAIR_WINDOW || cost + previous.cost <= cap(previous.nominal))
-            && (ahead === null || cost + ahead <= cap(ahead)) && affords(wave.formations);
+            && (ahead === null || cost + ahead <= cap(ahead));
         });
         const strict = fitting(true), fits = strict.length ? strict : fitting(false);
         // After a lingering column, no Needle squadron (LINGERING).
@@ -849,8 +850,9 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         const linger = role === 'air' && lingering();
         let settled = linger ? fits.filter(calmWave) : fits;
         if (linger && !settled.length) {
-          // No calm wave in the band: the calm air wave of the phase nearest the nominal's cost (the lighter on a tie).
-          const calm = pools[slot.phase].filter(wave => placementRole(wave.formations) === 'air' && calmWave(wave) && waveKey(wave.formations) !== previous?.key && affords(wave.formations)
+          // No calm wave in the band: the calm air wave of the phase nearest the nominal's cost (the lighter on a tie), never
+          // one with a scarce kind.
+          const calm = pools[slot.phase].filter(wave => placementRole(wave.formations) === 'air' && calmWave(wave) && !flies(wave.formations, SCARCE) && waveKey(wave.formations) !== previous?.key
             && (!template.teach || wave.formations.every(p => introduced.has(p.formation))));
           const nearest = Math.min(...calm.map(wave => Math.abs(placementCost(wave.formations) - nominalCost)));
           const near = calm.filter(wave => Math.abs(placementCost(wave.formations) - nominalCost) === nearest);
@@ -861,24 +863,14 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         // After a strike site, prefer a wave that fits the Standard budget beside the site's guard.
         const light = site ? calm.filter(wave => placementCost(wave.formations) + site.cost <= budget) : calm;
         let choices = light.length ? light : calm;
-        if (!choices.length && !affords(slot.nominal)) {
-          // The nominal's scarce kind is spent: the wave of the slot's role nearest its cost (the lighter on a tie).
-          const others = pools[slot.phase].filter(wave => placementRole(wave.formations) === role && affords(wave.formations) && waveKey(wave.formations) !== previous?.key
-            && (!template.teach || wave.formations.every(p => introduced.has(p.formation))));
-          const nearest = Math.min(...others.map(wave => Math.abs(placementCost(wave.formations) - nominalCost)));
-          const near = others.filter(wave => Math.abs(placementCost(wave.formations) - nominalCost) === nearest);
-          const lightest = Math.min(...near.map(wave => placementCost(wave.formations)));
-          choices = near.filter(wave => placementCost(wave.formations) === lightest).map(wave => ({ ...wave, outside: true }));
-        }
-        if (!choices.length) {
-          for (const kind of scarceIn(slot.nominal)) spare.set(kind, spare.get(kind)! - 1);
-          out.push({ ...resolvedOf(nominalCue), fallback: true });
-        }
+        // Nothing of the slot's character fits: its nominal, unless that would repeat the previous wave; then a wave of
+        // another character in the band (never one with a scarce kind).
+        if (!choices.length && waveKey(slot.nominal) === previous?.key) choices = fitting(false, true).map(wave => ({ ...wave, outside: true }));
+        if (!choices.length) out.push({ ...resolvedOf(nominalCue), fallback: true });
         else {
           const wave = weighted(choices, roll);
           const mirror = wave.mirror && roll() < 0.5;
           const offset = wave.offsets[Math.floor(roll() * wave.offsets.length)];
-          for (const kind of scarceIn(wave.formations)) spare.set(kind, spare.get(kind)! - 1);
           const entry = resolvedOf({ ...nominalCue, formations: varied(wave, mirror, offset) }, nominalCost);
           out.push((wave as DeckWave & { outside?: true }).outside ? { ...entry, outside: true } : entry);
         }

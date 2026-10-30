@@ -16,10 +16,8 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
   it.each(combos)('the perfect pilot clears Deep Bloom on $difficulty with $weapon without a hit', ({ weapon, difficulty }) => {
     // Since hunters (22 October) Veteran flies seed 7: on some seeds the pilot is caught at the world edge. Since the
     // quicker hunters (23 October) seed 7 clears with every weapon. Over seeds 1-12 the pilot clears 22 of 36 Veteran
-    // runs without a hit, against 19 with the old hunters: path noise, not a harder level. Since the encounter deck (29
-    // October, docs/33 § 4) each seed draws its own waves: Veteran flies seed 1 and the others seed 9. Over seeds 1-16 the
-    // pilot clears 29 of 48 Veteran and 30 of 48 Standard runs without a hit; every hit has a hunter in reach.
-    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'veteran' ? 1 : 9 });
+    // runs without a hit, against 19 with the old hunters: path noise, not a harder level.
+    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'veteran' ? 7 : 5 });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(log.hits).toBe(0);

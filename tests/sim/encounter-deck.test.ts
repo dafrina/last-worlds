@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import {
   BAND, CAMPAIGN_DECKS, SCARCE, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
-  placementCost, placementRole, resolveDeck, resolvePlaylist, resolveTemplate, slotAt, varied, type DeckTemplate,
+  placementCost, placementRole, resolveDeck, resolvePlaylist, resolveTemplate, slotAt, varied, waveCharacter, type DeckTemplate,
 } from '../../src/content/encounter-deck';
 import { cueRoster, type EncounterCue } from '../../src/content/encounters';
 import { endlessPlanet } from '../../src/content/endless';
@@ -76,8 +76,12 @@ describe('encounter deck: guard rails', () => {
         if (slot.kind !== 'pool') return;
         draws++;
         if (entry.fallback) { fallbacks++; expect(entry.cue.formations).toBe(slot.nominal); return; }
-        // After a lingering Needle column, or once a scarce kind is spent, the slot may leave its band for the nearest wave.
+        // After a lingering Needle column, or where its character offers only a repeat of the previous wave, the slot may
+        // leave its band or character for the nearest wave of its role.
         if (entry.outside) { outside++; expect(placementRole(entry.cue.formations)).toBe(placementRole(slot.nominal)); return; }
+        // Otherwise the draw keeps the nominal's attack character (fighters, beams, heavies, Pulsars, the Wraith; aimed
+        // turrets or missile batteries on the ground).
+        expect(waveCharacter(entry.cue.formations), `${deck.id}/${seed} ${slot.id}`).toBe(waveCharacter(slot.nominal));
         const range = band(placementCost(slot.nominal));
         expect(entry.cost, `${deck.id}/${seed} ${slot.id}`).toBeGreaterThanOrEqual(range.min);
         expect(entry.cost, `${deck.id}/${seed} ${slot.id}`).toBeLessThanOrEqual(range.max);
@@ -125,11 +129,16 @@ describe('encounter deck: guard rails', () => {
     }
   });
 
-  it('flies no more Pulsar or Wraith cues than the arc authored', () => {
-    const count = (cues: readonly EncounterCue[], kind: string) => cues.filter(cue => cueRoster(cue, 'veteran').includes(kind as never)).length;
+  it('flies Pulsars and Wraiths only in the slots the arc put them in, never more of them', () => {
+    const flies = (cue: EncounterCue, kind: string) => cueRoster(cue, 'veteran').includes(kind as never);
     for (const deck of DECK_TEMPLATES) for (const kind of SCARCE) {
-      const authored = count(nominalPlaylist(deck), kind);
-      for (const seed of SEEDS) expect(count(resolveTemplate(deck, seed).filter(cue => !cue.site), kind), `${deck.id}/${seed} ${kind}`).toBeLessThanOrEqual(authored);
+      const nominal = nominalPlaylist(deck);
+      const authored = new Set(nominal.filter(cue => flies(cue, kind)).map(cue => cue.id));
+      for (const seed of SEEDS) {
+        const cues = resolveTemplate(deck, seed).filter(cue => !cue.site && flies(cue, kind));
+        expect(cues.length, `${deck.id}/${seed} ${kind}`).toBeLessThanOrEqual(authored.size);
+        for (const cue of cues) expect(authored.has(cue.id), `${deck.id}/${seed} ${cue.id} ${kind}`).toBe(true);
+      }
     }
   });
 
@@ -195,9 +204,12 @@ describe('encounter deck: content', () => {
     }
   });
 
-  it('places about two strike sites per campaign mission and one per endless stage (two in the Luna prologue)', () => {
+  it('places two strike sites on Training, Rolling Thunder and Cold Vector, one on the last three missions, one per endless stage (two in the Luna prologue)', () => {
     const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side').length;
-    for (const deck of Object.values(CAMPAIGN_DECKS)) expect(sides(deck), deck.id).toBe(2);
+    // The last three missions' recovery holds one site: two back to back held the threat budget until the next pressure
+    // block arrived on top of them (measured: docs/33 § 4.1).
+    const expected: Record<string, number> = { training: 2, 'rolling-thunder': 2, 'cold-vector': 2, 'deep-bloom': 1, 'brood-strike': 1, 'final-horizon': 1 };
+    for (const deck of Object.values(CAMPAIGN_DECKS)) expect(sides(deck), deck.id).toBe(expected[deck.id]);
     for (const [name, deck] of Object.entries(ENDLESS_DECKS)) expect(sides(deck), name).toBe(name === 'prologue' ? 2 : 1);
     for (const deck of DECK_TEMPLATES) for (const seed of SEEDS.slice(0, 50)) {
       const cues = resolveTemplate(deck, seed);

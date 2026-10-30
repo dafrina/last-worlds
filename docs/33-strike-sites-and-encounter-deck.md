@@ -186,7 +186,8 @@ cutoffs and arrivals, the endless sector cycle and pace ramp and the shield-supp
 - `fix(cue)`: flies as written. Every intro cue, every cue with a message (teaching steps, set pieces, power-cell and
   weapon opportunities) and every relief.
 - `draw(cue)`: a pool slot; `cue.formations` is its **nominal** wave (what the arc flew before the deck) and fixes the
-  slot's role (an air squadron, or ground batteries) and threat cost; its pickup stays with the slot.
+  slot's role (an air squadron, or ground batteries), its attack character (below) and its threat cost; its pickup stays
+  with the slot.
 - `side({ at, id, pickup? })`: a strike site (§ 3), drawn from `sitePool(world)` by `SiteDefinition.weight`, west or east
   by the roll, built with `siteCue(id, side, at, world)`; a slot's pickup moves to the drawn side.
 
@@ -197,10 +198,25 @@ formations already introduced, so squadrons appear in their authored order. Trai
 fixed on every seed, and its two side slots (39 s and 44 s) teach the side route.
 
 **Side slots** (the old `SALVAGE ROUTE · WEST`, `OPTIONAL OUTPOST · EAST`, `LONE TURRET · EAST`, … routes are gone):
-two per campaign mission (Rolling Thunder gained one: its dive pair flies at 33 s, the sites at 37 s and 42 s), one per
-endless stage (its west route; the old east route after the climax is now an empty relief), two in the Luna prologue
-(Training's). Endless Nacre: the opening keeps Deep Bloom's west slot, the pressure stage gains one before its climax
-(27 s, later cues 3 s later) and the peak one between its halves (52 s, the second half 1 s later).
+
+| Arc | Side slots (s) | Sites per run |
+| --- | --- | --- |
+| Training | 39, 44 (they teach the side route) | 2 |
+| Rolling Thunder | 37, 42 (gained one: its dive pair flies at 33 s) | 2 |
+| Cold Vector | 48, 53 | 2 |
+| Deep Bloom, Brood Strike, Final Horizon | 51 (the old east route at 56 s is an empty relief) | 1 |
+| Endless Luna prologue | 39, 44 (Training's) | 2 |
+| Endless Khepri and Vesper stages | their west route (31–44 s); the old east route after the climax is an empty relief | 1 |
+| Endless Nacre opening / pressure / peak | 51 (Deep Bloom's) / 27 (later cues 3 s later) / 52 (the second half 1 s later) | 1 |
+
+The last three missions keep **one** site in their recovery (30 October, measured): a strike site's guard (threat 8–11
+for a parts site) holds that much of the live threat budget while it scrolls through, and its air guard waits for clear
+airspace; with the list already running 5–13 s behind its times there, two sites back to back were admitted on top of the
+next pressure block (`FUEL DEPOTS IN THE GROVE`, `EGG SACS …`, `ENERGY CELLS …`, aimed turret batteries) while the pilot
+was still out at a site near the world edge. With two sites the perfect pilot took about twice the fixed lists' hits on
+those missions (Brood Strike Standard Fan 7 against 1, Final Horizon Veteran Seeker 9 against 6 over 24 seeds); with
+one, they sit in the band (table below). A second site in the intro, where the list is still on time, was tried too: on
+Deep Bloom it drew the pilot to the edge just before the Pulsar lesson.
 
 **Pools** (`DECK_POOLS[world][phase]`): authored waves (`w(...)`) built only from formations and kinds the world already
 flies (tested against the nominal arcs): one air squadron, or one ground battery, optionally with harmless skids (two
@@ -212,24 +228,33 @@ the climax; Nacre `line-weaver-4 + fuel-pair`, `pulsar-pair` and `diamond-solo` 
 other's mixes (Umbra adds the Wraith). No new formations.
 
 **Guard rails** (`resolveDeck`):
-- the drawn wave has the nominal's role and costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`;
+- the drawn wave has the nominal's role and **attack character** (`waveCharacter`): fighters (darts and weavers), beams
+  (Needles and Lancers), heavies (Diamonds), Pulsars or the Wraith in the air; aimed turret batteries or missile batteries
+  (which fire down their own columns) on the ground. The arcs pair characters deliberately, a Pulsar's tracking stream
+  beside missile batteries and never beside aimed turrets, so the deck varies the formation, its mirror and offset, and
+  never what a stretch asks of the pilot. Without this rule (30 October) a turret battery drawn into a missile slot beside
+  the Pulsar pair, or a Pulsar drawn into a heavy's slot two cues from it, nearly tripled the perfect pilot's hits on Deep
+  Bloom (Veteran Seeker 17 against 6 over 24 seeds);
+- it costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`;
 - no wave twice in a row, nor the same as the next fixed cue; where the pool allows, not the same as the last wave of its
   role either; no site twice in a row;
 - cues within 5 s of each other (`PAIR_WINDOW`) cost together no more than the arc's nominal pair (at least 10): two
   heavy waves never stack beyond what the arc authored;
 - the wave after a strike site fits the Standard threat budget beside the site's guard where the pool allows;
-- a resolved list flies no more Pulsar or Wraith cues than its arc (`SCARCE`);
+- Pulsars and the Wraith (`SCARCE`) fly only in the slots the arc put them in (their character's), never more of them;
 - after a Needle column (`LINGERING`), the next air cue is no Needle squadron and the next site has no air guard: the
   column's last members lock their beam lanes as their path ends, which the airspace prediction cannot foresee, and a
   Needle squadron diving in behind it shared its band (found by the cue-sequence union tests);
-- a slot with no fitting wave flies its nominal (about 1% of draws).
+- a slot with no fitting wave flies its nominal (about 1% of draws); where the nominal would repeat the previous wave, it
+  draws a wave of its role and band of another character instead, never one with a scarce kind (with the calm waves after
+  a column, about 2% of draws leave their band or character).
 
 The seeded roll is its own stream (mulberry32 over a hash of the run seed, the template and, in endless, the sector),
 used by nothing else; no `Math.random`. Endless resolves each sector anew, so a later visit to a stage differs.
 
 **How to add a wave:** append `w('formation')` (or `w(['formation', 'fuel-pair'])`, options `weight`, `mirror`,
 `offsets`) to a world's phase in `DECK_POOLS`, with a `SHIFT` entry for a new formation that tolerates offsets. It is
-drawn wherever its role and cost suit a slot. `tests/sim/encounter-deck.test.ts` checks roster faithfulness, that every
+drawn wherever its role, character and cost suit a slot. `tests/sim/encounter-deck.test.ts` checks roster faithfulness, that every
 variation stays in view at its windups and is admitted into an empty sky at every rank, and the guard rails over 200
 seeds; `tests/sim/deck-balance.test.ts` samples the balance band.
 
