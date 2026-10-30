@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, FUEL_BLAST, GROUND_KINDS, THREAT_COST } from '../../src/content/balance';
-import { campaignPlaylist, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
-import { endlessPlanet } from '../../src/content/endless';
-import { CAMPAIGN_ORDER } from '../../src/content/equipment';
+import { cueRoster, type EncounterCue } from '../../src/content/encounters';
+import { authoredKinds } from '../../src/content/encounter-deck';
 import { FORMATIONS, SITE_LEAD, siteCoreFormation } from '../../src/content/formations';
-import { MISSION_PLANET } from '../../src/content/missions';
 import { ENDLESS_PART_SCORE, SHIELD_FALLBACK_CREDITS, SITES, SITE_SCORE, SITE_X, siteCue, sitePool } from '../../src/content/sites';
 import { EMPTY_INPUT, SITE_IDS, VIEW, type EnemyKind, type PlanetId, type RunConfig, type RunState, type SiteId } from '../../src/shared/contracts';
 import { createRun, spawnFormation, stepRun } from '../../src/sim/game';
@@ -12,13 +10,7 @@ import { enterSector } from './pilots';
 
 const PLANETS: readonly PlanetId[] = ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'];
 /** Every enemy kind the authored playlists already fly on a world (campaign missions and endless sectors). */
-const worldKinds = (() => {
-  const kinds = new Map<PlanetId, Set<EnemyKind>>(PLANETS.map(planet => [planet, new Set()]));
-  const add = (planet: PlanetId, cues: readonly EncounterCue[]) => { for (const cue of cues) for (const kind of cueRoster(cue, 'veteran')) kinds.get(planet)!.add(kind); };
-  for (const mission of CAMPAIGN_ORDER) add(MISSION_PLANET[mission], campaignPlaylist(mission));
-  for (let sector = 1; sector <= 12; sector++) add(endlessPlanet(sector), endlessPlaylist(sector));
-  return kinds;
-})();
+const worldKinds = new Map<PlanetId, Set<EnemyKind>>(PLANETS.map(planet => [planet, authoredKinds(planet)]));
 const threat = (cue: EncounterCue) => cueRoster(cue, 'veteran').reduce((sum, kind) => sum + THREAT_COST[kind], 0);
 
 /** A run with an empty sky: no authored cue will spawn (src/sim/game.ts updateDirector waits for nextEncounterAt). */

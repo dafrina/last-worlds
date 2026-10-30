@@ -3,7 +3,7 @@ import { FAIRNESS } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
 import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { DEPARTURE } from '../../src/content/departure';
-import { COLD_VECTOR_SORTIE } from '../../src/content/encounters';
+import { CAMPAIGN_DECKS, slotAt } from '../../src/content/encounter-deck';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { arenaScroll, arenaStopDistance, bossTarget, overloadLanes, resolveBossPhase } from '../../src/sim/bastion';
 import { acquireTarget, createRun, stepRun } from '../../src/sim/game';
@@ -39,7 +39,7 @@ describe('Cold Vector arena', () => {
     // Then the departure, as in endless: up to its speed over its ramp.
     expect(arenaScroll(300 + WRECK_HOLD + DEPARTURE.ramp, 300, HELION_ARK.arena).speed).toBeCloseTo(DEPARTURE.speed, 9);
     // The approach ends before the relief; the Ark arrives after the terrain has nearly stopped.
-    expect(COLD_VECTOR_SORTIE[COLD_VECTOR_SORTIE.length - 1].at).toBeLessThan(HELION_ARK.approachEndsAt);
+    expect(slotAt(CAMPAIGN_DECKS['cold-vector'].slots[CAMPAIGN_DECKS['cold-vector'].slots.length - 1])).toBeLessThan(HELION_ARK.approachEndsAt);
     expect(HELION_ARK.arrivesAt).toBeGreaterThan(HELION_ARK.arena.decelStart);
     // The documented platform covers the view below the stop and the Ark's glide-in with its long stern.
     expect(HELION_ARK.arena.platform.from).toBeLessThan(VIEW.minS);

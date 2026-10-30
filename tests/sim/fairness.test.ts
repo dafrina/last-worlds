@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
 import { BASTION } from '../../src/content/bastion';
-import { ALERT_LEAD, BROOD_STRIKE, COLD_VECTOR, DEEP_BLOOM, ENDLESS_SECTORS, FINAL_HORIZON, ROLLING_THUNDER, TRAINING, campaignPlaylist, cueAlert, cueRoster, endlessPlaylist, type EncounterCue } from '../../src/content/encounters';
+import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue } from '../../src/content/encounters';
+import { CAMPAIGN_DECKS, ENDLESS_DECKS, resolvePlaylist, resolveTemplate, slotAt } from '../../src/content/encounter-deck';
 import { FORMATIONS, FORMATION_IDS, slotFlies, type FormationId, type FormationTemplate } from '../../src/content/formations';
 import { VIEW, type Difficulty, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { BOSS_BEAM, ENEMY_SHOT_RADIUS, LANCER_BEAM } from '../../src/sim/attacks';
@@ -118,26 +119,35 @@ describe('warning and aim-lock floors', () => {
 });
 
 describe('authored cue sequences', () => {
-  const sequences: [string, readonly EncounterCue[]][] = [
-    ['training', TRAINING], ['rolling-thunder', ROLLING_THUNDER], ['deep-bloom', DEEP_BLOOM], ['cold-vector', COLD_VECTOR], ['brood-strike', BROOD_STRIKE], ['final-horizon', FINAL_HORIZON],
-    ['endless-opening', ENDLESS_SECTORS.opening], ['endless-pressure', ENDLESS_SECTORS.pressure], ['endless-peak', ENDLESS_SECTORS.peak],
-    ['endless-vesper-opening', ENDLESS_SECTORS.vesperOpening], ['endless-vesper-pressure', ENDLESS_SECTORS.vesperPressure],
-    ['endless-vesper-peak', ENDLESS_SECTORS.vesperPeak],
-  ];
+  /*
+   * The encounter deck (docs/33 § 4) resolves each arc per attempt: every check below runs on the lists real runs fly,
+   * for a spread of seeds.
+   */
+  const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
+  const arcs = { ...CAMPAIGN_DECKS, ...ENDLESS_DECKS };
+  const resolvedArcs = (names: readonly (keyof typeof arcs)[]) => names.flatMap(name => SEEDS.map(seed => [`${name}/${seed}`, resolveTemplate(arcs[name], seed)] as [string, readonly EncounterCue[]]));
+  const sequences = resolvedArcs(['training', 'bastion', 'deep-bloom', 'cold-vector', 'brood-strike', 'final-horizon',
+    'khepriOpening', 'khepriPressure', 'khepriPeak', 'vesperOpening', 'vesperPressure', 'vesperPeak']);
 
-  it.each(sequences)('%s follows intro, pressure, recovery, pressure, climax, recovery', (_name, cues) => {
+  it.each(sequences.filter((_, i) => i % SEEDS.length < 3))('%s follows intro, pressure, recovery, pressure, climax, recovery', (_name, cues) => {
     const arc: string[] = [];
     for (const cue of cues) if (arc[arc.length - 1] !== cue.phase) arc.push(cue.phase);
     expect(arc).toEqual(['intro', 'pressure', 'recovery', 'pressure', 'climax', 'recovery']);
-    expect(new Set(cues.map(cue => cue.id)).size).toBe(cues.length);
-    for (let i = 1; i < cues.length; i += 1) expect(cues[i].at).toBeGreaterThan(cues[i - 1].at);
-    // Recovery cues stay light, and the next cue waits for the recovery interval.
-    cues.forEach((cue, index) => {
-      if (cue.phase !== 'recovery') return;
-      expect(cueRoster(cue, 'veteran').reduce((sum, kind) => sum + THREAT_COST[kind], 0), cue.id).toBeLessThanOrEqual(6);
-      const next = cues[index + 1];
-      if (next) expect(next.at - cue.at, `${cue.id} recovery interval`).toBeGreaterThanOrEqual(5);
-    });
+  });
+
+  it('keeps ids unique, times ordered, recoveries light and followed by the recovery interval, on every seed', () => {
+    for (const [name, cues] of sequences) {
+      expect(new Set(cues.map(cue => cue.id)).size, name).toBe(cues.length);
+      for (let i = 1; i < cues.length; i += 1) expect(cues[i].at, name).toBeGreaterThan(cues[i - 1].at);
+      // Recovery cues stay light (a strike site's guard is heavier by design, docs/33 § 3: it stands off the main lane and
+      // fits the lightest threat budget, tests/sim/sites.test.ts), and the next cue waits for the recovery interval.
+      cues.forEach((cue, index) => {
+        if (cue.phase !== 'recovery') return;
+        if (!cue.site) expect(cueRoster(cue, 'veteran').reduce((sum, kind) => sum + THREAT_COST[kind], 0), `${name} ${cue.id}`).toBeLessThanOrEqual(6);
+        const next = cues[index + 1];
+        if (next) expect(next.at - cue.at, `${name} ${cue.id} recovery interval`).toBeGreaterThanOrEqual(5);
+      });
+    }
   });
 
   it('fits every cue in the entity ceiling and the threat budget of each scale that flies it', () => {
@@ -148,8 +158,12 @@ describe('authored cue sequences', () => {
         expect(roster.reduce((sum, kind) => sum + THREAT_COST[kind], 0), `${label} ${cue.id}`).toBeLessThanOrEqual(scale.threatBudget);
       }
     };
-    for (const difficulty of DIFFICULTY_IDS) for (const mission of ['training', 'bastion', 'cold-vector'] as const) check(campaignPlaylist(mission), DIFFICULTIES[difficulty], `${mission}/${difficulty}`);
-    for (let sector = 1; sector <= 13; sector += 1) check(endlessPlaylist(sector), difficultyScales('endless', 'standard', sector), `endless/${sector}`);
+    for (const seed of SEEDS) {
+      for (const difficulty of DIFFICULTY_IDS) for (const mission of Object.keys(CAMPAIGN_DECKS) as (keyof typeof CAMPAIGN_DECKS)[]) {
+        check(resolvePlaylist({ mode: 'campaign', mission }, 1, seed), DIFFICULTIES[difficulty], `${mission}/${difficulty}/${seed}`);
+      }
+      for (let sector = 1; sector <= 13; sector += 1) check(resolvePlaylist({ mode: 'endless' }, sector, seed), difficultyScales('endless', 'standard', sector), `endless/${sector}/${seed}`);
+    }
   });
 
   it('keeps every view-anchored placement variant (offset and mirror) inside the view at its windups', () => {
@@ -167,20 +181,24 @@ describe('authored cue sequences', () => {
   });
 
   it('ends the Rolling Thunder approach before the fortress relief and guarantees endless opportunities', () => {
-    expect(ROLLING_THUNDER[ROLLING_THUNDER.length - 1].at).toBeLessThan(BASTION.approachEndsAt);
-    const opening = ENDLESS_SECTORS.opening;
-    expect(opening.find(cue => cue.pickup?.kind === 'power')!.at).toBeLessThanOrEqual(20);
-    expect(opening.find(cue => cue.pickup?.kind === 'weapon')!.at).toBeLessThanOrEqual(30);
-    for (const cues of Object.values(ENDLESS_SECTORS)) expect(cues[cues.length - 1].at).toBeLessThan(BALANCE.sectorDuration);
+    const thunder = CAMPAIGN_DECKS.bastion.slots;
+    expect(slotAt(thunder[thunder.length - 1])).toBeLessThan(BASTION.approachEndsAt);
+    for (const seed of SEEDS) {
+      const opening = resolveTemplate(ENDLESS_DECKS.khepriOpening, seed);
+      expect(opening.find(cue => cue.pickup?.kind === 'power')!.at).toBeLessThanOrEqual(20);
+      expect(opening.find(cue => cue.pickup?.kind === 'weapon')!.at).toBeLessThanOrEqual(30);
+    }
+    for (const deck of Object.values(ENDLESS_DECKS)) expect(slotAt(deck.slots[deck.slots.length - 1])).toBeLessThan(BALANCE.sectorDuration);
   });
 
   it('announces every two-flank pincer before any member enters, and re-announces after an interruption', () => {
     // A pilot that clears squadrons keeps the airspace moving so the pincer cue is reached in its sector.
     const state = createRun({ mode: 'campaign', mission: 'training', seed: 3 });
     state.player.invulnerableUntil = Infinity;
-    const pincer = TRAINING.findIndex(cue => cueAlert(cue));
+    const training = resolvePlaylist(state.config, 1, state.config.seed);
+    const pincer = training.findIndex(cue => cueAlert(cue));
     expect(pincer).toBeGreaterThan(0);
-    const alert = cueAlert(TRAINING[pincer])!;
+    const alert = cueAlert(training[pincer])!;
     const pilot = perfectPilot();
     let alertAt: number | null = null;
     let entered: number | null = null;

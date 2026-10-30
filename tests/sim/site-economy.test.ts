@@ -1,39 +1,41 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { MissionId, SiteId } from '../../src/shared/contracts';
+import type { MissionId, RunConfig, SiteId } from '../../src/shared/contracts';
 import { MISSION_PLANET } from '../../src/content/missions';
 import { sitePool } from '../../src/content/sites';
 import { CAMPAIGN_ORDER } from '../../src/content/equipment';
 import { createRun } from '../../src/sim/game';
-import { campaignPlaylist } from '../../src/content/encounters';
+import { resolvePlaylist } from '../../src/content/encounter-deck';
 import { fly, perfectPilot } from './pilots';
 import { injection, sideRoutes, siteParts, siteSeeker, withSites } from './site-harness';
 
 /** The sweep's report file (no Node types in this project: read through globalThis). */
 const REPORT = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env.SITE_ECONOMY;
 
-vi.mock('../../src/content/encounters', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../src/content/encounters')>();
+vi.mock('../../src/content/encounter-deck', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/content/encounter-deck')>();
   const { injection } = await import('./site-harness');
   return {
     ...actual,
-    campaignPlaylist: (mission: MissionId) => injection.campaign?.(mission, actual.campaignPlaylist(mission)) ?? actual.campaignPlaylist(mission),
-    endlessPlaylist: (sector: number) => injection.endless?.(sector, actual.endlessPlaylist(sector)) ?? actual.endlessPlaylist(sector),
+    resolvePlaylist: (config: Pick<RunConfig, 'mode' | 'mission'>, sector: number, seed: number) => {
+      const base = actual.resolvePlaylist(config, sector, seed);
+      return injection.playlist?.(config, sector, base) ?? base;
+    },
   };
 });
 
 /** One campaign mission (Standard) with its side routes replaced by `sites`, flown by the site-hunting perfect pilot. */
 function flyMission(mission: MissionId, sites: readonly SiteId[], seed = 5, rank = 0) {
-  injection.campaign = (m, base) => m === mission ? withSites(base, sites, MISSION_PLANET[mission]) : undefined;
+  injection.playlist = (config, _sector, base) => config.mission === mission ? withSites(base, sites, MISSION_PLANET[mission]) : undefined;
   try {
     const state = createRun({ mode: 'campaign', mission, difficulty: 'standard', seed, rank });
     const log = fly(state, perfectPilot(siteSeeker), 420);
     return { state, log, parts: state.parts ?? 0, destroyed: state.sites?.destroyed ?? 0 };
-  } finally { injection.campaign = undefined; }
+  } finally { injection.playlist = undefined; }
 }
 
 describe('strike-site economy (docs/33 § 3, measured with the test pilot)', () => {
   it('a perfect pilot clears Training with two parts sites in its side slots, without losing a life', () => {
-    expect(sideRoutes(campaignPlaylist('training'))).toHaveLength(2); // Training's two side routes (the mock is off here)
+    expect(sideRoutes(resolvePlaylist({ mode: 'campaign', mission: 'training' }, 1, 5))).toHaveLength(2); // Training's two side slots (the mock is off here)
     const { state, log, parts, destroyed } = flyMission('training', ['crash-site', 'airfield'], 5, 2);
     expect(state.phase).toBe('complete');
     expect(log.livesLost).toBe(0);
@@ -50,7 +52,7 @@ describe('strike-site economy (docs/33 § 3, measured with the test pilot)', () 
   it.runIf(REPORT)('reports parts per site and per typical mission on every world', async () => {
     const rows: string[] = ['Parts per mission (Standard, perfect site-hunting pilot, seeds 5/6/7)'];
     for (const rank of [0, 2]) for (const mission of CAMPAIGN_ORDER) {
-      const planet = MISSION_PLANET[mission], pool = sitePool(planet), routes = sideRoutes(campaignPlaylist(mission)).length;
+      const planet = MISSION_PLANET[mission], pool = sitePool(planet), routes = sideRoutes(resolvePlaylist({ mode: 'campaign', mission }, 1, 5)).length;
       const perSite: Record<string, number> = {};
       let lives = 0;
       for (const site of pool.filter(site => siteParts(site.id) > 0)) {
