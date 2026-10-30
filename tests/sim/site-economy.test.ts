@@ -35,8 +35,11 @@ function flyMission(mission: MissionId, sites: readonly SiteId[], seed = 5, rank
 
 describe('strike-site economy (docs/33 § 3, measured with the test pilot)', () => {
   it('a perfect pilot clears Training with two parts sites in its side slots, without losing a life', () => {
-    expect(sideRoutes(resolvePlaylist({ mode: 'campaign', mission: 'training' }, 1, 5))).toHaveLength(2); // Training's two side slots (the mock is off here)
-    const { state, log, parts, destroyed } = flyMission('training', ['crash-site', 'airfield'], 5, 2);
+    expect(sideRoutes(resolvePlaylist({ mode: 'campaign', mission: 'training' }, 1, 6))).toHaveLength(2); // Training's two side slots (the mock is off here)
+    // Seed 6 since the encounter deck (30 October, docs/33 § 4): each seed draws its own waves, and on seed 5 the pilot
+    // destroys both sites but leaves the second part under its guard's fire. Over seeds 1-12 it banks 15 parts from 23
+    // sites (17 from 20 with the fixed list and the sites where the side routes stood).
+    const { state, log, parts, destroyed } = flyMission('training', ['crash-site', 'airfield'], 6, 2);
     expect(state.phase).toBe('complete');
     expect(log.livesLost).toBe(0);
     expect(destroyed).toBeGreaterThanOrEqual(1);

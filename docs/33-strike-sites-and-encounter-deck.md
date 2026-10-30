@@ -202,30 +202,35 @@ fixed on every seed, and its two side slots (39 s and 44 s) teach the side route
 | Arc | Side slots (s) | Sites per run |
 | --- | --- | --- |
 | Training | 39, 44 (they teach the side route) | 2 |
-| Rolling Thunder | 37, 42 (gained one: its dive pair flies at 33 s) | 2 |
+| Rolling Thunder | 41 (where its salvage route was) | 1 |
 | Cold Vector | 48, 53 | 2 |
 | Deep Bloom, Brood Strike, Final Horizon | 51 (the old east route at 56 s is an empty relief) | 1 |
 | Endless Luna prologue | 39, 44 (Training's) | 2 |
 | Endless Khepri and Vesper stages | their west route (31–44 s); the old east route after the climax is an empty relief | 1 |
-| Endless Nacre opening / pressure / peak | 51 (Deep Bloom's) / 27 (later cues 3 s later) / 52 (the second half 1 s later) | 1 |
+| Endless Nacre opening / pressure / peak | 51 (Deep Bloom's) / none / 52 (the second half 1 s later) | 1 / 0 / 1 |
 
-The last three missions keep **one** site in their recovery (30 October, measured): a strike site's guard (threat 8–11
-for a parts site) holds that much of the live threat budget while it scrolls through, and its air guard waits for clear
-airspace; with the list already running 5–13 s behind its times there, two sites back to back were admitted on top of the
-next pressure block (`FUEL DEPOTS IN THE GROVE`, `EGG SACS …`, `ENERGY CELLS …`, aimed turret batteries) while the pilot
-was still out at a site near the world edge. With two sites the perfect pilot took about twice the fixed lists' hits on
-those missions (Brood Strike Standard Fan 7 against 1, Final Horizon Veteran Seeker 9 against 6 over 24 seeds); with
-one, they sit in the band (table below). A second site in the intro, where the list is still on time, was tried too: on
-Deep Bloom it drew the pilot to the edge just before the Pulsar lesson.
+Only Training and Cold Vector keep **two** sites (30 October, measured; Cold Vector's recovery is followed by missile
+batteries, which fire down their own columns). A strike site's guard (threat 8–11 for a parts site) holds that much of
+the live threat budget while it scrolls through, and its air guard waits for clear airspace; with the list already running
+5–15 s behind its times there, two sites back to back were admitted on top of the next pressure block (the fuel depots,
+egg sacs and energy cells: aimed turret batteries) while the pilot was still out at a site near the world edge. With two
+sites the perfect pilot took about twice the fixed lists' hits on the last three missions (Brood Strike Standard Fan 7
+against 1, Final Horizon Veteran Seeker 9 against 6 over 24 seeds), and Rolling Thunder Veteran most of its extra hits
+from the depots after its sites. A second site in the intro, where the list is still on time, was tried too: on Deep
+Bloom it drew the pilot to the edge just before the Pulsar lesson. Nacre's pressure stage (Deep Bloom's middle and
+climax) has no recovery at all; the site the deck first squeezed in before its climax roughly quadrupled the hits in
+endless sector 9, so it flies none, as its fixed list had no side route.
 
 **Pools** (`DECK_POOLS[world][phase]`): authored waves (`w(...)`) built only from formations and kinds the world already
 flies (tested against the nominal arcs): one air squadron, or one ground battery, optionally with harmless skids (two
-air squadrons in one cue could never share the airspace). Each wave allows its validated mirror and the lateral offsets
-in `SHIFT` (±1–1.5 for narrow squadrons and batteries, none for wide, side-entry and two-flank ones). New waves over the
+air squadrons in one cue could never share the airspace). Each wave flies at its slot's centre or as its validated mirror
+image. Lateral offsets (±1–1.5 on narrow squadrons and batteries, as first planned) were measured and dropped: a wave
+shifted toward the world edge while the ship was out there closed it in, and those edge hits outweighed the ones a shift
+toward the centre spared; `w(…, { offsets })` still lets a wave opt in (tested in view). New waves over the
 fixed lists: Luna `dive-pair + fuel-pair`, `arrow-3 + fuel-pair`, `solo-lancer` in pressure, `line-weaver-4` in the
 climax; Khepri `line-weaver-4` in the climax; Vesper `needle-solo` in pressure, `diamond-solo` in
-the climax; Nacre `line-weaver-4 + fuel-pair`, `pulsar-pair` and `diamond-solo` in the climax; Amnion and Umbra each
-other's mixes (Umbra adds the Wraith). No new formations.
+the climax; Nacre `line-weaver-4 + fuel-pair` and `diamond-solo` in the climax; Amnion and Umbra each other's mixes. No
+new formations, and no Pulsar or Wraith wave: they fly only in their arc slots.
 
 **Guard rails** (`resolveDeck`):
 - the drawn wave has the nominal's role and **attack character** (`waveCharacter`): fighters (darts and weavers), beams
@@ -235,13 +240,17 @@ other's mixes (Umbra adds the Wraith). No new formations.
   never what a stretch asks of the pilot. Without this rule (30 October) a turret battery drawn into a missile slot beside
   the Pulsar pair, or a Pulsar drawn into a heavy's slot two cues from it, nearly tripled the perfect pilot's hits on Deep
   Bloom (Veteran Seeker 17 against 6 over 24 seeds);
-- it costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`;
+- it costs between 0.65 and 1.5 times the nominal (at most 3 more): `BAND`; but no more than the nominal beside a Pulsar
+  or the Wraith (the cue before or after within `PAIR_WINDOW`: on Final Horizon a third missile battery drawn beside the
+  artillery ship pushed the pilot to the world edge, where its stream caught it) or within `SITE_CALM` (15 s) after a
+  strike site (the main battle resumes while a pilot who took the site is still out by the edge);
 - no wave twice in a row, nor the same as the next fixed cue; where the pool allows, not the same as the last wave of its
   role either; no site twice in a row;
 - cues within 5 s of each other (`PAIR_WINDOW`) cost together no more than the arc's nominal pair (at least 10): two
   heavy waves never stack beyond what the arc authored;
 - the wave after a strike site fits the Standard threat budget beside the site's guard where the pool allows;
-- Pulsars and the Wraith (`SCARCE`) fly only in the slots the arc put them in (their character's), never more of them;
+- Pulsars and the Wraith (`SCARCE`) fly only in the slots the arc put them in, exactly as authored, with no mirror or
+  offset (in endless sector 9 a mirrored Pulsar pair took most of the extra hits); the pools carry none;
 - after a Needle column (`LINGERING`), the next air cue is no Needle squadron and the next site has no air guard: the
   column's last members lock their beam lanes as their path ends, which the airspace prediction cannot foresee, and a
   Needle squadron diving in behind it shared its band (found by the cue-sequence union tests);
@@ -253,10 +262,11 @@ The seeded roll is its own stream (mulberry32 over a hash of the run seed, the t
 used by nothing else; no `Math.random`. Endless resolves each sector anew, so a later visit to a stage differs.
 
 **How to add a wave:** append `w('formation')` (or `w(['formation', 'fuel-pair'])`, options `weight`, `mirror`,
-`offsets`) to a world's phase in `DECK_POOLS`, with a `SHIFT` entry for a new formation that tolerates offsets. It is
-drawn wherever its role, character and cost suit a slot. `tests/sim/encounter-deck.test.ts` checks roster faithfulness, that every
-variation stays in view at its windups and is admitted into an empty sky at every rank, and the guard rails over 200
-seeds; `tests/sim/deck-balance.test.ts` samples the balance band.
+`offsets`) to a world's phase in `DECK_POOLS`. It is drawn wherever its role, character and cost suit a slot.
+`tests/sim/encounter-deck.test.ts` checks roster faithfulness, that every variation stays in view at its windups and is
+admitted into an empty sky at every rank, and the guard rails over 200 seeds; `tests/sim/deck-balance.test.ts` samples
+the balance band. Measure a new wave with the seed sweep below before shipping it: a wave that is fair can still pin the
+perfect pilot at the world edge.
 
 **Validator note** (tests/sim/fairness-trace.ts): a site's core and its own guard ring are one authored layout; the
 airspace observer no longer requires separation between them. Under the release lens (src/sim/ground.ts) ground seats

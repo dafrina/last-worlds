@@ -15,8 +15,8 @@ import type { EnemyKind, MissionId, PlanetId, RunConfig, SiteId } from '../share
  *   opportunities), reliefs;
  * - **pool** slots (`pressure`, `climax`) draw an authored wave from their world's pool for that phase: the same role as
  *   the slot's nominal wave (air squadron or ground battery) and the same attack character (`waveCharacter`), a threat
- *   cost near the nominal's, and one of the wave's allowed variations (the validated mirror image, a small lateral
- *   offset). The nominal is what the arc flew before the deck and what a slot falls back to when no pool wave fits;
+ *   cost near the nominal's, flown as authored or as its validated mirror image. The nominal is what the arc flew before
+ *   the deck and what a slot falls back to when no pool wave fits;
  * - **side** slots draw a strike site (docs/33 § 3) from the world's site pool by its weight, on a side drawn by the roll.
  *
  * Waves and attacks stay authored, never assembled from parts (AGENTS.md invariant 8 as narrowed in docs/08, 29
@@ -79,6 +79,12 @@ export const band = (nominal: number) => ({ min: BAND.low * nominal - 1e-9, max:
 /** Seconds after a side slot within which the next pool wave and the site's guard should fit the Standard budget. */
 export const SIDE_WINDOW = 6;
 /**
+ * Seconds after a side slot within which pool slots draw nothing heavier than their nominal: the main battle resumes while
+ * a pilot who took the site is still out by the world edge, so it adds nothing on top of what the arc authored there
+ * (Rolling Thunder Veteran, 30 October: the turret depots after its site took most of the extra hits).
+ */
+export const SITE_CALM = 15;
+/**
  * Squadrons whose late members may still lock a beam lane as their path ends (src/sim/motion.ts applyBeamLock pulls a
  * beam ship onto its lane), which the airspace prediction cannot foresee when it admits the next squadron. The next air
  * cue after one is admitted just as it leaves: a draw makes it no Needle squadron (they dive straight into the column's
@@ -86,8 +92,11 @@ export const SIDE_WINDOW = 6;
  */
 export const LINGERING: readonly FormationId[] = ['needle-column-5'];
 /**
- * Kinds that fly only where the arc put them: a Pulsar's tracking stream and a Wraith's arrival are the hardest things to
- * read (docs/27, docs/29), so no draw, fallback included, adds one, and their slots keep their authored spacing.
+ * Kinds that fly only where and as the arc put them: a Pulsar's tracking stream and a Wraith's arrival are the hardest
+ * things to read (docs/27, docs/29), so no draw adds one and their slots fly their nominal exactly (on endless Nacre a
+ * mirrored Pulsar pair took most of the extra hits, 30 October); the pools carry none. A slot
+ * beside one (within PAIR_WINDOW) draws nothing heavier than its nominal: on Final Horizon a third missile battery drawn
+ * beside the artillery ship's stream pushed the pilot to the world edge, where the stream caught it (30 October).
  */
 export const SCARCE: readonly EnemyKind[] = ['pulsar', 'wraith'];
 const NEEDLES: ReadonlySet<FormationId> = new Set(['needle-solo', 'needle-line-3', 'needle-column-5']);
@@ -117,24 +126,18 @@ export const placementRole = (placements: readonly FormationPlacement[]): WaveRo
 const waveKey = (placements: readonly FormationPlacement[]) => placements.map(p => p.formation).sort().join('+');
 
 /*
- * Lateral offsets each formation tolerates (its members stay in view at every windup, both mirrors; tested). Wide
- * squadrons, side and two-flank entries keep their authored anchor; harmless skids follow their battery.
+ * Variations: the validated mirror image only. Lateral offsets (±1–1.5 on narrow squadrons and batteries) were tried and
+ * dropped (30 October): a wave shifted toward the world edge while the ship was out there closed it in, and those edge
+ * hits outweighed the ones a shift toward the centre spared. A wave may still opt in with `offsets` (tested in view).
  */
-const SHIFT: Readonly<Partial<Record<FormationId, number>>> = {
-  'solo-dart': 1.5, 'solo-weaver': 1.5, 'solo-lancer': 1.5, 'arrow-3': 1.5, 'dive-pair': 1.5, 'needle-solo': 1.5, 'diamond-solo': 1.5, 'wraith-solo': 1,
-  'pulsar-solo': 1, 'diamond-lancer': 1, 'needle-line-3': 1, 'line-weaver-4': 1,
-  'battery-2': 1.5, 'depot-2': 1.5, 'depot-missile': 1, 'missile-2': 1, 'battery-3': 1, 'depot-3': 1, 'solo-turret': 1.5,
-  'fuel-pair': Infinity, 'fuel-depot': Infinity,
-};
 
 /** An authored pool wave: formation ids (view-anchored at the slot's centre) or explicit placements. */
 function w(formations: FormationId | readonly (FormationId | FormationPlacement)[], options: { weight?: number; mirror?: boolean; offsets?: readonly number[] } = {}): DeckWave {
   const placements = (typeof formations === 'string' ? [formations] : formations).map(entry => typeof entry === 'string' ? f(entry) : entry);
-  const shift = Math.min(...placements.map(p => SHIFT[p.formation] ?? 0));
   return {
     id: placements.map(p => p.formation + (p.x ? `@${p.x}` : '')).join('+'),
     formations: placements,
-    offsets: options.offsets ?? (shift > 0 && Number.isFinite(shift) ? [-shift, 0, shift] : [0]),
+    offsets: options.offsets ?? [0],
     mirror: options.mirror ?? true,
     weight: options.weight ?? 1,
   };
@@ -175,26 +178,26 @@ const VESPER_CLIMAX: readonly DeckWave[] = [
 ];
 const NACRE_PRESSURE_POOL: readonly DeckWave[] = [
   w('line-weaver-4'), w(['line-weaver-4', 'fuel-pair']), w('snake-weaver-5'), w('needle-solo'), w('needle-line-3'), w('needle-column-5'),
-  w('pulsar-solo'), w('pulsar-pair'), w('diamond-solo'),
+  w('diamond-solo'),
   w('battery-2'), w('battery-3'), w('depot-2'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const NACRE_CLIMAX: readonly DeckWave[] = [
-  w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'), w('pulsar-solo'), w('pulsar-pair'), w('diamond-solo'), w('diamond-convoy'),
+  w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'), w('diamond-solo'), w('diamond-convoy'),
   w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
-/** Amnion's brood (docs/27): drone flights, nest spires, spore mortars, egg sacs, heavies; few Pulsars. */
+/** Amnion's brood (docs/27): drone flights, nest spires, spore mortars, egg sacs, heavies (its two Pulsars fly in their arc slots). */
 const AMNION_PRESSURE: readonly DeckWave[] = [
   w('arrow-3'), w('line-dart-4'), w('line-weaver-4'), w(['line-weaver-4', 'fuel-pair']), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
-  w('diamond-solo'), w('diamond-lancer'), w('pulsar-solo', { weight: 0.5 }),
+  w('diamond-solo'), w('diamond-lancer'),
   w('battery-2'), w('battery-3'), w('depot-2'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const AMNION_CLIMAX: readonly DeckWave[] = [
-  w('arrow-5'), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'), w('diamond-lancer'), w('diamond-convoy'), w('pulsar-solo', { weight: 0.5 }),
+  w('arrow-5'), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'), w('diamond-lancer'), w('diamond-convoy'),
   w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
-/** Umbra's fleet (docs/28): Amnion's mix of craft plus the Wraith. */
-const UMBRA_PRESSURE: readonly DeckWave[] = [...AMNION_PRESSURE, w('wraith-solo')];
-const UMBRA_CLIMAX: readonly DeckWave[] = [...AMNION_CLIMAX, w('wraith-solo')];
+/** Umbra's fleet (docs/28): Amnion's mix of craft (its Wraiths and artillery ships fly in their arc slots). */
+const UMBRA_PRESSURE: readonly DeckWave[] = AMNION_PRESSURE;
+const UMBRA_CLIMAX: readonly DeckWave[] = AMNION_CLIMAX;
 
 export const DECK_POOLS: Readonly<Record<PlanetId, Readonly<Record<DeckPhase, readonly DeckWave[]>>>> = {
   luna: { pressure: LUNA_PRESSURE, climax: LUNA_CLIMAX },
@@ -265,9 +268,10 @@ const ROLLING_THUNDER: readonly DeckSlot[] = [
   draw({ at: 24, id: 'r-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
   fix({ at: 27, id: 'r-battery-2', phase: 'pressure', message: 'FUEL DEPOT · ONE SHOT SETS IT OFF', formations: [f('depot-2')] }),
   draw({ at: 30, id: 'r-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
-  draw({ at: 33, id: 'r-dive', phase: 'pressure', formations: [f('dive-pair')] }),
-  side({ at: 37, id: 'r-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } }),
-  side({ at: 42, id: 'r-east' }),
+  draw({ at: 36, id: 'r-dive', phase: 'pressure', formations: [f('dive-pair')] }),
+  // One strike site where the old salvage route was: a second one held the threat budget until the fuel depot after the
+  // recovery arrived on top of it, the pilot still out at a site by the world edge (docs/33 § 4.1).
+  side({ at: 41, id: 'r-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 } }),
   draw({ at: 47, id: 'r-pincer', phase: 'pressure', formations: [f('pincer-4')] }),
   draw({ at: 51, id: 'r-battery-4', phase: 'pressure', formations: [f('battery-4')] }),
   draw({ at: 54, id: 'r-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] }),
@@ -671,13 +675,13 @@ const DEEP_BLOOM_SORTIE = extend(DEEP_BLOOM, 62, 36, [
 const LUNA_PROLOGUE: readonly DeckSlot[] = TRAINING.filter(slot => slotAt(slot) < ENDLESS_CYCLE.bossSector.approachEndsAt);
 
 /**
- * Endless Nacre: the first stint opens with Deep Bloom's first 88 s (its one strike site),
- * then its middle and climax (shifted to start near 2 s, a strike site before the climax); later visits fly the climax
- * arc throughout, a strike site between its two halves. A boss sector's cutoff trims each list.
+ * Endless Nacre: the first stint opens with Deep Bloom's first 88 s (its one strike site), then its middle and climax
+ * (shifted to start near 2 s; no strike site: that stretch has no recovery to hold one, and a site squeezed in before the
+ * climax roughly quadrupled the perfect pilot's hits in sector 9); later visits fly the climax arc throughout, a strike
+ * site in the gap between its two halves. A boss sector's cutoff trims each list.
  */
 const NACRE_OPENING: readonly DeckSlot[] = DEEP_BLOOM.filter(slot => slotAt(slot) < 88);
-const NACRE_PRESSURE: readonly DeckSlot[] = extend(DEEP_BLOOM.filter(slot => slotAt(slot) >= 62 && slotAt(slot) < 142).map(slot => moved(slot, -60, 'en2-')),
-  27, 3, [side({ at: 0, id: 'en2-site' })]);
+const NACRE_PRESSURE: readonly DeckSlot[] = DEEP_BLOOM.filter(slot => slotAt(slot) >= 62 && slotAt(slot) < 142).map(slot => moved(slot, -60, 'en2-'));
 const NACRE_PEAK: readonly DeckSlot[] = [
   ...DEEP_BLOOM.filter(slot => slotAt(slot) >= 90 && slotAt(slot) < 142).map(slot => moved(slot, -88, 'en3-')),
   side({ at: 52, id: 'en3-site' }),
@@ -794,11 +798,12 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
   const pools = DECK_POOLS[template.world];
   // Teaching arcs: a pool slot whose nominal introduces a formation flies it as authored (fixed by the arc alone).
   const seen = new Set<FormationId>();
+  // A slot whose nominal flies a Pulsar or the Wraith flies it exactly as authored too (SCARCE).
   const locked = template.slots.map(slot => {
     const ids = formationsOf(slot).map(p => p.formation);
     const fresh = template.teach && slot.kind === 'pool' && ids.some(id => !seen.has(id));
     for (const id of ids) seen.add(id);
-    return fresh;
+    return fresh || (slot.kind === 'pool' && flies(slot.nominal, SCARCE));
   });
   const introduced = new Set<FormationId>();
   const out: Resolved[] = [];
@@ -832,7 +837,13 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         const nextKey = decided && formationsOf(next).length ? waveKey(formationsOf(next)) : null;
         const cap = (other: number) => Math.max(other + nominalCost, PAIR_FLOOR);
         const site = previous?.site && slot.at - previous.cue.at <= SIDE_WINDOW ? previous : null;
-        const range = band(nominalCost);
+        // Beside a Pulsar or the Wraith (the cue before or after within PAIR_WINDOW), nothing heavier than the nominal: the
+        // arc gives a tracking stream light company (SCARCE).
+        const scarceNear = (!!previous && slot.at - previous.cue.at <= PAIR_WINDOW && flies(previous.cue.formations, SCARCE))
+          || (!!next && slotAt(next) - slot.at <= PAIR_WINDOW && flies(formationsOf(next), SCARCE));
+        // Shortly after a strike site, likewise (SITE_CALM).
+        const afterSite = out.some(entry => entry.site && slot.at - entry.cue.at <= SITE_CALM);
+        const range = scarceNear || afterSite ? { ...band(nominalCost), max: nominalCost + 1e-9 } : band(nominalCost);
         // Strictly: never the previous cue's wave nor the last wave of the same role. If nothing fits, only never the
         // previous cue's.
         const fitting = (strict: boolean, anyCharacter = false) => pools[slot.phase].filter(wave => {

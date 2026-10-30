@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import {
-  BAND, CAMPAIGN_DECKS, SCARCE, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
+  BAND, CAMPAIGN_DECKS, SCARCE, SITE_CALM, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
   placementCost, placementRole, resolveDeck, resolvePlaylist, resolveTemplate, slotAt, varied, waveCharacter, type DeckTemplate,
 } from '../../src/content/encounter-deck';
 import { cueRoster, type EncounterCue } from '../../src/content/encounters';
@@ -142,6 +142,25 @@ describe('encounter deck: guard rails', () => {
     }
   });
 
+  it('draws nothing heavier than the nominal beside a Pulsar or the Wraith, nor shortly after a strike site', () => {
+    const scarce = (cue: EncounterCue) => cueRoster(cue, 'veteran').some(kind => (SCARCE as readonly string[]).includes(kind));
+    let beside = 0, after = 0;
+    for (const deck of DECK_TEMPLATES) for (const seed of SEEDS.slice(0, 50)) {
+      const entries = resolveDeck(deck, seed);
+      entries.forEach((entry, i) => {
+        const slot = deck.slots[i];
+        if (slot.kind !== 'pool' || entry.fallback || entry.outside) return;
+        const near = [entries[i - 1], entries[i + 1]].some(other => other && Math.abs(other.cue.at - entry.cue.at) <= PAIR_WINDOW && scarce(other.cue));
+        const site = entries.slice(0, i).some(other => other.site && entry.cue.at - other.cue.at <= SITE_CALM);
+        if (!near && !site) return;
+        if (near) beside++; else after++;
+        expect(entry.cost, `${deck.id}/${seed} ${slot.id}`).toBeLessThanOrEqual(placementCost(slot.nominal));
+      });
+    }
+    expect(beside).toBeGreaterThan(100);
+    expect(after).toBeGreaterThan(100);
+  });
+
   it('keeps Training\'s teaching order fixed on every seed', () => {
     const training = CAMPAIGN_DECKS.training;
     const messages = training.slots.flatMap(slot => slot.kind === 'fixed' && slot.cue.message ? [slot.cue.message] : []);
@@ -204,13 +223,14 @@ describe('encounter deck: content', () => {
     }
   });
 
-  it('places two strike sites on Training, Rolling Thunder and Cold Vector, one on the last three missions, one per endless stage (two in the Luna prologue)', () => {
+  it('places two strike sites on Training and Cold Vector, one on the other missions, one per endless stage (two in the Luna prologue, none in Nacre\'s pressure stage)', () => {
     const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side').length;
-    // The last three missions' recovery holds one site: two back to back held the threat budget until the next pressure
-    // block arrived on top of them (measured: docs/33 § 4.1).
-    const expected: Record<string, number> = { training: 2, 'rolling-thunder': 2, 'cold-vector': 2, 'deep-bloom': 1, 'brood-strike': 1, 'final-horizon': 1 };
+    // Rolling Thunder and the last three missions hold one site in their recovery: two back to back held the threat budget
+    // until the turret battery after the recovery arrived on top of them (measured: docs/33 § 4.1).
+    const expected: Record<string, number> = { training: 2, 'rolling-thunder': 1, 'cold-vector': 2, 'deep-bloom': 1, 'brood-strike': 1, 'final-horizon': 1 };
     for (const deck of Object.values(CAMPAIGN_DECKS)) expect(sides(deck), deck.id).toBe(expected[deck.id]);
-    for (const [name, deck] of Object.entries(ENDLESS_DECKS)) expect(sides(deck), name).toBe(name === 'prologue' ? 2 : 1);
+    // Nacre's pressure stage (Deep Bloom's middle and climax) has no recovery to hold one.
+    for (const [name, deck] of Object.entries(ENDLESS_DECKS)) expect(sides(deck), name).toBe(name === 'prologue' ? 2 : name === 'nacrePressure' ? 0 : 1);
     for (const deck of DECK_TEMPLATES) for (const seed of SEEDS.slice(0, 50)) {
       const cues = resolveTemplate(deck, seed);
       deck.slots.forEach((slot, i) => {
