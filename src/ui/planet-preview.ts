@@ -32,11 +32,13 @@ function advance(planet: PlanetId, budget: number): boolean {
 /** Bakes every world in idle time (in small slices) so the mission selector opens with its globes ready. */
 export function prebakePlanets(planets: readonly PlanetId[]): void {
   const queue = [...planets];
-  const idle = (callback: () => void) => typeof requestIdleCallback === 'function' ? requestIdleCallback(callback, { timeout: 500 }) : setTimeout(callback, 50);
-  const slice = () => {
+  const idle = (callback: (deadline?: IdleDeadline) => void) => typeof requestIdleCallback === 'function' ? requestIdleCallback(callback, { timeout: 500 }) : setTimeout(callback, 50);
+  // Only the idle time the browser offers (performance, 30 October: a flight launched soon after boot lost 8 ms slices
+  // to this bake); a forced (timed-out) call advances a single step.
+  const slice = (deadline?: IdleDeadline) => {
     while (queue.length && advance(queue[0], 0)) queue.shift();
     if (!queue.length) return;
-    advance(queue[0], 8);
+    advance(queue[0], deadline ? Math.min(8, deadline.timeRemaining()) : 8);
     idle(slice);
   };
   idle(slice);

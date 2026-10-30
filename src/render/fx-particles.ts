@@ -405,9 +405,15 @@ export function createFx(scene: THREE.Scene) {
       }
       for (const target of layers) { step(target, dt); write(target); }
       overlay(state, plumes);
+      // Upload only the live particles (three.js re-sends a whole pool without an update range) and skip empty layers.
       for (const target of layers) {
-        target.mesh.instanceMatrix.needsUpdate = true; target.params.needsUpdate = true;
-        if (target.mesh.instanceColor) target.mesh.instanceColor.needsUpdate = true;
+        const count = target.mesh.count;
+        target.mesh.visible = count > 0;
+        for (const attribute of [target.mesh.instanceMatrix, target.mesh.instanceColor, target.params]) {
+          if (!attribute) continue;
+          attribute.clearUpdateRanges();
+          if (count > 0) { attribute.addUpdateRange(0, count * attribute.itemSize); attribute.needsUpdate = true; }
+        }
       }
     },
     get particles() { return glow.live + smoke.live + wreckGlow.live + wreckSmoke.live; },
