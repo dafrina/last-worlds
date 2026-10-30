@@ -399,6 +399,26 @@ export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3, sun =
     right3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 0), up3: new THREE.Vector3().setFromMatrixColumn(lightCamera.matrixWorld, 1) };
 }
 
+/**
+ * QA evidence for the render-list cost (polish pass, 30 October): objects in the scene graph, those that would be visited
+ * for drawing (visible chain), drawable meshes among them, and visible instanced batches with nothing to draw.
+ */
+function graphStats(scene: THREE.Scene) {
+  let objects = 0, visible = 0, drawables = 0, emptyBatches = 0, autoMatrix = 0, casters = 0;
+  const walk = (object: THREE.Object3D) => {
+    objects++; if (object.matrixAutoUpdate) autoMatrix++;
+    if (!object.visible) { object.traverse(() => { objects++; }); objects--; return; }
+    visible++;
+    if ((object as THREE.Mesh).isMesh || (object as THREE.LineSegments).isLine || (object as THREE.Points).isPoints) {
+      drawables++; if (object.castShadow) casters++;
+      if ((object as THREE.InstancedMesh).isInstancedMesh && (object as THREE.InstancedMesh).count === 0) emptyBatches++;
+    }
+    for (const child of object.children) walk(child);
+  };
+  walk(scene);
+  return { objects, visible, drawables, emptyBatches, autoMatrix, casters };
+}
+
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The stencil marks the hero's pixels: the jump veil and a boss's death blasts never cover the ship (src/render/hero-stencil.ts).
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', stencil: true });
@@ -1928,9 +1948,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
-          triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries,
+          triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, programs: renderer.info.programs?.length ?? 0,
           textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, sites: sites.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
           predators: Object.fromEntries([...predatorBatches].map(([name, batch]) => [name, batch.mesh.count])),
+          graph: graphStats(scene),
         });
         lastStatsTick = state.tick;
       }
