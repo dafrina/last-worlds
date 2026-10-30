@@ -333,7 +333,7 @@ function buildSites() {
   syncView();
 }
 const siteLab = {
-  place(site: SiteId, spot: SiteSpot, row?: number) { ensureLab(); return placeSite(state, site, spot, row); },
+  place(site: SiteId, spot: SiteSpot, row?: number) { ensureLab(); return placeSite(state, level().planet, site, spot, row); },
   destroy() { destroySites(state); },
   hit() { hitSites(state); },
   clear() { state.enemies = state.enemies.filter(enemy => !enemy.site); },
@@ -543,7 +543,7 @@ function frame(now: number) {
       if (firing()) state.nextVolleyAt = Number.isFinite(volley) ? volley : state.time;
       if (specialQueued) state.player.specialCharge = 1;
       // Held (Sites tab): no simulation step; only the clock and the effects age, so a kill's explosion plays out.
-      if (view.hold && view.tab === 'sites') { state.player.x = view.x; state.time += STEP; state.tick++; state.effects = state.effects.filter(effect => (effect.ttl -= STEP) > 0); continue; }
+      if (view.hold && view.tab === 'sites') { state.player.x = view.x; state.cameraX = Math.max(-(VIEW.worldWidth - VIEW.width) / 2, Math.min((VIEW.worldWidth - VIEW.width) / 2, view.x)); state.time += STEP; state.tick++; state.effects = state.effects.filter(effect => (effect.ttl -= STEP) > 0); continue; }
       if (state.phase === 'playing') stepRun(state, specialQueued ? { ...EMPTY_INPUT, specialPressed: true } : EMPTY_INPUT);
       specialQueued = false;
       state.player.lives = Math.max(state.player.lives, 2);

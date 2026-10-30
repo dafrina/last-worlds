@@ -33,6 +33,11 @@ OUT = os.path.join(br.ROOT, 'public', 'assets', 'shared', 'sites')
 PREVIEW = os.path.join(br.ROOT, 'lookdev', 'strike-sites')
 CORE = .85
 TOP_MAX = 3.25
+# Where each site's guard batteries stand (src/content/formations.ts RING_2/RING_3, both mirrors; workstream B owns them):
+# a check only. The lens moves a ground anchor a little off its gameplay offset, so these are approximate.
+_RING_3 = ((-2.8, -1), (2.8, -1), (0, 2.8))
+_RING_2 = ((-2.8, -1), (2.8, 1), (2.8, -1), (-2.8, 1))
+GUARD_SPOTS = {'crash-site': _RING_3, 'airfield': _RING_3, 'brood-hive': _RING_3, 'prism-reactor': _RING_2}
 TAU = 2 * math.pi
 
 
@@ -324,7 +329,7 @@ def crash_site(world):
         body.minor.loft([jag, cavity], 'metal', caps=False)
 
     # Rear (engine) half, front-left: torn at -0.78; exposed frame rings in the gap toward the reactor.
-    hull(-2.55, -.78, -.78)
+    hull(-2.2, -.78, -.78)
     for t in (-.66, -.5):
         ring_tube(body, P(t), d, R * .98, .035, 'steel', seg=12, side=4, arc=(-.35, math.pi + .35))
     for off in (-.32, .32):
@@ -332,11 +337,11 @@ def crash_site(world):
     for t in (-1.25, -2.05):  # hull bands
         tube(body, [P(t - .06), P(t + .06)], R + .03, 'accent', seg=10, soft=False, phase=math.pi / 10)
     for k in range(5):  # a row of dark ports along the camera side
-        t = -2.25 + k * .3
+        t = -2.0 + k * .26
         p = P(t, -R * .72, AZ + R * .62)
         obox(body, p.x, p.y, .08, .04, p.z - .06, p.z + .06, th, 'glass', minor=True)
     for off in (-.24, 0, .24):  # three dead engine nozzles at the stern
-        p = P(-2.55, off * 1.1, AZ + .05 + abs(off) * -.3)
+        p = P(-2.2, off * 1.1, AZ + .05 + abs(off) * -.3)
         tube(body, [p, p - d * .22], [.17, .2], 'metal', seg=8, soft=False)
         tube(body, [p - d * .05, p - d * .23], [.13, .15], 'steel', seg=8, soft=False)
     # Bow half, back-right: torn at 0.62, tapering into the cockpit, plowed into a dirt mound.
@@ -349,11 +354,11 @@ def crash_site(world):
         obox(body, p.x, p.y, .07, .05, p.z - .05, p.z + .07, th, 'glass', minor=True)
     beam(body, P(1.35, 0, AZ + R), P(1.35, 0, AZ + R + .45), .04, .04, 'steel')  # antenna
     # Cargo modules still clamped to the spine: what makes it a freighter from above.
-    for t, half, mat in ((-2.0, .26, 'stripe'), (-1.48, .22, 'accent')):
+    for t, half, mat in ((-1.8, .2, 'stripe'), (-1.4, .18, 'accent')):
         p = P(t, 0, AZ + R - .08)
         obox(body, p.x, p.y, half, .3, p.z, p.z + .26, th, mat)
         obox(body, p.x, p.y, half + .015, .315, p.z + .26, p.z + .29, th, 'steel', minor=True)
-    for t in (-2.25, -1.74, -1.22):  # clamps over the modules
+    for t in (-1.98, -1.6, -1.22):  # clamps over the modules
         beam(body, P(t, -.42, AZ + .25), P(t, 0, AZ + R + .3), .05, .04, 'steel')
         beam(body, P(t, 0, AZ + R + .3), P(t, .42, AZ + .25), .05, .04, 'steel')
     beam(body, P(1.3, 0, AZ + R + .3), P(1.42, 0, AZ + R + .3), .1, .02, 'steel')
@@ -396,7 +401,7 @@ def crash_site(world):
         obox(body, -2.35, -.55, .12, .1, .26, .44, .6, 'stripe')
         rf.mast(body, -1.75, -.85, 0, .85)
     if world == 'vesper':
-        for t0, t1, off in ((-2.4, -.95, 0), (.8, 1.9, 0)):
+        for t0, t1, off in ((-2.1, -.95, 0), (.8, 1.9, 0)):
             ridge(body, P(t0, off, AZ + R - .02), P(t1, off, AZ + R - .02), .26, .1, 'snow', z0=0)
         snow_drifts(body, rng, ((-1.0, -1.05, .55, .3, .16), (2.4, .1, .5, .3, .18), (-.4, 1.85, .7, .3, .14), (1.45, 1.6, .45, .3, .13)))
         for x, y, r in ((-2.15, -1.25, .34), (-1.45, -1.62, .3)):
@@ -406,14 +411,14 @@ def crash_site(world):
                                (-1.7, 1.2, 0, .4), (1.6, -1.3, 0, .38), (2.6, .95, 0, .3), (-.9, -1.45, 0, .3)),
                    puddles=((-2.3, -.9, .55), (1.0, -1.65, .4), (-.2, 1.8, .45)))
     elif world == 'amnion':
-        arches = [(tuple(P(t, -.95, 0)), tuple(P(t, .95, 0)), 1.0) for t in (-1.35, -1.85, -2.3)]
+        arches = [(tuple(P(t, -.95, 0)), tuple(P(t, .95, 0)), 1.0) for t in (-1.2, -1.62, -2.05)]
         brood_growths(body, rng, arches=arches,
                       plates=((P(1.3).x, P(1.3).y, AZ + R - .05, .26), (P(1.75).x, P(1.75).y, AZ + R - .1, .22), (P(-1.0).x, P(-1.0).y, AZ + R - .05, .2)),
                       resin=((P(-.9, -.55).x, P(-.9, -.55).y, .05, .18), (P(.75, .55).x, P(.75, .55).y, .05, .2), (-1.9, .9, .02, .16)),
                       eggs=((-1.15, -1.45, 5), (1.45, 1.55, 4)),
-                      spikes=((2.6, -.7, .8, (.25, -.1)), (-2.7, .6, .7, (-.2, .15)), (.4, 1.75, .6, (.05, .25))))
+                      spikes=((2.55, .3, .8, (.25, -.1)), (-2.7, .6, .7, (-.2, .15)), (.4, 1.75, .6, (.05, .25))))
     elif world == 'umbra':
-        obsidian_shards(body, rng, ((-1.9, .95, 1.1), (1.9, -1.25, .9), (2.55, .9, 1.0), (-.6, 1.75, .8), (-2.4, -1.3, .8)))
+        obsidian_shards(body, rng, ((-1.9, .95, 1.1), (1.9, -1.25, .9), (2.55, .9, 1.0), (-.6, 1.75, .8), (-2.0, -1.8, .8)))
     return body, core, ruin
 
 
@@ -492,11 +497,12 @@ def airfield(world):
     B(body, .26, .3, -1.6, -1.42, Z + .16, Z + .27, 'glass')
     obox(body, 2.3, .35, .16, .11, Z, Z + .16, .5, 'stripe')
     # Radar mast behind the tower; a beacon at the runway's far end; two fuel tanks by the hangar.
-    cyl(body, -.15, 2.35, .14, Z, Z + .2, 'metal', seg=8)
-    cyl(body, -.15, 2.35, .05, Z + .2, 1.45, 'steel', seg=6)
-    body.major.loft([[(-.15 + .5 * math.cos(TAU * k / 12), 2.28 + .06, 1.55 + .5 * math.sin(TAU * k / 12) * .8) for k in range(12)],
-                     [(-.15 + .14 * math.cos(TAU * k / 12), 2.38 + .06, 1.55 + .14 * math.sin(TAU * k / 12) * .8) for k in range(12)]], 'paint')
-    beam(body, (-.15, 2.38, 1.45), (-.15, 2.1, 1.6), .03, .03, 'steel')
+    rx, ry = 2.4, -2.05  # the radar at the apron's front-right corner, clear of the guard's spots
+    cyl(body, rx, ry, .14, Z, Z + .2, 'metal', seg=8)
+    cyl(body, rx, ry, .05, Z + .2, 1.25, 'steel', seg=6)
+    body.major.loft([[(rx + .42 * math.cos(TAU * k / 12), ry - .07, 1.35 + .42 * math.sin(TAU * k / 12) * .8) for k in range(12)],
+                     [(rx + .12 * math.cos(TAU * k / 12), ry + .03, 1.35 + .12 * math.sin(TAU * k / 12) * .8) for k in range(12)]], 'paint')
+    beam(body, (rx, ry + .03, 1.25), (rx, ry - .25, 1.4), .03, .03, 'steel')
     rf.mast(body, -1.55, 3.0, Z, 1.25)
     for x, y in ((2.42, 1.35), (2.42, 2.0)):
         cyl(body, x, y, .2, Z, Z + .5, 'paint', seg=10)
@@ -614,7 +620,7 @@ def prism_reactor(world):
         overgrowth(body, rng, ((-1.85, .9, .2, .38), (1.95, -.4, .2, .32), (.8, 1.9, .22, .34), (-1.2, -1.75, .18, .3), (0, 1.1, .3, .28)),
                    puddles=((-.9, 2.25, .45), (2.35, .9, .4), (-2.35, -.9, .4)))
     else:
-        obsidian_shards(body, rng, ((-2.35, 1.35, .7), (2.4, 1.3, .65)))
+        obsidian_shards(body, rng, ((-2.0, 2.15, .7), (2.1, 2.05, .65)))
     return body, core, ruin
 
 
@@ -629,7 +635,7 @@ def brood_hive(world):
     blob(body, (0, 0, .12), .62, .58, .2, 'resin', seg=12, rings=5, rng=rng, wobble=.1)
     blob(body, (0, 0, .36), .36, .34, .1, 'flesh', seg=10, rings=4)
     # Spine from just behind the sac, curving back down into the mound.
-    spine = curve((0, .3, 2.1), (0, 1.9, 2.15), (0, 2.75, .35), 8)
+    spine = curve((0, .3, 2.1), (0, 1.6, 2.15), (0, 2.2, .3), 8)
     tube(body, spine, [.16, .17, .17, .16, .15, .14, .13, .12, .1], 'bone', seg=7)
     for k in range(1, 8):  # dorsal thorns
         p = spine[k]
@@ -694,6 +700,15 @@ def check(site, spec, objects):
                 if abs(p.x) < .9 and p.y < -.05 and p.z > .75 + 1.43 * -p.y + .02:
                     problems.append('%s body hides the core at (%.2f, %.2f, %.2f)' % (ob.name, p.x, p.y, p.z))
                     break
+            # The guard's batteries stand on the site (their ring spots): nothing stands where one is, nothing hides one.
+            for gx, gy in GUARD_SPOTS.get(site, ()):
+                for p in pts:
+                    if math.hypot(p.x - gx, p.y - gy) < .45 and p.z > .45:
+                        problems.append('%s stands on the guard spot (%.1f, %.1f) at (%.2f, %.2f, %.2f)' % (ob.name, gx, gy, p.x, p.y, p.z))
+                        break
+                    if abs(p.x - gx) < .6 and p.y < gy - .5 and p.z > .75 + 1.43 * (gy - p.y) + .02:
+                        problems.append('%s hides the guard spot (%.1f, %.1f) at (%.2f, %.2f, %.2f)' % (ob.name, gx, gy, p.x, p.y, p.z))
+                        break
     tol = .01
     if lo.x < spec['x'][0] - tol or hi.x > spec['x'][1] + tol:
         problems.append('%s x %.2f..%.2f outside %s' % (site, lo.x, hi.x, spec['x']))

@@ -1,31 +1,36 @@
 /**
- * The playground's strike-site lab (docs/33 § 6, workstream C): fake site cores over the level's real map, so the site
- * models can be seen, flown past and destroyed on every world before the simulation spawns real sites. A core is a
- * harmless ground target (a fuel skid's track and anchor) with `site` set; the renderer draws the site around it.
- * Presentation testing only: the campaign never runs this.
+ * The playground's strike-site lab (docs/33 § 6, workstream C): sites over the level's real map, so the site models
+ * can be seen, flown past and destroyed on every world. West and east place the real site (its authored guard and core
+ * from src/content/sites.ts `siteCue`, on the side route); "ahead" places a lone core in front of the ship for a close
+ * look. The renderer draws the site around the core. Presentation testing only: the campaign never runs this.
  */
 import { spawnMembers } from '../sim/spawn';
-import { VIEW, type RunState, type SiteId } from '../shared/contracts';
+import { SITE_LEAD, FORMATIONS } from '../content/formations';
+import { siteCue } from '../content/sites';
+import { VIEW, type PlanetId, type RunState, type SiteId } from '../shared/contracts';
 
 /** Where a lab site's core lands: on the map's side route (docs/33: about 7.5 out) or in front of the ship. */
 export type SiteSpot = -1 | 0 | 1;
-/** The ground track starts at row 22 and scrolls 5 a second (content/formations.ts GROUND). */
-const TRACK_TOP = 22;
+/** The site track starts at row 22 + SITE_LEAD and scrolls 5 a second (content/formations.ts SITE_TRACK). */
+const TRACK_TOP = 22 + SITE_LEAD;
 
 /**
- * Places a site core at `row` (gameplay s, mid-screen by default), west, east or straight ahead. Returns its id.
- * Durable (the lab's ship cannot shoot it by accident) and never attacks.
+ * Places a site with its core at `row` (gameplay s; mid-screen by default). Returns the core's id. A lab core is
+ * durable (the lab's ship cannot break it by accident); guards fire as authored.
  */
-export function placeSite(state: RunState, site: SiteId, spot: SiteSpot, row = 11): number | null {
-  const first = state.nextId, x = spot === 0 ? state.cameraX : spot * 7.5;
-  // The skid pair's first member stands 1.3 west of the anchor; its partner is dropped.
-  spawnMembers(state, 'fuel-pair', x + 1.3, 1, undefined, undefined, Math.max(0, (TRACK_TOP - row) / VIEW.scrollSpeed));
-  const members = state.enemies.filter(enemy => enemy.id >= first);
-  const core = members[0];
-  if (!core) return null;
-  state.enemies = state.enemies.filter(enemy => enemy.id < first || enemy === core);
-  core.site = site; core.hp = core.maxHp = 600; core.damageable = true; core.nextAttack = Infinity;
-  return core.id;
+export function placeSite(state: RunState, planet: PlanetId, site: SiteId, spot: SiteSpot, row = 11): number | null {
+  const first = state.nextId, age = Math.max(0, (TRACK_TOP - row) / VIEW.scrollSpeed);
+  const placements = spot === 0
+    ? [{ formation: `site-core-${site}` as const, x: state.cameraX, mirror: false }]
+    : siteCue(site, spot, state.time, planet).formations.map(placement => ({ formation: placement.formation, x: placement.x ?? 0, mirror: !!placement.mirror }));
+  for (const placement of placements) {
+    // Air flourishes (the airfield's scramble) fly from the top as authored; ground formations start at the row.
+    const ground = FORMATIONS[placement.formation].entry === 'ground';
+    spawnMembers(state, placement.formation, placement.x, placement.mirror ? -1 : 1, undefined, undefined, ground ? age : 0);
+  }
+  const cores = state.enemies.filter(enemy => enemy.id >= first && enemy.site);
+  for (const core of cores) { core.hp = core.maxHp = 600; core.damageable = true; }
+  return cores[0]?.id ?? null;
 }
 
 /** Kills every site core as the simulation does: no hit points left and its kill explosion. */
