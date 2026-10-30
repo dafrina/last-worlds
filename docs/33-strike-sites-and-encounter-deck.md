@@ -260,3 +260,80 @@ Shared contracts (integrator, before the workstreams start):
 - `Pickup.kind` gains `'part'`;
 - `src/content/sites.ts`: `SiteDefinition`, `SITES`, `sitePool(planet)`, `siteCue(id, side, at, planet)`. It starts as
   placeholders; B fills them in, and A calls them from side slots.
+
+## 6. Site models and render (workstream C)
+
+Phase 1 (30 October): the pipeline, the render and one site per family: the crash site, the airfield, the prism reactor
+and the brood hive. The other eight follow after the user's review of `art/strike-sites/`.
+
+**Models.** Hand-built in Blender by `tools/blender/strike_sites.py` from the boss/facility toolkit's faceted solids
+(user: "just model them yourself … the existing infra is good inspiration"): flat paints, baked AO in the vertex
+colours, glow materials named `*glow*`; no textures. Shape over texture, for the 55° camera. The concept sheet
+(`art/concepts/strike-sites/00-all-sites.png`) is a reference only.
+
+| Site | Finishes | Core (the target) | Triangles per finish | File per finish |
+| --- | --- | --- | --- | --- |
+| Crash site | luna, khepri, vesper, nacre, amnion, umbra | the freighter's reactor in the break | 4.1–5.0k | 270–340 KB |
+| Airfield | luna, khepri, vesper | the control tower's glazed cab | 3.5–3.8k | 235–255 KB |
+| Prism reactor | umbra, nacre (ruin) | the floating crystal (it turns) | 3.0–3.3k | 190–220 KB |
+| Brood hive | amnion, nacre | the heart-sac under the ribcage | 5.2k | 340 KB |
+
+A facility plant is about 6–10k triangles (Khepri modules 0.4–4k each), so a site costs less than one plant.
+
+**Finishes.** One palette per world (`PALETTE` in the builder), derived from the facility kits and world docs. Frontier
+sites: Luna white panels with amber, Khepri bone and rust with the concept's teal reactor, Vesper white and graphite
+with blue glow and snow drifts and caps. Exotic worlds: the crash site wears Nacre moss, fronds and mire puddles, Amnion's
+shared brood growths (`brood_growths`: bone arches, chitin plates, resin, eggs, spikes; the set the overrun relay
+station and freight terminal will reuse), Umbra obsidian shards. The prism reactor is glossy obsidian with violet seams
+on Umbra and a pale overgrown ruin on Nacre (missing and sunken blocks, snapped and fallen horns, teal crystal). The brood
+hive is bone and flesh with a yolk sac on Amnion, lavender bone and violet chitin with a violet sac on Nacre.
+
+**File layout.** `public/assets/shared/sites/<site>-<finish>.glb`, so a world loads only its own finishes. Each holds
+`site_<id>_<finish>_body` (the site), `_core` (the target, hidden once destroyed) and `_ruin` (the broken core, shown
+once destroyed); `<id>` with underscores. Frame: the pivot is the core's ground anchor; x lateral, s away from the camera
+(glTF −z), the detailed front toward the camera; the core is centred 0.85 over the pivot (the ground targets' core
+height). `src/render/site-models.ts` (`SITE_MODELS`) is the single source of finishes and bounds: the builder parses it
+and asserts every node against it, and `tests/world/site-models.test.ts` checks the GLBs against it.
+
+**Rules the builder and the tests keep.**
+- Top ≤ 3.25 (docs/25 rule 3); 4–6 units across; the whole site inside the world at 7.5 out.
+- Line of sight (docs/25 rule 2): nothing in front of the core (|x| < 0.9) rises above 0.75 + 1.43·(−s).
+- Guards: nothing stands on, or hides, the guard batteries' ring spots (`RING_2`/`RING_3` in content/formations.ts;
+  `GUARD_SPOTS` in the builder, a check only). The prism reactor's horn ring and the brood hive's spine leave the back
+  open for that reason.
+- Foundations: slabs, mounds and blocks reach 0.7–1.3 below the pivot for uneven ground.
+
+**Render** (`src/render/site-view.ts`, hooked into `src/render/scene.ts`):
+- Every live enemy with `site` set and a ground anchor gets its site in the current world's finish, placed at the
+  anchor (world x, world s, ground height) and scrolling with the ground. The site draws the core: scene.ts leaves the
+  core's own craft model, ghost silhouette, plinth and pontoon out (`hidesCore`), and a site core never seats a compound
+  or emplacement or leaves a wreck. A site without a model on that world keeps the core's own model.
+- **Uneven ground:** the site is lifted onto the ground three quarters of the way up its footprint, at most 0.4 over the
+  anchor (`SITE_RISE_MAX`); the core rises with it, so its glow can stand up to 0.4 over the target's proxy (about 0.3 on
+  screen). On a seat high enough that its top would come within 0.45 of the flight plane, it is squashed about its core
+  (the core stays put; the foundation covers the raised floor).
+- **Destroyed:** a core that vanishes with the simulation's kill explosion at its position (or has no hit points left)
+  leaves its site destroyed: the core hidden, the ruin shown, the structure in darkened twin materials (16% of its paint
+  toward charcoal) and its lamps out, until it scrolls out of view. A core that leaves without a kill explosion leaves
+  the site intact. A hit on the core flashes its glow.
+- **Clearings:** each site's rectangle is a terrain clearing (sites first; the terrain takes 12) and is reserved from
+  battery compounds and emplacements, so neither scenery nor a plant stands in it.
+- **Loading:** `renderer.prepare(planet)` loads the world's site finishes with the rest of the planet; one hidden
+  instance per finish (live and destroyed materials) joins the warm-up, so nothing compiles mid-flight. A world's sites
+  are released after it is left (endless revisits reload them).
+- QA: `data-render-stats.sites` = {loaded, count, destroyed, drawn, files, sites[{id, site, finish, destroyed, rise, squash}]}.
+
+**Lab:** the playground's Sites tab (`playground.html`, `src/playground/sites-lab.ts`): West and East place the real
+site (its authored guard and core from `siteCue`) on the side route; Ahead places a lone core in front of the ship;
+"Hold the world still" freezes the simulation (only the clock and effects age); "Hit" and "Destroy" the cores.
+Development builds expose `window.siteLab` for lookdev automation.
+
+**Rebuild:**
+```
+cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup \
+  --python '\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies\tools\blender\strike_sites.py' -- [--site=airfield] [--no-export] [--preview]
+```
+About 10 s for all four sites. `--preview` renders every finish from the game camera into `lookdev/strike-sites/`.
+
+**Open:** the multi-core sealed vault needs a group anchor (one model for its three seals) when it is modelled; sites over
+open water (Vesper's sea, Nacre's mire) stand on the pontoon deck height; terrain pipelines and roads are not cleared.

@@ -20,16 +20,17 @@ const STEP = .25;
  * path deviates from the authored one in both directions from here (about ±1 unit on ordinary ground) instead of piling
  * up at the bottom; it also spawns a little beyond the top edge rather than at it.
  */
-const MATCH_ROW = 10;
-export function anchorGround(state: RunState, enemy: Enemy): void {
-  if (!GROUND_KINDS.has(enemy.kind) || enemy.bossPart || !enemy.formation) return;
-  const route = runRoute(state.config), seed = state.config.seed, core = enemy.groundHeight;
-  // The track scrolls with the world, so the anchor is solved at the moment the track crosses MATCH_ROW (`ahead` units of
-  // scroll from now), with the camera of now.
-  const ahead = enemy.s - MATCH_ROW;
+export const MATCH_ROW = 10;
+/**
+ * Where the line of sight through gameplay point (x, MATCH_ROW) first meets a core of height `core` resting on the ground,
+ * `ahead` units of scroll from now: the ground point (in the frame of that moment, s relative to its distance) and its
+ * seat. Pure; the seat search of strike sites (src/sim/sites.ts) uses it too.
+ */
+export function lineOfSightGround(state: RunState, x: number, ahead: number, core: number): { at: { x: number; s: number }; seat: { base: number; afloat: boolean } } {
+  const route = runRoute(state.config), seed = state.config.seed;
   // Walk the line of sight down from the flight plane until the core would sit on (or under) the surface, then refine.
   const probe = (y: number) => {
-    const at = fromFlightPlane(state.cameraX, enemy.x, MATCH_ROW, y);
+    const at = fromFlightPlane(state.cameraX, x, MATCH_ROW, y);
     const seat = groundSeat(seed, route, at.x, state.distance + ahead + at.s);
     return { at, seat, gap: y - core - seat.base };
   };
@@ -44,7 +45,14 @@ export function anchorGround(state: RunState, enemy: Enemy): void {
     }
     above = y; hit = next;
   }
-  const { at, seat } = hit, dx = at.x - enemy.x, ds = at.s - MATCH_ROW;
+  return { at: hit.at, seat: hit.seat };
+}
+export function anchorGround(state: RunState, enemy: Enemy): void {
+  if (!GROUND_KINDS.has(enemy.kind) || enemy.bossPart || !enemy.formation) return;
+  // The track scrolls with the world, so the anchor is solved at the moment the track crosses MATCH_ROW (`ahead` units of
+  // scroll from now), with the camera of now.
+  const ahead = enemy.s - MATCH_ROW;
+  const { at, seat } = lineOfSightGround(state, enemy.x, ahead, enemy.groundHeight), dx = at.x - enemy.x, ds = at.s - MATCH_ROW;
   enemy.ground = { dx, ds, x: enemy.x + dx, s: enemy.s + ds, base: seat.base, afloat: seat.afloat, cameraX: state.cameraX };
   projectGround(state, enemy);
 }
