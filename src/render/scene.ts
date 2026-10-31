@@ -531,6 +531,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     lift: new THREE.Color(.007, .0038, .0018), saturation: 1.0, contrast: 1.07, vignette: .24, haze: new THREE.Vector4(0, 0, 0, 0),
     fogColor: new THREE.Color(), fogHeight: new THREE.Vector3(), fogDistance: new THREE.Vector3() });
   const materials = createMaterials();
+  /** Shadow-depth materials of the craft batches, one per source material (casterDepthOf). */
+  const casterDepths = new Map<THREE.Material, THREE.MeshDepthMaterial>();
   const bastion = createBastionView(scene);
   const terrainMaterials = createTerrainMaterials();
   const groundMaterial = terrainMaterials.ground, kitMaterial = terrainMaterials.kit;
@@ -788,7 +790,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
     // Every craft casts into the High shadow map and takes shadows, like the hero (polish pass, 30 October: the
     // flying craft's blob shadows read "whack" beside the hero's real one); Low draws sun-placed blobs for all.
-    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
     let ghost: THREE.InstancedMesh | undefined;
     // The see-through silhouette marks hidden threats; harmless fuel skids go without (their buried half read as wood).
     if (GROUND_KINDS.has(kind) && kind !== 'fuel') {
@@ -829,7 +831,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (!craft) continue;
       const mesh = new THREE.InstancedMesh(craft.geometry, materials.prop, WRECK_CAPACITY);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Wreck ${name}`;
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
       for (let i = 0; i < WRECK_CAPACITY; i++) mesh.setColorAt(i, WHITE);
       scene.add(mesh); wreckBatches.set(name, mesh);
     }
@@ -872,7 +874,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (mesh) { scene.remove(mesh); mesh.dispose(); }
       mesh = new THREE.InstancedMesh(geometry, sharedMaterial, 48);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Emplacement ${node}`;
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
       for (let i = 0; i < 48; i++) mesh.setColorAt(i, WHITE);
       scene.add(mesh); emplacementBatches.set(node, mesh);
     }
@@ -902,7 +904,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const ground = name === groundNode;
       const mesh = new THREE.InstancedMesh(craft.geometry, material, ENEMY_CAPACITY);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `${label} ${name}`;
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
       for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
       mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
       let ghost: THREE.InstancedMesh | undefined;
@@ -963,7 +965,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (!geometry) continue;
         const mesh = new THREE.InstancedMesh(geometry, materials.enemyCraft, ENEMY_CAPACITY);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${kind} craft`;
-        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
         let ghost: THREE.InstancedMesh | undefined;
         if (GROUND_KINDS.has(kind)) {
           mesh.renderOrder = 2;
@@ -1096,6 +1098,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const reducedMotion = () => query.get('motion') === 'reduce' || !!motionQuery?.matches;
   let jumpActive = false, lastRenderTime = 0, warmedJump = -1, hiddenWarm = false;
   const knownPrograms = new WeakSet<object>();
+  /**
+   * Each craft material's own shadow-depth material (performance, 31 October). three.js shares one depth material across
+   * casters and only copies each one's texture onto it, without choosing a new program for it, so which variant compiled
+   * depended on the draw order: the launch warm-up compiled the dart batch's without its texture and the first dart then
+   * compiled the real one mid-flight (480 ms). A depth material per source material always carries the same texture.
+   */
+  function casterDepthOf(material: THREE.Material): THREE.MeshDepthMaterial {
+    let depth = casterDepths.get(material);
+    if (!depth) { depth = new THREE.MeshDepthMaterial(); casterDepths.set(material, depth); }
+    return depth;
+  }
   const transform = new THREE.Object3D(), color = new THREE.Color();
   /** Per-frame scratch (reused, never reallocated): instance counts per batch and the live enemy ids. */
   const counts = new Map<THREE.InstancedMesh, number>(), liveIds = new Set<number>();
@@ -1433,6 +1446,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const restore: [THREE.Object3D, boolean, boolean][] = [];
         scene.traverse(object => { restore.push([object, object.visible, object.frustumCulled]); object.visible = true; object.frustumCulled = false; });
         for (const piece of pieces) piece.traverse(object => { if (!restore.some(([seen]) => seen === object)) restore.push([object, object.visible, object.frustumCulled]); object.visible = true; object.frustumCulled = false; });
+        // An empty batch draws one instance while warming: every pass, the shadow pass's depth programs included, then
+        // compiles it (performance, 31 October: a dart batch's shadow program compiled on the first dart, 480 ms).
+        const emptied: THREE.InstancedMesh[] = [];
+        scene.traverse(object => { if ((object as THREE.InstancedMesh).isInstancedMesh && (object as THREE.InstancedMesh).count === 0) { (object as THREE.InstancedMesh).count = 1; emptied.push(object as THREE.InstancedMesh); } });
         // Upload decoded atlases now, including hidden facility/boss materials. Shader compilation
         // alone does not upload textures and otherwise defers that cost to the first visible draw.
         scene.traverse(object => {
@@ -1457,6 +1474,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           renderer.setRenderTarget(null);
         }
         for (const [object, visible, culled] of restore) { object.visible = visible; object.frustumCulled = culled; }
+        for (const mesh of emptied) mesh.count = 0;
         warmed = true; lastStatsTick = -Infinity;
       }
       placeSun(state.cameraX, state.distance);
