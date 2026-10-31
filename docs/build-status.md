@@ -1,6 +1,27 @@
 # Build status
 
 
+## Warp edge, messages, side routes, polish pass part 1, 31 October 2026
+
+Live as `fa4c8c6`.
+
+- **Endless warp** (user: the old level "visible in the lower half of the screen, with a clear cut"): after the flash the veil keeps covering the old planet short of the switch, with a soft edge, until it leaves the view.
+- **Messages:**
+  - Wave and boss hints show on Luna only.
+  - Overload texts name the moves each boss actually cycles.
+  - Site messages highlight the site's name, its side and its loot in the pickup icons' tints, with no question marks.
+  - A grey "?" marks a live site off either edge of the screen.
+- **Polish pass, part 1** (an agent; stopped early at the user's request, so partial):
+  - Enemy batches cast and receive shadows like the hero on High.
+  - Low's blob shadows fall along each planet's sun.
+  - Only live instances are uploaded, and empty batches are hidden.
+  - The menu globe bakes only in idle time.
+  - A perf bench: `tools/perf-bench.mjs`.
+  - No valid before/after timing yet (machine load).
+- **Gate on `fa4c8c6`:** typecheck; unit 650 passed, 2 skipped; build; browser 47/48 in the full run. The failure was the endless steering check, which timed out under load; the flight spec then passed 7/7 on rerun (Playwright exit 0).
+- **Live:** Pages run 41148170442 succeeded; the live bundles match the build; the endless smoke test has zero errors.
+- **Not checked:** no phone test.
+
 ## Release: strike sites, parts, the encounter deck, chassis perks, 30 October 2026
 
 One gate and one deploy for everything (user: "do not run gates or anything, we do thjat in the very end deploying all features"). Live as `0aeb470`.
