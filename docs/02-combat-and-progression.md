@@ -78,7 +78,7 @@ Speed is units/s; acceleration/braking units/s², at campaign pace 1. Endless sc
 
 Example builds: Pulse + Shockwave + Standard + Balanced for general use; Rail + Siege Lance + Flux + Precision for deliberate alignment; Scatter + Seekers + Bulwark + Vector for lateral sweeps.
 
-Main weapon ranks are 0–3, each adding 8% of base damage additively, at 150/300/500 credits. Rank 3 = ×1.24. Specials and both tech slots are sidegrades without extra upgrade trees in this release. Main ranks apply only to campaign. All equipment is obtainable through campaign credits without random blueprints or required achievements.
+**Superseded (31 October 2026):** main weapons have five shared firing tiers in both modes, bought in the campaign for 150/300/500/800 credits; damage per projectile is fixed and the tiers add rate and projectiles ([campaign expansion](30-campaign-expansion.md#main-weapons--four-upgrades-five-tiers)). The original proposal: main weapon ranks are 0–3, each adding 8% of base damage additively, at 150/300/500 credits. Rank 3 = ×1.24. Specials and both tech slots are sidegrades without extra upgrade trees in this release. Main ranks apply only to campaign. All equipment is obtainable through campaign credits without random blueprints or required achievements.
 
 ## 5. Campaign economy
 
@@ -103,7 +103,7 @@ Target roughly 300–450 credits for first clears and 160–260 for repeat clear
 
 Every run starts with Pulse tier I, ready Shockwave, Standard Array at three charges, Balanced Drive, and three lives. Campaign difficulty, purchases, rank, objectives, stats, coins, and completion cannot affect start state, handling, choice pools, drops, routes, biomes, or scoring. Endless never advances campaign goals or grants campaign coins.
 
-Run-only power pips take the main through five tiers: ×1.00, ×1.15, ×1.35, ×1.55, ×1.80. Switching main preserves tier; death loses one pip. Tier III and V add characteristic projectiles/piercing/chain behavior within that total damage budget. No recursive extra-hit multiplication. Show a short acquisition message and pause detail, not a permanent power meter.
+**Superseded (31 October 2026):** endless power takes the main through the same five firing tiers as the campaign ([campaign expansion](30-campaign-expansion.md#main-weapons--four-upgrades-five-tiers)); changing weapon resets to tier 1. The original proposal: run-only power pips take the main through five tiers: ×1.00, ×1.15, ×1.35, ×1.55, ×1.80. Switching main preserves tier; death loses one pip. Tier III and V add characteristic projectiles/piercing/chain behavior within that total damage budget. No recursive extra-hit multiplication. Show a short acquisition message and pause detail, not a permanent power meter.
 
 Gun capsules require deliberate collection, then pause for Equip or Convert to power. A duplicate becomes power automatically; excess power at tier V becomes 1,000 score. At sector boundaries offer three distinct choices from main family, power, or special swap; always include something useful. Do not offer automatic shield refills at sector boundaries; shield recovery stays pickup-only. No passive modules or tech upgrades: shield/reactor stay Standard/Balanced throughout this version of endless. Guarantee a power opportunity by 20 active seconds and a weapon opportunity by 30 seconds.
 

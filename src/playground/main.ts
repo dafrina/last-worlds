@@ -25,7 +25,7 @@ import { missionBoss } from '../content/bosses';
 import { createRenderer, type PlanetLook } from '../render/scene';
 import type { BossPart, GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';
 import { ENEMIES, WEAPONS } from '../content/balance';
-import { SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
+import { MAX_RANK, SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
 import { EMPTY_INPUT, STEP, VIEW } from '../shared/contracts';
 import { FORMATIONS } from '../content/formations';
 import { ROSTER, hunterKind, modelOf, statsLine, viewerModels, WORLDS } from './roster';
@@ -125,7 +125,7 @@ interface ViewSettings {
   mission: Mission; distance: number; x: number; fly: boolean; speed: number; quality: GraphicsQuality; ship: boolean; seed: number; boss: boolean;
   /** The enemy lab is live (enemies over the map, the world flying on); the open tab; the viewer's model and light. */
   lab: boolean; tab: Tab; model: string; wire: boolean; spin: boolean; worldLight: boolean;
-  /** Weapons tab: the hero's main weapon and tier (0–2), and its special; the hero fires in the lab while that tab is open. */
+  /** Weapons tab: the hero's main weapon and tier (0–4), and its special; the hero fires in the lab while that tab is open. */
   weapon: WeaponId; tier: number; special: SpecialId;
   /** Sites tab: the lab's world holds still (no simulation steps) for a steady look at a site. */
   hold: boolean;
@@ -267,7 +267,7 @@ function buildWeapons() {
     <p class="pg-note">Steer with "Ship x" (Level tab) or the buttons below. Targets drift down from the top.</p>
     <h4>Main weapon</h4>
     <div class="pg-row pg-wrap">${WEAPON_IDS.map(id => `<button type="button" data-weapon="${id}"${on(id === view.weapon)}>${WEAPONS[id].label}</button>`).join('')}</div>
-    <div class="pg-row pg-wrap">${[0, 1, 2].map(tier => `<button type="button" data-tier="${tier}"${on(tier === view.tier)}>Tier ${tier + 1}</button>`).join('')}</div>
+    <div class="pg-row pg-wrap">${Array.from({ length: MAX_RANK + 1 }, (_, tier) => `<button type="button" data-tier="${tier}"${on(tier === view.tier)}>Tier ${tier + 1}</button>`).join('')}</div>
     <p class="pg-dim">${WEAPON_BLURB[view.weapon]} ${WEAPON_TIERS[view.weapon][view.tier]} · ${weapon.damage} a hit · range ${weapon.range}</p>
     <h4>Special</h4>
     <div class="pg-row pg-wrap">${SPECIAL_IDS.map(id => `<button type="button" data-special="${id}"${on(id === view.special)}>${SPECIALS[id].label}</button>`).join('')}</div>

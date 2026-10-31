@@ -102,9 +102,10 @@ describe('ship parts and v1 migration', () => {
     const store = createCampaignProfile({ ...storage, setItem() { throw new Error('full'); } });
     expect(store.status()).toBe('session');
     expect(store.read().credits).toBe(1850);
-    store.upgrade('fan');
+    // Since tiers 4 and 5 (31 October) the migrated rank-2 Fan can still be upgraded: in this session only.
+    expect(store.upgrade('fan')).toBe(true);
     expect(storage.getItem(CAMPAIGN_KEY)).toBe(raw);
-    expect(store.read().credits).toBe(1850);
+    expect(store.read().credits).toBe(1850 - RANK_PRICES[2]);
   });
 
   it('collects named parts on clears only, assembles once, and persists the selected chassis', () => {
@@ -128,18 +129,49 @@ describe('ship parts and v1 migration', () => {
     expect(campaignConfig(createCampaignProfile(storage).read(), 'training', 'standard', 1).ship).toBe('ironclad');
   });
 
-  it('enforces the two-upgrade limit and sequential shield purchases', () => {
+  it('enforces the four-upgrade limit at the documented prices, and sequential shield purchases', () => {
+    // Tiers 2-5 (docs/30; tiers 4 and 5 since 31 October).
+    expect(RANK_PRICES).toEqual([150, 300, 500, 800]);
     const profile = freshProfile(); profile.credits = 5000;
     const store = createCampaignProfile(memory(JSON.stringify(profile)));
     expect(store.buy('shield', 'aegis')).toBe(false);
     expect(store.buy('shield', 'bulwark')).toBe(true);
     expect(store.buy('shield', 'aegis')).toBe(true);
-    expect(store.upgrade('pulse')).toBe(true);
-    expect(store.upgrade('pulse')).toBe(true);
+    for (const [rank, price] of RANK_PRICES.entries()) {
+      const before = store.read().credits;
+      expect(store.upgrade('pulse')).toBe(true);
+      expect(store.read()).toMatchObject({ credits: before - price, ranks: { pulse: rank + 1 } });
+    }
     const balance = store.read().credits;
     expect(store.upgrade('pulse')).toBe(false);
-    expect(store.read().credits).toBe(balance);
+    expect(store.read()).toMatchObject({ credits: balance, ranks: { pulse: 4 } });
+    expect(campaignConfig(store.read(), 'training', 'standard', 1).rank).toBe(4);
     expect(store.buy('weapon', 'ironclad')).toBe(false);
+  });
+
+  it('cannot buy a tier it cannot afford, and an unowned weapon has no upgrades', () => {
+    const profile = freshProfile(); profile.credits = 799; profile.ranks.pulse = 3;
+    const store = createCampaignProfile(memory(JSON.stringify(profile)));
+    expect(store.upgrade('pulse')).toBe(false);
+    expect(store.upgrade('fan')).toBe(false);
+    expect(store.read()).toMatchObject({ credits: 799, ranks: { pulse: 3, fan: 0 } });
+  });
+
+  it('loads saves at every rank up to tier 5 unchanged; a rank beyond it is unreadable and never overwritten', () => {
+    // A save from before tiers 4 and 5 (ranks 0-2) loads as it was.
+    const old = freshProfile(); old.credits = 40; old.ranks = { pulse: 2, fan: 1, seeker: 0, rail: 2 };
+    const oldStorage = memory(JSON.stringify(old));
+    expect(createCampaignProfile(oldStorage).read()).toMatchObject({ credits: 40, ranks: { pulse: 2, fan: 1, seeker: 0, rail: 2 } });
+    expect(oldStorage.getItem(CAMPAIGN_KEY)).toBe(JSON.stringify(old));
+    const top = freshProfile(); top.ranks = { pulse: 4, fan: 3, seeker: 0, rail: 0 };
+    const store = createCampaignProfile(memory(JSON.stringify(top)));
+    expect(store.status()).toBe('saved');
+    expect(store.read().ranks).toEqual({ pulse: 4, fan: 3, seeker: 0, rail: 0 });
+    const beyond = freshProfile(); beyond.ranks.pulse = 5;
+    const raw = JSON.stringify(beyond), storage = memory(raw), broken = createCampaignProfile(storage);
+    expect(broken.status()).toBe('unreadable');
+    broken.settle(clear('beyond'));
+    expect(storage.getItem(CAMPAIGN_KEY)).toBe(raw);
   });
 
   it('loads a version-2 save written before the Rail Driver existed, its rank starting at 0, and keeps it intact', () => {

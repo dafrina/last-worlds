@@ -381,8 +381,11 @@ button:disabled { cursor: default; }
 .hangar-item p { margin: 0 0 10px; color: #9db0c5; font-size: 11px; line-height: 1.45; }
 .hangar-row, .hangar-rank { display: flex; align-items: center; gap: 10px; }
 .hangar-rank { margin-top: 10px; padding-top: 10px; border-top: 1px solid #1d3550; color: #8fa9c5; font: 8px / 1 var(--mono); letter-spacing: 1px; }
+/* Five tiers (docs/30): label, pips and button on one line even at 360 px; a top-tier row (no button) keeps the button's height. */
+.rank-label, .hangar-action.upgrade { white-space: nowrap; }
+.hangar-rank { min-height: 47px; }
 .rank-pips { display: flex; gap: 4px; margin-right: auto; }
-.rank-pips i { width: 14px; height: 4px; background: #2a4058; }
+.rank-pips i { width: 10px; height: 4px; background: #2a4058; }
 .rank-pips i.on { background: #9fe4ff; box-shadow: 0 0 6px #7fd8ff; }
 .hangar-tag { color: #9fe4ff; font: 9px / 1 var(--mono); letter-spacing: 1.4px; text-shadow: 0 0 8px #7fd8ff; }
 .hangar-action {

@@ -30,7 +30,7 @@ import { createFoam, createWater, type FoamRing } from './water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
 import { createPostPipeline } from './post-pipeline';
-import { createFx, type Plume } from './fx-particles';
+import { createFx, shotHeat, type Plume } from './fx-particles';
 import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
@@ -1849,6 +1849,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
       }
       let friendlyCount = 0, hostileCount = 0, missileCount = 0;
+      // Main-weapon tiers 4 and 5 draw hotter and larger (fx-particles `shotHeat`); everything in flight follows the current tier.
+      const heat = shotHeat(state.player.power);
       // Hostile shots are warm everywhere but Amnion, whose glowing yolk canyons are warm themselves: there they are violet
       // with a pale core, apart from the yolk and from the player's own white-cyan shots (docs/27).
       hostileMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[0] : HOSTILE_WARM[0]); hostileCoreMaterial.color.setHex(planet === 'amnion' ? HOSTILE_BLOOD[1] : HOSTILE_WARM[1]);
@@ -1873,7 +1875,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           strip(xa, sa, xb, sb, .04, 0xffffff, flashLanes, glow * 1.5);
         }
         // The slug itself: a white-hot streak at the head while it flies.
-        if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2), trail.x, head, .17, 0xffffff, flashLanes, 2.6);
+        if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2 * heat.grow), trail.x, head, .17 * heat.grow, 0xffffff, flashLanes, 2.6);
       }
       // Interceptor Barrel Roll: two speed streaks from where the dash started to the ship's trailing wing, fading out.
       const dash = state.player.dash, dashFade = dash ? 1 - (state.time - dash.startedAt) / DASH_STREAK : 0;
@@ -1910,9 +1912,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           if (missileCount < missiles.instanceMatrix.count) missiles.setMatrixAt(missileCount++, transform.matrix);
         } else if (shot.friendly) {
           if (brightGround && friendlyCount < friendly.instanceMatrix.count) {
-            transform.scale.set(.1, .05, .36); transform.updateMatrix(); friendlyOutline.setMatrixAt(friendlyCount, transform.matrix);
+            transform.scale.set(.1 * heat.grow, .05, .36 * heat.grow); transform.updateMatrix(); friendlyOutline.setMatrixAt(friendlyCount, transform.matrix);
           }
-          transform.scale.set(.045, .045, .27); transform.updateMatrix();
+          transform.scale.set(.045 * heat.grow, .045, .27 * heat.grow); transform.updateMatrix();
           if (friendlyCount < friendly.instanceMatrix.count) friendly.setMatrixAt(friendlyCount++, transform.matrix);
         } else {
           transform.scale.set(shot.radius * 1.25, .08, shot.radius * 1.65); transform.updateMatrix();
@@ -1935,6 +1937,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       liveInstances(friendly, friendlyCount); liveInstances(hostile, hostileCount); liveInstances(hostileCores, hostileCount);
       liveInstances(friendlyOutline, brightGround ? friendlyCount : 0);
       friendlyMaterial.color.setHex(brightGround ? 0x1fd2ff : 0xbcfff8);
+      if (!brightGround) friendlyMaterial.color.multiplyScalar(heat.energy);
 
       pickupBatches.forEach(mesh => { mesh.count = 0; });
       for (const pickup of state.pickups) {
