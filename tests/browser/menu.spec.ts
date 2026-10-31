@@ -15,6 +15,7 @@ test('home stays compact on phones and campaign setup has its own page', async (
     expect(await page.locator('.flight-overlay').evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true);
     expect(await page.locator('#game-title').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(page.getByRole('button', { name: /^HANGAR/ })).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: info.outputPath(`menu-${viewport.width}.png`) });
   }
   await page.setViewportSize({ width: 390, height: 844 });
@@ -35,6 +36,49 @@ test('home stays compact on phones and campaign setup has its own page', async (
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await expect(page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true })).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse');
+  expect(errors).toEqual([]);
+});
+
+test('the front screen opens the hangar, which says what flies where, and back returns to its opener', async ({ page }, info) => {
+  // Two hangar visits on the Ships tab (each draws the ship's picture): about 20 s under software WebGL.
+  test.setTimeout(60000);
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await seedCampaign(page);
+  await page.goto('/');
+  const entry = page.getByRole('button', { name: /^HANGAR/ });
+  await expect(entry).toContainText('SCRAPPER · SALVAGE RIG');
+  // Keyboard order: the two modes, the hangar, then statistics.
+  await page.getByRole('button', { name: 'ENDLESS', exact: true }).focus();
+  await page.keyboard.press('Tab');
+  await expect(entry).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'STATISTICS' })).toBeFocused();
+  await entry.click();
+  await expect(page.getByRole('heading', { name: 'HANGAR' })).toBeVisible();
+  await expect(page.locator('.menu-panel')).toBeHidden();
+  await expect(page.locator('.hangar-scope')).toHaveText('CAMPAIGN ONLY · ENDLESS USES STARTER GEAR');
+  await page.getByRole('radio', { name: 'Ships', exact: true }).click();
+  await expect(page.locator('.hangar-scope')).toHaveText('CAMPAIGN AND ENDLESS · SHIP, PERK AND LOOKS');
+  await page.locator('.hangar-item', { has: page.getByRole('heading', { name: 'Ironclad', exact: true }) }).getByRole('button', { name: 'EQUIP' }).click();
+  await expect(page.locator('.shipyard')).toContainText('IRONCLAD · YOUR BUILD');
+  await page.getByRole('button', { name: 'BACK' }).click();
+  await expect(page.locator('.menu-panel')).toBeVisible();
+  await expect(entry).toBeFocused();
+  await expect(entry).toContainText('IRONCLAD · RESERVE LIFE');
+  await page.screenshot({ path: info.outputPath('front-hangar-entry.png') });
+  // Reopened by keyboard on the Ships tab, the shipyard shows again; Escape returns to the front screen too.
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'HANGAR' })).toBeVisible();
+  await expect(page.locator('.shipyard')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(entry).toBeFocused();
+  // Opened from the campaign page's loadout summary, back returns to the campaign page.
+  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: /Open the hangar/ }).click();
+  await page.getByRole('button', { name: 'BACK' }).click();
+  await expect(page.getByRole('heading', { name: 'CAMPAIGN', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Open the hangar/ })).toBeFocused();
+  await expect(page.locator('[data-loadout="ship"]')).toHaveText('Ironclad');
   expect(errors).toEqual([]);
 });
 

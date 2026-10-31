@@ -5,10 +5,11 @@ import { flying } from './launch';
 test('hangar selector identifies every global ship perk', async ({ page }, info) => {
   test.setTimeout(60000);
   await seedCampaign(page, p => { p.owned.ship = ['scrapper', 'ironclad', 'interceptor', 'spectre']; });
+  // Perks fly in both modes, so the front screen's hangar entry is the way in (user, 31 October).
   await page.goto('/');
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
-  await page.getByRole('button', { name: /Open the hangar/ }).click();
+  await page.getByRole('button', { name: /^HANGAR/ }).click();
   await page.getByRole('radiogroup', { name: 'Equipment slot' }).getByRole('radio', { name: 'Ships', exact: true }).click();
+  await expect(page.locator('.hangar-scope')).toContainText('CAMPAIGN AND ENDLESS');
   for (const perk of ['Salvage Rig', 'Reserve Life', 'Barrel Roll', 'Gravitic Shield']) {
     await expect(page.locator('.hangar-item').filter({ hasText: perk })).toContainText('both modes');
   }

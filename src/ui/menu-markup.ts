@@ -5,6 +5,8 @@ export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thu
 const creditGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 11 6 6 11 1 6Z"/></svg>';
 /** Parts (docs/33): an octagonal nut, as on the part pickup. */
 const partGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M4 1H8L11 4V8L8 11H4L1 8V4ZM6 4A2 2 0 1 0 6.01 4Z"/></svg>';
+/** A ship: the HUD's lives icon and the equipped ship on the front screen's hangar entry. */
+export const shipGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 15 10 21 15 21 19 14 17 14 21 10 21 10 17 3 19 3 15 9 10Z"/></svg>';
 
 /**
  * A segmented selector (no dropdowns): one radio button per choice, the checked one lit with a glowing indicator.
@@ -25,6 +27,12 @@ export const menuMarkup = `
     <nav class="menu-launches" aria-label="Game modes">
       <button type="button" class="arcade-button primary" data-action="campaign"><span>CAMPAIGN FLIGHT</span><span class="button-arrow" aria-hidden="true">↗</span></button>
       <button type="button" class="arcade-button secondary" data-action="endless"><span>ENDLESS</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+    </nav>
+    <nav class="menu-hangar" aria-label="Hangar">
+      <button type="button" class="hangar-entry" data-action="menu-hangar">
+        <span class="hangar-entry-title">HANGAR</span><span class="hangar-entry-arrow" aria-hidden="true">›</span>
+        <span class="hangar-entry-ship">${shipGlyph}<span data-home="ship"></span></span>
+      </button>
     </nav>
     <nav class="menu-utility" aria-label="Flight command"><button type="button" data-action="statistics">STATISTICS</button><button type="button" data-action="settings">SETTINGS</button></nav>
     <div class="menu-footer"><span>FLIGHT PROTOTYPE</span><button type="button" data-action="help">HOW TO PLAY <span aria-hidden="true">?</span></button></div>
@@ -51,10 +59,11 @@ export const menuMarkup = `
     <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH MISSION <span aria-hidden="true">↗</span></button>
   </section>
   <section class="hangar-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="hangar-title" hidden>
-    <button type="button" class="back-button" data-back="campaign-panel">← BACK</button>
-    <div class="eyebrow campaign-eyebrow"><span>CAMPAIGN</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
+    <button type="button" class="back-button" data-back>← BACK</button>
+    <div class="eyebrow campaign-eyebrow"><span>FLIGHT COMMAND</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
     <h2 id="hangar-title">HANGAR</h2>
     ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['ship', 'Ships']], 'weapon')}
+    <p class="hangar-scope"><b class="hangar-scope-mode"></b> · <span class="hangar-scope-what"></span></p>
     <section class="shipyard" aria-label="Shipyard" hidden></section>
     <ul class="hangar-items" aria-live="polite"></ul>
     <p class="panel-note hangar-note">Credits come from campaign missions. Changing equipped gear is free.</p>
