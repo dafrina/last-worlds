@@ -178,11 +178,14 @@ describe('shared five-tier weapons (docs/30)', () => {
     }
   });
 
-  it('upgrade and duplicate-weapon pickups advance tiers to tier 5; changing weapons always resets to tier one', () => {
+  it('upgrade and duplicate-weapon pickups advance tiers to tier 5, two cells each for tiers 4 and 5; changing weapons always resets to tier one', () => {
     const state = arena('pulse', 0, true); state.nextVolleyAt = Infinity;
     collect(state, 'power'); expect(state.player.power).toBe(1);
     collect(state, 'weapon', 'pulse'); expect(state.player.power).toBe(2);
+    collect(state, 'power'); expect(state.player.power).toBe(2);
+    expect(state.message).toBe('POWER 1/2 · TIER 4');
     collect(state, 'power'); expect(state.player.power).toBe(3);
+    collect(state, 'weapon', 'pulse'); expect(state.player.power).toBe(3);
     collect(state, 'power'); expect(state.player.power).toBe(4);
     expect(state.message).toBe('WEAPON TIER 5');
     // Capped at tier 5: a further cell or duplicate is worth 1,000 score.

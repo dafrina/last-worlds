@@ -26,6 +26,12 @@ export const WEAPON_BLURB: Readonly<Record<WeaponId, string>> = {
  */
 export const RANK_PRICES = [150, 300, 500, 800] as const;
 export const MAX_RANK = RANK_PRICES.length;
+/**
+ * Endless: power cells (or duplicate weapons) a step to the next tier takes, from tier 1 up: tiers 2 and 3 take one each,
+ * tiers 4 and 5 two each (user, 31 October: "Two cells per tier"; with one, every test run reached tier 5 after about four
+ * minutes and the Bastion-9 and Helion Ark fights took half as long).
+ */
+export const ENDLESS_TIER_CELLS = [1, 1, 2, 2] as const;
 export const weaponRank = (rank: number) => Number.isFinite(rank) ? Math.max(0, Math.min(MAX_RANK, Math.floor(rank))) : 0;
 export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
   pulse: ['Twin bolts', 'Rapid twin bolts', 'Four-shot burst', 'Rapid four-shot burst', 'Four-stream burst'],

@@ -7,7 +7,7 @@ import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
 import { runPlanet } from '../content/missions';
-import { SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
+import { SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, ENDLESS_TIER_CELLS, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
 import { validLook } from '../content/hero-parts';
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, showsHints, startBoss, updateBoss } from './bastion';
@@ -629,7 +629,7 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
     state.boss.attack = null; state.boss.attackerId = null; state.boss.nextAttackAt = state.time + BALANCE.respawn.invulnerability;
     state.boss.nextLaunchAt = Math.max(state.boss.nextLaunchAt, state.time + BALANCE.respawn.invulnerability);
   }
-  if (state.config.mode === 'endless') player.power = Math.max(0, player.power - 1);
+  if (state.config.mode === 'endless') { player.power = Math.max(0, player.power - 1); player.powerCells = 0; }
   setMessage(state, 'FIGHTER RESTORED', 2);
 }
 
@@ -858,7 +858,7 @@ function updatePickups(state: RunState, dt: number): void {
       case 'weapon':
         if (state.config.mode === 'endless' && pickup.weapon) {
           if (state.player.weapon === pickup.weapon) givePower(state);
-          else { state.player.weapon = pickup.weapon; state.player.power = 0; state.mainSequence = undefined; state.nextVolleyAt = state.time; setMessage(state, `${WEAPONS[pickup.weapon].label.toUpperCase()} EQUIPPED`, 2.5); }
+          else { state.player.weapon = pickup.weapon; state.player.power = 0; state.player.powerCells = 0; state.mainSequence = undefined; state.nextVolleyAt = state.time; setMessage(state, `${WEAPONS[pickup.weapon].label.toUpperCase()} EQUIPPED`, 2.5); }
         }
         break;
     }
@@ -879,9 +879,13 @@ function dropAceReward(state: RunState, enemy: Enemy): void {
 }
 
 function givePower(state: RunState): void {
-  if (state.player.power < MAX_RANK) state.player.power += 1;
-  else state.score += 1000;
-  setMessage(state, `WEAPON TIER ${state.player.power + 1}`, 2);
+  const player = state.player;
+  if (player.power >= MAX_RANK) { state.score += 1000; setMessage(state, `WEAPON TIER ${player.power + 1}`, 2); return; }
+  // Tiers 4 and 5 take two cells each (ENDLESS_TIER_CELLS): the first is banked and shown.
+  const needed = ENDLESS_TIER_CELLS[player.power], banked = (player.powerCells ?? 0) + 1;
+  if (banked < needed) { player.powerCells = banked; setMessage(state, `POWER ${banked}/${needed} · TIER ${player.power + 2}`, 2); return; }
+  player.power += 1; player.powerCells = 0;
+  setMessage(state, `WEAPON TIER ${player.power + 1}`, 2);
 }
 
 function updateResources(state: RunState, dt: number): void {

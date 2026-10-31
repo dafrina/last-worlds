@@ -75,6 +75,8 @@ export interface Player {
   x: number; vx: number; lives: number; shields: number; maxShields: number;
   specialCharge: number; invulnerableUntil: number; lastHitAt: number;
   weapon: WeaponId; power: number;
+  /** Endless: cells banked toward the next tier where it takes two (content/equipment.ts ENDLESS_TIER_CELLS). */
+  powerCells?: number;
 }
 /** Authored squadron membership. Motion and fire timing derive from the content template. */
 /** `anchorS` shifts the template's forward keyframes (launches from a moving boss bay); zero when absent. */
