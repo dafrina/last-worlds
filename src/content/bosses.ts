@@ -24,6 +24,18 @@ import { DEPARTURE } from './departure';
  */
 export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'burst' | 'fan' | 'spiral';
 
+export interface BossPartSpec { x: number; s: number; radius: number; hp: number }
+
+/**
+ * A boss's first-phase targets, in spawn and attack-rotation order: the first pair, then THE ECLIPSE's prow vent where the
+ * boss has one. Every other boss keeps exactly its pair.
+ */
+export function phaseOneParts(def: Pick<BossDefinition, 'parts'>): readonly Exclude<BossPart, 'core'>[] {
+  return def.parts.prow ? ['left', 'right', 'prow'] : ['left', 'right'];
+}
+/** Every module a boss spawns, in order: its first-phase targets, then the core. */
+export const bossParts = (def: Pick<BossDefinition, 'parts'>): readonly BossPart[] => [...phaseOneParts(def), 'core'];
+
 export interface BossDefinition {
   id: BossId;
   name: string;
@@ -33,7 +45,8 @@ export interface BossDefinition {
   entryS: number;
   row: number;
   targetHeight: number;
-  parts: Readonly<Record<BossPart, { x: number; s: number; radius: number; hp: number }>>;
+  /** Its modules relative to the pivot. `prow` (THE ECLIPSE only) joins the first pair's phase as a third target. */
+  parts: Readonly<Record<Exclude<BossPart, 'prow'>, BossPartSpec>> & { readonly prow?: BossPartSpec };
   /** First-pair attack: Bastion fires aimed bursts, the Ark fires narrow lane lasers. */
   pairAttack: 'burst' | 'laser';
   /** Main-target attack: Bastion alternates its fixed fan with an aimed burst; the Ark fires aimed bursts. */
@@ -200,6 +213,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       left: { x: -ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
       right: { x: ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
       core: { x: 0, s: ECLIPSE.reactorS, radius: ECLIPSE.reactorRadius, hp: ECLIPSE.reactorHp },
+      prow: { x: 0, s: ECLIPSE.prowS, radius: ECLIPSE.prowRadius, hp: ECLIPSE.ventHp },
     },
     pairAttack: 'burst', coreAttack: 'fan-burst',
     warning: ECLIPSE.warning, laser: null, beamWarning: ECLIPSE.beamWarning, overload: ECLIPSE.overload,
@@ -208,12 +222,13 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     spiral: { arms: 4, turn: -2.05, interval: 0.16, duration: 2.6, speed: 5 },
     recovery: ECLIPSE.recovery, transitionRecovery: ECLIPSE.transitionRecovery,
     overloadFraction: ECLIPSE.overloadFraction, extractionDuration: DEPARTURE.duration,
+    // Its prow vent (the third first-phase target, user 31 October) fires the vents' aimed burst in their rotation.
     bursts: { pair: ECLIPSE.ventBurst, core: ECLIPSE.reactorBurst }, fan: ECLIPSE.reactorFan,
     // Drone waves from its vents while its reactor is open, and more once it overloads.
     launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: ECLIPSE.bays },
     arena: ECLIPSE.arena, shieldSupplies: ECLIPSE.shieldSupplies,
     messages: {
-      start: 'THE ECLIPSE · BREAK BOTH ENERGY VENTS', batteries: 'BREAK BOTH ENERGY VENTS', core: 'THE REACTOR IS OPEN',
+      start: 'THE ECLIPSE · BREAK ALL THREE ENERGY VENTS', batteries: 'BREAK ALL THREE ENERGY VENTS', core: 'THE REACTOR IS OPEN',
       overload: 'REACTOR OVERLOAD · SPIRALS AND LANES', destroyed: 'THE ECLIPSE IS FALLING · JUMP',
       approach: 'THE LIGHT IS DYING · THE ECLIPSE AWAKENS',
     },

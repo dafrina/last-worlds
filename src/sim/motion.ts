@@ -151,9 +151,10 @@ export function bossPose(boss: Pick<BossState, 'originX' | 'startedAt' | 'id' | 
   return { x: boss.originX + Math.sin(fight * arena.swayRate) * arena.sway, s };
 }
 
-/** Logical position of a boss module relative to the boss pivot. */
+/** Logical position of a boss module relative to the boss pivot (a `prow` only exists on THE ECLIPSE). */
 export function bossPartOffset(part: NonNullable<Enemy['bossPart']>, id: BossId = 'bastion'): { x: number; s: number } {
   const offset = BOSSES[id].parts[part];
+  if (!offset) throw new Error(`${id} has no ${part} module`);
   return { x: offset.x, s: offset.s };
 }
 

@@ -3,7 +3,7 @@ import { REWARDS } from '../content/equipment';
 import { departure } from '../content/departure';
 import { BALANCE, FAIRNESS } from '../content/balance';
 import { ENDLESS_CYCLE } from '../content/endless';
-import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, missionBoss, type BossDefinition } from '../content/bosses';
+import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, bossParts, missionBoss, phaseOneParts, type BossDefinition } from '../content/bosses';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
 import { clamp } from './geometry';
 import { bossPartOffset, bossPose } from './motion';
@@ -93,8 +93,9 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
   clearThreats(state);
   // Campaign difficulty, or the endless ramp at this sector.
   const scale = runScale(state).hp;
-  for (const part of ['left', 'right', 'core'] as const) {
-    const spec = def.parts[part], hp = spec.hp * scale * BOSS_TOUGHNESS.hp;
+  // Its first-phase targets (the pair, and THE ECLIPSE's prow vent), then the core.
+  for (const part of bossParts(def)) {
+    const spec = def.parts[part]!, hp = spec.hp * scale * BOSS_TOUGHNESS.hp;
     state.enemies.push({ id: state.nextId++, kind: 'turret', bossPart: part, damageable: false,
       x: x + spec.x, s: def.entryS + spec.s, originX: x, hp, maxHp: hp, radius: spec.radius, age: 0,
       nextAttack: Infinity, warning: 0, aimX: x, groundHeight: def.targetHeight });
@@ -154,8 +155,8 @@ function deathSequence(state: RunState, boss: NonNullable<RunState['boss']>): vo
     if (state.effects.length < BALANCE.maxEffects) state.effects.push({ id: state.nextId++, kind, x, s, ttl: duration, duration });
   };
   if (age < DEATH.barrage && state.time >= boss.deathEffectAt) {
-    // The modules first (both side parts, then the core), then points across the hull, round and round.
-    const parts = (['left', 'right', 'core'] as const).map(part => bossPartOffset(part, boss.id));
+    // The modules first (the first-phase targets, then the core), then points across the hull, round and round.
+    const parts = bossParts(BOSSES[boss.id]).map(part => bossPartOffset(part, boss.id));
     const spots = [...parts, { x: -1.9, s: -1.1 }, { x: 1.7, s: 1.3 }, { x: .4, s: -1.6 }, { x: -1.2, s: 1.5 }, { x: 2.2, s: -.4 }];
     const index = Math.round(age / DEATH.last), spot = spots[index % spots.length], jitter = Math.sin(index * 2.3) * .35;
     push('explosion', boss.x + spot.x + jitter, boss.s + spot.s + Math.cos(index * 1.7) * .3, .7);
@@ -182,7 +183,7 @@ export function resolveBossPhase(state: RunState): void {
     enemy.damageable = false; enemy.warning = 0;
     if (boss.attackerId === enemy.id) { boss.attack = null; boss.attackerId = null; }
   }
-  if (boss.phase === 'batteries' && ['left', 'right'].every(part => bossTarget(state, part as BossPart)!.hp <= 0)) transition(state, 'core');
+  if (boss.phase === 'batteries' && phaseOneParts(bossDef(state)).every(part => bossTarget(state, part)!.hp <= 0)) transition(state, 'core');
   const core = bossTarget(state, 'core')!;
   if ((boss.phase === 'core' || boss.phase === 'overload') && core.hp <= 0) transition(state, 'destroyed');
   else if (boss.phase === 'core' && core.hp <= core.maxHp * bossDef(state).overloadFraction) transition(state, 'overload');

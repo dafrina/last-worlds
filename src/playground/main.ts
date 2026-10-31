@@ -23,7 +23,7 @@ import { createRun, stepRun } from '../sim/game';
 import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
 import { missionBoss } from '../content/bosses';
 import { createRenderer, type PlanetLook } from '../render/scene';
-import type { GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';
+import type { BossPart, GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';
 import { ENEMIES, WEAPONS } from '../content/balance';
 import { SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
 import { EMPTY_INPUT, STEP, VIEW } from '../shared/contracts';
@@ -160,8 +160,9 @@ function bossAct(act: string) {
   if (!state.boss) return;
   if (act === 'replay') { state = makeState(); return; }
   if (state.boss.phase === 'arrival') return;
-  const kill = (part: 'left' | 'right' | 'core', hp = 0) => { const target = bossTarget(state, part); if (target) target.hp = hp; };
-  if (act === 'flanks' || act === 'overload' || act === 'destroy') { kill('left'); kill('right'); resolveBossPhase(state); }
+  const kill = (part: BossPart, hp = 0) => { const target = bossTarget(state, part); if (target) target.hp = hp; };
+  // Every first-phase target (THE ECLIPSE's prow vent too; other bosses have none).
+  if (act === 'flanks' || act === 'overload' || act === 'destroy') { kill('left'); kill('right'); kill('prow'); resolveBossPhase(state); }
   if (act === 'overload') { const core = bossTarget(state, 'core'); if (core) { core.hp = Math.min(core.hp, core.maxHp * .39); resolveBossPhase(state); } }
   if (act === 'destroy') { kill('core'); resolveBossPhase(state); }
 }
