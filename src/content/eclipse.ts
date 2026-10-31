@@ -1,10 +1,11 @@
 /**
  * THE ECLIPSE, Umbra's boss and the final boss (docs/28): the user's crescent-winged Tripo GLB, adapted
- * (public/assets/umbra/the-eclipse-v1-approved.glb, tools/blender/approved_eclipse.py), lying flat with its horns away
+ * (public/assets/umbra/the-eclipse-v2-approved.glb, tools/blender/approved_eclipse.py), lying flat with its horns away
  * from the player and "very large ... like a final boss": about 20 units from horn to horn on the 24-unit world, so the
- * camera pans along it. Its two energy vents on the inner wings (the first pair) and its luminous reactor (the core) are
- * the only targets; the crescent, its horns and spikes are scenery. It rises out of the abyss and hovers over it.
- * Pressure as THE CRADLE's (Umbra starts at Amnion's intensity): aimed bursts from the vents, then the reactor
+ * camera pans along it. Its two energy vents on the inner wings (the first pair), its prow vent under the reactor (a third
+ * first-phase target since 31 October) and its luminous reactor (the core) are the only targets; the crescent, its horns
+ * and spikes are scenery. It rises out of the abyss and hovers over it.
+ * Pressure as THE CRADLE's (Umbra starts at Amnion's intensity): aimed bursts from the three vents in turn, then the reactor
  * alternates a fixed fan with an aimed burst and sends drone waves from its vents, then overload lanes and a spiral.
  * The timing follows Final Horizon's playlist, on Brood Strike's grid.
  */
@@ -30,6 +31,16 @@ export const ECLIPSE = {
   ventOffset: 5.15,
   ventS: 0.1,
   reactorS: 0.5,
+  /**
+   * The prow vent (user, 31 October: "a third target ... that we have to destroy for phase 1"): a glowing almond lens on
+   * the hull's front face under the reactor, between the near spike's side hooks, 2.9 wide, its face at heights 0.6-1.8
+   * (the-eclipse-v2-approved.glb): its visible face projects onto the target plane at s -2.1. The near spike's blade
+   * crosses its middle, as it crosses the reactor. Its circle clears the reactor's by 0.45 and stays far from the vents'.
+   * As tough as the other two vents (ventHp): phase 1 lasts 31% longer at Standard and 24% at Veteran with the perfect
+   * pilot (tests/sim/eclipse-report.test.ts; docs/28).
+   */
+  prowS: -2.1,
+  prowRadius: 0.95,
   warning: 0.95,
   beamWarning: 1.2,
   recovery: 0.5,

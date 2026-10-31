@@ -12,6 +12,8 @@ import { WARDEN } from '../../src/content/warden';
 import { VEIL } from '../../src/content/veil';
 import { CRADLE } from '../../src/content/cradle';
 import { ECLIPSE } from '../../src/content/eclipse';
+import { BOSSES, bossParts, phaseOneParts } from '../../src/content/bosses';
+import type { BossPart } from '../../src/shared/contracts';
 import { WARP, warpSpeed } from '../../src/content/departure';
 
 const query = new URLSearchParams(location.search);
@@ -55,6 +57,7 @@ function prepareVeil() {
  * THE CRADLE on Amnion (`boss=cradle`) and THE ECLIPSE on Umbra (`boss=eclipse`), the carriers that rise in place:
  * `arrival` (`t` seconds into its rise), `batteries`, `core`, `launch` (the heart phase just before the first wave;
  * `t` seconds later), `overload`, `destroyed` (`t` seconds into the sequence); `approach&t=N` previews the mission itself.
+ * `down=left,prow` breaks those first-phase targets (THE ECLIPSE's prow vent too) and lets their wrecks settle `t` seconds.
  */
 function prepareCradle(boss: { arrivesAt: number; arrivalDuration: number; arena: typeof CRADLE.arena | typeof ECLIPSE.arena }) {
   const phase = query.get('phase') ?? 'batteries', at = Number(query.get('t') ?? (phase === 'arrival' ? 1.5 : 0));
@@ -65,8 +68,13 @@ function prepareCradle(boss: { arrivesAt: number; arrivalDuration: number; arena
   const scroll = arenaScroll(state.time, null, boss.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
   if (phase === 'arrival') { step(at); return; }
   step(boss.arrivalDuration + 1 / 60);
-  if (phase === 'batteries') return;
-  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
+  if (phase === 'batteries') {
+    for (const part of (query.get('down')?.split(',') ?? []) as BossPart[]) { const target = bossTarget(state, part); if (target) target.hp = 0; }
+    resolveBastionPhase(state); step(at); return;
+  }
+  // Every first-phase target down (THE ECLIPSE's prow vent too).
+  for (const part of phaseOneParts(BOSSES[state.boss!.id])) bossTarget(state, part)!.hp = 0;
+  resolveBastionPhase(state);
   if (phase === 'launch') { step(Math.max(0, state.boss!.nextLaunchAt - state.time - .35) + at); return; }
   if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
   if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
@@ -115,10 +123,12 @@ function prepareJump() {
   const target = Number(query.get('n') ?? 1) * 3, at = Number(query.get('t') ?? 0);
   const tick = () => { state.player.invulnerableUntil = Infinity; stepRun(state, EMPTY_INPUT); };
   for (let guard = 0; guard < 60 * 1200 && !(state.sector === target && state.boss && state.boss.phase === 'batteries'); guard++) tick();
-  if (state.boss) { for (const part of ['left', 'right', 'core'] as const) bossTarget(state, part)!.hp = 0; resolveBastionPhase(state); }
+  if (state.boss) { for (const part of bossParts(BOSSES[state.boss.id])) bossTarget(state, part)!.hp = 0; resolveBastionPhase(state); }
   for (let i = 0; i < Math.round(at * 60); i++) tick();
 }
 prepare();
+// `x=N`: the ship (and the camera over it) at x N, to look along a wide boss.
+if (query.has('x')) state.player.x = state.cameraX = Number(query.get('x'));
 // `pickups`: every drop icon in a row above the player (render inspection; `still` keeps them in place).
 if (query.has('pickups')) {
   const drops = [{ kind: 'shield' }, { kind: 'power' }, { kind: 'credit' }, { kind: 'weapon', weapon: 'pulse' }, { kind: 'weapon', weapon: 'fan' }, { kind: 'weapon', weapon: 'seeker' }] as const;
@@ -179,6 +189,17 @@ if (query.has('victory')) {
   for (let guard = 0; state.phase === 'playing' && guard < 60 * 30; guard++) stepRun(state, EMPTY_INPUT);
   for (let k = 0; k < Math.round(Number(query.get('victory') || 0) * 60); k++) victoryWarp(1 / 60);
 }
+/**
+ * `break=left,prow&breakAt=T`: those boss modules break mid-flight once the simulation reaches time T (their wrecks then
+ * draw for the first time, after the warm-up; `window.__lateShaders` lists any program compiled late).
+ */
+let broken = false;
+function breakParts() {
+  if (broken || !query.has('break') || !state.boss || state.time < Number(query.get('breakAt') ?? 0)) return;
+  broken = true;
+  for (const part of query.get('break')!.split(',') as BossPart[]) { const target = bossTarget(state, part); if (target) target.hp = 0; }
+  resolveBastionPhase(state);
+}
 // `hold=N` keeps the simulation still for N seconds so models load before a timed sequence (e.g. destruction) plays.
 const holdUntil = performance.now() + Number(query.get('hold') ?? 0) * 1000;
 function frame(now: number) {
@@ -187,7 +208,7 @@ function frame(now: number) {
   if (!query.has('still') && now >= holdUntil) {
     accumulator += elapsed > .25 ? 0 : Math.min(elapsed, STEP * 5);
     let special = controls.specialPressed;
-    while (accumulator >= STEP) { stepRun(state, { ...controls, specialPressed: special }); special = false; accumulator -= STEP; }
+    while (accumulator >= STEP) { stepRun(state, { ...controls, specialPressed: special }); special = false; accumulator -= STEP; breakParts(); }
     victoryWarp(Math.min(elapsed, .1));
   }
   renderer.render(state, 0); ui.update(state);

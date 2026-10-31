@@ -20,8 +20,14 @@ import { retainBossMaterials } from './approved-boss-materials';
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation), COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const PARTS = ['left', 'right', 'core'] as const;
+/** A carrier's weak points: the pair and the heart, and THE ECLIPSE's prow vent (its third first-phase target). */
+const partsOf = (style: CarrierStyle): readonly BossPart[] => style.content.prowS === undefined ? PARTS : [...PARTS, 'prow'];
 /** Local +z faces the player (smaller s). */
-const socket = (style: CarrierStyle, part: BossPart) => { const c = style.content; return new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -c.podOffset : c.podOffset, 0, part === 'core' ? -c.heartS : -c.podS); };
+const socket = (style: CarrierStyle, part: BossPart) => {
+  const c = style.content;
+  if (part === 'prow') return new THREE.Vector3(0, 0, -(c.prowS ?? 0));
+  return new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -c.podOffset : c.podOffset, 0, part === 'core' ? -c.heartS : -c.podS);
+};
 /** Hull footprint (x half-width, z half-depth) for the terrain exclusion (the blades overhang water anyway). */
 export const VEIL_FOOTPRINT = { halfWidth: 12.8, halfDepth: 9.5 } as const;
 /** How deep the hull starts under the mire as it rises, and how far it sinks when destroyed. */
@@ -55,7 +61,9 @@ const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
 export interface CarrierStyle {
   id: 'veil' | 'cradle' | 'eclipse'; name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
   /** The boss's own combat sockets, target plane, arrival and bays (src/content/veil.ts, src/content/cradle.ts). */
-  content: { podOffset: number; podS: number; heartS: number; targetHeight: number; arrivalDuration: number; bays: readonly { x: number; s: number }[] };
+  content: { podOffset: number; podS: number; heartS: number; targetHeight: number; arrivalDuration: number; bays: readonly { x: number; s: number }[];
+    /** THE ECLIPSE's prow vent (node `<prefix>prow`, `_wreck`): a third first-phase target under its reactor, at x 0. */
+    prowS?: number };
   /** Hull footprint for the terrain exclusion: half width, and its reach toward the player (front) and away (back). */
   footprint: { halfWidth: number; front: number; back: number };
 }
@@ -75,10 +83,11 @@ export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', pr
  * THE ECLIPSE (tools/blender/approved_eclipse.py, docs/28): the final boss, lying flat over the abyss, 20 units from horn
  * to horn (x ±10, 3.9 toward the player and 8.8 away from its pivot, 3.2 below it to 3.5 above). Its reactor's six armour
  * sectors roll outward over their feet; it rises out of the abyss and hovers 1.2 over the plateau's level, its top under
- * the flight plane.
+ * the flight plane. Its prow vent (v2, 31 October) glows on the hull's front face under the reactor and has its own wreck.
  */
 export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE', prefix: 'eclipse_', markers: ['eclipse_approved_v1'], shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
-  content: { podOffset: ECLIPSE.ventOffset, podS: ECLIPSE.ventS, heartS: ECLIPSE.reactorS, targetHeight: ECLIPSE.targetHeight, arrivalDuration: ECLIPSE.arrivalDuration, bays: ECLIPSE.bays },
+  content: { podOffset: ECLIPSE.ventOffset, podS: ECLIPSE.ventS, heartS: ECLIPSE.reactorS, targetHeight: ECLIPSE.targetHeight, arrivalDuration: ECLIPSE.arrivalDuration, bays: ECLIPSE.bays,
+    prowS: ECLIPSE.prowS },
   footprint: { halfWidth: 10.2, front: 4.2, back: 9.1 } };
 
 export async function loadVeilModel(url: string): Promise<THREE.Group> {
@@ -142,14 +151,15 @@ function modelRig(model: THREE.Group, style: CarrierStyle): Rig {
 function approvedRig(model: THREE.Group, style: CarrierStyle): Rig {
   model.updateMatrixWorld(true);
   const p = style.prefix, chassis = new THREE.Group(), node = (name: string) => model.getObjectByName(p + name);
-  const materials = retainBossMaterials(model, p, name => name.startsWith(p + 'heart') ? 'core' : name.startsWith(p + 'pod_left') ? 'left' : name.startsWith(p + 'pod_right') ? 'right' : null);
+  const materials = retainBossMaterials(model, p, name => name.startsWith(p + 'heart') ? 'core' : name.startsWith(p + 'pod_left') ? 'left'
+    : name.startsWith(p + 'pod_right') ? 'right' : name.startsWith(p + 'prow') ? 'prow' : null);
   const fallbackGlow = glowMaterial(style.spark, 1.4);
   const hull = node('hull'); if (hull) chassis.attach(hull);
   const parts = new Map<BossPart, PartRig>();
-  for (const part of PARTS) {
+  for (const part of partsOf(style)) {
     const group = new THREE.Group(); group.position.copy(socket(style, part)); chassis.add(group); group.updateMatrixWorld(true);
     const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
-    const base = part === 'core' ? 'heart' : `pod_${part}`;
+    const base = part === 'core' ? 'heart' : part === 'prow' ? 'prow' : `pod_${part}`;
     const live = [take(base)].filter(Boolean) as THREE.Object3D[], wreck = take(`${base}_wreck`);
     if (wreck) wreck.visible = false;
     // Shutters `heart_shutter_0` on, as many as the model has (THE VEIL four, THE CRADLE eight).
@@ -257,7 +267,7 @@ function buildRig(style: CarrierStyle): Rig {
   }
 
   const parts = new Map<BossPart, PartRig>();
-  for (const part of PARTS) {
+  for (const part of partsOf(style)) {
     const core = part === 'core', group = new THREE.Group(); group.position.copy(socket(style, part)); chassis.add(group);
     const heat = glowMaterial(0x3ff2d8, 1.2); owned.push(heat);
     const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number) => {
@@ -291,7 +301,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
   const root = new THREE.Group(); root.name = style.name; root.visible = false; scene.add(root);
   let rig = buildRig(style); root.add(rig.chassis);
   const rings = new Map<BossPart, { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }>();
-  for (const part of PARTS) {
+  for (const part of partsOf(style)) {
     const core = part === 'core', material = new THREE.MeshBasicMaterial({ color: 0xffb77c, depthTest: false, depthWrite: false });
     const ring = new THREE.RingGeometry(core ? .95 : .3, core ? 1.2 : .48, core ? 32 : 16); ring.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(ring, material); mesh.renderOrder = 4; mesh.position.copy(socket(style, part)).setY(style.content.targetHeight); root.add(mesh); rings.set(part, { mesh, material });
@@ -419,8 +429,9 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         colors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], cursor * 3); cursor += 2;
       };
       for (const enemy of state.enemies) {
-        if (!enemy.bossPart) continue;
-        const part = rig.parts.get(enemy.bossPart)!, target = rings.get(enemy.bossPart)!;
+        const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
+        // A model without a module the boss has (a rolled-back GLB) simply draws none for it.
+        if (!enemy.bossPart || !part || !target) continue;
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 1.95);
         if (alive.get(enemy.bossPart) && !living) {
           deadAt.set(enemy.bossPart, state.time);

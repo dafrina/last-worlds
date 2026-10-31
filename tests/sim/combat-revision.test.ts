@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { createRun, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, type Enemy } from '../../src/shared/contracts';
 import { enemyShots } from '../../src/sim/attacks';
-import { BOSSES } from '../../src/content/bosses';
+import { BOSSES, phaseOneParts } from '../../src/content/bosses';
 import { startBoss, updateBoss, bossTarget, resolveBossPhase } from '../../src/sim/bastion';
 
 it('special missiles fan out before steering and cover both edges of a crowded screen', () => {
@@ -33,7 +33,8 @@ for (const id of ['veil', 'cradle', 'eclipse'] as const) it(`${id} opens its exp
   updateBoss(state, STEP);
   expect(state.boss!.phase).toBe('batteries');
   state.boss!.attackIndex = 7;
-  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0;
+  // Every first-phase target down (THE ECLIPSE's prow vent too).
+  for (const part of phaseOneParts(BOSSES[id])) bossTarget(state, part)!.hp = 0;
   resolveBossPhase(state);
   expect(state.boss!.attackIndex).toBe(0);
   for (let i = 0; i < 240 && !state.boss!.attack; i++) { state.time += STEP; updateBoss(state, STEP); }

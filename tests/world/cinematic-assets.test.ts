@@ -150,6 +150,23 @@ describe('Blender cinematic asset contracts',()=>{
     const hits=ray.intersectObjects(blockers,true);
     expect(hits[0]?.distance ?? Infinity,`${spec.id} static armour/shutters must clear the core`).toBeGreaterThan(coreHits[0].distance-.01);
   });
+  // THE ECLIPSE's prow vent (31 October), its third first-phase target: a lens with its own wreck on the hull's front face.
+  // The near spike's blade hides its very middle, as it hides the reactor's; either side of it the combat row meets the lens
+  // before any armour (its frame is part of the hull).
+  it('keeps THE ECLIPSE\'s prow vent on its fixed aiming row, in front of its armour, with a wreck',async()=>{
+    const model=await asset(BOSS_ASSETS.eclipse);
+    const prow=model.getObjectByName('eclipse_prow'), hull=model.getObjectByName('eclipse_hull')!;
+    expect(prow,'eclipse_prow').toBeDefined();
+    expect(model.getObjectByName('eclipse_prow_wreck'),'eclipse_prow_wreck').toBeDefined();
+    model.updateMatrixWorld(true);
+    const eye=new Vector3(0,Math.sin(55*Math.PI/180),Math.cos(55*Math.PI/180));
+    for(const x of [-.6,.6]){
+      const ray=new Raycaster(new Vector3(x,ECLIPSE.targetHeight,-ECLIPSE.prowS).addScaledVector(eye,30),eye.clone().negate());
+      const hits=ray.intersectObject(prow!,true);
+      expect(hits.length,`prow row x ${x} meets the lens`).toBeGreaterThan(0);
+      expect(ray.intersectObject(hull,true)[0]?.distance ?? Infinity,`prow row x ${x} clear of armour`).toBeGreaterThan(hits[0].distance-.01);
+    }
+  });
   it('keeps the Scrapper in its established visual footprint with two exhaust sockets',async()=>{
     const model=await asset('shared/hero-scrapper.glb'); validate(model,3000);
     const hull=model.getObjectByName('hero_scrapper'); expect(hull).toBeDefined();

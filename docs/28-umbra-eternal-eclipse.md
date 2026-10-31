@@ -67,21 +67,48 @@ The concept images are references, never runtime backgrounds or finished assets 
   - drone carriers (diamonds) and elite hunters (lancers);
   - two artillery ships (Pulsars).
 - **Hunters on Umbra:** Wraiths (25 October), the new teleporting predator. Three authored normal Wraith appearances replace individual formations in Final Horizon; no terrain generation changes. See [phase predators](29-phase-predators.md) for its feint, teleport and rapid triplet sequence.
-- **The perfect pilot** clears Final Horizon on seed 5 with each weapon and no hit (`tests/sim/umbra.test.ts`). On other seeds it takes a single mission hit on some runs, never from THE ECLIPSE; the fairness checks pass.
+- **The perfect pilot** clears Final Horizon on seed 7 with each weapon and no hit (`tests/sim/umbra.test.ts`). On other seeds it takes a single mission hit on some runs; THE ECLIPSE hit it once in 864 runs since its prow vent (31 October, below). The fairness checks pass.
 
 ## THE ECLIPSE
 
-- **Model:** the user's Tripo GLB, adapted in Blender (`tools/blender/approved_eclipse.py`, `public/assets/umbra/the-eclipse-v1-approved.glb`) like the other approved bosses, at most 80k triangles.
+- **Model:** the user's Tripo GLB, adapted in Blender (`tools/blender/approved_eclipse.py`, `public/assets/umbra/the-eclipse-v2-approved.glb`) like the other approved bosses, at most 80k triangles. v1 (no prow vent) stays beside it for rollback (`src/render/boss-assets.ts`).
   - Its broken left horn tip is mended by mirroring the right one.
   - The GLB's front view is the concept's top view, so it lies flat, its reactor facing the camera and its plain back the hidden underside.
-- **Size:** 78,907 triangles. It spans x ±10, 3.9 toward the player and 8.8 away from its pivot, 3.2 below it and 3.5 above. The surface was smoothed before reduction: Tripo's carved micro-cracks became notched highlights on the glossy black.
+- **Size:** 78,941 triangles (the prow vent's are reserved before the reduction). It spans x ±10, 3.9 toward the player and 8.8 away from its pivot, 3.2 below it and 3.5 above. The surface was smoothed before reduction: Tripo's carved micro-cracks became notched highlights on the glossy black.
 - **Rig:** THE VEIL's carrier rig (`ECLIPSE_STYLE` in `src/render/veil-view.ts`):
-  - **the two energy vents** (the first pair of weak points) are the almond panels on the inner wings' fronts, at x ±5.15, hit radius 1.1. They are painted to glow;
+  - **the three energy vents** are its first-phase targets:
+    - the almond panels on the inner wings' fronts, at x ±5.15, hit radius 1.1, painted to glow;
+    - **the prow vent** (31 October), see below;
   - **the core** is the luminous reactor. Its lens sits in the glowing ring (radius 1.2), under six armour sectors that roll outward 50° over their feet like an iris;
-  - **drone waves** launch from the vents' inner ends (x ±3.4, s −0.8).
-- **Target plane:** 1.7 over its seat. The reactor's visible face averages 1.8 and the vents' 1.45.
+  - **drone waves** launch from the wing vents' inner ends (x ±3.4, s −0.8).
+- **Target plane:** 1.7 over its seat. The reactor's visible face averages 1.8, the wing vents' 1.45 and the prow vent's 1.18.
 - **Reactor's centre:** the near spike hides it from the camera; its ring and lens show either side.
-- **Fight:** THE CRADLE's timing and pressure (`src/content/eclipse.ts`).
+- **Fight:** THE CRADLE's timing and pressure (`src/content/eclipse.ts`); its first phase ends only when all three vents are broken.
+
+### The prow vent (31 October 2026)
+
+The user: "can you add a third target on the eclipse (umbra boss) that we have to destroy for phase 1?"
+
+- **Where:** on the hull's front face under the reactor, between the near spike's side hooks: an almond lens 2.9 wide, its face at heights 0.6–1.8, facing the 55° camera. The near spike's blade crosses its middle, as it crosses the reactor. Its visible face projects onto the target plane at x 0, s −2.1 (`prowS`), hit radius 0.95: 0.45 clear of the reactor's circle and far from the wing vents'.
+- **Model:** the only hand-built part of the model (`approved_eclipse.py`, step 7), in the vents' language:
+  - the lens is a shallow convex almond conformed to a fit of that face (rms 0.005), in the vents' violet with their glow along its middle;
+  - a faceted obsidian frame with one violet seam on its crest joins the hull; its skirt sinks into the face, so nothing floats (checked by the build: `frame_gap`);
+  - it paints its own texels in a free square of the atlas, so the boss keeps one material and its shader programs;
+  - `eclipse_prow_wreck` is the lens collapsed into a dark, cracked plate inside the frame.
+- **Rig:** `eclipse_prow` and its `_wreck` hang on their own socket (x 0, s −2.1). Its heat glow, hit flash, target ring and corner marks are the vents'. It is drawn in the shader warm-up with the rest of the boss.
+- **Simulation:** a third first-phase target with its own explicit proxy, an optional `prow` part that only THE ECLIPSE defines (`BossPart`, `phaseOneParts` in `src/content/bosses.ts`). Every other boss keeps exactly its pair and core.
+  - It fires the wing vents' aimed burst, in their rotation: one attacker at a time, under the director's fairness admission, its forecast from its own offset.
+  - It is as tough as a wing vent (640, `ventHp`).
+- **Balance** (`tests/sim/eclipse-report.test.ts`: the perfect pilot over Final Horizon, seeds 1–144, Twin Pulse, Fan and Seeker):
+
+  | Difficulty | Phase 1 before → after | Fight before → after | Mission hits before → after | Fight hits before → after | Clears |
+  | --- | --- | --- | --- | --- | --- |
+  | Standard | 68.9 → 90.2 s (+31%) | 144.5 → 167.4 s (+16%) | 56 → 56 | 0 → 0 | 432/432 both |
+  | Veteran | 84.1 → 104.1 s (+24%) | 173.9 → 194.1 s (+12%) | 78 → 79 | 0 → 1 | 432/432 both |
+
+  - By weapon, phase 1 grows most with Twin Pulse at Standard (62.5 → 92.9 s, +49%) and least with the Fan (+19% at Standard, +24% at Veteran).
+  - No hit in phase 1 in any run. The one fight hit falls in the reactor phase, which is unchanged.
+  - Reactor-phase hits are sensitive to how phase 1 ends. Over seeds 1–72 (432 runs), trial prow vents (1–720 hp, at s −2.0) gave 1 to 9 such hits; tougher wing vents without a prow vent (760, 860 hp) gave 0 and 1.
 - **Arena:** it rises out of a vast abyss across the whole world (`ABYSS` in `src/world/terrain-umbra.ts`) and hovers 1.2 over the plateau's level, its top under the flight plane. The horns run off both screen edges, so the camera pans along it.
 
 ## Files
@@ -92,7 +119,12 @@ The concept images are references, never runtime backgrounds or finished assets 
 - **Floating rock undersides (26 October):** `tools/blender/umbra_floats_v2.py` / `public/assets/umbra/floating-shards-v2.glb` replaces only the three float nodes after both kits have loaded. Original flat fractured tops and placement retained; a few broad cleaved wedges replace the hanging needles. 75–99 triangles each, 30,992 bytes total. Authored through live Blender MCP in its own scene. Omit the optional floating-kit URL in `terrain-view.ts` to restore the original three models; no other kit geometry changes.
 - **Fleet:** `tools/blender/umbra_craft.py` (`public/assets/umbra/umbra-craft.glb`).
 - **Content:** `src/content/eclipse.ts`, `src/content/bosses.ts`, `src/content/encounters.ts` (`FINAL_HORIZON`).
-- **Tests:** `tests/sim/umbra.test.ts` (campaign place, perfect pilot), `tests/world/terrain-umbra.test.ts` (caps, flat plateau), and the fairness table (`tests/sim/fairness.test.ts`).
+- **Tests:**
+  - `tests/sim/umbra.test.ts`: campaign place, the prow vent (parts, phase rule, rotation, forecast), perfect pilot;
+  - `tests/world/terrain-umbra.test.ts`: caps, flat plateau;
+  - the boss asset test (`tests/world/cinematic-assets.test.ts`), with the prow vent's rays;
+  - the fairness table (`tests/sim/fairness.test.ts`);
+  - the fight's seed sweep, off by default (`tests/sim/eclipse-report.test.ts`).
 - **Music:** *A Line Through Silence*, 90 BPM: clean struck-glass needles, pure-tone air and a precise low pulse. Original 32-bar arrangement with a synchronized bass/rhythm boss layer; see [sound design](24-sound-design.md).
 
 ## Milestones
@@ -104,7 +136,7 @@ The concept images are references, never runtime backgrounds or finished assets 
    - the structures as worked stone: crisp faceted tiers with block joints, glow slits and layered depth;
    - the crescent dock.
 3. **The Umbral fleet:** done (`umbra-craft.glb`, seven ships). Each kind flies its own ship, and THE ECLIPSE's drones use the drone (`UMBRA_CRAFT` in `src/render/scene.ts`). The `umbra_obsidian` material class is glossy, roughness 0.12 and no metal.
-4. **THE ECLIPSE:** done (`the-eclipse-v1-approved.glb`). It is in the boss asset test (rig, budget, rays).
+4. **THE ECLIPSE:** done (`the-eclipse-v1-approved.glb`; v2 adds the prow vent, 31 October). It is in the boss asset test (rig, budget, rays).
 5. **Music:** implemented 25 October, level and boss layers.
 6. **Endless:** Umbra joins the planet cycle later.
 

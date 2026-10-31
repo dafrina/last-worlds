@@ -5,6 +5,7 @@ import { createPerfOverlay } from './ui/perf-overlay';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
+import { BOSSES, bossParts, phaseOneParts } from './content/bosses';
 import { WARP, warpSpeed } from './content/departure';
 import { createGameAudio } from './audio/engine';
 import { prefetchSamples } from './audio/sample-bank';
@@ -287,10 +288,10 @@ if (import.meta.env.DEV) {
       // Look-dev only: the lives left (the last-life alarm shows at one).
       setLives: (lives: number) => { if (run) run.player.lives = lives; },
       // The flank weak points only (look-dev captures of a boss's core phase).
-      killFlanks: () => { if (!run?.boss) return; for (const part of ['left', 'right'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
+      killFlanks: () => { if (!run?.boss) return; for (const part of phaseOneParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
       // Look-dev: the flanks down and the core into its overload (a boss's beam lanes).
-      bossOverload: () => { if (!run?.boss) return; for (const part of ['left', 'right'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); const core = bossTarget(run, 'core'); if (core) core.hp = core.maxHp * .35; resolveBossPhase(run); },
-      killBoss: () => { if (!run?.boss) return; for (const part of ['left', 'right', 'core'] as const) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
+      bossOverload: () => { if (!run?.boss) return; for (const part of phaseOneParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); const core = bossTarget(run, 'core'); if (core) core.hp = core.maxHp * .35; resolveBossPhase(run); },
+      killBoss: () => { if (!run?.boss) return; for (const part of bossParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
       // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
       boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
       // Perf bench (tools/perf-bench.mjs): fixed ticks per frame and a scripted weave; `benchStop` returns the frame timings.

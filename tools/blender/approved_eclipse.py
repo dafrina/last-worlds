@@ -8,7 +8,7 @@ atlases are kept and reduced; nothing of the shape is regenerated. Headless (the
     R=/home/davidfarina/Projects/alien-skies
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
         --python "$(wslpath -w $R/tools/blender/approved_eclipse.py)" -- \\
-        --out "$(wslpath -w $R/public/assets/umbra/the-eclipse-v1-approved.glb)" --preview-dir "$(wslpath -w $R/lookdev/umbra/eclipse)"
+        --out "$(wslpath -w $R/public/assets/umbra/the-eclipse-v2-approved.glb)" --preview-dir "$(wslpath -w $R/lookdev/umbra/eclipse)"
 
 (`--no-previews` skips the renders.) About 90 s; deterministic. Writes the GLB, previews, working textures
 (`<preview-dir>/textures`) and `<preview-dir>/eclipse-report.json` (placement, parts, hinges, triangle counts, checks).
@@ -40,7 +40,12 @@ Steps:
    membrane as the seat it leaves (collar_seat, underside): no cracks, no caps poking through. Hinged on its outer foot,
    local x along the hinge, local -y outward (approved_cradle.py's convention): a positive turn about local +x rolls it
    outward over that foot, its inner edge lifting off the reactor (the view sets the angle; previews use 50 degrees).
-7. One material: the supplied atlases at 2K (base, roughness/metal as JPEG, normal 1K PNG), roughness 0.34-0.86, and an
+7. The prow vent (31 October 2026, the third first-phase target; the only hand-built part): an almond lens on the hull's
+   front face under the reactor (eclipse_prow, with its eclipse_prow_wreck), conformed to a polynomial fit of that face,
+   in a faceted obsidian frame that joins the hull and sinks its skirt into the face (checked: frame_gap). It paints its
+   own texels in a free square of the atlas: the lens in the vents' violet with their glow along its middle, the frame
+   black with one violet seam on its crest. Its triangles are reserved before the reduction, so the budget holds.
+8. One material: the supplied atlases at 2K (base, roughness/metal as JPEG, normal 1K PNG), roughness 0.34-0.86, and an
    emission mask (sRGB, as glTF reads it): the thin bright violet seams and the reactor ring (brightness above its own
    surroundings on dark armour, so the broad blue gradients stay paint), the reactor's lens glowing softly, the vents
    glowing violet along their middle. Wrecks: crumpled copies (rims kept) with a non-emissive copy of the material.
@@ -58,7 +63,7 @@ SCALE = 20.4            # source width 0.98 -> 20 units horn to horn (the world 
 HORN_CUT = .38          # source z of the wing-fix seam (horns agree there; the left one is cut off at 0.472)
 HORN_BAND = .32         # below the seam, down to here, the left horn eases onto the mirrored right one
 BUDGET = 80000
-LABEL = 'v1-approved'
+LABEL = 'v2-approved'     # v2 (31 October 2026): v1 plus the prow vent; v1 stays beside it for rollback
 
 
 def log(*a):
@@ -330,6 +335,18 @@ SMOOTH = 30             # Taubin iterations on the full-resolution surface befor
 # unplaced coordinates) as lower (groove) and upper (lip) edges from the inner point outward; the right one is mirrored.
 VENT_LOWER = [(-2.88, 3.17), (-3.25, 3.28), (-4.0, 3.45), (-5.0, 3.71), (-6.0, 4.01), (-7.0, 4.37), (-7.6, 4.62)]
 VENT_UPPER = [(-2.88, 3.17), (-3.25, 3.76), (-3.63, 4.10), (-4.0, 4.48), (-4.38, 4.67), (-5.0, 4.80), (-6.0, 4.86), (-7.0, 4.9), (-7.6, 4.8)]
+# The prow vent (user, 31 October 2026: "a third target on the eclipse ... that we have to destroy for phase 1"): a hand-built
+# almond lens on the hull's front face under the reactor, between the near spike's side hooks, in a raised obsidian frame
+# (placed game coordinates: x across, z up; the face leans back about 16 degrees and faces the camera). Its lens is the
+# vents' violet with their glow along its middle; the frame's crest carries one of the hull's thin violet seams. The near
+# spike's blade crosses its middle in the game view, as it crosses the reactor.
+PROW = dict(half_width=1.45, z0=1.18, top=.62, bottom=.56, power=.7)
+PROW_LENS_RINGS = [1.0, .8, .6, .4, .2]                  # almond scales from the rim inward, then the centre
+PROW_FRAME_RINGS = [(-.05, .02), (0, .15), (.35, .21), (1, .03), (1.2, -.14)]   # (share of the frame width, height)
+PROW_FRAME_WIDTH = dict(top=.3, bottom=.16, tip=.26)    # the upper rim is the heavier, like the vents' lips
+PROW_SAMPLES = 22                                        # outline points per edge (dense at the tips)
+PROW_PROBE = {}                                          # the frame's outer edge and skirt, for frame_gap()
+TARGET_HEIGHT, PROW_S = 1.7, -2.1                        # src/content/eclipse.ts targetHeight and prowS (checks only)
 
 
 def straight_cuts(co, fv, uv, centre, angles, r0=.9, r1=2.4):
@@ -707,10 +724,227 @@ def vent_glow(g, fv, faces, sign):
     return t * t * (3 - 2 * t)
 
 
-def material(src_mat, heart_uv, vent_uv, vent_val, directory, size=2048, normal_size=1024, report=None):
+# ----------------------------------------------------------------------------- the prow vent
+def free_square(uv, size=512, margin=3):
+    """The largest square of the atlas no triangle's UVs touch (ten samples per triangle, grown by two texels), shrunk by
+    `margin` texels: (u0, v0, side) in UV units. The prow vent paints its own texels there."""
+    used = uv_region(uv, size, grow=2)
+    dp = np.zeros((size + 1, size + 1), dtype=np.int32)
+    best = (0, 0, 0)
+    for i in range(size):
+        row = ~used[i]
+        for j in range(size):
+            if row[j]:
+                dp[i + 1, j + 1] = 1 + min(dp[i, j + 1], dp[i + 1, j], dp[i, j])
+                if dp[i + 1, j + 1] > best[0]:
+                    best = (int(dp[i + 1, j + 1]), i, j)
+    side, i, j = best
+    if side < 2 * margin + 24:
+        raise RuntimeError('no free atlas square for the prow vent: %d texels' % side)
+    r0, c0 = i - side + 1 + margin, j - side + 1 + margin
+    return (c0 / size, r0 / size, (side - 2 * margin) / size)
+
+
+def prow_profile(t, power=PROW['power']):
+    """Half-height share of the almond across its length (t in -1..1): pointed at both tips."""
+    return np.clip(1 - np.asarray(t) ** 2, 0, 1) ** power
+
+
+def prow_outline(scale=1.0, grow=0.0):
+    """The almond's closed outline in (x, z), counterclockwise seen from the front: the upper edge from the left tip to
+    the right one, then the lower edge back (Chebyshev spacing: dense at the tips). `scale` shrinks it toward its centre
+    (the lens's rings); `grow` widens it by that share of the frame's width (top, bottom and tips each by their own)."""
+    n = PROW_SAMPLES
+    t = -np.cos(np.pi * np.arange(n + 1) / n)
+    w, P = PROW_FRAME_WIDTH, PROW
+    W = (P['half_width'] + grow * w['tip']) * scale
+    top = (P['top'] + grow * w['top']) * scale
+    bot = (P['bottom'] + grow * w['bottom']) * scale
+    f = prow_profile(t)
+    upper = np.c_[W * t, P['z0'] + top * f]
+    lower = np.c_[W * t[::-1], P['z0'] - bot * f[::-1]][1:-1]
+    return np.concatenate([upper, lower])
+
+
+def prow_glow(x, z):
+    """Glow share at points of the lens (0 at its rim, 1 along its middle), as the vents': the distance to the outline in
+    the (x, z) plane, normalised, smoothstepped."""
+    poly = prow_outline()
+    d = np.full(len(x), 1e9)
+    for (x1, y1), (x2, y2) in zip(poly, np.roll(poly, -1, 0)):
+        ex, ey = x2 - x1, y2 - y1
+        t = np.clip(((x - x1) * ex + (z - y1) * ey) / max(ex * ex + ey * ey, 1e-12), 0, 1)
+        d = np.minimum(d, np.hypot(x - x1 - t * ex, z - y1 - t * ey))
+    d = np.where(inside(poly, x, z), d, 0)
+    t = np.clip(d / max(d.max(), 1e-6), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def belly_surface(co, fv, report):
+    """The hull's front face under the reactor, where the prow vent sits: rays along +y (toward the hull) over the vent and
+    its frame, clear of the near spike's blade (|x| < 0.35), fitted by a smooth polynomial y = F(x, z). Returns F and its
+    gradient; the fit's residual is reported (the face is smooth there, so the lens follows it closely)."""
+    from mathutils.bvhtree import BVHTree
+    fc = co[fv].mean(1)
+    near = np.where((np.abs(fc[:, 0]) < 2.6) & (fc[:, 1] > -4.6) & (fc[:, 1] < .5) & (fc[:, 2] > -1) & (fc[:, 2] < 3))[0]
+    c, f, _ = compact(co, fv[near], np.zeros((len(near), 3, 2), dtype=np.float32))
+    tree = BVHTree.FromPolygons(c.tolist(), f.tolist(), all_triangles=True)
+    # Rays over the vent's footprint (its outline grown past the frame's skirt), clear of the spike's blade.
+    foot = prow_outline(grow=1.5)
+    pts = []
+    for x in np.arange(-2.0, 2.001, .05):
+        if abs(x) < .3:
+            continue
+        for z in np.arange(.1, 2.3, .05):
+            if not inside(foot, np.array([x]), np.array([z]))[0]:
+                continue
+            hit = tree.ray_cast(Vector((x, -2.4, z)), Vector((0, 1, 0)), 3)
+            if hit[0] is not None and -2.1 < hit[0].y < -1.0:
+                pts.append((x, z, hit[0].y))
+    p = np.array(pts)
+    terms = lambda x, z: np.c_[np.ones_like(x), z, z * z, z ** 3, x * x, x * x * z, x ** 4, x * x * z * z]
+    keep = np.ones(len(p), dtype=bool)
+    for _ in range(4):      # drop rays that met something else (a hook's edge, a crease) and refit
+        coef = np.linalg.lstsq(terms(p[keep, 0], p[keep, 1]), p[keep, 2], rcond=None)[0]
+        res = terms(p[:, 0], p[:, 1]) @ coef - p[:, 2]
+        keep = np.abs(res) < max(.05, 3 * np.sqrt((res[keep] ** 2).mean()))
+    F = lambda x, z: terms(np.atleast_1d(x), np.atleast_1d(z)) @ coef
+    res = res[keep]
+    report.update(belly_samples=int(len(p)), belly_outliers=int((~keep).sum()), belly_fit_rms=float(np.sqrt((res ** 2).mean())),
+                  belly_fit_max=float(np.abs(res).max()))
+    log('prow: belly fit over %d rays (%d outliers), rms %.4f, max %.4f' % (len(p), (~keep).sum(), report['belly_fit_rms'], report['belly_fit_max']))
+
+    def grad(x, z, h=1e-3):
+        return (F(x + h, z) - F(x - h, z)) / (2 * h), (F(x, z + h) - F(x, z - h)) / (2 * h)
+    return F, grad
+
+
+def on_belly(F, grad, xz, height):
+    """Points over the belly at (x, z), lifted `height` along its outward normal (toward the player)."""
+    x, z = xz[:, 0], xz[:, 1]
+    gx, gz = grad(x, z)
+    n = np.c_[gx, -np.ones_like(x), gz]
+    n /= np.linalg.norm(n, axis=1, keepdims=True)
+    base = np.c_[x, F(x, z), z]
+    return base + n * np.asarray(height, dtype=np.float64).reshape(-1, 1), n
+
+
+def ring_faces(rings, n):
+    """Quads (as triangle pairs) between consecutive closed rings of n points each (vertex ids ring * n + i)."""
+    out = []
+    for r in range(rings - 1):
+        for i in range(n):
+            a, b = r * n + i, r * n + (i + 1) % n
+            c, d = a + n, b + n
+            out += [(a, b, d), (a, d, c)]
+    return np.array(out, dtype=np.int64)
+
+
+def facing_out(P, F, normal):
+    """Flip triangles whose normals point into the hull (away from `normal`, per vertex) so all face the player."""
+    nrm = np.cross(P[F[:, 1]] - P[F[:, 0]], P[F[:, 2]] - P[F[:, 0]])
+    flip = (nrm * normal[F].mean(1)).sum(1) < 0
+    F = F.copy(); F[flip] = F[flip][:, ::-1]
+    return F
+
+
+def prow_vent(co, fv, rects, report):
+    """The prow vent's lens (eclipse_prow: a shallow convex almond, UVs over its own atlas texels) and its frame (a
+    faceted obsidian lip round it whose skirt sinks into the hull, so nothing floats; joined to the hull later). Built
+    from the belly fit (placed game coordinates). Returns (lens, frame, the lens's ring scales per vertex)."""
+    F, grad = belly_surface(co, fv, report)
+    (lu0, lv0, lu1, lv1), (fu0, fv0, fu1, fv1) = rects['lens'], rects['frame']
+    P = PROW
+    xmin, xmax = -P['half_width'], P['half_width']
+    zmin, zmax = P['z0'] - P['bottom'], P['z0'] + P['top']
+    # Lens: rings from the rim inward, then its centre; a gentle dome (0.05 at the rim, 0.15 in the middle).
+    rings = [prow_outline(scale=s) for s in PROW_LENS_RINGS]
+    n = len(rings[0])
+    xz = np.concatenate(rings + [np.array([[0.0, P['z0']]])])
+    lam = np.concatenate([np.full(n, s) for s in PROW_LENS_RINGS] + [np.zeros(1)])
+    pts, nrm = on_belly(F, grad, xz, .05 + .10 * (1 - lam ** 2))
+    faces = [ring_faces(len(rings), n)]
+    centre = len(xz) - 1
+    last = (len(rings) - 1) * n
+    faces.append(np.array([(last + i, last + (i + 1) % n, centre) for i in range(n)], dtype=np.int64))
+    Fl = facing_out(pts, np.concatenate(faces), nrm)
+    uvp = np.c_[lu0 + (xz[:, 0] - xmin) / (xmax - xmin) * (lu1 - lu0), lv0 + (xz[:, 1] - zmin) / (zmax - zmin) * (lv1 - lv0)]
+    lens = part_object('eclipse_prow', pts, Fl, uvp[Fl].astype(np.float32), np.ones(len(Fl), dtype=bool), [])
+    # Frame: rings grown outward (the lens's rim tucked under its inner edge), rising to a crest and sinking into the hull.
+    frings = [prow_outline(grow=g) for g, _ in PROW_FRAME_RINGS]
+    fxz = np.concatenate(frings)
+    heights = np.concatenate([np.full(n, h) for _, h in PROW_FRAME_RINGS])
+    fpts, fn = on_belly(F, grad, fxz, heights)
+    Ff = facing_out(fpts, ring_faces(len(frings), n), fn)
+    # Each ring is one column of the frame's texels (the crest's carries the seam); rows don't matter.
+    ku = np.concatenate([np.full(n, fu0 + (k + .5) / len(frings) * (fu1 - fu0)) for k in range(len(frings))])
+    fuv = np.c_[ku, np.full(len(ku), (fv0 + fv1) / 2)]
+    frame = part_object('eclipse_prow_frame', fpts, Ff, fuv[Ff].astype(np.float32), np.ones(len(Ff), dtype=bool), [])
+    for p in frame.data.polygons:
+        p.use_smooth = False             # crisp facets, like the hull's cut armour
+    report['prow'] = dict(lens_triangles=len(Fl), frame_triangles=len(Ff), outline_points=n,
+                          lens_centre=[round(float(v), 3) for v in on_belly(F, grad, np.array([[0.0, P['z0']]]), .15)[0][0]])
+    # Where the frame meets the hull: its outer edge (just over the face) and its skirt (under it), for frame_gap().
+    k = len(PROW_FRAME_RINGS)
+    PROW_PROBE.update(outer=fpts[(k - 2) * n:(k - 1) * n], skirt=fpts[(k - 1) * n:], normal=fn[(k - 1) * n:])
+    return lens, frame, lam, nrm
+
+
+def frame_gap(frame, hull):
+    """Does the prow vent's frame sit on the reduced hull? From each point of its outer edge, the hull's face along the
+    inward normal (how far the edge stands over it), and from each skirt point the face along the outward normal (the
+    skirt must be under it). Raises if the frame would float."""
+    from mathutils.bvhtree import BVHTree
+    tree = BVHTree.FromPolygons(*world_tris([hull]), all_triangles=True)
+    outer, skirt, nrm = (PROW_PROBE[k] for k in ('outer', 'skirt', 'normal'))
+    over, under = [], []
+    for o, sk, n in zip(outer, skirt, nrm):
+        hit = tree.ray_cast(Vector(o + n * .3), Vector(-n), 1.0)
+        over.append(np.inf if hit[0] is None else hit[3] - .3)
+        hit = tree.ray_cast(Vector(sk), Vector(n), .6)
+        under.append(np.inf if hit[0] is None else hit[3])
+    over, under = np.array(over), np.array(under)
+    res = dict(outer_edge_over_face_max=float(over.max()), outer_edge_over_face_mean=float(over.mean()),
+               skirt_under_face_max=float(under.max()), skirt_under_face_min=float(under.min()))
+    log('prow frame on the hull', json.dumps(res))
+    if not np.isfinite(under).all() or over.max() > .12:
+        raise RuntimeError('the prow vent frame floats over the hull: %s' % res)
+    return res
+
+
+def prow_wreck(lens, lam, normal_of, mat, seed=10):
+    """The prow vent destroyed: the lens's dome collapsed to a dark, cracked plate just over the hull's face (its middle
+    lowest, seeded jitter breaking it into shards), its rim still against the frame's inner wall, in the non-emissive
+    wreck material. It stays in front of the face (at least 0.02 over the fit), so the wreck shows rather than the hull."""
+    w = lens.copy(); w.data = lens.data.copy(); w.name = 'eclipse_prow_wreck'
+    me = w.data
+    me.materials.clear(); me.materials.append(mat)
+    co = np.empty(len(me.vertices) * 3); me.vertices.foreach_get('co', co); co = co.reshape(-1, 3)
+    rng = np.random.default_rng(seed)
+    inner = lam < 1
+    live = .05 + .10 * (1 - lam ** 2)                       # the lens's height over the face (prow_vent)
+    broken = np.clip(.032 + .025 * (1 - lam ** 2) + rng.normal(0, .01, len(lam)), .02, None)
+    side = rng.normal(0, .03, co.shape)
+    side -= normal_of * (side * normal_of).sum(1, keepdims=True)     # in the face's plane: the shards' cracks
+    co += (-normal_of * (live - broken)[:, None] + side) * inner[:, None]
+    me.vertices.foreach_set('co', co.ravel()); me.update()
+    for p in me.polygons:
+        p.use_smooth = False
+    return link(w)
+
+
+def prow_rows(rect, s):
+    """Pixel rows and columns of a rect (u0, v0, u1, v1) in an s-texel image (row 0 at v 0)."""
+    u0, v0, u1, v1 = rect
+    return (int(round(v0 * s)), int(round(v1 * s))), (int(round(u0 * s)), int(round(u1 * s)))
+
+
+def material(src_mat, heart_uv, vent_uv, vent_val, directory, size=2048, normal_size=1024, report=None, prow=None):
     """The supplied atlases at working size, roughness kept legible (0.34-0.86), and an emission mask: the thin bright
     violet seams and the reactor ring (brightness above its own surroundings on dark armour, so broad blue gradients
-    stay paint), the reactor's lens glowing softly, and the two vents glowing violet."""
+    stay paint), the reactor's lens glowing softly, and the two vents glowing violet. `prow` (rects in UV units, colours):
+    the prow vent's own texels in a free corner of the atlas, its lens painted in the vents' violet with their glow along
+    its middle, its frame black obsidian with one violet seam column (its crest), flat normals."""
     key = 'approved_eclipse_surface_%d_v1' % size
     mat = src_mat.copy(); mat.name = key
     nt = mat.node_tree; bs = next(nd for nd in nt.nodes if nd.type == 'BSDF_PRINCIPLED')
@@ -721,9 +955,17 @@ def material(src_mat, heart_uv, vent_uv, vent_val, directory, size=2048, normal_
         kind = 'base' if 'basecolor' in nm else 'rm' if '_rm.' in nm else 'normal'
         s = normal_size if kind == 'normal' else size
         img = node.image.copy(); img.name = key + '_' + kind; img.scale(s, s)
-        if kind == 'rm':
+        if kind == 'rm' or prow:
             data = np.empty(s * s * 4, dtype=np.float32); img.pixels.foreach_get(data); rgba = data.reshape(-1, 4)
-            rgba[:, 1] = np.clip(rgba[:, 1], .34, .86); img.pixels.foreach_set(data)
+            if prow:
+                px = data.reshape(s, s, 4)
+                for part in ('lens', 'frame'):
+                    (r0, r1), (c0, c1) = prow_rows(prow[part], s)
+                    px[r0:r1, c0:c1, :3] = (prow['rgb'][part] if kind == 'base' else (1, prow['rough'][part], prow['metal'][part])
+                                            if kind == 'rm' else (.5, .5, 1))
+            if kind == 'rm':
+                rgba[:, 1] = np.clip(rgba[:, 1], .34, .86)
+            img.pixels.foreach_set(data)
         path = os.path.join(directory, key + '_' + kind + ('.png' if kind == 'normal' else '.jpg'))
         img.filepath_raw = path; img.file_format = 'PNG' if kind == 'normal' else 'JPEG'; img.save()
         saved = bpy.data.images.load(path, check_existing=False); saved.colorspace_settings.name = img.colorspace_settings.name
@@ -747,6 +989,25 @@ def material(src_mat, heart_uv, vent_uv, vent_val, directory, size=2048, normal_
     vents = glow > 0
     vent_col = np.array([.5, .3, 1.0]) * (.12 + .55 * np.clip(glow - .02, 0, 1) ** 1.5)[..., None]
     col = np.where(vents[..., None], np.maximum(col, vent_col), col)
+    taken = np.zeros((size, size), dtype=bool)
+    if prow:
+        # The prow lens: each texel back to its (x, z) on the lens, glowing like the vents along its middle.
+        (r0, r1), (c0, c1) = prow_rows(prow['lens'], size)
+        u0, v0, u1, v1 = prow['lens']
+        jj, ii = np.meshgrid(np.arange(c0, c1), np.arange(r0, r1))
+        x = -PROW['half_width'] + ((jj + .5) / size - u0) / (u1 - u0) * 2 * PROW['half_width']
+        zlo, zhi = PROW['z0'] - PROW['bottom'], PROW['z0'] + PROW['top']
+        z = zlo + ((ii + .5) / size - v0) / (v1 - v0) * (zhi - zlo)
+        g = prow_glow(x.ravel(), z.ravel()).reshape(x.shape)
+        col[r0:r1, c0:c1] = np.array([.5, .3, 1.0]) * (.12 + .55 * g ** 1.5)[..., None]
+        taken[r0:r1, c0:c1] = True
+        # The frame: black, but for the crest's column (ring 2 of PROW_FRAME_RINGS), one of the hull's violet seams.
+        (r0, r1), (c0, c1) = prow_rows(prow['frame'], size)
+        u0, u1 = prow['frame'][0], prow['frame'][2]
+        k = ((np.arange(c0, c1) + .5) / size - u0) / (u1 - u0) * len(PROW_FRAME_RINGS)
+        seam = np.clip(1 - np.abs(k - 2.5) / .28, 0, 1)
+        col[r0:r1, c0:c1] = (np.array([.62, .5, 1.0]) * .75 * seam[None, :, None])
+        taken[r0:r1, c0:c1] = True
     rgba = np.ones((size, size, 4), dtype=np.float32); rgba[..., :3] = np.clip(col, 0, 1)
     emit = bpy.data.images.new(key + '_emission', width=size, height=size, alpha=False)
     # sRGB, as glTF reads an emissive texture (the game decodes it so), so Blender previews match the game.
@@ -758,7 +1019,7 @@ def material(src_mat, heart_uv, vent_uv, vent_val, directory, size=2048, normal_
         report.update(glow_mask_fraction=float((lit > .1).mean()), glow_mask_mean=float(lit.mean()),
                       seam_fraction=float((seams > .1).mean()), lens_texels=int(heart.sum()), vent_texels=int(vents.sum()))
     # A texel for the caps under the collar: the darkest, flattest spot of the atlas (black armour, plain normal).
-    dark = blur(V, 6) + np.where(heart | vents, 9, 0)
+    dark = blur(V, 6) + np.where(heart | vents | taken, 9, 0)
     i, j = np.unravel_index(np.argmin(dark[64:-64, 64:-64]), dark[64:-64, 64:-64].shape)
     cap_uv = ((j + 64 + .5) / size, (i + 64 + .5) / size)
     return mat, cap_uv
@@ -888,11 +1149,27 @@ def build(out, preview_dir, label=LABEL):
     for side, sign in ((20, 1), (21, -1)):
         m = lab[vents] == side
         vval[m] = vent_glow(g, fv, vents[m], sign)
-    mat, cap_uv = material(src_mat, uv[lab == 1], uv[vents], vval, tex_dir, report=report)
+    # The prow vent's own texels: a free square of the atlas, its lens above and its frame's strip below. The geometry's
+    # UVs stay three texels inside what is painted, so filtering never reaches the atlas round it.
+    u0, v0, side = free_square(uv)
+    paint = dict(lens=(u0, v0 + side * .42, u0 + side, v0 + side), frame=(u0, v0, u0 + side, v0 + side * .32))
+    pad = 3 / 2048
+    inset = {k: (r[0] + pad, r[1] + pad, r[2] - pad, r[3] - pad) for k, r in paint.items()}
+    hull_rgb = rgb[lab == 0]; hull_v = hull_rgb.max(1)
+    prow_paint = dict(paint, rgb=dict(lens=rgb[vents].mean(0), frame=np.median(hull_rgb[hull_v < np.percentile(hull_v, 25)], 0)),
+                      rough=dict(lens=.3, frame=.3), metal=dict(lens=0.0, frame=.1))
+    report['prow_atlas'] = dict(square=[round(u0, 4), round(v0, 4), round(side, 4)], lens_rgb=prow_paint['rgb']['lens'].round(3).tolist(),
+                                frame_rgb=prow_paint['rgb']['frame'].round(3).tolist())
+    mat, cap_uv = material(src_mat, uv[lab == 1], uv[vents], vval, tex_dir, report=report, prow=prow_paint)
     mats = [mat]
     # Full-resolution surface for the shading transfer (not exported).
     hires = part_object('eclipse_hires_reference', G, fv, uv, np.ones(len(fv), dtype=bool), mats)
     hires.hide_render = True
+    # The prow vent, hand-built on the full-resolution belly (its triangles are reserved in the reduction's budget).
+    prow, prow_frame, prow_lam, prow_n = prow_vent(G, fv, inset, report)
+    for o in (prow, prow_frame):
+        o.data.materials.append(mat)
+    prow_tris = 2 * len(prow.data.polygons) + len(prow_frame.data.polygons)
     objects, parts = [], {}
     names = {1: 'eclipse_heart', 20: 'eclipse_pod_left', 21: 'eclipse_pod_right'}
     names.update({10 + k: 'eclipse_heart_shutter_%d' % k for k in range(len(SECTORS))})
@@ -905,7 +1182,7 @@ def build(out, preview_dir, label=LABEL):
     whole = part_object('eclipse_whole', G, fv, uv, np.ones(len(fv), dtype=bool), mats * len(labels))
     whole.data.polygons.foreach_set('material_index', lut[lab])
     del g, fc, fn, rgb
-    visible_share = reduce_whole(whole, labels, names)
+    visible_share = reduce_whole(whole, labels, names, margin=1200 + prow_tris)
     report['hull_visible_vertex_share'] = round(visible_share, 3)
     hull = split_part(whole, 0, 'eclipse_hull', mats)
     for k, nm in names.items():
@@ -942,6 +1219,9 @@ def build(out, preview_dir, label=LABEL):
     join(hull, seats)
     report['closed_surface_open_edges'] = open_edges([hull, parts['eclipse_heart'], parts['eclipse_pod_left'], parts['eclipse_pod_right']])
     log('open edges of hull + reactor + vents (shutters lifted away):', report['closed_surface_open_edges'])
+    # The prow vent's frame is armour: it joins the hull (its skirt sinks into the face, its inner lip over the lens's rim).
+    report['prow']['frame_gap'] = frame_gap(prow_frame, hull)
+    join(hull, [prow_frame])
     # Pivots of the targets: the reactor centre on the ring's plane; each vent's centre.
     heart = parts['eclipse_heart']
     set_pivot(heart, (info['cx'], 0.0, 2.0))
@@ -951,9 +1231,11 @@ def build(out, preview_dir, label=LABEL):
         set_pivot(ob, tuple(v.mean(0)))
     objects = [hull, heart] + [parts['eclipse_heart_shutter_%d' % k] for k in range(len(SECTORS))]
     objects += [parts['eclipse_pod_left'], parts['eclipse_pod_right']]
+    set_pivot(prow, tuple(np.array([p.co[:] for p in prow.data.vertices]).mean(0)))
+    objects.append(prow)
     burnt = wreck_material(mat)
     objects += [wreck_copy(heart, burnt, sag=.35, jitter=.04, seed=7), wreck_copy(parts['eclipse_pod_left'], burnt, jitter=.03, seed=8),
-                wreck_copy(parts['eclipse_pod_right'], burnt, jitter=.03, seed=9)]
+                wreck_copy(parts['eclipse_pod_right'], burnt, jitter=.03, seed=9), prow_wreck(prow, prow_lam, prow_n, burnt)]
     total = tris(objects)
     report['triangles'] = {o.name: tris([o]) for o in objects}
     report['triangles_total'] = total
@@ -1051,6 +1333,27 @@ def checks(res):
                  y=[round(bb[:, 1].min(), 2), round(bb[:, 1].max(), 2)], z=[round(bb[:, 2].min(), 2), round(bb[:, 2].max(), 2)],
                  centre_ray_clear=ray_clear(ob.location, occ)[0])
         out['vent_' + side] = v
+    # The prow vent: what the camera sees of it, where that lies on the target plane (content's prowS), and the combat
+    # rows through it (x 0 is the near spike's blade, as for the reactor; either side must reach the lens first).
+    prow = by['eclipse_prow']
+    v = visible_surface(prow, occ + [left, right])
+    if 'mean' in v:
+        m = v['mean']
+        v['target_plane_s'] = round(m[1] + (m[2] - TARGET_HEIGHT) * C55 / S55, 3)
+    from mathutils.bvhtree import BVHTree
+    solid = [hull, prow, heart, left, right] + shutters
+    verts, polys, owner = [], [], []
+    for o in solid:
+        vv, pp = world_tris([o]); polys += [[len(verts) + i for i in t] for t in pp]; verts += vv; owner += [o.name] * len(pp)
+    tree = BVHTree.FromPolygons(verts, polys, all_triangles=True)
+    rows = {}
+    for x in (-.9, -.6, -.3, 0, .3, .6, .9):
+        for ds in (-.5, 0, .5):
+            p = Vector((x, PROW_S + ds, TARGET_HEIGHT))
+            hit = tree.ray_cast(p + Vector(TO_EYE) * 30, -Vector(TO_EYE), 60)
+            rows['%g,%g' % (x, ds)] = None if hit[0] is None else owner[hit[2]]
+    v['combat_rows_first_hit'] = rows
+    out['prow'] = v
     hb = np.array([hull.matrix_world @ Vector(c) for c in hull.bound_box])
     out['hull_bounds'] = [hb.min(0).round(3).tolist(), hb.max(0).round(3).tolist()]
     out['heart_pivot'] = [round(x, 3) for x in heart.location]
@@ -1149,6 +1452,13 @@ def previews(res, directory):
     shots.append(shoot(sc, 'game', (0, 2.6, 0), 23, os.path.join(d, 'eclipse-game-open.png')))
     for s in shutters:
         s.rotation_euler.x = 0
+    # The prow vent from the game camera: live, then destroyed (its wreck in place).
+    prow, wreck = by['eclipse_prow'], by['eclipse_prow_wreck']
+    a = shoot(sc, 'game', (0, -1.6, 1.2), 6, os.path.join(d, '_prow_live.png'), 1000)
+    prow.hide_render, wreck.hide_render = True, False
+    b = shoot(sc, 'game', (0, -1.6, 1.2), 6, os.path.join(d, '_prow_wreck.png'), 1000)
+    prow.hide_render, wreck.hide_render = False, True
+    shots.append(side_by_side([a, b], os.path.join(d, 'eclipse-prow-live-wreck.png')))
     # The mended wing: the supplied model (same placement) beside the adapted hull.
     src = res['src']
     src.rotation_mode = 'XYZ'; src.rotation_euler = (-math.pi / 2, 0, 0); src.scale = (SCALE,) * 3
