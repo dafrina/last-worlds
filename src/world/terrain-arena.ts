@@ -27,12 +27,21 @@ export function arenaWeight(arena: TerrainArena | undefined, s: number): number 
  *
  * Every boss stops with its platform starting 9 before the stop (`platform.from` −9) and fights at rows 11.5–13, so
  * the centre sits a fixed `centre` past `fromS` (tests/world/terrain-arena.test.ts checks every boss).
+ *
+ * Past the entry corridor's far end the clearing is drawn out `tail` times along s, its wandering edge and its fade
+ * (terrain version 22; user, 31 October: "a clear cut behind the boss when we take off for warp"): that end spans the
+ * whole view as the ship departs over it, and the short fade there read as a rim cut straight across the ground.
  */
-export const ARENA_CLEARING = { centre: 9 + 12.5, halfX: 5.6, halfS: 7.5, wobble: 2.8, fade: 2.5, entry: 9 + 40 } as const;
+export const ARENA_CLEARING = { centre: 9 + 12.5, halfX: 5.6, halfS: 7.5, wobble: 2.8, fade: 2.5, entry: 9 + 40, tail: 2 } as const;
+/** Forward distance in the clearing's own frame: as is up to the corridor's far end, `tail` times compressed past it. */
+function clearingS(arena: TerrainArena, s: number): number {
+  const end = arena.fromS + ARENA_CLEARING.entry;
+  return s <= end ? s : end + (s - end) / ARENA_CLEARING.tail;
+}
 /**
- * Units outside the clearing's fixed core: the oval over the fight, and a corridor as wide as it from the boss row up to
- * `entry` past the arena's start (user, 23 October: the Helion Ark glided in through shelf ice at the top of the view).
- * Every boss arrives along x 0 from 20–30 beyond its row, its hull reaching some 7 further.
+ * Units outside the clearing's fixed core (`s` in the clearing's frame): the oval over the fight, and a corridor as wide
+ * as it from the boss row up to `entry` past the arena's start (user, 23 October: the Helion Ark glided in through shelf
+ * ice at the top of the view). Every boss arrives along x 0 from 20–30 beyond its row, its hull reaching some 7 further.
  */
 function clearingOutside(arena: TerrainArena, x: number, s: number): number {
   const c = ARENA_CLEARING, centre = arena.fromS + c.centre, end = arena.fromS + c.entry;
@@ -41,27 +50,36 @@ function clearingOutside(arena: TerrainArena, x: number, s: number): number {
   const corridor = s < centre ? Infinity : Math.hypot(Math.max(0, Math.abs(x) - c.halfX), Math.max(0, s - end));
   return Math.min(oval, corridor);
 }
-/** The arena's weight at a point: 1 in the boss clearing, 0 outside it, irregular in between. */
+/** How far past `fromS` the clearing can reach: the end of its entry corridor plus its widest wandering edge and fade, drawn out. */
+const CLEARING_END = ARENA_CLEARING.entry + ARENA_CLEARING.tail * (2 * ARENA_CLEARING.wobble + ARENA_CLEARING.fade);
+/**
+ * Whether the arena shapes row s at all: its platform with both ramps, or its clearing, which outlasts the ramp of a short
+ * platform. (User, 31 October: "a clear cut behind the boss when we take off for warp, as if a hill got cut". WARDEN-1's
+ * platform ends 31 past `fromS`, so its ramp ended at 51 while the entry corridor was flat to 49 and its edge wandered
+ * out to 57: the clearing stopped dead in a wall across the view during the departure. Bastion-9's 35 had a milder cut.)
+ */
+export function arenaReaches(arena: TerrainArena | undefined, s: number): boolean {
+  return !!arena && s > arena.fromS - ARENA_RAMP && s < Math.max(arena.toS + ARENA_RAMP, arena.fromS + CLEARING_END);
+}
+/** The arena's weight at a point: 1 in the boss clearing, 0 outside it, irregular in between, and continuous everywhere. */
 export function arenaAt(arena: TerrainArena | undefined, seed: number, x: number, s: number): number {
-  const along = arenaWeight(arena, s);
-  if (along <= 0) return 0;
-  const c = ARENA_CLEARING, outside = clearingOutside(arena!, x, s);
+  if (!arenaReaches(arena, s)) return 0;
+  const c = ARENA_CLEARING, t = clearingS(arena!, s), outside = clearingOutside(arena!, x, t);
   if (outside <= 0) return 1;
-  const edge = smoothRange(0.2, 0.8, noise(seed ^ 0xa7c1, x * 0.16, s * 0.14) * 0.65 + noise(seed ^ 0xa7c2, x * 0.42, s * 0.39) * 0.35) * 2 * c.wobble;
+  const edge = smoothRange(0.2, 0.8, noise(seed ^ 0xa7c1, x * 0.16, t * 0.14) * 0.65 + noise(seed ^ 0xa7c2, x * 0.42, t * 0.39) * 0.35) * 2 * c.wobble;
   return 1 - smoothRange(edge, edge + c.fade, outside);
 }
 /** Whether a point lies in the clearing's fixed core, the oval or the entry corridor (always flat, whatever the noise does to its edge). */
 export function inArenaCore(arena: TerrainArena | undefined, x: number, s: number): boolean {
   if (!arena) return false;
-  return clearingOutside(arena, x, s) <= 0 && arenaWeight(arena, s) > 0;
+  return clearingOutside(arena, x, clearingS(arena, s)) <= 0 && arenaReaches(arena, s);
 }
 /** Whether a point lies beyond the clearing's widest possible edge (the planet's own terrain there). */
 export function beyondArenaClearing(arena: TerrainArena | undefined, x: number, s: number): boolean {
   if (!arena) return true;
   const c = ARENA_CLEARING;
-  return arenaWeight(arena, s) <= 0 || clearingOutside(arena, x, s) >= 2 * c.wobble + c.fade;
-}
-/** Whether [s0, s1] reaches the arena or its ramps (widened by `margin`). */
+  return !arenaReaches(arena, s) || clearingOutside(arena, x, clearingS(arena, s)) >= 2 * c.wobble + c.fade;
+}/** Whether [s0, s1] reaches the arena or its ramps (widened by `margin`). */
 export function nearArena(arena: TerrainArena | undefined, s0: number, s1: number, margin = 0): boolean {
   return !!arena && s1 >= arena.fromS - ARENA_RAMP - margin && s0 <= arena.toS + ARENA_RAMP + margin;
 }

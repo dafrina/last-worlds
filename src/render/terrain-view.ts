@@ -3,7 +3,7 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
 import {
-  FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MESH_HALF, PLANETS, ROAD_STEP, SHARED_NODES, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld, VESPER_CLIFF_KINDS,
+  FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MESH_HALF, PLANETS, ROAD_STEP, SHARED_NODES, SWAP_HORIZON, TERRAIN_STEP, createTerrainStream, kitNodeName, moduleSize, pieceBounds, routeOfInput, routedWorld, scrollRoute, VESPER_CLIFF_KINDS,
   terrainHeight, worldAt, worldOf, type DistrictSite,
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
@@ -59,6 +59,8 @@ interface Cullable { object: THREE.Object3D; box: THREE.Box3; triangles: number;
 /** Per-node instance data of one section in section-local space (z = −(s − startS)). */
 interface Prepared { matrices: Float32Array; colors: Float32Array; boxes: Float32Array; cosmetic: Uint8Array; count: number }
 interface SectionView {
+  /** The generated section this view draws (around a jump, one of its two versions). */
+  section: TerrainSection;
   index: number; startS: number; group: THREE.Group; cullables: Cullable[];
   instanced: THREE.InstancedMesh[]; geometries: THREE.BufferGeometry[]; prepared: Map<string, Prepared>;
   /** Road centrelines touching this section, for haulers. */
@@ -166,6 +168,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   let quality: GraphicsQuality = 'high', seed: number | null = null, stream = createTerrainStream(0);
   /** The world (planet and mission arena) the current stream was built with, or its route (endless cycle). */
   let world: World = worldOf(), route: TerrainRoute | null = null, sourceKey = '';
+  /** The route variant the terrain shows at the current distance (around a jump: its outgoing version until the flash). */
+  let shown: TerrainRoute | null = null;
   /** The planet the look shows (ground material, onPlanet); on a route it switches at a jump's flash. */
   let lookPlanet: PlanetId | null = null, viewFallbacks = 0;
   let water: THREE.Material | null = options.waterMaterial ?? null;
@@ -359,9 +363,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   function refreshCasters() {
     proxies.clear();
     for (const view of views.values()) buildCasters(view);
-    if (prebuilt?.view) buildCasters(prebuilt.view);
     // A half-built prefetched view would keep stand-in casters; drop it and let prefetch rebuild it.
-    else if (prebuilt) discardPrebuilt();
+    for (const [section, entry] of prebuilt) if (entry.view) buildCasters(entry.view); else discardPrebuilt(section);
   }
 
   /** Converts a section's kit instances and district props into per-node, section-local instance arrays. */
@@ -457,7 +460,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   /** Resumable view build: instance preparation, each ground strip, and the road mesh are separate steps. */
   function* buildSteps(section: TerrainSection): Generator<void, SectionView, void> {
     const group = new THREE.Group(); group.name = `Khepri procedural section ${section.index}`;
-    const view: SectionView = { index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [], floes: section.floes ?? [], sea: section.water?.level ?? 0,
+    const view: SectionView = { section, index: section.index, startS: section.startS, group, cullables: [], instanced: [], geometries: [], prepared: prepare(section), roads: new Map(), casters: [], floes: section.floes ?? [], sea: section.water?.level ?? 0,
       vents: section.instances.filter(piece => piece.kind === 'vent').map(piece => ({ x: piece.x, y: piece.y + piece.height * KIT.vent.height, s: piece.s })),
       sites: section.sites ?? [] };
     yield;
@@ -569,13 +572,18 @@ export function createTerrainView(options: TerrainViewOptions) {
     scene.add(step.value.group); dirty = true;
     return step.value;
   }
-  /** A view built ahead (in budgeted steps) for the prefetched section, attached when that section enters the window. */
-  let prebuilt: { section: TerrainSection; work: Generator<void, SectionView, void>; view: SectionView | null } | null = null;
-  const discardPrebuilt = () => {
-    if (!prebuilt) return;
-    if (prebuilt.view) disposeView(prebuilt.view);
-    else { const partial = prebuilt.work.return(undefined as never); void partial; }
-    prebuilt = null;
+  /**
+   * Views built ahead (in budgeted steps) for prefetched sections, attached when a section enters the window: the next
+   * section, and around a jump both versions of the sections its swap changes.
+   */
+  const prebuilt = new Map<TerrainSection, { work: Generator<void, SectionView, void>; view: SectionView | null }>();
+  const discardPrebuilt = (section?: TerrainSection) => {
+    for (const [key, entry] of [...prebuilt]) {
+      if (section && key !== section) continue;
+      if (entry.view) disposeView(entry.view);
+      else { const partial = entry.work.return(undefined as never); void partial; }
+      prebuilt.delete(key);
+    }
   };
 
   /** One ribbon mesh per section for the road segments that start in it, culled by its box. */
@@ -684,7 +692,9 @@ export function createTerrainView(options: TerrainViewOptions) {
      * `{ planet, arena }` (a bare arena still means Khepri; omit for Khepri without an arena), or a route
      * (`routeOf` over the run's schedule: planet stretches and boss arenas by distance, docs/18 §3). A new seed
      * or world rebuilds the window. On a route the window never rebuilds: sections ahead of a planet switch are
-     * prefetched with the next planet, its kits load well ahead, and the look switches at the jump's flash.
+     * prefetched with the next planet, its kits load well ahead, and the look switches at the jump's flash. At the
+     * flash the sections the jump's swap changes are replaced by their incoming versions, prefetched with their views
+     * (docs/18, 31 October), so the new planet fills the whole view as the veil lifts and the old one never shows a seam.
      */
     update(nextSeed: number, nextDistance: number, next?: TerrainInput) {
       distance = nextDistance;
@@ -696,36 +706,60 @@ export function createTerrainView(options: TerrainViewOptions) {
         discardPrebuilt();
         seed = nextSeed; route = targetRoute; sourceKey = key; stream = createTerrainStream(seed, route ?? target);
       }
-      world = target;
+      // Around a jump the terrain shows the route's outgoing version until the flash (sectionSource); seating follows it.
+      shown = route ? scrollRoute(route, distance) : null;
+      world = shown ? shown.worldAt(distance) : target;
       if (route) for (const span of route.spans(distance - VIEW.sectionLength, distance + PRELOAD_AHEAD)) ensurePlanet(span.world.planet.id);
       else ensurePlanet(world.planet.id);
       applyLook(route ? route.lookAt(distance) : world.planet.id);
-      const active = stream.update(distance), live = new Set(active.map(section => section.index)), starting = views.size === 0;
-      for (const [index, view] of views) if (!live.has(index)) { disposeView(view); views.delete(index); }
+      const active = stream.update(distance), live = new Set(active), starting = views.size === 0;
+      // A view leaves with its section: out of the window, or replaced by its other version at a jump's flash.
+      for (const [index, view] of views) if (!live.has(view.section)) { disposeView(view); views.delete(index); }
       for (const section of active) {
         let view = views.get(section.index);
-        if (!view && prebuilt?.section === section && prebuilt.view) { view = prebuilt.view; prebuilt = null; scene.add(view.group); dirty = true; }
-        if (!view && prebuilt?.section === section) discardPrebuilt();
+        const early = view ? undefined : prebuilt.get(section);
+        if (early?.view) { view = early.view; prebuilt.delete(section); scene.add(view.group); dirty = true; }
+        else if (early) discardPrebuilt(section);
         // A view built here, mid-flight, is a synchronous fallback (prefetch builds views ahead in steps).
-        if (!view) { view = buildSection(section); views.set(section.index, view); if (!starting) viewFallbacks++; }
+        if (!view) { view = buildSection(section); if (!starting) viewFallbacks++; }
         views.set(section.index, view);
         view.group.position.z = distance - section.startS;
       }
-      if (prebuilt && !live.has(prebuilt.section.index) && prebuilt.section.index < Math.floor(distance / VIEW.sectionLength)) discardPrebuilt();
+      // Views built ahead for sections nothing needs any more (passed, or the version a swap left behind).
+      for (const section of [...prebuilt.keys()]) if (!stream.holds(section)) discardPrebuilt(section);
     },
     /**
-     * Spends spare frame time ahead of need: first advances the next section's generation in resumable steps,
-     * then (in a later frame) builds its view off-scene. `more()` is the caller's per-frame budget check.
+     * Spends spare frame time ahead of need, soonest need first: advances each needed section's generation in resumable
+     * steps, then builds its view off-scene, before going on to the next. `more()` is the caller's per-frame budget check.
      */
     prefetch(more: () => boolean) {
       if (seed === null) return;
-      if (!stream.prefetch(distance, more) || !more()) return;
-      const upcoming = stream.upcoming();
-      if (upcoming && prebuilt?.section !== upcoming) { discardPrebuilt(); prebuilt = { section: upcoming, work: buildSteps(upcoming), view: null }; }
-      while (prebuilt && !prebuilt.view && more()) {
-        const step = prebuilt.work.next();
-        if (step.done) prebuilt.view = step.value;
+      for (const need of stream.needs(distance)) {
+        const section = stream.prepare(need, more);
+        if (!section || !more()) return;
+        let entry = prebuilt.get(section);
+        if (!entry) { entry = { work: buildSteps(section), view: null }; prebuilt.set(section, entry); }
+        while (!entry.view && more()) {
+          const step = entry.work.next();
+          if (step.done) entry.view = step.value;
+        }
+        if (!entry.view) return;
       }
+    },
+    /**
+     * Whether the terrain of a coming jump's swap is ready: every section the window holds at the flash is generated and
+     * has its view built (or no swap is near). The jump holds before its flash until it is (src/main.ts, `isReady`).
+     */
+    swapReady(): boolean {
+      if (seed === null || !route?.swaps) return true;
+      for (const swap of route.swaps(distance, distance + SWAP_HORIZON)) {
+        if (swap.flash <= distance) continue;
+        for (const section of stream.sectionsAt(swap.flash)) {
+          if (!section) return false;
+          if (views.get(section.index)?.section !== section && !prebuilt.get(section)?.view) return false;
+        }
+      }
+      return true;
     },
     /** Section generation (startup, prefetched, fallbacks) plus views built synchronously mid-flight. */
     get streamStats() { return { ...stream.stats, viewFallbacks }; },
@@ -841,7 +875,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     animate(time: number, cameraX: number) {
       let count = 0; haulerDust.length = 0;
       // Each road's own planet picks its haulers: Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
-      const used = new Map<string, number>(), roads = new Map<string, RoadPath>(), source = route ?? world;
+      const used = new Map<string, number>(), roads = new Map<string, RoadPath>(), source = shown ?? world;
       for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
       for (const road of roads.values()) {
         const total = road.length[road.length.length - 1];
@@ -969,7 +1003,7 @@ export function createTerrainView(options: TerrainViewOptions) {
      * its planet and arena are those under the ship, and height queries given it resolve every distance on
      * the route (seating across a planet seam stays right).
      */
-    get world(): World | RoutedWorld { return route ? routedWorld(route, world) : world; },
+    get world(): World | RoutedWorld { return shown ? routedWorld(shown, world) : world; },
     /** The route being streamed, if any. */
     get route(): TerrainRoute | null { return route; },
   };

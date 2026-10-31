@@ -1095,7 +1095,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
   };
-  const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next);
+  // A jump also waits for its terrain swap (both versions of the sections it changes, built ahead; docs/18, 31 October).
+  const planetReady = (next: PlanetId) => prepared.has(next) && facilities.isReady(next) && terrain.swapReady();
   const jumpFx = createJumpFx(scene);
   /**
    * Ground batteries' rounds as drawn (src/render/shot-launch.ts): each battery's forecast muzzle and drawn spot while it

@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { VIEW, type RunState } from '../shared/contracts';
 import { AROUND_HERO } from './hero-stencil';
-import { endlessSectorPlan } from '../content/endless';
 
 /**
  * Hyperdrive jump between planets (docs/18 §4), render-only and phone-cheap: two draws while active, none otherwise.
@@ -22,28 +21,27 @@ import { endlessSectorPlan } from '../content/endless';
  *   clock; on arrival a flash breaks out and the veil lifts onto the world over ARRIVE seconds.
  * - The ship stays visible through every warp (user, 27 October): veil, flash and streaks draw around the hero's
  *   stencil (src/render/hero-stencil.ts), the streaks passing under it.
- * - The old planet stays in deep space (user, 30 October: "right after arrival in the new level the old level is visible
- *   in the lower half of the screen, with a clear cut"): the next planet's terrain begins at the jump's switch distance,
- *   about 24 units past the flash, and the camera sees 37 ahead and 8 behind, so no timing of the veil can hide it. From
- *   the flash, the veil keeps covering the flight plane short of the switch (a long soft edge, so the world fades in out of space) until that edge has left the
- *   bottom of the view: the new world emerges from deep space ahead of the ship.
+ * - The new planet fills the whole view as the veil lifts (user, 31 October: "the terrain in endless is cutoff in front";
+ *   on 30 October the old planet had shown below a seam after arrival, so a band of deep space covered it until the seam
+ *   left the view). The terrain now swaps planets under the opaque veil, at the flash (src/world/terrain-planet.ts,
+ *   `RouteSwap`): the old planet holds past everything in view until then, and from then the new one reaches behind the
+ *   bottom of the screen. No band is needed. The jump holds before its flash until that terrain is built (`isReady`).
  */
 const STREAKS = 120, MAX_HOLD = 4, PLANE_Y = VIEW.flightHeight - .45;
+/**
+ * The jump's veil is fully opaque from VEIL_SHUT to VEIL_LIFT (fractions of the jump): the terrain swaps planets in that
+ * window, at the flash (VEIL_LIFT, the jump's middle). tests/world/terrain-swap.test.ts holds the swap's seams to it.
+ */
+export const VEIL_SHUT = .38, VEIL_LIFT = .5;
 /** A flash that rises quickly and fades out more slowly (the world or the results emerge through it). */
 const flashAt = (t: number, peak: number, rise: number, fade: number) => Math.exp(-(((t - peak) / (t < peak ? rise : fade)) ** 2)) * 1.2;
 /** Launch warp: seconds from arrival to the clear world, and to the flash's peak (when the flight starts). */
 export const ARRIVE = .95, ARRIVE_FLASH = .14;
 const VEIL_VERTEX = /* glsl */`
-varying float vS;
-void main() { vS = -( modelMatrix * vec4( position, 1.0 ) ).z; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`;
+void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`;
 const VEIL_FRAGMENT = /* glsl */`
-uniform float veil; uniform float flash; uniform vec3 veilColor; uniform vec3 flashColor; uniform float hold; uniform float cutS;
-varying float vS;
-void main() {
-  // Short of the planet switch (cutS, on the flight plane) the old planet stays under deep space.
-  float a = max( veil, hold * ( 1.0 - smoothstep( cutS - .5, cutS + 7.0, vS ) ) );
-  gl_FragColor = vec4( veilColor * a + flashColor * flash, a );
-}`;
+uniform float veil; uniform float flash; uniform vec3 veilColor; uniform vec3 flashColor;
+void main() { gl_FragColor = vec4( veilColor * veil + flashColor * flash, veil ); }`;
 const STREAK_VERTEX = /* glsl */`
 attribute vec4 aStreak; uniform float travel; uniform float stretch; uniform float span; varying float vFade; varying float vAlong;
 void main() {
@@ -70,7 +68,7 @@ const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453
 
 export function createJumpFx(scene: THREE.Scene) {
   const veilUniforms = {
-    veil: { value: 0 }, flash: { value: 0 }, hold: { value: 0 }, cutS: { value: 0 },
+    veil: { value: 0 }, flash: { value: 0 },
     veilColor: { value: new THREE.Color().setHex(0x050a18, THREE.SRGBColorSpace) }, flashColor: { value: new THREE.Color(2.6, 2.7, 3.0) },
   };
   // Premultiplied blending: the veil darkens what is below, the flash adds light on top of it.
@@ -96,8 +94,6 @@ export function createJumpFx(scene: THREE.Scene) {
   streaks.frustumCulled = false; streaks.renderOrder = 12; streaks.visible = false; streaks.name = 'jump streaks';
   scene.add(veil, streaks);
   let travel = 0, lastTime = -1, lastWall = -1, holdStart = -Infinity, lift = 1, wasJumping = false;
-  /** World distance where the next planet's terrain begins, while the old planet behind it is still in view. */
-  let switchAt: number | null = null;
   /** The launch warp: off, cruising while the world is prepared, or arriving (since `launchAt`, wall seconds). */
   let launch: 'off' | 'cruise' | 'arrive' = 'off', launchAt = 0;
 
@@ -132,7 +128,7 @@ export function createJumpFx(scene: THREE.Scene) {
         // Into deep space over the first third; the flash at the midpoint ends the streaks and fades straight into the new
         // world as the veil lifts (or the veil holds while assets finish). A victory warp has nowhere to land: under the
         // flash its veil turns to opaque space, behind the results.
-        const into = THREE.MathUtils.smoothstep(q, .06, .38), out = terminal ? 0 : ready ? THREE.MathUtils.smoothstep(q, .5, .78) : 0;
+        const into = THREE.MathUtils.smoothstep(q, .06, VEIL_SHUT), out = terminal ? 0 : ready ? THREE.MathUtils.smoothstep(q, VEIL_LIFT, .78) : 0;
         veilAmount = into * (1 - out);
         if (terminal) veilAmount += (1 - veilAmount) * THREE.MathUtils.smoothstep(q, .44, .52);
         if (!reducedMotion) {
@@ -157,16 +153,9 @@ export function createJumpFx(scene: THREE.Scene) {
       streakUniforms.travel.value = travel; streakUniforms.stretch.value = .6 + speed * .28; streakUniforms.intensity.value = intensity;
       // The veil amount is perceptual; High blends in linear light, where the same darkening needs a denser veil.
       veilUniforms.veil.value = linearBlend ? 1 - Math.pow(1 - veilAmount, 2.2) : veilAmount; veilUniforms.flash.value = flash;
-      // From the flash of an endless jump to a new planet, deep space covers the old planet's terrain (see above).
-      if (jump && !terminal && state.config.mode === 'endless' && state.time >= jump.startedAt + jump.duration * .48) {
-        switchAt ??= endlessSectorPlan(state.sector).jump?.switchDistance ?? null;
-      }
-      if (switchAt !== null && switchAt - state.distance < VIEW.minS - 4) switchAt = null;
-      const holding = switchAt !== null && (!jump || state.time >= jump.startedAt + jump.duration * .48);
-      veilUniforms.hold.value = holding ? 1 : 0; veilUniforms.cutS.value = holding ? switchAt! - state.distance : 0;
       const centre = (VIEW.minS + VIEW.maxS) / 2;
       veil.position.set(state.cameraX, PLANE_Y, -centre); streaks.position.set(state.cameraX, PLANE_Y + .02, 0);
-      veil.visible = veilAmount > .002 || flash > .002 || holding; streaks.visible = intensity > .002;
+      veil.visible = veilAmount > .002 || flash > .002; streaks.visible = intensity > .002;
       return veil.visible || streaks.visible;
     },
     /**
@@ -177,7 +166,7 @@ export function createJumpFx(scene: THREE.Scene) {
       if (mode === 'arrive' && launch === 'off') return 0;
       // A new flight leaves the last one's jump behind: after a victory warp, its veil lift overrode the launch veil and
       // showed the new world being prepared ("Fly again", user 27 October).
-      if (mode === 'cruise') { wasJumping = false; holdStart = -Infinity; lift = 1; switchAt = null; }
+      if (mode === 'cruise') { wasJumping = false; holdStart = -Infinity; lift = 1; }
       launch = mode; launchAt = performance.now() / 1000;
       return mode === 'arrive' ? ARRIVE_FLASH : 0;
     },

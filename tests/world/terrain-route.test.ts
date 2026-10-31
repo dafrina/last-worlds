@@ -6,7 +6,8 @@ import { missionArena } from '../../src/render/scene';
 import { runRoute } from '../../src/render/terrain-route';
 import { NACRE_SEA_LEVEL } from '../../src/world/terrain-nacre';
 import {
-  ARENA_LEVEL, SEAM_CLEARANCE, inArenaCore, TERRAIN_STEP, VESPER_SEA_LEVEL, createTerrainStream, generateTerrainSection, sectionSteps, terrainHeight, type TerrainSection,
+  ARENA_LEVEL, SEAM_CLEARANCE, inArenaCore, TERRAIN_STEP, VESPER_SEA_LEVEL, createTerrainStream, generateTerrainSection, sectionSource, sectionSteps, terrainHeight,
+  type RouteSwap, type TerrainSection,
 } from '../../src/world/terrain';
 
 const SEA = VESPER_SEA_LEVEL, HALF = VIEW.worldWidth / 2, L = VIEW.sectionLength, SEED = 93;
@@ -31,11 +32,20 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
   }, 120_000);
 
   it('follows the schedule: each distance takes its stretch’s planet and the nearest arena', () => {
-    for (let s = -20; s < 6000; s += 3.7) {
-      const world = route.worldAt(s);
-      expect(world.planet.id).toBe(schedule.planetAt(Math.max(0, s)));
-      const arena = schedule.arenaAt(s);
-      if (arena) expect(world.arena).toEqual({ fromS: arena.from, toS: arena.to });
+    // Around each jump the route moves the schedule's switch to its swap's seams (docs/18, 31 October): the route
+    // switches SWAP_BEHIND short of the flash, its outgoing variant SWAP_AHEAD past it.
+    const switches = schedule.stretches(0, 6100).slice(1).map(stretch => ({ at: stretch.from, jump: schedule.jumpAt(stretch.from)! }));
+    const swaps = route.swaps!(0, 6100);
+    expect(swaps.map(swap => swap.flash)).toEqual(switches.map(({ jump }) => jump.flashDistance));
+    for (const [variant, seamOf] of [[route, (swap: RouteSwap) => swap.incoming], [route.outgoing!, (swap: RouteSwap) => swap.outgoing]] as const) {
+      for (let s = -20; s < 6000; s += 3.7) {
+        // Between the schedule's switch and the variant's seam, the planet on the seam's side of s.
+        const world = variant.worldAt(s), k = swaps.findIndex((swap, i) => s >= Math.min(switches[i].at, seamOf(swap)) && s < Math.max(switches[i].at, seamOf(swap)));
+        const planet = k < 0 ? schedule.planetAt(Math.max(0, s)) : s >= seamOf(swaps[k]) ? switches[k].jump.to : switches[k].jump.from;
+        expect(world.planet.id, `${variant.key} at ${s}`).toBe(planet);
+        const arena = schedule.arenaAt(s);
+        if (arena) expect(world.arena).toEqual({ fromS: arena.from, toS: arena.to });
+      }
     }
     // Sections wholly on one planet are generated as that planet (Vesper has water and floes; Khepri none).
     // A section wholly inside one world (one planet, one arena owner) in sector 6 (Vesper) and in sector 3 (Khepri).
@@ -85,7 +95,15 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
   });
 
   it('splits the section at a planet switch: a clean hard seam, matching neighbours, nothing near it', () => {
-    for (const { jump, arena } of jumps) {
+    // Each jump has two seams (docs/18, 31 October): the route's, short of the flash, drawn from the flash on; and its
+    // outgoing variant's, past it, drawn until the flash. Both split their section the same clean way.
+    const seams = jumps.flatMap(({ jump, arena }) => {
+      const swap = route.swaps!(jump.flashDistance, jump.flashDistance + 1)[0];
+      expect(swap.flash).toBe(jump.flashDistance);
+      return [{ jump, arena, variant: route, switchDistance: swap.incoming }, { jump, arena, variant: route.outgoing!, switchDistance: swap.outgoing }];
+    });
+    for (const { jump: { from, to }, arena, variant, switchDistance } of seams) {
+      const jump = { from, to, switchDistance }, route = variant;
       const index = Math.floor(jump.switchDistance / L), [before, split, after] = [index - 1, index, index + 1].map(i => generateTerrainSection(SEED, i, route));
       // Seams with both neighbours match exactly (heights, colours, normals).
       for (const [a, b] of [[before, split], [split, after]]) {
@@ -128,17 +146,24 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
     }
   });
 
-  it('streams through every planet jump at peak hyperdrive speed from prefetched sections, with no fallback', () => {
+  it('streams through every planet jump at peak hyperdrive speed from prefetched sections, with no fallback, swapping planets at the flash', () => {
     for (const { plan, jump } of jumps) {
       const stream = createTerrainStream(SEED, route);
       // The boss falls a second after the stop: exercise the faster jump over the outgoing terrain buffer too.
       const timeline = ENDLESS_CYCLE.bossSector, bossEnd = timeline.decelStart + timeline.decelDuration + 1;
       let peak = 0, maxSteps = 0, previous = -Infinity;
+      const checked: number[] = [];
       for (let tau = timeline.decelStart - 20; tau < bossEnd + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration + 14; tau += 1 / 60) {
         const scroll = endlessScroll(plan, tau, bossEnd), distance = scroll.phase === 'next' ? jump.endDistance + (tau - bossEnd - 5) * jump.cruise : scroll.distance;
         peak = Math.max(peak, scroll.speed);
-        expect(distance).toBeGreaterThanOrEqual(previous - 1e-9); previous = distance;
-        stream.update(distance);
+        expect(distance).toBeGreaterThanOrEqual(previous - 1e-9);
+        const window = stream.update(distance);
+        // The last frame before the flash shows the outgoing versions, the first from it the incoming ones (the swap).
+        if ((previous < jump.flashDistance) !== (distance < jump.flashDistance) || (distance < jump.flashDistance && distance + 1 / 60 * scroll.speed >= jump.flashDistance)) {
+          for (const section of window) expect(section).toEqual(generateTerrainSection(SEED, section.index, sectionSource(route, section.index, distance)));
+          checked.push(distance);
+        }
+        previous = distance;
         // The same slice as the flight tests: thirty resumable steps a frame (about a millisecond).
         let used = 0, left = 30;
         stream.prefetch(distance, () => { const more = left-- > 0; if (more) used++; return more; });
@@ -151,6 +176,8 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       expect(stream.stats.startup).toBe(3);
       expect(stream.stats.fallbacks).toBe(0);
       expect(stream.stats.prefetched).toBeGreaterThanOrEqual(2);
+      expect(checked.filter(distance => distance < jump.flashDistance).length).toBeGreaterThan(0);
+      expect(checked.filter(distance => distance >= jump.flashDistance).length).toBe(1);
       for (const section of stream.update(previous)) expect(section).toEqual(generateTerrainSection(SEED, section.index, route));
     }
   }, 60_000); // Streams every planet's terrain at jump speed: about 9 s here, three times that on a slow CI runner (23 October).

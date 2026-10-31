@@ -7,7 +7,7 @@ import { MODULE_HEIGHT, settlementsNear, type Archetype } from './terrain-settle
 import { ROAD_ENDS, SHARED_BOUNDS, districtRoadsSteps, resetNetworkMemos, roadEndSpotsSteps, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 import { districtHidden, districtPlanSteps, districtsNear, knownPlan, resetDistrictPlans, slotRange, type DistrictSite } from './terrain-districts';
 import { arenaAt, arenaWeight } from './terrain-arena';
-import { routeOfInput, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
+import { SWAP_AHEAD, SWAP_BEHIND, routeOfInput, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
 
 export {
   MOODS, MOOD_LENGTH, ROUTES, ROUTE_AXES, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT,
@@ -18,10 +18,10 @@ export { WALL_CELL, cliffWallSteps, type WallOptions } from './terrain-walls';
 export { PAD_MARGIN, districtHidden, districtPlan, districtsNear, slotRange, type DistrictPlan, type DistrictSite } from './terrain-districts';
 export { KHEPRI_DISTRICTS, KHEPRI_REFINERY, type DistrictPolicy, type LayoutGraph } from './settlement-grammars';
 export { MODULES, moduleSize, type ModuleSpec } from './settlement-modules';
-export { ARENA_CLEARING, ARENA_LEVEL, ARENA_RAMP, arenaAt, arenaWeight, beyondArenaClearing, inArenaCore, sameArena, type TerrainArena } from './terrain-arena';
+export { ARENA_CLEARING, ARENA_LEVEL, ARENA_RAMP, arenaAt, arenaReaches, arenaWeight, beyondArenaClearing, inArenaCore, sameArena, type TerrainArena } from './terrain-arena';
 export {
-  PLANETS, isRoute, routeOf, routeOfInput, routedWorld, sameWorld, worldAt, worldOf,
-  type Floe, type PlanetId, type PlanetProfile, type RouteSchedule, type RouteSpan, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainWorld,
+  PLANETS, SWAP_AHEAD, SWAP_BEHIND, isRoute, routeOf, routeOfInput, routedWorld, sameWorld, worldAt, worldOf,
+  type Floe, type PlanetId, type PlanetProfile, type RouteSchedule, type RouteSpan, type RouteSwap, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainWorld,
   type World, type WorldInput,
 } from './terrain-planet';
 export { VESPER_PALETTE, VESPER_SEA_LEVEL } from './terrain-vesper';
@@ -69,8 +69,14 @@ export {
  *     between facing compounds, never to the map edge except from a district, and never meandering (at most 1.8 times
  *     the direct distance plus 4). On a sea planet a road that cannot reach its goal stands when it runs down to the
  *     shore (Vesper: "there's almost no roads on vesper" after version 20 dropped every partial road).
+ * 22: no cut behind a boss, and none at a jump (user, 31 October: "a clear cut behind the boss when we take off for
+ *     warp, as if a hill got cut"; "the terrain in endless is cutoff in front"). The boss clearing is no longer cut off
+ *     where a short platform's ramp ends (WARDEN-1 always, Bastion-9 in about two seeds of three) and its far end fades
+ *     out twice as long (`ARENA_CLEARING.tail`). Endless switches planets 14 short of each jump's flash instead of 22–29
+ *     past it, and its route's `outgoing` variant holds the old planet 36 past the flash: the terrain swaps between the
+ *     two under the opaque veil (`RouteSwap`). Everything away from a clearing's far end and from jumps is unchanged.
  */
-export const TERRAIN_VERSION = 21;
+export const TERRAIN_VERSION = 22;
 /**
  * Binary-exact grid step so section seams share bit-identical coordinates. A quarter unit resolves terrace
  * rims and canyon walls that cross the grid diagonally without visible stair steps.
@@ -228,7 +234,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   const size = VIEW.sectionLength, startS = index * size, cellsX = MESH_HALF * 2 / TERRAIN_STEP, cellsS = size / TERRAIN_STEP;
   // One world, or a route: every row (aprons included) and height query resolves the world of its own distance,
   // so both sides of a seam agree; scatter, settlements, networks and floes run per single-world span. A planet
-  // switch inside the section splits it (docs/18 §3): a hard seam under the jump's flash, inside an arena's calm.
+  // switch inside the section splits it (docs/18 §3): a hard seam that is never in view (a jump's swap, RouteSwap).
   const route = routeOfInput(input), single = route ? null : worldOf(input as WorldInput | World);
   const source: TerrainInput = route ?? single!;
   const spans: RouteSpan[] = route ? route.spans(startS, startS + size) : [{ world: single!, from: startS, to: startS + size }];
@@ -593,50 +599,145 @@ function* shoreDistanceSteps(heights: Float64Array, at: (row: number, column: nu
 }
 
 /**
+ * How far beyond its own rows a section's generation reads the route: the rim and shadow aprons (1 behind, 8 ahead),
+ * the seam clearance (3) and scatter probes near its ends.
+ */
+const SECTION_REACH = 10;
+/** A jump's swap is prepared from this far before its flash: through the whole boss fight before it. */
+export const SWAP_HORIZON = 160;
+
+/**
+ * The route variant section `index` is generated from while the scroll stands at `distance` (docs/18, 31 October): the
+ * route's `outgoing` variant for a section a coming swap changes, until the swap's flash; the route itself from the
+ * flash, and everywhere else. A single world is itself.
+ */
+export function sectionSource(input: TerrainInput, index: number, distance: number): TerrainInput {
+  const route = routeOfInput(input);
+  if (!route) return input;
+  if (!route.outgoing || !route.swaps) return route;
+  const from = index * VIEW.sectionLength - SECTION_REACH, to = (index + 1) * VIEW.sectionLength + SECTION_REACH;
+  for (const swap of route.swaps(from - SWAP_AHEAD - SWAP_HORIZON, to + SWAP_BEHIND + SWAP_HORIZON)) {
+    if (distance < swap.flash && swap.incoming < to && swap.outgoing > from) return route.outgoing;
+  }
+  return route;
+}
+/**
+ * The route the terrain shows at a scroll distance, for everything seated on it: the `outgoing` variant while a swap's
+ * flash is still ahead and its incoming seam within reach of the view, otherwise the route itself.
+ */
+export function scrollRoute(route: TerrainRoute, distance: number): TerrainRoute {
+  if (!route.outgoing || !route.swaps) return route;
+  for (const swap of route.swaps(distance, distance + SWAP_HORIZON)) if (swap.flash > distance && swap.incoming < distance + 2 * VIEW.sectionLength) return route.outgoing;
+  return route;
+}
+
+/** A section the stream may need: its index, the route variant it is generated from, and the scroll distance it is needed at. */
+export interface SectionNeed { readonly id: string; readonly index: number; readonly source: TerrainInput; readonly at: number }
+
+/**
  * Fixed three-section window; seeking does not retain old scenery or affect any RNG. `prefetch` advances the
- * next section ahead in small resumable steps while the caller's budget allows; `update` uses it when ready and
+ * sections needed next in small resumable steps while the caller's budget allows; `update` uses them when ready and
  * otherwise generates synchronously (counted in `fallbacks`). Both paths produce identical sections.
+ *
+ * Around a jump (a route swap) a window section can have two versions: the outgoing one until the flash, the
+ * incoming one from it. The stream prepares both ahead, so the swap under the veil takes prefetched sections.
  */
 export function createTerrainStream(seed: number, input?: TerrainInput) {
   // A route streams as-is (each section resolves its own worlds); anything else is one world everywhere.
-  const world: TerrainInput = routeOfInput(input) ?? worldOf(input as WorldInput | World);
-  const sections = new Map<number, TerrainSection>(), ready = new Map<number, TerrainSection>();
-  let pending: { index: number; work: Work<TerrainSection> } | null = null;
+  const route = routeOfInput(input), world: TerrainInput = route ?? worldOf(input as WorldInput | World);
+  const L = VIEW.sectionLength;
+  const sourceOf = (index: number, distance: number): TerrainInput => route ? sectionSource(route, index, distance) : world;
+  const idOf = (index: number, source: TerrainInput) => `${index}|${(source as TerrainRoute | World).key}`;
+  interface Entry { id: string; index: number; section: TerrainSection }
+  const sections = new Map<number, Entry>(), ready = new Map<string, Entry>(), pending = new Map<string, Work<TerrainSection>>();
   const counts = { fallbacks: 0, startup: 0, prefetched: 0 };
+  let needsAt = NaN, needList: SectionNeed[] = [];
+  /**
+   * What prefetch prepares at a scroll distance, soonest first: the next section ahead as it will enter the window and,
+   * before a swap, every section the window holds around its flash, in the version it enters with and the one from the flash.
+   */
+  function needs(distance: number): SectionNeed[] {
+    if (distance === needsAt) return needList;
+    const current = Math.floor(distance / L), out = new Map<string, SectionNeed>();
+    const add = (index: number, at: number) => {
+      const source = sourceOf(index, at), id = idOf(index, source), known = out.get(id);
+      if (sections.get(index)?.id !== id && (!known || at < known.at)) out.set(id, { id, index, source, at });
+    };
+    add(current + 2, Math.max(distance, (current + 1) * L));
+    for (const swap of route?.swaps?.(distance, distance + SWAP_HORIZON) ?? []) {
+      const centre = Math.floor(swap.flash / L);
+      for (let i = Math.max(current - 1, centre - 1); i <= centre + 2; i++) {
+        const enters = Math.max(distance, (i - 1) * L);
+        if (enters < swap.flash) add(i, enters);
+        add(i, Math.max(enters, swap.flash));
+      }
+    }
+    needsAt = distance; needList = [...out.values()].sort((a, b) => a.at - b.at || a.index - b.index);
+    return needList;
+  }
+  /** Advances one needed section while `more()` allows; returns it once generated, or null when the budget ran out. */
+  function prepare(need: SectionNeed, more: () => boolean): TerrainSection | null {
+    const done = ready.get(need.id);
+    if (done) return done.section;
+    let work = pending.get(need.id);
+    if (!work) { work = sectionSteps(seed, need.index, need.source); pending.set(need.id, work); }
+    while (more()) {
+      const step = work.next();
+      if (step.done) { ready.set(need.id, { id: need.id, index: need.index, section: step.value }); pending.delete(need.id); return step.value; }
+    }
+    return null;
+  }
   return {
     update(distance: number): readonly TerrainSection[] {
       if (!Number.isFinite(distance)) throw new Error('Terrain distance must be finite.');
-      const current = Math.floor(distance / VIEW.sectionLength);
+      const current = Math.floor(distance / L);
+      needsAt = NaN;
       for (const key of sections.keys()) if (key < current - 1 || key > current + 1) sections.delete(key);
-      for (const key of ready.keys()) if (key < current - 1 || key > current + 2) ready.delete(key);
-      if (pending && (pending.index < current - 1 || pending.index > current + 2)) pending = null;
       const starting = sections.size === 0;
       for (let i = current - 1; i <= current + 1; i++) {
-        if (sections.has(i)) continue;
-        const early = ready.get(i);
-        if (early) { sections.set(i, early); ready.delete(i); counts.prefetched++; continue; }
-        if (pending?.index === i) pending = null;
+        const source = sourceOf(i, distance), id = idOf(i, source);
+        if (sections.get(i)?.id === id) continue;
+        const early = ready.get(id);
+        if (early) { sections.set(i, early); ready.delete(id); counts.prefetched++; continue; }
+        pending.delete(id);
         if (starting) counts.startup++; else counts.fallbacks++;
-        sections.set(i, generateTerrainSection(seed, i, world));
+        sections.set(i, { id, index: i, section: generateTerrainSection(seed, i, source) });
       }
-      return [...sections.values()].sort((a, b) => a.index - b.index);
+      // Prepared work nothing needs any more (passed, or a version the swap has left behind) is dropped.
+      const wanted = new Set(needs(distance).map(need => need.id));
+      for (const id of ready.keys()) if (!wanted.has(id)) ready.delete(id);
+      for (const id of pending.keys()) if (!wanted.has(id)) pending.delete(id);
+      return [...sections.values()].sort((a, b) => a.index - b.index).map(entry => entry.section);
     },
-    /** Generates the next section ahead while `more()` allows; returns true once it is ready. */
+    /** Generates the sections needed next, soonest first, while `more()` allows; returns true once all are ready. */
     prefetch(distance: number, more: () => boolean): boolean {
-      const ahead = Math.floor(distance / VIEW.sectionLength) + 2;
-      if (sections.has(ahead) || ready.has(ahead)) return true;
-      if (!pending || pending.index !== ahead) pending = { index: ahead, work: sectionSteps(seed, ahead, world) };
-      while (more()) {
-        const step = pending.work.next();
-        if (step.done) { ready.set(ahead, step.value); pending = null; return true; }
+      for (const need of needs(distance)) if (!prepare(need, more)) return false;
+      return true;
+    },
+    /** The sections needed next, soonest first (see `needs`). */
+    needs,
+    /** Advances one needed section (resumable): the section once it is ready, or null when the budget ran out. */
+    prepare,
+    /**
+     * The sections the window holds at a scroll distance, as far as they are generated (in the window or prefetched);
+     * null for one that would still need a synchronous generation there.
+     */
+    sectionsAt(distance: number): (TerrainSection | null)[] {
+      const current = Math.floor(distance / L), out: (TerrainSection | null)[] = [];
+      for (let i = current - 1; i <= current + 1; i++) {
+        const id = idOf(i, sourceOf(i, distance)), live = sections.get(i);
+        out.push(live?.id === id ? live.section : ready.get(id)?.section ?? null);
       }
+      return out;
+    },
+    /** Whether a prefetched section is still kept for a coming need (not yet in the window). */
+    holds(section: TerrainSection): boolean {
+      for (const entry of ready.values()) if (entry.section === section) return true;
       return false;
     },
-    /** A prefetched section that is ready but not yet in the window (for building its view ahead). */
-    upcoming(): TerrainSection | undefined { return [...ready.values()][0]; },
     /** Sections taken from prefetch, synchronous fallbacks after start, and startup generations. */
     get stats() { return { ...counts }; },
     get size() { return sections.size; },
-    clear() { sections.clear(); ready.clear(); pending = null; },
+    clear() { sections.clear(); ready.clear(); pending.clear(); needsAt = NaN; needList = []; },
   };
 }
