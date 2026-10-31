@@ -180,7 +180,7 @@ export interface RunState {
    */
   well?: { x: number; s: number; startedAt: number; armedAt: number; until: number; swallowed: number } | null;
   /** Hunter bookkeeping for the current level or endless sector: hunters spawned and the last spawn window used. */
-  hunters?: { sector: number; spawned: number; window: number };
+  hunters?: { sector: number; spawned: number; window: number; shieldDrops?: number };
   /** Parts collected this attempt (docs/33; campaign only, banked with the attempt like credits). */
   parts?: number;
   /**

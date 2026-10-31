@@ -177,6 +177,13 @@ export const FUEL_BLAST = { radius: 2.6, damage: 150 } as const;
 export const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
 /** Kinds whose attack is a locked beam lane rather than bullets. */
 export const BEAM_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['lancer', 'needle']);
+/**
+ * Warning lines on Vesper at once, outside campaign Veteran: attacks winding up (their aim rays, marked lanes and columns)
+ * plus live beam lanes (user, 31 October: "more than 5 lasers at a time should be for veteran maybe only on vesper";
+ * Vesper is the cycle's second world, later worlds stay harder). Endless Vesper had up to 9 (the ramp allows 7 windups
+ * from sector 3).
+ */
+export const VESPER_LINE_CAP = 5;
 
 /**
  * Standardized endless ramp by sector s >= 1 (docs/03 §8). Independent of every campaign setting. After the

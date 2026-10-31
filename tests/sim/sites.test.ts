@@ -173,6 +173,8 @@ describe('shield sites inside the shield-supply budget (invariant 11)', () => {
     let cells = 0;
     while (state.time < until && state.phase === 'playing') {
       onTick?.(state);
+      // Supplies only: an endless ace drops its own budgeted cells (tests/sim/vesper-aces.test.ts).
+      state.enemies = state.enemies.filter(enemy => !enemy.hunter);
       stepRun(state, EMPTY_INPUT);
       state.player.invulnerableUntil = Infinity;
       for (const pickup of state.pickups) if (pickup.kind === 'shield' && !seen.has(pickup.id)) { seen.add(pickup.id); cells += 1; }

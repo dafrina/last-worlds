@@ -27,6 +27,13 @@ export const HUNTERS = {
   shield: { charges: 3, share: 0.35, seekerDamage: 0.2, railDamage: 1.5 },
   /** Score and credits over the base kind. */
   reward: 3,
+  /**
+   * Endless: besides its coins, a downed ace rolls for a shield cell, a power cell or nothing more, a third each (user,
+   * 31 October: "aces/hunters should maybe also drop a shield or an upgrade on endless"; "Make it 33% shield powerip or
+   * coins"). The shield is budgeted (AGENTS.md invariant 11): at most `shieldsPerSector`, and only while the ship is
+   * missing shields; otherwise that third is coins only.
+   */
+  endlessDrop: { shield: 1 / 3, power: 1 / 3, shieldsPerSector: 1 },
   /** Roaming band (s ahead of the player row) and cruise speed and acceleration at pace 1. */
   row: { min: 10.5, max: 15 }, speed: 6, accel: 14,
   /**
@@ -67,6 +74,9 @@ function roll(a: number, b: number, c = 0): number {
   for (const v of [a, b, c]) { h = Math.imul(h ^ (v >>> 0), 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; }
   return (h >>> 0) / 4294967296;
 }
+
+/** A downed ace's drop roll in [0, 1) (HUNTERS.endlessDrop): its own stream, keyed by the ace. */
+export const aceDropRoll = (enemy: Enemy) => roll(enemy.hunter?.key ?? 0, 0x417, 7);
 
 /** Shield charges a hunter has left (for the renderer and tests). */
 export const hunterCharges = (enemy: Enemy) => enemy.hunter ? Math.max(0, Math.ceil(enemy.hunter.shield / enemy.hunter.perCharge - 1e-9)) : 0;

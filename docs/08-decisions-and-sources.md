@@ -247,3 +247,15 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **Overload texts name the real moves (user: "watch the overloads text appear on a boss but i felt the spiral"):** Bastion-9 "LANES AND FANS"; THE VEIL, THE CRADLE and THE ECLIPSE "SPIRALS AND LANES"; the Ark and WARDEN-1 keep "WATCH THE LANES".
 - **Side routes stand out (user: "color the text ... potential [parts in that orange] or [shields in that icon blue]"; "a question mark icon, very subtle in gray ... on the edge of the screen"):** a site's message highlights its name, its side and its loot in the pickup icons' tints. A campaign site adds `PARTS` for its part roll; no question marks in the text (user, after trying `PARTS?` / `SHIELD?`: "remove the question marks entirely in the text"). A grey "?" (60% opacity, after "a bit too faint" at 30%) marks a live site off either edge, level with it.
 - **The endless warp (user: the old level "visible in the lower half of the screen, with a clear cut"):** after the flash, deep space keeps covering the old planet short of the switch, with a long soft edge, until it leaves the view.
+
+## 31 October 2026 — Vesper's lasers, endless ace drops
+
+- **Vesper's lasers (user: "vesper is pretty heavy, on endless at least. The lasers are too much at times, i think more than 5 lasers at a time should be for veteran maybe only on vesper ... nacre and so on should be harder"):**
+  - On Vesper, outside campaign Veteran, at most 5 warning lines show at once (`VESPER_LINE_CAP`): attacks winding up (aim rays, marked lanes and columns) plus live beam lanes. A boss's own lanes are not counted.
+  - Measured with the perfect and dodging pilots, endless Vesper sectors 5–7 had reached 8–9 lines, over 5 for up to 8% of the time; it now stays at 5.
+  - Nacre and later worlds are unchanged.
+- **Endless ace drops (user: "aces/hunters should maybe also drop a shield or an upgrade on endless"; "Make it 33% shield powerip or coins"):**
+  - Besides its coins, a downed endless ace rolls for a shield cell, a power cell or nothing more, a third each. The roll is its own seeded stream.
+  - The shield is budgeted (invariant 11): at most one per sector, and only while the ship is missing shields. Otherwise that third is coins only.
+  - The campaign is unchanged.
+- **Endless boss run, Twin Pulse, seeds 1–24:** 15 hitless clears with 11 hits in all, against 14 and 12 before these two changes. The pinned test moved from seed 7 to seed 1.

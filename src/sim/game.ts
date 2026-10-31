@@ -1,5 +1,5 @@
 import { weaponSequence } from '../content/weapon-tiers';
-import { BALANCE, BEAM_KINDS, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
+import { BALANCE, BEAM_KINDS, VESPER_LINE_CAP, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { resolvePlaylist } from '../content/encounter-deck';
 import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
@@ -18,7 +18,7 @@ import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShot
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete, positionAfter } from './motion';
 import { projectGround } from './ground';
-import { HUNTERS, absorbHunterShield, updateHunters } from './hunters';
+import { HUNTERS, absorbHunterShield, aceDropRoll, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
@@ -342,6 +342,8 @@ function updateEnemies(state: RunState, dt: number): void {
       if (enemy.hunter && state.enemies.some(other => other !== enemy && other.hunter && other.warning > 0)) { enemy.nextAttack = enemy.age + 0.4; continue; }
       // Needle beam rest: no new beam until the rest is over.
       if (resting && enemy.kind === 'needle') { enemy.nextAttack = enemy.age + 0.25; continue; }
+      // Vesper outside campaign Veteran: at most VESPER_LINE_CAP warning lines (windups and live lanes) at once.
+      if (state.planet === 'vesper' && state.config.difficulty !== 'veteran' && warningLines(state) >= VESPER_LINE_CAP) { enemy.nextAttack = enemy.age + 0.25; continue; }
       // Needle beams are narrow (0.4) and do not count against the wide-beam lane cap.
       if (enemy.kind === 'lancer' && state.hazards.filter(hazard => hazard.width >= beamSpec('lancer').width).length + state.enemies.filter(other => other.kind === 'lancer' && other.warning > 0).length >= scale.maxBeams) continue;
       // The aim commits now and never tracks afterwards: the player's x plus the authored bracket offset (a
@@ -382,6 +384,13 @@ function swingCrowds(state: RunState, enemy: Enemy, aimX: number): boolean {
 
 /** Longest pause (s) that still counts as one continuous Needle barrage. */
 const BEAM_GAP = 2.5;
+/** Warning lines on screen: attacks winding up (aim rays, marked lanes and columns) plus live beam lanes. */
+function warningLines(state: RunState): number {
+  let lines = state.hazards.length;
+  for (const enemy of state.enemies) if (enemy.hp > 0 && enemy.warning > 0) lines++;
+  return lines;
+}
+
 /**
  * Needle beam rest: tracks Needle beam activity (windups and live narrow lanes; pauses under BEAM_GAP join one
  * barrage) and, once a barrage lasts `scale.beamRest.run` seconds, calls off pending Needle windups and holds new
@@ -630,6 +639,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   if (!enemy.bossPart && state.pickups.length < BALANCE.maxPickups - 1) {
     state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits * reward, ttl: 12 });
   }
+  if (enemy.hunter && state.config.mode === 'endless') dropAceReward(state, enemy);
   if (enemy.kind === 'fuel') {
     // The skid goes up: everything close by takes the blast, and other skids chain.
     addEffect(state, 'blast', enemy.x, enemy.s, 0.9);
@@ -836,6 +846,18 @@ function updatePickups(state: RunState, dt: number): void {
     }
   }
   state.pickups = state.pickups.filter(pickup => pickup.ttl > 0 && pickup.s > VIEW.minS - 2);
+}
+
+/** An endless ace's drop roll (HUNTERS.endlessDrop): a budgeted shield cell, a power cell, or its coins only. */
+function dropAceReward(state: RunState, enemy: Enemy): void {
+  const odds = HUNTERS.endlessDrop, u = aceDropRoll(enemy);
+  const book = state.hunters?.sector === state.sector ? state.hunters : undefined;
+  const shield = u < odds.shield && !!book && (book.shieldDrops ?? 0) < odds.shieldsPerSector && state.player.shields < state.player.maxShields;
+  if (!shield && (u < odds.shield || u >= odds.shield + odds.power)) return;
+  if (shield) book!.shieldDrops = (book!.shieldDrops ?? 0) + 1;
+  // Beside the credit drop; a full pickup list gives up its oldest drop, as a site's loot does.
+  if (state.pickups.length >= BALANCE.maxPickups) state.pickups.shift();
+  state.pickups.push({ id: state.nextId++, kind: shield ? 'shield' : 'power', x: enemy.x + .7, s: enemy.s, value: 1, ttl: 12 });
 }
 
 function givePower(state: RunState): void {

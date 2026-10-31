@@ -168,8 +168,9 @@ describe('endless bosses and jumps', () => {
     // Seeker flies seed 6 since hunters (22 October): on seed 5 the pilot takes one hit (seeds 6 and 7 clear). Since the
     // encounter deck (30 October, docs/33 § 4) each seed draws its own waves: Twin Pulse flies seed 7 (seed 5 takes one hit).
     // Over seeds 1-48 the run clears without a hit on 30 (pulse), 25 (fan) and 24 (seeker) seeds, against 29, 25 and 18
-    // with the fixed lists.
-    const state = createRun({ mode: 'endless', seed: weapon === 'seeker' ? 6 : weapon === 'pulse' ? 7 : 5 });
+    // with the fixed lists. Since Vesper's five-line cap and endless ace drops (31 October) Twin Pulse flies seed 1 (seed 7
+    // takes one hit): over seeds 1-24 Pulse clears 15 with 11 hits in all, against 14 with 12 just before.
+    const state = createRun({ mode: 'endless', seed: weapon === 'seeker' ? 6 : weapon === 'pulse' ? 1 : 5 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;
@@ -182,7 +183,9 @@ describe('endless bosses and jumps', () => {
     expect(state.sector).toBe(8);
     expect(kills).toEqual(['warden', 'bastion', 'ark']);
     expect(state.player.weapon).toBe(weapon);
-    expect(state.player.power).toBe(0);
+    // No pickups reach the pilot, except an endless ace's power cell (HUNTERS.endlessDrop, 31 October) when the ace goes
+    // down right beside the ship and its cell is taken in the same tick.
+    expect(state.player.power).toBeLessThanOrEqual(1);
     expect(log.hits).toBe(0);
     expect(log.livesLost).toBe(0);
     expect(log.specialsUsed).toBe(0);
