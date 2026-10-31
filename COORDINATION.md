@@ -616,3 +616,18 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
   - site part chance 20–60%.
 - **Agents, in their own worktrees:** THE ECLIPSE's third phase-1 target; the hangar on the front screen. Next: the terrain cuts (Luna behind the boss at the warp, endless terrain not reaching the bottom of the screen).
 - **Release:** one gate and one deploy at the end (user).
+
+**2026-10-31 20:40 · Claude Code (Blender MCP in WSL session) · deployed `bb6fe80`:** the 31 October release.
+- **Contents:**
+  - pop-in fixes (bosses rise or glide in; late ground waves deploy in view);
+  - enemies leave instead of vanishing when a boss arrives;
+  - shots in flight survive boss stages;
+  - site part chance 20–60%;
+  - THE ECLIPSE's prow vent;
+  - the hangar on the front screen;
+  - weapon tiers 4 and 5 (two cells each in endless);
+  - terrain cuts fixed (terrain version 22).
+- **Gate on `124c299`:** unit 680, browser 49/49, Playwright exit 0. `bb6fe80` only raises two terrain test timeouts that tripped on the CI runner.
+- **Pages run:** 41235041256 succeeded; live bundle matches; zero page errors.
+- **Not tested:** no phone test.
+- **integrator-next = main = `bb6fe80`** plus this record.

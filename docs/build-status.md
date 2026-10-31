@@ -1902,3 +1902,6 @@ Taken over from the Moon training level session, which is at its weekly limit; i
   - Sheet: `docs/screenshots/terrain-cuts-before-after.jpg`.
 - **Checks before the gate:** each branch's typecheck and unit suite passed in its own worktree; the merged tree typechecks. The gate follows below.
 - **Not tested:** no phone test. The terrain swap's flash-frame upload, the deploying batteries and the tier-5 bullet counts are unmeasured on phones.
+- **Gate on `124c299`:** typecheck clean; unit 680 passed / 4 skipped; build ok; browser 49/49 (Playwright exit 0, 19.7 min, machine quiet).
+- **First Pages run (41234304953) failed:** the new jump-streaming terrain test timed out at 60 s on the CI runner (about 26 s here). `bb6fe80` raises that test's timeout to 240 s and the planet-switch test's to 120 s; nothing else changed.
+- **Deployed `bb6fe80`:** Pages run 41235041256 succeeded. The live bundle `main-DSPTFDvI.js` matches the gate build, and the production endless smoke flight has zero page errors. No phone test.
