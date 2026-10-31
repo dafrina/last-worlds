@@ -1,6 +1,39 @@
 # Build status
 
 
+## Performance pass, craft shadows, Vesper's lasers, endless ace drops, 31 October 2026
+
+Live as `6631d2e`.
+
+- **Performance** (polish agent, part 2; `tools/perf-bench.mjs`; seed 4242, the same scripted flight, one tick a frame, 4× CPU throttle, SwiftShader, 390×844): CPU work per frame, mean before → after:
+  - Khepri High 15.7 → 13.0 ms;
+  - Vesper High 15.7 → 11.8 ms;
+  - Nacre High 15.3 → 11.0 ms;
+  - Nacre boss fight High 15.1 → 9.0 ms;
+  - Low 14.7–15.9 → 9.1–14.1 ms.
+  - Frames over 16.7 ms: Nacre High 134 → 32, Nacre boss fight 125 → 14 (of about 400).
+  - How:
+    - only live instances are uploaded, and empty batches are hidden;
+    - hidden objects skip their matrix updates;
+    - per-frame maps are reused and line vertices written in place;
+    - the hero's shadow casters are merged;
+    - neighbouring ground strips draw as one range, and static terrain keeps its matrices;
+    - centred audio voices skip their panner.
+  - Load averages were 6–14 during the measurements.
+- **Shadows:** on High, every craft batch casts into the sun's shadow map like the hero. On Low, craft draw flattened silhouettes along each planet's sun (`src/render/craft-shadows.ts`). Sheet: the polish branch's `art/polish/enemy-shadows.jpg`.
+- **Fix found by the gate:** the first dart compiled a shadow program mid-flight (480 ms). three.js shares one depth material and copies each caster's texture onto it without choosing a new program, so the warm-up had compiled the variant without the texture. Each craft material now casts through its own depth material.
+- **Vesper:** outside campaign Veteran, at most 5 warning lines at once (`VESPER_LINE_CAP`); endless Vesper had reached 8–9.
+- **Endless aces:** besides their coins, an ace rolls a third each for a budgeted shield cell (one per sector, only while shields are missing), a power cell, or coins only.
+- **Gate on `6631d2e`:** typecheck; unit 654 passed, 2 skipped; build; browser 48/48 (Playwright exit 0).
+- **Live:** Pages run 41158777918 succeeded; the live bundles match the build; the endless smoke test has zero errors.
+- **Not checked:** no phone test. GPU cost, the extra triangles of Low's silhouettes, heat and touch feel are unmeasured.
+- **Next optimizations** (agent's list):
+  - merge the terrain kit's roughly 30 instanced batches;
+  - move terrain generation to a worker;
+  - cache the Low shadow landings and the hauler heights;
+  - make the prefetch budget adaptive;
+  - tune the shadow map and post-processing on a phone.
+
 ## Warp edge, messages, side routes, polish pass part 1, 31 October 2026
 
 Live as `fa4c8c6`.
