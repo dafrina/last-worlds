@@ -1867,3 +1867,38 @@ User: "the interceptor barrel roll is not how imagined, it just does a stupid ro
 - **Now:** the double-tap dashes the ship 2.8 units to that side in 0.16 s (`sidestep` in src/sim/ship-perks.ts, applied in `movePlayer`), drawn as one barrel roll over 0.3 s with two speed streaks. The ship leaves the dash at full steering speed. No invulnerability: the swept hit test covers the dash, so evading means getting out of the line. Cooldown 3 s, world edges respected. The input and state fields are now `dashPressed`, `player.dash`, `dashReadyAt`.
 - **Checks:** typecheck; `tests/sim/ship-perks.test.ts` and `tests/input/roll.test.ts` 18/18, with new dash, carry-on, cooldown, edge and hit-along-the-dash tests. Frames from `tests/fixtures/ship-perks.html` inspected: the ship slides and rolls, edge-on at frame 6, level by frame 18. The full gate waits for the combined release (user, 30 October). No phone test.
 
+
+## 31 October 2026 — Pop-ins, boss arrivals and stages, Eclipse prow, front-screen hangar, weapon tiers 4–5, terrain cuts (Claude Code)
+
+Taken over from the Moon training level session, which is at its weekly limit; its uncommitted pop-in work is included and finished.
+- **Pop-ins** (user: infrastructure and bosses "pop in", especially late in levels). Measured with a probe of where every mesh first appears on screen, plus frame captures.
+  - **Bosses:** THE CRADLE and THE ECLIPSE rise from 22 deep (8 before). The Helion Ark's glide-in is drawn from 8 further out, so its bow no longer fades in inside the view (render only).
+  - **Late ground waves:** a battery first seen inside the view rises out of the ground with its compound over 1 s (`DEPLOY` in scene.ts, facility-view `sink`). These are waves the director couldn't lead in from beyond the top edge: late in a level, or admitted late in the lead window.
+  - **Why the director wasn't changed:** three ways of leading late waves in were measured (perfect pilot, 24–48 seeds per cell, against the committed code):
+    - ground-only lead of 10: Final Horizon 24 → 38 hits;
+    - ground-only lead of 5: Deep Bloom Veteran 62 → 106;
+    - deferring the whole cue: Deep Bloom Veteran 62 → 87.
+
+    So the fix stays visual and the director's timing is unchanged.
+  - **Probe results:** Khepri and Nacre compounds no longer appear inside the view.
+- **Boss arrival:** other enemies no longer vanish. Craft break off and fly out of frame, turned toward their side and harmless; ground batteries go quiet. A boss's launched craft explode with it.
+- **Boss stage changes:** shots already in flight keep going; laser lanes and windups end.
+  - Campaign hits unchanged in every case measured: Deep Bloom Veteran, Rolling Thunder Veteran, Final Horizon ×6, Brood Strike, Cold Vector.
+  - Endless sectors 1–4: 9 hits over 24 seeds, against 4. The endless test seeds were re-pinned, with the numbers in their comments.
+- **Strike site part chance:** 20–60% (25–75% before).
+- **THE ECLIPSE's third phase-1 target** (`1a2273c`): the prow vent (model v2, 78,941 triangles), in the vents' attack rotation.
+  - Phase 1 is 24–31% longer.
+  - Fight hits over 864 flights: 0 → 0 at Standard, 0 → 1 at Veteran.
+  - Sheet: `docs/screenshots/eclipse-third-target.jpg`.
+- **Hangar on the front screen** (`455044f`): Campaign, Endless, then Hangar, with the ship and perk line. It also fixes the nested-section bug that hid the shipyard on reopening. Sheet: `docs/screenshots/front-screen-hangar.jpg`.
+- **Weapon tiers 4 and 5** (`17651a2`):
+  - Tier 4 fires tier 3's volley about 1.35× as often. Tier 5 adds two projectiles a volley and fires about 1.6–1.7× as often.
+  - Campaign prices are 150 / 300 / 500 / 800 credits.
+  - In endless, tiers 4 and 5 take two power cells each (user: "Two cells per tier"): tier 4 at a median 224 s, tier 5 at 324 s, 30% of the flight at tier 5.
+  - Sheet: `docs/screenshots/weapon-tiers-4-5.jpg`.
+- **Terrain cuts** (`aabfbf6`, terrain version 22):
+  - Boss clearings now shape the ground to their far end. WARDEN-1's and Bastion-9's clearings ended in a straight wall behind the boss on departure.
+  - Endless planets swap under the opaque warp veil, so the new planet reaches the bottom of the screen after every jump.
+  - Sheet: `docs/screenshots/terrain-cuts-before-after.jpg`.
+- **Checks before the gate:** each branch's typecheck and unit suite passed in its own worktree; the merged tree typechecks. The gate follows below.
+- **Not tested:** no phone test. The terrain swap's flash-frame upload, the deploying batteries and the tier-5 bullet counts are unmeasured on phones.
