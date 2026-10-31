@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { SUN, blobLanding, liveInstances } from '../../src/render/scene';
+import { planarShadow, silhouetteShade } from '../../src/render/craft-shadows';
+
+describe('Low-tier silhouettes', () => {
+  it('flattens a point along the sun onto the ground plane', () => {
+    const point = new THREE.Vector3(1, 3.8, -4).applyMatrix4(planarShadow(SUN, .5));
+    expect(point.y).toBeCloseTo(.5, 9);
+    // The flattened point lies on the sun ray through the original point.
+    const back = point.clone().addScaledVector(SUN, (3.8 - .5) / SUN.y);
+    expect(back.x).toBeCloseTo(1, 9); expect(back.z).toBeCloseTo(-4, 9);
+  });
+  it('keeps more light where the shadow is weaker and stays between black and unshaded', () => {
+    const look = { sun: [0xffffff, 6] as [number, number], sunElevation: 50, hemisphere: [0xffffff, 0x000000, 1.5] as [number, number, number], bounce: [0xffffff, .5] as [number, number], shadowIntensity: .8 };
+    const strong = silhouetteShade(look), weak = silhouetteShade({ ...look, shadowIntensity: .4 });
+    expect(strong.r).toBeGreaterThan(0); expect(weak.r).toBeLessThan(1); expect(weak.r).toBeGreaterThan(strong.r);
+  });
+});
 
 describe('Low-tier craft shadow placement', () => {
   it('lands where the sun ray through the craft meets flat ground', () => {

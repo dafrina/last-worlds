@@ -1,4 +1,7 @@
 import { createBeamLight, createPhaseHoles } from './combat-light';
+import { liveInstances } from './instances';
+import { createSilhouetteMaterial, planarShadow, silhouetteShade } from './craft-shadows';
+export { liveInstances } from './instances';
 import { SHIP_PERKS } from '../sim/ship-perks';
 import { HERO_STENCIL } from './hero-stencil';
 import { drawnShot, launchFrom, type Launch } from './shot-launch';
@@ -400,38 +403,43 @@ export function shadowExtents(camera: THREE.Camera, target: THREE.Vector3, sun =
 }
 
 /**
- * Where a craft's shadow lands (render-only, Low tier's blob): the point under (x, s) at `height` projected away from the
- * sun onto the ground, refined twice for the ground height there. Matches the High shadow map's offset for any planet's sun.
+ * Where a craft's shadow lands (render-only, Low tier): the first ground the sun's ray through the craft's centre meets,
+ * as the High shadow map finds it: a coarse march down the ray, then a bisection. Matches the High offset for any sun.
  */
 export function blobLanding(sun: THREE.Vector3, x: number, s: number, height: number, ground: (x: number, s: number) => number) {
   const kx = -sun.x / Math.max(.05, sun.y), ks = sun.z / Math.max(.05, sun.y);
-  let y = ground(x, s), lx = x, ls = s;
-  for (let i = 0; i < 2; i++) {
-    const drop = Math.max(0, height - y);
-    lx = x + kx * drop; ls = s + ks * drop; y = ground(lx, ls);
-  }
-  return { x: lx, s: ls, y };
+  // Along the ray a drop of d below the craft is at (x + kx·d, s + ks·d); it has landed once the ground reaches it.
+  const at = (d: number) => ground(x + kx * d, s + ks * d) - (height - d);
+  const reach = height - TERRAIN_MIN_HEIGHT + .5, steps = 6;
+  let above = 0, below = reach, fa = at(0), fb = 0;
+  if (fa >= 0) return { x, s, y: ground(x, s) };
+  for (let i = 1; i <= steps; i++) { const d = reach * i / steps, f = at(d); if (f >= 0) { below = d; fb = f; break; } above = d; fa = f; }
+  for (let i = 0; i < 3; i++) { const d = (above + below) / 2, f = at(d); if (f >= 0) { below = d; fb = f; } else { above = d; fa = f; } }
+  // Final linear step between the bracketing samples (exact on a plane).
+  const d = fb - fa > 1e-9 ? above + (below - above) * -fa / (fb - fa) : below;
+  return { x: x + kx * d, s: s + ks * d, y: height - d };
 }
 
 /**
- * Dynamic instanced data (performance, 30 October): three.js uploads a whole attribute when it has no update range, so
- * each frame re-sent every pool's full capacity (about 0.8 MB). Upload only the live instances, and skip drawing an
- * empty batch (an empty visible batch still costs its program and uniform setup every frame).
+ * World matrices for drawing (performance, 31 October): what three.js's scene update does every frame (every local
+ * matrix composed, every world matrix recomputed), minus subtrees that are hidden and so neither drawn nor cast. A hidden
+ * object is brought up to date the frame it is shown again, before it draws.
  */
-export function liveInstances(mesh: THREE.InstancedMesh, count: number, extra: readonly (THREE.BufferAttribute | null | undefined)[] = []) {
-  mesh.count = count; mesh.visible = count > 0;
-  for (const attribute of [mesh.instanceMatrix, mesh.instanceColor, ...extra]) {
-    if (!attribute) continue;
-    attribute.clearUpdateRanges();
-    if (count > 0) { attribute.addUpdateRange(0, count * attribute.itemSize); attribute.needsUpdate = true; }
-  }
+export function updateShown(object: THREE.Object3D, parentWorld: THREE.Matrix4 | null): void {
+  if (!object.visible) return;
+  if (object.matrixAutoUpdate) object.updateMatrix();
+  if (parentWorld) object.matrixWorld.multiplyMatrices(parentWorld, object.matrix); else object.matrixWorld.copy(object.matrix);
+  object.matrixWorldNeedsUpdate = false;
+  if ((object as THREE.Camera).isCamera) (object as THREE.Camera).matrixWorldInverse.copy(object.matrixWorld).invert();
+  const children = object.children;
+  for (let i = 0; i < children.length; i++) updateShown(children[i], object.matrixWorld);
 }
 
 /**
  * QA evidence for the render-list cost (polish pass, 30 October): objects in the scene graph, those that would be visited
  * for drawing (visible chain), drawable meshes among them, and visible instanced batches with nothing to draw.
  */
-function graphStats(scene: THREE.Scene) {
+function graphStats(scene: THREE.Scene, names?: Record<string, number>) {
   let objects = 0, visible = 0, drawables = 0, emptyBatches = 0, autoMatrix = 0, casters = 0;
   const walk = (object: THREE.Object3D) => {
     objects++; if (object.matrixAutoUpdate) autoMatrix++;
@@ -439,12 +447,13 @@ function graphStats(scene: THREE.Scene) {
     visible++;
     if ((object as THREE.Mesh).isMesh || (object as THREE.LineSegments).isLine || (object as THREE.Points).isPoints) {
       drawables++; if (object.castShadow) casters++;
+      if (names) { const key = (object.name || `${object.parent?.name || object.parent?.type}/${object.type}/${(object as THREE.Mesh).geometry?.type}/${((object as THREE.Mesh).material as THREE.Material)?.type}`).replace(/[\d:]+$/, '#'); names[key] = (names[key] ?? 0) + 1; }
       if ((object as THREE.InstancedMesh).isInstancedMesh && (object as THREE.InstancedMesh).count === 0) emptyBatches++;
     }
     for (const child of object.children) walk(child);
   };
   walk(scene);
-  return { objects, visible, drawables, emptyBatches, autoMatrix, casters };
+  return { objects, visible, drawables, emptyBatches, autoMatrix, casters, ...(names ? { names } : {}) };
 }
 
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
@@ -462,6 +471,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Stats accumulate over every pass of a frame (shadow map, scene, bloom), reset once per frame below.
   renderer.info.autoReset = false;
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x6a3a22);
+  // The renderer refreshes world matrices for what can be drawn only (updateShown): hidden subtrees (parked boss rigs,
+  // culled terrain strips, facility variants) were recomposed every frame.
+  scene.updateMatrixWorld = () => updateShown(scene, null);
   const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
   // DEFAULT_CAMERA unless a look-dev switch asks for another: `?camera=ortho`, `?camera=perspective[&fov=15..30]` or
   // `?camera=rectified[&depth=60]`.
@@ -557,6 +569,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     settings.fogHeight.value.set(fog.height[0], fog.height[1], fogOff ? 0 : fog.height[2]);
     settings.fogDistance.value.set(fog.distance[0], fog.distance[1], fogOff ? 0 : fog.distance[2]);
     renderer.toneMappingExposure = look.lowExposure;
+    // Low-tier silhouettes keep the share of light the High shadow leaves (src/render/craft-shadows.ts).
+    silhouetteShade({ ...look, sunElevation: next === 'khepri' && look.sunElevation === KHEPRI_SUN_ELEVATION ? THREE.MathUtils.radToDeg(SUN_ELEVATION) : look.sunElevation },
+      craftSilhouetteMaterial.color);
+    (heroSilhouette.material as THREE.MeshBasicMaterial).color.copy(craftSilhouetteMaterial.color);
   };
   const applyLook = (next: PlanetId) => {
     brightGround = next === 'vesper';
@@ -642,6 +658,37 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   });
   markHero(hero);
   let heroModel = 'fallback';
+  /**
+   * A shadow-only copy of a model's meshes merged into one position-only mesh: it draws in the sun's shadow pass only
+   * (the main pass culls it), so a many-part ship casts its shadow in one draw. Same silhouette, so the same shadow.
+   */
+  const casterMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  /** The hero's Low-tier silhouette (src/render/craft-shadows.ts), placed every frame from the hero's own matrix. */
+  const heroSilhouette = new THREE.Mesh(new THREE.BufferGeometry(), createSilhouetteMaterial());
+  heroSilhouette.matrixAutoUpdate = false; heroSilhouette.frustumCulled = false; heroSilhouette.visible = false; heroSilhouette.renderOrder = 1;
+  heroSilhouette.name = 'hero silhouette';
+  const flatProjection = new THREE.Matrix4(), flatten = new THREE.Matrix4();
+  function shadowCaster(root: THREE.Object3D): THREE.Mesh | null {
+    root.updateMatrixWorld(true);
+    const inverse = root.matrixWorld.clone().invert(), local = new THREE.Matrix4(), point = new THREE.Vector3(), positions: number[] = [];
+    root.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      local.multiplyMatrices(inverse, object.matrixWorld);
+      const position = object.geometry.getAttribute('position'), index = object.geometry.index;
+      const count = index ? index.count : position.count;
+      for (let i = 0; i < count; i++) { point.fromBufferAttribute(position, index ? index.getX(i) : i).applyMatrix4(local); positions.push(point.x, point.y, point.z); }
+    });
+    if (!positions.length) return null;
+    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.computeBoundingSphere();
+    const caster = new THREE.Mesh(geometry, casterMaterial); caster.name = 'hero shadow caster';
+    caster.castShadow = true; caster.receiveShadow = false;
+    const shadowFrustum = sunlight.shadow.getFrustum();
+    caster.intersectsFrustum = frustum => frustum === shadowFrustum;
+    return caster;
+  }
+  // The code-built stand-in's silhouette until the ship's model loads.
+  heroSilhouette.geometry = shadowCaster(hero)?.geometry ?? heroSilhouette.geometry; scene.add(heroSilhouette);
   // The hero is the flight's ship as the player built it (docs/31): its chassis's parts, repainted (src/render/hero-craft.ts). Endless
   // and the menus fly the default Scrapper; campaign visual unlocks never reach endless (AGENTS.md invariant 14).
   // `heroShown` is the look on screen; while the requested look (`heroKey`) is loading the hero stays hidden, so a launch
@@ -657,8 +704,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (!model) return;
       if (disposed || key !== heroKey) { model.dispose(); return; }
       heroDispose(); hero.clear();
-      model.object.traverse(object => { if (object instanceof THREE.Mesh) object.castShadow = object.receiveShadow = true; });
-      hero.add(model.object); markHero(model.object); heroDispose = model.dispose; heroModel = 'glb'; warmed = false;
+      model.object.traverse(object => { if (object instanceof THREE.Mesh) { object.castShadow = false; object.receiveShadow = true; } });
+      // One merged shadow-only caster for the whole ship (performance, 31 October: each part cast its own shadow draw).
+      const caster = shadowCaster(model.object);
+      if (caster) { model.object.add(caster); heroSilhouette.geometry = caster.geometry; }
+      hero.add(model.object); markHero(model.object); heroModel = 'glb'; warmed = false;
+      heroDispose = () => { model.dispose(); caster?.geometry.dispose(); };
       if (model.engines.length) heroEngines = model.engines;
       heroGlow = look.paint?.glow ?? HERO_DEFAULT_PAINT[ship].glow;
       heroShown = key;
@@ -709,6 +760,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Strike sites (docs/33): site models around their core targets (src/render/site-view.ts).
   const sites = createSiteView(scene, () => { warmed = false; });
   const ENEMY_CAPACITY = 32;
+  /** Low tier: each craft batch's flattened silhouette along the sun (src/render/craft-shadows.ts), one draw per batch. */
+  const craftSilhouetteMaterial = createSilhouetteMaterial();
+  const silhouettes = new Map<THREE.InstancedMesh, THREE.InstancedMesh>();
+  const withSilhouette = (mesh: THREE.InstancedMesh) => {
+    const flat = new THREE.InstancedMesh(mesh.geometry, craftSilhouetteMaterial, ENEMY_CAPACITY);
+    flat.instanceMatrix.setUsage(THREE.DynamicDrawUsage); flat.frustumCulled = false; flat.count = 0; flat.visible = false;
+    flat.renderOrder = 1; flat.name = `${mesh.name} silhouette`; scene.add(flat); silhouettes.set(mesh, flat);
+  };
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
   // Ground targets on every terrain level (docs/13 §2), render-only: where terrain in front hides a turret,
   // a faint silhouette shows through (drawn before the turret, only where it lies behind existing depth).
@@ -735,7 +794,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     }
     for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
     mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
-    scene.add(mesh); enemyBatches.set(kind, { mesh, ghost });
+    scene.add(mesh); enemyBatches.set(kind, { mesh, ghost }); withSilhouette(mesh);
   }
   /**
    * Khepri craft (khepri-craft.glb, Blender): replaces the code-built stand-ins in the Khepri batches once loaded. The
@@ -848,7 +907,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         ghost = new THREE.InstancedMesh(craft.geometry, silhouetteMaterial, ENEMY_CAPACITY);
         ghost.instanceMatrix = mesh.instanceMatrix; ghost.frustumCulled = false; ghost.count = 0; ghost.renderOrder = 1; scene.add(ghost);
       }
-      scene.add(mesh); batches.set(name, { mesh, ghost, engines: craft.engines, plume: plume(name) });
+      scene.add(mesh); batches.set(name, { mesh, ghost, engines: craft.engines, plume: plume(name) }); withSilhouette(mesh);
     }
     return batches;
   }
@@ -909,7 +968,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
         mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
-        scene.add(mesh); batches.set(kind, { mesh, ghost });
+        scene.add(mesh); batches.set(kind, { mesh, ghost }); withSilhouette(mesh);
       }
       vesperBatches = batches; warmed = false;
     }).catch(error => console.warn(`Vesper craft unavailable (${VESPER_CRAFT_NODES.join(', ')}); using Khepri models.`, error));
@@ -1034,6 +1093,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let jumpActive = false, lastRenderTime = 0, warmedJump = -1, hiddenWarm = false;
   const knownPrograms = new WeakSet<object>();
   const transform = new THREE.Object3D(), color = new THREE.Color();
+  /** Per-frame scratch (reused, never reallocated): instance counts per batch and the live enemy ids. */
+  const counts = new Map<THREE.InstancedMesh, number>(), liveIds = new Set<number>();
 
   const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 32;
   const shadowContext = shadowCanvas.getContext('2d');
@@ -1415,24 +1476,23 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) plumes.push({ x: state.player.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), z: ez * HERO_SCALE, length: heroLength,
         width: .2 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), hex: heroGlow, energy: 2.6 });
       let shadowCount = 0, plinthCount = 0;
-      const flightShadow = (x: number, s: number, width: number, length: number, height: number) => {
-        if (shadowCount >= flightShadows.instanceMatrix.count) return;
-        // Where the High tier's real shadow falls: along the active planet's sun onto the ground under it (blobLanding).
-        const { x: groundX, s: groundS, y: groundY } = blobLanding(sun, x, s, height, (gx, gs) => surfaceHeight(state.config.seed, gx, state.distance + gs, world));
-        transform.position.set(groundX, groundY + .07, -groundS);
-        transform.rotation.set(0, 0, 0); transform.scale.set(width, 1, length); transform.updateMatrix();
-        flightShadows.setMatrixAt(shadowCount++, transform.matrix);
-      };
-      // The hero casts its real model shadow on High; the blob stands in only on Low (no shadow maps).
-      if (quality !== 'high') flightShadow(state.player.x, 0, 1.5 * HERO_SCALE, 1.8 * HERO_SCALE, VIEW.flightHeight);
+      const groundAt = (gx: number, gs: number) => surfaceHeight(state.config.seed, gx, state.distance + gs, world);
+      // The hero's Low shadow: its merged silhouette flattened along the sun (High: the shadow map).
+      heroSilhouette.visible = quality !== 'high' && hero.visible && !!heroSilhouette.geometry.getAttribute('position');
+      if (heroSilhouette.visible) {
+        hero.updateMatrix();
+        const ground = blobLanding(sun, hero.position.x, -hero.position.z, hero.position.y, groundAt).y;
+        heroSilhouette.matrix.multiplyMatrices(planarShadow(sun, ground + .02, flatProjection), hero.matrix);
+      }
 
       // Instance counts per batch mesh: each enemy fills the batch of the model it actually uses (a Vesper kind keeps its
       // own model on any planet).
-      const counts = new Map<THREE.InstancedMesh, number>();
+      counts.clear();
       // Hit flashes: compare each craft's hp with the last frame (a new run restarts the record).
       if (state.tick < hitTick) { enemyHp.clear(); enemyHitAt.clear(); }
       hitTick = state.tick;
-      for (const [id] of enemyHp) if (!state.enemies.some(enemy => enemy.id === id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
+      liveIds.clear(); for (const enemy of state.enemies) liveIds.add(enemy.id);
+      for (const [id] of enemyHp) if (!liveIds.has(id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
       beamLight.begin(); phaseHoles.begin();
       let pontoonCount = 0; laneCounts.clear(); pontoonRings.length = 0;
       const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
@@ -1498,8 +1558,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const line = (x1: number, s1: number, x2: number, s2: number, hex: number) => {
         if (lineCursor + 2 > lineVertices.length / 3) return;
         color.setHex(hex);
-        lineVertices.set([x1, VIEW.flightHeight + .03, -s1, x2, VIEW.flightHeight + .03, -s2], lineCursor * 3);
-        lineColors.set([color.r, color.g, color.b, color.r, color.g, color.b], lineCursor * 3); lineCursor += 2;
+        const i = lineCursor * 3, y = VIEW.flightHeight + .03;
+        lineVertices[i] = x1; lineVertices[i + 1] = y; lineVertices[i + 2] = -s1; lineVertices[i + 3] = x2; lineVertices[i + 4] = y; lineVertices[i + 5] = -s2;
+        lineColors[i] = lineColors[i + 3] = color.r; lineColors[i + 1] = lineColors[i + 4] = color.g; lineColors[i + 2] = lineColors[i + 5] = color.b; lineCursor += 2;
       };
       // Strike sites first: a site core's own model is left out below (the site draws its core).
       sites.update(state, planet, view, (x, s) => surfaceHeight(state.config.seed, x, s, world));
@@ -1563,6 +1624,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
           transform.updateMatrix();
           batch.mesh.setMatrixAt(slot, transform.matrix); counts.set(batch.mesh, slot + 1);
+          if (quality !== 'high') {
+            // Ground kinds flatten onto their own base; craft onto the ground where the sun puts their shadow.
+            const ground = isGround ? placement.baseHeight : blobLanding(sun, placement.x ?? enemy.x, placement.s, VIEW.flightHeight, groundAt).y;
+            silhouettes.get(batch.mesh)?.setMatrixAt(slot, flatten.multiplyMatrices(planarShadow(sun, ground + .02, flatProjection), transform.matrix));
+          }
           const seen = enemyHp.get(enemy.id); enemyHp.set(enemy.id, enemy.hp);
           if (seen !== undefined && enemy.hp < seen) enemyHitAt.set(enemy.id, state.time);
           const kick = Math.max(0, 1 - (state.time - (enemyHitAt.get(enemy.id) ?? -9)) / HIT_FLASH);
@@ -1579,9 +1645,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             plinths.setMatrixAt(plinthCount++, transform.matrix);
           }
         }
-        // Every craft casts its real model shadow on High (like the hero); Low places a blob where that shadow falls.
-        if (quality !== 'high') flightShadow(enemy.x, placement.s,
-          enemy.kind === 'weaver' || enemy.kind === 'diamond' ? 2.2 : 1.5, enemy.kind === 'lancer' ? 2.3 : enemy.kind === 'diamond' ? 2.1 : 1.9, isGround ? enemy.groundHeight : VIEW.flightHeight);
         if (!isGround) {
           // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
           const bank = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
@@ -1637,7 +1700,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         uniforms.color.value.setHex(PLANET_GLOW[planet]); uniforms.energy.value = energy * 1.4; uniforms.time.value = state.time + enemy.id; mesh.visible = true;
       }
       for (let i = shellCount; i < hunterShells.length; i++) hunterShells[i].visible = false;
-      for (const id of shellSeen.keys()) if (id >= 0 && !state.enemies.some(enemy => enemy.id === id)) { shellSeen.delete(id); shellBroke.delete(id); }
+      for (const id of shellSeen.keys()) if (id >= 0 && !liveIds.has(id)) { shellSeen.delete(id); shellBroke.delete(id); }
       // Ground wrecks: a new run (or a rewind) clears them; a ground target killed on screen leaves one.
       if (wreckRun !== state.config || state.tick < wreckTick) { wrecks.length = 0; groundSeen.clear(); emplacements.length = 0; emplaced.clear(); wreckRun = state.config; }
       // District pads are reserved (docs/23 §4.8): compounds and emplacement pieces keep out; batteries never move.
@@ -1709,6 +1772,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches, predatorBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
         liveInstances(batch.mesh, count);
+        const flat = silhouettes.get(batch.mesh);
+        if (flat) { flat.geometry = batch.mesh.geometry; liveInstances(flat, quality === 'high' ? 0 : count); }
         if (batch.ghost) { batch.ghost.count = count; batch.ghost.visible = count > 0; }
       }
       liveInstances(flightShadows, shadowCount); liveInstances(plinths, plinthCount); liveInstances(pontoons, pontoonCount);
@@ -1978,7 +2043,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, programs: renderer.info.programs?.length ?? 0,
           textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, sites: sites.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
           predators: Object.fromEntries([...predatorBatches].map(([name, batch]) => [name, batch.mesh.count])),
-          graph: graphStats(scene),
+          graph: graphStats(scene, query.has('graph') ? {} : undefined),
         });
         lastStatsTick = state.tick;
       }

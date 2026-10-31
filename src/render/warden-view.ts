@@ -1,3 +1,4 @@
+import { liveVertices } from './instances';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -356,8 +357,7 @@ export function createWardenView(scene: THREE.Scene) {
         }
       }
       dust.step(dt, 0); sparks.step(dt, 0);
-      geometry.setDrawRange(0, cursor);
-      geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
+      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
     },
     /** Swap the code-built stand-in for the production model once warden.glb has loaded. */
     setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); },

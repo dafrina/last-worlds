@@ -1,3 +1,4 @@
+import { liveInstances } from './instances';
 import * as THREE from 'three';
 import { VIEW, type PlanetId, type RunState } from '../shared/contracts';
 import { FACILITY_KIT_ASSETS, MODULES_BY_NODE, modulesOf, type FacilityWorld, type ModuleRole } from './facility-kit';
@@ -210,13 +211,13 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
           }
         }
       }
-      foundations.instanceMatrix.needsUpdate = true;
+      liveInstances(foundations, foundations.count);
       kits.forEach((kit, site) => {
         if (typeof kit !== 'object') return;
         // A world left behind releases its kit once its last plant is gone (endless revisits reload it).
         if (site !== planet && site !== prefetched && !plants.some(p => p.plant.world === site)) { kit.dispose(); kits.delete(site); loads.delete(site); return; }
         // Unused nodes skip their draw entirely.
-        kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.visible = mesh.count > 0; mesh.instanceMatrix.needsUpdate = true; }));
+        kit.batches.forEach(meshes => meshes.forEach(mesh => liveInstances(mesh, mesh.count)));
       });
     },
     dispose() {
@@ -413,7 +414,7 @@ function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityVi
         if (typeof kit !== 'object') return;
         // A planet left behind releases its atlases once its last plant is gone (endless revisits reload them).
         if (site !== planet && site !== prefetched && !compounds.some(c => c.planet === site)) { kit.dispose(); kits.delete(site); loads.delete(site); return; }
-        kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; }));
+        kit.batches.forEach(meshes => meshes.forEach(mesh => liveInstances(mesh, mesh.count)));
       });
     },
     dispose() { disposed = true; kits.forEach(kit => { if (typeof kit === 'object') kit.dispose(); }); kits.clear(); },

@@ -1,3 +1,4 @@
+import { liveInstances } from './instances';
 import * as THREE from 'three';
 import { VIEW, type PlanetId, type RunState, type SiteId } from '../shared/contracts';
 import { FORMATIONS, siteCoreFormation } from '../content/formations';
@@ -355,8 +356,7 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void): SiteVie
           foundations.setColorAt(foundations.count++, tint.setHex(FOUNDATION_COLOR[entry.finish], THREE.SRGBColorSpace));
         }
       }
-      foundations.instanceMatrix.needsUpdate = true;
-      if (foundations.instanceColor) foundations.instanceColor.needsUpdate = true;
+      liveInstances(foundations, foundations.count);
       templates.forEach((template, id) => {
         if (typeof template !== 'object') return;
         const kick = flash.get(template) ?? 0;

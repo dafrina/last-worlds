@@ -1,3 +1,4 @@
+import { liveInstances, liveVertices } from './instances';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -207,8 +208,7 @@ function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) 
         mesh.setMatrixAt(i, transform.matrix); mesh.setColorAt(i, color.setHex(p.color));
         alpha.setX(i, p.alpha * (1 - t) * Math.min(1, p.age * 12));
       });
-      mesh.count = live.length; mesh.instanceMatrix.needsUpdate = true; alpha.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      liveInstances(mesh, live.length, [alpha]);
     },
     clear() { live.length = 0; mesh.count = 0; },
     get count() { return live.length; },
@@ -435,8 +435,7 @@ export function createArkView(scene: THREE.Scene) {
       }
       rig.lamps.forEach(material => { material.emissiveIntensity = destroyed ? Math.max(0, 1.5 - phaseAge * .5) : 1.4 + .25 * Math.sin(state.time * 2.6); });
       mist.step(dt, 0); sparks.step(dt, 0);
-      geometry.setDrawRange(0, cursor);
-      geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
+      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
     },
     get stats() { return { visible: root.visible, model: rig.model ? 'glb' : 'fallback', approved: !!rig.approved, particles: mist.count + sparks.count }; },
     dispose() {
