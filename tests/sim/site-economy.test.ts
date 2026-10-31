@@ -42,7 +42,7 @@ describe('strike-site economy (docs/33 § 3, measured with the test pilot)', () 
     expect(state.phase).toBe('complete');
     expect(log.livesLost).toBe(0);
     expect(destroyed).toBeGreaterThanOrEqual(1);
-    // Since 30 October each of these sites rolls for its single part (75% on Luna), so at most one part per site.
+    // Since 30 October each of these sites rolls for its single part (60% on Luna), so at most one part per site.
     expect(parts).toBeLessThanOrEqual(destroyed);
   });
 

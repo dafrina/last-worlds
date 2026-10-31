@@ -79,7 +79,7 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
 
 /** Airframes that will cross the player row inside the horizon are contact hazards. */
 function contactFootprints(state: RunState, enemy: Enemy, horizon: number, out: Footprint[]): void {
-  if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind) || enemy.bossPart) return;
+  if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind) || enemy.bossPart || enemy.leaving) return;
   const reach = R + enemy.radius + 0.05;
   const step = FAIRNESS.slice;
   let open: Footprint | null = null;

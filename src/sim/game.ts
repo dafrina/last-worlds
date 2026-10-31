@@ -90,7 +90,10 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updateResources(state, dt);
   state.enemies = state.enemies.filter(enemy => enemy.bossPart
     // A beam ship whose lane is still live stays until the beam ends, so the lane never outlives its source.
-    || (enemy.hp > 0 && enemy.s > VIEW.minS - 2 && !(pathComplete(enemy) && !isVisible(state, enemy.x, enemy.s, -1) && !(enemy.lock && enemy.lock.hold > 0))));
+    || (enemy.hp > 0 && enemy.s > VIEW.minS - 2 && !(pathComplete(enemy) && !isVisible(state, enemy.x, enemy.s, -1) && !(enemy.lock && enemy.lock.hold > 0))
+      // A craft leaving for a boss is gone once it is wholly out of frame. The drawn view reaches past the logical one at
+      // the top and sides (perspective), hence the wide margin.
+      && !(enemy.leaving && !GROUND_KINDS.has(enemy.kind) && !isVisible(state, enemy.x, enemy.s, -enemy.radius - LEAVE_MARGIN))));
   // Shooting a beam ship down ends its lane.
   if (state.hazards.some(hazard => hazard.source !== undefined)) {
     const alive = new Set(state.enemies.map(enemy => enemy.id));
@@ -300,6 +303,9 @@ export function isVisible(state: RunState, x: number, s: number, margin = 0): bo
 }
 
 /** Fully visible and above the attack floor. Windups that lose visibility are cancelled and restart in full. */
+/** How fast a craft that broke off for a boss flies out of frame (units per second), and how far past the logical view it goes. */
+const LEAVE_SPEED = 11, LEAVE_MARGIN = 6;
+
 function canAttack(state: RunState, enemy: Enemy): boolean {
   return enemy.hp > 0 && enemy.s > 3.5 && isVisible(state, enemy.x, enemy.s, enemy.radius + 0.2);
 }
@@ -310,6 +316,16 @@ function updateEnemies(state: RunState, dt: number): void {
   const resting = updateBeamRest(state, scale);
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
+    // Broke off for a boss (src/sim/bastion.ts leave): a craft speeds up out of frame toward its side, a little up the
+    // screen; a ground battery rides its ground, quiet. Neither attacks again.
+    if (enemy.leaving) {
+      if (GROUND_KINDS.has(enemy.kind)) { advanceEnemy(enemy, dt, enemyClockRate(state, enemy)); projectGround(state, enemy); }
+      else {
+        const speed = Math.min(LEAVE_SPEED, 3 + (state.time - enemy.leaving.at) * 14);
+        enemy.age += dt; enemy.x += enemy.leaving.side * speed * dt; enemy.s += speed * .35 * dt;
+      }
+      continue;
+    }
     const stats = ENEMIES[enemy.kind];
     advanceEnemy(enemy, dt, enemyClockRate(state, enemy));
     if (enemy.kind === 'wraith') { windups += updateWraith(state, enemy, dt, scale, windups); continue; }
@@ -581,7 +597,8 @@ function updateHazards(state: RunState, previousPlayerX: number, dt: number): vo
 
 function updateContact(state: RunState, previousPlayerX: number): void {
   for (const enemy of state.enemies) {
-    if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind)) continue;
+    // A craft leaving for a boss is harmless: it has broken off.
+    if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind) || enemy.leaving) continue;
     if (segmentCircleHit(previousPlayerX, 0, state.player.x, 0, enemy.x, enemy.s, enemy.radius + VIEW.playerRadius) !== null) hitPlayer(state, 2);
   }
 }

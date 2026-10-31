@@ -109,6 +109,11 @@ export interface Enemy {
    */
   lock?: { total: number; hold: number; release: number };
   /**
+   * Broke off when a boss arrived (src/sim/bastion.ts `leave`): it never attacks again. A craft flies out of frame toward
+   * `side`; a ground battery stays on its ground, quiet, until it scrolls out. Nothing just vanishes.
+   */
+  leaving?: { at: number; side: -1 | 1 };
+  /**
    * A hunter (ace, src/sim/hunters.ts): no authored path; it roams and follows the ship to the sides. `shield` is what is
    * left of its shield (charges × `perCharge`, taken before the hull); `vx`/`vs` its velocity; `tx`/`ts` its waypoint,
    * re-picked at age `retarget` (`waypoint` counts the picks, for its rolls, keyed by `key`: its level and spawn number).

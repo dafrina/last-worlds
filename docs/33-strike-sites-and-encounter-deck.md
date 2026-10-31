@@ -134,10 +134,11 @@ can collect therefore never exceed its supply schedule (`tests/sim/sites.test.ts
 campaign and are banked with the attempt in full whatever its outcome (docs/21 § 7). Endless never drops one.
 
 **Every site rolls for a part** (user, 30 October: "raise parts probability to 0.25-0.75 per site", "Every site rolls";
-docs/08). In the campaign each destroyed site drops one part, 0.8 units beside its core, with a chance linear in its
-guard's threat on that world (`sitePartChance`, `PART_CHANCE`): 25 % at threat 4, 75 % at threat 8. So 75 % for the crash
-site, airfield, dark spaceport and brood hive; 50 % for the freight terminal and gate ring; 37.5 % for the relay station
-(25 % on Vesper); 25 % for the shield depot, prism reactor and spawning pool. It comes besides the site's own loot; the
+lowered 31 October: "parts drop a bit too much, lower it to 0.2-0.6"; docs/08). In the campaign each destroyed site drops
+one part, 0.8 units beside its core, with a chance linear in its guard's threat on that world (`sitePartChance`,
+`PART_CHANCE`): 20 % at threat 4, 60 % at threat 8. So 60 % for the crash site, airfield, dark spaceport and brood hive;
+40 % for the freight terminal and gate ring; 30 % for the relay station (20 % on Vesper); 20 % for the shield depot, prism
+reactor and spawning pool. It comes besides the site's own loot; the
 four parts sites no longer drop a guaranteed part (the roll is it), and the salvage yard and sealed vault keep their
 guaranteed 3 (no roll). The roll is its own hash (`partRoll` in src/sim/sites.ts: run seed, sector, site, sites destroyed
 so far), never `Math.random` and never the loot stream. Messages keep naming the main loot (`· PARTS` on the parts sites).

@@ -607,3 +607,12 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 **2026-10-31 · Claude Code (Moon training level) · deployed `fa4c8c6`:** warp edge, Luna-only hints, overload texts, highlighted site messages and edge marker, polish pass part 1 (enemy shadows, fewer uploads). Gate details are in docs/build-status.md. Next: the full performance pass (agent), easing Vesper's lasers, and endless ace drops.
 
 **2026-10-31 · Claude Code (Moon training level) · deployed `6631d2e`:** performance pass (17–40% less CPU frame work), craft shadows on High and Low, the Vesper line cap, endless ace drops. Gate green: unit 654, browser 48/48. Details are in docs/build-status.md. No phone test.
+
+**2026-10-31 14:30 · Claude Code (Blender MCP in WSL session) · taking over again (user's request; the Moon training level session is at its weekly limit until 4 November):** I own the main tree's uncommitted pop-in work and the user's 31 October list.
+- **Me, in the main tree:**
+  - pop-ins: the late ground lead, bosses' rise, the Helion Ark's glide-in (render);
+  - enemies fly out of frame when a boss arrives instead of vanishing;
+  - shots in flight survive boss stage changes (lasers still end);
+  - site part chance 20–60%.
+- **Agents, in their own worktrees:** THE ECLIPSE's third phase-1 target; the hangar on the front screen. Next: the terrain cuts (Luna behind the boss at the warp, endless terrain not reaching the bottom of the screen).
+- **Release:** one gate and one deploy at the end (user).

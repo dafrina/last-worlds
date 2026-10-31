@@ -27,8 +27,23 @@ function message(state: RunState, text: string, duration = 3) {
  */
 export const showsHints = (state: RunState) => state.planet === 'luna';
 
+/**
+ * A squadron member breaks off for a boss: no further attack (its windup is dropped with the threats), and a craft heads for
+ * the nearer side edge (src/sim/game.ts updateEnemies moves it; the step's sweep removes it once it is out of frame).
+ */
+export function leave(state: RunState, enemy: Enemy): void {
+  enemy.leaving = { at: state.time, side: Math.sign(enemy.x - state.cameraX) as -1 | 1 || (enemy.id % 2 ? 1 : -1) };
+  enemy.warning = 0; enemy.lock = undefined;
+  if (enemy.ground) enemy.ground.muzzle = undefined;
+}
+
+/**
+ * Ends the attacks still winding up and every laser lane at a boss's arrival and at each of its stage changes. Shots already
+ * in flight fly on (user, 31 October: "keep all the attacks that are midflight going except lasers obviously"); a stream's
+ * shots still queued at their muzzle (`delay`) never leave. The boss's next attack is admitted against what still flies.
+ */
 function clearThreats(state: RunState) {
-  state.projectiles = state.projectiles.filter(shot => shot.friendly);
+  state.projectiles = state.projectiles.filter(shot => shot.friendly || !((shot.delay ?? 0) > 0));
   state.hazards = [];
   for (const enemy of state.enemies) enemy.warning = 0;
 }
@@ -88,8 +103,10 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
     phaseStartedAt: state.time, nextAttackAt: Infinity, attackIndex: 0, attack: null,
     attackerId: null, deathEffectAt: Infinity, vx: 0, vs: 0, launchesLeft: 0, nextLaunchAt: Infinity };
   // This authored relief is the boundary between approach and the boss encounter. Hunters stay: they must be shot down
-  // (src/sim/hunters.ts).
-  state.enemies = state.enemies.filter(enemy => enemy.hunter && enemy.hp > 0);
+  // (src/sim/hunters.ts). Every other craft breaks off and flies out of frame, and ground batteries go quiet where they
+  // stand (user, 31 October: "enemies should never disappear but move out of frame").
+  state.enemies = state.enemies.filter(enemy => enemy.hp > 0);
+  for (const enemy of state.enemies) if (!enemy.hunter) leave(state, enemy);
   clearThreats(state);
   // Campaign difficulty, or the endless ramp at this sector.
   const scale = runScale(state).hp;
@@ -135,11 +152,12 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     state.player.invulnerableUntil = state.time + (campaign ? WRECK_HOLD + def.extractionDuration : ENDLESS_EXIT_PROTECTION);
     // Credits are campaign-only; endless scores the kill through the core's 5,000 points.
     if (campaign) state.credits += REWARDS.boss;
-    // Launched fighters and hunters go down with their carrier: nothing dangerous remains during extraction.
-    for (const enemy of state.enemies) if (enemy.hunter && enemy.hp > 0 && state.effects.length < BALANCE.maxEffects) {
+    // Launched fighters and hunters go down with their carrier: nothing dangerous remains during extraction. Craft that
+    // broke off at the arrival keep leaving.
+    for (const enemy of state.enemies) if (!enemy.bossPart && !enemy.leaving && enemy.hp > 0 && state.effects.length < BALANCE.maxEffects) {
       state.effects.push({ id: state.nextId++, kind: 'explosion', x: enemy.x, s: enemy.s, ttl: .5, duration: .5 });
     }
-    state.enemies = state.enemies.filter(enemy => enemy.bossPart);
+    state.enemies = state.enemies.filter(enemy => enemy.bossPart || (enemy.leaving && enemy.hp > 0));
   }
 }
 

@@ -152,11 +152,12 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
 };
 
 /**
- * Every site rolls for a part (user, 30 October: "Every site rolls"; campaign only): 25% for a guard of threat 4 (the lightly
- * guarded shield sites) up to 75% for 8 (the old parts sites), linear in the guard's threat on that world. The salvage yard
- * and the sealed vault keep their guaranteed 3 parts and roll nothing (null).
+ * Every site rolls for a part (user, 30 October: "Every site rolls"; campaign only): 20% for a guard of threat 4 (the lightly
+ * guarded shield sites) up to 60% for 8 (the old parts sites), linear in the guard's threat on that world (user, 31 October:
+ * "parts drop a bit too much, lower it to 0.2-0.6"; 25–75% before). The salvage yard and the sealed vault keep their
+ * guaranteed 3 parts and roll nothing (null).
  */
-export const PART_CHANCE = { min: 0.25, max: 0.75, minThreat: 4, maxThreat: 8 } as const;
+export const PART_CHANCE = { min: 0.2, max: 0.6, minThreat: 4, maxThreat: 8 } as const;
 export function sitePartChance(id: SiteId, planet: PlanetId): number | null {
   const definition = SITES[id];
   if (definition.loot.kind === 'part' && definition.loot.value > 1) return null;

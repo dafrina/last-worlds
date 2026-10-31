@@ -26,6 +26,12 @@ const socket = (style: CarrierStyle, part: BossPart) => { const c = style.conten
 export const VEIL_FOOTPRINT = { halfWidth: 12.8, halfDepth: 9.5 } as const;
 /** How deep the hull starts under the mire as it rises, and how far it sinks when destroyed. */
 const RISE = 4.4, SINK = 4.6;
+/**
+ * How deep an approved model (the user's GLBs) starts its rise. At 8 the Cradle stood whole in its canyon and the Eclipse
+ * hung in its abyss from the first frame (user, 31 October: bosses "pop in"); from 22 they come up out of the canyon floor
+ * and the abyss fog.
+ */
+const APPROVED_RISE = 22;
 
 /** Its seat: the target plane (`targetHeight` above the mire, or THE CRADLE's hover) projects onto the logical rows. */
 export function veilPlacement(logicalS: number, sea: number, targetHeight: number = VEIL.targetHeight): { baseHeight: number; s: number } {
@@ -365,7 +371,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       const sink = destroyed ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
       // A hovering carrier (THE CRADLE) bobs wider and slower on the air it floats on.
       const bob = destroyed ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
-      root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * (rig.approved ? 8 : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
+      root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * (rig.approved ? APPROVED_RISE : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
       root.updateMatrixWorld(true);
       rig.chassis.rotation.set(-sink * .12 + Math.sin(state.time * .6) * .01, 0, sink * .16 + Math.sin(state.time * .45) * .012);
       if ((arriving && rise > .05) || (destroyed && sink > 0 && sink < 1)) for (let k = 0; k < 3; k++) if (hash(state.time * 37 + k) < 22 * dt) {

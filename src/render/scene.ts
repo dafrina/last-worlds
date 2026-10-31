@@ -210,6 +210,8 @@ export const HERO_SCALE = 1.1;
 const CHEVRON_GAP = 2, CHEVRON_FLOW = 2.2;
 /** Mission-start entrance: duration (s) and how far along the view ray toward the camera the hero starts. */
 const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
+/** How much further out the Helion Ark's glide-in is drawn at its start (render only; see its placement). */
+const ARK_GLIDE = 8;
 /** The Interceptor's barrel roll over its sidestep, and the speed streaks it leaves (seconds; render only). */
 const DASH_ROLL = .3, DASH_STREAK = .28;
 
@@ -881,7 +883,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     return mesh;
   };
   /** A ground target last frame: logical (x, s) for matching its kill explosion; drawn ground spot for the wreck. */
-  type GroundSeen = { kind: EnemyKind; x: number; s: number; afloat: boolean; groundX: number; /** World s. */ groundS: number; base: number };
+  type GroundSeen = { kind: EnemyKind; x: number; s: number; afloat: boolean; groundX: number; /** World s. */ groundS: number; base: number; sink?: number };
+  /**
+   * Ground batteries that deploy in view (render only; user, 31 October: infrastructure "pop ins ... especially late in
+   * levels"). A ground cue the director could not lead in from beyond the top edge (src/sim/game.ts leadGround: late in a
+   * level it runs behind its schedule, or its admission came late in the lead window) spawns at or just past its entry,
+   * with its compound already inside the view: gun and compound rise out of the ground over DEPLOY seconds instead of
+   * appearing in one frame. A battery first seen beyond DEPLOY_ROW (its compound wholly beyond the top edge) never sinks.
+   * Leading the late ones in as well moved late-level timing enough to make Final Horizon or Deep Bloom 40-60% harder for
+   * the test pilot (measured 31 October), so this stays visual.
+   */
+  const deploying = new Map<number, number>(), groundKnown = new Set<number>();
+  const DEPLOY = 1, DEPLOY_DEPTH = 2.2, DEPLOY_ROW = 25.5;
   const groundSeen = new Map<number, GroundSeen>();
   let wreckRun: RunState['config'] | null = null, wreckTick = -1;
   /** Foam collars for drifting floes and bergs, from the terrain view's live features (world space, real footprints). */
@@ -1098,6 +1111,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const reducedMotion = () => query.get('motion') === 'reduce' || !!motionQuery?.matches;
   let jumpActive = false, lastRenderTime = 0, warmedJump = -1, hiddenWarm = false;
   const knownPrograms = new WeakSet<object>();
+  // Development builds only: the scene and camera for look-dev probes (where things first appear on screen, pop-in checks).
+  if (import.meta.env.DEV) Object.assign(window, { __probeScene: scene, __probeCamera: camera });
   /**
    * Each craft material's own shadow-depth material (performance, 31 October). three.js shares one depth material across
    * casters and only copies each one's texture onto it, without choosing a new program for it, so which variant compiled
@@ -1409,8 +1424,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       let arkSeat: { x?: number; s: number; baseHeight: number } | null = null;
       if (isArk && boss) {
         ensureArk();
-        arkSeat = perspective ? rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, HELION_ARK.targetHeight, sea, world)
-          : arkPlacement(boss.s, sea);
+        // Its glide-in is drawn from ARK_GLIDE further out, closing to the simulated row as the arrival ends (render only:
+        // nothing on it is a target or attacks before then). The simulation's entry row puts its bow just inside the top
+        // of the view at sea level, where it faded in out of the fog (user, 31 October: bosses "pop in").
+        const glide = boss.phase === 'arrival' ? ARK_GLIDE * Math.max(0, 1 - (state.time - boss.startedAt) / HELION_ARK.arrivalDuration) : 0;
+        arkSeat = perspective ? rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s + glide, HELION_ARK.targetHeight, sea, world)
+          : arkPlacement(boss.s + glide, sea);
       }
       ark.update(state, arkSeat);
       if (isArk) terrain.setExclusion(ark.footprint(state, arkSeat));
@@ -1515,7 +1534,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // own model on any planet).
       counts.clear();
       // Hit flashes: compare each craft's hp with the last frame (a new run restarts the record).
-      if (state.tick < hitTick) { enemyHp.clear(); enemyHitAt.clear(); }
+      if (state.tick < hitTick) { enemyHp.clear(); enemyHitAt.clear(); deploying.clear(); groundKnown.clear(); }
       hitTick = state.tick;
       liveIds.clear(); for (const enemy of state.enemies) liveIds.add(enemy.id);
       for (const [id] of enemyHp) if (!liveIds.has(id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
@@ -1608,9 +1627,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
           : anchor ? { x: anchor.x, s: anchor.s, baseHeight: anchor.base - (anchor.afloat ? PONTOON_DECK : 0) }
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
+        if (isGround && enemy.formation && !groundKnown.has(enemy.id)) { groundKnown.add(enemy.id); if (enemy.s < DEPLOY_ROW) deploying.set(enemy.id, state.time); }
+        const deployed = deploying.get(enemy.id), sink = deployed !== undefined ? (1 - THREE.MathUtils.smoothstep(state.time - deployed, 0, DEPLOY)) * DEPLOY_DEPTH : 0;
+        if (sink > 0) placement.baseHeight -= sink; else deploying.delete(enemy.id);
         // A site core seats no compound or emplacement and leaves no wreck: its site stands there (site-view.ts).
         const siteCore = sites.hidesCore(enemy.id);
-        if (isGround && enemy.hp > 0 && !enemy.site) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight });
+        if (isGround && enemy.hp > 0 && !enemy.site) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight + sink, sink });
         // A compound is much wider than its gun. Seat all live ground batteries ahead of the view,
         // including lateral neighbours; only the small gun draw uses the tight visibility test.
         if (!visible) continue;
@@ -1637,7 +1659,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
         if (slot < ENEMY_CAPACITY && !siteCore && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
-          transform.rotation.set(0, 0, enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0); transform.scale.setScalar(craftScale);
+          // A craft breaking off for a boss turns toward the side it leaves by and banks into the turn.
+          const turn = enemy.leaving && !isGround ? THREE.MathUtils.smoothstep(state.time - enemy.leaving.at, 0, .5) * enemy.leaving.side : 0;
+          transform.rotation.set(0, turn * 1.9, (enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0) + turn * .5); transform.scale.setScalar(craftScale);
           const blink = enemy.blink, phase = blink ? (state.time - blink.startedAt) / WRAITH.teleport : 1;
           if (blink && phase >= 0 && phase < 1) {
             // Collapse at departure and unfold at arrival; never fly across the gap.
@@ -1671,7 +1695,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             plinths.setMatrixAt(plinthCount++, transform.matrix);
           }
         }
-        if (!isGround) {
+        // Plumes trail straight up the screen, so a craft turning away to leave for a boss draws none.
+        if (!isGround && !enemy.leaving) {
           // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
           const bank = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
           if (nacreBatch) for (const [ex, ez] of nacreBatch.engines) plumes.push({ x: enemy.x + ex * craftScale * Math.cos(bank), z: -enemy.s + ez * craftScale,
