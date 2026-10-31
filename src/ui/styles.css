@@ -195,6 +195,18 @@ button:disabled { cursor: default; }
 .arcade-button:active { transform: translateY(1px); }
 .arcade-button.secondary { margin-top: 12px; }
 .button-arrow { font: 18px / 1 var(--mono); }
+/* The hangar on the front screen (user, 31 October): below the two modes, since the ship and its looks fly in both. */
+.menu-hangar { margin-top: 12px; }
+.hangar-entry {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 7px 12px; width: 100%; min-height: 52px; padding: 11px 16px;
+  border: 1px solid var(--line); background: #0b1b30; color: var(--ivory); text-align: left; touch-action: manipulation;
+  transition: border-color .2s, box-shadow .2s;
+}
+.hangar-entry:hover, .hangar-entry:focus-visible { border-color: #7fd8ffaa; box-shadow: 0 0 12px #7fd8ff40; }
+.hangar-entry-title { font: 600 11px / 1.2 var(--mono); letter-spacing: 1.25px; }
+.hangar-entry-arrow { grid-row: span 2; color: #9fe4ff; font: 20px / 1 var(--mono); }
+.hangar-entry-ship { display: flex; align-items: center; gap: 7px; min-width: 0; color: #8fa9c5; font: 8px / 1.3 var(--mono); letter-spacing: 1.2px; }
+.hangar-entry-ship svg { flex: none; width: 11px; height: 11px; fill: #9fe4ff; }
 .menu-utility { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 13px; }
 .menu-utility button, .text-button, .back-button, .menu-footer button {
   min-height: 44px; padding: 10px 0; border: 0; color: #b0c4da; background: transparent;
@@ -328,6 +340,12 @@ button:disabled { cursor: default; }
   .back-button { margin-bottom: 14px; }
   .page-panel h2 { margin-bottom: 20px; }
 }
+/* The smallest phones (320 × 568): a smaller orbit drawing keeps the front screen, hangar entry included, unscrolled. */
+@media (max-height: 620px) {
+  .wordmark { margin-top: 16px; }
+  .menu-tagline { margin-top: 14px; }
+  .orbital-art { height: 52px; margin: -4px -2px 12px; }
+}
 
 /* Campaign progression (docs/21): credit balance, mission lock/record, loadout summary, hangar, results payout. */
 .credit-balance { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: #ffd27a; letter-spacing: 1px; }
@@ -352,6 +370,9 @@ button:disabled { cursor: default; }
 .loadout-summary dt { color: #6f88a3; font: 7px / 1.3 var(--mono); letter-spacing: 1.2px; }
 .loadout-summary dd { margin: 1px 0 0; color: #e2edf6; font: 10px / 1.3 var(--mono); letter-spacing: .5px; }
 .hangar-panel h2 { margin-bottom: 14px; }
+/* Which mode the open slot flies in: the ship, its perk and looks in both; bought gear in the campaign only. */
+.hangar-scope { margin: 10px 0 0; color: #8fa9c5; font: 8px / 1.5 var(--mono); letter-spacing: 1.2px; }
+.hangar-scope b { color: #9fe4ff; font-weight: 600; }
 .hangar-panel .selector [role="radio"] { font-size: 9px; padding-left: 2px; padding-right: 2px; }
 .hangar-items { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
 .hangar-item { padding: 12px; border: 1px solid var(--line); background: #0b1b30; transition: border-color .2s, box-shadow .2s; }
@@ -428,6 +449,8 @@ button:disabled { cursor: default; }
 /* Shipyard (Hangar → Ships, docs/31): the equipped ship turning, its part designs and paint. Plain, like the hangar list. */
 .shipyard { margin-top: 14px; padding: 12px; border: 1px solid var(--line); background: #0b1b30; display: grid; gap: 8px; }
 .page-panel .shipyard-title { margin: 0; color: var(--ivory); font: 600 10px / 1 var(--mono); letter-spacing: 1.4px; }
+/* The chassis perk (docs/34), sized like the hangar cards' lines (it had no rule and showed at the browser's default size). */
+.shipyard-perk { margin: 0; color: #9db0c5; font-size: 11px; line-height: 1.45; }
 .shipyard-preview { justify-self: center; width: 100%; max-width: 360px; aspect-ratio: 360 / 230; background: radial-gradient(ellipse at 50% 60%, #1b3a5c 0%, #0b1b30 72%); }
 .shipyard-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .shipyard-offer[hidden] { display: none; }

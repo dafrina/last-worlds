@@ -4,7 +4,7 @@
 
 ## Implemented navigation
 
-- **Home:** Campaign Flight, Endless, Statistics, Settings; How to Play is a quiet footer link.
+- **Home:** Campaign Flight, Endless, then the Hangar (since 31 October, below), Statistics, Settings; How to Play is a quiet footer link.
 - **Campaign:** dedicated preparation page with mission, difficulty and the existing main-weapon selector. Special, shield and reactor show the actual fixed prototype equipment. Launch starts the same simulation configuration as before.
 - **Endless:** one-tap launch using the existing canonical starter. Menu selections and flight-log data cannot change its config.
 - **Statistics:** separate Endless and Campaign tabs, lifetime counts, recent flights, best finalized endless score/sector, and campaign clear count/rate.
@@ -22,6 +22,12 @@ Home contains navigation, not a manual. Move controls into How to Play, settings
 ## Where the full campaign will fit
 
 **Built 16 October 2026:** Missions (with unlocks), the Loadout summary and the Hangar (store and equip) now live inside Campaign; see [campaign progression](21-campaign-progression.md). Assignments remain future work.
+
+**The Hangar moves to Home, 31 October 2026** (user: "move the hanger to the front screen, so we have endless, campaign and a section below for hangar since its not only for campaign anymore"). Since 30 October the chassis, its perk and its looks fly in endless too ([global ship perks](34-global-ship-perks.md)), so the Hangar is no longer a campaign-only destination. This replaces "keep these campaign destinations inside Campaign" below for the Hangar only.
+- **Home:** below Campaign Flight and Endless, one plain Hangar entry that names the equipped ship and its perk (`SCRAPPER · SALVAGE RIG`). Focus order: Campaign Flight, Endless, Hangar, Statistics, Settings, How to Play. Home still fits unscrolled at 320 × 568 (a smaller orbit drawing below 620 px of height).
+- **Campaign:** the loadout summary keeps its shortcut to the Hangar, for changing gear before a launch.
+- **Back / Escape** returns to whichever page opened the Hangar, with focus on the button that opened it.
+- **Which mode:** under the slot selector, one line says where the open slot flies. Main, Special and Shield: `CAMPAIGN ONLY · ENDLESS USES STARTER GEAR`. Ships: `CAMPAIGN AND ENDLESS · SHIP, PERK AND LOOKS`. Credits, parts, purchases and ship unlocks stay campaign economy, and endless still never writes the profile (`endlessConfig`).
 
 When those systems exist, Campaign becomes the campaign hub, with **Missions**, **Loadout**, **Store**, and **Assignments** below its heading. Keep these campaign destinations inside Campaign, rather than adding all of them to Home. Do not add dead Store or purchase buttons before the economy exists.
 

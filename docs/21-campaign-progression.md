@@ -11,7 +11,7 @@
   - A cleared mission shows its best time and the hardest difficulty it was cleared on.
   - The campaign page opens on the furthest unlocked mission, or on a mission just unlocked.
 - **Credits** are the main campaign currency, shown at the top of the Campaign and Hangar pages; **parts** (since 29 October, § 7) are the rare second one, beside them.
-- **Loadout:** the Campaign page summarises the four equipped slots. Tapping it opens the **Hangar**.
+- **Loadout:** the Campaign page summarises the four equipped slots. Tapping it opens the **Hangar**, which since 31 October also opens from the front screen ([flight command UI](16-flight-command-ui.md)).
 - **Hangar:** a slot selector (Main, Special, Shield, Reactor) and one card per item.
   - An equipped item glows. An owned item offers EQUIP (free). An item not yet owned shows its price; the button is disabled while unaffordable. Buying an item also equips it.
   - Owned main weapons show rank pips and the next rank upgrade.

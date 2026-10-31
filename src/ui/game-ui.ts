@@ -2,7 +2,7 @@ import { VIEW, type Difficulty, type GameUi, type GraphicsQuality, type MissionI
 import { SITES } from '../content/sites';
 import { PICKUP_TINTS } from '../content/pickup-tints';
 import { missionText } from './missions';
-import { MISSION_ORDER, menuMarkup } from './menu-markup';
+import { MISSION_ORDER, menuMarkup, shipGlyph } from './menu-markup';
 import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
@@ -11,7 +11,6 @@ import { CREDIT_MULTIPLIER, SHIPS, REWARDS, SHIELD_TECH, SPECIALS } from '../con
 import { itemText, renderHangar, renderShipyard } from './hangar';
 import './styles.css';
 
-const shipGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 15 10 21 15 21 19 14 17 14 21 10 21 10 17 3 19 3 15 9 10Z"/></svg>';
 const shieldGlyph = '<svg viewBox="0 0 20 24" aria-hidden="true"><path d="M3 4 10 2 17 4 17 12Q17 17 10 22Q3 17 3 12Z"/></svg>';
 const weaponNames: Record<WeaponId, string> = { pulse: 'Twin Pulse', fan: 'Fan Cannon', seeker: 'Seeker Array', rail: 'Rail Driver' };
 /** Special button glyph per special: a bolt (Shockwave), stacked chevrons (Seeker Rack), a beam (Siege Lance), a ring
@@ -125,7 +124,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const canvas = find<HTMLCanvasElement>('canvas');
   const specialButton = find<HTMLButtonElement>('.special-button');
   const overlay = find<HTMLElement>('.flight-overlay');
-  const panels = [...overlay.querySelectorAll<HTMLElement>('section')];
+  /** The overlay's pages: its own sections only, so a section inside a page (the shipyard) keeps its own visibility. */
+  const panels = [...overlay.querySelectorAll<HTMLElement>(':scope > section')];
   const hud = find<HTMLElement>('.flight-hud');
   const lives = find<HTMLElement>('.lives-icons');
   const shields = find<HTMLElement>('.shield-icons');
@@ -209,6 +209,11 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     showMission(missionIndex);
     actions.preloadHero?.(profile.loadout.ship, lookOf(profile, profile.loadout.ship));
   }
+  /** The front screen's hangar entry: the equipped ship and its perk, which fly in both modes (docs/34). */
+  function refreshHome() {
+    const ship = SHIPS[campaign.read().loadout.ship];
+    text('[data-home="ship"]', `${ship.label} · ${ship.perk}`.toUpperCase());
+  }
   /** Credit and parts balances (docs/33) on the campaign and hangar pages. */
   function showBalances(profile = campaign.read()) {
     for (const balance of shell.querySelectorAll('.credit-balance b')) balance.textContent = profile.credits.toLocaleString();
@@ -231,6 +236,10 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       preload: (ship, look) => actions.preloadHero?.(ship, look),
     });
     showBalances();
+    // Which mode each part of the hangar flies in (user, 31 October: the hangar is "not only for campaign anymore"): the
+    // ship, its perk and its looks fly in both modes; bought gear and weapon tiers in the campaign only (endlessConfig).
+    text('.hangar-scope-mode', hangarSlot === 'ship' ? 'CAMPAIGN AND ENDLESS' : 'CAMPAIGN ONLY');
+    text('.hangar-scope-what', hangarSlot === 'ship' ? 'SHIP, PERK AND LOOKS' : 'ENDLESS USES STARTER GEAR');
     text('.hangar-note', hangarSlot === 'ship' ? 'Ships come from the listed mission clears, on any difficulty. Their designs and paint are cosmetic: a design costs parts and credits once, then switches freely. Parts come from strike sites.' : 'Credits come from campaign missions. Changing equipped gear is free.');
   }
   selectorListeners.set('mission', value => showMission(MISSION_ORDER.findIndex(([id]) => id === value)));
@@ -250,6 +259,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     stage.addEventListener('pointercancel', () => { swipe = null; }, options);
   }
   showMission(missionIndex);
+  refreshHome();
   preview.stop();
   prebakePlanets(MISSION_ORDER.map(([id]) => MISSION_PLANET[id]));
   let lastState: RunState | null = null;
@@ -303,6 +313,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     overlay.hidden = false;
     currentPanel = className;
     overlay.dataset.page = className;
+    if (className === 'menu-panel') refreshHome();
     overlay.scrollTop = 0;
     for (const panel of panels) panel.hidden = !panel.classList.contains(className);
     const target = focusSelector ? find<HTMLElement>(focusSelector) : find<HTMLElement>(`.${className} button`);
@@ -333,7 +344,14 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   // Endless uses the equipped ship and its perk; weapons, shield array and weapon tier start at baseline.
   onAction('endless', () => launch(endlessConfig(campaign.read(), seed())));
   onAction('campaign', () => { refreshCampaign(); showPanel('campaign-panel', '.campaign-panel .back-button'); preview.show(MISSION_PLANET[MISSION_ORDER[missionIndex][0]]); });
-  onAction('hangar', () => { refreshHangar(); showPanel('hangar-panel', '.hangar-panel .back-button'); });
+  /**
+   * The hangar opens from the front screen (user, 31 October: "a section below for hangar since its not only for campaign
+   * anymore") and from the campaign page's loadout summary; back returns to whichever opened it.
+   */
+  let hangarParent: 'menu-panel' | 'campaign-panel' = 'menu-panel';
+  function openHangar(parent: typeof hangarParent) { hangarParent = parent; refreshHangar(); showPanel('hangar-panel', '.hangar-panel .back-button'); }
+  onAction('menu-hangar', () => openHangar('menu-panel'));
+  onAction('hangar', () => openHangar('campaign-panel'));
   selectorListeners.set('slot', value => { hangarSlot = value as Slot; refreshHangar(); });
   function renderStatistics() {
     const log = flightLog.read();
@@ -390,7 +408,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     if (currentPanel === 'settings-panel') showPanel(settingsParent, settingsParent === 'pause-panel' ? '[data-action="pause-settings"]' : '[data-action="settings"]');
     else if (currentPanel === 'help-panel') showPanel(helpParent, helpParent === 'settings-panel' ? '[data-action="settings-help"]' : '[data-action="help"]');
     else if (currentPanel === 'campaign-panel') showPanel('menu-panel', '[data-action="campaign"]');
-    else if (currentPanel === 'hangar-panel') { refreshCampaign(); showPanel('campaign-panel', '[data-action="hangar"]'); }
+    else if (currentPanel === 'hangar-panel' && hangarParent === 'campaign-panel') { refreshCampaign(); showPanel('campaign-panel', '[data-action="hangar"]'); }
+    else if (currentPanel === 'hangar-panel') showPanel('menu-panel', '[data-action="menu-hangar"]');
     else if (currentPanel === 'statistics-panel') showPanel('menu-panel', '[data-action="statistics"]');
   }
   for (const button of shell.querySelectorAll<HTMLButtonElement>('[data-back], [data-settings-back], [data-help-back]')) button.addEventListener('click', navigateBack, options);
