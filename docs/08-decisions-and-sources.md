@@ -259,3 +259,13 @@ User answers after reviewing the merged strike sites and encounter deck:
   - The shield is budgeted (invariant 11): at most one per sector, and only while the ship is missing shields. Otherwise that third is coins only.
   - The campaign is unchanged.
 - **Endless boss run, Twin Pulse, seeds 1–24:** 15 hitless clears with 11 hits in all, against 14 and 12 before these two changes. The pinned test moved from seed 7 to seed 1.
+
+## 31 October 2026 — Boss arrivals and stages, pop-ins, part chance, front-screen hangar, Eclipse prow
+
+- **Enemies never vanish for a boss (user: "enemies should never disappear but move out of frame"):** at a boss's arrival, craft break off and fly out of frame, harmless; ground batteries go quiet and scroll away. A boss's launched craft explode with it.
+- **Shots in flight survive boss stage changes (user: "keep all the attacks that are midflight going except lasers obviously"):** laser lanes and windups still end. In endless the test pilot takes a little more (sectors 1–4: 9 hits over 24 seeds, against 4); the campaign is unchanged.
+- **Pop-ins (user: infrastructure and bosses "pop in", especially late in levels):** bosses rise or glide in from beyond the view; a late ground wave's battery and compound rise out of the ground in view. Leading late waves in from beyond the edge moved late-level timing enough to make Final Horizon or Deep Bloom 40–60% harder, so it stays visual.
+- **Site part chance 20–60% (user: "parts drop a bit too much, lower it to 0.2-0.6"):** replaces 25–75% (30 October).
+- **Hangar on the front screen (user: "move the hanger to the front screen ... since its not only for campaign anymore"):** Campaign, Endless, then Hangar; the campaign page keeps its shortcut.
+- **THE ECLIPSE's third phase-1 target (user: "can you add a third target on the eclipse (umbra boss) that we have to destroy for phase 1?"):** the prow vent under the reactor, as tough as the wing vents, in their attack rotation (docs/28).
+- **Weapon tiers 4 and 5 (user: "2 new crazier levels for each weapon"; "faster shots instead of much more. maybe 2 more projectiles each weapon on max level"):** in progress.
