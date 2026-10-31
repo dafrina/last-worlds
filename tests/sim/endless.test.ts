@@ -169,8 +169,10 @@ describe('endless bosses and jumps', () => {
     // encounter deck (30 October, docs/33 § 4) each seed draws its own waves: Twin Pulse flies seed 7 (seed 5 takes one hit).
     // Over seeds 1-48 the run clears without a hit on 30 (pulse), 25 (fan) and 24 (seeker) seeds, against 29, 25 and 18
     // with the fixed lists. Since Vesper's five-line cap and endless ace drops (31 October) Twin Pulse flies seed 1 (seed 7
-    // takes one hit): over seeds 1-24 Pulse clears 15 with 11 hits in all, against 14 with 12 just before.
-    const state = createRun({ mode: 'endless', seed: weapon === 'seeker' ? 6 : weapon === 'pulse' ? 1 : 5 });
+    // takes one hit): over seeds 1-24 Pulse clears 15 with 11 hits in all, against 14 with 12 just before. Since shots in
+    // flight outlive a boss's arrival and stage changes (31 October) Twin Pulse flies seed 4 (seed 1 takes one hit): over
+    // seeds 1-24 Pulse takes 14 hits, Seeker 14 (against 11 and 17 before).
+    const state = createRun({ mode: 'endless', seed: weapon === 'seeker' ? 6 : weapon === 'pulse' ? 4 : 5 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;
