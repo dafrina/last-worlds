@@ -304,6 +304,8 @@ if (import.meta.env?.DEV && typeof location !== 'undefined') for (const entry of
   if (parent && last in parent && Number.isFinite(Number(value))) parent[last] = Number(value);
 }
 const KHEPRI_SUN_ELEVATION = LOOKS.khepri.sunElevation;
+/** Typical lit ground radiance per planet, for the Low silhouettes' displayed darkness (craft-shadows.ts `silhouetteShade`). */
+const SILHOUETTE_GROUND: Record<PlanetId, number> = { vesper: 2, luna: .9, khepri: .35, amnion: .5, nacre: .15, umbra: .12 };
 /** Unit vector toward a planet's sun: the shared upper-left azimuth (shadows to the lower right) at its elevation. */
 function sunDirection(elevationDegrees: number): THREE.Vector3 {
   const elevation = THREE.MathUtils.degToRad(elevationDegrees);
@@ -570,9 +572,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     settings.fogDistance.value.set(fog.distance[0], fog.distance[1], fogOff ? 0 : fog.distance[2]);
     renderer.toneMappingExposure = look.lowExposure;
     // Low-tier silhouettes keep the share of light the High shadow leaves (src/render/craft-shadows.ts).
-    silhouetteShade({ ...look, sunElevation: next === 'khepri' && look.sunElevation === KHEPRI_SUN_ELEVATION ? THREE.MathUtils.radToDeg(SUN_ELEVATION) : look.sunElevation },
-      craftSilhouetteMaterial.color);
-    (heroSilhouette.material as THREE.MeshBasicMaterial).color.copy(craftSilhouetteMaterial.color);
+    const shadowLight = { ...look, sunElevation: next === 'khepri' && look.sunElevation === KHEPRI_SUN_ELEVATION ? THREE.MathUtils.radToDeg(SUN_ELEVATION) : look.sunElevation };
+    silhouetteShade(shadowLight, craftSilhouetteMaterial.color, SILHOUETTE_GROUND[next]);
+    // Dark open water, where a High shadow takes only the faint diffuse share of the sea's light.
+    silhouetteShade(shadowLight, seaShade, .1).lerp(WHITE, .5);
   };
   const applyLook = (next: PlanetId) => {
     brightGround = next === 'vesper';
@@ -667,7 +670,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const heroSilhouette = new THREE.Mesh(new THREE.BufferGeometry(), createSilhouetteMaterial());
   heroSilhouette.matrixAutoUpdate = false; heroSilhouette.frustumCulled = false; heroSilhouette.visible = false; heroSilhouette.renderOrder = 1;
   heroSilhouette.name = 'hero silhouette';
-  const flatProjection = new THREE.Matrix4(), flatten = new THREE.Matrix4();
+  const seaShade = new THREE.Color(1, 1, 1);
+  const flatProjection = new THREE.Matrix4(), flatten = new THREE.Matrix4(), NOWHERE = new THREE.Matrix4().makeScale(0, 0, 0);
   function shadowCaster(root: THREE.Object3D): THREE.Mesh | null {
     root.updateMatrixWorld(true);
     const inverse = root.matrixWorld.clone().invert(), local = new THREE.Matrix4(), point = new THREE.Vector3(), positions: number[] = [];
@@ -1477,12 +1481,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         width: .2 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), hex: heroGlow, energy: 2.6 });
       let shadowCount = 0, plinthCount = 0;
       const groundAt = (gx: number, gs: number) => surfaceHeight(state.config.seed, gx, state.distance + gs, world);
+      const seaLevel = world.planet.seaLevel, onSea = (y: number) => seaLevel !== null && y <= seaLevel + .01;
       // The hero's Low shadow: its merged silhouette flattened along the sun (High: the shadow map).
       heroSilhouette.visible = quality !== 'high' && hero.visible && !!heroSilhouette.geometry.getAttribute('position');
       if (heroSilhouette.visible) {
         hero.updateMatrix();
         const ground = blobLanding(sun, hero.position.x, -hero.position.z, hero.position.y, groundAt).y;
         heroSilhouette.matrix.multiplyMatrices(planarShadow(sun, ground + .02, flatProjection), hero.matrix);
+        // Open water mostly reflects the sky, so a High shadow shows only faintly on it; craft silhouettes stay off the sea
+        // and the hero's is lightened there.
+        (heroSilhouette.material as THREE.MeshBasicMaterial).color.copy(onSea(ground) ? seaShade : craftSilhouetteMaterial.color);
       }
 
       // Instance counts per batch mesh: each enemy fills the batch of the model it actually uses (a Vesper kind keeps its
@@ -1627,7 +1635,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           if (quality !== 'high') {
             // Ground kinds flatten onto their own base; craft onto the ground where the sun puts their shadow.
             const ground = isGround ? placement.baseHeight : blobLanding(sun, placement.x ?? enemy.x, placement.s, VIEW.flightHeight, groundAt).y;
-            silhouettes.get(batch.mesh)?.setMatrixAt(slot, flatten.multiplyMatrices(planarShadow(sun, ground + .02, flatProjection), transform.matrix));
+            silhouettes.get(batch.mesh)?.setMatrixAt(slot, !isGround && onSea(ground) ? NOWHERE : flatten.multiplyMatrices(planarShadow(sun, ground + .02, flatProjection), transform.matrix));
           }
           const seen = enemyHp.get(enemy.id); enemyHp.set(enemy.id, enemy.hp);
           if (seen !== undefined && enemy.hp < seen) enemyHitAt.set(enemy.id, state.time);

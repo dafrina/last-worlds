@@ -21,12 +21,30 @@ export function planarShadow(sun: THREE.Vector3, height: number, target = new TH
 
 /** The light a planet's ground keeps in shadow, per channel (linear): hemisphere and bounce stay, the sun loses `intensity`. */
 export interface ShadowLight { sun: [number, number]; sunElevation: number; hemisphere: [number, number, number]; bounce: [number, number]; shadowIntensity: number }
-export function silhouetteShade(look: ShadowLight, target = new THREE.Color()): THREE.Color {
+/** Khronos PBR Neutral (three.js NeutralToneMapping, the post composite's curve) on one channel. */
+function neutral(x: number): number {
+  const start = .76, offset = x < .08 ? x - 6.25 * x * x : .04, v = x - offset;
+  if (v < start) return v;
+  const d = 1 - start;
+  return 1 - d * d / (v + d - start);
+}
+const srgb = (c: number) => c <= .0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - .055;
+/**
+ * `ground`: the typical lit ground's linear radiance on the planet (bright snow near 1.5). The High shadow darkens before
+ * tone mapping, so over bright ground it shows less than the light ratio says; the silhouette multiplies after it, so it
+ * takes the displayed ratio. The colour is linear (the material encodes it to sRGB, the display space it multiplies in).
+ */
+export function silhouetteShade(look: ShadowLight, target = new THREE.Color(), ground = .3): THREE.Color {
   const sky = new THREE.Color(look.hemisphere[0]).multiplyScalar(look.hemisphere[2]);
   const bounce = new THREE.Color(look.bounce[0]).multiplyScalar(look.bounce[1] * .3);
   const sun = new THREE.Color(look.sun[0]).multiplyScalar(look.sun[1] * Math.sin(THREE.MathUtils.degToRad(look.sunElevation)));
-  const ratio = (a: number, s: number) => (a + s * (1 - look.shadowIntensity)) / Math.max(1e-4, a + s);
-  return target.setRGB(ratio(sky.r + bounce.r, sun.r), ratio(sky.g + bounce.g, sun.g), ratio(sky.b + bounce.b, sun.b));
+  const channel = (a: number, s: number) => {
+    const ratio = (a + s * (1 - look.shadowIntensity)) / Math.max(1e-4, a + s);
+    const displayed = srgb(neutral(ground * ratio)) / Math.max(1e-4, srgb(neutral(ground)));
+    // Back to linear: the material's output encoding turns it into the displayed ratio again.
+    return new THREE.Color().setRGB(displayed, displayed, displayed, THREE.SRGBColorSpace).r;
+  };
+  return target.setRGB(channel(sky.r + bounce.r, sun.r), channel(sky.g + bounce.g, sun.g), channel(sky.b + bounce.b, sun.b));
 }
 
 export function createSilhouetteMaterial(): THREE.MeshBasicMaterial {
