@@ -259,3 +259,10 @@ User answers after reviewing the merged strike sites and encounter deck:
   - The shield is budgeted (invariant 11): at most one per sector, and only while the ship is missing shields. Otherwise that third is coins only.
   - The campaign is unchanged.
 - **Endless boss run, Twin Pulse, seeds 1–24:** 15 hitless clears with 11 hits in all, against 14 and 12 before these two changes. The pinned test moved from seed 7 to seed 1.
+
+## 31 October 2026 — Weapon tiers 4 and 5
+
+- **User:** "lets introduce 2 new crazier levels for each weapon", then "i want faster shots instead of much more. maybe 2 more projectiles each weapon on max level but other than that quicker shots". This replaces "exactly two upgrades" (28 October).
+- Every main weapon has five tiers in both modes. Tier 4 fires tier 3's volley about 1.35 times as often; tier 5 adds two projectiles to the volley and fires about 1.6–1.7 times as often as tier 3. Damage per projectile is unchanged, and each family keeps its pattern: Twin Pulse adds two outer streams, the Fan two spokes over the same ±12°, the Seeker two missiles to the salvo, the Rail Driver two slugs side by side (still piercing, still breaking hunter shields).
+- Campaign: tiers 4 and 5 cost 500 and 800 credits. Endless: power cells, power sites and an ace's power drop raise the tier up to 5.
+- Details, prices and measurements: [campaign expansion](30-campaign-expansion.md#main-weapons--four-upgrades-five-tiers).

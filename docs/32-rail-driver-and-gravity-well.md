@@ -40,6 +40,10 @@ target and gains with every enemy lined up behind it.
 | 1 | one slug every 0.5 s (30 ticks) | 64/s | 96/s |
 | 2 | one slug every 1/3 s (20 ticks) | 96/s | 144/s |
 | 3 | two parallel slugs at offsets ±0.3, every 0.45 s (27 ticks) | about 142/s when both slugs touch | about 180/s |
+| 4 (31 October) | the twin slugs every 1/3 s (20 ticks) | about 192/s when both touch | 240/s |
+| 5 (31 October) | four slugs side by side at ±0.3 and ±0.9, every 16 ticks | up to 480/s when all four touch | up to 432/s |
+
+Tiers 4 and 5 and their measured boss times: [campaign expansion](30-campaign-expansion.md#main-weapons--four-upgrades-five-tiers).
 
 ```ts
 rail: [[shot(0, 0, .5)], [shot(0, 0, 1 / 3)], [{ angles: [0, 0], offsets: [-.3, .3], wait: .45 }]],

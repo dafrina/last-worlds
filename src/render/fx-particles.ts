@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
+import { weaponRank } from '../content/equipment';
 import { AROUND_HERO } from './hero-stencil';
 import { drawnShot, type Launch } from './shot-launch';
 
@@ -19,6 +20,13 @@ const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 const ADDITIVE_CAPACITY = 640, ALPHA_CAPACITY = 240, LIGHT_CAPACITY = 32, WRECK_ADDITIVE_CAPACITY = 384, WRECK_ALPHA_CAPACITY = 160;
 /** Particle shapes in the shared shader. */
 const ROUND = 0, PLUME = 1, STAR = 2, CHIP = 3, RING = 4;
+/**
+ * The hero's main-weapon shots at tiers 4 and 5 (docs/30, user 31 October: "crazier"): a little more punch, render only.
+ * `grow` scales the bolt, the rail slug's streak and the muzzle flash; `energy` brightens the bolt over dark ground (HDR, so
+ * it blooms on High) and the flash. Tiers 1-3 draw as before. Still cyan-white and slim, never the warm round hostile shot.
+ */
+const SHOT_HEAT = [{ grow: 1, energy: 1 }, { grow: 1.15, energy: 1.5 }, { grow: 1.3, energy: 2 }] as const;
+export const shotHeat = (power: number) => SHOT_HEAT[Math.max(0, weaponRank(power) - 2)];
 
 const VERTEX = /* glsl */`
 attribute vec2 aParams; varying vec2 vParams; varying vec2 vUv; varying vec3 vColor;
@@ -295,12 +303,16 @@ export function createFx(scene: THREE.Scene) {
     anchoredEmission = false;
     lastEffect = maxEffect;
     let maxShot = lastShot;
+    const heat = shotHeat(state.player.power);
     for (const shot of state.projectiles) {
       if (shot.id <= lastShot) continue;
       maxShot = Math.max(maxShot, shot.id);
       if (shot.delay || Math.abs(shot.x - state.cameraX) > VIEW.width / 2 + 1) continue;
-      // Muzzle flash at the logical origin; colour follows the shot's team.
-      if (shot.friendly) flash(shot.previousX, -shot.previousS, .3, .06, 0xd8fff9, 1.5);
+      // Muzzle flash at the logical origin; colour follows the shot's team. Main-weapon tiers 4 and 5 flash larger.
+      if (shot.friendly) {
+        const punch = shot.weapon ? heat : SHOT_HEAT[0];
+        flash(shot.previousX, -shot.previousS, .3 * punch.grow, .06, 0xd8fff9, 1.5 * Math.sqrt(punch.energy));
+      }
       // (Amnion's hostile shots are violet: src/render/scene.ts.) A ground battery's round flashes at the battery as drawn.
       else {
         const launch = launchOf(shot.id), at = launch ? drawnShot({ x: shot.previousX, s: shot.previousS, vx: shot.vx, vs: shot.vs }, launch) : { x: shot.previousX, s: shot.previousS };

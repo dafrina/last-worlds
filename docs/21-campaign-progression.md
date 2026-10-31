@@ -1,6 +1,6 @@
 # Campaign progression
 
-**28 October update:** [Ship collection and shared weapon tiers](30-campaign-expansion.md) supersedes the reactor loadout, Flux shield and three-rank weapon system below. Four slots are main, special, shield and ship; the six-mission campaign has three-tier weapons, collectible chassis and universal five-charge shield capacity. The rest of this document records the original implementation.
+**28 October update:** [Ship collection and shared weapon tiers](30-campaign-expansion.md) supersedes the reactor loadout, Flux shield and three-rank weapon system below. Four slots are main, special, shield and ship; the six-mission campaign has three-tier weapons (five tiers since 31 October), collectible chassis and universal five-charge shield capacity. The rest of this document records the original implementation.
 
 16 October 2026 · user request: "build progression etc into campaign". This implements the design in [combat and progression](02-combat-and-progression.md) §3–5 and [campaign difficulty](11-campaign-difficulty.md) §3–4, and the Campaign hub planned in [flight command UI](16-flight-command-ui.md). Numbers remain starting values to tune from play.
 

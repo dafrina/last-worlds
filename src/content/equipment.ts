@@ -19,15 +19,19 @@ export const WEAPON_BLURB: Readonly<Record<WeaponId, string>> = {
   rail: 'A heavy slug that pierces every enemy in its line. Slow: line them up.',
 };
 
-/** Two purchased campaign upgrades; endless earns the same tiers from pickups. */
-export const RANK_PRICES = [150, 300] as const;
+/**
+ * Four purchased campaign upgrades per weapon (tiers 2-5); endless earns the same tiers from pickups. Tiers 4 and 5 (user,
+ * 31 October) cost 500 and 800: about 1.5 and 2.5 repeat Standard clears of a late mission (310-330 credits each at
+ * tier 3), and a whole weapon's 1,750 about four fifths of a first campaign's 2,200 (docs/30).
+ */
+export const RANK_PRICES = [150, 300, 500, 800] as const;
 export const MAX_RANK = RANK_PRICES.length;
 export const weaponRank = (rank: number) => Number.isFinite(rank) ? Math.max(0, Math.min(MAX_RANK, Math.floor(rank))) : 0;
 export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
-  pulse: ['Twin bolts', 'Rapid twin bolts', 'Four-shot burst'],
-  fan: ['Five-pellet fan', 'Nine-pellet fan', 'Rapid nine-pellet fan'],
-  seeker: ['Alternating missiles', 'Paired missiles', 'Four-missile burst'],
-  rail: ['One slug every 0.5 s', 'One slug every 1/3 s', 'Twin slugs every 0.45 s'],
+  pulse: ['Twin bolts', 'Rapid twin bolts', 'Four-shot burst', 'Rapid four-shot burst', 'Four-stream burst'],
+  fan: ['Five-pellet fan', 'Nine-pellet fan', 'Rapid nine-pellet fan', 'Faster nine-pellet fan', 'Rapid eleven-pellet fan'],
+  seeker: ['Alternating missiles', 'Paired missiles', 'Four-missile burst', 'Rapid four-missile burst', 'Six-missile salvo'],
+  rail: ['One slug every 0.5 s', 'One slug every 1/3 s', 'Twin slugs every 0.45 s', 'Twin slugs every 1/3 s', 'Four slugs every 0.27 s'],
 };
 
 /**

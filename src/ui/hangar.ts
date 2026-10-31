@@ -52,16 +52,20 @@ export function renderHangar(list: HTMLElement, profile: CampaignProfile, slot: 
       item.append(parts);
     }
     if (slot === 'weapon' && owned) {
-      const weapon = id as WeaponId, rank = profile.ranks[weapon];
+      // Five tiers (docs/30): one pip per tier, lit up to the current one. The short label, the pips and the upgrade button
+      // share one line even at 360 px; the tier's pattern and the next one's go on the line below.
+      const weapon = id as WeaponId, rank = profile.ranks[weapon], tiers = MAX_RANK + 1;
       const ranks = document.createElement('div'); ranks.className = 'hangar-rank';
-      ranks.setAttribute('aria-label', `Tier ${rank + 1} of 3: ${WEAPON_TIERS[weapon][rank]}`);
-      const label = document.createElement('span'); label.textContent = `TIER ${rank + 1} · ${WEAPON_TIERS[weapon][rank]}`;
+      ranks.setAttribute('aria-label', `Tier ${rank + 1} of ${tiers}: ${WEAPON_TIERS[weapon][rank]}`);
+      const label = document.createElement('span'); label.className = 'rank-label'; label.textContent = `TIER ${rank + 1} / ${tiers}`;
       const pips = document.createElement('span'); pips.className = 'rank-pips';
-      for (let r = 0; r < MAX_RANK; r++) { const pip = document.createElement('i'); if (r < rank) pip.className = 'on'; pips.append(pip); }
+      for (let r = 0; r < tiers; r++) { const pip = document.createElement('i'); if (r <= rank) pip.className = 'on'; pips.append(pip); }
       ranks.append(label, pips);
       if (rank < MAX_RANK) ranks.append(button(`UPGRADE · ${RANK_PRICES[rank]} CR`, 'upgrade', profile.credits < RANK_PRICES[rank], () => actions.upgrade(weapon)));
       item.append(ranks);
-      if (rank < MAX_RANK) { const next = document.createElement('p'); next.className = 'upgrade-next'; next.textContent = `Next: ${WEAPON_TIERS[weapon][rank + 1]}`; item.append(next); }
+      const next = document.createElement('p'); next.className = 'upgrade-next';
+      next.textContent = rank < MAX_RANK ? `${WEAPON_TIERS[weapon][rank]}. Next: ${WEAPON_TIERS[weapon][rank + 1]}` : `${WEAPON_TIERS[weapon][rank]}. Top tier.`;
+      item.append(next);
     }
     return item;
   }));

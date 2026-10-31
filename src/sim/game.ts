@@ -488,10 +488,11 @@ function fireMain(state: RunState): void {
   if (state.mainSequence?.weapon !== weaponId || state.mainSequence.rank !== rank) state.mainSequence = { weapon: weaponId, rank, index: 0 };
   const step = sequence[state.mainSequence.index];
   if (state.projectiles.length + step.angles.length > BALANCE.maxProjectiles) return;
+  const speed = weapon.speed * (step.speed ?? 1);
   step.angles.forEach((angle, index) => {
     const shot = projectile(state, state.player.x + step.offsets[index], MUZZLE,
-      Math.sin(angle * DEG) * weapon.speed, Math.cos(angle * DEG) * weapon.speed,
-      true, weapon.damage, weapon.radius, weapon.range / weapon.speed);
+      Math.sin(angle * DEG) * speed, Math.cos(angle * DEG) * speed,
+      true, weapon.damage, weapon.radius, weapon.range / speed);
     shot.weapon = weaponId;
     if (weaponId === 'seeker') shot.homingTargetId = target.id;
     if (weaponId === 'rail') shot.pierced = [];
