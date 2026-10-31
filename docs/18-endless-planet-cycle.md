@@ -98,7 +98,7 @@ Nacre joins the cycle when it exists. The cycle, its bosses and its timings are 
 - **HUD:** the results label reads `ENDLESS / <planet>`.
 - **Look-dev:** `tests/fixtures/bastion.html?mode=jump&n=1|2&t=N` and `lookdev/jump.html?sector=3|6` (git-ignored).
 - **Known gaps:**
-  - Terrain-kit readiness isn't part of the jump's readiness check yet.
+  - Terrain-kit readiness isn't part of the jump's readiness check yet (the terrain swap is, since 31 October).
   - Before the flash, the new planet's ground ahead is drawn in the old look; it's mostly hidden by the veil.
   - One frame showed an unstreamed section edge at peak jump speed, also under the veil.
 
@@ -108,3 +108,22 @@ Nacre joins the cycle when it exists. The cycle, its bosses and its timings are 
 **Update, 15 October 2026:** Nacre joins between Khepri and Vesper (docs/20); boss sectors are 1, 4, 7, 10, …..
 
 **Update, 15 October 2026 (later):** order swapped by the user: Khepri → Vesper → Nacre; Nacre is the final world (docs/20).
+
+## Update, 31 October 2026: no cut behind the boss, and the new planet fills the view (terrain version 22)
+
+The user reported two cuts: "a clear cut behind the boss when we take off for warp, as if a hill got cut" on Luna after WARDEN-1, and "the terrain in endless is cutoff in front" after the jumps. Before/after evidence: `docs/screenshots/terrain-cuts-before-after.jpg`.
+
+- **The cut behind the boss** was not a planet seam. A boss clearing (src/world/terrain-arena.ts, user 22 October) only shaped the ground while its platform's ramp lasted, `toS + 20`. WARDEN-1's platform is 31 long, so the ramp ended 51 past the platform's start while the entry corridor was flat to 49 and its edge wandered out to 57. The flat floor stopped dead in a wall across the whole view. It came into view during every departure, in endless and in the Training mission. Bastion-9 (35 long, Rolling Thunder and endless Khepri) had the same cut in about two seeds of three, up to 8 units deep; the other bosses' platforms are long enough. Now the clearing shapes the ground wherever it reaches (`arenaReaches`), so its weight is continuous everywhere. Its far end, which spans the view as the ship departs over it, is drawn out twice as long along s (`ARENA_CLEARING.tail`): a gentle, irregular fade into the planet's own ground, not a rim.
+- **The new planet's near edge.** The camera sees about 37 units ahead of the ship and up to 10 behind it (the tallest phones show extra foreground). While the veil is fully opaque, at 0.38–0.5 of the jump, the ship travels only 11–13 units. So no single seam on the ground can stay out of view. Before, the switch lay 22–29 past the flash, and since 30 October a band of deep space hid the old planet behind it after the flash. That band was the "cutoff in front": up to the bottom third of the screen for about a second after each jump. Now the terrain swaps planets in time, at the flash, under the opaque veil (`RouteSwap`, src/world/terrain-planet.ts):
+  - The route switches planets `SWAP_BEHIND` = 14 short of the flash. The simulation's ground seats read this route.
+  - Its `outgoing` variant holds the old planet to `SWAP_AHEAD` = 36 past the flash.
+  - Until the flash the terrain draws the sections between the two seams from the outgoing variant. From the flash it draws them from the route (`sectionSource`), and everything seated on the terrain follows (`scrollRoute`).
+  - Only two or three sections per jump have two versions. The stream prepares both, with their views, from 160 units before the flash, which covers the whole boss fight (`createTerrainStream` needs). The swap then takes prefetched sections: zero synchronous generations through all four jumps, in the unit tests and in the browser.
+  - The jump's readiness includes the swap (`terrain.swapReady()` in `isReady`). On a device too slow to prepare it, the jump holds before its flash instead of building the terrain mid-frame.
+  - The deep-space band is gone (src/render/fx-jump.ts).
+- **The schedule** (`switchDistance`, `endDistance`, speeds) is unchanged. `switchDistance` now marks where the schedule's stretches hand over; the terrain's own seams are the swap's.
+- **Evidence:**
+  - tests/world/terrain-swap.test.ts projects the release camera (390×844 and taller phones) over every departure and jump of sectors 1–19. The whole visible ground is one planet at every moment the veil is not opaque.
+  - tests/world/terrain-arena.test.ts holds every boss's clearing continuous.
+  - tests/world/terrain-route.test.ts streams every jump with no fallback and checks both versions at the flash.
+- **Known gaps:** the incoming sections' GPU buffers upload on the flash frame (under the white flash). Not measured on a phone.
