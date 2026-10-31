@@ -144,7 +144,7 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       while (!step.done) step = work.next();
       expect(step.value).toEqual(split);
     }
-  });
+  }, 120_000); // Both seams of every jump since the swap under the veil (31 October): about 7 s here, several times that on a CI runner.
 
   it('streams through every planet jump at peak hyperdrive speed from prefetched sections, with no fallback, swapping planets at the flash', () => {
     for (const { plan, jump } of jumps) {
@@ -180,5 +180,5 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       expect(checked.filter(distance => distance >= jump.flashDistance).length).toBe(1);
       for (const section of stream.update(previous)) expect(section).toEqual(generateTerrainSection(SEED, section.index, route));
     }
-  }, 60_000); // Streams every planet's terrain at jump speed: about 9 s here, three times that on a slow CI runner (23 October).
+  }, 240_000); // Streams every planet's terrain at jump speed, both route versions since the swap under the veil (31 October): about 14 s here, over 60 s on a CI runner.
 });
