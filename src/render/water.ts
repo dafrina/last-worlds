@@ -1,3 +1,4 @@
+import { liveInstances } from './instances';
 import * as THREE from 'three';
 
 /**
@@ -215,9 +216,9 @@ export function createFoam(scene: THREE.Scene, capacity = 64) {
         transform.rotation.set(0, wake.heading, 0); transform.scale.set(wake.width, 1, wake.length); transform.updateMatrix(); mesh.setMatrixAt(n, transform.matrix);
         array.set([wake.strength, 1, 0], n * 3); n++;
       }
-      mesh.count = n; mesh.instanceMatrix.needsUpdate = true; params.needsUpdate = true;
+      liveInstances(mesh, n, [params]);
     },
-    clear() { mesh.count = 0; },
+    clear() { liveInstances(mesh, 0); },
     dispose() { scene.remove(mesh); mesh.dispose(); geometry.dispose(); material.dispose(); },
   };
 }

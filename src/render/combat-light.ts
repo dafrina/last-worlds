@@ -1,3 +1,4 @@
+import { liveInstances } from './instances';
 import * as THREE from 'three';
 import { VIEW } from '../shared/contracts';
 
@@ -30,7 +31,7 @@ export function createBeamLight(scene: THREE.Scene) {
       pose.scale.set(width * 1.9, 1, top - VIEW.minS); pose.updateMatrix();
       mesh.setMatrixAt(mesh.count, pose.matrix); mesh.setColorAt(mesh.count++, color.setHex(hex));
     },
-    end() { mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; },
+    end() { liveInstances(mesh, mesh.count); },
     dispose() { scene.remove(mesh); mesh.dispose(); geometry.dispose(); material.dispose(); },
   };
 }
@@ -60,7 +61,7 @@ export function createPhaseHoles(scene: THREE.Scene) {
       pose.position.set(x, VIEW.flightHeight + .07, -s); pose.scale.setScalar(scale); pose.updateMatrix();
       mesh.setMatrixAt(mesh.count++, pose.matrix);
     },
-    end() { mesh.instanceMatrix.needsUpdate = true; },
+    end() { liveInstances(mesh, mesh.count); },
     dispose() { scene.remove(mesh); mesh.dispose(); geometry.dispose(); material.dispose(); },
   };
 }

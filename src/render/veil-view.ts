@@ -1,3 +1,4 @@
+import { liveInstances, liveVertices } from './instances';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -353,7 +354,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
           for (const batch of rig.flightPods) { batch.setMatrixAt(count, podTransform.matrix); batch.setColorAt(count, podTint); }
           count++;
         }
-        for (const batch of rig.flightPods) { batch.count = count; batch.instanceMatrix.needsUpdate = true; batch.instanceColor!.needsUpdate = true; }
+        for (const batch of rig.flightPods) liveInstances(batch, count);
       }
       if (!boss || !placement) { shock.visible = false; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1; return; }
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; }); }
@@ -458,8 +459,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         }
       }
       mist.step(dt, 0); sparks.step(dt, 0);
-      geometry.setDrawRange(0, cursor);
-      geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
+      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
     setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },

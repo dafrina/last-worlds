@@ -42,7 +42,7 @@ Exports use only selected objects in the active authored scene. `tests/world/cin
 - Lighting, saturation and bloom are quieter. Large emissive flora no longer overwhelm Nacre's rocks. Khepri roads have a higher-resolution engineered bed, shoulder markings, joints and wear. Vesper's ice stops borrowing the desert's basalt texture; snow detail is subtler and cliffs use fracture variation.
 - Water remains opaque, with procedural normals and sky reflections in its existing draw. Broken wind chop replaces repetitive crossed ripple bands. No screen-space reflections or additional water transparency pass.
 - Engines have a narrow core and shock diamonds in their existing plume quad. Explosions add a short ring while reducing fire layers; smoke is shorter and less opaque. The general FX pools remain **240 additive / 72 alpha** particles. THE VEIL's heart opening adds a short pressure release using its existing bounded pools.
-- High retains the shadow map and bloom. Low keeps the same layout/targets, skips shadow and post passes, and reduces cosmetic scatter/particles.
+- High retains the shadow map and bloom. Low keeps the same layout/targets, skips shadow and post passes, and reduces cosmetic scatter/particles. (Polish pass, 31 October: every craft now casts into the High shadow map like the hero, and Low draws each craft's own silhouette flattened along the sun instead of round blobs; see docs/05 §9.)
 
 ## Facility placement and readability
 

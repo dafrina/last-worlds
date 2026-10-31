@@ -54,7 +54,8 @@ const FLOE_SPIN = 0.07, FLOE_SWAY = 0.05;
 /** Extra world units around the frustum kept in the compacted instance set, and the camera travel that triggers recompaction. */
 const CULL_MARGIN = 2.2, RECOMPACT = 1.1;
 
-interface Cullable { object: THREE.Object3D; box: THREE.Box3; triangles: number }
+/** `strip`: a ground strip's index range; neighbouring visible strips of a section draw as one range (one draw call). */
+interface Cullable { object: THREE.Object3D; box: THREE.Box3; triangles: number; strip?: { geometry: THREE.BufferGeometry; start: number; count: number } }
 /** Per-node instance data of one section in section-local space (z = −(s − startS)). */
 interface Prepared { matrices: Float32Array; colors: Float32Array; boxes: Float32Array; cosmetic: Uint8Array; count: number }
 interface SectionView {
@@ -147,6 +148,9 @@ function tint(seed: number, x: number, s: number): number {
   return ((n ^ (n >>> 13)) >>> 0) / 4294967296;
 }
 
+/** Pieces that never move inside their (moving) section or batch group skip the per-frame local-matrix compose. */
+const fixed = <T extends THREE.Object3D>(object: T): T => { object.matrixAutoUpdate = false; object.updateMatrix(); return object; };
+
 const triangleCount = (geometry: THREE.BufferGeometry) => (geometry.index ? geometry.index.count : geometry.getAttribute('position').count) / 3;
 
 /**
@@ -194,7 +198,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; mesh.name = name;
     // Instanced pieces take the sun's shadow; casting goes through the merged caster strips (one draw per strip).
     mesh.castShadow = false; mesh.receiveShadow = true;
-    pieces.add(mesh);
+    pieces.add(fixed(mesh));
     return mesh;
   }
   function batch(name: string): Batch | null {
@@ -247,7 +251,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (let i = 0; i < HAULER_CAPACITY; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri hauler ${name}`;
       mesh.castShadow = false; mesh.receiveShadow = true;
-      haulers.set(name, mesh); scene.add(mesh);
+      haulers.set(name, mesh); scene.add(fixed(mesh));
     }
     return mesh;
   }
@@ -346,7 +350,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       const mesh = new THREE.Mesh(geometry, casterMaterial); mesh.name = `Khepri shadow casters ${view.index}`;
       mesh.castShadow = true; mesh.receiveShadow = false; mesh.customDepthMaterial = casterDepth;
       mesh.intersectsFrustum = frustum => frustum === casterFrustum && frustum.intersectsObject(mesh);
-      view.group.add(mesh); view.casters.push(mesh);
+      view.group.add(fixed(mesh)); view.casters.push(mesh);
       yield;
     }
   }
@@ -442,9 +446,9 @@ export function createTerrainView(options: TerrainViewOptions) {
       geometry.boundingBox = box.clone(); geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
       // Ground takes shadows from scenery (its own relief shading is baked); it does not cast.
       const ground = new THREE.Mesh(geometry, groundMaterial); ground.name = `Khepri ground ${section.index}:${b}`; ground.receiveShadow = true;
-      const holder = new THREE.Group(); holder.add(ground); view.group.add(holder);
+      const holder = new THREE.Group(); holder.add(fixed(ground)); view.group.add(fixed(holder));
       view.geometries.push(geometry);
-      const cullable: Cullable = { object: holder, box, triangles: strip.count / 3 };
+      const cullable: Cullable = { object: holder, box, triangles: strip.count / 3, strip: { geometry, start: strip.start, count: strip.count } };
       view.cullables.push(cullable);
       yield;
     }
@@ -500,7 +504,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     geometry.setIndex(indices); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
     water ??= createWaterMaterial();
     const mesh = new THREE.Mesh(geometry, water); mesh.name = `Vesper water ${section.index}`; mesh.receiveShadow = true;
-    const holder = new THREE.Group(); holder.add(mesh); view.group.add(holder); view.geometries.push(geometry);
+    const holder = new THREE.Group(); holder.add(fixed(mesh)); view.group.add(fixed(holder)); view.geometries.push(geometry);
     view.cullables.push({ object: holder, box: geometry.boundingBox!.clone().expandByScalar(0.1), triangles: indices.length / 3 });
   }
 
@@ -554,7 +558,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (let i = 0; i < capacity; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${name}`;
       mesh.castShadow = mesh.receiveShadow = true;
-      floeMeshes.set(name, mesh); scene.add(mesh);
+      floeMeshes.set(name, mesh); scene.add(fixed(mesh));
     }
     return mesh;
   }
@@ -586,7 +590,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     geometry.setIndex(new THREE.BufferAttribute(roads.indices, 1));
     geometry.computeVertexNormals(); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
     const mesh = new THREE.Mesh(geometry, roadMaterial); mesh.name = `Khepri roads ${section.index}`; mesh.renderOrder = 1; mesh.receiveShadow = true;
-    const holder = new THREE.Group(); holder.add(mesh); view.group.add(holder); view.geometries.push(geometry);
+    const holder = new THREE.Group(); holder.add(fixed(mesh)); view.group.add(fixed(holder)); view.geometries.push(geometry);
     view.cullables.push({ object: holder, box: geometry.boundingBox!.clone().expandByScalar(0.1), triangles: roads.indices.length / 3 });
     for (const road of section.roadPaths) view.roads.set(road.id, road);
   }
@@ -768,11 +772,23 @@ export function createTerrainView(options: TerrainViewOptions) {
       casterClearingCount.value = facilityClearings.length;
       facilityClearings.forEach((c,i) => casterClearings.value[i].set(c.minX,c.maxX,distance-c.maxS,distance-c.minS));
       let calls = 0, triangles = 0;
-      for (const view of views.values()) for (const cullable of view.cullables) {
-        worldBox.copy(cullable.box).translate(offset.set(0, 0, view.group.position.z));
-        const visible = frustum.intersectsBox(worldBox);
-        cullable.object.visible = visible;
-        if (visible) { calls += cullable.object.children.length; triangles += cullable.triangles; }
+      for (const view of views.values()) {
+        // The first visible ground strip of a run of neighbours draws the whole run (strips are consecutive index ranges).
+        let run: NonNullable<Cullable['strip']> | null = null;
+        for (const cullable of view.cullables) {
+          worldBox.copy(cullable.box).translate(offset.set(0, 0, view.group.position.z));
+          const visible = frustum.intersectsBox(worldBox), strip = cullable.strip;
+          cullable.object.visible = visible;
+          if (strip) {
+            strip.geometry.setDrawRange(strip.start, strip.count);
+            if (!visible) run = null;
+            else if (run && run.geometry.drawRange.start + run.geometry.drawRange.count === strip.start) {
+              run.geometry.setDrawRange(run.geometry.drawRange.start, run.geometry.drawRange.count + strip.count);
+              cullable.object.visible = false; triangles += cullable.triangles; continue;
+            } else run = strip;
+          }
+          if (visible) { calls += cullable.object.children.length; triangles += cullable.triangles; }
+        }
       }
       for (const entry of batches.values()) if (entry.mesh.count > 0) { calls++; triangles += entry.triangles * entry.mesh.count; }
       for (const mesh of haulers.values()) if (mesh.count > 0) { calls++; triangles += triangleCount(mesh.geometry) * mesh.count; }

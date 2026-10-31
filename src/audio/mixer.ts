@@ -5,7 +5,7 @@ import { takeSample } from './sample-bank';
 
 export interface AudioSettings { muted: boolean; music: number; effects: number }
 type Group = 'music' | 'effects';
-interface Voice { source: AudioBufferSourceNode; gain: GainNode; pan: StereoPannerNode; send?: GainNode; group: Group; priority: number; end: number }
+interface Voice { source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; end: number }
 const LEVELS: Record<Sound, number> = {
   pulse: .23, fan: .25, seeker: .24, rail: .3, enemy: .10, impact: .13, explosion: .37, heavy: .43,
   shield: .4, 'shield-break': .48, life: .48, pickup: .19, upgrade: .28, ready: .25,
@@ -128,7 +128,7 @@ export class AudioMixer {
   private release(voice: Voice) {
     const index = this.voices.indexOf(voice);
     if (index >= 0) this.voices.splice(index, 1);
-    voice.source.disconnect(); voice.gain.disconnect(); voice.pan.disconnect(); voice.send?.disconnect();
+    voice.source.disconnect(); voice.gain.disconnect(); voice.pan?.disconnect(); voice.send?.disconnect();
   }
   private stopVoice(voice: Voice, at = this.context.currentTime) {
     this.ramp(voice.gain.gain, 0, .003, at);
@@ -145,14 +145,18 @@ export class AudioMixer {
       this.stopVoice(victim, at);
       this.voices.splice(this.voices.indexOf(victim), 1);
     }
-    const source = this.context.createBufferSource(), gain = this.context.createGain(), panner = this.context.createStereoPanner();
+    // A centred voice skips its panner (performance, 31 October: most score notes are centred and each node costs):
+    // an equal-power panner at 0 sends a mono sample to both channels at √½, which the voice gain applies instead.
+    const source = this.context.createBufferSource(), gain = this.context.createGain(), panner = pan === 0 ? undefined : this.context.createStereoPanner();
     source.buffer = this.buffer(id); source.playbackRate.value = rate;
-    gain.gain.value = volume; panner.pan.value = pan;
-    source.connect(gain).connect(panner).connect(group === 'music' ? boss ? this.boss : this.music : this.effects);
+    gain.gain.value = panner ? volume : volume * Math.SQRT1_2;
+    if (panner) panner.pan.value = pan;
+    const out: AudioNode = panner ? source.connect(gain).connect(panner) : source.connect(gain);
+    out.connect(group === 'music' ? boss ? this.boss : this.music : this.effects);
     const voice: Voice = { source, gain, pan: panner, group, priority, end: at + source.buffer.duration / rate };
     if (wet > 0 && group === 'music' && !boss) {
       const send = this.context.createGain(); send.gain.value = wet;
-      panner.connect(send); send.connect(this.reverb); send.connect(this.delay); voice.send = send;
+      out.connect(send); send.connect(this.reverb); send.connect(this.delay); voice.send = send;
     }
     source.onended = () => this.release(voice);
     this.voices.push(voice); this.peakVoices = Math.max(this.peakVoices, this.voices.filter(v => v.end > at).length);

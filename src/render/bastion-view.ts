@@ -1,3 +1,4 @@
+import { liveInstances, liveVertices } from './instances';
 import * as THREE from 'three';
 import { createBastionTracks } from './bastion-tracks';
 import { applySurfaceFinish } from './surface-finish';
@@ -256,8 +257,7 @@ export function particleLayer(scene: THREE.Scene, capacity: number, additive: bo
         mesh.setMatrixAt(i, transform.matrix); mesh.setColorAt(i, color.setHex(p.color));
         alpha.setX(i, p.alpha * (1 - t) * Math.min(1, p.age * 12));
       });
-      mesh.count = live.length; mesh.instanceMatrix.needsUpdate = true; alpha.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      liveInstances(mesh, live.length, [alpha]);
     },
     clear() { live.length = 0; mesh.count = 0; },
     get count() { return live.length; },
@@ -466,8 +466,7 @@ export function createBastionView(scene: THREE.Scene) {
       }
       rig.glow.forEach(material => { material.emissiveIntensity = destroyed ? Math.max(0, 1.6 - phaseAge * .8) : 1.4 + .3 * Math.sin(state.time * 3); });
       dust.step(dt, 0); sparks.step(dt, 0);
-      geometry.setDrawRange(0, cursor);
-      geometry.getAttribute('position').needsUpdate = true; geometry.getAttribute('color').needsUpdate = true;
+      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
     },
     get stats() { return { visible: root.visible, model: rig.treads.length > 0 || rig.glow.length > 0 ? 'glb' : 'fallback', particles: dust.count + sparks.count, trackLinks: rig.tracks?.count ?? 0, trackTravel: rig.tracks?.travel ?? 0 }; },
   };
