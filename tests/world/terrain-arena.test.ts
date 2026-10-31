@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { VIEW } from '../../src/shared/contracts';
 import { BOSSES } from '../../src/content/bosses';
 import {
-  ARENA_CLEARING, ARENA_LEVEL, ARENA_RAMP, KIT, TERRAIN_STEP, beyondArenaClearing, createTerrainStream, generateTerrainSection, inArenaCore,
+  ARENA_CLEARING, ARENA_LEVEL, ARENA_RAMP, KIT, TERRAIN_STEP, arenaAt, beyondArenaClearing, createTerrainStream, generateTerrainSection, inArenaCore,
   terrainHeight, terrainSample, type TerrainArena,
 } from '../../src/world/terrain';
 
@@ -33,6 +33,28 @@ describe('mission arena platform', () => {
       expect(boss.arena.sway, boss.id).toBeLessThan(ARENA_CLEARING.halfX - 3.8);
       // It glides in along the entry corridor: from beyond the view to its row, hull and all, nothing stands in the way.
       expect(boss.entryS + 7, boss.id).toBeLessThanOrEqual(ARENA_CLEARING.entry - 9);
+    }
+  });
+
+  it('never ends the clearing in a cut: its weight and the ground fade out continuously behind every boss', () => {
+    // User, 31 October: "a clear cut behind the boss when we take off for warp, as if a hill got cut". WARDEN-1's
+    // short platform ended its ramp while the entry corridor was still flat, a wall across the view in the departure.
+    const c = ARENA_CLEARING, reach = c.entry + c.tail * (2 * c.wobble + c.fade);
+    for (const boss of Object.values(BOSSES)) {
+      const arena = { fromS: 1000 + boss.arena.platform.from, toS: 1000 + boss.arena.platform.to };
+      let jump = 0, cliff = 0;
+      for (const seed of SEEDS) for (let x = -HALF; x <= HALF; x += 0.5) for (let s = arena.toS; s < arena.fromS + reach + 2; s += TERRAIN_STEP) {
+        const here = arenaAt(arena, seed, x, s), next = arenaAt(arena, seed, x, s + TERRAIN_STEP);
+        jump = Math.max(jump, Math.abs(next - here));
+        // On Luna the clearing is a level floor in cratered ground: where it fades out the drop between rows stays a slope.
+        if (boss.id === 'warden' && Math.max(here, next) > 0) cliff = Math.max(cliff, Math.abs(terrainHeight(seed, x, s + TERRAIN_STEP, { planet: 'luna', arena }) - terrainHeight(seed, x, s, { planet: 'luna', arena })));
+      }
+      // The clearing's wandering edge changes by up to 0.48 a quarter unit along its sides; the cut was a full 1.
+      expect(jump, boss.id).toBeLessThan(0.5);
+      // Luna's own crater walls drop up to 0.81 a quarter unit; the cut dropped 2.8.
+      if (boss.id === 'warden') expect(cliff).toBeLessThan(1);
+      // Past the clearing's widest, drawn-out far edge the arena is gone.
+      for (let x = -HALF; x <= HALF; x += 0.5) expect(arenaAt(arena, 93, x, arena.fromS + reach)).toBe(0);
     }
   });
 
