@@ -1,7 +1,6 @@
-import { missionText } from './missions';
-import { MAX_RANK, RANK_PRICES, SHIPS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, WEAPON_TIERS } from '../content/equipment';
+import { MAX_RANK, SHIPS, SHIELD_TECH, SPECIALS, WEAPON_BLURB, WEAPON_TIERS, type Price } from '../content/equipment';
 import { WEAPONS } from '../content/balance';
-import { SLOT_ITEMS, itemPrice, lookOf, ownsDesign, shipParts, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
+import { SLOT_ITEMS, affords, itemPrice, lookOf, ownsDesign, rankPrice, type CampaignProfile, type ItemId, type Slot } from '../campaign/profile';
 import type { HeroDesign, HeroLook, HeroSlot, ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
 import { HERO_DEFAULT_PAINT, HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_SLOTS, HERO_SLOT_NAMES, heroDesigns, heroLookKey } from '../content/hero-parts';
 
@@ -14,11 +13,24 @@ export function itemText(slot: Slot, id: ItemId): { name: string; blurb: string 
   return { name: ship.label, blurb: `${ship.perk} · ${ship.blurb}` };
 }
 
-export interface HangarActions { buy(slot: Slot, id: ItemId): void; equip(slot: Slot, id: ItemId): void; upgrade(weapon: WeaponId): void; assemble(ship: ShipId): void }
+/** A price in both currencies as the hangar shows it (user, 3 November 2026): `250 CR`, `350 CR + 1 P`, `4 P`. */
+export function priceText(price: Price): string {
+  return [price.credits ? `${price.credits.toLocaleString()} CR` : '', price.parts ? `${price.parts} P` : ''].filter(Boolean).join(' + ') || 'FREE';
+}
+/** The same price spoken: `250 credits and 1 part`. */
+const priceWords = (price: Price) => [price.credits ? `${price.credits.toLocaleString()} credits` : '', price.parts ? `${price.parts} ${price.parts === 1 ? 'part' : 'parts'}` : '']
+  .filter(Boolean).join(' and ') || 'nothing';
+
+export interface HangarActions {
+  buy(slot: Slot, id: ItemId): void; equip(slot: Slot, id: ItemId): void; upgrade(weapon: WeaponId): void;
+  /** Selects the level a weapon flies (a rank up to the one bought). */
+  selectRank(weapon: WeaponId, rank: number): void;
+}
 
 /**
- * The hangar list for one slot: every item with its state. Equipped items glow; owned ones offer EQUIP; the rest
- * show their price (disabled while unaffordable). Owned main weapons also show rank pips and the next upgrade.
+ * The hangar list for one slot: every item with its state. Equipped items glow; owned ones offer EQUIP; the rest show
+ * their price in credits and parts (user, 3 November 2026), disabled until both balances cover it; ships too (4 parts).
+ * An owned main weapon shows its five levels: any bought level can be selected to fly, free; the next one can be bought.
  */
 export function renderHangar(list: HTMLElement, profile: CampaignProfile, slot: Slot, actions: HangarActions): void {
   const button = (label: string, kind: string, disabled: boolean, onClick: () => void) => {
@@ -34,41 +46,60 @@ export function renderHangar(list: HTMLElement, profile: CampaignProfile, slot: 
     const title = document.createElement('h3'); title.textContent = name;
     const text = document.createElement('p'); text.textContent = blurb;
     const row = document.createElement('div'); row.className = 'hangar-row';
+    const needsBulwark = slot === 'shield' && id === 'aegis' && !profile.owned.shield.includes('bulwark');
     if (equipped) { const tag = document.createElement('span'); tag.className = 'hangar-tag'; tag.textContent = 'EQUIPPED'; row.append(tag); }
     else if (owned) row.append(button('EQUIP', 'equip', false, () => actions.equip(slot, id)));
-    else if (slot === 'ship') {
-      const parts = shipParts(profile, id as ShipId), ready = parts.every(part => part.collected);
-      row.append(button(ready ? 'ASSEMBLE' : `${parts.filter(part => part.collected).length} / 3 PARTS`, 'assemble', !ready, () => actions.assemble(id as ShipId)));
-    } else row.append(button(`BUY · ${price} CR`, 'buy', profile.credits < price || (slot === 'shield' && id === 'aegis' && !profile.owned.shield.includes('bulwark')), () => actions.buy(slot, id)));
-    item.append(title, text, row);
-    if (slot === 'shield' && id === 'aegis' && !profile.owned.shield.includes('bulwark')) {
-      const note = document.createElement('p'); note.textContent = 'Requires Bulwark Array'; item.append(note);
-    }
-    if (slot === 'ship' && !owned) {
-      const parts = document.createElement('ul'); parts.className = 'ship-parts';
-      for (const part of shipParts(profile, id as ShipId)) {
-        const entry = document.createElement('li'); entry.textContent = `${part.collected ? '✓' : '○'} ${part.name} · ${missionText(part.mission).name}`; parts.append(entry);
+    else {
+      const buy = button(`BUY · ${priceText(price)}`, 'buy', !affords(profile, price) || needsBulwark, () => actions.buy(slot, id));
+      buy.title = `Costs ${priceWords(price)}`;
+      row.append(buy);
+      // A ship takes four parts, one per section (user, 3 November 2026): how many the pilot has toward it.
+      if (slot === 'ship' && price.parts) {
+        const have = document.createElement('span'); have.className = 'hangar-have';
+        have.textContent = `${Math.min(profile.parts, price.parts)} / ${price.parts} PARTS`; row.append(have);
       }
-      item.append(parts);
     }
-    if (slot === 'weapon' && owned) {
-      // Five tiers (docs/30): one pip per tier, lit up to the current one. The short label, the pips and the upgrade button
-      // share one line even at 360 px; the tier's pattern and the next one's go on the line below.
-      const weapon = id as WeaponId, rank = profile.ranks[weapon], tiers = MAX_RANK + 1;
-      const ranks = document.createElement('div'); ranks.className = 'hangar-rank';
-      ranks.setAttribute('aria-label', `Tier ${rank + 1} of ${tiers}: ${WEAPON_TIERS[weapon][rank]}`);
-      const label = document.createElement('span'); label.className = 'rank-label'; label.textContent = `TIER ${rank + 1} / ${tiers}`;
-      const pips = document.createElement('span'); pips.className = 'rank-pips';
-      for (let r = 0; r < tiers; r++) { const pip = document.createElement('i'); if (r <= rank) pip.className = 'on'; pips.append(pip); }
-      ranks.append(label, pips);
-      if (rank < MAX_RANK) ranks.append(button(`UPGRADE · ${RANK_PRICES[rank]} CR`, 'upgrade', profile.credits < RANK_PRICES[rank], () => actions.upgrade(weapon)));
-      item.append(ranks);
-      const next = document.createElement('p'); next.className = 'upgrade-next';
-      next.textContent = rank < MAX_RANK ? `${WEAPON_TIERS[weapon][rank]}. Next: ${WEAPON_TIERS[weapon][rank + 1]}` : `${WEAPON_TIERS[weapon][rank]}. Top tier.`;
-      item.append(next);
-    }
+    item.append(title, text, row);
+    if (needsBulwark) { const note = document.createElement('p'); note.textContent = 'Requires Bulwark Array'; item.append(note); }
+    if (slot === 'weapon' && owned) item.append(...levels(profile, id as WeaponId, actions, button));
     return item;
   }));
+}
+
+/**
+ * A weapon's five levels (docs/30): a pip per level, numbered. Bought levels are buttons that select the level to fly
+ * (free, never a refund: the bought level stays); the selected one is lit. Below, the flown level's pattern, and the next
+ * level's upgrade in credits and parts.
+ */
+function levels(profile: CampaignProfile, weapon: WeaponId, actions: HangarActions,
+  button: (label: string, kind: string, disabled: boolean, onClick: () => void) => HTMLButtonElement): HTMLElement[] {
+  const bought = profile.ranks[weapon], flown = profile.selected[weapon], count = MAX_RANK + 1, name = WEAPONS[weapon].label;
+  const row = document.createElement('div'); row.className = 'hangar-rank';
+  const label = document.createElement('span'); label.className = 'rank-label'; label.textContent = `LEVEL ${flown + 1}`;
+  const pips = document.createElement('span'); pips.className = 'rank-pips'; pips.setAttribute('role', 'group'); pips.setAttribute('aria-label', `${name} level to fly`);
+  for (let rank = 0; rank < count; rank++) {
+    const pip = document.createElement('button'), owned = rank <= bought;
+    pip.type = 'button'; pip.textContent = String(rank + 1);
+    pip.className = `rank-pip${owned ? ' is-bought' : ''}${rank === flown ? ' is-on' : ''}`;
+    pip.disabled = !owned;
+    pip.setAttribute('aria-label', owned ? `Fly level ${rank + 1}` : `Level ${rank + 1}, not bought`);
+    if (owned) pip.setAttribute('aria-pressed', String(rank === flown));
+    pip.addEventListener('click', () => { if (rank !== flown) actions.selectRank(weapon, rank); });
+    pips.append(pip);
+  }
+  const owns = document.createElement('span'); owns.className = 'rank-bought'; owns.textContent = `${bought + 1} / ${count} BOUGHT`;
+  row.append(label, pips, owns);
+  const pattern = document.createElement('p'); pattern.className = 'upgrade-next';
+  pattern.textContent = `Flying level ${flown + 1}: ${WEAPON_TIERS[weapon][flown]}.${flown < bought ? ' Tap a level to switch, free.' : ''}`;
+  const next = rankPrice(bought), buy = document.createElement('div'); buy.className = 'hangar-row rank-buy';
+  if (next) {
+    buy.append(button(`UPGRADE · ${priceText(next)}`, 'upgrade', !affords(profile, next), () => actions.upgrade(weapon)));
+    const what = document.createElement('span'); what.className = 'rank-next'; what.textContent = `LEVEL ${bought + 2}: ${WEAPON_TIERS[weapon][bought + 1]}`;
+    buy.append(what);
+  } else {
+    const top = document.createElement('span'); top.className = 'rank-next'; top.textContent = 'EVERY LEVEL BOUGHT'; buy.append(top);
+  }
+  return [row, pattern, buy];
 }
 
 export interface ShipyardActions {
@@ -91,8 +122,8 @@ const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
 
 /**
  * The shipyard (docs/31; user, 28 October: "seeing the ship in a hangar like preview"): a large still of the ship, its four
- * part slots with their designs (A comes with the ship, the rest are bought with parts and credits, docs/33, and then free
- * to switch; a remodelled chassis has A–E, the others A–C), and its colour and glow. An unbought design can be tried on
+ * part slots with their designs (A comes with the ship, the rest cost 50 credits and 1 part each, user, 3 November 2026,
+ * and then switch freely; a remodelled chassis has A–E, the others A–C), and its colour and glow (free). An unbought design can be tried on
  * before buying. Every design file of the chassis starts loading when the shipyard opens, so switching is quick.
  * Cosmetic only: no part changes handling, the hit region or any stat.
  */
@@ -116,9 +147,9 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
       const tried = trying?.slot === slot && trying.design === design;
       const choice = document.createElement('button');
       choice.type = 'button'; choice.className = `shipyard-design${fitted ? ' is-on' : owned ? '' : ' is-locked'}${tried ? ' is-trying' : ''}`;
-      choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} ${parts}P ${price}`;
+      choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} ${price}·${parts}P`;
       choice.setAttribute('aria-pressed', String(fitted || tried));
-      choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, preview; costs ${parts} ${parts === 1 ? 'part' : 'parts'} and ${price} credits`}`);
+      choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, preview; costs ${priceWords({ credits: price, parts })}`}`);
       choice.addEventListener('click', () => {
         if (owned) { trying = null; if (!fitted) actions.setLook(ship, { ...look, parts: { ...look.parts, [slot]: design } }); else again(); }
         else { trying = tried ? null : { ship, slot, design }; again(); }
@@ -131,8 +162,8 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
   if (trying) {
     const { slot, design } = trying, price = HERO_DESIGN_PRICES[design], parts = HERO_DESIGN_PARTS[design];
     const note = document.createElement('span'); note.textContent = `PREVIEW · ${HERO_SLOT_NAMES[slot].toUpperCase()} ${design.toUpperCase()}`;
-    const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'hangar-action'; buy.textContent = `BUY · ${parts}P + ${price} CR`;
-    buy.disabled = profile.credits < price || profile.parts < parts;
+    const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'hangar-action'; buy.textContent = `BUY · ${priceText({ credits: price, parts })}`;
+    buy.disabled = !affords(profile, { credits: price, parts });
     buy.addEventListener('click', () => {
       trying = null;
       actions.buyDesign(ship, slot, design);

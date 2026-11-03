@@ -15,7 +15,8 @@ const dummy = (state: ReturnType<typeof createRun>, x: number, s: number, hp = 1
 describe('campaign loadout in the simulation (docs/21)', () => {
   it('endless ignores every campaign choice and flies the starter equipment plus the selected ship perk', () => {
     const state = createRun({ mode: 'endless', seed: 1, weapon: 'seeker', special: 'siege-lance', shield: 'bulwark', ship: 'ironclad', rank: 3 });
-    expect(state.config).toMatchObject({ weapon: 'pulse', special: 'shockwave', shield: 'standard', ship: 'ironclad', rank: 0 });
+    // The starter special is the Seeker Rack since 3 November 2026 (user: "Homing Missiles free"), in endless too.
+    expect(state.config).toMatchObject({ weapon: 'pulse', special: 'seeker-rack', shield: 'standard', ship: 'ironclad', rank: 0 });
     expect(state.player.maxShields).toBe(5);
   });
 

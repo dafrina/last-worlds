@@ -7,7 +7,7 @@ import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, endlessConfig, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
-import { CREDIT_MULTIPLIER, SHIPS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
+import { CREDIT_MULTIPLIER, CREDIT_SCALE, SHIPS, SHIELD_TECH, SPECIALS } from '../content/equipment';
 import { itemText, renderHangar, renderShipyard } from './hangar';
 import { createMissionTracker } from '../campaign/missions';
 import { createMissionNotes, renderBoard, renderLiveBoard, renderResultMissions } from './mission-board';
@@ -102,7 +102,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="eyebrow result-mode"></p><h2 id="results-title">FLIGHT<br>ENDED</h2>
           <p class="result-subtitle"></p>
           <dl class="result-stats"><div class="result-score-row"><dt>SCORE</dt><dd class="result-score"></dd></div><div><dt>HOSTILES DOWN</dt><dd class="result-kills"></dd></div><div><dt>FLIGHT TIME</dt><dd class="result-time"></dd></div><div class="result-sector-row"><dt>SECTOR REACHED</dt><dd class="result-sector"></dd></div></dl>
-          <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-parts" hidden></p><p class="result-unlock" hidden></p><p class="result-salvage" hidden></p></div>
+          <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-parts" hidden></p><p class="result-unlock" hidden></p></div>
           <div class="result-missions" hidden></div>
           <button type="button" class="arcade-button primary" data-action="retry">FLY AGAIN <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="menu">RETURN TO MENU</button>
@@ -215,6 +215,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     const profile = campaign.read();
     showBalances(profile);
     for (const slot of ['weapon', 'special', 'shield', 'ship'] as const) text(`[data-loadout="${slot}"]`, itemText(slot, profile.loadout[slot]).name);
+    // The main weapon's selected level: the one the launch flies (user, 3 November 2026).
+    text('[data-loadout="weapon"]', `${itemText('weapon', profile.loadout.weapon).name} · LV ${profile.selected[profile.loadout.weapon] + 1}`);
     showMission(missionIndex);
     actions.preloadHero?.(profile.loadout.ship, lookOf(profile, profile.loadout.ship));
   }
@@ -233,8 +235,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     renderHangar(find<HTMLElement>('.hangar-items'), campaign.read(), hangarSlot, {
       buy(slot, id) { if (campaign.buy(slot, id)) campaign.equip(slot, id); refreshHangar(); },
       equip(slot, id) { campaign.equip(slot, id); refreshHangar(); },
-      assemble(ship) { if (campaign.assemble(ship)) campaign.equip('ship', ship); refreshHangar(); },
       upgrade(weapon) { campaign.upgrade(weapon); refreshHangar(); },
+      selectRank(weapon, rank) { campaign.selectRank(weapon, rank); refreshHangar(); },
     });
     const yard = find<HTMLElement>('.shipyard');
     yard.hidden = hangarSlot !== 'ship';
@@ -249,7 +251,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     // ship, its perk and its looks fly in both modes; bought gear and weapon tiers in the campaign only (endlessConfig).
     text('.hangar-scope-mode', hangarSlot === 'ship' ? 'CAMPAIGN AND ENDLESS' : 'CAMPAIGN ONLY');
     text('.hangar-scope-what', hangarSlot === 'ship' ? 'SHIP, PERK AND LOOKS' : 'ENDLESS USES STARTER GEAR');
-    text('.hangar-note', hangarSlot === 'ship' ? 'Ships come from the listed mission clears, on any difficulty. Their designs and paint are cosmetic: a design costs parts and credits once, then switches freely. Parts come from strike sites.' : 'Credits come from campaign missions. Changing equipped gear is free.');
+    text('.hangar-note', hangarSlot === 'ship' ? 'A ship costs 4 parts, one for each of its sections; parts come from strike sites. Designs and paint are cosmetic: a design costs 50 credits and 1 part once, then switches freely, and paint is free.' : 'Credits come from campaign missions, parts from strike sites. Changing equipped gear or a weapon\'s level is free.');
   }
   selectorListeners.set('mission', value => showMission(MISSION_ORDER.findIndex(([id]) => id === value)));
   for (const arrow of shell.querySelectorAll<HTMLElement>('[data-mission-step]')) {
@@ -510,12 +512,12 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     // The last life: a red glow at the screen's edges (user, 22 October).
     lastLifeAlarm.classList.toggle('is-on', playing && state.player.lives === 1);
     score.hidden = state.config.mode !== 'endless';
-    // Campaign coin counter: the saved balance plus this run's pickups as they will be paid (×REWARDS.scale and the
-    // difficulty multiplier); mission, boss and first-clear rewards are added on the results screen.
+    // Campaign coin counter: the saved balance plus this run's pickups as they will be paid (×CREDIT_SCALE of the world and
+    // the difficulty multiplier); mission, boss and first-clear rewards are added on the results screen.
     hudCredits.hidden = state.config.mode !== 'campaign';
     if (state.config.mode === 'campaign') {
       if (!startBalance.has(state)) { startBalance.set(state, campaign.read().credits); creditsShown = -1; }
-      const live = startBalance.get(state)! + Math.floor(state.credits * REWARDS.scale * CREDIT_MULTIPLIER[state.config.difficulty ?? 'standard']);
+      const live = startBalance.get(state)! + Math.floor(state.credits * CREDIT_SCALE[state.config.mission ?? 'training'] * CREDIT_MULTIPLIER[state.config.difficulty ?? 'standard']);
       if (live !== creditsShown) {
         if (creditsShown >= 0 && live > creditsShown) { hudCredits.classList.remove('is-gain'); void hudCredits.offsetWidth; hudCredits.classList.add('is-gain'); }
         creditsShown = live; hudCredits.querySelector('b')!.textContent = live.toLocaleString();
@@ -607,8 +609,6 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         // Parts from strike sites (docs/33), banked in full whatever the outcome.
         const partsLine = find<HTMLElement>('.result-parts'); partsLine.hidden = !pay.parts;
         partsLine.textContent = `+${pay.parts} ${pay.parts === 1 ? 'PART' : 'PARTS'} · ${pay.partsBalance} IN THE HANGAR`;
-        const salvage = find<HTMLElement>('.result-salvage'); salvage.hidden = !pay.salvage.length;
-        salvage.textContent = `PARTS RECOVERED · ${pay.salvage.join(' · ')}`;
         const unlock = find<HTMLElement>('.result-unlock');
         unlock.hidden = !pay.unlocked;
         if (pay.unlocked) {

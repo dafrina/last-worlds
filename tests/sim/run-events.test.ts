@@ -24,7 +24,7 @@ function flyBoth(config: RunConfig) {
 
 describe('run events never change the run', () => {
   it.each([
-    ['Training, Twin Pulse, Shockwave', { mode: 'campaign', seed: 5, mission: 'training', difficulty: 'standard' }],
+    ['Training, Twin Pulse, Shockwave', { mode: 'campaign', seed: 5, mission: 'training', difficulty: 'standard', special: 'shockwave' }],
     ['Final Horizon, Spectre, Seeker Array and Seeker Rack', { mode: 'campaign', seed: 3, mission: 'final-horizon', difficulty: 'veteran', ship: 'spectre', weapon: 'seeker', special: 'seeker-rack', rank: 2 }],
   ] as const)('%s: the observed run ends exactly as the unobserved one', (_name, config) => {
     const { plain, observed } = flyBoth(config as RunConfig);

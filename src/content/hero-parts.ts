@@ -16,11 +16,12 @@ export const HERO_REMODELLED: ReadonlySet<ShipId> = new Set<ShipId>(['scrapper',
 export const heroDesigns = (ship: ShipId): readonly HeroDesign[] => HERO_REMODELLED.has(ship) ? HERO_DESIGNS : HERO_DESIGNS.slice(0, 3);
 export const HERO_SLOT_NAMES: Readonly<Record<HeroSlot, string>> = { hull: 'Hull', wings: 'Wings', engines: 'Propulsion', cockpit: 'Cockpit' };
 /**
- * A part design costs parts plus credits (user, 29 October; docs/33 § 3, provisional until parts per mission are
- * measured): `HERO_DESIGN_PRICES` the credits, `HERO_DESIGN_PARTS` the parts. Design A comes with the chassis.
+ * A part design costs credits plus parts: `HERO_DESIGN_PRICES` the credits, `HERO_DESIGN_PARTS` the parts. Every bought
+ * design (B-E) costs 50 credits and 1 part (user, 3 November 2026; it was 80-320 credits and 1-3 parts from 29 October).
+ * Design A comes with the chassis; paint is free.
  */
-export const HERO_DESIGN_PRICES: Readonly<Record<HeroDesign, number>> = { a: 0, b: 80, c: 160, d: 240, e: 320 };
-export const HERO_DESIGN_PARTS: Readonly<Record<HeroDesign, number>> = { a: 0, b: 1, c: 1, d: 2, e: 3 };
+export const HERO_DESIGN_PRICES: Readonly<Record<HeroDesign, number>> = { a: 0, b: 50, c: 50, d: 50, e: 50 };
+export const HERO_DESIGN_PARTS: Readonly<Record<HeroDesign, number>> = { a: 0, b: 1, c: 1, d: 1, e: 1 };
 /**
  * The models' own colours: what a look without paint shows. A remodelled chassis gives the median of its baked paint and
  * rust (tools/blender/hero_remodel.py prints them per design); a recolour finds them by colour.

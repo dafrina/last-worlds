@@ -1,17 +1,26 @@
 import type { Difficulty, MissionId, ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
 
 /**
- * Campaign equipment and economy (docs/02 §4–5, docs/11 §3–4, docs/21). The single runtime source for the four
+ * Campaign equipment and economy (docs/02 §4–5, docs/11 §3–4, docs/21, docs/30). The single runtime source for the four
  * slots (main weapon, special, shield array, ship chassis), prices, weapon ranks and mission rewards.
  * Endless never reads the campaign choices: every endless run starts with the canonical starter.
  */
 
-/** The canonical starter: every endless run, and a fresh campaign profile. */
-export const STARTER = { weapon: 'pulse', special: 'shockwave', shield: 'standard', ship: 'scrapper' } as const satisfies Loadout;
+/**
+ * The canonical starter: every endless run, and a fresh campaign profile. Homing missiles (the Seeker Rack) became the free
+ * starting special on 3 November 2026 (user: "Homing Missiles free"), in both modes; the Shockwave is bought.
+ */
+export const STARTER = { weapon: 'pulse', special: 'seeker-rack', shield: 'standard', ship: 'scrapper' } as const satisfies Loadout;
 export interface Loadout { weapon: WeaponId; special: SpecialId; shield: ShieldTechId; ship: ShipId }
 
-/** Main weapons: campaign prices (stats live in WEAPONS, src/content/balance.ts). */
-export const WEAPON_PRICES: Readonly<Record<WeaponId, number>> = { pulse: 0, fan: 250, seeker: 450, rail: 600 };
+/**
+ * A campaign price in both currencies (user, 3 November 2026): buying needs enough of each and takes both at once. Parts
+ * are the rare second currency, from strike sites (docs/33).
+ */
+export interface Price { credits: number; parts: number }
+
+/** Main weapons: campaign prices in credits, no parts (user, 3 November 2026; stats live in WEAPONS, src/content/balance.ts). */
+export const WEAPON_PRICES: Readonly<Record<WeaponId, number>> = { pulse: 0, fan: 250, seeker: 250, rail: 250 };
 export const WEAPON_BLURB: Readonly<Record<WeaponId, string>> = {
   pulse: 'Twin straight bolts. Narrow, quick and reliable.',
   fan: 'Five fixed pellets in a fan. Wide close coverage.',
@@ -20,11 +29,13 @@ export const WEAPON_BLURB: Readonly<Record<WeaponId, string>> = {
 };
 
 /**
- * Four purchased campaign upgrades per weapon (tiers 2-5); endless earns the same tiers from pickups. Tiers 4 and 5 (user,
- * 31 October) cost 500 and 800: about 1.5 and 2.5 repeat Standard clears of a late mission (310-330 credits each at
- * tier 3), and a whole weapon's 1,750 about four fifths of a first campaign's 2,200 (docs/30).
+ * Four purchased campaign upgrades per weapon (levels 2-5), the same for every main weapon; endless earns the same tiers
+ * from pickups. User, 3 November 2026: credits `RANK_PRICES` plus parts `RANK_PARTS` (both consumed) for the steps 1→2,
+ * 2→3, 3→4 and 4→5: 250 + 0, 500 + 3, 750 + 5 and 1,000 + 10. A whole weapon costs 2,500 credits and 18 parts, about two
+ * and a half campaign loops of repeat clears (docs/30 § Income).
  */
-export const RANK_PRICES = [150, 300, 500, 800] as const;
+export const RANK_PRICES = [250, 500, 750, 1000] as const;
+export const RANK_PARTS = [0, 3, 5, 10] as const;
 export const MAX_RANK = RANK_PRICES.length;
 /**
  * Endless: power cells (or duplicate weapons) a step to the next tier takes, from tier 1 up: tiers 2 and 3 take one each,
@@ -41,7 +52,8 @@ export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
 };
 
 /**
- * Specials: one activation per full recharge (time plus 3% per main-weapon kill, BALANCE.special.killCharge).
+ * Specials: one activation per full recharge (time plus 3% per main-weapon kill, BALANCE.special.killCharge). Campaign
+ * prices (user, 3 November 2026): `price` credits plus `parts`; the Seeker Rack is the free starter.
  * - Shockwave: a ring expanding from the ship: up to 180 damage to each target it reaches (less the further away)
  *   and clears hostile shots near the ship; 1 s invulnerability.
  * - Seeker Rack: eight missiles fan out, then accelerate and home on targets ahead (40 damage each); no clear.
@@ -55,13 +67,13 @@ export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
 export const SPECIALS = {
   // Falloff (user, 17 October: too strong next to Seeker Rack): full damage within `full`, fading linearly to `minShare`
   // at `reach`; it clears hostile shots only within `clear` of the ship.
-  shockwave: { label: 'Shockwave', recharge: 45, price: 0, blurb: 'A ring bursts out from your ship: it clears nearby shots and hits hardest up close.', speed: 26, reach: 20, full: 3, minShare: 0.2, clear: 8 },
-  'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 300, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 9, speed: 21, accel: 34, turn: 4.5, spreadTime: .3 },
-  'siege-lance': { label: 'Siege Lance', recharge: 40, price: 400, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
-  'gravity-well': { label: 'Gravity Well', recharge: 40, price: 450, blurb: 'A singularity ahead pulls enemies together and swallows their shots, then collapses.',
+  shockwave: { label: 'Shockwave', recharge: 45, price: 350, parts: 1, blurb: 'A ring bursts out from your ship: it clears nearby shots and hits hardest up close.', speed: 26, reach: 20, full: 3, minShare: 0.2, clear: 8 },
+  'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 0, parts: 0, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 9, speed: 21, accel: 34, turn: 4.5, spreadTime: .3 },
+  'siege-lance': { label: 'Siege Lance', recharge: 40, price: 250, parts: 1, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
+  'gravity-well': { label: 'Gravity Well', recharge: 40, price: 350, parts: 1, blurb: 'A singularity ahead pulls enemies together and swallows their shots, then collapses.',
     // User, 28 October: "the radius should be bigger and sucking in ships" (was pull 4.5 at up to 4/s, core 1.6, swallow 3.5).
     ahead: 9, arm: 0.35, duration: 2.6, pullRadius: 7, pullSpeed: 7, coreRadius: 2, dps: 40, swallowRadius: 4.5, collapse: 200, collapseRadius: 3.5, collapseEdge: 0.5 },
-} as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; blurb: string; [tuning: string]: string | number }>>;
+} as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; parts: number; blurb: string; [tuning: string]: string | number }>>;
 
 /** All ships can collect up to five shields. Equipment changes the starting reserve only. */
 export const MAX_SHIELDS = 5;
@@ -74,17 +86,19 @@ export const SHIELD_TECH = {
 export interface ShipSpec {
   label: string; blurb: string; model: string;
   extraLives: number; pickupReach: number; perk: string;
-  /** Frame, propulsion and core respectively. One guaranteed part per listed mission clear, any difficulty. */
-  parts: readonly MissionId[];
+  /**
+   * Campaign price: `price` credits plus `parts` (user, 3 November 2026: "lets make it 4 since its 4 parts of a ship";
+   * this replaced the three mission-clear chassis pieces and their assembly).
+   */
+  price: number; parts: number;
 }
 /** Global chassis perks. Part designs remain cosmetic; ordinary handling and hit regions are shared. */
 export const SHIPS: Readonly<Record<ShipId, ShipSpec>> = {
-  scrapper: { label: 'Scrapper', perk: 'Salvage Rig', blurb: '40% wider pickup attraction. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1.4, parts: [] },
-  ironclad: { label: 'Ironclad', perk: 'Reserve Life', blurb: 'One extra starting life. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 1, pickupReach: 1, parts: ['training', 'bastion', 'cold-vector'] },
-  interceptor: { label: 'Interceptor', perk: 'Barrel Roll', blurb: 'Double-tap a steering side (or A/D or arrow key) to roll sideways out of the line of fire. 3 s cooldown. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, parts: ['bastion', 'cold-vector', 'deep-bloom'] },
-  spectre: { label: 'Spectre', perk: 'Gravitic Shield', blurb: 'While shielded, a near-miss bullet curves around your shield and returns fire. One at a time; 1.2 s cooldown. Direct hits and beams still hurt. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, parts: ['deep-bloom', 'brood-strike', 'final-horizon'] },
+  scrapper: { label: 'Scrapper', perk: 'Salvage Rig', blurb: '40% wider pickup attraction. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1.4, price: 0, parts: 0 },
+  ironclad: { label: 'Ironclad', perk: 'Reserve Life', blurb: 'One extra starting life. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 1, pickupReach: 1, price: 0, parts: 4 },
+  interceptor: { label: 'Interceptor', perk: 'Barrel Roll', blurb: 'Double-tap a steering side (or A/D or arrow key) to roll sideways out of the line of fire. 3 s cooldown. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
+  spectre: { label: 'Spectre', perk: 'Gravitic Shield', blurb: 'While shielded, a near-miss bullet curves around your shield and returns fire. One at a time; 1.2 s cooldown. Direct hits and beams still hurt. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
 };
-export const SHIP_PART_NAMES = ['Frame', 'Propulsion', 'Core'] as const;
 
 export const WEAPON_IDS: readonly WeaponId[] = ['pulse', 'fan', 'seeker', 'rail'];
 export const SPECIAL_IDS = Object.keys(SPECIALS) as SpecialId[];
@@ -97,11 +111,21 @@ export const SHIP_IDS = Object.keys(SHIPS) as ShipId[];
 export const CAMPAIGN_ORDER: readonly MissionId[] = ['training', 'bastion', 'cold-vector', 'deep-bloom', 'brood-strike', 'final-horizon'];
 
 /**
- * Mission income (docs/11 §4), all scaled by `scale` (halved on 16 October: the user found the payout too high). With
- * C = collected credits, B = the boss reward (already in the run's credits when the boss falls), M = the difficulty
- * multiplier and S = scale:
- * - success: floor(S × M × (C + B + success)) + floor(S × firstClear) once per mission;
+ * Mission income (docs/11 §4, docs/30 § Income). With C = collected credits (enemy drops, strike-site loot, full-shield
+ * cells), B = the boss reward (already in the run's credits when the boss falls), M = the difficulty multiplier and
+ * S = the mission's CREDIT_SCALE:
+ * - success: floor(S × M × (C + B + success)) + firstClear once per mission;
  * - failure or abandon: floor(S × M × failureShare × C).
+ * The in-run values (enemy credits, site loot, the boss's 60) are unchanged: each world's scale sets what a run pays.
  */
-export const REWARDS = { success: 80, boss: 60, firstClear: 150, failureShare: 0.5, scale: 0.5 } as const;
+export const REWARDS = { success: 80, boss: 60, firstClear: 75, failureShare: 0.5 } as const;
+/**
+ * Per-world credit scale (user's targets, 3 November 2026: 80 / 100 / 150 / 200 / 250-270 / 250-270 per repeat Standard
+ * run on Luna / Khepri / Vesper / Nacre / Amnion / Umbra). Measured, perfect pilot collecting drops, tier-1 Twin Pulse,
+ * seeds 1-12: 80 / 100 / 148 / 200 / 256 / 259, 1,043 for the six (tests/sim/weapon-tier-report.test.ts `mission:<id>`
+ * reproduces them; docs/30 § Income). It replaced one global ×0.5 (16 October): 166 / 179 / 247 / 209 / 214 / 236.
+ */
+export const CREDIT_SCALE: Readonly<Record<MissionId, number>> = {
+  training: 0.24, bastion: 0.28, 'cold-vector': 0.3, 'deep-bloom': 0.48, 'brood-strike': 0.6, 'final-horizon': 0.55,
+};
 export const CREDIT_MULTIPLIER: Readonly<Record<Difficulty, number>> = { relaxed: 0.85, standard: 1, veteran: 1.2 };

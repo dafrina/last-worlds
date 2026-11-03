@@ -1,4 +1,4 @@
-import { CREDIT_MULTIPLIER, REWARDS } from '../content/equipment';
+import { CREDIT_MULTIPLIER, CREDIT_SCALE } from '../content/equipment';
 import { VISIBLE_MISSIONS, WORLD_MISSIONS, difficultyAllows, type WorldMission } from '../content/world-missions';
 import type { MissionId, RunConfig, RunEvent, RunState } from '../shared/contracts';
 import { awardOnce, type CampaignProfile } from './profile';
@@ -175,8 +175,9 @@ export function createCounter(def: WorldMission, run: RunFacts, base = 0): Missi
     case 'reflected': counter.on = e => { if (e.type === 'kill' && e.cause === 'reflected' && !e.bossPart) add(); }; break;
     case 'specials': counter.on = e => { if (e.type === 'special') add(); }; break;
     case 'credits': {
-      // As the HUD counts coins: the pickups' value scaled as they are paid (REWARDS.scale and the difficulty multiplier).
-      const scale = REWARDS.scale * CREDIT_MULTIPLIER[run.config.difficulty ?? 'standard'];
+      // As the HUD counts coins: the pickups' value scaled as they are paid (the world's CREDIT_SCALE and the difficulty's
+      // multiplier, game-ui.ts).
+      const scale = CREDIT_SCALE[run.config.mission ?? 'training'] * CREDIT_MULTIPLIER[run.config.difficulty ?? 'standard'];
       let raw = 0;
       counter.on = e => { if (e.type === 'credits') { raw += e.value; set(Math.floor(raw * scale + 1e-9)); } };
       break;

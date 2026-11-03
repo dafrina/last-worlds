@@ -17,13 +17,18 @@ const CENTER_S = (VIEW.minS + VIEW.maxS) / 2;
 /** Distance from the eye to the view centre that fits the tactical height for a vertical field of view. */
 export const lensDistance = (fov = LENS_FOV) => TACTICAL_HEIGHT / 2 / Math.tan(fov * Math.PI / 360);
 
+/** Half the view's width at the player's row (the flight plane at s = 0), narrower than at the view centre. */
+export function lensRowHalfWidth(fov = LENS_FOV): number {
+  const depth = lensDistance(fov) - CENTER_S * Math.cos(ELEVATION);
+  return depth * (9 / 16) * Math.tan(fov * Math.PI / 360);
+}
+
 /**
  * How much further the lens follows the simulation's camera toward the world edges: the view is narrower at the ship's
  * row than at its centre, so the eye moves out far enough that a ship at the edge, wingtips included, stays in view.
  */
 export function lensFollow(fov = LENS_FOV): number {
-  const d = lensDistance(fov), depth = d - CENTER_S * Math.cos(ELEVATION);
-  const halfWidth = depth * (9 / 16) * Math.tan(fov * Math.PI / 360);
+  const halfWidth = lensRowHalfWidth(fov);
   const limit = VIEW.worldWidth / 2 - VIEW.width / 2, edge = VIEW.worldWidth / 2 - VIEW.playerRadius + .55;
   return Math.max(1, (edge - halfWidth) / limit);
 }

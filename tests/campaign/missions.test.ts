@@ -145,15 +145,16 @@ describe('counters (event definitions)', () => {
     expect(c.done).toBe(true);
   });
 
-  it('Collector counts coin pickups as the HUD does: scaled, never other credits', () => {
+  it('Collector counts coin pickups as the HUD does: scaled by the world and difficulty, never other credits', () => {
+    // Luna pays coins at ×0.24 (CREDIT_SCALE): 228 in pickups show as 54, 230 as 55.
     const c = createCounter(def('luna.collector'), facts());
-    for (let i = 0; i < 27; i++) c.on({ type: 'credits', time: i, value: 4 });
+    for (let i = 0; i < 57; i++) c.on({ type: 'credits', time: i, value: 4 });
     expect(c.value()).toBe(54);
-    c.on({ type: 'credits', time: 30, value: 2 });
+    c.on({ type: 'credits', time: 60, value: 2 });
     expect(c.done).toBe(true);
     const relaxed = createCounter(def('luna.collector'), facts({ difficulty: 'relaxed' }));
     relaxed.on({ type: 'credits', time: 1, value: 100 });
-    expect(relaxed.value()).toBe(42); // 100 × 0.5 × 0.85
+    expect(relaxed.value()).toBe(20); // 100 × 0.24 × 0.85
   });
 
   it('First Flight needs a tier-1 Twin Pulse for the whole run', () => {
