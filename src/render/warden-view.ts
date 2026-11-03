@@ -221,7 +221,7 @@ export function createWardenView(scene: THREE.Scene) {
     const mesh = new THREE.Mesh(ring, material); mesh.renderOrder = 4; mesh.position.copy(socket(part)).setY(WARDEN.targetHeight); root.add(mesh); rings.set(part, { mesh, material });
   }
   const shock = new THREE.Mesh(new THREE.RingGeometry(.88, 1, 96).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc890).multiplyScalar(2.2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }));
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc890).multiplyScalar(2.2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }));
   shock.renderOrder = 5; shock.visible = false; scene.add(shock);
   const dust = particleLayer(scene, 240, false), sparks = particleLayer(scene, 300, true);
   const vertices = new Float32Array(192 * 3), colors = new Float32Array(192 * 3), geometry = new THREE.BufferGeometry();

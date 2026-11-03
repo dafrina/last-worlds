@@ -307,7 +307,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
     const mesh = new THREE.Mesh(ring, material); mesh.renderOrder = 4; mesh.position.copy(socket(style, part)).setY(style.content.targetHeight); root.add(mesh); rings.set(part, { mesh, material });
   }
   const shock = new THREE.Mesh(new THREE.RingGeometry(.9, 1, 96).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(0x7ffff0).multiplyScalar(2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }));
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(0x7ffff0).multiplyScalar(2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }));
   shock.renderOrder = 5; shock.visible = false; scene.add(shock);
   const mist = particleLayer(scene, 320, false), sparks = particleLayer(scene, 420, true);
   const vertices = new Float32Array(192 * 3), colors = new Float32Array(192 * 3), geometry = new THREE.BufferGeometry();

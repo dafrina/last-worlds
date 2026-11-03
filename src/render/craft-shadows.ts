@@ -55,5 +55,9 @@ export function createSilhouetteMaterial(): THREE.MeshBasicMaterial {
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
     stencilWrite: true, stencilRef: SILHOUETTE_STENCIL, stencilFuncMask: SILHOUETTE_STENCIL, stencilWriteMask: SILHOUETTE_STENCIL,
     stencilFunc: THREE.NotEqualStencilFunc, stencilZPass: THREE.ReplaceStencilOp,
+    // One pass over both faces (mobile performance pass, 3 November): three.js draws a transparent double-sided material
+    // twice (back faces, then front faces), recomputing its program before each. The stencil darkens each pixel once
+    // whichever face covers it first, so the single pass shows exactly the same silhouette in half the draws.
+    forceSinglePass: true,
   });
 }

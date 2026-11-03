@@ -100,6 +100,8 @@ try {
     await page.goto(`${base}/`);
     await page.waitForFunction(() => !!window.__LAST_WORLDS__, null, { timeout: 60_000 });
     await page.evaluate(q => window.__LAST_WORLDS__.setQuality(q), quality);
+    // Held at zero ticks a frame from the launch on, so the pre-roll starts at the flight's first tick on every run.
+    await page.evaluate(() => window.__LAST_WORLDS__.bench(0, 5));
     await page.evaluate(config => window.__LAST_WORLDS__.launch(config), scenario.config);
     await page.waitForFunction(() => window.__LAST_WORLDS__.snapshot()?.phase === 'playing', null, { timeout: 120_000 });
     await page.evaluate(() => window.__LAST_WORLDS__.setLives(99));
@@ -136,22 +138,26 @@ try {
     const startedAt = Date.now();
     for (;;) {
       const [count, raw, state] = await page.evaluate(() => [window.__LAST_WORLDS__.benchFrames(), document.querySelector('canvas')?.dataset.renderStats ?? '{}', (() => { const s = window.__LAST_WORLDS__.snapshot(); return s ? { phase: s.phase, planet: s.planet, enemies: s.enemies.length, shots: s.projectiles.length, hazards: s.hazards.length, boss: s.boss?.phase ?? null } : null; })()]);
-      try { const r = JSON.parse(raw); renderSamples.push({ graph: r.graph, calls: r.calls, triangles: r.triangles, passes: r.passes, programs: r.programs, textures: r.textures, geometries: r.geometries, drawn: r.enemies, particles: r.particles, ...state }); } catch { /* none yet */ }
+      try { const r = JSON.parse(raw); renderSamples.push({ graph: r.graph, calls: r.calls, triangles: r.triangles, passes: r.passes, programs: r.programs, textures: r.textures, geometries: r.geometries, drawn: r.enemies, particles: r.particles, stream: r.stream, ...(r.fxCoverage ? { fxCoverage: Object.values(r.fxCoverage).reduce((a, b) => a + b, 0) } : {}), ...(typeof r.laneCoverage === 'number' ? { laneCoverage: r.laneCoverage } : {}), ...state }); } catch { /* none yet */ }
       if (count >= FRAMES || count < 0 || Date.now() - startedAt > 900_000) break;
       await page.waitForTimeout(1000);
     }
     let profile = null, alloc = null;
     if (ALLOC) {
       const { profile: sampled } = await cdp.send('HeapProfiler.stopSampling');
+      // Everything allocated, and what the frame callback (src/main.ts `frame`: simulation, render, UI) allocated; the menu
+      // globes' idle-time bake (src/ui/planet-preview.ts) and other callbacks fall outside it.
       const bySite = new Map();
-      let bytes = 0;
-      const walk = node => {
+      let bytes = 0, inFrame = 0;
+      const walk = (node, framed) => {
         const frame = node.callFrame, key = `${frame.functionName || '(anonymous)'} ${frame.url.replace(/^.*\/(src|node_modules|deps)\//, '$1/').replace(/\?.*$/, '')}:${frame.lineNumber + 1}`;
-        bySite.set(key, (bySite.get(key) ?? 0) + node.selfSize); bytes += node.selfSize;
-        for (const child of node.children) walk(child);
+        const within = framed || (frame.functionName === 'frame' && /src\/main\.ts/.test(frame.url));
+        bytes += node.selfSize;
+        if (within) { inFrame += node.selfSize; bySite.set(key, (bySite.get(key) ?? 0) + node.selfSize); }
+        for (const child of node.children) walk(child, within);
       };
-      walk(sampled.head);
-      alloc = { bytes, top: [...bySite].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([key, size]) => [key, +(size / 1024).toFixed(0)]) };
+      walk(sampled.head, false);
+      alloc = { bytes, inFrame, top: [...bySite].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([key, size]) => [key, +(size / 1024).toFixed(0)]) };
     } else profile = (await cdp.send('Profiler.stop')).profile;
     if (profile && process.env.PERF_PROFILES) writeFileSync(`${out.replace(/\.json$/, '')}.${name}.${quality}.cpuprofile`, JSON.stringify(profile));
     const frames = await page.evaluate(() => window.__LAST_WORLDS__.benchStop());
@@ -161,7 +167,7 @@ try {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
     const heap = await heapAfterGc(cdp);
     // Self time by function (and the GC / idle / program buckets).
-    let profileStats = null, top = [];
+    let profileStats = null, top = [], result_inclusive = null;
     if (profile) {
       const byNode = new Map(profile.nodes.map(node => [node.id, node]));
       const self = new Map();
@@ -175,6 +181,21 @@ try {
       const idle = [...self].filter(([key]) => key.startsWith('(idle)')).reduce((a, [, v]) => a + v, 0);
       const gc = [...self].filter(([key]) => key.startsWith('(garbage collector)')).reduce((a, [, v]) => a + v, 0);
       top = [...self].filter(([key]) => !key.startsWith('(idle)')).sort((a, b) => b[1] - a[1]).slice(0, 40).map(([key, ms]) => [key, +ms.toFixed(1)]);
+      // Inclusive time inside the frame callback (src/main.ts `frame`), per function: where a frame's work goes.
+      const parent = new Map();
+      for (const node of profile.nodes) for (const child of node.children ?? []) parent.set(child, node.id);
+      const label = node => `${node.callFrame.functionName || '(anonymous)'} ${node.callFrame.url.replace(/^.*\/(src|node_modules|deps)\//, '$1/').replace(/\?.*$/, '')}:${node.callFrame.lineNumber + 1}`;
+      const inclusive = new Map();
+      let inFrameMs = 0;
+      for (let i = 0; i < profile.samples.length; i++) {
+        const keys = [];
+        let id = profile.samples[i], framed = false;
+        while (id !== undefined) { const node = byNode.get(id); const key = label(node); keys.push(key); if (/^frame src\/main\.ts/.test(key)) framed = true; id = parent.get(id); }
+        if (!framed) continue;
+        const ms = (dt[i + 1] ?? 0) / 1000; inFrameMs += ms;
+        for (const key of new Set(keys)) inclusive.set(key, (inclusive.get(key) ?? 0) + ms);
+      }
+      result_inclusive = { inFrameMs: +inFrameMs.toFixed(1), top: [...inclusive].sort((a, b) => b[1] - a[1]).slice(0, 60).map(([key, ms]) => [key, +ms.toFixed(1)]) };
       profileStats = { busyMs: +(totalMs - idle).toFixed(0), gcMs: +gc.toFixed(1), perFrameBusy: +((totalMs - idle) / Math.max(1, frames.length)).toFixed(3), perFrameGc: +(gc / Math.max(1, frames.length)).toFixed(3) };
     }
     // Frame indices and the warp window (the planet switch's frames) for the segments.
@@ -187,15 +208,19 @@ try {
       total: frameStats(frames), sim: stats(frames.map(f => f.sim)), render: stats(frames.map(f => f.render)), segments,
       longTasks: longtasks.length, longTaskMs: +longtasks.reduce((a, [, d]) => a + d, 0).toFixed(0), longestTask: +Math.max(0, ...longtasks.map(([, d]) => d)).toFixed(0),
       profile: profileStats, heapAfterGcMB: heap,
-      allocation: alloc && { totalMB: +(alloc.bytes / 1e6).toFixed(2), perFrameKB: +(alloc.bytes / 1024 / Math.max(1, frames.length)).toFixed(1), top: alloc.top },
+      allocation: alloc && { totalMB: +(alloc.bytes / 1e6).toFixed(2), perFrameKB: +(alloc.inFrame / 1024 / Math.max(1, frames.length)).toFixed(1),
+        allPerFrameKB: +(alloc.bytes / 1024 / Math.max(1, frames.length)).toFixed(1), top: alloc.top },
       renderer: { calls: stats(pick('calls')), triangles: stats(pick('triangles')), programs: Math.max(0, ...pick('programs')), textures: Math.max(0, ...pick('textures')), geometries: Math.max(0, ...pick('geometries')),
-        shadowCalls: stats(renderSamples.map(r => r.passes?.shadow ?? 0)), drawn: stats(pick('drawn')), enemies: stats(pick('enemies')), shots: stats(pick('shots')), hazards: stats(pick('hazards')), particles: stats(pick('particles')) },
+        shadowCalls: stats(renderSamples.map(r => r.passes?.shadow ?? 0)), drawn: stats(pick('drawn')), enemies: stats(pick('enemies')), shots: stats(pick('shots')), hazards: stats(pick('hazards')), particles: stats(pick('particles')), fxCoverage: stats(pick('fxCoverage')), laneCoverage: stats(pick('laneCoverage')) },
+      // Sections generated (and views built) synchronously mid-flight during the window: each is a long frame.
+      stream: (() => { const first = renderSamples.find(r => r.stream)?.stream, last = renderSamples.at(-1)?.stream; return first && last
+        ? { fallbacks: last.fallbacks - first.fallbacks, viewFallbacks: last.viewFallbacks - first.viewFallbacks, prefetched: last.prefetched - first.prefetched } : null; })(),
       graph: renderSamples.at(-1)?.graph, planets: [...new Set(renderSamples.map(r => r.planet).filter(Boolean))], bossPhases: [...new Set(renderSamples.map(r => r.boss).filter(Boolean))],
-      actions: actionLog, errors, top,
+      actions: actionLog, errors, top, inclusive: result_inclusive,
     };
     results.push(result);
     const t = result.total;
-    console.log(`${name}/${quality}: ${ALLOC ? `alloc ${result.allocation.perFrameKB} KB/frame · ` : ''}mean ${t.mean} p95 ${t.p95} p99 ${t.p99} max ${t.max} ms · >16.7 ${t.over16} >33 ${t.over33} · gc/frame ${profileStats?.perFrameGc ?? '-'} · calls ${result.renderer.calls.mean} · tris ${result.renderer.triangles.mean} · geo/tex/prog ${result.renderer.geometries}/${result.renderer.textures}/${result.renderer.programs} · heap ${heap} MB · load ${loadBefore} → ${loadAfter}`
+    console.log(`${name}/${quality}: ${ALLOC ? `alloc in frame ${result.allocation.perFrameKB} KB/frame (all ${result.allocation.allPerFrameKB}) · ` : ''}mean ${t.mean} p95 ${t.p95} p99 ${t.p99} max ${t.max} ms · >16.7 ${t.over16} >33 ${t.over33} · gc/frame ${profileStats?.perFrameGc ?? '-'} · calls ${result.renderer.calls.mean} · tris ${result.renderer.triangles.mean} · geo/tex/prog ${result.renderer.geometries}/${result.renderer.textures}/${result.renderer.programs} · heap ${heap} MB · load ${loadBefore} → ${loadAfter}`
       + Object.entries(segments).map(([key, s]) => `\n    ${key}: n ${s.n} mean ${s.mean} p95 ${s.p95} max ${s.max} >33 ${s.over33}`).join(''));
     writeFileSync(out, JSON.stringify(results, null, 1));
     await context.close();

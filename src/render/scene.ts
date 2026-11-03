@@ -115,7 +115,9 @@ export function bastionPlacement(seed: number, distance: number, x: number, logi
   let { s } = groundPlacement(seed, distance, x, logicalS, targetHeight, arena), baseHeight = -Infinity;
   for (let pass = 0; pass < 3; pass++) {
     baseHeight = -Infinity;
-    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+    // Row by row (mobile performance pass, 3 November): the terrain keeps its last four rows, so walking each row's five
+    // points together builds 5 rows a pass instead of 25 (the same 25 heights, the same maximum).
+    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
       // Local +z faces the player, which is toward smaller s.
       const dx = i / 2 * (footprint.halfWidth - .2), dz = j / 2 * (footprint.halfDepth - .2);
       baseHeight = Math.max(baseHeight, terrainHeight(seed, x + dx, distance + s - dz, arena));
@@ -157,10 +159,12 @@ export const perspectiveFollow = (fov: number): number => lensFollow(fov);
  * Perspective seating (render-only): follow the camera ray through the logical flight-plane target down to
  * terrain + core height, so the physical core covers its logical target pixel under any lens.
  */
+const rayTarget = new THREE.Vector3(), rayDirection = new THREE.Vector3(), rayPoint = new THREE.Vector3();
 export function rayPlacement(camera: THREE.Camera, seed: number, distance: number, x: number, logicalS: number, coreHeight: number, baseFloor = -Infinity, arena?: WorldInput | World) {
-  const target = new THREE.Vector3(x, VIEW.flightHeight, -logicalS);
-  const direction = camera instanceof THREE.PerspectiveCamera ? target.clone().sub(camera.position).normalize() : camera.getWorldDirection(new THREE.Vector3());
-  const at = (t: number) => target.clone().addScaledVector(direction, t);
+  // Scratch vectors (bosses seat through this every frame): the same arithmetic as fresh ones.
+  const target = rayTarget.set(x, VIEW.flightHeight, -logicalS);
+  const direction = camera instanceof THREE.PerspectiveCamera ? rayDirection.copy(target).sub(camera.position).normalize() : camera.getWorldDirection(rayDirection);
+  const at = (t: number) => rayPoint.copy(target).addScaledVector(direction, t);
   const ground = (point: THREE.Vector3) => Math.max(baseFloor, surfaceHeight(seed, point.x, distance - point.z, arena));
   let lo = 0, hi = (VIEW.flightHeight - TERRAIN_MIN_HEIGHT + 2) / Math.max(.2, -direction.y);
   for (let i = 0; i < 28; i++) {
@@ -1132,6 +1136,24 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (!depth) { depth = new THREE.MeshDepthMaterial(); casterDepths.set(material, depth); }
     return depth;
   }
+  /**
+   * The shadow-depth material of instanced casters without their own (mobile performance pass, 3 November). three.js's
+   * one shared depth material changed its program (instancing on, off) wherever a batch (foundations, floes, the Bastion's
+   * track links) was drawn between single meshes (the hero's caster, a site's parts): two program lookups and full uniform
+   * refreshes every frame. A plain depth material like three.js's own (it shares its programs and copies the same state
+   * from each caster), so the shadow map is unchanged. Casters three.js gives a variant of their own (alpha-tested,
+   * displaced, clipped) keep it.
+   */
+  const instancedDepth = new THREE.MeshDepthMaterial();
+  const sharesDefaultDepth = (material: THREE.Material | THREE.Material[]) => {
+    if (Array.isArray(material)) return false;
+    const m = material as THREE.MeshStandardMaterial;
+    return !(m.clippingPlanes?.length || (m.displacementMap && m.displacementScale !== 0) || (m.alphaMap && m.alphaTest > 0) || (m.map && m.alphaTest > 0) || m.alphaToCoverage);
+  };
+  const separateInstancedCasters = (root: THREE.Object3D) => root.traverse(object => {
+    const mesh = object as THREE.InstancedMesh;
+    if (mesh.isInstancedMesh && mesh.castShadow && !mesh.customDepthMaterial && sharesDefaultDepth(mesh.material)) mesh.customDepthMaterial = instancedDepth;
+  });
   const transform = new THREE.Object3D(), color = new THREE.Color();
   /** Per-frame scratch (reused, never reallocated): instance counts per batch and the live enemy ids. */
   const counts = new Map<THREE.InstancedMesh, number>(), liveIds = new Set<number>();
@@ -1220,7 +1242,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   }
   // Shockwave: a bright rim and a soft trailing band expanding from where the ship fired it (radius from the sim).
   const shockMaterials = [0, 1].map(k => new THREE.MeshBasicMaterial({ color: new THREE.Color(k ? 0x5fd8ff : 0xc8fff8).multiplyScalar(k ? 1.2 : 2.4),
-    transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }));
+    transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide, forceSinglePass: true }));
   const shockRings = [new THREE.RingGeometry(.93, 1, 160), new THREE.RingGeometry(.8, .93, 160)].map((geometry, k) => {
     geometry.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(geometry, shockMaterials[k]); mesh.renderOrder = 9; mesh.visible = false; mesh.frustumCulled = false; scene.add(mesh); return mesh;
@@ -1230,7 +1252,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const well = new THREE.Group(); well.visible = false; scene.add(well);
   const wellCore = new THREE.Mesh(new THREE.SphereGeometry(.5, 24, 16), new THREE.MeshBasicMaterial({ color: 0x020205, depthTest: false, depthWrite: false }));
   const wellRingMaterial = new THREE.MeshBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: .9, depthTest: false, depthWrite: false,
-    blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
+    blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide, forceSinglePass: true });
   const wellAccretion = new THREE.Mesh(new THREE.RingGeometry(.58, 1.05, 64, 1).rotateX(-Math.PI / 2), wellRingMaterial);
   const wellHalo = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.6, 64, 1).rotateX(-Math.PI / 2), wellRingMaterial.clone());
   const wellReach = [wellSpec.pullRadius, wellSpec.coreRadius].map(radius => new THREE.Mesh(new THREE.RingGeometry(radius - .04, radius, 96).rotateX(-Math.PI / 2),
@@ -1273,7 +1295,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const railTrails = new Map<number, { x0: number; s0: number; x: number; s: number; endedAt?: number }>();
   let railKickAt = -1, railTick = -1;
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
-  const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
+  // Flat rings face the camera one way only, so the single pass draws exactly what three.js's two passes over a transparent
+  // double-sided material drew (back faces: none), in half the draws (mobile performance pass, 3 November). So do the
+  // shockwave and the Gravity Well's rings.
+  const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide, forceSinglePass: true });
   const effects = new THREE.InstancedMesh(new THREE.RingGeometry(.85, 1, 24), effectMaterial, 128);
   effects.setColorAt(0, color.setHex(0xffffff));
   effects.instanceMatrix.setUsage(THREE.DynamicDrawUsage); effects.frustumCulled = false; effects.renderOrder = 6; effects.count = 0; scene.add(effects);
@@ -1289,6 +1314,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   lines.frustumCulled = false; lines.renderOrder = 9; scene.add(lines);
 
   let lastStatsTick = -Infinity;
+  /** QA overdraw proxy: the lane strips' (beams, telegraphs, trails) summed area this frame, world units² at the flight plane. */
+  let laneArea = 0;
   /** Per-frame terrain CPU work (update, cull, animate, prefetch), for streaming QA. */
   const terrainWork = { last: 0, max: 0, over4: 0, frames: 0, renderMax: 0, updateMax: 0, animateMax: 0, prefetchMax: 0 };
   /** Draw calls per pass in the last frame (shadow map, main scene, post), for the budget evidence. */
@@ -1467,6 +1494,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const bossParts: THREE.Object3D[] = [];
         for (const name of ['Bastion-9', 'Helion Ark', 'WARDEN-1', 'THE VEIL']) scene.getObjectByName(name)?.traverse(object => { bossParts.push(object); });
         const pieces = [...terrain.warmupObjects(), ...facilities.warmupObjects(), ...sites.warmupObjects(), ...jumpFx.objects, ...bossParts];
+        separateInstancedCasters(scene); pieces.forEach(separateInstancedCasters);
         // Every object is drawn once in its real form (performance, 22 October: programs compiled mid-flight stalled
         // frames by 50-400 ms): hidden ones shown and nothing culled, so empty instanced batches, the shield and the
         // effects compile too.
@@ -1548,9 +1576,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       for (const [id] of enemyHp) if (!liveIds.has(id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
       beamLight.begin(); phaseHoles.begin();
       let pontoonCount = 0; laneCounts.clear(); pontoonRings.length = 0;
+      laneArea = 0;
       const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
         const index = laneCounts.get(layer) ?? 0;
         if (index >= layer.instanceMatrix.count) return;
+        laneArea += width * Math.hypot(x2 - x1, s2 - s1);
         transform.position.set((x1 + x2) / 2, VIEW.flightHeight + .035, -(s1 + s2) / 2);
         transform.rotation.set(0, Math.atan2(x2 - x1, -(s2 - s1)), 0); transform.scale.set(width, 1, Math.hypot(x2 - x1, s2 - s1)); transform.updateMatrix();
         layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
@@ -2107,7 +2137,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
           calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, programs: renderer.info.programs?.length ?? 0,
-          textures: renderer.info.memory.textures, particles: fx.particles, heroModel, facilities: facilities.stats, sites: sites.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
+          textures: renderer.info.memory.textures, particles: fx.particles, fxCoverage: fx.coverage, laneCoverage: Math.round(laneArea / (VIEW.width * TACTICAL_HEIGHT) * 1000) / 1000, heroModel, facilities: facilities.stats, sites: sites.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
           predators: Object.fromEntries([...predatorBatches].map(([name, batch]) => [name, batch.mesh.count])),
           graph: graphStats(scene, query.has('graph') ? {} : undefined),
         });
@@ -2130,7 +2160,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
       terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
       lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
-      sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose();
+      sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose(); instancedDepth.dispose();
       renderer.dispose();
     },
   };

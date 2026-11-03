@@ -565,7 +565,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   }
   let disposed = false;
   /** Drifting pack ice (one dynamic batch per kit node), refilled every frame by animate(). */
-  const floeMeshes = new Map<string, THREE.InstancedMesh>();
+  const floeMeshes = new Map<string, THREE.InstancedMesh>(), floeDepth = new THREE.MeshDepthMaterial();
   function floeMesh(name: string, needed: number): THREE.InstancedMesh | null {
     const geometry = kit.get(name);
     if (!geometry) return null;
@@ -576,7 +576,9 @@ export function createTerrainView(options: TerrainViewOptions) {
       mesh = new THREE.InstancedMesh(geometry, kitMaterial, capacity);
       for (let i = 0; i < capacity; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${name}`;
-      mesh.castShadow = mesh.receiveShadow = true;
+      // Its own shadow-depth material: on three.js's shared one, a floe batch drawn next to the hero's caster switched that
+      // material's program twice a frame (src/render/scene.ts `instancedDepth`; same programs, same shadow).
+      mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = floeDepth;
       floeMeshes.set(name, mesh); scene.add(fixed(mesh));
     }
     return mesh;
@@ -1012,7 +1014,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       if (water && !options.waterMaterial) water.dispose();
       disposed = true;
       kit.forEach(geometry => geometry.dispose()); infra.forEach(geometry => geometry.dispose()); shared.forEach(geometry => geometry.dispose());
-      casterMaterial.dispose(); casterDepth.dispose(); proxies.clear();
+      casterMaterial.dispose(); casterDepth.dispose(); floeDepth.dispose(); proxies.clear();
     },
     /** Rebuilds live sections, e.g. after a layout-affecting change; kept for completeness. */
     rebuild: rebuildAll,
