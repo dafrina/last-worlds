@@ -639,3 +639,20 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 **2026-11-03 · Codex · Endless weapon damage regression IN PROGRESS:** User clarified that the one-tier hull-death penalty should STAY, including clearing banked cells. Partial upgrade message previously named the upcoming tier as though equipped; now says NEXT TIER. Explicitly invalidate the firing sequence on a tier change, preserving shot cooldown. Scope game.ts, damage/weapon tests, dedicated browser regression and docs. Campaign hit behavior unchanged. Earlier boss-health work remains in tree. No deploy requested.
 
 **2026-11-03 · Codex · Endless weapon recovery READY, release gate has separate HP failures:** Preserved one-tier hull-loss penalty per user clarification. Partial pickup now says NEXT TIER; completed upgrade shows equipped tier; tier changes invalidate cached firing sequence without resetting cooldown. 163 focused tests pass (108 new, all weapons/tiers/modes); production build/typecheck pass; real UI/renderer browser recovery passes, four Pulse lanes inspected. Full suite 845 pass / 4 skipped / 3 failures in existing Endless no-hit pilot tests, isolated to prior +20% boss HP via old-HP diagnostic (all three pass with weapon fix present). Left assertions and requested HP intact, documented pending release follow-up. No deploy. Details in docs/build-status.md.
+
+**2026-11-03 21:15 · Claude Code (Blender MCP in WSL session) · 1.0 handover IN PROGRESS on `integrator-next`:**
+- **Agents, in their own worktrees:**
+  - the shop economy and weapon-level selection (owns `profile.ts`, `equipment.ts`, the hangar);
+  - the mission system, 72 missions on six worlds (owns new mission files, a sim observation hook, the board UI).
+- **Me:** Interceptor sidestep 5.6 units, committed `26bee0e`.
+- **Queued:** a mobile performance pass (`src/render`), as soon as an agent slot frees.
+- **Release:** one gate and one deploy of everything at the end (user). `c3932bd`'s 3 November batch is still undeployed.
+
+**2026-11-03 21:50 · Claude Code (Blender MCP in WSL session) · economy merged as `e59215f`** (`integrator-next`, not deployed). It brings:
+- the 1.0 prices, with parts costs;
+- ships for 4 parts;
+- a selectable weapon level;
+- per-world income scales;
+- save version 4 (version 3 backed up).
+
+The mission agent merges it for `awardOnce` and `missionBoard`. The performance agent has started in its own worktree (`src/render`, `tools/perf-bench.mjs`).
