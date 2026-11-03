@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCampaignProfile, endlessConfig, freshProfile } from '../../src/campaign/profile';
-import { SHIP_IDS, STARTER } from '../../src/content/equipment';
+import { ENDLESS_LOADOUT, SHIP_IDS } from '../../src/content/equipment';
 import { DEFAULT_LOOK, shownHero } from '../../src/content/hero-parts';
 import { EMPTY_INPUT, VIEW, type HeroLook, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { playerKinematics } from '../../src/sim/fairness';
@@ -23,7 +23,7 @@ const withoutConfig = ({ config: _config, ...rest }: RunState) => rest;
 describe('endless flies the campaign ship as cosmetic parts and global chassis perks', () => {
   it('keeps the chassis perk and look while resetting campaign equipment', () => {
     const state = createRun({ mode: 'endless', seed: 1, heroShip: 'spectre', hero: look, ship: 'ironclad', weapon: 'rail', special: 'gravity-well', shield: 'aegis', rank: 2 });
-    expect(state.config).toMatchObject({ ...STARTER, ship: 'spectre', rank: 0, heroShip: 'spectre', hero: look });
+    expect(state.config).toMatchObject({ ...ENDLESS_LOADOUT, ship: 'spectre', rank: 0, heroShip: 'spectre', hero: look });
     expect(state.player).toMatchObject({ lives: 3, shields: 3, weapon: 'pulse', power: 0 });
     // A look that does not fit the chassis, or an unknown chassis, is dropped: the default Scrapper shows.
     expect(createRun({ mode: 'endless', seed: 1, heroShip: 'bogus' as never, hero: look }).config).not.toHaveProperty('heroShip');
@@ -36,7 +36,7 @@ describe('endless flies the campaign ship as cosmetic parts and global chassis p
       const painted = flight({ mode: 'endless', seed: 23, heroShip: ship, hero: look, weapon: 'seeker', rank: 2 }, 10);
       expect(withoutConfig(painted)).toEqual(withoutConfig(base));
       expect(playerKinematics(painted)).toEqual(playerKinematics(base));
-      expect(painted.config).toMatchObject({ ...STARTER, ship, rank: 0 });
+      expect(painted.config).toMatchObject({ ...ENDLESS_LOADOUT, ship, rank: 0 });
     }
     expect(VIEW.playerRadius).toBe(0.42);
   });
@@ -53,7 +53,7 @@ describe('endless flies the campaign ship as cosmetic parts and global chassis p
     expect(shownHero(createRun({ mode: 'endless', seed: 9 }).config)).toEqual(['scrapper', DEFAULT_LOOK]);
     expect(shownHero(createRun({ mode: 'campaign', seed: 9, ship: 'ironclad', hero: look }).config)).toEqual(['ironclad', look]);
     // Endless keeps starter equipment while selecting the equipped chassis perk.
-    expect(createRun(config).config).toMatchObject({ ...STARTER, ship: 'interceptor' });
+    expect(createRun(config).config).toMatchObject({ ...ENDLESS_LOADOUT, ship: 'interceptor' });
     expect(stepRun(createRun(config), EMPTY_INPUT)).toBeUndefined();
   });
 });
