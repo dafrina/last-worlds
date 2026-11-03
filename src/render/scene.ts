@@ -899,7 +899,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * Bloom 20-60% harder for the test pilot (measured 31 October and 3 November), so this stays visual.
    */
   const deploying = new Map<number, number>(), groundKnown = new Set<number>();
-  const DEPLOY = 1, DEPLOY_DEPTH = 2.2, DEPLOY_ROW = 25.5;
+  const DEPLOY = 1, DEPLOY_DEPTH = 2.2, DEPLOY_ROW = 25.5, DEPLOY_FRESH = .3;
   const groundSeen = new Map<number, GroundSeen>();
   let wreckRun: RunState['config'] | null = null, wreckTick = -1;
   /** Foam collars for drifting floes and bergs, from the terrain view's live features (world space, real footprints). */
@@ -1635,9 +1635,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
           : anchor ? { x: anchor.x, s: anchor.s, baseHeight: anchor.base - (anchor.afloat ? PONTOON_DECK : 0) }
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
-        if (isGround && enemy.formation && !groundKnown.has(enemy.id)) { groundKnown.add(enemy.id); if (enemy.s < DEPLOY_ROW) deploying.set(enemy.id, state.time); }
-        const deployed = deploying.get(enemy.id), sink = deployed !== undefined ? (1 - THREE.MathUtils.smoothstep(state.time - deployed, 0, DEPLOY)) * DEPLOY_DEPTH : 0;
-        if (sink > 0) placement.baseHeight -= sink; else deploying.delete(enemy.id);
+        // Only a battery that has just spawned deploys: one first drawn later (a frame after a fast-forward, a paused or
+        // hidden tab) is long in place, and sinking it then put it under Vesper's water as a pale silhouette (3 November).
+        if (isGround && enemy.formation && !groundKnown.has(enemy.id)) { groundKnown.add(enemy.id); if (enemy.s < DEPLOY_ROW && enemy.age < DEPLOY_FRESH) deploying.set(enemy.id, state.time); }
+        const deployed = deploying.get(enemy.id), rise = deployed !== undefined ? 1 - THREE.MathUtils.smoothstep(state.time - deployed, 0, DEPLOY) : 0;
+        // On open water the pontoon stays on the surface and its gun unfolds on the deck (it never sinks under the sea).
+        const sink = afloat ? 0 : rise * DEPLOY_DEPTH, unfold = afloat ? 1 - rise * .8 : 1;
+        if (rise > 0) placement.baseHeight -= sink; else deploying.delete(enemy.id);
         // A site core seats no compound or emplacement and leaves no wreck: its site stands there (site-view.ts).
         const siteCore = sites.hidesCore(enemy.id);
         if (isGround && enemy.hp > 0 && !enemy.site) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight + sink, late: deploying.has(enemy.id) });
@@ -1669,7 +1673,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           // A craft breaking off for a boss turns toward the side it leaves by and banks into the turn.
           const turn = enemy.leaving && !isGround ? THREE.MathUtils.smoothstep(state.time - enemy.leaving.at, 0, .5) * enemy.leaving.side : 0;
-          transform.rotation.set(0, turn * 1.9, (enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0) + turn * .5); transform.scale.setScalar(craftScale);
+          transform.rotation.set(0, turn * 1.9, (enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0) + turn * .5); transform.scale.setScalar(craftScale * unfold);
           const blink = enemy.blink, phase = blink ? (state.time - blink.startedAt) / WRAITH.teleport : 1;
           if (blink && phase >= 0 && phase < 1) {
             // Collapse at departure and unfold at arrival; never fly across the gap.

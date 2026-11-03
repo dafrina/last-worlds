@@ -1941,4 +1941,9 @@ Broader suite: 845 passed, 4 skipped, 3 failed. All failures are the existing se
 - **Nacre water** (`efb74cc`): less pixelated. Its own material, filtered texture detail and a shoreline off the ground grid; 4 texture taps replace 19 value-noise evaluations.
   - Vesper is unchanged (the user scratched the Vesper refinement for this release).
   - Sheet: `docs/screenshots/nacre-water.jpg`.
+- **Vesper batteries under the water (user: "fix vesper turrets bug"), caused by the 31 October rise:**
+  - **The cause:** a battery first drawn after a fast-forward, or after a paused or hidden tab, counted as new. It was drawn at its sunken start: under the sea on Vesper, where only the pale terrain-occlusion silhouette showed.
+  - **Now:** only a battery that has just spawned rises (`DEPLOY_FRESH`, age < 0.3).
+  - **On open water:** the pontoon stays on the surface and its gun unfolds on the deck, never under the sea.
+  - **Checked:** a Cold Vector still (seed 4242, 36 s) shows both batteries on their pontoons.
 - **Not tested:** no phone test.
