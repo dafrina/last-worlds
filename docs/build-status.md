@@ -1,6 +1,79 @@
 # Build status
 
 
+## Release: the 1.0 handover (shop, missions, Interceptor), mobile performance and the 3 November batch, 4 November 2026
+
+One gate and one deploy for everything (user: "Ship together later"). Gated on `6ab5399`; deployed from `integrator-next` (Pages run and live check below).
+
+- **The 3 November batch** (the entry at the end of this file, "Boss health +20% …"):
+  - boss health +20%;
+  - the endless tier recovery fix and the `MAX TIER · +1000` message;
+  - buildings already standing behind a late battery;
+  - strike-site destruction;
+  - Nacre water;
+  - the Vesper battery fix.
+- **Vesper contrast** (`a94c4f0`):
+  - blue-grey cliff walls and snow highlight detail;
+  - Vesper craft drawn with darker edges;
+  - Vesper's water unchanged (user).
+  - Sheet: `docs/screenshots/vesper-contrast.jpg`.
+- **Shop economy** (1.0 handover; docs/30 § Shop, levels and income; sheet `docs/screenshots/shop-economy.jpg`):
+  - **Prices (credits + parts):**
+    - main weapons 250 (Twin Pulse is the starter);
+    - level upgrades 250, 500 + 3, 750 + 5, 1,000 + 10;
+    - Siege Lance 250 + 1, Shockwave 350 + 1, Gravity Well 350 + 1;
+    - designs 50 + 1;
+    - Ironclad, Interceptor and Spectre 4 parts each, replacing the mission-clear pieces;
+    - shields unchanged.
+  - **Purchases** are atomic: no negative balances, no duplicates.
+  - **The Seeker Rack is the campaign's free starting special.** Endless keeps the Shockwave (`ENDLESS_LOADOUT`; user: "Keep Shockwave"), and the name stays Seeker Rack (user).
+  - **Weapon level:** each weapon has a bought and a selected level. Selecting is free, and the selected level flies the whole run.
+  - **Save version 4:** a version-3 save is backed up first. Owned items, ranks, ships and records are kept, and a ship whose three pieces were all collected becomes owned.
+  - **Income per repeat Standard run** (perfect pilot, seeds 1–12):
+
+    | World | Target | Measured |
+    | --- | --- | --- |
+    | Luna | 80 | 80 |
+    | Khepri | 100 | 100 |
+    | Vesper | 150 | 148 |
+    | Nacre | 200 | 200 |
+    | Amnion | 250–270 | 256 |
+    | Umbra | 250–270 | 259 |
+
+    The per-world `CREDIT_SCALE` sets these. Relaxed and Veteran income are unmeasured.
+- **World missions** (docs/35; sheet `docs/screenshots/missions.jpg`):
+  - 12 per world on the six worlds (72), five visible, revealed in order.
+  - Live progress on the campaign board, a small in-flight note, and the results list.
+  - One-time rewards totalling 2,895 coins and 21 parts, through `awardOnce` and `missionTransaction`.
+  - Campaign only. The run's events only observe it: an observed run and an unobserved one end deep-equal.
+  - **User decisions (3 November):**
+    - Broadside Broken: both Ark radiators within 50 s of its arrival;
+    - Nest Breaker: 2 hives;
+    - Warden Shutdown 60 s, Bastion Breaker 80 s.
+  - The feasibility suites clear all twelve on every world.
+- **Interceptor sidestep** (`26bee0e`, docs/34): 5.6 units instead of 2.8, with the same input, timing and cooldown and no invulnerability.
+  - While a dash lasts, the camera stays within 4.3 units of the ship, so the ship, wingtips included, stays in view. Without that, the ship's centre reached 6.08 off the camera in endless.
+  - Encounter fairness never counts on the dash.
+- **Mobile performance pass** (docs/36; sheet `docs/screenshots/perf-before-after.jpg`, pixel-identical apart from the baseline's own run-to-run noise):
+  - **Fixes:**
+    - Texture uploads no longer happen mid-flight. The next world's 2048² atlases had uploaded in one combat frame of an endless boss sector: worst frame 314–542 → 29 ms.
+    - One-pass rings and Low silhouettes.
+    - No per-frame shader program re-lookups (6 → 0 in a Bastion fight).
+    - Empty boss particle layers are hidden.
+    - Boss seating walks fewer terrain rows (75 → 15).
+    - Site textures are freed on planet switches.
+  - **Timing:** about 6–16% less JS frame work in the A/B (4× throttle, SwiftShader, load 13–14), with fewer frames over 33 ms.
+  - **Memory:** no leak over 463 s of endless or across launch and quit cycles. Heap 32–34 MB, and textures and geometries bounded.
+  - **Not measured:** GPU time, fill rate, heat and phone pacing.
+  - **Remaining candidates** (docs/36): a terrain worker, the shadow-map size, no MSAA canvas on High.
+- **Gate fix:** the facility fixture (`6ab5399`) now spawns a standing battery. Since 3 November a battery spawned in view keeps only the compound behind it, so the graphics spec saw 3 modules.
+- **Gate on `6ab5399`** (clean snapshot worktree):
+  - typecheck clean;
+  - unit 912 passed, 5 skipped (on `4ffb41d`; `6ab5399` only changes a browser fixture);
+  - build passes;
+  - browser 55/55, Playwright exit 0, `--timeout=180000`, load 9–10.
+- **Not tested:** no phone test.
+
 ## Performance pass, craft shadows, Vesper's lasers, endless ace drops, 31 October 2026
 
 Live as `6631d2e`.

@@ -656,3 +656,14 @@ The terrain subagent folds width 24 into terrain v15 (cliff walls, Vesper 50/50,
 - save version 4 (version 3 backed up).
 
 The mission agent merges it for `awardOnce` and `missionBoard`. The performance agent has started in its own worktree (`src/render`, `tools/perf-bench.mjs`).
+
+**2026-11-04 00:40 · Claude Code (Blender MCP in WSL session) · deploying the 1.0 handover release:**
+- **Contents:**
+  - the 3 November batch;
+  - Vesper contrast;
+  - the shop economy (save version 4);
+  - 72 world missions;
+  - the Interceptor 5.6 sidestep, with endless keeping the Shockwave;
+  - the mobile performance pass (docs/36).
+- **Gate on `6ab5399`:** unit 912/5 skipped, build, browser 55/55, Playwright exit 0. Details are in docs/build-status.md.
+- **No phone test.**
