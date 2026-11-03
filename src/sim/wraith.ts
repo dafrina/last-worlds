@@ -4,6 +4,7 @@ import { VIEW, type Enemy, type RunState } from '../shared/contracts';
 import { enemyShots, SHOT_TTL } from './attacks';
 import { admitAttack } from './fairness';
 import { clamp } from './geometry';
+import { observe } from './events';
 
 /** Returns the change in live windups, for the shared director's cap. All timing uses active game seconds. */
 export function updateWraith(state: RunState, enemy: Enemy, dt: number, scale: DifficultyScale, windups: number): number {
@@ -36,6 +37,7 @@ export function updateWraith(state: RunState, enemy: Enemy, dt: number, scale: D
       for (const shot of shots) state.projectiles.push({ ...shot, id: state.nextId++, previousX: shot.x, previousS: shot.s,
         friendly: false, damage: 1, ttl: SHOT_TTL, source: enemy.id });
       blink.attacks++; enemy.volleys = blink.attacks;
+      if (state.events) observe(state, { type: 'wraith', time: state.time, hunter: !!enemy.hunter });
       const end = state.time + WRAITH.interval * (WRAITH.rounds - 1);
       blink.readyAt = end + WRAITH.cooldown;
       if (!enemy.hunter && blink.attacks >= WRAITH.normalAttacks) blink.exitAt = end + WRAITH.departureDelay;

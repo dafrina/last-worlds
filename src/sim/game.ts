@@ -2,7 +2,7 @@ import { weaponSequence } from '../content/weapon-tiers';
 import { BALANCE, BEAM_KINDS, VESPER_LINE_CAP, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { resolvePlaylist } from '../content/encounter-deck';
-import { STEP, VIEW, type Enemy, type InputFrame, type MissionId, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
+import { STEP, VIEW, type Enemy, type InputFrame, type KillCause, type MissionId, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
@@ -22,6 +22,7 @@ import { HUNTERS, absorbHunterShield, aceDropRoll, updateHunters } from './hunte
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 import { SHIP_PERKS, catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
+import { observe, observeKill } from './events';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -548,7 +549,8 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       }
       if (target) {
         shot.ttl = 0;
-        damageEnemy(state, target, shot.damage, !shot.special && !shot.reflected, shot.special ? undefined : shot.weapon);
+        damageEnemy(state, target, shot.damage, !shot.special && !shot.reflected, shot.special ? undefined : shot.weapon,
+          shot.reflected ? 'reflected' : shot.special ? 'special' : 'main');
         // Core destruction clears danger before later bullets in this same tick can hit.
         if (target.bossPart === 'core' && target.hp <= 0) resolveBossPhase(state);
       }
@@ -575,7 +577,7 @@ function railHits(state: RunState, shot: Projectile): void {
   hits.sort((a, b) => a.t - b.t || a.enemy.id - b.enemy.id);
   for (const { enemy } of hits) {
     pierced.push(enemy.id);
-    damageEnemy(state, enemy, shot.damage, true, 'rail');
+    damageEnemy(state, enemy, shot.damage, true, 'rail', 'main');
     if (!enemy.bossPart) continue;
     shot.ttl = 0;
     if (enemy.bossPart === 'core' && enemy.hp <= 0) resolveBossPhase(state);
@@ -610,6 +612,7 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
   const player = state.player;
   if (state.phase !== 'playing' || state.time < player.invulnerableUntil) return;
   player.lastHitAt = state.time;
+  if (state.events) observe(state, { type: 'hit', time: state.time, shield: player.shields > 0 });
   if (player.shields > 0) {
     player.shields = Math.max(0, player.shields - shieldCost);
     player.invulnerableUntil = state.time + BALANCE.shield.hitInvulnerability;
@@ -635,7 +638,8 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
   setMessage(state, state.config.mode === 'endless' ? `FIGHTER RESTORED · WEAPON TIER ${player.power + 1}` : 'FIGHTER RESTORED', 2);
 }
 
-function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean, weapon?: WeaponId): void {
+/** `cause` is what landed the damage, for the run's observer only (src/sim/events.ts); the simulation never reads it. */
+function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean, weapon: WeaponId | undefined, cause: KillCause): void {
   if (enemy.hp <= 0 || enemy.damageable === false) return;
   addEffect(state, 'hit', enemy.x, enemy.s, 0.12);
   // A hunter's shield takes the damage first.
@@ -644,6 +648,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   // A burst still waiting at its muzzle dies with its source (a Pulsar shot down mid-stream stops streaming).
   if (state.projectiles.some(shot => shot.source === enemy.id)) state.projectiles = state.projectiles.filter(shot => shot.source !== enemy.id || !((shot.delay ?? 0) > 0));
   state.kills += 1;
+  observeKill(state, enemy, cause, weapon);
   const reward = enemy.hunter ? HUNTERS.reward : 1;
   state.score += enemy.bossPart ? (enemy.bossPart === 'core' ? 5000 : 500) : ENEMIES[enemy.kind].score * reward;
   addEffect(state, 'explosion', enemy.x, enemy.s, 0.5);
@@ -665,7 +670,7 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
     addEffect(state, 'blast', enemy.x, enemy.s, 0.9);
     for (const other of state.enemies) {
       if (other === enemy || other.hp <= 0 || other.damageable === false) continue;
-      if (Math.hypot(other.x - enemy.x, other.s - enemy.s) <= FUEL_BLAST.radius + other.radius * .5) damageEnemy(state, other, FUEL_BLAST.damage, false);
+      if (Math.hypot(other.x - enemy.x, other.s - enemy.s) <= FUEL_BLAST.radius + other.radius * .5) damageEnemy(state, other, FUEL_BLAST.damage, false, undefined, 'blast');
     }
   }
 }
@@ -674,6 +679,7 @@ function useSpecial(state: RunState): void {
   state.player.specialCharge = 0;
   state.specialsUsed += 1;
   const special = state.config.special ?? 'shockwave';
+  if (state.events) observe(state, { type: 'special', time: state.time, special });
   if (special === 'seeker-rack') return launchSeekerRack(state);
   if (special === 'siege-lance') {
     state.lance = { until: state.time + SPECIALS['siege-lance'].duration };
@@ -714,7 +720,7 @@ function updateShockwave(state: RunState): void {
     // Full damage close to the ship, fading with distance.
     const distance = Math.max(0, Math.hypot(enemy.x - wave.x, enemy.s - wave.s) - enemy.radius);
     const share = Math.max(spec.minShare, Math.min(1, 1 - (distance - spec.full) / (spec.reach - spec.full) * (1 - spec.minShare)));
-    damageEnemy(state, enemy, BALANCE.special.damage * share, false);
+    damageEnemy(state, enemy, BALANCE.special.damage * share, false, undefined, 'special');
   }
   if (radius > spec.reach) state.shockwave = null;
 }
@@ -799,10 +805,10 @@ function updateWell(state: RunState, dt: number): void {
     const dx = well.x - enemy.x, ds = well.s - enemy.s, distance = Math.hypot(dx, ds);
     if (collapse) {
       const reach = Math.max(0, distance - enemy.radius);
-      if (reach <= spec.collapseRadius) damageEnemy(state, enemy, spec.collapse * (1 - (1 - spec.collapseEdge) * reach / spec.collapseRadius), false);
+      if (reach <= spec.collapseRadius) damageEnemy(state, enemy, spec.collapse * (1 - (1 - spec.collapseEdge) * reach / spec.collapseRadius), false, undefined, 'special');
       continue;
     }
-    if (distance <= spec.coreRadius + enemy.radius) damageEnemy(state, enemy, spec.dps * dt, false);
+    if (distance <= spec.coreRadius + enemy.radius) damageEnemy(state, enemy, spec.dps * dt, false, undefined, 'special');
     if (!pullable(enemy) || distance >= spec.pullRadius || distance < 1e-3) continue;
     // Strong through most of the reach, easing off only toward its edge: craft are visibly sucked in.
     const speed = spec.pullSpeed * (1 - (distance / spec.pullRadius) ** 2) * (enemy.hunter ? 0.5 : 1);
@@ -821,7 +827,7 @@ function updateLance(state: RunState, dt: number): void {
   const lance = SPECIALS['siege-lance'];
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.damageable === false || enemy.s <= MUZZLE || !isVisible(state, enemy.x, enemy.s, 0)) continue;
-    if (Math.abs(enemy.x - state.player.x) <= lance.width / 2 + enemy.radius) damageEnemy(state, enemy, lance.dps * dt, false);
+    if (Math.abs(enemy.x - state.player.x) <= lance.width / 2 + enemy.radius) damageEnemy(state, enemy, lance.dps * dt, false, undefined, 'special');
   }
 }
 
@@ -849,6 +855,7 @@ function updatePickups(state: RunState, dt: number): void {
       case 'credit':
         if (state.config.mode === 'campaign') state.credits += pickup.value;
         else state.score += 50;
+        if (state.events) observe(state, { type: 'credits', time: state.time, value: pickup.value });
         break;
       case 'part':
         // Parts are campaign only (docs/33): banked with the attempt like credits. Endless never drops one.
