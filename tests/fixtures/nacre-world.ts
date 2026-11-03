@@ -24,6 +24,9 @@ if (q.has('facility')) {
   state.enemies[0].x = Number(q.get('gunX') ?? state.cameraX); state.enemies[0].s = Number(q.get('gunS') ?? 8);
   // Re-anchor the battery on the terrain at its new spot (ground enemies stand at a lens anchor, src/sim/ground.ts).
   state.enemies[0].ground = undefined; anchorGround(state, state.enemies[0]);
+  // A standing battery, not one that just spawned inside the view: those rise with only the compound behind them
+  // (src/render/scene.ts DEPLOY_FRESH, facility-view.ts behindOnly; 3 November), and this page inspects the whole compound.
+  state.enemies[0].age = 1;
   // Pick a stable cosmetic id for each authored size; the production selector still decides whether it fits.
   if (['small', 'large'].includes(q.get('facility') ?? '')) {
     const large = q.get('facility') === 'large';
