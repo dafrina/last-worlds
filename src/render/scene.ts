@@ -1525,8 +1525,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // alone does not upload textures and otherwise defers that cost to the first visible draw.
         // Only under cover (the launch warp, a jump's flash): mid-flight, the next world's kits arriving for its jump
         // (endless, 8 s into a boss sector) uploaded three 2048² atlases in one frame, 0.54 s in the bench (mobile
-        // performance pass, 3 November). They upload one a frame through the jump's warp (below), the flash takes any left,
-        // and anything drawn sooner uploads as it first draws.
+        // performance pass, 3 November). They upload one a frame once the boss has fallen and through the jump (below), the
+        // flash takes any left, and anything drawn sooner uploads as it first draws.
         if (hiddenWarm) { uploadPending(Infinity); texturesPending = false; } else texturesPending = true;
         if (hiddenWarm) {
           // Hidden (a flight's first frame under the launch warp, or a jump's flash): one real frame through the actual pipeline compiles
@@ -1545,9 +1545,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         for (const mesh of emptied) mesh.count = 0;
         warmed = true; lastStatsTick = -Infinity;
       }
-      // Through a jump's warp (no combat; the flash warms the next world), textures a mid-flight warm-up left pending upload
-      // one a frame, so the flash does not take them all in one frame.
-      if (texturesPending && state.jump && !hiddenWarm) texturesPending = uploadPending(1);
+      // After a boss falls (its wreck hold, the departure) and through a jump's warp (no combat; the flash warms the next
+      // world), textures a mid-flight warm-up left pending upload one a frame, so the flash does not take them all at once.
+      if (texturesPending && !hiddenWarm && (state.jump || state.boss?.phase === 'destroyed')) texturesPending = uploadPending(1);
       placeSun(state.cameraX, state.distance);
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
       const heroAlive = state.player.lives > 0;
