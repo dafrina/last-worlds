@@ -37,7 +37,19 @@ export interface CampaignProfile {
    */
   designs?: string[];
   looks?: Partial<Record<ShipId, HeroLook>>;
+  /**
+   * One-time rewards already paid (`awardOnce`): their receipt ids. Kept apart from the attempt receipts, which are
+   * bounded, so an old award can never fall off the list and pay again.
+   */
+  awards?: string[];
+  /**
+   * The mission system's own state (its board and progress), opaque here: stored and carried through every load and
+   * migration unchanged. Named `missionBoard` because `missions` already holds the campaign's mission clears.
+   */
+  missionBoard?: MissionSave;
 }
+/** The mission system's saved state: its shape belongs to that system (src/campaign/missions*.ts), not to the profile. */
+export type MissionSave = unknown;
 export interface ProfileStorage { getItem(key: string): string | null; setItem(key: string, value: string): void }
 
 export type AttemptOutcome = 'complete' | 'failed' | 'abandoned';
@@ -96,7 +108,9 @@ function decode(raw: string): CampaignProfile {
     (CAMPAIGN_ORDER as readonly string[]).includes(id) && record && typeof record.firstClearPaid === 'boolean'
     && (['relaxed', 'standard', 'veteran'] as const).every(d => count(record.clears?.[d])));
   const receiptsValid = Array.isArray(data?.receipts) && data.receipts.every(r => r && typeof r.id === 'string' && count(r.total) && (r.parts === undefined || count(r.parts)));
-  if ((!legacy && data?.version !== 3) || !count(data.credits) || (!legacy && !count(data.parts)) || !ownedValid || !loadoutValid || !ranksValid || !missionsValid || !receiptsValid) {
+  // Paid one-time rewards guard against paying twice: a malformed list makes the save unreadable rather than guessed at.
+  const awardsValid = data?.awards === undefined || (Array.isArray(data.awards) && data.awards.every(id => typeof id === 'string'));
+  if ((!legacy && data?.version !== 3) || !count(data.credits) || (!legacy && !count(data.parts)) || !ownedValid || !loadoutValid || !ranksValid || !missionsValid || !receiptsValid || !awardsValid) {
     throw new Error('Unsupported campaign profile');
   }
   if (!legacy) return cleanLooks(data);
@@ -154,6 +168,20 @@ export const cleared = (profile: CampaignProfile, mission: MissionId) => {
 /** Parts derive from persisted clears: no duplicate drops, separate currency or retroactive random rolls. */
 export function shipParts(profile: CampaignProfile, ship: ShipId) {
   return SHIPS[ship].parts.map((mission, index) => ({ name: SHIP_PART_NAMES[index], mission, collected: cleared(profile, mission) }));
+}
+
+/**
+ * Pays a one-time reward (the mission system's): `credits` and `parts` together, at most once per `id` (a non-empty
+ * receipt id, kept in `awards`). Changes `profile` in place and returns whether it was newly granted; an id already paid,
+ * an empty id or a negative or fractional amount grants nothing. Call it inside one store transaction (`award`, or
+ * `missionTransaction` together with the mission state), so the reward and its receipt are saved at once.
+ */
+export function awardOnce(profile: CampaignProfile, id: string, credits: number, parts: number): boolean {
+  if (typeof id !== 'string' || !id || !count(credits) || !count(parts)) return false;
+  const awards = profile.awards ?? [];
+  if (awards.includes(id)) return false;
+  profile.credits += credits; profile.parts += parts; profile.awards = [...awards, id];
+  return true;
 }
 
 /** Credits an attempt banks (docs/11 §4); `firstClear` is paid only on the mission's first success. */
@@ -263,6 +291,17 @@ export function createCampaignProfile(storage?: ProfileStorage) {
         p.looks = { ...p.looks, [ship]: clean };
         return true;
       });
+    },
+    /** Pays a one-time reward (`awardOnce`) and saves it; returns whether it was newly granted. */
+    award(id: string, credits: number, parts: number): boolean {
+      return transact(p => awardOnce(p, id, credits, parts));
+    },
+    /**
+     * The mission system's transaction: `change` runs against the freshest stored profile and everything it changes is
+     * saved together. It should change only `missionBoard` and pay rewards only through `awardOnce`.
+     */
+    missionTransaction<T>(change: (profile: CampaignProfile) => T): T {
+      return transact(change);
     },
     /** Equips an owned item in its slot (free). */
     equip(slot: Slot, id: ItemId): boolean {

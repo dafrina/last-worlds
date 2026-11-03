@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, PROFILE_VERSION, freshProfile, shipParts, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
+import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, PROFILE_VERSION, awardOnce, freshProfile, shipParts, campaignConfig, createCampaignProfile, unlockedMissions, type AttemptResult } from '../../src/campaign/profile';
 import { RANK_PRICES, REWARDS, SHIP_IDS, STARTER } from '../../src/content/equipment';
 import { HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_REMODELLED } from '../../src/content/hero-parts';
 
@@ -289,5 +289,38 @@ describe('parts (docs/33): the save, banking and design prices', () => {
     const broke = createCampaignProfile(memory(JSON.stringify(poor)));
     expect(broke.buyDesign('scrapper', 'hull', 'b')).toBe(false);
     expect(broke.read()).toMatchObject({ parts: 5, credits: 0 });
+  });
+});
+
+describe('one-time rewards and the mission state (the mission system\'s API)', () => {
+  it('pays credits and parts together once per receipt id, and persists both with the receipt', () => {
+    const storage = memory(), store = createCampaignProfile(storage);
+    expect(store.award('mission:first-flight', 120, 2)).toBe(true);
+    expect(store.read()).toMatchObject({ credits: 120, parts: 2, awards: ['mission:first-flight'] });
+    expect(store.award('mission:first-flight', 120, 2)).toBe(false);
+    expect(createCampaignProfile(storage).award('mission:first-flight', 999, 9)).toBe(false);
+    expect(createCampaignProfile(storage).read()).toMatchObject({ credits: 120, parts: 2 });
+    // Invalid amounts or ids grant nothing and record nothing.
+    for (const [id, credits, parts] of [['', 10, 0], ['x', -5, 0], ['y', 1.5, 0], ['z', 0, -1]] as const) expect(store.award(id, credits, parts)).toBe(false);
+    expect(store.read()).toMatchObject({ credits: 120, parts: 2, awards: ['mission:first-flight'] });
+    // A receipt outlives the bounded attempt receipts.
+    for (let i = 0; i < 205; i++) store.settle(clear(`run-${i}`, { outcome: 'failed', credits: 0, bossKilled: false }));
+    expect(store.award('mission:first-flight', 120, 2)).toBe(false);
+  });
+
+  it('applies awardOnce to a plain profile, and carries the mission state through saves unchanged', () => {
+    const profile = freshProfile();
+    expect(awardOnce(profile, 'a', 5, 1)).toBe(true);
+    expect(awardOnce(profile, 'a', 5, 1)).toBe(false);
+    expect(profile).toMatchObject({ credits: 5, parts: 1, awards: ['a'] });
+    const storage = memory(), store = createCampaignProfile(storage);
+    const board = { version: 1, progress: { 'first-flight': [1, 2] }, note: 'opaque' };
+    const paid = store.missionTransaction(p => { p.missionBoard = board; return awardOnce(p, 'mission:first-flight', 50, 1); });
+    expect(paid).toBe(true);
+    expect(createCampaignProfile(storage).read()).toMatchObject({ credits: 50, parts: 1, missionBoard: board });
+    // A malformed awards list makes the save unreadable (never overwritten) rather than risking a second payment.
+    const raw = JSON.stringify({ ...freshProfile(), awards: 'all' }), broken = memory(raw);
+    expect(createCampaignProfile(broken).status()).toBe('unreadable');
+    expect(broken.values.get(CAMPAIGN_KEY)).toBe(raw);
   });
 });
