@@ -765,8 +765,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     return still;
   }
   const facilities = createFacilityView(scene, () => { warmed = false; });
-  // Strike sites (docs/33): site models around their core targets (src/render/site-view.ts).
-  const sites = createSiteView(scene, () => { warmed = false; });
+  // Strike sites (docs/33): site models around their core targets (src/render/site-view.ts). A destroyed site's sequence
+  // burns in the effects layers, anchored to the ground where it stood (fx-particles.ts `siteBlast`, emitted in fx.update).
+  const sites = createSiteView(scene, () => { warmed = false; }, blast => fx.siteBlast(blast));
   const ENEMY_CAPACITY = 32;
   /** Low tier: each craft batch's flattened silhouette along the sun (src/render/craft-shadows.ts), one draw per batch. */
   const craftSilhouetteMaterial = createSilhouetteMaterial();

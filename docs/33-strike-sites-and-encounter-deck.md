@@ -482,11 +482,47 @@ the site pads after it):
   leaves its site destroyed: the core hidden, the ruin shown, the structure in darkened twin materials (16% of its paint
   toward charcoal) with its lamps out and its embers smouldering, until it scrolls out of view. A core that leaves without
   a kill explosion leaves the site intact. A hit on the core flashes its glow.
+- **Destruction** (user, 3 November: "a memorable destruction effect comparable in style to boss explosions, but scaled
+  appropriately"; render only, no simulation change). In the frame the last core falls, `site-view.ts` hands
+  `fx-particles.ts` the site's sequence in world space (`siteBlast`: the core's centre, the floor, the footprint and the
+  site's main masses), and it replaces the core's kill explosion (the flight-plane fireball; the simulation's effect, its
+  sound and the loot are untouched). About 2 s, scaled down from a boss's last detonation:
+  - **0 s:** the core's glow flashes white-hot (in the core's own colour) with a short wash over the whole footprint; the
+    blast's light lands on the ground; a fireball climbs out of the core over dark smoke; two shock rings sweep out past
+    the site's edges; sparks skitter; hot shards, fragments of the site's paint and embers are thrown off on arcs.
+  - **0.2–1.1 s:** secondary blasts walk over the site's main masses, nearest the core first (`siteMasses`: up to four,
+    over the body's tallest parts, from its vertices on a 6 × 6 grid; a tower, the hangars, the freighter's halves).
+  - **To about 3 s:** a smoke column climbs from the core and the masses and leans with the wind; embers and fragments
+    land on the site's floor, skid to a stop and die there, handing over to the ruin's own.
+  - **Colours by world** (`SITE_FIRE`): warm fire on Luna, Khepri and Vesper (Vesper's smoke pale), the world's glow on
+    Nacre (teal) and Umbra (violet), and on Amnion splashes of ichor (pale, yolk, blood) among the fire.
+  - **World space:** every particle rests on the ground (it scrolls with the terrain, never with the camera), so the
+    sequence stays on the site through scrolling and lateral camera follow.
+  - **Around the ship:** it burns in the effects' wreck layers (a destroyed boss's), which draw around the hero's stencil
+    (`AROUND_HERO`): the ship stays visible over it.
+  - **The ruin takes over:** the site swaps to its ruin in the kill frame, under the white-hot flash. The ruin then
+    wears cooling twins of its destroyed materials (clones: the same programs) for `SITE_HEAT` (2.4 s): its paint darkens
+    from its live look to charcoal over 0.8 s under the fire, its lamps flicker out over 0.7 s, its scorch (and faintly
+    the rest) glows with the world's heat and its embers flare, all reaching the resting ruin exactly as the twins swap
+    back. Its blast marks (scorch, ash streaks, debris) spread out from the core over 0.45 s with the shock ring. Only a
+    template's latest destroyed site cools (a second one of the same site and world within 2.4 s ends the first one's).
+  - **Sealed vault:** a seal broken before the last gets one blast at the seal; seals broken in the same frame as the
+    last are covered by the site's sequence.
+  - **Budget:** peak per site on High 133 glow, 60 smoke and 5 ground lights (Amnion's ichor: 159 glow), against the wreck
+    pools of 384 and 160 and the 32 ground lights, so two sites at once fit; Low 38 glow, 15 smoke and 4 lights (Amnion
+    48); a seal's blast 19 / 6 / 1. The last ember dies by 3.2 s, the last smoke by 3.3 s. Nothing new to draw: no new
+    particle system, layer, material program or render target.
+  - Tests: `tests/render/site-view.test.ts` (handed over once per site in world space, seals, cooling, masses),
+    `tests/render/site-blast.test.ts` (replaces the kill explosion, wreck layers around the hero, anchored, within half
+    the pools, settles on the floor, every world, Low), `tests/browser/site-destruction.spec.ts` (the real renderer:
+    plays, and no program compiles mid-flight). Frames: the fixture `tests/fixtures/site-destruction.html`
+    (`__SITE_QA__.kill()`, `advance(seconds, fly, steer)`); the sheet is `docs/screenshots/site-destruction.jpg`.
 - **Clearings:** each site's rectangle and its pad band are terrain clearings (sites first; the terrain takes 12) and are
   reserved from battery compounds and emplacements, so neither scenery nor a plant stands in them.
 - **Loading:** `renderer.prepare(planet)` loads the world's site finishes with the rest of the planet; one hidden
-  instance per finish (live and destroyed materials) joins the warm-up, so nothing compiles mid-flight. A world's sites
-  are released after it is left (endless revisits reload them).
+  instance per finish (live and destroyed materials) joins the warm-up, so nothing compiles mid-flight (the cooling twins
+  are clones of the destroyed materials and share their programs). A world's sites are released after it is left
+  (endless revisits reload them).
 - QA: `data-render-stats.sites` = {loaded, count, destroyed, drawn, foundations, files, sites[{key, site, finish, cores,
   destroyed, base, squash}]}.
 
