@@ -27,6 +27,7 @@ import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, c
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
+import { createMireWater } from './mire-water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
 import { createPostPipeline } from './post-pipeline';
@@ -546,6 +547,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
   let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null, voidEnvironment: THREE.WebGLRenderTarget | null = null;
   const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [];
+  /** Nacre's water: its own material (src/render/mire-water.ts); the sea sheets wear it while the look is Nacre's. */
+  const mireWater = createMireWater();
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
   /** Look-dev only: `?planet=` makes the terrain stream another planet; the look then follows the terrain's report. */
   const lookOverride = !!import.meta.env?.DEV && query.has('planet');
@@ -602,11 +605,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     // The see-through silhouette of half-buried batteries follows the world's glow.
     silhouetteMaterial.color.copy(worldGlow(next)).lerp(new THREE.Color(1, 1, 1), 0.45);
     sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
-    terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next);
+    terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next); mireWater.setEnvironment(sky);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
     if (next === 'vesper') { ensureCraft(next); ensureArk(); } else foam.clear();
     // (Amnion flies Nacre's organic craft as a stand-in until its own faction exists; THE CRADLE has its own model: docs/27.)
-    if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); }
+    if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); void mireWater.prepare(); }
     if (next === 'amnion') { ensureNacreCraft(); ensurePredator(next); ensureCradle(); }
     if (next === 'umbra') { ensureUmbraCraft(); ensurePredator(next); ensureEclipse(); }
     if (next === 'luna') ensureWarden();
@@ -614,7 +617,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   const terrain = createTerrainView({ scene, groundMaterial, kitMaterial, infraMaterial: terrainMaterials.infra,
     sharedMaterial, roadMaterial: terrainMaterials.roads, fallbackInfra: createFallbackInfra(materials), fallbackShared: createFallbackShared(),
-    waterMaterial: water.material, onPlanet: next => { terrainPlanet = next; } });
+    waterMaterial: water.material, mireMaterial: mireWater.material, onPlanet: next => { terrainPlanet = next; } });
   terrain.setShadowFrustum(sunlight.shadow.getFrustum());
   let disposed = false, warmed = false;
   const uploaded = new WeakSet<THREE.Texture>();
@@ -1094,7 +1097,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
-      terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined]).then(() => { prepared.add(next); });
+      terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : undefined,
+      // Nacre's water detail, built in slices off the frame (src/render/mire-water.ts).
+      next === 'nacre' ? mireWater.prepare() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
   };
   // A jump also waits for its terrain swap (both versions of the sections it changes, built ahead; docs/18, 31 October).
@@ -2037,7 +2042,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         vents: collectVents(state.cameraX), ground,
       } : { splash: () => null, vents: [], ground }, id => launches.get(id));
       // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
-      water.update(state.time, state.distance);
+      water.update(state.time, state.distance); mireWater.update(state.time, state.distance);
       const arkFoam = ark.foam;
       foam.update(state.time, [...collectFloeRings(), ...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
       jumpActive = jumpFx.update(state, reducedMotion(), planetReady(state.jump?.to ?? state.planet ?? planet), quality === 'high');
@@ -2119,7 +2124,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
       lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose();
       renderer.dispose();
