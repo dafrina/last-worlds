@@ -76,7 +76,8 @@ Rules:
   the target visible from the 55° camera (docs/25 rule 2).
 
 Economy (provisional, to be measured with the test pilot): designs cost B 1 part + 80, C 1 + 160, D 2 + 240, E 3 + 320
-credits; a parts site drops 1 part, a rare one 3. Report parts per mission (Standard, perfect pilot collecting) before
+credits (since 3 November 2026, 50 credits and 1 part each; ships, upgrades and specials also take parts: docs/30 § Shop);
+a parts site drops 1 part, a rare one 3. Report parts per mission (Standard, perfect pilot collecting) before
 fixing the numbers.
 
 ### 3.1 As built (workstream B, 29 October 2026)

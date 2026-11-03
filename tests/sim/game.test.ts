@@ -3,15 +3,15 @@ import { SPECIALS } from '../../src/content/equipment';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, ENDLESS_RAMP, difficultyScales } from '../../src/content/balance';
 import { resolvePlaylist } from '../../src/content/encounter-deck';
-import { EMPTY_INPUT, STEP, VIEW, type Enemy, type RunState } from '../../src/shared/contracts';
+import { EMPTY_INPUT, STEP, VIEW, type Enemy, type RunState, type SpecialId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { segmentCircleHit } from '../../src/sim/geometry';
 
 const PLAYER_LIMIT = VIEW.worldWidth / 2 - VIEW.playerRadius;
 const CAMERA_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
 
-function quietRun(): RunState {
-  const state = createRun({ mode: 'campaign', seed: 17 });
+function quietRun(special?: SpecialId): RunState {
+  const state = createRun({ mode: 'campaign', seed: 17, special });
   state.encounterIndex = resolvePlaylist(state.config, 1, state.config.seed).length;
   state.nextEncounterAt = Infinity;
   return state;
@@ -172,7 +172,8 @@ describe('lives, shield charges, and special', () => {
   });
 
   it('special affects only the activation viewport, and its kills grant no action recharge', () => {
-    const state = quietRun();
+    // The Shockwave (bought since 3 November 2026; the Seeker Rack is the starter).
+    const state = quietRun('shockwave');
     const visible = target(state, 0, 10);
     const unseen = target(state, 8, 10);
     visible.hp = 50;

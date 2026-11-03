@@ -199,7 +199,7 @@ describe('shared five-tier weapons (docs/30)', () => {
     collect(state, 'weapon', 'pulse'); expect(state.player).toMatchObject({ weapon: 'pulse', power: 0 });
     const campaign = arena('pulse', 1); collect(campaign, 'power'); collect(campaign, 'weapon', 'fan');
     expect(campaign.player).toMatchObject({ weapon: 'pulse', power: 1 });
-    // A campaign launch flies its bought tier, up to tier 5 and never beyond.
+    // A campaign launch flies its selected level (campaignConfig), up to tier 5 and never beyond.
     expect(createRun({ mode: 'campaign', seed: 1, weapon: 'rail', rank: 4 }).player.power).toBe(4);
     expect(createRun({ mode: 'campaign', seed: 1, weapon: 'rail', rank: 9 }).player.power).toBe(4);
     expect(createRun({ mode: 'endless', seed: 1, weapon: 'rail', rank: 4 }).player).toMatchObject({ weapon: 'pulse', power: 0 });
