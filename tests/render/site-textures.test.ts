@@ -19,7 +19,8 @@ const view = { minX: -20, maxX: 20, minS: VIEW.minS - 3, maxS: VIEW.maxS + 6 };
 const run = (tick: number) => ({ config: { mode: 'endless', seed: 1 }, tick, time: tick, distance: 100, enemies: [], effects: [] }) as unknown as RunState;
 
 // Mobile performance pass (docs/36): a world left behind released its site templates' geometry and materials but not their
-// textures, which stayed on the GPU for the session while a revisit loaded new ones (endless cycles its planets).
+// textures, which would stay on the GPU for the session while a revisit loads new ones (endless cycles its planets). Today's
+// site files carry none; facility kits already free theirs.
 describe('strike-site textures across planet switches', () => {
   it('frees a left world\'s site textures with its templates', async () => {
     const scene = new THREE.Scene(), sites = createSiteView(scene, () => undefined);
