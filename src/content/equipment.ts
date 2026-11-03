@@ -7,10 +7,15 @@ import type { Difficulty, MissionId, ShipId, ShieldTechId, SpecialId, WeaponId }
  */
 
 /**
- * The canonical starter: every endless run, and a fresh campaign profile. Homing missiles (the Seeker Rack) became the free
- * starting special on 3 November 2026 (user: "Homing Missiles free"), in both modes; the Shockwave is bought.
+ * A fresh campaign profile's gear. Homing missiles (the Seeker Rack) became the free starting special on 3 November 2026
+ * (user: "Homing Missiles free"); the Shockwave is bought in the campaign.
  */
 export const STARTER = { weapon: 'pulse', special: 'seeker-rack', shield: 'standard', ship: 'scrapper' } as const satisfies Loadout;
+/**
+ * Every endless run's gear (the ship is the player's choice). Endless keeps the Shockwave, its shot clearing and its
+ * moment of invulnerability (user, 3 November: "Keep Shockwave"), so the campaign's new starter leaves endless as it was.
+ */
+export const ENDLESS_LOADOUT = { ...STARTER, special: 'shockwave' } as const satisfies Loadout;
 export interface Loadout { weapon: WeaponId; special: SpecialId; shield: ShieldTechId; ship: ShipId }
 
 /**

@@ -1,8 +1,8 @@
 # Campaign progression — ship collection and weapon tiers
 
 > **3 November 2026 update (user):** the shop takes credits and parts, each weapon's flown level is selected in the hangar,
-> ships cost 4 parts instead of mission-clear pieces, the Seeker Rack (homing missiles) is the free starting special in both
-> modes, and each world's run pays a set income. See [§ Shop, levels and income](#shop-levels-and-income-3-november-2026).
+> ships cost 4 parts instead of mission-clear pieces, the Seeker Rack (homing missiles) is the free starting special in the
+> campaign (endless keeps the Shockwave; user, 3 November), and each world's run pays a set income. See [§ Shop, levels and income](#shop-levels-and-income-3-november-2026).
 
 > **30 October 2026 update:** Chassis perks now apply in both modes. Scrapper: 40% wider pickup attraction; Ironclad: +1 starting life; Interceptor: double-tap steering barrel roll; Spectre: shielded near-miss reflection. This replaces the old kill-charge/overdrive bonuses and cosmetic-only endless chassis rule. See [global ship perks](34-global-ship-perks.md). Modular parts/paint remain cosmetic; endless equipment still resets.
 

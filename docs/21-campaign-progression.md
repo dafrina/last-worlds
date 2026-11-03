@@ -1,6 +1,6 @@
 # Campaign progression
 
-**3 November 2026 update (user):** the shop now prices in credits and parts, each weapon's flown level is selected in the hangar, ships cost 4 parts, the Seeker Rack is the free starting special (endless too) and each world's run pays a set income; save version 4. Current prices, levels, income and migration: [campaign expansion § Shop, levels and income](30-campaign-expansion.md#shop-levels-and-income-3-november-2026). § 3, § 4 and § 7 below note what changed.
+**3 November 2026 update (user):** the shop now prices in credits and parts, each weapon's flown level is selected in the hangar, ships cost 4 parts, the Seeker Rack is the free starting special in the campaign (endless keeps the Shockwave; user, 3 November: "Keep Shockwave") and each world's run pays a set income; save version 4. Current prices, levels, income and migration: [campaign expansion § Shop, levels and income](30-campaign-expansion.md#shop-levels-and-income-3-november-2026). § 3, § 4 and § 7 below note what changed.
 
 **28 October update:** [Ship collection and shared weapon tiers](30-campaign-expansion.md) supersedes the reactor loadout, Flux shield and three-rank weapon system below. Four slots are main, special, shield and ship; the six-mission campaign has three-tier weapons (five tiers since 31 October), collectible chassis and universal five-charge shield capacity. The rest of this document records the original implementation.
 

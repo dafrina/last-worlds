@@ -115,8 +115,8 @@ test('pause settings preserve the frozen flight and statistics persist without d
   test.setTimeout(60000);
   await page.goto('/'); await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
   await flying(page);
-  // Endless starts with the Seeker Rack, the free starter since 3 November 2026.
-  await page.getByRole('button', { name: /Activate seeker rack/ }).click();
+  // Endless keeps the Shockwave (user, 3 November 2026); the campaign's free starter is the Seeker Rack.
+  await page.getByRole('button', { name: /Activate shockwave/ }).click();
   await expect.poll(async () => (await snapshot(page)).specialsUsed).toBe(1);
   await page.getByRole('button', { name: 'Pause flight' }).click();
   const paused = await snapshot(page);

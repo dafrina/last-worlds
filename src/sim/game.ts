@@ -7,7 +7,7 @@ import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
 import { runPlanet } from '../content/missions';
-import { SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, ENDLESS_TIER_CELLS, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
+import { ENDLESS_LOADOUT, SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, ENDLESS_TIER_CELLS, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
 import { validLook } from '../content/hero-parts';
 import { updateEndless } from './endless';
 import { arenaScroll, resolveBossPhase, showsHints, startBoss, updateBoss } from './bastion';
@@ -35,7 +35,7 @@ export function createRun(config: RunConfig): RunState {
   const heroShip = config.mode === 'endless' && requestedShip !== undefined && SHIP_IDS.includes(requestedShip) ? requestedShip : undefined;
   const endlessLook = heroShip ? validLook(config.hero, heroShip) : null;
   const normalized: RunConfig = config.mode === 'endless'
-    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...STARTER, ship: heroShip ?? STARTER.ship, rank: 0, ...(heroShip ? { heroShip } : {}), ...(endlessLook ? { hero: endlessLook } : {}) }
+    ? { mode: 'endless', seed: config.seed >>> 0, difficulty: 'standard', ...ENDLESS_LOADOUT, ship: heroShip ?? ENDLESS_LOADOUT.ship, rank: 0, ...(heroShip ? { heroShip } : {}), ...(endlessLook ? { hero: endlessLook } : {}) }
     : { mode: 'campaign', seed: config.seed >>> 0, difficulty: config.difficulty ?? 'standard', mission: config.mission ?? 'training',
       weapon: pick(config.weapon, WEAPON_IDS, STARTER.weapon), special: pick(config.special, SPECIAL_IDS, STARTER.special),
       shield: pick(config.shield, SHIELD_IDS, STARTER.shield), ship: pick(config.ship, SHIP_IDS, STARTER.ship),

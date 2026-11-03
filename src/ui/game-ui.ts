@@ -250,8 +250,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     // Which mode each part of the hangar flies in (user, 31 October: the hangar is "not only for campaign anymore"): the
     // ship, its perk and its looks fly in both modes; bought gear and weapon tiers in the campaign only (endlessConfig).
     text('.hangar-scope-mode', hangarSlot === 'ship' ? 'CAMPAIGN AND ENDLESS' : 'CAMPAIGN ONLY');
-    text('.hangar-scope-what', hangarSlot === 'ship' ? 'SHIP, PERK AND LOOKS' : 'ENDLESS USES STARTER GEAR');
-    text('.hangar-note', hangarSlot === 'ship' ? 'A ship costs 4 parts, one for each of its sections; parts come from strike sites. Designs and paint are cosmetic: a design costs 50 credits and 1 part once, then switches freely, and paint is free.' : 'Credits come from campaign missions, parts from strike sites. Changing equipped gear or a weapon\'s level is free.');
+    text('.hangar-scope-what', hangarSlot === 'ship' ? 'SHIP, PERK AND LOOKS' : hangarSlot === 'special' ? 'ENDLESS FLIES THE SHOCKWAVE' : 'ENDLESS USES STARTER GEAR');
+    text('.hangar-note', hangarSlot === 'ship' ? 'A ship costs 4 parts, one for each of its sections; parts come from strike sites and world missions. Designs and paint are cosmetic: a design costs 50 credits and 1 part once, then switches freely, and paint is free.' : 'Credits come from campaign missions, parts from strike sites and world missions. Changing equipped gear or a weapon\'s level is free.');
   }
   selectorListeners.set('mission', value => showMission(MISSION_ORDER.findIndex(([id]) => id === value)));
   for (const arrow of shell.querySelectorAll<HTMLElement>('[data-mission-step]')) {
