@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { VIEW, type GraphicsQuality, type RunState } from '../shared/contracts';
+import { VIEW, type GraphicsQuality, type PlanetId, type RunState } from '../shared/contracts';
 import { weaponRank } from '../content/equipment';
 import { AROUND_HERO } from './hero-stencil';
 import { drawnShot, type Launch } from './shot-launch';
@@ -15,6 +15,7 @@ import { drawnShot, type Launch } from './shot-launch';
  * readable core of each effect and drops most secondary particles (docs/05 §9: particles are reduced first).
  * A destroyed boss's blasts go to a second pair that draws around the hero's stencil (user, 27 October: the ship
  * seemed to fly under the boss's explosion): the wreck burns below the ship, which still shows its own hits on top.
+ * A strike site's destruction (`siteBlast`, docs/33 § 6) burns in that pair too, resting on the ground where it stood.
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 const ADDITIVE_CAPACITY = 640, ALPHA_CAPACITY = 240, LIGHT_CAPACITY = 32, WRECK_ADDITIVE_CAPACITY = 384, WRECK_ALPHA_CAPACITY = 160;
@@ -67,6 +68,8 @@ interface Particle {
   r: number; g: number; b: number; r2: number; g2: number; b2: number; alpha: number; shape: number; flat: boolean; drag: number; fall: number;
   /** Fraction of the scroll speed the particle drifts with (1 = rests on the ground, 0 = rides the flight plane). */
   drift: number;
+  /** A falling ember or fragment settles at this height (−Infinity: none). */
+  floor: number;
 }
 /** An engine plume in world space: nozzle at (x, z), extending `length` along z (positive = toward the player). */
 export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number; round?: boolean }
@@ -77,6 +80,53 @@ export interface FxSurface {
   ground?(x: number, z: number): { x: number; y: number; z: number } | null;
 }
 const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+/** A point in the renderer's world frame: x lateral, y up, z = −s (the ground's s less the distance flown, at that frame). */
+export interface WorldPoint { x: number; y: number; z: number }
+/**
+ * A strike site's destruction (docs/33 § 6), from src/render/site-view.ts in the frame its last core falls ('site'), or as
+ * one of the sealed vault's seals breaks before the last ('seal'). Every point is world space at that frame; the whole
+ * sequence then rests on the ground (it scrolls with the terrain, never with the camera). Presentation only.
+ */
+export interface SiteBlast {
+  kind: 'site' | 'seal'; finish: PlanetId;
+  /** The kill explosions (the simulation's effect ids) this anchored sequence replaces: its core's, when it was matched (and
+   * those of any vault seals that broke in the same frame, whose own blasts it covers). */
+  effects: readonly number[];
+  /** The core's centre, the site's floor (its ground height), the middle of its footprint and the footprint's half size. */
+  core: WorldPoint; floor: number; centre: { x: number; z: number }; half: { x: number; z: number };
+  /** Over the site's main masses (a tower, the hangars, the freighter's halves): the staggered secondary blasts. */
+  masses: readonly WorldPoint[];
+  /** The core's own glow (sRGB hex): the first flash and the shock ring wear it. */
+  accent: number;
+  /** Cosmetic variation (the site's first core id). */
+  seed: number;
+}
+/** A world's fire for its strike sites' destruction: warm fire on the frontier, the world's glow on Nacre and Umbra, ichor on Amnion. */
+export interface SiteFire {
+  flash: number;
+  /** Fireballs burn from these (hot, warm) and cool to `cool`. */
+  fire: readonly [number, number]; cool: number;
+  /** Embers and hot shards, at birth and as they die on the ground. */
+  ember: readonly [number, number];
+  /** Smoke as it rises (dark) and as it thins (pale); fragments (the site's paint, and burnt). */
+  smoke: readonly [number, number]; chips: readonly [number, number];
+  /** The blast's light on the ground, and the ruin's heat as it cools (src/render/site-view.ts). */
+  light: number; heat: number;
+  /** Amnion's brood: splashes of ichor (pale, yolk, blood) among the fire. */
+  ichor?: readonly [number, number, number];
+}
+export const SITE_FIRE: Readonly<Record<PlanetId, SiteFire>> = {
+  luna: { flash: 0xfff6e2, fire: [0xffe2a8, 0xffa452], cool: 0xa02a0a, ember: [0xfff0b8, 0xff4a12], smoke: [0x2c2a28, 0x8c8884], chips: [0xd4d2cc, 0x262422], light: 0xff9a48, heat: 0xff5a1a },
+  khepri: { flash: 0xfff0d2, fire: [0xffd488, 0xff8a30], cool: 0x921c06, ember: [0xffe8a0, 0xff3a08], smoke: [0x2e2218, 0x8c705a], chips: [0xc49468, 0x382214], light: 0xff8a38, heat: 0xff4a12 },
+  vesper: { flash: 0xf4fbff, fire: [0xffe8bc, 0xffaa62], cool: 0xa83010, ember: [0xfff4c8, 0xff5a1a], smoke: [0x3a3e44, 0xc4ced8], chips: [0xe6ecf2, 0x2a2e36], light: 0xffb070, heat: 0xff6020 },
+  nacre: { flash: 0xe6fff8, fire: [0xc8fff0, 0x3ff0c8], cool: 0x0a5450, ember: [0xe0fff4, 0x22d0b0], smoke: [0x34403e, 0x9ab4ac], chips: [0xc4c0ae, 0x2c283e], light: 0x58f0d0, heat: 0x2ad8b8 },
+  umbra: { flash: 0xf4eeff, fire: [0xe2d6ff, 0x9a7cff], cool: 0x30147a, ember: [0xf0e8ff, 0x8a60ff], smoke: [0x382e4e, 0x7a70a0], chips: [0x1c1a26, 0x6a5ab0], light: 0xa88cff, heat: 0x8a60ff },
+  amnion: { flash: 0xfff4e8, fire: [0xffe4a4, 0xffb442], cool: 0x861810, ember: [0xfff0c0, 0xff4420], smoke: [0x381a12, 0x9c6c58], chips: [0xdcd2c0, 0x5e261c], light: 0xffa848, heat: 0xff5a20,
+    ichor: [0xfff2ee, 0xffc23a, 0xff3a2e] },
+};
+/** The wind a site's smoke column leans in (world units a second, x and z): toward the open side and away from the camera. */
+const SITE_WIND = { x: .3, z: -.16 } as const;
 
 /**
  * Ground light (22 October, "improve explosions"): a soft disc on the terrain that brightens what it covers in proportion
@@ -108,7 +158,7 @@ function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = 
   mesh.name = (underHero ? 'fx wreck ' : 'fx ') + (light ? 'ground light' : additive ? 'glow' : 'smoke');
   scene.add(mesh);
   const pool: Particle[] = [];
-  for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, r2: 1, g2: 1, b2: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0, drift: 0 });
+  for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, r2: 1, g2: 1, b2: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0, drift: 0, floor: -Infinity });
   let live = 0;
   return { mesh, params, pool, get live() { return live; }, set live(n: number) { live = n; }, capacity, geometry, material };
 }
@@ -117,8 +167,10 @@ export function createFx(scene: THREE.Scene) {
   const glow = layer(scene, ADDITIVE_CAPACITY, true), smoke = layer(scene, ALPHA_CAPACITY, false), ground = layer(scene, LIGHT_CAPACITY, true, true);
   const wreckGlow = layer(scene, WRECK_ADDITIVE_CAPACITY, true, false, true), wreckSmoke = layer(scene, WRECK_ALPHA_CAPACITY, false, false, true);
   const layers = [glow, smoke, ground, wreckGlow, wreckSmoke];
-  const transform = new THREE.Object3D(), color = new THREE.Color();
+  const transform = new THREE.Object3D(), color = new THREE.Color(), mixing = new THREE.Color();
   let lastDistance = 0, anchoredEmission = false;
+  /** Strike sites destroyed since the last update (site-view.ts), and the kill explosions their sequences replace. */
+  const pendingSites: SiteBlast[] = [], replaced = new Set<number>();
   /** Ground batteries' rounds as drawn (src/render/shot-launch.ts), from the renderer. */
   let launchOf: (id: number) => Launch | undefined = () => undefined;
   let quality: GraphicsQuality = 'high', lastTime = -1, lastTick = -1, lastEffect = -1, lastShot = -1, seed = 0;
@@ -131,7 +183,7 @@ export function createFx(scene: THREE.Scene) {
     q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx ?? 0; q.vy = p.vy ?? 0; q.vz = p.vz ?? 0; q.age = -(p.delay ?? 0); q.life = p.life;
     q.size = p.size; q.grow = p.grow ?? 0; q.stretch = p.stretch ?? 1; q.alpha = p.alpha ?? 1; q.shape = p.shape ?? ROUND;
     q.flat = p.flat ?? false; q.drag = p.drag ?? 0; q.fall = p.fall ?? 0; q.r = p.r ?? 1; q.g = p.g ?? 1; q.b = p.b ?? 1; q.drift = anchoredEmission ? 1 : p.drift ?? 0;
-    q.r2 = p.r2 ?? q.r; q.g2 = p.g2 ?? q.g; q.b2 = p.b2 ?? q.b;
+    q.r2 = p.r2 ?? q.r; q.g2 = p.g2 ?? q.g; q.b2 = p.b2 ?? q.b; q.floor = p.floor ?? -Infinity;
   };
   const tint = (hex: number, energy: number) => { color.setHex(hex).multiplyScalar(energy); return { r: color.r, g: color.g, b: color.b }; };
   /** A colour ramp from `hex` at birth to `end` at death. */
@@ -140,17 +192,19 @@ export function createFx(scene: THREE.Scene) {
     return { ...from, r2: color.r, g2: color.g, b2: color.b };
   };
   const full = () => quality === 'high';
+  /** sRGB hex `a` toward `b` by `t` (a site core's glow, whitened for its flash). */
+  const mixHex = (a: number, b: number, t: number) => color.setHex(a).lerp(mixing.setHex(b), t).getHex();
 
-  /** Short additive fan of streaks, mostly in the flight plane. */
-  const sparks = (x: number, z: number, count: number, hex: number, speed: number, n: number) => {
+  /** Short additive fan of streaks, mostly in the flight plane (or level at height `y`, after `delay`). */
+  const sparks = (x: number, z: number, count: number, hex: number, speed: number, n: number, y = VIEW.flightHeight + .05, delay = 0) => {
     for (let i = 0; i < count; i++) {
       const a = hash(n + i * 7.3) * Math.PI * 2, v = speed * (0.55 + hash(n + i * 3.1) * 0.9);
-      emit(glow, { x, y: VIEW.flightHeight + .05, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, life: .16 + hash(n + i) * .16, size: .07, stretch: 3.2,
-        shape: ROUND, flat: true, drag: 5, alpha: 1, ...tint(hex, 2.6) });
+      emit(glow, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, life: .16 + hash(n + i) * .16, size: .07, stretch: 3.2,
+        shape: ROUND, flat: true, drag: 5, alpha: 1, delay, ...tint(hex, 2.6) });
     }
   };
-  const flash = (x: number, z: number, size: number, life: number, hex: number, energy: number) =>
-    emit(glow, { x, y: VIEW.flightHeight + .08, z, life, size, grow: size * .6, alpha: 1, shape: ROUND, ...tint(hex, energy) });
+  const flash = (x: number, z: number, size: number, life: number, hex: number, energy: number, y = VIEW.flightHeight + .08, delay = 0) =>
+    emit(glow, { x, y, z, life, size, grow: size * .6, alpha: 1, shape: ROUND, delay, ...tint(hex, energy) });
 
   /** Snow-white spray where falling debris meets open water: a flat ring of foam and a few droplets. */
   function spray(x: number, sea: number, z: number, n: number) {
@@ -281,14 +335,132 @@ export function createFx(scene: THREE.Scene) {
     }
   }
 
+  /* ---- Strike sites (docs/33 § 6): world points on the ground, emitted with `anchoredEmission` (the wreck pair, drift 1). ---- */
+
+  /** Embers (and the first `shards` as hot shards) thrown up and out on arcs; they settle glowing on the floor and die there. */
+  function siteEmbers(at: WorldPoint, floor: number, count: number, speed: number, fire: SiteFire, n: number, delay: number, shards = 0) {
+    for (let k = 0; k < count; k++) {
+      const a = hash(n + k * 3.7 + 5) * Math.PI * 2, v = speed * (.4 + hash(n + k * 2.3) * .8), shard = k < shards;
+      emit(glow, { x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1.6 + hash(n + k * 1.1) * 3, fall: 7, drag: .9, floor: floor + .04,
+        life: 1.2 + hash(n + k * 5.9) * 1, size: shard ? .13 + hash(n + k * 2.9) * .09 : .07 + hash(n + k * 2.9) * .06, alpha: 1, delay: delay + hash(n + k) * .08,
+        shape: shard ? CHIP : ROUND, ...ramp(fire.ember[0], shard ? 2.4 : 3.2, fire.ember[1], shard ? .5 : 1) });
+    }
+  }
+  /** Fragments of the site (its paint, and burnt) thrown off on arcs; they land on the floor and fade there. */
+  function siteFragments(at: WorldPoint, floor: number, count: number, speed: number, fire: SiteFire, n: number, delay: number) {
+    for (let k = 0; k < count; k++) {
+      const a = hash(n + k * 4.9 + 1) * Math.PI * 2, v = speed * (.45 + hash(n + k * 1.9) * .8);
+      emit(smoke, { x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1.8 + hash(n + k * 7.7) * 2.6, fall: 8, drag: .8, floor: floor + .03,
+        life: 1.3 + hash(n + k) * .8, size: .12 + hash(n + k * 3) * .14, alpha: .95, delay: delay + hash(n + k * 2) * .06, shape: CHIP, ...tint(fire.chips[k % 3 ? 1 : 0], 1) });
+    }
+  }
+  /** A puff of the smoke column: it climbs from a burning point, leans with the wind and pales as it thins. */
+  function sitePlume(at: WorldPoint, size: number, life: number, fire: SiteFire, n: number, delay: number, alpha = .42) {
+    emit(smoke, { x: at.x + (hash(n) - .5) * .5, y: at.y + .3 + size * .35, z: at.z + (hash(n + 3) - .5) * .5, vx: SITE_WIND.x * (.6 + hash(n + 5) * .8), vz: SITE_WIND.z,
+      vy: .55 + hash(n + 7) * .4, drag: .2, life, size, grow: size * 1.6, alpha, delay, shape: ROUND, ...ramp(fire.smoke[0], 1, fire.smoke[1], 1) });
+  }
+  /** Amnion's brood bleeds instead of burning: three layered splashes (pale, yolk, blood) rising and spreading (the carriers' ichor). */
+  function siteIchor(at: WorldPoint, size: number, fire: SiteFire, n: number, delay: number) {
+    const colours = fire.ichor!;
+    for (let k = 0; k < 3; k++) emit(glow, { x: at.x + (hash(n + k) - .5) * size * .6, y: at.y + .15 + k * .12, z: at.z + (hash(n + k + 4) - .5) * size * .6,
+      vx: (hash(n + k + 8) - .5) * 1.2, vy: .8 + hash(n + k) * 1.1, vz: (hash(n + k + 12) - .5) * 1.2, drag: 1.5, life: .55 + hash(n + k + 2) * .35,
+      size: size * (.55 + k * .2), grow: size * .9, alpha: .9, delay: delay + k * .03, shape: ROUND, ...ramp(colours[k], k ? 2.2 : 2.6, fire.cool, .4) });
+  }
+  /** A fire puff (or on Amnion an ichor splash) climbing out of a blast. */
+  function sitePuff(at: WorldPoint, size: number, fire: SiteFire, n: number, delay: number, k: number) {
+    if (fire.ichor && k % 2 === 0) { siteIchor(at, size * 1.2, fire, n, delay); return; }
+    const a = hash(n + 5.7) * Math.PI * 2, v = .35 + hash(n + 1.3) * .55;
+    emit(glow, { x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: .5 + hash(n + 3.1) * .6, drag: 2, life: .6 + hash(n + 2.1) * .4,
+      size, grow: size * 1.4, alpha: .9, delay, shape: ROUND, ...ramp(k % 2 ? fire.fire[1] : fire.fire[0], 2.6, fire.cool, .5) });
+  }
+  /**
+   * One blast of a site's sequence at a world point (a secondary blast over one of its masses, or a vault seal breaking): a
+   * flash and its light on the ground, a fireball (ichor on Amnion), embers and hot shards that settle on the floor, fragments,
+   * and on High a few sparks and smoke. `scale` 1 is a secondary blast.
+   */
+  function siteBurst(at: WorldPoint, floor: number, scale: number, fire: SiteFire, n: number, delay: number) {
+    const hi = full();
+    flash(at.x, at.z, 2.8 * scale, .14, fire.flash, 2.2, at.y + .15, delay);
+    emit(ground, { x: at.x, y: floor + .05, z: at.z, life: .5, size: 4.5 * scale, grow: 1.2 * scale, alpha: 1, flat: true, delay, ...tint(fire.light, .7) });
+    emit(glow, { x: at.x, y: at.y + .2, z: at.z, vy: .6, drag: 1.2, life: .65, size: 1.8 * scale, grow: 1.6 * scale, alpha: .9, delay, shape: ROUND, ...ramp(fire.fire[0], 2.4, fire.cool, .4) });
+    for (let k = 0; k < (hi ? 3 : 1); k++) {
+      const a = hash(n + k * 5.7) * Math.PI * 2, d = (.15 + hash(n + k) * .45) * scale;
+      sitePuff({ x: at.x + Math.cos(a) * d, y: at.y + .1 + k * .1, z: at.z + Math.sin(a) * d }, (.8 + hash(n + k * 4.3) * .45) * scale, fire, n + k * 13, delay + .02 + k * .04, k);
+    }
+    siteEmbers(at, floor, hi ? 7 : 2, 2.8 * scale, fire, n * 1.7, delay, 2);
+    siteFragments(at, floor, hi ? 4 : 2, 2.4 * scale, fire, n * 2.3, delay);
+    if (!hi) return;
+    sparks(at.x, at.z, 5, fire.ember[0], 5 * scale, n * 3.1, floor + .12, delay);
+    for (let k = 0; k < 2; k++) sitePlume(at, 1 * scale, 1.4 + hash(n + k) * .5, fire, n + k * 5.3, delay + .1 + k * .12, .48);
+  }
+  /**
+   * A strike site's destruction (docs/33 § 6; user, 3 November: "comparable in style to boss explosions, but scaled
+   * appropriately"): about two seconds, resting on the ground where the site stood, in the wreck pair (it burns below the
+   * ship). The kill: the core's glow flashes white-hot with a short wash over the whole footprint (the site turns to its ruin
+   * under it: site-view.ts), a fireball climbs out of the core with its light on the ground, shock rings in the core's colour
+   * sweep out past the site, sparks skitter, fragments of its paint and hot shards are thrown off and embers arc out. Then
+   * secondary blasts walk over the site's main masses, nearest the core first (0.2–1.1 s), and a smoke column climbs and leans
+   * with the wind while the embers settle on the floor and die there, handing over to the ruin's own. About half a boss's
+   * last detonation (bossBlast) and none of the boss's blasts racing outward. Low keeps the flashes, the fireball, the ring,
+   * three secondary blasts and a few embers, fragments and puffs.
+   */
+  function siteBlast(b: SiteBlast) {
+    const fire = SITE_FIRE[b.finish], n = b.seed * 13.37, hi = full(), { core, floor } = b, white = mixHex(b.accent, 0xffffff, .55);
+    anchoredEmission = true;
+    if (b.kind === 'seal') {
+      // A vault seal breaking before the last: one blast at the seal, in its crystal's light.
+      flash(core.x, core.z, 2.4, .12, white, 2.4, core.y + .1);
+      emit(glow, { x: core.x, y: floor + .12, z: core.z, life: .32, size: .5, grow: 4.2, alpha: .6, shape: RING, flat: true, ...ramp(white, 1.8, fire.light, .4) });
+      siteBurst(core, floor, .85, fire, n, 0);
+      anchoredEmission = false;
+      return;
+    }
+    const span = Math.hypot(b.half.x, b.half.z);
+    flash(core.x, core.z, 4.2, .18, white, 2.6, core.y + .15);
+    emit(glow, { x: b.centre.x, y: floor + 1.1, z: b.centre.z, life: .2, size: span * 2, grow: span * .5, alpha: .42, shape: ROUND, ...tint(fire.flash, 1.3) });
+    emit(ground, { x: core.x, y: floor + .05, z: core.z, life: .75, size: span * 2.1, grow: span * .6, alpha: 1, flat: true, ...tint(fire.light, .65) });
+    // Dark smoke at once, under the fire: the contrast that makes the fireball read over pale ground.
+    for (let k = 0; k < (hi ? 6 : 1); k++) {
+      const a = hash(n + k * 6.1 + 4) * Math.PI * 2, d = .3 + hash(n + k * 1.4) * .8;
+      emit(smoke, { x: core.x + Math.cos(a) * d, y: core.y + .2, z: core.z + Math.sin(a) * d, vx: Math.cos(a) * .6, vz: Math.sin(a) * .6, vy: .35, drag: 1.2,
+        life: 1.5 + hash(n + k) * .6, size: 1.3 + hash(n + k * 2.8) * .7, grow: 2, alpha: .7, delay: .04, shape: ROUND, ...ramp(fire.smoke[0], .8, fire.smoke[1], 1) });
+    }
+    // The fireball: a hot heart rising out of the core, and puffs climbing around it.
+    emit(glow, { x: core.x, y: core.y + .3, z: core.z, vy: .8, drag: 1, life: .8, size: 2.6, grow: 2.4, alpha: .9, shape: ROUND, ...ramp(fire.fire[0], 2.2, fire.cool, .4) });
+    for (let k = 0; k < (hi ? 10 : 3); k++) {
+      const a = hash(n + k * 3.3) * Math.PI * 2, d = .3 + hash(n + k) * .9;
+      sitePuff({ x: core.x + Math.cos(a) * d, y: core.y + .1 + k * .05, z: core.z + Math.sin(a) * d }, .9 + hash(n + k * 4.1) * .6, fire, n + k * 17, hash(n + k * 5) * .14, k);
+    }
+    // Shock rings in the core's colour, racing out past the site's edges.
+    emit(glow, { x: core.x, y: floor + .12, z: core.z, life: .5, size: .8, grow: span * 3.3, alpha: .75, shape: RING, flat: true, ...ramp(white, 2, fire.light, .5) });
+    if (hi) emit(glow, { x: core.x, y: floor + .1, z: core.z, life: .85, size: 1, grow: span * 2.3, alpha: .4, delay: .07, shape: RING, flat: true, ...ramp(fire.fire[1], 1.4, fire.cool, .25) });
+    sparks(core.x, core.z, hi ? 18 : 8, fire.ember[0], 7, n * 1.3, floor + .12);
+    siteEmbers(core, floor, hi ? 32 : 8, 4, fire, n * 1.9, 0, hi ? 10 : 3);
+    siteFragments(core, floor, hi ? 16 : 5, 3.2, fire, n * 2.7, 0);
+    // Secondary blasts over the site's main masses, nearest the core first.
+    const masses = [...b.masses].sort((p, q) => Math.hypot(p.x - core.x, p.z - core.z) - Math.hypot(q.x - core.x, q.z - core.z)).slice(0, hi ? 4 : 3);
+    masses.forEach((mass, i) => siteBurst(mass, floor, 1, fire, n + 31 * (i + 1), .2 + i * .27 + hash(n + i) * .08));
+    // The smoke column: from the core and the masses, climbing and leaning with the wind, paling as it thins.
+    for (let k = 0; k < (hi ? 14 : 3); k++) {
+      const from = k % 3 === 0 || !masses.length ? core : masses[k % masses.length];
+      sitePlume(from, 1.4 + hash(n + k * 1.6) * .7, 1.8 + hash(n + k) * .7, fire, n + k * 7.7, .2 + k * .05, .58);
+    }
+    anchoredEmission = false;
+  }
+
   /** New snapshot events → particle spawns. Rewinds (a new run, retry) reset the cursors. */
   function spawn(state: RunState) {
-    if (state.tick < lastTick || seed !== state.config.seed) { lastEffect = -1; lastShot = -1; glow.live = 0; smoke.live = 0; seed = state.config.seed; }
+    // A new run or a rewind: the last run's fire (its wrecks' too) goes out.
+    if (state.tick < lastTick || seed !== state.config.seed) { lastEffect = -1; lastShot = -1; glow.live = 0; smoke.live = 0; wreckGlow.live = 0; wreckSmoke.live = 0; seed = state.config.seed; }
     lastTick = state.tick;
+    // Strike sites destroyed this frame: their anchored sequences replace the cores' kill explosions.
+    for (const blast of pendingSites) { blast.effects.forEach(id => replaced.add(id)); siteBlast(blast); }
+    pendingSites.length = 0;
     let maxEffect = lastEffect;
     for (const effect of state.effects) {
       if (effect.id <= lastEffect) continue;
       maxEffect = Math.max(maxEffect, effect.id);
+      if (replaced.has(effect.id)) continue;
       anchoredEmission = state.boss?.phase === 'destroyed' && ['explosion', 'blast', 'bossBlast'].includes(effect.kind);
       const z = -effect.s;
       if (effect.kind === 'explosion') explosion(effect.x, z, effect.id);
@@ -301,6 +473,7 @@ export function createFx(scene: THREE.Scene) {
       else if (effect.kind === 'special') flash(effect.x, z, 2.2, .16, 0xc8fff8, 1.6);
     }
     anchoredEmission = false;
+    replaced.clear();
     lastEffect = maxEffect;
     let maxShot = lastShot;
     const heat = shotHeat(state.player.power);
@@ -336,6 +509,8 @@ export function createFx(scene: THREE.Scene) {
       const damp = Math.exp(-p.drag * dt);
       p.vx *= damp; p.vz *= damp; p.vy = p.vy * damp - p.fall * dt;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+      // Landed (a site's embers and fragments): it stays on the floor and skids to a stop.
+      if (p.y < p.floor) { p.y = p.floor; p.vy = 0; p.drag = Math.max(p.drag, 9); }
       if (write !== i) { const keep = target.pool[write]; target.pool[write] = p; target.pool[i] = keep; }
       write++;
     }
@@ -428,7 +603,17 @@ export function createFx(scene: THREE.Scene) {
         }
       }
     },
+    /**
+     * A strike site was destroyed (src/render/site-view.ts, in this frame before `update`): its sequence is emitted in the next
+     * update, at the world points given, and its core's kill explosion is left out (the sequence replaces it).
+     */
+    siteBlast(blast: SiteBlast) { if (pendingSites.length < 8) pendingSites.push(blast); },
     get particles() { return glow.live + smoke.live + wreckGlow.live + wreckSmoke.live; },
+    /** Live particles against each pool's capacity (QA and tests). */
+    get pools() {
+      return Object.fromEntries(([['glow', glow], ['smoke', smoke], ['ground', ground], ['wreckGlow', wreckGlow], ['wreckSmoke', wreckSmoke]] as const)
+        .map(([name, target]) => [name, { live: target.live, capacity: target.capacity }])) as Record<'glow' | 'smoke' | 'ground' | 'wreckGlow' | 'wreckSmoke', { live: number; capacity: number }>;
+    },
     dispose() {
       for (const target of layers) { scene.remove(target.mesh); target.mesh.dispose(); target.geometry.dispose(); target.material.dispose(); }
     },

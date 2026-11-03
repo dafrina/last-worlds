@@ -12,7 +12,7 @@ vi.mock('../../src/render/models', () => ({
     material: new THREE.MeshStandardMaterial({ name: name.endsWith('_core') ? 'site_core_glow' : 'site_paint', emissive: 0xffffff }),
   }]])),
 }));
-const { createSiteView, SITE_PAD_BLEND, SITE_PAD_KEEP } = await import('../../src/render/site-view');
+const { createSiteView, siteMasses, SITE_HEAT, SITE_PAD_BLEND, SITE_PAD_KEEP } = await import('../../src/render/site-view');
 const { sitePadGround, sitePadWeight } = await import('../../src/render/terrain-kit');
 
 const view = { minX: -20, maxX: 20, minS: VIEW.minS - 3, maxS: VIEW.maxS + 6 };
@@ -47,10 +47,16 @@ describe('site view (render only, docs/33 § 6)', () => {
     expect(drawn.visible).toBe(true);
     const [body, wreck, coreGroup, ruin] = drawn.children;
     expect([body.visible, wreck.visible, coreGroup.visible, ruin.visible]).toEqual([false, true, false, true]);
-    // Its lamps are out and its paint darkened (the destroyed twins).
-    expect(((wreck.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial).color.r).toBeLessThan(.3);
+    // At the kill it wears its cooling twins (still its live paint, under the blast's flash); once cooled, its lamps are out
+    // and its paint darkened (the destroyed twins).
+    const paint = () => (wreck.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+    expect(paint().name).toMatch(/cooling$/);
+    expect(paint().color.r).toBeCloseTo(1);
+    sites.update(run([], 100.2, [], 2 + SITE_HEAT + .1), 'khepri', view);
+    expect(paint().name).toMatch(/destroyed$/);
+    expect(paint().color.r).toBeLessThan(.3);
     // Scrolled out of view: released.
-    sites.update(run([], 100 + 10 - VIEW.minS + model.s[1] + 5, [], 3), 'khepri', view);
+    sites.update(run([], 100 + 10 - VIEW.minS + model.s[1] + 5, [], 9), 'khepri', view);
     expect(sites.stats.count).toBe(0);
   });
 
@@ -103,6 +109,64 @@ describe('site view (render only, docs/33 § 6)', () => {
     expect(sites.stats.destroyed).toBe(0);
     sites.update(run([], 100.2, [boom(8.5, 9.6), boom(7.5, 11)], 3), 'umbra', view);
     expect(sites.stats.destroyed).toBe(1);
+  });
+
+  it('hands each destroyed site to the effects once, in world space, replacing its core\'s kill explosion (vault seals: one blast each)', async () => {
+    const blasts: import('../../src/render/fx-particles').SiteBlast[] = [];
+    const sites = createSiteView(new THREE.Scene(), () => undefined, blast => blasts.push(blast));
+    await sites.prepare('khepri');
+    sites.update(run([core(7, 7.5, 10, .2)]), 'khepri', view);
+    expect(blasts).toEqual([]);
+    sites.update(run([], 100.1, [boom(7.5, 10)], 2), 'khepri', view);
+    expect(blasts).toHaveLength(1);
+    const [blast] = blasts, c = SITE_CORE_HEIGHT['crash-site'];
+    expect(blast).toMatchObject({ kind: 'site', finish: 'khepri', effects: [99], floor: .2, seed: 7 });
+    // The core's centre where its model stood (world x, height, z = −(s − distance)); the site's footprint around it.
+    expect([blast.core.x, blast.core.y, blast.core.z].map(n => +n.toFixed(3))).toEqual([7.5, +(.2 + c).toFixed(3), -9.9]);
+    const model = SITE_MODELS['crash-site']!;
+    expect(blast.half.x).toBeCloseTo((model.x[1] - model.x[0]) / 2);
+    // Later frames (the explosion still listed, the world scrolling on) hand nothing over again.
+    sites.update(run([], 100.2, [boom(7.5, 10)], 3), 'khepri', view);
+    sites.update(run([], 100.3, [], 4), 'khepri', view);
+    expect(blasts).toHaveLength(1);
+    // The sealed vault: a seal's blast for each of the first two, the site's with the last.
+    await sites.prepare('umbra');
+    const seals = [core(11, 6.5, 9.6, 0, 'sealed-vault', 0, 5), core(12, 8.5, 9.6, 0, 'sealed-vault', 1, 5), core(13, 7.5, 11, 0, 'sealed-vault', 2, 5)];
+    sites.update(run(seals, 100, [], 5), 'umbra', view);
+    sites.update(run(seals.slice(1), 100, [{ ...boom(6.5, 9.6), id: 120 }], 6), 'umbra', view);
+    sites.update(run([], 100, [{ ...boom(8.5, 9.6), id: 121 }, { ...boom(7.5, 11), id: 122 }], 7), 'umbra', view);
+    sites.update(run([], 100, [], 8), 'umbra', view);
+    expect(blasts.slice(1).map(({ kind, effects }) => [kind, effects])).toEqual([['seal', [120]], ['site', [121, 122]]]);
+    // A core that leaves without a kill explosion is no blast.
+    const quiet: typeof blasts = [], other = createSiteView(new THREE.Scene(), () => undefined, blast => quiet.push(blast));
+    await other.prepare('khepri');
+    other.update(run([core(3, 0, 8, 0)]), 'khepri', view);
+    other.update(run([], 100.1, [], 2), 'khepri', view);
+    expect(quiet).toEqual([]);
+  });
+
+  it('the ruin cools back to its destroyed twins and its blast marks spread out from the core', async () => {
+    const scene = new THREE.Scene(), sites = createSiteView(scene, () => undefined);
+    await sites.prepare('khepri');
+    sites.update(run([core(7, 7.5, 10, .2)]), 'khepri', view);
+    sites.update(run([], 100, [boom(7.5, 10)], 2), 'khepri', view);
+    const [drawn] = shown(scene, 'crash-site'), ruin = drawn.children[3], mesh = ruin.children[0] as THREE.Mesh;
+    expect(ruin.scale.x).toBeCloseTo(.3);
+    expect((mesh.material as THREE.Material).name).toMatch(/cooling$/);
+    sites.update(run([], 100, [], 2.2), 'khepri', view);
+    expect(ruin.scale.x).toBeGreaterThan(.3);
+    expect(ruin.scale.x).toBeLessThan(1);
+    sites.update(run([], 100, [], 2 + SITE_HEAT), 'khepri', view);
+    expect(ruin.scale.x).toBe(1);
+    expect((mesh.material as THREE.Material).name).toMatch(/destroyed$/);
+  });
+
+  it('finds a site\'s main masses over its tallest parts, apart from the core and from each other', () => {
+    // A flat apron (0.1 high, 6 × 6: 1-unit cells) with a tall tower at (2.5, −2.5), a hut at (−1.5, 1.5) beside a shed (the
+    // same mass, too close for a second blast), a low crate (under 0.3) and a mast right at the core.
+    const box = (x: number, z: number, w: number, h: number) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].flatMap(([u, v]) => [[x + u * w / 2, 0, z + v * w / 2], [x + u * w / 2, h, z + v * w / 2]]).flat();
+    const masses = siteMasses([box(0, 0, 6, .1), box(2.5, -2.5, .6, 2.5), box(-1.5, 1.5, .6, 1.2), box(-2.5, 1.5, .6, 1), box(-2.5, -2.5, .6, .25), box(0, 0, .3, 3)]);
+    expect(masses.map(point => [point.x, point.y, point.z].map(n => +n.toFixed(2)))).toEqual([[2.5, 1.5, -2.5], [-1.5, .72, 1.5]]);
   });
 
   it('pads level the ground over the rectangle and ease back across the blend band, never under a kept battery', () => {
