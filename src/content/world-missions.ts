@@ -48,8 +48,8 @@ export type MissionRule =
    * phase (`noHull`), with no hit at all during its final phase (`noHit`), and/or flying one of `weapons` all run.
    */
   | { kind: 'boss'; within?: number; noHull?: 'fight' | 'final'; noHit?: 'final'; weapons?: readonly WeaponId[] }
-  /** Destroy these modules of the mission's boss. */
-  | { kind: 'boss-parts'; parts: readonly BossPart[] }
+  /** Destroy these modules of the mission's boss; with `within`, each only counts within that many seconds of its arrival. */
+  | { kind: 'boss-parts'; parts: readonly BossPart[]; within?: number }
   /** Wraith volleys survived: no registered hit within `window` seconds of the volley's release. */
   | { kind: 'wraith-clean'; window: number };
 
@@ -105,7 +105,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     demolition(8),
     { slug: 'first-flight', name: 'First Flight', text: 'Complete Training flying a tier-1 Twin Pulse.', goal: 1, credits: 25, parts: 1, difficulty: 'relaxed', ...run({ kind: 'complete', weapons: ['pulse'], rank: 0 }) },
     { slug: 'interceptor-drill', name: 'Interceptor Drill', text: 'Destroy 4 airborne enemies within 8 seconds.', goal: 4, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air', window: 8 }) },
-    { slug: 'warden-shutdown', name: 'Warden Shutdown', text: 'Defeat WARDEN-1 within 100 s of its arrival.', goal: 1, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'boss', within: 100 }) },
+    { slug: 'warden-shutdown', name: 'Warden Shutdown', text: 'Defeat WARDEN-1 within 60 s of its arrival.', goal: 1, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'boss', within: 60 }) },
     { slug: 'training-discipline', name: 'Training Discipline', text: 'Defeat WARDEN-1 without hull damage during the fight.', goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'fight' }) },
     // Human communication and defence installations: the relay station (its dish) and the shield depot (its generator).
     { slug: 'lunar-saboteur', name: 'Lunar Saboteur', text: 'Destroy 2 relay stations or shield depots, across runs.', goal: 2, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['relay-station', 'shield-depot'] }) },
@@ -121,7 +121,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'armor-piercer', name: 'Armor Piercer', text: 'Defeat Bastion-9 flying the Rail Driver.', goal: 1, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['rail'] }) },
     { slug: 'flanking-maneuver', name: 'Flanking Maneuver', text: 'Destroy 3 enemies out on each flank in one run.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'flanks', beyond: FLANK_X }) },
     { slug: 'dustfall', name: 'Dustfall', text: 'Destroy 4 ground turrets in a row without hull damage.', goal: 4, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret'] }) },
-    { slug: 'bastion-breaker', name: 'Bastion Breaker', text: 'Defeat Bastion-9 within 120 s of its arrival.', goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 120 }) },
+    { slug: 'bastion-breaker', name: 'Bastion Breaker', text: 'Defeat Bastion-9 within 80 s of its arrival.', goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 80 }) },
     { slug: 'canyon-saboteur', name: 'Canyon Saboteur', text: 'Destroy 2 strike sites and complete Rolling Thunder.', goal: 2, credits: 50, parts: 1, difficulty: 'relaxed', ...run({ kind: 'sites', complete: true }) },
   ]),
   'cold-vector': world('vesper', [
@@ -136,7 +136,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'cold-vector', name: 'Cold Vector', text: 'Defeat the Helion Ark flying the Fan Cannon.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['fan'] }) },
     { slug: 'frozen-nerves', name: 'Frozen Nerves', text: 'Destroy 5 ground defences in a row without hull damage.', goal: 5, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret', 'missile'] }) },
     // The Ark's weapon assemblies are its two radiators (their lane lasers), its first phase.
-    { slug: 'broadside-broken', name: 'Broadside Broken', text: 'Destroy both Helion Ark radiators before its bridge falls.', goal: 2, credits: 75, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss-parts', parts: ['left', 'right'] }) },
+    { slug: 'broadside-broken', name: 'Broadside Broken', text: 'Destroy both Helion Ark radiators within 50 s of its arrival.', goal: 2, credits: 75, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss-parts', parts: ['left', 'right'], within: 50 }) },
     { slug: 'arkfall', name: 'Arkfall', text: 'Defeat the Helion Ark without hull damage in its final stage.', goal: 1, credits: 75, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
   'deep-bloom': world('nacre', [
@@ -162,7 +162,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     hunterBounty(),
     demolition(12),
     airSuperiority(25, 50),
-    { slug: 'nest-breaker', name: 'Nest Breaker', text: 'Destroy 3 brood hives, across runs.', goal: 3, credits: 50, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['brood-hive'] }) },
+    { slug: 'nest-breaker', name: 'Nest Breaker', text: 'Destroy 2 brood hives, across runs.', goal: 2, credits: 50, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['brood-hive'] }) },
     // The organic sites' exposed cores: the brood hive's heart-sac and the spawning pool's pod.
     { slug: 'heartbreaker', name: 'Heartbreaker', text: 'Destroy 5 brood hive or spawning pool cores, across runs.', goal: 5, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'site-cores', sites: ['brood-hive', 'spawning-pool'] }) },
     { slug: 'brood-extermination', name: 'Brood Extermination', text: 'Destroy 12 drones launched by THE CRADLE, across runs.', goal: 12, credits: 75, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'launched', boss: 'cradle' }) },

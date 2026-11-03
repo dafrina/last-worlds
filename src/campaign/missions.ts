@@ -231,7 +231,15 @@ export function createCounter(def: WorldMission, run: RunFacts, base = 0): Missi
       };
       break;
     }
-    case 'boss-parts': counter.on = e => { if (e.type === 'kill' && e.bossPart && rule.parts.includes(e.bossPart)) add(); }; break;
+    case 'boss-parts': {
+      let arrival: number | null = null;
+      counter.on = e => {
+        if (e.type === 'boss' && e.phase === 'arrival') arrival = e.time;
+        else if (e.type === 'kill' && e.bossPart && rule.parts.includes(e.bossPart)
+          && (rule.within === undefined || (arrival !== null && e.time - arrival <= rule.within + 1e-9))) add();
+      };
+      break;
+    }
     case 'wraith-clean': {
       // Each volley's window closes clean `window` seconds after its release unless a hit landed inside it.
       let open: number[] = [];

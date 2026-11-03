@@ -64,8 +64,8 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | 7 | Demolition: 8 ground targets (25 \| 0 \| any) | Demolition: 10 (25 \| 0 \| any) | Demolition: 10 (25 \| 0 \| any) |
 | 8 | First Flight: complete with a tier-1 Twin Pulse (25 \| 1 \| any) | Armor Piercer: defeat Bastion-9 flying the Rail Driver (25 \| 0 \| any) | Icebreaker ✱: 3 shield depots or freight terminals (25 \| 0 \| any) |
 | 9 | Interceptor Drill: 4 airborne within 8 s (25 \| 0 \| any) | Flanking Maneuver: 3 enemies on each flank (25 \| 0 \| any) | Cold Vector: defeat the Ark flying the Fan Cannon (50 \| 0 \| any) |
-| 10 | Warden Shutdown: WARDEN-1 within 100 s (25 \| 0 \| Standard+) | Dustfall: 4 turrets in a row without hull damage (25 \| 0 \| any) | Frozen Nerves: 5 ground defences in a row without hull damage (50 \| 0 \| any) |
-| 11 | Training Discipline: WARDEN-1 without hull damage in the fight (50 \| 1 \| Standard+) | Bastion Breaker: Bastion-9 within 120 s (50 \| 1 \| Standard+) | Broadside Broken: both Ark radiators before its bridge falls (75 \| 1 \| any) |
+| 10 | Warden Shutdown: WARDEN-1 within 60 s (25 \| 0 \| Standard+) | Dustfall: 4 turrets in a row without hull damage (25 \| 0 \| any) | Frozen Nerves: 5 ground defences in a row without hull damage (50 \| 0 \| any) |
+| 11 | Training Discipline: WARDEN-1 without hull damage in the fight (50 \| 1 \| Standard+) | Bastion Breaker: Bastion-9 within 80 s (50 \| 1 \| Standard+) | Broadside Broken: both Ark radiators within 50 s of its arrival (75 \| 1 \| any) |
 | 12 | Lunar Saboteur ✱: 2 relay stations or shield depots (50 \| 1 \| any) | Canyon Saboteur: 2 strike sites and complete (50 \| 1 \| any) | Arkfall: the Ark without hull damage in its final stage (75 \| 1 \| Standard+) |
 | **Σ** | **375 coins, 4 parts** | **375, 3** | **420, 3** |
 
@@ -78,7 +78,7 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | 5 | Hunter Bounty (25 \| 0 \| any) | Hunter Bounty (25 \| 0 \| any) | Hunter Bounty (25 \| 0 \| any) |
 | 6 | Collector: 140 (50 \| 0 \| any) | Demolition: 12 (25 \| 0 \| any) | Vanishing Act: 3 Wraith volleys without a hit, one run (25 \| 0 \| Standard+) |
 | 7 | Air Superiority: 20 (25 \| 0 \| any) | Air Superiority: 25 (50 \| 0 \| any) | Collector: 185 (50 \| 0 \| any) |
-| 8 | Three Paths: 3 strike sites in one run (25 \| 0 \| any) | Nest Breaker ✱: 3 brood hives (50 \| 0 \| any) | Air Superiority: 25 (50 \| 0 \| any) |
+| 8 | Three Paths: 3 strike sites in one run (25 \| 0 \| any) | Nest Breaker ✱: 2 brood hives (50 \| 0 \| any) | Air Superiority: 25 (50 \| 0 \| any) |
 | 9 | Seeker Sweep: 12 airborne over open water by Seeker Array fire (50 \| 0 \| any) | Heartbreaker ✱: 5 brood hive or spawning pool cores (50 \| 1 \| any) | Gravity Slingshot ✱: 5 kills by Gravitic Shield returns (50 \| 1 \| any) |
 | 10 | Pod Bay Purge: 2 pods launched from THE VEIL's bays (25 \| 0 \| any) | Brood Extermination ✱: 12 drones launched by THE CRADLE (75 \| 0 \| any) | Wraith Exorcist: 3 Wraiths in one run (75 \| 0 \| any) |
 | 11 | Veil Survivor: no hit in THE VEIL's final stage (100 \| 1 \| Standard+) | Cradle's End: THE CRADLE within 150 s (100 \| 1 \| Standard+) | Veteran of the Void: complete on Veteran (100 \| 1 \| Veteran) |
@@ -92,7 +92,8 @@ All six: **2,895 coins and 21 parts**, as handed over (tested). Mars and Cloud W
   and the shield depot (its generator: defence). The airfield (a control tower) could join; left out to stay with the
   user's example.
 - *Icebreaker*: the shield depot and freight terminal strike sites, as the handover says.
-- *Broadside Broken*: the Helion Ark's weapon assemblies are its two radiators (their lane lasers), its first phase.
+- *Broadside Broken*: the Helion Ark's weapon assemblies are its two radiators (their lane lasers), its first phase. Both
+  must fall within 50 s of the Ark's arrival (user, 3 November), since destroying them is how every Ark fight goes on.
 - *Pod Bay Purge*: THE VEIL's bays (`VEIL.bays`) are launch points, not targets. It counts the pods launched from them
   (the `veil-pods` wave), the handover's proposed smallest change (§ 5).
 - *Heartbreaker*: the organic sites' exposed cores, the brood hive's heart-sac and the spawning pool's pod. The overrun relay,
@@ -139,6 +140,14 @@ scale, Seeker Rack starter): the same shares. Collector's margin is thinnest on 
 hull-damage objectives are far harder for a person than these numbers suggest; that is their purpose (Standard+, a part).
 End to end, `tests/sim/missions-feasibility-*.test.ts` clears all twelve on every world through the real tracker and a saved
 profile, and checks the payout totals.
+
+**The user's decisions, 3 November** (on flagged items 1, 3 and 5 below; the perfect pilot, Standard, seeds 1–12):
+- *Broadside Broken*: both radiators within **50 s** of the Ark's arrival. Both fall 33–58 s after it at tier 1 (within 50 s on
+  8 of 12 seeds) and 20–30 s at tier 3. That is hard at tier 1 and comfortable after upgrades, like the two timers below.
+- *Nest Breaker*: **2** brood hives, about 12 attempts.
+- *Warden Shutdown* **60 s** and *Bastion Breaker* **80 s** (user: "Tighten to 60 s / 80 s"). WARDEN-1 falls 48–61 s after
+  its arrival at tier 1 (11 of 12 within 60 s) and 24–34 s at tier 3; Bastion-9 67–79 s at tier 1 (all within 80 s) and
+  33–41 s at tier 3. A person at tier 1 will mostly need an upgrade.
 
 **Flagged for the user** (implemented as below; nothing was dropped and no payout changed):
 1. **Broadside Broken is trivial.** The radiators are the Ark's mandatory first phase: its bridge cannot be damaged until both

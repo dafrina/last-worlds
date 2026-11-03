@@ -117,10 +117,20 @@ describe('counters (event definitions)', () => {
 
   it('a timed boss counts from its arrival to its destruction', () => {
     const quick = createCounter(def('luna.warden-shutdown'), facts());
-    for (const e of [boss('arrival', 124), boss('destroyed', 224)]) quick.on(e);
+    for (const e of [boss('arrival', 124), boss('destroyed', 184)]) quick.on(e);
     expect(quick.done).toBe(true);
     const slow = createCounter(def('luna.warden-shutdown'), facts());
-    for (const e of [boss('arrival', 124), boss('destroyed', 224.1)]) slow.on(e);
+    for (const e of [boss('arrival', 124), boss('destroyed', 184.1)]) slow.on(e);
+    expect(slow.done).toBe(false);
+  });
+
+  it('Broadside Broken counts both Ark radiators only within 50 s of its arrival', () => {
+    const ark = { mission: 'cold-vector' as const };
+    const quick = createCounter(def('vesper.broadside-broken'), facts(ark));
+    for (const e of [boss('arrival', 190, 'ark'), kill({ kind: 'turret', bossPart: 'left', time: 220 }), kill({ kind: 'turret', bossPart: 'right', time: 240 })]) quick.on(e);
+    expect(quick.done).toBe(true);
+    const slow = createCounter(def('vesper.broadside-broken'), facts(ark));
+    for (const e of [boss('arrival', 190, 'ark'), kill({ kind: 'turret', bossPart: 'left', time: 220 }), kill({ kind: 'turret', bossPart: 'right', time: 240.1 })]) slow.on(e);
     expect(slow.done).toBe(false);
   });
 
