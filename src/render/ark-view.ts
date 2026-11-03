@@ -187,7 +187,8 @@ function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) 
   const alpha = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('aAlpha', alpha);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color());
-  mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = additive ? 5 : 3; mesh.name = additive ? 'ark sparks' : 'ark mist'; scene.add(mesh);
+  // Hidden while empty, as the other bosses' layers (src/render/bastion-view.ts `particleLayer`).
+  mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; mesh.renderOrder = additive ? 5 : 3; mesh.name = additive ? 'ark sparks' : 'ark mist'; scene.add(mesh);
   const live: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color();
   return {
     emit(p: Omit<Particle, 'age'>) { if (live.length < capacity) live.push({ ...p, age: 0 }); },
@@ -210,7 +211,7 @@ function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) 
       });
       liveInstances(mesh, live.length, [alpha]);
     },
-    clear() { live.length = 0; mesh.count = 0; },
+    clear() { live.length = 0; mesh.count = 0; mesh.visible = false; },
     get count() { return live.length; },
     dispose() { scene.remove(mesh); mesh.dispose(); geometry.dispose(); material.dispose(); },
   };

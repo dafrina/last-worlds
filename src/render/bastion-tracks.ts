@@ -5,6 +5,17 @@ import * as THREE from 'three';
 export function createBastionTracks(model: THREE.Group, chassis: THREE.Group) {
   const belts: { mesh: THREE.InstancedMesh; x: number; path: THREE.Vector2[]; lengths: number[]; length: number; offset: number }[] = [];
   const transform = new THREE.Object3D();
+  /**
+   * The links' own copies of their materials (mobile performance pass, 3 November): a material drawn both instanced (a
+   * link belt) and as a single mesh (a battery's gun) switched its program twice a frame. Same programs; the fortress keeps
+   * each copy in step with its source (`twins`, src/render/bastion-view.ts).
+   */
+  const twins = new Map<THREE.Material, THREE.Material>();
+  const twinOf = (source: THREE.Material) => {
+    let twin = twins.get(source);
+    if (!twin) { twin = source.clone(); twin.onBeforeCompile = source.onBeforeCompile; twin.customProgramCacheKey = source.customProgramCacheKey; twins.set(source, twin); }
+    return twin;
+  };
   for (const side of ['left', 'right']) for (const index of [0, 1]) {
     const node = model.getObjectByName(`bastion_track_link_${side}_${index}`);
     if (!node) continue; // Older selectable assets keep their legacy UV animation.
@@ -28,7 +39,7 @@ export function createBastionTracks(model: THREE.Group, chassis: THREE.Group) {
     node.traverse(object => {
       if (!(object instanceof THREE.Mesh)) return;
       const geometry = object.geometry.clone().applyMatrix4(object.matrixWorld).translate(-origin.x, -origin.y, -origin.z);
-      const mesh = new THREE.InstancedMesh(geometry, object.material, Math.round(length / pitch));
+      const mesh = new THREE.InstancedMesh(geometry, Array.isArray(object.material) ? object.material.map(twinOf) : twinOf(object.material), Math.round(length / pitch));
       mesh.name = `${node.name}_moving`; mesh.frustumCulled = false;
       mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       chassis.add(mesh);
@@ -58,6 +69,8 @@ export function createBastionTracks(model: THREE.Group, chassis: THREE.Group) {
     get count() { return belts.reduce((sum, belt) => sum + belt.mesh.count, 0); },
     get travel() { return travel; },
     advance(forward: number, dt: number) { if (forward && dt > 0) { travel += forward * dt; place(); } },
-    dispose() { for (const { mesh } of belts) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.dispose(); } },
+    /** Source material → the links' copy of it. */
+    twins: twins as ReadonlyMap<THREE.Material, THREE.Material>,
+    dispose() { for (const { mesh } of belts) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.dispose(); } twins.forEach(twin => twin.dispose()); },
   };
 }

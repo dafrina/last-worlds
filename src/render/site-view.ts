@@ -301,7 +301,13 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
     if (typeof template !== 'object') return;
     for (const made of [...template.free, ...template.used]) scene.remove(made.group);
     for (const list of Object.values(template.parts)) for (const { geometry } of list) geometry.dispose();
-    new Set<THREE.Material>([...template.dead.keys(), ...template.dead.values(), ...template.hot.values()]).forEach(material => material.dispose());
+    const materials = new Set<THREE.Material>([...template.dead.keys(), ...template.dead.values(), ...template.hot.values()]);
+    // The file's own textures (the twins share them) go too, as facility kits free theirs (mobile performance pass,
+    // 3 November): a revisited world reloads its sites, and textures left behind would stay on the GPU for the session.
+    // Today's site files are vertex-coloured; this is for when they carry atlases.
+    const textures = new Set<THREE.Texture>();
+    materials.forEach(material => { for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value); });
+    materials.forEach(material => material.dispose()); textures.forEach(texture => texture.dispose());
   }
   const prepare = (planet: PlanetId) => Promise.all(sitesWithModels(planet).map(site => load(site, planet))).then(() => undefined);
   const ready = (site: SiteId, finish: PlanetId) => { const template = templates.get(key(site, finish)); return typeof template === 'object' ? template : null; };

@@ -530,8 +530,11 @@ export function createFx(scene: THREE.Scene) {
     target.mesh.count = target.live + extra;
   }
   /** Engine plumes and pickup glints are per-frame overlays appended after the live particles. */
+  /** QA: the overlay quads' summed area this frame (world units², at the flight plane). */
+  let overlayArea = 0;
   function overlay(state: RunState, plumes: readonly Plume[]) {
     let n = glow.live;
+    overlayArea = 0;
     const params = glow.params.array as Float32Array, add = (matrix: THREE.Matrix4, r: number, g: number, b: number, alpha: number, shape: number) => {
       if (n >= glow.capacity) return;
       glow.mesh.setMatrixAt(n, matrix); glow.mesh.setColorAt(n, color.setRGB(r, g, b)); params[n * 2] = alpha; params[n * 2 + 1] = shape; n++;
@@ -541,12 +544,14 @@ export function createFx(scene: THREE.Scene) {
         // A one-frame glow (e.g. a Needle's muzzle charging) facing the camera, `width` across.
         transform.position.set(plume.x, VIEW.flightHeight + .06, plume.z); transform.rotation.set(-ELEVATION, 0, 0); transform.scale.set(plume.width, plume.width, 1);
         transform.updateMatrix(); color.setHex(plume.hex).multiplyScalar(plume.energy); add(transform.matrix, color.r, color.g, color.b, 1, ROUND);
+        overlayArea += plume.width * plume.width;
         continue;
       }
       // Lies in the flight plane; uv.y = 1 at the nozzle, fading toward the tail.
       transform.position.set(plume.x, VIEW.flightHeight + .02, plume.z + plume.length / 2);
       transform.rotation.set(-Math.PI / 2, 0, plume.length > 0 ? 0 : Math.PI); transform.scale.set(plume.width, Math.abs(plume.length), 1); transform.updateMatrix();
       color.setHex(plume.hex).multiplyScalar(plume.energy); add(transform.matrix, color.r, color.g, color.b, 1, PLUME);
+      overlayArea += plume.width * Math.abs(plume.length);
     }
     for (const pickup of state.pickups) {
       if (Math.abs(pickup.x - state.cameraX) > VIEW.width / 2 + 1) continue;
@@ -609,6 +614,20 @@ export function createFx(scene: THREE.Scene) {
      */
     siteBlast(blast: SiteBlast) { if (pendingSites.length < 8) pendingSites.push(blast); },
     get particles() { return glow.live + smoke.live + wreckGlow.live + wreckSmoke.live; },
+    /**
+     * QA overdraw proxy (mobile performance pass, 3 November): each layer's live quads (overlay plumes included in `glow`),
+     * summed area over the view's own area at the flight plane (VIEW.width × the tactical height): 1 is one full-screen
+     * layer of transparent fill. Quads are counted whole (a soft particle's transparent corners still cost fill).
+     */
+    get coverage() {
+      const view = VIEW.width * VIEW.width * 16 / 9, area = (target: typeof glow) => {
+        let sum = 0;
+        for (let i = 0; i < target.live; i++) { const p = target.pool[i]; if (p.age < 0) continue; const size = Math.max(.01, p.size + p.grow * Math.max(0, p.age / p.life)); sum += size * size * p.stretch; }
+        return sum;
+      };
+      const round = (value: number) => Math.round(value / view * 1000) / 1000;
+      return { glow: round(area(glow) + overlayArea), smoke: round(area(smoke)), ground: round(area(ground)), wreckGlow: round(area(wreckGlow)), wreckSmoke: round(area(wreckSmoke)) };
+    },
     /** Live particles against each pool's capacity (QA and tests). */
     get pools() {
       return Object.fromEntries(([['glow', glow], ['smoke', smoke], ['ground', ground], ['wreckGlow', wreckGlow], ['wreckSmoke', wreckSmoke]] as const)

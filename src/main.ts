@@ -5,6 +5,7 @@ import { createPerfOverlay } from './ui/perf-overlay';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
+import { destroySiteCore } from './sim/sites';
 import { BOSSES, bossParts, phaseOneParts } from './content/bosses';
 import { WARP, warpSpeed } from './content/departure';
 import { createGameAudio } from './audio/engine';
@@ -221,8 +222,12 @@ let perfLast = performance.now(), simStart = 0;
  * Development-only perf bench (tools/perf-bench.mjs): every rendered frame steps exactly `steps` ticks with a scripted
  * weave, so a measured flight repeats tick for tick whatever the machine's speed; it records each frame's JS work (ms).
  */
-let bench: { steps: number; lives: number; frames: { sim: number; render: number; total: number }[] } | null = null;
-const benchSteer = (tick: number): -1 | 0 | 1 => { const phase = tick % 420; return phase < 150 ? 1 : phase < 210 ? 0 : phase < 360 ? -1 : 0; };
+let bench: { steps: number; lives: number; frames: { sim: number; render: number; total: number; time: number; speed: number }[]; steerTo?: number } | null = null;
+/** The bench's scripted weave, or (`steerTo`) a hold near one x (a scenario watching a site on one side). */
+const benchSteer = (tick: number, x: number): -1 | 0 | 1 => {
+  if (bench?.steerTo !== undefined) { const gap = bench.steerTo - x; return Math.abs(gap) < .3 ? 0 : gap > 0 ? 1 : -1; }
+  const phase = tick % 420; return phase < 150 ? 1 : phase < 210 ? 0 : phase < 360 ? -1 : 0;
+};
 
 function frame(now: number) {
   const frameStart = performance.now();
@@ -255,7 +260,7 @@ function frame(now: number) {
     if (bench) { accumulator = bench.steps * STEP + 1e-9; run.player.lives = Math.max(run.player.lives, bench.lives); } else accumulator += frameSeconds;
     simStart = performance.now();
     while (accumulator >= STEP && run.phase === 'playing' && !destinationPending()) {
-      stepRun(run, { horizontal: bench ? benchSteer(run.tick) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
+      stepRun(run, { horizontal: bench ? benchSteer(run.tick, run.player.x) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
       pendingSpecial = false; pendingDash = undefined;
       accumulator -= STEP;
     }
@@ -268,7 +273,7 @@ function frame(now: number) {
   const renderMs = performance.now() - renderStart;
   perf?.frame(now - perfLast, simMs, renderMs); perfLast = now; simStart = 0;
   ui.update(run);
-  if (bench && benching) bench.frames.push({ sim: simMs, render: renderMs, total: performance.now() - frameStart });
+  if (bench && benching) bench.frames.push({ sim: simMs, render: renderMs, total: performance.now() - frameStart, time: run?.time ?? 0, speed: run?.scrollSpeed ?? 0 });
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });
   requestAnimationFrame(frame);
 }
@@ -297,7 +302,15 @@ if (import.meta.env.DEV) {
       // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
       boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
       // Perf bench (tools/perf-bench.mjs): fixed ticks per frame and a scripted weave; `benchStop` returns the frame timings.
-      bench: (steps = 1, lives = 5) => { bench = { steps, lives, frames: [] }; },
+      bench: (steps = 1, lives = 5, steerTo?: number) => { bench = { steps, lives, frames: [], ...(steerTo === undefined ? {} : { steerTo }) }; },
+      // Perf bench: every live strike-site core falls as damageEnemy kills one (its kill explosion, its site's loot).
+      killSites: () => {
+        if (!run) return 0;
+        const cores = run.enemies.filter(enemy => enemy.site && enemy.hp > 0);
+        for (const core of cores) { core.hp = 0; run.effects.push({ id: run.nextId++, kind: 'explosion', x: core.x, s: core.s, ttl: .5, duration: .5 }); destroySiteCore(run, core); }
+        run.enemies = run.enemies.filter(enemy => !enemy.site || enemy.hp > 0);
+        return cores.length;
+      },
       benchFrames: () => bench?.frames.length ?? -1,
       benchStop: () => { const frames = bench?.frames ?? []; bench = null; return frames; },
       setQuality: (quality: 'high' | 'low') => renderer?.setQuality(quality),

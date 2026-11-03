@@ -204,7 +204,12 @@ function modelRig(model: THREE.Group): Rig {
   // Sprockets, idlers and road wheels are separate nodes pivoting on their axles (older files lack them).
   const wheels = WHEELS.flatMap(([name, radius]) => { const object = node(name); if (!object) return []; chassis.attach(object); return [{ object, radius: Number(object.userData.rolling_radius) || radius }]; });
   const tracks = createBastionTracks(model, chassis);
-  return { chassis, parts, tracks, treads: treadMaps, glow: retained?.hull ?? [lamps], wheels,
+  // The links' material copies follow every per-frame change of their sources (heat and hull glow).
+  const twinsOf = (list: THREE.MeshStandardMaterial[]) => list.flatMap(material => { const twin = tracks.twins.get(material); return twin ? [twin as THREE.MeshStandardMaterial] : []; });
+  parts.forEach(rig => rig.heat.push(...twinsOf(rig.heat)));
+  const glow = retained?.hull ?? [lamps];
+  glow.push(...twinsOf(glow));
+  return { chassis, parts, tracks, treads: treadMaps, glow, wheels,
     dispose() { tracks.dispose(); if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); treadMaps.forEach(t => t.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
@@ -236,7 +241,9 @@ export function particleLayer(scene: THREE.Scene, capacity: number, additive: bo
   const alpha = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('aAlpha', alpha);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color());
-  mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = additive ? 5 : 3; scene.add(mesh);
+  // Hidden while empty (mobile performance pass, 3 November): an empty batch still costs three.js a render-list entry and a
+  // full program and uniform setup every frame, and every boss's layers waited empty on every world (10 of them).
+  mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; mesh.renderOrder = additive ? 5 : 3; scene.add(mesh);
   const live: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color();
   return {
     emit(p: Omit<Particle, 'age'>) { if (live.length < capacity) live.push({ ...p, age: 0 }); },
@@ -259,7 +266,7 @@ export function particleLayer(scene: THREE.Scene, capacity: number, additive: bo
       });
       liveInstances(mesh, live.length, [alpha]);
     },
-    clear() { live.length = 0; mesh.count = 0; },
+    clear() { live.length = 0; mesh.count = 0; mesh.visible = false; },
     get count() { return live.length; },
   };
 }
@@ -286,7 +293,7 @@ export function createBastionView(scene: THREE.Scene) {
   // A thin, hot shock ring (bright enough to bloom), not a broad translucent disc.
   const shock = new THREE.Mesh(new THREE.RingGeometry(.88, 1, 96).rotateX(-Math.PI / 2),
     new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb070).multiplyScalar(2.2), transparent: true, opacity: 0, depthWrite: false,
-      blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }));
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }));
   shock.renderOrder = 5; shock.visible = false; scene.add(shock);
   const dust = particleLayer(scene, 340, false), sparks = particleLayer(scene, 360, true);
   const vertices = new Float32Array(256 * 3), colors = new Float32Array(256 * 3), geometry = new THREE.BufferGeometry();
