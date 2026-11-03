@@ -49,10 +49,18 @@ The reference is the middle panel of `art/concepts/01-worlds-direction.png`.
   - violet sky fill and a cold-blue bounce (1.5) for the rock fronts;
   - bloom threshold 0.9 so the flora glows without washing out;
   - a faint violet mist, violet shadows and a violet sky reflection map (`createMireEnvironment`).
-- **Water** (`water.setPlanet`, Nacre branch):
+- **Water** (`src/render/mire-water.ts` since 3 November 2026; before, the Nacre branch of `water.setPlanet`):
   - deep indigo `#141d5a` streaked with violet algae `#4e2c9c`: fuzzy, broken, domain-warped streaks plus a few drifting clouds;
   - a faint mottled sky sheen;
   - darker water hugging the shores, and no white foam.
+- **Less pixelated water (user, 3 November 2026: "adjust nacres to be less pixelated"; palette and mood unchanged):**
+  - **Causes found:**
+    - every detail term was value noise computed per pixel: square lattice cells with smooth interpolation, the look of a magnified low-resolution texture. The fine terms (colour mottling at 5 cells per unit, the algae modulation at 3, roughness at 9, the wind chop at 2.8 × 8) put those cells at 5–16 screen pixels;
+    - nothing was filtered: the chop and roughness noise go finer than a pixel over the far, foreshortened water and shimmer;
+    - the shore terms followed only the shore distance, decided by a wet/dry test on the quarter-unit grid, clamped and interpolated over the sheet's half-unit triangles, so the film and the dark shore band stepped along the grid;
+    - the noise hashed the unwrapped scroll (sine of numbers in the hundreds of thousands far along an endless run), which loses precision on GPUs.
+  - **Fix:** Nacre's water is its own material (Vesper's ocean, `src/render/water.ts`, is untouched). Its detail comes from one runtime-generated 256² tileable texture of gradient noise (ripple slopes, two broad fields), mipmapped with 4× anisotropic filtering, sampled four times: the broad warp, the algae at the warped point, and two ripple layers drifting different ways. The ripples are the new fine normal detail (they replace the chop) and the mottling. Where they shrink under a pixel the mips flatten them and the surface turns a little more satin. The terrain view gives each sheet vertex a signed waterline (sea level minus ground); it crosses zero at the true shore inside a triangle, so the shore film and the darker shore band follow the shore instead of the grid. Texture coordinates wrap the scroll every 200 units (every along-scroll scale is a whole number of tiles per 200 units, tested), so precision holds on any run length.
+  - **Cost:** four texture taps replace 19 value-noise evaluations (76 hashed sines) per pixel. No new render target, no extra draw call (the sheets switch material with the look); one extra program, warmed with the terrain's stand-ins. The texture builds in about 100 short slices ahead of the planet (the preload waits for it).
 - **Measured** (SwiftShader look-dev at 432 × 768 @2, `tools/lookdev.mjs … planet=nacre`, seeds 8831, 93 and 4242; nine views):
 
   | Counter | Nacre | Khepri (same tool) |
@@ -122,6 +130,7 @@ Vesper's craft preload during the Khepri boss sector.
 - A terrain section that straddles a Vesper ↔ Nacre switch keeps one water sheet at Nacre's level. For less than one section after that jump, the second sea draws at the first sea's level.
 - The Veil's bay petal doors are modelled half-open and static; a launch shows a flash and mist at the bay.
 - The mire water fakes no reflections of the glowing flora (the concept shows some); its sheen comes from the sky map and a mottled colour term.
+- The mire water's detail is one 256² tile (warped and in two drifting layers): no repetition showed in the SwiftShader review stills, but it has not been judged in motion on a phone.
 - Nacre kit pieces cast no real-time shadows: as on Vesper, `CASTER_NODES` in `terrain-view.ts` lists only Khepri formations. Adding the towers and crags there would ground them better on High.
 
 ## Varied boss fights (15 October 2026)

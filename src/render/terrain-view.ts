@@ -69,6 +69,8 @@ interface SectionView {
   casters: THREE.Mesh[];
   /** Pack ice drawn by animate() (drifting, presentation only), and its section's sea level. */
   floes: readonly Floe[]; sea: number;
+  /** The section's sea sheet, if any (its material follows the look's planet). */
+  seaMesh?: THREE.Mesh;
   /** Vent-stack tops (world x, y and forward s) for the live features. */
   vents: readonly { x: number; y: number; s: number }[];
   /** District pads reaching the section (render-only reservations, docs/23). */
@@ -88,6 +90,8 @@ export interface TerrainViewOptions {
   fallbackShared: KitGeometries;
   /** Ocean material hook (planets with a sea); a placeholder is created when omitted. */
   waterMaterial?: THREE.Material;
+  /** Nacre's mire water (src/render/mire-water.ts): the sea sheets wear it while the look is Nacre's, else waterMaterial. */
+  mireMaterial?: THREE.Material;
   /** Base URL for per-planet assets loaded on first use (Vesper kits); defaults to the app base. */
   assetBase?: string;
   /** Called when the world's planet changes (lighting/palette rigs); the ground material's own hook runs too. */
@@ -173,6 +177,8 @@ export function createTerrainView(options: TerrainViewOptions) {
   /** The planet the look shows (ground material, onPlanet); on a route it switches at a jump's flash. */
   let lookPlanet: PlanetId | null = null, viewFallbacks = 0;
   let water: THREE.Material | null = options.waterMaterial ?? null;
+  /** The sea sheets' material for the look's planet: Nacre's mire water, or the ocean (Vesper) and its placeholder. */
+  const seaMaterial = (): THREE.Material => lookPlanet === 'nacre' && options.mireMaterial ? options.mireMaterial : water ??= createWaterMaterial();
   const planetLoads = new Map<PlanetId, Promise<void>>();
   const views = new Map<number, SectionView>(), batches = new Map<string, Batch>();
   const pieces = new THREE.Group(); pieces.name = 'Khepri instanced scenery'; scene.add(pieces);
@@ -479,6 +485,10 @@ export function createTerrainView(options: TerrainViewOptions) {
     const { level, shore } = section.water!, stride = 2, columns = (section.across - 1) / stride + 1, rows = (section.along - 1) / stride + 1;
     const positions = new Float32Array(columns * rows * 3), colors = new Float32Array(columns * rows * 3);
     const shoreAttribute = new Float32Array(columns * rows), depthAttribute = new Float32Array(columns * rows), indices: number[] = [];
+    // The signed waterline (sea level minus ground, clamped to ±2): unlike the clamped depth and the coarse shore distance,
+    // it crosses zero at the true shore inside a triangle, so a shader can follow the shore under the grid (Nacre's mire
+    // water, 3 November 2026; the ocean's shader does not read it).
+    const waterlineAttribute = new Float32Array(columns * rows);
     const deep = new THREE.Color().setHex(0x0d3557, THREE.SRGBColorSpace), shallow = new THREE.Color().setHex(0x1f6a8f, THREE.SRGBColorSpace);
     const foam = new THREE.Color().setHex(0xeef6fb, THREE.SRGBColorSpace), color = new THREE.Color();
     for (let r = 0; r < rows; r++) for (let c = 0; c < columns; c++) {
@@ -489,6 +499,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       const band = Math.max(0, 1 - Math.abs(distance)), soft = band * band * (3 - 2 * band);
       color.copy(shallow).lerp(deep, Math.min(1, depth / 2.2)).lerp(foam, soft * 0.35);
       color.toArray(colors, v * 3); shoreAttribute[v] = distance; depthAttribute[v] = depth;
+      waterlineAttribute[v] = Math.min(2, Math.max(-2, level - ground));
     }
     for (let r = 0; r < rows - 1; r++) for (let c = 0; c < columns - 1; c++) {
       const a = r * columns + c, b = a + 1, d = a + columns, e = d + 1;
@@ -504,9 +515,10 @@ export function createTerrainView(options: TerrainViewOptions) {
     if (!options.waterMaterial) geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('shore', new THREE.BufferAttribute(shoreAttribute, 1));
     geometry.setAttribute('depth', new THREE.BufferAttribute(depthAttribute, 1));
+    geometry.setAttribute('waterline', new THREE.BufferAttribute(waterlineAttribute, 1));
     geometry.setIndex(indices); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
-    water ??= createWaterMaterial();
-    const mesh = new THREE.Mesh(geometry, water); mesh.name = `Vesper water ${section.index}`; mesh.receiveShadow = true;
+    const mesh = new THREE.Mesh(geometry, seaMaterial()); mesh.name = `Vesper water ${section.index}`; mesh.receiveShadow = true;
+    view.seaMesh = mesh;
     const holder = new THREE.Group(); holder.add(fixed(mesh)); view.group.add(fixed(holder)); view.geometries.push(geometry);
     view.cullables.push({ object: holder, box: geometry.boundingBox!.clone().expandByScalar(0.1), triangles: indices.length / 3 });
   }
@@ -515,6 +527,10 @@ export function createTerrainView(options: TerrainViewOptions) {
   function applyLook(planet: PlanetId) {
     if (planet === lookPlanet) return;
     lookPlanet = planet;
+    // Sea sheets already built (live and prefetched) switch with the look, as one shared material's palette did.
+    const sea = seaMaterial();
+    for (const view of views.values()) if (view.seaMesh) view.seaMesh.material = sea;
+    for (const entry of prebuilt.values()) if (entry.view?.seaMesh) entry.view.seaMesh.material = sea;
     (groundMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(planet);
     options.onPlanet?.(planet);
   }
@@ -666,11 +682,13 @@ export function createTerrainView(options: TerrainViewOptions) {
     geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(6), 2));
     geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3));
-    for (const name of ['alpha', 'shade', 'shore', 'depth']) geometry.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3), 1));
+    for (const name of ['alpha', 'shade', 'shore', 'depth', 'waterline']) geometry.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3), 1));
     water ??= createWaterMaterial();
     const road = new THREE.Mesh(geometry, roadMaterial), sea = new THREE.Mesh(geometry, water);
     road.renderOrder = 1; road.receiveShadow = sea.receiveShadow = true;
     standIns = [road, sea];
+    // Nacre's water is its own program: warm it too, so the first mire never compiles mid-flight.
+    if (options.mireMaterial) { const mire = new THREE.Mesh(geometry, options.mireMaterial); mire.receiveShadow = true; standIns.push(mire); }
     for (const mesh of standIns) { mesh.visible = false; mesh.frustumCulled = false; mesh.name = 'warm-up stand-in'; scene.add(mesh); }
     return standIns;
   }
