@@ -1905,3 +1905,40 @@ Taken over from the Moon training level session, which is at its weekly limit; i
 - **Gate on `124c299`:** typecheck clean; unit 680 passed / 4 skipped; build ok; browser 49/49 (Playwright exit 0, 19.7 min, machine quiet).
 - **First Pages run (41234304953) failed:** the new jump-streaming terrain test timed out at 60 s on the CI runner (about 26 s here). `bb6fe80` raises that test's timeout to 240 s and the planet-switch test's to 120 s; nothing else changed.
 - **Deployed `bb6fe80`:** Pages run 41235041256 succeeded. The live bundle `main-DSPTFDvI.js` matches the gate build, and the production endless smoke flight has zero page errors. No phone test.
+
+## 3 November 2026 — All boss pools +20% HP (Codex)
+
+User-requested flat health increase for Campaign and Endless. The only runtime change is `src/content/bosses.ts`: BOSS_TOUGHNESS.hp changes from 1.15 to 1.15 * 1.20 (1.38). Applies to Warden-1, Bastion-9, Helion Ark, The Veil, The Cradle and The Eclipse: all 19 independent module pools, including Eclipse's prow vent. The common `startBoss` path initializes hp and maxHp once. Core and overload share the same pool, with no heal or repeated scaling at transition. Authored overload fractions, attack definitions, sequencing, recovery and damage remain unchanged.
+
+Scaling order verified: authored module HP × runScale.hp × combined boss modifier. Campaign runScale uses difficulty (0.85 / 1 / 1.2); Endless uses its existing sector ramp, capped at 1.6 BEFORE the boss modifier. No intermediate rounding. The new result is exactly 1.2 times the previous result at any supported scale; the old 15% adjustment remains included. Future bosses using the common spawn path inherit it too.
+
+Validation: production build/typecheck passed (existing bundle-size advisory only); 125/125 tests across seven boss simulation suites passed, including 60 new regression cases spanning all bosses, all Campaign difficulties, Endless sectors 3/6/18/36/120, repeat start/phase calls, and exact overload thresholds. Four old clear-time expectations needed longer simulated mission windows for the increased HP: 420→504 s in Ark/Veil/Umbra, Bastion clear ceiling 270→324 s. Seeds, no-hit/no-special/no-pickup assertions unchanged; all pass. Browser: existing Bastion phase-render test passed across batteries/core/overload with zero page errors; inspected portrait overload screenshot. WSL Chromium with software WebGL, Playwright; no physical-phone test or full release gate. No commit, push or deployment requested/performed.
+
+## 3 November 2026 — Endless weapon recovery consistency (Codex)
+
+User clarification: KEEP the one-tier penalty on surviving hull loss in Endless and clear banked cells, as before. Shield-only hits and Campaign damage behavior are unchanged. Investigation traced player.power through hitPlayer, respawn immunity, fireMain/weaponSequence, pickup collection, weapon swaps, renderer and pause loadout. The partial-cell message misleadingly said `POWER 1/2 · TIER 5` while the actual tier remained 4. It now says `NEXT TIER 5`; hull recovery names the actual equipped tier. Tier changes explicitly discard the cached firing sequence and preserve its remaining cooldown. Completed upgrades and duplicate-family pickups restore the appropriate pattern; family swaps still restart at tier 1. No weapon damage, firing definitions, progression costs or save changes.
+
+Validation: 163/163 focused simulation tests pass (108 new recovery cases), covering all four families and all five tiers in both modes, repeated hull and shield hits, invulnerability, paused recovery, terminal hits, banked cells, upgrade/duplicate pickups, max-tier extras and family swaps. Tests compare emitted projectile streams and cadence rather than just tier fields. Production build and final typecheck pass (existing bundle-size advisory); diff check clean. One new Chromium/Playwright browser regression passes at 390×844, real flight UI and renderer: tier 5 → hull loss/tier 4 → partial pickup/still tier 4 → completed tier 5, pause UI and four emitted Pulse lanes agree, zero page errors. Inspected `test-results/weapon-recovery-Endless-hu-193a7--pause-tier-and-real-firing/restored-tier-5.png`. Development preview: `/tests/fixtures/weapon-recovery.html`. Initial browser attempts exposed a fixture resume-countdown race and then the 30-second software-render timeout; corrected fixture synchronization and gave the interaction 90 seconds (passed in 28.1 seconds). No physical-phone test.
+
+Broader suite: 845 passed, 4 skipped, 3 failed. All failures are the existing seed-pinned no-hit pilot assertions in `tests/sim/endless.test.ts` after the separate +20% boss HP change: Pulse takes 2 hits, Fan and Seeker 1 each; all three still reach sector 8 and kill Warden/Bastion/Ark. Controlled diagnostic with ONLY the old boss modifier (1.15) restored in a temporary test module passes all three with the weapon fix present. Diagnostic file removed; no runtime HP rollback or weakened assertions. These longer-flight pilot/balance regressions remain open before a release gate. The bounded-entity soak was extended from 10 to 12 simulated minutes to reach the same Bastion encounter with the higher HP; all original bounds and final encounter assertions pass. No commit, push or deployment performed.
+
+## 3 November 2026 — Boss health +20%, endless tier recovery, max-tier message, buildings already standing, strike-site destruction, Nacre water (Claude Code)
+
+- **Codex's work** (above), released here:
+  - Boss health is +20% (`BOSS_TOUGHNESS.hp` 1.15 × 1.2). Over 24 seeds the perfect pilot's hits are unchanged or lower: endless boss run 40 → 36; Final Horizon Veteran Fan 4 → 4; Deep Bloom Veteran Pulse 4 → 4; Rolling Thunder Veteran Seeker 10 → 10. Fights last longer.
+  - The endless weapon-tier recovery fix.
+- **Max tier:** a cell at tier 5 shows `MAX TIER · +1000` (user).
+- **Buildings already standing** (user: "keeping the turrets with the rise as now but just make sure other ground stuff is loaded already"):
+  - A late battery's gun still rises out of the ground.
+  - Its compound keeps only the modules behind it, which scroll in already standing (docs/25, "Late batteries").
+  - Rejected first: leading late waves in from beyond the edge (`GROUND_LEAD_MIN` 5). It cost +26% hits overall for the perfect pilot (Deep Bloom Veteran 62 → 74 over 48 seeds, Final Horizon 28 → 37, endless 36 → 48), so the director's timing is unchanged.
+  - Probe of every world plus endless through the first jump: no building or infrastructure pop-ins outside boss fights.
+  - Left as agreed: scenery under a boss, hidden as it sways.
+- **Strike-site destruction** (`77c6dad`): render only; a blast, secondary blasts over the site's masses, fragments, embers and smoke, anchored to the ground.
+  - Peak particles 133 glow and 60 smoke on High.
+  - Unit tests pass; asset-readiness 4/4 and the new site-destruction spec pass.
+  - Sheet: `docs/screenshots/site-destruction.jpg`.
+- **Nacre water** (`efb74cc`): less pixelated. Its own material, filtered texture detail and a shoreline off the ground grid; 4 texture taps replace 19 value-noise evaluations.
+  - Vesper is unchanged (the user scratched the Vesper refinement for this release).
+  - Sheet: `docs/screenshots/nacre-water.jpg`.
+- **Not tested:** no phone test.
