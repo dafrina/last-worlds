@@ -155,6 +155,31 @@ export interface Hazard { id: number; x: number; width: number; warning: number;
 export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit' | 'part'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
 /** `bossBlast`: a destroyed boss's last detonation (render only, like every effect). */
 export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast' | 'bossBlast'; x: number; s: number; ttl: number; duration: number }
+/**
+ * What landed a kill (docs/35): a main-weapon shot ('main', with its `weapon`), a special ('special': the Shockwave ring, a
+ * Seeker Rack missile, the Siege Lance or a Gravity Well), a Spectre's Gravitic Shield return ('reflected'), or a fuel skid's
+ * blast ('blast').
+ */
+export type KillCause = 'main' | 'special' | 'reflected' | 'blast';
+/**
+ * Observation only (docs/35): what a run reports to an observer that attached `RunState.events` (the campaign's missions).
+ * The simulation appends and never reads them, so a run plays out identically with or without an observer. Times are the
+ * run's active time (`RunState.time`).
+ * - `kill`: an enemy destroyed. `ground` is a ground battery, skid or site core (never a boss module); `water` whether the
+ *   terrain directly under it is open water (below the sea); `launchedBy` the boss whose bays launched it.
+ * - `hit`: a registered hit on the ship (never one inside invulnerability): `shield` when a shield charge took it, else hull.
+ * - `special`: a special fired. `boss`: a boss entered a phase ('arrival' when it appears). `credits`: a credit pickup
+ *   collected. `site`: a strike site fell (its last core). `wraith`: a Wraith released a volley.
+ */
+export type RunEvent =
+  | { type: 'kill'; time: number; kind: EnemyKind; cause: KillCause; weapon?: WeaponId; special?: SpecialId; ground: boolean;
+    x: number; s: number; water: boolean; hunter: boolean; site?: SiteId; bossPart?: BossPart; launchedBy?: BossId }
+  | { type: 'hit'; time: number; shield: boolean }
+  | { type: 'special'; time: number; special: SpecialId }
+  | { type: 'boss'; time: number; boss: BossId; phase: BossState['phase'] }
+  | { type: 'credits'; time: number; value: number }
+  | { type: 'site'; time: number; site: SiteId }
+  | { type: 'wraith'; time: number; hunter: boolean };
 /** A hyperdrive jump between planets: about 3 s; the look switches at its midpoint (`startedAt + duration / 2`). */
 export interface JumpState { startedAt: number; duration: number; from: PlanetId; to: PlanetId }
 export interface RunState {
@@ -198,6 +223,11 @@ export interface RunState {
    * cell has already taken (`sector:index` of the supply; that supply is then skipped, invariant 11).
    */
   sites?: { destroyed: number; shieldClaims: string[] };
+  /**
+   * Observation only (docs/35, src/sim/events.ts): attached by an observer, which drains it; the run appends what happened
+   * and never reads it back. Absent, nothing is recorded.
+   */
+  events?: RunEvent[];
 }
 export const VIEW = { width: 12, worldWidth: 24, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
 export const STEP = 1 / 60;

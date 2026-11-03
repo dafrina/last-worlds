@@ -11,6 +11,7 @@ import { BOSS_BEAM, SHOT_TTL, bossShots } from './attacks';
 import { ANCHOR_LIMIT } from './airspace';
 import { admitFootprints, pendingAttackFootprints, type Footprint } from './fairness';
 import { bossShotScale, runScale, spawnMembers } from './spawn';
+import { observe } from './events';
 
 /*
  * Campaign bosses: Bastion-9 (Rolling Thunder) and the Helion Ark (Cold Vector). Both follow the same phase
@@ -118,6 +119,7 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
       nextAttack: Infinity, warning: 0, aimX: x, groundHeight: def.targetHeight });
   }
   message(state, showsHints(state) ? def.messages.start : def.name, 5);
+  if (state.events) observe(state, { type: 'boss', time: state.time, boss: def.id, phase: 'arrival' });
 }
 /** Name kept for the Rolling Thunder fixtures and tests; starts whichever boss the mission has. */
 export const startBastion = startBoss;
@@ -130,6 +132,7 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
   const boss = state.boss!;
   const def = bossDef(state);
   boss.phase = phase; boss.phaseStartedAt = state.time;
+  if (state.events) observe(state, { type: 'boss', time: state.time, boss: boss.id, phase });
   boss.nextAttackAt = state.time + def.transitionRecovery;
   boss.attack = null; boss.attackerId = null;
   clearThreats(state);

@@ -10,6 +10,7 @@ import { worldAt } from '../world/terrain';
 import { coreSite, FORMATIONS } from '../content/formations';
 import { MATCH_ROW, lineOfSightGround, projectGround } from './ground';
 import { groundHeight, memberPosition } from './motion';
+import { observe } from './events';
 
 /**
  * Strike sites in the simulation (docs/33 § 3). A site's guard and core are ordinary formations of its cue (content/
@@ -53,6 +54,7 @@ export function destroySiteCore(state: RunState, core: Enemy): void {
   if (state.enemies.some(other => other !== core && other.site === id && other.hp > 0 && other.formation?.group === core.formation?.group)) return;
   const definition = SITES[id], campaign = state.config.mode === 'campaign', record = sites(state);
   record.destroyed += 1;
+  if (state.events) observe(state, { type: 'site', time: state.time, site: id });
   state.score += SITE_SCORE;
   const drop = (kind: Pickup['kind'], value: number, dx = 0, weapon?: WeaponId) => pushLoot(state, { id: state.nextId++, kind, x: core.x + dx, s: core.s, value, ttl: 12, ...(weapon ? { weapon } : {}) });
   const kind = campaign ? definition.loot.kind : definition.endless.kind;
