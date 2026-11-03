@@ -73,6 +73,25 @@ All of them follow the fairness rules and the validator, and the perfect pilot m
 - **Health:** total effective HP is about 3,000, scaled by difficulty.
 - **Presentation:** wake and spray, radiator glow driven by damage, then a destruction sequence of explosions, listing and sinking with steam.
 
+## Contrast pass (3 November 2026)
+
+User: "Strengthen terrain contrast, especially the separation of bright ice surfaces, blue-grey cliff walls and dark water. Preserve detail in the highlights rather than making the snow uniformly brighter", and "the contrast also with some enemies is bad". The water, its shader and every look value (light, grade, fog) are unchanged (user: "dont change vespers water i like it"). Evidence: `docs/screenshots/vesper-contrast.jpg`.
+- **Cliff walls are blue-grey:**
+  - The ice walls (the kit's wall pieces, the ground's own wall faces and crevasse walls) were saturated blue at about the water's value, so the shaded foot of a cliff merged with the sea.
+  - They are now a mid-tone blue-grey (`vesperSlate` in `src/render/terrain-kit.ts`): lit faces pale, shaded faces slate with a faint cool fill, cracks dark, darker toward the foot.
+  - Order now: bright snow, blue-grey walls, dark sea.
+- **Ice in the kit:** the kit shader classified ice from the colour before the vertex colours were applied, so it only ever saw white and its ice branch never ran. Classification now runs after the vertex colours; ice pieces take the blue-grey, with gloss 0.5.
+- **Snow keeps its highlight detail:**
+  - Lit snow sat deep in the tone curve's shoulder with blue clipped, so drifts, slopes and texture flattened to one white.
+  - The ground's snow albedo is now about 70% (`SNOW_TRIM`, a little less blue), and the wind ripples' troughs turn a cool blue-grey.
+  - Lit snow now lands at the shoulder's start and keeps its relief, still reading white (measured: display luma 3–4 levels lower, its spread about doubled, blue no longer clipped).
+  - The kit's snow (floe tops, caps) takes a milder trim, so floes stay bright on the sea.
+- **Enemies (`src/render/world-paint.ts`, `src/render/models.ts`):**
+  - Vesper's craft get their own darker ramp (graphite `#232b35` to brushed steel `#c2ccd6`, at 0.85), still metallic white with blue glow.
+  - Their edges and lower sides darken (`edge` 0.7), so a pale hull keeps a dark outline over snow and its lit top over the sea.
+  - Buildings, compounds, the hero and other worlds are unchanged. Sizes and hit regions are untouched; shots and warning lines are unchanged.
+  - On High the far top of the view keeps its haze (a look value), so the gain there is smaller than on Low.
+
 ## As implemented: world and look (wave 1, 15 October)
 
 - **Planet profiles:** `src/world/terrain-planet.ts` and `terrain-vesper.ts`. `runPlanet(config)` in `src/content/missions.ts` maps missions to planets, and `terrain.update(seed, distance, { planet, arena })` takes the result. Khepri's output is byte-identical (fingerprint tests). `TERRAIN_VERSION` is 10.

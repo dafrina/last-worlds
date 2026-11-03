@@ -74,8 +74,15 @@ function createCraftMaterial(panel: THREE.Texture | null, metalFinish = true): T
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vPbr.y;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowTint * vPbr.z;')
       .replace('#include <opaque_fragment>', `vec3 rimView = isOrthographic ? vec3( 0.0, 0.0, 1.0 ) : normalize( vViewPosition );
-  float rim = pow( 1.0 - clamp( abs( dot( normal, rimView ) ), 0.0, 1.0 ), 3.0 );
-  outgoingLight += rimColor * rim * rimStrength * ( 1.0 - glowMask );
+  float rimFacing = clamp( abs( dot( normal, rimView ) ), 0.0, 1.0 ), rim = pow( 1.0 - rimFacing, 3.0 );
+  outgoingLight += rimColor * rim * rimStrength * ( 1.0 - glowMask ) * ( 1.0 - worldEdge );
+  // World edge shade (world-paint.ts edge; Vesper's enemies): faces turning away from the view and the hull's lower sides
+  // darken, so a pale hull keeps a dark outline over snow and its lit top over the sea. Glow parts stay bright.
+  if ( worldEdge > 0.0 ) {
+    float edgeUp = inverseTransformDirection( normal, viewMatrix ).y;
+    float edge = max( smoothstep( 0.45, 0.85, 1.0 - rimFacing ), 1.0 - smoothstep( -0.15, 0.5, edgeUp ) );
+    outgoingLight *= 1.0 - worldEdge * edge * ( 1.0 - glowMask );
+  }
   #include <opaque_fragment>`);
   };
   material.customProgramCacheKey = () => 'authored-craft';
