@@ -142,3 +142,14 @@ The integrator's review found many Khepri, Vesper and Nacre plants reading as sc
 - **Registry values used as given:** Vesper pad [2.5, 2.5], Luna pad [2.4, 2.45], Nacre arc [0.9, 0.38]. The shrine pillars moved in to radius 2.55.
 - **Draw cost:** aprons and the other flat pieces cast no shadows.
 
+
+## Late batteries (3 November 2026)
+
+User: "keeping the turrets with the rise as now but just make sure other ground stuff is loaded already. If only turrets rise thats fine".
+- **The problem:** a ground cue the director could not lead in from beyond the top edge spawns at its entry row, at the top edge. This happens late in a level, when it runs behind its schedule, or when its admission came late in the lead window. Its plant used to appear around the battery, partly inside the view, and the plant's terrain clearing hid scenery there.
+- **Now:**
+  - The battery's gun still rises out of the ground (scene.ts `DEPLOY`).
+  - Its plant keeps only the modules from 1.6 behind the seat on (`behindOnly` in facility-view.ts, `LATE_BEHIND`). Those modules, and the clearing built from them, lie beyond the top edge when the battery appears, and scroll in already standing.
+  - The battery stands at the front of its compound.
+  - If no module lies that far back, the battery has no plant.
+- **Why not lead late cues in:** leading them in from beyond the edge delays their ground fire. For the test pilot that meant 20–60% more hits in Final Horizon, Deep Bloom or endless, in every variant measured (31 October and 3 November). The simulation's timing is unchanged.

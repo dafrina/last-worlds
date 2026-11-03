@@ -7,8 +7,12 @@ import { CRADLE } from './cradle';
 import { ECLIPSE } from './eclipse';
 
 export { WRECK_HOLD } from './departure';
-/** Every boss 15% tougher with 10% shorter recoveries (user, 17 October 2026: "10-20% more difficult"). */
-export const BOSS_TOUGHNESS = { hp: 1.15, recovery: 0.9 } as const;
+/**
+ * 17 October: +15% health, 10% shorter recoveries. 3 November: +20% health over that existing baseline.
+ * Applied once to each module at spawn, after difficulty/Endless HP scaling. Core → overload shares its pool;
+ * transitions never reapply this multiplier. Recovery, attack sequencing and damage are unchanged.
+ */
+export const BOSS_TOUGHNESS = { hp: 1.15 * 1.20, recovery: 0.9 } as const;
 import { DEPARTURE } from './departure';
 
 /**

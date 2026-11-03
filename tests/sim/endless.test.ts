@@ -171,8 +171,10 @@ describe('endless bosses and jumps', () => {
     // with the fixed lists. Since Vesper's five-line cap and endless ace drops (31 October) Twin Pulse flies seed 1 (seed 7
     // takes one hit): over seeds 1-24 Pulse clears 15 with 11 hits in all, against 14 with 12 just before. Since shots in
     // flight outlive a boss's arrival and stage changes (31 October) Twin Pulse flies seed 4 (seed 1 takes one hit): over
-    // seeds 1-24 Pulse takes 14 hits, Seeker 14 (against 11 and 17 before).
-    const state = createRun({ mode: 'endless', seed: weapon === 'seeker' ? 6 : weapon === 'pulse' ? 4 : 5 });
+    // seeds 1-24 Pulse takes 14 hits, Seeker 14 (against 11 and 17 before). Since bosses have 20% more health
+    // (3 November) all three fly seed 1 (seeds 4, 5 and 6 each take a hit in the longer fights): over seeds 1-24 Pulse
+    // takes 12 hits, Fan 13 and Seeker 11, against 14, 12 and 14 just before.
+    const state = createRun({ mode: 'endless', seed: 1 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;

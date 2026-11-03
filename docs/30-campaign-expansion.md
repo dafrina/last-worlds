@@ -10,6 +10,8 @@ Four loadout slots: main weapon, special weapon, shield array, ship chassis. No 
 
 ### Main weapons — four upgrades, five tiers
 
+**3 November 2026 clarification:** Endless still loses one weapon tier and clears banked upgrade cells on a surviving hull loss; shield-only hits do neither. Tiers 4 and 5 each require two pickups. A partial pickup announces `POWER 1/2 · NEXT TIER 5`, for example, while the equipped weapon remains tier 4; only the completed upgrade announces `WEAPON TIER 5`. The pause loadout always shows the equipped tier. Tier changes invalidate the firing sequence while preserving its remaining cooldown, so recovery uses the new tier's pattern. Campaign damage behavior is unchanged.
+
 > **31 October 2026 (user):** "lets introduce 2 new crazier levels for each weapon", then "i want faster shots instead of
 > much more. maybe 2 more projectiles each weapon on max level but other than that quicker shots". Tiers 4 and 5 were added
 > on that basis: tier 4 fires tier 3's volley about 1.35 times as often; tier 5 adds two projectiles to the volley and fires
@@ -39,7 +41,7 @@ Tiers 4 and 5 also draw hotter: the bolts are a little larger and HDR-bright ove
 
 Campaign purchases each weapon's four upgrades for 150, 300, 500 and 800 credits. **Why 500 and 800:** measured at tier 3 (Twin Pulse, perfect pilot collecting drops, seeds 1–12), a repeat clear banks 229 (Training) to 333 (Final Horizon) credits on Standard and 256–376 on Veteran, and a first campaign's six first clears bank about 2,200 (Standard) to 2,450 (Veteran). Tier 4 is about 1.5 repeat clears of a late mission and tier 5 about 2.5; a whole weapon (1,750) is about four fifths of a first campaign, so tier 5 is a late-campaign or replay goal for one weapon, not a default. No new currency; parts are not involved. Saves need no migration: ranks 0–2 load unchanged and ranks 3 and 4 are now valid (a rank above 4 is an unreadable save, never overwritten).
 
-Endless uses the **identical** five firing tiers, earned through dedicated upgrade pickups (power cells, a power site, an endless ace's power drop) or another pickup of the equipped weapon. Changing weapon type resets to tier 1, even when returning to a previously used weapon. Tiers 4 and 5 each take **two** such pickups in endless (user, 31 October: "Two cells per tier"; `ENDLESS_TIER_CELLS`), the first banked and shown (`POWER 1/2 · TIER 4`). A capped upgrade (at tier 5) gives the existing 1,000 score bonus; life loss still removes one tier and any banked cell. Endless always starts with tier-1 Pulse and the same canonical equipment; campaign progression has no effect.
+Endless uses the **identical** five firing tiers, earned through dedicated upgrade pickups (power cells, a power site, an endless ace's power drop) or another pickup of the equipped weapon. Changing weapon type resets to tier 1, even when returning to a previously used weapon. Tiers 4 and 5 each take **two** such pickups in endless (user, 31 October: "Two cells per tier"; `ENDLESS_TIER_CELLS`), the first banked and shown (`POWER 1/2 · NEXT TIER 4`). A capped upgrade (at tier 5) gives the existing 1,000 score bonus and says so, `MAX TIER · +1000` (user, 3 November); life loss still removes one tier and any banked cell, and shows `FIGHTER RESTORED · WEAPON TIER n`. Endless always starts with tier-1 Pulse and the same canonical equipment; campaign progression has no effect.
 
 **Measured, 31 October** (perfect pilot; `tests/sim/weapon-tier-report.test.ts` reproduces every number):
 

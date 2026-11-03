@@ -22,7 +22,8 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
     // seeker). Over seeds 1-48 the pilot takes 34 hits at Standard and 62 at Veteran (all weapons), against 38 and 60 with
     // the fixed list.
     const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 5 : 17 });
-    const log = fly(state, perfectPilot(), 420, { noPickups: true });
+    // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
+    const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(log.hits).toBe(0);
     expect(log.specialsUsed).toBe(0);

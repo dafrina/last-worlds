@@ -417,12 +417,13 @@ describe('wide world, scheduling, and mode boundaries', () => {
     expect(state.projectiles).toHaveLength(0);
   });
 
-  it('keeps entity storage bounded across ten minutes of active endless combat', () => {
+  it('keeps entity storage bounded across twelve minutes of active endless combat', () => {
     const state = createRun({ mode: 'endless', seed: 600 });
     // Large test-only life reserve leaves every attack/collision system active for the soak.
     state.player.lives = 10000;
     const maxima = { enemies: 0, projectiles: 0, pickups: 0, effects: 0 };
-    for (let i = 0; i < 36000; i += 1) {
+    // Allow the same 20% extra fight time as the boss-health increase.
+    for (let i = 0; i < 43200; i += 1) {
       stepRun(state, { ...EMPTY_INPUT, horizontal: (Math.floor(i / 240) % 2 ? -1 : 1), specialPressed: i % 2700 === 0 });
       for (const key of ['enemies', 'projectiles', 'pickups', 'effects'] as const) maxima[key] = Math.max(maxima[key], state[key].length);
     }

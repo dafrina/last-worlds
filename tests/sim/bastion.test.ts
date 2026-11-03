@@ -173,7 +173,8 @@ describe('Bastion-9 mission', () => {
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });
     expect(log.hits).toBe(0);
     expect(state.specialsUsed).toBe(0);
-    expect(state.time).toBeLessThan(270);
+    // Former 270 s clear ceiling, extended 20% for the requested boss health increase.
+    expect(state.time).toBeLessThan(324);
   });
 
   it.each(['fan', 'seeker'] as WeaponId[])('keeps Standard with %s on seed 53 fair: the hazard union always leaves a clear gap', weapon => {

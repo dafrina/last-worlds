@@ -23,8 +23,25 @@ export const facilityOptions: { version: 2 | 3; standIns: boolean } = { version:
 
 interface Seat {
   kind: string; groundX: number; groundS: number; base: number; afloat: boolean;
-  /** How far under its seat the plant is drawn this frame: a battery deploying in view rises out of the ground (scene.ts). */
-  sink?: number;
+  /** The battery spawned inside the view (a late ground wave; its gun rises out of the ground, scene.ts). */
+  late?: boolean;
+}
+/**
+ * A late battery's plant keeps only the modules behind it, from LATE_BEHIND beyond its seat on: they and their terrain
+ * clearing lie beyond the top edge when the battery appears and scroll in with the ground, while its gun rises in front
+ * of them (user, 3 November: only turrets rise; "make sure other ground stuff is loaded already"). A late battery spawns
+ * at its entry row, at the top edge, so everything from there on is still out of view.
+ */
+const LATE_BEHIND = 1.6;
+function behindOnly(plant: FacilityPlant): FacilityPlant | null {
+  const reach = (node: string) => Math.max(...MODULES_BY_NODE.get(node)!.half);
+  const modules = plant.modules.filter(m => m.s - reach(m.node) >= LATE_BEHIND);
+  if (!modules.length) return null;
+  const bounds = {
+    minX: Math.min(...modules.map(m => plant.x + m.x - reach(m.node))), maxX: Math.max(...modules.map(m => plant.x + m.x + reach(m.node))),
+    minS: Math.min(...modules.map(m => plant.s + m.s - reach(m.node))), maxS: Math.max(...modules.map(m => plant.s + m.s + reach(m.node))),
+  };
+  return { ...plant, modules, bounds };
 }
 /** A world (x, s) rectangle no compound may cover. */
 interface Reservation { minX: number; maxX: number; minS: number; maxS: number }
@@ -186,27 +203,28 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
         // Stable cosmetic layout from (battery id, run seed), independent of combat's RNG (docs/25 rule 5).
         const others: { x: number; s: number }[] = [];
         for (const [other, gun] of batteries) if (other !== id) others.push({ x: gun.groundX, s: gun.groundS });
-        const plant = composeFacility(planet, id, state.config.seed, { x: seat.groundX, s: seat.groundS, base: seat.base },
+        const composed = composeFacility(planet, id, state.config.seed, { x: seat.groundX, s: seat.groundS, base: seat.base },
           { batteries: others, reserved, plants: plants.map(p => p.plant), ...(ground ? { stands: standsOn(ground) } : {}) });
+        const plant = composed && seat.late ? behindOnly(composed) : composed;
         if (plant) plants.push({ id, plant, ...heightsOf(plant, ground) });
       }
       kits.forEach(kit => { if (typeof kit === 'object') kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.count = 0; })); });
       drawn = 0; floating = 0; foundations.count = 0;
       if (foundationPlanet !== planet) { foundationPlanet = planet; (foundations.material as THREE.MeshStandardMaterial).color.setHex(FOUNDATION_COLOR[planet]); }
-      for (const { id, plant, y, lows } of plants) {
-        const kit = ready(plant.world), b = plant.bounds, sink = batteries.get(id)?.sink ?? 0;
+      for (const { plant, y, lows } of plants) {
+        const kit = ready(plant.world), b = plant.bounds;
         // The camera's ground footprint (src/render/view-footprint.ts), so no plant pops in at the lens's wider far end.
         if (!kit || b.minX > view.maxX + 1 || b.maxX < view.minX - 1
           || b.minS - state.distance > view.maxS + 1 || b.maxS - state.distance < view.minS - 1) continue;
         for (const [i, module] of plant.modules.entries()) {
           const meshes = kit.batches.get(module.node);
           if (!meshes || Number.isNaN(y[i])) continue;
-          transform.position.set(plant.x + module.x, y[i] - sink, -(plant.s + module.s - state.distance));
+          transform.position.set(plant.x + module.x, y[i], -(plant.s + module.s - state.distance));
           transform.rotation.set(0, module.yaw, 0); transform.updateMatrix();
           for (const mesh of meshes) if (mesh.count < mesh.instanceMatrix.count) mesh.setMatrixAt(mesh.count++, transform.matrix);
           drawn++;
           // A building or tank over lower ground stands on its foundation, down to the lowest ground under it.
-          const drop = y[i] - sink - lows[i];
+          const drop = y[i] - lows[i];
           if (drop > .06 && foundations.count < foundations.instanceMatrix.count) {
             const [hx, hs] = MODULES_BY_NODE.get(module.node)!.half;
             transform.position.y = lows[i] - .12; transform.scale.set(hx * 1.9, drop + .14, hs * 1.9); transform.updateMatrix();

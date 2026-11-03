@@ -883,15 +883,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     return mesh;
   };
   /** A ground target last frame: logical (x, s) for matching its kill explosion; drawn ground spot for the wreck. */
-  type GroundSeen = { kind: EnemyKind; x: number; s: number; afloat: boolean; groundX: number; /** World s. */ groundS: number; base: number; sink?: number };
+  type GroundSeen = { kind: EnemyKind; x: number; s: number; afloat: boolean; groundX: number; /** World s. */ groundS: number; base: number; late?: boolean };
   /**
    * Ground batteries that deploy in view (render only; user, 31 October: infrastructure "pop ins ... especially late in
    * levels"). A ground cue the director could not lead in from beyond the top edge (src/sim/game.ts leadGround: late in a
    * level it runs behind its schedule, or its admission came late in the lead window) spawns at or just past its entry,
-   * with its compound already inside the view: gun and compound rise out of the ground over DEPLOY seconds instead of
-   * appearing in one frame. A battery first seen beyond DEPLOY_ROW (its compound wholly beyond the top edge) never sinks.
-   * Leading the late ones in as well moved late-level timing enough to make Final Horizon or Deep Bloom 40-60% harder for
-   * the test pilot (measured 31 October), so this stays visual.
+   * at the top edge: its gun rises out of the ground over DEPLOY seconds instead of appearing in one frame, and its plant
+   * keeps only the modules behind it, which scroll in already standing (facility-view.ts `late`; user, 3 November: "keeping
+   * the turrets with the rise ... just make sure other ground stuff is loaded already"). A battery first seen beyond
+   * DEPLOY_ROW never sinks. Leading the late ones in as well moved late-level timing enough to make Final Horizon or Deep
+   * Bloom 20-60% harder for the test pilot (measured 31 October and 3 November), so this stays visual.
    */
   const deploying = new Map<number, number>(), groundKnown = new Set<number>();
   const DEPLOY = 1, DEPLOY_DEPTH = 2.2, DEPLOY_ROW = 25.5;
@@ -1633,7 +1634,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (sink > 0) placement.baseHeight -= sink; else deploying.delete(enemy.id);
         // A site core seats no compound or emplacement and leaves no wreck: its site stands there (site-view.ts).
         const siteCore = sites.hidesCore(enemy.id);
-        if (isGround && enemy.hp > 0 && !enemy.site) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight + sink, sink });
+        if (isGround && enemy.hp > 0 && !enemy.site) groundNow.set(enemy.id, { kind: enemy.kind, x: enemy.x, s: enemy.s, afloat, groundX: placement.x ?? enemy.x, groundS: state.distance + placement.s, base: placement.baseHeight + sink, late: deploying.has(enemy.id) });
         // A compound is much wider than its gun. Seat all live ground batteries ahead of the view,
         // including lateral neighbours; only the small gun draw uses the tight visibility test.
         if (!visible) continue;

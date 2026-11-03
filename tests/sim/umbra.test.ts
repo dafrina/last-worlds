@@ -99,7 +99,8 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     // 5 (the short-ranged Fan flies it close to where the Wraith warps in); Twin Pulse and Seeker clear seeds 3, 5, 7, 11
     // and 21, never a hit from THE ECLIPSE, and the fairness checks pass. Seed 7 clears with all three (27 October).
     const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 7 });
-    const log = fly(state, perfectPilot(), 420, { noPickups: true });
+    // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
+    const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('eclipse');
     expect(log.hits).toBe(0);

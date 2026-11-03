@@ -629,8 +629,8 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
     state.boss.attack = null; state.boss.attackerId = null; state.boss.nextAttackAt = state.time + BALANCE.respawn.invulnerability;
     state.boss.nextLaunchAt = Math.max(state.boss.nextLaunchAt, state.time + BALANCE.respawn.invulnerability);
   }
-  if (state.config.mode === 'endless') { player.power = Math.max(0, player.power - 1); player.powerCells = 0; }
-  setMessage(state, 'FIGHTER RESTORED', 2);
+  if (state.config.mode === 'endless') setMainTier(state, Math.max(0, player.power - 1));
+  setMessage(state, state.config.mode === 'endless' ? `FIGHTER RESTORED · WEAPON TIER ${player.power + 1}` : 'FIGHTER RESTORED', 2);
 }
 
 function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean, weapon?: WeaponId): void {
@@ -878,13 +878,24 @@ function dropAceReward(state: RunState, enemy: Enemy): void {
   state.pickups.push({ id: state.nextId++, kind: shield ? 'shield' : 'power', x: enemy.x + .7, s: enemy.s, value: 1, ttl: 12 });
 }
 
+/** Keep the firing cache in sync whenever an Endless pickup or respawn changes the live tier. */
+function setMainTier(state: RunState, rank: number): void {
+  if (state.player.power !== rank) state.mainSequence = undefined;
+  state.player.power = rank;
+  state.player.powerCells = 0;
+}
+
+/** Score for a power cell or duplicate weapon once the weapon is at its top tier. */
+const MAX_TIER_BONUS = 1000;
+
 function givePower(state: RunState): void {
   const player = state.player;
-  if (player.power >= MAX_RANK) { state.score += 1000; setMessage(state, `WEAPON TIER ${player.power + 1}`, 2); return; }
+  // At the top tier a cell is worth score, and says so (user, 3 November: it read as if the pickup did nothing).
+  if (player.power >= MAX_RANK) { state.score += MAX_TIER_BONUS; setMessage(state, `MAX TIER · +${MAX_TIER_BONUS}`, 2); return; }
   // Tiers 4 and 5 take two cells each (ENDLESS_TIER_CELLS): the first is banked and shown.
   const needed = ENDLESS_TIER_CELLS[player.power], banked = (player.powerCells ?? 0) + 1;
-  if (banked < needed) { player.powerCells = banked; setMessage(state, `POWER ${banked}/${needed} · TIER ${player.power + 2}`, 2); return; }
-  player.power += 1; player.powerCells = 0;
+  if (banked < needed) { player.powerCells = banked; setMessage(state, `POWER ${banked}/${needed} · NEXT TIER ${player.power + 2}`, 2); return; }
+  setMainTier(state, player.power + 1);
   setMessage(state, `WEAPON TIER ${player.power + 1}`, 2);
 }
 

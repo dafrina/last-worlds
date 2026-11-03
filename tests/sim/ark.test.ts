@@ -194,7 +194,8 @@ describe('Helion Ark', () => {
   it.each((['pulse', 'fan', 'seeker'] as WeaponId[]).flatMap(weapon =>
     (['relaxed', 'standard', 'veteran'] as Difficulty[]).map(difficulty => ({ weapon, difficulty }))))('the perfect pilot clears Cold Vector on $difficulty with $weapon without a hit, the special or pickups', ({ weapon, difficulty }) => {
     const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: 53 });
-    const log = fly(state, perfectPilot(), 420, { noPickups: true });
+    // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
+    const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });
     expect(log.hits).toBe(0);
     expect(log.specialsUsed).toBe(0);

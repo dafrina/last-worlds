@@ -183,7 +183,7 @@ describe('shared five-tier weapons (docs/30)', () => {
     collect(state, 'power'); expect(state.player.power).toBe(1);
     collect(state, 'weapon', 'pulse'); expect(state.player.power).toBe(2);
     collect(state, 'power'); expect(state.player.power).toBe(2);
-    expect(state.message).toBe('POWER 1/2 · TIER 4');
+    expect(state.message).toBe('POWER 1/2 · NEXT TIER 4');
     collect(state, 'power'); expect(state.player.power).toBe(3);
     collect(state, 'weapon', 'pulse'); expect(state.player.power).toBe(3);
     collect(state, 'power'); expect(state.player.power).toBe(4);
@@ -191,6 +191,7 @@ describe('shared five-tier weapons (docs/30)', () => {
     // Capped at tier 5: a further cell or duplicate is worth 1,000 score.
     const score = state.score;
     collect(state, 'power'); expect(state.player.power).toBe(4);
+    expect(state.message).toBe('MAX TIER · +1000');
     collect(state, 'weapon', 'pulse'); expect(state.player.power).toBe(4);
     expect(state.score).toBeGreaterThanOrEqual(score + 2000);
     collect(state, 'weapon', 'fan'); expect(state.player).toMatchObject({ weapon: 'fan', power: 0 });
