@@ -724,11 +724,12 @@ const WALL_COLOR_FRAGMENT = `
     #endif
     float iceLight = dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ), crack = 1.0 - smoothstep( 0.04, 0.14, iceLight );
     float cap = smoothstep( 0.5, 0.85, vWallTop ), iceLit = smoothstep( -0.05, 0.3, iceSun ) * ( 1.0 - crack );
-    vec3 iceShade = diffuseColor.rgb * vec3( 0.55, 0.8, 1.15 ), iceBright = mix( diffuseColor.rgb, vec3( 0.62, 0.86, 1.0 ) * wallGrain, 0.6 );
-    diffuseColor.rgb = mix( mix( iceShade, iceBright, iceLit ), vec3( 0.9, 0.94, 0.98 ) * ( 0.94 + 0.06 * wallGrain ), cap );
+    // (3 November: blue-grey, not saturated blue: the walls separate from the snow above and the dark sea below.)
+    vec3 iceShade = diffuseColor.rgb * mix( 1.0, 0.5, crack ), iceBright = mix( diffuseColor.rgb, vec3( 0.66, 0.76, 0.88 ) * wallGrain, 0.45 );
+    diffuseColor.rgb = mix( mix( iceShade, iceBright, iceLit ), vec3( 0.9, 0.94, 0.98 ) * SNOW_TRIM * ( 0.94 + 0.06 * wallGrain ), cap );
     wallIceShade = ( 1.0 - iceLit ) * ( 1.0 - cap );
-    // Shadowed ice keeps its colour (a little light through the ice) instead of going grey.
-    totalEmissiveRadiance += vec3( 0.004, 0.035, 0.13 ) * wallIceShade;
+    // Shadowed ice keeps a little cool light (through the ice) instead of sinking to the water's value.
+    totalEmissiveRadiance += vec3( 0.018, 0.03, 0.052 ) * wallIceShade * ( 1.0 - crack );
   } else {
     // Khepri: the caps read as the rock itself (the concept's dark, weathered column tops), not as bright slabs.
     vec3 capRock = vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.45, 1.0, 0.8 );
@@ -763,24 +764,43 @@ const WALL_UV_VERTEX = `#include <uv_vertex>
 const GLOW_FRAGMENT = '#include <common>\nuniform vec3 glowColor;\nuniform float detailContrast;\nvarying float vGlow;';
 const EMISSIVE = '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glowColor * vGlow;';
 /**
+ * Vesper's blue-grey ice (linear): the colour's own luminance, lifted to a mid-tone and cooled. SNOW_TRIM is the snow's
+ * albedo (3 November 2026, user: "preserve detail in the highlights rather than making the snow uniformly brighter"): lit
+ * snow sat deep in the tone curve's shoulder (blue clipped), where slopes, drifts and texture flattened to one white; at
+ * about 70% (a little less blue) it lands at the shoulder's start, keeps them, and still reads white (display luma about
+ * 3–4 levels lower). The kit's snow (floe tops, caps) takes a milder KIT_SNOW_TRIM: floes stay bright on the dark sea.
+ */
+const VESPER_SLATE = `#define SNOW_TRIM vec3( 0.72, 0.69, 0.62 )
+#define KIT_SNOW_TRIM vec3( 0.9, 0.88, 0.83 )
+vec3 vesperSlate( vec3 c ) { float l = dot( c, vec3( 0.2126, 0.7152, 0.0722 ) ); return ( 0.07 + l * 1.35 ) * vec3( 0.68, 0.91, 1.32 ); }`;
+/**
  * Vesper kit surfaces (docs/17 §1, art/vesper-kit). The kit's COLOR_0 already separates the materials: ice is
- * saturated blue, snow near-white, rock dark grey. Ice turns glossy with a translucent inner glow that deepens toward
- * its blue base, plus a crisp bright rim along the top edge; snow and ice tops carry sparse sun-glints.
+ * saturated blue, snow near-white, rock dark grey. Ice turns blue-grey (VESPER_KIT_COLOR) with a faint translucent fill,
+ * plus a crisp bright rim along the top edge; snow and ice tops carry sparse sun-glints.
  */
 const VESPER_KIT_HEAD = `
 uniform float vesperLook; uniform float lunaLook; uniform float nacreLook; uniform float kitGlint; uniform float beaconTime; varying float vPieceY;
-float vesperHash( vec2 p ) { return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ); }`;
+float vesperHash( vec2 p ) { return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ); }
+${VESPER_SLATE}`;
 const VESPER_KIT_SURFACE = `
   float vesperIce = 0.0, vesperSnow = 0.0;
-  vec3 vesperBase = diffuseColor.rgb;
+  vec3 vesperBase = diffuseColor.rgb;`;
+/**
+ * Vesper kit colours, after the vertex colours (3 November 2026, user: "strengthen terrain contrast ... bright ice
+ * surfaces, blue-grey cliff walls and dark water"). The kit paints ice saturated blue and snow near-white: ice becomes a
+ * mid-tone blue-grey (its own light and dark kept, darker toward each piece's foot), so walls sit between the bright snow
+ * and the dark sea instead of matching the water's value; snow takes SNOW_TRIM like the ground's. (Before, this
+ * classification ran at the map stage, before the vertex colours, and never saw the ice.)
+ */
+const VESPER_KIT_COLOR = `
   if ( vesperLook > 0.5 ) {
-    float hi = max( vesperBase.r, max( vesperBase.g, vesperBase.b ) ), lo = min( vesperBase.r, min( vesperBase.g, vesperBase.b ) );
+    vec3 kitColor = diffuseColor.rgb;
+    float hi = max( kitColor.r, max( kitColor.g, kitColor.b ) ), lo = min( kitColor.r, min( kitColor.g, kitColor.b ) );
     float saturation = ( hi - lo ) / max( hi, 1e-3 );
     vesperIce = smoothstep( 0.3, 0.46, saturation );
     vesperSnow = ( 1.0 - vesperIce ) * smoothstep( 0.25, 0.5, hi );
-    // Glacier blue: deepen and saturate ice toward the base of each wall (the kit's pale tops stay pale).
-    vec3 glacier = pow( vesperBase, vec3( 1.35 ) ) * vec3( 0.7, 0.95, 1.25 );
-    diffuseColor.rgb = mix( vesperBase, mix( glacier, vesperBase, smoothstep( 0.55, 0.95, vPieceY ) ), vesperIce );
+    diffuseColor.rgb = mix( kitColor, vesperSlate( kitColor ) * mix( 0.72, 1.0, smoothstep( 0.1, 0.8, vPieceY ) ), vesperIce );
+    diffuseColor.rgb *= mix( vec3( 1.0 ), KIT_SNOW_TRIM, vesperSnow );
     vesperBase = diffuseColor.rgb;
   }`;
 const VESPER_KIT_EMISSIVE = `
@@ -788,10 +808,10 @@ const VESPER_KIT_EMISSIVE = `
     vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
     // Translucency: ice gives back some of its own blue (stronger on faces turned toward the viewer).
     float facing = clamp( dot( normal, vec3( 0.0, 0.0, 1.0 ) ), 0.0, 1.0 );
-    totalEmissiveRadiance += vesperBase * vesperIce * ( 0.035 + 0.055 * facing );
+    totalEmissiveRadiance += vesperBase * vesperIce * ( 0.03 + 0.04 * facing );
     // Crisp top rim on ice walls: a thin bright band just under the snow cap of pieces scaled to their top.
     float rim = smoothstep( 0.9, 0.97, vPieceY ) * ( 1.0 - smoothstep( 0.985, 1.0, vPieceY ) ) * ( 1.0 - abs( worldNormal.y ) );
-    totalEmissiveRadiance += vec3( 0.75, 0.9, 1.0 ) * rim * vesperIce * 0.16;
+    totalEmissiveRadiance += vec3( 0.75, 0.86, 0.95 ) * rim * vesperIce * 0.12;
     // Sparse glints on snow and ice tops that twinkle slowly (world-fixed cells, render time).
     #ifdef USE_MAP
       vec2 cell = floor( vMapUv * 46.0 );
@@ -995,6 +1015,7 @@ vec2 iceColumns( float column, float height ) {
 }
 uniform vec3 glowColor;\nuniform vec3 veinTint;\nuniform vec3 poolTint;\nuniform float poolGlow;\nuniform float poolCells;\nuniform float veinWidth;\nuniform float detailContrast;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
+${VESPER_SLATE}
 uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform float wallFleshOnly;\nuniform vec2 iceCrisp;
 uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
 uniform float wallFacets;
@@ -1114,6 +1135,9 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     detail = mix( dustA, mix( rockDetail, iceStrata, groundIce ), vRock );
   }
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast;
+  // Vesper snow (3 November 2026, user: "preserve detail in the highlights"): the wind ripples' troughs turn a cool
+  // blue-grey and their crests stay white, so lit snow keeps a texture in tone rather than in brightness alone.
+  if ( groundIce > 0.5 ) diffuseColor.rgb *= mix( vec3( 1.0 ), mix( vec3( 0.88, 0.93, 0.99 ), vec3( 1.015 ), smoothstep( 0.94, 1.06, dustA ) ), 1.0 - vRock );
   // Cracks across open ground (version 16): plate cracks every ~9 units' tile and a finer crisscross on a 4-unit tile,
   // both dividing the 36-unit section so they run on across its joins. Walls keep their own material.
   if ( crackLook > 0.0 ) {
@@ -1132,6 +1156,11 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // (Vesper's ice walls keep their facet contrast instead: little lift there.)
   diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * ( 1.0 - 0.75 * groundIce ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
       .replace('#include <color_fragment>', `#include <color_fragment>
+  // Vesper's snow at SNOW_TRIM (3 November 2026): lit at full albedo it clipped in blue and flattened in the tone curve's
+  // shoulder, so its relief and texture vanished.
+#ifdef USE_COLOR
+  if ( groundIce > 0.5 ) diffuseColor.rgb *= mix( vec3( 1.0 ), SNOW_TRIM, ( 1.0 - cliffWall ) * smoothstep( 0.25, 0.45, dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) );
+#endif
   // Walls take their own material after the vertex colours: the wall hue at the ground's light (baked shade kept).
   // (wallFleshOnly: only where the vertex colour is already dark flesh or sinew; pale bone keeps its colour.)
   float wallTint = cliffWall;
@@ -1171,12 +1200,13 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     iceSun += iceLean * 0.18;
     float iceLit = smoothstep( -0.05, 0.3, iceSun ), baked = clamp( dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) / 0.8, 0.4, 1.0 );
     // Shadowed ice deepens toward the waterline, like the kit's ramp; shallow crevasse lips stay a lighter blue.
-    vec3 iceShade = mix( vec3( 0.03, 0.17, 0.46 ), vec3( 0.2, 0.45, 0.78 ), smoothstep( -3.4, 1.6, vLocal.y ) ), iceBright = vec3( 0.68, 0.88, 1.0 );
-    vec3 iceTone = mix( vec3( 0.015, 0.08, 0.26 ), mix( iceShade, iceBright, iceLit ), 0.55 + 0.45 * iceSeam );
+    // (3 November: blue-grey ice, a mid-tone between the snow and the dark sea; it was saturated blue at the water's value.)
+    vec3 iceShade = mix( vec3( 0.14, 0.21, 0.32 ), vec3( 0.3, 0.42, 0.58 ), smoothstep( -3.4, 1.6, vLocal.y ) ), iceBright = vec3( 0.6, 0.72, 0.88 );
+    vec3 iceTone = mix( vec3( 0.04, 0.06, 0.1 ), mix( iceShade, iceBright, iceLit ), 0.55 + 0.45 * iceSeam );
     // The ice map at its strength (x).
     float iceDetail = clamp( detail, 0.0, 2.0 );
     diffuseColor.rgb = mix( diffuseColor.rgb, iceTone * baked * ( 1.0 + ( iceDetail - 1.0 ) * iceCrisp.x ), cliffWall );
-    totalEmissiveRadiance += vec3( 0.004, 0.035, 0.13 ) * ( 1.0 - iceLit ) * cliffWall;
+    totalEmissiveRadiance += vec3( 0.018, 0.03, 0.052 ) * ( 1.0 - iceLit ) * cliffWall;
   }`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
 
@@ -1331,8 +1361,8 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
 ${VESPER_KIT_SURFACE}`)
       // Luna (docs/19): after the vertex colours, the Khepri basalt pieces turn to grey rock (luminance kept, lifted).
       .replace('#include <color_fragment>', `#include <color_fragment>
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.5, 1.48, 1.44 ), lunaLook );${wall ? WALL_COLOR_FRAGMENT : ''}`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.2, vesperIce );')
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.5, 1.48, 1.44 ), lunaLook );${VESPER_KIT_COLOR}${wall ? WALL_COLOR_FRAGMENT : ''}`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.5, vesperIce );')
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
     // Wall tops keep their own plane (most of the relief stays on the faces).
     if (wall) shader.fragmentShader = shader.fragmentShader
