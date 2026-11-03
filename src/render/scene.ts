@@ -625,6 +625,21 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   terrain.setShadowFrustum(sunlight.shadow.getFrustum());
   let disposed = false, warmed = false;
   const uploaded = new WeakSet<THREE.Texture>();
+  /** Textures in the scene a mid-flight warm-up left for a hidden one (or the jump's warp) to upload. */
+  let texturesPending = false;
+  /** Uploads up to `limit` scene textures not uploaded yet; whether any are left. */
+  const uploadPending = (limit: number) => {
+    let left = limit, more = false;
+    scene.traverse(object => {
+      if (!(object instanceof THREE.Mesh) || more) return;
+      for (const material of Array.isArray(object.material) ? object.material : [object.material])
+        for (const value of Object.values(material)) if (value instanceof THREE.Texture && !uploaded.has(value)) {
+          if (left <= 0) { more = true; return; }
+          renderer.initTexture(value); uploaded.add(value); left--;
+        }
+    });
+    return more;
+  };
   // The Blender kit streams in after start; fallback pieces render until (or unless) it arrives.
   const terrainLoad = loadKhepriKit(`${import.meta.env.BASE_URL}assets/khepri/khepri-kit.glb`).then(kit => {
     if (disposed) { kit.forEach(geometry => geometry.dispose()); return; }
@@ -1510,14 +1525,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // alone does not upload textures and otherwise defers that cost to the first visible draw.
         // Only under cover (the launch warp, a jump's flash): mid-flight, the next world's kits arriving for its jump
         // (endless, 8 s into a boss sector) uploaded three 2048² atlases in one frame, 0.54 s in the bench (mobile
-        // performance pass, 3 November). The jump's flash uploads them; anything drawn sooner uploads as it first draws.
-        if (hiddenWarm) scene.traverse(object => {
-          if (!(object instanceof THREE.Mesh)) return;
-          for (const material of Array.isArray(object.material) ? object.material : [object.material])
-            for (const value of Object.values(material)) if (value instanceof THREE.Texture && !uploaded.has(value)) {
-              renderer.initTexture(value); uploaded.add(value);
-            }
-        });
+        // performance pass, 3 November). They upload one a frame through the jump's warp (below), the flash takes any left,
+        // and anything drawn sooner uploads as it first draws.
+        if (hiddenWarm) { uploadPending(Infinity); texturesPending = false; } else texturesPending = true;
         if (hiddenWarm) {
           // Hidden (a flight's first frame under the launch warp, or a jump's flash): one real frame through the actual pipeline compiles
           // every variant, the HDR target's untoned programs and the shadow pass's depth programs included. The frame
@@ -1535,6 +1545,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         for (const mesh of emptied) mesh.count = 0;
         warmed = true; lastStatsTick = -Infinity;
       }
+      // Through a jump's warp (no combat; the flash warms the next world), textures a mid-flight warm-up left pending upload
+      // one a frame, so the flash does not take them all in one frame.
+      if (texturesPending && state.jump && !hiddenWarm) texturesPending = uploadPending(1);
       placeSun(state.cameraX, state.distance);
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
       const heroAlive = state.player.lives > 0;
