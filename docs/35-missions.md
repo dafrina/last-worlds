@@ -43,11 +43,11 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | Hit | A registered hit on the ship (never one absorbed by invulnerability). A **shield hit** when a shield charge took it, else a **hull hit** (a life lost). "Without taking damage / a hit": no shield and no hull hit. "Without hull damage": shield hits allowed. |
 | The fight | From the boss's arrival (its name shows; the `arrival` phase) to its destruction. Timed boss missions measure this span: Warden Shutdown ≤ 100 s, Bastion Breaker ≤ 120 s, Cradle's End ≤ 150 s. |
 | Final phase / stage | The boss's last phase: its overload (every boss has one), from its start to the boss's destruction. A boss destroyed straight from its core phase (one blow taking it past its overload threshold to zero) had an empty final phase, which counts as clean. |
-| Loadout | Read from the run's config (`weapon`, `rank`: what the run flies; rank 0 is tier 1) and checked against the live weapon and tier at every frame of the run. Campaign runs cannot change weapon; the check holds the definition if that ever changes. |
+| Loadout | Read from the run's config (`weapon`, and `rank`: the level the run flies, chosen in the hangar; rank 0 is level 1) and checked against the live weapon and level at every frame of the run. Campaign runs cannot change weapon; the check holds the definition if that ever changes. First Flight: `weapon === 'pulse'` and `rank === 0` for the whole run. |
 | Flanks | The map is 24 wide and the screen 12: the flanks are world \|x\| > 6 on each side, where an enemy lies at its death. |
 | Wraith zap sequence | One Wraith attack: its feint, teleport and three-round volley (content/wraith.ts). It is survived when no hit registers within 1.5 s of the volley's release (its rounds leave at 16 units/s or faster from rows 10.5–16.5 and cross the ship's row within about 1.1 s). Hunter Wraiths' volleys count. |
 | Ground streak | Dustfall and Frozen Nerves: kills of those batteries since the last hull hit (a shield hit keeps the streak). |
-| Coins (Collector) | Coin pickups collected in flight, counted as the HUD's coin counter counts them: their value × 0.5 × the difficulty's multiplier (×0.85 / ×1 / ×1.2). Mission rewards, the boss reward, a full shield cell's 5 credits and the starting balance never count. |
+| Coins (Collector) | Coin pickups collected in flight, counted as the HUD's coin counter counts them: their value × the world's `CREDIT_SCALE` (Luna 0.24, Khepri 0.28, Vesper 0.30, Nacre 0.48, Amnion 0.60, Umbra 0.55; src/content/equipment.ts) × the difficulty's multiplier (×0.85 / ×1 / ×1.2), rounded down. Mission rewards, the boss reward, a full shield cell's 5 credits and the starting balance never count. |
 
 ## 3. The missions
 
@@ -113,6 +113,8 @@ All six: **2,895 coins and 21 parts**, as handed over (tested). Mars and Cloud W
   its events: nothing scans enemies or missions per frame. Endless runs never get the list or a tracker.
 - **Notes**: a visible mission's progress shows in flight at every fifth of its goal (every step for goals of five or less);
   completions always show.
+- **Specials**: the starter special is the Seeker Rack (Homing Missiles) since 3 November; its kills are special kills, never
+  the Seeker Array's.
 
 ## 5. Feasibility (measured)
 
@@ -131,7 +133,9 @@ attempts that complete each mission; career missions: mean progress per attempt
 | Amnion | Untouchable 92 % (100), Demolition 33 % (100) | Nest Breaker 0.17 (0.17), Heartbreaker 0.50 (0.58), Brood Extermination 9.3 (11.8) |
 | Umbra | Untouchable 92 % (100), Vanishing Act 92 % (100) | Gravity Slingshot 0.67 (0.67) |
 
-Every other mission completes on every seed at both tiers. The perfect pilot takes almost no hits, so Untouchable and the
+Every other mission completes on every seed at both tiers. Measured again after the 3 November economy merge (per-world coin
+scale, Seeker Rack starter): the same shares. Collector's margin is thinnest on Luna: those attempts collect 249–341 in pickups,
+59–82 coins at ×0.24 against 55; an attempt that fires no special and skips coins can fall short (35–75 coins measured). The perfect pilot takes almost no hits, so Untouchable and the
 hull-damage objectives are far harder for a person than these numbers suggest; that is their purpose (Standard+, a part).
 End to end, `tests/sim/missions-feasibility-*.test.ts` clears all twelve on every world through the real tracker and a saved
 profile, and checks the payout totals.
@@ -154,16 +158,16 @@ profile, and checks the payout totals.
    the 3 November +20 % boss health. THE CRADLE's 123–141 s against 150 is a real target at tier 1. Proposal if wanted:
    60 s and 80 s.
 6. **Three Paths depends on the draw**: an attempt draws 3 or more sites 35 % of the time; then it is a fair challenge.
-7. **First Flight needs a tier-1 Pulse**: until the hangar lets a pilot fly a lower tier than owned (the economy work), a pilot
-   who upgraded the Pulse cannot do it.
-8. **Collector counts HUD coins** (scaled like the coin counter), not the pickups' raw value; with raw values every Collector
-   completes by just finishing the mission (raw medians are 2–4 times the targets).
+7. **First Flight needs a level-1 Pulse**: the hangar's level selector (the economy work, 3 November) lets any pilot fly it.
+8. **Collector counts HUD coins** (scaled like the coin counter, per world), not the pickups' raw value; with raw values every
+   Collector completes by just finishing the mission (raw medians are 2–4 times the targets).
 9. **Requires owned gear**: Armor Piercer (Rail Driver), Cold Vector (Fan Cannon), Seeker Sweep (Seeker Array), Gravity
    Slingshot (the Spectre, which needs Final Horizon cleared). A hidden one simply waits.
 
 ## 6. Saving and rewards
 
-- **Where**: the board is the profile's opaque `missionBoard` field (economy contract, src/campaign/profile.ts), one object
+- **Where**: the board is the profile's opaque `missionBoard` field (src/campaign/profile.ts; carried unchanged through every
+  load and migration, save version 4), one object
   per world: revealed ids in reveal order, claimed ids (the history), achieved-while-hidden ids, career progress, the running
   attempt's career share (`live`) and the last attempt's single-run progress (`last`). Schema `version: 1`.
 - **When**: a completion is saved and paid the moment it happens (a mid-flight reload never loses it); career progress is saved
@@ -171,7 +175,8 @@ profile, and checks the payout totals.
   the career total once and records its last progress. An interrupted attempt's saved share is folded in when the next attempt
   starts (docs/09 § 3: observed progress counts, once).
 - **Paying**: every claim calls `awardOnce(profile, 'mission:<id>', credits, parts)` in the same profile transaction
-  (`missionTransaction`) that saves the board. The receipt list (`awards`) and the board's claimed list each stop a second
+  (`missionTransaction`) that saves the board. The receipt list (`awards`, unbounded and apart from the attempt receipts) and
+  the board's claimed list each stop a second
   payment; reopening results, a second finish, a reload or another attempt never pays twice (tested).
 - **Unreadable**: a board that cannot be read (broken, or from a newer build) is kept exactly as it is and never overwritten;
   missions are paused for the session and the board says so.
