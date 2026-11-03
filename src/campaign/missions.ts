@@ -88,8 +88,10 @@ export const visibleIds = (world: WorldBook, defs: readonly WorldMission[]) =>
 
 export interface BoardEntry {
   def: WorldMission;
-  /** Progress to show: career missions their total; single-run missions their last attempt's. */
+  /** Progress to show: career missions their total; single-run missions their last attempt's (in flight: this run's). */
   progress: number;
+  /** In flight: the run's difficulty is below the mission's minimum, so it does not progress. */
+  gated?: boolean;
 }
 export interface WorldBoard { sortie: MissionId; visible: BoardEntry[]; history: WorldMission[]; done: number; total: number }
 
@@ -252,8 +254,8 @@ export interface MissionStore {
   read(): CampaignProfile;
   missionTransaction<T>(change: (profile: CampaignProfile) => T): T;
 }
-/** A short in-flight note: a visible mission's progress, or a mission just completed (and paid). */
-export interface MissionNote { id: string; text: string; complete: boolean }
+/** A short in-flight note: a visible mission's progress, or a mission just completed (and paid: its `credits`). */
+export interface MissionNote { id: string; text: string; complete: boolean; credits?: number }
 /** A mission paid this run (results screen). */
 export type ClaimedMission = WorldMission;
 
@@ -374,7 +376,7 @@ export function createMissionTracker(store: MissionStore) {
     }
     const careerMoved = tracker.counters.some(c => c.def.scope === 'career' && c.own() !== (tracker.saved.get(c.def.id) ?? 0));
     if (completed.length || careerMoved) {
-      for (const def of commit(tracker, completed, false)) notes.push({ id: def.id, text: `${def.name.toUpperCase()} COMPLETE · ${rewardText(def)}`, complete: true });
+      for (const def of commit(tracker, completed, false)) notes.push({ id: def.id, text: `${def.name.toUpperCase()} COMPLETE · ${rewardText(def)}`, complete: true, credits: def.credits });
     }
     return notes;
   }
@@ -391,6 +393,16 @@ export function createMissionTracker(store: MissionStore) {
       const tracker = runs.get(state);
       if (!tracker || tracker.finished) return [];
       return step(tracker, state);
+    },
+    /** In flight: the visible missions with this run's progress (the pause panel). */
+    live(state: RunState): BoardEntry[] {
+      const tracker = runs.get(state);
+      if (!tracker) return [];
+      const defs = WORLD_MISSIONS[tracker.sortie];
+      return [...tracker.visible].flatMap(id => {
+        const def = defs.find(d => d.id === id), counter = tracker.counters.find(c => c.def.id === id);
+        return def ? [{ def, progress: counter ? (counter.done ? def.goal : counter.value()) : 0, ...(counter ? {} : { gated: true }) }] : [];
+      });
     },
     /**
      * The run ended (completed, lost or abandoned): its last events, its end-of-run objectives, its career share and its

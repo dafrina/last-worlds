@@ -57,6 +57,7 @@ export const menuMarkup = `
       <dl><div><dt>MAIN</dt><dd data-loadout="weapon"></dd></div><div><dt>SPECIAL</dt><dd data-loadout="special"></dd></div><div><dt>SHIELD</dt><dd data-loadout="shield"></dd></div><div><dt>SHIP</dt><dd data-loadout="ship"></dd></div></dl>
     </button>
     <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH MISSION <span aria-hidden="true">↗</span></button>
+    <section class="mission-board" aria-labelledby="board-title"></section>
   </section>
   <section class="hangar-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="hangar-title" hidden>
     <button type="button" class="back-button" data-back>← BACK</button>

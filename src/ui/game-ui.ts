@@ -9,6 +9,8 @@ import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, endlessConfig, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
 import { CREDIT_MULTIPLIER, SHIPS, REWARDS, SHIELD_TECH, SPECIALS } from '../content/equipment';
 import { itemText, renderHangar, renderShipyard } from './hangar';
+import { createMissionTracker } from '../campaign/missions';
+import { createMissionNotes, renderBoard, renderLiveBoard, renderResultMissions } from './mission-board';
 import './styles.css';
 
 const shieldGlyph = '<svg viewBox="0 0 20 24" aria-hidden="true"><path d="M3 4 10 2 17 4 17 12Q17 17 10 22Q3 17 3 12Z"/></svg>';
@@ -41,6 +43,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   try { storage = window.localStorage; } catch { /* Private storage may be unavailable. */ }
   const flightLog = createFlightLog(storage);
   const campaign = createCampaignProfile(storage);
+  /** World missions (docs/35): campaign runs only; they observe the run's events and save through the profile. */
+  const missions = createMissionTracker(campaign);
   /** Campaign attempt IDs by run: each attempt banks exactly once (campaign/profile.ts receipts). */
   const attempts = new WeakMap<RunState, string>();
   const shell = document.createElement('main');
@@ -71,6 +75,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         <span><b>‹</b> HOLD LEFT</span><span>HOLD RIGHT <b>›</b></span>
       </div>
       <p class="flight-message" role="status" hidden></p>
+      <p class="mission-note" role="status" aria-live="polite"></p>
       <span class="site-marker" aria-hidden="true" hidden>?</span>
       <button type="button" class="special-button" aria-label="Activate shockwave" data-no-steer hidden>
         <span class="charge-ring" aria-hidden="true"></span>
@@ -87,6 +92,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="eyebrow">FLIGHT SUSPENDED</p><h2 id="pause-title">PAUSED</h2>
           <p class="pause-description"></p>
           <dl class="pause-loadout"><div><dt>MAIN</dt><dd class="pause-weapon"></dd></div><div><dt>SPECIAL</dt><dd class="pause-special"></dd></div><div><dt>SHIELD / SHIP</dt><dd class="pause-tech"></dd></div></dl>
+          <ol class="pause-missions" aria-label="Missions this run" hidden></ol>
           <p class="resume-countdown" role="status" hidden></p>
           <button type="button" class="arcade-button primary" data-action="resume">RESUME <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="quit">RETURN TO MENU</button>
@@ -97,6 +103,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="result-subtitle"></p>
           <dl class="result-stats"><div class="result-score-row"><dt>SCORE</dt><dd class="result-score"></dd></div><div><dt>HOSTILES DOWN</dt><dd class="result-kills"></dd></div><div><dt>FLIGHT TIME</dt><dd class="result-time"></dd></div><div class="result-sector-row"><dt>SECTOR REACHED</dt><dd class="result-sector"></dd></div></dl>
           <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-parts" hidden></p><p class="result-unlock" hidden></p><p class="result-salvage" hidden></p></div>
+          <div class="result-missions" hidden></div>
           <button type="button" class="arcade-button primary" data-action="retry">FLY AGAIN <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="menu">RETURN TO MENU</button>
           <p class="panel-note result-note"></p>
@@ -139,6 +146,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const message = find<HTMLElement>('.flight-message');
   let messageShown = '';
   const siteMarker = find<HTMLElement>('.site-marker');
+  const missionNotes = createMissionNotes(find<HTMLElement>('.mission-note'));
   let markerShown = '';
   let chargeShown = -1;
   let endingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -199,6 +207,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     text('.mission-record', !open ? `LOCKED · CLEAR ${previous?.toUpperCase()} TO UNLOCK`
       : best ? `CLEARED · BEST ${duration(record!.best[best]!)} ON ${difficultyNames[best].toUpperCase()}` : cleared(profile, id) ? 'CLEARED' : 'NOT YET CLEARED');
     find('.mission-record').classList.toggle('is-locked', !open);
+    renderBoard(find<HTMLElement>('.mission-board'), missions.board(id), MISSION_PLANET[id]);
     find<HTMLButtonElement>('[data-action="launch-campaign"]').disabled = !open;
   }
   /** Credit balance, loadout summary and the selected mission's lock state, from the saved profile. */
@@ -326,12 +335,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   function settleAttempt(state: RunState) {
     const id = attempts.get(state);
     if (!id || state.config.mode !== 'campaign') return null;
+    // World missions first: a completion's reward is in the balance the payout reports.
+    missions.finish(state);
     const outcome: AttemptOutcome = state.phase === 'complete' ? 'complete' : state.phase === 'over' ? 'failed' : 'abandoned';
     return campaign.settle({ id, mission: state.config.mission ?? 'training', difficulty: state.config.difficulty ?? 'standard', outcome,
       credits: state.credits, bossKilled: state.boss?.phase === 'destroyed', seconds: state.time, parts: state.parts ?? 0 });
   }
   function launch(config: RunConfig) {
     cancelResume();
+    missionNotes.clear();
     if (lastState) { settleAttempt(lastState); flightLog.observe(lastState, true); }
     lastConfig = config;
     actions.start(config);
@@ -457,6 +469,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     loading = false;
     cancelResume();
     if (lastState) { settleAttempt(lastState); flightLog.observe(lastState, true); }
+    missionNotes.clear();
     error = false;
     displayedPhase = 'menu';
     lastState = null;
@@ -475,6 +488,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     lastConfig = state.config;
     flightLog.observe(state);
     if (state.config.mode === 'campaign' && !attempts.has(state) && state.time <= 1 && state.tick <= 60) attempts.set(state, recordId());
+    // World missions (campaign only): drain the run's events into the counters; a visible mission's progress shows briefly.
+    const attempt = attempts.get(state);
+    if (attempt) {
+      const notes = missions.observe(state, attempt);
+      missionNotes.push(notes);
+      // A mission's reward is saved when it completes: the coin counter takes it in at once.
+      const paid = notes.reduce((sum, note) => sum + (note.credits ?? 0), 0);
+      if (paid && startBalance.has(state)) startBalance.set(state, startBalance.get(state)! + paid);
+    }
     const changed = displayedPhase !== state.phase || lastState !== state;
     lastState = state;
     displayedPhase = state.phase;
@@ -483,6 +505,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     surface.classList.toggle('is-playing', playing);
     hud.hidden = !playing;
     specialButton.hidden = !playing;
+    missionNotes.frame(playing);
     hints.hidden = !playing || state.time >= 3;
     // The last life: a red glow at the screen's edges (user, 22 October).
     lastLifeAlarm.classList.toggle('is-on', playing && state.player.lives === 1);
@@ -550,6 +573,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       text('.pause-weapon', `${weaponNames[state.player.weapon]} · TIER ${state.player.power + 1}`);
       text('.pause-special', SPECIALS[state.config.special ?? 'shockwave'].label);
       text('.pause-tech', `${SHIELD_TECH[state.config.shield ?? 'standard'].label.split(' ')[0]} / ${SHIPS[state.config.ship ?? 'scrapper'].label.split(' ')[0]}`);
+      renderLiveBoard(find<HTMLElement>('.pause-missions'), missions.live(state));
       showPanel('pause-panel', '[data-action="resume"]');
     } else if (changed && (state.phase === 'over' || state.phase === 'complete')) {
       const campaign = state.config.mode === 'campaign';
@@ -569,6 +593,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         : 'Every endless flight starts with the same loadout.');
       // Campaign: bank the attempt (once) and show what it earned and anything it unlocked.
       const pay = settleAttempt(state);
+      renderResultMissions(find<HTMLElement>('.result-missions'), pay ? missions.finish(state) : []);
       find<HTMLElement>('.result-credits').hidden = !pay;
       if (pay) {
         const parts = [`COLLECTED ${pay.collected}`];

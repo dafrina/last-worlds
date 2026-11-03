@@ -473,3 +473,48 @@ button:disabled { cursor: default; }
 .shipyard-paint label { display: flex; align-items: center; gap: 6px; color: #8fa9c5; font: 8px / 1 var(--mono); letter-spacing: 1px; }
 .shipyard-paint input[type="color"] { width: 34px; height: 28px; padding: 0; border: 1px solid #7fd8ff44; background: none; }
 .shipyard-paint .hangar-action { margin-left: auto; }
+
+/* World missions (docs/35): the board on the campaign page, the pause list, the in-flight note and the results list. */
+.mission-board { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.board-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 0 8px; }
+.page-panel .board-head h3 { margin: 0; color: #8fa9c5; font: 8px / 1.4 var(--mono); letter-spacing: 1.3px; }
+.board-count { color: #9fe4ff; font: 8px / 1.4 var(--mono); letter-spacing: 1.2px; }
+.board-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.board-item { position: relative; padding: 8px 10px 9px; border: 1px solid var(--line); background: #0b1b30; }
+.board-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.board-line b { color: var(--ivory); font: 700 12px / 1.25 'Aptos', 'Segoe UI', Arial, sans-serif; }
+.board-value { flex: none; color: #9fe4ff; font: 600 10px / 1 var(--mono); letter-spacing: .6px; }
+.board-text { margin: 2px 0 5px; color: #9db0c5; font-size: 10.5px; line-height: 1.4; }
+.board-meta { display: flex; align-items: center; gap: 8px; color: #6f88a3; font: 7px / 1.3 var(--mono); letter-spacing: 1.1px; }
+.board-tag { color: #8fa9c5; }
+.board-tag.is-gated { color: #ffb36b; }
+.board-reward { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font: 600 9px / 1 var(--mono); letter-spacing: .5px; }
+.board-reward svg { width: 8px; height: 8px; margin-right: 3px; vertical-align: -1px; }
+.board-credits { color: #ffe2a6; }
+.board-credits svg { fill: #ffd27a; }
+.board-parts { color: #ffc4a0; }
+.board-parts svg { fill: #ff9e6a; }
+.board-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: #1d3550; }
+.board-bar i { display: block; height: 100%; background: #9fe4ff; box-shadow: 0 0 6px #7fd8ff99; }
+.board-history { margin: 8px 0 0; color: #8fa9c5; font: 8px / 1.6 var(--mono); letter-spacing: .6px; }
+.board-history span { color: #9fe4ff; letter-spacing: 1.2px; margin-right: 4px; }
+.board-note { margin: 0; color: #9db0c5; font-size: 11px; line-height: 1.5; }
+.pause-missions { list-style: none; margin: -14px 0 24px; padding: 0; display: grid; gap: 7px; }
+.pause-missions[hidden] { display: none; }
+.pause-missions li { display: flex; justify-content: space-between; gap: 12px; color: #91a6c0; font: 8px / 1.5 var(--mono); letter-spacing: .8px; text-transform: uppercase; }
+.pause-missions b { color: #9fe4ff; font-weight: 600; }
+/* In flight: one small line under the lives and shields, fading in and out; a completion in gold. */
+.mission-note {
+  position: absolute; z-index: 3; top: calc(max(16px, calc(var(--safe-top) + 10px)) + 52px); left: max(15px, calc(var(--safe-left) + 10px));
+  margin: 0; max-width: 60%; pointer-events: none; color: #9fe4ff; opacity: 0;
+  font: 9px / 1.4 var(--mono); letter-spacing: 1px; text-shadow: 0 0 2px #000, 0 1px 3px #000, 0 0 8px #7fd8ff55;
+}
+.mission-note.is-complete { color: #ffe2a6; text-shadow: 0 0 2px #000, 0 1px 3px #000, 0 0 8px #ffb84a66; }
+.mission-note.is-on { animation: mission-note 1.8s ease-out both; }
+@keyframes mission-note { 0% { opacity: 0; transform: translateY(-3px); } 12%, 78% { opacity: .92; transform: none; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mission-note.is-on { animation: none; opacity: .92; } }
+.result-missions { margin: 0 0 16px; padding: 8px 12px 10px; border: 1px solid #7fd8ff33; background: #0b1b3066; }
+.result-missions[hidden] { display: none; }
+.result-missions-title { margin: 0 0 6px; color: #9fe4ff; font: 600 8px / 1.4 var(--mono); letter-spacing: 1.3px; text-align: center; }
+.result-missions ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.result-missions li { display: flex; align-items: center; gap: 10px; color: var(--ivory); font: 600 10px / 1.3 var(--mono); letter-spacing: .6px; text-transform: uppercase; }

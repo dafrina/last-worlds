@@ -100,6 +100,8 @@ function pause(reason = 'manual') {
 
 async function start(config: RunConfig) {
   const id = ++launchId, candidate = createRun(config);
+  // World missions (docs/35) observe a campaign run's events, which game-ui drains each frame. Endless is never observed.
+  if (candidate.config.mode === 'campaign') candidate.events = [];
   run = null; afterglow = null; loadingRun = candidate; startPaused = false;
   candidate.phase = 'paused';
   // Unlock on the initiating gesture; music starts only after loading finishes.
