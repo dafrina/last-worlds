@@ -93,7 +93,7 @@ try {
         if (now.sector >= sectors) break;
       }
       last = now;
-      if (Date.now() - startedAt > 40 * 60_000) break;
+      if (Date.now() - startedAt > Number(process.env.PERF_SOAK_MINUTES ?? 40) * 60_000) break;
     }
     await page.evaluate(() => window.__LAST_WORLDS__.benchStop());
     await window_('end');

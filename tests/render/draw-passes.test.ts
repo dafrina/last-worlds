@@ -7,6 +7,7 @@ import { createSilhouetteMaterial } from '../../src/render/craft-shadows';
 import { createBastionView } from '../../src/render/bastion-view';
 import { createWardenView } from '../../src/render/warden-view';
 import { createVeilView } from '../../src/render/veil-view';
+import { createArkView } from '../../src/render/ark-view';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { BASTION_FOOTPRINT } from '../../src/render/bastion-view';
 import { terrainHeight } from '../../src/world/terrain';
@@ -41,6 +42,21 @@ describe('draws without redundant passes or program switches', () => {
       for (const material of materialsOf(object)) if (material.transparent && material.side === THREE.DoubleSide && !material.forceSinglePass) twoPass.push(`${object.name || object.type}: ${material.type}`);
     });
     expect(twoPass).toEqual([]);
+  });
+
+  it('keeps every boss\'s empty particle layers out of the render list', () => {
+    vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => null }) });
+    const scene = new THREE.Scene();
+    createBastionView(scene); createWardenView(scene); createVeilView(scene); createArkView(scene);
+    // Nothing is flying: an empty batch still costs a render-list entry and a program setup a frame, so none may be drawn.
+    const drawn: string[] = [];
+    const walk = (object: THREE.Object3D) => {
+      if (!object.visible) return;
+      if ((object as THREE.InstancedMesh).isInstancedMesh && (object as THREE.InstancedMesh).count === 0) drawn.push(object.name || object.type);
+      object.children.forEach(walk);
+    };
+    walk(scene);
+    expect(drawn).toEqual([]);
   });
 
   it('seats the Bastion on the same highest ground, walked row by row', () => {

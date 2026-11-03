@@ -241,7 +241,9 @@ export function particleLayer(scene: THREE.Scene, capacity: number, additive: bo
   const alpha = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('aAlpha', alpha);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color());
-  mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = additive ? 5 : 3; scene.add(mesh);
+  // Hidden while empty (mobile performance pass, 3 November): an empty batch still costs three.js a render-list entry and a
+  // full program and uniform setup every frame, and every boss's layers waited empty on every world (10 of them).
+  mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; mesh.renderOrder = additive ? 5 : 3; scene.add(mesh);
   const live: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color();
   return {
     emit(p: Omit<Particle, 'age'>) { if (live.length < capacity) live.push({ ...p, age: 0 }); },
@@ -264,7 +266,7 @@ export function particleLayer(scene: THREE.Scene, capacity: number, additive: bo
       });
       liveInstances(mesh, live.length, [alpha]);
     },
-    clear() { live.length = 0; mesh.count = 0; },
+    clear() { live.length = 0; mesh.count = 0; mesh.visible = false; },
     get count() { return live.length; },
   };
 }
