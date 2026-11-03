@@ -3,6 +3,7 @@ import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, VIEW, type Mode, type Projectile, type ShipId } from '../../src/shared/contracts';
 import { playerKinematics } from '../../src/sim/fairness';
 import { SHIP_PERKS } from '../../src/sim/ship-perks';
+import { SPECIALS } from '../../src/content/equipment';
 
 function arena(ship: ShipId = 'spectre', mode: Mode = 'campaign') {
   const state = createRun({ mode, ship, seed: 41 });
@@ -64,7 +65,7 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
     advance(state, .15); expect(shot.s).toBeLessThan(-.5);
     advance(state, .8);
     expect(state.kills).toBe(1);
-    expect(state.player.specialCharge).toBeCloseTo(state.time / 45);
+    expect(state.player.specialCharge).toBeCloseTo(state.time / SPECIALS[state.config.special!].recharge);
   });
   it('does not intercept incoming direct hits, distant shots, empty-shield grazes or beams', () => {
     for (const x of [0, .51, 1.3]) {

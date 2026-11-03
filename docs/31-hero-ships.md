@@ -111,9 +111,9 @@ material and takes its own tint. The default paint for each chassis is `HERO_DEF
   `prepareHero` runs alongside the world under the launch warp.
 - **Hangar:** src/ui/hangar.ts `renderShipyard`.
   - Designs per slot (`heroDesigns`): A–E on a remodelled chassis, A–C on a kit chassis. A is free; the rest are bought
-    with parts plus credits (user, 29 October; docs/33; src/content/hero-parts.ts `HERO_DESIGN_PARTS` and
-    `HERO_DESIGN_PRICES`: B 1 part + 80, C 1 + 160, D 2 + 240, E 3 + 320 credits, provisional) and then switch freely.
-    Buying needs both; designs bought before parts existed stay owned.
+    with parts plus credits (src/content/hero-parts.ts `HERO_DESIGN_PARTS` and `HERO_DESIGN_PRICES`: every design
+    B–E costs 50 credits and 1 part since 3 November 2026, user; it was B 1 part + 80, C 1 + 160, D 2 + 240, E 3 + 320
+    from 29 October) and then switch freely. Buying needs both; designs already bought stay owned; paint is free.
   - Colour and glow pickers, and Default paint. Looks saved with a trim colour keep it unused.
   - The picture (user, 29 October: the turning preview "lags as fuck, preload the parts, and make them previewable. And
     make the image bigger, maybe not needed to turn"): `GameRenderer.heroPreview` draws one still per look (it drew 36

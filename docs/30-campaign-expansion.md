@@ -1,5 +1,9 @@
 # Campaign progression — ship collection and weapon tiers
 
+> **3 November 2026 update (user):** the shop takes credits and parts, each weapon's flown level is selected in the hangar,
+> ships cost 4 parts instead of mission-clear pieces, the Seeker Rack (homing missiles) is the free starting special in both
+> modes, and each world's run pays a set income. See [§ Shop, levels and income](#shop-levels-and-income-3-november-2026).
+
 > **30 October 2026 update:** Chassis perks now apply in both modes. Scrapper: 40% wider pickup attraction; Ironclad: +1 starting life; Interceptor: double-tap steering barrel roll; Spectre: shielded near-miss reflection. This replaces the old kill-charge/overdrive bonuses and cosmetic-only endless chassis rule. See [global ship perks](34-global-ship-perks.md). Modular parts/paint remain cosmetic; endless equipment still resets.
 
 28 October 2026. Approved user decisions supersede the earlier expansion proposal and old reactor/Flux/rank-three descriptions elsewhere. Runtime sources: `src/content/equipment.ts`, `weapon-tiers.ts`, `src/campaign/profile.ts`.
@@ -39,7 +43,8 @@ Projectiles a second (damage a second if every one hits), measured in the simula
 
 Tiers 4 and 5 also draw hotter: the bolts are a little larger and HDR-bright over dark ground (bloom on High), the Rail slug's streak and the muzzle flash grow (render only, `shotHeat` in src/render/fx-particles.ts). They stay slim and cyan-white, apart from the warm, round hostile shots.
 
-Campaign purchases each weapon's four upgrades for 150, 300, 500 and 800 credits. **Why 500 and 800:** measured at tier 3 (Twin Pulse, perfect pilot collecting drops, seeds 1–12), a repeat clear banks 229 (Training) to 333 (Final Horizon) credits on Standard and 256–376 on Veteran, and a first campaign's six first clears bank about 2,200 (Standard) to 2,450 (Veteran). Tier 4 is about 1.5 repeat clears of a late mission and tier 5 about 2.5; a whole weapon (1,750) is about four fifths of a first campaign, so tier 5 is a late-campaign or replay goal for one weapon, not a default. No new currency; parts are not involved. Saves need no migration: ranks 0–2 load unchanged and ranks 3 and 4 are now valid (a rank above 4 is an unreadable save, never overwritten).
+Campaign purchases each weapon's four upgrades; since 3 November 2026 for 250, 500 + 3 parts, 750 + 5 and 1,000 + 10 (§ Shop,
+levels and income), and the pilot selects which bought level flies. Until then they cost 150, 300, 500 and 800 credits. **Why 500 and 800 (31 October):** measured at tier 3 (Twin Pulse, perfect pilot collecting drops, seeds 1–12), a repeat clear banks 229 (Training) to 333 (Final Horizon) credits on Standard and 256–376 on Veteran, and a first campaign's six first clears bank about 2,200 (Standard) to 2,450 (Veteran). Tier 4 is about 1.5 repeat clears of a late mission and tier 5 about 2.5; a whole weapon (1,750) is about four fifths of a first campaign, so tier 5 is a late-campaign or replay goal for one weapon, not a default. No new currency; parts are not involved. Saves need no migration: ranks 0–2 load unchanged and ranks 3 and 4 are now valid (a rank above 4 is an unreadable save, never overwritten).
 
 Endless uses the **identical** five firing tiers, earned through dedicated upgrade pickups (power cells, a power site, an endless ace's power drop) or another pickup of the equipped weapon. Changing weapon type resets to tier 1, even when returning to a previously used weapon. Tiers 4 and 5 each take **two** such pickups in endless (user, 31 October: "Two cells per tier"; `ENDLESS_TIER_CELLS`), the first banked and shown (`POWER 1/2 · NEXT TIER 4`). A capped upgrade (at tier 5) gives the existing 1,000 score bonus and says so, `MAX TIER · +1000` (user, 3 November); life loss still removes one tier and any banked cell, and shows `FIGHTER RESTORED · WEAPON TIER n`. Endless always starts with tier-1 Pulse and the same canonical equipment; campaign progression has no effect.
 
@@ -63,26 +68,88 @@ All ships in both modes can collect up to **five** charges. Each rare shield pic
 
 ### Collectible ships
 
-Every chassis supports every main and special weapon. Their one named perk applies only to campaign. Identical normal movement and collision radius; all use the same visual model until the art phase.
+Every chassis supports every main and special weapon. Identical normal movement and collision radius; each flies its own modular model (docs/31). Their named perks apply in both modes since 30 October ([docs/34](34-global-ship-perks.md)).
 
-| Chassis | Perk | Frame | Propulsion | Core |
-| --- | --- | --- | --- | --- |
-| Scrapper (starter) | 40% wider pickup attraction | Starter | Starter | Starter |
-| Ironclad | One extra starting life over the selected difficulty baseline | Training | Rolling Thunder | Cold Vector |
-| Interceptor | 50% more special charge from main-weapon kills (same three-kills/second cap; no special-kill charge) | Rolling Thunder | Cold Vector | Deep Bloom |
-| Spectre | Activating a special boosts main firing cadence 25% for three active seconds | Deep Bloom | Brood Strike | Final Horizon |
+| Chassis | Perk | Price (since 3 November 2026) |
+| --- | --- | --- |
+| Scrapper (starter) | Salvage Rig: 40% wider pickup attraction | starter |
+| Ironclad | Reserve Life: one extra starting life | 4 parts |
+| Interceptor | Barrel Roll: a quick sidestep on a double-tap | 4 parts |
+| Spectre | Gravitic Shield: shielded near-miss reflection | 4 parts |
 
-A clear on any difficulty grants its named parts once. Parts derive from persisted mission-clear records, so existing clears count and no duplicate fragments accumulate. Failed/abandoned attempts give no parts. After all three pieces are present, assemble for free in Hangar → Ships, then equip freely. Parts and their source missions are visible there; results name newly recovered parts. First-release collection is deliberately deterministic, not randomized drops or repeated farming. Optional contract routes can be added later without changing combat.
+**Since 3 November 2026** (user: "lets make it 4 since its 4 parts of a ship"): a ship costs 4 parts and no credits, one part per section (hull, wings, propulsion, cockpit), bought in Hangar → Ships and then equipped freely. This replaces the mission-clear pieces and the free assembly entirely. **Until then:** a clear on any difficulty granted a named frame, propulsion or core (Ironclad: Training, Rolling Thunder, Cold Vector; Interceptor: Rolling Thunder, Cold Vector, Deep Bloom; Spectre: Deep Bloom, Brood Strike, Final Horizon), and three pieces assembled the ship for free. Ships assembled then stay owned, and so does a ship whose three pieces were all collected (the version-4 migration below).
 
 ## Save migration
 
-The existing storage key is retained; schema is now version 2. Before replacing any version-1 profile, preserve its exact raw text under `last-worlds.campaign.v1.backup`. Invalid/unknown profiles are never overwritten. If backup or migration writing fails, use the migrated profile only in memory for that session.
+**Version 4 (3 November 2026).** The storage key stays. Before a version-3 save is replaced, its exact raw text is kept under `last-worlds.campaign.v3.backup` (versions 1 and 2 keep their own backup keys and migrate through the same steps); if the backup cannot be written, the original stays untouched and the migrated profile runs for the session only. Nothing a save owns is removed:
+
+- Credits, parts, weapons, bought ranks, specials, shields, ships, designs, looks, mission records, attempt receipts, one-time award receipts and the mission system's state are kept as they were.
+- Each weapon's selected level is its bought rank, so every weapon flies exactly as before.
+- The Seeker Rack joins the owned specials (the new free starter). The Shockwave, the old starter, stays owned, and the equipped special stays as it was.
+- A ship whose three mission pieces were all collected but never assembled becomes owned. Partly collected pieces are not converted into parts.
+- Older prices are not refunded or charged: what was bought stays bought.
+- A version-4 save with a selected level above its bought one, a missing selection or a malformed award list is unreadable and never overwritten. An older build reading a version-4 save treats it the same way.
+
+**Version 2 (28 October).** The existing storage key is retained; schema is now version 2. Before replacing any version-1 profile, preserve its exact raw text under `last-worlds.campaign.v1.backup`. Invalid/unknown profiles are never overwritten. If backup or migration writing fails, use the migrated profile only in memory for that session.
 
 - Credits, weapons, specials, mission records and attempt receipts survive.
 - Weapon ranks 0/1/2 retain their purchased level. Old rank 3 (version 1's ×2 rate, not today's tier 4) becomes rank 2 with a 500-credit refund per affected weapon.
 - Each retired Vector or Precision reactor purchase refunds 250 credits; the selected chassis becomes Scrapper.
 - Flux refunds 250 credits. If equipped, select owned Bulwark or Standard. Standard/Bulwark purchases remain owned; Aegis is the new second upgrade.
 - Version 2 prevents repeat migration/refunds on reload. Existing mission clears immediately count toward ship assembly, without fabricating credit awards.
+
+## Shop, levels and income (3 November 2026)
+
+User decisions of 3 November 2026. Runtime sources: `src/content/equipment.ts` (`WEAPON_PRICES`, `RANK_PRICES`, `RANK_PARTS`, `SPECIALS[].price` and `.parts`, `SHIPS[].price` and `.parts`, `REWARDS`, `CREDIT_SCALE`), `src/content/hero-parts.ts` (`HERO_DESIGN_PRICES`, `HERO_DESIGN_PARTS`), `src/campaign/profile.ts`.
+
+### Prices
+
+| Item | Credits | Parts |
+| --- | --- | --- |
+| Twin Pulse | starter | — |
+| Fan Cannon, Seeker Array, Rail Driver | 250 each | 0 |
+| Level 1 → 2 (any main weapon) | 250 | 0 |
+| Level 2 → 3 | 500 | 3 |
+| Level 3 → 4 | 750 | 5 |
+| Level 4 → 5 | 1,000 | 10 |
+| Seeker Rack (homing missiles) | starter | — |
+| Siege Lance | 250 | 1 |
+| Shockwave | 350 | 1 |
+| Gravity Well | 350 | 1 |
+| Bulwark Array, then Aegis Array | 250, then 400 (unchanged) | 0 |
+| Ironclad, Interceptor, Spectre | 0 | 4 each |
+| Each ship design B–E | 50 | 1 |
+| Paint | free | — |
+
+A whole weapon (levels 2–5) costs 2,500 credits and 18 parts. **Rules:** a purchase needs enough credits AND parts and takes both in the same saved transaction; nothing is bought twice; no balance goes below zero; upgrades consume their parts.
+
+### Bought and selected levels
+
+The save tracks, per weapon, the highest level bought (`ranks`) and the level selected to fly (`selected`, from 1 up to the bought one). In Hangar → Main, an owned weapon shows five numbered level buttons: bought levels can be tapped to fly, free, with no refund and no loss of the bought level; the selected one is lit and named (`LEVEL 2`), with `4 / 5 BOUGHT` beside it, the flown pattern below and the next upgrade's price in both currencies. Buying a level also selects it, as buying an item equips it. The campaign page's loadout shows the main weapon with its selected level (`Twin Pulse · LV 2`).
+
+The selected level is the one level a campaign run flies (`campaignConfig` → `createRun` rank: pattern, rate and damage). Changing ship, reloading the save, taking damage or respawning never changes it: campaign runs ignore power cells and weapon drops, and a lost life costs a tier only in endless (`src/sim/game.ts`; `tests/sim/weapon-recovery.test.ts` and `weapon-progression.test.ts` check it). A pilot who owns level 5 can therefore fly Luna with a level-1 Twin Pulse.
+
+### Income
+
+Each world's run pays a set average, by a per-world credit scale (`CREDIT_SCALE`) on the payout: floor(S × M × (C + B + 80)) for a success and floor(S × M × 0.5 × C) for a failure or abandon, with C the collected credits (enemy drops, strike-site credits, full-shield cells), B the boss's 60, M the difficulty multiplier (×0.85 / ×1 / ×1.2) and S the world's scale. It replaced the single ×0.5 of 16 October. Enemy credit values, site loot and every combat value are unchanged; the HUD's live counter uses the same scale.
+
+The **first clear** of each mission adds a flat 75 credits once (unchanged: it was 150 × 0.5): modest beside a run, and the mission system's rewards (separate) come on top.
+
+Measured on 3 November 2026: Standard, the perfect pilot collecting pickups, tier-1 Twin Pulse and the default loadout, seeds 1–12 per mission, all 72 runs complete (`TIER_REPORT=<file> TIER_TARGET=mission:<id> TIER_RANK=0 TIER_SEEDS=1-12 npx vitest run tests/sim/weapon-tier-report.test.ts`). Average credits a repeat clear banks, with the seed range:
+
+| World (mission) | Target | Before (×0.5) | Scale | After | Range after | First clear after |
+| --- | --- | --- | --- | --- | --- | --- |
+| Luna (Training) | 80 | 166 | 0.24 | 80 | 69–89 | 155 |
+| Khepri (Rolling Thunder) | 100 | 179 | 0.28 | 100 | 76–127 | 175 |
+| Vesper (Cold Vector) | 150 | 247 | 0.30 | 148 | 132–176 | 223 |
+| Nacre (Deep Bloom) | 200 | 209 | 0.48 | 200 | 132–254 | 275 |
+| Amnion (Brood Strike) | 250–270 | 214 | 0.60 | 256 | 176–314 | 331 |
+| Umbra (Final Horizon) | 250–270 | 236 | 0.55 | 259 | 206–334 | 334 |
+| All six | 1,030–1,070 | 1,251 | | 1,043 | | 1,493 |
+
+The runs collected on average 253 / 279 / 415 / 338 / 348 / 392 credits in flight (boss reward included). The spread between seeds comes from the encounter deck's strike sites and route: Deep Bloom and Amnion vary most. A first campaign (six first clears) pays about 1,490 credits; a weapon's four upgrades about 2.4 loops of repeat clears plus 18 parts.
+
+**Not measured:** Relaxed and Veteran (they scale by ×0.85 and ×1.2), real pilots who miss drops, higher levels (which kill faster and collect slightly more), and parts per run (docs/33 § 3.1: about 0.5–1 on Standard).
 
 ## Follow-up work
 
