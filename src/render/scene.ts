@@ -1505,16 +1505,19 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // compiles it (performance, 31 October: a dart batch's shadow program compiled on the first dart, 480 ms).
         const emptied: THREE.InstancedMesh[] = [];
         scene.traverse(object => { if ((object as THREE.InstancedMesh).isInstancedMesh && (object as THREE.InstancedMesh).count === 0) { (object as THREE.InstancedMesh).count = 1; emptied.push(object as THREE.InstancedMesh); } });
+        hiddenWarm = state.tick === 0 || jumpFx.launching || flashing;
         // Upload decoded atlases now, including hidden facility/boss materials. Shader compilation
         // alone does not upload textures and otherwise defers that cost to the first visible draw.
-        scene.traverse(object => {
+        // Only under cover (the launch warp, a jump's flash): mid-flight, the next world's kits arriving for its jump
+        // (endless, 8 s into a boss sector) uploaded three 2048² atlases in one frame, 0.54 s in the bench (mobile
+        // performance pass, 3 November). The jump's flash uploads them; anything drawn sooner uploads as it first draws.
+        if (hiddenWarm) scene.traverse(object => {
           if (!(object instanceof THREE.Mesh)) return;
           for (const material of Array.isArray(object.material) ? object.material : [object.material])
             for (const value of Object.values(material)) if (value instanceof THREE.Texture && !uploaded.has(value)) {
               renderer.initTexture(value); uploaded.add(value);
             }
         });
-        hiddenWarm = state.tick === 0 || jumpFx.launching || flashing;
         if (hiddenWarm) {
           // Hidden (a flight's first frame under the launch warp, or a jump's flash): one real frame through the actual pipeline compiles
           // every variant, the HDR target's untoned programs and the shadow pass's depth programs included. The frame
