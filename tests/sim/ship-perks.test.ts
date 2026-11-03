@@ -3,6 +3,7 @@ import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, VIEW, type Mode, type Projectile, type ShipId } from '../../src/shared/contracts';
 import { playerKinematics } from '../../src/sim/fairness';
 import { SHIP_PERKS } from '../../src/sim/ship-perks';
+import { lensFollow, lensRowHalfWidth } from '../../src/shared/lens';
 
 function arena(ship: ShipId = 'spectre', mode: Mode = 'campaign') {
   const state = createRun({ mode, ship, seed: 41 });
@@ -49,10 +50,27 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
     stepRun(edge, { ...EMPTY_INPUT, dashPressed: 1 }); advance(edge, SHIP_PERKS.dashDuration);
     expect(edge.player.x).toBeCloseTo(VIEW.worldWidth / 2 - VIEW.playerRadius, 6);
     // A bullet standing in the dash's path, halfway along it, still hits.
-    const state = arena('interceptor', mode); bullet(state, 1.4, 0);
+    const state = arena('interceptor', mode); bullet(state, SHIP_PERKS.dashDistance / 2, 0);
     state.projectiles[0].vs = 0;
     stepRun(state, { ...EMPTY_INPUT, dashPressed: 1 }); advance(state, SHIP_PERKS.dashDuration);
     expect(state.player.shields).toBe(2);
+  });
+  it('a dash twice the old 2.8 units never carries the ship, wingtips included, out of view', () => {
+    const follow = lensFollow(), visible = lensRowHalfWidth() - .55;
+    let worst = 0;
+    for (const before of [-1, 1] as const) for (const lead of [0, .2, .5, 1, 2]) for (const direction of [-1, 1] as const) for (const held of [false, true]) {
+      const state = arena('interceptor', mode);
+      for (let t = 0; t < lead; t += STEP) stepRun(state, { ...EMPTY_INPUT, horizontal: before });
+      const x = state.player.x;
+      stepRun(state, { ...EMPTY_INPUT, horizontal: held ? direction : 0, dashPressed: direction });
+      for (let t = 0; t < 1.5; t += STEP) {
+        stepRun(state, { ...EMPTY_INPUT, horizontal: held ? direction : 0 });
+        worst = Math.max(worst, Math.abs(state.player.x - state.cameraX * follow));
+      }
+      if (Math.abs(x) < 4) expect(Math.abs(state.player.x - x)).toBeGreaterThan(SHIP_PERKS.dashDistance - .01);
+    }
+    expect(SHIP_PERKS.dashDistance).toBe(5.6);
+    expect(worst).toBeLessThanOrEqual(visible + 1e-6);
   });
   it('captures a genuine graze, curves visibly, and launches at an enemy without charging the special', () => {
     const state = arena('spectre', mode), shot = bullet(state);

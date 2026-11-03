@@ -21,7 +21,7 @@ import { projectGround } from './ground';
 import { HUNTERS, absorbHunterShield, aceDropRoll, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
-import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
+import { SHIP_PERKS, catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -148,6 +148,8 @@ function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
   if (Math.abs(offset) > BALANCE.camera.deadZone) target = player.x - Math.sign(offset) * BALANCE.camera.deadZone;
   const cameraLimit = (VIEW.worldWidth - VIEW.width) / 2;
   state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), movement.camera * dt);
+  // A sidestep outruns that follow: while it lasts the camera is held close enough that the ship stays in view.
+  if (dash) state.cameraX = clamp(clamp(state.cameraX, player.x - SHIP_PERKS.dashCameraReach, player.x + SHIP_PERKS.dashCameraReach), -cameraLimit, cameraLimit);
 }
 
 /** Starts an endless sector's playlist (called by the cycle driver when a sector begins). */
