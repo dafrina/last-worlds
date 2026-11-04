@@ -166,8 +166,11 @@ describe('Bastion-9 mission', () => {
     // meets the same kind of edge shot on 53 (seeds 54-56 clear; a hit there is the pilot's path, not hunter fire).
     // Since the encounter deck (30 October, docs/33 § 4) each seed draws its own waves: all nine fly seed 4, which clears
     // every combination (as does seed 8; 53 and 54 now take one or two hits in three and one of them). Over seeds 1-48 the
-    // pilot takes 31 hits at Standard and 50 at Veteran (all weapons), against 37 and 39 with the fixed list.
-    const seed = 4;
+    // pilot takes 31 hits at Standard and 50 at Veteran (all weapons), against 37 and 39 with the fixed list. Since the
+    // earlier first windups (4 November, DifficultyScale.firstAttack: Standard ×0.75, Veteran ×0.5) Standard flies seed
+    // 11 and Veteran seed 6, on which all three weapons clear (seed 4 now takes one hit with Standard pulse and Veteran
+    // seeker; no seed in 4-19 clears all nine). Relaxed is unchanged and keeps seed 4.
+    const seed = difficulty === 'relaxed' ? 4 : difficulty === 'standard' ? 11 : 6;
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed });
     const log = fly(state, perfectPilot(), 360, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

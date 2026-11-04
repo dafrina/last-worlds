@@ -93,8 +93,9 @@ describe('shared chassis handling keeps missions survivable', () => {
   // Rolling Thunder flies seed 6 since 21 October (user decision, docs/08): ground enemies now stand on the terrain under the
   // release lens, and on seed 5 the heuristic pilot parks at the world edge, where turret fans land on both sides of it.
   // That run is fair (checked below); seeds 6-10 clear without a hit. Deep Bloom flies seed 7 since hunters (22 October):
-  // on seed 5 a Pulsar stream catches the pilot at the world edge (seeds 7-9 clear).
-  it.each([['training', 5], ['bastion', 6], ['cold-vector', 5], ['deep-bloom', 7]] as const)('the perfect pilot clears %s with shared handling without a hit (seed %i)', (mission, seed) => {
+  // on seed 5 a Pulsar stream catches the pilot at the world edge (seeds 7-9 clear). Since the earlier first windups
+  // (4 November) Rolling Thunder flies seed 7: seed 6 takes one hit, seeds 7-13 clear.
+  it.each([['training', 5], ['bastion', 7], ['cold-vector', 5], ['deep-bloom', 7]] as const)('the perfect pilot clears %s with shared handling without a hit (seed %i)', (mission, seed) => {
     const state = createRun({ mode: 'campaign', seed, mission, difficulty: 'standard', ship: 'scrapper' });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');

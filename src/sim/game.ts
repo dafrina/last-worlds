@@ -352,7 +352,7 @@ function updateEnemies(state: RunState, dt: number): void {
         enemy.nextAttack = enemy.age + stats.attackEvery * scale.cadence * (enemy.hunter ? HUNTERS.cadence : missionCadence(state));
         windups -= 1;
       }
-    } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy) && state.time >= state.player.invulnerableUntil - 0.3) {
+    } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy, scale.firstAttack) && state.time >= state.player.invulnerableUntil - 0.3) {
       // Readability caps: a bounded number of simultaneous windups and of marked beam lanes.
       if (windups >= scale.maxWindups) continue;
       // Caught in a Gravity Well's core: no new attack until it is out (docs/32 §2.1).

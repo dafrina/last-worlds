@@ -128,7 +128,8 @@ function spawnHunters(state: RunState): void {
   const x = clamp(state.cameraX + side * 3, -VIEW.worldWidth / 2 + 1, VIEW.worldWidth / 2 - 1);
   state.enemies.push({
     id: state.nextId++, kind, x, s: VIEW.maxS + 3, originX: x, hp, maxHp: hp, radius: base.radius, age: 0,
-    nextAttack: HUNTERS.firstAttack, warning: 0, aimX: x, groundHeight: VIEW.flightHeight,
+    // The difficulty's earlier first windup (DifficultyScale.firstAttack) applies to aces too (user, 4 November).
+    nextAttack: HUNTERS.firstAttack * runScale(state).firstAttack, warning: 0, aimX: x, groundHeight: VIEW.flightHeight,
     // Keyed by level and spawn number, never by entity id (ids shift with unrelated effects and pickups).
     hunter: { key: levelKey(state) * 64 + book.spawned, shield: perCharge * HUNTERS.shield.charges, perCharge, vx: 0, vs: 0, tx: x, ts: HUNTERS.row.max, retarget: 0, waypoint: 0 },
   });

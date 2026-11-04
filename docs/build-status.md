@@ -1,6 +1,28 @@
 # Build status
 
 
+## Earlier first attacks on Standard and Veteran, 4 November 2026
+
+- **The user's requests:** a level-3 Rail Driver killed Veteran enemies "before they even started shooting"; "make the pause less for normal runs too"; "the special enemies shoot earlier too".
+- **What changed:** `DifficultyScale.firstAttack` (docs/11) multiplies a squadron's wait before its first windup:
+  - Relaxed ×1, Standard ×0.75, Veteran ×0.5;
+  - Hunters' (2.2 s) and Wraiths' (1.6 s) first attacks take the same factor;
+  - Pulsars fly in squadrons and are covered too: their first burst comes at 1.2 s on Standard and 0.8 s on Veteran instead of 1.6 s;
+  - endless is unchanged.
+- **Guards:**
+  - Members keep their authored stagger.
+  - No windup starts before an enemy is fully in view (row 18.8; Hunters too).
+  - Warnings keep their full length, and the hazard-union admission still checks every attack.
+- **Rejected:** scaling the stagger as well. Nacre's Standard opening then pinned the pilot at the map edge on 11 of 12 seeds.
+- **Measured** (perfect pilot, seeds 1–12, six missions):
+  - **Enemies killed before their first windup, Rail L3:**
+    - Standard: Amnion 28 → 23 %, Nacre 32 → 22 %, Khepri 19 → 12 %;
+    - Veteran: Amnion and Umbra 24 → 13 %, Nacre 26 → 16 %.
+  - **Hits (Twin Pulse L1, Rail L3 and Fan L3):** Standard 16 → 9 (noise), Veteran 15 → 28. No lives were lost and every run completed.
+  - **Final version** (Hunters and Wraiths included; Twin Pulse L1 and Rail L3 on both difficulties, 288 runs): 0–7 hits per cell and no lives lost.
+  - One Veteran Nacre seed (12, Twin Pulse L1) stalls because of the test pilot, not the game. It parks beside a turret that went quiet when the boss arrived, with THE VEIL off camera.
+- **Tests re-pinned** (fixed-seed no-hit clears): Rolling Thunder Standard 11 and Veteran 6; Deep Bloom 26; Cold Vector Veteran 55; Final Horizon 3; shared handling on Rolling Thunder 7.
+
 ## Release: the 1.0 handover (shop, missions, Interceptor), mobile performance and the 3 November batch, 4 November 2026
 
 One gate and one deploy for everything (user: "Ship together later"). Gated on `6ab5399`; deployed from `integrator-next` (Pages run and live check below).

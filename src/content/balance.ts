@@ -109,6 +109,13 @@ export interface DifficultyScale {
   warning: number;
   /** Multiplier on each enemy's repeat-attack interval (lower is more frequent). */
   cadence: number;
+  /**
+   * Multiplier on a squadron's first windup (its template's fireFrom), never before a member is fully in view
+   * (FIRST_WINDUP_ROW). The members keep their authored stagger (never one sealing wall) and each windup its full warning. Veteran 0.5 (user, 4 November, on strong
+   * weapons: "they are dead before they even started shooting"), Standard 0.75 ("make the pause less for normal runs
+   * too"); Relaxed 1 keeps the authored timing.
+   */
+  firstAttack: number;
   /** Readability cap on simultaneous windups across all enemies. */
   maxWindups: number;
   /** Beam lanes that may be marked or active at once. */
@@ -127,9 +134,9 @@ export interface DifficultyScale {
 /** Campaign difficulty is chosen per attempt; endless never reads this table (docs/11). */
 export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
   // Beam rests added 15 October: later endless Vesper sectors chained 18–19 s of Needle beams (user report).
-  relaxed: { lives: 5, hp: 0.85, shotSpeed: 0.85, warning: 0.25, cadence: 2, maxWindups: 3, maxBeams: 1, rank: 'standard', threatBudget: 14, beamRest: { run: 5, rest: 4 } },
-  standard: { lives: 3, hp: 1, shotSpeed: 1, warning: 0, cadence: 1, maxWindups: 5, maxBeams: 1, rank: 'standard', threatBudget: 16, beamRest: { run: 7, rest: 3 } },
-  veteran: { lives: 3, hp: 1.2, shotSpeed: 1.05, warning: 0, cadence: 0.75, maxWindups: 7, maxBeams: 2, rank: 'veteran', threatBudget: 20, beamRest: null },
+  relaxed: { lives: 5, hp: 0.85, shotSpeed: 0.85, warning: 0.25, cadence: 2, firstAttack: 1, maxWindups: 3, maxBeams: 1, rank: 'standard', threatBudget: 14, beamRest: { run: 5, rest: 4 } },
+  standard: { lives: 3, hp: 1, shotSpeed: 1, warning: 0, cadence: 1, firstAttack: 0.75, maxWindups: 5, maxBeams: 1, rank: 'standard', threatBudget: 16, beamRest: { run: 7, rest: 3 } },
+  veteran: { lives: 3, hp: 1.2, shotSpeed: 1.05, warning: 0, cadence: 0.75, firstAttack: 0.5, maxWindups: 7, maxBeams: 2, rank: 'veteran', threatBudget: 20, beamRest: null },
 };
 
 /**
@@ -258,6 +265,8 @@ export function difficultyScales(mode: 'campaign' | 'endless', difficulty: Diffi
     shotSpeed: Math.min(ramp.shotSpeed.base + ramp.shotSpeed.perSector * n, ramp.shotSpeed.cap),
     warning: 0,
     cadence: Math.max(ramp.cadence.base + ramp.cadence.perSector * n, ramp.cadence.floor),
+    // Endless keeps the authored first windups (its own ramp; docs/18).
+    firstAttack: 1,
     maxWindups: sector >= 3 ? ramp.maxWindups.fromSector3 : ramp.maxWindups.base,
     maxBeams: sector >= 3 ? ramp.maxBeams.fromSector3 : ramp.maxBeams.base,
     rank: sector >= ramp.veteranFormationsFromSector ? 'veteran' : 'standard',

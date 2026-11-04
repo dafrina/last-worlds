@@ -46,7 +46,7 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
     const hp = (core?.hp ?? ENEMIES[slot.kind].hp) * scale.hp;
     const enemy = {
       id: state.nextId++, kind: slot.kind, x: at.x, s: at.s, originX: anchorX, hp, maxHp: hp,
-      radius: core?.radius ?? ENEMIES[slot.kind].radius, age, ...(site ? { site } : {}), nextAttack: (slot.lag ?? 0) + template.fireFrom + slot.fire,
+      radius: core?.radius ?? ENEMIES[slot.kind].radius, age, ...(site ? { site } : {}), nextAttack: (slot.lag ?? 0) + template.fireFrom * scale.firstAttack + slot.fire,
       warning: 0, aimX: at.x, groundHeight: site ? SITE_CORE_HEIGHT[site] : groundHeight(slot.kind), formation: member,
       // Spawned ahead of its time it is still beyond the top edge: shots cannot hit it until its authored entry.
       ...(age < 0 ? { damageable: false } : {}),

@@ -12,11 +12,26 @@ Design v0.2. Selectable campaign difficulty is a confirmed user requirement. The
 
 The prototype also scales attack pressure (runtime source: `DIFFICULTIES` in `src/content/balance.ts`, revised 15 October 2026):
 
-| Setting | Repeat-attack interval | Simultaneous windups / beam lanes | Squadron variant | Live threat budget | Shield cells (Training · Rolling Thunder) |
-| --- | --- | --- | --- | --- | --- |
-| Relaxed | ×2.00 | 3 / 1 | Base | 14 | 40 s, 85 s · 40 s, 105 s |
-| Standard | ×1.00 | 5 / 1 | Base | 16 | 40 s, 85 s · 40 s, 105 s |
-| Veteran | ×0.75 | 7 / 2 | Base plus authored Veteran wingmen | 20 | 65 s · 105 s |
+| Setting | Repeat-attack interval | First windup (4 Nov) | Simultaneous windups / beam lanes | Squadron variant | Live threat budget | Shield cells (Training · Rolling Thunder) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Relaxed | ×2.00 | ×1 | 3 / 1 | Base | 14 | 40 s, 85 s · 40 s, 105 s |
+| Standard | ×1.00 | ×0.75 | 5 / 1 | Base | 16 | 40 s, 85 s · 40 s, 105 s |
+| Veteran | ×0.75 | ×0.5 | 7 / 2 | Base plus authored Veteran wingmen | 20 | 65 s · 105 s |
+
+**Earlier first attacks (4 November 2026, user: "they are dead before the even started shooting"; "make the pause less for normal runs too"; "the special enemies shoot earlier too").** `DifficultyScale.firstAttack` multiplies how long a squadron waits before its first windup (its template's `fireFrom`): Relaxed ×1, Standard ×0.75, Veteran ×0.5. Endless keeps ×1 on its own ramp.
+- **Guards:**
+  - Each member keeps its authored stagger, so a squadron never fires as one sealing wall.
+  - No windup starts before an enemy is fully in view (`FIRST_WINDUP_ROW` 18.8, the ground batteries' row).
+  - Every windup keeps its full warning, and the hazard-union admission still checks each attack.
+- **Hunters and Wraiths:** their own first-attack timers (2.2 s and 1.6 s) take the same factor.
+- **Measured** (perfect pilot, seeds 1–12, six missions; Twin Pulse level 1, Rail Driver and Fan Cannon level 3):
+
+  | Setting | Enemies killed before their first windup, Rail L3 | Hits |
+  | --- | --- | --- |
+  | Standard | Amnion 28 → 23 %, Nacre 32 → 22 % | 16 → 9 over 216 runs (noise) |
+  | Veteran | Amnion and Umbra 24 → 13 % | 15 → 28 over 216 runs, with no lives lost |
+
+- **Rejected first try:** scaling the members' stagger too made Nacre's Standard opening pin the pilot at the map edge on 11 of 12 seeds.
 
 Budgets were lowered on 15 October (from 18 / 24 / 32) together with the rule that squadrons never overlap. Later the same day base repeat intervals were cut by about 17%, Relaxed's multiplier was widened from ×1.7 to ×2.0, and the Training sortie gained a mission factor of ×1.25 on repeat intervals (`MISSION_CADENCE`), so Rolling Thunder carries the full pressure. In practice one air squadron flies at a time, with ground batteries beneath it, and difficulty comes from the faster repeat volleys instead of more enemies. Campaign always flies pace 1.
 

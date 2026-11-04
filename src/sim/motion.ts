@@ -57,12 +57,18 @@ export function aimOffset(enemy: Enemy): number {
   return (slot.aim ?? 0) * enemy.formation.mirror * (slot.flip ? -1 : 1);
 }
 
-export function inFiringWindow(enemy: Enemy): boolean {
-  if (!enemy.formation) return true;
+export function inFiringWindow(enemy: Enemy, firstAttack = 1): boolean {
+  // Hunters fly their own dive: with an earlier first windup they too wait until they are fully in view.
+  if (!enemy.formation) return firstAttack === 1 || enemy.s <= FIRST_WINDUP_ROW;
   const template = formationTemplate(enemy.formation);
   const t = pathTime(enemy.formation, enemy.age);
-  return t >= template.fireFrom && t <= template.fireUntil;
+  if (firstAttack === 1) return t >= template.fireFrom && t <= template.fireUntil;
+  // An earlier first windup (DifficultyScale.firstAttack) never starts before the member is fully in view.
+  return t >= template.fireFrom * firstAttack && t <= template.fireUntil && enemy.s <= FIRST_WINDUP_ROW;
 }
+
+/** Fully in view: the row from which ground batteries may start a windup (formations.ts GROUND_FIRE). */
+export const FIRST_WINDUP_ROW = 18.8;
 
 /** True once a member has flown its whole authored path (it is then removed when out of view). */
 export function pathComplete(enemy: Enemy): boolean {
