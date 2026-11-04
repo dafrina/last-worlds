@@ -693,3 +693,14 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - The missions retune and the six long missions are live.
 - Pages run 41837493076 succeeded; the live bundles match; the smoke test has no errors.
 - `integrator-next` = `main`, plus this record.
+
+**2026-11-04 · Claude Code (Blender MCP in WSL session) · repository cleanup, deploying `6fcea89`:**
+- **Removed from the tree:**
+  - review screenshots;
+  - review renders and sheets in `art/`;
+  - 14 boss models nothing loads.
+
+  All remain in git history.
+- **Removed locally:** the merged agent and sibling worktrees and their merged branches.
+- **Unchanged:** `playground-lab`, `umbra-refine`, `lookdev/`, `art/source`, `art/concepts`.
+- **Gate:** browser 55/55, unit 917/5 skipped.

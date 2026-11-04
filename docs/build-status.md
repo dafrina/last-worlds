@@ -25,6 +25,14 @@ User: "theres tons of screenshots and models we dont use. Clean it all up so we 
   - `lookdev/` (not in the repo; Blender sources, audio and scripts);
   - the unmerged branches `playground-lab` and `umbra-refine`.
 - **Checks:** typecheck clean; unit 917 passed, 5 skipped.
+- **Gate on `6fcea89`:** build passes; browser 55/55 (Playwright exit 0, load 3–4).
+- **Local cleanup** (user: "go ahead, remove them"; every item was checked merged and clean first):
+  - 13 agent worktrees removed;
+  - the `alien-skies-now`, `-old`, `-v15` and `-ships` worktrees removed;
+  - 15 merged branches deleted;
+  - leftover download tags, the Python cache and the build and test output folders removed.
+
+  The gate snapshot `alien-skies-snapshot` stays.
 
 ## World missions retuned: visible-only progress, harder goals, six long missions, 4 November 2026
 
