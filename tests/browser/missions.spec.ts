@@ -5,7 +5,8 @@ import { CAMPAIGN_KEY } from '../../src/campaign/profile';
 
 /*
  * World missions in the browser (docs/35): the campaign page's board, the in-flight note and the results list. A seeded
- * Luna board: Groundbreaker and Specialist done, Lunar Saboteur half way across runs, a last run's progress shown.
+ * Luna board from before the long missions (4 November): Groundbreaker (retired) and Specialist done, five other cards
+ * showing, Lunar Saboteur half way across runs, a last run's progress shown.
  * MISSION_SHOTS=<directory> also saves the three screens (the review sheet, docs/screenshots/missions.jpg).
  */
 const SHOTS = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env.MISSION_SHOTS;
@@ -31,17 +32,20 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   const board = page.locator('.mission-board');
   await board.scrollIntoViewIfNeeded();
   await expect(board.locator('.board-head')).toContainText('MISSIONS · LUNA');
-  await expect(board.locator('.board-count')).toHaveText('2 / 12 DONE');
-  await expect(board.locator('.board-item b')).toHaveText(['Old School', 'Untouchable', 'Collector', 'Air Superiority', 'Demolition']);
+  await expect(board.locator('.board-count')).toHaveText('1 / 12 DONE');
+  // The long mission comes up at once as the fifth card; Demolition, revealed last, goes back to the hidden queue.
+  await expect(board.locator('.board-item b')).toHaveText(['Old School', 'Untouchable', 'Collector', 'Air Superiority', 'Sky Patrol']);
+  await expect(board.locator('.board-item').nth(4).locator('.board-value')).toHaveText('0/100');
+  await expect(board.locator('.board-item').nth(4).locator('.board-scope')).toHaveText('ACROSS RUNS');
   await expect(board.locator('.board-item').nth(1).locator('.board-tag')).toHaveText('STANDARD+');
   await expect(board.locator('.board-item').nth(0).locator('.board-tag')).toHaveText('ANY');
   await expect(board.locator('.board-item').nth(2).locator('.board-value')).toHaveText('38/70');
   await expect(board.locator('.board-item').nth(2).locator('.board-scope')).toHaveText('LAST RUN');
   await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 50 credits and 1 part');
-  // Done missions stay as cards with a check, most recent first.
-  await expect(board.locator('.board-sub')).toHaveText('COMPLETED · 2');
-  await expect(board.locator('.board-done b')).toHaveText(['Specialist', 'Groundbreaker']);
-  await expect(board.locator('.board-done .board-check')).toHaveCount(2);
+  // Done missions stay as cards with a check, most recent first; the retired Groundbreaker no longer shows (its payment stays).
+  await expect(board.locator('.board-sub')).toHaveText('COMPLETED · 1');
+  await expect(board.locator('.board-done b')).toHaveText(['Specialist']);
+  await expect(board.locator('.board-done .board-check')).toHaveCount(1);
   // No horizontal overflow on a phone.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/1-board.png` });
@@ -49,14 +53,14 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Rolling Thunder', exact: true }).click();
   await expect(board.locator('.board-head')).toContainText('MISSIONS · KHEPRI');
   await expect(board.locator('.board-count')).toHaveText('0 / 12 DONE');
-  await expect(board.locator('.board-item b')).toHaveText(['Groundbreaker', 'Specialist', 'Old School', 'Collector', 'Untouchable']);
+  await expect(board.locator('.board-item b')).toHaveText(['Specialist', 'Old School', 'Collector', 'Untouchable', 'Scorched Earth']);
   expect(errors).toEqual([]);
 });
 
 test('a flight shows a small mission note, and the results list the missions it paid', async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  // A fresh board: Groundbreaker, Specialist, Old School, Untouchable and Collector are visible.
+  // A fresh board: Specialist, Old School, Untouchable, Collector and the long mission, Sky Patrol, are visible.
   await seedCampaign(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
@@ -73,7 +77,7 @@ test('a flight shows a small mission note, and the results list the missions it 
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/2-flight-note.png` });
   // The pause panel lists the visible missions with this run's progress.
   await page.locator('.pause-button').click();
-  await expect(page.locator('.pause-missions li').nth(1)).toHaveText(/Specialist\s*1\/5/);
+  await expect(page.locator('.pause-missions li').nth(0)).toHaveText(/Specialist\s*1\/5/);
   await page.locator('[data-action="resume"]').click();
   await flying(page);
   await page.evaluate(() => (window as unknown as Dev).__LAST_WORLDS__.end('complete'));

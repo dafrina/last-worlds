@@ -12,9 +12,9 @@ const LOG = (globalThis as unknown as { process?: { env: Record<string, string |
 
 describe('world missions are all reachable', () => {
   it.each([
-    ['deep-bloom', 5, 525, 3],
-    ['brood-strike', 14, 600, 4],
-    ['final-horizon', 6, 600, 4],
+    ['deep-bloom', 5, 550, 4],
+    ['brood-strike', 14, 625, 5],
+    ['final-horizon', 6, 625, 5],
   ] as const)('%s: all twelve within %i attempts', (mission, max, credits, parts) => {
     const result = clearWorld(mission, max);
     if (LOG) console.log(`${mission}: ${result.flown} attempts\n${result.log.join('\n')}`);

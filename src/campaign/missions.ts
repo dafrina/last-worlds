@@ -72,20 +72,34 @@ export const worldOf = (book: MissionBook, sortie: MissionId): WorldBook => book
  */
 export function settleBoard(world: WorldBook, defs: readonly WorldMission[]): string[] {
   const claims: string[] = [], known = new Set(defs.map(def => def.id));
-  for (;;) {
-    const visible = world.revealed.filter(id => known.has(id) && !world.claimed.includes(id));
-    const ready = visible.find(id => world.achieved.includes(id));
-    if (ready) {
-      world.claimed.push(ready); world.achieved = world.achieved.filter(id => id !== ready); claims.push(ready);
-      continue;
+  const visible = () => world.revealed.filter(id => known.has(id) && !world.claimed.includes(id));
+  const fill = () => {
+    for (;;) {
+      const ready = visible().find(id => world.achieved.includes(id));
+      if (ready) {
+        world.claimed.push(ready); world.achieved = world.achieved.filter(id => id !== ready); claims.push(ready);
+        continue;
+      }
+      const next = visible().length < VISIBLE_MISSIONS ? defs.find(def => !world.revealed.includes(def.id)) : undefined;
+      if (!next) return;
+      world.revealed.push(next.id);
     }
-    const next = visible.length < VISIBLE_MISSIONS ? defs.find(def => !world.revealed.includes(def.id)) : undefined;
-    if (!next) return claims;
-    world.revealed.push(next.id);
+  };
+  fill();
+  // A long mission is always among the five visible (user, 4 November). On a saved board from before it, it comes up at once
+  // as the fifth card: the most recently revealed card goes back to the front of the hidden queue (its progress is kept, and
+  // it is the next card revealed), so exactly five show and the long mission is last.
+  for (const def of defs) {
+    if (!def.long || world.revealed.includes(def.id) || world.claimed.includes(def.id)) continue;
+    const shown = visible();
+    if (shown.length >= VISIBLE_MISSIONS) world.revealed = world.revealed.filter(id => id !== shown[shown.length - 1]);
+    world.revealed.push(def.id);
+    fill();
   }
+  return claims;
 }
 
-/** The ids visible on a settled world's board, in reveal order. */
+/** The ids visible on a settled world's board (five, until the list runs out), in reveal order. Retired ids never show. */
 export const visibleIds = (world: WorldBook, defs: readonly WorldMission[]) =>
   world.revealed.filter(id => !world.claimed.includes(id) && defs.some(def => def.id === id)).slice(0, VISIBLE_MISSIONS);
 
@@ -195,6 +209,8 @@ export function createCounter(def: WorldMission, run: RunFacts, base = 0): Missi
       counter.end = complete => { if (complete && base + own >= def.goal) counter.done = true; };
       break;
     }
+    case 'enemies': counter.on = e => { if ((e.type === 'kill' && (airborne(e) || groundBattery(e))) || e.type === 'site') add(); }; break;
+    case 'gas-tanks': counter.on = e => { if (e.type === 'kill' && e.ground && e.kind === 'fuel' && !e.site) add(); }; break;
     case 'site-cores': counter.on = e => { if (e.type === 'kill' && e.site && rule.sites.includes(e.site)) add(); }; break;
     case 'flanks': {
       const half = Math.ceil(def.goal / 2);

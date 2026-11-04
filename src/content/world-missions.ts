@@ -35,6 +35,10 @@ export type MissionRule =
   | { kind: 'specials' }
   /** Coins collected in flight, as the HUD counts them (credit pickups only; no rewards, no starting balance). */
   | { kind: 'credits' }
+  /** Enemies destroyed: airborne enemies and ground targets (never boss modules or fuel skids). */
+  | { kind: 'enemies' }
+  /** Fuel skids (gas tanks) blown up, by any cause, a skid's chain explosion included (never a site core). */
+  | { kind: 'gas-tanks' }
   /** Strike sites destroyed (only these sites, if given); with `complete`, the mission must also be completed. */
   | { kind: 'sites'; sites?: readonly SiteId[]; complete?: true }
   /** Site cores destroyed, of these sites (each core counts). */
@@ -72,6 +76,11 @@ export interface WorldMission {
   difficulty: Difficulty;
   scope: 'run' | 'career';
   rule: MissionRule;
+  /**
+   * A world's long mission (fifth in the list, user, 4 November): progress adds up across runs, and it is always among the
+   * five visible, the fifth on a saved board that predates it (src/campaign/missions.ts `settleBoard`).
+   */
+  long?: true;
 }
 
 /** Missions on the board at once. */
@@ -89,7 +98,13 @@ const run = (rule: MissionRule) => ({ rule });
 const world = (prefix: string, defs: readonly Def[]): readonly WorldMission[] =>
   defs.map(({ slug, scope, ...def }) => ({ id: `${prefix}.${slug}`, scope: scope ?? 'run', ...def }));
 
-const groundbreaker = (goal: number, credits: number): Def => ({ slug: 'groundbreaker', name: 'Groundbreaker', text: `Destroy ${goal} ground targets in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground' }) });
+/**
+ * A world's long mission (user, 4 November): fifth in the list, across runs, 50 coins and a part. It replaced Groundbreaker
+ * (the first mission, whose id `<world>.groundbreaker` is retired: a board that paid it keeps the payment and no longer shows
+ * it); the four after Groundbreaker moved up.
+ */
+const long = (slug: string, name: string, text: string, goal: number, rule: MissionRule): Def =>
+  ({ slug, name, text, goal, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', long: true, rule });
 const specialist = (goal: number, credits: number): Def => ({ slug: 'specialist', name: 'Specialist', text: `Fire your special ${goal} times in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'specials' }) });
 const oldSchool = (credits: number, where: string): Def => ({ slug: 'old-school', name: 'Old School', text: `Complete ${where} without firing a special.`, goal: 1, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'complete', noSpecial: true }) });
 const untouchable = (where: string): Def => ({ slug: 'untouchable', name: 'Untouchable', text: `Complete ${where} without a shield or hull hit.`, goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'complete', noHit: true }) });
@@ -101,11 +116,11 @@ const hunterBounty = (goal: number): Def => ({ slug: 'hunter-bounty', name: 'Hun
 /** Every world's twelve, in the user's order (the reveal order). Keyed by the world's campaign mission. */
 export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>> = {
   training: world('luna', [
-    groundbreaker(7, 25),
     specialist(5, 25),
     oldSchool(25, 'Training'),
     untouchable('Training'),
     collector(70, 25),
+    long('sky-patrol', 'Sky Patrol', 'Destroy 100 airborne enemies, across runs.', 100, { kind: 'air' }),
     airSuperiority(30, 25),
     demolition(10),
     { slug: 'first-flight', name: 'First Flight', text: 'Complete Training flying a level-1 Twin Pulse.', goal: 1, credits: 25, parts: 1, difficulty: 'relaxed', ...run({ kind: 'complete', weapons: ['pulse'], rank: 0 }) },
@@ -116,11 +131,11 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'lunar-saboteur', name: 'Lunar Saboteur', text: 'Destroy 2 relay stations or shield depots, across runs.', goal: 2, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['relay-station', 'shield-depot'] }) },
   ]),
   bastion: world('khepri', [
-    groundbreaker(10, 25),
     specialist(6, 25),
     oldSchool(25, 'Rolling Thunder'),
     collector(110, 25),
     untouchable('Rolling Thunder'),
+    long('scorched-earth', 'Scorched Earth', 'Destroy 40 ground targets, across runs.', 40, { kind: 'ground' }),
     hunterBounty(2),
     demolition(14),
     { slug: 'armor-piercer', name: 'Armor Piercer', text: 'Defeat Bastion-9 flying the Rail Driver.', goal: 1, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['rail'] }) },
@@ -130,11 +145,11 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'canyon-saboteur', name: 'Canyon Saboteur', text: 'Destroy 2 strike sites and complete the mission.', goal: 2, credits: 50, parts: 1, difficulty: 'relaxed', ...run({ kind: 'sites', complete: true }) },
   ]),
   'cold-vector': world('vesper', [
-    groundbreaker(12, 5),
     specialist(7, 5),
     oldSchool(10, 'Cold Vector'),
     collector(170, 25),
     untouchable('Cold Vector'),
+    long('overcharge', 'Overcharge', 'Fire your special 20 times, across runs.', 20, { kind: 'specials' }),
     airSuperiority(35, 25),
     demolition(16),
     { slug: 'icebreaker', name: 'Icebreaker', text: 'Destroy 3 shield depots or freight terminals, across runs.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['shield-depot', 'freight-terminal'] }) },
@@ -145,11 +160,11 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'arkfall', name: 'Arkfall', text: 'Defeat the Helion Ark without hull damage in its final stage.', goal: 1, credits: 75, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
   'deep-bloom': world('nacre', [
-    groundbreaker(13, 25),
     specialist(8, 25),
     oldSchool(25, 'Deep Bloom'),
     untouchable('Deep Bloom'),
     hunterBounty(2),
+    long('pearl-diver', 'Pearl Diver', 'Collect 1,000 coins, across runs.', 1000, { kind: 'credits' }),
     collector(330, 50),
     airSuperiority(55, 25),
     { slug: 'three-paths', name: 'Three Paths', text: 'Destroy 3 strike sites in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites' }) },
@@ -160,11 +175,11 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'alien-weapons-specialist', name: 'Alien Weapons Specialist', text: 'Defeat THE VEIL flying the Twin Pulse or Fan Cannon.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['pulse', 'fan'] }) },
   ]),
   'brood-strike': world('amnion', [
-    groundbreaker(14, 25),
     specialist(8, 25),
     oldSchool(25, 'Brood Strike'),
     untouchable('Brood Strike'),
     hunterBounty(3),
+    long('bonfire', 'Bonfire', 'Blow up 75 gas tanks, across runs.', 75, { kind: 'gas-tanks' }),
     demolition(18),
     airSuperiority(60, 50),
     { slug: 'nest-breaker', name: 'Nest Breaker', text: 'Destroy 2 brood hives, across runs.', goal: 2, credits: 50, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['brood-hive'] }) },
@@ -175,11 +190,11 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'sterilization', name: 'Sterilization', text: 'Defeat THE CRADLE without hull damage in its final stage.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
   'final-horizon': world('umbra', [
-    groundbreaker(15, 25),
     specialist(8, 25),
     oldSchool(25, 'Final Horizon'),
     untouchable('Final Horizon'),
     hunterBounty(3),
+    long('eclipse-vigil', 'Eclipse Vigil', 'Destroy 500 enemies, across runs.', 500, { kind: 'enemies' }),
     { slug: 'vanishing-act', name: 'Vanishing Act', text: 'Survive 3 Wraith volleys without a hit in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'wraith-clean', window: WRAITH_WINDOW }) },
     collector(400, 50),
     airSuperiority(65, 50),
