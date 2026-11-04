@@ -62,7 +62,7 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | 5 | Collector: 55 coins (25 \| 0 \| any) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
 | 6 | Air Superiority: 12 airborne (25 \| 0 \| any) | Hunter Bounty: 1 hunter (25 \| 0 \| any) | Air Superiority: 20 (25 \| 0 \| any) |
 | 7 | Demolition: 8 ground targets (25 \| 0 \| any) | Demolition: 10 (25 \| 0 \| any) | Demolition: 10 (25 \| 0 \| any) |
-| 8 | First Flight: complete with a tier-1 Twin Pulse (25 \| 1 \| any) | Armor Piercer: defeat Bastion-9 flying the Rail Driver (25 \| 0 \| any) | Icebreaker ✱: 3 shield depots or freight terminals (25 \| 0 \| any) |
+| 8 | First Flight: complete with a level-1 Twin Pulse (25 \| 1 \| any) | Armor Piercer: defeat Bastion-9 flying the Rail Driver (25 \| 0 \| any) | Icebreaker ✱: 3 shield depots or freight terminals (25 \| 0 \| any) |
 | 9 | Interceptor Drill: 4 airborne within 8 s (25 \| 0 \| any) | Flanking Maneuver: 3 enemies on each flank (25 \| 0 \| any) | Cold Vector: defeat the Ark flying the Fan Cannon (50 \| 0 \| any) |
 | 10 | Warden Shutdown: WARDEN-1 within 60 s (25 \| 0 \| Standard+) | Dustfall: 4 turrets in a row without hull damage (25 \| 0 \| any) | Frozen Nerves: 5 ground defences in a row without hull damage (50 \| 0 \| any) |
 | 11 | Training Discipline: WARDEN-1 without hull damage in the fight (50 \| 1 \| Standard+) | Bastion Breaker: Bastion-9 within 80 s (50 \| 1 \| Standard+) | Broadside Broken: both Ark radiators within 50 s of its arrival (75 \| 1 \| any) |
@@ -193,7 +193,14 @@ profile, and checks the payout totals.
 ## 7. On screen
 
 - **Campaign page**: below LAUNCH MISSION, MISSIONS · WORLD with done/total, the five visible missions (name, progress and bar,
-  one line, minimum difficulty in orange when above ANY, ONE RUN / LAST RUN / ACROSS RUNS, reward), and the last three done.
+  one line, minimum difficulty in orange when above ANY, ONE RUN / LAST RUN / ACROSS RUNS, reward). Below them, COMPLETED · n
+  lists every done mission as its own card, most recent first: a green check badge, COMPLETE, and the reward EARNED (user,
+  4 November: "the old mission cards, just with a check or something visually nice and enjoyable"; it replaced a one-line
+  list of the last three).
+  - Cards done since the board was last on screen pop in once, one after another: the check scales in and draws itself,
+    and the card glows briefly. Reduced motion shows them still.
+  - A drawing behind the results screen marks nothing as seen.
+  - The results screen's MISSIONS COMPLETE list carries the same check.
 - **In flight**: one small line under the lives and shields (`SPECIALIST 1/3`, gold for `… COMPLETE · +25 CR`), shown 1.8 s,
   one at a time, newer progress replacing a queued note; nothing while paused. A paid reward also pulses into the coin counter.
 - **Pause**: the visible missions with this run's progress.

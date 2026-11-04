@@ -103,7 +103,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     collector(55, 25),
     airSuperiority(12, 25),
     demolition(8),
-    { slug: 'first-flight', name: 'First Flight', text: 'Complete Training flying a tier-1 Twin Pulse.', goal: 1, credits: 25, parts: 1, difficulty: 'relaxed', ...run({ kind: 'complete', weapons: ['pulse'], rank: 0 }) },
+    { slug: 'first-flight', name: 'First Flight', text: 'Complete Training flying a level-1 Twin Pulse.', goal: 1, credits: 25, parts: 1, difficulty: 'relaxed', ...run({ kind: 'complete', weapons: ['pulse'], rank: 0 }) },
     { slug: 'interceptor-drill', name: 'Interceptor Drill', text: 'Destroy 4 airborne enemies within 8 seconds.', goal: 4, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air', window: 8 }) },
     { slug: 'warden-shutdown', name: 'Warden Shutdown', text: 'Defeat WARDEN-1 within 60 s of its arrival.', goal: 1, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'boss', within: 60 }) },
     { slug: 'training-discipline', name: 'Training Discipline', text: 'Defeat WARDEN-1 without hull damage during the fight.', goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'fight' }) },

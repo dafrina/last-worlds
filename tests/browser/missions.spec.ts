@@ -38,7 +38,10 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   await expect(board.locator('.board-item').nth(2).locator('.board-value')).toHaveText('38/55');
   await expect(board.locator('.board-item').nth(2).locator('.board-scope')).toHaveText('LAST RUN');
   await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 50 credits and 1 part');
-  await expect(board.locator('.board-history')).toContainText('Specialist · Groundbreaker');
+  // Done missions stay as cards with a check, most recent first.
+  await expect(board.locator('.board-sub')).toHaveText('COMPLETED · 2');
+  await expect(board.locator('.board-done b')).toHaveText(['Specialist', 'Groundbreaker']);
+  await expect(board.locator('.board-done .board-check')).toHaveCount(2);
   // No horizontal overflow on a phone.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/1-board.png` });
@@ -86,6 +89,7 @@ test('a flight shows a small mission note, and the results list the missions it 
   await page.getByRole('button', { name: 'RETURN TO MENU' }).click();
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
-  await expect(page.locator('.mission-board .board-history')).toContainText('Untouchable');
+  // Done since the board was last drawn: its card's check pops in once.
+  await expect(page.locator('.mission-board .board-done.is-fresh b')).toHaveText(['Untouchable']);
   expect(errors).toEqual([]);
 });

@@ -512,8 +512,29 @@ button:disabled { cursor: default; }
 .board-parts svg { fill: #ff9e6a; }
 .board-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: #1d3550; }
 .board-bar i { display: block; height: 100%; background: #9fe4ff; box-shadow: 0 0 6px #7fd8ff99; }
-.board-history { margin: 8px 0 0; color: #8fa9c5; font: 8px / 1.6 var(--mono); letter-spacing: .6px; }
-.board-history span { color: #9fe4ff; letter-spacing: 1.2px; margin-right: 4px; }
+/* Done missions (user, 4 November): the same cards with a check badge; newly done ones pop in once. */
+.board-sub { margin: 14px 0 7px; color: #7fe0b0; font: 8px / 1.4 var(--mono); letter-spacing: 1.3px; }
+.board-done { position: relative; padding: 8px 10px 9px 40px; border: 1px solid #24564a; background: linear-gradient(90deg, #0e2b27, #0b1b30 75%); }
+.board-done .board-line b { color: #dff6ec; }
+.board-done .board-text { color: #8db3a8; }
+.board-done .board-tag { color: #7fe0b0; }
+.board-done .board-reward { opacity: .8; }
+.board-earned { flex: none; color: #7fe0b0; font: 600 8px / 1 var(--mono); letter-spacing: 1.2px; }
+.board-check { position: absolute; left: 11px; top: 50%; width: 20px; height: 20px; margin-top: -10px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #8ff5c4, #34c98a 70%); box-shadow: 0 0 10px #3ddc9755, inset 0 -1px 0 #1b8a5a; }
+.board-check svg { width: 13px; height: 13px; fill: none; stroke: #04261a; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.board-done.is-fresh { animation: board-glow 1.6s ease-out var(--delay, 0ms) both; }
+.board-done.is-fresh .board-check { animation: board-pop .55s cubic-bezier(.2, 1.7, .45, 1) var(--delay, 0ms) both; }
+.board-done.is-fresh .board-check path { stroke-dasharray: 14; stroke-dashoffset: 14; animation: board-draw .3s ease-out calc(var(--delay, 0ms) + .3s) forwards; }
+@keyframes board-pop { 0% { transform: scale(0) rotate(-30deg); } 70% { transform: scale(1.2) rotate(0); } 100% { transform: scale(1); } }
+@keyframes board-draw { to { stroke-dashoffset: 0; } }
+@keyframes board-glow { 0%, 100% { box-shadow: 0 0 0 0 #3ddc9700; } 25% { box-shadow: 0 0 18px 1px #3ddc9750; border-color: #5fe0a8; } }
+@media (prefers-reduced-motion: reduce) {
+  .board-done.is-fresh, .board-done.is-fresh .board-check { animation: none; }
+  .board-done.is-fresh .board-check path { animation: none; stroke-dashoffset: 0; }
+}
+.result-missions .board-check { position: static; display: inline-grid; width: 14px; height: 14px; margin: 0 6px 0 0; vertical-align: -2px; }
+.result-missions .board-check svg { width: 10px; height: 10px; }
 .board-note { margin: 0; color: #9db0c5; font-size: 11px; line-height: 1.5; }
 .pause-missions { list-style: none; margin: -14px 0 24px; padding: 0; display: grid; gap: 7px; }
 .pause-missions[hidden] { display: none; }
