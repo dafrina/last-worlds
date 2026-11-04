@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { WRAITH } from '../../src/content/wraith';
+import { DIFFICULTIES } from '../../src/content/balance';
 const ids = ['bastion', 'ark', 'warden', 'veil', 'cradle', 'eclipse'];
 const stats = async (page: Page) => JSON.parse(await page.locator('canvas').first().getAttribute('data-render-stats') ?? '{}');
 const visible = async (page: Page) => { const s = await stats(page); return ids.filter(id => s[id]?.visible); };
@@ -51,7 +53,9 @@ for (const planet of ['amnion', 'umbra']) test(`${planet} dedicated predator loa
     await expect.poll(async () => (await stats(page)).predators?.[name], { timeout: 45000 }).toBe(1);
     await page.screenshot({ path: info.outputPath(`${planet}-${quality}.png`) });
     if (planet === 'umbra') {
-      await page.evaluate(() => (window as any).__PREDATOR_QA__.advance(2.25));
+      // Mid-teleport: 0.65 s after its first attack starts, which the fixture's Standard run brings forward
+      // (DifficultyScale.firstAttack ×0.75 since 4 November: 1.2 s instead of 1.6 s).
+      await page.evaluate(at => (window as any).__PREDATOR_QA__.advance(at), WRAITH.firstAttack * DIFFICULTIES.standard.firstAttack + .65);
       await expect.poll(async () => page.evaluate(() => (window as any).__PREDATOR_QA__.snapshot().enemy.damageable)).toBe(false);
       await page.screenshot({ path: info.outputPath(`umbra-teleport-${quality}.png`) });
       await page.evaluate(() => (window as any).__PREDATOR_QA__.advance(.45));
