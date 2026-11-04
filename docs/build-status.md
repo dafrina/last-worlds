@@ -1,6 +1,43 @@
 # Build status
 
 
+## World missions retuned: visible-only progress, harder goals, six long missions, 4 November 2026
+
+- **The user's report:** a level-3 Rail with the Gravity Well completed 7 Luna and 9 Khepri missions in single runs. Visible cards cascaded: each completion revealed a card already achieved in the same run.
+- **Rule** (docs/35): only the cards visible when a run starts count during it, so at most 5 per world per run. A card revealed mid-run starts counting on the next run, and career progress accrues only while visible.
+- **Goals** were set from measured run contents (Standard, seeds 1–12, level-1 Pulse and level-3 Rail; the table is in docs/35). They step up from Luna to Umbra.
+  - **No-hit variants:** Training Discipline, Dustfall (6 in a row) and Frozen Nerves (10).
+  - **Timers:** Warden 45 s, Bastion 60 s, Cradle 100 s.
+  - **Payouts unchanged**, except for the long missions.
+- **Long missions** (user: "kill 100 airborne… 500 enemies… use special 20 times… 100 gas tanks"; "be a bit creative"; "make it the last of the 5"). Each replaces Groundbreaker as the world's fifth visible card, counts across runs and pays 50 coins + 1 part:
+
+  | World | Mission | Goal |
+  | --- | --- | --- |
+  | Luna | Sky Patrol | 100 airborne |
+  | Khepri | Scorched Earth | 40 ground targets |
+  | Vesper | Overcharge | 20 specials |
+  | Nacre | Pearl Diver | 1,000 coins |
+  | Amnion | Bonfire | 75 gas tanks |
+  | Umbra | Eclipse Vigil | 500 enemies |
+
+  - On old saves the long mission shows at once as the fifth card. The most recently revealed card goes back to the front of the queue and keeps its progress.
+  - Groundbreaker cards are hidden. Their payments stay.
+  - Mission rewards total 3,065 coins and 27 parts.
+- **Feasibility** (planned attempts, level-3 gear unless a card needs otherwise):
+
+  | World | Attempts to clear all 12 |
+  | --- | --- |
+  | Luna | 5 |
+  | Khepri | 3 |
+  | Vesper | 5 |
+  | Nacre | 5 |
+  | Amnion | 14 (Nest Breaker's two hives) |
+  | Umbra | 6 |
+
+  - None is impossible on its minimum difficulty.
+  - Some single-run goals depend on the strike sites drawn: Three Paths 42 %, Canyon Saboteur 92 %.
+- **Agent checks:** typecheck clean; unit 917 passed, 5 skipped; missions browser spec 2/2. Sheet: the scratchpad's `long-sheet.jpg`, inspected (an old Luna save shows Sky Patrol fifth; a fresh Umbra board shows Eclipse Vigil fifth).
+
 ## Earlier first attacks on Standard and Veteran, done mission cards, 4 November 2026
 
 Deployed together (user: "just deploy both together in one go").
