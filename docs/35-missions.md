@@ -1,6 +1,6 @@
 # 35 · World missions
 
-Status: built 3 November 2026 (user handover, 3 November). Runtime sources: `src/content/world-missions.ts` (the 72
+Status: built 3 November 2026 (user handover, 3 November); goals retuned and counting limited to the visible missions on 4 November. Runtime sources: `src/content/world-missions.ts` (the 72
 missions), `src/campaign/missions.ts` (board, counters, saving), `src/sim/events.ts` (the run's observation hook),
 `src/ui/mission-board.ts` (board, pause list, in-flight note, results). Campaign only (AGENTS.md invariant 13).
 Review sheet: `docs/screenshots/missions.jpg`.
@@ -16,13 +16,18 @@ progresses them; rewards are campaign-only and paid once.
   that mission's runs.
 - **Five visible** at a time, the first five at first. Completing one marks it done for good, pays its reward once and reveals
   the next hidden one, so five stay on the board until the list runs out. Done missions form the board's history.
-- **Hidden missions are tracked too.** One completed while hidden is kept as *achieved*; it is paid and marked done the
-  moment it is revealed (which reveals the next one in turn). It is never repeated.
+- **Only the missions visible when a run starts count during it** (user, 4 November; it replaced tracking hidden ones). A
+  mission revealed mid-run starts counting on the next run, so one run completes at most five missions per world (before,
+  each completion revealed a card the run had already achieved: one level-3 Rail run with the Gravity Well completed 7 on
+  Luna and 9 on Khepri). The pause list shows a card revealed mid-run as NEXT RUN.
+- **Saves from before 4 November** may hold missions *achieved* while hidden: they are kept, paid and marked done the moment
+  they are revealed (which reveals the next one in turn), never repeated and never taken back. The board's save format is
+  unchanged (version 1).
 - **Single-run missions** (`scope: 'run'`) count within one attempt. Progress starts at zero each attempt; an unfinished
   attempt's progress is shown on the board as LAST RUN until the next attempt starts, and is never combined with another
   attempt's. A success is kept.
-- **Career missions** (`scope: 'career'`, ACROSS RUNS on the board) add up across attempts. Only six are career missions, each
-  because one attempt cannot reliably hold the objective (§ 5).
+- **Career missions** (`scope: 'career'`, ACROSS RUNS on the board) add up across attempts, only while they are visible.
+  Only six are career missions, each because one attempt cannot reliably hold the objective (§ 5).
 - **Difficulty**: each mission has a minimum (the game's levels: Relaxed = the user's Easy, Standard = Normal, Veteran).
   ANY = any difficulty; STANDARD+ = Standard or Veteran; VETERAN = Veteran only. A run below a mission's minimum does not
   progress it at all, so a perfect Relaxed run never completes a Standard+ mission but completes the ordinary ones.
@@ -41,12 +46,12 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | Kill cause | Main weapon (its shot, with its weapon), special (the Shockwave ring, a Seeker Rack missile, the Siege Lance, a Gravity Well), reflected (a Spectre's Gravitic Shield return) or blast (a fuel skid's explosion). Weapon and perk missions count only their own cause: Seeker Sweep only the Seeker Array's shots (never the Seeker Rack special or a blast), Gravity Slingshot only reflected shots. |
 | Over open water | The terrain directly under the enemy at its death is at or below the world's sea level (`overWater`, src/sim/events.ts). |
 | Hit | A registered hit on the ship (never one absorbed by invulnerability). A **shield hit** when a shield charge took it, else a **hull hit** (a life lost). "Without taking damage / a hit": no shield and no hull hit. "Without hull damage": shield hits allowed. |
-| The fight | From the boss's arrival (its name shows; the `arrival` phase) to its destruction. Timed boss missions measure this span: Warden Shutdown ≤ 100 s, Bastion Breaker ≤ 120 s, Cradle's End ≤ 150 s. |
+| The fight | From the boss's arrival (its name shows; the `arrival` phase) to its destruction. Timed boss missions measure this span: Warden Shutdown ≤ 45 s, Bastion Breaker ≤ 60 s, Cradle's End ≤ 100 s; Broadside Broken counts both radiators within 50 s of it. Training Discipline allows no hit at all during it. |
 | Final phase / stage | The boss's last phase: its overload (every boss has one), from its start to the boss's destruction. A boss destroyed straight from its core phase (one blow taking it past its overload threshold to zero) had an empty final phase, which counts as clean. |
 | Loadout | Read from the run's config (`weapon`, and `rank`: the level the run flies, chosen in the hangar; rank 0 is level 1) and checked against the live weapon and level at every frame of the run. Campaign runs cannot change weapon; the check holds the definition if that ever changes. First Flight: `weapon === 'pulse'` and `rank === 0` for the whole run. |
 | Flanks | The map is 24 wide and the screen 12: the flanks are world \|x\| > 6 on each side, where an enemy lies at its death. |
 | Wraith zap sequence | One Wraith attack: its feint, teleport and three-round volley (content/wraith.ts). It is survived when no hit registers within 1.5 s of the volley's release (its rounds leave at 16 units/s or faster from rows 10.5–16.5 and cross the ship's row within about 1.1 s). Hunter Wraiths' volleys count. |
-| Ground streak | Dustfall and Frozen Nerves: kills of those batteries since the last hull hit (a shield hit keeps the streak). |
+| Ground streak | Dustfall and Frozen Nerves: kills of those batteries since the last hit, shield or hull (4 November; the rule's `anyHit`). The rule also allows a hull-only streak; no mission uses it now. |
 | Coins (Collector) | Coin pickups collected in flight, counted as the HUD's coin counter counts them: their value × the world's `CREDIT_SCALE` (Luna 0.24, Khepri 0.28, Vesper 0.30, Nacre 0.48, Amnion 0.60, Umbra 0.55; src/content/equipment.ts) × the difficulty's multiplier (×0.85 / ×1 / ×1.2), rounded down. Mission rewards, the boss reward, a full shield cell's 5 credits and the starting balance never count. |
 
 ## 3. The missions
@@ -55,35 +60,37 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 
 | # | Luna (Training) | Khepri (Rolling Thunder) | Vesper (Cold Vector) |
 | --- | --- | --- | --- |
-| 1 | Groundbreaker: 5 ground targets (25 \| 0 \| any) | Groundbreaker (25 \| 0 \| any) | Groundbreaker (5 \| 0 \| any) |
-| 2 | Specialist: 3 specials (25 \| 0 \| any) | Specialist: 3 (25 \| 0 \| any) | Specialist: 3 (5 \| 0 \| any) |
+| 1 | Groundbreaker: 7 ground targets (25 \| 0 \| any) | Groundbreaker: 10 (25 \| 0 \| any) | Groundbreaker: 12 (5 \| 0 \| any) |
+| 2 | Specialist: 5 specials (25 \| 0 \| any) | Specialist: 6 (25 \| 0 \| any) | Specialist: 7 (5 \| 0 \| any) |
 | 3 | Old School: complete without a special (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (10 \| 0 \| any) |
-| 4 | Untouchable: complete without a hit (50 \| 1 \| Standard+) | Collector: 70 coins (25 \| 0 \| any) | Collector: 105 (25 \| 0 \| any) |
-| 5 | Collector: 55 coins (25 \| 0 \| any) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
-| 6 | Air Superiority: 12 airborne (25 \| 0 \| any) | Hunter Bounty: 1 hunter (25 \| 0 \| any) | Air Superiority: 20 (25 \| 0 \| any) |
-| 7 | Demolition: 8 ground targets (25 \| 0 \| any) | Demolition: 10 (25 \| 0 \| any) | Demolition: 10 (25 \| 0 \| any) |
+| 4 | Untouchable: complete without a hit (50 \| 1 \| Standard+) | Collector: 110 coins (25 \| 0 \| any) | Collector: 170 (25 \| 0 \| any) |
+| 5 | Collector: 70 coins (25 \| 0 \| any) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
+| 6 | Air Superiority: 30 airborne (25 \| 0 \| any) | Hunter Bounty: 2 aces (25 \| 0 \| any) | Air Superiority: 35 (25 \| 0 \| any) |
+| 7 | Demolition: 10 ground targets (25 \| 0 \| any) | Demolition: 14 (25 \| 0 \| any) | Demolition: 16 (25 \| 0 \| any) |
 | 8 | First Flight: complete with a level-1 Twin Pulse (25 \| 1 \| any) | Armor Piercer: defeat Bastion-9 flying the Rail Driver (25 \| 0 \| any) | Icebreaker ✱: 3 shield depots or freight terminals (25 \| 0 \| any) |
-| 9 | Interceptor Drill: 4 airborne within 8 s (25 \| 0 \| any) | Flanking Maneuver: 3 enemies on each flank (25 \| 0 \| any) | Cold Vector: defeat the Ark flying the Fan Cannon (50 \| 0 \| any) |
-| 10 | Warden Shutdown: WARDEN-1 within 60 s (25 \| 0 \| Standard+) | Dustfall: 4 turrets in a row without hull damage (25 \| 0 \| any) | Frozen Nerves: 5 ground defences in a row without hull damage (50 \| 0 \| any) |
-| 11 | Training Discipline: WARDEN-1 without hull damage in the fight (50 \| 1 \| Standard+) | Bastion Breaker: Bastion-9 within 80 s (50 \| 1 \| Standard+) | Broadside Broken: both Ark radiators within 50 s of its arrival (75 \| 1 \| any) |
-| 12 | Lunar Saboteur ✱: 2 relay stations or shield depots (50 \| 1 \| any) | Canyon Saboteur: 2 strike sites and complete (50 \| 1 \| any) | Arkfall: the Ark without hull damage in its final stage (75 \| 1 \| Standard+) |
+| 9 | Interceptor Drill: 6 airborne within 5 s (25 \| 0 \| any) | Flanking Maneuver: 3 enemies on each flank (25 \| 0 \| any) | Cold Vector: defeat the Ark flying the Fan Cannon (50 \| 0 \| any) |
+| 10 | Warden Shutdown: WARDEN-1 within 45 s (25 \| 0 \| Standard+) | Dustfall: 6 turrets in a row without a hit (25 \| 0 \| any) | Frozen Nerves: 10 ground defences in a row without a hit (50 \| 0 \| any) |
+| 11 | Training Discipline: WARDEN-1 without a hit in the fight (50 \| 1 \| Standard+) | Bastion Breaker: Bastion-9 within 60 s (50 \| 1 \| Standard+) | Broadside Broken: both Ark radiators within 50 s of its arrival (75 \| 1 \| any) |
+| 12 | Lunar Saboteur ✱: 2 relay stations or shield depots (50 \| 1 \| any) | Canyon Saboteur: 2 strike sites and complete the mission (50 \| 1 \| any) | Arkfall: the Ark without hull damage in its final stage (75 \| 1 \| Standard+) |
 | **Σ** | **375 coins, 4 parts** | **375, 3** | **420, 3** |
 
 | # | Nacre (Deep Bloom) | Amnion (Brood Strike) | Umbra (Final Horizon) |
 | --- | --- | --- | --- |
-| 1 | Groundbreaker (25 \| 0 \| any) | Groundbreaker (25 \| 0 \| any) | Groundbreaker (25 \| 0 \| any) |
-| 2 | Specialist: 5 (25 \| 0 \| any) | Specialist: 5 (25 \| 0 \| any) | Specialist: 5 (25 \| 0 \| any) |
+| 1 | Groundbreaker: 13 (25 \| 0 \| any) | Groundbreaker: 14 (25 \| 0 \| any) | Groundbreaker: 15 (25 \| 0 \| any) |
+| 2 | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) |
 | 3 | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) |
 | 4 | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
-| 5 | Hunter Bounty (25 \| 0 \| any) | Hunter Bounty (25 \| 0 \| any) | Hunter Bounty (25 \| 0 \| any) |
-| 6 | Collector: 140 (50 \| 0 \| any) | Demolition: 12 (25 \| 0 \| any) | Vanishing Act: 3 Wraith volleys without a hit, one run (25 \| 0 \| Standard+) |
-| 7 | Air Superiority: 20 (25 \| 0 \| any) | Air Superiority: 25 (50 \| 0 \| any) | Collector: 185 (50 \| 0 \| any) |
-| 8 | Three Paths: 3 strike sites in one run (25 \| 0 \| any) | Nest Breaker ✱: 2 brood hives (50 \| 0 \| any) | Air Superiority: 25 (50 \| 0 \| any) |
+| 5 | Hunter Bounty: 2 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) |
+| 6 | Collector: 330 (50 \| 0 \| any) | Demolition: 18 (25 \| 0 \| any) | Vanishing Act: 3 Wraith volleys without a hit, one run (25 \| 0 \| Standard+) |
+| 7 | Air Superiority: 55 (25 \| 0 \| any) | Air Superiority: 60 (50 \| 0 \| any) | Collector: 400 (50 \| 0 \| any) |
+| 8 | Three Paths: 3 strike sites in one run (25 \| 0 \| any) | Nest Breaker ✱: 2 brood hives (50 \| 0 \| any) | Air Superiority: 65 (50 \| 0 \| any) |
 | 9 | Seeker Sweep: 12 airborne over open water by Seeker Array fire (50 \| 0 \| any) | Heartbreaker ✱: 5 brood hive or spawning pool cores (50 \| 1 \| any) | Gravity Slingshot ✱: 5 kills by Gravitic Shield returns (50 \| 1 \| any) |
-| 10 | Pod Bay Purge: 2 pods launched from THE VEIL's bays (25 \| 0 \| any) | Brood Extermination ✱: 12 drones launched by THE CRADLE (75 \| 0 \| any) | Wraith Exorcist: 3 Wraiths in one run (75 \| 0 \| any) |
-| 11 | Veil Survivor: no hit in THE VEIL's final stage (100 \| 1 \| Standard+) | Cradle's End: THE CRADLE within 150 s (100 \| 1 \| Standard+) | Veteran of the Void: complete on Veteran (100 \| 1 \| Veteran) |
+| 10 | Pod Bay Purge: 8 pods launched from THE VEIL's bays (25 \| 0 \| any) | Brood Extermination ✱: 12 drones launched by THE CRADLE (75 \| 0 \| any) | Wraith Exorcist: 3 Wraiths in one run (75 \| 0 \| any) |
+| 11 | Veil Survivor: no hit in THE VEIL's final stage (100 \| 1 \| Standard+) | Cradle's End: THE CRADLE within 100 s (100 \| 1 \| Standard+) | Veteran of the Void: complete on Veteran (100 \| 1 \| Veteran) |
 | 12 | Alien Weapons Specialist: defeat THE VEIL flying the Twin Pulse or Fan Cannon (100 \| 1 \| any) | Sterilization: THE CRADLE without hull damage in its final stage (100 \| 1 \| Standard+) | Blackout: THE ECLIPSE without hull damage in its final phase (100 \| 1 \| Standard+) |
 | **Σ** | **525, 3** | **600, 4** | **600, 4** |
+
+Goals as retuned on 4 November (user-approved; payouts unchanged). Several now need upgrades; § 5 says which.
 
 All six: **2,895 coins and 21 parts**, as handed over (tested). Mars and Cloud World have none.
 
@@ -109,69 +116,74 @@ All six: **2,895 coins and 21 parts**, as handed over (tested). Mars and Cloud W
   sites and Wraith volleys. Without the list nothing is built. `damageEnemy` gained one parameter, the kill's cause. An
   observed and an unobserved run of the same seed and inputs end in identical states (`tests/sim/run-events.test.ts`, two
   full missions, deep equality).
-- **The counters** (`src/campaign/missions.ts`): each campaign attempt builds one counter per open mission its difficulty
-  allows (at most twelve) and feeds them the drained events once (game-ui.ts drains each frame). A counter only reacts to
+- **The counters** (`src/campaign/missions.ts`): each campaign attempt builds one counter per mission visible at its start
+  that its difficulty allows (at most five) and feeds them the drained events once (game-ui.ts drains each frame). A counter only reacts to
   its events: nothing scans enemies or missions per frame. Endless runs never get the list or a tracker.
 - **Notes**: a visible mission's progress shows in flight at every fifth of its goal (every step for goals of five or less);
   completions always show.
 - **Specials**: the starter special is the Seeker Rack (Homing Missiles) since 3 November; its kills are special kills, never
   the Seeker Array's.
 
-## 5. Feasibility (measured)
+## 5. Feasibility (measured, 4 November goals)
 
-Method: the perfect test pilot (tests/sim/pilots.ts) flies each world's mission on seeds 1–12 at Standard (Veteran for
-Veteran of the Void), tier 1 and tier 3 Twin Pulse, collecting coins and strike sites, firing specials when charged (except
-for Old School); loadout objectives fly their loadout, Flanking Maneuver flies to each flank in turn. Share of single
-attempts that complete each mission; career missions: mean progress per attempt
-(`MISSION_REPORT=<file> npx vitest run tests/sim/missions-report.test.ts`, about 9 minutes).
+**Method.** The perfect test pilot (tests/sim/pilots.ts) at Standard. Strong gear unless a mission needs otherwise: a level-3
+Rail Driver with the Gravity Well fired when charged. The loadout missions fly their loadout (First Flight a level-1 Twin Pulse,
+Cold Vector the Fan, Seeker Sweep the Seeker Array, Alien Weapons Specialist the Pulse), Old School fires no special, Gravity
+Slingshot flies the Spectre, Veteran of the Void flies Veteran, Flanking Maneuver flies to each flank in turn, and ground
+objectives go for ground targets first.
 
-| World | Under 100 % at tier 1 (tier 3) | Career progress per attempt |
+**Clearing a world** (`tests/sim/missions-feasibility-*.test.ts`, about 25 s): attempt after attempt on seeds 1, 2, …, each
+with the loadout a player would pick for the missions on the board at its start (`planFor`), through the real tracker and a
+saved profile. Only the missions visible at an attempt's start count, so a world needs at least three attempts.
+
+| World | Attempts to clear all twelve | What took longest |
 | --- | --- | --- |
-| Luna | Groundbreaker 92 % (100), Demolition 58 % (100) | Lunar Saboteur 0.58 (0.67) |
-| Khepri | Groundbreaker 92 % (100), Demolition 25 % (100), Flanking Maneuver 75 % (100), Dustfall 92 % (100), Canyon Saboteur 67 % (83), Untouchable 100 % (92) | — |
-| Vesper | none | Icebreaker 1.00 (1.00) |
-| Nacre | Untouchable 75 % (92), Three Paths 25 % (42) | — |
-| Amnion | Untouchable 92 % (100), Demolition 33 % (100) | Nest Breaker 0.17 (0.17), Heartbreaker 0.50 (0.58), Brood Extermination 9.3 (11.8) |
-| Umbra | Untouchable 92 % (100), Vanishing Act 92 % (100) | Gravity Slingshot 0.67 (0.67) |
+| Luna | 5 | Lunar Saboteur (a relay station or shield depot destroyed on two attempts) |
+| Khepri | 3 | — |
+| Vesper | 5 | Icebreaker (three depots or freight terminals) |
+| Nacre | 5 | Three Paths (an attempt that draws three strike sites) |
+| Amnion | 14 | Nest Breaker (two brood hives: a hive is drawn on 30 % of attempts) |
+| Umbra | 6 | Gravity Slingshot (five Gravitic Shield kills with the Spectre) |
 
-Every other mission completes on every seed at both tiers. Measured again after the 3 November economy merge (per-world coin
-scale, Seeker Rack starter): the same shares. Collector's margin is thinnest on Luna: those attempts collect 249–341 in pickups,
-59–82 coins at ×0.24 against 55; an attempt that fires no special and skips coins can fall short (35–75 coins measured). The perfect pilot takes almost no hits, so Untouchable and the
-hull-damage objectives are far harder for a person than these numbers suggest; that is their purpose (Standard+, a part).
-End to end, `tests/sim/missions-feasibility-*.test.ts` clears all twelve on every world through the real tracker and a saved
-profile, and checks the payout totals.
+**Single attempts** (`MISSION_REPORT=<file> npx vitest run tests/sim/missions-report.test.ts`, one process per world with
+`MISSION_WORLDS`, about 90 s in parallel). Each mission flown alone with its own loadout, at Standard (level 3, seeds 1–12), and
+at Relaxed with the best gear (level 5, seeds 1–6) for the missions any difficulty may fly. Every mission completes on every
+seed except:
 
-**The user's decisions, 3 November** (on flagged items 1, 3 and 5 below; the perfect pilot, Standard, seeds 1–12):
-- *Broadside Broken*: both radiators within **50 s** of the Ark's arrival. Both fall 33–58 s after it at tier 1 (within 50 s on
-  8 of 12 seeds) and 20–30 s at tier 3. That is hard at tier 1 and comfortable after upgrades, like the two timers below.
-- *Nest Breaker*: **2** brood hives, about 12 attempts.
-- *Warden Shutdown* **60 s** and *Bastion Breaker* **80 s** (user: "Tighten to 60 s / 80 s"). WARDEN-1 falls 48–61 s after
-  its arrival at tier 1 (11 of 12 within 60 s) and 24–34 s at tier 3; Bastion-9 67–79 s at tier 1 (all within 80 s) and
-  33–41 s at tier 3. A person at tier 1 will mostly need an upgrade.
+| Mission | Standard, level 3 | Relaxed, level 5 | Why |
+| --- | --- | --- | --- |
+| Luna · Interceptor Drill (6 airborne in 5 s) | 75 % | 100 % | needs a dense squadron in the sights |
+| Luna · Untouchable | 92 % | — | one hit ends it |
+| Khepri · Canyon Saboteur | 92 % | 83 % | needs two strike sites drawn (80 % of attempts) |
+| Nacre · Collector (330) | 92 % | 100 % | close to a level-3 attempt's coins |
+| Nacre · Three Paths | 42 % | 17 % | needs three strike sites drawn (35 % of attempts) |
+| Nacre · Pod Bay Purge (8 pods) | 100 % | 33 % | a level-5 weapon ends THE VEIL before its later pod waves |
+| Umbra · Untouchable, Vanishing Act | 83 % | — | one hit ends them |
+| Umbra · Air Superiority (65) | 92 % | 100 % | close to a level-3 attempt's kills |
 
-**Flagged for the user** (implemented as below; nothing was dropped and no payout changed):
-1. **Broadside Broken is trivial.** The radiators are the Ark's mandatory first phase: its bridge cannot be damaged until both
-   fall, so every Ark fight completes it (100 %), even one the pilot then loses. Proposal, smallest change: "destroy both
-   radiators within 40 s of the Ark's arrival" (or "without hull damage").
-2. **Pod Bay Purge: the bays are not targets.** Implemented as the handover's proposal, 2 pods launched from THE VEIL's bays
-   (100 %: 6–14 a fight). The alternative, its two gill pods (its first phase), would be as trivial as Broadside Broken.
-3. **Nest Breaker is a long grind**: an attempt draws a brood hive 30 % of the time (the deck, 2,000 seeds), and about 0.17
-   fall per attempt, so 3 take some 18 attempts. Proposals: 2 hives (about 12), or brood hives and spawning pools (about 6,
-   overlapping Heartbreaker).
-4. **Cumulative by necessity** (no "in one run" in the handover, and one attempt cannot reliably hold them): Lunar Saboteur
-   (a relay station or shield depot is drawn about 0.8 times an attempt, both together rarely), Icebreaker (about one an
-   attempt), Nest Breaker, Heartbreaker (about 0.5 an attempt), Brood Extermination (6–15 drones shot down a fight; 12 in one
-   fight about half the time at tier 3, less at tier 1, which shoots fewer down, and at tier 5, whose short fight launches
-   fewer waves) and Gravity Slingshot (a return rarely lands the killing blow: 0–3 an attempt).
-5. **Easy timers**: WARDEN-1 falls 49–61 s after its arrival at tier 1 (limit 100) and Bastion-9 67–79 s (limit 120), with
-   the 3 November +20 % boss health. THE CRADLE's 123–141 s against 150 is a real target at tier 1. Proposal if wanted:
-   60 s and 80 s.
-6. **Three Paths depends on the draw**: an attempt draws 3 or more sites 35 % of the time; then it is a fair challenge.
-7. **First Flight needs a level-1 Pulse**: the hangar's level selector (the economy work, 3 November) lets any pilot fly it.
-8. **Collector counts HUD coins** (scaled like the coin counter, per world), not the pickups' raw value; with raw values every
-   Collector completes by just finishing the mission (raw medians are 2–4 times the targets).
-9. **Requires owned gear**: Armor Piercer (Rail Driver), Cold Vector (Fan Cannon), Seeker Sweep (Seeker Array), Gravity
-   Slingshot (the Spectre, which needs Final Horizon cleared). A hidden one simply waits.
+Career progress per attempt (Standard level 3 / Relaxed level 5): Lunar Saboteur 0.67 / 1.00, Icebreaker 1.00 / 0.83, Nest
+Breaker 0.08 / 0.33, Heartbreaker 0.50 / 0.67, Brood Extermination 12 or more / 6 (a level-5 weapon shortens THE CRADLE's fight,
+so fewer drone waves), Gravity Slingshot 0.50 / 0.00 (a level-5 weapon lands the killing blows before a returned shot does).
+
+**On the minimum difficulty.** No mission is out of reach on its minimum. Hunter Bounty 3 (Amnion, Umbra) on Relaxed, where only
+three aces come (four at Standard, five at Veteran), needs every one of them shot down: the level-5 pilot did so on all six
+seeds. Relaxed thins the squadrons, but the airborne and ground counts were still met with level-5 gear.
+
+**What needs upgrades** (the user knows; the integrator's level-1 Twin Pulse medians, 4 November): a level-1 attempt falls
+short of Groundbreaker on Luna (6 of 7), Khepri (6 of 10), Nacre (9 of 13) and Amnion (12 of 14); of every Demolition; of every
+Air Superiority (Luna 29 of 30 … Umbra 48 of 65); of Collector on Luna (69 of 70), Nacre (224 of 330) and Umbra (323 of 400); of
+Warden Shutdown (47–56 s against 45) and Cradle's End (107–122 s against 100); and of Bastion Breaker on some seeds (54–64 s
+against 60). Specialist fits a run's 6–12 activations, the first with the special full at launch.
+
+The perfect pilot takes almost no hits, so Untouchable and the no-hit and hull-damage objectives are far harder for a person
+than these numbers suggest; that is their purpose (most are Standard+ and pay a part).
+
+**Earlier decisions and mappings kept:** Broadside Broken is both radiators within 50 s of the Ark's arrival (the user, 3
+November; at level 3 they fall 20–30 s after it). Pod Bay Purge counts pods launched from THE VEIL's bays, which are launch
+points, not targets. The six career missions are cumulative because one attempt cannot reliably hold them. Collector counts
+HUD coins (scaled like the coin counter, per world), not the pickups' raw value. Armor Piercer, Cold Vector, Seeker Sweep and
+Gravity Slingshot need owned gear (the Spectre needs Final Horizon cleared); First Flight needs the hangar's level selector set
+to level 1.
 
 ## 6. Saving and rewards
 
@@ -208,14 +220,16 @@ profile, and checks the payout totals.
 
 ## 8. Validation
 
-- `tests/campaign/missions.test.ts`: content totals; five visible and the reveal order; hidden progress kept and paid on
-  reveal; unreadable boards untouched; definitions (ground targets, shield vs hull, final stage, timed boss, Seeker attribution,
+- `tests/campaign/missions.test.ts`: content totals; five visible and the reveal order; only missions visible at a run's
+  start count (one revealed mid-run counts from the next run; at most five a run); an older save's hidden achievement paid
+  on reveal; career progress only while visible; unreadable boards untouched; definitions (ground targets, shield vs hull, final stage, timed boss, Seeker attribution,
   reflected attribution, Collector, First Flight, windows, flanks); rewards once across a reload; career progress through an
   interrupted attempt; difficulty gates; endless never progressing; one payment per receipt.
 - `tests/sim/run-events.test.ts`: observed and unobserved runs identical; Seeker Rack kills attributed to the special; a
   Gravitic Shield return reported as a reflected kill; hits only when registered; the boss reward and full-shield credits not
   reported as coins; boss phases, sites and Wraith volleys reported.
-- `tests/sim/missions-feasibility-inner.test.ts` and `-outer.test.ts`: every world's twelve done through the real tracker.
+- `tests/sim/missions-feasibility-inner.test.ts` and `-outer.test.ts`: every world's twelve done through the real tracker,
+  each attempt planned from the board at its start, within the stated attempts (§ 5); about 25 s for both.
 - `tests/ui/mission-notes.test.ts`: the note throttle.
 - `tests/browser/missions.spec.ts`: the board (seeded save), a note in flight, the pause list, the results, the save.
 - Not tested: phones (no hardware test).

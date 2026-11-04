@@ -72,7 +72,34 @@ export function campaign(mission: MissionId) {
       const done = new Set(tracker.board(mission)!.history.map(def => def.id));
       return WORLD_MISSIONS[mission].filter(def => !done.has(def.id)).map(def => def.id);
     },
+    /** The missions on the board now. */
+    visible: () => tracker.board(mission)!.visible.map(entry => entry.def),
   };
+}
+
+/**
+ * The attempt a player picks for the missions on the board at its start (docs/35 § 5): strong gear (a level-3 Rail Driver,
+ * the Gravity Well fired when charged, Standard) unless a visible mission asks for something else: its weapon and level
+ * (First Flight, Armor Piercer, Cold Vector, Seeker Sweep, Alien Weapons Specialist), no specials (Old School, once
+ * Specialist is done), Veteran (Veteran of the Void), the Spectre (Gravity Slingshot), and where to fly (each flank for
+ * Flanking Maneuver; ground targets first for the ground objectives; else strike sites and coins).
+ */
+export function planFor(visible: readonly WorldMission[], seed: number): Attempt {
+  const has = (kind: WorldMission['rule']['kind']) => visible.some(def => def.rule.kind === kind);
+  const ids = new Set(visible.map(def => def.id.split('.')[1]));
+  const attempt: Attempt = { seed, weapon: 'rail', rank: 2, special: 'gravity-well', specials: true, style: 'collect' };
+  const loadout = visible.find(def => (def.rule.kind === 'complete' || def.rule.kind === 'boss') && def.rule.weapons && !def.rule.weapons.includes('rail'))
+    ?? visible.find(def => def.rule.kind === 'air-water');
+  if (loadout?.rule.kind === 'air-water') attempt.weapon = loadout.rule.weapon;
+  else if (loadout && (loadout.rule.kind === 'complete' || loadout.rule.kind === 'boss')) {
+    attempt.weapon = loadout.rule.weapons![0];
+    if (loadout.rule.kind === 'complete' && loadout.rule.rank !== undefined) attempt.rank = loadout.rule.rank;
+  }
+  if (ids.has('old-school') && !ids.has('specialist')) attempt.specials = false;
+  if (visible.some(def => def.difficulty === 'veteran')) attempt.difficulty = 'veteran';
+  if (has('reflected')) attempt.ship = 'spectre';
+  attempt.style = has('flanks') ? 'flank' : has('ground') || has('ground-streak') ? 'ground' : 'collect';
+  return attempt;
 }
 
 /** Every mission's verdict on one finished run's events (a fresh board: all twelve tracked), for the report. */
@@ -93,3 +120,20 @@ export function flyObserved(mission: MissionId, attempt: Attempt) {
   fly(state, pilotFor(attempt), 480, { onTick: s => { events.push(...s.events!.splice(0)); } });
   return { state, events };
 }
+
+/**
+ * A pilot's campaign on one world (docs/35 § 5): attempt after attempt on seeds `firstSeed`, `firstSeed + 1`, …, each planned
+ * from the board at its start, until all twelve are done or `max` attempts are flown. `log` says what each attempt flew and paid.
+ */
+export function clearWorld(mission: MissionId, max: number, firstSeed = 1) {
+  const world = campaign(mission), log: string[] = [];
+  let flown = 0;
+  while (world.missing().length && flown < max) {
+    const attempt = planFor(world.visible(), firstSeed + flown), { state, paid } = world.fly(attempt);
+    flown++;
+    log.push(`${flown} seed ${attempt.seed} ${attempt.weapon} L${(attempt.rank ?? 0) + 1}${attempt.specials ? ` ${attempt.special}` : ' no special'} ${attempt.difficulty ?? 'standard'}`
+      + `${attempt.ship ? ` ${attempt.ship}` : ''} ${attempt.style} ${state.phase}: ${paid.map(def => def.name).join(', ') || '—'}`);
+  }
+  return { flown, missing: world.missing(), credits: world.store.read().credits, parts: world.store.read().parts, log };
+}
+

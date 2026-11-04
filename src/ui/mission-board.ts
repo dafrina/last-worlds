@@ -66,7 +66,7 @@ export function renderBoard(section: HTMLElement, board: WorldBoard | null, worl
 /** The pause panel's compact list: the visible missions with this run's live progress. */
 export function renderLiveBoard(list: HTMLElement, entries: readonly BoardEntry[]): void {
   list.hidden = !entries.length;
-  list.innerHTML = entries.map(({ def, progress, gated }) => `<li><span>${escape(def.name)}</span><b>${gated ? DIFFICULTY_TAG[def.difficulty]
+  list.innerHTML = entries.map(({ def, progress, gated, next }) => `<li><span>${escape(def.name)}</span><b>${next ? 'NEXT RUN' : gated ? DIFFICULTY_TAG[def.difficulty]
     : progress >= def.goal ? 'DONE' : def.goal > 1 ? `${progress}/${def.goal}` : '—'}</b></li>`).join('');
 }
 

@@ -4,51 +4,51 @@ import type { MissionId } from '../../src/shared/contracts';
 import { flyObserved, verdicts, type Attempt } from './mission-harness';
 
 /*
- * The world-mission sweep (docs/35 § 5; several minutes): MISSION_REPORT=<report file> npx vitest run
- * tests/sim/missions-report.test.ts. Each world's mission flown on seeds 1–12 at Standard by the perfect test pilot, at
- * tier 1 and tier 3, collecting coins and strike sites; for each world mission, the share of single attempts that complete
- * it (career missions: the mean progress one attempt adds). Specials are fired whenever charged, except for Old School;
- * loadout objectives fly their loadout; Flanking Maneuver flies to each flank in turn.
+ * The world-mission sweep (docs/35 § 5; minutes): MISSION_REPORT=<report file> [MISSION_WORLDS=training,bastion,…] npx vitest
+ * run tests/sim/missions-report.test.ts. Each world's mission flown by the perfect test pilot, for each world mission with the
+ * attempt a player would pick for it alone:
+ * - Standard, strong gear (a level-3 Rail Driver, the Gravity Well fired when charged), seeds 1–12: the share of attempts that
+ *   complete it (career missions: the mean progress one attempt adds);
+ * - Relaxed with the best gear (level 5), seeds 1–6, for the missions any difficulty may fly: the share and the best attempt,
+ *   to show what is out of reach on the easiest difficulty.
+ * Loadout objectives fly their loadout, Old School fires no special, Gravity Slingshot flies the Spectre, Flanking Maneuver
+ * flies to each flank in turn, ground objectives go for ground targets first.
  */
-const REPORT = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env.MISSION_REPORT;
-const SEEDS = 12;
+const ENV = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
+const REPORT = ENV.MISSION_REPORT;
 
-/** The attempt that suits a mission's objective, at a tier (rank 0 or 2). */
-function attemptFor(def: WorldMission, seed: number, rank: number): Attempt | null {
-  const rule = def.rule, base: Attempt = { seed, rank, specials: true };
-  if (rule.kind === 'complete' && rule.rank !== undefined && rule.rank !== rank) return null;
-  if (rule.kind === 'complete' && rule.noSpecial) return { ...base, specials: false };
-  if ((rule.kind === 'complete' || rule.kind === 'boss') && rule.weapons && !rule.weapons.includes('pulse')) return { ...base, weapon: rule.weapons[0] };
-  if (rule.kind === 'air-water') return { ...base, weapon: rule.weapon };
-  if (rule.kind === 'reflected') return { ...base, ship: 'spectre' };
-  if (rule.kind === 'flanks') return { ...base, style: 'flank' };
-  if (def.difficulty === 'veteran') return { ...base, difficulty: 'veteran' };
-  return base;
+function attemptFor(def: WorldMission, seed: number, best: boolean): Attempt {
+  const rule = def.rule, kind = rule.kind;
+  const attempt: Attempt = { seed, weapon: 'rail', rank: best ? 4 : 2, special: 'gravity-well', specials: true, difficulty: best ? 'relaxed' : 'standard',
+    style: kind === 'flanks' ? 'flank' : kind === 'ground' || kind === 'ground-streak' ? 'ground' : 'collect' };
+  if ((kind === 'complete' || kind === 'boss') && rule.weapons && !rule.weapons.includes('rail')) attempt.weapon = rule.weapons[0];
+  if (kind === 'complete' && rule.rank !== undefined) attempt.rank = rule.rank;
+  if (kind === 'air-water') attempt.weapon = rule.weapon;
+  if (kind === 'complete' && rule.noSpecial) attempt.specials = false;
+  if (kind === 'reflected') attempt.ship = 'spectre';
+  if (def.difficulty === 'veteran') attempt.difficulty = 'veteran';
+  return attempt;
 }
-const key = (a: Attempt) => JSON.stringify(a);
 
 it.runIf(REPORT)('reports each world mission\'s completion per attempt', async () => {
-  const rows: string[] = ['World missions per attempt (Standard unless the mission needs Veteran; perfect pilot; seeds 1–12)', '',
-    '| World | # | Mission | Scope | Tier 1 | Tier 3 |', '| --- | --- | --- | --- | --- | --- |'];
-  for (const [mission, defs] of Object.entries(WORLD_MISSIONS) as [MissionId, readonly WorldMission[]][]) {
-    const cache = new Map<string, ReturnType<typeof verdicts>>();
+  const worlds = (ENV.MISSION_WORLDS?.split(',') ?? Object.keys(WORLD_MISSIONS)) as MissionId[];
+  const rows: string[] = [];
+  for (const mission of worlds) {
+    const defs = WORLD_MISSIONS[mission], cache = new Map<string, ReturnType<typeof verdicts>>();
     const result = (attempt: Attempt) => {
-      if (!cache.has(key(attempt))) { const { state, events } = flyObserved(mission, attempt); cache.set(key(attempt), verdicts(state, events)); }
-      return cache.get(key(attempt))!;
+      const key = JSON.stringify(attempt);
+      if (!cache.has(key)) { const { state, events } = flyObserved(mission, attempt); cache.set(key, verdicts(state, events)); }
+      return cache.get(key)!;
     };
     for (const [index, def] of defs.entries()) {
-      const cells = [0, 2].map(rank => {
-        const outcomes: { done: boolean; value: number }[] = [];
-        for (let seed = 1; seed <= SEEDS; seed++) {
-          const attempt = attemptFor(def, seed, rank);
-          if (attempt) outcomes.push(result(attempt).find(v => v.def.id === def.id)!);
-        }
-        if (!outcomes.length) return 'n/a';
-        return def.scope === 'career'
-          ? `${(outcomes.reduce((sum, o) => sum + o.value, 0) / outcomes.length).toFixed(2)} / attempt`
-          : `${Math.round(100 * outcomes.filter(o => o.done).length / outcomes.length)} %`;
-      });
-      rows.push(`| ${defs[0].id.split('.')[0]} | ${index + 1} | ${def.name} | ${def.scope} | ${cells.join(' | ')} |`);
+      const cell = (best: boolean, seeds: number) => {
+        if (best && def.difficulty !== 'relaxed') return 'n/a';
+        const outcomes = Array.from({ length: seeds }, (_, i) => result(attemptFor(def, i + 1, best)).find(v => v.def.id === def.id)!);
+        if (def.scope === 'career') return `${(outcomes.reduce((sum, o) => sum + o.value, 0) / seeds).toFixed(2)} / attempt`;
+        if (best) return `${Math.round(100 * outcomes.filter(o => o.done).length / seeds)} % (best ${Math.max(...outcomes.map(o => o.value))}/${def.goal})`;
+        return `${Math.round(100 * outcomes.filter(o => o.done).length / seeds)} %`;
+      };
+      rows.push(`| ${def.id.split('.')[0]} | ${index + 1} | ${def.name} | ${def.goal} | ${cell(false, 12)} | ${cell(true, 6)} |`);
     }
   }
   const fs = await import(/* @vite-ignore */ 'node:fs' as string) as { writeFileSync(path: string, data: string): void };
