@@ -671,3 +671,12 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **2026-11-04 · Claude Code (Blender MCP in WSL session) · deployed `6fcc230`: the 1.0 handover release.**
 - Pages run 41742002208 succeeded; the live bundles match; the live smoke test has no errors.
 - `integrator-next` = `main`, plus this record. No phone test.
+
+**2026-11-04 · Claude Code (Blender MCP in WSL session) · deploying `a728641`:**
+- **Contents:** earlier first attacks (Standard ×0.75, Veteran ×0.5, Hunters and Wraiths included) and the done mission cards.
+- **Gate:**
+  - unit 912/5 skipped;
+  - build passes;
+  - browser 51/55 under another project's load, then the 4 failed specs passed on rerun.
+
+  Details are in docs/build-status.md.

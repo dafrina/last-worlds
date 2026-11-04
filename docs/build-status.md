@@ -1,8 +1,24 @@
 # Build status
 
 
-## Earlier first attacks on Standard and Veteran, 4 November 2026
+## Earlier first attacks on Standard and Veteran, done mission cards, 4 November 2026
 
+Deployed together (user: "just deploy both together in one go").
+
+- **Mission board** (`1c4e041`, docs/35 § 6):
+  - Done missions stay as cards, most recent first, with a green check, COMPLETE and the reward EARNED. They replace the one-line list of the last three.
+  - Cards done since the board was last on screen pop in once: the check scales in and draws itself, and the card glows. Reduced motion shows them still.
+  - The results list carries the same check, and First Flight says level-1.
+- **Gate on `a728641`** (clean snapshot):
+  - typecheck clean;
+  - unit 912 passed, 5 skipped (on `1c4e041`; `a728641` only changes a browser spec);
+  - build passes;
+  - **browser:**
+    - The full run on `1c4e041` passed 51/55 (Playwright exit 1), while another project's e2e suite held the load at 33–45.
+    - The four failures:
+      - the Wraith predator check, which stepped to a fixed moment the earlier first attack moved, fixed in `a728641`;
+      - the VEIL rig, the Bastion reference model and the home menu, which timed out under the load.
+    - Rerun on `a728641` at load 15: 4/4 passed (Playwright exit 0).
 - **The user's requests:** a level-3 Rail Driver killed Veteran enemies "before they even started shooting"; "make the pause less for normal runs too"; "the special enemies shoot earlier too".
 - **What changed:** `DifficultyScale.firstAttack` (docs/11) multiplies a squadron's wait before its first windup:
   - Relaxed ×1, Standard ×0.75, Veteran ×0.5;
