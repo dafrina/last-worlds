@@ -680,3 +680,8 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - browser 51/55 under another project's load, then the 4 failed specs passed on rerun.
 
   Details are in docs/build-status.md.
+
+**2026-11-04 · Claude Code (Blender MCP in WSL session) · deployed `e3c7b6c`:**
+- Earlier first attacks and the done mission cards are live.
+- Pages run 41818195029 succeeded; the live bundles match; the smoke test has no errors.
+- `integrator-next` = `main`, plus this record.

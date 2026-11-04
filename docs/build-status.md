@@ -19,6 +19,7 @@ Deployed together (user: "just deploy both together in one go").
       - the Wraith predator check, which stepped to a fixed moment the earlier first attack moved, fixed in `a728641`;
       - the VEIL rig, the Bastion reference model and the home menu, which timed out under the load.
     - Rerun on `a728641` at load 15: 4/4 passed (Playwright exit 0).
+- **Live:** Pages run 41818195029 succeeded for `e3c7b6c`, and the live bundles (`main-YWWe2uAt.js`, `scene-CCmeLjmt.js`) match the build. The endless smoke test on the live site has no page errors.
 - **The user's requests:** a level-3 Rail Driver killed Veteran enemies "before they even started shooting"; "make the pause less for normal runs too"; "the special enemies shoot earlier too".
 - **What changed:** `DifficultyScale.firstAttack` (docs/11) multiplies a squadron's wait before its first windup:
   - Relaxed ×1, Standard ×0.75, Veteran ×0.5;
