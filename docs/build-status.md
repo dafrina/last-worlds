@@ -73,7 +73,7 @@ One gate and one deploy for everything (user: "Ship together later"). Gated on `
   - build passes;
   - browser 55/55, Playwright exit 0, `--timeout=180000`, load 9–10.
 - **Live:** Pages run 41742002208 succeeded for `6fcc230`, and the live bundles (`main-CNdm6FFd.js`, `scene-D8tqp0Dm.js`) match the build. The endless smoke test on the live site has no page errors.
-- **Not tested:** no phone test.
+- **Phone (user report, 4 November):** "the graphics look great and the performance is smooth on my phone". This is an informal check: the device and browser weren't stated, and no frame times were recorded.
 
 ## Performance pass, craft shadows, Vesper's lasers, endless ace drops, 31 October 2026
 
