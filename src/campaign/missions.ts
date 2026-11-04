@@ -8,8 +8,11 @@ import { awardOnce, type CampaignProfile } from './profile';
  *
  * - The board, per world: missions are revealed in authored order, five visible at a time. Completing one marks it
  *   achieved; an achieved mission is claimed (marked done, its reward paid once) as soon as it is visible, which reveals the
- *   next one, so a mission completed while hidden pays when it comes up and is never repeated.
- * - Counters: each run builds one counter per open mission its difficulty allows and feeds them the run's events
+ *   next one. Only the missions visible when a run starts count during it (user, 4 November): one revealed mid-run starts
+ *   counting on the next run, so a run completes at most five per world. Saves from before that rule may hold missions
+ *   achieved while hidden: they still pay when revealed, and are never repeated.
+ * - Counters: each run builds one counter per mission visible at its start that its difficulty allows, and feeds them the
+ *   run's events
  *   (src/sim/events.ts), drained once each. Nothing scans the world: a counter only reacts to the events it is given.
  * - Saving: completions are saved (and paid) the moment they happen, career progress whenever it changes, and the run's
  *   own progress when it ends, each in one profile transaction (`missionTransaction`) with the rewards (`awardOnce`).
@@ -92,6 +95,8 @@ export interface BoardEntry {
   progress: number;
   /** In flight: the run's difficulty is below the mission's minimum, so it does not progress. */
   gated?: boolean;
+  /** In flight: revealed during this run, so it starts counting on the next one. */
+  next?: boolean;
 }
 export interface WorldBoard { sortie: MissionId; visible: BoardEntry[]; history: WorldMission[]; done: number; total: number }
 
@@ -202,10 +207,10 @@ export function createCounter(def: WorldMission, run: RunFacts, base = 0): Missi
       break;
     }
     case 'ground-streak': {
-      // The current run of these batteries since the last hull hit (a shield hit keeps it).
+      // The current run of these batteries since the last hull hit (a shield hit keeps it, unless `anyHit`).
       let streak = 0;
       counter.on = e => {
-        if (e.type === 'hit' && !e.shield) { streak = 0; if (!counter.done) own = 0; }
+        if (e.type === 'hit' && (rule.anyHit || !e.shield)) { streak = 0; if (!counter.done) own = 0; }
         else if (e.type === 'kill' && groundBattery(e) && rule.kinds.includes(e.kind)) set(++streak);
       };
       break;
@@ -226,7 +231,8 @@ export function createCounter(def: WorldMission, run: RunFacts, base = 0): Missi
           else if (e.phase === 'destroyed' && arrival !== null
             && (rule.within === undefined || e.time - arrival <= rule.within + 1e-9) && loadout(rule.weapons)) pass();
         } else if (e.type === 'hit' && arrival !== null && !counter.done) {
-          if ((rule.noHull === 'fight' && !e.shield) || (final && ((rule.noHull === 'final' && !e.shield) || rule.noHit === 'final'))) failed = true;
+          if ((rule.noHull === 'fight' && !e.shield) || rule.noHit === 'fight'
+            || (final && ((rule.noHull === 'final' && !e.shield) || rule.noHit === 'final'))) failed = true;
         }
       };
       break;
@@ -277,6 +283,8 @@ const noteStep = (def: WorldMission) => Math.max(1, Math.ceil(def.goal / 5));
 
 interface RunTracker {
   sortie: MissionId; attempt: string; facts: RunFacts; counters: MissionCounter[];
+  /** The missions visible when the run started: the only ones it counts. */
+  counted: Set<string>;
   /** Progress already announced (or saved, for career missions), per mission. */
   shown: Map<string, number>; saved: Map<string, number>;
   /** Ids visible on the board now, and those this run has completed or paid. */
@@ -359,10 +367,11 @@ export function createMissionTracker(store: MissionStore) {
     });
     if (!opened) return null;
     const facts: RunFacts = { config: state.config, loadoutChanged: false };
-    const difficulty = state.config.difficulty ?? 'standard';
-    const counters = defs.filter(def => !opened.claimed.includes(def.id) && !opened.achieved.includes(def.id) && difficultyAllows(difficulty, def.difficulty))
+    const difficulty = state.config.difficulty ?? 'standard', visible = new Set(visibleIds(opened, defs));
+    // Only the missions on the board now count in this run (a settled board holds nothing achieved among them).
+    const counters = defs.filter(def => visible.has(def.id) && !opened.achieved.includes(def.id) && difficultyAllows(difficulty, def.difficulty))
       .map(def => createCounter(def, facts, def.scope === 'career' ? opened.career[def.id] ?? 0 : 0));
-    const tracker: RunTracker = { sortie, attempt, facts, counters, shown: new Map(), saved: new Map(), visible: new Set(visibleIds(opened, defs)), achieved: new Set(), claimed: [], finished: false };
+    const tracker: RunTracker = { sortie, attempt, facts, counters, counted: visible, shown: new Map(), saved: new Map(), visible: new Set(visible), achieved: new Set(), claimed: [], finished: false };
     for (const counter of counters) tracker.shown.set(counter.def.id, counter.value());
     return tracker;
   }
@@ -410,7 +419,7 @@ export function createMissionTracker(store: MissionStore) {
       const defs = WORLD_MISSIONS[tracker.sortie];
       return [...tracker.visible].flatMap(id => {
         const def = defs.find(d => d.id === id), counter = tracker.counters.find(c => c.def.id === id);
-        return def ? [{ def, progress: counter ? (counter.done ? def.goal : counter.value()) : 0, ...(counter ? {} : { gated: true }) }] : [];
+        return def ? [{ def, progress: counter ? (counter.done ? def.goal : counter.value()) : 0, ...(counter ? {} : tracker.counted.has(id) ? { gated: true } : { next: true }) }] : [];
       });
     },
     /**

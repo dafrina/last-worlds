@@ -35,7 +35,7 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   await expect(board.locator('.board-item b')).toHaveText(['Old School', 'Untouchable', 'Collector', 'Air Superiority', 'Demolition']);
   await expect(board.locator('.board-item').nth(1).locator('.board-tag')).toHaveText('STANDARD+');
   await expect(board.locator('.board-item').nth(0).locator('.board-tag')).toHaveText('ANY');
-  await expect(board.locator('.board-item').nth(2).locator('.board-value')).toHaveText('38/55');
+  await expect(board.locator('.board-item').nth(2).locator('.board-value')).toHaveText('38/70');
   await expect(board.locator('.board-item').nth(2).locator('.board-scope')).toHaveText('LAST RUN');
   await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 50 credits and 1 part');
   // Done missions stay as cards with a check, most recent first.
@@ -64,16 +64,16 @@ test('a flight shows a small mission note, and the results list the missions it 
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Standard', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
   await flying(page);
-  // Firing the special: Specialist 1/3 shows briefly under the lives and shields (Old School is failed, quietly).
+  // Firing the special: Specialist 1/5 shows briefly under the lives and shields (Old School is failed, quietly).
   // Evidence only: software WebGL can take longer to capture a frame than the note stays, so the shot holds it at full.
   if (SHOTS) await page.addStyleTag({ content: '.mission-note { animation: none !important; opacity: .92 !important; }' });
   await page.evaluate(() => (window as unknown as Dev).__LAST_WORLDS__.special());
   const note = page.locator('.mission-note.is-on');
-  await expect(note).toHaveText('SPECIALIST 1/3', { timeout: 5_000 });
+  await expect(note).toHaveText('SPECIALIST 1/5', { timeout: 5_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/2-flight-note.png` });
   // The pause panel lists the visible missions with this run's progress.
   await page.locator('.pause-button').click();
-  await expect(page.locator('.pause-missions li').nth(1)).toHaveText(/Specialist\s*1\/3/);
+  await expect(page.locator('.pause-missions li').nth(1)).toHaveText(/Specialist\s*1\/5/);
   await page.locator('[data-action="resume"]').click();
   await flying(page);
   await page.evaluate(() => (window as unknown as Dev).__LAST_WORLDS__.end('complete'));
