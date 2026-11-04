@@ -688,3 +688,8 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 
 **2026-11-04 · Claude Code (Blender MCP in WSL session) · deploying the world-missions retune and the six long missions.**
 - Gate on `e6cade7`: unit 917/5 skipped, build, browser 55/55, Playwright exit 0.
+
+**2026-11-04 · Claude Code (Blender MCP in WSL session) · deployed `752f736`:**
+- The missions retune and the six long missions are live.
+- Pages run 41837493076 succeeded; the live bundles match; the smoke test has no errors.
+- `integrator-next` = `main`, plus this record.

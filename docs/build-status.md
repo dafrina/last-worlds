@@ -38,6 +38,7 @@
   - Some single-run goals depend on the strike sites drawn: Three Paths 42 %, Canyon Saboteur 92 %.
 - **Agent checks:** typecheck clean; unit 917 passed, 5 skipped; missions browser spec 2/2. Sheet: the scratchpad's `long-sheet.jpg`, inspected (an old Luna save shows Sky Patrol fifth; a fresh Umbra board shows Eclipse Vigil fifth).
 - **Gate on `e6cade7`** (clean snapshot, load 4–8): typecheck clean; unit 917 passed, 5 skipped; build passes; browser 55/55 (Playwright exit 0).
+- **Live:** Pages run 41837493076 succeeded for `752f736`, and the live bundles (`main-CfkuxBYR.js`, `scene-CCmeLjmt.js`) match the build. The endless smoke test on the live site has no page errors.
 
 ## Earlier first attacks on Standard and Veteran, done mission cards, 4 November 2026
 
