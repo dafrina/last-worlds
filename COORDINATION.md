@@ -667,3 +667,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - the mobile performance pass (docs/36).
 - **Gate on `6ab5399`:** unit 912/5 skipped, build, browser 55/55, Playwright exit 0. Details are in docs/build-status.md.
 - **No phone test.**
+
+**2026-11-04 · Claude Code (Blender MCP in WSL session) · deployed `6fcc230`: the 1.0 handover release.**
+- Pages run 41742002208 succeeded; the live bundles match; the live smoke test has no errors.
+- `integrator-next` = `main`, plus this record. No phone test.
