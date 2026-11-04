@@ -1,6 +1,31 @@
 # Build status
 
 
+## Repository cleanup, 4 November 2026
+
+User: "theres tons of screenshots and models we dont use. Clean it all up so we have a clean repo".
+
+- **Removed from the tree (281 files, all kept in git history):**
+  - **Review screenshots:** `docs/screenshots/` (121 files, 45 MB).
+  - **Review renders and sheet pages in `art/` (146 files):** Blender preview renders, which the `tools/blender` scripts write and regenerate, and the review sheets with their HTML pages.
+  - **14 boss models nothing loads:**
+    - Bastion-9 v2, v3-study, v4-approved;
+    - WARDEN-1 v2, v3-study;
+    - THE VEIL v2-carrier, v3-study, v4-approved, v5-remodel;
+    - Helion Ark v2, v3-study, v4-approved, v5-remodel;
+    - THE ECLIPSE v1-approved.
+
+    About 40 MB in all.
+- **Restoring:** screenshot and sheet paths cited in older entries and docs now point into history. Restore one with `git show <this commit>^:<path> > <path>`.
+- **Kept:**
+  - every model the game loads, matched by path, including the pattern-built hero designs, strike sites and world kits;
+  - the inputs of the `tools/blender` scripts and the files tests check: the older facility kits, the earlier Bastion tread models, the old facility compounds, the first Wraith, Umbra's first cliff kit;
+  - `art/source` (the user's Tripo originals and the PolyHaven textures), `art/concepts`, `art/boss-references`, `art/approved-bosses`, and every README and manifest (provenance).
+- **Not touched:**
+  - `lookdev/` (not in the repo; Blender sources, audio and scripts);
+  - the unmerged branches `playground-lab` and `umbra-refine`.
+- **Checks:** typecheck clean; unit 917 passed, 5 skipped.
+
 ## World missions retuned: visible-only progress, harder goals, six long missions, 4 November 2026
 
 - **The user's report:** a level-3 Rail with the Gravity Well completed 7 Luna and 9 Khepri missions in single runs. Visible cards cascaded: each completion revealed a card already achieved in the same run.
