@@ -1,6 +1,6 @@
 # 35 · World missions
 
-Status: built 3 November 2026 (user handover, 3 November); goals retuned and counting limited to the visible missions on 4 November. Runtime sources: `src/content/world-missions.ts` (the 72
+Status: built 3 November 2026 (user handover, 3 November); goals retuned, counting limited to the visible missions and a long mission added to every world on 4 November. Runtime sources: `src/content/world-missions.ts` (the 72
 missions), `src/campaign/missions.ts` (board, counters, saving), `src/sim/events.ts` (the run's observation hook),
 `src/ui/mission-board.ts` (board, pause list, in-flight note, results). Campaign only (AGENTS.md invariant 13).
 Review sheet: `docs/screenshots/missions.jpg`.
@@ -26,8 +26,19 @@ progresses them; rewards are campaign-only and paid once.
 - **Single-run missions** (`scope: 'run'`) count within one attempt. Progress starts at zero each attempt; an unfinished
   attempt's progress is shown on the board as LAST RUN until the next attempt starts, and is never combined with another
   attempt's. A success is kept.
-- **Career missions** (`scope: 'career'`, ACROSS RUNS on the board) add up across attempts, only while they are visible.
-  Only six are career missions, each because one attempt cannot reliably hold the objective (§ 5).
+- **Career missions** (`scope: 'career'`, ACROSS RUNS on the board) add up across attempts, only while they are visible: the
+  six that one attempt cannot reliably hold (§ 5) and each world's long mission.
+- **Long missions** (user, 4 November): each world's fifth mission is a long one, across runs, paying 50 coins and a part:
+  Sky Patrol (Luna, 100 airborne enemies), Scorched Earth (Khepri, 40 ground targets), Overcharge (Vesper, 20 specials), Pearl
+  Diver (Nacre, 1,000 coins), Bonfire (Amnion, 75 gas tanks) and Eclipse Vigil (Umbra, 500 enemies). They replaced Groundbreaker,
+  the first mission; the four after it moved up. A fresh board shows the four standard missions, then the long mission fifth,
+  so it counts from the first run.
+- **The long mission is always among the five visible.** On a saved board from before it, it comes up at once as the fifth
+  card: the most recently revealed card goes back to the front of the hidden queue (it keeps any saved progress and is the
+  next card revealed), so exactly five show and the long mission is last; it counts from the next run. Groundbreaker's id is
+  retired: a board that paid it keeps the payment (its `awards` receipt and credits) and no longer shows it, done or open.
+  Nothing is paid twice and nothing is taken back (tested). Visible cards show in reveal order, so later reveals appear after
+  the long mission.
 - **Difficulty**: each mission has a minimum (the game's levels: Relaxed = the user's Easy, Standard = Normal, Veteran).
   ANY = any difficulty; STANDARD+ = Standard or Veteran; VETERAN = Veteran only. A run below a mission's minimum does not
   progress it at all, so a perfect Relaxed run never completes a Standard+ mission but completes the ordinary ones.
@@ -40,6 +51,8 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 
 | Term | Definition |
 | --- | --- |
+| Gas tank | A fuel skid (a harmless ground loot target) blown up by any cause, a skid's chain explosion included; never a site core. Bonfire counts them; no other mission does. |
+| Enemy (Eclipse Vigil) | An airborne enemy or a ground target (a strike site counting once); never a boss module or a gas tank. |
 | Ground target | An armed ground battery (turret or missile battery; site guards included; boss modules never), or a strike site, which counts once when its last core falls. **Fuel skids do not count**: they are harmless loot targets that burst and chain, and counting them made Demolition trivial (Luna 11–17 a run with skids against 3–9 without). Site cores count only through their site. |
 | Airborne enemy | Any enemy that is neither a ground piece (battery, skid, site core) nor a boss module: darts, weavers, Lancers, Needles, Diamonds, Pulsars, Wraiths, hunters, and craft a boss launches. |
 | Enemy (Flanking Maneuver) | An airborne enemy or an armed ground battery. |
@@ -60,11 +73,11 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 
 | # | Luna (Training) | Khepri (Rolling Thunder) | Vesper (Cold Vector) |
 | --- | --- | --- | --- |
-| 1 | Groundbreaker: 7 ground targets (25 \| 0 \| any) | Groundbreaker: 10 (25 \| 0 \| any) | Groundbreaker: 12 (5 \| 0 \| any) |
-| 2 | Specialist: 5 specials (25 \| 0 \| any) | Specialist: 6 (25 \| 0 \| any) | Specialist: 7 (5 \| 0 \| any) |
-| 3 | Old School: complete without a special (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (10 \| 0 \| any) |
-| 4 | Untouchable: complete without a hit (50 \| 1 \| Standard+) | Collector: 110 coins (25 \| 0 \| any) | Collector: 170 (25 \| 0 \| any) |
-| 5 | Collector: 70 coins (25 \| 0 \| any) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
+| 1 | Specialist: 5 specials (25 \| 0 \| any) | Specialist: 6 (25 \| 0 \| any) | Specialist: 7 (5 \| 0 \| any) |
+| 2 | Old School: complete without a special (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (10 \| 0 \| any) |
+| 3 | Untouchable: complete without a hit (50 \| 1 \| Standard+) | Collector: 110 coins (25 \| 0 \| any) | Collector: 170 (25 \| 0 \| any) |
+| 4 | Collector: 70 coins (25 \| 0 \| any) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
+| 5 | **Sky Patrol** ✱: 100 airborne enemies (50 \| 1 \| any) | **Scorched Earth** ✱: 40 ground targets (50 \| 1 \| any) | **Overcharge** ✱: 20 specials (50 \| 1 \| any) |
 | 6 | Air Superiority: 30 airborne (25 \| 0 \| any) | Hunter Bounty: 2 aces (25 \| 0 \| any) | Air Superiority: 35 (25 \| 0 \| any) |
 | 7 | Demolition: 10 ground targets (25 \| 0 \| any) | Demolition: 14 (25 \| 0 \| any) | Demolition: 16 (25 \| 0 \| any) |
 | 8 | First Flight: complete with a level-1 Twin Pulse (25 \| 1 \| any) | Armor Piercer: defeat Bastion-9 flying the Rail Driver (25 \| 0 \| any) | Icebreaker ✱: 3 shield depots or freight terminals (25 \| 0 \| any) |
@@ -72,15 +85,15 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | 10 | Warden Shutdown: WARDEN-1 within 45 s (25 \| 0 \| Standard+) | Dustfall: 6 turrets in a row without a hit (25 \| 0 \| any) | Frozen Nerves: 10 ground defences in a row without a hit (50 \| 0 \| any) |
 | 11 | Training Discipline: WARDEN-1 without a hit in the fight (50 \| 1 \| Standard+) | Bastion Breaker: Bastion-9 within 60 s (50 \| 1 \| Standard+) | Broadside Broken: both Ark radiators within 50 s of its arrival (75 \| 1 \| any) |
 | 12 | Lunar Saboteur ✱: 2 relay stations or shield depots (50 \| 1 \| any) | Canyon Saboteur: 2 strike sites and complete the mission (50 \| 1 \| any) | Arkfall: the Ark without hull damage in its final stage (75 \| 1 \| Standard+) |
-| **Σ** | **375 coins, 4 parts** | **375, 3** | **420, 3** |
+| **Σ** | **400 coins, 5 parts** | **400, 4** | **465, 4** |
 
 | # | Nacre (Deep Bloom) | Amnion (Brood Strike) | Umbra (Final Horizon) |
 | --- | --- | --- | --- |
-| 1 | Groundbreaker: 13 (25 \| 0 \| any) | Groundbreaker: 14 (25 \| 0 \| any) | Groundbreaker: 15 (25 \| 0 \| any) |
-| 2 | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) |
-| 3 | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) |
-| 4 | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
-| 5 | Hunter Bounty: 2 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) |
+| 1 | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) |
+| 2 | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) |
+| 3 | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
+| 4 | Hunter Bounty: 2 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) |
+| 5 | **Pearl Diver** ✱: 1,000 coins (50 \| 1 \| any) | **Bonfire** ✱: 75 gas tanks (50 \| 1 \| any) | **Eclipse Vigil** ✱: 500 enemies (50 \| 1 \| any) |
 | 6 | Collector: 330 (50 \| 0 \| any) | Demolition: 18 (25 \| 0 \| any) | Vanishing Act: 3 Wraith volleys without a hit, one run (25 \| 0 \| Standard+) |
 | 7 | Air Superiority: 55 (25 \| 0 \| any) | Air Superiority: 60 (50 \| 0 \| any) | Collector: 400 (50 \| 0 \| any) |
 | 8 | Three Paths: 3 strike sites in one run (25 \| 0 \| any) | Nest Breaker ✱: 2 brood hives (50 \| 0 \| any) | Air Superiority: 65 (50 \| 0 \| any) |
@@ -88,11 +101,12 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | 10 | Pod Bay Purge: 8 pods launched from THE VEIL's bays (25 \| 0 \| any) | Brood Extermination ✱: 12 drones launched by THE CRADLE (75 \| 0 \| any) | Wraith Exorcist: 3 Wraiths in one run (75 \| 0 \| any) |
 | 11 | Veil Survivor: no hit in THE VEIL's final stage (100 \| 1 \| Standard+) | Cradle's End: THE CRADLE within 100 s (100 \| 1 \| Standard+) | Veteran of the Void: complete on Veteran (100 \| 1 \| Veteran) |
 | 12 | Alien Weapons Specialist: defeat THE VEIL flying the Twin Pulse or Fan Cannon (100 \| 1 \| any) | Sterilization: THE CRADLE without hull damage in its final stage (100 \| 1 \| Standard+) | Blackout: THE ECLIPSE without hull damage in its final phase (100 \| 1 \| Standard+) |
-| **Σ** | **525, 3** | **600, 4** | **600, 4** |
+| **Σ** | **550, 4** | **625, 5** | **625, 5** |
 
 Goals as retuned on 4 November (user-approved; payouts unchanged). Several now need upgrades; § 5 says which.
 
-All six: **2,895 coins and 21 parts**, as handed over (tested). Mars and Cloud World have none.
+All six: **3,065 coins and 27 parts** (tested): the handover's 2,895 and 21, with each Groundbreaker (25 coins on most worlds,
+5 on Vesper) replaced by a long mission (50 coins and a part). Mars and Cloud World have none.
 
 **Mappings** (the handover asked for them to be justified):
 - *Lunar Saboteur*, human communication or defence installations: the relay station (its dish's feed horn: communication)
@@ -142,8 +156,22 @@ saved profile. Only the missions visible at an attempt's start count, so a world
 | Khepri | 3 | — |
 | Vesper | 5 | Icebreaker (three depots or freight terminals) |
 | Nacre | 5 | Three Paths (an attempt that draws three strike sites) |
-| Amnion | 14 | Nest Breaker (two brood hives: a hive is drawn on 30 % of attempts) |
-| Umbra | 6 | Gravity Slingshot (five Gravitic Shield kills with the Spectre) |
+| Amnion | 14 | Nest Breaker (two brood hives: a hive is drawn on 30 % of attempts); Bonfire done on the 7th |
+| Umbra | 6 | Gravity Slingshot (five Gravitic Shield kills with the Spectre) and Eclipse Vigil, both on the 6th |
+
+**Long missions**, per attempt (perfect pilot, Standard, seeds 1–4, the special fired when charged; a level-3 Rail Driver with
+the Gravity Well / a level-1 Twin Pulse with the Seeker Rack), and the attempts they take:
+
+| Long mission | Level 3 | Attempts | Level 1 | Attempts |
+| --- | --- | --- | --- | --- |
+| Sky Patrol (100 airborne) | 38–47 | 3 | 24–37 | 4 |
+| Scorched Earth (40 ground targets) | 15–20 | 3 | 6 | 7 |
+| Overcharge (20 specials) | 9 | 3 | 10–11 | 2 (the Seeker Rack recharges faster) |
+| Pearl Diver (1,000 coins) | 420–485 | 3 | 205–296 | 5 |
+| Bonfire (75 gas tanks) | 10–13 | 7 | 8–11 | 8 |
+| Eclipse Vigil (500 enemies) | 94–103 | 6 | 63–69 | 8 |
+
+In the plans above each finished alongside its world's other missions.
 
 **Single attempts** (`MISSION_REPORT=<file> npx vitest run tests/sim/missions-report.test.ts`, one process per world with
 `MISSION_WORLDS`, about 90 s in parallel). Each mission flown alone with its own loadout, at Standard (level 3, seeds 1–12), and
@@ -170,7 +198,7 @@ three aces come (four at Standard, five at Veteran), needs every one of them sho
 seeds. Relaxed thins the squadrons, but the airborne and ground counts were still met with level-5 gear.
 
 **What needs upgrades** (the user knows; the integrator's level-1 Twin Pulse medians, 4 November): a level-1 attempt falls
-short of Groundbreaker on Luna (6 of 7), Khepri (6 of 10), Nacre (9 of 13) and Amnion (12 of 14); of every Demolition; of every
+short of every Demolition; of every
 Air Superiority (Luna 29 of 30 … Umbra 48 of 65); of Collector on Luna (69 of 70), Nacre (224 of 330) and Umbra (323 of 400); of
 Warden Shutdown (47–56 s against 45) and Cradle's End (107–122 s against 100); and of Bastion Breaker on some seeds (54–64 s
 against 60). Specialist fits a run's 6–12 activations, the first with the special full at launch.
@@ -222,7 +250,8 @@ to level 1.
 
 - `tests/campaign/missions.test.ts`: content totals; five visible and the reveal order; only missions visible at a run's
   start count (one revealed mid-run counts from the next run; at most five a run); an older save's hidden achievement paid
-  on reveal; career progress only while visible; unreadable boards untouched; definitions (ground targets, shield vs hull, final stage, timed boss, Seeker attribution,
+  on reveal; career progress only while visible; long missions fifth on a fresh board and shown at once on an old save
+  (Groundbreaker retired, its payment kept, the card sent back next in the queue with its progress); unreadable boards untouched; definitions (ground targets, shield vs hull, final stage, timed boss, Seeker attribution,
   reflected attribution, Collector, First Flight, windows, flanks); rewards once across a reload; career progress through an
   interrupted attempt; difficulty gates; endless never progressing; one payment per receipt.
 - `tests/sim/run-events.test.ts`: observed and unobserved runs identical; Seeker Rack kills attributed to the special; a

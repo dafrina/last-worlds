@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD_MISSIONS, worldMission, type WorldMission } from '../../src/content/world-missions';
-import { createCounter, createMissionTracker, decodeBook, freshBook, settleBoard, visibleIds, worldOf, type MissionStore } from '../../src/campaign/missions';
+import { createCounter, createMissionTracker, decodeBook, freshBook, settleBoard, visibleIds, worldOf, type MissionStore, type WorldBook } from '../../src/campaign/missions';
 import { createCampaignProfile, type ProfileStorage } from '../../src/campaign/profile';
 import { createRun } from '../../src/sim/game';
 import type { MissionId, RunConfig, RunEvent, RunState } from '../../src/shared/contracts';
@@ -25,14 +25,19 @@ function observedRun(config: Partial<RunConfig> = {}): RunState {
 }
 
 describe('world mission content (docs/35)', () => {
-  it('has twelve missions per world, unique ids, and the handover totals: 2,895 coins and 21 parts', () => {
+  it('has twelve missions per world, unique ids, and the totals: 3,065 coins and 27 parts (long missions, 4 November)', () => {
     const all = Object.values(WORLD_MISSIONS).flat();
     expect(Object.values(WORLD_MISSIONS).map(list => list.length)).toEqual([12, 12, 12, 12, 12, 12]);
     expect(new Set(all.map(m => m.id)).size).toBe(72);
     const totals = Object.fromEntries(Object.entries(WORLD_MISSIONS).map(([id, list]) => [id, [list.reduce((s, m) => s + m.credits, 0), list.reduce((s, m) => s + m.parts, 0)]]));
-    expect(totals).toEqual({ training: [375, 4], bastion: [375, 3], 'cold-vector': [420, 3], 'deep-bloom': [525, 3], 'brood-strike': [600, 4], 'final-horizon': [600, 4] });
-    expect(all.reduce((s, m) => s + m.credits, 0)).toBe(2895);
-    expect(all.reduce((s, m) => s + m.parts, 0)).toBe(21);
+    expect(totals).toEqual({ training: [400, 5], bastion: [400, 4], 'cold-vector': [465, 4], 'deep-bloom': [550, 4], 'brood-strike': [625, 5], 'final-horizon': [625, 5] });
+    expect(all.reduce((s, m) => s + m.credits, 0)).toBe(3065);
+    expect(all.reduce((s, m) => s + m.parts, 0)).toBe(27);
+    // One long mission per world, fifth, across runs, 50 coins and a part; Groundbreaker's ids are retired.
+    for (const list of Object.values(WORLD_MISSIONS)) {
+      expect(list.filter(m => m.long).map(m => [list.indexOf(m), m.scope, m.credits, m.parts])).toEqual([[4, 'career', 50, 1]]);
+      expect(list.some(m => m.id.endsWith('.groundbreaker'))).toBe(false);
+    }
   });
 });
 
@@ -57,9 +62,9 @@ describe('the board: five visible, revealed in order', () => {
     world.achieved.push(defs[6].id); // Demolition, hidden
     expect(settleBoard(world, defs)).toEqual([]);
     expect(world.claimed).toEqual([]);
-    world.achieved.push(defs[0].id); // Groundbreaker: reveals Air Superiority (#6) only
+    world.achieved.push(defs[0].id); // Specialist: reveals Air Superiority (#6) only
     expect(settleBoard(world, defs)).toEqual([defs[0].id]);
-    world.achieved.push(defs[1].id); // Specialist: reveals Demolition, which was already done, which reveals #8
+    world.achieved.push(defs[1].id); // Old School: reveals Demolition, which was already done, which reveals #8
     expect(settleBoard(world, defs)).toEqual([defs[1].id, defs[6].id]);
     expect(visibleIds(world, defs)).toEqual([2, 3, 4, 5, 7].map(i => defs[i].id));
     expect(settleBoard(world, defs)).toEqual([]);
@@ -83,7 +88,7 @@ describe('the board: five visible, revealed in order', () => {
 
 describe('counters (event definitions)', () => {
   it('ground targets: armed batteries and fallen sites, never fuel skids, site cores or boss modules', () => {
-    const c = createCounter(def('luna.groundbreaker'), facts());
+    const c = createCounter(def('luna.demolition'), facts());
     for (const e of [kill({ ground: true, kind: 'turret' }), kill({ ground: true, kind: 'missile' }), kill({ ground: true, kind: 'fuel' }),
       kill({ ground: true, kind: 'fuel', site: 'airfield' }), kill({ kind: 'turret', bossPart: 'left' }), { type: 'site', time: 3, site: 'airfield' } as RunEvent]) c.on(e);
     expect(c.value()).toBe(3);
@@ -210,6 +215,15 @@ describe('counters (event definitions)', () => {
     expect(vanish.value()).toBe(1);
   });
 
+  it('long missions\' own counts: gas tanks (chain blasts included, site cores not) and enemies (no boss modules, no skids)', () => {
+    const bonfire = createCounter(def('amnion.bonfire'), facts({ mission: 'brood-strike' }), 70);
+    for (const e of [kill({ ground: true, kind: 'fuel' }), kill({ ground: true, kind: 'fuel', cause: 'blast' }), kill({ ground: true, kind: 'fuel', site: 'brood-hive' }), kill({ ground: true, kind: 'turret' }), kill()]) bonfire.on(e);
+    expect([bonfire.value(), bonfire.own()]).toEqual([72, 2]);
+    const vigil = createCounter(def('umbra.eclipse-vigil'), facts({ mission: 'final-horizon' }));
+    for (const e of [kill(), kill({ ground: true, kind: 'missile' }), kill({ ground: true, kind: 'fuel' }), kill({ kind: 'turret', bossPart: 'core' }), kill({ ground: true, kind: 'fuel', site: 'gate-ring' }), { type: 'site', time: 3, site: 'gate-ring' } as RunEvent]) vigil.on(e);
+    expect(vigil.value()).toBe(3);
+  });
+
   it('flanks need kills beyond |x| > 6 on both sides', () => {
     const c = createCounter(def('khepri.flanking-maneuver'), facts({ mission: 'bastion' }));
     for (let i = 0; i < 5; i++) c.on(kill({ x: -7 }));
@@ -227,6 +241,7 @@ describe('the tracker: rewards, persistence, modes', () => {
     return tracker.observe(state, attempt);
   }
   const groundKills = (n: number) => Array.from({ length: n }, (_, i) => kill({ ground: true, kind: 'turret', time: i }));
+  const specials = (n: number) => Array.from({ length: n }, (_, i): RunEvent => ({ type: 'special', time: i * 30, special: 'shockwave' }));
 
   /** A Luna board on which the first `done` missions are already done (claimed), so the next five are visible. */
   function boardWithDone(store: MissionStore, done: number) {
@@ -239,20 +254,20 @@ describe('the tracker: rewards, persistence, modes', () => {
     let store = createCampaignProfile(storage), tracker = createMissionTracker(store);
     const state = observedRun();
     expect(tracker.observe(state, 'a1')).toEqual([]);
-    const notes = feed(tracker, state, 'a1', groundKills(7));
-    expect(notes.map(n => n.text)).toEqual(['GROUNDBREAKER COMPLETE · +25 CR']);
+    const notes = feed(tracker, state, 'a1', specials(5));
+    expect(notes.filter(n => n.complete).map(n => n.text)).toEqual(['SPECIALIST COMPLETE · +25 CR']);
     expect(store.read().credits).toBe(25);
-    expect(store.read().awards).toEqual(['mission:luna.groundbreaker']);
+    expect(store.read().awards).toEqual(['mission:luna.specialist']);
     // A reload, then a new attempt that does it again: nothing more is paid.
     store = createCampaignProfile(storage); tracker = createMissionTracker(store);
     const again = observedRun();
     tracker.observe(again, 'a2');
-    feed(tracker, again, 'a2', groundKills(8));
+    feed(tracker, again, 'a2', specials(6));
     again.phase = 'over';
     tracker.finish(again);
     expect(store.read().credits).toBe(25);
     const board = tracker.board('training')!;
-    expect(board.history.map(d => d.id)).toEqual(['luna.groundbreaker']);
+    expect(board.history.map(d => d.id)).toEqual(['luna.specialist']);
     expect(board.visible.map(e => e.def.id)).toEqual(WORLD_MISSIONS.training.slice(1, 6).map(d => d.id));
   });
 
@@ -260,14 +275,14 @@ describe('the tracker: rewards, persistence, modes', () => {
     const store = createCampaignProfile(memoryStorage()), tracker = createMissionTracker(store);
     const state = observedRun();
     tracker.observe(state, 'a1');
-    // Thirty airborne kills: Air Superiority (#6) is hidden, so they count for nothing.
+    // Thirty airborne kills: Air Superiority (#6) is hidden, so they count only for Sky Patrol (visible, across runs).
     feed(tracker, state, 'a1', Array.from({ length: 30 }, (_, i) => kill({ time: i * 9 })));
-    // Groundbreaker completes and reveals Air Superiority, which does not start counting in this run.
-    const notes = feed(tracker, state, 'a1', [...groundKills(7), ...Array.from({ length: 30 }, (_, i) => kill({ time: 300 + i * 9 }))]);
-    expect(notes.map(n => n.id)).toEqual(['luna.groundbreaker']);
+    // Specialist completes and reveals Air Superiority, which does not start counting in this run.
+    const notes = feed(tracker, state, 'a1', [...specials(5), ...Array.from({ length: 30 }, (_, i) => kill({ time: 300 + i * 9 }))]);
+    expect(notes.filter(n => n.complete).map(n => n.id)).toEqual(['luna.specialist']);
     expect(tracker.live(state).find(e => e.def.id === 'luna.air-superiority')).toMatchObject({ next: true, progress: 0 });
     state.phase = 'over';
-    expect(tracker.finish(state).map(d => d.id)).toEqual(['luna.groundbreaker']);
+    expect(tracker.finish(state).map(d => d.id)).toEqual(['luna.specialist']);
     expect(decodeBook(store.read().missionBoard)!.worlds.training!.achieved).toEqual([]);
     // The next run counts it.
     const next = observedRun();
@@ -280,12 +295,12 @@ describe('the tracker: rewards, persistence, modes', () => {
     const state = observedRun();
     tracker.observe(state, 'a1');
     // Everything a run could do on Luna (ground targets, specials, coins, airborne kills, a quick clean boss fight)...
-    feed(tracker, state, 'a1', [...groundKills(12), ...Array.from({ length: 6 }, (_, i): RunEvent => ({ type: 'special', time: i * 30, special: 'shockwave' })),
-      ...Array.from({ length: 80 }, (_, i): RunEvent => ({ type: 'credits', time: i, value: 4 })), ...Array.from({ length: 40 }, (_, i) => kill({ time: 100 + i * .5 })),
+    feed(tracker, state, 'a1', [...groundKills(12), ...specials(6),
+      ...Array.from({ length: 80 }, (_, i): RunEvent => ({ type: 'credits', time: i, value: 4 })), ...Array.from({ length: 100 }, (_, i) => kill({ time: 100 + i * .5 })),
       boss('arrival', 124), boss('destroyed', 150)]);
     state.phase = 'complete';
     // ...pays the first five visible ones at most (Old School fails: specials were fired).
-    expect(tracker.finish(state).map(d => d.id)).toEqual(['luna.groundbreaker', 'luna.specialist', 'luna.collector', 'luna.untouchable']);
+    expect(tracker.finish(state).map(d => d.id)).toEqual(['luna.specialist', 'luna.collector', 'luna.sky-patrol', 'luna.untouchable']);
   });
 
   it('a save holding a mission achieved while hidden (before 4 November) still pays it when revealed', () => {
@@ -294,8 +309,8 @@ describe('the tracker: rewards, persistence, modes', () => {
     store.missionTransaction(p => { p.missionBoard = { version: 1, worlds: { training: { revealed: defs.slice(0, 5), claimed: [], achieved: ['luna.air-superiority'], career: {} } } }; });
     const state = observedRun();
     tracker.observe(state, 'a1');
-    const notes = feed(tracker, state, 'a1', groundKills(7));
-    expect(notes.map(n => n.id)).toEqual(['luna.groundbreaker', 'luna.air-superiority']);
+    const notes = feed(tracker, state, 'a1', specials(5));
+    expect(notes.filter(n => n.complete).map(n => n.id)).toEqual(['luna.specialist', 'luna.air-superiority']);
     expect(store.read().credits).toBe(50);
   });
 
@@ -306,14 +321,14 @@ describe('the tracker: rewards, persistence, modes', () => {
     // Hidden (#12): a relay station adds nothing to Lunar Saboteur.
     const hidden = observedRun();
     tracker.observe(hidden, 'h1');
-    feed(tracker, hidden, 'h1', [...groundKills(3), site('relay-station')]);
+    feed(tracker, hidden, 'h1', [...Array.from({ length: 40 }, (_, i): RunEvent => ({ type: 'credits', time: i, value: 4 })), site('relay-station')]);
     hidden.phase = 'over';
     tracker.finish(hidden); tracker.finish(hidden);
     let book = decodeBook(store.read().missionBoard)!;
     expect(book.worlds.training!.career).toEqual({});
-    // Three batteries and the relay station: four ground targets, shown on the board until the next attempt starts.
-    expect(book.worlds.training!.last!.progress['luna.groundbreaker']).toBe(4);
-    expect(tracker.board('training')!.visible[0]).toMatchObject({ progress: 4 });
+    // 160 in coin pickups show as 38 coins (×0.24), shown on the board until the next attempt starts.
+    expect(book.worlds.training!.last!.progress['luna.collector']).toBe(38);
+    expect(tracker.board('training')!.visible[3]).toMatchObject({ progress: 38 });
     // Visible (#8–#12 on the board): it accrues.
     boardWithDone(store, 7);
     const first = observedRun();
@@ -357,6 +372,50 @@ describe('the tracker: rewards, persistence, modes', () => {
     expect(tracker.finish(standard).map(d => d.id)).toEqual(['luna.warden-shutdown', 'luna.training-discipline']);
   });
 
+  it('long missions: always among the five; an old save shows it at once, keeps Groundbreaker\'s payment, counts it next run', () => {
+    // A fresh board: four standard missions, then the long mission, on every world.
+    for (const [sortie, list] of Object.entries(WORLD_MISSIONS)) {
+      const world = worldOf(freshBook(), sortie as MissionId);
+      settleBoard(world, list);
+      expect(visibleIds(world, list).map(id => worldMission(id)!.long ?? false)).toEqual([false, false, false, false, true]);
+    }
+    // A save from before 4 November: Groundbreaker done and paid, five other cards showing, Air Superiority revealed last.
+    const store = createCampaignProfile(memoryStorage()), tracker = createMissionTracker(store);
+    const old = ['luna.groundbreaker', 'luna.specialist', 'luna.old-school', 'luna.untouchable', 'luna.collector', 'luna.air-superiority'];
+    store.missionTransaction(p => {
+      p.credits = 25; p.awards = ['mission:luna.groundbreaker'];
+      p.missionBoard = { version: 1, worlds: { training: { revealed: old, claimed: ['luna.groundbreaker'], achieved: [], career: {}, last: { attempt: 'old', progress: { 'luna.air-superiority': 9 } } } } };
+    });
+    const board = tracker.board('training')!;
+    expect(board.visible.map(e => e.def.id)).toEqual(['luna.specialist', 'luna.old-school', 'luna.untouchable', 'luna.collector', 'luna.sky-patrol']);
+    expect([board.done, board.history]).toEqual([0, []]); // the retired card is not shown; its payment stays
+    expect(store.read().credits).toBe(25);
+    // Its next run counts toward the long mission; Air Superiority, sent back, is the next card revealed.
+    const run = observedRun();
+    tracker.observe(run, 'n1');
+    const notes = feed(tracker, run, 'n1', [...Array.from({ length: 12 }, (_, i) => kill({ time: i })), ...specials(5)]);
+    expect(notes.filter(n => n.complete).map(n => n.id)).toEqual(['luna.specialist']);
+    expect(tracker.live(run).map(e => e.def.id)).toEqual(['luna.old-school', 'luna.untouchable', 'luna.collector', 'luna.sky-patrol', 'luna.air-superiority']);
+    run.phase = 'over';
+    tracker.finish(run);
+    const saved = decodeBook(store.read().missionBoard)!.worlds.training!;
+    expect(saved.career['luna.sky-patrol']).toBe(12);
+    expect(saved.claimed).toEqual(['luna.groundbreaker', 'luna.specialist']);
+    expect(store.read().credits).toBe(50);
+    expect(store.read().awards).toEqual(['mission:luna.groundbreaker', 'mission:luna.specialist']);
+  });
+
+  it('the card sent back for the long mission keeps its progress and comes up next', () => {
+    const ids = ['luna.groundbreaker', ...WORLD_MISSIONS.training.filter(d => !d.long).map(d => d.id)];
+    const world: WorldBook = { revealed: ids, claimed: ids.slice(0, 7), achieved: [], career: { 'luna.lunar-saboteur': 1 } };
+    settleBoard(world, WORLD_MISSIONS.training);
+    expect(visibleIds(world, WORLD_MISSIONS.training)).toEqual(['luna.first-flight', 'luna.interceptor-drill', 'luna.warden-shutdown', 'luna.training-discipline', 'luna.sky-patrol']);
+    expect(world.career['luna.lunar-saboteur']).toBe(1);
+    world.achieved = ['luna.first-flight'];
+    expect(settleBoard(world, WORLD_MISSIONS.training)).toEqual(['luna.first-flight']);
+    expect(visibleIds(world, WORLD_MISSIONS.training).at(-1)).toBe('luna.lunar-saboteur');
+  });
+
   it('endless never progresses or saves a mission', () => {
     const storage = memoryStorage(), store = createCampaignProfile(storage), tracker = createMissionTracker(store);
     const endless = createRun({ mode: 'endless', seed: 3 });
@@ -370,7 +429,7 @@ describe('the tracker: rewards, persistence, modes', () => {
 
   it('every mission is reachable by its own rule (no definition is dead)', () => {
     const kinds = new Set(Object.values(WORLD_MISSIONS).flat().map((m: WorldMission) => m.rule.kind));
-    expect([...kinds].sort()).toEqual(['air', 'air-water', 'boss', 'boss-parts', 'complete', 'credits', 'flanks', 'ground', 'ground-streak', 'hunters', 'launched', 'reflected', 'site-cores', 'sites', 'specials', 'wraith-clean', 'wraiths']);
+    expect([...kinds].sort()).toEqual(['air', 'air-water', 'boss', 'boss-parts', 'complete', 'credits', 'enemies', 'flanks', 'gas-tanks', 'ground', 'ground-streak', 'hunters', 'launched', 'reflected', 'site-cores', 'sites', 'specials', 'wraith-clean', 'wraiths']);
   });
 });
 
@@ -380,12 +439,12 @@ describe('mission store contract', () => {
     const tracker = createMissionTracker(store);
     const state = observedRun();
     tracker.observe(state, 'x');
-    state.events!.push(...Array.from({ length: 7 }, () => kill({ ground: true, kind: 'turret' })));
+    state.events!.push(...Array.from({ length: 5 }, (_, i): RunEvent => ({ type: 'special', time: i, special: 'shockwave' })));
     tracker.observe(state, 'x');
     store.missionTransaction(p => { p.missionBoard = undefined; });
     const fresh = observedRun();
     tracker.observe(fresh, 'y');
-    fresh.events!.push(...Array.from({ length: 7 }, () => kill({ ground: true, kind: 'turret' })));
+    fresh.events!.push(...Array.from({ length: 5 }, (_, i): RunEvent => ({ type: 'special', time: i, special: 'shockwave' })));
     tracker.observe(fresh, 'y');
     // The board was wiped by hand, so the mission completes again, but its receipt stops a second payment.
     expect(store.read().credits).toBe(25);
