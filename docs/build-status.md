@@ -26,6 +26,9 @@ User: "theres tons of screenshots and models we dont use. Clean it all up so we 
   - the unmerged branches `playground-lab` and `umbra-refine`.
 - **Checks:** typecheck clean; unit 917 passed, 5 skipped.
 - **Gate on `6fcea89`:** build passes; browser 55/55 (Playwright exit 0, load 3–4).
+- **Live:** Pages run 41848867118 succeeded for `bdae762`.
+  - The bundles are unchanged (`main-CfkuxBYR.js`, `scene-CCmeLjmt.js`); the endless smoke test has no page errors.
+  - The built site is 134 MB (was 173 MB), and a removed model (`helion-ark-v4-approved.glb`) now returns 404.
 - **Local cleanup** (user: "go ahead, remove them"; every item was checked merged and clean first):
   - 13 agent worktrees removed;
   - the `alien-skies-now`, `-old`, `-v15` and `-ships` worktrees removed;
