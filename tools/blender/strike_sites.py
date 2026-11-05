@@ -1438,21 +1438,49 @@ def solar_collector(world):
     for k in range(8):
         a = TAU * k / 8 + TAU / 16
         obox(body, math.cos(a) * 1.02, math.sin(a) * 1.02, .14, .08, .2, .28, a, 'steel', minor=True)
-    # The legs: four, on the diagonals; hip at the containment ring, knee raised high and out, foot on a pad.
+    # The legs (user, 5 November: "make the legs more mechanical"): four on the diagonals. Each a hip bracket on the
+    # containment ring and a pivot drum; a forked thigh of two plates up to a knee drum; a heavy box-section shin with an
+    # armour plate down to an ankle drum; a hydraulic ram from the bracket to the shin (barrel, rod, a glowing seal);
+    # cable runs along the thigh; a clawed foot with anchor bolts on a plinth.
+    def drum(at, axis, r, half, mat='metal', cap='steel'):
+        tube(body, [tuple(at - axis * half), tuple(at + axis * half)], r, mat, seg=8, soft=True)
+        for sgn in (-1, 1):
+            tube(body, [tuple(at + axis * sgn * half), tuple(at + axis * sgn * (half + .025))], r * .55, cap, seg=6, soft=True)
     for k in range(4):
         a = math.radians(45 + 90 * k)
-        u = Vector((math.cos(a), math.sin(a), 0))
-        hip, knee, foot = u * .78 + Vector((0, 0, C + .05)), u * 1.55 + Vector((0, 0, 2.95)), u * 2.45 + Vector((0, 0, .12))
-        tube(body, [tuple(hip), tuple(knee)], [.13, .11], 'metal', seg=6)
-        tube(body, [tuple(knee), tuple(foot)], [.1, .07], 'steel', seg=6)
-        # Hydraulics along each leg, a glowing joint at the knee.
-        tube(body, [tuple(hip + Vector((0, 0, .12))), tuple(knee - u * .15 + Vector((0, 0, .02)))], .035, 'steel', seg=4)
-        blob(body, tuple(knee), .14, .14, .14, 'metal', seg=8, rings=5)
-        ring_tube(body, tuple(knee), tuple(Vector((-u.y, u.x, 0))), .15, .025, 'glow', seg=10, side=4)
-        side = Vector((-u.y, u.x, 0))
-        lo, hi = foot - u * .28 - side * .24, foot + u * .28 + side * .24
-        obox(body, foot.x, foot.y, .3, .26, -.9, .14, a, 'stone_dark')
-        obox(body, foot.x, foot.y, .24, .2, .14, .22, a, 'metal')
+        u = Vector((math.cos(a), math.sin(a), 0)); side = Vector((-u.y, u.x, 0))
+        hip, knee = u * .86 + Vector((0, 0, C + .02)), u * 1.6 + Vector((0, 0, 2.9))
+        ankle, foot = u * 2.38 + Vector((0, 0, .42)), u * 2.45 + Vector((0, 0, .14))
+        obox(body, (u * .8).x, (u * .8).y, .16, .2, C - .2, C + .16, a, 'metal')            # hip bracket
+        drum(hip, side, .13, .17)
+        for sg in (-1, 1):                                                                       # forked thigh
+            off = side * sg * .11
+            beam(body, tuple(hip + off), tuple(knee + off), .05, .16, 'steel', minor=True)
+        beam(body, tuple(hip + (knee - hip) * .2 + Vector((0, 0, .1))), tuple(hip + (knee - hip) * .8 + Vector((0, 0, .1))), .2, .05, 'paint', minor=True)
+        drum(knee, side, .15, .15)
+        tube(body, [tuple(knee + side * .19), tuple(knee + side * .2)], .1, 'glow', seg=10, soft=True)
+        beam(body, tuple(knee), tuple(ankle), .17, .17, 'metal', minor=True)                     # shin
+        mid = knee + (ankle - knee) * .35
+        beam(body, tuple(knee + (ankle - knee) * .1 - u * .02), tuple(mid - u * .02), .22, .2, 'paint', minor=True)
+        drum(ankle, side, .1, .12)
+        # The ram: from under the hip bracket to the shin, a barrel then a rod, a glowing seal between them.
+        r0, r1 = hip - Vector((0, 0, .18)) + u * .05, knee + (ankle - knee) * .3 - u * .1
+        rm = r0 + (r1 - r0) * .55
+        tube(body, [tuple(r0), tuple(rm)], .055, 'steel', seg=8, soft=True)
+        tube(body, [tuple(rm), tuple(rm + (r1 - r0).normalized() * .03)], .062, 'glow', seg=8, soft=True)
+        tube(body, [tuple(rm), tuple(r1)], .026, 'paint', seg=6, soft=True)
+        # Cables along the thigh.
+        tube(body, [tuple(hip + Vector((0, 0, .16))), tuple(hip + (knee - hip) * .5 + Vector((0, 0, .24))), tuple(knee + Vector((0, 0, .14)))], .022, 'stripe', seg=4)
+        # The foot: a plinth, a pad, three claws biting into it, anchor bolts.
+        obox(body, foot.x, foot.y, .32, .28, -.9, .1, a, 'stone_dark')
+        obox(body, foot.x, foot.y, .26, .22, .1, .2, a, 'metal')
+        tube(body, [tuple(ankle), tuple(foot + Vector((0, 0, .06)))], .07, 'steel', seg=8, soft=True)
+        for ca in (-.7, 0, .7):
+            d = Vector((math.cos(a + ca), math.sin(a + ca), 0))
+            beam(body, tuple(foot + Vector((0, 0, .2))), tuple(foot + d * .34 + Vector((0, 0, .1))), .07, .06, 'steel', minor=True)
+        for bx, by in ((-.18, -.15), (.18, -.15), (-.18, .15), (.18, .15)):
+            cx, cy = foot.x + bx * math.cos(a) - by * math.sin(a), foot.y + bx * math.sin(a) + by * math.cos(a)
+            cyl(body, cx, cy, .03, .2, .25, 'glow', seg=6)
     # The containment ring round the chamber: twelve segments, a glowing inner rim.
     R0, R1 = .5, .78
     for k in range(12):
