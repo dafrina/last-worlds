@@ -740,3 +740,10 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Reverted:** MSAA and the `?msaa`, `?fx` and `?unlock` switches.
 - **Run:** Pages run 42110327382 succeeded; the live bundle carries no test switches.
 - **Corona:** not deployed; it stays on `integrator-next`, which has `main` merged in.
+**2026-11-05 · Claude Code (Corona / Dying Star session) · deployed `54e0b07` (no gate, at the user's request):**
+- **Fix:** the cliff walls' pieces no longer share face planes; each is pulled in by its own few mm. The dark blocks on the cliff edges z-fought on phones.
+  - **Rebuilt:** all four cliff kits (Vesper, Khepri, also used by Luna and Corona, Amnion, Umbra).
+  - **Build check:** the build now fails on any same-facing coplanar overlap.
+- **Run:** Pages run 42115873581 succeeded.
+- **Open:** a full scan of every shipped GLB finds such overlaps in many older models: facility compounds, facility kits, the Warden, airfields, the Corona craft. Most are probably hidden inside geometry; a visibility-filtered pass is next.
+- **Corona:** the gate passed on `b490209` (tsc, unit, build, Playwright 55/55). Not deployed; waiting for the user's review.
