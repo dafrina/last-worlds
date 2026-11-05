@@ -181,6 +181,10 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const missionDots = find<HTMLElement>('.mission-dots');
   missionDots.dataset.selector = 'mission';
   const preview = createPlanetPreview(find<HTMLCanvasElement>('.planet-preview'));
+  // Test switch (user, 5 November: phone checks on a given world, "You need to make vesper enabled"): `?unlock=all` opens
+  // every mission in the selector for this visit only. The switch writes nothing; a mission flown banks as usual.
+  const openAll = new URLSearchParams(location.search).get('unlock') === 'all';
+  const openMissions = (profile: ReturnType<typeof campaign.read>) => openAll ? MISSION_ORDER.map(([id]) => id) : unlockedMissions(profile);
   // Open on the furthest mission the pilot has unlocked.
   let missionIndex = Math.max(0, MISSION_ORDER.findIndex(([id]) => id === unlockedMissions(campaign.read()).at(-1)));
   function showMission(index: number) {
@@ -200,7 +204,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     stage.classList.remove('is-switching'); void stage.offsetWidth; stage.classList.add('is-switching');
     preview.show(MISSION_PLANET[id]);
     // Progression: a mission opens once the one before it has been cleared on any difficulty.
-    const profile = campaign.read(), open = unlockedMissions(profile).includes(id), previous = MISSION_ORDER[missionIndex - 1]?.[1];
+    const profile = campaign.read(), open = openMissions(profile).includes(id), previous = MISSION_ORDER[missionIndex - 1]?.[1];
     stage.classList.toggle('is-locked', !open);
     const record = profile.missions[id];
     const best = record && (['veteran', 'standard', 'relaxed'] as const).find(level => record.best[level] !== undefined);
@@ -429,7 +433,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   for (const button of shell.querySelectorAll<HTMLButtonElement>('[data-back], [data-settings-back], [data-help-back]')) button.addEventListener('click', navigateBack, options);
   onAction('launch-campaign', () => {
     const mission = MISSION_ORDER[missionIndex][0], profile = campaign.read();
-    if (!unlockedMissions(profile).includes(mission)) return;
+    if (!openMissions(profile).includes(mission)) return;
     launch(campaignConfig(profile, mission, selected('difficulty') as Difficulty, seed()));
   });
   onAction('resume', resume);
