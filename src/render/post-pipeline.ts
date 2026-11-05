@@ -184,26 +184,17 @@ void main() {
   gl_FragColor = vec4( display + dither / 255.0, 1.0 );
 }`;
 
-/**
- * Multisampling of the High scene target (user, 5 November: on a phone, High only, Vesper's ice cliff faces flashed, side
- * routes' grounds flickered and infrastructure base plates flickered at their edges; Low, which draws straight to the
- * antialiased canvas, did not). Without MSAA the composite's FXAA smooths each frame's jaggies but not their crawl as the
- * world scrolls, which the 3 November Vesper contrast (blue-grey cliff walls, snow trims) and the strike sites made
- * visible. Tilers with WEBGL_multisampled_render_to_texture resolve in tile memory. `?msaa=0` restores the old target, for
- * comparison on a phone. (It was dropped on 14 October as the costliest step under SwiftShader, which has no GPU.)
- */
-export const SCENE_SAMPLES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('msaa') === '0' ? 0 : 4;
-
 export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: PostSettings) {
   const hdr = (width: number, height: number, depth = false) => {
     const target = new THREE.WebGLRenderTarget(width, height, {
-      type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: depth, stencilBuffer: depth, samples: depth ? SCENE_SAMPLES : 0,
+      type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: depth, stencilBuffer: depth, samples: 0,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false,
     });
     target.texture.colorSpace = THREE.LinearSRGBColorSpace;
     return target;
   };
-  // Scene in HDR, multisampled (SCENE_SAMPLES) with FXAA in the composite; bloom chain at ¼, ⅛, 1/16.
+  // Scene in HDR (antialiased by FXAA in the composite; an MSAA half-float target was the costliest step);
+  // bloom chain at ¼, ⅛, 1/16.
   const sceneTarget = hdr(1, 1, true);
   // The scene's depth feeds the world fog in the composite; its stencil marks the hero (src/render/hero-stencil.ts).
   sceneTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedInt248Type);
