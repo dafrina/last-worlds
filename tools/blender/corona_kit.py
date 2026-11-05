@@ -77,120 +77,142 @@ def dais(k, hx, hy, z, mat=STONE, rim=FRAME):
     B(k, -hx * .8, hx * .8, -hy - .01, -hy + .02, z * .4, z * .7, GLOW)
 
 
+# ----------------------------------------------------------------------------- alien parts
+# The user, 5 November: "looks a bit not so alien, make it a bit more alien looking". As the fleet: curved claws and
+# horns, ribbed carapaces, bulbous plasma pods joined by veins, and rings floating free, held by nothing.
+def claw(k, pts, r, mat=PLATE, seg=6, hot=False):
+    """A tapered horn or claw through the points (thick at the first, a point at the last)."""
+    pts = [Vector(p) for p in pts]
+    n = len(pts) - 1
+    for i in range(n):
+        a, b = pts[i], pts[i + 1]
+        ra, rb = r * (1 - i / n) + .01, r * (1 - (i + 1) / n) + .01
+        ax = (b - a).normalized(); up = Vector((0, 0, 1)) if abs(ax.z) < .9 else Vector((1, 0, 0))
+        u = ax.cross(up).normalized(); v = ax.cross(u).normalized()
+        ring = lambda c, rr: [tuple(c + (u * math.cos(TAU * q / seg) + v * math.sin(TAU * q / seg)) * rr) for q in range(seg)]
+        (k.major if ra > .06 else k.minor).loft([ring(a, ra), ring(b, rb)], mat)
+    if hot:
+        sphere(k, tuple(pts[-1]), .035, HOT, seg=6, rings=4)
+
+
+def halo(k, c, r, z, thick=.03, mat=GLOW, n=24):
+    cx, cy = c
+    pts = [(cx + math.cos(TAU * i / n) * r, cy + math.sin(TAU * i / n) * r, z) for i in range(n + 1)]
+    tube(k, pts, thick, mat, seg=4)
+
+
+def pod(k, c, r, mat=PLATE, glow=True):
+    """A bulbous plasma pod: a squashed orb with a glowing equator."""
+    loops = []
+    for j in range(1, 8):
+        t = math.pi * j / 8
+        loops.append([(c[0] + math.sin(t) * r * math.cos(TAU * i / 12), c[1] + math.sin(t) * r * math.sin(TAU * i / 12), c[2] - math.cos(t) * r * .85) for i in range(12)])
+    k.major.loft(loops, mat)
+    if glow:
+        halo(k, c[:2], r * 1.01, c[2], thick=.022)
+
+
+def carapace(k, cx, cy, rx, ry, h, z0, mat, ribs=6, mouth=True):
+    """A ribbed shell (a beetle's back) over an ellipse, ribs as raised bands, a glowing mouth at the front."""
+    loops = []
+    for j in range(0, 6):
+        t = (math.pi / 2) * j / 5
+        sc, z = math.cos(t), z0 + math.sin(t) * h
+        loops.append([(cx + rx * sc * math.cos(TAU * i / 16), cy + ry * sc * math.sin(TAU * i / 16), z) for i in range(16)])
+    k.major.loft(loops, mat)
+    for r_ in range(1, ribs):
+        a = math.pi * r_ / ribs
+        pts = [(cx + math.cos(a) * rx * math.cos(t), cy + ry * math.sin(t) * 0 + (math.sin(a) * 0), z0) for t in (0,)]
+    for r_ in range(1, ribs):
+        y = cy - ry + 2 * ry * r_ / ribs
+        frac = math.sqrt(max(0.0, 1 - ((y - cy) / ry) ** 2))
+        pts = [(cx + rx * frac * math.cos(math.pi * q / 8) * 1.02, y, z0 + h * frac * math.sin(math.pi * q / 8) * 1.02) for q in range(9)]
+        tube(k, pts, .022, FRAME, seg=4)
+    if mouth:
+        k.major.wedge([(cx - rx * .45, cy - ry * .98), (cx + rx * .45, cy - ry * .98), (cx + rx * .3, cy - ry * .8), (cx - rx * .3, cy - ry * .8)], z0, z0 + h * .45, GLOW)
+
+
 # ----------------------------------------------------------------------------- modules
 def extractor():
     k = rf.Kit([])
     dais(k, .78, .6, .1)
-    C, R0, R1, depth = .78, .48, .62, .2
-    def arm(a0, a1, n):
-        for i in range(n):
-            b0, b1 = a0 + (a1 - a0) * i / n + .02, a0 + (a1 - a0) * (i + 1) / n - .02
-            quad = lambda off: [(math.cos(b0) * R0, off, C + math.sin(b0) * R0), (math.cos(b0) * R1, off, C + math.sin(b0) * R1),
-                                (math.cos(b1) * R1, off, C + math.sin(b1) * R1), (math.cos(b1) * R0, off, C + math.sin(b1) * R0)]
-            k.major.loft([quad(-depth / 2), quad(depth / 2)], PLATE if i % 2 else FRAME)
-        tube(k, [(math.cos(a0 + (a1 - a0) * i / 10) * (R0 - .02), -depth / 2 - .01, C + math.sin(a0 + (a1 - a0) * i / 10) * (R0 - .02)) for i in range(11)], .018, GLOW, seg=4)
-    lo = math.asin(max(-1.0, (.1 - C) / R1))
-    arm(lo, math.radians(76), 6)
-    arm(math.radians(104), math.pi - lo, 6)
-    sphere(k, (0, 0, C), .34, HOT)
-    for x in (-.55, .55):
-        k.major.box((x - .14, -.14, .1), (x + .14, .14, .3), FRAME, chamfer=.04)
+    C = .78
+    # The star in free-floating arcs (no arms touching it): six arcs round it in the plane across the view, a halo.
+    for i in range(6):
+        a0 = TAU * i / 6 + .14
+        pts = [(math.cos(a0 + (TAU / 6 - .28) * q / 6) * .56, 0, C + math.sin(a0 + (TAU / 6 - .28) * q / 6) * .56) for q in range(7)]
+        tube(k, pts, .06, PLATE if i % 2 else FRAME, seg=6)
+        tube(k, [(p[0] * .9, -.04, (p[2] - C) * .9 + C) for p in pts], .015, GLOW, seg=4)
+    sphere(k, (0, 0, C), .32, HOT)
+    halo(k, (0, 0), .45, C, thick=.02)
+    # Horns rising from the dais corners toward the star.
     for s in (-1, 1):
-        tube(k, [(s * .62, .3, .2), (s * .76, .45, .2)], .05, BRONZE)
-        cyl(k, s * .66, .42, .07, .1, .5, PLATE, seg=8)
-        cyl(k, s * .66, .42, .075, .3, .34, GLOW, seg=8)
+        claw(k, [(s * .62, .32, .1), (s * .7, .2, .55), (s * .45, .05, .95)], .1, hot=True)
+        pod(k, (s * .55, -.35, .2), .12)
     return k
 
 
 def collector():
     k = rf.Kit([])
     dais(k, .55, .5, .08)
-    C, top = 1.35, 1.1
-    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-        beam(k, (sx * .4, sy * .38, .08), (sx * .07, sy * .07, top), .05, .05, BRONZE)
-    for z, w in ((.4, .3), (.75, .18)):
-        for (x0, y0), (x1, y1) in (((-w, -w), (w, -w)), ((w, -w), (w, w)), ((w, w), (-w, w)), ((-w, w), (-w, -w))):
-            beam(k, (x0, y0, z), (x1, y1, z), .025, .025, FRAME)
+    C = 1.35
+    # Three claws curl up from the dais and meet under the hub; four petals open round it toward the camera.
+    for i in range(3):
+        a = TAU * i / 3 + math.pi / 2
+        claw(k, [(math.cos(a) * .42, math.sin(a) * .38, .08), (math.cos(a) * .4, math.sin(a) * .36, .6), (math.cos(a) * .12, math.sin(a) * .1, 1.15)], .1, mat=BRONZE if i else PLATE)
     tilt = math.radians(35)
     nrm = Vector((0, -math.cos(tilt), math.sin(tilt))); u = Vector((1, 0, 0)); v = nrm.cross(u).normalized()
     hub = Vector((0, .02, C))
     at = lambda r, a, off=0.0: tuple(hub + (u * math.cos(a) + v * math.sin(a)) * r - nrm * off)
     for i in range(4):
         a = math.radians(45 + 90 * i)
-        pts = lambda off, a=a: [at(.18, a - .2, off), at(.62, a - .42, off), at(.66, a, off), at(.62, a + .42, off), at(.18, a + .2, off)]
-        k.major.loft([pts(.025), pts(-.025)], FRAME)
-        k.minor.loft([pts(-.03), pts(-.036)], GLOW)
+        pts = lambda off, a=a: [at(.16, a - .25, off), at(.5, a - .5, off), at(.68, a - .1, off), at(.64, a + .3, off), at(.16, a + .25, off)]
+        k.major.loft([pts(.02), pts(-.02)], FRAME)
+        k.minor.loft([pts(-.025), pts(-.03)], GLOW)
     sphere(k, tuple(hub), .14, HOT, seg=10, rings=6)
+    halo(k, (0, .02), .26, C + .28, thick=.018)
     return k
 
 
 def hangar():
     k = rf.Kit([])
     k.major.box((-.8, -.62, -.25), (.8, .62, .05), STONE, chamfer=.12)
-    B(k, -.75, .75, -.6, -.2, .05, .07, PLATE)                       # apron
+    carapace(k, 0, .08, .58, .5, .5, .05, PLATE)
     for x in (-.5, 0, .5):
-        B(k, x - .015, x + .015, -.58, -.24, .07, .075, GLOW)
-    # The half-barrel: ribbed arcs along y, plates between, an open glowing front.
-    R, n = .5, 7
-    for i in range(n + 1):
-        a = math.pi * i / n
-        p = lambda y: (math.cos(a) * R, y, .05 + math.sin(a) * R)
-    for j, (y0, y1) in enumerate(((-.2, .05), (.05, .3), (.3, .55))):
-        loops = []
-        for y in (y0, y1):
-            loops.append([(math.cos(math.pi * i / n) * R, y, .05 + math.sin(math.pi * i / n) * R) for i in range(n + 1)]
-                         + [(math.cos(math.pi * i / n) * (R - .05), y, .05 + math.sin(math.pi * i / n) * (R - .05)) for i in range(n, -1, -1)])
-        k.major.loft(loops, PLATE)
-        tube(k, [(math.cos(math.pi * i / n) * (R + .015), y1, .05 + math.sin(math.pi * i / n) * (R + .015)) for i in range(n + 1)], .02, FRAME, seg=4)
-    k.major.loft([[(math.cos(math.pi * i / n) * (R - .05), .55, .05 + math.sin(math.pi * i / n) * (R - .05)) for i in range(n + 1)],
-                  [(math.cos(math.pi * i / n) * (R - .05), .58, .05 + math.sin(math.pi * i / n) * (R - .05)) for i in range(n + 1)]], FRAME)
-    B(k, -.3, .3, -.18, -.15, .05, .4, GLOW)                        # the open bay, lit inside
-    tube(k, [(math.cos(math.pi * i / n) * R, -.21, .05 + math.sin(math.pi * i / n) * R) for i in range(n + 1)], .025, BRONZE, seg=4)
-    for x, y in ((-.68, -.45), (-.6, .4), (.66, .3), (.66, .45)):
-        k.major.box((x - .09, y - .07, .05), (x + .09, y + .07, .2), FRAME, chamfer=.02)
-        B(k, x - .09, x + .09, y - .075, y - .065, .1, .13, GLOW)
+        B(k, x - .015, x + .015, -.6, -.45, .05, .07, GLOW)
+    for s in (-1, 1):
+        claw(k, [(s * .6, -.35, .05), (s * .7, -.5, .3), (s * .55, -.62, .45)], .08, hot=True)
+        pod(k, (s * .66, .42, .14), .1)
     return k
 
 
 def refinery():
     k = rf.Kit([])
     k.major.box((-.75, -.55, -.25), (.75, .55, .06), STONE, chamfer=.1)
-    for y in (-.2, .22):
-        k.major.box((-.62, y - .16, .06), (.25, y + .16, .14), FRAME, chamfer=.03)
-        k.cylinder((-.18, y, .32), 'x', .2, -.6, .22, PLATE, seg=14)
-        for x in (-.48, .1):
-            k.cylinder((x, y, .32), 'x', .215, x - .03, x + .03, GLOW, seg=14)
-    # The plasma column: a glass-banded tower with a glowing core, crowned with stacks.
-    cyl(k, .5, 0, .2, .06, .2, FRAME, seg=10)
-    cyl(k, .5, 0, .14, .2, 1.05, FRAME, seg=10)
-    cyl(k, .5, 0, .1, .22, 1.02, HOT, seg=8)
-    for z in (.35, .6, .85):
-        cyl(k, .5, 0, .16, z, z + .05, BRONZE, seg=10)
-    for x in (.42, .58):
-        cyl(k, x, .06, .035, 1.05, 1.28, FRAME, seg=6)
-    tube(k, [(.22, -.2, .32), (.4, -.12, .32), (.4, 0, .4)], .045, BRONZE)
-    tube(k, [(.22, .22, .32), (.4, .12, .32), (.42, 0, .55)], .045, BRONZE)
+    # Three plasma pods, veins to a twisted spire ringed by floating halos.
+    for x, y, r in ((-.45, -.2, .22), (-.42, .25, .18), (-.05, .3, .15)):
+        pod(k, (x, y, .06 + r * .8), r)
+        tube(k, [(x, y, .06 + r * .3), ((x + .5) / 2, y * .5, .12), (.45, 0, .2)], .02, GLOW, seg=4)
+    pts = [(.45 + math.cos(q * .9) * .08, math.sin(q * .9) * .08, .06 + q * .11) for q in range(10)]
+    claw(k, pts, .13, mat=FRAME)
+    tube(k, [(p[0], p[1], p[2]) for p in pts], .03, HOT, seg=4)
+    for z, r in ((.45, .2), (.75, .16), (1.0, .12)):
+        halo(k, (.45, 0), r, z, thick=.018)
     return k
 
 
 def gantry():
     k = rf.Kit([])
     k.major.box((-.8, -.6, -.25), (.8, .6, .05), STONE, chamfer=.12)
-    B(k, -.55, .55, -.45, .45, .05, .08, PLATE)                      # the pad
-    for x0, x1 in ((-.5, -.48), (.48, .5)):
-        B(k, x0, x1, -.45, .45, .08, .09, GLOW)
+    B(k, -.55, .55, -.45, .45, .05, .08, PLATE)
+    halo(k, (0, 0), .4, .09, thick=.02)
+    # Two horns arch over the pad and nearly meet; an orb hangs between their tips, held by nothing.
     for s in (-1, 1):
-        k.major.box((s * .66 - .1, .1, .05), (s * .66 + .1, .35, 1.0), FRAME, chamfer=.03)
-        B(k, s * .66 - .105, s * .66 + .105, .09, .1, .3, .85, GLOW)
-        k.major.box((s * .66 - .13, .05, 1.0), (s * .66 + .13, .4, 1.1), PLATE, chamfer=.03)
-    k.major.box((-.79, .12, .98), (.79, .33, 1.08), PLATE, chamfer=.02)
-    B(k, -.6, .6, .11, .12, 1.0, 1.03, GLOW)
-    beam(k, (0, .22, .98), (0, .22, .7), .03, .03, BRONZE)
-    k.major.box((-.14, .1, .45), (.14, .34, .7), FRAME, chamfer=.04)
-    B(k, -.1, .1, .095, .105, .5, .65, HOT)
-    # A parked lander on the pad.
-    k.major.wedge([(-.25, -.3), (.25, -.3), (.32, .0), (0, .1), (-.32, .0)], .08, .16, PLATE)
-    B(k, -.05, .05, -.32, -.1, .16, .19, GLOW)
+        claw(k, [(s * .66, .2, .05), (s * .72, .2, .6), (s * .45, .2, 1.0), (s * .1, .2, 1.08)], .13, mat=PLATE)
+        tube(k, [(s * .7, .1, .3), (s * .62, .1, .8), (s * .3, .1, 1.0)], .015, GLOW, seg=4)
+    sphere(k, (0, .2, .82), .1, HOT, seg=10, rings=6)
+    halo(k, (0, .2), .16, .82, thick=.014)
+    k.major.wedge([(-.25, -.3), (.25, -.3), (.32, .0), (0, .1), (-.32, .0)], .08, .16, FRAME)
     return k
 
 
@@ -198,26 +220,18 @@ def dome():
     k = rf.Kit([])
     hexa = lambda r: [(math.cos(TAU * i / 6 + math.pi / 6) * r, math.sin(TAU * i / 6 + math.pi / 6) * r) for i in range(6)]
     k.major.wedge(hexa(.78), -.25, .06, STONE)
-    k.major.wedge(hexa(.62), .06, .16, FRAME)
-    B(k, -.3, .3, -.56, -.54, .08, .14, GLOW)
-    # Ribbed dome: eight ribs to a crown, a glowing field ring at its foot, a spire.
-    R, n = .52, 8
+    k.major.wedge(hexa(.62), .06, .14, FRAME)
+    # Claw ribs curling in over a glowing core; a halo floating above them; small horned pylons.
+    R, n = .55, 7
     for i in range(n):
         a = TAU * i / n
-        pts = [(math.cos(a) * R * math.cos(t), math.sin(a) * R * math.cos(t), .16 + math.sin(t) * R * .9) for t in (0, .4, .8, 1.15, 1.45)]
-        tube(k, pts, .03, PLATE, seg=4)
-    for t, mat in ((.45, FRAME), (.95, BRONZE)):
-        r, z = R * math.cos(t), .16 + math.sin(t) * R * .9
-        tube(k, [(math.cos(TAU * i / 16) * r, math.sin(TAU * i / 16) * r, z) for i in range(17)], .022, mat, seg=4)
-    k.cylinder((0, 0, 0), 'z', R + .02, .16, .22, GLOW, seg=16)
-    sphere(k, (0, 0, .4), .18, HOT, seg=10, rings=6)
-    cyl(k, 0, 0, .05, .6, .95, FRAME, seg=6)
-    cyl(k, 0, 0, .06, .95, 1.0, GLOW, seg=6)
+        claw(k, [(math.cos(a) * R, math.sin(a) * R, .14), (math.cos(a) * R * .95, math.sin(a) * R * .95, .45), (math.cos(a) * R * .35, math.sin(a) * R * .35, .72)], .06, mat=PLATE)
+    sphere(k, (0, 0, .34), .2, HOT, seg=10, rings=6)
+    k.cylinder((0, 0, 0), 'z', R + .03, .14, .19, GLOW, seg=16)
+    halo(k, (0, 0), .3, .92, thick=.025)
     for i in (0, 2, 4):
         a = TAU * i / 6 + math.pi / 6
-        x, y = math.cos(a) * .7, math.sin(a) * .7
-        cyl(k, x, y, .05, .06, .42, FRAME, seg=6)
-        cyl(k, x, y, .06, .42, .47, GLOW, seg=6)
+        claw(k, [(math.cos(a) * .7, math.sin(a) * .7, .06), (math.cos(a) * .74, math.sin(a) * .74, .42)], .05, mat=FRAME, hot=True)
     return k
 
 
