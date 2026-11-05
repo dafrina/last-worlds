@@ -9,12 +9,9 @@
   - High renders the scene into a half-float target with `samples: 0` (since 14 October), and its FXAA smooths each frame's jaggies but not their crawl as the world scrolls.
   - The 3 November Vesper contrast (blue-grey cliff walls, snow trims) and the strike sites put high-contrast fine detail and thin edges exactly there.
   - Depth precision was already ample: 24-bit depth, near plane 20, and shadow texels snapped to the ground.
-- **Fix:** on a real GPU the High scene target is multisampled (`sceneSamples` 4, `src/render/post-pipeline.ts`). The depth and stencil are resolved for the fog and the hero mark. Tilers with `WEBGL_multisampled_render_to_texture` resolve in tile memory.
-  - **Software renderers** (SwiftShader, llvmpipe) keep the old target. A first gate with MSAA everywhere failed 6 of the first 26 browser specs under SwiftShader at load 20–29: two timeouts and frame-timed steering checks (the reason it was dropped on 14 October). No phone renders in software.
-  - The render stats report `msaa`.
-  - **Tests:** a unit test for the detection; a browser spec in which forced `?msaa=4` flies High with no page errors and the default stays at 0 under SwiftShader.
+- **Fix:** the High scene target is multisampled (`SCENE_SAMPLES` 4, `src/render/post-pipeline.ts`). The depth and stencil are resolved for the fog and the hero mark. Tilers with `WEBGL_multisampled_render_to_texture` resolve in tile memory.
 - **Phone diagnostics:**
-  - `?msaa=0` restores the old target, for comparison (`?msaa=<n>` forces n samples).
+  - `?msaa=0` restores the old target, for comparison.
   - `?fx=noshadow` and `?fx=nonormals` drop the sun's shadow map or the terrain's normal maps on High. If anything still flickers, that tells which.
 - **Checked:**
   - High stills, with and without MSAA at the same tick (Cold Vector, 30 s, 1.5× like a phone): no page errors; the hero, its mark and the fog are unchanged; panel slats and edges resolve more evenly.
