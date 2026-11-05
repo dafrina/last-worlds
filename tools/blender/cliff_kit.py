@@ -357,6 +357,110 @@ def amnion_colour_fn(hs):
 
 
 # ----------------------------------------------------------------------------- build
+def components(hs):
+    """Vertex sets of the separate pieces (each chunk, slab or rubble stone adds its own vertices)."""
+    parent = list(range(len(hs.verts)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    for f in hs.faces:
+        for i in f[1:]:
+            a, b = find(f[0]), find(i)
+            if a != b:
+                parent[b] = a
+    groups = {}
+    for i in range(len(hs.verts)):
+        groups.setdefault(find(i), []).append(i)
+    return sorted(groups.values(), key=lambda g: g[0])
+
+
+def separate_pieces(hs, name, attempt=0):
+    """Pull every piece but the backing in on itself by its own few millimetres (user, 5 November: dark blocks still
+    flickered on the phone). The pieces are clipped to the same segment box (front, ends, base) and the rim chunks to
+    the same top, so overlapping chunks shared exact face planes and z-fought. Each piece now shrinks toward its centre
+    by its own distance on every axis, which keeps it inside the box; the backing (the first piece) stays as it is,
+    so the segments still meet at the seams. A separate stream keeps the walls' designs unchanged."""
+    rng = random.Random('cliff-kit-separate:%s:%d' % (name, attempt) if attempt else 'cliff-kit-separate:%s' % name)
+    pieces = components(hs)
+    steps = list(range(len(pieces) - 1))
+    rng.shuffle(steps)
+    for piece, k in zip(pieces[1:], steps):
+        d = .002 + .0008 * k
+        lo = [min(hs.verts[i][a] for i in piece) for a in range(3)]
+        hi = [max(hs.verts[i][a] for i in piece) for a in range(3)]
+        for i in piece:
+            v = hs.verts[i]
+            for a in range(3):
+                half = (hi[a] - lo[a]) / 2
+                if half > 2 * d:
+                    c = (hi[a] + lo[a]) / 2
+                    v[a] = c + (v[a] - c) * (1 - d / half)
+
+
+def coplanar_overlaps(hs, tol=4e-4):
+    """Pairs of faces from different pieces facing the same way in the same plane (within `tol`) that overlap: the
+    z-fighting the separation removes. Faces are convex (boxes, bisected blocks and hulls)."""
+    from collections import defaultdict
+    piece = {}
+    for n, g in enumerate(components(hs)):
+        for i in g:
+            piece[i] = n
+    faces = []
+    for f in hs.faces:
+        pts = [Vector(hs.verts[i]) for i in f]
+        nrm = kit.face_normal(hs.verts, f)
+        if nrm.length < 1e-9:
+            continue
+        nrm = nrm.normalized()
+        faces.append((piece[f[0]], nrm, nrm.dot(pts[0]), pts))
+    cells = defaultdict(list)
+    for k, (_, nrm, d, _) in enumerate(faces):
+        cells[(round(nrm.x, 1), round(nrm.y, 1), round(nrm.z, 1))].append(k)
+
+    def clip(poly, a, b):
+        out = []
+        for i, p in enumerate(poly):
+            q = poly[(i + 1) % len(poly)]
+            side = lambda r: (b[0] - a[0]) * (r[1] - a[1]) - (b[1] - a[1]) * (r[0] - a[0])
+            sp, sq = side(p), side(q)
+            if sp >= 0:
+                out.append(p)
+            if (sp >= 0) != (sq >= 0):
+                t = sp / (sp - sq)
+                out.append((p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t))
+        return out
+
+    def area(poly):
+        return .5 * sum(poly[i - 1][0] * poly[i][1] - poly[i][0] * poly[i - 1][1] for i in range(len(poly)))
+    pairs = 0
+    for ks in cells.values():
+        for x, i in enumerate(ks):
+            for j in ks[x + 1:]:
+                pi, ni, di, ptsi = faces[i]
+                pj, nj, dj, ptsj = faces[j]
+                if pi == pj or ni.dot(nj) < .9999 or abs(di - dj) > tol:
+                    continue
+                u = ni.orthogonal().normalized()
+                w = ni.cross(u)
+                a = [(p.dot(u), p.dot(w)) for p in ptsi]
+                b = [(p.dot(u), p.dot(w)) for p in ptsj]
+                if area(a) < 0:
+                    a.reverse()
+                if area(b) < 0:
+                    b.reverse()
+                poly = b
+                for e in range(len(a)):
+                    poly = clip(poly, a[e], a[(e + 1) % len(a)])
+                    if len(poly) < 3:
+                        break
+                if len(poly) >= 3 and area(poly) > 1e-5:
+                    pairs += 1
+    return pairs
+
+
 def check(name, hs):
     xs, ys, zs = ([v[i] for v in hs.verts] for i in range(3))
     problems = []
@@ -397,7 +501,17 @@ def build(world, preview=None):
     for i in range(VARIANTS):
         name = '%s_%d' % (prefix, i)
         hs = make(random.Random('cliff-kit:%s' % name), i)
-        vk.fit_top(hs, 1.0)
+        before, raw = coplanar_overlaps(hs), [list(v) for v in hs.verts]
+        for attempt in range(6):   # another order of the distances if two pieces still met in one plane
+            hs.verts = [list(v) for v in raw]
+            separate_pieces(hs, name, attempt)
+            vk.fit_top(hs, 1.0)
+            after = coplanar_overlaps(hs)
+            if not after:
+                break
+        print('CLIFF %-14s coplanar overlaps %d -> %d' % (name, before, after))
+        if after:
+            problems.append('%s: %d coplanar overlapping faces' % (name, after))
         problems += check(name, hs)
         cols = vc.bake(hs, name, dict(glow=set(), ao=.35, ground=0.0, colour_fn=colour(hs), tile=('x', 2.0)))
         if world == 'umbra':
