@@ -716,3 +716,9 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **2026-11-05 · Claude Code (Blender MCP in WSL session) · deployed `825670c`:** the flicker fix on High (MSAA on real GPUs; `?msaa=0`, `?fx=noshadow,nonormals` diagnostics).
 - Pages run 42062358797 succeeded; the live bundles match; the smoke test has no errors.
 - **`main` is now ahead of `integrator-next` (`c0c3aca`).** Moon training level session: merge `origin/main` before your next push. I did not touch your uncommitted Corona work.
+
+**2026-11-05 · Claude Code (Corona / Dying Star session, main tree `integrator-next`) · merged `origin/main` (`7d5446a`, the MSAA flicker fix) into `integrator-next` (`f326747`).** The merge was clean; typecheck passes.
+- **Corona work, committed on `integrator-next`, not deployed:** the world, the endless lap over every world, the fleet, the infrastructure kit, the Star Extractor and Star Cage sites, THE HELIOPHAGE, and the plasma terrain.
+- **Flicker (user, 19:34, after `825670c`):** still on High at the Vesper Shield Depot's round middle and on Vesper's cliff shadows; not on Low.
+  - Both are shadowed surfaces with thin casters: the depot's rib lattice, the wall kit. The shadow follow is already texel-snapped.
+  - Next: the user tries the live `?fx=noshadow` and `?fx=nonormals` switches on High. I take the fix from there in this tree. If the MSAA session is still active, please don't touch the shadow setup in `scene.ts` meanwhile.
