@@ -133,8 +133,16 @@ WORLD = {
                   stone=('#3c3654', .4, .05), stone_dark=('#26222f', .45, .05), obsidian=('#2e2a46', .16, .05),
                   glow=('#140a2a', .5, .2, '#8a6cff'), core_glow=('#140a2a', .35, .1, '#c09cff'), alt_glow=('#140a2a', .4, .1, '#9a6cff'),
                   dim_glow=('#140a2a', .5, .1, '#7a5ce0')),
+    # Corona (docs/37): charcoal basalt and dark gunmetal, pale ceramic panels, gold plasma glow, a white-gold star.
+    'corona': dict(paint=('#b9b1a6', .5, .1), accent=('#c8641e', .5, .15), metal=('#1d1b1a', .42, .55), steel=('#5c5653', .4, .55),
+                   stripe=('#e09a2a', .5, .1), deck=('#4a4440', .85, .05), asphalt=('#262321', .9, .02), ground=('#2c2826', .95, .0),
+                   glass=('#120e0c', .15, .3), canvas=('#8a7a6a', .8, .0), stone=('#45403c', .8, .03), stone_dark=('#26221f', .8, .03),
+                   obsidian=('#1c1917', .3, .05),
+                   glow=('#2a1004', .5, .2, '#ff9a24'), core_glow=('#3a2408', .35, .1, '#ffd88a'), alt_glow=('#2a1004', .4, .1, '#ff8a1e'),
+                   dim_glow=('#2a1004', .5, .1, '#d0641a'), field_glow=('#2a1004', .3, .1, '#ffb040'),
+                   panel_glow=('#3a2408', .35, .2, '#e8a03a')),
 }
-STRENGTH = {'core_glow': 3.2, 'sac_glow': 3.0, 'dim_glow': 1.4, 'ember_glow': 2.6, 'prism_glow': 1.1, 'field_glow': 1.6}
+STRENGTH = {'panel_glow': .9, 'core_glow': 3.2, 'sac_glow': 3.0, 'dim_glow': 1.4, 'ember_glow': 2.6, 'prism_glow': 1.1, 'field_glow': 1.6}
 
 
 def materials(world):
@@ -545,7 +553,7 @@ def crash_site(world):
                       resin=((P(-.95, -.65).x, P(-.95, -.65).y, .05, .2), (P(.85, .65).x, P(.85, .65).y, .05, .22), (-2.0, 1.1, .02, .18)),
                       eggs=((-1.2, -1.75, 5), (1.5, 1.85, 4)),
                       spikes=((2.55, .5, .85, (.25, -.1)), (-2.7, .9, .75, (-.2, .15)), (.4, 2.1, .65, (.05, .25))))
-    elif world == 'umbra':
+    elif world in ('umbra', 'corona'):
         obsidian_shards(body, rng, ((-2.0, 1.2, 1.1), (1.9, -1.55, .9), (2.55, 1.0, 1.0), (-.6, 2.05, .8), (-2.1, -1.95, .8)))
     return body, core, ruin
 
@@ -1337,10 +1345,145 @@ def spawning_pool(world):
     return body, core, ruin
 
 
+# ----------------------------------------------------------------------------- star extractor (Corona)
+def star_extractor(world):
+    """Corona's parts site (docs/37, art/concepts/corona/02-infrastructure, top left): a captured star, a white-gold sphere
+    of plasma (the target), held between two massive C-shaped arms of blocky segments over a stepped basalt dais with
+    glowing seams; refinery tanks and plasma pipes behind it, a glowing plasma column at the back right. The arms stand in
+    the plane across the view, open at the top and bottom, so nothing passes in front of the star."""
+    body, core, ruin = Kit(), Kit(), Kit()
+    rng = random.Random(211)
+    C = CORE_HEIGHT['star-extractor']
+    # The dais: a wide basalt slab, a raised ring under the star, glowing seams and front steps.
+    body.major.box((-2.7, -2.25, -1.1), (2.7, 2.85, .16), 'stone_dark', chamfer=.45)
+    body.major.box((-1.75, -1.35, .16), (1.75, 1.6, .36), 'stone', chamfer=.35)
+    for k in range(3):
+        B(body, -.85, .85, -2.4 - k * .2, -2.2 - k * .2, -.1, .16 - k * .06, 'stone_dark')
+    for x in (-1.45, 1.45):
+        beam(body, (x, -1.3, .37), (x, 1.55, .37), .05, .02, 'glow')
+    beam(body, (-1.45, -1.3, .37), (1.45, -1.3, .37), .05, .02, 'glow')
+    cyl(body, 0, 0, .78, .36, .5, 'metal', seg=16)
+    disc(body, 0, 0, .55, .5, .53, 'glow', seg=16)
+    # The arms: C-shaped arcs of 7 segments each in the xz plane through the star, left and right, with gaps at top and
+    # bottom; a glowing inner rim; the feet sink into blocky clamps on the dais.
+    R0, R1, depth = 1.18, 1.5, .42
+    def arm(a0, a1, n, sign):
+        for k in range(n):
+            b0, b1 = a0 + (a1 - a0) * k / n + .015, a0 + (a1 - a0) * (k + 1) / n - .015
+            quad = lambda off, b0=b0, b1=b1: [(math.cos(b0) * R0, off, C + math.sin(b0) * R0), (math.cos(b0) * R1, off, C + math.sin(b0) * R1),
+                                              (math.cos(b1) * R1, off, C + math.sin(b1) * R1), (math.cos(b1) * R0, off, C + math.sin(b1) * R0)]
+            body.major.loft([quad(-depth / 2), quad(depth / 2)], 'steel' if k % 2 else 'metal')
+            if k % 2 == 0:
+                bm = (b0 + b1) / 2
+                obox(body, math.cos(bm) * (R1 + .06), 0, .12, .26, C + math.sin(bm) * (R1 + .06) - .1, C + math.sin(bm) * (R1 + .06) + .1, 0, 'accent', minor=True)
+        tube(body, [(math.cos(a0 + (a1 - a0) * i / 16) * (R0 - .03), -depth / 2 - .01, C + math.sin(a0 + (a1 - a0) * i / 16) * (R0 - .03)) for i in range(17)], .04, 'glow', seg=4)
+    lo = math.asin(max(-1.0, (.36 - C) / R1))  # the arms reach down to the dais
+    arm(lo, math.radians(78), 7, 1)                       # right: from the dais up to near the top
+    arm(math.radians(102), math.pi - lo, 7, -1)          # left: mirror
+    for x in (-1.3, 1.3):
+        body.major.box((x - .38, -.38, .36), (x + .38, .38, .78), 'metal', chamfer=.12)
+        B(body, x - .4, x + .4, -.4, .4, .62, .66, 'stripe')
+    # Refinery behind: two horizontal tanks with glowing bands, pipes into the dais, and a plasma column back right.
+    for x0, x1, y in ((-2.45, -.55, 2.15), (.55, 2.0, 2.2)):
+        body.major.box((x0, y - .42, .16), (x1, y + .42, .3), 'metal', chamfer=.1)
+        body.cylinder(((x0 + x1) / 2, y, .72), 'x', .4, x0 + .08, x1 - .08, 'steel', seg=14)
+        for xb in (x0 + .35, x1 - .35):
+            body.cylinder((xb, y, .72), 'x', .43, xb - .05, xb + .05, 'glow', seg=14)
+        tube(body, [((x0 + x1) / 2, y - .4, .7), ((x0 + x1) / 2, y - .9, .55), ((x0 + x1) / 2 * .5, 1.35, .45)], .08, 'steel', seg=6)
+    cyl(body, 2.35, 1.15, .32, .16, .36, 'metal', seg=10)
+    cyl(body, 2.35, 1.15, .2, .36, 2.15, 'glass', seg=10)
+    cyl(body, 2.35, 1.15, .13, .4, 2.1, 'alt_glow', seg=8)
+    cyl(body, 2.35, 1.15, .26, 2.15, 2.3, 'metal', seg=10)
+    for z in (.9, 1.5):
+        cyl(body, 2.35, 1.15, .24, z, z + .06, 'steel', seg=10)
+    # Small blocky modules round the front corners, lamps on masts.
+    for x, y, w, d, h_ in ((-2.25, -1.55, .32, .3, .55), (2.25, -1.45, .3, .34, .5), (-2.35, .6, .28, .3, .62)):
+        body.major.box((x - w, y - d, .16), (x + w, y + d, .16 + h_), 'metal', chamfer=.08)
+        B(body, x - w + .04, x + w - .04, y - d - .01, y - d + .02, .16 + h_ * .55, .16 + h_ * .7, 'glow')
+    for x, y in ((-2.0, 1.1), (1.75, -.8)):
+        rf.mast(body, x, y, .16, 1.05)
+    # The star (the core): a white-gold sphere with a hotter heart in front, three flare loops round it.
+    blob(core, (0, 0, C), .78, .78, .78, 'core_glow', seg=14, rings=9)
+    blob(core, (0, -.25, C), .5, .4, .5, 'field_glow', seg=10, rings=6)
+    for k, (tilt, r) in enumerate(((.4, .95), (-.55, 1.0), (1.2, .9))):
+        axis = Vector((math.sin(tilt), -math.cos(tilt) * .3, math.cos(tilt))).normalized()
+        ring_tube(core, (0, 0, C), tuple(axis), r, .035, 'alt_glow', seg=18, side=4, arc=(k * 1.3, k * 1.3 + 2.2))
+    # Destroyed: the star collapsed to a dark cinder in its cradle, scorch and thrown segments.
+    blob(ruin, (0, 0, .75), .5, .5, .32, 'obsidian', seg=10, rings=5)
+    for k in range(6):
+        a = TAU * k / 6 + rng.uniform(-.3, .3)
+        shard(ruin, (math.cos(a) * .45, math.sin(a) * .35, .5), rng.uniform(.15, .3), .08, 'stone_dark', rng, lean=.9)
+    scorch(ruin, rng, 0, -.5, 1.0)
+    wreckage(ruin, rng, 0, -.3, .8, 1.9, 10, mats=('metal', 'steel', 'scorch'), embers=3, z=.36)
+    obsidian_shards(body, rng, ((-2.5, -2.0, .6), (2.5, 2.7, .6)))
+    return body, core, ruin
+
+
+# ----------------------------------------------------------------------------- solar collector array (Corona)
+def solar_collector(world):
+    """Corona's shield site (docs/37, art/concepts/corona/02-infrastructure, top middle): a lattice tower carrying a
+    glowing hub (the target) and four fan-shaped collector panels round it in a plane tilted back to face the camera, so
+    they show their gold faces and never pass in front of the hub; small dish collectors and modules on the platform."""
+    body, core, ruin = Kit(), Kit(), Kit()
+    rng = random.Random(223)
+    C = CORE_HEIGHT['solar-collector']
+    body.major.box((-2.5, -2.1, -1.1), (2.5, 2.7, .14), 'stone_dark', chamfer=.4)
+    body.major.box((-1.3, -1.1, .14), (1.3, 1.4, .32), 'metal', chamfer=.25)
+    for x in (-1.0, 1.0):
+        beam(body, (x, -1.05, .33), (x, 1.35, .33), .04, .02, 'glow')
+    # The tower: four splayed legs to a collar under the hub, cross braces, a glowing conduit up its back.
+    top = C - .42
+    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        beam(body, (sx * .85, sy * .8, .32), (sx * .16, sy * .16, top), .1, .1, 'steel')
+    for z, w in ((.75, .62), (1.2, .42), (1.55, .27)):
+        for (x0, y0), (x1, y1) in (((-w, -w), (w, -w)), ((w, -w), (w, w)), ((w, w), (-w, w)), ((-w, w), (-w, -w))):
+            beam(body, (x0, y0, z), (x1, y1, z), .04, .04, 'metal')
+    cyl(body, 0, 0, .26, top - .1, top + .06, 'metal', seg=10)
+    tube(body, [(0, .2, .32), (0, .22, 1.0), (0, .1, top)], .05, 'glow', seg=5)
+    # The panels: four fans in the plane through the hub tilted back 35 degrees (its normal toward the camera), each a
+    # tapering frame of three gold ribs.
+    tilt = math.radians(35)
+    nrm = Vector((0, -math.cos(tilt), math.sin(tilt)))
+    u = Vector((1, 0, 0)); v = nrm.cross(u).normalized()
+    hub = Vector((0, .05, C))
+    at = lambda r, a, off=0.0: tuple(hub + (u * math.cos(a) + v * math.sin(a)) * r - nrm * off)
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        spread = .42
+        pts = lambda off, a=a: [at(.42, a - .18, off), at(1.32, a - spread, off), at(1.4, a, off), at(1.32, a + spread, off), at(.42, a + .18, off)]
+        body.major.loft([pts(.04), pts(-.04)], 'panel_glow')
+        for f in (-.6, 0, .6):
+            beam(body, at(.5, a + f * .2, .06), at(1.3, a + f * spread * .9, .06), .045, .02, 'metal')
+        tube(body, [at(.42, a - .18, .06), at(1.32, a - spread, .06), at(1.4, a, .06), at(1.32, a + spread, .06), at(.42, a + .18, .06)], .035, 'steel', seg=4)
+        beam(body, at(.3, a, .0), at(.5, a, .0), .1, .1, 'steel')
+    ring_tube(body, tuple(hub), tuple(nrm), .48, .05, 'steel', seg=16, side=4)
+    # Small dish collectors on the platform's front corners and modules behind.
+    for x, y in ((-1.95, -1.4), (1.95, -1.35)):
+        cyl(body, x, y, .1, .14, .45, 'steel', seg=6)
+        body.minor.loft([[(x + .38 * math.cos(TAU * i / 10), y - .1 + .38 * math.sin(TAU * i / 10) * math.cos(tilt), .5 + .38 * math.sin(TAU * i / 10) * math.sin(tilt)) for i in range(10)],
+                         [(x + .08 * math.cos(TAU * i / 10), y - .04, .46 + .08 * math.sin(TAU * i / 10)) for i in range(10)]], 'paint')
+        cyl(body, x, y - .08, .05, .5, .56, 'glow', seg=6)
+    for x, y, w, d, h_ in ((-1.9, 1.9, .42, .32, .58), (1.85, 2.0, .38, .34, .66), (-.2, 2.3, .55, .25, .45)):
+        body.major.box((x - w, y - d, .14), (x + w, y + d, .14 + h_), 'metal', chamfer=.08)
+        B(body, x - w + .05, x + w - .05, y - d - .01, y - d + .02, .14 + h_ * .5, .14 + h_ * .66, 'glow')
+    for x, y in ((-2.2, .5), (2.2, .4)):
+        rf.mast(body, x, y, .14, .95)
+    # The hub (the core): a glowing sphere with a gold ring.
+    blob(core, tuple(hub), .36, .36, .36, 'core_glow', seg=12, rings=8)
+    ring_tube(core, tuple(hub), tuple(nrm), .36, .05, 'alt_glow', seg=16, side=4)
+    # Destroyed: the hub blown out, a panel fallen across the platform, scorch and debris.
+    cyl(ruin, 0, .05, .22, top + .05, top + .2, 'scorch', seg=8)
+    obox(ruin, .9, -.6, .55, .35, .33, .4, .7, 'metal', tilt=.35)
+    scorch(ruin, rng, 0, -.4, .95)
+    wreckage(ruin, rng, 0, -.2, .7, 1.8, 10, mats=('metal', 'steel', 'scorch'), embers=3, z=.32)
+    obsidian_shards(body, rng, ((2.3, -1.9, .55), (-2.3, 2.5, .55)))
+    return body, core, ruin
+
+
 BUILDERS = {'crash-site': crash_site, 'airfield': airfield, 'salvage-yard': salvage_yard, 'shield-depot': shield_depot,
             'relay-station': relay_station, 'freight-terminal': freight_terminal, 'dark-spaceport': dark_spaceport,
             'prism-reactor': prism_reactor, 'sealed-vault': sealed_vault, 'gate-ring': gate_ring, 'brood-hive': brood_hive,
-            'spawning-pool': spawning_pool}
+            'spawning-pool': spawning_pool, 'star-extractor': star_extractor, 'solar-collector': solar_collector}
 
 
 # ----------------------------------------------------------------------------- build, check, export

@@ -312,7 +312,7 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
     shadowIntensity: .7, blobShadow: 0x0a0402, lowExposure: 1.05,
     post: { exposure: 1.04, threshold: 1.05, knee: .3, strength: 1.1, lift: [.006, .004, .003], saturation: 1.1, contrast: 1.14, vignette: .38,
       haze: [.55, .2, .05, .03],
-      fog: { color: 0xff5a18, energy: 1.0, height: [-3.2, -4.2, .5], distance: [44, .04, .16] } },
+      fog: { color: 0xff5a18, energy: 1.0, height: [-4.08, -4.6, .5], distance: [44, .04, .16] } },
     environment: 'desert',
   },
   umbra: {

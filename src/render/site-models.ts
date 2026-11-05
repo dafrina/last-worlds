@@ -31,8 +31,8 @@ export interface SiteModel {
 export const SITE_ROOF_CLEARANCE = 0.45;
 
 export const SITE_MODELS: Readonly<Partial<Record<SiteId, SiteModel>>> = {
-  'crash-site': { finishes: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'], x: [-2.95, 2.9], s: [-2.5, 2.7], top: 1.55, below: .7 },
-  'airfield': { finishes: ['luna', 'khepri', 'vesper'], x: [-2.7, 3.0], s: [-3.2, 3.3], top: 2.95, below: 1.3 },
+  'crash-site': { finishes: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra'], x: [-2.95, 2.9], s: [-2.5, 2.7], top: 1.55, below: .7 },
+  'airfield': { finishes: ['luna', 'khepri', 'vesper', 'corona'], x: [-2.7, 3.0], s: [-3.2, 3.3], top: 2.95, below: 1.3 },
   'salvage-yard': { finishes: ['luna', 'khepri', 'vesper'], x: [-3.0, 3.0], s: [-2.9, 3.3], top: 2.9, below: 1.0 },
   'shield-depot': { finishes: ['luna', 'khepri', 'vesper'], x: [-2.7, 2.7], s: [-2.6, 3.05], top: 2.1, below: 1.0 },
   'relay-station': { finishes: ['luna', 'khepri', 'vesper', 'amnion'], x: [-2.9, 3.0], s: [-2.75, 3.1], top: 3.1, below: 1.0 },
@@ -43,6 +43,9 @@ export const SITE_MODELS: Readonly<Partial<Record<SiteId, SiteModel>>> = {
   'gate-ring': { finishes: ['umbra', 'nacre', 'amnion'], x: [-2.75, 2.7], s: [-2.85, 2.75], top: 2.95, below: 1.1 },
   'brood-hive': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.6], s: [-1.95, 2.95], top: 2.3, below: 1.05 },
   'spawning-pool': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.45], s: [-2.5, 2.85], top: 2.5, below: .95 },
+  // Corona (docs/37): the captured star between two arms; the collector tower and its four fans.
+  'star-extractor': { finishes: ['corona'], x: [-3.0, 3.0], s: [-3.0, 3.1], top: 3.25, below: 1.1 },
+  'solar-collector': { finishes: ['corona'], x: [-3.0, 3.0], s: [-3.0, 3.1], top: 3.25, below: 1.1 },
 };
 
 export type SitePart = 'body' | 'core' | 'ruin';
