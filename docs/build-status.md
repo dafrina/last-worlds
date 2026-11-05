@@ -1,6 +1,24 @@
 # Build status
 
 
+## Flicker on High: the scene target multisampled again, 5 November 2026
+
+- **The user's report, on a phone:** Vesper's ice cliff faces still flashed, side routes' grounds flickered, and infrastructure base plates flickered at their edges, after `ea359ee` (near plane 20) and `c0c3aca` (walls apart, site overlays win). None of it on Low.
+- **Cause:**
+  - Low draws straight to the antialiased canvas.
+  - High renders the scene into a half-float target with `samples: 0` (since 14 October), and its FXAA smooths each frame's jaggies but not their crawl as the world scrolls.
+  - The 3 November Vesper contrast (blue-grey cliff walls, snow trims) and the strike sites put high-contrast fine detail and thin edges exactly there.
+  - Depth precision was already ample: 24-bit depth, near plane 20, and shadow texels snapped to the ground.
+- **Fix:** the High scene target is multisampled (`SCENE_SAMPLES` 4, `src/render/post-pipeline.ts`). The depth and stencil are resolved for the fog and the hero mark. Tilers with `WEBGL_multisampled_render_to_texture` resolve in tile memory.
+- **Phone diagnostics:**
+  - `?msaa=0` restores the old target, for comparison.
+  - `?fx=noshadow` and `?fx=nonormals` drop the sun's shadow map or the terrain's normal maps on High. If anything still flickers, that tells which.
+- **Checked:**
+  - High stills, with and without MSAA at the same tick (Cold Vector, 30 s, 1.5× like a phone): no page errors; the hero, its mark and the fog are unchanged; panel slats and edges resolve more evenly.
+  - Typecheck clean; render tests 27/27.
+- **Not measured:** the GPU cost on a phone. SwiftShader has no GPU.
+- **Coordination:** made in a separate worktree (`../alien-skies-flicker`, branch `flicker-fix` from `c0c3aca`), so the "Moon training level" session's uncommitted Corona level in the main tree was not touched. Merge `origin/main` before your next push.
+
 ## Repository cleanup, 4 November 2026
 
 User: "theres tons of screenshots and models we dont use. Clean it all up so we have a clean repo".
