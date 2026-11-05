@@ -25,7 +25,9 @@ uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; unif
 uniform float crisp; uniform float plasma; uniform vec3 plasmaHot;
 float plasmaHeat;
 varying float vShore; varying float vDepth; varying vec2 vSea;
-float seaHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+// A hash without sin() (Hoskins): sin of large arguments loses precision far into a run and drew straight cut lines
+// through the pattern (user, 5 November: "the lava sometimes has those clear cut texture lines").
+float seaHash( vec2 p ) { vec3 p3 = fract( vec3( p.xyx ) * .1031 ); p3 += dot( p3, p3.yzx + 33.33 ); return fract( ( p3.x + p3.y ) * p3.z ); }
 float seaNoise( vec2 p ) {
   vec2 i = floor( p ), f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
   return mix( mix( seaHash( i ), seaHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( seaHash( i + vec2( 0.0, 1.0 ) ), seaHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );

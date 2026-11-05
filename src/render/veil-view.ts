@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VEIL } from '../content/veil';
 import { CRADLE } from '../content/cradle';
 import { ECLIPSE } from '../content/eclipse';
+import { HELIOPHAGE } from '../content/heliophage';
 import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 import { applySurfaceFinish } from './surface-finish';
@@ -59,7 +60,7 @@ const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
  * combat sockets; each has its own node prefix, model markers, shutter opening and spark colour.
  */
 export interface CarrierStyle {
-  id: 'veil' | 'cradle' | 'eclipse';
+  id: 'veil' | 'cradle' | 'eclipse' | 'heliophage';
   /** Other bosses this rig stands in for (THE HELIOPHAGE flies THE ECLIPSE until its own model: docs/37). */
   stands?: readonly BossId[];
   name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
@@ -88,10 +89,21 @@ export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', pr
  * sectors roll outward over their feet; it rises out of the abyss and hovers 1.2 over the plateau's level, its top under
  * the flight plane. Its prow vent (v2, 31 October) glows on the hull's front face under the reactor and has its own wreck.
  */
-export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', stands: ['heliophage'], name: 'THE ECLIPSE', prefix: 'eclipse_', markers: ['eclipse_approved_v1'], shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
+export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE', prefix: 'eclipse_', markers: ['eclipse_approved_v1'], shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
   content: { podOffset: ECLIPSE.ventOffset, podS: ECLIPSE.ventS, heartS: ECLIPSE.reactorS, targetHeight: ECLIPSE.targetHeight, arrivalDuration: ECLIPSE.arrivalDuration, bays: ECLIPSE.bays,
     prowS: ECLIPSE.prowS },
   footprint: { halfWidth: 10.2, front: 4.2, back: 9.1 } };
+
+/**
+ * THE HELIOPHAGE (tools/blender/approved_heliophage.py, docs/37): Corona's boss, lying flat, 16 units wide (x ±8, 3.3
+ * toward the player and 9 away from its pivot at the core, 2.4 below its mid-plane to 2.4 above). It hovers 2.6 over the
+ * plateau's level, so its underside clears the plateau and its top stays under the flight plane. No armour shutters: its
+ * core's cage is part of the hull.
+ */
+export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HELIOPHAGE', prefix: 'heliophage_', markers: ['heliophage_approved_v1'], shutterOpen: 0, spark: 0xffa040, hover: 2.6,
+  content: { podOffset: HELIOPHAGE.ventOffset, podS: HELIOPHAGE.ventS, heartS: HELIOPHAGE.reactorS, targetHeight: HELIOPHAGE.targetHeight, arrivalDuration: HELIOPHAGE.arrivalDuration, bays: HELIOPHAGE.bays,
+    prowS: HELIOPHAGE.prowS },
+  footprint: { halfWidth: 8.2, front: 3.5, back: 9.2 } };
 
 export async function loadVeilModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;

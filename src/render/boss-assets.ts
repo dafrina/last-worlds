@@ -18,4 +18,6 @@ export const BOSS_ASSETS = {
    * 2026). v2 = v1 plus the prow vent, its third first-phase target (31 October 2026); v1 has no prow vent to draw.
    */
   eclipse: 'umbra/the-eclipse-v2-approved.glb',
+  /** v1 = the user's Tripo GLB, adapted in Blender, laid flat and squashed, 16 wide (tools/blender/approved_heliophage.py, 5 November 2026). */
+  heliophage: 'corona/the-heliophage-v1-approved.glb',
 } as const;

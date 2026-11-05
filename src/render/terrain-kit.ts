@@ -1544,7 +1544,8 @@ ${VESPER_KIT_SURFACE}`)
       kit.envMapIntensity = planet === 'umbra' ? 1.1 : planet === 'corona' ? .6 : .35;
       // (The glint is for small round shells: on Umbra's large flat facets it lit a whole face white.)
       kitLook.kitGlint.value = planet === 'umbra' || planet === 'corona' ? 0.05 : 0.45;
-      if (planet === 'corona') { const hue = linear(0xff7a1e); kitLook.glowHue.value.set(hue.r * 1.6, hue.g * 1.6, hue.b * 1.6, 1); } else kitLook.glowHue.value.set(1, 1, 1, 0);
+      // (Dimmer since 5 November: "normal buildings etc look too glowy so hard to distinguish from the strike sites".)
+      if (planet === 'corona') { const hue = linear(0xff6a18); kitLook.glowHue.value.set(hue.r * .7, hue.g * .7, hue.b * .7, 1); } else kitLook.glowHue.value.set(1, 1, 1, 0);
     },
     dispose() {
       ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); lunaTrack?.dispose(); snowTexture?.dispose(); crackTexture?.dispose(); fallback.dispose(); flatNormal.dispose();

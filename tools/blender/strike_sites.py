@@ -134,10 +134,12 @@ WORLD = {
                   glow=('#140a2a', .5, .2, '#8a6cff'), core_glow=('#140a2a', .35, .1, '#c09cff'), alt_glow=('#140a2a', .4, .1, '#9a6cff'),
                   dim_glow=('#140a2a', .5, .1, '#7a5ce0')),
     # Corona (docs/37): charcoal basalt and dark gunmetal, pale ceramic panels, gold plasma glow, a white-gold star.
-    'corona': dict(paint=('#b9b1a6', .5, .1), accent=('#c8641e', .5, .15), metal=('#1d1b1a', .42, .55), steel=('#5c5653', .4, .55),
-                   stripe=('#e09a2a', .5, .1), deck=('#4a4440', .85, .05), asphalt=('#262321', .9, .02), ground=('#2c2826', .95, .0),
-                   glass=('#120e0c', .15, .3), canvas=('#8a7a6a', .8, .0), stone=('#45403c', .8, .03), stone_dark=('#26221f', .8, .03),
-                   obsidian=('#1c1917', .3, .05),
+    # (Ancient and weathered, user 5 November: "they look like toys now. refine them, alien and ancient looking, and also
+    # mechanical": dark iron and oxidised bronze, carved stone; the corona finishes are texture-baked, see build_site.)
+    'corona': dict(paint=('#6e6256', .6, .25), accent=('#7a4c26', .45, .55), metal=('#1e1a18', .5, .6), steel=('#4c4540', .45, .6),
+                   stripe=('#a8742c', .5, .3), deck=('#3e3834', .85, .05), asphalt=('#242120', .9, .02), ground=('#2c2826', .95, .0),
+                   glass=('#120e0c', .15, .3), canvas=('#5e5246', .8, .0), stone=('#3e3834', .85, .03), stone_dark=('#221e1b', .85, .03),
+                   obsidian=('#181412', .4, .05),
                    glow=('#2a1004', .5, .2, '#ff9a24'), core_glow=('#3a2408', .35, .1, '#ffd88a'), alt_glow=('#2a1004', .4, .1, '#ff8a1e'),
                    dim_glow=('#2a1004', .5, .1, '#d0641a'), field_glow=('#2a1004', .3, .1, '#ffb040'),
                    panel_glow=('#3a2408', .35, .2, '#e8a03a')),
@@ -1345,6 +1347,66 @@ def spawning_pool(world):
     return body, core, ruin
 
 
+# ----------------------------------------------------------------------------- ancient machinery (Corona)
+def glyph(h, x, y, z, length, angle, mat='glow', step=.24, w=.035, seed=0):
+    """A glowing glyph groove: a stepped zigzag line inlaid in a surface, its turns from a seeded pattern."""
+    r = random.Random(seed)
+    u = Vector((math.cos(angle), math.sin(angle), 0)); v = Vector((-u.y, u.x, 0))
+    p = Vector((x, y, z)) - u * length / 2
+    pts = [p.copy()]
+    k = 0.0
+    while (p - pts[0]).length < length - 1e-6:
+        p = p + u * step
+        k = max(-1.0, min(1.0, k + r.choice((-1, 0, 0, 1))))
+        pts.append(p + v * k * step * .5)
+    for a, b in zip(pts, pts[1:]):
+        beam(h, tuple(a), tuple(b), w, .02, mat)
+
+
+def rivets(h, a, b, n, z, mat='steel', r=.03):
+    a, b = Vector(a), Vector(b)
+    for i in range(n):
+        p = a + (b - a) * (i + .5) / n
+        cyl(h, p.x, p.y, r, z, z + .025, mat, seg=6)
+
+
+def fins(h, x, y, z0, z1, w, n, yaw, mat='metal'):
+    """A vent bank: n thin fins across a recess, turned by yaw."""
+    for i in range(n):
+        off = (i - (n - 1) / 2) * w / n
+        obox(h, x + math.cos(yaw) * off, y + math.sin(yaw) * off, .012, .1, z0, z1, yaw, mat, minor=True)
+
+
+def monolith(h, x, y, height, w, lean, mat='stone_dark', seed=0):
+    """An ancient carved post: a tapered block, leaning, a glyph down its face and a bronze cap."""
+    top = (x + lean[0], y + lean[1])
+    h.major.loft([[(x - w, y - w * .7, -.4), (x + w, y - w * .7, -.4), (x + w, y + w * .7, -.4), (x - w, y + w * .7, -.4)],
+                  [(top[0] - w * .7, top[1] - w * .5, height), (top[0] + w * .7, top[1] - w * .5, height),
+                   (top[0] + w * .7, top[1] + w * .5, height), (top[0] - w * .7, top[1] + w * .5, height)]], mat)
+    h.major.loft([[(top[0] - w * .75, top[1] - w * .55, height), (top[0] + w * .75, top[1] - w * .55, height), (top[0] + w * .75, top[1] + w * .55, height), (top[0] - w * .75, top[1] + w * .55, height)],
+                  [(top[0] - w * .4, top[1] - w * .3, height + .14), (top[0] + w * .4, top[1] - w * .3, height + .14), (top[0] + w * .4, top[1] + w * .3, height + .14), (top[0] - w * .4, top[1] + w * .3, height + .14)]], 'accent')
+    rng = random.Random(seed)
+    for k in range(3):
+        z = height * (.25 + .22 * k)
+        f = z / height
+        cx, cy = x + lean[0] * f, y + lean[1] * f - w * .7 * (1 - f * .3) - .005
+        beam(h, (cx - w * .45, cy, z), (cx + w * .45 * rng.uniform(.3, 1), cy, z + rng.uniform(-.05, .05)), .03, .02, 'dim_glow')
+
+
+def stone_ring(h, r0, r1, z0, z1, n, mat='stone', gap=.04, seed=0, glyphs=True):
+    """A ring of carved stone blocks (plan), each a little different in height, glyph grooves on top."""
+    rng = random.Random(seed)
+    for k in range(n):
+        a0, a1 = TAU * k / n + gap, TAU * (k + 1) / n - gap
+        top = z1 + rng.uniform(-.05, .06)
+        quad = lambda z, a0=a0, a1=a1: [(math.cos(a0) * r0, math.sin(a0) * r0, z), (math.cos(a0) * r1, math.sin(a0) * r1, z),
+                                        (math.cos(a1) * r1, math.sin(a1) * r1, z), (math.cos(a1) * r0, math.sin(a1) * r0, z)]
+        h.major.loft([quad(z0), quad(top)], mat if k % 3 else 'stone_dark')
+        if glyphs and k % 2 == 0:
+            am = (a0 + a1) / 2
+            glyph(h, math.cos(am) * (r0 + r1) / 2, math.sin(am) * (r0 + r1) / 2, top + .005, (a1 - a0) * (r0 + r1) / 2 * .8, am + math.pi / 2, 'dim_glow', step=.3, w=.025, seed=seed * 31 + k)
+
+
 # ----------------------------------------------------------------------------- star cage (Corona)
 def star_cage(world):
     """Corona's shield site, the STAR CAGE (docs/37, art/concepts/corona/02-infrastructure, top left): a captured star, a white-gold sphere
@@ -1354,16 +1416,18 @@ def star_cage(world):
     body, core, ruin = Kit(), Kit(), Kit()
     rng = random.Random(211)
     C = CORE_HEIGHT['star-cage']
-    # The dais: a wide basalt slab, a raised ring under the star, glowing seams and front steps.
+    # The dais (ancient, user 5 November): a carved basalt slab, a ring of glyph-cut stone blocks under the star, worn
+    # front steps, a cradle of iron and bronze with a glowing well.
     body.major.box((-2.7, -2.25, -1.1), (2.7, 2.85, .16), 'stone_dark', chamfer=.45)
-    body.major.box((-1.75, -1.35, .16), (1.75, 1.6, .36), 'stone', chamfer=.35)
+    stone_ring(body, .95, 1.8, .16, .36, 11, seed=211)
     for k in range(3):
-        B(body, -.85, .85, -2.4 - k * .2, -2.2 - k * .2, -.1, .16 - k * .06, 'stone_dark')
-    for x in (-1.45, 1.45):
-        beam(body, (x, -1.3, .37), (x, 1.55, .37), .05, .02, 'glow')
-    beam(body, (-1.45, -1.3, .37), (1.45, -1.3, .37), .05, .02, 'glow')
-    cyl(body, 0, 0, .78, .36, .5, 'metal', seg=16)
+        B(body, -.85 + k * .08, .85 - k * .06, -2.4 - k * .2, -2.2 - k * .2, -.1, .16 - k * .06, 'stone' if k % 2 else 'stone_dark')
+    for x in (-2.0, -.6, .6, 2.0):
+        glyph(body, x, -2.0, .165, .9, math.pi / 2 + (.3 if x < 0 else -.3), 'dim_glow', seed=int(x * 10) + 50)
+    cyl(body, 0, 0, .8, .36, .5, 'metal', seg=18)
+    body.gear((0, 0, 0), 'z', .9, .08, 16, .4, .48, 'accent')
     disc(body, 0, 0, .55, .5, .53, 'glow', seg=16)
+    rivets(body, (-.7, -.62, 0), (.7, -.62, 0), 5, .5)
     # The arms: C-shaped arcs of 7 segments each in the xz plane through the star, left and right, with gaps at top and
     # bottom; a glowing inner rim; the feet sink into blocky clamps on the dais.
     R0, R1, depth = 1.18, 1.5, .42
@@ -1372,36 +1436,43 @@ def star_cage(world):
             b0, b1 = a0 + (a1 - a0) * k / n + .015, a0 + (a1 - a0) * (k + 1) / n - .015
             quad = lambda off, b0=b0, b1=b1: [(math.cos(b0) * R0, off, C + math.sin(b0) * R0), (math.cos(b0) * R1, off, C + math.sin(b0) * R1),
                                               (math.cos(b1) * R1, off, C + math.sin(b1) * R1), (math.cos(b1) * R0, off, C + math.sin(b1) * R0)]
-            body.major.loft([quad(-depth / 2), quad(depth / 2)], 'steel' if k % 2 else 'metal')
+            body.major.loft([quad(-depth / 2), quad(depth / 2)], 'stone' if k % 2 else 'metal')
+            bm = (b0 + b1) / 2
             if k % 2 == 0:
-                bm = (b0 + b1) / 2
-                obox(body, math.cos(bm) * (R1 + .06), 0, .12, .26, C + math.sin(bm) * (R1 + .06) - .1, C + math.sin(bm) * (R1 + .06) + .1, 0, 'accent', minor=True)
+                # Bronze clamp bands round the stone, riveted.
+                obox(body, math.cos(bm) * (R1 + .05), 0, .1, .25, C + math.sin(bm) * (R1 + .05) - .12, C + math.sin(bm) * (R1 + .05) + .12, 0, 'accent', minor=True)
+            else:
+                # A glyph cut down the stone segment's face.
+                p0 = Vector((math.cos(b0 + .05) * (R0 + R1) / 2, -depth / 2 - .005, C + math.sin(b0 + .05) * (R0 + R1) / 2))
+                p1 = Vector((math.cos(b1 - .05) * (R0 + R1) / 2, -depth / 2 - .005, C + math.sin(b1 - .05) * (R0 + R1) / 2))
+                beam(body, tuple(p0), tuple(p1), .03, .02, 'dim_glow')
         tube(body, [(math.cos(a0 + (a1 - a0) * i / 16) * (R0 - .03), -depth / 2 - .01, C + math.sin(a0 + (a1 - a0) * i / 16) * (R0 - .03)) for i in range(17)], .04, 'glow', seg=4)
     lo = math.asin(max(-1.0, (.36 - C) / R1))  # the arms reach down to the dais
     arm(lo, math.radians(78), 7, 1)                       # right: from the dais up to near the top
     arm(math.radians(102), math.pi - lo, 7, -1)          # left: mirror
     for x in (-1.3, 1.3):
         body.major.box((x - .38, -.38, .36), (x + .38, .38, .78), 'metal', chamfer=.12)
-        B(body, x - .4, x + .4, -.4, .4, .62, .66, 'stripe')
-    # Refinery behind: two horizontal tanks with glowing bands, pipes into the dais, and a plasma column back right.
-    for x0, x1, y in ((-2.45, -.55, 2.15), (.55, 2.0, 2.2)):
-        body.major.box((x0, y - .42, .16), (x1, y + .42, .3), 'metal', chamfer=.1)
-        body.cylinder(((x0 + x1) / 2, y, .72), 'x', .4, x0 + .08, x1 - .08, 'steel', seg=14)
-        for xb in (x0 + .35, x1 - .35):
-            body.cylinder((xb, y, .72), 'x', .43, xb - .05, xb + .05, 'glow', seg=14)
-        tube(body, [((x0 + x1) / 2, y - .4, .7), ((x0 + x1) / 2, y - .9, .55), ((x0 + x1) / 2 * .5, 1.35, .45)], .08, 'steel', seg=6)
-    cyl(body, 2.35, 1.15, .32, .16, .36, 'metal', seg=10)
-    cyl(body, 2.35, 1.15, .2, .36, 2.15, 'glass', seg=10)
-    cyl(body, 2.35, 1.15, .13, .4, 2.1, 'alt_glow', seg=8)
-    cyl(body, 2.35, 1.15, .26, 2.15, 2.3, 'metal', seg=10)
-    for z in (.9, 1.5):
-        cyl(body, 2.35, 1.15, .24, z, z + .06, 'steel', seg=10)
-    # Small blocky modules round the front corners, lamps on masts.
-    for x, y, w, d, h_ in ((-2.25, -1.55, .32, .3, .55), (2.25, -1.45, .3, .34, .5), (-2.35, .6, .28, .3, .62)):
-        body.major.box((x - w, y - d, .16), (x + w, y + d, .16 + h_), 'metal', chamfer=.08)
-        B(body, x - w + .04, x + w - .04, y - d - .01, y - d + .02, .16 + h_ * .55, .16 + h_ * .7, 'glow')
-    for x, y in ((-2.0, 1.1), (1.75, -.8)):
-        rf.mast(body, x, y, .16, 1.05)
+        B(body, x - .4, x + .4, -.4, .4, .62, .66, 'accent')
+        # Ring gears at the arms' feet, the mechanism that holds the star.
+        body.gear((x * 1.12, 0, .78), 'y', .3, .07, 8, -.26, .26, 'accent')
+    # Behind: two ancient pumps (ribbed iron drums, pistons driving a crank wheel, vent banks) feeding the cradle, and a
+    # carved obelisk at the back right with the plasma column glowing in its slot.
+    for x0, x1, y in ((-2.45, -.6, 2.15), (.6, 1.9, 2.2)):
+        body.major.box((x0, y - .45, .16), (x1, y + .45, .3), 'stone', chamfer=.1)
+        body.cylinder(((x0 + x1) / 2, y, .66), 'x', .34, x0 + .1, x1 - .1, 'metal', seg=12)
+        for xb in [x0 + .2 + k * (x1 - x0 - .4) / 2 for k in range(3)]:
+            body.cylinder((xb, y, .66), 'x', .37, xb - .04, xb + .04, 'accent', seg=12)
+        cx = x1 - .15 if x0 < 0 else x0 + .15
+        body.gear((cx, y - .48, .7), 'y', .28, .05, 10, -.06, .02, 'accent')
+        for dz in (-.1, .1):
+            body.cylinder((0, y - .5, .7 + dz), 'x', .045, min(cx, (x0 + x1) / 2), max(cx, (x0 + x1) / 2), 'steel', seg=6)
+        fins(body, (x0 + x1) / 2, y - .46, .36, .58, .8, 5, 0, 'metal')
+        tube(body, [((x0 + x1) / 2, y - .35, .5), ((x0 + x1) / 2, y - .9, .45), ((x0 + x1) / 2 * .4, 1.4, .45)], .07, 'accent', seg=6)
+    monolith(body, 2.3, 1.2, 2.2, .3, (0, .05), 'stone_dark', seed=3)
+    cyl(body, 2.3, .95, .07, .4, 2.0, 'alt_glow', seg=6)
+    # Carved posts at the front corners instead of crates and masts.
+    for x, y, lean, sd in ((-2.3, -1.5, (.05, .1), 4), (2.3, -1.45, (-.05, .1), 5), (-2.35, .65, (.08, 0), 6)):
+        monolith(body, x, y, .9, .2, lean, 'stone', seed=sd)
     # The star (the core): a white-gold sphere with a hotter heart in front, three flare loops round it.
     blob(core, (0, 0, C), .78, .78, .78, 'core_glow', seg=14, rings=9)
     blob(core, (0, -.25, C), .5, .4, .5, 'field_glow', seg=10, rings=6)
@@ -1414,8 +1485,7 @@ def star_cage(world):
         a = TAU * k / 6 + rng.uniform(-.3, .3)
         shard(ruin, (math.cos(a) * .45, math.sin(a) * .35, .5), rng.uniform(.15, .3), .08, 'stone_dark', rng, lean=.9)
     scorch(ruin, rng, 0, -.5, 1.0)
-    wreckage(ruin, rng, 0, -.3, .8, 1.9, 10, mats=('metal', 'steel', 'scorch'), embers=3, z=.36)
-    obsidian_shards(body, rng, ((-2.5, -2.0, .6), (2.5, 2.7, .6)))
+    wreckage(ruin, rng, 0, -.3, .8, 1.9, 7, mats=('metal', 'steel', 'scorch'), embers=3, z=.36)
     return body, core, ruin
 
 
@@ -1429,21 +1499,21 @@ def star_extractor(world):
     body, core, ruin = Kit(), Kit(), Kit()
     rng = random.Random(227)
     C = CORE_HEIGHT['star-extractor']
-    # The bore: a low stone collar round the hole, the plasma pool glowing in it, bolted rim plates.
-    cyl(body, 0, 0, 1.15, -1.1, .12, 'stone_dark', seg=16)
-    cyl(body, 0, 0, .95, .12, .2, 'stone', seg=16)
+    # The bore (ancient, user 5 November): a collar of glyph-cut stone blocks round the hole, older than the rig, the
+    # plasma pool glowing in it, an iron ring gear bolted over it; two carved posts at the front.
+    cyl(body, 0, 0, 1.15, -1.1, .1, 'stone_dark', seg=16)
+    stone_ring(body, .8, 1.3, .1, .3, 9, seed=227)
     disc(body, 0, 0, .78, .2, .22, 'scorch', seg=16)
     disc(body, 0, 0, .62, .22, .24, 'core_glow', seg=16)
-    ring_tube(body, (0, 0, .24), (0, 0, 1), .8, .05, 'glow', seg=20, side=4)
-    for k in range(8):
-        a = TAU * k / 8 + TAU / 16
-        obox(body, math.cos(a) * 1.02, math.sin(a) * 1.02, .14, .08, .2, .28, a, 'steel', minor=True)
+    body.gear((0, 0, 0), 'z', .86, .07, 16, .26, .33, 'accent')
+    for x in (-.95, .95):
+        monolith(body, x, -2.3, 1.0, .18, (0, .08), 'stone', seed=int(x * 10) + 90)
     # The legs (user, 5 November: "make the legs more mechanical"): four on the diagonals. Each a hip bracket on the
     # containment ring and a pivot drum; a forked thigh of two plates up to a knee drum; a heavy box-section shin with an
     # armour plate down to an ankle drum; a hydraulic ram from the bracket to the shin (barrel, rod, a glowing seal);
     # cable runs along the thigh; a clawed foot with anchor bolts on a plinth.
     def drum(at, axis, r, half, mat='metal', cap='steel'):
-        tube(body, [tuple(at - axis * half), tuple(at + axis * half)], r, mat, seg=8, soft=True)
+        tube(body, [tuple(at - axis * half), tuple(at + axis * half)], r, mat, seg=6, soft=True)
         for sgn in (-1, 1):
             tube(body, [tuple(at + axis * sgn * half), tuple(at + axis * sgn * (half + .025))], r * .55, cap, seg=6, soft=True)
     for k in range(4):
@@ -1489,11 +1559,16 @@ def star_extractor(world):
                           (math.cos(a1) * R1, math.sin(a1) * R1, z), (math.cos(a1) * R0, math.sin(a1) * R0, z)]
         body.major.loft([quad(C - .14), quad(C + .1)], 'steel' if k % 2 else 'metal')
     ring_tube(body, (0, 0, C - .02), (0, 0, 1), R0 - .02, .04, 'glow', seg=24, side=4)
-    # The machinery behind the chamber: a housing with vents and conduits feeding into the ring.
-    body.major.box((-.6, .62, C - .3), (.6, 1.3, C + .55), 'paint', chamfer=.12)
+    # The machinery behind the chamber: a stone-and-iron housing, its face carved with glyphs over vent banks, riveted
+    # plates and conduits feeding into the ring; cables run down the rear legs into the ground.
+    body.major.box((-.6, .62, C - .3), (.6, 1.3, C + .55), 'stone', chamfer=.12)
     body.major.box((-.5, .7, C + .55), (.5, 1.2, C + .72), 'metal', chamfer=.08)
-    for x in (-.35, 0, .35):
-        B(body, x - .07, x + .07, .6, .62, C - .15, C + .4, 'glow')
+    body.gear((0, .62, C + .3), 'y', .26, .05, 10, -.02, .04, 'accent')
+    fins(body, 0, .6, C - .25, C + .05, .9, 6, 0, 'metal')
+    for x in (-.4, .4):
+        beam(body, (x, .6, C - .2), (x, .6, C + .45), .035, .02, 'dim_glow')
+    for x in (-1, 1):
+        tube(body, [(x * .5, 1.1, C - .1), (x * 1.1, 1.3, 1.6), (x * 1.7, 1.75, .6), (x * 1.9, 1.95, .12)], .045, 'metal', seg=5)
     for x in (-.4, .4):
         tube(body, [(x, .7, C), (x * .8, .62, C - .05), (x * .6, .55, C - .02)], .05, 'steel', seg=5)
     cyl(body, .3, 1.0, .06, C + .72, C + 1.0, 'steel', seg=6)
@@ -1510,7 +1585,7 @@ def star_extractor(world):
         a = TAU * k / 6 + rng.uniform(-.3, .3)
         shard(ruin, (math.cos(a) * .45, math.sin(a) * .45, .25), rng.uniform(.15, .3), .08, 'metal', rng, lean=.9)
     scorch(ruin, rng, 0, -.6, 1.0)
-    wreckage(ruin, rng, 0, -.3, .9, 1.9, 10, mats=('metal', 'steel', 'scorch'), embers=3, z=.2)
+    wreckage(ruin, rng, 0, -.3, .9, 1.9, 7, mats=('metal', 'steel', 'scorch'), embers=3, z=.2)
     return body, core, ruin
 
 
@@ -1662,6 +1737,10 @@ def build_site(site, spec, sc):
         objects = {'body': body, 'core': kits[1].object('%s_core' % name, mats, sc), 'ruin': kits[2].object('%s_ruin' % name, mats, sc)}
         br.bake_ao([objects['body'], objects['core']], [objects['body'], objects['core']], strength=.8, reach=1.6, ground=0.0, rays=24)
         br.bake_ao([objects['ruin']], [objects['body'], objects['ruin']], strength=.8, reach=1.6, ground=0.0, rays=24)
+        if world == 'corona':
+            # Corona's sites are texture-baked (user, 5 November: "they look like toys now ... alien and ancient looking"):
+            # plated, seamed, ash-dusted, soot-streaked, their edges worn to bronze (boss_remodel STYLES['corona']).
+            br.texture_bake(list(objects.values()), name, 'corona', size=1024, samples=6)
         out[world] = objects
     return out
 

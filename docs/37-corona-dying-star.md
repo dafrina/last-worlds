@@ -58,14 +58,19 @@ The concept images are references, never runtime backgrounds or finished assets 
 - **Fleet:** Umbra's fleet and the Wraith (`hunters.ts` kind `wraith`), drawn with Umbra's models until stage 2.
 - **Encounters:** the encounter deck flies Umbra's pools (`DECK_POOLS.corona`). The mission's arc is Final Horizon's, re-identified (`c-` slots). Its seeded rolls are its own, keyed by template id.
 - **World intensity:** flight 1.1, shot 1.1, cadence 0.5. The mission cadence is 0.92 and credits scale by 0.55.
-- **Boss:** THE HELIOPHAGE is THE ECLIPSE's definition and rig unchanged, renamed, with its own messages. The rig stands in by `CarrierStyle.stands`. It floats over the world's own ground; its arena only levels the mesas and tall dressing.
+- **Boss:** THE HELIOPHAGE, the user's Tripo GLB adapted like THE ECLIPSE (`tools/blender/approved_heliophage.py` → `public/assets/corona/the-heliophage-v1-approved.glb`; source `art/source/approved-bosses/heliophage-tripo-original.glb`):
+  - **Placement:** laid flat, its concept view to the camera, spires away from the player, claws toward them. It is 16 units wide (user: "Make it 16 units wide, the eclipse is the final boss"), with the depth squashed to 0.35 so it hovers between the plateau and the flight plane (`HELIOPHAGE_STYLE.hover` 2.6).
+  - **Surface:** the mesh, UVs and atlases are kept and reduced to 77k triangles, with an emission mask from the painted glow.
+  - **Targets** (`src/content/heliophage.ts`): the two armoured blocks' vent grilles (x ±5.0), the central tower's glowing column (the third first-phase target, s 4.7) and the caged molten core.
+  - **Fight:** THE ECLIPSE's timing and patterns.
+  - **Arena:** it floats over the world's own ground; the arena only levels the mesas and tall dressing.
 - **Sites:**
   - the **Star Extractor**, a parts site;
   - the **Star Cage**, a shield site;
   - the crash site and the airfield, also offered here.
 
-  Models: stage 2 (`tools/blender/`). The airfield's Corona finish is a recolour only.
-- **Where sites stand** (user: "cant they generate on the rocks?", then "they can sit in lava just not exclusively"): the rock near the side routes keeps to the lowest tiers, so a site takes an island in reach. About 80% stand on rock (most with a rim built out over the plasma on foundations); the rest float on decks in the plasma (`tests/sim/site-seats.test.ts`, `CORONA_ON_ROCK`).
+  Models: `tools/blender/strike_sites.py`. The Corona finishes are ancient machinery (user, 5 November: "they look like toys now. refine them, alien and ancient looking, and also mechanical"): carved stone with glyph grooves, monolith posts, ring gears, ribbed pumps and pistons, dark iron and oxidised bronze, texture-baked with `boss_remodel.STYLES['corona']` (plates, ash, soot, worn bronze edges). The airfield's Corona finish is a recolour plus that bake.
+- **Where sites stand** (user: "cant they generate on the rocks?", then "they can sit in lava just not exclusively"): the rock near the side routes keeps to the lowest tiers, so a site takes an island in reach. About two thirds stand on rock (gentler tiers and no mesas by the side routes; no trench: "lots of these corridors"); the rest float on decks in the plasma (`tests/sim/site-seats.test.ts`, `CORONA_ON_ROCK`).
 - **World missions:** twelve, 625 coins and 5 parts, as Brood Strike's and Final Horizon's (`src/content/world-missions.ts`).
 - **Endless:** Corona's stages are staged from Dying Star's arc as Nacre's are from Deep Bloom's (`lateStages`). The pressure stage holds no strike site, as Nacre's, Amnion's and Umbra's don't.
 

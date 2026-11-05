@@ -5,6 +5,7 @@ import { WARDEN } from './warden';
 import { VEIL } from './veil';
 import { CRADLE } from './cradle';
 import { ECLIPSE } from './eclipse';
+import { HELIOPHAGE } from './heliophage';
 
 export { WRECK_HOLD } from './departure';
 /**
@@ -243,7 +244,15 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   // Corona's boss, a placeholder (user, 5 November: "reuse the eclipse boss, no recolor or anything and same gameplay we
   // will replace the boss later"): THE ECLIPSE's model, parts and moves under its own name (docs/37).
   heliophage: {
-    ...ECLIPSE_BOSS, id: 'heliophage', name: 'THE HELIOPHAGE',
+    // THE ECLIPSE's fight on its own model's targets (src/content/heliophage.ts): the blocks' grilles, the tower, the core.
+    ...ECLIPSE_BOSS, id: 'heliophage', name: 'THE HELIOPHAGE', targetHeight: HELIOPHAGE.targetHeight,
+    parts: {
+      left: { x: -HELIOPHAGE.ventOffset, s: HELIOPHAGE.ventS, radius: HELIOPHAGE.ventRadius, hp: HELIOPHAGE.ventHp },
+      right: { x: HELIOPHAGE.ventOffset, s: HELIOPHAGE.ventS, radius: HELIOPHAGE.ventRadius, hp: HELIOPHAGE.ventHp },
+      core: { x: 0, s: HELIOPHAGE.reactorS, radius: HELIOPHAGE.reactorRadius, hp: HELIOPHAGE.reactorHp },
+      prow: { x: 0, s: HELIOPHAGE.prowS, radius: HELIOPHAGE.prowRadius, hp: HELIOPHAGE.ventHp },
+    },
+    launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: HELIOPHAGE.bays },
     messages: {
       start: 'THE HELIOPHAGE · BREAK ALL THREE FLARE VENTS', batteries: 'BREAK ALL THREE FLARE VENTS', core: 'THE STAR-HEART IS OPEN',
       overload: 'STAR-HEART OVERLOAD · SPIRALS AND LANES', destroyed: 'THE HELIOPHAGE IS FALLING · JUMP',

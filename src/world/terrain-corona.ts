@@ -46,19 +46,13 @@ export interface CoronaMasks {
   calm: number;
 }
 /**
- * Closeness to a side route (0 … 1; ROUTE_AXES ±7.5, where the strike sites stand). User, 5 November: "why are they
- * always on the lava part, cant they generate on the rocks?", then "they can sit in lava just not exclusively". Sites
- * seat within a small window of their authored place (src/sim/sites.ts SEAT_SEARCH) and avoid high floors more than
- * plasma: the rock near the side routes keeps to the lowest tiers (landLevel), so a site takes an island in reach.
+ * Closeness to a side route (0 … 1; ROUTE_AXES ±7.5, where the strike sites stand). There the tiers are gentler and no
+ * mesa stands, so a site never seats against a tall cliff (user, 5 November: sites "can sit in lava just not
+ * exclusively"; no trench along the routes: "lots of these corridors").
  */
 function sideRoute(seed: number, x: number, s: number): number {
   let near = 0;
-  // Round a site's seat (a unit or two either side of the route), a little wider toward the edge, where a seat beside a
-  // far camera reaches.
-  for (const route of [0, 2] as const) {
-    const c = routeCenter(seed, route, s), outer = Math.sign(x) === Math.sign(c) && Math.abs(x) > Math.abs(c);
-    near = Math.max(near, outer ? 1 - smoothRange(3, 5, Math.abs(x - c)) : 1 - smoothRange(2.4, 4, Math.abs(x - c)));
-  }
+  for (const route of [0, 2] as const) near = Math.max(near, 1 - smoothRange(2.5, 5, Math.abs(x - routeCenter(seed, route, s))));
   return near;
 }
 
@@ -67,8 +61,13 @@ export function coronaMasks(seed: number, x: number, s: number, platform = 0): C
   const qx = x + (noise(seed ^ 0xc1a1, x * 0.04, s * 0.035) - 0.5) * 12, qs = s + (noise(seed ^ 0xc1a2, x * 0.04 + 5.3, s * 0.035) - 0.5) * 12;
   let mass = noise(seed ^ 0xc1a3, qx * 0.055, qs * 0.05) * 0.5 + noise(seed ^ 0xc1a4, qx * 0.15, qs * 0.14) * 0.33 + noise(seed ^ 0xc1a5, qx * 0.42, qs * 0.4) * 0.17;
   // The causeway: the central route stays basalt for long stretches, broken now and then by a plasma crossing.
-  const d = (x - routeCenter(seed, 1, s)) / 3.6, keep = smoothRange(0.18, 0.4, noise(seed ^ 0xc1a6, s * 0.025, 1.7));
-  mass += Math.exp(-d * d) * 0.34 * keep;
+  // (User, 5 November: "lots of these corridors": weaker and broken more often than at first.)
+  const d = (x - routeCenter(seed, 1, s)) / 3.2, keep = smoothRange(0.35, 0.6, noise(seed ^ 0xc1a6, s * 0.03, 1.7));
+  mass += Math.exp(-d * d) * 0.2 * keep;
+  // Plasma rivers winding through the land masses and pools in them (user: "patches of a lot of land without lava").
+  const river = 1 - smoothRange(0.012, 0.04, Math.abs(noise(seed ^ 0xc1a9, qx * 0.05, qs * 0.042) - 0.5));
+  const pools = smoothRange(0.68, 0.8, noise(seed ^ 0xc1aa, qx * 0.12, qs * 0.11));
+  mass -= Math.max(river * 0.3, pools * 0.25) * (1 - platform);
   // About half the ground is plasma. The boss arena keeps the world's own ground (user, 5 November: "no need for a special
   // lava only lake for the boss, he will float anyway"); only its mesas are levelled (below), so none rises into the hull.
   const threshold = 0.49;
@@ -98,9 +97,9 @@ function plates(seed: number, x: number, s: number): { offset: number; tone: num
 function landLevel(seed: number, x: number, s: number, platform: number): number {
   const qx = x + (noise(seed ^ 0xc1d3, x * 0.03, s * 0.026) - 0.5) * 14, qs = s + (noise(seed ^ 0xc1d4, x * 0.03 + 3.3, s * 0.026) - 0.5) * 14;
   const field = noise(seed ^ 0xc1d1, qx * 0.05, qs * 0.045) * 0.6 + noise(seed ^ 0xc1d2, qx * 0.13, qs * 0.12) * 0.3 + noise(seed ^ 0xc1d5, qx * 0.3, qs * 0.28) * 0.1;
-  const calm = routeCalm(seed, x, s), side = sideRoute(seed, x, s);
-  // The causeway keeps to the lower tiers; the side routes' corridors to the lowest (a site's floor, src/sim/sites.ts).
-  const level = LOW + smoothRange(0.25, 0.8, field) * RISE * (1 - calm * 0.55) * (1 - side * 0.85);
+  const calm = routeCalm(seed, x, s);
+  // The causeway keeps a little lower (no trench along the routes: user, 5 November, "lots of these corridors").
+  const level = LOW + smoothRange(0.25, 0.8, field) * RISE * (1 - calm * 0.25) * (1 - sideRoute(seed, x, s) * 0.5);
   return mix(level, PLATEAU, platform) + (noise(seed ^ 0xc1d6, x * 0.35, s * 0.32) - 0.5) * 0.35;
 }
 

@@ -38,7 +38,7 @@ import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
-import { CRADLE_STYLE, ECLIPSE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
+import { CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
 import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { WRAITH } from '../content/wraith';
@@ -646,7 +646,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (next === 'amnion') { ensureNacreCraft(); ensurePredator(next); ensureCradle(); }
     if (next === 'umbra') { ensureUmbraCraft(); ensurePredator(next); ensureEclipse(); }
     // (Corona flies its own fleet, the Wraith included; THE ECLIPSE stands in for THE HELIOPHAGE until its own: docs/37.)
-    if (next === 'corona') { ensureCoronaCraft(); ensureEclipse(); }
+    if (next === 'corona') { ensureCoronaCraft(); ensureHeliophage(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
@@ -1107,7 +1107,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const warden = createWardenView(scene);
   const veil = createVeilView(scene);
   const cradle = createVeilView(scene, CRADLE_STYLE);
-  const eclipse = createVeilView(scene, ECLIPSE_STYLE);
+  const eclipse = createVeilView(scene, ECLIPSE_STYLE), heliophage = createVeilView(scene, HELIOPHAGE_STYLE);
   let wardenLoad: Promise<void> | undefined;
   /** WARDEN-1's production model (warden.glb) loads with Luna; the code-built stand-in renders until then. */
   const ensureWarden = () => {
@@ -1136,6 +1136,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     return eclipseLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.eclipse}`).then(model => { if (!disposed) { eclipse.setModel(model); warmed = false; } })
       .catch(error => console.warn('THE ECLIPSE model unavailable; using the code-built stand-in.', error));
   };
+  let heliophageLoad: Promise<void> | undefined;
+  const ensureHeliophage = () => {
+    if (heliophageLoad) return heliophageLoad;
+    return heliophageLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.heliophage}`).then(model => { if (!disposed) { heliophage.setModel(model); warmed = false; } })
+      .catch(error => console.warn('THE HELIOPHAGE model unavailable; using the code-built stand-in.', error));
+  };
   let arkLoad: Promise<void> | undefined;
   const ensureArk = () => {
     if (arkLoad) return arkLoad;
@@ -1154,7 +1160,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const facilityLoad = facilities.prepare(next);
     if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
     facilityPrefetches.set(next, facilityLoad);
-    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' || next === 'corona' ? ensureEclipse() : next === 'luna' ? ensureWarden() : bastionLoad;
+    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'corona' ? ensureHeliophage() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
       terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : next === 'corona' ? ensureCoronaCraft() : undefined,
@@ -1487,7 +1493,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
       // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
       const boss = state.boss;
-      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle', isEclipse = boss?.id === 'eclipse' || boss?.id === 'heliophage';
+      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle', isEclipse = boss?.id === 'eclipse', isHeliophage = boss?.id === 'heliophage';
       {
         let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && boss
           ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
@@ -1500,7 +1506,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // out of the flesh canyon its arena digs (src/world/terrain-amnion.ts, `emergence`) and hovers over the plateau:
         // its seat is raised by the hover, so its target plane still projects onto the logical rows.
         for (const [view, mine, ground, style] of [[veil, isVeil, world.planet.seaLevel ?? 0, VEIL_STYLE], [cradle, isCradle, AMNION_PLATEAU + CRADLE_STYLE.hover, CRADLE_STYLE],
-          [eclipse, isEclipse, UMBRA_PLATEAU + ECLIPSE_STYLE.hover, ECLIPSE_STYLE]] as const) {
+          [eclipse, isEclipse, UMBRA_PLATEAU + ECLIPSE_STYLE.hover, ECLIPSE_STYLE], [heliophage, isHeliophage, UMBRA_PLATEAU + HELIOPHAGE_STYLE.hover, HELIOPHAGE_STYLE]] as const) {
           const height = style.content.targetHeight;
           let seat: { x?: number; s: number; baseHeight: number } | null = mine && boss ? veilPlacement(boss.s, ground, height) : null;
           if (mine && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, height, ground, world);
@@ -1508,7 +1514,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           if (mine) terrain.setExclusion(view.footprint(state, seat));
         }
       }
-      if (!isArk && !isWarden && !isVeil && !isCradle && !isEclipse) {
+      if (!isArk && !isWarden && !isVeil && !isCradle && !isEclipse && !isHeliophage) {
         let bossPlacement: { x?: number; s: number; baseHeight: number } | null = boss ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena) : null;
         if (boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
         bastion.update(state, bossPlacement);
@@ -1764,7 +1770,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const craftScale = predator ? (enemy.kind === 'wraith' ? .76 : .82) : coronaNode && enemy.kind !== 'fuel' ? (pod ? CORONA_DRONE_SCALE : CORONA_CRAFT[enemy.kind].scale)
           : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
           : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
-        if (slot < ENEMY_CAPACITY && !siteCore && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' || state.boss?.id === 'heliophage' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
+        if (slot < ENEMY_CAPACITY && !siteCore && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : state.boss?.id === 'heliophage' ? heliophage : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           // A craft breaking off for a boss turns toward the side it leaves by and banks into the turn.
           const turn = enemy.leaving && !isGround ? THREE.MathUtils.smoothstep(state.time - enemy.leaving.at, 0, .5) * enemy.leaving.side : 0;

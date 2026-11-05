@@ -716,6 +716,10 @@ STYLES = {
     # Amnion (THE CRADLE): organic cells like Nacre's, bone dust in the seams, dried blood streaks.
     'amnion': dict(tile=2.4, detail=.25, cells=1.3, seed=19, seam_dark=.42, dust='#c8b496', dust_amount=.16,
                    streak='#3a0c0a', streak_amount=.28, wear='#efe6d6', wear_amount=.45, grime=.18),
+    # Corona (docs/37; user, 5 November: "alien and ancient looking, and also mechanical"): ancient plated stone-metal
+    # like THE HELIOPHAGE's, ash in the seams and on the decks, soot streaks, worn bronze on every edge.
+    'corona': dict(tile=2.2, detail=.4, panel=.8, seed=23, seam_dark=.25, dust='#5a4a40', dust_amount=.22,
+                   streak='#140a06', streak_amount=.34, wear='#a88a62', wear_amount=.7, grime=.3),
 }
 
 

@@ -103,12 +103,12 @@ export const KIT: Readonly<Record<KitKind, {
   voidWall: { prefix: 'void_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   // Corona's infrastructure (corona-kit.glb, docs/37): the six modules of the concept sheet; tops normalised to 1, the
   // footprints (model units, the scatter scales them) as built.
-  corExtractor: { prefix: 'cor_extractor', variants: 1, halfX: 0.8, halfZ: 0.61, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.61) },
+  corExtractor: { prefix: 'cor_extractor', variants: 1, halfX: 0.8, halfZ: 0.75, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.75) },
   corCollector: { prefix: 'cor_collector', variants: 1, halfX: 0.66, halfZ: 0.51, height: 1, exactTop: true, radius: Math.hypot(0.66, 0.51) },
-  corHangar: { prefix: 'cor_hangar', variants: 1, halfX: 0.8, halfZ: 0.62, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.62) },
+  corHangar: { prefix: 'cor_hangar', variants: 1, halfX: 0.8, halfZ: 0.68, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.68) },
   corRefinery: { prefix: 'cor_refinery', variants: 1, halfX: 0.75, halfZ: 0.55, height: 1, exactTop: true, radius: Math.hypot(0.75, 0.55) },
   corGantry: { prefix: 'cor_gantry', variants: 1, halfX: 0.8, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.6) },
-  corDome: { prefix: 'cor_dome', variants: 1, halfX: 0.68, halfZ: 0.77, height: 1, exactTop: true, radius: Math.hypot(0.68, 0.77) },
+  corDome: { prefix: 'cor_dome', variants: 1, halfX: 0.77, halfZ: 0.77, height: 1, exactTop: true, radius: Math.hypot(0.77, 0.77) },
   // The hills: fractured obsidian massifs, each a few large planar faces broken along cracks (razor edges).
   umbHill: { prefix: 'umb_hill', variants: 8, halfX: 1.5, halfZ: 1.3, height: 1, exactTop: true, radius: Math.hypot(1.5, 1.3) },
   // Sharp obsidian rocks (crags), on and around the hills.

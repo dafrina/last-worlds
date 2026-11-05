@@ -33,8 +33,11 @@ OUT = os.path.join(br.ROOT, 'public', 'assets', 'corona', 'corona-kit.glb')
 PREVIEW = os.path.join(br.ROOT, 'lookdev', 'corona')
 TAU = 2 * math.pi
 # Base colours; the glow slots carry their glow colour as base colour (the kit reads it as the emissive tint).
-PAINT = dict(cor_plate=('#7c7064', .55, .35), cor_frame=('#211e1c', .5, .45), cor_bronze=('#8a5e30', .4, .7),
-             cor_stone=('#3a3532', .85, .02), cor_glow=('#ffa030', .5, .1), cor_glow_hot=('#ffe0a0', .4, .1))
+# (Ancient, mechanical and dim, user 5 November: "they look like toys now. refine them, alien and ancient looking, and also
+# mechanical"; "normal buildings etc look too glowy so hard to distinguish from the strike sites": glow only in thin
+# grooves and small dim cores, darker glow colours.)
+PAINT = dict(cor_plate=('#5a5048', .6, .4), cor_frame=('#1c1816', .5, .5), cor_bronze=('#6e4a26', .45, .7),
+             cor_stone=('#34302c', .85, .02), cor_glow=('#b05a18', .5, .1), cor_glow_hot=('#c87a30', .4, .1))
 PLATE, FRAME, BRONZE, STONE, GLOW, HOT = 'cor_plate', 'cor_frame', 'cor_bronze', 'cor_stone', 'cor_glow', 'cor_glow_hot'
 
 
@@ -132,34 +135,85 @@ def carapace(k, cx, cy, rx, ry, h, z0, mat, ribs=6, mouth=True):
         k.major.wedge([(cx - rx * .45, cy - ry * .98), (cx + rx * .45, cy - ry * .98), (cx + rx * .3, cy - ry * .8), (cx - rx * .3, cy - ry * .8)], z0, z0 + h * .45, GLOW)
 
 
+# ----------------------------------------------------------------------------- ancient details
+def glyph(k, x, y, z, length, angle, step=.07, w=.018, seed=0):
+    """A glyph groove: a stepped zigzag inlaid in a surface (dim glow)."""
+    import random
+    r = random.Random(seed)
+    u = Vector((math.cos(angle), math.sin(angle), 0)); v = Vector((-u.y, u.x, 0))
+    p = Vector((x, y, z)) - u * length / 2; start = p.copy(); off = 0.0
+    while (p - start).length < length - 1e-6:
+        q = p + u * step
+        off = max(-1.0, min(1.0, off + r.choice((-1, 0, 0, 1))))
+        beam(k, tuple(p), tuple(q + v * off * step * .5), w, .012, GLOW)
+        p = q + v * off * step * .5
+
+
+def post(k, x, y, height, w, lean=(0, 0), seed=0):
+    """A carved monolith post: tapered, leaning, a bronze cap, glyph notches down its front."""
+    t = (x + lean[0], y + lean[1])
+    k.major.loft([[(x - w, y - w * .7, -.2), (x + w, y - w * .7, -.2), (x + w, y + w * .7, -.2), (x - w, y + w * .7, -.2)],
+                  [(t[0] - w * .65, t[1] - w * .45, height), (t[0] + w * .65, t[1] - w * .45, height), (t[0] + w * .65, t[1] + w * .45, height), (t[0] - w * .65, t[1] + w * .45, height)]], STONE)
+    k.major.loft([[(t[0] - w * .7, t[1] - w * .5, height), (t[0] + w * .7, t[1] - w * .5, height), (t[0] + w * .7, t[1] + w * .5, height), (t[0] - w * .7, t[1] + w * .5, height)],
+                  [(t[0] - w * .35, t[1] - w * .25, height + w * .8), (t[0] + w * .35, t[1] - w * .25, height + w * .8), (t[0] + w * .35, t[1] + w * .25, height + w * .8), (t[0] - w * .35, t[1] + w * .25, height + w * .8)]], BRONZE)
+    for q in range(2):
+        z = height * (.35 + .25 * q); f = z / height
+        cx, cy = x + lean[0] * f, y + lean[1] * f - w * .7 * (1 - f * .35) - .004
+        beam(k, (cx - w * .4, cy, z), (cx + w * .4, cy, z), .02, .012, GLOW)
+
+
+def blocks(k, r0, r1, z0, z1, n, seed=0):
+    """A ring of carved stone blocks with glyph grooves on every other top."""
+    import random
+    r = random.Random(seed)
+    for i in range(n):
+        a0, a1 = TAU * i / n + .04, TAU * (i + 1) / n - .04
+        top = z1 + r.uniform(-.03, .04)
+        quad = lambda z, a0=a0, a1=a1: [(math.cos(a0) * r0, math.sin(a0) * r0, z), (math.cos(a0) * r1, math.sin(a0) * r1, z),
+                                        (math.cos(a1) * r1, math.sin(a1) * r1, z), (math.cos(a1) * r0, math.sin(a1) * r0, z)]
+        k.major.loft([quad(z0), quad(top)], STONE if i % 3 else FRAME)
+        if i % 2 == 0:
+            am = (a0 + a1) / 2
+            glyph(k, math.cos(am) * (r0 + r1) / 2, math.sin(am) * (r0 + r1) / 2, top + .003, (a1 - a0) * (r0 + r1) / 2 * .75, am + math.pi / 2, seed=seed * 17 + i)
+
+
+def bands(k, centre, r, z0, z1, n, mat=BRONZE):
+    for q in range(n):
+        z = z0 + (z1 - z0) * (q + .5) / n
+        k.cylinder((centre[0], centre[1], 0), 'z', r, z - .02, z + .02, mat, seg=12)
+
+
 # ----------------------------------------------------------------------------- modules
 def extractor():
+    """An ancient star well: a carved stone dais, a ring of glyph-cut blocks, iron arcs in bronze bands floating round a
+    small dim star, a ring gear, horns at the back, carved posts at the front."""
     k = rf.Kit([])
     dais(k, .78, .6, .1)
+    blocks(k, .5, .74, .1, .22, 12, seed=1)
     C = .78
-    # The star in free-floating arcs (no arms touching it): six arcs round it in the plane across the view, a halo.
     for i in range(6):
         a0 = TAU * i / 6 + .14
         pts = [(math.cos(a0 + (TAU / 6 - .28) * q / 6) * .56, 0, C + math.sin(a0 + (TAU / 6 - .28) * q / 6) * .56) for q in range(7)]
-        tube(k, pts, .06, PLATE if i % 2 else FRAME, seg=6)
-        tube(k, [(p[0] * .9, -.04, (p[2] - C) * .9 + C) for p in pts], .015, GLOW, seg=4)
-    sphere(k, (0, 0, C), .32, HOT)
-    halo(k, (0, 0), .45, C, thick=.02)
-    # Horns rising from the dais corners toward the star.
+        tube(k, pts, .06, FRAME if i % 2 else PLATE, seg=6)
+        mid = pts[3]
+        k.cylinder((mid[0], 0, mid[2]), 'y', .075, -.04, .04, BRONZE, seg=8)
+    sphere(k, (0, 0, C), .2, HOT)
+    k.gear((0, 0, 0), 'z', .46, .04, 22, .22, .27, BRONZE)
     for s in (-1, 1):
-        claw(k, [(s * .62, .32, .1), (s * .7, .2, .55), (s * .45, .05, .95)], .1, hot=True)
-        pod(k, (s * .55, -.35, .2), .12)
+        claw(k, [(s * .62, .32, .1), (s * .7, .2, .55), (s * .45, .05, .9)], .1, mat=FRAME)
+        post(k, s * .6, -.45, .45, .08, (0, .04), seed=s + 5)
     return k
 
 
 def collector():
+    """Three iron claws curling up to a small dim hub; four petals of iron with bronze ribs; a stone base cut with glyphs."""
     k = rf.Kit([])
     dais(k, .55, .5, .08)
+    blocks(k, .32, .5, .08, .16, 10, seed=2)
     C = 1.35
-    # Three claws curl up from the dais and meet under the hub; four petals open round it toward the camera.
     for i in range(3):
         a = TAU * i / 3 + math.pi / 2
-        claw(k, [(math.cos(a) * .42, math.sin(a) * .38, .08), (math.cos(a) * .4, math.sin(a) * .36, .6), (math.cos(a) * .12, math.sin(a) * .1, 1.15)], .1, mat=BRONZE if i else PLATE)
+        claw(k, [(math.cos(a) * .42, math.sin(a) * .38, .08), (math.cos(a) * .4, math.sin(a) * .36, .6), (math.cos(a) * .12, math.sin(a) * .1, 1.15)], .1, mat=FRAME if i else PLATE)
     tilt = math.radians(35)
     nrm = Vector((0, -math.cos(tilt), math.sin(tilt))); u = Vector((1, 0, 0)); v = nrm.cross(u).normalized()
     hub = Vector((0, .02, C))
@@ -167,71 +221,82 @@ def collector():
     for i in range(4):
         a = math.radians(45 + 90 * i)
         pts = lambda off, a=a: [at(.16, a - .25, off), at(.5, a - .5, off), at(.68, a - .1, off), at(.64, a + .3, off), at(.16, a + .25, off)]
-        k.major.loft([pts(.02), pts(-.02)], FRAME)
-        k.minor.loft([pts(-.025), pts(-.03)], GLOW)
-    sphere(k, tuple(hub), .14, HOT, seg=10, rings=6)
-    halo(k, (0, .02), .26, C + .28, thick=.018)
+        k.major.loft([pts(.02), pts(-.02)], PLATE)
+        for f in (-.3, .1):
+            beam(k, at(.2, a + f * .5, -.025), at(.62, a + f, -.025), .025, .012, BRONZE)
+    sphere(k, tuple(hub), .1, HOT, seg=8, rings=5)
+    k.gear((0, .02, 0), 'z', .2, .03, 12, C - .14, C - .1, BRONZE)
     return k
 
 
 def hangar():
+    """A ribbed iron carapace on a carved base, its mouth a thin glowing slit; horned posts and pods round it."""
     k = rf.Kit([])
     k.major.box((-.8, -.62, -.25), (.8, .62, .05), STONE, chamfer=.12)
-    carapace(k, 0, .08, .58, .5, .5, .05, PLATE)
-    for x in (-.5, 0, .5):
-        B(k, x - .015, x + .015, -.6, -.45, .05, .07, GLOW)
+    for x in (-.55, 0, .55):
+        glyph(k, x, -.5, .052, .35, math.pi / 2, seed=int(x * 10) + 20)
+    carapace(k, 0, .08, .58, .5, .5, .05, PLATE, mouth=False)
+    k.major.wedge([(-.24, -.44), (.24, -.44), (.2, -.4), (-.2, -.4)], .05, .14, GLOW)
     for s in (-1, 1):
-        claw(k, [(s * .6, -.35, .05), (s * .7, -.5, .3), (s * .55, -.62, .45)], .08, hot=True)
-        pod(k, (s * .66, .42, .14), .1)
+        claw(k, [(s * .6, -.35, .05), (s * .7, -.5, .3), (s * .55, -.62, .45)], .08, mat=FRAME)
+        pod(k, (s * .66, .42, .14), .1, glow=False)
+        bands(k, (s * .66, .42), .1, .1, .2, 2)
     return k
 
 
 def refinery():
+    """Three iron pods in bronze bands, pipes to a twisted iron spire, bronze halos round it, a dim core in its heart."""
     k = rf.Kit([])
     k.major.box((-.75, -.55, -.25), (.75, .55, .06), STONE, chamfer=.1)
-    # Three plasma pods, veins to a twisted spire ringed by floating halos.
     for x, y, r in ((-.45, -.2, .22), (-.42, .25, .18), (-.05, .3, .15)):
-        pod(k, (x, y, .06 + r * .8), r)
-        tube(k, [(x, y, .06 + r * .3), ((x + .5) / 2, y * .5, .12), (.45, 0, .2)], .02, GLOW, seg=4)
+        pod(k, (x, y, .06 + r * .8), r, glow=False)
+        bands(k, (x, y), r * 1.02, .06 + r * .3, .06 + r * 1.3, 3)
+        tube(k, [(x, y, .06 + r * .3), ((x + .5) / 2, y * .5, .12), (.45, 0, .2)], .025, FRAME, seg=4)
     pts = [(.45 + math.cos(q * .9) * .08, math.sin(q * .9) * .08, .06 + q * .11) for q in range(10)]
     claw(k, pts, .13, mat=FRAME)
-    tube(k, [(p[0], p[1], p[2]) for p in pts], .03, HOT, seg=4)
     for z, r in ((.45, .2), (.75, .16), (1.0, .12)):
-        halo(k, (.45, 0), r, z, thick=.018)
+        halo(k, (.45, 0), r, z, thick=.018, mat=BRONZE)
+    sphere(k, (.45, 0, .6), .05, HOT, seg=6, rings=4)
+    post(k, -.62, -.42, .35, .07, seed=11)
     return k
 
 
 def gantry():
+    """Two stone-and-iron horns arching over a landing pad cut with glyphs, a small dim orb hanging between their tips."""
     k = rf.Kit([])
     k.major.box((-.8, -.6, -.25), (.8, .6, .05), STONE, chamfer=.12)
-    B(k, -.55, .55, -.45, .45, .05, .08, PLATE)
-    halo(k, (0, 0), .4, .09, thick=.02)
-    # Two horns arch over the pad and nearly meet; an orb hangs between their tips, held by nothing.
+    B(k, -.55, .55, -.45, .45, .05, .08, FRAME)
+    for x in (-.35, .35):
+        glyph(k, x, 0, .082, .7, math.pi / 2, seed=int(x * 10) + 40)
     for s in (-1, 1):
         claw(k, [(s * .66, .2, .05), (s * .72, .2, .6), (s * .45, .2, 1.0), (s * .1, .2, 1.08)], .13, mat=PLATE)
-        tube(k, [(s * .7, .1, .3), (s * .62, .1, .8), (s * .3, .1, 1.0)], .015, GLOW, seg=4)
-    sphere(k, (0, .2, .82), .1, HOT, seg=10, rings=6)
-    halo(k, (0, .2), .16, .82, thick=.014)
-    k.major.wedge([(-.25, -.3), (.25, -.3), (.32, .0), (0, .1), (-.32, .0)], .08, .16, FRAME)
+        for z in (.25, .55):
+            k.cylinder((s * .69, .2, 0), 'z', .1, z - .025, z + .025, BRONZE, seg=8)
+    sphere(k, (0, .2, .82), .07, HOT, seg=8, rings=5)
+    halo(k, (0, .2), .14, .82, thick=.012, mat=BRONZE)
+    k.major.wedge([(-.25, -.3), (.25, -.3), (.32, .0), (0, .1), (-.32, .0)], .08, .16, PLATE)
     return k
 
 
 def dome():
+    """Claw ribs of iron curling in over a dim core on a carved hexagonal base; a bronze ring gear; horned posts."""
     k = rf.Kit([])
     hexa = lambda r: [(math.cos(TAU * i / 6 + math.pi / 6) * r, math.sin(TAU * i / 6 + math.pi / 6) * r) for i in range(6)]
     k.major.wedge(hexa(.78), -.25, .06, STONE)
     k.major.wedge(hexa(.62), .06, .14, FRAME)
-    # Claw ribs curling in over a glowing core; a halo floating above them; small horned pylons.
+    for i in range(3):
+        a = TAU * i / 3 + math.pi / 2
+        glyph(k, math.cos(a) * .7, math.sin(a) * .7, .062, .3, a + math.pi / 2, seed=60 + i)
     R, n = .55, 7
     for i in range(n):
         a = TAU * i / n
-        claw(k, [(math.cos(a) * R, math.sin(a) * R, .14), (math.cos(a) * R * .95, math.sin(a) * R * .95, .45), (math.cos(a) * R * .35, math.sin(a) * R * .35, .72)], .06, mat=PLATE)
-    sphere(k, (0, 0, .34), .2, HOT, seg=10, rings=6)
-    k.cylinder((0, 0, 0), 'z', R + .03, .14, .19, GLOW, seg=16)
-    halo(k, (0, 0), .3, .92, thick=.025)
+        claw(k, [(math.cos(a) * R, math.sin(a) * R, .14), (math.cos(a) * R * .95, math.sin(a) * R * .95, .45), (math.cos(a) * R * .35, math.sin(a) * R * .35, .72)], .06, mat=PLATE if i % 2 else FRAME)
+    sphere(k, (0, 0, .34), .14, HOT, seg=8, rings=5)
+    k.gear((0, 0, 0), 'z', R + .05, .04, 26, .14, .19, BRONZE)
+    halo(k, (0, 0), .3, .92, thick=.02, mat=BRONZE)
     for i in (0, 2, 4):
         a = TAU * i / 6 + math.pi / 6
-        claw(k, [(math.cos(a) * .7, math.sin(a) * .7, .06), (math.cos(a) * .74, math.sin(a) * .74, .42)], .05, mat=FRAME, hot=True)
+        post(k, math.cos(a) * .7, math.sin(a) * .7, .38, .06, seed=70 + i)
     return k
 
 

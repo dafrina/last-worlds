@@ -35,11 +35,11 @@ const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper', 'corona']
  * SEAT_SEARCH; SEAT_WIDE only for a seat over heavy relief), so on Amnion's pitted flesh plains and some of Umbra's plates
  * cut by narrow canyons a seat still straddles a pit or a crack: the render's site pad levels it.
  */
-const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 2.6, umbra: 4.3 };
+const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 3.0, umbra: 4.3 };
 /** How far into the footprint's edge a guard may stand at worst (the models keep their rim clear of structures). */
 const GUARD_RIM = .6;
-/** Corona's share of sites on rock, not afloat in the plasma (measured 5 November, with headroom). */
-const CORONA_ON_ROCK = .7;
+/** Corona's share of sites on rock, not afloat in the plasma (67% measured 5 November, after "lots of these corridors"). */
+const CORONA_ON_ROCK = .6;
 const quantile = (values: number[], f: number) => [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * f)];
 
 describe('strike-site seats', () => {
