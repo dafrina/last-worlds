@@ -747,3 +747,12 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Run:** Pages run 42115873581 succeeded.
 - **Open:** a full scan of every shipped GLB finds such overlaps in many older models: facility compounds, facility kits, the Warden, airfields, the Corona craft. Most are probably hidden inside geometry; a visibility-filtered pass is next.
 - **Corona:** the gate passed on `b490209` (tsc, unit, build, Playwright 55/55). Not deployed; waiting for the user's review.
+**2026-11-06 · Claude Code (Corona / Dying Star session) · deployed `9d23d9b`: Corona (at the user's request, "release now then the gates"):**
+- **World:** CORONA, the Dying Star: campaign mission 6, and in the endless cycle.
+  - **Terrain:** rock meanders between plasma seas, with the plasma 5 under the plateau.
+  - **Effects:** smoke banks and plasma arcs.
+- **Boss:** THE HELIOPHAGE, its core tilted 10°.
+- **Sites:** the Star Extractor and the Star Cage.
+- **Shared code changed:** `src/sim/sites.ts` adds `siteDropMax`; Corona's foundations reach 9.6, other worlds are unchanged.
+- **Run:** Pages run 42127190168 succeeded; the live bundle carries Corona.
+- **Gate:** the release gate on `9d23d9b` is running after the deploy. Its result will follow here.
