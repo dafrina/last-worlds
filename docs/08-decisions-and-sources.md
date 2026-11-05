@@ -276,3 +276,12 @@ User answers after reviewing the merged strike sites and encounter deck:
 - Every main weapon has five tiers in both modes. Tier 4 fires tier 3's volley about 1.35 times as often; tier 5 adds two projectiles to the volley and fires about 1.6–1.7 times as often as tier 3. Damage per projectile is unchanged, and each family keeps its pattern: Twin Pulse adds two outer streams, the Fan two spokes over the same ±12°, the Seeker two missiles to the salvo, the Rail Driver two slugs side by side (still piercing, still breaking hunter shields).
 - Campaign: tiers 4 and 5 cost 500 and 800 credits. Endless: power cells, power sites and an ace's power drop raise the tier up to 5.
 - Details, prices and measurements: [campaign expansion](30-campaign-expansion.md#main-weapons--four-upgrades-five-tiers).
+
+## 5 November 2026 — Endless weapon drops
+
+- **About one weapon drop, one power cell and 1.2 shields a sector (user: "per sector should be about 1 weapon drop, all four weapons (minus the equipped one)"; "Power cells should be abit lower, maybe 1 per sector and shields as well (1.2 is fine)"; "i wanted to change my weapon but it wasnt possible because there were not drops at all for what i wanted to try"):**
+  - **Never the flown weapon:** an endless weapon drop never offers the weapon being flown; it becomes the next in Twin Pulse → Fan → Seeker → Rail Driver → Twin Pulse. Before, one for the flown weapon counted as a power cell, so Twin Pulse, the starter, practically never dropped.
+  - **Ace odds:** a downed ace now rolls 25% shield (budgeted as before), 7% a weapon it isn't flying, 5% power, and otherwise coins only. Before it was a third shield, a third power: aces alone gave about 1.6 power cells a sector.
+  - **Measured** (perfect pilot, sectors 1–9): per sector 1.00 weapons (Fan 0.35, Rail 0.31, Seeker 0.25, Twin Pulse 0.08 while it is the flown weapon), 0.99 power cells, 1.18 shields. Before: 0.86 weapons (Twin Pulse about 0), 2.4 power cells, 1.2 shields.
+  - **Unchanged:** a weapon switch still resets the tier (user: "no" to keeping it).
+

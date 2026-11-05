@@ -2,7 +2,7 @@ import { weaponSequence } from '../content/weapon-tiers';
 import { BALANCE, BEAM_KINDS, VESPER_LINE_CAP, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { resolvePlaylist } from '../content/encounter-deck';
-import { STEP, VIEW, type Enemy, type InputFrame, type KillCause, type MissionId, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
+import { STEP, VIEW, type Enemy, type InputFrame, type KillCause, type MissionId, type Pickup, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
@@ -18,7 +18,7 @@ import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShot
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete, positionAfter } from './motion';
 import { projectGround } from './ground';
-import { HUNTERS, absorbHunterShield, aceDropRoll, updateHunters } from './hunters';
+import { HUNTERS, absorbHunterShield, aceDropRoll, aceWeaponRoll, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 import { SHIP_PERKS, catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
@@ -255,7 +255,8 @@ function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): v
   for (const placement of cue.formations) spawnFormation(state, placement, scale);
   // Reserve one slot for the fixed shield-supply opportunity; never evict an existing drop.
   if (cue.pickup && state.pickups.length < BALANCE.maxPickups - 1) {
-    state.pickups.push({ id: state.nextId++, ...cue.pickup, ttl: 12 });
+    const pickup = state.config.mode === 'endless' && cue.pickup.kind === 'weapon' && cue.pickup.weapon ? { ...cue.pickup, weapon: offeredWeapon(state, cue.pickup.weapon) } : cue.pickup;
+    state.pickups.push({ id: state.nextId++, ...pickup, ttl: 12 });
   }
   // A strike site's message names what it drops in this mode (src/sim/sites.ts). A wave's own hint shows on Luna only
   // (showsHints); a pickup's announcement shows everywhere.
@@ -875,16 +876,33 @@ function updatePickups(state: RunState, dt: number): void {
   state.pickups = state.pickups.filter(pickup => pickup.ttl > 0 && pickup.s > VIEW.minS - 2);
 }
 
-/** An endless ace's drop roll (HUNTERS.endlessDrop): a budgeted shield cell, a power cell, or its coins only. */
+/** An endless ace's drop roll (HUNTERS.endlessDrop): a budgeted shield cell, a weapon, a power cell, or its coins only. */
 function dropAceReward(state: RunState, enemy: Enemy): void {
   const odds = HUNTERS.endlessDrop, u = aceDropRoll(enemy);
   const book = state.hunters?.sector === state.sector ? state.hunters : undefined;
-  const shield = u < odds.shield && !!book && (book.shieldDrops ?? 0) < odds.shieldsPerSector && state.player.shields < state.player.maxShields;
-  if (!shield && (u < odds.shield || u >= odds.shield + odds.power)) return;
-  if (shield) book!.shieldDrops = (book!.shieldDrops ?? 0) + 1;
+  let drop: Omit<Pickup, 'id' | 'x' | 's' | 'ttl'> | null = null;
+  if (u < odds.shield) {
+    if (book && (book.shieldDrops ?? 0) < odds.shieldsPerSector && state.player.shields < state.player.maxShields) {
+      book.shieldDrops = (book.shieldDrops ?? 0) + 1; drop = { kind: 'shield', value: 1 };
+    }
+  } else if (u < odds.shield + odds.weapon) {
+    // One of the three weapons the ship isn't flying.
+    const others = WEAPON_IDS.filter(weapon => weapon !== state.player.weapon);
+    drop = { kind: 'weapon', value: 1, weapon: others[Math.min(others.length - 1, Math.floor(aceWeaponRoll(enemy) * others.length))] };
+  } else if (u < odds.shield + odds.weapon + odds.power) drop = { kind: 'power', value: 1 };
+  if (!drop) return;
   // Beside the credit drop; a full pickup list gives up its oldest drop, as a site's loot does.
   if (state.pickups.length >= BALANCE.maxPickups) state.pickups.shift();
-  state.pickups.push({ id: state.nextId++, kind: shield ? 'shield' : 'power', x: enemy.x + .7, s: enemy.s, value: 1, ttl: 12 });
+  state.pickups.push({ id: state.nextId++, ...drop, x: enemy.x + .7, s: enemy.s, ttl: 12 });
+}
+
+/**
+ * An endless weapon drop never offers the weapon the ship is flying: it becomes the next in WEAPON_IDS (Twin Pulse → Fan →
+ * Seeker → Rail Driver → Twin Pulse), so every weapon drops, the starter and the Rail Driver too (user, 5 November: "theres
+ * never drops for the base twin cannon or rail driver?"; one for the flown weapon had counted as a power cell).
+ */
+function offeredWeapon(state: RunState, weapon: WeaponId): WeaponId {
+  return weapon !== state.player.weapon ? weapon : WEAPON_IDS[(WEAPON_IDS.indexOf(weapon) + 1) % WEAPON_IDS.length];
 }
 
 /** Keep the firing cache in sync whenever an Endless pickup or respawn changes the live tier. */

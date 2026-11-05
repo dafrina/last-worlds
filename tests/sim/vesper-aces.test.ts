@@ -29,7 +29,7 @@ describe('Vesper and endless aces (user, 31 October)', () => {
     expect(most).toBeLessThanOrEqual(VESPER_LINE_CAP);
   });
 
-  it('rolls a downed endless ace for a budgeted shield cell, a power cell or coins only; nothing extra in the campaign', () => {
+  it('rolls a downed endless ace for a budgeted shield cell, a weapon it is not flying, a power cell or coins only; nothing extra in the campaign', () => {
     const drops = (config: RunConfig, sector?: number) => {
       let state = createRun(config);
       if (sector) state = enterSector(state, sector);
@@ -38,7 +38,11 @@ describe('Vesper and endless aces (user, 31 October)', () => {
       fly(state, 85, perfectPilot(), s => {
         for (const enemy of s.enemies) if (enemy.hunter) aces.add(enemy.id);
         const downed = [...aces].filter(id => !s.enemies.some(enemy => enemy.id === id && enemy.hp > 0));
-        for (const pickup of s.pickups) if (!known.has(pickup.id) && downed.length) seen.push(pickup.kind);
+        for (const pickup of s.pickups) if (!known.has(pickup.id) && downed.length) {
+          seen.push(pickup.kind);
+          // An ace's weapon is never the one being flown (5 November).
+          if (pickup.kind === 'weapon') expect(pickup.weapon).not.toBe(s.player.weapon);
+        }
         for (const id of downed) aces.delete(id);
         known = new Set(s.pickups.map(pickup => pickup.id));
         // Keep shields missing so the budget is what limits the shield drops.
@@ -47,14 +51,15 @@ describe('Vesper and endless aces (user, 31 October)', () => {
       return { seen, state };
     };
     let endlessDrops = 0;
-    for (const seed of [1, 2, 3, 4]) {
-      const { seen, state } = drops({ mode: 'endless', seed } as RunConfig, 2);
+    // Aces and their drops are the same in every endless run (a standardized challenge): fly several sectors, not seeds.
+    for (let sector = 2; sector <= 7; sector++) {
+      const { seen, state } = drops({ mode: 'endless', seed: 1 } as RunConfig, sector);
       const shields = seen.filter(kind => kind === 'shield').length;
-      expect(shields, `seed ${seed}`).toBeLessThanOrEqual(HUNTERS.endlessDrop.shieldsPerSector * (state.sector - 1));
-      endlessDrops += seen.filter(kind => kind === 'shield' || kind === 'power').length;
+      expect(shields, `sector ${sector}`).toBeLessThanOrEqual(HUNTERS.endlessDrop.shieldsPerSector * (state.sector - sector + 1));
+      endlessDrops += seen.filter(kind => kind === 'shield' || kind === 'power' || kind === 'weapon').length;
     }
     expect(endlessDrops).toBeGreaterThan(0);
     const campaign = drops({ mode: 'campaign', mission: 'bastion', difficulty: 'standard', seed: 3 } as RunConfig);
-    expect(campaign.seen.filter(kind => kind === 'shield' || kind === 'power')).toEqual([]);
+    expect(campaign.seen.filter(kind => kind === 'shield' || kind === 'power' || kind === 'weapon')).toEqual([]);
   });
 });

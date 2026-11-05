@@ -28,12 +28,15 @@ export const HUNTERS = {
   /** Score and credits over the base kind. */
   reward: 3,
   /**
-   * Endless: besides its coins, a downed ace rolls for a shield cell, a power cell or nothing more, a third each (user,
-   * 31 October: "aces/hunters should maybe also drop a shield or an upgrade on endless"; "Make it 33% shield powerip or
-   * coins"). The shield is budgeted (AGENTS.md invariant 11): at most `shieldsPerSector`, and only while the ship is
-   * missing shields; otherwise that third is coins only.
+   * Endless: besides its coins, a downed ace rolls for a shield cell (25%), a weapon the ship isn't flying (7%), a power
+   * cell (5%) or nothing more (user, 31 October: "aces/hunters should maybe also drop a shield or an upgrade on endless";
+   * 5 November: "per sector should be about 1 weapon drop, all four weapons (minus the equipped one)", "Power cells should be
+   * abit lower, maybe 1 per sector and shields as well (1.2 is fine)"). A third power had given about 1.6 power cells a
+   * sector from aces alone; the waves and sites already give about 0.8 weapons and 0.8 power cells a sector, so the aces
+   * only top them up. The shield is budgeted (AGENTS.md invariant 11): at most `shieldsPerSector`, and only while the ship
+   * is missing shields; otherwise that share is coins only.
    */
-  endlessDrop: { shield: 1 / 3, power: 1 / 3, shieldsPerSector: 1 },
+  endlessDrop: { shield: .25, weapon: .07, power: .05, shieldsPerSector: 1 },
   /** Roaming band (s ahead of the player row) and cruise speed and acceleration at pace 1. */
   row: { min: 10.5, max: 15 }, speed: 6, accel: 14,
   /**
@@ -75,8 +78,13 @@ function roll(a: number, b: number, c = 0): number {
   return (h >>> 0) / 4294967296;
 }
 
-/** A downed ace's drop roll in [0, 1) (HUNTERS.endlessDrop): its own stream, keyed by the ace. */
+/**
+ * A downed ace's drop roll in [0, 1) (HUNTERS.endlessDrop): its own stream, keyed by the ace, so like the aces themselves
+ * their drops are the same in every endless run (a standardized challenge, tests/sim/difficulty.test.ts).
+ */
 export const aceDropRoll = (enemy: Enemy) => roll(enemy.hunter?.key ?? 0, 0x417, 7);
+/** Which of the three weapons the ship isn't flying a downed ace drops, in [0, 1): the same stream, its next draw. */
+export const aceWeaponRoll = (enemy: Enemy) => roll(enemy.hunter?.key ?? 0, 0x417, 8);
 
 /** Shield charges a hunter has left (for the renderer and tests). */
 export const hunterCharges = (enemy: Enemy) => enemy.hunter ? Math.max(0, Math.ceil(enemy.hunter.shield / enemy.hunter.perCharge - 1e-9)) : 0;
