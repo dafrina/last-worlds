@@ -23,11 +23,11 @@ The concept images are references, never runtime backgrounds or finished assets 
   - "the terrain is also too dark compared to the coincept".
 
 - Second review (5 November, evening):
-  - "The core of heliophage should point more down ... by maybe 10 degrees": the core (sphere, cage and hood) turns its front 10° further toward the player, bending into the hull (`tilt_core`).
+  - "The core of heliophage should point more down ... by maybe 10 degrees", then "The core should kinda point more downwards, as if its a extractor": the core (sphere, cage and hood) turns its front 30° toward the player, aiming at the ground ahead like a nozzle, and bends into the hull (`tilt_core`; 10° did not show from the game camera). The core target moved with it (`reactorS` −0.6).
   - "i dont like to have just a sea of lava or just a plan rock screen. It should always have both ... have the terrain meander between the lava seas": winding bands of rock and plasma alternate about every 14 units, snaking and pinching into necks and islands. Screens nearly all plasma or all rock fell from 20% to under 3% (12 × 24 screens, eight seeds).
   - "we need way more of those plasma flares": an arc every 5 units instead of one in 26, turned to face the camera (edge-on loops read as streaks), thicker.
   - "The darker spots should be a bit deeper dark but keeping the contrast high": a lower floor, wider dark veins and cool crusts.
-  - "the lava needs some kind of misty partial fog": two drifting smoke layers over the plasma (`src/render/corona-haze.ts`), dark smoke low and a glowing mist higher, real geometry, so they parallax as the ground passes.
+  - "the lava needs some kind of misty partial fog", then "the smoke ... looks like its everywhere, like a plane ... as if we faking volumetric clouds" and "You can make them really thick at points": banks of smoke (`src/render/corona-haze.ts`), six stacked slices of one density field, each higher slice showing only the denser core, so the banks dome up and the slices parallax. Warm low, lit grey on top. About a third of the plasma is under some smoke and about 10% under every slice (thick). The plasma is HDR-bright, so only stacked slices darken it visibly.
   - "lower the lava level, the cliffs look so miniscule ... there should also be twice maybe even 3 times this height": the plasma lies 5 under the plateau (2.4 before), and the land steps from 1.8 over it up to 9. Coast cliffs (eight seeds) measure p10 2.6, median 5.1 and p90 7.7, against 2.0, 2.6 and 4.5 before. Corona's site foundations reach 9.6 (`siteDropMax`), so a site at a coast stands on foundations down to the plasma.
 
 ## Identity

@@ -17,7 +17,7 @@ export const HELIOPHAGE = {
   ventOffset: 5.0,
   ventS: 0.65,
   ventRadius: 0.95,
-  reactorS: -0.8,
+  reactorS: -0.6,
   reactorRadius: 1.25,
   /** The central tower's glowing column, behind the core (away from the player). */
   prowS: 4.7,

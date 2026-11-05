@@ -2,16 +2,21 @@ import * as THREE from 'three';
 
 /**
  * Corona's smoke over the plasma (docs/37; user, 5 November 2026: "realistically the lava needs some kind of misty partial
- * fog or something it looks too clean"): two thin layers just over the sea, render-only.
+ * fog or something it looks too clean", then "the smoke above lava looks like its everywhere, like a plane ... mask it a
+ * bit as if we faking volumetric clouds"): banks of smoke, render-only.
  *
- * - A low layer of dark smoke in drifting patches (partial: open plasma shows between them) and, a little higher, a
- *   glowing orange mist lit from below. Both ride the terrain frame and drift slowly on their own, so the patches pass
- *   with the ground and churn as they go.
- * - Under the rock: the layers stand at sea + 0.4 and sea + 1.35, below the lowest island tier (1.5 over the sea), so they
- *   veil only the plasma and the cliff feet; the rock and everything over it draw in front.
- * - Phone-cheap: two planes over the view, each two lookups of one small tiling noise texture (built once, no
- *   Math.random), no depth writes. Uses no simulation state.
+ * - Banks, not a sheet: a broad coverage field gathers the smoke into separate banks with open plasma between them.
+ * - Faked volume: SLICES stacked planes sample one density field; each higher slice shows only the denser core (its
+ *   threshold rises), so a bank domes up and its slices slide over each other as the ground passes (real parallax).
+ *   Thick at the cores (user: "You can make them really thick at points"): dark and warm low down, a lit grey on top. The plasma is far brighter than white (HDR), so a
+ *   half-clear slice over it hardly shows: a bank's core is all its slices stacked, nearly opaque; its rim one or two.
+ * - Under the rock: every slice stays under the lowest island tier (1.8 over the sea), so the banks veil the plasma and
+ *   the cliff feet, never the land.
+ * - Phone-cheap: one small tiling noise texture (built once, no Math.random), a few lookups per slice, no depth writes,
+ *   discarded outside the banks. Coverage measured on the texture: about a third of the plasma under some smoke, about
+ *   7% under every slice (thick). Uses no simulation state.
  */
+const SLICES = 6, BOTTOM = .2, SPACING = .28;
 const SIZE = 128, WIDTH = 64, DEPTH = 96;
 
 /** Tileable fractal value noise, 0 … 1, SIZE² (a fixed integer hash: identical every run). */
@@ -51,50 +56,51 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * world;
 }`;
 const FRAGMENT = /* glsl */`
-uniform sampler2D hazeNoise; uniform float hazeTime; uniform vec3 hazeColor; uniform float hazeAlpha; uniform float hazeScale;
-uniform vec2 hazeDrift; uniform float hazeLow; uniform float hazeHigh; uniform float hazeChannel;
+uniform sampler2D hazeNoise; uniform float hazeTime; uniform float hazeLevel; uniform vec3 hazeColor; uniform float hazeAlpha;
 varying vec2 vGround;
 void main() {
-  vec2 p = vGround * hazeScale + hazeDrift * hazeTime;
-  vec2 warp = texture2D( hazeNoise, p * 0.37 + vec2( 0.31, 0.77 ) ).rg - 0.5;
-  vec4 a = texture2D( hazeNoise, p + warp * 0.35 ), b = texture2D( hazeNoise, p * 2.3 - hazeDrift * hazeTime * 1.7 + 0.5 );
-  float n = mix( a.r, a.g, hazeChannel ) * 0.7 + mix( b.g, b.r, hazeChannel ) * 0.3;
-  float cover = smoothstep( hazeLow, hazeHigh, n );
-  if ( cover <= 0.003 ) discard;
-  gl_FragColor = vec4( hazeColor, cover * hazeAlpha );
+  // One density field for every slice: broad banks (coverage) carved by billowing detail, drifting and churning slowly.
+  vec2 p = vGround * 0.045 + vec2( 0.006, -0.004 ) * hazeTime;
+  float cover = smoothstep( 0.44, 0.62, texture2D( hazeNoise, vGround * 0.028 + vec2( 0.003, 0.002 ) * hazeTime + 0.37 ).g );
+  if ( cover <= 0.0 ) discard;
+  vec2 warp = texture2D( hazeNoise, p * 0.5 + 0.71 ).rg - 0.5;
+  float detail = texture2D( hazeNoise, p + warp * 0.4 ).r * 0.65 + texture2D( hazeNoise, p * 2.4 - vec2( 0.01, 0.006 ) * hazeTime + 0.5 ).g * 0.35;
+  float density = cover * smoothstep( 0.4, 0.58, detail );
+  // Higher slices need denser smoke: the bank's top is its dense core, domed.
+  float threshold = 0.04 + hazeLevel * 0.55;
+  float a = smoothstep( threshold, threshold + 0.1, density );
+  if ( a <= 0.003 ) discard;
+  gl_FragColor = vec4( hazeColor, a * hazeAlpha );
 }`;
 
 export function createCoronaHaze(scene: THREE.Scene) {
   const texture = noiseTexture(), group = new THREE.Group(); group.name = 'Corona haze'; group.visible = false; scene.add(group);
   const shared = { hazeNoise: { value: texture }, hazeTime: { value: 0 }, hazeDistance: { value: 0 } };
-  const layer = (height: number, color: number, alpha: number, scale: number, drift: [number, number], low: number, high: number, channel: number, order: number) => {
+  const glow = new THREE.Color().setHex(0x5a2814, THREE.SRGBColorSpace), smoke = new THREE.Color().setHex(0x7a726c, THREE.SRGBColorSpace);
+  const geometry = new THREE.PlaneGeometry(WIDTH, DEPTH).rotateX(-Math.PI / 2);
+  let slices: THREE.Mesh[] = [];
+  const build = (sea: number) => Array.from({ length: SLICES }, (_, i) => {
+    const level = i / (SLICES - 1);
     const material = new THREE.ShaderMaterial({
       vertexShader: VERTEX, fragmentShader: FRAGMENT, transparent: true, depthWrite: false,
-      uniforms: { ...shared, hazeColor: { value: new THREE.Color().setHex(color, THREE.SRGBColorSpace) }, hazeAlpha: { value: alpha },
-        hazeScale: { value: scale }, hazeDrift: { value: new THREE.Vector2(...drift) }, hazeLow: { value: low }, hazeHigh: { value: high }, hazeChannel: { value: channel } },
+      uniforms: { ...shared, hazeLevel: { value: level }, hazeColor: { value: glow.clone().lerp(smoke, level) }, hazeAlpha: { value: .66 } },
     });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(WIDTH, DEPTH).rotateX(-Math.PI / 2), material);
-    mesh.position.y = height; mesh.renderOrder = order; mesh.frustumCulled = false; group.add(mesh);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = sea + BOTTOM + i * SPACING; mesh.renderOrder = 1; mesh.frustumCulled = false; group.add(mesh);
     return mesh;
-  };
-  let layers: THREE.Mesh[] = [];
+  });
   return {
     /** `active`: Corona under the camera. `centerZ`: world z of the view's middle. `sea`: the plasma's level. */
     update(time: number, distance: number, centerZ: number, active: boolean, sea: number) {
       group.visible = active;
       if (!active) return;
-      if (!layers.length) layers = [
-        // Dark smoke drifting in patches low over the plasma.
-        layer(sea + .4, 0x1c100b, .85, .05, [.006, -.004], .36, .66, 0, 1),
-        // Glowing mist a little higher, lit by the plasma under it, thinner and broader.
-        layer(sea + 1.35, 0xc8582a, .38, .032, [-.004, -.0025], .34, .72, 1, 1),
-      ];
+      if (!slices.length) slices = build(sea);
       shared.hazeTime.value = time; shared.hazeDistance.value = distance;
-      for (const mesh of layers) mesh.position.z = centerZ;
+      for (const mesh of slices) mesh.position.z = centerZ;
     },
     dispose() {
-      for (const mesh of layers) { mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); }
-      texture.dispose(); scene.remove(group);
+      for (const mesh of slices) (mesh.material as THREE.Material).dispose();
+      geometry.dispose(); texture.dispose(); scene.remove(group);
     },
   };
 }
