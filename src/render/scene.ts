@@ -20,7 +20,7 @@ import { ENEMIES } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
-import { loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadUmbraCraft, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
+import { loadCoronaCraft, loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadUmbraCraft, type CoronaCraftNode, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createVoidEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
@@ -377,6 +377,14 @@ export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Um
   wraith: { node: 'umbra_hunter', scale: 1 },
 };
 export const UMBRA_DRONE_SCALE = 1.45;
+/** Corona's fleet (docs/37, tools/blender/corona_craft.py): the same roles as Umbra's, the Wraith its own crescent ship. */
+export const CORONA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: CoronaCraftNode; scale: number }>> = {
+  dart: { node: 'corona_interceptor', scale: 1 }, needle: { node: 'corona_interceptor', scale: 0.9 }, weaver: { node: 'corona_fighter', scale: 0.95 },
+  lancer: { node: 'corona_hunter', scale: 1.05 }, diamond: { node: 'corona_carrier', scale: 1 }, pulsar: { node: 'corona_artillery', scale: 1 },
+  turret: { node: 'corona_turret', scale: 1 }, missile: { node: 'corona_turret', scale: 1 },
+  wraith: { node: 'corona_wraith', scale: 0.76 },
+};
+export const CORONA_DRONE_SCALE = 1.45;
 
 /** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
 export const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
@@ -636,8 +644,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     // (Amnion flies Nacre's organic craft as a stand-in until its own faction exists; THE CRADLE has its own model: docs/27.)
     if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); void mireWater.prepare(); }
     if (next === 'amnion') { ensureNacreCraft(); ensurePredator(next); ensureCradle(); }
-    // (Corona flies the Umbral fleet and the Wraith, and THE ECLIPSE stands in for THE HELIOPHAGE, until its own: docs/37.)
-    if (next === 'umbra' || next === 'corona') { ensureUmbraCraft(); ensurePredator(next); ensureEclipse(); }
+    if (next === 'umbra') { ensureUmbraCraft(); ensurePredator(next); ensureEclipse(); }
+    // (Corona flies its own fleet, the Wraith included; THE ECLIPSE stands in for THE HELIOPHAGE until its own: docs/37.)
+    if (next === 'corona') { ensureCoronaCraft(); ensureEclipse(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
@@ -978,7 +987,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   }
   const predatorBatches = new Map<string, FactionBatch>(), predatorLoads = new Map<PlanetId, Promise<void>>();
   function ensurePredator(next: PlanetId): Promise<void> | undefined {
-    if (next === 'corona') next = 'umbra';
     if (next !== 'amnion' && next !== 'umbra') return undefined;
     if (predatorLoads.has(next)) return predatorLoads.get(next);
     const name = next === 'amnion' ? 'amnion_brood_heavy' : 'umbra_wraith';
@@ -997,6 +1005,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
       umbraBatches = factionBatches(nodes, 'Umbra', 'umbra_turret', () => 0x8a6cff); warmed = false;
     }).catch(error => console.warn('Umbral fleet unavailable (umbra-craft.glb); using Khepri and Vesper models.', error));
+  }
+  /** Corona's fleet (corona-craft.glb, docs/37), the Wraith among it. */
+  let coronaBatches: Map<CoronaCraftNode, FactionBatch> | null = null, coronaLoad: Promise<void> | undefined;
+  function ensureCoronaCraft() {
+    return coronaLoad ??= loadCoronaCraft(`${import.meta.env.BASE_URL}assets/corona/corona-craft.glb`).then(nodes => {
+      if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
+      coronaBatches = factionBatches(nodes, 'Corona', 'corona_turret', () => 0xffb040); warmed = false;
+    }).catch(error => console.warn('Corona fleet unavailable (corona-craft.glb); using Khepri and Vesper models.', error));
   }
   let nacreBatches: Map<NacreCraftNode, FactionBatch> | null = null, nacreRequested = false;
   let nacreLoad: Promise<void> | undefined;
@@ -1141,7 +1157,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' || next === 'corona' ? ensureEclipse() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
-      terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' || next === 'corona' ? ensureUmbraCraft() : undefined,
+      terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : next === 'corona' ? ensureCoronaCraft() : undefined,
       // Nacre's water detail, built in slices off the frame (src/render/mire-water.ts).
       next === 'nacre' ? mireWater.prepare() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
@@ -1236,7 +1252,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const heroShell = shell(0x4aa8ff);
   /** Hunter shells by world glow; one per live hunter (at most a few on screen). */
   /** Each planet's glow: hunter shields and the halo of enemy beams wear it. */
-  const PLANET_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a, corona: 0xff9a2a, umbra: 0x9a7cff };
+  const PLANET_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a, corona: 0xff3a22, umbra: 0x9a7cff };
   const hunterShells = Array.from({ length: 4 }, () => shell(0xffffff));
   /** Shield charges seen last frame (hero: −1) and when a shell broke, for its last flare. */
   const shellSeen = new Map<number, number>(), shellBroke = new Map<number, number>();
@@ -1256,9 +1272,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true });
   // Amnion's shots are a hot red with a near-white core (user, 23 October: "make the enemy shots red"): the core and the
   // bloom carry them over the dark red flesh.
-  // Corona's are hot magenta (docs/37): salmon vanished into the gold plasma, and cyan is the player's.
-  const HOSTILE_WARM = [0xff8869, 0xffe7c4] as const, HOSTILE_BLOOD = [0xff1e1e, 0xfff2ee] as const, HOSTILE_FLARE = [0xff2a9a, 0xffe6f4] as const;
-  const hostileHues = (planet: PlanetId) => planet === 'amnion' ? HOSTILE_BLOOD : planet === 'corona' ? HOSTILE_FLARE : HOSTILE_WARM;
+  // Corona's are Amnion's warm red too (docs/37; user, 5 November: "warm red not magenta"): salmon vanished into the gold.
+  const HOSTILE_WARM = [0xff8869, 0xffe7c4] as const, HOSTILE_BLOOD = [0xff1e1e, 0xfff2ee] as const;
+  const hostileHues = (planet: PlanetId) => planet === 'amnion' || planet === 'corona' ? HOSTILE_BLOOD : HOSTILE_WARM;
   const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false, transparent: true });
   const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);
@@ -1736,15 +1752,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (VESPER_KINDS.has(enemy.kind) && !craftRequested) ensureCraft('kinds');
         const pod = enemy.formation?.template === 'veil-pods';
         const nacreNode: NacreCraftNode | null = (planet === 'nacre' || planet === 'amnion') && nacreBatches && enemy.kind !== 'fuel' ? (pod ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
-        const umbraNode: UmbraCraftNode | null = (planet === 'umbra' || planet === 'corona') && umbraBatches && enemy.kind !== 'fuel' ? (pod ? 'umbra_drone' : UMBRA_CRAFT[enemy.kind].node) : null;
+        const umbraNode: UmbraCraftNode | null = planet === 'umbra' && umbraBatches && enemy.kind !== 'fuel' ? (pod ? 'umbra_drone' : UMBRA_CRAFT[enemy.kind].node) : null;
+        const coronaNode: CoronaCraftNode | null = planet === 'corona' && coronaBatches && enemy.kind !== 'fuel' ? (pod ? 'corona_drone' : CORONA_CRAFT[enemy.kind].node) : null;
         // The world's own faction (Nacre's craft also stand in on Amnion), else Vesper's or Khepri's models.
         const predator = pod ? undefined : (planet === 'amnion' && enemy.kind === 'diamond' ? predatorBatches.get('amnion_brood_heavy')
-          : (planet === 'umbra' || planet === 'corona') && enemy.kind === 'wraith' ? predatorBatches.get('umbra_wraith') : undefined);
-        const nacreBatch = predator ?? (umbraNode ? umbraBatches!.get(umbraNode) : nacreNode ? nacreBatches!.get(nacreNode) : undefined);
+          : planet === 'umbra' && enemy.kind === 'wraith' ? predatorBatches.get('umbra_wraith') : undefined);
+        const nacreBatch = predator ?? (coronaNode ? coronaBatches!.get(coronaNode) : umbraNode ? umbraBatches!.get(umbraNode) : nacreNode ? nacreBatches!.get(nacreNode) : undefined);
         const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
-        const craftScale = predator ? (enemy.kind === 'wraith' ? .76 : .82) : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
+        const craftScale = predator ? (enemy.kind === 'wraith' ? .76 : .82) : coronaNode && enemy.kind !== 'fuel' ? (pod ? CORONA_DRONE_SCALE : CORONA_CRAFT[enemy.kind].scale)
+          : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
           : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
         if (slot < ENEMY_CAPACITY && !siteCore && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' || state.boss?.id === 'heliophage' ? eclipse : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
@@ -1909,7 +1927,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
       emplacementBatches.forEach(mesh => liveInstances(mesh, mesh.count));
-      for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches, predatorBatches] as const) if (set) for (const batch of set.values()) {
+      for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches, coronaBatches, predatorBatches] as const) if (set) for (const batch of set.values()) {
         const count = counts.get(batch.mesh) ?? 0;
         liveInstances(batch.mesh, count);
         const flat = silhouettes.get(batch.mesh);

@@ -7,7 +7,7 @@
 import { ENEMIES } from '../content/balance';
 import { HUNTERS } from '../sim/hunters';
 import { BOSS_ASSETS } from '../render/boss-assets';
-import { KHEPRI_NODE, NACRE_CRAFT, UMBRA_CRAFT, UMBRA_DRONE_SCALE, VESPER_CRAFT, VESPER_KINDS } from '../render/scene';
+import { CORONA_CRAFT, CORONA_DRONE_SCALE, KHEPRI_NODE, NACRE_CRAFT, UMBRA_CRAFT, UMBRA_DRONE_SCALE, VESPER_CRAFT, VESPER_KINDS } from '../render/scene';
 import type { EnemyKind, PlanetId } from '../shared/contracts';
 import type { FormationId } from '../content/formations';
 
@@ -54,7 +54,11 @@ export interface ModelRef { file: string; node: string | null; scale: number }
 /** The model a kind flies on a world, in the renderer's order of precedence (src/render/scene.ts, the enemy batches). */
 export function modelOf(planet: PlanetId, kind: EnemyKind, pod = false): ModelRef {
   if (kind === 'fuel') return { file: 'shared/loot-props.glb', node: 'loot_fuel', scale: 1 };
-  if (planet === 'umbra' || planet === 'corona') {
+  if (planet === 'corona') {
+    if (pod) return { file: 'corona/corona-craft.glb', node: 'corona_drone', scale: CORONA_DRONE_SCALE };
+    return { file: 'corona/corona-craft.glb', node: CORONA_CRAFT[kind].node, scale: CORONA_CRAFT[kind].scale };
+  }
+  if (planet === 'umbra') {
     if (pod) return { file: 'umbra/umbra-craft.glb', node: 'umbra_drone', scale: UMBRA_DRONE_SCALE };
     if (kind === 'wraith') return { file: 'umbra/wraith-v2.glb', node: 'umbra_wraith', scale: 0.76 };
     return { file: 'umbra/umbra-craft.glb', node: UMBRA_CRAFT[kind].node, scale: UMBRA_CRAFT[kind].scale };
@@ -71,7 +75,7 @@ export function modelOf(planet: PlanetId, kind: EnemyKind, pod = false): ModelRe
 
 export const WORLDS: readonly { planet: PlanetId; name: string }[] = [
   { planet: 'luna', name: 'Luna' }, { planet: 'khepri', name: 'Khepri' }, { planet: 'vesper', name: 'Vesper' },
-  { planet: 'nacre', name: 'Nacre' }, { planet: 'amnion', name: 'Amnion' }, { planet: 'umbra', name: 'Umbra' },
+  { planet: 'nacre', name: 'Nacre' }, { planet: 'amnion', name: 'Amnion' }, { planet: 'corona', name: 'Corona' }, { planet: 'umbra', name: 'Umbra' },
 ];
 
 /** A viewer entry: one model, the group it is listed in, and who flies it where. */

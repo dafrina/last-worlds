@@ -50,7 +50,7 @@ The concept images are references, never runtime backgrounds or finished assets 
   - neutral fill, with the plasma's orange in the bounce and in a heat haze that only reaches just above the sea;
   - lighter charcoal-brown basalt than Umbra's glass.
 - **Readability:**
-  - **Enemy fire:** hot magenta (`HOSTILE_FLARE`). Salmon vanished into the gold, and cyan is the player's.
+  - **Enemy fire and ace shields:** Amnion's warm red (`HOSTILE_BLOOD`, `PLANET_GLOW.corona`). Salmon vanished into the gold; magenta was tried first (user: "warm red not magenta").
   - **Ground batteries over the plasma:** they ride black basalt rafts that leave no foam, instead of Vesper's white pontoons.
 
 ## Content
