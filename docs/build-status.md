@@ -25,6 +25,7 @@
   - browser 55/56 (Playwright exit 1). The failure was endless steering, a frame-timed check that got 3.7 units sideways in 5 s, not 8.
   - **Rerun:** failed again at load 27, then passed at load 12 (Playwright exit 0).
   - The first gate's other failures came from MSAA under SwiftShader; this commit keeps MSAA off there.
+- **Live:** Pages run 42062358797 succeeded for `825670c`, and the live bundles (`main-1Swu0B9D.js`, `scene-DObrUJ50.js`) match the build. The endless smoke test has no page errors. Still to confirm: the phone test by the user.
 - **Coordination:** made in a separate worktree (`../alien-skies-flicker`, branch `flicker-fix` from `c0c3aca`), so the "Moon training level" session's uncommitted Corona level in the main tree was not touched. Merge `origin/main` before your next push.
 
 ## Repository cleanup, 4 November 2026
