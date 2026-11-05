@@ -136,6 +136,9 @@ const CASTER_NODES = new Set<string>([
   'vesper_crane', 'vesper_comm_needle', 'vesper_icebreaker',
 ]);
 
+/** Cliff wall kinds (docs/26 §11): Khepri's basalt, Vesper's ice and Amnion's flesh walls, and how far each moves at most. */
+const WALL_KINDS: ReadonlySet<string> = new Set(['cliffWall', 'iceWall', 'fleshWall']), WALL_NUDGE = .05, WALL_LIFT = .06;
+
 const piecePosition = new THREE.Vector3(), pieceRotation = new THREE.Euler(), pieceQuaternion = new THREE.Quaternion(), pieceScale = new THREE.Vector3();
 /**
  * Instance matrix of a shared-kit piece in section-local space (z = −(s − startS)): yaw, then pitch about
@@ -382,7 +385,14 @@ export function createTerrainView(options: TerrainViewOptions) {
     };
     for (const instance of section.instances) {
       const localS = instance.s - section.startS, spec = KIT[instance.kind];
-      transform.position.set(instance.x, instance.y, -localS); transform.rotation.set(0, instance.rotation, 0);
+      // Walls stand in overlapping runs whose faces and tops met 3-40 mm apart, where a phone's depth buffer let neighbours
+      // take turns (user, 5 November: Vesper's cliff faces "z-flashing", on the phone only). Each wall moves its own few
+      // centimetres along its face's direction (local +Z) and up (render only), parting neighbours' faces and tops.
+      const wall = WALL_KINDS.has(instance.kind);
+      const nudge = wall ? WALL_NUDGE * (2 * tint(section.seed + 31, instance.x, instance.s) - 1) : 0;
+      const lift = wall ? WALL_LIFT * tint(section.seed + 17, instance.x, instance.s) : 0;
+      transform.position.set(instance.x + Math.sin(instance.rotation) * nudge, instance.y + lift, -localS + Math.cos(instance.rotation) * nudge);
+      transform.rotation.set(0, instance.rotation, 0);
       transform.scale.set(instance.scale, instance.height, instance.scale); transform.updateMatrix();
       const variation = 0.9 + tint(section.seed, instance.x, instance.s) * 0.16;
       const light = instance.kind === 'crystal' ? 1 : 0.35 + 0.65 * instance.shade;

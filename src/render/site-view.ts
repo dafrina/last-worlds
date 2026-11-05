@@ -147,6 +147,8 @@ interface Placed {
 
 const key = (site: SiteId, finish: PlanetId) => `${site}:${finish}`;
 const glowing = (material: THREE.Material) => /glow/i.test(material.name);
+/** Site materials laid as thin layers over others (tools/blender/strike_sites.py roles). */
+const OVERLAY = /_(snow|stripe|accent)$/i;
 const ember = (material: THREE.Material) => /ember/i.test(material.name);
 const ash = (material: THREE.Material) => /_ash$/i.test(material.name);
 const scorch = (material: THREE.Material) => /scorch/i.test(material.name);
@@ -266,6 +268,10 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
       const dead = new Map<THREE.Material, THREE.MeshStandardMaterial>(), glow: THREE.MeshStandardMaterial[] = [];
       for (const list of Object.values(parts)) for (const { material } of list) {
         material.envMapIntensity = .85;
+        // Snow patches, stripes and marking panels lie 2-7 mm over the decks and roofs they cover, where a phone's depth
+        // buffer let the surface beneath flash through (user, 5 November: side-route buildings flickering, on the phone).
+        // Pulled a hair towards the camera they always win; the destroyed and cooling twins are clones and keep it.
+        if (OVERLAY.test(material.name)) { material.polygonOffset = true; material.polygonOffsetFactor = -1; material.polygonOffsetUnits = -4; }
         if (dead.has(material)) continue;
         // The destroyed twin: same program (same features), darker paint, no light.
         const twin = material.clone();
