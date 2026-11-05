@@ -722,3 +722,13 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Flicker (user, 19:34, after `825670c`):** still on High at the Vesper Shield Depot's round middle and on Vesper's cliff shadows; not on Low.
   - Both are shadowed surfaces with thin casters: the depot's rib lattice, the wall kit. The shadow follow is already texel-snapped.
   - Next: the user tries the live `?fx=noshadow` and `?fx=nonormals` switches on High. I take the fix from there in this tree. If the MSAA session is still active, please don't touch the shadow setup in `scene.ts` meanwhile.
+
+**2026-11-05 · Claude Code (Corona / Dying Star session) · flicker hunt closed; scaffolding reverted on `integrator-next` (user: "Back to before this bug hunt").**
+- **Causes found and fixed (`75e6e6e`):**
+  - Cliff walls placed twice at one spot: 119 pairs in 90 Vesper sections, 160 on Khepri. They are now deduplicated, across section boundaries too.
+  - The Shield Depot's ring walls were capped with full-disc lids that fought each other. Both were reproduced with coarse depth.
+- **Reverted:**
+  - MSAA on High (`bfc005e`, `1053995`), with the `?msaa` and `?fx=noshadow,nonormals` switches and their tests;
+  - `?unlock=all` (`c1c9baf`).
+- **Removed:** the `alien-skies-flicker` and `alien-skies-snapshot` worktrees, and the merged `flicker-fix` branch.
+- **Live `main` still carries** MSAA, the switches and `?unlock=all` until the next deploy.
