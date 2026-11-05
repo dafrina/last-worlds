@@ -23,7 +23,7 @@ The concept images are references, never runtime backgrounds or finished assets 
   - "the terrain is also too dark compared to the coincept".
 
 - Second review (5 November, evening):
-  - "The core of heliophage should point more down ... by maybe 10 degrees", then "The core should kinda point more downwards, as if its a extractor": the core (sphere, cage and hood) turns its front 30° toward the player, aiming at the ground ahead like a nozzle, and bends into the hull (`tilt_core`; 10° did not show from the game camera). The core target moved with it (`reactorS` −0.6).
+  - "The core of heliophage should point more down ... by maybe 10 degrees": the core (sphere, cage and hood) turns its front 10° toward the player, bending into the hull (`tilt_core`). 18° and 30° (turned at full depth, before the squash) were tried; the user kept 10° ("left one is best").
   - "i dont like to have just a sea of lava or just a plan rock screen. It should always have both ... have the terrain meander between the lava seas": winding bands of rock and plasma alternate about every 14 units, snaking and pinching into necks and islands. Screens nearly all plasma or all rock fell from 20% to under 3% (12 × 24 screens, eight seeds).
   - "we need way more of those plasma flares": an arc every 5 units instead of one in 26, turned to face the camera (edge-on loops read as streaks), thicker.
   - "The darker spots should be a bit deeper dark but keeping the contrast high": a lower floor, wider dark veins and cool crusts.

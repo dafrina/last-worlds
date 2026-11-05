@@ -49,7 +49,7 @@ PROW = dict(x=(-.6, .6), y=(3.7, 5.5))                     # the central tower's
 # The core (sphere, cage and hood) tilts its front 10 degrees further toward the player (user, 5 November: "The core of
 # heliophage should point more down, like that front side more towards down by maybe 10 degrees"): a rotation about the
 # x axis through the core's centre, full inside CORE_BOX and fading out over CORE_FALL, so the mesh bends, never tears.
-CORE_TILT, CORE_BOX, CORE_FALL = math.radians(30), dict(x=2.6, y=(-2.7, 1.6)), 1.4
+CORE_TILT, CORE_BOX, CORE_FALL = math.radians(10), dict(x=2.6, y=(-2.7, 1.6)), 1.0
 
 
 def log(*a):
