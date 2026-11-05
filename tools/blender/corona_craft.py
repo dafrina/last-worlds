@@ -195,154 +195,222 @@ def core(c, centre, r, z=0.0, rim=FRAME):
     c.cyl((cx, cy, 0), 'z', r, z + .05, z + .1, HOT, seg=16, r2=r * .55)
 
 
+# ----------------------------------------------------------------------------- alien parts
+# The user, 5 November: "looks a bit not so alien, make it a bit more alien looking". Star-forged forms instead of
+# machinery: ridged lens shells, scythe blades with glowing inner edges, curved claws and mandibles with hot tips (no
+# gun barrels), glowing slit engines in curved cowls, veins of plasma along the curves, and rings that float free of
+# their craft, held by nothing (the brief's "magnetic structures").
+def bez(p0, p1, p2, t):
+    return tuple((1 - t) ** 2 * a + 2 * (1 - t) * t * b + t * t * c for a, b, c in zip(p0, p1, p2))
+
+
+def shell(c, stations, mat, x=0.0, ridge=.35):
+    """A lens hull along y with a dorsal ridge: stations (y, half width, top z, bottom z); eight points a section, the
+    top drawn up into a keel line, the flanks pinched to knife edges."""
+    loops = []
+    for y, w, top, bot in stations:
+        mid = (top + bot) / 2
+        loops.append([(x - w, y, mid), (x - w * .78, y, mid + (top - mid) * .55), (x - w * .3, y, top - (top - mid) * ridge * .2), (x, y, top),
+                      (x + w * .3, y, top - (top - mid) * ridge * .2), (x + w * .78, y, mid + (top - mid) * .55), (x + w, y, mid),
+                      (x, y, bot)])
+    c.loft(loops, mat)
+
+
+def scythe(c, p0, p1, p2, w0, thick, mat, n=8, edge=True, side=1):
+    """A curved blade along the quadratic curve p0-p1-p2, w0 wide at its root tapering to a point, a glowing inner
+    edge (toward -x on the right side, +x on the left)."""
+    pts = [bez(p0, p1, p2, i / n) for i in range(n + 1)]
+    for i in range(n):
+        a, b = Vector(pts[i]), Vector(pts[i + 1])
+        d = (b - a).normalized(); nrm = Vector((-d.y, d.x, 0)) * side
+        wa, wb = w0 * (1 - i / n) ** .8 + .004, w0 * (1 - (i + 1) / n) ** .8 + .004
+        quad = [tuple((a + nrm * wa)[:2]), tuple((b + nrm * wb)[:2]), tuple((b - nrm * wb * .2)[:2]), tuple((a - nrm * wa * .2)[:2])]
+        c.slab(quad, a.z - thick / 2, a.z + thick / 2, mat, minor=wa < .05)
+        if edge:
+            g = [tuple((a - nrm * wa * .2)[:2]), tuple((b - nrm * wb * .2)[:2]), tuple((b + nrm * wb * .15)[:2]), tuple((a + nrm * wa * .15)[:2])]
+            c.slab(g, a.z + thick / 2, a.z + thick / 2 + .006, GLOW, minor=True)
+
+
+def prong(c, base, tip, r, mat=BRONZE, hot=True, seg=6):
+    """A tapered claw from base to tip (a curved one: give it a middle point), a hot point."""
+    pts = [Vector(p) for p in ((base, tip) if len(tip) == 3 and not isinstance(tip[0], tuple) else (base,) + tuple(tip))]
+    for k in range(len(pts) - 1):
+        a, b = pts[k], pts[k + 1]
+        ra, rb = r * (1 - k / (len(pts) - 1)), r * (1 - (k + 1) / (len(pts) - 1)) + .003
+        ax = (b - a).normalized(); up = Vector((0, 0, 1)) if abs(ax.z) < .9 else Vector((1, 0, 0))
+        u = ax.cross(up).normalized(); v = ax.cross(u).normalized()
+        ring_ = lambda cc, rr: [tuple(cc + (u * math.cos(TAU * i / seg) + v * math.sin(TAU * i / seg) * .6) * rr) for i in range(seg)]
+        c.loft([ring_(a, ra), ring_(b, rb)], mat, minor=True)
+    if hot:
+        t = pts[-1]
+        c.cyl((t.x, t.y, t.z), 'z', .012, t.z - .012, t.z + .012, HOT, seg=6)
+
+
+def vein(c, pts, r=.008):
+    for a, b in zip(pts, pts[1:]):
+        a, b = Vector(a), Vector(b)
+        ax = (b - a).normalized(); up = Vector((0, 0, 1)) if abs(ax.z) < .9 else Vector((1, 0, 0))
+        u = ax.cross(up).normalized(); v = ax.cross(u).normalized()
+        ring_ = lambda cc: [tuple(cc + (u * math.cos(TAU * i / 4) + v * math.sin(TAU * i / 4)) * r) for i in range(4)]
+        c.loft([ring_(a), ring_(b)], GLOW, minor=True)
+
+
+def slit(c, x, y, w, z=0.0, depth=.05):
+    """A glowing slit engine in a curved cowl at the tail; records the socket."""
+    c.slab([(x - w, y - depth), (x + w, y - depth), (x + w * .8, y), (x - w * .8, y)], z - .035, z + .035, FRAME)
+    c.slab([(x - w * .7, y - .01), (x + w * .7, y - .01), (x + w * .6, y + .012), (x - w * .6, y + .012)], z - .02, z + .02, HOT, minor=True)
+    c.engines.append((x, y + .012, z))
+
+
+def halo(c, centre, r, z, thick=.02, n=24, gap=0.0, mat=GLOW):
+    """A ring floating free over (or round) a craft: thin, glowing, unattached."""
+    cx, cy = centre
+    pts = [(cx + math.cos(TAU * i / n + gap) * r, cy + math.sin(TAU * i / n + gap) * r, z) for i in range(n + 1)]
+    for a, b in zip(pts, pts[1:]):
+        a, b = Vector(a), Vector(b)
+        d = (b - a).normalized(); o = Vector((-d.y, d.x, 0)) * thick
+        c.slab([tuple((a - o)[:2]), tuple((b - o)[:2]), tuple((b + o)[:2]), tuple((a + o)[:2])], z - thick * .4, z + thick * .4, mat, minor=True)
+
+
+def orb(c, centre, r, z, mat=HOT, seg=10):
+    cx, cy = centre
+    loops = []
+    for j in range(1, 6):
+        t = math.pi * j / 6
+        loops.append([(cx + math.sin(t) * r * math.cos(TAU * i / seg), cy + math.sin(t) * r * math.sin(TAU * i / seg), z - math.cos(t) * r * .7) for i in range(seg)])
+    c.loft(loops, mat)
+
+
 # ----------------------------------------------------------------------------- the craft
 def build_interceptor():
     c = Craft()
-    hull(c, [(-.64, .005, .01, -.01), (-.4, .06, .05, -.04), (-.05, .1, .08, -.06), (.35, .12, .08, -.06), (.58, .09, .06, -.05)], PLATE)
-    c.cyl((0, 0, 0), 'y', .012, -.66, -.5, HOT, seg=6)                       # the glowing spike tip
-    c.box((-.03, -.38, .05), (.03, .2, .095), FRAME)                          # dorsal spine
-    c.box((-.022, -.3, .09), (.022, -.1, .1), GLOW)                           # canopy slit
-    plating(c, -.05, .45, .07, .075, 3)
+    shell(c, [(-.62, .006, .01, -.01), (-.38, .07, .06, -.04), (0, .11, .09, -.05), (.35, .1, .08, -.05), (.6, .05, .04, -.03)], PLATE)
+    vein(c, [(0, -.5, .02), (0, -.25, .068), (0, .1, .092), (0, .45, .07)])
     def side(s):
-        panel(c, [(s * .1, -.02), (s * .38, .18), (s * .38, .34), (s * .1, .3)], .0, cells=2)
-        c.box((min(s * .36, s * .41), .14, -.03), (max(s * .36, s * .41), .38, .04), FRAME)
-        engine(c, s * .1, .28, .66, .055)
+        prong(c, (s * .05, -.35, -.01), ((s * .14, -.55, -.01), (s * .06, -.66, -.01)), .028)          # mandible
+        scythe(c, (s * .08, -.05, 0), (s * .42, .1, 0), (s * .36, .5, 0), .12, .02, PLATE, n=7, side=s)
+        slit(c, s * .05, .62, .035)
     mirror(side)
     return c
 
 
 def build_fighter():
     c = Craft()
-    hull(c, [(-.82, .01, .02, -.01), (-.55, .08, .07, -.05), (-.2, .16, .11, -.07), (.25, .18, .11, -.07), (.6, .14, .08, -.06)], PLATE)
-    c.box((-.05, -.5, .09), (.05, .3, .14), FRAME)
-    c.box((-.035, -.42, .13), (.035, -.18, .15), GLOW)
-    plating(c, -.12, .55, .12, .105, 4)
-    barrel(c, 0, -.55, -.8, .018, z=-.05)
+    shell(c, [(-.8, .01, .02, -.01), (-.5, .1, .09, -.05), (-.1, .17, .13, -.07), (.3, .17, .12, -.07), (.66, .09, .07, -.05)], PLATE)
+    vein(c, [(0, -.62, .04), (0, -.3, .11), (0, .1, .133), (0, .55, .1)])
     def side(s):
-        wing = [(s * .14, -.25), (s * .72, .08), (s * .75, .3), (s * .6, .36), (s * .16, .3)]
-        c.slab(wing, -.02, .02, PLATE)
-        panel(c, [(s * .22, -.1), (s * .6, .13), (s * .6, .27), (s * .22, .22)], .02, cells=3)
-        c.box((min(s * .68, s * .76), .02, -.04), (max(s * .68, s * .76), .4, .1), FRAME)   # wingtip fin
-        c.box((min(s * .7, s * .74), -.12, -.02), (max(s * .7, s * .74), .02, .03), BRONZE)   # forward prong
-        engine(c, s * .2, .2, .82, .085)
+        # The wings: two great scythes sweeping back and out, their tips hooking forward, glowing inner edges and veins.
+        scythe(c, (s * .12, -.2, .01), (s * .8, .05, .01), (s * .63, -.35, .01), .21, .03, PLATE, n=10, side=s)
+        vein(c, [(s * .2, -.1, .03), (s * .45, -.04, .03), (s * .62, -.12, .03)])
+        scythe(c, (s * .12, .3, 0), (s * .4, .55, 0), (s * .3, .78, 0), .1, .02, FRAME, n=6, side=s)
+        prong(c, (s * .06, -.5, -.03), ((s * .1, -.7, -.03), (s * .04, -.8, -.03)), .022)
+        slit(c, s * .07, .79, .05)
     mirror(side)
     return c
 
 
 def build_hunter():
     c = Craft()
-    hull(c, [(-.72, .06, .05, -.05), (-.45, .16, .12, -.1), (.1, .2, .14, -.1), (.55, .18, .12, -.09), (.72, .12, .08, -.06)], PLATE)
-    # The plasma core: a glowing tube along the spine, banded by frame rings.
-    c.cyl((0, 0, .1), 'y', .07, -.35, .45, HOT, seg=10)
-    for y in (-.25, -.05, .15, .35):
-        c.cyl((0, 0, .1), 'y', .085, y, y + .04, FRAME, seg=10)
-    plating(c, -.5, -.36, .1, .1, 1, vent=False)
-    plating(c, .45, .68, .1, .1, 2, vent=False)
-    for s in (-1, 1):
-        barrel(c, s * .1, -.6, -.81, .024, z=-.03)
+    shell(c, [(-.66, .07, .05, -.05), (-.4, .17, .13, -.1), (.1, .21, .15, -.1), (.5, .19, .13, -.09), (.72, .1, .07, -.05)], PLATE)
+    # The plasma core shows through three glowing ribs across the back; a halo floats over it.
+    for y in (-.2, 0, .2):
+        c.box((-.15, y - .02, .13), (.15, y + .02, .155), GLOW)
+    halo(c, (0, 0), .2, .205, thick=.018)
     def side(s):
-        c.cyl((s * .3, 0, 0), 'y', .07, -.35, .4, FRAME, seg=8)
-        c.box((min(s * .25, s * .36), -.2, .04), (max(s * .25, s * .36), .3, .075), PLATE)
-        c.box((min(s * .355, s * .375), -.1, -.01), (max(s * .355, s * .375), .2, .03), GLOW)
-        wing = [(s * .35, .1), (s * .55, .3), (s * .55, .48), (s * .35, .42)]
-        c.slab(wing, -.015, .015, PLATE)
-        panel(c, [(s * .38, .18), (s * .52, .33), (s * .52, .44), (s * .38, .39)], .015, cells=2)
-        engine(c, s * .15, .45, .81, .08)
+        # Two long mandibles curving forward and in, a hot point each (no cannons).
+        prong(c, (s * .12, -.45, 0), ((s * .3, -.62, 0), (s * .1, -.81, -.01)), .045)
+        scythe(c, (s * .18, .05, 0), (s * .55, .3, 0), (s * .48, .55, 0), .12, .025, PLATE, n=7, side=s)
+        vein(c, [(s * .2, -.3, .07), (s * .2, .3, .1)])
+        slit(c, s * .08, .74, .05)
     mirror(side)
     return c
 
 
 def build_carrier():
     c = Craft()
-    hull(c, [(-.72, .26, .12, -.1), (-.4, .36, .2, -.13), (.3, .38, .22, -.14), (.75, .3, .18, -.12)], PLATE)
-    # Stacked armour plates on top, a glowing dorsal vent.
-    c.box((-.26, -.35, .2), (.26, .45, .26), FRAME, chamfer=.06)
-    c.box((-.18, -.25, .26), (.18, .3, .28), PLATE, chamfer=.04)
-    c.box((-.05, -.2, .275), (.05, .25, .285), GLOW)
-    plating(c, -.68, -.38, .3, .15, 2)
-    plating(c, .46, .74, .27, .17, 2)
-    for x in (-.32, -.11, .11, .32):
-        barrel(c, x, -.72, -.99, .03, z=-.02)
+    # A manta: a broad layered lens, three shells stacked and stepped back, glowing seams between them.
+    shell(c, [(-.7, .3, .1, -.1), (-.35, .6, .14, -.13), (.25, .7, .16, -.14), (.7, .45, .12, -.1), (.95, .2, .06, -.05)], PLATE, ridge=.6)
+    shell(c, [(-.45, .2, .2, .05), (.0, .38, .24, .06), (.5, .3, .2, .05), (.8, .12, .14, .04)], FRAME)
+    shell(c, [(-.15, .1, .25, .14), (.2, .18, .26, .15), (.55, .1, .24, .13)], PLATE)
+    for y, w in ((-.4, .22), (.55, .3)):
+        vein(c, [(-w, y, .19), (0, y - .05, .23), (w, y, .19)])
+    halo(c, (0, .2), .34, .27, thick=.02)
+    for x, tip in ((-.34, -.99), (-.12, -.93), (.12, -.93), (.34, -.99)):
+        prong(c, (x, -.6, -.02), ((x * 1.25, -.8, -.02), (x * .9, tip, -.03)), .035)
     def side(s):
-        c.box((min(s * .36, s * .5), -.3, -.06), (max(s * .36, s * .5), .5, .12), FRAME, chamfer=.03)
-        wing = [(s * .48, -.05), (s * .83, .15), (s * .83, .42), (s * .48, .5)]
-        c.slab(wing, -.02, .03, PLATE)
-        panel(c, [(s * .52, .05), (s * .78, .2), (s * .78, .38), (s * .52, .42)], .03, cells=3)
-        engine(c, s * .24, .6, .99, .13)
+        scythe(c, (s * .55, .1, 0), (s * .83, .35, 0), (s * .7, .75, 0), .16, .03, PLATE, n=7, side=s)
+        slit(c, s * .2, .96, .08)
     mirror(side)
     return c
 
 
 def build_artillery():
     c = Craft()
-    ring(c, (0, .02), .5, .64, -.05, .05, 12, [PLATE, FRAME])
-    core(c, (0, .02), .19, z=0.0)
-    # Spokes to the ring, four gold crescents outside it on the diagonals.
+    # The ring floats free of the core in five arcs (no spokes); the core hangs at its heart under a small halo; four
+    # crescents ride outside it.
+    for k in range(5):
+        a0 = TAU * k / 5 + .1
+        crescent(c, (0, .02), .5, .62, a0, a0 + TAU / 5 - .2, -.04, .04, PLATE, n=5, glow=k % 2 == 0)
+    orb(c, (0, .02), .2, .02)
+    halo(c, (0, .02), .3, .12, thick=.015)
+    halo(c, (0, .02), .3, -.08, thick=.012, mat=FRAME)
     for k in range(4):
         a = math.radians(45 + 90 * k)
-        p0, p1 = (math.cos(a) * .22, .02 + math.sin(a) * .22), (math.cos(a) * .52, .02 + math.sin(a) * .52)
-        w = .035
-        nx, ny = -math.sin(a) * w, math.cos(a) * w
-        c.slab([(p0[0] + nx, p0[1] + ny), (p1[0] + nx, p1[1] + ny), (p1[0] - nx, p1[1] - ny), (p0[0] - nx, p0[1] - ny)], -.03, .04, FRAME)
-        crescent(c, (0, .02), .66, .71, a - .5, a + .5, -.03, .04, PLATE, n=6)
-    # A forward module and twin engines behind.
-    c.box((-.12, -.84, -.05), (.12, -.55, .08), PLATE, chamfer=.04)
-    barrel(c, 0, -.84, -.9, .03)
+        crescent(c, (0, .02), .66, .71, a - .45, a + .45, -.03, .03, FRAME, n=5)
+    prong(c, (0, -.62, 0), ((.08, -.76, 0), (0, -.89, 0)), .04)
     for s in (-1, 1):
-        engine(c, s * .12, .6, .88, .07)
+        slit(c, s * .1, .86, .05)
     return c
 
 
 def build_drone():
     c = Craft()
-    ring(c, (0, 0), .17, .23, -.025, .025, 8, [PLATE, FRAME])
-    core(c, (0, 0), .08, z=-.01)
+    orb(c, (0, 0), .09, 0)
+    halo(c, (0, 0), .19, .0, thick=.025, mat=PLATE)
+    halo(c, (0, 0), .19, .02, thick=.012)
     for a in (0, math.pi):
-        crescent(c, (0, 0), .235, .27, a - .7, a + .7, -.02, .02, PLATE, n=4)
-    c.box((-.03, .2, -.02), (.03, .33, .03), FRAME)
-    c.engines.append((0, .33, 0))
+        crescent(c, (0, 0), .22, .27, a - .7, a + .7, -.02, .02, PLATE, n=4)
+    prong(c, (0, -.12, 0), ((.03, -.22, 0), (0, -.3, 0)), .02, hot=False)
+    c.engines.append((0, .27, 0))
     return c
 
 
 def build_turret():
     c = Craft()
-    # A hexagonal basalt plinth with bronze trim, a drum, a twin-barrelled head aimed at the player, a gold vent.
+    # A basalt plinth, three claws curling up round a glowing eye, a floating halo over it, and a long prong aimed at
+    # the player.
     hexa = lambda r: [(math.cos(TAU * k / 6 + math.pi / 6) * r, math.sin(TAU * k / 6 + math.pi / 6) * r) for k in range(6)]
-    c.slab(hexa(.5), -.05, .12, FRAME)
-    c.slab(hexa(.44), .12, .16, BRONZE)
-    c.cyl((0, 0, 0), 'z', .3, .16, .34, PLATE, seg=12, r2=.26)
-    c.cyl((0, 0, 0), 'z', .27, .34, .37, GLOW, seg=12)
-    c.box((-.22, -.2, .37), (.22, .22, .55), PLATE, chamfer=.06)
-    c.box((-.14, -.1, .55), (.14, .16, .6), FRAME, chamfer=.04)
-    c.box((-.05, .05, .6), (.05, .14, .62), GLOW)
-    for s in (-1, 1):
-        barrel(c, s * .1, -.2, -.5, .035, z=.46)
+    c.slab(hexa(.48), -.05, .1, FRAME)
+    c.slab(hexa(.4), .1, .13, BRONZE)
+    for k in range(3):
+        a = TAU * k / 3 + math.pi / 2
+        p0 = (math.cos(a) * .32, math.sin(a) * .32, .13)
+        prong(c, p0, ((math.cos(a) * .36, math.sin(a) * .36, .4), (math.cos(a) * .14, math.sin(a) * .14, .58)), .07, mat=PLATE)
+    orb(c, (0, 0), .14, .36)
+    halo(c, (0, 0), .22, .6, thick=.02)
+    prong(c, (0, -.08, .34), ((0, -.3, .38), (0, -.5, .36)), .05)
     return c
 
 
 def build_wraith():
     c = Craft()
-    # Hub: the glowing plasma core in a heavy ring; a spine forward to twin nose prongs; engines aft.
-    ring(c, (0, .05), .26, .4, -.06, .1, 12, [PLATE, FRAME])
-    core(c, (0, .05), .22, z=.02)
-    hull(c, [(-1.6, .02, .03, -.02), (-1.25, .1, .1, -.06), (-.5, .2, .16, -.1), (.0, .22, .16, -.1)], PLATE)
-    hull(c, [(.3, .22, .16, -.1), (.9, .26, .18, -.12), (1.4, .2, .14, -.1)], PLATE)
-    c.box((-.06, -1.2, .12), (.06, -.45, .2), FRAME)
-    plating(c, .45, 1.3, .2, .15, 4)
-    c.box((-.035, -1.1, .19), (.035, -.6, .21), GLOW)
+    # Hub: the core under a floating halo; a ridged spine forward to curved twin mandibles; shells and slits aft.
+    orb(c, (0, .05), .24, .06)
+    halo(c, (0, .05), .38, .2, thick=.03)
+    halo(c, (0, .05), .3, -.06, thick=.02, mat=FRAME)
+    shell(c, [(-1.55, .02, .03, -.02), (-1.2, .1, .1, -.06), (-.5, .2, .16, -.1), (-.15, .22, .14, -.08)], PLATE)
+    shell(c, [(.3, .24, .16, -.1), (.8, .3, .2, -.12), (1.3, .18, .13, -.08), (1.42, .06, .05, -.03)], PLATE)
+    vein(c, [(0, -1.3, .06), (0, -.8, .14), (0, -.3, .16)])
+    vein(c, [(0, .35, .16), (0, .9, .2), (0, 1.3, .13)])
     def side(s):
-        c.box((min(s * .05, s * .13), -1.88, -.02), (max(s * .05, s * .13), -1.5, .04), BRONZE)    # nose prong
-        c.cyl((s * .09, 0, .01), 'y', .012, -1.88, -1.83, HOT, seg=6)
-        # Struts from the hub to the crescent, the crescent itself (a great gold-lined scythe).
-        for y0, y1 in ((-.05, -.35), (.15, .35)):
-            c.slab([(s * .38, y0 - .05), (s * 1.0, y1 - .05), (s * 1.0, y1 + .05), (s * .38, y0 + .05)], -.03, .05, FRAME)
+        prong(c, (s * .08, -1.45, 0), ((s * .2, -1.65, 0), (s * .06, -1.86, 0)), .045)
+        # The great crescent wings, free of the hull at their roots: each a scythe sweeping round the hub.
         crescent(c, (0, .1), 1.02, 1.5, (math.pi / 2 - 1.35) if s > 0 else (math.pi / 2 + 1.35), (math.pi / 2 - 2.95) if s > 0 else (math.pi / 2 + 2.95),
                  -.04, .06, PLATE, n=10)
-        # Shoulder armour and the engine banks.
-        c.box((min(s * .22, s * .55), .35, -.08), (max(s * .22, s * .55), 1.1, .2), PLATE, chamfer=.06)
-        panel(c, [(s * .26, .45), (s * .5, .45), (s * .5, .95), (s * .26, .95)], .2, cells=4)
-        engine(c, s * .2, 1.0, 1.4, .12)
-        engine(c, s * .45, 1.0, 1.3, .09)
+        scythe(c, (s * .3, .5, 0), (s * .75, .7, 0), (s * .6, 1.2, 0), .18, .04, FRAME, n=7, side=s)
+        vein(c, [(s * .35, .55, .03), (s * .6, .75, .03), (s * .58, 1.05, .03)])
+        slit(c, s * .12, 1.4, .07)
+        slit(c, s * .35, 1.2, .05)
     mirror(side)
     return c
 
