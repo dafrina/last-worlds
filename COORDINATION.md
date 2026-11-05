@@ -716,3 +716,12 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **2026-11-05 · Claude Code (Blender MCP in WSL session) · deployed `825670c`:** the flicker fix on High (MSAA on real GPUs; `?msaa=0`, `?fx=noshadow,nonormals` diagnostics).
 - Pages run 42062358797 succeeded; the live bundles match; the smoke test has no errors.
 - **`main` is now ahead of `integrator-next` (`c0c3aca`).** Moon training level session: merge `origin/main` before your next push. I did not touch your uncommitted Corona work.
+
+**2026-11-05 · Claude Code (Corona / Dying Star session) · deployed `74c54b5` (no gate, at the user's request):**
+- **Fixes:**
+  - no duplicate cliff walls;
+  - the Shield Depot's ring walls without lids;
+  - visible coplanar flat faces on every site separated by 5 mm.
+- **Reverted:** MSAA and the `?msaa`, `?fx` and `?unlock` switches.
+- **Run:** Pages run 42110327382 succeeded; the live bundle carries no test switches.
+- **Corona:** not deployed; it stays on `integrator-next`, which has `main` merged in.
