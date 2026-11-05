@@ -19,6 +19,7 @@ export const FACILITY_KIT_ASSETS: Readonly<Record<FacilityWorld, string>> = {
   // Amnion's brood facilities come with its Blender kit (docs/27, milestone 2); until then it builds no plants.
   amnion: 'facility-kit-v4-ruins.glb',
   // Umbra's structures are kit pieces (docs/28); it builds no plants.
+  corona: 'facility-kit-v4-ruins.glb',
   umbra: 'facility-kit-v4-ruins.glb',
 };
 export type ModuleRole =

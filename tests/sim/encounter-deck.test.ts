@@ -32,11 +32,11 @@ describe('encounter deck: resolution', () => {
   });
 
   it('resolves endless per sector: a later visit to the same stage is drawn again', () => {
-    // Sectors 11 and 12 both fly Khepri's peak stage.
-    expect(deckTemplate({ mode: 'endless' }, 11)).toBe(deckTemplate({ mode: 'endless' }, 12));
-    expect(resolvePlaylist({ mode: 'endless' }, 11, 5)).not.toEqual(resolvePlaylist({ mode: 'endless' }, 12, 5));
-    expect(resolvePlaylist({ mode: 'endless' }, 11, 5)).toEqual(resolveTemplate(ENDLESS_DECKS.khepriPeak, 5, 11));
-    for (let sector = 1; sector <= 19; sector++) expect(deckTemplate({ mode: 'endless' }, sector).world, `sector ${sector}`).toBe(endlessPlanet(sector));
+    // Sectors 20 and 21 both fly Khepri's peak stage (the second lap, after Umbra).
+    expect(deckTemplate({ mode: 'endless' }, 20)).toBe(deckTemplate({ mode: 'endless' }, 21));
+    expect(resolvePlaylist({ mode: 'endless' }, 20, 5)).not.toEqual(resolvePlaylist({ mode: 'endless' }, 21, 5));
+    expect(resolvePlaylist({ mode: 'endless' }, 20, 5)).toEqual(resolveTemplate(ENDLESS_DECKS.khepriPeak, 5, 20));
+    for (let sector = 1; sector <= 40; sector++) expect(deckTemplate({ mode: 'endless' }, sector).world, `sector ${sector}`).toBe(endlessPlanet(sector));
   });
 
   it('keeps the authored arc: slot times, phases, fixed cues, mission lengths and boss cutoffs', () => {
@@ -235,7 +235,7 @@ describe('encounter deck: content', () => {
     }
   });
 
-  it('flies 1-4 strike sites per campaign attempt (2 the most likely), one per endless stage (two in the Luna prologue, none in Nacre\'s pressure stage)', () => {
+  it('flies 1-4 strike sites per campaign attempt (2 the most likely), one per endless stage (two in the Luna prologue, none in the late worlds\' pressure stages)', () => {
     const places = (deck: DeckTemplate) => deck.slots.filter(slot => (slot.kind === 'side' && slot.rank !== undefined) || (slot.kind === 'pool' && slot.site !== undefined)).length;
     // Every campaign arc offers four ranked site places (user, 30 October: "keep sites 1-4, with 2 being most probable").
     for (const deck of Object.values(CAMPAIGN_DECKS)) expect(places(deck), deck.id).toBe(4);
@@ -244,11 +244,11 @@ describe('encounter deck: content', () => {
       for (const seed of SEEDS) counts[resolveTemplate(deck, seed).filter(cue => cue.site).length]++;
       SITE_COUNT.forEach(({ count, weight }) => expect(Math.abs(counts[count] / SEEDS.length - weight), `${deck.id} ${count} sites`).toBeLessThan(0.1));
     }
-    // Endless: one site per stage (two in the prologue, Training's side routes; none in Nacre's pressure stage, Deep Bloom's
-    // middle and climax, which has no recovery to hold one). Khepri's stages stand theirs in for a turret battery.
+    // Endless: one site per stage (two in the prologue, Training's side routes; none in the late worlds' pressure stages,
+    // their arcs' middle and climax, which have no recovery to hold one: Nacre's, Amnion's, Corona's and Umbra's). Khepri's stages stand theirs in for a turret battery.
     const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side' || (slot.kind === 'pool' && slot.endlessSite)).length;
     for (const [name, deck] of Object.entries(ENDLESS_DECKS)) {
-      expect(sides(deck), name).toBe(name === 'prologue' ? 2 : name === 'nacrePressure' ? 0 : 1);
+      expect(sides(deck), name).toBe(name === 'prologue' ? 2 : ['nacrePressure', 'amnionPressure', 'coronaPressure', 'umbraPressure'].includes(name) ? 0 : 1);
       for (const seed of SEEDS.slice(0, 50)) expect(resolveTemplate(deck, seed).filter(cue => cue.site).length, `${name}/${seed}`).toBe(sides(deck));
     }
     for (const name of ['khepriOpening', 'khepriPressure', 'khepriPeak'] as const) expect(ENDLESS_DECKS[name].slots.some(slot => slot.kind === 'side'), name).toBe(false);

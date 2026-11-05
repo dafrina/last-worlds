@@ -113,7 +113,7 @@ export const SHIP_IDS = Object.keys(SHIPS) as ShipId[];
 /** Campaign missions in unlock order: clearing one (on any difficulty) unlocks the next. */
 // Brood Strike (Amnion, docs/27) opens once Deep Bloom is cleared; Final Horizon (Umbra, docs/28) is the final mission since
 // 24 October and opens once Brood Strike is cleared.
-export const CAMPAIGN_ORDER: readonly MissionId[] = ['training', 'bastion', 'cold-vector', 'deep-bloom', 'brood-strike', 'final-horizon'];
+export const CAMPAIGN_ORDER: readonly MissionId[] = ['training', 'bastion', 'cold-vector', 'deep-bloom', 'brood-strike', 'dying-star', 'final-horizon'];
 
 /**
  * Mission income (docs/11 §4, docs/30 § Income). With C = collected credits (enemy drops, strike-site loot, full-shield
@@ -131,6 +131,7 @@ export const REWARDS = { success: 80, boss: 60, firstClear: 75, failureShare: 0.
  * reproduces them; docs/30 § Income). It replaced one global ×0.5 (16 October): 166 / 179 / 247 / 209 / 214 / 236.
  */
 export const CREDIT_SCALE: Readonly<Record<MissionId, number>> = {
-  training: 0.24, bastion: 0.28, 'cold-vector': 0.3, 'deep-bloom': 0.48, 'brood-strike': 0.6, 'final-horizon': 0.55,
+  // Dying Star (Corona, 5 November) takes Final Horizon's scale until it is measured.
+  training: 0.24, bastion: 0.28, 'cold-vector': 0.3, 'deep-bloom': 0.48, 'brood-strike': 0.6, 'dying-star': 0.55, 'final-horizon': 0.55,
 };
 export const CREDIT_MULTIPLIER: Readonly<Record<Difficulty, number>> = { relaxed: 0.85, standard: 1, veteran: 1.2 };

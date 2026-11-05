@@ -9,7 +9,7 @@ import { EMPTY_INPUT, SITE_IDS, VIEW, type EnemyKind, type PlanetId, type RunCon
 import { createRun, spawnFormation, stepRun } from '../../src/sim/game';
 import { enterSector } from './pilots';
 
-const PLANETS: readonly PlanetId[] = ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'];
+const PLANETS: readonly PlanetId[] = ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra'];
 /** Every enemy kind the authored playlists already fly on a world (campaign missions and endless sectors). */
 const worldKinds = new Map<PlanetId, Set<EnemyKind>>(PLANETS.map(planet => [planet, authoredKinds(planet)]));
 const threat = (cue: EncounterCue) => cueRoster(cue, 'veteran').reduce((sum, kind) => sum + THREAT_COST[kind], 0);
@@ -38,7 +38,7 @@ function breakCores(state: RunState) {
 const drops = (state: RunState, kind: string) => state.pickups.filter(pickup => pickup.kind === kind);
 
 describe('strike site content (docs/33 § 3)', () => {
-  it('has the twelve sites, each with an authored guard on every one of its worlds that flies only that world\'s kinds', () => {
+  it('has the fourteen sites, each with an authored guard on every one of its worlds that flies only that world\'s kinds', () => {
     expect(Object.keys(SITES).sort()).toEqual([...SITE_IDS].sort());
     for (const site of Object.values(SITES)) {
       for (const planet of site.worlds) {

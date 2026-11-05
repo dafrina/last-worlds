@@ -780,6 +780,7 @@ vec3 vesperSlate( vec3 c ) { float l = dot( c, vec3( 0.2126, 0.7152, 0.0722 ) );
  */
 const VESPER_KIT_HEAD = `
 uniform float vesperLook; uniform float lunaLook; uniform float nacreLook; uniform float kitGlint; uniform float beaconTime; varying float vPieceY;
+uniform vec4 glowHue; uniform vec3 greyTint;
 float vesperHash( vec2 p ) { return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ); }
 ${VESPER_SLATE}`;
 const VESPER_KIT_SURFACE = `
@@ -871,6 +872,8 @@ const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; col
   amnion: { hue: hueOf(0x3c1816), shade: 0.24, columns: 0.5, crease: 1, fleshOnly: 1 },
   // Umbra (docs/28): black glass with a cold violet cast on every steep face (spike flanks and canyon walls alike).
   umbra: { hue: hueOf(0x262238), shade: 0.85, columns: 0, crease: 1, fleshOnly: 0 },
+  // Corona (docs/37): charcoal basalt faces, faintly columnar, the plasma's glow on them from the fog.
+  corona: { hue: hueOf(0x3a3330), shade: 0.85, columns: 0.6, crease: 1, fleshOnly: 0 },
   // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
   // darker regolith per face.
   luna: { hue: hueOf(0x8a8780), shade: 0.72, columns: 0, crease: 0, fleshOnly: 0 },
@@ -937,7 +940,7 @@ if ( sitePadCount > 0 ) {
 export function createTerrainMaterials() {
   const time = { beaconTime: { value: 0 } };
   /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material); lunaLook greys the basalt. */
-  const kitLook = { vesperLook: { value: 0 }, lunaLook: { value: 0 }, nacreLook: { value: 0 }, kitGlint: { value: 0.45 } };
+  const kitLook = { vesperLook: { value: 0 }, lunaLook: { value: 0 }, nacreLook: { value: 0 }, kitGlint: { value: 0.45 }, glowHue: { value: new THREE.Vector4(1, 1, 1, 0) }, greyTint: { value: new THREE.Vector3(1.5, 1.48, 1.44) } };
   /** Kit glow: Khepri's mineral cyan; on Vesper the only glowing faces it draws are radiator/lamp bands (orange). */
   const kitGlow = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } };
   const fallback = createDetailTexture();
@@ -1340,7 +1343,11 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD + (wall ? '\nuniform float wallContrast;\nvarying float vWallTop;' : ''))
       // Nacre's flora emits its own vertex colour (teal, violet, orange) instead of the shared glow colour.
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 1.8, nacreLook ) * max( vGlow, 0.0 );' + VESPER_KIT_EMISSIVE)
+      // Corona borrows Umbra's kit and cliffs (docs/37): their violet glow faces burn the star's orange (glowHue), at the
+      // vertex colour's own brightness.
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+if ( glowHue.w > 0.0 && vGlow > 0.0 ) diffuseColor.rgb = mix( diffuseColor.rgb, glowHue.rgb * max( max( diffuseColor.r, diffuseColor.g ), diffuseColor.b ), glowHue.w * clamp( vGlow * 4.0, 0.0, 1.0 ) );
+totalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 1.8, nacreLook ) * max( vGlow, 0.0 );` + VESPER_KIT_EMISSIVE)
       // Glossy faces (a negative glow: Amnion's pearl egg shells) keep a smooth surface and a sharp sun highlight.
       .replace('#include <lights_physical_fragment>', `float kitGloss = clamp( -vGlow, 0.0, 1.0 );
   roughnessFactor = mix( roughnessFactor, 0.14, kitGloss );
@@ -1361,7 +1368,7 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
 ${VESPER_KIT_SURFACE}`)
       // Luna (docs/19): after the vertex colours, the Khepri basalt pieces turn to grey rock (luminance kept, lifted).
       .replace('#include <color_fragment>', `#include <color_fragment>
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.5, 1.48, 1.44 ), lunaLook );${VESPER_KIT_COLOR}${wall ? WALL_COLOR_FRAGMENT : ''}`)
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * greyTint, lunaLook );${VESPER_KIT_COLOR}${wall ? WALL_COLOR_FRAGMENT : ''}`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.5, vesperIce );')
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
     // Wall tops keep their own plane (most of the relief stays on the faces).
@@ -1393,7 +1400,7 @@ ${VESPER_KIT_SURFACE}`)
     const wall = WALL_LOOK[planet];
     cliffLook.cliffLook.value = wall ? 1 : 0;
     cliffLook.creaseLook.value = wall?.crease ?? 0;
-    cliffLook.wallFacets.value = planet === 'umbra' ? 1 : 0;
+    cliffLook.wallFacets.value = planet === 'umbra' || planet === 'corona' ? 1 : 0;
     cliffLook.cliffSteep.value.set(vesper ? 0.42 : 0.62, vesper ? 0.3 : 0.42);
     const crisp: [number, number] = vesper ? iceCrispOverride() ?? ICE_CRISP : [0.18, 1]; cliffLook.iceCrisp.value.set(...crisp);
     if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; cliffLook.wallFleshOnly.value = wall.fleshOnly; }
@@ -1404,33 +1411,37 @@ ${VESPER_KIT_SURFACE}`)
     wallPlanet = planet;
     if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
-    const amnion = planet === 'amnion', umbra = planet === 'umbra';
-    groundLook.glowColor.value.copy(amnion ? linear(0xffd23a).multiplyScalar(1.7) : umbra ? linear(0x8a6cff).multiplyScalar(1.9) : linear(0x8ffcf0).multiplyScalar(0.75));
-    groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : umbra ? [0.004, 0.003, 0.008] : [0.02, 0.16, 0.15]) as [number, number, number]);
-    groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : umbra ? [0.04, 0.025, 0.12] : [0.014, 0.055, 0.06]) as [number, number, number]);
+    // Corona (docs/37) is Umbra's landform: its shapes (faults, crack relief, the abyss fog), in the star's heat.
+    const amnion = planet === 'amnion', corona = planet === 'corona', umbra = planet === 'umbra' || corona;
+    groundLook.glowColor.value.copy(amnion ? linear(0xffd23a).multiplyScalar(1.7) : corona ? linear(0xff8a2a).multiplyScalar(2.2) : umbra ? linear(0x8a6cff).multiplyScalar(1.9) : linear(0x8ffcf0).multiplyScalar(0.75));
+    groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : corona ? [0.008, 0.003, 0.001] : umbra ? [0.004, 0.003, 0.008] : [0.02, 0.16, 0.15]) as [number, number, number]);
+    groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : corona ? [0.14, 0.045, 0.01] : umbra ? [0.04, 0.025, 0.12] : [0.014, 0.055, 0.06]) as [number, number, number]);
     // A dark flesh bed with the yolk in its crackle and a low glow of its own (a full glow read as a flat lava band).
     // (Umbra: a faint violet glow down in the canyon fog.)
-    groundLook.poolGlow.value = amnion ? 0.22 : umbra ? 0.3 : 0.12;
+    groundLook.poolGlow.value = amnion ? 0.22 : corona ? 0.38 : umbra ? 0.3 : 0.12;
     groundLook.poolCells.value = amnion ? 0.15 : 1;
     // Umbra's faults are thin glowing lines along its shattered plates.
-    groundLook.veinWidth.value = amnion ? 3 : umbra ? 1.3 : 1;
+    groundLook.veinWidth.value = amnion ? 3 : corona ? 1.6 : umbra ? 1.3 : 1;
     // Umbra's obsidian is glossy (docs/28: "obsidian black shiney surfaces"): it mirrors the eclipse's violet sky.
     // (A satin sheen: as a mirror the ground drew a bright jagged line along every canyon lip.)
-    ground.roughness = umbra ? 0.55 : 1; ground.envMapIntensity = umbra ? .4 : .18;
-    const edgeCoat = umbra ? .24 : 0;
+    // (Corona's basalt is satin, not glass: less of the sky in it.)
+    ground.roughness = corona ? 0.85 : umbra ? 0.55 : 1; ground.envMapIntensity = corona ? .1 : umbra ? .4 : .18;
+    const edgeCoat = corona ? 0 : umbra ? .24 : 0;
     if (ground.clearcoat !== edgeCoat) { ground.clearcoat = edgeCoat; ground.needsUpdate = true; }
     // Cracks (version 16): blue-grey lines in Vesper's snow and ice, dark fractures in Luna's regolith.
     // (Amnion's bone crust takes them too: dark fractures between its plates.)
     if ((vesper || luna || planet === 'amnion' || umbra) && !crackTexture) crackTexture = createCrackTexture();
     crackLook.crackMap.value = crackTexture ?? flatNormal;
-    crackLook.crackRelief.value = umbra ? 1 : 0;
+    // (Corona: no recessed slab seams; its cracks glow instead, the faults' vein lines, which the relief would switch off.)
+    crackLook.crackRelief.value = umbra && !corona ? 1 : 0;
     // Umbra: dark recessed slab seams; their beveled normals catch scene lighting, never emissive lines.
-    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : umbra ? 1 : 0;
-    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : umbra ? [0.08, 0.07, 0.12] : [0.5, 0.5, 0.52]) as [number, number, number]);
-    groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : umbra ? linear(0x6a5aa8) : khepri.hazeColor.value);
+    crackLook.crackLook.value = vesper ? 0.55 : luna ? 0.45 : planet === 'amnion' ? 0.6 : corona ? 0.35 : umbra ? 1 : 0;
+    crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : corona ? [0.1, 0.06, 0.04] : umbra ? [0.08, 0.07, 0.12] : [0.5, 0.5, 0.52]) as [number, number, number]);
+    groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : corona ? linear(0xff7a32) : umbra ? linear(0x6a5aa8) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters. Umbra's canyons vanish into a glowing purple fog from just under the lip.
-    groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : umbra ? 0.7 : khepri.hazeStrength.value;
-    groundHaze.hazeTop.value = umbra ? -2.1 : khepri.hazeTop.value; groundHaze.hazeBottom.value = umbra ? -5.6 : khepri.hazeBottom.value;
+    // (Corona's canyons glow down to the plasma, CORONA_SEA_LEVEL −4.2.)
+    groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : corona ? 0.55 : umbra ? 0.7 : khepri.hazeStrength.value;
+    groundHaze.hazeTop.value = corona ? -3.5 : umbra ? -2.1 : khepri.hazeTop.value; groundHaze.hazeBottom.value = corona ? -4.2 : umbra ? -5.6 : khepri.hazeBottom.value;
     groundHaze.hazeAbyss.value = umbra ? 1 : 0;
     // Umbra's wall feet already continue below the floor. Different fog on those meshes made their intersection
     // read as an exposed cut: the floor vanished into violet haze while the rock stayed dark. Match both surfaces.
@@ -1518,7 +1529,9 @@ ${VESPER_KIT_SURFACE}`)
      */
     setLook(planet: PlanetId) {
       const vesper = planet === 'vesper';
-      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' ? 1 : 0; kitLook.nacreLook.value = planet === 'nacre' || planet === 'amnion' || planet === 'umbra' ? 1 : 0;
+      kitLook.vesperLook.value = vesper ? 1 : 0; kitLook.lunaLook.value = planet === 'luna' || planet === 'corona' ? 1 : 0;
+      // Khepri's basalt greyed: pale on Luna, charcoal on Corona (docs/37: Khepri's columns reused, user 5 November).
+      kitLook.greyTint.value.set(...(planet === 'corona' ? [0.6, 0.56, 0.54] : [1.5, 1.48, 1.44]) as [number, number, number]); kitLook.nacreLook.value = planet === 'nacre' || planet === 'amnion' || planet === 'umbra' || planet === 'corona' ? 1 : 0;
       // (Version 16: Vesper's radiator and lamp bands glow blue, the world's glow, instead of orange.)
       kitGlow.glowColor.value.copy(vesper ? worldGlow('vesper', 3.6) : linear(0x8ffcf0).multiplyScalar(1.55));
       infraGlow.glowColor.value.copy(worldGlow(planet, vesper ? 3.6 : 3.4));
@@ -1526,9 +1539,10 @@ ${VESPER_KIT_SURFACE}`)
       // Vesper's hardware reads as brushed metal and white enamel (black ceramic before version 16).
       infra.roughness = vesper ? 0.35 : 0.55; infra.metalness = vesper ? 0.45 : 0.3; infra.envMapIntensity = vesper ? 0.9 : 0.55;
       // Umbra's kit is black glass (docs/28): it reads by mirroring the eclipse's violet sky in its facets and edges.
-      kit.envMapIntensity = planet === 'umbra' ? 1.1 : .35;
+      kit.envMapIntensity = planet === 'umbra' ? 1.1 : planet === 'corona' ? .6 : .35;
       // (The glint is for small round shells: on Umbra's large flat facets it lit a whole face white.)
-      kitLook.kitGlint.value = planet === 'umbra' ? 0.05 : 0.45;
+      kitLook.kitGlint.value = planet === 'umbra' || planet === 'corona' ? 0.05 : 0.45;
+      if (planet === 'corona') { const hue = linear(0xff7a1e); kitLook.glowHue.value.set(hue.r * 1.6, hue.g * 1.6, hue.b * 1.6, 1); } else kitLook.glowHue.value.set(1, 1, 1, 0);
     },
     dispose() {
       ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); lunaTrack?.dispose(); snowTexture?.dispose(); crackTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
@@ -1645,6 +1659,7 @@ const SHARED_PALETTE: Readonly<Record<PlanetId, readonly [number, number, number
   vesper: [0x76828e, 0xe8eef4, 0xd3dae1, 0xe3ebf2],
   nacre: [0x221c36, 0x2f4c3c, 0x4a3a6c, 0x2a2440],
   amnion: [0x3a2a22, 0xc8b496, 0x8a6a50, 0xb89a78],
+  corona: [0x1e1814, 0x3a2e26, 0x5a4434, 0x2a201a],
   umbra: [0x16141e, 0x2e2a40, 0x4a4460, 0x24202e],
 };
 /** Khepri palette for the shared kit (docs/14 §2): graphite metal, ochre/rust paint, ochre dust, amber lamps. */

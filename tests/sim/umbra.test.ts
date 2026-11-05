@@ -29,13 +29,14 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     for (const seed of [1, 2, 3]) expect(resolvePlaylist({ mode: 'campaign', mission: 'final-horizon' }, 1, seed).length).toBeGreaterThan(35);
   });
 
-  it('THE ECLIPSE alone has a third first-phase target, its prow vent; every other boss keeps its pair and core', () => {
+  it('THE ECLIPSE (and THE HELIOPHAGE, its stand-in) alone has a third first-phase target, its prow vent; every other boss keeps its pair and core', () => {
     for (const id of Object.keys(BOSSES) as BossId[]) {
+      const prow = id === 'eclipse' || id === 'heliophage';
       const state = createRun({ mode: 'campaign', mission: 'final-horizon', seed: 1 });
       startBoss(state, BOSSES[id]);
       const parts = state.enemies.filter(enemy => enemy.bossPart).map(enemy => enemy.bossPart);
-      expect(parts, id).toEqual(id === 'eclipse' ? ['left', 'right', 'prow', 'core'] : ['left', 'right', 'core']);
-      expect(phaseOneParts(BOSSES[id]), id).toEqual(id === 'eclipse' ? ['left', 'right', 'prow'] : ['left', 'right']);
+      expect(parts, id).toEqual(prow ? ['left', 'right', 'prow', 'core'] : ['left', 'right', 'core']);
+      expect(phaseOneParts(BOSSES[id]), id).toEqual(prow ? ['left', 'right', 'prow'] : ['left', 'right']);
     }
     // Its hit circle sits apart from the reactor's and the vents' (docs/28): no shot can be ambiguous between them.
     const { left, right, core, prow } = BOSSES.eclipse.parts;

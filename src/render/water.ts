@@ -22,7 +22,8 @@ uniform float waterScroll;
 varying float vShore; varying float vDepth; varying vec2 vSea;`;
 const WATER_FRAGMENT_HEAD = /* glsl */`
 uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell; uniform float foamGlow; uniform vec3 bloomTint; uniform float bloomAmount;
-uniform float crisp;
+uniform float crisp; uniform float plasma; uniform vec3 plasmaHot;
+float plasmaHeat;
 varying float vShore; varying float vDepth; varying vec2 vSea;
 float seaHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
 float seaNoise( vec2 p ) {
@@ -55,7 +56,7 @@ export function createWater(): Water {
   const linear = (hex: number) => new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
   const uniforms = {
     waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 }, foamGlow: { value: 0 }, bloomTint: { value: new THREE.Color() }, bloomAmount: { value: 0 },
-    crisp: { value: 0 },
+    crisp: { value: 0 }, plasma: { value: 0 }, plasmaHot: { value: linear(0xffd27a) },
     deepColor: { value: linear(0x0d3557) }, shallowColor: { value: linear(0x1f6a8f) }, foamColor: { value: linear(0xeef6fb) },
   };
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0, envMapIntensity: 0.32 });
@@ -97,6 +98,30 @@ export function createWater(): Water {
   float foam = ( 1.0 - smoothstep( 0.04, 0.2 + 0.16 * lap, vShore ) ) * smoothstep( 0.22, 0.62, breakup + 0.25 * ( 1.0 - smoothstep( 0.0, 0.08, vShore ) ) );
   foam = clamp( foam, 0.0, 1.0 );
   diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * mix( 0.92, 0.2, bloomAmount ) );
+  // Corona (docs/37): radiant plasma, not lava. Slow convection cells (warped noise in the terrain frame, so they ride the
+  // scroll) with dark lanes between them, hottest toward the open sea, a white-hot seam where the plasma licks the black
+  // rock. The light is emissive; the surface itself stays dark so the glow carries the colour.
+  plasmaHeat = 0.0;
+  if ( plasma > 0.0 ) {
+    // Turbulence: a slow domain warp, then three octaves of churn riding it, so the light pools and swirls at every scale.
+    vec2 p = vSea * 0.3;
+    vec2 warp = vec2( seaNoise( p * 0.8 + waterTime * 0.02 ), seaNoise( p * 0.8 + 5.2 - waterTime * 0.017 ) ) - 0.5;
+    vec2 q = p * 1.7 + warp * 2.6 + vec2( waterTime * 0.025, -waterTime * 0.018 );
+    float body = seaNoise( q ) * 0.55 + seaNoise( q * 2.1 + 3.7 ) * 0.3 + seaNoise( q * 4.6 - 1.3 + waterTime * 0.05 ) * 0.15;
+    // Dark swirling veins (ridges of a second warped field): the cooler skin of the plasma.
+    float ridge = 1.0 - abs( 2.0 * ( seaNoise( q * 1.3 + warp * 3.0 + 8.0 ) * 0.7 + seaNoise( q * 3.1 + 2.0 ) * 0.3 ) - 1.0 );
+    float dark = smoothstep( 0.86, 0.98, ridge );
+    plasmaHeat = smoothstep( 0.2, 0.8, body ) * 0.85 + 0.5;
+    plasmaHeat *= 1.0 - 0.45 * dark;
+    // A fine web of white-hot filaments, only through the hottest pools.
+    vec2 crack = q * 3.2 + warp * 2.0;
+    float w = abs( seaNoise( crack ) - 0.5 );
+    float web = ( 1.0 - smoothstep( 0.0, 0.018 + fwidth( w ), w ) ) * smoothstep( 0.55, 0.85, body );
+    plasmaHeat += web * 0.45;
+    // Hottest along the rock, where it licks the islands (the shore band).
+    plasmaHeat = max( plasmaHeat, foam * 1.6 );
+    diffuseColor.rgb *= 0.25;
+  }
   // Vesper (crisp, 21 October: "improve the sharpness of the water"): sparse small whitecaps on the open sea, hard-edged
   // in pixels (fwidth), riding the swell; none in the calm water at the shore.
   if ( crisp > 0.0 ) {
@@ -111,7 +136,7 @@ export function createWater(): Water {
   }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor + seaNoise( vSea * 9.0 ) * .1, 0.85, foam );')
       // Nacre: the shoreline band glows (bioluminescent film) instead of reading as white foam.
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;\n  if ( plasma > 0.0 ) totalEmissiveRadiance += mix( mix( vec3( 0.8, 0.2, 0.012 ), deepColor, smoothstep( 0.45, 0.9, plasmaHeat ) ), plasmaHot, smoothstep( 1.0, 1.45, plasmaHeat ) ) * plasmaHeat * plasma;')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   // Swell normals (world space → view space); calmer and flatter right at the shore.
   vec2 waveSlope = swellGradient( vSea, waterTime ) * swell * mix( 0.45, 1.0, calm ) * ( 1.0 - foam * 0.7 );
@@ -137,7 +162,16 @@ export function createWater(): Water {
     update(time, distance) { uniforms.waterTime.value = time; uniforms.waterScroll.value = distance; },
     setEnvironment(texture) { if (material.envMap !== texture) { material.envMap = texture; material.needsUpdate = true; } },
     setPlanet(planet) {
-      const nacre = planet === 'nacre';
+      const nacre = planet === 'nacre', corona = planet === 'corona';
+      uniforms.plasma.value = 0;
+      if (corona) {
+        // Corona: orange-red plasma that burns yellow-white at the cell cores and along the rock; a slow heavy swell.
+        uniforms.deepColor.value.copy(linear(0xffbe36)); uniforms.shallowColor.value.copy(linear(0xffcc58));
+        uniforms.foamColor.value.copy(linear(0xfff4d0)); uniforms.plasmaHot.value.copy(linear(0xfff6dc));
+        uniforms.plasma.value = 1.25; uniforms.crisp.value = 0; uniforms.bloomAmount.value = 0; uniforms.swell.value = 0.35; uniforms.foamGlow.value = 0;
+        material.roughness = 0.5; material.envMapIntensity = 0.1;
+        return;
+      }
       // (Vesper since 21 October: deeper navy against brighter shallows, crisp ripples and whitecaps, tighter glints.)
       uniforms.deepColor.value.copy(linear(nacre ? 0x292e4c : 0x0f2b45)); uniforms.shallowColor.value.copy(linear(nacre ? 0x35455c : 0x2f6e88));
       uniforms.crisp.value = nacre ? 0 : 1;

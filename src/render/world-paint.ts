@@ -32,6 +32,8 @@ export const WORLD_PAINT: Readonly<Record<PlanetId, WorldPaint>> = {
   // Amnion (docs/27): flesh-dark to bone, with yolk glow.
   amnion: { dark: 0x3a1814, light: 0xd8c8a8, glow: 0xffc23a, accent: 0xb04a3a },
   // Umbra (docs/28): obsidian black to a cold violet sheen, violet glow.
+  // Corona's fleet (concept 03-craft): pale armour plates over dark frames, plasma-orange glow.
+  corona: { dark: 0x2a221c, light: 0xd8c8b4, glow: 0xffa040, accent: 0xc06a28 },
   umbra: { dark: 0x0e0c16, light: 0x5a5470, glow: 0x8a6cff, accent: 0x4a3a9a },
 };
 /** How far each kind of thing moves toward its world's ramp (0 keeps its authored paint). */
@@ -39,9 +41,9 @@ export type PaintTarget = 'craft' | 'building' | 'facility';
 const AMOUNT: Readonly<Record<PaintTarget, Readonly<Record<PlanetId, number>>>> = {
   // Khepri's craft and buildings are already rust and ochre: a light touch there.
   // (Vesper 0.75 → 0.85 on 3 November, with its own darker craft ramp: the hulls read over the bright snow.)
-  craft: { luna: 0.85, khepri: 0.35, vesper: 0.85, nacre: 0.65, amnion: 0.7, umbra: 0.7 },
-  building: { luna: 0.9, khepri: 0.3, vesper: 0.85, nacre: 0.7, amnion: 0.75, umbra: 0.75 },
-  facility: { luna: 0.75, khepri: 0.25, vesper: 0.7, nacre: 0.55, amnion: 0.6, umbra: 0.6 },
+  craft: { luna: 0.85, khepri: 0.35, vesper: 0.85, nacre: 0.65, amnion: 0.7, corona: 0.7, umbra: 0.7 },
+  building: { luna: 0.9, khepri: 0.3, vesper: 0.85, nacre: 0.7, amnion: 0.75, corona: 0.75, umbra: 0.75 },
+  facility: { luna: 0.75, khepri: 0.25, vesper: 0.7, nacre: 0.55, amnion: 0.6, corona: 0.6, umbra: 0.6 },
 };
 
 export interface WorldPaintUniforms {

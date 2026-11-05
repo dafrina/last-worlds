@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VEIL } from '../content/veil';
 import { CRADLE } from '../content/cradle';
 import { ECLIPSE } from '../content/eclipse';
-import { VIEW, type BossPart, type RunState } from '../shared/contracts';
+import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
 import { applySurfaceFinish } from './surface-finish';
 import { retainBossMaterials } from './approved-boss-materials';
@@ -59,7 +59,10 @@ const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
  * combat sockets; each has its own node prefix, model markers, shutter opening and spark colour.
  */
 export interface CarrierStyle {
-  id: 'veil' | 'cradle' | 'eclipse'; name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
+  id: 'veil' | 'cradle' | 'eclipse';
+  /** Other bosses this rig stands in for (THE HELIOPHAGE flies THE ECLIPSE until its own model: docs/37). */
+  stands?: readonly BossId[];
+  name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
   /** The boss's own combat sockets, target plane, arrival and bays (src/content/veil.ts, src/content/cradle.ts). */
   content: { podOffset: number; podS: number; heartS: number; targetHeight: number; arrivalDuration: number; bays: readonly { x: number; s: number }[];
     /** THE ECLIPSE's prow vent (node `<prefix>prow`, `_wreck`): a third first-phase target under its reactor, at x 0. */
@@ -85,7 +88,7 @@ export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', pr
  * sectors roll outward over their feet; it rises out of the abyss and hovers 1.2 over the plateau's level, its top under
  * the flight plane. Its prow vent (v2, 31 October) glows on the hull's front face under the reactor and has its own wreck.
  */
-export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE', prefix: 'eclipse_', markers: ['eclipse_approved_v1'], shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
+export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', stands: ['heliophage'], name: 'THE ECLIPSE', prefix: 'eclipse_', markers: ['eclipse_approved_v1'], shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
   content: { podOffset: ECLIPSE.ventOffset, podS: ECLIPSE.ventS, heartS: ECLIPSE.reactorS, targetHeight: ECLIPSE.targetHeight, arrivalDuration: ECLIPSE.arrivalDuration, bays: ECLIPSE.bays,
     prowS: ECLIPSE.prowS },
   footprint: { halfWidth: 10.2, front: 4.2, back: 9.1 } };
@@ -344,14 +347,15 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
     steam(at, seed * 3 + 1, size * .9);
   };
 
+  const mine = (id: BossId) => id === style.id || !!style.stands?.includes(id);
   return {
     footprint(state: RunState, placement: { s: number } | null) {
-      if (!state.boss || state.boss.id !== style.id || !placement) return null;
+      if (!state.boss || !mine(state.boss.id) || !placement) return null;
       const f = style.footprint;
       return { minX: state.boss.x - f.halfWidth, maxX: state.boss.x + f.halfWidth, minS: state.distance + placement.s - f.front, maxS: state.distance + placement.s + f.back };
     },
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
-      const boss = state.boss && state.boss.id === style.id ? state.boss : null;
+      const boss = state.boss && mine(state.boss.id) ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
       const groundShift = lastTime < 0 || state.time < lastTime ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;

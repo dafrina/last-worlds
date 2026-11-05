@@ -297,10 +297,16 @@ describe('cue sequence hazard unions', () => {
     { label: 'endless sectors 2-4 (Khepri, Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 2, bosses: ['bastion'], planets: ['khepri'] },
     { label: 'endless sectors 5-7 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['ark'], planets: ['vesper'] },
     { label: 'endless sectors 8-10 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['veil'], planets: ['nacre'] },
-    // Later visits (peak playlists, capped ramp): Khepri's Bastion-9, then Vesper and Nacre.
-    { label: 'endless capped sector 13 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 13, bosses: ['bastion'], planets: ['khepri'] },
-    { label: 'endless capped sectors 14-16 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['ark'], planets: ['vesper'] },
-    { label: 'endless capped sectors 17-19 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['veil'], planets: ['nacre'] },
+    { label: 'endless sectors 11-13 (Amnion, THE CRADLE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 11, bosses: ['cradle'], planets: ['amnion'] },
+    { label: 'endless sectors 14-16 (Corona, THE HELIOPHAGE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['heliophage'], planets: ['corona'] },
+    { label: 'endless sectors 17-19 (Umbra, THE ECLIPSE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['eclipse'], planets: ['umbra'] },
+    // Later visits (peak playlists, capped ramp): Khepri's Bastion-9, then every other world in turn.
+    { label: 'endless capped sector 22 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 22, bosses: ['bastion'], planets: ['khepri'] },
+    { label: 'endless capped sectors 23-25 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 23, bosses: ['ark'], planets: ['vesper'] },
+    { label: 'endless capped sectors 26-28 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 26, bosses: ['veil'], planets: ['nacre'] },
+    { label: 'endless capped sectors 29-31 (Amnion, THE CRADLE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 29, bosses: ['cradle'], planets: ['amnion'] },
+    { label: 'endless capped sectors 32-34 (Corona, THE HELIOPHAGE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 32, bosses: ['heliophage'], planets: ['corona'] },
+    { label: 'endless capped sectors 35-37 (Umbra, THE ECLIPSE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 35, bosses: ['eclipse'], planets: ['umbra'] },
   ];
 
   it.each(runs)('$label keeps the union fair on the perfect, idle and dodger branches', ({ label, config, seconds, sector, bosses, planets }) => {

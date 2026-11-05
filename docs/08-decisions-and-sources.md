@@ -285,3 +285,17 @@ User answers after reviewing the merged strike sites and encounter deck:
   - **Measured** (perfect pilot, sectors 1–9): per sector 1.00 weapons (Fan 0.35, Rail 0.31, Seeker 0.25, Twin Pulse 0.08 while it is the flown weapon), 0.99 power cells, 1.18 shields. Before: 0.86 weapons (Twin Pulse about 0), 2.4 power cells, 1.2 shields.
   - **Unchanged:** a weapon switch still resets the tier (user: "no" to keeping it).
 
+
+## 5 November 2026 — Corona and the full endless lap
+
+- **Corona, the Dying Star (docs/37):**
+  - the sixth campaign mission, Dying Star, between Brood Strike and Final Horizon;
+  - flies Umbra's fleet and the Wraith;
+  - THE HELIOPHAGE is THE ECLIPSE unchanged as a placeholder (user: "reuse the eclipse boss, no recolor or anything and same gameplay we will replace the boss later"), floating over the world's own ground ("no need for a special lava only lake for the boss");
+  - two new sites, the Star Extractor and the Solar Collector Array; the airfield is also offered there, recoloured only;
+  - twelve world missions, 625 coins and 5 parts;
+  - enemy fire is magenta on Corona, for contrast with the gold plasma and the player's cyan.
+- **Endless flies every world (user: "i thought every level will be used in succession in endless"; "no no warm up is fine"):**
+  - Luna once as the warm-up, then Khepri, Vesper, Nacre, Amnion, Corona and Umbra, three sectors each with its boss, repeated from Khepri. Before, only Khepri, Vesper and Nacre repeated; Amnion and Umbra were never added.
+  - A lap is now 18 sectors, not 9, and the late worlds carry their campaign intensity.
+  - Fairness checks fly each world's first stint and a capped later visit to each: all pass.

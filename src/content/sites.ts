@@ -67,6 +67,8 @@ export const SITE_CORE_HEIGHT: Readonly<Record<SiteId, number>> = {
   'gate-ring': 1.55,
   'brood-hive': .85,
   'spawning-pool': 1.45,
+  'star-extractor': 1.6,
+  'solar-collector': 2.2,
 };
 /** Score for destroying a site's core, in both modes. */
 export const SITE_SCORE = 500;
@@ -96,13 +98,15 @@ const shieldSite = { loot: { kind: 'shield', value: 1 }, endless: { kind: 'shiel
  */
 export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
   'crash-site': {
-    id: 'crash-site', name: 'CRASH SITE', worlds: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'], weight: 1, core: CORE, ...partSite(1),
+    id: 'crash-site', name: 'CRASH SITE', worlds: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra'], weight: 1, core: CORE, ...partSite(1),
     guard: { ...on(['luna', 'khepri'], [g('site-turrets-3'), g('solo-weaver', -1.5)]), vesper: [g('site-missiles-3'), g('needle-solo', -1.5)],
-      ...on(['nacre', 'amnion', 'umbra'], [g('site-mixed-3'), g('solo-weaver', -1.5)]) },
+      ...on(['nacre', 'amnion', 'corona', 'umbra'], [g('site-mixed-3'), g('solo-weaver', -1.5)]) },
   },
   airfield: {
-    id: 'airfield', name: 'AIRFIELD', worlds: FRONTIER, weight: 1, core: CORE, ...partSite(1),
-    guard: { ...on(['luna', 'khepri'], [g('site-turrets-3'), g('site-scramble', -1)]), vesper: [g('site-missiles-3'), g('needle-solo', -1.5)] },
+    // Also on Corona (user, 5 November: "the normal airfield ... just retextured/reskinned", its frontier model recoloured).
+    id: 'airfield', name: 'AIRFIELD', worlds: [...FRONTIER, 'corona'], weight: 1, core: CORE, ...partSite(1),
+    guard: { ...on(['luna', 'khepri'], [g('site-turrets-3'), g('site-scramble', -1)]), vesper: [g('site-missiles-3'), g('needle-solo', -1.5)],
+      corona: [g('site-mixed-3'), g('site-scramble', -1)] },
   },
   'salvage-yard': {
     id: 'salvage-yard', name: 'SALVAGE YARD', worlds: FRONTIER, weight: 0.3, core: { ...CORE, hp: 150 }, ...partSite(3),
@@ -148,6 +152,16 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
   'spawning-pool': {
     id: 'spawning-pool', name: 'SPAWNING POOL', worlds: BROOD, weight: 1, core: CORE, ...shieldSite,
     guard: on(BROOD, [g('site-mixed-2')]),
+  },
+  // Corona's own (docs/37; user, 5 November: "2 special side route sites, one should be a star extractor facility"; the
+  // second the Solar Collector Array from the infrastructure sheet).
+  'star-extractor': {
+    id: 'star-extractor', name: 'STAR EXTRACTOR', worlds: ['corona'], weight: 1, core: CORE, ...partSite(1),
+    guard: { corona: [g('site-mixed-3'), g('needle-solo', -1.5)] },
+  },
+  'solar-collector': {
+    id: 'solar-collector', name: 'SOLAR COLLECTOR ARRAY', worlds: ['corona'], weight: 1, core: CORE, ...shieldSite,
+    guard: { corona: [g('site-mixed-2')] },
   },
 };
 

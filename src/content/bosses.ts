@@ -82,6 +82,36 @@ export interface BossDefinition {
   messages: { start: string; batteries: string; core: string; overload: string; destroyed: string; approach: string };
 }
 
+/** THE ECLIPSE (docs/28), also THE HELIOPHAGE's placeholder (docs/37). */
+const ECLIPSE_BOSS: BossDefinition = {
+  id: 'eclipse', name: 'THE ECLIPSE',
+  arrivesAt: ECLIPSE.arrivesAt, approachEndsAt: ECLIPSE.approachEndsAt, arrivalDuration: ECLIPSE.arrivalDuration,
+  entryS: ECLIPSE.entryS, row: ECLIPSE.row, targetHeight: ECLIPSE.targetHeight,
+  parts: {
+    left: { x: -ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
+    right: { x: ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
+    core: { x: 0, s: ECLIPSE.reactorS, radius: ECLIPSE.reactorRadius, hp: ECLIPSE.reactorHp },
+    prow: { x: 0, s: ECLIPSE.prowS, radius: ECLIPSE.prowRadius, hp: ECLIPSE.ventHp },
+  },
+  pairAttack: 'burst', coreAttack: 'fan-burst',
+  warning: ECLIPSE.warning, laser: null, beamWarning: ECLIPSE.beamWarning, overload: ECLIPSE.overload,
+  overloadMoves: ['core-lane', 'spiral', 'fan', 'side-lanes', 'burst', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
+  coreMoves: ['spiral', 'burst', 'burst', 'fan'],
+  spiral: { arms: 4, turn: -2.05, interval: 0.16, duration: 2.6, speed: 5 },
+  recovery: ECLIPSE.recovery, transitionRecovery: ECLIPSE.transitionRecovery,
+  overloadFraction: ECLIPSE.overloadFraction, extractionDuration: DEPARTURE.duration,
+  // Its prow vent (the third first-phase target, user 31 October) fires the vents' aimed burst in their rotation.
+  bursts: { pair: ECLIPSE.ventBurst, core: ECLIPSE.reactorBurst }, fan: ECLIPSE.reactorFan,
+  // Drone waves from its vents while its reactor is open, and more once it overloads.
+  launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: ECLIPSE.bays },
+  arena: ECLIPSE.arena, shieldSupplies: ECLIPSE.shieldSupplies,
+  messages: {
+    start: 'THE ECLIPSE · BREAK ALL THREE ENERGY VENTS', batteries: 'BREAK ALL THREE ENERGY VENTS', core: 'THE REACTOR IS OPEN',
+    overload: 'REACTOR OVERLOAD · SPIRALS AND LANES', destroyed: 'THE ECLIPSE IS FALLING · JUMP',
+    approach: 'THE LIGHT IS DYING · THE ECLIPSE AWAKENS',
+  },
+};
+
 export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   bastion: {
     id: 'bastion', name: 'BASTION-9',
@@ -209,38 +239,21 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       approach: 'THE GROUND IS MOVING · THE CRADLE STIRS',
     },
   },
-  eclipse: {
-    id: 'eclipse', name: 'THE ECLIPSE',
-    arrivesAt: ECLIPSE.arrivesAt, approachEndsAt: ECLIPSE.approachEndsAt, arrivalDuration: ECLIPSE.arrivalDuration,
-    entryS: ECLIPSE.entryS, row: ECLIPSE.row, targetHeight: ECLIPSE.targetHeight,
-    parts: {
-      left: { x: -ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
-      right: { x: ECLIPSE.ventOffset, s: ECLIPSE.ventS, radius: ECLIPSE.ventRadius, hp: ECLIPSE.ventHp },
-      core: { x: 0, s: ECLIPSE.reactorS, radius: ECLIPSE.reactorRadius, hp: ECLIPSE.reactorHp },
-      prow: { x: 0, s: ECLIPSE.prowS, radius: ECLIPSE.prowRadius, hp: ECLIPSE.ventHp },
-    },
-    pairAttack: 'burst', coreAttack: 'fan-burst',
-    warning: ECLIPSE.warning, laser: null, beamWarning: ECLIPSE.beamWarning, overload: ECLIPSE.overload,
-    overloadMoves: ['core-lane', 'spiral', 'fan', 'side-lanes', 'burst', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
-    coreMoves: ['spiral', 'burst', 'burst', 'fan'],
-    spiral: { arms: 4, turn: -2.05, interval: 0.16, duration: 2.6, speed: 5 },
-    recovery: ECLIPSE.recovery, transitionRecovery: ECLIPSE.transitionRecovery,
-    overloadFraction: ECLIPSE.overloadFraction, extractionDuration: DEPARTURE.duration,
-    // Its prow vent (the third first-phase target, user 31 October) fires the vents' aimed burst in their rotation.
-    bursts: { pair: ECLIPSE.ventBurst, core: ECLIPSE.reactorBurst }, fan: ECLIPSE.reactorFan,
-    // Drone waves from its vents while its reactor is open, and more once it overloads.
-    launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: ECLIPSE.bays },
-    arena: ECLIPSE.arena, shieldSupplies: ECLIPSE.shieldSupplies,
+  eclipse: ECLIPSE_BOSS,
+  // Corona's boss, a placeholder (user, 5 November: "reuse the eclipse boss, no recolor or anything and same gameplay we
+  // will replace the boss later"): THE ECLIPSE's model, parts and moves under its own name (docs/37).
+  heliophage: {
+    ...ECLIPSE_BOSS, id: 'heliophage', name: 'THE HELIOPHAGE',
     messages: {
-      start: 'THE ECLIPSE · BREAK ALL THREE ENERGY VENTS', batteries: 'BREAK ALL THREE ENERGY VENTS', core: 'THE REACTOR IS OPEN',
-      overload: 'REACTOR OVERLOAD · SPIRALS AND LANES', destroyed: 'THE ECLIPSE IS FALLING · JUMP',
-      approach: 'THE LIGHT IS DYING · THE ECLIPSE AWAKENS',
+      start: 'THE HELIOPHAGE · BREAK ALL THREE FLARE VENTS', batteries: 'BREAK ALL THREE FLARE VENTS', core: 'THE STAR-HEART IS OPEN',
+      overload: 'STAR-HEART OVERLOAD · SPIRALS AND LANES', destroyed: 'THE HELIOPHAGE IS FALLING · JUMP',
+      approach: 'THE STAR FLARES · THE HELIOPHAGE RISES',
     },
   },
 };
 
 /** The boss that ends a campaign mission, if any. */
-export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark', 'brood-strike': 'cradle', 'final-horizon': 'eclipse' };
+export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark', 'brood-strike': 'cradle', 'dying-star': 'heliophage', 'final-horizon': 'eclipse' };
 
 export function missionBoss(mission: MissionId | undefined): BossDefinition | null {
   const id = mission ? MISSION_BOSS[mission] : null;

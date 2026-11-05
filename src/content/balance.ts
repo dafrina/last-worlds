@@ -145,7 +145,8 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
  */
 // 15 October (user): Rolling Thunder slightly harder (×0.92); Deep Bloom, now the final mission, the hardest (×0.92).
 // 23 October: Brood Strike, the new final mission, starts at Deep Bloom's pressure (to be tuned after play).
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92, 'final-horizon': 0.92 };
+// 5 November: Dying Star (Corona) as Brood Strike and Final Horizon until it is played.
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92, 'dying-star': 0.92, 'final-horizon': 0.92 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3 };
@@ -173,6 +174,8 @@ export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: 
   nacre: { flight: 1.1, shot: 1.1, cadence: 0.5 },
   // Amnion (23 October) starts at Nacre's intensity; it is not harder until it has been played.
   amnion: { flight: 1.1, shot: 1.1, cadence: 0.5 },
+  // Corona (5 November, between Amnion and Umbra) as Amnion: not harder until it has been played.
+  corona: { flight: 1.1, shot: 1.1, cadence: 0.5 },
   // Umbra (24 October) as Amnion: the final planet is not made harder before it has been played.
   umbra: { flight: 1.1, shot: 1.1, cadence: 0.5 },
 };

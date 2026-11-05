@@ -44,6 +44,7 @@ const LEVELS: readonly { mission: Mission; name: string; planet: PlanetId }[] = 
   { mission: 'cold-vector', name: 'Cold Vector · Vesper', planet: 'vesper' },
   { mission: 'deep-bloom', name: 'Deep Bloom · Nacre', planet: 'nacre' },
   { mission: 'brood-strike', name: 'Brood Strike · Amnion', planet: 'amnion' },
+  { mission: 'dying-star', name: 'Dying Star · Corona', planet: 'corona' },
   { mission: 'final-horizon', name: 'Final Horizon · Umbra', planet: 'umbra' },
 ];
 const STORE = 'last-worlds.playground.looks', VIEW_STORE = 'last-worlds.playground.view';

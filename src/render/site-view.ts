@@ -87,7 +87,7 @@ const SQUASH_MIN = .35;
 export const SITE_FOUNDATION_MAX = SITE_DROP_MAX;
 /** Foundation blocks in each world's ground tone (Vesper's ice-shelf blocks, Umbra's obsidian). */
 const FOUNDATION_COLOR: Readonly<Record<PlanetId, number>> = {
-  luna: 0x8a8884, khepri: 0x7a4a2c, vesper: 0xd6e4f0, nacre: 0x2e2a42, amnion: 0x9a7a62, umbra: 0x17151f,
+  luna: 0x8a8884, khepri: 0x7a4a2c, vesper: 0xd6e4f0, nacre: 0x2e2a42, amnion: 0x9a7a62, corona: 0x2a2420, umbra: 0x17151f,
 };
 const FOUNDATION_CAPACITY = 240;
 /**

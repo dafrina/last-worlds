@@ -9,6 +9,7 @@ export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
   'deep-bloom': 'nacre',
   'cold-vector': 'vesper',
   'brood-strike': 'amnion',
+  'dying-star': 'corona',
   'final-horizon': 'umbra',
 };
 

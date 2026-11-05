@@ -5,6 +5,7 @@ import { runPlanet } from '../../src/content/missions';
 import { missionArena } from '../../src/render/scene';
 import { runRoute } from '../../src/render/terrain-route';
 import { NACRE_SEA_LEVEL } from '../../src/world/terrain-nacre';
+import { UMBRA_PLATEAU } from '../../src/world/terrain-umbra';
 import {
   ARENA_LEVEL, SEAM_CLEARANCE, inArenaCore, TERRAIN_STEP, VESPER_SEA_LEVEL, createTerrainStream, generateTerrainSection, sectionSource, sectionSteps, terrainHeight,
   type RouteSwap, type TerrainSection,
@@ -61,10 +62,10 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
     expect(schedule.planetAt(ki * L)).toBe('khepri'); expect(khepri.water).toBeUndefined();
   });
 
-  it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water', () => {
-    const arenas = schedule.arenas(0, 8000);
-    expect(arenas.map(arena => arena.boss).slice(0, 5)).toEqual(['warden', 'bastion', 'ark', 'veil', 'bastion']);
-    for (const arena of arenas.slice(0, 4)) for (let s = arena.from + 0.5; s < arena.to; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
+  it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water, the late worlds\' arenas', () => {
+    const arenas = schedule.arenas(0, 16000);
+    expect(arenas.map(arena => arena.boss).slice(0, 8)).toEqual(['warden', 'bastion', 'ark', 'veil', 'cradle', 'heliophage', 'eclipse', 'bastion']);
+    for (const arena of arenas.slice(0, 7)) for (let s = arena.from + 0.5; s < arena.to; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
       // The boss clearing (its core oval); the planet's own terrain carries on around it.
       if (!inArenaCore({ fromS: arena.from, toS: arena.to }, x, s)) continue;
       const height = terrainHeight(SEED, x, s, route);
@@ -74,6 +75,11 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       else if (arena.planet === 'nacre') expect(height).toBeLessThan(NACRE_SEA_LEVEL - 0.2);
       // Khepri's paved floor (as in Rolling Thunder).
       else if (arena.planet === 'khepri') expect(Math.abs(height - ARENA_LEVEL)).toBeLessThan(0.25);
+      // Amnion: THE CRADLE's flesh canyon, its serrated lips standing in the core as in Brood Strike (about 0.6 there too).
+      else if (arena.planet === 'amnion') continue;
+      // Umbra's abyss: nothing in the core above the plateau. Corona keeps its own islands and plasma, levelled of mesas.
+      else if (arena.planet === 'umbra') expect(height).toBeLessThan(UMBRA_PLATEAU + 0.05);
+      else if (arena.planet === 'corona') expect(height).toBeLessThan(UMBRA_PLATEAU + 0.3);
       else expect(height).toBeLessThan(SEA - 0.5);
     }
   });

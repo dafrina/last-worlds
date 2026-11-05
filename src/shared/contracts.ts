@@ -7,15 +7,15 @@ export type WeaponId = 'pulse' | 'fan' | 'seeker' | 'rail';
 export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance' | 'gravity-well';
 export type ShieldTechId = 'standard' | 'bulwark' | 'aegis';
 export type ShipId = 'scrapper' | 'ironclad' | 'interceptor' | 'spectre';
-export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'final-horizon';
+export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'dying-star' | 'final-horizon';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
-export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre' | 'amnion' | 'umbra';
+export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre' | 'amnion' | 'corona' | 'umbra';
 /**
  * Boss modules. Bastion-9: batteries and core. Helion Ark: radiators (left/right) and bridge (core). `prow` is an optional
  * third first-phase module that only THE ECLIPSE has (its prow vent, user, 31 October); every other boss has none.
  */
 export type BossPart = 'left' | 'right' | 'core' | 'prow';
-export type BossId = 'bastion' | 'ark' | 'warden' | 'veil' | 'cradle' | 'eclipse';
+export type BossId = 'bastion' | 'ark' | 'warden' | 'veil' | 'cradle' | 'eclipse' | 'heliophage';
 export interface BossState {
   /** World distance at the wreck's last update: it falls behind by the distance flown since (destroyed phase). */
   wreckDistance?: number;
@@ -40,7 +40,7 @@ export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** `pulsar` (Nacre, 17 October 2026) fires a rapid burst stream down one committed line. */
 /** Strike sites (docs/33): optional side-route targets, one model each with a finish per world. */
 export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot', 'relay-station', 'freight-terminal',
-  'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool'] as const;
+  'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool', 'star-extractor', 'solar-collector'] as const;
 export type SiteId = (typeof SITE_IDS)[number];
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean; dashPressed?: -1 | 1 }

@@ -6,7 +6,7 @@ interface Theme {
   title: string; bpm: number; root: number; chords: readonly (readonly number[])[];
   bass: readonly number[]; melody: readonly number[]; kick: readonly number[]; hats: readonly number[];
 }
-/** Six authored 32-bar arrangements. Offsets are semitones; -1 means rest, never a random note. */
+/** Seven authored 32-bar arrangements. Offsets are semitones; -1 means rest, never a random note. */
 export const THEMES: Record<PlanetId, Theme> = {
   luna: {
     title: 'Far Side Signal', bpm: 94, root: 50,
@@ -42,6 +42,14 @@ export const THEMES: Record<PlanetId, Theme> = {
     bass: [0, -1, 0, -1, -1, -1, -1, 7, -1, -1, 0, -1, -1, 12, -1, -1],
     melody: [12, -1, -1, 13, -1, -1, -1, 18, -1, -1, 13, -1, -1, 12, -1, -1],
     kick: [0, 2, 9, 11], hats: [3, 7, 10, 14],
+  },
+  // Corona (docs/37): driving and hot, the star's pressure in a fast minor pulse.
+  corona: {
+    title: 'Into the Corona', bpm: 126, root: 40,
+    chords: [[0, 7, 12, 15], [-4, 3, 8, 12], [-2, 5, 10, 14], [-5, 2, 7, 10]],
+    bass: [0, -1, 0, 12, 0, -1, 7, -1, 0, -1, 0, 12, -1, 7, 10, -1],
+    melody: [15, -1, 19, -1, 22, -1, 19, -1, 17, -1, -1, 15, -1, 12, -1, -1],
+    kick: [0, 4, 8, 11, 12], hats: [0, 2, 4, 6, 8, 10, 12, 14],
   },
   umbra: {
     title: 'A Line Through Silence', bpm: 90, root: 42,

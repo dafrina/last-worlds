@@ -189,6 +189,21 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'cradles-end', name: 'Cradle\'s End', text: 'Defeat THE CRADLE within 100 s of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 100 }) },
     { slug: 'sterilization', name: 'Sterilization', text: 'Defeat THE CRADLE without hull damage in its final stage.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
+  // Corona (docs/37; the user's go-ahead on the proposal, 5 November): the two new sites, the plasma sea and THE HELIOPHAGE.
+  'dying-star': world('corona', [
+    specialist(8, 25),
+    oldSchool(25, 'Dying Star'),
+    untouchable('Dying Star'),
+    hunterBounty(3),
+    long('starfall', 'Starfall', 'Destroy 20 strike sites, across runs.', 20, { kind: 'sites' }),
+    { slug: 'extractor-breaker', name: 'Extractor Breaker', text: 'Destroy 3 Star Extractors, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['star-extractor'] }) },
+    { slug: 'lights-out', name: 'Lights Out', text: 'Destroy a Solar Collector Array and complete the mission.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites', sites: ['solar-collector'], complete: true }) },
+    { slug: 'plasma-skimmer', name: 'Plasma Skimmer', text: 'Destroy 15 airborne enemies over the plasma sea with the Fan Cannon in one run.', goal: 15, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air-water', weapon: 'fan' }) },
+    { slug: 'wraith-exorcist', name: 'Wraith Exorcist', text: 'Destroy 3 Wraiths in one run.', goal: 3, credits: 75, parts: 0, difficulty: 'relaxed', ...run({ kind: 'wraiths' }) },
+    { slug: 'flare-dancer', name: 'Flare Dancer', text: 'Survive 4 Wraith volleys without a hit in one run.', goal: 4, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'wraith-clean', window: WRAITH_WINDOW }) },
+    { slug: 'veteran-of-the-dying-star', name: 'Veteran of the Dying Star', text: 'Complete Dying Star on Veteran.', goal: 1, credits: 100, parts: 1, difficulty: 'veteran', ...run({ kind: 'complete' }) },
+    { slug: 'sunburn', name: 'Sunburn', text: 'Defeat THE HELIOPHAGE within 60 seconds of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', within: 60 }) },
+  ]),
   'final-horizon': world('umbra', [
     specialist(8, 25),
     oldSchool(25, 'Final Horizon'),

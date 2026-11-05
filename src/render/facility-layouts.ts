@@ -89,6 +89,7 @@ const PALETTE: Record<FacilityWorld, Readonly<Record<string, readonly string[]>>
   // (Amnion builds no plants until its kit exists: PLANT_CHANCE 0.)
   amnion: { court: ['ring'] },
   // (Umbra builds no plants: PLANT_CHANCE 0; its structures are kit pieces.)
+  corona: { court: ['ring'] },
   umbra: { court: ['ring'] },
 };
 
@@ -96,12 +97,12 @@ const PALETTE: Record<FacilityWorld, Readonly<Record<string, readonly string[]>>
  * Share of a world's eligible batteries that get a plant (seeded per battery); the rest keep the legacy emplacement.
  * Luna keeps small sites; raised from .3 to .6 at the user's request on 22 October.
  */
-export const PLANT_CHANCE: Readonly<Record<FacilityWorld, number>> = { khepri: 1, vesper: 1, nacre: 1, luna: .6, amnion: 0, umbra: 0 };
+export const PLANT_CHANCE: Readonly<Record<FacilityWorld, number>> = { khepri: 1, vesper: 1, nacre: 1, luna: .6, amnion: 0, corona: 0, umbra: 0 };
 /**
  * Fewest modules a plant may have, not counting aprons or the plain ring. A sparser layout first retries with every
  * optional slot built, then gives way to another arrangement. Luna keeps its single small facilities.
  */
-export const MIN_MODULES: Readonly<Record<FacilityWorld, number>> = { khepri: 6, vesper: 6, nacre: 6, luna: 1, amnion: 6, umbra: 6 };
+export const MIN_MODULES: Readonly<Record<FacilityWorld, number>> = { khepri: 6, vesper: 6, nacre: 6, luna: 1, amnion: 6, corona: 6, umbra: 6 };
 /**
  * Ground slabs under a plant (round 2): tiles on a grid aligned to the gun that cover every module footprint grown by
  * `margin`, reaching at most `slack` beyond the plant's modules, capped at `max` tiles. Pipe connectors: at most
@@ -113,7 +114,7 @@ export const GROUND = { margin: .4, slack: 1.6, max: 48, links: 3 } as const;
  * each building (not its pipe runs) and the gun's court, so a spread-out plant has no bare paving between its buildings
  * (user, 22 October: "reduce the amount of empty aprons for khepri").
  */
-export const APRON_FIT: Readonly<Record<FacilityWorld, 'lot' | 'buildings'>> = { khepri: 'buildings', vesper: 'lot', nacre: 'lot', luna: 'lot', amnion: 'lot', umbra: 'lot' };
+export const APRON_FIT: Readonly<Record<FacilityWorld, 'lot' | 'buildings'>> = { khepri: 'buildings', vesper: 'lot', nacre: 'lot', luna: 'lot', amnion: 'lot', corona: 'lot', umbra: 'lot' };
 
 const ALL_WORLDS: readonly FacilityWorld[] = ['khepri', 'vesper', 'nacre'];
 const ring = (chance: number): Slot => ({ key: 'court', pick: ['@court'], at: [0, 0], court: true, chance });

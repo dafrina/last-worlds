@@ -9,6 +9,7 @@ import { LUNA } from './terrain-luna';
 import { NACRE } from './terrain-nacre';
 import { AMNION } from './terrain-amnion';
 import { UMBRA } from './terrain-umbra';
+import { CORONA } from './terrain-corona';
 import { districtSettlement } from './terrain-districts';
 import { KHEPRI_DISTRICTS, type DistrictPolicy } from './settlement-grammars';
 import { SCENERY_MAX_HEIGHT, clamp, mix } from './terrain-layout';
@@ -113,7 +114,7 @@ export const KHEPRI: PlanetProfile = {
   districts: KHEPRI_DISTRICTS, cliffs: true,
 };
 
-export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE, amnion: AMNION, umbra: UMBRA };
+export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE, amnion: AMNION, corona: CORONA, umbra: UMBRA };
 
 /**
  * What the generator is asked for: a planet and an optional mission arena. A bare arena (the pre-planet API)

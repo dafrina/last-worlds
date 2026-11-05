@@ -54,7 +54,7 @@ export interface ModelRef { file: string; node: string | null; scale: number }
 /** The model a kind flies on a world, in the renderer's order of precedence (src/render/scene.ts, the enemy batches). */
 export function modelOf(planet: PlanetId, kind: EnemyKind, pod = false): ModelRef {
   if (kind === 'fuel') return { file: 'shared/loot-props.glb', node: 'loot_fuel', scale: 1 };
-  if (planet === 'umbra') {
+  if (planet === 'umbra' || planet === 'corona') {
     if (pod) return { file: 'umbra/umbra-craft.glb', node: 'umbra_drone', scale: UMBRA_DRONE_SCALE };
     if (kind === 'wraith') return { file: 'umbra/wraith-v2.glb', node: 'umbra_wraith', scale: 0.76 };
     return { file: 'umbra/umbra-craft.glb', node: UMBRA_CRAFT[kind].node, scale: UMBRA_CRAFT[kind].scale };
@@ -96,7 +96,7 @@ export function viewerModels(): ViewerModel[] {
   }
   for (const { planet, name } of WORLDS) {
     const pod = modelOf(planet, 'dart', true);
-    if (planet === 'nacre' || planet === 'amnion' || planet === 'umbra') add(group(pod.file), pod.file, pod.node, pod.node ?? pod.file, `boss pod wave on ${name}`);
+    if (planet === 'nacre' || planet === 'amnion' || planet === 'umbra' || planet === 'corona') add(group(pod.file), pod.file, pod.node, pod.node ?? pod.file, `boss pod wave on ${name}`);
     add(group(modelOf(planet, hunterKind(planet)).file), modelOf(planet, hunterKind(planet)).file, modelOf(planet, hunterKind(planet)).node, modelOf(planet, hunterKind(planet)).node ?? '', `hunter on ${name}`);
   }
   for (const [boss, file] of Object.entries(BOSS_ASSETS)) add('Bosses', file, null, boss.toUpperCase(), 'boss');

@@ -25,14 +25,14 @@ function observedRun(config: Partial<RunConfig> = {}): RunState {
 }
 
 describe('world mission content (docs/35)', () => {
-  it('has twelve missions per world, unique ids, and the totals: 3,065 coins and 27 parts (long missions, 4 November)', () => {
+  it('has twelve missions per world, unique ids, and the totals: 3,690 coins and 32 parts (Dying Star, 5 November)', () => {
     const all = Object.values(WORLD_MISSIONS).flat();
-    expect(Object.values(WORLD_MISSIONS).map(list => list.length)).toEqual([12, 12, 12, 12, 12, 12]);
-    expect(new Set(all.map(m => m.id)).size).toBe(72);
+    expect(Object.values(WORLD_MISSIONS).map(list => list.length)).toEqual([12, 12, 12, 12, 12, 12, 12]);
+    expect(new Set(all.map(m => m.id)).size).toBe(84);
     const totals = Object.fromEntries(Object.entries(WORLD_MISSIONS).map(([id, list]) => [id, [list.reduce((s, m) => s + m.credits, 0), list.reduce((s, m) => s + m.parts, 0)]]));
-    expect(totals).toEqual({ training: [400, 5], bastion: [400, 4], 'cold-vector': [465, 4], 'deep-bloom': [550, 4], 'brood-strike': [625, 5], 'final-horizon': [625, 5] });
-    expect(all.reduce((s, m) => s + m.credits, 0)).toBe(3065);
-    expect(all.reduce((s, m) => s + m.parts, 0)).toBe(27);
+    expect(totals).toEqual({ training: [400, 5], bastion: [400, 4], 'cold-vector': [465, 4], 'deep-bloom': [550, 4], 'brood-strike': [625, 5], 'dying-star': [625, 5], 'final-horizon': [625, 5] });
+    expect(all.reduce((s, m) => s + m.credits, 0)).toBe(3690);
+    expect(all.reduce((s, m) => s + m.parts, 0)).toBe(32);
     // One long mission per world, fifth, across runs, 50 coins and a part; Groundbreaker's ids are retired.
     for (const list of Object.values(WORLD_MISSIONS)) {
       expect(list.filter(m => m.long).map(m => [list.indexOf(m), m.scope, m.credits, m.parts])).toEqual([[4, 'career', 50, 1]]);

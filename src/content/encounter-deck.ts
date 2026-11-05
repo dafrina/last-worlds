@@ -220,6 +220,8 @@ export const DECK_POOLS: Readonly<Record<PlanetId, Readonly<Record<DeckPhase, re
   vesper: { pressure: VESPER_PRESSURE_POOL, climax: VESPER_CLIMAX },
   nacre: { pressure: NACRE_PRESSURE_POOL, climax: NACRE_CLIMAX },
   amnion: { pressure: AMNION_PRESSURE, climax: AMNION_CLIMAX },
+  // Corona (docs/37) flies Umbra's fleet, the Wraith included (user, 5 November: "the same ships as umbra, with wraith").
+  corona: { pressure: UMBRA_PRESSURE, climax: UMBRA_CLIMAX },
   umbra: { pressure: UMBRA_PRESSURE, climax: UMBRA_CLIMAX },
 };
 
@@ -672,6 +674,11 @@ const BROOD_STRIKE_SORTIE = extend(BROOD_STRIKE, 62, 36, [
   draw({ at: 28, id: 'b-x-column', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
   draw({ at: 33, id: 'b-x-mortars', phase: 'pressure', formations: [f('missile-2')] }, 3),
 ]);
+/**
+ * Dying Star over Corona (docs/37, 5 November): Final Horizon's proven arc and pools under its own wave ids, until it is
+ * played and tuned for its own world.
+ */
+const DYING_STAR: readonly DeckSlot[] = FINAL_HORIZON.map(slot => moved(slot, 0, 'c-'));
 const FINAL_HORIZON_SORTIE = extend(FINAL_HORIZON, 62, 36, [
   fix({ at: 0, id: 'u-x-cells', phase: 'pressure', message: 'ENERGY CELLS ON THE GLASS PLAINS', formations: [f('depot-3')] }),
   draw({ at: 2, id: 'u-x-fighters', phase: 'pressure', formations: [f('line-weaver-4', -1)] }),
@@ -683,6 +690,7 @@ const FINAL_HORIZON_SORTIE = extend(FINAL_HORIZON, 62, 36, [
   draw({ at: 28, id: 'u-x-column', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
   draw({ at: 33, id: 'u-x-mortars', phase: 'pressure', formations: [f('missile-2')] }, 3),
 ]);
+const DYING_STAR_SORTIE: readonly DeckSlot[] = FINAL_HORIZON_SORTIE.map(slot => moved(slot, 0, 'c-'));
 const DEEP_BLOOM_SORTIE = extend(DEEP_BLOOM, 62, 36, [
   fix({ at: 0, id: 'n-x-depot', phase: 'pressure', message: 'FUEL DEPOTS IN THE GROVE', formations: [f('depot-3')] }),
   draw({ at: 2, id: 'n-x-weavers', phase: 'pressure', formations: [f('line-weaver-4', -1)] }),
@@ -704,13 +712,24 @@ const LUNA_PROLOGUE: readonly DeckSlot[] = TRAINING.filter(slot => slotAt(slot) 
  * climax roughly quadrupled the perfect pilot's hits in sector 9); later visits fly the climax arc throughout, a strike
  * site in the gap between its two halves. A boss sector's cutoff trims each list.
  */
-const NACRE_OPENING: readonly DeckSlot[] = DEEP_BLOOM.filter(slot => slotAt(slot) < 88);
-const NACRE_PRESSURE: readonly DeckSlot[] = DEEP_BLOOM.filter(slot => slotAt(slot) >= 62 && slotAt(slot) < 142).map(slot => moved(slot, -60, 'en2-'));
-const NACRE_PEAK: readonly DeckSlot[] = [
-  ...DEEP_BLOOM.filter(slot => slotAt(slot) >= 90 && slotAt(slot) < 142).map(slot => moved(slot, -88, 'en3-')),
-  side({ at: 52, id: 'en3-site' }),
-  ...DEEP_BLOOM.filter(slot => slotAt(slot) >= 16 && slotAt(slot) < 50).map(slot => moved(slot, 43, 'en3b-')),
-];
+/** Opening, pressure and peak stages from one of the late worlds' 142 s arcs (Deep Bloom's shape, every arc since). */
+function lateStages(arc: readonly DeckSlot[], prefix: string) {
+  return {
+    opening: arc.filter(slot => slotAt(slot) < 88),
+    pressure: arc.filter(slot => slotAt(slot) >= 62 && slotAt(slot) < 142).map(slot => moved(slot, -60, `${prefix}2-`)),
+    peak: [
+      ...arc.filter(slot => slotAt(slot) >= 90 && slotAt(slot) < 142).map(slot => moved(slot, -88, `${prefix}3-`)),
+      side({ at: 52, id: `${prefix}3-site` }),
+      ...arc.filter(slot => slotAt(slot) >= 16 && slotAt(slot) < 50).map(slot => moved(slot, 43, `${prefix}3b-`)),
+    ] as readonly DeckSlot[],
+  };
+}
+const NACRE_STAGES = lateStages(DEEP_BLOOM, 'en');
+/**
+ * Every world in campaign order (user, 5 November: "i thought every level will be used in succession in endless"):
+ * Amnion, Corona and Umbra are staged from their missions' arcs exactly as Nacre is from Deep Bloom.
+ */
+const AMNION_STAGES = lateStages(BROOD_STRIKE, 'ea'), CORONA_STAGES = lateStages(DYING_STAR, 'ec'), UMBRA_STAGES = lateStages(FINAL_HORIZON, 'eu');
 
 const template = (id: string, world: PlanetId, teach: boolean, slots: readonly DeckSlot[], campaign = false): DeckTemplate => ({ id, world, teach, slots, ...(campaign ? { campaign } : {}) });
 
@@ -721,6 +740,7 @@ export const CAMPAIGN_DECKS: Readonly<Record<MissionId, DeckTemplate>> = {
   'cold-vector': template('cold-vector', MISSION_PLANET['cold-vector'], true, COLD_VECTOR_SORTIE, true),
   'deep-bloom': template('deep-bloom', MISSION_PLANET['deep-bloom'], true, DEEP_BLOOM_SORTIE, true),
   'brood-strike': template('brood-strike', MISSION_PLANET['brood-strike'], true, BROOD_STRIKE_SORTIE, true),
+  'dying-star': template('dying-star', MISSION_PLANET['dying-star'], true, DYING_STAR_SORTIE, true),
   'final-horizon': template('final-horizon', MISSION_PLANET['final-horizon'], true, FINAL_HORIZON_SORTIE, true),
 };
 
@@ -736,9 +756,18 @@ export const ENDLESS_DECKS = {
   vesperOpening: template('endless-vesper-opening', 'vesper', true, VESPER_OPENING),
   vesperPressure: template('endless-vesper-pressure', 'vesper', false, VESPER_PRESSURE),
   vesperPeak: template('endless-vesper-peak', 'vesper', false, VESPER_PEAK),
-  nacreOpening: template('endless-nacre-opening', 'nacre', true, NACRE_OPENING),
-  nacrePressure: template('endless-nacre-pressure', 'nacre', false, NACRE_PRESSURE),
-  nacrePeak: template('endless-nacre-peak', 'nacre', false, NACRE_PEAK),
+  nacreOpening: template('endless-nacre-opening', 'nacre', true, NACRE_STAGES.opening),
+  nacrePressure: template('endless-nacre-pressure', 'nacre', false, NACRE_STAGES.pressure),
+  nacrePeak: template('endless-nacre-peak', 'nacre', false, NACRE_STAGES.peak),
+  amnionOpening: template('endless-amnion-opening', 'amnion', true, AMNION_STAGES.opening),
+  amnionPressure: template('endless-amnion-pressure', 'amnion', false, AMNION_STAGES.pressure),
+  amnionPeak: template('endless-amnion-peak', 'amnion', false, AMNION_STAGES.peak),
+  coronaOpening: template('endless-corona-opening', 'corona', true, CORONA_STAGES.opening),
+  coronaPressure: template('endless-corona-pressure', 'corona', false, CORONA_STAGES.pressure),
+  coronaPeak: template('endless-corona-peak', 'corona', false, CORONA_STAGES.peak),
+  umbraOpening: template('endless-umbra-opening', 'umbra', true, UMBRA_STAGES.opening),
+  umbraPressure: template('endless-umbra-pressure', 'umbra', false, UMBRA_STAGES.pressure),
+  umbraPeak: template('endless-umbra-peak', 'umbra', false, UMBRA_STAGES.peak),
 } as const satisfies Readonly<Record<string, DeckTemplate>>;
 
 /**
@@ -751,6 +780,9 @@ export function endlessTemplate(sector: number): DeckTemplate {
   const stage = (cycleSector(sector) - 1) % 3, first = isFirstVisit(sector);
   switch (endlessPlanet(sector)) {
     case 'nacre': return first ? (stage === 0 ? ENDLESS_DECKS.nacreOpening : ENDLESS_DECKS.nacrePressure) : ENDLESS_DECKS.nacrePeak;
+    case 'amnion': return first ? (stage === 0 ? ENDLESS_DECKS.amnionOpening : ENDLESS_DECKS.amnionPressure) : ENDLESS_DECKS.amnionPeak;
+    case 'corona': return first ? (stage === 0 ? ENDLESS_DECKS.coronaOpening : ENDLESS_DECKS.coronaPressure) : ENDLESS_DECKS.coronaPeak;
+    case 'umbra': return first ? (stage === 0 ? ENDLESS_DECKS.umbraOpening : ENDLESS_DECKS.umbraPressure) : ENDLESS_DECKS.umbraPeak;
     case 'vesper': return first ? (stage === 0 ? ENDLESS_DECKS.vesperOpening : ENDLESS_DECKS.vesperPressure) : ENDLESS_DECKS.vesperPeak;
     default: return first ? (stage === 0 ? ENDLESS_DECKS.khepriOpening : ENDLESS_DECKS.khepriPressure) : ENDLESS_DECKS.khepriPeak;
   }

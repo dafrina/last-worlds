@@ -553,10 +553,12 @@ export function createTerrainView(options: TerrainViewOptions) {
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     if (planet === 'amnion') jobs.push(loadAmnionKit(`${base}assets/amnion/amnion-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
-    if (planet === 'umbra') jobs.push(loadUmbraKit(`${base}assets/umbra/umbra-kit.glb`, `${base}assets/umbra/floating-shards-v2.glb`)
+    // Corona (docs/37) flies over Umbra's landform and kit until its own kit exists.
+    if (planet === 'umbra' || planet === 'corona') jobs.push(loadUmbraKit(`${base}assets/umbra/umbra-kit.glb`, `${base}assets/umbra/floating-shards-v2.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // Cliff walls (docs/26 §11): Khepri's columnar basalt walls and Vesper's ice-shelf walls.
-    const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' ? 'khepri' : planet === 'amnion' ? 'amnion' : planet === 'umbra' ? 'umbra' : null;
+    // (Corona flies Khepri's columnar basalt walls, charcoal: user, 5 November, "couldnt you use khepris basalt columns".)
+    const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' || planet === 'corona' ? 'khepri' : planet === 'amnion' ? 'amnion' : planet === 'umbra' ? 'umbra' : null;
     if (cliffs) jobs.push(loadCliffKit(`${base}assets/${cliffs}/${cliffs === 'umbra' ? 'cliff-kit-v2.glb' : 'cliff-kit.glb'}`, cliffs)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // The planet's own wall maps (Vesper's ice walls), so walls never sharpen late; failures settle (procedural detail).

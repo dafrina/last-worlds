@@ -13,10 +13,10 @@ const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set(['needle', 'diamond', 'miss
 function holdFire(state: RunState) { state.nextVolleyAt = Infinity; }
 
 describe('endless schedule', () => {
-  it('opens with the Luna prologue, then cycles Khepri, Vesper and Nacre three sectors at a time, each stint ending with its boss', () => {
-    const planets = Array.from({ length: 13 }, (_, i) => endlessPlanet(i + 1));
-    expect(planets).toEqual(['luna', 'khepri', 'khepri', 'khepri', 'vesper', 'vesper', 'vesper', 'nacre', 'nacre', 'nacre', 'khepri', 'khepri', 'khepri']);
-    expect([1, 4, 7, 10, 13, 16, 19].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'ark', 'veil', 'bastion', 'ark', 'veil']);
+  it('opens with the Luna prologue, then cycles every world in campaign order three sectors at a time, each stint ending with its boss', () => {
+    const planets = Array.from({ length: 22 }, (_, i) => endlessPlanet(i + 1));
+    expect(planets).toEqual(['luna', ...['khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra', 'khepri'].flatMap(planet => [planet, planet, planet])]);
+    expect([1, 4, 7, 10, 13, 16, 19, 22, 25].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'ark', 'veil', 'cradle', 'heliophage', 'eclipse', 'bastion', 'ark']);
     expect([2, 3, 5, 6, 8].every(n => endlessSectorPlan(n).boss === null && !isBossSector(n))).toBe(true);
     // The prologue does not advance the ramps: Khepri's first sector (2) flies at the old sector 1 values.
     expect(sectorPace(1)).toBe(sectorPace(2));
@@ -152,7 +152,7 @@ describe('endless bosses and jumps', () => {
   it('flies Vesper kinds on Vesper and Khepri kinds on Khepri', () => {
     const state = createRun({ mode: 'endless', seed: 2 });
     state.player.weapon = 'seeker';
-    const seen: Record<string, Set<EnemyKind>> = { luna: new Set(), khepri: new Set(), nacre: new Set(), vesper: new Set() };
+    const seen: Record<string, Set<EnemyKind>> = { luna: new Set(), khepri: new Set(), nacre: new Set(), vesper: new Set(), amnion: new Set(), corona: new Set(), umbra: new Set() };
     // Fuel skids are neutral loot props on every planet; only the armed rosters are faction-specific.
     fly(state, perfectPilot(), 1700, { noPickups: true, onTick: s => { for (const enemy of s.enemies) if (!enemy.bossPart && !s.jump && enemy.kind !== 'fuel') seen[s.planet].add(enemy.kind); } });
     expect(state.sector).toBeGreaterThanOrEqual(9);
