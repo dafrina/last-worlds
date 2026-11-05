@@ -496,6 +496,9 @@ function graphStats(scene: THREE.Scene, names?: Record<string, number>) {
 
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The stencil marks the hero's pixels: the jump veil and a boss's death blasts never cover the ship (src/render/hero-stencil.ts).
+  // Diagnostics for High on a phone (`?fx=noshadow,nonormals`): drop the sun's shadow map or the terrain's normal maps, to
+  // tell which High-only feature shows an artefact. Off by default; never a gameplay input.
+  const fxOff = new Set(typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('fx') ?? '').split(',') : []);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', stencil: true });
   let quality: GraphicsQuality='high';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -505,7 +508,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.0;
   // High tier: real sun shadows (docs/05 §9 allows bounded shadow maps on higher tiers); Low keeps blob shadows.
   // Only meaningful casters are drawn into it: merged terrain caster strips, ground turrets and the fortress.
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.enabled = !fxOff.has('noshadow'); renderer.shadowMap.type = THREE.PCFShadowMap;
   // Stats accumulate over every pass of a frame (shadow map, scene, bloom), reset once per frame below.
   renderer.info.autoReset = false;
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x6a3a22);
@@ -536,7 +539,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const bounce = new THREE.DirectionalLight(0xd08050, 1.0);
   /** The active planet's sun (Khepri: SUN) and the bounce light's offset opposite it. */
   const sun = SUN.clone(), bounceOffset = new THREE.Vector3(-SUN.x, .32, -SUN.z).normalize().multiplyScalar(30);
-  sunlight.castShadow = true; sunlight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+  sunlight.castShadow = !fxOff.has('noshadow'); sunlight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
   sunlight.shadow.bias = -.0005; sunlight.shadow.normalBias = .025; sunlight.shadow.radius = 2.6; sunlight.shadow.intensity = .82;
   scene.add(hemisphere, sunlight, sunlight.target, bounce, bounce.target);
   // The shadow frustum is fitted once to the visible slab, then follows the view snapped to whole texels in the
@@ -570,7 +573,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** Shadow-depth materials of the craft batches, one per source material (casterDepthOf). */
   const casterDepths = new Map<THREE.Material, THREE.MeshDepthMaterial>();
   const bastion = createBastionView(scene);
-  const terrainMaterials = createTerrainMaterials();
+  const terrainMaterials = createTerrainMaterials(); if (fxOff.has('nonormals')) terrainMaterials.setNormalMaps(false);
   const groundMaterial = terrainMaterials.ground, kitMaterial = terrainMaterials.kit;
   const sharedMaterial = createSharedMaterial();
   // Prefiltered desert sky: craft metals and outpost machinery reflect warm light instead of reading flat black.
@@ -1448,10 +1451,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     },
     isReady: planetReady,
     setQuality(next) {
-      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
+      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high'&&!fxOff.has('nonormals'));fx.setQuality(next);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); resizePost();
       // Shadow maps are a High-tier feature; toggling them recompiles the affected programs once.
-      renderer.shadowMap.enabled = sunlight.castShadow = next === 'high';
+      renderer.shadowMap.enabled = sunlight.castShadow = next === 'high' && !fxOff.has('noshadow');
       warmed = false;
       scene.traverse(object => { const material = (object as THREE.Mesh).material; (Array.isArray(material) ? material : material ? [material] : []).forEach(m => { m.needsUpdate = true; }); });
       lastStatsTick=-Infinity;
@@ -2206,7 +2209,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },
-          calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
+          calls: renderer.info.render.calls, passes: { ...passes }, tier: quality, msaa: post.samples, camera: cameraMode, pixelRatio: renderer.getPixelRatio(),antialias:true,
           triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, programs: renderer.info.programs?.length ?? 0,
           textures: renderer.info.memory.textures, particles: fx.particles, fxCoverage: fx.coverage, laneCoverage: Math.round(laneArea / (VIEW.width * TACTICAL_HEIGHT) * 1000) / 1000, heroModel, facilities: facilities.stats, sites: sites.stats, enemies: [...counts.values()].reduce((n, count) => n + count, 0),
           predators: Object.fromEntries([...predatorBatches].map(([name, batch]) => [name, batch.mesh.count])),

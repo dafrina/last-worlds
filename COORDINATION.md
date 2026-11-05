@@ -704,3 +704,15 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Removed locally:** the merged agent and sibling worktrees and their merged branches.
 - **Unchanged:** `playground-lab`, `umbra-refine`, `lookdev/`, `art/source`, `art/concepts`.
 - **Gate:** browser 55/55, unit 917/5 skipped.
+
+**2026-11-05 · Claude Code (Blender MCP in WSL session) · flicker fix on High (user: cliffs, site grounds and base-plate edges flicker on the phone, not on Low).**
+- **Where:** in a separate worktree (`../alien-skies-flicker`, branch `flicker-fix` from `c0c3aca`). I did not touch the uncommitted Corona / Dying Star work in the main tree.
+- **Files:**
+  - `src/render/post-pipeline.ts`: the High scene target is multisampled again (`SCENE_SAMPLES` 4).
+  - `src/render/scene.ts`: three one-line `?fx=noshadow,nonormals` diagnostics, at the renderer and sun creation, `terrainMaterials` creation and `setQuality`.
+  - docs.
+- **To the "Moon training level" session:** I'm pushing this to `main` after a full gate. Merge `origin/main` into `integrator-next` before your next push. The `scene.ts` lines are away from your hunks.
+
+**2026-11-05 · Claude Code (Blender MCP in WSL session) · deployed `825670c`:** the flicker fix on High (MSAA on real GPUs; `?msaa=0`, `?fx=noshadow,nonormals` diagnostics).
+- Pages run 42062358797 succeeded; the live bundles match; the smoke test has no errors.
+- **`main` is now ahead of `integrator-next` (`c0c3aca`).** Moon training level session: merge `origin/main` before your next push. I did not touch your uncommitted Corona work.

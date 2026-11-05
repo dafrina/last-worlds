@@ -1,6 +1,33 @@
 # Build status
 
 
+## Flicker on High: the scene target multisampled again, 5 November 2026
+
+- **The user's report, on a phone:** Vesper's ice cliff faces still flashed, side routes' grounds flickered, and infrastructure base plates flickered at their edges, after `ea359ee` (near plane 20) and `c0c3aca` (walls apart, site overlays win). None of it on Low.
+- **Cause:**
+  - Low draws straight to the antialiased canvas.
+  - High renders the scene into a half-float target with `samples: 0` (since 14 October), and its FXAA smooths each frame's jaggies but not their crawl as the world scrolls.
+  - The 3 November Vesper contrast (blue-grey cliff walls, snow trims) and the strike sites put high-contrast fine detail and thin edges exactly there.
+  - Depth precision was already ample: 24-bit depth, near plane 20, and shadow texels snapped to the ground.
+- **Fix:** on a real GPU the High scene target is multisampled (`sceneSamples` 4, `src/render/post-pipeline.ts`). The depth and stencil are resolved for the fog and the hero mark. Tilers with `WEBGL_multisampled_render_to_texture` resolve in tile memory.
+  - **Software renderers** (SwiftShader, llvmpipe) keep the old target. A first gate with MSAA everywhere failed 6 of the first 26 browser specs under SwiftShader at load 20–29: two timeouts and frame-timed steering checks (the reason it was dropped on 14 October). No phone renders in software.
+  - The render stats report `msaa`.
+  - **Tests:** a unit test for the detection; a browser spec in which forced `?msaa=4` flies High with no page errors and the default stays at 0 under SwiftShader.
+- **Phone diagnostics:**
+  - `?msaa=0` restores the old target, for comparison (`?msaa=<n>` forces n samples).
+  - `?fx=noshadow` and `?fx=nonormals` drop the sun's shadow map or the terrain's normal maps on High. If anything still flickers, that tells which.
+- **Checked:**
+  - High stills, with and without MSAA at the same tick (Cold Vector, 30 s, 1.5× like a phone): no page errors; the hero, its mark and the fog are unchanged; panel slats and edges resolve more evenly.
+  - Typecheck clean; render tests 27/27.
+- **Not measured:** the GPU cost on a phone. SwiftShader has no GPU.
+- **Gate on `1053995`** (clean snapshot; the Corona session's unit runs held the load at 18–30):
+  - typecheck clean; unit 920 passed, 5 skipped; build passes;
+  - browser 55/56 (Playwright exit 1). The failure was endless steering, a frame-timed check that got 3.7 units sideways in 5 s, not 8.
+  - **Rerun:** failed again at load 27, then passed at load 12 (Playwright exit 0).
+  - The first gate's other failures came from MSAA under SwiftShader; this commit keeps MSAA off there.
+- **Live:** Pages run 42062358797 succeeded for `825670c`, and the live bundles (`main-1Swu0B9D.js`, `scene-DObrUJ50.js`) match the build. The endless smoke test has no page errors. Still to confirm: the phone test by the user.
+- **Coordination:** made in a separate worktree (`../alien-skies-flicker`, branch `flicker-fix` from `c0c3aca`), so the "Moon training level" session's uncommitted Corona level in the main tree was not touched. Merge `origin/main` before your next push.
+
 ## Repository cleanup, 4 November 2026
 
 User: "theres tons of screenshots and models we dont use. Clean it all up so we have a clean repo".
