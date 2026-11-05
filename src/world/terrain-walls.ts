@@ -73,8 +73,11 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
     (height(x + PROBE, s) - height(x - PROBE, s)) / (2 * PROBE), (height(x, s + PROBE) - height(x, s - PROBE)) / (2 * PROBE)];
   const slope = (x: number, s: number) => { const [gx, gs] = gradient(x, s); return Math.hypot(gx, gs); };
   const clear = (x: number, s: number) => Math.abs(x) < WORLD_HALF - 0.3 && !terrain.blocked(x, s) && terrain.industrial(x, s) < (o.padReach ?? 0.05);
-  // Cells whose centre lies in this section (half-open), so each cell belongs to exactly one section.
-  for (let j = Math.ceil(startS / cell - 0.5); (j + 0.5) * cell < startS + size; j++) {
+  // Cells whose centre lies in this section (half-open), so each cell belongs to exactly one section. The row before it
+  // (the previous section's last) is evaluated too but not emitted: a wall it placed keeps this section from placing a
+  // copy beside it across the boundary.
+  const first = Math.ceil(startS / cell - 0.5), placed: KitInstance[] = [];
+  for (let j = first - 1; (j + 0.5) * cell < startS + size; j++) {
     yield;
     const cs = (j + 0.5) * cell;
     for (let i = 0; i < columns; i++) {
@@ -124,7 +127,13 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
         // +Z (the front) out and downhill: the rotation that maps local +Z to world (−ux, −us).
         rotation: Math.atan2(-ux, us), shade: terrain.shade(x, s), cosmetic: false,
       };
-      out.push(wall);
+      // One wall per spot (user, 5 November: "Maybe a bug in cliff placing places twice the cliff models"): two cells on
+      // one face (one at the rim, one below it) walk down to the same foot; the second copy stood within a few
+      // centimetres of the first, the two fighting for the same pixels (the flicker of a dark block on phones).
+      if (placed.some(other => Math.hypot(other.x - x, other.s - s) < WALL_CELL * .5
+        && Math.abs(Math.atan2(Math.sin(other.rotation - wall.rotation), Math.cos(other.rotation - wall.rotation))) < Math.PI / 3)) continue;
+      placed.push(wall);
+      if (j >= first) out.push(wall);
     }
   }
   return o.minRun ? inRuns(out, o.minRun, startS, size) : out;

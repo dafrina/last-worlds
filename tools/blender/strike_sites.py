@@ -743,8 +743,11 @@ def shield_depot(world):
     rng = random.Random(61)
     C, R = CORE_HEIGHT['shield-depot'], 1.35
     disc(body, 0, 0, 1.6, -1.0, .1, 'deck', seg=16)
+    # A ring wall: four rings (outer foot, outer top, inner top, inner foot) lofted round and back to the first, never
+    # capped. (Capped, each end ring became a full disc across the hall: the accent band's two lids at one height fought
+    # for the same pixels, the depot's striped "floor" on phones; user, 5 November.)
     annulus_wall = lambda r0, r1, z0, z1, mat, seg=16: body.major.loft(
-        [[(r * math.cos(TAU * k / seg), r * math.sin(TAU * k / seg), z) for k in range(seg)] for r, z in ((r1, z0), (r1, z1), (r0, z1), (r0, z0))], mat)
+        [[(r * math.cos(TAU * k / seg), r * math.sin(TAU * k / seg), z) for k in range(seg)] for r, z in ((r1, z0), (r1, z1), (r0, z1), (r0, z0), (r1, z0))], mat, caps=False)
     annulus_wall(R - .16, R, .1, .55, 'paint')
     annulus_wall(R - .17, R + .01, .38, .46, 'accent')
     disc(body, 0, 0, R - .16, .1, .14, 'metal', seg=16)

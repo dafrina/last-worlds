@@ -36,11 +36,13 @@ describe('planet profiles (docs/17 §2)', () => {
     // Version 20 (28 October 2026): roads straightened and curved (district roads too), partial roads no longer built. (Version 19: 11:5
     // e00567c3297502de, 93:14 1e9365cc6e5332b2, 11:14 fc6d5a4b5ae53608; legacy 11:5 69299a4fe79c13ef, 93:14
     // aa1b91571f267314, 11:14 c8308ba3d774a54f.)
-    const recorded = new Map([['11:5', '0092c2abedbd98cf'], ['93:17', '4662497471aeb69d'], ['8831:0', '0af0ef5231085b24'],
+    // 5 November 2026: no wall placed twice at one spot (terrain-walls.ts; user: "places twice the cliff models"). (Before:
+    // 93:17 4662497471aeb69d, 8831:0 0af0ef5231085b24, current and legacy alike.)
+    const recorded = new Map([['11:5', '0092c2abedbd98cf'], ['93:17', '12b58c5f3501156c'], ['8831:0', '5a6ca43d89f31563'],
       ['93:14', 'a3bb6c7412f4c8f9'], ['11:14', 'f1f33bfa91b42115']]);
     // The rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0` still take out the districts and the
     // blended road ends exactly, on the current landform.
-    const legacy = new Map([['11:5', '0587a46149e8ed94'], ['93:17', '4662497471aeb69d'], ['8831:0', '0af0ef5231085b24'],
+    const legacy = new Map([['11:5', '0587a46149e8ed94'], ['93:17', '12b58c5f3501156c'], ['8831:0', '5a6ca43d89f31563'],
       ['93:14', 'b69217949ec23f37'], ['11:14', '9b5ae055aac23117']]);
     const check = (fingerprints: Map<string, string>) => {
       for (const [key, value] of fingerprints) {
