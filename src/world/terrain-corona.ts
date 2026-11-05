@@ -33,8 +33,8 @@ const MESA_STEP = 1.3, TIER_STEP = 1;
  */
 const LOW = PLATEAU - 0.4, RISE = 4, STEP = 1.1, RISER = 0.45, PROBE = 0.3, TOP = 2.3;
 const NEUTRAL: MoodParams = NEUTRAL_MOOD;
-const TALL: ReadonlySet<string> = new Set(['clump', 'column', 'spire', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk']);
-/** Landmark site lattice (Umbra's structures, recoloured, until Corona's infrastructure kit). */
+const TALL: ReadonlySet<string> = new Set(['clump', 'column', 'spire', 'corExtractor', 'corCollector', 'corHangar', 'corRefinery', 'corGantry', 'corDome']);
+/** Landmark site lattice (Corona's infrastructure kit, tools/blender/corona_kit.py). */
 const SITE_ROW = 22, SITE_LANES = [-7.5, 0, 7.5];
 
 /* ---------------------------------------------------------------- masks */
@@ -143,8 +143,8 @@ function coronaColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
 /**
  * Corona's dressing: Khepri's basalt kit, charcoal (columnar walls along every coast, tier riser and mesa face; column
  * clusters standing out of the plasma, more of them near the shores; column crowns on the mesa rims; boulders, fallen
- * columns and rocks on the open rock), and here and there one of Umbra's structures, recoloured, until Corona's own
- * infrastructure kit. The boss arena keeps only rocks.
+ * columns and rocks on the open rock), and here and there one of Corona's own infrastructure modules (corona-kit.glb)
+ * on level rock. The boss arena keeps only rocks.
  */
 function* coronaScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
   const essential: KitInstance[] = [], cosmetic: KitInstance[] = [];
@@ -158,9 +158,10 @@ function* coronaScatterSteps(seed: number, startS: number, size: number, terrain
     (placed.cosmetic ? cosmetic : essential).push(placed);
   };
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
-  const LANDMARKS = ['umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk'] as const;
+  const LANDMARKS = ['corExtractor', 'corCollector', 'corHangar', 'corRefinery', 'corGantry', 'corDome'] as const;
+  // Scale (footprint) and height of each module: about three units across, as tall as the concept has them.
   const LANDMARK_SIZE: Readonly<Record<(typeof LANDMARKS)[number], readonly [number, number]>> = {
-    umbMonolith: [3, 3.6], umbPylon: [2.6, 3.9], umbGate: [3.4, 4.4], umbReactor: [2.6, 3.1], umbObelisk: [1.8, 3.4],
+    corExtractor: [2.2, 2.6], corCollector: [2.2, 3.3], corHangar: [2, 1.3], corRefinery: [2.1, 2.5], corGantry: [2, 2.1], corDome: [2.1, 2],
   };
   // A footprint fully on level rock (no coast, no mesa face under any part of it); the base sinks a hair into the lowest point.
   const supportedBase = function* (kind: keyof typeof KIT, x: number, s: number, scale: number, rotation: number): Work<number | null> {
@@ -183,7 +184,7 @@ function* coronaScatterSteps(seed: number, startS: number, size: number, terrain
   const landmarks: { x: number; s: number; r: number }[] = [];
   for (let row = Math.floor(startS / SITE_ROW) - 1; row <= Math.ceil((startS + size) / SITE_ROW); row++) for (let lane = 0; lane < SITE_LANES.length; lane++) {
     const h = (k: number) => hash(seed ^ 0xc7d1, row * 7 + lane, k);
-    if (h(0) > 0.34) continue;
+    if (h(0) > 0.48) continue;
     for (let tryIndex = 0; tryIndex < 8; tryIndex++) {
       const x = SITE_LANES[lane] + (h(1 + tryIndex) - 0.5) * 6, s = (row + 0.5 + (h(11 + tryIndex) - 0.5) * 0.6) * SITE_ROW;
       if (s < startS - 4 || s >= startS + size + 4) break;
@@ -191,7 +192,8 @@ function* coronaScatterSteps(seed: number, startS: number, size: number, terrain
       if (m.inland < 0.9 || m.mesa > 0.05 || terrain.platform(x, s) > 0 || terrain.blocked(x, s) || terrain.slope(x, s) > 0.4) continue;
       const kind = LANDMARKS[Math.floor(h(30) * LANDMARKS.length)], [base, tall] = LANDMARK_SIZE[kind];
       const scale = base * (0.9 + h(31) * 0.2), height = tall * (0.9 + h(32) * 0.2);
-      const rotation = kind === 'umbGate' || kind === 'umbReactor' ? (h(33) < 0.5 ? 0 : Math.PI) + (h(36) - 0.5) * 0.3 : turn(h(33));
+      // Modules face the camera, give or take a little (their fronts, the extractor's star and the collector's fans, read best).
+      const rotation = (h(36) - 0.5) * 0.5;
       const baseY = yield* supportedBase(kind, x, s, scale, rotation);
       if (baseY === null) continue;
       landmarks.push({ x, s, r: KIT[kind].radius * scale + 0.6 });

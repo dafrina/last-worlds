@@ -3,7 +3,7 @@ import { WORLD_PAINT_GLSL, setWorldPaint, worldGlow, worldPaintUniforms } from '
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
 
@@ -343,6 +343,8 @@ export function loadNacreKit(url: string): Promise<KitGeometries> { return loadK
 /** Amnion's brood kit (docs/27): egg cores and yolk emit their own colour like Nacre's flora. */
 export function loadAmnionKit(url: string): Promise<KitGeometries> { return loadKit(url, AMNION_KIT_KINDS, /glow/i); }
 /** Umbra's obsidian kit (docs/28): violet seams and halos emit their own colour like Amnion's yolk. */
+/** Loads Corona's infrastructure kit (corona-kit.glb, docs/37); its *glow* faces glow (the kit shader's glowHue burns them orange). */
+export function loadCoronaKit(url: string): Promise<KitGeometries> { return loadKit(url, CORONA_KIT_KINDS, /glow/i); }
 export async function loadUmbraKit(url: string, floatingUrl?: string): Promise<KitGeometries> {
   const [kit, floating] = await Promise.all([
     loadKit(url, UMBRA_KIT_KINDS, /glow/i),

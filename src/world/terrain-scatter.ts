@@ -18,6 +18,8 @@ export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'g
 export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards' | 'broodNest' | 'hive' | 'broodRuin' | 'sinewWeb';
 /** Umbra's obsidian kit (umbra-kit.glb, docs/28, tools/blender/umbra_kit.py). */
 export type UmbraKitKind = 'umbHill' | 'umbPeak' | 'umbSpire' | 'umbShards' | 'umbFloat' | 'umbMonolith' | 'umbPylon' | 'umbGate' | 'umbReactor' | 'umbObelisk' | 'umbPad' | 'umbDock';
+/** Corona's infrastructure kit (corona-kit.glb, docs/37, tools/blender/corona_kit.py). */
+export type CoronaKitKind = 'corExtractor' | 'corCollector' | 'corHangar' | 'corRefinery' | 'corGantry' | 'corDome';
 /**
  * Cliff walls (terrain version 15, docs/26 §11): 2-unit wall segments set along cliff rims, base-centre pivot, front
  * (the outward, downhill face) toward +Z, top at exactly 1 (placement scales y by the local drop). Khepri's columnar
@@ -25,7 +27,7 @@ export type UmbraKitKind = 'umbHill' | 'umbPeak' | 'umbSpire' | 'umbShards' | 'u
  * (public/assets/vesper/cliff-kit.glb).
  */
 export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall' | 'voidWall';
-export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | UmbraKitKind | CliffKitKind;
+export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | UmbraKitKind | CoronaKitKind | CliffKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
 export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
@@ -35,6 +37,7 @@ export const VESPER_CLIFF_KINDS: readonly CliffKitKind[] = ['iceWall'];
 export const AMNION_CLIFF_KINDS: readonly CliffKitKind[] = ['fleshWall'];
 export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards', 'broodNest', 'hive', 'broodRuin', 'sinewWeb'];
 export const UMBRA_CLIFF_KINDS: readonly CliffKitKind[] = ['voidWall'];
+export const CORONA_KIT_KINDS: readonly CoronaKitKind[] = ['corExtractor', 'corCollector', 'corHangar', 'corRefinery', 'corGantry', 'corDome'];
 export const UMBRA_KIT_KINDS: readonly UmbraKitKind[] = ['umbHill', 'umbPeak', 'umbSpire', 'umbShards', 'umbFloat', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbPad', 'umbDock'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
   'ruinTower', 'ruinFort', 'ruinRing', 'ruinBridge', 'ruinPillars', 'ruinRubble'];
@@ -98,6 +101,14 @@ export const KIT: Readonly<Record<KitKind, {
   // exactly 1; shards and pads at real size; floating cliffs and the crescent dock from their lowest spike tip (y 0) to
   // their top (y 1).
   voidWall: { prefix: 'void_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
+  // Corona's infrastructure (corona-kit.glb, docs/37): the six modules of the concept sheet; tops normalised to 1, the
+  // footprints (model units, the scatter scales them) as built.
+  corExtractor: { prefix: 'cor_extractor', variants: 1, halfX: 0.8, halfZ: 0.61, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.61) },
+  corCollector: { prefix: 'cor_collector', variants: 1, halfX: 0.66, halfZ: 0.51, height: 1, exactTop: true, radius: Math.hypot(0.66, 0.51) },
+  corHangar: { prefix: 'cor_hangar', variants: 1, halfX: 0.8, halfZ: 0.62, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.62) },
+  corRefinery: { prefix: 'cor_refinery', variants: 1, halfX: 0.75, halfZ: 0.55, height: 1, exactTop: true, radius: Math.hypot(0.75, 0.55) },
+  corGantry: { prefix: 'cor_gantry', variants: 1, halfX: 0.8, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.6) },
+  corDome: { prefix: 'cor_dome', variants: 1, halfX: 0.68, halfZ: 0.77, height: 1, exactTop: true, radius: Math.hypot(0.68, 0.77) },
   // The hills: fractured obsidian massifs, each a few large planar faces broken along cracks (razor edges).
   umbHill: { prefix: 'umb_hill', variants: 8, halfX: 1.5, halfZ: 1.3, height: 1, exactTop: true, radius: Math.hypot(1.5, 1.3) },
   // Sharp obsidian rocks (crags), on and around the hills.
