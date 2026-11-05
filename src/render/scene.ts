@@ -215,6 +215,14 @@ export const HERO_SCALE = 1.1;
 const CHEVRON_GAP = 2, CHEVRON_FLOW = 2.2;
 /** Mission-start entrance: duration (s) and how far along the view ray toward the camera the hero starts. */
 const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
+/**
+ * The perspective camera's near plane. The camera stands about 44.6 units from the flight plane, and the nearest thing it
+ * ever draws is the hero's entrance pose, about 35 units out (HERO_ENTRANCE_LIFT closer, 2.6 times its size). A depth
+ * buffer spends most of its precision just past the near plane: at 1 a phone's buffer resolved the ground only to several
+ * centimetres, and the ice walls standing that close before Vesper's cliff faces flashed through them (user, 5 November:
+ * the cliff faces "z-flashing", on the phone only). At 20 the precision at the ground is about 20 times finer.
+ */
+const CAMERA_NEAR = 20;
 /** How much further out the Helion Ark's glide-in is drawn at its start (render only; see its placement). */
 const ARK_GLIDE = 8;
 /** The Interceptor's barrel roll over its sidestep, and the speed streaks it leaves (seconds; render only). */
@@ -490,7 +498,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const perspective = cameraMode !== 'ortho';
   const lens = Number(query.get('fov')) || PERSPECTIVE_FOV, rectifiedDepth = Number(query.get('depth')) || 60.5;
   let viewportAspect = 9 / 16;
-  const camera = cameraMode === 'perspective' ? new THREE.PerspectiveCamera(lens, 9 / 16, 1, 260)
+  const camera = cameraMode === 'perspective' ? new THREE.PerspectiveCamera(lens, 9 / 16, CAMERA_NEAR, 260)
     : cameraMode === 'rectified' ? new THREE.PerspectiveCamera(20, 9 / 16, 1, 260)
     : new THREE.OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, TACTICAL_HEIGHT / 2, -TACTICAL_HEIGHT / 2, .1, 100);
   const follow = cameraMode === 'perspective' ? perspectiveFollow(lens) : 1;
