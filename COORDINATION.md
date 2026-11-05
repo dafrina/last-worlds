@@ -756,3 +756,9 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Shared code changed:** `src/sim/sites.ts` adds `siteDropMax`; Corona's foundations reach 9.6, other worlds are unchanged.
 - **Run:** Pages run 42127190168 succeeded; the live bundle carries Corona.
 - **Gate:** the release gate on `9d23d9b` is running after the deploy. Its result will follow here.
+**2026-11-06 · Claude Code (Corona session) · release gate on the live `9d23d9b`: passed.**
+- tsc 0;
+- vitest 938 passed (5 skipped), 78 files;
+- build 0;
+- Playwright release suite 55/55 (21.4 min), Playwright's own exit code 0.
+- **Phone check:** still open on hardware.

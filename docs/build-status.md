@@ -2170,3 +2170,14 @@ Broader suite: 845 passed, 4 skipped, 3 failed. All failures are the existing se
 - **Reverted:** MSAA on High (`bfc005e`, `1053995`), the `?msaa` and `?fx` diagnostics, and `?unlock=all`.
 - **Checks:** typecheck and 20 site/terrain unit tests only; no browser gate. Pages run 42110327382 succeeded.
 - **Phone check:** pending, by the user.
+
+### 2026-11-06 · Corona deployed (`9d23d9b`)
+
+- **World:** CORONA (Dying Star), with THE HELIOPHAGE, the Star Extractor and Star Cage sites, smoke banks, plasma arcs, and rock meandering between plasma seas 5 under the plateau. Details are in docs/37.
+- **Deploy:** Pages run 42127190168 succeeded; the live bundle carries Corona.
+- **Release gate** (run after the deploy, at the user's request):
+  - tsc 0;
+  - vitest 938 passed (5 skipped);
+  - build 0;
+  - Playwright 55/55 (SwiftShader).
+- **Not verified:** phone hardware (smoke readability over raft batteries, frame rate with six smoke slices and denser arcs).
