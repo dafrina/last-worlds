@@ -28,6 +28,7 @@ import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
 import { createCoronaArcs } from './corona-arcs';
+import { createCoronaHaze } from './corona-haze';
 import { CORONA_SEA_LEVEL } from '../world/terrain-corona';
 import { createMireWater } from './mire-water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
@@ -312,7 +313,7 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
     shadowIntensity: .7, blobShadow: 0x0a0402, lowExposure: 1.05,
     post: { exposure: 1.04, threshold: 1.05, knee: .3, strength: 1.1, lift: [.006, .004, .003], saturation: 1.1, contrast: 1.14, vignette: .38,
       haze: [.55, .2, .05, .03],
-      fog: { color: 0xff5a18, energy: 1.0, height: [-4.08, -4.6, .5], distance: [44, .04, .16] } },
+      fog: { color: 0xff5a18, energy: 1.0, height: [-6.68, -7.2, .5], distance: [44, .04, .16] } },
     environment: 'desert',
   },
   umbra: {
@@ -579,7 +580,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
   let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null, voidEnvironment: THREE.WebGLRenderTarget | null = null;
-  const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [], coronaArcs = createCoronaArcs(scene);
+  const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [], coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene);
   /** Nacre's water: its own material (src/render/mire-water.ts); the sea sheets wear it while the look is Nacre's. */
   const mireWater = createMireWater();
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
@@ -1483,6 +1484,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Corona's arcs (docs/37): render-only loops of plasma between the islands, seeded in the terrain frame.
       coronaArcs.update(state.time, state.config.seed, state.distance, view.minS, view.maxS, world.planet.id === 'corona',
         (x, s) => terrainHeight(state.config.seed, x, s, world), CORONA_SEA_LEVEL, VIEW.flightHeight);
+      coronaHaze.update(state.time, state.distance, -(view.minS + view.maxS) / 2, world.planet.id === 'corona', CORONA_SEA_LEVEL);
       const lookPlanet: PlanetId = lookOverride ? terrainPlanet : state.planet ?? runPlanet(state.config);
       if (lookPlanet !== planet) applyLook(lookPlanet);
       if (state.config.mode === 'endless') {
@@ -2229,7 +2231,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); basaltRaft.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); basaltRaft.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
       lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose(); instancedDepth.dispose();
       renderer.dispose();

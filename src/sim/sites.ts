@@ -158,6 +158,12 @@ export const SEAT_BACK_COST = .5;
 export const CORE_CLEARANCE = .45;
 /** The deepest drop under a site's floor its foundations fill (src/render/site-view.ts); the search keeps seats within it. */
 export const SITE_DROP_MAX = 7;
+/**
+ * …deeper on Corona, whose plasma lies 5 under the plateau (user, 5 November: "lower the lava level, the cliffs look so
+ * miniscule"): a site at a coast stands on foundations down to the plasma, as the concept's structures rise out of it.
+ */
+const DROP_MAX: Readonly<Partial<Record<string, number>>> = { corona: 9.6 };
+export const siteDropMax = (planet: string) => DROP_MAX[planet] ?? SITE_DROP_MAX;
 export interface SiteSeat {
   /** The site's centre on the ground (world x, world s) and its floor level. */
   x: number; s: number; base: number;
@@ -183,8 +189,8 @@ export function footprintGround(state: RunState, x: number, s: number, nx = 6, n
   return { x, s, base, spread: at(.9) - at(.1), above: heights[heights.length - 1] - base, drop: base - heights[0], fill, wet: wet / heights.length };
 }
 function seatCost(state: RunState, seat: SiteSeat, dx: number, ds: number, high = SEAT_HIGH): number {
-  const wet = WET_WORLDS.has(worldAt(runRoute(state.config), seat.s).planet.id) ? 0 : seat.wet;
-  return seat.spread + 4 * seat.above + .25 * seat.drop + 2 * Math.max(0, seat.drop - (SITE_DROP_MAX - 2)) + 1.5 * seat.fill + 6 * wet + 3 * Math.max(0, seat.base - high)
+  const planet = worldAt(runRoute(state.config), seat.s).planet.id, wet = WET_WORLDS.has(planet) ? 0 : seat.wet;
+  return seat.spread + 4 * seat.above + .25 * seat.drop + 2 * Math.max(0, seat.drop - (siteDropMax(planet) - 2)) + 1.5 * seat.fill + 6 * wet + 3 * Math.max(0, seat.base - high)
     + 20 * Math.max(0, seat.base - SEAT_LIMIT) + .06 * Math.abs(dx) + .02 * Math.abs(ds) + SEAT_BACK_COST * Math.max(0, -ds);
 }
 /** Ground points (world x, s) a site must keep clear of: its cue's guard batteries. */

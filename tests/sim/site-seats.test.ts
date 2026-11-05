@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRun } from '../../src/sim/game';
 import { MATCH_ROW, lineOfSightGround } from '../../src/sim/ground';
-import { CORE_CLEARANCE, GUARD_CLEARANCE, SITE_DROP_MAX, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
+import { CORE_CLEARANCE, GUARD_CLEARANCE, siteDropMax, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
 import { spawnMembers } from '../../src/sim/spawn';
 import { FORMATIONS, siteCoreFormation, type FormationId } from '../../src/content/formations';
 import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT, SITE_X, sitePool } from '../../src/content/sites';
@@ -33,9 +33,10 @@ const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper', 'corona']
  * Regression bounds on the footprint's unevenness at the chosen seats (ground spread, 10th to 90th percentile), measured
  * 30 October with about 10% headroom. The window is small (the core stays in its guards' ring, src/sim/sites.ts
  * SEAT_SEARCH; SEAT_WIDE only for a seat over heavy relief), so on Amnion's pitted flesh plains and some of Umbra's plates
- * cut by narrow canyons a seat still straddles a pit or a crack: the render's site pad levels it.
+ * cut by narrow canyons a seat still straddles a pit or a crack: the render's site pad levels it. (Corona 6.5 since its
+ * plasma lies 5 under the plateau, 5 November: a seat at a coast stands on foundations down to the plasma; 5.9 measured.)
  */
-const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 3.0, umbra: 4.3 };
+const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 6.5, umbra: 4.3 };
 /** How far into the footprint's edge a guard may stand at worst (the models keep their rim clear of structures). */
 const GUARD_RIM = .6;
 /** Corona's share of sites on rock, not afloat in the plasma (67% measured 5 November, after "lots of these corridors"). */
@@ -59,7 +60,7 @@ describe('strike-site seats', () => {
       // Never buried: almost nothing of the ground rises over the site's floor, and the drop under it stays within what
       // the foundations fill.
       expect(seat.above).toBeLessThanOrEqual(2.4);
-      expect(seat.drop).toBeLessThanOrEqual(SITE_DROP_MAX);
+      expect(seat.drop).toBeLessThanOrEqual(siteDropMax(world));
       // Never over open water, except the worlds whose sites are built for it (Nacre's mire, Vesper's ice-shelf decks).
       // (Corona's sites may stand in the plasma, on decks, "just not exclusively": user, 5 November; measured below.)
       if (!WATER_BUILT.has(world)) expect(seat.wet).toBe(0);

@@ -21,17 +21,20 @@ import { UMBRA, UMBRA_PLATEAU, UMBRA_SCENERY_MAX, UMBRA_SPIRE_MAX } from './terr
 
 /** The plateau (the islands' level; THE HELIOPHAGE's seat is measured from it, as THE ECLIPSE's). */
 const PLATEAU = UMBRA_PLATEAU;
-/** The plasma sea: 2.4 below the plateau, so the island cliffs stand well out of it. */
-export const CORONA_SEA_LEVEL = PLATEAU - 2.4;
+/**
+ * The plasma sea: 5 below the plateau (2.4 until the user's "lower the lava level, the cliffs look so miniscule ... some
+ * may be this small but there should also be twice maybe even 3 times this height", 5 November).
+ */
+export const CORONA_SEA_LEVEL = PLATEAU - 5;
 const SEA = CORONA_SEA_LEVEL;
 /** Mesa tiers over the land (sheer-walled; the wall kit lines their faces as the coasts'). */
 const MESA_STEP = 1.3, TIER_STEP = 1;
 /**
  * Stepped land (user, 5 November: "make the terrain height vary more, like khepri"): a regional level from just over the
- * plasma (LOW) up about four units, cut into tiers STEP apart by sheer risers RISER wide (Khepri's and Vesper's `bench`);
+ * plasma (LOW, a 1.5 cliff) up about seven units (cliffs to 8 or 9 over the plasma), cut into tiers STEP apart by sheer risers RISER wide (Khepri's and Vesper's `bench`);
  * the causeway keeps to the lower tiers, the boss arena to the plateau. TOP caps it all under the scenery cap.
  */
-const LOW = PLATEAU - 0.4, RISE = 4, STEP = 1.1, RISER = 0.45, PROBE = 0.3, TOP = 2.3;
+const LOW = CORONA_SEA_LEVEL + 1.8, RISE = 7, STEP = 1.1, RISER = 0.45, PROBE = 0.3, TOP = 2.3;
 const NEUTRAL: MoodParams = NEUTRAL_MOOD;
 const TALL: ReadonlySet<string> = new Set(['clump', 'column', 'spire', 'corExtractor', 'corCollector', 'corHangar', 'corRefinery', 'corGantry', 'corDome']);
 /** Landmark site lattice (Corona's infrastructure kit, tools/blender/corona_kit.py). */
@@ -52,18 +55,25 @@ export interface CoronaMasks {
  */
 function sideRoute(seed: number, x: number, s: number): number {
   let near = 0;
-  for (const route of [0, 2] as const) near = Math.max(near, 1 - smoothRange(2.5, 5, Math.abs(x - routeCenter(seed, route, s))));
+  for (const route of [0, 2] as const) near = Math.max(near, 1 - smoothRange(1.8, 3.8, Math.abs(x - routeCenter(seed, route, s))));
   return near;
 }
 
 export function coronaMasks(seed: number, x: number, s: number, platform = 0): CoronaMasks {
   const calm = routeCalm(seed, x, s);
   const qx = x + (noise(seed ^ 0xc1a1, x * 0.04, s * 0.035) - 0.5) * 12, qs = s + (noise(seed ^ 0xc1a2, x * 0.04 + 5.3, s * 0.035) - 0.5) * 12;
-  let mass = noise(seed ^ 0xc1a3, qx * 0.055, qs * 0.05) * 0.5 + noise(seed ^ 0xc1a4, qx * 0.15, qs * 0.14) * 0.33 + noise(seed ^ 0xc1a5, qx * 0.42, qs * 0.4) * 0.17;
-  // The causeway: the central route stays basalt for long stretches, broken now and then by a plasma crossing.
-  // (User, 5 November: "lots of these corridors": weaker and broken more often than at first.)
-  const d = (x - routeCenter(seed, 1, s)) / 3.2, keep = smoothRange(0.35, 0.6, noise(seed ^ 0xc1a6, s * 0.03, 1.7));
-  mass += Math.exp(-d * d) * 0.2 * keep;
+  // Land meanders between plasma seas, and every screen holds both (user, 5 November: "i dont like to have just a sea of
+  // lava or just a plan rock screen. It should always have both, like in the concept have the terrain meander between the
+  // lava seas"). The skeleton: winding bands of rock and plasma alternating about every BAND units across the map (two
+  // waves, one along the flight, one across it, so they snake and pinch into necks and islands rather than run as
+  // corridors), roughened by mid-scale noise. No broad noise octave, so no screen is all rock or all plasma.
+  const BAND = 14, wind = (noise(seed ^ 0xc1a3, s * 0.017, 0.4) - 0.5) * 30 + (noise(seed ^ 0xc1a6, s * 0.045, 2.9) - 0.5) * 8;
+  const phase = hash(seed ^ 0xc1a7, 3, 5) * 6.283;
+  const along = Math.cos((qx + wind) / BAND * 6.283 + phase);
+  const across = Math.cos((qs * 0.8 + qx * 0.45) / 13 * 6.283 + phase * 1.7);
+  let mass = 0.53 + along * 0.17 + across * 0.07
+    + (noise(seed ^ 0xc1a4, qx * 0.09, qs * 0.085) - 0.5) * 0.42 + (noise(seed ^ 0xc1a8, qx * 0.2, qs * 0.19) - 0.5) * 0.16
+    + (noise(seed ^ 0xc1a5, qx * 0.42, qs * 0.4) - 0.5) * 0.1;
   // Plasma rivers winding through the land masses and pools in them (user: "patches of a lot of land without lava").
   const river = 1 - smoothRange(0.012, 0.04, Math.abs(noise(seed ^ 0xc1a9, qx * 0.05, qs * 0.042) - 0.5));
   const pools = smoothRange(0.68, 0.8, noise(seed ^ 0xc1aa, qx * 0.12, qs * 0.11));
@@ -99,7 +109,7 @@ function landLevel(seed: number, x: number, s: number, platform: number): number
   const field = noise(seed ^ 0xc1d1, qx * 0.05, qs * 0.045) * 0.6 + noise(seed ^ 0xc1d2, qx * 0.13, qs * 0.12) * 0.3 + noise(seed ^ 0xc1d5, qx * 0.3, qs * 0.28) * 0.1;
   const calm = routeCalm(seed, x, s);
   // The causeway keeps a little lower (no trench along the routes: user, 5 November, "lots of these corridors").
-  const level = LOW + smoothRange(0.25, 0.8, field) * RISE * (1 - calm * 0.25) * (1 - sideRoute(seed, x, s) * 0.5);
+  const level = LOW + smoothRange(0.12, 0.72, field) * RISE * (1 - calm * 0.2) * (1 - sideRoute(seed, x, s) * 0.35);
   return mix(level, PLATEAU, platform) + (noise(seed ^ 0xc1d6, x * 0.35, s * 0.32) - 0.5) * 0.35;
 }
 
@@ -237,7 +247,7 @@ function* coronaScatterSteps(seed: number, startS: number, size: number, terrain
         // A cluster now and then: a tall pillar with a shorter one or two leaning beside it.
         // Khepri's basalt (user, 5 November: "couldnt you use khepris basalt columns"), charcoal here: column clusters and
         // lone columns standing out of the light, tall enough to read from the flight plane.
-        const base = SEA - 0.5, clump = h(61) < 0.6, scale = clump ? 1 + h(54) * 0.6 : 1.2 + h(54) * 0.6, tall = 3.2 + h(60) * 2.6;
+        const base = SEA - 0.5, clump = h(61) < 0.6, scale = clump ? 1 + h(54) * 0.6 : 1.2 + h(54) * 0.6, tall = 3.2 + h(60) * 2.6 + (PLATEAU - 2.4 - SEA);   // (out of the deeper sea since 5 November)
         add({ kind: clump ? 'clump' : h(62) < 0.5 ? 'column' : 'spire', x, s, y: base, scale, height: tall, rotation: turn(h(66)), cosmetic: false }, h(72));
         if (h(73) < 0.5) {
           const a = turn(h(74)), d = 0.8 + h(75) * 0.5;

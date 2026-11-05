@@ -112,9 +112,12 @@ export function createWater(): Water {
     float body = seaNoise( q ) * 0.55 + seaNoise( q * 2.1 + 3.7 ) * 0.3 + seaNoise( q * 4.6 - 1.3 + waterTime * 0.05 ) * 0.15;
     // Dark swirling veins (ridges of a second warped field): the cooler skin of the plasma.
     float ridge = 1.0 - abs( 2.0 * ( seaNoise( q * 1.3 + warp * 3.0 + 8.0 ) * 0.7 + seaNoise( q * 3.1 + 2.0 ) * 0.3 ) - 1.0 );
-    float dark = smoothstep( 0.86, 0.98, ridge );
-    plasmaHeat = smoothstep( 0.2, 0.8, body ) * 0.85 + 0.5;
-    plasmaHeat *= 1.0 - 0.45 * dark;
+    // (User, 5 November: "The lava also looks kinda flat. The darker spots should be a bit deeper dark but keeping the
+    // contrast high": a lower floor, wider and darker veins, cool crusts drifting over the slack pools.)
+    float dark = smoothstep( 0.8, 0.97, ridge );
+    float crust = ( 1.0 - smoothstep( 0.25, 0.5, body ) ) * smoothstep( 0.45, 0.7, seaNoise( q * 0.6 - warp * 1.5 + 11.0 ) );
+    plasmaHeat = smoothstep( 0.18, 0.82, body ) * 1.0 + 0.3;
+    plasmaHeat *= ( 1.0 - 0.72 * dark ) * ( 1.0 - 0.6 * crust );
     // A fine web of white-hot filaments, only through the hottest pools.
     vec2 crack = q * 3.2 + warp * 2.0;
     float w = abs( seaNoise( crack ) - 0.5 );
@@ -138,7 +141,7 @@ export function createWater(): Water {
   }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor + seaNoise( vSea * 9.0 ) * .1, 0.85, foam );')
       // Nacre: the shoreline band glows (bioluminescent film) instead of reading as white foam.
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;\n  if ( plasma > 0.0 ) totalEmissiveRadiance += mix( mix( vec3( 0.8, 0.2, 0.012 ), deepColor, smoothstep( 0.45, 0.9, plasmaHeat ) ), plasmaHot, smoothstep( 1.0, 1.45, plasmaHeat ) ) * plasmaHeat * plasma;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;\n  if ( plasma > 0.0 ) totalEmissiveRadiance += mix( mix( vec3( 0.5, 0.08, 0.004 ), deepColor, smoothstep( 0.4, 0.95, plasmaHeat ) ), plasmaHot, smoothstep( 1.0, 1.45, plasmaHeat ) ) * plasmaHeat * plasma;')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   // Swell normals (world space → view space); calmer and flatter right at the shore.
   vec2 waveSlope = swellGradient( vSea, waterTime ) * swell * mix( 0.45, 1.0, calm ) * ( 1.0 - foam * 0.7 );

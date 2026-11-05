@@ -5,7 +5,7 @@ import * as THREE from 'three';
  * magnetic loops of plasma rising out of the sea and falling back into it, render-only.
  *
  * - Seeded by the run seed and fixed in the terrain frame: slot k covers distance [k·SLOT, (k+1)·SLOT); a slot holds at
- *   most one arc, both of whose feet stand in open plasma (the caller's ground test), so no arc grows out of rock.
+ *   most one arc (one every 5 units since the user's "we need way more of those plasma flares", 5 November), both of whose feet stand in open plasma (the caller's ground test), so no arc grows out of rock.
  * - Never in the way: the apex stays at least APEX_CLEARANCE under the flight plane, the arcs draw under the ships and
  *   every shot (shots skip the depth test), and the colour is the plasma's gold, not a hostile hue.
  * - Alive like a prominence (user, 5 November: "would be cool to have them kinda emerge like plasma behaves"): each arc
@@ -14,7 +14,7 @@ import * as THREE from 'three';
  * - Phone-cheap: a handful of small tubes (two draws each: a white-hot core and a soft additive halo), built when a slot
  *   comes into view and released when it leaves; the cycle is a few uniforms. Uses no simulation state and no Math.random.
  */
-const SLOT = 26, CHANCE = .75, CORE = .1, HALO = .38, APEX_CLEARANCE = 2.2, SEGMENTS = 48;
+const SLOT = 5, CHANCE = 1, CORE = .13, HALO = .5, APEX_CLEARANCE = 2.2, SEGMENTS = 48;
 
 const VERTEX = /* glsl */`
 uniform float arcTime; uniform float arcPhase; uniform float arcGrow; uniform float arcBase;
@@ -54,7 +54,7 @@ void main() {
 interface Life { arcGrow: { value: number }; arcGap: { value: number }; arcFade: { value: number }; arcBase: { value: number } }
 interface Arc { core: THREE.Mesh; halo: THREE.Mesh; life: Life; period: number; offset: number }
 /** Shares of the cycle: rising, holding, breaking; the rest it lies dormant. */
-const RISE = .26, HOLD = .58, BREAK = .76;
+const RISE = .24, HOLD = .62, BREAK = .82;
 const ease = (t: number) => { const u = Math.min(1, Math.max(0, t)); return u * u * (3 - 2 * u); };
 
 export function createCoronaArcs(scene: THREE.Scene) {
@@ -80,9 +80,9 @@ export function createCoronaArcs(scene: THREE.Scene) {
   /** One slot's arc, or null: feet in open plasma, apex under the flight plane. */
   function build(seed: number, k: number, ground: (x: number, s: number) => number, sea: number, flightHeight: number): Arc | null {
     if (hash(seed, k, 0) > CHANCE) return null;
-    for (let attempt = 0; attempt < 12; attempt++) {
+    for (let attempt = 0; attempt < 24; attempt++) {
       const cx = (hash(seed, k, 1 + attempt * 5) * 2 - 1) * 15, cs = (k + .15 + .7 * hash(seed, k, 2 + attempt * 5)) * SLOT;
-      const half = 3.2 + 3.6 * hash(seed, k, 3 + attempt * 5), yaw = (hash(seed, k, 4 + attempt * 5) - .5) * Math.PI * .9;
+      const half = 1.8 + 4.6 * hash(seed, k, 3 + attempt * 5), yaw = (hash(seed, k, 4 + attempt * 5) - .5) * Math.PI * .4;   // facing the camera (edge-on loops read as streaks)
       const dx = Math.cos(yaw) * half, ds = Math.sin(yaw) * half;
       const feet: [number, number][] = [[cx - dx, cs - ds], [cx + dx, cs + ds]];
       if (feet.some(([x, s]) => ground(x, s) >= sea - .01)) continue;

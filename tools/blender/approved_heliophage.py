@@ -46,6 +46,10 @@ P = 'heliophage_'
 HEART_R = 1.85                                             # the molten sphere (r ~1.7) inside its cage
 POD = dict(x=(4.0, 6.0), y=(.2, 1.3))                      # each armoured block's vent grille (x mirrored)
 PROW = dict(x=(-.6, .6), y=(3.7, 5.5))                     # the central tower's glowing column
+# The core (sphere, cage and hood) tilts its front 10 degrees further toward the player (user, 5 November: "The core of
+# heliophage should point more down, like that front side more towards down by maybe 10 degrees"): a rotation about the
+# x axis through the core's centre, full inside CORE_BOX and fading out over CORE_FALL, so the mesh bends, never tears.
+CORE_TILT, CORE_BOX, CORE_FALL = math.radians(10), dict(x=2.6, y=(-2.7, 1.6)), 1.0
 
 
 def log(*a):
@@ -111,6 +115,16 @@ def material(src_mat, directory, size=2048, normal_size=1024):
     return mat, float((mask > .1).mean())
 
 
+def tilt_core(g, cz):
+    """Turn the core's front toward the player (-y) by CORE_TILT about the x axis through (y 0, z cz), bending out."""
+    out = np.maximum.reduce([np.abs(g[:, 0]) - CORE_BOX['x'], CORE_BOX['y'][0] - g[:, 1], g[:, 1] - CORE_BOX['y'][1], np.zeros(len(g))])
+    t = np.clip(out / CORE_FALL, 0, 1)
+    a = CORE_TILT * (1 - t * t * (3 - 2 * t))
+    y, z = g[:, 1].copy(), g[:, 2] - cz
+    g[:, 1] = y * np.cos(a) - z * np.sin(a)
+    g[:, 2] = cz + y * np.sin(a) + z * np.cos(a)
+
+
 def build(out, pdir):
     t0 = time.time()
     report = {}
@@ -150,6 +164,8 @@ def build(out, pdir):
         keep = ae.largest_component(fv, idx)
         lab[np.setdiff1d(idx, keep)] = 0
     names = [P + 'hull', P + 'heart', P + 'pod_left', P + 'pod_right', P + 'prow']
+    tilt_core(g, cz)
+    fc = g[fv].mean(1)
     report['part_faces'] = {names[k]: int((lab == k).sum()) for k in range(5)}
     log('parts', report['part_faces'])
     # Centres of the targets (visible faces), for the combat sockets (src/content/heliophage.ts).

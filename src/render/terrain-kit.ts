@@ -1441,9 +1441,9 @@ ${VESPER_KIT_SURFACE}`)
     crackLook.crackTint.value.set(...(vesper ? [0.6, 0.74, 0.92] : planet === 'amnion' ? [0.5, 0.4, 0.32] : corona ? [0.1, 0.06, 0.04] : umbra ? [0.08, 0.07, 0.12] : [0.5, 0.5, 0.52]) as [number, number, number]);
     groundHaze.hazeColor.value.copy(vesper ? linear(0xcfe0ee) : nacre ? linear(0x4a3a90) : corona ? linear(0xff7a32) : umbra ? linear(0x6a5aa8) : khepri.hazeColor.value);
     // Luna has no air: no haze in its craters. Umbra's canyons vanish into a glowing purple fog from just under the lip.
-    // (Corona's canyons glow down to the plasma, CORONA_SEA_LEVEL −4.2.)
+    // (Corona's canyons glow down to the plasma, CORONA_SEA_LEVEL −6.8.)
     groundHaze.hazeStrength.value = vesper ? 0.12 : luna ? 0 : nacre ? 0.15 : corona ? 0.55 : umbra ? 0.7 : khepri.hazeStrength.value;
-    groundHaze.hazeTop.value = corona ? -3.95 : umbra ? -2.1 : khepri.hazeTop.value; groundHaze.hazeBottom.value = corona ? -4.2 : umbra ? -5.6 : khepri.hazeBottom.value;
+    groundHaze.hazeTop.value = corona ? -6.55 : umbra ? -2.1 : khepri.hazeTop.value; groundHaze.hazeBottom.value = corona ? -6.8 : umbra ? -5.6 : khepri.hazeBottom.value;
     groundHaze.hazeAbyss.value = umbra ? 1 : 0;
     // Umbra's wall feet already continue below the floor. Different fog on those meshes made their intersection
     // read as an exposed cut: the floor vanished into violet haze while the rock stayed dark. Match both surfaces.

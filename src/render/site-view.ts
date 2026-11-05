@@ -10,7 +10,7 @@ import type { ViewFootprint } from './view-footprint';
 import { SITE_PADS, SITE_PAD_KEEPS, sitePadGround, sitePadWeight, type SitePad, type SitePadKeep } from './terrain-kit';
 import { PLANETS } from '../world/terrain-planet';
 import { PONTOON_DECK } from '../world/run-route';
-import { SITE_DROP_MAX } from '../sim/sites';
+import { SITE_DROP_MAX, siteDropMax } from '../sim/sites';
 import { SITE_FIRE, type SiteBlast, type WorldPoint } from './fx-particles';
 
 /**
@@ -336,7 +336,7 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
     for (let i = 0; i < nx; i++) for (let j = 0; j < ns; j++) {
       const x = b.minX + inset + hx * (2 * i + 1), s = b.minS + inset + hs * (2 * j + 1);
       const low = Math.min(...[[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]].map(([u, v]) => ground(x + u * hx, s + v * hs)));
-      const drop = Math.min(SITE_FOUNDATION_MAX, entry.base - low);
+      const drop = Math.min(entry.finish === 'corona' ? siteDropMax('corona') : SITE_FOUNDATION_MAX, entry.base - low);
       if (drop > .12) out.push({ x, s, y: entry.base - drop - .15, h: drop + .1, hx, hs });
     }
     return out;

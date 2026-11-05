@@ -22,9 +22,17 @@ The concept images are references, never runtime backgrounds or finished assets 
   - "the relief is fine, but it isnt as sharp as in the concept. Also, make the terrain height vary more, like khepri with much more difference in height and variation";
   - "the terrain is also too dark compared to the coincept".
 
+- Second review (5 November, evening):
+  - "The core of heliophage should point more down ... by maybe 10 degrees": the core (sphere, cage and hood) turns its front 10° further toward the player, bending into the hull (`tilt_core`).
+  - "i dont like to have just a sea of lava or just a plan rock screen. It should always have both ... have the terrain meander between the lava seas": winding bands of rock and plasma alternate about every 14 units, snaking and pinching into necks and islands. Screens nearly all plasma or all rock fell from 20% to under 3% (12 × 24 screens, eight seeds).
+  - "we need way more of those plasma flares": an arc every 5 units instead of one in 26, turned to face the camera (edge-on loops read as streaks), thicker.
+  - "The darker spots should be a bit deeper dark but keeping the contrast high": a lower floor, wider dark veins and cool crusts.
+  - "the lava needs some kind of misty partial fog": two drifting smoke layers over the plasma (`src/render/corona-haze.ts`), dark smoke low and a glowing mist higher, real geometry, so they parallax as the ground passes.
+  - "lower the lava level, the cliffs look so miniscule ... there should also be twice maybe even 3 times this height": the plasma lies 5 under the plateau (2.4 before), and the land steps from 1.8 over it up to 9. Coast cliffs (eight seeds) measure p10 2.6, median 5.1 and p90 7.7, against 2.0, 2.6 and 4.5 before. Corona's site foundations reach 9.6 (`siteDropMax`), so a site at a coast stands on foundations down to the plasma.
+
 ## Identity
 
-- **Gold plasma, not lava.** The sea at −4.2 (`CORONA_SEA_LEVEL`, 2.4 under the plateau) is Vesper's water material in a plasma mode (`src/render/water.ts`). It is emissive:
+- **Gold plasma, not lava.** The sea at −6.8 (`CORONA_SEA_LEVEL`, 5 under the plateau) is Vesper's water material in a plasma mode (`src/render/water.ts`). It is emissive:
   - slow domain-warped turbulence in three octaves;
   - dark swirling veins of cooler skin;
   - a fine web of white-hot filaments through the hottest pools;
