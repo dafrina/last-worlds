@@ -14,7 +14,7 @@ The concept images are references, never runtime backgrounds or finished assets 
 - "CORONA — The Dying Star. A world so close to its star that its surface is being torn apart. Not ordinary lava: vast oceans of radiant plasma, black magnetic structures rising out of the light, and colossal glowing arcs crossing between the islands. The entire environment feels overwhelming, as though you're flying through the outer layers of a star. Boss: THE HELIOPHAGE."
 - "also make some models for the ships and infrastructure as well as 2 special side route sites, one should be a star extractor facility"; "it should have the same ships as umbra, with wraith".
 - Campaign: the sixth mission, between Brood Strike (Amnion) and Final Horizon (Umbra). Also flown in endless.
-- Second site: the **Solar Collector Array**. The concept's flare hangar is the ordinary airfield, also offered on Corona, with only its colours adjusted ("no new model tho").
+- Second site: first the **Solar Collector Array**, then the sites' designs settled (5 November): the legged plasma rig is the Star Extractor ("The one we worked on should be star extractor"), and the captured star between two arms is the **Star Cage** ("rename this something else, doesnt look like a star extractor anyways"). The concept's flare hangar is the ordinary airfield, also offered on Corona, with only its colours adjusted ("no new model tho").
 - Boss: "reuse the eclipse boss, no recolor or anything and same gameplay we will replace the boss later". Then: "no need for a special lava only lake for the boss, he will float anyway".
 - Endless: "i thought every level will be used in succession in endless". Endless now flies every world in campaign order after the Luna warm-up ("no no warm up is fine"): Khepri, Vesper, Nacre, Amnion, Corona, Umbra, then again from Khepri.
 - Reviews of the first ground passes:
@@ -61,17 +61,18 @@ The concept images are references, never runtime backgrounds or finished assets 
 - **Boss:** THE HELIOPHAGE is THE ECLIPSE's definition and rig unchanged, renamed, with its own messages. The rig stands in by `CarrierStyle.stands`. It floats over the world's own ground; its arena only levels the mesas and tall dressing.
 - **Sites:**
   - the **Star Extractor**, a parts site;
-  - the **Solar Collector Array**, a shield site;
+  - the **Star Cage**, a shield site;
   - the crash site and the airfield, also offered here.
 
   Models: stage 2 (`tools/blender/`). The airfield's Corona finish is a recolour only.
+- **Where sites stand** (user: "cant they generate on the rocks?", then "they can sit in lava just not exclusively"): the rock near the side routes keeps to the lowest tiers, so a site takes an island in reach. About 80% stand on rock (most with a rim built out over the plasma on foundations); the rest float on decks in the plasma (`tests/sim/site-seats.test.ts`, `CORONA_ON_ROCK`).
 - **World missions:** twelve, 625 coins and 5 parts, as Brood Strike's and Final Horizon's (`src/content/world-missions.ts`).
 - **Endless:** Corona's stages are staged from Dying Star's arc as Nacre's are from Deep Bloom's (`lateStages`). The pressure stage holds no strike site, as Nacre's, Amnion's and Umbra's don't.
 
 ## Stages
 
 1. **Playable world (done, 5 November):** types, campaign and endless, terrain and look, plasma, arcs, the placeholder boss, deck, sites, missions.
-2. **Blender models:** the six craft (mapped to Umbra's kinds, the Wraith slot included), the infrastructure kit, the Star Extractor and the Solar Collector Array, and the airfield's Corona recolour.
+2. **Blender models:** the six craft (mapped to Umbra's kinds, the Wraith slot included), the infrastructure kit, the Star Extractor and the Star Cage, and the airfield's Corona recolour.
 3. **Validation:**
    - measure the site-seat spread (`tests/sim/site-seats.test.ts`, provisional);
    - measure the longer endless lap;

@@ -7,13 +7,14 @@ import { FORMATIONS, siteCoreFormation, type FormationId } from '../../src/conte
 import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT, SITE_X, sitePool } from '../../src/content/sites';
 import { toFlightPlane, lensEye } from '../../src/shared/lens';
 import { SITE_IDS, VIEW, type MissionId, type PlanetId, type SiteId } from '../../src/shared/contracts';
+import { CORONA_SEA_LEVEL } from '../../src/world/terrain-corona';
 
 /**
  * Strike-site seats (src/sim/sites.ts, workstream C; user, 30 October: "make sure none of these cross heavy cliffs"):
  * many runs on every world, each side and camera and each of the world's sites with its own guard ring, the site's
  * footprint at its chosen seat against its authored spot (where the line of sight through its track meets the ground).
  */
-const WORLDS: readonly [PlanetId, MissionId][] = [['luna', 'training'], ['khepri', 'bastion'], ['vesper', 'cold-vector'], ['nacre', 'deep-bloom'], ['amnion', 'brood-strike'], ['umbra', 'final-horizon']];
+const WORLDS: readonly [PlanetId, MissionId][] = [['luna', 'training'], ['khepri', 'bastion'], ['vesper', 'cold-vector'], ['nacre', 'deep-bloom'], ['amnion', 'brood-strike'], ['corona', 'dying-star'], ['umbra', 'final-horizon']];
 function survey(world: PlanetId, mission: MissionId) {
   const seats: { seat: SiteSeat; authored: SiteSeat; site: SiteId; intrusion: number }[] = [], pool = sitePool(world).map(site => site.id);
   let k = 0;
@@ -27,16 +28,18 @@ function survey(world: PlanetId, mission: MissionId) {
   }
   return seats;
 }
-const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper']);
+const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper', 'corona']);
 /**
  * Regression bounds on the footprint's unevenness at the chosen seats (ground spread, 10th to 90th percentile), measured
  * 30 October with about 10% headroom. The window is small (the core stays in its guards' ring, src/sim/sites.ts
  * SEAT_SEARCH; SEAT_WIDE only for a seat over heavy relief), so on Amnion's pitted flesh plains and some of Umbra's plates
  * cut by narrow canyons a seat still straddles a pit or a crack: the render's site pad levels it.
  */
-const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 4.3, umbra: 4.3 };
+const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 2.6, umbra: 4.3 };
 /** How far into the footprint's edge a guard may stand at worst (the models keep their rim clear of structures). */
 const GUARD_RIM = .6;
+/** Corona's share of sites on rock, not afloat in the plasma (measured 5 November, with headroom). */
+const CORONA_ON_ROCK = .7;
 const quantile = (values: number[], f: number) => [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * f)];
 
 describe('strike-site seats', () => {
@@ -58,6 +61,7 @@ describe('strike-site seats', () => {
       expect(seat.above).toBeLessThanOrEqual(2.4);
       expect(seat.drop).toBeLessThanOrEqual(SITE_DROP_MAX);
       // Never over open water, except the worlds whose sites are built for it (Nacre's mire, Vesper's ice-shelf decks).
+      // (Corona's sites may stand in the plasma, on decks, "just not exclusively": user, 5 November; measured below.)
       if (!WATER_BUILT.has(world)) expect(seat.wet).toBe(0);
     }
     // Guards keep their whole clearance band in six seats of seven, and stand on the footprint's rim in at most one in thirty.
@@ -65,9 +69,12 @@ describe('strike-site seats', () => {
     expect(seats.filter(({ intrusion }) => intrusion >= GUARD_CLEARANCE).length / seats.length).toBeLessThanOrEqual(.03);
     // Ground poking through the floor is rare and low.
     expect(quantile(above, .9)).toBeLessThanOrEqual(.7);
-    // The search does better than the authored spot at the median, and the tail is bounded.
-    expect(quantile(spread, .5)).toBeLessThanOrEqual(quantile(authored, .5) * .9);
+    // The search does better than the authored spot at the median (unless that is already flat: Corona's side-route
+    // corridors, 5 November), and the tail is bounded.
+    expect(quantile(spread, .5)).toBeLessThanOrEqual(Math.max(quantile(authored, .5) * .9, .1));
     expect(quantile(spread, .9)).toBeLessThanOrEqual(SPREAD_P90[world]);
+    // Corona: most sites stand on rock (the low islands by the side routes), some in the plasma.
+    if (world === 'corona') expect(seats.filter(({ seat }) => seat.base > CORONA_SEA_LEVEL + 1).length / seats.length).toBeGreaterThanOrEqual(CORONA_ON_ROCK);
   });
 
   it('spawns every site\'s guard as authored and its core on the seat: guards off the footprint, the core on its floor under the flight plane, seen where its proxy is', () => {

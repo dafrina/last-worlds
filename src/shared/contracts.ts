@@ -40,7 +40,7 @@ export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** `pulsar` (Nacre, 17 October 2026) fires a rapid burst stream down one committed line. */
 /** Strike sites (docs/33): optional side-route targets, one model each with a finish per world. */
 export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot', 'relay-station', 'freight-terminal',
-  'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool', 'star-extractor', 'solar-collector'] as const;
+  'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool', 'star-extractor', 'star-cage'] as const;
 export type SiteId = (typeof SITE_IDS)[number];
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
 export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean; dashPressed?: -1 | 1 }

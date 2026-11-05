@@ -197,7 +197,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     hunterBounty(3),
     long('starfall', 'Starfall', 'Destroy 20 strike sites, across runs.', 20, { kind: 'sites' }),
     { slug: 'extractor-breaker', name: 'Extractor Breaker', text: 'Destroy 3 Star Extractors, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['star-extractor'] }) },
-    { slug: 'lights-out', name: 'Lights Out', text: 'Destroy a Solar Collector Array and complete the mission.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites', sites: ['solar-collector'], complete: true }) },
+    { slug: 'lights-out', name: 'Lights Out', text: 'Destroy a Star Cage and complete the mission.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites', sites: ['star-cage'], complete: true }) },
     { slug: 'plasma-skimmer', name: 'Plasma Skimmer', text: 'Destroy 15 airborne enemies over the plasma sea with the Fan Cannon in one run.', goal: 15, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air-water', weapon: 'fan' }) },
     { slug: 'wraith-exorcist', name: 'Wraith Exorcist', text: 'Destroy 3 Wraiths in one run.', goal: 3, credits: 75, parts: 0, difficulty: 'relaxed', ...run({ kind: 'wraiths' }) },
     { slug: 'flare-dancer', name: 'Flare Dancer', text: 'Survive 4 Wraith volleys without a hit in one run.', goal: 4, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'wraith-clean', window: WRAITH_WINDOW }) },

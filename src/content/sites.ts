@@ -67,8 +67,8 @@ export const SITE_CORE_HEIGHT: Readonly<Record<SiteId, number>> = {
   'gate-ring': 1.55,
   'brood-hive': .85,
   'spawning-pool': 1.45,
-  'star-extractor': 1.6,
-  'solar-collector': 2.2,
+  'star-extractor': 2.2,
+  'star-cage': 1.6,
 };
 /** Score for destroying a site's core, in both modes. */
 export const SITE_SCORE = 500;
@@ -153,14 +153,14 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
     id: 'spawning-pool', name: 'SPAWNING POOL', worlds: BROOD, weight: 1, core: CORE, ...shieldSite,
     guard: on(BROOD, [g('site-mixed-2')]),
   },
-  // Corona's own (docs/37; user, 5 November: "2 special side route sites, one should be a star extractor facility"; the
-  // second the Solar Collector Array from the infrastructure sheet).
+  // Corona's own (docs/37; user, 5 November: "2 special side route sites, one should be a star extractor facility"): the
+  // Star Extractor, a legged rig drawing plasma out of the ground; the Star Cage, a captured star between two arms.
   'star-extractor': {
     id: 'star-extractor', name: 'STAR EXTRACTOR', worlds: ['corona'], weight: 1, core: CORE, ...partSite(1),
     guard: { corona: [g('site-mixed-3'), g('needle-solo', -1.5)] },
   },
-  'solar-collector': {
-    id: 'solar-collector', name: 'SOLAR COLLECTOR ARRAY', worlds: ['corona'], weight: 1, core: CORE, ...shieldSite,
+  'star-cage': {
+    id: 'star-cage', name: 'STAR CAGE', worlds: ['corona'], weight: 1, core: CORE, ...shieldSite,
     guard: { corona: [g('site-mixed-2')] },
   },
 };

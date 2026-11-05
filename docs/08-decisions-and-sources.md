@@ -292,7 +292,7 @@ User answers after reviewing the merged strike sites and encounter deck:
   - the sixth campaign mission, Dying Star, between Brood Strike and Final Horizon;
   - flies Umbra's fleet and the Wraith;
   - THE HELIOPHAGE is THE ECLIPSE unchanged as a placeholder (user: "reuse the eclipse boss, no recolor or anything and same gameplay we will replace the boss later"), floating over the world's own ground ("no need for a special lava only lake for the boss");
-  - two new sites, the Star Extractor and the Solar Collector Array; the airfield is also offered there, recoloured only;
+  - two new sites: the Star Extractor (parts), a legged rig drawing plasma out of the ground (user: "The one we worked on should be star extractor"), and the Star Cage (shields), a captured star between two arms; the airfield is also offered there, recoloured only;
   - twelve world missions, 625 coins and 5 parts;
   - enemy fire and ace shields are Amnion's warm red on Corona (user: "make the glow color for projectiles and their shield more like amnions red, warm red not magenta"), for contrast with the gold plasma.
 - **Endless flies every world (user: "i thought every level will be used in succession in endless"; "no no warm up is fine"):**

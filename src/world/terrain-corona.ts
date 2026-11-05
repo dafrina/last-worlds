@@ -45,6 +45,23 @@ export interface CoronaMasks {
   /** Mesa and its second tier, 0 … 1 each (crisp). */ mesa: number; tier: number;
   calm: number;
 }
+/**
+ * Closeness to a side route (0 … 1; ROUTE_AXES ±7.5, where the strike sites stand). User, 5 November: "why are they
+ * always on the lava part, cant they generate on the rocks?", then "they can sit in lava just not exclusively". Sites
+ * seat within a small window of their authored place (src/sim/sites.ts SEAT_SEARCH) and avoid high floors more than
+ * plasma: the rock near the side routes keeps to the lowest tiers (landLevel), so a site takes an island in reach.
+ */
+function sideRoute(seed: number, x: number, s: number): number {
+  let near = 0;
+  // Round a site's seat (a unit or two either side of the route), a little wider toward the edge, where a seat beside a
+  // far camera reaches.
+  for (const route of [0, 2] as const) {
+    const c = routeCenter(seed, route, s), outer = Math.sign(x) === Math.sign(c) && Math.abs(x) > Math.abs(c);
+    near = Math.max(near, outer ? 1 - smoothRange(3, 5, Math.abs(x - c)) : 1 - smoothRange(2.4, 4, Math.abs(x - c)));
+  }
+  return near;
+}
+
 export function coronaMasks(seed: number, x: number, s: number, platform = 0): CoronaMasks {
   const calm = routeCalm(seed, x, s);
   const qx = x + (noise(seed ^ 0xc1a1, x * 0.04, s * 0.035) - 0.5) * 12, qs = s + (noise(seed ^ 0xc1a2, x * 0.04 + 5.3, s * 0.035) - 0.5) * 12;
@@ -59,7 +76,7 @@ export function coronaMasks(seed: number, x: number, s: number, platform = 0): C
   const inland = smoothRange(0.02, 0.12, mass - threshold);
   // Mesas: tabular blocks over the islands' cores, never on the causeway.
   const field = noise(seed ^ 0xc1b1, qx * 0.08, qs * 0.075) * 0.75 + noise(seed ^ 0xc1b2, qx * 0.22, qs * 0.2) * 0.25;
-  const core = smoothRange(0.05, 0.1, mass - threshold) * (1 - smoothRange(0.25, 0.5, calm)) * (1 - platform);
+  const core = smoothRange(0.05, 0.1, mass - threshold) * (1 - smoothRange(0.25, 0.5, calm)) * (1 - smoothRange(0.3, 0.7, sideRoute(seed, x, s))) * (1 - platform);
   const mesa = crispStep((field - 0.58) / 0.025 + 0.5) * core, tier = crispStep((field - 0.69) / 0.025 + 0.5) * mesa;
   return { land, edge, inland, mesa, tier, calm };
 }
@@ -81,8 +98,9 @@ function plates(seed: number, x: number, s: number): { offset: number; tone: num
 function landLevel(seed: number, x: number, s: number, platform: number): number {
   const qx = x + (noise(seed ^ 0xc1d3, x * 0.03, s * 0.026) - 0.5) * 14, qs = s + (noise(seed ^ 0xc1d4, x * 0.03 + 3.3, s * 0.026) - 0.5) * 14;
   const field = noise(seed ^ 0xc1d1, qx * 0.05, qs * 0.045) * 0.6 + noise(seed ^ 0xc1d2, qx * 0.13, qs * 0.12) * 0.3 + noise(seed ^ 0xc1d5, qx * 0.3, qs * 0.28) * 0.1;
-  const calm = routeCalm(seed, x, s);
-  const level = LOW + smoothRange(0.25, 0.8, field) * RISE * (1 - calm * 0.55);
+  const calm = routeCalm(seed, x, s), side = sideRoute(seed, x, s);
+  // The causeway keeps to the lower tiers; the side routes' corridors to the lowest (a site's floor, src/sim/sites.ts).
+  const level = LOW + smoothRange(0.25, 0.8, field) * RISE * (1 - calm * 0.55) * (1 - side * 0.85);
   return mix(level, PLATEAU, platform) + (noise(seed ^ 0xc1d6, x * 0.35, s * 0.32) - 0.5) * 0.35;
 }
 

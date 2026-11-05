@@ -43,9 +43,9 @@ export const SITE_MODELS: Readonly<Partial<Record<SiteId, SiteModel>>> = {
   'gate-ring': { finishes: ['umbra', 'nacre', 'amnion'], x: [-2.75, 2.7], s: [-2.85, 2.75], top: 2.95, below: 1.1 },
   'brood-hive': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.6], s: [-1.95, 2.95], top: 2.3, below: 1.05 },
   'spawning-pool': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.45], s: [-2.5, 2.85], top: 2.5, below: .95 },
-  // Corona (docs/37): the captured star between two arms; the collector tower and its four fans.
+  // Corona (docs/37): the Star Extractor, a legged plasma rig; the Star Cage, a captured star between two arms.
   'star-extractor': { finishes: ['corona'], x: [-3.0, 3.0], s: [-3.0, 3.1], top: 3.25, below: 1.1 },
-  'solar-collector': { finishes: ['corona'], x: [-3.0, 3.0], s: [-3.0, 3.1], top: 3.25, below: 1.1 },
+  'star-cage': { finishes: ['corona'], x: [-3.0, 3.0], s: [-3.0, 3.1], top: 3.25, below: 1.1 },
 };
 
 export type SitePart = 'body' | 'core' | 'ruin';

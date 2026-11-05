@@ -1345,15 +1345,15 @@ def spawning_pool(world):
     return body, core, ruin
 
 
-# ----------------------------------------------------------------------------- star extractor (Corona)
-def star_extractor(world):
-    """Corona's parts site (docs/37, art/concepts/corona/02-infrastructure, top left): a captured star, a white-gold sphere
+# ----------------------------------------------------------------------------- star cage (Corona)
+def star_cage(world):
+    """Corona's shield site, the STAR CAGE (docs/37, art/concepts/corona/02-infrastructure, top left): a captured star, a white-gold sphere
     of plasma (the target), held between two massive C-shaped arms of blocky segments over a stepped basalt dais with
     glowing seams; refinery tanks and plasma pipes behind it, a glowing plasma column at the back right. The arms stand in
     the plane across the view, open at the top and bottom, so nothing passes in front of the star."""
     body, core, ruin = Kit(), Kit(), Kit()
     rng = random.Random(211)
-    C = CORE_HEIGHT['star-extractor']
+    C = CORE_HEIGHT['star-cage']
     # The dais: a wide basalt slab, a raised ring under the star, glowing seams and front steps.
     body.major.box((-2.7, -2.25, -1.1), (2.7, 2.85, .16), 'stone_dark', chamfer=.45)
     body.major.box((-1.75, -1.35, .16), (1.75, 1.6, .36), 'stone', chamfer=.35)
@@ -1419,16 +1419,16 @@ def star_extractor(world):
     return body, core, ruin
 
 
-# ----------------------------------------------------------------------------- solar collector array (Corona)
-def solar_collector(world):
-    """Corona's shield site (docs/37; user, 5 November: "with legs like holding up a machinery that draws plasma out of
-    the ground"): a plasma rig standing on four long jointed legs over a bore hole. A column of plasma rises out of the
+# ----------------------------------------------------------------------------- star extractor (Corona)
+def star_extractor(world):
+    """Corona's parts site, the STAR EXTRACTOR (docs/37; user, 5 November: "with legs like holding up a machinery that draws
+    plasma out of the ground"; "The one we worked on should be star extractor"): a plasma rig standing on four long jointed legs over a bore hole. A column of plasma rises out of the
     glowing pool in the hole into the rig's chamber (the target), held in a segmented containment ring; the machinery
     housing sits behind it. The column belongs to the core: when the chamber is destroyed the draw stops. The legs keep
     clear of the line of sight from the chamber and the guard batteries; nothing stands in front of the chamber."""
     body, core, ruin = Kit(), Kit(), Kit()
     rng = random.Random(227)
-    C = CORE_HEIGHT['solar-collector']
+    C = CORE_HEIGHT['star-extractor']
     # The bore: a low stone collar round the hole, the plasma pool glowing in it, bolted rim plates.
     cyl(body, 0, 0, 1.15, -1.1, .12, 'stone_dark', seg=16)
     cyl(body, 0, 0, .95, .12, .2, 'stone', seg=16)
@@ -1517,7 +1517,7 @@ def solar_collector(world):
 BUILDERS = {'crash-site': crash_site, 'airfield': airfield, 'salvage-yard': salvage_yard, 'shield-depot': shield_depot,
             'relay-station': relay_station, 'freight-terminal': freight_terminal, 'dark-spaceport': dark_spaceport,
             'prism-reactor': prism_reactor, 'sealed-vault': sealed_vault, 'gate-ring': gate_ring, 'brood-hive': brood_hive,
-            'spawning-pool': spawning_pool, 'star-extractor': star_extractor, 'solar-collector': solar_collector}
+            'spawning-pool': spawning_pool, 'star-extractor': star_extractor, 'star-cage': star_cage}
 
 
 # ----------------------------------------------------------------------------- build, check, export
