@@ -2159,3 +2159,14 @@ Broader suite: 845 passed, 4 skipped, 3 failed. All failures are the existing se
   - **On open water:** the pontoon stays on the surface and its gun unfolds on the deck, never under the sea.
   - **Checked:** a Cold Vector still (seed 4242, 36 s) shows both batteries on their pontoons.
 - **Not tested:** no phone test.
+
+## 5 November 2026 — flicker fixes deployed (`74c54b5`, no gate at the user's request)
+
+- **Causes found:**
+  - Cliff walls placed twice at one spot: 119 pairs in 90 Vesper sections, 160 on Khepri. They are now deduplicated, across section boundaries too.
+  - The Shield Depot's ring walls were capped with full-disc lids that fought each other.
+  - Both were reproduced with coarse depth in SwiftShader (near plane 0.05), and gone after the fix.
+- **All sites:** visible coplanar overlapping flat faces are separated by lifting the smaller 5 mm (`strike_sites.py` `separate_coplanar`).
+- **Reverted:** MSAA on High (`bfc005e`, `1053995`), the `?msaa` and `?fx` diagnostics, and `?unlock=all`.
+- **Checks:** typecheck and 20 site/terrain unit tests only; no browser gate. Pages run 42110327382 succeeded.
+- **Phone check:** pending, by the user.

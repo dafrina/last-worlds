@@ -732,3 +732,11 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - `?unlock=all` (`c1c9baf`).
 - **Removed:** the `alien-skies-flicker` and `alien-skies-snapshot` worktrees, and the merged `flicker-fix` branch.
 - **Live `main` still carries** MSAA, the switches and `?unlock=all` until the next deploy.
+**2026-11-05 · Claude Code (Corona / Dying Star session) · deployed `74c54b5` (no gate, at the user's request):**
+- **Fixes:**
+  - no duplicate cliff walls;
+  - the Shield Depot's ring walls without lids;
+  - visible coplanar flat faces on every site separated by 5 mm.
+- **Reverted:** MSAA and the `?msaa`, `?fx` and `?unlock` switches.
+- **Run:** Pages run 42110327382 succeeded; the live bundle carries no test switches.
+- **Corona:** not deployed; it stays on `integrator-next`, which has `main` merged in.
