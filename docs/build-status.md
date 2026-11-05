@@ -20,6 +20,11 @@
   - High stills, with and without MSAA at the same tick (Cold Vector, 30 s, 1.5× like a phone): no page errors; the hero, its mark and the fog are unchanged; panel slats and edges resolve more evenly.
   - Typecheck clean; render tests 27/27.
 - **Not measured:** the GPU cost on a phone. SwiftShader has no GPU.
+- **Gate on `1053995`** (clean snapshot; the Corona session's unit runs held the load at 18–30):
+  - typecheck clean; unit 920 passed, 5 skipped; build passes;
+  - browser 55/56 (Playwright exit 1). The failure was endless steering, a frame-timed check that got 3.7 units sideways in 5 s, not 8.
+  - **Rerun:** failed again at load 27, then passed at load 12 (Playwright exit 0).
+  - The first gate's other failures came from MSAA under SwiftShader; this commit keeps MSAA off there.
 - **Coordination:** made in a separate worktree (`../alien-skies-flicker`, branch `flicker-fix` from `c0c3aca`), so the "Moon training level" session's uncommitted Corona level in the main tree was not touched. Merge `origin/main` before your next push.
 
 ## Repository cleanup, 4 November 2026
