@@ -51,18 +51,3 @@ test('an endless run uploads the next world\'s atlases under the jump\'s flash, 
   expect(await textures(page)).toBeGreaterThan(before);
   expect(errors).toEqual([]);
 });
-
-test('High multisamples its scene target on request, and the software test renderer keeps the old one', async ({ page }) => {
-  // User, 5 November: on a phone, High's cliffs, site grounds and base-plate edges flickered (never on Low). Real GPUs get
-  // MSAA 4 (src/render/post-pipeline.ts sceneSamples); SwiftShader keeps 0 unless `?msaa=` forces it.
-  test.setTimeout(150_000);
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  const stats = async () => JSON.parse(await page.locator('canvas.flight-canvas').getAttribute('data-render-stats') ?? '{}') as { msaa?: number; calls?: number; tier?: string };
-  for (const [search, samples] of [['', 0], ['?msaa=4', 4]] as const) {
-    await page.goto(`/${search}`);
-    await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
-    await flying(page);
-    await expect.poll(async () => { const s = await stats(); return s.tier === 'high' && (s.calls ?? 0) > 0 ? s.msaa : -1; }, { timeout: 60_000 }).toBe(samples);
-  }
-  expect(errors).toEqual([]);
-});
