@@ -1725,6 +1725,43 @@ def devastate(ruin, body, rng, bounds=None, radius=9.0, flat=None):
             blob(ruin, (x, y, surface(x, y) + .05), .1, .1, .07, 'ember_glow', seg=6, rings=4)
 
 
+def separate_coplanar(ob, lift=.005):
+    """No two visible flat faces at one height (user, 5 November: flicker on phones; the shield depot's lids, decks and the
+    decals flush on them): where faces the game camera can see lie in one plane and overlap, the smaller is lifted by
+    `lift` (and by one step more for each larger face under it). Returns how many faces moved."""
+    import bmesh
+    from collections import defaultdict
+    bm = bmesh.new(); bm.from_mesh(ob.data); bm.normal_update(); bm.faces.ensure_lookup_table()
+    tree = BVHTree.FromBMesh(bm)
+    eye = Vector((0, -math.cos(math.radians(55)), math.sin(math.radians(55))))
+    def exposed(f):
+        c = f.calc_center_median()
+        return any(tree.ray_cast(c + Vector((0, 0, off)) + eye * .01, eye, 30)[0] is None for off in (.004, -.004))
+    groups = defaultdict(list)
+    for f in bm.faces:
+        if abs(f.normal.z) > .995 and exposed(f):
+            groups[round(sum(v.co.z for v in f.verts) / len(f.verts), 3)].append(f)
+    raise_by = {}
+    for faces in groups.values():
+        info = [(f, (min(v.co.x for v in f.verts), max(v.co.x for v in f.verts), min(v.co.y for v in f.verts), max(v.co.y for v in f.verts)), {v.index for v in f.verts}, f.calc_area()) for f in faces]
+        for i, (fa, ba, va, aa) in enumerate(info):
+            under = 0
+            for j, (fb, bb, vb, ab) in enumerate(info):
+                if i == j or va & vb or (ab, j) <= (aa, i):
+                    continue
+                if min(ba[1], bb[1]) - max(ba[0], bb[0]) > .03 and min(ba[3], bb[3]) - max(ba[2], bb[2]) > .03:
+                    under += 1
+            if under:
+                raise_by[fa] = lift * under
+    lifted = set()
+    for f, dz in raise_by.items():
+        for v in f.verts:
+            if v.index not in lifted:
+                v.co.z += dz; lifted.add(v.index)
+    bm.to_mesh(ob.data); bm.free(); ob.data.update()
+    return len(raise_by)
+
+
 def build_site(site, spec, sc):
     out = {}
     for world in spec['finishes']:
@@ -1738,6 +1775,9 @@ def build_site(site, spec, sc):
         else:
             devastate(kits[2], body, rng, bounds=(spec['x'][0], spec['x'][1], spec['s'][0], spec['s'][1]))
         objects = {'body': body, 'core': kits[1].object('%s_core' % name, mats, sc), 'ruin': kits[2].object('%s_ruin' % name, mats, sc)}
+        moved = sum(separate_coplanar(ob) for ob in objects.values())
+        if moved:
+            print('SITES %s/%s: %d coplanar faces lifted' % (site, world, moved))
         br.bake_ao([objects['body'], objects['core']], [objects['body'], objects['core']], strength=.8, reach=1.6, ground=0.0, rays=24)
         br.bake_ao([objects['ruin']], [objects['body'], objects['ruin']], strength=.8, reach=1.6, ground=0.0, rays=24)
         if world == 'corona':
