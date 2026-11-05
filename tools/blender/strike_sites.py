@@ -1421,62 +1421,68 @@ def star_extractor(world):
 
 # ----------------------------------------------------------------------------- solar collector array (Corona)
 def solar_collector(world):
-    """Corona's shield site (docs/37, art/concepts/corona/02-infrastructure, top middle): a lattice tower carrying a
-    glowing hub (the target) and four fan-shaped collector panels round it in a plane tilted back to face the camera, so
-    they show their gold faces and never pass in front of the hub; small dish collectors and modules on the platform."""
+    """Corona's shield site (docs/37; user, 5 November: "with legs like holding up a machinery that draws plasma out of
+    the ground"): a plasma rig standing on four long jointed legs over a bore hole. A column of plasma rises out of the
+    glowing pool in the hole into the rig's chamber (the target), held in a segmented containment ring; the machinery
+    housing sits behind it. The column belongs to the core: when the chamber is destroyed the draw stops. The legs keep
+    clear of the line of sight from the chamber and the guard batteries; nothing stands in front of the chamber."""
     body, core, ruin = Kit(), Kit(), Kit()
-    rng = random.Random(223)
+    rng = random.Random(227)
     C = CORE_HEIGHT['solar-collector']
-    body.major.box((-2.5, -2.1, -1.1), (2.5, 2.7, .14), 'stone_dark', chamfer=.4)
-    body.major.box((-1.3, -1.1, .14), (1.3, 1.4, .32), 'metal', chamfer=.25)
-    for x in (-1.0, 1.0):
-        beam(body, (x, -1.05, .33), (x, 1.35, .33), .04, .02, 'glow')
-    # The tower: four splayed legs to a collar under the hub, cross braces, a glowing conduit up its back.
-    top = C - .42
-    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-        beam(body, (sx * .85, sy * .8, .32), (sx * .16, sy * .16, top), .1, .1, 'steel')
-    for z, w in ((.75, .62), (1.2, .42), (1.55, .27)):
-        for (x0, y0), (x1, y1) in (((-w, -w), (w, -w)), ((w, -w), (w, w)), ((w, w), (-w, w)), ((-w, w), (-w, -w))):
-            beam(body, (x0, y0, z), (x1, y1, z), .04, .04, 'metal')
-    cyl(body, 0, 0, .26, top - .1, top + .06, 'metal', seg=10)
-    tube(body, [(0, .2, .32), (0, .22, 1.0), (0, .1, top)], .05, 'glow', seg=5)
-    # The panels: four fans in the plane through the hub tilted back 35 degrees (its normal toward the camera), each a
-    # tapering frame of three gold ribs.
-    tilt = math.radians(35)
-    nrm = Vector((0, -math.cos(tilt), math.sin(tilt)))
-    u = Vector((1, 0, 0)); v = nrm.cross(u).normalized()
-    hub = Vector((0, .05, C))
-    at = lambda r, a, off=0.0: tuple(hub + (u * math.cos(a) + v * math.sin(a)) * r - nrm * off)
+    # The bore: a low stone collar round the hole, the plasma pool glowing in it, bolted rim plates.
+    cyl(body, 0, 0, 1.15, -1.1, .12, 'stone_dark', seg=16)
+    cyl(body, 0, 0, .95, .12, .2, 'stone', seg=16)
+    disc(body, 0, 0, .78, .2, .22, 'scorch', seg=16)
+    disc(body, 0, 0, .62, .22, .24, 'core_glow', seg=16)
+    ring_tube(body, (0, 0, .24), (0, 0, 1), .8, .05, 'glow', seg=20, side=4)
+    for k in range(8):
+        a = TAU * k / 8 + TAU / 16
+        obox(body, math.cos(a) * 1.02, math.sin(a) * 1.02, .14, .08, .2, .28, a, 'steel', minor=True)
+    # The legs: four, on the diagonals; hip at the containment ring, knee raised high and out, foot on a pad.
     for k in range(4):
         a = math.radians(45 + 90 * k)
-        spread = .42
-        pts = lambda off, a=a: [at(.42, a - .18, off), at(1.32, a - spread, off), at(1.4, a, off), at(1.32, a + spread, off), at(.42, a + .18, off)]
-        body.major.loft([pts(.04), pts(-.04)], 'panel_glow')
-        for f in (-.6, 0, .6):
-            beam(body, at(.5, a + f * .2, .06), at(1.3, a + f * spread * .9, .06), .045, .02, 'metal')
-        tube(body, [at(.42, a - .18, .06), at(1.32, a - spread, .06), at(1.4, a, .06), at(1.32, a + spread, .06), at(.42, a + .18, .06)], .035, 'steel', seg=4)
-        beam(body, at(.3, a, .0), at(.5, a, .0), .1, .1, 'steel')
-    ring_tube(body, tuple(hub), tuple(nrm), .48, .05, 'steel', seg=16, side=4)
-    # Small dish collectors on the platform's front corners and modules behind.
-    for x, y in ((-1.95, -1.4), (1.95, -1.35)):
-        cyl(body, x, y, .1, .14, .45, 'steel', seg=6)
-        body.minor.loft([[(x + .38 * math.cos(TAU * i / 10), y - .1 + .38 * math.sin(TAU * i / 10) * math.cos(tilt), .5 + .38 * math.sin(TAU * i / 10) * math.sin(tilt)) for i in range(10)],
-                         [(x + .08 * math.cos(TAU * i / 10), y - .04, .46 + .08 * math.sin(TAU * i / 10)) for i in range(10)]], 'paint')
-        cyl(body, x, y - .08, .05, .5, .56, 'glow', seg=6)
-    for x, y, w, d, h_ in ((-1.9, 1.9, .42, .32, .58), (1.85, 2.0, .38, .34, .66), (-.2, 2.3, .55, .25, .45)):
-        body.major.box((x - w, y - d, .14), (x + w, y + d, .14 + h_), 'metal', chamfer=.08)
-        B(body, x - w + .05, x + w - .05, y - d - .01, y - d + .02, .14 + h_ * .5, .14 + h_ * .66, 'glow')
-    for x, y in ((-2.2, .5), (2.2, .4)):
-        rf.mast(body, x, y, .14, .95)
-    # The hub (the core): a glowing sphere with a gold ring.
-    blob(core, tuple(hub), .36, .36, .36, 'core_glow', seg=12, rings=8)
-    ring_tube(core, tuple(hub), tuple(nrm), .36, .05, 'alt_glow', seg=16, side=4)
-    # Destroyed: the hub blown out, a panel fallen across the platform, scorch and debris.
-    cyl(ruin, 0, .05, .22, top + .05, top + .2, 'scorch', seg=8)
-    obox(ruin, .9, -.6, .55, .35, .33, .4, .7, 'metal', tilt=.35)
-    scorch(ruin, rng, 0, -.4, .95)
-    wreckage(ruin, rng, 0, -.2, .7, 1.8, 10, mats=('metal', 'steel', 'scorch'), embers=3, z=.32)
-    obsidian_shards(body, rng, ((2.3, -1.9, .55), (-2.3, 2.5, .55)))
+        u = Vector((math.cos(a), math.sin(a), 0))
+        hip, knee, foot = u * .78 + Vector((0, 0, C + .05)), u * 1.55 + Vector((0, 0, 2.95)), u * 2.45 + Vector((0, 0, .12))
+        tube(body, [tuple(hip), tuple(knee)], [.13, .11], 'metal', seg=6)
+        tube(body, [tuple(knee), tuple(foot)], [.1, .07], 'steel', seg=6)
+        # Hydraulics along each leg, a glowing joint at the knee.
+        tube(body, [tuple(hip + Vector((0, 0, .12))), tuple(knee - u * .15 + Vector((0, 0, .02)))], .035, 'steel', seg=4)
+        blob(body, tuple(knee), .14, .14, .14, 'metal', seg=8, rings=5)
+        ring_tube(body, tuple(knee), tuple(Vector((-u.y, u.x, 0))), .15, .025, 'glow', seg=10, side=4)
+        side = Vector((-u.y, u.x, 0))
+        lo, hi = foot - u * .28 - side * .24, foot + u * .28 + side * .24
+        obox(body, foot.x, foot.y, .3, .26, -.9, .14, a, 'stone_dark')
+        obox(body, foot.x, foot.y, .24, .2, .14, .22, a, 'metal')
+    # The containment ring round the chamber: twelve segments, a glowing inner rim.
+    R0, R1 = .5, .78
+    for k in range(12):
+        a0, a1 = TAU * k / 12 + .03, TAU * (k + 1) / 12 - .03
+        quad = lambda z: [(math.cos(a0) * R0, math.sin(a0) * R0, z), (math.cos(a0) * R1, math.sin(a0) * R1, z),
+                          (math.cos(a1) * R1, math.sin(a1) * R1, z), (math.cos(a1) * R0, math.sin(a1) * R0, z)]
+        body.major.loft([quad(C - .14), quad(C + .1)], 'steel' if k % 2 else 'metal')
+    ring_tube(body, (0, 0, C - .02), (0, 0, 1), R0 - .02, .04, 'glow', seg=24, side=4)
+    # The machinery behind the chamber: a housing with vents and conduits feeding into the ring.
+    body.major.box((-.6, .62, C - .3), (.6, 1.3, C + .55), 'paint', chamfer=.12)
+    body.major.box((-.5, .7, C + .55), (.5, 1.2, C + .72), 'metal', chamfer=.08)
+    for x in (-.35, 0, .35):
+        B(body, x - .07, x + .07, .6, .62, C - .15, C + .4, 'glow')
+    for x in (-.4, .4):
+        tube(body, [(x, .7, C), (x * .8, .62, C - .05), (x * .6, .55, C - .02)], .05, 'steel', seg=5)
+    cyl(body, .3, 1.0, .06, C + .72, C + 1.0, 'steel', seg=6)
+    cyl(body, .3, 1.0, .07, C + .95, C + 1.0, 'glow', seg=6)
+    # The core: the chamber (a sphere of plasma in a gold band) and the column drawn up into it from the pool.
+    blob(core, (0, 0, C), .38, .38, .36, 'core_glow', seg=12, rings=8)
+    ring_tube(core, (0, 0, C), (0, 0, 1), .4, .04, 'alt_glow', seg=18, side=4)
+    tube(core, [(0, 0, .22), (0, 0, .8), (0, 0, 1.4), (0, 0, C - .3)], [.32, .2, .15, .2], 'field_glow', seg=10)
+    for z in (.7, 1.15, 1.6):
+        ring_tube(core, (0, 0, z), (0, 0, 1), .24 - z * .04, .03, 'alt_glow', seg=12, side=4)
+    # Destroyed: the chamber burst, the pool gone dark, debris thrown round the bore.
+    blob(ruin, (0, 0, .3), .55, .55, .12, 'scorch', seg=12, rings=4)
+    for k in range(6):
+        a = TAU * k / 6 + rng.uniform(-.3, .3)
+        shard(ruin, (math.cos(a) * .45, math.sin(a) * .45, .25), rng.uniform(.15, .3), .08, 'metal', rng, lean=.9)
+    scorch(ruin, rng, 0, -.6, 1.0)
+    wreckage(ruin, rng, 0, -.3, .9, 1.9, 10, mats=('metal', 'steel', 'scorch'), embers=3, z=.2)
     return body, core, ruin
 
 
