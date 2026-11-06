@@ -762,3 +762,22 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - build 0;
 - Playwright release suite 55/55 (21.4 min), Playwright's own exit code 0.
 - **Phone check:** still open on hardware.
+**2026-11-06 · Claude Code (Corona session) · deployed `ebf8340`, then `3a91079`:**
+- **`ebf8340`, balance:**
+  - fewer fuel tanks (no skid pairs under flights; a depot in about one ground group of three on the late worlds);
+  - lasers only from Vesper (Luna none, Khepri scripted Lancers);
+  - Vesper at most 4 lines at once;
+  - Pulsars +15% hp;
+  - Bonfire 35 and Gravity Slingshot 3.
+- **`ebf8340`, Corona fleet third pass** (`tools/blender/corona_fleet.py`).
+- **`ebf8340` gate:** passed. The browser suite had two timeouts under load, and both passed on rerun.
+- **`3a91079`, tempo:**
+  - campaign pace 1.15: scroll 5.75, and boss arenas stop 15% further (`CAMPAIGN_SCROLL`);
+  - air craft open fire 25% sooner (`DifficultyScale.airFirstShot`; Veteran keeps 1);
+  - endless held at 1.1 (1.2 was asked; fairness seals at 1.15, 1.18 and 1.2 are open);
+  - Corona's own HELIOPHAGE effect colours (`CarrierStyle.fx`) and the Wraith's red-orange teleport rim on Corona.
+- **`3a91079` gate:** run on `c6b93d6`: tsc, unit (940), build, and Playwright 53/55. The two failures were tests that used the old timings; they are fixed in `1433c37` and `3a91079` and pass, with the lab-clock specs.
+- **Shared code touched:**
+  - `src/content/balance.ts`: `PACE`, `CAMPAIGN_SCROLL`, `airFirstShot`;
+  - `src/sim/bastion.ts`: `arenaStopDistance` and `arenaScroll` use `CAMPAIGN_SCROLL`;
+  - `src/playground/lab.ts`: `labClock`.
