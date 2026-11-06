@@ -54,8 +54,8 @@ for (const planet of ['amnion', 'umbra']) test(`${planet} dedicated predator loa
     await page.screenshot({ path: info.outputPath(`${planet}-${quality}.png`) });
     if (planet === 'umbra') {
       // Mid-teleport: 0.65 s after its first attack starts, which the fixture's Standard run brings forward
-      // (DifficultyScale.firstAttack ×0.75 since 4 November: 1.2 s instead of 1.6 s).
-      await page.evaluate(at => (window as any).__PREDATOR_QA__.advance(at), WRAITH.firstAttack * DIFFICULTIES.standard.firstAttack + .65);
+      // (DifficultyScale.firstAttack ×0.75 since 4 November, airFirstShot ×0.75 since 6 November: 0.9 s instead of 1.6 s).
+      await page.evaluate(at => (window as any).__PREDATOR_QA__.advance(at), WRAITH.firstAttack * DIFFICULTIES.standard.firstAttack * DIFFICULTIES.standard.airFirstShot + .65);
       await expect.poll(async () => page.evaluate(() => (window as any).__PREDATOR_QA__.snapshot().enemy.damageable)).toBe(false);
       await page.screenshot({ path: info.outputPath(`umbra-teleport-${quality}.png`) });
       await page.evaluate(() => (window as any).__PREDATOR_QA__.advance(.45));
