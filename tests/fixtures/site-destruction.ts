@@ -1,4 +1,5 @@
 import { createRun, stepRun } from '../../src/sim/game';
+import { CAMPAIGN_SCROLL } from '../../src/content/balance';
 import { destroySiteCore } from '../../src/sim/sites';
 import { holdDirector, labClock } from '../../src/playground/lab';
 import { placeSite } from '../../src/playground/sites-lab';
@@ -23,7 +24,7 @@ const q = new URLSearchParams(location.search);
 const mission = (q.get('mission') ?? 'bastion') as MissionId, site = (q.get('site') ?? 'airfield') as SiteId, side = (Number(q.get('side') ?? 1) < 0 ? -1 : 1) as -1 | 1;
 const state = createRun({ mode: 'campaign', mission, difficulty: 'standard', seed: Number(q.get('seed') ?? 8831), weapon: 'pulse', special: 'shockwave' });
 state.enemies = []; state.projectiles = []; state.hazards = []; state.pickups = []; state.message = ''; state.messageUntil = 0;
-state.time = labClock(mission, Number(q.get('distance') ?? 260)).time; state.distance = state.time * VIEW.scrollSpeed;
+state.time = labClock(mission, Number(q.get('distance') ?? 260)).time; state.distance = state.time * CAMPAIGN_SCROLL;
 holdDirector(state);
 const x = Number(q.get('x') ?? side * 5), limit = (VIEW.worldWidth - VIEW.width) / 2;
 const hold = () => {

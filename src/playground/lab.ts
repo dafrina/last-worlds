@@ -6,7 +6,7 @@
 import { spawnMembers, runScale } from '../sim/spawn';
 import { HUNTERS } from '../sim/hunters';
 import { missionBoss } from '../content/bosses';
-import { ENEMIES } from '../content/balance';
+import { CAMPAIGN_SCROLL, ENEMIES } from '../content/balance';
 import type { FormationId } from '../content/formations';
 import { VIEW, type EnemyKind, type MissionId, type RunState } from '../shared/contracts';
 
@@ -17,7 +17,7 @@ import { VIEW, type EnemyKind, type MissionId, type RunState } from '../shared/c
  */
 export function labClock(mission: MissionId, distance: number): { time: number; limit: number } {
   const limit = (missionBoss(mission)?.approachEndsAt ?? Infinity) - 6;
-  return { time: Math.max(0, Math.min(distance / VIEW.scrollSpeed, limit - 30)), limit };
+  return { time: Math.max(0, Math.min(distance / CAMPAIGN_SCROLL, limit - 30)), limit };
 }
 
 /** Keeps the campaign's own spawning out: no playlist, no ambient volleys, no hunters. */
