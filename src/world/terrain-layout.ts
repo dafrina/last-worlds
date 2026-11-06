@@ -48,10 +48,25 @@ export const smooth = (n: number) => { const t = clamp(n); return t * t * (3 - 2
 export const smoothRange = (low: number, high: number, n: number) => smooth((n - low) / (high - low));
 export const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/**
+ * Value noise. The hottest function in terrain generation (about 30% of a section, 6 November): `hash` and `smooth` are
+ * inlined, with the same arithmetic in the same order (bit-identical results; the fractions lie in [0, 1), so the clamp
+ * in `smooth` never acts).
+ */
 export function noise(seed: number, x: number, s: number): number {
-  const ix = Math.floor(x), iy = Math.floor(s), tx = smooth(x - ix), ty = smooth(s - iy);
-  return mix(mix(hash(seed, ix, iy), hash(seed, ix + 1, iy), tx),
-    mix(hash(seed, ix, iy + 1), hash(seed, ix + 1, iy + 1), tx), ty);
+  const ix = Math.floor(x), iy = Math.floor(s), fx = x - ix, fy = s - iy;
+  const tx = fx * fx * (3 - 2 * fx), ty = fy * fy * (3 - 2 * fy);
+  const ax = Math.imul(ix, 0x45d9f3b), bx = Math.imul(ix + 1, 0x45d9f3b), ay = Math.imul(iy, 0x119de1f3), by = Math.imul(iy + 1, 0x119de1f3);
+  let n = (seed ^ ax ^ ay) >>> 0; n = Math.imul(n ^ (n >>> 16), 0x7feb352d); n = Math.imul(n ^ (n >>> 15), 0x846ca68b);
+  const h00 = ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  n = (seed ^ bx ^ ay) >>> 0; n = Math.imul(n ^ (n >>> 16), 0x7feb352d); n = Math.imul(n ^ (n >>> 15), 0x846ca68b);
+  const h10 = ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  n = (seed ^ ax ^ by) >>> 0; n = Math.imul(n ^ (n >>> 16), 0x7feb352d); n = Math.imul(n ^ (n >>> 15), 0x846ca68b);
+  const h01 = ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  n = (seed ^ bx ^ by) >>> 0; n = Math.imul(n ^ (n >>> 16), 0x7feb352d); n = Math.imul(n ^ (n >>> 15), 0x846ca68b);
+  const h11 = ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  const a = h00 + (h10 - h00) * tx, b = h01 + (h11 - h01) * tx;
+  return a + (b - a) * ty;
 }
 function fbm(seed: number, x: number, s: number): number {
   return noise(seed, x, s) * 0.62 + noise(seed ^ 0x51ed, x * 2.03 + 7.1, s * 2.03) * 0.27 + noise(seed ^ 0xa3c1, x * 4.1, s * 4.1) * 0.11;
