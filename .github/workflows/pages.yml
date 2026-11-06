@@ -50,3 +50,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          # GitHub's file sync for this ~146 MB site can exceed the default 10 minutes (6 November: two deploys of 3a91079
+          # timed out in "syncing_files" while Pages reported operational).
+          timeout: 1800000
