@@ -21,7 +21,7 @@ describe('Umbra scenery (docs/28)', () => {
     expect(stream.stats.fallbacks).toBe(0);
     expect(stream.stats.startup).toBe(3);
     expect(stream.stats.prefetched).toBeGreaterThan(5);
-  });
+  }, 120_000); // 80 s of frames: on the shared CI runner it outlasted the default 30 s (6 November)
   it('seats every structure footprint on solid plateau, including crescent docks and satellite pads', () => {
     const buildings = new Set(['umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbDock', 'umbPad']);
     const seen = new Set<string>(); let count = 0;
