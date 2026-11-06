@@ -497,6 +497,22 @@ function graphStats(scene: THREE.Scene, names?: Record<string, number>) {
   return { objects, visible, drawables, emptyBatches, autoMatrix, casters, ...(names ? { names } : {}) };
 }
 
+/** A drop's turn at time `t` (seconds): the angle about its upright axis and its light (1 facing, a glint after a turn). */
+const PICKUP_CYCLE = 3, PICKUP_REST = .7, PICKUP_DRIFT = .3;
+export function pickupSpin(t: number): { angle: number; light: number } {
+  const u = ((t / PICKUP_CYCLE) % 1 + 1) % 1;
+  let angle: number;
+  if (u < PICKUP_REST) angle = -PICKUP_DRIFT + 2 * PICKUP_DRIFT * (u / PICKUP_REST);
+  else {
+    // easeOutBack: the turn starts fast, slows, overshoots a little and settles back facing the camera (0.9 s; readable,
+    // within 45° of facing, about 91% of each cycle).
+    const f = (u - PICKUP_REST) / (1 - PICKUP_REST), c = 1.70158, e = 1 + (c + 1) * (f - 1) ** 3 + c * (f - 1) ** 2;
+    angle = PICKUP_DRIFT + (Math.PI * 2 - 2 * PICKUP_DRIFT) * e;
+  }
+  const facing = Math.abs(Math.cos(angle)), glint = u < .12 ? 1 - u / .12 : 0;
+  return { angle, light: .7 + .3 * facing + .7 * glint * glint };
+}
+
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The stencil marks the hero's pixels: the jump veil and a boss's death blasts never cover the ship (src/render/hero-stencil.ts).
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', stencil: true });
@@ -1293,11 +1309,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   }
   // Drop icons: one antialiased, mipmapped canvas sprite per icon (weapon drops show their own gun), one draw each.
   const pickupTextures = createPickupIconTextures(renderer.capabilities.getMaxAnisotropy());
-  const pickupGeometry = new THREE.PlaneGeometry(PICKUP_ICON_SIZE, PICKUP_ICON_SIZE);
+  const pickupGeometry = new THREE.PlaneGeometry(PICKUP_ICON_SIZE, PICKUP_ICON_SIZE), pickupShade = new THREE.Color();
   const pickupBatches = new Map<PickupIcon, THREE.InstancedMesh>();
   for (const icon of PICKUP_ICONS) {
-    const material = new THREE.MeshBasicMaterial({ map: pickupTextures.get(icon)!, transparent: true, depthWrite: false, depthTest: false, toneMapped: false });
+    // Both sides: the drop spins a full turn (its back shows during the quick turn).
+    const material = new THREE.MeshBasicMaterial({ map: pickupTextures.get(icon)!, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide });
     const mesh = new THREE.InstancedMesh(pickupGeometry, material, 64);
+    for (let i = 0; i < 64; i++) mesh.setColorAt(i, WHITE);
+    mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.renderOrder = 7; mesh.count = 0; scene.add(mesh);
     pickupBatches.set(icon, mesh);
   }
@@ -2061,11 +2080,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // A gentle bob and sway, plus a soft breathing scale so drops catch the eye; they fade in their last 2 s.
         const breathe = 1 + Math.sin(state.time * 3.2 + pickup.id) * .045, fade = pickup.ttl < 2 ? .55 + .45 * Math.abs(Math.cos(state.time * 9)) : 1;
         transform.position.set(pickup.x, VIEW.flightHeight + .06 + Math.sin(state.time * 2 + pickup.id) * .035, -pickup.s);
-        transform.rotation.set(-ELEVATION, 0, Math.sin(state.time * .75 + pickup.id) * .08);
+        // A full turn about its upright axis (user, 7 November: "full 360 but ... when we see it it turns slow but when its
+        // turning it turns quickly"): three quarters of each cycle it faces the camera, drifting slowly through ±17°; the
+        // last quarter is one quick turn with an elastic settle. A glint right after the turn, a little darker side-on.
+        const spin = pickupSpin(state.time + pickup.id * .73);
+        transform.rotation.set(-ELEVATION, spin.angle, Math.sin(state.time * .75 + pickup.id) * .08);
         transform.scale.setScalar(breathe * (pickup.ttl < 2 ? fade : 1)); transform.updateMatrix();
+        mesh.setColorAt(mesh.count, pickupShade.setScalar(spin.light));
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
-      pickupBatches.forEach(mesh => liveInstances(mesh, mesh.count));
+      pickupBatches.forEach(mesh => { liveInstances(mesh, mesh.count); if (mesh.count && mesh.instanceColor) mesh.instanceColor.needsUpdate = true; });
       // Siege Lance (campaign special): a bright piercing beam straight ahead from the ship's nose while it fires.
       if (state.lance && state.time < state.lance.until) {
         const left = state.lance.until - state.time, flare = Math.min(1, left / .12) * (.85 + .15 * Math.sin(state.time * 60));

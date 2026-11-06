@@ -75,14 +75,14 @@ function levels(profile: CampaignProfile, weapon: WeaponId, actions: HangarActio
   button: (label: string, kind: string, disabled: boolean, onClick: () => void) => HTMLButtonElement): HTMLElement[] {
   const bought = profile.ranks[weapon], flown = profile.selected[weapon], count = MAX_RANK + 1, name = WEAPONS[weapon].label;
   const row = document.createElement('div'); row.className = 'hangar-rank';
-  const label = document.createElement('span'); label.className = 'rank-label'; label.textContent = `LEVEL ${flown + 1}`;
+  const label = document.createElement('span'); label.className = 'rank-label'; label.textContent = `TIER ${flown + 1}`;
   const pips = document.createElement('span'); pips.className = 'rank-pips'; pips.setAttribute('role', 'group'); pips.setAttribute('aria-label', `${name} level to fly`);
   for (let rank = 0; rank < count; rank++) {
     const pip = document.createElement('button'), owned = rank <= bought;
     pip.type = 'button'; pip.textContent = String(rank + 1);
     pip.className = `rank-pip${owned ? ' is-bought' : ''}${rank === flown ? ' is-on' : ''}`;
     pip.disabled = !owned;
-    pip.setAttribute('aria-label', owned ? `Fly level ${rank + 1}` : `Level ${rank + 1}, not bought`);
+    pip.setAttribute('aria-label', owned ? `Fly tier ${rank + 1}` : `Tier ${rank + 1}, not bought`);
     if (owned) pip.setAttribute('aria-pressed', String(rank === flown));
     pip.addEventListener('click', () => { if (rank !== flown) actions.selectRank(weapon, rank); });
     pips.append(pip);
@@ -90,14 +90,14 @@ function levels(profile: CampaignProfile, weapon: WeaponId, actions: HangarActio
   const owns = document.createElement('span'); owns.className = 'rank-bought'; owns.textContent = `${bought + 1} / ${count} BOUGHT`;
   row.append(label, pips, owns);
   const pattern = document.createElement('p'); pattern.className = 'upgrade-next';
-  pattern.textContent = `Flying level ${flown + 1}: ${WEAPON_TIERS[weapon][flown]}.${flown < bought ? ' Tap a level to switch, free.' : ''}`;
+  pattern.textContent = `Flying tier ${flown + 1}: ${WEAPON_TIERS[weapon][flown]}.${flown < bought ? ' Tap a tier to switch, free.' : ''}`;
   const next = rankPrice(bought), buy = document.createElement('div'); buy.className = 'hangar-row rank-buy';
   if (next) {
     buy.append(button(`UPGRADE · ${priceText(next)}`, 'upgrade', !affords(profile, next), () => actions.upgrade(weapon)));
-    const what = document.createElement('span'); what.className = 'rank-next'; what.textContent = `LEVEL ${bought + 2}: ${WEAPON_TIERS[weapon][bought + 1]}`;
+    const what = document.createElement('span'); what.className = 'rank-next'; what.textContent = `TIER ${bought + 2}: ${WEAPON_TIERS[weapon][bought + 1]}`;
     buy.append(what);
   } else {
-    const top = document.createElement('span'); top.className = 'rank-next'; top.textContent = 'EVERY LEVEL BOUGHT'; buy.append(top);
+    const top = document.createElement('span'); top.className = 'rank-next'; top.textContent = 'EVERY TIER BOUGHT'; buy.append(top);
   }
   return [row, pattern, buy];
 }

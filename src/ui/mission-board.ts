@@ -18,13 +18,14 @@ function reward(def: WorldMission): string {
     + `<span class="board-credits">${creditGlyph}${def.credits}</span>${def.parts ? `<span class="board-parts">${partGlyph}${def.parts}</span>` : ''}</span>`;
 }
 /** One open mission: name and progress, its line, its minimum difficulty, scope and reward. */
-function item(entry: BoardEntry, live: boolean): string {
+function item(entry: BoardEntry): string {
   const { def, progress } = entry, counted = def.goal > 1;
-  const scope = def.scope === 'career' ? 'ACROSS RUNS' : live ? 'THIS RUN' : progress > 0 ? 'LAST RUN' : 'ONE RUN';
-  return `<li class="board-item${progress >= def.goal ? ' is-done' : ''}">`
+  // Two scopes only (user, 7 November): a single run's goal, or a total across runs (its bar drawn differently).
+  const career = def.scope === 'career', scope = career ? 'ACROSS RUNS' : 'SINGLE RUN';
+  return `<li class="board-item${career ? ' is-career' : ''}${progress >= def.goal ? ' is-done' : ''}">`
     + `<div class="board-line"><b>${escape(def.name)}</b>${counted ? `<span class="board-value">${progress}/${def.goal}</span>` : ''}</div>`
     + `<p class="board-text">${escape(def.text)}</p>`
-    + `<div class="board-meta"><span class="board-tag${def.difficulty === 'relaxed' ? '' : ' is-gated'}">${DIFFICULTY_TAG[def.difficulty]}</span><span class="board-scope">${scope}</span>${reward(def)}</div>`
+    + `<div class="board-meta"><span class="board-tag is-${def.difficulty}">${DIFFICULTY_TAG[def.difficulty]}</span><span class="board-scope${career ? ' is-career' : ''}">${scope}</span>${reward(def)}</div>`
     + (counted ? `<span class="board-bar" aria-hidden="true"><i style="width:${Math.round(100 * progress / def.goal)}%"></i></span>` : '')
     + '</li>';
 }
@@ -35,7 +36,7 @@ function doneItem(def: WorldMission, fresh: number): string {
     + `<span class="board-check" aria-hidden="true">${checkGlyph}</span>`
     + `<div class="board-line"><b>${escape(def.name)}</b><span class="board-earned">COMPLETE</span></div>`
     + `<p class="board-text">${escape(def.text)}</p>`
-    + `<div class="board-meta"><span class="board-tag">EARNED</span>${reward(def)}</div>`
+    + `<div class="board-meta">${reward(def)}</div>`
     + '</li>';
 }
 
@@ -59,7 +60,7 @@ export function renderBoard(section: HTMLElement, board: WorldBoard | null, worl
   const order = done.map(def => seen && !seen.has(def.id) ? fresh++ : -1);
   if (!seen || section.getClientRects().length) seenDone.set(world, new Set(board.history.map(def => def.id)));
   section.innerHTML = `<div class="board-head"><h3 class="setup-label" id="board-title">${title}</h3><span class="board-count">${board.done} / ${board.total} DONE</span></div>`
-    + (board.visible.length ? `<ol class="board-list">${board.visible.map(entry => item(entry, false)).join('')}</ol>` : '<p class="board-note">Every mission on this world is done.</p>')
+    + (board.visible.length ? `<ol class="board-list">${board.visible.map(entry => item(entry)).join('')}</ol>` : '<p class="board-note">Every mission on this world is done.</p>')
     + (done.length ? `<h4 class="board-sub">COMPLETED · ${done.length}</h4><ol class="board-list board-done-list">${done.map((def, index) => doneItem(def, order[index])).join('')}</ol>` : '');
 }
 

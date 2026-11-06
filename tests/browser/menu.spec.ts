@@ -19,7 +19,7 @@ test('home stays compact on phones and campaign setup has its own page', async (
     await page.screenshot({ path: info.outputPath(`menu-${viewport.width}.png`) });
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'CAMPAIGN', exact: true })).toBeVisible();
   await expect(page.locator('.menu-panel')).toBeHidden();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
@@ -32,10 +32,10 @@ test('home stays compact on phones and campaign setup has its own page', async (
   await page.screenshot({ path: info.outputPath('hangar-phone.png') });
   await page.getByRole('button', { name: 'BACK' }).click();
   await page.getByRole('button', { name: 'BACK' }).click();
-  await expect(page.getByRole('button', { name: 'CAMPAIGN FLIGHT' })).toBeFocused();
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await expect(page.getByRole('button', { name: 'CAMPAIGN', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await expect(page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Veteran', exact: true })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · LV 1');
+  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · TIER 1');
   await expect(page.locator('[data-loadout="special"]')).toHaveText('Seeker Rack');
   expect(errors).toEqual([]);
 });
@@ -74,7 +74,7 @@ test('the front screen opens the hangar, which says what flies where, and back r
   await page.keyboard.press('Escape');
   await expect(entry).toBeFocused();
   // Opened from the campaign page's loadout summary, back returns to the campaign page.
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('button', { name: /Open the hangar/ }).click();
   await page.getByRole('button', { name: 'BACK' }).click();
   await expect(page.getByRole('heading', { name: 'CAMPAIGN', exact: true })).toBeVisible();
@@ -85,7 +85,7 @@ test('the front screen opens the hangar, which says what flies where, and back r
 
 test('the hangar buys, equips and ranks up campaign gear, and the launch flies it', async ({ page }, info) => {
   await seedCampaign(page, profile => { profile.credits = 950; });
-  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await expect(page.locator('.credit-balance').first()).toContainText('950');
   await page.getByRole('button', { name: /Open the hangar/ }).click();
   await page.getByRole('button', { name: 'BUY · 250 CR' }).first().click();
@@ -100,7 +100,7 @@ test('the hangar buys, equips and ranks up campaign gear, and the launch flies i
   await expect(page.locator('.credit-balance').first()).toContainText('200');
   await page.screenshot({ path: info.outputPath('hangar-bought.png') });
   await page.getByRole('button', { name: 'BACK' }).click();
-  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Fan Cannon · LV 2');
+  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Fan Cannon · TIER 2');
   await expect(page.locator('[data-loadout="shield"]')).toHaveText('Bulwark Array');
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
   await flying(page);
@@ -148,7 +148,7 @@ test('pause settings preserve the frozen flight and statistics persist without d
 
 test('campaign observations stay separate and record the chosen difficulty', async ({ page }) => {
   await seedCampaign(page, profile => { veteranPilot(profile); profile.loadout.weapon = 'seeker'; });
-  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Relaxed', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
@@ -180,7 +180,7 @@ test('unavailable storage leaves a usable session log and menu', async ({ page }
 
 test('small-screen subpages keep back navigation and the launch action reachable', async ({ page }, info) => {
   await page.setViewportSize({ width: 320, height: 568 }); await page.goto('/');
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   const back = await page.getByRole('button', { name: 'BACK' }).boundingBox();
   const overlay = await page.locator('.flight-overlay').boundingBox();
   expect(back!.y).toBeGreaterThanOrEqual(overlay!.y);
@@ -203,7 +203,7 @@ test('ships cost four parts, persist, and launch with their perk and five starti
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   // 4 parts for the Ironclad, 1 for a design, 18 for the Twin Pulse's four upgrades (user, 3 November 2026).
   await seedCampaign(page, profile => { veteranPilot(profile); profile.owned.ship = ['scrapper']; profile.parts = 23; });
-  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('button', { name: /Open the hangar/ }).click();
   await page.getByRole('radio', { name: 'Ships', exact: true }).click();
   await expect(page.locator('.hangar-note')).toContainText('cosmetic');
@@ -233,27 +233,27 @@ test('ships cost four parts, persist, and launch with their perk and five starti
   // Five levels (docs/30): four upgrades at 250, 500 + 3, 750 + 5 and 1,000 + 10 parts; each one bought is selected.
   await pulse.getByRole('button', { name: 'UPGRADE · 250 CR' }).click();
   await pulse.getByRole('button', { name: 'UPGRADE · 500 CR + 3 P' }).click();
-  await expect(pulse.locator('.rank-label')).toHaveText('LEVEL 3');
-  await expect(pulse).toContainText('Flying level 3: Four-shot burst.');
-  await expect(pulse).toContainText('LEVEL 4: Rapid four-shot burst');
+  await expect(pulse.locator('.rank-label')).toHaveText('TIER 3');
+  await expect(pulse).toContainText('Flying tier 3: Four-shot burst.');
+  await expect(pulse).toContainText('TIER 4: Rapid four-shot burst');
   await pulse.getByRole('button', { name: 'UPGRADE · 750 CR + 5 P' }).click();
   await pulse.getByRole('button', { name: 'UPGRADE · 1,000 CR + 10 P' }).click();
-  await expect(pulse.locator('.rank-label')).toHaveText('LEVEL 5');
+  await expect(pulse.locator('.rank-label')).toHaveText('TIER 5');
   await expect(pulse).toContainText('5 / 5 BOUGHT');
-  await expect(pulse).toContainText('EVERY LEVEL BOUGHT');
+  await expect(pulse).toContainText('EVERY TIER BOUGHT');
   await expect(pulse.locator('.rank-pip.is-bought')).toHaveCount(5);
   await expect(pulse.getByRole('button', { name: /UPGRADE/ })).toHaveCount(0);
   await expect(page.locator('.credit-balance b').first()).toHaveText('2,450');
   await expect(page.locator('.parts-balance b').first()).toHaveText('0');
   // Any bought level can be flown, free; the bought ones stay bought.
-  await pulse.getByRole('button', { name: 'Fly level 3' }).click();
-  await expect(pulse.locator('.rank-label')).toHaveText('LEVEL 3');
-  await expect(pulse.getByRole('button', { name: 'Fly level 3' })).toHaveAttribute('aria-pressed', 'true');
+  await pulse.getByRole('button', { name: 'Fly tier 3' }).click();
+  await expect(pulse.locator('.rank-label')).toHaveText('TIER 3');
+  await expect(pulse.getByRole('button', { name: 'Fly tier 3' })).toHaveAttribute('aria-pressed', 'true');
   await expect(pulse).toContainText('5 / 5 BOUGHT');
   await expect(page.locator('.credit-balance b').first()).toHaveText('2,450');
-  await page.reload(); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.reload(); await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await expect(page.locator('[data-loadout="ship"]')).toHaveText('Ironclad');
-  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · LV 3');
+  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · TIER 3');
   await page.getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click(); await flying(page);
   const state = await snapshot(page);
@@ -268,15 +268,15 @@ test('ships cost four parts, persist, and launch with their perk and five starti
 
 test('a level-5 weapon can fly Luna at level 1, and the choice survives a reload', async ({ page }) => {
   await seedCampaign(page, profile => { veteranPilot(profile); profile.ranks.pulse = 4; profile.selected.pulse = 4; });
-  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
-  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · LV 5');
+  await page.goto('/'); await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
+  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · TIER 5');
   await page.getByRole('button', { name: /Open the hangar/ }).click();
   const pulse = page.locator('.hangar-item', { hasText: 'Twin Pulse' });
-  await pulse.getByRole('button', { name: 'Fly level 1' }).click();
-  await expect(pulse.locator('.rank-label')).toHaveText('LEVEL 1');
-  await expect(pulse).toContainText('Flying level 1: Twin bolts. Tap a level to switch, free.');
-  await page.reload(); await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
-  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · LV 1');
+  await pulse.getByRole('button', { name: 'Fly tier 1' }).click();
+  await expect(pulse.locator('.rank-label')).toHaveText('TIER 1');
+  await expect(pulse).toContainText('Flying tier 1: Twin bolts. Tap a tier to switch, free.');
+  await page.reload(); await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
+  await expect(page.locator('[data-loadout="weapon"]')).toHaveText('Twin Pulse · TIER 1');
   await page.getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click(); await flying(page);
   const state = await snapshot(page);

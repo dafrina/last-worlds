@@ -52,10 +52,9 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   shell.className = 'last-worlds-shell';
   shell.innerHTML = `
     <aside class="flight-rail rail-left" aria-hidden="true">
-      <span class="rail-mark">LW / 01</span>
       <span class="rail-rule"></span>
       <p>LOW ORBIT.<br>NO WAY BACK.</p>
-      <span class="rail-foot">LAST WORLDS<br>FLIGHT COMMAND</span>
+      <span class="rail-foot">LAST WORLDS</span>
     </aside>
     <section class="flight-frame" tabindex="0" aria-label="Flight area. Hold the left or right half to steer." data-input-active="false">
       <canvas class="flight-canvas" aria-label="Three-dimensional arcade flight"></canvas>
@@ -90,7 +89,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <button type="button" class="arcade-button secondary" data-action="loading-cancel">RETURN TO MENU</button>
         </section>
         <section class="pause-panel short-panel" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
-          <p class="eyebrow">FLIGHT SUSPENDED</p><h2 id="pause-title">PAUSED</h2>
+          <h2 id="pause-title">PAUSED</h2>
           <p class="pause-description"></p>
           <dl class="pause-loadout"><div><dt>MAIN</dt><dd class="pause-weapon"></dd></div><div><dt>SPECIAL</dt><dd class="pause-special"></dd></div><div><dt>SHIELD / SHIP</dt><dd class="pause-tech"></dd></div></dl>
           <ol class="pause-missions" aria-label="Missions this run" hidden></ol>
@@ -103,7 +102,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="eyebrow result-mode"></p><h2 id="results-title">FLIGHT<br>ENDED</h2>
           <p class="result-subtitle"></p>
           <dl class="result-stats"><div class="result-score-row"><dt>SCORE</dt><dd class="result-score"></dd></div><div><dt>HOSTILES DOWN</dt><dd class="result-kills"></dd></div><div><dt>FLIGHT TIME</dt><dd class="result-time"></dd></div><div class="result-sector-row"><dt>SECTOR REACHED</dt><dd class="result-sector"></dd></div></dl>
-          <div class="result-credits" hidden><p class="result-breakdown"></p><p class="result-earned"><b></b><span></span></p><p class="result-parts" hidden></p><p class="result-unlock" hidden></p></div>
+          <div class="result-credits" hidden><dl class="result-receipt"></dl><p class="result-earned"><b></b><span></span></p><p class="result-parts" hidden></p><p class="result-unlock" hidden></p></div>
           <div class="result-missions" hidden></div>
           <button type="button" class="arcade-button primary" data-action="retry">FLY AGAIN <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="menu">RETURN TO MENU</button>
@@ -117,7 +116,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       <p>TURN YOUR PHONE UPRIGHT</p><small>Last Worlds flies in portrait.</small>
     </div>
     <aside class="flight-rail rail-right" aria-hidden="true">
-      <span class="rail-coordinate">LW / 01</span><span class="rail-rule"></span>
+      <span class="rail-rule"></span>
       <p>HOLD YOUR LINE.<br>FIND YOUR WAY.</p>
       <span class="rail-foot">A / D &nbsp; STEER<br>SPACE &nbsp; SPECIAL<br>ESC &nbsp; PAUSE</span>
     </aside>`;
@@ -201,7 +200,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     text('.mission-world', mission.world);
     text('.mission-name', mission.name);
     text('.mission-description', mission.brief);
-    find('.mission-threat').setAttribute('aria-label', `Threat ${mission.threat} of 4`);
+    find('.mission-threat').setAttribute('aria-label', `Threat ${mission.threat} of 5`);
     find<HTMLElement>('.threat-pips').querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', i < mission.threat));
     const stage = find<HTMLElement>('.planet-stage');
     stage.classList.remove('is-switching'); void stage.offsetWidth; stage.classList.add('is-switching');
@@ -223,7 +222,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     showBalances(profile);
     for (const slot of ['weapon', 'special', 'shield', 'ship'] as const) text(`[data-loadout="${slot}"]`, itemText(slot, profile.loadout[slot]).name);
     // The main weapon's selected level: the one the launch flies (user, 3 November 2026).
-    text('[data-loadout="weapon"]', `${itemText('weapon', profile.loadout.weapon).name} · LV ${profile.selected[profile.loadout.weapon] + 1}`);
+    text('[data-loadout="weapon"]', `${itemText('weapon', profile.loadout.weapon).name} · TIER ${profile.selected[profile.loadout.weapon] + 1}`);
     showMission(missionIndex);
     actions.preloadHero?.(profile.loadout.ship, lookOf(profile, profile.loadout.ship));
   }
@@ -614,7 +613,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       text('#results-title', state.phase === 'complete' ? 'MISSION COMPLETE' : 'FLIGHT ENDED');
       text('.result-subtitle', state.phase === 'complete'
         ? missionText(state.config.mission).complete
-        : state.boss ? `${missionText(state.config.mission).boss ?? 'The enemy'} is still standing. Fly again.` : 'Every flight leaves a mark.');
+        : state.boss ? `${missionText(state.config.mission).boss ?? 'The enemy'} is still standing. Fly again.` : '');
       text('.result-score', String(Math.floor(state.score)).padStart(6, '0'));
       text('.result-kills', String(state.kills));
       text('.result-time', duration(state.time));
@@ -629,12 +628,18 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       renderResultMissions(find<HTMLElement>('.result-missions'), pay ? missions.finish(state) : []);
       find<HTMLElement>('.result-credits').hidden = !pay;
       if (pay) {
-        const parts = [`COLLECTED ${pay.collected}`];
-        if (state.phase === 'complete') parts.push(`MISSION ${pay.mission}`, ...(pay.boss ? [`BOSS ${pay.boss}`] : []));
-        else parts.push('HALF BANKED');
-        if (pay.multiplier !== 1) parts.push(`×${pay.multiplier.toFixed(2)}`);
-        if (pay.firstClear) parts.push(`FIRST CLEAR +${pay.firstClear}`);
-        text('.result-breakdown', parts.join(' · '));
+        // A receipt (user, 7 November): one line per earning, the total big below. A lost flight banks only what it
+        // collected (half, after the difficulty multiplier), shown as that one line.
+        const rows: [string, string][] = state.phase === 'complete'
+          ? [['COLLECTED', `${pay.collected}`], ['MISSION', `${pay.mission}`], ...(pay.boss ? [['BOSS', `${pay.boss}`] as [string, string]] : []),
+            ...(pay.multiplier !== 1 ? [['DIFFICULTY', `×${pay.multiplier.toFixed(2)}`] as [string, string]] : []),
+            ...(pay.firstClear ? [['FIRST CLEAR', `+${pay.firstClear}`] as [string, string]] : [])]
+          : [['COLLECTED', `${pay.total}`]];
+        const receipt = find<HTMLElement>('.result-receipt');
+        receipt.replaceChildren(...rows.map(([label, value]) => {
+          const row = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+          dt.textContent = label; dd.textContent = value; row.append(dt, dd); return row;
+        }));
         text('.result-earned b', `+${pay.total.toLocaleString()} CR`);
         text('.result-earned span', `BALANCE ${pay.balance.toLocaleString()} CR`);
         // Parts from strike sites (docs/33), banked in full whatever the outcome.

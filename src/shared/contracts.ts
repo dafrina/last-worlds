@@ -153,7 +153,8 @@ export interface Projectile {
 /** `cost` is the shield charges an accepted hit takes (2, a heavy hit, when absent; a Needle's narrow beam costs 1). */
 /** `source`: the enemy firing a ship beam; its lane ends when that ship goes down (boss lanes have none). */
 export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number; source?: number }
-export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit' | 'part'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number }
+/** `caught`: when the ship's reach first took it (it then homes in until collected; src/sim/game.ts updatePickups). */
+export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit' | 'part'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number; caught?: number }
 /** `bossBlast`: a destroyed boss's last detonation (render only, like every effect). */
 export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast' | 'bossBlast'; x: number; s: number; ttl: number; duration: number }
 /**

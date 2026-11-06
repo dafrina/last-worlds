@@ -415,7 +415,10 @@ button:disabled { cursor: default; }
 .hangar-action.buy:hover:not(:disabled), .hangar-action.upgrade:hover:not(:disabled) { box-shadow: 0 0 12px #ffb84a66; }
 .hangar-action:disabled { opacity: .4; }
 .result-credits { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #ffc46a44; background: #1a1a1c66; text-align: center; }
-.result-breakdown { margin: 0 0 6px; color: #b9a98a; font: 8px / 1.6 var(--mono); letter-spacing: .8px; }
+.result-receipt { margin: 0 0 8px; padding: 0 0 7px; border-bottom: 1px dashed #ffc46a44; display: grid; gap: 3px; color: #b9a98a; font: 9px / 1.3 var(--mono); letter-spacing: .8px; }
+.result-receipt div { display: flex; justify-content: space-between; gap: 12px; }
+.result-receipt dt, .result-receipt dd { margin: 0; }
+.result-receipt dd { color: #e8d9b8; font-variant-numeric: tabular-nums; }
 .result-earned { margin: 0; display: flex; justify-content: center; align-items: baseline; gap: 10px; }
 .result-earned b { color: #ffe2a6; font: 700 18px / 1 var(--mono); text-shadow: 0 0 10px #ffb84a88; }
 .result-earned span { color: #8fa9c5; font: 8px / 1 var(--mono); letter-spacing: 1px; }
@@ -503,8 +506,13 @@ button:disabled { cursor: default; }
 .board-value { flex: none; color: #9fe4ff; font: 600 10px / 1 var(--mono); letter-spacing: .6px; }
 .board-text { margin: 2px 0 5px; color: #9db0c5; font-size: 10.5px; line-height: 1.4; }
 .board-meta { display: flex; align-items: center; gap: 8px; color: #6f88a3; font: 7px / 1.3 var(--mono); letter-spacing: 1.1px; }
-.board-tag { color: #8fa9c5; }
-.board-tag.is-gated { color: #ffb36b; }
+/* Minimum difficulty and scope as small outlined chips (user, 7 November: "any" was unclear). */
+.board-tag, .board-scope { padding: 2px 4px; border: 1px solid currentColor; border-radius: 2px; }
+.board-tag.is-relaxed { color: #8fd6b8; }
+.board-tag.is-standard { color: #ffb36b; }
+.board-tag.is-veteran { color: #ff7a6a; }
+.board-scope { color: #8fa9c5; border-color: #8fa9c566; }
+.board-scope.is-career { color: #ffd27a; border-color: #ffd27a66; }
 .board-reward { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font: 600 9px / 1 var(--mono); letter-spacing: .5px; }
 .board-reward svg { width: 8px; height: 8px; margin-right: 3px; vertical-align: -1px; }
 .board-credits { color: #ffe2a6; }
@@ -513,6 +521,9 @@ button:disabled { cursor: default; }
 .board-parts svg { fill: #ff9e6a; }
 .board-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: #1d3550; }
 .board-bar i { display: block; height: 100%; background: #9fe4ff; box-shadow: 0 0 6px #7fd8ff99; }
+/* A total across runs: a thicker gold bar, apart from the single-run blue. */
+.board-item.is-career .board-bar { height: 3px; background: #3a2f18; }
+.board-item.is-career .board-bar i { background: #ffd27a; box-shadow: 0 0 6px #ffc04a99; }
 /* Done missions (user, 4 November): the same cards with a check badge; newly done ones pop in once. */
 .board-sub { margin: 14px 0 7px; color: #7fe0b0; font: 8px / 1.4 var(--mono); letter-spacing: 1.3px; }
 .board-done { position: relative; padding: 8px 10px 9px 40px; border: 1px solid #24564a; background: linear-gradient(90deg, #0e2b27, #0b1b30 75%); }

@@ -85,7 +85,7 @@ export interface BossDefinition {
 
 /** THE ECLIPSE (docs/28), also THE HELIOPHAGE's placeholder (docs/37). */
 const ECLIPSE_BOSS: BossDefinition = {
-  id: 'eclipse', name: 'THE ECLIPSE',
+  id: 'eclipse', name: 'ECLIPSE',
   arrivesAt: ECLIPSE.arrivesAt, approachEndsAt: ECLIPSE.approachEndsAt, arrivalDuration: ECLIPSE.arrivalDuration,
   entryS: ECLIPSE.entryS, row: ECLIPSE.row, targetHeight: ECLIPSE.targetHeight,
   parts: {
@@ -107,9 +107,9 @@ const ECLIPSE_BOSS: BossDefinition = {
   launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: ECLIPSE.bays },
   arena: ECLIPSE.arena, shieldSupplies: ECLIPSE.shieldSupplies,
   messages: {
-    start: 'THE ECLIPSE · BREAK ALL THREE ENERGY VENTS', batteries: 'BREAK ALL THREE ENERGY VENTS', core: 'THE REACTOR IS OPEN',
-    overload: 'REACTOR OVERLOAD · SPIRALS AND LANES', destroyed: 'THE ECLIPSE IS FALLING · JUMP',
-    approach: 'THE LIGHT IS DYING · THE ECLIPSE AWAKENS',
+    start: 'ECLIPSE · BREAK ALL THREE ENERGY VENTS', batteries: 'BREAK ALL THREE ENERGY VENTS', core: 'THE REACTOR IS OPEN',
+    overload: 'REACTOR OVERLOAD · SPIRALS AND LANES', destroyed: 'ECLIPSE IS FALLING · JUMP',
+    approach: 'THE LIGHT IS DYING · ECLIPSE AWAKENS',
   },
 };
 
@@ -186,7 +186,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
   },
   veil: {
-    id: 'veil', name: 'THE VEIL',
+    id: 'veil', name: 'VEIL',
     arrivesAt: VEIL.arrivesAt, approachEndsAt: VEIL.approachEndsAt, arrivalDuration: VEIL.arrivalDuration,
     entryS: VEIL.entryS, row: VEIL.row, targetHeight: VEIL.targetHeight,
     parts: {
@@ -207,13 +207,13 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     launches: { ...VEIL.launches, template: 'veil-pods', bays: VEIL.bays },
     arena: VEIL.arena, shieldSupplies: VEIL.shieldSupplies,
     messages: {
-      start: 'THE VEIL · BURST BOTH GILL PODS', batteries: 'BURST BOTH GILL PODS', core: 'THE HEART IS OPEN',
-      overload: 'HEART OVERLOAD · SPIRALS AND LANES', destroyed: 'THE VEIL IS FALLING · JUMP',
+      start: 'VEIL · BURST BOTH GILL PODS', batteries: 'BURST BOTH GILL PODS', core: 'THE HEART IS OPEN',
+      overload: 'HEART OVERLOAD · SPIRALS AND LANES', destroyed: 'VEIL IS FALLING · JUMP',
       approach: 'THE MIRE GOES QUIET · SOMETHING HUGE IS RISING',
     },
   },
   cradle: {
-    id: 'cradle', name: 'THE CRADLE',
+    id: 'cradle', name: 'CRADLE',
     arrivesAt: CRADLE.arrivesAt, approachEndsAt: CRADLE.approachEndsAt, arrivalDuration: CRADLE.arrivalDuration,
     entryS: CRADLE.entryS, row: CRADLE.row, targetHeight: CRADLE.targetHeight,
     parts: {
@@ -235,9 +235,9 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     launches: { ...CRADLE.launches, template: 'veil-pods', bays: CRADLE.bays },
     arena: CRADLE.arena, shieldSupplies: CRADLE.shieldSupplies,
     messages: {
-      start: 'THE CRADLE · BURST BOTH BROOD SACS', batteries: 'BURST BOTH BROOD SACS', core: 'THE NEST HEART IS OPEN',
-      overload: 'THE BROOD IS WAKING · SPIRALS AND LANES', destroyed: 'THE CRADLE IS BURNING · JUMP',
-      approach: 'THE GROUND IS MOVING · THE CRADLE STIRS',
+      start: 'CRADLE · BURST BOTH BROOD SACS', batteries: 'BURST BOTH BROOD SACS', core: 'THE NEST HEART IS OPEN',
+      overload: 'THE BROOD IS WAKING · SPIRALS AND LANES', destroyed: 'CRADLE IS BURNING · JUMP',
+      approach: 'THE GROUND IS MOVING · CRADLE STIRS',
     },
   },
   eclipse: ECLIPSE_BOSS,
@@ -245,7 +245,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   // will replace the boss later"): THE ECLIPSE's model, parts and moves under its own name (docs/37).
   heliophage: {
     // THE ECLIPSE's fight on its own model's targets (src/content/heliophage.ts): the blocks' grilles, the tower, the core.
-    ...ECLIPSE_BOSS, id: 'heliophage', name: 'THE HELIOPHAGE', targetHeight: HELIOPHAGE.targetHeight, entryS: HELIOPHAGE.entryS,
+    ...ECLIPSE_BOSS, id: 'heliophage', name: 'HELIOPHAGE', targetHeight: HELIOPHAGE.targetHeight, entryS: HELIOPHAGE.entryS,
     parts: {
       left: { x: -HELIOPHAGE.ventOffset, s: HELIOPHAGE.ventS, radius: HELIOPHAGE.ventRadius, hp: HELIOPHAGE.ventHp },
       right: { x: HELIOPHAGE.ventOffset, s: HELIOPHAGE.ventS, radius: HELIOPHAGE.ventRadius, hp: HELIOPHAGE.ventHp },
@@ -254,9 +254,9 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
     launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: HELIOPHAGE.bays },
     messages: {
-      start: 'THE HELIOPHAGE · BREAK ALL THREE FLARE VENTS', batteries: 'BREAK ALL THREE FLARE VENTS', core: 'THE STAR-HEART IS OPEN',
-      overload: 'STAR-HEART OVERLOAD · SPIRALS AND LANES', destroyed: 'THE HELIOPHAGE IS FALLING · JUMP',
-      approach: 'THE STAR FLARES · THE HELIOPHAGE RISES',
+      start: 'HELIOPHAGE · BREAK ALL THREE FLARE VENTS', batteries: 'BREAK ALL THREE FLARE VENTS', core: 'THE STAR-HEART IS OPEN',
+      overload: 'STAR-HEART OVERLOAD · SPIRALS AND LANES', destroyed: 'HELIOPHAGE IS FALLING · JUMP',
+      approach: 'THE STAR FLARES · HELIOPHAGE RISES',
     },
   },
 };

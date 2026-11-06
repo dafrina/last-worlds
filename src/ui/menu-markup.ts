@@ -19,13 +19,12 @@ export function selector(name: string, label: string, choices: readonly (readonl
 
 export const menuMarkup = `
   <section class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="game-title">
-    <div class="menu-topline"><span>LW / FLIGHT COMMAND</span></div>
     <div class="wordmark"><h1 id="game-title">LAST<br>WORLDS</h1><p class="menu-tagline">LOW ORBIT. NO WAY BACK.</p></div>
     <div class="orbital-art" aria-hidden="true">
       <svg viewBox="0 0 340 180" fill="none"><circle cx="235" cy="131" r="99" fill="#0c2340"/><circle cx="235" cy="131" r="99" stroke="#355678" stroke-width=".7"/><path d="M128 149C188 93 265 64 338 59M130 156C192 103 272 76 339 73" stroke="#527394" stroke-width=".7"/><path d="M36 138H93M64 110V166M148 35H166M157 26V44" stroke="#55708b" stroke-width=".7"/><circle cx="298" cy="23" r="1.2" fill="#9db8d5"/><circle cx="102" cy="54" r="1" fill="#7893ae"/><circle cx="196" cy="17" r=".8" fill="#7893ae"/><path d="M234 40L235 34L237 40L240 43L236 42L235 44L234 42L230 43Z" fill="#d9e6ef"/></svg>
     </div>
     <nav class="menu-launches" aria-label="Game modes">
-      <button type="button" class="arcade-button primary" data-action="campaign"><span>CAMPAIGN FLIGHT</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+      <button type="button" class="arcade-button primary" data-action="campaign"><span>CAMPAIGN</span><span class="button-arrow" aria-hidden="true">↗</span></button>
       <button type="button" class="arcade-button secondary" data-action="endless"><span>ENDLESS</span><span class="button-arrow" aria-hidden="true">↗</span></button>
     </nav>
     <nav class="menu-hangar" aria-label="Hangar">
@@ -35,7 +34,7 @@ export const menuMarkup = `
       </button>
     </nav>
     <nav class="menu-utility" aria-label="Flight command"><button type="button" data-action="statistics">STATISTICS</button><button type="button" data-action="settings">SETTINGS</button></nav>
-    <div class="menu-footer"><span>FLIGHT PROTOTYPE</span><button type="button" data-action="help">HOW TO PLAY <span aria-hidden="true">?</span></button></div>
+    <div class="menu-footer"><button type="button" data-action="help">HOW TO PLAY <span aria-hidden="true">?</span></button></div>
   </section>
   <section class="campaign-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>
@@ -49,7 +48,7 @@ export const menuMarkup = `
     <p class="mission-world"></p>
     <h3 class="mission-name"></h3>
     <p class="mission-description"></p>
-    <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i><i></i></span></p>
+    <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i><i></i><i></i></span></p>
     <p class="mission-record"></p>
     <div class="setup-group"><span class="setup-label" id="difficulty-label">DIFFICULTY</span>${selector('difficulty', 'Campaign difficulty', [['relaxed', 'Relaxed'], ['standard', 'Standard'], ['veteran', 'Veteran']], 'standard')}</div>
     <button type="button" class="loadout-summary" data-action="hangar" aria-label="Open the hangar to change or buy equipment">
@@ -61,7 +60,7 @@ export const menuMarkup = `
   </section>
   <section class="hangar-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="hangar-title" hidden>
     <button type="button" class="back-button" data-back>← BACK</button>
-    <div class="eyebrow campaign-eyebrow"><span>FLIGHT COMMAND</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
+    <div class="eyebrow campaign-eyebrow"><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
     <h2 id="hangar-title">HANGAR</h2>
     ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['ship', 'Ships']], 'weapon')}
     <p class="hangar-scope"><b class="hangar-scope-mode"></b> · <span class="hangar-scope-what"></span></p>
@@ -82,7 +81,7 @@ export const menuMarkup = `
   </section>
   <section class="settings-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
     <button type="button" class="back-button" data-settings-back>← BACK</button>
-    <p class="eyebrow">FLIGHT COMMAND</p><h2 id="settings-title">SETTINGS</h2>
+    <h2 id="settings-title">SETTINGS</h2>
     <div class="settings-list"><div><span>Sound</span>${selector('sound', 'Sound', [['on', 'On'], ['off', 'Off']], 'on')}</div><div><span>Graphics</span>${selector('graphics', 'Graphics quality', [['high', 'High'], ['low', 'Low']], 'high')}</div><div class="steering-setting" hidden><span>Steering</span>${selector('steering', 'Steering', [['touch', 'Touch'], ['tilt', 'Tilt']], 'touch')}</div></div>
     <p class="panel-note steering-note" hidden></p>
     <p class="panel-note">Use Low graphics for a smoother flight.</p>

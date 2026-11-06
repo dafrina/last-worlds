@@ -16,7 +16,7 @@ test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot
     await route.continue();
   });
   await page.goto('/');
-  await page.getByRole('button', {name:/CAMPAIGN FLIGHT/}).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('radio', {name:'Cold Vector',exact:true}).click();
   await page.getByRole('button', {name:/LAUNCH MISSION/}).click();
   try {
@@ -33,7 +33,7 @@ test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot
     await expect.poll(async()=> (await stats(page)).ark?.model,{timeout:30000}).toBe('glb');
     expect(await snapshot(page)).toBeNull();
     await expect(page.locator('.menu-panel')).toBeVisible();
-    await page.getByRole('button', {name:/CAMPAIGN FLIGHT/}).click();
+    await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
     await page.getByRole('button', {name:/LAUNCH MISSION/}).click();
     await expect(page.locator('.loading-panel')).toBeHidden({timeout:30000});
     await expect.poll(async()=> (await snapshot(page))?.phase, { timeout: 30000 }).toBe('playing');
@@ -78,7 +78,7 @@ test('no shader program compiles mid-flight: the launch warm-up covers facilitie
   test.setTimeout(120000);
   await seedCampaign(page);
   await page.goto('/');
-  await page.getByRole('button', { name: /CAMPAIGN FLIGHT/ }).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Rolling Thunder', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
   await expect.poll(async () => (await snapshot(page))?.phase, { timeout: 60_000 }).toBe('playing');

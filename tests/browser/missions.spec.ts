@@ -27,7 +27,7 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await seeded(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   const board = page.locator('.mission-board');
   await board.scrollIntoViewIfNeeded();
@@ -38,9 +38,9 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   await expect(board.locator('.board-item').nth(4).locator('.board-value')).toHaveText('0/100');
   await expect(board.locator('.board-item').nth(4).locator('.board-scope')).toHaveText('ACROSS RUNS');
   await expect(board.locator('.board-item').nth(1).locator('.board-tag')).toHaveText('STANDARD+');
-  await expect(board.locator('.board-item').nth(0).locator('.board-tag')).toHaveText('ANY');
+  await expect(board.locator('.board-item').nth(0).locator('.board-tag')).toHaveText('RELAXED+');
   await expect(board.locator('.board-item').nth(2).locator('.board-value')).toHaveText('38/70');
-  await expect(board.locator('.board-item').nth(2).locator('.board-scope')).toHaveText('LAST RUN');
+  await expect(board.locator('.board-item').nth(2).locator('.board-scope')).toHaveText('SINGLE RUN');
   await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 100 credits and 1 part');
   // Done missions stay as cards with a check, most recent first; the retired Groundbreaker no longer shows (its payment stays).
   await expect(board.locator('.board-sub')).toHaveText('COMPLETED · 1');
@@ -69,7 +69,7 @@ test('a flight shows a small mission note, and the results list the missions it 
     } } };
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign difficulty' }).getByRole('radio', { name: 'Standard', exact: true }).click();
   await page.getByRole('button', { name: /LAUNCH MISSION/ }).click();
@@ -97,7 +97,7 @@ test('a flight shows a small mission note, and the results list the missions it 
   expect(saved.awards).toEqual(['mission:luna.untouchable']);
   expect(saved.missionBoard.worlds.training.claimed).toEqual(['luna.collector', 'luna.untouchable']);
   await page.getByRole('button', { name: 'RETURN TO MENU' }).click();
-  await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
+  await page.getByRole('button', { name: 'CAMPAIGN', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
   // Done since the board was last drawn: its card's check pops in once.
   await expect(page.locator('.mission-board .board-done.is-fresh b')).toHaveText(['Untouchable']);

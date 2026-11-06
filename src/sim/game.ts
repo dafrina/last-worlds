@@ -834,11 +834,16 @@ function updateLance(state: RunState, dt: number): void {
 
 function updatePickups(state: RunState, dt: number): void {
   for (const pickup of state.pickups) {
-    pickup.ttl -= dt;
+    if (pickup.caught === undefined) pickup.ttl -= dt;
     pickup.s -= BALANCE.pickup.speed * state.pace * dt;
     let distance = Math.hypot(pickup.x - state.player.x, pickup.s);
-    if (pickup.kind !== 'weapon' && isVisible(state, pickup.x, pickup.s) && distance < BALANCE.pickup.magnetRadius * SHIPS[state.config.ship ?? 'scrapper'].pickupReach && distance > 0.001) {
-      const pull = Math.min(distance, BALANCE.pickup.magnetSpeed * state.pace * dt);
+    // Any drop the ship's reach once took stays caught and homes in, faster the longer it chases, so a quick pass by still
+    // collects it (user, 7 November: "all drops should be collectable the same way", weapon drops included).
+    if (pickup.caught === undefined && isVisible(state, pickup.x, pickup.s)
+      && distance < BALANCE.pickup.magnetRadius * SHIPS[state.config.ship ?? 'scrapper'].pickupReach) pickup.caught = state.time;
+    if (pickup.caught !== undefined && distance > 0.001) {
+      const chase = 1 + BALANCE.pickup.catchBoost * (state.time - pickup.caught);
+      const pull = Math.min(distance, BALANCE.pickup.magnetSpeed * chase * state.pace * dt);
       pickup.x += (state.player.x - pickup.x) / distance * pull;
       pickup.s += -pickup.s / distance * pull;
       distance = Math.hypot(pickup.x - state.player.x, pickup.s);
@@ -873,7 +878,8 @@ function updatePickups(state: RunState, dt: number): void {
         break;
     }
   }
-  state.pickups = state.pickups.filter(pickup => pickup.ttl > 0 && pickup.s > VIEW.minS - 2);
+  // A caught pickup chases the ship: it is never dropped for falling behind (its ttl is frozen; collection sets it 0).
+  state.pickups = state.pickups.filter(pickup => pickup.ttl > 0 && (pickup.caught !== undefined || pickup.s > VIEW.minS - 2));
 }
 
 /** An endless ace's drop roll (HUNTERS.endlessDrop): a budgeted shield cell, a weapon, a power cell, or its coins only. */

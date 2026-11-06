@@ -350,7 +350,7 @@ User answers after reviewing the merged strike sites and encounter deck:
   - Air Superiority or Demolition moved up to fill the slot Untouchable left.
 - **Untouchable pays 100 credits and a part on every world** (was 50).
 - **Dying Star:**
-  - Wraith Exorcist became **Solar Wind** (8 airborne kills within 6 s, 50);
+  - Wraith Exorcist became **Solar Wind**, 7 airborne kills within 8 s, for 50. It was planned as 8 in 6 s, but the test pilot's best burst on Corona is 5–6 kills in 6 s.
   - Lights Out became **Heat Shield** (8 ground defences in a row without any hit, 50);
   - Flare Dancer needs 3 volleys (was 4) and is second.
 - **Final Horizon:** Vanishing Act needs 4 volleys (was 3) and is second. The Wraith missions belong to Umbra, the Wraiths' home world.
@@ -369,3 +369,20 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **Shockwave costs 450 credits and a part** (was 350).
 - **Campaign only:** endless flies the Shockwave from `ENDLESS_LOADOUT`, and its recharge is unchanged.
 - **Measured:** every world's missions stay reachable with the 40 s Seeker Rack, Luna's Specialist (5 specials in one run) included.
+
+### 7 November 2026 · Drops home in once caught, and spin
+- **A caught drop homes in until collected.** User: "as long as you were in reach to those coins via the ships pickup radius the coin should always find its way to the ship"; then "all drops should be collectable the same way", weapon drops and shields included.
+  - Once a drop is inside the magnet reach, it stays caught.
+  - It chases the ship with a pull that grows by 4× magnet speed per second (`BALANCE.pickup.catchBoost`).
+  - Its lifetime freezes while it chases, and falling behind no longer removes it.
+  - **Consequence in endless:** a weapon drop you brush past is now taken and swaps the gun, which resets the tier. Steer clear of the ones you don't want.
+  - **Measured effect on missions:**
+    - every world's missions stay reachable;
+    - Solar Wind is set to 7 kills in 8 s (see the 6 November mission entry);
+    - the test pilot flies the Fan Cannon for burst missions.
+- **Drops spin a full turn.** User: "full 360 but ... when we see it it turns slow but when its turning it turns quickly".
+  - Each 3 s cycle, a drop faces the camera for 70% of the time, drifting slowly through ±17°.
+  - Then it makes one 0.9 s turn with an ease-out overshoot.
+  - It's readable (within 45° of facing) about 91% of the time.
+  - A glint follows each turn, and the drop dims slightly side-on.
+  - This is render-only (`pickupSpin` in src/render/scene.ts).

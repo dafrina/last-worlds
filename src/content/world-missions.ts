@@ -108,7 +108,7 @@ const long = (slug: string, name: string, text: string, goal: number, rule: Miss
 const specialist = (goal: number, credits: number): Def => ({ slug: 'specialist', name: 'Specialist', text: `Fire your special ${goal} times in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'specials' }) });
 const oldSchool = (credits: number, where: string): Def => ({ slug: 'old-school', name: 'Old School', text: `Complete ${where} without firing a special.`, goal: 1, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'complete', noSpecial: true }) });
 const untouchable = (where: string): Def => ({ slug: 'untouchable', name: 'Untouchable', text: `Complete ${where} without a shield or hull hit.`, goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'complete', noHit: true }) });
-const collector = (goal: number, credits: number): Def => ({ slug: 'collector', name: 'Collector', text: `Collect ${goal} coins in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'credits' }) });
+const collector = (goal: number, credits: number): Def => ({ slug: 'collector', name: 'Collector', text: `Collect ${goal} credits in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'credits' }) });
 const airSuperiority = (goal: number, credits: number): Def => ({ slug: 'air-superiority', name: 'Air Superiority', text: `Destroy ${goal} airborne enemies in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air' }) });
 const demolition = (goal: number): Def => ({ slug: 'demolition', name: 'Demolition', text: `Destroy ${goal} ground targets in one run.`, goal, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground' }) });
 const hunterBounty = (goal: number): Def => ({ slug: 'hunter-bounty', name: 'Hunter Bounty', text: goal === 1 ? 'Shoot down a shielded ace in one run.' : `Shoot down ${goal} shielded aces in one run.`, goal, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'hunters' }) });
@@ -142,10 +142,10 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     long('scorched-earth', 'Scorched Earth', 'Destroy 40 ground targets, across runs.', 40, { kind: 'ground' }),
     untouchable('Rolling Thunder'),
     hunterBounty(2),
-    { slug: 'armor-piercer', name: 'Armor Piercer', text: 'Defeat Bastion-9 flying the Rail Driver.', goal: 1, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['rail'] }) },
+    { slug: 'armor-piercer', name: 'Armor Piercer', text: 'Defeat BASTION-9 flying the Rail Driver.', goal: 1, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['rail'] }) },
     { slug: 'flanking-maneuver', name: 'Flanking Maneuver', text: 'Destroy 3 enemies out on each flank in one run.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'flanks', beyond: FLANK_X }) },
     { slug: 'dustfall', name: 'Dustfall', text: 'Destroy 6 ground turrets in a row without a hit.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret'], anyHit: true }) },
-    { slug: 'bastion-breaker', name: 'Bastion Breaker', text: 'Defeat Bastion-9 within 60 s of its arrival.', goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 60 }) },
+    { slug: 'bastion-breaker', name: 'Bastion Breaker', text: 'Defeat BASTION-9 within 60 s of its arrival.', goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 60 }) },
     { slug: 'canyon-saboteur', name: 'Canyon Saboteur', text: 'Destroy 2 strike sites and complete the mission.', goal: 2, credits: 50, parts: 1, difficulty: 'relaxed', ...run({ kind: 'sites', complete: true }) },
   ]),
   'cold-vector': world('vesper', [
@@ -157,26 +157,26 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     untouchable('Cold Vector'),
     demolition(16),
     { slug: 'icebreaker', name: 'Icebreaker', text: 'Destroy 3 shield depots or freight terminals, across runs.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['shield-depot', 'freight-terminal'] }) },
-    { slug: 'cold-vector', name: 'Cold Vector', text: 'Defeat the Helion Ark flying the Fan Cannon.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['fan'] }) },
+    { slug: 'cold-vector', name: 'Cold Vector', text: 'Defeat HELION ARK flying the Fan Cannon.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['fan'] }) },
     { slug: 'frozen-nerves', name: 'Frozen Nerves', text: 'Destroy 10 ground defences in a row without a hit.', goal: 10, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret', 'missile'], anyHit: true }) },
     // The Ark's weapon assemblies are its two radiators (their lane lasers), its first phase.
-    { slug: 'broadside-broken', name: 'Broadside Broken', text: 'Destroy both Helion Ark radiators within 50 s of its arrival.', goal: 2, credits: 75, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss-parts', parts: ['left', 'right'], within: 50 }) },
-    { slug: 'arkfall', name: 'Arkfall', text: 'Defeat the Helion Ark without hull damage in its final stage.', goal: 1, credits: 75, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
+    { slug: 'broadside-broken', name: 'Broadside Broken', text: 'Destroy both HELION ARK radiators within 50 s of its arrival.', goal: 2, credits: 75, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss-parts', parts: ['left', 'right'], within: 50 }) },
+    { slug: 'arkfall', name: 'Arkfall', text: 'Defeat HELION ARK without hull damage in its final stage.', goal: 1, credits: 75, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
   'deep-bloom': world('nacre', [
     specialist(8, 25),
     oldSchool(25, 'Deep Bloom'),
     hunterBounty(2),
     airSuperiority(55, 25),
-    long('pearl-diver', 'Pearl Diver', 'Collect 1,000 coins, across runs.', 1000, { kind: 'credits' }),
+    long('pearl-diver', 'Pearl Diver', 'Collect 1,000 credits, across runs.', 1000, { kind: 'credits' }),
     untouchable('Deep Bloom'),
     collector(330, 50),
     { slug: 'three-paths', name: 'Three Paths', text: 'Destroy 3 strike sites in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites' }) },
     { slug: 'seeker-sweep', name: 'Seeker Sweep', text: 'Down 12 airborne enemies over open water with Seeker Array fire.', goal: 12, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air-water', weapon: 'seeker' }) },
     // THE VEIL's bays are launch points, not targets: this counts the pods they launch (docs/35 § 4).
-    { slug: 'pod-bay-purge', name: 'Pod Bay Purge', text: 'Destroy 8 pods launched from THE VEIL\'s bays.', goal: 8, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'launched', boss: 'veil' }) },
-    { slug: 'veil-survivor', name: 'Veil Survivor', text: 'Defeat THE VEIL without a hit in its final stage.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHit: 'final' }) },
-    { slug: 'alien-weapons-specialist', name: 'Alien Weapons Specialist', text: 'Defeat THE VEIL flying the Twin Pulse or Fan Cannon.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['pulse', 'fan'] }) },
+    { slug: 'pod-bay-purge', name: 'Pod Bay Purge', text: 'Destroy 8 pods launched from VEIL\'s bays.', goal: 8, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'launched', boss: 'veil' }) },
+    { slug: 'veil-survivor', name: 'Veil Survivor', text: 'Defeat VEIL without a hit in its final stage.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHit: 'final' }) },
+    { slug: 'alien-weapons-specialist', name: 'Alien Weapons Specialist', text: 'Defeat VEIL flying the Twin Pulse or Fan Cannon.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['pulse', 'fan'] }) },
   ]),
   'brood-strike': world('amnion', [
     specialist(8, 25),
@@ -189,9 +189,9 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'nest-breaker', name: 'Nest Breaker', text: 'Destroy 2 brood hives, across runs.', goal: 2, credits: 50, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['brood-hive'] }) },
     // The organic sites' exposed cores: the brood hive's heart-sac and the spawning pool's pod.
     { slug: 'heartbreaker', name: 'Heartbreaker', text: 'Destroy 5 brood hive or spawning pool cores, across runs.', goal: 5, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'site-cores', sites: ['brood-hive', 'spawning-pool'] }) },
-    { slug: 'brood-extermination', name: 'Brood Extermination', text: 'Destroy 12 drones launched by THE CRADLE, across runs.', goal: 12, credits: 75, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'launched', boss: 'cradle' }) },
-    { slug: 'cradles-end', name: 'Cradle\'s End', text: 'Defeat THE CRADLE within 100 s of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 100 }) },
-    { slug: 'sterilization', name: 'Sterilization', text: 'Defeat THE CRADLE without hull damage in its final stage.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
+    { slug: 'brood-extermination', name: 'Brood Extermination', text: 'Destroy 12 drones launched by CRADLE, across runs.', goal: 12, credits: 75, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'launched', boss: 'cradle' }) },
+    { slug: 'cradles-end', name: 'Cradle\'s End', text: 'Defeat CRADLE within 100 s of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 100 }) },
+    { slug: 'sterilization', name: 'Sterilization', text: 'Defeat CRADLE without hull damage in its final stage.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
   // Corona (docs/37; the user's go-ahead on the proposal, 5 November): the two new sites, the plasma sea and THE HELIOPHAGE.
   'dying-star': world('corona', [
@@ -204,9 +204,10 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'extractor-breaker', name: 'Extractor Breaker', text: 'Destroy 3 Star Extractors, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['star-extractor'] }) },
     { slug: 'heat-shield', name: 'Heat Shield', text: 'Destroy 8 ground defences in a row without a hit.', goal: 8, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret', 'missile'], anyHit: true }) },
     { slug: 'plasma-skimmer', name: 'Plasma Skimmer', text: 'Destroy 15 airborne enemies over the plasma sea with the Fan Cannon in one run.', goal: 15, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air-water', weapon: 'fan' }) },
-    { slug: 'solar-wind', name: 'Solar Wind', text: 'Destroy 8 airborne enemies within 6 seconds.', goal: 8, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air', window: 6 }) },
+    // 7 in 8 s (7 November; 8 in 6 s was the plan): the test pilot's best Corona burst is 5-6 kills in 6 s, 7 in 8 s.
+    { slug: 'solar-wind', name: 'Solar Wind', text: 'Destroy 7 airborne enemies within 8 seconds.', goal: 7, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air', window: 8 }) },
     { slug: 'veteran-of-the-dying-star', name: 'Veteran of the Dying Star', text: 'Complete Dying Star on Veteran.', goal: 1, credits: 100, parts: 1, difficulty: 'veteran', ...run({ kind: 'complete' }) },
-    { slug: 'sunburn', name: 'Sunburn', text: 'Defeat THE HELIOPHAGE within 60 seconds of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', within: 60 }) },
+    { slug: 'sunburn', name: 'Sunburn', text: 'Defeat HELIOPHAGE within 60 seconds of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', within: 60 }) },
   ]),
   'final-horizon': world('umbra', [
     specialist(8, 25),
@@ -220,7 +221,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'gravity-slingshot', name: 'Gravity Slingshot', text: 'Destroy 3 enemies with Gravitic Shield returns, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'reflected' }) },
     { slug: 'wraith-exorcist', name: 'Wraith Exorcist', text: 'Destroy 3 Wraiths in one run.', goal: 3, credits: 75, parts: 0, difficulty: 'relaxed', ...run({ kind: 'wraiths' }) },
     { slug: 'veteran-of-the-void', name: 'Veteran of the Void', text: 'Complete Final Horizon on Veteran.', goal: 1, credits: 100, parts: 1, difficulty: 'veteran', ...run({ kind: 'complete' }) },
-    { slug: 'blackout', name: 'Blackout', text: 'Defeat THE ECLIPSE without hull damage in its final phase.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
+    { slug: 'blackout', name: 'Blackout', text: 'Defeat ECLIPSE without hull damage in its final phase.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
 };
 
@@ -232,4 +233,4 @@ export const worldMission = (id: string) => BY_ID.get(id)?.def;
 const RANK: Readonly<Record<Difficulty, number>> = { relaxed: 0, standard: 1, veteran: 2 };
 export const difficultyAllows = (flown: Difficulty, needed: Difficulty) => RANK[flown] >= RANK[needed];
 /** The board's label for a minimum difficulty. */
-export const DIFFICULTY_TAG: Readonly<Record<Difficulty, string>> = { relaxed: 'ANY', standard: 'STANDARD+', veteran: 'VETERAN' };
+export const DIFFICULTY_TAG: Readonly<Record<Difficulty, string>> = { relaxed: 'RELAXED+', standard: 'STANDARD+', veteran: 'VETERAN' };

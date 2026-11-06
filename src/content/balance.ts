@@ -25,7 +25,11 @@ export const BALANCE = {
   /** Shockwave's hit and invulnerability; every special's recharge time is in SPECIALS (src/content/equipment.ts). */
   special: { killCharge: 0.03, damage: 180, invulnerability: 1 },
   /** Pickups drift toward the player row at `speed` times the pace; the magnet pulls at `magnetSpeed` times the pace. */
-  pickup: { radius: 0.65, magnetRadius: 1.6, speed: VIEW.scrollSpeed, magnetSpeed: 7.5 },
+  /**
+   * A caught pickup (one that came within the magnet) homes in until collected (user, 7 November: "as long as you were in
+   * reach ... the coin should always find its way to the ship"), its pull growing by `catchBoost` × magnetSpeed per second.
+   */
+  pickup: { radius: 0.65, magnetRadius: 1.6, speed: VIEW.scrollSpeed, magnetSpeed: 7.5, catchBoost: 4 },
 } as const;
 
 /**
