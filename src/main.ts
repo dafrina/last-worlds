@@ -3,6 +3,7 @@ import { createRenderer } from './render/scene';
 import { createUi } from './ui/game-ui';
 import { createPerfOverlay } from './ui/perf-overlay';
 import { createPerfLog, exportPerfLog } from './ui/perf-log';
+import { createFramePacer } from './shared/frame-pacing';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
@@ -246,10 +247,12 @@ const benchSteer = (tick: number, x: number): -1 | 0 | 1 => {
   const phase = tick % 420; return phase < 150 ? 1 : phase < 210 ? 0 : phase < 360 ? -1 : 0;
 };
 
+const pacing = createFramePacer();
+
 function frame(now: number) {
   const frameStart = performance.now();
   // Scene creation and initial shader compilation are loading, not active flight time.
-  const elapsed = warmupFrames > 0 ? 0 : Math.max(0, (now - lastTime) / 1000);
+  const elapsed = warmupFrames > 0 ? pacing.reset() : Math.max(0, pacing.paced(now - lastTime) / 1000);
   if (warmupFrames > 0) warmupFrames--;
   maxFrameMs = Math.max(maxFrameMs, elapsed * 1000);
   lastTime = now;
