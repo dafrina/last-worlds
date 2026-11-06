@@ -2,6 +2,7 @@ import { createRun, stepRun } from './sim/game';
 import { createRenderer } from './render/scene';
 import { createUi } from './ui/game-ui';
 import { createPerfOverlay } from './ui/perf-overlay';
+import { createPerfLog, exportPerfLog } from './ui/perf-log';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
@@ -138,6 +139,7 @@ async function start(config: RunConfig) {
     if (flash > 0) await new Promise<void>(resolve => setTimeout(resolve, flash * 1000));
     if (id !== launchId) return;
     run = candidate; loadingRun = null;
+    perfLog?.begin(run);
     run.phase = startPaused || document.hidden || sideways?.matches ? 'paused' : 'playing';
     audio.start(run); if (run.phase === 'paused') audio.pause();
     pendingSpecial = false; pendingDash = undefined; accumulator = 0; lastTime = performance.now();
@@ -217,6 +219,21 @@ ui.canvas.addEventListener('webglcontextlost', (event) => {
 
 /** `?perf`: the diagnostic frame-time overlay (src/ui/perf-overlay.ts), for measuring flights on phones. */
 const perf = new URLSearchParams(location.search).has('perf') ? createPerfOverlay(document.body, ui.canvas) : null;
+/**
+ * `?perf`: the flight's frame log (src/ui/perf-log.ts) and an export button on the results screen, so a phone run can be
+ * read without a screen recording (user, 6 November).
+ */
+const perfLog = perf ? createPerfLog() : null;
+if (perfLog) {
+  const results = document.querySelector('.results-panel'), retry = results?.querySelector('[data-action="retry"]');
+  if (results && retry) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'arcade-button secondary'; button.dataset.action = 'perf-export';
+    button.textContent = 'EXPORT PERF LOG';
+    button.addEventListener('click', () => { void exportPerfLog(perfLog).catch(error => console.warn('Perf log export failed', error)); });
+    results.insertBefore(button, retry);
+  }
+}
 let perfLast = performance.now(), simStart = 0;
 /**
  * Development-only perf bench (tools/perf-bench.mjs): every rendered frame steps exactly `steps` ticks with a scripted
@@ -271,7 +288,9 @@ function frame(now: number) {
   const renderStart = performance.now();
   renderer?.render(loadingRun ?? dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
   const renderMs = performance.now() - renderStart;
-  perf?.frame(now - perfLast, simMs, renderMs); perfLast = now; simStart = 0;
+  perf?.frame(now - perfLast, simMs, renderMs);
+  if (perfLog && run) perfLog.frame(now - perfLast, simMs, renderMs, renderer?.perfSample?.(), run);
+  perfLast = now; simStart = 0;
   ui.update(run);
   if (bench && benching) bench.frames.push({ sim: simMs, render: renderMs, total: performance.now() - frameStart, time: run?.time ?? 0, speed: run?.scrollSpeed ?? 0 });
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });

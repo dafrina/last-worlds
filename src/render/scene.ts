@@ -2219,6 +2219,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         lastStatsTick = state.tick;
       }
     },
+    /** `?perf` run log (src/ui/perf-log.ts): this frame's counters, read-only. */
+    perfSample() {
+      const stream = terrain.streamStats as { prefetched?: number; fallbacks?: number; startup?: number };
+      return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs?.length ?? 0,
+        geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, terrainMs: terrainWork.last,
+        prefetched: stream.prefetched ?? 0, fallbacks: stream.fallbacks ?? 0, startup: stream.startup ?? 0,
+        particles: fx.particles, planet, quality, pixelRatio: renderer.getPixelRatio() };
+    },
     dispose() {
       if (disposed) return; disposed = true;
       const geometries = new Set<THREE.BufferGeometry>(), usedMaterials = new Set<THREE.Material>();

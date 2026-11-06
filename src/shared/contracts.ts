@@ -243,6 +243,8 @@ export interface GameRenderer {
    */
   launchWarp(mode: 'cruise' | 'ready' | 'arrive' | 'off'): number;
   render(state: RunState, alpha: number): void;
+  /** `?perf` only: the last frame's renderer counters (src/ui/perf-log.ts PerfSample). */
+  perfSample?(): import('../ui/perf-log').PerfSample;
   /** Playground only (playground.html): a level's shipped look, and a live replacement for it (render/scene.ts PlanetLook). */
   lookOf?(planet: PlanetId): unknown;
   tuneLook?(planet: PlanetId, look: unknown): void;
