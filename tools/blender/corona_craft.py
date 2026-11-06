@@ -1,4 +1,6 @@
-"""Corona's fleet (docs/37): the enemy craft of the Dying Star, after art/concepts/corona/03-craft.webp.
+"""SUPERSEDED by tools/blender/corona_fleet.py (6 November: "they look really cheaply made. Like toy insects").
+
+Corona's fleet (docs/37): the enemy craft of the Dying Star, after art/concepts/corona/03-craft.webp.
 
 The user, 5 November 2026: "make some models for the ships". The concept sheet shows six craft: plated ceramic armour
 over dark gunmetal frames, bronze trim, gold honeycomb panels glowing like the plasma, white-gold engines. The concepts

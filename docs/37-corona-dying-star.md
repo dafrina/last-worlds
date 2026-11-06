@@ -63,7 +63,12 @@ The concept images are references, never runtime backgrounds or finished assets 
 
 ## Content
 
-- **Fleet:** Umbra's fleet and the Wraith (`hunters.ts` kind `wraith`), drawn with Umbra's models until stage 2.
+- **Fleet:** Umbra's roles and the Wraith (`hunters.ts` kind `wraith`), in Corona's own models (`public/assets/corona/corona-craft.glb`).
+  - **Third pass** (`tools/blender/corona_fleet.py`, 6 November). The user on the second pass: "the enemies suck they look really cheaply made. Like toy insects"; it was beetle shells with thin floating arcs and legs (`tools/blender/corona_craft.py`, superseded).
+  - **Built on the Umbral fleet's surfaces:** smooth lofts meeting at knife edges, with glowing grooves.
+  - **Masses after the concept sheet:** lance, arrow, cannon hull, heavy, crescent ring and the Wraith's scythes, with fat engine nacelles and thick barrels.
+  - **Look:** dark scorched-bronze armour with bright gold knife edges and molten-gold glow. Pale plates washed out over the plasma.
+  - **User verdict:** "darker armor is fine but i like the shapes better now".
 - **Encounters:** the encounter deck flies Umbra's pools (`DECK_POOLS.corona`). The mission's arc is Final Horizon's, re-identified (`c-` slots). Its seeded rolls are its own, keyed by template id.
 - **World intensity:** flight 1.1, shot 1.1, cadence 0.5. The mission cadence is 0.92 and credits scale by 0.55.
 - **Boss:** THE HELIOPHAGE, the user's Tripo GLB adapted like THE ECLIPSE (`tools/blender/approved_heliophage.py` → `public/assets/corona/the-heliophage-v1-approved.glb`; source `art/source/approved-bosses/heliophage-tripo-original.glb`):
