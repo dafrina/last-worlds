@@ -29,6 +29,7 @@ import { HELION_ARK } from '../content/ark';
 import { createFoam, createWater, type FoamRing } from './water';
 import { createCoronaArcs } from './corona-arcs';
 import { createCoronaHaze } from './corona-haze';
+import { createAmbientMotes } from './ambient-motes';
 import { CORONA_SEA_LEVEL } from '../world/terrain-corona';
 import { createMireWater } from './mire-water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
@@ -580,7 +581,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
   let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null, voidEnvironment: THREE.WebGLRenderTarget | null = null;
-  const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [], coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene);
+  const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [], coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene), motes = createAmbientMotes(scene);
   /** Nacre's water: its own material (src/render/mire-water.ts); the sea sheets wear it while the look is Nacre's. */
   const mireWater = createMireWater();
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
@@ -1449,7 +1450,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     },
     isReady: planetReady,
     setQuality(next) {
-      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);
+      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);motes.setQuality(next);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); resizePost();
       // Shadow maps are a High-tier feature; toggling them recompiles the affected programs once.
       renderer.shadowMap.enabled = sunlight.castShadow = next === 'high';
@@ -1485,6 +1486,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       coronaArcs.update(state.time, state.config.seed, state.distance, view.minS, view.maxS, world.planet.id === 'corona',
         (x, s) => terrainHeight(state.config.seed, x, s, world), CORONA_SEA_LEVEL, VIEW.flightHeight);
       coronaHaze.update(state.time, state.distance, -(view.minS + view.maxS) / 2, world.planet.id === 'corona', CORONA_SEA_LEVEL);
+      // Each world's drifting dust, snow, spores or embers (render-only; none on Luna, none in the ortho debug view).
+      if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) motes.update(world.planet.id, state.time, state.distance, camera as THREE.PerspectiveCamera, drawingHeight * renderer.getPixelRatio());
       const lookPlanet: PlanetId = lookOverride ? terrainPlanet : state.planet ?? runPlanet(state.config);
       if (lookPlanet !== planet) applyLook(lookPlanet);
       if (state.config.mode === 'endless') {
@@ -2241,7 +2244,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); basaltRaft.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); motes.dispose(); basaltRaft.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
       lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose(); instancedDepth.dispose();
       renderer.dispose();

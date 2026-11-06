@@ -798,3 +798,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Shared code touched:**
   - `src/shared/contracts.ts`: `InputFrame.horizontal` is now a number from −1 to 1, and `UiActions.setSteering`;
   - `src/sim/game.ts`: `movePlayer` clamps the steering share.
+- **Claude Code, 6 November: drifting particles** (`src/render/ambient-motes.ts`, render-only):
+  - one point draw per world, animated entirely in the vertex shader: Khepri dust, Vesper snow, Nacre plankton, Amnion spores, Corona embers, Umbra ash, none on Luna;
+  - 90–220 points per world, half on Low graphics, all below the flight plane.
+  - Checks: tsc, unit (948), build, and the graphics and faction browser specs.
