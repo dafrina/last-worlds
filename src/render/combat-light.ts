@@ -36,18 +36,22 @@ export function createBeamLight(scene: THREE.Scene) {
   };
 }
 
-/** A black centre with a thin violet lens rim, one quad per teleport endpoint. No full-screen distortion. */
+/**
+ * A black centre with a thin lens rim, one quad per teleport endpoint. No full-screen distortion. The rim is Umbra's violet;
+ * `tint` sets another world's (Corona: molten red-orange, user 6 November: "smoke and animations of wraith ... have purple").
+ */
 export function createPhaseHoles(scene: THREE.Scene) {
   const geometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const rimColor = new THREE.Vector3(.4, .1, .85);
   const material = new THREE.ShaderMaterial({
-    transparent: true, depthTest: false, depthWrite: false, toneMapped: false,
+    transparent: true, depthTest: false, depthWrite: false, toneMapped: false, uniforms: { rimColor: { value: rimColor } },
     vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);}`,
-    fragmentShader: `varying vec2 vUv; void main(){
+    fragmentShader: `uniform vec3 rimColor; varying vec2 vUv; void main(){
       float r=length((vUv-.5)*2.);
       float rim=exp(-pow((r-.69)/.055,2.));
       float halo=exp(-pow((r-.72)/.18,2.))*.22;
       float a=(1.-smoothstep(.68,.99,r));
-      gl_FragColor=vec4(vec3(.4,.1,.85)*(rim*2.+halo),a);
+      gl_FragColor=vec4(rimColor*(rim*2.+halo),a);
     }`,
   });
   const mesh = new THREE.InstancedMesh(geometry, material, 32);
@@ -56,6 +60,8 @@ export function createPhaseHoles(scene: THREE.Scene) {
   const pose = new THREE.Object3D();
   return {
     begin() { mesh.count = 0; },
+    /** The rim colour (linear RGB, the shader's own scale: Umbra's violet is (.4, .1, .85)). */
+    tint(r: number, g: number, b: number) { rimColor.set(r, g, b); },
     add(x: number, s: number, scale: number) {
       if (mesh.count >= 32 || scale <= .001) return;
       pose.position.set(x, VIEW.flightHeight + .07, -s); pose.scale.setScalar(scale); pose.updateMatrix();

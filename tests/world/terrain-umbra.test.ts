@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { CAMPAIGN_SCROLL, PACE } from '../../src/content/balance';
+import { scrollForPace } from '../../src/content/endless';
 import { VIEW } from '../../src/shared/contracts';
 import { UMBRA_SCENERY_MAX, UMBRA_SPIRE_MAX } from '../../src/world/terrain-umbra';
 import { KIT, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, createTerrainStream, generateTerrainSection, terrainSample } from '../../src/world/terrain';
@@ -10,7 +12,8 @@ describe('Umbra scenery (docs/28)', () => {
   it('prefetches the added walls and footprint checks without synchronous fallbacks at maximum scroll speed', () => {
     const stream = createTerrainStream(8831, UMBRA);
     for (let frame = 0; frame < 60 * 80; frame++) {
-      const distance = frame * 5.5 / 60;
+      // The fastest scroll a run reaches: the campaign's (5.75 since pace 1.15, 6 November) or endless's capped pace.
+      const distance = frame * Math.max(CAMPAIGN_SCROLL, scrollForPace(PACE.endless.cap)) / 60;
       const sections = stream.update(distance);
       let budget = 30; stream.prefetch(distance, () => budget-- > 0);
       if (frame % 1200 === 0) for (const section of sections) expect(section).toEqual(generateTerrainSection(8831, section.index, UMBRA));

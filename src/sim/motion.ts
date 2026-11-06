@@ -57,14 +57,16 @@ export function aimOffset(enemy: Enemy): number {
   return (slot.aim ?? 0) * enemy.formation.mirror * (slot.flip ? -1 : 1);
 }
 
-export function inFiringWindow(enemy: Enemy, firstAttack = 1): boolean {
+export function inFiringWindow(enemy: Enemy, firstAttack = 1, airFirstShot = 1): boolean {
   // Hunters fly their own dive: with an earlier first windup they too wait until they are fully in view.
-  if (!enemy.formation) return firstAttack === 1 || enemy.s <= FIRST_WINDUP_ROW;
+  // Hunters (air) open airFirstShot sooner, so they too wait until fully in view.
+  if (!enemy.formation) return enemy.s <= FIRST_WINDUP_ROW;
   const template = formationTemplate(enemy.formation);
   const t = pathTime(enemy.formation, enemy.age);
-  if (firstAttack === 1) return t >= template.fireFrom && t <= template.fireUntil;
-  // An earlier first windup (DifficultyScale.firstAttack) never starts before the member is fully in view.
-  return t >= template.fireFrom * firstAttack && t <= template.fireUntil && enemy.s <= FIRST_WINDUP_ROW;
+  const first = firstAttack * (template.entry === 'ground' ? 1 : airFirstShot);
+  if (first === 1) return t >= template.fireFrom && t <= template.fireUntil;
+  // An earlier first windup (DifficultyScale.firstAttack, airFirstShot) never starts before the member is fully in view.
+  return t >= template.fireFrom * first && t <= template.fireUntil && enemy.s <= FIRST_WINDUP_ROW;
 }
 
 /** Fully in view: the row from which ground batteries may start a windup (formations.ts GROUND_FIRE). */

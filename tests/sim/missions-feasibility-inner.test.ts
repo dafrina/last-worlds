@@ -12,7 +12,8 @@ const LOG = (globalThis as unknown as { process?: { env: Record<string, string |
 
 describe('world missions are all reachable', () => {
   it.each([
-    ['training', 5, 400, 5],
+    // 6 since pace 1.15 (6 November): strike sites pass 15% sooner, and Lunar Saboteur's two sites take a run longer.
+    ['training', 6, 400, 5],
     ['bastion', 3, 400, 4],
     ['cold-vector', 5, 465, 4],
   ] as const)('%s: all twelve within %i attempts', (mission, max, credits, parts) => {

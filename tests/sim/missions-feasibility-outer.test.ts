@@ -12,7 +12,8 @@ const LOG = (globalThis as unknown as { process?: { env: Record<string, string |
 
 describe('world missions are all reachable', () => {
   it.each([
-    ['deep-bloom', 5, 550, 4],
+    // 8 since pace 1.15 (6 November): strike sites pass 15% sooner; Three Paths (3 sites in one run) takes 8 attempts.
+    ['deep-bloom', 8, 550, 4],
     ['brood-strike', 14, 625, 5],
     // 13 since the fewer fuel skids (6 November): Gravity Slingshot (3 reflected kills, 5 before) comes about once in three
     // Spectre runs, half as often as when reflected shots set off skids among the batteries.

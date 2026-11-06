@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, difficultyScales, kinematics } from '../../src/content/balance';
-import { BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
+import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { ENDLESS_CYCLE, endlessPlanet, endlessSchedule, endlessSectorPlan, isBossSector, paceInSector, scrollForPace, sectorPace } from '../../src/content/endless';
 import { EMPTY_INPUT, STEP, type EnemyKind, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
+import { arenaStopDistance } from '../../src/sim/bastion';
 import { dodgerPilot, enterSector, fly, idlePilot, perfectPilot } from './pilots';
 
 const KHEPRI_KINDS: ReadonlySet<EnemyKind> = new Set(['dart', 'weaver', 'turret', 'lancer']);
@@ -44,9 +45,11 @@ describe('endless schedule', () => {
       expect(a.jumpAt((plan.jump!.startDistance + plan.jump!.endDistance) / 2)?.to).toBe(plan.jump!.to);
     }
     // Campaign: one planet and the mission's own arena at its documented stop.
-    const thunder = endlessSchedule({ mode: 'campaign', mission: 'bastion' });
-    expect(thunder.arenaAt(675)?.stopDistance).toBe(675);
-    expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).arenaAt(935)?.stopDistance).toBe(935);
+    // (At the campaign scroll: 776.25 and 1075.25 since pace 1.15, 6 November; 675 and 935 at 5.)
+    const thunder = endlessSchedule({ mode: 'campaign', mission: 'bastion' }), thunderStop = arenaStopDistance(BOSSES.bastion.arena);
+    expect(thunder.arenaAt(thunderStop)?.stopDistance).toBe(thunderStop);
+    const arkStop = arenaStopDistance(BOSSES.ark.arena);
+    expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).arenaAt(arkStop)?.stopDistance).toBe(arkStop);
     expect(endlessSchedule({ mode: 'campaign', mission: 'cold-vector' }).planetAt(5000)).toBe('vesper');
   });
 

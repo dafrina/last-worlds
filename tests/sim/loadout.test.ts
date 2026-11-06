@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SHIPS, SPECIALS } from '../../src/content/equipment';
-import { FAIRNESS } from '../../src/content/balance';
+import { FAIRNESS, PACE, kinematics } from '../../src/content/balance';
 import { EMPTY_INPUT, STEP, type RunConfig } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
@@ -43,7 +43,8 @@ describe('campaign loadout in the simulation (docs/21)', () => {
     for (const ship of Object.keys(SHIPS) as (keyof typeof SHIPS)[]) {
       const state = createRun(campaign({ ship }));
       for (let i = 0; i < 30; i++) stepRun(state, { ...EMPTY_INPUT, horizontal: 1 });
-      expect(Math.abs(state.player.vx)).toBeCloseTo(12, 5);
+      // The campaign pace's top speed (13.8 at pace 1.15 since 6 November; 12 at pace 1).
+      expect(Math.abs(state.player.vx)).toBeCloseTo(kinematics(PACE.campaign).speed, 5);
     }
   });
 

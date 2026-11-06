@@ -229,13 +229,13 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect([...archetypes].sort()).toEqual(['cryo', 'exchanger', 'harbour', 'missile', 'plant', 'radiator', 'reactor']);
   }, 180_000);
 
-  it('opens the Cold Vector ocean arena (926–970): open water around the Ark, nothing afloat there, shelves beyond', () => {
-    // The mission's arena comes from the Ark's own constants: the scroll stops at 935.
+  it('opens the Cold Vector ocean arena (its stop −9 … +35): open water around the Ark, nothing afloat there, shelves beyond', () => {
+    // The mission's arena comes from the Ark's own constants: the scroll stops at 1075.25 (935 before pace 1.15, 6 November).
     const config = { mode: 'campaign', mission: 'cold-vector', seed: 93 } as Parameters<typeof missionArena>[0];
-    const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena };
-    expect(arenaStopDistance(HELION_ARK.arena)).toBe(935);
-    expect(arena).toEqual({ fromS: 926, toS: 970 });
-    expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 666, toS: 701 });
+    const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena }, stop = arenaStopDistance(HELION_ARK.arena);
+    expect(stop).toBeCloseTo(1075.25, 9);
+    expect(arena).toEqual({ fromS: stop - 9, toS: stop + 35 });
+    expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 776.25 - 9, toS: 776.25 + 26 });
     expect(missionArena({ ...config, mode: 'endless' })).toBeUndefined();
     let land = 0;
     for (const seed of [93, 8831, 11]) {

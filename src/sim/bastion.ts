@@ -1,7 +1,7 @@
 import { BASTION } from '../content/bastion';
 import { REWARDS } from '../content/equipment';
 import { departure } from '../content/departure';
-import { BALANCE, FAIRNESS } from '../content/balance';
+import { BALANCE, CAMPAIGN_SCROLL, FAIRNESS } from '../content/balance';
 import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, bossParts, missionBoss, phaseOneParts, type BossDefinition } from '../content/bosses';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
@@ -70,7 +70,7 @@ const ENDLESS_EXIT_PROTECTION = WRECK_HOLD + ENDLESS_CYCLE.resumeDuration + ENDL
  * boss is destroyed (`destroyedAt`).
  */
 export function arenaScroll(time: number, destroyedAt: number | null, arena: BossDefinition['arena'] = BASTION.arena): { distance: number; speed: number } {
-  const v = VIEW.scrollSpeed;
+  const v = CAMPAIGN_SCROLL;
   const { decelStart: t0, decelDuration: span } = arena;
   if (time <= t0) return { distance: v * time, speed: v };
   const stop = arenaStopDistance(arena);
@@ -85,9 +85,9 @@ export function arenaScroll(time: number, destroyedAt: number | null, arena: Bos
   return { distance: stop + d.distance, speed: d.speed };
 }
 
-/** World distance at which a boss arena's terrain stops: 675 for Rolling Thunder, 935 for Cold Vector. */
+/** World distance at which a boss arena's terrain stops (at the campaign scroll: 15% further since pace 1.15). */
 export function arenaStopDistance(arena: BossDefinition['arena'] = BASTION.arena): number {
-  return VIEW.scrollSpeed * (arena.decelStart + arena.decelDuration / 2);
+  return CAMPAIGN_SCROLL * (arena.decelStart + arena.decelDuration / 2);
 }
 
 /**

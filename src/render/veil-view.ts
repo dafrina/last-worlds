@@ -70,7 +70,11 @@ export interface CarrierStyle {
     prowS?: number };
   /** Hull footprint for the terrain exclusion: half width, and its reach toward the player (front) and away (back). */
   footprint: { halfWidth: number; front: number; back: number };
+  /** Effect colours (sparks, flashes, steam and smoke, ichor, the shock ring); THE VEIL's teal and lavender by default. */
+  fx?: Partial<CarrierFx>;
 }
+export interface CarrierFx { spark: number; hot: number; flash: number; steam: number; ichor: readonly [number, number, number]; ring: number }
+const VEIL_FX: CarrierFx = { spark: 0x8ffff0, hot: 0xf2fff8, flash: 0xc8fff2, steam: 0x9a86d0, ichor: [0xeafff8, 0x56f6dc, 0xa070ff], ring: 0x7ffff0 };
 export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', markers: ['veil_approved_v4', 'veil_remodel_v5', 'veil_remodel_v6'], shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
   content: { podOffset: VEIL.podOffset, podS: VEIL.podS, heartS: VEIL.heartS, targetHeight: VEIL.targetHeight, arrivalDuration: VEIL.arrivalDuration, bays: VEIL.bays },
   // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
@@ -103,7 +107,10 @@ export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE',
 export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HELIOPHAGE', prefix: 'heliophage_', markers: ['heliophage_approved_v1'], shutterOpen: 0, spark: 0xffa040, hover: 2.6,
   content: { podOffset: HELIOPHAGE.ventOffset, podS: HELIOPHAGE.ventS, heartS: HELIOPHAGE.reactorS, targetHeight: HELIOPHAGE.targetHeight, arrivalDuration: HELIOPHAGE.arrivalDuration, bays: HELIOPHAGE.bays,
     prowS: HELIOPHAGE.prowS },
-  footprint: { halfWidth: 8.2, front: 3.5, back: 9.2 } };
+  footprint: { halfWidth: 8.2, front: 3.5, back: 9.2 },
+  // Corona's own effects (user, 6 November: the smoke and effects were purple on Corona): white-gold sparks, molten
+  // orange flashes, dark ash smoke.
+  fx: { spark: 0xffb850, hot: 0xfff2d6, flash: 0xffd9a0, steam: 0x5a4a40, ichor: [0xfff0d0, 0xffa030, 0xff5a1c], ring: 0xffa040 } };
 
 export async function loadVeilModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
@@ -322,7 +329,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
     const mesh = new THREE.Mesh(ring, material); mesh.renderOrder = 4; mesh.position.copy(socket(style, part)).setY(style.content.targetHeight); root.add(mesh); rings.set(part, { mesh, material });
   }
   const shock = new THREE.Mesh(new THREE.RingGeometry(.9, 1, 96).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(0x7ffff0).multiplyScalar(2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }));
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(style.fx?.ring ?? VEIL_FX.ring).multiplyScalar(2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }));
   shock.renderOrder = 5; shock.visible = false; scene.add(shock);
   const mist = particleLayer(scene, 320, false), sparks = particleLayer(scene, 420, true);
   const vertices = new Float32Array(192 * 3), colors = new Float32Array(192 * 3), geometry = new THREE.BufferGeometry();
@@ -340,22 +347,23 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
   /** Pods already seen (a new one bursts out of its bay). */
   const podsSeen = new Set<number>();
   const local = (x: number, y: number, z: number) => root.localToWorld(world.set(x, y, z)).clone();
-  const burst = (at: THREE.Vector3, count: number, seed: number, power = 1, color = 0x8ffff0) => {
+  const fx: CarrierFx = { ...VEIL_FX, ...style.fx };
+  const burst = (at: THREE.Vector3, count: number, seed: number, power = 1, color = fx.spark) => {
     for (let i = 0; i < count; i++) {
       const a = hash(seed + i) * Math.PI * 2, up = hash(seed + i * 1.7 + 3), speed = (1.5 + hash(seed + i * 2.3) * 3.5) * power;
       sparks.emit({ x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * speed, vy: 1 + up * 3 * power, vz: Math.sin(a) * speed, life: .45 + up * .6,
-        size: .16 + up * .2, grow: -.08, alpha: 1, color: up > .7 ? 0xf2fff8 : color, drag: 2.5, lift: -9 });
+        size: .16 + up * .2, grow: -.08, alpha: 1, color: up > .7 ? fx.hot : color, drag: 2.5, lift: -9 });
     }
   };
-  const flash = (at: THREE.Vector3, size: number, seed: number, color = 0xc8fff2) =>
+  const flash = (at: THREE.Vector3, size: number, seed: number, color = fx.flash) =>
     sparks.emit({ x: at.x, y: at.y + .3, z: at.z, vx: 0, vy: .4, vz: 0, life: .32 + hash(seed) * .15, size, grow: size * .9, alpha: .95, color, drag: 0, lift: 0 });
   const steam = (at: THREE.Vector3, seed: number, scale = 1) =>
     mist.emit({ x: at.x + (hash(seed) - .5) * .8, y: at.y + .1, z: at.z + (hash(seed + 9) - .5) * .8, vx: (hash(seed + 2) - .5) * .5, vy: .6 + hash(seed + 4) * .5,
-      vz: (hash(seed + 6) - .5) * .5, life: 2.4, size: .7 * scale, grow: 1.8 * scale, alpha: .4, color: 0x9a86d0, drag: 1, lift: .2 });
+      vz: (hash(seed + 6) - .5) * .5, life: 2.4, size: .7 * scale, grow: 1.8 * scale, alpha: .4, color: fx.steam, drag: 1, lift: .2 });
   const ichor = (at: THREE.Vector3, size: number, seed: number) => {
     for (let k = 0; k < 3; k++) sparks.emit({ x: at.x + (hash(seed + k) - .5) * size * .6, y: at.y + .2 + k * .15, z: at.z + (hash(seed + k + 4) - .5) * size * .6,
       vx: (hash(seed + k + 8) - .5) * 1.2, vy: .8 + hash(seed + k) * 1.2, vz: (hash(seed + k + 12) - .5) * 1.2, life: .6 + hash(seed + k + 2) * .35,
-      size: size * (.55 + k * .2), grow: size * .9, alpha: .9, color: k === 0 ? 0xeafff8 : k === 1 ? 0x56f6dc : 0xa070ff, drag: 1.5, lift: .5 });
+      size: size * (.55 + k * .2), grow: size * .9, alpha: .9, color: fx.ichor[k], drag: 1.5, lift: .5 });
     steam(at, seed * 3 + 1, size * .9);
   };
 
@@ -426,7 +434,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         launchedAt = state.time;
         const dock = rig.pods?.find(p => Math.sign(p.position.x) === Math.sign(enemy.x - boss.x || 1));
         const bay = dock ? local(dock.position.x, dock.position.y, dock.position.z) : local(Math.sign(enemy.x - boss.x || 1) * style.content.bays[1].x, 1.9, -style.content.bays[1].s);
-        flash(bay, 1.2, enemy.id, 0x9ffff0); burst(bay, 8, enemy.id * 11, .7); steam(bay, enemy.id * 13, .8);
+        flash(bay, 1.2, enemy.id); burst(bay, 8, enemy.id * 11, .7); steam(bay, enemy.id * 13, .8);
       }
       // Doors anticipate the existing finite deployment schedule; they never schedule combat.
       const launchAge = state.time - launchedAt;
@@ -470,7 +478,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         if (enemy.bossPart === 'core' && wantOpen && part.open === 0 && dt > 0) {
           // A short pressure release marks the mechanical transformation; reuses the bounded boss pools.
           for (const side of [-1, 1]) steam(local(side * .9, 2.05, part.group.position.z), enemy.id + side * 11, .55);
-          flash(local(0, 2.15, part.group.position.z), 1.1, enemy.id, 0xb9fff0);
+          flash(local(0, 2.15, part.group.position.z), 1.1, enemy.id);
         }
         part.open += THREE.MathUtils.clamp(wantOpen - part.open, -dt * 1.4, dt * 1.4);
         const eased = THREE.MathUtils.smoothstep(part.open, 0, 1);

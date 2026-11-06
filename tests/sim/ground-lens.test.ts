@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { configureCamera } from '../../src/render/scene';
 import { LENS_FOLLOW, LENS_FOV, fromFlightPlane, toFlightPlane } from '../../src/shared/lens';
 import { EMPTY_INPUT, STEP, VIEW } from '../../src/shared/contracts';
+import { CAMPAIGN_SCROLL } from '../../src/content/balance';
 import { createRun, stepRun } from '../../src/sim/game';
 import { spawnMembers } from '../../src/sim/spawn';
 import { memberPosition, trackAfter } from '../../src/sim/motion';
@@ -33,7 +34,7 @@ describe('ground enemies under the release lens (21 October)', () => {
   it('keeps each anchor fixed on the terrain while its gameplay position is the anchor seen through the lens', () => {
     for (const [mission, distance] of [['cold-vector', 120], ['deep-bloom', 200], ['bastion', 300]] as const) {
       const state = createRun({ mode: 'campaign', mission, seed: 8831 });
-      state.distance = distance; state.time = distance / 5; state.enemies = []; state.player.invulnerableUntil = Infinity;
+      state.distance = distance; state.time = distance / CAMPAIGN_SCROLL; state.enemies = []; state.player.invulnerableUntil = Infinity;
       state.nextEncounterAt = Infinity;
       spawnMembers(state, 'battery-3', 0, 1);
       const route = runRoute(state.config), ground = state.enemies.filter(enemy => enemy.ground);
@@ -75,9 +76,11 @@ describe('ground enemies under the release lens (21 October)', () => {
     const members = state.enemies.filter(enemy => led.includes(enemy.id));
     expect(members.length).toBe(led.length);
     for (const enemy of members) {
-      // After the cue's tick: exactly as old as a member spawned at the cue (one tick), on the same track, and a target.
-      expect(enemy.age).toBeCloseTo(STEP, 9);
-      const track = trackAfter(enemy, 0), entry = memberPosition(enemy.formation!, STEP);
+      // After the cue's tick: exactly as old as a member spawned at the cue (one tick on the terrain's clock, which runs at
+      // the scroll over its pace-1 speed), on the same track, and a target.
+      const tick = STEP * CAMPAIGN_SCROLL / VIEW.scrollSpeed;
+      expect(enemy.age).toBeCloseTo(tick, 9);
+      const track = trackAfter(enemy, 0), entry = memberPosition(enemy.formation!, tick);
       expect(track.x).toBeCloseTo(entry.x, 9); expect(track.s).toBeCloseTo(entry.s, 9);
       expect(enemy.damageable).toBeUndefined();
     }

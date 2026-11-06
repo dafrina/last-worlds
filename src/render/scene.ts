@@ -1645,6 +1645,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       liveIds.clear(); for (const enemy of state.enemies) liveIds.add(enemy.id);
       for (const [id] of enemyHp) if (!liveIds.has(id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
       beamLight.begin(); phaseHoles.begin();
+      // The Wraith's teleport rim: Corona's molten red-orange, Umbra's violet elsewhere.
+      if (world.planet.id === 'corona') phaseHoles.tint(1, .32, .06); else phaseHoles.tint(.4, .1, .85);
       let pontoonCount = 0; laneCounts.clear(); pontoonRings.length = 0;
       pontoons.material = planet === 'corona' ? basaltRaft : materials.craft;
       laneArea = 0;

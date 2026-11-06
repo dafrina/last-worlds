@@ -70,7 +70,9 @@ describe('Pulsar burst (Nacre; tracking stream since 20 October 2026)', () => {
     for (let i = 0; i < 2.5 / STEP; i++) { stays.nextVolleyAt = Infinity; stepRun(stays, EMPTY_INPUT); }
     expect(stays.player.shields).toBeLessThan(shields);
     const moves = armed(1.5);
-    for (let i = 0; i < 2.5 / STEP; i++) { moves.nextVolleyAt = Infinity; stepRun(moves, { ...EMPTY_INPUT, horizontal: -1 }); }
+    // It keeps moving: left, then back right (at the campaign pace a ship holding one direction reaches the world's edge
+    // within the stream and stops there).
+    for (let i = 0; i < 2.5 / STEP; i++) { moves.nextVolleyAt = Infinity; stepRun(moves, { ...EMPTY_INPUT, horizontal: i * STEP < 0.9 ? -1 : 1 }); }
     expect(moves.player.shields).toBe(shields);
   });
 });

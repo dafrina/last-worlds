@@ -67,14 +67,23 @@ const CAMPAIGN_PACE: Kinematics = {
   scroll: VIEW.scrollSpeed, ...BALANCE.movement, camera: BALANCE.camera.speed, shot: 1,
 };
 export const PACE = {
-  campaign: 1,
+  // 1.15 since 6 November (user: "15% quicker pace"; was 1): scroll 5.75, the ship and the camera 15% quicker with it.
+  campaign: 1.15,
+  // The user asked for 1.2 (6 November: "keep the starting point but go to 1.2"); held at 1.1 until its fairness is worked
+  // out: at 1.15, 1.18 and 1.2 a site guard or an endless stretch each left the solver no clear path (tests/sim/fairness).
   endless: { start: 0.8, perSector: 0.075, cap: 1.1, easeSeconds: 5 },
   anchors: [
     { pace: 0.8, kinematics: { scroll: 4, speed: 10, acceleration: 70, braking: 100, camera: 14, shot: 7.2 / 7.9 } },
     { pace: 1, kinematics: CAMPAIGN_PACE },
     { pace: 1.1, kinematics: { scroll: 5.5, speed: 13.2, acceleration: 99, braking: 137.5, camera: 18.7, shot: 1.05 } },
+    // The 1 → 1.1 step continued (campaign 1.15 lies halfway to it); shots stay at the 1.1 speed: at ×1.1 a mixed site
+    // guard left the solver no path in capped endless (fairness: site-mixed-4).
+    { pace: 1.2, kinematics: { scroll: 6, speed: 14.4, acceleration: 108, braking: 150, camera: 20.4, shot: 1.05 } },
   ],
 } as const;
+
+/** The campaign's terrain scroll (units/s): VIEW.scrollSpeed at pace 1, 5.75 at PACE.campaign 1.15. Boss arenas stop on it. */
+export const CAMPAIGN_SCROLL = VIEW.scrollSpeed * PACE.campaign;
 
 /** Piecewise-linear kinematics between the pace anchors, held constant outside them. */
 export function kinematics(pace: number): Kinematics {
@@ -113,9 +122,16 @@ export interface DifficultyScale {
    * Multiplier on a squadron's first windup (its template's fireFrom), never before a member is fully in view
    * (FIRST_WINDUP_ROW). The members keep their authored stagger (never one sealing wall) and each windup its full warning. Veteran 0.5 (user, 4 November, on strong
    * weapons: "they are dead before they even started shooting"), Standard 0.75 ("make the pause less for normal runs
-   * too"); Relaxed 1 keeps the authored timing.
+   * too"); Relaxed 1 keeps the authored timing. Air craft fire AIR_FIRST_SHOT sooner on top (6 November).
    */
   firstAttack: number;
+  /**
+   * Air craft open fire this much sooner on top (an air squadron's first windup and its members' stagger, aces, the
+   * Wraith; user, 6 November: "i hate that enemies take so long to start shooting ... 25% quicker enemies shooting after
+   * arrival"). Veteran keeps 1: it opens at half the authored time already, and ×0.75 more with the campaign pace left
+   * no fair path in Brood Strike (fairness test). Ground batteries keep the difficulty's timing (see AIR_FIRST_SHOT).
+   */
+  airFirstShot: number;
   /** Readability cap on simultaneous windups across all enemies. */
   maxWindups: number;
   /** Beam lanes that may be marked or active at once. */
@@ -134,9 +150,9 @@ export interface DifficultyScale {
 /** Campaign difficulty is chosen per attempt; endless never reads this table (docs/11). */
 export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
   // Beam rests added 15 October: later endless Vesper sectors chained 18–19 s of Needle beams (user report).
-  relaxed: { lives: 5, hp: 0.85, shotSpeed: 0.85, warning: 0.25, cadence: 2, firstAttack: 1, maxWindups: 3, maxBeams: 1, rank: 'standard', threatBudget: 14, beamRest: { run: 5, rest: 4 } },
-  standard: { lives: 3, hp: 1, shotSpeed: 1, warning: 0, cadence: 1, firstAttack: 0.75, maxWindups: 5, maxBeams: 1, rank: 'standard', threatBudget: 16, beamRest: { run: 7, rest: 3 } },
-  veteran: { lives: 3, hp: 1.2, shotSpeed: 1.05, warning: 0, cadence: 0.75, firstAttack: 0.5, maxWindups: 7, maxBeams: 2, rank: 'veteran', threatBudget: 20, beamRest: null },
+  relaxed: { lives: 5, hp: 0.85, shotSpeed: 0.85, warning: 0.25, cadence: 2, firstAttack: 1, airFirstShot: 0.75, maxWindups: 3, maxBeams: 1, rank: 'standard', threatBudget: 14, beamRest: { run: 5, rest: 4 } },
+  standard: { lives: 3, hp: 1, shotSpeed: 1, warning: 0, cadence: 1, firstAttack: 0.75, airFirstShot: 0.75, maxWindups: 5, maxBeams: 1, rank: 'standard', threatBudget: 16, beamRest: { run: 7, rest: 3 } },
+  veteran: { lives: 3, hp: 1.2, shotSpeed: 1.05, warning: 0, cadence: 0.75, firstAttack: 0.5, airFirstShot: 1, maxWindups: 7, maxBeams: 2, rank: 'veteran', threatBudget: 20, beamRest: null },
 };
 
 /**
@@ -182,6 +198,11 @@ export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: 
 /**
  * A destroyed fuel skid explodes (user request, 16 October 2026): every damageable target whose body is within
  * `radius` takes `damage` (other skids chain). It never hurts the player and never charges the special.
+ */
+/*
+ * AIR_FIRST_SHOT (6 November) is per difficulty now: DifficultyScale.airFirstShot. Ground batteries keep the difficulty's
+ * timing: they reach the ship 15% sooner with the campaign pace, and a battery line opening ×0.75 as well left no gap at
+ * Veteran (fairness: site-turrets-4).
  */
 export const FUEL_BLAST = { radius: 2.6, damage: 150 } as const;
 export const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
@@ -270,8 +291,9 @@ export function difficultyScales(mode: 'campaign' | 'endless', difficulty: Diffi
     shotSpeed: Math.min(ramp.shotSpeed.base + ramp.shotSpeed.perSector * n, ramp.shotSpeed.cap),
     warning: 0,
     cadence: Math.max(ramp.cadence.base + ramp.cadence.perSector * n, ramp.cadence.floor),
-    // Endless keeps the authored first windups (its own ramp; docs/18).
+    // Endless keeps the authored first windups (its own ramp; docs/18); air craft fire AIR_FIRST_SHOT sooner, as campaign.
     firstAttack: 1,
+    airFirstShot: 0.75,
     maxWindups: sector >= 3 ? ramp.maxWindups.fromSector3 : ramp.maxWindups.base,
     maxBeams: sector >= 3 ? ramp.maxBeams.fromSector3 : ramp.maxBeams.base,
     rank: sector >= ramp.veteranFormationsFromSector ? 'veteran' : 'standard',

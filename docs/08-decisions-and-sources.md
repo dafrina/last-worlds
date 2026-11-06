@@ -314,3 +314,22 @@ User answers after reviewing the merged strike sites and encounter deck:
   - Vesper's Needle flocks are unchanged.
 - **Vesper "a bit too hard ... reduce lasers for vesper by 20%"** ("Fewer lines at once"): `VESPER_LINE_CAP` 5 → 4.
 - **Nacre "a bit not so hard ... increase pulsar health by ... 15%":** Pulsar hp 110 → 127 (every world that flies Pulsars).
+
+### 6 November 2026 · A quicker tempo (user: "15% quicker pace and 25% quicker enemies shooting after arrival")
+
+- **Campaign pace 1.15 (was 1):**
+  - **Scroll:** the terrain scrolls at 5.75 (`CAMPAIGN_SCROLL`), and boss arenas stop on it, 15% further along: Rolling Thunder at 776.25, Cold Vector at 1075.25. Before, boss missions scrolled at 5 whatever the pace.
+  - **Ship and camera:** top speed 13.8 and the camera follow come from the pace curve, which gains a point at 1.2 continuing the 1 → 1.1 step.
+  - **Air flight:** air craft fly their paths 15% quicker.
+  - **Shots:** Pulsar and Wraith shots are ×1.075. Above pace 1.1, shots stay at ×1.05.
+- **Air craft open fire 25% sooner** (`DifficultyScale.airFirstShot` 0.75: Relaxed, Standard and endless):
+  - **What it covers:** a squadron's first windup and its members' stagger, aces and the Wraith.
+  - **What stays:** every windup keeps its full warning, and nothing fires before it is fully in view. The median air first windup fell from about 1.2 s to about 0.85 s.
+  - **Veteran keeps 1:** it already opens at half the authored time, and both changes together left the fairness solver no path in Brood Strike.
+  - **Ground batteries keep the difficulty's timing:** they reach the ship sooner with the scroll, and a four-turret site guard opening sooner as well sealed its gap at Veteran.
+- **Endless held at 1.1:** the user asked for its ramp to reach 1.2 ("keep the starting point but go to 1.2"). At 1.15, 1.18 and 1.2, a strike-site guard or an endless stretch each left the fairness solver no clear path, so the cap stays at 1.1 until that is worked out. The start stays 0.8.
+- **Measured** with the perfect pilot over 24 seeds per mission, against the previous build:
+  - hits rose slightly (8 → 17 over 168 flights), with no life lost;
+  - credits and sites barely moved (Rolling Thunder's credits −16%).
+  - **Strike-site goals take longer:** Lunar Saboteur needs a sixth attempt, and Three Paths 8 instead of 5 (the feasibility bounds now say so).
+- **Corona effect colours:** THE HELIOPHAGE's sparks, flashes, steam and smoke are its own (white gold, molten orange, ash), no longer THE VEIL's teal and lavender (`CarrierStyle.fx`). The Wraith's teleport rim burns red-orange on Corona; it stays violet on Umbra (user: "smoke and animations of wraith and heliophage have purple which is wrong on corona").

@@ -1,4 +1,4 @@
-import { BALANCE, ENDLESS_PROLOGUE_SECTORS, PACE, endlessRampSector } from './balance';
+import { BALANCE, CAMPAIGN_SCROLL, ENDLESS_PROLOGUE_SECTORS, PACE, endlessRampSector } from './balance';
 import { BOSSES, WRECK_HOLD, missionBoss } from './bosses';
 import { DEPARTURE, WARP, departure } from './departure';
 import { runPlanet } from './missions';
@@ -263,7 +263,7 @@ export function endlessSchedule(config: Pick<RunConfig, 'mode' | 'mission'>): Wo
     const planet = runPlanet(config);
     const boss = missionBoss(config.mission);
     const arena: ArenaSpan | null = boss ? (() => {
-      const stopDistance = VIEW.scrollSpeed * (boss.arena.decelStart + boss.arena.decelDuration / 2);
+      const stopDistance = CAMPAIGN_SCROLL * (boss.arena.decelStart + boss.arena.decelDuration / 2);
       return { boss: boss.id, planet, stopDistance, from: stopDistance + boss.arena.platform.from, to: stopDistance + boss.arena.platform.to };
     })() : null;
     return {
