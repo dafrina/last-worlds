@@ -112,7 +112,13 @@ export interface TerrainProp {
   cosmetic?: boolean;
 }
 /** A contiguous index range covering one lateral strip of the section mesh. */
-export interface TerrainStrip { start: number; count: number; minX: number; maxX: number }
+export interface TerrainStrip { start: number; count: number; minX: number; maxX: number; /** Section-local s range (0 … size). */ minS: number; maxS: number }
+/**
+ * Ground bands along a section: each lateral strip is cut into this many index ranges along s, so the view culls the
+ * parts of a section off the top and bottom of the screen (6 November: a section was drawn whole while any sliver of
+ * it was in view, two to three times the ground on screen; Amnion's canyons drew about 70k ground triangles).
+ */
+export const TERRAIN_BANDS = 4;
 export interface TerrainSection {
   seed: number; index: number; startS: number; size: number;
   /** Vertices across the world (x) and along the section (s); vertex = row · across + column. */
@@ -366,9 +372,11 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     }
   };
   let cursor = 0;
-  for (const [from, to] of stripRanges) {
-    const start = cursor;
-    for (let R = 0; R < blocksS; R++) for (let C = from / 2; C < to / 2; C++) {
+  const bandBlocks = Math.ceil(blocksS / TERRAIN_BANDS);
+  for (const [from, to] of stripRanges) for (let band = 0; band < TERRAIN_BANDS; band++) {
+    const start = cursor, R0 = band * bandBlocks, R1 = Math.min(blocksS, R0 + bandBlocks);
+    if (R0 >= R1) continue;
+    for (let R = R0; R < R1; R++) for (let C = from / 2; C < to / 2; C++) {
       const row = R * 2, column = C * 2;
       if (!isFlat(R, C)) {
         for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
@@ -388,7 +396,8 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
       }
     }
     yield;
-    strips.push({ start, count: cursor - start, minX: -MESH_HALF + from * TERRAIN_STEP, maxX: -MESH_HALF + to * TERRAIN_STEP });
+    strips.push({ start, count: cursor - start, minX: -MESH_HALF + from * TERRAIN_STEP, maxX: -MESH_HALF + to * TERRAIN_STEP,
+      minS: R0 * 2 * TERRAIN_STEP, maxS: R1 * 2 * TERRAIN_STEP });
   }
   // Scatter probes read the section's own grids (bilinear); heights fall back to exact evaluation outside them.
   const vertexField = (values: Float32Array | { at(i: number): number }, stride = 1, offset = 0) => (x: number, s: number) => {

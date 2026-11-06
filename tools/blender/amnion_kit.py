@@ -563,7 +563,7 @@ def build_ruin(rng, idx):
     return hs
 
 
-def sticky(hs, rng, y0, y1, z0, z1, sag, r0, segs=14, sides=6):
+def sticky(hs, rng, y0, y1, z0, z1, sag, r0, segs=9, sides=5):   # 9 x 5 since 6 November (14 x 6): Amnion drew 2x the triangles of any world
     """A sticky strand of bloody sinew across x −1 … +1 (user, 23 October: strands that "read sticky", hanging): thick
     and glistening where it clings to each wall, thinning toward a sagging middle, swelling into beads along it.
     Returns the beads (x, y, z) for drips."""

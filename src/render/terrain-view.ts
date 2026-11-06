@@ -120,6 +120,42 @@ export interface TerrainFeatures { readonly floes: readonly FloeFeature[]; reado
 /** Exclusion updates within this distance reuse the last compaction (the applied rectangle is grown by it). */
 const EXCLUSION_SLACK = 0.25;
 
+/**
+ * Shadow casters are simplified copies (6 November, a `?perf` log of Brood Strike on an iPhone: about 260k triangles a
+ * frame, 93k of them shadow casters, mostly Amnion's flesh walls): a caster model over CASTER_SIMPLIFY_FROM triangles has
+ * its vertices clustered on a grid CASTER_CELL of its own size wide (merged per cell, collapsed triangles dropped). The
+ * shadow map is far coarser than the screen, so its shadows look the same.
+ */
+const CASTER_SIMPLIFY_FROM = 120, CASTER_CELL = 1 / 14;
+
+/** Vertex clustering: positions snapped to cells of `cell` × the model's largest extent; returns null if nothing is gained. */
+function clusterSimplify(position: Float32Array, index: Uint32Array, cell: number): { position: Float32Array; index: Uint32Array } | null {
+  let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < position.length; i += 3) {
+    minX = Math.min(minX, position[i]); maxX = Math.max(maxX, position[i]);
+    minY = Math.min(minY, position[i + 1]); maxY = Math.max(maxY, position[i + 1]);
+    minZ = Math.min(minZ, position[i + 2]); maxZ = Math.max(maxZ, position[i + 2]);
+  }
+  const size = Math.max(maxX - minX, maxY - minY, maxZ - minZ) * cell;
+  if (!(size > 0)) return null;
+  const cells = new Map<string, number>(), remap = new Uint32Array(position.length / 3), sums: number[] = [], counts: number[] = [];
+  for (let v = 0; v < remap.length; v++) {
+    const x = position[v * 3], y = position[v * 3 + 1], z = position[v * 3 + 2];
+    const key = `${Math.round((x - minX) / size)},${Math.round((y - minY) / size)},${Math.round((z - minZ) / size)}`;
+    let id = cells.get(key);
+    if (id === undefined) { id = counts.length; cells.set(key, id); sums.push(0, 0, 0); counts.push(0); }
+    sums[id * 3] += x; sums[id * 3 + 1] += y; sums[id * 3 + 2] += z; counts[id]++; remap[v] = id;
+  }
+  const kept: number[] = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const a = remap[index[i]], b = remap[index[i + 1]], c = remap[index[i + 2]];
+    if (a !== b && b !== c && a !== c) kept.push(a, b, c);
+  }
+  if (kept.length >= index.length * .9) return null;
+  const out = new Float32Array(counts.length * 3);
+  for (let id = 0; id < counts.length; id++) for (let k = 0; k < 3; k++) out[id * 3 + k] = sums[id * 3 + k] / counts[id];
+  return { position: out, index: Uint32Array.from(kept) };
+}
 /** Lateral caster strips per section (each 9 units wide); the shadow camera frustum culls the rest. */
 const CASTER_STRIPS = 4;
 /**
@@ -319,7 +355,8 @@ export function createTerrainView(options: TerrainViewOptions) {
     const welded = mergeVertices(positions, 1e-4);
     const count = welded.getAttribute('position').count;
     const index = welded.index ? Uint32Array.from(welded.index.array as ArrayLike<number>) : Uint32Array.from({ length: count }, (_, i) => i);
-    entry = { position: Float32Array.from(welded.getAttribute('position').array as ArrayLike<number>), index };
+    const position = Float32Array.from(welded.getAttribute('position').array as ArrayLike<number>);
+    entry = (index.length / 3 > CASTER_SIMPLIFY_FROM ? clusterSimplify(position, index, CASTER_CELL) : null) ?? { position, index };
     welded.dispose(); proxies.set(name, entry);
     return entry;
   }
@@ -456,9 +493,11 @@ export function createTerrainView(options: TerrainViewOptions) {
       const strip = section.strips[b], geometry = new THREE.BufferGeometry();
       for (const [name, attribute] of Object.entries(attributes)) geometry.setAttribute(name, attribute);
       geometry.setIndex(index); geometry.setDrawRange(strip.start, strip.count);
-      const box = new THREE.Box3(new THREE.Vector3(strip.minX, Infinity, -section.size), new THREE.Vector3(strip.maxX, -Infinity, 0));
+      // The band's own box (section-local z = −s): a band off the top or bottom of the screen is culled.
+      const box = new THREE.Box3(new THREE.Vector3(strip.minX, Infinity, -strip.maxS), new THREE.Vector3(strip.maxX, -Infinity, -strip.minS));
       const first = Math.round((strip.minX + MESH_HALF) / TERRAIN_STEP), last = Math.round((strip.maxX + MESH_HALF) / TERRAIN_STEP);
-      for (let row = 0; row < section.along; row++) for (let column = first; column <= last; column++) {
+      const rowFrom = Math.round(strip.minS / TERRAIN_STEP), rowTo = Math.min(section.along - 1, Math.round(strip.maxS / TERRAIN_STEP));
+      for (let row = rowFrom; row <= rowTo; row++) for (let column = first; column <= last; column++) {
         const y = section.positions[(row * section.across + column) * 3 + 1];
         box.min.y = Math.min(box.min.y, y); box.max.y = Math.max(box.max.y, y);
       }

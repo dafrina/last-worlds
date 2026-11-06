@@ -46,7 +46,9 @@ describe('Nacre, the Luminous Mire (docs/20)', () => {
       if (section.water) hash.update(new Uint8Array(section.water.shore.buffer));
       return hash.digest('hex').slice(0, 16);
     };
-    for (const [seed, index, value] of [[93, 2, '426df75da9e653d6'], [8831, 5, 'a23865256b893493'], [11, 9, '8befa0927c02ba69']] as const) {
+    // 6 November 2026: ground index ranges in TERRAIN_BANDS along s (same triangles, another order). (Before: 93:2
+    // 426df75da9e653d6, 8831:5 a23865256b893493, 11:9 8befa0927c02ba69.)
+    for (const [seed, index, value] of [[93, 2, '2e18d053e10e0cb5'], [8831, 5, '454261ce6c045d90'], [11, 9, '5c4c5f2e36288029']] as const) {
       expect(fingerprint(generateTerrainSection(seed, index, NACRE)), `${seed}:${index}`).toBe(value);
     }
   });

@@ -38,19 +38,23 @@ describe('planet profiles (docs/17 §2)', () => {
     // aa1b91571f267314, 11:14 c8308ba3d774a54f.)
     // 5 November 2026: no wall placed twice at one spot (terrain-walls.ts; user: "places twice the cliff models"). (Before:
     // 93:17 4662497471aeb69d, 8831:0 0af0ef5231085b24, current and legacy alike.)
-    const recorded = new Map([['11:5', '0092c2abedbd98cf'], ['93:17', '12b58c5f3501156c'], ['8831:0', '5a6ca43d89f31563'],
-      ['93:14', 'a3bb6c7412f4c8f9'], ['11:14', 'f1f33bfa91b42115']]);
+    // 6 November 2026: the ground's index ranges cut into TERRAIN_BANDS along s (culling; the same vertices and the same
+    // triangles as a set, checked, in another order). (Before: 11:5 0092c2abedbd98cf, 93:17 12b58c5f3501156c, 8831:0
+    // 5a6ca43d89f31563, 93:14 a3bb6c7412f4c8f9, 11:14 f1f33bfa91b42115; legacy 11:5 0587a46149e8ed94, 93:14
+    // b69217949ec23f37, 11:14 9b5ae055aac23117; arena e483adf3f792cc6f.)
+    const recorded = new Map([['11:5', 'e95ea503284ab909'], ['93:17', '612648448b748c88'], ['8831:0', '521110ffb209f178'],
+      ['93:14', '3f5a488044b27b41'], ['11:14', 'e8c1f5e87ab06f69']]);
     // The rollback switches `KHEPRI.districts = null` and `ROAD_ENDS.taper = 0` still take out the districts and the
     // blended road ends exactly, on the current landform.
-    const legacy = new Map([['11:5', '0587a46149e8ed94'], ['93:17', '12b58c5f3501156c'], ['8831:0', '5a6ca43d89f31563'],
-      ['93:14', 'b69217949ec23f37'], ['11:14', '9b5ae055aac23117']]);
+    const legacy = new Map([['11:5', 'd39eead1479f6a7d'], ['93:17', '612648448b748c88'], ['8831:0', '521110ffb209f178'],
+      ['93:14', 'fcf6012713d48aa4'], ['11:14', '50bececf775aca57']]);
     const check = (fingerprints: Map<string, string>) => {
       for (const [key, value] of fingerprints) {
         const [seed, index] = key.split(':').map(Number);
         expect(legacyFingerprint(generateTerrainSection(seed, index)), key).toBe(value);
       }
       // The arena hides the slot's district and its quiet cells lie elsewhere: unchanged either way.
-      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('e483adf3f792cc6f');
+      expect(legacyFingerprint(generateTerrainSection(93, 16, arena))).toBe('cf692ce9c9c16fa7');
     };
     check(recorded);
     const policy = PLANETS.khepri.districts, taper = ROAD_ENDS.taper;
