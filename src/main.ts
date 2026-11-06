@@ -292,9 +292,11 @@ function frame(now: number) {
   renderer?.render(loadingRun ?? dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
   const renderMs = performance.now() - renderStart;
   perf?.frame(now - perfLast, simMs, renderMs);
-  if (perfLog && run) perfLog.frame(now - perfLast, simMs, renderMs, renderer?.perfSample?.(), run);
-  perfLast = now; simStart = 0;
+  const uiStart = performance.now();
   ui.update(run);
+  if (perfLog && run) perfLog.frame(now - perfLast, simMs, renderMs, renderer?.perfSample?.(), run,
+    { paced: elapsed * 1000, ui: performance.now() - uiStart, js: performance.now() - frameStart });
+  perfLast = now; simStart = 0;
   if (bench && benching) bench.frames.push({ sim: simMs, render: renderMs, total: performance.now() - frameStart, time: run?.time ?? 0, speed: run?.scrollSpeed ?? 0 });
   if (import.meta.env.DEV) ui.canvas.dataset.frameState = JSON.stringify({ phase: run?.phase, time: run?.time, maxFrameMs, lastPauseReason });
   requestAnimationFrame(frame);

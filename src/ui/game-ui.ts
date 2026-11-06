@@ -7,7 +7,7 @@ import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
 import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, endlessConfig, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
-import { CREDIT_MULTIPLIER, CREDIT_SCALE, SHIPS, SHIELD_TECH, SPECIALS } from '../content/equipment';
+import { CREDIT_MULTIPLIER, CREDIT_SCALE, MAX_RANK, SHIPS, SHIELD_TECH, SPECIALS } from '../content/equipment';
 import { itemText, renderHangar, renderShipyard } from './hangar';
 import { createMissionTracker } from '../campaign/missions';
 import { createMissionNotes, renderBoard, renderLiveBoard, renderResultMissions } from './mission-board';
@@ -181,6 +181,12 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const missionDots = find<HTMLElement>('.mission-dots');
   missionDots.dataset.selector = 'mission';
   const preview = createPlanetPreview(find<HTMLCanvasElement>('.planet-preview'));
+  // Test mode (user, 6 November: "Lets analyze it but enable all and give me max weapon twin pulse"): `?perf` (or
+  // `?unlock=all`) opens every mission in the selector, and `?perf` campaign flights fly Twin Pulse at its top level. For
+  // this visit only: nothing is written to the save; a mission flown banks as usual.
+  const query = new URLSearchParams(location.search), testMode = query.has('perf');
+  const openAll = testMode || query.get('unlock') === 'all';
+  const openMissions = (profile: ReturnType<typeof campaign.read>) => openAll ? MISSION_ORDER.map(([id]) => id) : unlockedMissions(profile);
   // Open on the furthest mission the pilot has unlocked.
   let missionIndex = Math.max(0, MISSION_ORDER.findIndex(([id]) => id === unlockedMissions(campaign.read()).at(-1)));
   function showMission(index: number) {
@@ -200,7 +206,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     stage.classList.remove('is-switching'); void stage.offsetWidth; stage.classList.add('is-switching');
     preview.show(MISSION_PLANET[id]);
     // Progression: a mission opens once the one before it has been cleared on any difficulty.
-    const profile = campaign.read(), open = unlockedMissions(profile).includes(id), previous = MISSION_ORDER[missionIndex - 1]?.[1];
+    const profile = campaign.read(), open = openMissions(profile).includes(id), previous = MISSION_ORDER[missionIndex - 1]?.[1];
     stage.classList.toggle('is-locked', !open);
     const record = profile.missions[id];
     const best = record && (['veteran', 'standard', 'relaxed'] as const).find(level => record.best[level] !== undefined);
@@ -429,8 +435,9 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   for (const button of shell.querySelectorAll<HTMLButtonElement>('[data-back], [data-settings-back], [data-help-back]')) button.addEventListener('click', navigateBack, options);
   onAction('launch-campaign', () => {
     const mission = MISSION_ORDER[missionIndex][0], profile = campaign.read();
-    if (!unlockedMissions(profile).includes(mission)) return;
-    launch(campaignConfig(profile, mission, selected('difficulty') as Difficulty, seed()));
+    if (!openMissions(profile).includes(mission)) return;
+    const config = campaignConfig(profile, mission, selected('difficulty') as Difficulty, seed());
+    launch(testMode ? { ...config, weapon: 'pulse', rank: MAX_RANK } : config);
   });
   onAction('resume', resume);
   onAction('quit', () => { cancelResume(); actions.quit(); });

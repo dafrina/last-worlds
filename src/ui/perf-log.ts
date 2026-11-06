@@ -24,14 +24,18 @@ export interface PerfSample {
 }
 
 interface Frame {
-  t: number; interval: number; sim: number; render: number; terrain: number; calls: number; tris: number;
+  t: number; interval: number;
+  /** The paced step the world advanced (ms, src/shared/frame-pacing.ts), the HUD update and all of the frame's JS (ms). */
+  paced: number; ui: number; js: number;
+  sim: number; render: number; terrain: number; calls: number; tris: number;
   enemies: number; shots: number; particles: number; time: number; distance: number; events: string[];
 }
 
 export interface PerfLog {
   /** A new flight: clears the log. */
   begin(state: RunState): void;
-  frame(intervalMs: number, simMs: number, renderMs: number, sample: PerfSample | undefined, state: RunState | null): void;
+  frame(intervalMs: number, simMs: number, renderMs: number, sample: PerfSample | undefined, state: RunState | null,
+    extra?: { paced: number; ui: number; js: number }): void;
   /** The JSON export of the flight so far. */
   report(): Record<string, unknown>;
   readonly frames: number;
@@ -51,7 +55,7 @@ export function createPerfLog(): PerfLog {
       const c = state.config;
       run = { mode: c.mode, mission: c.mission ?? null, difficulty: c.difficulty ?? null, seed: c.seed, weapon: c.weapon ?? null, ship: c.ship ?? null, special: c.special ?? null };
     },
-    frame(intervalMs, simMs, renderMs, sample, state) {
+    frame(intervalMs, simMs, renderMs, sample, state, extra) {
       // Flight frames only (and the one where the flight ends), not the pause menu or the results screen idling.
       if (!state || (state.phase !== 'playing' && prevState.phase !== 'playing')) return;
       const t = +(performance.now() - started).toFixed(1), time = state.time, list: string[] = [];
@@ -77,7 +81,7 @@ export function createPerfLog(): PerfLog {
         if (!meta.quality) meta = { quality: sample.quality, pixelRatio: sample.pixelRatio };
       }
       frames.push({
-        t, interval: +intervalMs.toFixed(1), sim: +simMs.toFixed(2), render: +renderMs.toFixed(2), terrain: +(sample?.terrainMs ?? 0).toFixed(2),
+        t, interval: +intervalMs.toFixed(1), paced: +(extra?.paced ?? 0).toFixed(1), ui: +(extra?.ui ?? 0).toFixed(2), js: +(extra?.js ?? 0).toFixed(2), sim: +simMs.toFixed(2), render: +renderMs.toFixed(2), terrain: +(sample?.terrainMs ?? 0).toFixed(2),
         calls: sample?.calls ?? 0, tris: Math.round((sample?.triangles ?? 0) / 100) / 10, enemies: state.enemies.length, shots: state.projectiles.length,
         particles: sample?.particles ?? 0, time: +time.toFixed(2), distance: +state.distance.toFixed(1), events: list,
       });
@@ -85,8 +89,8 @@ export function createPerfLog(): PerfLog {
     report() {
       const n = frames.length, sorted = frames.map(f => f.interval).sort((a, b) => a - b);
       const pct = (p: number) => sorted[Math.min(n - 1, Math.max(0, Math.floor(p * (n - 1))))] ?? 0;
-      const avg = (key: 'sim' | 'render' | 'terrain') => +(frames.reduce((sum, f) => sum + f[key], 0) / Math.max(1, n)).toFixed(2);
-      const max = (key: 'sim' | 'render' | 'terrain') => frames.reduce((m, f) => Math.max(m, f[key]), 0);
+      const avg = (key: 'sim' | 'render' | 'terrain' | 'ui' | 'js') => +(frames.reduce((sum, f) => sum + f[key], 0) / Math.max(1, n)).toFixed(2);
+      const max = (key: 'sim' | 'render' | 'terrain' | 'ui' | 'js') => frames.reduce((m, f) => Math.max(m, f[key]), 0);
       // Skip the first frames of a flight (its build and first shader compiles are loading).
       const slow = frames.map((f, i) => ({ f, i })).filter(({ f, i }) => i > 30 && f.interval > SLOW_MS).map(({ f, i }) => ({
         ...f, previousEvents: frames[i - 1]?.events ?? [], previousInterval: frames[i - 1]?.interval ?? null,
@@ -99,13 +103,13 @@ export function createPerfLog(): PerfLog {
         const worst = bucket.reduce((a, b) => (b.interval > a.interval ? b : a));
         seconds.push({ second, frames: bucket.length, avgMs: +(bucket.reduce((s, f) => s + f.interval, 0) / bucket.length).toFixed(1), maxMs: worst.interval,
           slow: bucket.filter(f => f.interval > SLOW_MS).length, sim: +(bucket.reduce((s, f) => s + f.sim, 0) / bucket.length).toFixed(2),
-          render: +(bucket.reduce((s, f) => s + f.render, 0) / bucket.length).toFixed(2), terrain: +(bucket.reduce((s, f) => s + f.terrain, 0) / bucket.length).toFixed(2),
+          render: +(bucket.reduce((s, f) => s + f.render, 0) / bucket.length).toFixed(2), js: +(bucket.reduce((s, f) => s + f.js, 0) / bucket.length).toFixed(2), terrain: +(bucket.reduce((s, f) => s + f.terrain, 0) / bucket.length).toFixed(2),
           calls: worst.calls, ktris: worst.tris, enemies: worst.enemies, shots: worst.shots, particles: worst.particles, distance: worst.distance });
       };
       for (const f of frames) { const s = Math.floor(f.t / 1000); if (s !== second) { flush(); bucket = []; second = s; } bucket.push(f); }
       flush();
       return {
-        kind: 'last-worlds-perf-log', version: 1, exportedAt: new Date().toISOString(),
+        kind: 'last-worlds-perf-log', version: 2, exportedAt: new Date().toISOString(),
         device: { userAgent: navigator.userAgent, devicePixelRatio: window.devicePixelRatio, screen: [screen.width, screen.height], viewport: [innerWidth, innerHeight],
           hardwareConcurrency: navigator.hardwareConcurrency ?? null, ...meta },
         build: (document.querySelector('script[type="module"]') as HTMLScriptElement | null)?.src ?? null,
@@ -113,6 +117,8 @@ export function createPerfLog(): PerfLog {
         summary: {
           frames: n, seconds: Math.round((frames.at(-1)?.t ?? 0) / 1000), p50: pct(.5), p95: pct(.95), p99: pct(.99), max: sorted[n - 1] ?? 0,
           slowOver20ms: slow.length, longOver50ms: frames.filter((f, i) => i > 30 && f.interval > LONG_MS).length,
+          jsAvg: avg('js'), jsMax: max('js'), uiAvg: avg('ui'), uiMax: max('ui'),
+          pacedSteps: Object.fromEntries([...frames.reduce((m, f) => m.set(Math.round(f.paced), (m.get(Math.round(f.paced)) ?? 0) + 1), new Map<number, number>())].sort((a, b) => a[0] - b[0]).slice(0, 8)),
           simAvg: avg('sim'), simMax: max('sim'), renderAvg: avg('render'), renderMax: max('render'), terrainAvg: avg('terrain'), terrainMax: max('terrain'),
         },
         slowFrames: slow, timeline: seconds, events,
