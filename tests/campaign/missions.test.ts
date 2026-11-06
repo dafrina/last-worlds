@@ -155,10 +155,11 @@ describe('counters (event definitions)', () => {
   });
 
   it('Gravity Slingshot counts only Gravitic Shield returns', () => {
-    const c = createCounter(def('umbra.gravity-slingshot'), facts({ mission: 'final-horizon', ship: 'spectre' }), 3);
+    // Goal 3 since 6 November (5 before).
+    const c = createCounter(def('umbra.gravity-slingshot'), facts({ mission: 'final-horizon', ship: 'spectre' }), 1);
     c.on(kill({ cause: 'main' }));
     c.on(kill({ cause: 'reflected' }));
-    expect(c.value()).toBe(4);
+    expect(c.value()).toBe(2);
     expect(c.own()).toBe(1);
     c.on(kill({ cause: 'reflected', kind: 'turret', ground: true }));
     expect(c.done).toBe(true);
@@ -216,9 +217,10 @@ describe('counters (event definitions)', () => {
   });
 
   it('long missions\' own counts: gas tanks (chain blasts included, site cores not) and enemies (no boss modules, no skids)', () => {
-    const bonfire = createCounter(def('amnion.bonfire'), facts({ mission: 'brood-strike' }), 70);
+    // Goal 35 since 6 November (75 before).
+    const bonfire = createCounter(def('amnion.bonfire'), facts({ mission: 'brood-strike' }), 30);
     for (const e of [kill({ ground: true, kind: 'fuel' }), kill({ ground: true, kind: 'fuel', cause: 'blast' }), kill({ ground: true, kind: 'fuel', site: 'brood-hive' }), kill({ ground: true, kind: 'turret' }), kill()]) bonfire.on(e);
-    expect([bonfire.value(), bonfire.own()]).toEqual([72, 2]);
+    expect([bonfire.value(), bonfire.own()]).toEqual([32, 2]);
     const vigil = createCounter(def('umbra.eclipse-vigil'), facts({ mission: 'final-horizon' }));
     for (const e of [kill(), kill({ ground: true, kind: 'missile' }), kill({ ground: true, kind: 'fuel' }), kill({ kind: 'turret', bossPart: 'core' }), kill({ ground: true, kind: 'fuel', site: 'gate-ring' }), { type: 'site', time: 3, site: 'gate-ring' } as RunEvent]) vigil.on(e);
     expect(vigil.value()).toBe(3);
