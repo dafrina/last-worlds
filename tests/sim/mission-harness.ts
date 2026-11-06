@@ -5,6 +5,7 @@ import { createCampaignProfile, type ProfileStorage } from '../../src/campaign/p
 import { createRun } from '../../src/sim/game';
 import { VIEW, type Difficulty, type MissionId, type RunConfig, type RunEvent, type RunState, type ShipId, type SiteId, type SpecialId, type WeaponId } from '../../src/shared/contracts';
 import { fly, perfectPilot, type Pilot } from './pilots';
+import { MAX_RANK } from '../../src/content/equipment';
 import { siteSeeker } from './site-harness';
 
 /*
@@ -80,7 +81,7 @@ export function campaign(mission: MissionId) {
 /**
  * The attempt a player picks for the missions on the board at its start (docs/35 § 5): strong gear (a level-3 Rail Driver,
  * the Gravity Well fired when charged, Standard) unless a visible mission asks for something else: its weapon and level
- * (First Flight, Armor Piercer, Cold Vector, Seeker Sweep, Alien Weapons Specialist), no specials (Old School, once
+ * (First Flight, Armor Piercer, Cold Vector, Seeker Sweep, Alien Weapons Specialist), the top weapon level for Sunburn, no specials (Old School, once
  * Specialist is done), Veteran (Veteran of the Void), the Spectre (Gravity Slingshot), and where to fly (each flank for
  * Flanking Maneuver; ground targets first for the ground objectives; else strike sites and coins).
  */
@@ -95,6 +96,9 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
     attempt.weapon = loadout.rule.weapons![0];
     if (loadout.rule.kind === 'complete' && loadout.rule.rank !== undefined) attempt.rank = loadout.rule.rank;
   }
+  // Sunburn (THE HELIOPHAGE within 60 s) needs an upgraded weapon: a level-3 one takes 61-75 s on Standard, a top-level
+  // Rail Driver 40-54 s (6 November). By world six a player has one.
+  if (visible.some(def => def.id === 'corona.sunburn')) attempt.rank = MAX_RANK;
   if (ids.has('old-school') && !ids.has('specialist')) attempt.specials = false;
   if (visible.some(def => def.difficulty === 'veteran')) attempt.difficulty = 'veteran';
   if (has('reflected')) attempt.ship = 'spectre';

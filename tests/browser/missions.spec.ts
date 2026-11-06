@@ -41,7 +41,7 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   await expect(board.locator('.board-item').nth(0).locator('.board-tag')).toHaveText('ANY');
   await expect(board.locator('.board-item').nth(2).locator('.board-value')).toHaveText('38/70');
   await expect(board.locator('.board-item').nth(2).locator('.board-scope')).toHaveText('LAST RUN');
-  await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 50 credits and 1 part');
+  await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 100 credits and 1 part');
   // Done missions stay as cards with a check, most recent first; the retired Groundbreaker no longer shows (its payment stays).
   await expect(board.locator('.board-sub')).toHaveText('COMPLETED · 1');
   await expect(board.locator('.board-done b')).toHaveText(['Specialist']);
@@ -53,15 +53,21 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Rolling Thunder', exact: true }).click();
   await expect(board.locator('.board-head')).toContainText('MISSIONS · KHEPRI');
   await expect(board.locator('.board-count')).toHaveText('0 / 12 DONE');
-  await expect(board.locator('.board-item b')).toHaveText(['Specialist', 'Old School', 'Collector', 'Untouchable', 'Scorched Earth']);
+  await expect(board.locator('.board-item b')).toHaveText(['Specialist', 'Old School', 'Collector', 'Demolition', 'Scorched Earth']);
   expect(errors).toEqual([]);
 });
 
 test('a flight shows a small mission note, and the results list the missions it paid', async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  // A fresh board: Specialist, Old School, Untouchable, Collector and the long mission, Sky Patrol, are visible.
-  await seedCampaign(page);
+  // Collector done, so Untouchable (#6) is up: Specialist, Old School, Air Superiority, Sky Patrol and Untouchable are visible.
+  await seedCampaign(page, profile => {
+    veteranPilot(profile);
+    profile.missionBoard = { version: 1, worlds: { training: {
+      revealed: ['luna.specialist', 'luna.old-school', 'luna.collector', 'luna.air-superiority', 'luna.sky-patrol', 'luna.untouchable'],
+      claimed: ['luna.collector'], achieved: [], career: {},
+    } } };
+  });
   await page.goto('/');
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();
@@ -89,7 +95,7 @@ test('a flight shows a small mission note, and the results list the missions it 
   // Paid once into the save; the board shows it done.
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), CAMPAIGN_KEY);
   expect(saved.awards).toEqual(['mission:luna.untouchable']);
-  expect(saved.missionBoard.worlds.training.claimed).toEqual(['luna.untouchable']);
+  expect(saved.missionBoard.worlds.training.claimed).toEqual(['luna.collector', 'luna.untouchable']);
   await page.getByRole('button', { name: 'RETURN TO MENU' }).click();
   await page.getByRole('button', { name: 'CAMPAIGN FLIGHT' }).click();
   await page.getByRole('radiogroup', { name: 'Campaign mission' }).getByRole('radio', { name: 'Training', exact: true }).click();

@@ -107,21 +107,25 @@ const long = (slug: string, name: string, text: string, goal: number, rule: Miss
   ({ slug, name, text, goal, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', long: true, rule });
 const specialist = (goal: number, credits: number): Def => ({ slug: 'specialist', name: 'Specialist', text: `Fire your special ${goal} times in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'specials' }) });
 const oldSchool = (credits: number, where: string): Def => ({ slug: 'old-school', name: 'Old School', text: `Complete ${where} without firing a special.`, goal: 1, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'complete', noSpecial: true }) });
-const untouchable = (where: string): Def => ({ slug: 'untouchable', name: 'Untouchable', text: `Complete ${where} without a shield or hull hit.`, goal: 1, credits: 50, parts: 1, difficulty: 'standard', ...run({ kind: 'complete', noHit: true }) });
+const untouchable = (where: string): Def => ({ slug: 'untouchable', name: 'Untouchable', text: `Complete ${where} without a shield or hull hit.`, goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'complete', noHit: true }) });
 const collector = (goal: number, credits: number): Def => ({ slug: 'collector', name: 'Collector', text: `Collect ${goal} coins in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'credits' }) });
 const airSuperiority = (goal: number, credits: number): Def => ({ slug: 'air-superiority', name: 'Air Superiority', text: `Destroy ${goal} airborne enemies in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air' }) });
 const demolition = (goal: number): Def => ({ slug: 'demolition', name: 'Demolition', text: `Destroy ${goal} ground targets in one run.`, goal, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground' }) });
 const hunterBounty = (goal: number): Def => ({ slug: 'hunter-bounty', name: 'Hunter Bounty', text: goal === 1 ? 'Shoot down a shielded ace in one run.' : `Shoot down ${goal} shielded aces in one run.`, goal, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'hunters' }) });
 
-/** Every world's twelve, in the user's order (the reveal order). Keyed by the world's campaign mission. */
+/**
+ * Every world's twelve, in the user's order (the reveal order). Keyed by the world's campaign mission. The first four are
+ * single-run missions a first flight can clear, the long mission is fifth and Untouchable sixth (user, 6 November: "the
+ * first 5 should all be clearable relatively easy so that the player learns about a good payout from the no hit run early").
+ */
 export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>> = {
   training: world('luna', [
     specialist(5, 25),
     oldSchool(25, 'Training'),
-    untouchable('Training'),
     collector(70, 25),
-    long('sky-patrol', 'Sky Patrol', 'Destroy 100 airborne enemies, across runs.', 100, { kind: 'air' }),
     airSuperiority(30, 25),
+    long('sky-patrol', 'Sky Patrol', 'Destroy 100 airborne enemies, across runs.', 100, { kind: 'air' }),
+    untouchable('Training'),
     demolition(10),
     { slug: 'first-flight', name: 'First Flight', text: 'Complete Training flying a level-1 Twin Pulse.', goal: 1, credits: 25, parts: 1, difficulty: 'relaxed', ...run({ kind: 'complete', weapons: ['pulse'], rank: 0 }) },
     { slug: 'interceptor-drill', name: 'Interceptor Drill', text: 'Destroy 6 airborne enemies within 5 seconds.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air', window: 5 }) },
@@ -134,10 +138,10 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     specialist(6, 25),
     oldSchool(25, 'Rolling Thunder'),
     collector(110, 25),
-    untouchable('Rolling Thunder'),
-    long('scorched-earth', 'Scorched Earth', 'Destroy 40 ground targets, across runs.', 40, { kind: 'ground' }),
-    hunterBounty(2),
     demolition(14),
+    long('scorched-earth', 'Scorched Earth', 'Destroy 40 ground targets, across runs.', 40, { kind: 'ground' }),
+    untouchable('Rolling Thunder'),
+    hunterBounty(2),
     { slug: 'armor-piercer', name: 'Armor Piercer', text: 'Defeat Bastion-9 flying the Rail Driver.', goal: 1, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['rail'] }) },
     { slug: 'flanking-maneuver', name: 'Flanking Maneuver', text: 'Destroy 3 enemies out on each flank in one run.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'flanks', beyond: FLANK_X }) },
     { slug: 'dustfall', name: 'Dustfall', text: 'Destroy 6 ground turrets in a row without a hit.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret'], anyHit: true }) },
@@ -148,9 +152,9 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     specialist(7, 5),
     oldSchool(10, 'Cold Vector'),
     collector(170, 25),
-    untouchable('Cold Vector'),
-    long('overcharge', 'Overcharge', 'Fire your special 20 times, across runs.', 20, { kind: 'specials' }),
     airSuperiority(35, 25),
+    long('overcharge', 'Overcharge', 'Fire your special 20 times, across runs.', 20, { kind: 'specials' }),
+    untouchable('Cold Vector'),
     demolition(16),
     { slug: 'icebreaker', name: 'Icebreaker', text: 'Destroy 3 shield depots or freight terminals, across runs.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['shield-depot', 'freight-terminal'] }) },
     { slug: 'cold-vector', name: 'Cold Vector', text: 'Defeat the Helion Ark flying the Fan Cannon.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['fan'] }) },
@@ -162,11 +166,11 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
   'deep-bloom': world('nacre', [
     specialist(8, 25),
     oldSchool(25, 'Deep Bloom'),
-    untouchable('Deep Bloom'),
     hunterBounty(2),
-    long('pearl-diver', 'Pearl Diver', 'Collect 1,000 coins, across runs.', 1000, { kind: 'credits' }),
-    collector(330, 50),
     airSuperiority(55, 25),
+    long('pearl-diver', 'Pearl Diver', 'Collect 1,000 coins, across runs.', 1000, { kind: 'credits' }),
+    untouchable('Deep Bloom'),
+    collector(330, 50),
     { slug: 'three-paths', name: 'Three Paths', text: 'Destroy 3 strike sites in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites' }) },
     { slug: 'seeker-sweep', name: 'Seeker Sweep', text: 'Down 12 airborne enemies over open water with Seeker Array fire.', goal: 12, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air-water', weapon: 'seeker' }) },
     // THE VEIL's bays are launch points, not targets: this counts the pods they launch (docs/35 § 4).
@@ -177,10 +181,10 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
   'brood-strike': world('amnion', [
     specialist(8, 25),
     oldSchool(25, 'Brood Strike'),
-    untouchable('Brood Strike'),
     hunterBounty(3),
-    long('bonfire', 'Bonfire', 'Blow up 35 gas tanks, across runs.', 35, { kind: 'gas-tanks' }),
     demolition(18),
+    long('bonfire', 'Bonfire', 'Blow up 35 gas tanks, across runs.', 35, { kind: 'gas-tanks' }),
+    untouchable('Brood Strike'),
     airSuperiority(60, 50),
     { slug: 'nest-breaker', name: 'Nest Breaker', text: 'Destroy 2 brood hives, across runs.', goal: 2, credits: 50, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['brood-hive'] }) },
     // The organic sites' exposed cores: the brood hive's heart-sac and the spawning pool's pod.
@@ -192,25 +196,25 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
   // Corona (docs/37; the user's go-ahead on the proposal, 5 November): the two new sites, the plasma sea and THE HELIOPHAGE.
   'dying-star': world('corona', [
     specialist(8, 25),
+    { slug: 'flare-dancer', name: 'Flare Dancer', text: 'Survive 3 Wraith volleys without a hit in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'wraith-clean', window: WRAITH_WINDOW }) },
     oldSchool(25, 'Dying Star'),
-    untouchable('Dying Star'),
     hunterBounty(3),
     long('starfall', 'Starfall', 'Destroy 20 strike sites, across runs.', 20, { kind: 'sites' }),
+    untouchable('Dying Star'),
     { slug: 'extractor-breaker', name: 'Extractor Breaker', text: 'Destroy 3 Star Extractors, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['star-extractor'] }) },
-    { slug: 'lights-out', name: 'Lights Out', text: 'Destroy a Star Cage and complete the mission.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites', sites: ['star-cage'], complete: true }) },
+    { slug: 'heat-shield', name: 'Heat Shield', text: 'Destroy 8 ground defences in a row without a hit.', goal: 8, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret', 'missile'], anyHit: true }) },
     { slug: 'plasma-skimmer', name: 'Plasma Skimmer', text: 'Destroy 15 airborne enemies over the plasma sea with the Fan Cannon in one run.', goal: 15, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air-water', weapon: 'fan' }) },
-    { slug: 'wraith-exorcist', name: 'Wraith Exorcist', text: 'Destroy 3 Wraiths in one run.', goal: 3, credits: 75, parts: 0, difficulty: 'relaxed', ...run({ kind: 'wraiths' }) },
-    { slug: 'flare-dancer', name: 'Flare Dancer', text: 'Survive 4 Wraith volleys without a hit in one run.', goal: 4, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'wraith-clean', window: WRAITH_WINDOW }) },
+    { slug: 'solar-wind', name: 'Solar Wind', text: 'Destroy 8 airborne enemies within 6 seconds.', goal: 8, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air', window: 6 }) },
     { slug: 'veteran-of-the-dying-star', name: 'Veteran of the Dying Star', text: 'Complete Dying Star on Veteran.', goal: 1, credits: 100, parts: 1, difficulty: 'veteran', ...run({ kind: 'complete' }) },
     { slug: 'sunburn', name: 'Sunburn', text: 'Defeat THE HELIOPHAGE within 60 seconds of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', within: 60 }) },
   ]),
   'final-horizon': world('umbra', [
     specialist(8, 25),
+    { slug: 'vanishing-act', name: 'Vanishing Act', text: 'Survive 4 Wraith volleys without a hit in one run.', goal: 4, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'wraith-clean', window: WRAITH_WINDOW }) },
     oldSchool(25, 'Final Horizon'),
-    untouchable('Final Horizon'),
     hunterBounty(3),
     long('eclipse-vigil', 'Eclipse Vigil', 'Destroy 500 enemies, across runs.', 500, { kind: 'enemies' }),
-    { slug: 'vanishing-act', name: 'Vanishing Act', text: 'Survive 3 Wraith volleys without a hit in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'standard', ...run({ kind: 'wraith-clean', window: WRAITH_WINDOW }) },
+    untouchable('Final Horizon'),
     collector(400, 50),
     airSuperiority(65, 50),
     { slug: 'gravity-slingshot', name: 'Gravity Slingshot', text: 'Destroy 3 enemies with Gravitic Shield returns, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'reflected' }) },

@@ -343,3 +343,18 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **Touch still works with tilt on.** A held half or key overrides the lean, so the double-tap sidestep and the special button are unchanged.
 - **iOS motion permission:** asked when Tilt is chosen, and again on the first tap of a later visit (Safari forgets it). If it is refused, the setting falls back to Touch with a note.
 - **Risk:** proportional tilt gives finer control than the halves, so tilt may make dodging easier. Fairness and balance are still measured with the discrete inputs.
+
+### 6 November 2026 · Mission boards: an easy first five, Untouchable sixth at 100
+- **Every world's board opens with four single-run missions a first flight can clear,** then the long mission (#5) and Untouchable (#6).
+  - The reason (user): "the first 5 should all be clearable relatively easy so that the player learns about a good payout from the no hit run early, but has 4 other slots to uncover".
+  - Air Superiority or Demolition moved up to fill the slot Untouchable left.
+- **Untouchable pays 100 credits and a part on every world** (was 50).
+- **Dying Star:**
+  - Wraith Exorcist became **Solar Wind** (8 airborne kills within 6 s, 50);
+  - Lights Out became **Heat Shield** (8 ground defences in a row without any hit, 50);
+  - Flare Dancer needs 3 volleys (was 4) and is second.
+- **Final Horizon:** Vanishing Act needs 4 volleys (was 3) and is second. The Wraith missions belong to Umbra, the Wraiths' home world.
+- **Measured:** the test pilot clears all twelve on every world.
+  - Dying Star, newly covered, takes 9 attempts.
+  - **Sunburn** (THE HELIOPHAGE within 60 s) needs a top-level weapon: on Standard a level-3 weapon takes 61–75 s, a top-level Rail Driver 40–54 s.
+- **Totals:** 4,015 credits and 32 parts.
