@@ -5,6 +5,7 @@ import { missionText } from './missions';
 import { MISSION_ORDER, menuMarkup, shipGlyph } from './menu-markup';
 import { createPlanetPreview, prebakePlanets } from './planet-preview';
 import { MISSION_PLANET } from '../content/missions';
+import { readSteeringMode, tiltSupported, writeSteeringMode } from '../input/tilt';
 import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, endlessConfig, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
 import { CREDIT_MULTIPLIER, CREDIT_SCALE, MAX_RANK, SHIPS, SHIELD_TECH, SPECIALS } from '../content/equipment';
@@ -72,7 +73,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
         </div>
       </header>
       <div class="steering-hints" aria-hidden="true" hidden>
-        <span><b>‹</b> HOLD LEFT</span><span>HOLD RIGHT <b>›</b></span>
+        <span><b>‹</b> <i>HOLD</i> LEFT</span><span><i>HOLD</i> RIGHT <b>›</b></span>
       </div>
       <p class="flight-message" role="status" hidden></p>
       <p class="mission-note" role="status" aria-live="polite"></p>
@@ -445,6 +446,29 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   onAction('retry', () => launch({ ...lastConfig, seed: seed() }));
   find('.pause-button').addEventListener('click', () => actions.pause(), options);
   selectorListeners.set('graphics', value => actions.setQuality(value as GraphicsQuality));
+  // Tilt steering: offered on touch devices with a motion sensor; the choice is remembered on this browser.
+  let steering = readSteeringMode(storage);
+  const steeringNote = find<HTMLElement>('.steering-note');
+  const showSteering = () => {
+    const group = find<HTMLElement>('[data-selector="steering"]');
+    for (const radio of group.querySelectorAll<HTMLElement>('[role="radio"]')) {
+      const on = radio.dataset.value === steering; radio.setAttribute('aria-checked', String(on)); radio.tabIndex = on ? 0 : -1;
+    }
+    for (const word of hints.querySelectorAll('i')) word.textContent = steering === 'tilt' ? 'TILT' : 'HOLD';
+  };
+  if (tiltSupported() && actions.setSteering) {
+    find<HTMLElement>('.steering-setting').hidden = false;
+    showSteering();
+    selectorListeners.set('steering', value => {
+      const mode = value === 'tilt' ? 'tilt' : 'touch';
+      steeringNote.hidden = true;
+      void actions.setSteering!(mode).then(ok => {
+        steering = ok ? mode : 'touch'; writeSteeringMode(storage, steering); showSteering();
+        if (!ok) { steeringNote.textContent = 'Motion access was refused. Allow motion for this site in the browser settings to steer by tilting.'; steeringNote.hidden = false; }
+        else if (mode === 'tilt') { steeringNote.textContent = 'Lean the phone left or right to steer. Holding a screen half still steers too.'; steeringNote.hidden = false; }
+      });
+    });
+  }
   selectorListeners.set('sound', value => { muted = value === 'off'; actions.setMuted(muted); });
 
   // Keep keyboard navigation inside whichever modal panel is actually visible.

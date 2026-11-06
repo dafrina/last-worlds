@@ -131,8 +131,8 @@ function updatePace(state: RunState, dt: number): void {
   }
 }
 
-function movePlayer(state: RunState, horizontal: -1 | 0 | 1, dt: number): void {
-  const player = state.player;
+function movePlayer(state: RunState, steer: number, dt: number): void {
+  const player = state.player, horizontal = clamp(Number.isFinite(steer) ? steer : 0, -1, 1);
   // All ships share the same handling; endless scales it with pace.
   const movement = playerKinematics(state);
   // An Interceptor sidestep overrides steering while it lasts (src/sim/ship-perks.ts); its speed is the ship's velocity, so

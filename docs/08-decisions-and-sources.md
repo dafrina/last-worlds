@@ -333,3 +333,13 @@ User answers after reviewing the merged strike sites and encounter deck:
   - credits and sites barely moved (Rolling Thunder's credits −16%).
   - **Strike-site goals take longer:** Lunar Saboteur needs a sixth attempt, and Three Paths 8 instead of 5 (the feasibility bounds now say so).
 - **Corona effect colours:** THE HELIOPHAGE's sparks, flashes, steam and smoke are its own (white gold, molten orange, ash), no longer THE VEIL's teal and lavender (`CarrierStyle.fx`). The Wraith's teleport rim burns red-orange on Corona; it stays violet on Umbra (user: "smoke and animations of wraith and heliophage have purple which is wrong on corona").
+
+### 6 November 2026 · Optional tilt steering (user: "add a setting to be able to steer with gyro on the phone but default stays left right screen click")
+- **Settings → Steering: Touch (default) or Tilt.** It is shown only on touch devices that report orientation. The choice is remembered on this browser.
+- **How the lean is read:** the share of gravity along the screen's x axis (cos β · sin γ), so the forward pitch of the phone does not matter.
+  - A dead band of about 3° ignores the hand.
+  - Full steering speed is reached at about 17.5°.
+  - In between, steering is proportional: `InputFrame.horizontal` is now any share from −1 to 1, and touch and keys still give −1, 0 or 1.
+- **Touch still works with tilt on.** A held half or key overrides the lean, so the double-tap sidestep and the special button are unchanged.
+- **iOS motion permission:** asked when Tilt is chosen, and again on the first tap of a later visit (Safari forgets it). If it is refused, the setting falls back to Touch with a note.
+- **Risk:** proportional tilt gives finer control than the halves, so tilt may make dodging easier. Fairness and balance are still measured with the discrete inputs.

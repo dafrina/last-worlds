@@ -1,5 +1,6 @@
 import type { GameInput, InputFrame } from '../shared/contracts';
 import { SHIP_PERKS } from '../sim/ship-perks';
+import type { TiltSource } from './tilt';
 
 export type PointerRole = 'left' | 'right' | 'special';
 
@@ -76,7 +77,7 @@ export function createControlState(now: () => number = () => performance.now()) 
   };
 }
 
-export function createInput(surface: HTMLElement, specialButton: HTMLButtonElement): GameInput {
+export function createInput(surface: HTMLElement, specialButton: HTMLButtonElement, tilt?: TiltSource): GameInput {
   const state = createControlState();
   const abort = new AbortController();
   const options = { signal: abort.signal };
@@ -160,7 +161,10 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
   return {
     sample() {
       if (!active()) state.clear();
-      return state.sample();
+      const frame = state.sample();
+      // Tilt steering (optional): a held half or key wins, otherwise the phone's lean steers.
+      if (frame.horizontal === 0 && tilt) frame.horizontal = tilt.value();
+      return frame;
     },
     clear: state.clear,
     dispose() { abort.abort(); state.clear(); },

@@ -4,6 +4,7 @@ import { createUi } from './ui/game-ui';
 import { createPerfOverlay } from './ui/perf-overlay';
 import { createPerfLog, exportPerfLog } from './ui/perf-log';
 import { createFramePacer } from './shared/frame-pacing';
+import { createTiltSource, readSteeringMode } from './input/tilt';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
 import { bossTarget, resolveBossPhase } from './sim/bastion';
@@ -154,6 +155,9 @@ async function start(config: RunConfig) {
   }
 }
 
+let steeringStorage: Storage | undefined;
+try { steeringStorage = window.localStorage; } catch { /* Private storage may be unavailable. */ }
+const tilt = createTiltSource(readSteeringMode(steeringStorage));
 const ui = createUi(root, {
   start, pause,
   resume() {
@@ -178,11 +182,12 @@ const ui = createUi(root, {
   },
   setMuted(value) { audio.setSettings({ muted: value }); },
   setQuality(value) { renderer?.setQuality(value); },
+  setSteering: mode => tilt.setMode(mode),
   heroPreview: (ship, look, width, height) => renderer?.heroPreview?.(ship, look, width, height) ?? Promise.resolve(null),
   preloadHero: (ship, look) => renderer?.preloadHero?.(ship, look),
 });
 const disposeAudioSettings = mountAudioSettings(root, audio);
-const input = createInput(ui.surface, ui.specialButton);
+const input = createInput(ui.surface, ui.specialButton, tilt);
 let renderer: ReturnType<typeof createRenderer> | undefined;
 try {
   renderer = createRenderer(ui.canvas);

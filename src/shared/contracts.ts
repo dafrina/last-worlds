@@ -43,7 +43,8 @@ export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot
   'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool', 'star-extractor', 'star-cage'] as const;
 export type SiteId = (typeof SITE_IDS)[number];
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
-export interface InputFrame { horizontal: -1 | 0 | 1; specialPressed: boolean; pausePressed: boolean; dashPressed?: -1 | 1 }
+/** `horizontal`: −1 … 1. Touch halves and keys give −1, 0 or 1; tilt steering (src/input/tilt.ts) any share between. */
+export interface InputFrame { horizontal: number; specialPressed: boolean; pausePressed: boolean; dashPressed?: -1 | 1 }
 /**
  * A run's setup. The campaign loadout (weapon, special, shield, ship, rank of the main weapon) applies only to the
  * campaign; createRun gives endless starter equipment and the selected chassis perk.
@@ -265,6 +266,8 @@ export interface UiActions {
   start(config: RunConfig): void; pause(): void; resume(): void; quit(): void;
   setMuted(muted: boolean): void;
   setQuality(quality: GraphicsQuality): void;
+  /** Touch halves (default) or tilt steering (src/input/tilt.ts); called from the tap, resolves false if motion access is refused. */
+  setSteering?(mode: 'touch' | 'tilt'): Promise<boolean>;
   /**
    * A picture of a ship's look for the hangar, drawn by the game's own renderer (menus never open a second WebGL
    * context): one still of `width` × `height` pixels, or null without a renderer.

@@ -147,6 +147,7 @@ button:disabled { cursor: default; }
 }
 .steering-hints span { display: flex; align-items: center; gap: 7px; }
 .steering-hints b { font: 28px / 1 Arial, sans-serif; }
+.steering-hints i { font-style: normal; }
 .flight-message {
   position: absolute; z-index: 3; top: 15%; left: 10%; right: 10%;
   margin: 0; pointer-events: none; text-align: center; color: var(--ivory);
