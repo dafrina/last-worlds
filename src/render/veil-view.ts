@@ -64,6 +64,8 @@ export interface CarrierStyle {
   /** Other bosses this rig stands in for (THE HELIOPHAGE flies THE ECLIPSE until its own model: docs/37). */
   stands?: readonly BossId[];
   name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
+  /** It flies in from the top of the screen (its content's entryS) instead of rising out of the ground. */
+  fliesIn?: true;
   /** The boss's own combat sockets, target plane, arrival and bays (src/content/veil.ts, src/content/cradle.ts). */
   content: { podOffset: number; podS: number; heartS: number; targetHeight: number; arrivalDuration: number; bays: readonly { x: number; s: number }[];
     /** THE ECLIPSE's prow vent (node `<prefix>prow`, `_wreck`): a third first-phase target under its reactor, at x 0. */
@@ -104,7 +106,7 @@ export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE',
  * plateau's level, so its underside clears the plateau and its top stays under the flight plane. No armour shutters: its
  * core's cage is part of the hull.
  */
-export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HELIOPHAGE', prefix: 'heliophage_', markers: ['heliophage_approved_v1'], shutterOpen: 0, spark: 0xffa040, hover: 2.6,
+export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HELIOPHAGE', prefix: 'heliophage_', markers: ['heliophage_approved_v1'], shutterOpen: 0, spark: 0xffa040, hover: 2.6, fliesIn: true,
   content: { podOffset: HELIOPHAGE.ventOffset, podS: HELIOPHAGE.ventS, heartS: HELIOPHAGE.reactorS, targetHeight: HELIOPHAGE.targetHeight, arrivalDuration: HELIOPHAGE.arrivalDuration, bays: HELIOPHAGE.bays,
     prowS: HELIOPHAGE.prowS },
   footprint: { halfWidth: 8.2, front: 3.5, back: 9.2 },
@@ -401,7 +403,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
       // Rising out of the mire during the arrival; a slow breathing bob while alive; sinking after its death.
-      const rise = arriving ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
+      const rise = arriving && !style.fliesIn ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
       const sink = destroyed ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
       // A hovering carrier (THE CRADLE) bobs wider and slower on the air it floats on.
       const bob = destroyed ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;

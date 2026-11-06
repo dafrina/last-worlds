@@ -802,3 +802,8 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - one point draw per world, animated entirely in the vertex shader: Khepri dust, Vesper snow, Nacre plankton, Amnion spores, Corona embers, Umbra ash, none on Luna;
   - 90–220 points per world, half on Low graphics, all below the flight plane.
   - Checks: tsc, unit (948), build, and the graphics and faction browser specs.
+- **Claude Code, 6 November: water foam and the HELIOPHAGE entrance.**
+  - **Vesper floes:** foam now follows each floe's outline. It is drawn from a flattened, coarse copy of the floe, one band, opaque and broken up by noise. The oval rings are gone. Cost on a dense floe frame: about +15k triangles and +19 draw calls.
+  - **The Ark:** no oval collar while afloat; the wakes and the sinking ring stay.
+  - **THE HELIOPHAGE:** flies in from the top (`entryS 30`) instead of rising.
+  - **Checks:** unit (948), build, and the graphics and faction browser specs.

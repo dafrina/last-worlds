@@ -12,6 +12,11 @@ import { ECLIPSE } from './eclipse';
  */
 export const HELIOPHAGE = {
   ...ECLIPSE,
+  /**
+   * It flies in from beyond the top of the screen to its row, as THE VEIL glides in (user, 6 November: it "should not
+   * rise from the depths ... it should come in from top of the screen"); THE ECLIPSE rises in place.
+   */
+  entryS: 30,
   /** The targets' visible faces stand 1.64-1.87 over the model's origin (its mid-plane). */
   targetHeight: 1.7,
   ventOffset: 5.0,

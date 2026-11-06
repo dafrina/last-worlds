@@ -581,7 +581,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
   /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
   let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null, voidEnvironment: THREE.WebGLRenderTarget | null = null;
-  const water = createWater(), foam = createFoam(scene), floeRings: FoamRing[] = [], coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene), motes = createAmbientMotes(scene);
+  const water = createWater(), foam = createFoam(scene), coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene), motes = createAmbientMotes(scene);
   /** Nacre's water: its own material (src/render/mire-water.ts); the sea sheets wear it while the look is Nacre's. */
   const mireWater = createMireWater();
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
@@ -954,12 +954,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const DEPLOY = 1, DEPLOY_DEPTH = 2.2, DEPLOY_ROW = 25.5, DEPLOY_FRESH = .3;
   const groundSeen = new Map<number, GroundSeen>();
   let wreckRun: RunState['config'] | null = null, wreckTick = -1;
-  /** Foam collars for drifting floes and bergs, from the terrain view's live features (world space, real footprints). */
-  function collectFloeRings(): FoamRing[] {
-    floeRings.length = 0;
-    for (const floe of terrain.features.floes) floeRings.push({ x: floe.x, z: floe.z, y: floe.y, yaw: floe.yaw, rx: floe.rx, rz: floe.rz });
-    return floeRings;
-  }
   /** Vent-stack tops near the view, for steam (terrain view's live features). */
   const collectVents = (cameraX: number) => terrain.features.vents.filter(vent => Math.abs(vent.x - cameraX) < VIEW.width / 2 + 1);
   /** Vesper craft batches (same kinds, Vesper models), created once vesper-craft.glb has loaded. */
@@ -2156,7 +2150,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
       water.update(state.time, state.distance); mireWater.update(state.time, state.distance);
       const arkFoam = ark.foam;
-      foam.update(state.time, [...collectFloeRings(), ...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
+      // Floes carry their own coastline foam (terrain-view.ts); the oval rings are for round pontoons and the Ark.
+      foam.update(state.time, [...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
       jumpActive = jumpFx.update(state, reducedMotion(), planetReady(state.jump?.to ?? state.planet ?? planet), quality === 'high');
       post.settings.cover.value = jumpFx.cover;
       lineGeometry.setDrawRange(0, lineCursor); lines.visible = lineCursor > 0;

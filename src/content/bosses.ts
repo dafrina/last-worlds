@@ -245,7 +245,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   // will replace the boss later"): THE ECLIPSE's model, parts and moves under its own name (docs/37).
   heliophage: {
     // THE ECLIPSE's fight on its own model's targets (src/content/heliophage.ts): the blocks' grilles, the tower, the core.
-    ...ECLIPSE_BOSS, id: 'heliophage', name: 'THE HELIOPHAGE', targetHeight: HELIOPHAGE.targetHeight,
+    ...ECLIPSE_BOSS, id: 'heliophage', name: 'THE HELIOPHAGE', targetHeight: HELIOPHAGE.targetHeight, entryS: HELIOPHAGE.entryS,
     parts: {
       left: { x: -HELIOPHAGE.ventOffset, s: HELIOPHAGE.ventS, radius: HELIOPHAGE.ventRadius, hp: HELIOPHAGE.ventHp },
       right: { x: HELIOPHAGE.ventOffset, s: HELIOPHAGE.ventS, radius: HELIOPHAGE.ventRadius, hp: HELIOPHAGE.ventHp },

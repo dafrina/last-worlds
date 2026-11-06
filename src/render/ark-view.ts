@@ -324,10 +324,11 @@ export function createArkView(scene: THREE.Scene) {
         wakes.push({ x: bow.x, z: bow.z, y: sea, heading, length: 6 + speed * 1.6, width: 6.5 + speed * .4, strength: wakeStrength * .7 });
         wakes.push({ x: stern.x, z: stern.z, y: sea, heading, length: 3 + speed * 2.5, width: 2.6, strength: Math.min(1, wakeStrength * 1.4) });
       }
-      // Hull collar; while sinking it widens into a foam ring around the going-down hull.
+      // No oval collar while it floats (user, 6 November: the oval foam "isnt following the coast lines ... same thing on the
+      // ark boss just looks weird"); the bow and stern wakes carry the contact. Sinking, a foam ring spreads round the hull.
       const spread = 1 + sink * .45;
-      const foamStrength = destroyed ? .22 + .22 * Math.sin(Math.min(1, sink) * Math.PI) : rig.approved ? .16 : .28;
-      if (rig.approved) {
+      const foamStrength = .22 + .22 * Math.sin(Math.min(1, sink) * Math.PI);
+      if (!destroyed) { /* afloat: wakes only */ } else if (rig.approved) {
         // The approved vessel has three separate hulls with open water between them.
         // v5: outriggers y -3.6..5.85 around x +-3.15, centre hull y -2.45..5.25 (local z = -y).
         const [outerZ, outerRz, midZ, midRx, midRz] = rig.remodel ? [-.9, 4.8, -1.2, 1.35, 3.95] : [0, 3.65, -1.4, .65, 1.8];

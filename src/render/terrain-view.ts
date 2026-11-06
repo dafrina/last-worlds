@@ -619,6 +619,64 @@ export function createTerrainView(options: TerrainViewOptions) {
   let disposed = false;
   /** Drifting pack ice (one dynamic batch per kit node), refilled every frame by animate(). */
   const floeMeshes = new Map<string, THREE.InstancedMesh>(), floeDepth = new THREE.MeshDepthMaterial();
+  /**
+   * Foam along each floe's own coastline (user, 6 November: the oval rings were "not following the coast lines and just
+   * circular"): the floe's mesh pressed flat onto the water and grown outward by a fixed distance, so the band it leaves
+   * around the floe follows the outline, broken up by churning noise. One band, on a coarse copy of the footprint: one
+   * draw and a few dozen triangles per floe kind. Opaque (broken by discard), so the flattened faces never stack up.
+   */
+  const FOAM_BANDS = [{ grow: .14, cut: .36 }] as const;
+  /** Footprint clustering cell (share of the floe's size): a few dozen triangles a floe instead of its full mesh. */
+  const FOAM_CELL = 1 / 9;
+  const foamUniforms = { floeFoamTime: { value: 0 } };
+  const foamMaterials = FOAM_BANDS.map(band => new THREE.ShaderMaterial({
+    uniforms: { ...foamUniforms, floeFoamCut: { value: band.cut } },
+    vertexShader: /* glsl */`
+      varying vec2 vLocal;
+      void main() {
+        vec4 world = modelMatrix * instanceMatrix * vec4( position.x, 0.0, position.z, 1.0 );
+        vLocal = position.xz * 3.0;
+        gl_Position = projectionMatrix * viewMatrix * world;
+      }`,
+    fragmentShader: /* glsl */`
+      uniform float floeFoamTime; uniform float floeFoamCut; varying vec2 vLocal;
+      float h( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+      float n( vec2 p ) { vec2 i = floor( p ), f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
+        return mix( mix( h( i ), h( i + vec2( 1.0, 0.0 ) ), f.x ), mix( h( i + vec2( 0.0, 1.0 ) ), h( i + vec2( 1.0, 1.0 ) ), f.x ), f.y ); }
+      void main() {
+        float churn = n( vLocal + vec2( floeFoamTime * 0.35, -floeFoamTime * 0.22 ) ) * 0.6 + n( vLocal * 2.3 - floeFoamTime * 0.4 ) * 0.4;
+        if ( churn < floeFoamCut ) discard;
+        gl_FragColor = vec4( vec3( 0.66, 0.76, 0.84 ) * ( 0.85 + 0.2 * churn ), 1.0 );   // blue-grey: foam, not more ice
+      }`,
+  }));
+  const foamMeshes = new Map<string, THREE.InstancedMesh[]>(), foamShapes = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+  /** A floe's footprint for its foam: the mesh pressed flat and vertex-clustered (only its outline matters). */
+  function foamShape(source: THREE.BufferGeometry): THREE.BufferGeometry {
+    let shape = foamShapes.get(source);
+    if (shape) return shape;
+    const from = source.getAttribute('position') as THREE.BufferAttribute, position = new Float32Array(from.count * 3);
+    for (let i = 0; i < from.count; i++) { position[i * 3] = from.getX(i); position[i * 3 + 2] = from.getZ(i); }
+    const index = source.index ? Uint32Array.from(source.index.array as ArrayLike<number>) : Uint32Array.from({ length: from.count }, (_, i) => i);
+    const simple = clusterSimplify(position, index, FOAM_CELL) ?? { position, index };
+    shape = new THREE.BufferGeometry();
+    shape.setAttribute('position', new THREE.BufferAttribute(simple.position, 3)); shape.setIndex(new THREE.BufferAttribute(simple.index, 1));
+    foamShapes.set(source, shape);
+    return shape;
+  }
+  function floeFoam(name: string, floe: THREE.InstancedMesh): THREE.InstancedMesh[] {
+    let meshes = foamMeshes.get(name);
+    const shape = foamShape(floe.geometry);
+    if (!meshes || meshes[0].geometry !== shape || meshes[0].instanceMatrix.count < floe.instanceMatrix.count) {
+      meshes?.forEach(mesh => { scene.remove(mesh); mesh.dispose(); });
+      meshes = foamMaterials.map((material, i) => {
+        const mesh = new THREE.InstancedMesh(shape, material, floe.instanceMatrix.count);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${name} foam ${i}`;
+        scene.add(fixed(mesh)); return mesh;
+      });
+      foamMeshes.set(name, meshes);
+    }
+    return meshes;
+  }
   function floeMesh(name: string, needed: number): THREE.InstancedMesh | null {
     const geometry = kit.get(name);
     if (!geometry) return null;
@@ -1006,10 +1064,13 @@ export function createTerrainView(options: TerrainViewOptions) {
         list.push(floe); visible.set(name, list); seaOf.set(floe, view.sea);
       }
       for (const [name, mesh] of floeMeshes) if (!visible.has(name)) { mesh.count = 0; mesh.visible = false; }
+      for (const [name, meshes] of foamMeshes) if (!visible.has(name)) for (const mesh of meshes) { mesh.count = 0; mesh.visible = false; }
+      foamUniforms.floeFoamTime.value = time;
       floeUsed = 0;
       for (const [name, list] of visible) {
         const mesh = floeMesh(name, list.length);
         if (!mesh) continue;
+        const foams = floeFoam(name, mesh);
         list.forEach((floe, i) => {
           const angle = floe.phase + time * FLOE_SPIN * (floe.kind === 'iceberg' ? 0.5 : 1), sway = Math.sin(time * 0.11 + floe.phase) * FLOE_SWAY;
           // A cracked set's pieces sway about the set origin together (three.js yaw about +y, s = −z).
@@ -1025,11 +1086,18 @@ export function createTerrainView(options: TerrainViewOptions) {
           transform.rotation.set(0, yaw, 0);
           transform.scale.set(floe.scaleX, floe.height, floe.scaleZ); transform.updateMatrix();
           mesh.setMatrixAt(i, transform.matrix);
+          // The coastline foam: flat on the water, grown by each band's distance (a fixed width whatever the floe's size).
+          transform.position.y = sea + .012;
+          FOAM_BANDS.forEach((band, k) => {
+            transform.scale.set(floe.scaleX * (1 + band.grow / Math.max(.3, hx * floe.scaleX)), 1, floe.scaleZ * (1 + band.grow / Math.max(.3, hz * floe.scaleZ)));
+            transform.updateMatrix(); foams[k].setMatrixAt(i, transform.matrix);
+          });
           const feature = floeFeatures[floeUsed] ??= { id: '', kind: 'floe', x: 0, y: 0, z: 0, rx: 0, rz: 0, yaw: 0 };
           feature.id = floe.id; feature.kind = floe.kind === 'iceberg' ? 'iceberg' : 'floe'; feature.x = x; feature.y = sea; feature.z = z;
           feature.rx = hx * floe.scaleX; feature.rz = hz * floe.scaleZ; feature.yaw = yaw; floeUsed++;
         });
         mesh.count = list.length; mesh.visible = true; mesh.instanceMatrix.needsUpdate = true;
+        for (const foam of foams) { foam.count = list.length; foam.visible = true; foam.instanceMatrix.needsUpdate = true; }
       }
       floeFeatures.length = floeUsed;
       // Vent tops near the view (steam), skipping any exclusion like the instances themselves.
@@ -1064,6 +1132,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       if (standIns) { standIns.forEach(mesh => scene.remove(mesh)); (standIns[0] as THREE.Mesh).geometry.dispose(); standIns = null; }
       haulers.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); haulers.clear();
       floeMeshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); floeMeshes.clear();
+      foamMeshes.forEach(meshes => meshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); })); foamMeshes.clear(); foamMaterials.forEach(material => material.dispose());
       if (water && !options.waterMaterial) water.dispose();
       disposed = true;
       kit.forEach(geometry => geometry.dispose()); infra.forEach(geometry => geometry.dispose()); shared.forEach(geometry => geometry.dispose());
