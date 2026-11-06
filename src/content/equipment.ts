@@ -70,14 +70,16 @@ export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
  *   `collapse` damage within `collapseRadius`, falling to `collapseEdge` of it at the edge.
  */
 export const SPECIALS = {
-  // Falloff (user, 17 October: too strong next to Seeker Rack): full damage within `full`, fading linearly to `minShare`
-  // at `reach`; it clears hostile shots only within `clear` of the ship.
-  shockwave: { label: 'Shockwave', recharge: 45, price: 350, parts: 1, blurb: 'A ring bursts out from your ship: it clears nearby shots and hits hardest up close.', speed: 26, reach: 20, full: 3, minShare: 0.2, clear: 8 },
-  'seeker-rack': { label: 'Seeker Rack', recharge: 35, price: 0, parts: 0, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 9, speed: 21, accel: 34, turn: 4.5, spreadTime: .3 },
+  // Hangar order (user, 6 November): Seeker Rack first, Shockwave, the most valuable, last at 450 (was 350); Seeker Rack
+  // recharges in 40 s (was 35).
+  'seeker-rack': { label: 'Seeker Rack', recharge: 40, price: 0, parts: 0, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 9, speed: 21, accel: 34, turn: 4.5, spreadTime: .3 },
   'siege-lance': { label: 'Siege Lance', recharge: 40, price: 250, parts: 1, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
   'gravity-well': { label: 'Gravity Well', recharge: 40, price: 350, parts: 1, blurb: 'A singularity ahead pulls enemies together and swallows their shots, then collapses.',
     // User, 28 October: "the radius should be bigger and sucking in ships" (was pull 4.5 at up to 4/s, core 1.6, swallow 3.5).
     ahead: 9, arm: 0.35, duration: 2.6, pullRadius: 7, pullSpeed: 7, coreRadius: 2, dps: 40, swallowRadius: 4.5, collapse: 200, collapseRadius: 3.5, collapseEdge: 0.5 },
+  // Falloff (user, 17 October: too strong next to Seeker Rack): full damage within `full`, fading linearly to `minShare`
+  // at `reach`; it clears hostile shots only within `clear` of the ship.
+  shockwave: { label: 'Shockwave', recharge: 45, price: 450, parts: 1, blurb: 'A ring bursts out from your ship: it clears nearby shots and hits hardest up close.', speed: 26, reach: 20, full: 3, minShare: 0.2, clear: 8 },
 } as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; parts: number; blurb: string; [tuning: string]: string | number }>>;
 
 /** All ships can collect up to five shields. Equipment changes the starting reserve only. */

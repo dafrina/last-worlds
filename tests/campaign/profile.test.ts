@@ -103,7 +103,7 @@ describe('the shop (user, 3 November 2026): prices in credits and parts', () => 
     expect(RANK_PARTS).toEqual([0, 3, 5, 10]);
     expect([0, 1, 2, 3, 4].map(rankPrice)).toEqual([{ credits: 250, parts: 0 }, { credits: 500, parts: 3 }, { credits: 750, parts: 5 }, { credits: 1000, parts: 10 }, null]);
     expect(Object.fromEntries(Object.entries(SPECIALS).map(([id, s]) => [id, [s.price, s.parts]]))).toEqual({
-      'seeker-rack': [0, 0], 'siege-lance': [250, 1], shockwave: [350, 1], 'gravity-well': [350, 1] });
+      'seeker-rack': [0, 0], 'siege-lance': [250, 1], shockwave: [450, 1], 'gravity-well': [350, 1] });
     expect(Object.fromEntries(SHIP_IDS.map(ship => [ship, itemPrice('ship', ship)]))).toEqual({
       scrapper: { credits: 0, parts: 0 }, ironclad: { credits: 0, parts: 4 }, interceptor: { credits: 0, parts: 4 }, spectre: { credits: 0, parts: 4 } });
     expect(itemPrice('shield', 'bulwark')).toEqual({ credits: 250, parts: 0 });
@@ -118,11 +118,11 @@ describe('the shop (user, 3 November 2026): prices in credits and parts', () => 
     expect(rich.buy('special', 'shockwave')).toBe(false);
     expect(rich.read()).toMatchObject({ credits: 1000, parts: 0, owned: { special: ['seeker-rack'] } });
     // A part but too few credits.
-    const poor = funded(349, 1).store;
+    const poor = funded(449, 1).store;
     expect(poor.buy('special', 'shockwave')).toBe(false);
-    expect(poor.read()).toMatchObject({ credits: 349, parts: 1 });
+    expect(poor.read()).toMatchObject({ credits: 449, parts: 1 });
     // Exactly enough: both balances reach zero, and a second purchase is refused.
-    const { store, storage } = funded(350, 1);
+    const { store, storage } = funded(450, 1);
     expect(store.buy('special', 'shockwave')).toBe(true);
     expect(store.read()).toMatchObject({ credits: 0, parts: 0, owned: { special: ['seeker-rack', 'shockwave'] } });
     expect(store.buy('special', 'shockwave')).toBe(false);

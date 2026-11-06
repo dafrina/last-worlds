@@ -94,7 +94,7 @@ test('the hangar buys, equips and ranks up campaign gear, and the launch flies i
   // Level 3 takes parts too (user, 3 November 2026): without any, the next upgrade stays disabled.
   await expect(page.locator('.hangar-item', { hasText: 'Fan Cannon' }).getByRole('button', { name: 'UPGRADE · 500 CR + 3 P' })).toBeDisabled();
   await page.getByRole('radiogroup', { name: 'Equipment slot' }).getByRole('radio', { name: 'Special', exact: true }).click();
-  await expect(page.locator('.hangar-item', { hasText: 'Shockwave' }).getByRole('button', { name: 'BUY · 350 CR + 1 P' })).toBeDisabled();
+  await expect(page.locator('.hangar-item', { hasText: 'Shockwave' }).getByRole('button', { name: 'BUY · 450 CR + 1 P' })).toBeDisabled();
   await page.getByRole('radiogroup', { name: 'Equipment slot' }).getByRole('radio', { name: 'Shield', exact: true }).click();
   await page.getByRole('button', { name: 'BUY · 250 CR' }).first().click();
   await expect(page.locator('.credit-balance').first()).toContainText('200');

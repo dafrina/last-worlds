@@ -790,3 +790,11 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - the Pages deploy timeout raised to 30 min.
 - **Amnion flesh walls only on drops of 2.5 or more (was 1.5), Claude Code:** about 28% fewer walls. On matched Brood Strike frames, triangles fell from 210/187/166/161k to 161/162/129/129k. Checks: tsc, unit (943) and build passed. Playwright was not run, because the change is cosmetic placement only.
 - **Amnion flesh walls set back to drops of 2.0 or more (the midpoint), Claude Code:** on matched Brood Strike frames this is 185/172/148/149k triangles, against 210/187/166/161k at 1.5 and 161/162/129/129k at 2.5. Checks: tsc, unit (943) and build passed.
+- **Claude Code, 6 November:**
+  - optional tilt steering (`55021b3`);
+  - mission boards reordered, with Untouchable at 100 and new Corona missions (`8772154`);
+  - specials: Seeker Rack first at 40 s, Shockwave last at 450.
+- **Gate:** tsc, unit (948), build and Playwright 55/55 passed on the tilt commit. The missions and specials commits ran tsc, the full unit suite (feasibility included) and the browser specs for menus and missions.
+- **Shared code touched:**
+  - `src/shared/contracts.ts`: `InputFrame.horizontal` is now a number from −1 to 1, and `UiActions.setSteering`;
+  - `src/sim/game.ts`: `movePlayer` clamps the steering share.

@@ -358,3 +358,14 @@ User answers after reviewing the merged strike sites and encounter deck:
   - Dying Star, newly covered, takes 9 attempts.
   - **Sunburn** (THE HELIOPHAGE within 60 s) needs a top-level weapon: on Standard a level-3 weapon takes 61–75 s, a top-level Rail Driver 40–54 s.
 - **Totals:** 4,015 credits and 32 parts.
+
+### 6 November 2026 · Specials: Seeker Rack first at 40 s, Shockwave last at 450
+- **Hangar order:**
+  1. Seeker Rack (the free starter);
+  2. Siege Lance;
+  3. Gravity Well;
+  4. Shockwave, last, because "Shockwave is most valuable i feel like".
+- **Seeker Rack recharges in 40 s** (was 35).
+- **Shockwave costs 450 credits and a part** (was 350).
+- **Campaign only:** endless flies the Shockwave from `ENDLESS_LOADOUT`, and its recharge is unchanged.
+- **Measured:** every world's missions stay reachable with the 40 s Seeker Rack, Luna's Specialist (5 specials in one run) included.
