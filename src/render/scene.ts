@@ -312,7 +312,8 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
     // Black basalt under a white-gold star; the light comes up from the plasma (bounce), not down from a warm sky.
     background: 0x1a0904, sunElevation: 26, sun: [0xfff2e2, 4.4], hemisphere: [0x7a706a, 0x2a1408, .7], bounce: [0xff7a18, .8],
     shadowIntensity: .7, blobShadow: 0x0a0402, lowExposure: 1.05,
-    post: { exposure: 1.04, threshold: 1.05, knee: .3, strength: 1.1, lift: [.006, .004, .003], saturation: 1.1, contrast: 1.14, vignette: .38,
+    // Bloom .9 (user, 6 November; was 1.1): the plasma's glow had softened THE HELIOPHAGE over it.
+    post: { exposure: 1.04, threshold: 1.05, knee: .3, strength: .9, lift: [.006, .004, .003], saturation: 1.1, contrast: 1.14, vignette: .38,
       haze: [.55, .2, .05, .03],
       fog: { color: 0xff5a18, energy: 1.0, height: [-6.68, -7.2, .5], distance: [44, .04, .16] } },
     environment: 'desert',
