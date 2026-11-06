@@ -781,3 +781,11 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - `src/content/balance.ts`: `PACE`, `CAMPAIGN_SCROLL`, `airFirstShot`;
   - `src/sim/bastion.ts`: `arenaStopDistance` and `arenaScroll` use `CAMPAIGN_SCROLL`;
   - `src/playground/lab.ts`: `labClock`.
+- **Unlogged deploys since `3a91079` (Claude Code):**
+  - `?perf` run log and export button (`d8bf047`);
+  - frame pacing in whole refresh periods (`012de5d`);
+  - `?perf` test mode with every mission open and Twin Pulse at its top level (`ee03e2a`);
+  - Amnion triangles: ground banding, simplified shadow casters, lighter webs (`9630616`);
+  - Brood Heavy ace at 6.6k triangles (`5502dea`);
+  - the Pages deploy timeout raised to 30 min.
+- **Amnion flesh walls only on drops of 2.5 or more (was 1.5), Claude Code:** about 28% fewer walls. On matched Brood Strike frames, triangles fell from 210/187/166/161k to 161/162/129/129k. Checks: tsc, unit (943) and build passed. Playwright was not run, because the change is cosmetic placement only.
