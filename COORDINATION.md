@@ -789,3 +789,4 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - Brood Heavy ace at 6.6k triangles (`5502dea`);
   - the Pages deploy timeout raised to 30 min.
 - **Amnion flesh walls only on drops of 2.5 or more (was 1.5), Claude Code:** about 28% fewer walls. On matched Brood Strike frames, triangles fell from 210/187/166/161k to 161/162/129/129k. Checks: tsc, unit (943) and build passed. Playwright was not run, because the change is cosmetic placement only.
+- **Amnion flesh walls set back to drops of 2.0 or more (the midpoint), Claude Code:** on matched Brood Strike frames this is 185/172/148/149k triangles, against 210/187/166/161k at 1.5 and 161/162/129/129k at 2.5. Checks: tsc, unit (943) and build passed.

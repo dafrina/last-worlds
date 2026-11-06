@@ -460,7 +460,7 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
   }
   const canyonLip = (x: number, s: number) => amnionMasks(seed, x, s).massif < 0.25;
   for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, {
-    kind: 'fleshWall', salt: 0x7c4e, minDrop: 2.5, rimSpan: 0.7, maxAway: 0.75, minRun: 3, scale: [1.2, 1.5],
+    kind: 'fleshWall', salt: 0x7c4e, minDrop: 2.0, rimSpan: 0.7, maxAway: 0.75, minRun: 3, scale: [1.2, 1.5],
     cap: CAP, accept: canyonLip, arenas: true,
   })) essential.push(wall);
   return [...essential, ...cosmetic];
