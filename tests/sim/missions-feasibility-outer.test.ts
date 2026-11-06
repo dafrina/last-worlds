@@ -14,7 +14,9 @@ describe('world missions are all reachable', () => {
   it.each([
     ['deep-bloom', 5, 550, 4],
     ['brood-strike', 14, 625, 5],
-    ['final-horizon', 6, 625, 5],
+    // 13 since the fewer fuel skids (6 November): Gravity Slingshot (3 reflected kills, 5 before) comes about once in three
+    // Spectre runs, half as often as when reflected shots set off skids among the batteries.
+    ['final-horizon', 13, 625, 5],
   ] as const)('%s: all twelve within %i attempts', (mission, max, credits, parts) => {
     const result = clearWorld(mission, max);
     if (LOG) console.log(`${mission}: ${result.flown} attempts\n${result.log.join('\n')}`);

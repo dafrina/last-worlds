@@ -186,6 +186,18 @@ const templates = [
       { kind: 'dart', dx: 0, ds: 2.8, fire: 2 },
     ],
   },
+  // Luna and Khepri (user, 6 November: "the lasers should be first introduced in vesper. Kepri and moon shouldnt have
+  // them", Khepri then keeping a few scripted Lancers): the Lancer-led diamond with a weaver at its head.
+  {
+    id: 'diamond-weaver', name: 'Weaver-led diamond', entry: 'top',
+    path: TOP_HOLD(11.5, 8), sway: { axis: 'x', amp: 0.9, period: 5.2 }, fireFrom: 1, fireUntil: 9.4,
+    slots: [
+      { kind: 'weaver', dx: 0, fire: 0.4 },
+      { kind: 'dart', dx: -1.7, ds: 1.4, fire: 0, aim: -1.4 },
+      { kind: 'dart', dx: 1.7, ds: 1.4, fire: 1, aim: 1.4 },
+      { kind: 'dart', dx: 0, ds: 2.8, fire: 2 },
+    ],
+  },
   {
     id: 'dive-pair', name: 'Diving dart pair', entry: 'top',
     path: [[0, 0, 23], [4.5, 0, -8]], fireFrom: 0.6, fireUntil: 2.1,

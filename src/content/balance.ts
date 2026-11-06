@@ -193,7 +193,8 @@ export const BEAM_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['lancer', 
  * Vesper is the cycle's second world, later worlds stay harder). Endless Vesper had up to 9 (the ramp allows 7 windups
  * from sector 3).
  */
-export const VESPER_LINE_CAP = 5;
+/** 4 since 6 November (user: "vesper seems a bit too hard ... reduce lasers for vesper by 20%": fewer lines at once). */
+export const VESPER_LINE_CAP = 4;
 
 /**
  * Standardized endless ramp by sector s >= 1 (docs/03 §8). Independent of every campaign setting. After the
@@ -244,7 +245,8 @@ export const ENEMIES: Record<EnemyKind, {
   missile: { hp: 120, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 16, attackEvery: 1.9, warning: 1.45, score: 250, credits: 10 },
   // Fuel-tank skid (user request, 16 October): a harmless ground loot target that never fires; quick to burst.
   // Pulsar (Nacre): tracks the player through its windup, then streams a burst whose every shot aims at the player (PULSAR_BURST).
-  pulsar: { hp: 110, radius: 0.6, speed: 1.6, shotSpeed: 9, attackEvery: 2.6, warning: 1.1, score: 300, credits: 12 },
+  // 6 November (user): Nacre a bit easy, its Pulsars 15% tougher (110 → 127).
+  pulsar: { hp: 127, radius: 0.6, speed: 1.6, shotSpeed: 9, attackEvery: 2.6, warning: 1.1, score: 300, credits: 12 },
   wraith: { hp: 105, radius: 0.58, speed: 2.5, shotSpeed: 16, attackEvery: 5, warning: 0.9, score: 400, credits: 16 },
   fuel: { hp: 40, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 0, attackEvery: Infinity, warning: 0, score: 50, credits: 6 },
 };

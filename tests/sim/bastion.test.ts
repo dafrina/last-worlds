@@ -169,8 +169,10 @@ describe('Bastion-9 mission', () => {
     // pilot takes 31 hits at Standard and 50 at Veteran (all weapons), against 37 and 39 with the fixed list. Since the
     // earlier first windups (4 November, DifficultyScale.firstAttack: Standard ×0.75, Veteran ×0.5) Standard flies seed
     // 11 and Veteran seed 6, on which all three weapons clear (seed 4 now takes one hit with Standard pulse and Veteran
-    // seeker; no seed in 4-19 clears all nine). Relaxed is unchanged and keeps seed 4.
-    const seed = difficulty === 'relaxed' ? 4 : difficulty === 'standard' ? 11 : 6;
+    // seeker; no seed in 4-19 clears all nine). Relaxed is unchanged and keeps seed 4. Since Rolling Thunder's three
+    // scripted Lancers (6 November) Standard flies seed 3, the first of 1-60 on which all three weapons clear; over seeds
+    // 1-24 the perfect pilot now takes 3 hits at Standard (pulse), against 7 before.
+    const seed = difficulty === 'relaxed' ? 4 : difficulty === 'standard' ? 3 : 6;
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed });
     const log = fly(state, perfectPilot(), 360, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

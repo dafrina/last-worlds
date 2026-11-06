@@ -299,3 +299,18 @@ User answers after reviewing the merged strike sites and encounter deck:
   - Luna once as the warm-up, then Khepri, Vesper, Nacre, Amnion, Corona and Umbra, three sectors each with its boss, repeated from Khepri. Before, only Khepri, Vesper and Nacre repeated; Amnion and Umbra were never added.
   - A lap is now 18 sectors, not 9, and the late worlds carry their campaign intensity.
   - Fairness checks fly each world's first stint and a capped later visit to each: all pass.
+
+### 6 November 2026 · Balance after the user's campaign playthrough
+
+- **Fuel tanks (user: "Amnion gives way too much payout. I think its due to the red gas tanks being quite OP. We should reduce them, especially the ones that spawn in pairs"; then "Maybe one every two ground enemy sites but currently theyre everywhere"):**
+  - No skid pairs under flights: none from the late-world pools (Nacre, Amnion, Corona, Umbra), and none under the first flights of Deep Bloom, Brood Strike, Final Horizon and Dying Star.
+  - A depot in about one ground group of three on those worlds. Measured with the perfect pilot over four seeds: about 10 skids a mission before, about 5 after.
+  - The blast is unchanged (user: "no blast hit not only ground targets ... i just said less tanks").
+  - **Effect (perfect pilot, seeds 1–24):** Brood Strike credits 341 → 280 and Final Horizon 385 → 335. Luna, Khepri and Vesper are unchanged.
+  - **World missions moved with it:** Bonfire needs 35 gas tanks (75 before), and Gravity Slingshot 3 reflected kills (5 before). Reflected shots used to set off skids among the batteries.
+- **Lasers (user: "the lasers should be first introduced in vesper. Kepri and moon shouldnt have them", then "keep them as khepri scripted ... To introduce them as an enemy", "vesper should have the flocks"):**
+  - Luna has no Lancer; Training's beam lesson is gone, and Luna's pools fly the new weaver-led diamond instead.
+  - Khepri draws none. Rolling Thunder has three scripted Lancers, the first with the "BEAM LOCK" lesson. Endless Khepri stages have one or two scripted Lancers each, and its ace stays a Lancer.
+  - Vesper's Needle flocks are unchanged.
+- **Vesper "a bit too hard ... reduce lasers for vesper by 20%"** ("Fewer lines at once"): `VESPER_LINE_CAP` 5 → 4.
+- **Nacre "a bit not so hard ... increase pulsar health by ... 15%":** Pulsar hp 110 → 127 (every world that flies Pulsars).

@@ -167,20 +167,20 @@ function w(formations: FormationId | readonly (FormationId | FormationPlacement)
  */
 const LUNA_PRESSURE: readonly DeckWave[] = [
   w('arrow-3'), w('line-dart-4'), w('echelon-4'), w('dive-pair'), w(['dive-pair', 'fuel-pair']), w('line-weaver-4'), w('snake-weaver-5'),
-  w(['echelon-4', 'fuel-depot']), w(['arrow-3', 'fuel-pair']), w('solo-lancer'),
+  w(['echelon-4', 'fuel-depot']), w(['arrow-3', 'fuel-pair']), w('diamond-weaver'),
   w('battery-2'), w('battery-3'), w('depot-2'),
 ];
 const LUNA_CLIMAX: readonly DeckWave[] = [
-  w('arrow-3'), w('arrow-5'), w('line-dart-4'), w('echelon-4'), w('pincer-4'), w('diamond-lancer'), w('snake-weaver-5'), w('line-weaver-4'),
+  w('arrow-3'), w('arrow-5'), w('line-dart-4'), w('echelon-4'), w('pincer-4'), w('diamond-weaver'), w('snake-weaver-5'), w('line-weaver-4'),
   w('battery-2'), w('battery-3'), w('depot-2'),
 ];
 const KHEPRI_PRESSURE: readonly DeckWave[] = [
   w('arrow-3'), w('arrow-5'), w('line-dart-4'), w('echelon-4'), w(['echelon-4', 'fuel-depot']), w('dive-pair'), w('line-weaver-4'), w('snake-weaver-5'),
-  w('diamond-lancer'), w('pincer-4'),
+  w('diamond-weaver'), w('pincer-4'),
   w('battery-2'), w('battery-3'), w('battery-4'), w('depot-2'), w('depot-3'),
 ];
 const KHEPRI_CLIMAX: readonly DeckWave[] = [
-  w('arrow-5'), w('line-dart-4'), w('echelon-4'), w('pincer-4'), w('diamond-lancer'), w('snake-weaver-5'), w('line-weaver-4'),
+  w('arrow-5'), w('line-dart-4'), w('echelon-4'), w('pincer-4'), w('diamond-weaver'), w('snake-weaver-5'), w('line-weaver-4'),
   w('battery-2'), w('battery-3'), w('battery-4'), w('depot-3'),
 ];
 const VESPER_PRESSURE_POOL: readonly DeckWave[] = [
@@ -192,23 +192,23 @@ const VESPER_CLIMAX: readonly DeckWave[] = [
   w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const NACRE_PRESSURE_POOL: readonly DeckWave[] = [
-  w('line-weaver-4'), w(['line-weaver-4', 'fuel-pair']), w('snake-weaver-5'), w('needle-solo'), w('needle-line-3'), w('needle-column-5'),
+  w('line-weaver-4'), w('snake-weaver-5'), w('needle-solo'), w('needle-line-3'), w('needle-column-5'),
   w('diamond-solo'),
-  w('battery-2'), w('battery-3'), w('depot-2'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
+  w('battery-2'), w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const NACRE_CLIMAX: readonly DeckWave[] = [
   w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'), w('diamond-solo'), w('diamond-convoy'),
-  w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
+  w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'),
 ];
 /** Amnion's brood (docs/27): drone flights, nest spires, spore mortars, egg sacs, heavies (its two Pulsars fly in their arc slots). */
 const AMNION_PRESSURE: readonly DeckWave[] = [
-  w('arrow-3'), w('line-dart-4'), w('line-weaver-4'), w(['line-weaver-4', 'fuel-pair']), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
+  w('arrow-3'), w('line-dart-4'), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
   w('diamond-solo'), w('diamond-lancer'),
-  w('battery-2'), w('battery-3'), w('depot-2'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
+  w('battery-2'), w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const AMNION_CLIMAX: readonly DeckWave[] = [
   w('arrow-5'), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'), w('diamond-lancer'), w('diamond-convoy'),
-  w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
+  w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'),
 ];
 /** Umbra's fleet (docs/28): Amnion's mix of craft (its Wraiths and artillery ships fly in their arc slots). */
 const UMBRA_PRESSURE: readonly DeckWave[] = AMNION_PRESSURE;
@@ -266,14 +266,14 @@ const TRAINING: readonly DeckSlot[] = [
   draw({ at: 49, id: 't-line-weaver', phase: 'pressure', formations: [f('line-weaver-4')] }),
   draw({ at: 53, id: 't-battery', phase: 'pressure', formations: [f('battery-3')] }, 2),
   fix({ at: 56, id: 't-snake', phase: 'pressure', message: 'COLUMN CROSSING', formations: [f('snake-weaver-5')] }),
-  fix({ at: 61, id: 't-lancer', phase: 'pressure', message: 'BEAM LOCK · LEAVE THE MARKED LANE', formations: [f('solo-lancer', 1)] }),
+  fix({ at: 61, id: 't-lancer', phase: 'pressure', formations: [f('solo-weaver', 1)] }),
   draw({ at: 64, id: 't-battery-2', phase: 'pressure', formations: [f('battery-2')] }),
   draw({ at: 67, id: 't-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true), f('fuel-depot')] }),
   fix({ at: 72, id: 't-arrow-5', phase: 'climax', message: 'SQUADRONS INBOUND', formations: [f('arrow-5')] }),
   draw({ at: 75, id: 't-battery-climax-1', phase: 'climax', formations: [f('battery-3')] }, 3),
   draw({ at: 79, id: 't-pincer', phase: 'climax', formations: [f('pincer-4')] }),
   draw({ at: 84, id: 't-battery-climax', phase: 'climax', formations: [f('battery-2')] }),
-  draw({ at: 86, id: 't-diamond', phase: 'climax', formations: [f('diamond-lancer')] }),
+  draw({ at: 86, id: 't-diamond', phase: 'climax', formations: [f('diamond-weaver')] }),
   draw({ at: 92, id: 't-snake-climax', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 95, id: 't-battery-late', phase: 'climax', formations: [f('battery-2')] }),
   fix({ at: 97, id: 't-last', phase: 'climax', message: 'LAST PATROL', formations: [f('line-dart-4')] }),
@@ -291,7 +291,9 @@ const ROLLING_THUNDER: readonly DeckSlot[] = [
   draw({ at: 18, id: 'r-echelon', phase: 'pressure', formations: [f('echelon-4')] }),
   draw({ at: 24, id: 'r-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
   fix({ at: 27, id: 'r-battery-2', phase: 'pressure', message: 'FUEL DEPOT · ONE SHOT SETS IT OFF', formations: [f('depot-2')] }),
-  draw({ at: 30, id: 'r-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
+  // Khepri introduces the beams: three scripted Lancers, none drawn (user, 6 November: lasers only from Vesper, Khepri
+  // keeping a few scripted to introduce them as an enemy).
+  fix({ at: 30, id: 'r-diamond', phase: 'pressure', message: 'BEAM LOCK · LEAVE THE MARKED LANE', formations: [f('solo-lancer')] }),
   draw({ at: 36, id: 'r-dive', phase: 'pressure', formations: [f('dive-pair')] }),
   // One strike site where the old salvage route was: a second one held the threat budget until the fuel depot after the
   // recovery arrived on top of it, the pilot still out at a site by the world edge (docs/33 § 4.1).
@@ -305,7 +307,7 @@ const ROLLING_THUNDER: readonly DeckSlot[] = [
   draw({ at: 63, id: 'r-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true), f('fuel-depot')] }),
   fix({ at: 69, id: 'r-arrow-5', phase: 'climax', message: 'FORTRESS ESCORT · BREAK THROUGH', formations: [f('arrow-5')] }),
   draw({ at: 73, id: 'r-battery-climax', phase: 'climax', formations: [f('battery-3')] }),
-  draw({ at: 76, id: 'r-diamond-climax', phase: 'climax', formations: [f('diamond-lancer')] }),
+  fix({ at: 76, id: 'r-diamond-climax', phase: 'climax', formations: [f('diamond-lancer')] }),
   draw({ at: 82, id: 'r-battery-4-climax', phase: 'climax', formations: [f('battery-4')] }, 4),
   draw({ at: 84, id: 'r-snake-climax', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 89, id: 'r-pincer-climax', phase: 'climax', formations: [f('pincer-4')] }),
@@ -344,7 +346,7 @@ const SECTOR_PRESSURE: readonly DeckSlot[] = [
   draw({ at: 9, id: 'e2-echelon', phase: 'pressure', formations: [f('echelon-4')] }),
   draw({ at: 13, id: 'e2-battery-4', phase: 'pressure', formations: [f('battery-4')] }),
   draw({ at: 15, id: 'e2-snake', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] }),
-  draw({ at: 20, id: 'e2-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
+  fix({ at: 20, id: 'e2-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
   draw({ at: 23, id: 'e2-battery-2', phase: 'pressure', formations: [f('battery-2')] }),
   draw({ at: 26, id: 'e2-line', phase: 'pressure', formations: [f('line-dart-4')] }),
   fix({ at: 33, id: 'e2-west', phase: 'recovery', formations: [], pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } }),
@@ -354,7 +356,7 @@ const SECTOR_PRESSURE: readonly DeckSlot[] = [
   draw({ at: 49, id: 'e2-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] }),
   draw({ at: 52, id: 'e2-battery-3', phase: 'pressure', formations: [f('battery-2')] }),
   draw({ at: 54, id: 'e2-seeker', phase: 'pressure', formations: [f('dive-pair')], pickup: { kind: 'weapon', x: 0, s: 17, value: 1, weapon: 'seeker' } }),
-  draw({ at: 58, id: 'e2-climax-diamond', phase: 'climax', formations: [f('diamond-lancer')] }),
+  draw({ at: 58, id: 'e2-climax-diamond', phase: 'climax', formations: [f('diamond-weaver')] }),
   draw({ at: 61, id: 'e2-climax-battery', phase: 'climax', formations: [f('battery-4')] }),
   draw({ at: 64, id: 'e2-climax-snake', phase: 'climax', formations: [f('snake-weaver-5')] }),
   draw({ at: 68, id: 'e2-climax-arrow', phase: 'climax', formations: [f('arrow-5')] }),
@@ -369,7 +371,7 @@ const SECTOR_PEAK: readonly DeckSlot[] = [
   draw({ at: 4, id: 'e3-battery', phase: 'pressure', formations: [f('battery-3')] }),
   draw({ at: 7, id: 'e3-pincer', phase: 'pressure', formations: [f('pincer-4')], pickup: { kind: 'power', x: 0, s: 17, value: 1 } }),
   draw({ at: 10, id: 'e3-battery-4', phase: 'pressure', formations: [f('battery-4')] }),
-  draw({ at: 12, id: 'e3-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
+  fix({ at: 12, id: 'e3-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
   draw({ at: 17, id: 'e3-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
   draw({ at: 19, id: 'e3-battery-2', phase: 'pressure', formations: [f('battery-2')] }),
   draw({ at: 21, id: 'e3-echelon', phase: 'pressure', formations: [f('echelon-4')] }),
@@ -380,14 +382,14 @@ const SECTOR_PEAK: readonly DeckSlot[] = [
   draw({ at: 41, id: 'e3-echelon-left', phase: 'pressure', formations: [f('echelon-4', 0, true)] }),
   draw({ at: 44, id: 'e3-arrow-2', phase: 'pressure', formations: [f('arrow-5')] }),
   draw({ at: 46, id: 'e3-battery-late', phase: 'pressure', formations: [f('battery-4')] }),
-  draw({ at: 48, id: 'e3-seeker', phase: 'pressure', formations: [f('diamond-lancer')], pickup: { kind: 'weapon', x: -1, s: 17, value: 1, weapon: 'seeker' } }),
+  draw({ at: 48, id: 'e3-seeker', phase: 'pressure', formations: [f('diamond-weaver')], pickup: { kind: 'weapon', x: -1, s: 17, value: 1, weapon: 'seeker' } }),
   draw({ at: 53, id: 'e3-climax-pincer', phase: 'climax', formations: [f('pincer-4')] }),
   draw({ at: 55, id: 'e3-climax-battery', phase: 'climax', formations: [f('battery-3')] }),
   draw({ at: 58, id: 'e3-climax-snake', phase: 'climax', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 61, id: 'e3-climax-arrow', phase: 'climax', formations: [f('arrow-5')] }),
   draw({ at: 63, id: 'e3-climax-battery-4', phase: 'climax', formations: [f('battery-4')] }),
   draw({ at: 66, id: 'e3-climax-line', phase: 'climax', formations: [f('line-dart-4')] }),
-  draw({ at: 70, id: 'e3-climax-diamond', phase: 'climax', formations: [f('diamond-lancer')] }),
+  fix({ at: 70, id: 'e3-climax-diamond', phase: 'climax', formations: [f('diamond-lancer')] }),
   draw({ at: 72, id: 'e3-climax-battery-2', phase: 'climax', formations: [f('battery-2')] }),
   draw({ at: 74, id: 'e3-climax-echelon', phase: 'climax', formations: [f('echelon-4')] }),
   relief(84, 'e3-relief'),
@@ -506,7 +508,7 @@ const COLD_VECTOR: readonly DeckSlot[] = [
  * Vector.
  */
 const DEEP_BLOOM: readonly DeckSlot[] = [
-  fix({ at: 2, id: 'n-first-weavers', phase: 'intro', message: 'DEEP BLOOM · SINE FLIGHTS OVER THE MIRE', formations: [f('line-weaver-4'), f('fuel-pair')] }),
+  fix({ at: 2, id: 'n-first-weavers', phase: 'intro', message: 'DEEP BLOOM · SINE FLIGHTS OVER THE MIRE', formations: [f('line-weaver-4')] }),
   fix({ at: 8, id: 'n-first-needle', phase: 'intro', formations: [f('needle-solo')] }),
   fix({ at: 12, id: 'n-first-batteries', phase: 'intro', message: 'BATTERIES ON THE ISLANDS', formations: [f('battery-2')] }),
   draw({ at: 16, id: 'n-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
@@ -550,7 +552,7 @@ const DEEP_BLOOM: readonly DeckSlot[] = [
  * the hardest thing to read over the glowing canyons). Enemy craft and ground pieces keep their kinds' behaviour.
  */
 const BROOD_STRIKE: readonly DeckSlot[] = [
-  fix({ at: 2, id: 'b-first-drones', phase: 'intro', message: 'BROOD STRIKE · DRONES OVER THE CANYONS', formations: [f('line-weaver-4'), f('fuel-pair')] }),
+  fix({ at: 2, id: 'b-first-drones', phase: 'intro', message: 'BROOD STRIKE · DRONES OVER THE CANYONS', formations: [f('line-weaver-4')] }),
   fix({ at: 8, id: 'b-first-darts', phase: 'intro', formations: [f('arrow-3')] }),
   fix({ at: 12, id: 'b-first-spires', phase: 'intro', message: 'NEST SPIRES ON THE PLATEAU', formations: [f('battery-2')] }),
   draw({ at: 16, id: 'b-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
@@ -594,7 +596,7 @@ const BROOD_STRIKE: readonly DeckSlot[] = [
  * Pressure as Brood Strike's: the final planet is not made harder before it has been played.
  */
 const FINAL_HORIZON: readonly DeckSlot[] = [
-  fix({ at: 2, id: 'u-first-fighters', phase: 'intro', message: 'FINAL HORIZON · THE UMBRAL FLEET', formations: [f('line-weaver-4'), f('fuel-pair')] }),
+  fix({ at: 2, id: 'u-first-fighters', phase: 'intro', message: 'FINAL HORIZON · THE UMBRAL FLEET', formations: [f('line-weaver-4')] }),
   fix({ at: 8, id: 'u-first-interceptors', phase: 'intro', formations: [f('arrow-3')] }),
   fix({ at: 12, id: 'u-first-turrets', phase: 'intro', message: 'DEFENSE TURRETS ON THE OBSIDIAN', formations: [f('battery-2')] }),
   fix({ at: 16, id: 'u-phase-contact', phase: 'pressure', message: 'WRAITH · WATCH ITS ARRIVAL POINT', formations: [f('wraith-solo')] }),
@@ -652,7 +654,7 @@ const ROLLING_THUNDER_SORTIE = extend(ROLLING_THUNDER, 47, 24, [
   draw({ at: 9, id: 'r-x-depot-2', phase: 'pressure', formations: [f('depot-2')] }),
   draw({ at: 11, id: 'r-x-snake', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] }),
   draw({ at: 17, id: 'r-x-battery', phase: 'pressure', formations: [f('battery-3')] }, 1),
-  draw({ at: 19, id: 'r-x-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
+  fix({ at: 19, id: 'r-x-diamond', phase: 'pressure', formations: [f('diamond-lancer')] }),
 ]);
 const COLD_VECTOR_SORTIE = extend(COLD_VECTOR, 89, 28, [
   fix({ at: 0, id: 'v-x-depot', phase: 'pressure', message: 'FUEL BARGES · BLOW THEM', formations: [f('depot-missile')] }),
