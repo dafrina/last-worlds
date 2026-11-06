@@ -1,4 +1,9 @@
 """Amnion brood heavy and Umbra Wraith, authored through live Blender MCP.
+
+6 November: the brood heavy at about a third of its triangles (15.3k for one ace, against 300-2,400 for an enemy;
+Amnion drew twice the triangles of any world): plates, tusks, teeth, sinews, gums and the mouth at lower resolution.
+Headless: `blender -b --python phase_predators.py -- --brood-only` exports only the brood heavy (the game flies
+wraith-v2, built elsewhere).
 Run in an isolated scene: never clear the user's existing scenes or overwrite their assets.
 Design coordinates are game x/up/z-forward; converted to Blender x/-y/z-up on creation.
 """
@@ -9,8 +14,10 @@ from mathutils import Vector
 ROOT = Path(r'\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies')
 OUT = ROOT / 'lookdev' / 'phase-predators'
 OUT.mkdir(parents=True, exist_ok=True)
+import sys
+BROOD_ONLY = '--brood-only' in sys.argv
 scene = bpy.data.scenes.new('Codex phase predators')
-bpy.context.window.scene = scene
+if bpy.context.window: bpy.context.window.scene = scene
 
 def xyz(p): return Vector((p[0], -p[2], p[1]))
 
@@ -113,7 +120,7 @@ for side in [-1,1]:
 horn('dorsal_needle',[(0,.20,-.25),(0,.5,-.4),(0,.6,-.85),(0,.3,-1.2)],.08,.11,obsidian,wraith,18,10)
 
 brood=root('amnion_brood_heavy')
-body=ellipsoid('living_mass',(0,-.08,0),(.75,.42,.84),flesh,brood,18,36)
+body=ellipsoid('living_mass',(0,-.08,0),(.75,.42,.84),flesh,brood,12,24)
 # A real open mouth: remove the dome under the iris so teeth overhang a dark cavity.
 import bmesh
 bm=bmesh.new();bm.from_mesh(body.data)
@@ -122,7 +129,7 @@ bm.to_mesh(body.data);bm.free()
 # Unequal overlapping bone petals leave a dark, deep, toothed aperture exposed to the game camera.
 for k in range(9):
     angle=2*math.pi*k/9; width=.28+.045*math.sin(k*2.4); extent=1.02+.12*math.sin(k*3.1)
-    verts=[];faces=[];rows=13;cols=9
+    verts=[];faces=[];rows=8;cols=6
     for j in range(rows):
         t=j/(rows-1); r=.39+(extent-.39)*t
         for i in range(cols):
@@ -138,18 +145,18 @@ for k in range(9):
     mod=o.modifiers.new('bone_thickness','SOLIDIFY'); mod.thickness=.035
     bpy.context.view_layer.objects.active=o; bpy.ops.object.modifier_apply(modifier=mod.name)
     direction=(math.cos(angle),math.sin(angle))
-    horn('peripheral_tusk',[(direction[0]*.75,.02,direction[1]*.75),(direction[0]*1.04,.08,direction[1]*1.04),(direction[0]*1.22,.15,direction[1]*1.22),(direction[0]*1.30,.30,direction[1]*1.30)],.07,.055,bone,brood,12,8)
-ring('wet_gums',.355,.058,.27,gum,brood)
-ring('buried_inner_rim',.23,.03,.1,flesh,brood)
-ellipsoid('depth_of_mouth',(0,-.015,0),(.34,.08,.36),pit,brood,12,32)
-ellipsoid('subsurface_heart',(0,.07,-.02),(.07,.04,.09),red,brood,10,16)
+    horn('peripheral_tusk',[(direction[0]*.75,.02,direction[1]*.75),(direction[0]*1.04,.08,direction[1]*1.04),(direction[0]*1.22,.15,direction[1]*1.22),(direction[0]*1.30,.30,direction[1]*1.30)],.07,.055,bone,brood,9,7)
+ring('wet_gums',.355,.058,.27,gum,brood,24,6)
+ring('buried_inner_rim',.23,.03,.1,flesh,brood,20,5)
+ellipsoid('depth_of_mouth',(0,-.015,0),(.34,.08,.36),pit,brood,8,20)
+ellipsoid('subsurface_heart',(0,.07,-.02),(.07,.04,.09),red,brood,6,10)
 for k in range(15):
     a=k*2*math.pi/15; c=math.cos(a); s=math.sin(a); length=.14+.07*math.sin(k*2.1)**2
-    horn('inward_tooth',[(c*.34,.30,s*.34),(c*.29,.33,s*.29),(c*.20,.21,s*.20),(c*length,.08,s*length)],.035,.025,ivory,brood,9,7)
+    horn('inward_tooth',[(c*.34,.30,s*.34),(c*.29,.33,s*.29),(c*.20,.21,s*.20),(c*length,.08,s*length)],.035,.025,ivory,brood,5,5)
 for k in range(11):
     a=k*2*math.pi/11;c=math.cos(a);s=math.sin(a)
-    horn('hanging_sinew',[(c*.50,-.12,s*.52),(c*.80,-.35,s*.69),(c*.66,-.65,s*.83),(c*.83,-.78,s*1.02)],.045,.036,flesh,brood,16,7)
-    if k%3 == 0: ellipsoid('brood_nodule',(c*.59,-.25,s*.61),(.12,.14,.12),bone,brood,10,14)
+    horn('hanging_sinew',[(c*.50,-.12,s*.52),(c*.80,-.35,s*.69),(c*.66,-.65,s*.83),(c*.83,-.78,s*1.02)],.045,.036,flesh,brood,8,5)
+    if k%3 == 0: ellipsoid('brood_nodule',(c*.59,-.25,s*.61),(.12,.14,.12),bone,brood,6,9)
 
 def descendants(parent): return [parent]+list(parent.children_recursive)
 def export(parent, relative):
@@ -165,7 +172,7 @@ def export(parent, relative):
         if o.type=='MESH': o.data.calc_loop_triangles();tris+=len(o.data.loop_triangles)
     return {'file':relative,'triangles':tris,'bytes':path.stat().st_size}
 
-manifest=[export(brood,'public/assets/amnion/brood-heavy-v1.glb'),export(wraith,'public/assets/umbra/wraith-v1.glb')]
+manifest=[export(brood,'public/assets/amnion/brood-heavy-v1.glb')] + ([] if BROOD_ONLY else [export(wraith,'public/assets/umbra/wraith-v1.glb')])
 (OUT/'manifest.json').write_text(json.dumps(manifest,indent=2))
 
 # A real Blender preview with grazing highlights so black surfaces remain black yet legible.
