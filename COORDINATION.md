@@ -822,3 +822,5 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
     - `BALANCE.pickup.catchBoost`.
   - **Gate:** tsc, unit (950+), build, and Playwright 51/55 on the first run. All four failures pass on rerun: three timeouts under load, and the Vesper spec's old "Helion Ark" text, fixed.
   - **Not included:** the measured performance pass, kept in stash `perf-pass` (SHA 9f93298) at the user's request, not deployed.
+- **Claude Code, 7 November: UI redesign merged** (`ui-redesign` bfcb147, merge e5e86cf). It touches `src/ui/*` only.
+  - **Gate:** tsc, unit (953), build, and Playwright 53/55. The two Bastion specs that failed passed alone, 3/3; the machine was loaded by a key-art render at the time.

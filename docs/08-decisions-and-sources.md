@@ -386,3 +386,22 @@ User answers after reviewing the merged strike sites and encounter deck:
   - It's readable (within 45° of facing) about 91% of the time.
   - A glint follows each turn, and the drop dims slightly side-on.
   - This is render-only (`pickupSpin` in src/render/scene.ts).
+
+### 7 November 2026 · UI redesign: a premium mobile look on the game's own fonts
+- **The mock-up the user approved:** artifact `Lh5QNMKPr3i1P7Q26gNkSc`, built on branch `ui-redesign` (bfcb147) and merged.
+- **Style:** the same navy, ivory and amber identity, with more depth: layered cards and cut-corner buttons. The game's fonts are kept ("I also like the current font"), and a condensed face appears only on the big results numbers.
+- **Front screen:**
+  - credit and part capsules;
+  - CAMPAIGN / ENDLESS with a second line (the next mission, the best sector);
+  - the hangar as a bigger showcase card ("keep the card but make it bigger with more info"): the ship on a lit pad, its perk, the main weapon with its tier, special and shield;
+  - one icon row for Statistics, Settings and How to play.
+- **Campaign page:**
+  - a full-width LAUNCH bar pinned to the bottom, with no mission text ("I like the normal A but full width without training on the left");
+  - no boss chip;
+  - the mission board stays below, scrolled to, in the new card design;
+  - EQUIPPED tiles.
+  - The word "loadout" appears nowhere in the UI.
+- **Results:** a tap on a completed mission opens that world's board on the campaign page.
+- **Hangar:** EQUIPPED shows the ship on its pad and four slot tabs; the armory sits below.
+- **Settings:** grouped into Audio, Display and Controls.
+- **Unchanged:** the in-flight HUD (invariant 3).
