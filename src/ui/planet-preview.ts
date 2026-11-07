@@ -1,13 +1,19 @@
 import type { PlanetId } from '../shared/contracts';
 import { rowPoint, terrainRow } from '../world/terrain-ground';
+import { CORONA_SEA_LEVEL } from '../world/terrain-corona';
 
 /**
  * Mission-select planet preview: a slowly spinning globe painted from the level's own terrain (its landform and
  * palette, sampled once at a coarse scale), lit from the upper left like the flight. A plain 2D canvas, so the menu
  * never opens a second WebGL context on phones. Presentation only.
  */
-const TEXTURE_W = 240, TEXTURE_H = 120, BLEND = 24, SPACING = 0.6, SEED = 93;
-const SIZE = 200;
+/**
+ * Detail (user, 7 November: "increase the details/texture details on the world previews"): a 480×240 texture sampled every
+ * 0.3 units (the same stretch of terrain as before at twice the resolution), drawn on a 384 px canvas (the globe shows up
+ * to 250 CSS px, about 750 device px on a 3× phone; 200 px was stretched almost fourfold).
+ */
+const TEXTURE_W = 480, TEXTURE_H = 240, BLEND = 48, SPACING = 0.3, SEED = 93;
+const SIZE = 384;
 /** Atmosphere glow at the limb (CSS colour) per world; airless Luna gets only a faint grey edge. */
 const ATMOSPHERE: Readonly<Record<PlanetId, string>> = { khepri: '232, 138, 80', vesper: '150, 205, 255', luna: '190, 190, 195', nacre: '170, 120, 255', amnion: '235, 185, 110', corona: '255, 150, 60', umbra: '140, 110, 255' };
 const ATMOSPHERE_STRENGTH: Readonly<Record<PlanetId, number>> = { khepri: 0.55, vesper: 0.6, luna: 0.18, nacre: 0.7, amnion: 0.5, corona: 0.85, umbra: 0.75 };
@@ -44,6 +50,20 @@ export function prebakePlanets(planets: readonly PlanetId[]): void {
   idle(slice);
 }
 
+/** Corona's plasma on the preview: hot veins (thin ridges of a warped value noise, 0 … 1) and dark crust patches (0 … 1). */
+function plasmaVein(u: number, v: number): { vein: number; crust: number } {
+  const hash = (x: number, y: number) => { let h = Math.imul(x, 0x27d4eb2d) ^ Math.imul(y, 0x165667b1); h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); return ((h ^ (h >>> 13)) >>> 0) / 4294967296; };
+  const noise = (x: number, y: number) => {
+    const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const top = hash(x0, y0) + (hash(x0 + 1, y0) - hash(x0, y0)) * sx, bottom = hash(x0, y0 + 1) + (hash(x0 + 1, y0 + 1) - hash(x0, y0 + 1)) * sx;
+    return top + (bottom - top) * sy;
+  };
+  const warp = noise(u / 23, v / 23) * 4;
+  const n = noise(u / 14 + warp, v / 9 + warp * .6);
+  const crust = Math.max(0, Math.min(1, (noise(u / 7 + 50, v / 7 + warp) - .55) * 4));
+  return { vein: Math.max(0, 1 - Math.abs(n - .5) * 9), crust };
+}
+
 const srgb = (linear: number) => 255 * (linear <= 0.0031308 ? linear * 12.92 : 1.055 * Math.pow(linear, 1 / 2.4) - 0.055);
 
 /** Bakes a planet's equirectangular texture in row steps (forward distance → longitude, lateral x → latitude). */
@@ -65,6 +85,13 @@ function* bake(planet: PlanetId): Generator<void, Texture, void> {
       // Relief from the same upper-left sun as the flight: faces toward it brighten, away from it darken.
       const relief = Math.max(0.4, Math.min(1.45, 1 + (-gx * 0.7 + gs * 0.7) * 0.55));
       const i = (v * width + u) * 3;
+      if (planet === 'corona' && point.height < CORONA_SEA_LEVEL + 0.4) {
+        // Corona's plasma is drawn by the flight's water shader, not the terrain: paint it glowing, with darker veins.
+        // Deep orange with dark crust patches, and yellow-hot veins on top.
+        const { vein, crust } = plasmaVein(u, v), base = 1 - crust * .75;
+        colors[i] = .85 * base + vein * .5; colors[i + 1] = .2 * base + vein * .45; colors[i + 2] = .015 * base + vein * .12;
+        continue;
+      }
       colors[i] = out[0] * relief; colors[i + 1] = out[1] * relief; colors[i + 2] = out[2] * relief;
     }
     yield;
