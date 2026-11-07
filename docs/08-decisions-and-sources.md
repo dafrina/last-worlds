@@ -422,3 +422,9 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **Spin:** the token turns with the same full-turn spin as before.
 - **Fallback:** the flat icons show until the GLB loads.
 - **Cost:** the same draw calls as before (one batch per icon); at most a few thousand triangles with every drop on screen.
+- **Turning (revised the same day):** the tokens never stop turning (user: "They should turn constantly just slower when face on").
+  - One turn every 3 s.
+  - About 11°/s face on and about 350°/s edge on, from a sine ease applied twice.
+  - Readable about two thirds of the time.
+  - A glint as the face swings past the light.
+

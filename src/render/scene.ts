@@ -498,20 +498,18 @@ function graphStats(scene: THREE.Scene, names?: Record<string, number>) {
   return { objects, visible, drawables, emptyBatches, autoMatrix, casters, ...(names ? { names } : {}) };
 }
 
-/** A drop's turn at time `t` (seconds): the angle about its upright axis and its light (1 facing, a glint after a turn). */
-const PICKUP_CYCLE = 3, PICKUP_REST = .7, PICKUP_DRIFT = .3;
+/**
+ * A drop's turn at time `t` (seconds): the angle about its upright axis and its light. It never stops turning (user, 7
+ * November: "They should turn constantly just slower when face on"): one turn every PICKUP_CYCLE seconds, about 11°/s while
+ * it faces the camera and about 350°/s edge-on, from a sine ease applied twice; readable (within 45° of facing) about
+ * two thirds of the time. A glint as its face swings past the light just after facing.
+ */
+const PICKUP_CYCLE = 3, PICKUP_EASE = .7;
+const pickupEase = (u: number) => u - PICKUP_EASE * Math.sin(2 * Math.PI * u) / (2 * Math.PI);
 export function pickupSpin(t: number): { angle: number; light: number } {
-  const u = ((t / PICKUP_CYCLE) % 1 + 1) % 1;
-  let angle: number;
-  if (u < PICKUP_REST) angle = -PICKUP_DRIFT + 2 * PICKUP_DRIFT * (u / PICKUP_REST);
-  else {
-    // easeOutBack: the turn starts fast, slows, overshoots a little and settles back facing the camera (0.9 s; readable,
-    // within 45° of facing, about 91% of each cycle).
-    const f = (u - PICKUP_REST) / (1 - PICKUP_REST), c = 1.70158, e = 1 + (c + 1) * (f - 1) ** 3 + c * (f - 1) ** 2;
-    angle = PICKUP_DRIFT + (Math.PI * 2 - 2 * PICKUP_DRIFT) * e;
-  }
-  const facing = Math.abs(Math.cos(angle)), glint = u < .12 ? 1 - u / .12 : 0;
-  return { angle, light: .7 + .3 * facing + .7 * glint * glint };
+  const u = ((t / PICKUP_CYCLE) % 1 + 1) % 1, angle = 2 * Math.PI * pickupEase(pickupEase(u));
+  const turned = Math.atan2(Math.sin(angle), Math.cos(angle)), glint = Math.exp(-(((turned - .35) / .14) ** 2));
+  return { angle, light: .7 + .3 * Math.abs(Math.cos(angle)) + .6 * glint };
 }
 
 export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
