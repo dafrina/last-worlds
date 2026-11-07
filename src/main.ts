@@ -254,6 +254,15 @@ const benchSteer = (tick: number, x: number): -1 | 0 | 1 => {
 
 const pacing = createFramePacer();
 
+/** The boot splash (index.html) fades out once the first frame is drawn, then leaves the page. */
+let booting = true;
+function finishBoot() {
+  booting = false;
+  const boot = document.getElementById('boot');
+  if (!boot) return;
+  boot.classList.add('done');
+  setTimeout(() => boot.remove(), 600);
+}
 function frame(now: number) {
   const frameStart = performance.now();
   // Scene creation and initial shader compilation are loading, not active flight time.
@@ -296,6 +305,8 @@ function frame(now: number) {
   const renderStart = performance.now();
   renderer?.render(loadingRun ?? dying ?? run ?? preview, dying ? (afterglow!.victory ? 0 : afterglow!.accumulator / STEP) : accumulator / STEP);
   const renderMs = performance.now() - renderStart;
+  // The menu's first frame is on screen (or the WebGL error panel, without a renderer): drop the boot splash.
+  if (booting) finishBoot();
   perf?.frame(now - perfLast, simMs, renderMs);
   const uiStart = performance.now();
   ui.update(run);

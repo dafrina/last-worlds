@@ -11,8 +11,25 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- Boot splash (user, 7 November: "a simple loading screen as long as the app is loading ... Just the logo and
+         loading"): plain HTML and CSS, so it shows before the game's code arrives; main.ts fades it out after the first
+         drawn frame. -->
+    <style>
+      html, body { margin: 0; background: #050b16; }
+      #boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-content: center; gap: 22px; background: #050b16;
+        color: #e2edf6; font-family: 'Aptos', 'Segoe UI', Arial, sans-serif; text-align: center; transition: opacity .45s ease; }
+      #boot.done { opacity: 0; pointer-events: none; }
+      #boot h1 { margin: 0; font-size: clamp(44px, 16vw, 84px); line-height: .87; font-weight: 750; letter-spacing: -3px; }
+      #boot p { margin: 0; color: #8c9db3; font: 11px / 1 'Cascadia Mono', 'SFMono-Regular', Consolas, monospace; letter-spacing: 4px; }
+      #boot i { display: block; width: 140px; height: 2px; margin: 0 auto; overflow: hidden; background: #1b2c42; }
+      #boot i::after { content: ''; display: block; width: 40%; height: 100%; background: #9fe4ff; box-shadow: 0 0 8px #7fd8ff;
+        animation: boot-bar 1.1s ease-in-out infinite; }
+      @keyframes boot-bar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) { #boot i::after { animation: none; width: 100%; opacity: .5; } }
+    </style>
   </head>
   <body>
+    <div id="boot" role="status" aria-label="Loading Last Worlds"><h1>LAST<br>WORLDS</h1><p>LOADING</p><i aria-hidden="true"></i></div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
