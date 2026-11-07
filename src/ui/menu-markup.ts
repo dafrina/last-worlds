@@ -5,6 +5,10 @@ export const MISSION_ORDER = [['training', 'Training'], ['bastion', 'Rolling Thu
 const creditGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 11 6 6 11 1 6Z"/></svg>';
 /** Parts (docs/33): an octagonal nut, as on the part pickup. */
 const partGlyph = '<svg viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M4 1H8L11 4V8L8 11H4L1 8V4ZM6 4A2 2 0 1 0 6.01 4Z"/></svg>';
+/** The front screen's small utility icons (statistics, settings, help): plain strokes. */
+const statsGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>';
+const settingsGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>';
+const helpGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3.6 2.4c-.7.3-1.1.9-1.1 1.6v.5M12 17.2v.1"/></svg>';
 /** A ship: the HUD's lives icon and the equipped ship on the front screen's hangar entry. */
 export const shipGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 15 10 21 15 21 19 14 17 14 21 10 21 10 17 3 19 3 15 9 10Z"/></svg>';
 
@@ -19,26 +23,25 @@ export function selector(name: string, label: string, choices: readonly (readonl
 
 export const menuMarkup = `
   <section class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="game-title">
+    <div class="wallet-row"><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b></span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b></span></div>
     <div class="wordmark"><h1 id="game-title">LAST<br>WORLDS</h1><p class="menu-tagline">LOW ORBIT. NO WAY BACK.</p></div>
-    <div class="orbital-art" aria-hidden="true">
-      <svg viewBox="0 0 340 180" fill="none"><circle cx="235" cy="131" r="99" fill="#0c2340"/><circle cx="235" cy="131" r="99" stroke="#355678" stroke-width=".7"/><path d="M128 149C188 93 265 64 338 59M130 156C192 103 272 76 339 73" stroke="#527394" stroke-width=".7"/><path d="M36 138H93M64 110V166M148 35H166M157 26V44" stroke="#55708b" stroke-width=".7"/><circle cx="298" cy="23" r="1.2" fill="#9db8d5"/><circle cx="102" cy="54" r="1" fill="#7893ae"/><circle cx="196" cy="17" r=".8" fill="#7893ae"/><path d="M234 40L235 34L237 40L240 43L236 42L235 44L234 42L230 43Z" fill="#d9e6ef"/></svg>
-    </div>
     <nav class="menu-launches" aria-label="Game modes">
-      <button type="button" class="arcade-button primary" data-action="campaign"><span>CAMPAIGN</span><span class="button-arrow" aria-hidden="true">↗</span></button>
-      <button type="button" class="arcade-button secondary" data-action="endless"><span>ENDLESS</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+      <button type="button" class="arcade-button primary mode-button" data-action="campaign" aria-label="CAMPAIGN" aria-describedby="campaign-next"><span class="mode-text"><span>CAMPAIGN</span><small id="campaign-next" data-home="campaign-next"></small></span><span class="button-arrow" aria-hidden="true">›</span></button>
+      <button type="button" class="arcade-button secondary mode-button" data-action="endless" aria-label="ENDLESS" aria-describedby="endless-best"><span class="mode-text"><span>ENDLESS</span><small id="endless-best" data-home="endless-best"></small></span><span class="button-arrow" aria-hidden="true">›</span></button>
     </nav>
     <nav class="menu-hangar" aria-label="Hangar">
       <button type="button" class="hangar-entry" data-action="menu-hangar">
-        <span class="hangar-entry-title">HANGAR</span><span class="hangar-entry-arrow" aria-hidden="true">›</span>
+        <span class="hangar-entry-title">HANGAR <span aria-hidden="true">›</span></span>
+        <canvas class="hangar-entry-picture" aria-hidden="true"></canvas>
         <span class="hangar-entry-ship">${shipGlyph}<span data-home="ship"></span></span>
+        <span class="hangar-entry-gear"><span><small>MAIN</small><b data-home="weapon"></b></span><span><small>SPECIAL</small><b data-home="special"></b></span><span><small>SHIELD</small><b data-home="shield"></b></span></span>
       </button>
     </nav>
-    <nav class="menu-utility" aria-label="Flight command"><button type="button" data-action="statistics">STATISTICS</button><button type="button" data-action="settings">SETTINGS</button></nav>
-    <div class="menu-footer"><button type="button" data-action="help">HOW TO PLAY <span aria-hidden="true">?</span></button></div>
+    <nav class="menu-utility" aria-label="More"><button type="button" data-action="statistics">${statsGlyph}STATISTICS</button><button type="button" data-action="settings">${settingsGlyph}SETTINGS</button><button type="button" data-action="help">${helpGlyph}HOW TO PLAY</button></nav>
   </section>
   <section class="campaign-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
     <button type="button" class="back-button" data-back="menu-panel">← BACK</button>
-    <div class="eyebrow campaign-eyebrow"><h2 id="campaign-title">CAMPAIGN</h2><span aria-hidden="true">·</span><span class="mission-count">2 / 3</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
+    <div class="eyebrow campaign-eyebrow"><h2 id="campaign-title">CAMPAIGN</h2><span aria-hidden="true">·</span><span class="mission-count">2 / 3</span><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b></span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b></span></div>
     <div class="planet-stage">
       <button type="button" class="mission-arrow" data-mission-step="-1" aria-label="Previous mission">‹</button>
       <canvas class="planet-preview" aria-hidden="true"></canvas>
@@ -48,21 +51,23 @@ export const menuMarkup = `
     <p class="mission-world"></p>
     <h3 class="mission-name"></h3>
     <p class="mission-description"></p>
-    <p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i><i></i><i></i></span></p>
-    <p class="mission-record"></p>
+    <div class="mission-chips"><p class="mission-threat" aria-label="Threat"><span>THREAT</span><span class="threat-pips"><i></i><i></i><i></i><i></i><i></i></span></p><p class="mission-record"></p></div>
     <div class="setup-group"><span class="setup-label" id="difficulty-label">DIFFICULTY</span>${selector('difficulty', 'Campaign difficulty', [['relaxed', 'Relaxed'], ['standard', 'Standard'], ['veteran', 'Veteran']], 'standard')}</div>
     <button type="button" class="loadout-summary" data-action="hangar" aria-label="Open the hangar to change or buy equipment">
-      <span class="setup-label">LOADOUT</span><span class="hangar-link">HANGAR ›</span>
+      <span class="setup-label">EQUIPPED</span><span class="hangar-link">HANGAR ›</span>
       <dl><div><dt>MAIN</dt><dd data-loadout="weapon"></dd></div><div><dt>SPECIAL</dt><dd data-loadout="special"></dd></div><div><dt>SHIELD</dt><dd data-loadout="shield"></dd></div><div><dt>SHIP</dt><dd data-loadout="ship"></dd></div></dl>
     </button>
-    <button type="button" class="arcade-button primary" data-action="launch-campaign">LAUNCH MISSION <span aria-hidden="true">↗</span></button>
     <section class="mission-board" aria-labelledby="board-title"></section>
+    <div class="launch-dock"><button type="button" class="launch-bar" data-action="launch-campaign">LAUNCH MISSION <span aria-hidden="true">›</span></button></div>
   </section>
   <section class="hangar-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="hangar-title" hidden>
     <button type="button" class="back-button" data-back>← BACK</button>
-    <div class="eyebrow campaign-eyebrow"><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b> CR</span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b> P</span></div>
+    <div class="eyebrow campaign-eyebrow"><span class="credit-balance" aria-label="Campaign credits">${creditGlyph}<b>0</b></span><span class="parts-balance" aria-label="Campaign parts">${partGlyph}<b>0</b></span></div>
     <h2 id="hangar-title">HANGAR</h2>
+    <p class="hangar-heading">EQUIPPED</p>
+    <div class="hangar-stage"><canvas class="hangar-picture" role="img" aria-label="Equipped ship"></canvas><p class="hangar-stage-ship"><b data-stage="ship"></b><small data-stage="perk"></small></p></div>
     ${selector('slot', 'Equipment slot', [['weapon', 'Main'], ['special', 'Special'], ['shield', 'Shield'], ['ship', 'Ships']], 'weapon')}
+    <p class="hangar-heading is-shop">ARMORY · <span data-armory></span></p>
     <p class="hangar-scope"><b class="hangar-scope-mode"></b> · <span class="hangar-scope-what"></span></p>
     <section class="shipyard" aria-label="Shipyard" hidden></section>
     <ul class="hangar-items" aria-live="polite"></ul>
@@ -82,9 +87,12 @@ export const menuMarkup = `
   <section class="settings-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
     <button type="button" class="back-button" data-settings-back>← BACK</button>
     <h2 id="settings-title">SETTINGS</h2>
-    <div class="settings-list"><div><span>Sound</span>${selector('sound', 'Sound', [['on', 'On'], ['off', 'Off']], 'on')}</div><div><span>Graphics</span>${selector('graphics', 'Graphics quality', [['high', 'High'], ['low', 'Low']], 'high')}</div><div class="steering-setting" hidden><span>Steering</span>${selector('steering', 'Steering', [['touch', 'Touch'], ['tilt', 'Tilt']], 'touch')}</div></div>
+    <h3 class="settings-heading">AUDIO</h3>
+    <div class="settings-list"><div><span>Sound</span>${selector('sound', 'Sound', [['on', 'On'], ['off', 'Off']], 'on')}</div></div>
+    <h3 class="settings-heading">DISPLAY</h3>
+    <div class="settings-group"><div><span class="settings-name">Graphics<small>Low is smoother on older phones.</small></span>${selector('graphics', 'Graphics quality', [['high', 'High'], ['low', 'Low']], 'high')}</div></div>
+    <div class="steering-setting" hidden><h3 class="settings-heading">CONTROLS</h3><div class="settings-group"><div><span>Steering</span>${selector('steering', 'Steering', [['touch', 'Touch'], ['tilt', 'Tilt']], 'touch')}</div></div></div>
     <p class="panel-note steering-note" hidden></p>
-    <p class="panel-note">Use Low graphics for a smoother flight.</p>
     <button type="button" class="arcade-button secondary settings-help" data-action="settings-help">HOW TO PLAY <span aria-hidden="true">↗</span></button>
   </section>
   <section class="help-panel page-panel" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>

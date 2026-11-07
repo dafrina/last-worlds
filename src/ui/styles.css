@@ -177,12 +177,9 @@ button:disabled { cursor: default; }
 }
 .menu-panel, .page-panel, .short-panel { width: 100%; margin: auto 0; }
 .menu-panel { position: relative; }
-.menu-topline { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font: 8px / 1.5 var(--mono); letter-spacing: 1px; }
 .wordmark { position: relative; z-index: 1; margin-top: clamp(25px, 5vh, 44px); }
 .wordmark h1 { margin: 0; font-size: clamp(42px, 18.4cqw, 84px); line-height: .87; font-weight: 750; letter-spacing: -3px; }
 .menu-tagline { margin: 20px 0 0; color: #a0b4cb; font: 8px / 1.5 var(--mono); letter-spacing: 1.65px; }
-.orbital-art { height: clamp(85px, 17vh, 155px); margin: -8px -2px 18px; overflow: hidden; pointer-events: none; }
-.orbital-art svg { width: 100%; height: 100%; }
 .arcade-button {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   width: 100%; min-height: 52px; border: 1px solid var(--line); padding: 16px;
@@ -209,15 +206,12 @@ button:disabled { cursor: default; }
 .hangar-entry-ship { display: flex; align-items: center; gap: 7px; min-width: 0; color: #8fa9c5; font: 8px / 1.3 var(--mono); letter-spacing: 1.2px; }
 .hangar-entry-ship svg { flex: none; width: 11px; height: 11px; fill: #9fe4ff; }
 .menu-utility { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 13px; }
-.menu-utility button, .text-button, .back-button, .menu-footer button {
+.menu-utility button, .text-button, .back-button {
   min-height: 44px; padding: 10px 0; border: 0; color: #b0c4da; background: transparent;
   text-align: left; font: 10px / 1.5 var(--mono); letter-spacing: 1px; touch-action: manipulation;
 }
 .menu-utility button:last-child { text-align: right; }
-.menu-utility button:hover, .text-button:hover, .back-button:hover, .menu-footer button:hover { color: #fff; }
-.menu-footer { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); margin-top: 14px; color: #8399b3; font: 8px / 1.5 var(--mono); letter-spacing: .8px; }
-.menu-footer button { font-size: 8px; }
-.menu-footer button span { margin-left: 9px; }
+.menu-utility button:hover, .text-button:hover, .back-button:hover { color: #fff; }
 .back-button { display: block; margin: -10px 0 22px; }
 .eyebrow { margin: 0 0 12px; color: #8fa9c5; font: 9px / 1.5 var(--mono); letter-spacing: 1.6px; }
 .page-panel h2, .short-panel h2 { margin: 0 0 25px; font-size: clamp(29px, 5vh, 43px); line-height: 1; letter-spacing: -1.6px; font-weight: 750; }
@@ -345,7 +339,6 @@ button:disabled { cursor: default; }
 @media (max-height: 620px) {
   .wordmark { margin-top: 16px; }
   .menu-tagline { margin-top: 14px; }
-  .orbital-art { height: 52px; margin: -4px -2px 12px; }
 }
 
 /* Campaign progression (docs/21): credit balance, mission lock/record, loadout summary, hangar, results payout. */
@@ -567,3 +560,240 @@ button:disabled { cursor: default; }
 .result-missions-title { margin: 0 0 6px; color: #9fe4ff; font: 600 8px / 1.4 var(--mono); letter-spacing: 1.3px; text-align: center; }
 .result-missions ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
 .result-missions li { display: flex; align-items: center; gap: 10px; color: var(--ivory); font: 600 10px / 1.3 var(--mono); letter-spacing: .6px; text-transform: uppercase; }
+
+/*
+ * Redesign (user, 7 November: "premium mobile game ui", approved on the design canvas): the same navy, ivory and amber with
+ * more depth. Layered panels with a top highlight, an ice primary button, credit and part capsules, chips on the campaign
+ * page and the mission board, a launch bar pinned to the bottom, a showcase of the ship on the front screen and in the
+ * hangar, a receipt and a big total on the results. The game's own fonts; the flight HUD is unchanged (AGENTS.md 3).
+ */
+:root {
+  --panel: #0b1a2e; --panel-hi: #10233b; --edge: #1d3654; --edge-hi: #2f5a86; --ice: #bfe3ff; --amber: #ffd27a;
+  --pad-x-left: max(22px, 7cqw, calc(var(--safe-left) + 12px));
+  --pad-x-right: max(22px, 7cqw, calc(var(--safe-right) + 12px));
+  --pad-bottom: max(24px, calc(var(--safe-bottom) + 12px));
+}
+/* Buttons: an ice primary with a pressed lower edge, a dark glass secondary. */
+.arcade-button { border-radius: 6px; box-shadow: inset 0 1px 0 #ffffff12; }
+.arcade-button.primary {
+  background: linear-gradient(180deg, #e2f2ff, #a9d6f7); border-color: #d9eeff; color: #061427;
+  box-shadow: inset 0 -3px 0 #6fa9d6, 0 0 18px #6fc3ff33;
+}
+.arcade-button.primary:hover { background: linear-gradient(180deg, #f0f8ff, #bfe1fa); }
+.arcade-button.secondary { background: linear-gradient(180deg, #12294a, #0b1a2e); border-color: var(--edge-hi); }
+.arcade-button.secondary:hover { background: linear-gradient(180deg, #17345c, #0e2240); }
+/* Credits and parts as capsules (front screen, campaign page, hangar). */
+.credit-balance, .parts-balance {
+  height: 26px; padding: 0 10px 0 4px; border-radius: 13px; border: 1px solid #23405f; background: var(--panel);
+  box-shadow: inset 0 1px 0 #ffffff12; font: 700 11px / 1 var(--mono); letter-spacing: .5px;
+}
+.credit-balance svg, .parts-balance svg { box-sizing: content-box; width: 9px; height: 9px; padding: 4.5px; border-radius: 50%; filter: none; }
+.credit-balance svg { background: #3a2a0e; box-shadow: 0 0 8px #ffc04a44; }
+.parts-balance svg { background: #3a1c10; box-shadow: 0 0 8px #ff8a4a44; }
+.wallet-row { display: flex; justify-content: flex-end; gap: 6px; }
+.wallet-row .credit-balance { margin-left: 0; }
+
+/* Front screen: the next mission and the best sector under the modes, the ship's showcase, one icon row. */
+.menu-panel .wordmark { margin-top: clamp(14px, 4vh, 36px); }
+.menu-launches { margin-top: clamp(18px, 4vh, 34px); display: grid; gap: 10px; }
+.mode-button { min-height: 62px; padding: 12px 18px; }
+.arcade-button.secondary.mode-button { margin-top: 0; min-height: 56px; }
+.mode-text { display: grid; gap: 6px; }
+.mode-text > span { font: 750 19px / 1 'Aptos', 'Segoe UI', Arial, sans-serif; letter-spacing: 1px; }
+.mode-text small { font: 600 8.5px / 1.2 var(--mono); letter-spacing: 1.1px; opacity: .78; }
+.mode-button .button-arrow { font: 26px / 1 Arial, sans-serif; }
+.menu-hangar { margin-top: 10px; }
+.hangar-entry {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 6px 10px;
+  min-height: 0; padding: 12px 14px 12px; border: 0; border-radius: 8px; overflow: hidden;
+  background: radial-gradient(70% 70% at 30% 78%, #1d4a7888, transparent 70%), linear-gradient(180deg, #0a1729, #081426);
+  box-shadow: inset 0 0 0 1px #1d3654, inset 0 1px 0 #ffffff10;
+}
+.hangar-entry:hover, .hangar-entry:focus-visible { box-shadow: inset 0 0 0 1px #3a6a9a, 0 0 16px #6fc3ff2a; }
+.hangar-entry-title { grid-column: 1 / -1; display: flex; justify-content: space-between; color: #9fc6e6; font: 700 9px / 1 var(--mono); letter-spacing: 1.6px; }
+.hangar-entry-title span { color: var(--ice); font-size: 14px; }
+/* The ship stands on a lit pad: an ellipse of light under the picture. */
+.hangar-entry-picture {
+  grid-row: 2 / 4; align-self: end; width: 100%; aspect-ratio: 360 / 230; min-width: 0;
+  background: radial-gradient(48% 20% at 50% 84%, #6fc3ff55, #6fc3ff12 60%, transparent 72%);
+}
+.hangar-entry-ship { align-self: start; flex-wrap: wrap; color: var(--ivory); font: 700 9.5px / 1.35 var(--mono); }
+.hangar-entry-ship svg { width: 12px; height: 12px; }
+.hangar-entry-gear { display: grid; gap: 5px; align-self: end; }
+.hangar-entry-gear > span { display: grid; gap: 2px; padding: 5px 7px; border-radius: 4px; background: #07111fcc; border: 1px solid #16304d; }
+.hangar-entry-gear small { color: #6f88a3; font: 7px / 1 var(--mono); letter-spacing: 1.2px; }
+.hangar-entry-gear b { overflow: hidden; color: #cfe0ef; font: 600 10.5px / 1.2 'Aptos', 'Segoe UI', Arial, sans-serif; white-space: nowrap; text-overflow: ellipsis; }
+.menu-utility { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 12px; border-top: 1px solid #1a3150; }
+.menu-utility button, .menu-utility button:last-child {
+  display: grid; justify-items: center; gap: 6px; padding: 10px 0 4px; text-align: center; color: #8fa6bf; font: 600 8px / 1 var(--mono); letter-spacing: 1.3px;
+}
+.menu-utility svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+/* Campaign page. */
+.campaign-panel { padding-bottom: 0; }
+.campaign-panel .back-button { margin: -10px 0 0; }
+.campaign-eyebrow { align-items: center; }
+.campaign-eyebrow .credit-balance { margin-left: auto; }
+.planet-stage { position: relative; }
+.planet-stage::before {
+  content: ''; position: absolute; left: 50%; top: 50%; width: min(70cqw, 34vh, 320px); aspect-ratio: 1; transform: translate(-50%, -50%);
+  border-radius: 50%; background: radial-gradient(circle, #6fc3ff22, #6fc3ff08 45%, transparent 70%); pointer-events: none;
+}
+.mission-arrow { background: #0b1a2ecc; border-color: var(--edge-hi); box-shadow: inset 0 1px 0 #ffffff18; }
+.mission-world { letter-spacing: 3px; font-size: 9px; }
+.mission-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0 0 14px; }
+.mission-chips .mission-threat, .mission-chips .mission-record {
+  margin: 0; padding: 5px 8px; border-radius: 3px; border: 1px solid #23405f; background: var(--panel); font-size: 8.5px;
+}
+.mission-chips .mission-record.is-locked { border-color: #ffb36b66; }
+.campaign-panel .setup-group .selector { gap: 4px; padding: 4px; border-radius: 6px; background: #081426; border: 1px solid var(--edge); }
+.campaign-panel .setup-group .selector [role="radio"] { border: 0; border-radius: 4px; background: transparent; min-height: 38px; }
+.campaign-panel .setup-group .selector [role="radio"]::after { display: none; }
+.campaign-panel .setup-group .selector [role="radio"][aria-checked="true"] {
+  background: linear-gradient(180deg, #1f4570, #143154); box-shadow: inset 0 1px 0 #ffffff22, 0 0 12px #6fc3ff33;
+}
+.loadout-summary { border: 0; border-radius: 6px; padding: 10px 0 0; background: transparent; box-shadow: none; }
+.loadout-summary:hover, .loadout-summary:focus-visible { border: 0; box-shadow: none; }
+.loadout-summary dl { gap: 6px; }
+.loadout-summary dl div { padding: 8px 10px; border-radius: 5px; border: 1px solid var(--edge); background: var(--panel); }
+.loadout-summary:hover dl div { border-color: #2f5a86; }
+.loadout-summary dd { font: 600 12.5px / 1.3 'Aptos', 'Segoe UI', Arial, sans-serif; letter-spacing: 0; }
+/*
+ * The launch bar (user, 7 November: option A, full width, no text beside it): pinned to the bottom of the page while the
+ * board scrolls under it, at its own place after the board at the end, so it never covers the last card. It spans the
+ * overlay's side padding and keeps clear of the home indicator.
+ */
+.launch-dock {
+  position: sticky; z-index: 2; bottom: calc(-1 * var(--pad-bottom));
+  margin: 16px calc(-1 * var(--pad-x-right)) calc(-1 * var(--pad-bottom)) calc(-1 * var(--pad-x-left));
+  padding: 12px var(--pad-x-right) max(16px, calc(var(--safe-bottom) + 10px)) var(--pad-x-left);
+  background: linear-gradient(180deg, #081426e6, #081426 40%); border-top: 1px solid #3a618988; box-shadow: 0 -10px 24px #050b16cc;
+}
+.launch-bar {
+  display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 56px; padding: 0 18px;
+  border: 1px solid #d9eeff; border-radius: 6px; background: linear-gradient(180deg, #e2f2ff, #a9d6f7); color: #061427;
+  box-shadow: inset 0 -3px 0 #6fa9d6, 0 0 18px #6fc3ff44; font: 750 16px / 1 'Aptos', 'Segoe UI', Arial, sans-serif; letter-spacing: 2px;
+  touch-action: manipulation;
+}
+.launch-bar span { font: 24px / 1 Arial, sans-serif; }
+.launch-bar:hover { background: linear-gradient(180deg, #f0f8ff, #bfe1fa); }
+.launch-bar:active { transform: translateY(1px); }
+.launch-bar:disabled { opacity: .5; cursor: default; transform: none; }
+
+/* Mission board: cards with chips; a total across runs has a gold edge and a thicker gold bar. */
+.mission-board { margin-top: 20px; }
+.board-list { gap: 8px; }
+.board-item, .board-done { border-radius: 6px; overflow: hidden; }
+.board-item { padding: 11px 12px 13px; border-color: var(--edge); background: linear-gradient(180deg, #10233b, #0b192c); box-shadow: inset 0 1px 0 #ffffff10; }
+.board-item.is-career { border-color: #5a4720; background: linear-gradient(180deg, #191a1f, #0e1726); box-shadow: inset 0 1px 0 #ffe2a61a, 0 0 16px #ffc04a14; }
+.board-item.is-career .board-text { color: #c9b993; }
+.board-item.is-career .board-value { color: var(--amber); }
+.board-line b { font-size: 14px; }
+.board-text { font-size: 12px; margin: 3px 0 8px; }
+.board-meta { font-size: 8px; gap: 6px; }
+.board-tag, .board-scope { padding: 4px 6px; border-radius: 3px; font-weight: 700; }
+.board-scope.is-career { background: #2a2008; }
+.board-reward { padding: 4px 8px; border-radius: 11px; background: #07111f; border: 1px solid #23405f; font-size: 10px; }
+.board-bar { height: 3px; background: #14304d; }
+.board-item.is-career .board-bar { height: 5px; background: #33280f; }
+.board-item.is-career .board-bar i { background: linear-gradient(90deg, #e8a53a, #ffd27a); }
+.board-done { padding: 10px 12px 11px 42px; }
+
+/* Results: stat tiles, a receipt over a big total with the parts beside it, an unlock banner, missions that open the board. */
+.result-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border-top: 0; padding-top: 0; margin: 20px 0 16px; }
+.result-stats > div { display: grid; gap: 6px; margin: 0; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--edge); background: var(--panel); }
+.result-stats > div[hidden] { display: none; }
+.result-stats dd { text-align: left; font: 750 22px / 1 'Aptos', 'Segoe UI', Arial, sans-serif; }
+.result-stats .result-score-row { grid-column: 1 / -1; padding-bottom: 10px; }
+.result-credits { padding: 14px 14px 12px; border-radius: 8px; border-color: #5a4720; background: linear-gradient(180deg, #1b1810, #0f1420); box-shadow: inset 0 1px 0 #ffe2a61c, 0 0 26px #ffc04a18; }
+.result-receipt { gap: 6px; padding-bottom: 10px; margin-bottom: 10px; font-size: 10.5px; }
+.result-total { display: flex; justify-content: center; align-items: center; gap: 14px; }
+.result-earned b {
+  display: inline-flex; align-items: center; gap: 8px; color: #ffe2a6; text-shadow: 0 0 18px #ffb84a88;
+  font: 800 44px / 1 'Bahnschrift', 'Arial Narrow', 'Roboto Condensed', 'Aptos', 'Segoe UI', Arial, sans-serif; font-stretch: condensed;
+}
+.result-earned svg { width: 20px; height: 20px; fill: #ffd27a; }
+.result-parts {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; border-radius: 16px; background: #24140c; border: 1px solid #ff9e6a55;
+  font: 800 24px / 1 'Bahnschrift', 'Arial Narrow', 'Roboto Condensed', 'Aptos', 'Segoe UI', Arial, sans-serif; font-stretch: condensed; letter-spacing: 0;
+}
+.result-parts svg { width: 14px; height: 14px; fill: #ff9e6a; }
+.result-balance { margin: 8px 0 0; color: #8fa6bf; font: 8.5px / 1.4 var(--mono); letter-spacing: 1px; }
+.result-unlock { margin: 12px 0 0; padding: 10px 12px; border-radius: 6px; border: 1px solid #3a6a9a; background: linear-gradient(90deg, #123052, #0b1a2e); text-align: left; text-shadow: none; }
+.result-missions { border-radius: 6px; padding: 10px 10px 8px; }
+.result-missions li { display: block; }
+.result-missions li button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 6px 8px; border: 1px solid #24564a; border-radius: 5px;
+  background: linear-gradient(90deg, #0e2b27, #0b1b30 80%); color: #dff6ec; font: 600 10px / 1.3 var(--mono); letter-spacing: .6px; text-transform: uppercase; text-align: left;
+}
+.result-missions li button:hover, .result-missions li button:focus-visible { border-color: #5fe0a8; box-shadow: 0 0 10px #3ddc9733; }
+.result-missions li button > span:first-child { flex: 1; min-width: 0; }
+.result-missions .board-reward { margin-left: 0; }
+.result-mission-go { color: #7fe0b0; font: 18px / 1 Arial, sans-serif; }
+
+/* Settings: AUDIO, DISPLAY and CONTROLS in panels; pill toggles. */
+.settings-heading { margin: 24px 0 8px; color: #6f88a3; font: 600 8.5px / 1 var(--mono); letter-spacing: 1.6px; }
+.settings-list, .settings-group { display: grid; margin: 0; border-radius: 6px; border: 1px solid var(--edge); background: linear-gradient(180deg, #0f2138, #0b192c); box-shadow: inset 0 1px 0 #ffffff0e; }
+.settings-list > div, .settings-list > label, .settings-group > div { display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 54px; padding: 8px 14px; border-bottom: 1px solid #16304d; font-size: 14px; }
+.settings-list > :last-child, .settings-group > :last-child { border-bottom: 0; }
+.settings-name { display: grid; gap: 3px; }
+.settings-name small { color: #8fa6bf; font-size: 11px; }
+.settings-list .selector, .settings-group .selector { width: 140px; gap: 3px; padding: 3px; border-radius: 16px; background: #071224; border: 1px solid var(--edge); }
+.settings-list .selector [role="radio"], .settings-group .selector [role="radio"] { min-height: 30px; padding: 6px; border: 0; border-radius: 14px; background: transparent; }
+.settings-list .selector [role="radio"]::after, .settings-group .selector [role="radio"]::after { display: none; }
+.settings-list .selector [role="radio"][aria-checked="true"], .settings-group .selector [role="radio"][aria-checked="true"] {
+  background: linear-gradient(180deg, #d9eeff, #9fcff5); color: #061427; box-shadow: 0 0 10px #6fc3ff44;
+}
+.settings-panel h2 { margin-bottom: 0; }
+.settings-panel .settings-heading:first-of-type { margin-top: 18px; }
+
+/* Hangar: what is equipped on top (the ship on its pad, the slot tabs show what each holds), the armory below. */
+.hangar-heading { margin: 0 0 8px; color: var(--ice); font: 700 9px / 1 var(--mono); letter-spacing: 1.6px; }
+.hangar-heading.is-shop { margin: 18px 0 4px; color: var(--amber); }
+.hangar-stage {
+  position: relative; margin: 0 0 8px; border-radius: 8px; overflow: hidden; border: 1px solid var(--edge-hi);
+  background: radial-gradient(46% 18% at 50% 86%, #6fc3ff55, #6fc3ff10 60%, transparent 72%), radial-gradient(ellipse at 50% 60%, #1b3a5c 0%, #0b1b30 72%);
+  box-shadow: inset 0 1px 0 #ffffff14, 0 0 20px #6fc3ff1c;
+}
+.hangar-picture { display: block; width: 100%; aspect-ratio: 360 / 230; }
+.hangar-stage-ship { position: absolute; left: 12px; right: 12px; top: 10px; margin: 0; display: grid; gap: 4px; pointer-events: none; }
+.hangar-stage-ship b { color: var(--ivory); font: 750 18px / 1 'Aptos', 'Segoe UI', Arial, sans-serif; }
+.hangar-stage-ship small { max-width: 56%; color: #7fe0b0; font: 600 8px / 1.4 var(--mono); letter-spacing: 1px; }
+.hangar-panel [data-selector="slot"] { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.hangar-panel [data-selector="slot"] [role="radio"] {
+  display: grid; align-content: start; justify-items: start; gap: 4px; min-width: 0; min-height: 62px; padding: 8px 8px 9px; border-radius: 6px; border-color: var(--edge);
+  background: var(--panel); text-align: left; text-transform: none; letter-spacing: 0;
+}
+.hangar-panel [data-selector="slot"] [role="radio"]::after { display: none; }
+.hangar-panel [data-selector="slot"] [role="radio"][aria-checked="true"] { border-color: #6fc3ff; background: linear-gradient(180deg, #1b3d64, #11284a); box-shadow: inset 0 1px 0 #ffffff22, 0 0 12px #6fc3ff33; }
+.hangar-panel [data-selector="slot"] small { color: #6f88a3; font: 7.5px / 1 var(--mono); letter-spacing: 1.2px; }
+.hangar-panel [data-selector="slot"] [aria-checked="true"] small { color: #9fd4ff; }
+.hangar-panel [data-selector="slot"] b { max-width: 100%; overflow: hidden; color: var(--ivory); font: 600 11px / 1.15 'Aptos', 'Segoe UI', Arial, sans-serif; overflow-wrap: anywhere; }
+.hangar-panel [data-selector="slot"] i { color: #9fe4ff; font: 8px / 1 var(--mono); font-style: normal; }
+.hangar-panel .hangar-scope { margin-top: 0; }
+.hangar-panel .shipyard .shipyard-preview { display: none; }
+.hangar-item { border-radius: 6px; background: linear-gradient(180deg, #0f2138, #0b192c); box-shadow: inset 0 1px 0 #ffffff0e; }
+.hangar-item.is-equipped { border-color: #3a6a9a; background: radial-gradient(120% 90% at 85% 0%, #1d4a78 0%, #0f2440 45%, #0a1729 100%); }
+.hangar-action { border-radius: 4px; }
+.hangar-action.buy, .hangar-action.upgrade { background: #1c170c; border-color: #5a4720; }
+.hangar-action.upgrade:not(:disabled) { background: linear-gradient(180deg, #ffe7b0, #f2b75a); border-color: #f2b75a; color: #2a1604; }
+@media (max-height: 700px) {
+  .menu-panel .wordmark h1 { font-size: clamp(40px, 15cqw, 66px); }
+  .mode-button { min-height: 54px; }
+  .arcade-button.secondary.mode-button { min-height: 50px; }
+}
+/* The smallest phones (320 × 568): a tighter front screen, still one screen with the whole hangar showcase in view. */
+@media (max-height: 620px) {
+  .menu-panel .wordmark { margin-top: 8px; }
+  .menu-panel .wordmark h1 { font-size: 46px; }
+  .menu-launches { margin-top: 12px; gap: 8px; }
+  .mode-button { min-height: 50px; padding: 8px 16px; }
+  .arcade-button.secondary.mode-button { min-height: 46px; }
+  .mode-text > span { font-size: 17px; }
+  .menu-hangar { margin-top: 8px; }
+  .hangar-entry { padding: 9px 12px; gap: 4px 10px; }
+  .hangar-entry-gear { gap: 3px; }
+  .hangar-entry-gear > span { padding: 3px 6px; }
+  .menu-utility { margin-top: 6px; }
+  .menu-utility button, .menu-utility button:last-child { min-height: 40px; padding-top: 7px; }
+}
