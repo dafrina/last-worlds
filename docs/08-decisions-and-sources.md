@@ -405,3 +405,20 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **Hangar:** EQUIPPED shows the ship on its pad and four slot tabs; the armory sits below.
 - **Settings:** grouped into Audio, Display and Controls.
 - **Unchanged:** the in-flight HUD (invariant 3).
+
+### 7 November 2026 · 3D drop tokens
+- **What:** drops are bevelled 3D tokens in their icon's frame outline. User: "every item should have the embossed icon. Make sure the credit coin is the simplest"; "keep the coin shape like now ... with its quad shape".
+- **Model:** `tools/blender/pickup_tokens.py` writes `public/assets/shared/pickup-tokens.glb`.
+
+  | Node | Shape | Triangles |
+  |---|---|---|
+  | `tok_credit` | the credit icon's diamond (the lightest) | 28 |
+  | `tok_power` | a taller diamond | 28 |
+  | `tok_shield` | a hexagon | 44 |
+  | `tok_part` | an octagon | 60 |
+  | `tok_weapon` | a rounded slab | 124 |
+
+- **Faces:** the icon's own canvas art is on both faces. It is embossed with a bump map made from the icon (`createPickupBumpTextures`), and the frame and glyph stay softly self-lit so they read on dark worlds. The rim takes the frame's colour.
+- **Spin:** the token turns with the same full-turn spin as before.
+- **Fallback:** the flat icons show until the GLB loads.
+- **Cost:** the same draw calls as before (one batch per icon); at most a few thousand triangles with every drop on screen.

@@ -824,3 +824,10 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - **Not included:** the measured performance pass, kept in stash `perf-pass` (SHA 9f93298) at the user's request, not deployed.
 - **Claude Code, 7 November: UI redesign merged** (`ui-redesign` bfcb147, merge e5e86cf). It touches `src/ui/*` only.
   - **Gate:** tsc, unit (953), build, and Playwright 53/55. The two Bastion specs that failed passed alone, 3/3; the machine was loaded by a key-art render at the time.
+- **Claude Code, 7 November: sharper world previews and 3D drop tokens.**
+  - **World previews** (`bc778c6`): a 480×240 texture on a 384 px canvas, and Corona's plasma painted on its globe.
+  - **3D drop tokens:**
+    - `tools/blender/pickup_tokens.py` writes `public/assets/shared/pickup-tokens.glb`;
+    - in `src/render/scene.ts`, the token materials replace the flat icons once loaded;
+    - `src/render/pickup-icons.ts` gains `createPickupBumpTextures`.
+  - **Checks:** tsc, unit (953), build, and the graphics, flight and faction browser specs (17/17).

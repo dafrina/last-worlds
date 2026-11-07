@@ -112,3 +112,29 @@ function paint(g: CanvasRenderingContext2D, icon: PickupIcon): void {
   }
   g.restore();
 }
+
+/**
+ * The 3D tokens' emboss (user, 7 November: "every item should have the embossed icon"): a grey height map per icon, its
+ * frame border and glyph high, the body low (three.js reads a bump map's red channel).
+ */
+export function createPickupBumpTextures(icons: Map<PickupIcon, THREE.CanvasTexture>): Map<PickupIcon, THREE.CanvasTexture> {
+  const bumps = new Map<PickupIcon, THREE.CanvasTexture>();
+  for (const [icon, texture] of icons) {
+    const source = texture.image as HTMLCanvasElement, canvas = document.createElement('canvas');
+    canvas.width = source.width; canvas.height = source.height;
+    const g = canvas.getContext('2d'), from = source.getContext('2d');
+    if (g && from) {
+      const image = from.getImageData(0, 0, source.width, source.height), d = image.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const height = Math.max(d[i], d[i + 1], d[i + 2]) * d[i + 3] / 255;
+        d[i] = d[i + 1] = d[i + 2] = height; d[i + 3] = 255;
+      }
+      g.putImageData(image, 0, 0);
+    }
+    const bump = new THREE.CanvasTexture(canvas);
+    bump.minFilter = THREE.LinearMipmapLinearFilter; bump.generateMipmaps = true; bump.anisotropy = texture.anisotropy;
+    bumps.set(icon, bump);
+  }
+  return bumps;
+}
+

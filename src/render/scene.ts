@@ -22,7 +22,8 @@ import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
 import { loadCoronaCraft, loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadUmbraCraft, type CoronaCraftNode, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
-import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
+import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupBumpTextures, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createVoidEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { arkPlacement, createArkView, loadArkModel } from './ark-view';
 import { HELION_ARK } from '../content/ark';
@@ -1320,6 +1321,27 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.renderOrder = 7; mesh.count = 0; scene.add(mesh);
     pickupBatches.set(icon, mesh);
   }
+  /**
+   * 3D drop tokens (user, 7 November; tools/blender/pickup_tokens.py): a bevelled slab in each icon's frame outline, the
+   * icon on both faces, embossed (bump map from the icon), its frame and glyph softly self-lit so they read on dark
+   * worlds, the rim in the frame's colour. They replace the flat icons once loaded; the credit diamond is the lightest.
+   */
+  const tokenNode = (icon: PickupIcon) => icon.startsWith('weapon') ? 'tok_weapon' : `tok_${icon}`;
+  const pickupBumps = createPickupBumpTextures(pickupTextures);
+  void new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/shared/pickup-tokens.glb`).then(gltf => {
+    if (disposed) return;
+    const geometries = new Map<string, THREE.BufferGeometry>();
+    gltf.scene.traverse(object => { if ((object as THREE.Mesh).isMesh) geometries.set(object.name, (object as THREE.Mesh).geometry); });
+    for (const [icon, mesh] of pickupBatches) {
+      const geometry = geometries.get(tokenNode(icon));
+      if (!geometry) continue;
+      const map = pickupTextures.get(icon)!;
+      (mesh.material as THREE.Material).dispose();
+      mesh.geometry = geometry;
+      mesh.material = new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: .85,
+        bumpMap: pickupBumps.get(icon)!, bumpScale: 4, metalness: .55, roughness: .3 });
+    }
+  }).catch(error => console.warn('Drop tokens unavailable; keeping the flat icons.', error));
   // Shockwave: a bright rim and a soft trailing band expanding from where the ship fired it (radius from the sim).
   const shockMaterials = [0, 1].map(k => new THREE.MeshBasicMaterial({ color: new THREE.Color(k ? 0x5fd8ff : 0xc8fff8).multiplyScalar(k ? 1.2 : 2.4),
     transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide, forceSinglePass: true }));
