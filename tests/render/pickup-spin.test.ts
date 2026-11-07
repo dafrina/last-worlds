@@ -14,12 +14,14 @@ describe('pickup spin', () => {
       expect(Math.abs(wrap(b - a))).toBeLessThan(.12); // no jump between 1 ms samples (the overshoot included)
     }
   });
-  it('turns slowly face on and quickly edge on, readable (within 45° of facing) about two thirds of the time', () => {
-    const readable = samples.filter(s => Math.cos(s.angle) > .7).length / samples.length;
-    expect(readable).toBeGreaterThan(.62);
+  it('turns slowly while either face shows and quickly through the edge, readable about 70% of the time', () => {
+    // Both faces carry the icon: readable within 45° of either face.
+    const readable = samples.filter(s => Math.abs(Math.cos(s.angle)) > .7).length / samples.length;
+    expect(readable).toBeGreaterThan(.66);
     const speed = (t: number) => (pickupSpin(t + .001).angle - pickupSpin(t).angle) / .001;
-    expect(speed(0)).toBeGreaterThan(.1); // still turning face on (about 11°/s)
-    expect(speed(cycle / 2) / speed(0)).toBeGreaterThan(20);
+    expect(speed(0)).toBeGreaterThan(.4); // still turning face on (about 30°/s), front and back alike
+    expect(speed(cycle / 2 + .001)).toBeGreaterThan(.4);
+    expect(speed(cycle / 4) / speed(0)).toBeGreaterThan(5); // quick through the edge
     expect(Math.max(...samples.map(s => s.light))).toBeGreaterThan(1.4); // the glint
   });
 });

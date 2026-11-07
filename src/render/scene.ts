@@ -500,15 +500,16 @@ function graphStats(scene: THREE.Scene, names?: Record<string, number>) {
 
 /**
  * A drop's turn at time `t` (seconds): the angle about its upright axis and its light. It never stops turning (user, 7
- * November: "They should turn constantly just slower when face on"): one turn every PICKUP_CYCLE seconds, about 11°/s while
- * it faces the camera and about 350°/s edge-on, from a sine ease applied twice; readable (within 45° of facing) about
- * two thirds of the time. A glint as its face swings past the light just after facing.
+ * November: "They should turn constantly just slower when face on"). Both faces carry the icon, so each half turn is one
+ * move: slow while a face shows (about 30°/s), quick through the edge (about 210°/s), a sine ease per half turn. Easing
+ * the whole turn instead looked like two quick flips and then a standstill (user: "they make two quick turns then stay
+ * still"). Readable (within 45° of a face) about 70% of the time; a glint as each face swings past the light.
  */
-const PICKUP_CYCLE = 3, PICKUP_EASE = .7;
-const pickupEase = (u: number) => u - PICKUP_EASE * Math.sin(2 * Math.PI * u) / (2 * Math.PI);
+const PICKUP_CYCLE = 3, PICKUP_EASE = .75;
 export function pickupSpin(t: number): { angle: number; light: number } {
-  const u = ((t / PICKUP_CYCLE) % 1 + 1) % 1, angle = 2 * Math.PI * pickupEase(pickupEase(u));
-  const turned = Math.atan2(Math.sin(angle), Math.cos(angle)), glint = Math.exp(-(((turned - .35) / .14) ** 2));
+  const halves = ((t / PICKUP_CYCLE) % 1 + 1) % 1 * 2, f = halves % 1;
+  const angle = Math.PI * (Math.floor(halves) + f - PICKUP_EASE * Math.sin(2 * Math.PI * f) / (2 * Math.PI));
+  const turned = ((angle % Math.PI) + Math.PI) % Math.PI, glint = Math.exp(-(((turned - .35) / .14) ** 2));
   return { angle, light: .7 + .3 * Math.abs(Math.cos(angle)) + .6 * glint };
 }
 
