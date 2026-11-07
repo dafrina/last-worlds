@@ -127,15 +127,16 @@ const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
  * before buying. Every design file of the chassis starts loading when the shipyard opens, so switching is quick.
  * Cosmetic only: no part changes handling, the hit region or any stat.
  */
-export function renderShipyard(host: HTMLElement, profile: CampaignProfile, actions: ShipyardActions): void {
+export function renderShipyard(host: HTMLElement, profile: CampaignProfile, actions: ShipyardActions, stage?: HTMLCanvasElement): void {
   const ship = profile.loadout.ship, look = lookOf(profile, ship), paint = { ...HERO_DEFAULT_PAINT[ship], ...look.paint };
   if (trying && (trying.ship !== ship || ownsDesign(profile, ship, trying.slot, trying.design))) trying = null;
   const shownLook: HeroLook = trying ? { ...look, parts: { ...look.parts, [trying.slot]: trying.design } } : look;
   for (const design of heroDesigns(ship)) actions.preload(ship, { parts: Object.fromEntries(HERO_SLOTS.map(slot => [slot, design])) as HeroLook['parts'] });
-  const again = () => renderShipyard(host, profile, actions);
+  const again = () => renderShipyard(host, profile, actions, stage);
   const title = document.createElement('h3'); title.className = 'shipyard-title'; title.textContent = `${SHIPS[ship].label.toUpperCase()} · YOUR BUILD`;
-  const canvas = document.createElement('canvas'); canvas.className = 'shipyard-preview';
-  canvas.width = PICTURE_WIDTH * PICTURE_SCALE; canvas.height = PICTURE_HEIGHT * PICTURE_SCALE;
+  // The hangar's own picture at the top of the page when given (user, 7 November), else one of its own.
+  const canvas = stage ?? document.createElement('canvas');
+  if (!stage) { canvas.className = 'shipyard-preview'; canvas.width = PICTURE_WIDTH * PICTURE_SCALE; canvas.height = PICTURE_HEIGHT * PICTURE_SCALE; }
   canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', `${SHIPS[ship].label} preview`);
   const rows = HERO_SLOTS.map(slot => {
     const row = document.createElement('div'); row.className = 'shipyard-slot';
@@ -186,20 +187,28 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
   colours.append(reset);
   const perk = document.createElement('p'); perk.className = 'shipyard-perk';
   perk.textContent = `${SHIPS[ship].perk} · ${SHIPS[ship].blurb}`;
-  host.replaceChildren(title, perk, canvas, offer, ...rows, colours);
+  host.replaceChildren(title, perk, ...(stage ? [] : [canvas]), offer, ...rows, colours);
+  paintShip(canvas, ship, shownLook, actions.picture);
+}
 
-  // The picture: drawn once per look by the game's renderer and cached; the previous one stays up until it is ready.
+/**
+ * A ship's picture in a canvas (the shipyard, the hangar's top and the front screen's hangar showcase): drawn once per look
+ * by the game's renderer and cached; the previous picture of that canvas's ship stays up until the new one is ready.
+ */
+const lastDrawn = new WeakMap<HTMLCanvasElement, number>();
+export function paintShip(canvas: HTMLCanvasElement, ship: ShipId, look: HeroLook, picture: ShipyardActions['picture']): void {
+  if (!canvas.width || canvas.width === 300) { canvas.width = PICTURE_WIDTH * PICTURE_SCALE; canvas.height = PICTURE_HEIGHT * PICTURE_SCALE; }
   const context = canvas.getContext('2d');
   const paintStill = (still: HTMLCanvasElement) => { context?.clearRect(0, 0, canvas.width, canvas.height); context?.drawImage(still, 0, 0, canvas.width, canvas.height); };
   if (shown?.ship === ship) paintStill(shown.still);
-  const key = heroLookKey(ship, shownLook);
+  const key = heroLookKey(ship, look);
   if (!pictures.has(key)) {
     if (pictures.size > 24) pictures.delete(pictures.keys().next().value!);
-    pictures.set(key, actions.picture(ship, shownLook, canvas.width, canvas.height));
+    pictures.set(key, picture(ship, look, PICTURE_WIDTH * PICTURE_SCALE, PICTURE_HEIGHT * PICTURE_SCALE));
   }
-  const run = ++drawn;
+  const run = ++drawn; lastDrawn.set(canvas, run);
   void pictures.get(key)!.then(still => {
-    if (!still || run !== drawn) return;
+    if (!still || lastDrawn.get(canvas) !== run) return;
     shown = { ship, still };
     if (canvas.isConnected) paintStill(still);
   });

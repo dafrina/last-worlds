@@ -9,7 +9,7 @@ import { readSteeringMode, tiltSupported, writeSteeringMode } from '../input/til
 import { createFlightLog, recordId } from './flight-log';
 import { campaignConfig, cleared, createCampaignProfile, endlessConfig, lookOf, unlockedMissions, type AttemptOutcome, type Slot } from '../campaign/profile';
 import { CREDIT_MULTIPLIER, CREDIT_SCALE, MAX_RANK, SHIPS, SHIELD_TECH, SPECIALS } from '../content/equipment';
-import { itemText, renderHangar, renderShipyard } from './hangar';
+import { itemText, paintShip, renderHangar, renderShipyard } from './hangar';
 import { createMissionTracker } from '../campaign/missions';
 import { createMissionNotes, renderBoard, renderLiveBoard, renderResultMissions } from './mission-board';
 import './styles.css';
@@ -102,7 +102,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="eyebrow result-mode"></p><h2 id="results-title">FLIGHT<br>ENDED</h2>
           <p class="result-subtitle"></p>
           <dl class="result-stats"><div class="result-score-row"><dt>SCORE</dt><dd class="result-score"></dd></div><div><dt>HOSTILES DOWN</dt><dd class="result-kills"></dd></div><div><dt>FLIGHT TIME</dt><dd class="result-time"></dd></div><div class="result-sector-row"><dt>SECTOR REACHED</dt><dd class="result-sector"></dd></div></dl>
-          <div class="result-credits" hidden><dl class="result-receipt"></dl><p class="result-earned"><b></b><span></span></p><p class="result-parts" hidden></p><p class="result-unlock" hidden></p></div>
+          <div class="result-credits" hidden><dl class="result-receipt"></dl><div class="result-total"><p class="result-earned"><b></b></p><p class="result-parts" hidden></p></div><p class="result-balance"></p><p class="result-unlock" hidden></p></div>
           <div class="result-missions" hidden></div>
           <button type="button" class="arcade-button primary" data-action="retry">FLY AGAIN <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="menu">RETURN TO MENU</button>
@@ -122,6 +122,8 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     </aside>`;
   root.replaceChildren(shell);
 
+  const CREDIT_GLYPH = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 11 6 6 11 1 6Z"/></svg>';
+  const PART_GLYPH = '<svg viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M4 1H8L11 4V8L8 11H4L1 8V4ZM6 4A2 2 0 1 0 6.01 4Z"/></svg>';
   function find<T extends Element = HTMLElement>(selector: string): T {
     const found = shell.querySelector<T>(selector);
     if (!found) throw new Error(`Missing UI element: ${selector}`);
@@ -226,10 +228,28 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     showMission(missionIndex);
     actions.preloadHero?.(profile.loadout.ship, lookOf(profile, profile.loadout.ship));
   }
-  /** The front screen's hangar entry: the equipped ship and its perk, which fly in both modes (docs/34). */
+  /** A hangar picture of the equipped ship, drawn by the game's renderer (none without one: the pad stays empty). */
+  const shipPicture = (canvas: HTMLCanvasElement, profile = campaign.read()) => {
+    if (actions.heroPreview) paintShip(canvas, profile.loadout.ship, lookOf(profile, profile.loadout.ship), (ship, look, width, height) => actions.heroPreview!(ship, look, width, height));
+  };
+  /**
+   * The front screen (user, 7 November): the campaign's next mission and endless's best sector under the two modes, and the
+   * hangar as a showcase of the equipped ship on its pad, with its perk (both modes, docs/34) and the gear it flies.
+   */
   function refreshHome() {
-    const ship = SHIPS[campaign.read().loadout.ship];
+    const profile = campaign.read(), ship = SHIPS[profile.loadout.ship];
     text('[data-home="ship"]', `${ship.label} · ${ship.perk}`.toUpperCase());
+    text('[data-home="weapon"]', `${itemText('weapon', profile.loadout.weapon).name} · T${profile.selected[profile.loadout.weapon] + 1}`);
+    text('[data-home="special"]', itemText('special', profile.loadout.special).name);
+    text('[data-home="shield"]', itemText('shield', profile.loadout.shield).name);
+    const open = openMissions(profile), next = open.find(id => !cleared(profile, id)) ?? open.at(-1) ?? MISSION_ORDER[0][0];
+    text('[data-home="campaign-next"]', open.every(id => cleared(profile, id)) && open.length === MISSION_ORDER.length
+      ? 'EVERY WORLD CLEARED' : `NEXT · ${missionText(next).name.toUpperCase()} · ${missionText(next).world}`);
+    const best = flightLog.read().endless.bestSector;
+    text('[data-home="endless-best"]', best > 0 ? `BEST · SECTOR ${best}` : 'FROM LUNA · NO FLIGHTS YET');
+    showBalances(profile);
+    // After start-up: the first call runs while main.ts is still creating the renderer the picture comes from.
+    setTimeout(() => shipPicture(find<HTMLCanvasElement>('.hangar-entry-picture')), 0);
   }
   /** Credit and parts balances (docs/33) on the campaign and hangar pages. */
   function showBalances(profile = campaign.read()) {
@@ -244,14 +264,31 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       upgrade(weapon) { campaign.upgrade(weapon); refreshHangar(); },
       selectRank(weapon, rank) { campaign.selectRank(weapon, rank); refreshHangar(); },
     });
+    const profile = campaign.read(), stage = find<HTMLCanvasElement>('.hangar-picture'), ship = SHIPS[profile.loadout.ship];
+    text('[data-stage="ship"]', ship.label.toUpperCase());
+    text('[data-stage="perk"]', `${ship.perk.toUpperCase()} · ${ship.blurb.replace(/ Active in both modes\.$/, '')}`);
+    // Each slot tab shows what it holds (its name stays the slot's: Main, Special, Shield, Ships).
+    const holds: Record<Slot, string> = {
+      weapon: `${itemText('weapon', profile.loadout.weapon).name}|TIER ${profile.selected[profile.loadout.weapon] + 1}`,
+      special: itemText('special', profile.loadout.special).name, shield: itemText('shield', profile.loadout.shield).name, ship: ship.label,
+    };
+    for (const tab of shell.querySelectorAll<HTMLElement>('[data-selector="slot"] [role="radio"]')) {
+      const slot = tab.dataset.value as Slot, [name, tier] = holds[slot].split('|');
+      if (!tab.hasAttribute('aria-label')) tab.setAttribute('aria-label', tab.textContent!.trim());
+      const label = document.createElement('small'), item = document.createElement('b');
+      label.textContent = { weapon: 'MAIN', special: 'SPECIAL', shield: 'SHIELD', ship: 'SHIP' }[slot]; item.textContent = name;
+      tab.replaceChildren(label, item, ...(tier ? [Object.assign(document.createElement('i'), { textContent: tier })] : []));
+    }
+    text('[data-armory]', { weapon: 'MAIN WEAPONS', special: 'SPECIALS', shield: 'SHIELDS', ship: 'SHIPS' }[hangarSlot]);
     const yard = find<HTMLElement>('.shipyard');
     yard.hidden = hangarSlot !== 'ship';
+    if (hangarSlot !== 'ship') shipPicture(stage, profile);
     if (hangarSlot === 'ship') renderShipyard(yard, campaign.read(), {
       buyDesign(ship, slot, design) { campaign.buyDesign(ship, slot, design); },
       setLook(ship, look) { campaign.setLook(ship, look); refreshHangar(); },
       picture: (ship, look, width, height) => actions.heroPreview?.(ship, look, width, height) ?? Promise.resolve(null),
       preload: (ship, look) => actions.preloadHero?.(ship, look),
-    });
+    }, stage);
     showBalances();
     // Which mode each part of the hangar flies in (user, 31 October: the hangar is "not only for campaign anymore"): the
     // ship, its perk and its looks fly in both modes; bought gear and weapon tiers in the campaign only (endlessConfig).
@@ -442,6 +479,19 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   onAction('resume', resume);
   onAction('quit', () => { cancelResume(); actions.quit(); });
   onAction('menu', () => { cancelResume(); actions.quit(); });
+  /**
+   * A mission in the results' MISSIONS COMPLETE list opens the campaign page on its world, at its board (user, 7 November):
+   * the flight ends as RETURN TO MENU ends it, then the campaign page shows that mission and scrolls to the board.
+   */
+  let resultMission: MissionId | null = null;
+  find('.result-missions').addEventListener('click', event => {
+    if (!(event.target as HTMLElement).closest('[data-open-board]') || !resultMission) return;
+    const index = MISSION_ORDER.findIndex(([id]) => id === resultMission);
+    cancelResume(); actions.quit();
+    missionIndex = Math.max(0, index);
+    refreshCampaign(); showPanel('campaign-panel', '.campaign-panel .back-button');
+    find('.mission-board').scrollIntoView({ block: 'start' });
+  }, options);
   onAction('retry', () => launch({ ...lastConfig, seed: seed() }));
   find('.pause-button').addEventListener('click', () => actions.pause(), options);
   selectorListeners.set('graphics', value => actions.setQuality(value as GraphicsQuality));
@@ -622,10 +672,11 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       find<HTMLElement>('.result-score-row').hidden = campaign;
       text('.result-note', campaign
         ? `${difficultyNames[state.config.difficulty ?? 'standard']} · ${weaponNames[state.config.weapon ?? 'pulse']}`
-        : 'Every endless flight starts with the same loadout.');
+        : 'Every endless flight starts with the same gear.');
       // Campaign: bank the attempt (once) and show what it earned and anything it unlocked.
       const pay = settleAttempt(state);
       renderResultMissions(find<HTMLElement>('.result-missions'), pay ? missions.finish(state) : []);
+      resultMission = campaign ? state.config.mission ?? null : null;
       find<HTMLElement>('.result-credits').hidden = !pay;
       if (pay) {
         // A receipt (user, 7 November): one line per earning, the total big below. A lost flight banks only what it
@@ -640,11 +691,13 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           const row = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
           dt.textContent = label; dd.textContent = value; row.append(dt, dd); return row;
         }));
-        text('.result-earned b', `+${pay.total.toLocaleString()} CR`);
-        text('.result-earned span', `BALANCE ${pay.balance.toLocaleString()} CR`);
+        // The total big, the parts beside it in their own capsule, the balances under them (user, 7 November).
+        const earned = find<HTMLElement>('.result-earned b');
+        earned.innerHTML = `${CREDIT_GLYPH}+${pay.total.toLocaleString()}`; earned.setAttribute('aria-label', `${pay.total.toLocaleString()} credits earned`);
         // Parts from strike sites (docs/33), banked in full whatever the outcome.
         const partsLine = find<HTMLElement>('.result-parts'); partsLine.hidden = !pay.parts;
-        partsLine.textContent = `+${pay.parts} ${pay.parts === 1 ? 'PART' : 'PARTS'} · ${pay.partsBalance} IN THE HANGAR`;
+        partsLine.innerHTML = `${PART_GLYPH}+${pay.parts}`; partsLine.setAttribute('aria-label', `${pay.parts} ${pay.parts === 1 ? 'part' : 'parts'} earned`);
+        text('.result-balance', `BALANCE ${pay.balance.toLocaleString()} CREDITS · ${pay.partsBalance} ${pay.partsBalance === 1 ? 'PART' : 'PARTS'}`);
         const unlock = find<HTMLElement>('.result-unlock');
         unlock.hidden = !pay.unlocked;
         if (pay.unlocked) {

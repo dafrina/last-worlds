@@ -74,7 +74,8 @@ export function renderLiveBoard(list: HTMLElement, entries: readonly BoardEntry[
 /** The results screen: the missions this run paid, with their rewards. */
 export function renderResultMissions(element: HTMLElement, paid: readonly WorldMission[]): void {
   element.hidden = !paid.length;
-  element.innerHTML = paid.length ? `<p class="result-missions-title">MISSIONS COMPLETE</p><ul>${paid.map(def => `<li><span><i class="board-check" aria-hidden="true">${checkGlyph}</i>${escape(def.name)}</span>${reward(def)}</li>`).join('')}</ul>` : '';
+  // Each opens the campaign page at this world's board (user, 7 November; game-ui.ts handles [data-open-board]).
+  element.innerHTML = paid.length ? `<p class="result-missions-title">MISSIONS COMPLETE</p><ul>${paid.map(def => `<li><button type="button" data-open-board aria-label="${escape(def.name)}, complete: open the mission board"><span><i class="board-check" aria-hidden="true">${checkGlyph}</i>${escape(def.name)}</span>${reward(def)}<span class="result-mission-go" aria-hidden="true">›</span></button></li>`).join('')}</ul>` : '';
 }
 
 /** Notes in flight: one at a time, each shown SHOW_MS, the next no sooner than GAP after; newer progress replaces a queued note. */
