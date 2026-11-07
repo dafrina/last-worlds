@@ -807,3 +807,18 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - **The Ark:** no oval collar while afloat; the wakes and the sinking ring stay.
   - **THE HELIOPHAGE:** flies in from the top (`entryS 30`) instead of rising.
   - **Checks:** unit (948), build, and the graphics and faction browser specs.
+- **Claude Code, 7 November: UI cleanup from the user's questionnaire, plus drops** (`44fc316` and the test fix):
+  - **Names:** planet + mission names with no region subtitles; boss names in capitals without THE.
+  - **Mission board and words:**
+    - SINGLE RUN / ACROSS RUNS chips, with a gold bar for totals;
+    - RELAXED+ / STANDARD+ / VETERAN chips;
+    - "credits" and "TIER" everywhere;
+    - five threat pips.
+  - **Screens:** receipt-style results; CAMPAIGN / ENDLESS buttons; flavour lines removed.
+  - **Drops:** they home in once caught (weapons and shields included) and spin a full turn.
+  - **Missions:** Solar Wind is 7 kills in 8 s.
+  - **Shared sim code touched:**
+    - `src/sim/game.ts` `updatePickups`: `Pickup.caught`, ttl frozen while caught;
+    - `BALANCE.pickup.catchBoost`.
+  - **Gate:** tsc, unit (950+), build, and Playwright 51/55 on the first run. All four failures pass on rerun: three timeouts under load, and the Vesper spec's old "Helion Ark" text, fixed.
+  - **Not included:** the measured performance pass, kept in stash `perf-pass` (SHA 9f93298) at the user's request, not deployed.
