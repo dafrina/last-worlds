@@ -15,11 +15,13 @@ import {
 
 /**
  * Hidden preview switch: `?planet=vesper` renders that planet's world in any run (look tests before its mission
- * ships; it is not offered in any menu). Seating that reads the view's `world` getter follows it.
+ * ships; it is not offered in any menu). Seating that reads the view's `world` getter follows it. Development only,
+ * like the renderer's look override (scene.ts `lookOverride`): in production it would swap the terrain but not the
+ * look (docs/38 D3).
  */
 const DEV_PLANET: PlanetId | null = (() => {
   try {
-    if (typeof location === 'undefined') return null;
+    if (!import.meta.env?.DEV || typeof location === 'undefined') return null;
     const planet = new URLSearchParams(location.search).get('planet');
     return planet && planet in PLANETS ? planet as PlanetId : null;
   } catch { return null; }

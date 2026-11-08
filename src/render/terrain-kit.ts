@@ -557,7 +557,9 @@ async function loadDataTextures<K extends string>(base: string, files: Record<K,
       texture.generateMipmaps = true; texture.minFilter = THREE.LinearMipmapLinearFilter; texture.magFilter = THREE.LinearFilter;
       texture.anisotropy = anisotropy; texture.needsUpdate = true;
       return [key, texture] as const;
-    } catch {
+    } catch (error) {
+      // The layer falls back to flat shading; say so instead of failing silently (docs/38 V9).
+      console.warn(`Terrain texture ${base}${file} unavailable; that layer stays flat.`, error);
       return [key, null] as const;
     }
   }));

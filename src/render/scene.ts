@@ -582,8 +582,24 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const environment = createDesertEnvironment(renderer, SUN);
   scene.environment = environment.texture;
   materials.craft.envMap = materials.enemyCraft.envMap = environment.texture; sharedMaterial.envMap = environment.texture; terrainMaterials.setEnvironment(environment.texture);
-  /** Vesper's sky (made on first use) and ocean; Khepri never creates either. */
-  let iceEnvironment: THREE.WebGLRenderTarget | null = null, lunaEnvironment: THREE.WebGLRenderTarget | null = null, mireEnvironment: THREE.WebGLRenderTarget | null = null, voidEnvironment: THREE.WebGLRenderTarget | null = null;
+  /**
+   * The other worlds' skies, each made on first use (Khepri, Amnion and Corona reflect the desert one). One map, so
+   * dispose frees every sky that was made (docs/38 V9: the ice sky used to be missed).
+   */
+  const SKIES = {
+    ice: [createIceEnvironment, 'vesper'], luna: [createLunaEnvironment, 'luna'], mire: [createMireEnvironment, 'nacre'], void: [createVoidEnvironment, 'umbra'],
+  } as const;
+  const skies = new Map<keyof typeof SKIES, THREE.WebGLRenderTarget>();
+  const skyOf = (kind: PlanetLook['environment']): THREE.WebGLRenderTarget => {
+    if (kind === 'desert') return environment;
+    let made = skies.get(kind);
+    if (!made) {
+      const [create, world] = SKIES[kind];
+      made = create(renderer, sunDirection(LOOKS[world].sunElevation));
+      skies.set(kind, made);
+    }
+    return made;
+  };
   const water = createWater(), foam = createFoam(scene), coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene), motes = createAmbientMotes(scene);
   /** Nacre's water: its own material (src/render/mire-water.ts); the sea sheets wear it while the look is Nacre's. */
   const mireWater = createMireWater();
@@ -628,12 +644,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const look = LOOKS[next];
     applyLight(next, look);
     shadowMaterial.color.setHex(look.blobShadow);
-    if (look.environment === 'ice') iceEnvironment ??= createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation));
-    if (look.environment === 'luna') lunaEnvironment ??= createLunaEnvironment(renderer, sunDirection(LOOKS.luna.sunElevation));
-    if (look.environment === 'mire') mireEnvironment ??= createMireEnvironment(renderer, sunDirection(LOOKS.nacre.sunElevation));
-    if (look.environment === 'void') voidEnvironment ??= createVoidEnvironment(renderer, sunDirection(LOOKS.umbra.sunElevation));
-    const sky = look.environment === 'ice' && iceEnvironment ? iceEnvironment.texture : look.environment === 'luna' && lunaEnvironment ? lunaEnvironment.texture
-      : look.environment === 'mire' && mireEnvironment ? mireEnvironment.texture : look.environment === 'void' && voidEnvironment ? voidEnvironment.texture : environment.texture;
+    const sky = skyOf(look.environment).texture;
     scene.environment = sky;
     materials.craft.envMap = sky; materials.craft.needsUpdate = true; materials.enemyCraft.envMap = sky; materials.enemyCraft.needsUpdate = true;
     materials.prop.envMap = sky; materials.prop.needsUpdate = true;
@@ -1139,7 +1150,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
     facilityPrefetches.set(next, facilityLoad);
     const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'corona' ? ensureHeliophage() : next === 'luna' ? ensureWarden() : bastionLoad;
-    if (next === 'vesper' && !iceEnvironment) { iceEnvironment = createIceEnvironment(renderer, sunDirection(LOOKS.vesper.sunElevation)); warmed = false; }
+    if (next === 'vesper' && !skies.has('ice')) { skyOf('ice'); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
       terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : next === 'corona' ? ensureCoronaCraft() : undefined,
       // Nacre's water detail, built in slices off the frame (src/render/mire-water.ts).
@@ -2295,7 +2306,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); motes.dispose(); basaltRaft.dispose(); environment.dispose(); lunaEnvironment?.dispose(); mireEnvironment?.dispose(); voidEnvironment?.dispose();
+      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); motes.dispose(); basaltRaft.dispose(); environment.dispose(); skies.forEach(sky => sky.dispose());
       lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose(); instancedDepth.dispose();
       renderer.dispose();
