@@ -2206,3 +2206,4 @@ Final Playwright gate after the entry and announcement changes: 55/55 passed in 
   - **Vesper** (the user's last request to Codex): laser flocks alternate with laser-free Diamond squadrons in Cold Vector and endless (docs/17, "Laser flocks alternate…"), with the new `diamond-pair` formation and a regression test.
   - **Visual check** (Interceptor over Amnion, Standard): the shell is in the ship's blue-violet glow; THE CRADLE arrives in rust vapour with amber arcs. No hostile bolt was in frame.
   - **Gate on `54766b5`** (clean snapshot `../alien-skies-snapshot`, port 4183, load 4–9): typecheck clean; unit 979 passed, 5 skipped; build passes; browser 55/55 (Playwright exit 0).
+  - **Live:** Pages run 42470872435 succeeded for `dd40bfd`, and the live bundles (`main-DRXPKwdR.js`, `scene-C0o6GxTv.js`) match the build. The endless smoke test has no page errors.
