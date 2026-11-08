@@ -83,7 +83,10 @@ test('a flight shows a small mission note, and the results list the missions it 
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/2-flight-note.png` });
   // The pause panel lists the visible missions with this run's progress.
   await page.locator('.pause-button').click();
-  await expect(page.locator('.pause-missions li').nth(0)).toHaveText(/Specialist\s*1\/5/);
+  // Under a MISSIONS title, each mission's name and status, then what it asks (user, 8 November).
+  await expect(page.locator('.pause-missions-title')).toHaveText('MISSIONS');
+  await expect(page.locator('.pause-missions li').nth(0).locator('.pause-mission-head')).toHaveText(/Specialist\s*1\/5/);
+  await expect(page.locator('.pause-missions li').nth(0).locator('p')).toHaveText(/Fire your special 5 times/);
   await page.locator('[data-action="resume"]').click();
   await flying(page);
   await page.evaluate(() => (window as unknown as Dev).__LAST_WORLDS__.end('complete'));

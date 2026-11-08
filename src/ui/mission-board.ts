@@ -66,9 +66,14 @@ export function renderBoard(section: HTMLElement, board: WorldBoard | null, worl
 
 /** The pause panel's compact list: the visible missions with this run's live progress. */
 export function renderLiveBoard(list: HTMLElement, entries: readonly BoardEntry[]): void {
-  list.hidden = !entries.length;
-  list.innerHTML = entries.map(({ def, progress, gated, next }) => `<li><span>${escape(def.name)}</span><b>${next ? 'NEXT RUN' : gated ? DIFFICULTY_TAG[def.difficulty]
-    : progress >= def.goal ? 'DONE' : def.goal > 1 ? `${progress}/${def.goal}` : '—'}</b></li>`).join('');
+  // Under a MISSIONS title, each mission's name and status, then what it asks (user, 8 November).
+  const section = list.closest<HTMLElement>('.pause-missions-section');
+  if (section) section.hidden = !entries.length; else list.hidden = !entries.length;
+  list.innerHTML = entries.map(({ def, progress, gated, next }) => {
+    const done = !next && !gated && progress >= def.goal;
+    const status = next ? 'NEXT RUN' : gated ? DIFFICULTY_TAG[def.difficulty] : done ? 'DONE' : def.goal > 1 ? `${progress}/${def.goal}` : '—';
+    return `<li${done ? ' class="is-done"' : ''}><div class="pause-mission-head"><span>${escape(def.name)}</span><b>${status}</b></div><p>${escape(def.text)}</p></li>`;
+  }).join('');
 }
 
 /** The results screen: the missions this run paid, with their rewards. */
@@ -78,11 +83,14 @@ export function renderResultMissions(element: HTMLElement, paid: readonly WorldM
   element.innerHTML = paid.length ? `<p class="result-missions-title">MISSIONS COMPLETE</p><ul>${paid.map(def => `<li><button type="button" data-open-board aria-label="${escape(def.name)}, complete: open the mission board"><span><i class="board-check" aria-hidden="true">${checkGlyph}</i>${escape(def.name)}</span>${reward(def)}<span class="result-mission-go" aria-hidden="true">›</span></button></li>`).join('')}</ul>` : '';
 }
 
-/** Notes in flight: one at a time, each shown SHOW_MS, the next no sooner than GAP after; newer progress replaces a queued note. */
-const SHOW_MS = 1800, GAP = 400;
+/**
+ * Notes in flight: one at a time, each shown SHOW_MS (a completion COMPLETE_MS, green with a check: user, 8 November), the
+ * next no sooner than GAP after; newer progress replaces a queued note.
+ */
+const SHOW_MS = 1800, COMPLETE_MS = 3000, GAP = 400;
 export function createMissionNotes(element: HTMLElement) {
   const queue: MissionNote[] = [];
-  let shownAt = -Infinity, showing = false;
+  let shownAt = -Infinity, showing = false, showFor = SHOW_MS;
   const hide = () => { if (showing) { showing = false; element.classList.remove('is-on'); } };
   return {
     push(notes: readonly MissionNote[]) {
@@ -97,10 +105,12 @@ export function createMissionNotes(element: HTMLElement) {
     /** Each frame: shows the next note when one is due, only while the flight is playing. */
     frame(playing: boolean, now = performance.now()) {
       if (!playing) { hide(); return; }
-      if (showing && now - shownAt >= SHOW_MS) hide();
-      if (showing || !queue.length || now - shownAt < SHOW_MS + GAP) return;
+      if (showing && now - shownAt >= showFor) hide();
+      if (showing || !queue.length || now - shownAt < showFor + GAP) return;
       const note = queue.shift()!;
-      element.textContent = note.text;
+      showFor = note.complete ? COMPLETE_MS : SHOW_MS;
+      if (note.complete) element.innerHTML = `<i class="mission-note-check" aria-hidden="true">${checkGlyph}</i>${escape(note.text)}`;
+      else element.textContent = note.text;
       element.classList.toggle('is-complete', note.complete);
       element.classList.remove('is-on'); void element.offsetWidth; element.classList.add('is-on');
       showing = true; shownAt = now;

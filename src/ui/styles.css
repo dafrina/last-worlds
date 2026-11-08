@@ -541,17 +541,26 @@ button:disabled { cursor: default; }
 .result-missions .board-check { position: static; display: inline-grid; width: 14px; height: 14px; margin: 0 6px 0 0; vertical-align: -2px; }
 .result-missions .board-check svg { width: 10px; height: 10px; }
 .board-note { margin: 0; color: #9db0c5; font-size: 11px; line-height: 1.5; }
-.pause-missions { list-style: none; margin: -14px 0 24px; padding: 0; display: grid; gap: 7px; }
-.pause-missions[hidden] { display: none; }
-.pause-missions li { display: flex; justify-content: space-between; gap: 12px; color: #91a6c0; font: 8px / 1.5 var(--mono); letter-spacing: .8px; text-transform: uppercase; }
-.pause-missions b { color: #9fe4ff; font-weight: 600; }
+.pause-missions-section { margin: -14px 0 24px; }
+.pause-missions-section[hidden] { display: none; }
+.pause-missions-title { margin: 0 0 9px; color: #9fe4ff; font: 600 9px / 1.4 var(--mono); letter-spacing: 1.6px; }
+.pause-missions { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.pause-missions li { display: grid; gap: 2px; }
+.pause-mission-head { display: flex; justify-content: space-between; gap: 12px; color: #c9d8e8; font: 8px / 1.5 var(--mono); letter-spacing: .8px; text-transform: uppercase; }
+.pause-missions b { color: #9fe4ff; font-weight: 600; flex: none; }
+.pause-missions li.is-done b { color: #7fe0b0; }
+.pause-missions p { margin: 0; color: #8fa4bb; font-size: 11px; line-height: 1.4; }
 /* In flight: one small line under the lives and shields, fading in and out; a completion in gold. */
 .mission-note {
   position: absolute; z-index: 3; top: calc(max(16px, calc(var(--safe-top) + 10px)) + 52px); left: max(15px, calc(var(--safe-left) + 10px));
   margin: 0; max-width: 60%; pointer-events: none; color: #9fe4ff; opacity: 0;
   font: 9px / 1.4 var(--mono); letter-spacing: 1px; text-shadow: 0 0 2px #000, 0 1px 3px #000, 0 0 8px #7fd8ff55;
 }
-.mission-note.is-complete { color: #ffe2a6; text-shadow: 0 0 2px #000, 0 1px 3px #000, 0 0 8px #ffb84a66; }
+.mission-note.is-complete { color: #8ff0bf; text-shadow: 0 0 2px #000, 0 1px 3px #000, 0 0 8px #3ddc9766; }
+.mission-note.is-complete.is-on { animation-duration: 3s; }
+.mission-note-check { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: 6px; vertical-align: -3px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8ff5c4, #34c98a 70%); box-shadow: 0 0 8px #3ddc9766; }
+.mission-note-check svg { width: 10px; height: 10px; fill: none; stroke: #04261a; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .mission-note.is-on { animation: mission-note 1.8s ease-out both; }
 @keyframes mission-note { 0% { opacity: 0; transform: translateY(-3px); } 12%, 78% { opacity: .92; transform: none; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mission-note.is-on { animation: none; opacity: .92; } }
@@ -651,6 +660,16 @@ button:disabled { cursor: default; }
 .campaign-panel .setup-group .selector [role="radio"]::after { display: none; }
 .campaign-panel .setup-group .selector [role="radio"][aria-checked="true"] {
   background: linear-gradient(180deg, #1f4570, #143154); box-shadow: inset 0 1px 0 #ffffff22, 0 0 12px #6fc3ff33;
+}
+/* The selected difficulty wears its mission-chip colour (user, 8 November): Relaxed mint, Standard amber, Veteran coral. */
+.campaign-panel .setup-group [data-selector="difficulty"] [role="radio"][data-value="relaxed"][aria-checked="true"] {
+  color: #eafff6; background: linear-gradient(180deg, #1e5a49, #123a2f); box-shadow: inset 0 1px 0 #ffffff22, 0 0 12px #8fd6b84d, inset 0 0 0 1px #8fd6b866;
+}
+.campaign-panel .setup-group [data-selector="difficulty"] [role="radio"][data-value="standard"][aria-checked="true"] {
+  color: #fff4e6; background: linear-gradient(180deg, #6b4519, #432a0e); box-shadow: inset 0 1px 0 #ffffff22, 0 0 12px #ffb36b4d, inset 0 0 0 1px #ffb36b66;
+}
+.campaign-panel .setup-group [data-selector="difficulty"] [role="radio"][data-value="veteran"][aria-checked="true"] {
+  color: #fff0ee; background: linear-gradient(180deg, #6d2a22, #441713); box-shadow: inset 0 1px 0 #ffffff22, 0 0 12px #ff7a6a4d, inset 0 0 0 1px #ff7a6a66;
 }
 .loadout-summary { border: 0; border-radius: 6px; padding: 10px 0 0; background: transparent; box-shadow: none; }
 .loadout-summary:hover, .loadout-summary:focus-visible { border: 0; box-shadow: none; }

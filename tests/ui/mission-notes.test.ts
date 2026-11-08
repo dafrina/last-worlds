@@ -4,7 +4,8 @@ import { createMissionNotes } from '../../src/ui/mission-board';
 /** Just what the note element needs: its text and classes (no DOM in unit tests). */
 function element() {
   const classes = new Set<string>();
-  return { textContent: '', offsetWidth: 0, classList: { add: (c: string) => classes.add(c), remove: (...c: string[]) => c.forEach(x => classes.delete(x)), toggle: (c: string, on: boolean) => { if (on) classes.add(c); else classes.delete(c); } }, classes };
+  const el = { textContent: '', html: '', set innerHTML(value: string) { el.html = value; el.textContent = value.replace(/<[^>]*>/g, ''); }, offsetWidth: 0, classList: { add: (c: string) => classes.add(c), remove: (...c: string[]) => c.forEach(x => classes.delete(x)), toggle: (c: string, on: boolean) => { if (on) classes.add(c); else classes.delete(c); } }, classes };
+  return el;
 }
 
 describe('in-flight mission notes (docs/35 § 6)', () => {
@@ -21,7 +22,11 @@ describe('in-flight mission notes (docs/35 § 6)', () => {
     notes.frame(true, 2250);
     expect(el.textContent).toBe('B DONE');
     expect(el.classes.has('is-complete')).toBe(true);
+    // A completion shows in green with a check, for 3 s (user, 8 November).
+    expect(el.html).toContain('mission-note-check');
     notes.frame(true, 4500);
+    expect(el.textContent).toBe('B DONE');
+    notes.frame(true, 5700);
     expect(el.textContent).toBe('A 3/5'); // A 2/5 was replaced while queued
     // Paused: nothing shows, and nothing is lost.
     notes.push([{ id: 'c', text: 'C 1/3', complete: false }]);

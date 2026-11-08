@@ -92,7 +92,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <h2 id="pause-title">PAUSED</h2>
           <p class="pause-description"></p>
           <dl class="pause-loadout"><div><dt>MAIN</dt><dd class="pause-weapon"></dd></div><div><dt>SPECIAL</dt><dd class="pause-special"></dd></div><div><dt>SHIELD / SHIP</dt><dd class="pause-tech"></dd></div></dl>
-          <ol class="pause-missions" aria-label="Missions this run" hidden></ol>
+          <section class="pause-missions-section" aria-labelledby="pause-missions-title" hidden><h3 class="pause-missions-title" id="pause-missions-title">MISSIONS</h3><ol class="pause-missions" aria-label="Missions this run"></ol></section>
           <p class="resume-countdown" role="status" hidden></p>
           <button type="button" class="arcade-button primary" data-action="resume">RESUME <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="quit">RETURN TO MENU</button>
