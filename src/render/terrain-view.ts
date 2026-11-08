@@ -285,6 +285,13 @@ export function createTerrainView(options: TerrainViewOptions) {
    */
   const haulerSlots = new Map<string, number>(), liveRoads = new Map<string, RoadPath>();
   const floeGroups = new Map<string, FloeGroup>(), floeGroupPool = new Map<string, FloeGroup>();
+  /** Each floe's kit node name, made once (not a new string per floe per frame). */
+  const floeNodes = new WeakMap<Floe, string>();
+  const floeNode = (floe: Floe) => {
+    let name = floeNodes.get(floe);
+    if (name === undefined) floeNodes.set(floe, name = kitNodeName(floe.kind, floe.variant));
+    return name;
+  };
   /**
    * Roads that mostly run on top of another road (a shared corridor) carry no haulers, so two never stack. Decided once
    * per road id, never per frame, so a hauler never blinks out and back.
@@ -763,11 +770,6 @@ export function createTerrainView(options: TerrainViewOptions) {
     dirty = true;
   }
 
-  /** Whether a piece's anchor (world x, s) lies in a battery compound's clearing. */
-  function inFacilityClearing(x: number, s: number): boolean {
-    for (const c of facilityClearings) if (x > c.minX && x < c.maxX && s > c.minS && s < c.maxS) return true;
-    return false;
-  }
   /** Refill every node batch with the instances whose boxes meet the margin-expanded frustum. */
   function compact() {
     const counts = new Map<string, number>();
@@ -791,7 +793,13 @@ export function createTerrainView(options: TerrainViewOptions) {
           if (hide && data.boxes[b + 3] > hide.minX && data.boxes[b] < hide.maxX && data.boxes[b + 5] > hide.minZ && data.boxes[b + 2] < hide.maxZ) continue;
           // Same box-centre anchor as the shadow proxy, so a removed rock cannot leave a ghost shadow.
           const ax = (data.boxes[b] + data.boxes[b + 3]) / 2, as = view.startS - (data.boxes[b + 2] + data.boxes[b + 5]) / 2;
-          if (inFacilityClearing(ax, as)) continue;
+          // In a battery compound's clearing? (A plain loop here: no closure or call per instance.)
+          let cleared = false;
+          for (let c = 0; c < facilityClearings.length && !cleared; c++) {
+            const r = facilityClearings[c];
+            cleared = ax > r.minX && ax < r.maxX && as > r.minS && as < r.maxS;
+          }
+          if (cleared) continue;
           worldBox.min.set(data.boxes[b] - CULL_MARGIN, data.boxes[b + 1], data.boxes[b + 2] + zShift - CULL_MARGIN);
           worldBox.max.set(data.boxes[b + 3] + CULL_MARGIN, data.boxes[b + 4], data.boxes[b + 5] + zShift + CULL_MARGIN);
           if (!frustum.intersectsBox(worldBox)) continue;
@@ -1094,7 +1102,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       for (const view of views.values()) for (const floe of view.floes) {
         if (!inView(floe.x, floe.s - distance, 2.6)) continue;
         if (exclusion && floe.x > exclusion.minX && floe.x < exclusion.maxX && floe.s > exclusion.minS && floe.s < exclusion.maxS) continue;
-        const name = kitNodeName(floe.kind, floe.variant);
+        const name = floeNode(floe);
         let group = visible.get(name);
         if (!group) {
           group = floeGroupPool.get(name) ?? { floes: [], seas: [], count: 0 };
