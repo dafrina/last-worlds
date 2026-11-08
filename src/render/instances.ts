@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { DynamicDrawUsage } from 'three';
 
 /**
  * Dynamic instanced data (performance, 30 October): three.js uploads a whole attribute when it has no update range, so
@@ -23,4 +24,13 @@ export function liveVertices(object: THREE.Object3D, geometry: THREE.BufferGeome
     attribute.clearUpdateRanges();
     if (vertices > 0) { attribute.addUpdateRange(0, vertices * attribute.itemSize); attribute.needsUpdate = true; }
   }
+}
+
+/**
+ * A batch whose instances are rewritten every frame (docs/38 R4): dynamic matrix usage, never culled as a whole (its
+ * instances span the view), nothing drawn until a frame fills it. The caller adds its name, order and shadows.
+ */
+export function dynamicBatch<T extends THREE.InstancedMesh>(mesh: T): T {
+  mesh.instanceMatrix.setUsage(DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0;
+  return mesh;
 }

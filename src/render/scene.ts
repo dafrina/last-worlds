@@ -1,5 +1,5 @@
 import { createBeamLight, createPhaseHoles } from './combat-light';
-import { liveInstances } from './instances';
+import { liveInstances, dynamicBatch } from './instances';
 import { createSilhouetteMaterial, planarShadow, silhouetteShade } from './craft-shadows';
 export { liveInstances } from './instances';
 import { SHIP_PERKS } from '../sim/ship-perks';
@@ -848,7 +848,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const silhouettes = new Map<THREE.InstancedMesh, THREE.InstancedMesh>();
   const withSilhouette = (mesh: THREE.InstancedMesh) => {
     const flat = new THREE.InstancedMesh(mesh.geometry, craftSilhouetteMaterial, ENEMY_CAPACITY);
-    flat.instanceMatrix.setUsage(THREE.DynamicDrawUsage); flat.frustumCulled = false; flat.count = 0; flat.visible = false;
+    dynamicBatch(flat); flat.visible = false;
     flat.renderOrder = 1; flat.name = `${mesh.name} silhouette`; scene.add(flat); silhouettes.set(mesh, flat);
   };
   const craftGeometry = (model: THREE.Group) => (model.children[0] as THREE.Mesh).geometry;
@@ -864,7 +864,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const geometry = standIns.get(model)!;
     // The fuel skid keeps its hazard red on every planet (Luna's steel-blue repaint is for the Khepri craft).
     const mesh = new THREE.InstancedMesh(geometry, kind === 'fuel' ? materials.prop : materials.enemyCraft, ENEMY_CAPACITY);
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri ${kind} craft`;
+    dynamicBatch(mesh); mesh.name = `Khepri ${kind} craft`;
     // Every craft casts into the High shadow map and takes shadows, like the hero (polish pass, 30 October: the
     // flying craft's blob shadows read "whack" beside the hero's real one); Low draws sun-placed blobs for all.
     mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
@@ -907,7 +907,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const craft = nodes.get(name);
       if (!craft) continue;
       const mesh = new THREE.InstancedMesh(craft.geometry, materials.prop, WRECK_CAPACITY);
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Wreck ${name}`;
+      dynamicBatch(mesh); mesh.name = `Wreck ${name}`;
       mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
       for (let i = 0; i < WRECK_CAPACITY; i++) mesh.setColorAt(i, WHITE);
       scene.add(mesh); wreckBatches.set(name, mesh);
@@ -915,7 +915,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const missile = nodes.get('fx_missile');
     if (missile) {
       missiles = new THREE.InstancedMesh(missile.geometry, materials.prop, 32);
-      missiles.instanceMatrix.setUsage(THREE.DynamicDrawUsage); missiles.frustumCulled = false; missiles.count = 0; missiles.renderOrder = 10; missiles.name = 'Seeker Rack missiles';
+      dynamicBatch(missiles); missiles.renderOrder = 10; missiles.name = 'Seeker Rack missiles';
       for (let i = 0; i < 32; i++) missiles.setColorAt(i, WHITE);
       scene.add(missiles);
     }
@@ -950,7 +950,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (!mesh || mesh.geometry !== geometry) {
       if (mesh) { scene.remove(mesh); mesh.dispose(); }
       mesh = new THREE.InstancedMesh(geometry, sharedMaterial, 48);
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Emplacement ${node}`;
+      dynamicBatch(mesh); mesh.name = `Emplacement ${node}`;
       mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
       for (let i = 0; i < 48; i++) mesh.setColorAt(i, WHITE);
       scene.add(mesh); emplacementBatches.set(node, mesh);
@@ -986,7 +986,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     for (const [name, craft] of nodes) {
       const ground = name === groundNode;
       const mesh = new THREE.InstancedMesh(craft.geometry, material, ENEMY_CAPACITY);
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `${label} ${name}`;
+      dynamicBatch(mesh); mesh.name = `${label} ${name}`;
       mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
       for (let i = 0; i < ENEMY_CAPACITY; i++) mesh.setColorAt(i, WHITE);
       mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
@@ -1055,7 +1055,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const geometry = craft && nodes.get(craft.node);
         if (!geometry) continue;
         const mesh = new THREE.InstancedMesh(geometry, materials.enemyCraft, ENEMY_CAPACITY);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${kind} craft`;
+        dynamicBatch(mesh); mesh.name = `Vesper ${kind} craft`;
         mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = casterDepthOf(mesh.material as THREE.Material);
         let ghost: THREE.InstancedMesh | undefined;
         if (GROUND_KINDS.has(kind)) {
@@ -1073,10 +1073,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // On slopes a foundation plinth reaches down to the lowest ground under the turret footprint.
   const plinthGeometry = new THREE.CylinderGeometry(.6, .66, 1, 6); plinthGeometry.translate(0, .5, 0);
   const plinths = new THREE.InstancedMesh(plinthGeometry, materials.dark, 32);
-  plinths.instanceMatrix.setUsage(THREE.DynamicDrawUsage); plinths.frustumCulled = false; plinths.count = 0; plinths.receiveShadow = true; scene.add(plinths);
+  dynamicBatch(plinths); plinths.receiveShadow = true; scene.add(plinths);
   // Over open water a ground battery rides a small black-ceramic pontoon instead (render-only, one draw).
   const pontoons = new THREE.InstancedMesh(createPontoonGeometry(), materials.craft, 32);
-  pontoons.instanceMatrix.setUsage(THREE.DynamicDrawUsage); pontoons.frustumCulled = false; pontoons.count = 0; pontoons.receiveShadow = true; pontoons.name = 'battery pontoons';
+  dynamicBatch(pontoons); pontoons.receiveShadow = true; pontoons.name = 'battery pontoons';
   // Corona (docs/37): a battery over the plasma rides a black basalt raft, not Vesper's white pontoon, and leaves no foam.
   const basaltRaft = new THREE.MeshStandardMaterial({ color: 0x24201d, roughness: .85, metalness: .15 });
   scene.add(pontoons);

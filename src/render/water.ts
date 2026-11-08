@@ -1,4 +1,4 @@
-import { liveInstances } from './instances';
+import { liveInstances, dynamicBatch } from './instances';
 import * as THREE from 'three';
 
 /**
@@ -232,7 +232,7 @@ export function createFoam(scene: THREE.Scene, capacity = 64) {
   const material = new THREE.ShaderMaterial({ vertexShader: FOAM_VERTEX, fragmentShader: FOAM_FRAGMENT, uniforms, transparent: true, depthWrite: false,
     polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   const mesh = new THREE.InstancedMesh(geometry, material, capacity);
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 1; mesh.name = 'Vesper foam';
+  dynamicBatch(mesh); mesh.renderOrder = 1; mesh.name = 'Vesper foam';
   scene.add(mesh);
   const transform = new THREE.Object3D();
   return {

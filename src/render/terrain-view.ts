@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { dynamicBatch } from './instances';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { VIEW, type GraphicsQuality } from '../shared/contracts';
@@ -298,7 +299,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       mesh = new THREE.InstancedMesh(geometry, infraMaterial, HAULER_CAPACITY);
       // Same program variant as the static batches (instance colour present), so no compile hitch on first sight.
       for (let i = 0; i < HAULER_CAPACITY; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Khepri hauler ${name}`;
+      dynamicBatch(mesh); mesh.name = `Khepri hauler ${name}`;
       mesh.castShadow = false; mesh.receiveShadow = true;
       haulers.set(name, mesh); scene.add(fixed(mesh));
     }
@@ -672,7 +673,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       meshes?.forEach(mesh => { scene.remove(mesh); mesh.dispose(); });
       meshes = foamMaterials.map((material, i) => {
         const mesh = new THREE.InstancedMesh(shape, material, floe.instanceMatrix.count);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${name} foam ${i}`;
+        dynamicBatch(mesh); mesh.name = `Vesper ${name} foam ${i}`;
         scene.add(fixed(mesh)); return mesh;
       });
       foamMeshes.set(name, meshes);
@@ -688,7 +689,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       if (mesh) { scene.remove(mesh); mesh.dispose(); }
       mesh = new THREE.InstancedMesh(geometry, kitMaterial, capacity);
       for (let i = 0; i < capacity; i++) mesh.setColorAt(i, color.setRGB(1, 1, 1));
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = `Vesper ${name}`;
+      dynamicBatch(mesh); mesh.name = `Vesper ${name}`;
       // Its own shadow-depth material: on three.js's shared one, a floe batch drawn next to the hero's caster switched that
       // material's program twice a frame (src/render/scene.ts `instancedDepth`; same programs, same shadow).
       mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = floeDepth;
