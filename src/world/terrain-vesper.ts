@@ -1,8 +1,9 @@
 import {
   WORLD_HALF, bench, clamp, cliff, crispStep, hash, mix, noise, routeCalm, smooth, smoothRange, NEUTRAL_MOOD, type Landform, type MoodParams,
 } from './terrain-layout';
-import { FLOE_FOOTPRINT, FLOE_SETS, KIT, kitNodeName, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
-import { MODULE_HEIGHT, compoundSlot, districtLevel, type Archetype, type CompoundSlot, type PlacedModule, type Settlement } from './terrain-settlements';
+import { FLOE_FOOTPRINT, FLOE_SETS, KIT, kitNodeName, type FloeSetKind, type KitInstance, type ScatterField } from './scenery-kit';
+import { MODULE_HEIGHT, compoundSlot, districtLevel, type CompoundSlot } from './terrain-settlements';
+import type { Archetype, PlacedModule, Settlement } from './settlement-geometry';
 import type { Work } from './terrain-work';
 import { cliffWallSteps } from './terrain-walls';
 import type { Floe, PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';

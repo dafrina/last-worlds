@@ -3,7 +3,7 @@ import type { GameAudio } from '../../src/audio/engine';
 import type { AudioMixer } from '../../src/audio/mixer';
 import type { renderPreview } from '../fixtures/audio-lab';
 import type { PlanetId, RunState } from '../../src/shared/contracts';
-import type { startBoss } from '../../src/sim/bastion';
+import type { startBoss } from '../../src/sim/boss';
 
 type Diagnostics = ReturnType<GameAudio['diagnostics']>;
 const status = (page: Page): Promise<Diagnostics> => page.evaluate(() =>

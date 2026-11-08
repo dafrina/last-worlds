@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VESPER_LINE_CAP } from '../../src/content/balance';
 import { createRun, stepRun } from '../../src/sim/game';
-import { HUNTERS } from '../../src/sim/hunters';
+import { HUNTERS } from '../../src/content/hunters';
 import type { RunConfig, RunState } from '../../src/shared/contracts';
 import { enterSector, perfectPilot, type Pilot } from './pilots';
 

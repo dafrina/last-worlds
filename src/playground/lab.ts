@@ -4,7 +4,7 @@
  * and attacks; the campaign's playlist, hunters and boss stay out of it.
  */
 import { spawnMembers, runScale } from '../sim/spawn';
-import { HUNTERS } from '../sim/hunters';
+import { HUNTERS } from '../content/hunters';
 import { missionBoss } from '../content/bosses';
 import { CAMPAIGN_SCROLL, ENEMIES } from '../content/balance';
 import type { FormationId } from '../content/formations';
@@ -12,7 +12,7 @@ import { VIEW, type EnemyKind, type MissionId, type RunState } from '../shared/c
 
 /**
  * The run's clock for a map position: before the boss arena's slowdown a mission scrolls at a constant speed from
- * distance 0 (src/sim/bastion.ts, `arenaScroll`), so the lab starts its clock there and the world flies on from that spot.
+ * distance 0 (src/sim/boss.ts, `arenaScroll`), so the lab starts its clock there and the world flies on from that spot.
  * It stays clear of the boss's approach.
  */
 export function labClock(mission: MissionId, distance: number): { time: number; limit: number } {

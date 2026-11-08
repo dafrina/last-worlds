@@ -1,6 +1,6 @@
 /** Development-only visual fixture; this HTML is not a Vite production entry. */
 import { createRun, stepRun } from '../../src/sim/game';
-import { arenaScroll, startBastion, bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
+import { arenaScroll, startBoss, bossTarget, resolveBossPhase } from '../../src/sim/boss';
 import { spawnMembers } from '../../src/sim/spawn';
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
@@ -29,15 +29,15 @@ function prepare() {
   if (eclipse) return prepareCradle(ECLIPSE);
   state.time = BASTION.arrivesAt;
   // The arena scroll is a closed form of time: the terrain is decelerating toward its stop as the fortress rolls in.
-  const scroll = arenaScroll(state.time, null); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  const scroll = arenaScroll(state.time, null); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBoss(state);
   // `phase=arrival&t=N`: N seconds into the roll-in.
   if (query.get('phase') === 'arrival') { for (let i = 0; i < Math.round(Number(query.get('t') ?? 0) * 60); i++) stepRun(state, EMPTY_INPUT); return; }
   for (let i = 0; i < 181; i++) stepRun(state, EMPTY_INPUT);
   if (['core', 'overload', 'destroyed'].includes(query.get('phase') ?? '')) {
-    bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
+    bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBossPhase(state);
   }
-  if (query.get('phase') === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
-  if (query.get('phase') === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); }
+  if (query.get('phase') === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBossPhase(state); }
+  if (query.get('phase') === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state); }
 }
 /** THE VEIL over Nacre's mire (`boss=veil`), same phases as WARDEN-1; `phase=approach&t=N` previews Deep Bloom itself. */
 function prepareVeil() {
@@ -45,13 +45,13 @@ function prepareVeil() {
   const step = (seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) stepRun(state, EMPTY_INPUT); };
   if (phase === 'approach') { step(at); return; }
   state.time = VEIL.arrivesAt;
-  const scroll = arenaScroll(state.time, null, VEIL.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  const scroll = arenaScroll(state.time, null, VEIL.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBoss(state);
   if (phase === 'arrival') { step(at); return; }
   step(VEIL.arrivalDuration + 1 / 60);
   if (phase === 'batteries') return;
-  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
-  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
-  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
+  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBossPhase(state);
+  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBossPhase(state); }
+  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state); step(at); }
 }
 /**
  * THE CRADLE on Amnion (`boss=cradle`) and THE ECLIPSE on Umbra (`boss=eclipse`), the carriers that rise in place:
@@ -65,19 +65,19 @@ function prepareCradle(boss: { arrivesAt: number; arrivalDuration: number; arena
   // (`god=1` keeps the ship alive, for looking at the mission's craft.)
   if (phase === 'approach') { if (query.get('god')) state.player.invulnerableUntil = Infinity; step(at); return; }
   state.time = boss.arrivesAt;
-  const scroll = arenaScroll(state.time, null, boss.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  const scroll = arenaScroll(state.time, null, boss.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBoss(state);
   if (phase === 'arrival') { step(at); return; }
   step(boss.arrivalDuration + 1 / 60);
   if (phase === 'batteries') {
     for (const part of (query.get('down')?.split(',') ?? []) as BossPart[]) { const target = bossTarget(state, part); if (target) target.hp = 0; }
-    resolveBastionPhase(state); step(at); return;
+    resolveBossPhase(state); step(at); return;
   }
   // Every first-phase target down (THE ECLIPSE's prow vent too).
   for (const part of phaseOneParts(BOSSES[state.boss!.id])) bossTarget(state, part)!.hp = 0;
-  resolveBastionPhase(state);
+  resolveBossPhase(state);
   if (phase === 'launch') { step(Math.max(0, state.boss!.nextLaunchAt - state.time - .35) + at); return; }
-  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
-  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
+  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBossPhase(state); }
+  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state); step(at); }
   if (phase === 'core') step(at);
 }
 /** WARDEN-1 on Luna (`boss=warden`): `arrival` (`t` seconds into the descent), `batteries`, `core`, `overload`, `destroyed`. */
@@ -85,13 +85,13 @@ function prepareWarden() {
   const phase = query.get('phase') ?? 'batteries', at = Number(query.get('t') ?? (phase === 'arrival' ? 1.2 : 0));
   const step = (seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) stepRun(state, EMPTY_INPUT); };
   state.time = WARDEN.arrivesAt;
-  const scroll = arenaScroll(state.time, null, WARDEN.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  const scroll = arenaScroll(state.time, null, WARDEN.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBoss(state);
   if (phase === 'arrival') { step(at); return; }
   step(WARDEN.arrivalDuration + 1 / 60);
   if (phase === 'batteries') return;
-  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
-  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .3; resolveBastionPhase(state); }
-  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
+  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBossPhase(state);
+  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .3; resolveBossPhase(state); }
+  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state); step(at); }
 }
 /**
  * Helion Ark phases: `arrival` (1.2 s into the glide-in, or `t`), `batteries`, `core`, `launch` (bridge phase just
@@ -104,14 +104,14 @@ function prepareArk() {
   // `phase=approach&t=N`: Cold Vector itself, N seconds after launch (Needles, Diamonds, missile batteries).
   if (phase === 'approach') { step(at); return; }
   state.time = HELION_ARK.arrivesAt;
-  const scroll = arenaScroll(state.time, null, HELION_ARK.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBastion(state);
+  const scroll = arenaScroll(state.time, null, HELION_ARK.arena); state.distance = scroll.distance; state.scrollSpeed = scroll.speed; startBoss(state);
   if (phase === 'arrival') { step(at); return; }
   step(HELION_ARK.arrivalDuration + 1 / 60);
   if (phase === 'batteries') return;
-  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBastionPhase(state);
+  bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBossPhase(state);
   if (phase === 'launch') { step(Math.max(0, state.boss!.nextLaunchAt - state.time - .35)); return; }
-  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBastionPhase(state); }
-  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state); step(at); }
+  if (phase === 'overload') { bossTarget(state, 'core')!.hp *= .39; resolveBossPhase(state); }
+  if (phase === 'destroyed') { bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state); step(at); }
 }
 /**
  * Endless hyperdrive jump (docs/18): `mode=jump&n=1|2&t=N` flies an endless run (invulnerable, no input) to the
@@ -123,7 +123,7 @@ function prepareJump() {
   const target = Number(query.get('n') ?? 1) * 3, at = Number(query.get('t') ?? 0);
   const tick = () => { state.player.invulnerableUntil = Infinity; stepRun(state, EMPTY_INPUT); };
   for (let guard = 0; guard < 60 * 1200 && !(state.sector === target && state.boss && state.boss.phase === 'batteries'); guard++) tick();
-  if (state.boss) { for (const part of bossParts(BOSSES[state.boss.id])) bossTarget(state, part)!.hp = 0; resolveBastionPhase(state); }
+  if (state.boss) { for (const part of bossParts(BOSSES[state.boss.id])) bossTarget(state, part)!.hp = 0; resolveBossPhase(state); }
   for (let i = 0; i < Math.round(at * 60); i++) tick();
 }
 prepare();
@@ -198,7 +198,7 @@ function breakParts() {
   if (broken || !query.has('break') || !state.boss || state.time < Number(query.get('breakAt') ?? 0)) return;
   broken = true;
   for (const part of query.get('break')!.split(',') as BossPart[]) { const target = bossTarget(state, part); if (target) target.hp = 0; }
-  resolveBastionPhase(state);
+  resolveBossPhase(state);
 }
 // `hold=N` keeps the simulation still for N seconds so models load before a timed sequence (e.g. destruction) plays.
 const holdUntil = performance.now() + Number(query.get('hold') ?? 0) * 1000;

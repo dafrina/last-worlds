@@ -12,6 +12,7 @@ import { createGameAudio } from './audio/engine';
 import { prefetchSamples } from './audio/sample-bank';
 import { mountAudioSettings } from './audio/settings';
 import { installDevHooks, type Bench } from './dev-hooks';
+import { safeStorage } from './shared/storage';
 
 const root = document.querySelector<HTMLElement>('#app')!;
 let run: RunState | null = null;
@@ -153,8 +154,7 @@ async function start(config: RunConfig) {
   }
 }
 
-let steeringStorage: Storage | undefined;
-try { steeringStorage = window.localStorage; } catch { /* Private storage may be unavailable. */ }
+const steeringStorage = safeStorage();
 const tilt = createTiltSource(readSteeringMode(steeringStorage));
 const ui = createUi(root, {
   start, pause,

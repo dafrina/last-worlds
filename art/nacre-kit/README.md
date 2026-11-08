@@ -1,7 +1,7 @@
 # Nacre terrain kit
 
 Runtime file: `public/assets/nacre/nacre-kit.glb` (1,435,600 bytes, about 477 KB gzipped; sha256 `43f4edff32bc1616da035420837ec3958cfdf6908920347c7faa07c469d67e45`).
-Contract: the Nacre rows of the `KIT` table in `src/world/terrain-scatter.ts` and [docs/20-nacre-luminous-mire.md](../../docs/20-nacre-luminous-mire.md) (World section).
+Contract: the Nacre rows of the `KIT` table in `src/world/scenery-kit.ts` and [docs/20-nacre-luminous-mire.md](../../docs/20-nacre-luminous-mire.md) (World section).
 
 The kit follows the middle panel of `art/concepts/01-worlds-direction.png` (crops in `lookdev/concept/nacre-*.png`). The concept is a reference only, never a runtime asset. The kit contains:
 - jagged black faceted rock with cold blue-lit tops and mossy, speckled feet;

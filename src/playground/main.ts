@@ -20,9 +20,10 @@ import { HERO_CHASSIS, HERO_DEFAULT_PAINT, HERO_SLOTS, assembleHero, heroDesigns
 import { loadHeroModel } from '../render/hero-craft';
 import { HERO_REMODELLED } from '../content/hero-parts';
 import { createRun, stepRun } from '../sim/game';
-import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
+import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/boss';
 import { missionBoss } from '../content/bosses';
-import { createRenderer, type PlanetLook } from '../render/scene';
+import { createRenderer } from '../render/scene';
+import type { PlanetLook } from '../shared/renderer-types';
 import type { BossPart, GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';
 import { ENEMIES, WEAPONS } from '../content/balance';
 import { MAX_RANK, SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
@@ -35,6 +36,7 @@ import { destroySites, hitSites, placeSite, siteSeats, type SiteSpot } from './s
 import { SITES } from '../content/sites';
 import { SITE_MODELS } from '../render/site-models';
 import { SITE_IDS, type SiteId } from '../shared/contracts';
+import { readJson, writeJson } from '../shared/storage';
 import './playground.css';
 
 type Mission = NonNullable<RunConfig['mission']>;
@@ -85,8 +87,8 @@ function set(look: PlanetLook, path: string, value: number) {
   parent[last] = value;
 }
 const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
-const load = <T>(key: string): T | null => { try { const text = localStorage.getItem(key); return text ? JSON.parse(text) as T : null; } catch { return null; } };
-const save = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: keep going */ } };
+const load = <T>(key: string): T | null => readJson(key, value => value as T | null);
+const save = writeJson; // storage unavailable: keep going
 
 const root = document.getElementById('playground')!;
 const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['weapons', 'Weapons'], ['sites', 'Sites'], ['models', 'Models'], ['hangar', 'Hangar']] as const;
@@ -118,7 +120,7 @@ const hud = root.querySelector<HTMLElement>('.pg-hud')!, panel = root.querySelec
 root.querySelector('.pg-toggle')!.addEventListener('click', () => panel.classList.toggle('is-open'));
 
 const renderer = createRenderer(canvas);
-const defaults = Object.fromEntries(LEVELS.map(level => [level.planet, renderer.lookOf!(level.planet) as PlanetLook])) as Record<PlanetId, PlanetLook>;
+const defaults = Object.fromEntries(LEVELS.map(level => [level.planet, renderer.lookOf!(level.planet)])) as Record<PlanetId, PlanetLook>;
 /** The tuned looks (only levels that differ from their shipped look are saved). */
 const looks = Object.fromEntries(LEVELS.map(level => [level.planet, structuredClone(defaults[level.planet])])) as Record<PlanetId, PlanetLook>;
 

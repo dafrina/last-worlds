@@ -1,5 +1,5 @@
 import { WORLD_HALF, hash } from './terrain-layout';
-import { KIT, type KitInstance, type KitKind, type ScatterField } from './terrain-scatter';
+import { KIT, type KitInstance, type KitKind, type ScatterField } from './scenery-kit';
 import type { Work } from './terrain-work';
 
 /**

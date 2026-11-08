@@ -12,6 +12,7 @@ import { CREDIT_MULTIPLIER, CREDIT_SCALE, MAX_RANK, SHIPS, SHIELD_TECH, SPECIALS
 import { itemText, paintShip, renderHangar, renderShipyard } from './hangar';
 import { createMissionTracker } from '../campaign/missions';
 import { createMissionNotes, renderBoard, renderLiveBoard, renderResultMissions } from './mission-board';
+import { safeStorage } from '../shared/storage';
 import './styles.css';
 
 const shieldGlyph = '<svg viewBox="0 0 20 24" aria-hidden="true"><path d="M3 4 10 2 17 4 17 12Q17 17 10 22Q3 17 3 12Z"/></svg>';
@@ -40,8 +41,7 @@ function duration(seconds: number): string {
 export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const abort = new AbortController();
   const options = { signal: abort.signal };
-  let storage: Storage | undefined;
-  try { storage = window.localStorage; } catch { /* Private storage may be unavailable. */ }
+  const storage = safeStorage(); // undefined in private modes: stats and campaign last this session
   const flightLog = createFlightLog(storage);
   const campaign = createCampaignProfile(storage);
   /** World missions (docs/35): campaign runs only; they observe the run's events and save through the profile. */

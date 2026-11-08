@@ -4,7 +4,7 @@ import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { ENDLESS_CYCLE, endlessPlanet, endlessSchedule, endlessSectorPlan, isBossSector, paceInSector, scrollForPace, sectorPace } from '../../src/content/endless';
 import { EMPTY_INPUT, STEP, type EnemyKind, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
-import { arenaStopDistance } from '../../src/sim/bastion';
+import { arenaStopDistance } from '../../src/sim/boss';
 import { dodgerPilot, enterSector, fly, idlePilot, perfectPilot } from './pilots';
 
 const KHEPRI_KINDS: ReadonlySet<EnemyKind> = new Set(['dart', 'weaver', 'turret', 'lancer']);

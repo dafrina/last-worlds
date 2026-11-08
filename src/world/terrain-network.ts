@@ -1,6 +1,7 @@
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, routeCenter, smoothRange } from './terrain-layout';
 import { terrainHeight } from './terrain-ground';
-import { SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Settlement } from './terrain-settlements';
+import { settlement, settlementsNear } from './terrain-settlements';
+import { SETTLEMENT_CELL, padDistance, type Settlement } from './settlement-geometry';
 import { finish, type Work } from './terrain-work';
 import { nearArena } from './terrain-arena';
 import { KHEPRI, worldOf, type PlanetProfile, type World, type WorldInput } from './terrain-planet';

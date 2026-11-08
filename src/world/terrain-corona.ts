@@ -1,5 +1,5 @@
 import { NEUTRAL_MOOD, WORLD_HALF, bench, clamp, crispStep, hash, mix, noise, routeCalm, routeCenter, smoothRange, type Landform, type MoodParams } from './terrain-layout';
-import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
+import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import { arenaAt } from './terrain-arena';

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { REWARDS } from '../../src/content/equipment';
 import { bossParts, BOSSES } from '../../src/content/bosses';
-import { bossTarget, resolveBossPhase, startBoss } from '../../src/sim/bastion';
+import { bossTarget, resolveBossPhase, startBoss } from '../../src/sim/boss';
 import { EMPTY_INPUT, STEP, type Projectile, type RunConfig, type RunEvent, type RunState } from '../../src/shared/contracts';
 import { fly, perfectPilot, type Pilot } from './pilots';
 

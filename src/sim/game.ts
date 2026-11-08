@@ -7,22 +7,24 @@ import { STEP, PLAYER_HIT_RADIUS, VIEW, type Enemy, type InputFrame, type KillCa
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
-import { runPlanet } from '../content/missions';
+import { runPlanet, showsHints } from '../content/missions';
 import { ENDLESS_LOADOUT, SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, ENDLESS_TIER_CELLS, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
 import { validLook } from '../content/hero-parts';
 import { updateEndless } from './endless';
-import { arenaScroll, resolveBossPhase, showsHints, startBoss, updateBoss } from './bastion';
+import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './boss';
 import { spawnMembers } from './spawn';
 import { FORMATIONS } from '../content/formations';
+import { HUNTERS } from '../content/hunters';
+import { SHIP_PERKS } from '../content/ship-perks';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
 import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete, positionAfter } from './motion';
 import { projectGround } from './ground';
-import { HUNTERS, absorbHunterShield, aceDropRoll, aceWeaponRoll, updateHunters } from './hunters';
+import { absorbHunterShield, aceDropRoll, aceWeaponRoll, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
-import { SHIP_PERKS, catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
+import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
 import { observe, observeKill } from './events';
 
 const DEG = Math.PI / 180;
@@ -55,7 +57,6 @@ export function createRun(config: RunConfig): RunState {
     enemies: [], projectiles: [], hazards: [], pickups: [], effects: [],
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0, parts: 0, sites: { destroyed: 0, shieldClaims: [] },
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
-    lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
     chargeKillTimes: [], boss: null, lance: null, shockwave: null, well: null,
     message: normalized.mode === 'endless' ? 'SECTOR 01 · LUNA' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
   };
@@ -339,7 +340,7 @@ function updateEnemies(state: RunState, dt: number): void {
   const resting = updateBeamRest(state, scale);
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
-    // Broke off for a boss (src/sim/bastion.ts leave): a craft speeds up out of frame toward its side, a little up the
+    // Broke off for a boss (src/sim/boss.ts leave): a craft speeds up out of frame toward its side, a little up the
     // screen; a ground battery rides its ground, quiet. Neither attacks again.
     if (enemy.leaving) {
       if (GROUND_KINDS.has(enemy.kind)) { advanceEnemy(enemy, dt, enemyClockRate(state, enemy)); projectGround(state, enemy); }

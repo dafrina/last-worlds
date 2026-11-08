@@ -5,7 +5,7 @@ import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { DEPARTURE } from '../../src/content/departure';
 import { CAMPAIGN_DECKS, slotAt } from '../../src/content/encounter-deck';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
-import { arenaScroll, arenaStopDistance, bossTarget, overloadLanes, resolveBossPhase } from '../../src/sim/bastion';
+import { arenaScroll, arenaStopDistance, bossTarget, overloadLanes, resolveBossPhase } from '../../src/sim/boss';
 import { acquireTarget, createRun, stepRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
 import { advance } from '../helpers/run';

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BOSSES, missionBoss } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, type Difficulty, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
-import { bossTarget, resolveBossPhase } from '../../src/sim/bastion';
+import { bossTarget, resolveBossPhase } from '../../src/sim/boss';
 import { fly, perfectPilot } from './pilots';
 
 describe('THE VEIL, Nacre\'s boss (docs/20)', () => {

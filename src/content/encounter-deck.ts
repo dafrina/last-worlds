@@ -5,6 +5,7 @@ import { FORMATIONS, slotFlies, type FormationId } from './formations';
 import { MISSION_PLANET } from './missions';
 import { siteCue, sitePool } from './sites';
 import type { EnemyKind, MissionId, PlanetId, RunConfig, SiteId } from '../shared/contracts';
+import { keyedHash, mulberry32 } from '../shared/streams';
 
 /**
  * The encounter deck (docs/33 § 4; user, 29 October 2026: "Every play would be a little different"). Each campaign mission
@@ -805,21 +806,8 @@ export const DECK_TEMPLATES: readonly DeckTemplate[] = [...Object.values(CAMPAIG
 
 /** Hash of the run seed, the template and the salt (endless: the sector): the deck's own stream, used by nothing else. */
 function deckSeed(seed: number, id: string, salt: number): number {
-  let h = 0x6465636b; // "deck": distinct from the loot stream (lootRng) and the hunters' roll
   const text = [...id].reduce((a, c) => Math.imul(a ^ c.charCodeAt(0), 16777619), 2166136261);
-  for (const v of [seed, text, salt]) { h = Math.imul(h ^ (v >>> 0), 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; }
-  return h >>> 0;
-}
-/** Mulberry32: unit rolls in [0, 1). */
-function stream(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+  return keyedHash(0x6465636b, seed, text, salt); // "deck": distinct from the hunters' and the site parts' rolls
 }
 function weighted<T extends { readonly weight: number }>(items: readonly T[], roll: () => number): T {
   const total = items.reduce((sum, item) => sum + item.weight, 0);
@@ -855,7 +843,7 @@ export function varied(wave: Pick<DeckWave, 'formations'>, mirror: boolean, offs
 
 /** Resolves a template with its seeded roll, keeping the guard rails' bookkeeping (tests read it). */
 export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Resolved[] {
-  const roll = stream(deckSeed(seed, template.id, salt));
+  const roll = mulberry32(deckSeed(seed, template.id, salt));
   const pools = DECK_POOLS[template.world];
   // Teaching arcs: a pool slot whose nominal introduces a formation flies it as authored (fixed by the arc alone).
   const seen = new Set<FormationId>();

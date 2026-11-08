@@ -4,7 +4,7 @@ import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
 import { vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
 import { NEUTRAL_MOOD } from '../../src/world/terrain-layout';
 import { HELION_ARK } from '../../src/content/ark';
-import { arenaStopDistance } from '../../src/sim/bastion';
+import { arenaStopDistance } from '../../src/sim/boss';
 import { missionArena } from '../../src/render/scene';
 import {
   ARENA_RAMP, FLOE_SETS, beyondArenaClearing, inArenaCore, KIT, MODULE_HEIGHT, PLANETS, ROAD_ENDS, TERRAIN_MAX_HEIGHT, VESPER_SEA_LEVEL, createTerrainStream, edgesNear, generateTerrainSection, pieceBounds, pipeRun, resetTerrainCaches, roadPath,

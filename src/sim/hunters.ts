@@ -1,10 +1,12 @@
 import { ENEMIES, endlessRampSector } from '../content/balance';
-import { VIEW, type Enemy, type EnemyKind, type PlanetId, type RunState, type WeaponId } from '../shared/contracts';
+import { HUNTERS } from '../content/hunters';
+import { VIEW, type Enemy, type RunState, type WeaponId } from '../shared/contracts';
+import { keyedUnit } from '../shared/streams';
 import { approach, clamp } from './geometry';
 import { airClockRate } from './motion';
 import { runScale } from './spawn';
 
-/**
+/*
  * Hunters (aces; user, 22 October 2026): a world's strongest craft under a glowing spherical shield. They fly no
  * authored path and never leave: they roam above the fight, and when the ship retreats to a side of the map, away from
  * the chaotic centre, they follow it there. They stay until shot down, into a boss fight too.
@@ -13,50 +15,8 @@ import { runScale } from './spawn';
  * two alive at once and a few per level, one at most while a boss fights. They stand outside the authored encounters:
  * they count against no threat budget or airspace, but every attack they start passes the same fairness admission as any
  * other, so a reachable safe path always remains. They hold still through their windups, so an admitted attack leaves
- * from exactly where it was checked.
+ * from exactly where it was checked. Their tuning is HUNTERS (src/content/hunters.ts).
  */
-export const HUNTERS = {
-  /** Seconds between spawn chances, the chance of each, and the quiet start of a level or endless sector. */
-  interval: 15, chance: 0.6, firstAfter: 10,
-  /**
-   * The kind each world sends: a strong craft it already flies. Never the Pulsar: its stream tracks the ship, and a
-   * tracking stream from a craft that follows the ship to the world edge left no way out (validation pilots were hit).
-   */
-  kinds: { luna: 'weaver', khepri: 'lancer', vesper: 'diamond', nacre: 'diamond', amnion: 'diamond', corona: 'wraith', umbra: 'wraith' } satisfies Readonly<Record<PlanetId, EnemyKind>>,
-  /** Shield charges, each absorbing this share of the kind's hull (scaled with the hull): about twice the hull in all. */
-  shield: { charges: 3, share: 0.35, seekerDamage: 0.2, railDamage: 1.5 },
-  /** Score over the base kind. Campaign hunter coins use BALANCE.campaignHunterCredits. */
-  reward: 3,
-  /**
-   * Endless: besides its coins, a downed ace rolls for a shield cell (25%), a weapon the ship isn't flying (7%), a power
-   * cell (5%) or nothing more (user, 31 October: "aces/hunters should maybe also drop a shield or an upgrade on endless";
-   * 5 November: "per sector should be about 1 weapon drop, all four weapons (minus the equipped one)", "Power cells should be
-   * abit lower, maybe 1 per sector and shields as well (1.2 is fine)"). A third power had given about 1.6 power cells a
-   * sector from aces alone; the waves and sites already give about 0.8 weapons and 0.8 power cells a sector, so the aces
-   * only top them up. The shield is budgeted (AGENTS.md invariant 11): at most `shieldsPerSector`, and only while the ship
-   * is missing shields; otherwise that share is coins only.
-   */
-  endlessDrop: { shield: .25, weapon: .07, power: .05, shieldsPerSector: 1 },
-  /** Roaming band (s ahead of the player row) and cruise speed and acceleration at pace 1. */
-  row: { min: 10.5, max: 15 }, speed: 6, accel: 14,
-  /**
-   * The ship counts as retreating to a side beyond this |x|; a hunter then closes to `chaseS` ahead, right over it (an
-   * offset to one side would back away whenever the ship moved under it to shoot, so the fixed guns could never line up).
-   * It is half the ship's speed (user, 23 October: "quicker to follow the player"), so it still trails a weaving ship
-   * and the ship can line up under it, and it follows sooner.
-   */
-  side: 3.5, chaseS: 10,
-  /**
-   * Multiplier on the kind's repeat-attack interval (with the difficulty's, but not the world's or mission's quickening):
-   * aces fire more often than their kind (user, 23 October: "quicker to shoot"); every attack still passes the fairness
-   * admission.
-   */
-  cadence: 0.85,
-  /** Hunters keep this far apart. */
-  spacing: 3,
-  /** Seconds of age before the first windup (it is still diving in). */
-  firstAttack: 2.2,
-} as const;
 
 /** Hunters alive at once and per level (endless: per sector). */
 export function hunterLimits(state: RunState): { live: number; total: number } {
@@ -72,11 +32,7 @@ export function hunterLimits(state: RunState): { live: number; total: number } {
  * A unit roll in [0, 1) for (a, b, c): its own stream, independent of loot and content, and of the world seed, so every
  * run of a level (and every endless run, a standardized challenge) meets the same hunters at the same times.
  */
-function roll(a: number, b: number, c = 0): number {
-  let h = 0x68756e74;
-  for (const v of [a, b, c]) { h = Math.imul(h ^ (v >>> 0), 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; }
-  return (h >>> 0) / 4294967296;
-}
+const roll = (a: number, b: number, c = 0): number => keyedUnit(0x68756e74, a, b, c); // "hunt"
 
 /**
  * A downed ace's drop roll in [0, 1) (HUNTERS.endlessDrop): its own stream, keyed by the ace, so like the aces themselves

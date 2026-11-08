@@ -113,7 +113,7 @@ The user: "can you add a third target on the eclipse (umbra boss) that we have t
 
 ## Files
 
-- **Ground:** `src/world/terrain-umbra.ts`. The kit kinds are in `src/world/terrain-scatter.ts`.
+- **Ground:** `src/world/terrain-umbra.ts`. The kit kinds are in `src/world/scenery-kit.ts`.
 - **Look:** `src/render/scene.ts` (`LOOKS.umbra`, `void` sky), `src/render/terrain-kit.ts` (glow, gloss, haze, wall look), `src/render/models.ts` (`createVoidEnvironment`).
 - **Kit:** approved hills/structures remain in `tools/blender/umbra_kit.py` and `public/assets/umbra/umbra-kit.glb`. Active cliffs: `tools/blender/umbra_cliffs_v2.py`, `public/assets/umbra/cliff-kit-v2.glb`, authored/exported through live Blender MCP in an isolated scene. Four variants, 203–315 triangles each, 122,564 bytes total. The old `cliff-kit.glb` and its builder remain for rollback; change the Umbra filename in `src/render/terrain-view.ts`.
 - **Floating rock undersides (26 October):** `tools/blender/umbra_floats_v2.py` / `public/assets/umbra/floating-shards-v2.glb` replaces only the three float nodes after both kits have loaded. Original flat fractured tops and placement retained; a few broad cleaved wedges replace the hanging needles. 75–99 triangles each, 30,992 bytes total. Authored through live Blender MCP in its own scene. Omit the optional floating-kit URL in `terrain-view.ts` to restore the original three models; no other kit geometry changes.

@@ -51,7 +51,7 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     if (!attack || attack === 'beam') return [];
     const scale = bossShotScale(state);
     // The hull keeps maneuvering through the windup: predict from its pose at release, less any hold still to come (it
-    // holds still while its own lanes charge and fire, src/sim/bastion.ts updateBoss; ignoring that put THE CRADLE's fan
+    // holds still while its own lanes charge and fire, src/sim/boss.ts updateBoss; ignoring that put THE CRADLE's fan
     // 0.18 off, enough to seal both edges and the center).
     // A spiral holds the hull still from the start of its windup, so it leaves from where the boss is now.
     const boss = state.boss!, held = (boss.heldFor ?? 0) + Math.max(0, Math.min(boss.holdUntil ?? 0, release) - state.time);

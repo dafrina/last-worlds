@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, VIEW, type Mode, type Projectile, type ShipId } from '../../src/shared/contracts';
 import { playerKinematics } from '../../src/sim/fairness';
-import { SHIP_PERKS } from '../../src/sim/ship-perks';
+import { SHIP_PERKS } from '../../src/content/ship-perks';
 import { lensFollow, lensRowHalfWidth } from '../../src/shared/lens';
 import { SPECIALS } from '../../src/content/equipment';
 

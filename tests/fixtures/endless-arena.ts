@@ -2,7 +2,7 @@
 import { BOSSES } from '../../src/content/bosses';
 import { ENDLESS_CYCLE, endlessScroll, endlessSectorPlan, sectorPace } from '../../src/content/endless';
 import { createRun, stepRun } from '../../src/sim/game';
-import { bossTarget, resolveBossPhase, startBoss } from '../../src/sim/bastion';
+import { bossTarget, resolveBossPhase, startBoss } from '../../src/sim/boss';
 import { EMPTY_INPUT } from '../../src/shared/contracts';
 import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';

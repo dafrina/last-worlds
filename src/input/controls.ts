@@ -1,5 +1,5 @@
 import type { GameInput, InputFrame } from '../shared/contracts';
-import { SHIP_PERKS } from '../sim/ship-perks';
+import { SHIP_PERKS } from '../content/ship-perks';
 import type { TiltSource } from './tilt';
 
 export type PointerRole = 'left' | 'right' | 'special';

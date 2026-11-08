@@ -2,7 +2,7 @@ import { BALANCE } from '../content/balance';
 import { BOSSES, WRECK_HOLD } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessPlanet, endlessScroll, endlessSectorPlan, paceInSector } from '../content/endless';
 import type { RunState } from '../shared/contracts';
-import { startBoss } from './bastion';
+import { startBoss } from './boss';
 
 /** Seconds into the current sector at which its boss was destroyed, or null while it lives. */
 function bossEnd(state: RunState): number | null {

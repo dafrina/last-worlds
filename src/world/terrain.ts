@@ -1,9 +1,11 @@
 import { VIEW } from '../shared/contracts';
 import { PALETTE, SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, crater, mix, smoothRange } from './terrain-layout';
 import { resetRowCache, rowPoint, terrainHeight, terrainRow, type TerrainPoint, type TerrainRow } from './terrain-ground';
-import { KIT, KIT_MAX_SCALE, TERRAIN_STRIPS, scatterKitSteps, type KitInstance, type KitKind, type ScatterField } from './terrain-scatter';
+import { TERRAIN_STRIPS, scatterKitSteps } from './terrain-scatter';
+import { KIT, KIT_MAX_SCALE, type KitInstance, type KitKind, type ScatterField } from './scenery-kit';
 import { finish, type Work } from './terrain-work';
-import { MODULE_HEIGHT, settlementsNear, type Archetype } from './terrain-settlements';
+import { MODULE_HEIGHT, settlementsNear } from './terrain-settlements';
+import type { Archetype } from './settlement-geometry';
 import { ROAD_ENDS, SHARED_BOUNDS, districtRoadsSteps, resetNetworkMemos, roadEndSpotsSteps, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 import { districtHidden, districtPlanSteps, districtsNear, knownPlan, resetDistrictPlans, slotRange, type DistrictSite } from './terrain-districts';
 import { arenaAt, arenaWeight } from './terrain-arena';
@@ -25,16 +27,18 @@ export {
   type World, type WorldInput,
 } from './terrain-planet';
 export { VESPER_PALETTE, VESPER_SEA_LEVEL } from './terrain-vesper';
-export { ARCHETYPES, MODULE_HEIGHT, SETTLEMENT_CELL, padDistance, settlement, settlementsNear, type Archetype, type Settlement } from './terrain-settlements';
+export { ARCHETYPES, MODULE_HEIGHT, settlement, settlementsNear } from './terrain-settlements';
+export { SETTLEMENT_CELL, padDistance, type Archetype, type Settlement } from './settlement-geometry';
 export {
   PIPE_AXIS, PIPE_BEDDING, PIPE_CELL, PIPE_MAX_SLOPE, PIPE_TOP, ROAD_ENDS, ROAD_MAX_SLOPE, ROAD_STEP, SHARED_BOUNDS, SHARED_LOCAL_BOX, SHARED_NODES, SUPPORT_HEIGHT,
   edgesNear, pieceBounds, pipePieces, pipeRun, roadPath, rotatePiece, sectionNetwork,
   type IndustryPiece, type NetworkEdge, type PipeRun, type RoadEnd, type RoadMesh, type RoadPath, type SharedNode,
 } from './terrain-network';
 export {
-  FLOE_FOOTPRINT, FLOE_SETS, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, KIT_MAX_SCALE, STRIP_WIDTH, TERRAIN_STRIPS, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName, stripOf,
+  FLOE_FOOTPRINT, FLOE_SETS, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, KIT_MAX_SCALE, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName,
   type CliffKitKind, type FloeSetKind, type KitInstance, type KitKind,
-} from './terrain-scatter';
+} from './scenery-kit';
+export { STRIP_WIDTH, TERRAIN_STRIPS, stripOf } from './terrain-scatter';
 
 /**
  * Pure planet scenery (Khepri, Vesper). Terrain never reads, schedules, or advances combat or loot.

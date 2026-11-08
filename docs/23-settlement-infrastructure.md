@@ -118,7 +118,7 @@ One caveat for any extension: road and pipe memo keys are only `planet:seed:edge
 ### 1.5 Seeds and RNG
 
 - Terrain uses only the stateless `hash(seed ^ salt, a, b)` with fixed salts per feature: settlements 0x5e77/0x5e78, clustering 0xd157, edges 0x7e7, pipe size 0x919, scatter 0x6c1a, Vesper 0x7e5e/f, Luna 0xa1e7, Nacre ruins 0x7d5f, and so on. There is no `Math.random` in `src/world`.
-- `src/sim` and `src/content` never import `src/world`. The only stateful gameplay RNG is `lootRng` (`src/sim/game.ts:44`), which terrain never touches.
+- `src/content` never imports `src/world`. `src/sim` reads terrain but never changes it: ground seating, strike-site seats and run events go through `world/run-route` and `world/terrain` (`sim/ground.ts`, `sim/sites.ts`, `sim/events.ts`). Gameplay rolls come from seeded, keyed streams (`src/shared/streams.ts`); none is stored on `RunState`, and terrain never touches them.
 - Render cosmetics use their own hashes:
   - facility size: `imul(id) ^ seed` (`facility-view.ts:47`);
   - emplacement layouts: a `sin` hash of the enemy id (`scene.ts:1071`);
@@ -485,7 +485,7 @@ Sections consume the plan in `sectionSteps`: lot modules through `settlementPiec
 
 ### 4.7 Determinism and RNG separation
 
-- Only `hash(seed ^ 0xd1aX, …)` is used. There is no `Math.random`, no `lootRng` and no render state in generation.
+- Only `hash(seed ^ 0xd1aX, …)` is used. There is no `Math.random`, no gameplay stream and no render state in generation.
 - Render-only choices stay hash-based: hauler phase, light blink, and the compound fallback near a district.
 - New tests:
   - **Order independence:** generate the district's sections in shuffled order and compare deep-equal, as in `terrain.test.ts:23`.

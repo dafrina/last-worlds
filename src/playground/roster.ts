@@ -5,7 +5,7 @@
  * roster can never disagree with the game.
  */
 import { ENEMIES } from '../content/balance';
-import { HUNTERS } from '../sim/hunters';
+import { HUNTERS } from '../content/hunters';
 import { BOSS_ASSETS } from '../render/boss-assets';
 import { CORONA_CRAFT, CORONA_DRONE_SCALE, KHEPRI_NODE, NACRE_CRAFT, UMBRA_CRAFT, UMBRA_DRONE_SCALE, VESPER_CRAFT, VESPER_KINDS } from '../render/scene';
 import type { EnemyKind, PlanetId } from '../shared/contracts';

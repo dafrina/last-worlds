@@ -9,19 +9,11 @@
  * its own and the previous frame's events, a per-second timeline and the event list.
  */
 import type { RunState } from '../shared/contracts';
+import type { PerfSample } from '../shared/renderer-types';
 
 /** A frame slower than this is listed with its context (60 Hz is 16.7 ms; one missed vsync lands near 33). */
 const SLOW_MS = 20;
 const LONG_MS = 50;
-
-/** The renderer's per-frame counters (GameRenderer.perfSample). */
-export interface PerfSample {
-  calls: number; triangles: number; programs: number; geometries: number; textures: number;
-  /** Terrain update + animation + prefetch time this frame (ms). */ terrainMs: number;
-  /** Terrain stream counters: sections taken from prefetch, generated synchronously after start, at startup. */
-  prefetched: number; fallbacks: number; startup: number;
-  particles: number; planet: string; quality: string; pixelRatio: number;
-}
 
 interface Frame {
   t: number; interval: number;
