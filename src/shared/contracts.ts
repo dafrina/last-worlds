@@ -1,4 +1,6 @@
 /** Shared prototype contract. Integrator owns this file; propose changes before editing. */
+import type { PerfSample, PlanetLook } from './renderer-types';
+
 export type Mode = 'campaign' | 'endless';
 export type Difficulty = 'relaxed' | 'standard' | 'veteran';
 export type GraphicsQuality = 'high' | 'low';
@@ -248,11 +250,11 @@ export interface GameRenderer {
    */
   launchWarp(mode: 'cruise' | 'ready' | 'arrive' | 'off'): number;
   render(state: RunState, alpha: number): void;
-  /** `?perf` only: the last frame's renderer counters (src/ui/perf-log.ts PerfSample). */
-  perfSample?(): import('../ui/perf-log').PerfSample;
-  /** Playground only (playground.html): a level's shipped look, and a live replacement for it (render/scene.ts PlanetLook). */
-  lookOf?(planet: PlanetId): unknown;
-  tuneLook?(planet: PlanetId, look: unknown): void;
+  /** `?perf` only: the last frame's renderer counters (src/ui/perf-log.ts). */
+  perfSample?(): PerfSample;
+  /** Playground only (playground.html): a level's shipped look, and a live replacement for it. */
+  lookOf?(planet: PlanetId): PlanetLook;
+  tuneLook?(planet: PlanetId, look: PlanetLook): void;
   resize(width: number, height: number): void;
   setQuality(quality: GraphicsQuality): void;
   /** Loads the ship a flight shows (its chassis and look; endless always the default Scrapper) before it is exposed. */

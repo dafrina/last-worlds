@@ -22,7 +22,8 @@ import { HERO_REMODELLED } from '../content/hero-parts';
 import { createRun, stepRun } from '../sim/game';
 import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/boss';
 import { missionBoss } from '../content/bosses';
-import { createRenderer, type PlanetLook } from '../render/scene';
+import { createRenderer } from '../render/scene';
+import type { PlanetLook } from '../shared/renderer-types';
 import type { BossPart, GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';
 import { ENEMIES, WEAPONS } from '../content/balance';
 import { MAX_RANK, SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
@@ -118,7 +119,7 @@ const hud = root.querySelector<HTMLElement>('.pg-hud')!, panel = root.querySelec
 root.querySelector('.pg-toggle')!.addEventListener('click', () => panel.classList.toggle('is-open'));
 
 const renderer = createRenderer(canvas);
-const defaults = Object.fromEntries(LEVELS.map(level => [level.planet, renderer.lookOf!(level.planet) as PlanetLook])) as Record<PlanetId, PlanetLook>;
+const defaults = Object.fromEntries(LEVELS.map(level => [level.planet, renderer.lookOf!(level.planet)])) as Record<PlanetId, PlanetLook>;
 /** The tuned looks (only levels that differ from their shipped look are saved). */
 const looks = Object.fromEntries(LEVELS.map(level => [level.planet, structuredClone(defaults[level.planet])])) as Record<PlanetId, PlanetLook>;
 

@@ -52,6 +52,7 @@ import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint
 import { viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
+import type { PlanetLook } from '../shared/renderer-types';
 import { loadHeroModel, preloadHeroLook } from './hero-craft';
 import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey, shownHero } from '../content/hero-parts';
 import type { HeroLook, RunConfig, ShipId } from '../shared/contracts';
@@ -235,23 +236,6 @@ const ARK_GLIDE = 8;
 /** The Interceptor's barrel roll over its sidestep, and the speed streaks it leaves (seconds; render only). */
 const DASH_ROLL = .3, DASH_STREAK = .28;
 
-/**
- * Per-planet light and grade (docs/13 §1, docs/17 §1). Khepri's values are the shipped look. Vesper: a high, pale,
- * slightly cool sun with blue shadows from a cool sky fill, snow kept just under the bloom threshold so it reads
- * bright white without clipping or smearing, a cool shadow lift and a faint white-blue haze toward the horizon.
- */
-export interface PlanetLook {
-  background: number; sunElevation: number; sun: [number, number]; hemisphere: [number, number, number]; bounce: [number, number];
-  shadowIntensity: number; blobShadow: number; lowExposure: number;
-  post: { exposure: number; threshold: number; knee: number; strength: number; lift: [number, number, number]; saturation: number; contrast: number; vignette: number;
-    haze: [number, number, number, number];
-    /**
-     * World fog per level (user, 22 October): colour (sRGB hex) and its radiance, height fog [top, full at, amount] set in
-     * the lower half of the level's terrain (measured heights), and distance haze [start, density, amount] within it.
-     */
-    fog: { color: number; energy: number; height: [number, number, number]; distance: [number, number, number] } };
-  environment: 'desert' | 'ice' | 'luna' | 'mire' | 'void';
-}
 /** Tuned by the user in the light playground (playground.html, 22 October): brighter sky fill and bounce, a higher sun on
  * Khepri, stronger bloom on Khepri and Nacre, and each level's fog. Vesper keeps its shipped light (its cliffs) with the
  * user's fog (23 October). */
