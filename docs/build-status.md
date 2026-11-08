@@ -1,5 +1,54 @@
 # Build status
 
+## Refactor round from docs/38 deployed (`cb44823`), 8 November 2026, late
+
+The deployed behaviour is unchanged except Corona's muzzle flashes, which now use its red shot colour (V5).
+
+- **Agent A, tests and assets:**
+  - the slow fairness tests are split, so the unit suite takes 72 s instead of 208 s (T1);
+  - shared test helpers in `tests/helpers/` (TS1);
+  - typed dev hooks in `src/dev-hooks.ts` (TY2);
+  - 12 archived GLBs moved out of `public/` into `art/archive/assets/`, 29.4 MB less (P1).
+- **Agent B, simulation, content and shared code:**
+  - one seeded-stream module, `shared/streams.ts`; results are bit-exact (S1);
+  - the perk and hunter tables moved into `content/` (S2);
+  - no world import cycles (W2);
+  - the unused `lootRng` removed (D2);
+  - `sim/bastion.ts` renamed `sim/boss.ts` (S3);
+  - `shared/renderer-types.ts` (TY1);
+  - `shared/storage.ts` (X3);
+  - docs/05 and docs/23 corrected (DOC1).
+- **Integrator, render:**
+  - no request for facility kits that don't exist (V4);
+  - one lazy boss-model loader instead of six (R3);
+  - `dynamicBatch` replaces nine copies of the instanced-mesh setup (R4);
+  - the warm-up uses a Set (PF1);
+  - QA stats are collected only in development or with `?perf` (PF2);
+  - boss views tolerate a missing part (V8);
+  - load-boundary fixes (V9);
+  - one shared browser launcher for the tools (X2);
+  - unused code removed (D1). `tsc --noUnusedLocals --noUnusedParameters` reports 0; the flags stay off, since the user wants no linters.
+- **Gate on `cb44823`:** typecheck clean; unit tests 979 passed, 5 skipped; build passes; browser 55/55 (Playwright exit 0, 25.1 min under load).
+- **Frozen frames, `0a6c3d6` against `cb44823`:**
+  - ten stills: seven worlds, Bastion on Low, and two boss fights, with the same seed and ticks;
+  - two runs of the same build already differ by 1–8% of pixels (wall-clock particles and UI animation);
+  - old against new stays inside that noise everywhere;
+  - the only differences above noise (Amnion, Nacre, Umbra) are the special button's charge ring, a DOM animation;
+  - no 3D scene change.
+- **Live:**
+  - Pages run 42528820786 succeeded;
+  - the live bundles (`main-DQTMzfNQ.js`, `storage-dAzCiSib.js`) match the build; the scene chunk now carries the shared `storage` name;
+  - the smoke test reports no errors.
+  - No phone test.
+- **Next, on `integrator-next` and not yet deployed:**
+  - fixes:
+    - the ice sky is freed on dispose;
+    - a missing terrain texture now warns;
+    - `?planet=` is development-only in the terrain view too;
+  - dead code: old boss-model-version branches, facility v2 (its GLBs archived, −15.3 MB), the ocean's Nacre branch, and the single-kit hero path;
+  - an agent is cutting per-frame allocations (PF3, V6, PF4);
+  - the live `?unlock=all` and `?perf` switches stay, by the user's choice.
+
 
 ## Round of 8 November evening: lasers that threaten, hero shield and jets, menu touches; code-health review
 
