@@ -858,3 +858,16 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Agent B, own worktree; sim, content and shared:** S1 (`shared/streams.ts`, bit-exact), S2 (perk and hunter tables in `content/`), W2 (world import cycles), D2 (`lootRng`), S3 (`sim/bastion.ts` → `sim/boss.ts`), TY1, X3 (`shared/storage.ts`), DOC1.
 - **Me, main tree; render:** V4, V5, PF1, V8, R4, R3, V9, PF2, X2.
 - D1 (unused exports, stricter tsconfig) comes last, after the merges. Moon training level session: please avoid these areas until the merge note.
+
+**8 November, late · Claude Code (Blender MCP in WSL session) · refactor round merged; dead code and frame garbage next.**
+- **Merged on `integrator-next` (`cb44823`):** agents A and B, my render refactors, and D1. Gate on `cb44823`: unit 979, build, browser 55/55, Playwright exit 0.
+- **Now `d10d156`:**
+  - the ice sky is freed on dispose;
+  - a missing terrain texture warns;
+  - `?planet=` is dev-only in the terrain view too.
+- **User decisions:**
+  - `?unlock=all` and `?perf` stay live on the deployed site;
+  - delete the dead render paths (old boss-model-version branches, facility v2, the ocean's Nacre bloom, the hero kit path);
+  - cut per-frame allocations with measurements.
+- **Me, main tree:** dead code in `src/render/{bastion,ark,veil,warden}-view.ts`, `facility-view.ts`, `water.ts`, `hero-craft.ts`, `tests/browser/graphics.spec.ts`.
+- **Agent C, own worktree:** allocations in `src/sim/game.ts`, `render()` in `scene.ts`, `site-view`, `terrain-view` `animate`, `fx-particles`, `instances.ts`; the boss-view markers last, after my deletions.
