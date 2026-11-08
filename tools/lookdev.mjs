@@ -3,14 +3,14 @@
 // query is appended to the URL, e.g. 'camera=perspective'.
 // Requires `npm run dev` on http://127.0.0.1:4173. Output goes to the git-ignored lookdev/ folder.
 import { mkdirSync } from 'node:fs';
-import { chromium } from '@playwright/test';
+import { launchGameBrowser } from './browser.mjs';
 
 const label = process.argv[2] ?? 'capture';
 const seed = Number(process.argv[3] ?? 8831) >>> 0;
 const query = process.argv[4] ? `?${process.argv[4]}` : '';
 mkdirSync('lookdev', { recursive: true });
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await launchGameBrowser();
 const page = await browser.newPage({ viewport: { width: 432, height: 768 }, deviceScaleFactor: 2, hasTouch: true });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));

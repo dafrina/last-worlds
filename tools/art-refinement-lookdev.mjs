@@ -1,8 +1,8 @@
-import { chromium } from '@playwright/test';
+import { launchGameBrowser } from './browser.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 const label = process.argv[2] ?? 'refined';
 mkdirSync(`lookdev/${label}`, {recursive:true});
-const browser = await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const browser = await launchGameBrowser();
 const page = await browser.newPage({viewport:{width:430,height:932},deviceScaleFactor:1,hasTouch:true});
 const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});

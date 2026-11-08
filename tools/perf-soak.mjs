@@ -7,7 +7,7 @@
 // programs; frame work at one tick a frame is measured in a window at the start and at the end.
 // restarts: launch a campaign mission (all six worlds in turn), fly 6 s, return to the menu; the heap after GC and the
 // renderer's memory at the menu after each cycle. Headless Chromium draws with SwiftShader: GPU memory is not measured.
-import { chromium } from '@playwright/test';
+import { launchGameBrowser } from './browser.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const [mode = 'endless', out = 'soak.json', base = 'http://127.0.0.1:4194', quality = 'high', countArg, stepsArg = '4'] = process.argv.slice(2);
@@ -18,7 +18,7 @@ const stats = values => {
     over16: values.filter(v => v > 16.7).length, over33: values.filter(v => v > 33.3).length };
 };
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await launchGameBrowser();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true });
 const page = await context.newPage();
 const errors = [];

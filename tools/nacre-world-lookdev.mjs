@@ -1,9 +1,9 @@
 // Frozen in-game environment captures; never a production entry or simulation control.
-import { chromium } from '@playwright/test';
+import { launchGameBrowser } from './browser.mjs';
 import { mkdirSync } from 'node:fs';
 const label = process.argv[2] ?? 'nacre-world';
 const quality = process.argv[3] ?? 'high';
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await launchGameBrowser();
 const page = await browser.newPage({ viewport: { width: 432, height: 768 }, deviceScaleFactor: 2, hasTouch: true });
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 mkdirSync('lookdev', { recursive: true });

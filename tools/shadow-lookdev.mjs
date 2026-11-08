@@ -1,10 +1,10 @@
 // node tools/shadow-lookdev.mjs <outDir> <port> <label> — frozen flight frames with several enemy craft in view, per world and tier.
-import { chromium } from '@playwright/test';
+import { launchGameBrowser } from './browser.mjs';
 import { mkdirSync } from 'node:fs';
 const [out, port, label, only] = process.argv.slice(2);
 mkdirSync(out, { recursive: true });
 const missions = { khepri: 'bastion', vesper: 'cold-vector', nacre: 'deep-bloom' };
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await launchGameBrowser();
 for (const [world, mission] of Object.entries(missions)) for (const quality of ['high', 'low']) {
   if (only && !only.split(',').includes(world)) continue;
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });

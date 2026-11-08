@@ -9,7 +9,7 @@
 // function, a load-independent count. Headless Chromium draws with SwiftShader: GPU time is not measured.
 // Scenarios (docs/36-mobile-performance.md): each world in flight, a strike site's destruction, Vesper's lasers, a dense
 // wave, a boss's phase changes, rapid scrolling (three ticks a frame) and an endless planet jump (departure, warp, switch).
-import { chromium } from '@playwright/test';
+import { launchGameBrowser } from './browser.mjs';
 import { writeFileSync } from 'node:fs';
 
 const [out = 'perf.json', base = 'http://127.0.0.1:4194', which = 'all', qualityArg = 'high,low', throttleArg = '4', framesArg = '600'] = process.argv.slice(2);
@@ -84,7 +84,7 @@ async function preRoll(page, scenario) {
   } else if (scenario.skip) await page.evaluate(seconds => { window.__LAST_WORLDS__.setLives(99); window.__LAST_WORLDS__.advance(seconds, true); }, scenario.skip);
 }
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await launchGameBrowser();
 const results = [];
 try {
   for (const name of names) for (const quality of qualities) {
