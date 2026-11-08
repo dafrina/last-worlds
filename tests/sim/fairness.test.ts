@@ -4,27 +4,18 @@ import { HELION_ARK } from '../../src/content/ark';
 import { BASTION } from '../../src/content/bastion';
 import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue } from '../../src/content/encounters';
 import { CAMPAIGN_DECKS, ENDLESS_DECKS, resolvePlaylist, resolveTemplate, slotAt } from '../../src/content/encounter-deck';
-import { FORMATIONS, FORMATION_IDS, slotFlies, type FormationId, type FormationTemplate } from '../../src/content/formations';
-import { VIEW, type Difficulty, type RunConfig, type RunState } from '../../src/shared/contracts';
+import { FORMATIONS, FORMATION_IDS, slotFlies, type FormationTemplate } from '../../src/content/formations';
+import { VIEW, type RunConfig } from '../../src/shared/contracts';
 import { BOSS_BEAM, ENEMY_SHOT_RADIUS, LANCER_BEAM } from '../../src/sim/attacks';
-import { createRun, spawnFormation, stepRun } from '../../src/sim/game';
+import { createRun, stepRun } from '../../src/sim/game';
 import { memberPosition } from '../../src/sim/motion';
-import { FairnessTrace } from './fairness-trace';
-import { dodgerPilot, enterSector, fly, idlePilot, perfectPilot, type Pilot } from './pilots';
+import { BRANCHES, DIFFICULTY_IDS, R, SCALES, WORLD_EDGE, flyFormation, summary } from './fairness-setup';
+import { perfectPilot } from './pilots';
 
-const DIFFICULTY_IDS: readonly Difficulty[] = ['relaxed', 'standard', 'veteran'];
-const WORLD_EDGE = VIEW.worldWidth / 2 - VIEW.playerRadius;
-const R = VIEW.playerRadius;
-
-/** Every scale the content can fly at: three campaign settings plus the first and capped endless sectors. */
-const SCALES = [
-  ...DIFFICULTY_IDS.map(difficulty => ({ label: difficulty, scale: difficultyScales('campaign', difficulty, 1) })),
-  ...[1, 2, 3, 4, 9, 30].map(sector => ({ label: `endless-s${sector}`, scale: difficultyScales('endless', 'standard', sector) })),
-];
-
-function summary(trace: FairnessTrace) {
-  return trace.violations.slice(0, 5).map(v => `${v.rule}@${v.time.toFixed(2)}: ${v.detail}`).join('\n');
-}
+/*
+ * Authored content, warning floors and isolated squadrons. The cue-sequence hazard unions run in parallel files
+ * (docs/38 T1): fairness-campaign, fairness-endless-early and fairness-endless-late; shared setup in fairness-setup.ts.
+ */
 
 describe('authored formation content', () => {
   const ids = FORMATION_IDS;
@@ -218,43 +209,6 @@ describe('authored cue sequences', () => {
 
 /* ------------------------------------------------------------------------------------------------------ */
 
-function quiet(config: RunConfig, sector = 1): RunState {
-  const state = createRun(config);
-  if (config.mode === 'endless') enterSector(state, sector);
-  state.encounterIndex = Number.MAX_SAFE_INTEGER;
-  state.nextEncounterAt = Infinity;
-  return state;
-}
-
-function placePlayer(state: RunState, x: number) {
-  state.player.x = x;
-  const limit = (VIEW.worldWidth - VIEW.width) / 2;
-  const offset = x - state.cameraX;
-  if (Math.abs(offset) > BALANCE.camera.deadZone) state.cameraX = Math.max(-limit, Math.min(limit, x - Math.sign(offset) * BALANCE.camera.deadZone));
-}
-
-function formationDuration(id: FormationId): number {
-  const template = FORMATIONS[id];
-  return template.path[template.path.length - 1][0] + Math.max(0, ...template.slots.map(slot => slot.lag ?? 0)) + 4;
-}
-
-interface Branch { name: string; make: () => Pilot }
-const BRANCHES: readonly Branch[] = [
-  { name: 'perfect', make: perfectPilot },
-  { name: 'idle', make: idlePilot },
-  { name: 'dodger', make: dodgerPilot },
-];
-
-function flyFormation(id: FormationId, mirror: boolean, config: RunConfig, sector: number, startX: number, branch: Branch) {
-  const state = quiet(config, sector);
-  placePlayer(state, startX);
-  spawnFormation(state, { formation: id, mirror });
-  const trace = new FairnessTrace();
-  const log = fly(state, branch.make(), formationDuration(id), { noPickups: true, onTick: s => trace.observe(s) });
-  trace.finish(state);
-  return { state, log, trace };
-}
-
 describe('formation hazard unions (isolated squadrons)', () => {
   // Bay launches only fly from the Helion Ark; the Cold Vector boss runs cover them.
   const cases = FORMATION_IDS.filter(id => FORMATIONS[id].entry !== 'bay').flatMap(id => [false, true].map(mirror => ({ id, mirror })));
@@ -275,68 +229,6 @@ describe('formation hazard unions (isolated squadrons)', () => {
           expect(trace.violations, `${where}\n${summary(trace)}`).toEqual([]);
           if (branch.name === 'perfect') expect(log.hits, `${where}: the solver found no clear path`).toBe(0);
         }
-      }
-    }
-  });
-});
-
-describe('cue sequence hazard unions', () => {
-  const runs: { label: string; config: RunConfig; seconds: number; sector: number; bosses?: string[]; planets?: string[]; perfectLives?: number }[] = [
-    ...DIFFICULTY_IDS.flatMap(difficulty => [
-      { label: `training/${difficulty}`, config: { mode: 'campaign' as const, mission: 'training' as const, difficulty, seed: 21 }, seconds: 260, sector: 1 },
-      { label: `rolling-thunder/${difficulty}`, config: { mode: 'campaign' as const, mission: 'bastion' as const, difficulty, seed: 21 }, seconds: 300, sector: 1 },
-      { label: `deep-bloom/${difficulty}`, config: { mode: 'campaign' as const, mission: 'deep-bloom' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
-      { label: `brood-strike/${difficulty}`, config: { mode: 'campaign' as const, mission: 'brood-strike' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
-      { label: `final-horizon/${difficulty}`, config: { mode: 'campaign' as const, mission: 'final-horizon' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
-      { label: `cold-vector/${difficulty}`, config: { mode: 'campaign' as const, mission: 'cold-vector' as const, difficulty, seed: 21 }, seconds: 330, sector: 1 },
-    ]),
-    // Sectors 1-5: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump into Vesper. Endless continues
-    // only after a kill, so only the perfect branch gets past WARDEN-1; the idle and dodger branches stay in its fight.
-    { label: 'endless sectors 1-5', config: { mode: 'endless', seed: 21 }, seconds: 760, sector: 1, bosses: ['warden', 'bastion'], planets: ['luna', 'khepri', 'vesper'] },
-    // Each planet's first stint on every branch, ending in its boss fight.
-    { label: 'endless sectors 2-4 (Khepri, Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 2, bosses: ['bastion'], planets: ['khepri'] },
-    { label: 'endless sectors 5-7 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['ark'], planets: ['vesper'] },
-    // perfectLives: since the Needles' side lanes moved inside a beam's reach of the ship (user, 8 November: "without
-    // moving i wouldnt even be hit"), the 0.2 s-late perfect pilot loses one life in these two long stints; the union stays
-    // fair (no violations), which is what this suite guards.
-    { label: 'endless sectors 8-10 (Nacre, THE VEIL)', perfectLives: 1, config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['veil'], planets: ['nacre'] },
-    { label: 'endless sectors 11-13 (Amnion, THE CRADLE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 11, bosses: ['cradle'], planets: ['amnion'] },
-    { label: 'endless sectors 14-16 (Corona, THE HELIOPHAGE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['heliophage'], planets: ['corona'] },
-    { label: 'endless sectors 17-19 (Umbra, THE ECLIPSE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['eclipse'], planets: ['umbra'] },
-    // Later visits (peak playlists, capped ramp): Khepri's Bastion-9, then every other world in turn.
-    { label: 'endless capped sector 22 (Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 160, sector: 22, bosses: ['bastion'], planets: ['khepri'] },
-    { label: 'endless capped sectors 23-25 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 23, bosses: ['ark'], planets: ['vesper'] },
-    { label: 'endless capped sectors 26-28 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 26, bosses: ['veil'], planets: ['nacre'] },
-    { label: 'endless capped sectors 29-31 (Amnion, THE CRADLE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 29, bosses: ['cradle'], planets: ['amnion'] },
-    { label: 'endless capped sectors 32-34 (Corona, THE HELIOPHAGE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 32, bosses: ['heliophage'], planets: ['corona'] },
-    { label: 'endless capped sectors 35-37 (Umbra, THE ECLIPSE)', perfectLives: 1, config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 35, bosses: ['eclipse'], planets: ['umbra'] },
-  ];
-
-  it.each(runs)('$label keeps the union fair on the perfect, idle and dodger branches', ({ label, config, seconds, sector, bosses, planets, perfectLives = 0 }) => {
-    for (const branch of BRANCHES) {
-      const state = enterSector(createRun(config), sector);
-      // Idle and dodger branches keep flying after losing lives so the whole schedule is exercised.
-      if (branch.name !== 'perfect') state.player.lives = 99;
-      const trace = new FairnessTrace();
-      const seenBosses = new Set<string>();
-      const seenPlanets = new Set<string>();
-      const log = fly(state, branch.make(), seconds, { noPickups: true, onTick: s => {
-        trace.observe(s);
-        if (s.boss) seenBosses.add(s.boss.id);
-        if (!s.jump && s.enemies.some(enemy => !enemy.bossPart)) seenPlanets.add(s.planet);
-      } });
-      trace.finish(state);
-      expect(trace.violations, `${label} ${branch.name}\n${summary(trace)}`).toEqual([]);
-      expect(trace.windups).toBeGreaterThan(20);
-      // The endless runs really fly their boss fights and their planets' squadrons: every branch reaches the
-      // first boss; only a branch that kills it continues to the next planet.
-      const reach = (list: string[]) => (branch.name === 'perfect' ? list : list.slice(0, 1));
-      if (bosses) expect([...seenBosses], `${label} ${branch.name} bosses`).toEqual(expect.arrayContaining(reach(bosses)));
-      if (planets) expect([...seenPlanets], `${label} ${branch.name} planets`).toEqual(expect.arrayContaining(reach(planets)));
-      if (branch.name === 'perfect' && bosses?.length === 2) expect(state.sector, `${label} reaches sector 7`).toBe(7);
-      if (branch.name === 'perfect') {
-        expect(log.livesLost, `${label} perfect pilot`).toBeLessThanOrEqual(perfectLives);
-        expect(log.specialsUsed).toBe(0);
       }
     }
   });
