@@ -2181,3 +2181,26 @@ Broader suite: 845 passed, 4 skipped, 3 failed. All failures are the existing se
 - **Reverted:** MSAA on High (`bfc005e`, `1053995`), the `?msaa` and `?fx` diagnostics, and `?unlock=all`.
 - **Checks:** typecheck and 20 site/terrain unit tests only; no browser gate. Pages run 42110327382 succeeded.
 - **Phone check:** pending, by the user.
+
+## 8 November 2026 — Flight pickups, strike-site warnings and campaign credit values
+
+Scheduled pickups enter just above the top of the flight plane under the release camera. Tall phones keep the same upper edge. Enemy, hunter and site rewards originate at their destruction position. Endless placement keeps power, shields and weapons far enough from other pickups for separate passes, including with the Scrapper's larger catch radius. Switching weapons keeps the tier and any banked upgrade cell, and starts the new firing pattern. Strike sites announce their side and loot 1.25 seconds ahead of their earliest ground entry.
+
+CRADLE uses an Amnion palette for arrival steam, damage smoke, sparks and ichor. Amnion hostile bolts have acid-green rims and pale cores, with matching muzzle flashes. The player's shell and hit flash use the ship's equipped glow. The shell is 20% larger. The physical damage radius is 0.441, compared with the previous 0.42. Navigation uses the original flight footprint, with projectile forecasts accounting for the larger swept hit circle.
+
+Campaign flight payout scales are 80% of the previous rates. The first-clear bonus is 75. Mission-board rewards and Collector targets retain their existing values. Enemy coin face values include Dart 4, Weaver and turret 5, Needle 6, Pulsar and Wraith 10 and any hunter 15. The world and difficulty multipliers apply to the accumulated flight earnings. An Endless credit pickup gives 50 score.
+
+The production build and typecheck passed. The final full unit run reported 951 passed, 5 skipped and 6 failed. The five Collector feasibility failures reflect the retained targets under the smaller payouts. The automated dodger lost its first life at 24.3 seconds on one opening tested against a 25-second minimum. The authored combat safety suite, boss phases, weapon recovery, pickup spacing, camera edge and site announcement checks passed. No deployment or physical phone test.
+
+Final Playwright gate after the entry and announcement changes: 55/55 passed in 23.2 minutes on WSL Chromium with software WebGL, including phone viewport, Campaign and Endless flight, both quality tiers and site destruction.
+
+- **Finished by Claude Code** (Codex at its usage limit; user: "pls complete codex work"):
+  - **Codex's last test edits already made the unit suite green:**
+    - a Collector pilot that goes for coins;
+    - feasibility runs given more attempts for the retained targets;
+    - deck-balance credits repriced for the new coin values;
+    - missions credit maths at the new scale;
+    - the opening-dodger guardrail at 24 s (was 25), because of the 5% larger hit radius.
+
+    I reviewed them; they keep their checks honest.
+  - **Vesper** (the user's last request to Codex): laser flocks alternate with laser-free Diamond squadrons in Cold Vector and endless (docs/17, "Laser flocks alternate…"), with the new `diamond-pair` formation and a regression test.

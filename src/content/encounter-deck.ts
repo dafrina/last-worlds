@@ -129,6 +129,8 @@ export function waveCharacter(placements: readonly FormationPlacement[]): WaveCh
   return kinds.has('pulsar') ? 'pulsar' : kinds.has('wraith') ? 'wraith' : kinds.has('diamond') ? 'heavy' : kinds.has('needle') || kinds.has('lancer') ? 'beam'
     : kinds.has('missile') ? 'missile' : kinds.has('turret') ? 'turret' : kinds.size ? 'fighter' : 'none';
 }
+/** Kinds that fire beams (Needles' narrow lanes, Lancers' wide ones). */
+const BEAM_FLYERS: readonly EnemyKind[] = ['needle', 'lancer'];
 const flies = (placements: readonly FormationPlacement[], kinds: readonly EnemyKind[]) => placements.some(p => FORMATIONS[p.formation].slots.some(slot => kinds.includes(slot.kind)));
 /** Threat cost of placements at a rank (Standard by default; balance.ts THREAT_COST). */
 export function placementCost(placements: readonly FormationPlacement[], rank: 'standard' | 'veteran' = 'standard'): number {
@@ -184,11 +186,11 @@ const KHEPRI_CLIMAX: readonly DeckWave[] = [
   w('battery-2'), w('battery-3'), w('battery-4'), w('depot-3'),
 ];
 const VESPER_PRESSURE_POOL: readonly DeckWave[] = [
-  w('needle-solo'), w('needle-line-3'), w('needle-column-5'), w('diamond-solo'), w('diamond-convoy'),
+  w('needle-solo'), w('needle-line-3'), w('needle-column-5'), w('diamond-solo'), w('diamond-pair'), w('diamond-convoy'),
   w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const VESPER_CLIMAX: readonly DeckWave[] = [
-  w('needle-line-3'), w('needle-column-5'), w('diamond-solo'), w('diamond-convoy'),
+  w('needle-line-3'), w('needle-column-5'), w('diamond-solo'), w('diamond-pair'), w('diamond-convoy'),
   w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const NACRE_PRESSURE_POOL: readonly DeckWave[] = [
@@ -402,16 +404,16 @@ const VESPER_OPENING: readonly DeckSlot[] = [
   fix({ at: 9, id: 'ev1-missiles', phase: 'intro', message: 'POWER CELL AHEAD', formations: [f('missile-2')], pickup: { kind: 'power', x: 0, s: 17, value: 1 } }),
   draw({ at: 13, id: 'ev1-line', phase: 'pressure', formations: [f('needle-line-3')] }),
   draw({ at: 18, id: 'ev1-missiles-3', phase: 'pressure', formations: [f('missile-3')] }),
-  draw({ at: 21, id: 'ev1-column', phase: 'pressure', formations: [f('needle-column-5')] }),
+  draw({ at: 21, id: 'ev1-pair', phase: 'pressure', formations: [f('diamond-pair')] }),
   draw({ at: 27, id: 'ev1-missiles-2', phase: 'pressure', formations: [f('missile-2')] }),
   draw({ at: 30, id: 'ev1-heavy', phase: 'pressure', formations: [f('diamond-solo')] }),
   side({ at: 36, id: 'ev1-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 5 } }),
   draw({ at: 42, id: 'ev1-line-2', phase: 'pressure', formations: [f('needle-line-3')] }),
   draw({ at: 46, id: 'ev1-missiles-4', phase: 'pressure', formations: [f('missile-3')] }),
-  draw({ at: 49, id: 'ev1-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
+  draw({ at: 49, id: 'ev1-pair-left', phase: 'pressure', formations: [f('diamond-pair', 0, true)] }),
   fix({ at: 55, id: 'ev1-convoy', phase: 'climax', message: 'ESCORT CONVOY', formations: [f('diamond-convoy')] }),
   draw({ at: 59, id: 'ev1-convoy-missiles', phase: 'climax', formations: [f('missile-2')] }),
-  draw({ at: 62, id: 'ev1-convoy-line', phase: 'climax', formations: [f('needle-line-3', -1)] }),
+  draw({ at: 62, id: 'ev1-convoy-pair', phase: 'climax', formations: [f('diamond-pair')] }),
   draw({ at: 67, id: 'ev1-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] }),
   draw({ at: 72, id: 'ev1-convoy-missiles-2', phase: 'climax', formations: [f('missile-3')] }),
   relief(84, 'ev1-relief'),
@@ -424,16 +426,16 @@ const VESPER_PRESSURE: readonly DeckSlot[] = [
   draw({ at: 9, id: 'ev2-heavy', phase: 'pressure', formations: [f('diamond-solo')] }),
   draw({ at: 13, id: 'ev2-column', phase: 'pressure', formations: [f('needle-column-5')] }),
   draw({ at: 17, id: 'ev2-missiles-2', phase: 'pressure', formations: [f('missile-2')] }),
-  draw({ at: 20, id: 'ev2-convoy', phase: 'pressure', formations: [f('diamond-convoy')] }),
+  draw({ at: 20, id: 'ev2-pair', phase: 'pressure', formations: [f('diamond-pair')] }),
   draw({ at: 26, id: 'ev2-missiles-3', phase: 'pressure', formations: [f('missile-3')] }),
   side({ at: 32, id: 'ev2-west', pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'rail' } }),
   draw({ at: 38, id: 'ev2-line-2', phase: 'pressure', formations: [f('needle-line-3', 1)] }),
   draw({ at: 41, id: 'ev2-missiles-4', phase: 'pressure', formations: [f('missile-2')] }),
-  draw({ at: 44, id: 'ev2-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
+  draw({ at: 44, id: 'ev2-pair-left', phase: 'pressure', formations: [f('diamond-pair', 0, true)] }),
   draw({ at: 49, id: 'ev2-heavy-2', phase: 'pressure', formations: [f('diamond-solo')] }),
   draw({ at: 53, id: 'ev2-climax-missiles', phase: 'climax', formations: [f('missile-3')] }),
   draw({ at: 56, id: 'ev2-climax-convoy', phase: 'climax', formations: [f('diamond-convoy')] }),
-  draw({ at: 61, id: 'ev2-climax-line', phase: 'climax', formations: [f('needle-line-3')] }),
+  draw({ at: 61, id: 'ev2-climax-pair', phase: 'climax', formations: [f('diamond-pair')] }),
   draw({ at: 65, id: 'ev2-climax-missiles-2', phase: 'climax', formations: [f('missile-2')] }),
   draw({ at: 68, id: 'ev2-climax-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] }),
   relief(84, 'ev2-relief'),
@@ -443,21 +445,21 @@ const VESPER_PRESSURE: readonly DeckSlot[] = [
 const VESPER_PEAK: readonly DeckSlot[] = [
   fix({ at: 2, id: 'ev3-convoy', phase: 'intro', formations: [f('diamond-convoy')] }),
   draw({ at: 4, id: 'ev3-missiles', phase: 'pressure', formations: [f('missile-3')], pickup: { kind: 'power', x: 0, s: 17, value: 1 } }),
-  draw({ at: 8, id: 'ev3-column', phase: 'pressure', formations: [f('needle-column-5')] }),
+  draw({ at: 8, id: 'ev3-pair', phase: 'pressure', formations: [f('diamond-pair')] }),
   draw({ at: 11, id: 'ev3-missiles-2', phase: 'pressure', formations: [f('missile-2')] }),
   draw({ at: 13, id: 'ev3-line', phase: 'pressure', formations: [f('needle-line-3')] }),
-  draw({ at: 18, id: 'ev3-convoy-2', phase: 'pressure', formations: [f('diamond-convoy')] }),
+  draw({ at: 18, id: 'ev3-heavy-early', phase: 'pressure', formations: [f('diamond-solo')] }),
   draw({ at: 21, id: 'ev3-missiles-3', phase: 'pressure', formations: [f('missile-3')] }),
   draw({ at: 25, id: 'ev3-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
   side({ at: 31, id: 'ev3-west', pickup: { kind: 'weapon', x: -7, s: 17, value: 1, weapon: 'fan' } }),
-  draw({ at: 36, id: 'ev3-line-2', phase: 'pressure', formations: [f('needle-line-3', -1)] }),
+  draw({ at: 36, id: 'ev3-pair-2', phase: 'pressure', formations: [f('diamond-pair', 0, true)] }),
   draw({ at: 38, id: 'ev3-missiles-4', phase: 'pressure', formations: [f('missile-2')] }),
-  draw({ at: 41, id: 'ev3-heavy', phase: 'pressure', formations: [f('diamond-solo')] }),
+  draw({ at: 41, id: 'ev3-line-2', phase: 'pressure', formations: [f('needle-line-3', -1)] }),
   draw({ at: 45, id: 'ev3-missiles-5', phase: 'pressure', formations: [f('missile-3')] }),
-  draw({ at: 48, id: 'ev3-column-2', phase: 'pressure', formations: [f('needle-column-5')] }),
+  draw({ at: 48, id: 'ev3-heavy', phase: 'pressure', formations: [f('diamond-solo')] }),
   draw({ at: 53, id: 'ev3-climax-convoy', phase: 'climax', formations: [f('diamond-convoy')] }),
   draw({ at: 55, id: 'ev3-climax-missiles', phase: 'climax', formations: [f('missile-3')] }),
-  draw({ at: 59, id: 'ev3-climax-line', phase: 'climax', formations: [f('needle-line-3', 1)] }),
+  draw({ at: 59, id: 'ev3-climax-pair', phase: 'climax', formations: [f('diamond-pair', 0, true)] }),
   draw({ at: 63, id: 'ev3-climax-missiles-2', phase: 'climax', formations: [f('missile-2')] }),
   draw({ at: 66, id: 'ev3-climax-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] }),
   relief(84, 'ev3-relief'),
@@ -474,10 +476,10 @@ const COLD_VECTOR: readonly DeckSlot[] = [
   fix({ at: 13, id: 'v-first-missiles', phase: 'intro', message: 'MISSILE BATTERIES FIRE DOWN THEIR OWN COLUMN', formations: [f('missile-2')] }),
   draw({ at: 17, id: 'v-needle-line', phase: 'pressure', formations: [f('needle-line-3')] }),
   draw({ at: 22, id: 'v-missiles', phase: 'pressure', formations: [f('missile-2')] }),
-  draw({ at: 25, id: 'v-needle-column', phase: 'pressure', formations: [f('needle-column-5')] }),
+  draw({ at: 25, id: 'v-diamond-pair', phase: 'pressure', formations: [f('diamond-pair')] }),
   draw({ at: 31, id: 'v-missiles-3', phase: 'pressure', formations: [f('missile-3')] }),
   draw({ at: 34, id: 'v-needle-line-2', phase: 'pressure', formations: [f('needle-line-3', 1)] }),
-  draw({ at: 41, id: 'v-needle-column-left', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
+  draw({ at: 41, id: 'v-diamond-pair-left', phase: 'pressure', formations: [f('diamond-pair', 0, true)] }),
   side({ at: 48, id: 'v-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 }, rank: 1 }),
   side({ at: 53, id: 'v-east', rank: 4 }),
   fix({ at: 58, id: 'v-cliff-missiles', phase: 'pressure', message: 'MISSILE BATTERIES ON THE CLIFFS', formations: [f('missile-3')] }),
@@ -489,13 +491,13 @@ const COLD_VECTOR: readonly DeckSlot[] = [
   draw({ at: 84, id: 'v-cliff-missiles-4', phase: 'pressure', formations: [f('depot-missile')] }),
   fix({ at: 89, id: 'v-convoy', phase: 'climax', message: 'ESCORT CONVOY · BREAK THE DIAMONDS', formations: [f('diamond-convoy')] }),
   draw({ at: 94, id: 'v-convoy-missiles', phase: 'climax', formations: [f('missile-3')] }),
-  draw({ at: 100, id: 'v-convoy-needles', phase: 'climax', formations: [f('needle-line-3')] }),
+  draw({ at: 100, id: 'v-convoy-pair', phase: 'climax', formations: [f('diamond-pair')] }),
   draw({ at: 106, id: 'v-convoy-2', phase: 'climax', formations: [f('diamond-convoy')] }),
   draw({ at: 112, id: 'v-convoy-missiles-2', phase: 'climax', formations: [f('missile-2')] }),
-  draw({ at: 117, id: 'v-convoy-column', phase: 'climax', formations: [f('needle-column-5', 0, true)] }),
+  draw({ at: 117, id: 'v-convoy-pair-2', phase: 'climax', formations: [f('diamond-pair', 0, true)] }),
   draw({ at: 123, id: 'v-convoy-3', phase: 'climax', formations: [f('diamond-convoy')] }),
   draw({ at: 129, id: 'v-convoy-missiles-3', phase: 'climax', formations: [f('missile-3')] }),
-  draw({ at: 135, id: 'v-convoy-needles-2', phase: 'climax', formations: [f('needle-line-3', -1)] }),
+  draw({ at: 135, id: 'v-convoy-diamond', phase: 'climax', formations: [f('diamond-solo')] }),
   fix({ at: 141, id: 'v-convoy-4', phase: 'climax', message: 'LAST ESCORT · OPEN WATER AHEAD', formations: [f('diamond-convoy')] }),
   draw({ at: 147, id: 'v-convoy-missiles-4', phase: 'climax', formations: [f('missile-2')] }),
   fix({ at: 160, id: 'v-relief', phase: 'recovery', formations: [] }),
@@ -658,10 +660,11 @@ const ROLLING_THUNDER_SORTIE = extend(ROLLING_THUNDER, 47, 24, [
 ]);
 const COLD_VECTOR_SORTIE = extend(COLD_VECTOR, 89, 28, [
   fix({ at: 0, id: 'v-x-depot', phase: 'pressure', message: 'FUEL BARGES · BLOW THEM', formations: [f('depot-missile')] }),
-  draw({ at: 3, id: 'v-x-needles', phase: 'pressure', formations: [f('needle-line-3', -1)] }),
-  draw({ at: 9, id: 'v-x-diamond', phase: 'pressure', formations: [f('diamond-solo')] }),
+  // Laser flocks alternate with laser-free squadrons (user, 8 November), after the cliffs' Needle column.
+  draw({ at: 3, id: 'v-x-diamond', phase: 'pressure', formations: [f('diamond-solo')] }),
+  draw({ at: 9, id: 'v-x-needles', phase: 'pressure', formations: [f('needle-line-3', -1)] }),
   draw({ at: 12, id: 'v-x-missiles', phase: 'pressure', formations: [f('missile-3')] }, 3),
-  draw({ at: 16, id: 'v-x-column', phase: 'pressure', formations: [f('needle-column-5')] }),
+  draw({ at: 16, id: 'v-x-pair', phase: 'pressure', formations: [f('diamond-pair')] }),
   draw({ at: 21, id: 'v-x-depot-2', phase: 'pressure', formations: [f('depot-missile')] }),
   draw({ at: 23, id: 'v-x-diamond-2', phase: 'pressure', formations: [f('diamond-solo')] }),
 ]);
@@ -900,6 +903,9 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
     else if (slot.kind === 'pool' && standIn(slot)) out.push(placeSite(slot.at, slot.phase, slot.pickup));
     else {
       const nominalCue: EncounterCue = { at: slot.at, id: slot.id, phase: slot.phase, formations: slot.nominal, ...(slot.pickup ? { pickup: slot.pickup } : {}) };
+      // Vesper (user, 8 November: "constantly a new flock of lasers once you defeated them"): its arcs alternate laser
+      // flocks with laser-free squadrons, and a draw keeps its slot's side of that (a Diamond convoy carries Needles).
+      const keepsBeams = (wave: DeckWave) => template.world !== 'vesper' || flies(wave.formations, BEAM_FLYERS) === flies(slot.nominal, BEAM_FLYERS);
       const nominalCost = placementCost(slot.nominal), nominalVeteran = placementCost(slot.nominal, 'veteran'), role = placementRole(slot.nominal), character = waveCharacter(slot.nominal);
       if (locked[index]) out.push(resolvedOf(nominalCue));
       else {
@@ -916,7 +922,7 @@ export function resolveDeck(template: DeckTemplate, seed: number, salt = 0): Res
         // previous cue's.
         const fitting = (strict: boolean, anyCharacter = false) => pools[slot.phase].filter(wave => {
           const cost = placementCost(wave.formations), key = waveKey(wave.formations);
-          return placementRole(wave.formations) === role && (anyCharacter ? !flies(wave.formations, SCARCE) : waveCharacter(wave.formations) === character)
+          return placementRole(wave.formations) === role && keepsBeams(wave) && (anyCharacter ? !flies(wave.formations, SCARCE) : waveCharacter(wave.formations) === character)
             && cost >= range.min && cost <= range.max && placementCost(wave.formations, 'veteran') <= nominalVeteran + 1e-9 && known(wave)
             && key !== previous?.key && key !== nextKey && (!strict || key !== lastOfRole?.key)
             && (!previous || previous.site || slot.at - previous.cue.at > PAIR_WINDOW || cost + previous.cost <= cap(previous.nominal))

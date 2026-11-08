@@ -363,6 +363,17 @@ const templates = [
     ],
   },
   {
+    // A heavy pair without the convoy's Needles (user, 8 November: Vesper sent "constantly a new flock of lasers once you
+    // defeated them"; a laser-free squadron now comes between its laser flocks).
+    id: 'diamond-pair', name: 'Diamond heavy pair', entry: 'top',
+    path: HEAVY_HOLD(12, 9.5), fireFrom: 1.2, fireUntil: 11.9,
+    slots: [
+      { kind: 'diamond', dx: -2.2, fire: 0 },
+      { kind: 'diamond', dx: 2.2, ds: 1.6, fire: 0.6 },
+      { kind: 'diamond', dx: 0, ds: 3.2, fire: 1.4, from: 'veteran' },
+    ],
+  },
+  {
     // Missiles fly straight down each battery's own marked column: align to destroy it in the gaps.
     id: 'missile-2', name: 'Missile battery pair', entry: 'ground',
     path: GROUND, ...GROUND_FIRE,

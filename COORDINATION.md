@@ -831,3 +831,17 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
     - in `src/render/scene.ts`, the token materials replace the flat icons once loaded;
     - `src/render/pickup-icons.ts` gains `createPickupBumpTextures`.
   - **Checks:** tsc, unit (953), build, and the graphics, flight and faction browser specs (17/17).
+
+**7 November · Codex:** Applying the six requested gameplay and presentation changes on integrator-next. Scope is Endless drop placement and swaps, Amnion carrier and shot colours, shield visuals, player radius, and mission credit rewards. Combined gates after implementation.
+
+**8 November · Codex · pickup, visual and economy changes complete locally.** Scheduled pickups enter at the camera's top edge in either mode. Kill and site drops keep local origins. Strike-site notices lead entry by 1.25 s. Endless spacing and weapon-tier carryover, Amnion FX, painted shields, physical hit radius and campaign-only payout edits are in the tree. Mission rewards, 75-credit first clear and Collector targets retained per user. Typecheck/build passed, browser 55/55. Unit 951 passed / 5 skipped / 6 failed: the five retained Collector reachability targets and one 24.3 s opening dodger life against the 25 s guardrail. Details in docs/build-status.md. No deployment.
+
+**8 November · Codex · release in progress:** updating the test pilot and calibration checks for the approved pickup/economy release. Keep all Collector targets/rewards and enemy values. Verify full tests, push the release and confirm Pages.
+
+**8 November 10:40 · Claude Code (Blender MCP in WSL session) · taking over Codex's uncommitted release** (Codex is at its usage limit; the user asked me to finish it).
+- **Plan:**
+  - verify the pickup, economy, shield and hitbox, Endless swap and spacing, Amnion FX and site-notice changes;
+  - finish the Collector test pilot and the calibration checks;
+  - implement the user's last Vesper request: non-laser squadrons between laser flocks, in campaign and endless;
+  - then gate and deploy.
+- **Working in:** the main tree, Codex's files.

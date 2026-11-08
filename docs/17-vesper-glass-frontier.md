@@ -208,3 +208,18 @@ Shield cells:
 **15 October balance notes:**
 - The Diamond takes hits on its whole pale body (radius 0.60) and has 130 HP (was a 0.30 core and 220 HP). With the old values Fan Cannon could not kill one in a whole pass, and shots through the visible plates did nothing.
 - Needle barrages rest after 7 s on Standard and in endless, and after 5 s on Relaxed (docs/11, "Needle beam rests").
+
+## Laser flocks alternate with laser-free squadrons (8 November 2026)
+
+User, in campaign and endless: Vesper was "constant laser enemies"; "its not that the barrages of those laser enemies is too much enemies but its constantly a new flock of lasers once you defeated them".
+
+- **Alternation:** in Cold Vector, its sortie, and the three endless arcs (opening, pressure, peak), every second laser flock became a laser-free Diamond squadron.
+  - The flocks that remain keep their size and attacks.
+  - A laser flock means any air wave with Needles or Lancers, the Diamond convoy included.
+- **New formation:** the Diamond heavy pair (`diamond-pair`, two Diamonds; a third on Veteran), added to Vesper's pools.
+- **Deck rule, Vesper only** (`src/content/encounter-deck.ts` `keepsBeams`): a drawn wave keeps its slot's side of the alternation.
+- **Measured:**
+  - Over 40 seeds, laser flocks fell from nearly every air wave to about half, and none follow each other. A strike site's single Needle guard next to a flock is the only exception; sites are optional side routes.
+  - Perfect pilot, 12 seeds: Cold Vector 2 → 1 hit over 72 runs, the endless Vesper stint 3 → 0.
+  - Mid-skill hunter pilot, endless Vesper stint: 295 → 297 hits, so the pressure is about the same, now from Diamond volleys instead of more beams.
+- **Test:** `tests/sim/encounter-deck.test.ts`, "Vesper alternates…". It fails on the old order on all 20 seeds.

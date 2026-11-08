@@ -300,3 +300,22 @@ describe('encounter deck: flown', () => {
     expect([...sites].sort()).toEqual(resolvePlaylist(state.config, 1, 3).flatMap(cue => cue.site ? [cue.site.id] : []).sort());
   });
 });
+
+describe('Vesper alternates laser flocks with laser-free squadrons (user, 8 November)', () => {
+  // "its not that the barrages of those laser enemies is too much enemies but its constantly a new flock of lasers once
+  // you defeated them": between two air waves that fire beams there is always one that does not (a strike site's own
+  // guard aside: sites are optional side routes).
+  const beams = (cue: EncounterCue) => cue.formations.some(p => !FORMATIONS[p.formation].harmless && FORMATIONS[p.formation].entry !== 'ground'
+    && FORMATIONS[p.formation].slots.some(slot => slot.kind === 'needle' || slot.kind === 'lancer'));
+  const air = (cue: EncounterCue) => cue.formations.some(p => !FORMATIONS[p.formation].harmless && FORMATIONS[p.formation].entry !== 'ground');
+  const backToBack = (cues: readonly EncounterCue[]) => {
+    const flying = cues.filter(air);
+    return flying.filter((cue, i) => i > 0 && !cue.site && !flying[i - 1].site && beams(cue) && beams(flying[i - 1])).map(cue => cue.id);
+  };
+  const vesperSectors = Array.from({ length: 30 }, (_, i) => i + 1).filter(sector => endlessPlanet(sector) === 'vesper');
+  it.each(Array.from({ length: 20 }, (_, i) => i + 1))('seed %i: Cold Vector and every endless Vesper sector', seed => {
+    expect(backToBack(resolvePlaylist({ mode: 'campaign', mission: 'cold-vector' }, 1, seed))).toEqual([]);
+    expect(vesperSectors.length).toBeGreaterThanOrEqual(3);
+    for (const sector of vesperSectors) expect(backToBack(resolvePlaylist({ mode: 'endless' }, sector, seed)), `sector ${sector}`).toEqual([]);
+  });
+});
