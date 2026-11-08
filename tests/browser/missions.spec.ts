@@ -10,7 +10,6 @@ import { CAMPAIGN_KEY } from '../../src/campaign/profile';
  * MISSION_SHOTS=<directory> also saves the three screens (the review sheet, docs/screenshots/missions.jpg).
  */
 const SHOTS = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env.MISSION_SHOTS;
-type Dev = { __LAST_WORLDS__: { special(): void; end(phase: 'over' | 'complete'): void } };
 
 async function seeded(page: Page) {
   await seedCampaign(page, profile => {
@@ -77,7 +76,7 @@ test('a flight shows a small mission note, and the results list the missions it 
   // Firing the special: Specialist 1/5 shows briefly under the lives and shields (Old School is failed, quietly).
   // Evidence only: software WebGL can take longer to capture a frame than the note stays, so the shot holds it at full.
   if (SHOTS) await page.addStyleTag({ content: '.mission-note { animation: none !important; opacity: .92 !important; }' });
-  await page.evaluate(() => (window as unknown as Dev).__LAST_WORLDS__.special());
+  await page.evaluate(() => window.__LAST_WORLDS__!.special());
   const note = page.locator('.mission-note.is-on');
   await expect(note).toHaveText('SPECIALIST 1/5', { timeout: 5_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/2-flight-note.png` });
@@ -89,7 +88,7 @@ test('a flight shows a small mission note, and the results list the missions it 
   await expect(page.locator('.pause-missions li').nth(0).locator('p')).toHaveText(/Fire your special 5 times/);
   await page.locator('[data-action="resume"]').click();
   await flying(page);
-  await page.evaluate(() => (window as unknown as Dev).__LAST_WORLDS__.end('complete'));
+  await page.evaluate(() => window.__LAST_WORLDS__!.end('complete'));
   await expect(page.locator('.results-panel')).toBeVisible({ timeout: 10_000 });
   // Untouchable (no hit, Standard) is paid; Old School is not (a special was fired).
   await expect(page.locator('.result-missions li')).toHaveText([/Untouchable/]);

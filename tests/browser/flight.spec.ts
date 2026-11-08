@@ -1,11 +1,6 @@
 import { seedCampaign, veteranPilot } from './campaign-save';
-import { expect, test, type Page } from '@playwright/test';
-import type { RunState } from '../../src/shared/contracts';
-import { flying } from './launch';
-
-async function snapshot(page: Page): Promise<RunState> {
-  return page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
-}
+import { expect, test } from '@playwright/test';
+import { flying, snapshot } from './launch';
 
 test.afterEach(async ({ page }, info) => {
   if (info.status !== info.expectedStatus) {

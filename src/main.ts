@@ -7,13 +7,11 @@ import { createFramePacer } from './shared/frame-pacing';
 import { createTiltSource, readSteeringMode } from './input/tilt';
 import { createInput } from './input/controls';
 import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
-import { bossTarget, resolveBossPhase } from './sim/bastion';
-import { destroySiteCore } from './sim/sites';
-import { BOSSES, bossParts, phaseOneParts } from './content/bosses';
 import { WARP, warpSpeed } from './content/departure';
 import { createGameAudio } from './audio/engine';
 import { prefetchSamples } from './audio/sample-bank';
 import { mountAudioSettings } from './audio/settings';
+import { installDevHooks, type Bench } from './dev-hooks';
 
 const root = document.querySelector<HTMLElement>('#app')!;
 let run: RunState | null = null;
@@ -241,11 +239,8 @@ if (perfLog) {
   }
 }
 let perfLast = performance.now(), simStart = 0;
-/**
- * Development-only perf bench (tools/perf-bench.mjs): every rendered frame steps exactly `steps` ticks with a scripted
- * weave, so a measured flight repeats tick for tick whatever the machine's speed; it records each frame's JS work (ms).
- */
-let bench: { steps: number; lives: number; frames: { sim: number; render: number; total: number; time: number; speed: number }[]; steerTo?: number } | null = null;
+/** Development-only perf bench (src/dev-hooks.ts, tools/perf-bench.mjs). */
+let bench: Bench | null = null;
 /** The bench's scripted weave, or (`steerTo`) a hold near one x (a scenario watching a site on one side). */
 const benchSteer = (tick: number, x: number): -1 | 0 | 1 => {
   if (bench?.steerTo !== undefined) { const gap = bench.steerTo - x; return Math.abs(gap) < .3 ? 0 : gap > 0 ? 1 : -1; }
@@ -319,46 +314,11 @@ function frame(now: number) {
 }
 requestAnimationFrame(frame);
 
-// Read-only development snapshots let browser tests inspect real gameplay.
-if (import.meta.env.DEV) {
-  Object.defineProperty(window, '__LAST_WORLDS__', {
-    value: {
-      snapshot: () => run ? structuredClone(run) : null,
-      audio: () => audio.diagnostics(),
-      // Look-dev only: ends the current flight as lost or complete, to capture the ending sequences.
-      // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
-      // `exposed` (look-dev captures of enemy fire) keeps the ship vulnerable: enemies hold fire on an invulnerable ship.
-      advance: (seconds: number, exposed = false) => { if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = exposed ? Math.min(run.player.invulnerableUntil, run.time) : Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
-      // Look-dev only: launch a flight with any config (a campaign loadout without a save), and fire the special.
-      launch: (config: RunConfig) => { void start(config); },
-      special: () => { if (run?.phase === 'playing') { run.player.specialCharge = 1; stepRun(run, { horizontal: 0, specialPressed: true, pausePressed: false }, STEP); } },
-      // Look-dev only: the lives left (the last-life alarm shows at one).
-      setLives: (lives: number) => { if (run) run.player.lives = lives; },
-      // The flank weak points only (look-dev captures of a boss's core phase).
-      killFlanks: () => { if (!run?.boss) return; for (const part of phaseOneParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
-      // Look-dev: the flanks down and the core into its overload (a boss's beam lanes).
-      bossOverload: () => { if (!run?.boss) return; for (const part of phaseOneParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); const core = bossTarget(run, 'core'); if (core) core.hp = core.maxHp * .35; resolveBossPhase(run); },
-      killBoss: () => { if (!run?.boss) return; for (const part of bossParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
-      // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
-      boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
-      // Perf bench (tools/perf-bench.mjs): fixed ticks per frame and a scripted weave; `benchStop` returns the frame timings.
-      bench: (steps = 1, lives = 5, steerTo?: number) => { bench = { steps, lives, frames: [], ...(steerTo === undefined ? {} : { steerTo }) }; },
-      // Perf bench: every live strike-site core falls as damageEnemy kills one (its kill explosion, its site's loot).
-      killSites: () => {
-        if (!run) return 0;
-        const cores = run.enemies.filter(enemy => enemy.site && enemy.hp > 0);
-        for (const core of cores) { core.hp = 0; run.effects.push({ id: run.nextId++, kind: 'explosion', x: core.x, s: core.s, ttl: .5, duration: .5 }); destroySiteCore(run, core); }
-        run.enemies = run.enemies.filter(enemy => !enemy.site || enemy.hp > 0);
-        return cores.length;
-      },
-      benchFrames: () => bench?.frames.length ?? -1,
-      benchStop: () => { const frames = bench?.frames ?? []; bench = null; return frames; },
-      setQuality: (quality: 'high' | 'low') => renderer?.setQuality(quality),
-      end: (phase: 'over' | 'complete') => { if (run?.phase === 'playing') { run.phase = phase; run.message = phase === 'complete' ? 'MISSION COMPLETE' : 'FLIGHT LOST'; if (phase === 'over') run.player.lives = 0; } },
-    },
-    configurable: true,
-  });
-}
+// Read-only development snapshots let browser tests inspect real gameplay (src/dev-hooks.ts).
+if (import.meta.env.DEV) installDevHooks({
+  run: () => run, audio, start, setQuality: quality => renderer?.setQuality(quality),
+  bench: () => bench, setBench: value => { bench = value; },
+});
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {

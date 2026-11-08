@@ -45,7 +45,7 @@ test('real Endless launch forwards double-tap input through the fixed-step game 
   await page.goto('/');
   await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
   await flying(page);
-  expect(await page.evaluate(() => (window as any).__LAST_WORLDS__.snapshot().config.ship)).toBe('interceptor');
+  expect(await page.evaluate(() => window.__LAST_WORLDS__!.snapshot()!.config.ship)).toBe('interceptor');
   const box = await page.locator('.flight-frame').boundingBox();
   expect(box).not.toBeNull();
   const x = box!.x + box!.width * .8, y = box!.y + box!.height * .6;
@@ -58,5 +58,5 @@ test('real Endless launch forwards double-tap input through the fixed-step game 
         pointerType: 'touch', isPrimary: true, button: 0, clientX: x, clientY: y }));
     }
   }, { x, y });
-  await expect.poll(() => page.evaluate(() => (window as any).__LAST_WORLDS__.snapshot().player.dash?.direction)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__LAST_WORLDS__!.snapshot()!.player.dash?.direction)).toBe(1);
 });

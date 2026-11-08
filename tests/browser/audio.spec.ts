@@ -7,7 +7,7 @@ import type { startBoss } from '../../src/sim/bastion';
 
 type Diagnostics = ReturnType<GameAudio['diagnostics']>;
 const status = (page: Page): Promise<Diagnostics> => page.evaluate(() =>
-  (window as unknown as { __LAST_WORLDS__: { audio(): Diagnostics } }).__LAST_WORLDS__.audio());
+  window.__LAST_WORLDS__!.audio());
 type Lab = { renderPreview: typeof renderPreview; live: GameAudio; run: RunState; startBoss: typeof startBoss; AudioMixer: typeof AudioMixer };
 
 test.beforeEach(async ({ page }) => {

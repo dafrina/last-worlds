@@ -1,9 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { seedCampaign } from './campaign-save';
-import type { RunState } from '../../src/shared/contracts';
-
-const snapshot = (page: import('@playwright/test').Page) =>
-  page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
+import { snapshot } from './launch';
 
 test('campaign offers Cold Vector on Vesper and launches it without browser errors', async ({ page }) => {
   const errors: string[] = [];
