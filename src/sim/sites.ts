@@ -6,6 +6,7 @@ import { WEAPON_IDS } from '../content/equipment';
 import { SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, siteMessage, sitePartChance } from '../content/sites';
 import { SITE_IDS, VIEW, type Enemy, type Pickup, type RunState, type SiteId, type WeaponId } from '../shared/contracts';
 import { fromFlightPlane, lensEye } from '../shared/lens';
+import { keyedUnit } from '../shared/streams';
 import { groundSeat, runRoute } from '../world/run-route';
 import { worldAt } from '../world/terrain';
 import { coreSite, FORMATIONS } from '../content/formations';
@@ -89,9 +90,7 @@ export function destroySiteCore(state: RunState, core: Enemy): void {
  * run seed, the sector, the site and how many sites the run had destroyed before it.
  */
 function partRoll(state: RunState, id: SiteId, destroyed: number): number {
-  let h = 0x70617274; // "part"
-  for (const v of [state.config.seed, state.sector, SITE_IDS.indexOf(id), destroyed]) { h = Math.imul(h ^ (v >>> 0), 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; }
-  return (h >>> 0) / 4294967296;
+  return keyedUnit(0x70617274, state.config.seed, state.sector, SITE_IDS.indexOf(id), destroyed); // "part"
 }
 
 /** Loot is never lost to the pickup ceiling: when it is full, the oldest credit drop makes room. */

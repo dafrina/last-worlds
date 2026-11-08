@@ -1,5 +1,6 @@
 import { ENEMIES, endlessRampSector } from '../content/balance';
 import { VIEW, type Enemy, type EnemyKind, type PlanetId, type RunState, type WeaponId } from '../shared/contracts';
+import { keyedUnit } from '../shared/streams';
 import { approach, clamp } from './geometry';
 import { airClockRate } from './motion';
 import { runScale } from './spawn';
@@ -72,11 +73,7 @@ export function hunterLimits(state: RunState): { live: number; total: number } {
  * A unit roll in [0, 1) for (a, b, c): its own stream, independent of loot and content, and of the world seed, so every
  * run of a level (and every endless run, a standardized challenge) meets the same hunters at the same times.
  */
-function roll(a: number, b: number, c = 0): number {
-  let h = 0x68756e74;
-  for (const v of [a, b, c]) { h = Math.imul(h ^ (v >>> 0), 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; }
-  return (h >>> 0) / 4294967296;
-}
+const roll = (a: number, b: number, c = 0): number => keyedUnit(0x68756e74, a, b, c); // "hunt"
 
 /**
  * A downed ace's drop roll in [0, 1) (HUNTERS.endlessDrop): its own stream, keyed by the ace, so like the aces themselves
