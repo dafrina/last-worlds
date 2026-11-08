@@ -194,7 +194,7 @@ export interface RunState {
   /** The cue (sector, index) whose ground formations already spawned ahead of its time (src/sim/game.ts, leadGround). */
   siteNotice?: { sector: number; index: number; time: number };
   groundLead?: { sector: number; index: number } | null;
-  lootRng: number; chargeKillTimes: number[]; message: string; messageUntil: number;
+  chargeKillTimes: number[]; message: string; messageUntil: number;
   boss: BossState | null;
   /** Needle beam rest bookkeeping (difficulty `beamRest`): start of the current continuous beam run, last beam moment, rest end. */
   beamRun?: { since: number; last: number; restUntil: number };

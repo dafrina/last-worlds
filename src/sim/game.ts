@@ -57,7 +57,6 @@ export function createRun(config: RunConfig): RunState {
     enemies: [], projectiles: [], hazards: [], pickups: [], effects: [],
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0, parts: 0, sites: { destroyed: 0, shieldClaims: [] },
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
-    lootRng: ((config.seed >>> 0) ^ 0x9e3779b9) >>> 0,
     chargeKillTimes: [], boss: null, lance: null, shockwave: null, well: null,
     message: normalized.mode === 'endless' ? 'SECTOR 01 · LUNA' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
   };
