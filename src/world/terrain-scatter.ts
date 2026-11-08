@@ -1,4 +1,4 @@
-import { finish, type Work } from './terrain-work';
+import type { Work } from './terrain-work';
 import { cliffWallSteps } from './terrain-walls';
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange } from './terrain-layout';
 import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
@@ -151,4 +151,3 @@ export function* scatterKitSteps(seed: number, startS: number, size: number, ter
   for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'cliffWall', salt: 0x3a11, minDrop: 0.6, cap: SCENERY_MAX_HEIGHT })) essential.push(wall);
   return [...essential, ...cosmetic];
 }
-export const scatterKit = (seed: number, startS: number, size: number, terrain: ScatterField) => finish(scatterKitSteps(seed, startS, size, terrain));

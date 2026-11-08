@@ -52,7 +52,7 @@ async function sweep(quality: 'high' | 'low', withKit: boolean, seeds: readonly 
   // Every camera position across the world (±6 in the 24-wide world, 21 October).
   const limit = (VIEW.worldWidth - VIEW.width) / 2;
   for (const seed of seeds) for (let distance = from; distance < to; distance += 4.5) for (let x = -limit; x <= limit; x += 1.5) {
-    view.update(seed, distance); configureCamera(camera, x); view.cull(camera); view.animate(distance / 4, x); view.cull(camera);
+    view.update(seed, distance); configureCamera(camera, x); view.cull(camera); view.animate(distance / 4); view.cull(camera);
     calls = Math.max(calls, view.stats.calls); triangles = Math.max(triangles, view.stats.triangles);
     total += view.stats.triangles; samples++;
   }

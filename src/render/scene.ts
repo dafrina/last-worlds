@@ -44,7 +44,6 @@ import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
 import { CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
-import { VEIL } from '../content/veil';
 import { WARDEN } from '../content/warden';
 import { WRAITH } from '../content/wraith';
 import { BASTION } from '../content/bastion';
@@ -55,7 +54,7 @@ import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
 import type { PlanetLook } from '../shared/renderer-types';
 import { loadHeroModel, preloadHeroLook } from './hero-craft';
 import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey, shownHero } from '../content/hero-parts';
-import type { HeroLook, RunConfig, ShipId } from '../shared/contracts';
+import type { HeroLook, ShipId } from '../shared/contracts';
 
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation);
 /** Per-frame CPU budget for generating the next terrain section ahead of need. */
@@ -1560,7 +1559,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (isArk) terrain.setExclusion(ark.footprint(state, arkSeat));
       // Haulers and beacons run on simulation time (frozen while paused); presentation only.
       const animateStart = performance.now();
-      terrain.animate(state.time, state.cameraX); terrainMaterials.setTime(state.time);
+      terrain.animate(state.time); terrainMaterials.setTime(state.time);
       // Spare budget each frame generates the next section (and then its view) ahead of need, so streaming
       // never needs a long synchronous generation mid-flight.
       const prefetchStart = performance.now(), prefetchEnd = prefetchStart + PREFETCH_BUDGET_MS;

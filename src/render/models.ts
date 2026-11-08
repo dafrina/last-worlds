@@ -266,7 +266,7 @@ export function createEnemy(kind: EnemyKind, m: Materials): THREE.Group {
   const model = combineCraft(g, m); model.name = `Authored Khepri ${kind}`; return model;
 }
 
-export function createCargo(m: Materials): THREE.Group {
+function createCargo(m: Materials): THREE.Group {
   const g = new THREE.Group();
   for (const side of [-1, 1]) box(g, m.dark, [.25, .25, 1.75], [side * .48, .05, 0]);
   box(g, m.gunmetal, [.86, .4, 1.55], [0, .28, 0]);

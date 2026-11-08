@@ -521,8 +521,8 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s)) continue;
     const platform = terrain.platform(x, s);
     if (platform >= 0.5 || (platform > 0 && h(30) < platform * 2)) continue;
-    const ground = terrain.height(x, s), slope = terrain.slope(x, s), rise = terrain.rise(x, s), drop = terrain.drop(x, s), pick = h(2);
-    const gx = terrain.gradientX(x, s), gs = terrain.gradientS(x, s), steepness = Math.hypot(gx, gs);
+    const ground = terrain.height(x, s), slope = terrain.slope(x, s), drop = terrain.drop(x, s), pick = h(2);
+    const gx = terrain.gradientX(x, s), gs = terrain.gradientS(x, s);
     const p = vesperParams(seed, s), m = vesperMasks(seed, x, s, p, platform);
     // Water is dressed by the coarser cliff pass below (and drifting floes); shelves get the land pieces here.
     if (ground < SEA) continue;

@@ -1742,7 +1742,7 @@ function createRoadTexture(surface: 'dust' | 'snow' | 'regolith' = 'dust'): THRE
  * Terrain-following road ribbons: graded dust with ruts and berms, drawn over the ground with a polygon
  * offset, edges faded by a per-vertex alpha and darkened by the ground's baked shade.
  */
-export function createRoadMaterial(): THREE.MeshStandardMaterial {
+function createRoadMaterial(): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ map: createRoadTexture(), roughness: 1, metalness: 0, transparent: true, depthWrite: false,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
   material.onBeforeCompile = shader => {

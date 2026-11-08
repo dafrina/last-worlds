@@ -299,7 +299,7 @@ export function createArkView(scene: THREE.Scene) {
         encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); doorsOpen = 0; lastNextLaunch = Infinity; lastLaunchAt = -Infinity;
         rig.parts.forEach(p => { p.open = p.shutters.length ? 0 : 1; });
       }
-      const sea = placement.baseHeight, age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
+      const sea = placement.baseHeight, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload';
       root.position.set(placement.x ?? boss.x, sea, -placement.s);
       root.rotation.set(0, 0, 0); root.updateMatrixWorld(true);

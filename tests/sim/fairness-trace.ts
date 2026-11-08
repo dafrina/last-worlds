@@ -190,11 +190,6 @@ export class FairnessTrace {
     this.evaluate(now - this.lag);
   }
 
-  private cameraAt(t: number): number {
-    for (let i = this.cameras.length - 1; i >= 0; i -= 1) if (this.cameras[i].t <= t + 1e-9) return this.cameras[i].x;
-    return this.cameras[0]?.x ?? 0;
-  }
-
   private evaluate(until: number): void {
     const half = FAIRNESS.window / 2;
     for (let t = Math.max(this.evaluatedUntil + 3 * STEP, (this.cameras[0]?.t ?? 0)); t <= until; t += 3 * STEP) {

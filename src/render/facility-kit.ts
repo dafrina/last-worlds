@@ -58,8 +58,6 @@ function m(world: FacilityWorld, name: string, half: readonly [number, number], 
 
 /** The two taller towers seat on lower terrain; the existing absolute roof-clearance rule still applies. */
 export const MODULE_TOP_MAX = 4.81;
-/** Modules taller than the v2 plants (2.65) only seat on low ground (see docs/25 §heights). */
-export const TALL = 2.65;
 
 export const FACILITY_MODULES: readonly FacilityModule[] = [
   // Khepri: bone armour, rust cladding, domed tanks, refinery columns (art/concepts/facility-sheets/khepri.jpg).

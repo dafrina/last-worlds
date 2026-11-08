@@ -128,5 +128,3 @@ export function moduleSize(node: string): readonly [number, number, number] | nu
   const spec = MODULES[node];
   return spec ? [spec.half[0] * 2, spec.top, spec.half[1] * 2] : null;
 }
-/** Shell radius of a vertical tank (its pipe sockets' distance from the pivot). */
-export const socketReach = (node: string, id = 'e') => Math.hypot(...(MODULES[node]?.sockets.find(socket => socket.id === id)?.at ?? [0, 0, 0]).filter((_, i) => i !== 1));

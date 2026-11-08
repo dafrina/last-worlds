@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { Box3,Mesh,Vector3 } from 'three';
+import { Box3, Vector3 } from 'three';
 import { createHero,createMaterials,createScenicProp } from '../../src/render/models';
 import { PICKUP_ICONS,PICKUP_ICON_SIZE,pickupIcon } from '../../src/render/pickup-icons';
 

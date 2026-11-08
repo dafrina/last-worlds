@@ -1,14 +1,14 @@
 import { VIEW } from '../shared/contracts';
-import { PALETTE, SCENERY_MAX_HEIGHT, SUN_RISE, WORLD_HALF, crater, mix, smoothRange } from './terrain-layout';
+import { PALETTE, SUN_RISE, WORLD_HALF, crater, mix, smoothRange } from './terrain-layout';
 import { resetRowCache, rowPoint, terrainHeight, terrainRow, type TerrainPoint, type TerrainRow } from './terrain-ground';
-import { TERRAIN_STRIPS, scatterKitSteps } from './terrain-scatter';
+import { TERRAIN_STRIPS } from './terrain-scatter';
 import { KIT, KIT_MAX_SCALE, type KitInstance, type KitKind, type ScatterField } from './scenery-kit';
 import { finish, type Work } from './terrain-work';
 import { MODULE_HEIGHT, settlementsNear } from './terrain-settlements';
 import type { Archetype } from './settlement-geometry';
 import { ROAD_ENDS, SHARED_BOUNDS, districtRoadsSteps, resetNetworkMemos, roadEndSpotsSteps, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 import { districtHidden, districtPlanSteps, districtsNear, knownPlan, resetDistrictPlans, slotRange, type DistrictSite } from './terrain-districts';
-import { arenaAt, arenaWeight } from './terrain-arena';
+import { arenaAt } from './terrain-arena';
 import { SWAP_AHEAD, SWAP_BEHIND, routeOfInput, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
 
 export {

@@ -205,8 +205,6 @@ export function guardIntrusion(guards: readonly GuardSpot[], x: number, s: numbe
   }
   return sum;
 }
-/** Whether a site centred at (x, s) keeps every guard GUARD_CLEARANCE outside its footprint. */
-export const guardsClear = (guards: readonly GuardSpot[], x: number, s: number) => guardIntrusion(guards, x, s) <= 1e-9;
 /** A guard on the footprint costs far more than any unevenness: the search takes a clear seat whenever one exists. */
 const INTRUSION_COST = 40;
 /**

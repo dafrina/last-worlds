@@ -352,3 +352,12 @@ Render steps touch `scene.ts` or other files that COORDINATION.md assigns to an 
 9. **Renderer split (L, one module per commit),** in the §1.1 order: `qa-stats`, `warm-up`, `world-look`, `telegraph-lanes`, `projectiles-view`, `ground-dressing`, `specials-view`, `enemy-batches`, `boss-seating`. Fold PF3 into each move. Then V11 for the terrain view, terrain materials, fx and site view.
 10. **UI and content (M):** U1, then E1.
 11. **Bundle (M):** B1, then per-world view chunks through the registry. Measure time to menu on a phone before and after.
+
+### Progress (8 November, evening)
+
+Done, behaviour identical except V5:
+- V4, V5, PF1, PF2, V8, V9, R3 (the lazy boss loaders), R4, X2, D1, D2, S1, S2, S3, W2, TY1, TY2, X3, T1, TS1, P1 and DOC1.
+- **D1:** the 17 unused locals and parameters plus the dead exports `scatterKit`, `socketReach`, `guardsClear`, `TALL` (facility-kit) are gone. `createCargo` and `createRoadMaterial` are now module-private. The `ReturnType` type aliases stay as named module types.
+- **The two `tsconfig` flags stay off.** The user asked for no linters or formatters (8 November). `npx tsc --noEmit -p . --noUnusedLocals --noUnusedParameters` reports 0 today and can be run by hand.
+
+Not started, by choice: the structural splits (steps 6–11).

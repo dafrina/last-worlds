@@ -29,7 +29,7 @@ import { ENEMIES, WEAPONS } from '../content/balance';
 import { MAX_RANK, SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
 import { EMPTY_INPUT, STEP, VIEW } from '../shared/contracts';
 import { FORMATIONS } from '../content/formations';
-import { ROSTER, hunterKind, modelOf, statsLine, viewerModels, WORLDS } from './roster';
+import { ROSTER, hunterKind, modelOf, statsLine, viewerModels } from './roster';
 import { attackNow, holdDirector, labClock, spawnFormation, spawnHunter } from './lab';
 import { createModelViewer } from './viewer';
 import { destroySites, hitSites, placeSite, siteSeats, type SiteSpot } from './sites-lab';

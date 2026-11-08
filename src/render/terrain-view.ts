@@ -9,7 +9,7 @@ import {
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
-  GROUND_TILE, INFRA_NODES, VESPER_INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadCoronaKit, loadUmbraKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
+  GROUND_TILE, INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadCoronaKit, loadUmbraKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
   type KitGeometries,
 } from './terrain-kit';
 
@@ -1006,7 +1006,7 @@ export function createTerrainView(options: TerrainViewOptions) {
      * a round trip apart, and keep to the right-hand lane, so they pass side by side instead of through each other;
      * a road sharing another's corridor carries none (corridorShared).
      */
-    animate(time: number, cameraX: number) {
+    animate(time: number) {
       let count = 0; haulerDust.length = 0;
       // Each road's own planet picks its haulers: Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
       const used = new Map<string, number>(), roads = new Map<string, RoadPath>(), source = shown ?? world;
