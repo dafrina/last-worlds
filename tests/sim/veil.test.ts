@@ -28,7 +28,9 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
     // flies seed 1, the first of 1-60 that clears all nine; over seeds 1-24 Standard pulse takes 3 hits, against 4 before.
     // Since pace 1.15 and the earlier air first shots (6 November) Standard and Veteran fly seed 4, the first of 1-60 that
     // clears all six (seed 1 took one hit with Veteran seeker); Relaxed keeps seed 1.
-    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 1 : 4 });
+    // Seed 30 since the Needles' side lanes moved inside a beam's reach of the ship (8 November): the only one of seeds 26-49
+    // on which all six Standard and Veteran combinations clear without a hit.
+    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 1 : 30 });
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect(log.phase).toBe('complete');

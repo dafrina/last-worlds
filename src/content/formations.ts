@@ -326,11 +326,13 @@ const templates = [
     id: 'needle-line-3', name: 'Needle line with stepped beam lanes', entry: 'top',
     path: NEEDLE_HOLD(14.5, 8), fireFrom: 0.7, fireUntil: 8.9,
     slots: [
-      { kind: 'needle', dx: -2.8, fire: 0, aim: -1 },
+      // Side lanes inside a beam's reach of the ship (user, 8 November: the lasers "send barrages left and right of my ship,
+      // without moving i wouldnt even be hit"): 0.5 off, under the 0.64 a narrow beam reaches, so holding still is never safe.
+      { kind: 'needle', dx: -2.8, fire: 0, aim: -.5 },
       { kind: 'needle', dx: 0, fire: 0.4 },
-      { kind: 'needle', dx: 2.8, fire: 0.8, aim: 1 },
-      { kind: 'needle', dx: -4.4, ds: 1, fire: 1.6, aim: -2, from: 'veteran' },
-      { kind: 'needle', dx: 4.4, ds: 1, fire: 2, aim: 2, from: 'veteran' },
+      { kind: 'needle', dx: 2.8, fire: 0.8, aim: .5 },
+      { kind: 'needle', dx: -4.4, ds: 1, fire: 1.6, aim: -1, from: 'veteran' },
+      { kind: 'needle', dx: 4.4, ds: 1, fire: 2, aim: 1, from: 'veteran' },
     ],
   },
   {
@@ -339,8 +341,8 @@ const templates = [
     path: [[0, -7.6, 14], [7, 7.6, 12.5]], sway: { axis: 's', amp: 0.8, period: 1.8 }, fireFrom: 1.05, fireUntil: 5.6,
     slots: [
       { kind: 'needle', dx: 0, fire: 0 },
-      { kind: 'needle', dx: 0, lag: 0.35, fire: 0.4, aim: 0.9 },
-      { kind: 'needle', dx: 0, lag: 0.7, fire: 0.8, aim: -0.9 },
+      { kind: 'needle', dx: 0, lag: 0.35, fire: 0.4, aim: .45 },
+      { kind: 'needle', dx: 0, lag: 0.7, fire: 0.8, aim: -.45 },
       { kind: 'needle', dx: 0, lag: 1.05, fire: 1.2 },
       { kind: 'needle', dx: 0, lag: 1.4, fire: 1.6, from: 'veteran' },
     ],
@@ -357,8 +359,8 @@ const templates = [
     slots: [
       { kind: 'diamond', dx: -2, fire: 0 },
       { kind: 'diamond', dx: 2, ds: 1.6, fire: 0.6 },
-      { kind: 'needle', dx: -4.2, ds: 2.4, fire: 1.2, aim: -1.2 },
-      { kind: 'needle', dx: 4.2, ds: 2.4, fire: 1.8, aim: 1.2 },
+      { kind: 'needle', dx: -4.2, ds: 2.4, fire: 1.2, aim: -.6 },
+      { kind: 'needle', dx: 4.2, ds: 2.4, fire: 1.8, aim: .6 },
       { kind: 'diamond', dx: 0, ds: 3.4, fire: 2.4, from: 'veteran' },
     ],
   },

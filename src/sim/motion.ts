@@ -104,8 +104,11 @@ export function positionAfter(enemy: Enemy, ahead: number, rate = 1): { x: numbe
 export function trackAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; s: number } {
   // Boss modules and hunters (src/sim/hunters.ts) are moved by their own updates; predictions hold them where they are
   // (a hunter holds still through its windup, so an attack leaves from where it was admitted).
-  if (enemy.bossPart || enemy.hunter || (enemy.blink && (enemy.warning > 0 || Number.isFinite(enemy.blink.startedAt)))) return { x: enemy.x, s: enemy.s };
-  const clock = ahead * rate, pull = enemy.pull;
+  if (enemy.bossPart || enemy.hunter || (enemy.blink && Number.isFinite(enemy.blink.startedAt))) return { x: enemy.x, s: enemy.s };
+  // A Wraith winding up a feint holds still until its warning ends; if the feint is cancelled it then carries on down its
+  // path from there, so the airspace sees that path rather than a squadron parked for good (8 November).
+  const held = enemy.blink && enemy.warning > 0 ? Math.min(ahead * rate, enemy.warning) : 0;
+  const clock = ahead * rate - held, pull = enemy.pull;
   // A Gravity Well's drag (docs/32 §2.2) stays as an offset on positions recomputed from the path each step.
   if (enemy.formation) {
     const point = memberPosition(enemy.formation, enemy.age + clock);
@@ -117,7 +120,10 @@ export function trackAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; 
 
 export function advanceEnemy(enemy: Enemy, dt: number, rate = 1): void {
   const next = trackAfter(enemy, dt, rate);
-  enemy.age += dt * rate;
+  // A Wraith holding still through a feint's windup holds its path clock too (as trackAfter): a cancelled feint resumes from
+  // where it stood instead of snapping down its path (8 November: one jumped 2 units into a Needle column's rows).
+  const held = enemy.blink && enemy.warning > 0 && !Number.isFinite(enemy.blink.startedAt) ? Math.min(dt * rate, enemy.warning) : 0;
+  enemy.age += dt * rate - held;
   enemy.x = next.x;
   enemy.s = next.s;
   applyBeamLock(enemy, dt);

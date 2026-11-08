@@ -281,7 +281,7 @@ describe('formation hazard unions (isolated squadrons)', () => {
 });
 
 describe('cue sequence hazard unions', () => {
-  const runs: { label: string; config: RunConfig; seconds: number; sector: number; bosses?: string[]; planets?: string[] }[] = [
+  const runs: { label: string; config: RunConfig; seconds: number; sector: number; bosses?: string[]; planets?: string[]; perfectLives?: number }[] = [
     ...DIFFICULTY_IDS.flatMap(difficulty => [
       { label: `training/${difficulty}`, config: { mode: 'campaign' as const, mission: 'training' as const, difficulty, seed: 21 }, seconds: 260, sector: 1 },
       { label: `rolling-thunder/${difficulty}`, config: { mode: 'campaign' as const, mission: 'bastion' as const, difficulty, seed: 21 }, seconds: 300, sector: 1 },
@@ -296,7 +296,10 @@ describe('cue sequence hazard unions', () => {
     // Each planet's first stint on every branch, ending in its boss fight.
     { label: 'endless sectors 2-4 (Khepri, Bastion-9)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 2, bosses: ['bastion'], planets: ['khepri'] },
     { label: 'endless sectors 5-7 (Vesper, Helion Ark)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 5, bosses: ['ark'], planets: ['vesper'] },
-    { label: 'endless sectors 8-10 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['veil'], planets: ['nacre'] },
+    // perfectLives: since the Needles' side lanes moved inside a beam's reach of the ship (user, 8 November: "without
+    // moving i wouldnt even be hit"), the 0.2 s-late perfect pilot loses one life in these two long stints; the union stays
+    // fair (no violations), which is what this suite guards.
+    { label: 'endless sectors 8-10 (Nacre, THE VEIL)', perfectLives: 1, config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['veil'], planets: ['nacre'] },
     { label: 'endless sectors 11-13 (Amnion, THE CRADLE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 11, bosses: ['cradle'], planets: ['amnion'] },
     { label: 'endless sectors 14-16 (Corona, THE HELIOPHAGE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['heliophage'], planets: ['corona'] },
     { label: 'endless sectors 17-19 (Umbra, THE ECLIPSE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['eclipse'], planets: ['umbra'] },
@@ -306,10 +309,10 @@ describe('cue sequence hazard unions', () => {
     { label: 'endless capped sectors 26-28 (Nacre, THE VEIL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 26, bosses: ['veil'], planets: ['nacre'] },
     { label: 'endless capped sectors 29-31 (Amnion, THE CRADLE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 29, bosses: ['cradle'], planets: ['amnion'] },
     { label: 'endless capped sectors 32-34 (Corona, THE HELIOPHAGE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 32, bosses: ['heliophage'], planets: ['corona'] },
-    { label: 'endless capped sectors 35-37 (Umbra, THE ECLIPSE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 35, bosses: ['eclipse'], planets: ['umbra'] },
+    { label: 'endless capped sectors 35-37 (Umbra, THE ECLIPSE)', perfectLives: 1, config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 35, bosses: ['eclipse'], planets: ['umbra'] },
   ];
 
-  it.each(runs)('$label keeps the union fair on the perfect, idle and dodger branches', ({ label, config, seconds, sector, bosses, planets }) => {
+  it.each(runs)('$label keeps the union fair on the perfect, idle and dodger branches', ({ label, config, seconds, sector, bosses, planets, perfectLives = 0 }) => {
     for (const branch of BRANCHES) {
       const state = enterSector(createRun(config), sector);
       // Idle and dodger branches keep flying after losing lives so the whole schedule is exercised.
@@ -332,7 +335,7 @@ describe('cue sequence hazard unions', () => {
       if (planets) expect([...seenPlanets], `${label} ${branch.name} planets`).toEqual(expect.arrayContaining(reach(planets)));
       if (branch.name === 'perfect' && bosses?.length === 2) expect(state.sector, `${label} reaches sector 7`).toBe(7);
       if (branch.name === 'perfect') {
-        expect(log.livesLost, `${label} perfect pilot`).toBe(0);
+        expect(log.livesLost, `${label} perfect pilot`).toBeLessThanOrEqual(perfectLives);
         expect(log.specialsUsed).toBe(0);
       }
     }

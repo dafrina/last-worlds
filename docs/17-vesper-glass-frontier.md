@@ -223,3 +223,34 @@ User, in campaign and endless: Vesper was "constant laser enemies"; "its not tha
   - Perfect pilot, 12 seeds: Cold Vector 2 → 1 hit over 72 runs, the endless Vesper stint 3 → 0.
   - Mid-skill hunter pilot, endless Vesper stint: 295 → 297 hits, so the pressure is about the same, now from Diamond volleys instead of more beams.
 - **Test:** `tests/sim/encounter-deck.test.ts`, "Vesper alternates…". It fails on the old order on all 20 seeds.
+
+## Needle side lanes inside a beam's reach (8 November 2026)
+
+User: "Very often the laser enemies would just send barrages left and right of my ship, without moving i wouldnt even be hit".
+
+- **Before:** measured against a ship that never moves, only 9% of Cold Vector's Needle beams (Deep Bloom: 18%) went through it. The rest landed 0.9–1.2 units beside it, outside the 0.64 a narrow beam reaches (half its 0.4 width plus the ship's 0.441).
+- **Now:** the side lanes sit inside that reach.
+
+  | Formation | Was | Now |
+  | --- | --- | --- |
+  | Line | ±1 | ±0.5 |
+  | Column | ±0.9 | ±0.45 |
+  | Convoy flanks | ±1.2 | ±0.6 |
+  | Veteran wingmen | ±2 | ±1 |
+
+  Every beam now passes through a still ship, so holding still is never safe. The stagger, the warnings and the hazard-union admission are unchanged.
+- **Measured** (perfect pilot, Standard and Veteran, 12 seeds × 4 laser missions, 96 runs):
+
+  | Mission | Hits before | Hits after |
+  | --- | --- | --- |
+  | Cold Vector | 0 | 3 |
+  | Deep Bloom | 3 | 12 |
+  | Brood Strike | 5 | 4 |
+  | Final Horizon | 5 | 4 |
+  | **Total** | **13** | **23** |
+
+  No campaign run lost a life. In endless, that pilot now loses one life over the Nacre stint (sectors 8–10) and the late Umbra stint (35–37). The fairness suite allows that and still checks the hazard union strictly.
+- **Wraith bug it exposed:**
+  - A Wraith winding up a feint held still while its path clock kept running. When the feint was cancelled it jumped down its path.
+  - The airspace planner also treated it as parked for good.
+  - **Fix:** the clock now holds through the windup, and the planner sees the path resume after it (`src/sim/motion.ts`).
