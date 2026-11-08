@@ -1111,7 +1111,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     depthTest: false, depthWrite: false }), 64);
   const rayCores = new THREE.InstancedMesh(rayGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55, vertexColors: true,
     depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 64);
-  const lanes = [telegraphs, flashLanes, laneFills, rayFills, rayCores], laneCounts = new Map<THREE.InstancedMesh, number>();
+  // The hero's contrail (user, 8 November: "a trail would be cool on my ship or just bigger jet"): additive, in its glow.
+  const heroTrails = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6,
+    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 160);
+  const lanes = [telegraphs, flashLanes, laneFills, rayFills, rayCores, heroTrails], laneCounts = new Map<THREE.InstancedMesh, number>();
   for (const mesh of lanes) {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9; scene.add(mesh);
@@ -1255,18 +1258,31 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   shield.rotation.x = -ELEVATION; shield.renderOrder = 8; scene.add(shield);
   // Energy shields (user, 22 October): the hero's painted shell while it has shield charges, and each hunter's shell in its
   // world's glow. Bright at the rim and faint over the craft, so the ship's real (smaller) hit region stays readable.
-  const shellGeometry = new THREE.SphereGeometry(1, 32, 16);
+  const shellGeometry = new THREE.SphereGeometry(1, 64, 32);
   const shellMaterial = () => new THREE.ShaderMaterial({
     uniforms: { color: { value: new THREE.Color() }, energy: { value: 1 }, time: { value: 0 } },
     vertexShader: `varying vec3 vNormal; varying vec3 vView; varying vec3 vLocal;
       void main() { vec4 world = modelMatrix * vec4(position, 1.0); vNormal = normalize(mat3(modelMatrix) * normal);
         vView = normalize(cameraPosition - world.xyz); vLocal = position; gl_Position = projectionMatrix * viewMatrix * world; }`,
+    // User, 8 November: the shield "looks a bit low res". A wider, softer rim, a faint honeycomb whose lines are
+    // antialiased (fwidth) so they hold at a phone's render scale, and a slow sweep; still faint over the craft.
     fragmentShader: `uniform vec3 color; uniform float energy; uniform float time; varying vec3 vNormal; varying vec3 vView; varying vec3 vLocal;
-      void main() { float facing = abs(dot(normalize(vNormal), normalize(vView))); float rim = pow(1.0 - facing, 2.2);
-        float ripple = .82 + .18 * sin(vLocal.y * 13.0 + vLocal.x * 8.0 - time * 3.2);
-        float a = clamp((rim * .85 + .04) * ripple * energy, 0.0, .9);
+      const vec2 HEX = vec2(1.0, 1.7320508);
+      float hexLine(vec2 uv) {
+        vec4 cell = floor(vec4(uv, uv - vec2(.5, 1.0)) / HEX.xyxy) + .5;
+        vec4 h = vec4(uv - cell.xy * HEX, uv - (cell.zw + .5) * HEX);
+        vec2 p = abs(dot(h.xy, h.xy) < dot(h.zw, h.zw) ? h.xy : h.zw);
+        float edge = .5 - max(dot(p, HEX * .5), p.x);
+        float aa = fwidth(edge) * 1.2;
+        return 1.0 - smoothstep(.025, .025 + aa, edge);
+      }
+      void main() { float facing = abs(dot(normalize(vNormal), normalize(vView)));
+        float rim = pow(1.0 - facing, 2.6), halo = pow(1.0 - facing, 1.2);
+        float cells = hexLine(vLocal.xz * 3.4 + vec2(0.0, time * .12));
+        float sweep = smoothstep(.0, .18, fract(vLocal.z * .55 - time * .35)) * (1.0 - smoothstep(.18, .42, fract(vLocal.z * .55 - time * .35)));
+        float a = clamp((rim * .8 + halo * .07 + cells * (.06 + .22 * halo) + sweep * .08 * halo + .02) * energy, 0.0, .9);
         // Blended, not added: an HDR-bright colour shows as a coloured rim over snow and still blooms over dark ground.
-        gl_FragColor = vec4(color * (1.2 + energy), a); }`,
+        gl_FragColor = vec4(color * (1.2 + energy + cells * .4), a); }`,
     transparent: true, depthWrite: false,
   });
   const shell = (hex: number) => { const mesh = new THREE.Mesh(shellGeometry, shellMaterial()); (mesh.material as THREE.ShaderMaterial).uniforms.color.value.setHex(hex); mesh.renderOrder = 7; mesh.visible = false; scene.add(mesh); return mesh; };
@@ -1407,6 +1423,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   effects.instanceMatrix.setUsage(THREE.DynamicDrawUsage); effects.frustumCulled = false; effects.renderOrder = 6; effects.count = 0; scene.add(effects);
   const fx = createFx(scene);
   const plumes: Plume[] = [];
+  /**
+   * The hero's recent x and bank (render only, simulation time) for its contrail, which stays fixed to the ground and so
+   * curves as the ship steers. A fixed ring: nothing is allocated per frame.
+   */
+  const TRAIL_TIME = .32, TRAIL_SAMPLES = 64, TRAIL_DRIFT = 4;
+  const trailT = new Float64Array(TRAIL_SAMPLES), trailX = new Float64Array(TRAIL_SAMPLES), trailBank = new Float64Array(TRAIL_SAMPLES);
+  let trailHead = 0, trailCount = 0;
 
 
   const lineVertices = new Float32Array(16384 * 3), lineColors = new Float32Array(16384 * 3);
@@ -1659,10 +1682,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
       plumes.length = 0;
       const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
-      const heroLength = (.5 + Math.abs(state.player.vx) * .03) * flicker(0) * HERO_SCALE;
+      // Longer, brighter jets (user, 8 November: "just bigger jet"), with the contrail behind them.
+      const heroLength = (.95 + Math.abs(state.player.vx) * .04) * flicker(0) * HERO_SCALE;
       // Plumes at the ship's own engine sockets, in its glow (thinner where there are more of them).
       if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) plumes.push({ x: state.player.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), z: ez * HERO_SCALE, length: heroLength,
-        width: .2 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), hex: heroGlow, energy: 2.6 });
+        width: .34 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), hex: heroGlow, energy: 3.2 });
       let shadowCount = 0, plinthCount = 0;
       const groundAt = (gx: number, gs: number) => surfaceHeight(state.config.seed, gx, state.distance + gs, world);
       const seaLevel = world.planet.seaLevel, onSea = (y: number) => seaLevel !== null && y <= seaLevel + .01;
@@ -2034,6 +2058,27 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         }
         // The slug itself: a white-hot streak at the head while it flies.
         if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2 * heat.grow), trail.x, head, .17 * heat.grow, 0xffffff, flashLanes, 2.6);
+      }
+      // The hero's contrail: each engine's recent positions, drifting back from the nozzle at the scroll speed (at least
+      // TRAIL_DRIFT, so it still streams while a boss holds the scroll), thinning and fading over TRAIL_TIME.
+      {
+        const last = trailCount ? trailT[(trailHead + TRAIL_SAMPLES - 1) % TRAIL_SAMPLES] : -Infinity;
+        if (state.time < last - 1e-6 || !heroAlive || entrance <= .9) trailCount = 0;
+        else if (state.time > last + 1e-6) {
+          trailT[trailHead] = state.time; trailX[trailHead] = state.player.x; trailBank[trailHead] = Math.cos(hero.rotation.z);
+          trailHead = (trailHead + 1) % TRAIL_SAMPLES; trailCount = Math.min(TRAIL_SAMPLES, trailCount + 1);
+        }
+        const drift = Math.max(state.scrollSpeed, TRAIL_DRIFT), step = heroEngines.length > 2 ? 2 : 1;
+        for (const [ex, ez] of heroEngines) {
+          let px = 0, ps = 0, has = false;
+          for (let k = 0; k < trailCount; k += step) {
+            const i = (trailHead + TRAIL_SAMPLES - 1 - k) % TRAIL_SAMPLES, age = state.time - trailT[i];
+            if (age > TRAIL_TIME) break;
+            const x = trailX[i] + ex * HERO_SCALE * trailBank[i], s = -(ez * HERO_SCALE + age * drift);
+            if (has) { const fade = 1 - age / TRAIL_TIME; strip(px, ps, x, s, .02 + .1 * fade, heroGlow, heroTrails, .9 * fade * fade); }
+            px = x; ps = s; has = true;
+          }
+        }
       }
       // Interceptor Barrel Roll: two speed streaks from where the dash started to the ship's trailing wing, fading out.
       const dash = state.player.dash, dashFade = dash ? 1 - (state.time - dash.startedAt) / DASH_STREAK : 0;
