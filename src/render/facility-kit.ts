@@ -16,9 +16,9 @@ export type FacilityWorld = PlanetId;
 export const FACILITY_KIT_ASSETS: Readonly<Record<FacilityWorld, string>> = {
   khepri: 'facility-kit-v4-taller.glb', vesper: 'facility-kit-v4-taller.glb',
   nacre: 'facility-kit-v4-ruins.glb', luna: 'facility-kit-v3.glb',
-  // Amnion's brood facilities come with its Blender kit (docs/27, milestone 2); until then it builds no plants.
+  // Amnion, Corona and Umbra build no plants (their structures are kit pieces, docs/27 and docs/28): no module of theirs is
+  // in the registry, so facility-view.ts never loads these names (there is no such file in their folders).
   amnion: 'facility-kit-v4-ruins.glb',
-  // Umbra's structures are kit pieces (docs/28); it builds no plants.
   corona: 'facility-kit-v4-ruins.glb',
   umbra: 'facility-kit-v4-ruins.glb',
 };

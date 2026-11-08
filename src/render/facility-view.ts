@@ -133,6 +133,9 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
   const ready = (planet: FacilityWorld) => { const kit = kits.get(planet); return typeof kit === 'object' ? kit : null; };
   function prepare(world: FacilityWorld) {
     if (loads.has(world)) return loads.get(world)!;
+    // A world with no facility modules (Amnion, Corona, Umbra build no plants) has no kit file: settle exactly as a failed
+    // load did (the smaller battery emplacements), without requesting a file that is not there (docs/38 V4).
+    if (!modulesOf(world).length) { kits.set(world, 'failed'); const settled = Promise.resolve(); loads.set(world, settled); return settled; }
     kits.set(world, 'loading');
     const nodes = modulesOf(world).map(module => module.node), standIns = facilityOptions.standIns;
     const loading = loadTexturedNodes(kitUrl(world), nodes).catch(error => {

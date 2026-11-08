@@ -36,7 +36,7 @@ import { createMireWater } from './mire-water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
 import { createPostPipeline } from './post-pipeline';
-import { AMNION_SHOT } from './shot-colors';
+import { hostileHues } from './shot-colors';
 import { createFx, shotHeat, type Plume } from './fx-particles';
 import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
@@ -1307,11 +1307,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // Shots never hide behind ground: no depth test, and `transparent` puts them in the last (transparent) list so
   // they draw after roads and other blended ground passes, which would otherwise paint over them.
   const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true });
-  // Amnion's shots are a hot red with a near-white core (user, 23 October: "make the enemy shots red"): the core and the
-  // bloom carry them over the dark red flesh.
-  // Corona's are Amnion's warm red too (docs/37; user, 5 November: "warm red not magenta"): salmon vanished into the gold.
-  const HOSTILE_WARM = [0xff8869, 0xffe7c4] as const, HOSTILE_BLOOD = [0xff1e1e, 0xfff2ee] as const;
-  const hostileHues = (planet: PlanetId) => planet === 'amnion' ? AMNION_SHOT : planet === 'corona' ? HOSTILE_BLOOD : HOSTILE_WARM;
+  // Hostile shot colours per world (a core and a pale centre that the bloom carries): shot-colors.ts `hostileHues`.
   const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false, transparent: true });
   const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);

@@ -1,4 +1,4 @@
-import { AMNION_SHOT } from './shot-colors';
+import { hostileFlashHex } from './shot-colors';
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type PlanetId, type RunState } from '../shared/contracts';
 import { weaponRank } from '../content/equipment';
@@ -491,7 +491,7 @@ export function createFx(scene: THREE.Scene) {
       // A ground battery's round flashes at the battery as drawn.
       else {
         const launch = launchOf(shot.id), at = launch ? drawnShot({ x: shot.previousX, s: shot.previousS, vx: shot.vx, vs: shot.vs }, launch) : { x: shot.previousX, s: shot.previousS };
-        flash(at.x, -at.s, .42, .09, state.planet === 'amnion' ? AMNION_SHOT[0] : 0xff9a78, 1.25);
+        flash(at.x, -at.s, .42, .09, hostileFlashHex(state.planet), 1.25);
       }
     }
     lastShot = maxShot;
