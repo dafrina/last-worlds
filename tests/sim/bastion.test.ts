@@ -7,6 +7,7 @@ import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game
 import { bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
 import { fly, perfectPilot } from './pilots';
 import { FairnessTrace } from './fairness-trace';
+import { advance } from '../helpers/run';
 import { FAIRNESS } from '../../src/content/balance';
 
 function encounter(weapon: WeaponId = 'pulse', difficulty: Difficulty = 'standard') {
@@ -15,9 +16,6 @@ function encounter(weapon: WeaponId = 'pulse', difficulty: Difficulty = 'standar
   state.distance = state.time * VIEW.scrollSpeed;
   stepRun(state, EMPTY_INPUT);
   return state;
-}
-function advance(state: RunState, seconds: number) {
-  for (let i = 0; i < Math.round(seconds / STEP); i++) stepRun(state, EMPTY_INPUT);
 }
 function openCore(state: RunState) {
   advance(state, 3.05);

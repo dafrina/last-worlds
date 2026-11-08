@@ -1,7 +1,7 @@
 import { resolvePlaylist } from '../../src/content/encounter-deck';
 import { WORLD_MISSIONS, type WorldMission } from '../../src/content/world-missions';
 import { createCounter, createMissionTracker } from '../../src/campaign/missions';
-import { createCampaignProfile, type ProfileStorage } from '../../src/campaign/profile';
+import { createCampaignProfile } from '../../src/campaign/profile';
 import { createRun } from '../../src/sim/game';
 import { VIEW, type Difficulty, type MissionId, type RunConfig, type RunEvent, type RunState, type ShipId, type SiteId, type SpecialId, type WeaponId } from '../../src/shared/contracts';
 import { fly, perfectPilot, type Pilot } from './pilots';
@@ -9,6 +9,7 @@ import { CREDIT_MULTIPLIER, CREDIT_SCALE, MAX_RANK } from '../../src/content/equ
 import { BALANCE, ENEMIES } from '../../src/content/balance';
 import { SITES } from '../../src/content/sites';
 import { siteSeeker } from './site-harness';
+import { memoryStorage } from '../helpers/storage';
 
 /*
  * World-mission feasibility (docs/35 § 5): real campaign flights, flown by the test pilot with a loadout and a play style a
@@ -76,11 +77,6 @@ export function seedDrawing(mission: MissionId, test: (sites: SiteId[]) => boole
     if (test(resolvePlaylist({ mode: 'campaign', mission }, 1, seed).filter(cue => cue.site).map(cue => cue.site!.id))) return seed;
   }
   throw new Error(`No seed draws the sites wanted for ${mission}`);
-}
-
-function memoryStorage(): ProfileStorage {
-  const map = new Map<string, string>();
-  return { getItem: key => map.get(key) ?? null, setItem: (key, value) => { map.set(key, value); } };
 }
 
 /** One pilot's campaign on one world: attempts flown in order, observed as the game observes them. */

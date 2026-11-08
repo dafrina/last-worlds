@@ -3,6 +3,7 @@ import type { Difficulty, MissionId, WeaponId } from '../../src/shared/contracts
 import { freshProfile, payout } from '../../src/campaign/profile';
 import { createRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
+import { env } from '../helpers/env';
 
 /**
  * Weapon tiers measured (docs/30, tiers 4 and 5 of 31 October). Off by default; one target per process, so several can run
@@ -20,7 +21,6 @@ import { fly, perfectPilot } from './pilots';
  * `mission:<id>` flies a mission with pickups collected and reports its credits and what a repeat clear banks (the price
  * check for the tier upgrades).
  */
-const env = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 const REPORT = env.TIER_REPORT, TARGET = env.TIER_TARGET ?? 'horizon', SEEDS = env.TIER_SEEDS ?? '1-12';
 const WEAPON = (env.TIER_WEAPON ?? 'pulse') as WeaponId, RANK = Number(env.TIER_RANK ?? 2), DIFFICULTY = (env.TIER_DIFFICULTY ?? 'standard') as Difficulty;
 

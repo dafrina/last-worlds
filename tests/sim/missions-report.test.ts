@@ -2,6 +2,7 @@ import { it } from 'vitest';
 import { WORLD_MISSIONS, type WorldMission } from '../../src/content/world-missions';
 import type { MissionId } from '../../src/shared/contracts';
 import { flyObserved, verdicts, type Attempt } from './mission-harness';
+import { env } from '../helpers/env';
 
 /*
  * The world-mission sweep (docs/35 § 5; minutes): MISSION_REPORT=<report file> [MISSION_WORLDS=training,bastion,…] npx vitest
@@ -14,8 +15,7 @@ import { flyObserved, verdicts, type Attempt } from './mission-harness';
  * Loadout objectives fly their loadout, Old School fires no special, Gravity Slingshot flies the Spectre, Flanking Maneuver
  * flies to each flank in turn, ground objectives go for ground targets first.
  */
-const ENV = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
-const REPORT = ENV.MISSION_REPORT;
+const REPORT = env.MISSION_REPORT;
 
 function attemptFor(def: WorldMission, seed: number, best: boolean): Attempt {
   const rule = def.rule, kind = rule.kind;
@@ -31,7 +31,7 @@ function attemptFor(def: WorldMission, seed: number, best: boolean): Attempt {
 }
 
 it.runIf(REPORT)('reports each world mission\'s completion per attempt', async () => {
-  const worlds = (ENV.MISSION_WORLDS?.split(',') ?? Object.keys(WORLD_MISSIONS)) as MissionId[];
+  const worlds = (env.MISSION_WORLDS?.split(',') ?? Object.keys(WORLD_MISSIONS)) as MissionId[];
   const rows: string[] = [];
   for (const mission of worlds) {
     const defs = WORLD_MISSIONS[mission], cache = new Map<string, ReturnType<typeof verdicts>>();

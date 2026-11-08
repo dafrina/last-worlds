@@ -1,6 +1,5 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { bastionPlacement, groundForwardPosition, groundPlacement } from '../../src/render/scene';
 import { BASTION } from '../../src/content/bastion';
 import { createSilhouetteMaterial } from '../../src/render/craft-shadows';
@@ -12,16 +11,10 @@ import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { BASTION_FOOTPRINT } from '../../src/render/bastion-view';
 import { terrainHeight } from '../../src/world/terrain';
 import type { Enemy, RunState } from '../../src/shared/contracts';
+import { asset, stubGltfDecoding } from '../helpers/assets';
 
-const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
-// Geometry and rigs in Node; image decoding is Chromium's (as in tests/world/cinematic-assets.test.ts).
-vi.stubGlobal('self', globalThis);
-vi.stubGlobal('createImageBitmap', async () => ({ width: 512, height: 512, close() {} }));
-afterAll(() => vi.unstubAllGlobals());
-async function asset(path: string) {
-  const bytes = fs.readFileSync(`public/assets/${path}`);
-  return (await new Promise<GLTF>((resolve, reject) => new GLTFLoader().parse(bytes.slice().buffer, '', resolve, reject))).scene;
-}
+// Geometry and rigs in Node; image decoding is Chromium's (tests/helpers/assets.ts).
+stubGltfDecoding();
 const materialsOf = (object: THREE.Object3D) => {
   const material = (object as THREE.Mesh).material;
   return Array.isArray(material) ? material : material ? [material] : [];

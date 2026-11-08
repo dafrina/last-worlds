@@ -1,18 +1,11 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
-import { Box3, DoubleSide, Mesh, Raycaster, Vector3, type Group, type Material, type MeshStandardMaterial } from 'three';
-import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { describe, expect, it } from 'vitest';
+import { Box3, DoubleSide, Mesh, Raycaster, Vector3, type Material, type MeshStandardMaterial } from 'three';
 import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT } from '../../src/content/sites';
 import { SITE_MODELS, SITE_PARTS, siteFile, siteFinish, siteNode, sitesWithModels } from '../../src/render/site-models';
 import { SITE_IDS, VIEW, type PlanetId, type SiteId } from '../../src/shared/contracts';
+import { asset, stubGltfDecoding } from '../helpers/assets';
 
-const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
-vi.stubGlobal('self', globalThis);
-vi.stubGlobal('createImageBitmap', async () => ({ width: 512, height: 512, close() {} }));
-afterAll(() => vi.unstubAllGlobals());
-async function asset(path: string): Promise<Group> {
-  const bytes = fs.readFileSync(`public/assets/${path}`);
-  return (await new Promise<GLTF>((resolve, reject) => new GLTFLoader().parse(bytes.slice().buffer, '', resolve, reject))).scene;
-}
+stubGltfDecoding();
 /** A finish costs no more than a facility plant (about 6–10 modules of 1–2k triangles; docs/33 § 6). */
 const TRIANGLES_PER_FINISH = 7000;
 /** The sealed vault's seals around its centre on the ground (its core formation's slots spread by the lens). */

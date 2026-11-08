@@ -3,12 +3,10 @@ import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, CAMPAIGN_V3_
 import { CAMPAIGN_ORDER, CREDIT_SCALE, RANK_PARTS, RANK_PRICES, REWARDS, SHIPS, SHIP_IDS, SPECIALS, STARTER, WEAPON_PRICES } from '../../src/content/equipment';
 import { HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_REMODELLED } from '../../src/content/hero-parts';
 import { createRun } from '../../src/sim/game';
+import { memoryStorage } from '../helpers/storage';
 
-function memory(initial?: string) {
-  const values = new Map<string, string>();
-  if (initial !== undefined) values.set(CAMPAIGN_KEY, initial);
-  return { values, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
-}
+/** An in-memory browser storage, holding `initial` as the campaign save when given. */
+const memory = (initial?: string) => memoryStorage(initial === undefined ? {} : { [CAMPAIGN_KEY]: initial });
 const clear = (id: string, extra: Partial<AttemptResult> = {}): AttemptResult =>
   ({ id, mission: 'training', difficulty: 'standard', outcome: 'complete', credits: 100 + REWARDS.boss, bossKilled: true, seconds: 150, ...extra });
 /** A store whose save starts with these balances (and anything else `change` sets). */

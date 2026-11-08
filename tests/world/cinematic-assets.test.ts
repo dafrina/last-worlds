@@ -1,7 +1,6 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Box3, Group, InstancedMesh, Matrix4, Mesh, Quaternion, Raycaster, Vector3 } from 'three';
 import { createBastionTracks } from '../../src/render/bastion-tracks';
-import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { BASTION } from '../../src/content/bastion';
 import { HELION_ARK } from '../../src/content/ark';
@@ -9,17 +8,9 @@ import { VEIL } from '../../src/content/veil';
 import { ECLIPSE } from '../../src/content/eclipse';
 import { WARDEN } from '../../src/content/warden';
 import { FACILITY_KIT_ASSETS, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
+import { asset, stubGltfDecoding } from '../helpers/assets';
 
-const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
-// These checks exercise geometry/rigs in Node. Actual PNG decoding and materials are
-// exercised in Chromium by graphics.spec.ts, not by this tiny ImageBitmap substitute.
-vi.stubGlobal('self', globalThis);
-vi.stubGlobal('createImageBitmap', async () => ({ width:512, height:512, close() {} }));
-afterAll(()=>vi.unstubAllGlobals());
-async function asset(path: string) {
-  const bytes = fs.readFileSync(`public/assets/${path}`);
-  return (await new Promise<GLTF>((resolve,reject) => new GLTFLoader().parse(bytes.slice().buffer,'',resolve,reject))).scene;
-}
+stubGltfDecoding();
 function validate(model: Group, budget: number, textured=false) {
   let triangles=0;
   model.updateMatrixWorld(true);

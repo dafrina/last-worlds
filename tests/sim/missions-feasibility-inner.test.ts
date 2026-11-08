@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clearWorld } from './mission-harness';
+import { env } from '../helpers/env';
 
 /*
  * Every world mission can be done in the real game (docs/35 § 5), Luna, Khepri and Vesper. The perfect test pilot flies the
@@ -8,7 +9,7 @@ import { clearWorld } from './mission-harness';
  * saved profile, until all twelve are done. Only the missions visible when an attempt starts count in it, so a world takes
  * at least three attempts.
  */
-const LOG = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env.MISSION_LOG;
+const LOG = env.MISSION_LOG;
 
 describe('world missions are all reachable', () => {
   it.each([

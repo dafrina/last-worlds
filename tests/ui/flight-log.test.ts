@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createFlightLog, FLIGHT_LOG_KEY, type LogStorage } from '../../src/ui/flight-log';
+import { createFlightLog, FLIGHT_LOG_KEY } from '../../src/ui/flight-log';
 import { createRun } from '../../src/sim/game';
-
-function memory() {
-  const values = new Map<string, string>();
-  const storage: LogStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); } };
-  return storage;
-}
+import { memoryStorage } from '../helpers/storage';
 
 describe('observational flight log', () => {
   it('checkpoints deltas, finalizes once, and survives reopening', () => {
-    const storage = memory(), log = createFlightLog(storage, () => 'first');
+    const storage = memoryStorage(), log = createFlightLog(storage, () => 'first');
     const run = createRun({ mode: 'endless', seed: 1 });
     log.observe(run);
     run.time = 15; run.kills = 4; run.specialsUsed = 1; run.score = 400;
@@ -24,7 +19,7 @@ describe('observational flight log', () => {
   });
 
   it('keeps modes independent and never changes gameplay state', () => {
-    const log = createFlightLog(memory());
+    const log = createFlightLog(memoryStorage());
     const campaign = createRun({ mode: 'campaign', difficulty: 'veteran', seed: 2 });
     log.observe(campaign);
     campaign.time = 120; campaign.kills = 12; campaign.phase = 'complete';
@@ -39,7 +34,7 @@ describe('observational flight log', () => {
   });
 
   it('retains an interrupted checkpoint without inventing a completed score', () => {
-    const storage = memory(), log = createFlightLog(storage);
+    const storage = memoryStorage(), log = createFlightLog(storage);
     const run = createRun({ mode: 'endless', seed: 1 }); log.observe(run);
     run.time = 6; run.score = 500; run.kills = 5;
     log.observe(run, false, true);
@@ -50,7 +45,7 @@ describe('observational flight log', () => {
 
   it('preserves malformed or future-version saves', () => {
     for (const raw of ['not json', '{"version":99}', '{"version":1,"campaign":null}']) {
-      const storage = memory(); storage.setItem(FLIGHT_LOG_KEY, raw);
+      const storage = memoryStorage(); storage.setItem(FLIGHT_LOG_KEY, raw);
       const log = createFlightLog(storage);
       const run = createRun({ mode: 'endless', seed: 1 }); log.observe(run);
       run.kills = 2; log.observe(run, true);
@@ -69,7 +64,7 @@ describe('observational flight log', () => {
   });
 
   it('merges sequential checkpoints from independent tabs without overwriting totals', () => {
-    const storage = memory();
+    const storage = memoryStorage();
     const one = createFlightLog(storage, () => 'one'), two = createFlightLog(storage, () => 'two');
     const a = createRun({ mode: 'endless', seed: 1 }), b = createRun({ mode: 'endless', seed: 2 });
     one.observe(a); two.observe(b);
@@ -80,7 +75,7 @@ describe('observational flight log', () => {
   });
 
   it('bounds recent history while preserving lifetime counters', () => {
-    const log = createFlightLog(memory());
+    const log = createFlightLog(memoryStorage());
     for (let n = 0; n < 60; n++) {
       const run = createRun({ mode: 'endless', seed: n }); log.observe(run);
       run.time = 3; run.kills = 1; log.observe(run, true);
@@ -90,7 +85,7 @@ describe('observational flight log', () => {
   });
 
   it('counts strike sites destroyed per mode, and reads logs written before sites existed (docs/33)', () => {
-    const storage = memory(), log = createFlightLog(storage);
+    const storage = memoryStorage(), log = createFlightLog(storage);
     const endless = createRun({ mode: 'endless', seed: 1 }), campaign = createRun({ mode: 'campaign', seed: 2 });
     log.observe(endless); log.observe(campaign);
     endless.time = 30; endless.sites!.destroyed = 2; log.observe(endless, true);
@@ -107,7 +102,7 @@ describe('observational flight log', () => {
   });
 
   it('does not count late-attached debug scenarios as real flights', () => {
-    const log = createFlightLog(memory());
+    const log = createFlightLog(memoryStorage());
     const run = createRun({ mode: 'campaign', seed: 1 }); run.time = 120; run.phase = 'complete';
     log.observe(run); log.observe(run, true);
     expect(log.read().campaign.flights).toBe(0);
