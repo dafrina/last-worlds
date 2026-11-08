@@ -13,7 +13,7 @@ translation is its socket.
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" \\
         --background --factory-startup --python "$(wslpath -w $R/tools/blender/warden.py)" -- \\
-        --glb "$(wslpath -w $R/public/assets/luna/warden.glb)" \\
+        --glb "$(wslpath -w $R/art/archive/assets/luna/warden.glb)" \\
         --preview-dir "$(wslpath -w $R/art/warden)"
 """
 

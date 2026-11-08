@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { seedCampaign } from './campaign-save';
+import { snapshot } from './launch';
 
 const stats = async (page: Page) => JSON.parse(await page.locator('canvas.flight-canvas').getAttribute('data-render-stats') ?? '{}');
-const snapshot = (page: Page) => page.evaluate(() => (window as any).__LAST_WORLDS__.snapshot());
 
 test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot start a stale flight', async ({ page }, info) => {
   test.setTimeout(90000);
@@ -84,7 +84,7 @@ test('no shader program compiles mid-flight: the launch warm-up covers facilitie
   await expect.poll(async () => (await snapshot(page))?.phase, { timeout: 60_000 }).toBe('playing');
   // Fly through the first batteries, their compounds and the district roads, rendering along the way.
   for (let i = 0; i < 30; i++) {
-    await page.evaluate(() => (window as any).__LAST_WORLDS__.advance(.5));
+    await page.evaluate(() => window.__LAST_WORLDS__!.advance(.5));
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   }
   expect((await snapshot(page)).time).toBeGreaterThan(14);

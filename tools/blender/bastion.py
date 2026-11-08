@@ -12,7 +12,7 @@ of khepri_infra.py / khepri_kit.py (same folder) without writing bytecode.
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" \\
         --background --factory-startup \\
         --python "$(wslpath -w $R/tools/blender/bastion.py)" -- \\
-        --glb "$(wslpath -w $R/public/assets/khepri/bastion-9.glb)" \\
+        --glb "$(wslpath -w $R/art/archive/assets/khepri/bastion-9.glb)" \\
         --preview-dir "$(wslpath -w $R/art/bastion-9)" \\
         --textures "$(wslpath -w $R/art/source/polyhaven)" \\
         --terrain-kit "$(wslpath -w $R/public/assets/khepri/khepri-kit.glb)"

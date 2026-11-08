@@ -1,17 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { flying } from './launch';
+import type { DevHooks } from '../../src/dev-hooks';
 
-type Api = {
-  launch(config: object): void; snapshot(): { time: number; phase: string; planet: string; jump?: { startedAt: number; duration: number }; boss?: { phase: string; phaseStartedAt: number } } | null;
-  advance(seconds: number, exposed?: boolean): void; setLives(lives: number): void; killBoss(): void;
-  bench(steps?: number, lives?: number): void; benchFrames(): number; benchStop(): unknown[];
-};
-const api = (page: Page, call: (api: Api) => unknown) => page.evaluate(`(${call.toString()})(window.__LAST_WORLDS__)`);
+const api = (page: Page, call: (api: DevHooks) => unknown) => page.evaluate(`(${call.toString()})(window.__LAST_WORLDS__)`);
 const textures = async (page: Page) => JSON.parse(await page.locator('canvas.flight-canvas').getAttribute('data-render-stats') ?? '{}').textures as number;
 /** Renders `frames` frames of one tick each (the bench), long enough for a fresh stats sample (every 60 ticks). */
 async function fly(page: Page, frames: number) {
   await api(page, a => a.bench(1, 99));
-  await page.waitForFunction(n => (window as unknown as { __LAST_WORLDS__: Api }).__LAST_WORLDS__.benchFrames() >= n, frames, { timeout: 120_000, polling: 100 });
+  await page.waitForFunction(n => window.__LAST_WORLDS__!.benchFrames() >= n, frames, { timeout: 120_000, polling: 100 });
   await api(page, a => a.bench(0, 99));
 }
 

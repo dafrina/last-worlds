@@ -18,7 +18,7 @@ def run():
         bpy.context.window.scene = scene
         for obj in list(scene.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
-        bpy.ops.import_scene.gltf(filepath=str(ROOT / f'public/assets/{world}/facility-kit-v3.glb'))
+        bpy.ops.import_scene.gltf(filepath=str(ROOT / f'art/archive/assets/{world}/facility-kit-v3.glb'))
         tower = next(o for o in scene.objects if o.name == f'fk_{world}_tower')
         assert tower.type == 'MESH'
         before = max(v.co.z for v in tower.data.vertices)

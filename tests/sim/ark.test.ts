@@ -8,6 +8,7 @@ import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId 
 import { arenaScroll, arenaStopDistance, bossTarget, overloadLanes, resolveBossPhase } from '../../src/sim/bastion';
 import { acquireTarget, createRun, stepRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
+import { advance } from '../helpers/run';
 
 const ARK = BOSSES.ark;
 
@@ -16,9 +17,6 @@ function encounter(difficulty: Difficulty = 'standard', weapon: WeaponId = 'puls
   state.time = HELION_ARK.arrivesAt - STEP;
   stepRun(state, EMPTY_INPUT);
   return state;
-}
-function advance(state: RunState, seconds: number) {
-  for (let i = 0; i < Math.round(seconds / STEP); i++) stepRun(state, EMPTY_INPUT);
 }
 function openBridge(state: RunState) {
   advance(state, HELION_ARK.arrivalDuration + 0.05);

@@ -10,7 +10,8 @@ This builder parses it and asserts each built module against it. Module frame: p
 ground; x lateral, y away from the camera; the detailed front faces the camera (-y); left and right faces are detailed
 too (layouts turn modules a quarter), and backs and undersides stay plain. Every module carries its own foundation.
 
-One GLB per world: public/assets/<world>/facility-kit-v3.glb, all modules sharing one baked atlas.
+One GLB per world: public/assets/<world>/facility-kit-v3.glb, all modules sharing one baked atlas. Only Luna still flies
+v3; the other worlds' v3 kits are archived in art/archive/assets/<world>/ (docs/38 P1).
 Headless: remodel_run.py facility_kit [--world=khepri] [--no-export] [--no-preview].
 """
 import math, os, re, sys
@@ -836,7 +837,8 @@ def build(export=True, preview=True):
             br.bake_ao([o], [o], strength=.8, reach=1.6)
         marker = br.marker('facility_kit_v3', sc=sc, note='Modular facility kit after the facility sheets')
         if export:
-            path = os.path.join(br.ROOT, 'public', 'assets', world, 'facility-kit-%s.glb' % LABEL)
+            folder = ('public', 'assets') if world == 'luna' else ('art', 'archive', 'assets')  # docs/38 P1
+            path = os.path.join(br.ROOT, *folder, world, 'facility-kit-%s.glb' % LABEL)
             results.append(br.export(path, objects + [marker], 'Last Worlds — %s modular facility kit' % world))
         if '--closeups' in sys.argv:
             for o in objects:

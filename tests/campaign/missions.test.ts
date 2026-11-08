@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD_MISSIONS, worldMission, type WorldMission } from '../../src/content/world-missions';
 import { createCounter, createMissionTracker, decodeBook, freshBook, settleBoard, visibleIds, worldOf, type MissionStore, type WorldBook } from '../../src/campaign/missions';
-import { createCampaignProfile, type ProfileStorage } from '../../src/campaign/profile';
+import { createCampaignProfile } from '../../src/campaign/profile';
 import { createRun } from '../../src/sim/game';
 import type { MissionId, RunConfig, RunEvent, RunState } from '../../src/shared/contracts';
+import { memoryStorage } from '../helpers/storage';
 
-/** A browser-like storage in memory: a reload is a new store over the same map. */
-function memoryStorage(): ProfileStorage & { map: Map<string, string> } {
-  const map = new Map<string, string>();
-  return { map, getItem: key => map.get(key) ?? null, setItem: (key, value) => { map.set(key, value); } };
-}
 const def = (id: string) => worldMission(id)!;
 const facts = (config: Partial<RunConfig> = {}) => ({ config: { mode: 'campaign' as const, seed: 1, mission: 'training' as MissionId, difficulty: 'standard' as const, weapon: 'pulse' as const, rank: 0, ...config }, loadoutChanged: false });
 const kill = (extra: Partial<Extract<RunEvent, { type: 'kill' }>> = {}): RunEvent =>

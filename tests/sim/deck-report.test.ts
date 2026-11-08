@@ -3,6 +3,7 @@ import type { MissionId } from '../../src/shared/contracts';
 import { flyMission, flySector } from './deck-sweep';
 import { beamAwareHunterPilot, perfectPilot } from './pilots';
 import { siteSeeker } from './site-harness';
+import { env } from '../helpers/env';
 
 /**
  * The encounter deck's long seed sweep (docs/33 § 4; minutes per target). Off by default. One target per process, so
@@ -13,7 +14,6 @@ import { siteSeeker } from './site-harness';
  *
  * DECK_PILOT=weaver flies the beam-aware hunter, DECK_PILOT=sites the site-hunting perfect pilot. Each flight appends one JSON line (target, seed and its FlightMetrics) to the report file.
  */
-const env = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 const REPORT = env.DECK_REPORT, TARGET = env.DECK_TARGET ?? '', SEEDS = env.DECK_SEEDS ?? '1-20';
 /** `perfect` (default), `weaver` (the beam-aware hunter, a weaving pilot that takes hits) or `sites` (the perfect pilot hunting strike sites and parts). */
 const PILOT = env.DECK_PILOT === 'weaver' ? beamAwareHunterPilot : env.DECK_PILOT === 'sites' ? () => perfectPilot(siteSeeker) : perfectPilot;

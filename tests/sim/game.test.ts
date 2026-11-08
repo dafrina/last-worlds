@@ -6,6 +6,7 @@ import { resolvePlaylist } from '../../src/content/encounter-deck';
 import { EMPTY_INPUT, STEP, VIEW, type Enemy, type RunState, type SpecialId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { segmentCircleHit } from '../../src/sim/geometry';
+import { advance } from '../helpers/run';
 
 const PLAYER_LIMIT = VIEW.worldWidth / 2 - VIEW.playerRadius;
 const CAMERA_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
@@ -25,10 +26,6 @@ function target(state: RunState, x = 0, s = 10, kind: Enemy['kind'] = 'dart'): E
   };
   state.enemies.push(enemy);
   return enemy;
-}
-
-function advance(state: RunState, seconds: number): void {
-  for (let i = 0; i < Math.round(seconds / STEP); i += 1) stepRun(state, EMPTY_INPUT);
 }
 
 describe('weapon families and target acquisition', () => {

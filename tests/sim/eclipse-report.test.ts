@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Difficulty, WeaponId } from '../../src/shared/contracts';
 import { createRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
+import { env } from '../helpers/env';
 
 /**
  * THE ECLIPSE's fight, measured (docs/28): Final Horizon flown by the perfect pilot, one flight per seed, with the boss
@@ -13,7 +14,6 @@ import { fly, perfectPilot } from './pilots';
  * Each flight appends one JSON line: clear, hits over the mission and in the fight (with the phase and its age at each), the
  * order the first-phase targets fell in, the ship's x when the reactor opened, and the phase durations (s).
  */
-const env = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 const REPORT = env.ECLIPSE_REPORT, SEEDS = env.ECLIPSE_SEEDS ?? '1-24';
 const WEAPON = (env.ECLIPSE_WEAPON ?? 'pulse') as WeaponId, DIFFICULTY = (env.ECLIPSE_DIFFICULTY ?? 'standard') as Difficulty;
 

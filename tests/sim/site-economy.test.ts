@@ -7,9 +7,10 @@ import { createRun } from '../../src/sim/game';
 import { resolvePlaylist } from '../../src/content/encounter-deck';
 import { fly, perfectPilot } from './pilots';
 import { injection, sideRoutes, siteParts, siteSeeker, withSites } from './site-harness';
+import { env } from '../helpers/env';
 
 /** The sweep's report file (no Node types in this project: read through globalThis). */
-const REPORT = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env.SITE_ECONOMY;
+const REPORT = env.SITE_ECONOMY;
 
 vi.mock('../../src/content/encounter-deck', async importOriginal => {
   const actual = await importOriginal<typeof import('../../src/content/encounter-deck')>();

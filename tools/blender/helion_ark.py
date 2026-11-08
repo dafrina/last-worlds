@@ -10,7 +10,7 @@ WATERLINE: the hull continues below it to the keel. Every node's translation is 
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" \\
         --background --factory-startup --python "$(wslpath -w $R/tools/blender/helion_ark.py)" -- \\
-        --glb "$(wslpath -w $R/public/assets/vesper/helion-ark.glb)" \\
+        --glb "$(wslpath -w $R/art/archive/assets/vesper/helion-ark.glb)" \\
         --preview-dir "$(wslpath -w $R/art/vesper-ark)"
 """
 

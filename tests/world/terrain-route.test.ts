@@ -1,37 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { VIEW, type RunConfig } from '../../src/shared/contracts';
-import { ENDLESS_CYCLE, endlessSchedule, endlessScroll, endlessSectorPlan } from '../../src/content/endless';
-import { runPlanet } from '../../src/content/missions';
-import { missionArena } from '../../src/render/scene';
-import { runRoute } from '../../src/render/terrain-route';
+import { VIEW } from '../../src/shared/contracts';
+import { endlessSectorPlan } from '../../src/content/endless';
 import { NACRE_SEA_LEVEL } from '../../src/world/terrain-nacre';
 import { UMBRA_PLATEAU } from '../../src/world/terrain-umbra';
 import {
-  ARENA_LEVEL, SEAM_CLEARANCE, inArenaCore, TERRAIN_STEP, VESPER_SEA_LEVEL, createTerrainStream, generateTerrainSection, sectionSource, sectionSteps, terrainHeight,
+  ARENA_LEVEL, SEAM_CLEARANCE, inArenaCore, TERRAIN_STEP, VESPER_SEA_LEVEL, generateTerrainSection, sectionSteps, terrainHeight,
   type RouteSwap, type TerrainSection,
 } from '../../src/world/terrain';
+import { SEED, jumps, route, schedule } from './terrain-route-setup';
 
-const SEA = VESPER_SEA_LEVEL, HALF = VIEW.worldWidth / 2, L = VIEW.sectionLength, SEED = 93;
-const ENDLESS = { mode: 'endless', seed: SEED } as RunConfig;
-const route = runRoute(ENDLESS), schedule = endlessSchedule(ENDLESS);
-/**
- * The first four planet switches: Luna → Khepri after WARDEN-1 (the prologue), Khepri → Vesper after Bastion-9,
- * Vesper → Nacre after the Ark, then Nacre → Khepri after THE VEIL.
+/*
+ * The campaign byte-identity and the jump-speed streaming checks run in parallel files (docs/38 T1):
+ * terrain-route-campaign and terrain-route-stream; shared setup in terrain-route-setup.ts.
  */
-const jumps = [1, 4, 7, 10].map(sector => endlessSectorPlan(sector)).map(plan => ({ plan, jump: plan.jump!, arena: plan.stop!.platform }));
+const SEA = VESPER_SEA_LEVEL, HALF = VIEW.worldWidth / 2, L = VIEW.sectionLength;
 const rowY = (section: TerrainSection, row: number) => Array.from({ length: section.across }, (_, c) => section.positions[(row * section.across + c) * 3 + 1]);
 
 describe('terrain routes from the run schedule (docs/18 §3)', () => {
-  it('keeps every campaign mission byte-identical to its single world', () => {
-    for (const mission of ['training', 'bastion', 'cold-vector'] as const) {
-      const config = { mode: 'campaign', mission, seed: SEED } as RunConfig, world = { planet: runPlanet(config), arena: missionArena(config) };
-      for (const index of [0, 15, 16, 25, 26]) expect(generateTerrainSection(SEED, index, runRoute(config))).toEqual(generateTerrainSection(SEED, index, world));
-    }
-    // Endless opens on Luna, exactly Luna's own world (no arena reaches the first sections).
-    for (const index of [0, 1, 4]) expect(generateTerrainSection(SEED, index, route)).toEqual(generateTerrainSection(SEED, index, { planet: 'luna' }));
-    // 36 full sections: CI runners need well over the default 30 s (it timed out there on 15 October).
-  }, 120_000);
-
   it('follows the schedule: each distance takes its stretch’s planet and the nearest arena', () => {
     // Around each jump the route moves the schedule's switch to its swap's seams (docs/18, 31 October): the route
     // switches SWAP_BEHIND short of the flash, its outgoing variant SWAP_AHEAD past it.
@@ -151,40 +136,4 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       expect(step.value).toEqual(split);
     }
   }, 120_000); // Both seams of every jump since the swap under the veil (31 October): about 7 s here, several times that on a CI runner.
-
-  it('streams through every planet jump at peak hyperdrive speed from prefetched sections, with no fallback, swapping planets at the flash', () => {
-    for (const { plan, jump } of jumps) {
-      const stream = createTerrainStream(SEED, route);
-      // The boss falls a second after the stop: exercise the faster jump over the outgoing terrain buffer too.
-      const timeline = ENDLESS_CYCLE.bossSector, bossEnd = timeline.decelStart + timeline.decelDuration + 1;
-      let peak = 0, maxSteps = 0, previous = -Infinity;
-      const checked: number[] = [];
-      for (let tau = timeline.decelStart - 20; tau < bossEnd + ENDLESS_CYCLE.resumeDuration + ENDLESS_CYCLE.jumpDuration + 14; tau += 1 / 60) {
-        const scroll = endlessScroll(plan, tau, bossEnd), distance = scroll.phase === 'next' ? jump.endDistance + (tau - bossEnd - 5) * jump.cruise : scroll.distance;
-        peak = Math.max(peak, scroll.speed);
-        expect(distance).toBeGreaterThanOrEqual(previous - 1e-9);
-        const window = stream.update(distance);
-        // The last frame before the flash shows the outgoing versions, the first from it the incoming ones (the swap).
-        if ((previous < jump.flashDistance) !== (distance < jump.flashDistance) || (distance < jump.flashDistance && distance + 1 / 60 * scroll.speed >= jump.flashDistance)) {
-          for (const section of window) expect(section).toEqual(generateTerrainSection(SEED, section.index, sectionSource(route, section.index, distance)));
-          checked.push(distance);
-        }
-        previous = distance;
-        // The same slice as the flight tests: thirty resumable steps a frame (about a millisecond).
-        let used = 0, left = 30;
-        stream.prefetch(distance, () => { const more = left-- > 0; if (more) used++; return more; });
-        maxSteps = Math.max(maxSteps, used);
-      }
-      // `jump.peak` is the speed at mid-warp; the fastest moment is at or just past it.
-      expect(peak).toBeGreaterThanOrEqual(jump.peak - 0.05);
-      expect(peak).toBeLessThan(jump.peak + 2);
-      expect(peak).toBeGreaterThan(11);
-      expect(stream.stats.startup).toBe(3);
-      expect(stream.stats.fallbacks).toBe(0);
-      expect(stream.stats.prefetched).toBeGreaterThanOrEqual(2);
-      expect(checked.filter(distance => distance < jump.flashDistance).length).toBeGreaterThan(0);
-      expect(checked.filter(distance => distance >= jump.flashDistance).length).toBe(1);
-      for (const section of stream.update(previous)) expect(section).toEqual(generateTerrainSection(SEED, section.index, route));
-    }
-  }, 240_000); // Streams every planet's terrain at jump speed, both route versions since the swap under the veil (31 October): about 14 s here, over 60 s on a CI runner.
 });

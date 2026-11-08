@@ -281,7 +281,8 @@ def publish(path,objects):
     texture_materials(objects)
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:o.select_set(True)
-    target=os.path.join(ca.ROOT,'public','assets',path)
+    # All four references are retired for their remodels: archived out of the deployed assets (docs/38 P1).
+    target=os.path.join(ca.ROOT,'art','archive','assets',path)
     bpy.ops.export_scene.gltf(filepath=target+'.tmp.glb',export_format='GLB',use_selection=True,use_active_scene=True,
         export_materials='EXPORT',export_vertex_color='ACTIVE',export_all_vertex_colors=False,
         export_texcoords=True,export_normals=True,export_yup=True,export_animations=False,

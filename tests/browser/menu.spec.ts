@@ -1,9 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { seedCampaign, veteranPilot } from './campaign-save';
-import type { RunState } from '../../src/shared/contracts';
-import { flying } from './launch';
-
-const snapshot = (page: Page): Promise<RunState> => page.evaluate(() => (window as unknown as { __LAST_WORLDS__: { snapshot(): RunState } }).__LAST_WORLDS__.snapshot());
+import { flying, snapshot } from './launch';
 
 test('home stays compact on phones and campaign setup has its own page', async ({ page }, info) => {
   // Three viewports, the campaign page (its planet preview) and the hangar: about 30 s under software WebGL.

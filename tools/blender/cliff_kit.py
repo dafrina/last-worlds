@@ -521,7 +521,9 @@ def build(world, preview=None):
         print('CLIFF %-14s tris=%d' % (name, hs.tris()))
     if problems:
         raise SystemExit('Cliff kit contract:\n  ' + '\n  '.join(problems))
-    path = os.path.join(ROOT, 'public', 'assets', world, 'cliff-kit.glb')
+    # Umbra flies cliff-kit-v2.glb (umbra_cliffs_v2.py); its first kit is archived out of the deployed assets (docs/38 P1).
+    folder = ('art', 'archive', 'assets') if world == 'umbra' else ('public', 'assets')
+    path = os.path.join(ROOT, *folder, world, 'cliff-kit.glb')
     vc.publish(path, 'cliff_kit.py', dict(materials=list(names), nodes=nodes, max_bytes=800_000), 'CLIFF')
     if preview:
         if world == 'umbra':
