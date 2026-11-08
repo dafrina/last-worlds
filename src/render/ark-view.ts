@@ -6,6 +6,7 @@ import { HELION_ARK } from '../content/ark';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import type { FoamRing, Wake } from './water';
 import { retainBossMaterials } from './approved-boss-materials';
+import { SIDES, markerWriter } from './bastion-view';
 
 /**
  * Helion Ark presentation (docs/17 §5), render-only: it reads the boss state and never applies damage or decides
@@ -170,30 +171,42 @@ function particleLayer(scene: THREE.Scene, capacity: number, additive: boolean) 
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color());
   // Hidden while empty, as the other bosses' layers (src/render/bastion-view.ts `particleLayer`).
   mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; mesh.renderOrder = additive ? 5 : 3; mesh.name = additive ? 'ark sparks' : 'ark mist'; scene.add(mesh);
-  const live: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color();
+  // A pool (docs/38 V6): the live particles are the first `live`, in emission order; an emit fills the next one (each
+  // made once, on first use), and the dead are compacted out in order (as fx-particles.ts does), with no splice.
+  const pool: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color(), uploads = [alpha];
+  let live = 0;
   return {
-    emit(p: Omit<Particle, 'age'>) { if (live.length < capacity) live.push({ ...p, age: 0 }); },
+    emit(p: Omit<Particle, 'age'>) {
+      if (live >= capacity) return;
+      const q = pool[live++] ??= { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 0, size: 0, grow: 0, alpha: 0, color: 0, drag: 0, lift: 0 };
+      q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx; q.vy = p.vy; q.vz = p.vz; q.age = 0; q.life = p.life;
+      q.size = p.size; q.grow = p.grow; q.alpha = p.alpha; q.color = p.color; q.drag = p.drag; q.lift = p.lift;
+    },
     /** Scroll existing particles before emitting this frame's world-anchored puffs. */
-    shift(distance: number) { for (const p of live) p.z += distance; },
+    shift(distance: number) { for (let i = 0; i < live; i++) pool[i].z += distance; },
     step(dt: number, groundShift: number) {
-      for (let i = live.length - 1; i >= 0; i--) {
-        const p = live[i]; p.age += dt;
-        if (p.age >= p.life) { live.splice(i, 1); continue; }
+      let kept = 0;
+      for (let i = 0; i < live; i++) {
+        const p = pool[i]; p.age += dt;
+        if (p.age >= p.life) continue;
         const damp = Math.exp(-p.drag * dt);
         p.vx *= damp; p.vz *= damp; p.vy = p.vy * damp + p.lift * dt;
         // Particles rest in the water's frame, which slides toward the player while the world scrolls.
         p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt + groundShift;
+        if (kept !== i) { pool[i] = pool[kept]; pool[kept] = p; }
+        kept++;
       }
-      live.forEach((p, i) => {
-        const t = p.age / p.life;
+      live = kept;
+      for (let i = 0; i < live; i++) {
+        const p = pool[i], t = p.age / p.life;
         transform.position.set(p.x, p.y, p.z); transform.scale.setScalar(p.size + p.grow * t); transform.updateMatrix();
         mesh.setMatrixAt(i, transform.matrix); mesh.setColorAt(i, color.setHex(p.color));
         alpha.setX(i, p.alpha * (1 - t) * Math.min(1, p.age * 12));
-      });
-      liveInstances(mesh, live.length, [alpha]);
+      }
+      liveInstances(mesh, live, uploads);
     },
-    clear() { live.length = 0; mesh.count = 0; mesh.visible = false; },
-    get count() { return live.length; },
+    clear() { live = 0; mesh.count = 0; mesh.visible = false; },
+    get count() { return live; },
     dispose() { scene.remove(mesh); mesh.dispose(); geometry.dispose(); material.dispose(); },
   };
 }
@@ -220,7 +233,8 @@ export function createArkView(scene: THREE.Scene) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
   const markers = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }));
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
-  const tint = new THREE.Color(), world = new THREE.Vector3();
+  const world = new THREE.Vector3(), marks = markerWriter(vertices, colors), line = marks.line;
+  const bowAt = new THREE.Vector3(), sternAt = new THREE.Vector3(), centreAt = new THREE.Vector3();
   const rings3: FoamRing[] = [], wakes: Wake[] = [];
   let lastDistance = 0;
   let lastTime = -1, encounter = -1, sprayCarry = 0, doorsOpen = 0, lastNextLaunch = Infinity, lastLaunchAt = -Infinity;
@@ -228,7 +242,8 @@ export function createArkView(scene: THREE.Scene) {
   /** Last seen hp and last damaging hit per boss part (by enemy id), for impact flares. */
   const hpSeen = new Map<number, number>(), hitAt = new Map<number, number>();
 
-  const local = (x: number, y: number, z: number) => root.localToWorld(world.set(x, y, z)).clone();
+  /** A point of the rig in world space, in the scratch `world` (or `out`): the emitters read it at once and keep none. */
+  const local = (x: number, y: number, z: number, out = world) => root.localToWorld(out.set(x, y, z));
   const burst = (at: THREE.Vector3, count: number, seed: number, power = 1) => {
     for (let i = 0; i < count; i++) {
       const a = hash(seed + i) * Math.PI * 2, up = hash(seed + i * 1.7 + 3), speed = (1.5 + hash(seed + i * 2.3) * 3.5) * power;
@@ -298,7 +313,7 @@ export function createArkView(scene: THREE.Scene) {
       const forward = destroyed ? 0 : -((boss.vs ?? 0) + state.scrollSpeed), lateral = boss.vx ?? 0;
       const speed = Math.hypot(forward, lateral), heading = Math.PI + Math.atan2(lateral, Math.max(.01, forward)) * .5;
       // The v5 outriggers run on past the aft wing to y 5.85 (art/boss-remodel): a longer stern wake.
-      const bow = local(0, 0, rig.approved ? 3.5 : ARK_FOOTPRINT.bow - .3), stern = local(0, 0, rig.remodel ? -5.6 : rig.approved ? -4 : -ARK_FOOTPRINT.stern), centre = local(0, 0, rig.approved ? -.2 : -1.5);
+      const bow = local(0, 0, rig.approved ? 3.5 : ARK_FOOTPRINT.bow - .3, bowAt), stern = local(0, 0, rig.remodel ? -5.6 : rig.approved ? -4 : -ARK_FOOTPRINT.stern, sternAt), centre = local(0, 0, rig.approved ? -.2 : -1.5, centreAt);
       // Gentle while it holds station (swell against the hull, a churned stern), strong while it glides in.
       const wakeStrength = destroyed ? Math.max(0, .3 - phaseAge * .06) : THREE.MathUtils.clamp(.18 + speed * .14, .18, .9);
       if (wakeStrength > 0) {
@@ -313,7 +328,7 @@ export function createArkView(scene: THREE.Scene) {
         // The approved vessel has three separate hulls with open water between them.
         // v5: outriggers y -3.6..5.85 around x +-3.15, centre hull y -2.45..5.25 (local z = -y).
         const [outerZ, outerRz, midZ, midRx, midRz] = rig.remodel ? [-.9, 4.8, -1.2, 1.35, 3.95] : [0, 3.65, -1.4, .65, 1.8];
-        for (const side of [-1, 1]) rings3.push({ x: centre.x + side * 3.15, z: centre.z + outerZ, y: sea, yaw: 0, rx: 1.15 * spread, rz: outerRz * spread, strength: foamStrength });
+        for (const side of SIDES) rings3.push({ x: centre.x + side * 3.15, z: centre.z + outerZ, y: sea, yaw: 0, rx: 1.15 * spread, rz: outerRz * spread, strength: foamStrength });
         rings3.push({ x: centre.x, z: centre.z + midZ, y: sea, yaw: 0, rx: midRx * spread, rz: midRz * spread, strength: foamStrength * .7 });
       } else rings3.push({ x: centre.x, z: centre.z, y: sea, yaw: 0, rx: 4.8 * spread, rz: 5.7 * spread, strength: foamStrength });
       // Spray off the bow while it glides in (and a little while it surges), thrown up by the cutwater.
@@ -330,7 +345,7 @@ export function createArkView(scene: THREE.Scene) {
       const closing = 1 - THREE.MathUtils.smoothstep(state.time - lastLaunchAt, .5, 1.1);
       doorsOpen = destroyed ? 0 : Math.max(opening, closing);
       const doorEase = doorsOpen;
-      rig.doors.forEach(door => door.object.position.lerpVectors(door.closed, door.open, doorEase));
+      for (const door of rig.doors) door.object.position.lerpVectors(door.closed, door.open, doorEase);
       if (doorEase > .5 && hash(state.time * 17) < 8 * dt) for (const bay of BAYS) steam(local(bay.x, 1.1, bay.z), state.time * 23 + bay.x, .5);
 
       if (destroyed) {
@@ -343,7 +358,7 @@ export function createArkView(scene: THREE.Scene) {
         if (before < 2.0 && phaseAge >= 2.0) {
           const heart = local(0, 1.7, -1.6);
           flash(heart, 5.5, 99); fireball(heart, 3.2, 4242 + encounter); burst(heart, 50, 777 + encounter, 2);
-          for (const side of [-1, 1]) fireball(local(side * 2.4, 1.4, .5), 1.8, 600 + side + encounter);
+          for (const side of SIDES) fireball(local(side * 2.4, 1.4, .5), 1.8, 600 + side + encounter);
         }
         const steamRate = phaseAge < 1 ? 0 : phaseAge < 6 ? 9 : 3;
         for (let k = 0; k < 3; k++) if (hash(state.time * 41 + k) < steamRate * dt) {
@@ -353,11 +368,7 @@ export function createArkView(scene: THREE.Scene) {
         }
       }
 
-      let cursor = 0;
-      const line = (x: number, s: number, xx: number, ss: number, color: number) => {
-        tint.setHex(color); vertices.set([x, VIEW.flightHeight + .03, -s, xx, VIEW.flightHeight + .03, -ss], cursor * 3);
-        colors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], cursor * 3); cursor += 2;
-      };
+      marks.begin();
       for (const enemy of state.enemies) {
         // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
@@ -386,7 +397,7 @@ export function createArkView(scene: THREE.Scene) {
           const at = local(part.group.position.x, 1.5, part.group.position.z);
           if (hash(state.time * 7 + enemy.id) < .6) steam(at, state.time * 31 + enemy.id, .9); else smoke(at, state.time * 31 + enemy.id, .8);
         }
-        part.live.forEach(object => { object.visible = living; });
+        for (const object of part.live) object.visible = living;
         if (part.wreck) part.wreck.visible = !living;
         if (part.gun) {
           const yaw = enemy.warning > 0 ? Math.atan2(enemy.aimX - enemy.x, enemy.s) : 0;
@@ -398,7 +409,7 @@ export function createArkView(scene: THREE.Scene) {
           // Open over 0.8 s from the start of the bridge phase; overload and the wreck keep them open.
           part.open = boss.phase === 'core' ? THREE.MathUtils.smoothstep(phaseAge, 0, .8) : overload || destroyed || !living ? 1 : 0;
           const eased = part.open;
-          part.shutters.forEach(shutter => shutter.object.position.lerpVectors(shutter.closed, shutter.open, eased));
+          for (const shutter of part.shutters) shutter.object.position.lerpVectors(shutter.closed, shutter.open, eased);
         }
         // Heat: brighter as armour is lost; warnings flare; the bridge flickers in overload.
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
@@ -408,7 +419,7 @@ export function createArkView(scene: THREE.Scene) {
         target.material.color.setHex(enemy.warning > 0 ? 0xffecd0 : 0xffb77c).multiplyScalar(.45 + .55 * fraction);
         if (enemy.hp <= 0 || enemy.damageable === false) continue;
         const r = enemy.radius + .15, color = kick > 0 ? 0xffffff : enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
-        for (const x of [-1, 1]) for (const s of [-1, 1]) {
+        for (const x of SIDES) for (const s of SIDES) {
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * (r - .25), enemy.s + s * r, color);
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * r, enemy.s + s * (r - .25), color);
         }
@@ -417,9 +428,9 @@ export function createArkView(scene: THREE.Scene) {
           line(enemy.x, enemy.s, enemy.aimX, 0, 0xd1a275);
         }
       }
-      rig.lamps.forEach(material => { material.emissiveIntensity = destroyed ? Math.max(0, 1.5 - phaseAge * .5) : 1.4 + .25 * Math.sin(state.time * 2.6); });
+      for (const material of rig.lamps) material.emissiveIntensity = destroyed ? Math.max(0, 1.5 - phaseAge * .5) : 1.4 + .25 * Math.sin(state.time * 2.6);
       mist.step(dt, 0); sparks.step(dt, 0);
-      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
+      liveVertices(markers, geometry, marks.count); markers.visible &&= root.visible;
     },
     get stats() { return { visible: root.visible, model: rig.model ? 'glb' : 'fallback', approved: !!rig.approved, particles: mist.count + sparks.count }; },
     dispose() {

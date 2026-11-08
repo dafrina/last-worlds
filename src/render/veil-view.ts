@@ -7,7 +7,7 @@ import { CRADLE } from '../content/cradle';
 import { ECLIPSE } from '../content/eclipse';
 import { HELIOPHAGE } from '../content/heliophage';
 import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
-import { hash, particleLayer } from './bastion-view';
+import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import { retainBossMaterials } from './approved-boss-materials';
 
 /**
@@ -286,7 +286,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
   const markers = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }));
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
-  const tint = new THREE.Color(), world = new THREE.Vector3();
+  const world = new THREE.Vector3(), marks = markerWriter(vertices, colors), line = marks.line;
   let lastDistance = 0;
   let lastTime = -1, encounter = -1;
   let bayOpen = 0, launchedAt = -Infinity;
@@ -295,7 +295,8 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
   const hpSeen = new Map<number, number>(), hitAt = new Map<number, number>();
   /** Pods already seen (a new one bursts out of its bay). */
   const podsSeen = new Set<number>();
-  const local = (x: number, y: number, z: number) => root.localToWorld(world.set(x, y, z)).clone();
+  /** A point of the rig in world space, in the scratch `world` (or `out`): the emitters read it at once and keep none. */
+  const local = (x: number, y: number, z: number, out = world) => root.localToWorld(out.set(x, y, z));
   const fx: CarrierFx = { ...VEIL_FX, ...style.fx };
   const burst = (at: THREE.Vector3, count: number, seed: number, power = 1, color = fx.spark) => {
     for (let i = 0; i < count; i++) {
@@ -389,18 +390,13 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       const launchAge = state.time - launchedAt;
       const wantBay = !destroyed && ((boss.launchesLeft > 0 && boss.nextLaunchAt - state.time < 1.1) || launchAge < .85) ? 1 : 0;
       bayOpen += THREE.MathUtils.clamp(wantBay - bayOpen, -dt * 2, dt * 2);
-      rig.doors?.forEach(door => door.object.quaternion.slerpQuaternions(door.closed, door.open, THREE.MathUtils.smoothstep(bayOpen, 0, 1)));
-      rig.pods?.forEach(pod => {
+      if (rig.doors) for (const door of rig.doors) door.object.quaternion.slerpQuaternions(door.closed, door.open, THREE.MathUtils.smoothstep(bayOpen, 0, 1));
+      if (rig.pods) for (const pod of rig.pods) {
         pod.object.position.copy(pod.position); pod.object.position.y -= bayOpen * .18;
         pod.object.visible = !destroyed && launchAge > .55;
-      });
+      }
       if (podsSeen.size > 64) podsSeen.clear();
-      let cursor = 0;
-      const line = (x: number, s: number, xx: number, ss: number, color: number) => {
-        if (cursor + 2 > vertices.length / 3) return;
-        tint.setHex(color); vertices.set([x, VIEW.flightHeight + .03, -s, xx, VIEW.flightHeight + .03, -ss], cursor * 3);
-        colors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], cursor * 3); cursor += 2;
-      };
+      marks.begin();
       for (const enemy of state.enemies) {
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
         // A model without a module the boss has (a rolled-back GLB) simply draws none for it.
@@ -420,18 +416,18 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
         const died = deadAt.get(enemy.bossPart);
         if (died !== undefined && state.time - died < 7 && hash(state.time * 13 + enemy.id) < 5 * dt) steam(local(part.group.position.x, 1.8, part.group.position.z), state.time * 31 + enemy.id, .9);
-        part.live.forEach(object => { object.visible = living; });
+        for (const object of part.live) object.visible = living;
         if (part.wreck) part.wreck.visible = !living;
         // The heart's petals fold open once it can be damaged.
         const wantOpen = enemy.damageable !== false || !living ? 1 : 0;
         if (enemy.bossPart === 'core' && wantOpen && part.open === 0 && dt > 0) {
           // A short pressure release marks the mechanical transformation; reuses the bounded boss pools.
-          for (const side of [-1, 1]) steam(local(side * .9, 2.05, part.group.position.z), enemy.id + side * 11, .55);
+          for (const side of SIDES) steam(local(side * .9, 2.05, part.group.position.z), enemy.id + side * 11, .55);
           flash(local(0, 2.15, part.group.position.z), 1.1, enemy.id);
         }
         part.open += THREE.MathUtils.clamp(wantOpen - part.open, -dt * 1.4, dt * 1.4);
         const eased = THREE.MathUtils.smoothstep(part.open, 0, 1);
-        part.petals.forEach(petal => { petal.object.quaternion.slerpQuaternions(petal.closed, petal.open, eased); });
+        for (const petal of part.petals) petal.object.quaternion.slerpQuaternions(petal.closed, petal.open, eased);
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .5 + .5 * Math.abs(Math.sin(state.time * 12)) : .85 + .15 * Math.sin(state.time * 2.2);
         part.heat.emissiveIntensity = living ? (1.2 + (1 - fraction) * 1.8 + (enemy.warning > 0 ? 1.4 : 0)) * pulse + kick * 2.8 : 0;
@@ -439,7 +435,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         target.material.color.setHex(enemy.warning > 0 ? 0xffecd0 : 0xffb77c).multiplyScalar(.45 + .55 * fraction);
         if (enemy.hp <= 0 || enemy.damageable === false) continue;
         const r = enemy.radius + .15, color = kick > 0 ? 0xffffff : enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
-        for (const x of [-1, 1]) for (const s of [-1, 1]) {
+        for (const x of SIDES) for (const s of SIDES) {
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * (r - .25), enemy.s + s * r, color);
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * r, enemy.s + s * (r - .25), color);
         }
@@ -449,7 +445,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         }
       }
       mist.step(dt, 0); sparks.step(dt, 0);
-      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
+      liveVertices(markers, geometry, marks.count); markers.visible &&= root.visible;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
     setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = approvedRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },

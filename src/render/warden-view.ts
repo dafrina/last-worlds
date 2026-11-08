@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WARDEN } from '../content/warden';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
-import { hash, particleLayer } from './bastion-view';
+import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import { applySurfaceFinish } from './surface-finish';
 
 /**
@@ -229,13 +229,14 @@ export function createWardenView(scene: THREE.Scene) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
   const markers = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }));
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
-  const tint = new THREE.Color(), world = new THREE.Vector3();
+  const world = new THREE.Vector3(), marks = markerWriter(vertices, colors), line = marks.line;
   let lastDistance = 0;
   let lastTime = -1, encounter = -1;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
   /** Last seen hp and last damaging hit per part (by enemy id), for impact flares. */
   const hpSeen = new Map<number, number>(), hitAt = new Map<number, number>();
-  const local = (x: number, y: number, z: number) => root.localToWorld(world.set(x, y, z)).clone();
+  /** A point of the rig in world space, in the scratch `world` (or `out`): the emitters read it at once and keep none. */
+  const local = (x: number, y: number, z: number, out = world) => root.localToWorld(out.set(x, y, z));
   const burst = (at: THREE.Vector3, count: number, seed: number, power = 1) => {
     for (let i = 0; i < count; i++) {
       const a = hash(seed + i) * Math.PI * 2, up = hash(seed + i * 1.7 + 3), speed = (1.5 + hash(seed + i * 2.3) * 3.5) * power;
@@ -281,7 +282,7 @@ export function createWardenView(scene: THREE.Scene) {
       root.position.set(placement.x ?? boss.x, placement.baseHeight + landing * landing * DESCENT + bob, -placement.s);
       root.updateMatrixWorld(true);
       rig.thrusters.visible = landing > .01 || flying;
-      rig.thrusters.children.forEach((flame, i) => { flame.scale.set(1, (flying ? .75 : .6) + landing * .8 + .15 * Math.sin(state.time * 40 + i), 1); });
+      for (let i = 0; i < rig.thrusters.children.length; i++) rig.thrusters.children[i].scale.set(1, (flying ? .75 : .6) + landing * .8 + .15 * Math.sin(state.time * 40 + i), 1);
       if (arriving && landing < .35 && landing > .02 && hash(state.time * 23) < 18 * dt) puff(local((hash(state.time) - .5) * 3, 0, (hash(state.time + 1) - .5) * 3), state.time * 31, false, 1.4);
       rig.beacon.emissiveIntensity = destroyed ? 0 : Math.sin(state.time * 4) > .2 ? 2.6 : .3;
       // Destruction: sparks, flashes, a tilt onto a broken leg, then the reactor blast and a shock ring.
@@ -304,12 +305,7 @@ export function createWardenView(scene: THREE.Scene) {
         shock.position.set(placement.x ?? boss.x, placement.baseHeight + .12, -placement.s);
         shock.scale.setScalar(1 + Math.sqrt(ring) * 6); (shock.material as THREE.MeshBasicMaterial).opacity = (1 - ring) * (1 - ring);
       }
-      let cursor = 0;
-      const line = (x: number, s: number, xx: number, ss: number, color: number) => {
-        if (cursor + 2 > vertices.length / 3) return;
-        tint.setHex(color); vertices.set([x, VIEW.flightHeight + .03, -s, xx, VIEW.flightHeight + .03, -ss], cursor * 3);
-        colors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], cursor * 3); cursor += 2;
-      };
+      marks.begin();
       for (const enemy of state.enemies) {
         // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
@@ -330,13 +326,13 @@ export function createWardenView(scene: THREE.Scene) {
         const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
         const died = deadAt.get(enemy.bossPart);
         if (died !== undefined && state.time - died < 6 && hash(state.time * 13 + enemy.id) < 5 * dt) puff(local(part.group.position.x, 1.3, part.group.position.z), state.time * 31 + enemy.id, true, .8);
-        part.live.forEach(object => { object.visible = living; });
+        for (const object of part.live) object.visible = living;
         part.wreck.visible = !living;
         // Hatches slide open when the command module becomes damageable.
         const wantOpen = enemy.damageable !== false || !living ? 1 : 0;
         part.open += THREE.MathUtils.clamp(wantOpen - part.open, -dt * 1.6, dt * 1.6);
         const eased = THREE.MathUtils.smoothstep(part.open, 0, 1);
-        part.shutters.forEach(shutter => { shutter.object.position.lerpVectors(shutter.closed, shutter.open, eased); shutter.object.visible = living || enemy.bossPart === 'core'; });
+        for (const shutter of part.shutters) { shutter.object.position.lerpVectors(shutter.closed, shutter.open, eased); shutter.object.visible = living || enemy.bossPart === 'core'; }
         if (part.gun) {
           const yaw = enemy.warning > 0 ? Math.atan2(enemy.aimX - enemy.x, enemy.s) : 0;
           part.gunYaw += (yaw - part.gunYaw) * Math.min(1, dt * 8); part.gun.rotation.y = part.gunYaw;
@@ -348,7 +344,7 @@ export function createWardenView(scene: THREE.Scene) {
         target.material.color.setHex(enemy.warning > 0 ? 0xffecd0 : 0xffb77c).multiplyScalar(.45 + .55 * fraction);
         if (enemy.hp <= 0 || enemy.damageable === false) continue;
         const r = enemy.radius + .15, color = kick > 0 ? 0xffffff : enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
-        for (const x of [-1, 1]) for (const s of [-1, 1]) {
+        for (const x of SIDES) for (const s of SIDES) {
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * (r - .25), enemy.s + s * r, color);
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * r, enemy.s + s * (r - .25), color);
         }
@@ -358,7 +354,7 @@ export function createWardenView(scene: THREE.Scene) {
         }
       }
       dust.step(dt, 0); sparks.step(dt, 0);
-      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
+      liveVertices(markers, geometry, marks.count); markers.visible &&= root.visible;
     },
     /** Swap the code-built stand-in for the production model once warden.glb has loaded. */
     setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model); root.add(rig.chassis); },

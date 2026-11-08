@@ -211,34 +211,69 @@ export function particleLayer(scene: THREE.Scene, capacity: number, additive: bo
   // Hidden while empty (mobile performance pass, 3 November): an empty batch still costs three.js a render-list entry and a
   // full program and uniform setup every frame, and every boss's layers waited empty on every world (10 of them).
   mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; mesh.renderOrder = additive ? 5 : 3; scene.add(mesh);
-  const live: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color();
+  // A pool (docs/38 V6): the live particles are the first `live`, in emission order; an emit fills the next one (each
+  // made once, on first use), and the dead are compacted out in order (as fx-particles.ts does), with no splice.
+  const pool: Particle[] = [], transform = new THREE.Object3D(), color = new THREE.Color(), uploads = [alpha];
+  let live = 0;
   return {
-    emit(p: Omit<Particle, 'age'>) { if (live.length < capacity) live.push({ ...p, age: 0 }); },
+    emit(p: Omit<Particle, 'age'>) {
+      if (live >= capacity) return;
+      const q = pool[live++] ??= { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 0, size: 0, grow: 0, alpha: 0, color: 0, drag: 0, lift: 0 };
+      q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx; q.vy = p.vy; q.vz = p.vz; q.age = 0; q.life = p.life;
+      q.size = p.size; q.grow = p.grow; q.alpha = p.alpha; q.color = p.color; q.drag = p.drag; q.lift = p.lift;
+    },
     /** Scroll existing particles before emitting this frame's world-anchored puffs. */
-    shift(distance: number) { for (const p of live) p.z += distance; },
+    shift(distance: number) { for (let i = 0; i < live; i++) pool[i].z += distance; },
     step(dt: number, groundShift: number) {
-      for (let i = live.length - 1; i >= 0; i--) {
-        const p = live[i]; p.age += dt;
-        if (p.age >= p.life) { live.splice(i, 1); continue; }
+      let kept = 0;
+      for (let i = 0; i < live; i++) {
+        const p = pool[i]; p.age += dt;
+        if (p.age >= p.life) continue;
         const damp = Math.exp(-p.drag * dt);
         p.vx *= damp; p.vz *= damp; p.vy = p.vy * damp + p.lift * dt;
         // Particles rest in the ground frame, which slides toward the player as the world scrolls.
         p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt + groundShift;
+        if (kept !== i) { pool[i] = pool[kept]; pool[kept] = p; }
+        kept++;
       }
-      live.forEach((p, i) => {
-        const t = p.age / p.life;
+      live = kept;
+      for (let i = 0; i < live; i++) {
+        const p = pool[i], t = p.age / p.life;
         transform.position.set(p.x, p.y, p.z); transform.scale.setScalar(p.size + p.grow * t); transform.updateMatrix();
         mesh.setMatrixAt(i, transform.matrix); mesh.setColorAt(i, color.setHex(p.color));
         alpha.setX(i, p.alpha * (1 - t) * Math.min(1, p.age * 12));
-      });
-      liveInstances(mesh, live.length, [alpha]);
+      }
+      liveInstances(mesh, live, uploads);
     },
-    clear() { live.length = 0; mesh.count = 0; mesh.visible = false; },
-    get count() { return live.length; },
+    clear() { live = 0; mesh.count = 0; mesh.visible = false; },
+    get count() { return live; },
   };
 }
 
 /* ------------------------------------------------------------------ view */
+
+/**
+ * A boss's marker segments in the flight plane (target brackets, aim lines): `line` writes one at `count`, value by value
+ * (no arrays per segment, docs/38 V6), up to the buffers' size; `begin` starts the frame's list.
+ */
+export function markerWriter(vertices: Float32Array, colors: Float32Array) {
+  const tint = new THREE.Color();
+  let count = 0;
+  return {
+    begin() { count = 0; },
+    line(x: number, s: number, xx: number, ss: number, color: number) {
+      if (count + 2 > vertices.length / 3) return;
+      tint.setHex(color);
+      const i = count * 3, y = VIEW.flightHeight + .03;
+      vertices[i] = x; vertices[i + 1] = y; vertices[i + 2] = -s; vertices[i + 3] = xx; vertices[i + 4] = y; vertices[i + 5] = -ss;
+      colors[i] = colors[i + 3] = tint.r; colors[i + 1] = colors[i + 4] = tint.g; colors[i + 2] = colors[i + 5] = tint.b;
+      count += 2;
+    },
+    get count() { return count; },
+  };
+}
+/** Both sides of a centre (marker corners), a constant rather than a new list per use. */
+export const SIDES = [-1, 1] as const;
 
 /** Deterministic cosmetic noise (presentation only; never touches simulation RNG). */
 export const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -268,7 +303,7 @@ export function createBastionView(scene: THREE.Scene) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
   const markers = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }));
   markers.frustumCulled = false; markers.renderOrder = 9; scene.add(markers);
-  const tint = new THREE.Color(), world = new THREE.Vector3();
+  const world = new THREE.Vector3(), marks = markerWriter(vertices, colors), line = marks.line;
   let lastDistance = 0;
   let lastTime = -1, emitCarry = 0, treadOffset = 0, encounter = -1;
   const alive = new Map<BossPart, boolean>(), deadAt = new Map<BossPart, number>();
@@ -301,7 +336,8 @@ export function createBastionView(scene: THREE.Scene) {
         size: .14 + hash(seed + i * 4.1) * .16, grow: 0, alpha: .95, color: 0x1d1714, drag: .4, lift: -14 });
     }
   };
-  const local = (x: number, y: number, z: number) => root.localToWorld(world.set(x, y, z)).clone();
+  /** A point of the rig in world space, in the scratch `world` (or `out`): the emitters read it at once and keep none. */
+  const local = (x: number, y: number, z: number, out = world) => root.localToWorld(out.set(x, y, z));
 
   return {
     /** Swap the functional stand-in for the production model once bastion-9.glb has loaded. */
@@ -336,7 +372,7 @@ export function createBastionView(scene: THREE.Scene) {
       const forward = -groundSpeed;
       // Belts advance toward increasing v at the forward speed; wheels roll at ω = speed / rolling radius.
       treadOffset = (treadOffset - forward * dt / LINK_PITCH) % 1;
-      rig.treads.forEach(map => { map.offset.y = treadOffset; });
+      for (const map of rig.treads) map.offset.y = treadOffset;
       rig.tracks?.advance(forward, dt);
       for (const wheel of rig.wheels) wheel.object.rotation.x += forward / wheel.radius * dt;
       emitCarry += dt * Math.min(26, Math.abs(groundSpeed) * 5 + Math.abs(boss.vx ?? 0) * 6);
@@ -375,11 +411,7 @@ export function createBastionView(scene: THREE.Scene) {
         shock.scale.setScalar(1.2 + Math.sqrt(ring) * 7.5); (shock.material as THREE.MeshBasicMaterial).opacity = (1 - ring) * (1 - ring);
       }
 
-      let cursor = 0;
-      const line = (x: number, s: number, xx: number, ss: number, color: number) => {
-        tint.setHex(color); vertices.set([x, VIEW.flightHeight + .03, -s, xx, VIEW.flightHeight + .03, -ss], cursor * 3);
-        colors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], cursor * 3); cursor += 2;
-      };
+      marks.begin();
       for (const enemy of state.enemies) {
         // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
@@ -401,14 +433,14 @@ export function createBastionView(scene: THREE.Scene) {
         const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
         const died = deadAt.get(enemy.bossPart);
         if (died !== undefined && state.time - died < 7 && hash(state.time * 13 + enemy.id) < 5 * dt) puff(local(part.group.position.x, 1.5, part.group.position.z), state.time * 31 + enemy.id, true, .8);
-        part.live.forEach(object => { object.visible = living; });
+        for (const object of part.live) object.visible = living;
         if (part.wreck) part.wreck.visible = !living;
         if (!part.wreck && enemy.bossPart !== 'core') part.group.rotation.z = living ? 0 : (enemy.bossPart === 'left' ? -.14 : .14);
         // Shutters slide open when the module becomes damageable, and close over a protected one.
         const wantOpen = enemy.damageable !== false || !living ? 1 : 0;
         part.open += THREE.MathUtils.clamp(wantOpen - part.open, -dt * 1.6, dt * 1.6);
         const eased = THREE.MathUtils.smoothstep(part.open, 0, 1);
-        part.shutters.forEach(shutter => { shutter.object.position.lerpVectors(shutter.closed, shutter.open, eased); shutter.object.visible = living || enemy.bossPart === 'core'; });
+        for (const shutter of part.shutters) { shutter.object.position.lerpVectors(shutter.closed, shutter.open, eased); shutter.object.visible = living || enemy.bossPart === 'core'; }
         if (part.gun) {
           const yaw = enemy.warning > 0 ? Math.atan2(enemy.aimX - enemy.x, enemy.s) : 0;
           part.gunYaw += (yaw - part.gunYaw) * Math.min(1, dt * 8); part.gun.rotation.y = part.gunYaw;
@@ -416,21 +448,21 @@ export function createBastionView(scene: THREE.Scene) {
         part.recoil = Math.max(0, (part.recoil ?? 0) - dt * 6);
         if ((part.lastWarning ?? 0) > 0 && enemy.warning <= 0 && living) part.recoil = 1;
         part.lastWarning = enemy.warning;
-        part.auxiliaryGuns?.forEach(gun => {
+        if (part.auxiliaryGuns) for (const gun of part.auxiliaryGuns) {
           gun.object.rotation.y = THREE.MathUtils.clamp(part.gunYaw, -.16, .16);
           gun.object.position.copy(gun.closed);
           // Recoil follows the authored firing stage, with no change to projectile timing.
           gun.object.position.z -= .09 * (part.recoil ?? 0);
-        });
+        }
         // Heat: brighter as armour is lost; overload flickers; warnings flare.
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .55 + .45 * Math.sin(state.time * 14) : 1;
-        part.heat.forEach(material => { material.emissiveIntensity = living ? (1 + (1 - fraction) * 1.6 + (enemy.warning > 0 ? 1.2 : 0)) * pulse + kick * 2.6 : 0; });
+        for (const material of part.heat) material.emissiveIntensity = living ? (1 + (1 - fraction) * 1.6 + (enemy.warning > 0 ? 1.2 : 0)) * pulse + kick * 2.6 : 0;
         target.mesh.visible = enemy.hp > 0 && enemy.damageable !== false;
         target.material.color.setHex(enemy.warning > 0 ? 0xffecd0 : 0xffb77c).multiplyScalar(.45 + .55 * fraction);
         if (enemy.hp <= 0 || enemy.damageable === false) continue;
         const r = enemy.radius + .15, color = kick > 0 ? 0xffffff : enemy.warning > 0 ? 0xffd59a : 0xdbbe8b;
-        for (const x of [-1, 1]) for (const s of [-1, 1]) {
+        for (const x of SIDES) for (const s of SIDES) {
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * (r - .25), enemy.s + s * r, color);
           line(enemy.x + x * r, enemy.s + s * r, enemy.x + x * r, enemy.s + s * (r - .25), color);
         }
@@ -439,9 +471,9 @@ export function createBastionView(scene: THREE.Scene) {
           line(enemy.x, enemy.s, enemy.aimX, 0, 0xd1a275);
         }
       }
-      rig.glow.forEach(material => { material.emissiveIntensity = destroyed ? Math.max(0, 1.6 - phaseAge * .8) : 1.4 + .3 * Math.sin(state.time * 3); });
+      for (const material of rig.glow) material.emissiveIntensity = destroyed ? Math.max(0, 1.6 - phaseAge * .8) : 1.4 + .3 * Math.sin(state.time * 3);
       dust.step(dt, 0); sparks.step(dt, 0);
-      liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
+      liveVertices(markers, geometry, marks.count); markers.visible &&= root.visible;
     },
     get stats() { return { visible: root.visible, model: rig.treads.length > 0 || rig.glow.length > 0 ? 'glb' : 'fallback', particles: dust.count + sparks.count, trackLinks: rig.tracks?.count ?? 0, trackTravel: rig.tracks?.travel ?? 0 }; },
   };
