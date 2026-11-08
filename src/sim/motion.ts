@@ -11,14 +11,12 @@ import { toFlightPlane } from '../shared/lens';
  */
 export function keyframeAt(path: readonly Keyframe[], t: number, before = false): { x: number; s: number } {
   if (t <= path[0][0] && !(before && t < path[0][0])) return { x: path[0][1], s: path[0][2] };
-  if (t < path[0][0]) {
-    const [t0, x0, s0] = path[0], [t1, x1, s1] = path[1], u = (t - t0) / (t1 - t0);
-    return { x: x0 + (x1 - x0) * u, s: s0 + (s1 - s0) * u };
-  }
+  // Before the first keyframe the first segment continues backwards; past it, the segment that holds t. Its ends are read
+  // by index (every member, every tick: no destructuring iterators, docs/38 PF4).
   let i = 1;
-  while (i < path.length - 1 && t > path[i][0]) i += 1;
-  const [t0, x0, s0] = path[i - 1];
-  const [t1, x1, s1] = path[i];
+  if (t > path[0][0]) while (i < path.length - 1 && t > path[i][0]) i += 1;
+  const from = path[i - 1], to = path[i];
+  const t0 = from[0], x0 = from[1], s0 = from[2], t1 = to[0], x1 = to[1], s1 = to[2];
   const u = (t - t0) / (t1 - t0);
   return { x: x0 + (x1 - x0) * u, s: s0 + (s1 - s0) * u };
 }

@@ -4,6 +4,7 @@ import { VIEW, type GraphicsQuality, type PlanetId, type RunState } from '../sha
 import { weaponRank } from '../content/equipment';
 import { AROUND_HERO } from './hero-stencil';
 import { drawnShot, type Launch } from './shot-launch';
+import { liveInstances } from './instances';
 
 /**
  * Presentation-only effects (docs/04 §5): engine plumes, muzzle flashes, impact sparks, explosions (fireball,
@@ -162,7 +163,9 @@ function layer(scene: THREE.Scene, capacity: number, additive: boolean, light = 
   const pool: Particle[] = [];
   for (let i = 0; i < capacity; i++) pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, life: 1, size: 1, grow: 0, stretch: 1, r: 1, g: 1, b: 1, r2: 1, g2: 1, b2: 1, alpha: 1, shape: 0, flat: false, drag: 0, fall: 0, drift: 0, floor: -Infinity });
   let live = 0;
-  return { mesh, params, pool, get live() { return live; }, set live(n: number) { live = n; }, capacity, geometry, material };
+  /** The attributes uploaded with the instances each frame (liveInstances). */
+  const uploads = [params];
+  return { mesh, params, uploads, pool, get live() { return live; }, set live(n: number) { live = n; }, capacity, geometry, material };
 }
 
 export function createFx(scene: THREE.Scene) {
@@ -600,15 +603,7 @@ export function createFx(scene: THREE.Scene) {
       for (const target of layers) { step(target, dt); write(target); }
       overlay(state, plumes);
       // Upload only the live particles (three.js re-sends a whole pool without an update range) and skip empty layers.
-      for (const target of layers) {
-        const count = target.mesh.count;
-        target.mesh.visible = count > 0;
-        for (const attribute of [target.mesh.instanceMatrix, target.mesh.instanceColor, target.params]) {
-          if (!attribute) continue;
-          attribute.clearUpdateRanges();
-          if (count > 0) { attribute.addUpdateRange(0, count * attribute.itemSize); attribute.needsUpdate = true; }
-        }
-      }
+      for (const target of layers) liveInstances(target.mesh, target.mesh.count, target.uploads);
     },
     /**
      * A strike site was destroyed (src/render/site-view.ts, in this frame before `update`): its sequence is emitted in the next

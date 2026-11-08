@@ -220,6 +220,15 @@ const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
 export const HERO_SCALE = 1.1;
 /** A battery's shot column: chevron spacing and how fast they flow down it, relative to the battery (units, units/s). */
 const CHEVRON_GAP = 2, CHEVRON_FLOW = 2.2;
+/** Constant tables the frame reads (docs/38 PF3: not rebuilt per enemy per frame). */
+const SIDES = [-1, 1] as const, DASH_STREAKS = [-.12, .16] as const, LINE_ATTRIBUTES = ['position', 'color'] as const;
+/** A battery's seat is checked at these corners for a plinth (x, s offsets). */
+const PLINTH_CORNERS = [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]] as const;
+/** A windup's aim rays: a turret's three-round fan, one ray otherwise. */
+const TURRET_FAN = [-.14, 0, .14] as const, SINGLE_RAY = [0] as const;
+const NO_ENGINES: readonly (readonly [number, number])[] = [];
+/** Engine plume flicker from simulation time (render only). */
+const flicker = (time: number, n: number) => .92 + .08 * Math.sin(time * 37 + n * 1.7);
 /** Mission-start entrance: duration (s) and how far along the view ray toward the camera the hero starts. */
 const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
 /**
@@ -1122,6 +1131,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const cradle = createVeilView(scene, CRADLE_STYLE);
   const eclipse = createVeilView(scene, ECLIPSE_STYLE), heliophage = createVeilView(scene, HELIOPHAGE_STYLE);
   /**
+   * The hovering bosses (veil-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
+   * mire's level), the others their plateau raised by their hover.
+   */
+  const HOVERING_BOSSES = [
+    { view: veil, id: 'veil', ground: undefined, style: VEIL_STYLE },
+    { view: cradle, id: 'cradle', ground: AMNION_PLATEAU + CRADLE_STYLE.hover, style: CRADLE_STYLE },
+    { view: eclipse, id: 'eclipse', ground: UMBRA_PLATEAU + ECLIPSE_STYLE.hover, style: ECLIPSE_STYLE },
+    { view: heliophage, id: 'heliophage', ground: UMBRA_PLATEAU + HELIOPHAGE_STYLE.hover, style: HELIOPHAGE_STYLE },
+  ] as const;
+  /**
    * A boss's production model, loaded once (docs/38 R3): applied unless the renderer is gone, then the next frame warms
    * again; on failure the code-built stand-in (the Ark: its functional carrier) keeps rendering.
    */
@@ -1390,7 +1409,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   effects.setColorAt(0, color.setHex(0xffffff));
   effects.instanceMatrix.setUsage(THREE.DynamicDrawUsage); effects.frustumCulled = false; effects.renderOrder = 6; effects.count = 0; scene.add(effects);
   const fx = createFx(scene);
-  const plumes: Plume[] = [];
+  /** This frame's plumes: pooled objects (docs/38 PF3), filled by `plume` and read by fx.update in the same frame. */
+  const plumes: Plume[] = [], plumePool: Plume[] = [];
+  let plumeCount = 0;
+  const plume = (x: number, z: number, length: number, width: number, hex: number, energy: number, round = false) => {
+    const p = plumePool[plumeCount] ??= { x: 0, z: 0, length: 0, width: 0, hex: 0, energy: 0, round: false };
+    p.x = x; p.z = z; p.length = length; p.width = width; p.hex = hex; p.energy = energy; p.round = round;
+    plumes[plumeCount++] = p;
+  };
   /**
    * The hero's recent x and bank (render only, simulation time) for its contrail, which stays fixed to the ground and so
    * curves as the ship steers. A fixed ring: nothing is allocated per frame.
@@ -1418,6 +1444,101 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const renderShadows = renderer.shadowMap.render.bind(renderer.shadowMap);
   renderer.shadowMap.render = (lights, shadowScene, view) => {
     const before = renderer.info.render.calls; renderShadows(lights, shadowScene, view); passes.shadow += renderer.info.render.calls - before;
+  };
+  /*
+   * The frame's lane, telegraph and marker writers (defined once: docs/38 PF3, not recreated every frame). `strip` adds a
+   * lane quad to a layer; `line` a marker segment to the line buffer (`lineCursor`, reset each frame).
+   */
+  const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
+    const index = laneCounts.get(layer) ?? 0;
+    if (index >= layer.instanceMatrix.count) return;
+    laneArea += width * Math.hypot(x2 - x1, s2 - s1);
+    transform.position.set((x1 + x2) / 2, VIEW.flightHeight + .035, -(s1 + s2) / 2);
+    transform.rotation.set(0, Math.atan2(x2 - x1, -(s2 - s1)), 0); transform.scale.set(width, 1, Math.hypot(x2 - x1, s2 - s1)); transform.updateMatrix();
+    layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
+    laneCounts.set(layer, index + 1);
+  };
+  /*
+   * Enemy beams (user, 23 October: the dashed lanes "look dated under the new graphics"; "make it a faint red preview
+   * which then turns white with a red glow ... maybe make the laser glow in the color of the glow on their specific
+   * planet"). The preview: a faint red veil from the source down with a thin red centre, flaring brighter through its
+   * last 0.2 s (`flare` 0 … 1), the cue that it fires. The live beam: a white-hot core in a halo of the planet's glow,
+   * shimmering, with a flare at the emitter.
+   */
+  const beamPreview = (x: number, top: number, width: number, flare: number) => {
+    const breathe = 1;
+    plume(x, -top, .01, .3 + flare * Math.max(.5, width), 0xff563c, .6 + flare * 3, true);
+    strip(x, top, x, VIEW.minS, width, 0xff2a1e, laneFills, (.55 + flare * .6) * breathe);
+    strip(x, top, x, VIEW.minS, Math.min(.08, width * .25), 0xff4a36, flashLanes, (.5 + flare * 1.6) * breathe);
+    if (flare > 0) strip(x, top, x, VIEW.minS, width * .9, 0xff3424, flashLanes, flare * .7);
+  };
+  const beamLive = (x: number, top: number, width: number) => {
+    const glow = PLANET_GLOW[planet];
+    beamLight.add(x, top, width, glow);
+    plume(x, -top, .01, Math.max(.7, width * 1.15), glow, 3.2, true);
+    plume(x, -top, .01, Math.max(.25, width * .35), 0xffffff, 3.5, true);
+  };
+  /*
+   * Shot telegraphs (user, 23 October: "I really dont like the dashed lines anymore"; "why some of the ground targets
+   * draw a warning like a laser even tho they shoot balls"), in the shot colour so they never read as a beam or as
+   * the player's fire. Timing is the simulation's, unchanged. An aim ray: a solid thin line bright at the muzzle,
+   * fading smoothly toward its target (the ray layers' vertex alpha), brightening as the shot charges (`charge` 0 … 1),
+   * and a swelling muzzle glow. A shot column (a straight-firing battery): chevrons sliding down it.
+   */
+  let shotHex = 0;
+  const muzzle = (x: number, s: number, charge: number) => plume(x, -s + .3, .01, .45 + charge * .5, shotHex, 1.2 + charge * 2.4, true);
+  const aimRay = (x0: number, s0: number, x1: number, s1: number, charge: number) => {
+    strip(x0, s0, x1, s1, .3, shotHex, rayFills, .9);
+    strip(x0, s0, x1, s1, .1, shotHex, rayCores, .8 + charge * 1.6);
+  };
+  /*
+   * A battery's shot column (user, 27 October: the arrows looked frozen, and the column and its muzzle stayed put on
+   * screen while the ground scrolled under them): it hangs from the battery as it scrolls, through the point on the
+   * player's row its shot will cross (the forecast muzzle's column), and chevrons at a fixed spacing flow down it.
+   * Chevrons only, no veil: a veiled column read as a beam lane.
+   */
+  const shotColumn = (x0: number, s0: number, aimX: number, charge: number, time: number) => {
+    const dx = aimX - x0, ds = -Math.max(.5, s0), length = Math.hypot(dx, ds), ux = dx / length, us = ds / length;
+    const span = (s0 - VIEW.minS) / -us, flow = (time * CHEVRON_FLOW) % CHEVRON_GAP;
+    for (let d = .5 + flow; d < span; d += CHEVRON_GAP) {
+      const x = x0 + ux * d, s = s0 + us * d, energy = (.65 + charge * .65) * (1 - d / span * .45) * THREE.MathUtils.smoothstep(d, .5, .5 + CHEVRON_GAP);
+      for (const side of SIDES) strip(x - (ux + side * us) * .3, s - (us - side * ux) * .3, x, s, .12, shotHex, flashLanes, energy);
+    }
+  };
+  const chargeOf = (enemy: Enemy) => 1 - Math.min(1, enemy.warning / Math.max(.1, ENEMIES[enemy.kind].warning));
+  let lineCursor = 0;
+  const line = (x1: number, s1: number, x2: number, s2: number, hex: number) => {
+    if (lineCursor + 2 > lineVertices.length / 3) return;
+    color.setHex(hex);
+    const i = lineCursor * 3, y = VIEW.flightHeight + .03;
+    lineVertices[i] = x1; lineVertices[i + 1] = y; lineVertices[i + 2] = -s1; lineVertices[i + 3] = x2; lineVertices[i + 4] = y; lineVertices[i + 5] = -s2;
+    lineColors[i] = lineColors[i + 3] = color.r; lineColors[i + 1] = lineColors[i + 4] = color.g; lineColors[i + 2] = lineColors[i + 5] = color.b; lineCursor += 2;
+  };
+  /** The enemy with this id, or undefined (a loop: no closure per lookup, docs/38 PF3). */
+  const enemyWithId = (state: RunState, id: number): Enemy | undefined => {
+    for (const enemy of state.enemies) if (enemy.id === id) return enemy;
+    return undefined;
+  };
+  /** What fires a beam lane: a Needle at its aim, a locked beam ship, or the boss column over it (the first in the run's order). */
+  const beamSource = (state: RunState, hazard: RunState['hazards'][number]): Enemy | undefined => {
+    for (const enemy of state.enemies) if ((enemy.hp > 0 || enemy.bossPart) && (enemy.bossPart ? Math.abs(enemy.x - hazard.x) < hazard.width / 2 + .3
+      : enemy.kind === 'needle' ? Math.abs(enemy.aimX - hazard.x) < 1e-6 : !!enemy.lock && Math.abs(enemy.x - hazard.x) < .05)) return enemy;
+    return undefined;
+  };
+  /** A frame's per-enemy seat (scratch: read at once, never kept). */
+  const enemySeat: { x?: number; s: number; baseHeight: number } = { x: undefined, s: 0, baseHeight: 0 };
+  const seatAt = (x: number | undefined, s: number, baseHeight: number) => { enemySeat.x = x; enemySeat.s = s; enemySeat.baseHeight = baseHeight; return enemySeat; };
+  /** Ground batteries that released a round since the last frame (scratch, refilled each frame). */
+  const releasedBatteries: { muzzle: { x: number; s: number }; x: number; s: number }[] = [];
+  /** A craft batch set's instance counts for the frame (and its Low silhouettes and ghosts). */
+  const settleBatches = (set: ReadonlyMap<unknown, { mesh: THREE.InstancedMesh; ghost?: THREE.InstancedMesh }> | null) => {
+    if (set) for (const batch of set.values()) {
+      const count = counts.get(batch.mesh) ?? 0;
+      liveInstances(batch.mesh, count);
+      const flat = silhouettes.get(batch.mesh);
+      if (flat) { flat.geometry = batch.mesh.geometry; liveInstances(flat, quality === 'high' ? 0 : count); }
+      if (batch.ghost) { batch.ghost.count = count; batch.ghost.visible = count > 0; }
+    }
   };
   /** The hero's place, size and roll this frame; returns how far its mission-start entrance has played (0 to 1). */
   function poseHero(state: RunState): number {
@@ -1538,9 +1659,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. THE CRADLE's island rises
         // out of the flesh canyon its arena digs (src/world/terrain-amnion.ts, `emergence`) and hovers over the plateau:
         // its seat is raised by the hover, so its target plane still projects onto the logical rows.
-        for (const [view, mine, ground, style] of [[veil, isVeil, world.planet.seaLevel ?? 0, VEIL_STYLE], [cradle, isCradle, AMNION_PLATEAU + CRADLE_STYLE.hover, CRADLE_STYLE],
-          [eclipse, isEclipse, UMBRA_PLATEAU + ECLIPSE_STYLE.hover, ECLIPSE_STYLE], [heliophage, isHeliophage, UMBRA_PLATEAU + HELIOPHAGE_STYLE.hover, HELIOPHAGE_STYLE]] as const) {
-          const height = style.content.targetHeight;
+        for (const { view, id, ground: plateau, style } of HOVERING_BOSSES) {
+          const mine = boss?.id === id, ground = plateau ?? world.planet.seaLevel ?? 0, height = style.content.targetHeight;
           let seat: { x?: number; s: number; baseHeight: number } | null = mine && boss ? veilPlacement(boss.s, ground, height) : null;
           if (mine && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, height, ground, world);
           view.update(state, seat);
@@ -1651,13 +1771,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const uniforms = (heroShell.material as THREE.ShaderMaterial).uniforms; uniforms.color.value.setHex(heroGlow); uniforms.energy.value = energy; uniforms.time.value = state.time;
       }
       // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
-      plumes.length = 0;
-      const flicker = (n: number) => .92 + .08 * Math.sin(state.time * 37 + n * 1.7);
+      plumeCount = 0;
       // Longer, brighter jets (user, 8 November: "just bigger jet"), with the contrail behind them.
-      const heroLength = (.95 + Math.abs(state.player.vx) * .04) * flicker(0) * HERO_SCALE;
+      const heroLength = (.95 + Math.abs(state.player.vx) * .04) * flicker(state.time, 0) * HERO_SCALE;
       // Plumes at the ship's own engine sockets, in its glow (thinner where there are more of them).
-      if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) plumes.push({ x: state.player.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), z: ez * HERO_SCALE, length: heroLength,
-        width: .34 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), hex: heroGlow, energy: 3.2 });
+      if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) plume(state.player.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), ez * HERO_SCALE, heroLength,
+        .34 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), heroGlow, 3.2);
       let shadowCount = 0, plinthCount = 0;
       const groundAt = (gx: number, gs: number) => surfaceHeight(state.config.seed, gx, state.distance + gs, world);
       const seaLevel = world.planet.seaLevel, onSea = (y: number) => seaLevel !== null && y <= seaLevel + .01;
@@ -1686,74 +1805,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       let pontoonCount = 0; laneCounts.clear(); pontoonRings.length = 0;
       pontoons.material = planet === 'corona' ? basaltRaft : materials.craft;
       laneArea = 0;
-      const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
-        const index = laneCounts.get(layer) ?? 0;
-        if (index >= layer.instanceMatrix.count) return;
-        laneArea += width * Math.hypot(x2 - x1, s2 - s1);
-        transform.position.set((x1 + x2) / 2, VIEW.flightHeight + .035, -(s1 + s2) / 2);
-        transform.rotation.set(0, Math.atan2(x2 - x1, -(s2 - s1)), 0); transform.scale.set(width, 1, Math.hypot(x2 - x1, s2 - s1)); transform.updateMatrix();
-        layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
-        laneCounts.set(layer, index + 1);
-      };
-      /*
-       * Enemy beams (user, 23 October: the dashed lanes "look dated under the new graphics"; "make it a faint red preview
-       * which then turns white with a red glow ... maybe make the laser glow in the color of the glow on their specific
-       * planet"). The preview: a faint red veil from the source down with a thin red centre, flaring brighter through its
-       * last 0.2 s (`flare` 0 … 1), the cue that it fires. The live beam: a white-hot core in a halo of the planet's glow,
-       * shimmering, with a flare at the emitter.
-       */
-      const beamPreview = (x: number, top: number, width: number, flare: number) => {
-        const breathe = 1;
-        plumes.push({ x, z: -top, length: .01, width: .3 + flare * Math.max(.5, width), hex: 0xff563c, energy: .6 + flare * 3, round: true });
-        strip(x, top, x, VIEW.minS, width, 0xff2a1e, laneFills, (.55 + flare * .6) * breathe);
-        strip(x, top, x, VIEW.minS, Math.min(.08, width * .25), 0xff4a36, flashLanes, (.5 + flare * 1.6) * breathe);
-        if (flare > 0) strip(x, top, x, VIEW.minS, width * .9, 0xff3424, flashLanes, flare * .7);
-      };
-      const beamLive = (x: number, top: number, width: number, _source?: Enemy) => {
-        const glow = PLANET_GLOW[planet];
-        beamLight.add(x, top, width, glow);
-        plumes.push({ x, z: -top, length: .01, width: Math.max(.7, width * 1.15), hex: glow, energy: 3.2, round: true });
-        plumes.push({ x, z: -top, length: .01, width: Math.max(.25, width * .35), hex: 0xffffff, energy: 3.5, round: true });
-      };
-      /*
-       * Shot telegraphs (user, 23 October: "I really dont like the dashed lines anymore"; "why some of the ground targets
-       * draw a warning like a laser even tho they shoot balls"), in the shot colour so they never read as a beam or as
-       * the player's fire. Timing is the simulation's, unchanged. An aim ray: a solid thin line bright at the muzzle,
-       * fading smoothly toward its target (the ray layers' vertex alpha), brightening as the shot charges (`charge` 0 … 1),
-       * and a swelling muzzle glow. A shot column (a straight-firing battery): chevrons sliding down it.
-       */
-      const shotHex = hostileHues(planet)[0];
-      const muzzle = (x: number, s: number, charge: number) =>
-        plumes.push({ x, z: -s + .3, length: .01, width: .45 + charge * .5, hex: shotHex, energy: 1.2 + charge * 2.4, round: true });
-      const aimRay = (x0: number, s0: number, x1: number, s1: number, charge: number) => {
-        strip(x0, s0, x1, s1, .3, shotHex, rayFills, .9);
-        strip(x0, s0, x1, s1, .1, shotHex, rayCores, .8 + charge * 1.6);
-      };
-      /*
-       * A battery's shot column (user, 27 October: the arrows looked frozen, and the column and its muzzle stayed put on
-       * screen while the ground scrolled under them): it hangs from the battery as it scrolls, through the point on the
-       * player's row its shot will cross (the forecast muzzle's column), and chevrons at a fixed spacing flow down it.
-       * Chevrons only, no veil: a veiled column read as a beam lane.
-       */
-      const shotColumn = (x0: number, s0: number, aimX: number, charge: number) => {
-        const dx = aimX - x0, ds = -Math.max(.5, s0), length = Math.hypot(dx, ds), ux = dx / length, us = ds / length;
-        const span = (s0 - VIEW.minS) / -us, flow = (state.time * CHEVRON_FLOW) % CHEVRON_GAP;
-        for (let d = .5 + flow; d < span; d += CHEVRON_GAP) {
-          const x = x0 + ux * d, s = s0 + us * d, energy = (.65 + charge * .65) * (1 - d / span * .45) * THREE.MathUtils.smoothstep(d, .5, .5 + CHEVRON_GAP);
-          for (const side of [-1, 1]) strip(x - (ux + side * us) * .3, s - (us - side * ux) * .3, x, s, .12, shotHex, flashLanes, energy);
-        }
-      };
-      const chargeOf = (enemy: Enemy) => 1 - Math.min(1, enemy.warning / Math.max(.1, ENEMIES[enemy.kind].warning));
+      // This frame's shot colour for the telegraphs (`muzzle`, `aimRay`, `shotColumn`).
+      shotHex = hostileHues(planet)[0];
       // Vesper flies its own faction's craft once loaded (Khepri models meanwhile).
       const activeBatches = planet === 'vesper' && vesperBatches ? vesperBatches : enemyBatches;
-      let lineCursor = 0;
-      const line = (x1: number, s1: number, x2: number, s2: number, hex: number) => {
-        if (lineCursor + 2 > lineVertices.length / 3) return;
-        color.setHex(hex);
-        const i = lineCursor * 3, y = VIEW.flightHeight + .03;
-        lineVertices[i] = x1; lineVertices[i + 1] = y; lineVertices[i + 2] = -s1; lineVertices[i + 3] = x2; lineVertices[i + 4] = y; lineVertices[i + 5] = -s2;
-        lineColors[i] = lineColors[i + 3] = color.r; lineColors[i + 1] = lineColors[i + 4] = color.g; lineColors[i + 2] = lineColors[i + 5] = color.b; lineCursor += 2;
-      };
+      lineCursor = 0;
       // Strike sites first: a site core's own model is left out below (the site draws its core).
       sites.update(state, planet, view, (x, s) => surfaceHeight(state.config.seed, x, s, world));
       terrainMaterials.setSitePads(sites.pads, sites.keeps, state.distance);
@@ -1771,8 +1827,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const afloat = anchor ? anchor.afloat : isGround && world.planet.seaLevel !== null && surfaceHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) <= sea + 1e-6
           && terrainHeight(state.config.seed, enemy.x, state.distance + enemy.s, world) < sea - .05;
         const coreHeight = enemy.groundHeight + (afloat ? PONTOON_DECK : 0);
-        const placement: { x?: number; s: number; baseHeight: number } = !isGround ? { baseHeight: VIEW.flightHeight, s: enemy.s }
-          : anchor ? { x: anchor.x, s: anchor.s, baseHeight: anchor.base - (anchor.afloat ? PONTOON_DECK : 0) }
+        const placement: { x?: number; s: number; baseHeight: number } = !isGround ? seatAt(undefined, enemy.s, VIEW.flightHeight)
+          : anchor ? seatAt(anchor.x, anchor.s, anchor.base - (anchor.afloat ? PONTOON_DECK : 0))
           : groundPlacement(state.config.seed, state.distance, enemy.x, enemy.s, coreHeight, world);
         // Only a battery that has just spawned deploys: one first drawn later (a frame after a fast-forward, a paused or
         // hidden tab) is long in place, and sinking it then put it under Vesper's water as a pale silhouette (3 November).
@@ -1841,7 +1897,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           let lowest = placement.baseHeight;
           // (At the seated x: under a perspective lens the ray moves a gun sideways off its logical x.)
           const seatX = placement.x ?? enemy.x;
-          for (const [dx, ds] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) lowest = Math.min(lowest, surfaceHeight(state.config.seed, seatX + dx, state.distance + placement.s + ds, world));
+          for (const [dx, ds] of PLINTH_CORNERS) lowest = Math.min(lowest, surfaceHeight(state.config.seed, seatX + dx, state.distance + placement.s + ds, world));
           if (placement.baseHeight - lowest > .08) {
             transform.position.set(seatX, lowest - .12, -placement.s); transform.rotation.set(0, 0, 0);
             transform.scale.set(1, placement.baseHeight + .06 - (lowest - .12), 1); transform.updateMatrix();
@@ -1852,18 +1908,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (!isGround && !enemy.leaving) {
           // Warm engine plumes trail behind hostile craft (their nozzles face away from the player).
           const bank = enemy.kind === 'weaver' ? Math.cos(enemy.age * 1.5) * .12 : 0;
-          if (nacreBatch) for (const [ex, ez] of nacreBatch.engines) plumes.push({ x: enemy.x + ex * craftScale * Math.cos(bank), z: -enemy.s + ez * craftScale,
-            length: -.3 * flicker(enemy.id + ex * 13), width: .12, hex: nacreBatch.plume, energy: 2.2 });
-          else if (vesperCraft) for (const [ex, ez] of vesperCraft.engines) plumes.push({ x: enemy.x + ex * vesperCraft.scale * Math.cos(bank), z: -enemy.s + ez * vesperCraft.scale,
-            length: -.3 * flicker(enemy.id + ex * 13), width: .11, hex: 0xff7a26, energy: 2.2 });
-          else if (khepriEngines) for (const [ex, ez] of khepriEngines.get(enemy.kind) ?? []) plumes.push({ x: enemy.x + ex * Math.cos(bank), z: -enemy.s + ez,
-            length: -.32 * flicker(enemy.id + ex * 13), width: .12, hex: 0xffa060, energy: 1.9 });
-          else for (const side of [-1, 1]) plumes.push({ x: enemy.x + side * .27 * Math.cos(bank), z: -enemy.s - .55, length: -.34 * flicker(enemy.id + side), width: .14, hex: 0xffa060, energy: 1.9 });
+          if (nacreBatch) for (const [ex, ez] of nacreBatch.engines) plume(enemy.x + ex * craftScale * Math.cos(bank), -enemy.s + ez * craftScale,
+            -.3 * flicker(state.time, enemy.id + ex * 13), .12, nacreBatch.plume, 2.2);
+          else if (vesperCraft) for (const [ex, ez] of vesperCraft.engines) plume(enemy.x + ex * vesperCraft.scale * Math.cos(bank), -enemy.s + ez * vesperCraft.scale,
+            -.3 * flicker(state.time, enemy.id + ex * 13), .11, 0xff7a26, 2.2);
+          else if (khepriEngines) for (const [ex, ez] of khepriEngines.get(enemy.kind) ?? NO_ENGINES) plume(enemy.x + ex * Math.cos(bank), -enemy.s + ez,
+            -.32 * flicker(state.time, enemy.id + ex * 13), .12, 0xffa060, 1.9);
+          else for (const side of SIDES) plume(enemy.x + side * .27 * Math.cos(bank), -enemy.s - .55, -.34 * flicker(state.time, enemy.id + side), .14, 0xffa060, 1.9);
         }
         // Ground brackets are drawn on the shared proxy, exactly over the physical luminous core.
         if (isGround || enemy.warning > 0) {
           const r = enemy.radius + .13, length = .16, tint = enemy.warning > 0 ? 0xffc987 : 0xdab482;
-          for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+          for (const sx of SIDES) for (const sy of SIDES) {
             line(enemy.x + sx * r, enemy.s + sy * r, enemy.x + sx * (r - length), enemy.s + sy * r, tint);
             line(enemy.x + sx * r, enemy.s + sy * r, enemy.x + sx * r, enemy.s + sy * (r - length), tint);
           }
@@ -1876,7 +1932,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           beamPreview(enemy.aimX, enemy.s, .4, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'missile') {
           // Missile battery: a straight shot column from the battery down past the player row (non-tracking).
-          shotColumn(enemy.x, enemy.s, enemy.ground?.muzzle?.x ?? enemy.x, chargeOf(enemy)); muzzle(enemy.x, enemy.s, chargeOf(enemy));
+          shotColumn(enemy.x, enemy.s, enemy.ground?.muzzle?.x ?? enemy.x, chargeOf(enemy), state.time); muzzle(enemy.x, enemy.s, chargeOf(enemy));
         } else if (enemy.warning > 0 && enemy.kind === 'diamond') {
           // Diamond: an aim ray from the firing wing, and a bracket on the side it lands (1.2 to that side of the aim).
           const side = (enemy.volleys ?? 0) % 2 === 0 ? -1 : 1, wing = enemy.x + side * .55, charge = chargeOf(enemy);
@@ -1887,7 +1943,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           beamPreview(enemy.aimX, enemy.s, beamSpec('lancer').width, chargeOf(enemy));
         } else if (enemy.warning > 0) {
           // Aimed shots: a ray to where they will cross the player's row; a turret's three-round spread shows its fan.
-          const charge = chargeOf(enemy), angles = enemy.kind === 'turret' ? [-.14, 0, .14] : [0];
+          const charge = chargeOf(enemy), angles = enemy.kind === 'turret' ? TURRET_FAN : SINGLE_RAY;
           const aim = Math.atan2(enemy.aimX - enemy.x, enemy.s);
           for (const turn of angles) aimRay(enemy.x, enemy.s, enemy.x + Math.tan(aim + turn) * enemy.s, 0, charge * (turn ? .7 : 1));
           muzzle(enemy.x, enemy.s, charge);
@@ -1973,24 +2029,23 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
       emplacementBatches.forEach(mesh => liveInstances(mesh, mesh.count));
-      for (const set of [enemyBatches, vesperBatches, nacreBatches, umbraBatches, coronaBatches, predatorBatches] as const) if (set) for (const batch of set.values()) {
-        const count = counts.get(batch.mesh) ?? 0;
-        liveInstances(batch.mesh, count);
-        const flat = silhouettes.get(batch.mesh);
-        if (flat) { flat.geometry = batch.mesh.geometry; liveInstances(flat, quality === 'high' ? 0 : count); }
-        if (batch.ghost) { batch.ghost.count = count; batch.ghost.visible = count > 0; }
-      }
+      settleBatches(enemyBatches); settleBatches(vesperBatches); settleBatches(nacreBatches); settleBatches(umbraBatches); settleBatches(coronaBatches); settleBatches(predatorBatches);
       liveInstances(flightShadows, shadowCount); liveInstances(plinths, plinthCount); liveInstances(pontoons, pontoonCount);
       // A round a ground battery released since the last frame is drawn leaving from the battery as drawn.
       if (state.tick < launchTick) { batteryWindups.clear(); launches.clear(); seenShots.clear(); }
       launchTick = state.tick;
-      const releasedBatteries: { muzzle: { x: number; s: number }; x: number; s: number }[] = [];
+      releasedBatteries.length = 0;
       for (const [id, windup] of batteryWindups) {
-        const battery = state.enemies.find(enemy => enemy.id === id);
+        const battery = enemyWithId(state, id);
         if (battery?.ground?.muzzle) continue;
         releasedBatteries.push(battery ? { ...windup, x: battery.x, s: battery.s } : windup); batteryWindups.delete(id);
       }
-      for (const enemy of state.enemies) if (enemy.ground?.muzzle) batteryWindups.set(enemy.id, { muzzle: { ...enemy.ground.muzzle }, x: enemy.x, s: enemy.s });
+      // A battery still winding up keeps its record, rewritten in place (a released one was taken out above).
+      for (const enemy of state.enemies) if (enemy.ground?.muzzle) {
+        const forecast = enemy.ground.muzzle, windup = batteryWindups.get(enemy.id);
+        if (windup) { windup.muzzle.x = forecast.x; windup.muzzle.s = forecast.s; windup.x = enemy.x; windup.s = enemy.s; }
+        else batteryWindups.set(enemy.id, { muzzle: { x: forecast.x, s: forecast.s }, x: enemy.x, s: enemy.s });
+      }
       liveShots.clear(); for (const shot of state.projectiles) liveShots.add(shot.id);
       for (const id of seenShots) if (!liveShots.has(id)) { seenShots.delete(id); launches.delete(id); }
       for (const shot of state.projectiles) {
@@ -2021,9 +2076,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const fade = trail.endedAt === undefined ? 1 : 1 - (state.time - trail.endedAt) / .14;
         if (fade <= 0) { railTrails.delete(id); continue; }
         // Tapered: faint near the muzzle, brighter toward the slug, so it reads as a shot, not a standing beam.
-        const head = Math.min(trail.s, VIEW.maxS + 1), u = (k: number) => [trail.x0 + (trail.x - trail.x0) * k, trail.s0 + (head - trail.s0) * k] as const;
+        const head = Math.min(trail.s, VIEW.maxS + 1);
         for (let k = 0; k < 3; k++) {
-          const [xa, sa] = u(k / 3), [xb, sb] = u((k + 1) / 3), glow = (.35 + .4 * k) * fade;
+          const a = k / 3, b = (k + 1) / 3, glow = (.35 + .4 * k) * fade;
+          const xa = trail.x0 + (trail.x - trail.x0) * a, sa = trail.s0 + (head - trail.s0) * a, xb = trail.x0 + (trail.x - trail.x0) * b, sb = trail.s0 + (head - trail.s0) * b;
           strip(xa, sa, xb, sb, .12 + .04 * k, 0x5ff3ff, flashLanes, glow);
           strip(xa, sa, xb, sb, .04, 0xffffff, flashLanes, glow * 1.5);
         }
@@ -2055,7 +2111,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const dash = state.player.dash, dashFade = dash ? 1 - (state.time - dash.startedAt) / DASH_STREAK : 0;
       if (dash && dashFade > 0 && dashFade <= 1) {
         const tail = state.player.x - dash.direction * .45;
-        if ((tail - dash.fromX) * dash.direction > .1) for (const s of [-.12, .16]) strip(dash.fromX, s, tail, s, .05, 0x5ff3ff, flashLanes, dashFade * 1.4);
+        if ((tail - dash.fromX) * dash.direction > .1) for (const s of DASH_STREAKS) strip(dash.fromX, s, tail, s, .05, 0x5ff3ff, flashLanes, dashFade * 1.4);
       }
       for (const sim of state.projectiles) {
         if (sim.delay || sim.pierced || Math.abs(sim.x - state.cameraX) > VIEW.width / 2 + .5 || sim.s < VIEW.minS - 1 || sim.s > VIEW.maxS + 1) continue;
@@ -2077,21 +2133,22 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             strip(sim.x - sim.vx / speed * .45, sim.s - sim.vs / speed * .45, sim.x, sim.s, .065, 0xb58aff, flashLanes, 1);
           }
         }
-        const launch = sim.friendly ? undefined : launches.get(sim.id), shot = launch ? { ...sim, ...drawnShot(sim, launch) } : sim;
-        transform.position.set(shot.x, VIEW.flightHeight + .04, -shot.s);
-        transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0);
-        if (shot.special && missiles) {
+        // A launched round is drawn where its launch puts it (its place and heading; the rest is the projectile's own).
+        const launch = sim.friendly ? undefined : launches.get(sim.id), at = launch ? drawnShot(sim, launch) : sim;
+        transform.position.set(at.x, VIEW.flightHeight + .04, -at.s);
+        transform.rotation.set(0, Math.atan2(at.vx, -at.vs), 0);
+        if (sim.special && missiles) {
           // Model nose toward +Z: yaw it along the flight (world z = −s); scaled up a touch so it reads as a missile.
-          transform.rotation.set(0, Math.atan2(shot.vx, -shot.vs), 0); transform.scale.setScalar(1.25); transform.updateMatrix();
+          transform.rotation.set(0, Math.atan2(at.vx, -at.vs), 0); transform.scale.setScalar(1.25); transform.updateMatrix();
           if (missileCount < missiles.instanceMatrix.count) missiles.setMatrixAt(missileCount++, transform.matrix);
-        } else if (shot.friendly) {
+        } else if (sim.friendly) {
           if (brightGround && friendlyCount < friendly.instanceMatrix.count) {
             transform.scale.set(.1 * heat.grow, .05, .36 * heat.grow); transform.updateMatrix(); friendlyOutline.setMatrixAt(friendlyCount, transform.matrix);
           }
           transform.scale.set(.045 * heat.grow, .045, .27 * heat.grow); transform.updateMatrix();
           if (friendlyCount < friendly.instanceMatrix.count) friendly.setMatrixAt(friendlyCount++, transform.matrix);
         } else {
-          transform.scale.set(shot.radius * 1.25, .08, shot.radius * 1.65); transform.updateMatrix();
+          transform.scale.set(sim.radius * 1.25, .08, sim.radius * 1.65); transform.updateMatrix();
           if (hostileCount < hostile.instanceMatrix.count) {
             hostile.setMatrixAt(hostileCount, transform.matrix);
             transform.scale.multiplyScalar(.49); transform.updateMatrix(); hostileCores.setMatrixAt(hostileCount++, transform.matrix);
@@ -2140,11 +2197,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // A beam runs from whatever fires it (a Needle at its aim, a locked beam ship, the boss column over it; else the
         // boss's row) down past the bottom of the view, never up past its source (user, 23 October: lasers "extend way
         // beyond the enemies past them to the top of the screen").
-        const source = state.enemies.find(enemy => (enemy.hp > 0 || enemy.bossPart) && (enemy.bossPart ? Math.abs(enemy.x - hazard.x) < hazard.width / 2 + .3
-          : enemy.kind === 'needle' ? Math.abs(enemy.aimX - hazard.x) < 1e-6 : !!enemy.lock && Math.abs(enemy.x - hazard.x) < .05));
+        const source = beamSource(state, hazard);
         const top = Math.min(VIEW.maxS, source ? source.s : state.boss ? state.boss.s : VIEW.maxS);
         if (hazard.warning > 0) beamPreview(hazard.x, top, hazard.width, 1 - Math.min(1, hazard.warning / 1.4));
-        else if (hazard.active > 0) beamLive(hazard.x, top, hazard.width, source);
+        else if (hazard.active > 0) beamLive(hazard.x, top, hazard.width);
       }
       beamLight.end(); phaseHoles.end();
       for (const mesh of lanes) liveInstances(mesh, laneCounts.get(mesh) ?? 0);
@@ -2208,6 +2264,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const y = (above + below) / 2, { at } = seat(y);
         return { x: at.x, y, z: -at.s };
       };
+      plumes.length = plumeCount;
       fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && seaHeight !== null ? {
         splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < seaHeight - .05 ? seaHeight : null,
         vents: collectVents(state.cameraX), ground,
@@ -2216,11 +2273,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       water.update(state.time, state.distance); mireWater.update(state.time, state.distance);
       const arkFoam = ark.foam;
       // Floes carry their own coastline foam (terrain-view.ts); the oval rings are for round pontoons and the Ark.
-      foam.update(state.time, [...pontoonRings, ...arkFoam.rings], arkFoam.wakes);
+      // The Ark's rings join the pontoons' in this frame's scratch list (foam.update reads it at once).
+      for (const ring of arkFoam.rings) pontoonRings.push(ring);
+      foam.update(state.time, pontoonRings, arkFoam.wakes);
       jumpActive = jumpFx.update(state, reducedMotion(), planetReady(state.jump?.to ?? state.planet ?? planet), quality === 'high');
       post.settings.cover.value = jumpFx.cover;
       lineGeometry.setDrawRange(0, lineCursor); lines.visible = lineCursor > 0;
-      for (const name of ['position', 'color']) {
+      for (const name of LINE_ATTRIBUTES) {
         const attribute = lineGeometry.getAttribute(name) as THREE.BufferAttribute;
         attribute.clearUpdateRanges();
         if (lineCursor > 0) { attribute.addUpdateRange(0, lineCursor * 3); attribute.needsUpdate = true; }

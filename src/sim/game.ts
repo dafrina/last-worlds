@@ -26,6 +26,7 @@ import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
 import { observe, observeKill } from './events';
+import { retain } from '../shared/retain';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -91,18 +92,16 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updateContact(state, previousPlayerX);
   updatePickups(state, dt);
   updateResources(state, dt);
-  state.enemies = state.enemies.filter(enemy => enemy.bossPart
+  // The tick's survivors stay in their arrays (retain: filter in place, docs/38 PF4).
+  retain(state.enemies, enemy => enemy.bossPart
     // A beam ship whose lane is still live stays until the beam ends, so the lane never outlives its source.
     || (enemy.hp > 0 && enemy.s > VIEW.minS - 2 && !(pathComplete(enemy) && !isVisible(state, enemy.x, enemy.s, -1) && !(enemy.lock && enemy.lock.hold > 0))
       // A craft leaving for a boss is gone once it is wholly out of frame. The drawn view reaches past the logical one at
       // the top and sides (perspective), hence the wide margin.
       && !(enemy.leaving && !GROUND_KINDS.has(enemy.kind) && !isVisible(state, enemy.x, enemy.s, -enemy.radius - LEAVE_MARGIN))));
   // Shooting a beam ship down ends its lane.
-  if (state.hazards.some(hazard => hazard.source !== undefined)) {
-    const alive = new Set(state.enemies.map(enemy => enemy.id));
-    state.hazards = state.hazards.filter(hazard => hazard.source === undefined || alive.has(hazard.source));
-  }
-  state.effects = state.effects.filter(effect => (effect.ttl -= dt) > 0);
+  if (state.hazards.some(hazard => hazard.source !== undefined)) retain(state.hazards, hazard => hazard.source === undefined || hasEnemy(state, hazard.source));
+  retain(state.effects, effect => (effect.ttl -= dt) > 0);
   // Boss missions end with extraction after the kill; the training sortie ends on time.
   if (state.phase === 'playing' && state.config.mode === 'campaign' && !missionBoss(state.config.mission) && state.time + 1e-8 >= BALANCE.campaignDuration) {
     state.phase = 'complete';
@@ -110,6 +109,12 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
     state.projectiles = [];
     state.hazards = [];
   }
+}
+
+/** Whether an enemy with this id is in the run (beam lanes end with their source). */
+function hasEnemy(state: RunState, id: number): boolean {
+  for (const enemy of state.enemies) if (enemy.id === id) return true;
+  return false;
 }
 
 /**
@@ -581,7 +586,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
       hitPlayer(state, shot.damage);
     } else catchNearMiss(state, shot, previousPlayerX);
   }
-  state.projectiles = state.projectiles.filter(shot => shot.ttl > 0 && Math.abs(shot.x) < VIEW.worldWidth / 2 + 10 && shot.s > VIEW.minS - 5 && shot.s < 35);
+  retain(state.projectiles, shot => shot.ttl > 0 && Math.abs(shot.x) < VIEW.worldWidth / 2 + 10 && shot.s > VIEW.minS - 5 && shot.s < 35);
 }
 
 /**
@@ -618,7 +623,7 @@ function updateHazards(state: RunState, previousPlayerX: number, dt: number): vo
     }
     hazard.ttl -= dt;
   }
-  state.hazards = state.hazards.filter(hazard => hazard.ttl > 0 && (hazard.warning > 0 || hazard.active > 0));
+  retain(state.hazards, hazard => hazard.ttl > 0 && (hazard.warning > 0 || hazard.active > 0));
 }
 
 function updateContact(state: RunState, previousPlayerX: number): void {
@@ -778,10 +783,15 @@ function steerMissile(state: RunState, shot: Projectile, dt: number): void {
   if ((shot.spreadRemaining ?? 0) > 0) { shot.spreadRemaining = Math.max(0, shot.spreadRemaining! - dt); return; }
   let target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false && isVisible(state, enemy.x, enemy.s, enemy.radius));
   if (!target) {
-    target = seekerTargets(state).filter(enemy => enemy.s > shot.s - 1).sort((a, b) => {
-      const assigned = (id: number) => state.projectiles.filter(other => other !== shot && other.special && other.ttl > 0 && other.homingTargetId === id).length;
-      return assigned(a.id) - assigned(b.id) || Math.hypot(a.x - shot.x, a.s - shot.s) - Math.hypot(b.x - shot.x, b.s - shot.s) || a.id - b.id;
-    })[0];
+    // How many of the other live missiles each target already has, counted once for this choice (not per comparison).
+    const assigned = new Map<number, number>();
+    for (const other of state.projectiles) {
+      if (other === shot || !other.special || !(other.ttl > 0) || other.homingTargetId === undefined) continue;
+      assigned.set(other.homingTargetId, (assigned.get(other.homingTargetId) ?? 0) + 1);
+    }
+    const missilesOn = (id: number) => assigned.get(id) ?? 0;
+    target = seekerTargets(state).filter(enemy => enemy.s > shot.s - 1).sort((a, b) =>
+      missilesOn(a.id) - missilesOn(b.id) || Math.hypot(a.x - shot.x, a.s - shot.s) - Math.hypot(b.x - shot.x, b.s - shot.s) || a.id - b.id)[0];
     shot.homingTargetId = target?.id;
   }
   const current = Math.atan2(shot.vx, shot.vs), desired = target ? Math.atan2(target.x - shot.x, target.s - shot.s) : 0;
@@ -901,7 +911,7 @@ function updatePickups(state: RunState, dt: number): void {
     }
   }
   // A caught pickup chases the ship: it is never dropped for falling behind (its ttl is frozen; collection sets it 0).
-  state.pickups = state.pickups.filter(pickup => pickup.ttl > 0 && (pickup.caught !== undefined || pickup.s > VIEW.minS - 2));
+  retain(state.pickups, pickup => pickup.ttl > 0 && (pickup.caught !== undefined || pickup.s > VIEW.minS - 2));
 }
 
 /** An endless ace's drop roll (HUNTERS.endlessDrop): a budgeted shield cell, a weapon, a power cell, or its coins only. */

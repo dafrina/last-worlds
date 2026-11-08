@@ -57,11 +57,11 @@ export interface SiteView {
   /** This enemy is a site core whose model the site draws: scene.ts leaves its own craft model out. */
   hidesCore(enemyId: number): boolean;
   /** World rectangles of the tracked sites: terrain clearings, and reserved from battery compounds. */
-  readonly clearings: Rect[];
+  readonly clearings: readonly Rect[];
   /** The ground pads under the sites nearest the view (at most SITE_PADS): the terrain levels to each site's floor there. */
-  readonly pads: SitePad[];
+  readonly pads: readonly SitePad[];
   /** The ground batteries near those pads, whose ground the pads leave as it is (at most SITE_PAD_KEEPS). */
-  readonly keeps: SitePadKeep[];
+  readonly keeps: readonly SitePadKeep[];
   readonly stats: SiteStats;
   dispose(): void;
 }
@@ -179,6 +179,13 @@ export function siteMasses(positions: readonly ArrayLike<number>[], count = 4): 
 /** How far the lens spreads a gameplay offset on the ground at height y (cores share the floor, so one factor). */
 const spreadAt = (y: number) => { const eye = lensEye(0).y; return (eye - y) / (eye - VIEW.flightHeight); };
 const destroyed = (entry: Placed) => entry.cores.every(core => core.destroyed);
+/** A site's record of one of its cores (a loop, not a closure per core per frame). */
+function coreOf(entry: Placed, id: number): Core | undefined {
+  for (const core of entry.cores) if (core.id === id) return core;
+  return undefined;
+}
+/** While no site is tracked (most of a flight), the views below are these, not new empty lists each frame. */
+const NO_CLEARINGS: readonly Rect[] = [], NO_PADS: readonly SitePad[] = [], NO_KEEPS: readonly SitePadKeep[] = [];
 
 /**
  * `onReady` when a world's site finishes have loaded (the warm-up runs again); `onBlast` once for each destroyed site (and
@@ -188,9 +195,13 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
   const templates = new Map<string, Template | 'loading' | 'failed'>(), loads = new Map<string, Promise<void>>();
   const placed = new Map<string, Placed>(), byCore = new Map<number, string>();
   let disposed = false, config: RunState['config'] | null = null, lastTick = -1, current: PlanetId | null = null, prefetched: PlanetId | null = null, lastDistance = 0;
+  /** The world whose finishes `update` last asked for: the loads stay while it is current, so asking again each frame is moot. */
+  let requested: PlanetId | null = null;
   let drawn = 0;
   /** Ground batteries (not site cores) near tracked sites, this frame: the pads keep their ground. */
-  let keeps: SitePadKeep[] = [];
+  let keeps: readonly SitePadKeep[] = [];
+  /** Per-frame scratch (cleared, never reallocated): the cores seen, and each template's hit flash and cooling age. */
+  const seen = new Set<number>(), flash = new Map<Template, number>(), cooling = new Map<Template, number>();
   const transform = new THREE.Object3D(), tint = new THREE.Color();
   const foundations = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, .5, 0),
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .9, metalness: .02 }), FOUNDATION_CAPACITY);
@@ -408,10 +419,11 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
     },
     hidesCore(enemyId) { const entry = placed.get(byCore.get(enemyId) ?? ''); return !!entry?.instance; },
     // The pad's blend band is cleared too: a rock there would stand on ground the pad has moved.
-    get clearings() { return [...placed.values()].map(entry => { const b = bounds(entry); return { minX: b.minX - SITE_PAD_BLEND, maxX: b.maxX + SITE_PAD_BLEND, minS: b.minS - SITE_PAD_BLEND, maxS: b.maxS + SITE_PAD_BLEND }; }); },
+    get clearings() { return !placed.size ? NO_CLEARINGS : [...placed.values()].map(entry => { const b = bounds(entry); return { minX: b.minX - SITE_PAD_BLEND, maxX: b.maxX + SITE_PAD_BLEND, minS: b.minS - SITE_PAD_BLEND, maxS: b.maxS + SITE_PAD_BLEND }; }); },
     get keeps() { return keeps; },
     get pads() {
       // The sites nearest the view's middle row first (a pad levels the ground only while it is in the shader's list).
+      if (!placed.size) return NO_PADS;
       return [...placed.values()].sort((a, b) => Math.abs(a.worldS - lastDistance - 8) - Math.abs(b.worldS - lastDistance - 8)).slice(0, SITE_PADS).map(padOf);
     },
     get stats(): SiteStats {
@@ -426,14 +438,14 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
     update(state, planet, view, ground) {
       if (config !== state.config || state.tick < lastTick) { placed.forEach(release); placed.clear(); byCore.clear(); config = state.config; }
       lastTick = state.tick; current = planet; lastDistance = state.distance;
-      void prepare(planet);
-      const seen = new Set<number>();
+      if (planet !== requested) { requested = planet; void prepare(planet); }
+      seen.clear();
       for (const enemy of state.enemies) {
         if (!enemy.site || enemy.bossPart || !enemy.ground) continue;
         const finish = siteFinish(enemy.site, planet);
         if (!finish) continue;
         seen.add(enemy.id);
-        const anchor = { x: enemy.ground.x, s: state.distance + enemy.ground.s };
+        const anchorX = enemy.ground.x, anchorS = state.distance + enemy.ground.s;
         let entry = placed.get(byCore.get(enemy.id) ?? '');
         if (!entry) {
           // The site's centre: this core's anchor less its seat in the group (the vault's seals sit around it).
@@ -443,13 +455,13 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
           const groupKey = `${enemy.site}:${member?.group ?? enemy.id}`;
           entry = placed.get(groupKey);
           if (!entry) {
-            entry = { key: groupKey, site: enemy.site, finish, x: anchor.x - dx, worldS: anchor.s - ds, base: enemy.ground.base, cores: [], squash: 1, kept: new Map(), foundations: null };
+            entry = { key: groupKey, site: enemy.site, finish, x: anchorX - dx, worldS: anchorS - ds, base: enemy.ground.base, cores: [], squash: 1, kept: new Map(), foundations: null };
             placed.set(groupKey, entry);
           }
-          entry.cores.push({ id: enemy.id, dx: anchor.x - entry.x, ds: anchor.s - entry.worldS, alive: true, destroyed: false, hp: enemy.hp, hitAt: -9, lastX: enemy.x, lastS: enemy.s });
+          entry.cores.push({ id: enemy.id, dx: anchorX - entry.x, ds: anchorS - entry.worldS, alive: true, destroyed: false, hp: enemy.hp, hitAt: -9, lastX: enemy.x, lastS: enemy.s });
           byCore.set(enemy.id, groupKey);
         }
-        const core = entry.cores.find(other => other.id === enemy.id)!;
+        const core = coreOf(entry, enemy.id)!;
         if (enemy.hp < core.hp) core.hitAt = state.time;
         core.hp = enemy.hp; core.lastX = enemy.x; core.lastS = enemy.s;
         if (enemy.hp <= 0 && !core.destroyed) { core.destroyed = true; core.effect = killOf(state, core)?.id; }
@@ -470,10 +482,11 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
           if (!entry.kept.has(enemy.id) && x > b.minX - m && x < b.maxX + m && s > b.minS - m && s < b.maxS + m) entry.kept.set(enemy.id, { x, s, radius: SITE_PAD_KEEP });
         }
       }
-      keeps = [...placed.values()].flatMap(entry => [...entry.kept.values()]).slice(0, SITE_PAD_KEEPS);
+      keeps = placed.size ? [...placed.values()].flatMap(entry => [...entry.kept.values()]).slice(0, SITE_PAD_KEEPS) : NO_KEEPS;
       drawn = 0; foundations.count = 0;
-      const flash = new Map<Template, number>(), cooling = new Map<Template, number>();
-      for (const entry of [...placed.values()]) {
+      flash.clear(); cooling.clear();
+      // (Forgetting an entry deletes only that entry, which a Map's own iteration allows.)
+      for (const entry of placed.values()) {
         const model = SITE_MODELS[entry.site]!, b = bounds(entry), gone = destroyed(entry);
         if (b.maxS - state.distance < VIEW.minS - 4) { forget(entry); continue; }
         const template = ready(entry.site, entry.finish);
@@ -500,10 +513,10 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
         const hot = gone && template.hotOwner === entry && state.time - entry.diedAt! < SITE_HEAT;
         if (made.hot !== hot) wear(made, template, hot);
         if (hot) cooling.set(template, state.time - entry.diedAt!);
-        made.cores.forEach(({ core, ruin }, i) => {
-          const seal = entry.cores[i];
+        for (let i = 0; i < made.cores.length; i++) {
+          const { core, ruin } = made.cores[i], seal = entry.cores[i];
           core.visible = !!seal && !seal.destroyed; ruin.visible = !!seal && seal.destroyed;
-          for (const part of [core, ruin]) part.position.set(seal?.dx ?? 0, 0, -(seal?.ds ?? 0));
+          core.position.set(seal?.dx ?? 0, 0, -(seal?.ds ?? 0)); ruin.position.set(seal?.dx ?? 0, 0, -(seal?.ds ?? 0));
           // Its blast marks (scorch, ash, debris) spread out from the core with the shock ring.
           const spread = seal?.diedAt === undefined ? 1 : Math.min(1, Math.max(0, state.time - seal.diedAt) / RUIN_SPREAD), k = .3 + .7 * (1 - (1 - spread) ** 2);
           ruin.scale.set(k, 1, k);
@@ -511,7 +524,7 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
           if (model.spin) { core.scale.y = 1 / entry.squash; core.position.y = c - c / entry.squash; }
           if (model.spin) core.rotation.y = state.time * model.spin + i * 2.1;
           if (seal && !seal.destroyed) flash.set(template, Math.max(flash.get(template) ?? 0, Math.max(0, 1 - (state.time - seal.hitAt) / FLASH)));
-        });
+        }
         // Foundations under its floor (sampled once), in the world's ground tone.
         if (ground && !entry.foundations) entry.foundations = foundationsOf(entry, ground);
         for (const block of entry.foundations ?? []) {
