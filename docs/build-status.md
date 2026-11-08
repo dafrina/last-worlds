@@ -1,6 +1,28 @@
 # Build status
 
 
+## Round of 8 November evening: lasers that threaten, hero shield and jets, menu touches; code-health review
+
+- **Lasers** (docs/17, "Needle side lanes…"):
+  - Needle side lanes now sit inside a beam's reach of the ship, so every beam crosses a still ship (was 9% on Cold Vector).
+  - Perfect pilot over 96 laser-mission runs: 13 → 23 hits, no campaign life lost.
+  - The Wraith feint path-clock bug this exposed is fixed.
+  - Seven fixed no-hit seeds re-pinned. Two endless stints allow the perfect pilot one life; the union stays strict.
+- **Hero:**
+  - shield sphere 64×32 with a wider rim, an antialiased honeycomb and a sweep;
+  - jets longer and fuller;
+  - a ground-fixed contrail per engine (64-sample ring, no per-frame allocation).
+- **UI:**
+  - the selected difficulty button wears its chip colour;
+  - the pause screen titles MISSIONS and shows each mission's line;
+  - a completion shows top left in green with a check, for 3 s.
+- **docs/38:** code-health review (read-only agent), 40 ranked findings and an order of work.
+- **Gate on `0a6c3d6`:**
+  - typecheck clean; unit 979 passed, 5 skipped; build passes;
+  - browser 55/56 (Playwright exit 1). The failure was the pause/statistics spec, which hit its own 60 s limit at load 23 while two agents ran tests.
+  - **Rerun:** passed in 39.5 s (exit 0).
+- **Live:** Pages run 42518078226 succeeded for `0a6c3d6`, and the live bundles (`main-fVOe-3pH.js`, `scene-CuJ6DqQI.js`) match the build. The smoke test has no page errors. No phone test.
+
 ## Corona deployed (`9d23d9b`), 6 November 2026
 
 - **World:** CORONA (Dying Star), with THE HELIOPHAGE, the Star Extractor and Star Cage sites, smoke banks, plasma arcs, and rock meandering between plasma seas 5 under the plateau. Details are in docs/37.
