@@ -15,7 +15,7 @@ uneven seats. The game camera looks from the front (-y) at 55 degrees, so roofs 
 the detail; backs and undersides stay plain.
 
 Each planet's two plants share one baked atlas (boss_remodel.texture_bake) and one GLB:
-public/assets/<planet>/facility-compounds-v2.glb. Headless: remodel_run.py facilities [--planet=khepri].
+art/archive/assets/<planet>/facility-compounds-v2-remodel.glb (archived; the game builds docs/25 kits). Headless: remodel_run.py facilities [--planet=khepri].
 Blender axes: x right, y away from the player, z up; ground z = 0.
 """
 import math, os, sys
@@ -744,7 +744,7 @@ def build(export=True, preview=True):
             br.bake_ao([o], [o], strength=.8, reach=1.6)
         marker = br.marker('facility_remodel_v2', sc=sc, note='Facility compounds remodelled after the facility sheets')
         if export:
-            path = os.path.join(br.ROOT, 'public', 'assets', planet, 'facility-compounds-%s.glb' % LABEL)
+            path = os.path.join(br.ROOT, 'art', 'archive', 'assets', planet, 'facility-compounds-%s.glb' % LABEL)  # archived 8 November (docs/38 V7)
             results.append(br.export(path, objects + [marker], 'Last Worlds — %s facility compounds after the facility sheets' % planet))
         if preview:
             for o in objects:

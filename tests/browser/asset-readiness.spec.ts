@@ -47,7 +47,7 @@ test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot
 
 test('large facilities are seated outside the gun viewport before a lateral reveal', async ({page}, info) => {
   test.setTimeout(60000);
-  await page.goto('/tests/fixtures/nacre-world.html?planet=nacre&distance=210&x=8&gunX=-3&facility=shrine&fv=3&inspect=1');
+  await page.goto('/tests/fixtures/nacre-world.html?planet=nacre&distance=210&x=8&gunX=-3&facility=shrine&inspect=1');
   await expect.poll(async()=> (await stats(page)).facilities?.count,{timeout:30000}).toBe(1);
   const first = (await stats(page)).facilities;
   await page.evaluate(()=> (window as any).__FACILITY_QA__.pan(-3));

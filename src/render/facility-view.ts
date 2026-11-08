@@ -8,18 +8,14 @@ import { paintMaterial } from './world-paint';
 import type { ViewFootprint } from './view-footprint';
 
 /**
- * Which compounds the game builds around ground batteries:
- * - 2: the textured v2 plants, one GLB per world holding two whole compounds (art/facility-remodel);
- * - 3: the modular kits of docs/25, composed per battery by `facility-layouts.ts` (all four kits shipped 20 October).
- * Set it back to 2 to roll back; both paths stay working.
+ * The compounds around ground batteries are the modular kits of docs/25, composed per battery by `facility-layouts.ts`
+ * (all four kits shipped 20 October). The v2 whole-compound plants were removed on 8 November (docs/38 V7); their GLBs
+ * are archived in art/archive/assets.
+ *
+ * Dev/test override, set before the renderer is created: `standIns` draws a missing kit (or kit node) as registry
+ * boxes instead of falling back to the legacy emplacements. Never in production builds.
  */
-export const FACILITY_VERSION: 2 | 3 = 3;
-/**
- * Dev/test overrides, set before the renderer is created (tests/fixtures/nacre-world.ts `fv=`). `standIns`: a missing
- * v3 kit (or kit node) is drawn as registry boxes instead of falling back to the legacy emplacements. Never in
- * production builds.
- */
-export const facilityOptions: { version: 2 | 3; standIns: boolean } = { version: FACILITY_VERSION, standIns: !!import.meta.env?.DEV };
+export const facilityOptions: { standIns: boolean } = { standIns: !!import.meta.env?.DEV };
 
 interface Seat {
   kind: string; groundX: number; groundS: number; base: number; afloat: boolean;
@@ -47,23 +43,19 @@ function behindOnly(plant: FacilityPlant): FacilityPlant | null {
 interface Reservation { minX: number; maxX: number; minS: number; maxS: number }
 /** Read-only QA evidence for the browser checks (scene.ts `data-render-stats`). */
 export interface FacilityStats {
-  version: 2 | 3; loaded: boolean; count: number;
-  /** v2: plants using the large compound. */
-  large: number;
-  /** v3: each plant's arrangement, its kit source per world, and the module instances drawn this frame. */
+  loaded: boolean; count: number;
+  /** Each plant's arrangement, its kit source per world, and the module instances drawn this frame. */
   arrangements?: ArrangementId[]; kits?: Record<string, string>; modules?: number;
-  /** v3: the tallest foundation drawn under a building or tank this frame (render QA; at most FOUNDATION_MAX). */
+  /** The tallest foundation drawn under a building or tank this frame (render QA; at most FOUNDATION_MAX). */
   floating?: number;
 }
 export interface FacilityView {
-  /** The current planet's plants are ready (v2: Luna has none). */
+  /** The current planet's plants are ready. */
   readonly loaded: boolean;
   readonly count: number;
-  /** v2 only: plants using the large compound (v3 reports 0). */
-  readonly largeCount: number;
   readonly clearings: Reservation[];
   readonly stats: FacilityStats;
-  /** The battery has a plant, or (v3) may still get one once its world's kit has loaded: no legacy emplacement yet. */
+  /** The battery has a plant, or may still get one once its world's kit has loaded: no legacy emplacement yet. */
   contains(id: number): boolean;
   /** Starts loading a planet's plants ahead of its first battery. */
   prepare(planet: PlanetId): Promise<void>;
@@ -71,7 +63,7 @@ export interface FacilityView {
   warmupObjects(): THREE.Object3D[];
   /**
    * `reserved`: district pads (docs/23 §4.8). A compound never covers one; that battery keeps its legacy emplacement.
-   * `ground` (v3): the terrain surface, sampled once per plant so each apron tile lies on the ground it covers.
+   * `ground`: the terrain surface, sampled once per plant so each apron tile lies on the ground it covers.
    */
   update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved?: readonly Reservation[],
     ground?: (x: number, s: number) => number, view?: ViewFootprint): void;
@@ -83,8 +75,8 @@ export interface FacilityView {
  * Each planet's GLB (baked atlases) loads on arrival and is released once its last plant has scrolled away; until it
  * is ready, that planet's batteries keep their smaller emplacements.
  */
-export function createFacilityView(scene: THREE.Scene, onReady: () => void, version: 2 | 3 = facilityOptions.version): FacilityView {
-  return version === 3 ? createModularView(scene, onReady) : createCompoundView(scene, onReady);
+export function createFacilityView(scene: THREE.Scene, onReady: () => void): FacilityView {
+  return createModularView(scene, onReady);
 }
 
 /** Disposes geometries, materials and their textures once (kits share one atlas material across nodes). */
@@ -178,10 +170,9 @@ function createModularView(scene: THREE.Scene, onReady: () => void): FacilityVie
   return {
     get loaded() { return current !== null && ready(current) !== null; },
     get count() { return plants.length; },
-    get largeCount() { return 0; },
     get clearings() { return plants.map(({ plant }) => ({ ...plant.bounds })); },
     get stats(): FacilityStats {
-      return { version: 3, loaded: this.loaded, count: plants.length, large: 0, arrangements: plants.map(p => p.plant.arrangement),
+      return { loaded: this.loaded, count: plants.length, arrangements: plants.map(p => p.plant.arrangement),
         kits: Object.fromEntries([...kits].map(([world, kit]) => [world, typeof kit === 'object' ? kit.source : kit])), modules: drawn,
         floating: Math.round(floating * 100) / 100 };
     },
@@ -307,7 +298,7 @@ function heightsOf(plant: FacilityPlant, ground?: (x: number, s: number) => numb
   return { y, lows };
 }
 
-// ── Stand-ins (development and tests only). Delete this block and `facilityOptions.standIns` once all three kits ship. ──
+// ── Stand-ins (development and tests only): what a missing kit file or node draws instead (facilityOptions.standIns). ──
 const STAND_IN_COLOR: Partial<Record<ModuleRole, number>> = {
   hall: 0x8d939b, tank: 0x5f9ea6, column: 0xc8b25a, landmark: 0xd2763c, pump: 0x7d8f62, pipe: 0x4f78b0,
   wall: 0x9b7f63, detail: 0xa6a0c8, pad: 0x3c4148, ring: 0x3c4148, arc: 0xb59ad6, pool: 0x46b8c8, apron: 0x6b6e73,
@@ -334,114 +325,4 @@ function standInParts(nodes: readonly string[]): Map<string, TexturedPart[]> {
     out.set(node, [{ geometry, material }]);
   }
   return out;
-}
-
-// ── v2: two whole compounds per world (rollback path while FACILITY_VERSION is 2) ──
-
-type Site = Exclude<PlanetId, 'luna'>;
-type Node = `facility_${Site}` | `facility_${Site}_large`;
-interface Compound { id: number; x: number; s: number; y: number; planet: Site; node: Node }
-/** A planet's two plants: one instanced draw per material (baked surface, glow). */
-interface CompoundKit { batches: Map<Node, THREE.InstancedMesh[]>; dispose(): void }
-const CAPACITY = 12;
-// Authored bounds plus a small scatter margin. Large has 1.9× the floor area and additional plant rooms.
-const SIZE = {
-  small: {halfX: 3.6, minS: -1.8, maxS: 4.6, height: 2.651},
-  large: {halfX: 4.6, minS: -2.8, maxS: 6.1, height: 2.831},
-};
-const bounds = (node: Node) => SIZE[node.endsWith('_large') ? 'large' : 'small'];
-/** The v2 remodels after the facility sheets (tools/blender/remodel_facilities.py): one textured GLB per planet. */
-const assetOf = (planet: Site) => `${import.meta.env.BASE_URL}assets/${planet}/facility-compounds-v2-remodel.glb`;
-
-function createCompoundView(scene: THREE.Scene, onReady: () => void): FacilityView {
-  const kits = new Map<Site, CompoundKit | 'loading' | 'failed'>(), compounds: Compound[] = [];
-  const transform = new THREE.Object3D();
-  const loads = new Map<PlanetId, Promise<void>>();
-  let prefetched: PlanetId | null = null;
-  let disposed = false, config: RunState['config'] | null = null, lastTick = -1, current: PlanetId | null = null;
-  const ready = (planet: Site) => { const kit = kits.get(planet); return typeof kit === 'object' ? kit : null; };
-  function prepare(planet: Site) {
-    if (loads.has(planet)) return loads.get(planet)!;
-    kits.set(planet, 'loading');
-    const nodes: Node[] = [`facility_${planet}`, `facility_${planet}_large`];
-    const loading = loadTexturedNodes(assetOf(planet), nodes).then(found => {
-      const release = releaser(found.values());
-      if (disposed || found.size !== nodes.length) {
-        release();
-        if (!disposed) { kits.set(planet, 'failed'); console.warn(`Facility compounds for ${planet} are incomplete; retaining the smaller battery emplacements.`); }
-        return;
-      }
-      const batches = new Map<Node, THREE.InstancedMesh[]>();
-      for (const [name, parts] of found) batches.set(name, parts.map(part => {
-        part.material.envMapIntensity = .85;
-        paintMaterial(part.material, planet, 'facility');
-        const mesh = new THREE.InstancedMesh(part.geometry, part.material, CAPACITY);
-        mesh.name = name; mesh.count = 0; mesh.frustumCulled = false;
-        mesh.castShadow = !/glow/i.test(part.material.name); mesh.receiveShadow = true;
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        scene.add(mesh);
-        return mesh;
-      }));
-      kits.set(planet, { batches, dispose() { batches.forEach(meshes => meshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); })); release(); } });
-      onReady();
-    }).catch(error => { kits.set(planet, 'failed'); console.warn(`Facility compounds for ${planet} unavailable; retaining the smaller battery emplacements.`, error); });
-    loads.set(planet, loading); return loading;
-  }
-  return {
-    get loaded() { return current === 'luna' || (current !== null && ready(current) !== null); },
-    get count() { return compounds.length; },
-    get largeCount() { return compounds.filter(c => c.node.endsWith('_large')).length; },
-    get stats(): FacilityStats { return { version: 2, loaded: this.loaded, count: this.count, large: this.largeCount }; },
-    contains(id: number) { return compounds.some(c => c.id === id); },
-    get clearings() { return compounds.map(c => { const b = bounds(c.node); return { minX: c.x - b.halfX, maxX: c.x + b.halfX, minS: c.s + b.minS, maxS: c.s + b.maxS }; }); },
-    prepare(planet: PlanetId) { prefetched = planet; return planet === 'luna' ? Promise.resolve() : prepare(planet); },
-    isReady(planet: PlanetId) { return planet === 'luna' || (kits.has(planet) && kits.get(planet) !== 'loading'); },
-    warmupObjects() { return [...kits.values()].flatMap(kit => typeof kit === 'object' ? [...kit.batches.values()].flat() : []); },
-    update(state: RunState, planet: PlanetId, batteries: ReadonlyMap<number, Seat>, reserved: readonly Reservation[] = [],
-      _ground?: (x: number, s: number) => number, view: ViewFootprint = legacyView(state)) {
-      if (config !== state.config || state.tick < lastTick) { compounds.length = 0; config = state.config; }
-      lastTick = state.tick; current = planet;
-      for (let i = compounds.length - 1; i >= 0; i--) if (compounds[i].s - state.distance < VIEW.minS - 10) compounds.splice(i, 1);
-      if (planet !== 'luna') prepare(planet);
-      if (planet !== 'luna' && ready(planet)) for (const [id, seat] of batteries) {
-        if (seat.kind === 'fuel' || compounds.some(c => c.id === id) || compounds.length >= CAPACITY) continue;
-        if (seat.afloat && planet !== 'nacre') continue;
-        // Stable cosmetic choice, independent of combat's RNG. Try the smaller plant when a large one cannot fit.
-        const wantsLarge = ((Math.imul(id, 0x45d9f3b) ^ state.config.seed) >>> 0) % 3 === 0;
-        for (const large of wantsLarge ? [true, false] : [false]) {
-          const b = SIZE[large ? 'large' : 'small'];
-          if (Math.abs(seat.groundX) + b.halfX > VIEW.worldWidth / 2) continue;
-          if (reserved.some(r => seat.groundX + b.halfX > r.minX && seat.groundX - b.halfX < r.maxX && seat.groundS + b.maxS > r.minS && seat.groundS + b.minS < r.maxS)) continue;
-          if (compounds.some(c => {
-            const other = bounds(c.node);
-            return Math.abs(c.x - seat.groundX) < other.halfX + b.halfX + 1
-              && c.s + other.maxS + 2 > seat.groundS + b.minS && c.s + other.minS - 2 < seat.groundS + b.maxS;
-          })) continue;
-          // Keep nearby guns outside the wings/rear plant; no visual structure may conceal another target.
-          if ([...batteries].some(([other, gun]) => other !== id && Math.abs(gun.groundX - seat.groundX) < b.halfX + .4
-            && gun.groundS > seat.groundS + b.minS - .4 && gun.groundS < seat.groundS + b.maxS + .4)) continue;
-          // Sink the foundation a little on raised ground, never flatten the machinery. Unsuitable high ground keeps legacy emplacements.
-          const y = Math.min(seat.base, VIEW.flightHeight - .45 - b.height);
-          if (seat.base - y > .35) continue;
-          compounds.push({id, x: seat.groundX, s: seat.groundS, y, planet, node: `facility_${planet}${large ? '_large' : ''}`});
-          break;
-        }
-      }
-      kits.forEach(kit => { if (typeof kit === 'object') kit.batches.forEach(meshes => meshes.forEach(mesh => { mesh.count = 0; })); });
-      for (const c of compounds) {
-        const meshes = ready(c.planet)?.batches.get(c.node), s = c.s - state.distance;
-        if (!meshes || c.x + bounds(c.node).halfX < view.minX - 1 || c.x - bounds(c.node).halfX > view.maxX + 1 || s > view.maxS + 9 || s < view.minS - 8) continue;
-        transform.position.set(c.x, c.y, -s); transform.rotation.set(0, 0, 0);
-        transform.scale.set(1, 1, 1); transform.updateMatrix();
-        for (const mesh of meshes) mesh.setMatrixAt(mesh.count++, transform.matrix);
-      }
-      kits.forEach((kit, site) => {
-        if (typeof kit !== 'object') return;
-        // A planet left behind releases its atlases once its last plant is gone (endless revisits reload them).
-        if (site !== planet && site !== prefetched && !compounds.some(c => c.planet === site)) { kit.dispose(); kits.delete(site); loads.delete(site); return; }
-        kit.batches.forEach(meshes => meshes.forEach(mesh => liveInstances(mesh, mesh.count)));
-      });
-    },
-    dispose() { disposed = true; kits.forEach(kit => { if (typeof kit === 'object') kit.dispose(); }); kits.clear(); },
-  };
 }

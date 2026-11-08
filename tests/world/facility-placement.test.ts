@@ -11,89 +11,17 @@ vi.mock('../../src/render/models',()=>({
   loadTexturedNodes: vi.fn(async (_url: string, names: string[]) => new Map(names.map(name=>[name,[{geometry:new BoxGeometry(),material:new MeshStandardMaterial()}]]))),
 }));
 const seat = (groundX=0,base=.7) => ({kind:'turret',groundX,groundS:10,base,afloat:false});
-async function view() {
-  const scene=new Scene(), facility=createFacilityView(scene,()=>{},2);
-  // Each planet's plants load on arrival; have them ready before the first battery.
-  for(const planet of ['khepri','vesper','nacre'] as const) facility.prepare(planet);
-  await new Promise(resolve=>setTimeout(resolve,0));
-  return {scene,facility,close(){facility.dispose();}};
-}
-describe('v2 facility placement and target visibility',()=>{
-  it('preserves full model height while keeping roofs below flight and the gun in the open court',async()=>{
-    const v=await view(), state=createRun({mode:'endless',seed:8831});
-    try {
-      v.facility.update(state,'nacre',new Map([[1,seat()]]));
-      expect(v.facility.largeCount).toBe(1);
-      const mesh=v.scene.children.find(o=>o.name==='facility_nacre_large') as InstancedMesh;
-      const m=new Matrix4();mesh.getMatrixAt(0,m);
-      expect(new Vector3().setFromMatrixScale(m).toArray()).toEqual([1,1,1]);
-      const base=new Vector3().setFromMatrixPosition(m).y;
-      expect(base+2.831).toBeLessThanOrEqual(VIEW.flightHeight-.449);
-      expect(.7-base).toBeLessThan(.35);
-      const c=v.facility.clearings[0];expect(c.maxX-c.minX).toBeGreaterThan(9);
-      expect(state.enemies).toHaveLength(0); // Scenery never manufactures a combat target.
-    } finally {v.close();}
-  });
-  it('keeps compounds off district pads: the smaller plant where it still fits, else none (the legacy emplacement)',async()=>{
-    const state=createRun({mode:'endless',seed:8831});
-    for(const [reserved,count,large] of [
-      [[{minX:-2,maxX:2,minS:8,maxS:12}],0,0],
-      // Only the large plant (half width 4.6) would reach this pad; the small one (3.6) stands beside it.
-      [[{minX:3.8,maxX:6,minS:9,maxS:12}],1,0],
-      [[],1,1],
-    ] as const){
-      const v=await view();try{
-        v.facility.update(state,'khepri',new Map([[1,seat()]]),reserved);
-        expect(v.facility.count).toBe(count);expect(v.facility.largeCount).toBe(large);
-        // The battery itself never moves: compounds are scenery around it.
-        if(count) expect(v.facility.clearings[0].minX).toBeLessThan(0);
-      }finally{v.close();}
-    }
-  });
-  it('seats plants once their planet has loaded and releases a planet left behind',async()=>{
-    const scene=new Scene(), facility=createFacilityView(scene,()=>{},2), state=createRun({mode:'endless',seed:8831});
-    const khepri=()=>scene.children.filter(o=>o.name.startsWith('facility_khepri')).length;
-    try {
-      facility.update(state,'khepri',new Map([[1,seat()]]));
-      // Still loading: the battery keeps its smaller emplacement.
-      expect(facility.loaded).toBe(false); expect(facility.count).toBe(0); expect(facility.contains(1)).toBe(false);
-      await new Promise(resolve=>setTimeout(resolve,0));
-      facility.update(state,'khepri',new Map([[1,seat()]]));
-      expect(facility.loaded).toBe(true); expect(facility.count).toBe(1); expect(khepri()).toBeGreaterThan(0);
-      facility.update(state,'vesper',new Map());
-      expect(khepri()).toBeGreaterThan(0); // its plant is still on screen
-      state.distance+=100;
-      facility.update(state,'vesper',new Map());
-      expect(facility.count).toBe(0); expect(khepri()).toBe(0);
-    } finally {facility.dispose();}
-  });
-  it('uses the smaller plant near world edges and leaves high or crowded ground to existing emplacements',async()=>{
-    const state=createRun({mode:'endless',seed:8831});
-    for(const [batteries,expectedCount,expectedLarge] of [
-      // 4 inside the edge: the large plant (half width 4.6) overhangs it, the small one (3.6) fits.
-      [new Map([[1,seat(VIEW.worldWidth/2-4)]]),1,0],
-      [new Map([[1,seat(0,1.8)]]),0,0],
-      [new Map([[1,seat()],[2,seat(1)]]),0,0],
-    ] as const){
-      const v=await view();try{
-        v.facility.update(state,'khepri',batteries);
-        expect(v.facility.count).toBe(expectedCount);expect(v.facility.largeCount).toBe(expectedLarge);
-      }finally{v.close();}
-    }
-  });
-});
-
-// v3 (docs/25): plants composed per battery from per-world module kits.
+// Plants composed per battery from per-world module kits (docs/25).
 const settle = () => new Promise(resolve=>setTimeout(resolve,0));
 async function modular(planets: ('khepri'|'vesper'|'nacre'|'luna')[] = ['khepri','vesper','nacre','luna']) {
-  const scene=new Scene(), facility=createFacilityView(scene,()=>{},3);
+  const scene=new Scene(), facility=createFacilityView(scene,()=>{});
   for(const planet of planets) facility.prepare(planet);
   await settle();
   return {scene,facility,close(){facility.dispose();}};
 }
 const drawn = (scene: Scene, world: string) => scene.children.filter((o): o is InstancedMesh=>o instanceof InstancedMesh && o.name.startsWith(`fk_${world}_`) && o.visible);
-for (const version of [2,3] as const) it(`v${version} retains a prefetched kit until arrival and bounds old-world retention`, async () => {
-  const scene = new Scene(), facility = createFacilityView(scene, () => {}, version);
+it('retains a prefetched kit until arrival and bounds old-world retention', async () => {
+  const scene = new Scene(), facility = createFacilityView(scene, () => {});
   const state = createRun({mode:'endless',seed:8831});
   try {
     await facility.prepare('khepri');
@@ -196,7 +124,7 @@ describe('v3 modular facility view',()=>{
     }finally{v.close();}
   });
   it('holds legacy pieces back while a kit loads, then seats plants, and releases a world left behind',async()=>{
-    const scene=new Scene(), facility=createFacilityView(scene,()=>{},3), state=createRun({mode:'endless',seed:8831});
+    const scene=new Scene(), facility=createFacilityView(scene,()=>{}), state=createRun({mode:'endless',seed:8831});
     try {
       facility.update(state,'khepri',new Map([[1,seat()]]));
       // Loading: no plant yet, but the battery waits for it instead of taking a legacy emplacement.
@@ -218,7 +146,7 @@ describe('v3 modular facility view',()=>{
     for(const standIns of [false,true]){
       facilityOptions.standIns=standIns;
       vi.mocked(loadTexturedNodes).mockRejectedValueOnce(new Error('404'));
-      const scene=new Scene(), facility=createFacilityView(scene,()=>{},3);
+      const scene=new Scene(), facility=createFacilityView(scene,()=>{});
       try {
         facility.update(state,'vesper',new Map([[1,seat()]]));
         await settle();

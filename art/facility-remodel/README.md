@@ -47,9 +47,9 @@ Each world's two plants share one baked atlas and one GLB. The game loads that G
 
 | World | Runtime file | Triangles: small / large | Draw calls per plant | Size (textures) |
 | --- | --- | ---: | ---: | ---: |
-| Khepri | `public/assets/khepri/facility-compounds-v2-remodel.glb` | 15.3k / 23.2k | 2 | 5.7 MB (2.8) |
-| Vesper | `public/assets/vesper/facility-compounds-v2-remodel.glb` | 9.8k / 17.1k | 2 | 5.2 MB (2.9) |
-| Nacre | `public/assets/nacre/facility-compounds-v2-remodel.glb` | 6.6k / 9.5k | 4 | 4.4 MB (3.1) |
+| Khepri | `art/archive/assets/khepri/facility-compounds-v2-remodel.glb` | 15.3k / 23.2k | 2 | 5.7 MB (2.8) |
+| Vesper | `art/archive/assets/vesper/facility-compounds-v2-remodel.glb` | 9.8k / 17.1k | 2 | 5.2 MB (2.9) |
+| Nacre | `art/archive/assets/nacre/facility-compounds-v2-remodel.glb` | 6.6k / 9.5k | 4 | 4.4 MB (3.1) |
 
 **For comparison:** the six v1 plants totalled 44,156 triangles, about 7.4k each, with no textures.
 

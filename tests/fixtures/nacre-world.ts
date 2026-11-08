@@ -4,12 +4,9 @@ import { createRenderer } from '../../src/render/scene';
 import { createUi } from '../../src/ui/game-ui';
 import { spawnMembers } from '../../src/sim/spawn';
 import { anchorGround } from '../../src/sim/ground';
-import { facilityOptions } from '../../src/render/facility-view';
 import { arrangementsOf, plannedArrangement, type ArrangementId } from '../../src/render/facility-layouts';
 import type { FacilityWorld } from '../../src/render/facility-kit';
 const q = new URLSearchParams(location.search);
-// `fv=3` builds the modular compounds of docs/25 (the real kits; registry stand-ins only for a missing file), `fv=2` the v2 plants.
-if (q.get('fv') === '2' || q.get('fv') === '3') facilityOptions.version = Number(q.get('fv')) as 2 | 3;
 // Each planet flies its own mission, so the simulation's ground (battery seats, src/sim/ground.ts) is the terrain on screen.
 const MISSION = { khepri: 'bastion', vesper: 'cold-vector', nacre: 'deep-bloom', luna: 'training' } as const;
 const state = createRun({ mode: 'campaign', mission: MISSION[(q.get('planet') ?? 'nacre') as keyof typeof MISSION] ?? 'deep-bloom', seed: Number(q.get('seed') ?? 8831) });

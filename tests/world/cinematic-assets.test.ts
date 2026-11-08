@@ -242,9 +242,9 @@ describe('Blender cinematic asset contracts',()=>{
     const model=await asset('shared/facility-compounds.glb',ARCHIVE); validate(model,46000);
     for(const planet of ['khepri','vesper','nacre']) for(const large of [false,true]) checkCompound(model,planet,large);
   });
-  it('keeps the same seat contract in the textured v2 compounds after the facility sheets',async()=>{
+  it('keeps the same seat contract in the archived v2 compounds after the facility sheets',async()=>{
     for(const planet of ['khepri','vesper','nacre']){
-      const model=await asset(`${planet}/facility-compounds-v2-remodel.glb`); validate(model,46000,true);
+      const model=await asset(`${planet}/facility-compounds-v2-remodel.glb`,ARCHIVE); validate(model,46000,true);
       expect(model.getObjectByName('facility_remodel_v2')).toBeDefined();
       for(const large of [false,true]) checkCompound(model,planet,large);
     }
