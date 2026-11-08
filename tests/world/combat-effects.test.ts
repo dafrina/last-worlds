@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createFx } from '../../src/render/fx-particles';
 import { createRun } from '../../src/sim/game';
-import { startBoss } from '../../src/sim/bastion';
+import { startBoss } from '../../src/sim/boss';
 import { particleLayer } from '../../src/render/bastion-view';
 import { createJumpFx } from '../../src/render/fx-jump';
 import { HERO_STENCIL } from '../../src/render/hero-stencil';

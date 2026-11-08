@@ -13,7 +13,7 @@ import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuali
 import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
 import { UMBRA_PLATEAU } from '../world/terrain-umbra';
-import { arenaStopDistance } from '../sim/bastion';
+import { arenaStopDistance } from '../sim/boss';
 import { HUNTERS } from '../content/hunters';
 import { hunterCharges } from '../sim/hunters';
 import { beamSpec } from '../sim/attacks';

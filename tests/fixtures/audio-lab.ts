@@ -3,7 +3,7 @@ import { createGameAudio } from '../../src/audio/engine';
 import { THEMES, bossStep, scoreStep } from '../../src/audio/score';
 import { type Sound } from '../../src/audio/samples';
 import { createRun } from '../../src/sim/game';
-import { startBoss } from '../../src/sim/bastion';
+import { startBoss } from '../../src/sim/boss';
 import type { PlanetId } from '../../src/shared/contracts';
 
 /** Offline evidence is rendered through the same samples, arrangement and buses used in play. */

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { BASTION } from '../../src/content/bastion';
 import { VIEW } from '../../src/shared/contracts';
 import { createRun } from '../../src/sim/game';
-import { startBastion } from '../../src/sim/bastion';
+import { startBoss } from '../../src/sim/boss';
 import { createBastionView } from '../../src/render/bastion-view';
 import { bastionPlacement, configureCamera, groundPlacement } from '../../src/render/scene';
 import { BASTION_FOOTPRINT } from '../../src/render/bastion-view';
@@ -15,7 +15,7 @@ describe('fortress target projection', () => {
     const camera = new THREE.OrthographicCamera(-6, 6, 12 * 16 / 18, -12 * 16 / 18, .1, 100);
     for (const cameraX of [-12, 0, 12]) for (const distance of [460, 520, 800]) {
       const state = createRun({ mode: 'campaign', mission: 'bastion', seed: 8831 });
-      state.cameraX = cameraX; state.distance = distance; startBastion(state);
+      state.cameraX = cameraX; state.distance = distance; startBoss(state);
       state.boss!.s = 13;
       for (const target of state.enemies) target.s = 13 + (target.bossPart === 'core' ? BASTION.coreRowOffset : 0);
       view.update(state, groundPlacement(state.config.seed, distance, state.boss!.x, 13, BASTION.targetHeight));
@@ -34,7 +34,7 @@ describe('fortress target projection', () => {
     const camera = new THREE.OrthographicCamera(-6, 6, 12 * 16 / 18, -12 * 16 / 18, .1, 100);
     for (const seed of [11, 93, 8831]) for (const cameraX of [-12, 0, 12]) for (const distance of [300, 460, 800]) {
       const state = createRun({ mode: 'campaign', mission: 'bastion', seed });
-      state.cameraX = cameraX; state.distance = distance; startBastion(state);
+      state.cameraX = cameraX; state.distance = distance; startBoss(state);
       state.boss!.s = 13;
       for (const target of state.enemies) target.s = 13 + (target.bossPart === 'core' ? BASTION.coreRowOffset : 0);
       const placement = bastionPlacement(seed, distance, state.boss!.x, 13);

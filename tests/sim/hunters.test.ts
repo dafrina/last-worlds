@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../../src/content/balance';
 import { missionBoss } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, type InputFrame, type RunConfig, type RunState } from '../../src/shared/contracts';
-import { bossTarget, resolveBossPhase, startBoss } from '../../src/sim/bastion';
+import { bossTarget, resolveBossPhase, startBoss } from '../../src/sim/boss';
 import { createRun, stepRun } from '../../src/sim/game';
 import { HUNTERS } from '../../src/content/hunters';
 import { absorbHunterShield, hunterCharges, hunterLimits } from '../../src/sim/hunters';

@@ -1,4 +1,4 @@
-import type { MissionId, PlanetId, RunConfig } from '../shared/contracts';
+import type { MissionId, PlanetId, RunConfig, RunState } from '../shared/contracts';
 
 /**
  * Which world each campaign mission flies over (docs/17 §2). Training flies over Luna, Khepri's moon (docs/19).
@@ -17,3 +17,9 @@ export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
 export function runPlanet(config: Pick<RunConfig, 'mode' | 'mission'>): PlanetId {
   return config.mode === 'campaign' && config.mission ? MISSION_PLANET[config.mission] : 'luna';
 }
+
+/**
+ * Hint texts teach on Luna only (user, 30 October: wave and boss hints, "No need for those messages outside of the luna
+ * level"): elsewhere a boss announces just its name, and its phase hints stay silent; its fall still shows.
+ */
+export const showsHints = (state: Pick<RunState, 'planet'>) => state.planet === 'luna';

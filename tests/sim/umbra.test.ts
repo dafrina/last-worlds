@@ -5,7 +5,7 @@ import { resolvePlaylist } from '../../src/content/encounter-deck';
 import { MISSION_PLANET } from '../../src/content/missions';
 import { CAMPAIGN_ORDER } from '../../src/content/equipment';
 import { STEP, type BossId, type Difficulty, type WeaponId } from '../../src/shared/contracts';
-import { bossTarget, resolveBossPhase, startBoss, updateBoss } from '../../src/sim/bastion';
+import { bossTarget, resolveBossPhase, startBoss, updateBoss } from '../../src/sim/boss';
 import { pendingAttackFootprints, shotFootprint } from '../../src/sim/fairness';
 import { createRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';

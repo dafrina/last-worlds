@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BOSSES, bossParts, phaseOneParts, type BossDefinition } from '../../src/content/bosses';
 import { difficultyScales } from '../../src/content/balance';
 import { createRun } from '../../src/sim/game';
-import { bossTarget, resolveBossPhase, startBoss, updateBoss } from '../../src/sim/bastion';
+import { bossTarget, resolveBossPhase, startBoss, updateBoss } from '../../src/sim/boss';
 import type { Difficulty, RunConfig } from '../../src/shared/contracts';
 
 // Baseline before the 3 November adjustment: boss HP was authored HP × mode scale × 1.15.

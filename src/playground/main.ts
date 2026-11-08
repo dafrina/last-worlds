@@ -20,7 +20,7 @@ import { HERO_CHASSIS, HERO_DEFAULT_PAINT, HERO_SLOTS, assembleHero, heroDesigns
 import { loadHeroModel } from '../render/hero-craft';
 import { HERO_REMODELLED } from '../content/hero-parts';
 import { createRun, stepRun } from '../sim/game';
-import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/bastion';
+import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/boss';
 import { missionBoss } from '../content/bosses';
 import { createRenderer, type PlanetLook } from '../render/scene';
 import type { BossPart, GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';

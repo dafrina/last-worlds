@@ -113,7 +113,7 @@ Runtime sources:
 - `src/content/bosses.ts` (shared boss definition);
 - `src/content/formations.ts` and `encounters.ts` (`COLD_VECTOR`);
 - `src/content/balance.ts` (enemy stats);
-- `src/sim/bastion.ts` (generic boss simulation, still exporting the Bastion names).
+- `src/sim/boss.ts` (generic boss simulation; `src/sim/bastion.ts` until 8 November).
 
 **Enemy kinds (`EnemyKind`):**
 

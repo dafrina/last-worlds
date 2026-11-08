@@ -1,5 +1,5 @@
 import { stepRun } from './sim/game';
-import { bossTarget, resolveBossPhase } from './sim/bastion';
+import { bossTarget, resolveBossPhase } from './sim/boss';
 import { destroySiteCore } from './sim/sites';
 import { BOSSES, bossParts, phaseOneParts } from './content/bosses';
 import { STEP, type RunConfig, type RunState } from './shared/contracts';

@@ -12,7 +12,7 @@ import { VIEW, type EnemyKind, type MissionId, type RunState } from '../shared/c
 
 /**
  * The run's clock for a map position: before the boss arena's slowdown a mission scrolls at a constant speed from
- * distance 0 (src/sim/bastion.ts, `arenaScroll`), so the lab starts its clock there and the world flies on from that spot.
+ * distance 0 (src/sim/boss.ts, `arenaScroll`), so the lab starts its clock there and the world flies on from that spot.
  * It stays clear of the boss's approach.
  */
 export function labClock(mission: MissionId, distance: number): { time: number; limit: number } {

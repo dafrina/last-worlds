@@ -1,6 +1,7 @@
 import { BASTION } from '../content/bastion';
 import { REWARDS } from '../content/equipment';
 import { departure } from '../content/departure';
+import { showsHints } from '../content/missions';
 import { BALANCE, CAMPAIGN_SCROLL, FAIRNESS } from '../content/balance';
 import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, bossParts, missionBoss, phaseOneParts, type BossDefinition } from '../content/bosses';
@@ -22,11 +23,6 @@ import { observe } from './events';
 function message(state: RunState, text: string, duration = 3) {
   state.message = text; state.messageUntil = state.time + duration;
 }
-/**
- * Hint texts teach on Luna only (user, 30 October: wave and boss hints, "No need for those messages outside of the luna
- * level"): elsewhere a boss announces just its name, and its phase hints stay silent; its fall still shows.
- */
-export const showsHints = (state: RunState) => state.planet === 'luna';
 
 /**
  * A squadron member breaks off for a boss: no further attack (its windup is dropped with the threats), and a craft heads for
@@ -121,8 +117,6 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
   message(state, showsHints(state) ? def.messages.start : def.name, 5);
   if (state.events) observe(state, { type: 'boss', time: state.time, boss: def.id, phase: 'arrival' });
 }
-/** Name kept for the Rolling Thunder fixtures and tests; starts whichever boss the mission has. */
-export const startBastion = startBoss;
 
 export function bossTarget(state: RunState, part: BossPart): Enemy | undefined {
   return state.enemies.find(enemy => enemy.bossPart === part);
@@ -209,7 +203,6 @@ export function resolveBossPhase(state: RunState): void {
   if ((boss.phase === 'core' || boss.phase === 'overload') && core.hp <= 0) transition(state, 'destroyed');
   else if (boss.phase === 'core' && core.hp <= core.maxHp * bossDef(state).overloadFraction) transition(state, 'overload');
 }
-export const resolveBastionPhase = resolveBossPhase;
 
 function visible(state: RunState, enemy: Enemy) {
   return Math.abs(enemy.x - state.cameraX) <= VIEW.width / 2 - enemy.radius - .2
@@ -374,4 +367,3 @@ export function updateBoss(state: RunState, dt: number): void {
   }
   boss.attackIndex++;
 }
-export const updateBastion = updateBoss;

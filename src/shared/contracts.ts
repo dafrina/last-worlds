@@ -115,7 +115,7 @@ export interface Enemy {
    */
   lock?: { total: number; hold: number; release: number };
   /**
-   * Broke off when a boss arrived (src/sim/bastion.ts `leave`): it never attacks again. A craft flies out of frame toward
+   * Broke off when a boss arrived (src/sim/boss.ts `leave`): it never attacks again. A craft flies out of frame toward
    * `side`; a ground battery stays on its ground, quiet, until it scrolls out. Nothing just vanishes.
    */
   leaving?: { at: number; side: -1 | 1 };

@@ -3,7 +3,7 @@ import { createRun, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, type Enemy } from '../../src/shared/contracts';
 import { enemyShots } from '../../src/sim/attacks';
 import { BOSSES, phaseOneParts } from '../../src/content/bosses';
-import { startBoss, updateBoss, bossTarget, resolveBossPhase } from '../../src/sim/bastion';
+import { startBoss, updateBoss, bossTarget, resolveBossPhase } from '../../src/sim/boss';
 
 it('special missiles fan out before steering and cover both edges of a crowded screen', () => {
   const state = createRun({ mode: 'campaign', mission: 'training', seed: 9, special: 'seeker-rack' });

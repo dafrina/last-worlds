@@ -7,11 +7,11 @@ import { STEP, PLAYER_HIT_RADIUS, VIEW, type Enemy, type InputFrame, type KillCa
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
-import { runPlanet } from '../content/missions';
+import { runPlanet, showsHints } from '../content/missions';
 import { ENDLESS_LOADOUT, SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, ENDLESS_TIER_CELLS, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
 import { validLook } from '../content/hero-parts';
 import { updateEndless } from './endless';
-import { arenaScroll, resolveBossPhase, showsHints, startBoss, updateBoss } from './bastion';
+import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './boss';
 import { spawnMembers } from './spawn';
 import { FORMATIONS } from '../content/formations';
 import { HUNTERS } from '../content/hunters';
@@ -340,7 +340,7 @@ function updateEnemies(state: RunState, dt: number): void {
   const resting = updateBeamRest(state, scale);
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.bossPart) continue;
-    // Broke off for a boss (src/sim/bastion.ts leave): a craft speeds up out of frame toward its side, a little up the
+    // Broke off for a boss (src/sim/boss.ts leave): a craft speeds up out of frame toward its side, a little up the
     // screen; a ground battery rides its ground, quiet. Neither attacks again.
     if (enemy.leaving) {
       if (GROUND_KINDS.has(enemy.kind)) { advanceEnemy(enemy, dt, enemyClockRate(state, enemy)); projectGround(state, enemy); }

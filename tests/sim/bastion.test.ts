@@ -4,7 +4,7 @@ import { WARDEN } from '../../src/content/warden';
 import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, VIEW, type Difficulty, type RunState, type WeaponId } from '../../src/shared/contracts';
 import { acquireTarget, createRun, hitPlayer, stepRun } from '../../src/sim/game';
-import { bossTarget, resolveBastionPhase } from '../../src/sim/bastion';
+import { bossTarget, resolveBossPhase } from '../../src/sim/boss';
 import { fly, perfectPilot } from './pilots';
 import { FairnessTrace } from './fairness-trace';
 import { advance } from '../helpers/run';
@@ -20,7 +20,7 @@ function encounter(weapon: WeaponId = 'pulse', difficulty: Difficulty = 'standar
 function openCore(state: RunState) {
   advance(state, 3.05);
   bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0;
-  resolveBastionPhase(state);
+  resolveBossPhase(state);
 }
 
 describe('Bastion-9 mission', () => {
@@ -48,16 +48,16 @@ describe('Bastion-9 mission', () => {
     const state = encounter(); advance(state, 4.5);
     const firing = state.enemies.find(enemy => enemy.warning > 0)!;
     expect(firing).toBeDefined();
-    firing.hp = 0; resolveBastionPhase(state);
+    firing.hp = 0; resolveBossPhase(state);
     expect(firing.warning).toBe(0);
     expect(state.boss!.attackerId).toBeNull();
     expect(state.boss!.phase).toBe('batteries');
     bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0;
-    resolveBastionPhase(state);
+    resolveBossPhase(state);
     const core = bossTarget(state, 'core')!;
     expect(core.damageable).toBe(true);
     expect(state.hazards).toHaveLength(0);
-    core.hp = core.maxHp * .35; resolveBastionPhase(state);
+    core.hp = core.maxHp * .35; resolveBossPhase(state);
     expect(state.boss!.phase).toBe('overload');
     expect(core.hp).toBe(core.maxHp * .35);
     const hp = core.hp;
@@ -96,10 +96,10 @@ describe('Bastion-9 mission', () => {
 
   it('clears danger before extraction, rewards once, freezes on pause, then completes', () => {
     const state = encounter(); openCore(state);
-    bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state);
+    bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state);
     expect(state.boss!.phase).toBe('destroyed');
     expect(state.credits).toBe(60);
-    resolveBastionPhase(state); expect(state.credits).toBe(60);
+    resolveBossPhase(state); expect(state.credits).toBe(60);
     expect(state.hazards).toHaveLength(0);
     const before = structuredClone(state);
     state.phase = 'paused'; advance(state, 5);
@@ -113,7 +113,7 @@ describe('Bastion-9 mission', () => {
 
   it('leaves the wreck behind on the ground once extraction resumes the scroll', () => {
     const state = encounter(); openCore(state);
-    bossTarget(state, 'core')!.hp = 0; resolveBastionPhase(state);
+    bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state);
     const s0 = state.boss!.s, d0 = state.distance;
     advance(state, WRECK_HOLD);
     expect(state.distance).toBe(d0);

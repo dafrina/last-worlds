@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { HELION_ARK } from '../../src/content/ark';
 import { VIEW } from '../../src/shared/contracts';
 import { createRun } from '../../src/sim/game';
-import { startBoss } from '../../src/sim/bastion';
+import { startBoss } from '../../src/sim/boss';
 import { ARK_FOOTPRINT, arkPlacement, arkSocket, createArkView } from '../../src/render/ark-view';
 import { configureCamera } from '../../src/render/scene';
 
