@@ -360,4 +360,14 @@ Done, behaviour identical except V5:
 - **D1:** the 17 unused locals and parameters plus the dead exports `scatterKit`, `socketReach`, `guardsClear`, `TALL` (facility-kit) are gone. `createCargo` and `createRoadMaterial` are now module-private. The `ReturnType` type aliases stay as named module types.
 - **The two `tsconfig` flags stay off.** The user asked for no linters or formatters (8 November). `npx tsc --noEmit -p . --noUnusedLocals --noUnusedParameters` reports 0 today and can be run by hand.
 
+Later the same evening:
+- **Done:** the rest of V9; V7 (boss old-version branches, facility v2 with its GLBs archived, the ocean's Nacre branch, the single-kit hero path; the boss stand-ins stay as the load-failure fallback); D3's `?planet=` (now development-only); PF4, PF3 and V6 (agent, `004472f`).
+- **Allocations:** outside terrain generation, garbage per frame is 13–19% lower in every bench scenario. For example, dense goes from 134 to 108 KB/frame and nacre-boss from 90 to 73 KB/frame (`PERF_ALLOC=1`). The bench's headline figure moves only 1–10%, because terrain work is about 85% of it.
+- **Kept by the user's choice:** the live `?unlock=all` and `?perf` switches.
+- **Not bugs:** C1's two glow tables are deliberate. `PLANET_GLOW` colours beams and hunter shields; the world paint colours the craft.
+
+Two findings for later:
+- **`render()` runs unoptimised.** A V8 trace (`--trace-opt --trace-deopt`, 400 frames) never marks, compiles or OSRs `scene.ts` `render()` or `main.ts` `frame()`; their small callees are optimised. Every for-of loop and decimal value in `render()` therefore allocates. The renderer split (R1, §1.1) is the likely lever.
+- **Boss-fight terrain queries.** In khepri-boss, `bastionPlacement` costs about 458 KB/frame inclusive, through terrain-height queries (about 4.5 KB each). That is the biggest single allocation lever in boss fights. A cached height field around the boss would remove most of it.
+
 Not started, by choice: the structural splits (steps 6–11).
