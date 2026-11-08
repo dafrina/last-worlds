@@ -2,8 +2,6 @@ import { finish, type Work } from './terrain-work';
 import { cliffWallSteps } from './terrain-walls';
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange } from './terrain-layout';
 import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
-/** For src/render/nacre-kit.ts, which still imports the kind from here (render is out of this change's scope). */
-export type { KitKind } from './scenery-kit';
 
 /** Lateral ground strips per section; off-screen strips are culled. */
 export const TERRAIN_STRIPS = 4;

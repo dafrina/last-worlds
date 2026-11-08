@@ -314,7 +314,7 @@ export function createFx(scene: THREE.Scene) {
     // Shockwaves: a fast hot ring and a slower, wider one.
     emit(glow, { x, y, z, life: .7, size: 1.2, grow: 22, alpha: .75, shape: RING, flat: true, ...ramp(0xffc070, 2.2, 0xff4a10, .4) });
     emit(glow, { x, y: y - .02, z, life: 1.3, size: 1.5, grow: 15, alpha: .45, delay: .12, shape: RING, flat: true, ...ramp(0xff9a48, 1.5, 0x9a2008, .25) });
-    // (The explosions racing outward after it come from the simulation, one at a time: src/sim/bastion.ts deathSequence.)
+    // (The explosions racing outward after it come from the simulation, one at a time: src/sim/boss.ts deathSequence.)
     sparks(x, z, full() ? 40 : 20, 0xffc070, 11, n * 1.7);
     if (!full()) return;
     // Embers and burning debris on long arcs.

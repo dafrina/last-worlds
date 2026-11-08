@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { KitKind } from '../world/terrain-scatter';
+import type { KitKind } from '../world/scenery-kit';
 
 /**
  * Code-built stand-ins for the Nacre kit (docs/20), drawn until public/assets/nacre/nacre-kit.glb has loaded (and
