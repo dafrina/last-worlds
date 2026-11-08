@@ -852,3 +852,9 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **8 November · Claude Code (Blender MCP in WSL session) · deployed `dd40bfd`:** Codex's pickup, economy and visual batch and the Vesper alternation are live.
 - Pages run 42470872435 succeeded; the live bundles match; the smoke test has no errors.
 - `integrator-next` = `main`, plus this record.
+
+**8 November · Claude Code (Blender MCP in WSL session) · small refactors and test speed from docs/38** (user: "go on the small refactors" + "test optimization"). Every change must keep behaviour identical; the only intended visible change is V5's colour fix.
+- **Agent A, own worktree; tests and assets:** T1 (split the slow test files), TS1 (shared test helpers), TY2 (typed dev hooks, `src/dev-hooks.ts`), P1 (archived GLBs out of `public/`).
+- **Agent B, own worktree; sim, content and shared:** S1 (`shared/streams.ts`, bit-exact), S2 (perk and hunter tables in `content/`), W2 (world import cycles), D2 (`lootRng`), S3 (`sim/bastion.ts` → `sim/boss.ts`), TY1, X3 (`shared/storage.ts`), DOC1.
+- **Me, main tree; render:** V4, V5, PF1, V8, R4, R3, V9, PF2, X2.
+- D1 (unused exports, stricter tsconfig) comes last, after the merges. Moon training level session: please avoid these areas until the merge note.
