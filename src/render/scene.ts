@@ -2,7 +2,7 @@ import { createBeamLight, createPhaseHoles } from './combat-light';
 import { liveInstances, dynamicBatch } from './instances';
 import { createSilhouetteMaterial, planarShadow, silhouetteShade } from './craft-shadows';
 export { liveInstances } from './instances';
-import { SHIP_PERKS } from '../sim/ship-perks';
+import { SHIP_PERKS } from '../content/ship-perks';
 import { HERO_STENCIL } from './hero-stencil';
 import { drawnShot, launchFrom, type Launch } from './shot-launch';
 import * as THREE from 'three';
@@ -14,7 +14,8 @@ import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, w
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
 import { UMBRA_PLATEAU } from '../world/terrain-umbra';
 import { arenaStopDistance } from '../sim/bastion';
-import { HUNTERS, hunterCharges } from '../sim/hunters';
+import { HUNTERS } from '../content/hunters';
+import { hunterCharges } from '../sim/hunters';
 import { beamSpec } from '../sim/attacks';
 import { ENEMIES } from '../content/balance';
 import { missionBoss } from '../content/bosses';
