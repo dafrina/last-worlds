@@ -533,6 +533,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // culled terrain strips, facility variants) were recomposed every frame.
   scene.updateMatrixWorld = () => updateShown(scene, null);
   const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
+  const qaStats = !!import.meta.env?.DEV || query.has('perf');
   // DEFAULT_CAMERA unless a look-dev switch asks for another: `?camera=ortho`, `?camera=perspective[&fov=15..30]` or
   // `?camera=rectified[&depth=60]`.
   const asked = query.get('camera'), cameraMode = asked === 'ortho' || asked === 'perspective' || asked === 'rectified' ? asked : DEFAULT_CAMERA;
@@ -2294,7 +2295,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           };
         }
       }
-      if (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick) {
+      // QA stats (a scene walk and a JSON string every second) only where something reads them: development (the browser
+      // specs, the perf bench) and the `?perf` overlay; never on an ordinary production flight (docs/38 PF2).
+      if (qaStats && (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick)) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
           sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, warden: warden.stats, veil: veil.stats, cradle: cradle.stats, eclipse: eclipse.stats, planet, jump: jumpActive,

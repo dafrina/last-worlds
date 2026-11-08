@@ -650,6 +650,8 @@ export function createTerrainView(options: TerrainViewOptions) {
       }`,
   }));
   const foamMeshes = new Map<string, THREE.InstancedMesh[]>(), foamShapes = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+  /** Every foam shape made, so dispose() frees their GPU buffers (a WeakMap entry going away does not: docs/38 V9). */
+  const foamShapeList = new Set<THREE.BufferGeometry>();
   /** A floe's footprint for its foam: the mesh pressed flat and vertex-clustered (only its outline matters). */
   function foamShape(source: THREE.BufferGeometry): THREE.BufferGeometry {
     let shape = foamShapes.get(source);
@@ -660,7 +662,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     const simple = clusterSimplify(position, index, FOAM_CELL) ?? { position, index };
     shape = new THREE.BufferGeometry();
     shape.setAttribute('position', new THREE.BufferAttribute(simple.position, 3)); shape.setIndex(new THREE.BufferAttribute(simple.index, 1));
-    foamShapes.set(source, shape);
+    foamShapes.set(source, shape); foamShapeList.add(shape);
     return shape;
   }
   function floeFoam(name: string, floe: THREE.InstancedMesh): THREE.InstancedMesh[] {
@@ -1133,6 +1135,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       haulers.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); haulers.clear();
       floeMeshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); }); floeMeshes.clear();
       foamMeshes.forEach(meshes => meshes.forEach(mesh => { scene.remove(mesh); mesh.dispose(); })); foamMeshes.clear(); foamMaterials.forEach(material => material.dispose());
+      foamShapeList.forEach(shape => shape.dispose()); foamShapeList.clear();
       if (water && !options.waterMaterial) water.dispose();
       disposed = true;
       kit.forEach(geometry => geometry.dispose()); infra.forEach(geometry => geometry.dispose()); shared.forEach(geometry => geometry.dispose());

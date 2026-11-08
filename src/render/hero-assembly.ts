@@ -26,7 +26,8 @@ const files = new Map<string, Promise<GLTF>>();
 /** Loads a chassis kit once (shared by every build of that chassis). */
 export function loadHeroKit(chassis: HeroChassis, base = (import.meta.env?.BASE_URL ?? './') + 'assets/'): Promise<GLTF> {
   const file = base + heroKitFile(chassis);
-  if (!files.has(file)) files.set(file, new GLTFLoader().loadAsync(file));
+  // A failed load is forgotten so the next build retries, as hero-craft.ts does (docs/38 V9).
+  if (!files.has(file)) files.set(file, new GLTFLoader().loadAsync(file).catch(error => { files.delete(file); throw error; }));
   return files.get(file)!;
 }
 

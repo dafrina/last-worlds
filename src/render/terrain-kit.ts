@@ -348,7 +348,12 @@ export function loadCoronaKit(url: string): Promise<KitGeometries> { return load
 export async function loadUmbraKit(url: string, floatingUrl?: string): Promise<KitGeometries> {
   const [kit, floating] = await Promise.all([
     loadKit(url, UMBRA_KIT_KINDS, /glow/i),
-    floatingUrl ? loadKit(floatingUrl, ['umbFloat'], /glow/i) : Promise.resolve<KitGeometries>(new Map()),
+    // The floating shards are optional: if their file fails, the kit keeps its own shards rather than losing everything
+    // (docs/38 V9).
+    floatingUrl ? loadKit(floatingUrl, ['umbFloat'], /glow/i).catch(error => {
+      console.warn('Umbra floating shards unavailable; keeping the kit\'s own.', error);
+      return new Map() as KitGeometries;
+    }) : Promise.resolve<KitGeometries>(new Map()),
   ]);
   // Apply the three replacement nodes only after both loads settle, so completion order cannot restore old spikes.
   floating.forEach((geometry, name) => { kit.get(name)?.dispose(); kit.set(name, geometry); });
