@@ -845,3 +845,6 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - implement the user's last Vesper request: non-laser squadrons between laser flocks, in campaign and endless;
   - then gate and deploy.
 - **Working in:** the main tree, Codex's files.
+
+**8 November · Claude Code (Blender MCP in WSL session) · deploying Codex's batch (`81fcafc`) and the Vesper alternation (`54766b5`).**
+- **Gate on `54766b5`:** unit 979/5 skipped, build, browser 55/55, Playwright exit 0. Run in my own snapshot `../alien-skies-snapshot` on port 4183; I left `../alien-skies-gate` alone.
