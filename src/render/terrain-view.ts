@@ -109,6 +109,17 @@ const SHARED = new Set<string>(SHARED_NODES);
 const HAULER_SCALE = 0.75, HAULER_HALF_WIDTH = 1.05 / 2 * HAULER_SCALE, HAULER_HALF_LENGTH = 1.75 / 2 * HAULER_SCALE;
 /** Lane offset from the road centreline: two haulers pass 0.8 apart, just clear of each other. */
 const HAULER_LANE = 0.4, HAULER_CAPACITY = 48;
+/**
+ * The ground under a hauler's corner: `a` +1 front, −1 back; `b` +1 right, −1 left (from its centre x, s along its heading
+ * fx, fz and its right rx, rz). A plain function, so the four corners take no closure per hauler per frame.
+ */
+function haulerGround(seed: number, world: World, x: number, s: number, fx: number, fz: number, rx: number, rz: number, a: number, b: number): number {
+  return terrainHeight(seed, x + fx * HAULER_HALF_LENGTH * a + rx * HAULER_HALF_WIDTH * b, s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b), world);
+}
+/** How far the ground `h` under corner (a, b) stands above the hauler's tilted underside at `base`. */
+const cornerAbove = (h: number, base: number, rise: number, bank: number, a: number, b: number) => h - (base + a * rise / 2 + b * bank / 2);
+/** The floes in view under one kit node this frame, with each one's sea level (reused frame to frame). */
+interface FloeGroup { floes: Floe[]; seas: number[]; count: number }
 
 /** A render-only rectangle in world (x, s) whose scenery pieces are hidden, e.g. under a boss fortress. */
 export interface TerrainExclusion { minX: number; maxX: number; minS: number; maxS: number }
@@ -264,8 +275,16 @@ export function createTerrainView(options: TerrainViewOptions) {
     }
     return entry;
   }
-  /** Rear axle of each hauler drawn this frame (world space), for render-only dust puffs. */
+  /** Rear axle of each hauler drawn this frame (world space), for render-only dust puffs (pooled objects, refilled by animate()). */
   const haulerDust: { x: number; y: number; z: number }[] = [];
+  let dustUsed = 0;
+  /**
+   * Per-frame scratch for animate() (docs/38 V6): haulers drawn per cargo model (reset to 0, never rebuilt), the roads in
+   * view, and the floes in view by kit node with each floe's sea level (each node's group reused, refilled in this
+   * frame's order).
+   */
+  const haulerSlots = new Map<string, number>(), liveRoads = new Map<string, RoadPath>();
+  const floeGroups = new Map<string, FloeGroup>(), floeGroupPool = new Map<string, FloeGroup>();
   /**
    * Roads that mostly run on top of another road (a shared corridor) carry no haulers, so two never stack. Decided once
    * per road id, never per frame, so a hauler never blinks out and back.
@@ -744,6 +763,11 @@ export function createTerrainView(options: TerrainViewOptions) {
     dirty = true;
   }
 
+  /** Whether a piece's anchor (world x, s) lies in a battery compound's clearing. */
+  function inFacilityClearing(x: number, s: number): boolean {
+    for (const c of facilityClearings) if (x > c.minX && x < c.maxX && s > c.minS && s < c.maxS) return true;
+    return false;
+  }
   /** Refill every node batch with the instances whose boxes meet the margin-expanded frustum. */
   function compact() {
     const counts = new Map<string, number>();
@@ -767,15 +791,16 @@ export function createTerrainView(options: TerrainViewOptions) {
           if (hide && data.boxes[b + 3] > hide.minX && data.boxes[b] < hide.maxX && data.boxes[b + 5] > hide.minZ && data.boxes[b + 2] < hide.maxZ) continue;
           // Same box-centre anchor as the shadow proxy, so a removed rock cannot leave a ghost shadow.
           const ax = (data.boxes[b] + data.boxes[b + 3]) / 2, as = view.startS - (data.boxes[b + 2] + data.boxes[b + 5]) / 2;
-          if (facilityClearings.some(c => ax > c.minX && ax < c.maxX && as > c.minS && as < c.maxS)) continue;
+          if (inFacilityClearing(ax, as)) continue;
           worldBox.min.set(data.boxes[b] - CULL_MARGIN, data.boxes[b + 1], data.boxes[b + 2] + zShift - CULL_MARGIN);
           worldBox.max.set(data.boxes[b + 3] + CULL_MARGIN, data.boxes[b + 4], data.boxes[b + 5] + zShift + CULL_MARGIN);
           if (!frustum.intersectsBox(worldBox)) continue;
           grow(entry, slot + 1);
-          const target = entry.mesh.instanceMatrix.array as Float32Array;
-          target.set(data.matrices.subarray(i * 16, i * 16 + 16), slot * 16);
+          // Copied value by value (docs/38 V6: a `subarray` view per instance was garbage on every recompaction).
+          const target = entry.mesh.instanceMatrix.array as Float32Array, colors = entry.mesh.instanceColor!.array as Float32Array;
+          for (let k = 0; k < 16; k++) target[slot * 16 + k] = data.matrices[i * 16 + k];
           target[slot * 16 + 14] += matrixShift;
-          (entry.mesh.instanceColor!.array as Float32Array).set(data.colors.subarray(i * 3, i * 3 + 3), slot * 3);
+          for (let k = 0; k < 3; k++) colors[slot * 3 + k] = data.colors[i * 3 + k];
           slot++; instances++;
         }
         counts.set(name, slot);
@@ -1009,9 +1034,11 @@ export function createTerrainView(options: TerrainViewOptions) {
      * a road sharing another's corridor carries none (corridorShared).
      */
     animate(time: number) {
-      let count = 0; haulerDust.length = 0;
+      let count = 0; dustUsed = 0;
       // Each road's own planet picks its haulers: Vesper's ice haulers face +Z (Khepri's cargo cabs face −Z).
-      const used = new Map<string, number>(), roads = new Map<string, RoadPath>(), source = shown ?? world;
+      const used = haulerSlots, roads = liveRoads, source = shown ?? world;
+      for (const name of used.keys()) used.set(name, 0);
+      roads.clear();
       for (const view of views.values()) for (const [id, road] of view.roads) roads.set(id, road);
       for (const road of roads.values()) {
         const total = road.length[road.length.length - 1];
@@ -1038,45 +1065,53 @@ export function createTerrainView(options: TerrainViewOptions) {
           // drawn smaller than the cargo node so they never read as ground enemies, and seated on the ground under
           // all four corners: pitch and roll follow the slope, and the body lifts until no corner sinks.
           const yaw = Math.atan2(-dx, ds), fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
-          const ground = (a: number, b: number) => terrainHeight(seed ?? 0, x + fx * HAULER_HALF_LENGTH * a + rx * HAULER_HALF_WIDTH * b,
-            s - (fz * HAULER_HALF_LENGTH * a + rz * HAULER_HALF_WIDTH * b), roadWorld.bare);
-          const frontLeft = ground(1, -1), frontRight = ground(1, 1), backLeft = ground(-1, -1), backRight = ground(-1, 1);
+          const bare = roadWorld.bare, at = seed ?? 0;
+          const frontLeft = haulerGround(at, bare, x, s, fx, fz, rx, rz, 1, -1), frontRight = haulerGround(at, bare, x, s, fx, fz, rx, rz, 1, 1);
+          const backLeft = haulerGround(at, bare, x, s, fx, fz, rx, rz, -1, -1), backRight = haulerGround(at, bare, x, s, fx, fz, rx, rz, -1, 1);
           const rise = (frontLeft + frontRight - backLeft - backRight) / 2, bank = (frontRight + backRight - frontLeft - backLeft) / 2;
           // Steep cut roads tilt the hauler up to a limit (it is always drawn: skipping a frame made it blink).
           const pitch = THREE.MathUtils.clamp(Math.atan2(rise, 2 * HAULER_HALF_LENGTH), -0.45, 0.45), roll = THREE.MathUtils.clamp(Math.atan2(bank, 2 * HAULER_HALF_WIDTH), -0.35, 0.35);
           const base = Math.max(y, (frontLeft + frontRight + backLeft + backRight) / 4);
           let lift = 0;
-          for (const [a, b, h] of [[1, -1, frontLeft], [1, 1, frontRight], [-1, -1, backLeft], [-1, 1, backRight]]) {
-            lift = Math.max(lift, h - (base + a * rise / 2 + b * bank / 2));
-          }
+          lift = Math.max(lift, cornerAbove(frontLeft, base, rise, bank, 1, -1)); lift = Math.max(lift, cornerAbove(frontRight, base, rise, bank, 1, 1));
+          lift = Math.max(lift, cornerAbove(backLeft, base, rise, bank, -1, -1)); lift = Math.max(lift, cornerAbove(backRight, base, rise, bank, -1, 1));
           lift = Math.min(lift, 0.3);
           transform.position.set(x, base + lift + 0.05, distance - s); transform.rotation.set(pitch, vesper ? yaw + Math.PI : yaw, vesper ? -roll : roll, 'YXZ');
           transform.scale.setScalar(HAULER_SCALE); transform.updateMatrix(); transform.rotation.order = 'XYZ';
           mesh.setMatrixAt(slot, transform.matrix); used.set(node, slot + 1); count++;
-          haulerDust.push({ x: x - fx * HAULER_HALF_LENGTH, y: base + lift, z: distance - s - fz * HAULER_HALF_LENGTH });
+          const dust = haulerDust[dustUsed++] ??= { x: 0, y: 0, z: 0 };
+          dust.x = x - fx * HAULER_HALF_LENGTH; dust.y = base + lift; dust.z = distance - s - fz * HAULER_HALF_LENGTH;
         }
       }
+      haulerDust.length = dustUsed;
       haulers.forEach((mesh, name) => {
         const shown = used.get(name) ?? 0; mesh.count = shown; mesh.visible = shown > 0; mesh.instanceMatrix.needsUpdate = true;
       });
       stats.haulers = count;
       // Pack ice drifts slowly around its base position (seed + time only; never collision or targets).
-      const visible = new Map<string, Floe[]>(), seaOf = new Map<Floe, number>();
+      const visible = floeGroups;
+      visible.clear();
       for (const view of views.values()) for (const floe of view.floes) {
         if (!inView(floe.x, floe.s - distance, 2.6)) continue;
         if (exclusion && floe.x > exclusion.minX && floe.x < exclusion.maxX && floe.s > exclusion.minS && floe.s < exclusion.maxS) continue;
-        const name = kitNodeName(floe.kind, floe.variant), list = visible.get(name) ?? [];
-        list.push(floe); visible.set(name, list); seaOf.set(floe, view.sea);
+        const name = kitNodeName(floe.kind, floe.variant);
+        let group = visible.get(name);
+        if (!group) {
+          group = floeGroupPool.get(name) ?? { floes: [], seas: [], count: 0 };
+          floeGroupPool.set(name, group); group.count = 0; visible.set(name, group);
+        }
+        group.floes[group.count] = floe; group.seas[group.count] = view.sea; group.count++;
       }
       for (const [name, mesh] of floeMeshes) if (!visible.has(name)) { mesh.count = 0; mesh.visible = false; }
       for (const [name, meshes] of foamMeshes) if (!visible.has(name)) for (const mesh of meshes) { mesh.count = 0; mesh.visible = false; }
       foamUniforms.floeFoamTime.value = time;
       floeUsed = 0;
-      for (const [name, list] of visible) {
-        const mesh = floeMesh(name, list.length);
+      for (const [name, group] of visible) {
+        const mesh = floeMesh(name, group.count);
         if (!mesh) continue;
         const foams = floeFoam(name, mesh);
-        list.forEach((floe, i) => {
+        for (let i = 0; i < group.count; i++) {
+          const floe = group.floes[i];
           const angle = floe.phase + time * FLOE_SPIN * (floe.kind === 'iceberg' ? 0.5 : 1), sway = Math.sin(time * 0.11 + floe.phase) * FLOE_SWAY;
           // A cracked set's pieces sway about the set origin together (three.js yaw about +y, s = −z).
           let bx = floe.x, bz = -floe.s;
@@ -1085,24 +1120,25 @@ export function createTerrainView(options: TerrainViewOptions) {
             bx = floe.originX + ox * c + oz * n; bz = -floe.originS - ox * n + oz * c;
           }
           const x = bx + Math.cos(angle) * floe.radius, z = distance + bz - Math.sin(angle) * floe.radius, yaw = floe.rotation + sway;
-          const [hx, hz] = FLOE_FOOTPRINT[name] ?? [KIT[floe.kind].halfX, KIT[floe.kind].halfZ];
-          const sea = seaOf.get(floe)!;
+          const footprint = FLOE_FOOTPRINT[name], hx = footprint ? footprint[0] : KIT[floe.kind].halfX, hz = footprint ? footprint[1] : KIT[floe.kind].halfZ;
+          const sea = group.seas[i];
           transform.position.set(x, sea + Math.sin(time * 0.9 + floe.phase) * 0.015, z);
           transform.rotation.set(0, yaw, 0);
           transform.scale.set(floe.scaleX, floe.height, floe.scaleZ); transform.updateMatrix();
           mesh.setMatrixAt(i, transform.matrix);
           // The coastline foam: flat on the water, grown by each band's distance (a fixed width whatever the floe's size).
           transform.position.y = sea + .012;
-          FOAM_BANDS.forEach((band, k) => {
+          for (let k = 0; k < FOAM_BANDS.length; k++) {
+            const band = FOAM_BANDS[k];
             transform.scale.set(floe.scaleX * (1 + band.grow / Math.max(.3, hx * floe.scaleX)), 1, floe.scaleZ * (1 + band.grow / Math.max(.3, hz * floe.scaleZ)));
             transform.updateMatrix(); foams[k].setMatrixAt(i, transform.matrix);
-          });
+          }
           const feature = floeFeatures[floeUsed] ??= { id: '', kind: 'floe', x: 0, y: 0, z: 0, rx: 0, rz: 0, yaw: 0 };
           feature.id = floe.id; feature.kind = floe.kind === 'iceberg' ? 'iceberg' : 'floe'; feature.x = x; feature.y = sea; feature.z = z;
           feature.rx = hx * floe.scaleX; feature.rz = hz * floe.scaleZ; feature.yaw = yaw; floeUsed++;
-        });
-        mesh.count = list.length; mesh.visible = true; mesh.instanceMatrix.needsUpdate = true;
-        for (const foam of foams) { foam.count = list.length; foam.visible = true; foam.instanceMatrix.needsUpdate = true; }
+        }
+        mesh.count = group.count; mesh.visible = true; mesh.instanceMatrix.needsUpdate = true;
+        for (const foam of foams) { foam.count = group.count; foam.visible = true; foam.instanceMatrix.needsUpdate = true; }
       }
       floeFeatures.length = floeUsed;
       // Vent tops near the view (steam), skipping any exclusion like the instances themselves.
