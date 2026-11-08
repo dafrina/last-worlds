@@ -1,6 +1,7 @@
 import { NEUTRAL_MOOD, WORLD_HALF, clamp, cliff, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
-import { KIT, type KitInstance, type ScatterField } from './terrain-scatter';
-import { MODULE_HEIGHT, SETTLEMENT_CELL, compoundSlot, districtLevel, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
+import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
+import { MODULE_HEIGHT, compoundSlot, districtLevel } from './terrain-settlements';
+import { SETTLEMENT_CELL, type Archetype, type PlacedModule, type Settlement } from './settlement-geometry';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 

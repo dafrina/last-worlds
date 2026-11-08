@@ -1,6 +1,6 @@
 import { WORLD_HALF, clamp, hash, routeCenter, smoothRange, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT } from './terrain-layout';
 import { ARENA_RAMP, type TerrainArena } from './terrain-arena';
-import { SETTLEMENT_CELL, padDistance, type Archetype, type PlacedModule, type Settlement } from './terrain-settlements';
+import { SETTLEMENT_CELL, padDistance, type Archetype, type PlacedModule, type Settlement } from './settlement-geometry';
 import { MODULES } from './settlement-modules';
 import { finish, type Work } from './terrain-work';
 import type { DistrictPolicy, LotSpec, Placement, PipeCell, Quarter, Way } from './settlement-grammars';
@@ -34,8 +34,6 @@ export interface DistrictPlan {
   sites: readonly DistrictSite[];
 }
 export interface DistrictSite { id: string; minX: number; maxX: number; minS: number; maxS: number }
-/** The district a lot belongs to (on its Settlement). */
-export interface DistrictTag { id: string; role: 'hub' | 'lot'; minS: number; maxS: number; policy: DistrictPolicy }
 type Planet = Pick<PlanetProfile, 'id' | 'landform' | 'params' | 'local'> & { districts?: DistrictPolicy | null };
 
 /** Pads extend this far beyond a lot's layout extents (rounded pad corners keep clear of the pieces). */

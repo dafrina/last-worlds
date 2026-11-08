@@ -5,7 +5,8 @@ import {
 } from '../../src/world/terrain';
 import { cliff, cliffTalus, crispStep } from '../../src/world/terrain-layout';
 import { WALL_CELL } from '../../src/world/terrain-walls';
-import { padDistance, settlementsNear } from '../../src/world/terrain-settlements';
+import { padDistance } from '../../src/world/settlement-geometry';
+import { settlementsNear } from '../../src/world/terrain-settlements';
 import { MESH_APRON, PLANETS, VESPER_SEA_LEVEL } from '../../src/world/terrain';
 import { VIEW } from '../../src/shared/contracts';
 

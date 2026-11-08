@@ -4,7 +4,7 @@ The user, 5 November 2026: "also make some models for the ships and infrastructu
 original faceted geometry (the strike-site toolkit, tools/blender/boss_remodel.py Solids): gunmetal frames, bronze-grey
 plates, bronze trim, gold glowing seams and cores. Bold silhouettes for the 55-degree camera; baked AO.
 
-Nodes (public/assets/corona/corona-kit.glb; src/world/terrain-scatter.ts KIT, kinds cor*):
+Nodes (public/assets/corona/corona-kit.glb; src/world/scenery-kit.ts KIT, kinds cor*):
     cor_extractor_0   a captured star between two C-shaped arms on a dais, pipes off its sides
     cor_collector_0   a lattice tower carrying a glowing hub and four fan panels facing the camera
     cor_hangar_0      a ribbed half-barrel hangar, its open front glowing, crates and a pad apron

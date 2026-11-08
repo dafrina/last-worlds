@@ -1,8 +1,10 @@
 import type { PlanetId } from '../shared/contracts';
 import { landform, moodAt, moodParams, pointColor, type Landform, type MoodParams } from './terrain-layout';
 import { arenaGround, arenaPaving, sameArena, type TerrainArena } from './terrain-arena';
-import { settlement, type Settlement } from './terrain-settlements';
-import { scatterKitSteps, type FloeSetKind, type KitInstance, type ScatterField } from './terrain-scatter';
+import { settlement } from './terrain-settlements';
+import type { Settlement } from './settlement-geometry';
+import { scatterKitSteps } from './terrain-scatter';
+import type { FloeSetKind, KitInstance, ScatterField } from './scenery-kit';
 import type { Work } from './terrain-work';
 import { VESPER } from './terrain-vesper';
 import { LUNA } from './terrain-luna';

@@ -1,6 +1,7 @@
 import { SCENERY_MAX_HEIGHT, TERRAIN_MIN_HEIGHT, WORLD_HALF, clamp, hash, landform, moodParams, smoothRange } from './terrain-layout';
 import { nearArena, type TerrainArena } from './terrain-arena';
-import { districtHidden, districtLotsNear, type DistrictTag } from './terrain-districts';
+import { districtHidden, districtLotsNear } from './terrain-districts';
+import { SETTLEMENT_CELL, padDistance, type Archetype, type ModuleKind, type PlacedModule, type Settlement } from './settlement-geometry';
 import type { DistrictPolicy } from './settlement-grammars';
 import type { PlanetProfile } from './terrain-planet';
 
@@ -9,9 +10,6 @@ import type { PlanetProfile } from './terrain-planet';
  * own composition, quarter-turn rotation, mirroring and module counts, on flattened ground. Pure data from
  * the seed; never reads combat. Positions are global, so every section sees the same settlements.
  */
-export type Archetype = 'refinery' | 'mining' | 'plant' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned'
-  // Vesper (docs/17 §4).
-  | 'radiator' | 'missile' | 'cryo' | 'harbour' | 'exchanger' | 'reactor';
 export type KhepriArchetype = 'refinery' | 'mining' | 'plant' | 'landing' | 'comm' | 'pumping' | 'wreck' | 'abandoned';
 export const ARCHETYPES: readonly KhepriArchetype[] = ['refinery', 'mining', 'plant', 'landing', 'comm', 'pumping', 'wreck', 'abandoned'];
 // Bigger facilities weigh more (user, 17 October: more houses and facilities on Khepri and Vesper).
@@ -31,33 +29,6 @@ export const MODULE_HEIGHT: Readonly<Record<string, number>> = {
   vesper_radiator_array: 0.81, vesper_missile_site: 1.74, vesper_cannon_site: 0.84, vesper_cryo_dome: 0.94, vesper_habitat_0: 0.89,
   vesper_habitat_1: 0.79, vesper_pier_segment: 0.64, vesper_crane: 2.1, vesper_comm_needle: 2.16, vesper_ice_hauler: 0.64, vesper_icebreaker: 1.37,
 };
-/** Settlement cells along s, one candidate per side per cell. */
-export const SETTLEMENT_CELL = 30;
-
-export type ModuleKind = 'infra' | 'shared' | 'kit';
-/** A module in world space; kit modules name a kit kind (rock, boulder, crystal…) instead of a node. */
-export interface PlacedModule {
-  id: string; kind: ModuleKind; node: string; x: number; s: number; yaw: number;
-  /** Kit modules only: uniform scale and variant pick. */
-  scale: number; pick: number;
-  /** A fixed base height (e.g. a quay at sea level) instead of the pad level. */
-  base?: number;
-  /** Detail the low graphics tier may skip (district lights, parked vehicles, crates); never a silhouette. */
-  cosmetic?: boolean;
-}
-export interface Settlement {
-  id: string; cell: number; side: number; archetype: Archetype;
-  x: number; s: number; turns: number; mirror: number;
-  /** Pad level (snapped) and world-space half extents after rotation. */
-  level: number; hx: number; hs: number;
-  /** 0 = natural ground (wrecks), 1 = fully flattened pad. */
-  flatten: number;
-  modules: PlacedModule[];
-  /** District lots only (docs/23): the district, the hub's road gates, and the structure cap of its pieces. */
-  district?: DistrictTag;
-  gates?: readonly { x: number; s: number }[];
-  cap?: number;
-}
 
 interface LocalModule { kind: ModuleKind; node: string; u: number; v: number; yaw: number; scale?: number }
 
@@ -252,11 +223,6 @@ export function settlement(seed: number, cell: number, side: number): Settlement
   return result;
 }
 
-/** Rounded-rectangle distance to a settlement pad (negative inside). */
-export function padDistance(site: Settlement, x: number, s: number): number {
-  const corner = 1.4, qx = Math.abs(x - site.x) - (site.hx - corner), qs = Math.abs(s - site.s) - (site.hs - corner);
-  return Math.hypot(Math.max(qx, 0), Math.max(qs, 0)) + Math.min(Math.max(qx, qs), 0) - corner;
-}
 /** How strongly a pad flattens ground at a point (0 outside, 1 on the pad). */
 export const padInfluence = (site: Settlement, x: number, s: number) => site.flatten * (1 - smoothRange(0, 2.4, padDistance(site, x, s)));
 

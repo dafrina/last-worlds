@@ -1,5 +1,6 @@
 import { TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT, clamp, mix, type Mood, type MoodParams } from './terrain-layout';
-import { padDistance, padInfluence, settlementsNear, type Settlement } from './terrain-settlements';
+import { padInfluence, settlementsNear } from './terrain-settlements';
+import { padDistance, type Settlement } from './settlement-geometry';
 import { arenaAt, arenaReaches, arenaWeight, type TerrainArena } from './terrain-arena';
 import { worldAt, type PlanetPoint, type TerrainInput, type World } from './terrain-planet';
 
