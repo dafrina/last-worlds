@@ -36,6 +36,7 @@ import { destroySites, hitSites, placeSite, siteSeats, type SiteSpot } from './s
 import { SITES } from '../content/sites';
 import { SITE_MODELS } from '../render/site-models';
 import { SITE_IDS, type SiteId } from '../shared/contracts';
+import { readJson, writeJson } from '../shared/storage';
 import './playground.css';
 
 type Mission = NonNullable<RunConfig['mission']>;
@@ -86,8 +87,8 @@ function set(look: PlanetLook, path: string, value: number) {
   parent[last] = value;
 }
 const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
-const load = <T>(key: string): T | null => { try { const text = localStorage.getItem(key); return text ? JSON.parse(text) as T : null; } catch { return null; } };
-const save = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: keep going */ } };
+const load = <T>(key: string): T | null => readJson(key, value => value as T | null);
+const save = writeJson; // storage unavailable: keep going
 
 const root = document.getElementById('playground')!;
 const TABS = [['level', 'Level'], ['look', 'Look'], ['boss', 'Boss'], ['enemies', 'Enemies'], ['weapons', 'Weapons'], ['sites', 'Sites'], ['models', 'Models'], ['hangar', 'Hangar']] as const;

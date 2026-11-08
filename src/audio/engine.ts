@@ -1,4 +1,5 @@
 import type { PlanetId, RunState } from '../shared/contracts';
+import { readJson, writeJson } from '../shared/storage';
 import { SoundObserver } from './events';
 import { AudioMixer, type AudioSettings } from './mixer';
 import { bossStep, scoreStep, ScoreClock, THEMES } from './score';
@@ -12,8 +13,8 @@ export function sanitizeSettings(value: unknown): AudioSettings {
 }
 
 export function createGameAudio() {
-  let settings: AudioSettings = { ...DEFAULT_AUDIO };
-  try { settings = sanitizeSettings(JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) ?? 'null')); } catch { /* Session defaults. */ }
+  // Unavailable or unreadable storage: session defaults.
+  let settings: AudioSettings = readJson(AUDIO_STORAGE_KEY, sanitizeSettings) ?? { ...DEFAULT_AUDIO };
   let context: AudioContext | undefined, mixer: AudioMixer | undefined, timer: ReturnType<typeof setInterval> | undefined;
   let suspendTimer: ReturnType<typeof setTimeout> | undefined;
   let active = false, planet: PlanetId = 'luna', tension = 0, disposed = false;
@@ -69,7 +70,7 @@ export function createGameAudio() {
   }
   function setSettings(next: Partial<AudioSettings>) {
     settings = sanitizeSettings({ ...settings, ...next });
-    try { localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify(settings)); } catch { /* Memory-only preferences. */ }
+    writeJson(AUDIO_STORAGE_KEY, settings); // refused: memory-only preferences
     mixer?.setSettings(settings);
     if (settings.muted) halt();
     else unlock();
