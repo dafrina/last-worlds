@@ -1,7 +1,6 @@
 import { liveInstances, liveVertices } from './instances';
 import * as THREE from 'three';
 import { createBastionTracks } from './bastion-tracks';
-import { applySurfaceFinish } from './surface-finish';
 import { retainBossMaterials } from './approved-boss-materials';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -45,16 +44,6 @@ export async function loadBastionModel(url: string): Promise<THREE.Group> {
 
 /* ------------------------------------------------------------------ materials */
 
-function treadTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 64;
-  const context = canvas.getContext('2d');
-  // One heavy track link per tile: a dark grouser bar, a bright worn plate, and a thin hinge line.
-  if (context) for (let y = 0; y < 64; y++) { const v = y < 18 ? 55 : y < 22 ? 120 : y > 60 ? 90 : 205 + (y % 3) * 8; context.fillStyle = `rgb(${v},${v},${v})`; context.fillRect(0, y, 8, 1); }
-  const texture = new THREE.CanvasTexture(canvas);
-  // Belt v is arc length in game units; one texture tile per link, so the loop wraps without a seam.
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(1, 1 / LINK_PITCH); texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
 const glowMaterial = (color: number, intensity: number) =>
   new THREE.MeshStandardMaterial({ color: 0x2a1408, emissive: color, emissiveIntensity: intensity, roughness: .5, metalness: .2, toneMapped: false });
 
@@ -147,35 +136,13 @@ function modelRig(model: THREE.Group): Rig {
   // v4 approved copies and v5 remodels both carry authored PBR materials and the articulated rig.
   const approved = !!(model.getObjectByName('bastion_approved_v4') ?? model.getObjectByName('bastion_remodel_v5')); chassis.userData.approved = approved;
   model.updateMatrixWorld(true);
-  const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .48, metalness: .65 }), 'metal', .7, .022);
-  const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .78 }), 'metal', .8, .012);
   const lamps = glowMaterial(0xffa04a, 1.6);
-  const treadMaps: THREE.Texture[] = [], owned: THREE.Material[] = [armor, trim, lamps];
-  const paintMaps = new Set<THREE.Texture>();
+  const owned: THREE.Material[] = [lamps];
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(part === 'core' ? 0xff7a30 : 0xff9a50, 1.2)]));
   heats.forEach(material => owned.push(material));
   const node = (name: string) => model.getObjectByName(name);
   const partOf = (name: string): BossPart | null => name.includes('core') ? 'core' : name.includes('left') ? 'left' : name.includes('right') ? 'right' : null;
   const retained = approved ? retainBossMaterials(model, 'bastion_', partOf) : null;
-  // Replace authored materials with runtime ones (vertex colours kept); treads get a scrolling belt map.
-  if (!approved) model.traverse(object => {
-    if (!(object instanceof THREE.Mesh)) return;
-    const owner = object.parent?.name.startsWith('bastion_') ? object.parent.name : object.name;
-    const source = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.Material;
-    const isGlow = source.name.includes('glow'), isTread = owner.includes('tread');
-    if (isGlow) {
-      const part = partOf(owner);
-      object.material = part && !owner.includes('wreck') && !owner.includes('shutter') ? heats.get(part)! : lamps;
-    } else if (isTread) {
-      const map = treadTexture(); treadMaps.push(map);
-      const belt = (source.name.includes('trim') ? trim : armor).clone(); belt.map = map; owned.push(belt); object.material = belt;
-    } else {
-      const target = source.name.includes('trim') ? trim : armor;
-      const map = (source as THREE.MeshStandardMaterial).map;
-      if (map) { target.map = map; paintMaps.add(map); }
-      object.material = target;
-    }
-  });
   const parts = new Map<BossPart, PartRig>();
   for (const part of PARTS) {
     const group = new THREE.Group(); group.position.copy(socket(part)); chassis.add(group); group.updateMatrixWorld(true);
@@ -209,8 +176,8 @@ function modelRig(model: THREE.Group): Rig {
   parts.forEach(rig => rig.heat.push(...twinsOf(rig.heat)));
   const glow = retained?.hull ?? [lamps];
   glow.push(...twinsOf(glow));
-  return { chassis, parts, tracks, treads: treadMaps, glow, wheels,
-    dispose() { tracks.dispose(); if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); treadMaps.forEach(t => t.dispose()); paintMaps.forEach(t => t.dispose()); } };
+  return { chassis, parts, tracks, treads: [], glow, wheels,
+    dispose() { tracks.dispose(); if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); } };
 }
 
 /* ------------------------------------------------------------------ particles */

@@ -8,7 +8,6 @@ import { ECLIPSE } from '../content/eclipse';
 import { HELIOPHAGE } from '../content/heliophage';
 import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
 import { hash, particleLayer } from './bastion-view';
-import { applySurfaceFinish } from './surface-finish';
 import { retainBossMaterials } from './approved-boss-materials';
 
 /**
@@ -57,13 +56,13 @@ const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
 /**
  * A carrier boss this view draws. THE VEIL (Nacre) and THE CRADLE (Amnion) share the rig contract (a hull, flank weak
  * points with wrecks, a heart with a wreck under hinged shutters, bay doors, docked pods and a launched pod) and the
- * combat sockets; each has its own node prefix, model markers, shutter opening and spark colour.
+ * combat sockets; each has its own node prefix, shutter opening and spark colour.
  */
 export interface CarrierStyle {
   id: 'veil' | 'cradle' | 'eclipse' | 'heliophage';
   /** Other bosses this rig stands in for (THE HELIOPHAGE flies THE ECLIPSE until its own model: docs/37). */
   stands?: readonly BossId[];
-  name: string; prefix: string; markers: readonly string[]; shutterOpen: number; spark: number; hover: number;
+  name: string; prefix: string; shutterOpen: number; spark: number; hover: number;
   /** It flies in from the top of the screen (its content's entryS) instead of rising out of the ground. */
   fliesIn?: true;
   /** The boss's own combat sockets, target plane, arrival and bays (src/content/veil.ts, src/content/cradle.ts). */
@@ -77,7 +76,7 @@ export interface CarrierStyle {
 }
 export interface CarrierFx { spark: number; hot: number; flash: number; steam: number; ichor: readonly [number, number, number]; ring: number }
 const VEIL_FX: CarrierFx = { spark: 0x8ffff0, hot: 0xf2fff8, flash: 0xc8fff2, steam: 0x9a86d0, ichor: [0xeafff8, 0x56f6dc, 0xa070ff], ring: 0x7ffff0 };
-export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', markers: ['veil_approved_v4', 'veil_remodel_v5', 'veil_remodel_v6'], shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
+export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
   content: { podOffset: VEIL.podOffset, podS: VEIL.podS, heartS: VEIL.heartS, targetHeight: VEIL.targetHeight, arrivalDuration: VEIL.arrivalDuration, bays: VEIL.bays },
   // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
   footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 8.5, back: 11 } };
@@ -85,7 +84,7 @@ export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 
  * THE CRADLE (tools/blender/remodel_cradle.py): six claws unfold 42° outward from over its core. Its floating island
  * rises out of the canyon and hovers 0.8 over the plateau (user, 23 October: "after rising it hovers slightly").
  */
-export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', markers: ['cradle_approved_v2', 'cradle_remodel_v1'], shutterOpen: THREE.MathUtils.degToRad(42), spark: 0xffc860, hover: .8,
+export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', shutterOpen: THREE.MathUtils.degToRad(42), spark: 0xffc860, hover: .8,
   content: { podOffset: CRADLE.sacOffset, podS: CRADLE.sacS, heartS: CRADLE.heartS, targetHeight: CRADLE.targetHeight, arrivalDuration: CRADLE.arrivalDuration, bays: CRADLE.bays },
   // the-cradle-v2-approved.glb (70% of the reference placement): arms to x +-6, prow 2.3 toward the player, ring 6.3 away.
   footprint: { halfWidth: 6.2, front: 2.5, back: 6.7 },
@@ -96,7 +95,7 @@ export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', pr
  * sectors roll outward over their feet; it rises out of the abyss and hovers 1.2 over the plateau's level, its top under
  * the flight plane. Its prow vent (v2, 31 October) glows on the hull's front face under the reactor and has its own wreck.
  */
-export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE', prefix: 'eclipse_', markers: ['eclipse_approved_v1'], shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
+export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE', prefix: 'eclipse_', shutterOpen: THREE.MathUtils.degToRad(50), spark: 0xb7a4ff, hover: 1.2,
   content: { podOffset: ECLIPSE.ventOffset, podS: ECLIPSE.ventS, heartS: ECLIPSE.reactorS, targetHeight: ECLIPSE.targetHeight, arrivalDuration: ECLIPSE.arrivalDuration, bays: ECLIPSE.bays,
     prowS: ECLIPSE.prowS },
   footprint: { halfWidth: 10.2, front: 4.2, back: 9.1 } };
@@ -107,7 +106,7 @@ export const ECLIPSE_STYLE: CarrierStyle = { id: 'eclipse', name: 'THE ECLIPSE',
  * plateau's level, so its underside clears the plateau and its top stays under the flight plane. No armour shutters: its
  * core's cage is part of the hull.
  */
-export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HELIOPHAGE', prefix: 'heliophage_', markers: ['heliophage_approved_v1'], shutterOpen: 0, spark: 0xffa040, hover: 2.6, fliesIn: true,
+export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HELIOPHAGE', prefix: 'heliophage_', shutterOpen: 0, spark: 0xffa040, hover: 2.6, fliesIn: true,
   content: { podOffset: HELIOPHAGE.ventOffset, podS: HELIOPHAGE.ventS, heartS: HELIOPHAGE.reactorS, targetHeight: HELIOPHAGE.targetHeight, arrivalDuration: HELIOPHAGE.arrivalDuration, bays: HELIOPHAGE.bays,
     prowS: HELIOPHAGE.prowS },
   footprint: { halfWidth: 8.2, front: 3.5, back: 9.2 },
@@ -117,59 +116,6 @@ export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HEL
 
 export async function loadVeilModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
-}
-
-/**
- * Builds the rig from the-veil.glb (art/the-veil/README.md): `veil_hull`, `veil_pod_left|right` (+ `_wreck`),
- * `veil_heart` (+ `_wreck`), `veil_heart_shutter_0..3`, bay and engine empties. Authored materials are replaced by
- * runtime ones: an iridescent nacre shell, pale metallic blades, a black frame, and teal/amber glow (each weak point
- * gets its own glow material so its heat can flare).
- */
-function modelRig(model: THREE.Group, style: CarrierStyle): Rig {
-  // v4 approved imports and v5 remodels (tools/blender/remodel_veil.py), and THE CRADLE (remodel_cradle.py), share the
-  // authored-material rig.
-  if (style.markers.some(marker => model.getObjectByName(marker))) return approvedRig(model, style);
-  const chassis = new THREE.Group();
-  model.updateMatrixWorld(true);
-  const shell = applySurfaceFinish(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .38, metalness: .58, iridescence: .35, iridescenceIOR: 1.38, iridescenceThicknessRange: [220, 440], clearcoat: .18, clearcoatRoughness: .3, envMapIntensity: .85 }), 'metal', .6, .008);
-  const blade = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .28, metalness: .82, envMapIntensity: 1.15 }), 'metal', .6, .018);
-  const frame = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .48, metalness: .72 }), 'metal', 1.2, .018);
-  const bronze = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .8, envMapIntensity: 1.1 }));
-  const sinew = glowMaterial(0x3ff2d8, 1.4), amber = glowMaterial(0xffa040, 1.6), engine = glowMaterial(0x6af6ff, 2.6);
-  const owned: { dispose(): void }[] = [shell, blade, frame, bronze, sinew, amber, engine];
-  const paintMaps = new Set<THREE.Texture>();
-  const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(0x3ff2d8, 1.2)]));
-  heats.forEach(material => owned.push(material));
-  const partOf = (name: string): BossPart | null => name.startsWith('veil_heart') ? 'core' : name.startsWith('veil_pod_left') ? 'left' : name.startsWith('veil_pod_right') ? 'right' : null;
-  model.traverse(object => {
-    if (!(object instanceof THREE.Mesh)) return;
-    let owner: THREE.Object3D | null = object;
-    while (owner && !owner.name.startsWith('veil_')) owner = owner.parent;
-    const source = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.MeshStandardMaterial;
-    const label = source.name ?? '';
-    if (/shell/i.test(label) && source.map) { shell.map = source.map; paintMaps.add(source.map); }
-    const part = owner ? partOf(owner.name) : null, wreck = owner?.name.endsWith('_wreck') ?? false;
-    object.material = /glow/i.test(label) ? (part && !wreck ? heats.get(part)! : /amber/i.test(label) ? amber : owner?.name === 'veil_hull' && /engine/i.test(object.name) ? engine : sinew)
-      : /blade/i.test(label) ? blade : /frame/i.test(label) ? frame : /bronze/i.test(label) ? bronze : shell;
-    object.castShadow = !/glow/i.test(label); object.receiveShadow = true;
-  });
-  const node = (name: string) => model.getObjectByName(name);
-  const hull = node('veil_hull'); if (hull) chassis.attach(hull);
-  const parts = new Map<BossPart, PartRig>();
-  for (const part of PARTS) {
-    const group = new THREE.Group(); group.position.copy(socket(style, part)); chassis.add(group); group.updateMatrixWorld(true);
-    const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
-    const base = part === 'core' ? 'veil_heart' : `veil_pod_${part}`;
-    const live = [take(base)].filter(Boolean) as THREE.Object3D[];
-    const wreck = take(`${base}_wreck`); if (wreck) wreck.visible = false;
-    const petals = part === 'core' ? [0, 1, 2, 3].map(k => take(`veil_heart_shutter_${k}`)).filter(Boolean).map(object => {
-      const closed = object!.quaternion.clone(), open = closed.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), MODEL_SHUTTER_OPEN));
-      return { object: object!, closed, open };
-    }) : [];
-    parts.set(part, { group, live, wreck, petals, heat: heats.get(part)!, open: 0 });
-  }
-  const bays = ['veil_bay_left', 'veil_bay_right'].map(name => node(name)?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3());
-  return { chassis, parts, engine, sinew, bays, dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); paintMaps.forEach(t => t.dispose()); } };
 }
 
 /** The approved imported carrier. No procedural exterior or replacement paint. */
@@ -506,7 +452,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       liveVertices(markers, geometry, cursor); markers.visible &&= root.visible;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
-    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
+    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = approvedRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
     get hasPodModel() { return !!rig.flightPods; },
     get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },

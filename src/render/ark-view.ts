@@ -5,7 +5,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HELION_ARK } from '../content/ark';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import type { FoamRing, Wake } from './water';
-import { applySurfaceFinish } from './surface-finish';
 import { retainBossMaterials } from './approved-boss-materials';
 
 /**
@@ -106,29 +105,11 @@ function modelRig(model: THREE.Group): Rig {
   const remodel = !!model.getObjectByName('ark_remodel_v5');
   const approved = remodel || !!model.getObjectByName('ark_approved_v4') || !!model.getObjectByName('ark_approved_v6'); chassis.userData.approved = approved;
   model.updateMatrixWorld(true);
-  const armor = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .33, metalness: .68, envMapIntensity: 1.0 }), 'metal', .8, .02);
-  const trim = applySurfaceFinish(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .41, metalness: .28, envMapIntensity: 1.0 }), 'metal', .8, .012);
-  const lamps = glowMaterial(0xff7a26, 1.5), embers = glowMaterial(0xff5a1a, .9);
+  const lamps = glowMaterial(0xff7a26, 1.5);
   const heats = new Map<BossPart, THREE.MeshStandardMaterial>(PARTS.map(part => [part, glowMaterial(0xff7a26, 1.2)]));
-  const owned: THREE.Material[] = [armor, trim, lamps, embers, ...heats.values()];
-  const paintMaps = new Set<THREE.Texture>();
+  const owned: THREE.Material[] = [lamps, ...heats.values()];
   const node = (name: string) => model.getObjectByName(name);
   const retained = approved ? retainBossMaterials(model, 'ark_', name => name.includes('bridge') ? 'core' : name.includes('radiator_left') || name.includes('turret_left') ? 'left' : name.includes('radiator_right') || name.includes('turret_right') ? 'right' : null) : null;
-  if (!approved) model.traverse(object => {
-    if (!(object instanceof THREE.Mesh)) return;
-    let owner: THREE.Object3D = object;
-    while (owner.parent && owner.parent !== model) owner = owner.parent;
-    const name = owner.name, source = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.Material;
-    if (/glow/i.test(source.name)) {
-      const part: BossPart | null = name.includes('bridge') && !name.includes('shutter') ? 'core' : name.includes('radiator_left') ? 'left' : name.includes('radiator_right') ? 'right' : null;
-      object.material = name.includes('wreck') ? embers : part ? heats.get(part)! : lamps;
-    } else {
-      const target = /trim/i.test(source.name) ? trim : armor;
-      const map = (source as THREE.MeshStandardMaterial).map;
-      if (map) { target.map = map; paintMaps.add(map); }
-      object.material = target;
-    }
-  });
   const take = (parent: THREE.Object3D, name: string) => { const object = node(name); if (object) parent.attach(object); return object; };
   const parts = new Map<BossPart, PartRig>();
   for (const part of PARTS) {
@@ -156,7 +137,7 @@ function modelRig(model: THREE.Group): Rig {
     return object ? { object, closed: object.position.clone(), open: object.position.clone().add(new THREE.Vector3(side === 'left' ? -.9 : .9, 0, 0)) } : null;
   }).filter(Boolean) as Slider[];
   return { chassis, parts, doors, lamps: retained?.hull ?? [lamps], model: true, approved, remodel,
-    dispose() { if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); paintMaps.forEach(t => t.dispose()); } };
+    dispose() { if (retained) retained.dispose(); else chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(m => m.dispose()); } };
 }
 
 /* ------------------------------------------------------------------ particles (spray, steam, sparks, smoke) */
