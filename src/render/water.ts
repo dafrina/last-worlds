@@ -21,7 +21,7 @@ attribute float shore; attribute float depth;
 uniform float waterScroll;
 varying float vShore; varying float vDepth; varying vec2 vSea;`;
 const WATER_FRAGMENT_HEAD = /* glsl */`
-uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell; uniform float foamGlow; uniform vec3 bloomTint; uniform float bloomAmount;
+uniform float waterTime; uniform vec3 deepColor; uniform vec3 shallowColor; uniform vec3 foamColor; uniform float swell;
 uniform float crisp; uniform float plasma; uniform vec3 plasmaHot;
 float plasmaHeat;
 varying float vShore; varying float vDepth; varying vec2 vSea;
@@ -49,7 +49,7 @@ export interface Water {
   /** Simulation time (seconds) and the run's forward distance (terrain frame). */
   update(time: number, distance: number): void;
   setEnvironment(texture: THREE.Texture | null): void;
-  /** Planet palette: Vesper's ocean, or Nacre's indigo mire with a calm swell and soft teal glow at the shores. */
+  /** Planet palette: Vesper's ocean or Corona's plasma (Nacre has its own mire water, mire-water.ts). */
   setPlanet(planet: string): void;
   dispose(): void;
 }
@@ -57,7 +57,7 @@ export interface Water {
 export function createWater(): Water {
   const linear = (hex: number) => new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
   const uniforms = {
-    waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 }, foamGlow: { value: 0 }, bloomTint: { value: new THREE.Color() }, bloomAmount: { value: 0 },
+    waterTime: { value: 0 }, waterScroll: { value: 0 }, swell: { value: 1 },
     crisp: { value: 0 }, plasma: { value: 0 }, plasmaHot: { value: linear(0xffd27a) },
     deepColor: { value: linear(0x0d3557) }, shallowColor: { value: linear(0x1f6a8f) }, foamColor: { value: linear(0xeef6fb) },
   };
@@ -77,29 +77,12 @@ export function createWater(): Water {
       .replace('#include <color_fragment>', `#include <color_fragment>
   float calm = smoothstep( -0.1, 0.9, vShore );
   diffuseColor.rgb = mix( shallowColor, deepColor, smoothstep( 0.0, 2.4, vDepth ) );
-  // Nacre: violet algae blooms streak the mire (warped noise in the terrain frame, so they ride the scroll).
-  if ( bloomAmount > 0.0 ) {
-    // Nacre: deep indigo water streaked with violet algae (fuzzy, broken streaks drawn out along the channels and a
-    // few drifting clouds), a faint mottled sky sheen, darker water at the shores. All in the terrain frame.
-    vec2 warp = vec2( seaNoise( vSea * 0.11 ), seaNoise( vSea * 0.1 + 7.0 ) ) * 7.0;
-    vec2 p = vSea + warp + vec2( seaNoise( vSea * 0.37 + 2.0 ), seaNoise( vSea * 0.33 + 9.0 ) ) * 1.6;
-    float streak = 1.0 - smoothstep( 0.02, 0.15, abs( seaNoise( p * vec2( 0.38, 0.26 ) ) - 0.5 ) );
-    float streak2 = 1.0 - smoothstep( 0.01, 0.07, abs( seaNoise( p * 0.85 + 11.0 ) - 0.5 ) );
-    float breakup = smoothstep( 0.32, 0.72, seaNoise( p * 0.3 + 5.0 ) );
-    float drift = smoothstep( 0.63, 0.84, seaNoise( p * 0.2 + 3.0 ) * 0.7 + seaNoise( p * 0.8 ) * 0.3 );
-    float bloom = clamp( streak * breakup * 0.8 + streak2 * breakup * drift * 0.5 + drift * 0.6, 0.0, 1.0 );
-    bloom *= 0.75 + 0.25 * seaNoise( vSea * 3.0 );
-    diffuseColor.rgb = mix( diffuseColor.rgb, bloomTint, bloom * bloomAmount );
-    float sheen = seaNoise( vSea * vec2( 0.7, 1.1 ) + warp * 0.6 ) * 0.7 + seaNoise( vSea * 2.3 ) * 0.3;
-    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.07, 0.12, 0.34 ), smoothstep( 0.6, 0.95, sheen ) * 0.45 * ( 1.0 - bloom * 0.7 ) );
-    diffuseColor.rgb *= ( 0.84 + seaNoise( vSea * 5.0 + warp ) * 0.26 ) * mix( 0.7, 1.0, smoothstep( 0.0, 0.7, vShore ) );
-  }
   // Shoreline foam: a broken band that laps in and out; streaks drift with the swell.
   float lap = 0.5 + 0.5 * sin( waterTime * 1.3 + seaNoise( vSea * 0.7 ) * 6.2832 );
   float breakup = seaNoise( vSea * vec2( 3.1, 2.3 ) + vec2( waterTime * 0.12, 0.0 ) );
   float foam = ( 1.0 - smoothstep( 0.04, 0.2 + 0.16 * lap, vShore ) ) * smoothstep( 0.22, 0.62, breakup + 0.25 * ( 1.0 - smoothstep( 0.0, 0.08, vShore ) ) );
   foam = clamp( foam, 0.0, 1.0 );
-  diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * mix( 0.92, 0.2, bloomAmount ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, foamColor, foam * 0.92 );
   // Corona (docs/37): radiant plasma, not lava. Slow convection cells (warped noise in the terrain frame, so they ride the
   // scroll) with dark lanes between them, hottest toward the open sea, a white-hot seam where the plasma licks the black
   // rock. The light is emissive; the surface itself stays dark so the glow carries the colour.
@@ -140,8 +123,8 @@ export function createWater(): Water {
     foam = max( foam, whitecap * .5 );
   }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor + seaNoise( vSea * 9.0 ) * .1, 0.85, foam );')
-      // Nacre: the shoreline band glows (bioluminescent film) instead of reading as white foam.
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += foamColor * foam * foamGlow;\n  if ( plasma > 0.0 ) totalEmissiveRadiance += mix( mix( vec3( 0.5, 0.08, 0.004 ), deepColor, smoothstep( 0.4, 0.95, plasmaHeat ) ), plasmaHot, smoothstep( 1.0, 1.45, plasmaHeat ) ) * plasmaHeat * plasma;')
+      // Corona: the plasma's own light (the plasma term below).
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  if ( plasma > 0.0 ) totalEmissiveRadiance += mix( mix( vec3( 0.5, 0.08, 0.004 ), deepColor, smoothstep( 0.4, 0.95, plasmaHeat ) ), plasmaHot, smoothstep( 1.0, 1.45, plasmaHeat ) ) * plasmaHeat * plasma;')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   // Swell normals (world space → view space); calmer and flatter right at the shore.
   vec2 waveSlope = swellGradient( vSea, waterTime ) * swell * mix( 0.45, 1.0, calm ) * ( 1.0 - foam * 0.7 );
@@ -167,22 +150,21 @@ export function createWater(): Water {
     update(time, distance) { uniforms.waterTime.value = time; uniforms.waterScroll.value = distance; },
     setEnvironment(texture) { if (material.envMap !== texture) { material.envMap = texture; material.needsUpdate = true; } },
     setPlanet(planet) {
-      const nacre = planet === 'nacre', corona = planet === 'corona';
+      // Nacre draws its own mire water (mire-water.ts); every other sea is Vesper's ocean or Corona's plasma.
       uniforms.plasma.value = 0;
-      if (corona) {
+      if (planet === 'corona') {
         // Corona: orange-red plasma that burns yellow-white at the cell cores and along the rock; a slow heavy swell.
         uniforms.deepColor.value.copy(linear(0xffbe36)); uniforms.shallowColor.value.copy(linear(0xffcc58));
         uniforms.foamColor.value.copy(linear(0xfff4d0)); uniforms.plasmaHot.value.copy(linear(0xfff6dc));
-        uniforms.plasma.value = 1.25; uniforms.crisp.value = 0; uniforms.bloomAmount.value = 0; uniforms.swell.value = 0.35; uniforms.foamGlow.value = 0;
+        uniforms.plasma.value = 1.25; uniforms.crisp.value = 0; uniforms.swell.value = 0.35;
         material.roughness = 0.5; material.envMapIntensity = 0.1;
         return;
       }
       // (Vesper since 21 October: deeper navy against brighter shallows, crisp ripples and whitecaps, tighter glints.)
-      uniforms.deepColor.value.copy(linear(nacre ? 0x292e4c : 0x0f2b45)); uniforms.shallowColor.value.copy(linear(nacre ? 0x35455c : 0x2f6e88));
-      uniforms.crisp.value = nacre ? 0 : 1;
-      uniforms.bloomTint.value.copy(linear(0x716485)); uniforms.bloomAmount.value = nacre ? 0.34 : 0;
-      uniforms.foamColor.value.copy(linear(nacre ? 0x1a3c5a : 0xeef6fb)); uniforms.swell.value = nacre ? 0.6 : 1; uniforms.foamGlow.value = nacre ? 0.03 : 0;
-      material.roughness = nacre ? 0.23 : 0.07; material.envMapIntensity = nacre ? 0.7 : 0.5;
+      uniforms.deepColor.value.copy(linear(0x0f2b45)); uniforms.shallowColor.value.copy(linear(0x2f6e88));
+      uniforms.crisp.value = 1;
+      uniforms.foamColor.value.copy(linear(0xeef6fb)); uniforms.swell.value = 1;
+      material.roughness = 0.07; material.envMapIntensity = 0.5;
     },
     dispose() { material.dispose(); },
   };

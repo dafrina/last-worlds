@@ -1,30 +1,22 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { craftFromScene, type NacreCraft } from './models';
-import { ROLE, loadHeroKit, tint } from './hero-assembly';
-import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, HERO_REMODELLED, HERO_SLOTS, heroDesignFile, heroPartNode } from '../content/hero-parts';
+import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, HERO_SLOTS, heroDesignFile, heroPartNode } from '../content/hero-parts';
 import type { HeroDesign, HeroLook, ShipId } from '../shared/contracts';
 
 /** A ship's look ready to draw: its object, the plume sockets ([x, z] in model units), its radius, and what to free. */
 export interface HeroModel { object: THREE.Object3D; engines: [number, number][]; radius: number; dispose(): void }
 
 /**
- * A ship's look as drawable model (docs/31). A remodelled chassis is its four textured parts from their design files
- * (geometry shared with the loaded file, materials painted per look; up to one draw per design used). Any other chassis is
- * its kit's parts merged into one craft drawn with `craft`, the shared craft material.
+ * A ship's look as drawable model (docs/31): its four textured parts from their design files (geometry shared with the
+ * loaded file, materials painted per look; up to one draw per design used). Every chassis is remodelled (29 October);
+ * the older single-kit path was removed on 8 November (docs/38 V7). The kits stay for the playground (hero-assembly.ts).
  */
-export async function loadHeroModel(ship: ShipId, look: HeroLook = DEFAULT_LOOK, craft?: THREE.Material, base?: string): Promise<HeroModel | null> {
-  if (HERO_REMODELLED.has(ship)) return loadRemodel(ship, look, base);
-  const model = await loadHeroCraft(ship, look, base);
-  if (!model) return null;
-  const mesh = new THREE.Mesh(model.geometry, craft ?? new THREE.MeshStandardMaterial({ vertexColors: true }));
-  return { object: mesh, engines: model.engines, radius: model.geometry.boundingSphere?.radius ?? 1, dispose: () => model.geometry.dispose() };
+export async function loadHeroModel(ship: ShipId, look: HeroLook = DEFAULT_LOOK, base?: string): Promise<HeroModel | null> {
+  return loadRemodel(ship, look, base);
 }
 
 /** Starts downloading a look's design files, so its launch finds them cached (the campaign screen). */
 export function preloadHeroLook(ship: ShipId, look: HeroLook, base?: string) {
-  if (!HERO_REMODELLED.has(ship)) return;
   for (const design of new Set(HERO_SLOTS.map(slot => look.parts[slot]))) loadDesign(ship, design, base).catch(() => undefined);
 }
 
@@ -101,28 +93,4 @@ function repaint(material: THREE.MeshStandardMaterial, from: { primary: number; 
       }`);
   };
   material.customProgramCacheKey = () => 'hero-paint';
-}
-
-/**
- * A kit chassis's look as one craft in the shared craft format (one draw, docs/31): its four kit parts repainted and merged, and
- * the engine sockets of its propulsion part (for the plumes). The kit is loaded once per chassis and left untouched.
- */
-export async function loadHeroCraft(ship: ShipId, look: HeroLook = DEFAULT_LOOK, base?: string): Promise<NacreCraft | null> {
-  const gltf = await loadHeroKit(ship, base);
-  const defaults = HERO_DEFAULT_PAINT[ship], paint = { ...defaults, ...look.paint };
-  const names = HERO_SLOTS.map(slot => heroPartNode(ship, slot, look.parts[slot]));
-  const parts = craftFromScene(gltf.scene, names, (mesh, material) => {
-    const geometry = mesh.geometry.clone(), copy = material.clone();
-    if (/glow/i.test(copy.name)) { copy.color.setHex(paint.glow); copy.emissive.setHex(paint.glow); }
-    if (paint.primary !== defaults.primary) tint(geometry, ROLE.primary, new THREE.Color(paint.primary), new THREE.Color(defaults.primary));
-    if (paint.secondary !== defaults.secondary) tint(geometry, ROLE.secondary, new THREE.Color(paint.secondary), new THREE.Color(defaults.secondary));
-    return { geometry, material: copy };
-  });
-  const geometries = names.map(name => parts.get(name)?.geometry).filter((geometry): geometry is THREE.BufferGeometry => !!geometry);
-  if (!geometries.length) return null;
-  const merged = mergeGeometries(geometries);
-  geometries.forEach(geometry => geometry.dispose());
-  if (!merged) return null;
-  merged.computeBoundingBox(); merged.computeBoundingSphere();
-  return { geometry: merged, engines: parts.get(heroPartNode(ship, 'engines', look.parts.engines))?.engines ?? [] };
 }

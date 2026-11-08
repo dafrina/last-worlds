@@ -778,7 +778,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (key === heroKey) return heroPending;
     heroKey = key;
     heroGlow = look.paint?.glow ?? HERO_DEFAULT_PAINT[ship].glow;
-    heroPending = loadHeroModel(ship, look, materials.craft).then(model => {
+    heroPending = loadHeroModel(ship, look).then(model => {
       if (!model) return;
       if (disposed || key !== heroKey) { model.dispose(); return; }
       heroDispose(); hero.clear();
@@ -803,7 +803,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * views, each read back from the GPU). Menus never open a second WebGL context on phones.
    */
   async function heroPreview(ship: ShipId, look: HeroLook, width: number, height: number): Promise<HTMLCanvasElement | null> {
-    const model = await loadHeroModel(ship, look, materials.craft);
+    const model = await loadHeroModel(ship, look);
     if (!model || disposed) { model?.dispose(); return null; }
     const stage = new THREE.Scene(), mesh = new THREE.Group().add(model.object);
     stage.environment = scene.environment;
