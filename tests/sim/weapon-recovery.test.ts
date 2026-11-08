@@ -120,13 +120,13 @@ describe('endless pickups after hull damage', () => {
     expect(fire(state, 1)).toEqual(fire(reference, 1));
   });
 
-  it.each(WEAPON_IDS)('%s: selecting another family still resets the tier and rebuilds its pattern', weapon => {
+  it.each(WEAPON_IDS)('%s: selecting another family carries the tier and banked cell and rebuilds its pattern', weapon => {
     for (const next of WEAPON_IDS.filter(id => id !== weapon)) {
       const state = arena('endless', weapon, 4); state.player.shields = 0;
-      fire(state, .05); hitPlayer(state, 1); collect(state, 'weapon', next);
-      expect(state.player).toMatchObject({ weapon: next, power: 0, powerCells: 0 });
+      fire(state, .05); hitPlayer(state, 1); collect(state, 'power'); collect(state, 'weapon', next);
+      expect(state.player).toMatchObject({ weapon: next, power: 3, powerCells: 1 });
       expect(state.mainSequence).toBeUndefined();
-      const reference = arena('endless', next, 0);
+      const reference = arena('endless', next, 3);
       expect(fire(state, .5)).toEqual(fire(reference, .5));
     }
   });

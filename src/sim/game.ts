@@ -1,8 +1,9 @@
+import { INCOMING_PICKUP_S, placePickup } from './pickup-placement';
 import { weaponSequence } from '../content/weapon-tiers';
 import { BALANCE, BEAM_KINDS, VESPER_LINE_CAP, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { resolvePlaylist } from '../content/encounter-deck';
-import { STEP, VIEW, type Enemy, type InputFrame, type KillCause, type MissionId, type Pickup, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
+import { STEP, PLAYER_HIT_RADIUS, VIEW, type Enemy, type InputFrame, type KillCause, type MissionId, type Pickup, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
 import { approach, clamp, segmentCircleHit } from './geometry';
 import { BOSSES, missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessSectorPlan, isBossSector, paceInSector } from '../content/endless';
@@ -190,6 +191,23 @@ function updateDirector(state: RunState): void {
   const cues = resolvePlaylist(state.config, state.sector, state.config.seed);
   const start = endless ? state.sectorStartedAt : 0;
   const cue = cues[state.encounterIndex];
+  // Look ahead through a held wave so even a late site has its approach callout.
+  const groundLeadTime = state.scrollSpeed > .5 ? GROUND_LEAD / state.scrollSpeed : 0;
+  const lastSite = state.siteNotice?.sector === state.sector ? state.siteNotice.index : -1;
+  for (let i = Math.max(state.encounterIndex, lastSite + 1); i < cues.length && Number.isFinite(state.nextEncounterAt); i++) {
+    const next = cues[i];
+    if (start + next.at > state.time + groundLeadTime + SITE_NOTICE_LEAD) break;
+    if (!next.site) continue;
+    // A two-flank alert is a combat warning: let it finish before using its message slot.
+    if (cue && cueAlert(cue) === state.message && state.time < state.messageUntil) break;
+    state.siteNotice = { sector: state.sector, index: i, time: state.time };
+    setMessage(state, siteCueMessage(state, next)!, groundLeadTime + SITE_NOTICE_LEAD + 3.5);
+    break;
+  }
+  // A late cue that was waiting for another warning still gives the full lead before admission.
+  if (cue?.site && (!state.siteNotice || state.siteNotice.sector !== state.sector
+    || state.siteNotice.index < state.encounterIndex
+    || (state.siteNotice.index === state.encounterIndex && state.time + 1e-8 < state.siteNotice.time + SITE_NOTICE_LEAD))) return;
   if (cue) leadGround(state, cue);
   if (!cue || state.time + 1e-8 < state.nextEncounterAt) return;
   // Two-flank entries are announced first; a stale or overwritten alert is shown again in full.
@@ -235,6 +253,7 @@ function admits(state: RunState, cue: EncounterCue, scale: DifficultyScale, timi
  * is not admitted now spawns as before.
  */
 const GROUND_LEAD = 7;
+const SITE_NOTICE_LEAD = 1.25;
 const isGround = (placement: FormationPlacement) => FORMATIONS[placement.formation].entry === 'ground';
 function leadGround(state: RunState, cue: EncounterCue): void {
   if (state.groundLead?.sector === state.sector && state.groundLead.index === state.encounterIndex) return;
@@ -256,11 +275,11 @@ function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): v
   // Reserve one slot for the fixed shield-supply opportunity; never evict an existing drop.
   if (cue.pickup && state.pickups.length < BALANCE.maxPickups - 1) {
     const pickup = state.config.mode === 'endless' && cue.pickup.kind === 'weapon' && cue.pickup.weapon ? { ...cue.pickup, weapon: offeredWeapon(state, cue.pickup.weapon) } : cue.pickup;
-    state.pickups.push({ id: state.nextId++, ...pickup, ttl: 12 });
+    placePickup(state, { id: state.nextId++, ...pickup, s: INCOMING_PICKUP_S, ttl: 12 });
   }
   // A strike site's message names what it drops in this mode (src/sim/sites.ts). A wave's own hint shows on Luna only
   // (showsHints); a pickup's announcement shows everywhere.
-  const message = cue.site || cue.pickup || showsHints(state) ? siteCueMessage(state, cue) : undefined;
+  const message = !cue.site && (cue.pickup || showsHints(state)) ? cue.message : undefined;
   if (message) setMessage(state, message, 3.5);
 }
 
@@ -288,7 +307,7 @@ function updateShieldSupplies(state: RunState, previousTime: number): void {
       || state.enemies.some(enemy => enemy.hp > 0 && enemy.warning > 0 && Math.abs(enemy.aimX - x) < 1);
     const x = candidates.find(candidate => !marked(candidate)) ?? candidates[0];
     if (state.pickups.length < BALANCE.maxPickups) {
-      state.pickups.push({ id: state.nextId++, kind: 'shield', x, s: supplies.forward, value: 1, ttl: 12 });
+      placePickup(state, { id: state.nextId++, kind: 'shield', x, s: INCOMING_PICKUP_S, value: 1, ttl: 12 }, marked);
       setMessage(state, 'SHIELD CELL AHEAD', 2.5);
     }
   }
@@ -556,7 +575,7 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
         if (target.bossPart === 'core' && target.hp <= 0) resolveBossPhase(state);
       }
     } else if (segmentCircleHit(shot.previousX - previousPlayerX, shot.previousS,
-      shot.x - (previousPlayerX + (state.player.x - previousPlayerX) * activeDt / dt), shot.s, 0, 0, VIEW.playerRadius + shot.radius) !== null) {
+      shot.x - (previousPlayerX + (state.player.x - previousPlayerX) * activeDt / dt), shot.s, 0, 0, PLAYER_HIT_RADIUS + shot.radius) !== null) {
       shot.ttl = 0;
       hitPlayer(state, shot.damage);
     } else catchNearMiss(state, shot, previousPlayerX);
@@ -592,7 +611,7 @@ function updateHazards(state: RunState, previousPlayerX: number, dt: number): vo
     hazard.warning = Math.max(0, hazard.warning - dt);
     const activeTime = Math.max(0, dt - warningBefore);
     if (hazard.warning === 0 && hazard.active > 0 && activeTime > 0) {
-      const radius = hazard.width / 2 + VIEW.playerRadius;
+      const radius = hazard.width / 2 + PLAYER_HIT_RADIUS;
       if (Math.min(previousPlayerX, state.player.x) <= hazard.x + radius && Math.max(previousPlayerX, state.player.x) >= hazard.x - radius) hitPlayer(state, hazard.cost ?? 2);
       hazard.active = Math.max(0, hazard.active - activeTime);
     }
@@ -605,7 +624,7 @@ function updateContact(state: RunState, previousPlayerX: number): void {
   for (const enemy of state.enemies) {
     // A craft leaving for a boss is harmless: it has broken off.
     if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind) || enemy.leaving) continue;
-    if (segmentCircleHit(previousPlayerX, 0, state.player.x, 0, enemy.x, enemy.s, enemy.radius + VIEW.playerRadius) !== null) hitPlayer(state, 2);
+    if (segmentCircleHit(previousPlayerX, 0, state.player.x, 0, enemy.x, enemy.s, enemy.radius + PLAYER_HIT_RADIUS) !== null) hitPlayer(state, 2);
   }
 }
 
@@ -663,7 +682,9 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   // A strike site's core drops its site's loot instead (src/sim/sites.ts) and never bursts like a fuel skid.
   if (enemy.site) { destroySiteCore(state, enemy); return; }
   if (!enemy.bossPart && state.pickups.length < BALANCE.maxPickups - 1) {
-    state.pickups.push({ id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value: ENEMIES[enemy.kind].credits * reward, ttl: 12 });
+    const raw = ENEMIES[enemy.kind].credits * reward;
+    const value = state.config.mode === 'campaign' && enemy.hunter ? BALANCE.campaignHunterCredits : raw;
+    placePickup(state, { id: state.nextId++, kind: 'credit', x: enemy.x, s: enemy.s, value, ttl: 12 });
   }
   if (enemy.hunter && state.config.mode === 'endless') dropAceReward(state, enemy);
   if (enemy.kind === 'fuel') {
@@ -873,7 +894,7 @@ function updatePickups(state: RunState, dt: number): void {
       case 'weapon':
         if (state.config.mode === 'endless' && pickup.weapon) {
           if (state.player.weapon === pickup.weapon) givePower(state);
-          else { state.player.weapon = pickup.weapon; state.player.power = 0; state.player.powerCells = 0; state.mainSequence = undefined; state.nextVolleyAt = state.time; setMessage(state, `${WEAPONS[pickup.weapon].label.toUpperCase()} EQUIPPED`, 2.5); }
+          else { state.player.weapon = pickup.weapon; state.mainSequence = undefined; state.nextVolleyAt = state.time; setMessage(state, `${WEAPONS[pickup.weapon].label.toUpperCase()} EQUIPPED`, 2.5); }
         }
         break;
     }
@@ -899,7 +920,7 @@ function dropAceReward(state: RunState, enemy: Enemy): void {
   if (!drop) return;
   // Beside the credit drop; a full pickup list gives up its oldest drop, as a site's loot does.
   if (state.pickups.length >= BALANCE.maxPickups) state.pickups.shift();
-  state.pickups.push({ id: state.nextId++, ...drop, x: enemy.x + .7, s: enemy.s, ttl: 12 });
+  placePickup(state, { id: state.nextId++, ...drop, x: enemy.x + .7, s: enemy.s, ttl: 12 });
 }
 
 /**

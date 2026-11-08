@@ -36,6 +36,7 @@ import { createMireWater } from './mire-water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
 import { createTerrainView } from './terrain-view';
 import { createPostPipeline } from './post-pipeline';
+import { AMNION_SHOT } from './shot-colors';
 import { createFx, shotHeat, type Plume } from './fx-particles';
 import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
@@ -780,6 +781,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const key = heroLookKey(ship, look);
     if (key === heroKey) return heroPending;
     heroKey = key;
+    heroGlow = look.paint?.glow ?? HERO_DEFAULT_PAINT[ship].glow;
     heroPending = loadHeroModel(ship, look, materials.craft).then(model => {
       if (!model) return;
       if (disposed || key !== heroKey) { model.dispose(); return; }
@@ -791,7 +793,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       hero.add(model.object); markHero(model.object); heroModel = 'glb'; warmed = false;
       heroDispose = () => { model.dispose(); caster?.geometry.dispose(); };
       if (model.engines.length) heroEngines = model.engines;
-      heroGlow = look.paint?.glow ?? HERO_DEFAULT_PAINT[ship].glow;
       heroShown = key;
     }).catch(error => { if (key === heroKey) heroShown = key; console.warn('Hero model unavailable; retaining the current ship.', error); });
     return heroPending;
@@ -1248,10 +1249,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   flightShadows.instanceMatrix.setUsage(THREE.DynamicDrawUsage); flightShadows.frustumCulled = false;
   flightShadows.count = 0; flightShadows.renderOrder = 1; scene.add(flightShadows);
 
+  const shieldScale = HERO_SCALE * 1.2;
   const shieldMaterial = new THREE.MeshBasicMaterial({ color: 0xb1fff1, transparent: true, opacity: .35, depthWrite: false, depthTest: false });
-  const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial); shield.scale.setScalar(HERO_SCALE);
+  const shield = new THREE.Mesh(new THREE.RingGeometry(.52, .548, 32), shieldMaterial); shield.scale.setScalar(shieldScale);
   shield.rotation.x = -ELEVATION; shield.renderOrder = 8; scene.add(shield);
-  // Energy shields (user, 22 October): the hero's blue shell while it has shield charges, and each hunter's shell in its
+  // Energy shields (user, 22 October): the hero's painted shell while it has shield charges, and each hunter's shell in its
   // world's glow. Bright at the rim and faint over the craft, so the ship's real (smaller) hit region stays readable.
   const shellGeometry = new THREE.SphereGeometry(1, 32, 16);
   const shellMaterial = () => new THREE.ShaderMaterial({
@@ -1293,7 +1295,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // bloom carry them over the dark red flesh.
   // Corona's are Amnion's warm red too (docs/37; user, 5 November: "warm red not magenta"): salmon vanished into the gold.
   const HOSTILE_WARM = [0xff8869, 0xffe7c4] as const, HOSTILE_BLOOD = [0xff1e1e, 0xfff2ee] as const;
-  const hostileHues = (planet: PlanetId) => planet === 'amnion' || planet === 'corona' ? HOSTILE_BLOOD : HOSTILE_WARM;
+  const hostileHues = (planet: PlanetId) => planet === 'amnion' ? AMNION_SHOT : planet === 'corona' ? HOSTILE_BLOOD : HOSTILE_WARM;
   const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false, transparent: true });
   const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);
@@ -1646,12 +1648,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const entrance = poseHero(state);
       shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
       shield.visible = heroAlive && state.time < state.player.invulnerableUntil;
+      shieldMaterial.color.setHex(heroGlow);
       shieldMaterial.opacity = .34;
       {
         const { energy, grow } = shellEnergy(-1, heroAlive ? state.player.shields : 0, Math.max(1, state.player.maxShields), state.player.lastHitAt, state.time);
         heroShell.visible = heroAlive && entrance > .9 && energy > 0;
-        heroShell.position.copy(hero.position); heroShell.scale.setScalar(.66 * HERO_SCALE * grow);
-        const uniforms = (heroShell.material as THREE.ShaderMaterial).uniforms; uniforms.energy.value = energy; uniforms.time.value = state.time;
+        heroShell.position.copy(hero.position); heroShell.scale.setScalar(.66 * shieldScale * grow);
+        const uniforms = (heroShell.material as THREE.ShaderMaterial).uniforms; uniforms.color.value.setHex(heroGlow); uniforms.energy.value = energy; uniforms.time.value = state.time;
       }
       // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
       plumes.length = 0;
@@ -2006,7 +2009,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       let friendlyCount = 0, hostileCount = 0, missileCount = 0;
       // Main-weapon tiers 4 and 5 draw hotter and larger (fx-particles `shotHeat`); everything in flight follows the current tier.
       const heat = shotHeat(state.player.power);
-      // Hostile shots are warm everywhere but Amnion, whose glowing yolk canyons are warm themselves: there they are violet
+      // Amnion uses acid-green fire over its warm yolk canyons
       // with a pale core, apart from the yolk and from the player's own white-cyan shots (docs/27).
       hostileMaterial.color.setHex(hostileHues(planet)[0]); hostileCoreMaterial.color.setHex(hostileHues(planet)[1]);
       // A new run (or a replay) restarts the tick: drop the old run's trails.
@@ -2173,7 +2176,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         transform.position.set(effect.x, VIEW.flightHeight + .04, -effect.s);
         transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(radius); transform.updateMatrix();
         effects.setMatrixAt(effectCount, transform.matrix);
-        const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : 0x97e7da;
+        const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : effect.kind === 'shield' ? heroGlow : 0x97e7da;
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
       }
       liveInstances(effects, effectCount);
@@ -2192,7 +2195,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && seaHeight !== null ? {
         splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < seaHeight - .05 ? seaHeight : null,
         vents: collectVents(state.cameraX), ground,
-      } : { splash: () => null, vents: [], ground }, id => launches.get(id));
+      } : { splash: () => null, vents: [], ground }, id => launches.get(id), heroGlow);
       // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
       water.update(state.time, state.distance); mireWater.update(state.time, state.distance);
       const arkFoam = ark.foam;

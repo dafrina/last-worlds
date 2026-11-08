@@ -1,4 +1,4 @@
-import { VIEW, type InputFrame, type Projectile, type RunState } from '../shared/contracts';
+import { PLAYER_HIT_RADIUS, VIEW, type InputFrame, type Projectile, type RunState } from '../shared/contracts';
 
 /** Shared tuning for input, simulation and the matching animation. No extra HUD resource. */
 export const SHIP_PERKS = {
@@ -57,7 +57,7 @@ export function catchNearMiss(state: RunState, shot: Projectile, previousPlayerX
   const t = -(ax * dx + as * ds) / length2;
   if (t < 0 || t > 1) return;
   const x = ax + dx * t, s = as + ds * t, radius = Math.hypot(x, s);
-  const hitRadius = VIEW.playerRadius + shot.radius;
+  const hitRadius = PLAYER_HIT_RADIUS + shot.radius;
   if (radius <= hitRadius + .025 || radius > hitRadius + SHIP_PERKS.grazeWidth) return;
   shot.friendly = true;
   shot.reflected = true;

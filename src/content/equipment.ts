@@ -133,7 +133,7 @@ export const REWARDS = { success: 80, boss: 60, firstClear: 75, failureShare: 0.
  * reproduces them; docs/30 § Income). It replaced one global ×0.5 (16 October): 166 / 179 / 247 / 209 / 214 / 236.
  */
 export const CREDIT_SCALE: Readonly<Record<MissionId, number>> = {
-  // Dying Star (Corona, 5 November) takes Final Horizon's scale until it is measured.
-  training: 0.24, bastion: 0.28, 'cold-vector': 0.3, 'deep-bloom': 0.48, 'brood-strike': 0.6, 'dying-star': 0.55, 'final-horizon': 0.55,
+  // 7 November: pay 80% of the previous world scales. Dying Star uses Final Horizon’s rate.
+  training: 0.192, bastion: 0.224, 'cold-vector': 0.24, 'deep-bloom': 0.384, 'brood-strike': 0.48, 'dying-star': 0.44, 'final-horizon': 0.44,
 };
 export const CREDIT_MULTIPLIER: Readonly<Record<Difficulty, number>> = { relaxed: 0.85, standard: 1, veteran: 1.2 };

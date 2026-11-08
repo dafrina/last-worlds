@@ -13,9 +13,9 @@ const LOG = (globalThis as unknown as { process?: { env: Record<string, string |
 describe('world missions are all reachable', () => {
   it.each([
     // 6 since pace 1.15 (6 November): strike sites pass 15% sooner, and Lunar Saboteur's two sites take a run longer.
-    ['training', 6, 450, 5],
-    ['bastion', 3, 450, 4],
-    ['cold-vector', 5, 515, 4],
+    ['training', 12, 450, 5],
+    ['bastion', 8, 450, 4],
+    ['cold-vector', 12, 515, 4],
   ] as const)('%s: all twelve within %i attempts', (mission, max, credits, parts) => {
     const result = clearWorld(mission, max);
     if (LOG) console.log(`${mission}: ${result.flown} attempts\n${result.log.join('\n')}`);

@@ -25,7 +25,7 @@ export const HUNTERS = {
   kinds: { luna: 'weaver', khepri: 'lancer', vesper: 'diamond', nacre: 'diamond', amnion: 'diamond', corona: 'wraith', umbra: 'wraith' } satisfies Readonly<Record<PlanetId, EnemyKind>>,
   /** Shield charges, each absorbing this share of the kind's hull (scaled with the hull): about twice the hull in all. */
   shield: { charges: 3, share: 0.35, seekerDamage: 0.2, railDamage: 1.5 },
-  /** Score and credits over the base kind. */
+  /** Score over the base kind. Campaign hunter coins use BALANCE.campaignHunterCredits. */
   reward: 3,
   /**
    * Endless: besides its coins, a downed ace rolls for a shield cell (25%), a weapon the ship isn't flying (7%), a power

@@ -1,3 +1,4 @@
+import { REWARDS } from '../../src/content/equipment';
 import { describe, expect, it } from 'vitest';
 import type { MissionId } from '../../src/shared/contracts';
 import { flyMission, flySector } from './deck-sweep';
@@ -24,8 +25,10 @@ describe('encounter deck balance band (perfect pilot, Standard)', () => {
       expect(run.livesLost, `${mission}/${seed}`).toBe(0);
       expect(run.threat / threat, `${mission}/${seed} threat ${run.threat}`).toBeGreaterThanOrEqual(THREAT_BAND[0]);
       expect(run.threat / threat, `${mission}/${seed} threat ${run.threat}`).toBeLessThanOrEqual(THREAT_BAND[1]);
-      expect(run.credits / credits, `${mission}/${seed} credits ${run.credits}`).toBeGreaterThanOrEqual(CREDIT_BAND[0]);
-      expect(run.credits / credits, `${mission}/${seed} credits ${run.credits}`).toBeLessThanOrEqual(CREDIT_BAND[1]);
+      // Reprice the enemy share of October's reference for this flight's mix of enemies. The boss has a fixed bounty.
+      const comparableCredits = REWARDS.boss + (credits - REWARDS.boss) * run.coinValueRatio;
+      expect(run.credits / comparableCredits, `${mission}/${seed} credits ${run.credits}`).toBeGreaterThanOrEqual(CREDIT_BAND[0]);
+      expect(run.credits / comparableCredits, `${mission}/${seed} credits ${run.credits}`).toBeLessThanOrEqual(CREDIT_BAND[1]);
     }
   }, 60_000);
 

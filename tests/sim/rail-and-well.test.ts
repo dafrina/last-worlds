@@ -73,14 +73,16 @@ describe('Rail Driver', () => {
     expect(times(2)[0].muzzles).toEqual([-.3, .3]);
   });
 
-  it('an endless pickup equips it at tier one, and another raises its tier', () => {
+  it('an endless pickup equips it at the current tier, and duplicates advance it', () => {
     const state = createRun({ mode: 'endless', seed: 1 });
     state.player.power = 2;
     const collect = () => { state.pickups.push({ id: state.nextId++, kind: 'weapon', weapon: 'rail', x: state.player.x, s: .1, value: 1, ttl: 5 }); stepRun(state, EMPTY_INPUT); };
     collect();
-    expect(state.player).toMatchObject({ weapon: 'rail', power: 0 });
+    expect(state.player).toMatchObject({ weapon: 'rail', power: 2 });
     collect();
-    expect(state.player.power).toBe(1);
+    expect(state.player.powerCells).toBe(1);
+    collect();
+    expect(state.player.power).toBe(3);
   });
 });
 

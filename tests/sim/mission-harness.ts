@@ -5,7 +5,9 @@ import { createCampaignProfile, type ProfileStorage } from '../../src/campaign/p
 import { createRun } from '../../src/sim/game';
 import { VIEW, type Difficulty, type MissionId, type RunConfig, type RunEvent, type RunState, type ShipId, type SiteId, type SpecialId, type WeaponId } from '../../src/shared/contracts';
 import { fly, perfectPilot, type Pilot } from './pilots';
-import { MAX_RANK } from '../../src/content/equipment';
+import { CREDIT_MULTIPLIER, CREDIT_SCALE, MAX_RANK } from '../../src/content/equipment';
+import { BALANCE, ENEMIES } from '../../src/content/balance';
+import { SITES } from '../../src/content/sites';
 import { siteSeeker } from './site-harness';
 
 /*
@@ -14,9 +16,36 @@ import { siteSeeker } from './site-harness';
  */
 
 /** Where the pilot prefers to be when it has the choice (it still dodges everything; the evasion solver decides). */
-export type Style = 'collect' | 'ground' | 'flank';
+export type Style = 'collect' | 'ground' | 'flank' | 'coins';
 const credit = (now: RunState) => now.pickups.filter(p => p.kind === 'credit' && p.s > -1 && p.s < VIEW.maxS).sort((a, b) => a.s - b.s)[0]?.x ?? null;
+/** Seek payable loot first once it is near enough to intercept. Between catches, align on
+ * enemies and credit-bearing sites to generate the next drop. The evasion planner still owns steering. */
+function coinLane(seen: RunState, now: RunState): number | null {
+  let lane: number | null = null, best = -Infinity;
+  const speed = BALANCE.movement.speed * now.pace, scroll = BALANCE.pickup.speed * now.pace;
+  for (const pickup of now.pickups) {
+    if (pickup.kind !== 'credit' || pickup.caught !== undefined || pickup.s < -.8 || pickup.s > VIEW.maxS
+      || Math.abs(pickup.x - now.cameraX) > VIEW.width / 2) continue;
+    const travel = Math.abs(pickup.x - now.player.x) / speed;
+    const arrival = pickup.s / scroll;
+    if (travel > arrival + .25 || arrival > travel + .85) continue;
+    const value = pickup.value / (1 + travel + Math.max(0, arrival));
+    if (value > best) { best = value; lane = pickup.x; }
+  }
+  if (lane !== null) return lane;
+  for (const enemy of seen.enemies) {
+    if (enemy.hp <= 0 || enemy.damageable === false || enemy.s < 1 || enemy.s > VIEW.maxS
+      || Math.abs(enemy.x - seen.cameraX) > VIEW.width / 2 + enemy.radius) continue;
+    const site = enemy.site && SITES[enemy.site].loot;
+    const reward = site ? (site.kind === 'credit' ? site.value : 0) : enemy.hunter ? BALANCE.campaignHunterCredits : ENEMIES[enemy.kind].credits;
+    if (enemy.bossPart || reward <= 0) continue;
+    const value = reward / (1 + Math.abs(enemy.x - now.player.x) / speed + enemy.hp / 80 + enemy.s / 25);
+    if (value > best) { best = value; lane = enemy.x; }
+  }
+  return lane;
+}
 const STYLES: Record<Style, (seen: RunState, now: RunState) => number | null> = {
+  coins: coinLane,
   // Strike-site cores, parts and shield cells first, then coins.
   collect: (seen, now) => siteSeeker(seen, now) ?? credit(now),
   // Ground batteries and site cores first (nearest), then as `collect`.
@@ -65,8 +94,13 @@ export function campaign(mission: MissionId) {
       const state = createRun(configFor(mission, attempt)), id = `attempt-${++attempts}`;
       state.events = [];
       tracker.observe(state, id);
-      fly(state, pilotFor(attempt), 480, { onTick: s => { tracker.observe(s, id); } });
-      return { state, paid: tracker.finish(state) };
+      let rawCoins = 0;
+      fly(state, pilotFor(attempt), 480, { onTick: s => {
+        for (const event of s.events ?? []) if (event.type === 'credits') rawCoins += event.value;
+        tracker.observe(s, id);
+      } });
+      const coins = Math.floor(rawCoins * CREDIT_SCALE[mission] * CREDIT_MULTIPLIER[state.config.difficulty ?? 'standard'] + 1e-9);
+      return { state, coins, paid: tracker.finish(state) };
     },
     /** Missions not done yet. */
     missing: () => {
@@ -100,11 +134,19 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
   // Rail Driver 40-54 s (6 November). By world six a player has one.
   if (visible.some(def => def.id === 'corona.sunburn')) attempt.rank = MAX_RANK;
   // A burst of air kills in a few seconds (Interceptor Drill, Solar Wind): the Fan Cannon's spread, as a player would pick.
-  else if (visible.some(def => def.rule.kind === 'air' && def.rule.window !== undefined)) attempt.weapon = 'fan';
+  else if (!loadout && visible.some(def => def.rule.kind === 'air' && def.rule.window !== undefined)) {
+    attempt.weapon = 'fan'; attempt.rank = MAX_RANK;
+  }
   if (ids.has('old-school') && !ids.has('specialist')) attempt.specials = false;
   if (visible.some(def => def.difficulty === 'veteran')) attempt.difficulty = 'veteran';
   if (has('reflected')) attempt.ship = 'spectre';
   attempt.style = has('flanks') ? 'flank' : has('ground') || has('ground-streak') ? 'ground' : 'collect';
+  // Alternate a dedicated salvage sortie with the board's other objectives. A legal max-tier
+  // loadout on Veteran can earn more per pickup and kill more of the wave before it exits.
+  if (has('credits') && (seed % 2 === 0 || visible.length === 1)) {
+    return { seed, ship: 'scrapper', weapon: 'fan', rank: MAX_RANK, special: 'gravity-well',
+      specials: true, difficulty: 'veteran', style: 'coins' };
+  }
   return attempt;
 }
 
@@ -135,10 +177,10 @@ export function clearWorld(mission: MissionId, max: number, firstSeed = 1) {
   const world = campaign(mission), log: string[] = [];
   let flown = 0;
   while (world.missing().length && flown < max) {
-    const attempt = planFor(world.visible(), firstSeed + flown), { state, paid } = world.fly(attempt);
+    const attempt = planFor(world.visible(), firstSeed + flown), { state, coins, paid } = world.fly(attempt);
     flown++;
     log.push(`${flown} seed ${attempt.seed} ${attempt.weapon} L${(attempt.rank ?? 0) + 1}${attempt.specials ? ` ${attempt.special}` : ' no special'} ${attempt.difficulty ?? 'standard'}`
-      + `${attempt.ship ? ` ${attempt.ship}` : ''} ${attempt.style} ${state.phase}: ${paid.map(def => def.name).join(', ') || '—'}`);
+      + `${attempt.ship ? ` ${attempt.ship}` : ''} ${attempt.style} ${state.phase} (${coins} coins): ${paid.map(def => def.name).join(', ') || '—'}`);
   }
   return { flown, missing: world.missing(), credits: world.store.read().credits, parts: world.store.read().parts, log };
 }

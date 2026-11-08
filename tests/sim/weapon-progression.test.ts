@@ -178,7 +178,7 @@ describe('shared five-tier weapons (docs/30)', () => {
     }
   });
 
-  it('upgrade and duplicate-weapon pickups advance tiers to tier 5, two cells each for tiers 4 and 5; changing weapons always resets to tier one', () => {
+  it('upgrade and duplicate-weapon pickups advance tiers to tier 5, two cells each for tiers 4 and 5; changing weapons carries the current tier', () => {
     const state = arena('pulse', 0, true); state.nextVolleyAt = Infinity;
     collect(state, 'power'); expect(state.player.power).toBe(1);
     collect(state, 'weapon', 'pulse'); expect(state.player.power).toBe(2);
@@ -194,9 +194,9 @@ describe('shared five-tier weapons (docs/30)', () => {
     expect(state.message).toBe('MAX TIER · +1000');
     collect(state, 'weapon', 'pulse'); expect(state.player.power).toBe(4);
     expect(state.score).toBeGreaterThanOrEqual(score + 2000);
-    collect(state, 'weapon', 'fan'); expect(state.player).toMatchObject({ weapon: 'fan', power: 0 });
-    collect(state, 'power'); expect(state.player.power).toBe(1);
-    collect(state, 'weapon', 'pulse'); expect(state.player).toMatchObject({ weapon: 'pulse', power: 0 });
+    collect(state, 'weapon', 'fan'); expect(state.player).toMatchObject({ weapon: 'fan', power: 4 });
+    collect(state, 'power'); expect(state.player.power).toBe(4);
+    collect(state, 'weapon', 'pulse'); expect(state.player).toMatchObject({ weapon: 'pulse', power: 4 });
     const campaign = arena('pulse', 1); collect(campaign, 'power'); collect(campaign, 'weapon', 'fan');
     expect(campaign.player).toMatchObject({ weapon: 'pulse', power: 1 });
     // A campaign launch flies its selected level (campaignConfig), up to tier 5 and never beyond.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCampaignProfile, endlessConfig, freshProfile } from '../../src/campaign/profile';
 import { ENDLESS_LOADOUT, SHIP_IDS } from '../../src/content/equipment';
 import { DEFAULT_LOOK, shownHero } from '../../src/content/hero-parts';
-import { EMPTY_INPUT, VIEW, type HeroLook, type RunConfig, type RunState } from '../../src/shared/contracts';
+import { EMPTY_INPUT, PLAYER_HIT_RADIUS, type HeroLook, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { playerKinematics } from '../../src/sim/fairness';
 import { createRun, stepRun } from '../../src/sim/game';
 import { perfectPilot } from './pilots';
@@ -38,7 +38,7 @@ describe('endless flies the campaign ship as cosmetic parts and global chassis p
       expect(playerKinematics(painted)).toEqual(playerKinematics(base));
       expect(painted.config).toMatchObject({ ...ENDLESS_LOADOUT, ship, rank: 0 });
     }
-    expect(VIEW.playerRadius).toBe(0.42);
+    expect(PLAYER_HIT_RADIUS).toBeCloseTo(0.42 * 1.05, 8);
   });
 
   it('shows the ship the profile has equipped, with its look; the campaign shows its own chassis', () => {

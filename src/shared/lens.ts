@@ -17,6 +17,12 @@ const CENTER_S = (VIEW.minS + VIEW.maxS) / 2;
 /** Distance from the eye to the view centre that fits the tactical height for a vertical field of view. */
 export const lensDistance = (fov = LENS_FOV) => TACTICAL_HEIGHT / 2 / Math.tan(fov * Math.PI / 360);
 
+/** Where the upper frustum ray crosses the flight plane. Tall screens extend below this fixed edge. */
+export function flightTopEdge(fov = LENS_FOV): number {
+  const eye = lensEye(0, fov);
+  return eye.s + (eye.y - VIEW.flightHeight) / Math.tan(ELEVATION - fov * Math.PI / 360);
+}
+
 /** Half the view's width at the player's row (the flight plane at s = 0), narrower than at the view centre. */
 export function lensRowHalfWidth(fov = LENS_FOV): number {
   const depth = lensDistance(fov) - CENTER_S * Math.cos(ELEVATION);

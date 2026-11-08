@@ -5,7 +5,7 @@ export function playerKinematics(state: Pick<RunState, 'pace' | 'config'>): Kine
   return kinematics(state.pace);
 }
 import { BOSSES } from '../content/bosses';
-import { VIEW, type Enemy, type RunState } from '../shared/contracts';
+import { PLAYER_HIT_RADIUS, VIEW, type Enemy, type RunState } from '../shared/contracts';
 import { aimAtPlayer, beamSpec, bossShots, diamondSide, enemyShots, pulsarBurst, type BulletKind, type ShotSpec } from './attacks';
 import { clamp, approach } from './geometry';
 import { bossPartOffset, bossPose, enemyClockRate, positionAfter } from './motion';
@@ -27,11 +27,14 @@ export function shotFootprint(start: number, shot: ShotSpec, ttl = Infinity): Fo
   const reach = R + shot.radius;
   const speed = Math.hypot(shot.vx, shot.vs);
   const crossing = shot.s / -shot.vs;
-  const window = reach / -shot.vs + 1 / 60;
+  const hitReach = PLAYER_HIT_RADIUS + shot.radius;
+  const window = Math.max(reach / -shot.vs + 1 / 60, hitReach / -shot.vs);
   if (crossing + window < 0 || crossing - window > ttl) return null;
   const x = shot.x + shot.vx * crossing;
   // Every player center within reach * speed / |vs| of the crossing is hit; subtract R for the physical edge.
-  const half = reach * speed / -shot.vs - R;
+  // The authored flight envelope already includes a steering margin. For a shallow shot,
+  // enlarge its forecast if the true swept hit circle extends beyond that envelope.
+  const half = Math.max(reach * speed / -shot.vs, hitReach * speed / -shot.vs - FAIRNESS.comfortMargin) - R;
   return { x0: x - half, x1: x + half, t0: start + Math.max(0, crossing - window), t1: start + crossing + window };
 }
 

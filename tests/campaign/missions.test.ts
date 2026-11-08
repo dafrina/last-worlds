@@ -166,15 +166,15 @@ describe('counters (event definitions)', () => {
   });
 
   it('Collector counts coin pickups as the HUD does: scaled by the world and difficulty, never other credits', () => {
-    // Luna pays coins at ×0.24 (CREDIT_SCALE): 288 in pickups show as 69, 292 as 70.
+    // Luna pays coins at ×0.192 (CREDIT_SCALE): 364 in pickups show as 69, 368 as 70.
     const c = createCounter(def('luna.collector'), facts());
-    for (let i = 0; i < 72; i++) c.on({ type: 'credits', time: i, value: 4 });
+    for (let i = 0; i < 91; i++) c.on({ type: 'credits', time: i, value: 4 });
     expect(c.value()).toBe(69);
     c.on({ type: 'credits', time: 80, value: 4 });
     expect(c.done).toBe(true);
     const relaxed = createCounter(def('luna.collector'), facts({ difficulty: 'relaxed' }));
     relaxed.on({ type: 'credits', time: 1, value: 100 });
-    expect(relaxed.value()).toBe(20); // 100 × 0.24 × 0.85
+    expect(relaxed.value()).toBe(16); // 100 × 0.192 × 0.85
   });
 
   it('First Flight needs a level-1 Twin Pulse for the whole run', () => {
@@ -298,7 +298,7 @@ describe('the tracker: rewards, persistence, modes', () => {
     tracker.observe(state, 'a1');
     // Everything a run could do on Luna (ground targets, specials, coins, airborne kills, a quick clean boss fight)...
     feed(tracker, state, 'a1', [...groundKills(12), ...specials(6),
-      ...Array.from({ length: 80 }, (_, i): RunEvent => ({ type: 'credits', time: i, value: 4 })), ...Array.from({ length: 100 }, (_, i) => kill({ time: 100 + i * .5 })),
+      ...Array.from({ length: 100 }, (_, i): RunEvent => ({ type: 'credits', time: i, value: 4 })), ...Array.from({ length: 100 }, (_, i) => kill({ time: 100 + i * .5 })),
       boss('arrival', 124), boss('destroyed', 150)]);
     state.phase = 'complete';
     // ...pays the first five visible ones at most (Old School fails: specials were fired).
@@ -329,9 +329,9 @@ describe('the tracker: rewards, persistence, modes', () => {
     tracker.finish(hidden); tracker.finish(hidden);
     let book = decodeBook(store.read().missionBoard)!;
     expect(book.worlds.training!.career).toEqual({});
-    // 160 in coin pickups show as 38 coins (×0.24), shown on the board until the next attempt starts.
-    expect(book.worlds.training!.last!.progress['luna.collector']).toBe(38);
-    expect(tracker.board('training')!.visible[2]).toMatchObject({ progress: 38 });
+    // 160 in coin pickups show as 30 coins (×0.192), shown on the board until the next attempt starts.
+    expect(book.worlds.training!.last!.progress['luna.collector']).toBe(30);
+    expect(tracker.board('training')!.visible[2]).toMatchObject({ progress: 30 });
     // Visible (#8–#12 on the board): it accrues.
     boardWithDone(store, 7);
     const first = observedRun();

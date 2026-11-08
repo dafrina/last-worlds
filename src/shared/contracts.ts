@@ -192,6 +192,7 @@ export interface RunState {
   mainSequence?: { weapon: WeaponId; rank: number; index: number };
   nextId: number; nextVolleyAt: number; nextEncounterAt: number; encounterIndex: number;
   /** The cue (sector, index) whose ground formations already spawned ahead of its time (src/sim/game.ts, leadGround). */
+  siteNotice?: { sector: number; index: number; time: number };
   groundLead?: { sector: number; index: number } | null;
   lootRng: number; chargeKillTimes: number[]; message: string; messageUntil: number;
   boss: BossState | null;
@@ -232,6 +233,8 @@ export interface RunState {
   events?: RunEvent[];
 }
 export const VIEW = { width: 12, worldWidth: 24, sectionLength: 36, elevation: 55, flightHeight: 3.8, minS: -6.25, maxS: 19.8, playerRadius: 0.42, scrollSpeed: 5 } as const;
+/** Damage radius is 5% larger than the flight footprint used for steering and authored lane spacing. */
+export const PLAYER_HIT_RADIUS = VIEW.playerRadius * 1.05;
 export const STEP = 1 / 60;
 export const EMPTY_INPUT: InputFrame = { horizontal: 0, specialPressed: false, pausePressed: false };
 export interface GameRenderer {

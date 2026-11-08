@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { configureCamera, fitFlightViewport, groundForwardPosition } from '../../src/render/scene';
+import { INCOMING_PICKUP_S } from '../../src/sim/pickup-placement';
+import { LENS_FOV, flightTopEdge } from '../../src/shared/lens';
 import { VIEW } from '../../src/shared/contracts';
 
 const makeCamera = (perspective = false) => {
@@ -13,6 +15,18 @@ const pixel = (point: THREE.Vector3, camera: THREE.Camera, width: number, height
 };
 
 describe('device-sized flight camera', () => {
+  it('scheduled supplies enter across the top edge on short and tall screens', () => {
+    const camera = new THREE.PerspectiveCamera(LENS_FOV, 9 / 16, .1, 260);
+    configureCamera(camera, 0);
+    for (const height of [640, 844, 932]) {
+      fitFlightViewport(camera, 390, height);
+      const at = (s: number) => pixel(new THREE.Vector3(0, VIEW.flightHeight, -s), camera, 390, height).y;
+      expect(at(flightTopEdge())).toBeCloseTo(0, 6);
+      expect(at(INCOMING_PICKUP_S)).toBeLessThan(0);
+      expect(at(flightTopEdge() - .1)).toBeGreaterThan(0);
+    }
+  });
+
   it.each([false, true])('extends the foreground without stretching ships or moving the approach (perspective=%s)', perspective => {
     const camera = makeCamera(perspective), width = 390, originalHeight = width * 16 / 9;
     const points = [new THREE.Vector3(-4, 3.8, -18), new THREE.Vector3(0, 3.8, 0), new THREE.Vector3(2, 1, -12)];

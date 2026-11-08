@@ -1,3 +1,4 @@
+import { AMNION_SHOT } from './shot-colors';
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type PlanetId, type RunState } from '../shared/contracts';
 import { weaponRank } from '../content/equipment';
@@ -450,7 +451,7 @@ export function createFx(scene: THREE.Scene) {
   }
 
   /** New snapshot events → particle spawns. Rewinds (a new run, retry) reset the cursors. */
-  function spawn(state: RunState) {
+  function spawn(state: RunState, heroGlow: number) {
     // A new run or a rewind: the last run's fire (its wrecks' too) goes out.
     if (state.tick < lastTick || seed !== state.config.seed) { lastEffect = -1; lastShot = -1; glow.live = 0; smoke.live = 0; wreckGlow.live = 0; wreckSmoke.live = 0; seed = state.config.seed; }
     lastTick = state.tick;
@@ -468,7 +469,7 @@ export function createFx(scene: THREE.Scene) {
       else if (effect.kind === 'blast') blast(effect.x, z, effect.id, 1);
       else if (effect.kind === 'bossBlast') bossBlast(effect.x, z, effect.id);
       else if (effect.kind === 'hit') { flash(effect.x, z, .38, .07, 0xffd2a0, 1.8); sparks(effect.x, z, full() ? 5 : 3, 0xffb070, 4.2, effect.id); }
-      else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, 0x9ffff2, 5, effect.id);
+      else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, heroGlow, 5, effect.id);
       else if (effect.kind === 'pickup') for (let i = 0; i < (full() ? 4 : 2); i++) emit(glow, { x: effect.x + (hash(effect.id + i) - .5) * .5, y: VIEW.flightHeight + .1,
         z: z + (hash(effect.id + i * 3) - .5) * .5, life: .25, size: .32, grow: -.2, shape: STAR, alpha: 1, ...tint(0xfff4d8, 1.6) });
       else if (effect.kind === 'special') flash(effect.x, z, 2.2, .16, 0xc8fff8, 1.6);
@@ -487,10 +488,10 @@ export function createFx(scene: THREE.Scene) {
         const punch = shot.weapon ? heat : SHOT_HEAT[0];
         flash(shot.previousX, -shot.previousS, .3 * punch.grow, .06, 0xd8fff9, 1.5 * Math.sqrt(punch.energy));
       }
-      // (Amnion's hostile shots are violet: src/render/scene.ts.) A ground battery's round flashes at the battery as drawn.
+      // A ground battery's round flashes at the battery as drawn.
       else {
         const launch = launchOf(shot.id), at = launch ? drawnShot({ x: shot.previousX, s: shot.previousS, vx: shot.vx, vs: shot.vs }, launch) : { x: shot.previousX, s: shot.previousS };
-        flash(at.x, -at.s, .42, .09, state.planet === 'amnion' ? 0xff3a2e : 0xff9a78, 1.25);
+        flash(at.x, -at.s, .42, .09, state.planet === 'amnion' ? AMNION_SHOT[0] : 0xff9a78, 1.25);
       }
     }
     lastShot = maxShot;
@@ -569,14 +570,14 @@ export function createFx(scene: THREE.Scene) {
     setQuality(next: GraphicsQuality) { quality = next; },
     /** Advance by simulation time (frozen while paused or in still fixtures) and rebuild both instanced layers. */
     update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = [], planetSurface: FxSurface | null = null,
-      launches: (id: number) => Launch | undefined = () => undefined) {
+      launches: (id: number) => Launch | undefined = () => undefined, heroGlow = 0x7ff6ea) {
       launchOf = launches;
       const shift = lastTime < 0 || state.time < lastTime || seed !== state.config.seed ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       // Move only existing particles; new effects already use this snapshot's world position.
       for (const layer of layers) for (let i = 0; i < layer.live; i++) layer.pool[i].z += shift * (layer === ground ? 1 : layer.pool[i].drift);
       const previous = lastTime, dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
       surface = planetSurface;
-      spawn(state);
+      spawn(state, heroGlow);
       // Steam from vent stacks: a slow, soft column (about two puffs a second each; High only).
       if (full() && dt > 0 && planetSurface && Math.floor(state.time * 2) !== Math.floor(previous * 2)) planetSurface.vents.forEach((vent, i) => emit(smoke, {
         x: vent.x + (hash(state.time + i * 3.1) - .5) * .12, y: vent.y, z: vent.z, vx: .08, vy: .55, life: 1.8, size: .25, grow: 1.1, drag: .3,

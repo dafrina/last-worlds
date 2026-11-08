@@ -1,5 +1,5 @@
-import { THREAT_COST } from '../../src/content/balance';
-import type { MissionId, RunState } from '../../src/shared/contracts';
+import { ENEMIES, THREAT_COST } from '../../src/content/balance';
+import type { EnemyKind, MissionId, RunState } from '../../src/shared/contracts';
 import { createRun } from '../../src/sim/game';
 import { enterSector, fly, perfectPilot, type Pilot } from './pilots';
 
@@ -17,15 +17,20 @@ export interface FlightMetrics {
   /** Threat cost spawned per minute of flight before the boss (the pacing). */
   threatPerMinute: number;
   credits: number;
+  /** Mean coin value in this deck relative to its October balance baseline. */
+  coinValueRatio: number;
   score: number;
   parts: number;
   sites: number;
   time: number;
 }
 
+// Original coin values for the fixed-list comparison in deck-balance. Only changed kinds need an override.
+const octoberCoin: Partial<Record<EnemyKind, number>> = { weaver: 8, turret: 10, lancer: 16, diamond: 16, pulsar: 12, wraith: 16 };
+
 function measure(state: RunState, pilot: Pilot, seconds: number, until?: (state: RunState) => boolean): FlightMetrics {
   const seen = new Set<number>();
-  let threat = 0, approachTime = 0;
+  let threat = 0, approachTime = 0, currentCoins = 0, octoberCoins = 0;
   const start = state.time;
   const log = fly(state, pilot, seconds, {
     onTick: s => {
@@ -34,13 +39,15 @@ function measure(state: RunState, pilot: Pilot, seconds: number, until?: (state:
         if (enemy.hunter || enemy.bossPart || seen.has(enemy.id)) continue;
         seen.add(enemy.id);
         threat += THREAT_COST[enemy.kind];
+        currentCoins += ENEMIES[enemy.kind].credits;
+        octoberCoins += octoberCoin[enemy.kind] ?? ENEMIES[enemy.kind].credits;
       }
       if (until?.(s)) s.phase = 'complete';
     },
   });
   return {
     seed: state.config.seed, phase: log.phase, hits: log.hits, livesLost: log.livesLost, threat,
-    threatPerMinute: threat / Math.max(1, approachTime) * 60, credits: state.credits, score: state.score,
+    threatPerMinute: threat / Math.max(1, approachTime) * 60, credits: state.credits, coinValueRatio: octoberCoins ? currentCoins / octoberCoins : 1, score: state.score,
     parts: state.parts ?? 0, sites: state.sites?.destroyed ?? 0, time: log.time - start,
   };
 }

@@ -1,3 +1,4 @@
+import { placePickup } from './pickup-placement';
 import { BALANCE } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import type { EncounterCue } from '../content/encounters';
@@ -100,7 +101,7 @@ function pushLoot(state: RunState, pickup: Pickup): void {
     if (oldest < 0) return;
     state.pickups.splice(oldest, 1);
   }
-  state.pickups.push(pickup);
+  placePickup(state, pickup);
 }
 
 /*

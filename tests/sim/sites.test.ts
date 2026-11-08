@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, FUEL_BLAST, GROUND_KINDS, THREAT_COST } from '../../src/content/balance';
 import { cueRoster, type EncounterCue } from '../../src/content/encounters';
-import { authoredKinds } from '../../src/content/encounter-deck';
+import { authoredKinds, resolvePlaylist } from '../../src/content/encounter-deck';
 import { FORMATIONS, siteCoreFormation } from '../../src/content/formations';
 import { ENDLESS_PART_SCORE, SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, SITE_X, siteCue, sitePool } from '../../src/content/sites';
 import { fromFlightPlane } from '../../src/shared/lens';
@@ -222,4 +222,20 @@ describe('shield sites inside the shield-supply budget (invariant 11)', () => {
     expect(state.sector).toBe(sector + 1);
     expect(cells).toBe(0);
   });
+});
+
+it('announces the strike site before its guards and core enter', () => {
+  const state = createRun({ mode: 'campaign', mission: 'training', seed: 5 });
+  const cues = resolvePlaylist(state.config, 1, state.config.seed);
+  const index = cues.findIndex(cue => cue.site);
+  expect(index).toBeGreaterThanOrEqual(0);
+  state.encounterIndex = index;
+  state.nextEncounterAt = cues[index].at;
+  state.time = state.nextEncounterAt - 4;
+  state.player.invulnerableUntil = Infinity;
+  state.nextVolleyAt = Infinity;
+  for (let i = 0; i < 360 && !state.enemies.some(e => e.site); i++) stepRun(state, EMPTY_INPUT);
+  expect(state.enemies.some(e => e.site)).toBe(true);
+  expect(state.siteNotice?.index).toBe(index);
+  expect(state.time - state.siteNotice!.time).toBeGreaterThanOrEqual(1);
 });

@@ -65,7 +65,7 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | Flanks | The map is 24 wide and the screen 12: the flanks are world \|x\| > 6 on each side, where an enemy lies at its death. |
 | Wraith zap sequence | One Wraith attack: its feint, teleport and three-round volley (content/wraith.ts). It is survived when no hit registers within 1.5 s of the volley's release (its rounds leave at 16 units/s or faster from rows 10.5–16.5 and cross the ship's row within about 1.1 s). Hunter Wraiths' volleys count. |
 | Ground streak | Dustfall and Frozen Nerves: kills of those batteries since the last hit, shield or hull (4 November; the rule's `anyHit`). The rule also allows a hull-only streak; no mission uses it now. |
-| Coins (Collector) | Coin pickups collected in flight, counted as the HUD's coin counter counts them: their value × the world's `CREDIT_SCALE` (Luna 0.24, Khepri 0.28, Vesper 0.30, Nacre 0.48, Amnion 0.60, Umbra 0.55; src/content/equipment.ts) × the difficulty's multiplier (×0.85 / ×1 / ×1.2), rounded down. Mission rewards, the boss reward, a full shield cell's 5 credits and the starting balance never count. |
+| Coins (Collector) | Coin pickups collected in flight, counted as the HUD's coin counter counts them: their value × the world's `CREDIT_SCALE` (Luna 0.192, Khepri 0.224, Vesper 0.24, Nacre 0.384, Amnion 0.48, Corona and Umbra 0.44; src/content/equipment.ts) × the difficulty's multiplier (×0.85 / ×1 / ×1.2), rounded down. Mission rewards, the boss reward, a full shield cell's 5 credits and the starting balance never count. |
 
 ## 3. The missions
 
