@@ -1126,46 +1126,22 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const veil = createVeilView(scene);
   const cradle = createVeilView(scene, CRADLE_STYLE);
   const eclipse = createVeilView(scene, ECLIPSE_STYLE), heliophage = createVeilView(scene, HELIOPHAGE_STYLE);
-  let wardenLoad: Promise<void> | undefined;
-  /** WARDEN-1's production model (warden.glb) loads with Luna; the code-built stand-in renders until then. */
-  const ensureWarden = () => {
-    if (wardenLoad) return wardenLoad;
-    return wardenLoad = loadWardenModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.warden}`).then(model => { if (!disposed) { warden.setModel(model); warmed = false; } })
-      .catch(error => console.warn('WARDEN-1 model unavailable; using the code-built stand-in.', error));
+  /**
+   * A boss's production model, loaded once (docs/38 R3): applied unless the renderer is gone, then the next frame warms
+   * again; on failure the code-built stand-in (the Ark: its functional carrier) keeps rendering.
+   */
+  const lazyAsset = <T,>(load: () => Promise<T>, apply: (model: T) => void, unavailable: string) => {
+    let once: Promise<void> | undefined;
+    return () => once ??= load().then(model => { if (!disposed) { apply(model); warmed = false; } }).catch(error => console.warn(unavailable, error));
   };
-  let veilLoad: Promise<void> | undefined;
-  /** THE VEIL's production model (the-veil.glb) loads with Nacre; the code-built stand-in renders until then. */
-  const ensureVeil = () => {
-    if (veilLoad) return veilLoad;
-    return veilLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.veil}`).then(model => { if (!disposed) { veil.setModel(model); warmed = false; } })
-      .catch(error => console.warn('THE VEIL model unavailable; using the code-built stand-in.', error));
-  };
-  let cradleLoad: Promise<void> | undefined;
-  /** THE CRADLE's model (the-cradle.glb) loads with Amnion. */
-  const ensureCradle = () => {
-    if (cradleLoad) return cradleLoad;
-    return cradleLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.cradle}`).then(model => { if (!disposed) { cradle.setModel(model); warmed = false; } })
-      .catch(error => console.warn('THE CRADLE model unavailable; using the code-built stand-in.', error));
-  };
-  let eclipseLoad: Promise<void> | undefined;
-  /** THE ECLIPSE's model loads with Umbra. */
-  const ensureEclipse = () => {
-    if (eclipseLoad) return eclipseLoad;
-    return eclipseLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.eclipse}`).then(model => { if (!disposed) { eclipse.setModel(model); warmed = false; } })
-      .catch(error => console.warn('THE ECLIPSE model unavailable; using the code-built stand-in.', error));
-  };
-  let heliophageLoad: Promise<void> | undefined;
-  const ensureHeliophage = () => {
-    if (heliophageLoad) return heliophageLoad;
-    return heliophageLoad = loadVeilModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.heliophage}`).then(model => { if (!disposed) { heliophage.setModel(model); warmed = false; } })
-      .catch(error => console.warn('THE HELIOPHAGE model unavailable; using the code-built stand-in.', error));
-  };
-  let arkLoad: Promise<void> | undefined;
-  const ensureArk = () => {
-    if (arkLoad) return arkLoad;
-    return arkLoad = loadArkModel(`${import.meta.env.BASE_URL}assets/${BOSS_ASSETS.ark}`).then(model => { if (!disposed) { ark.setModel(model); warmed = false; } })
-      .catch(error => console.warn('Helion Ark model unavailable; using the functional carrier.', error));
-  };
+  const bossAsset = (id: keyof typeof BOSS_ASSETS) => `${import.meta.env.BASE_URL}assets/${BOSS_ASSETS[id]}`;
+  /** WARDEN-1 loads with Luna, THE VEIL with Nacre, THE CRADLE with Amnion, THE HELIOPHAGE with Corona, THE ECLIPSE with Umbra. */
+  const ensureWarden = lazyAsset(() => loadWardenModel(bossAsset('warden')), model => warden.setModel(model), 'WARDEN-1 model unavailable; using the code-built stand-in.');
+  const ensureVeil = lazyAsset(() => loadVeilModel(bossAsset('veil')), model => veil.setModel(model), 'THE VEIL model unavailable; using the code-built stand-in.');
+  const ensureCradle = lazyAsset(() => loadVeilModel(bossAsset('cradle')), model => cradle.setModel(model), 'THE CRADLE model unavailable; using the code-built stand-in.');
+  const ensureEclipse = lazyAsset(() => loadVeilModel(bossAsset('eclipse')), model => eclipse.setModel(model), 'THE ECLIPSE model unavailable; using the code-built stand-in.');
+  const ensureHeliophage = lazyAsset(() => loadVeilModel(bossAsset('heliophage')), model => heliophage.setModel(model), 'THE HELIOPHAGE model unavailable; using the code-built stand-in.');
+  const ensureArk = lazyAsset(() => loadArkModel(bossAsset('ark')), model => ark.setModel(model), 'Helion Ark model unavailable; using the functional carrier.');
   /*
    * Endless planet cycle (docs/18 §4): the next planet's render assets load during the boss sector, never mid-jump,
    * and stay cached. Khepri's load at start; Vesper's are its craft, the Helion Ark and its prefiltered sky.
