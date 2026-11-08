@@ -95,7 +95,7 @@ def facilities():
         for large in [False,True]:
             h=facility_mesh(planet,large)
             model=obj('facility_'+planet+('_large' if large else ''),h,mats,ao=.42); all.append(model)
-    export('public/assets/shared/facility-compounds.glb',all)
+    export('art/archive/assets/shared/facility-compounds.glb',all)
 
 def facility_mesh(planet,large):
         h=vc.HS(random.Random('facility-'+planet+str(large))); paint='nacre' if planet=='nacre' else 'ice' if planet=='vesper' else 'ochre'
@@ -330,7 +330,7 @@ def veil():
     for name,p in old.EMPTIES.items():
       if name.startswith('veil_engine'): p=(p[0],p[1],-7.3)
       o=vc.make_empty(name,p); objects.append(o)
-    export('public/assets/nacre/the-veil.glb',objects)
+    export('art/archive/assets/nacre/the-veil.glb',objects)
     for o in objects:
       if '_wreck' in o.name: o.hide_render=True; o.hide_set(True)
 

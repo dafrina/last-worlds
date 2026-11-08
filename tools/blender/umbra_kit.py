@@ -2228,11 +2228,13 @@ def preview_kit(objs, args):
         peaks(objs, scene, dirs)
     if not focus or "infra" in focus:
         infra_sheet(objs, scene, dirs)
+    # The first cliff kit, archived out of the deployed assets (docs/38 P1); the game flies cliff-kit-v2.glb.
+    archived_cliffs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "art", "archive", "assets", "umbra", "cliff-kit.glb")
     if not focus or "umb_hill" in focus:
-        hills(objs, scene, dirs, os.path.join(os.path.dirname(args.glb), "cliff-kit.glb"))
+        hills(objs, scene, dirs, archived_cliffs)
     if focus:
         return
-    cliff = os.path.join(os.path.dirname(args.glb), "cliff-kit.glb")
+    cliff = archived_cliffs
     if not os.path.exists(cliff):
         print("UKIT preview: no cliff kit yet, skipping the in-situ scene")
         return

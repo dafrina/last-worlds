@@ -8,7 +8,7 @@ import { VEIL } from '../../src/content/veil';
 import { ECLIPSE } from '../../src/content/eclipse';
 import { WARDEN } from '../../src/content/warden';
 import { FACILITY_KIT_ASSETS, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
-import { asset, stubGltfDecoding } from '../helpers/assets';
+import { ARCHIVE, asset, stubGltfDecoding } from '../helpers/assets';
 
 stubGltfDecoding();
 function validate(model: Group, budget: number, textured=false) {
@@ -167,7 +167,7 @@ describe('Blender cinematic asset contracts',()=>{
     expect(model.getObjectByName('hero_scrapper_engine_1')).toBeDefined();
   });
   it('preserves the VEIL combat sockets, hinges and wreck variants in the new carrier',async()=>{
-    const model=await asset('nacre/the-veil.glb'); validate(model,55000);
+    const model=await asset('nacre/the-veil.glb',ARCHIVE); validate(model,55000);
     for(const [name,x,y,z] of [
       ['veil_pod_left',-3.1,2,.4],['veil_pod_right',3.1,2,.4],['veil_heart',0,2,-1.8],
       ['veil_bay_left',-1.7,1.8,2.6],['veil_bay_right',1.7,1.8,2.6],
@@ -199,7 +199,7 @@ describe('Blender cinematic asset contracts',()=>{
       sockets:[['warden_pod_left',-2.1,1.3,0],['warden_pod_right',2.1,1.3,0],['warden_core',0,1.3,-.9],['warden_core_hatch_0',-.33,1.3,-.9]],
       parts:['warden_pod_left_wreck','warden_pod_right_wreck','warden_core_wreck','warden_core_hatch_1','warden_beacon',...Array.from({length:4},(_,i)=>`warden_thruster_${i}`)]},
   ] as const) it(`preserves ${spec.prefix}'s rig, clear target crowns and bounded geometry`,async()=>{
-    const model=await asset(spec.path);validate(model,spec.budget);
+    const model=await asset(spec.path,ARCHIVE);validate(model,spec.budget);
     for(const [name,x,y,z] of spec.sockets){
       const node=model.getObjectByName(name);expect(node,name).toBeDefined();
       const p=node!.getWorldPosition(new Vector3());
@@ -239,7 +239,7 @@ describe('Blender cinematic asset contracts',()=>{
     });
   }
   it('keeps each facility gun courtyard empty and each roof below its declared height',async()=>{
-    const model=await asset('shared/facility-compounds.glb'); validate(model,46000);
+    const model=await asset('shared/facility-compounds.glb',ARCHIVE); validate(model,46000);
     for(const planet of ['khepri','vesper','nacre']) for(const large of [false,true]) checkCompound(model,planet,large);
   });
   it('keeps the same seat contract in the textured v2 compounds after the facility sheets',async()=>{

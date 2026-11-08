@@ -19,8 +19,9 @@ import math
 from mathutils import Vector
 
 ROOT = Path(r'\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies')
-V5 = ROOT / 'public/assets/khepri/bastion-9-v5-remodel.glb'
-V6 = ROOT / 'public/assets/khepri/bastion-9-v6-treads.glb'
+# Both archived out of the deployed assets (docs/38 P1); the game flies bastion-9-v7.glb.
+V5 = ROOT / 'art/archive/assets/khepri/bastion-9-v5-remodel.glb'
+V6 = ROOT / 'art/archive/assets/khepri/bastion-9-v6-treads.glb'
 
 
 def run(src=V5, out=V6):

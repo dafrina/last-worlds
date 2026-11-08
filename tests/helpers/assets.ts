@@ -14,7 +14,10 @@ export function stubGltfDecoding(): void {
   afterAll(() => vi.unstubAllGlobals());
 }
 
-/** A GLB's scene, read from `root` (the deployed `public/assets` unless given). */
+/** Retired models kept for rollback and the Blender scripts (docs/38 P1): out of `public/`, so never deployed. */
+export const ARCHIVE = 'art/archive/assets';
+
+/** A GLB's scene, read from `root` (the deployed `public/assets` unless given, or ARCHIVE). */
 export async function asset(path: string, root = 'public/assets') {
   const bytes = fs.readFileSync(`${root}/${path}`);
   return (await new Promise<GLTF>((resolve, reject) => new GLTFLoader().parse(bytes.slice().buffer, '', resolve, reject))).scene;

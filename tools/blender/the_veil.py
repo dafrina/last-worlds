@@ -13,7 +13,7 @@ heart shutters also carry a yaw so that each one opens by rotating about its own
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" \\
         --background --factory-startup --python "$(wslpath -w $R/tools/blender/the_veil.py)" -- \\
-        --glb "$(wslpath -w $R/public/assets/nacre/the-veil.glb)" \\
+        --glb "$(wslpath -w $R/art/archive/assets/nacre/the-veil.glb)" \\
         --preview-dir "$(wslpath -w $R/art/the-veil)"
 """
 

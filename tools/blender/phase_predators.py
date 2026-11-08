@@ -172,7 +172,7 @@ def export(parent, relative):
         if o.type=='MESH': o.data.calc_loop_triangles();tris+=len(o.data.loop_triangles)
     return {'file':relative,'triangles':tris,'bytes':path.stat().st_size}
 
-manifest=[export(brood,'public/assets/amnion/brood-heavy-v1.glb')] + ([] if BROOD_ONLY else [export(wraith,'public/assets/umbra/wraith-v1.glb')])
+manifest=[export(brood,'public/assets/amnion/brood-heavy-v1.glb')] + ([] if BROOD_ONLY else [export(wraith,'art/archive/assets/umbra/wraith-v1.glb')])
 (OUT/'manifest.json').write_text(json.dumps(manifest,indent=2))
 
 # A real Blender preview with grazing highlights so black surfaces remain black yet legible.
