@@ -378,8 +378,9 @@ export function createArkView(scene: THREE.Scene) {
         colors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], cursor * 3); cursor += 2;
       };
       for (const enemy of state.enemies) {
-        if (!enemy.bossPart) continue;
-        const part = rig.parts.get(enemy.bossPart)!, target = rings.get(enemy.bossPart)!;
+        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
+        const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
+        if (!enemy.bossPart || !part || !target) continue;
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 2.0);
         // A radiator that just broke swaps to its wreck with sparks, a flash, then vents steam and smoke for a while.
         if (alive.get(enemy.bossPart) && !living) {

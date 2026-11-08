@@ -1617,18 +1617,21 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (!warmed) {
         // Preview rendering warms all authored craft/material programs before the first fight.
         // Instance-color attributes above are allocated now, avoiding a new program on first loot/hit.
-        // Boss rigs stay hidden until their arrival; compile every part (wrecks, shutters, thrusters included) now, so
-        // a boss's first frame never stalls on shader compilation and it glides in instead of popping up mid-view.
-        const bossParts: THREE.Object3D[] = [];
-        for (const name of ['Bastion-9', 'Helion Ark', 'WARDEN-1', 'THE VEIL']) scene.getObjectByName(name)?.traverse(object => { bossParts.push(object); });
-        const pieces = [...terrain.warmupObjects(), ...facilities.warmupObjects(), ...sites.warmupObjects(), ...jumpFx.objects, ...bossParts];
+        // Boss rigs stay hidden until their arrival; they are in the scene, so the walk below shows and compiles every part
+        // (wrecks, shutters, thrusters included) now, and a boss glides in instead of stalling on its first frame.
+        const pieces = [...terrain.warmupObjects(), ...facilities.warmupObjects(), ...sites.warmupObjects(), ...jumpFx.objects];
         separateInstancedCasters(scene); pieces.forEach(separateInstancedCasters);
         // Every object is drawn once in its real form (performance, 22 October: programs compiled mid-flight stalled
         // frames by 50-400 ms): hidden ones shown and nothing culled, so empty instanced batches, the shield and the
         // effects compile too.
-        const restore: [THREE.Object3D, boolean, boolean][] = [];
-        scene.traverse(object => { restore.push([object, object.visible, object.frustumCulled]); object.visible = true; object.frustumCulled = false; });
-        for (const piece of pieces) piece.traverse(object => { if (!restore.some(([seen]) => seen === object)) restore.push([object, object.visible, object.frustumCulled]); object.visible = true; object.frustumCulled = false; });
+        // Each object's state is kept once (a Set, not a search of the list per object: docs/38 PF1).
+        const restore: [THREE.Object3D, boolean, boolean][] = [], kept = new Set<THREE.Object3D>();
+        const show = (object: THREE.Object3D) => {
+          if (!kept.has(object)) { kept.add(object); restore.push([object, object.visible, object.frustumCulled]); }
+          object.visible = true; object.frustumCulled = false;
+        };
+        scene.traverse(show);
+        for (const piece of pieces) piece.traverse(show);
         // An empty batch draws one instance while warming: every pass, the shadow pass's depth programs included, then
         // compiles it (performance, 31 October: a dart batch's shadow program compiled on the first dart, 480 ms).
         const emptied: THREE.InstancedMesh[] = [];

@@ -414,8 +414,9 @@ export function createBastionView(scene: THREE.Scene) {
         colors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], cursor * 3); cursor += 2;
       };
       for (const enemy of state.enemies) {
-        if (!enemy.bossPart) continue;
-        const part = rig.parts.get(enemy.bossPart)!, target = rings.get(enemy.bossPart)!;
+        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
+        const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
+        if (!enemy.bossPart || !part || !target) continue;
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 2.05);
         // A module that just broke throws sparks, then trails smoke from its wreck.
         if (alive.get(enemy.bossPart) && !living) { deadAt.set(enemy.bossPart, state.time); burst(local(part.group.position.x, 1.5, part.group.position.z), 26, enemy.id * 7, 1.2); flash(local(part.group.position.x, 1.4, part.group.position.z), 1.6, enemy.id); }
