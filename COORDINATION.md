@@ -871,3 +871,9 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - cut per-frame allocations with measurements.
 - **Me, main tree:** dead code in `src/render/{bastion,ark,veil,warden}-view.ts`, `facility-view.ts`, `water.ts`, `hero-craft.ts`, `tests/browser/graphics.spec.ts`.
 - **Agent C, own worktree:** allocations in `src/sim/game.ts`, `render()` in `scene.ts`, `site-view`, `terrain-view` `animate`, `fx-particles`, `instances.ts`; the boss-view markers last, after my deletions.
+
+**9 November · Claude Code (Blender MCP in WSL session) · deployed `e930316`; the docs/38 small-refactor round is closed.**
+- **Merged:** dead code (V7), the load fixes, and agent C's allocation cuts (`004472f`). Gate: unit 977, build, browser 54/54, Playwright exit 0; frozen frames match the deployed build.
+- **Free for anyone:** `src/render/{bastion,ark,veil,warden}-view.ts`, `facility-view.ts`, `water.ts`, `hero-craft.ts` and `scene.ts`.
+- **Gone:** the facility `fv=` fixture switch; `loadHeroModel` has no `craft` parameter.
+- `integrator-next` = `main` plus this record and build-status.

@@ -1,5 +1,30 @@
 # Build status
 
+## Dead code, load fixes and per-frame garbage deployed (`e930316`), 9 November 2026
+
+No visible change intended.
+
+- **Fixes:**
+  - the ice sky is freed on dispose; the skies now live in one map (V9);
+  - a missing terrain texture warns instead of failing silently (V9);
+  - `?planet=` is development-only in the terrain view too (D3);
+  - the live `?unlock=all` and `?perf` switches stay, by the user's choice.
+- **Dead code removed (V7), about 430 lines:**
+  - the boss views' branches for old model versions. All seven shipped GLBs carry their approved or remodel marker; the procedural stand-ins stay as the load-failure fallback;
+  - facility v2. Its three GLBs moved to `art/archive/assets`, so the site is 15.3 MB smaller; the v2-only unit and browser tests went with it;
+  - the ocean's Nacre branch. Nacre has drawn `mire-water.ts` since 3 November and the algae live there;
+  - the single-kit hero path. Every chassis has been remodelled since 29 October.
+  - None of these was a bug: each had been deliberately replaced.
+- **Per-frame garbage (agent, PF4, PF3, V6):**
+  - the simulation filters in place (`shared/retain.ts`) and keyframes are read by index;
+  - `render()` reuses its frame scratch;
+  - the site and terrain views keep their frame state between frames;
+  - the boss views pool their particles and write markers without per-frame lists.
+- **Allocations:** outside terrain generation, 13–19% less per frame in every bench scenario. For example, dense goes from 134 to 108 KB/frame, lasers from 151 to 126, and nacre-boss from 90 to 73 (`PERF_ALLOC=1`). Seeker Rack flights hash identically before and after. Details and two larger levers are in docs/38, "Progress".
+- **Gate on `004472f`:** typecheck clean; unit tests 977 passed, 5 skipped; build passes; browser 54/54 (Playwright exit 0, 22.2 min). One spec fewer: the v2 facility spec was removed.
+- **Frozen frames, `cb44823` against `004472f`:** ten stills; everything is within the same-build noise. The only differences above noise (Corona, Umbra) are the special button's charge ring, a DOM animation.
+- **Live:** Pages run 42533597761 succeeded; the live bundles (`main-DaX3ENrc.js`, `storage-B85IjfP0.js`) match the build; the smoke test reports no errors. No phone test.
+
 ## Refactor round from docs/38 deployed (`cb44823`), 8 November 2026, late
 
 The deployed behaviour is unchanged except Corona's muzzle flashes, which now use its red shot colour (V5).
