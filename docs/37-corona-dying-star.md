@@ -87,6 +87,18 @@ The concept images are references, never runtime backgrounds or finished assets 
 - **World missions:** twelve, 625 coins and 5 parts, as Brood Strike's and Final Horizon's (`src/content/world-missions.ts`).
 - **Endless:** Corona's stages are staged from Dying Star's arc as Nacre's are from Deep Bloom's (`lateStages`). The pressure stage holds no strike site, as Nacre's, Amnion's and Umbra's don't.
 
+## Audio
+
+- **First pass:** *Into the Corona*, 126 BPM, was a placeholder. It had no instruments of its own (Vesper's pad, glass and bass) and near-copies of Khepri's bass, kick and hat patterns. The user heard it as a copy and asked for new music, "ominous harp sounds or something" (10 November).
+- **Now:** *Hymn for a Swollen Sun*, 110 BPM, E Phrygian. Chords, two bars each: Em, F (♭II), C (♭VI) and B major (V).
+  - A low Karplus–Strong harp climbs each chord in groups of 3, 3 and 2 sixteenths. It is two strings a few cents apart in a dark resonant body, saturated a little for phone speakers.
+  - A lament on a higher harp sinks through its ♭6.
+  - A solar drone swells open and closed like heat.
+  - Sparse heavy kicks keep the same 3-3-2, under a deep tom backbeat, ember crackle in place of hats and a bowed-metal shriek at the phrase marks.
+  - The form is the shared 32-bar one: an opening that grows from the ostinato's accents, the drums and lament, a breakdown to the drone and accents, and a return with the lament doubled on low strings.
+- **Boss:** the same four states as every world (modules, core, overload, each with its stinger, on the score's clock). Corona's kit uses its harp for the pulses, ember crackle for hats, 3-3-2 kicks and the deepest bed dip.
+- **Details:** [sound design](24-sound-design.md), 10 November revision.
+
 ## Stages
 
 1. **Playable world (done, 5 November):** types, campaign and endless, terrain and look, plasma, arcs, the placeholder boss, deck, sites, missions.
