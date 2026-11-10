@@ -14,9 +14,10 @@ const LOG = env.MISSION_LOG;
 describe('world missions are all reachable', () => {
   it.each([
     // 6 since pace 1.15 (6 November): strike sites pass 15% sooner, and Lunar Saboteur's two sites take a run longer.
-    ['training', 12, 450, 5],
-    ['bastion', 8, 450, 4],
-    ['cold-vector', 12, 515, 4],
+    // Parts +2 per world since Untouchable pays 3 (10 November).
+    ['training', 12, 450, 7],
+    ['bastion', 8, 450, 6],
+    ['cold-vector', 12, 515, 6],
   ] as const)('%s: all twelve within %i attempts', (mission, max, credits, parts) => {
     const result = clearWorld(mission, max);
     if (LOG) console.log(`${mission}: ${result.flown} attempts\n${result.log.join('\n')}`);

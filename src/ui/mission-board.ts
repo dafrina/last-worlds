@@ -14,7 +14,7 @@ const escape = (text: string) => text.replace(/[&<>"]/g, c => ({ '&': '&amp;', '
 
 /** A mission's reward as glyphs: credits, and parts when it pays any. */
 function reward(def: WorldMission): string {
-  return `<span class="board-reward" aria-label="Reward ${def.credits} credits${def.parts ? ` and ${def.parts} part` : ''}">`
+  return `<span class="board-reward" aria-label="Reward ${def.credits} credits${def.parts ? ` and ${def.parts} ${def.parts === 1 ? 'part' : 'parts'}` : ''}">`
     + `<span class="board-credits">${creditGlyph}${def.credits}</span>${def.parts ? `<span class="board-parts">${partGlyph}${def.parts}</span>` : ''}</span>`;
 }
 /** One open mission: name and progress, its line, its minimum difficulty, scope and reward. */
