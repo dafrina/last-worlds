@@ -158,7 +158,8 @@ test('boss phases change the arrangement on the running score\'s grid, survive p
 });
 
 test('every world\'s boss stages grow in the rendered stem, and the level score is untouched before and after a fight', async ({ page }) => {
-  test.setTimeout(300_000);
+  // 35 offline renders; slow under SwiftShader and a loaded machine.
+  test.setTimeout(600_000);
   await page.goto('/tests/fixtures/audio-lab.html');
   await page.waitForFunction(() => '__AUDIO_LAB__' in window);
   for (const planet of WORLDS) {
