@@ -75,8 +75,8 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | --- | --- | --- | --- |
 | 1 | Specialist: 5 specials (25 \| 0 \| any) | Specialist: 6 (25 \| 0 \| any) | Specialist: 7 (5 \| 0 \| any) |
 | 2 | Old School: complete without a special (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (10 \| 0 \| any) |
-| 3 | Untouchable: complete without a hit (50 \| 1 \| Standard+) | Collector: 110 coins (25 \| 0 \| any) | Collector: 170 (25 \| 0 \| any) |
-| 4 | Collector: 70 coins (25 \| 0 \| any) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
+| 3 | Untouchable: complete without a hit (100 \| 3 \| Standard+) | Collector: 110 coins (25 \| 0 \| any) | Collector: 170 (25 \| 0 \| any) |
+| 4 | Collector: 70 coins (25 \| 0 \| any) | Untouchable (100 \| 3 \| Standard+) | Untouchable (100 \| 3 \| Standard+) |
 | 5 | **Sky Patrol** ✱: 100 airborne enemies (50 \| 1 \| any) | **Scorched Earth** ✱: 40 ground targets (50 \| 1 \| any) | **Overcharge** ✱: 20 specials (50 \| 1 \| any) |
 | 6 | Air Superiority: 30 airborne (25 \| 0 \| any) | Hunter Bounty: 2 aces (25 \| 0 \| any) | Air Superiority: 35 (25 \| 0 \| any) |
 | 7 | Demolition: 10 ground targets (25 \| 0 \| any) | Demolition: 14 (25 \| 0 \| any) | Demolition: 16 (25 \| 0 \| any) |
@@ -91,7 +91,7 @@ All times are the run's active simulation time (`RunState.time`), which never ru
 | --- | --- | --- | --- |
 | 1 | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) | Specialist: 8 (25 \| 0 \| any) |
 | 2 | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) | Old School (25 \| 0 \| any) |
-| 3 | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) | Untouchable (50 \| 1 \| Standard+) |
+| 3 | Untouchable (100 \| 3 \| Standard+) | Untouchable (100 \| 3 \| Standard+) | Untouchable (100 \| 3 \| Standard+) |
 | 4 | Hunter Bounty: 2 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) | Hunter Bounty: 3 aces (25 \| 0 \| any) |
 | 5 | **Pearl Diver** ✱: 1,000 coins (50 \| 1 \| any) | **Bonfire** ✱: 75 gas tanks (50 \| 1 \| any) | **Eclipse Vigil** ✱: 500 enemies (50 \| 1 \| any) |
 | 6 | Collector: 330 (50 \| 0 \| any) | Demolition: 18 (25 \| 0 \| any) | Vanishing Act: 3 Wraith volleys without a hit, one run (25 \| 0 \| Standard+) |

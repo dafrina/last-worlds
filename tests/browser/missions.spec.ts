@@ -40,7 +40,7 @@ test('the campaign page shows a world\'s five missions, their progress, minimum 
   await expect(board.locator('.board-item').nth(0).locator('.board-tag')).toHaveText('RELAXED+');
   await expect(board.locator('.board-item').nth(2).locator('.board-value')).toHaveText('38/70');
   await expect(board.locator('.board-item').nth(2).locator('.board-scope')).toHaveText('SINGLE RUN');
-  await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 100 credits and 1 part');
+  await expect(board.locator('.board-item').nth(1).locator('.board-reward')).toHaveAttribute('aria-label', 'Reward 100 credits and 3 parts');
   // Done missions stay as cards with a check, most recent first; the retired Groundbreaker no longer shows (its payment stays).
   await expect(board.locator('.board-sub')).toHaveText('COMPLETED · 1');
   await expect(board.locator('.board-done b')).toHaveText(['Specialist']);

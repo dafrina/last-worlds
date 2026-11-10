@@ -107,7 +107,8 @@ const long = (slug: string, name: string, text: string, goal: number, rule: Miss
   ({ slug, name, text, goal, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', long: true, rule });
 const specialist = (goal: number, credits: number): Def => ({ slug: 'specialist', name: 'Specialist', text: `Fire your special ${goal} times in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'specials' }) });
 const oldSchool = (credits: number, where: string): Def => ({ slug: 'old-school', name: 'Old School', text: `Complete ${where} without firing a special.`, goal: 1, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'complete', noSpecial: true }) });
-const untouchable = (where: string): Def => ({ slug: 'untouchable', name: 'Untouchable', text: `Complete ${where} without a shield or hull hit.`, goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'complete', noHit: true }) });
+/** The no-hit run pays 3 parts (user, 10 November; it paid 1). */
+const untouchable = (where: string): Def => ({ slug: 'untouchable', name: 'Untouchable', text: `Complete ${where} without a shield or hull hit.`, goal: 1, credits: 100, parts: 3, difficulty: 'standard', ...run({ kind: 'complete', noHit: true }) });
 const collector = (goal: number, credits: number): Def => ({ slug: 'collector', name: 'Collector', text: `Collect ${goal} credits in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'credits' }) });
 const airSuperiority = (goal: number, credits: number): Def => ({ slug: 'air-superiority', name: 'Air Superiority', text: `Destroy ${goal} airborne enemies in one run.`, goal, credits, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air' }) });
 const demolition = (goal: number): Def => ({ slug: 'demolition', name: 'Demolition', text: `Destroy ${goal} ground targets in one run.`, goal, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground' }) });
