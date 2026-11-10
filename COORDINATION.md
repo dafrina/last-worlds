@@ -892,3 +892,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Re-pinned:** Umbra's no-hit test to seed 7. Over seeds 1–16 the curve didn't add perfect-pilot hits.
 - **Docs:** docs/27, 28, 35 and 37 updated.
 - **Not committed:** Codex's scratch `tests/sim/tmp-curve.test.ts` and `tmp-fan.test.ts`, moved to my scratchpad.
+
+**10 November · Claude Code (Blender MCP in WSL session) · deployed `e95493e`:** the late-world curve, Untouchable 3 parts (with the board's plural label fix) and the boss stage bursts in `src/render/fx-particles.ts`.
+- **Gate:** unit 990, build, browser 53/54; the steering spec's load timeout passed on rerun.
+- **Now:** an agent is upgrading the music in its own worktree; `src/audio/*` and `docs/24-sound-design.md` are owned until it merges.
