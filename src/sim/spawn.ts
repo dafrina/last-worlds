@@ -27,6 +27,7 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   age = 0): void {
   const template = FORMATIONS[formation];
   const group = state.nextId;
+  const world = WORLD_INTENSITY[state.planet];
   // A strike site's core (docs/33): its site, and the site's hit points, radius and core height instead of its kind's.
   const site = coreSite(template.id), core = site ? SITES[site].core : null;
   // A strike site's core (harmless: it never fires) stands on the even dry seat found near its authored place, clear of
@@ -43,10 +44,10 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
     if (!slotFlies(slot, scale.rank)) return;
     const member: FormationMember = { template: template.id, slot: index, anchorX, mirror, group, ...(anchorS !== undefined ? { anchorS } : {}) };
     const at = memberPosition(member, age);
-    const hp = (core?.hp ?? ENEMIES[slot.kind].hp) * scale.hp;
+    const hp = (core?.hp ?? ENEMIES[slot.kind].hp) * scale.hp * (core || slot.kind === 'fuel' ? 1 : world.hp);
     const enemy = {
       id: state.nextId++, kind: slot.kind, x: at.x, s: at.s, originX: anchorX, hp, maxHp: hp,
-      radius: core?.radius ?? ENEMIES[slot.kind].radius, age, ...(site ? { site } : {}), nextAttack: (slot.lag ?? 0) + (template.fireFrom * scale.firstAttack + slot.fire) * (template.entry === 'ground' ? 1 : scale.airFirstShot),
+      radius: core?.radius ?? ENEMIES[slot.kind].radius, age, ...(site ? { site } : {}), nextAttack: (slot.lag ?? 0) + (template.fireFrom * scale.firstAttack * world.firstAttack + slot.fire) * (template.entry === 'ground' ? 1 : scale.airFirstShot),
       warning: 0, aimX: at.x, groundHeight: site ? SITE_CORE_HEIGHT[site] : groundHeight(slot.kind), formation: member,
       // Spawned ahead of its time it is still beyond the top edge: shots cannot hit it until its authored entry.
       ...(age < 0 ? { damageable: false } : {}),

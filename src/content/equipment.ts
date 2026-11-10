@@ -133,7 +133,9 @@ export const REWARDS = { success: 80, boss: 60, firstClear: 75, failureShare: 0.
  * reproduces them; docs/30 § Income). It replaced one global ×0.5 (16 October): 166 / 179 / 247 / 209 / 214 / 236.
  */
 export const CREDIT_SCALE: Readonly<Record<MissionId, number>> = {
-  // 7 November: pay 80% of the previous world scales. Dying Star uses Final Horizon’s rate.
-  training: 0.192, bastion: 0.224, 'cold-vector': 0.24, 'deep-bloom': 0.384, 'brood-strike': 0.48, 'dying-star': 0.44, 'final-horizon': 0.44,
+  // Repeatable campaign payout (first clears and side missions pay separately). 7 November: 80% of the 3 November scales.
+  // 10 November (late-world curve): the last three worlds pay in campaign order; Amnion 0.48 → 0.41, Corona 0.44 → 0.425,
+  // Umbra 0.44 → 0.45.
+  training: 0.192, bastion: 0.224, 'cold-vector': 0.24, 'deep-bloom': 0.384, 'brood-strike': 0.410, 'dying-star': 0.425, 'final-horizon': 0.450,
 };
 export const CREDIT_MULTIPLIER: Readonly<Record<Difficulty, number>> = { relaxed: 0.85, standard: 1, veteran: 1.2 };

@@ -30,7 +30,7 @@ The concept image is a reference, never a runtime background or a finished asset
 ## Campaign place and pressure
 
 - **Brood Strike is the final campaign mission,** after Deep Bloom (`CAMPAIGN_ORDER`). It opens once Deep Bloom is cleared, and old saves stay valid.
-- **Pressure:** it starts at Deep Bloom's level (`WORLD_INTENSITY.amnion` = Nacre's, `MISSION_CADENCE` 0.92). It is not harder until it has been played.
+- **Pressure:** it started at Deep Bloom's level (`WORLD_INTENSITY.amnion` = Nacre's, `MISSION_CADENCE` 0.92). Since the late-world curve (10 November) it steps past Nacre: cadence 0.46, enemy hp ×1.10, first windups ×0.90. Its run credit scale is 0.41.
 - **Playlist:** authored on Deep Bloom's proven timing grid, with its own mix:
   - drone flights over the canyons;
   - nest spires (batteries) and spore mortars (missile batteries);

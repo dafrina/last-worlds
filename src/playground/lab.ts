@@ -6,7 +6,7 @@
 import { spawnMembers, runScale } from '../sim/spawn';
 import { HUNTERS } from '../content/hunters';
 import { missionBoss } from '../content/bosses';
-import { CAMPAIGN_SCROLL, ENEMIES } from '../content/balance';
+import { CAMPAIGN_SCROLL, ENEMIES, WORLD_INTENSITY } from '../content/balance';
 import type { FormationId } from '../content/formations';
 import { VIEW, type EnemyKind, type MissionId, type RunState } from '../shared/contracts';
 
@@ -33,11 +33,12 @@ export function spawnFormation(state: RunState, formation: FormationId) {
 
 /** A hunter of any kind: the shielded ace the world's hunters are, diving in on the side away from the ship. */
 export function spawnHunter(state: RunState, kind: EnemyKind) {
-  const base = ENEMIES[kind], hp = base.hp * runScale(state).hp, perCharge = hp * HUNTERS.shield.share;
+  const scale = runScale(state), world = WORLD_INTENSITY[state.planet];
+  const base = ENEMIES[kind], hp = base.hp * scale.hp * world.hp, perCharge = hp * HUNTERS.shield.share;
   const side = state.player.x > state.cameraX ? -1 : 1, x = Math.max(-VIEW.worldWidth / 2 + 1, Math.min(VIEW.worldWidth / 2 - 1, state.cameraX + side * 3));
   state.enemies.push({
     id: state.nextId++, kind, x, s: VIEW.maxS + 3, originX: x, hp, maxHp: hp, radius: base.radius, age: 0,
-    nextAttack: HUNTERS.firstAttack, warning: 0, aimX: x, groundHeight: VIEW.flightHeight,
+    nextAttack: HUNTERS.firstAttack * scale.firstAttack * scale.airFirstShot * world.firstAttack, warning: 0, aimX: x, groundHeight: VIEW.flightHeight,
     hunter: { key: 9000 + state.nextId, shield: perCharge * HUNTERS.shield.charges, perCharge, vx: 0, vs: 0, tx: x, ts: HUNTERS.row.max, retarget: 0, waypoint: 0 },
   });
 }

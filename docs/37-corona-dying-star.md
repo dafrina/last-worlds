@@ -70,7 +70,7 @@ The concept images are references, never runtime backgrounds or finished assets 
   - **Look:** dark scorched-bronze armour with bright gold knife edges and molten-gold glow. Pale plates washed out over the plasma.
   - **User verdict:** "darker armor is fine but i like the shapes better now".
 - **Encounters:** the encounter deck flies Umbra's pools (`DECK_POOLS.corona`). The mission's arc is Final Horizon's, re-identified (`c-` slots). Its seeded rolls are its own, keyed by template id.
-- **World intensity:** flight 1.1, shot 1.1, cadence 0.5. The mission cadence is 0.92 and credits scale by 0.55.
+- **World intensity:** flight 1.1, shot 1.1, cadence 0.43, enemy hp ×1.15, first windups ×0.85 (late-world curve, 10 November; it was cadence 0.5). The mission cadence is 0.92, and run credits scale by 0.425.
 - **Boss:** THE HELIOPHAGE, the user's Tripo GLB adapted like THE ECLIPSE (`tools/blender/approved_heliophage.py` → `public/assets/corona/the-heliophage-v1-approved.glb`; source `art/source/approved-bosses/heliophage-tripo-original.glb`):
   - **Placement:** laid flat, its concept view to the camera, spires away from the player, claws toward them. It is 16 units wide (user: "Make it 16 units wide, the eclipse is the final boss"), with the depth squashed to 0.35 so it hovers between the plateau and the flight plane (`HELIOPHAGE_STYLE.hover` 2.6).
   - **Surface:** the mesh, UVs and atlases are kept and reduced to 77k triangles, with an emission mask from the painted glow.

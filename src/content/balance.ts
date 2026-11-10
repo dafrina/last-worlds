@@ -184,19 +184,21 @@ export const PULSAR_BURST = { shots: 10, interval: 0.2 } as const;
  * `flight` scales air enemies' flight clock, `shot` their shot speeds (bosses too), and `cadence` their repeat-attack
  * intervals (lower fires faster). Applies to the run's current planet in both modes, on top of difficulty, the endless
  * ramp and MISSION_CADENCE.
+ *
+ * Late-world curve (10 November): Amnion, Corona and Umbra step up past Nacre instead of matching it.
+ * - `hp` scales formation enemies' and aces' hit points. Fuel skids and strike-site cores keep theirs.
+ * - `firstAttack` brings the first windup forward, the same way DifficultyScale.firstAttack does. It applies to a formation's
+ *   fireFrom (members keep their stagger), to aces and Wraiths, and to the firing window.
  */
-export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: number; cadence: number }>> = {
-  luna: { flight: 1, shot: 1, cadence: 1 },
+export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: number; cadence: number; hp: number; firstAttack: number }>> = {
+  luna: { flight: 1, shot: 1, cadence: 1, hp: 1, firstAttack: 1 },
   // Repeat fire up to twice as often by Nacre (17 October: the first, gentler ramp ×0.90 / ×0.86 / ×0.82 was not noticeable).
-  khepri: { flight: 1.05, shot: 1.05, cadence: 0.8 },
-  vesper: { flight: 1.07, shot: 1.07, cadence: 0.62 },
-  nacre: { flight: 1.1, shot: 1.1, cadence: 0.5 },
-  // Amnion (23 October) starts at Nacre's intensity; it is not harder until it has been played.
-  amnion: { flight: 1.1, shot: 1.1, cadence: 0.5 },
-  // Corona (5 November, between Amnion and Umbra) as Amnion: not harder until it has been played.
-  corona: { flight: 1.1, shot: 1.1, cadence: 0.5 },
-  // Umbra (24 October) as Amnion: the final planet is not made harder before it has been played.
-  umbra: { flight: 1.1, shot: 1.1, cadence: 0.5 },
+  khepri: { flight: 1.05, shot: 1.05, cadence: 0.8, hp: 1, firstAttack: 1 },
+  vesper: { flight: 1.07, shot: 1.07, cadence: 0.62, hp: 1, firstAttack: 1 },
+  nacre: { flight: 1.1, shot: 1.1, cadence: 0.50, hp: 1, firstAttack: 1 },
+  amnion: { flight: 1.1, shot: 1.1, cadence: 0.46, hp: 1.10, firstAttack: 0.90 },
+  corona: { flight: 1.1, shot: 1.1, cadence: 0.43, hp: 1.15, firstAttack: 0.85 },
+  umbra: { flight: 1.1, shot: 1.1, cadence: 0.40, hp: 1.20, firstAttack: 0.80 },
 };
 /**
  * A destroyed fuel skid explodes (user request, 16 October 2026): every damageable target whose body is within

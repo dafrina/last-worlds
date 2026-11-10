@@ -9,7 +9,7 @@ import { observe } from './events';
 /** Returns the change in live windups, for the shared director's cap. All timing uses active game seconds. */
 export function updateWraith(state: RunState, enemy: Enemy, dt: number, scale: DifficultyScale, windups: number): number {
   const blink = enemy.blink ??= { fromX: enemy.x, fromS: enemy.s, startedAt: -Infinity,
-    readyAt: state.time + WRAITH.firstAttack * scale.firstAttack * scale.airFirstShot, attacks: 0 };
+    readyAt: state.time + WRAITH.firstAttack * scale.firstAttack * scale.airFirstShot * WORLD_INTENSITY[state.planet].firstAttack, attacks: 0 };
   const materialized = state.time - blink.startedAt >= WRAITH.teleport;
   enemy.damageable = materialized;
   if (blink.exitAt !== undefined) {

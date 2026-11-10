@@ -59,7 +59,7 @@ The concept images are references, never runtime backgrounds or finished assets 
 ## Campaign place and pressure
 
 - **Final Horizon is the final campaign mission,** after Brood Strike (`CAMPAIGN_ORDER`). Old saves stay valid.
-- **Pressure is Brood Strike's:** `WORLD_INTENSITY.umbra` = Amnion's, `MISSION_CADENCE` 0.92. The final planet is not made harder before it has been played.
+- **Pressure:** it was Brood Strike's (`WORLD_INTENSITY.umbra` = Amnion's, `MISSION_CADENCE` 0.92). Since the late-world curve (10 November) the final planet is the hardest: cadence 0.40, enemy hp ×1.20, first windups ×0.80. Its run credit scale is 0.45.
 - **Playlist:** Brood Strike's proven grid with the fleet's mix:
   - interceptors (darts, needles) and heavy fighters (weavers);
   - defense turrets (batteries) and artillery mortars (missile batteries);

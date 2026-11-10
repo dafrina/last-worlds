@@ -51,7 +51,7 @@ describe('campaign profile (docs/21)', () => {
 
   it('scales each world\'s pay by its own credit scale, later worlds paying more', () => {
     const scales = CAMPAIGN_ORDER.map(mission => CREDIT_SCALE[mission]);
-    expect(scales.slice(0, 5)).toEqual([...scales.slice(0, 5)].sort((a, b) => a - b));
+    expect(scales).toEqual([0.192, 0.224, 0.24, 0.384, 0.410, 0.425, 0.450]);
     for (const mission of CAMPAIGN_ORDER) {
       const repeat = freshProfile(); repeat.missions[mission] = { clears: { relaxed: 0, standard: 1, veteran: 0 }, best: {}, firstClearPaid: true };
       const store = createCampaignProfile(memory(JSON.stringify(repeat)));

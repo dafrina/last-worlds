@@ -1,4 +1,4 @@
-import { ENEMIES, endlessRampSector } from '../content/balance';
+import { ENEMIES, WORLD_INTENSITY, endlessRampSector } from '../content/balance';
 import { HUNTERS } from '../content/hunters';
 import { VIEW, type Enemy, type RunState, type WeaponId } from '../shared/contracts';
 import { keyedUnit } from '../shared/streams';
@@ -86,14 +86,15 @@ function spawnHunters(state: RunState): void {
   if (live >= (boss ? 1 : limits.live) || book.spawned >= limits.total) return;
   if (roll(levelKey(state), window) >= HUNTERS.chance) return;
   book.spawned += 1;
-  const kind = HUNTERS.kinds[state.planet], base = ENEMIES[kind], hp = base.hp * runScale(state).hp;
+  const scale = runScale(state), world = WORLD_INTENSITY[state.planet];
+  const kind = HUNTERS.kinds[state.planet], base = ENEMIES[kind], hp = base.hp * scale.hp * world.hp;
   // It dives in on the side of the view away from the ship.
   const perCharge = hp * HUNTERS.shield.share, side = state.player.x > state.cameraX ? -1 : 1;
   const x = clamp(state.cameraX + side * 3, -VIEW.worldWidth / 2 + 1, VIEW.worldWidth / 2 - 1);
   state.enemies.push({
     id: state.nextId++, kind, x, s: VIEW.maxS + 3, originX: x, hp, maxHp: hp, radius: base.radius, age: 0,
     // The difficulty's earlier first windup (DifficultyScale.firstAttack) applies to aces too (user, 4 November).
-    nextAttack: HUNTERS.firstAttack * runScale(state).firstAttack * runScale(state).airFirstShot, warning: 0, aimX: x, groundHeight: VIEW.flightHeight,
+    nextAttack: HUNTERS.firstAttack * scale.firstAttack * scale.airFirstShot * world.firstAttack, warning: 0, aimX: x, groundHeight: VIEW.flightHeight,
     // Keyed by level and spawn number, never by entity id (ids shift with unrelated effects and pickups).
     hunter: { key: levelKey(state) * 64 + book.spawned, shield: perCharge * HUNTERS.shield.charges, perCharge, vx: 0, vs: 0, tx: x, ts: HUNTERS.row.max, retarget: 0, waypoint: 0 },
   });
