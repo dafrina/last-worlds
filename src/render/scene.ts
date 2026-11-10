@@ -1,3 +1,4 @@
+import { createHeroTrail, HERO_TRAIL_STRIPS } from './hero-trail';
 import { createBeamLight, createPhaseHoles } from './combat-light';
 import { liveInstances, dynamicBatch } from './instances';
 import { createSilhouetteMaterial, planarShadow, silhouetteShade } from './craft-shadows';
@@ -48,7 +49,7 @@ import { WARDEN } from '../content/warden';
 import { WRAITH } from '../content/wraith';
 import { BASTION } from '../content/bastion';
 import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint';
-import { viewFootprint, type ViewFootprint } from './view-footprint';
+import { planeZAtScreenY, viewFootprint, type ViewFootprint } from './view-footprint';
 import { PONTOON_DECK } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
 import type { PlanetLook } from '../shared/renderer-types';
@@ -1117,8 +1118,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const rayCores = new THREE.InstancedMesh(rayGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55, vertexColors: true,
     depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 64);
   // The hero's contrail (user, 8 November: "a trail would be cool on my ship or just bigger jet"): additive, in its glow.
-  const heroTrails = new THREE.InstancedMesh(stripGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6,
-    depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 160);
+  // Feather each side of the trail into the world, with a bright filament down the middle.
+  const trailGeometry = new THREE.PlaneGeometry(1, 1, 4, 1);
+  const trailPositions = trailGeometry.getAttribute('position'), trailColors = new Float32Array(trailPositions.count * 4);
+  for (let i = 0; i < trailPositions.count; i++) {
+    const across = 1 - Math.abs(2 * trailPositions.getX(i));
+    trailColors.set([1, 1, 1, across * across], i * 4);
+  }
+  trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 4)); trailGeometry.rotateX(-Math.PI / 2);
+  const heroTrails = new THREE.InstancedMesh(trailGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8,
+    vertexColors: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), HERO_TRAIL_STRIPS);
   const lanes = [telegraphs, flashLanes, laneFills, rayFills, rayCores, heroTrails], laneCounts = new Map<THREE.InstancedMesh, number>();
   for (const mesh of lanes) {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
@@ -1417,14 +1426,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     p.x = x; p.z = z; p.length = length; p.width = width; p.hex = hex; p.energy = energy; p.round = round;
     plumes[plumeCount++] = p;
   };
-  /**
-   * The hero's recent x and bank (render only, simulation time) for its contrail, which stays fixed to the ground and so
-   * curves as the ship steers. A fixed ring: nothing is allocated per frame.
-   */
-  const TRAIL_TIME = .32, TRAIL_SAMPLES = 64, TRAIL_DRIFT = 4;
-  const trailT = new Float64Array(TRAIL_SAMPLES), trailX = new Float64Array(TRAIL_SAMPLES), trailBank = new Float64Array(TRAIL_SAMPLES);
-  let trailHead = 0, trailCount = 0;
-
+  const heroTrail = createHeroTrail();
+  let trailEndZ = planeZAtScreenY(camera, VIEW.flightHeight + .035, .975);
+  let trailRun: RunState | null = null, trailLives = 0, trailLook = '';
 
   const lineVertices = new Float32Array(16384 * 3), lineColors = new Float32Array(16384 * 3);
   const lineGeometry = new THREE.BufferGeometry();
@@ -1458,6 +1462,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
     laneCounts.set(layer, index + 1);
   };
+  const trailSegment = (x0: number, s0: number, x1: number, s1: number, width: number, energy: number) =>
+    strip(x0, s0, x1, s1, width, heroGlow, heroTrails, energy);
   /*
    * Enemy beams (user, 23 October: the dashed lanes "look dated under the new graphics"; "make it a faint red preview
    * which then turns white with a red glow ... maybe make the laser glow in the color of the glow on their specific
@@ -1568,6 +1574,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * fine thats what its for").
    */
   function holdFrame(state: RunState) {
+    heroTrail.clear(); heroTrails.count = 0;
     placeCamera(state.cameraX * follow);
     poseHero(state);
     shield.visible = heroShell.visible = false;
@@ -1613,6 +1620,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       viewportAspect = drawingWidth / drawingHeight;
       if (cameraMode !== 'rectified') fitFlightViewport(camera, drawingWidth, drawingHeight);
       placeCamera(camera.position.x); fitShadow();
+      trailEndZ = planeZAtScreenY(camera, VIEW.flightHeight + .035, .975);
       renderer.setSize(drawingWidth, drawingHeight, false); resizePost();
       lastStatsTick = -Infinity;
     },
@@ -1755,7 +1763,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       // After a boss falls (its wreck hold, the departure) and through a jump's warp (no combat; the flash warms the next
       // world), textures a mid-flight warm-up left pending upload one a frame, so the flash does not take them all at once.
-      if (texturesPending && !hiddenWarm && (state.jump || state.boss?.phase === 'destroyed')) texturesPending = uploadPending(1);
+      if (texturesPending && !hiddenWarm && (state.jump || state.boss?.clearedAt !== undefined)) texturesPending = uploadPending(1);
       placeSun(state.cameraX, state.distance);
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
       const heroAlive = state.player.lives > 0;
@@ -1772,11 +1780,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       // Engine plumes (render-only): length follows lateral speed, a slight flicker from simulation time.
       plumeCount = 0;
-      // Longer, brighter jets (user, 8 November: "just bigger jet"), with the contrail behind them.
-      const heroLength = (.95 + Math.abs(state.player.vx) * .04) * flicker(state.time, 0) * HERO_SCALE;
-      // Plumes at the ship's own engine sockets, in its glow (thinner where there are more of them).
-      if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) plume(state.player.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), ez * HERO_SCALE, heroLength,
-        .34 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)), heroGlow, 3.2);
+      // Only the round light belongs to the nozzle. All visible exhaust behind it follows the recorded flight path.
+      if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) {
+        plume(hero.position.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), hero.position.z + ez * HERO_SCALE, 0,
+          .32 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)) * flicker(state.time, 0), heroGlow, 3.2, true);
+      }
       let shadowCount = 0, plinthCount = 0;
       const groundAt = (gx: number, gs: number) => surfaceHeight(state.config.seed, gx, state.distance + gs, world);
       const seaLevel = world.planet.seaLevel, onSea = (y: number) => seaLevel !== null && y <= seaLevel + .01;
@@ -2086,27 +2094,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // The slug itself: a white-hot streak at the head while it flies.
         if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2 * heat.grow), trail.x, head, .17 * heat.grow, 0xffffff, flashLanes, 2.6);
       }
-      // The hero's contrail: each engine's recent positions, drifting back from the nozzle at the scroll speed (at least
-      // TRAIL_DRIFT, so it still streams while a boss holds the scroll), thinning and fading over TRAIL_TIME.
-      {
-        const last = trailCount ? trailT[(trailHead + TRAIL_SAMPLES - 1) % TRAIL_SAMPLES] : -Infinity;
-        if (state.time < last - 1e-6 || !heroAlive || entrance <= .9) trailCount = 0;
-        else if (state.time > last + 1e-6) {
-          trailT[trailHead] = state.time; trailX[trailHead] = state.player.x; trailBank[trailHead] = Math.cos(hero.rotation.z);
-          trailHead = (trailHead + 1) % TRAIL_SAMPLES; trailCount = Math.min(TRAIL_SAMPLES, trailCount + 1);
-        }
-        const drift = Math.max(state.scrollSpeed, TRAIL_DRIFT), step = heroEngines.length > 2 ? 2 : 1;
-        for (const [ex, ez] of heroEngines) {
-          let px = 0, ps = 0, has = false;
-          for (let k = 0; k < trailCount; k += step) {
-            const i = (trailHead + TRAIL_SAMPLES - 1 - k) % TRAIL_SAMPLES, age = state.time - trailT[i];
-            if (age > TRAIL_TIME) break;
-            const x = trailX[i] + ex * HERO_SCALE * trailBank[i], s = -(ez * HERO_SCALE + age * drift);
-            if (has) { const fade = 1 - age / TRAIL_TIME; strip(px, ps, x, s, .02 + .1 * fade, heroGlow, heroTrails, .9 * fade * fade); }
-            px = x; ps = s; has = true;
-          }
-        }
-      }
+      if (trailRun !== state || trailLives !== state.player.lives || trailLook !== heroShown) heroTrail.clear();
+      trailRun = state; trailLives = state.player.lives; trailLook = heroShown;
+      if (!heroAlive || entrance <= .9 || state.jump) heroTrail.clear();
+      else heroTrail.draw(state.time, state.distance, hero.position.x, hero.position.z, Math.cos(hero.rotation.z), heroEngines, HERO_SCALE, trailEndZ, trailSegment);
       // Interceptor Barrel Roll: two speed streaks from where the dash started to the ship's trailing wing, fading out.
       const dash = state.player.dash, dashFade = dash ? 1 - (state.time - dash.startedAt) / DASH_STREAK : 0;
       if (dash && dashFade > 0 && dashFade <= 1) {

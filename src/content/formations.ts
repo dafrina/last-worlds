@@ -404,9 +404,9 @@ const templates = [
   },
   {
     // THE VEIL's pods (docs/20): two from each front bay (s relative to its pivot, anchorS), dropping toward the player,
-    // fanning out to a holding row, firing aimed seeds, then sweeping away to the sides.
+    // fanning out to a holding row, firing aimed seeds and staying there until shot down.
     id: 'veil-pods', name: 'THE VEIL pod wave', entry: 'bay',
-    path: [[0, 0, -2.6], [0.9, -1.2, -5.8], [4.6, -2.4, -6.4], [5.8, -8.5, -5]], fireFrom: 1.1, fireUntil: 4.6,
+    path: [[0, 0, -2.6], [0.9, -1.2, -5.8], [4.6, -2.4, -6.4], [5.8, -2.4, -6.4]], fireFrom: 1.1, fireUntil: 4.6,
     slots: [
       { kind: 'dart', dx: -1.7, fire: 0 },
       { kind: 'dart', dx: -1.7, flip: true, fire: 0.5 },

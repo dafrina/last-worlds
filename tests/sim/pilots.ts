@@ -95,6 +95,15 @@ export function preferredX(state: RunState): number {
   }
   // Nothing to shoot in view during a boss fight: head back to the boss (the game shows RETURN LEFT/RIGHT).
   if (!best && state.boss && state.boss.phase !== 'destroyed') return state.boss.x;
+  if (!best && state.boss?.phase === 'destroyed') {
+    // Follow the boss HUD's remaining-pods arrow until a target comes into view.
+    let closest = Infinity;
+    for (const enemy of state.enemies) if (enemy.hp > 0 && enemy.formation?.template === 'veil-pods') {
+      const dx = enemy.x - state.cameraX;
+      if (Math.abs(dx) < Math.abs(closest)) closest = dx;
+    }
+    if (Number.isFinite(closest)) return state.player.x + Math.sign(closest) * 2;
+  }
   return best?.x ?? state.cameraX;
 }
 

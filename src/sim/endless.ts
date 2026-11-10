@@ -7,7 +7,7 @@ import { startBoss } from './boss';
 /** Seconds into the current sector at which its boss was destroyed, or null while it lives. */
 function bossEnd(state: RunState): number | null {
   const boss = state.boss;
-  return boss && boss.phase === 'destroyed' ? boss.phaseStartedAt - state.sectorStartedAt : null;
+  return boss?.clearedAt !== undefined ? boss.clearedAt - state.sectorStartedAt : null;
 }
 
 /**

@@ -120,6 +120,16 @@ export function bossTarget(state: RunState, part: BossPart): Enemy | undefined {
   return state.enemies.find(enemy => enemy.bossPart === part);
 }
 
+function deployedPod(enemy: Enemy): boolean {
+  return enemy.hp > 0 && enemy.formation?.template === 'veil-pods';
+}
+
+function startDeparture(state: RunState) {
+  state.boss!.clearedAt = state.time;
+  const protection = state.config.mode === 'campaign' ? WRECK_HOLD + bossDef(state).extractionDuration : ENDLESS_EXIT_PROTECTION;
+  state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + protection);
+}
+
 function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 'destroyed') {
   const boss = state.boss!;
   const def = bossDef(state);
@@ -145,15 +155,15 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     boss.deathEffectAt = state.time;
     boss.launchesLeft = 0;
     const campaign = state.config.mode === 'campaign';
-    state.player.invulnerableUntil = state.time + (campaign ? WRECK_HOLD + def.extractionDuration : ENDLESS_EXIT_PROTECTION);
     // Credits are campaign-only; endless scores the kill through the core's 5,000 points.
     if (campaign) state.credits += REWARDS.boss;
-    // Launched fighters and hunters go down with their carrier: nothing dangerous remains during extraction. Craft that
-    // broke off at the arrival keep leaving.
-    for (const enemy of state.enemies) if (!enemy.bossPart && !enemy.leaving && enemy.hp > 0 && state.effects.length < BALANCE.maxEffects) {
+    // Detached pods remain live combatants. Other craft still go down with the carrier or fly away.
+    for (const enemy of state.enemies) if (!enemy.bossPart && !deployedPod(enemy) && !enemy.leaving && enemy.hp > 0 && state.effects.length < BALANCE.maxEffects) {
       state.effects.push({ id: state.nextId++, kind: 'explosion', x: enemy.x, s: enemy.s, ttl: .5, duration: .5 });
     }
-    state.enemies = state.enemies.filter(enemy => enemy.bossPart || (enemy.leaving && enemy.hp > 0));
+    state.enemies = state.enemies.filter(enemy => enemy.bossPart || deployedPod(enemy) || (enemy.leaving && enemy.hp > 0));
+    if (state.enemies.some(deployedPod)) message(state, 'CLEAR THE PODS', 4);
+    else startDeparture(state);
   }
 }
 
@@ -286,8 +296,13 @@ export function updateBoss(state: RunState, dt: number): void {
   }
   if (boss.phase === 'destroyed') {
     deathSequence(state, boss);
+    if (boss.clearedAt === undefined) {
+      if (state.enemies.some(deployedPod)) return;
+      startDeparture(state);
+      message(state, def.messages.destroyed, 3);
+    }
     // The campaign ends after the wreck hold and extraction; endless continues with the hyperdrive jump (src/sim/endless.ts).
-    if (state.config.mode === 'campaign' && state.time - boss.phaseStartedAt + 1e-8 >= WRECK_HOLD + def.extractionDuration) {
+    if (state.config.mode === 'campaign' && state.time - boss.clearedAt! + 1e-8 >= WRECK_HOLD + def.extractionDuration) {
       state.phase = 'complete'; state.projectiles = []; state.hazards = [];
     }
     return;

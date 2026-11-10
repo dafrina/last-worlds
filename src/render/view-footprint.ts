@@ -5,6 +5,14 @@ import { SCENERY_MAX_HEIGHT, TERRAIN_MIN_HEIGHT } from '../world/terrain';
 export interface ViewFootprint { minX: number; maxX: number; minS: number; maxS: number }
 
 const corner = new THREE.Vector3(), far = new THREE.Vector3(), direction = new THREE.Vector3();
+/** World z at a vertical fraction of the canvas (0 = top), on a horizontal plane. */
+export function planeZAtScreenY(camera: THREE.Camera, y: number, fraction: number): number {
+  const ndcY = 1 - fraction * 2;
+  corner.set(0, ndcY, -1).unproject(camera);
+  far.set(0, ndcY, 1).unproject(camera);
+  return corner.z + (far.z - corner.z) * (y - corner.y) / (far.y - corner.y);
+}
+
 /**
  * The ground footprint of the view (render only; 21 October, after the perspective lens let scenery pop in at the top and
  * corners): the four corner rays of the frustum, cut at the lowest ground and the highest scenery, bound the x and s any

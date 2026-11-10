@@ -136,6 +136,11 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
   if (ids.has('old-school') && !ids.has('specialist')) attempt.specials = false;
   if (visible.some(def => def.difficulty === 'veteran')) attempt.difficulty = 'veteran';
   if (has('reflected')) attempt.ship = 'spectre';
+  // On a dedicated reflection run, keep targets alive for shield returns instead of
+  // burning the whole wave with a piercing Rail Driver and automatic Gravity Wells.
+  if (visible.length === 1 && has('reflected')) {
+    return { seed, ship: 'spectre', weapon: 'pulse', rank: 0, specials: false, style: 'collect' };
+  }
   attempt.style = has('flanks') ? 'flank' : has('ground') || has('ground-streak') ? 'ground' : 'collect';
   // Alternate a dedicated salvage sortie with the board's other objectives. A legal max-tier
   // loadout on Veteran can earn more per pickup and kill more of the wave before it exits.

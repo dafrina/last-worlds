@@ -1,3 +1,4 @@
+import { createBossMeter } from '../ui/boss-meter';
 /**
  * Light playground (playground.html; user, 22 October: "a playground where I can play on static versions of the levels
  * with fog and light ... so I can give you the settings I like best for each"). The real renderer, terrain, infrastructure
@@ -25,7 +26,7 @@ import { missionBoss } from '../content/bosses';
 import { createRenderer } from '../render/scene';
 import type { PlanetLook } from '../shared/renderer-types';
 import type { BossPart, GraphicsQuality, PlanetId, RunConfig, RunState, SpecialId, WeaponId } from '../shared/contracts';
-import { ENEMIES, WEAPONS } from '../content/balance';
+import { BALANCE, ENEMIES, WEAPONS } from '../content/balance';
 import { MAX_RANK, SPECIALS, SPECIAL_IDS, WEAPON_BLURB, WEAPON_IDS, WEAPON_TIERS } from '../content/equipment';
 import { EMPTY_INPUT, STEP, VIEW } from '../shared/contracts';
 import { FORMATIONS } from '../content/formations';
@@ -116,6 +117,7 @@ root.innerHTML = `
     <section class="pg-hangar" data-pane="hangar"></section>
   </aside>`;
 const canvas = root.querySelector<HTMLCanvasElement>('.pg-canvas')!, stage = root.querySelector<HTMLElement>('.pg-stage')!;
+const updateBossMeter = createBossMeter(stage);
 const hud = root.querySelector<HTMLElement>('.pg-hud')!, panel = root.querySelector<HTMLElement>('.pg-panel')!, sync = root.querySelector<HTMLElement>('.pg-sync')!;
 root.querySelector('.pg-toggle')!.addEventListener('click', () => panel.classList.toggle('is-open'));
 
@@ -138,9 +140,11 @@ const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false
   weapon: 'rail', tier: 0, special: 'gravity-well', hold: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
 const level = () => LEVELS.find(entry => entry.mission === view.mission) ?? LEVELS[1];
 
+let sliderVx = 0;
 let state: RunState = makeState();
 function makeState(): RunState {
   const run = createRun({ mode: 'campaign', mission: view.mission, difficulty: 'standard', seed: view.seed, weapon: view.weapon, special: view.special, rank: view.tier });
+  run.player.x = view.x; sliderVx = 0;
   run.enemies = []; run.projectiles = []; run.hazards = []; run.pickups = []; run.nextEncounterAt = Infinity; run.nextVolleyAt = Infinity;
   run.player.invulnerableUntil = -1; run.message = ''; run.messageUntil = 0;
   if (view.lab) {
@@ -536,6 +540,25 @@ function resize() {
 }
 new ResizeObserver(resize).observe(stage);
 
+// The slider names a destination. Fly there so the preview banks and lays down the same
+// continuous trail as steering in a run, even when the terrain is held still.
+function steerSlider(dt: number) {
+  const dx = view.x - state.player.x;
+  const { speed, acceleration, braking } = BALANCE.movement;
+  const desired = Math.sign(dx) * Math.min(speed, Math.sqrt(2 * braking * Math.abs(dx)));
+  const change = (Math.abs(desired) > Math.abs(sliderVx) ? acceleration : braking) * dt;
+  sliderVx += Math.max(-change, Math.min(change, desired - sliderVx));
+  if (!dx || (Math.sign(sliderVx) === Math.sign(dx) && Math.abs(sliderVx * dt) >= Math.abs(dx))) {
+    state.player.x = view.x; sliderVx = 0;
+  } else state.player.x += sliderVx * dt;
+}
+function renderFlight(alpha: number) {
+  state.player.vx = sliderVx; // poseHero uses lateral velocity for the visible bank.
+  renderer.render(state, alpha);
+  updateBossMeter(state);
+  state.player.vx = 0; // The slider, not stepRun's input/braking, integrates preview motion.
+}
+
 let last = performance.now(), frames = 0, fpsAt = last, accumulator = 0;
 function frame(now: number) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
@@ -547,17 +570,17 @@ function frame(now: number) {
       accumulator -= STEP;
       // The Weapons tab lets the hero fire (the lab otherwise holds its guns) and fires a queued special.
       const volley = state.nextVolleyAt;
-      state.player.x = view.x; state.player.vx = 0; holdDirector(state);
+      steerSlider(STEP); holdDirector(state);
       if (firing()) state.nextVolleyAt = Number.isFinite(volley) ? volley : state.time;
       if (specialQueued) state.player.specialCharge = 1;
       // Held (Sites tab): no simulation step; only the clock and the effects age, so a kill's explosion plays out.
-      if (view.hold && view.tab === 'sites') { state.player.x = view.x; state.cameraX = Math.max(-(VIEW.worldWidth - VIEW.width) / 2, Math.min((VIEW.worldWidth - VIEW.width) / 2, view.x)); state.time += STEP; state.tick++; state.effects = state.effects.filter(effect => (effect.ttl -= STEP) > 0); continue; }
+      if (view.hold && view.tab === 'sites') { state.cameraX = Math.max(-(VIEW.worldWidth - VIEW.width) / 2, Math.min((VIEW.worldWidth - VIEW.width) / 2, state.player.x)); state.time += STEP; state.tick++; state.effects = state.effects.filter(effect => (effect.ttl -= STEP) > 0); continue; }
       if (state.phase === 'playing') stepRun(state, specialQueued ? { ...EMPTY_INPUT, specialPressed: true } : EMPTY_INPUT);
       specialQueued = false;
       state.player.lives = Math.max(state.player.lives, 2);
       if (state.time > labClock(view.mission, view.distance).limit) { const enemies = state.enemies; state = makeState(); state.enemies = enemies; }
     }
-    renderer.render(state, accumulator / STEP);
+    renderFlight(accumulator / STEP);
   } else if (view.tab === 'models') {
     // The viewer draws on its own canvas; the level waits.
   } else if (view.boss && state.boss) {
@@ -565,18 +588,18 @@ function frame(now: number) {
     accumulator += dt;
     while (accumulator >= STEP) {
       accumulator -= STEP;
-      state.player.x = view.x; state.player.vx = 0;
+      steerSlider(STEP);
       if (state.phase === 'playing') stepRun(state, EMPTY_INPUT);
       state.player.lives = Math.max(state.player.lives, 2);
     }
-    renderer.render(state, accumulator / STEP);
+    renderFlight(accumulator / STEP);
   } else {
     if (view.fly) { view.distance += view.speed * dt; if (view.distance > 1600) view.distance = 0; }
     state.time += dt; state.tick += 1;
     state.distance = view.distance; state.scrollSpeed = view.fly ? view.speed : 0;
-    state.player.x = view.x; state.cameraX = Math.max(-(VIEW.worldWidth - VIEW.width) / 2, Math.min((VIEW.worldWidth - VIEW.width) / 2, view.x));
+    steerSlider(dt); state.cameraX = Math.max(-(VIEW.worldWidth - VIEW.width) / 2, Math.min((VIEW.worldWidth - VIEW.width) / 2, state.player.x));
     state.player.lives = view.ship ? 3 : 0;
-    renderer.render(state, 0);
+    renderFlight(0);
   }
   frames++;
   if (now - fpsAt > 1000) {

@@ -6,8 +6,11 @@ test('home stays compact on phones and campaign setup has its own page', async (
   // Three viewports, the campaign page (its planet preview) and the hangar: about 30 s under software WebGL.
   test.setTimeout(60000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-    await page.setViewportSize(viewport); await page.goto('/');
+  const viewports = [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 1440, height: 900 }];
+  // Exercise the responsive menu on one flight surface without rebuilding WebGL at each size.
+  await page.setViewportSize(viewports[0]); await page.goto('/');
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
     await expect(page.getByRole('heading', { name: /LAST/ })).toBeVisible();
     expect(await page.locator('.flight-overlay').evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true);
     expect(await page.locator('#game-title').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);

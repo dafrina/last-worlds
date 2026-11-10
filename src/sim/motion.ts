@@ -45,7 +45,12 @@ export function memberPosition(member: FormationMember, age: number): { x: numbe
     const offset = template.sway.amp * Math.sin(2 * Math.PI * t / template.sway.period);
     if (template.sway.axis === 'x') swayX = offset; else swayS = offset;
   }
-  return { x: member.anchorX + side * (point.x + slot.dx + swayX), s: point.s + (slot.ds ?? 0) + swayS + (member.anchorS ?? 0) };
+  const x = member.anchorX + side * (point.x + slot.dx + swayX);
+  // Persisting pods must always be reachable by straight main guns, even at a far-side bay.
+  const atS = point.s + (slot.ds ?? 0) + swayS + (member.anchorS ?? 0);
+  if (member.template !== 'veil-pods') return { x, s: atS };
+  const limit = VIEW.worldWidth / 2 - Math.max(VIEW.playerRadius, ENEMIES[slot.kind].radius) - .2;
+  return { x: Math.max(-limit, Math.min(limit, x)), s: atS };
 }
 
 /** Authored aim offset in world x for a member: mirrored with its placement and flip. */
@@ -73,7 +78,7 @@ export const FIRST_WINDUP_ROW = 18.8;
 /** True once a member has flown its whole authored path (it is then removed when out of view). */
 export function pathComplete(enemy: Enemy): boolean {
   if (enemy.blink?.exitAt !== undefined) return true;
-  if (!enemy.formation) return false;
+  if (!enemy.formation || enemy.formation.template === 'veil-pods') return false;
   const path = formationTemplate(enemy.formation).path;
   return pathTime(enemy.formation, enemy.age) >= path[path.length - 1][0];
 }

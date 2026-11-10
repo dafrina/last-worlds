@@ -1,3 +1,4 @@
+import { createBossMeter } from './boss-meter';
 import { VIEW, type Difficulty, type GameUi, type GraphicsQuality, type MissionId, type RunConfig, type RunState, type UiActions, type WeaponId } from '../shared/contracts';
 import { SITES } from '../content/sites';
 import { PICKUP_TINTS } from '../content/pickup-tints';
@@ -136,6 +137,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   /** The overlay's pages: its own sections only, so a section inside a page (the shipyard) keeps its own visibility. */
   const panels = [...overlay.querySelectorAll<HTMLElement>(':scope > section')];
   const hud = find<HTMLElement>('.flight-hud');
+  const updateBossMeter = createBossMeter(hud);
   const lives = find<HTMLElement>('.lives-icons');
   const shields = find<HTMLElement>('.shield-icons');
   const score = find<HTMLElement>('.score');
@@ -586,6 +588,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     surface.dataset.inputActive = String(playing);
     surface.classList.toggle('is-playing', playing);
     hud.hidden = !playing;
+    updateBossMeter(state);
     specialButton.hidden = !playing;
     missionNotes.frame(playing);
     hints.hidden = !playing || state.time >= 3;

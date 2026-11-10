@@ -877,3 +877,9 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Free for anyone:** `src/render/{bastion,ark,veil,warden}-view.ts`, `facility-view.ts`, `water.ts`, `hero-craft.ts` and `scene.ts`.
 - **Gone:** the facility `fv=` fixture switch; `loadHeroModel` has no `craft` parameter.
 - `integrator-next` = `main` plus this record and build-status.
+
+**9 November · Codex · hero exhaust:** extending the hero's steering trail and removing the separate straight exhaust jet in scene.ts. Keep Claude's pooled render path and verify a turn/reversal in the renderer. The prior Vesper/Collector release is already on Pages.
+
+**10 November · Codex:** narrowing the hero trail slightly, adding a boss HP strip to both flight and playground, and keeping carrier pod waves in the arena until destroyed, including before Campaign extraction / Endless warp.
+
+**10 November · Codex · releasing:** all seven boss health bars, carrier pod clearance before new waves and departures, the playground steering preview and final half-length, thinner hero trail. Build passed, 982 unit tests passed / 5 skipped, 54 browser cases passed including one rerun of the responsive menu test. User explicitly requested Pages deployment.

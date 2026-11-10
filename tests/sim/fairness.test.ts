@@ -43,6 +43,11 @@ describe('authored formation content', () => {
         }
         const end = template.path[template.path.length - 1][0] + (slot.lag ?? 0);
         const exit = memberPosition(member, end);
+        if (id === 'veil-pods') {
+          expect(memberPosition(member, end + 60)).toEqual(exit);
+          expect(Math.abs(exit.x)).toBeLessThan(VIEW.worldWidth / 2 - VIEW.playerRadius);
+          continue;
+        }
         expect(exit.s > VIEW.maxS + 1 || exit.s < VIEW.minS || Math.abs(exit.x) > VIEW.width / 2 + 1, `${id} slot ${member.slot} exits the view`).toBe(true);
       }
       if (template.entry === 'both') {

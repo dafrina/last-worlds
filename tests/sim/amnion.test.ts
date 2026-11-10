@@ -20,7 +20,7 @@ describe('Brood Strike over Amnion (docs/27)', () => {
     // with Veteran seeker); over seeds 1-24 Standard pulse takes 0 hits, against 2 before.
     // Seed 4 since the Needles' side lanes moved inside a beam's reach of the ship (8 November); seeds 4-8 clear all three.
     const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 4 });
-    const log = fly(state, perfectPilot(), 420, { noPickups: true });
+    const log = fly(state, perfectPilot(), 450, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('cradle');
     expect(log.hits).toBe(0);

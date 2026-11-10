@@ -2303,3 +2303,19 @@ Final Playwright gate after the entry and announcement changes: 55/55 passed in 
   - **Visual check** (Interceptor over Amnion, Standard): the shell is in the ship's blue-violet glow; THE CRADLE arrives in rust vapour with amber arcs. No hostile bolt was in frame.
   - **Gate on `54766b5`** (clean snapshot `../alien-skies-snapshot`, port 4183, load 4–9): typecheck clean; unit 979 passed, 5 skipped; build passes; browser 55/55 (Playwright exit 0).
   - **Live:** Pages run 42470872435 succeeded for `dd40bfd`, and the live bundles (`main-DRXPKwdR.js`, `scene-C0o6GxTv.js`) match the build. The endless smoke test has no page errors.
+
+## 9 November 2026 — Hero exhaust through turns
+
+The long straight plume at each nozzle was still being drawn alongside the steering trail. The nozzle now emits a round glow in the equipped paint colour. A single tapered trail per engine follows the poses the ship actually flew. The trail holds 1.2 seconds of flight history (previously 0.32) and keeps streaming in stopped boss arenas. It resets on entry, jumps, respawn and ship changes. The renderer bounds its sample buffers and draws the trails for all four nozzles in one instanced batch.
+
+Verified a right turn and a reversal with actual steering input in the portrait WebGL renderer. Visual captures are in `lookdev/hero-exhaust/`. The build and typecheck passed. Unit tests: 980 passed, 5 skipped, including wake length, continuity and paused frames at 30, 60 and 120 fps. No physical-phone measurement.
+
+## 10 November 2026 — Boss health, persistent drop pods and exhaust polish
+
+The boss HUD sums the live HP and maximum HP of all its modules, including ECLIPSE's prow. One bar runs down throughout the fight in Campaign, Endless and the playground. The caption names the boss and its phase. After a carrier falls with pods still active, the empty bar shows their count and, when needed, their direction. Pausing, leaving the flight or beginning extraction hides the bar.
+
+The deployed pod waves from VEIL, CRADLE, HELIOPHAGE and ECLIPSE fire their authored opening volley and hold a reachable row until destroyed. A surviving pod blocks the next launch. Boss destruction still plays immediately and rewards the kill once. The arena holds while any pods survive, then starts the normal departure clock and protection. Campaign and Endless regressions hold one pod through its old exit timer, spawn the next wave only after the kill, destroy its carrier and finish the encounter with actual main-weapon shots.
+
+The exhaust ends halfway from each nozzle to its former near-bottom endpoint (97.5% of the playfield height on the active lens). Its ribbon width is 0.19 instead of 0.28. The playground's Ship x slider uses a steering destination and banks the moving ship with Fly forward off.
+
+Release gate: typecheck and production build passed. Full unit suite 982 passed, 5 skipped. Of 54 browser cases, 53 passed on the full run. The responsive menu case timed out on repeated cold WebGL startups. It now loads once and checks all three viewport sizes, then the campaign and hangar screens. The isolated rerun passed in 25.5 s. The boss UI was visually inspected through all three Bastion combat phases, and the final half-length trail was inspected stationary and steering in the playground.

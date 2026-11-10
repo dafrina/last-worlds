@@ -126,7 +126,7 @@ function updatePace(state: RunState, dt: number): void {
     // Endless: sector progression, closed-form scroll, bosses and the hyperdrive jump (docs/18).
     updateEndless(state, beginSector);
   } else if (missionBoss(state.config.mission)) {
-    const destroyedAt = state.boss?.phase === 'destroyed' ? state.boss.phaseStartedAt : null;
+    const destroyedAt = state.boss?.clearedAt ?? null;
     const scroll = arenaScroll(state.time, destroyedAt, missionBoss(state.config.mission)!.arena);
     state.pace = PACE.campaign;
     state.scrollSpeed = scroll.speed;

@@ -19,10 +19,18 @@ test('a fresh campaign opens on Training; Rolling Thunder stays locked until Tra
 test('fortress renders all active phases in the actual game renderer without browser errors', async ({ page }, info) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
+  let previousHealth = 101;
   for (const phase of ['batteries', 'core', 'overload']) {
     await page.goto(`/tests/fixtures/bastion.html?phase=${phase}&still=1`);
     await expect(page.locator('canvas.flight-canvas')).toHaveAttribute('data-encounter-state', new RegExp(`"boss":"${phase}"`));
     await expect(page.locator('canvas.flight-canvas')).toHaveAttribute('data-render-stats', /"calls":/);
+    const health = page.getByRole('progressbar', { name: 'BASTION-9 health' });
+    await expect(health).toBeVisible();
+    const percent = Number(await health.getAttribute('aria-valuenow'));
+    expect(percent).toBeGreaterThan(0);
+    expect(percent).toBeLessThan(previousHealth);
+    if (phase === 'batteries') expect(percent).toBe(100);
+    previousHealth = percent;
     await page.screenshot({ path: info.outputPath(`bastion-${phase}-phone.png`) });
   }
   expect(errors).toEqual([]);

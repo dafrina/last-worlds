@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { BOSSES, missionBoss } from '../../src/content/bosses';
 import { EMPTY_INPUT, STEP, type Difficulty, type WeaponId } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
-import { bossTarget, resolveBossPhase } from '../../src/sim/boss';
-import { fly, perfectPilot } from './pilots';
+import { bossTarget, resolveBossPhase, startBoss } from '../../src/sim/boss';
+import { enterSector, fly, perfectPilot } from './pilots';
 
 describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
   it('ends Deep Bloom and is the toughest boss so far', () => {
@@ -46,17 +46,53 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
     expect(state.boss?.id).toBe('veil');
   }, 60000);
 
-  it('deploys pod waves from both front bays once its heart is open', () => {
-    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty: 'standard', seed: 8 });
-    state.player.lives = 10000;
-    while (!state.boss || state.boss.phase === 'arrival') { state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT); }
+  it.each(['campaign', 'endless'] as const)('%s holds each pod wave and the exit until the last pod is killed', mode => {
+    const state = createRun({ mode, mission: 'deep-bloom', seed: 8 });
+    if (mode === 'endless') enterSector(state, 10);
+    state.time = state.sectorStartedAt + (mode === 'endless' ? 78 : BOSSES.veil.arrivesAt);
+    state.player.lives = 1000;
+    state.nextEncounterAt = state.nextVolleyAt = Infinity;
+    startBoss(state, BOSSES.veil);
+    const tick = (seconds: number) => { for (let i = 0; i < Math.ceil(seconds / STEP); i++) stepRun(state, EMPTY_INPUT); };
+    const pods = () => state.enemies.filter(e => e.formation?.template === 'veil-pods' && e.hp > 0);
+    tick(BOSSES.veil.arrivalDuration + STEP);
     bossTarget(state, 'left')!.hp = bossTarget(state, 'right')!.hp = 0; resolveBossPhase(state);
-    const pods = new Set<number>(), sides = new Set<number>();
-    for (let i = 0; i < 30 / STEP; i++) {
-      state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT);
-      for (const enemy of state.enemies) if (enemy.formation?.template === 'veil-pods') { pods.add(enemy.id); sides.add(Math.sign(enemy.x - state.boss!.x)); }
+    tick(BOSSES.veil.launches!.firstAfter + 1);
+    const first = pods().map(e => e.id);
+    expect(first).toHaveLength(4);
+    // Look away for longer than the old exit path and the next scheduled wave.
+    state.player.x = 11;
+    tick(BOSSES.veil.launches!.interval + 8);
+    expect(pods().map(e => e.id)).toEqual(first);
+    expect(pods().every(e => Math.abs(e.x) <= 12 && e.s > 1 && e.s < 19)).toBe(true);
+    // One survivor holds the next launch. Clearing it lets the second wave fly.
+    for (const pod of pods().slice(1)) pod.hp = 0;
+    state.player.x = state.cameraX = state.boss!.x;
+    tick(1);
+    expect(pods().map(e => e.id)).toEqual(first.slice(0, 1));
+    pods()[0].hp = 0;
+    tick(1);
+    expect(pods()).toHaveLength(4);
+    const lastWave = pods().map(e => e.id);
+    bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state);
+    tick(16);
+    expect(state.boss?.phase).toBe('destroyed');
+    expect(state.boss?.clearedAt).toBeUndefined();
+    expect(state.phase).toBe('playing');
+    expect(state.jump).toBeNull();
+    expect(state.scrollSpeed).toBe(0);
+    expect(pods().map(e => e.id)).toEqual(lastWave);
+    // Fly into line with each remaining pod and kill it with real main-weapon shots.
+    state.nextVolleyAt = state.time;
+    for (let i = 0; i < 60 * 20 && pods().length; i++) {
+      state.player.x = pods()[0].x; state.cameraX = state.player.x;
+      stepRun(state, EMPTY_INPUT);
     }
-    expect(pods.size).toBeGreaterThanOrEqual(8);
-    expect(sides.has(1) && sides.has(-1)).toBe(true);
-  }, 60000);
+    expect(pods()).toHaveLength(0);
+    tick(1);
+    expect(state.boss?.clearedAt).toBeDefined();
+    tick(13);
+    if (mode === 'campaign') expect(state.phase).toBe('complete');
+    else { expect(state.sector).toBe(11); expect(state.planet).toBe('amnion'); }
+  });
 });

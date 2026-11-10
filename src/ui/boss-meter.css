@@ -1,0 +1,10 @@
+.boss-meter { position:absolute; pointer-events:none; z-index:4; top:calc(100% + 3px); left:50%; transform:translateX(-50%); width:min(58%, 240px); color:#fff2df; }
+.boss-meter[hidden] { display:none; }
+.boss-caption { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font:600 10px/1.2 var(--mono,monospace); letter-spacing:.11em; text-shadow:0 1px 2px #040810,0 0 4px #040810; }
+.boss-caption span { font-size:8px; }
+.boss-track { position:relative; overflow:hidden; height:5px; margin-top:3px; background:#101723da; outline:1px solid #cddcf780; }
+.boss-track i { display:block; height:100%; background:#ffc481; transform-origin:left; }
+.boss-track::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),#16203099 calc(10% - 1px) 10%); }
+.pg-stage > .boss-meter { top:calc(env(safe-area-inset-top, 0px) + 36px); }
+.pg-stage:has(.pg-viewer:not([hidden])) > .boss-meter { display:none; }
+.flight-frame:has(.boss-meter:not([hidden])) .mission-note { top:calc(max(16px, calc(var(--safe-top) + 10px)) + 71px); }
