@@ -1,69 +1,100 @@
-// npm run dev must be running. No external audio tools/assets required.
+// Renders the listening previews offline through the game's own mixer, in headless Chromium.
+// A Vite dev server must be running: AUDIO_PREVIEW_URL (default http://127.0.0.1:4173) serves the audio lab fixture.
+//   node tools/audio-preview.mjs [output directory] [planet ...]
+// AUDIO_PREVIEW_BEFORE names a folder rendered the same way from older code (default: a before/ folder beside or inside
+// the output); the Sound room then offers both builds.
 import { chromium } from '@playwright/test';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+
 const output = path.resolve(process.argv[2] ?? 'lookdev/audio');
+const PLANETS = ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'corona', 'umbra'];
+const planets = process.argv.length > 3 ? process.argv.slice(3) : PLANETS;
+const page = process.env.AUDIO_PREVIEW_PAGE ?? '/tests/fixtures/audio-lab.html';
+
+// Bars of each world's own tempo. The developed second phrase (step 128) is the common starting point.
+const VERSIONS = {
+  normal: { label: 'Normal flight', bars: 10, startStep: 128 },
+  'boss-modules': { label: 'Boss arrival and modules (entrance stinger)', bars: 10, startStep: 128, cues: true,
+    phases: [{ bar: .4, phase: 'arrival' }, { bar: 2.4, phase: 'batteries' }] },
+  'boss-core': { label: 'Boss core', bars: 10, startStep: 128, phases: [{ bar: 0, phase: 'core', immediate: true }] },
+  'boss-overload': { label: 'Boss overload', bars: 10, startStep: 128, phases: [{ bar: 0, phase: 'overload', immediate: true }] },
+  'modules-to-core': { label: 'Modules → core (phase change mid-bar)', bars: 10, startStep: 128, cues: true,
+    phases: [{ bar: 0, phase: 'batteries', immediate: true }, { bar: 4.37, phase: 'core' }] },
+  'core-to-overload': { label: 'Core → overload (phase change mid-bar)', bars: 10, startStep: 128, cues: true,
+    phases: [{ bar: 0, phase: 'core', immediate: true }, { bar: 4.37, phase: 'overload' }] },
+  'full-fight': { label: 'Whole fight: level → arrival → core → overload → kill → level', bars: 26, startStep: 64, cues: true,
+    phases: [{ bar: 2.2, phase: 'arrival' }, { bar: 4.2, phase: 'batteries' }, { bar: 9.6, phase: 'core' },
+      { bar: 15.3, phase: 'overload' }, { bar: 21.1, phase: 'destroyed' }, { bar: 23.6, phase: null }] },
+};
+// Music under fire: volleys, explosions and a shield break over a boss stage.
+const COMBAT = { luna: 'boss-core', corona: 'boss-overload', umbra: 'boss-overload' };
+
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
+const metrics = {};
 try {
-  const page = await browser.newPage();
-  // The other art session may trigger Vite reloads while a long offline render is underway.
-  await page.route('**/@vite/client', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
-  await page.goto(`${process.env.AUDIO_PREVIEW_URL ?? 'http://127.0.0.1:4173'}/tests/fixtures/audio-lab.html`);
-  await page.waitForFunction(() => window.__AUDIO_LAB__);
-  const metrics = {};
-  for (const theme of ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'umbra', 'effects', 'combat']) {
-    const result = await page.evaluate(async theme =>
-      window.__AUDIO_LAB__.renderPreview(theme === 'combat' ? 'nacre' : theme, theme === 'effects' ? 37 : 28, theme === 'combat'), theme);
-    await writeFile(path.join(output, `${theme}.wav`), Buffer.from(result.wav, 'base64'));
-    metrics[theme] = result.metrics;
-    console.log(theme, JSON.stringify({ peak: result.metrics.peak, rms: result.metrics.rms, clipped: result.metrics.clipped }));
+  const tab = await browser.newPage();
+  // Another session may trigger Vite reloads while a long offline render is underway.
+  await tab.route('**/@vite/client', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
+  await tab.goto(`${process.env.AUDIO_PREVIEW_URL ?? 'http://127.0.0.1:4173'}${page}`);
+  await tab.waitForFunction(() => window.__AUDIO_LAB__?.renderTimeline || window.__AUDIO_AB__);
+  const jobs = [];
+  for (const planet of planets) {
+    for (const [version, job] of Object.entries(VERSIONS)) jobs.push([`${planet}-${version}`, { planet, ...job }]);
+    if (COMBAT[planet]) jobs.push([`${planet}-${COMBAT[planet]}-combat`, { planet, ...VERSIONS[COMBAT[planet]], combat: true }]);
   }
-  for (const theme of ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'umbra']) {
-    for (const version of ['boss', 'transition']) {
-      const result = await page.evaluate(async ({ theme, version }) =>
-        window.__AUDIO_LAB__.renderPreview(theme, 34, false, version), { theme, version });
-      await writeFile(path.join(output, `${theme}-${version}.wav`), Buffer.from(result.wav, 'base64'));
-      metrics[`${theme}-${version}`] = result.metrics;
-      console.log(`${theme}-${version}`, JSON.stringify({ peak: result.metrics.peak, rms: result.metrics.rms, clipped: result.metrics.clipped }));
-    }
+  for (const [name, job] of jobs) {
+    const started = Date.now();
+    const result = await tab.evaluate(async job => (window.__AUDIO_LAB__ ?? window.__AUDIO_AB__).renderTimeline(job), job);
+    await writeFile(path.join(output, `${name}.wav`), Buffer.from(result.wav, 'base64'));
+    metrics[name] = result.metrics;
+    const m = result.metrics;
+    console.log(name.padEnd(34), `peak ${m.peak.toFixed(3)}  rms ${m.rms.toFixed(4)}  clipped ${m.clipped}  nonFinite ${m.nonFinite}`,
+      `voices ${m.peakVoices}  dropped ${m.dropped}  (${((Date.now() - started) / 1000).toFixed(1)} s)`);
   }
-  await writeFile(path.join(output, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n');
-  const tracks = [
-    ['luna', 'LUNA', 'Far Side Signal', 'Warm piano, rounded bass and brushed rhythm · 94 BPM'],
-    ['khepri', 'KHEPRI', 'Foundry Afterimage', 'Gritty saw synths and heavy bass · 118 BPM'],
-    ['nacre', 'NACRE', 'Dreams Beneath the Bloom', 'Soft drifting pads and a gentle pulse · 106 BPM'],
-    ['vesper', 'VESPER', 'Below the Ice Line', 'Glacial bells and space between the beats · 88 BPM'],
-    ['amnion', 'AMNION', 'Something Beneath the Skin', 'Breathing membranes, uneasy nerve tones and paired heartbeats · 92 BPM'],
-    ['umbra', 'UMBRA', 'A Line Through Silence', 'Clean glass needles, distant air and a precise deep pulse · 90 BPM'],
-    ['effects', 'COMBAT SOUNDS', 'Weapons, impacts & explosions', 'Lasers, shields, specials, bosses and warp'],
-    ['combat', 'IN THE MIX', 'Nacre under fire', 'Music with repeated volleys, explosions and a shield break'],
-  ];
-  await writeFile(path.join(output, 'index.html'), `<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Last Worlds · Sound room</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#081321;color:#dfebf4;font:16px/1.5 system-ui,sans-serif}
-main{max-width:940px;margin:auto;padding:48px 24px}header{margin-bottom:32px}h1{font-size:clamp(32px,6vw,54px);letter-spacing:-2px;margin:4px 0 8px}
-.eyebrow{color:#8bb6d2;font:11px monospace;letter-spacing:3px}header p{color:#9eb4c8;max-width:620px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
-article{border:1px solid #294052;background:#0d1c2c;padding:24px}h2{font-size:20px;margin:10px 0}
-article p{color:#9eb4c8;font-size:13px;min-height:40px}audio{width:100%;height:40px;color-scheme:dark}
-label{display:block;color:#9eb4c8;font-size:12px;margin-bottom:12px}select{margin-left:8px;background:#14293c;color:#dfebf4;border:1px solid #38536b;padding:8px;font:inherit}
-footer{color:#819bad;font-size:12px;margin-top:28px}
-</style><main><header><span class="eyebrow">LAST WORLDS / AUDIO</span><h1>Sound room</h1>
-<p>Six planet scores, each with its own voice. Amnion breathes; Umbra cuts through the silence. The transition previews begin in level mode, build into the boss fight, then return to the original music.</p></header>
-<section class="grid">${tracks.map(([id, planet, title, detail]) => {
-  const stem = !['effects', 'combat'].includes(id);
-  const changes = stem ? metrics[`${id}-transition`].transitions : [];
-  const timing = stem ? `<p>Transition preview: boss at ${changes[0].at.toFixed(1)}s · final phase at ${changes[1].at.toFixed(1)}s · fades back at ${changes[2].at.toFixed(1)}s.</p>` : '';
-  return `<article><span class="eyebrow">${planet}</span><h2>${title}</h2><p>${detail}</p>
-  ${stem ? `<label>Listen<select aria-label="${planet} version"><option value="${id}-transition.wav">Level → boss → level</option><option value="${id}.wav">Original level</option><option value="${id}-boss.wav">Boss version</option></select></label>` : ''}
-  <audio controls preload="none" aria-label="${title}" src="${id}${stem ? '-transition' : ''}.wav"></audio>${timing}</article>`;
-}).join('')}</section>
-<footer>These excerpts use the game's actual mixer. In game, boss bass and rhythm fade over one bar; the original score continues on the same clock. Change Music and Effects in Settings.</footer></main>
-<script>
-document.addEventListener('play', event => { for (const player of document.querySelectorAll('audio')) if (player !== event.target) player.pause(); }, true);
-document.addEventListener('change', event => { if (event.target.tagName !== 'SELECT') return; const player=event.target.closest('article').querySelector('audio'); const at=player.currentTime, playing=!player.paused; player.preload='metadata'; player.src=event.target.value; player.addEventListener('loadedmetadata',()=>{player.currentTime=Math.min(at,player.duration-.1);if(playing)player.play().catch(()=>{});},{once:true}); player.load(); });
-</script></html>`);
 } finally { await browser.close(); }
+await writeFile(path.join(output, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n');
+
+// A small Sound room: every world with its versions, and Before/After when a before/ render sits beside this one.
+const beforeDir = process.env.AUDIO_PREVIEW_BEFORE ? path.resolve(process.env.AUDIO_PREVIEW_BEFORE)
+  : path.basename(output) === 'after' ? path.join(output, '..', 'before') : path.join(output, 'before');
+const before = await readFile(path.join(beforeDir, 'metrics.json'), 'utf8').then(JSON.parse).catch(() => null);
+const beforeLink = path.relative(output, beforeDir).split(path.sep).join('/') + '/';
+const rows = planets.map(planet => {
+  const options = Object.entries(VERSIONS).map(([version, { label }]) => `<option value="${planet}-${version}.wav">${label}</option>`).join('')
+    + (COMBAT[planet] ? `<option value="${planet}-${COMBAT[planet]}-combat.wav">Under fire (${COMBAT[planet].replace('boss-', '')})</option>` : '');
+  return `<article><h2>${planet[0].toUpperCase()}${planet.slice(1)}</h2>
+  <label>Version <select data-version>${options}</select></label>
+  ${before ? `<label>Build <select data-build><option value="">After (upgraded)</option><option value="${beforeLink}">Before</option></select></label>` : ''}
+  <audio controls preload="none" src="${planet}-normal.wav"></audio></article>`;
+}).join('');
+await writeFile(path.join(output, 'index.html'), `<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Last Worlds sound room</title>
+<style>
+:root{--bg:#081321;--panel:#0d1c2c;--line:#294052;--text:#dfebf4;--muted:#9eb4c8}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--bg:#f3f6f9;--panel:#fff;--line:#c9d5df;--text:#10202e;--muted:#4b6072}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif}
+main{max-width:980px;margin:auto;padding:32px 16px}h1{margin:0 0 8px}p{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+article{border:1px solid var(--line);background:var(--panel);padding:16px}h2{margin:0 0 8px;font-size:20px}
+label{display:block;color:var(--muted);font-size:13px;margin-bottom:8px}select{width:100%;margin-top:4px;padding:6px;font:inherit}
+audio{width:100%}
+</style><main><h1>Sound room</h1>
+<p>Offline renders through the game's own mixer at default volumes (music 55 %, effects 80 %). Switching version or build keeps the playback position.</p>
+<section class="grid">${rows}</section></main>
+<script>
+for (const card of document.querySelectorAll('article')) {
+  const player = card.querySelector('audio');
+  const update = () => {
+    const at = player.currentTime, playing = !player.paused;
+    player.src = (card.querySelector('[data-build]')?.value ?? '') + card.querySelector('[data-version]').value;
+    player.addEventListener('loadedmetadata', () => { player.currentTime = Math.min(at, player.duration - .1); if (playing) player.play().catch(() => {}); }, { once: true });
+    player.load();
+  };
+  card.addEventListener('change', update);
+}
+document.addEventListener('play', event => { for (const p of document.querySelectorAll('audio')) if (p !== event.target) p.pause(); }, true);
+</script></html>
+`);
