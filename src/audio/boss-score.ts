@@ -1,5 +1,6 @@
 import type { BossState, PlanetId } from '../shared/contracts';
 import { INSTRUMENT_SECONDS, type Instrument } from './instruments';
+import { consonantWith, soundingSteps, UNPITCHED } from './harmony';
 import { LANDING_STEPS, landingNote, THEMES, type Note } from './score';
 
 /**
@@ -88,7 +89,14 @@ function harmony(planet: PlanetId, step: number) {
 
 function writer(planet: PlanetId, step: number, notes: Note[]) {
   const { human, level = 1 } = KITS[planet], beat = step % 16;
-  return (instrument: Instrument, pitch: number, gain: number, pan = 0, extra: Partial<Note> = {}) => {
+  return (instrument: Instrument, written: number, gain: number, pan = 0, extra: Partial<Note> = {}) => {
+    // Never against the melody: a tone that would make a minor second, major seventh or tritone with the melody note
+    // heard now becomes the nearest chord tone that does not, or is left out (harmony.ts).
+    // The melody heard as it strikes, and any passing note arriving in the next two sixteenths while it is still loud;
+    // a passing note arriving later over a held stem chord tone is the melody's own motion over the harmony.
+    const ahead = Math.min(2, soundingSteps(planet, { instrument, pitch: written - 12, gain, pan, wet: 0, ...extra }) - 1);
+    const pitch = UNPITCHED.has(instrument) ? written : consonantWith(planet, step, written, ahead);
+    if (pitch === null) return;
     // Luna keeps the score's played timing and velocity in the stem too.
     const offset = human ? (beat % 2 ? .014 + .003 * Math.sin(step) : .003 * (1 + Math.sin(step * 1.7))) : 0;
     const velocity = (human ? .93 + .07 * Math.sin(step * 2.3 + pitch) : 1) * level;
@@ -121,7 +129,8 @@ function reversedStep(planet: PlanetId, step: number, stage: 1 | 2 | 3): Note[] 
       candidates.push({ instrument: 'glint', pitch: root + 12 + tone, gain: .09, pan: (beat / 4 - 1.5) * .3, wet: .3, priority: P.pulse });
     }
     for (const note of candidates) {
-      const landed = landingNote(note, landing, step, bpm);
+      const pitch = consonantWith(planet, landing, note.pitch, 1, 2);
+      const landed = pitch === null ? null : landingNote({ ...note, pitch }, landing, step, bpm);
       if (landed) notes.push(landed);
     }
   }
