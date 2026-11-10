@@ -14,13 +14,14 @@ const LOG = env.MISSION_LOG;
 describe('world missions are all reachable', () => {
   it.each([
     // 8 since pace 1.15 (6 November): strike sites pass 15% sooner; Three Paths (3 sites in one run) takes 8 attempts.
-    ['deep-bloom', 8, 600, 4],
-    ['brood-strike', 14, 675, 5],
+    // Parts +2 per world since Untouchable pays 3 (10 November).
+    ['deep-bloom', 8, 600, 6],
+    ['brood-strike', 14, 675, 7],
     // 13 since the fewer fuel skids (6 November): Gravity Slingshot (3 reflected kills, 5 before) comes about once in three
     // Spectre runs, half as often as when reflected shots set off skids among the batteries.
     // Dying Star (6 November: Flare Dancer 3, Solar Wind, Heat Shield): 9 attempts; Sunburn needs a top-level weapon.
-    ['dying-star', 11, 650, 5],
-    ['final-horizon', 13, 675, 5],
+    ['dying-star', 11, 650, 7],
+    ['final-horizon', 13, 675, 7],
   ] as const)('%s: all twelve within %i attempts', (mission, max, credits, parts) => {
     const result = clearWorld(mission, max);
     if (LOG) console.log(`${mission}: ${result.flown} attempts\n${result.log.join('\n')}`);

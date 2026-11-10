@@ -1,5 +1,37 @@
 # Build status
 
+## Late-world curve, Untouchable 3 parts, boss stage bursts deployed (`e95493e`), 10 November 2026
+
+- **Late-world curve** (Codex's uncommitted work, completed): Amnion, Corona and Umbra step up past Nacre.
+
+  | World | Repeat-fire cadence | Enemy hp | First windup | Run credit scale |
+  | --- | --- | --- | --- | --- |
+  | Amnion | 0.46 | ×1.10 | ×0.90 | 0.48 → 0.41 |
+  | Corona | 0.43 | ×1.15 | ×0.85 | 0.44 → 0.425 |
+  | Umbra | 0.40 | ×1.20 | ×0.80 | 0.44 → 0.45 |
+
+  - Fuel skids and strike-site cores keep their hp.
+  - Formations keep their member stagger. Codex's version also compressed it; I aligned it with `DifficultyScale.firstAttack`.
+  - The user kept the pay change.
+- **Fairness:** Final Horizon's no-hit test is re-pinned to seed 7. Over seeds 1–16, the seeds where the perfect pilot takes a hit, old curve → new:
+  - Pulse 3 → 2;
+  - Fan 4 → 3;
+  - Veteran Seeker 9 → 4.
+
+  Every run completed.
+- **Untouchable** (the no-hit run) pays 3 parts instead of 1 in every world (user). Mission parts total 32 → 46. The board's reward label now says "3 parts"; it read "3 part".
+- **Boss stage bursts** (user):
+  - when a boss's last module falls (core) and when its core gives way (overload), small blasts run over the hull: 6 on High, 3 on Low, 0.15 s apart, each with a dark puff underneath;
+  - presentation only, in fx-particles;
+  - checked in screenshots on Bastion, the Veil and the Heliophage. On the Heliophage's bright hull they stay subtle.
+- **Gate on `e95493e`:**
+  - typecheck clean; unit tests 990 passed, 5 skipped; build passes;
+  - browser 53/54 (Playwright exit 1). The failure was the steering spec's 5 s poll under load.
+  - **Rerun of `flight.spec.ts` alone:** 7/7, exit 0.
+  - The run before it (`5af93ef`) also caught the "3 part" label and the feasibility totals; both are fixed in `e95493e`.
+- **Live:** Pages run 42833435527 succeeded; the live bundles (`main-CCD-Ag9g.js`, `storage-C8N1ikEI.js`) match the build; the smoke test reports no errors. No phone test.
+- **Next:** the music upgrade (agent, own worktree). Not deployed until the user has heard the previews.
+
 ## Dead code, load fixes and per-frame garbage deployed (`e930316`), 9 November 2026
 
 No visible change intended.

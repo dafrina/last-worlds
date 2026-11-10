@@ -2,6 +2,7 @@ import { hostileFlashHex } from './shot-colors';
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type PlanetId, type RunState } from '../shared/contracts';
 import { weaponRank } from '../content/equipment';
+import { BOSSES } from '../content/bosses';
 import { AROUND_HERO } from './hero-stencil';
 import { drawnShot, type Launch } from './shot-launch';
 import { liveInstances } from './instances';
@@ -288,6 +289,70 @@ export function createFx(scene: THREE.Scene) {
   }
 
   /**
+   * A boss entering its next stage takes damage that shows (user, 10 November: "after every stage of the boss fight there
+   * should also be some smaller explosions on the boss"). When its last module falls (core) and when its core gives way
+   * (overload), a short string of small blasts runs over its hull. Each blast is smaller than a kill's: a flash, a few
+   * fireballs, sparks and a wisp of smoke. They fire at the boss's current position, so they ride along as it moves. They
+   * run on run time, so they wait through a pause. Presentation only: the simulation and its effects are unchanged.
+   */
+  const STAGE_BURSTS = { count: 6, lowCount: 3, first: .15, gap: .15 } as const;
+  let stagePhase: string | null = null;
+  const stageQueue: { due: number; dx: number; ds: number; n: number }[] = [];
+  function stageBurst(x: number, z: number, n: number) {
+    const y = VIEW.flightHeight + .1;
+    // Dark smoke at once, under the fire, as in bossBlast: the contrast that keeps it readable over a bright hull (Corona).
+    if (full()) emit(smoke, { x, y: y - .14, z, vy: .2, life: .9, size: .5, grow: 1.3, drag: 1.2, alpha: .6, shape: ROUND, drift: .5,
+      ...ramp(0x1c1612, 1, 0x4a4440, 1) });
+    flash(x, z, 1.4, .1, 0xfff2d8, 2.6);
+    light(x, z, 4.2, .4, 0xff9a48, .7);
+    for (let k = 0; k < (full() ? 3 : 2); k++) {
+      const a = hash(n + k * 4.3) * Math.PI * 2, d = .08 + hash(n + k) * .18, v = .4 + hash(n + k * 1.7) * .5;
+      emit(glow, { x: x + Math.cos(a) * d, y: y + k * .02, z: z + Math.sin(a) * d, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: .3,
+        life: .32 + hash(n + k * 2.3) * .22, size: .3 + hash(n + k * 3.9) * .16, grow: 1.2, drag: 2.6, alpha: .95, shape: ROUND,
+        ...ramp(k === 0 ? 0xfff0c0 : 0xffb060, 2.8, 0xc8300c, .5) });
+    }
+    sparks(x, z, full() ? 7 : 4, 0xffc078, 5.5, n * 2.7);
+    if (!full()) return;
+    // A few embers thrown up and out.
+    for (let k = 0; k < 4; k++) {
+      const a = hash(n + k * 3.1 + 5) * Math.PI * 2, v = 1.8 + hash(n + k * 2.7) * 2;
+      emit(glow, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1.4 + hash(n + k * 1.3) * 1.8, fall: 7, drag: 1.4,
+        life: .45 + hash(n + k * 5.3) * .3, size: .07 + hash(n + k * 2.1) * .04, alpha: 1, shape: ROUND, ...ramp(0xfff0b0, 3.2, 0xff4010, 1.2) });
+    }
+    for (let k = 0; k < 2; k++) {
+      const a = hash(n + k * 6.7) * Math.PI * 2;
+      emit(smoke, { x: x + Math.cos(a) * .12, y: y - .1, z: z + Math.sin(a) * .12, vx: Math.cos(a) * .25, vy: .4 + hash(n + k * 2.9) * .25, vz: Math.sin(a) * .25,
+        life: .8 + hash(n + k) * .4, size: .26 + hash(n + k * 1.9) * .12, grow: 1.4, drag: 1.3, alpha: .42, delay: .05, shape: ROUND, drift: .5,
+        ...ramp(0x2e2824, 1, 0x6e6a66, 1) });
+    }
+  }
+  /** Queues a stage change's blasts over the hull (its modules' seats, halfway in, and the core), then fires them when due. */
+  function stageChange(state: RunState) {
+    const boss = state.boss, phase = boss?.phase ?? null;
+    if (phase !== stagePhase) {
+      // Only a change seen in flight: a run that opens mid-fight (a fixture, a restore) starts without one.
+      if (boss && stagePhase !== null && (phase === 'core' || phase === 'overload')) {
+        const parts = Object.values(BOSSES[boss.id].parts) as { x: number; s: number }[];
+        const span = Math.max(1.5, ...parts.map(part => Math.abs(part.x))), seed = state.tick * 7 + (phase === 'core' ? 1 : 2);
+        const count = full() ? STAGE_BURSTS.count : STAGE_BURSTS.lowCount;
+        for (let k = 0; k < count; k++) {
+          const part = parts[k % parts.length], inward = k < parts.length ? 1 : .5, n = seed + k * 13;
+          stageQueue.push({ due: state.time + STAGE_BURSTS.first + k * STAGE_BURSTS.gap + hash(n) * .05,
+            dx: part.x * inward + (hash(n * 1.3) - .5) * span * .35, ds: part.s * inward + (hash(n * 2.1) - .5) * .8, n });
+        }
+      }
+      stagePhase = phase;
+    }
+    if (!boss || boss.phase === 'destroyed') { stageQueue.length = 0; return; }
+    for (let i = 0; i < stageQueue.length;) {
+      const burst = stageQueue[i];
+      if (burst.due > state.time) { i += 1; continue; }
+      stageBurst(boss.x + burst.dx, -(boss.s + burst.ds), burst.n);
+      stageQueue[i] = stageQueue[stageQueue.length - 1]; stageQueue.pop();
+    }
+  }
+
+  /**
    * A boss's last detonation (user, 22 October: "a big big bang"): a blinding core that swells into a towering fireball,
    * cooling from white through orange to deep red; two shockwave rings racing out across the view; the light of it over
    * the whole arena; a ring of secondary blasts; hundreds of embers and debris on long arcs; and a smoke column that
@@ -456,7 +521,7 @@ export function createFx(scene: THREE.Scene) {
   /** New snapshot events → particle spawns. Rewinds (a new run, retry) reset the cursors. */
   function spawn(state: RunState, heroGlow: number) {
     // A new run or a rewind: the last run's fire (its wrecks' too) goes out.
-    if (state.tick < lastTick || seed !== state.config.seed) { lastEffect = -1; lastShot = -1; glow.live = 0; smoke.live = 0; wreckGlow.live = 0; wreckSmoke.live = 0; seed = state.config.seed; }
+    if (state.tick < lastTick || seed !== state.config.seed) { lastEffect = -1; lastShot = -1; glow.live = 0; smoke.live = 0; wreckGlow.live = 0; wreckSmoke.live = 0; seed = state.config.seed; stagePhase = null; stageQueue.length = 0; }
     lastTick = state.tick;
     // Strike sites destroyed this frame: their anchored sequences replace the cores' kill explosions.
     for (const blast of pendingSites) { blast.effects.forEach(id => replaced.add(id)); siteBlast(blast); }
@@ -480,6 +545,7 @@ export function createFx(scene: THREE.Scene) {
     anchoredEmission = false;
     replaced.clear();
     lastEffect = maxEffect;
+    stageChange(state);
     let maxShot = lastShot;
     const heat = shotHeat(state.player.power);
     for (const shot of state.projectiles) {
