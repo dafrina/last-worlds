@@ -883,3 +883,12 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **10 November · Codex:** narrowing the hero trail slightly, adding a boss HP strip to both flight and playground, and keeping carrier pod waves in the arena until destroyed, including before Campaign extraction / Endless warp.
 
 **10 November · Codex · releasing:** all seven boss health bars, carrier pod clearance before new waves and departures, the playground steering preview and final half-length, thinner hero trail. Build passed, 982 unit tests passed / 5 skipped, 54 browser cases passed including one rerun of the responsive menu test. User explicitly requested Pages deployment.
+
+**10 November · Claude Code (Blender MCP in WSL session) · completed Codex's uncommitted late-world curve as `f4bfc0a`** (user: "complete codex work"). Gate running in `../alien-skies-snapshot`; deploy follows if it passes.
+- **Kept as Codex wrote it:**
+  - `WORLD_INTENSITY` `hp` and `firstAttack` for Amnion, Corona and Umbra; cadence .46 / .43 / .40;
+  - credit scales .41 / .425 / .45.
+- **Changed:** the world first-windup factor no longer compresses formation members' stagger, matching `DifficultyScale.firstAttack`.
+- **Re-pinned:** Umbra's no-hit test to seed 7. Over seeds 1–16 the curve didn't add perfect-pilot hits.
+- **Docs:** docs/27, 28, 35 and 37 updated.
+- **Not committed:** Codex's scratch `tests/sim/tmp-curve.test.ts` and `tmp-fan.test.ts`, moved to my scratchpad.
