@@ -1,8 +1,9 @@
 import type { PlanetId, RunState } from '../shared/contracts';
 import { readJson, writeJson } from '../shared/storage';
 import { SoundObserver } from './events';
+import { BossArranger, bossStage } from './boss-score';
 import { AudioMixer, type AudioSettings } from './mixer';
-import { bossStep, scoreStep, ScoreClock, THEMES } from './score';
+import { scoreStep, ScoreClock, THEMES } from './score';
 
 export const AUDIO_STORAGE_KEY = 'last-worlds.audio.v1';
 export const DEFAULT_AUDIO: Readonly<AudioSettings> = { muted: false, music: .55, effects: .8 };
@@ -17,16 +18,21 @@ export function createGameAudio() {
   let settings: AudioSettings = readJson(AUDIO_STORAGE_KEY, sanitizeSettings) ?? { ...DEFAULT_AUDIO };
   let context: AudioContext | undefined, mixer: AudioMixer | undefined, timer: ReturnType<typeof setInterval> | undefined;
   let suspendTimer: ReturnType<typeof setTimeout> | undefined;
-  let active = false, planet: PlanetId = 'luna', tension = 0, disposed = false;
+  let active = false, planet: PlanetId = 'luna', disposed = false;
   let terminal = false;
-  const observer = new SoundObserver(), clock = new ScoreClock();
+  const observer = new SoundObserver(), clock = new ScoreClock(), boss = new BossArranger();
   function clearSuspend() { clearTimeout(suspendTimer); suspendTimer = undefined; }
   function schedule() {
     if (!active || !mixer || context?.state !== 'running' || settings.muted || terminal) return;
     for (const slot of clock.take(context.currentTime, planet)) {
       for (const note of scoreStep(planet, slot.step)) mixer.note(note, slot.at);
-      if (mixer.bossActiveAt(slot.at)) for (const note of bossStep(planet, slot.step)) mixer.note(note, slot.at, true);
+      if (mixer.bossActiveAt(slot.at)) for (const note of boss.notes(planet, slot.step)) mixer.note(note, slot.at, true);
     }
+  }
+  /** A new score (a run, a planet jump): no boss stem, and the echo follows the new tempo. */
+  function newScore(next: PlanetId) {
+    planet = next; boss.reset();
+    mixer?.setBossMix(0, 0); mixer?.setTempo(THEMES[planet].bpm);
   }
   function halt() {
     clearInterval(timer); timer = undefined;
@@ -49,7 +55,7 @@ export function createGameAudio() {
       if (!context) {
         context = new AudioContext({ latencyHint: 'interactive' });
         // Buffers come from the samples made at boot (sample-bank.ts), never synthesized all at once in the tap.
-        mixer = new AudioMixer(context, settings);
+        mixer = new AudioMixer(context, settings); mixer.setTempo(THEMES[planet].bpm);
         context.addEventListener('statechange', () => {
           if (context?.state === 'running') {
             // wake resets a stopped clock. A late initial statechange must not double the opening beat.
@@ -81,8 +87,7 @@ export function createGameAudio() {
     setSettings,
     start(state: RunState) {
       mixer?.stop(); observer.reset(state);
-      planet = state.planet; tension = 0; terminal = false; active = true;
-      mixer?.setBossIntensity(0, 0);
+      newScore(state.planet); terminal = false; active = true;
       clearInterval(timer); timer = undefined; clock.reset((context?.currentTime ?? 0) + .035);
       unlock();
     },
@@ -90,17 +95,17 @@ export function createGameAudio() {
       const cues = observer.read(state);
       if (!active || settings.muted || context?.state !== 'running' || !mixer) return;
       if (planet !== state.planet) {
-        planet = state.planet;
         // Fade existing notes; new tonal centre enters after the jump flash without a doubled beat.
         mixer.stopGroup('music'); clock.reset(context.currentTime + .07);
-        mixer.setBossIntensity(0, 0); tension = 0;
+        newScore(state.planet);
       }
-      const nextTension = !state.boss || state.boss.phase === 'destroyed' ? 0
-        : state.boss.phase === 'overload' || state.boss.phase === 'core' ? 2 : 1;
-      if (nextTension !== tension) {
-        tension = nextTension;
-        // Only the additive stem moves. Neither the score position nor the level fader restarts.
-        mixer.setBossIntensity(tension, 240 / THEMES[planet].bpm);
+      // Read-only: the boss phase picks the stem's arrangement. Neither the score position nor the level fader moves;
+      // the change lands on the stem's grid from the first sixteenth not yet scheduled.
+      const stage = bossStage(state.boss?.phase);
+      if (stage !== boss.target) {
+        if (stage) mixer.setBossMix(1, .03);
+        else mixer.setBossMix(0, 240 / THEMES[planet].bpm);
+        boss.request(stage, clock.step);
       }
       for (const cue of cues) mixer.cue(cue);
       if (state.phase === 'over' || state.phase === 'complete') {
@@ -115,7 +120,7 @@ export function createGameAudio() {
     },
     pause() { active = false; halt(); },
     resume() { active = true; unlock(); },
-    quit() { active = false; terminal = false; tension = 0; mixer?.setBossIntensity(0, 0); halt(); },
+    quit() { active = false; terminal = false; boss.reset(); mixer?.setBossMix(0, 0); halt(); },
     diagnostics() {
       let rms = 0;
       if (mixer && context?.state === 'running') {
@@ -124,7 +129,8 @@ export function createGameAudio() {
         for (const n of samples) rms += n * n;
         rms = Math.sqrt(rms / samples.length);
       }
-      return { state: context?.state ?? 'locked', active, planet, tension, terminal,
+      return { state: context?.state ?? 'locked', active, planet, terminal,
+        bossStage: boss.target, playingStage: boss.stageAt(clock.step), switchAt: boss.pending(clock.step)?.at ?? null,
         scoreStep: clock.step, nextBeatAt: clock.nextAt, ...settings, rms, ...mixer?.diagnostics() };
     },
     dispose() {

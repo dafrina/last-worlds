@@ -1,7 +1,13 @@
 import type { PlanetId } from '../shared/contracts';
-import type { Instrument } from './samples';
+import { BASE_PITCH, INSTRUMENT_SECONDS, type Instrument } from './instruments';
 
-export interface Note { instrument: Instrument; pitch: number; gain: number; pan: number; wet: number; offset?: number }
+/** One scheduled sample. `offset` delays it within its sixteenth; the boss stem (src/audio/boss-score.ts) also uses
+ * `skip` (seconds into the sample: a riser trimmed to land on a downbeat), `priority` within its own voice pool,
+ * `pump` (how far the level bed dips under it) and `bed` (the level bed's level from this note on). */
+export interface Note {
+  instrument: Instrument; pitch: number; gain: number; pan: number; wet: number;
+  offset?: number; skip?: number; priority?: number; pump?: number; bed?: number;
+}
 interface Theme {
   title: string; bpm: number; root: number; chords: readonly (readonly number[])[];
   bass: readonly number[]; melody: readonly number[]; kick: readonly number[]; hats: readonly number[];
@@ -43,26 +49,35 @@ export const THEMES: Record<PlanetId, Theme> = {
     melody: [12, -1, -1, 13, -1, -1, -1, 18, -1, -1, 13, -1, -1, 12, -1, -1],
     kick: [0, 2, 9, 11], hats: [3, 7, 10, 14],
   },
-  // Corona (docs/37): driving and hot, the star's pressure in a fast minor pulse.
+  // Corona (docs/37), recomposed 10 November (the first score was a placeholder on default instruments): a hymn for a
+  // dying star. E Phrygian at 110 BPM, i, ♭II, ♭VI and the major V (Em, F, C, B), two bars each. A low harp ostinato
+  // climbs each chord in 3-3-2 groups under a lament whose ♭6 neighbour sinks back to the fifth; a solar drone swells
+  // like heat under sparse, heavy drums, ember crackle and a bowed-metal shriek at the phrase marks.
   corona: {
-    title: 'Into the Corona', bpm: 126, root: 40,
-    chords: [[0, 7, 12, 15], [-4, 3, 8, 12], [-2, 5, 10, 14], [-5, 2, 7, 10]],
-    bass: [0, -1, 0, 12, 0, -1, 7, -1, 0, -1, 0, 12, -1, 7, 10, -1],
-    melody: [15, -1, 19, -1, 22, -1, 19, -1, 17, -1, -1, 15, -1, 12, -1, -1],
-    kick: [0, 4, 8, 11, 12], hats: [0, 2, 4, 6, 8, 10, 12, 14],
+    title: 'Hymn for a Swollen Sun', bpm: 110, root: 40,
+    chords: [[0, 7, 12, 15], [1, 8, 13, 17], [-4, 3, 8, 12], [-5, 2, 7, 11]],
+    bass: [0, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 7, -1, 12, -1],
+    melody: [12, -1, -1, 8, -1, -1, 7, -1, -1, -1, -1, 5, -1, -1, 7, -1],
+    kick: [0, 6, 12], hats: [3, 9, 11, 15],
   },
+  // Umbra (docs/28), recomposed 10 November: where the light goes backwards. F# at 84 BPM, chords F#, G, C and F (a
+  // semitone up, the tritone, the semitone under the root), each carrying one harmonic-series tone off the twelve-note
+  // grid: the 11th harmonic (+5.51), the 7th (+9.69), a pure major third (5/4, +3.86) and a pure minor third (6/5, +3.16).
+  // Pitches may be fractional: the mixer plays them by rate.
   umbra: {
-    title: 'A Line Through Silence', bpm: 90, root: 42,
-    chords: [[0, 12, 19], [1, 13, 18], [-5, 7, 14], [-1, 11, 17]],
-    bass: [0, -1, -1, -1, -1, -1, 12, -1, 0, -1, -1, -1, -1, -1, -1, -1],
-    melody: [24, -1, -1, -1, -1, -1, 25, -1, -1, -1, 19, -1, -1, -1, 18, -1],
+    title: 'Where the Light Goes Backwards', bpm: 84, root: 42,
+    chords: [[0, 7, 12, 17.51], [1, 8, 13, 22.69], [-6, 1, 6, 9.86], [-1, 6, 11, 14.16]],
+    bass: [0, -1, -1, -1, 0, -1, -1, 0, 0, -1, -1, -1, 0, -1, 12, -1],
+    melody: [12, -1, -1, -1, -1, -1, 13, -1, -1, -1, 7, -1, -1, -1, 6.5, -1],
     kick: [0, 8], hats: [2, 6, 10, 14],
   },
 };
 
 /** A score step is a sixteenth note. Sparse openings, evolving phrases, a breakdown, then return. */
 export function scoreStep(planet: PlanetId, step: number): Note[] {
-  if (planet === 'amnion' || planet === 'umbra') return finalWorldStep(planet, step);
+  if (planet === 'amnion') return amnionStep(step);
+  if (planet === 'corona') return coronaStep(step);
+  if (planet === 'umbra') return umbraStep(step);
   const theme = THEMES[planet], bar = Math.floor(step / 16), beat = step % 16;
   const phrase = Math.floor(bar / 8) % 4, chordIndex = Math.floor(bar / 2) % 4;
   const chord = theme.chords[chordIndex], root = theme.root;
@@ -112,80 +127,141 @@ export function scoreStep(planet: PlanetId, step: number): Note[] {
   return notes;
 }
 
-/** Additive boss stem: same harmony, sixteenths and phrase position as the untouched level score.
- * Dry, centred low end avoids reverb build-up; no duplicate lead/pad track or second transport. */
-export function bossStep(planet: PlanetId, step: number): Note[] {
-  if (planet === 'amnion' || planet === 'umbra') return finalWorldStep(planet, step, true);
-  const theme = THEMES[planet], bar = Math.floor(step / 16), beat = step % 16;
-  const chord = theme.chords[Math.floor(bar / 2) % 4];
-  const human = planet === 'luna', foundry = planet === 'khepri', bloom = planet === 'nacre';
-  const notes: Note[] = [];
-  const add = (instrument: Instrument, pitch: number, gain: number, pan = 0) => {
-    const offset = human ? (beat % 2 ? .014 + .003 * Math.sin(step) : .003 * (1 + Math.sin(step * 1.7))) : 0;
-    notes.push({ instrument, pitch, gain: human ? gain * (.93 + .07 * Math.sin(step * 2.3 + pitch)) : gain,
-      pan, wet: 0, offset });
-  };
-  // Reinforce the existing riff, filling its rests with roots/octaves rather than a competing melody.
-  const riff = theme.bass[beat];
-  if (riff >= 0 || beat % 4 === 0 || (!human && beat % 4 === 2)) {
-    const interval = riff >= 0 ? riff : beat % 4 === 2 ? 12 : 0;
-    add(foundry ? 'saw-bass' : 'round-bass', theme.root - 12 + chord[0] + interval,
-      foundry ? .18 : bloom ? .28 : human ? .20 : .27);
-  }
-  // Each world keeps its feel: played backbeat, driving foundry, rolling bloom, spacious half-time ice.
-  const kicks = human ? [0, 6, 8, 14] : foundry ? [0, 4, 8, 12, 14] : bloom ? [0, 6, 8, 11, 14] : [0, 3, 8, 14];
-  const breakdown = Math.floor(bar / 8) % 4 === 2;
-  if (kicks.includes(beat)) add('kick', 36, !breakdown && theme.kick.includes(beat) ? .13 : .32);
-  const backbeat = planet === 'vesper' ? beat === 8 : beat === 4 || beat === 12;
-  if (backbeat) add(human || bloom ? 'brush' : 'snare', 60, bloom ? .16 : human ? .21 : .18);
-  if (beat % 2 === 0) add('hat', beat % 4 === 2 ? 62 : 60, beat % 4 === 2 ? .075 : .035, beat % 4 === 2 ? .22 : -.22);
-  if (foundry && [3, 7, 11, 15].includes(beat)) add('metal', 55 + chord[0], .065, beat < 8 ? -.3 : .3);
-  // Small turnarounds at the end of the existing eight-bar phrases; never change their length.
-  if (bar % 8 === 7 && beat >= 13) add(human || bloom ? 'brush' : 'snare', 58 + (beat - 13), .07 + (beat - 13) * .025, (beat - 14) * .16);
-  return notes;
-}
-
-/** The final worlds have their own instrumentation, phrasing and rhythm. Boss layers only reinforce the same
- * bass/harmony and clock; the breathing membrane / precise needle motifs continue through the crossfade. */
-function finalWorldStep(planet: 'amnion' | 'umbra', step: number, boss = false): Note[] {
-  const theme = THEMES[planet], bar = Math.floor(step / 16) % 32, beat = step % 16;
-  const phrase = Math.floor(bar / 8), breakdown = phrase === 2, organic = planet === 'amnion';
+/** Amnion has its own instrumentation, phrasing and rhythm (its boss stem is in boss-score.ts). */
+function amnionStep(step: number): Note[] {
+  const theme = THEMES.amnion, bar = Math.floor(step / 16) % 32, beat = step % 16;
+  const phrase = Math.floor(bar / 8), breakdown = phrase === 2;
   const chord = theme.chords[Math.floor(bar / 2) % 4], root = theme.root + chord[0];
   const notes: Note[] = [];
   const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = 0, offset = 0) =>
-    notes.push({ instrument, pitch, gain, pan, wet: boss ? 0 : wet, offset });
-  const bass = theme.bass[beat], bassVoice = organic ? 'bio-bass' : 'void-bass';
-  if (boss) {
-    if (bass >= 0 || beat % 2 === 0) add(bassVoice, root - 12 + (bass >= 0 ? bass : beat % 4 === 2 ? 12 : 0), organic ? .29 : .31);
-    const kicks = organic ? [0, 2, 6, 9, 11, 14] : [0, 4, 8, 12];
-    if (kicks.includes(beat)) add(organic ? 'heart' : 'kick', 36, organic ? .34 : .27);
-    if (beat % 2 === 0 || organic && beat === 15) add(organic ? 'bone' : 'void-tick', 60,
-      beat % 4 === 0 ? .10 : .065, beat % 4 === 0 ? -.16 : .16);
-    if (bar % 8 === 7 && beat >= 13) add(organic ? 'bone' : 'void-tick', 60 + (beat - 13) * 2, .10, (beat - 14) * .18);
-    return notes;
-  }
-  if (beat === 0 && bar % 2 === 0) {
-    // Open fifth plus one uneasy colour on Amnion; Umbra leaves a clean octave and a distant upper interval.
-    chord.forEach((interval, i) => add(organic ? 'breath-pad' : 'void-air', theme.root + interval,
-      organic ? .18 : .12, (i - 1) * .22, organic ? .28 : .42));
-  }
-  if (bass >= 0 && (!breakdown || beat === 0)) add(bassVoice, root - 12 + bass, organic ? .27 : .28);
-  if (theme.kick.includes(beat) && (!breakdown || beat === 0)) {
-    // Paired, uneven heartbeats versus the precise eight-note void pulse.
-    add(organic ? 'heart' : 'kick', 36, organic ? (beat === 2 || beat === 11 ? .19 : .32) : .26);
-  }
+    notes.push({ instrument, pitch, gain, pan, wet, offset });
+  const bass = theme.bass[beat];
+  // Open fifth plus one uneasy colour.
+  if (beat === 0 && bar % 2 === 0) chord.forEach((interval, i) => add('breath-pad', theme.root + interval, .18, (i - 1) * .22, .28));
+  if (bass >= 0 && (!breakdown || beat === 0)) add('bio-bass', root - 12 + bass, .27);
+  // Paired, uneven heartbeats.
+  if (theme.kick.includes(beat) && (!breakdown || beat === 0)) add('heart', 36, beat === 2 || beat === 11 ? .19 : .32);
   if (theme.hats.includes(beat) && !breakdown && (bar > 1 || beat === 6)) {
-    add(organic ? 'bone' : 'void-tick', 60 + (organic ? bar % 3 : 0), organic ? .075 : .05,
-      beat < 8 ? -.2 : .2, organic ? .08 : .12, organic && beat % 2 ? .018 : 0);
+    add('bone', 60 + bar % 3, .075, beat < 8 ? -.2 : .2, .08, beat % 2 ? .018 : 0);
   }
   // The motif speaks, then leaves a bar of space. Phrase two answers it; the third strips back to a distant call.
   const index = phrase === 1 && bar % 2 ? (beat + 6) % 16 : beat;
   const melody = theme.melody[index];
   if (melody >= 0 && (bar % 2 === 0 || phrase === 1) && (!breakdown || beat === 0)) {
-    add(organic ? 'nerve' : 'needle', root + melody + (phrase === 3 ? -12 : 0),
-      organic ? .12 : .16, Math.sin(bar * 1.7 + beat) * .28, organic ? .24 : .48);
+    add('nerve', root + melody + (phrase === 3 ? -12 : 0), .12, Math.sin(bar * 1.7 + beat) * .28, .24);
   }
-  if (phrase === 3 && beat === 12 && bar % 2) add(organic ? 'nerve' : 'needle', root + (organic ? 13 : 24), .08, -.2, .4);
+  if (phrase === 3 && beat === 12 && bar % 2) add('nerve', root + 13, .08, -.2, .4);
+  return notes;
+}
+
+/** Corona's harp ostinato: chord-tone indices, climbing from the root in groups of 3, 3 and 2 sixteenths, twice a bar. */
+const CORONA_HARP = [0, 1, 2, 0, 1, 3, 0, 2, 0, 1, 2, 0, 1, 3, 2, 1] as const;
+const CORONA_GROUPS = [0, 3, 6, 8, 11, 14];
+/** The lament's answer in each chord's second bar: fifth, then ♭7 sinking through ♭6 back to the fifth. */
+const CORONA_ANSWER = [7, -1, -1, -1, -1, -1, 10, -1, 8, -1, -1, -1, 7, -1, -1, -1];
+
+/** Corona, Hymn for a Swollen Sun: the same 32-bar form as every world, built from its own material. The opening grows
+ * from the ostinato's group accents, the second phrase brings the drums and the lament, the breakdown thins to the
+ * drone and the accents, the return doubles the lament on low strings. */
+function coronaStep(step: number): Note[] {
+  const theme = THEMES.corona, bar = Math.floor(step / 16) % 32, beat = step % 16;
+  const phrase = Math.floor(bar / 8), breakdown = phrase === 2, full = phrase === 1 || phrase === 3;
+  const chord = theme.chords[Math.floor(bar / 2) % 4], root = theme.root + chord[0], tones = chord.map(c => c - chord[0]);
+  const notes: Note[] = [];
+  const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = 0) => notes.push({ instrument, pitch, gain, pan, wet });
+  const accent = CORONA_GROUPS.includes(beat);
+  // The solar drone: root and fifth swelling under each chord; the breakdown adds the octave as the heat rises.
+  if (step % 32 === 0) {
+    add('solar', root, .2, -.15, .35); add('solar', root + 7, .11, .2, .35);
+    if (breakdown) add('solar', root + 12, .08, 0, .45);
+  }
+  // The harp ostinato. The opening's first bars and the breakdown keep only each group's first note.
+  if (accent || !(breakdown || (phrase === 0 && bar < 4))) {
+    add('harp', root + 12 + tones[CORONA_HARP[beat]], accent ? .17 : .11, (CORONA_HARP[beat] - 1.5) * .18, .22);
+  }
+  const riff = theme.bass[beat];
+  if (riff >= 0 && (full || (phrase === 0 && bar >= 4) || beat === 0)) add('bass', root - 12 + riff, .24);
+  // Sparse, heavy drums: the 3-3-2 pulse in the full phrases, a downbeat elsewhere, and a deep tom for the backbeat.
+  if (theme.kick.includes(beat) && bar >= 2 && (full || beat === 0)) add('kick', 36, beat === 0 ? .38 : .3);
+  if (full && (beat === 8 || (phrase === 3 && beat === 14))) add('tom', 36 + ((root % 12) + 12) % 12, beat === 8 ? .2 : .13, 0, .25);
+  if (theme.hats.includes(beat) && bar >= 2 && !breakdown) add('ember', 60 + (beat % 2), beat === 11 ? .065 : .045, beat < 8 ? -.3 : .3, .1);
+  // The bowed-metal shriek marks each phrase and its middle.
+  if (beat === 0 && bar % 4 === 0) add('bowed', root + 31, .09, bar % 8 ? .35 : -.35, .5);
+  // The lament on the higher harp: the motif over each chord's first bar, its answer over the second.
+  const line = bar % 2 === 0 ? theme.melody[beat] : CORONA_ANSWER[beat];
+  if (line >= 0 && (full || (phrase === 0 && bar >= 4 && bar % 2 === 0))) {
+    add('harp-high', root + 12 + line, .2, Math.sin(step * .37) * .3, .35);
+    if (phrase === 3) add('strings', root + line, .07, 0, .3);
+  }
+  return notes;
+}
+
+/**
+ * A reversed note that must stop on sixteenth `landing`: emitted from the step `lead` sixteenths earlier, delayed within
+ * it so its hard ending falls exactly on that grid line. Null on every other step. Pure, like the rest of the score.
+ */
+export function landingNote(note: Omit<Note, 'offset'>, landing: number, step: number, bpm: number): Note | null {
+  const seconds = INSTRUMENT_SECONDS[note.instrument] / 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), sixteenth = 15 / bpm;
+  const lead = Math.ceil(seconds / sixteenth - 1e-9);
+  return landing - step === lead ? { ...note, offset: lead * sixteenth - seconds } : null;
+}
+/** Furthest a landing note can be scheduled ahead: the longest reversed sample (the boss stem's low inhale, about
+ * 4.8 s) at Umbra's tempo. */
+export const LANDING_STEPS = 32;
+
+/** The lament's answer in each chord's second bar on the forward obsidian bell: a neutral third (a quarter tone between
+ * minor and major), then the semitone above the root. */
+const UMBRA_ANSWER = [3.5, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1];
+
+/** The reversed notes of Umbra's score that stop on sixteenth `landing`. */
+function umbraLandings(landing: number): Omit<Note, 'offset'>[] {
+  const theme = THEMES.umbra, bar = Math.floor(landing / 16) % 32, beat = landing % 16, phrase = Math.floor(bar / 8);
+  const chord = theme.chords[Math.floor(bar / 2) % 4], root = theme.root + chord[0];
+  const out: Omit<Note, 'offset'>[] = [];
+  // Every bar line is breathed in: root, fifth and the chord's harmonic-series tone, swelling and stopping dead on it.
+  if (beat === 0) {
+    const gain = phrase === 2 ? .12 : .1;
+    [root + 12, root + 19, theme.root + chord[3]].forEach((pitch, i) => out.push({ instrument: 'inhale', pitch, gain, pan: (i - 1) * .35, wet: .45 }));
+  }
+  // The lament, on reversed glass: each note arrives out of its own backward ring.
+  const melody = theme.melody[beat];
+  if (bar % 2 === 0 && melody >= 0 && (phrase === 1 || phrase === 3 || (phrase === 0 && bar >= 4))) {
+    out.push({ instrument: 'glint', pitch: root + 12 + melody, gain: .2, pan: Math.sin(landing * .41) * .3, wet: .4 });
+  }
+  return out;
+}
+
+/** Umbra, Where the Light Goes Backwards. Reversed voices land on the grid; the forward obsidian bell, the void bass and
+ * the ticks keep a pulse to fly to. The opening breathes in the chords, the second phrase brings the pulse and the
+ * lament, the breakdown is a line through silence (breath, one tick, a distant toll), the return adds sixteenth ticks
+ * and doubles the lament an octave down. */
+function umbraStep(step: number): Note[] {
+  const theme = THEMES.umbra, bar = Math.floor(step / 16) % 32, beat = step % 16;
+  const phrase = Math.floor(bar / 8), breakdown = phrase === 2, full = phrase === 1 || phrase === 3;
+  const chord = theme.chords[Math.floor(bar / 2) % 4], root = theme.root + chord[0];
+  const notes: Note[] = [];
+  const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = 0) => notes.push({ instrument, pitch, gain, pan, wet });
+  for (let ahead = 1; ahead <= LANDING_STEPS; ahead++) {
+    for (const note of umbraLandings(step + ahead)) {
+      const landed = landingNote(note, step + ahead, step, theme.bpm);
+      if (landed) notes.push(landed);
+    }
+  }
+  // Where a reversed note lands, the obsidian bell strikes under it: a backward swell into a hit.
+  const melody = theme.melody[beat];
+  if (bar % 2 === 0 && melody >= 0 && (full || (phrase === 0 && bar >= 4))) add('obsidian', root + melody, .1, 0, .4);
+  const answer = UMBRA_ANSWER[beat];
+  if (bar % 2 === 1 && answer >= 0 && (full || (breakdown && beat === 0))) {
+    add('obsidian', root + 12 + answer, breakdown ? .09 : .14, beat ? .25 : -.25, .45);
+    if (phrase === 3) add('obsidian', root + answer, .08, 0, .35);
+  }
+  // The pulse: void bass on the riff, a precise kick, off-beat ticks; sixteenth ticks in the return.
+  const riff = theme.bass[beat];
+  if (riff >= 0 && (full || (phrase === 0 && bar >= 2 && beat % 4 === 0) || beat === 0)) add('void-bass', root - 12 + riff, beat % 4 === 0 ? .3 : .22);
+  if (theme.kick.includes(beat) && (full || (phrase === 0 && bar >= 4) || (breakdown && beat === 0))) add('kick', 36, .3);
+  if (theme.hats.includes(beat) && (full || (phrase === 0 && bar >= 2))) add('void-tick', 60, .055, beat < 8 ? -.2 : .2, .12);
+  else if (phrase === 3 && beat % 2 === 1) add('void-tick', 67, .025, beat < 8 ? .3 : -.3, .1);
+  if (breakdown && beat === 8) add('void-tick', 60, .05, 0, .3);
   return notes;
 }
 
