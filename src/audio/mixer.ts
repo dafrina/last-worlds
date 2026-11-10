@@ -250,7 +250,8 @@ export class AudioMixer {
     const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), note.gain, note.pan,
       boss ? 'boss' : 'music', priority, note.wet, note.skip ?? 0);
     if (!played || !boss) return;
-    if (note.bed !== undefined) this.setBed(note.bed, start);
+    // Only while a fight is on: the stem's fade-out bar must not lower the level score again after the kill.
+    if (note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);
     if (note.pump) this.pump(start, note.pump);
   }
   stopGroup(group: 'music' | 'effects') {

@@ -50,7 +50,6 @@ test('audio unlocks on launch, pauses silently, resumes, and remembers separate 
 
 
 const WORLDS: PlanetId[] = ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'corona', 'umbra'];
-const lab = () => (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__;
 type Metrics = Awaited<ReturnType<typeof renderTimeline>>['metrics'];
 const sound = (m: Metrics, name: string) => {
   expect(m.peak, name).toBeLessThan(.98);
@@ -68,7 +67,7 @@ test('seven real offline mixes and a crowded combat mix have headroom and surviv
   const signatures = [];
   for (const planet of WORLDS) {
     const metrics = await page.evaluate(async planet =>
-      (await lab().renderTimeline({ planet, bars: 6, startStep: 128, combat: planet === 'nacre' })).metrics, planet);
+      (await (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__.renderTimeline({ planet, bars: 6, startStep: 128, combat: planet === 'nacre' })).metrics, planet);
     sound(metrics, planet);
     expect(metrics.rms, planet).toBeGreaterThan(.015);
     expect(metrics.sampleBytes, planet).toBeLessThan(12 * 1024 * 1024);
@@ -81,7 +80,7 @@ test('submix silence and hard voice limits are enforced in the actual Web Audio 
   await page.goto('/tests/fixtures/audio-lab.html');
   await page.waitForFunction(() => '__AUDIO_LAB__' in window);
   const results = await page.evaluate(async () => {
-    const { AudioMixer } = lab();
+    const { AudioMixer } = (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__;
     const checks = [];
     for (const muted of [true, false]) {
       const ctx = new OfflineAudioContext(2, 44100, 44100);
@@ -119,11 +118,11 @@ test('submix silence and hard voice limits are enforced in the actual Web Audio 
 test('boss phases change the arrangement on the running score\'s grid, survive pause, and clear for the next run', async ({ page }) => {
   await page.goto('/tests/fixtures/audio-lab.html');
   await page.getByRole('button', { name: 'Play Nacre', exact: true }).click();
-  const liveStatus = () => page.evaluate(() => lab().live.diagnostics());
+  const liveStatus = () => page.evaluate(() => (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__.live.diagnostics());
   await expect.poll(async () => (await liveStatus()).scoreStep).toBeGreaterThan(3);
   // Each phase is observed while the score runs: the clock never moves, the change lands on its grid line ahead.
   const observe = (phase: 'arrival' | 'core' | 'overload' | 'destroyed') => page.evaluate(phase => {
-    const { live, run, startBoss } = lab();
+    const { live, run, startBoss } = (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__;
     const before = live.diagnostics();
     if (phase === 'arrival') startBoss(run); else run.boss!.phase = phase;
     live.observe(run);
@@ -144,7 +143,7 @@ test('boss phases change the arrangement on the running score\'s grid, survive p
   }
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect.poll(async () => (await liveStatus()).rms).toBeLessThan(.0001);
-  await page.evaluate(() => lab().live.resume());
+  await page.evaluate(() => (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__.live.resume());
   await expect.poll(async () => (await liveStatus()).rms).toBeGreaterThan(.001);
   expect(await liveStatus()).toMatchObject({ bossTarget: 1, bossStage: 3 });
   const defeat = await observe('destroyed');
@@ -152,7 +151,7 @@ test('boss phases change the arrangement on the running score\'s grid, survive p
   expect(defeat.after.nextBeatAt).toBe(defeat.before.nextBeatAt);
   expect(defeat.after.bossStage).toBe(0);
   expect(defeat.after.bossMix).toBeGreaterThan(.9);
-  await expect.poll(async () => page.evaluate(() => { const { live, run } = lab(); live.observe(run); return live.diagnostics().bossMix; })).toBe(0);
+  await expect.poll(async () => page.evaluate(() => { const { live, run } = (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__; live.observe(run); return live.diagnostics().bossMix; })).toBe(0);
   await page.getByRole('button', { name: 'Enter boss fight' }).click();
   await page.getByRole('button', { name: 'Play Nacre', exact: true }).click();
   expect(await liveStatus()).toMatchObject({ bossStage: 0, playingStage: 0, bossTarget: 0, bossMix: 0 });
@@ -164,7 +163,7 @@ test('every world\'s boss stages grow in the rendered stem, and the level score 
   await page.waitForFunction(() => '__AUDIO_LAB__' in window);
   for (const planet of WORLDS) {
     const mixes = await page.evaluate(async planet => {
-      const { renderTimeline } = lab();
+      const { renderTimeline } = (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__;
       const steady = (phase: 'batteries' | 'core' | 'overload', stemOnly: boolean) =>
         renderTimeline({ planet, bars: 8, startStep: 128, stemOnly, phases: [{ bar: 0, phase, immediate: true }] }).then(r => r.metrics);
       const stems = [await steady('batteries', true), await steady('core', true), await steady('overload', true)];
