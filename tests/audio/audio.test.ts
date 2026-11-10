@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { SoundObserver } from '../../src/audio/events';
 import { sanitizeSettings } from '../../src/audio/engine';
 import { synthesize, SAMPLE_IDS } from '../../src/audio/samples';
-import { ScoreClock, bossStep, scoreStep, THEMES } from '../../src/audio/score';
+import { ScoreClock, scoreStep, THEMES } from '../../src/audio/score';
+import { bossStep } from '../../src/audio/boss-score';
 import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, type PlanetId } from '../../src/shared/contracts';
 
@@ -63,9 +64,9 @@ describe('authored music and bounded scheduler', () => {
     const signatures = [];
     for (const planet of Object.keys(THEMES) as PlanetId[]) {
       const normal = Array.from({ length: 512 }, (_, s) => scoreStep(planet, s));
-      const stem = Array.from({ length: 512 }, (_, s) => bossStep(planet, s));
+      const stem = Array.from({ length: 512 }, (_, s) => bossStep(planet, s, 2));
       expect(stem.flat().length).toBeGreaterThan(400);
-      expect(stem.flat().every(n => n.wet === 0 && !['pad', 'bloom-pad', 'piano', 'glass', 'saw-lead'].includes(n.instrument))).toBe(true);
+      expect(stem.flat().every(n => !['pad', 'bloom-pad', 'piano', 'glass', 'saw-lead', 'harp-high', 'solar'].includes(n.instrument))).toBe(true);
       expect(normal.slice(0, 128)).not.toEqual(normal.slice(128, 256));
       expect(normal.slice(256, 384).flat().length).toBeLessThan(normal.slice(128, 256).flat().length);
       expect(normal.flat().every(n => Number.isFinite(n.pitch) && n.gain > 0 && n.gain <= .5)).toBe(true);
@@ -73,20 +74,7 @@ describe('authored music and bounded scheduler', () => {
     }
     expect(new Set(signatures).size).toBe(Object.keys(THEMES).length);
   });
-  it('keeps added bass on the level riff and harmony across every chord and phrase', () => {
-    for (const planet of Object.keys(THEMES) as PlanetId[]) {
-      const theme = THEMES[planet];
-      for (let step = 0; step < 512; step++) {
-        const root = theme.root - 12 + theme.chords[Math.floor(step / 32) % 4][0];
-        const riff = theme.bass[step % 16];
-        const bass = bossStep(planet, step).filter(n => n.instrument.endsWith('bass'));
-        for (const n of bass) {
-          expect(n.pitch - root).toBe(riff >= 0 ? riff : step % 4 === 2 ? 12 : 0);
-          expect(n.pan).toBe(0);
-        }
-      }
-    }
-  });
+  // Boss stem harmony, stages and transitions: tests/audio/boss-music.test.ts.
   it('schedules ahead, never duplicates notes, and drops missed beats after a stall', () => {
     const clock = new ScoreClock(); clock.reset(.035);
     expect(clock.take(0, 'nacre').map(x => x.step)).toEqual([0]);
@@ -118,5 +106,6 @@ it('all original samples are finite, have headroom and click-free edges', () => 
     expect(Math.sqrt(squares / pcm.length), id).toBeGreaterThan(.005);
     expect(Math.abs(pcm[0]) + Math.abs(pcm.at(-1)!), id).toBeLessThan(.003);
   }
-  expect(bytes).toBeLessThan(9 * 1024 * 1024);
+  // 8.9 MiB before the 10 November boss and recomposed-world instruments.
+  expect(bytes).toBeLessThan(12 * 1024 * 1024);
 });
