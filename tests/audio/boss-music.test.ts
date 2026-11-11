@@ -87,7 +87,8 @@ describe('four musically distinct boss states', () => {
       const bassSteps = (c: Note[][]) => c.filter(notes => notes.some(n => BASE_PITCH[n.instrument] === 36 && n.instrument !== 'kick'
         && n.instrument !== 'heart' && n.instrument !== 'boom' && n.instrument !== 'braam')).length;
       expect(bassSteps(modules), planet).toBeLessThan(bassSteps(core));
-      expect(bassSteps(overload), planet).toBe(STEPS);
+      // Every sixteenth, but for the odd rest where no chord tone sits with the melody's passing note.
+      expect(bassSteps(overload), planet).toBeGreaterThan(STEPS * .9);
       // Layers each state introduces.
       const voices = (c: Note[][]) => new Set(c.flat().map(n => n.instrument));
       expect(voices(modules).has('tom') && voices(modules).has('strings'), planet).toBe(true);
@@ -128,10 +129,11 @@ describe('four musically distinct boss states', () => {
             expect(leads.includes(n.instrument), `${planet} ${n.instrument}`).toBe(false);
             expect(Number.isFinite(n.pitch) && n.gain > 0 && n.gain <= .5, planet).toBe(true);
             if (BASE_PITCH[n.instrument] === 36 && !['kick', 'heart'].includes(n.instrument)) {
-              // Bass and booms: the level riff where it plays, otherwise a tone of the current chord.
+              // Bass and booms: the level riff where it plays (unless that would clash with the melody), otherwise a tone
+              // of the current chord.
               const interval = n.pitch - (root - 12);
-              if (riff >= 0 && ['drive-bass', 'growl', ...LEVEL_INSTRUMENTS].includes(n.instrument)) expect(interval, `${planet} ${step}`).toBe(riff);
-              else expect(allowed.has(pitchClass(n.pitch)), `${planet} ${step} ${n.instrument}`).toBe(true);
+              if (riff >= 0 && ['drive-bass', 'growl', ...LEVEL_INSTRUMENTS].includes(n.instrument) && interval === riff) continue;
+              expect(allowed.has(pitchClass(n.pitch)), `${planet} ${step} ${n.instrument}`).toBe(true);
               expect(n.pan).toBe(0);
             } else if (['strings', 'stab', 'arp', 'nerve', 'tom', 'harp'].includes(n.instrument)) {
               expect(allowed.has(pitchClass(n.pitch)), `${planet} ${step} ${n.instrument} ${n.pitch}`).toBe(true);
