@@ -125,7 +125,15 @@ The user: "can you add a third target on the eclipse (umbra boss) that we have t
   - the boss asset test (`tests/world/cinematic-assets.test.ts`), with the prow vent's rays;
   - the fairness table (`tests/sim/fairness.test.ts`);
   - the fight's seed sweep, off by default (`tests/sim/eclipse-report.test.ts`).
-- **Music:** *A Line Through Silence*, 90 BPM: clean struck-glass needles, pure-tone air and a precise low pulse. Original 32-bar arrangement with a synchronized bass/rhythm boss layer; see [sound design](24-sound-design.md).
+- **Music (recomposed 10 November):** *Where the Light Goes Backwards*, 84 BPM on F#. The user asked for Umbra to be "very ominous too, with reversed instruments and alien harmonics". It replaces *A Line Through Silence* (90 BPM: struck-glass needles, pure-tone air).
+  - **Harmony:** F#, G, C and F, two bars each: a semitone up, the tritone and the semitone under the root. Each chord adds one harmonic-series tone off the twelve-note grid: the 11th and 7th harmonics, and pure 5/4 and 6/5 thirds.
+  - **Reversed voices:** inhaled chords and reversed glass, synthesized with backwards envelopes, swell in and stop dead on the grid. A dark inharmonic obsidian bell answers them.
+  - **Pulse:** the void bass, a precise kick and ticks keep a pulse to fly to.
+  - **Form:** the breakdown is a line through silence: breath, one tick a bar and a distant toll.
+  - **Boss:** the same four states as every world, orchestral since 11 November, with a precise half-time pulse and void ticks. Umbra's adds inhaled chords that stop on the stem's chord changes and bar lines, and in overload reversed glass sucking into every beat.
+  - **11 November:** the melody's second note is now a three-quarter-tone step above the octave and its last a quarter-tone-flat fifth (the ♭9 that stood second read as a clash), and the inhaled chords give way where they would grind against the lament.
+  - **Frozen (phase 4):** the user loves it ("i love love love the umbra sound"). Its score and every sample it plays are pinned by a test. It keeps its own kick while the other worlds moved to snappier ones, and has no sidechain. Only its boss stem gained the fights' kick and a light sidechain.
+  - **Details:** [sound design](24-sound-design.md), 10 and 11 November revisions.
 
 ## Milestones
 
@@ -137,7 +145,7 @@ The user: "can you add a third target on the eclipse (umbra boss) that we have t
    - the crescent dock.
 3. **The Umbral fleet:** done (`umbra-craft.glb`, seven ships). Each kind flies its own ship, and THE ECLIPSE's drones use the drone (`UMBRA_CRAFT` in `src/render/scene.ts`). The `umbra_obsidian` material class is glossy, roughness 0.12 and no metal.
 4. **THE ECLIPSE:** done (`the-eclipse-v1-approved.glb`; v2 adds the prow vent, 31 October). It is in the boss asset test (rig, budget, rays).
-5. **Music:** implemented 25 October, level and boss layers.
+5. **Music:** implemented 25 October, level and boss layers; recomposed 10 November (reversed voices, harmonic-series tones, four boss states).
 6. **Endless:** Umbra joins the planet cycle later.
 
 ## Plains crack revision · 27 October 2026

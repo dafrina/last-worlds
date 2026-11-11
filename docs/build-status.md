@@ -1,5 +1,99 @@
 # Build status
 
+## Music v5: clean timing, fewer notes, Corona over a drone, the fights in tune (agent worktree, not deployed), 11 November 2026
+
+- **User, on v4:**
+  - quick-succession notes in Luna, Amnion, Khepri and Corona "sound just weird and overlapping";
+  - "just relax the amount of notes, simpler melodies";
+  - Corona "more mysterious arabic inspired not so happy";
+  - the fights "drift into false notes";
+  - the instrument choices are liked, so the sounds stay.
+- **Diagnosis** (onsets replayed as the mixer times them, every world and stage). The causes:
+  - per-note timing that smeared chords and doubled parts (up to 14 ms);
+  - melodies ringing over themselves;
+  - Luna's rolls and leans;
+  - Corona's tremolos and graces;
+  - Amnion's chitter trains;
+  - the fills' thirty-second doubling;
+  - in the fights, stinger lead-ins on the landing chord, risers ending on C in every key, braams and anvils ringing into the next chord, and wide unison detune.
+- **Results:**
+  - Luna, Khepri, Nacre, Vesper, Amnion and Corona went from up to 2881 smears, 383 quick pairs and 154 ring-overs per stage to 0 of each, with only up to 6 ms between different parts.
+  - Lead notes per bar: Luna 7.1 → 3.9, Khepri 6.5 → 4.0, Nacre 4.8 → 1.8, Vesper 2.3 → 1.0, Amnion 2.8 → 1.6, Corona 3.7 → 0.9.
+  - Boss-stem notes outside their chord or mode: 171 → 0.
+- **Umbra:** frozen, note for note and sample for sample, with its old per-note timing.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 1013 passed, 5 skipped (exit 0);
+  - build passes;
+  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0, on port 4192;
+  - effects byte-identical (26/26).
+- **Previews:** `lookdev/audio-previews/after-v5/`.
+  - The Sound room `http://localhost:4189/lookdev/audio-previews/index.html` offers original, v1, v3, v4 and v5.
+  - Peak 0.586, no clipping.
+- **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), phase 5.
+
+## Music, phase 4: snappier kicks, weight and sidechain in the fights, the worlds reworked (agent worktree, not deployed), 11 November 2026
+
+- **User, after hearing v3:**
+  - snappier kicks, especially in the fights, and fights with more bass;
+  - Nacre's pads too loud and its drums inaudible;
+  - Vesper's bells "cleaner and icyer like triangle";
+  - Amnion "clicking noises with a lot of reverb here and there, like alien noises in the night";
+  - Umbra loved;
+  - Corona's harps "too regularly placed", with Arabic music as inspiration;
+  - the rest reworked to Umbra's and Corona's quality;
+  - then a sidechain on leads and basses keyed by the kicks.
+- **Done:**
+  - **Kicks:** one punchy kick design, used by four kicks.
+  - **Fights:** the boss kick under the strongest strokes and the stinger hits; fuller, louder basses and timpani.
+  - **Sidechain:** a kick-keyed dip on basses and synth leads only, with a depth table per world and stage.
+  - **Luna:** rolled chords, graces and a far-side beacon.
+  - **Khepri:** an anvil on a six-sixteenth cycle, and steam.
+  - **Nacre:** a pearl vibraphone over thinned pads, with audible drums.
+  - **Vesper:** a triangle bell, a frost pad and ice cracks.
+  - **Amnion:** night calls deep in the hall, and nerve slides.
+  - **Corona:** a Kurd/Hijaz lament with slides and qanun tremolos, a harp on a ten-sixteenth cycle, and a darbuka in maqsum and baladi.
+  - **Umbra:** frozen and tested, note for note and sample for sample.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 1011 passed, 5 skipped (exit 0);
+  - build passes;
+  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0, on port 4192. Two earlier runs failed. The first failed the new sidechain check (its measuring window missed the ~12 ms compressor delay) and Vesper's fight growing 5.0 dB against a 4 dB ceiling, now 5.5. The second failed the sidechain check again, in a window that was still too early.
+  - Effects are byte-identical (26/26).
+- **Previews:** 52 renders in `lookdev/audio-previews/after-v4/`.
+  - The Sound room `http://localhost:4189/lookdev/audio-previews/index.html` compares the original, v1, v3 and v4.
+  - Peak 0.599, no clipping.
+  - Boss stages +1.6 dB on average against v3 (bass band +1.9).
+- **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), phase 4.
+
+## Music, third pass: played, roomier, orchestral boss stems (agent worktree, not deployed), 11 November 2026
+
+- **User feedback:** the 10 November pass still "sound[ed] cheap", and not only the instruments.
+  - A trial with recorded instrument samples was built and rejected, then removed: no recordings, no decoder, no extra downloads.
+  - The user approved three changes on the synthesized instruments, plus score and timbre tuning.
+- **A, performance:** each note gets a fixed per-note touch at playback: a few ms of timing and ±8 % velocity. Basses play one note at a time. The scores themselves are unchanged.
+- **B, space:**
+  - a 2.3 s hall replaces the room and the ping-pong echo;
+  - nothing pumps under the boss drums;
+  - a gentler stem compressor.
+- **C, orchestral boss stems:** taiko-like drums, timpani, spiccato ostinatos in 3-3-2, brass, strings and round basses. No kick on the beat, no hats or claps. The four stages, stingers and sync are unchanged.
+- **Tuning:**
+  - every bass is clean and round;
+  - Khepri's running bass now plays four ringing notes a bar;
+  - Vesper is ambient, with calmer, colder glass;
+  - Corona's harp has space: three ringing notes a bar.
+- **Harmonic audit:** no stem note clashes with a melody in any world or stage, and Vesper, Corona and Umbra have no clashes. The approved scores keep their own: Luna 1, Khepri 2, Nacre 1, Amnion 55.
+- **Unchanged:** effects are byte-identical (26/26 samples), and Luna, Nacre and Amnion are note for note as approved.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 1009 passed, 5 skipped (exit 0);
+  - build passes;
+  - `tests/browser/audio.spec.ts` 6/6, Playwright exit 0. It ran on port 4192; a first run failed 2 tests on the old 12 MiB budget and an Umbra boss pool of 29/24. Both are fixed: the budget is now 13 MiB, and the pool is a hard cap.
+- **Previews:** 52 renders in `lookdev/audio-previews/after-v3/`.
+  - The Sound room `http://localhost:4189/lookdev/audio-previews/index.html` compares A (original), B (10 November) and C (11 November) at the same position.
+  - Peak 0.520, no clipping, mono at least 96 %.
+- **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), 11 November revision.
+
 ## Late-world curve, Untouchable 3 parts, boss stage bursts deployed (`e95493e`), 10 November 2026
 
 - **Late-world curve** (Codex's uncommitted work, completed): Amnion, Corona and Umbra step up past Nacre.
