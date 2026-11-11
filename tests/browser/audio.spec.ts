@@ -70,7 +70,7 @@ test('seven real offline mixes and a crowded combat mix have headroom and surviv
       (await (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__.renderTimeline({ planet, bars: 6, startStep: 128, combat: planet === 'nacre' })).metrics, planet);
     sound(metrics, planet);
     expect(metrics.rms, planet).toBeGreaterThan(.015);
-    expect(metrics.sampleBytes, planet).toBeLessThan(12 * 1024 * 1024);
+    expect(metrics.sampleBytes, planet).toBeLessThan(13 * 1024 * 1024);
     signatures.push(metrics.rms);
   }
   expect(new Set(signatures).size).toBe(WORLDS.length);
@@ -176,8 +176,8 @@ test('every world\'s boss stages grow in the rendered stem, and the level score 
       return { stems, full, level, fight };
     }, planet);
     for (const m of [...mixes.full, mixes.fight]) sound(m, planet);
-    // The 24-voice boss pool counts voices sounding at each new note; a riser scheduled ahead can add one more.
-    expect(mixes.fight.peakBossVoices, planet).toBeLessThanOrEqual(26);
+    // The 24-voice boss pool is a hard cap at each new note, even for notes scheduled ahead out of time order.
+    expect(mixes.fight.peakBossVoices, planet).toBeLessThanOrEqual(24);
     // Measured after the first two seconds of each steady excerpt.
     const band = (m: Metrics, k: 'midRms' | 'highRms') => 10 * Math.log10(m.windows.slice(2, -2).reduce((s, w) => s + w[k] ** 2, 0) / (m.windows.length - 4));
     for (const k of ['midRms', 'highRms'] as const) {

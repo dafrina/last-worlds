@@ -205,12 +205,15 @@ export class AudioMixer {
     const fader = group === 'effects' ? this.settings.effects : this.settings.music;
     if (!this.active || this.settings.muted || fader === 0) return false;
     this.voices.filter(v => v.end <= this.context.currentTime).forEach(v => this.release(v));
+    // Notes scheduled ahead (Umbra's reversed voices, risers) can arrive out of time order, so a pool may already hold
+    // more than its cap at this moment: steal until there is room, lowest priority and earliest end first.
     const pool = this.voices.filter(v => v.group === group && v.end > at);
-    if (pool.length >= VOICE_LIMITS[group]) {
+    while (pool.length >= VOICE_LIMITS[group]) {
       const victim = pool.reduce((a, b) => a.priority < b.priority || (a.priority === b.priority && a.end < b.end) ? a : b);
       if (victim.priority > priority) { this.dropped++; return false; }
       this.stopVoice(victim, at);
       this.voices.splice(this.voices.indexOf(victim), 1);
+      pool.splice(pool.indexOf(victim), 1);
     }
     // A centred voice skips its panner (performance, 31 October: most score notes are centred and each node costs):
     // an equal-power panner at 0 sends a mono sample to both channels at √½, which the voice gain applies instead.
