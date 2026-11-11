@@ -27,6 +27,8 @@ import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
 import { observe, observeKill } from './events';
 import { retain } from '../shared/retain';
+import { canAttack, isVisible } from './view';
+import { updateDrift } from './drift';
 
 const DEG = Math.PI / 180;
 const MUZZLE = 0.55;
@@ -78,6 +80,8 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updateDirector(state);
   updateShieldSupplies(state, previousTime);
   updateHunters(state, dt);
+  // Squadrons beside the view slide toward it while too few craft in view can attack (src/sim/drift.ts).
+  updateDrift(state, dt);
   updateEnemies(state, dt);
   updateBoss(state, dt);
   if (state.phase !== 'playing') return;
@@ -272,7 +276,7 @@ function leadGround(state: RunState, cue: EncounterCue): void {
   // The whole cue must be admitted as it will fly: the ground formations from now, further along their track, and the
   // rest of it from its time.
   if (!admits(state, cue, scale, placement => isGround(placement) ? { age, delay: 0 } : { age: 0, delay: early })) return;
-  for (const placement of ground) spawnMembers(state, placement.formation, resolveAnchor(state, placement), placement.mirror ? -1 : 1, undefined, scale, age);
+  for (const placement of ground) spawnMembers(state, placement.formation, resolveAnchor(state, placement), placement.mirror ? -1 : 1, undefined, scale, age, placement.anchor === 'world');
   state.groundLead = { sector: state.sector, index: state.encounterIndex };
 }
 
@@ -291,7 +295,7 @@ function spawnCue(state: RunState, cue: EncounterCue, scale: DifficultyScale): v
 
 /** Spawns every member flying at this rank. View anchors resolve to the camera, clamped inside the map. */
 export function spawnFormation(state: RunState, placement: FormationPlacement, scale: DifficultyScale = scales(state)): void {
-  spawnMembers(state, placement.formation, resolveAnchor(state, placement), placement.mirror ? -1 : 1, undefined, scale);
+  spawnMembers(state, placement.formation, resolveAnchor(state, placement), placement.mirror ? -1 : 1, undefined, scale, 0, placement.anchor === 'world');
 }
 
 function updateShieldSupplies(state: RunState, previousTime: number): void {
@@ -327,17 +331,8 @@ function scales(state: RunState) {
   return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
 }
 
-export function isVisible(state: RunState, x: number, s: number, margin = 0): boolean {
-  return Math.abs(x - state.cameraX) <= VIEW.width / 2 - margin && s >= VIEW.minS + margin && s <= VIEW.maxS - margin;
-}
-
-/** Fully visible and above the attack floor. Windups that lose visibility are cancelled and restart in full. */
 /** How fast a craft that broke off for a boss flies out of frame (units per second), and how far past the logical view it goes. */
 const LEAVE_SPEED = 11, LEAVE_MARGIN = 6;
-
-function canAttack(state: RunState, enemy: Enemy): boolean {
-  return enemy.hp > 0 && enemy.s > 3.5 && isVisible(state, enemy.x, enemy.s, enemy.radius + 0.2);
-}
 
 function updateEnemies(state: RunState, dt: number): void {
   const scale = scales(state);

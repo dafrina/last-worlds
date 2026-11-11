@@ -45,7 +45,8 @@ export function memberPosition(member: FormationMember, age: number): { x: numbe
     const offset = template.sway.amp * Math.sin(2 * Math.PI * t / template.sway.period);
     if (template.sway.axis === 'x') swayX = offset; else swayS = offset;
   }
-  const x = member.anchorX + side * (point.x + slot.dx + swayX);
+  // A squadron pulled toward the view (src/sim/drift.ts) keeps its shape: the whole anchor carries the offset.
+  const x = member.anchorX + (member.drift?.x ?? 0) + side * (point.x + slot.dx + swayX);
   // Persisting pods must always be reachable by straight main guns, even at a far-side bay.
   const atS = point.s + (slot.ds ?? 0) + swayS + (member.anchorS ?? 0);
   if (member.template !== 'veil-pods') return { x, s: atS };

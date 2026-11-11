@@ -24,7 +24,9 @@ export function bossShotScale(state: RunState): number {
  */
 export function spawnMembers(state: RunState, formation: FormationId, anchorX: number, mirror: 1 | -1, anchorS?: number, scale: DifficultyScale = runScale(state),
   /** Starting age: negative for a ground formation spawned ahead of its authored time (further along its track). */
-  age = 0): void {
+  age = 0,
+  /** A world-anchored placement (optional side route or strike site): never pulled toward the view (src/sim/drift.ts). */
+  pinned = false): void {
   const template = FORMATIONS[formation];
   const group = state.nextId;
   const world = WORLD_INTENSITY[state.planet];
@@ -42,7 +44,7 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   }
   template.slots.forEach((slot, index) => {
     if (!slotFlies(slot, scale.rank)) return;
-    const member: FormationMember = { template: template.id, slot: index, anchorX, mirror, group, ...(anchorS !== undefined ? { anchorS } : {}) };
+    const member: FormationMember = { template: template.id, slot: index, anchorX, mirror, group, ...(anchorS !== undefined ? { anchorS } : {}), ...(pinned ? { pinned: true as const } : {}) };
     const at = memberPosition(member, age);
     const hp = (core?.hp ?? ENEMIES[slot.kind].hp) * scale.hp * (core || slot.kind === 'fuel' ? 1 : world.hp);
     const enemy = {

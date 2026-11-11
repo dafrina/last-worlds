@@ -111,6 +111,21 @@ export function kinematics(pace: number): Kinematics {
  */
 export const AIRSPACE = { separation: 2.2, bandGap: 1, horizon: 14, step: 0.1, predictionMargin: 0.35 } as const;
 
+/**
+ * The pull toward the view (docs/10 §4–5; user, 11 November: "there should be possibilities to retreat but there should
+ * always be 1-2 enemies on screen"). When fewer than `floor` hostile air craft in view can attack, the nearest air squadron
+ * with members beside the view slides sideways toward it, shape and authored path unchanged, until `engaged` can. A boss
+ * none of whose live targets has been in view for `patience` seconds lumbers toward the view until one is, and eases back
+ * toward its arrival point whenever a target would be in view there. Speeds are units/s at pace 1 (they scale with the
+ * pace, like the ship's), acceleration and braking units/s². The ship's top speed is 12, so a pilot can still pull away.
+ */
+export const DRIFT = {
+  floor: 1,
+  engaged: 2,
+  squadron: { speed: 4.5, acceleration: 12, braking: 18 },
+  boss: { speed: 2.5, acceleration: 4, braking: 8, patience: 2 },
+} as const;
+
 export interface DifficultyScale {
   lives: number;
   /** Enemy HP multiplier. */

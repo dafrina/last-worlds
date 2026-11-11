@@ -2,7 +2,8 @@ import { BASTION } from '../content/bastion';
 import { REWARDS } from '../content/equipment';
 import { departure } from '../content/departure';
 import { showsHints } from '../content/missions';
-import { BALANCE, CAMPAIGN_SCROLL, FAIRNESS } from '../content/balance';
+import { BALANCE, CAMPAIGN_SCROLL, DRIFT, FAIRNESS } from '../content/balance';
+import { approach, clamp } from './geometry';
 import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, bossParts, missionBoss, phaseOneParts, type BossDefinition } from '../content/bosses';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
@@ -217,6 +218,52 @@ function visible(state: RunState, enemy: Enemy) {
     && enemy.s > 3.5 && enemy.s + enemy.radius < VIEW.maxS;
 }
 
+/** How far a boss's post may be pulled off the map's centre: the camera's own range, so the view can always centre on it. */
+const POST_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
+
+/**
+ * The boss pull (docs/10 §5; user, 11 November: a boss could be evaded "endlessly by moving out of frame so that his shooting
+ * origin is out of frame"). Once none of its live targets has been in view for DRIFT.boss.patience seconds, its post
+ * (`originX`, around which it sways) lumbers sideways toward the view at DRIFT.boss speed, until one is. The pilot can still
+ * retreat to a far edge for a moment; it cannot park there for good. Whenever a target would be in view with the post back
+ * at its arrival point (the pilot has come back toward the middle), the post eases home, so in an ordinary fight a boss keeps
+ * to its clearing. Only lateral: the boss keeps its row and facing (its back and underside stay unseen). It never moves
+ * while it winds up an attack, holds still for its own lanes or has a lane marked, so every admitted footprint stays where
+ * it was forecast (the forecast reads the post through bossPose).
+ */
+function pullBoss(state: RunState, boss: NonNullable<RunState['boss']>, dt: number): void {
+  const fighting = boss.phase === 'batteries' || boss.phase === 'core' || boss.phase === 'overload';
+  const targets = fighting ? state.enemies.filter(enemy => enemy.bossPart && enemy.hp > 0 && enemy.damageable) : [];
+  // How long the view has held none of its live targets.
+  if (!targets.length || targets.some(enemy => visible(state, enemy))) boss.hiddenSince = undefined;
+  else boss.hiddenSince ??= state.time;
+  if (!fighting || boss.attack || state.time < (boss.holdUntil ?? 0) || state.hazards.some(hazard => hazard.source === undefined)) { boss.driftVx = 0; return; }
+  const { speed, acceleration, braking, patience } = DRIFT.boss;
+  let goal = 0;
+  // A target would be in view with the post at home (x 0): ease back there.
+  const home = boss.originX !== 0 && targets.some(enemy => visible(state, { ...enemy, x: enemy.x - boss.originX }));
+  if (home) goal = -Math.sign(boss.originX) * speed * state.pace;
+  // It waits before it first leaves home (a target out of view for a moment in an ordinary fight moves nothing); once on
+  // its way it follows at once, so its sway cannot hide its target again for another wait.
+  else if (boss.hiddenSince !== undefined && (boss.originX !== 0 || state.time - boss.hiddenSince + 1e-9 >= patience)) {
+    // Toward the view from the target nearest to it (sideways): a target merely above or below the view needs no pull.
+    let nearest = Infinity;
+    for (const enemy of targets) {
+      const gap = Math.abs(enemy.x - state.cameraX) - (VIEW.width / 2 - enemy.radius - .2);
+      if (gap > 0 && gap < nearest) { nearest = gap; goal = Math.sign(state.cameraX - enemy.x) * speed * state.pace; }
+    }
+  }
+  const vx = boss.driftVx ?? 0;
+  if (goal === 0 && vx === 0) return;
+  const speeding = goal !== 0 && (vx === 0 || Math.sign(goal) === Math.sign(vx));
+  const next = approach(vx, goal, (speeding ? acceleration : braking) * dt);
+  let origin = clamp(boss.originX + next * dt, -POST_LIMIT, POST_LIMIT);
+  // Home is a stop, not a pass: it never sways past its arrival point on the way back.
+  if (home && Math.sign(origin) !== Math.sign(boss.originX)) origin = 0;
+  boss.driftVx = origin === boss.originX + next * dt ? next : 0;
+  boss.originX = origin;
+}
+
 /** Overload lanes for an attack index: even indices mark the core column, odd ones both side-module columns. */
 export function overloadLanes(bossX: number, index: number, def: BossDefinition = BOSSES.bastion): { x: number; width: number }[] {
   const lanes = def.overload;
@@ -277,6 +324,7 @@ export function updateBoss(state: RunState, dt: number): void {
     // Authored maneuvering on the static arena: a bounded lateral sway and a forward/back surge. The full
     // wide map stays traversable; there is no camera cage. It holds still while its own lanes charge and fire.
     if (boss.phase !== 'arrival' && state.time < (boss.holdUntil ?? 0)) boss.heldFor = (boss.heldFor ?? 0) + dt;
+    pullBoss(state, boss, dt);
     const pose = bossPose(boss, state.time);
     boss.x = pose.x;
     boss.s = pose.s;
