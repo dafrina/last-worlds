@@ -1,6 +1,6 @@
 import type { BossState, PlanetId } from '../shared/contracts';
 import { INSTRUMENT_SECONDS, type Instrument } from './instruments';
-import { consonantWith, soundingSteps, UNPITCHED } from './harmony';
+import { consonantWith, REVERSED, soundingSteps, steady, UNPITCHED } from './harmony';
 import { kickDuck, LANDING_STEPS, landingNote, SIDECHAIN, THEMES, type Note } from './score';
 
 /**
@@ -56,7 +56,7 @@ const KITS: Record<PlanetId, Kit> = {
   // The foundry: its tuned anvil on the off-beats, the heaviest drums.
   khepri: { drum: 'taiko', hits: [[0, 7, 10], [0, 3, 6, 8, 11], [0, 3, 6, 8, 10, 11, 14]], snare: 'snare',
     dark: 'foundry-bass', drive: 'drive-bass', growl: 'growl',
-    colour: { instrument: 'anvil', steps: [[3, 11], [7, 15], [3, 7, 11, 15]] }, weight: 1.1, lift: 12 },
+    colour: { instrument: 'anvil', steps: [[11], [7, 15], [3, 11]] }, weight: 1.1, lift: 12 },
   // Soft bloom: brushes, the round bass, light drums.
   nacre: { drum: 'taiko', hits: [[0, 11], [0, 6, 8, 11], [0, 3, 6, 8, 11, 14]], snare: 'brush',
     dark: 'round-bass', drive: 'round-bass', growl: 'drive-bass', weight: .7, lift: 12 },
@@ -75,7 +75,7 @@ const KITS: Record<PlanetId, Kit> = {
   // into the grid (see `reversed`).
   umbra: { drum: 'taiko', hits: [[0, 8], [0, 6, 8, 14], [0, 3, 6, 8, 10, 12, 14]], snare: 'snare',
     dark: 'void-bass', drive: 'void-bass', growl: 'drive-bass',
-    colour: { instrument: 'void-tick', steps: [[4, 12], [2, 6, 10, 14], [2, 5, 6, 10, 13, 14]] }, half: true, weight: .9, lift: 24, reversed: true },
+    colour: { instrument: 'void-tick', steps: [[4, 12], [4, 12], [4, 8, 12]] }, half: true, weight: .9, lift: 24, reversed: true },
 };
 
 /** Priorities inside the boss voice pool: stingers, then drums and bass, sustained strings, the ostinato, ticks. */
@@ -106,8 +106,14 @@ function writer(planet: PlanetId, step: number, notes: Note[]) {
     // The melody heard as it strikes, and any passing note arriving in the next two sixteenths while it is still loud;
     // a passing note arriving later over a held stem chord tone is the melody's own motion over the harmony.
     const ahead = Math.min(2, soundingSteps(planet, { instrument, pitch: written - 12, gain, pan, wet: 0, ...extra }) - 1);
-    const pitch = UNPITCHED.has(instrument) ? written : consonantWith(planet, step, written, ahead);
-    if (pitch === null) return;
+    const consonant = UNPITCHED.has(instrument) ? written : consonantWith(planet, step, written, ahead);
+    if (consonant === null) return;
+    // And never a wrong note as the chord changes under it: a tone still heard after the change belongs to both chords
+    // (a reversed voice belongs to the chord it lands on, and is placed by its own writer).
+    const pitch = UNPITCHED.has(instrument) || REVERSED.has(instrument) ? consonant
+      : steady(planet, step, consonant, soundingSteps(planet, { instrument, pitch: consonant, gain, pan, wet: 0, ...extra }));
+    // A tone moved for the chord change must still sit with the melody, or it is left out.
+    if (pitch === null || (pitch !== consonant && consonantWith(planet, step, pitch, ahead) !== pitch)) return;
     // Luna keeps the score's played timing and velocity in the stem too.
     const offset = human ? (beat % 2 ? .014 + .003 * Math.sin(step) : .003 * (1 + Math.sin(step * 1.7))) : 0;
     const velocity = (human ? .93 + .07 * Math.sin(step * 2.3 + pitch) : 1) * level;
@@ -181,10 +187,11 @@ function stageStep(planet: PlanetId, step: number, stage: 1 | 2 | 3): Note[] {
   const ostinato = (octave: number, gain: number, pan: number) => add('spiccato', root + kit.lift + tone(OSTINATO[beat]) + octave,
     (accent ? 1.4 : 1) * gain, pan, { wet: .16, priority: P.pulse });
   const fill = (gain: number) => {
-    // Into each phrase: toms down the chord and a snare roll swelling to the bar line.
+    // Into each phrase: toms down the chord, and a snare swelling to the bar line under them on the off-beats (phase 5:
+    // one stroke a sixteenth, no thirty-second doubling).
     if (!phraseEnd || beat < 12) return;
     add('tom', tom + [colour + 12, 12, colour, 0][beat - 12], gain + .03 * (beat - 12), (beat - 13.5) * .2, { wet: .12, priority: P.core });
-    for (const offset of [0, 7.5 / theme.bpm]) add(kit.snare, 60, (.04 + .02 * (beat - 12)) * w, 0, { offset, wet: .15, priority: P.pulse });
+    if (beat % 2) add(kit.snare, 60, (.05 + .025 * (beat - 12)) * w, 0, { wet: .15, priority: P.pulse });
   };
 
   if (stage === 1) {
@@ -245,15 +252,19 @@ function stageStep(planet: PlanetId, step: number, stage: 1 | 2 | 3): Note[] {
   if (chordStart) strings(chord.slice(0, 3).map((c, i) => theme.root + c + lift + (i === 2 ? 12 : 0)), .075);
   // A timpani roll building through the last half bar of each phrase, a riser landing on its downbeat.
   if (phraseEnd && beat >= 8) timpani(.12 + .025 * (beat - 8));
-  if (phraseEnd && beat === 0) notes.push(riser(theme.bpm, 16, .14));
+  if (phraseEnd && beat === 0) notes.push(riser(theme.bpm, 16, .14, harmony(planet, step + 16).root));
   fill(.16);
   return notes;
 }
 
 /** A riser started now that peaks exactly `steps` sixteenths later: delayed or trimmed to fit. */
-function riser(bpm: number, steps: number, gain: number): Note {
-  const span = steps * 15 / bpm, length = INSTRUMENT_SECONDS.riser;
-  return { instrument: 'riser', pitch: 60, gain, pan: 0, wet: .25, offset: Math.max(0, span - length), skip: Math.max(0, length - span), priority: P.stinger };
+function riser(bpm: number, steps: number, gain: number, landingRoot: number): Note {
+  // Its tone climbs an octave and lands on the root of the chord it lands in (phase 5: it used to land on C in every
+  // key), played between F#3 and F4; the playback rate stretches it, so its length is the sample's over that rate.
+  const pitch = 54 + ((landingRoot - 54) % 12 + 12) % 12, rate = 2 ** ((pitch - 60) / 12);
+  const span = steps * 15 / bpm, length = INSTRUMENT_SECONDS.riser / rate;
+  // `skip` is in the sample's own seconds.
+  return { instrument: 'riser', pitch, gain, pan: 0, wet: .25, offset: Math.max(0, span - length), skip: Math.max(0, length - span) * rate, priority: P.stinger };
 }
 
 interface Change {
@@ -321,7 +332,7 @@ function stinger(planet: PlanetId, change: Change, step: number): Note[] {
   const left = change.at - step, half = 7.5 / theme.bpm;
   const notes: Note[] = [], add = writer(planet, step, notes);
   if (step < change.at) {
-    if (step === change.from && (kind === 'entrance' || kind === 'overload')) notes.push(riser(theme.bpm, change.at - change.from, kind === 'overload' ? .2 : .16));
+    if (step === change.from && (kind === 'entrance' || kind === 'overload')) notes.push(riser(theme.bpm, change.at - change.from, kind === 'overload' ? .2 : .16, root));
     if (left > 4) return notes;
     const build = (4 - left) / 3;
     // Entrance: toms climbing to the hit. Core: a snare pickup. Overload: a thirty-second snare roll and spiccato
@@ -329,7 +340,9 @@ function stinger(planet: PlanetId, change: Change, step: number): Note[] {
     if (kind === 'entrance') add('tom', tom + [0, 0, colour, 12][4 - left], (.12 + .1 * build) * w, (build - .5) * .4, { priority: P.stinger });
     else if (kind === 'overload') {
       for (const offset of [0, half]) add(kit.snare, 60, (.07 + .09 * build) * w, 0, { offset, priority: P.stinger });
-      for (const [k, offset] of [0, half].entries()) add('spiccato', root + 12 + [0, colour, 12, 12 + colour][(4 - left)] + k * 12, .07 + .04 * build, (k - .5) * .5, { offset, wet: .15, priority: P.stinger });
+      // The rush up the chord sounding now, not the one it lands in.
+      const now = harmony(planet, step);
+      for (const [k, offset] of [0, half].entries()) add('spiccato', now.root + 12 + [0, now.colour, 12, 12 + now.colour][(4 - left)] + k * 12, .07 + .04 * build, (k - .5) * .5, { offset, wet: .15, priority: P.stinger });
     } else add(kit.snare, 60, (.07 + .07 * build) * w, 0, { priority: P.stinger });
     return notes;
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BED, BossArranger, bossStage, bossStep, switchStep, type BossStage } from '../../src/audio/boss-score';
-import { UNPITCHED } from '../../src/audio/harmony';
+import { modeAt, soundingSteps, UNPITCHED } from '../../src/audio/harmony';
 import { BASE_PITCH, INSTRUMENT_SECONDS, LEVEL_INSTRUMENTS, RECOMPOSED_INSTRUMENTS } from '../../src/audio/instruments';
 import { SAMPLE_IDS, synthesize } from '../../src/audio/samples';
 import { scoreStep, SIDECHAIN, THEMES, type Note } from '../../src/audio/score';
@@ -24,10 +24,12 @@ describe('the level scores are the approved compositions, changed only where the
     // effect of sound design. Corona and Umbra were recomposed on 10 November (user: Corona's score was a copy; Umbra
     // "very ominous ... reversed instruments and alien harmonics"). On 11 November the user loved Umbra ("i love love
     // love the umbra sound"): it is frozen as it is (see the next test), and the user asked for the other five to be
-    // reworked to its and Corona's quality, and for Corona's harp to be less regular, with an Arabic colour.
+    // reworked to its and Corona's quality, and for Corona's harp to be less regular, with an Arabic colour. Phase 5
+    // (user: "just relax the amount of notes, simpler melodies"; Corona "more mysterious ... not so happy"): fewer,
+    // plainer notes everywhere but Umbra, and Corona over a drone.
     const approved: Record<PlanetId, [string, number]> = {
-      luna: ['dc121b4d', 613], khepri: ['5a37c6dc', 752], nacre: ['8af67ad3', 612], vesper: ['2efa3c87', 235], amnion: ['99e01a32', 476],
-      corona: ['31966c7e', 508], umbra: ['544dfdfb', 542],
+      luna: ['e74f0442', 457], khepri: ['77f4f3dd', 627], nacre: ['94419145', 444], vesper: ['8d3fa594', 195], amnion: ['9a59f964', 378],
+      corona: ['d5d2fdfa', 327], umbra: ['544dfdfb', 542],
     };
     for (const planet of PLANETS) {
       const notes = Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s));
@@ -195,15 +197,18 @@ describe('four musically distinct boss states', () => {
           for (const n of bossStep(planet, step, stage)) {
             expect(leads.includes(n.instrument), `${planet} ${n.instrument}`).toBe(false);
             expect(Number.isFinite(n.pitch) && n.gain > 0 && n.gain <= .5, planet).toBe(true);
+            // A note still heard after the next chord change may instead be a tone of the mode common to both chords.
+            const crosses = Math.floor((step + soundingSteps(planet, n) - 1) / 32) !== Math.floor(step / 32);
+            const fits = allowed.has(pitchClass(n.pitch)) || (crosses && modeAt(planet, step).has(pitchClass(n.pitch)));
             if (BASSES.includes(n.instrument) || ['boom', 'braam', 'timpani'].includes(n.instrument)) {
               // Bass, booms and timpani, centred: the level riff where it plays (unless that would clash with the
               // melody), otherwise a tone of the current chord.
               const interval = n.pitch - (root - 12);
               if (riff >= 0 && BASSES.includes(n.instrument) && interval === riff) continue;
-              expect(allowed.has(pitchClass(n.pitch)), `${planet} ${step} ${n.instrument}`).toBe(true);
+              expect(fits, `${planet} ${step} ${n.instrument}`).toBe(true);
               expect(n.pan).toBe(0);
             } else if (['strings', 'stab', 'spiccato', 'tom'].includes(n.instrument)) {
-              expect(allowed.has(pitchClass(n.pitch)), `${planet} ${step} ${n.instrument} ${n.pitch}`).toBe(true);
+              expect(fits, `${planet} ${step} ${n.instrument} ${n.pitch}`).toBe(true);
             } else if (n.instrument === 'inhale' || n.instrument === 'glint') {
               // A reversed voice is emitted early and belongs to the chord it stops on.
               const seconds = INSTRUMENT_SECONDS[n.instrument] / 2 ** ((n.pitch - BASE_PITCH[n.instrument]) / 12);
@@ -241,7 +246,9 @@ describe('transitions on the score clock', () => {
       expect(boss.target).toBe(1); expect(boss.pending(101)?.at).toBe(112);
       expect(boss.stageAt(111)).toBe(0); expect(boss.stageAt(112)).toBe(1);
       const riser = boss.notes(planet, 101).find(n => n.instrument === 'riser')!;
-      expect((riser.offset ?? 0) + INSTRUMENT_SECONDS.riser - (riser.skip ?? 0)).toBeCloseTo(11 * sixteenth, 9);
+      // Played at the landing chord's root, so its length is the sample's over its rate (`skip` is in sample seconds).
+      expect((riser.offset ?? 0) + (INSTRUMENT_SECONDS.riser - (riser.skip ?? 0)) / 2 ** ((riser.pitch - 60) / 12)).toBeCloseTo(11 * sixteenth, 9);
+      expect(modeAt(planet, 112).has(pitchClass(riser.pitch)), planet).toBe(true);
       // Before the entrance only the stinger's lead-in sounds: no stem yet.
       for (let s = 101; s < 112; s++) expect(boss.notes(planet, s).every(n => ['riser', 'tom'].includes(n.instrument)), `${planet} ${s}`).toBe(true);
       const entrance = lead(boss.notes(planet, 112));

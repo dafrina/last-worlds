@@ -28,6 +28,26 @@ export function chordAt(planet: PlanetId, step: number) {
   const theme = THEMES[planet], chord = theme.chords[Math.floor(step / 32) % 4];
   return { chord, tones: new Set(chord.map(c => pitchClass(theme.root + c))) };
 }
+/** The tones that may sound at a sixteenth: the chord's own and its mode's (THEMES `scales`, with any authored
+ * microtones). */
+export function modeAt(planet: PlanetId, step: number) {
+  const theme = THEMES[planet], { tones } = chordAt(planet, step);
+  return new Set([...tones, ...theme.scales[Math.floor(step / 32) % 4].map(pitchClass)]);
+}
+/**
+ * `pitch` if it belongs to the chord or mode in every sixteenth from `step` for `span` (a note still ringing across a
+ * chord change must belong to both chords, phase 5: "they seem like they drift into false notes"); otherwise the
+ * nearest pitch within a fifth that does, a tone of the current chord winning a tie; null if there is none.
+ */
+export function steady(planet: PlanetId, step: number, pitch: number, span: number) {
+  const sets = Array.from({ length: Math.max(1, span) }, (_, k) => modeAt(planet, step + k));
+  const common = [...sets[0]].filter(c => sets.every(set => set.has(c)));
+  if (common.includes(pitchClass(pitch))) return pitch;
+  const { tones } = chordAt(planet, step);
+  const options = common.flatMap(c => [-12, 0, 12].map(o => Math.floor(pitch / 12) * 12 + o + c)).filter(p => Math.abs(p - pitch) <= 7);
+  options.sort((a, b) => Math.abs(a - pitch) - Math.abs(b - pitch) || Number(tones.has(pitchClass(b))) - Number(tones.has(pitchClass(a))) || a - b);
+  return options[0] ?? null;
+}
 
 /** How many sixteenths a note is heard for: held voices for their length, ringing ones until they have faded a lot,
  * plucked basses and short notes briefly. */

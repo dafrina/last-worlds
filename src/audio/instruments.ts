@@ -450,14 +450,15 @@ const WORLDS: Record<WorldInstrument, Patch> = {
         + snap.band * Math.exp(-t * 500) * .5;
     });
   } },
-  // Amnion's night: a creature's chitter, eleven chitinous clicks that speed up and then stall, each a tiny resonant
-  // ping with a scratch of noise. Played at different rates it is different creatures.
-  chitter: { seconds: .7, base: 60, rms: .07, window: .7, render(out, rate, noise) {
+  // Amnion's night: a creature's chitter, four chitinous clicks with space between them (phase 5: it was a train of
+  // eleven, which read as a machine gun), each a tiny resonant ping with a scratch of noise. Played at different rates
+  // it is different creatures.
+  chitter: { seconds: .5, base: 60, rms: .07, window: .5, render(out, rate, noise) {
     const rhythm = noiseSource(613), clicks: [number, number][] = [];
     let at = .004;
-    for (let k = 0; k < 11; k++) {
+    for (let k = 0; k < 4; k++) {
       clicks.push([at, 2600 * (1 + .14 * rhythm())]);
-      at += k < 7 ? .022 - k * .0018 : .05 + .02 * Math.abs(rhythm());
+      at += .07 + .05 * Math.abs(rhythm());
     }
     const band = new Svf(rate, 3400, 2.2);
     each(out, rate, t => {
@@ -486,6 +487,9 @@ const WORLDS: Record<WorldInstrument, Patch> = {
 };
 
 const BOSS: Record<BossInstrument, Patch> = {
+  // Tuning (phase 5, user: the fights "seem like they drift into false notes"): every pitched boss voice keeps its
+  // unison within ±6 cents and the strings' vibrato within ±3.5 cents of one A440 reference; inharmonic partials only
+  // on the drums, the crash and the timpani.
   // Cinematic impact: a sub drop, a dense low punch and a short crack.
   boom: { seconds: 2, base: 36, rms: .2, window: .5, render(out, rate, noise) {
     const f = midi(36), punch = new OnePole(420, rate), crack = new Svf(rate, 1900, .8); let phase = 0;
@@ -497,7 +501,7 @@ const BOSS: Record<BossInstrument, Patch> = {
   } },
   // Swell into a downbeat: noise through a rising band-pass and a climbing unison tone, loudest at its very end.
   riser: { seconds: 2.4, base: 60, rms: .12, window: 2.4, render(out, rate, noise) {
-    const band = new Svf(rate, 400, 1.8), tone = new Unison(rate, 3, 25, 61), toneFilter = new Svf(rate, 800, 1.2);
+    const band = new Svf(rate, 400, 1.8), tone = new Unison(rate, 3, 6, 61), toneFilter = new Svf(rate, 800, 1.2);
     each(out, rate, (t, i) => {
       const q = t / 2.4;
       if (i % 32 === 0) { band.set(320 * 2 ** (q * 4.2), 1.8); toneFilter.set(300 + 3500 * q * q, 1.2); }
@@ -518,17 +522,17 @@ const BOSS: Record<BossInstrument, Patch> = {
   } },
   // The low cinematic brass blast: unison saws and a square through a filter that snaps open and slowly closes, driven.
   braam: { seconds: 2.6, base: 36, rms: .22, window: .8, render(out, rate) {
-    const f = midi(36), stack = new Unison(rate, 5, 20, 71), square = new Pulse(rate), sub = new Rotor(f / 2, rate), filter = new Svf(rate, 200, 1.5);
+    const f = midi(36), stack = new Unison(rate, 5, 6, 71), square = new Pulse(rate), sub = new Rotor(f / 2, rate), filter = new Svf(rate, 200, 1.5);
     each(out, rate, (t, i) => {
       if (i % 16 === 0) filter.set(160 + 1350 * Math.min(1, t / .06) * Math.exp(-t * 1.35), 1.5);
-      const tone = filter.run(stack.next(f) + square.next(f * 1.002) * .45) + sub.next() * .3;
+      const tone = filter.run(stack.next(f) + square.next(f * 1.0006) * .45) + sub.next() * .3;
       return drive(tone, 2.6) * Math.min(1, t / .012) * Math.exp(-t * 1.05) * Math.min(1, (2.6 - t) / .6);
     });
   } },
   // Brass for accents and stingers: five unison saws through a low-pass that blooms open over 40 ms and settles, a
   // soft attack, no grit; a chord is three of these.
   stab: { seconds: .7, base: 48, rms: .22, window: .3, render(out, rate) {
-    const f = midi(48), stack = new Unison(rate, 5, 10, 79), filter = new Svf(rate, 600, .9);
+    const f = midi(48), stack = new Unison(rate, 5, 4, 79), filter = new Svf(rate, 600, .9);
     each(out, rate, (t, i) => {
       if (i % 16 === 0) filter.set(800 + 1700 * Math.min(1, t / .04) * Math.exp(-t * 4), .9);
       return filter.run(stack.next(f)) * Math.min(1, t / .02) * Math.exp(-t * 3.2);
@@ -563,7 +567,7 @@ const BOSS: Record<BossInstrument, Patch> = {
   // Spiccato strings for the ostinatos: a short bowed stroke, four detuned saws through a soft low-pass with a quick
   // bloom, a little rosin; no buzz at the top.
   spiccato: { seconds: .3, base: 48, rms: .2, window: .2, render(out, rate, noise) {
-    const f = midi(48), stack = new Unison(rate, 4, 12, 131), filter = new Svf(rate, 1500, .8), rosin = new Svf(rate, 3000, 1.2);
+    const f = midi(48), stack = new Unison(rate, 4, 4, 131), filter = new Svf(rate, 1500, .8), rosin = new Svf(rate, 3000, 1.2);
     each(out, rate, (t, i) => {
       if (i % 16 === 0) filter.set(900 + 1500 * Math.exp(-t * 18), .8);
       rosin.run(noise());
@@ -586,9 +590,9 @@ const BOSS: Record<BossInstrument, Patch> = {
   growl: { seconds: .45, base: 36, rms: .26, window: .25, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 6, second: .55, third: .22, thump: .25 }); } },
   // Dark string ensemble for the supporting harmony: seven unison saws, a delayed vibrato, a mellow low-pass.
   strings: { seconds: 3, base: 48, rms: .2, window: 3, render(out, rate) {
-    const f = midi(48), stack = new Unison(rate, 7, 14, 97), filter = new Svf(rate, 1150, .7), low = new OnePole(140, rate);
+    const f = midi(48), stack = new Unison(rate, 7, 5, 97), filter = new Svf(rate, 1150, .7), low = new OnePole(140, rate);
     each(out, rate, t => {
-      const vibrato = 1 + .0035 * Math.sin(TAU * 5.4 * t) * Math.min(1, Math.max(0, (t - .35) / .5));
+      const vibrato = 1 + .002 * Math.sin(TAU * 5.4 * t) * Math.min(1, Math.max(0, (t - .35) / .5));
       const tone = filter.run(stack.next(f * vibrato));
       return drive(tone - low.run(tone), 1.2) * Math.min(1, t / .32) ** 1.5 * Math.min(1, (3 - t) / 1.1);
     });
