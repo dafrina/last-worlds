@@ -129,6 +129,13 @@ function prepareJump() {
 prepare();
 // `x=N`: the ship (and the camera over it) at x N, to look along a wide boss.
 if (query.has('x')) state.player.x = state.cameraX = Number(query.get('x'));
+// `park=N&pull=T`: the ship parks at x N (the camera following it as in flight) and the fight runs on T seconds, the ship
+// invulnerable: a boss with none of its targets in that view is pulled toward it (src/sim/boss.ts pullBoss, docs/10 §5).
+if (query.has('park')) {
+  const x = Number(query.get('park')), limit = (VIEW.worldWidth - VIEW.width) / 2;
+  state.player.x = x; state.cameraX = Math.max(-limit, Math.min(limit, x - Math.sign(x) * 2.5));
+  for (let i = 0; i < Math.round(Number(query.get('pull') ?? 8) * 60); i++) { state.player.invulnerableUntil = Infinity; stepRun(state, EMPTY_INPUT); }
+}
 // `pickups`: every drop icon in a row above the player (render inspection; `still` keeps them in place).
 if (query.has('pickups')) {
   const drops = [{ kind: 'shield' }, { kind: 'power' }, { kind: 'credit' }, { kind: 'weapon', weapon: 'pulse' }, { kind: 'weapon', weapon: 'fan' }, { kind: 'weapon', weapon: 'seeker' }] as const;

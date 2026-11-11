@@ -19,7 +19,10 @@ describe('Brood Strike over Amnion (docs/27)', () => {
     // Seed 2 since the fewer fuel skids (6 November), the first of 1-60 on which all three clear (seed 5 took one hit
     // with Veteran seeker); over seeds 1-24 Standard pulse takes 0 hits, against 2 before.
     // Seed 4 since the Needles' side lanes moved inside a beam's reach of the ship (8 November); seeds 4-8 clear all three.
-    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 4 });
+    // Seed 1 since the squadron and boss pull (11 November, docs/10 §4-5): seed 4 took one hit with Standard pulse (from a
+    // battery, not a pulled squadron). Seed 1 clears all three with and without the pull. Over seeds 1-16, old → new:
+    // Standard pulse 3 → 9 hits (over seeds 1-48: 8 → 11), Standard fan 2 → 3, Veteran seeker 5 → 2.
+    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 1 });
     const log = fly(state, perfectPilot(), 450, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('cradle');

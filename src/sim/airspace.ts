@@ -93,17 +93,33 @@ export function liveGroups(state: RunState): Map<number, GroupSample> {
   return sample(tracks, 0);
 }
 
-export function airspaceClear(state: RunState, planned: readonly PlannedMember[]): boolean {
-  const live: Track[] = state.enemies.filter(enemy => enemy.hp > 0 && enemy.formation && !enemy.bossPart).map(enemy => {
-    const rate = enemyClockRate(state, enemy);
-    return { group: enemy.formation!.group, air: !GROUND_KINDS.has(enemy.kind), radius: enemy.radius, at: (t: number) => t === 0 ? { x: enemy.x, s: enemy.s } : positionAfter(enemy, t, rate) };
+/** The live squadrons' tracks; `shift` moves one group sideways by `dx` over its whole predicted flight. */
+function liveTracks(state: RunState, shift?: { group: number; dx: number }): Track[] {
+  return state.enemies.filter(enemy => enemy.hp > 0 && enemy.formation && !enemy.bossPart).map(enemy => {
+    const rate = enemyClockRate(state, enemy), dx = enemy.formation!.group === shift?.group ? shift.dx : 0;
+    const at = (t: number) => t === 0 ? { x: enemy.x, s: enemy.s } : positionAfter(enemy, t, rate);
+    return { group: enemy.formation!.group, air: !GROUND_KINDS.has(enemy.kind), radius: enemy.radius, at: dx ? (t: number) => { const p = at(t); return { x: p.x + dx, s: p.s }; } : at };
   });
+}
+
+export function airspaceClear(state: RunState, planned: readonly PlannedMember[]): boolean {
   const fresh: Track[] = planned.map(({ member, kind, age = 0, delay = 0 }) => {
     const rate = GROUND_KINDS.has(kind) ? state.scrollSpeed / VIEW.scrollSpeed : airClockRate(state);
     return { group: member.group, air: !GROUND_KINDS.has(kind), radius: ENEMIES[kind].radius, at: (t: number) => t + 1e-9 < delay ? null : memberPosition(member, age + (t - delay) * rate) };
   });
-  const freshGroups = new Set(fresh.map(track => track.group));
-  const tracks = live.concat(fresh);
+  return tracksClear(liveTracks(state).concat(fresh), new Set(fresh.map(track => track.group)));
+}
+
+/**
+ * Whether a live squadron shifted `dx` sideways (its pull toward the view, src/sim/drift.ts) still keeps the airspace
+ * rules with every other squadron over the admission horizon: the admissions already made predicted it where it was.
+ */
+export function shiftClear(state: RunState, group: number, dx: number): boolean {
+  return tracksClear(liveTracks(state, { group, dx }), new Set([group]));
+}
+
+/** The sampled airspace check of `fresh` groups against every other track over the admission horizon. */
+function tracksClear(tracks: readonly Track[], freshGroups: ReadonlySet<number>): boolean {
   for (let t = 0; t <= AIRSPACE.horizon + 1e-9; t += AIRSPACE.step) {
     const groups = sweep(sample(tracks, t), sample(tracks, t + AIRSPACE.step));
     for (const [id, group] of groups) {

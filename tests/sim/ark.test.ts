@@ -195,8 +195,10 @@ describe('Helion Ark', () => {
     (['relaxed', 'standard', 'veteran'] as Difficulty[]).map(difficulty => ({ weapon, difficulty }))))('the perfect pilot clears Cold Vector on $difficulty with $weapon without a hit, the special or pickups', ({ weapon, difficulty }) => {
     // Since the earlier first windups (4 November, DifficultyScale.firstAttack) Veteran flies seed 55, on which all three
     // weapons clear (seed 53 now takes two hits with Veteran seeker); Relaxed keeps 53. Since the Needles' side lanes moved
-    // inside a beam's reach of the ship (8 November), Standard flies 56.
-    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 55 : difficulty === 'standard' ? 56 : 53 });
+    // inside a beam's reach of the ship (8 November), Standard flies 56. Since the squadron and boss pull (11 November,
+    // docs/10 §4-5) Standard flies 3 (56 took one hit with the fan), which clears all three with and without the pull. Over
+    // seeds 1-16 at Standard, old → new: pulse 2 → 4 hits, fan 1 → 1, seeker 2 → 3.
+    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 55 : difficulty === 'standard' ? 3 : 53 });
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

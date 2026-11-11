@@ -1,5 +1,6 @@
-import { BALANCE, BEAM_KINDS } from '../../src/content/balance';
-import { playerKinematics } from '../../src/sim/fairness';
+import { BALANCE, BEAM_KINDS, GROUND_KINDS } from '../../src/content/balance';
+import { FORMATIONS, type FormationId } from '../../src/content/formations';
+import { playerKinematics, steerTo } from '../../src/sim/fairness';
 import { endlessPlanet, endlessSectorPlan, paceInSector } from '../../src/content/endless';
 import { EMPTY_INPUT, VIEW, type InputFrame, type RunState } from '../../src/shared/contracts';
 import { committedFootprints, planEvasion, type Footprint } from '../../src/sim/fairness';
@@ -176,6 +177,32 @@ export function perfectPilot(prefer?: (seen: RunState, now: RunState) => number 
   };
 }
 
+/** Where the fleeing pilot holds: well inside the far screen (the camera reaches its limit once the ship passes 8.5). */
+export const FLEE_X = 10;
+
+/**
+ * The user's escape (11 November: "Start left screen, move fully right screen when the wave spawned, then for the next wave
+ * same thing backwards"): whenever a new air squadron spawns it crosses to the far side of the other screen and holds there
+ * until the next one. It never dodges and never aims (its gun still fires at whatever enters its envelope). In a boss fight
+ * it parks at the world edge on the side it is on. It measures what a wave or a boss can still do to a pilot who runs.
+ */
+export function fleeingPilot(): Pilot {
+  const seen = new Set<number>();
+  let target = -FLEE_X;
+  return state => {
+    for (const enemy of state.enemies) {
+      const group = enemy.formation?.group;
+      if (group === undefined || seen.has(group)) continue;
+      seen.add(group);
+      const entry = FORMATIONS[enemy.formation!.template as FormationId].entry;
+      if (GROUND_KINDS.has(enemy.kind) || entry === 'bay' || entry === 'ground' || enemy.formation!.pinned) continue;
+      target = state.player.x >= 0 ? -FLEE_X : FLEE_X;
+    }
+    const goal = state.boss && state.boss.phase !== 'destroyed' ? Math.sign(target) * (VIEW.worldWidth / 2 - 1) : target;
+    return { ...EMPTY_INPUT, horizontal: steerTo(state.player.x, state.player.vx, goal, playerKinematics(state).braking) };
+  };
+}
+
 export interface FlightLog {
   phase: RunState['phase'];
   time: number;
@@ -191,6 +218,8 @@ export interface FlightOptions {
   /** Delete every pickup each tick so a result cannot depend on recovery or equipment. */
   noPickups?: boolean;
   onTick?: (state: RunState) => void;
+  /** Stops the flight early, after the tick on which it first returns true. */
+  until?: (state: RunState) => boolean;
 }
 
 export function fly(state: RunState, pilot: Pilot, seconds: number, options: FlightOptions = {}): FlightLog {
@@ -204,6 +233,7 @@ export function fly(state: RunState, pilot: Pilot, seconds: number, options: Fli
     if (state.player.lastHitAt !== lastHit) { log.hits += 1; log.firstHitAt ??= state.time; }
     if (state.livesLost !== lives) { log.lifeLostAt.push(state.time); log.firstLifeLostAt ??= state.time; }
     options.onTick?.(state);
+    if (options.until?.(state)) break;
   }
   log.phase = state.phase;
   log.time = state.time;

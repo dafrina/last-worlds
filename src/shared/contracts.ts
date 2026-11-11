@@ -37,6 +37,12 @@ export interface BossState {
   id: BossId; launchesLeft: number; nextLaunchAt: number;
   /** The boss holds its sway while its own lanes charge and fire, so every lane stays under the part that fired it. */
   holdUntil?: number; heldFor?: number;
+  /**
+   * Lateral velocity of the boss's post (`originX`) while it lumbers toward a view that has held none of its live targets
+   * for a while, or back toward its arrival point (src/sim/boss.ts `pullBoss`, docs/10 §5): the player may retreat to a far
+   * edge but cannot park out of its reach. `hiddenSince`: when the view last lost sight of every live target.
+   */
+  driftVx?: number; hiddenSince?: number;
 }
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */
@@ -85,7 +91,16 @@ export interface Player {
 }
 /** Authored squadron membership. Motion and fire timing derive from the content template. */
 /** `anchorS` shifts the template's forward keyframes (launches from a moving boss bay); zero when absent. */
-export interface FormationMember { template: string; slot: number; anchorX: number; mirror: 1 | -1; group: number; anchorS?: number }
+export interface FormationMember {
+  template: string; slot: number; anchorX: number; mirror: 1 | -1; group: number; anchorS?: number;
+  /** World-anchored (an optional side route or strike site, docs/10 §3): never pulled toward the view. */
+  pinned?: true;
+  /**
+   * The squadron's pull toward the view (src/sim/drift.ts, docs/10 §4): a lateral offset added to the anchor, and its
+   * velocity. Every member of a group carries the same values; the authored path and shape are unchanged.
+   */
+  drift?: { x: number; vx: number };
+}
 export interface Enemy {
   id: number; kind: EnemyKind; x: number; s: number; originX: number;
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
