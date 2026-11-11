@@ -3,7 +3,7 @@ import { readJson, writeJson } from '../shared/storage';
 import { SoundObserver } from './events';
 import { BossArranger, bossStage } from './boss-score';
 import { AudioMixer, type AudioSettings } from './mixer';
-import { scoreStep, ScoreClock, THEMES } from './score';
+import { FROZEN, scoreStep, ScoreClock, THEMES } from './score';
 
 export const AUDIO_STORAGE_KEY = 'last-worlds.audio.v1';
 export const DEFAULT_AUDIO: Readonly<AudioSettings> = { muted: false, music: .55, effects: .8 };
@@ -25,7 +25,8 @@ export function createGameAudio() {
   function schedule() {
     if (!active || !mixer || context?.state !== 'running' || settings.muted || terminal) return;
     for (const slot of clock.take(context.currentTime, planet)) {
-      for (const note of scoreStep(planet, slot.step)) mixer.note(note, slot.at, false, slot.step);
+      // Umbra's score is frozen as the user loved it, with the touch it was heard with (mixer.ts humanize).
+      for (const note of scoreStep(planet, slot.step)) mixer.note(note, slot.at, false, slot.step, FROZEN.has(planet));
       if (mixer.bossActiveAt(slot.at)) for (const note of boss.notes(planet, slot.step)) mixer.note(note, slot.at, true, slot.step);
     }
   }

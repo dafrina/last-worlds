@@ -1,7 +1,7 @@
 import { AudioMixer } from '../../src/audio/mixer';
 import { createGameAudio } from '../../src/audio/engine';
 import { BossArranger, bossStage } from '../../src/audio/boss-score';
-import { THEMES, scoreStep } from '../../src/audio/score';
+import { FROZEN, THEMES, scoreStep } from '../../src/audio/score';
 import { createRun } from '../../src/sim/game';
 import { startBoss } from '../../src/sim/boss';
 import type { PlanetId } from '../../src/shared/contracts';
@@ -40,7 +40,7 @@ export async function renderTimeline(job: PreviewJob) {
   for (let i = 0; i < job.bars * 16; i++) {
     const at = START + i * stepTime, step = start + i;
     events.push({ at: Math.max(1e-6, at - LOOKAHEAD), run: () => {
-      if (!job.stemOnly) scoreStep(planet, step).forEach(n => mixer.note(n, at, false, step));
+      if (!job.stemOnly) scoreStep(planet, step).forEach(n => mixer.note(n, at, false, step, FROZEN.has(planet)));
       if (mixer.bossActiveAt(at)) arranger.notes(planet, step).forEach(n => mixer.note(n, at, true, step));
     } });
   }

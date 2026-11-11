@@ -7,7 +7,7 @@ import { takeSample } from './sample-bank';
 export interface AudioSettings { muted: boolean; music: number; effects: number }
 /** The level score, the additive boss stem (its own pool, so it can never thin the score) and combat effects. */
 type Group = 'music' | 'boss' | 'effects';
-interface Voice { id: SampleId; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; start: number; end: number }
+interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; start: number; end: number }
 const LEVELS: Record<Sound, number> = {
   pulse: .23, fan: .25, seeker: .24, rail: .3, enemy: .10, impact: .13, explosion: .37, heavy: .43,
   shield: .4, 'shield-break': .48, life: .48, pickup: .19, upgrade: .28, ready: .25,
@@ -42,14 +42,21 @@ export function nuance(step: number, id: string, pitch: number, salt = 0) {
   return (h >>> 0) / 4294967296;
 }
 /**
- * The player's touch, added at playback and never written into the score: a few milliseconds of timing (drums and
- * basses within ±4 ms, other voices from 4 ms early to 10 ms late) and ±8% velocity, both fixed per note so every
- * render of a passage is identical.
+ * The player's touch, added at playback and never written into the score, fixed so every render of a passage is
+ * identical. Phase 5 (user: notes "overlapping" in quick succession): one timing per sixteenth and part, so a chord's
+ * tones strike together and a part never smears against itself; drums and basses within ±2 ms of the grid, other
+ * parts from 2 ms early to 4 ms late, so parts differ by a few milliseconds at most; ±6% velocity per note.
+ * `legacy` keeps the 11 November touch (per note: ±4 ms, or 4 ms early to 10 ms late, ±8%) for Umbra's frozen score.
  */
-export function humanize(note: Note, step: number) {
-  const timing = nuance(step, note.instrument, note.pitch), velocity = nuance(step, note.instrument, note.pitch, 1);
-  const drift = EXACT.has(note.instrument) ? 0 : TIGHT.has(note.instrument) ? (timing - .5) * .008 : -.004 + timing * .014;
-  return { drift, gain: note.gain * (1 + (velocity - .5) * .16) };
+export function humanize(note: Note, step: number, legacy = false) {
+  if (legacy) {
+    const timing = nuance(step, note.instrument, note.pitch), velocity = nuance(step, note.instrument, note.pitch, 1);
+    const drift = EXACT.has(note.instrument) ? 0 : TIGHT.has(note.instrument) ? (timing - .5) * .008 : -.004 + timing * .014;
+    return { drift, gain: note.gain * (1 + (velocity - .5) * .16) };
+  }
+  const timing = nuance(step, note.part ?? note.instrument, 0), velocity = nuance(step, note.instrument, note.pitch, 1);
+  const drift = EXACT.has(note.instrument) ? 0 : TIGHT.has(note.instrument) ? (timing - .5) * .004 : -.002 + timing * .006;
+  return { drift, gain: note.gain * (1 + (velocity - .5) * .12) };
 }
 
 /** Shared by live playback and OfflineAudioContext previews: those previews use the actual game's mix. */
@@ -211,7 +218,7 @@ export class AudioMixer {
     // Disconnect onended; keeping the fade avoids a discontinuity when stealing a voice.
   }
   private play(id: SampleId, at: number, rate: number, volume: number, pan: number, group: Group, priority: number, wet = 0, skip = 0,
-    bend?: Note['bend']) {
+    bend?: Note['bend'], part?: string) {
     const fader = group === 'effects' ? this.settings.effects : this.settings.music;
     if (!this.active || this.settings.muted || fader === 0) return false;
     this.voices.filter(v => v.end <= this.context.currentTime).forEach(v => this.release(v));
@@ -239,7 +246,7 @@ export class AudioMixer {
     const out: AudioNode = panner ? source.connect(gain).connect(panner) : source.connect(gain);
     const keyed = group !== 'effects' && KEYED.has(id as Instrument);
     out.connect(group === 'music' ? keyed ? this.keyed.music : this.bed : group === 'boss' ? keyed ? this.keyed.boss : this.boss : this.effects);
-    const voice: Voice = { id, source, gain, pan: panner, group, priority, start: at, end: at + (source.buffer.duration - skip) / rate };
+    const voice: Voice = { id, part, source, gain, pan: panner, group, priority, start: at, end: at + (source.buffer.duration - skip) / rate };
     if (wet > 0 && group !== 'effects') {
       const send = this.context.createGain(); send.gain.value = wet;
       out.connect(send).connect(this.reverb); voice.send = send;
@@ -265,24 +272,27 @@ export class AudioMixer {
     }
   }
   /** Damps the part's previous bass note as a new one starts: a 40 ms release instead of two notes ringing together. */
-  private choke(id: SampleId, group: Group, at: number) {
+  /** Damps a line's previous note as a new one starts (time constant `tau`, silent after `stop` seconds): about 40 ms
+   * for a bass (same voice), about 80 ms for a melody (same part). */
+  private choke(match: (voice: Voice) => boolean, group: Group, at: number, tau: number, stop: number) {
     for (const voice of this.voices) {
-      if (voice.id !== id || voice.group !== group || voice.start >= at - .001 || voice.end <= at) continue;
-      voice.gain.gain.setTargetAtTime(0, at, .012);
-      try { voice.source.stop(at + .06); } catch { /* Already stopped. */ }
-      voice.end = at + .06;
+      if (!match(voice) || voice.group !== group || voice.start >= at - .001 || voice.end <= at) continue;
+      voice.gain.gain.setTargetAtTime(0, at, tau);
+      try { voice.source.stop(at + stop); } catch { /* Already stopped. */ }
+      voice.end = at + stop;
     }
   }
   /** A score note, or with `boss` a note of the additive boss stem (its own voice pool, priorities and fader). With the
    * note's sixteenth, it is played with the player's touch (`humanize`). */
-  note(note: Note, at: number, boss = false, step?: number) {
+  note(note: Note, at: number, boss = false, step?: number, legacy = false) {
     if (boss && !this.bossActiveAt(at)) return;
-    const touch = step === undefined ? { drift: 0, gain: note.gain } : humanize(note, step);
+    const touch = step === undefined ? { drift: 0, gain: note.gain } : humanize(note, step, legacy);
     const start = Math.max(this.context.currentTime, at + (note.offset ?? 0) + touch.drift), pad = PADS.has(note.instrument);
     const priority = boss ? note.priority ?? 0 : pad ? 0 : 1, group: Group = boss ? 'boss' : 'music';
-    if (MONO.has(note.instrument)) this.choke(note.instrument, group, start);
+    if (MONO.has(note.instrument)) this.choke(v => v.id === note.instrument, group, start, .012, .06);
+    if (note.part && !legacy) this.choke(v => v.part === note.part, group, start, .027, .12);
     const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), touch.gain, note.pan,
-      group, priority, note.wet, note.skip ?? 0, note.bend);
+      group, priority, note.wet, note.skip ?? 0, note.bend, note.part);
     if (played && note.duck) this.sidechain(start, note.duck.depth, note.duck.release);
     // Only while a fight is on: the stem's fade-out bar must not lower the level score again after the kill.
     if (played && boss && note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);
