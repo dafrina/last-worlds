@@ -17,7 +17,7 @@ export async function renderTimeline(job: PreviewJob) {
   const stepTime = 15 / bpm, barTime = stepTime * 16, seconds = START + job.bars * barTime + 1.5;
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * rate), rate);
   const mixer = new AudioMixer(ctx, { muted: false, effects: .8, music: .55 });
-  mixer.warm(); mixer.setActive(true); mixer.setTempo(bpm);
+  mixer.warm(); mixer.setActive(true);
   const arranger = new BossArranger(), start = job.startStep ?? 0;
   const events: { at: number; run: () => void }[] = [];
   const stages: { at: number; step: number; stage: number; switchAt: number | null }[] = [];
@@ -40,8 +40,8 @@ export async function renderTimeline(job: PreviewJob) {
   for (let i = 0; i < job.bars * 16; i++) {
     const at = START + i * stepTime, step = start + i;
     events.push({ at: Math.max(1e-6, at - LOOKAHEAD), run: () => {
-      if (!job.stemOnly) scoreStep(planet, step).forEach(n => mixer.note(n, at));
-      if (mixer.bossActiveAt(at)) arranger.notes(planet, step).forEach(n => mixer.note(n, at, true));
+      if (!job.stemOnly) scoreStep(planet, step).forEach(n => mixer.note(n, at, false, step));
+      if (mixer.bossActiveAt(at)) arranger.notes(planet, step).forEach(n => mixer.note(n, at, true, step));
     } });
   }
   // Monotonic scheduling preserves the real-time voice allocation semantics.

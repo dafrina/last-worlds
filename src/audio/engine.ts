@@ -25,14 +25,14 @@ export function createGameAudio() {
   function schedule() {
     if (!active || !mixer || context?.state !== 'running' || settings.muted || terminal) return;
     for (const slot of clock.take(context.currentTime, planet)) {
-      for (const note of scoreStep(planet, slot.step)) mixer.note(note, slot.at);
-      if (mixer.bossActiveAt(slot.at)) for (const note of boss.notes(planet, slot.step)) mixer.note(note, slot.at, true);
+      for (const note of scoreStep(planet, slot.step)) mixer.note(note, slot.at, false, slot.step);
+      if (mixer.bossActiveAt(slot.at)) for (const note of boss.notes(planet, slot.step)) mixer.note(note, slot.at, true, slot.step);
     }
   }
   /** A new score (a run, a planet jump): no boss stem, and the echo follows the new tempo. */
   function newScore(next: PlanetId) {
     planet = next; boss.reset();
-    mixer?.setBossMix(0, 0); mixer?.setTempo(THEMES[planet].bpm);
+    mixer?.setBossMix(0, 0);
   }
   function halt() {
     clearInterval(timer); timer = undefined;
@@ -55,7 +55,7 @@ export function createGameAudio() {
       if (!context) {
         context = new AudioContext({ latencyHint: 'interactive' });
         // Buffers come from the samples made at boot (sample-bank.ts), never synthesized all at once in the tap.
-        mixer = new AudioMixer(context, settings); mixer.setTempo(THEMES[planet].bpm);
+        mixer = new AudioMixer(context, settings);
         context.addEventListener('statechange', () => {
           if (context?.state === 'running') {
             // wake resets a stopped clock. A late initial statechange must not double the opening beat.

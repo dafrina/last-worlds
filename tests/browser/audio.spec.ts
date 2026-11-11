@@ -89,7 +89,7 @@ test('submix silence and hard voice limits are enforced in the actual Web Audio 
       mixer.setBossMix(1, 0);
       for (let i = 0; i < 100; i++) {
         mixer.note({ instrument: 'pad', pitch: 48 + i % 12, gain: .2, wet: .5, pan: .1 }, .01);
-        mixer.note({ instrument: 'growl', pitch: 36, gain: .3, wet: .2, pan: 0, pump: .3 }, .01, true);
+        mixer.note({ instrument: 'growl', pitch: 36, gain: .3, wet: .2, pan: 0 }, .01, true);
         mixer.cue({ sound: 'life', pan: 0, gain: 1, variant: i }, .01);
       }
       const output = await ctx.startRendering();

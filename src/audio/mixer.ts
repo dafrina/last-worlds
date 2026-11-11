@@ -7,7 +7,7 @@ import { takeSample } from './sample-bank';
 export interface AudioSettings { muted: boolean; music: number; effects: number }
 /** The level score, the additive boss stem (its own pool, so it can never thin the score) and combat effects. */
 type Group = 'music' | 'boss' | 'effects';
-interface Voice { source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; end: number }
+interface Voice { id: SampleId; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; start: number; end: number }
 const LEVELS: Record<Sound, number> = {
   pulse: .23, fan: .25, seeker: .24, rail: .3, enemy: .10, impact: .13, explosion: .37, heavy: .43,
   shield: .4, 'shield-break': .48, life: .48, pickup: .19, upgrade: .28, ready: .25,
@@ -23,6 +23,31 @@ export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20 } as const;
 const PADS = new Set<Instrument>(['pad', 'bloom-pad', 'breath-pad', 'solar', 'inhale']);
 /** Sustained voices that also feed the stereo ensemble. */
 const ENSEMBLE = new Set<Instrument>(['pad', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings']);
+/** Basses play one note at a time, as a player's would: a new note in the same part damps the one still ringing. */
+const MONO = new Set<Instrument>(['bass', 'round-bass', 'foundry-bass', 'bio-bass', 'void-bass', 'drive-bass', 'growl']);
+/** Drums and basses sit tight on the grid; everything else may lean a little behind it. */
+const TIGHT = new Set<Instrument>(['kick', 'snare', 'hat', 'brush', 'metal', 'bone', 'void-tick', 'ember', 'heart', 'taiko', 'timpani',
+  'tom', 'boom', 'crash', ...MONO]);
+/** Voices whose timing is part of the writing: reversed notes stop exactly on a grid line, a riser peaks on one. */
+const EXACT = new Set<Instrument>(['inhale', 'glint', 'riser']);
+
+/** A fixed value in [0, 1) for a note: the same sixteenth, voice and pitch always get the same nuance. */
+export function nuance(step: number, id: string, pitch: number, salt = 0) {
+  let h = Math.imul((step | 0) + salt * 7919, 0x9e3779b1) ^ Math.round(pitch * 100);
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
+  h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; h = Math.imul(h, 0x297a2d39); h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
+/**
+ * The player's touch, added at playback and never written into the score: a few milliseconds of timing (drums and
+ * basses within ±4 ms, other voices from 4 ms early to 10 ms late) and ±8% velocity, both fixed per note so every
+ * render of a passage is identical.
+ */
+export function humanize(note: Note, step: number) {
+  const timing = nuance(step, note.instrument, note.pitch), velocity = nuance(step, note.instrument, note.pitch, 1);
+  const drift = EXACT.has(note.instrument) ? 0 : TIGHT.has(note.instrument) ? (timing - .5) * .008 : -.004 + timing * .014;
+  return { drift, gain: note.gain * (1 + (velocity - .5) * .16) };
+}
 
 /** Shared by live playback and OfflineAudioContext previews: those previews use the actual game's mix. */
 export class AudioMixer {
@@ -30,7 +55,7 @@ export class AudioMixer {
   private voices: Voice[] = [];
   private cooldown = new Map<Sound, number>();
   private music: GainNode;
-  /** The level score's dry voices; it dips briefly under the boss stem's kick (see `pump`). */
+  /** The level score's voices; it steps back a little as the boss stem takes the weight (see `setBed`). */
   private bed: GainNode;
   private boss: GainNode;
   private bossFade = { from: 0, target: 0, start: 0, end: 0 };
@@ -38,8 +63,6 @@ export class AudioMixer {
   private duck: GainNode;
   private gate: GainNode;
   private reverb: ConvolverNode;
-  private delay: GainNode;
-  private echoes: DelayNode[];
   private ensemble: GainNode;
   private nodes: AudioNode[] = [];
   private lfos: OscillatorNode[] = [];
@@ -58,11 +81,11 @@ export class AudioMixer {
     };
     this.music = gain(settings.music * .72); this.effects = gain(settings.effects);
     this.bed = gain(1); this.bed.connect(this.music);
-    // The boss stem has its own gentle bus compressor: it glues the added drums and bass and keeps their peaks from
-    // pushing the shared master compressor, which would otherwise pump the combat sounds.
+    // The boss stem has its own gentle bus compressor: it only rounds off the drum and brass peaks so they do not push
+    // the shared master compressor (which would pump the combat sounds). Slow enough to let every hit through first.
     this.boss = gain(0);
     const glue = context.createDynamicsCompressor();
-    glue.threshold.value = -12; glue.knee.value = 8; glue.ratio.value = 2.5; glue.attack.value = .006; glue.release.value = .14;
+    glue.threshold.value = -10; glue.knee.value = 10; glue.ratio.value = 1.8; glue.attack.value = .015; glue.release.value = .25;
     this.boss.connect(glue).connect(this.music); this.nodes.push(glue);
     this.duck = gain(1); this.gate = gain(0);
     const highpass = filter('highpass', 32, .5);
@@ -78,35 +101,27 @@ export class AudioMixer {
     this.effects.connect(highpass);
     highpass.connect(compressor).connect(limiter).connect(this.gate).connect(this.analyser).connect(context.destination);
     this.nodes.push(compressor, limiter, this.analyser);
-    // One stereo room for the entire score: 12 ms pre-delay, a few early reflections, then a tail whose highs die
-    // first (a darker, larger room than the first pass). The convolver normalizes by power, so wet level follows the
-    // impulse length: the return is scaled to keep the 20 October room's wet energy.
+    // One hall for the entire score (11 November): 18 ms pre-delay, a cluster of early reflections that differ between
+    // the sides, then a dense 2.3 s tail whose highs die first, as air and walls absorb them. Its return is high-passed,
+    // so the hall never thickens the bass. The convolver normalizes by power, so wet level follows the impulse length:
+    // the return is scaled from the 20 October room's wet energy, a fifth higher now that the hall replaces the echo.
     this.reverb = context.createConvolver();
-    const roomSeconds = 1.8, ir = context.createBuffer(2, Math.ceil(context.sampleRate * roomSeconds), context.sampleRate);
+    const hallSeconds = 2.3, pre = .018, ir = context.createBuffer(2, Math.ceil(context.sampleRate * hallSeconds), context.sampleRate);
     for (let c = 0; c < 2; c++) {
       const data = ir.getChannelData(c), noise = noiseSource(815 + c * 79), rate = context.sampleRate;
-      let low = 0;
+      let low = 0, lower = 0;
       for (let i = 0; i < data.length; i++) {
-        const t = i / rate, cutoff = 700 + 3600 * Math.exp(-t * 2.2);
+        const t = i / rate, cutoff = 900 + 5200 * Math.exp(-t * 1.7);
         low += (noise() - low) * (1 - Math.exp(-2 * Math.PI * cutoff / rate));
-        data[i] = t < .012 ? 0 : low * Math.exp(-t * 4.2) * Math.min(1, (t - .012) * 90);
+        lower += (low - lower) * (1 - Math.exp(-2 * Math.PI * cutoff * 1.6 / rate));
+        data[i] = t < pre ? 0 : lower * Math.exp(-t * 3) * Math.min(1, (t - pre) / .06) ** 1.5;
       }
-      (c ? [.019, .029, .043, .061] : [.023, .034, .047, .067]).forEach((at, k) => { data[Math.round(at * rate)] += (.5 - k * .1) * (c ? -1 : 1); });
+      const reflections = c ? [.021, .027, .036, .044, .053, .067, .079] : [.019, .031, .038, .049, .058, .071, .083];
+      reflections.forEach((at, k) => { data[Math.round(at * rate)] += (.42 - k * .05) * (k % 2 ? -1 : 1); });
     }
-    this.reverb.buffer = ir; this.reverb.connect(gain(.34 * Math.sqrt(1.45 / roomSeconds))).connect(this.music);
-    // A tempo-synced, damped ping-pong echo (dotted eighths, left then right; see setTempo). The send is summed to mono
-    // first, so the two sides carry the same echoes and mono playback loses nothing.
-    this.delay = gain(.24);
-    this.delay.channelCount = 1; this.delay.channelCountMode = 'explicit';
-    const left = context.createDelay(1), right = context.createDelay(1), merger = context.createChannelMerger(2);
-    const damp = filter('lowpass', 2600), clear = filter('highpass', 220), cross = gain(.42), feedback = gain(.42);
-    this.delay.connect(damp).connect(left);
-    left.connect(merger, 0, 0); left.connect(cross).connect(right); right.connect(merger, 0, 1);
-    right.connect(feedback).connect(damp);
-    merger.connect(clear).connect(this.music);
-    this.echoes = [left, right];
-    this.nodes.push(this.reverb, left, right, merger);
-    this.setTempo(94);
+    const air = filter('highpass', 170, .6);
+    this.reverb.buffer = ir; this.reverb.connect(air).connect(gain(.34 * Math.sqrt(1.45 / hallSeconds) * 1.2)).connect(this.music);
+    this.nodes.push(this.reverb);
     // Stereo ensemble for sustained pads and strings: two short delays, one per side, slowly modulated at different
     // rates. It adds width and movement without any phase-inverted widening.
     this.ensemble = gain(.32);
@@ -154,11 +169,6 @@ export class AudioMixer {
     this.ramp(this.gate.gain, active && !this.settings.muted ? .85 : 0, active ? .06 : .006);
     if (!active) this.stop();
   }
-  /** The score's tempo: the echo repeats on its dotted eighths. Set when a planet's music starts. */
-  setTempo(bpm: number) {
-    const dotted = 45 / bpm;
-    for (const line of this.echoes) line.delayTime.setValueAtTime(dotted, this.context.currentTime);
-  }
   bossMixAt(at = this.context.currentTime) {
     const { from, target, start, end } = this.bossFade;
     const progress = end <= start ? 1 : Math.min(1, Math.max(0, (at - start) / (end - start)));
@@ -174,16 +184,9 @@ export class AudioMixer {
     this.bossFade = { from, target, start: at, end: at + Math.max(0, seconds) };
     if (target === 0) { this.bedLevel = 1; this.ramp(this.bed.gain, 1, Math.max(.05, seconds / 3), at); }
   }
-  /**
-   * The level bed breathes under a boss kick (a sidechain-style dip of `depth` for about a tenth of a second), so the
-   * stem lands with weight instead of extra loudness. Only scheduled boss notes call it; between dips the bed rests at
-   * `bedLevel`, which the boss stages lower slightly so the stem can step forward (1 outside fights).
-   */
+  /** The level bed's level: the boss stages lower it slightly so the stem can step forward (1 outside fights). It
+   * moves smoothly on bar lines and stinger hits; nothing dips it under the drums. */
   private bedLevel = 1;
-  private pump(at: number, depth: number) {
-    this.bed.gain.setTargetAtTime(this.bedLevel * (1 - depth), at, .004);
-    this.bed.gain.setTargetAtTime(this.bedLevel, at + .05, .085);
-  }
   private setBed(level: number, at: number) {
     this.bedLevel = level;
     this.bed.gain.setTargetAtTime(level, at, .12);
@@ -217,10 +220,10 @@ export class AudioMixer {
     if (panner) panner.pan.value = pan;
     const out: AudioNode = panner ? source.connect(gain).connect(panner) : source.connect(gain);
     out.connect(group === 'music' ? this.bed : group === 'boss' ? this.boss : this.effects);
-    const voice: Voice = { source, gain, pan: panner, group, priority, end: at + (source.buffer.duration - skip) / rate };
+    const voice: Voice = { id, source, gain, pan: panner, group, priority, start: at, end: at + (source.buffer.duration - skip) / rate };
     if (wet > 0 && group !== 'effects') {
       const send = this.context.createGain(); send.gain.value = wet;
-      out.connect(send); send.connect(this.reverb); send.connect(this.delay); voice.send = send;
+      out.connect(send).connect(this.reverb); voice.send = send;
     }
     if (group !== 'effects' && ENSEMBLE.has(id as Instrument)) out.connect(this.ensemble);
     source.onended = () => this.release(voice);
@@ -242,17 +245,27 @@ export class AudioMixer {
       this.duck.gain.setTargetAtTime(1, at + .22, .26);
     }
   }
-  /** A score note, or with `boss` a note of the additive boss stem (its own voice pool, priorities and fader). */
-  note(note: Note, at: number, boss = false) {
+  /** Damps the part's previous bass note as a new one starts: a 40 ms release instead of two notes ringing together. */
+  private choke(id: SampleId, group: Group, at: number) {
+    for (const voice of this.voices) {
+      if (voice.id !== id || voice.group !== group || voice.start >= at - .001 || voice.end <= at) continue;
+      voice.gain.gain.setTargetAtTime(0, at, .012);
+      try { voice.source.stop(at + .06); } catch { /* Already stopped. */ }
+      voice.end = at + .06;
+    }
+  }
+  /** A score note, or with `boss` a note of the additive boss stem (its own voice pool, priorities and fader). With the
+   * note's sixteenth, it is played with the player's touch (`humanize`). */
+  note(note: Note, at: number, boss = false, step?: number) {
     if (boss && !this.bossActiveAt(at)) return;
-    const start = at + (note.offset ?? 0), pad = PADS.has(note.instrument);
-    const priority = boss ? note.priority ?? 0 : pad ? 0 : 1;
-    const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), note.gain, note.pan,
-      boss ? 'boss' : 'music', priority, note.wet, note.skip ?? 0);
-    if (!played || !boss) return;
+    const touch = step === undefined ? { drift: 0, gain: note.gain } : humanize(note, step);
+    const start = Math.max(this.context.currentTime, at + (note.offset ?? 0) + touch.drift), pad = PADS.has(note.instrument);
+    const priority = boss ? note.priority ?? 0 : pad ? 0 : 1, group: Group = boss ? 'boss' : 'music';
+    if (MONO.has(note.instrument)) this.choke(note.instrument, group, start);
+    const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), touch.gain, note.pan,
+      group, priority, note.wet, note.skip ?? 0);
     // Only while a fight is on: the stem's fade-out bar must not lower the level score again after the kill.
-    if (note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);
-    if (note.pump) this.pump(start, note.pump);
+    if (played && boss && note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);
   }
   stopGroup(group: 'music' | 'effects') {
     const stops = (v: Voice) => v.group === group || (group === 'music' && v.group === 'boss');
