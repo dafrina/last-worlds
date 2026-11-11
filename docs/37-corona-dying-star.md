@@ -96,7 +96,11 @@ The concept images are references, never runtime backgrounds or finished assets 
   - A solar drone swells open and closed like heat.
   - Sparse heavy kicks keep the same 3-3-2, under a deep tom backbeat, ember crackle in place of hats and a bowed-metal shriek at the phrase marks.
   - The form is the shared 32-bar one: an opening that grows from single harp notes, the drums and lament, a breakdown to the drone and one harp note a bar, and a return with the lament doubled on low strings.
-- **Boss:** the same four states as every world (modules, core, overload, each with its stinger, on the score's clock), orchestral since 11 November. Corona's drums keep the score's 3-3-2, under ember crackle.
+- **Phase 4 (11 November):** the user found the harps "too regularly placed on the rhythm, maybe take inspiration from arabian music".
+  - The lament is written in maqam Kurd and, over the B major dominant, Hijaz on B, with its augmented second C–D#. Long notes slide in, and a qanun tremolo marks where it holds.
+  - The harp runs on a ten-sixteenth cycle, like a sama'i thaqil's 10/8, so it drifts across the 4/4 bar. It adds tremolos and maqam graces.
+  - A darbuka (doum, tek) plays maqsum, then baladi in the return.
+- **Boss:** the same four states as every world (modules, core, overload, each with its stinger, on the score's clock), orchestral since 11 November. Corona's stem drums are the darbuka's doum where the maqsum puts them, with the tek between and the fights' kick under them.
 - **Details:** [sound design](24-sound-design.md), 10 and 11 November revisions.
 
 ## Stages

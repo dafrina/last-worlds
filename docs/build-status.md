@@ -1,5 +1,39 @@
 # Build status
 
+## Music, phase 4: snappier kicks, weight and sidechain in the fights, the worlds reworked (agent worktree, not deployed), 11 November 2026
+
+- **User, after hearing v3:**
+  - snappier kicks, especially in the fights, and fights with more bass;
+  - Nacre's pads too loud and its drums inaudible;
+  - Vesper's bells "cleaner and icyer like triangle";
+  - Amnion "clicking noises with a lot of reverb here and there, like alien noises in the night";
+  - Umbra loved;
+  - Corona's harps "too regularly placed", with Arabic music as inspiration;
+  - the rest reworked to Umbra's and Corona's quality;
+  - then a sidechain on leads and basses keyed by the kicks.
+- **Done:**
+  - **Kicks:** one punchy kick design, used by four kicks.
+  - **Fights:** the boss kick under the strongest strokes and the stinger hits; fuller, louder basses and timpani.
+  - **Sidechain:** a kick-keyed dip on basses and synth leads only, with a depth table per world and stage.
+  - **Luna:** rolled chords, graces and a far-side beacon.
+  - **Khepri:** an anvil on a six-sixteenth cycle, and steam.
+  - **Nacre:** a pearl vibraphone over thinned pads, with audible drums.
+  - **Vesper:** a triangle bell, a frost pad and ice cracks.
+  - **Amnion:** night calls deep in the hall, and nerve slides.
+  - **Corona:** a Kurd/Hijaz lament with slides and qanun tremolos, a harp on a ten-sixteenth cycle, and a darbuka in maqsum and baladi.
+  - **Umbra:** frozen and tested, note for note and sample for sample.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 1011 passed, 5 skipped (exit 0);
+  - build passes;
+  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0, on port 4192. Two earlier runs failed. The first failed the new sidechain check (its measuring window missed the ~12 ms compressor delay) and Vesper's fight growing 5.0 dB against a 4 dB ceiling, now 5.5. The second failed the sidechain check again, in a window that was still too early.
+  - Effects are byte-identical (26/26).
+- **Previews:** 52 renders in `lookdev/audio-previews/after-v4/`.
+  - The Sound room `http://localhost:4189/lookdev/audio-previews/index.html` compares the original, v1, v3 and v4.
+  - Peak 0.599, no clipping.
+  - Boss stages +1.6 dB on average against v3 (bass band +1.9).
+- **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), phase 4.
+
 ## Music, third pass: played, roomier, orchestral boss stems (agent worktree, not deployed), 11 November 2026
 
 - **User feedback:** the 10 November pass still "sound[ed] cheap", and not only the instruments.

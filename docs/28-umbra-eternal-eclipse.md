@@ -132,6 +132,7 @@ The user: "can you add a third target on the eclipse (umbra boss) that we have t
   - **Form:** the breakdown is a line through silence: breath, one tick a bar and a distant toll.
   - **Boss:** the same four states as every world, orchestral since 11 November, with a precise half-time pulse and void ticks. Umbra's adds inhaled chords that stop on the stem's chord changes and bar lines, and in overload reversed glass sucking into every beat.
   - **11 November:** the melody's second note is now a three-quarter-tone step above the octave and its last a quarter-tone-flat fifth (the ♭9 that stood second read as a clash), and the inhaled chords give way where they would grind against the lament.
+  - **Frozen (phase 4):** the user loves it ("i love love love the umbra sound"). Its score and every sample it plays are pinned by a test. It keeps its own kick while the other worlds moved to snappier ones, and has no sidechain. Only its boss stem gained the fights' kick and a light sidechain.
   - **Details:** [sound design](24-sound-design.md), 10 and 11 November revisions.
 
 ## Milestones

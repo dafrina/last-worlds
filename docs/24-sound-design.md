@@ -34,12 +34,12 @@ Only accepted shots and actual gameplay events produce combat sounds. Holding a 
 
 | Planet | Track | Tempo | Character |
 | --- | --- | ---: | --- |
-| Luna | Far Side Signal | 94 BPM | Warm felt-piano synthesis, rounded plucked bass, dry brushed backbeats and gentle human timing |
-| Khepri | Foundry Afterimage | 118 BPM | A clean, round foundry bass in four ringing notes a bar (11 November), gritty saw stabs/lead, mechanical percussion and darker semitone movement |
-| Nacre | Dreams Beneath the Bloom | 106 BPM | Slow, soft blooming pads, a quieter rounded bass and restrained percussion; no glass-bell lead |
-| Vesper | Below the Ice Line | 88 BPM | Ambient (11 November): three calm, cold glass notes every second bar over long pads, two bass notes a bar and one soft kick; no backbeat or hats |
-| Amnion | Something Beneath the Skin | 92 BPM | Breathing formant membranes, uneasy nerve tones, low organic bass, paired heartbeats and dry bone clicks |
-| Corona | Hymn for a Swollen Sun (10 November) | 110 BPM | A slow low harp, three ringing notes a bar (11 November), a Phrygian lament on a higher harp, a solar drone that swells like heat, sparse heavy drums, ember crackle, bowed metal |
+| Luna | Far Side Signal | 94 BPM | Felt piano with rolled chords and leaning graces, a round bass, brushes, a snappy kick, gentle human timing, and a distant beacon pinging at the ends of phrases (phase 4) |
+| Khepri | Foundry Afterimage | 118 BPM | A hard forge kick and mechanical sixteenths, a clean round bass in four ringing notes a bar, the saw lead and stabs, a tuned anvil turning against the bar, steam from the press (phase 4) |
+| Nacre | Dreams Beneath the Bloom | 106 BPM | A soft-mallet vibraphone (the pearl) over thinned blooming pads, a round bass, and drums you can hear (phase 4) |
+| Vesper | Below the Ice Line | 88 BPM | Ambient: triangle-clean bells with faint reflections every second bar, a cold frost pad, two bass notes a bar, one soft kick, and ice cracking far off (phase 4) |
+| Amnion | Something Beneath the Skin | 92 BPM | Breathing formant membranes, nerve tones that slide into their notes, low organic bass, paired heartbeats, dry bone clicks, and creatures chittering in the night (phase 4) |
+| Corona | Hymn for a Swollen Sun (10 November) | 110 BPM | A lament in maqam Kurd and, over the dominant, Hijaz, with slides and qanun tremolos; a harp on a ten-sixteenth cycle drifting across the bar; a darbuka in maqsum and baladi; a solar drone, ember crackle, bowed metal (phase 4) |
 | Umbra | Where the Light Goes Backwards (10 November) | 84 BPM | Reversed, inhaled chords and reversed glass that stop dead on the grid, a dark inharmonic obsidian bell, harmonic-series tones off the twelve-note grid, a precise void pulse |
 
 Each score has an authored 32-bar cycle: opening, developed phrase, breakdown, return. Chord movement and answering melodies prevent a single short phrase from repeating unchanged. Endless changes the score at the actual planet switch; the outgoing notes fade while the new tonal centre enters.
@@ -92,16 +92,21 @@ Identity per world: Luna keeps the score's played timing and brushes; Khepri add
 
 ### Corona: Hymn for a Swollen Sun
 
-- 110 BPM, E Phrygian. Chords, two bars each: Em, F (♭II), C (♭VI), B major (V); the 32-bar form of every world.
-- The low harp (C3 sample) rises slowly through each chord and falls back: root, octave and top over the chord's first bar, fifth, top and octave over its second, three notes a bar on the score's 3-3-2 in eighths, each left to ring (11 November; it was a running sixteenth ostinato). Only each bar's first note in the opening's first four bars and in the breakdown.
-- The lament on the higher harp: octave, ♭6, fifth over each chord's first bar; ♭7, ♭6, fifth over its second (11 November: the passing notes left out, for space). It enters in the opening's second half, plays throughout phrases two and four, and is doubled an octave down in the return.
-- The solar drone holds root and fifth under each chord (the octave too in the breakdown); bass on root and fifth in the 3-3-2 pulse; kicks in 3-3-2 in phrases two and four, a downbeat elsewhere; a deep tom on beat three; ember crackle off the beat; bowed metal every four bars.
+- 110 BPM, E Phrygian (maqam Kurd). Chords, two bars each: Em, F (♭II), C (♭VI), B major (V); the 32-bar form of every world.
+- The low harp (C3 sample): see phase 4 below. It runs on a ten-sixteenth cycle, drifting across the bar, with tremolos and graces. Until phase 4 it played three notes a bar, and before 11 November a running sixteenth ostinato.
+- The lament on the higher harp is written per chord: Kurd over Em, F and C, and Hijaz on B over the dominant (phase 4, `CORONA_LAMENT`). It enters in the opening's second half (first bars only), plays throughout phrases two and four, and is doubled an octave down in the return.
+- The rest of the texture:
+  - the solar drone holds root and octave under each chord, with the higher octave too in the breakdown;
+  - the bass plays on the doum strokes;
+  - a darbuka plays maqsum in phrase two and baladi in the return;
+  - ember crackle off the beat;
+  - bowed metal every four bars.
 
 ### Umbra: Where the Light Goes Backwards
 
 - 84 BPM on F#. Chords, two bars each: F#, G (a semitone up), C (the tritone) and F (the semitone under the root). Each adds one harmonic-series tone off the twelve-note grid: the 11th harmonic (+5.51 semitones), the 7th (+9.69), a pure major third (+3.86) and a pure minor third (+3.16). Pitches may be fractional; the mixer plays them by rate.
 - Every bar line is breathed in: root, fifth and the chord's alien tone, inhaled and stopping dead on the downbeat. A reversed note is emitted from an earlier step and delayed within it so its hard ending falls exactly on its grid line (`landingNote`, up to 32 sixteenths ahead).
-- The lament on reversed glass: octave, minor ninth, fifth, then a quarter-tone-flat fifth, each arriving out of its own backward ring onto a soft obsidian strike an octave down. The answer in the second bar is the forward obsidian bell: a neutral third (between minor and major), then the semitone above the root.
+- The lament on reversed glass: octave, a three-quarter-tone step above it, fifth, then a quarter-tone-flat fifth (11 November; the minor ninth that stood second read as a clash), each arriving out of its own backward ring onto a soft obsidian strike an octave down. The answer in the second bar is the forward obsidian bell: a neutral third (between minor and major), then the semitone above the root.
 - The pulse: void bass on beats and a syncopated pickup, a precise kick on one and three, off-beat ticks (sixteenths in the return). The breakdown is a line through silence: breath, one tick per bar and a distant toll.
 
 Boss revision (23 October; its two-level fader is superseded by the four boss states of 10 November, below): the approved level score now plays **unchanged** throughout a fight, including its melody, chord progression, rests, breakdown, tempo and phrase position. A separate bass/percussion stem follows that same sixteenth-note clock. Arrival fades this stem from silence to 85% over one bar (2.03–2.73 seconds depending on the planet); core/overload lifts it to 100% over one bar. Destruction fades it out over one bar. There is no second copy of the lead/pad bed, no track restart, and no independent audio clock that can drift. These are two arrangements of the same song, implemented as shared base plus an additive stem rather than two full streamed recordings.
@@ -121,7 +126,7 @@ The score clock schedules 120 ms ahead, checks every 40 ms, and skips missed not
 - Pause, hidden tab, window blur and rotate pause close the master gate and stop queued voices. Returning requires the game's normal resume. Muting also cancels queued voices. The device suspends after wet tails decay behind the closed gate.
 - Flight endings stop music, let the final cue finish, and suspend audio. The menu stays quiet.
 - Music and effects have separate faders. The music hall's return passes through its fader, so setting music to zero also silences it.
-- One stereo convolution hall and one stereo ensemble serve the score (11 November; see below). Combat stays comparatively dry and precise. No per-shot reverb instances or per-note oscillators; the ensemble's two slow modulation oscillators are created once with the mixer.
+- One stereo convolution hall and one stereo ensemble serve the score (11 November; see below). Kicks key a sidechain on the basses and synth leads only (phase 4). Combat stays comparatively dry and precise. No per-shot reverb instances or per-note oscillators; the ensemble's two slow modulation oscillators are created once with the mixer.
 - Conservative panning and no phase-inverted widening preserve mono playback. A high-pass, compressor, limiter and output headroom control combined levels.
 - Shield break, life loss, shockwave and major boss cues temporarily lower the music.
 - Nominal caps: 36 level-score voices, 24 boss-stem voices (10 November) and 20 effects voices. Voice stealing fades out over 18 ms; those short retiring fades can briefly overlap the capped active set. Important cues may replace low-priority voices. Quiet impacts cannot replace critical cues.
@@ -133,11 +138,11 @@ The score clock schedules 120 ms ahead, checks every 40 ms, and skips missed not
 | --- | --- |
 | `src/audio/samples.ts` | Deterministic 32 kHz combat and event sounds, the sample list and its boot order |
 | `src/audio/instruments.ts`, `dsp.ts` | Music instrument patches and the offline synthesis kit, loudness matching, anti-click edges and headroom |
-| `src/audio/score.ts` | Planet arrangements, authored notes, reversed-note landing and bounded lookahead clock |
+| `src/audio/score.ts` | Planet arrangements, authored notes, the sidechain depth table, reversed-note landing and bounded lookahead clock |
 | `src/audio/boss-score.ts` | Boss stages, per-world boss kits, stingers and the arranger that lands changes on the score's grid |
 | `src/audio/harmony.ts`, `harmony-audit.ts` | Clash detection, the stem's consonant tone choice, and the audit of every score and stage |
 | `src/audio/events.ts` | Read-only RunState observer, event coalescing, bounded ID tracking |
-| `src/audio/mixer.ts` | Cached AudioBuffers, buses, spatialization, hall, playback humanizing, voice limits and ducking |
+| `src/audio/mixer.ts` | Cached AudioBuffers, buses, spatialization, hall, playback humanizing, slides, the kick-keyed sidechain, voice limits and ducking |
 | `src/audio/engine.ts` | Gesture/device lifecycle, playback state, preferences and score transitions |
 | `src/audio/settings.ts`, `settings.css` | Isolated accessible sliders added to the existing settings panel |
 | `src/main.ts` | Thin start/observe/pause/resume/quit hooks, replacing the old triangle tones |
@@ -262,6 +267,126 @@ The new voices are synthesized like the rest:
 - **Checks:** typecheck clean; 1009 unit tests pass (5 skipped); the build passes; `tests/browser/audio.spec.ts` 6/6 (Playwright exit 0). The browser spec also confirms, in all seven worlds, that the rendered stem grows by more than 0.5 dB per stage in both the phone band and the top, and that the level score is identical before and after a fight.
 
 Final balance needs the user's ears: the stem against the level score, the hall's size and the ostinato levels. A phone speaker needs checking too.
+
+## 11 November, phase 4: snappier kicks, weight in the fights, every world reworked
+
+The user listened to the third pass and replied:
+
+> i need snappier kicks, especially for the boss fights. The boss fights are better now but they are too little bass-y, especially nacre pads seem very loud and the drums arent audible, vesper bells can be a bit cleaner and icyer like triangle, amnion could use some clicking noises with a lot of reverb here and there, like alien noises in the night, btw i love love love the umbra sound you made, also the corona music is good but the harps are too regularly placed on the rhythm, maybe take inspiration from arabian music. Can you rework the other sounds so it still fits the vibe they have, but in the quality of umbra and corona?
+
+Then: "you could sidechain the lead synths and basses on the kicks for some more pop."
+
+### Kicks (`punchKick` in `src/audio/instruments.ts`)
+
+- **One design for every new kick:**
+  - a beater click and a slap of noise in the first milliseconds;
+  - a body that drops fast in pitch and dies quickly;
+  - saturation, so its knock reads in a phone speaker's midrange;
+  - a short knock around 190 Hz.
+- **Four kicks use it:**
+  - `snap-kick`: Luna, Nacre and Vesper;
+  - `forge-kick`: Khepri, harder and brighter;
+  - `boss-kick`: the fights;
+  - `doum`: Corona's darbuka.
+- **Against the old kick:** 3 to 5 dB more click in the first 10 ms, and about 2 dB more body over the first 80 ms. Their written gains are higher too. The old kick is now Umbra's alone.
+- **Amnion's heartbeat** drops faster and has a soft snap.
+- **The fights' taiko** has a stick click, a quicker pitch drop and a firmer body.
+
+### Weight in the fights (`src/audio/boss-score.ts`)
+
+- **The fights' kick:** it sits under the big drum's strongest strokes, which are each half bar's first and, in overload, the 3-3-2 accents. It is also under every stinger's hit.
+- **Fuller boss basses:** longer notes (0.55 s and 0.45 s), more second harmonic, and written about 2 dB louder in every stage.
+- **Timpani:** about 2 dB louder.
+- **Booms:** bigger on the stingers.
+- **Corona:** its stem drums are the darbuka's doum where the maqsum puts them, with the tek between.
+- **Khepri:** its colour is the tuned anvil, striking chord tones.
+
+### Sidechain (`sidechain` in `mixer.ts`, `SIDECHAIN` in `score.ts`)
+
+- **What dips:** only the keyed voices — every bass, and the synth leads: Khepri's saw lead, Amnion's nerve tone, and the stems' spiccato and brass.
+- **What never dips:** pads, acoustic leads (piano, harps, bells, pearl), reverb returns and effects. This is not the v1 pump, which lowered the whole bed.
+- **How it works:**
+  - Each kick note carries its key.
+  - The mixer dips the keyed voices of the score and of the stem within 3 ms, then recovers over a quarter of a beat (80 to 150 ms).
+  - Two kicks within 30 ms (the score's and the stem's) make one dip, the deeper of the two.
+  - It follows the scheduled kicks exactly and is deterministic.
+- **Depths:** each figure is the fraction the keyed voices dip by, with the same dip in dB in brackets. The fights' lighter drum strokes key 0.6 of their stage's depth.
+
+| World | Level score | Modules | Core | Overload |
+| --- | ---: | ---: | ---: | ---: |
+| Luna | 0.25 (−2.5 dB) | 0.30 | 0.45 | 0.55 (−6.9 dB) |
+| Khepri | 0.40 (−4.4 dB) | 0.40 | 0.50 | 0.60 (−8 dB) |
+| Nacre | 0.12 (−1.1 dB) | 0.25 | 0.40 | 0.50 |
+| Vesper | 0.10 (−0.9 dB) | 0.25 | 0.40 | 0.50 |
+| Amnion | 0.20 (−1.9 dB) | 0.30 | 0.45 | 0.55 |
+| Corona | 0.20 | 0.30 | 0.45 | 0.55 |
+| Umbra | none (frozen) | 0.10 | 0.20 | 0.25 |
+
+### Per world
+
+- **Umbra: frozen.** The user loved it. Its 32-bar cycle (fingerprint 544dfdfb, 542 notes) and the PCM of all six samples it plays are pinned by `tests/audio/boss-music.test.ts`. Nothing in its score keys the sidechain. Its boss stem has the new kick and a light sidechain (0.10 to 0.25).
+- **Corona: Arabic colour, more irregular rhythm.**
+  - *The lament* is now written per chord in its maqam (`CORONA_LAMENT`): Kurd on E (E F G A B C D, the Phrygian it already had) over Em, F and C. Over the B major dominant it is Hijaz on B (B C D# E F# G A). The Hijaz phrase climbs B, C, D#, E — the augmented second C to D# — and later runs back down E, D#, C, B. Its long notes slide in from a tone below (a pitch bend, `bend` on a note), and a qanun tremolo (four plucks a thirty-second apart) marks where it holds.
+  - *The harp* runs on a ten-sixteenth cycle, like a sama'i thaqil's 10/8, plucking at 0 and 6 (3+3, then 2+2). It drifts across the 4/4 bar and meets the bar line again only every five bars. Its tones walk the chord over four cycles. Every third cycle opens with a tremolo. Every fourth leans into its second note with a grace from the maqam tone just above, but only if that tone sits with the chord and the lament.
+  - *The drums* are a darbuka. Doum and tek play maqsum (doum, tek, -, tek, doum, -, tek, -) in the second phrase and baladi in the return. The opening has lone doum strokes, the breakdown one doum every other bar, and a soft ka before every fourth bar line. The deep tom backbeat is gone.
+  - *Kept:* the drone, the bowed metal, the ember crackle and the space.
+  - *Dissonance:* the Hijaz ♭2 (C over B) passes over the held drone. The audit counts that as the melody's own motion; Corona has no clashes.
+- **Luna: lonely and human.**
+  - Chords are rolled upward on the felt piano.
+  - In the developed phrases, the downbeat melody note leans in from the scale tone above, a pianist's grace.
+  - The far-side signal: a distant beacon (a sine with a brief FM sparkle) pings three times at the end of every four bars of the opening and the breakdown, and once in eight bars in the return.
+  - A snappy kick, brushes, its round bass and played timing.
+- **Khepri: the foundry.**
+  - A hard forge kick and the mechanical sixteenths, the saw lead and stabs, and the four-note round bass.
+  - A tuned anvil strikes root, fifth and octave every six sixteenths, turning against the bar; it meets the downbeat again every three bars.
+  - Steam is let out of the press at the end of every four bars.
+- **Nacre: the dreamy bloom, with audible drums.**
+  - The pads are thinned below 200 Hz in the patch, their lowest tone is voiced an octave up, and they are written 4 dB quieter. The phone band (the frequencies a phone speaker reproduces well) of a Nacre flight is 3.9 dB lower than in v3.
+  - The kick (snap-kick, +4.5 dB), brushes (+4.8 dB) and hats (+4.4 dB) are louder.
+  - The melody moves to the pearl, a soft-mallet vibraphone (partials 1, 3.98, 9.6) with its motor's tremolo. In the developed phrases its arpeggio rises through the chord like bubbles.
+- **Vesper: cleaner and icier.**
+  - The bell is triangle-like: five sparse partials of a struck steel rod (1, 2.01, 2.76, 5.4, 8.93), each beating slowly against a twin 1.6 cents away (the shimmer), with a faint strike and nothing low. It plays an octave above the written melody.
+  - In the developed phrases each bell has a faint reflection three sixteenths later.
+  - The frost pad (detuned sines with a trace of odd harmonics over thin wind) replaces the warm saw pad.
+  - Now and then the ice cracks: the dispersive "pew" of a frozen sheet, high frequencies first, far off in the hall.
+  - The v3 ambient arrangement is kept.
+- **Amnion: the night.**
+  - The heartbeat lands like a kick, and its strong beats key a gentle sidechain.
+  - The nerve tone slides into its notes from a quarter or half tone below.
+  - Now and then, never on the heartbeat, something calls out in the dark: a chitter (eleven chitinous clicks speeding up, then stalling) or a three-tick click.
+  - The calls are pitched for different creatures, placed anywhere across the field, and almost fully sent into the hall. There is about one call in three bars, twice as many in the breakdown, and four in ten are answered from the other side three sixteenths later.
+  - The placement comes from a hash of the sixteenth (`scatter`), never a random stream, so every pass is identical.
+  - The composition and its 55 deliberate clashes are unchanged.
+
+### Phase 4 measurements
+
+- **Previews:** 52 renders in `lookdev/audio-previews/after-v4/`, with the same file set as the earlier builds.
+  - The Sound room (`lookdev/audio-previews/index.html`) switches between A (original), B (10 November), C (v3) and D (phase 4) at the same playback position.
+- **Headroom:**
+  - Peak at most 0.599 (Khepri's whole fight).
+  - Zero clipped or non-finite samples.
+  - Mono RMS at least 97.9 % of stereo.
+- **Boss stages against v3:**
+  - Overall level: −0.6 to +3.1 dB, mean +1.6.
+  - Bass band: +0.4 to +3.5 dB, mean +1.9.
+  - Phone band: −3.1 to +1.8 dB, mean +0.3.
+  - Overload gained the most: Luna +2.9 dB, Khepri +3.0, Nacre +1.3, Vesper +3.1, Amnion +2.1, Corona +2.1, Umbra +1.9.
+- **Flight levels against v3:**
+  - Umbra: identical (same level and bands).
+  - Luna +0.7 dB, Khepri +0.5, Corona −0.3, Amnion −0.1, Vesper −0.5.
+  - Nacre −2.2 dB. Its pads are 3.9 dB lower in the phone band; the kick, brushes and hats are written 4.4 to 4.8 dB louder.
+- **Sidechain, measured in Chromium:** a depth of 0.5 dips a held bass to 0.48 of its level and recovers within about a tenth of a second. A pad is untouched.
+- **Voices:** at most 43 at once, and the boss pool holds its cap of 24. 26 low-priority stem notes were dropped across the 52 renders, 1 to 3 in each overload render that dropped any.
+- **Cost:** 77 samples, 14,085,120 bytes of cached PCM (13.43 MiB); the budget test is now 14 MiB. Synthesis in Node takes about 0.52 s warm for all of them.
+- **Checks:**
+  - typecheck clean;
+  - 1011 unit tests pass (5 skipped);
+  - the build passes;
+  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0. It now also checks the sidechain in the real Web Audio graph.
+  - The audit: no stem note clashes with a melody in any world or stage. Nacre, Vesper, Corona and Umbra have no clashes at all. Luna keeps 1, Khepri 2 and Amnion 55, as written.
+  - Effects are byte-identical (26/26), and Umbra is pinned note for note and sample for sample.
+
+Final balance needs the user's ears: kick levels against each world's bass, the sidechain depths (the table above), the night calls' density and the Corona harp cycle. A phone speaker needs checking too.
 
 
 Actual iOS Safari, Android hardware, phone speaker balance, Bluetooth latency, hardware mute behavior and OS interruptions still require listening/device validation. The first implementation deliberately offers separate mix sliders for that final taste/room/device adjustment. See `docs/build-status.md` for the exact final test results and revision.
