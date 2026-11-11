@@ -73,25 +73,16 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
     pods()[0].hp = 0;
     tick(1);
     expect(pods()).toHaveLength(4);
-    const lastWave = pods().map(e => e.id);
+    // The carrier falls with its last wave still out: the pods go down with it (each explodes), no kill credit, and the
+    // extraction or the warp starts at once (user, 11 November: clearing them after the boss "should not be necessary").
+    const effectsBefore = state.effects.length, scoreBefore = state.score;
     bossTarget(state, 'core')!.hp = 0; resolveBossPhase(state);
-    tick(16);
     expect(state.boss?.phase).toBe('destroyed');
-    expect(state.boss?.clearedAt).toBeUndefined();
-    expect(state.phase).toBe('playing');
-    expect(state.jump).toBeNull();
-    expect(state.scrollSpeed).toBe(0);
-    expect(pods().map(e => e.id)).toEqual(lastWave);
-    // Fly into line with each remaining pod and kill it with real main-weapon shots.
-    state.nextVolleyAt = state.time;
-    for (let i = 0; i < 60 * 20 && pods().length; i++) {
-      state.player.x = pods()[0].x; state.cameraX = state.player.x;
-      stepRun(state, EMPTY_INPUT);
-    }
     expect(pods()).toHaveLength(0);
-    tick(1);
-    expect(state.boss?.clearedAt).toBeDefined();
-    tick(13);
+    expect(state.effects.length - effectsBefore).toBeGreaterThanOrEqual(4);
+    expect(state.boss?.clearedAt).toBe(state.time);
+    expect(state.score - scoreBefore).toBeLessThanOrEqual(5000);
+    tick(16);
     if (mode === 'campaign') expect(state.phase).toBe('complete');
     else { expect(state.sector).toBe(11); expect(state.planet).toBe('amnion'); }
   });

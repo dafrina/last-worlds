@@ -121,10 +121,6 @@ export function bossTarget(state: RunState, part: BossPart): Enemy | undefined {
   return state.enemies.find(enemy => enemy.bossPart === part);
 }
 
-function deployedPod(enemy: Enemy): boolean {
-  return enemy.hp > 0 && enemy.formation?.template === 'veil-pods';
-}
-
 function startDeparture(state: RunState) {
   state.boss!.clearedAt = state.time;
   const protection = state.config.mode === 'campaign' ? WRECK_HOLD + bossDef(state).extractionDuration : ENDLESS_EXIT_PROTECTION;
@@ -158,13 +154,14 @@ function transition(state: RunState, phase: 'batteries' | 'core' | 'overload' | 
     const campaign = state.config.mode === 'campaign';
     // Credits are campaign-only; endless scores the kill through the core's 5,000 points.
     if (campaign) state.credits += REWARDS.boss;
-    // Detached pods remain live combatants. Other craft still go down with the carrier or fly away.
-    for (const enemy of state.enemies) if (!enemy.bossPart && !deployedPod(enemy) && !enemy.leaving && enemy.hp > 0 && state.effects.length < BALANCE.maxEffects) {
+    // Launched craft go down with their carrier, detached pods included (user, 11 November: clearing the last pods after the
+    // boss is dead "should not be necessary"); craft already leaving fly on. During the fight pods still persist until shot
+    // down, and a surviving pod still holds the next launch. No kill credit: the carrier took them down.
+    for (const enemy of state.enemies) if (!enemy.bossPart && !enemy.leaving && enemy.hp > 0 && state.effects.length < BALANCE.maxEffects) {
       state.effects.push({ id: state.nextId++, kind: 'explosion', x: enemy.x, s: enemy.s, ttl: .5, duration: .5 });
     }
-    state.enemies = state.enemies.filter(enemy => enemy.bossPart || deployedPod(enemy) || (enemy.leaving && enemy.hp > 0));
-    if (state.enemies.some(deployedPod)) message(state, 'CLEAR THE PODS', 4);
-    else startDeparture(state);
+    state.enemies = state.enemies.filter(enemy => enemy.bossPart || (enemy.leaving && enemy.hp > 0));
+    startDeparture(state);
   }
 }
 
@@ -345,7 +342,6 @@ export function updateBoss(state: RunState, dt: number): void {
   if (boss.phase === 'destroyed') {
     deathSequence(state, boss);
     if (boss.clearedAt === undefined) {
-      if (state.enemies.some(deployedPod)) return;
       startDeparture(state);
       message(state, def.messages.destroyed, 3);
     }
