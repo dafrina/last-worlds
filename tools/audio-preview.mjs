@@ -2,7 +2,8 @@
 // A Vite dev server must be running: AUDIO_PREVIEW_URL (default http://127.0.0.1:4173) serves the audio lab fixture.
 //   node tools/audio-preview.mjs [output directory] [planet ...]
 // AUDIO_PREVIEW_BEFORE names a folder rendered the same way from older code (default: a before/ folder beside or inside
-// the output); the Sound room then offers both builds.
+// the output); the Sound room then offers both builds. AUDIO_PREVIEW_BUILDS ("Label=folder,Label=folder", folders beside
+// the output, the output among them) instead writes the room one level up, offering every listed build.
 import { chromium } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -57,19 +58,28 @@ try {
 await writeFile(path.join(output, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n');
 
 // A small Sound room: every world with its versions, and Before/After when a before/ render sits beside this one.
-const beforeDir = process.env.AUDIO_PREVIEW_BEFORE ? path.resolve(process.env.AUDIO_PREVIEW_BEFORE)
-  : path.basename(output) === 'after' ? path.join(output, '..', 'before') : path.join(output, 'before');
-const before = await readFile(path.join(beforeDir, 'metrics.json'), 'utf8').then(JSON.parse).catch(() => null);
-const beforeLink = path.relative(output, beforeDir).split(path.sep).join('/') + '/';
+const listed = (process.env.AUDIO_PREVIEW_BUILDS ?? '').split(',').filter(Boolean).map(pair => pair.split('='));
+let room = output, builds;
+if (listed.length) {
+  room = path.dirname(output);
+  builds = listed.map(([label, folder]) => ({ label, link: `${folder}/`, chosen: folder === path.basename(output) }));
+} else {
+  const beforeDir = process.env.AUDIO_PREVIEW_BEFORE ? path.resolve(process.env.AUDIO_PREVIEW_BEFORE)
+    : path.basename(output) === 'after' ? path.join(output, '..', 'before') : path.join(output, 'before');
+  const before = await readFile(path.join(beforeDir, 'metrics.json'), 'utf8').then(JSON.parse).catch(() => null);
+  builds = before ? [{ label: 'After (upgraded)', link: '', chosen: true }, { label: 'Before', link: path.relative(output, beforeDir).split(path.sep).join('/') + '/' }] : [];
+}
+const chosen = builds.find(b => b.chosen)?.link ?? '';
 const rows = planets.map(planet => {
   const options = Object.entries(VERSIONS).map(([version, { label }]) => `<option value="${planet}-${version}.wav">${label}</option>`).join('')
     + (COMBAT[planet] ? `<option value="${planet}-${COMBAT[planet]}-combat.wav">Under fire (${COMBAT[planet].replace('boss-', '')})</option>` : '');
+  const buildOptions = builds.map(b => `<option value="${b.link}"${b.chosen ? ' selected' : ''}>${b.label}</option>`).join('');
   return `<article><h2>${planet[0].toUpperCase()}${planet.slice(1)}</h2>
   <label>Version <select data-version>${options}</select></label>
-  ${before ? `<label>Build <select data-build><option value="">After (upgraded)</option><option value="${beforeLink}">Before</option></select></label>` : ''}
-  <audio controls preload="none" src="${planet}-normal.wav"></audio></article>`;
+  ${builds.length ? `<label>Build <select data-build>${buildOptions}</select></label>` : ''}
+  <audio controls preload="none" src="${chosen}${planet}-normal.wav"></audio></article>`;
 }).join('');
-await writeFile(path.join(output, 'index.html'), `<!doctype html>
+await writeFile(path.join(room, 'index.html'), `<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Last Worlds sound room</title>
 <style>
