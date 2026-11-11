@@ -22,7 +22,7 @@ describe('the effects reworked on 11 November', () => {
       enemy: '36a0d0cf', impact: 'a604939b', explosion: '8200421a', heavy: '3a14ddae', pickup: 'afcdf1a8', ready: '55b0aa29', shockwave: '7e19744a', 'seeker-rack': '609dc1d1', 'siege-lance': 'd2f2673a', 'gravity-well': '32151ad0', warning: '5229a0ca', beam: '0309b3b2', 'boss-arrival': '665ca708', 'boss-phase': '58db8d53', 'boss-death': '5b11baec', warp: 'df2ea95d', loss: 'f64d1595',
     };
     const reworked = {
-      whoosh: '5e156c36', pulse: '3bdb43b5', fan: 'f3441840', seeker: 'cf789869', rail: '2cac85e0', shield: 'a1179bed', 'shield-break': '58287b56', life: '91a77b48', part: '4f76939e', upgrade: '140e99dc', win: 'e145e9f7',
+      whoosh: '5e156c36', pulse: '3bdb43b5', fan: 'f3441840', seeker: 'cf789869', rail: '2cac85e0', shield: 'a1179bed', 'shield-break': '58287b56', life: '5eb3560d', part: '4f76939e', upgrade: '140e99dc', win: 'e145e9f7',
     };
     for (const [id, hash] of Object.entries({ ...unchanged, ...reworked })) expect(pcm(id), id).toBe(hash);
   });

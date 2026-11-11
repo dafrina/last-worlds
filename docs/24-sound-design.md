@@ -20,7 +20,7 @@ All samples, instrument patches, melodies, chord progressions, percussion patter
 | Weapon impact | Very short metallic tick, with a per-family cooldown |
 | Enemy / fuel explosion | Crack, saturated midrange body, falling pressure wave and scattered debris |
 | Shield hit / last charge | A gritty klaxon call, A4 then E4: once for a hit with charges left, twice for the last charge (11 November) |
-| Life loss | One klaxon blast winding up from A2 to G3, cut hard at 1 s; music ducking; no duplicate player explosion (11 November) |
+| Life loss | One klaxon blast winding up from A2 to G3, cut hard at 0.7 s; music ducking; no duplicate player explosion (11 November) |
 | Pickups | A part clanks and rings (0.75 s); a shield cell that adds a charge, a power cell or a weapon plays the shield's bell rising E, B, E; credits keep the brief blips (11 November) |
 | Special ready | Brief ascending intervals |
 | Shockwave | Broad pressure impulse and falling energy body |
@@ -536,7 +536,7 @@ The changes came in three listening rounds:
 | Rail Driver (`rail`) | crack, zap, kick and ring, 0.42 s | crack, a falling zap and a short ring, no kick, 0.16 s |
 | Hit on the shield, charges left (`shield`) | a 740 Hz bell (the "gong") | a gritty klaxon call, A4 then E4, 0.23 s |
 | Last shield charge (`shield-break`) | the bell pitched down, 0.95 s | the same call twice, 0.5 s |
-| Life lost (`life`) | an explosion boom, 1.6 s | one klaxon blast winding up from A2 to G3, with its octave below, cut hard at 1.0 s (a 4 ms ramp, abrupt, without the click of a zero-length cut) |
+| Life lost (`life`) | an explosion boom, 1.6 s | one klaxon blast winding up from A2 to G3, with its octave below, cut hard at 0.7 s (user: first 1.0 s, then "cut it at 0.7 seconds"; made at its full second and level, then truncated behind a 4 ms ramp, abrupt, without the click of a zero-length cut) |
 | Mission complete (`win`) | an FM-bell D major arpeggio, 2.1 s | a low open fifth swelling into a soft open C sus2 chord with a faint G above, 2.8 s, transposed to the world's key (`successKey`) |
 | Launch warp (new: engine `launch`) | nothing | the warp whoosh a fifth up, peaking as the shortest warp breaks out (1 s); played only if its sample is already made, so nothing is synthesized in the start tap |
 | Endless planet jump (`warp` + `whoosh`) | the rising tone | the rising tone and the whoosh: noise climbing from 220 Hz to 7 kHz to its peak on the jump flash (1.5 s), then passing |

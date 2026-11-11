@@ -84,7 +84,8 @@ function klaxon(rate: number) {
 const age = (t: number, at: number) => t >= at ? t - at : -1;
 
 /** `fade`: the closing anti-click ramp in seconds (12 ms unless a sound is cut harder). */
-const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => Voice; fade?: number }>> = {
+/** `cut` (s): made at full length and level, then truncated there behind a `fade`-long ramp (a hard cut without a click). */
+const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => Voice; fade?: number; cut?: number }>> = {
   // Main weapon shots: a click and a chirp falling fast through the upper mids, gone in about 50 ms. No body, no tail,
   // nothing under 700 Hz; each family keeps its colour (pulse a clean tick, fan a spray, seeker a warble, rail a crack).
   pulse: { peak: .6, voice: rate => {
@@ -173,9 +174,9 @@ const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => V
   // pitching up like an alert horn ... dirty it up too"): one blast of the ship's klaxon winding up like an air-raid
   // horn, from A2 to G3 over its first 0.85 s (fastest at the start), with its octave below for weight: the most
   // serious of the three alarms.
-  // Cut hard at exactly 1 s (user: "it should play for exactly only the first second ... just hard cut after 1
-  // second"): a 4 ms ramp, abrupt to the ear, without the click of a zero-length cut.
-  life: { peak: .75, fade: .004, voice: rate => {
+  // Cut hard at 0.7 s (user: first "just hard cut after 1 second", then "cut it at 0.7 seconds"): made at its full
+  // second and level as before, then truncated behind a 4 ms ramp, abrupt to the ear without a zero-length cut's click.
+  life: { peak: .75, fade: .004, cut: .7, voice: rate => {
     const sound = klaxon(rate), under = klaxon(rate);
     return (t, n) => {
       const f = 110 * (196 / 110) ** (Math.min(1, t / .85) ** .7);
@@ -200,7 +201,16 @@ const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => V
 export function synthesize(id: SampleId, rate = SAMPLE_RATE): Float32Array {
   if (isInstrument(id)) return synthesizeInstrument(id, rate);
   const reworked = REWORKED[id];
-  if (reworked) return made(id, rate, reworked.peak, reworked.voice, reworked.fade);
+  if (reworked) {
+    const samples = made(id, rate, reworked.peak, reworked.voice, reworked.fade);
+    if (reworked.cut === undefined) return samples;
+    // The ramp reaches zero on the last sample; then the same edge-tapered DC removal every effect gets.
+    const fade = reworked.fade ?? .012, cut = samples.slice(0, Math.ceil(reworked.cut * rate)), count = cut.length;
+    for (let i = 0; i < count; i++) cut[i] *= Math.min(1, Math.max(0, (count - 1 - i) / rate / fade));
+    let dc = 0; for (const value of cut) dc += value; dc /= count;
+    for (let i = 0; i < count; i++) cut[i] -= dc * Math.min(1, i / 48, (count - i - 1) / 48);
+    return cut;
+  }
   const duration = durations[id], count = Math.ceil(duration * rate);
   const samples = new Float32Array(count);
   const seed = [...id].reduce((a, c) => Math.imul(a ^ c.charCodeAt(0), 16777619), 2166136261);
