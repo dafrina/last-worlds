@@ -919,3 +919,9 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Released:** `src/audio/*` and `docs/24` are free.
 - **Deploy:** the push run was stuck in a GitHub Actions outage, so `pages.yml` was re-run via workflow_dispatch.
 - **Snapshot gate:** now runs Vite with a private cache (`vite.snapshot.config.ts`), so it no longer re-optimizes the main tree's `node_modules/.vite` under the user's preview server.
+- **Claude Code, 12 November: hit alarms replaced.** The user picked them from candidates:
+  - the field thud for a shield hit, the same for the last charge;
+  - the deny buzzer for a life lost.
+  - The klaxon voice is retired.
+  - Files: `src/audio/samples.ts`, the pinned hashes in `tests/audio/audio.test.ts`, and `docs/24`.
+  - Checks: unit (1032), build, and the audio browser spec (7/7).

@@ -19,8 +19,8 @@ All samples, instrument patches, melodies, chord progressions, percussion patter
 | Enemy volley | Quieter, lower-register shot; visible enemies only |
 | Weapon impact | Very short metallic tick, with a per-family cooldown |
 | Enemy / fuel explosion | Crack, saturated midrange body, falling pressure wave and scattered debris |
-| Shield hit / last charge | A gritty klaxon call, A4 then E4: once for a hit with charges left, twice for the last charge (11 November) |
-| Life loss | One klaxon blast winding up from A2 to G3, cut hard at 0.7 s; music ducking; no duplicate player explosion (11 November) |
+| Shield hit / last charge | The field thud: a punchy low hit with an electric whine falling out of it, 0.35 s; the same for the last charge (12 November) |
+| Life loss | The deny buzzer: two short harsh pulses on a grinding minor second (G3 against G#3), 0.32 s; music ducking; no duplicate player explosion (12 November) |
 | Pickups | A part clanks and rings (0.75 s); a shield cell that adds a charge, a power cell or a weapon plays the shield's bell rising E, B, E; credits keep the brief blips (11 November) |
 | Special ready | Brief ascending intervals |
 | Shockwave | Broad pressure impulse and falling energy body |
@@ -569,3 +569,17 @@ Over Khepri's music the shots no longer stand above the score: the loudest windo
 Previews: `node tools/sfx-preview.mjs <root>` with `SFX_BUILD=before|after`, rendered through the game's mixer: each event alone and over Khepri's music, in `lookdev/audio-previews/sfx/` with an A/B room (`index.html`).
 
 Actual iOS Safari, Android hardware, phone speaker balance, Bluetooth latency, hardware mute behavior and OS interruptions still require listening/device validation. The first implementation deliberately offers separate mix sliders for that final taste/room/device adjustment. See `docs/build-status.md` for the exact final test results and revision.
+
+## 12 November 2026 · The hit alarms replaced again
+
+User: "i really dont like the new life and shield hit sounds, give me some other examples that are distinct form other sounds but still fitting and noticeably hostile sounding so that its an indicator". The user heard four candidates for each sound, alone and over combat (artifact `65FfLzBT2A5N9BbvGukhHm`), and picked "the field thud for shield hit and the deny buzzer for life hit". Then: "last shield can be same as normal shield hit no double".
+
+- **Shield hit and last charge (`shield`, `shield-break`):** the field thud, 0.35 s.
+  - a punchy low thud, 90 Hz falling to 45 Hz;
+  - under an electric whine, 720 Hz wobbled by 90 Hz FM and falling away;
+  - with a short noise click on the impact.
+  - The last charge plays the same sound; it keeps its own event for the mixer's ducking.
+- **Life lost (`life`):** the deny buzzer, two harsh square pulses (0.11 s and 0.13 s) on G3 against G#3, driven. 0.32 s.
+- **What they avoid:** bells (pickups), chirps (shots) and booms (explosions), so each still reads as a hit.
+- **Retired:** the klaxon voice.
+

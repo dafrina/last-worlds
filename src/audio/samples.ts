@@ -1,5 +1,5 @@
 import { SPECIALS } from '../content/equipment';
-import { midi, noiseSource, OnePole, Svf } from './dsp';
+import { drive, midi, noiseSource, OnePole, Svf } from './dsp';
 import { BOSS_INSTRUMENTS, isInstrument, LEVEL_INSTRUMENTS, synthesizeInstrument, type Instrument } from './instruments';
 
 export { midi, noiseSource } from './dsp';
@@ -21,7 +21,7 @@ const durations: Record<Sound, number> = {
   // First: the launch warp plays it in the tap that starts a flight, only if it is already made (engine.ts launch).
   whoosh: 3,
   pulse: .07, fan: .08, seeker: .14, rail: .16, enemy: .2, impact: .13, explosion: .85, heavy: 1.6,
-  shield: .23, 'shield-break': .5, life: 1, pickup: .28, part: .75, upgrade: .75, ready: .65,
+  shield: .35, 'shield-break': .35, life: .32, pickup: .28, part: .75, upgrade: .75, ready: .65,
   shockwave: 1.65, 'seeker-rack': .8, 'siege-lance': SPECIALS['siege-lance'].duration, 'gravity-well': 1.6, warning: .65, beam: .85,
   'boss-arrival': 2.8, 'boss-phase': 1.1, 'boss-death': 3.6, warp: 3.1, win: 2.8, loss: 2.1,
 };
@@ -54,30 +54,18 @@ function made(id: Sound, rate: number, peak: number, voice: (rate: number) => Vo
   for (let i = 0; i < count; i++) samples[i] *= peak / Math.max(loudest, 1e-9);
   return samples;
 }
+/** A band-limited square wave (odd harmonics up to the ninth) at phase `p`. */
+const square = (p: number) => { let v = 0; for (let k = 1; k <= 9; k += 2) v += sin(k * p) / k; return v; };
 /**
- * The alarms' voice: a hazard klaxon in a damaged hull (round 2: "an alarm horn ... maybe a lower tone"; round 3: "more
- * dirt, its too clean and too comic like"). Three reeds about 11 cents apart, beating against each other, each a
- * band-limited saw (ten harmonics); overdriven; a bit-crushed edge (held every third sample, 4-bit steps); played
- * through a cheap damaged speaker (no lows, a hard resonance around 1.4 kHz, its cone rattling at 47 Hz); and noise
- * riding the signal like a grille buzzing against it. `hz` stays put: no slides.
+ * The shield hit (user, 12 November): a punchy low thud (90 Hz falling to 45 Hz, gone in about 0.1 s) under an electric
+ * whine, 720 Hz wobbled by 90 Hz FM and falling away, and a short noise click on the impact. 0.35 s.
  */
-function klaxon(rate: number) {
-  const tunings = [1, 1.0066, .9937], phases = [0, 0, 0];
-  const cone = new Svf(rate, 1400, 2.4), lows = new OnePole(380, rate), grille = new Svf(rate, 3300, 3);
-  let held = 0, i = 0, t = 0;
-  return (hz: number, n: number) => {
-    let v = 0;
-    for (let k = 0; k < 3; k++) {
-      phases[k] += TAU * hz * tunings[k] / rate;
-      for (let h = 1; h <= 10; h++) v += sin(h * phases[k]) / h;
-    }
-    v = Math.tanh(v * 1.8);
-    if (i++ % 3 === 0) held = Math.round(v * 8) / 8;
-    v = v * .6 + held * .4;
-    cone.run(v); grille.run(n * Math.abs(v));
-    t += 1 / rate;
-    const rattle = sin(TAU * 47 * t) > .6 ? .8 : 1;
-    return Math.tanh((cone.band * 1.2 + (v - lows.run(v)) * .5 + grille.band * .7) * 1.5) * rattle;
+function fieldThud(rate: number): Voice {
+  let p = 0, m = 0;
+  return (t, n) => {
+    m += TAU * 90 / rate; p += TAU * (720 + 260 * sin(m)) * exp(-t * 4) / rate;
+    const thud = sin(TAU * (90 * exp(-t * 18) + 45) * t) * exp(-t * 22);
+    return drive(thud * 1.2 + sin(p) * .6 * exp(-t * 7) + n * .25 * exp(-t * 40), 2);
   };
 }
 /** A note in a sequence: its age `t - at`, or -1 before it starts. */
@@ -122,20 +110,14 @@ const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => V
       return crack.high(n) * exp(-t * 200) * .9 + sin(p) * exp(-t * 40) * .5 + ring;
     };
   } },
-  // The alarms are klaxons (round 2: horns, lower; round 3: gritty). A hit on the shield with charges left: the
-  // shield's call once, A4 then E4 (round 3, user: "can be lowered to the same as the last shield, just single").
-  shield: { peak: .65, voice: rate => {
-    const sound = klaxon(rate);
-    return (t, n) => sound(t < .09 ? 440 : 329.63, n) * (t < .21 ? Math.min(1, t / .003) * Math.min(1, (.21 - t) / .015) : 0);
-  } },
-  // The last shield charge gone: the same call twice. Unmistakably not the single call.
-  'shield-break': { peak: .65, voice: rate => {
-    const sound = klaxon(rate);
-    return (t, n) => {
-      const call = t % .25, env = t < .46 && call < .21 ? Math.min(1, call / .003) * Math.min(1, (.21 - call) / .015) : 0;
-      return sound(call < .09 ? 440 : 329.63, n) * env;
-    };
-  } },
+  // The hit alarms (user, 12 November, after the klaxons: "i really dont like the new life and shield hit sounds ...
+  // distinct form other sounds but still fitting and noticeably hostile"; picked from four candidates each: "the field
+  // thud for shield hit and the deny buzzer for life hit"). No bells (pickups), chirps (shots) or booms (explosions).
+  // A hit on the shield with charges left: the field thud, a punchy low hit with an electric whine falling out of it.
+  shield: { peak: .65, voice: rate => fieldThud(rate) },
+  // The last shield charge gone: the same single thud (user, 12 November: "last shield can be same as normal shield hit
+  // no double"). It keeps its own event so the mixer can still treat it as the bigger moment (music ducking).
+  'shield-break': { peak: .65, voice: rate => fieldThud(rate) },
   // Mission complete, in C (the engine transposes it to the world's key): a low open fifth swelling up, then a clean
   // sus2 chord (C, G, D) struck softly together with a faint G above. No fanfare, no major third.
   win: { peak: .55, voice: () => t => {
@@ -170,18 +152,14 @@ const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => V
       return v;
     };
   } },
-  // A life lost (round 2, user: "replace the life lost with a horn alarm sound"; round 3: "just one longer sound but
-  // pitching up like an alert horn ... dirty it up too"): one blast of the ship's klaxon winding up like an air-raid
-  // horn, from A2 to G3 over its first 0.85 s (fastest at the start), with its octave below for weight: the most
-  // serious of the three alarms.
-  // Cut hard at 0.7 s (user: first "just hard cut after 1 second", then "cut it at 0.7 seconds"): made at its full
-  // second and level as before, then truncated behind a 4 ms ramp, abrupt to the ear without a zero-length cut's click.
-  life: { peak: .75, fade: .004, cut: .7, voice: rate => {
-    const sound = klaxon(rate), under = klaxon(rate);
-    return (t, n) => {
-      const f = 110 * (196 / 110) ** (Math.min(1, t / .85) ** .7);
-      const env = Math.min(1, t / .03) * Math.min(1, (1.2 - t) / .15);
-      return (sound(f, n) + under(f / 2, n) * .55) * env;
+  // A life lost: the deny buzzer, two short harsh pulses on a grinding minor second (G3 against G#3), like "access
+  // denied" (user, 12 November; it replaces the klaxon blast).
+  life: { peak: .7, voice: rate => {
+    let p = 0, q = 0;
+    return t => {
+      p += TAU * 196 / rate; q += TAU * 207.65 / rate;
+      const pulse = t < .11 ? t : t > .16 && t < .29 ? t - .16 : -1;
+      return pulse < 0 ? 0 : drive((square(p) + square(q)) * .6, 2.5) * Math.min(1, pulse / .004);
     };
   } },
   // The warp's whoosh: noise through two bands climbing from 220 Hz to 7 kHz by its peak at 1.5 s (the planet jump's

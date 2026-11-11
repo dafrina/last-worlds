@@ -17,12 +17,14 @@ describe('the effects reworked on 11 November', () => {
   it('pins every effect sample: seventeen unchanged since 20 October, eleven made on 11 November', () => {
     // User, 11 November: the shots, the hit gong, the success sound; a whoosh for the warp; a clank for a part; upgrades
     // as the shield's bell rising; in rounds 2 and 3 gritty klaxons for the alarms, rockets for the Seeker Array.
+    // 12 November: the alarms replaced again: the field thud for a shield hit (twice for the last charge), the deny
+    // buzzer for a life lost.
     // Every other effect is byte for byte what it was.
     const unchanged = {
       enemy: '36a0d0cf', impact: 'a604939b', explosion: '8200421a', heavy: '3a14ddae', pickup: 'afcdf1a8', ready: '55b0aa29', shockwave: '7e19744a', 'seeker-rack': '609dc1d1', 'siege-lance': 'd2f2673a', 'gravity-well': '32151ad0', warning: '5229a0ca', beam: '0309b3b2', 'boss-arrival': '665ca708', 'boss-phase': '58db8d53', 'boss-death': '5b11baec', warp: 'df2ea95d', loss: 'f64d1595',
     };
     const reworked = {
-      whoosh: '5e156c36', pulse: '3bdb43b5', fan: 'f3441840', seeker: 'cf789869', rail: '2cac85e0', shield: 'a1179bed', 'shield-break': '58287b56', life: '5eb3560d', part: '4f76939e', upgrade: '140e99dc', win: 'e145e9f7',
+      whoosh: '5e156c36', pulse: '3bdb43b5', fan: 'f3441840', seeker: 'cf789869', rail: '2cac85e0', shield: '951fdde4', 'shield-break': 'de47a98f', life: 'cc117f50', part: '4f76939e', upgrade: '140e99dc', win: 'e145e9f7',
     };
     for (const [id, hash] of Object.entries({ ...unchanged, ...reworked })) expect(pcm(id), id).toBe(hash);
   });
