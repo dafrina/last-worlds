@@ -896,3 +896,12 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **10 November · Claude Code (Blender MCP in WSL session) · deployed `e95493e`:** the late-world curve, Untouchable 3 parts (with the board's plural label fix) and the boss stage bursts in `src/render/fx-particles.ts`.
 - **Gate:** unit 990, build, browser 53/54; the steering spec's load timeout passed on rerun.
 - **Now:** an agent is upgrading the music in its own worktree; `src/audio/*` and `docs/24-sound-design.md` are owned until it merges.
+
+**11 November · Claude Code (Blender MCP in WSL session) · deployed `39ff88f`, the music upgrade.**
+- **Released:** `src/audio/*` and `docs/24` are free again.
+- **Now:** an agent in its own worktree is making waves and bosses drift toward the view when the player flees, so one or two enemies stay on screen (the user's anti-evasion rule).
+- **Owned until it merges:**
+  - `src/sim/{airspace,fairness,game,boss,motion}.ts`;
+  - new content data for the drift;
+  - `docs/10`;
+  - the fairness tests.

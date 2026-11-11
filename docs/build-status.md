@@ -1,6 +1,19 @@
 # Build status
 
-## Music v5: clean timing, fewer notes, Corona over a drone, the fights in tune (agent worktree, not deployed), 11 November 2026
+## Music upgrade deployed (`39ff88f`), 11 November 2026
+
+The user approved the fifth listening round. The three entries below describe the passes in detail.
+
+- **Four boss music states,** each with its own stinger, synchronized and never restarting.
+- **Modernized synthesized instruments:** clean round basses, snappy kicks, a hall, and a kick sidechain on leads and basses.
+- **New compositions:** Corona over a drone in Bayati and Saba, and Umbra reversed and alien. Umbra's flight music is frozen.
+- **Simpler melodies everywhere else,** and the boss stems stay in key.
+- **Dropped:** a recorded-sample experiment (CC0 libraries) was tried and dropped at the user's request. Its code, files and downloads are deleted; the synthesized version stays.
+- **Unchanged:** weapon and effect sounds are byte-identical.
+- **Gate on `39ff88f`:** typecheck clean; unit tests 1013 passed, 5 skipped; build passes; browser 55/55, Playwright exit 0.
+- **Live:** Pages run 43022523771 succeeded; the live bundle `main-BelBLgBp.js` matches the build; the smoke test reports no errors. No phone test.
+
+## Music v5: clean timing, fewer notes, Corona over a drone, the fights in tune (deployed in `39ff88f`), 11 November 2026
 
 - **User, on v4:**
   - quick-succession notes in Luna, Amnion, Khepri and Corona "sound just weird and overlapping";
@@ -32,7 +45,7 @@
   - Peak 0.586, no clipping.
 - **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), phase 5.
 
-## Music, phase 4: snappier kicks, weight and sidechain in the fights, the worlds reworked (agent worktree, not deployed), 11 November 2026
+## Music, phase 4: snappier kicks, weight and sidechain in the fights, the worlds reworked (deployed in `39ff88f`), 11 November 2026
 
 - **User, after hearing v3:**
   - snappier kicks, especially in the fights, and fights with more bass;
@@ -66,7 +79,7 @@
   - Boss stages +1.6 dB on average against v3 (bass band +1.9).
 - **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), phase 4.
 
-## Music, third pass: played, roomier, orchestral boss stems (agent worktree, not deployed), 11 November 2026
+## Music, third pass: played, roomier, orchestral boss stems (deployed in `39ff88f`), 11 November 2026
 
 - **User feedback:** the 10 November pass still "sound[ed] cheap", and not only the instruments.
   - A trial with recorded instrument samples was built and rejected, then removed: no recordings, no decoder, no extra downloads.
