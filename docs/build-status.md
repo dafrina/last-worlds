@@ -1,5 +1,29 @@
 # Build status
 
+## Waves and bosses follow a pilot who runs, to a limit (agent worktree, not deployed), 11 November 2026
+
+- **User:** "Start left screen, move fully right screen when the wave spawned, then for the next wave same thing backwards" evaded every wave but the aces, and a boss could be parked out of frame. Decision: "keep it to a limit, there should be possibilities to retreat but there should always be 1-2 enemies on screen".
+- **Rule** (docs/10 §4–5, `src/sim/drift.ts`, `pullBoss` in `src/sim/boss.ts`, `DRIFT` in `src/content/balance.ts`):
+  - With no air craft in view able to attack, the nearest view-anchored squadron beside the view slides toward it at 4.5 units/s until two can.
+  - A boss with no target in view for 2 s moves its post toward the view at 2.5 units/s, within ±6, and goes home when a target would be in view there.
+  - Nothing moves through a windup, a beam lane or a contact forecast, so the director's forecasts stay exact. Squadron slides keep the airspace rule.
+- **Fleeing pilot** (missions at Standard and endless sectors 2–4, seeds 1–4), time in a wave's firing window with nothing able to attack:
+  - before 62%, after 13%;
+  - the bulk of the wave stays out of view 69% of the time (95% before);
+  - wave windups at it 1486 → 3661.
+- **Bosses parked at the edge:** no windups before. After:
+  - core open: 92–172 per four fights;
+  - far module only: 112–188;
+  - THE ECLIPSE and THE HELIOPHAGE far vents 68–76 (the ±6 limit lets the vent show only near the top of its sway).
+- **Perfect pilot** (120 runs): 14 → 15 hits; windups 24 615 → 24 716.
+- **Re-pinned** no-hit seeds, with hits over seeds 1–16 in docs/10 and the commit:
+  - Brood Strike 4 → 1;
+  - Cold Vector Standard 56 → 3;
+  - Final Horizon 7 → 9;
+  - endless sectors 1–8 1 → 3.
+- **Fairness trace:** it no longer reads a cancelled windup as a release. That was a false short-warning report, on two seeds before the pull and two after.
+- **Screenshots:** `tests/fixtures/bastion.html?…&park=10&pull=10` for each boss. The boss comes over until its target sits inside the left edge, lateral only. Bastion-9 and WARDEN-1 stay seated on the ground.
+
 ## Music v5: clean timing, fewer notes, Corona over a drone, the fights in tune (agent worktree, not deployed), 11 November 2026
 
 - **User, on v4:**

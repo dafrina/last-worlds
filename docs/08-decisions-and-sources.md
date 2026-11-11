@@ -19,6 +19,7 @@ Design v0.2 · 13 October 2026 · working title Last Worlds
 - Campaign-only side missions/career goals may award coins. They only observe normal mechanics; do not alter combat for them. Infrastructure preservation was an example.
 - A statistics screen should report campaign and endless separately.
 - Maps extend beyond the horizontal viewport; lateral camera tracking enables exploration and alternate evasive routes.
+- **Waves follow you, to a limit (11 November 2026):** "lets try 1 but keep it to a limit, there should be possibilities to retreat but there should always be 1-2 enemies on screen". The context: crossing to the other screen as each wave spawned evaded every wave except the aces, and a boss could be parked out of frame. A squadron left beside the view slides toward it until two of its craft can attack, and a boss with no target in view lumbers toward it ([wide map](10-wide-map-and-camera.md#4-visibility-and-fair-threats)).
 - Hero tiers must have fundamentally different airframes. The accepted battered utility starter must appear smaller in gameplay; preserve the latest accepted artwork.
 - Campaign has selectable difficulty levels. Endless ramps difficulty within every run, independently of campaign difficulty and advancement.
 - **Steering relative to the ship (17 October 2026, replaces the screen halves; reverted to the screen halves on 21 October):** a touch left of the hero ship steers left, right of it steers right, and the direction holds while the finger stays down, even after the ship passes under it. Dragging the finger across to the other side of the ship switches direction. Still no drag-to-position steering.
@@ -428,3 +429,14 @@ User answers after reviewing the merged strike sites and encounter deck:
   - Readable about 70% of the time.
   - Easing the whole turn instead looked like "two quick turns then stay still".
 
+
+### 11 November 2026 · Waves follow you, to a limit
+- **User:** "You can evade all enemies except aces pretty easily. Start left screen, move fully right screen when the wave spawned, then for the next wave same thing backwards." Earlier: bosses could be evaded "endlessly by moving out of frame so that his shooting origin is out of frame".
+- **Decision:** "lets try 1 but keep it to a limit, there should be possibilities to retreat but there should always be 1-2 enemies on screen".
+- **Squadrons:** when no air craft in view can attack, the nearest view-anchored squadron beside the view slides toward it (4.5 units/s at pace 1) until two can (`src/sim/drift.ts`, `DRIFT` in `src/content/balance.ts`). The bulk of the wave stays out. World-anchored routes and strike sites, ground batteries, boss launches and aces never move.
+- **Bosses:** after 2 s with no live target in view, a boss moves its post toward the view (2.5 units/s), within the camera's range of ±6, until one is. It eases back home whenever a target would be in view there.
+- **Fairness:**
+  - nothing moves while it winds up, holds a lane, or could reach the ship's row within the fairness horizon, so the director's forecasts stay exact;
+  - every squadron slide passes the airspace rule.
+- **Counting:** aces and Wraiths in view count toward the two; ground batteries do not.
+- **Details and measurements:** docs/10 §4–5.
