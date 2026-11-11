@@ -1,11 +1,58 @@
 import { describe, expect, it } from 'vitest';
 import { SoundObserver } from '../../src/audio/events';
-import { sanitizeSettings } from '../../src/audio/engine';
+import { sanitizeSettings, successKey } from '../../src/audio/engine';
 import { synthesize, SAMPLE_IDS } from '../../src/audio/samples';
 import { ScoreClock, scoreStep, THEMES } from '../../src/audio/score';
 import { bossStep } from '../../src/audio/boss-score';
 import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
 import { EMPTY_INPUT, STEP, type PlanetId } from '../../src/shared/contracts';
+
+describe('the effects reworked on 11 November', () => {
+  const pcm = (id: string) => {
+    const bytes = new Uint8Array(synthesize(id as never).buffer);
+    let h = 2166136261;
+    for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ bytes[i], 16777619);
+    return (h >>> 0).toString(16).padStart(8, '0');
+  };
+  it('pins every effect sample: seventeen unchanged since 20 October, eleven made on 11 November', () => {
+    // User, 11 November: the shots, the hit gong, the success sound; a whoosh for the warp; a clank for a part; upgrades
+    // as the shield's bell rising; in rounds 2 and 3 gritty klaxons for the alarms, rockets for the Seeker Array.
+    // Every other effect is byte for byte what it was.
+    const unchanged = {
+      enemy: '36a0d0cf', impact: 'a604939b', explosion: '8200421a', heavy: '3a14ddae', pickup: 'afcdf1a8', ready: '55b0aa29', shockwave: '7e19744a', 'seeker-rack': '609dc1d1', 'siege-lance': 'd2f2673a', 'gravity-well': '32151ad0', warning: '5229a0ca', beam: '0309b3b2', 'boss-arrival': '665ca708', 'boss-phase': '58db8d53', 'boss-death': '5b11baec', warp: 'df2ea95d', loss: 'f64d1595',
+    };
+    const reworked = {
+      whoosh: '5e156c36', pulse: '3bdb43b5', fan: 'f3441840', seeker: 'cf789869', rail: '2cac85e0', shield: 'a1179bed', 'shield-break': '58287b56', life: '91a77b48', part: '4f76939e', upgrade: '140e99dc', win: 'e145e9f7',
+    };
+    for (const [id, hash] of Object.entries({ ...unchanged, ...reworked })) expect(pcm(id), id).toBe(hash);
+  });
+  it('makes the player\'s shots short and sharp: gone within a fraction of a second, their energy up front', () => {
+    for (const id of ['pulse', 'fan', 'seeker', 'rail'] as const) {
+      const samples = synthesize(id), early = Math.round(.03 * 32000);
+      let first = 0, total = 0;
+      samples.forEach((v, i) => { total += v * v; if (i < early) first += v * v; });
+      // The Seeker Array launches rockets (round 2): a little longer, an ignition hiss after its thump.
+      expect(samples.length / 32000, id).toBeLessThanOrEqual(id === 'rail' || id === 'seeker' ? .16 : .09);
+      expect(first / total, id).toBeGreaterThan(id === 'rail' ? .6 : id === 'seeker' ? .5 : .75);
+    }
+  });
+  it('plays a part as a clank, credits as the plain pickup, and the planet jump with its whoosh', () => {
+    const state = createRun({ mode: 'campaign', mission: 'training', seed: 3 }), observer = new SoundObserver();
+    observer.reset(state);
+    const pickup = () => state.effects.push({ id: state.nextId++, kind: 'pickup', x: state.player.x, s: 0, ttl: .3, duration: .3 });
+    state.time += .02; state.parts = (state.parts ?? 0) + 1; pickup();
+    expect(observer.read(state).map(e => e.sound)).toEqual(['part']);
+    state.time += .02; pickup();
+    expect(observer.read(state).map(e => e.sound)).toEqual(['pickup']);
+    state.time += .02; state.player.shields -= 1; observer.reset(state); state.time += .02; state.player.shields += 1; pickup();
+    expect(observer.read(state).map(e => e.sound)).toEqual(['upgrade']);
+    state.time += .02; state.jump = { startedAt: state.time, duration: 3, from: 'khepri', to: 'vesper' };
+    expect(observer.read(state).map(e => e.sound)).toEqual(['warp', 'whoosh']);
+  });
+  it('resolves a mission in its world\'s key', () => {
+    expect((Object.keys(THEMES) as PlanetId[]).map(successKey)).toEqual([2, -3, 0, -1, -5, 4, -6]);
+  });
+});
 
 describe('combat audio observes real gameplay', () => {
   it('does not fire at empty sky, changes no state, and never replays an observed event', () => {

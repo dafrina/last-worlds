@@ -1,4 +1,5 @@
 import { AudioMixer } from '../../src/audio/mixer';
+import type { Sound } from '../../src/audio/samples';
 import { createGameAudio } from '../../src/audio/engine';
 import { BossArranger, bossStage } from '../../src/audio/boss-score';
 import { FROZEN, THEMES, scoreStep } from '../../src/audio/score';
@@ -34,8 +35,9 @@ export async function renderTimeline(job: PreviewJob) {
       stages.push({ at, step: next, stage, switchAt: switchAt === null ? null : START + (switchAt - start) * stepTime });
     } });
   }
-  for (const cue of previewCues(job, barTime, seconds)) {
-    events.push({ at: cue.at, run: () => mixer.cue({ sound: cue.sound, pan: cue.pan, gain: cue.gain, variant: Math.round(cue.at * 10) }, cue.at) });
+  for (const cue of [...previewCues(job, barTime, seconds), ...(job.extra ?? [])]) {
+    const transpose = 'transpose' in cue ? cue.transpose : undefined;
+    events.push({ at: cue.at, run: () => mixer.cue({ sound: cue.sound as Sound, pan: cue.pan, gain: cue.gain, variant: Math.round(cue.at * 10), ...(transpose === undefined ? {} : { transpose }) }, cue.at) });
   }
   for (let i = 0; i < job.bars * 16; i++) {
     const at = START + i * stepTime, step = start + i;

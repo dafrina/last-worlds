@@ -36,6 +36,9 @@ export function prefetchSamples() {
   }
 }
 
+/** Whether a sample is made and waiting (so taking it costs nothing now). */
+export function sampleMade(id: SampleId) { return bank.has(id); }
+
 /** A sample's data for one AudioBuffer (copied there, so the bank lets go of it). */
 export function takeSample(id: SampleId): Float32Array {
   const samples = bank.get(id) ?? synthesize(id);

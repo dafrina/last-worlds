@@ -1,5 +1,25 @@
 # Build status
 
+## Sound effects reworked over three listening rounds (agent worktree, not deployed), 11 November 2026
+
+- **Changed:**
+  - player shots: short, sharp and 6–7 dB quieter; the Seeker Array now sounds like rocket launches;
+  - shield hit, last shield and life lost: gritty klaxon calls, the life one a single wind-up cut hard at 1 s;
+  - success: a resolve in the world's key;
+  - a whoosh for the launch warp and the planet jump;
+  - a part clanks;
+  - upgrades play the shield's bell rising.
+- **Unchanged:** credits; the other 17 effects are byte-identical, and all 28 are pinned by a test.
+- **Launch whoosh:** plays in the start tap only if already made, never synthesized there.
+- **Table and levels:** [sound design](24-sound-design.md), "11 November: sound effects reworked".
+- **Checks:**
+  - typecheck clean;
+  - unit tests 1032 passed, 6 skipped (exit 0); the fairness test that failed under load in the first round passed;
+  - build passes;
+  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0, on port 4192.
+- **Previews:** `http://localhost:4189/lookdev/audio-previews/sfx/index.html` (A/B).
+- **Not verified:** no phone test.
+
 ## Music upgrade deployed (`39ff88f`), 11 November 2026
 
 The user approved the fifth listening round. The three entries below describe the passes in detail.

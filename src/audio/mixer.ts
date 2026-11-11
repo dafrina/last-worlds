@@ -2,23 +2,27 @@ import type { Cue } from './events';
 import type { Note } from './score';
 import { BASE_PITCH, type Instrument } from './instruments';
 import { noiseSource, SAMPLE_IDS, SAMPLE_RATE, type SampleId, type Sound } from './samples';
-import { takeSample } from './sample-bank';
+import { sampleMade, takeSample } from './sample-bank';
 
 export interface AudioSettings { muted: boolean; music: number; effects: number }
 /** The level score, the additive boss stem (its own pool, so it can never thin the score) and combat effects. */
 type Group = 'music' | 'boss' | 'effects';
 interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; start: number; end: number }
+/** Effect levels. 11 November: the player's shots much lower (user: "a bit too much and too loud"), the new alarm,
+ * part clank and warp whoosh set against the sounds they sit with. */
 const LEVELS: Record<Sound, number> = {
-  pulse: .23, fan: .25, seeker: .24, rail: .3, enemy: .10, impact: .13, explosion: .37, heavy: .43,
-  shield: .4, 'shield-break': .48, life: .48, pickup: .19, upgrade: .28, ready: .25,
+  pulse: .22, fan: .3, seeker: .21, rail: .22, enemy: .10, impact: .13, explosion: .37, heavy: .43,
+  shield: .19, 'shield-break': .19, life: .18, pickup: .19, part: .45, upgrade: .28, ready: .25, whoosh: .3,
   shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, 'gravity-well': .42, warning: .25, beam: .28,
-  'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .28, loss: .27,
+  'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .3, loss: .27,
 };
 const PRIORITY: Partial<Record<Sound, number>> = {
   impact: 0, enemy: 0, explosion: 1, heavy: 2, pulse: 2, fan: 2, seeker: 2, rail: 3,
   shield: 4, 'shield-break': 5, life: 5, 'boss-death': 5,
 };
-const COOLDOWN: Partial<Record<Sound, number>> = { impact: .055, enemy: .12, explosion: .045, heavy: .1, warning: .3, beam: .14 };
+/** Repeats closer than this are not played again. The Seeker Array's rockets at 50 ms (the highest tiers launch one every
+ * 33 ms): each launch then stays a launch, not a smear; the volleys themselves are unchanged. */
+const COOLDOWN: Partial<Record<Sound, number>> = { impact: .055, enemy: .12, explosion: .045, heavy: .1, warning: .3, beam: .14, seeker: .05 };
 export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20 } as const;
 const PADS = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale']);
 /** Sustained voices that also feed the stereo ensemble. */
@@ -260,10 +264,16 @@ export class AudioMixer {
     source.start(at, skip); this.accepted++;
     return true;
   }
+  /** Whether a sound can play without being synthesized now (it was made at boot, or already played). */
+  ready(id: SampleId) { return this.buffers.has(id) || sampleMade(id); }
   cue(cue: Cue, at = this.context.currentTime) {
     if (at < (this.cooldown.get(cue.sound) ?? -Infinity)) { this.dropped++; return; }
     this.cooldown.set(cue.sound, at + (COOLDOWN[cue.sound] ?? .025));
-    const pitch = ['pickup', 'upgrade', 'ready', 'win', 'loss', 'warning', 'siege-lance'].includes(cue.sound) ? 1 : 1 + ((cue.variant % 7) - 3) * .012;
+    // A cue in a key (the success resolve in the world's key, the launch whoosh a fifth up) plays at that pitch;
+    // tuned and alarm sounds at their own; the rest vary a little by variant.
+    const pitch = cue.transpose !== undefined ? 2 ** (cue.transpose / 12)
+      : ['pickup', 'part', 'upgrade', 'ready', 'win', 'loss', 'warning', 'siege-lance', 'shield', 'shield-break', 'whoosh'].includes(cue.sound) ? 1
+        : 1 + ((cue.variant % 7) - 3) * .012;
     this.play(cue.sound, at, pitch, LEVELS[cue.sound] * cue.gain, cue.pan, 'effects', PRIORITY[cue.sound] ?? 3);
     if (['life', 'shield-break', 'boss-arrival', 'boss-death', 'shockwave'].includes(cue.sound)) {
       this.duck.gain.cancelScheduledValues(at);

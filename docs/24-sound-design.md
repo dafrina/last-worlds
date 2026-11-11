@@ -12,21 +12,24 @@ All samples, instrument patches, melodies, chord progressions, percussion patter
 
 | Event | Treatment |
 | --- | --- |
-| Twin Pulse | Fast FM laser fall, short bright snap, lower body; one sound per twin volley |
-| Fan Cannon | Wider, lower-frequency burst with a noise layer; one sound for the five-shot fan |
-| Seeker | Longer bending electronic tail, distinct from both straight weapons |
+| Twin Pulse | A click and a chirp falling fast through the upper mids, 70 ms; one sound per volley (11 November) |
+| Fan Cannon | The same, two chirps and a short spray, 80 ms (11 November) |
+| Seeker Array | A rocket leaving the rack: a low thump, a rising ignition hiss and sparks, 0.14 s (11 November) |
+| Rail Driver | A crack, a falling zap and a short metallic ring, 0.16 s (11 November) |
 | Enemy volley | Quieter, lower-register shot; visible enemies only |
 | Weapon impact | Very short metallic tick, with a per-family cooldown |
 | Enemy / fuel explosion | Crack, saturated midrange body, falling pressure wave and scattered debris |
-| Shield hit / break | Resonant ring; final charge adds a descending broken/noisy tail |
-| Life loss | Heavier explosion, music ducking; no duplicate player explosion |
-| Pickups / upgrade / special ready | Brief ascending intervals with different lengths and priority |
+| Shield hit / last charge | A gritty klaxon call, A4 then E4: once for a hit with charges left, twice for the last charge (11 November) |
+| Life loss | One klaxon blast winding up from A2 to G3, cut hard at 1 s; music ducking; no duplicate player explosion (11 November) |
+| Pickups | A part clanks and rings (0.75 s); a shield cell that adds a charge, a power cell or a weapon plays the shield's bell rising E, B, E; credits keep the brief blips (11 November) |
+| Special ready | Brief ascending intervals |
 | Shockwave | Broad pressure impulse and falling energy body |
 | Seeker Rack | Closely spaced launch transients |
 | Siege Lance | Sustained energy texture; duration reads the actual special's content definition |
 | Beam warning / release | Distinct pulsed warning and firing texture; visual warnings remain authoritative |
 | Boss arrival / phase / destruction | Low harmonic signal, phase accent and prolonged layered destruction |
-| Planet jump / results | Rising warp texture and short completion/loss motifs |
+| Warps | A whoosh at the launch warp and with the planet jump's rising tone, peaking on its flash (11 November) |
+| Results | Success: a soft swell into an open sus2 chord in the world's key (11 November); loss: a short falling motif |
 
 Only accepted shots and actual gameplay events produce combat sounds. Holding a direction or having no target produces no automatic laser sound. Terminal effects are read from the real run, not the animated afterglow copy. Pause, rewind, retry and debug fast-forward do not replay old events.
 
@@ -517,5 +520,52 @@ The v4 level melodies also played notes outside their chord's mode: 5 in Luna, 1
 
 These are measurements of the schedule, not listening. The user's ears decide whether Luna, Khepri, Amnion and Corona now read clean, and whether Corona sounds mysterious rather than happy.
 
+## 11 November: sound effects reworked (three listening rounds)
+
+The user, after the music: "i dont like the shooting sound and the sound when we get hit. The shooting sound should be a very short one, i like the cadence but its a bit too much and too loud, it should sound sharper. The getting hit sound sounds distinct which is good but the pitched down gong sound just sounds wrong. Maybe a short alarm sound would be cool? Also the success sound is a bit too cheesy ... can we add a loading sound for the warp too like a swish or whoosh"; and "the picking up a part should make a clank, while others like upgrade should be like the shield but upwards melody".
+
+The changes came in three listening rounds:
+- **Round 2:** the part "longer like the shield cell, like a substantial pickup"; the Seeker Array "a bit more substantial ... rockets"; the alarms "an alarm horn ... maybe a lower tone"; and "replace the life lost with a horn alarm sound".
+- **Round 3:** "some more dirt, its too clean and too comic like". The shield hit became "the same as the last shield, just single". The life lost became "just one longer sound but pitching up like an alert horn", then "exactly only the first second ... just hard cut after 1 second".
+
+| Event (observer cue) | Old sound | New sound |
+| --- | --- | --- |
+| Main weapon volley, Twin Pulse (`pulse`) | FM laser fall, 0.18 s | a click and a chirp falling 3.5 to 0.9 kHz, 70 ms, nothing under ~700 Hz |
+| Fan Cannon (`fan`) | wide lower burst with noise, 0.24 s | two detuned chirps and a short spray, 80 ms |
+| Seeker Array (`seeker`) | bending electronic tail, 0.34 s | a rocket launch: a low thump, an ignition hiss rising from 1.5 to 5 kHz, sparks, 0.14 s; played at most every 50 ms |
+| Rail Driver (`rail`) | crack, zap, kick and ring, 0.42 s | crack, a falling zap and a short ring, no kick, 0.16 s |
+| Hit on the shield, charges left (`shield`) | a 740 Hz bell (the "gong") | a gritty klaxon call, A4 then E4, 0.23 s |
+| Last shield charge (`shield-break`) | the bell pitched down, 0.95 s | the same call twice, 0.5 s |
+| Life lost (`life`) | an explosion boom, 1.6 s | one klaxon blast winding up from A2 to G3, with its octave below, cut hard at 1.0 s (a 4 ms ramp, abrupt, without the click of a zero-length cut) |
+| Mission complete (`win`) | an FM-bell D major arpeggio, 2.1 s | a low open fifth swelling into a soft open C sus2 chord with a faint G above, 2.8 s, transposed to the world's key (`successKey`) |
+| Launch warp (new: engine `launch`) | nothing | the warp whoosh a fifth up, peaking as the shortest warp breaks out (1 s); played only if its sample is already made, so nothing is synthesized in the start tap |
+| Endless planet jump (`warp` + `whoosh`) | the rising tone | the rising tone and the whoosh: noise climbing from 220 Hz to 7 kHz to its peak on the jump flash (1.5 s), then passing |
+| Part pickup (`part`, new) | the credit blips | a heavy clank of struck steel whose middle modes ring on, and two clinks rising after it, 0.75 s |
+| Shield cell that adds a charge, power cell, weapon (`upgrade`) | an FM bell arpeggio | the shield's bell (partials 1, 1.498, 2.71) rising E5, B5, E6 |
+| Credit pickup, shield cell at full shields (`pickup`) | brief blips | unchanged |
+
+**The klaxon** (`klaxon` in `samples.ts`): a hazard klaxon in a damaged hull.
+- Three reeds about 11 cents apart, beating against each other, each a band-limited saw.
+- Overdrive, and a bit-crushed edge (held every third sample, in 4-bit steps).
+- A cheap damaged speaker: no lows, a hard resonance around 1.4 kHz, its cone rattling at 47 Hz.
+- Noise riding the signal like a grille buzzing against it.
+- No pitch slides, except the life alarm's wind-up.
+
+**Unchanged:** the other 17 effects are byte for byte as on 20 October. `tests/audio/audio.test.ts` pins all 28 effect samples.
+
+**Levels against the old sounds** (loudest window of the event alone, effects at 80 %):
+- **Shots** (clearly quieter):
+  - Twin Pulse −7.1 dB at tier 1, −7.2 at tier 5;
+  - Fan Cannon −7.3 / −7.1;
+  - Seeker Array −2.7 / −5.6 (more body, still under the old level);
+  - Rail Driver −6.2 / −6.0.
+- **Alarms:** shield hit 0.0 dB, last charge +1.2, life +0.5.
+- **Others:** success −1.9, upgrade −1.7, jump +0.7. The part is +13.0 against the old credit blips, and as loud as the upgrade.
+- **New:** the launch whoosh, at −36.9 dB.
+- **Headroom:** no clipping; the loudest preview peaks at 0.381.
+
+Over Khepri's music the shots no longer stand above the score: the loudest window changes by 0 to −2 dB.
+
+Previews: `node tools/sfx-preview.mjs <root>` with `SFX_BUILD=before|after`, rendered through the game's mixer: each event alone and over Khepri's music, in `lookdev/audio-previews/sfx/` with an A/B room (`index.html`).
 
 Actual iOS Safari, Android hardware, phone speaker balance, Bluetooth latency, hardware mute behavior and OS interruptions still require listening/device validation. The first implementation deliberately offers separate mix sliders for that final taste/room/device adjustment. See `docs/build-status.md` for the exact final test results and revision.
