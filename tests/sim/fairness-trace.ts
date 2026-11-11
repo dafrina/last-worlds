@@ -91,7 +91,10 @@ export class FairnessTrace {
         const visible = Math.abs(enemy.x - state.cameraX) <= VIEW.width / 2 - enemy.radius + 1e-6 && enemy.s > 3.5 && enemy.s + enemy.radius <= VIEW.maxS + 1e-6;
         if (!visible) this.fail('offscreen', now, `${enemy.kind}#${enemy.id} started a windup at x=${enemy.x.toFixed(2)} s=${enemy.s.toFixed(2)} cam=${state.cameraX.toFixed(2)}`);
       }
-      if (before > 0 && enemy.warning === 0) {
+      // A release counts its warning down to zero within a step; a windup called off (out of view, a beam rest, a respawn, a
+      // boss stage) drops to zero at once and fires nothing. Taking such a cancel for a release matched a neighbour's shots to
+      // it (11 November: a Weaver cancelled 0.53 s into its windup as the Weaver beside it fired, read as a short warning).
+      if (before > 0 && before <= 1.5 * STEP && enemy.warning === 0) {
         const fired = this.muzzles.get(enemy.id) ?? enemy;
         released.push({ id: enemy.id, kind: enemy.kind, x: fired.x, s: fired.s, aimX: enemy.aimX });
       }
