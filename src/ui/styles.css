@@ -250,7 +250,8 @@ button:disabled { cursor: default; }
 .result-stats .result-score-row { padding-bottom: 14px; }
 .result-score-row dd { font: 30px / 1 var(--mono); letter-spacing: -1px; }
 .panel-note { margin: 18px 0 0; color: #8fa6c0; font-size: 10px; line-height: 1.7; }
-.resume-countdown { color: var(--coral); font: 14px / 1.5 var(--mono); letter-spacing: 2px; }
+/* Its line is always reserved (empty until a resume counts down), so the buttons below never shift when it appears. */
+.resume-countdown { color: var(--coral); font: 14px / 1.5 var(--mono); letter-spacing: 2px; min-height: 1.5em; }
 .error-message { color: #c3d3e4; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .text-button { margin-top: 12px; }
 

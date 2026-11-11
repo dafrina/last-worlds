@@ -94,7 +94,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
           <p class="pause-description"></p>
           <dl class="pause-loadout"><div><dt>MAIN</dt><dd class="pause-weapon"></dd></div><div><dt>SPECIAL</dt><dd class="pause-special"></dd></div><div><dt>SHIELD / SHIP</dt><dd class="pause-tech"></dd></div></dl>
           <section class="pause-missions-section" aria-labelledby="pause-missions-title" hidden><h3 class="pause-missions-title" id="pause-missions-title">MISSIONS</h3><ol class="pause-missions" aria-label="Missions this run"></ol></section>
-          <p class="resume-countdown" role="status" hidden></p>
+          <p class="resume-countdown" role="status"></p>
           <button type="button" class="arcade-button primary" data-action="resume">RESUME <span aria-hidden="true">↗</span></button>
           <button type="button" class="arcade-button secondary" data-action="quit">RETURN TO MENU</button>
           <button type="button" class="text-button" data-action="pause-settings">SETTINGS</button>
@@ -335,14 +335,13 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   function cancelResume() {
     if (resumeTimer !== null) clearTimeout(resumeTimer);
     resumeTimer = null;
-    countdown.hidden = true;
+    countdown.textContent = '';
     resumeButton.disabled = false;
   }
   function resume() {
     if (resumeTimer !== null || displayedPhase !== 'paused') return;
     let remaining = 3;
     resumeButton.disabled = true;
-    countdown.hidden = false;
     countdown.textContent = `READY IN ${remaining}`;
     const next = () => {
       remaining -= 1;
