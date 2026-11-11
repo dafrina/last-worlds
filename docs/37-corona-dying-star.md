@@ -91,13 +91,13 @@ The concept images are references, never runtime backgrounds or finished assets 
 
 - **First pass:** *Into the Corona*, 126 BPM, was a placeholder. It had no instruments of its own (Vesper's pad, glass and bass) and near-copies of Khepri's bass, kick and hat patterns. The user heard it as a copy and asked for new music, "ominous harp sounds or something" (10 November).
 - **Now:** *Hymn for a Swollen Sun*, 110 BPM, E Phrygian. Chords, two bars each: Em, F (♭II), C (♭VI) and B major (V).
-  - A low Karplus–Strong harp climbs each chord in groups of 3, 3 and 2 sixteenths. It is two strings a few cents apart in a dark resonant body, saturated a little for phone speakers.
-  - A lament on a higher harp sinks through its ♭6.
+  - A low Karplus–Strong harp rises and falls slowly through each chord, three ringing notes a bar on the 3-3-2 in eighths. It is two strings a few cents apart in a dark resonant body, saturated a little for phone speakers. Until 11 November it ran in sixteenths; the user asked for "some more space between the notes, not just a quick jingle that runs".
+  - A lament on a higher harp sinks through its ♭6, three notes a bar since 11 November.
   - A solar drone swells open and closed like heat.
   - Sparse heavy kicks keep the same 3-3-2, under a deep tom backbeat, ember crackle in place of hats and a bowed-metal shriek at the phrase marks.
-  - The form is the shared 32-bar one: an opening that grows from the ostinato's accents, the drums and lament, a breakdown to the drone and accents, and a return with the lament doubled on low strings.
-- **Boss:** the same four states as every world (modules, core, overload, each with its stinger, on the score's clock). Corona's kit uses its harp for the pulses, ember crackle for hats, 3-3-2 kicks and the deepest bed dip.
-- **Details:** [sound design](24-sound-design.md), 10 November revision.
+  - The form is the shared 32-bar one: an opening that grows from single harp notes, the drums and lament, a breakdown to the drone and one harp note a bar, and a return with the lament doubled on low strings.
+- **Boss:** the same four states as every world (modules, core, overload, each with its stinger, on the score's clock), orchestral since 11 November. Corona's drums keep the score's 3-3-2, under ember crackle.
+- **Details:** [sound design](24-sound-design.md), 10 and 11 November revisions.
 
 ## Stages
 

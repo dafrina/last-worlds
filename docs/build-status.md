@@ -1,5 +1,33 @@
 # Build status
 
+## Music, third pass: played, roomier, orchestral boss stems (agent worktree, not deployed), 11 November 2026
+
+- **User feedback:** the 10 November pass still "sound[ed] cheap", and not only the instruments.
+  - A trial with recorded instrument samples was built and rejected, then removed: no recordings, no decoder, no extra downloads.
+  - The user approved three changes on the synthesized instruments, plus score and timbre tuning.
+- **A, performance:** each note gets a fixed per-note touch at playback: a few ms of timing and ±8 % velocity. Basses play one note at a time. The scores themselves are unchanged.
+- **B, space:**
+  - a 2.3 s hall replaces the room and the ping-pong echo;
+  - nothing pumps under the boss drums;
+  - a gentler stem compressor.
+- **C, orchestral boss stems:** taiko-like drums, timpani, spiccato ostinatos in 3-3-2, brass, strings and round basses. No kick on the beat, no hats or claps. The four stages, stingers and sync are unchanged.
+- **Tuning:**
+  - every bass is clean and round;
+  - Khepri's running bass now plays four ringing notes a bar;
+  - Vesper is ambient, with calmer, colder glass;
+  - Corona's harp has space: three ringing notes a bar.
+- **Harmonic audit:** no stem note clashes with a melody in any world or stage, and Vesper, Corona and Umbra have no clashes. The approved scores keep their own: Luna 1, Khepri 2, Nacre 1, Amnion 55.
+- **Unchanged:** effects are byte-identical (26/26 samples), and Luna, Nacre and Amnion are note for note as approved.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 1009 passed, 5 skipped (exit 0);
+  - build passes;
+  - `tests/browser/audio.spec.ts` 6/6, Playwright exit 0. It ran on port 4192; a first run failed 2 tests on the old 12 MiB budget and an Umbra boss pool of 29/24. Both are fixed: the budget is now 13 MiB, and the pool is a hard cap.
+- **Previews:** 52 renders in `lookdev/audio-previews/after-v3/`.
+  - The Sound room `http://localhost:4189/lookdev/audio-previews/index.html` compares A (original), B (10 November) and C (11 November) at the same position.
+  - Peak 0.520, no clipping, mono at least 96 %.
+- **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), 11 November revision.
+
 ## Late-world curve, Untouchable 3 parts, boss stage bursts deployed (`e95493e`), 10 November 2026
 
 - **Late-world curve** (Codex's uncommitted work, completed): Amnion, Corona and Umbra step up past Nacre.
