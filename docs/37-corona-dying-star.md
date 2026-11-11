@@ -100,6 +100,10 @@ The concept images are references, never runtime backgrounds or finished assets 
   - The lament is written in maqam Kurd and, over the B major dominant, Hijaz on B, with its augmented second C–D#. Long notes slide in, and a qanun tremolo marks where it holds.
   - The harp runs on a ten-sixteenth cycle, like a sama'i thaqil's 10/8, so it drifts across the 4/4 bar. It adds tremolos and maqam graces.
   - A darbuka (doum, tek) plays maqsum, then baladi in the return.
+- **Phase 5 (11 November):** the user said its melody "sounds kinda shit, make it more mysterious arabic inspired not so happy at times", that the harps overlapped in quick succession, and to use fewer, simpler notes.
+  - Corona is now modal over a drone: an open E–B fifth with no third, its third section adding the ♭2 (F). The B and C major chords were the "happy" moments.
+  - The lament is a few long notes in maqam Bayati (with its half-flat second) and, over the ♭2, Saba, rising and falling back unresolved, with slow slides.
+  - The harp plucks once per ten-sixteenth cycle, never near the lament. The tremolos and graces are gone.
 - **Boss:** the same four states as every world (modules, core, overload, each with its stinger, on the score's clock), orchestral since 11 November. Corona's stem drums are the darbuka's doum where the maqsum puts them, with the tek between and the fights' kick under them.
 - **Details:** [sound design](24-sound-design.md), 10 and 11 November revisions.
 

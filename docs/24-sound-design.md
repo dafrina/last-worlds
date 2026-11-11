@@ -34,12 +34,12 @@ Only accepted shots and actual gameplay events produce combat sounds. Holding a 
 
 | Planet | Track | Tempo | Character |
 | --- | --- | ---: | --- |
-| Luna | Far Side Signal | 94 BPM | Felt piano with rolled chords and leaning graces, a round bass, brushes, a snappy kick, gentle human timing, and a distant beacon pinging at the ends of phrases (phase 4) |
-| Khepri | Foundry Afterimage | 118 BPM | A hard forge kick and mechanical sixteenths, a clean round bass in four ringing notes a bar, the saw lead and stabs, a tuned anvil turning against the bar, steam from the press (phase 4) |
-| Nacre | Dreams Beneath the Bloom | 106 BPM | A soft-mallet vibraphone (the pearl) over thinned blooming pads, a round bass, and drums you can hear (phase 4) |
-| Vesper | Below the Ice Line | 88 BPM | Ambient: triangle-clean bells with faint reflections every second bar, a cold frost pad, two bass notes a bar, one soft kick, and ice cracking far off (phase 4) |
-| Amnion | Something Beneath the Skin | 92 BPM | Breathing formant membranes, nerve tones that slide into their notes, low organic bass, paired heartbeats, dry bone clicks, and creatures chittering in the night (phase 4) |
-| Corona | Hymn for a Swollen Sun (10 November) | 110 BPM | A lament in maqam Kurd and, over the dominant, Hijaz, with slides and qanun tremolos; a harp on a ten-sixteenth cycle drifting across the bar; a darbuka in maqsum and baladi; a solar drone, ember crackle, bowed metal (phase 4) |
+| Luna | Far Side Signal | 94 BPM | Felt piano, a three-note melody over chords struck together, a round bass, brushes, a snappy kick, gentle human timing, and a distant beacon at the ends of phrases (phase 5) |
+| Khepri | Foundry Afterimage | 118 BPM | A hard forge kick and mechanical eighths, a round bass in four ringing notes a bar, the saw lead (four notes a bar) and stabs, a tuned anvil only where nothing else strikes, steam from the press (phase 5) |
+| Nacre | Dreams Beneath the Bloom | 106 BPM | A soft-mallet vibraphone (the pearl), three notes a bar, over thinned blooming pads, a round bass, and drums you can hear (phase 5) |
+| Vesper | Below the Ice Line | 88 BPM | Ambient: two triangle-clean bells every second bar, a cold frost pad, two bass notes a bar, one soft kick, and ice cracking far off (phase 5) |
+| Amnion | Something Beneath the Skin | 92 BPM | Breathing formant membranes, a three-note nerve-tone melody, low organic bass, paired heartbeats, dry bone clicks, and a lone creature calling in the night now and then (phase 5) |
+| Corona | Hymn for a Swollen Sun (10 November) | 110 BPM | Modal over an E–B drone (no chord progression): a sparse lament in Bayati and Saba with half-flat seconds and slow slides, a harp once per ten-sixteenth cycle, a darbuka in maqsum and baladi, a solar drone, ember crackle, bowed metal (phase 5) |
 | Umbra | Where the Light Goes Backwards (10 November) | 84 BPM | Reversed, inhaled chords and reversed glass that stop dead on the grid, a dark inharmonic obsidian bell, harmonic-series tones off the twelve-note grid, a precise void pulse |
 
 Each score has an authored 32-bar cycle: opening, developed phrase, breakdown, return. Chord movement and answering melodies prevent a single short phrase from repeating unchanged. Endless changes the score at the actual planet switch; the outgoing notes fade while the new tonal centre enters.
@@ -92,9 +92,9 @@ Identity per world: Luna keeps the score's played timing and brushes; Khepri add
 
 ### Corona: Hymn for a Swollen Sun
 
-- 110 BPM, E Phrygian (maqam Kurd). Chords, two bars each: Em, F (♭II), C (♭VI), B major (V); the 32-bar form of every world.
-- The low harp (C3 sample): see phase 4 below. It runs on a ten-sixteenth cycle, drifting across the bar, with tremolos and graces. Until phase 4 it played three notes a bar, and before 11 November a running sixteenth ostinato.
-- The lament on the higher harp is written per chord: Kurd over Em, F and C, and Hijaz on B over the dominant (phase 4, `CORONA_LAMENT`). It enters in the opening's second half (first bars only), plays throughout phrases two and four, and is doubled an octave down in the return.
+- 110 BPM, E. Until phase 5, E Phrygian (maqam Kurd) over Em, F (♭II), C (♭VI) and B major (V). Since phase 5 there is no progression: an open E–B drone, its third section adding the ♭2 (F) as a colour (see phase 5 below).
+- The low harp (C3 sample) plucks once per ten-sixteenth cycle, drifting across the bar and walking the drone, never near a lament note (phase 5). Phase 4 had tremolos and graces, v3 three notes a bar, and before 11 November it was a running sixteenth ostinato.
+- The lament on the higher harp (`CORONA_LAMENT`) is a few long notes in Bayati, with Saba over the ♭2 (phase 5; phase 4 had Kurd and Hijaz over chords). It enters in the opening's second half (first bars only) and plays throughout phrases two and four. In the return its tonic is doubled an octave down.
 - The rest of the texture:
   - the solar drone holds root and octave under each chord, with the higher octave too in the breakdown;
   - the bass plays on the doum strokes;
@@ -387,6 +387,135 @@ Then: "you could sidechain the lead synths and basses on the kicks for some more
   - Effects are byte-identical (26/26), and Umbra is pinned note for note and sample for sample.
 
 Final balance needs the user's ears: kick levels against each world's bass, the sidechain depths (the table above), the night calls' density and the Corona harp cycle. A phone speaker needs checking too.
+
+## 11 November, phase 5 (v5): clean timing, fewer notes, Corona over a drone, the fights in tune
+
+The user's comments on v4:
+- Luna, Amnion, Khepri and then Corona "have lots of quick succession notes that sound just weird and overlapping";
+- "just relax the amount of notes, simpler melodies for the main plucking instruments";
+- Corona's melody "sounds kinda shit, make it more mysterious arabic inspired not so happy at times";
+- the boss fights "seem like they drift into false notes sometimes";
+- on the plus side, "the instrument choices are much much better tho i like them all pretty much".
+
+So this pass changes notes, timing and Corona's harmony, not the sounds. The only exceptions are two fixes: the chitter's click spacing, and the boss voices' tuning.
+
+### Diagnosis (`lookdev/audio-bench/diag.test.ts`, `stemharm.test.ts`)
+
+Every scheduled onset was replayed as the mixer times it: the written offset plus the humanize drift. Over each world's 32-bar cycle, in the level score and each boss stage, the bench counted:
+- **Smears:** two attacks of the same part 2–15 ms apart.
+- **Quick pairs:** attacks in the same register 15–80 ms apart.
+- **Trains:** the clicks inside a chitter.
+- **Ring-overs:** a melodic note struck while the same part's previous note is still within 20 dB of its peak.
+
+| World | v4: smear / quick / train / ring (level; overload) | v5 | Main v4 causes |
+| --- | --- | --- | --- |
+| Luna | 43 / 117 / 0 / 134; 2061 / 383 / 0 / 134 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | rolled chords (105), leans (12), per-note timing smears, the piano melody ringing over itself (128), piano against the stem's stabs and spiccato |
+| Khepri | 128 / 0 / 0 / 142; 2881 / 101 / 0 / 154 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | timing smears, the saw lead ringing over itself (142), thirty-second snare doubling in fills, the overload anvil |
+| Amnion | 16 / 0 / 110 / 75; 1686 / 79 / 110 / 75 | 0 / 0 / one chitter / 0, in both | chitter trains (11 clicks 18–22 ms apart), the nerve tone ringing over itself, bone ticks against bone ticks and snares |
+| Corona | 32 / 62 / 0 / 27; 2046 / 315 / 0 / 27 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | lament tremolos (30), harp tremolos (18), harp graces (5 to 38), the lament against the stem's spiccato |
+| Nacre | 4 / 0 / 0 / 133; 2004 / 90 / 0 / 133 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | the pearl ringing over itself, fills |
+| Vesper | 0 / 0 / 0 / 54; 1296 / 3 / 0 / 54 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | bells and their echoes |
+
+In every world the only spread left is up to 6 ms between *different* parts, by design.
+
+Umbra's level score is unchanged: 6 same-part smears and 53 obsidian rings, as approved. In its fights, the level and the stem void-bass double the same riff notes up to a few milliseconds apart; that keeps Umbra's level timing exact.
+
+**Lead notes per bar in the level scores (v4 → v5)** (Luna's and Khepri's counts include their piano chords and saw stabs):
+
+| Luna | Khepri | Nacre | Vesper | Amnion | Corona | Umbra |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 7.13 → 3.88 | 6.50 → 4.00 | 4.75 → 1.75 | 2.25 → 1.00 | 2.75 → 1.63 | 3.72 → 0.94 | 3.38 (frozen) |
+
+**Boss-stem harmony (v4 → v5)**, counting stem notes outside their chord or mode anywhere in their heard length, stingers and risers included:
+
+| World | v4 | v5 |
+| --- | ---: | ---: |
+| Luna | 0 | 0 |
+| Khepri | 29 | 0 |
+| Nacre | 0 | 0 |
+| Vesper | 48 | 0 |
+| Amnion | 18 | 0 |
+| Corona | 8 | 0 |
+| Umbra | 68 | 0 |
+
+The causes in v4:
+- **Stingers:** their lead-in spiccato anticipated the landing chord (76 in all).
+- **Risers:** their climbing tone always ended on C, whatever the key (64).
+- **Ringing across a chord change:** stinger braams (19), Khepri's overload anvil (8) and Umbra's timpani roll (4) rang into the next chord.
+
+The v4 level melodies also played notes outside their chord's mode: 5 in Luna, 10 in Khepri and 4 in Nacre. Written as fixed intervals over each chord root, they put an F natural over Luna's C(♯11) chord, an A♯ over Khepri's G major, and an A♭ over Nacre's E♭(♯11). Amnion's 34 were its deliberate ♭2 and tritone, which are now listed in its modes.
+
+### Timing (`mixer.ts`)
+
+- **Coherent humanizing:** one timing per sixteenth and part, so a chord's tones strike together and a part never smears against itself.
+  - Drums and basses stay within ±2 ms; other parts from 2 ms early to 4 ms late, so parts differ by 6 ms at most.
+  - Velocity varies ±6 % per note.
+  - Umbra's frozen score keeps its 11 November per-note touch (`FROZEN` in `score.ts`, `legacy` in `humanize`). Its flight render is unchanged.
+- **Monophonic melodies:** a note with a `part` (the melody of every world but Vesper and Umbra) damps that part's previous note over about 80 ms. The basses already worked this way.
+- **Fills:** the fights' snare plays one stroke a sixteenth, with no thirty-second doubling.
+
+### Scores (`score.ts`)
+
+- **Every melody is held to its chord's mode** (`THEMES.scales`, `inMode`). A melody written as intervals over the chord root now takes the mode's nearest tone, chord tones first.
+- **Luna:**
+  - chords struck together, not rolled, and no leaning graces;
+  - three melody notes a bar — the rising fourth, then a step down, its mirror answering rising;
+  - the bass in four notes;
+  - two beacon pings instead of three.
+- **Khepri:**
+  - the lead plays root, third, fifth, third — four notes a bar, in each chord's own mode;
+  - the anvil strikes only on sixteenths where nothing else does, and never in a chord's last beat;
+  - hats in eighths;
+  - the riff's last note is the octave, not the ♭7, which made a tritone under the lead.
+- **Nacre:** the pearl plays three notes a bar (root, the fifth above, a step down); the bubbles are gone; the bass is in three notes.
+- **Vesper:** two bells every second bar, left to ring into each other; the reflections are gone.
+- **Amnion:**
+  - three nerve notes a bar: the root creeping up a semitone, then the tritone's fourth above it;
+  - no slides and no bone offsets;
+  - the night calls are isolated. There are about six per cycle, never on the heartbeat, never within a beat of the melody, never within three beats of each other, and none are answered.
+  - The chitter is four clicks 70–120 ms apart instead of a train of eleven.
+- **Corona: modal over a drone.**
+  - *Harmony:* no chord progression and no major triads. An open E–B fifth with no third, its third section adding the ♭2 (F) as a colour.
+  - *Lament:* a few long notes, hovering around the tonic and its half-flat second, rising and falling back unresolved, with slow 0.3 s slides from a tone of the maqam:
+    - in Bayati on E (E, F half-sharp, G, A, B, C, D): E–F𝄳–G, then F𝄳–E–D;
+    - over the ♭2, Saba (G–A♭–G–F𝄳);
+    - then E and F𝄳 hovering.
+  - *Harp:* once per ten-sixteenth cycle, walking the drone, never within a sixteenth of a lament note.
+  - *Gone:* tremolos, graces and the ka fills.
+  - *Kept:* the darbuka's maqsum and baladi, the solar drone, the embers (now two a bar) and the bowed metal.
+  - *Audit:* the half-flat seconds and Saba's A♭ are authored tones of its modes, and Corona has no clashes.
+
+### Boss fights in tune (`boss-score.ts`, `harmony.ts`, `instruments.ts`)
+
+- **Every pitched stem tone is checked against both chords:** a tone still heard after a chord change must belong to both (`steady`). Otherwise it takes the nearest tone that does, and is left out if that tone would clash with the melody.
+- **Stinger lead-ins:** they rush up the chord sounding at the time, not the one they land in.
+- **Risers:** they climb to the landing chord's root (played between F#3 and F4, timed for their rate).
+- **Tuning:** pitched boss voices keep their unison within ±6 cents (strings ±5, brass ±4, spiccato ±4, braam ±6, the riser's tone ±6; they were ±10 to ±25), and the strings' vibrato within ±3.5 cents (it was ±6). Inharmonic partials stay only on the drums, the crash and the timpani.
+- **Stems:** Khepri's overload anvil strikes twice a bar, and Umbra's stem ticks moved to the backbeat sixteenths its level score leaves empty.
+- **Tests:** `tests/audio/harmony.test.ts` asserts, for all seven worlds and stages, stingers and risers included, that every pitched stem note is in its chord or mode over its whole heard length. It also asserts that every reworked world's melody stays in its mode.
+
+### Phase 5 measurements
+
+- **Previews:** 52 renders in `lookdev/audio-previews/after-v5/`. The Sound room (`lookdev/audio-previews/index.html`) switches between A (original), B (v1), C (v3), D (v4) and E (v5) at the same playback position.
+- **Headroom:**
+  - Peak at most 0.586 (Khepri's whole fight).
+  - Zero clipped or non-finite samples.
+  - Mono RMS at least 98 % of stereo.
+- **Levels against v4:**
+  - Flight: Luna −1.5 dB and Amnion −1.0 (fewer notes); Nacre −0.9; Khepri −0.3; Corona −0.4; Vesper 0.
+  - Umbra: identical (same level and bands).
+  - Boss stages: −1.3 to +0.7 dB, mean −0.3.
+- **Voices:** at most 37 at once, and the boss pool holds its 24. 10 low-priority stem notes were dropped across the 52 renders.
+- **Checks:**
+  - typecheck clean;
+  - 1013 unit tests pass (5 skipped);
+  - the build passes;
+  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0;
+  - effects byte-identical (26/26);
+  - Umbra pinned note for note and sample for sample.
+- **Remaining spread in Umbra's fights:** its frozen level score keeps the per-note touch, so in overload 13 same-part pairs (the level and stem void-bass doubling a riff note) and 51 cross-part pairs differ by up to about 14 ms.
+
+These are measurements of the schedule, not listening. The user's ears decide whether Luna, Khepri, Amnion and Corona now read clean, and whether Corona sounds mysterious rather than happy.
 
 
 Actual iOS Safari, Android hardware, phone speaker balance, Bluetooth latency, hardware mute behavior and OS interruptions still require listening/device validation. The first implementation deliberately offers separate mix sliders for that final taste/room/device adjustment. See `docs/build-status.md` for the exact final test results and revision.

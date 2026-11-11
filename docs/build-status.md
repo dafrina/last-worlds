@@ -1,5 +1,37 @@
 # Build status
 
+## Music v5: clean timing, fewer notes, Corona over a drone, the fights in tune (agent worktree, not deployed), 11 November 2026
+
+- **User, on v4:**
+  - quick-succession notes in Luna, Amnion, Khepri and Corona "sound just weird and overlapping";
+  - "just relax the amount of notes, simpler melodies";
+  - Corona "more mysterious arabic inspired not so happy";
+  - the fights "drift into false notes";
+  - the instrument choices are liked, so the sounds stay.
+- **Diagnosis** (onsets replayed as the mixer times them, every world and stage). The causes:
+  - per-note timing that smeared chords and doubled parts (up to 14 ms);
+  - melodies ringing over themselves;
+  - Luna's rolls and leans;
+  - Corona's tremolos and graces;
+  - Amnion's chitter trains;
+  - the fills' thirty-second doubling;
+  - in the fights, stinger lead-ins on the landing chord, risers ending on C in every key, braams and anvils ringing into the next chord, and wide unison detune.
+- **Results:**
+  - Luna, Khepri, Nacre, Vesper, Amnion and Corona went from up to 2881 smears, 383 quick pairs and 154 ring-overs per stage to 0 of each, with only up to 6 ms between different parts.
+  - Lead notes per bar: Luna 7.1 → 3.9, Khepri 6.5 → 4.0, Nacre 4.8 → 1.8, Vesper 2.3 → 1.0, Amnion 2.8 → 1.6, Corona 3.7 → 0.9.
+  - Boss-stem notes outside their chord or mode: 171 → 0.
+- **Umbra:** frozen, note for note and sample for sample, with its old per-note timing.
+- **Checks:**
+  - typecheck clean;
+  - unit tests 1013 passed, 5 skipped (exit 0);
+  - build passes;
+  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0, on port 4192;
+  - effects byte-identical (26/26).
+- **Previews:** `lookdev/audio-previews/after-v5/`.
+  - The Sound room `http://localhost:4189/lookdev/audio-previews/index.html` offers original, v1, v3, v4 and v5.
+  - Peak 0.586, no clipping.
+- **Not verified:** no listening test here and no phone test. Details: [sound design](24-sound-design.md), phase 5.
+
 ## Music, phase 4: snappier kicks, weight and sidechain in the fights, the worlds reworked (agent worktree, not deployed), 11 November 2026
 
 - **User, after hearing v3:**
