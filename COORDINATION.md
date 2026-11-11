@@ -910,3 +910,12 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Released:** the sim files.
 - **Now:** the music agent is reworking sound effects on its branch, with previews before any merge: the shot, the hit alarm, success, the warp whoosh, and the part and upgrade pickups.
 - **Owned until then:** `src/audio/*` and `docs/24`.
+
+**11 November · Claude Code (Blender MCP in WSL session) · deployed `69a76ca`.**
+- **Contents:**
+  - the sound-effects rework (shots, klaxon alarms, success, whooshes, part clank, upgrade bell);
+  - the pause countdown fix;
+  - boss pods exploding with the boss.
+- **Released:** `src/audio/*` and `docs/24` are free.
+- **Deploy:** the push run was stuck in a GitHub Actions outage, so `pages.yml` was re-run via workflow_dispatch.
+- **Snapshot gate:** now runs Vite with a private cache (`vite.snapshot.config.ts`), so it no longer re-optimizes the main tree's `node_modules/.vite` under the user's preview server.

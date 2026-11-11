@@ -1,6 +1,19 @@
 # Build status
 
-## Sound effects reworked over three listening rounds (agent worktree, not deployed), 11 November 2026
+## Sound effects reworked over three listening rounds (deployed in `69a76ca`), 11 November 2026
+
+- **Deployed with:**
+  - the life-lost klaxon cut at 0.7 s instead of 1.0 s (user). It is made at its full length and level, then truncated behind a 4 ms ramp.
+  - The pause countdown's line is reserved, so RESUME no longer shifts (`f65cbf3`; measured: y 469.8 before and during).
+  - A boss's deployed pods go down with it, each in its own explosion and without kill credit, and the extraction or the warp starts at once (`db3a7ce`). Codex's "CLEAR THE PODS" wait of 10 November is gone; during the fight a surviving pod still holds the next launch.
+- **Gate on `69a76ca`:**
+  - typecheck clean; unit tests 1032 passed, 6 skipped; build passes;
+  - browser 54/55 (Playwright exit 1). The failure was the Interceptor double-tap poll in `ship-perks.spec.ts`.
+  - **Rerun of that spec alone:** 3/3, exit 0.
+- **Live:**
+  - the push run 43095196536 stayed queued through a GitHub Actions outage (major outage, 20:18–21:25 UTC);
+  - the workflow_dispatch run 43102893622 succeeded, and the stuck run was cancelled;
+  - the live bundle `main-BRRYc_2t.js` matches the build; the smoke test reports no errors. No phone test.
 
 - **Changed:**
   - player shots: short, sharp and 6–7 dB quieter; the Seeker Array now sounds like rocket launches;
