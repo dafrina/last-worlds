@@ -13,7 +13,15 @@ The user approved the fifth listening round. The three entries below describe th
 - **Gate on `39ff88f`:** typecheck clean; unit tests 1013 passed, 5 skipped; build passes; browser 55/55, Playwright exit 0.
 - **Live:** Pages run 43022523771 succeeded; the live bundle `main-BelBLgBp.js` matches the build; the smoke test reports no errors. No phone test.
 
-## Waves and bosses follow a pilot who runs, to a limit (agent worktree, not deployed), 11 November 2026
+## Waves and bosses follow a pilot who runs, to a limit (deployed in `b092031`), 11 November 2026
+
+- **Gate on `b092031`:**
+  - typecheck clean; unit tests 1028 passed, 6 skipped; build passes;
+  - browser 54/55 (Playwright exit 1); the full run took 34.2 min under another project's e2e load (load average 30–48).
+- **Steering specs:** `flight.spec.ts` failed its steering polls on four reruns (the ship short of x 8 in 5 s, vx 0) while the load stayed at 20–45.
+- **Comparison against `39ff88f`:** passed 7/7 twice under similar load. A direct browser measurement shows the same ship speed on both builds (holding D, the edge at 1.5–1.7 s of run time). The drift code touches neither input, the player nor the camera.
+- **Rerun at load 17:** 7/7, exit 0, 2.9 min.
+- **Live:** Pages run 43060887271 succeeded; the live bundle `main-CuUdyo6r.js` matches the build; the smoke test reports no errors. No phone test.
 
 - **User:** "Start left screen, move fully right screen when the wave spawned, then for the next wave same thing backwards" evaded every wave but the aces, and a boss could be parked out of frame. Decision: "keep it to a limit, there should be possibilities to retreat but there should always be 1-2 enemies on screen".
 - **Rule** (docs/10 §4–5, `src/sim/drift.ts`, `pullBoss` in `src/sim/boss.ts`, `DRIFT` in `src/content/balance.ts`):

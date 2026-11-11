@@ -905,3 +905,8 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - new content data for the drift;
   - `docs/10`;
   - the fairness tests.
+
+**11 November · Claude Code (Blender MCP in WSL session) · deployed `b092031`: waves and bosses follow a fleeing pilot.**
+- **Released:** the sim files.
+- **Now:** the music agent is reworking sound effects on its branch, with previews before any merge: the shot, the hit alarm, success, the warp whoosh, and the part and upgrade pickups.
+- **Owned until then:** `src/audio/*` and `docs/24`.
