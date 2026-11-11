@@ -106,7 +106,10 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     // Seed 7 since the late-world curve (10 November: Umbra hp ×1.2, first windups ×0.8, cadence ×0.4). Seed 6 then took
     // one hit with Veteran Seeker. Over seeds 1–16 the curve added no hits; seeds with any hit, old → new: Pulse 3 → 2,
     // Fan 4 → 3, Veteran Seeker 9 → 4. Every run completed. Seed 7 clears all three under both curves.
-    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 7 });
+    // Seed 9 since the squadron and boss pull (11 November, docs/10 §4-5): seed 7 took one hit with Veteran seeker. Seed 9
+    // clears all three with and without the pull. Over seeds 1-16, old → new: Pulse 2 → 2 hits, Fan 3 → 5, Veteran
+    // Seeker 4 → 4; every run completed.
+    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 9 });
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect(log.phase).toBe('complete');

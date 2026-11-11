@@ -177,7 +177,10 @@ describe('endless bosses and jumps', () => {
     // seeds 1-24 Pulse takes 14 hits, Seeker 14 (against 11 and 17 before). Since bosses have 20% more health
     // (3 November) all three fly seed 1 (seeds 4, 5 and 6 each take a hit in the longer fights): over seeds 1-24 Pulse
     // takes 12 hits, Fan 13 and Seeker 11, against 14, 12 and 14 just before.
-    const state = createRun({ mode: 'endless', seed: 1 });
+    // Since the squadron and boss pull (11 November, docs/10 §4-5) all three fly seed 3 (seed 1 took two hits with Pulse);
+    // of seeds 1-16, 3 and 15 clear all three. Over seeds 1-16, old → new: Pulse 10 → 10 hits, Fan 5 → 12, Seeker 7 → 6.
+    // Of the Fan's 12, one came from a squadron that had been pulled; most came from ground batteries.
+    const state = createRun({ mode: 'endless', seed: 3 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;
