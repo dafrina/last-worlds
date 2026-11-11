@@ -1,7 +1,8 @@
 import { VIEW, type RunState } from '../shared/contracts';
 import type { Sound } from './samples';
 
-export interface Cue { sound: Sound; pan: number; gain: number; variant: number }
+/** `transpose`: semitones, for a sound played in a key (the success resolve in the world's). */
+export interface Cue { sound: Sound; pan: number; gain: number; variant: number; transpose?: number }
 /** Bounded observational adapter. No simulation mutation, random draws, or dependency on rendering/afterglow. */
 export class SoundObserver {
   private time = 0;
@@ -17,6 +18,7 @@ export class SoundObserver {
   private weapon = '';
   private boss = '';
   private jump: number | undefined;
+  private parts = 0;
   private phase = '';
   reset(state: RunState) {
     this.time = state.time; this.volley = state.nextVolleyAt;
@@ -27,7 +29,7 @@ export class SoundObserver {
     this.specials = state.specialsUsed; this.charge = state.player.specialCharge;
     this.power = state.player.power; this.weapon = state.player.weapon;
     this.boss = state.boss ? `${state.boss.id}:${state.boss.startedAt}:${state.boss.phase}` : '';
-    this.jump = state.jump?.startedAt; this.phase = state.phase;
+    this.jump = state.jump?.startedAt; this.phase = state.phase; this.parts = state.parts ?? 0;
   }
   read(state: RunState): Cue[] {
     if (state.phase === 'paused') return [];
@@ -52,6 +54,9 @@ export class SoundObserver {
     else if (shieldLost) cue(state.player.shields === 0 ? 'shield-break' : 'shield');
     const upgraded = state.player.power > this.power || state.player.weapon !== this.weapon || state.player.shields > this.shields;
     if (upgraded) cue('upgrade');
+    // A part (campaign) clanks; credits and a shield cell at full shields keep the plain pickup.
+    const part = (state.parts ?? 0) > this.parts;
+    if (part && !upgraded) cue('part', state.player.x, .7);
     if (state.specialsUsed > this.specials) cue(state.config.special ?? 'shockwave');
     if (this.charge < 1 && state.player.specialCharge >= 1) cue('ready', state.player.x, .65);
     // At most three spatial explosions and two hits per observed frame. Critical player cues never share this quota.
@@ -65,7 +70,7 @@ export class SoundObserver {
       // A boss's last detonation (the big bang): its own death roar, never held back by the quota.
       if (effect.kind === 'bossBlast') cue('boss-death', effect.x, 1, effect.id);
       if (effect.kind === 'hit' && hits++ < 2) cue('impact', effect.x, .65, effect.id);
-      if (effect.kind === 'pickup' && !upgraded && pickups++ === 0) cue('pickup', effect.x, .7, effect.id);
+      if (effect.kind === 'pickup' && !upgraded && !part && pickups++ === 0) cue('pickup', effect.x, .7, effect.id);
     }
     const boss = state.boss;
     const key = boss ? `${boss.id}:${boss.startedAt}:${boss.phase}` : '';
@@ -75,7 +80,8 @@ export class SoundObserver {
       else if (!this.boss || this.boss.split(':').slice(0, 2).join(':') !== key.split(':').slice(0, 2).join(':')) cue('boss-arrival', boss.x);
       else cue('boss-phase', boss.x, .8);
     }
-    if (state.jump && state.jump.startedAt !== this.jump) cue('warp');
+    // The planet jump: its rising tone and the whoosh that peaks on its flash.
+    if (state.jump && state.jump.startedAt !== this.jump) { cue('warp'); cue('whoosh', state.player.x, 1); }
     if (state.phase !== this.phase && state.phase === 'complete') cue('win');
     if (state.phase !== this.phase && state.phase === 'over') cue('loss');
     this.reset(state);

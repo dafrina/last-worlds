@@ -13,6 +13,9 @@ export function sanitizeSettings(value: unknown): AudioSettings {
   return { muted: typeof data.muted === 'boolean' ? data.muted : false, music: volume(data.music, .55), effects: volume(data.effects, .8) };
 }
 
+/** The semitones that move the success resolve (written in C) to a world's key, within a tritone either way. */
+export const successKey = (planet: PlanetId) => ((THEMES[planet].root % 12) + 6) % 12 - 6;
+
 export function createGameAudio() {
   // Unavailable or unreadable storage: session defaults.
   let settings: AudioSettings = readJson(AUDIO_STORAGE_KEY, sanitizeSettings) ?? { ...DEFAULT_AUDIO };
@@ -108,7 +111,8 @@ export function createGameAudio() {
         else mixer.setBossMix(0, 240 / THEMES[planet].bpm);
         boss.request(stage, clock.step);
       }
-      for (const cue of cues) mixer.cue(cue);
+      // The success resolve is written in C: it plays in the world's key.
+      for (const cue of cues) mixer.cue(cue.sound === 'win' ? { ...cue, transpose: successKey(planet) } : cue);
       if (state.phase === 'over' || state.phase === 'complete') {
         if (!terminal) {
           terminal = true; mixer.stopGroup('music');
@@ -118,6 +122,15 @@ export function createGameAudio() {
           }, 4500);
         }
       }
+    },
+    /**
+     * The launch warp's whoosh, in the tap that starts a flight (main.ts), a fifth up so it peaks as the shortest warp
+     * breaks out (1 s). Only if its sample is already made: nothing is ever synthesized in that tap.
+     */
+    launch() {
+      if (settings.muted || !mixer || !context || disposed || !mixer.ready('whoosh')) return;
+      clearSuspend(); mixer.setActive(true);
+      mixer.cue({ sound: 'whoosh', pan: 0, gain: .8, variant: 0, transpose: 7 });
     },
     pause() { active = false; halt(); },
     resume() { active = true; unlock(); },

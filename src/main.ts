@@ -108,7 +108,7 @@ async function start(config: RunConfig) {
   run = null; afterglow = null; loadingRun = candidate; startPaused = false;
   candidate.phase = 'paused';
   // Unlock on the initiating gesture; music starts only after loading finishes.
-  audio.quit(); audio.unlock(); input.clear();
+  audio.quit(); audio.unlock(); audio.launch(); input.clear();
   // The launch warp plays while the world is prepared (user, 21 October): opaque deep space with the ship cruising; endless,
   // with more to load, simply warps longer. A slow load shows the panel over it, with its way back to the menu.
   // The flight's ship starts loading before the warp shows it cruising (the renderer hides it until it is the right one).
