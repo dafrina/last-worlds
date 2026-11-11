@@ -72,6 +72,8 @@ export interface PreviewJob {
   combat?: boolean;
   /** Analysis only: render the boss stem without the level score. */
   stemOnly?: boolean;
+  /** Any other effect cues, in seconds from the render's start (sound-effect previews); `transpose` in semitones. */
+  extra?: { at: number; sound: string; gain: number; pan: number; transpose?: number }[];
 }
 export type PreviewCue = { at: number; sound: 'boss-arrival' | 'boss-phase' | 'heavy' | 'boss-death' | 'pulse' | 'explosion' | 'shield-break'; gain: number; pan: number };
 
