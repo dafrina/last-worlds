@@ -106,6 +106,7 @@ it('all original samples are finite, have headroom and click-free edges', () => 
     expect(Math.sqrt(squares / pcm.length), id).toBeGreaterThan(.005);
     expect(Math.abs(pcm[0]) + Math.abs(pcm.at(-1)!), id).toBeLessThan(.003);
   }
-  // 8.9 MiB before the 10 November boss and recomposed-world instruments; 12.3 MiB with the 11 November orchestral voices.
-  expect(bytes).toBeLessThan(13 * 1024 * 1024);
+  // 8.9 MiB before the 10 November boss and recomposed-world instruments; 12.3 MiB with the 11 November orchestral voices;
+  // 13.4 MiB with the reworked worlds' voices (phase 4).
+  expect(bytes).toBeLessThan(14 * 1024 * 1024);
 });

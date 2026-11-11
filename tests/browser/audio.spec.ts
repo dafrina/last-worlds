@@ -70,7 +70,7 @@ test('seven real offline mixes and a crowded combat mix have headroom and surviv
       (await (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__.renderTimeline({ planet, bars: 6, startStep: 128, combat: planet === 'nacre' })).metrics, planet);
     sound(metrics, planet);
     expect(metrics.rms, planet).toBeGreaterThan(.015);
-    expect(metrics.sampleBytes, planet).toBeLessThan(13 * 1024 * 1024);
+    expect(metrics.sampleBytes, planet).toBeLessThan(14 * 1024 * 1024);
     signatures.push(metrics.rms);
   }
   expect(new Set(signatures).size).toBe(WORLDS.length);
@@ -88,7 +88,7 @@ test('submix silence and hard voice limits are enforced in the actual Web Audio 
       mixer.setActive(true);
       mixer.setBossMix(1, 0);
       for (let i = 0; i < 100; i++) {
-        mixer.note({ instrument: 'pad', pitch: 48 + i % 12, gain: .2, wet: .5, pan: .1 }, .01);
+        mixer.note({ instrument: 'frost', pitch: 48 + i % 12, gain: .2, wet: .5, pan: .1 }, .01);
         mixer.note({ instrument: 'growl', pitch: 36, gain: .3, wet: .2, pan: 0 }, .01, true);
         mixer.cue({ sound: 'life', pan: 0, gain: 1, variant: i }, .01);
       }
@@ -98,7 +98,7 @@ test('submix silence and hard voice limits are enforced in the actual Web Audio 
     }
     const ctx = new OfflineAudioContext(2, 44100, 44100), mixer = new AudioMixer(ctx, { muted: false, music: 1, effects: 1 });
     mixer.setActive(true); mixer.setBossMix(1, 0);
-    for (let i = 0; i < 300; i++) mixer.note({ instrument: 'pad', pitch: 48 + i % 12, gain: .04, wet: .2, pan: .1 }, .01);
+    for (let i = 0; i < 300; i++) mixer.note({ instrument: 'frost', pitch: 48 + i % 12, gain: .04, wet: .2, pan: .1 }, .01);
     for (let i = 0; i < 300; i++) mixer.note({ instrument: i % 2 ? 'strings' : 'braam', pitch: 40 + i % 12, gain: .04, wet: .2, pan: -.1, priority: i % 4 }, .01, true);
     for (let i = 0; i < 70; i++) mixer.cue({ sound: 'boss-death', pan: 0, gain: .2, variant: i }, .02 + i * .026);
     const bounded = mixer.diagnostics();
@@ -113,6 +113,36 @@ test('submix silence and hard voice limits are enforced in the actual Web Audio 
   expect(results.bounded.effectsVoices).toBeLessThanOrEqual(20);
   expect(results.bounded.peakVoices).toBeLessThanOrEqual(VOICES);
   expect(results.peak).toBeLessThan(.98);
+});
+
+test('a kick dips the keyed basses and leads in the actual Web Audio graph, and never the pads', async ({ page }) => {
+  await page.goto('/tests/fixtures/audio-lab.html');
+  await page.waitForFunction(() => '__AUDIO_LAB__' in window);
+  const dips = await page.evaluate(async () => {
+    const { AudioMixer } = (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__;
+    // A held voice, and a near-silent kick at 0.5 s that keys the sidechain (or not); RMS just after the kick (the
+    // master compressor and limiter delay the output by about 12 ms), and once it has recovered, against the same
+    // render without the key.
+    const render = async (instrument: 'bass' | 'frost', keyed: boolean) => {
+      const ctx = new OfflineAudioContext(1, 44100, 44100), mixer = new AudioMixer(ctx, { muted: false, music: 1, effects: 0 });
+      mixer.setActive(true);
+      mixer.note({ instrument, pitch: instrument === 'bass' ? 36 : 48, gain: .3, wet: 0, pan: 0 }, .3);
+      mixer.note({ instrument: 'snap-kick', pitch: 36, gain: 1e-4, wet: 0, pan: 0, ...(keyed ? { duck: { depth: .5, release: .1 } } : {}) }, .5);
+      const out = (await ctx.startRendering()).getChannelData(0);
+      const rms = (from: number, to: number) => Math.sqrt(out.subarray(from * 44100, to * 44100).reduce((s, v) => s + v * v, 0) / ((to - from) * 44100));
+      mixer.dispose();
+      return { dip: rms(.52, .535), after: rms(.75, .8) };
+    };
+    const ratio = async (instrument: 'bass' | 'frost') => {
+      const [plain, keyed] = [await render(instrument, false), await render(instrument, true)];
+      return { dip: keyed.dip / plain.dip, after: keyed.after / plain.after };
+    };
+    return { bass: await ratio('bass'), pad: await ratio('frost') };
+  });
+  // A depth of 0.5 dips the bass to about half (measured 0.48), recovering within about a tenth of a second.
+  expect(dips.bass.dip).toBeLessThan(.6);
+  expect(dips.bass.after).toBeGreaterThan(.95);
+  expect(dips.pad.dip).toBeCloseTo(1, 2);
 });
 
 test('boss phases change the arrangement on the running score\'s grid, survive pause, and clear for the next run', async ({ page }) => {
@@ -185,9 +215,10 @@ test('every world\'s boss stages grow in the rendered stem, and the level score 
       expect(core - modules, `${planet} ${k} modules → core`).toBeGreaterThan(.5);
       expect(overload - core, `${planet} ${k} core → overload`).toBeGreaterThan(.5);
     }
-    // Power from arrangement, not loudness: the full mix grows by a few dB at most from modules to overload.
+    // Power mostly from arrangement: the full mix grows by a few dB at most from modules to overload (5.5 since phase 4
+    // gave the fights more low end; Vesper's spacious modules grow the most).
     const rms = (m: Metrics) => 20 * Math.log10(m.windows.slice(2, -2).reduce((s, w) => s + w.rms, 0) / (m.windows.length - 4));
-    expect(rms(mixes.full[2]) - rms(mixes.full[0]), planet).toBeLessThan(4);
+    expect(rms(mixes.full[2]) - rms(mixes.full[0]), planet).toBeLessThan(5.5);
     // The level score is the exact same timeline before the boss arrives and once the stem has faded out.
     const bar = mixes.level.barSeconds, before = Math.floor(2.2 * bar) - 1, after = Math.ceil(19 * bar);
     for (let second = 0; second < before; second++) {

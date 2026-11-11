@@ -20,14 +20,17 @@ const PRIORITY: Partial<Record<Sound, number>> = {
 };
 const COOLDOWN: Partial<Record<Sound, number>> = { impact: .055, enemy: .12, explosion: .045, heavy: .1, warning: .3, beam: .14 };
 export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20 } as const;
-const PADS = new Set<Instrument>(['pad', 'bloom-pad', 'breath-pad', 'solar', 'inhale']);
+const PADS = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale']);
 /** Sustained voices that also feed the stereo ensemble. */
-const ENSEMBLE = new Set<Instrument>(['pad', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings']);
+const ENSEMBLE = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings']);
 /** Basses play one note at a time, as a player's would: a new note in the same part damps the one still ringing. */
 const MONO = new Set<Instrument>(['bass', 'round-bass', 'foundry-bass', 'bio-bass', 'void-bass', 'drive-bass', 'growl']);
 /** Drums and basses sit tight on the grid; everything else may lean a little behind it. */
-const TIGHT = new Set<Instrument>(['kick', 'snare', 'hat', 'brush', 'metal', 'bone', 'void-tick', 'ember', 'heart', 'taiko', 'timpani',
-  'tom', 'boom', 'crash', ...MONO]);
+const TIGHT = new Set<Instrument>(['kick', 'snap-kick', 'forge-kick', 'doum', 'tek', 'boss-kick', 'snare', 'hat', 'brush', 'bone', 'void-tick',
+  'ember', 'heart', 'taiko', 'timpani', 'tom', 'boom', 'crash', ...MONO]);
+/** The sidechain's keyed voices (phase 4, user: "sidechain the lead synths and basses on the kicks for some more
+ * pop"): the basses and the synth leads, never pads, acoustic leads, reverb returns or effects. */
+const KEYED = new Set<Instrument>([...MONO, 'saw-lead', 'nerve', 'spiccato', 'stab']);
 /** Voices whose timing is part of the writing: reversed notes stop exactly on a grid line, a riser peaks on one. */
 const EXACT = new Set<Instrument>(['inhale', 'glint', 'riser']);
 
@@ -57,6 +60,9 @@ export class AudioMixer {
   private music: GainNode;
   /** The level score's voices; it steps back a little as the boss stem takes the weight (see `setBed`). */
   private bed: GainNode;
+  /** The keyed leads and basses of the level score and of the boss stem: they dip under each kick (see `sidechain`). */
+  private keyed: { music: GainNode; boss: GainNode };
+  private lastDuck = { at: -1, depth: 0 };
   private boss: GainNode;
   private bossFade = { from: 0, target: 0, start: 0, end: 0 };
   private effects: GainNode;
@@ -81,12 +87,15 @@ export class AudioMixer {
     };
     this.music = gain(settings.music * .72); this.effects = gain(settings.effects);
     this.bed = gain(1); this.bed.connect(this.music);
+    this.keyed = { music: gain(1), boss: gain(1) };
+    this.keyed.music.connect(this.bed);
     // The boss stem has its own gentle bus compressor: it only rounds off the drum and brass peaks so they do not push
     // the shared master compressor (which would pump the combat sounds). Slow enough to let every hit through first.
     this.boss = gain(0);
     const glue = context.createDynamicsCompressor();
     glue.threshold.value = -10; glue.knee.value = 10; glue.ratio.value = 1.8; glue.attack.value = .015; glue.release.value = .25;
     this.boss.connect(glue).connect(this.music); this.nodes.push(glue);
+    this.keyed.boss.connect(this.boss);
     this.duck = gain(1); this.gate = gain(0);
     const highpass = filter('highpass', 32, .5);
     const compressor = context.createDynamicsCompressor();
@@ -201,7 +210,8 @@ export class AudioMixer {
     try { voice.source.stop(at + .018); } catch { /* Already stopped. */ }
     // Disconnect onended; keeping the fade avoids a discontinuity when stealing a voice.
   }
-  private play(id: SampleId, at: number, rate: number, volume: number, pan: number, group: Group, priority: number, wet = 0, skip = 0) {
+  private play(id: SampleId, at: number, rate: number, volume: number, pan: number, group: Group, priority: number, wet = 0, skip = 0,
+    bend?: Note['bend']) {
     const fader = group === 'effects' ? this.settings.effects : this.settings.music;
     if (!this.active || this.settings.muted || fader === 0) return false;
     this.voices.filter(v => v.end <= this.context.currentTime).forEach(v => this.release(v));
@@ -219,10 +229,16 @@ export class AudioMixer {
     // an equal-power panner at 0 sends a mono sample to both channels at √½, which the voice gain applies instead.
     const source = this.context.createBufferSource(), gain = this.context.createGain(), panner = pan === 0 ? undefined : this.context.createStereoPanner();
     source.buffer = this.buffer(id); source.playbackRate.value = rate;
+    if (bend) {
+      // A slide into the note: from `bend.from` semitones away to its pitch, as a finger or a mandal would.
+      source.playbackRate.setValueAtTime(rate * 2 ** (bend.from / 12), at);
+      source.playbackRate.exponentialRampToValueAtTime(rate, at + bend.seconds);
+    }
     gain.gain.value = panner ? volume : volume * Math.SQRT1_2;
     if (panner) panner.pan.value = pan;
     const out: AudioNode = panner ? source.connect(gain).connect(panner) : source.connect(gain);
-    out.connect(group === 'music' ? this.bed : group === 'boss' ? this.boss : this.effects);
+    const keyed = group !== 'effects' && KEYED.has(id as Instrument);
+    out.connect(group === 'music' ? keyed ? this.keyed.music : this.bed : group === 'boss' ? keyed ? this.keyed.boss : this.boss : this.effects);
     const voice: Voice = { id, source, gain, pan: panner, group, priority, start: at, end: at + (source.buffer.duration - skip) / rate };
     if (wet > 0 && group !== 'effects') {
       const send = this.context.createGain(); send.gain.value = wet;
@@ -266,15 +282,33 @@ export class AudioMixer {
     const priority = boss ? note.priority ?? 0 : pad ? 0 : 1, group: Group = boss ? 'boss' : 'music';
     if (MONO.has(note.instrument)) this.choke(note.instrument, group, start);
     const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), touch.gain, note.pan,
-      group, priority, note.wet, note.skip ?? 0);
+      group, priority, note.wet, note.skip ?? 0, note.bend);
+    if (played && note.duck) this.sidechain(start, note.duck.depth, note.duck.release);
     // Only while a fight is on: the stem's fade-out bar must not lower the level score again after the kill.
     if (played && boss && note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);
+  }
+  /**
+   * The sidechain: the keyed leads and basses of both the score and the stem dip by `depth` within a few milliseconds
+   * of a kick and recover over `release` seconds. Driven by the scheduled kick, so it is exact and deterministic. Two
+   * kicks within 30 ms (the score's and the stem's) make one dip, the deeper of the two.
+   */
+  private sidechain(at: number, depth: number, release: number) {
+    if (Math.abs(at - this.lastDuck.at) < .03 && depth <= this.lastDuck.depth) return;
+    this.lastDuck = { at, depth };
+    for (const node of [this.keyed.music, this.keyed.boss]) {
+      node.gain.setTargetAtTime(1 - depth, at, .003);
+      node.gain.setTargetAtTime(1, at + .02, release / 3);
+    }
   }
   stopGroup(group: 'music' | 'effects') {
     const stops = (v: Voice) => v.group === group || (group === 'music' && v.group === 'boss');
     for (const voice of this.voices.filter(stops)) this.stopVoice(voice);
     this.voices = this.voices.filter(v => !stops(v));
-    if (group === 'music') { this.bedLevel = 1; this.ramp(this.bed.gain, 1); }
+    if (group === 'music') {
+      this.bedLevel = 1; this.ramp(this.bed.gain, 1);
+      for (const node of [this.keyed.music, this.keyed.boss]) this.ramp(node.gain, 1);
+      this.lastDuck = { at: -1, depth: 0 };
+    }
   }
   stop() {
     this.stopGroup('music'); this.stopGroup('effects'); this.cooldown.clear();

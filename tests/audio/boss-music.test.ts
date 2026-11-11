@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BED, BossArranger, bossStage, bossStep, switchStep, type BossStage } from '../../src/audio/boss-score';
+import { UNPITCHED } from '../../src/audio/harmony';
 import { BASE_PITCH, INSTRUMENT_SECONDS, LEVEL_INSTRUMENTS, RECOMPOSED_INSTRUMENTS } from '../../src/audio/instruments';
 import { SAMPLE_IDS, synthesize } from '../../src/audio/samples';
-import { scoreStep, THEMES, type Note } from '../../src/audio/score';
+import { scoreStep, SIDECHAIN, THEMES, type Note } from '../../src/audio/score';
 import type { PlanetId } from '../../src/shared/contracts';
 
 const PLANETS = Object.keys(THEMES) as PlanetId[];
@@ -20,14 +21,13 @@ const pitchClass = (n: number) => Math.round((((n % 12) + 12) % 12) * 1e6) / 1e6
 describe('the level scores are the approved compositions, changed only where the user asked', () => {
   it('plays every note, gain, pan, send and timing of each 32-bar cycle exactly as approved', () => {
     // Fingerprints of scoreStep over steps 0–511. A change here is a change to the authored music itself, never a side
-    // effect of sound design. Luna, Nacre and Amnion are exactly as on 5af93ef, before the audio upgrade. Corona and
-    // Umbra were recomposed on 10 November (user: Corona's score was a copy; Umbra "very ominous ... reversed
-    // instruments and alien harmonics"). On 11 November the user asked for Khepri's running bass to be thinned (it was
-    // 413d0b6e, 916 notes), Vesper to be "more ambient than musical" (e727bbd2, 440) and Corona's harp to have space
-    // between its notes.
+    // effect of sound design. Corona and Umbra were recomposed on 10 November (user: Corona's score was a copy; Umbra
+    // "very ominous ... reversed instruments and alien harmonics"). On 11 November the user loved Umbra ("i love love
+    // love the umbra sound"): it is frozen as it is (see the next test), and the user asked for the other five to be
+    // reworked to its and Corona's quality, and for Corona's harp to be less regular, with an Arabic colour.
     const approved: Record<PlanetId, [string, number]> = {
-      luna: ['14462955', 572], khepri: ['fdc106fa', 748], nacre: ['e63b294e', 500], vesper: ['1201b473', 200], amnion: ['48a36df4', 456],
-      corona: ['1cb36fac', 442], umbra: ['544dfdfb', 542],
+      luna: ['dc121b4d', 613], khepri: ['5a37c6dc', 752], nacre: ['8af67ad3', 612], vesper: ['2efa3c87', 235], amnion: ['99e01a32', 476],
+      corona: ['31966c7e', 508], umbra: ['544dfdfb', 542],
     };
     for (const planet of PLANETS) {
       const notes = Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s));
@@ -35,16 +35,60 @@ describe('the level scores are the approved compositions, changed only where the
     }
     expect(PLANETS.map(p => THEMES[p].bpm)).toEqual([94, 118, 106, 88, 92, 110, 84]);
   });
+  it('keeps Umbra frozen, note for note and sample for sample', () => {
+    // The user loved it (11 November). Its 32-bar cycle and every sample it plays are exactly as approved: its kick is
+    // its own (the other worlds moved to snappier kicks), and nothing in its score keys the sidechain.
+    const notes = Array.from({ length: STEPS }, (_, s) => scoreStep('umbra', s));
+    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['544dfdfb', 542]);
+    expect(notes.flat().some(n => n.duck || n.bend)).toBe(false);
+    const pcm = (id: string) => {
+      const bytes = new Uint8Array(synthesize(id as never).buffer);
+      let h = 2166136261;
+      for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ bytes[i], 16777619);
+      return (h >>> 0).toString(16).padStart(8, '0');
+    };
+    const used = [...new Set(notes.flat().map(n => n.instrument))].sort();
+    expect(Object.fromEntries(used.map(id => [id, pcm(id)]))).toEqual({
+      glint: '6fe63243', inhale: '0f8e2e23', kick: '380d4e9a', obsidian: '42757aaf', 'void-bass': 'e5bc99b7', 'void-tick': '22ef1a1a',
+    });
+    for (const planet of PLANETS.filter(p => p !== 'umbra')) {
+      expect(Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s)).flat().some(n => n.instrument === 'kick'), planet).toBe(false);
+    }
+  });
+  it('keys the sidechain from each world\'s kick and the fights\' kick, at the depths in its table', () => {
+    for (const planet of PLANETS) {
+      const kicks = Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s)).flat().filter(n => n.duck);
+      if (planet === 'umbra') { expect(kicks).toEqual([]); continue; }
+      expect(kicks.length, planet).toBeGreaterThan(16);
+      for (const n of kicks) {
+        expect(n.duck!.depth, planet).toBe(SIDECHAIN[planet].level);
+        expect(n.duck!.release, planet).toBeGreaterThanOrEqual(.08); expect(n.duck!.release, planet).toBeLessThanOrEqual(.15);
+        expect(UNPITCHED.has(n.instrument), `${planet} ${n.instrument}`).toBe(true);
+      }
+      for (const stage of [1, 2, 3] as const) {
+        const keyed = cycle(planet, stage).flat().filter(n => n.instrument === 'boss-kick');
+        expect(keyed.length, `${planet} ${stage}`).toBeGreaterThan(0);
+        for (const n of keyed) expect(n.duck?.depth, `${planet} ${stage}`).toBe(SIDECHAIN[planet].boss[stage - 1]);
+      }
+    }
+    // Deeper in the fights than in flight, and deepest in overload; gentle in the ambient worlds.
+    for (const planet of PLANETS) {
+      const { level, boss } = SIDECHAIN[planet];
+      expect(boss[0] <= boss[1] && boss[1] <= boss[2] && boss[0] >= level, planet).toBe(true);
+    }
+    expect(SIDECHAIN.vesper.level).toBeLessThan(SIDECHAIN.khepri.level);
+    expect(SIDECHAIN.nacre.level).toBeLessThan(SIDECHAIN.luna.level);
+  });
   it('gives Corona and Umbra scores of their own voices, apart from the worlds around them', () => {
     const voices = (planet: PlanetId) => new Set(Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s)).flat().map(n => n.instrument));
     const corona = voices('corona'), umbra = voices('umbra');
-    for (const id of ['harp', 'harp-high', 'solar', 'bowed', 'ember']) expect(corona.has(id as never), id).toBe(true);
+    for (const id of ['harp', 'harp-high', 'solar', 'bowed', 'ember', 'doum', 'tek']) expect(corona.has(id as never), id).toBe(true);
     for (const id of ['inhale', 'glint', 'obsidian', 'void-bass', 'void-tick']) expect(umbra.has(id as never), id).toBe(true);
     // No borrowed lead, pad or signature voice from Khepri, Vesper, Amnion or each other.
-    for (const id of ['saw-lead', 'foundry-bass', 'metal', 'glass', 'pad', 'nerve', 'breath-pad', 'heart', 'bone']) {
+    for (const id of ['saw-lead', 'foundry-bass', 'anvil', 'glass', 'frost', 'pearl', 'nerve', 'breath-pad', 'heart', 'bone']) {
       expect(corona.has(id as never) || umbra.has(id as never), id).toBe(false);
     }
-    expect([...corona].some(id => umbra.has(id) && !['kick'].includes(id))).toBe(false);
+    expect([...corona].some(id => umbra.has(id))).toBe(false);
     // Umbra's harmony leaves the twelve-note grid: harmonic-series tones and quarter-tone melody steps.
     expect(Array.from({ length: STEPS }, (_, s) => scoreStep('umbra', s)).flat().some(n => !Number.isInteger(n.pitch))).toBe(true);
   });
@@ -113,7 +157,7 @@ describe('four musically distinct boss states', () => {
         if (!fill) expect(notes.some(n => n.instrument === 'snare' || n.instrument === 'brush'), `${planet} ${stage} ${s}`).toBe(false);
       });
       // The big drum never marks all four beats of a bar with nothing between: no four-on-the-floor.
-      const drum = (s: number) => c[s].some(n => n.instrument === 'taiko' || n.instrument === 'heart');
+      const drum = (s: number) => c[s].some(n => ['taiko', 'heart', 'doum', 'boss-kick'].includes(n.instrument));
       for (let bar = 0; bar < STEPS / 16; bar++) {
         const on = [0, 4, 8, 12].every(b => drum(bar * 16 + b)), between = [2, 6, 10, 14].some(b => drum(bar * 16 + b));
         expect(on && !between, `${planet} ${stage} bar ${bar}`).toBe(false);
@@ -125,10 +169,10 @@ describe('four musically distinct boss states', () => {
     expect(new Set(signatures).size).toBe(PLANETS.length);
     const uses = (planet: PlanetId, instrument: string) => cycle(planet, 2).flat().some(n => n.instrument === instrument);
     expect(uses('luna', 'brush') && uses('nacre', 'brush')).toBe(true);
-    expect(uses('khepri', 'metal')).toBe(true);
+    expect(uses('khepri', 'anvil')).toBe(true);
     expect(uses('amnion', 'heart') && uses('amnion', 'bone') && uses('amnion', 'bio-bass') && !uses('amnion', 'taiko')).toBe(true);
     expect(uses('umbra', 'void-tick') && uses('umbra', 'void-bass') && uses('umbra', 'inhale')).toBe(true);
-    expect(uses('corona', 'ember')).toBe(true);
+    expect(uses('corona', 'doum') && uses('corona', 'tek')).toBe(true);
     // The spacious worlds keep their core ostinato in eighths.
     for (const planet of ['vesper', 'umbra'] as const) {
       expect(cycle(planet, 2).some((notes, s) => s % 2 === 1 && notes.some(n => n.instrument === 'spiccato')), planet).toBe(false);
@@ -140,7 +184,7 @@ describe('four musically distinct boss states', () => {
     expect(cycle('khepri', 2).flat().every(n => !n.offset || n.instrument === 'snare')).toBe(true);
   });
   it('never doubles the level lead or pads, and never steps outside the harmony', () => {
-    const leads = ['pad', 'bloom-pad', 'breath-pad', 'piano', 'glass', 'saw-lead', 'harp', 'harp-high', 'solar', 'obsidian'];
+    const leads = ['frost', 'pearl', 'signal', 'bloom-pad', 'breath-pad', 'piano', 'glass', 'saw-lead', 'harp', 'harp-high', 'solar', 'obsidian'];
     for (const planet of PLANETS) {
       const theme = THEMES[planet];
       for (const stage of [1, 2, 3] as const) {
@@ -260,10 +304,10 @@ describe('synthesized instruments', () => {
       expect(peak, id).toBeGreaterThan(.05);
       expect(Math.abs(sum / pcm.length), id).toBeLessThan(.002);
     }
-    expect(synthesize('pad')).toEqual(synthesize('pad'));
+    expect(synthesize('frost')).toEqual(synthesize('frost'));
     // 8.9 MiB before the boss instruments and the recomposed worlds' voices; 12.3 MiB with the 11 November orchestral
-    // voices (taiko, timpani, spiccato) and the longer glass and harp.
-    expect(bytes).toBeLessThan(13 * 1024 * 1024);
+    // voices (taiko, timpani, spiccato) and the longer glass and harp; 13.4 MiB with the reworked worlds' voices.
+    expect(bytes).toBeLessThan(14 * 1024 * 1024);
   });
   it('rise to their peak at the very end only for the riser, which must land on a downbeat', () => {
     const riser = synthesize('riser'), quarter = Math.floor(riser.length / 4);
