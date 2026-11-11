@@ -8,7 +8,7 @@ import { scoreStep, THEMES, type Note } from './score';
  * (within a quarter tone, so Umbra's deliberate quarter tones and harmonic-series tones are not mistaken for one),
  * unless both notes are tones of the chord in force: the chord is the composition's own harmony.
  */
-export const UNPITCHED = new Set<Instrument>(['kick', 'snare', 'hat', 'clap', 'brush', 'crash', 'riser', 'metal', 'bone',
+export const UNPITCHED = new Set<Instrument>(['kick', 'snare', 'hat', 'taiko', 'brush', 'crash', 'riser', 'metal', 'bone',
   'void-tick', 'ember', 'heart', 'bowed', 'tom', 'boom']);
 /** The melody's instruments in each world's level score (Luna's piano and Khepri's lead also play its chords). */
 export const LEAD: Record<PlanetId, readonly Instrument[]> = {

@@ -2,11 +2,11 @@ import type { PlanetId } from '../shared/contracts';
 import { BASE_PITCH, INSTRUMENT_SECONDS, type Instrument } from './instruments';
 
 /** One scheduled sample. `offset` delays it within its sixteenth; the boss stem (src/audio/boss-score.ts) also uses
- * `skip` (seconds into the sample: a riser trimmed to land on a downbeat), `priority` within its own voice pool,
- * `pump` (how far the level bed dips under it) and `bed` (the level bed's level from this note on). */
+ * `skip` (seconds into the sample: a riser trimmed to land on a downbeat), `priority` within its own voice pool and
+ * `bed` (the level bed's level from this note on). The mixer adds the player's small timing and velocity variations. */
 export interface Note {
   instrument: Instrument; pitch: number; gain: number; pan: number; wet: number;
-  offset?: number; skip?: number; priority?: number; pump?: number; bed?: number;
+  offset?: number; skip?: number; priority?: number; bed?: number;
 }
 interface Theme {
   title: string; bpm: number; root: number; chords: readonly (readonly number[])[];
@@ -24,7 +24,8 @@ export const THEMES: Record<PlanetId, Theme> = {
   khepri: {
     title: 'Foundry Afterimage', bpm: 118, root: 45,
     chords: [[0, 7, 12, 15], [-1, 6, 11, 14], [-5, 2, 7, 10], [-2, 5, 10, 14]],
-    bass: [0, -1, 0, 12, -1, 7, 0, -1, 0, 12, -1, 0, -1, 7, 10, 7],
+    // 11 November: four notes a bar, each left to ring (the old sixteenth line ran without a breath).
+    bass: [0, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, 7, -1, -1, 10, -1],
     melody: [12, -1, 15, -1, 19, -1, -1, 15, -1, 12, -1, 10, -1, 7, -1, 10],
     kick: [0, 6, 8, 11], hats: [0, 2, 4, 6, 8, 10, 12, 14, 15],
   },
@@ -35,12 +36,14 @@ export const THEMES: Record<PlanetId, Theme> = {
     melody: [12, -1, -1, 19, -1, 14, -1, -1, 21, -1, -1, 19, -1, 17, 14, -1],
     kick: [0, 7, 10], hats: [2, 5, 8, 11, 14],
   },
+  // Vesper, 11 November: more ambient than musical. Three glass notes every second bar with room to ring, two bass
+  // notes a bar, one soft kick, no backbeat or hats; the pads carry the space.
   vesper: {
     title: 'Below the Ice Line', bpm: 88, root: 47,
     chords: [[0, 7, 14, 15], [-3, 4, 11, 14], [-5, 2, 9, 12], [-2, 5, 12, 14]],
-    bass: [0, -1, -1, -1, -1, -1, 7, -1, 0, -1, -1, -1, 12, -1, -1, -1],
-    melody: [19, -1, -1, -1, 14, -1, -1, 12, -1, -1, 15, -1, -1, -1, 7, -1],
-    kick: [0, 10], hats: [2, 6, 14],
+    bass: [0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 7, -1, -1, -1, -1, -1],
+    melody: [19, -1, -1, -1, -1, -1, 14, -1, -1, -1, -1, -1, 12, -1, -1, -1],
+    kick: [0], hats: [],
   },
   amnion: {
     title: 'Something Beneath the Skin', bpm: 92, root: 43,
@@ -50,14 +53,15 @@ export const THEMES: Record<PlanetId, Theme> = {
     kick: [0, 2, 9, 11], hats: [3, 7, 10, 14],
   },
   // Corona (docs/37), recomposed 10 November (the first score was a placeholder on default instruments): a hymn for a
-  // dying star. E Phrygian at 110 BPM, i, ♭II, ♭VI and the major V (Em, F, C, B), two bars each. A low harp ostinato
-  // climbs each chord in 3-3-2 groups under a lament whose ♭6 neighbour sinks back to the fifth; a solar drone swells
-  // like heat under sparse, heavy drums, ember crackle and a bowed-metal shriek at the phrase marks.
+  // dying star. E Phrygian at 110 BPM, i, ♭II, ♭VI and the major V (Em, F, C, B), two bars each. A low harp rises and
+  // falls slowly through each chord, three ringing notes a bar (11 November: no longer a running ostinato), under a
+  // lament whose ♭6 sinks back to the fifth; a solar drone swells like heat under sparse, heavy drums, ember crackle and
+  // a bowed-metal shriek at the phrase marks.
   corona: {
     title: 'Hymn for a Swollen Sun', bpm: 110, root: 40,
     chords: [[0, 7, 12, 15], [1, 8, 13, 17], [-4, 3, 8, 12], [-5, 2, 7, 11]],
     bass: [0, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 7, -1, 12, -1],
-    melody: [12, -1, -1, 8, -1, -1, 7, -1, -1, -1, -1, 5, -1, -1, 7, -1],
+    melody: [12, -1, -1, -1, -1, -1, 8, -1, -1, -1, -1, -1, 7, -1, -1, -1],
     kick: [0, 6, 12], hats: [3, 9, 11, 15],
   },
   // Umbra (docs/28), recomposed 10 November: where the light goes backwards. F# at 84 BPM, chords F#, G, C and F (a
@@ -84,7 +88,7 @@ export function scoreStep(planet: PlanetId, step: number): Note[] {
   const phrase = Math.floor(bar / 8) % 4, chordIndex = Math.floor(bar / 2) % 4;
   const chord = theme.chords[chordIndex], root = theme.root;
   const notes: Note[] = [], breakdown = phrase === 2;
-  const human = planet === 'luna', bloom = planet === 'nacre', foundry = planet === 'khepri';
+  const human = planet === 'luna', bloom = planet === 'nacre', foundry = planet === 'khepri', ice = planet === 'vesper';
   const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = .1) => {
     // Small, authored-feeling timing/velocity inflections, private to music; Vesper retains its approved mix.
     if (human) notes.push({ instrument, pitch, gain: gain * (.93 + .07 * Math.sin(step * 2.3 + pitch)),
@@ -100,14 +104,14 @@ export function scoreStep(planet: PlanetId, step: number): Note[] {
       [0, 7, 12].forEach((interval, i) => add('saw-lead', root + chord[0] + interval, .07, (i - 1) * .16, .08));
     } else {
       chord.forEach((interval, i) => add(bloom ? 'bloom-pad' : 'pad', root + interval,
-        bloom ? .18 : .105, (i - 1.5) * .16, bloom ? .6 : .45));
+        bloom ? .18 : ice ? .12 : .105, (i - 1.5) * .16, bloom ? .6 : ice ? .55 : .45));
     }
   }
   const bass = theme.bass[beat];
-  if (bass >= 0 && (!breakdown || beat === 0)) add(foundry ? 'saw-bass' : human || bloom ? 'round-bass' : 'bass',
+  if (bass >= 0 && (!breakdown || beat === 0)) add(foundry ? 'foundry-bass' : human || bloom ? 'round-bass' : 'bass',
     root - 12 + chord[0] + bass, foundry ? .42 : bloom ? .21 : human ? .28 : .30);
-  if (theme.kick.includes(beat) && (!breakdown || beat === 0)) add('kick', 36, bloom ? .27 : human ? .34 : .41);
-  if (beat === 4 || beat === 12) {
+  if (theme.kick.includes(beat) && (!breakdown || beat === 0)) add('kick', 36, bloom ? .27 : human ? .34 : ice ? .28 : .41);
+  if ((beat === 4 || beat === 12) && !ice) {
     if (!breakdown && bar > 1) add(human || bloom ? 'brush' : 'snare',
       60, foundry ? .20 : bloom ? .075 : .13, 0, human ? .04 : .13);
   }
@@ -118,11 +122,11 @@ export function scoreStep(planet: PlanetId, step: number): Note[] {
   // Second half of each phrase answers the lead one octave down, without a constantly repeating top line.
   const index = bar % 4 >= 2 ? (16 - beat) % 16 : beat;
   const melody = theme.melody[index];
-  if (melody >= 0 && (bar % 2 === 0 || phrase === 1) && (!bloom || beat % 4 === 0)) {
+  if (melody >= 0 && (bar % 2 === 0 || (phrase === 1 && !ice)) && (!bloom || beat % 4 === 0)) {
     const transposition = chord[0] + (phrase === 3 ? 12 : 0);
     add(human ? 'piano' : foundry ? 'saw-lead' : bloom ? 'bloom-pad' : 'glass',
       root + melody + transposition, bloom ? .17 : foundry ? .12 : breakdown ? .105 : .14,
-      Math.sin(step * .51) * .38, human ? .13 : foundry ? .12 : bloom ? .65 : .38);
+      Math.sin(step * .51) * .38, human ? .13 : foundry ? .12 : bloom ? .65 : ice ? .5 : .38);
   }
   if (planet === 'khepri' && beat % 6 === 3 && !breakdown) add('metal', 56 + chordIndex * 2, .075, -.3, .24);
   if (human && beat === 10 && bar % 2 === 1) add('piano', root + chord[1] + 12, .10, -.15, .14);
@@ -156,15 +160,18 @@ function amnionStep(step: number): Note[] {
   return notes;
 }
 
-/** Corona's harp ostinato: chord-tone indices, climbing from the root in groups of 3, 3 and 2 sixteenths, twice a bar. */
-const CORONA_HARP = [0, 1, 2, 0, 1, 3, 0, 2, 0, 1, 2, 0, 1, 3, 2, 1] as const;
-const CORONA_GROUPS = [0, 3, 6, 8, 11, 14];
-/** The lament's answer in each chord's second bar: fifth, then ♭7 sinking through ♭6 back to the fifth. */
-const CORONA_ANSWER = [7, -1, -1, -1, -1, -1, 10, -1, 8, -1, -1, -1, 7, -1, -1, -1];
+/** Corona's harp: chord-tone indices (-1 rests) over each chord's two bars, three notes a bar on the score's 3-3-2 in
+ * eighths. It rises from the root through the octave to the chord's top, then falls back, every note left to ring. */
+const CORONA_HARP = [
+  [0, -1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, 3, -1, -1, -1],
+  [1, -1, -1, -1, -1, -1, 3, -1, -1, -1, -1, -1, 2, -1, -1, -1],
+] as const;
+/** The lament's answer in each chord's second bar: the ♭7 sinking through the ♭6 back to the fifth. */
+const CORONA_ANSWER = [-1, -1, -1, -1, 10, -1, -1, -1, -1, -1, 8, -1, -1, -1, 7, -1];
 
 /** Corona, Hymn for a Swollen Sun: the same 32-bar form as every world, built from its own material. The opening grows
- * from the ostinato's group accents, the second phrase brings the drums and the lament, the breakdown thins to the
- * drone and the accents, the return doubles the lament on low strings. */
+ * from single harp notes, the second phrase brings the drums and the lament, the breakdown thins to the drone and one
+ * harp note a bar, the return doubles the lament an octave down. */
 /** The lament's note starting at a sixteenth (the motif over each chord's first bar, its answer over the second), if any. */
 function coronaLament(step: number) {
   if (step < 0) return null;
@@ -206,16 +213,16 @@ function coronaStep(step: number): Note[] {
     const moved = coronaYield(step, pitch, tones, root);
     if (moved !== null) add(instrument, moved, gain, pan, wet);
   };
-  const accent = CORONA_GROUPS.includes(beat);
   // The solar drone: root and octave swelling under each chord (the lament sings its sixths and fifths above it);
   // the breakdown adds the higher octave as the heat rises.
   if (step % 32 === 0) {
     add('solar', root, .2, -.15, .35); add('solar', root + 12, .11, .2, .35);
     if (breakdown) add('solar', root + 24, .07, 0, .45);
   }
-  // The harp ostinato. The opening's first bars and the breakdown keep only each group's first note.
-  if (accent || !(breakdown || (phrase === 0 && bar < 4))) {
-    yielding('harp', root + 12 + tones[CORONA_HARP[beat]], accent ? .17 : .11, (CORONA_HARP[beat] - 1.5) * .18, .22);
+  // The slow harp. The opening's first bars and the breakdown keep only each bar's first note.
+  const harp = CORONA_HARP[bar % 2][beat];
+  if (harp >= 0 && (beat === 0 || !(breakdown || (phrase === 0 && bar < 4)))) {
+    yielding('harp', root + 12 + tones[harp], beat === 0 ? .17 : .13, (harp - 1.5) * .2, .3);
   }
   const riff = theme.bass[beat];
   if (riff >= 0 && (full || (phrase === 0 && bar >= 4) || beat === 0)) yielding('bass', root - 12 + riff, .24);

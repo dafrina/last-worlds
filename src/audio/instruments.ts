@@ -9,14 +9,14 @@ import { cents, drive, finish, midi, OnePole, Pulse, Rotor, Saw, seedOf, Svf, TA
  * measured on the 20 October samples), so the authored scores keep their balance. Boss patches play only in the boss stem.
  */
 export type LevelInstrument = 'kick' | 'snare' | 'hat' | 'metal' | 'bass' | 'glass' | 'pad'
-  | 'bloom-pad' | 'saw-bass' | 'saw-lead' | 'piano' | 'round-bass' | 'brush'
+  | 'bloom-pad' | 'foundry-bass' | 'saw-lead' | 'piano' | 'round-bass' | 'brush'
   | 'breath-pad' | 'nerve' | 'bio-bass' | 'heart' | 'bone' | 'void-bass' | 'void-tick'
   | CoronaInstrument | UmbraInstrument;
 /** Corona's own voices (its score was recomposed on 10 November; see score.ts). */
 export type CoronaInstrument = 'harp' | 'harp-high' | 'solar' | 'bowed' | 'ember';
 /** Umbra's reversed and inharmonic voices (its score was recomposed on 10 November; see score.ts). */
 export type UmbraInstrument = 'inhale' | 'glint' | 'obsidian';
-export type BossInstrument = 'boom' | 'riser' | 'crash' | 'braam' | 'stab' | 'tom' | 'clap' | 'drive-bass' | 'growl' | 'arp' | 'strings';
+export type BossInstrument = 'boom' | 'riser' | 'crash' | 'braam' | 'stab' | 'tom' | 'taiko' | 'timpani' | 'spiccato' | 'drive-bass' | 'growl' | 'strings';
 export type Instrument = LevelInstrument | BossInstrument;
 
 interface Patch {
@@ -29,6 +29,21 @@ interface Patch {
 
 /** Exponential decay kept as a running product: one multiply per sample instead of Math.exp. */
 const decay = (perSecond: number, rate: number) => Math.exp(-perSecond / rate);
+/**
+ * Every bass (11 November: "too sawy and dirty"): clean and round. A sine fundamental carries the weight; a second and
+ * third harmonic fade faster (a gently filtered edge a phone speaker can reproduce); a soft felted onset. No saw, no
+ * distortion. `bend` gives a slight pitch settle at the start (Amnion's organic bass).
+ */
+function roundBass(out: Float32Array, rate: number, noise: () => number, o: { decay: number; second: number; third: number; thump?: number; bend?: number }) {
+  const f = midi(36), knock = new OnePole(260, rate);
+  let p = 0;
+  each(out, rate, t => {
+    p += TAU * f * (1 + (o.bend ?? 0) * Math.exp(-t * 25)) / rate;
+    const body = Math.sin(p) + o.second * Math.sin(2 * p) * Math.exp(-t * 4) + o.third * Math.sin(3 * p) * Math.exp(-t * 9);
+    return (body + knock.run(noise()) * (o.thump ?? .12) * Math.exp(-t * 60)) * Math.min(1, t / .004) * Math.exp(-t * o.decay);
+  });
+}
+
 const each = (out: Float32Array, rate: number, sample: (t: number, i: number) => number) => {
   for (let i = 0; i < out.length; i++) out[i] = sample(i / rate, i);
 };
@@ -71,7 +86,7 @@ function harp(out: Float32Array, rate: number, noise: () => number, note: number
 
 const CORONA: Record<CoronaInstrument, Patch> = {
   // The low ostinato harp, C3: long, dark ring.
-  harp: { seconds: 1.4, base: 48, rms: .25, window: .4, limit: true, render(out, rate, noise) { harp(out, rate, noise, 48, 1.5, 2600, [190, 430]); } },
+  harp: { seconds: 2.2, base: 48, rms: .25, window: .4, limit: true, render(out, rate, noise) { harp(out, rate, noise, 48, 2.4, 2600, [190, 430]); } },
   // The lament's harp, C4: a little brighter and longer, for the melody.
   'harp-high': { seconds: 1.8, base: 60, rms: .27, window: .4, limit: true, render(out, rate, noise) { harp(out, rate, noise, 60, 2, 3400, [300, 720]); } },
   // The solar drone: a unison saw stack whose filter swells open and closed like heat, a faint shimmer at the peaks,
@@ -211,33 +226,12 @@ const LEVEL: Record<Exclude<LevelInstrument, CoronaInstrument | UmbraInstrument>
       return swish.band * .5 * Math.min(1, t / .005) * Math.exp(-t * 22) + body.run(n) * 1.6 * Math.exp(-t * 32);
     });
   } },
-  // Vesper/Corona bass: two detuned saws through a closing resonant low-pass over a sine sub, saturated for phones.
-  bass: { seconds: .48, base: 36, rms: .27, window: .4, limit: true, render(out, rate) {
-    const f = midi(36), saws = new Unison(rate, 2, 14, 11), sub = new Rotor(f, rate), filter = new Svf(rate, 1000, .95);
-    each(out, rate, (t, i) => {
-      if (i % 16 === 0) filter.set(190 + 2100 * Math.exp(-t * 13), .95);
-      return drive(filter.run(saws.next(f)) * .8 + sub.next() * .7, 1.6) * Math.min(1, t / .002) * Math.exp(-t * 5.4);
-    });
-  } },
-  // Rounded plucked bass (Luna, Nacre): a sine body, a gently filtered saw edge and a little second harmonic.
-  'round-bass': { seconds: .65, base: 36, rms: .285, window: .4, render(out, rate) {
-    const f = midi(36), saw = new Saw(rate), sub = new Rotor(f, rate), second = new Rotor(2 * f, rate, .3), filter = new Svf(rate, 400, .7);
-    each(out, rate, (t, i) => {
-      if (i % 16 === 0) filter.set(150 + 750 * Math.exp(-t * 16), .7);
-      const tone = sub.next() + filter.run(saw.next(f)) * .45 + second.next() * .1 * Math.exp(-t * 6);
-      return drive(tone, 1.25) * Math.min(1, t / .003) * Math.exp(-t * 5.3);
-    });
-  } },
-  // Khepri's heavy foundry bass: three unison saws, a biting resonant filter and a sub-octave, driven hard.
-  'saw-bass': { seconds: .65, base: 36, rms: .265, window: .4, render(out, rate) {
-    const f = midi(36), stack = new Unison(rate, 3, 18, 23), sub = new Rotor(f / 2, rate), body = new Rotor(f, rate, 1);
-    const filter = new Svf(rate, 1000, 1.25);
-    each(out, rate, (t, i) => {
-      if (i % 16 === 0) filter.set(230 + 2900 * Math.exp(-t * 11), 1.25);
-      const tone = filter.run(stack.next(f)) + sub.next() * .42 + body.next() * .25;
-      return drive(tone, 2.3) * Math.min(1, t / .002) * Math.exp(-t * 5.5);
-    });
-  } },
+  // Vesper/Corona bass: the darkest, most sub-weighted of the round basses.
+  bass: { seconds: .8, base: 36, rms: .27, window: .4, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 3.2, second: .24, third: .05 }); } },
+  // Luna and Nacre: warm and round.
+  'round-bass': { seconds: .8, base: 36, rms: .285, window: .4, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 3.6, second: .34, third: .1 }); } },
+  // Khepri (the name stays; the timbre is clean now): round, with a little more edge and a firmer onset for weight.
+  'foundry-bass': { seconds: .8, base: 36, rms: .265, window: .4, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 3, second: .38, third: .14, thump: .18 }); } },
   // Gritty unison saw lead with a falling filter and a delayed vibrato; the very top is smoothed off.
   'saw-lead': { seconds: 1.1, base: 60, rms: .274, window: .4, render(out, rate) {
     const f = midi(60), stack = new Unison(rate, 5, 22, 37), filter = new Svf(rate, 2000, 1.05), smooth = new OnePole(4200, rate);
@@ -270,19 +264,13 @@ const LEVEL: Record<Exclude<LevelInstrument, CoronaInstrument | UmbraInstrument>
       return board.run(v + hammer.band * Math.exp(-t * 90) * .22);
     });
   } },
-  // Vesper's glass (also Corona's lead): a soft inharmonic shimmer fading into a warm 2:1 body, doubled 4 cents apart,
-  // with a felt mallet; far less upper FM energy than the earlier bell.
-  glass: { seconds: 3.1, base: 60, rms: .334, window: .4, render(out, rate, noise) {
-    const f = midi(60), mallet = new Svf(rate, 2500, 1), smooth = new OnePole(6500, rate);
-    let c1 = 0, c2 = 0, m1 = 0, m2 = 0;
-    const d = TAU * f / rate, detune = cents(4);
-    each(out, rate, t => {
-      c1 += d; c2 += d * detune; m1 += d * 3.5; m2 += d * 2.002;
-      const shimmer = Math.sin(c1 + 1.1 * Math.exp(-t * 3.2) * Math.sin(m1)) * .5;
-      const body = Math.sin(c2 + .55 * Math.exp(-t * 1.4) * Math.sin(m2)) * .38;
-      mallet.run(noise());
-      return smooth.run((shimmer + body) * Math.min(1, t / .003) * Math.exp(-t * 1.95) + mallet.band * Math.exp(-t * 160) * .06);
-    });
+  // Vesper's glass, calm and cold (11 November): an almost pure sine with a faint octave, swelling in over 25 ms instead
+  // of being struck, a trace of an inharmonic 2.76 partial that is gone within a quarter second, low-passed: ice, not a
+  // chime, and it rings long.
+  glass: { seconds: 3.1, base: 60, rms: .3, window: .6, render(out, rate) {
+    const f = midi(60), r1 = new Rotor(f, rate), r2 = new Rotor(2 * f * cents(2), rate, .5), cold = new Rotor(f * 2.76, rate, 1), smooth = new OnePole(2600, rate);
+    each(out, rate, t => smooth.run((r1.next() * .7 + r2.next() * .12 * Math.exp(-t * 1.2) + cold.next() * .05 * Math.exp(-t * 6))
+      * Math.min(1, t / .025) ** 1.5 * Math.exp(-t * 1.25)));
   } },
   // Warm analogue pad: six drifting unison saws through a slowly breathing low-pass, a sine sub and faint air.
   // Its stereo depth comes from the mixer's ensemble send.
@@ -334,15 +322,8 @@ const LEVEL: Record<Exclude<LevelInstrument, CoronaInstrument | UmbraInstrument>
       return (fm + nasal.band * .3) * Math.min(1, t * 28) * Math.exp(-t * 4);
     });
   } },
-  // Organic bass: a growling self-modulated sine with gristle, saturated and smoothed.
-  'bio-bass': { seconds: .65, base: 36, rms: .265, window: .4, render(out, rate, noise) {
-    const f = midi(36), low = new OnePole(320, rate), smooth = new OnePole(1400, rate); let p = 0;
-    each(out, rate, t => {
-      p += TAU * f / rate;
-      const v = Math.sin(p + .6 * Math.sin(2 * p) * Math.exp(-t * 10)) * .75 + Math.sin(3 * p) * .15 * Math.exp(-t * 8) + low.run(noise()) * .5 * Math.exp(-t * 25);
-      return smooth.run(drive(v, 1.5)) * Math.min(1, t / .002) * Math.exp(-t * 5.8);
-    });
-  } },
+  // Amnion: round, with a slight organic pitch settle at the start.
+  'bio-bass': { seconds: .8, base: 36, rms: .265, window: .4, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 3.4, second: .3, third: .1, bend: .04 }); } },
   // Heartbeat: a deep, soft pitch-dropping thump with a wet low squish.
   heart: { seconds: .32, base: 36, rms: .17, window: .32, render(out, rate, noise) {
     const squish = new OnePole(300, rate); let phase = 0;
@@ -361,12 +342,8 @@ const LEVEL: Record<Exclude<LevelInstrument, CoronaInstrument | UmbraInstrument>
       return drive(v + click.band * Math.exp(-t * 150) * .35, 1.3);
     });
   } },
-  // Controlled deep pulse: a clean sine with second and third harmonics, lightly saturated so phones hear it.
-  'void-bass': { seconds: .75, base: 36, rms: .28, window: .4, render(out, rate) {
-    const f = midi(36), r1 = new Rotor(f, rate), r2 = new Rotor(2 * f, rate), r3 = new Rotor(3 * f, rate, .7);
-    each(out, rate, t => drive(r1.next() * .8 + r2.next() * .19 * Math.exp(-t * 5) + r3.next() * .05 * Math.exp(-t * 7), 1.25)
-      * Math.min(1, t * 160) * Math.exp(-t * 5));
-  } },
+  // Umbra's controlled deep pulse: the purest of the round basses.
+  'void-bass': { seconds: .9, base: 36, rms: .28, window: .4, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 2.6, second: .2, third: .05, thump: .06 }); } },
   // Precise tick: a short FM blip and a band-passed sliver of noise.
   'void-tick': { seconds: .12, base: 60, rms: .086, window: .12, render(out, rate, noise) {
     const air = new Svf(rate, 5200, 1.2);
@@ -417,12 +394,43 @@ const BOSS: Record<BossInstrument, Patch> = {
       return drive(tone, 2.6) * Math.min(1, t / .012) * Math.exp(-t * 1.05) * Math.min(1, (2.6 - t) / .6);
     });
   } },
-  // Brassy synth stab for accents: a chord is three of these.
+  // Brass for accents and stingers: five unison saws through a low-pass that blooms open over 40 ms and settles, a
+  // soft attack, no grit; a chord is three of these.
   stab: { seconds: .7, base: 48, rms: .22, window: .3, render(out, rate) {
-    const f = midi(48), stack = new Unison(rate, 4, 18, 79), square = new Pulse(rate, .35), filter = new Svf(rate, 2000, 1.25);
+    const f = midi(48), stack = new Unison(rate, 5, 10, 79), filter = new Svf(rate, 600, .9);
     each(out, rate, (t, i) => {
-      if (i % 16 === 0) filter.set(650 + 3600 * Math.exp(-t * 9), 1.25);
-      return drive(filter.run(stack.next(f) + square.next(f) * .35), 1.8) * Math.min(1, t / .003) * Math.exp(-t * 5.2);
+      if (i % 16 === 0) filter.set(800 + 1700 * Math.min(1, t / .04) * Math.exp(-t * 4), .9);
+      return filter.run(stack.next(f)) * Math.min(1, t / .02) * Math.exp(-t * 3.2);
+    });
+  } },
+  // An ensemble drum (taiko-like): a deep skin falling in pitch, its second mode, the slap of the head.
+  taiko: { seconds: .9, base: 36, rms: .2, window: .4, render(out, rate, noise) {
+    const slap = new Svf(rate, 520, .9); let p = 0, q = 0;
+    each(out, rate, t => {
+      const f = 52 + 30 * Math.exp(-t * 18);
+      p += TAU * f / rate; q += TAU * f * 1.58 / rate;
+      slap.run(noise());
+      return (Math.sin(p) * Math.exp(-t * 4.2) + Math.sin(q) * .3 * Math.exp(-t * 9) + slap.band * .9 * Math.exp(-t * 30)) * Math.min(1, t / .002);
+    });
+  } },
+  // Tuned timpani: the principal tone and the drum's inharmonic overtones (1.5, 1.98, 2.44), a felt strike.
+  timpani: { seconds: 1.5, base: 36, rms: .2, window: .5, render(out, rate, noise) {
+    const f = midi(36), modes = [[1, 2.4, .7], [1.5, 3.2, .35], [1.98, 4.2, .22], [2.44, 5.5, .12]];
+    const rotors = modes.map(([r], k) => new Rotor(f * r, rate, k)), strike = new OnePole(400, rate);
+    each(out, rate, t => {
+      let v = 0;
+      for (let k = 0; k < modes.length; k++) v += rotors[k].next() * modes[k][2] * Math.exp(-t * modes[k][1]);
+      return (v + strike.run(noise()) * .5 * Math.exp(-t * 50)) * Math.min(1, t / .003);
+    });
+  } },
+  // Spiccato strings for the ostinatos: a short bowed stroke, four detuned saws through a soft low-pass with a quick
+  // bloom, a little rosin; no buzz at the top.
+  spiccato: { seconds: .3, base: 48, rms: .2, window: .2, render(out, rate, noise) {
+    const f = midi(48), stack = new Unison(rate, 4, 12, 131), filter = new Svf(rate, 1500, .8), rosin = new Svf(rate, 3000, 1.2);
+    each(out, rate, (t, i) => {
+      if (i % 16 === 0) filter.set(900 + 1500 * Math.exp(-t * 18), .8);
+      rosin.run(noise());
+      return (filter.run(stack.next(f)) + rosin.band * .06 * Math.exp(-t * 40)) * Math.min(1, t / .006) * Math.exp(-t * 10);
     });
   } },
   // Deep tuned tom: a pitch-dropping body and a band-passed skin.
@@ -434,40 +442,10 @@ const BOSS: Record<BossInstrument, Patch> = {
       return drive(Math.sin(phase) * Math.exp(-t * 7) + skin.band * Math.exp(-t * 38) * .45, 1.5);
     });
   } },
-  // Layered clap: three quick noise bursts and a tail, over a little snare body.
-  clap: { seconds: .35, base: 60, rms: .12, window: .2, render(out, rate, noise) {
-    const band = new Svf(rate, 1350, .9);
-    each(out, rate, t => {
-      let envelope = t >= .0255 ? Math.exp(-(t - .0255) * 14) : 0;
-      for (let k = 0; k < 3; k++) if (t >= k * .0085) envelope += Math.exp(-(t - k * .0085) * 190);
-      band.run(noise());
-      return drive(band.band * envelope * 1.4 + Math.sin(TAU * 190 * t) * Math.exp(-t * 34) * .25, 1.4);
-    });
-  } },
-  // Driving synth bass for eighths: detuned saws plucked by a resonant filter, a sine sub, heavy saturation.
-  'drive-bass': { seconds: .36, base: 36, rms: .26, window: .3, render(out, rate) {
-    const f = midi(36), stack = new Unison(rate, 2, 18, 83), sub = new Rotor(f, rate), filter = new Svf(rate, 1000, 1.6);
-    each(out, rate, (t, i) => {
-      if (i % 16 === 0) filter.set(280 + 1900 * Math.exp(-t * 15), 1.6);
-      return drive(filter.run(stack.next(f)) + sub.next() * .55, 2.7) * Math.min(1, t / .002) * Math.exp(-t * 6.5);
-    });
-  } },
-  // Overload bass: a wider saw stack through a fast resonant wobble, driven into a growl.
-  growl: { seconds: .32, base: 36, rms: .26, window: .3, render(out, rate) {
-    const f = midi(36), stack = new Unison(rate, 3, 26, 89), sub = new Rotor(f, rate), filter = new Svf(rate, 1000, 2.6);
-    each(out, rate, (t, i) => {
-      if (i % 8 === 0) filter.set(380 + 1700 * (.5 + .5 * Math.sin(TAU * 9 * t - 1.6)) * Math.exp(-t * 2.5), 2.6);
-      return drive(filter.run(stack.next(f)) * 1.2 + sub.next() * .5, 3.2) * Math.min(1, t / .002) * Math.exp(-t * 5.5);
-    });
-  } },
-  // Rhythmic pulse: a short saw-and-pulse pluck with a snapping filter, for arpeggios.
-  arp: { seconds: .3, base: 60, rms: .2, window: .2, render(out, rate) {
-    const f = midi(60), saw = new Saw(rate), pulse = new Pulse(rate, .3), filter = new Svf(rate, 2000, 1.4);
-    each(out, rate, (t, i) => {
-      if (i % 16 === 0) filter.set(520 + 3400 * Math.exp(-t * 24), 1.4);
-      return drive(filter.run(saw.next(f) * .7 + pulse.next(f * 1.003) * .45), 1.3) * Math.min(1, t / .0015) * Math.exp(-t * 9.5);
-    });
-  } },
+  // The boss basses are round too; their drive comes from rhythm and articulation: core's eighths are plucked and short,
+  // overload's shorter and firmer.
+  'drive-bass': { seconds: .45, base: 36, rms: .26, window: .3, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 6.5, second: .4, third: .16, thump: .2 }); } },
+  growl: { seconds: .35, base: 36, rms: .26, window: .25, render(out, rate, noise) { roundBass(out, rate, noise, { decay: 9, second: .45, third: .2, thump: .25 }); } },
   // Dark string ensemble for the supporting harmony: seven unison saws, a delayed vibrato, a mellow low-pass.
   strings: { seconds: 3, base: 48, rms: .2, window: 3, render(out, rate) {
     const f = midi(48), stack = new Unison(rate, 7, 14, 97), filter = new Svf(rate, 1150, .7), low = new OnePole(140, rate);

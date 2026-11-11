@@ -6,6 +6,7 @@ import { scoreStep, THEMES, type Note } from '../../src/audio/score';
 import type { PlanetId } from '../../src/shared/contracts';
 
 const PLANETS = Object.keys(THEMES) as PlanetId[];
+const BASSES: string[] = ['bass', 'round-bass', 'foundry-bass', 'bio-bass', 'void-bass', 'drive-bass', 'growl'];
 const STEPS = 512; // the full 32-bar cycle
 const fnv = (text: string) => {
   let h = 2166136261;
@@ -16,19 +17,21 @@ const cycle = (planet: PlanetId, stage: BossStage) => Array.from({ length: STEPS
 /** Pitch class, rounded so that fractional (microtonal) pitches compare reliably. */
 const pitchClass = (n: number) => Math.round((((n % 12) + 12) % 12) * 1e6) / 1e6 % 12;
 
-describe('the level scores are the approved compositions, untouched except the two recomposed worlds', () => {
-  it('plays every note, gain, pan, send and timing of the five approved 32-bar cycles exactly as before the audio upgrade', () => {
-    // Fingerprints of scoreStep over steps 0–511, taken on 5af93ef before the 10 November instrument and boss revision.
-    // A change here is a change to the authored music itself, never a side effect of sound design. Corona and Umbra
-    // were recomposed on purpose that day (user: Corona's score was a copy; Umbra "very ominous ... reversed
-    // instruments and alien harmonics"); their 5af93ef fingerprints were ecc2138a and 7e0a2a22.
-    const approved: Partial<Record<PlanetId, [string, number]>> = {
-      luna: ['14462955', 572], khepri: ['413d0b6e', 916], nacre: ['e63b294e', 500], vesper: ['e727bbd2', 440], amnion: ['48a36df4', 456],
+describe('the level scores are the approved compositions, changed only where the user asked', () => {
+  it('plays every note, gain, pan, send and timing of each 32-bar cycle exactly as approved', () => {
+    // Fingerprints of scoreStep over steps 0–511. A change here is a change to the authored music itself, never a side
+    // effect of sound design. Luna, Nacre and Amnion are exactly as on 5af93ef, before the audio upgrade. Corona and
+    // Umbra were recomposed on 10 November (user: Corona's score was a copy; Umbra "very ominous ... reversed
+    // instruments and alien harmonics"). On 11 November the user asked for Khepri's running bass to be thinned (it was
+    // 413d0b6e, 916 notes), Vesper to be "more ambient than musical" (e727bbd2, 440) and Corona's harp to have space
+    // between its notes.
+    const approved: Record<PlanetId, [string, number]> = {
+      luna: ['14462955', 572], khepri: ['fdc106fa', 748], nacre: ['e63b294e', 500], vesper: ['1201b473', 200], amnion: ['48a36df4', 456],
+      corona: ['1cb36fac', 442], umbra: ['544dfdfb', 542],
     };
     for (const planet of PLANETS) {
-      const notes = Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s)), print = fnv(JSON.stringify(notes));
-      if (approved[planet]) expect([print, notes.flat().length], planet).toEqual(approved[planet]);
-      else expect(['ecc2138a', '7e0a2a22'], planet).not.toContain(print);
+      const notes = Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s));
+      expect([fnv(JSON.stringify(notes)), notes.flat().length], planet).toEqual(approved[planet]);
     }
     expect(PLANETS.map(p => THEMES[p].bpm)).toEqual([94, 118, 106, 88, 92, 110, 84]);
   });
@@ -38,7 +41,7 @@ describe('the level scores are the approved compositions, untouched except the t
     for (const id of ['harp', 'harp-high', 'solar', 'bowed', 'ember']) expect(corona.has(id as never), id).toBe(true);
     for (const id of ['inhale', 'glint', 'obsidian', 'void-bass', 'void-tick']) expect(umbra.has(id as never), id).toBe(true);
     // No borrowed lead, pad or signature voice from Khepri, Vesper, Amnion or each other.
-    for (const id of ['saw-lead', 'saw-bass', 'metal', 'glass', 'pad', 'nerve', 'breath-pad', 'heart', 'bone']) {
+    for (const id of ['saw-lead', 'foundry-bass', 'metal', 'glass', 'pad', 'nerve', 'breath-pad', 'heart', 'bone']) {
       expect(corona.has(id as never) || umbra.has(id as never), id).toBe(false);
     }
     expect([...corona].some(id => umbra.has(id) && !['kick'].includes(id))).toBe(false);
@@ -76,29 +79,45 @@ describe('four musically distinct boss states', () => {
     for (const planet of PLANETS) {
       const [modules, core, overload] = ([1, 2, 3] as const).map(stage => cycle(planet, stage));
       const count = (c: Note[][]) => c.flat().length;
-      // Note density roughly doubles at each step: quarter-note bass, then eighths, then sixteenths.
       expect(count(core), planet).toBeGreaterThan(count(modules) * 1.3);
-      expect(count(overload), planet).toBeGreaterThan(count(core) * 1.5);
-      // Off-beat sixteenths: sparse in modules, every one of them in overload.
+      expect(count(overload), planet).toBeGreaterThan(count(core) * 1.4);
+      // Off-beat sixteenths: sparse in modules, nearly all of them in overload (its ostinato rests only where no chord
+      // tone sits with the melody's passing note).
       const odd = (c: Note[][]) => c.filter((notes, s) => s % 2 === 1 && notes.length > 0).length / (STEPS / 2);
-      expect(odd(overload), planet).toBe(1);
+      expect(odd(overload), planet).toBeGreaterThan(.95);
       expect(odd(modules), planet).toBeLessThan(odd(overload));
-      // The bass moves from quarters to eighths to sixteenths (plus the riff's own notes).
-      const bassSteps = (c: Note[][]) => c.filter(notes => notes.some(n => BASE_PITCH[n.instrument] === 36 && n.instrument !== 'kick'
-        && n.instrument !== 'heart' && n.instrument !== 'boom' && n.instrument !== 'braam')).length;
-      expect(bassSteps(modules), planet).toBeLessThan(bassSteps(core));
-      // Every sixteenth, but for the odd rest where no chord tone sits with the melody's passing note.
-      expect(bassSteps(overload), planet).toBeGreaterThan(STEPS * .9);
+      // The bass: long notes in modules, then eighths (plus the riff's own notes), never sixteenths.
+      const bassSteps = (c: Note[][]) => c.filter(notes => notes.some(n => BASSES.includes(n.instrument))).length;
+      expect(bassSteps(modules), planet).toBeLessThan(bassSteps(core) / 2);
+      expect(bassSteps(overload), planet).toBeGreaterThan(STEPS / 2 * .9);
+      expect(bassSteps(overload), planet).toBeLessThan(STEPS * .8);
+      // The spiccato strings: a pulse on the beat, then the ostinato, then the ostinato doubled over low sixteenths.
+      const strokes = (c: Note[][]) => c.flat().filter(n => n.instrument === 'spiccato').length;
+      expect(strokes(core), planet).toBeGreaterThan(strokes(modules) * 1.9);
+      expect(strokes(overload), planet).toBeGreaterThan(strokes(core) * 1.9);
       // Layers each state introduces.
       const voices = (c: Note[][]) => new Set(c.flat().map(n => n.instrument));
-      expect(voices(modules).has('tom') && voices(modules).has('strings'), planet).toBe(true);
-      expect(['arp', 'nerve', 'harp'].some(i => voices(core).has(i as never)), planet).toBe(true);
+      for (const id of ['timpani', 'strings', 'spiccato', 'braam', 'tom']) expect(voices(modules).has(id as never), `${planet} ${id}`).toBe(true);
+      expect(voices(core).has('stab'), planet).toBe(true);
       for (const accent of ['stab', 'boom', 'crash', 'braam', 'riser']) expect(voices(overload).has(accent as never), `${planet} ${accent}`).toBe(true);
-      for (const accent of ['stab', 'boom', 'riser']) expect(voices(core).has(accent as never), `${planet} ${accent}`).toBe(false);
-      // Backbeats: once a bar (half time) in modules, twice in overload.
-      const snare = (c: Note[][]) => c.filter((notes, s) => (s % 16 === 4 || s % 16 === 12) && notes.some(n => n.gain >= .1 && ['snare', 'brush', 'clap'].includes(n.instrument))).length;
-      expect(snare(modules), planet).toBe(0);
-      expect(snare(overload), planet).toBe(STEPS / 8);
+      for (const accent of ['boom', 'crash', 'riser']) expect(voices(core).has(accent as never), `${planet} ${accent}`).toBe(false);
+    }
+  });
+  it('sounds like an orchestra, not a drum machine: no kick, hats or claps, and the snare only fills into a phrase', () => {
+    for (const planet of PLANETS) for (const stage of [1, 2, 3] as const) {
+      const c = cycle(planet, stage), used = new Set(c.flat().map(n => n.instrument));
+      for (const id of ['kick', 'hat']) expect(used.has(id as never), `${planet} ${stage} ${id}`).toBe(false);
+      c.forEach((notes, s) => {
+        const bar = Math.floor(s / 16) % 8, beat = s % 16;
+        const fill = (bar === 7 && beat >= 12) || (stage === 2 && bar % 4 === 3 && beat >= 14);
+        if (!fill) expect(notes.some(n => n.instrument === 'snare' || n.instrument === 'brush'), `${planet} ${stage} ${s}`).toBe(false);
+      });
+      // The big drum never marks all four beats of a bar with nothing between: no four-on-the-floor.
+      const drum = (s: number) => c[s].some(n => n.instrument === 'taiko' || n.instrument === 'heart');
+      for (let bar = 0; bar < STEPS / 16; bar++) {
+        const on = [0, 4, 8, 12].every(b => drum(bar * 16 + b)), between = [2, 6, 10, 14].some(b => drum(bar * 16 + b));
+        expect(on && !between, `${planet} ${stage} bar ${bar}`).toBe(false);
+      }
     }
   });
   it('keeps each world recognisable in its boss stem', () => {
@@ -107,9 +126,13 @@ describe('four musically distinct boss states', () => {
     const uses = (planet: PlanetId, instrument: string) => cycle(planet, 2).flat().some(n => n.instrument === instrument);
     expect(uses('luna', 'brush') && uses('nacre', 'brush')).toBe(true);
     expect(uses('khepri', 'metal')).toBe(true);
-    expect(uses('amnion', 'heart') && uses('amnion', 'bone') && uses('amnion', 'bio-bass')).toBe(true);
+    expect(uses('amnion', 'heart') && uses('amnion', 'bone') && uses('amnion', 'bio-bass') && !uses('amnion', 'taiko')).toBe(true);
     expect(uses('umbra', 'void-tick') && uses('umbra', 'void-bass') && uses('umbra', 'inhale')).toBe(true);
-    expect(uses('corona', 'harp') && uses('corona', 'ember')).toBe(true);
+    expect(uses('corona', 'ember')).toBe(true);
+    // The spacious worlds keep their core ostinato in eighths.
+    for (const planet of ['vesper', 'umbra'] as const) {
+      expect(cycle(planet, 2).some((notes, s) => s % 2 === 1 && notes.some(n => n.instrument === 'spiccato')), planet).toBe(false);
+    }
     // Umbra's overload sucks reversed glass into every beat.
     expect(cycle('umbra', 3).flat().filter(n => n.instrument === 'glint').length).toBeGreaterThanOrEqual(STEPS / 4 - 2);
     // Luna's stem keeps the score's played timing.
@@ -117,7 +140,7 @@ describe('four musically distinct boss states', () => {
     expect(cycle('khepri', 2).flat().every(n => !n.offset || n.instrument === 'snare')).toBe(true);
   });
   it('never doubles the level lead or pads, and never steps outside the harmony', () => {
-    const leads = ['pad', 'bloom-pad', 'breath-pad', 'piano', 'glass', 'saw-lead', 'harp-high', 'solar', 'obsidian'];
+    const leads = ['pad', 'bloom-pad', 'breath-pad', 'piano', 'glass', 'saw-lead', 'harp', 'harp-high', 'solar', 'obsidian'];
     for (const planet of PLANETS) {
       const theme = THEMES[planet];
       for (const stage of [1, 2, 3] as const) {
@@ -128,14 +151,14 @@ describe('four musically distinct boss states', () => {
           for (const n of bossStep(planet, step, stage)) {
             expect(leads.includes(n.instrument), `${planet} ${n.instrument}`).toBe(false);
             expect(Number.isFinite(n.pitch) && n.gain > 0 && n.gain <= .5, planet).toBe(true);
-            if (BASE_PITCH[n.instrument] === 36 && !['kick', 'heart'].includes(n.instrument)) {
-              // Bass and booms: the level riff where it plays (unless that would clash with the melody), otherwise a tone
-              // of the current chord.
+            if (BASSES.includes(n.instrument) || ['boom', 'braam', 'timpani'].includes(n.instrument)) {
+              // Bass, booms and timpani, centred: the level riff where it plays (unless that would clash with the
+              // melody), otherwise a tone of the current chord.
               const interval = n.pitch - (root - 12);
-              if (riff >= 0 && ['drive-bass', 'growl', ...LEVEL_INSTRUMENTS].includes(n.instrument) && interval === riff) continue;
+              if (riff >= 0 && BASSES.includes(n.instrument) && interval === riff) continue;
               expect(allowed.has(pitchClass(n.pitch)), `${planet} ${step} ${n.instrument}`).toBe(true);
               expect(n.pan).toBe(0);
-            } else if (['strings', 'stab', 'arp', 'nerve', 'tom', 'harp'].includes(n.instrument)) {
+            } else if (['strings', 'stab', 'spiccato', 'tom'].includes(n.instrument)) {
               expect(allowed.has(pitchClass(n.pitch)), `${planet} ${step} ${n.instrument} ${n.pitch}`).toBe(true);
             } else if (n.instrument === 'inhale' || n.instrument === 'glint') {
               // A reversed voice is emitted early and belongs to the chord it stops on.
@@ -192,7 +215,7 @@ describe('transitions on the score clock', () => {
       expect(boss.notes(planet, 205).some(n => n.instrument === 'riser')).toBe(true);
       expect(boss.notes(planet, 215).every(n => n.priority === 3), planet).toBe(true);
       const overload = boss.notes(planet, 216);
-      expect(lead(overload)).toEqual(expect.arrayContaining(['crash', 'boom', 'braam', 'stab', 'clap']));
+      expect(lead(overload)).toEqual(expect.arrayContaining(['crash', 'boom', 'braam', 'stab', 'timpani']));
       expect(overload.filter(n => n.instrument === 'stab')).toHaveLength(4);
       expect(overload.some(n => n.bed === BED[3])).toBe(true);
       expect(boss.stageAt(216)).toBe(3);
@@ -238,8 +261,9 @@ describe('synthesized instruments', () => {
       expect(Math.abs(sum / pcm.length), id).toBeLessThan(.002);
     }
     expect(synthesize('pad')).toEqual(synthesize('pad'));
-    // 8.9 MiB before the boss instruments and the recomposed worlds' voices.
-    expect(bytes).toBeLessThan(12 * 1024 * 1024);
+    // 8.9 MiB before the boss instruments and the recomposed worlds' voices; 12.3 MiB with the 11 November orchestral
+    // voices (taiko, timpani, spiccato) and the longer glass and harp.
+    expect(bytes).toBeLessThan(13 * 1024 * 1024);
   });
   it('rise to their peak at the very end only for the riser, which must land on a downbeat', () => {
     const riser = synthesize('riser'), quarter = Math.floor(riser.length / 4);

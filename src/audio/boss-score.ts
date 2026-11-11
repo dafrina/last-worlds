@@ -4,14 +4,18 @@ import { consonantWith, soundingSteps, UNPITCHED } from './harmony';
 import { LANDING_STEPS, landingNote, THEMES, type Note } from './score';
 
 /**
- * Boss music (10 November revision). The level score plays on, unchanged, on its own sixteenth-note clock; an additive
- * stem on that same clock and harmony changes arrangement with the fight:
+ * Boss music (11 November revision: cinematic, not a drum machine). The level score plays on, unchanged, on its own
+ * sixteenth-note clock; an additive stem on that same clock and harmony changes arrangement with the fight. Its voices
+ * are a synthesized orchestra: ensemble drums, tuned timpani, spiccato strings, brass, sustained strings and clean,
+ * round basses. No kick on every beat, no hi-hats or claps, and nothing pumps the score.
  *   0 flight    the level score alone
- *   1 modules   (arrival and batteries) entrance stinger, heavy half-time drums and toms, a darker eighth-note bass,
- *               low strings for tension
- *   2 core      full backbeat, driving synth bass in eighths, an arpeggiated pulse, strings on the chord, fills
- *   3 overload  aggressive sixteenth bass, sixteenth hats and arpeggio, an alarm pulse, stab-and-boom accents,
- *               ghost notes, rolls and a riser into each phrase; its own phase-change stinger
+ *   1 modules   (arrival and batteries) entrance stinger; a few heavy drum hits, a low spiccato pulse on the beat, the
+ *               bass on the half bar, timpani on each chord, low strings for tension, a quiet braam on each phrase
+ *   2 core      a sixteenth spiccato ostinato through the chord with 3-3-2 accents, the bass in eighths, a fuller drum
+ *               pattern, a brass chord and timpani on each chord change, sustained strings, snare rolls only as fills
+ *   3 overload  the ostinato doubled an octave up over low sixteenths, the bass in short eighths, driving drums in 3-3-2,
+ *               syncopated brass, braam, boom and crash on the phrases, timpani rolls and a riser into each phrase; its
+ *               own phase-change stinger
  * Every change lands on the grid (bar, beat or half bar) and the score is never restarted.
  */
 export type BossStage = 0 | 1 | 2 | 3;
@@ -22,61 +26,66 @@ export function bossStage(phase: BossState['phase'] | null | undefined): BossSta
 
 /** Each world's boss voices. Its identity carries into the fight through these and the level score above them. */
 interface Kit {
-  kick: Instrument; snare: Instrument; hat: Instrument;
-  /** How much clap layers onto the snare in core and overload. */
-  clap: number;
-  /** Bass voices for modules (darker), core (driving) and overload (aggressive), and the pulse voice. */
-  dark: Instrument; drive: Instrument; growl: Instrument; pulse: Instrument;
-  /** Kick sixteenths in modules, core and overload. */
-  kicks: readonly [readonly number[], readonly number[], readonly number[]];
+  /** The ensemble drum (Amnion's is its heartbeat) and its sixteenths in modules, core and overload. */
+  drum: Instrument;
+  hits: readonly [readonly number[], readonly number[], readonly number[]];
+  /** The fills' drum: brushes for the played and the soft worlds, a snare elsewhere. */
+  snare: Instrument;
+  /** Bass voices for modules (long notes), core (plucked eighths) and overload (short eighths); all clean and round. */
+  dark: Instrument; drive: Instrument; growl: Instrument;
   /** Signature percussion and its sixteenths in modules, core and overload. */
   colour?: { instrument: Instrument; steps: readonly [readonly number[], readonly number[], readonly number[]] };
-  /** Half-time backbeat before overload (Vesper's spacious pulse, Umbra's precise line). */
+  /** Spacious worlds (Vesper, Umbra): the modules pulse in half notes and the core ostinato in eighths. */
   half?: boolean;
   /** Luna's played timing and velocity. */
   human?: boolean;
-  /** Percussion weight, and how far the level bed dips under a boss kick. */
-  weight: number; pump: number;
-  /** The whole stem's level: lower where the level score is already dense and loud (Corona), so the master compressor
-   * is not what decides how the fight sounds. */
+  /** Drum weight. */
+  weight: number;
+  /** The whole stem's level. */
   level?: number;
-  /** The pulse's register above the chord root: an octave, or two for the icy and the precise worlds. */
+  /** The ostinato's register above the chord root: an octave, or two for the icy and the precise worlds. */
   lift: 12 | 24;
   /** Umbra: inhaled chords that stop dead on the stem's chord changes (modules), every bar line (core), and in overload
    * also reversed glass sucking into every beat through the chord's harmonic-series tone. */
   reversed?: boolean;
 }
 const KITS: Record<PlanetId, Kit> = {
-  // Played warmth: brushes under the claps, toms, a rounded bass that only turns to a driven one late.
-  luna: { kick: 'kick', snare: 'brush', hat: 'hat', clap: .5, dark: 'round-bass', drive: 'drive-bass', growl: 'drive-bass', pulse: 'arp',
-    kicks: [[0, 10], [0, 6, 8, 14], [0, 4, 6, 8, 12, 14]], human: true, weight: .85, pump: .1, lift: 12 },
-  // The foundry: mechanical sixteenths, struck metal, saw bass into a growl.
-  khepri: { kick: 'kick', snare: 'snare', hat: 'hat', clap: .8, dark: 'saw-bass', drive: 'drive-bass', growl: 'growl', pulse: 'arp',
-    kicks: [[0, 7, 10], [0, 4, 8, 12, 14], [0, 3, 4, 8, 11, 12, 14]],
-    colour: { instrument: 'metal', steps: [[3, 11], [3, 7, 11, 15], [3, 7, 11, 13, 15]] }, weight: 1.1, pump: .2, lift: 12 },
-  // Soft bloom: brushes, rolling round bass, light kick and only a small dip of the pads.
-  nacre: { kick: 'kick', snare: 'brush', hat: 'hat', clap: .4, dark: 'round-bass', drive: 'round-bass', growl: 'drive-bass', pulse: 'arp',
-    kicks: [[0, 11], [0, 6, 8, 11, 14], [0, 4, 6, 8, 11, 12, 14]], weight: .7, pump: .08, lift: 12 },
-  // Ice: a half-time pulse until overload breaks into double time; a high, glassy arpeggio.
-  vesper: { kick: 'kick', snare: 'snare', hat: 'hat', clap: .6, dark: 'bass', drive: 'drive-bass', growl: 'growl', pulse: 'arp',
-    kicks: [[0, 10], [0, 3, 8, 14], [0, 4, 7, 8, 12, 14]], half: true, weight: .95, pump: .12, lift: 24 },
-  // Flesh: paired heartbeats that race in overload, bone ticks, a fleshy clap, nerve-tone pulses.
-  amnion: { kick: 'heart', snare: 'clap', hat: 'bone', clap: 0, dark: 'bio-bass', drive: 'bio-bass', growl: 'growl', pulse: 'nerve',
-    kicks: [[0, 2, 9, 11], [0, 2, 6, 9, 11, 14], [0, 1, 4, 5, 8, 9, 12, 13]], weight: 1, pump: .15, lift: 12 },
-  // The dying star: its harp carries the pulses, ember crackle for hats, kicks in the score's 3-3-2, the deepest dip.
-  corona: { kick: 'kick', snare: 'snare', hat: 'ember', clap: .8, dark: 'bass', drive: 'drive-bass', growl: 'growl', pulse: 'harp',
-    kicks: [[0, 6, 12], [0, 3, 6, 8, 12], [0, 3, 6, 8, 11, 12, 14]], weight: 1.05, pump: .2, lift: 12 },
-  // The void: precise ticks, the void bass, a half-time line, a high exact arpeggio, and reversed swells that suck
+  // Played warmth: brushes for the fills, a rounded bass throughout.
+  luna: { drum: 'taiko', hits: [[0, 10], [0, 6, 8, 14], [0, 3, 6, 8, 11, 14]], snare: 'brush',
+    dark: 'round-bass', drive: 'drive-bass', growl: 'drive-bass', human: true, weight: .85, lift: 12 },
+  // The foundry: struck metal on the off-beats, the heaviest drums.
+  khepri: { drum: 'taiko', hits: [[0, 7, 10], [0, 3, 6, 8, 11], [0, 3, 6, 8, 10, 11, 14]], snare: 'snare',
+    dark: 'foundry-bass', drive: 'drive-bass', growl: 'growl',
+    colour: { instrument: 'metal', steps: [[3, 11], [7, 15], [3, 7, 11, 15]] }, weight: 1.1, lift: 12 },
+  // Soft bloom: brushes, the round bass, light drums.
+  nacre: { drum: 'taiko', hits: [[0, 11], [0, 6, 8, 11], [0, 3, 6, 8, 11, 14]], snare: 'brush',
+    dark: 'round-bass', drive: 'round-bass', growl: 'drive-bass', weight: .7, lift: 12 },
+  // Ice: a spacious half-time pulse until overload breaks into sixteenths; a high, glassy ostinato.
+  vesper: { drum: 'taiko', hits: [[0], [0, 10], [0, 3, 6, 8, 11, 14]], snare: 'snare',
+    dark: 'bass', drive: 'drive-bass', growl: 'growl', half: true, weight: .95, lift: 24 },
+  // Flesh: paired heartbeats that race in overload, bone ticks.
+  amnion: { drum: 'heart', hits: [[0, 2, 9, 11], [0, 2, 6, 9, 11, 14], [0, 1, 6, 7, 11, 12]], snare: 'snare',
+    dark: 'bio-bass', drive: 'bio-bass', growl: 'growl',
+    colour: { instrument: 'bone', steps: [[7, 14], [3, 7, 10, 14], [2, 3, 7, 10, 14, 15]] }, weight: 1, lift: 12 },
+  // The dying star: drums in the score's 3-3-2, ember crackle.
+  corona: { drum: 'taiko', hits: [[0, 6, 12], [0, 3, 6, 8, 12], [0, 3, 6, 8, 11, 12, 14]], snare: 'snare',
+    dark: 'bass', drive: 'drive-bass', growl: 'growl',
+    colour: { instrument: 'ember', steps: [[3, 11], [3, 9, 11, 15], [3, 9, 11, 13, 15]] }, weight: 1.05, lift: 12 },
+  // The void: precise ticks, the void bass, a half-time pulse, a high exact ostinato, and reversed swells that suck
   // into the grid (see `reversed`).
-  umbra: { kick: 'kick', snare: 'snare', hat: 'void-tick', clap: .5, dark: 'void-bass', drive: 'void-bass', growl: 'drive-bass', pulse: 'arp',
-    kicks: [[0, 8], [0, 4, 8, 12], [0, 4, 8, 10, 12, 14]], half: true, weight: .9, pump: .12, lift: 24, reversed: true },
+  umbra: { drum: 'taiko', hits: [[0, 8], [0, 6, 8, 14], [0, 3, 6, 8, 10, 12, 14]], snare: 'snare',
+    dark: 'void-bass', drive: 'void-bass', growl: 'drive-bass',
+    colour: { instrument: 'void-tick', steps: [[4, 12], [2, 6, 10, 14], [2, 5, 6, 10, 13, 14]] }, half: true, weight: .9, lift: 24, reversed: true },
 };
 
-/** Priorities inside the boss voice pool: stingers, then drums and bass, sustained strings, pulses, hats. */
-const P = { hat: -1, pulse: 0, strings: 1, core: 2, stinger: 3 } as const;
+/** Priorities inside the boss voice pool: stingers, then drums and bass, sustained strings, the ostinato, ticks. */
+const P = { tick: -1, pulse: 0, strings: 1, core: 2, stinger: 3 } as const;
 /** The level score's level under each stage: it steps back a little as the stem takes the weight, so the fight grows
  * without growing much louder. Applied on each bar line and on each stinger's hit. */
 export const BED = [1, 1, .94, .84] as const;
+/** The ostinato: chord-tone indices in groups of 3, 3 and 2 sixteenths, twice a bar, each group from the root. */
+const OSTINATO = [0, 1, 2, 0, 1, 2, 0, 2, 0, 1, 2, 0, 1, 3, 2, 1] as const;
+const ACCENTS = [0, 3, 6, 8, 11, 14];
 
 /** The chord in force at a sixteenth, as the level score plays it. */
 function harmony(planet: PlanetId, step: number) {
@@ -84,7 +93,9 @@ function harmony(planet: PlanetId, step: number) {
   const root = theme.root + chord[0], tones = chord.map(c => c - chord[0]);
   // The chord's first tone that is not an octave of its root: usually the fifth; Umbra's fourth or tritone.
   const colour = tones.find(t => t % 12 !== 0)! % 12;
-  return { theme, chord, root, bass: root - 12, tones, colour, tom: 36 + ((root % 12) + 12) % 12 };
+  // Three-note chords (Amnion) take their second tone an octave up as the fourth.
+  const tone = (k: number) => tones[k] ?? tones[k - 2] + 12;
+  return { theme, chord, root, bass: root - 12, tones, tone, colour, tom: 36 + ((root % 12) + 12) % 12 };
 }
 
 function writer(planet: PlanetId, step: number, notes: Note[]) {
@@ -138,96 +149,92 @@ function reversedStep(planet: PlanetId, step: number, stage: 1 | 2 | 3): Note[] 
 }
 
 function stageStep(planet: PlanetId, step: number, stage: 1 | 2 | 3): Note[] {
-  const kit = KITS[planet], { theme, chord, root, bass, tones, colour, tom } = harmony(planet, step);
+  const kit = KITS[planet], { theme, chord, root, bass, tone, colour, tom } = harmony(planet, step);
   const bar = Math.floor(step / 16), beat = step % 16, w = kit.weight;
   const breakdown = Math.floor(bar / 8) % 4 === 2, chordStart = step % 32 === 0, phraseEnd = bar % 8 === 7;
   const riff = theme.bass[beat], notes: Note[] = [], add = writer(planet, step, notes);
-  // Where the level kick already lands, the boss kick layers under it instead of doubling its level.
-  const layered = theme.kick.includes(beat) && !breakdown ? .6 : 1;
-  const lift = theme.root < 46 ? 12 : 0;
+  // Where the level kick already lands, the boss drum layers under it instead of doubling its level.
+  const layered = theme.kick.includes(beat) && !breakdown ? .75 : 1;
+  const lift = theme.root < 46 ? 12 : 0, accent = ACCENTS.includes(beat);
   const strings = (voicing: readonly number[], gain: number) => voicing.forEach((pitch, i) =>
     add('strings', pitch, gain, (i - (voicing.length - 1) / 2) * .3, { wet: .35, priority: P.strings }));
-
-  // The tom ostinato, tuned to the chord root, runs under every stage; modules leans on it hardest.
-  if (beat === 6 || beat === 14) add('tom', tom, (stage === 1 ? .2 : .13) * w, -.12, { wet: .1, priority: P.core });
-  if (beat === 13 && stage < 3) add('tom', tom + colour, (stage === 1 ? .12 : .08) * w, .2, { wet: .1, priority: P.pulse });
+  const drum = (hits: readonly number[], gain: number) => {
+    if (hits.includes(beat)) add(kit.drum, 36, (beat === 0 ? gain * 1.15 : gain) * w * layered, beat % 8 < 4 ? -.08 : .08, { wet: .18, priority: P.core });
+  };
+  const ticks = (steps: readonly number[] | undefined, gain: number) => {
+    if (kit.colour && steps?.includes(beat)) add(kit.colour.instrument, 55 + chord[0], gain, beat < 8 ? -.3 : .3, { wet: .12, priority: P.tick });
+  };
+  const timpani = (gain: number) => add('timpani', tom, gain * w, 0, { wet: .25, priority: P.core });
+  // The ostinato's sixteenth: the chord tone of its 3-3-2 group, swinging gently across the stereo field.
+  const ostinato = (octave: number, gain: number, pan: number) => add('spiccato', root + kit.lift + tone(OSTINATO[beat]) + octave,
+    (accent ? 1.4 : 1) * gain, pan, { wet: .16, priority: P.pulse });
+  const fill = (gain: number) => {
+    // Into each phrase: toms down the chord and a snare roll swelling to the bar line.
+    if (!phraseEnd || beat < 12) return;
+    add('tom', tom + [colour + 12, 12, colour, 0][beat - 12], gain + .03 * (beat - 12), (beat - 13.5) * .2, { wet: .12, priority: P.core });
+    for (const offset of [0, 7.5 / theme.bpm]) add(kit.snare, 60, (.04 + .02 * (beat - 12)) * w, 0, { offset, wet: .15, priority: P.pulse });
+  };
 
   if (stage === 1) {
-    // Darker, heavier quarter notes on the root under the riff; no octave leaps. Core doubles it, overload doubles again.
-    if (beat % 4 === 0 || riff >= 0) add(kit.dark, bass + (riff >= 0 ? riff : 0), beat % 4 === 0 ? .25 : .17, 0, { priority: P.core });
-    if (kit.kicks[0].includes(beat)) add(kit.kick, 36, .35 * w * layered, 0, { pump: kit.pump * .8, priority: P.core });
-    // A heavy half-time backbeat in a big room.
-    if (beat === 8) {
-      add(kit.snare, 60, .2 * w, 0, { wet: .2, priority: P.core });
-      if (kit.clap) add('clap', 60, .1 * w * kit.clap, 0, { wet: .2, priority: P.core });
+    // Long bass notes on the half bar (and where the riff lands on a beat), under the score's own bass.
+    if (beat === 0 || beat === 8 || (riff >= 0 && beat % 4 === 0)) add(kit.dark, bass + (riff >= 0 ? riff : 0), beat === 0 ? .26 : .2, 0, { priority: P.core });
+    drum(kit.hits[0], .34);
+    // The low spiccato pulse on the beat (half notes in the spacious worlds), the root under the chord.
+    if (kit.half ? beat % 8 === 0 : beat % 4 === 0) add('spiccato', root + lift, beat === 0 ? .13 : .1, beat % 8 ? .2 : -.2, { wet: .2, priority: P.pulse });
+    ticks(kit.colour?.steps[0], .06);
+    if (chordStart) {
+      timpani(.24);
+      // Low strings hold the root and its colour tone under the chord: tension, not melody.
+      strings([root + lift, root + lift + colour], .07);
     }
-    if (beat % 4 === 2) add(kit.hat, 60, .04, beat < 8 ? -.25 : .25, { priority: P.hat });
-    for (const s of kit.colour?.steps[0] ?? []) if (beat === s) add(kit.colour!.instrument, 55 + chord[0], .06, beat < 8 ? -.3 : .3, { priority: P.pulse });
-    // Low strings hold the root and its colour tone under the chord: tension, not melody.
-    if (chordStart) strings([root + lift, root + lift + colour], .06);
-    if (phraseEnd && beat >= 12) add('tom', tom + [colour + 12, 12, colour, 0][beat - 12], .14 + .03 * (beat - 12), (beat - 13.5) * .2, { priority: P.core });
+    if (bar % 8 === 0 && beat === 0) add('braam', bass, .06, 0, { wet: .35, priority: P.strings });
+    fill(.14);
     return notes;
   }
 
   if (stage === 2) {
-    // Driving synth bass: steady eighths on the riff, filling its rests with root and octave.
-    if (beat % 2 === 0 || riff >= 0) add(kit.drive, bass + (riff >= 0 ? riff : beat % 4 === 2 ? 12 : 0), beat % 4 === 0 ? .27 : .21, 0, { priority: P.core });
-    if (kit.kicks[breakdown ? 0 : 1].includes(beat)) add(kit.kick, 36, .4 * w * layered, 0, { pump: kit.pump, priority: P.core });
-    if (kit.half ? beat === 8 : beat === 4 || beat === 12) {
-      add(kit.snare, 60, .2 * w, 0, { wet: .12, priority: P.core });
-      if (kit.clap) add('clap', 60, .14 * w * kit.clap, 0, { wet: .12, priority: P.core });
+    // The bass in plucked eighths on the riff, the root otherwise, the octave at the end of each half bar.
+    if (beat % 2 === 0 || riff >= 0) add(kit.drive, bass + (riff >= 0 ? riff : beat % 8 === 6 ? 12 : 0), beat % 4 === 0 ? .26 : .2, 0, { priority: P.core });
+    drum(kit.hits[breakdown ? 0 : 1], .36);
+    if (!kit.half || beat % 2 === 0) ostinato(0, .09, ACCENTS.indexOf(beat) % 2 ? .25 : -.25);
+    ticks(kit.colour?.steps[1], .065);
+    if (chordStart) {
+      // A brass chord and the timpani on each chord change, sustained strings under the ostinato.
+      [0, colour, 12].forEach((t, i) => add('stab', root + 12 + t, .1, (i - 1) * .35, { wet: .22, priority: P.core }));
+      timpani(.26);
+      strings(chord.slice(0, 3).map(c => theme.root + c + lift), .075);
     }
-    if (beat % 2 === 0) add(kit.hat, beat % 4 === 2 ? 62 : 60, beat % 4 === 2 ? .075 : .05, beat % 4 === 2 ? .22 : -.22, { priority: P.hat });
-    else if (!kit.half && !breakdown) add(kit.hat, 60, .022, .1, { priority: P.hat });
-    for (const s of kit.colour?.steps[1] ?? []) if (beat === s) add(kit.colour!.instrument, 55 + chord[0], .065, beat < 8 ? -.3 : .3, { priority: P.pulse });
-    // An eighth-note arpeggio through the chord above the bass, alternating sides.
-    if (beat % 2 === 0) {
-      const tone = [0, tones[1], tones[2], tones[1]][(beat / 2) % 4];
-      add(kit.pulse, root + kit.lift + tone, beat % 4 === 0 ? .075 : .062, beat % 4 === 0 ? -.3 : .3, { wet: .12, priority: P.pulse });
-    }
-    // Supporting harmony: strings on the chord, lifted above the bass on the low-rooted worlds.
-    if (chordStart) strings(chord.slice(0, 3).map(c => theme.root + c + lift), .06);
-    if (bar % 2 === 1 && beat >= 14) add(kit.snare, 60, .07 + (beat - 14) * .03, (beat - 14.5) * .3, { priority: P.pulse });
-    if (phraseEnd && beat >= 12) {
-      add('tom', tom + [colour + 12, 12, colour, 0][beat - 12], .15 + .03 * (beat - 12), (beat - 13.5) * .2, { priority: P.core });
-      add(kit.snare, 60, .06 + .02 * (beat - 12), 0, { offset: 7.5 / theme.bpm, priority: P.pulse });
-    }
+    // A short snare pickup every fourth bar, a full fill into each phrase.
+    if (bar % 4 === 3 && !phraseEnd && beat >= 14) add(kit.snare, 60, (.05 + (beat - 14) * .025) * w, 0, { wet: .15, priority: P.pulse });
+    fill(.15);
     return notes;
   }
 
-  // Overload. Aggressive sixteenth bass: the riff, root, octave leaps and the chord's colour tone.
-  const fill = [0, 0, 12, 0, 0, colour, 12, 0][beat % 8];
-  add(kit.growl, bass + (riff >= 0 ? riff : fill), beat % 4 === 0 ? .27 : beat % 2 === 0 ? .22 : .18, 0, { priority: P.core });
-  if (kit.kicks[2].includes(beat)) add(kit.kick, 36, .4 * w * layered, 0, { pump: kit.pump * 1.35, priority: P.core });
-  // Double-time backbeat everywhere, with ghost notes.
-  if (beat === 4 || beat === 12) {
-    add(kit.snare, 60, .24 * w, 0, { wet: .12, priority: P.core });
-    if (kit.clap) add('clap', 60, .2 * w * kit.clap, 0, { wet: .12, priority: P.core });
+  // Overload. The bass in short eighths: the riff, root, octave leaps and the chord's colour tone.
+  if (beat % 2 === 0 || riff >= 0) {
+    const leap = [0, 0, 12, 0, 0, colour, 12, 0][Math.floor(beat / 2)];
+    add(kit.growl, bass + (riff >= 0 ? riff : leap), beat % 4 === 0 ? .27 : .22, 0, { priority: P.core });
   }
-  if (beat === 7 || beat === 10 || beat === 15) add(kit.snare, 60, .06 * w, beat === 10 ? .15 : -.15, { priority: P.hat });
-  // Sixteenth hats with accented off-beats, and a longer, darker open hat on them.
-  add(kit.hat, beat % 4 === 2 ? 62 : 60, beat % 4 === 2 ? .09 : beat % 2 === 0 ? .06 : .04, beat % 2 ? .18 : -.18, { priority: P.hat });
-  if (beat % 4 === 2) add(kit.hat, 57, .05, .3, { priority: P.hat });
-  for (const s of kit.colour?.steps[2] ?? []) if (beat === s) add(kit.colour!.instrument, 55 + chord[0], .07, beat < 8 ? -.3 : .3, { priority: P.pulse });
-  // An urgent sixteenth arpeggio and an alarm pulse two octaves up on the off-beats.
-  const tone = [0, tones[1], tones[2], 12, tones[2], tones[1], 0, tones[1]][beat % 8];
-  add('arp', root + kit.lift + tone, beat % 4 === 0 ? .075 : .06, beat % 2 ? .32 : -.32, { wet: .1, priority: P.pulse });
-  if (beat % 4 === 2) add(kit.pulse, root + 24, .065, beat < 8 ? -.4 : .4, { wet: .15, priority: P.pulse });
-  // Heavier accents: a stab chord and a boom on every chord change, syncopated stabs, a crash and a braam on each phrase.
-  const stab = (gain: number) => [0, colour, 12].forEach((t, i) => add('stab', root + 12 + t, gain, (i - 1) * .35, { wet: .2, priority: P.core }));
-  if (chordStart) { stab(.12); add('boom', bass, .17, 0, { wet: .2, priority: P.core }); }
-  if (bar % 2 === 0 && (beat === 3 || beat === 6 || beat === 10)) stab(.085);
+  drum(kit.hits[2], .38);
+  // The ostinato doubled an octave up, over low spiccato sixteenths on the root.
+  ostinato(0, .085, -.22);
+  ostinato(12, .05, .3);
+  add('spiccato', root + lift, accent ? .11 : .07, 0, { wet: .12, priority: P.pulse });
+  ticks(kit.colour?.steps[2], .07);
+  // Heavier accents: brass, boom and timpani on every chord change, syncopated brass, a crash and a braam on each phrase.
+  const stab = (gain: number) => [0, colour, 12].forEach((t, i) => add('stab', root + 12 + t, gain, (i - 1) * .35, { wet: .22, priority: P.core }));
+  if (chordStart) { stab(.13); add('boom', bass, .16, 0, { wet: .2, priority: P.core }); timpani(.28); }
+  if (bar % 2 === 0 && (beat === 3 || beat === 6 || beat === 10)) stab(.09);
   if (bar % 8 === 0 && beat === 0) {
-    add('crash', 60, .12, 0, { wet: .2, priority: P.strings });
+    add('crash', 60, .11, 0, { wet: .2, priority: P.strings });
     add('braam', bass, .1, 0, { wet: .3, priority: P.strings });
   }
   // Brighter strings: the chord with its top voice an octave up.
-  if (chordStart) strings(chord.slice(0, 3).map((c, i) => theme.root + c + lift + (i === 2 ? 12 : 0)), .06);
-  // Rolls: sixteenths every second bar, thirty-seconds into each phrase, with a riser landing on its downbeat.
-  if (bar % 2 === 1 && beat >= 12) add(kit.snare, 60, .06 + (beat - 12) * .025, (beat - 13.5) * .2, { priority: P.pulse });
-  if (phraseEnd && beat >= 8) add(kit.snare, 60, .05 + (beat - 8) * .015, 0, { offset: 7.5 / theme.bpm, priority: P.pulse });
-  if (phraseEnd && beat >= 12) add('tom', tom + [colour + 12, 12, colour, 0][beat - 12], .16 + .03 * (beat - 12), (beat - 13.5) * .2, { priority: P.core });
+  if (chordStart) strings(chord.slice(0, 3).map((c, i) => theme.root + c + lift + (i === 2 ? 12 : 0)), .075);
+  // A timpani roll building through the last half bar of each phrase, a riser landing on its downbeat.
+  if (phraseEnd && beat >= 8) timpani(.1 + .02 * (beat - 8));
   if (phraseEnd && beat === 0) notes.push(riser(theme.bpm, 16, .14));
+  fill(.16);
   return notes;
 }
 
@@ -305,18 +312,20 @@ function stinger(planet: PlanetId, change: Change, step: number): Note[] {
     if (step === change.from && (kind === 'entrance' || kind === 'overload')) notes.push(riser(theme.bpm, change.at - change.from, kind === 'overload' ? .2 : .16));
     if (left > 4) return notes;
     const build = (4 - left) / 3;
-    // Entrance: toms climbing to the hit. Core: a snare pickup. Overload: a thirty-second snare roll and a rising arpeggio.
+    // Entrance: toms climbing to the hit. Core: a snare pickup. Overload: a thirty-second snare roll and spiccato
+    // strings rushing up the chord.
     if (kind === 'entrance') add('tom', tom + [0, 0, colour, 12][4 - left], (.12 + .1 * build) * w, (build - .5) * .4, { priority: P.stinger });
     else if (kind === 'overload') {
       for (const offset of [0, half]) add(kit.snare, 60, (.07 + .09 * build) * w, 0, { offset, priority: P.stinger });
-      for (const [k, offset] of [0, half].entries()) add('arp', root + 12 + [0, colour, 12, 12 + colour][(4 - left)] + k * 12, .05 + .03 * build, (k - .5) * .5, { offset, wet: .15, priority: P.stinger });
+      for (const [k, offset] of [0, half].entries()) add('spiccato', root + 12 + [0, colour, 12, 12 + colour][(4 - left)] + k * 12, .07 + .04 * build, (k - .5) * .5, { offset, wet: .15, priority: P.stinger });
     } else add(kit.snare, 60, (.07 + .07 * build) * w, 0, { priority: P.stinger });
     return notes;
   }
   // The hit, on the switch itself; the level bed moves to the new stage's level with it.
   const hit = { priority: P.stinger };
   add('crash', 60, kind === 'overload' ? .15 : .12, 0, { wet: .2, bed: BED[change.stage], ...hit });
-  add(kit.kick, 36, .42 * w, 0, { pump: kind === 'fall' ? kit.pump : .35, ...hit });
+  add(kit.drum, 36, .42 * w, 0, { wet: .2, ...hit });
+  add('timpani', tom, .3 * w, 0, { wet: .25, ...hit });
   if (kind === 'entrance') {
     // Dark and heavy: a sub boom, a low braam on root and colour tone, a deep tom.
     add('boom', bass, .3, 0, { wet: .25, ...hit });
@@ -324,16 +333,16 @@ function stinger(planet: PlanetId, change: Change, step: number): Note[] {
     add('braam', bass + colour, .1, .2, { wet: .3, ...hit });
     add('tom', tom, .24 * w, 0, { wet: .1, ...hit });
   } else if (kind === 'rise') {
-    // Into the core: a bright stab chord on the boom.
+    // Into the core: a bright brass chord on the boom.
     add('boom', bass, .18, 0, { wet: .2, ...hit });
     [0, colour, 12].forEach((t, i) => add('stab', root + 12 + t, .09, (i - 1) * .35, { wet: .2, ...hit }));
   } else if (kind === 'overload') {
-    // The climax: the biggest boom, braam in octaves, a wide four-voice stab and a clap.
+    // The climax: the biggest boom, braam in octaves, a wide four-voice brass chord and a second drum stroke.
     add('boom', bass, .34, 0, { wet: .25, ...hit });
     add('braam', bass, .2, -.1, { wet: .3, ...hit });
     add('braam', bass + 12, .1, .15, { wet: .3, ...hit });
     [0, colour, 12, 12 + colour].forEach((t, i) => add('stab', root + 12 + t, .1, (i - 1.5) * .3, { wet: .25, ...hit }));
-    add('clap', 60, .2 * w, 0, { wet: .15, ...hit });
+    add(kit.drum, 36, .3 * w, .2, { offset: half, wet: .2, ...hit });
   }
   return notes;
 }
