@@ -1,7 +1,8 @@
+import { MISSION_PRESSURE } from '../../src/content/balance';
 import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import {
-  BAND, CAMPAIGN_DECKS, SCARCE, SITE_CALM, SITE_COUNT, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
+  BAND, CAMPAIGN_DECKS, SCARCE, reinforced, SITE_CALM, SITE_COUNT, DECK_POOLS, DECK_TEMPLATES, ENDLESS_DECKS, PAIR_FLOOR, PAIR_WINDOW, authoredKinds, band, deckTemplate, nominalPlaylist,
   placementCost, placementRole, resolveDeck, resolvePlaylist, resolveTemplate, slotAt, varied, waveCharacter, type DeckTemplate,
 } from '../../src/content/encounter-deck';
 import { cueRoster, type EncounterCue } from '../../src/content/encounters';
@@ -26,8 +27,8 @@ describe('encounter deck: resolution', () => {
       const lists = new Set(SEEDS.slice(0, 20).map(seed => JSON.stringify(resolveTemplate(deck, seed))));
       expect(lists.size, `${deck.id} varies with the seed`).toBeGreaterThan(5);
     }
-    // The director's memoized lists are the same lists.
-    expect(resolvePlaylist({ mode: 'campaign', mission: 'cold-vector' }, 1, 7)).toEqual(resolveTemplate(CAMPAIGN_DECKS['cold-vector'], 7));
+    // The director's memoized lists are the same lists, with the campaign's reinforcements (MISSION_PRESSURE, docs/40).
+    expect(resolvePlaylist({ mode: 'campaign', mission: 'cold-vector' }, 1, 7)).toEqual(reinforced(resolveTemplate(CAMPAIGN_DECKS['cold-vector'], 7), MISSION_PRESSURE['cold-vector']?.reinforce ?? 0, 7));
     expect(resolvePlaylist({ mode: 'campaign', mission: 'cold-vector' }, 1, 7)).toBe(resolvePlaylist({ mode: 'campaign', mission: 'cold-vector' }, 1, 7));
   });
 

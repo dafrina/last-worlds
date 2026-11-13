@@ -17,15 +17,17 @@ import { beamAwareHunterPilot, enterSector, fly, perfectPilot, pickupSeeker, ski
  * The weapon rank a player is expected to bring to each mission on Standard (rank 0 = Level 1 … rank 4 = Level 5), in
  * campaign order. Balancing expectations only: nothing in the game enforces them, and weaker weapons stay allowed.
  */
+// (User, 13 November: "luna is lvl 1, khepri and vesper 2, nacre and amnion 3, corona 4 and nahara umbra 5"; players
+// replay missions to afford them. Was Level 1, 1, 2, 2, 3, 3, 4, 4 per the spec.)
 export const EXPECTED_RANK: Readonly<Record<MissionId, number>> = {
   training: 0, // Luna
-  bastion: 0, // Khepri, Rolling Thunder
+  bastion: 1, // Khepri, Rolling Thunder
   'cold-vector': 1, // Vesper
-  'deep-bloom': 1, // Nacre
+  'deep-bloom': 2, // Nacre
   'brood-strike': 2, // Amnion
-  'dying-star': 2, // Corona
-  'silent-empire': 3, // Nahara
-  'final-horizon': 3, // Umbra
+  'dying-star': 3, // Corona
+  'silent-empire': 4, // Nahara
+  'final-horizon': 4, // Umbra
 };
 export const CAMPAIGN_ORDER = Object.keys(EXPECTED_RANK) as MissionId[];
 export const WEAPONS: readonly WeaponId[] = ['pulse', 'fan', 'seeker', 'rail'];

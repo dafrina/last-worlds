@@ -23,6 +23,26 @@ const step = (state: RunState, seconds: number) => {
 const hostile = (state: RunState) => state.projectiles.filter(shot => !shot.friendly && shot.ttl > 0);
 
 describe('Skimmer: Echo Split', () => {
+  it('reports a thread when the ship crosses its row between the two halves, unhit (Split Runner, observation only)', () => {
+    const run = (observed: boolean) => {
+      const state = quiet();
+      if (observed) state.events = [];
+      // A Skimmer straight ahead fires at a ship that holds still: the halves pass either side of it.
+      place(state, 'skimmer', state.player.x, 12, { warning: STEP / 2, aimX: state.player.x });
+      state.player.invulnerableUntil = 0;
+      // One split: the Skimmer leaves once it has fired.
+      step(state, STEP);
+      state.enemies = [];
+      step(state, 4);
+      return state;
+    };
+    const observed = run(true), plain = run(false);
+    expect(observed.events!.filter(e => e.type === 'thread')).toHaveLength(1);
+    expect(observed.player.lastHitAt).toBe(plain.player.lastHitAt);
+    // Observing changes nothing in play.
+    expect({ ...observed, events: undefined }).toEqual({ ...plain, events: undefined });
+  });
+
   it('one large shot flies to the split point, where two halves wait, show, then fan out faster', () => {
     const [parent, left, right] = echoSplit(1, 12, -2, 6);
     expect(parent.life).toBeGreaterThan(0);

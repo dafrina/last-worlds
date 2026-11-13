@@ -147,6 +147,8 @@ export const DEFAULT_CAMERA: 'ortho' | 'perspective' | 'rectified' = 'perspectiv
  * (`?fov=`, `?camera=ortho|rectified`) show ground targets slightly off their gameplay positions; the release lens is exact.
  */
 export const PERSPECTIVE_FOV = LENS_FOV;
+/** The camera shake's largest offset (world units) at full trauma (explosions and hits; user, 13 November: "slight"). */
+const SHAKE_AMPLITUDE = .1;
 
 export function configureCamera(camera: THREE.OrthographicCamera | THREE.PerspectiveCamera, x: number): void {
   const centerS = (VIEW.minS + VIEW.maxS) / 2;
@@ -1184,6 +1186,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * The hovering bosses (veil-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
    * mire's level), the others their plateau raised by their hover.
    */
+  // The camera shake's state (cosmetic, render only): trauma, the clock, the last hit, lives and effect seen.
+  let shakeTrauma = 0, shakeTime = -1, shakeHit = -Infinity, shakeLives = 0, shakeEffect = -1;
   // THE CITADEL's standing state: the arena (by its start) whose temple has fallen, and the run clock last seen.
   let citadelFallen: number | null = null, citadelSeen = -Infinity;
   const HOVERING_BOSSES = [
@@ -1734,10 +1738,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             if (state.time < citadelSeen) citadelFallen = null;
             citadelSeen = state.time;
             if (mine && boss?.phase === 'destroyed' && arena) citadelFallen = arena.fromS;
-            if (!boss && arena) {
-              standing = citadelFallen === arena.fromS ? 'wrecked' : 'intact';
-              seat = { x: 0, s: arena.fromS + CITADEL_AT - state.distance, baseHeight: ground };
-            }
+            if (!boss && arena) standing = citadelFallen === arena.fromS ? 'wrecked' : 'intact';
+            // Always its fixed seat in the arena (the camera ray gives the same within a few hundredths at the stop, but it
+            // moves while the scroll is still settling: the temple shifted as its fight began; user, 13 November).
+            if (arena && (standing || mine)) seat = { x: mine && boss ? boss.x : 0, s: arena.fromS + CITADEL_AT - state.distance, baseHeight: ground };
           }
           view.update(state, seat, standing);
           if (mine) terrain.setExclusion(view.footprint(state, seat));
@@ -2389,6 +2393,22 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         attribute.clearUpdateRanges();
         if (lineCursor > 0) { attribute.addUpdateRange(0, lineCursor * 3); attribute.needsUpdate = true; }
       }
+      // A slight camera shake on explosions and hits (user, 13 November), only for the draw: placements and rays this frame
+      // used the true camera. Trauma from new effects and a hit decays quickly; the offset grows with its square.
+      // (A new run restarts the clock and the ids: start afresh.)
+      if (state.time < shakeTime) { shakeTrauma = 0; shakeEffect = -1; shakeHit = state.player.lastHitAt; shakeLives = state.livesLost; }
+      const shakeDt = shakeTime < 0 || state.time < shakeTime ? 0 : Math.min(.1, state.time - shakeTime); shakeTime = state.time;
+      shakeTrauma = Math.max(0, shakeTrauma - shakeDt * 2.2);
+      if (state.player.lastHitAt !== shakeHit) { if (shakeDt > 0 && state.player.lastHitAt > state.time - .2) shakeTrauma += state.livesLost > shakeLives ? .65 : .4; shakeHit = state.player.lastHitAt; }
+      shakeLives = state.livesLost;
+      for (const effect of state.effects) if (effect.id > shakeEffect) {
+        shakeEffect = effect.id;
+        if (shakeDt > 0) shakeTrauma += effect.kind === 'bossBlast' ? .6 : effect.kind === 'blast' ? .14 : effect.kind === 'explosion' ? .07 : 0;
+      }
+      shakeTrauma = Math.min(1, shakeTrauma);
+      const shake = reducedMotion() || jumpActive ? 0 : shakeTrauma * shakeTrauma * SHAKE_AMPLITUDE;
+      const shakeX = shake * (Math.sin(state.time * 47.3) + .5 * Math.sin(state.time * 89.1)), shakeY = shake * (Math.sin(state.time * 53.7 + 1.3) + .5 * Math.sin(state.time * 97.9 + .4));
+      if (shake > 0) { camera.position.x += shakeX; camera.position.y += shakeY; camera.updateMatrixWorld(); }
       const renderStart = performance.now();
       passes.shadow = 0;
       if (quality === 'high') {
@@ -2406,6 +2426,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           const clear = renderer.autoClear; renderer.autoClear = false; renderer.render(lensScene, lensCamera); renderer.autoClear = clear;
         }
       }
+      if (shake > 0) { camera.position.x -= shakeX; camera.position.y -= shakeY; camera.updateMatrixWorld(); }
       if (state.tick > 0) terrainWork.renderMax = Math.max(terrainWork.renderMax, performance.now() - renderStart);
       // Development evidence: shader programs compiled after the warm-up stall a frame (a hang on phones).
       if (import.meta.env.DEV && warmed) {

@@ -1,5 +1,28 @@
 # Build status
 
+## Campaign pressure, tougher bosses, new Nahara missions, Skimmers on Corona, live autopilot, camera shake (13-14 November 2026; docs/40, docs/41, docs/39)
+
+- **Difficulty** (docs/40):
+  - the user's expected levels (Luna 1 up to Nahara and Umbra 5);
+  - campaign-only pressure: quicker repeats, earlier first attacks, mirrored reinforcements, shorter shot windups above
+    the fairness floor, faster flight, Veteran flocks late, and tougher bosses (WARDEN-1 ×1.4 up to THE CITADEL ×2.75,
+    THE ECLIPSE ×2.7). Endless unchanged.
+  - Measured both at Level 4 for every mission (rising at every step) and at each mission's expected level.
+- **Skimmers** fly on Corona (Dying Star's first dart line, and its pools) and more often on Nahara and Umbra.
+- **Nahara's missions:**
+  - Split Runner: thread a split 3 times (replaces Echo Breaker);
+  - Echo Hunter, Open Season and Temple Raider (replace Specialist, Old School and Ruin Keeper);
+  - new `thread` event and `kills` rule options, observation only;
+  - the Step Temple is drawn more on Nahara (2.5) and the Star Extractor on Corona (1.6), so their missions stay
+    reachable.
+- **THE CITADEL** keeps one fixed seat through its arrival (it shifted as its fight began).
+- **A slight camera shake** on explosions and hits: render only, off with reduced motion and during jumps.
+- **Dev tools** (docs/41): the live autopilot (`?dev&autopilot=…`) and `npm run record`.
+- **Gate:**
+  - typecheck clean; unit 1101 passed, 8 skipped (feasibility of every world's missions, the fairness unions with the
+    pacifist).
+  - Browser suite not yet run for this set. No phone test.
+
 ## Balance measurement: expected tiers, a stronger fairness check, campaign and endless reports (13 November 2026; docs/40)
 
 The user's "Perfect Pilot & progressive difficulty" spec, assigned to this session. Tests and reports only: no gameplay

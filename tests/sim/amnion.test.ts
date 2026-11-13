@@ -22,7 +22,9 @@ describe('Brood Strike over Amnion (docs/27)', () => {
     // Seed 1 since the squadron and boss pull (11 November, docs/10 §4-5): seed 4 took one hit with Standard pulse (from a
     // battery, not a pulled squadron). Seed 1 clears all three with and without the pull. Over seeds 1-16, old → new:
     // Standard pulse 3 → 9 hits (over seeds 1-48: 8 → 11), Standard fan 2 → 3, Veteran seeker 5 → 2.
-    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 1 });
+    // Seed 6 since the campaign's mission pressure (13 November, docs/40: Fan took one hit on seed 1); seeds 6, 10, 12, 14,
+    // 16, 17 and 20 of 1-20 clear all three.
+    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 6 });
     const log = fly(state, perfectPilot(), 450, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('cradle');

@@ -1,4 +1,4 @@
-import { ENEMIES, GROUND_KINDS, WORLD_INTENSITY } from '../content/balance';
+import { ENEMIES, GROUND_KINDS, WORLD_INTENSITY, worldIntensity } from '../content/balance';
 import { BOSSES } from '../content/bosses';
 import { FORMATIONS, type FormationTemplate, type Keyframe } from '../content/formations';
 import { VIEW, type BossId, type BossState, type Enemy, type FormationMember, type RunState } from '../shared/contracts';
@@ -93,7 +93,7 @@ export function enemyClockRate(state: Pick<RunState, 'pace' | 'scrollSpeed' | 'p
   return GROUND_KINDS.has(enemy.kind) ? state.scrollSpeed / VIEW.scrollSpeed : airClockRate(state);
 }
 /** Air enemies' flight clock: the pace times the world's flight intensity (WORLD_INTENSITY). */
-export const airClockRate = (state: Pick<RunState, 'pace' | 'planet'>) => state.pace * WORLD_INTENSITY[state.planet ?? 'luna'].flight;
+export const airClockRate = (state: Pick<RunState, 'pace' | 'planet'> & { config?: RunState['config'] }) => state.pace * worldIntensity({ planet: state.planet ?? 'luna', config: state.config }).flight;
 
 /**
  * Deterministic position `ahead` real seconds from now at clock `rate`. Formation members follow their

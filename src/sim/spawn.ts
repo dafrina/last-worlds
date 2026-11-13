@@ -1,4 +1,4 @@
-import { ENEMIES, WORLD_INTENSITY, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
+import { ENEMIES, WORLD_INTENSITY, kinematics, missionScales, worldIntensity, type DifficultyScale } from '../content/balance';
 import { FORMATIONS, coreSite, slotFlies, type FormationId } from '../content/formations';
 import { SITES, SITE_CORE_HEIGHT } from '../content/sites';
 import { VIEW, type FormationMember, type RunState } from '../shared/contracts';
@@ -7,7 +7,7 @@ import { anchorGround } from './ground';
 import { SEAT_SEARCH, guardSpots, seatCore, seatTrack, siteSeat, type SiteSeat } from './sites';
 
 export function runScale(state: RunState): DifficultyScale {
-  return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
+  return missionScales(state.config, state.sector);
 }
 
 /**
@@ -29,7 +29,7 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   pinned = false): void {
   const template = FORMATIONS[formation];
   const group = state.nextId;
-  const world = WORLD_INTENSITY[state.planet];
+  const world = worldIntensity(state);
   // A strike site's core (docs/33): its site, and the site's hit points, radius and core height instead of its kind's.
   const site = coreSite(template.id), core = site ? SITES[site].core : null;
   // A strike site's core (harmless: it never fires) stands on the even dry seat found near its authored place, clear of

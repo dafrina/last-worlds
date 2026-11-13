@@ -6,7 +6,7 @@ import { createPerfLog, exportPerfLog } from './ui/perf-log';
 import { createFramePacer } from './shared/frame-pacing';
 import { createTiltSource, readSteeringMode } from './input/tilt';
 import { createInput } from './input/controls';
-import { STEP, VIEW, type RunConfig, type RunState } from './shared/contracts';
+import { STEP, VIEW, type InputFrame, type RunConfig, type RunState } from './shared/contracts';
 import { WARP, warpSpeed } from './content/departure';
 import { createGameAudio } from './audio/engine';
 import { prefetchSamples } from './audio/sample-bank';
@@ -241,6 +241,18 @@ if (perfLog) {
 let perfLast = performance.now(), simStart = 0;
 /** Development-only perf bench (src/dev-hooks.ts, tools/perf-bench.mjs). */
 let bench: Bench | null = null;
+/**
+ * Development-only autopilot (docs/41; user, 13 November: "make it in the browser so i can see it play"): a test pilot
+ * (tests/sim/pilots.ts) flies the run live, tick by tick, as it would in the tests. `make` builds a fresh pilot for each
+ * run; `noFire` is the pacifist's (its shots never land).
+ */
+let autopilot: { make: () => (state: RunState) => InputFrame; noFire: boolean; run: RunState | null; pilot: ((state: RunState) => InputFrame) | null } | null = null;
+const autopilotInput = (state: RunState): -1 | 0 | 1 => {
+  if (!autopilot) return 0;
+  if (autopilot.run !== state) { autopilot.run = state; autopilot.pilot = autopilot.make(); }
+  const horizontal = autopilot.pilot!(state).horizontal;
+  return horizontal < 0 ? -1 : horizontal > 0 ? 1 : 0;
+};
 /** The bench's scripted weave, or (`steerTo`) a hold near one x (a scenario watching a site on one side). */
 const benchSteer = (tick: number, x: number): -1 | 0 | 1 => {
   if (bench?.steerTo !== undefined) { const gap = bench.steerTo - x; return Math.abs(gap) < .3 ? 0 : gap > 0 ? 1 : -1; }
@@ -286,10 +298,15 @@ function frame(now: number) {
   if (run?.phase === 'playing' && !waitingForWorld) {
     pendingSpecial ||= controls.specialPressed;
     pendingDash ??= controls.dashPressed;
-    if (bench) { accumulator = bench.steps * STEP + 1e-9; run.player.lives = Math.max(run.player.lives, bench.lives); } else accumulator += frameSeconds;
+    if (bench?.replay !== undefined) { accumulator = (bench.queue ?? 0) * STEP + 1e-9; bench.queue = 0; }
+    else if (bench) { accumulator = bench.steps * STEP + 1e-9; run.player.lives = Math.max(run.player.lives, bench.lives); } else accumulator += frameSeconds;
     simStart = performance.now();
     while (accumulator >= STEP && run.phase === 'playing' && !destinationPending()) {
-      stepRun(run, { horizontal: bench ? benchSteer(run.tick, run.player.x) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
+      const replayed = bench?.replay?.[run.tick];
+      if (bench?.noFire || autopilot?.noFire) run.projectiles = run.projectiles.filter(shot => !shot.friendly);
+      stepRun(run, { horizontal: replayed !== undefined ? (replayed === 'l' ? -1 : replayed === 'r' ? 1 : 0) : bench ? benchSteer(run.tick, run.player.x)
+        : autopilot ? autopilotInput(run) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
+      if (bench?.noFire || autopilot?.noFire) run.projectiles = run.projectiles.filter(shot => !shot.friendly);
       pendingSpecial = false; pendingDash = undefined;
       accumulator -= STEP;
     }
@@ -315,10 +332,30 @@ function frame(now: number) {
 requestAnimationFrame(frame);
 
 // Read-only development snapshots let browser tests inspect real gameplay (src/dev-hooks.ts).
-if (import.meta.env.DEV) installDevHooks({
-  run: () => run, audio, start, setQuality: quality => renderer?.setQuality(quality),
-  bench: () => bench, setBench: value => { bench = value; },
-});
+/**
+ * The autopilot (development only): `?autopilot=perfect|skilled|hunter|pacifist&mission=final-horizon&rank=4&weapon=pulse
+ * &difficulty=standard&seed=1` launches that run flown by that pilot (`mission=endless` for an endless run), or
+ * `__LAST_WORLDS__.autopilot('skilled')` takes over the current one (null hands it back).
+ */
+async function setAutopilot(name: string | null) {
+  if (!name) { autopilot = null; return; }
+  const pilots = await import('../tests/sim/pilots');
+  const make = name === 'skilled' ? () => pilots.skilledPilot() : name === 'hunter' ? () => pilots.beamAwareHunterPilot() : () => pilots.perfectPilot();
+  autopilot = { make, noFire: name === 'pacifist', run: null, pilot: null };
+}
+if (import.meta.env.DEV) {
+  installDevHooks({
+    run: () => run, audio, start, setQuality: quality => renderer?.setQuality(quality),
+    bench: () => bench, setBench: value => { bench = value; }, setAutopilot,
+  });
+  const query = new URLSearchParams(location.search), pilotName = query.get('autopilot');
+  if (pilotName) void setAutopilot(pilotName).then(() => {
+    const mission = query.get('mission') ?? 'final-horizon';
+    void start(mission === 'endless' ? { mode: 'endless', seed: Number(query.get('seed') ?? 1) }
+      : { mode: 'campaign', mission: mission as RunConfig['mission'], seed: Number(query.get('seed') ?? 1), weapon: (query.get('weapon') ?? 'pulse') as RunConfig['weapon'],
+        rank: Number(query.get('rank') ?? 4), difficulty: (query.get('difficulty') ?? 'standard') as RunConfig['difficulty'] });
+  });
+}
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {

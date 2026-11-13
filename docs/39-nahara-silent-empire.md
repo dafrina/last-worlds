@@ -13,12 +13,16 @@ The planet is **Nahara**, the mission **The Silent Empire**, the boss **THE CITA
   - Save version 5: the `opened` list keeps a v4 pilot's Final Horizon open when the new mission is inserted before it.
   - v4 saves are backed up and migrated.
 - **Endless:** Nahara flies between Corona and Umbra in the cycle (stage ids `eh`; the campaign arc uses `h-`).
-- **Missions:** Echo Breaker (6 Skimmers, 25 credits) replaces Hunter Bounty, and Shieldbreaker (4 Relic Shields, 50
-  credits) replaces Air Superiority. Both use a new `kills` rule.
+- **Missions:** Shieldbreaker (4 Relic Shields, 50 credits) replaces Air Superiority, with a new `kills` rule. Split
+  Runner (fly between the two halves of a Skimmer's split shot 3 times in one run, 25 credits; user, 13 November) took
+  the place of Echo Breaker (6 Skimmers), which had replaced Hunter Bounty. Its `threads` rule counts the `thread` event
+  (src/sim/events.ts observeThreads, observation only).
 
 ## Enemies and attacks
 
-- **Skimmer** (`skimmer`): a fast light raider. Its aimed shot pauses and splits in two (`ECHO_SPLIT`).
+- **Skimmer** (`skimmer`): a fast light raider. Its aimed shot pauses and splits in two (`ECHO_SPLIT`). Since 13 November
+  (user: "the split shot is amazing. I want more of these enemies, put them in corona as well") it flies on Corona too,
+  and more often on Nahara and Umbra.
 - **Relic Shield** (`relic`): a heavy ancient machine.
   - Closed, it takes a quarter of the damage; it opens only to fire, and rests closed between attacks (`RELIC_ARMOR`).
   - Its armour breaks for good below 30% hull.

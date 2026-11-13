@@ -160,7 +160,7 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
   // Corona's own (docs/37; user, 5 November: "2 special side route sites, one should be a star extractor facility"): the
   // Star Extractor, a legged rig drawing plasma out of the ground; the Star Cage, a captured star between two arms.
   'star-extractor': {
-    id: 'star-extractor', name: 'STAR EXTRACTOR', worlds: ['corona'], weight: 1, core: CORE, ...partSite(1),
+    id: 'star-extractor', name: 'STAR EXTRACTOR', worlds: ['corona'], weight: 1.6, core: CORE, ...partSite(1),
     guard: { corona: [g('site-mixed-3'), g('needle-solo', -1.5)] },
   },
   'star-cage': {
@@ -170,7 +170,7 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
   // Nahara's own (user, 13 November: "a blocky pyramid, aztec style somewhat but alien too"): the Step Temple, a stepped
   // pyramid with a crystal eye over its summit.
   'step-temple': {
-    id: 'step-temple', name: 'STEP TEMPLE', worlds: ['nahara'], weight: 1.2, core: CORE, ...partSite(1),
+    id: 'step-temple', name: 'STEP TEMPLE', worlds: ['nahara'], weight: 2.5, core: CORE, ...partSite(1),
     guard: { nahara: [g('site-mixed-3'), g('solo-weaver', -1.5)] },
   },
 };

@@ -180,7 +180,11 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 // 15 October (user): Rolling Thunder slightly harder (×0.92); Deep Bloom, now the final mission, the hardest (×0.92).
 // 23 October: Brood Strike, the new final mission, starts at Deep Bloom's pressure (to be tuned after play).
 // 5 November: Dying Star (Corona) as Brood Strike and Final Horizon until it is played.
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92, 'dying-star': 0.92, 'final-horizon': 0.92, 'silent-empire': 0.92, };
+// 13 November (user, docs/40): every mission challenging at its expected weapon level, more so later; Luna stays gentle
+// (14 November: Luna a bit more, 1.25 → 1.1).
+// Measured: the late missions' pressure was capped by attackers dying before they repeated (attacks admitted a minute at
+// the expected level: Nacre 77, Amnion 86, Nahara 43, Umbra 57), so surviving enemies repeat sooner along the campaign.
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.1, bastion: 0.75, 'cold-vector': 0.85, 'deep-bloom': 0.92, 'brood-strike': 0.66, 'dying-star': 0.72, 'silent-empire': 0.52, 'final-horizon': 0.52 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3, skimmer: 3, relic: 4 };
@@ -217,6 +221,57 @@ export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: 
   nahara: { flight: 1.1, shot: 1.1, cadence: 0.43, hp: 1.15, firstAttack: 0.85 },
   umbra: { flight: 1.1, shot: 1.1, cadence: 0.40, hp: 1.20, firstAttack: 0.80 },
 };
+/**
+ * Campaign-only pressure for the late missions (docs/40; user, 13 November: the late missions were too easy at their
+ * expected Level 4, measured: a Level 4 weapon removed most threats before they fired). Multiplies the world's own factors
+ * in the campaign only; Endless keeps WORLD_INTENSITY exactly.
+ * - `firstAttack`: the first windup comes earlier still, so each threat attacks at least once before it falls.
+ * - `reinforce`: the share of air squadrons in the pressure and climax stretches that a second, mirrored squadron follows
+ *   two seconds later (above 1: every one, and the excess the share a third follows two seconds after that) (src/content/encounter-deck.ts reinforced). The director admits it like any cue: the live threat
+ *   budget, the enemy ceiling and clear airspace hold it back while the sky is full, so it adds pressure where squadrons
+ *   die fast (the expected weapon levels) and little where they do not.
+ * - `windup`: shot windups (the telegraph before a shot) shortened, never under FAIRNESS.warningFloor; beams keep theirs
+ *   (user, 13 November: "cut the attack time").
+ * - `flight`: air enemies fly their paths faster (on screen sooner, so their first windup comes sooner; harder to line up
+ *   on; user, 13 November: "make the enemies move faster too").
+ * - `bossHp`: the boss's hit points (every target), so its fight lasts at the mission's expected weapon level (user, 13
+ *   November: "make the boss fights harder only. More health for the late bosses"; a level-up roughly halved them:
+ *   measured at the expected levels before, Amnion 61 s, Corona 54 s, Nahara 21 s, Umbra 30 s).
+ * - `rank` and `threatBudget`: the bigger flocks (each formation's authored Veteran members) at every difficulty, with the
+ *   room to admit them (user, 13 November: "spawn more enemies per flock"; no extra hit points).
+ */
+export const MISSION_PRESSURE: Readonly<Partial<Record<MissionId, { firstAttack?: number; reinforce?: number; windup?: number; flight?: number; rank?: FormationRank; threatBudget?: number; bossHp?: number }>>> = {
+  // Boss health (user, 14 November, measured at Level 4): WARDEN-1 ×1.4, BASTION-9 ×1.3, THE CITADEL ×2.75, THE ECLIPSE
+  // about 130 s (×2.7).
+  training: { bossHp: 1.4 },
+  bastion: { firstAttack: 0.9, reinforce: 0.45, bossHp: 1.3 },
+  'cold-vector': { firstAttack: 0.9, reinforce: 0.35 },
+  'deep-bloom': { firstAttack: 0.9, reinforce: 0.2 },
+  'brood-strike': { firstAttack: 0.8, reinforce: 0.7, windup: 0.9, flight: 1.1, bossHp: 1.5 },
+  'dying-star': { firstAttack: 0.75, reinforce: 0.45, windup: 0.9, flight: 1.06, rank: 'veteran', threatBudget: 18, bossHp: 1.6 },
+  'silent-empire': { firstAttack: 0.5, reinforce: 1.7, windup: 0.8, flight: 1.2, rank: 'veteran', threatBudget: 22, bossHp: 2.75 },
+  'final-horizon': { firstAttack: 0.5, reinforce: 1.7, windup: 0.8, flight: 1.2, rank: 'veteran', threatBudget: 22, bossHp: 2.7 },
+};
+/** A campaign mission's windup factor (MISSION_PRESSURE.windup; 1 elsewhere). */
+export function missionWindup(state: { config: { mode: string; mission?: MissionId } }): number {
+  return state.config.mode === 'campaign' ? MISSION_PRESSURE[state.config.mission ?? 'training']?.windup ?? 1 : 1;
+}
+/**
+ * The run's difficulty scale: its difficulty's (or the endless ramp's), with a campaign mission's bigger flocks and their
+ * threat budget on top (MISSION_PRESSURE; never lower than the difficulty's own).
+ */
+export function missionScales(config: { mode: string; difficulty?: Difficulty; mission?: MissionId }, sector: number): DifficultyScale {
+  const scale = difficultyScales(config.mode as 'campaign' | 'endless', config.difficulty ?? 'standard', sector);
+  const mission = config.mode === 'campaign' ? MISSION_PRESSURE[config.mission ?? 'training'] : undefined;
+  if (!mission?.rank && !mission?.threatBudget) return scale;
+  return { ...scale, rank: mission.rank ?? scale.rank, threatBudget: Math.max(scale.threatBudget, mission.threatBudget ?? 0) };
+}
+/** The run's world intensity: its planet's, with the campaign mission's pressure on top. */
+export function worldIntensity(state: { planet: PlanetId; config?: { mode: string; mission?: MissionId } }) {
+  const world = WORLD_INTENSITY[state.planet], mission = state.config?.mode === 'campaign' ? MISSION_PRESSURE[state.config.mission ?? 'training'] : undefined;
+  return mission ? { ...world, firstAttack: world.firstAttack * (mission.firstAttack ?? 1), flight: world.flight * (mission.flight ?? 1) } : world;
+}
+
 /**
  * A destroyed fuel skid explodes (user request, 16 October 2026): every damageable target whose body is within
  * `radius` takes `damage` (other skids chain). It never hurts the player and never charges the special.

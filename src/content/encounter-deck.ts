@@ -1,4 +1,4 @@
-import { DIFFICULTIES, THREAT_COST } from './balance';
+import { DIFFICULTIES, MISSION_PRESSURE, THREAT_COST } from './balance';
 import { cycleSector, ENDLESS_CYCLE, endlessPlanet, isFirstVisit, isPrologue } from './endless';
 import { cueRoster, f, type EncounterCue, type FormationPlacement, type PacingPhase } from './encounters';
 import { FORMATIONS, slotFlies, type FormationId } from './formations';
@@ -218,12 +218,12 @@ const AMNION_CLIMAX: readonly DeckWave[] = [
  * batteries and energy cells (its Wraiths and artillery ships fly in their arc slots).
  */
 const NAHARA_PRESSURE: readonly DeckWave[] = [
-  w('arrow-3'), w('line-dart-4'), w('skimmer-pair'), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
+  w('arrow-3'), w('line-dart-4'), w('skimmer-pair', { weight: 2.5 }), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
   w('relic-solo'),
   w('battery-2'), w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
 ];
 const NAHARA_CLIMAX: readonly DeckWave[] = [
-  w('arrow-5'), w('skimmer-pair'), w('skimmer-trio'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
+  w('arrow-5'), w('skimmer-pair', { weight: 1.5 }), w('skimmer-trio', { weight: 1.5 }), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
   w('relic-solo'), w('relic-pair'), w('relic-escort'),
   w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'),
 ];
@@ -231,8 +231,14 @@ const NAHARA_CLIMAX: readonly DeckWave[] = [
  * Umbra's fleet (docs/28): Amnion's mix of craft (its Wraiths and artillery ships fly in their arc slots), and since Nahara
  * (docs/39) a few of its Skimmer and Relic Shield waves.
  */
-const UMBRA_PRESSURE: readonly DeckWave[] = [...AMNION_PRESSURE, w('skimmer-pair'), w('relic-solo')];
-const UMBRA_CLIMAX: readonly DeckWave[] = [...AMNION_CLIMAX, w('skimmer-pair'), w('relic-pair')];
+const UMBRA_PRESSURE: readonly DeckWave[] = [...AMNION_PRESSURE, w('skimmer-pair', { weight: 2 }), w('relic-solo')];
+const UMBRA_CLIMAX: readonly DeckWave[] = [...AMNION_CLIMAX, w('skimmer-pair', { weight: 1.5 }), w('skimmer-trio'), w('relic-pair')];
+/**
+ * Corona's fleet (docs/37): Umbra's as it was before Nahara, the Wraith included, and since 13 November the Skimmer (the user:
+ * "the split shot is amazing. I want more of these enemies, put them in corona as well").
+ */
+const CORONA_PRESSURE: readonly DeckWave[] = [...AMNION_PRESSURE, w('skimmer-pair', { weight: 1.5 })];
+const CORONA_CLIMAX: readonly DeckWave[] = [...AMNION_CLIMAX, w('skimmer-pair'), w('skimmer-trio')];
 
 export const DECK_POOLS: Readonly<Record<PlanetId, Readonly<Record<DeckPhase, readonly DeckWave[]>>>> = {
   luna: { pressure: LUNA_PRESSURE, climax: LUNA_CLIMAX },
@@ -241,8 +247,8 @@ export const DECK_POOLS: Readonly<Record<PlanetId, Readonly<Record<DeckPhase, re
   nacre: { pressure: NACRE_PRESSURE_POOL, climax: NACRE_CLIMAX },
   amnion: { pressure: AMNION_PRESSURE, climax: AMNION_CLIMAX },
   // Corona (docs/37) flies Umbra's fleet as it was before Nahara, the Wraith included (user, 5 November: "the same ships as
-  // umbra, with wraith"); the Skimmer and the Relic Shield first fly on Nahara.
-  corona: { pressure: AMNION_PRESSURE, climax: AMNION_CLIMAX },
+  // umbra, with wraith"), and the Skimmer since 13 November; the Relic Shield first flies on Nahara.
+  corona: { pressure: CORONA_PRESSURE, climax: CORONA_CLIMAX },
   nahara: { pressure: NAHARA_PRESSURE, climax: NAHARA_CLIMAX },
   umbra: { pressure: UMBRA_PRESSURE, climax: UMBRA_CLIMAX },
 };
@@ -703,7 +709,9 @@ const BROOD_STRIKE_SORTIE = extend(BROOD_STRIKE, 62, 36, [
  * Dying Star over Corona (docs/37, 5 November): Final Horizon's proven arc and pools under its own wave ids, until it is
  * played and tuned for its own world.
  */
-const DYING_STAR: readonly DeckSlot[] = FINAL_HORIZON.map(slot => moved(slot, 0, 'c-'));
+// (Since 13 November its first dart line is a Skimmer pair, as Umbra's: the user, "the split shot is amazing. I want more
+// of these enemies, put them in corona as well". The Skimmer's split then flies Corona's pool waves too.)
+const DYING_STAR: readonly DeckSlot[] = withNominal(FINAL_HORIZON.map(slot => moved(slot, 0, 'c-')), { 'c-u-darts': [f('skimmer-pair')] });
 /** Final Horizon's sortie stretch (the glass plains), flown by Dying Star too. */
 const FINAL_HORIZON_BLOCK: readonly DeckSlot[] = [
   fix({ at: 0, id: 'u-x-cells', phase: 'pressure', message: 'ENERGY CELLS ON THE GLASS PLAINS', formations: [f('depot-3')] }),
@@ -716,7 +724,7 @@ const FINAL_HORIZON_BLOCK: readonly DeckSlot[] = [
   draw({ at: 28, id: 'u-x-column', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
   draw({ at: 33, id: 'u-x-mortars', phase: 'pressure', formations: [f('missile-2')] }, 3),
 ];
-const DYING_STAR_SORTIE: readonly DeckSlot[] = extend(FINAL_HORIZON, 62, 36, FINAL_HORIZON_BLOCK).map(slot => moved(slot, 0, 'c-'));
+const DYING_STAR_SORTIE: readonly DeckSlot[] = withNominal(extend(FINAL_HORIZON, 62, 36, FINAL_HORIZON_BLOCK).map(slot => moved(slot, 0, 'c-')), { 'c-u-darts': [f('skimmer-pair')] });
 /** An arc with some pool slots' nominal waves replaced (by slot id). */
 function withNominal(arc: readonly DeckSlot[], swaps: Readonly<Record<string, readonly FormationPlacement[]>>): readonly DeckSlot[] {
   return arc.map(slot => slot.kind === 'pool' && swaps[slot.id] ? { ...slot, nominal: swaps[slot.id] } : slot);
@@ -1058,6 +1066,34 @@ export function authoredKinds(planet: PlanetId): Set<EnemyKind> {
   return new Set(DECK_TEMPLATES.filter(deck => deck.world === planet).flatMap(deck => nominalPlaylist(deck)).flatMap(cue => cueRoster(cue, 'veteran')));
 }
 
+/** Squadrons that fly alone (the artillery ship, the Wraith): never reinforced; nor beam craft (their lanes have caps, and
+ * Vesper alternates laser flocks with laser-free ones). */
+const SOLO: readonly FormationId[] = ['pulsar-solo', 'wraith-solo'];
+/**
+ * Campaign reinforcements (docs/40, MISSION_PRESSURE.reinforce): after `share` of the pressure and climax cues that fly
+ * only air squadrons, the same squadrons again, mirrored, two seconds later. Seeded and pure; the director still admits
+ * each cue on its own (threat budget, enemy ceiling, airspace).
+ */
+export function reinforced(cues: readonly EncounterCue[], share: number, seed: number): readonly EncounterCue[] {
+  if (share <= 0) return cues;
+  const roll = mulberry32(keyedHash(seed >>> 0, 0x5e1f));
+  const out: EncounterCue[] = [];
+  for (const cue of cues) {
+    out.push(cue);
+    const air = cue.formations.length > 0 && cue.formations.every(p => FORMATIONS[p.formation].entry !== 'ground' && !SOLO.includes(p.formation)
+      // Nor squadrons that dive through the ship's row: a mirrored dive puts bodies at both edges and the centre at once
+      // (the director gates attacks against the seal rule, not authored paths; fairness-campaign, 13 November).
+      && !FORMATIONS[p.formation].path.some(([, , s]) => s <= 1.5))
+      && !flies(cue.formations, BEAM_FLYERS);
+    if (!((cue.phase === 'pressure' || cue.phase === 'climax') && air && !cue.site)) continue;
+    // The first follower mirrored, a second (share above 1) as the original.
+    const mirrored = cue.formations.map(p => ({ ...p, mirror: !p.mirror, ...(p.x !== undefined ? { x: -p.x } : {}) }));
+    if (roll() < share) out.push({ at: cue.at + 2, id: `${cue.id}+`, phase: cue.phase, formations: mirrored });
+    if (roll() < share - 1) out.push({ at: cue.at + 4, id: `${cue.id}++`, phase: cue.phase, formations: cue.formations });
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
 const resolved = new Map<string, readonly EncounterCue[]>();
 /**
  * The concrete cue list a run flies: its mission's arc (endless: the sector's stage) resolved with the run's seed
@@ -1070,7 +1106,8 @@ export function resolvePlaylist(config: Pick<RunConfig, 'mode' | 'mission'>, sec
   let cues = resolved.get(key);
   if (!cues) {
     if (resolved.size >= 32) resolved.clear();
-    cues = Object.freeze(resolveTemplate(deck, seed >>> 0, salt));
+    const base = resolveTemplate(deck, seed >>> 0, salt);
+    cues = Object.freeze(config.mode === 'campaign' ? reinforced(base, MISSION_PRESSURE[config.mission ?? 'training']?.reinforce ?? 0, seed) : base);
     resolved.set(key, cues);
   }
   return cues;

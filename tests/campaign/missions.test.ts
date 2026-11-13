@@ -428,7 +428,7 @@ describe('the tracker: rewards, persistence, modes', () => {
 
   it('every mission is reachable by its own rule (no definition is dead)', () => {
     const kinds = new Set(Object.values(WORLD_MISSIONS).flat().map((m: WorldMission) => m.rule.kind));
-    expect([...kinds].sort()).toEqual(['air', 'air-water', 'boss', 'boss-parts', 'complete', 'credits', 'enemies', 'flanks', 'gas-tanks', 'ground', 'ground-streak', 'hunters', 'kills', 'launched', 'reflected', 'site-cores', 'sites', 'specials', 'wraith-clean', 'wraiths']);
+    expect([...kinds].sort()).toEqual(['air', 'air-water', 'boss', 'boss-parts', 'complete', 'credits', 'enemies', 'flanks', 'gas-tanks', 'ground', 'ground-streak', 'hunters', 'kills', 'launched', 'reflected', 'site-cores', 'sites', 'specials', 'threads', 'wraith-clean', 'wraiths']);
   });
 });
 

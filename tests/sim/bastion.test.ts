@@ -171,7 +171,9 @@ describe('Bastion-9 mission', () => {
     // scripted Lancers (6 November) Standard flies seed 3, the first of 1-60 on which all three weapons clear; over seeds
     // 1-24 the perfect pilot now takes 3 hits at Standard (pulse), against 7 before.
     // Since pace 1.15 and the earlier air first shots (6 November) Veteran flies seed 2 (6 took one hit with seeker).
-    const seed = difficulty === 'relaxed' ? 4 : difficulty === 'standard' ? 3 : 2;
+    // Since the campaign's mission pressure (13 November, docs/40: quicker repeats, reinforcements) all nine fly seed 10, the
+    // first of 1-20 on which every combination clears (seeds with any hit over 1-20: Relaxed 2, Standard 10, Veteran 10).
+    const seed = 10;
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed });
     const log = fly(state, perfectPilot(), 360, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

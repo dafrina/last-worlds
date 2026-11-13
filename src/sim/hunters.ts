@@ -1,4 +1,4 @@
-import { ENEMIES, WORLD_INTENSITY, endlessRampSector } from '../content/balance';
+import { ENEMIES, endlessRampSector, worldIntensity } from '../content/balance';
 import { HUNTERS } from '../content/hunters';
 import { VIEW, type Enemy, type RunState, type WeaponId } from '../shared/contracts';
 import { keyedUnit } from '../shared/streams';
@@ -86,7 +86,7 @@ function spawnHunters(state: RunState): void {
   if (live >= (boss ? 1 : limits.live) || book.spawned >= limits.total) return;
   if (roll(levelKey(state), window) >= HUNTERS.chance) return;
   book.spawned += 1;
-  const scale = runScale(state), world = WORLD_INTENSITY[state.planet];
+  const scale = runScale(state), world = worldIntensity(state);
   const kind = HUNTERS.kinds[state.planet], base = ENEMIES[kind], hp = base.hp * scale.hp * world.hp;
   // It dives in on the side of the view away from the ship.
   const perCharge = hp * HUNTERS.shield.share, side = state.player.x > state.cameraX ? -1 : 1;

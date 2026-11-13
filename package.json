@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "record": "node tools/record-run.mjs"
   },
   "dependencies": {
     "three": "0.186.1"

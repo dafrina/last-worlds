@@ -2,7 +2,7 @@ import { BASTION } from '../content/bastion';
 import { REWARDS } from '../content/equipment';
 import { departure } from '../content/departure';
 import { showsHints } from '../content/missions';
-import { BALANCE, CAMPAIGN_SCROLL, DRIFT, FAIRNESS } from '../content/balance';
+import { BALANCE, CAMPAIGN_SCROLL, DRIFT, FAIRNESS, MISSION_PRESSURE } from '../content/balance';
 import { approach, clamp } from './geometry';
 import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, bossParts, missionBoss, phaseOneParts, type BossDefinition } from '../content/bosses';
@@ -105,7 +105,8 @@ export function startBoss(state: RunState, which: BossDefinition | null = state.
   for (const enemy of state.enemies) if (!enemy.hunter) leave(state, enemy);
   clearThreats(state);
   // Campaign difficulty, or the endless ramp at this sector.
-  const scale = runScale(state).hp;
+  // (A campaign mission's tougher boss: MISSION_PRESSURE.bossHp.)
+  const scale = runScale(state).hp * (state.config.mode === 'campaign' ? MISSION_PRESSURE[state.config.mission ?? 'training']?.bossHp ?? 1 : 1);
   // Its first-phase targets (the pair, and THE ECLIPSE's prow vent), then the core.
   for (const part of bossParts(def)) {
     const spec = def.parts[part]!, hp = spec.hp * scale * BOSS_TOUGHNESS.hp;

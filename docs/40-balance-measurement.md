@@ -159,3 +159,42 @@ node tools/balance-report.mjs out.jsonl
 - **Director rejections:** count them per mission (bottleneck F).
 - **Endless with the skilled pilot:** natural progression with life losses and tier drops.
 - **No phone or human playtest data.**
+
+## 13 November, later: the user's progression and the campaign pressure
+
+- **Expected weapon levels**, per the user ("luna is lvl 1, khepri and vesper 2, nacre and amnion 3, corona 4 and nahara
+  umbra 5"; players replay missions to afford them): Level 1, 2, 2, 3, 3, 4, 5, 5. Luna stays gentle onboarding.
+- **Campaign-only pressure** (`MISSION_PRESSURE`, `MISSION_CADENCE` in src/content/balance.ts; Endless untouched), as
+  tuned with the user on 13 and 14 November:
+
+| Mission | Repeats | First attack | Reinforce | Windup | Flight | Flocks | Boss health |
+|---|---|---|---|---|---|---|---|
+| Luna | 1.1 | — | — | — | — | — | ×1.4 |
+| Khepri | 0.75 | 0.9 | 0.45 | — | — | — | ×1.3 |
+| Vesper | 0.85 | 0.9 | 0.35 | — | — | — | — |
+| Nacre | 0.92 | 0.9 | 0.2 | — | — | — | — |
+| Amnion | 0.66 | 0.8 | 0.7 | 0.9 | 1.1 | — | ×1.5 |
+| Corona | 0.72 | 0.75 | 0.45 | 0.9 | 1.06 | Veteran, budget 18 | ×1.6 |
+| Nahara | 0.52 | 0.5 | 1.7 | 0.8 | 1.2 | Veteran, budget 22 | ×2.75 |
+| Umbra | 0.52 | 0.5 | 1.7 | 0.8 | 1.2 | Veteran, budget 22 | ×2.7 |
+
+  - **Repeats:** the enemy repeat-attack interval.
+  - **Reinforce:** a mirrored copy of an air squadron 2 s later; above 1 a second copy, 2 s after that. Never beam
+    squadrons, lone ships, or squadrons whose path dives through the ship's row. The director admits each like any cue.
+  - **Windup:** shot telegraphs, never under the 0.65 s floor; beams keep theirs.
+  - **Flight:** air squadrons' path speed.
+  - **Flocks:** the formations' authored Veteran members.
+  - **Boss health:** campaign only (the user: harder boss fights for the late worlds, at most ×3).
+- **Two yardsticks** (the user: "we need both, by level but also by fixed level. Every upgrade should be noticeable, but
+  not overpower the level youre on"). Skilled pilot, 40 runs a cell, mean hits a mission:
+  - **At Level 4:** Luna 0.17, Khepri 0.33, Vesper 0.38, Nacre 0.57, Amnion 0.80, Corona 1.77, Nahara 1.90, Umbra 2.88.
+    It rises at every step. Boss fights: 23, 32, 42, 48, 68, 80, 111, 133 s.
+  - **At the expected level:** 0.38, 0.42, 0.42, 0.95, 0.90, 1.77, 0.85 (Nahara at Level 5), 2.30.
+  - **The upgrade to the expected level** cuts hits by about 25-55%. Nahara's Level 5 jump still halves it; the user
+    left that for playtesting (14 November).
+  - **The perfect pilot** completes every mission at its expected level.
+  - **Under-levelled Umbra** is very hard: Level 1 completes 7 of 40, Level 3 31 of 40.
+- **Fairness kept strict:** the campaign unions found two seal cases from the quicker repeats (Deep Bloom Standard,
+  Dying Star Veteran). Their factors were eased (0.8 → 0.86, 0.66 → 0.72); the check was not weakened.
+- The fixed-seed no-hit tests moved: Rolling Thunder 10, Deep Bloom 1/9/4, Brood Strike 6, Final Horizon 5.
+

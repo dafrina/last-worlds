@@ -105,6 +105,8 @@ export interface Enemy {
   id: number; kind: EnemyKind; x: number; s: number; originX: number;
   /** A Relic Shield's armour stays open until this run time after it fires (src/sim/attacks.ts RELIC_ARMOR). */
   openUntil?: number;
+  /** A Skimmer's last large shot (its split's parent), for the observers (Echo Hunter; nothing in play reads it). */
+  echoShot?: number;
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
   warning: number; aimX: number; groundHeight: number;
   bossPart?: BossPart; damageable?: boolean; formation?: FormationMember;
@@ -153,6 +155,8 @@ export interface Projectile {
   /** Gravitic Shield return fire; not a main/special missile and never grants special kill charge. */
   reflected?: boolean;
   orbit?: { angle: number; radius: number; direction: -1 | 1; elapsed: number };
+  /** The two halves of one Skimmer's Echo Split share this id (observation only: src/sim/events.ts observeThreads). */
+  echo?: number;
   id: number; x: number; s: number; previousX: number; previousS: number;
   vx: number; vs: number; friendly: boolean; damage: number; radius: number;
   ttl: number; homingTargetId?: number;
@@ -200,13 +204,19 @@ export type KillCause = 'main' | 'special' | 'reflected' | 'blast';
  */
 export type RunEvent =
   | { type: 'kill'; time: number; kind: EnemyKind; cause: KillCause; weapon?: WeaponId; special?: SpecialId; ground: boolean;
-    x: number; s: number; water: boolean; hunter: boolean; site?: SiteId; bossPart?: BossPart; launchedBy?: BossId }
+    x: number; s: number; water: boolean; hunter: boolean; site?: SiteId; bossPart?: BossPart; launchedBy?: BossId;
+    /** A Relic Shield downed while its armour was open to fire (Open Season, docs/39). */
+    armourOpen?: boolean;
+    /** A Skimmer downed while its last shot still flew, before the split (Echo Hunter, docs/39). */
+    echoInFlight?: boolean }
   | { type: 'hit'; time: number; shield: boolean }
   | { type: 'special'; time: number; special: SpecialId }
   | { type: 'boss'; time: number; boss: BossId; phase: BossState['phase'] }
   | { type: 'credits'; time: number; value: number }
   | { type: 'site'; time: number; site: SiteId }
-  | { type: 'wraith'; time: number; hunter: boolean };
+  | { type: 'wraith'; time: number; hunter: boolean }
+  /** The ship crossed its row between the two halves of a Skimmer's Echo Split, unhit (docs/39, the Split Runner mission). */
+  | { type: 'thread'; time: number };
 /** A hyperdrive jump between planets: about 3 s; the look switches at its midpoint (`startedAt + duration / 2`). */
 export interface JumpState { startedAt: number; duration: number; from: PlanetId; to: PlanetId }
 export interface RunState {

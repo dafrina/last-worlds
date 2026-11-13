@@ -27,8 +27,11 @@ export type MissionRule =
   | { kind: 'hunters' }
   /** Wraiths (Umbra's phase predators, hunter Wraiths included). */
   | { kind: 'wraiths' }
-  /** Enemies of one kind (Nahara's Skimmers and Relic Shields, docs/39). */
-  | { kind: 'kills'; of: EnemyKind }
+  /** Enemies of one kind (Nahara's Skimmers and Relic Shields, docs/39); `open`: Relic Shields with their armour open;
+   * `echo`: Skimmers whose shot still flies, before its split. */
+  | { kind: 'kills'; of: EnemyKind; open?: true; echo?: true }
+  /** Flights through a Skimmer's Echo Split: the ship crossing its row between the two halves, unhit (docs/39). */
+  | { kind: 'threads' }
   /** Craft launched from this boss's bays. */
   | { kind: 'launched'; boss: BossId }
   /** Kills by the Spectre's Gravitic Shield returns (reflected hostile shots). */
@@ -215,12 +218,16 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
   // Nahara, the Silent Empire (docs/39; user handover, 12 November). Provisional: two of these give way to Skimmer and
   // Relic Shield missions once those enemies fly.
   'silent-empire': world('nahara', [
-    specialist(8, 25),
+    // Nahara's own (user, 13 November: "did u design unique missions for nahara?"): Echo Hunter, Open Season and Temple
+    // Raider took the places of Specialist, Old School and Ruin Keeper, at their pay; Demolition and Collector stay.
+    { slug: 'echo-hunter', name: 'Echo Hunter', text: 'Destroy 3 Skimmers while their shot is still in the air, before it splits, in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'kills', of: 'skimmer', echo: true }) },
     // Nahara's two new enemies take the places of Hunter Bounty and Air Superiority (docs/39), at their pay.
-    { slug: 'echo-breaker', name: 'Echo Breaker', text: 'Destroy 6 Skimmers in one run.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'kills', of: 'skimmer' }) },
-    oldSchool(25, 'The Silent Empire'),
+    // Split Runner replaced Echo Breaker (destroy 6 Skimmers) on 13 November (user: "change a mission in nahara to fly
+    // through the split 3 times in a run"), at its pay.
+    { slug: 'split-runner', name: 'Split Runner', text: 'Fly between the two halves of a Skimmer\'s split shot 3 times in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'threads' }) },
+    { slug: 'open-season', name: 'Open Season', text: 'Destroy 3 Relic Shields while their armour is open, in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'kills', of: 'relic', open: true }) },
     demolition(18),
-    long('ruin-keeper', 'Ruin Keeper', 'Destroy 60 ground targets, across runs.', 60, { kind: 'ground' }),
+    long('temple-raider', 'Temple Raider', 'Destroy 2 Step Temples, across runs.', 2, { kind: 'sites', sites: ['step-temple'] }),
     untouchable('The Silent Empire'),
     { slug: 'shieldbreaker', name: 'Shieldbreaker', text: 'Destroy 4 Relic Shields in one run.', goal: 4, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'kills', of: 'relic' }) },
     collector(380, 50),

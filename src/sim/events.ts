@@ -1,6 +1,6 @@
 import { GROUND_KINDS } from '../content/balance';
 import { BOSSES } from '../content/bosses';
-import type { Enemy, KillCause, RunEvent, RunState, WeaponId } from '../shared/contracts';
+import { VIEW, type Enemy, type KillCause, type RunEvent, type RunState, type WeaponId } from '../shared/contracts';
 import { runRoute } from '../world/run-route';
 import { terrainHeight, worldAt } from '../world/terrain';
 
@@ -38,5 +38,31 @@ export function observeKill(state: RunState, enemy: Enemy, cause: KillCause, wea
   if (enemy.site) event.site = enemy.site;
   if (enemy.bossPart) event.bossPart = enemy.bossPart;
   if (boss && launches && enemy.formation?.template === launches.template) event.launchedBy = boss.id;
+  if (enemy.kind === 'relic') event.armourOpen = state.time < (enemy.openUntil ?? -Infinity);
+  if (enemy.kind === 'skimmer') event.echoInFlight = enemy.echoShot !== undefined && state.projectiles.some(shot => shot.id === enemy.echoShot && shot.ttl > 0);
   state.events.push(event);
 }
+
+/** Each observed run's split halves that have crossed the ship's row, waiting for their partner (outside the run state). */
+const crossings = new WeakMap<RunState, Map<number, { x: number; time: number }>>();
+/**
+ * Split Runner (docs/39; user, 13 November: "fly through the split 3 times in a run"): when both halves of a Skimmer's
+ * Echo Split have crossed the ship's row, and the ship was between them clear of both (and unhit since the split), a
+ * `thread` event. Observation only: its bookkeeping lives outside the run state and nothing in play reads it.
+ */
+export function observeThreads(state: RunState): void {
+  if (!state.events) return;
+  let open = crossings.get(state);
+  for (const shot of state.projectiles) {
+    if (shot.friendly || shot.echo === undefined || (shot.delay ?? 0) > 0 || shot.ttl <= 0 || !(shot.previousS > 0 && shot.s <= 0)) continue;
+    const x = shot.previousX + (shot.x - shot.previousX) * shot.previousS / (shot.previousS - shot.s);
+    if (!open) { open = new Map(); crossings.set(state, open); }
+    const other = open.get(shot.echo);
+    if (!other) { open.set(shot.echo, { x, time: state.time }); continue; }
+    open.delete(shot.echo);
+    const lo = Math.min(x, other.x) + shot.radius, hi = Math.max(x, other.x) - shot.radius, px = state.player.x;
+    if (px - VIEW.playerRadius > lo && px + VIEW.playerRadius < hi && state.player.lastHitAt < other.time - 1) observe(state, { type: 'thread', time: state.time });
+  }
+  if (open) for (const [id, entry] of open) if (state.time - entry.time > 1.5) open.delete(id);
+}
+

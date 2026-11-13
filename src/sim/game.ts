@@ -1,6 +1,6 @@
 import { INCOMING_PICKUP_S, placePickup } from './pickup-placement';
 import { weaponSequence } from '../content/weapon-tiers';
-import { BALANCE, BEAM_KINDS, VESPER_LINE_CAP, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, type DifficultyScale } from '../content/balance';
+import { BALANCE, BEAM_KINDS, VESPER_LINE_CAP, DIFFICULTIES, ENEMIES, FAIRNESS, FUEL_BLAST, PULSAR_BURST, WORLD_INTENSITY, GROUND_KINDS, MISSION_CADENCE, PACE, THREAT_COST, WEAPONS, difficultyScales, kinematics, missionScales, missionWindup, worldIntensity, type DifficultyScale } from '../content/balance';
 import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue, type FormationPlacement } from '../content/encounters';
 import { resolvePlaylist } from '../content/encounter-deck';
 import { STEP, PLAYER_HIT_RADIUS, VIEW, type Enemy, type InputFrame, type KillCause, type MissionId, type Pickup, type Projectile, type RunConfig, type RunState, type WeaponId } from '../shared/contracts';
@@ -25,7 +25,7 @@ import { absorbHunterShield, aceDropRoll, aceWeaponRoll, updateHunters } from '.
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
-import { observe, observeKill } from './events';
+import { observe, observeKill, observeThreads } from './events';
 import { retain } from '../shared/retain';
 import { canAttack, isVisible } from './view';
 import { updateDrift } from './drift';
@@ -91,6 +91,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updateShockwave(state);
   updateWell(state, dt);
   updateProjectiles(state, previousPlayerX, dt);
+  observeThreads(state);
   resolveBossPhase(state);
   updateHazards(state, previousPlayerX, dt);
   updateContact(state, previousPlayerX);
@@ -328,7 +329,7 @@ function missionCadence(state: RunState): number {
 }
 
 function scales(state: RunState) {
-  return difficultyScales(state.config.mode, state.config.difficulty ?? 'standard', state.sector);
+  return missionScales(state.config, state.sector);
 }
 
 /** How fast a craft that broke off for a boss flies out of frame (units per second), and how far past the logical view it goes. */
@@ -375,7 +376,7 @@ function updateEnemies(state: RunState, dt: number): void {
         if (enemy.kind === 'relic') enemy.nextAttack = Math.max(enemy.nextAttack, enemy.age + RELIC_ARMOR.open + RELIC_ARMOR.rest);
         windups -= 1;
       }
-    } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy, scale.firstAttack * WORLD_INTENSITY[state.planet].firstAttack, scale.airFirstShot) && state.time >= state.player.invulnerableUntil - 0.3) {
+    } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy, scale.firstAttack * worldIntensity(state).firstAttack, scale.airFirstShot) && state.time >= state.player.invulnerableUntil - 0.3) {
       // Readability caps: a bounded number of simultaneous windups and of marked beam lanes.
       if (windups >= scale.maxWindups) continue;
       // Caught in a Gravity Well's core: no new attack until it is out (docs/32 §2.1).
@@ -393,7 +394,9 @@ function updateEnemies(state: RunState, dt: number): void {
       // player's x for fairness; its stream then tracks the player shot by shot (Projectile.track).
       const aimX = enemy.kind === 'missile' ? enemy.x : enemy.kind === 'pulsar' ? state.player.x
         : state.player.x + aimOffset(enemy) + (enemy.kind === 'diamond' ? diamondSide(enemy) * DIAMOND_VOLLEY.side : 0);
-      const warning = stats.warning + scale.warning;
+      // A late mission's quicker telegraphs (MISSION_PRESSURE.windup), never under the fairness floor; beams keep theirs.
+      const windup = BEAM_KINDS.has(enemy.kind) ? stats.warning : Math.max(FAIRNESS.warningFloor, stats.warning * missionWindup(state));
+      const warning = windup + scale.warning;
       // Director exclusion window: an attack that would break the hazard-union rules waits; it is never edited.
       if (!admitAttack(state, enemy, aimX, warning)) { enemy.nextAttack = enemy.age + FAIRNESS.retryDelay; continue; }
       // A beam ship swings over to its lane before firing: it waits while that swing would crowd another squadron.
@@ -481,7 +484,14 @@ function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void
   const shots = enemyShots(enemy.kind as BulletKind, muzzle.x, muzzle.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot, side);
   // A full projectile pool skips the whole volley; a fixed pattern is never trimmed bullet by bullet.
   if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
-  for (const shot of shots) state.projectiles.push(hostileShot(state.nextId++, shot));
+  // An Echo Split's two halves (the shots held at the split point) share an id, for the observers (observeThreads).
+  const echo = enemy.kind === 'skimmer' ? state.nextId + 1 : undefined;
+  if (echo !== undefined) enemy.echoShot = echo - 1;
+  for (const shot of shots) {
+    const projectile = hostileShot(state.nextId++, shot);
+    if (echo !== undefined && shot.delay) projectile.echo = echo;
+    state.projectiles.push(projectile);
+  }
 }
 
 /** Uses emitted pellet paths for fixed guns; only the seeker has a cone and guidance. */
