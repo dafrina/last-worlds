@@ -2524,7 +2524,7 @@ The exhaust ends halfway from each nozzle to its former near-bottom endpoint (97
 
 Release gate: typecheck and production build passed. Full unit suite 982 passed, 5 skipped. Of 54 browser cases, 53 passed on the full run. The responsive menu case timed out on repeated cold WebGL startups. It now loads once and checks all three viewport sizes, then the campaign and hangar screens. The isolated rerun passed in 25.5 s. The boss UI was visually inspected through all three Bastion combat phases, and the final half-length trail was inspected stationary and steering in the playground.
 
-## 13 November 2026 — Nahara, The Silent Empire (docs/39)
+## 13 November 2026 — Nahara, The Silent Empire (docs/39), deployed in `820dadf`
 
 The eighth world, between Corona and Umbra, in the campaign and endless:
 - **Mission:** The Silent Empire. Save version 5 keeps a v4 pilot's Final Horizon open.
@@ -2563,7 +2563,7 @@ Checks (WSL, SwiftShader):
   - a rotunda on a rock mesa carved with pillars and arches down to the canyon floor;
   - a crown of turquoise panels, blade fins and stepped buttresses;
   - cave-ins and broken fins, columns and bridges.
-  It is 58.6k triangles and 7.6 MB, 5.1 tall (under the spire cap), with its targets re-measured into
+  It is 58.6k triangles and 8.2 MB, 5.1 tall (under the spire cap), with its targets re-measured into
   `src/content/citadel.ts`.
 - **Its arena:**
   - flat only under its rock, where the model is drawn (its row plus the target plane's lens shift);
@@ -2577,5 +2577,8 @@ Checks (WSL, SwiftShader):
     poses, Luna level-5 launch) passed on a one-worker rerun, 5/5 with exit 0.
   - `tests/world/terrain-route.test.ts` now checks THE CITADEL's rock and canyon instead of the common clearing.
   - No phone test.
+
+- **Live:** Pages run 43463518254 succeeded (build 6m39s); the live page serves the local build's bundle
+  (`main-CK9Z1Q0T.js`) and `assets/nahara/the-citadel-v2.glb` (8,228,376 bytes).
 
 Not done: distinct models for the dart, needle and weaver.

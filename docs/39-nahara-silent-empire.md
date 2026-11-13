@@ -133,7 +133,7 @@ shapes (user: "keep it kit built, but obviously you can still take shapes etc fr
 - **Targets:** the crown of turquoise crystal panels round the drum (core), the two lanterns (first pair), the emblem
   (prow). Positions in `src/content/citadel.ts`, measured by the script (`lookdev/nahara/citadel/citadel-v2-report.json`).
 - **Size:** 5.1 over the plateau (the spire cap, under the flight plane); 58,600 triangles; texture-baked in Nahara's
-  sandstone (`boss_remodel` STYLES), 7.6 MB.
+  sandstone (`boss_remodel` STYLES), 8.2 MB.
 - It stands still (`BossDefinition.stationary`, `CarrierStyle.still`); its terrain exclusion is only its plaza.
 
 ### The arena (`src/world/terrain-nahara.ts`)
@@ -165,7 +165,7 @@ ruins"; the canyon "should be closer to the normal canyons"; "fill the surroundi
 
 ## Open
 
-- THE CITADEL's GLB is the heaviest boss file (7.6 MB); its bake could drop to 1024.
+- THE CITADEL's GLB is the heaviest boss file (8.2 MB); its bake could drop to 1024.
 - The monoliths straight before its stairs stand in a fairly regular row.
 - Distinct models for the dart, needle and weaver.
 - No phone test yet.

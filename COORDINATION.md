@@ -964,3 +964,5 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - the Nahara line in `tests/world/terrain-route.test.ts`.
 - **Excluded:** `.claude/`, `art/concepts/hero-crops/`, `hero-modular/`, `nacre-refinement/` and `art/key-art/`
   (untracked, not mine); the `perf-pass` stash.
+- **Deployed** `820dadf`: Pages run 43463518254 succeeded, and the live bundle matches. Everything listed in the 12 November
+  entry is released.
