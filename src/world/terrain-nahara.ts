@@ -3,8 +3,6 @@ import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import type { TerrainArena } from './terrain-arena';
-import { CITADEL } from '../content/citadel';
-import { VIEW } from '../shared/contracts';
 import { UMBRA, UMBRA_PLATEAU, UMBRA_SCENERY_MAX, UMBRA_SPIRE_MAX } from './terrain-umbra';
 
 /*
@@ -118,6 +116,9 @@ export interface NaharaMasks {
 
 export function naharaMasks(seed: number, x: number, s: number, platform = 0, arena?: TerrainArena): NaharaMasks {
   const built = naharaBuilt(seed, x, s, arena);
+  // The canyon falls away right at THE CITADEL's rock (user, 13 November: "the cliff is still not up to the citadels base,
+  // it comes out too far"): a ragged band under a unit wide round it opens into the chasm, whatever the course does.
+  const rock = citadelDistance(arena, x, s), hug = rock < 3 ? 0.9 + (noise(seed ^ 0x4c21, x * 0.35, s * 0.35) - 0.5) * 0.6 - rock : -9;
   // Built: the course holds for a notch length at a time, so the walls run straight along the run and step at each notch
   // (great masses, as in the concept), never a fine staircase where the canyon swings across the block grid.
   const snapped = naharaCourse(seed, (Math.floor(s / RIM) + 0.5) * RIM, arena);
@@ -149,6 +150,7 @@ export function naharaMasks(seed: number, x: number, s: number, platform = 0, ar
     const ravine = (0.035 - line) / 0.035 * 1.9 * smoothRange(0.45, 0.6, noise(seed ^ 0x4a14, s * 0.02, 1.9));
     openNatural = Math.max(main, ravine);
   }
+  openBuilt = Math.max(openBuilt, hug); openNatural = Math.max(openNatural, hug);
   const open = built >= 0.999 ? openBuilt : built <= 0.001 ? openNatural : mix(openNatural, openBuilt, built);
   const chasm = crispStep(open / 0.3 + 0.5) * (1 - platform);
   const inland = smoothRange(0, 5, -open);
@@ -318,11 +320,12 @@ function naturalGround(seed: number, x: number, s: number, m: NaharaMasks, platf
  * - The ruins: the world's own kit set round it (citadelRuins).
  */
 /**
- * The temple's origin past the arena's start: every boss's stop is 9 past `fromS` and it stands at its row; the model is
- * drawn further on, so that its target plane (targetHeight over the plateau) meets the flight plane's rows along the view
- * (src/render/veil-view.ts veilPlacement).
+ * The temple's origin past the arena's start, where the renderer seats it: every boss's stop is 9 past `fromS` and it stands
+ * at its row (13), drawn further on so that its target plane (2.4 over the plateau) meets the flight plane's rows through
+ * the perspective camera (src/render/scene.ts rayPlacement; measured in game at the stop: 24.746; the orthographic lens
+ * gives 24.24). Before and after its fight the renderer stands it here too.
  */
-export const CITADEL_AT = 9 + CITADEL.row + (VIEW.flightHeight - PLATEAU - CITADEL.targetHeight) / Math.tan(VIEW.elevation * Math.PI / 180);
+export const CITADEL_AT = 24.75;
 /** The rock's plan about the temple's origin (nahara_citadel.py MESA): half width, front edge, the back circle's centre. */
 const CITADEL_ROCK = { w: 7.4, front: -6.4, centre: -3.6 } as const;
 /** Units outside the temple's rock (negative on it); Infinity without an arena. */
@@ -549,7 +552,9 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   // Where the arches and the other great ruins stand (s of every arch; x, s of every great piece): they keep apart.
   // (Only this section's own: a neighbour section's pieces near the seam are not seen, a rare near pair.)
   const arches: number[] = [], big: [number, number][] = [];
-  const ARCH_GAP = 18, BIG_GAP = 7;
+  // (Denser since the user's "i want more ruins in the level", 13 November: 15 and 5; 18 and 7 before. The arches stay
+  // spread: "between 270-400 theres so many arches on the canyon".)
+  const ARCH_GAP = 15, BIG_GAP = 5;
   const platformAt = (x: number, s: number) => naharaPlatform(arena, seed, x, s);
   const masksAt = (x: number, s: number) => naharaMasks(seed, x, s, 0, arena);
   if (arena) for (const { pick, big: great, ...piece } of citadelRuins(seed, arena, terrain)) {
@@ -559,8 +564,9 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   const roomFor = (x: number, s: number, arch: boolean) => (!arch || arches.every(a => Math.abs(a - s) >= ARCH_GAP))
     && big.every(([bx, bs]) => Math.hypot(bx - x, bs - s) >= BIG_GAP);
   // Every ARCH_STEP a candidate: most stand in the built country (the ruin districts), a few in the natural sandstone.
-  // (24 since the user's "between 270-400 theres so many arches on the canyon. Spread them out more", 13 November; 12 before.)
-  const ARCH_STEP = 24;
+  // (24 since the user's "between 270-400 theres so many arches on the canyon. Spread them out more", 13 November; 12 before;
+  // 20 with "i want more ruins in the level".)
+  const ARCH_STEP = 20;
   for (let k = Math.floor(startS / ARCH_STEP) - 1; k <= Math.ceil((startS + size) / ARCH_STEP); k++) {
     const h = (i: number) => hash(seed ^ 0x4b01, k, i);
     const s = (k + 0.25 + h(1) * 0.5) * ARCH_STEP;
@@ -595,13 +601,13 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   // out more, other ruins too"): one candidate per LATTICE patch of tableland, jittered within it, so they spread evenly
   // instead of gathering where the dice fall: free-standing arches, monoliths, towers (some great) and gates. Patches in
   // the built country are taken more often than in the natural sandstone.
-  const LATTICE_X = 8, LATTICE_S = 11;
+  const LATTICE_X = 6, LATTICE_S = 8;
   for (let j = Math.floor(startS / LATTICE_S); j < Math.ceil((startS + size) / LATTICE_S); j++) for (let i = 0; i < Math.ceil(WORLD_HALF * 2 / LATTICE_X); i++) {
     const h = (k: number) => hash(seed ^ 0x4b21, i * 53 + k, j);
     const x = -WORLD_HALF + (i + 0.2 + h(0) * 0.6) * LATTICE_X, s = (j + 0.2 + h(1) * 0.6) * LATTICE_S;
     if (s < startS || s >= startS + size || terrain.blocked(x, s) || platformAt(x, s) >= 0.3) continue;
     const ground = terrain.height(x, s), slope = terrain.slope(x, s), m = masksAt(x, s);
-    if (m.chasm > 0.5 || ground < PLATEAU - 1.2 || slope > 0.6 || h(2) > (m.built > 0.5 ? 0.8 : 0.5)) continue;
+    if (m.chasm > 0.5 || ground < PLATEAU - 1.2 || slope > 0.6 || h(2) > (m.built > 0.5 ? 0.92 : 0.72)) continue;
     const what = h(3), squared = Math.round(h(4) * 4) * Math.PI / 2 + (h(5) - 0.5) * 0.12;
     if (what < 0.32) {
       // A great free-standing arch, square to the run or across it, both feet on the ground.
@@ -631,7 +637,7 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   // own height, its piers carried down to the ground as columns (aqueduct_pier) sunk a unit into it. Ruined: bays missing,
   // some broken through, a hill swallowing it where the ground rises to its level; wherever a run breaks off, its last bay
   // is the ruined end piece facing the gap. It keeps clear of the arches' rows and of the other great ruins.
-  const AQUEDUCT_STEP = 70, BAY_HEIGHT = 2.3, PIER_X = 0.9;
+  const AQUEDUCT_STEP = 48, BAY_HEIGHT = 2.3, PIER_X = 0.9;
   for (let k = Math.floor(startS / AQUEDUCT_STEP); k <= Math.ceil((startS + size) / AQUEDUCT_STEP); k++) {
     const h = (i: number) => hash(seed ^ 0x4b41, k, i);
     const s = (k + 0.3 + h(0) * 0.4) * AQUEDUCT_STEP;
@@ -668,10 +674,8 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
     const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.8) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.8) * cell;
     if (s < startS || s >= startS + size || terrain.blocked(x, s)) continue;
     const ground = terrain.height(x, s), slope = terrain.slope(x, s), drop = terrain.drop(x, s), pick = h(2), platform = platformAt(x, s);
-    if (platform >= 0.3) {
-      if (pick < 0.01) add({ kind: 'nahBlocks', x, s, y: ground - 0.05, scale: 1.4 + h(3) * 0.8, height: 1 + h(4) * 0.6, rotation: h(5) * Math.PI * 2, cosmetic: true }, h(6));
-      continue;
-    }
+    // (Nothing on THE CITADEL's rock: the temple stands on it from the start.)
+    if (platform >= 0.3) continue;
     const m = masksAt(x, s), c = m.course;
     // The ruins gather in the built country: there more of everything, in the natural sandstone only a few.
     const ruin = m.built > 0.5 ? 1.5 : 0.45;
@@ -679,7 +683,7 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
     const squared = Math.round(h(7) * 4) * Math.PI / 2 + (h(8) - 0.5) * 0.12;
     if (m.chasm > 0.5 && ground < PLATEAU - 1.5) {
       // Monoliths out of the haze, up past the rims: a few in the channels, many more in the basins.
-      const chance = (0.003 + 0.009 * c.wide) * ruin, side = Math.abs(x - c.center) / Math.max(1, c.half);
+      const chance = (0.005 + 0.013 * c.wide) * ruin, side = Math.abs(x - c.center) / Math.max(1, c.half);
       if (slope < 0.8 && pick < chance && side > 0.2) {
         const top = PLATEAU + 1.6 + h(9) * (UMBRA_SPIRE_MAX - PLATEAU - 1.6);
         add({ kind: 'nahPillar', x, s, y: ground - 0.3, scale: 0.95 + h(10) * 0.5, height: top - ground + 0.3, rotation: squared, cosmetic: false }, h(11));
@@ -694,7 +698,7 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
     // Toward the chasm (for the spurs): the nearer channel's side.
     const toward = Math.sign(c.center - x) || 1;
     const reach = 2.6 + h(16) * 2;
-    if (nearRim && ground > PLATEAU - 1.2 && slope < 0.6 && drop < 0.5 && pick < 0.005 * ruin && terrain.height(x + toward * reach * 1.4, s) < ground - 2) {
+    if (nearRim && ground > PLATEAU - 1.2 && slope < 0.6 && drop < 0.5 && pick < 0.009 * ruin && terrain.height(x + toward * reach * 1.4, s) < ground - 2) {
       // A broken half arch springing from the rim and reaching out over the chasm (the concept's great arc): its pier (the
       // piece's x -1 end) on the rim here, the arc reaching `reach` out over the drop.
       add({ kind: 'nahSpur', x: x + toward * reach * 0.8, s, y: ground - 0.2, scale: reach / KIT.nahSpur.halfX, height: UMBRA_SPIRE_MAX - ground - h(17) * 1.2,
@@ -703,7 +707,7 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
       // A circular mechanism set into a high wall, facing out over the drop.
       const gx = terrain.gradientX(x, s), gs = terrain.gradientS(x, s), g = Math.hypot(gx, gs) || 1;
       add({ kind: 'nahRing', x, s, y: ground - drop * 0.6, scale: 1.6 + h(24) * 0.6, height: 1.8, rotation: Math.atan2(-gx / g, gs / g), cosmetic: false }, h(25));
-    } else if (slope < 0.45 && pick > (m.built > 0.5 ? 0.982 : 0.986)) {
+    } else if (slope < 0.45 && pick > (m.built > 0.5 ? 0.972 : 0.978)) {
       // Tumbled blocks over the open ground.
       add({ kind: 'nahBlocks', x, s, y: ground - 0.06, scale: 1.2 + h(26) * 1, height: 0.9 + h(27) * 0.6, rotation: h(28) * Math.PI * 2, cosmetic: true }, h(29));
     }

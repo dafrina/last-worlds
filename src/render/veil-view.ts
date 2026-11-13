@@ -341,7 +341,12 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       const f = style.footprint;
       return { minX: state.boss.x - f.halfWidth, maxX: state.boss.x + f.halfWidth, minS: state.distance + placement.s - f.front, maxS: state.distance + placement.s + f.back };
     },
-    update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null) {
+    /**
+     * `standing`: a still boss (THE CITADEL) drawn without an encounter where it stands in its arena: intact before its
+     * fight, a wreck after it (user, 13 November: "the citadel shouldnt rise from the ground ... it should just render in
+     * already"). `placement` is then its fixed seat.
+     */
+    update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null, standing: 'intact' | 'wrecked' | null = null) {
       const boss = state.boss && mine(state.boss.id) ? state.boss : null;
       root.visible = !!boss && !!placement; markers.visible = root.visible;
       const groundShift = lastTime < 0 || state.time < lastTime ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
@@ -363,13 +368,30 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         }
         for (const batch of rig.flightPods) liveInstances(batch, count);
       }
-      if (!boss || !placement) { shock.visible = false; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1; return; }
+      if (!boss || !placement) {
+        shock.visible = false; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1;
+        if (!boss && placement && standing && style.still) {
+          root.visible = true; markers.visible = false;
+          root.position.set(placement.x ?? 0, placement.baseHeight, -placement.s); rig.chassis.rotation.set(0, 0, 0); root.updateMatrixWorld(true);
+          const intact = standing === 'intact';
+          for (const part of rig.parts.values()) {
+            for (const object of part.live) object.visible = intact;
+            if (part.wreck) part.wreck.visible = !intact;
+            part.heat.emissiveIntensity = intact ? 1.2 : 0;
+          }
+          for (const ring of rings.values()) ring.mesh.visible = false;
+          rig.sinew.emissiveIntensity = intact ? 1.2 : 0;
+        }
+        return;
+      }
       if (encounter !== boss.startedAt) { encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; }); }
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
       // Rising out of the mire during the arrival; a slow breathing bob while alive; sinking after its death.
-      const rise = arriving && !style.fliesIn ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
-      const sink = destroyed ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
+      // (A still boss stands there already and falls where it stands: no rise, no sinking, only its explosions; user, 13
+      // November: "the dying animation, no drop, just the explosion".)
+      const rise = arriving && !style.fliesIn && !style.still ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
+      const sink = destroyed && !style.still ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
       // A hovering carrier (THE CRADLE) bobs wider and slower on the air it floats on.
       const bob = destroyed || style.still ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
       root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * (rig.approved ? APPROVED_RISE : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);

@@ -14,6 +14,7 @@ import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuali
 import { PLANETS, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, setSunBehind, sunBehind, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
 import { UMBRA_PLATEAU } from '../world/terrain-umbra';
+import { CITADEL_AT } from '../world/terrain-nahara';
 import { arenaStopDistance } from '../sim/boss';
 import { HUNTERS } from '../content/hunters';
 import { hunterCharges } from '../sim/hunters';
@@ -1183,6 +1184,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * The hovering bosses (veil-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
    * mire's level), the others their plateau raised by their hover.
    */
+  // THE CITADEL's standing state: the arena (by its start) whose temple has fallen, and the run clock last seen.
+  let citadelFallen: number | null = null, citadelSeen = -Infinity;
   const HOVERING_BOSSES = [
     { view: veil, id: 'veil', ground: undefined, style: VEIL_STYLE },
     { view: cradle, id: 'cradle', ground: AMNION_PLATEAU + CRADLE_STYLE.hover, style: CRADLE_STYLE },
@@ -1724,7 +1727,19 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           const mine = !!boss && (boss.id === id || !!style.stands?.includes(boss.id)), ground = plateau ?? world.planet.seaLevel ?? 0, height = style.content.targetHeight;
           let seat: { x?: number; s: number; baseHeight: number } | null = mine && boss ? veilPlacement(boss.s, ground, height) : null;
           if (mine && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, height, ground, world);
-          view.update(state, seat);
+          // THE CITADEL stands in its arena before and after its fight (intact, then a wreck), at the seat its fight takes.
+          let standing: 'intact' | 'wrecked' | null = null;
+          if (id === 'citadel') {
+            const arena = world.planet.id === 'nahara' ? world.arena : undefined;
+            if (state.time < citadelSeen) citadelFallen = null;
+            citadelSeen = state.time;
+            if (mine && boss?.phase === 'destroyed' && arena) citadelFallen = arena.fromS;
+            if (!boss && arena) {
+              standing = citadelFallen === arena.fromS ? 'wrecked' : 'intact';
+              seat = { x: 0, s: arena.fromS + CITADEL_AT - state.distance, baseHeight: ground };
+            }
+          }
+          view.update(state, seat, standing);
           if (mine) terrain.setExclusion(view.footprint(state, seat));
         }
       }

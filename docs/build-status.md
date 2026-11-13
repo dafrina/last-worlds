@@ -1,5 +1,24 @@
 # Build status
 
+## THE CITADEL stands in place, falls in place; more ruins on Nahara (13 November 2026)
+
+User, after playing the deployed `820dadf` on a phone: "the cliff is still not up to the citadels base, it comes out too
+far", "the citadel shouldnt rise from the ground ... it should just render in already", "the dying animation, no drop,
+just the explosion", "i want more ruins in the level".
+- **Cliff:** the temple is seated by the perspective camera's ray (`rayPlacement`), 24.746 past the arena's start
+  (measured in game), not the orthographic 24.24 the pad assumed. `CITADEL_AT` is now 24.75, and a ragged band under a
+  unit wide round the rock opens into the chasm, so the canyon falls away at its carved cliff.
+- **Standing:** a still boss stands in its arena before its fight and after it (`CarrierStyle` update `standing`:
+  intact, then a wreck). It no longer rises on arrival or sinks on death; it only explodes. Nothing is scattered on its
+  rock.
+- **More ruins:** hill-ruin candidates per 6 × 8 patch (8 × 11), great ruins 5 apart (7), canyon arches every 20 (24,
+  kept spread per the user's earlier "so many arches"), aqueducts every 48 (70), and more monoliths, spurs and rubble.
+- **Gate:**
+  - typecheck clean; unit 1083 passed, 6 skipped; build passes.
+  - Browser 54/55 (Playwright exit 1, load average about 17). The Luna level-5 launch timeout passed alone, exit 0.
+  - In game: before, during and after the fight checked in SwiftShader screenshots.
+  - No phone test.
+
 ## Sound effects reworked over three listening rounds (deployed in `69a76ca`), 11 November 2026
 
 - **Deployed with:**

@@ -966,3 +966,13 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   (untracked, not mine); the `perf-pass` stash.
 - **Deployed** `820dadf`: Pages run 43463518254 succeeded, and the live bundle matches. Everything listed in the 12 November
   entry is released.
+
+**13 November · Claude Code (main session) · Citadel follow-up deploying:**
+- THE CITADEL stands in place and falls in place.
+- The canyon meets its rock.
+- More ruins on Nahara.
+- **Shared edits:** `veil-view.ts` (`standing`, no rise or sink for still bosses) and `scene.ts` (its standing seat).
+- **Next, in this session:** the user's Perfect Pilot and progressive difficulty spec (pasted 13 November, addressed to
+  Codex; the user assigned it here). It owns `tests/sim/pilots.ts`, `fairness-*`, `mission-harness.ts`, and new balance
+  reports.
+

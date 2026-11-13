@@ -74,9 +74,9 @@ User direction:
   - a ring mechanism;
   - aqueduct bays (whole, broken through, a ruined end) and their pier columns.
 - **Placement:**
-  - **Canyon arches:** a candidate every 24 units, wall to wall, each pier half sunk into its wall.
-  - **Great ruins on the hills:** one candidate per 8 × 11 patch (arches, monoliths, towers, some great towers, gates);
-    arches at least 18 apart along the run and great ruins at least 7 apart.
+  - **Canyon arches:** a candidate every 20 units, wall to wall, each pier half sunk into its wall.
+  - **Great ruins on the hills:** one candidate per 6 × 8 patch (arches, monoliths, towers, some great towers, gates);
+    arches at least 15 apart along the run and great ruins at least 5 apart (denser on 13 November: "i want more ruins").
   - **Ruined aqueducts** ("ruined", "doesnt need to be connected", "dont make the aqueducts have a glow"):
     - now and then a dry run across the map at one level;
     - columns under every pier reach a unit into the ground;
@@ -134,15 +134,16 @@ shapes (user: "keep it kit built, but obviously you can still take shapes etc fr
   (prow). Positions in `src/content/citadel.ts`, measured by the script (`lookdev/nahara/citadel/citadel-v2-report.json`).
 - **Size:** 5.1 over the plateau (the spire cap, under the flight plane); 58,600 triangles; texture-baked in Nahara's
   sandstone (`boss_remodel` STYLES), 8.2 MB.
-- It stands still (`BossDefinition.stationary`, `CarrierStyle.still`); its terrain exclusion is only its plaza.
+- It stands still (`BossDefinition.stationary`, `CarrierStyle.still`); its terrain exclusion is only its plaza. It stands
+  in its arena before the fight and after it (a wreck), never rises or sinks, and only explodes when it falls.
 
 ### The arena (`src/world/terrain-nahara.ts`)
 
 User: "model the boss arena specifically for it ... so it looks like the citadel is sitting in an ancient ruin city";
 "limit the flat part to just the base of the model ... like its towering in a canyons"; "it should tower above other
 ruins"; the canyon "should be closer to the normal canyons"; "fill the surroundings with ruins and arcs too".
-- **Ground:** flat only under the rock (`naharaPlatform`), where the model is drawn: the boss's row plus the lens shift of
-  its target plane (`CITADEL_AT`). Nahara's arena does not use the common clearing.
+- **Ground:** flat only under the rock (`naharaPlatform`), where the model is drawn (`CITADEL_AT`, 24.75: the perspective
+  camera's seat, measured); the canyon falls away right at the rock's edge. Nahara's arena does not use the common clearing.
 - **Canyon:** the world's own canyon swings to the temple, opens into a gorge before it and forks round it
   (`citadelCourse`): the rock is the point of the island between the channels.
 - **Heights:** the ground near it keeps to the lower terraces, and every ruin near it stays under its dome (`citadelCap`).
