@@ -9,15 +9,15 @@ export type WeaponId = 'pulse' | 'fan' | 'seeker' | 'rail';
 export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance' | 'gravity-well';
 export type ShieldTechId = 'standard' | 'bulwark' | 'aegis';
 export type ShipId = 'scrapper' | 'ironclad' | 'interceptor' | 'spectre';
-export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'dying-star' | 'final-horizon';
+export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'dying-star' | 'silent-empire' | 'final-horizon';
 /** Planets the world generator can build (docs/17 §2); missions select one, endless stays on Khepri. */
-export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre' | 'amnion' | 'corona' | 'umbra';
+export type PlanetId = 'khepri' | 'vesper' | 'luna' | 'nacre' | 'amnion' | 'corona' | 'nahara' | 'umbra';
 /**
  * Boss modules. Bastion-9: batteries and core. Helion Ark: radiators (left/right) and bridge (core). `prow` is an optional
  * third first-phase module that only THE ECLIPSE has (its prow vent, user, 31 October); every other boss has none.
  */
 export type BossPart = 'left' | 'right' | 'core' | 'prow';
-export type BossId = 'bastion' | 'ark' | 'warden' | 'veil' | 'cradle' | 'eclipse' | 'heliophage';
+export type BossId = 'bastion' | 'ark' | 'warden' | 'veil' | 'cradle' | 'eclipse' | 'heliophage' | 'citadel';
 export interface BossState {
   /** World distance at the wreck's last update: it falls behind by the distance flown since (destroyed phase). */
   wreckDistance?: number;
@@ -25,7 +25,7 @@ export interface BossState {
   clearedAt?: number;
   phase: 'arrival' | 'batteries' | 'core' | 'overload' | 'destroyed';
   x: number; originX: number; s: number; startedAt: number; phaseStartedAt: number;
-  nextAttackAt: number; attackIndex: number; attack: 'burst' | 'fan' | 'beam' | 'spiral' | null;
+  nextAttackAt: number; attackIndex: number; attack: 'burst' | 'fan' | 'beam' | 'spiral' | 'fracture' | 'boomerang' | null;
   attackerId: number | null; deathEffectAt: number;
   /** Combat-plane velocity (units/s; s is relative to the player row). Ground-relative forward speed is vs + RunState.scrollSpeed. */
   vx: number; vs: number;
@@ -50,9 +50,9 @@ export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** `pulsar` (Nacre, 17 October 2026) fires a rapid burst stream down one committed line. */
 /** Strike sites (docs/33): optional side-route targets, one model each with a finish per world. */
 export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot', 'relay-station', 'freight-terminal',
-  'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool', 'star-extractor', 'star-cage'] as const;
+  'dark-spaceport', 'prism-reactor', 'sealed-vault', 'gate-ring', 'brood-hive', 'spawning-pool', 'star-extractor', 'star-cage', 'step-temple'] as const;
 export type SiteId = (typeof SITE_IDS)[number];
-export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith';
+export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith' | 'skimmer' | 'relic';
 /** `horizontal`: −1 … 1. Touch halves and keys give −1, 0 or 1; tilt steering (src/input/tilt.ts) any share between. */
 export interface InputFrame { horizontal: number; specialPressed: boolean; pausePressed: boolean; dashPressed?: -1 | 1 }
 /**
@@ -103,6 +103,8 @@ export interface FormationMember {
 }
 export interface Enemy {
   id: number; kind: EnemyKind; x: number; s: number; originX: number;
+  /** A Relic Shield's armour stays open until this run time after it fires (src/sim/attacks.ts RELIC_ARMOR). */
+  openUntil?: number;
   hp: number; maxHp: number; radius: number; age: number; nextAttack: number;
   warning: number; aimX: number; groundHeight: number;
   bossPart?: BossPart; damageable?: boolean; formation?: FormationMember;
@@ -162,6 +164,10 @@ export interface Projectile {
   spreadRemaining?: number;
   /** Seconds it waits at its muzzle before flying (a Pulsar burst is emitted at once and streams out). */
   delay?: number;
+  /** Seconds before its release that a waiting shot shows, pulsing and harmless (a Skimmer's split, docs/39). */
+  show?: number;
+  /** Constant lateral acceleration (units/s²): a Boomerang Barrage shot curves out, turns and returns (docs/39). */
+  ax?: number;
   /** Re-aims at the player's position, at the same speed, the moment its delay ends (a Pulsar stream). */
   track?: boolean;
   /** The enemy that fired it, for a burst still waiting at its muzzle: those shots never leave once it is shot down. */

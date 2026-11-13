@@ -87,7 +87,7 @@ const SQUASH_MIN = .35;
 export const SITE_FOUNDATION_MAX = SITE_DROP_MAX;
 /** Foundation blocks in each world's ground tone (Vesper's ice-shelf blocks, Umbra's obsidian). */
 const FOUNDATION_COLOR: Readonly<Record<PlanetId, number>> = {
-  luna: 0x8a8884, khepri: 0x7a4a2c, vesper: 0xd6e4f0, nacre: 0x2e2a42, amnion: 0x9a7a62, corona: 0x2a2420, umbra: 0x17151f,
+  luna: 0x8a8884, khepri: 0x7a4a2c, vesper: 0xd6e4f0, nacre: 0x2e2a42, amnion: 0x9a7a62, corona: 0x2a2420, nahara: 0xa8865c, umbra: 0x17151f,
 };
 const FOUNDATION_CAPACITY = 240;
 /**
@@ -326,7 +326,7 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
     materials.forEach(material => { for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value); });
     materials.forEach(material => material.dispose()); textures.forEach(texture => texture.dispose());
   }
-  const prepare = (planet: PlanetId) => Promise.all(sitesWithModels(planet).map(site => load(site, planet))).then(() => undefined);
+  const prepare = (planet: PlanetId) => Promise.all(sitesWithModels(planet).map(site => load(site, siteFinish(site, planet)!))).then(() => undefined);
   const ready = (site: SiteId, finish: PlanetId) => { const template = templates.get(key(site, finish)); return typeof template === 'object' ? template : null; };
   const bounds = (entry: Placed): Rect => {
     const model = SITE_MODELS[entry.site]!;
@@ -411,7 +411,7 @@ export function createSiteView(scene: THREE.Scene, onReady: () => void, onBlast:
 
   return {
     prepare(planet) { prefetched = planet; return prepare(planet); },
-    isReady(planet) { return sitesWithModels(planet).every(site => { const template = templates.get(key(site, planet)); return template !== undefined && template !== 'loading'; }); },
+    isReady(planet) { return sitesWithModels(planet).every(site => { const template = templates.get(key(site, siteFinish(site, planet)!)); return template !== undefined && template !== 'loading'; }); },
     warmupObjects() {
       const out: THREE.Object3D[] = [foundations];
       templates.forEach(template => { if (typeof template === 'object') for (const made of [...template.free, ...template.used]) out.push(made.group); });

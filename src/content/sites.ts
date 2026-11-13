@@ -69,6 +69,7 @@ export const SITE_CORE_HEIGHT: Readonly<Record<SiteId, number>> = {
   'spawning-pool': 1.45,
   'star-extractor': 2.2,
   'star-cage': 1.6,
+  'step-temple': 2.3,
 };
 /** Score for destroying a site's core, in both modes. */
 export const SITE_SCORE = 500;
@@ -79,6 +80,8 @@ export const SHIELD_FALLBACK_CREDITS = 10;
 
 const FRONTIER: readonly PlanetId[] = ['luna', 'khepri', 'vesper'];
 const UMBRAL: readonly PlanetId[] = ['umbra', 'nacre'];
+/** The ancient worlds' ruins (docs/39): Nahara's sites are the old civilisation's, as Umbra's and Nacre's. */
+const ANCIENT: readonly PlanetId[] = [...UMBRAL, 'nahara'];
 const BROOD: readonly PlanetId[] = ['amnion', 'nacre'];
 /** Frontier sites the brood has overrun on Amnion (user, 29 October: "theres also not a lot for amnion"). */
 const OVERRUN: readonly PlanetId[] = [...FRONTIER, 'amnion'];
@@ -98,9 +101,9 @@ const shieldSite = { loot: { kind: 'shield', value: 1 }, endless: { kind: 'shiel
  */
 export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
   'crash-site': {
-    id: 'crash-site', name: 'CRASH SITE', worlds: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra'], weight: 1, core: CORE, ...partSite(1),
+    id: 'crash-site', name: 'CRASH SITE', worlds: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'nahara', 'umbra'], weight: 1, core: CORE, ...partSite(1),
     guard: { ...on(['luna', 'khepri'], [g('site-turrets-3'), g('solo-weaver', -1.5)]), vesper: [g('site-missiles-3'), g('needle-solo', -1.5)],
-      ...on(['nacre', 'amnion', 'corona', 'umbra'], [g('site-mixed-3'), g('solo-weaver', -1.5)]) },
+      ...on(['nacre', 'amnion', 'corona', 'nahara', 'umbra'], [g('site-mixed-3'), g('solo-weaver', -1.5)]) },
   },
   airfield: {
     // Also on Corona (user, 5 November: "the normal airfield ... just retextured/reskinned", its frontier model recoloured).
@@ -131,19 +134,20 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
     guard: on(UMBRAL, [g('site-mixed-3'), g('needle-solo', -1.5)]),
   },
   'prism-reactor': {
-    id: 'prism-reactor', name: 'PRISM REACTOR', worlds: UMBRAL, weight: 1, core: CORE, ...shieldSite,
-    guard: on(UMBRAL, [g('site-mixed-2')]),
+    id: 'prism-reactor', name: 'PRISM REACTOR', worlds: ANCIENT, weight: 1, core: CORE, ...shieldSite,
+    guard: on(ANCIENT, [g('site-mixed-2')]),
   },
   'sealed-vault': {
-    id: 'sealed-vault', name: 'SEALED VAULT', worlds: UMBRAL, weight: 0.3, core: { hp: 55, radius: 0.5 }, ...partSite(3),
-    guard: on(UMBRAL, [g('site-vault-guard'), g('diamond-solo', -1.5)]),
+    id: 'sealed-vault', name: 'SEALED VAULT', worlds: ANCIENT, weight: 0.3, core: { hp: 55, radius: 0.5 }, ...partSite(3),
+    // On Nahara a Relic Shield stands in for the Diamond heavy (docs/39): the world flies no Diamonds.
+    guard: { ...on(UMBRAL, [g('site-vault-guard'), g('diamond-solo', -1.5)]), nahara: [g('site-vault-guard'), g('relic-solo', -1.5)] },
   },
   'gate-ring': {
-    id: 'gate-ring', name: 'GATE RING', worlds: [...UMBRAL, 'amnion'], weight: 1, core: CORE,
+    id: 'gate-ring', name: 'GATE RING', worlds: [...ANCIENT, 'amnion'], weight: 1, core: CORE,
     // Campaign: a budgeted shield cell (user, 29 October: "Credits on campaign instead of power is fine but you can also
     // drop shields"); endless: a power cell.
     loot: { kind: 'shield', value: 1 }, endless: { kind: 'power', score: 0 },
-    guard: on([...UMBRAL, 'amnion'], [g('site-mixed-2'), g('solo-weaver', -1.5)]),
+    guard: on([...ANCIENT, 'amnion'], [g('site-mixed-2'), g('solo-weaver', -1.5)]),
   },
   'brood-hive': {
     id: 'brood-hive', name: 'BROOD HIVE', worlds: BROOD, weight: 1, core: CORE, ...partSite(1),
@@ -162,6 +166,12 @@ export const SITES: Readonly<Record<SiteId, SiteDefinition>> = {
   'star-cage': {
     id: 'star-cage', name: 'STAR CAGE', worlds: ['corona'], weight: 1, core: CORE, ...shieldSite,
     guard: { corona: [g('site-mixed-2')] },
+  },
+  // Nahara's own (user, 13 November: "a blocky pyramid, aztec style somewhat but alien too"): the Step Temple, a stepped
+  // pyramid with a crystal eye over its summit.
+  'step-temple': {
+    id: 'step-temple', name: 'STEP TEMPLE', worlds: ['nahara'], weight: 1.2, core: CORE, ...partSite(1),
+    guard: { nahara: [g('site-mixed-3'), g('solo-weaver', -1.5)] },
   },
 };
 

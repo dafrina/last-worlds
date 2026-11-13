@@ -10,19 +10,19 @@ import * as THREE from 'three';
 import { BOSS_ASSETS } from './boss-assets';
 import { createFacilityView } from './facility-view';
 import { createSiteView } from './site-view';
-import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type RunState } from '../shared/contracts';
-import { SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
+import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type Projectile, type RunState } from '../shared/contracts';
+import { PLANETS, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, setSunBehind, sunBehind, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { AMNION_PLATEAU } from '../world/terrain-amnion';
 import { UMBRA_PLATEAU } from '../world/terrain-umbra';
 import { arenaStopDistance } from '../sim/boss';
 import { HUNTERS } from '../content/hunters';
 import { hunterCharges } from '../sim/hunters';
-import { beamSpec } from '../sim/attacks';
+import { RELIC_ARMOR, beamSpec, relicExposed } from '../sim/attacks';
 import { ENEMIES } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { runRoute } from './terrain-route';
-import { loadCoronaCraft, loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadUmbraCraft, type CoronaCraftNode, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
+import { loadCoronaCraft, loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadNaharaCraft, loadUmbraCraft, type CoronaCraftNode, type NaharaCraftNode, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupBumpTextures, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -44,7 +44,7 @@ import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
-import { CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
+import { CITADEL_STYLE, CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
 import { WARDEN } from '../content/warden';
 import { WRAITH } from '../content/wraith';
 import { BASTION } from '../content/bastion';
@@ -314,6 +314,18 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
       fog: { color: 0xff5a18, energy: 1.0, height: [-6.68, -7.2, .5], distance: [44, .04, .16] } },
     environment: 'desert',
   },
+  // Nahara (docs/39, after art/concepts/nahara/01-world): a warm sun high over the sandstone, a cool sky fill, warm bounce
+  // off the canyon walls, and a teal haze filling the chasm (full at its floor, thinning up its walls, the terrace tops
+  // clear), with a little teal distance haze.
+  nahara: {
+    // (User's playground look, 13 November: a higher sun, a stronger shadow, the haze rising up the canyon walls.)
+    background: 0x24342f, sunElevation: 52, sun: [0xffe6c4, 7.3], hemisphere: [0xc4d2cc, 0x4a3828, .87], bounce: [0xc8966a, .77],
+    shadowIntensity: .9, blobShadow: 0x2a1e14, lowExposure: 1.02,
+    post: { exposure: 1.04, threshold: 1.15, knee: .3, strength: .7, lift: [.004, .005, .005], saturation: .96, contrast: 1.08, vignette: .24,
+      haze: [.42, .62, .58, .115],
+      fog: { color: 0x5d958c, energy: 1.25, height: [-.65, -5.9, .31], distance: [44, .073, .06] } },
+    environment: 'desert',
+  },
   umbra: {
     background: 0x0a0812, sunElevation: 30, sun: [0xe2dcff, 4.4], hemisphere: [0x4a4662, 0x0a0812, .75], bounce: [0x6a5ab0, .85],
     shadowIntensity: .7, blobShadow: 0x05040a, lowExposure: 1.1,
@@ -332,11 +344,15 @@ if (import.meta.env?.DEV && typeof location !== 'undefined') for (const entry of
 }
 const KHEPRI_SUN_ELEVATION = LOOKS.khepri.sunElevation;
 /** Typical lit ground radiance per planet, for the Low silhouettes' displayed darkness (craft-shadows.ts `silhouetteShade`). */
-const SILHOUETTE_GROUND: Record<PlanetId, number> = { vesper: 2, luna: .9, khepri: .35, amnion: .5, nacre: .15, corona: .2, umbra: .12 };
-/** Unit vector toward a planet's sun: the shared upper-left azimuth (shadows to the lower right) at its elevation. */
-function sunDirection(elevationDegrees: number): THREE.Vector3 {
+const SILHOUETTE_GROUND: Record<PlanetId, number> = { vesper: 2, luna: .9, khepri: .35, amnion: .5, nacre: .15, corona: .2, nahara: .5, umbra: .12 };
+/**
+ * Unit vector toward a planet's sun at its elevation: ahead of the ship and to the left (10:30, shadows to the lower right),
+ * or behind it and to the left (7:30, shadows up the screen to the right) on a world whose sun stands behind
+ * (PlanetProfile.sunBehind, the side the terrain's baked shading takes too).
+ */
+function sunDirection(elevationDegrees: number, behind = false): THREE.Vector3 {
   const elevation = THREE.MathUtils.degToRad(elevationDegrees);
-  return new THREE.Vector3(SUN_DIRECTION.x, 0, -SUN_DIRECTION.s).normalize().multiplyScalar(Math.cos(elevation)).setY(Math.sin(elevation));
+  return new THREE.Vector3(SUN_DIRECTION.x, 0, behind ? SUN_DIRECTION.s : -SUN_DIRECTION.s).normalize().multiplyScalar(Math.cos(elevation)).setY(Math.sin(elevation));
 }
 
 /**
@@ -363,6 +379,7 @@ export const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Na
   dart: { node: 'nacre_shard', scale: 1 }, needle: { node: 'nacre_shard', scale: 1.1 }, lancer: { node: 'nacre_veil', scale: 1.1 },
   weaver: { node: 'nacre_veil', scale: 1 }, diamond: { node: 'nacre_orrery', scale: 1 }, pulsar: { node: 'nacre_pulsar', scale: 1.1 }, turret: { node: 'nacre_spore', scale: 1 }, missile: { node: 'nacre_spore', scale: 1 },
   wraith: { node: 'nacre_veil', scale: 1 },
+  skimmer: { node: 'nacre_shard', scale: 0.85 }, relic: { node: 'nacre_orrery', scale: 1.1 },
 };
 
 /**
@@ -374,6 +391,7 @@ export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Um
   lancer: { node: 'umbra_hunter', scale: 1.05 }, diamond: { node: 'umbra_carrier', scale: 1 }, pulsar: { node: 'umbra_artillery', scale: 1 },
   turret: { node: 'umbra_turret', scale: 1 }, missile: { node: 'umbra_turret', scale: 1 },
   wraith: { node: 'umbra_hunter', scale: 1 },
+  skimmer: { node: 'umbra_interceptor', scale: 0.85 }, relic: { node: 'umbra_carrier', scale: 1.1 },
 };
 export const UMBRA_DRONE_SCALE = 1.45;
 /** Corona's fleet (docs/37, tools/blender/corona_craft.py): the same roles as Umbra's, the Wraith its own crescent ship. */
@@ -382,13 +400,25 @@ export const CORONA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: C
   lancer: { node: 'corona_hunter', scale: 1.05 }, diamond: { node: 'corona_carrier', scale: 1 }, pulsar: { node: 'corona_artillery', scale: 1 },
   turret: { node: 'corona_turret', scale: 1 }, missile: { node: 'corona_turret', scale: 1 },
   wraith: { node: 'corona_wraith', scale: 0.76 },
+  skimmer: { node: 'corona_interceptor', scale: 0.85 }, relic: { node: 'corona_carrier', scale: 1.1 },
 };
 export const CORONA_DRONE_SCALE = 1.45;
+/**
+ * Nahara's fleet (docs/39, tools/blender/nahara_fleet.py), each kind on its model, sized to its role. Of these only the
+ * dart, needle, weaver, pulsar, wraith, skimmer, relic and the batteries fly on Nahara; the rest have a model too.
+ */
+export const NAHARA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NaharaCraftNode; scale: number }>> = {
+  dart: { node: 'nahara_hunter', scale: 0.85 }, needle: { node: 'nahara_hunter', scale: 0.72 }, weaver: { node: 'nahara_hunter', scale: 1 },
+  lancer: { node: 'nahara_obelisk', scale: 0.95 }, pulsar: { node: 'nahara_obelisk', scale: 1.1 }, diamond: { node: 'nahara_sunspike', scale: 0.9 },
+  wraith: { node: 'nahara_sunspike', scale: 1.1 }, skimmer: { node: 'nahara_skimmer', scale: 1 }, relic: { node: 'nahara_relic', scale: 1.05 },
+  turret: { node: 'nahara_battery', scale: 1.1 }, missile: { node: 'nahara_battery', scale: 1.1 },
+};
+export const NAHARA_DRONE_SCALE = 1.45;
 
 /** Khepri craft node per kind (Vesper kinds borrow the nearest Khepri silhouette until their own models load). */
 export const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraftNode>> = {
   dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret', pulsar: 'khepri_weaver',
-  wraith: 'khepri_lancer',
+  wraith: 'khepri_lancer', skimmer: 'khepri_dart', relic: 'khepri_weaver',
 };
 /** Engine sockets (x, z) of the Khepri craft, from tools/blender/khepri_craft.py SOCKETS (glTF z toward the player). */
 const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [number, number])[]>> = {
@@ -397,7 +427,7 @@ const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [numbe
 };
 
 /** Every enemy kind the renderer draws (Khepri and Vesper); ground kinds stand on terrain or float on the sea. */
-const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel', 'pulsar', 'wraith'];
+const ENEMY_KINDS: readonly EnemyKind[] = ['dart', 'weaver', 'turret', 'lancer', 'needle', 'diamond', 'missile', 'fuel', 'pulsar', 'wraith', 'skimmer', 'relic'];
 const GROUND_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['turret', 'missile', 'fuel']);
 /** Loot props and ground wrecks (art/loot-props, Blender): the fuel skid target and what destroyed ground targets leave. */
 const LOOT_NODES = ['loot_fuel', 'wreck_turret_0', 'wreck_turret_1', 'wreck_fuel', 'fx_missile'] as const;
@@ -408,7 +438,7 @@ export const VESPER_KINDS: ReadonlySet<EnemyKind> = new Set<EnemyKind>(['needle'
 /** Code-built Khepri model each kind uses until (or unless) its Vesper model is available. */
 const KHEPRI_STAND_IN: Readonly<Record<EnemyKind, 'dart' | 'weaver' | 'turret' | 'lancer'>> = {
   dart: 'dart', weaver: 'weaver', turret: 'turret', lancer: 'lancer', needle: 'dart', diamond: 'weaver', missile: 'turret', fuel: 'turret', pulsar: 'weaver',
-  wraith: 'lancer',
+  wraith: 'lancer', skimmer: 'dart', relic: 'weaver',
 };
 // The pontoon deck under a ground battery over open water: PONTOON_DECK (src/world/run-route.ts, shared with the
 // simulation's ground seats).
@@ -626,7 +656,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** Lights, grade and fog of a look: cheap, no material changes (the playground tunes these live). */
   const applyLight = (next: PlanetId, look: PlanetLook) => {
     scene.background = new THREE.Color(look.background);
-    sun.copy(next === 'khepri' && look.sunElevation === KHEPRI_SUN_ELEVATION ? SUN : sunDirection(look.sunElevation));
+    const behind = sunBehind(next);
+    sun.copy(next === 'khepri' && !behind && look.sunElevation === KHEPRI_SUN_ELEVATION ? SUN : sunDirection(look.sunElevation, behind));
     bounceOffset.set(-sun.x, .32, -sun.z).normalize().multiplyScalar(30);
     sunlight.color.setHex(look.sun[0]); sunlight.intensity = look.sun[1]; sunlight.shadow.intensity = look.shadowIntensity;
     hemisphere.color.setHex(look.hemisphere[0]); hemisphere.groundColor.setHex(look.hemisphere[1]); hemisphere.intensity = look.hemisphere[2];
@@ -673,6 +704,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (next === 'umbra') { ensureUmbraCraft(); ensurePredator(next); ensureEclipse(); }
     // (Corona flies its own fleet, the Wraith included; THE ECLIPSE stands in for THE HELIOPHAGE until its own: docs/37.)
     if (next === 'corona') { ensureCoronaCraft(); ensureHeliophage(); }
+    // (Nahara flies its own fleet, Corona's while it loads; THE ECLIPSE stands in for THE CITADEL until its own model: docs/39.)
+    if (next === 'nahara') { ensureNaharaCraft(); ensureCoronaCraft(); ensureCitadel(); }
     if (next === 'luna') ensureWarden();
     warmed = false;
   };
@@ -1034,6 +1067,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       coronaBatches = factionBatches(nodes, 'Corona', 'corona_turret', () => 0xffb040); warmed = false;
     }).catch(error => console.warn('Corona fleet unavailable (corona-craft.glb); using Khepri and Vesper models.', error));
   }
+  let naharaBatches: Map<NaharaCraftNode, FactionBatch> | null = null, naharaLoad: Promise<void> | undefined;
+  function ensureNaharaCraft() {
+    return naharaLoad ??= loadNaharaCraft(`${import.meta.env.BASE_URL}assets/nahara/nahara-craft.glb`).then(nodes => {
+      if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
+      naharaBatches = factionBatches(nodes, 'Nahara', 'nahara_battery', () => 0x43d8c8); warmed = false;
+    }).catch(error => console.warn('Nahara fleet unavailable (nahara-craft.glb); using Corona\'s.', error));
+  }
   let nacreBatches: Map<NacreCraftNode, FactionBatch> | null = null, nacreRequested = false;
   let nacreLoad: Promise<void> | undefined;
   function ensureNacreCraft() {
@@ -1138,7 +1178,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const warden = createWardenView(scene);
   const veil = createVeilView(scene);
   const cradle = createVeilView(scene, CRADLE_STYLE);
-  const eclipse = createVeilView(scene, ECLIPSE_STYLE), heliophage = createVeilView(scene, HELIOPHAGE_STYLE);
+  const eclipse = createVeilView(scene, ECLIPSE_STYLE), heliophage = createVeilView(scene, HELIOPHAGE_STYLE), citadel = createVeilView(scene, CITADEL_STYLE);
   /**
    * The hovering bosses (veil-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
    * mire's level), the others their plateau raised by their hover.
@@ -1148,6 +1188,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     { view: cradle, id: 'cradle', ground: AMNION_PLATEAU + CRADLE_STYLE.hover, style: CRADLE_STYLE },
     { view: eclipse, id: 'eclipse', ground: UMBRA_PLATEAU + ECLIPSE_STYLE.hover, style: ECLIPSE_STYLE },
     { view: heliophage, id: 'heliophage', ground: UMBRA_PLATEAU + HELIOPHAGE_STYLE.hover, style: HELIOPHAGE_STYLE },
+    // THE CITADEL stands on Nahara's arena plateau (the same level as Umbra's).
+    { view: citadel, id: 'citadel', ground: UMBRA_PLATEAU + CITADEL_STYLE.hover, style: CITADEL_STYLE },
   ] as const;
   /**
    * A boss's production model, loaded once (docs/38 R3): applied unless the renderer is gone, then the next frame warms
@@ -1164,6 +1206,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ensureCradle = lazyAsset(() => loadVeilModel(bossAsset('cradle')), model => cradle.setModel(model), 'THE CRADLE model unavailable; using the code-built stand-in.');
   const ensureEclipse = lazyAsset(() => loadVeilModel(bossAsset('eclipse')), model => eclipse.setModel(model), 'THE ECLIPSE model unavailable; using the code-built stand-in.');
   const ensureHeliophage = lazyAsset(() => loadVeilModel(bossAsset('heliophage')), model => heliophage.setModel(model), 'THE HELIOPHAGE model unavailable; using the code-built stand-in.');
+  const ensureCitadel = lazyAsset(() => loadVeilModel(bossAsset('citadel')), model => citadel.setModel(model), 'THE CITADEL model unavailable; using the code-built stand-in.');
   const ensureArk = lazyAsset(() => loadArkModel(bossAsset('ark')), model => ark.setModel(model), 'Helion Ark model unavailable; using the functional carrier.');
   /*
    * Endless planet cycle (docs/18 §4): the next planet's render assets load during the boss sector, never mid-jump,
@@ -1177,10 +1220,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const facilityLoad = facilities.prepare(next);
     if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
     facilityPrefetches.set(next, facilityLoad);
-    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'corona' ? ensureHeliophage() : next === 'luna' ? ensureWarden() : bastionLoad;
+    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'nahara' ? ensureCitadel() : next === 'corona' ? ensureHeliophage() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !skies.has('ice')) { skyOf('ice'); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
-      terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : next === 'corona' ? ensureCoronaCraft() : undefined,
+      terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : next === 'corona' ? ensureCoronaCraft() : next === 'nahara' ? ensureNaharaCraft() : undefined,
       // Nacre's water detail, built in slices off the frame (src/render/mire-water.ts).
       next === 'nacre' ? mireWater.prepare() : undefined]).then(() => { prepared.add(next); });
     preloads.set(next, loading); return loading;
@@ -1289,7 +1332,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const heroShell = shell(0x4aa8ff);
   /** Hunter shells by world glow; one per live hunter (at most a few on screen). */
   /** Each planet's glow: hunter shields and the halo of enemy beams wear it. */
-  const PLANET_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a, corona: 0xff3a22, umbra: 0x9a7cff };
+  const PLANET_GLOW: Record<PlanetId, number> = { luna: 0x8fd0ff, khepri: 0xff8a2a, vesper: 0x3fd8ff, nacre: 0x3ff0c8, amnion: 0xffc23a, corona: 0xff3a22, nahara: 0x43d8c8, umbra: 0x9a7cff };
   const hunterShells = Array.from({ length: 4 }, () => shell(0xffffff));
   /** Shield charges seen last frame (hero: −1) and when a shell broke, for its last flare. */
   const shellSeen = new Map<number, number>(), shellBroke = new Map<number, number>();
@@ -1316,6 +1359,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const friendlyOutline = new THREE.InstancedMesh(projectileGeometry, friendlyOutlineMaterial, 1024);
   friendlyOutline.instanceMatrix.setUsage(THREE.DynamicDrawUsage); friendlyOutline.frustumCulled = false; friendlyOutline.renderOrder = 9;
   friendlyOutline.count = 0; scene.add(friendlyOutline);
+  /** A Fracture Wave's wall shots in flight this frame (linked by a band, docs/39). */
+  const wallShots: Projectile[] = [];
   const hostile = new THREE.InstancedMesh(projectileGeometry, hostileMaterial, 1024);
   const hostileCores = new THREE.InstancedMesh(projectileGeometry, hostileCoreMaterial, 1024);
   for (const mesh of [friendly, hostile, hostileCores]) {
@@ -1591,9 +1636,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     preloadHero: preloadHeroLook,
     heroPreview,
     /** The playground (playground.html): a level's look as shipped, and a live replacement for it. */
-    lookOf: (world: PlanetId) => structuredClone(DEFAULT_LOOKS[world]),
+    lookOf: (world: PlanetId) => ({ ...structuredClone(DEFAULT_LOOKS[world]), sunBehind: PLANETS[world].sunBehind ? 1 : 0 }),
     tuneLook(world: PlanetId, look: PlanetLook) {
-      LOOKS[world] = structuredClone(look);
+      // The sun's side is the world's (its baked shading too): a change re-bakes the terrain window.
+      if (look.sunBehind !== undefined && look.sunBehind >= .5 !== sunBehind(world)) {
+        const behind = look.sunBehind >= .5;
+        setSunBehind(world, behind === (PLANETS[world].sunBehind ?? false) ? null : behind);
+        terrain.invalidate();
+      }
+      const { sunBehind: _side, ...rest } = look; void _side;
+      LOOKS[world] = structuredClone(rest);
       if (world === planet) { applyLight(world, LOOKS[world]); shadowMaterial.color.setHex(LOOKS[world].blobShadow); }
     },
     // Each launch warms every program in its real form under the warp (see the warm-up in render), in the first full
@@ -1655,7 +1707,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
       // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
       const boss = state.boss;
-      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle', isEclipse = boss?.id === 'eclipse', isHeliophage = boss?.id === 'heliophage';
+      const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle', isEclipse = boss?.id === 'eclipse', isHeliophage = boss?.id === 'heliophage', isCitadel = boss?.id === 'citadel';
       {
         let seat: { x?: number; s: number; baseHeight: number } | null = isWarden && boss
           ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena, WARDEN_FOOTPRINT, WARDEN.targetHeight) : null;
@@ -1668,14 +1720,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // out of the flesh canyon its arena digs (src/world/terrain-amnion.ts, `emergence`) and hovers over the plateau:
         // its seat is raised by the hover, so its target plane still projects onto the logical rows.
         for (const { view, id, ground: plateau, style } of HOVERING_BOSSES) {
-          const mine = boss?.id === id, ground = plateau ?? world.planet.seaLevel ?? 0, height = style.content.targetHeight;
+          // (A rig may stand in for another boss: `stands`.)
+          const mine = !!boss && (boss.id === id || !!style.stands?.includes(boss.id)), ground = plateau ?? world.planet.seaLevel ?? 0, height = style.content.targetHeight;
           let seat: { x?: number; s: number; baseHeight: number } | null = mine && boss ? veilPlacement(boss.s, ground, height) : null;
           if (mine && boss && perspective) seat = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, height, ground, world);
           view.update(state, seat);
           if (mine) terrain.setExclusion(view.footprint(state, seat));
         }
       }
-      if (!isArk && !isWarden && !isVeil && !isCradle && !isEclipse && !isHeliophage) {
+      if (!isArk && !isWarden && !isVeil && !isCradle && !isEclipse && !isHeliophage && !isCitadel) {
         let bossPlacement: { x?: number; s: number; baseHeight: number } | null = boss ? bastionPlacement(state.config.seed, state.distance, boss.x, boss.s, arena) : null;
         if (boss && bossPlacement && perspective) bossPlacement = rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s, BASTION.targetHeight, bossPlacement.baseHeight, arena);
         bastion.update(state, bossPlacement);
@@ -1808,8 +1861,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       liveIds.clear(); for (const enemy of state.enemies) liveIds.add(enemy.id);
       for (const [id] of enemyHp) if (!liveIds.has(id)) { enemyHp.delete(id); enemyHitAt.delete(id); }
       beamLight.begin(); phaseHoles.begin();
-      // The Wraith's teleport rim: Corona's molten red-orange, Umbra's violet elsewhere.
-      if (world.planet.id === 'corona') phaseHoles.tint(1, .32, .06); else phaseHoles.tint(.4, .1, .85);
+      // The Wraith's teleport rim: Corona's molten red-orange, Nahara's turquoise (user, 13 November: "the wraith was still
+      // purple"), Umbra's violet elsewhere.
+      if (world.planet.id === 'corona') phaseHoles.tint(1, .32, .06);
+      else if (world.planet.id === 'nahara') phaseHoles.tint(.12, .72, .66);
+      else phaseHoles.tint(.4, .1, .85);
       let pontoonCount = 0; laneCounts.clear(); pontoonRings.length = 0;
       pontoons.material = planet === 'corona' ? basaltRaft : materials.craft;
       laneArea = 0;
@@ -1863,18 +1919,20 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const pod = enemy.formation?.template === 'veil-pods';
         const nacreNode: NacreCraftNode | null = (planet === 'nacre' || planet === 'amnion') && nacreBatches && enemy.kind !== 'fuel' ? (pod ? 'nacre_pod' : NACRE_CRAFT[enemy.kind].node) : null;
         const umbraNode: UmbraCraftNode | null = planet === 'umbra' && umbraBatches && enemy.kind !== 'fuel' ? (pod ? 'umbra_drone' : UMBRA_CRAFT[enemy.kind].node) : null;
-        const coronaNode: CoronaCraftNode | null = planet === 'corona' && coronaBatches && enemy.kind !== 'fuel' ? (pod ? 'corona_drone' : CORONA_CRAFT[enemy.kind].node) : null;
+        const naharaNode: NaharaCraftNode | null = planet === 'nahara' && naharaBatches && enemy.kind !== 'fuel' ? (pod ? 'nahara_drone' : NAHARA_CRAFT[enemy.kind].node) : null;
+        const coronaNode: CoronaCraftNode | null = (planet === 'corona' || (planet === 'nahara' && !naharaBatches)) && coronaBatches && enemy.kind !== 'fuel' ? (pod ? 'corona_drone' : CORONA_CRAFT[enemy.kind].node) : null;
         // The world's own faction (Nacre's craft also stand in on Amnion), else Vesper's or Khepri's models.
         const predator = pod ? undefined : (planet === 'amnion' && enemy.kind === 'diamond' ? predatorBatches.get('amnion_brood_heavy')
           : planet === 'umbra' && enemy.kind === 'wraith' ? predatorBatches.get('umbra_wraith') : undefined);
-        const nacreBatch = predator ?? (coronaNode ? coronaBatches!.get(coronaNode) : umbraNode ? umbraBatches!.get(umbraNode) : nacreNode ? nacreBatches!.get(nacreNode) : undefined);
+        const nacreBatch = predator ?? (naharaNode ? naharaBatches!.get(naharaNode) : coronaNode ? coronaBatches!.get(coronaNode) : umbraNode ? umbraBatches!.get(umbraNode) : nacreNode ? nacreBatches!.get(nacreNode) : undefined);
         const useVesper = !nacreBatch && enemy.kind !== 'fuel' && !!vesperBatches && (activeBatches === vesperBatches || VESPER_KINDS.has(enemy.kind));
         const batch = nacreBatch ?? (useVesper ? vesperBatches!.get(enemy.kind) : undefined) ?? enemyBatches.get(enemy.kind)!, slot = counts.get(batch.mesh) ?? 0;
         const vesperCraft = useVesper ? VESPER_CRAFT[enemy.kind as keyof typeof VESPER_CRAFT] ?? null : null;
-        const craftScale = predator ? (enemy.kind === 'wraith' ? .76 : .82) : coronaNode && enemy.kind !== 'fuel' ? (pod ? CORONA_DRONE_SCALE : CORONA_CRAFT[enemy.kind].scale)
+        const craftScale = predator ? (enemy.kind === 'wraith' ? .76 : .82) : naharaNode && enemy.kind !== 'fuel' ? (pod ? NAHARA_DRONE_SCALE : NAHARA_CRAFT[enemy.kind].scale)
+          : coronaNode && enemy.kind !== 'fuel' ? (pod ? CORONA_DRONE_SCALE : CORONA_CRAFT[enemy.kind].scale)
           : umbraNode && enemy.kind !== 'fuel' ? (pod ? UMBRA_DRONE_SCALE : UMBRA_CRAFT[enemy.kind].scale)
           : nacreBatch ? (nacreNode === 'nacre_pod' || enemy.kind === 'fuel' ? 1 : NACRE_CRAFT[enemy.kind].scale) : vesperCraft?.scale ?? 1;
-        if (slot < ENEMY_CAPACITY && !siteCore && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : state.boss?.id === 'heliophage' ? heliophage : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
+        if (slot < ENEMY_CAPACITY && !siteCore && !((state.boss?.id === 'cradle' ? cradle : state.boss?.id === 'eclipse' ? eclipse : state.boss?.id === 'citadel' ? citadel : state.boss?.id === 'heliophage' ? heliophage : veil).hasPodModel && enemy.formation?.template === 'veil-pods')) {
           transform.position.set(placement.x ?? enemy.x, placement.baseHeight, -placement.s);
           // A craft breaking off for a boss turns toward the side it leaves by and banks into the turn.
           const turn = enemy.leaving && !isGround ? THREE.MathUtils.smoothstep(state.time - enemy.leaving.at, 0, .5) * enemy.leaving.side : 0;
@@ -1899,7 +1957,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           const seen = enemyHp.get(enemy.id); enemyHp.set(enemy.id, enemy.hp);
           if (seen !== undefined && enemy.hp < seen) enemyHitAt.set(enemy.id, state.time);
           const kick = Math.max(0, 1 - (state.time - (enemyHitAt.get(enemy.id) ?? -9)) / HIT_FLASH);
-          batch.mesh.setColorAt(slot, hitColor.setRGB(1 + 1.9 * kick, 1 + 1.6 * kick, 1 + 1.2 * kick));
+          // A Relic Shield glows teal while its core is exposed (docs/39).
+          const open = enemy.kind === 'relic' && relicExposed(enemy, state.time) ? 1 : 0;
+          batch.mesh.setColorAt(slot, hitColor.setRGB(1 + 1.9 * kick + .1 * open, 1 + 1.6 * kick + .7 * open, 1 + 1.2 * kick + .65 * open));
         }
         if (isGround && !afloat && !siteCore && plinthCount < plinths.instanceMatrix.count) {
           let lowest = placement.baseHeight;
@@ -1923,6 +1983,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           else if (khepriEngines) for (const [ex, ez] of khepriEngines.get(enemy.kind) ?? NO_ENGINES) plume(enemy.x + ex * Math.cos(bank), -enemy.s + ez,
             -.32 * flicker(state.time, enemy.id + ex * 13), .12, 0xffa060, 1.9);
           else for (const side of SIDES) plume(enemy.x + side * .27 * Math.cos(bank), -enemy.s - .55, -.34 * flicker(state.time, enemy.id + side), .14, 0xffa060, 1.9);
+        }
+        if (enemy.kind === 'relic' && enemy.hp > enemy.maxHp * RELIC_ARMOR.breakBelow) {
+          // Its armour: a closed bronze ring of six plates, turning slowly; while it is open (winding up and just after it
+          // fires) the plates part and glow teal. Once broken it draws none.
+          const open = relicExposed(enemy, state.time), r = enemy.radius + .32, part = open ? .26 : 0;
+          for (let k = 0; k < 6; k++) {
+            const a = k * Math.PI / 3 + state.time * .5 + part, b = (k + 1) * Math.PI / 3 + state.time * .5 - part;
+            line(enemy.x + Math.cos(a) * r, enemy.s + Math.sin(a) * r, enemy.x + Math.cos(b) * r, enemy.s + Math.sin(b) * r, open ? 0x6ffff0 : 0xd8a35a);
+          }
         }
         // Ground brackets are drawn on the shared proxy, exactly over the physical luminous core.
         if (isGround || enemy.warning > 0) {
@@ -2037,7 +2106,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         mesh.setMatrixAt(mesh.count++, transform.matrix);
       }
       emplacementBatches.forEach(mesh => liveInstances(mesh, mesh.count));
-      settleBatches(enemyBatches); settleBatches(vesperBatches); settleBatches(nacreBatches); settleBatches(umbraBatches); settleBatches(coronaBatches); settleBatches(predatorBatches);
+      settleBatches(enemyBatches); settleBatches(vesperBatches); settleBatches(nacreBatches); settleBatches(umbraBatches); settleBatches(coronaBatches); settleBatches(naharaBatches); settleBatches(predatorBatches);
       liveInstances(flightShadows, shadowCount); liveInstances(plinths, plinthCount); liveInstances(pontoons, pontoonCount);
       // A round a ground battery released since the last frame is drawn leaving from the battery as drawn.
       if (state.tick < launchTick) { batteryWindups.clear(); launches.clear(); seenShots.clear(); }
@@ -2104,7 +2173,31 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         const tail = state.player.x - dash.direction * .45;
         if ((tail - dash.fromX) * dash.direction > .1) for (const s of DASH_STREAKS) strip(dash.fromX, s, tail, s, .05, 0x5ff3ff, flashLanes, dashFade * 1.4);
       }
+      const [hostileHex] = hostileHues(planet);
+      wallShots.length = 0;
       for (const sim of state.projectiles) {
+        // A held shot that shows before it flies (a Skimmer's split, a Fracture Wave's wall, docs/39): a harmless glint,
+        // pulsing and growing until it leaves.
+        if (sim.delay && sim.show && sim.delay <= sim.show && !sim.friendly && Math.abs(sim.x - state.cameraX) <= VIEW.width / 2 + .5) {
+          // A ring closing in on its point, and a tick along the way it will fly.
+          const u = 1 - sim.delay / sim.show, pulse = .6 + .4 * Math.sin(state.time * 34 + sim.id), r = .42 - .22 * u;
+          for (let k = 0; k < 6; k++) {
+            const a = k * Math.PI / 3 + state.time * 3, b = a + .7;
+            strip(sim.x + Math.cos(a) * r, sim.s + Math.sin(a) * r, sim.x + Math.cos(b) * r, sim.s + Math.sin(b) * r, .045, hostileHex, flashLanes, (.6 + 1.2 * u) * pulse);
+          }
+          const speed = Math.hypot(sim.vx, sim.vs) || 1, reach = .25 + .45 * u;
+          strip(sim.x, sim.s, sim.x + sim.vx / speed * reach, sim.s + sim.vs / speed * reach, .05, 0xffffff, flashLanes, .9 * u * pulse);
+        }
+        // A Fracture Wave's wall in flight: its shots linked by a faint band, so the wall and its gap read at a glance.
+        if (sim.show && !sim.friendly && !sim.delay && sim.vx === 0 && sim.ttl > 0) wallShots.push(sim);
+        // A Boomerang Barrage shot flares as it turns (its lateral speed passing through zero).
+        if (!sim.friendly && sim.ax && !sim.delay && Math.abs(sim.x - state.cameraX) <= VIEW.width / 2 + .5) {
+          const turning = Math.max(0, 1 - Math.abs(sim.vx) / 1.4);
+          if (turning > 0) for (let k = 0; k < 4; k++) {
+            const a = k * Math.PI / 2 + state.time * 6, r = .3 + .15 * (1 - turning);
+            strip(sim.x + Math.cos(a) * r, sim.s + Math.sin(a) * r, sim.x + Math.cos(a + .9) * r, sim.s + Math.sin(a + .9) * r, .04, hostileHex, flashLanes, 1.4 * turning);
+          }
+        }
         if (sim.delay || sim.pierced || Math.abs(sim.x - state.cameraX) > VIEW.width / 2 + .5 || sim.s < VIEW.minS - 1 || sim.s > VIEW.maxS + 1) continue;
         if (sim.reflected) {
           const orbit = sim.orbit;
@@ -2146,6 +2239,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
           // Known moving threats keep world trajectories; panning reveals these edge chevrons.
         }
+      }
+      wallShots.sort((p, q) => p.s - q.s || p.x - q.x);
+      for (let i = 1; i < wallShots.length; i++) {
+        const p = wallShots[i - 1], q = wallShots[i];
+        if (Math.abs(p.s - q.s) > 1e-3 || q.x - p.x > 1.3 || Math.abs(q.x - state.cameraX) > VIEW.width / 2 + 1.5) continue;
+        strip(p.x + .14, p.s, q.x - .14, q.s, .065, hostileHex, flashLanes, .75);
       }
       for (const shot of state.projectiles) {
         if (shot.friendly || shot.s < -.2 || shot.s > 4) continue;

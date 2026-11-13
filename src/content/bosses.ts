@@ -6,6 +6,7 @@ import { VEIL } from './veil';
 import { CRADLE } from './cradle';
 import { ECLIPSE } from './eclipse';
 import { HELIOPHAGE } from './heliophage';
+import { CITADEL } from './citadel';
 
 export { WRECK_HOLD } from './departure';
 /**
@@ -27,7 +28,9 @@ import { DEPARTURE } from './departure';
  * - 'cross': the core lane plus one side lane (alternating sides), so the open side alternates;
  * - 'burst' / 'fan': the core's aimed burst or fixed fan.
  */
-export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'burst' | 'fan' | 'spiral';
+export type OverloadMove = 'core-lane' | 'side-lanes' | 'cross' | 'burst' | 'fan' | 'spiral' | 'fracture' | 'boomerang';
+/** A core-phase move: a shot attack. */
+export type CoreMove = 'burst' | 'fan' | 'spiral' | 'fracture' | 'boomerang';
 
 export interface BossPartSpec { x: number; s: number; radius: number; hp: number }
 
@@ -50,6 +53,11 @@ export interface BossDefinition {
   entryS: number;
   row: number;
   targetHeight: number;
+  /**
+   * A boss that never moves (THE CITADEL, a temple on the ground; user, 13 November: "its a stationary one"): no sway or
+   * surge (its arena's are zero) and no pull toward a fleeing pilot (src/sim/boss.ts pullBoss).
+   */
+  stationary?: boolean;
   /** Its modules relative to the pivot. `prow` (THE ECLIPSE only) joins the first pair's phase as a third target. */
   parts: Readonly<Record<Exclude<BossPart, 'prow'>, BossPartSpec>> & { readonly prow?: BossPartSpec };
   /** First-pair attack: Bastion fires aimed bursts, the Ark fires narrow lane lasers. */
@@ -62,12 +70,22 @@ export interface BossDefinition {
   overload: { coreLaneWidth: number; batteryLaneWidth: number; active: number };
   /** Overload phase: the boss's own sequence of moves (docs/15, docs/17, docs/19, docs/20). */
   overloadMoves: readonly OverloadMove[];
-  coreMoves?: readonly ('burst' | 'fan' | 'spiral')[];
+  coreMoves?: readonly CoreMove[];
   /**
    * The 'spiral' core/overload move: `arms` streams turning at `turn` rad/s for `duration` s, a volley every `interval`;
    * `rest` (s) holds the next attack until a slow spiral's streams have cleared the screen.
    */
   spiral?: { arms: number; turn: number; interval: number; duration: number; speed: number; rest?: number };
+  /**
+   * The 'fracture' move (Fracture Wave, docs/39; src/sim/attacks.ts fractureWave): `walls` walls across the map, `interval`
+   * s apart, shots `spacing` apart at `speed` with one `gap` (between shot centres) each; each flickers `show` s first.
+   */
+  fracture?: { walls: number; interval: number; speed: number; spacing: number; gap: number; show: number };
+  /**
+   * The 'boomerang' move (Boomerang Barrage, docs/39; src/sim/attacks.ts boomerangBarrage): volleys `interval` s apart, one
+   * shot per offset from the aim, swinging out at `swing` lateral speed and back across at `speed` down the screen.
+   */
+  boomerang?: { volleys: readonly (readonly number[])[]; interval: number; speed: number; swing: number };
   recovery: number;
   /** Pause after each overload attack (defaults to `recovery`). */
   overloadRecovery?: number;
@@ -96,9 +114,13 @@ const ECLIPSE_BOSS: BossDefinition = {
   },
   pairAttack: 'burst', coreAttack: 'fan-burst',
   warning: ECLIPSE.warning, laser: null, beamWarning: ECLIPSE.beamWarning, overload: ECLIPSE.overload,
-  overloadMoves: ['core-lane', 'spiral', 'fan', 'side-lanes', 'burst', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
-  coreMoves: ['spiral', 'burst', 'burst', 'fan'],
+  // Nahara's two attacks join its fight (docs/39): a Boomerang Barrage among the reactor's moves, and in overload a
+  // five-wall Fracture Wave and another barrage in place of a fan and a burst.
+  overloadMoves: ['core-lane', 'spiral', 'fracture', 'side-lanes', 'boomerang', 'cross', 'spiral', 'fan'], overloadRecovery: 0.45,
+  coreMoves: ['spiral', 'burst', 'boomerang', 'fan'],
   spiral: { arms: 4, turn: -2.05, interval: 0.16, duration: 2.6, speed: 5 },
+  fracture: { walls: 5, interval: 1.15, speed: 4.6, spacing: 0.95, gap: 2.5, show: 0.45 },
+  boomerang: { volleys: [[-2.6, 0, 2.6], [-1.3, 1.3]], interval: 0.6, speed: 4.4, swing: 3.2 },
   recovery: ECLIPSE.recovery, transitionRecovery: ECLIPSE.transitionRecovery,
   overloadFraction: ECLIPSE.overloadFraction, extractionDuration: DEPARTURE.duration,
   // Its prow vent (the third first-phase target, user 31 October) fires the vents' aimed burst in their rotation.
@@ -259,10 +281,37 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
       approach: 'THE STAR FLARES · HELIOPHAGE RISES',
     },
   },
+  // Nahara's boss (docs/39; user, 12 November: "reuse the eclipse for the boss ... for now"): THE ECLIPSE's model, parts
+  // and moves under its own name until its own model; its own attacks (Fracture Wave, Boomerang Barrage) join its fight.
+  citadel: {
+    // Its own model (src/content/citadel.ts): a temple on the ground that never moves; its lanterns, emblem and crown.
+    ...ECLIPSE_BOSS, id: 'citadel', name: 'CITADEL', stationary: true,
+    targetHeight: CITADEL.targetHeight, entryS: CITADEL.entryS, row: CITADEL.row, arena: CITADEL.arena,
+    // Its three phases (docs/39): the Awakening (its three vents' aimed bursts), the Reactor Exposed (walls, bursts,
+    // boomerangs and the fan) and from 40% of the reactor's hull the Fall of the Empire (walls and spirals between its lanes),
+    // on the reactor's one pool. A step below THE ECLIPSE: 3 × 580 + 1,900 = 3,640 base, 5,020 after BOSS_TOUGHNESS.
+    parts: {
+      left: { x: -CITADEL.ventOffset, s: CITADEL.ventS, radius: CITADEL.ventRadius, hp: 580 },
+      right: { x: CITADEL.ventOffset, s: CITADEL.ventS, radius: CITADEL.ventRadius, hp: 580 },
+      prow: { x: 0, s: CITADEL.prowS, radius: CITADEL.prowRadius, hp: 580 },
+      core: { x: 0, s: CITADEL.reactorS, radius: CITADEL.reactorRadius, hp: 1900 },
+    },
+    launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: CITADEL.bays },
+    overloadFraction: 0.4,
+    coreMoves: ['fracture', 'burst', 'boomerang', 'fan'],
+    overloadMoves: ['fracture', 'spiral', 'boomerang', 'core-lane', 'burst', 'fracture', 'side-lanes', 'boomerang', 'spiral'],
+    fracture: { walls: 3, interval: 1.2, speed: 4.4, spacing: 0.95, gap: 2.6, show: 0.5 },
+    boomerang: { volleys: [[-2.6, 0, 2.6], [-1.3, 1.3]], interval: 0.65, speed: 4.2, swing: 3 },
+    messages: {
+      start: 'CITADEL · BREAK ALL THREE ENERGY VENTS', batteries: 'BREAK ALL THREE ENERGY VENTS', core: 'THE REACTOR IS EXPOSED',
+      overload: 'THE FALL OF THE EMPIRE · WALLS AND SPIRALS', destroyed: 'CITADEL IS FALLING · JUMP',
+      approach: 'THE RUINS ARE WAKING · CITADEL RISES',
+    },
+  },
 };
 
 /** The boss that ends a campaign mission, if any. */
-export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark', 'brood-strike': 'cradle', 'dying-star': 'heliophage', 'final-horizon': 'eclipse' };
+export const MISSION_BOSS: Readonly<Record<MissionId, BossId | null>> = { training: 'warden', bastion: 'bastion', 'deep-bloom': 'veil', 'cold-vector': 'ark', 'brood-strike': 'cradle', 'dying-star': 'heliophage', 'silent-empire': 'citadel', 'final-horizon': 'eclipse' };
 
 export function missionBoss(mission: MissionId | undefined): BossDefinition | null {
   const id = mission ? MISSION_BOSS[mission] : null;

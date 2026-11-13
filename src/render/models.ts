@@ -480,6 +480,10 @@ export function loadUmbraCraft(url: string): Promise<Map<UmbraCraftNode, NacreCr
 export type CoronaCraftNode = 'corona_interceptor' | 'corona_fighter' | 'corona_hunter' | 'corona_carrier' | 'corona_artillery' | 'corona_turret' | 'corona_drone' | 'corona_wraith';
 export const CORONA_CRAFT_NODES: readonly CoronaCraftNode[] = ['corona_interceptor', 'corona_fighter', 'corona_hunter', 'corona_carrier', 'corona_artillery', 'corona_turret', 'corona_drone', 'corona_wraith'];
 export function loadCoronaCraft(url: string): Promise<Map<CoronaCraftNode, NacreCraft>> { return loadCraftNodes(url, CORONA_CRAFT_NODES); }
+/** Nahara's fleet (tools/blender/nahara_fleet.py, docs/39): sandstone-armoured craft over dark frames, turquoise light. */
+export type NaharaCraftNode = 'nahara_skimmer' | 'nahara_hunter' | 'nahara_obelisk' | 'nahara_sunspike' | 'nahara_relic' | 'nahara_battery' | 'nahara_drone';
+export const NAHARA_CRAFT_NODES: readonly NaharaCraftNode[] = ['nahara_skimmer', 'nahara_hunter', 'nahara_obelisk', 'nahara_sunspike', 'nahara_relic', 'nahara_battery', 'nahara_drone'];
+export function loadNaharaCraft(url: string): Promise<Map<NaharaCraftNode, NacreCraft>> { return loadCraftNodes(url, NAHARA_CRAFT_NODES); }
 
 /** Nodes in khepri-craft.glb (art/khepri-craft): the Khepri faction after the KHEPRI concept column. */
 export type KhepriCraftNode = 'khepri_dart' | 'khepri_lancer' | 'khepri_weaver' | 'khepri_turret';
@@ -527,7 +531,7 @@ export function craftFromScene<N extends string>(root: THREE.Object3D, names: re
       const pbrOf: [number, number, number] = /^(brood_|wraith_)/i.test(label)
         ? [material.roughness, material.metalness, glow ? material.emissiveIntensity : 0]
         : glow ? [1, 0, 2.8] : /blade/i.test(label) ? [0.28, 0.6, 0] : /bronze/i.test(label) ? [0.34, 0.75, 0]
-        : /frame/i.test(label) ? [0.42, 0.4, 0] : /plate/i.test(label) ? [0.45, 0.35, 0] : /obsidian/i.test(label) ? [0.12, 0, 0] : [0.26, 0.35, 0];
+        : /frame/i.test(label) ? [0.42, 0.4, 0] : /plate/i.test(label) ? [0.45, 0.35, 0] : /^nahara_stone/i.test(label) ? [0.66, 0.06, 0] : /obsidian/i.test(label) ? [0.12, 0, 0] : [0.26, 0.35, 0];
       const emissive = material.emissive && material.emissive.getHex() !== 0 ? material.emissive : material.color;
       const tint = glow ? emissive : material.color;
       const source = geometry.index ? geometry.toNonIndexed() : geometry.clone();

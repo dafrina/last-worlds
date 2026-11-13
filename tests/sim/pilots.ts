@@ -135,10 +135,13 @@ function perceive(state: RunState): RunState {
 function sweptShallow(state: RunState): Footprint[] {
   const out: Footprint[] = [];
   for (const shot of state.projectiles) {
-    if (shot.friendly || shot.ttl <= 0 || (shot.delay ?? 0) > 0 || shot.vs >= -1e-6 || Math.abs(shot.vx) < Math.abs(shot.vs)) continue;
+    if (shot.friendly || shot.ttl <= 0 || (shot.delay ?? 0) > 0 || shot.vs >= -1e-6) continue;
+    // A curving shot (Boomerang Barrage) follows its constant lateral acceleration: judge its slant where it meets the row.
+    const ax = shot.ax ?? 0, at = (t: number) => shot.x + shot.vx * t + 0.5 * ax * t * t;
+    if (Math.abs(shot.vx + ax * shot.s / -shot.vs) < Math.abs(shot.vs)) continue;
     const reach = VIEW.playerRadius + shot.radius, enter = Math.max(0, (shot.s - reach) / -shot.vs), leave = (shot.s + reach) / -shot.vs;
     if (leave <= 0) continue;
-    const a = shot.x + shot.vx * enter, b = shot.x + shot.vx * leave;
+    const a = at(enter), b = at(leave);
     out.push({ x0: Math.min(a, b) - shot.radius, x1: Math.max(a, b) + shot.radius, t0: state.time + enter, t1: state.time + leave });
   }
   return out;

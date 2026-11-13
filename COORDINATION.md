@@ -925,3 +925,42 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - The klaxon voice is retired.
   - Files: `src/audio/samples.ts`, the pinned hashes in `tests/audio/audio.test.ts`, and `docs/24`.
   - Checks: unit (1032), build, and the audio browser spec (7/7).
+
+**12 November · Claude Code (main session) · Nahara expansion STARTING** (user handover).
+- **Scope:**
+  - the 8th world "The Silent Empire" between Corona and Umbra: terrain and a ruin kit after the concept art;
+  - Skimmer and Relic Shield, mechanics on existing models;
+  - Fracture Wave and Boomerang Barrage as reusable boss attacks;
+  - the Citadel, on THE ECLIPSE's rig;
+  - the mission, endless and the Umbra integration.
+  - Music is borrowed for now.
+- **Owned until released:**
+  - new files: `src/world/terrain-nahara.ts`, `tools/blender/nahara_*.py`, `public/assets/nahara/*`, `docs/39-nahara*.md`;
+  - planet and mission wiring: `contracts.ts`, `missions.ts`, `equipment.ts` campaign order, `world-missions.ts`, `encounter-deck.ts`, `formations.ts`, `endless.ts`, `bosses.ts`;
+  - the attack sim and fairness code: `src/sim/attacks.ts`, `bastion.ts`, `fairness.ts`, `game.ts` for the new shots.
+- **Ask before touching these files.**
+
+**13 November · Claude Code (main session) · Nahara releasing (user: "Deploy what we have").**
+- **Contents:**
+  - the eighth world with its mission, enemies, attacks, boss stand-in and endless place;
+  - terrain, the ruin kit, the fleet, strike sites (Step Temple) and music (docs/39).
+- **Shared edits:**
+  - `src/render/terrain-kit.ts`: wall maps, the strata share, triplanar kit, crease;
+  - `src/world/terrain.ts`: `strata`, sun-side apron and march;
+  - `src/render/scene.ts`: Nahara look, fleet, sun side;
+  - `src/audio/*`: Nahara's score, voices and the success ring;
+  - `tools/blender/strike_sites.py`: Nahara finish, Step Temple, `--finish=`;
+  - `src/render/surface-finish.ts`: uniforms exposed.
+- **Released after this deploy:** everything listed in the 12 November entry.
+
+**13 November · Claude Code (main session) · Nahara deploying with THE CITADEL** (user: "deploy i think thats good enough for now").
+- **Contents:**
+  - the Nahara release above, plus THE CITADEL built of the ruin kit (`tools/blender/nahara_citadel.py`);
+  - its canyon arena (`src/world/terrain-nahara.ts`: `naharaPlatform`, `citadelCourse`, `citadelRuins`);
+  - the Wraith's teleport rim on Nahara.
+- **Shared edits:**
+  - `ScatterField.arena` (`src/world/scenery-kit.ts`, `terrain.ts`);
+  - `CITADEL_STYLE.footprint` (`veil-view.ts`);
+  - the Nahara line in `tests/world/terrain-route.test.ts`.
+- **Excluded:** `.claude/`, `art/concepts/hero-crops/`, `hero-modular/`, `nacre-refinement/` and `art/key-art/`
+  (untracked, not mine); the `perf-pass` stash.

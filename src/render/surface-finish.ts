@@ -30,9 +30,12 @@ function finishTexture(kind: 'metal' | 'stone'): THREE.DataTexture {
 export function applySurfaceFinish<T extends THREE.MeshStandardMaterial>(material: T, kind: 'metal' | 'stone' = 'metal', scale = 1, relief = .012): T {
   const texture = finishTexture(kind), previous = material.onBeforeCompile, previousKey = material.customProgramCacheKey.bind(material);
   const key = previousKey();
+  // Shared with the material's programs, so a world can retune the finish (material.userData.surfaceFinish) without a recompile.
+  const uniforms = { finishMap: { value: texture }, finishScale: { value: scale }, finishRelief: { value: relief } };
+  material.userData.surfaceFinish = uniforms;
   material.onBeforeCompile = (shader, renderer) => {
     previous.call(material, shader, renderer);
-    Object.assign(shader.uniforms, { finishMap: {value: texture}, finishScale: {value: scale}, finishRelief: {value: relief} });
+    Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFinishPosition; varying vec3 vFinishNormal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFinishPosition = position; vFinishNormal = normal;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D finishMap; uniform float finishScale; uniform float finishRelief; varying vec3 vFinishPosition; varying vec3 vFinishNormal;');

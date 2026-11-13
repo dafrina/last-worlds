@@ -6,6 +6,7 @@ import { VEIL } from '../content/veil';
 import { CRADLE } from '../content/cradle';
 import { ECLIPSE } from '../content/eclipse';
 import { HELIOPHAGE } from '../content/heliophage';
+import { CITADEL } from '../content/citadel';
 import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import { retainBossMaterials } from './approved-boss-materials';
@@ -59,12 +60,14 @@ const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
  * combat sockets; each has its own node prefix, shutter opening and spark colour.
  */
 export interface CarrierStyle {
-  id: 'veil' | 'cradle' | 'eclipse' | 'heliophage';
+  id: 'veil' | 'cradle' | 'eclipse' | 'heliophage' | 'citadel';
   /** Other bosses this rig stands in for (THE HELIOPHAGE flies THE ECLIPSE until its own model: docs/37). */
   stands?: readonly BossId[];
   name: string; prefix: string; shutterOpen: number; spark: number; hover: number;
   /** It flies in from the top of the screen (its content's entryS) instead of rising out of the ground. */
   fliesIn?: true;
+  /** A building on the ground (THE CITADEL): no breathing bob, no sway of its hull. */
+  still?: true;
   /** The boss's own combat sockets, target plane, arrival and bays (src/content/veil.ts, src/content/cradle.ts). */
   content: { podOffset: number; podS: number; heartS: number; targetHeight: number; arrivalDuration: number; bays: readonly { x: number; s: number }[];
     /** THE ECLIPSE's prow vent (node `<prefix>prow`, `_wreck`): a third first-phase target under its reactor, at x 0. */
@@ -113,6 +116,20 @@ export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HEL
   // Corona's own effects (user, 6 November: the smoke and effects were purple on Corona): white-gold sparks, molten
   // orange flashes, dark ash smoke.
   fx: { spark: 0xffb850, hot: 0xfff2d6, flash: 0xffd9a0, steam: 0x5a4a40, ichor: [0xfff0d0, 0xffa030, 0xff5a1c], ring: 0xffa040 } };
+
+/**
+ * THE CITADEL (tools/blender/approved_citadel.py, docs/39): Nahara's boss, a temple standing on the arena's plateau (no
+ * hover), 16 units wide (x ±8), 8.2 toward the player and 3.9 away from its pivot at the crown, 4.2 tall. It never moves;
+ * it rises out of the ground in place.
+ */
+export const CITADEL_STYLE: CarrierStyle = { id: 'citadel', name: 'THE CITADEL', prefix: 'citadel_', shutterOpen: 0, spark: 0x43d8c8, hover: 0, still: true,
+  content: { podOffset: CITADEL.ventOffset, podS: CITADEL.ventS, heartS: CITADEL.reactorS, targetHeight: CITADEL.targetHeight, arrivalDuration: CITADEL.arrivalDuration, bays: CITADEL.bays,
+    prowS: CITADEL.prowS },
+  // (Only its plaza: the arena round it is its own, its ruins kept off the rock (src/world/terrain-nahara.ts), and a wider
+  // footprint hid the gateway arch and the ruins at its foot.)
+  footprint: { halfWidth: 6.4, front: 5.4, back: 3.0 },
+  // Nahara's own effects: turquoise sparks from the ancient machinery, sandstone dust.
+  fx: { spark: 0x7ff0e2, hot: 0xe8fffa, flash: 0xc8fff4, steam: 0x8a7458, ichor: [0xe8fffa, 0x43d8c8, 0x1a8a80], ring: 0x43d8c8 } };
 
 export async function loadVeilModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
@@ -354,10 +371,11 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       const rise = arriving && !style.fliesIn ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
       const sink = destroyed ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
       // A hovering carrier (THE CRADLE) bobs wider and slower on the air it floats on.
-      const bob = destroyed ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
+      const bob = destroyed || style.still ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
       root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * (rig.approved ? APPROVED_RISE : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
       root.updateMatrixWorld(true);
-      rig.chassis.rotation.set(-sink * .12 + Math.sin(state.time * .6) * .01, 0, sink * .16 + Math.sin(state.time * .45) * .012);
+      const sway = style.still ? 0 : 1;
+      rig.chassis.rotation.set(-sink * .12 + Math.sin(state.time * .6) * .01 * sway, 0, sink * .16 + Math.sin(state.time * .45) * .012 * sway);
       if ((arriving && rise > .05) || (destroyed && sink > 0 && sink < 1)) for (let k = 0; k < 3; k++) if (hash(state.time * 37 + k) < 22 * dt) {
         steam(local((hash(state.time + k) - .5) * 16, -root.position.y + placement.baseHeight + .1, (hash(state.time + k + 1) - .5) * 15 - 1), state.time * 41 + k, 1.6);
       }

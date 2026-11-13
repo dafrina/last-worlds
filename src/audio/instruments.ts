@@ -11,13 +11,16 @@ import { cents, drive, finish, midi, OnePole, Pulse, Rotor, Saw, seedOf, Svf, TA
 export type LevelInstrument = 'kick' | 'snare' | 'hat' | 'bass' | 'glass'
   | 'bloom-pad' | 'foundry-bass' | 'saw-lead' | 'piano' | 'round-bass' | 'brush'
   | 'breath-pad' | 'nerve' | 'bio-bass' | 'heart' | 'bone' | 'void-bass' | 'void-tick'
-  | WorldInstrument | CoronaInstrument | UmbraInstrument;
+  | WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument;
 /** Voices added when Luna, Khepri, Nacre, Vesper and Amnion were reworked (11 November, phase 4), and the snappy kick
  * they share. `kick` is now Umbra's alone: its score is frozen, sample for sample. */
 export type WorldInstrument = 'snap-kick' | 'signal' | 'forge-kick' | 'anvil' | 'steam' | 'pearl' | 'frost' | 'crack'
   | 'chitter' | 'night-click';
 /** Corona's own voices (its score was recomposed on 10 November; see score.ts), with a darbuka's doum and tek. */
 export type CoronaInstrument = 'harp' | 'harp-high' | 'solar' | 'bowed' | 'ember' | 'doum' | 'tek';
+/** Nahara's own voices (docs/39; user, 13 November: "now the music for this level"): an ancient horn, a wordless choir,
+ * the stone processional drum, a sistrum and the conduits' crystal. */
+export type NaharaInstrument = 'horn' | 'choir' | 'stone-drum' | 'rattle' | 'conduit';
 /** Umbra's reversed and inharmonic voices (its score was recomposed on 10 November; see score.ts). */
 export type UmbraInstrument = 'inhale' | 'glint' | 'obsidian';
 export type BossInstrument = 'boom' | 'riser' | 'crash' | 'braam' | 'stab' | 'tom' | 'taiko' | 'boss-kick' | 'timpani' | 'spiccato' | 'drive-bass' | 'growl' | 'strings';
@@ -209,7 +212,65 @@ const UMBRA: Record<UmbraInstrument, Patch> = {
   } },
 };
 
-const LEVEL: Record<Exclude<LevelInstrument, WorldInstrument | CoronaInstrument | UmbraInstrument>, Patch> = {
+/**
+ * Nahara's voices: the Silent Empire, an ancient processional. Brass and voices for the empire, stone and bronze for its
+ * ruins, crystal for the turquoise energy still running through them.
+ */
+const NAHARA: Record<NaharaInstrument, Patch> = {
+  // The ancient horn (the melody): three saws a few cents apart through a low-pass that blares open on the attack and
+  // settles, a breath of air at the start, a vibrato that arrives late, as a player's does.
+  horn: { seconds: 1.3, base: 60, rms: .22, window: .5, limit: true, render(out, rate, noise) {
+    const f = midi(60), stack = new Unison(rate, 3, 8, 211), filter = new Svf(rate, 600, 1.1), breath = new Svf(rate, 1400, .9);
+    each(out, rate, (t, i) => {
+      const vibrato = 1 + .004 * Math.sin(TAU * 5.2 * t) * Math.min(1, Math.max(0, (t - .25) / .3));
+      if (i % 32 === 0) filter.set(480 + 1650 * Math.min(1, t / .07) * (.5 + .5 * Math.exp(-t * 3.5)), 1.1);
+      breath.run(noise());
+      const tone = filter.run(stack.next(f * vibrato));
+      return drive(tone * .9 + breath.band * .06 * Math.exp(-t * 6), 1.25) * Math.min(1, t / .05) * Math.min(1, (1.3 - t) / .5);
+    });
+  } },
+  // The wordless choir: a unison stack voiced through three formant bands of an open "ah", swelling in slowly, a faint
+  // breath of air over it.
+  choir: { seconds: 4.4, base: 60, rms: .15, window: 4.4, render(out, rate, noise) {
+    const f = midi(60), stack = new Unison(rate, 5, 12, 307), f1 = new Svf(rate, 720, 5), f2 = new Svf(rate, 1180, 6), f3 = new Svf(rate, 2550, 7);
+    const air = new Svf(rate, 3200, .8);
+    each(out, rate, t => {
+      const s = stack.next(f * (1 + .003 * Math.sin(TAU * 4.6 * t + 1.3)));
+      f1.run(s); f2.run(s); f3.run(s); air.run(noise());
+      return (f1.band + f2.band * .6 + f3.band * .3 + air.band * .03) * Math.min(1, t / 1.1) ** 1.4 * Math.min(1, (4.4 - t) / 1.6);
+    });
+  } },
+  // The stone drum: a great processional drum, its head dropping slowly into a long low boom, a muffled beater.
+  'stone-drum': { seconds: .9, base: 36, rms: .4, window: .2, render(out, rate, noise) {
+    punchKick(out, rate, noise, { from: 96, to: 52, drop: 13, decay: 3.4, click: .3, clickHz: 850, knock: .28, drive: 1.35 });
+  } },
+  // The sistrum: bronze jingles shaken once, four quick rattles of high metal partials and hiss.
+  rattle: { seconds: .35, base: 60, rms: .07, window: .35, render(out, rate, noise) {
+    const modes: [number, number][] = [[3150, 6], [4420, 8], [5930, 11], [7340, 14]], rotors = modes.map(([hz], k) => new Rotor(hz, rate, k));
+    const hiss = new Svf(rate, 6500, 1.2), starts = [0, .028, .061, .1];
+    each(out, rate, t => {
+      let envelope = 0;
+      starts.forEach((start, k) => { if (t >= start) envelope += Math.exp(-(t - start) * 45) * (1 - k * .22); });
+      let v = 0;
+      for (let k = 0; k < modes.length; k++) v += rotors[k].next() * Math.exp(-t * modes[k][1]) / (1 + k * .4);
+      hiss.run(noise());
+      return (v * .3 + hiss.band * .8) * envelope;
+    });
+  } },
+  // The conduit's crystal: a clean struck tone (partials 1, 2, 3 and a hair-sharp 4) beating against a twin six cents
+  // away, a slow shimmer on it, gone in a second.
+  conduit: { seconds: 1, base: 72, rms: .14, window: .4, limit: true, render(out, rate) {
+    const f = midi(72), ratios = [1, 2, 3, 4.02], gains = [1, .45, .2, .12];
+    const rotors = ratios.map((r, k) => new Rotor(f * r, rate, k)), twins = ratios.map((r, k) => new Rotor(f * r * cents(6), rate, k + 4)), shimmer = new Rotor(7.5, rate);
+    each(out, rate, t => {
+      let v = 0;
+      for (let k = 0; k < ratios.length; k++) v += (rotors[k].next() + twins[k].next() * .6) * gains[k] * Math.exp(-t * (3 + k * 3.5));
+      return v * .35 * (1 + .15 * shimmer.next()) * Math.min(1, t / .003);
+    });
+  } },
+};
+
+const LEVEL: Record<Exclude<LevelInstrument, WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument>, Patch> = {
   // Umbra's kick, frozen with its score: a fast pitch drop, a short beater click and saturation that puts its knock in
   // the midrange.
   kick: { seconds: .42, base: 36, rms: .183, window: .4, render(out, rate, noise) {
@@ -599,9 +660,9 @@ const BOSS: Record<BossInstrument, Patch> = {
   } },
 };
 
-const PATCHES: Record<Instrument, Patch> = { ...LEVEL, ...WORLDS, ...CORONA, ...UMBRA, ...BOSS };
+const PATCHES: Record<Instrument, Patch> = { ...LEVEL, ...WORLDS, ...CORONA, ...UMBRA, ...NAHARA, ...BOSS };
 /** Voices added for the recomposed and reworked scores; the older level voices keep their 20 October base notes. */
-export const RECOMPOSED_INSTRUMENTS = [...Object.keys(WORLDS), ...Object.keys(CORONA), ...Object.keys(UMBRA)] as (WorldInstrument | CoronaInstrument | UmbraInstrument)[];
+export const RECOMPOSED_INSTRUMENTS = [...Object.keys(WORLDS), ...Object.keys(CORONA), ...Object.keys(UMBRA), ...Object.keys(NAHARA)] as (WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument)[];
 export const LEVEL_INSTRUMENTS = [...Object.keys(LEVEL), ...RECOMPOSED_INSTRUMENTS] as LevelInstrument[];
 export const BOSS_INSTRUMENTS = Object.keys(BOSS) as BossInstrument[];
 export const isInstrument = (id: string): id is Instrument => id in PATCHES;

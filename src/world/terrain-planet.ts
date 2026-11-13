@@ -12,6 +12,7 @@ import { NACRE } from './terrain-nacre';
 import { AMNION } from './terrain-amnion';
 import { UMBRA } from './terrain-umbra';
 import { CORONA } from './terrain-corona';
+import { NAHARA } from './terrain-nahara';
 import { districtSettlement } from './terrain-districts';
 import { KHEPRI_DISTRICTS, type DistrictPolicy } from './settlement-grammars';
 import { SCENERY_MAX_HEIGHT, clamp, mix } from './terrain-layout';
@@ -93,6 +94,12 @@ export interface PlanetProfile {
    * pre-district output (rollback switch: `KHEPRI.districts = null`).
    */
   districts?: DistrictPolicy | null;
+  /**
+   * The sun behind the ship (user, 13 November: two choices only): false or absent, ahead and to the left (10:30 on the
+   * screen, shadows falling toward the lower right, every world's light until then); true, behind and to the left (7:30,
+   * shadows falling up the screen to the right). Both diagonals, so the baked shadow march stays on the grid's diagonals.
+   */
+  sunBehind?: boolean;
 }
 
 export const KHEPRI: PlanetProfile = {
@@ -116,7 +123,14 @@ export const KHEPRI: PlanetProfile = {
   districts: KHEPRI_DISTRICTS, cliffs: true,
 };
 
-export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE, amnion: AMNION, corona: CORONA, umbra: UMBRA };
+export const PLANETS: Readonly<Record<PlanetId, PlanetProfile>> = { khepri: KHEPRI, vesper: VESPER, luna: LUNA, nacre: NACRE, amnion: AMNION, corona: CORONA, nahara: NAHARA, umbra: UMBRA };
+
+/** Look-dev overrides of a world's sun side (the playground's Look tab); empty in the game. */
+const sunSides = new Map<PlanetId, boolean>();
+/** Whether a world's sun stands behind the ship (PlanetProfile.sunBehind, or the playground's override). */
+export function sunBehind(planet: PlanetId): boolean { return sunSides.get(planet) ?? PLANETS[planet].sunBehind ?? false; }
+/** Look-dev only: overrides a world's sun side (null restores its own). Terrain built before keeps its old shading. */
+export function setSunBehind(planet: PlanetId, behind: boolean | null): void { if (behind === null) sunSides.delete(planet); else sunSides.set(planet, behind); }
 
 /**
  * What the generator is asked for: a planet and an optional mission arena. A bare arena (the pre-planet API)

@@ -28,14 +28,14 @@ describe('the level scores are the approved compositions, changed only where the
     // (user: "just relax the amount of notes, simpler melodies"; Corona "more mysterious ... not so happy"): fewer,
     // plainer notes everywhere but Umbra, and Corona over a drone.
     const approved: Record<PlanetId, [string, number]> = {
-      luna: ['e74f0442', 457], khepri: ['77f4f3dd', 627], nacre: ['94419145', 444], vesper: ['8d3fa594', 195], amnion: ['9a59f964', 378],
+      luna: ['e74f0442', 457], khepri: ['77f4f3dd', 627], nahara: ['36377a12', 457] /* its own, 13 November (docs/39), awaiting the user's listen */, nacre: ['94419145', 444], vesper: ['8d3fa594', 195], amnion: ['9a59f964', 378],
       corona: ['d5d2fdfa', 327], umbra: ['544dfdfb', 542],
     };
     for (const planet of PLANETS) {
       const notes = Array.from({ length: STEPS }, (_, s) => scoreStep(planet, s));
       expect([fnv(JSON.stringify(notes)), notes.flat().length], planet).toEqual(approved[planet]);
     }
-    expect(PLANETS.map(p => THEMES[p].bpm)).toEqual([94, 118, 106, 88, 92, 110, 84]);
+    expect(PLANETS.map(p => THEMES[p].bpm)).toEqual([94, 118, 106, 88, 92, 110, 84, 90]);
   });
   it('keeps Umbra frozen, note for note and sample for sample', () => {
     // The user loved it (11 November). Its 32-bar cycle and every sample it plays are exactly as approved: its kick is
@@ -175,6 +175,7 @@ describe('four musically distinct boss states', () => {
     expect(uses('amnion', 'heart') && uses('amnion', 'bone') && uses('amnion', 'bio-bass') && !uses('amnion', 'taiko')).toBe(true);
     expect(uses('umbra', 'void-tick') && uses('umbra', 'void-bass') && uses('umbra', 'inhale')).toBe(true);
     expect(uses('corona', 'doum') && uses('corona', 'tek')).toBe(true);
+    expect(uses('nahara', 'stone-drum') && uses('nahara', 'rattle')).toBe(true);
     // The spacious worlds keep their core ostinato in eighths.
     for (const planet of ['vesper', 'umbra'] as const) {
       expect(cycle(planet, 2).some((notes, s) => s % 2 === 1 && notes.some(n => n.instrument === 'spiccato')), planet).toBe(false);
@@ -313,8 +314,9 @@ describe('synthesized instruments', () => {
     }
     expect(synthesize('frost')).toEqual(synthesize('frost'));
     // 8.9 MiB before the boss instruments and the recomposed worlds' voices; 12.3 MiB with the 11 November orchestral
-    // voices (taiko, timpani, spiccato) and the longer glass and harp; 13.4 MiB with the reworked worlds' voices.
-    expect(bytes).toBeLessThan(14 * 1024 * 1024);
+    // voices (taiko, timpani, spiccato) and the longer glass and harp; 13.4 MiB with the reworked worlds' voices; 14.3 MiB
+    // with Nahara's own (13 November: its horn, choir, stone drum, sistrum and crystal).
+    expect(bytes).toBeLessThan(15 * 1024 * 1024);
   });
   it('rise to their peak at the very end only for the riser, which must land on a downbeat', () => {
     const riser = synthesize('riser'), quarter = Math.floor(riser.length / 4);

@@ -10,6 +10,7 @@ export const MISSION_PLANET: Readonly<Record<MissionId, PlanetId>> = {
   'cold-vector': 'vesper',
   'brood-strike': 'amnion',
   'dying-star': 'corona',
+  'silent-empire': 'nahara',
   'final-horizon': 'umbra',
 };
 

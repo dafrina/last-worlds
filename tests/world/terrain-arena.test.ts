@@ -22,7 +22,7 @@ describe('mission arena platform', () => {
     }
     expect(terrainHeight(93, 3, 120, ARENA)).toBe(terrainHeight(93, 3, 120));
     expect(terrainHeight(93, 3, ARENA.fromS + ARENA_CLEARING.centre, ARENA)).not.toBe(terrainHeight(93, 3, ARENA.fromS + ARENA_CLEARING.centre));
-  });
+  }, 120_000); // Whole sections per seed: well inside 30 s alone, slower beside the full suite.
 
   it('centres the clearing on every boss: platforms start 9 before the stop, and the boss rows sit in the core', () => {
     for (const boss of Object.values(BOSSES)) {

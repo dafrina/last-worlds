@@ -284,6 +284,8 @@ function* coronaScatterSteps(seed: number, startS: number, size: number, terrain
 export const CORONA: PlanetProfile = {
   ...UMBRA,
   id: 'corona', seaLevel: CORONA_SEA_LEVEL,
+  // (Umbra's sun stands behind the ship since 13 November; Corona keeps the shared one ahead.)
+  sunBehind: false,
   mood: () => 'corona', params: () => NEUTRAL, local: () => null,
   landform: coronaLandform,
   color: coronaColor,

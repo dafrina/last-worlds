@@ -9,7 +9,7 @@ import { fly, perfectPilot } from './pilots';
 
 describe('Brood Strike over Amnion (docs/27)', () => {
   it('follows Deep Bloom and opens Dying Star, over Amnion, against THE CRADLE', () => {
-    expect(CAMPAIGN_ORDER.slice(-4)).toEqual(['deep-bloom', 'brood-strike', 'dying-star', 'final-horizon']);
+    expect(CAMPAIGN_ORDER.slice(-5)).toEqual(['deep-bloom', 'brood-strike', 'dying-star', 'silent-empire', 'final-horizon']);
     expect(MISSION_PLANET['brood-strike']).toBe('amnion');
     expect(missionBoss('brood-strike')?.id).toBe('cradle');
     for (const seed of [1, 2, 3]) expect(resolvePlaylist({ mode: 'campaign', mission: 'brood-strike' }, 1, seed).length).toBeGreaterThan(35);

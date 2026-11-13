@@ -35,7 +35,7 @@ import { attackNow, holdDirector, labClock, spawnFormation, spawnHunter } from '
 import { createModelViewer } from './viewer';
 import { destroySites, hitSites, placeSite, siteSeats, type SiteSpot } from './sites-lab';
 import { SITES } from '../content/sites';
-import { SITE_MODELS } from '../render/site-models';
+import { SITE_MODELS, siteFinish } from '../render/site-models';
 import { SITE_IDS, type SiteId } from '../shared/contracts';
 import { readJson, writeJson } from '../shared/storage';
 import './playground.css';
@@ -48,6 +48,7 @@ const LEVELS: readonly { mission: Mission; name: string; planet: PlanetId }[] = 
   { mission: 'deep-bloom', name: 'Deep Bloom · Nacre', planet: 'nacre' },
   { mission: 'brood-strike', name: 'Brood Strike · Amnion', planet: 'amnion' },
   { mission: 'dying-star', name: 'Dying Star · Corona', planet: 'corona' },
+  { mission: 'silent-empire', name: 'The Silent Empire · Nahara', planet: 'nahara' },
   { mission: 'final-horizon', name: 'Final Horizon · Umbra', planet: 'umbra' },
 ];
 const STORE = 'last-worlds.playground.looks', VIEW_STORE = 'last-worlds.playground.view';
@@ -58,7 +59,7 @@ const range = (path: string, label: string, min: number, max: number, step: numb
 const color = (path: string, label: string): Control => ({ path, label, kind: 'color' });
 const GROUPS: readonly { title: string; controls: readonly Control[] }[] = [
   { title: 'Sun and sky', controls: [
-    range('sunElevation', 'Sun elevation (°)', 10, 85, 1), color('sun.0', 'Sun colour'), range('sun.1', 'Sun intensity', 0, 8, .05),
+    range('sunElevation', 'Sun elevation (°)', 10, 85, 1), range('sunBehind', 'Sun side: 0 ahead-left (10:30) · 1 behind-left (7:30)', 0, 1, 1), color('sun.0', 'Sun colour'), range('sun.1', 'Sun intensity', 0, 8, .05),
     color('hemisphere.0', 'Sky fill colour'), color('hemisphere.1', 'Ground fill colour'), range('hemisphere.2', 'Sky fill intensity', 0, 3, .01),
     color('bounce.0', 'Bounce colour'), range('bounce.1', 'Bounce intensity', 0, 3, .01),
     range('shadowIntensity', 'Shadow strength', 0, 1, .01), color('blobShadow', 'Low-tier shadow colour'), color('background', 'Background'),
@@ -333,8 +334,8 @@ function buildSites() {
     <div class="pg-row pg-wrap"><button type="button" data-site-act="hit">Hit the cores</button><button type="button" data-site-act="destroy">Destroy the cores</button><button type="button" data-site-act="clear">Clear</button></div>
     <p class="pg-note">A site's core is a harmless ground target; the site stands around it in this world's finish and stays, destroyed, after the core falls.</p>
     ${SITE_IDS.map(id => {
-      const model = SITE_MODELS[id], here = SITES[id].worlds.includes(planet) && !!model?.finishes.includes(planet);
-      const note = !model ? 'not modelled yet' : model.finishes.includes(planet) ? `finishes: ${model.finishes.join(', ')}` : `no ${planet} finish (${model.finishes.join(', ')})`;
+      const model = SITE_MODELS[id], here = SITES[id].worlds.includes(planet) && siteFinish(id, planet) !== null;
+      const note = !model ? 'not modelled yet' : siteFinish(id, planet) !== null ? `finishes: ${model.finishes.join(', ')}` : `no ${planet} finish (${model.finishes.join(', ')})`;
       return `<div class="pg-kind${here ? '' : ' is-off'}"><div><strong>${SITES[id].name}</strong> <span class="pg-dim">${note}</span></div>
         <div class="pg-row pg-wrap"><button type="button" data-site="${id}" data-spot="-1">West</button><button type="button" data-site="${id}" data-spot="0">Ahead</button><button type="button" data-site="${id}" data-spot="1">East</button></div></div>`;
     }).join('')}`;

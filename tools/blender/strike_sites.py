@@ -20,7 +20,7 @@ src/render/terrain-kit.ts); foundation blocks fill what is left (src/render/site
 
 Headless (every path Blender sees is a Windows path):
   cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup \\
-    --python '\\\\wsl.localhost\\Ubuntu\\home\\davidfarina\\Projects\\alien-skies\\tools\\blender\\strike_sites.py' -- [--site=crash-site] [--no-export] [--preview]
+    --python '\\\\wsl.localhost\\Ubuntu\\home\\davidfarina\\Projects\\alien-skies\\tools\\blender\\strike_sites.py' -- [--site=crash-site] [--finish=nahara] [--no-export] [--preview]
 --preview renders every finish of each built site from the game camera into lookdev/strike-sites/<site>.png.
 """
 import bpy, math, os, re, sys, random, time
@@ -133,6 +133,13 @@ WORLD = {
                   stone=('#3c3654', .4, .05), stone_dark=('#26222f', .45, .05), obsidian=('#2e2a46', .16, .05),
                   glow=('#140a2a', .5, .2, '#8a6cff'), core_glow=('#140a2a', .35, .1, '#c09cff'), alt_glow=('#140a2a', .4, .1, '#9a6cff'),
                   dim_glow=('#140a2a', .5, .1, '#7a5ce0')),
+    # Nahara (docs/39): the Silent Empire's weathered sandstone, bronze fittings, turquoise light (texture-baked, as Corona's).
+    'nahara': dict(paint=('#c9ab7c', .7, .02), accent=('#7a5a32', .5, .4), metal=('#2a2018', .45, .5), steel=('#6a5a48', .42, .5),
+                   stripe=('#2fd6c4', .5, .1), deck=('#8a7050', .9, .02), asphalt=('#3a2e24', .9, .02), ground=('#9a7a52', .95, .0),
+                   glass=('#141010', .18, .3), canvas=('#bfa47a', .85, .0), stone=('#b8956a', .85, .02), stone_dark=('#6e5238', .85, .02),
+                   obsidian=('#8a6a48', .6, .02),
+                   glow=('#06201e', .5, .2, '#43d8c8'), core_glow=('#06201e', .35, .1, '#7ff0e2'), alt_glow=('#06201e', .4, .1, '#43d8c8'),
+                   dim_glow=('#06201e', .5, .1, '#2fa89c'), prism_glow=('#0e4a46', .1, .1, '#4fe0d4')),
     # Corona (docs/37): charcoal basalt and dark gunmetal, pale ceramic panels, gold plasma glow, a white-gold star.
     # (Ancient and weathered, user 5 November: "they look like toys now. refine them, alien and ancient looking, and also
     # mechanical": dark iron and oxidised bronze, carved stone; the corona finishes are texture-baked, see build_site.)
@@ -555,7 +562,7 @@ def crash_site(world):
                       resin=((P(-.95, -.65).x, P(-.95, -.65).y, .05, .2), (P(.85, .65).x, P(.85, .65).y, .05, .22), (-2.0, 1.1, .02, .18)),
                       eggs=((-1.2, -1.75, 5), (1.5, 1.85, 4)),
                       spikes=((2.55, .5, .85, (.25, -.1)), (-2.7, .9, .75, (-.2, .15)), (.4, 2.1, .65, (.05, .25))))
-    elif world in ('umbra', 'corona'):
+    elif world in ('umbra', 'corona', 'nahara'):
         obsidian_shards(body, rng, ((-2.0, 1.2, 1.1), (1.9, -1.55, .9), (2.55, 1.0, 1.0), (-.6, 2.05, .8), (-2.1, -1.95, .8)))
     return body, core, ruin
 
@@ -1592,10 +1599,68 @@ def star_extractor(world):
     return body, core, ruin
 
 
+# ----------------------------------------------------------------------------- step temple (Nahara)
+def step_temple(world):
+    """Nahara's own site (user, 13 November: "a blocky pyramid, aztec style somewhat but alien too"): a pyramid of five
+    stepped tiers, a stairway climbing its front between sloped balustrades, turquoise seams under every tier's lip, carved
+    recesses in the tier faces, horned blades rising from the summit's corners, a shrine at the back of the summit with a
+    lit doorway, and over the summit's altar the target: a turquoise eye of crystal in a ring of floating shards."""
+    body, core, ruin = Kit(), Kit(), Kit()
+    rng = random.Random(131)
+    C = CORE_HEIGHT['step-temple']
+    tiers = ((2.4, 0.0, .38), (1.98, .38, .76), (1.58, .76, 1.12), (1.2, 1.12, 1.46), (.86, 1.46, 1.78))
+    body.major.box((-2.45, -2.45, -1.1), (2.45, 2.45, 0.0), 'stone_dark', chamfer=.2)
+    for k, (half, z0, z1) in enumerate(tiers):
+        body.major.box((-half, -half, z0), (half, half, z1), 'stone' if k % 2 == 0 else 'obsidian', chamfer=.05)
+        # The turquoise seam under the tier's lip, along its front and sides.
+        B(body, -half - .012, half + .012, -half - .02, -half + .02, z1 - .08, z1 - .05, 'glow')
+        for sx in (-1, 1):
+            B(body, sx * half - .02, sx * half + .02, -half + .02, half - .02, z1 - .08, z1 - .05, 'glow')
+        # Carved recesses in the front face either side of the stairway.
+        for sx in (-1, 1):
+            x = .72
+            while x + .17 < half - .12:
+                B(body, sx * x - .16, sx * x + .16, -half - .016, -half + .006, z0 + .07, z1 - .13, 'stone_dark')
+                x += .44
+    # The stairway up the front, from the ground to the summit, between sloped balustrades with a lit rail.
+    steps, y0, y1, top = 12, -2.4, -.86, 1.78
+    for i in range(steps):
+        a = y0 + (y1 - y0) * i / steps
+        B(body, -.4, .4, a, a + (y1 - y0) / steps + .02, .0, top * (i + 1) / steps, 'stone')
+    for sx in (-1, 1):
+        beam(body, (sx * .5, y0 - .02, .22), (sx * .5, y1 + .1, top + .16), .16, .22, 'obsidian', minor=False)
+        beam(body, (sx * .5, y0 - .02, .35), (sx * .5, y1 + .1, top + .29), .05, .04, 'glow')
+    # The summit: the altar under the eye, the shrine at the back, horned blades at the corners.
+    cyl(body, 0, -.05, .3, top, top + .16, 'obsidian', seg=8)
+    disc(body, 0, -.05, .2, top + .16, top + .18, 'glow', seg=8)
+    B(body, -.56, .56, .3, .84, top, 2.5, 'stone')
+    B(body, -.66, .66, .22, .92, 2.5, 2.64, 'obsidian')
+    B(body, -.18, .18, .28, .31, top, 2.28, 'glow')
+    for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
+        blade(body, (sx * .72, sy * .72, top - .02), (sx * 1.18, sy * 1.12, 2.86), (sx * 1.02, sy * .98, 2.32), .17, 'obsidian', thin=.4, steps=5, phase=sx + sy)
+    # Fallen blocks at the pyramid's feet.
+    for x, y, yaw in ((-2.65, 1.6, .4), (2.6, 2.3, -.3), (-1.9, -2.75, .8)):
+        obox(body, x, y, .2, .16, .0, .3, yaw, 'stone', tilt=.25)
+    # The eye (the core): a crystal heart in a ring of floating shards.
+    crystal(core, (0, -.05, C), .72, .26, 'prism_glow', seg=6, waist=0, bottom=.5)
+    crystal(core, (0, -.11, C), .38, .13, 'core_glow', seg=6, waist=0, bottom=.26, phase=.5)
+    for k in range(6):
+        a = TAU * k / 6
+        crystal(core, (math.cos(a) * .52, -.05 + math.sin(a) * .52, C - .05), .26, .06, 'core_glow', seg=4, waist=0, bottom=.18)
+    # Destroyed: the eye shattered over the altar, a scorch down the stairway, thrown blocks.
+    for k in range(7):
+        a = TAU * k / 7 + rng.uniform(-.3, .3)
+        shard(ruin, (math.cos(a) * .22, -.05 + math.sin(a) * .22, top + .16), rng.uniform(.16, .32), rng.uniform(.06, .1), 'obsidian', rng, lean=.9)
+    scorch(ruin, rng, 0, -1.4, .9)
+    wreckage(ruin, rng, 0, -1.0, .9, 1.8, 8, mats=('stone_dark', 'stone', 'scorch'), embers=2, z=.3)
+    return body, core, ruin
+
+
 BUILDERS = {'crash-site': crash_site, 'airfield': airfield, 'salvage-yard': salvage_yard, 'shield-depot': shield_depot,
             'relay-station': relay_station, 'freight-terminal': freight_terminal, 'dark-spaceport': dark_spaceport,
             'prism-reactor': prism_reactor, 'sealed-vault': sealed_vault, 'gate-ring': gate_ring, 'brood-hive': brood_hive,
-            'spawning-pool': spawning_pool, 'star-extractor': star_extractor, 'star-cage': star_cage}
+            'spawning-pool': spawning_pool, 'star-extractor': star_extractor, 'star-cage': star_cage,
+            'step-temple': step_temple}
 
 
 # ----------------------------------------------------------------------------- build, check, export
@@ -1762,9 +1827,11 @@ def separate_coplanar(ob, lift=.005):
     return len(raise_by)
 
 
-def build_site(site, spec, sc):
+def build_site(site, spec, sc, only_finishes=()):
     out = {}
     for world in spec['finishes']:
+        if only_finishes and world not in only_finishes:
+            continue
         mats = materials(world)
         kits = BUILDERS[site](world)
         name = 'site_%s_%s' % (site.replace('-', '_'), world)
@@ -1780,10 +1847,11 @@ def build_site(site, spec, sc):
             print('SITES %s/%s: %d coplanar faces lifted' % (site, world, moved))
         br.bake_ao([objects['body'], objects['core']], [objects['body'], objects['core']], strength=.8, reach=1.6, ground=0.0, rays=24)
         br.bake_ao([objects['ruin']], [objects['body'], objects['ruin']], strength=.8, reach=1.6, ground=0.0, rays=24)
-        if world == 'corona':
-            # Corona's sites are texture-baked (user, 5 November: "they look like toys now ... alien and ancient looking"):
+        if world in ('corona', 'nahara'):
+            # Corona's and Nahara's sites are texture-baked (Nahara's weathered sandstone, boss_remodel STYLES['nahara']);
+            # Corona's (user, 5 November: "they look like toys now ... alien and ancient looking"):
             # plated, seamed, ash-dusted, soot-streaked, their edges worn to bronze (boss_remodel STYLES['corona']).
-            br.texture_bake(list(objects.values()), name, 'corona', size=1024, samples=6)
+            br.texture_bake(list(objects.values()), name, world, size=1024, samples=6)
         out[world] = objects
     return out
 
@@ -1811,6 +1879,8 @@ def preview(site, finishes, sc, ruin=False):
 def main():
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     only = [a.split('=', 1)[1] for a in args if a.startswith('--site=')]
+    # --finish=<world> builds (and exports) only that world's finishes: the other worlds' files stay as they are.
+    finish_only = [a.split('=', 1)[1] for a in args if a.startswith('--finish=')]
     spec_all = registry()
     os.makedirs(OUT, exist_ok=True)
     report, failed = [], []
@@ -1820,7 +1890,9 @@ def main():
         started = time.time()
         sc = br.scene('strike_sites')
         spec = spec_all[site]
-        finishes = build_site(site, spec, sc)
+        if finish_only and not set(finish_only) & set(spec['finishes']):
+            continue
+        finishes = build_site(site, spec, sc, finish_only)
         for world, objects in finishes.items():
             problems, (lo, hi) = check(site, spec, objects)
             tris = {part: br.triangles([ob]) for part, ob in objects.items()}

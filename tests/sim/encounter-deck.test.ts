@@ -32,10 +32,10 @@ describe('encounter deck: resolution', () => {
   });
 
   it('resolves endless per sector: a later visit to the same stage is drawn again', () => {
-    // Sectors 20 and 21 both fly Khepri's peak stage (the second lap, after Umbra).
-    expect(deckTemplate({ mode: 'endless' }, 20)).toBe(deckTemplate({ mode: 'endless' }, 21));
-    expect(resolvePlaylist({ mode: 'endless' }, 20, 5)).not.toEqual(resolvePlaylist({ mode: 'endless' }, 21, 5));
-    expect(resolvePlaylist({ mode: 'endless' }, 20, 5)).toEqual(resolveTemplate(ENDLESS_DECKS.khepriPeak, 5, 20));
+    // Sectors 23 and 24 both fly Khepri's peak stage (the second lap, after Umbra; Nahara joined the cycle 12 November).
+    expect(deckTemplate({ mode: 'endless' }, 23)).toBe(deckTemplate({ mode: 'endless' }, 24));
+    expect(resolvePlaylist({ mode: 'endless' }, 23, 5)).not.toEqual(resolvePlaylist({ mode: 'endless' }, 24, 5));
+    expect(resolvePlaylist({ mode: 'endless' }, 23, 5)).toEqual(resolveTemplate(ENDLESS_DECKS.khepriPeak, 5, 23));
     for (let sector = 1; sector <= 40; sector++) expect(deckTemplate({ mode: 'endless' }, sector).world, `sector ${sector}`).toBe(endlessPlanet(sector));
   });
 
@@ -245,10 +245,10 @@ describe('encounter deck: content', () => {
       SITE_COUNT.forEach(({ count, weight }) => expect(Math.abs(counts[count] / SEEDS.length - weight), `${deck.id} ${count} sites`).toBeLessThan(0.1));
     }
     // Endless: one site per stage (two in the prologue, Training's side routes; none in the late worlds' pressure stages,
-    // their arcs' middle and climax, which have no recovery to hold one: Nacre's, Amnion's, Corona's and Umbra's). Khepri's stages stand theirs in for a turret battery.
+    // their arcs' middle and climax, which have no recovery to hold one: Nacre's, Amnion's, Corona's, Nahara's and Umbra's). Khepri's stages stand theirs in for a turret battery.
     const sides = (deck: DeckTemplate) => deck.slots.filter(slot => slot.kind === 'side' || (slot.kind === 'pool' && slot.endlessSite)).length;
     for (const [name, deck] of Object.entries(ENDLESS_DECKS)) {
-      expect(sides(deck), name).toBe(name === 'prologue' ? 2 : ['nacrePressure', 'amnionPressure', 'coronaPressure', 'umbraPressure'].includes(name) ? 0 : 1);
+      expect(sides(deck), name).toBe(name === 'prologue' ? 2 : ['nacrePressure', 'amnionPressure', 'coronaPressure', 'naharaPressure', 'umbraPressure'].includes(name) ? 0 : 1);
       for (const seed of SEEDS.slice(0, 50)) expect(resolveTemplate(deck, seed).filter(cue => cue.site).length, `${name}/${seed}`).toBe(sides(deck));
     }
     for (const name of ['khepriOpening', 'khepriPressure', 'khepriPeak'] as const) expect(ENDLESS_DECKS[name].slots.some(slot => slot.kind === 'side'), name).toBe(false);

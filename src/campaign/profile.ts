@@ -18,17 +18,19 @@ export const CAMPAIGN_BACKUP_KEY = 'last-worlds.campaign.v1.backup';
 export const CAMPAIGN_V2_BACKUP_KEY = 'last-worlds.campaign.v2.backup';
 /** The backup of a version-3 save (before the 3 November 2026 shop and selected levels), written once before its migration. */
 export const CAMPAIGN_V3_BACKUP_KEY = 'last-worlds.campaign.v3.backup';
-const BACKUP_KEYS: Readonly<Record<number, string>> = { 1: CAMPAIGN_BACKUP_KEY, 2: CAMPAIGN_V2_BACKUP_KEY, 3: CAMPAIGN_V3_BACKUP_KEY };
-export const PROFILE_VERSION = 4;
+/** The backup of a version-4 save (before The Silent Empire joined the campaign order, 12 November 2026). */
+export const CAMPAIGN_V4_BACKUP_KEY = 'last-worlds.campaign.v4.backup';
+const BACKUP_KEYS: Readonly<Record<number, string>> = { 1: CAMPAIGN_BACKUP_KEY, 2: CAMPAIGN_V2_BACKUP_KEY, 3: CAMPAIGN_V3_BACKUP_KEY, 4: CAMPAIGN_V4_BACKUP_KEY };
+export const PROFILE_VERSION = 5;
 export type Slot = 'weapon' | 'special' | 'shield' | 'ship';
 export type ItemId = WeaponId | SpecialId | ShieldTechId | ShipId;
 export interface MissionRecord { clears: Record<Difficulty, number>; best: Partial<Record<Difficulty, number>>; firstClearPaid: boolean }
 export interface CampaignProfile {
   /**
-   * 4 since 3 November 2026 (the shop in both currencies, selected weapon levels, the Seeker Rack as the free starter);
-   * versions 3, 2 and 1 are migrated on load.
+   * 5 since 12 November 2026 (The Silent Empire inserted before Final Horizon, `opened`); 4 since 3 November 2026 (the shop
+   * in both currencies, selected weapon levels, the Seeker Rack as the free starter); versions 4 to 1 are migrated on load.
    */
-  version: 4;
+  version: 5;
   credits: number;
   /** Parts (docs/33): the campaign's second, rare currency, from strike sites; ships, upgrades, specials and designs take them. */
   parts: number;
@@ -60,6 +62,11 @@ export interface CampaignProfile {
    * migration unchanged. Named `missionBoard` because `missions` already holds the campaign's mission clears.
    */
   missionBoard?: MissionSave;
+  /**
+   * Missions a migration keeps open whatever the order: ones a save had unlocked before a mission was inserted ahead of them
+   * (Final Horizon for a save that had cleared Dying Star before The Silent Empire existed, docs/39). Absent when none.
+   */
+  opened?: MissionId[];
 }
 /** The mission system's saved state: its shape belongs to that system (src/campaign/missions*.ts), not to the profile. */
 export type MissionSave = unknown;
@@ -98,7 +105,7 @@ export const affords = (profile: CampaignProfile, price: Price) => profile.credi
 
 export function freshProfile(): CampaignProfile {
   return {
-    version: 4, credits: 0, parts: 0,
+    version: 5, credits: 0, parts: 0,
     owned: { weapon: [STARTER.weapon], special: [STARTER.special], shield: [STARTER.shield], ship: [STARTER.ship] },
     ranks: { pulse: 0, fan: 0, seeker: 0, rail: 0 }, selected: { pulse: 0, fan: 0, seeker: 0, rail: 0 },
     loadout: { ...STARTER }, missions: {}, receipts: [],
@@ -142,19 +149,26 @@ function wellFormed(data: CampaignProfile, rules: SaveRules): boolean {
   const receiptsValid = Array.isArray(data?.receipts) && data.receipts.every(r => r && typeof r.id === 'string' && count(r.total) && (r.parts === undefined || count(r.parts)));
   // Paid one-time rewards guard against paying twice: a malformed list makes the save unreadable rather than guessed at.
   const awardsValid = data?.awards === undefined || (Array.isArray(data.awards) && data.awards.every(id => typeof id === 'string'));
+  const openedValid = data?.opened === undefined || (Array.isArray(data.opened) && data.opened.every(id => (CAMPAIGN_ORDER as readonly string[]).includes(id)));
   return count(data?.credits) && (!rules.parts || count(data.parts)) && ownedValid && loadoutValid && ranksValid && selectedValid
-    && missionsValid && receiptsValid && awardsValid;
+    && missionsValid && receiptsValid && awardsValid && openedValid;
 }
 
 /** Reads a save of any supported version as the current one; throws for anything unreadable or unknown. */
 function decode(raw: string): CampaignProfile {
   const data = JSON.parse(raw) as CampaignProfile;
   const version = data?.version as number;
+  const rules: SaveRules = { slots: SLOT_ITEMS, starter: STARTER, maxRank: MAX_RANK, parts: true, selected: true };
   if (version === PROFILE_VERSION) {
-    if (!wellFormed(data, { slots: SLOT_ITEMS, starter: STARTER, maxRank: MAX_RANK, parts: true, selected: true })) throw unsupported();
+    if (!wellFormed(data, rules)) throw unsupported();
     return cleanLooks(data);
   }
-  if (version === 3 || version === 2 || version === 1) return cleanLooks(toVersion4(toVersion3(data)));
+  if (version === 4) {
+    // Version 4 had no `opened`: one there is not a version-4 save.
+    if (data.opened !== undefined || !wellFormed(data, rules)) throw unsupported();
+    return cleanLooks(toVersion5(data));
+  }
+  if (version === 3 || version === 2 || version === 1) return cleanLooks(toVersion5(toVersion4(toVersion3(data))));
   throw unsupported();
 }
 
@@ -194,13 +208,28 @@ function toVersion3(data: CampaignProfile): CampaignProfile {
  */
 function toVersion4(data: CampaignProfile): CampaignProfile {
   const migrated = structuredClone(data);
-  migrated.version = 4;
+  (migrated as { version: number }).version = 4;
   migrated.selected = { ...migrated.ranks };
   if (!migrated.owned.special.includes(STARTER.special)) migrated.owned.special.push(STARTER.special);
   for (const ship of SHIP_IDS) {
     const pieces = V3_CHASSIS_PIECES[ship];
     if (pieces && !migrated.owned.ship.includes(ship) && pieces.every(mission => cleared(migrated, mission))) migrated.owned.ship.push(ship);
   }
+  return migrated;
+}
+
+/** The campaign order before The Silent Empire (versions 1-4). */
+const ORDER_V4: readonly MissionId[] = CAMPAIGN_ORDER.filter(mission => mission !== 'silent-empire');
+/**
+ * Version 4 → 5 (The Silent Empire inserted before Final Horizon, 12 November 2026), removing and locking nothing: every
+ * mission the save had open under the old order stays open (`opened`, only when the new order alone would close one).
+ */
+function toVersion5(data: CampaignProfile): CampaignProfile {
+  const migrated = structuredClone(data) as CampaignProfile;
+  (migrated as { version: number }).version = 5;
+  const before = unlockedIn(migrated, ORDER_V4), now = new Set(unlockedMissions(migrated));
+  const kept = before.filter(mission => !now.has(mission));
+  if (kept.length) migrated.opened = kept;
   return migrated;
 }
 
@@ -229,9 +258,17 @@ export const lookOf = (profile: CampaignProfile, ship: ShipId): HeroLook => prof
 
 /** Which missions can be launched: Training always; each later one once the mission before it has been cleared. */
 export function unlockedMissions(profile: CampaignProfile): MissionId[] {
+  return unlockedIn(profile, CAMPAIGN_ORDER);
+}
+function unlockedIn(profile: CampaignProfile, order: readonly MissionId[]): MissionId[] {
   const open: MissionId[] = [];
-  for (const [index, mission] of CAMPAIGN_ORDER.entries()) {
-    if (index === 0 || cleared(profile, CAMPAIGN_ORDER[index - 1])) open.push(mission); else break;
+  const kept = (mission: MissionId) => profile.missions[mission] !== undefined || !!profile.opened?.includes(mission);
+  for (const [index, mission] of order.entries()) {
+    // Open once the mission before it is cleared, or if the pilot already has a record on it or a migration kept it open: a
+    // mission added in the middle of the order (The Silent Empire before Final Horizon, 12 November, docs/39) never locks
+    // one already reached.
+    if (index === 0 || cleared(profile, order[index - 1]) || kept(mission)) open.push(mission);
+    else if (!order.slice(index + 1).some(kept)) break;
   }
   return open;
 }

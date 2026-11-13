@@ -8,6 +8,7 @@ import {
   type RouteSwap, type TerrainSection,
 } from '../../src/world/terrain';
 import { SEED, jumps, route, schedule } from './terrain-route-setup';
+import { CITADEL_AT } from '../../src/world/terrain-nahara';
 
 /*
  * The campaign byte-identity and the jump-speed streaming checks run in parallel files (docs/38 T1):
@@ -49,8 +50,8 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
 
   it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water, the late worlds\' arenas', () => {
     const arenas = schedule.arenas(0, 16000);
-    expect(arenas.map(arena => arena.boss).slice(0, 8)).toEqual(['warden', 'bastion', 'ark', 'veil', 'cradle', 'heliophage', 'eclipse', 'bastion']);
-    for (const arena of arenas.slice(0, 7)) for (let s = arena.from + 0.5; s < arena.to; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
+    expect(arenas.map(arena => arena.boss).slice(0, 9)).toEqual(['warden', 'bastion', 'ark', 'veil', 'cradle', 'heliophage', 'citadel', 'eclipse', 'bastion']);
+    for (const arena of arenas.slice(0, 8)) for (let s = arena.from + 0.5; s < arena.to; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
       // The boss clearing (its core oval); the planet's own terrain carries on around it.
       if (!inArenaCore({ fromS: arena.from, toS: arena.to }, x, s)) continue;
       const height = terrainHeight(SEED, x, s, route);
@@ -65,7 +66,16 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       // Umbra's abyss: nothing in the core above the plateau. Corona keeps its own islands and plasma, levelled of mesas.
       else if (arena.planet === 'umbra') expect(height).toBeLessThan(UMBRA_PLATEAU + 0.05);
       else if (arena.planet === 'corona') expect(height).toBeLessThan(UMBRA_PLATEAU + 0.3);
+      // Nahara: THE CITADEL stands on its own rock in a canyon, not in the common clearing (docs/39); checked below.
+      else if (arena.planet === 'nahara') continue;
       else expect(height).toBeLessThan(SEA - 0.5);
+    }
+    // THE CITADEL's rock is flat at the plateau under the temple (its origin 9 + its row past the arena's start), and its
+    // canyon falls away beside it.
+    for (const arena of arenas.slice(0, 8).filter(arena => arena.planet === 'nahara')) {
+      const o = arena.from + CITADEL_AT;
+      for (const [x, ds] of [[0, 0], [-4, -4], [4, -4], [0, 2.5], [-5.5, -5], [5, -1.5]]) expect(Math.abs(terrainHeight(SEED, x, o + ds, route) - UMBRA_PLATEAU)).toBeLessThan(0.02);
+      expect(terrainHeight(SEED, 0, o - 8.5, route)).toBeLessThan(UMBRA_PLATEAU - 2);
     }
   });
 

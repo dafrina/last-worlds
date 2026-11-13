@@ -8,6 +8,7 @@ These files are byte-for-byte copies of the GLBs supplied by the user on 20 Octo
 | `futuristic tank 3d model.glb` | `futuristic-tank-original.glb` | BASTION-9 |
 | `futuristic starship 3d model.glb` | `futuristic-starship-original.glb` | HELION ARK, a waterborne vessel |
 | `alien hive 3d model.glb` (Tripo, 23 October 2026) | `cradle-tripo-original.glb` | THE CRADLE: shape and proportion reference only; the boss is rebuilt cleanly over it |
+| fantasy temple citadel (Tripo, 13 November 2026) | `citadel-tripo-original.glb` | THE CITADEL: shape guide only; the boss is built of Nahara's ruin kit (`tools/blender/nahara_citadel.py`) |
 
 Hashes were checked against the files in the user's Downloads folder. [The manifest](../../approved-bosses/manifest.json) records the exact SHA-256 hashes. The source GLBs carry their original 4096² textures; working runtime exports use separate resized copies. No external generation or source download is involved.
 

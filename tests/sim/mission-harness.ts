@@ -127,8 +127,9 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
     if (loadout.rule.kind === 'complete' && loadout.rule.rank !== undefined) attempt.rank = loadout.rule.rank;
   }
   // Sunburn (THE HELIOPHAGE within 60 s) needs an upgraded weapon: a level-3 one takes 61-75 s on Standard, a top-level
-  // Rail Driver 40-54 s (6 November). By world six a player has one.
-  if (visible.some(def => def.id === 'corona.sunburn')) attempt.rank = MAX_RANK;
+  // Rail Driver 40-54 s (6 November). By world six a player has one. Vent Breaker (CITADEL's three vents within 45 s) too:
+  // a level-3 Rail Driver takes 49-55 s on Standard, a top-level Twin Pulse or Fan Cannon 20-26 s (12 November).
+  if (visible.some(def => def.id === 'corona.sunburn' || def.id === 'nahara.vent-breaker')) attempt.rank = MAX_RANK;
   // A burst of air kills in a few seconds (Interceptor Drill, Solar Wind): the Fan Cannon's spread, as a player would pick.
   else if (!loadout && visible.some(def => def.rule.kind === 'air' && def.rule.window !== undefined)) {
     attempt.weapon = 'fan'; attempt.rank = MAX_RANK;

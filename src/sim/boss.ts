@@ -8,7 +8,7 @@ import { ENDLESS_CYCLE } from '../content/endless';
 import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, bossParts, missionBoss, phaseOneParts, type BossDefinition } from '../content/bosses';
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
 import { bossPartOffset, bossPose } from './motion';
-import { BOSS_BEAM, SHOT_TTL, bossShots } from './attacks';
+import { BOSS_BEAM, bossShots, hostileShot } from './attacks';
 import { admitFootprints, pendingAttackFootprints, type Footprint } from './fairness';
 import { bossShotScale, runScale, spawnMembers } from './spawn';
 import { observe } from './events';
@@ -234,7 +234,8 @@ function pullBoss(state: RunState, boss: NonNullable<RunState['boss']>, dt: numb
   // How long the view has held none of its live targets.
   if (!targets.length || targets.some(enemy => visible(state, enemy))) boss.hiddenSince = undefined;
   else boss.hiddenSince ??= state.time;
-  if (!fighting || boss.attack || state.time < (boss.holdUntil ?? 0) || state.hazards.some(hazard => hazard.source === undefined)) { boss.driftVx = 0; return; }
+  // (A stationary boss, a temple on its ground, never moves: its targets stay where it stands.)
+  if (!fighting || bossDef(state).stationary || boss.attack || state.time < (boss.holdUntil ?? 0) || state.hazards.some(hazard => hazard.source === undefined)) { boss.driftVx = 0; return; }
   const { speed, acceleration, braking, patience } = DRIFT.boss;
   let goal = 0;
   // A target would be in view with the post at home (x 0): ease back there.
@@ -289,8 +290,7 @@ function emit(state: RunState, enemy: Enemy) {
   if (boss.attack && boss.attack !== 'beam') {
     const shots = bossShots(bossDef(state), boss.attack, enemy.x, enemy.s, enemy.aimX, bossShotScale(state), enemy.bossPart === 'core');
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
-    for (const shot of shots) state.projectiles.push({ id: state.nextId++, x: shot.x, s: shot.s, previousX: shot.x, previousS: shot.s,
-      vx: shot.vx, vs: shot.vs, friendly: false, damage: 1, radius: shot.radius, ttl: SHOT_TTL, ...(shot.delay ? { delay: shot.delay } : {}) });
+    for (const shot of shots) state.projectiles.push(hostileShot(state.nextId++, shot));
   }
 }
 
@@ -307,6 +307,22 @@ function updateLaunches(state: RunState): void {
   spawnMembers(state, def.launches.template, boss.x, 1, boss.s);
   boss.launchesLeft -= 1;
   boss.nextLaunchAt = state.time + def.launches.interval;
+}
+
+/**
+ * How long a released pattern keeps leaving the boss: a spiral's streams (and its rest), a Fracture Wave's later walls, a
+ * Boomerang Barrage's later volleys. Its next attack waits this long on top of its recovery.
+ */
+function patternLength(def: BossDefinition, attack: NonNullable<RunState['boss']>['attack']): number {
+  if (attack === 'spiral' && def.spiral) return def.spiral.duration + (def.spiral.rest ?? 0);
+  if (attack === 'fracture' && def.fracture) return def.fracture.show + (def.fracture.walls - 1) * def.fracture.interval;
+  if (attack === 'boomerang' && def.boomerang) return (def.boomerang.volleys.length - 1) * def.boomerang.interval;
+  return 0;
+}
+
+/** A shot move the boss lacks falls back to its aimed burst. */
+function shotMove(def: BossDefinition, move: 'burst' | 'fan' | 'spiral' | 'fracture' | 'boomerang'): 'burst' | 'fan' | 'spiral' | 'fracture' | 'boomerang' {
+  return move === 'fan' && !def.fan || move === 'spiral' && !def.spiral || move === 'fracture' && !def.fracture || move === 'boomerang' && !def.boomerang ? 'burst' : move;
 }
 
 export function updateBoss(state: RunState, dt: number): void {
@@ -367,7 +383,7 @@ export function updateBoss(state: RunState, dt: number): void {
     }
     attacker.warning = Math.max(0, attacker.warning - dt);
     if (attacker.warning === 0) {
-      const spiral = bossDef(state).spiral, unwinding = boss.attack === 'spiral' && spiral ? spiral.duration + (spiral.rest ?? 0) : 0;
+      const unwinding = patternLength(bossDef(state), boss.attack);
       emit(state, attacker); boss.attack = null; boss.attackerId = null;
       boss.nextAttackAt = state.time + unwinding + bossRecovery(state);
     }
@@ -388,9 +404,10 @@ export function updateBoss(state: RunState, dt: number): void {
   const attack = boss.phase === 'batteries'
     ? (def.pairAttack === 'laser' && !bridgeBurst ? 'beam' : 'burst')
     : boss.phase === 'core'
-      ? (def.coreMoves?.[boss.attackIndex % def.coreMoves.length] ?? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst'))
-      : move === 'burst' ? 'burst' : move === 'fan' ? (def.fan ? 'fan' : 'burst') : move === 'spiral' ? (def.spiral ? 'spiral' : 'burst') : 'beam';
-  const aimX = attack === 'beam' ? boss.x : state.player.x;
+      ? shotMove(def, def.coreMoves?.[boss.attackIndex % def.coreMoves.length] ?? (def.coreAttack === 'fan-burst' ? (boss.attackIndex % 2 ? 'burst' : 'fan') : 'burst'))
+      : move === 'core-lane' || move === 'side-lanes' || move === 'cross' ? 'beam' : shotMove(def, move!);
+  // A Fracture Wave's gaps open over the view's columns (src/sim/attacks.ts fractureWave), so it is aimed at the view.
+  const aimX = attack === 'beam' ? boss.x : attack === 'fracture' ? state.cameraX : state.player.x;
   const difficultyWarning = runScale(state).warning;
   const lockedLaser = boss.phase === 'batteries' && def.laser;
   const warning = (attack !== 'beam' ? def.warning : lockedLaser ? def.laser?.warning ?? def.beamWarning : def.beamWarning) + difficultyWarning;

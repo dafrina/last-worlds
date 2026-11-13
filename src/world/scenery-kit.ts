@@ -1,3 +1,4 @@
+import type { TerrainArena } from './terrain-arena';
 import type { MoodParams } from './terrain-layout';
 
 /*
@@ -30,8 +31,10 @@ export type CoronaKitKind = 'corExtractor' | 'corCollector' | 'corHangar' | 'cor
  * basalt (public/assets/khepri/cliff-kit.glb; Luna repaints it grey) and Vesper's fractured ice-shelf walls
  * (public/assets/vesper/cliff-kit.glb).
  */
-export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall' | 'voidWall';
-export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | UmbraKitKind | CoronaKitKind | CliffKitKind;
+/** Nahara's sandstone ruins (nahara-kit.glb, docs/39, tools/blender/nahara_kit.py). */
+export type NaharaKitKind = 'nahTower' | 'nahGate' | 'nahPillar' | 'nahArch' | 'nahSpur' | 'nahRing' | 'nahBlocks' | 'nahAqueduct' | 'nahAqPier';
+export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall' | 'voidWall' | 'nahWall';
+export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | UmbraKitKind | CoronaKitKind | NaharaKitKind | CliffKitKind;
 /** Khepri's kit (khepri-kit.glb). */
 export const KIT_KINDS: readonly KhepriKitKind[] = ['clump', 'column', 'rock', 'crystal', 'spire', 'wall', 'fallen', 'boulder', 'crystalSpire', 'rosette', 'hoodoo'];
 export const VESPER_KIT_KINDS: readonly VesperKitKind[] = ['iceCliff', 'serac', 'iceSpire', 'iceberg', 'floe', 'floePairA', 'floePairB', 'floeTripleC', 'ridge', 'drift', 'outcrop', 'vent'];
@@ -41,6 +44,8 @@ export const VESPER_CLIFF_KINDS: readonly CliffKitKind[] = ['iceWall'];
 export const AMNION_CLIFF_KINDS: readonly CliffKitKind[] = ['fleshWall'];
 export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards', 'broodNest', 'hive', 'broodRuin', 'sinewWeb'];
 export const UMBRA_CLIFF_KINDS: readonly CliffKitKind[] = ['voidWall'];
+export const NAHARA_CLIFF_KINDS: readonly CliffKitKind[] = ['nahWall'];
+export const NAHARA_KIT_KINDS: readonly NaharaKitKind[] = ['nahTower', 'nahGate', 'nahPillar', 'nahArch', 'nahSpur', 'nahRing', 'nahBlocks', 'nahAqueduct', 'nahAqPier'];
 export const CORONA_KIT_KINDS: readonly CoronaKitKind[] = ['corExtractor', 'corCollector', 'corHangar', 'corRefinery', 'corGantry', 'corDome'];
 export const UMBRA_KIT_KINDS: readonly UmbraKitKind[] = ['umbHill', 'umbPeak', 'umbSpire', 'umbShards', 'umbFloat', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbPad', 'umbDock'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
@@ -107,6 +112,23 @@ export const KIT: Readonly<Record<KitKind, {
   voidWall: { prefix: 'void_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   // Corona's infrastructure (corona-kit.glb, docs/37): the six modules of the concept sheet; tops normalised to 1, the
   // footprints (model units, the scatter scales them) as built.
+  // Nahara (nahara-kit.glb, docs/39): sandstone masonry on the cliff-wall contract; ruins topping out at exactly 1 (the
+  // arch from its feet at y 0 to the crown; its footprint is scaled to the chasm's span); rubble at real size.
+  nahWall: { prefix: 'nah_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
+  nahTower: { prefix: 'nah_tower', variants: 3, halfX: 0.7, halfZ: 0.7, height: 1, exactTop: true, radius: Math.hypot(0.7, 0.7) },
+  nahGate: { prefix: 'nah_gate', variants: 2, halfX: 1, halfZ: 0.4, height: 1, exactTop: true, radius: Math.hypot(1, 0.4) },
+  // The chasm's monoliths: great blocks piled up out of the haze (tools/blender/nahara_kit.py stack).
+  nahPillar: { prefix: 'nah_pillar', variants: 3, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.SQRT2 },
+  nahArch: { prefix: 'nah_arch', variants: 2, halfX: 1.04, halfZ: 0.2, height: 1, exactTop: true, radius: 1.04 },
+  // A broken half arch from a pier at x -1, reaching toward +x (its far end at x 0.5 to 0.8).
+  nahSpur: { prefix: 'nah_spur', variants: 2, halfX: 1.05, halfZ: 0.26, height: 1, exactTop: true, radius: 1.05 },
+  // One aqueduct bay, pier centre to pier centre along x (tools/blender/nahara_kit.py aqueduct), its channel rim at 1.
+  // (Variants: whole, broken through, the run's ruined end toward +x.)
+  nahAqueduct: { prefix: 'nah_aqueduct', variants: 3, halfX: 1.04, halfZ: 0.28, height: 1, exactTop: true, radius: Math.hypot(1.04, 0.28) },
+  // An aqueduct pier's column below its bay, stretched down to the ground.
+  nahAqPier: { prefix: 'nah_aqpier', variants: 1, halfX: 0.15, halfZ: 0.27, height: 1, exactTop: true, radius: 0.3 },
+  nahRing: { prefix: 'nah_ring', variants: 1, halfX: 0.8, halfZ: 0.25, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.25) },
+  nahBlocks: { prefix: 'nah_blocks', variants: 3, halfX: 0.6, halfZ: 0.6, height: 0.6, exactTop: false, radius: Math.hypot(0.6, 0.6) },
   corExtractor: { prefix: 'cor_extractor', variants: 1, halfX: 0.8, halfZ: 0.75, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.75) },
   corCollector: { prefix: 'cor_collector', variants: 1, halfX: 0.66, halfZ: 0.51, height: 1, exactTop: true, radius: Math.hypot(0.66, 0.51) },
   corHangar: { prefix: 'cor_hangar', variants: 1, halfX: 0.8, halfZ: 0.68, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.68) },
@@ -196,6 +218,8 @@ export interface ScatterField {
   crater(x: number, s: number): number;
   /** How far a point has settled into a mission arena's platform (the boss clearing; 0 without an arena). */
   platform(x: number, s: number): number;
+  /** The mission arena whose rows hold s (undefined outside one): a planet shaping its own boss ground (Nahara's citadel). */
+  arena(s: number): TerrainArena | undefined;
   /** Planet-specific surface mask (Vesper: rock outcrops); 0 on Khepri. */
   tone(x: number, s: number): number;
 }

@@ -23,7 +23,7 @@ const durations: Record<Sound, number> = {
   pulse: .07, fan: .08, seeker: .14, rail: .16, enemy: .2, impact: .13, explosion: .85, heavy: 1.6,
   shield: .35, 'shield-break': .35, life: .32, pickup: .28, part: .75, upgrade: .75, ready: .65,
   shockwave: 1.65, 'seeker-rack': .8, 'siege-lance': SPECIALS['siege-lance'].duration, 'gravity-well': 1.6, warning: .65, beam: .85,
-  'boss-arrival': 2.8, 'boss-phase': 1.1, 'boss-death': 3.6, warp: 3.1, win: 2.8, loss: 2.1,
+  'boss-arrival': 2.8, 'boss-phase': 1.1, 'boss-death': 3.6, warp: 3.1, win: 1.4, loss: 2.1,
 };
 const LATE: Sound[] = ['boss-arrival', 'boss-phase', 'boss-death', 'warp', 'win', 'loss'];
 /** Made in this order at boot (src/audio/sample-worker.ts): what a flight plays first, then the level score,
@@ -118,15 +118,20 @@ const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => V
   // The last shield charge gone: the same single thud (user, 12 November: "last shield can be same as normal shield hit
   // no double"). It keeps its own event so the mixer can still treat it as the bigger moment (music ducking).
   'shield-break': { peak: .65, voice: rate => fieldThud(rate) },
-  // Mission complete, in C (the engine transposes it to the world's key): a low open fifth swelling up, then a clean
-  // sus2 chord (C, G, D) struck softly together with a faint G above. No fanfare, no major third.
-  win: { peak: .55, voice: () => t => {
-    const swell = Math.min(1, t / .5) ** 2 * (t < .6 ? 1 : exp(-(t - .6) * 1.1));
-    const low = (sin(TAU * 130.81 * t) + sin(TAU * 130.81 * 1.0017 * t) + (sin(TAU * 196 * t) + sin(TAU * 196 * .9983 * t)) * .7) * .25 * swell;
-    const a = age(t, .5);
-    if (a < 0) return low;
-    const bell = (f: number, decay: number) => (sin(TAU * f * a) + .2 * sin(TAU * f * 2 * a) * exp(-a * 3)) * exp(-a * decay);
-    return low + (bell(261.63, 1.2) + bell(392, 1.3) * .8 + bell(587.33, 1.5) * .6 + bell(783.99, 2.2) * .25) * Math.min(1, a / .015) * .35;
+  // Mission complete, in C (the engine transposes it to the world's key): a short ring (user, 13 November: "make it
+  // shorter the success sound, like a rrrrring"). A bright open chord (C, G, D and a high G; no major third, no fanfare)
+  // rung like a bell, eighteen strokes a second for half a second, then ringing out.
+  win: { peak: .6, voice: () => t => {
+    const bell = (f: number, a: number, decay: number) =>
+      (sin(TAU * f * a) + .25 * sin(TAU * f * 2 * a) * exp(-a * 6) + .12 * sin(TAU * f * 3.01 * a) * exp(-a * 9)) * exp(-a * decay);
+    let v = 0;
+    for (let k = 0; k < 9; k++) {
+      const a = age(t, k / 18);
+      if (a < 0) break;
+      const stroke = (k === 0 ? 1 : .55) * (1 - k / 9 * .4);
+      v += (bell(523.25, a, 6) + bell(783.99, a, 6.5) * .8 + bell(1174.66, a, 7) * .6 + bell(1567.98, a, 9) * .3) * stroke * Math.min(1, a / .003);
+    }
+    return v * .2;
   } },
   // Upgrades (a shield cell, a power cell, a weapon): the shield's bell, partials 1, 1.498 and 2.71, rising E, B, E.
   upgrade: { peak: .6, voice: () => t => {

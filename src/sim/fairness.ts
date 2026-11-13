@@ -24,13 +24,18 @@ const WORLD_LIMIT = VIEW.worldWidth / 2 - R;
 
 export function shotFootprint(start: number, shot: ShotSpec, ttl = Infinity): Footprint | null {
   if (shot.vs >= -1e-6) return null;
+  // A shot that ends before the row (a Skimmer's, at its split point) never reaches it: its halves are their own shots.
+  const life = Math.min(ttl, shot.life ?? Infinity);
   const reach = R + shot.radius;
-  const speed = Math.hypot(shot.vx, shot.vs);
   const crossing = shot.s / -shot.vs;
+  // A curving shot (Boomerang Barrage) keeps its forward speed, so it crosses the row when a straight one would; its lateral
+  // position and speed there follow its constant acceleration (the simulation moves it by the same exact step).
+  const ax = shot.ax ?? 0, lateral = shot.vx + ax * crossing;
+  const speed = Math.hypot(lateral, shot.vs);
   const hitReach = PLAYER_HIT_RADIUS + shot.radius;
   const window = Math.max(reach / -shot.vs + 1 / 60, hitReach / -shot.vs);
-  if (crossing + window < 0 || crossing - window > ttl) return null;
-  const x = shot.x + shot.vx * crossing;
+  if (crossing + window < 0 || crossing - window > life) return null;
+  const x = shot.x + shot.vx * crossing + 0.5 * ax * crossing * crossing;
   // Every player center within reach * speed / |vs| of the crossing is hit; subtract R for the physical edge.
   // The authored flight envelope already includes a steering margin. For a shallow shot,
   // enlarge its forecast if the true swept hit circle extends beyond that envelope.
@@ -166,7 +171,7 @@ export function viewBounds(state: RunState): { left: number; right: number } {
  * after the reaction delay and a maneuver delay the player expands its reachable interval set at a reduced
  * lateral speed and must always keep a non-empty set of positions clear of every footprint plus margins.
  */
-export function assessSafety(state: RunState, footprints: readonly Footprint[]): SafetyReport {
+export function assessSafety(state: RunState, footprints: readonly Footprint[], fresh?: ReadonlySet<Footprint>): SafetyReport {
   const { left, right } = viewBounds(state);
   const now = state.time;
   const { slice, horizon, window, comfortMargin, reaction, maneuverDelay } = FAIRNESS;
@@ -183,6 +188,23 @@ export function assessSafety(state: RunState, footprints: readonly Footprint[]):
   let started = false;
   // Long patterns (a boss spiral's later streams) are judged to their end, not just over the usual horizon.
   const until = Math.max(now + horizon, ...footprints.map(f => f.t1));
+  // Where a new attack meets hazards already committed, the content checks also run exactly where a hazard's simultaneity
+  // window opens: every largest set of simultaneous hazards begins there, and the slices alone could step over a brief one
+  // (12 November: a Skimmer's split halves met a missile shot inside one 0.03 s stretch between two slices, sealing both
+  // edges and the centre). A pattern on its own (a boss spiral) keeps the sliced judgement it was tuned and approved on.
+  // Only the stretch the new attack spans can hold a new combination.
+  let from = Infinity, to = -Infinity;
+  if (fresh) for (const f of fresh) { from = Math.min(from, f.t0 - window); to = Math.max(to, f.t1 + window); }
+  const near = from <= to ? footprints.filter(f => f.t1 >= from && f.t0 <= to) : [];
+  if (fresh) for (const f of near) {
+    const t = f.t0 - window / 2 + 1e-9;
+    if (t < now - window / 2 || t > until) continue;
+    const simultaneous = near.filter(g => g.t0 <= t + window / 2 && g.t1 >= t - window / 2);
+    const mixed = simultaneous.some(g => fresh.has(g)) && simultaneous.some(g => !fresh.has(g));
+    if (!mixed) continue;
+    minGap = Math.min(minGap, largestGap(simultaneous, left, right));
+    sealed ||= sealsEdgesAndCenter(simultaneous, left, right);
+  }
   for (let t = now; t <= until + 1e-9; t += slice) {
     const simultaneous = footprints.filter(f => f.t0 <= t + window / 2 && f.t1 >= t - window / 2);
     if (simultaneous.length > 0) {
@@ -248,7 +270,7 @@ export function admitAttack(state: RunState, enemy: Enemy, aimX: number, warning
 export function admitFootprints(state: RunState, extra: readonly Footprint[]): boolean {
   const entry = cached(state);
   const combined = entry.footprints.concat(extra);
-  const report = assessSafety(state, combined);
+  const report = assessSafety(state, combined, new Set(extra));
   let admitted = isSafe(report);
   if (!admitted && !report.reachable && !report.sealed && report.minGap >= FAIRNESS.minGap) {
     entry.baseline ??= assessSafety(state, entry.footprints);

@@ -29,9 +29,9 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     for (const seed of [1, 2, 3]) expect(resolvePlaylist({ mode: 'campaign', mission: 'final-horizon' }, 1, seed).length).toBeGreaterThan(35);
   });
 
-  it('THE ECLIPSE (and THE HELIOPHAGE, its stand-in) alone has a third first-phase target, its prow vent; every other boss keeps its pair and core', () => {
+  it('THE ECLIPSE (and THE HELIOPHAGE and THE CITADEL, on its model) alone has a third first-phase target, its prow vent; every other boss keeps its pair and core', () => {
     for (const id of Object.keys(BOSSES) as BossId[]) {
-      const prow = id === 'eclipse' || id === 'heliophage';
+      const prow = id === 'eclipse' || id === 'heliophage' || id === 'citadel';
       const state = createRun({ mode: 'campaign', mission: 'final-horizon', seed: 1 });
       startBoss(state, BOSSES[id]);
       const parts = state.enemies.filter(enemy => enemy.bossPart).map(enemy => enemy.bossPart);

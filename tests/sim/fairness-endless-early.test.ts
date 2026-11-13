@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import { UNION_TITLE, checkUnion, type UnionRun } from './fairness-setup';
 
-/* Endless hazard unions, first visits: sectors 1-19 (split from fairness.test.ts for parallel runs, docs/38 T1). */
+/* Endless hazard unions, first visits: sectors 1-22 (split from fairness.test.ts for parallel runs, docs/38 T1). */
 describe('cue sequence hazard unions', () => {
   const runs: UnionRun[] = [
     // Sectors 1-5: the Luna prologue and WARDEN-1, the jump, Khepri, Bastion-9, the jump into Vesper. Endless continues
@@ -16,8 +16,10 @@ describe('cue sequence hazard unions', () => {
     { label: 'endless sectors 8-10 (Nacre, THE VEIL)', perfectLives: 1, config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 8, bosses: ['veil'], planets: ['nacre'] },
     { label: 'endless sectors 11-13 (Amnion, THE CRADLE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 11, bosses: ['cradle'], planets: ['amnion'] },
     { label: 'endless sectors 14-16 (Corona, THE HELIOPHAGE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 14, bosses: ['heliophage'], planets: ['corona'] },
-    { label: 'endless sectors 17-19 (Umbra, THE ECLIPSE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['eclipse'], planets: ['umbra'] },
+    { label: 'endless sectors 17-19 (Nahara, THE CITADEL)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 17, bosses: ['citadel'], planets: ['nahara'] },
+    { label: 'endless sectors 20-22 (Umbra, THE ECLIPSE)', config: { mode: 'endless', seed: 21 }, seconds: 340, sector: 20, bosses: ['eclipse'], planets: ['umbra'] },
   ];
 
-  it.each(runs)(UNION_TITLE, run => checkUnion(run));
+  // A whole stint per run: well inside 30 s alone, but the full suite in parallel can stretch one past it.
+  it.each(runs)(UNION_TITLE, run => checkUnion(run), 120_000);
 });

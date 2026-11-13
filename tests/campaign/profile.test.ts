@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, CAMPAIGN_V3_BACKUP_KEY, PROFILE_VERSION, awardOnce, freshProfile, campaignConfig, createCampaignProfile, itemPrice, rankPrice, unlockedMissions, type AttemptResult, type CampaignProfile } from '../../src/campaign/profile';
+import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, CAMPAIGN_V3_BACKUP_KEY, CAMPAIGN_V4_BACKUP_KEY, PROFILE_VERSION, awardOnce, freshProfile, campaignConfig, createCampaignProfile, itemPrice, rankPrice, unlockedMissions, type AttemptResult, type CampaignProfile } from '../../src/campaign/profile';
 import { CAMPAIGN_ORDER, CREDIT_SCALE, RANK_PARTS, RANK_PRICES, REWARDS, SHIPS, SHIP_IDS, SPECIALS, STARTER, WEAPON_PRICES } from '../../src/content/equipment';
 import { HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_REMODELLED } from '../../src/content/hero-parts';
 import { createRun } from '../../src/sim/game';
@@ -51,7 +51,7 @@ describe('campaign profile (docs/21)', () => {
 
   it('scales each world\'s pay by its own credit scale, later worlds paying more', () => {
     const scales = CAMPAIGN_ORDER.map(mission => CREDIT_SCALE[mission]);
-    expect(scales).toEqual([0.192, 0.224, 0.24, 0.384, 0.410, 0.425, 0.450]);
+    expect(scales).toEqual([0.192, 0.224, 0.24, 0.384, 0.410, 0.425, 0.44, 0.450]);
     for (const mission of CAMPAIGN_ORDER) {
       const repeat = freshProfile(); repeat.missions[mission] = { clears: { relaxed: 0, standard: 1, veteran: 0 }, best: {}, firstClearPaid: true };
       const store = createCampaignProfile(memory(JSON.stringify(repeat)));
@@ -219,6 +219,47 @@ describe('selected weapon levels (user, 3 November 2026)', () => {
       store.settle(clear('x'));
       expect(storage.getItem(CAMPAIGN_KEY)).toBe(raw);
     }
+  });
+});
+
+describe('save version 5: The Silent Empire inserted before Final Horizon (docs/39) locks nothing already open', () => {
+  const record = { clears: { relaxed: 0, standard: 1, veteran: 0 }, best: {}, firstClearPaid: true };
+  const v4 = (missions: string[]) => JSON.stringify({ ...freshProfile(), version: 4, missions: Object.fromEntries(missions.map(m => [m, record])) });
+  const before = ['training', 'bastion', 'cold-vector', 'deep-bloom', 'brood-strike', 'dying-star'];
+
+  it('keeps Final Horizon open for a save that had cleared Dying Star, after backing up the exact original', () => {
+    const raw = v4(before), storage = memory(raw), store = createCampaignProfile(storage);
+    expect(store.status()).toBe('saved');
+    expect(storage.getItem(CAMPAIGN_V4_BACKUP_KEY)).toBe(raw);
+    const profile = store.read();
+    expect(profile.version).toBe(PROFILE_VERSION);
+    expect(profile.opened).toEqual(['final-horizon']);
+    expect(unlockedMissions(profile)).toEqual([...before, 'silent-empire', 'final-horizon']);
+    expect(JSON.parse(storage.getItem(CAMPAIGN_KEY)!)).toEqual(profile);
+    // Reloading neither migrates nor backs up again.
+    storage.values.set(CAMPAIGN_V4_BACKUP_KEY, 'kept');
+    expect(createCampaignProfile(storage).read()).toEqual(profile);
+    expect(storage.getItem(CAMPAIGN_V4_BACKUP_KEY)).toBe('kept');
+  });
+
+  it('adds nothing for a save that had not reached Final Horizon: The Silent Empire comes first', () => {
+    const profile = createCampaignProfile(memory(v4(before.slice(0, 5)))).read();
+    expect(profile.opened).toBeUndefined();
+    expect(unlockedMissions(profile)).toEqual(before);
+    // Clearing Dying Star then opens The Silent Empire, not Final Horizon.
+    profile.missions['dying-star'] = record;
+    expect(unlockedMissions(profile)).toEqual([...before, 'silent-empire']);
+  });
+
+  it('a save that already flew Final Horizon keeps it by its record (no list needed)', () => {
+    const profile = createCampaignProfile(memory(v4([...before, 'final-horizon']))).read();
+    expect(profile.opened).toBeUndefined();
+    expect(unlockedMissions(profile)).toEqual([...before, 'silent-empire', 'final-horizon']);
+  });
+
+  it('refuses a version-4 save carrying the version-5 list, and an unknown mission in the list', () => {
+    expect(createCampaignProfile(memory(JSON.stringify({ ...JSON.parse(v4(before)), opened: ['final-horizon'] }))).status()).toBe('unreadable');
+    expect(createCampaignProfile(memory(JSON.stringify({ ...freshProfile(), opened: ['nowhere'] }))).status()).toBe('unreadable');
   });
 });
 

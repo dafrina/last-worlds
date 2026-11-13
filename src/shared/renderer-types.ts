@@ -25,4 +25,9 @@ export interface PlanetLook {
      */
     fog: { color: number; energy: number; height: [number, number, number]; distance: [number, number, number] } };
   environment: 'desert' | 'ice' | 'luna' | 'mire' | 'void';
+  /**
+   * Look-dev only (the playground's toggle): 1 for a sun behind the ship (7:30), 0 ahead of it (10:30). The world's own
+   * side is its PlanetProfile.sunBehind (src/world/terrain-planet.ts), which the terrain's baked shading reads too.
+   */
+  sunBehind?: number;
 }

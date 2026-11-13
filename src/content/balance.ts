@@ -180,10 +180,10 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 // 15 October (user): Rolling Thunder slightly harder (×0.92); Deep Bloom, now the final mission, the hardest (×0.92).
 // 23 October: Brood Strike, the new final mission, starts at Deep Bloom's pressure (to be tuned after play).
 // 5 November: Dying Star (Corona) as Brood Strike and Final Horizon until it is played.
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92, 'dying-star': 0.92, 'final-horizon': 0.92 };
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.92, 'cold-vector': 1, 'deep-bloom': 0.92, 'brood-strike': 0.92, 'dying-star': 0.92, 'final-horizon': 0.92, 'silent-empire': 0.92, };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
-export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3 };
+export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3, skimmer: 3, relic: 4 };
 /**
  * A Pulsar burst: shots in the stream and the gap between them (seconds). Each shot aims at the player's position as
  * it leaves the muzzle, so the stream hoses after a moving ship (user, 20 October: was six shots straight down).
@@ -213,6 +213,8 @@ export const WORLD_INTENSITY: Readonly<Record<PlanetId, { flight: number; shot: 
   nacre: { flight: 1.1, shot: 1.1, cadence: 0.50, hp: 1, firstAttack: 1 },
   amnion: { flight: 1.1, shot: 1.1, cadence: 0.46, hp: 1.10, firstAttack: 0.90 },
   corona: { flight: 1.1, shot: 1.1, cadence: 0.43, hp: 1.15, firstAttack: 0.85 },
+  // Nahara, the penultimate world (docs/39): Corona's tuning for now, between Corona and Umbra once measured.
+  nahara: { flight: 1.1, shot: 1.1, cadence: 0.43, hp: 1.15, firstAttack: 0.85 },
   umbra: { flight: 1.1, shot: 1.1, cadence: 0.40, hp: 1.20, firstAttack: 0.80 },
 };
 /**
@@ -290,6 +292,11 @@ export const ENEMIES: Record<EnemyKind, {
   pulsar: { hp: 127, radius: 0.6, speed: 1.6, shotSpeed: 9, attackEvery: 2.6, warning: 1.1, score: 300, credits: 10 },
   wraith: { hp: 105, radius: 0.58, speed: 2.5, shotSpeed: 16, attackEvery: 5, warning: 0.9, score: 400, credits: 10 },
   fuel: { hp: 40, radius: 0.55, speed: VIEW.scrollSpeed, shotSpeed: 0, attackEvery: Infinity, warning: 0, score: 50, credits: 6 },
+  // Nahara (docs/39; the handover's starting values, tuned by play). Skimmer: a fast light raider whose aimed shot pauses
+  // and splits in two (ECHO_SPLIT). Relic Shield: a heavy ancient machine, its armour closed but for its attacks
+  // (RELIC_ARMOR), armour broken for good near death.
+  skimmer: { hp: 95, radius: 0.42, speed: 3.3, shotSpeed: 6.4, attackEvery: 1.8, warning: 0.8, score: 300, credits: 8 },
+  relic: { hp: 190, radius: 0.62, speed: 1.05, shotSpeed: 6.6, attackEvery: 2.6, warning: 1.05, score: 500, credits: 12 },
 };
 
 /**

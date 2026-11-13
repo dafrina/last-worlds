@@ -2523,3 +2523,59 @@ The deployed pod waves from VEIL, CRADLE, HELIOPHAGE and ECLIPSE fire their auth
 The exhaust ends halfway from each nozzle to its former near-bottom endpoint (97.5% of the playfield height on the active lens). Its ribbon width is 0.19 instead of 0.28. The playground's Ship x slider uses a steering destination and banks the moving ship with Fly forward off.
 
 Release gate: typecheck and production build passed. Full unit suite 982 passed, 5 skipped. Of 54 browser cases, 53 passed on the full run. The responsive menu case timed out on repeated cold WebGL startups. It now loads once and checks all three viewport sizes, then the campaign and hangar screens. The isolated rerun passed in 25.5 s. The boss UI was visually inspected through all three Bastion combat phases, and the final half-length trail was inspected stationary and steering in the playground.
+
+## 13 November 2026 — Nahara, The Silent Empire (docs/39)
+
+The eighth world, between Corona and Umbra, in the campaign and endless:
+- **Mission:** The Silent Empire. Save version 5 keeps a v4 pilot's Final Horizon open.
+- **Enemies and attacks:**
+  - the Skimmer (echo split) and the Relic Shield (armour open only to fire);
+  - the reusable Fracture Wave and Boomerang Barrage boss attacks;
+  - THE CITADEL on THE ECLIPSE's rig.
+- **Missions:** Echo Breaker and Shieldbreaker.
+- **Terrain:** built ruin districts by the canyon, natural sandstone elsewhere. The canyon's full depth is only a cleft;
+  its bottom ledge stays within Umbra's depth (−5.0 to −5.6) for the ground lens.
+- **The ruin kit:**
+  - arches set wall to wall and on the hills;
+  - monoliths, great towers and gates;
+  - ruined aqueducts with pier columns to the ground.
+- **Look:**
+  - the sun behind the ship at 7:30 (Umbra too);
+  - the user's fog and light;
+  - masonry and strata cliff maps;
+  - a triplanar sandstone grain on the kit.
+- **The fleet:** seven Blender craft for every enemy that spawns there.
+- **Strike sites:** its own sandstone finish on its four sites, and the new Step Temple.
+- **Music:** its own score (The Silent Empire, 90 BPM) with five new voices; the success sound is now a short ring.
+
+Checks (WSL, SwiftShader):
+- typecheck and production build pass;
+- unit 1083 passed, 6 skipped. This includes the campaign and endless fairness runs over the new terrain and the audio
+  harmony audit (no clashes in Nahara's score or boss stem).
+- The cached instrument samples reach 14.3 MiB (budget raised from 14 to 15 MiB).
+- Mission triangles 38–89k.
+- Browser suite: see the gate line below.
+- No phone test.
+
+**THE CITADEL and its arena** (user-reviewed over many rounds, 13 November; docs/39):
+- **The model:** built of Nahara's ruin kit after the shapes of the user's Tripo temple (the adapted Tripo mesh was
+  rejected: "its color is off"). It has:
+  - a rotunda on a rock mesa carved with pillars and arches down to the canyon floor;
+  - a crown of turquoise panels, blade fins and stepped buttresses;
+  - cave-ins and broken fins, columns and bridges.
+  It is 58.6k triangles and 7.6 MB, 5.1 tall (under the spire cap), with its targets re-measured into
+  `src/content/citadel.ts`.
+- **Its arena:**
+  - flat only under its rock, where the model is drawn (its row plus the target plane's lens shift);
+  - the world's own canyon swings to it, opens into a gorge and forks round it;
+  - great arches over the gorge, monoliths out of the haze and a dense field of kit ruins, all under its height.
+  Its terrain exclusion is only its plaza: the wider one hid the arch and ruins at its foot.
+- **The Wraith's teleport rim** is turquoise on Nahara (it was Umbra's violet).
+- **Gate:**
+  - typecheck clean; unit 1083 passed, 6 skipped; build passes.
+  - Browser: 52/55 on the full run (Playwright exit 1, load average about 18). The three timeouts (Bastion phases, Ark
+    poses, Luna level-5 launch) passed on a one-worker rerun, 5/5 with exit 0.
+  - `tests/world/terrain-route.test.ts` now checks THE CITADEL's rock and canyon instead of the common clearing.
+  - No phone test.
+
+Not done: distinct models for the dart, needle and weaver.

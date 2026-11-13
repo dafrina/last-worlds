@@ -27,6 +27,8 @@ export type MissionRule =
   | { kind: 'hunters' }
   /** Wraiths (Umbra's phase predators, hunter Wraiths included). */
   | { kind: 'wraiths' }
+  /** Enemies of one kind (Nahara's Skimmers and Relic Shields, docs/39). */
+  | { kind: 'kills'; of: EnemyKind }
   /** Craft launched from this boss's bays. */
   | { kind: 'launched'; boss: BossId }
   /** Kills by the Spectre's Gravitic Shield returns (reflected hostile shots). */
@@ -209,6 +211,23 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     { slug: 'solar-wind', name: 'Solar Wind', text: 'Destroy 7 airborne enemies within 8 seconds.', goal: 7, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air', window: 8 }) },
     { slug: 'veteran-of-the-dying-star', name: 'Veteran of the Dying Star', text: 'Complete Dying Star on Veteran.', goal: 1, credits: 100, parts: 1, difficulty: 'veteran', ...run({ kind: 'complete' }) },
     { slug: 'sunburn', name: 'Sunburn', text: 'Defeat HELIOPHAGE within 60 seconds of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss', within: 60 }) },
+  ]),
+  // Nahara, the Silent Empire (docs/39; user handover, 12 November). Provisional: two of these give way to Skimmer and
+  // Relic Shield missions once those enemies fly.
+  'silent-empire': world('nahara', [
+    specialist(8, 25),
+    // Nahara's two new enemies take the places of Hunter Bounty and Air Superiority (docs/39), at their pay.
+    { slug: 'echo-breaker', name: 'Echo Breaker', text: 'Destroy 6 Skimmers in one run.', goal: 6, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'kills', of: 'skimmer' }) },
+    oldSchool(25, 'The Silent Empire'),
+    demolition(18),
+    long('ruin-keeper', 'Ruin Keeper', 'Destroy 60 ground targets, across runs.', 60, { kind: 'ground' }),
+    untouchable('The Silent Empire'),
+    { slug: 'shieldbreaker', name: 'Shieldbreaker', text: 'Destroy 4 Relic Shields in one run.', goal: 4, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'kills', of: 'relic' }) },
+    collector(380, 50),
+    { slug: 'canyon-runner', name: 'Canyon Runner', text: 'Destroy 4 enemies out on each flank in one run.', goal: 8, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'flanks', beyond: FLANK_X }) },
+    { slug: 'vent-breaker', name: 'Vent Breaker', text: 'Destroy all three of CITADEL\'s energy vents within 45 s of its arrival.', goal: 3, credits: 75, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss-parts', parts: ['left', 'right', 'prow'], within: 45 }) },
+    { slug: 'veteran-of-the-silent-empire', name: 'Veteran of the Silent Empire', text: 'Complete The Silent Empire on Veteran.', goal: 1, credits: 100, parts: 1, difficulty: 'veteran', ...run({ kind: 'complete' }) },
+    { slug: 'empires-end', name: 'Empire\'s End', text: 'Defeat CITADEL within 90 seconds of its arrival.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', within: 90 }) },
   ]),
   'final-horizon': world('umbra', [
     specialist(8, 25),

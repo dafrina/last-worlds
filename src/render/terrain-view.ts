@@ -9,7 +9,7 @@ import {
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
 import {
-  GROUND_TILE, INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadCoronaKit, loadUmbraKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
+  GROUND_TILE, INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadCoronaKit, loadNaharaKit, loadUmbraKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
   type KitGeometries,
 } from './terrain-kit';
 
@@ -186,8 +186,11 @@ const CASTER_NODES = new Set<string>([
   'vesper_crane', 'vesper_comm_needle', 'vesper_icebreaker',
 ]);
 
-/** Cliff wall kinds (docs/26 §11): Khepri's basalt, Vesper's ice and Amnion's flesh walls, and how far each moves at most. */
-const WALL_KINDS: ReadonlySet<string> = new Set(['cliffWall', 'iceWall', 'fleshWall']), WALL_NUDGE = .05, WALL_LIFT = .06;
+/**
+ * Cliff wall kinds (docs/26 §11): Khepri's basalt, Vesper's ice and Amnion's flesh walls, Nahara's carved fronts (docs/39), and
+ * how far each moves at most.
+ */
+const WALL_KINDS: ReadonlySet<string> = new Set(['cliffWall', 'iceWall', 'fleshWall', 'nahWall']), WALL_NUDGE = .05, WALL_LIFT = .06;
 
 const piecePosition = new THREE.Vector3(), pieceRotation = new THREE.Euler(), pieceQuaternion = new THREE.Quaternion(), pieceScale = new THREE.Vector3();
 /**
@@ -251,7 +254,7 @@ export function createTerrainView(options: TerrainViewOptions) {
   // Khepri infrastructure and the district kit (`khepri_*`, same materials) draw with the infra material.
   // Cliff walls (docs/26 §11) take the kit's wall material: the planet's rock or ice map laid along each wall.
   const wallMaterial = (kitMaterial.userData.wallMaterial as THREE.Material | undefined) ?? kitMaterial;
-  const isWall = (name: string) => name.startsWith(`${KIT.cliffWall.prefix}_`) || name.startsWith(`${KIT.iceWall.prefix}_`) || name.startsWith(`${KIT.fleshWall.prefix}_`);
+  const isWall = (name: string) => [KIT.cliffWall, KIT.iceWall, KIT.fleshWall, KIT.nahWall].some(spec => name.startsWith(`${spec.prefix}_`));
   const nodeMaterial = (name: string) => name.startsWith('infra_') || name.startsWith('khepri_') ? infraMaterial : SHARED.has(name) ? sharedMaterial
     : isWall(name) ? wallMaterial : kitMaterial;
   function createMesh(geometry: THREE.BufferGeometry, material: THREE.Material, capacity: number, name: string) {
@@ -507,7 +510,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     for (let i = 0; i < vertices; i++) {
       uv[i * 2] = section.positions[i * 3] / GROUND_TILE; uv[i * 2 + 1] = -section.positions[i * 3 + 2] / GROUND_TILE;
       surface[i * 4] = section.glow[i * 2]; surface[i * 4 + 1] = section.glow[i * 2 + 1];
-      surface[i * 4 + 2] = section.rock[i]; surface[i * 4 + 3] = 0;
+      surface[i * 4 + 2] = section.rock[i]; surface[i * 4 + 3] = section.strata?.[i] ?? 0;
       veins[i * 2] = section.edges[i * 2]; veins[i * 2 + 1] = section.edges[i * 2 + 1];
     }
     // One set of section attributes shared by every strip; strips are index ranges disposed together.
@@ -623,6 +626,9 @@ export function createTerrainView(options: TerrainViewOptions) {
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // Corona (docs/37): its own infrastructure kit; its rocks and walls are Khepri's basalt (the base kit and cliff kit).
     if (planet === 'corona') jobs.push(loadCoronaKit(`${base}assets/corona/corona-kit.glb`)
+      .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
+    // Nahara (docs/39): its sandstone ruin kit carries its masonry walls too.
+    if (planet === 'nahara') jobs.push(loadNaharaKit(`${base}assets/nahara/nahara-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     if (planet === 'umbra') jobs.push(loadUmbraKit(`${base}assets/umbra/umbra-kit.glb`, `${base}assets/umbra/floating-shards-v2.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
@@ -1190,6 +1196,8 @@ export function createTerrainView(options: TerrainViewOptions) {
     },
     /** Rebuilds live sections, e.g. after a layout-affecting change; kept for completeness. */
     rebuild: rebuildAll,
+    /** Look-dev (the playground's sun side): the window regenerates from the next update, and the look is set again. */
+    invalidate() { sourceKey = ''; lookPlanet = null; },
     /**
      * The world at the current scroll distance (after the preview switch). On a route it is a routed world:
      * its planet and arena are those under the ship, and height queries given it resolve every distance on

@@ -9,7 +9,7 @@ import { EMPTY_INPUT, SITE_IDS, VIEW, type EnemyKind, type PlanetId, type RunCon
 import { createRun, spawnFormation, stepRun } from '../../src/sim/game';
 import { enterSector } from './pilots';
 
-const PLANETS: readonly PlanetId[] = ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra'];
+const PLANETS: readonly PlanetId[] = ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'nahara', 'umbra'];
 /** Every enemy kind the authored playlists already fly on a world (campaign missions and endless sectors). */
 const worldKinds = new Map<PlanetId, Set<EnemyKind>>(PLANETS.map(planet => [planet, authoredKinds(planet)]));
 const threat = (cue: EncounterCue) => cueRoster(cue, 'veteran').reduce((sum, kind) => sum + THREAT_COST[kind], 0);

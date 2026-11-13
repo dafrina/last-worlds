@@ -17,7 +17,7 @@ import { FORMATIONS } from '../content/formations';
 import { HUNTERS } from '../content/hunters';
 import { SHIP_PERKS } from '../content/ship-perks';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
-import { DIAMOND_VOLLEY, SHOT_TTL, aimAtPlayer, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
+import { DIAMOND_VOLLEY, RELIC_ARMOR, SHOT_TTL, aimAtPlayer, hostileShot, relicExposed, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
 import { BEAM_LOCK_RELEASE, advanceEnemy, aimOffset, enemyClockRate, inFiringWindow, pathComplete, positionAfter } from './motion';
 import { projectGround } from './ground';
@@ -173,7 +173,7 @@ function beginSector(state: RunState): void {
 
 const MISSION_TITLES: Readonly<Record<MissionId, string>> = {
   training: 'TRAINING · LUNA', bastion: 'ROLLING THUNDER · KHEPRI', 'deep-bloom': 'DEEP BLOOM · NACRE', 'cold-vector': 'COLD VECTOR · VESPER', 'brood-strike': 'BROOD STRIKE · AMNION',
-  'dying-star': 'DYING STAR · CORONA', 'final-horizon': 'FINAL HORIZON · UMBRA',
+  'dying-star': 'DYING STAR · CORONA', 'silent-empire': 'THE SILENT EMPIRE · NAHARA', 'final-horizon': 'FINAL HORIZON · UMBRA',
 };
 
 function updateDirector(state: RunState): void {
@@ -371,6 +371,8 @@ function updateEnemies(state: RunState, dt: number): void {
         // Hunters keep their own steady pace: the difficulty's, never the world's or mission's quickening (on Nacre, where
         // everything fires twice as often, a hunter on top of the Pulsar streams was too much).
         enemy.nextAttack = enemy.age + stats.attackEvery * scale.cadence * (enemy.hunter ? HUNTERS.cadence : missionCadence(state));
+        // A Relic Shield closes again before its next windup (RELIC_ARMOR.rest).
+        if (enemy.kind === 'relic') enemy.nextAttack = Math.max(enemy.nextAttack, enemy.age + RELIC_ARMOR.open + RELIC_ARMOR.rest);
         windups -= 1;
       }
     } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy, scale.firstAttack * WORLD_INTENSITY[state.planet].firstAttack, scale.airFirstShot) && state.time >= state.player.invulnerableUntil - 0.3) {
@@ -472,12 +474,14 @@ function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void
   }
   const side = enemy.kind === 'diamond' ? diamondSide(enemy) : 0;
   enemy.volleys = (enemy.volleys ?? 0) + 1;
+  // A Relic Shield's armour stays open a while after it fires: the window to hit its core (docs/39).
+  if (enemy.kind === 'relic') enemy.openUntil = state.time + RELIC_ARMOR.open;
   const muzzle = enemy.ground?.muzzle ?? enemy;
   if (enemy.ground) enemy.ground.muzzle = undefined;
   const shots = enemyShots(enemy.kind as BulletKind, muzzle.x, muzzle.s, enemy.aimX, ENEMIES[enemy.kind].shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot, side);
   // A full projectile pool skips the whole volley; a fixed pattern is never trimmed bullet by bullet.
   if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
-  for (const shot of shots) state.projectiles.push(projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL));
+  for (const shot of shots) state.projectiles.push(hostileShot(state.nextId++, shot));
 }
 
 /** Uses emitted pellet paths for fixed guns; only the seeker has a cone and guidance. */
@@ -556,7 +560,9 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
         shot.vs = Math.cos(next) * speed;
       }
     }
-    shot.x += shot.vx * activeDt;
+    // A curving shot (Boomerang Barrage) moves by the exact constant-acceleration step, as the fairness forecast assumes.
+    if (shot.ax) { shot.x += shot.vx * activeDt + 0.5 * shot.ax * activeDt * activeDt; shot.vx += shot.ax * activeDt; }
+    else shot.x += shot.vx * activeDt;
     shot.s += shot.vs * activeDt;
     shot.ttl -= dt;
     if (shot.friendly && shot.pierced) railHits(state, shot);
@@ -663,6 +669,8 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
 function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean, weapon: WeaponId | undefined, cause: KillCause): void {
   if (enemy.hp <= 0 || enemy.damageable === false) return;
   addEffect(state, 'hit', enemy.x, enemy.s, 0.12);
+  // A Relic Shield's closed armour lets only a share through (every source alike; docs/39).
+  if (enemy.kind === 'relic' && !relicExposed(enemy, state.time)) damage *= RELIC_ARMOR.closedShare;
   // A hunter's shield takes the damage first.
   enemy.hp -= absorbHunterShield(enemy, damage, weapon);
   if (enemy.hp > 0) return;

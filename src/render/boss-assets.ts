@@ -20,4 +20,6 @@ export const BOSS_ASSETS = {
   eclipse: 'umbra/the-eclipse-v2-approved.glb',
   /** v1 = the user's Tripo GLB, adapted in Blender, laid flat and squashed, 16 wide (tools/blender/approved_heliophage.py, 5 November 2026). */
   heliophage: 'corona/the-heliophage-v1-approved.glb',
+  /** v2 = the temple rebuilt of Nahara's ruin kit, the user's Tripo model its shape guide (tools/blender/nahara_citadel.py, 13 November 2026; the Tripo mesh adapted was rejected: "its color is off"). */
+  citadel: 'nahara/the-citadel-v2.glb',
 } as const;

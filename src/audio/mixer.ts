@@ -14,7 +14,7 @@ const LEVELS: Record<Sound, number> = {
   pulse: .22, fan: .3, seeker: .21, rail: .22, enemy: .10, impact: .13, explosion: .37, heavy: .43,
   shield: .19, 'shield-break': .19, life: .18, pickup: .19, part: .45, upgrade: .28, ready: .25, whoosh: .3,
   shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, 'gravity-well': .42, warning: .25, beam: .28,
-  'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .3, loss: .27,
+  'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .6, loss: .27,
 };
 const PRIORITY: Partial<Record<Sound, number>> = {
   impact: 0, enemy: 0, explosion: 1, heavy: 2, pulse: 2, fan: 2, seeker: 2, rail: 3,
@@ -24,14 +24,14 @@ const PRIORITY: Partial<Record<Sound, number>> = {
  * 33 ms): each launch then stays a launch, not a smear; the volleys themselves are unchanged. */
 const COOLDOWN: Partial<Record<Sound, number>> = { impact: .055, enemy: .12, explosion: .045, heavy: .1, warning: .3, beam: .14, seeker: .05 };
 export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20 } as const;
-const PADS = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale']);
+const PADS = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'choir']);
 /** Sustained voices that also feed the stereo ensemble. */
-const ENSEMBLE = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings']);
+const ENSEMBLE = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings', 'choir']);
 /** Basses play one note at a time, as a player's would: a new note in the same part damps the one still ringing. */
 const MONO = new Set<Instrument>(['bass', 'round-bass', 'foundry-bass', 'bio-bass', 'void-bass', 'drive-bass', 'growl']);
 /** Drums and basses sit tight on the grid; everything else may lean a little behind it. */
 const TIGHT = new Set<Instrument>(['kick', 'snap-kick', 'forge-kick', 'doum', 'tek', 'boss-kick', 'snare', 'hat', 'brush', 'bone', 'void-tick',
-  'ember', 'heart', 'taiko', 'timpani', 'tom', 'boom', 'crash', ...MONO]);
+  'ember', 'heart', 'taiko', 'timpani', 'tom', 'boom', 'crash', 'stone-drum', 'rattle', ...MONO]);
 /** The sidechain's keyed voices (phase 4, user: "sidechain the lead synths and basses on the kicks for some more
  * pop"): the basses and the synth leads, never pads, acoustic leads, reverb returns or effects. */
 const KEYED = new Set<Instrument>([...MONO, 'saw-lead', 'nerve', 'spiccato', 'stab']);

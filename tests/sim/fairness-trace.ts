@@ -119,7 +119,12 @@ export class FairnessTrace {
       this.seenShots.add(shot.id);
       this.hostileShots += 1;
       // Emission origin: projectiles record where they were before this tick's movement.
-      const source = released.find(enemy => Math.abs(shot.previousX - enemy.x) <= WEAVER_PAIR_OFFSET + 0.1 && Math.abs(shot.previousS - enemy.s) <= 0.35);
+      // Patterned shots leave away from the muzzle: a Fracture Wave's walls span the map, a Skimmer's halves wait at its split
+      // point, a Boomerang Barrage starts just ahead of the hull (docs/39). They are born in the tick their releaser fires, so
+      // they match the nearest enemy released this tick.
+      const patterned = shot.show !== undefined || shot.ax !== undefined;
+      const near = released.find(enemy => Math.abs(shot.previousX - enemy.x) <= WEAVER_PAIR_OFFSET + 0.1 && Math.abs(shot.previousS - enemy.s) <= 0.35);
+      const source = near ?? (patterned ? released.slice().sort((a, b) => Math.hypot(a.x - shot.previousX, a.s - shot.previousS) - Math.hypot(b.x - shot.previousX, b.s - shot.previousS))[0] : undefined);
       const start = source ? this.started.get(source.id) : undefined;
       if (!source || start === undefined) this.fail('unwarned', now, `hostile shot #${shot.id} at x=${shot.previousX.toFixed(2)} s=${shot.previousS.toFixed(2)} had no completed windup`);
       else {
@@ -135,10 +140,14 @@ export class FairnessTrace {
       if (shot.track && (shot.delay ?? 0) > 0) { this.waitingTracks.add(shot.id); continue; }
       if (shot.vs < 0) {
         // Shots never steer, so the row crossing is known at release. Record it even if a hit consumes it.
-        const crossing = shot.previousS / -shot.vs;
-        const x = shot.previousX + shot.vx * crossing;
+        const crossing = shot.previousS / -shot.vs, waiting = (shot.delay ?? 0) > 0;
+        // A shot that ends first (a Skimmer's, where it splits) never reaches the row.
+        if (shot.ttl + (waiting ? 0 : STEP) < crossing) continue;
+        // A curving shot moved this tick at its previous lateral speed, under its constant acceleration.
+        const ax = shot.ax ?? 0, vx = shot.vx - (waiting ? 0 : ax * STEP);
+        const x = shot.previousX + vx * crossing + 0.5 * ax * crossing * crossing;
         // A slanted bullet hits every ship center within (R + r) / cos(angle) of its crossing: subtract R for its edge.
-        const half = (R + shot.radius) * Math.hypot(shot.vx, shot.vs) / -shot.vs - R;
+        const half = (R + shot.radius) * Math.hypot(vx + ax * crossing, shot.vs) / -shot.vs - R;
         const band = (R + shot.radius) / -shot.vs;
         // A burst shot waits `delay` at its muzzle before it flies.
         const t = now - STEP + crossing + (shot.delay ?? 0);

@@ -76,6 +76,10 @@ const KITS: Record<PlanetId, Kit> = {
   umbra: { drum: 'taiko', hits: [[0, 8], [0, 6, 8, 14], [0, 3, 6, 8, 10, 12, 14]], snare: 'snare',
     dark: 'void-bass', drive: 'void-bass', growl: 'drive-bass',
     colour: { instrument: 'void-tick', steps: [[4, 12], [4, 12], [4, 8, 12]] }, half: true, weight: .9, lift: 24, reversed: true },
+  // The Silent Empire: the score's stone drum walking in the processional, the sistrum between its strokes.
+  nahara: { drum: 'stone-drum', hits: [[0, 10], [0, 6, 10, 14], [0, 3, 6, 10, 12, 14]], snare: 'snare',
+    dark: 'round-bass', drive: 'drive-bass', growl: 'growl',
+    colour: { instrument: 'rattle', steps: [[4, 12], [4, 8, 12], [2, 4, 8, 12, 15]] }, weight: 1, lift: 12 },
 };
 
 /** Priorities inside the boss voice pool: stingers, then drums and bass, sustained strings, the ostinato, ticks. */

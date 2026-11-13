@@ -9,7 +9,7 @@ import type { Archetype } from './settlement-geometry';
 import { ROAD_ENDS, SHARED_BOUNDS, districtRoadsSteps, resetNetworkMemos, roadEndSpotsSteps, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 import { districtHidden, districtPlanSteps, districtsNear, knownPlan, resetDistrictPlans, slotRange, type DistrictSite } from './terrain-districts';
 import { arenaAt } from './terrain-arena';
-import { SWAP_AHEAD, SWAP_BEHIND, routeOfInput, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
+import { SWAP_AHEAD, SWAP_BEHIND, routeOfInput, sunBehind, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
 
 export {
   MOODS, MOOD_LENGTH, ROUTES, ROUTE_AXES, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MAX_HEIGHT, TERRAIN_MIN_HEIGHT,
@@ -22,7 +22,7 @@ export { KHEPRI_DISTRICTS, KHEPRI_REFINERY, type DistrictPolicy, type LayoutGrap
 export { MODULES, moduleSize, type ModuleSpec } from './settlement-modules';
 export { ARENA_CLEARING, ARENA_LEVEL, ARENA_RAMP, arenaAt, arenaReaches, arenaWeight, beyondArenaClearing, inArenaCore, sameArena, type TerrainArena } from './terrain-arena';
 export {
-  PLANETS, SWAP_AHEAD, SWAP_BEHIND, isRoute, routeOf, routeOfInput, routedWorld, sameWorld, worldAt, worldOf,
+  PLANETS, SWAP_AHEAD, SWAP_BEHIND, isRoute, routeOf, routeOfInput, routedWorld, sameWorld, setSunBehind, sunBehind, worldAt, worldOf,
   type Floe, type PlanetId, type PlanetProfile, type RouteSchedule, type RouteSpan, type RouteSwap, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainWorld,
   type World, type WorldInput,
 } from './terrain-planet';
@@ -35,7 +35,7 @@ export {
   type IndustryPiece, type NetworkEdge, type PipeRun, type RoadEnd, type RoadMesh, type RoadPath, type SharedNode,
 } from './terrain-network';
 export {
-  FLOE_FOOTPRINT, FLOE_SETS, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, KIT_MAX_SCALE, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName,
+  FLOE_FOOTPRINT, FLOE_SETS, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, KIT_MAX_SCALE, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, NAHARA_CLIFF_KINDS, NAHARA_KIT_KINDS, NACRE_KIT_KINDS, kitNodeName,
   type CliffKitKind, type FloeSetKind, type KitInstance, type KitKind,
 } from './scenery-kit';
 export { STRIP_WIDTH, TERRAIN_STRIPS, stripOf } from './terrain-scatter';
@@ -135,6 +135,11 @@ export interface TerrainSection {
   edges: Float32Array;
   /** Per-vertex steepness: 0 on flat dust, 1 on steep columnar basalt faces. */
   rock: Float32Array;
+  /**
+   * Per-vertex natural-rock share (Nahara, docs/39: 1 on the organic sandstone, 0 on the built masonry), only on worlds
+   * whose landform reports one: the renderer picks the cliffs' strata or brickwork by it.
+   */
+  strata?: Float32Array;
   strips: readonly TerrainStrip[];
   props: readonly TerrainProp[];
   /** Kit pieces owned by this section, essential pieces first. */
@@ -255,20 +260,24 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   // District plans this section's rows, outposts and network may read are planned first, in resumable steps.
   yield* warmDistrictSteps(seed, source, startS - DISTRICT_WARM, startS + size + DISTRICT_WARM);
   const across = cellsX + 1, along = cellsS + 1, vertices = across * along;
-  // Apron: rim detection on every side, plus a long shadow apron toward the sun (−x, +s).
+  // Apron: rim detection on every side, plus a long shadow apron toward the sun: −x, and +s for a sun ahead of the ship,
+  // −s for one behind it (PlanetProfile.sunBehind; both where the section holds worlds of either).
   const near = RIM_CELLS, far = Math.max(SHADOW_STEPS * SHADOW_STRIDE, RIM_CELLS);
-  const columns = near + far + cellsX + 1, rows = near + far + cellsS + 1;
+  const behindAny = spans.some(span => sunBehind(span.world.planet.id)), aheadAny = spans.some(span => !sunBehind(span.world.planet.id));
+  const ahead = aheadAny ? far : near, back = behindAny ? far : near;
+  const columns = near + far + cellsX + 1, rows = back + ahead + cellsS + 1;
   const heights = new Float64Array(columns * rows);
-  const at = (row: number, column: number) => (row + near) * columns + column + far;
+  const at = (row: number, column: number) => (row + back) * columns + column + far;
   // Per-vertex landform fields go straight into typed arrays (no retained point objects: less garbage).
   const perVertex = () => new Float32Array(vertices);
   const fChannel = perVertex(), fIndustrial = perVertex(), fPool = perVertex(), fVeins = perVertex(), fVein = perVertex(), fVein2 = perVertex();
-  const elevation = perVertex(), fPlatform = perVertex(), fPaving = perVertex(), fPlate = perVertex(), fTone = perVertex();
+  const elevation = perVertex(), fPlatform = perVertex(), fPaving = perVertex(), fPlate = perVertex(), fTone = perVertex(), fStrata = perVertex();
+  let strataRows = false;
   let arenaRows = false;
   const contexts: TerrainRow[] = new Array(along);
-  for (let row = -near; row <= cellsS + far; row++) {
+  for (let row = -back; row <= cellsS + ahead; row++) {
     // Beyond the near apron only the shadow march reads heights, on even rows and columns (half-unit steps).
-    const farRow = row > cellsS + near;
+    const farRow = row > cellsS + near || row < -near;
     if (farRow && row & 1) { yield; continue; }
     const localS = row * TERRAIN_STEP, ctx = terrainRow(seed, startS + localS, source);
     if (row >= 0 && row <= cellsS) contexts[row] = ctx;
@@ -280,6 +289,8 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
         const v = row * across + column;
         fChannel[v] = point.channel; fIndustrial[v] = point.industrial; fPool[v] = point.pool; fVeins[v] = point.veins;
         fVein[v] = point.vein; fVein2[v] = point.vein2; elevation[v] = point.elevation; fTone[v] = (point as { tone?: number }).tone ?? 0;
+        const strata = (point as { strata?: number }).strata;
+        if (strata !== undefined) { strataRows = true; fStrata[v] = strata; }
         if (point.platform !== undefined) { arenaRows = true; fPlatform[v] = point.platform; fPaving[v] = point.paving ?? 0; fPlate[v] = point.plate ?? 0; }
       }
     }
@@ -307,6 +318,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     const point = scratch;
     point.height = heights[center]; point.channel = fChannel[vertex]; point.industrial = fIndustrial[vertex]; point.pool = fPool[vertex];
     point.elevation = elevation[vertex]; (point as { tone?: number }).tone = fTone[vertex];
+    (point as { strata?: number }).strata = strataRows ? fStrata[vertex] : undefined;
     if (arenaRows && fPlatform[vertex] > 0) { point.platform = fPlatform[vertex]; point.paving = fPaving[vertex]; point.plate = fPlate[vertex]; }
     else point.platform = point.paving = point.plate = undefined;
     // Central differences over the quarter-unit grid (apron included) follow the smooth field closely, so
@@ -319,8 +331,9 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     for (const offset of rimOffsets) { const h = heights[center + offset]; drop = Math.max(drop, heights[center] - h); foot = Math.max(foot, h - heights[center]); }
     // Cheap cast shadow: march the height grid diagonally toward the sun.
     let shadow = 0;
+    const toward = sunBehind(contexts[row].world.planet.id) ? -SHADOW_STRIDE : SHADOW_STRIDE;
     for (let i = 1; i <= SHADOW_STEPS && shadow < 1; i++) {
-      shadow = Math.max(shadow, smoothRange(-0.1, 0.35, marchHeight(row + i * SHADOW_STRIDE, column - i * SHADOW_STRIDE) - point.height - i * rise));
+      shadow = Math.max(shadow, smoothRange(-0.1, 0.35, marchHeight(row + i * toward, column - i * SHADOW_STRIDE) - point.height - i * rise));
     }
     const light = (1 - (1 - SHADOW_FLOOR) * shadow) * (1 - 0.28 * smoothRange(0.6, 2.4, foot) * (1 - smoothRange(0.6, 1.4, slope)));
     const rowPlanet = contexts[row].world.planet, tint = rowPlanet.shadowTint, here = heights[center];
@@ -425,6 +438,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     gradientX: vertexField(gradients, 2, 0), gradientS: vertexField(gradients, 2, 1),
     elevation: vertexField(elevation), industrial: vertexField(industry), veins: vertexField(glow, 2, 0), pool: vertexField(glow, 2, 1),
     shade: vertexField(shade), mood: (s: number) => terrainRow(seed, s, source).params, platform: (x: number, s: number) => arenaAt(worldAt(source, s).arena, seed, x, s),
+    arena: (s: number) => worldAt(source, s).arena,
     tone: vertexField(fTone),
     blocked: (x: number, s: number) => occupied.has(`${Math.floor(x)}:${Math.floor(s)}`),
     crater: (x: number, s: number) => crater(seed, x, s).rim,
@@ -506,6 +520,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     roads, roadPaths: networkRoads,
   };
   if (sites.length) section.sites = sites;
+  if (strataRows) section.strata = fStrata;
   if (sea !== null) {
     yield;
     const floes: Floe[] = [];

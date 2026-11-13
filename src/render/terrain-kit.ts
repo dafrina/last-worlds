@@ -3,7 +3,7 @@ import { WORLD_PAINT_GLSL, setWorldPaint, worldGlow, worldPaintUniforms } from '
 import { applySurfaceFinish } from './surface-finish';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, kitNodeName, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
+import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, NAHARA_CLIFF_KINDS, NAHARA_KIT_KINDS, kitNodeName, sunBehind, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
 
@@ -97,7 +97,7 @@ function amnionStandIn(kind: KitKind, variant: number): THREE.BufferGeometry {
 
 function fallbackPiece(kind: KitKind, variant: number): THREE.BufferGeometry {
   // (Amnion's flesh walls borrow the basalt stand-in's shape while their kit loads.)
-  if (kind === 'cliffWall' || kind === 'fleshWall') return cliffWallStandIn(variant);
+  if (kind === 'cliffWall' || kind === 'fleshWall' || kind === 'nahWall') return cliffWallStandIn(variant);
   if ((VESPER_KIT_KINDS as readonly string[]).includes(kind) || kind === 'iceWall') return vesperFallbackPiece(kind, variant);
   if ((NACRE_KIT_KINDS as readonly string[]).includes(kind)) return createNacrePiece(kind, variant);
   if ((AMNION_KIT_KINDS as readonly string[]).includes(kind)) return amnionStandIn(kind, variant);
@@ -345,6 +345,8 @@ export function loadAmnionKit(url: string): Promise<KitGeometries> { return load
 /** Umbra's obsidian kit (docs/28): violet seams and halos emit their own colour like Amnion's yolk. */
 /** Loads Corona's infrastructure kit (corona-kit.glb, docs/37); its *glow* faces glow (the kit shader's glowHue burns them orange). */
 export function loadCoronaKit(url: string): Promise<KitGeometries> { return loadKit(url, CORONA_KIT_KINDS, /glow/i); }
+/** Loads Nahara's sandstone ruin kit (nahara-kit.glb, docs/39): its masonry walls and ruins; *glow* faces glow turquoise. */
+export function loadNaharaKit(url: string): Promise<KitGeometries> { return loadKit(url, [...NAHARA_KIT_KINDS, ...NAHARA_CLIFF_KINDS], /glow/i); }
 export async function loadUmbraKit(url: string, floatingUrl?: string): Promise<KitGeometries> {
   const [kit, floating] = await Promise.all([
     loadKit(url, UMBRA_KIT_KINDS, /glow/i),
@@ -596,6 +598,128 @@ export function createSnowDetailTexture(): THREE.DataTexture {
 }
 
 /**
+ * Nahara's stone (docs/39), tileable, linear data (0.5 neutral, as every detail map), one tile per WALL_TILE world units:
+ * - R, the built masonry (user, 13 November: "not like a carre pattern but shifted and alternating bricks"): courses of
+ *   uneven height in a running bond, every block its own length and shade, its edges and corners weathered round into
+ *   deep joints, chips and a faint bedding in the stone;
+ * - G, the natural sandstone (the organic cliffs and hills): wavy strata of uneven thickness, each its own shade, softer
+ *   layers eroded back into grooves, streaks of weathering down the face.
+ * The ground's cliffs pick one or the other by the landform's strata share; the carved facings take R.
+ */
+export function createMasonryTexture(): THREE.DataTexture {
+  const size = 512, data = new Uint8Array(size * size * 4);
+  const wrap = (v: number, n: number) => ((v % n) + n) % n;
+  const smooth = (a: number, b: number, v: number) => { const k = Math.min(1, Math.max(0, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+  /** Tileable value noise, `px` × `py` cells over the tile. */
+  const value = (px: number, py: number, x: number, y: number, salt: number) => {
+    const gx = x / size * px, gy = y / size * py, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), v = (a: number, b: number) => rand(salt, wrap(a, px) * 977 + wrap(b, py));
+    return (v(ix, iy) * (1 - sx) + v(ix + 1, iy) * sx) * (1 - sy) + (v(ix, iy + 1) * (1 - sx) + v(ix + 1, iy + 1) * sx) * sy;
+  };
+  // The courses: uneven heights (thin and thick) summing to the tile.
+  const rows: number[] = [];
+  for (let total = 0, i = 0; total < size; i++) { const h = 70 + Math.floor(rand(941, i) * 4) * 18; rows.push(h); total += h; }
+  const scale = size / rows.reduce((a, b) => a + b, 0), courseTop: number[] = [0];
+  rows.forEach((h, i) => courseTop.push(i === rows.length - 1 ? size : Math.round(courseTop[i] + h * scale)));
+  // Each course's joints (running bond): its first joint about half a block past the one below, blocks 1.3 to 2.8 courses
+  // long, the last one taking what is left (merged into its neighbour if too short), seamless across the tile.
+  const joints: number[][] = [];
+  let offset = Math.floor(rand(947, 0) * size);
+  for (let r = 0; r < rows.length; r++) {
+    const h = courseTop[r + 1] - courseTop[r], cuts: number[] = [];
+    offset += Math.round(h * (0.7 + 0.5 * rand(953, r)));
+    let at = 0, last = 0;
+    while (at < size) { cuts.push(wrap(offset + at, size)); last = at; at += Math.round(h * (1.3 + 1.5 * rand(959, r * 37 + cuts.length))); }
+    if (size - last < h * 0.8 && cuts.length > 2) cuts.pop();
+    joints.push(cuts.sort((p, q) => p - q));
+  }
+  // The strata: bands 8 to 64 pixels thick, each its own shade and hardness.
+  const bands: { top: number; tone: number; soft: number }[] = [];
+  for (let y = 0, i = 0; y < size; i++) {
+    const thick = 8 + Math.floor(Math.pow(rand(971, i), 1.6) * 56);
+    bands.push({ top: y, tone: 0.8 + 0.36 * rand(977, i), soft: rand(983, i) });
+    y += thick;
+  }
+  for (let y = 0; y < size; y++) {
+    let r = 0;
+    while (courseTop[r + 1] <= y) r++;
+    const cuts = joints[r], y0 = courseTop[r], y1 = courseTop[r + 1];
+    for (let x = 0; x < size; x++) {
+      // --- R: masonry
+      let left = cuts[cuts.length - 1] - size, right = cuts[0];
+      for (let i = 0; i < cuts.length; i++) if (cuts[i] <= x) { left = cuts[i]; right = i + 1 < cuts.length ? cuts[i + 1] : cuts[0] + size; }
+      const id = r * 131 + wrap(left, size);
+      // Weathered outline: the joint wanders, the corners round off by each block's own radius.
+      const wobble = (value(64, 64, x, y, 1009) - 0.5) * 5;
+      const dx = Math.min(x - left, right - x), dy = Math.min(y - y0, y1 - 1 - y), radius = 8 + 14 * rand(1013, id);
+      const corner = dx < radius && dy < radius ? radius - Math.hypot(radius - dx, radius - dy) : Math.min(dx, dy);
+      const edge = corner + wobble;
+      const tone = 0.8 + 0.34 * rand(1019, id);
+      // Pillowed: the face rounds over a broad band into the joint, as the ruin kit's rounded blocks.
+      const rounded = 0.4 + 0.6 * Math.sqrt(smooth(0, 34, edge));
+      const bedding = 1 + (value(4, 40, x, y, 1021 + r) - 0.5) * 0.12;
+      const chip = smooth(0.78, 0.86, value(48, 48, x + r * 7, y, 1031)) * smooth(0, 30, 40 - edge) * 0.35;
+      const grain = (rand(1033, y * size + x) - 0.5) * 0.06 + (value(128, 128, x, y, 1039) - 0.5) * 0.1;
+      const masonry = edge < 3 ? 0.13 + 0.05 * smooth(0, 3, edge) : 0.5 * tone * rounded * bedding * (1 - chip) + grain;
+      // --- G: natural strata (wavy, eroded grooves between the bands, weathering streaks)
+      const wy = y + (value(3, 2, x, y, 1049) - 0.5) * 26 + Math.sin(x / size * Math.PI * 4 + y * 0.01) * 5;
+      const yy = wrap(wy, size);
+      let b = 0;
+      while (b + 1 < bands.length && bands[b + 1].top <= yy) b++;
+      const band = bands[b], bottom = b + 1 < bands.length ? bands[b + 1].top : size, inBand = Math.min(yy - band.top, bottom - yy);
+      const groove = 1 - (1 - smooth(0, 3 + band.soft * 6, inBand)) * (0.35 + 0.35 * band.soft);
+      const streak = 0.9 + 0.2 * value(40, 3, x, y, 1051);
+      const strata = 0.5 * band.tone * groove * streak + (rand(1061, y * size + x) - 0.5) * 0.05 + (value(96, 32, x, y, 1063) - 0.5) * 0.08;
+      const R = Math.max(0, Math.min(255, Math.round(masonry * 255))), G = Math.max(0, Math.min(255, Math.round(strata * 255)));
+      const o = (y * size + x) * 4;
+      data[o] = R; data[o + 1] = G; data[o + 2] = R; data[o + 3] = 255;
+    }
+  }
+  const texture = new THREE.DataTexture(data, size, size);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true; texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Nahara's ruin kit grain (docs/39): soft weathered sandstone, tileable value noise in R (0.5 neutral). The basalt detail
+ * the other kits take read as coarse pixels on the rounded blocks' broad faces (user, 13 November: "some models dont
+ * pattern match").
+ */
+export function createSandstoneGrain(): THREE.DataTexture {
+  // Weathered sandstone (user, 13 November: the ruins "should have a bit more detailed texture, looks bit out of place
+  // compared to the terrain"): mottled stone, pits and hairline cracks, a faint bedding and faint streaks (stronger ones
+  // read as "very streaky" on the stacked blocks).
+  const size = 512, data = new Uint8Array(size * size * 4);
+  const wrap = (v: number, n: number) => ((v % n) + n) % n;
+  const value = (px: number, py: number, x: number, y: number, salt: number) => {
+    const gx = x / size * px, gy = y / size * py, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), v = (a: number, b: number) => rand(salt, wrap(a, px) * 977 + wrap(b, py));
+    return (v(ix, iy) * (1 - sx) + v(ix + 1, iy) * sx) * (1 - sy) + (v(ix, iy + 1) * (1 - sx) + v(ix + 1, iy + 1) * sx) * sy;
+  };
+  const smooth = (a: number, b: number, v: number) => { const k = Math.min(1, Math.max(0, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const mottle = value(5, 5, x, y, 1101) * 0.35 + value(16, 16, x, y, 1103) * 0.35 + value(48, 48, x, y, 1107) * 0.3;
+    // Bedding: bands a few pixels to a few tens thick, wavering, each its own shade, a dark seam between.
+    const wy = y + (value(3, 2, x, y, 1117) - 0.5) * 30 + Math.sin(x / size * Math.PI * 6) * 3;
+    const band = Math.floor(wrap(wy, size) / 20), inBand = wrap(wy, size) / 20 - band;
+    const bed = 0.96 + 0.08 * rand(1119, band % 26) - 0.08 * (1 - smooth(0, 0.12, Math.min(inBand, 1 - inBand))) * (rand(1121, band % 26) > 0.5 ? 1 : 0.3);
+    const streak = 0.96 + 0.08 * value(40, 8, x, y, 1123);
+    const pits = 1 - smooth(0.74, 0.86, value(64, 64, x, y, 1113)) * 0.45 - smooth(0.8, 0.9, value(160, 160, x, y, 1129)) * 0.3;
+    const crackLine = Math.abs(value(10, 7, x + value(24, 24, x, y, 1131) * 40, y, 1133) - 0.5);
+    const crack = 1 - (1 - smooth(0.004, 0.018, crackLine)) * 0.5 * smooth(0.55, 0.7, value(6, 6, x, y, 1137));
+    const grain = (rand(1109, y * size + x) - 0.5) * 0.08;
+    const v = 0.5 * (0.62 + 0.76 * mottle) * bed * streak * pits * crack + grain;
+    const byte = Math.max(0, Math.min(255, Math.round(v * 255)));
+    data.set([byte, byte, byte, 255], (y * size + x) * 4);
+  }
+  const texture = new THREE.DataTexture(data, size, size);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true; texture.needsUpdate = true;
+  return texture;
+}
+
+/**
  * Crack network for open ground (terrain version 16, after the concept's ice plains; runtime-generated, tileable, linear
  * data): R = polygonal plate cracks (jittered Voronoi edges about a ninth of the tile apart, warped so they run jagged,
  * each edge its own strength so the network breaks off in places), G = a finer crisscross of thin lines, patchy.
@@ -693,6 +817,8 @@ const BASALT_TILE = 1.3, FACE_TILE = 2.2;
  * alike: the rock's ledges read from the 55° camera without the tile repeating along a rim.
  */
 const WALL_TILE = 3.5;
+/** Nahara's stone tile (createMasonryTexture): its blocks as great as the ruin kit's own (docs/39). */
+const NAHARA_WALL_TILE = 6;
 /** Wall detail strength per planet (luminance contrast) and the wall normal map's strength (High only). */
 const WALL_DETAIL: Partial<Record<PlanetId, { contrast: number; normal: number }>> = {
   khepri: { contrast: 0.95, normal: 0.9 }, vesper: { contrast: 1.2, normal: 0.9 }, luna: { contrast: 0.75, normal: 0.8 },
@@ -700,6 +826,8 @@ const WALL_DETAIL: Partial<Record<PlanetId, { contrast: number; normal: number }
   amnion: { contrast: 0.35, normal: 0.4 },
   // Umbra's obsidian (docs/28): faint grain, the gloss does the work.
   umbra: { contrast: 0.4, normal: 0.5 },
+  // Nahara's masonry (createMasonryTexture): strong, the joints are the detail (docs/39).
+  nahara: { contrast: 1.0, normal: 0 },
 };
 
 const GLOW_VERTEX = '#include <common>\nattribute float glow;\nvarying float vGlow;\nvarying float vHazeY;';
@@ -742,9 +870,9 @@ const WALL_COLOR_FRAGMENT = `
   } else {
     // Khepri: the caps read as the rock itself (the concept's dark, weathered column tops), not as bright slabs.
     vec3 capRock = vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.45, 1.0, 0.8 );
-    diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, capRock, 0.5 ) * 0.42, vWallTop );
+    diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, capRock, 0.5 ) * 0.42, vWallTop * wallCaps );
   }
-  diffuseColor.rgb *= 1.0 + ( vesperLook > 0.5 ? 0.25 : 1.1 ) * ( 1.0 - vWallTop ) * clamp( normalize( vNormal ).z * 1.4, 0.0, 1.0 );`;
+  diffuseColor.rgb *= 1.0 + ( vesperLook > 0.5 ? 0.25 : 1.1 ) * ( 1.0 - vWallTop ) * clamp( normalize( vNormal ).z * 1.4, 0.0, 1.0 ) * wallLift;`;
 /**
  * Wall pieces' map coordinates (docs/26 §11): faces take u along the piece (its own x, or z on its ends, in world units
  * after the instance's stretch) and v up in world units, so ledges stay level however tall a piece is scaled; tops
@@ -881,6 +1009,8 @@ const WALL_LOOK: Partial<Record<PlanetId, { hue: THREE.Color; shade: number; col
   amnion: { hue: hueOf(0x3c1816), shade: 0.24, columns: 0.5, crease: 1, fleshOnly: 1 },
   // Umbra (docs/28): black glass with a cold violet cast on every steep face (spike flanks and canyon walls alike).
   umbra: { hue: hueOf(0x262238), shade: 0.85, columns: 0, crease: 1, fleshOnly: 0 },
+  // Nahara (docs/39): warm sandstone faces, laid in courses by the masonry map.
+  nahara: { hue: hueOf(0x8c7458), shade: 0.95, columns: 0, crease: 1, fleshOnly: 0 },
   // Corona (docs/37): charcoal basalt faces, faintly columnar, the plasma's glow on them from the fog.
   corona: { hue: hueOf(0x3a3330), shade: 0.85, columns: 0.6, crease: 1, fleshOnly: 0 },
   // Luna keeps smooth normals: its many small crater bowls would facet on the height grid; walls still take the
@@ -951,7 +1081,7 @@ export function createTerrainMaterials() {
   /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material); lunaLook greys the basalt. */
   const kitLook = { vesperLook: { value: 0 }, lunaLook: { value: 0 }, nacreLook: { value: 0 }, kitGlint: { value: 0.45 }, glowHue: { value: new THREE.Vector4(1, 1, 1, 0) }, greyTint: { value: new THREE.Vector3(1.5, 1.48, 1.44) } };
   /** Kit glow: Khepri's mineral cyan; on Vesper the only glowing faces it draws are radiator/lamp bands (orange). */
-  const kitGlow = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 } };
+  const kitGlow = { glowColor: { value: linear(0x8ffcf0).multiplyScalar(1.55) }, detailContrast: { value: 0.9 }, kitTriplanar: { value: 0 } };
   const fallback = createDetailTexture();
   const flatNormal = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
   flatNormal.needsUpdate = true;
@@ -962,7 +1092,7 @@ export function createTerrainMaterials() {
    * Wall maps (docs/26 §11): wallMapOn 1 while the planet's cliff-rock or ice-wall map is the rockMap; the wall normal
    * map's strength (0 = off: Low tier, a missing map, or Nacre).
    */
-  const wallMaps = { wallNormal: { value: flatNormal as THREE.Texture }, wallNormalOn: { value: 0 }, wallMapOn: { value: 0 } };
+  const wallMaps = { wallNormal: { value: flatNormal as THREE.Texture }, wallNormalOn: { value: 0 }, wallMapOn: { value: 0 }, wallSeams: { value: 1 }, faceLift: { value: 1 } };
   /**
    * Crack network on open ground (version 16; Vesper's ice plains and Luna's regolith, after the concepts): crackLook 0
    * leaves Khepri and Nacre exactly as they were. crackTint is the line colour as a multiplier.
@@ -1029,7 +1159,7 @@ uniform vec3 glowColor;\nuniform vec3 veinTint;\nuniform vec3 poolTint;\nuniform
 uniform sampler2D rockMap;\nuniform float faceScale; uniform float groundIce;${HAZE_UNIFORMS}
 ${VESPER_SLATE}
 uniform float cliffLook;\nuniform vec2 cliffSteep;\nuniform float creaseLook;\nuniform vec3 wallHue;\nuniform float wallShade;\nuniform float wallColumns;\nuniform float wallFleshOnly;\nuniform vec2 iceCrisp;
-uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;
+uniform sampler2D wallNormal;\nuniform float wallNormalOn;\nuniform float wallMapOn;\nuniform float wallSeams;\nuniform float faceLift;
 uniform float wallFacets;
 uniform sampler2D crackMap;\nuniform float crackLook;\nuniform float crackRelief;\nvarying vec4 vCrackClip;\nuniform vec3 crackTint;
 // Periodic value noise in section-local units: the lattice repeats every 36 units along z, so it is seamless
@@ -1097,6 +1227,10 @@ if ( cliffLook > 0.0 ) {
   cliffUp = abs( dot( cliffFace, viewMatrix[ 1 ].xyz ) );
   cliffWall = cliffLook * smoothstep( cliffSteep.x, cliffSteep.y, cliffUp );
 }
+// Nahara's natural sandstone (vSurface.w, its strata share): wall and top blend by the smooth per-vertex steepness instead
+// of each triangle's own plane, whose hard top/wall split followed the quarter-unit grid in stairs along every diagonal
+// rim (user, 13 November: "can we mitigate these jagged edges?"). The built masonry's walls run along the grid and keep it.
+if ( vSurface.w > 0.0 ) cliffWall = mix( cliffWall, cliffLook * smoothstep( 0.25, 0.75, vSurface.z ), vSurface.w );
 float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
 #ifdef USE_MAP
   // One dust tap; vertex-colour drift hides the tile repetition. Three taps in total on High (dust, rock, normal).
@@ -1121,14 +1255,18 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   vec2 wallBlend = pow( abs( faceDir ), vec2( 6.0 ) ); wallBlend /= wallBlend.x + wallBlend.y;
   float detail = dustA;
   if ( vRock > 0.01 ) {
-    float rockD = textureGrad( rockMap, faceUv, faceDx * iceCrisp.y, faceDy * iceCrisp.y ).r * 2.0;
-    if ( wallBend > 0.0 ) rockD = mix( rockD, ( textureGrad( rockMap, wallUvX, wallDxX, wallDyX ).r * wallBlend.x + textureGrad( rockMap, wallUvZ, wallDxZ, wallDyZ ).r * wallBlend.y ) * 2.0, wallBend );
+    // (Nahara: R is the built masonry, G the natural strata, picked by the landform's strata share in vSurface.w; every
+    // other world's map is grey and its w 0.)
+    vec2 strataPick = vec2( 1.0 - vSurface.w, vSurface.w );
+    float rockD = dot( textureGrad( rockMap, faceUv, faceDx * iceCrisp.y, faceDy * iceCrisp.y ).rg, strataPick ) * 2.0;
+    if ( wallBend > 0.0 ) rockD = mix( rockD, ( dot( textureGrad( rockMap, wallUvX, wallDxX, wallDyX ).rg, strataPick ) * wallBlend.x + dot( textureGrad( rockMap, wallUvZ, wallDxZ, wallDyZ ).rg, strataPick ) * wallBlend.y ) * 2.0, wallBend );
     float columnIndex = floor( across * 2.7 );
     // Per-column tone from an ALU hash rather than another texture tap.
     float tone = 0.82 + 0.36 * fract( sin( columnIndex * 12.9898 + floor( vLocal.y * 0.9 + columnIndex * 0.37 ) * 78.233 ) * 43758.5453 );
     float edge = fract( across * 2.7 );
     float seamLine = smoothstep( 0.0, 0.1, edge ) * smoothstep( 1.0, 0.88, edge );
-    float rockDetail = rockD * tone * mix( 0.5, 1.0, seamLine );
+    // (wallSeams 0: the map is the whole detail, no column grid over it: Nahara's masonry read as a square grid.)
+    float rockDetail = rockD * mix( 1.0, tone * mix( 0.5, 1.0, seamLine ), wallSeams );
     // Columnar basalt (Khepri, after the concept art): sheer faces split into vertical fractured columns, each in its
     // own tone with deep dark seams (anti-aliased in pixels) and vertical streaks.
     if ( wallColumns > 0.0 ) {
@@ -1166,7 +1304,8 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // off the sunlit floor so columns keep readable detail instead of going black (both tiers).
   // Crisp-cliff worlds lift them further, so the concept's dark faces still show their columns and fractures.
   // (Vesper's ice walls keep their facet contrast instead: little lift there.)
-  diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * ( 1.0 - 0.75 * groundIce ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 );`)
+  // (faceLift: a sun behind the ship lights those faces itself; they keep only a trace of the lift.)
+  diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * ( 1.0 - 0.75 * groundIce ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 ) * faceLift;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   // Vesper's snow at SNOW_TRIM (3 November 2026): lit at full albedo it clipped in blue and flattened in the tone curve's
   // shoulder, so its relief and texture vanished.
@@ -1227,7 +1366,9 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // Other worlds keep their established smooth wall normals. Umbra opts into hard face normals just below.
   // Hills, dunes and swales whose planes and normals agree stay smooth.
   if ( creaseLook > 0.0 ) {
-    float crease = creaseLook * smoothstep( 0.99, 0.94, dot( normal, cliffFace ) ) * smoothstep( 0.72, 0.88, cliffUp );
+    // (Not on Nahara's natural sandstone, vSurface.w: its rims wind diagonally across the grid, and a rim lit by each
+    // triangle's own plane stair-stepped along them, 13 November.)
+    float crease = creaseLook * smoothstep( 0.99, 0.94, dot( normal, cliffFace ) ) * smoothstep( 0.72, 0.88, cliffUp ) * ( 1.0 - vSurface.w );
     normal = normalize( mix( normal, cliffFace, crease ) );
   }
   // Umbra's bare canyon faces are rock planes too. Averaging the wall normal with the plateau above made every
@@ -1324,13 +1465,15 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
    * Its own program instead of a per-vertex flag: no extra draws (one batch per node either way).
    */
   const kitWall = new THREE.MeshStandardMaterial({ vertexColors: true, map: fallback, roughness: 0.86, metalness: 0, normalScale: new THREE.Vector2(0.9, 0.9) });
-  const wallLook = { wallTile: { value: 1 / WALL_TILE }, wallContrast: { value: WALL_DETAIL.khepri!.contrast } };
+  // wallCaps: Khepri's darkened rock caps (0 on Nahara, whose tops are the tablelands' sand); wallLift: the camera-facing
+  // faces' lift (a trace under a sun behind the ship, which lights them itself).
+  const wallLook = { wallTile: { value: 1 / WALL_TILE }, wallContrast: { value: WALL_DETAIL.khepri!.contrast }, wallCaps: { value: 1 }, wallLift: { value: 1 } };
   const kitHaze = haze();
   const kitShader = (wall: boolean) => (shader: THREE.WebGLProgramParametersWithUniforms) => {
     // Crystal growths and mineral crack faces are true glows (bloom on High); basalt stays matte.
     Object.assign(shader.uniforms, uniforms, kitHaze, time, kitLook, kitGlow, wall ? wallLook : {});
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;\nvarying float vPieceY;${wall ? '\nuniform float wallTile;\nvarying float vWallTop;' : ''}`)
+      .replace('#include <common>', `${GLOW_VERTEX}\nuniform float kitTile;\nvarying float vPieceY;\nvarying vec3 vBoxPosition;\nvarying vec3 vBoxNormal;${wall ? '\nuniform float wallTile;\nvarying float vWallTop;' : ''}`)
       .replace('#include <uv_vertex>', wall ? WALL_UV_VERTEX : `#include <uv_vertex>
   // Cheap box projection in section space: one planar axis per (flat) face, immune to instance scaling.
   #ifdef USE_INSTANCING
@@ -1341,6 +1484,7 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     vec3 boxNormal = abs( normal );
   #endif
   vec2 boxUv = ( boxNormal.y > max( boxNormal.x, boxNormal.z ) ? boxPosition.xz : ( boxNormal.x > boxNormal.z ? boxPosition.zy : boxPosition.xy ) ) * kitTile;
+  vBoxPosition = boxPosition; vBoxNormal = boxNormal;
   #ifdef USE_MAP
     vMapUv = boxUv;
   #endif
@@ -1350,7 +1494,7 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;\nvPieceY = position.y;')
       .replace('#include <project_vertex>', HAZE_VERTEX);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', GLOW_FRAGMENT + HAZE_UNIFORMS + VESPER_KIT_HEAD + (wall ? '\nuniform float wallContrast;\nvarying float vWallTop;' : ''))
+      .replace('#include <common>', GLOW_FRAGMENT + '\nuniform float kitTriplanar;\nuniform float kitTile;\nvarying vec3 vBoxPosition;\nvarying vec3 vBoxNormal;' + HAZE_UNIFORMS + VESPER_KIT_HEAD + (wall ? '\nuniform float wallContrast;\nuniform float wallCaps;\nuniform float wallLift;\nvarying float vWallTop;' : ''))
       // Nacre's flora emits its own vertex colour (teal, violet, orange) instead of the shared glow colour.
       // Corona borrows Umbra's kit and cliffs (docs/37): their violet glow faces burn the star's orange (glowHue), at the
       // vertex colour's own brightness.
@@ -1372,6 +1516,13 @@ totalEmissiveRadiance += mix( glowColor, diffuseColor.rgb * 1.8, nacreLook ) * m
   #endif`)
       .replace('#include <map_fragment>', wall ? WALL_DETAIL_FRAGMENT + VESPER_KIT_SURFACE : `#ifdef USE_MAP
   float detail = texture2D( map, vMapUv ).r * 2.0;
+  // Nahara's rounded ruin blocks (kitTriplanar): the three projections blended by the pixel's own facing. A vertex's pick
+  // of one axis smeared the map blank across the arches' curved stones, whose corners face different ways (13 November).
+  if ( kitTriplanar > 0.5 ) {
+    vec3 blend = pow( abs( normalize( vBoxNormal ) ), vec3( 4.0 ) ); blend /= blend.x + blend.y + blend.z;
+    detail = ( texture2D( map, vBoxPosition.zy * kitTile ).r * blend.x + texture2D( map, vBoxPosition.xz * kitTile ).r * blend.y
+      + texture2D( map, vBoxPosition.xy * kitTile ).r * blend.z ) * 2.0;
+  }
   diffuseColor.rgb *= 1.0 + ( detail - 1.0 ) * detailContrast * ( 1.0 - clamp( abs( vGlow ), 0.0, 1.0 ) ) * ( 1.0 - vesperLook * .65 );
 #endif
 ${VESPER_KIT_SURFACE}`)
@@ -1402,6 +1553,10 @@ ${VESPER_KIT_SURFACE}`)
   let wallPlanet: PlanetId = 'khepri', vesperWalls: WallTextures | null = null, vesperWallsLoad: Promise<void> | null = null;
   /** Vesper's snow detail while that planet is active (null on Khepri). */
   let snowDetail: THREE.DataTexture | null = null, snowTexture: THREE.DataTexture | null = null, crackTexture: THREE.DataTexture | null = null;
+  /** Nahara's masonry (createMasonryTexture), made on the first visit. */
+  let masonry: THREE.DataTexture | null = null;
+  /** Nahara's ruin kit grain (createSandstoneGrain), made with the masonry. */
+  let sandGrain: THREE.DataTexture | null = null;
   /** Retunes the ground and roads for a planet: Vesper snow takes its own ripple detail, cool haze and snow tracks. */
   const setPlanet = (planet: PlanetId) => {
     const vesper = planet === 'vesper', luna = planet === 'luna', nacre = planet === 'nacre', khepri = haze();
@@ -1415,7 +1570,11 @@ ${VESPER_KIT_SURFACE}`)
     if (wall) { cliffLook.wallHue.value.copy(wall.hue); cliffLook.wallShade.value = wall.shade; cliffLook.wallColumns.value = wall.columns; cliffLook.wallFleshOnly.value = wall.fleshOnly; }
     ground.color.setHex(vesper || luna ? 0xffffff : nacre ? 0xd5d9e1 : 0xc2c4c8);
     if (vesper && !snowTexture) snowTexture = createSnowDetailTexture();
+    if (planet === 'nahara' && !masonry) { masonry = createMasonryTexture(); sandGrain = createSandstoneGrain(); }
     const nextDetail = vesper ? snowTexture : null;
+    // The camera-facing cliffs' lift (above): full under a sun ahead of the ship, a trace under one behind it.
+    wallMaps.faceLift.value = sunBehind(planet) ? 0.2 : 1;
+    wallLook.wallCaps.value = planet === 'nahara' ? 0 : 1; wallLook.wallLift.value = sunBehind(planet) ? 0.2 : 1;
     const walls = planet !== wallPlanet;
     wallPlanet = planet;
     if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
@@ -1482,15 +1641,27 @@ ${VESPER_KIT_SURFACE}`)
   let disposed = false;
   const apply = () => {
     ground.map = snowDetail ?? textures?.groundDetail ?? fallback;
-    kit.map = snowDetail ?? textures?.basaltDetail ?? fallback;
+    // (Nahara's ruins are built of their own rounded blocks, tools/blender/nahara_kit.py: they keep the plain stone grain;
+    // the masonry map is for the ground's cliffs and the carved facings.)
+    const nahara = wallPlanet === 'nahara' && masonry;
+    kit.map = snowDetail ?? (nahara ? sandGrain : null) ?? textures?.basaltDetail ?? fallback;
+    kitGlow.detailContrast.value = nahara ? 1.0 : 0.9;
+    kitGlow.kitTriplanar.value = nahara ? 1 : 0;
+    // (Nahara's grain spans more of a block: one tile per 2.6 units, its bedding and streaks at the cliffs' scale.)
+    uniforms.kitTile.value = 1 / (nahara ? 2.6 : BASALT_TILE);
+    // The stone finish's relief is laid in each piece's own (unscaled) frame: on Nahara's ruins, stretched five to eight
+    // times up their height, it smeared into dashes and blotches across the blocks (user, 13 November: "very minecrafty").
+    (kit.userData.surfaceFinish as { finishRelief: { value: number } }).finishRelief.value = nahara ? 0 : .045;
     // Walls (docs/26 §11): Vesper's ice-wall maps, cliff rock on Khepri and Luna (Luna's walls grey it as usual);
     // without one, the version 14 basalt detail and procedural ice strata remain. Nacre has no walls.
     const vesper = wallPlanet === 'vesper', look = WALL_DETAIL[wallPlanet];
-    const wallMap = !look ? null : vesper ? vesperWalls?.detail ?? null : textures?.cliffDetail ?? null;
+    const wallMap = !look ? null : vesper ? vesperWalls?.detail ?? null : nahara ? masonry : textures?.cliffDetail ?? null;
     const wallNormal = !look || !normals ? null : vesper ? vesperWalls?.normal ?? null : textures?.cliffNormal ?? null;
     uniforms.rockMap.value = wallMap ?? textures?.basaltDetail ?? fallback;
-    uniforms.faceScale.value = wallMap ? 1 / WALL_TILE : 1 / FACE_TILE;
+    uniforms.faceScale.value = !wallMap ? 1 / FACE_TILE : nahara ? 1 / NAHARA_WALL_TILE : 1 / WALL_TILE;
+    wallLook.wallTile.value = 1 / (nahara ? NAHARA_WALL_TILE : WALL_TILE);
     wallMaps.wallMapOn.value = wallMap ? 1 : 0;
+    wallMaps.wallSeams.value = nahara ? 0 : 1;
     wallMaps.wallNormal.value = wallNormal ?? flatNormal;
     wallMaps.wallNormalOn.value = wallNormal ? look!.normal : 0;
     wallLook.wallContrast.value = look?.contrast ?? WALL_DETAIL.khepri!.contrast;
@@ -1499,7 +1670,7 @@ ${VESPER_KIT_SURFACE}`)
     // The ground stays without a normal map on every tier: at full-screen coverage its derivative-based
     // tangent frame is the most expensive term, and the luminance detail already carries the grain.
     ground.normalMap = null;
-    kit.normalMap = normals && !snowDetail ? textures?.basaltNormal ?? null : null;
+    kit.normalMap = normals && !snowDetail && !nahara ? textures?.basaltNormal ?? null : null;
     ground.needsUpdate = true; kit.needsUpdate = true; kitWall.needsUpdate = true;
   };
   return {
@@ -1555,7 +1726,7 @@ ${VESPER_KIT_SURFACE}`)
       if (planet === 'corona') { const hue = linear(0xff6a18); kitLook.glowHue.value.set(hue.r * .7, hue.g * .7, hue.b * .7, 1); } else kitLook.glowHue.value.set(1, 1, 1, 0);
     },
     dispose() {
-      ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); lunaTrack?.dispose(); snowTexture?.dispose(); crackTexture?.dispose(); fallback.dispose(); flatNormal.dispose();
+      ground.dispose(); kit.dispose(); kitWall.dispose(); infra.dispose(); roads.dispose(); dustTrack?.dispose(); snowTrack?.dispose(); lunaTrack?.dispose(); snowTexture?.dispose(); crackTexture?.dispose(); masonry?.dispose(); sandGrain?.dispose(); fallback.dispose(); flatNormal.dispose();
       if (textures) Object.values(textures).forEach(texture => texture?.dispose());
       if (vesperWalls) Object.values(vesperWalls).forEach(texture => texture?.dispose());
       disposed = true;
@@ -1671,6 +1842,7 @@ const SHARED_PALETTE: Readonly<Record<PlanetId, readonly [number, number, number
   amnion: [0x3a2a22, 0xc8b496, 0x8a6a50, 0xb89a78],
   corona: [0x1e1814, 0x3a2e26, 0x5a4434, 0x2a201a],
   umbra: [0x16141e, 0x2e2a40, 0x4a4460, 0x24202e],
+  nahara: [0x5a4430, 0xb89466, 0x806044, 0xd6bb8d],
 };
 /** Khepri palette for the shared kit (docs/14 §2): graphite metal, ochre/rust paint, ochre dust, amber lamps. */
 export function createSharedMaterial(): THREE.MeshStandardMaterial {

@@ -720,6 +720,10 @@ STYLES = {
     # like THE HELIOPHAGE's, ash in the seams and on the decks, soot streaks, worn bronze on every edge.
     'corona': dict(tile=2.2, detail=.4, panel=.8, seed=23, seam_dark=.25, dust='#5a4a40', dust_amount=.22,
                    streak='#140a06', streak_amount=.34, wear='#a88a62', wear_amount=.7, grime=.3),
+    # Nahara (docs/39): the Silent Empire's weathered sandstone: blocks, sand in the seams and on every ledge, dark
+    # weathering streaks down the faces, worn pale edges.
+    'nahara': dict(tile=2.4, detail=.3, panel=.9, seed=29, seam_dark=.3, dust='#c8a878', dust_amount=.3,
+                   streak='#4a3220', streak_amount=.22, wear='#e2c99a', wear_amount=.55, grime=.18),
 }
 
 

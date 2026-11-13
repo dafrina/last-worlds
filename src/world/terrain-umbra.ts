@@ -279,6 +279,8 @@ function* umbraScatterSteps(seed: number, startS: number, size: number, terrain:
 
 export const UMBRA: PlanetProfile = {
   id: 'umbra', seaLevel: null,
+  // The sun behind the ship, to the left (user, 13 November: "umbra is interesting at 7:30").
+  sunBehind: true,
   mood: () => 'eclipse', params: () => NEUTRAL, local: () => null,
   landform: umbraLandform,
   // The arena's ground is THE ECLIPSE's abyss, shaped in the landform (`abyss`).

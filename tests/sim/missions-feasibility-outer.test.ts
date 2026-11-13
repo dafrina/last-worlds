@@ -3,7 +3,7 @@ import { clearWorld } from './mission-harness';
 import { env } from '../helpers/env';
 
 /*
- * Every world mission can be done in the real game (docs/35 § 5), Nacre, Amnion, Corona and Umbra. The perfect test pilot flies the
+ * Every world mission can be done in the real game (docs/35 § 5), Nacre, Amnion, Corona, Nahara and Umbra. The perfect test pilot flies the
  * world's mission attempt after attempt (seeds 1, 2, …), each with the loadout a player would pick for the missions on the
  * board at its start (`planFor`: strong gear unless a visible mission needs otherwise), through the real tracker and a
  * saved profile, until all twelve are done. Only the missions visible when an attempt starts count in it, so a world takes
@@ -21,6 +21,8 @@ describe('world missions are all reachable', () => {
     // Spectre runs, half as often as when reflected shots set off skids among the batteries.
     // Dying Star (6 November: Flare Dancer 3, Solar Wind, Heat Shield): 9 attempts; Sunburn needs a top-level weapon.
     ['dying-star', 11, 650, 7],
+    // The Silent Empire (12 November): 5 attempts; Echo Breaker and Shieldbreaker come together in one run.
+    ['silent-empire', 8, 675, 7],
     ['final-horizon', 13, 675, 7],
   ] as const)('%s: all twelve within %i attempts', (mission, max, credits, parts) => {
     const result = clearWorld(mission, max);

@@ -9,13 +9,13 @@ import { scoreStep, THEMES, type Note } from './score';
  * unless both notes are tones of the chord in force: the chord is the composition's own harmony.
  */
 export const UNPITCHED = new Set<Instrument>(['kick', 'snap-kick', 'forge-kick', 'boss-kick', 'doum', 'tek', 'snare', 'hat', 'taiko',
-  'brush', 'crash', 'riser', 'bone', 'void-tick', 'ember', 'heart', 'bowed', 'tom', 'boom', 'steam', 'crack', 'chitter', 'night-click']);
+  'brush', 'crash', 'riser', 'bone', 'stone-drum', 'rattle', 'void-tick', 'ember', 'heart', 'bowed', 'tom', 'boom', 'steam', 'crack', 'chitter', 'night-click']);
 /** The melody's instruments in each world's level score (Luna's piano and Khepri's lead also play its chords). */
 export const LEAD: Record<PlanetId, readonly Instrument[]> = {
-  luna: ['piano'], khepri: ['saw-lead'], nacre: ['pearl'], vesper: ['glass'], amnion: ['nerve'], corona: ['harp-high'], umbra: ['glint', 'obsidian'],
+  luna: ['piano'], khepri: ['saw-lead'], nacre: ['pearl'], vesper: ['glass'], amnion: ['nerve'], corona: ['harp-high'], umbra: ['glint', 'obsidian'], nahara: ['horn'],
 };
-const SUSTAINED = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings', 'braam']);
-const RINGING = new Set<Instrument>(['piano', 'glass', 'harp', 'harp-high', 'nerve', 'saw-lead', 'obsidian', 'glint', 'pearl', 'signal', 'anvil']);
+const SUSTAINED = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings', 'braam', 'choir']);
+const RINGING = new Set<Instrument>(['piano', 'glass', 'harp', 'harp-high', 'nerve', 'saw-lead', 'obsidian', 'glint', 'pearl', 'signal', 'anvil', 'horn', 'conduit']);
 
 export const pitchClass = (pitch: number) => Math.round((((pitch % 12) + 12) % 12) * 1000) / 1000 % 12;
 /** The clash between two pitches (1 minor second, 11 major seventh, 6 tritone), or 0 if they sit together. */

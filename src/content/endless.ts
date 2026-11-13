@@ -17,9 +17,9 @@ export const ENDLESS_CYCLE = {
   /** Before the cycle: one Luna sector ending with WARDEN-1, then the jump to Khepri (docs/19). */
   prologue: 'luna' as const satisfies PlanetId,
   /** Every world in campaign order (user, 5 November 2026), repeated: Khepri, Vesper, Nacre, Amnion, Corona, Umbra. */
-  planets: ['khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra'] as const satisfies readonly PlanetId[],
+  planets: ['khepri', 'vesper', 'nacre', 'amnion', 'corona', 'nahara', 'umbra'] as const satisfies readonly PlanetId[],
   sectorsPerPlanet: 3,
-  boss: { luna: 'warden', khepri: 'bastion', nacre: 'veil', vesper: 'ark', amnion: 'cradle', corona: 'heliophage', umbra: 'eclipse' } as const satisfies Readonly<Partial<Record<PlanetId, BossId>>>,
+  boss: { luna: 'warden', khepri: 'bastion', nacre: 'veil', vesper: 'ark', amnion: 'cradle', corona: 'heliophage', nahara: 'citadel', umbra: 'eclipse' } as const satisfies Readonly<Partial<Record<PlanetId, BossId>>>,
   /** Boss sector timeline in seconds from the sector's start. */
   bossSector: {
     /** No ordinary cue is admitted at or after this time. */

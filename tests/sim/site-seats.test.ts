@@ -36,7 +36,7 @@ const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper', 'corona']
  * cut by narrow canyons a seat still straddles a pit or a crack: the render's site pad levels it. (Corona 6.5 since its
  * plasma lies 5 under the plateau, 5 November: a seat at a coast stands on foundations down to the plasma; 5.9 measured.)
  */
-const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 6.5, umbra: 4.3 };
+const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 6.5, nahara: 7.5, umbra: 4.3 };
 /** How far into the footprint's edge a guard may stand at worst (the models keep their rim clear of structures). */
 const GUARD_RIM = .6;
 /** Corona's share of sites on rock, not afloat in the plasma (67% measured 5 November, after "lots of these corridors"). */

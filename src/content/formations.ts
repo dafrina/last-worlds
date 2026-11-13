@@ -91,6 +91,51 @@ const siteGuard = (kinds: readonly ('turret' | 'missile')[], ring: readonly (rea
   ring.map(([dx, ds], i) => ({ kind: kinds[i], dx, ds, fire: Math.max(i * 0.6, (ds - 0.15) / VIEW.scrollSpeed + 0.05) }));
 
 const templates = [
+  // ---- Nahara (docs/39): the Skimmer (Echo Split) and the Relic Shield (armoured core) ----
+  {
+    // Skimmers glide in from a flank along the canyon and across the view; each one's large shot splits in two.
+    id: 'skimmer-pair', name: 'Skimmer pair gliding across', entry: 'side',
+    path: [[0, -7.6, 12.5], [1.1, -4.4, 12], [6.6, 4.4, 11], [7.8, 8.6, 12.5]], sway: { axis: 's', amp: 0.6, period: 2.4 }, fireFrom: 1.1, fireUntil: 6.4,
+    slots: [
+      { kind: 'skimmer', dx: 0, fire: 0 },
+      { kind: 'skimmer', dx: 0, ds: 1.4, lag: 0.8, fire: 1.2, aim: 1.2 },
+      { kind: 'skimmer', dx: 0, ds: 2.8, lag: 1.6, fire: 2.4, aim: -1.2, from: 'veteran' },
+    ],
+  },
+  {
+    id: 'skimmer-trio', name: 'Skimmer arrowhead', entry: 'top',
+    path: TOP_HOLD(11.5, 7), sway: { axis: 'x', amp: 1.2, period: 3.8 }, fireFrom: 0.9, fireUntil: 8.2,
+    slots: [
+      { kind: 'skimmer', dx: 0, fire: 0 },
+      { kind: 'skimmer', dx: -2.2, ds: 1.3, fire: 0.9, aim: -1.4 },
+      { kind: 'skimmer', dx: 2.2, ds: 1.3, fire: 1.8, aim: 1.4 },
+    ],
+  },
+  {
+    // A Relic Shield descends slowly and holds its row: its core opens only as it fires.
+    id: 'relic-solo', name: 'Relic Shield', entry: 'top',
+    path: HEAVY_HOLD(12.5, 10), fireFrom: 1.2, fireUntil: 12.4,
+    slots: [{ kind: 'relic', dx: 0, fire: 0 }],
+  },
+  {
+    id: 'relic-pair', name: 'Relic Shield pair', entry: 'top',
+    path: HEAVY_HOLD(12, 10), fireFrom: 1.2, fireUntil: 12.4,
+    slots: [
+      { kind: 'relic', dx: -2.4, fire: 0 },
+      { kind: 'relic', dx: 2.4, ds: 1.4, fire: 1.3 },
+      { kind: 'skimmer', dx: 0, ds: 3, fire: 2.2, from: 'veteran' },
+    ],
+  },
+  {
+    // A Relic Shield with two Skimmers on its flanks.
+    id: 'relic-escort', name: 'Relic Shield with Skimmer escort', entry: 'top',
+    path: HEAVY_HOLD(12, 10), fireFrom: 1.2, fireUntil: 12.4,
+    slots: [
+      { kind: 'relic', dx: 0, fire: 0 },
+      { kind: 'skimmer', dx: -3.8, ds: 1.6, fire: 0.9, aim: -1 },
+      { kind: 'skimmer', dx: 3.8, ds: 1.6, fire: 1.8, aim: 1 },
+    ],
+  },
   {
     id: 'wraith-solo', name: 'Umbral Wraith', entry: 'top',
     path: TOP_HOLD(14, 16), fireFrom: 1.2, fireUntil: 18,

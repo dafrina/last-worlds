@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Box3, DoubleSide, Mesh, Raycaster, Vector3, type Material, type MeshStandardMaterial } from 'three';
 import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT } from '../../src/content/sites';
-import { SITE_MODELS, SITE_PARTS, siteFile, siteFinish, siteNode, sitesWithModels } from '../../src/render/site-models';
+import { FINISH_STAND_INS, SITE_MODELS, SITE_PARTS, siteFile, siteFinish, siteNode, sitesWithModels } from '../../src/render/site-models';
 import { SITE_IDS, VIEW, type PlanetId, type SiteId } from '../../src/shared/contracts';
 import { asset, stubGltfDecoding } from '../helpers/assets';
 
@@ -14,7 +14,9 @@ const CAMERA = new Vector3(0, Math.sin(VIEW.elevation * Math.PI / 180), Math.cos
 
 describe('strike-site models (docs/33 § 6, tools/blender/strike_sites.py)', () => {
   it('model every site on every world it appears on', () => {
-    for (const id of SITE_IDS) expect(SITE_MODELS[id]?.finishes, id).toEqual(SITES[id].worlds);
+    // A world with a stand-in wears that world's finish (none since Nahara's own, 13 November, docs/39).
+    for (const id of SITE_IDS) expect(SITE_MODELS[id]?.finishes, id).toEqual(SITES[id].worlds.filter(world => !FINISH_STAND_INS[world]));
+    for (const id of SITE_IDS) for (const world of SITES[id].worlds) expect(siteFinish(id, world), `${id} on ${world}`).toBe(FINISH_STAND_INS[world] ?? world);
     for (const planet of ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'umbra'] as PlanetId[])
       for (const id of sitesWithModels(planet)) expect(siteFinish(id, planet)).toBe(planet);
     expect(siteFinish('airfield', 'umbra')).toBeNull();

@@ -20,6 +20,7 @@ export const FACILITY_KIT_ASSETS: Readonly<Record<FacilityWorld, string>> = {
   // in the registry, so facility-view.ts never loads these names (there is no such file in their folders).
   amnion: 'facility-kit-v4-ruins.glb',
   corona: 'facility-kit-v4-ruins.glb',
+  nahara: 'facility-kit-v4-ruins.glb',
   umbra: 'facility-kit-v4-ruins.glb',
 };
 export type ModuleRole =

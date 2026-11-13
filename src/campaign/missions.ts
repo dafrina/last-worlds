@@ -190,6 +190,7 @@ export function createCounter(def: WorldMission, run: RunFacts, base = 0): Missi
     case 'air-water': counter.on = e => { if (e.type === 'kill' && airborne(e) && e.water && e.cause === 'main' && e.weapon === rule.weapon) add(); }; break;
     case 'hunters': counter.on = e => { if (e.type === 'kill' && e.hunter) add(); }; break;
     case 'wraiths': counter.on = e => { if (e.type === 'kill' && e.kind === 'wraith') add(); }; break;
+    case 'kills': counter.on = e => { if (e.type === 'kill' && e.kind === rule.of) add(); }; break;
     case 'launched': counter.on = e => { if (e.type === 'kill' && e.launchedBy === rule.boss) add(); }; break;
     case 'reflected': counter.on = e => { if (e.type === 'kill' && e.cause === 'reflected' && !e.bossPart) add(); }; break;
     case 'specials': counter.on = e => { if (e.type === 'special') add(); }; break;

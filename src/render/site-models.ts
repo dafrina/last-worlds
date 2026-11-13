@@ -31,31 +31,40 @@ export interface SiteModel {
 export const SITE_ROOF_CLEARANCE = 0.45;
 
 export const SITE_MODELS: Readonly<Partial<Record<SiteId, SiteModel>>> = {
-  'crash-site': { finishes: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra'], x: [-2.95, 2.9], s: [-2.5, 2.7], top: 1.55, below: .7 },
+  'crash-site': { finishes: ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'nahara', 'umbra'], x: [-2.95, 2.9], s: [-2.5, 2.7], top: 1.55, below: .7 },
   'airfield': { finishes: ['luna', 'khepri', 'vesper', 'corona'], x: [-2.7, 3.0], s: [-3.2, 3.3], top: 2.95, below: 1.3 },
   'salvage-yard': { finishes: ['luna', 'khepri', 'vesper'], x: [-3.0, 3.0], s: [-2.9, 3.3], top: 2.9, below: 1.0 },
   'shield-depot': { finishes: ['luna', 'khepri', 'vesper'], x: [-2.7, 2.7], s: [-2.6, 3.05], top: 2.1, below: 1.0 },
   'relay-station': { finishes: ['luna', 'khepri', 'vesper', 'amnion'], x: [-2.9, 3.0], s: [-2.75, 3.1], top: 3.1, below: 1.0 },
   'freight-terminal': { finishes: ['luna', 'khepri', 'vesper', 'amnion'], x: [-3.0, 3.0], s: [-3.05, 3.3], top: 2.2, below: 1.0 },
   'dark-spaceport': { finishes: ['umbra', 'nacre'], x: [-3.0, 3.0], s: [-3.05, 3.15], top: 3.2, below: 1.1 },
-  'prism-reactor': { finishes: ['umbra', 'nacre'], x: [-2.8, 2.8], s: [-2.45, 2.75], top: 2.9, below: 1.1, spin: .45 },
-  'sealed-vault': { finishes: ['umbra', 'nacre'], x: [-2.75, 2.8], s: [-2.55, 3.2], top: 2.6, below: 1.1 },
-  'gate-ring': { finishes: ['umbra', 'nacre', 'amnion'], x: [-2.75, 2.7], s: [-2.85, 2.75], top: 2.95, below: 1.1 },
+  'prism-reactor': { finishes: ['umbra', 'nacre', 'nahara'], x: [-2.8, 2.8], s: [-2.45, 2.75], top: 2.9, below: 1.1, spin: .45 },
+  'sealed-vault': { finishes: ['umbra', 'nacre', 'nahara'], x: [-2.75, 2.8], s: [-2.55, 3.2], top: 2.6, below: 1.1 },
+  'gate-ring': { finishes: ['umbra', 'nacre', 'nahara', 'amnion'], x: [-2.75, 2.7], s: [-2.85, 2.75], top: 2.95, below: 1.1 },
   'brood-hive': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.6], s: [-1.95, 2.95], top: 2.3, below: 1.05 },
   'spawning-pool': { finishes: ['amnion', 'nacre'], x: [-2.6, 2.45], s: [-2.5, 2.85], top: 2.5, below: .95 },
   // Corona (docs/37): the Star Extractor, a legged plasma rig; the Star Cage, a captured star between two arms.
   'star-extractor': { finishes: ['corona'], x: [-3.0, 3.0], s: [-3.0, 3.1], top: 3.25, below: 1.1 },
   'star-cage': { finishes: ['corona'], x: [-3.0, 3.0], s: [-3.0, 3.1], top: 3.25, below: 1.1 },
+  // Nahara (docs/39): the Step Temple, a stepped pyramid with the target, a crystal eye, over its summit.
+  'step-temple': { finishes: ['nahara'], x: [-2.95, 2.95], s: [-3.1, 3.0], top: 3.1, below: 1.1 },
 };
 
 export type SitePart = 'body' | 'core' | 'ruin';
 export const SITE_PARTS: readonly SitePart[] = ['body', 'core', 'ruin'];
 export const siteNode = (id: SiteId, finish: PlanetId, part: SitePart) => `site_${id.replace(/-/g, '_')}_${finish}_${part}`;
-/** The finish a site wears on a world, or null when it has no model there. */
-export const siteFinish = (id: SiteId, planet: PlanetId): PlanetId | null =>
-  SITE_MODELS[id]?.finishes.includes(planet) ? planet : null;
+/**
+ * Worlds that wear another world's finishes until they have their own (none since 13 November: Nahara wore Umbra's until
+ * its own sandstone finish, docs/39).
+ */
+export const FINISH_STAND_INS: Readonly<Partial<Record<PlanetId, PlanetId>>> = {};
+/** The finish a site wears on a world (its own, or its stand-in's), or null when it has no model there. */
+export function siteFinish(id: SiteId, planet: PlanetId): PlanetId | null {
+  const finishes = SITE_MODELS[id]?.finishes, stand = FINISH_STAND_INS[planet];
+  return finishes?.includes(planet) ? planet : stand && finishes?.includes(stand) ? stand : null;
+}
 /** The file of a site's finish, under `assets/`. */
 export const siteFile = (id: SiteId, finish: PlanetId) => `shared/sites/${id}-${finish}.glb`;
 /** The sites a world has models for. */
 export const sitesWithModels = (planet: PlanetId): SiteId[] =>
-  (Object.keys(SITE_MODELS) as SiteId[]).filter(id => SITE_MODELS[id]!.finishes.includes(planet));
+  (Object.keys(SITE_MODELS) as SiteId[]).filter(id => siteFinish(id, planet) !== null);

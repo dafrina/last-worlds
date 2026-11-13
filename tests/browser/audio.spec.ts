@@ -70,7 +70,8 @@ test('seven real offline mixes and a crowded combat mix have headroom and surviv
       (await (window as unknown as { __AUDIO_LAB__: Lab }).__AUDIO_LAB__.renderTimeline({ planet, bars: 6, startStep: 128, combat: planet === 'nacre' })).metrics, planet);
     sound(metrics, planet);
     expect(metrics.rms, planet).toBeGreaterThan(.015);
-    expect(metrics.sampleBytes, planet).toBeLessThan(14 * 1024 * 1024);
+    // (15 MiB since Nahara's own voices, 13 November; see tests/audio/boss-music.test.ts.)
+    expect(metrics.sampleBytes, planet).toBeLessThan(15 * 1024 * 1024);
     signatures.push(metrics.rms);
   }
   expect(new Set(signatures).size).toBe(WORLDS.length);

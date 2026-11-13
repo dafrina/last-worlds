@@ -101,6 +101,22 @@ export const THEMES: Record<PlanetId, Theme> = {
     // over each chord root (2.5, 3.5, 6.5, 9.5).
     scales: [[6, 1, 11.51, 8.5, 0.5, 9.5, 3.5], [7, 2, 4.69, 9.5, 1.5, 10.5, 4.5], [0, 7, 3.86, 2.5, 6.5, 3.5, 9.5], [5, 0, 8.16, 7.5, 11.5, 8.5, 2.5]],
   },
+  // Nahara (docs/39; user, 13 November: "now the music for this level", then "a bit too happy or melancholic. I want
+  // more mystery"): The Silent Empire, a procession through ruins nobody remembers. D at 90 BPM, no progression that
+  // resolves: D minor with its ninth pressed against the third (E against F), a B♭ augmented triad (whole-tone, no
+  // ground under it), a chromatic leap to F♯ minor, and A suspended, the fourth never falling to the third. The horn's
+  // line is written out per chord (naharaHorn), its every note a tone of the chord.
+  nahara: {
+    title: 'The Silent Empire', bpm: 90, root: 50,
+    chords: [[0, 7, 14, 15], [-4, 0, 4, 8], [-8, -1, 7, 16], [-5, 2, 7, 12]],
+    bass: [0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 7, -1, -1, -1, -1, -1],
+    melody: [19, -1, -1, -1, -1, -1, -1, -1, -1, -1, 14, -1, -1, -1, -1, -1],
+    kick: [0, 6, 10], hats: [4, 12],
+    // D aeolian; the whole-tone scale through the augmented chord; F♯ aeolian; A phrygian (its B♭ the shadow of the
+    // second chord).
+    scales: [[2, 4, 5, 7, 9, 10, 0], [10, 0, 2, 4, 6, 8], [6, 8, 9, 11, 1, 2, 4], [9, 10, 0, 2, 4, 5, 7]],
+  },
+
 };
 
 /**
@@ -115,7 +131,7 @@ export const SIDECHAIN: Record<PlanetId, { level: number; boss: readonly [number
   vesper: { level: .1, boss: [.25, .4, .5] },
   amnion: { level: .2, boss: [.3, .45, .55] },
   corona: { level: .2, boss: [.3, .45, .55] },
-  umbra: { level: 0, boss: [.1, .2, .25] },
+  umbra: { level: 0, boss: [.1, .2, .25] }, nahara: { level: .2, boss: [.3, .45, .55] },
 };
 /** Worlds whose level score is frozen as the user approved it (11 November: "i love love love the umbra sound"): its
  * notes, its samples and the touch it is played with (mixer.ts humanize `legacy`) stay exactly as they were. */
@@ -175,6 +191,7 @@ export function scoreStep(planet: PlanetId, step: number): Note[] {
     case 'vesper': return vesperStep(step);
     case 'amnion': return amnionStep(step);
     case 'corona': return coronaStep(step);
+    case 'nahara': return naharaStep(step);
     case 'umbra': return umbraStep(step);
   }
 }
@@ -432,6 +449,66 @@ function coronaStep(step: number): Note[] {
     add('harp-high', line, .2, pan, .38, { ...MELODY_PART, ...(slide ? { bend: { from: slide, seconds: .3 } } : {}) });
     if (phrase === 3 && ((line - theme.root) % 12 + 12) % 12 === 0) add('harp-high', line - 12, .12, -pan, .32);
   }
+  return notes;
+}
+
+/**
+ * Nahara, The Silent Empire: a procession through the ruins of a vanished empire. A wordless choir holds each chord;
+ * the stone drum walks under it (one, the "and" of two, three; a ghost stroke before the bar), a sistrum shakes on the
+ * backbeat; the ancient horn calls three long notes over each chord, up the augmented triad and into the suspension;
+ * the conduits' crystal moves through the chord as the turquoise energy, flickering in the breakdown. The opening
+ * gathers bar by bar.
+ */
+/** The horn's line over each chord: (sixteenth within the chord's two bars, pitch), three long notes, every one a tone
+ * of its chord: down from the fifth to the ninth and its clash; up the augmented triad; down F♯ minor from its fifth;
+ * and A's suspension, the fourth held where the third should be. */
+const NAHARA_HORN: readonly (readonly (readonly [number, number])[])[] = [
+  [[0, 69], [10, 64], [24, 65]],
+  [[0, 66], [12, 70], [24, 74]],
+  [[0, 73], [10, 69], [24, 66]],
+  [[0, 64], [12, 62], [24, 69]],
+];
+/** The horn's note on a sixteenth, or null: the whole line in the developed phrase and the return; in the opening from
+ * bar 4, only the notes on each bar's downbeat; none in the breakdown but the chord's first note, an octave down. */
+function naharaHorn(step: number): number | null {
+  const bar = Math.floor(step / 16) % 32, phrase = Math.floor(bar / 8), within = step % 32;
+  const note = NAHARA_HORN[Math.floor(bar / 2) % 4].find(([at]) => at === within);
+  if (!note) return null;
+  if (phrase === 0) return bar >= 4 && within % 16 === 0 ? note[1] : null;
+  if (phrase === 2) return within === 0 && bar % 4 === 0 ? note[1] - 12 : null;
+  return note[1];
+}
+function naharaStep(step: number): Note[] {
+  const { theme, bar, beat, phrase, breakdown, chord, root } = form('nahara', step), notes: Note[] = [], add = voices(notes);
+  const full = phrase === 1 || phrase === 3;
+  // The choir on each chord, its lowest tone an octave up so it sits over the drum and the bass.
+  if (step % 32 === 0) chord.forEach((interval, i) => add('choir', root + interval + (i ? 0 : 12), breakdown ? .1 : .12, (i - 1.5) * .2, .55));
+  const bass = theme.bass[beat];
+  // (Its second note is the chord's own tone nearest a fifth: the augmented chord's is the sharpened one.)
+  const fifth = chord.map(c => c - chord[0]).reduce((best, c) => Math.abs(c - 7) < Math.abs(best - 7) ? c : best);
+  if (bass >= 0 && (bar >= 2 || beat === 0) && (!breakdown || beat === 0)) add('round-bass', root - 12 + chord[0] + (bass ? fifth : 0), .26, 0, .1);
+  // The stone drum: the processional from bar 2 of the opening, the whole walk in the full phrases, one stroke every
+  // other bar in the breakdown. Its first stroke of the bar keys the sidechain.
+  const duck = kickDuck('nahara', SIDECHAIN.nahara.level);
+  if (full) {
+    if (theme.kick.includes(beat)) add('stone-drum', 36, beat === 0 ? .44 : .34, 0, .14, beat === 0 ? { duck } : {});
+    if (beat === 14 && bar % 2 === 1) add('stone-drum', 36, .16, 0, .14);
+  } else if (phrase === 0 && bar >= 2) {
+    if (beat === 0 || (bar >= 4 && beat === 10)) add('stone-drum', 36, .38, 0, .14, beat === 0 ? { duck } : {});
+  } else if (breakdown && beat === 0 && bar % 2 === 0) add('stone-drum', 36, .3, 0, .22, { duck });
+  // The sistrum on the backbeat; quieter shakes on the off-eighths in the return.
+  if (theme.hats.includes(beat) && (full || (phrase === 0 && bar >= 4))) add('rattle', 60, .1, beat === 4 ? -.25 : .25, .12);
+  if (phrase === 3 && beat % 4 === 2) add('rattle', 60, .045, beat < 8 ? .3 : -.3, .12);
+  // The conduits: the chord's tones two octaves up, climbing and falling in eighths in the full phrases, a flicker of
+  // sixteenths in the breakdown, a few sparks late in the opening.
+  const tones = chord.map(c => root + c + 24).sort((a, b) => a - b), cycle = [0, 1, 2, 3, 2, 1, 2, 0];
+  const conduit = (k: number, gain: number) => add('conduit', tones[cycle[k % 8]] - 12, gain, Math.sin(step * .7) * .5, .4);
+  if (full && beat % (phrase === 3 ? 2 : 4) === 0) conduit(beat / 2, phrase === 3 ? .06 : .05);
+  else if (breakdown && scatter(step, 31) < .45) conduit(step, .045);
+  else if (phrase === 0 && bar >= 6 && beat % 4 === 2) conduit(beat / 2, .04);
+  // The horn.
+  const horn = naharaHorn(step);
+  if (horn !== null) add('horn', horn, breakdown ? .09 : .13, Math.sin(step * .37) * .25, .38, MELODY_PART);
   return notes;
 }
 

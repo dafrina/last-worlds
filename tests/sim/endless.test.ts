@@ -16,8 +16,9 @@ function holdFire(state: RunState) { state.nextVolleyAt = Infinity; }
 describe('endless schedule', () => {
   it('opens with the Luna prologue, then cycles every world in campaign order three sectors at a time, each stint ending with its boss', () => {
     const planets = Array.from({ length: 22 }, (_, i) => endlessPlanet(i + 1));
-    expect(planets).toEqual(['luna', ...['khepri', 'vesper', 'nacre', 'amnion', 'corona', 'umbra', 'khepri'].flatMap(planet => [planet, planet, planet])]);
-    expect([1, 4, 7, 10, 13, 16, 19, 22, 25].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'ark', 'veil', 'cradle', 'heliophage', 'eclipse', 'bastion', 'ark']);
+    expect(planets).toEqual(['luna', ...['khepri', 'vesper', 'nacre', 'amnion', 'corona', 'nahara', 'umbra'].flatMap(planet => [planet, planet, planet])]);
+    expect(endlessPlanet(23)).toBe('khepri');
+    expect([1, 4, 7, 10, 13, 16, 19, 22, 25, 28].map(n => endlessSectorPlan(n).boss)).toEqual(['warden', 'bastion', 'ark', 'veil', 'cradle', 'heliophage', 'citadel', 'eclipse', 'bastion', 'ark']);
     expect([2, 3, 5, 6, 8].every(n => endlessSectorPlan(n).boss === null && !isBossSector(n))).toBe(true);
     // The prologue does not advance the ramps: Khepri's first sector (2) flies at the old sector 1 values.
     expect(sectorPace(1)).toBe(sectorPace(2));

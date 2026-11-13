@@ -9,6 +9,7 @@ describe('cue sequence hazard unions', () => {
       { label: `rolling-thunder/${difficulty}`, config: { mode: 'campaign' as const, mission: 'bastion' as const, difficulty, seed: 21 }, seconds: 300, sector: 1 },
       { label: `deep-bloom/${difficulty}`, config: { mode: 'campaign' as const, mission: 'deep-bloom' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
       { label: `brood-strike/${difficulty}`, config: { mode: 'campaign' as const, mission: 'brood-strike' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
+      { label: `silent-empire/${difficulty}`, config: { mode: 'campaign' as const, mission: 'silent-empire' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
       { label: `final-horizon/${difficulty}`, config: { mode: 'campaign' as const, mission: 'final-horizon' as const, difficulty, seed: 21 }, seconds: 400, sector: 1 },
       { label: `cold-vector/${difficulty}`, config: { mode: 'campaign' as const, mission: 'cold-vector' as const, difficulty, seed: 21 }, seconds: 330, sector: 1 },
     ]),

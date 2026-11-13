@@ -122,12 +122,12 @@ const isGroundFormation = (formation: FormationId) => FORMATIONS[formation].entr
  * A wave's attack character: what its armed members do. The arcs pair characters deliberately (a Pulsar's tracking stream
  * beside missile batteries that fire down their own columns, never beside aimed turrets; Needle beams between weaver
  * flights), so a pool slot draws only waves of its nominal's character: fighters (darts and weavers), beams (Needles and
- * Lancers), heavies (Diamonds), Pulsars, the Wraith; aimed turret batteries or missile batteries on the ground.
+ * Lancers), heavies (Diamonds and Relic Shields), Pulsars, the Wraith; aimed turret batteries or missile batteries on the ground.
  */
 export type WaveCharacter = 'fighter' | 'beam' | 'heavy' | 'pulsar' | 'wraith' | 'turret' | 'missile' | 'none';
 export function waveCharacter(placements: readonly FormationPlacement[]): WaveCharacter {
   const kinds = new Set(placements.filter(p => !FORMATIONS[p.formation].harmless).flatMap(p => FORMATIONS[p.formation].slots.map(slot => slot.kind)));
-  return kinds.has('pulsar') ? 'pulsar' : kinds.has('wraith') ? 'wraith' : kinds.has('diamond') ? 'heavy' : kinds.has('needle') || kinds.has('lancer') ? 'beam'
+  return kinds.has('pulsar') ? 'pulsar' : kinds.has('wraith') ? 'wraith' : kinds.has('diamond') || kinds.has('relic') ? 'heavy' : kinds.has('needle') || kinds.has('lancer') ? 'beam'
     : kinds.has('missile') ? 'missile' : kinds.has('turret') ? 'turret' : kinds.size ? 'fighter' : 'none';
 }
 /** Kinds that fire beams (Needles' narrow lanes, Lancers' wide ones). */
@@ -213,9 +213,26 @@ const AMNION_CLIMAX: readonly DeckWave[] = [
   w('arrow-5'), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'), w('diamond-lancer'), w('diamond-convoy'),
   w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'),
 ];
-/** Umbra's fleet (docs/28): Amnion's mix of craft (its Wraiths and artillery ships fly in their arc slots). */
-const UMBRA_PRESSURE: readonly DeckWave[] = AMNION_PRESSURE;
-const UMBRA_CLIMAX: readonly DeckWave[] = AMNION_CLIMAX;
+/**
+ * Nahara's ancient defences (docs/39): Skimmers and Relic Shields with the late fleet's fighters, beams, turret and missile
+ * batteries and energy cells (its Wraiths and artillery ships fly in their arc slots).
+ */
+const NAHARA_PRESSURE: readonly DeckWave[] = [
+  w('arrow-3'), w('line-dart-4'), w('skimmer-pair'), w('line-weaver-4'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
+  w('relic-solo'),
+  w('battery-2'), w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'), w('depot-missile'),
+];
+const NAHARA_CLIMAX: readonly DeckWave[] = [
+  w('arrow-5'), w('skimmer-pair'), w('skimmer-trio'), w('snake-weaver-5'), w('needle-line-3'), w('needle-column-5'),
+  w('relic-solo'), w('relic-pair'), w('relic-escort'),
+  w('battery-3'), w('depot-3'), w('missile-2'), w('missile-3'),
+];
+/**
+ * Umbra's fleet (docs/28): Amnion's mix of craft (its Wraiths and artillery ships fly in their arc slots), and since Nahara
+ * (docs/39) a few of its Skimmer and Relic Shield waves.
+ */
+const UMBRA_PRESSURE: readonly DeckWave[] = [...AMNION_PRESSURE, w('skimmer-pair'), w('relic-solo')];
+const UMBRA_CLIMAX: readonly DeckWave[] = [...AMNION_CLIMAX, w('skimmer-pair'), w('relic-pair')];
 
 export const DECK_POOLS: Readonly<Record<PlanetId, Readonly<Record<DeckPhase, readonly DeckWave[]>>>> = {
   luna: { pressure: LUNA_PRESSURE, climax: LUNA_CLIMAX },
@@ -223,8 +240,10 @@ export const DECK_POOLS: Readonly<Record<PlanetId, Readonly<Record<DeckPhase, re
   vesper: { pressure: VESPER_PRESSURE_POOL, climax: VESPER_CLIMAX },
   nacre: { pressure: NACRE_PRESSURE_POOL, climax: NACRE_CLIMAX },
   amnion: { pressure: AMNION_PRESSURE, climax: AMNION_CLIMAX },
-  // Corona (docs/37) flies Umbra's fleet, the Wraith included (user, 5 November: "the same ships as umbra, with wraith").
-  corona: { pressure: UMBRA_PRESSURE, climax: UMBRA_CLIMAX },
+  // Corona (docs/37) flies Umbra's fleet as it was before Nahara, the Wraith included (user, 5 November: "the same ships as
+  // umbra, with wraith"); the Skimmer and the Relic Shield first fly on Nahara.
+  corona: { pressure: AMNION_PRESSURE, climax: AMNION_CLIMAX },
+  nahara: { pressure: NAHARA_PRESSURE, climax: NAHARA_CLIMAX },
   umbra: { pressure: UMBRA_PRESSURE, climax: UMBRA_CLIMAX },
 };
 
@@ -685,7 +704,8 @@ const BROOD_STRIKE_SORTIE = extend(BROOD_STRIKE, 62, 36, [
  * played and tuned for its own world.
  */
 const DYING_STAR: readonly DeckSlot[] = FINAL_HORIZON.map(slot => moved(slot, 0, 'c-'));
-const FINAL_HORIZON_SORTIE = extend(FINAL_HORIZON, 62, 36, [
+/** Final Horizon's sortie stretch (the glass plains), flown by Dying Star too. */
+const FINAL_HORIZON_BLOCK: readonly DeckSlot[] = [
   fix({ at: 0, id: 'u-x-cells', phase: 'pressure', message: 'ENERGY CELLS ON THE GLASS PLAINS', formations: [f('depot-3')] }),
   draw({ at: 2, id: 'u-x-fighters', phase: 'pressure', formations: [f('line-weaver-4', -1)] }),
   draw({ at: 8, id: 'u-x-needles', phase: 'pressure', formations: [f('needle-line-3')] }),
@@ -695,8 +715,70 @@ const FINAL_HORIZON_SORTIE = extend(FINAL_HORIZON, 62, 36, [
   draw({ at: 25, id: 'u-x-cells-3', phase: 'pressure', formations: [f('depot-2')] }),
   draw({ at: 28, id: 'u-x-column', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
   draw({ at: 33, id: 'u-x-mortars', phase: 'pressure', formations: [f('missile-2')] }, 3),
+];
+const DYING_STAR_SORTIE: readonly DeckSlot[] = extend(FINAL_HORIZON, 62, 36, FINAL_HORIZON_BLOCK).map(slot => moved(slot, 0, 'c-'));
+/** An arc with some pool slots' nominal waves replaced (by slot id). */
+function withNominal(arc: readonly DeckSlot[], swaps: Readonly<Record<string, readonly FormationPlacement[]>>): readonly DeckSlot[] {
+  return arc.map(slot => slot.kind === 'pool' && swaps[slot.id] ? { ...slot, nominal: swaps[slot.id] } : slot);
+}
+/**
+ * Umbra after Nahara (docs/39): Final Horizon introduces a Skimmer pair in place of its first dart line and a Relic Shield in
+ * place of the glass plains' drone carrier (both the same attack character and role), so its draws, and endless Umbra's,
+ * may fly Nahara's waves. Dying Star keeps the arc as it was.
+ */
+const UMBRAL_ARC = withNominal(FINAL_HORIZON, { 'u-darts': [f('skimmer-pair')] });
+const FINAL_HORIZON_SORTIE = extend(UMBRAL_ARC, 62, 36, withNominal(FINAL_HORIZON_BLOCK, { 'u-x-carrier': [f('relic-solo')] }));
+/**
+ * The Silent Empire over Nahara (docs/39, 12 November 2026), on the late worlds' 142 s grid: the canyon entrance (Skimmers,
+ * the first Relic Shield), the abandoned city (cells, beams, mortars), a strike site and relief, the ruin network (the
+ * sortie's stretch and the artillery ship), the inner sanctuary (Relic Shields with Skimmer escorts in the climax) and the
+ * last guard before THE CITADEL. Its Wraith and artillery ship fly in their slots as on Umbra.
+ */
+const SILENT_EMPIRE: readonly DeckSlot[] = [
+  fix({ at: 2, id: 'h-canyon-skimmers', phase: 'intro', message: 'THE SILENT EMPIRE · SKIMMERS · THEIR SHOTS SPLIT', formations: [f('skimmer-pair')] }),
+  fix({ at: 8, id: 'h-canyon-arrow', phase: 'intro', formations: [f('arrow-3')] }),
+  fix({ at: 12, id: 'h-terrace-turrets', phase: 'intro', message: 'ANCIENT DEFENCES ON THE TERRACES', formations: [f('battery-2')] }),
+  fix({ at: 16, id: 'h-relic', phase: 'pressure', message: 'RELIC SHIELD · STRIKE WHEN ITS CORE OPENS', formations: [f('relic-solo')] }),
+  fix({ at: 21, id: 'h-mortars', phase: 'pressure', formations: [f('missile-2')] }),
+  draw({ at: 24, id: 'h-city-darts', phase: 'pressure', formations: [f('line-dart-4')] }),
+  fix({ at: 27, id: 'h-cells', phase: 'pressure', message: 'ENERGY CELLS IN THE ABANDONED CITY', formations: [f('depot-3')] }),
+  draw({ at: 30, id: 'h-city-needles', phase: 'pressure', formations: [f('needle-line-3')] }),
+  draw({ at: 33, id: 'h-city-relic', phase: 'pressure', formations: [f('relic-solo', 0, true)] }),
+  draw({ at: 40, id: 'h-city-snake', phase: 'pressure', formations: [f('snake-weaver-5', 0, true)] }),
+  draw({ at: 45, id: 'h-city-mortars', phase: 'pressure', formations: [f('missile-3')] }),
+  side({ at: 51, id: 'h-west', pickup: { kind: 'credit', x: -7.5, s: 18, value: 25 }, rank: 1 }),
+  relief(56, 'h-east'),
+  draw({ at: 62, id: 'h-ruin-skimmers', phase: 'pressure', formations: [f('skimmer-pair', 0, true)] }),
+  draw({ at: 66, id: 'h-ruin-turrets', phase: 'pressure', formations: [f('battery-3')] }),
+  draw({ at: 69, id: 'h-ruin-column', phase: 'pressure', formations: [f('needle-column-5')] }),
+  fix({ at: 72, id: 'h-artillery', phase: 'pressure', message: 'ARTILLERY SHIP · ITS STREAM FOLLOWS YOU · KEEP MOVING', formations: [f('pulsar-solo')] }),
+  draw({ at: 75, id: 'h-ruin-cells', phase: 'pressure', formations: [f('depot-missile')] }),
+  draw({ at: 78, id: 'h-ruin-wraith', phase: 'pressure', formations: [f('wraith-solo', 0, true)] }),
+  draw({ at: 84, id: 'h-ruin-relic', phase: 'pressure', formations: [f('relic-solo')] }),
+  fix({ at: 90, id: 'h-sanctuary', phase: 'climax', message: 'THE INNER SANCTUARY · ITS GUARDIANS WAKE', formations: [f('relic-pair')] }),
+  draw({ at: 95, id: 'h-sanctuary-turrets', phase: 'climax', formations: [f('battery-3')] }),
+  draw({ at: 101, id: 'h-sanctuary-skimmers', phase: 'climax', formations: [f('skimmer-trio')] }),
+  draw({ at: 106, id: 'h-sanctuary-mortars', phase: 'climax', formations: [f('missile-3')] }, 4),
+  draw({ at: 110, id: 'h-sanctuary-darts', phase: 'climax', formations: [f('arrow-5')] }),
+  draw({ at: 113, id: 'h-sanctuary-artillery', phase: 'climax', formations: [f('pulsar-solo', -1)] }),
+  draw({ at: 116, id: 'h-sanctuary-escort', phase: 'climax', formations: [f('relic-escort')] }),
+  draw({ at: 122, id: 'h-sanctuary-cells', phase: 'climax', formations: [f('depot-3')] }),
+  draw({ at: 126, id: 'h-sanctuary-wraith', phase: 'climax', formations: [f('wraith-solo')] }),
+  fix({ at: 131, id: 'h-last-guard', phase: 'climax', message: 'LAST GUARD · THE CITADEL RISES AHEAD', formations: [f('needle-column-5', 0, true)] }),
+  draw({ at: 137, id: 'h-last-mortars', phase: 'climax', formations: [f('missile-2')] }),
+  fix({ at: 142, id: 'h-relief', phase: 'recovery', formations: [] }),
+];
+const SILENT_EMPIRE_SORTIE = extend(SILENT_EMPIRE, 62, 36, [
+  fix({ at: 0, id: 'h-x-cells', phase: 'pressure', message: 'THE RUIN NETWORK', formations: [f('depot-3')] }),
+  draw({ at: 2, id: 'h-x-skimmers', phase: 'pressure', formations: [f('skimmer-pair')] }),
+  draw({ at: 8, id: 'h-x-needles', phase: 'pressure', formations: [f('needle-line-3')] }),
+  draw({ at: 12, id: 'h-x-cells-2', phase: 'pressure', formations: [f('depot-missile')] }, 2),
+  draw({ at: 15, id: 'h-x-snake', phase: 'pressure', formations: [f('snake-weaver-5')] }),
+  draw({ at: 21, id: 'h-x-relic', phase: 'pressure', formations: [f('relic-solo')] }),
+  draw({ at: 25, id: 'h-x-cells-3', phase: 'pressure', formations: [f('depot-2')] }),
+  draw({ at: 28, id: 'h-x-column', phase: 'pressure', formations: [f('needle-column-5', 0, true)] }),
+  draw({ at: 33, id: 'h-x-mortars', phase: 'pressure', formations: [f('missile-2')] }, 3),
 ]);
-const DYING_STAR_SORTIE: readonly DeckSlot[] = FINAL_HORIZON_SORTIE.map(slot => moved(slot, 0, 'c-'));
 const DEEP_BLOOM_SORTIE = extend(DEEP_BLOOM, 62, 36, [
   fix({ at: 0, id: 'n-x-depot', phase: 'pressure', message: 'FUEL DEPOTS IN THE GROVE', formations: [f('depot-3')] }),
   draw({ at: 2, id: 'n-x-weavers', phase: 'pressure', formations: [f('line-weaver-4', -1)] }),
@@ -735,7 +817,7 @@ const NACRE_STAGES = lateStages(DEEP_BLOOM, 'en');
  * Every world in campaign order (user, 5 November: "i thought every level will be used in succession in endless"):
  * Amnion, Corona and Umbra are staged from their missions' arcs exactly as Nacre is from Deep Bloom.
  */
-const AMNION_STAGES = lateStages(BROOD_STRIKE, 'ea'), CORONA_STAGES = lateStages(DYING_STAR, 'ec'), UMBRA_STAGES = lateStages(FINAL_HORIZON, 'eu');
+const AMNION_STAGES = lateStages(BROOD_STRIKE, 'ea'), CORONA_STAGES = lateStages(DYING_STAR, 'ec'), NAHARA_STAGES = lateStages(SILENT_EMPIRE, 'eh'), UMBRA_STAGES = lateStages(UMBRAL_ARC, 'eu');
 
 const template = (id: string, world: PlanetId, teach: boolean, slots: readonly DeckSlot[], campaign = false): DeckTemplate => ({ id, world, teach, slots, ...(campaign ? { campaign } : {}) });
 
@@ -747,6 +829,7 @@ export const CAMPAIGN_DECKS: Readonly<Record<MissionId, DeckTemplate>> = {
   'deep-bloom': template('deep-bloom', MISSION_PLANET['deep-bloom'], true, DEEP_BLOOM_SORTIE, true),
   'brood-strike': template('brood-strike', MISSION_PLANET['brood-strike'], true, BROOD_STRIKE_SORTIE, true),
   'dying-star': template('dying-star', MISSION_PLANET['dying-star'], true, DYING_STAR_SORTIE, true),
+  'silent-empire': template('silent-empire', MISSION_PLANET['silent-empire'], true, SILENT_EMPIRE_SORTIE, true),
   'final-horizon': template('final-horizon', MISSION_PLANET['final-horizon'], true, FINAL_HORIZON_SORTIE, true),
 };
 
@@ -771,6 +854,9 @@ export const ENDLESS_DECKS = {
   coronaOpening: template('endless-corona-opening', 'corona', true, CORONA_STAGES.opening),
   coronaPressure: template('endless-corona-pressure', 'corona', false, CORONA_STAGES.pressure),
   coronaPeak: template('endless-corona-peak', 'corona', false, CORONA_STAGES.peak),
+  naharaOpening: template('endless-nahara-opening', 'nahara', true, NAHARA_STAGES.opening),
+  naharaPressure: template('endless-nahara-pressure', 'nahara', false, NAHARA_STAGES.pressure),
+  naharaPeak: template('endless-nahara-peak', 'nahara', false, NAHARA_STAGES.peak),
   umbraOpening: template('endless-umbra-opening', 'umbra', true, UMBRA_STAGES.opening),
   umbraPressure: template('endless-umbra-pressure', 'umbra', false, UMBRA_STAGES.pressure),
   umbraPeak: template('endless-umbra-peak', 'umbra', false, UMBRA_STAGES.peak),
@@ -788,6 +874,7 @@ export function endlessTemplate(sector: number): DeckTemplate {
     case 'nacre': return first ? (stage === 0 ? ENDLESS_DECKS.nacreOpening : ENDLESS_DECKS.nacrePressure) : ENDLESS_DECKS.nacrePeak;
     case 'amnion': return first ? (stage === 0 ? ENDLESS_DECKS.amnionOpening : ENDLESS_DECKS.amnionPressure) : ENDLESS_DECKS.amnionPeak;
     case 'corona': return first ? (stage === 0 ? ENDLESS_DECKS.coronaOpening : ENDLESS_DECKS.coronaPressure) : ENDLESS_DECKS.coronaPeak;
+    case 'nahara': return first ? (stage === 0 ? ENDLESS_DECKS.naharaOpening : ENDLESS_DECKS.naharaPressure) : ENDLESS_DECKS.naharaPeak;
     case 'umbra': return first ? (stage === 0 ? ENDLESS_DECKS.umbraOpening : ENDLESS_DECKS.umbraPressure) : ENDLESS_DECKS.umbraPeak;
     case 'vesper': return first ? (stage === 0 ? ENDLESS_DECKS.vesperOpening : ENDLESS_DECKS.vesperPressure) : ENDLESS_DECKS.vesperPeak;
     default: return first ? (stage === 0 ? ENDLESS_DECKS.khepriOpening : ENDLESS_DECKS.khepriPressure) : ENDLESS_DECKS.khepriPeak;
