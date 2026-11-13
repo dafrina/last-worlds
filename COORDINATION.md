@@ -975,4 +975,14 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Next, in this session:** the user's Perfect Pilot and progressive difficulty spec (pasted 13 November, addressed to
   Codex; the user assigned it here). It owns `tests/sim/pilots.ts`, `fairness-*`, `mission-harness.ts`, and new balance
   reports.
+- **Deployed** `b34e2be` (Pages run 43471073432; the live bundle matches).
+
+**13 November · Claude Code (main session) · balance measurement READY** (docs/40):
+- **Contents:**
+  - the expected tiers;
+  - the pacifist fairness branch;
+  - campaign completion and endless progression tests;
+  - the extended balance report and its summariser;
+  - the pilot's Relic Shield priority, pickup seeking and the skilled pilot.
+- No gameplay constant changed. The balance proposal in docs/40 awaits the user.
 

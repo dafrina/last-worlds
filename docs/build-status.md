@@ -1,5 +1,35 @@
 # Build status
 
+## Balance measurement: expected tiers, a stronger fairness check, campaign and endless reports (13 November 2026; docs/40)
+
+The user's "Perfect Pilot & progressive difficulty" spec, assigned to this session. Tests and reports only: no gameplay
+constant changed (one type annotation in `src/sim/fairness.ts`).
+- **Expected weapon tier per mission** (`tests/sim/balance-setup.ts` `EXPECTED_RANK`): Level 1 on Luna and Khepri,
+  rising to Level 4 on Nahara and Umbra.
+- **Fast CI:**
+  - `campaign-completion.test.ts`: every mission at its expected tier; all four weapons on Nahara and Umbra; Level 5
+    clearly ahead of Level 4.
+  - `endless-progression.test.ts`: the Level 1 starter, tiers from real pickups.
+- **Pacifist fairness branch:**
+  - the perfect pilot's evasion with nothing killed, in every formation and hazard union;
+  - all 171 formation cases are dodged with 0 hits;
+  - the unions hold every rule except one view-relative seal case on Dying Star, which is documented, with no hit.
+  - Dying Star is now in the campaign unions too.
+- **The pilot:**
+  - shoots softer targets while a Relic Shield is closed;
+  - collects reachable pickups when they are on (`pickupSeeker`);
+  - `fly` logs kills, damage, shield hits, shots and lanes met, boss phases and tiers;
+  - a `skilledPilot` (0.3 s reaction, 1.2 s look ahead) for difficulty measurement.
+- **Extended report:** `balance-report.test.ts` and `tools/balance-report.mjs`. 2,908 flights measured; the findings are
+  in docs/40:
+  - the perfect pilot clears everything at every level;
+  - Endless reaches Level 5 by about sector 8;
+  - late missions at Level 4 meet a third less fire than at Level 1. A proposal is awaiting the user.
+- `umbra.test.ts`'s no-hit run moved from seed 9 to seed 3 (the Relic Shield priority shifted one Veteran Seeker hit;
+  hit counts over seeds 1–16 unchanged within noise).
+- **Gate:** typecheck clean; unit 1100 passed, 7 skipped; build passes. No browser run (tests and docs only).
+- **Earlier today:** `b34e2be` deployed (Pages run 43471073432, the live bundle matches).
+
 ## THE CITADEL stands in place, falls in place; more ruins on Nahara (13 November 2026)
 
 User, after playing the deployed `820dadf` on a phone: "the cliff is still not up to the citadels base, it comes out too

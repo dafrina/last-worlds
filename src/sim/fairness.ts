@@ -317,7 +317,7 @@ export function steerTo(x: number, vx: number, target: number, braking = kinemat
  * `previous` keeps a plan stable across replans. If no single target stays clear, two-leg plans (move to A,
  * then at a switch time to B) are searched as well.
  */
-export function planEvasion(state: RunState, footprints: readonly Footprint[], preferX: number, previous: number | null = null, margin = FAIRNESS.comfortMargin, horizon = 3.2): EvasionPlan {
+export function planEvasion(state: RunState, footprints: readonly Footprint[], preferX: number, previous: number | null = null, margin: number = FAIRNESS.comfortMargin, horizon = 3.2): EvasionPlan {
   const now = state.time;
   const dt = 1 / 60;
   const steps = Math.round(horizon / dt);

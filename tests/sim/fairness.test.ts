@@ -232,7 +232,8 @@ describe('formation hazard unions (isolated squadrons)', () => {
           const { log, trace } = flyFormation(id, mirror, config, sector, startX, branch);
           const where = `${id} mirror=${mirror} ${label} start=${startX} ${branch.name}`;
           expect(trace.violations, `${where}\n${summary(trace)}`).toEqual([]);
-          if (branch.name === 'perfect') expect(log.hits, `${where}: the solver found no clear path`).toBe(0);
+          // The pacifist too (docs/40): every formation is dodged in full, nothing killed before it fires.
+          if (branch.name === 'perfect' || branch.name === 'pacifist') expect(log.hits, `${where}: the solver found no clear path`).toBe(0);
         }
       }
     }

@@ -91,7 +91,10 @@ export function preferredX(state: RunState): number {
     const score = enemy.s + 0.8 * Math.abs(enemy.x - state.player.x);
     // A Seeker pilot clears softer threats before a long shield fight, except beam craft:
     // their persistent lane hazards still deserve immediate attention through the armour.
-    const resistant = state.player.weapon === 'seeker' && (enemy.hunter?.shield ?? 0) > 0 && !BEAM_KINDS.has(enemy.kind);
+    // A Relic Shield takes a quarter of the damage while its armour is closed (it opens only to fire, and breaks for good
+    // under 30%): any pilot shoots something softer meanwhile, and comes back to it when it opens or nothing else is left.
+    const relicClosed = enemy.kind === 'relic' && !((enemy.openUntil ?? -Infinity) > state.time) && enemy.hp > enemy.maxHp * 0.3;
+    const resistant = relicClosed || (state.player.weapon === 'seeker' && (enemy.hunter?.shield ?? 0) > 0 && !BEAM_KINDS.has(enemy.kind));
     if (!best || (!resistant && best.resistant) || (resistant === best.resistant && score < best.score)) best = { x: enemy.x, score, resistant };
   }
   // Nothing to shoot in view during a boss fight: head back to the boss (the game shows RETURN LEFT/RIGHT).
@@ -152,19 +155,38 @@ function sweptShallow(state: RunState): Footprint[] {
  * what the pilot perceived (0.2 s late, no pickups) and the state now (for pickups).
  */
 export function perfectPilot(prefer?: (seen: RunState, now: RunState) => number | null): Pilot {
+  return limitedPilot({}, prefer);
+}
+
+/**
+ * The perfect pilot's planner with human limits (docs/40, the "skilled" pilot for difficulty measurement): a longer
+ * reaction, a shorter look ahead (it only reckons with what arrives within `lookAhead` seconds), a replan only every
+ * `replan` ticks and a thinner safety margin. With the defaults it is the perfect pilot.
+ */
+export interface PilotLimits { reactionTicks?: number; lookAhead?: number; replan?: number; margin?: number }
+export const SKILLED: PilotLimits = { reactionTicks: 18, lookAhead: 1.2, replan: 9, margin: 0.05 };
+export function skilledPilot(prefer?: (seen: RunState, now: RunState) => number | null): Pilot {
+  return limitedPilot(SKILLED, prefer);
+}
+/** @internal Measurement aid (docs/40): a pilot with any limits. */
+export const limitedPilotForTest = (limits: PilotLimits) => limitedPilot(limits);
+function limitedPilot(limits: PilotLimits, prefer?: (seen: RunState, now: RunState) => number | null): Pilot {
+  const reaction = limits.reactionTicks ?? REACTION_TICKS, lookAhead = limits.lookAhead ?? 3.4, replan = limits.replan ?? 3;
   const history: RunState[] = [];
   let plan: InputFrame = EMPTY_INPUT;
   let target: number | null = null;
   let direct = false;
   return state => {
     history.push(perceive(state));
-    if (history.length > REACTION_TICKS + 1) history.shift();
-    if (state.tick % 3 === 0 || target === null) {
+    if (history.length > reaction + 1) history.shift();
+    if (state.tick % replan === 0 || target === null) {
       const seen = history[0];
       // Threats are perceived 0.2 s late, but the pilot knows where its own ship is: tracking shots still at a muzzle
       // will aim at it there, not where it was.
-      const footprints = [...committedFootprints({ ...seen, player: state.player }, 3.4), ...sweptShallow(seen)];
-      const result = planEvasion(state, footprints, prefer?.(seen, state) ?? preferredX(seen), target);
+      const all = [...committedFootprints({ ...seen, player: state.player }, lookAhead), ...sweptShallow(seen)];
+      // (A limited pilot ignores everything beyond its look ahead; the perfect pilot keeps every marked lane and windup.)
+      const footprints = limits.lookAhead === undefined ? all : all.filter(f => f.t0 <= state.time + lookAhead);
+      const result = planEvasion(state, footprints, prefer?.(seen, state) ?? preferredX(seen), target, limits.margin);
       target = result.target;
       direct = result.direct === true;
       plan = { ...EMPTY_INPUT, horizontal: result.input };
@@ -177,6 +199,28 @@ export function perfectPilot(prefer?: (seen: RunState, now: RunState) => number 
       plan = { ...EMPTY_INPUT, horizontal: Math.abs(dx) < 0.06 || (Math.sign(state.player.vx) === Math.sign(dx) && Math.abs(dx) <= stopping + 0.04) ? 0 : dx < 0 ? -1 : 1 };
     }
     return plan;
+  };
+}
+
+/**
+ * Where a pilot that collects pickups wants to be (Endless natural progression, docs/40): the most useful pickup it can
+ * still intercept (a power cell; a shield cell while its shields are not full), else where `fallback` says. The evasion
+ * planner still owns every move, so a pickup is never taken through danger. Pickups are not threats: they are read as
+ * they are now (they drift slowly with the scroll, and the HUD shows them as soon as they drop).
+ */
+export function pickupSeeker(fallback: (seen: RunState, now: RunState) => number | null = seen => preferredX(seen)) {
+  return (seen: RunState, now: RunState): number | null => {
+    const speed = BALANCE.movement.speed * now.pace, scroll = BALANCE.pickup.speed * now.pace;
+    let lane: number | null = null, best = -Infinity;
+    for (const pickup of now.pickups) {
+      const useful = pickup.kind === 'power' || (pickup.kind === 'shield' && now.player.shields < now.player.maxShields);
+      if (!useful || pickup.caught !== undefined || pickup.s < -0.6 || pickup.s > VIEW.maxS || Math.abs(pickup.x - now.cameraX) > VIEW.width / 2 + 2) continue;
+      const travel = Math.abs(pickup.x - now.player.x) / speed, arrival = pickup.s / scroll;
+      if (travel > arrival + 0.25) continue;
+      const value = (pickup.kind === 'power' ? 2 : 1) / (1 + travel + Math.max(0, arrival));
+      if (value > best) { best = value; lane = pickup.x; }
+    }
+    return lane ?? fallback(seen, now);
   };
 }
 
@@ -215,6 +259,21 @@ export interface FlightLog {
   firstLifeLostAt: number | null;
   lifeLostAt: number[];
   specialsUsed: number;
+  /** Hits a shield charge took (the rest cost lives). */
+  shieldHits: number;
+  /** Enemies destroyed (the run's kill count over the flight) and the hit points taken off enemies by any cause. */
+  kills: number;
+  damage: number;
+  /** Hostile attacks met: shots that appeared (each split or barrage shot counts) and lane hazards marked. */
+  shots: number;
+  hazards: number;
+  /** The first time the boss entered each phase (run time). */
+  bossPhases: Record<string, number>;
+  bossId: string | null;
+  /** The main weapon's tier (0-4) over the flight: the highest, the first time each was reached, power gains (a tier or a banked cell). */
+  maxPower: number;
+  tierFirstAt: (number | null)[];
+  powerGains: number;
 }
 
 export interface FlightOptions {
@@ -223,18 +282,40 @@ export interface FlightOptions {
   onTick?: (state: RunState) => void;
   /** Stops the flight early, after the tick on which it first returns true. */
   until?: (state: RunState) => boolean;
+  /**
+   * A pacifist flight (hazard fairness, docs/40): every friendly shot is removed before it can hit, so nothing dies early
+   * and every attack is flown in full. Test-only; the simulation is unchanged.
+   */
+  noFire?: boolean;
 }
 
 export function fly(state: RunState, pilot: Pilot, seconds: number, options: FlightOptions = {}): FlightLog {
-  const log: FlightLog = { phase: state.phase, time: state.time, hits: 0, livesLost: 0, firstHitAt: null, firstLifeLostAt: null, lifeLostAt: [], specialsUsed: 0 };
-  const end = state.time + seconds;
+  const log: FlightLog = { phase: state.phase, time: state.time, hits: 0, livesLost: 0, firstHitAt: null, firstLifeLostAt: null, lifeLostAt: [], specialsUsed: 0,
+    shieldHits: 0, kills: 0, damage: 0, shots: 0, hazards: 0, bossPhases: {}, bossId: null, maxPower: state.player.power,
+    tierFirstAt: [0, 1, 2, 3, 4].map(tier => tier <= state.player.power ? state.time : null), powerGains: 0 };
+  const end = state.time + seconds, kills0 = state.kills;
+  const seenShots = new Set<number>(), seenHazards = new Set<number>(), hp = new Map<number, number>();
+  for (const shot of state.projectiles) if (!shot.friendly) seenShots.add(shot.id);
   while (state.phase === 'playing' && state.time < end - 1e-9) {
     const lastHit = state.player.lastHitAt;
-    const lives = state.livesLost;
+    const lives = state.livesLost, power = state.player.power, cells = state.player.powerCells ?? 0;
+    if (options.noFire) state.projectiles = state.projectiles.filter(shot => !shot.friendly);
     stepRun(state, pilot(state));
+    if (options.noFire) state.projectiles = state.projectiles.filter(shot => !shot.friendly);
     if (options.noPickups) state.pickups = [];
-    if (state.player.lastHitAt !== lastHit) { log.hits += 1; log.firstHitAt ??= state.time; }
+    if (state.player.lastHitAt !== lastHit) { log.hits += 1; log.firstHitAt ??= state.time; if (state.livesLost === lives) log.shieldHits += 1; }
     if (state.livesLost !== lives) { log.lifeLostAt.push(state.time); log.firstLifeLostAt ??= state.time; }
+    if (state.player.power > power || (state.player.power === power && (state.player.powerCells ?? 0) > cells)) log.powerGains += 1;
+    if (state.player.power > log.maxPower) log.maxPower = state.player.power;
+    log.tierFirstAt[state.player.power] ??= state.time;
+    for (const shot of state.projectiles) if (!shot.friendly && !seenShots.has(shot.id)) { seenShots.add(shot.id); log.shots += 1; }
+    for (const hazard of state.hazards) if (!seenHazards.has(hazard.id)) { seenHazards.add(hazard.id); log.hazards += 1; }
+    for (const enemy of state.enemies) {
+      const before = hp.get(enemy.id);
+      if (before !== undefined && enemy.hp < before) log.damage += before - Math.max(0, enemy.hp);
+      hp.set(enemy.id, enemy.hp);
+    }
+    if (state.boss) { log.bossId ??= state.boss.id; log.bossPhases[state.boss.phase] ??= state.time; }
     options.onTick?.(state);
     if (options.until?.(state)) break;
   }
@@ -242,6 +323,7 @@ export function fly(state: RunState, pilot: Pilot, seconds: number, options: Fli
   log.time = state.time;
   log.livesLost = state.livesLost;
   log.specialsUsed = state.specialsUsed;
+  log.kills = state.kills - kills0;
   return log;
 }
 

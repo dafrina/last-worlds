@@ -109,7 +109,10 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     // Seed 9 since the squadron and boss pull (11 November, docs/10 §4-5): seed 7 took one hit with Veteran seeker. Seed 9
     // clears all three with and without the pull. Over seeds 1-16, old → new: Pulse 2 → 2 hits, Fan 3 → 5, Veteran
     // Seeker 4 → 4; every run completed.
-    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 9 });
+    // Seed 3 since the pilot shoots softer targets while a Relic Shield's armour is closed (docs/40, 13 November): seed 9
+    // took one hit with Veteran Seeker. Over seeds 1-16, seeds with any hit, old → new: Pulse 2 → 3, Fan 5 → 4, Veteran
+    // Seeker 4 → 5; every run completed.
+    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 3 });
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect(log.phase).toBe('complete');
