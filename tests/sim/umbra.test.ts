@@ -114,9 +114,10 @@ describe('Final Horizon over Umbra (docs/28)', () => {
     // Seeker 4 → 5; every run completed.
     // Seed 5 since the campaign's mission pressure (13 November, docs/40: Veteran Seeker took two hits on seed 3); seeds 1,
     // 5, 8, 11, 17 and 18 of 1-20 clear all three.
-    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 5 });
-    // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
-    const log = fly(state, perfectPilot(), 504, { noPickups: true });
+    // Seed 1 since the deploy gate's values (14 November, docs/40: THE ECLIPSE ×2.7): seeds 1, 5, 8, 11, 17 and 18 of 1-20
+    // still clear all three; runs end at 585-785 s at Level 1, so the limit has room.
+    const state = createRun({ mode: 'campaign', mission: 'final-horizon', difficulty, weapon, seed: 1 });
+    const log = fly(state, perfectPilot(), 900, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('eclipse');
     expect(log.hits).toBe(0);

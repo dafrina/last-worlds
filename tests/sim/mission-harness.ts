@@ -91,7 +91,7 @@ export function campaign(mission: MissionId) {
       state.events = [];
       tracker.observe(state, id);
       let rawCoins = 0;
-      fly(state, pilotFor(attempt), 480, { onTick: s => {
+      fly(state, pilotFor(attempt), 900, { onTick: s => {
         for (const event of s.events ?? []) if (event.type === 'credits') rawCoins += event.value;
         tracker.observe(s, id);
       } });
@@ -128,8 +128,10 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
   }
   // Sunburn (THE HELIOPHAGE within 60 s) needs an upgraded weapon: a level-3 one takes 61-75 s on Standard, a top-level
   // Rail Driver 40-54 s (6 November). By world six a player has one. Vent Breaker (CITADEL's three vents within 45 s) too:
-  // a level-3 Rail Driver takes 49-55 s on Standard, a top-level Twin Pulse or Fan Cannon 20-26 s (12 November).
-  if (visible.some(def => def.id === 'corona.sunburn' || def.id === 'nahara.vent-breaker')) attempt.rank = MAX_RANK;
+  // a level-3 Rail Driver takes 49-55 s on Standard, a top-level Twin Pulse or Fan Cannon 20-26 s (12 November). Cradle's
+  // End (CRADLE within 100 s) too since the mission's tougher boss (×1.5, 13 November, docs/40): a replay with an upgraded
+  // weapon, as the user put it ("players can replay levels and should do so for missions anyway").
+  if (visible.some(def => def.id === 'corona.sunburn' || def.id === 'nahara.vent-breaker' || def.id === 'amnion.cradles-end')) attempt.rank = MAX_RANK;
   // A burst of air kills in a few seconds (Interceptor Drill, Solar Wind): the Fan Cannon's spread, as a player would pick.
   else if (!loadout && visible.some(def => def.rule.kind === 'air' && def.rule.window !== undefined)) {
     attempt.weapon = 'fan'; attempt.rank = MAX_RANK;
@@ -167,7 +169,7 @@ export function verdicts(state: RunState, events: readonly RunEvent[]): { def: W
 export function flyObserved(mission: MissionId, attempt: Attempt) {
   const state = createRun(configFor(mission, attempt)), events: RunEvent[] = [];
   state.events = [];
-  fly(state, pilotFor(attempt), 480, { onTick: s => { events.push(...s.events!.splice(0)); } });
+  fly(state, pilotFor(attempt), 900, { onTick: s => { events.push(...s.events!.splice(0)); } });
   return { state, events };
 }
 

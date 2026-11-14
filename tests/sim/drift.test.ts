@@ -21,7 +21,8 @@ import { summary } from './fairness-setup';
 const CAMERA_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
 
 /** A quiet run: no cues, no hunters, the ship and camera at `x` (camera clamped as the follow would leave it). */
-function quiet(x: number, config: RunConfig = { mode: 'campaign', mission: 'bastion', difficulty: 'standard', seed: 3 }): RunState {
+// (On Training's settings: the campaign's mission pressure, docs/40, shifts when craft can attack; this file tests the pull.)
+function quiet(x: number, config: RunConfig = { mode: 'campaign', mission: 'training', difficulty: 'standard', seed: 3 }): RunState {
   const state = createRun(config);
   state.encounterIndex = Number.MAX_SAFE_INTEGER; state.nextEncounterAt = Infinity;
   state.hunters = { sector: state.sector, spawned: 99, window: 99 };

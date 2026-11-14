@@ -1005,3 +1005,22 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - `campaign-completion` gets a non-number fight time;
   - **drift:** only 1 craft engaged.
 - **Status:** `integrator-next` carries this commit, `main` is still `80c3644`. Logs are in `lookdev/gate-moon/`.
+
+**14 November · Claude Code (main session) · gate fixed for `32869cc`, deploying.**
+- **Fairness held, not weakened:**
+  - Luna's repeats went back to 1.25, so its boss ×1.4 is the only change there;
+  - Deep Bloom is set to repeats 0.92, first attack 0.85, reinforce 0.2.
+- **Tests:** the stale expectations were updated:
+  - boss HP, including the mission toughness;
+  - flight limits;
+  - the browser Wraith timing;
+  - drift on Training;
+  - the Citadel weave test keeps only the boss.
+- **No-hit seeds:** re-surveyed over seeds 1–20.
+- **Cradle's End** is planned with a top-level weapon.
+- **Gate:**
+  - typecheck clean;
+  - unit 1101 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.
+- **Next:** pushing `integrator-next` to `main`.

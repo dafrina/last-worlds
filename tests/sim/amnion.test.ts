@@ -24,8 +24,10 @@ describe('Brood Strike over Amnion (docs/27)', () => {
     // Standard pulse 3 → 9 hits (over seeds 1-48: 8 → 11), Standard fan 2 → 3, Veteran seeker 5 → 2.
     // Seed 6 since the campaign's mission pressure (13 November, docs/40: Fan took one hit on seed 1); seeds 6, 10, 12, 14,
     // 16, 17 and 20 of 1-20 clear all three.
-    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 6 });
-    const log = fly(state, perfectPilot(), 450, { noPickups: true });
+    // Seed 1 again since the deploy gate's values (14 November, docs/40: CRADLE ×1.5): seeds 1, 7-10, 12 and 16 of 1-20
+    // clear all three; the fight is longer (runs end at 365-535 s), so the limit has room.
+    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 1 });
+    const log = fly(state, perfectPilot(), 660, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('cradle');
     expect(log.hits).toBe(0);

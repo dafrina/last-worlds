@@ -32,7 +32,9 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
     // on which all six Standard and Veteran combinations clear without a hit.
     // Since the campaign's mission pressure (13 November, docs/40) no seed of 1-20 clears all six Standard and Veteran
     // combinations: Standard flies seed 9 and Veteran seed 4, the first on which all three weapons clear (Relaxed keeps 1).
-    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 1 : difficulty === 'standard' ? 9 : 4 });
+    // Since the deploy gate's values (14 November: repeats 0.92, first attack 0.85) Standard and Veteran fly seed 6, the
+    // first of 1-20 that clears all six (seed 9 does too; Veteran seeker took one hit on seed 4).
+    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 1 : 6 });
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect(log.phase).toBe('complete');

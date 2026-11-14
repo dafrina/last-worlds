@@ -59,8 +59,9 @@ describe('difficulty bots', () => {
     const start = weapon === 'pulse' ? 0 : weapon === 'fan' ? -2 : 2;
     const training = createRun({ mode: 'campaign', mission: 'training', weapon, difficulty, seed: 53 });
     training.player.x = start;
-    // Training ends after WARDEN-1 (lands at 115 s) and its extraction.
-    const log = fly(training, perfectPilot(), 260, { noPickups: true });
+    // Training ends after WARDEN-1 (lands at 115 s) and its extraction; its campaign toughness (×1.4, docs/40) makes the
+    // fight longer, so the limit has room.
+    const log = fly(training, perfectPilot(), 420, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(log.hits).toBe(0);
     expect(log.specialsUsed).toBe(0);

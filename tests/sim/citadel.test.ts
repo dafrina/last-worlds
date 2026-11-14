@@ -127,7 +127,11 @@ describe('THE CITADEL (docs/39)', () => {
         state.player.x = [-3, 0, 4][seed - 1];
         let fired = false, shots = 0;
         const seen: string[] = [];
+        // Only the boss: the staged fight starts at the run's first seconds, where hunters and the mission's Wraith would
+        // join it (since the Silent Empire's quicker flight, 13 November, one reaches the pilot at x 4 on seed 3).
+        const bossOnly = (s: RunState) => { s.enemies = s.enemies.filter(enemy => enemy.bossPart); };
         const log = fly(state, perfectPilot(), 2.5, { until: () => fired, onTick: s => {
+          bossOnly(s);
           if (s.boss!.attack && seen.at(-1) !== s.boss!.attack) seen.push(s.boss!.attack);
           if (s.boss!.attack === attack) fired = true;
           shots = Math.max(shots, s.projectiles.filter(p => !p.friendly).length);
@@ -135,6 +139,7 @@ describe('THE CITADEL (docs/39)', () => {
         expect(fired, `seed ${seed}: ${seen}, index ${state.boss!.attackIndex}`).toBe(true);
         // Let the whole pattern pass, nothing else firing.
         const after = fly(state, perfectPilot(), 7, { onTick: s => {
+          bossOnly(s);
           if (s.boss!.attack === null) s.boss!.nextAttackAt = Infinity;
           shots = Math.max(shots, s.projectiles.filter(p => !p.friendly).length);
         } });

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { WRAITH } from '../../src/content/wraith';
-import { DIFFICULTIES, WORLD_INTENSITY } from '../../src/content/balance';
+import { DIFFICULTIES, worldIntensity } from '../../src/content/balance';
 const ids = ['bastion', 'ark', 'warden', 'veil', 'cradle', 'eclipse'];
 const stats = async (page: Page) => JSON.parse(await page.locator('canvas').first().getAttribute('data-render-stats') ?? '{}');
 const visible = async (page: Page) => { const s = await stats(page); return ids.filter(id => s[id]?.visible); };
@@ -53,8 +53,10 @@ for (const planet of ['amnion', 'umbra']) test(`${planet} dedicated predator loa
     await expect.poll(async () => (await stats(page)).predators?.[name], { timeout: 45000 }).toBe(1);
     await page.screenshot({ path: info.outputPath(`${planet}-${quality}.png`) });
     if (planet === 'umbra') {
-      // Mid-teleport, 0.65 s after the first windup on Standard Umbra.
-      await page.evaluate(at => (window as any).__PREDATOR_QA__.advance(at), WRAITH.firstAttack * DIFFICULTIES.standard.firstAttack * DIFFICULTIES.standard.airFirstShot * WORLD_INTENSITY.umbra.firstAttack + .65);
+      // Mid-teleport, 0.65 s after the first windup on Standard Umbra (the fixture flies Final Horizon in the campaign, so
+      // the mission's own first-attack pressure applies too, docs/40).
+      const world = worldIntensity({ planet: 'umbra', config: { mode: 'campaign', mission: 'final-horizon' } });
+      await page.evaluate(at => (window as any).__PREDATOR_QA__.advance(at), WRAITH.firstAttack * DIFFICULTIES.standard.firstAttack * DIFFICULTIES.standard.airFirstShot * world.firstAttack + .65);
       await expect.poll(async () => page.evaluate(() => (window as any).__PREDATOR_QA__.snapshot().enemy.damageable)).toBe(false);
       await page.screenshot({ path: info.outputPath(`umbra-teleport-${quality}.png`) });
       await page.evaluate(() => (window as any).__PREDATOR_QA__.advance(.45));

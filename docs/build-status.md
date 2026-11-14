@@ -18,10 +18,34 @@
 - **THE CITADEL** keeps one fixed seat through its arrival (it shifted as its fight began).
 - **A slight camera shake** on explosions and hits: render only, off with reduced motion and during jumps.
 - **Dev tools** (docs/41): the live autopilot (`?dev&autopilot=…`) and `npm run record`.
-- **Gate:**
-  - typecheck clean; unit 1101 passed, 8 skipped (feasibility of every world's missions, the fairness unions with the
-    pacifist).
-  - Browser suite not yet run for this set. No phone test.
+- **Deploy gate (14 November).** Committed as `32869cc` with 47 unit failures and 1 browser failure. Fixed after that:
+  - **Fairness, not weakened:**
+    - Luna's quicker repeats (1.1) failed the formation check (a Veteran three-turret site) and went back to 1.25, so
+      Luna's extra challenge is its ×1.4 boss alone;
+    - Deep Bloom settled at repeats 0.92, first attack 0.85, reinforce 0.2, which passes every Deep Bloom union.
+  - **Missions:**
+    - every world's twelve are reachable;
+    - Cradle's End (CRADLE within 100 s at ×1.5) is planned with a top-level weapon, like Sunburn and Vent Breaker:
+      a replay mission;
+    - the harness flies up to 900 s.
+  - **Stale expectations:**
+    - the boss HP tests include the mission toughness;
+    - the flight limits leave room for the longer boss fights;
+    - the browser Wraith timing uses the mission's first attack;
+    - the drift test flies Training;
+    - the Citadel weave test keeps only the boss (in the staged fight, a hunter reached the pilot).
+  - **No-hit seeds re-surveyed over 1–20:**
+    - Rolling Thunder 2;
+    - Deep Bloom Standard and Veteran 6;
+    - Brood Strike 1;
+    - Final Horizon 1;
+    - shared-handling Deep Bloom 9.
+  - **Result:**
+    - typecheck clean;
+    - unit 1101 passed, 8 skipped;
+    - build passes;
+    - browser 55 of 55 passed (Chromium, SwiftShader).
+  - No phone test.
 
 ## Balance measurement: expected tiers, a stronger fairness check, campaign and endless reports (13 November 2026; docs/40)
 

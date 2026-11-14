@@ -169,10 +169,10 @@ node tools/balance-report.mjs out.jsonl
 
 | Mission | Repeats | First attack | Reinforce | Windup | Flight | Flocks | Boss health |
 |---|---|---|---|---|---|---|---|
-| Luna | 1.1 | — | — | — | — | — | ×1.4 |
+| Luna | 1.25 (unchanged) | — | — | — | — | — | ×1.4 |
 | Khepri | 0.75 | 0.9 | 0.45 | — | — | — | ×1.3 |
 | Vesper | 0.85 | 0.9 | 0.35 | — | — | — | — |
-| Nacre | 0.92 | 0.9 | 0.2 | — | — | — | — |
+| Nacre | 0.92 | 0.85 | 0.2 | — | — | — | — |
 | Amnion | 0.66 | 0.8 | 0.7 | 0.9 | 1.1 | — | ×1.5 |
 | Corona | 0.72 | 0.75 | 0.45 | 0.9 | 1.06 | Veteran, budget 18 | ×1.6 |
 | Nahara | 0.52 | 0.5 | 1.7 | 0.8 | 1.2 | Veteran, budget 22 | ×2.75 |
@@ -196,5 +196,8 @@ node tools/balance-report.mjs out.jsonl
   - **Under-levelled Umbra** is very hard: Level 1 completes 7 of 40, Level 3 31 of 40.
 - **Fairness kept strict:** the campaign unions found two seal cases from the quicker repeats (Deep Bloom Standard,
   Dying Star Veteran). Their factors were eased (0.8 → 0.86, 0.66 → 0.72); the check was not weakened.
+- **At the deploy gate (14 November):** Luna's quicker repeats (1.1) broke the formation fairness check (a Veteran turret
+  site of three) and went back to 1.25: Luna's extra challenge is its boss alone (×1.4). Deep Bloom settled at repeats
+  0.92 and first attack 0.85, which pass all of its fairness unions. The grid above was measured before these two.
 - The fixed-seed no-hit tests moved: Rolling Thunder 10, Deep Bloom 1/9/4, Brood Strike 6, Final Horizon 5.
 

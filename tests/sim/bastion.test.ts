@@ -8,7 +8,7 @@ import { bossTarget, resolveBossPhase } from '../../src/sim/boss';
 import { fly, perfectPilot } from './pilots';
 import { FairnessTrace } from './fairness-trace';
 import { advance } from '../helpers/run';
-import { FAIRNESS } from '../../src/content/balance';
+import { FAIRNESS, MISSION_PRESSURE } from '../../src/content/balance';
 
 function encounter(weapon: WeaponId = 'pulse', difficulty: Difficulty = 'standard') {
   const state = createRun({ mode: 'campaign', mission: 'bastion', seed: 53, weapon, difficulty });
@@ -30,8 +30,8 @@ describe('Bastion-9 mission', () => {
     state.player.x = bossTarget(state, 'core')!.x;
     expect(acquireTarget(state)).toBeUndefined();
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
-    expect(bossTarget(state, 'core')!.hp).toBeCloseTo(BASTION.coreHp * BOSS_TOUGHNESS.hp, 6);
-    expect(bossTarget(state, 'left')!.hp).toBeCloseTo(BASTION.batteryHp * BOSS_TOUGHNESS.hp, 6);
+    expect(bossTarget(state, 'core')!.hp).toBeCloseTo(BASTION.coreHp * BOSS_TOUGHNESS.hp * MISSION_PRESSURE.bastion!.bossHp!, 6);
+    expect(bossTarget(state, 'left')!.hp).toBeCloseTo(BASTION.batteryHp * BOSS_TOUGHNESS.hp * MISSION_PRESSURE.bastion!.bossHp!, 6);
     advance(state, 3);
     expect(state.boss?.phase).toBe('batteries');
     expect(acquireTarget(state)).toBeUndefined();
@@ -173,9 +173,11 @@ describe('Bastion-9 mission', () => {
     // Since pace 1.15 and the earlier air first shots (6 November) Veteran flies seed 2 (6 took one hit with seeker).
     // Since the campaign's mission pressure (13 November, docs/40: quicker repeats, reinforcements) all nine fly seed 10, the
     // first of 1-20 on which every combination clears (seeds with any hit over 1-20: Relaxed 2, Standard 10, Veteran 10).
-    const seed = 10;
+    // Since BASTION-9's campaign toughness (×1.3, 14 November, docs/40) all nine fly seed 2 (seed 10 took hits with
+    // Standard fan and Veteran pulse and seeker); seeds 2, 4-6, 9, 11, 12 and 14 of 1-20 clear all nine, by 325 s.
+    const seed = 2;
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed });
-    const log = fly(state, perfectPilot(), 360, { noPickups: true });
+    const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });
     expect(log.hits).toBe(0);
     expect(state.specialsUsed).toBe(0);

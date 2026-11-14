@@ -181,10 +181,11 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 // 23 October: Brood Strike, the new final mission, starts at Deep Bloom's pressure (to be tuned after play).
 // 5 November: Dying Star (Corona) as Brood Strike and Final Horizon until it is played.
 // 13 November (user, docs/40): every mission challenging at its expected weapon level, more so later; Luna stays gentle
-// (14 November: Luna a bit more, 1.25 → 1.1).
+// (14 November: Luna a bit more, 1.25 → 1.1, was reverted: a turret ring in the isolated-formation fairness suite, which
+// flies Luna's settings, lost its clean path on Veteran.)
 // Measured: the late missions' pressure was capped by attackers dying before they repeated (attacks admitted a minute at
 // the expected level: Nacre 77, Amnion 86, Nahara 43, Umbra 57), so surviving enemies repeat sooner along the campaign.
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.1, bastion: 0.75, 'cold-vector': 0.85, 'deep-bloom': 0.92, 'brood-strike': 0.66, 'dying-star': 0.72, 'silent-empire': 0.52, 'final-horizon': 0.52 };
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.75, 'cold-vector': 0.85, 'deep-bloom': 0.92, 'brood-strike': 0.66, 'dying-star': 0.72, 'silent-empire': 0.52, 'final-horizon': 0.52 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3, skimmer: 3, relic: 4 };
@@ -246,7 +247,7 @@ export const MISSION_PRESSURE: Readonly<Partial<Record<MissionId, { firstAttack?
   training: { bossHp: 1.4 },
   bastion: { firstAttack: 0.9, reinforce: 0.45, bossHp: 1.3 },
   'cold-vector': { firstAttack: 0.9, reinforce: 0.35 },
-  'deep-bloom': { firstAttack: 0.9, reinforce: 0.2 },
+  'deep-bloom': { firstAttack: 0.85, reinforce: 0.2 },
   'brood-strike': { firstAttack: 0.8, reinforce: 0.7, windup: 0.9, flight: 1.1, bossHp: 1.5 },
   'dying-star': { firstAttack: 0.75, reinforce: 0.45, windup: 0.9, flight: 1.06, rank: 'veteran', threatBudget: 18, bossHp: 1.6 },
   'silent-empire': { firstAttack: 0.5, reinforce: 1.7, windup: 0.8, flight: 1.2, rank: 'veteran', threatBudget: 22, bossHp: 2.75 },

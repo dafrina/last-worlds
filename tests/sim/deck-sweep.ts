@@ -54,7 +54,7 @@ function measure(state: RunState, pilot: Pilot, seconds: number, until?: (state:
 
 /** A whole campaign mission at Standard with the starter loadout. */
 export function flyMission(mission: MissionId, seed: number, pilot: Pilot = perfectPilot(), rank = 0): FlightMetrics {
-  return measure(createRun({ mode: 'campaign', mission, difficulty: 'standard', seed, rank }), pilot, 420);
+  return measure(createRun({ mode: 'campaign', mission, difficulty: 'standard', seed, rank }), pilot, 900);
 }
 
 /** One endless sector from its start (enterSector), until the next sector begins or the run ends. */

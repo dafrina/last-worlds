@@ -31,8 +31,9 @@ export const EXPECTED_RANK: Readonly<Record<MissionId, number>> = {
 };
 export const CAMPAIGN_ORDER = Object.keys(EXPECTED_RANK) as MissionId[];
 export const WEAPONS: readonly WeaponId[] = ['pulse', 'fan', 'seeker', 'rail'];
-/** A mission's flight limit: every mission and its boss end well inside it at the expected tier. */
-export const MISSION_SECONDS = 600;
+/** A mission's flight limit: every mission and its boss end well inside it at the expected tier, and Level 1 still ends
+ *  against the late bosses' mission toughness (MISSION_PRESSURE.bossHp, up to ×2.75). */
+export const MISSION_SECONDS = 1200;
 
 /**
  * The pilots a flight can use: `perfect` (the exact safe-gap solver, 0.2 s late: it measures whether a mission can be done),

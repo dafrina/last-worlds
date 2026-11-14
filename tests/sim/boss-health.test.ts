@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOSSES, bossParts, phaseOneParts, type BossDefinition } from '../../src/content/bosses';
-import { difficultyScales } from '../../src/content/balance';
+import { MISSION_PRESSURE, difficultyScales } from '../../src/content/balance';
 import { createRun } from '../../src/sim/game';
 import { bossTarget, resolveBossPhase, startBoss, updateBoss } from '../../src/sim/boss';
 import type { Difficulty, RunConfig } from '../../src/shared/contracts';
@@ -20,7 +20,9 @@ describe.each(Object.values(BOSSES))('$name health adjustment', (def: BossDefini
   it.each(scenarios)('increases every independent pool by exactly 20% in $name', ({ config, sector }) => {
     const state = createRun(config); state.sector = sector;
     startBoss(state, def);
-    const scale = difficultyScales(config.mode, config.difficulty ?? 'standard', sector).hp;
+    // A campaign mission's own boss toughness (MISSION_PRESSURE.bossHp) stacks on top; no mission flies Luna.
+    const mission = config.mode === 'campaign' ? MISSION_PRESSURE[config.mission ?? 'training']?.bossHp ?? 1 : 1;
+    const scale = difficultyScales(config.mode, config.difficulty ?? 'standard', sector).hp * mission;
     for (const part of bossParts(def)) {
       const oldHp = def.parts[part]!.hp * scale * oldBossMultiplier;
       const target = bossTarget(state, part)!;
