@@ -30,6 +30,7 @@
   - unit 1101 passed, 8 skipped;
   - build passes;
   - browser 55 of 55.
+- **Deployed** `b45ed7f`: Pages run 43591281460 matches the live bundle `main-Cy5JD6ow.js`.
 - No phone test.
 
 ## Silent Empire: renamed; the buried empire, moving sand; THE CITADEL awakens and fights sooner (14 November 2026; docs/39)
