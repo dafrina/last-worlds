@@ -986,3 +986,22 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - the pilot's Relic Shield priority, pickup seeking and the skilled pilot.
 - No gameplay constant changed. The balance proposal in docs/40 awaits the user.
 
+
+**14 November · Claude Code (Blender MCP in WSL session) · Moon training session's uncommitted work committed as `32869cc`, NOT deployed.**
+- **Request:** the user asked to deploy "the state the moon trainings session left it in". I committed the working tree as it was; the typecheck and build pass.
+- **Gate failures:**
+  - unit tests: 47 of 1109 failed in 13 files;
+  - browser: 1 of 55 failed (`faction-regressions` Umbra teleport timing: the stale first-attack formula).
+- **Stale expectations** (the tougher bosses and the new first attacks):
+  - `boss-health` (24, still expecting +20 %);
+  - `bastion` core HP;
+  - the browser Wraith timing.
+- **Real problems:**
+  - **fairness:**
+    - `fairness.test` site-turrets-3 Veteran: "no clear path";
+    - `fairness-campaign` deep-bloom/Veteran: a seal at 34.77 s;
+  - **missions out of reach:** Amnion `cradles-end`, Umbra `old-school` and two more;
+  - **the perfect pilot no longer completes:** Training Veteran fan, Final Horizon, the Citadel core/overload, Umbra ×3;
+  - `campaign-completion` gets a non-number fight time;
+  - **drift:** only 1 craft engaged.
+- **Status:** `integrator-next` carries this commit, `main` is still `80c3644`. Logs are in `lookdev/gate-moon/`.
