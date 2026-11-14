@@ -16,6 +16,7 @@ export { WRECK_HOLD } from './departure';
  */
 export const BOSS_TOUGHNESS = { hp: 1.15 * 1.20, recovery: 0.9 } as const;
 import { DEPARTURE } from './departure';
+import { OVERLOAD_FRACTION } from './boss-phases';
 
 /**
  * One shape for every campaign boss, built from each boss's own content file. Phases are shared:
@@ -288,16 +289,17 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     ...ECLIPSE_BOSS, id: 'citadel', name: 'CITADEL', stationary: true, arrivalDuration: CITADEL.arrivalDuration,
     targetHeight: CITADEL.targetHeight, entryS: CITADEL.entryS, row: CITADEL.row, arena: CITADEL.arena,
     // Its three phases (docs/39): the Awakening (its three vents' aimed bursts), the Reactor Exposed (walls, bursts,
-    // boomerangs and the fan) and from 40% of the reactor's hull the Fall of the Empire (walls and spirals between its lanes),
-    // on the reactor's one pool. A step below THE ECLIPSE: 3 × 580 + 1,900 = 3,640 base, 5,020 after BOSS_TOUGHNESS.
+    // boomerangs and the fan) and from 58% of the reactor's hull the Fall of the Empire (walls and spirals between its lanes),
+    // on the reactor's one pool, 40-25-35 (BOSS_PHASES). A step below THE ECLIPSE: 3 × 485 + 2,185 = 3,640 base, 5,020 after
+    // BOSS_TOUGHNESS.
     parts: {
-      left: { x: -CITADEL.ventOffset, s: CITADEL.ventS, radius: CITADEL.ventRadius, hp: 580 },
-      right: { x: CITADEL.ventOffset, s: CITADEL.ventS, radius: CITADEL.ventRadius, hp: 580 },
-      prow: { x: 0, s: CITADEL.prowS, radius: CITADEL.prowRadius, hp: 580 },
-      core: { x: 0, s: CITADEL.reactorS, radius: CITADEL.reactorRadius, hp: 1900 },
+      left: { x: -CITADEL.ventOffset, s: CITADEL.ventS, radius: CITADEL.ventRadius, hp: 485 },
+      right: { x: CITADEL.ventOffset, s: CITADEL.ventS, radius: CITADEL.ventRadius, hp: 485 },
+      prow: { x: 0, s: CITADEL.prowS, radius: CITADEL.prowRadius, hp: 485 },
+      core: { x: 0, s: CITADEL.reactorS, radius: CITADEL.reactorRadius, hp: 2185 },
     },
     launches: { ...ECLIPSE.launches, template: 'veil-pods', bays: CITADEL.bays },
-    overloadFraction: 0.4,
+    overloadFraction: OVERLOAD_FRACTION,
     coreMoves: ['fracture', 'burst', 'boomerang', 'fan'],
     overloadMoves: ['fracture', 'spiral', 'boomerang', 'core-lane', 'burst', 'fracture', 'side-lanes', 'boomerang', 'spiral'],
     fracture: { walls: 3, interval: 1.2, speed: 4.4, spacing: 0.95, gap: 2.6, show: 0.5 },

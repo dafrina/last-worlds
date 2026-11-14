@@ -1,3 +1,4 @@
+import { OVERLOAD_FRACTION } from './boss-phases';
 /**
  * Helion Ark, the Vesper sea-carrier boss of Cold Vector (docs/17 §5). Sockets follow helion-ark.glb in combat
  * terms (glTF +z is toward the player, so a node at z +0.5 sits at s −0.5). No hidden collision: only the two
@@ -36,7 +37,7 @@ export const HELION_ARK = {
   overload: { coreLaneWidth: 2.2, batteryLaneWidth: 1.6, active: 0.35 },
   recovery: 0.55,
   transitionRecovery: 1.25,
-  overloadFraction: 0.4,
+  overloadFraction: OVERLOAD_FRACTION,
   bridgeBurst: { bolts: 3, spread: 0.09, speed: 7 },
   /** Finite Needle launches during the bridge phase: waves of two, one from each bay. */
   launches: { waves: 3, firstAfter: 2.5, interval: 7 },

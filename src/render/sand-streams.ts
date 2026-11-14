@@ -2,16 +2,16 @@ import * as THREE from 'three';
 
 /**
  * Nahara's moving sand (user, 14 November: "nahara still feels very empty"; the questionnaire: "moving sand", drifting
- * sand streams and dust devils crossing the ground). Render only: nothing here is simulated, and nothing reaches the
+ * sand streams crossing the ground; dust devils were tried and dropped: "they look a bit shit, just remove them",
+ * 14 November). Render only: nothing here is simulated, and nothing reaches the
  * flight plane, so no streak or grain reads as a shot.
  *
  * - Sand streams: long, faint ribbons of blown sand gliding across the ground with the wind, each draped over the terrain
  *   under it (its heights sampled once, when it starts, along the whole path it will travel), its grain scrolling along
  *   it faster than the ribbon itself moves. Over a drop (the canyon) a ribbon thins out and is gone: the sand blows off
  *   the rim. One draw for all of them.
- * - Dust devils: now and then a small whirl of sand drifting with the wind, one draw of points.
  * - Everything is placed from a fixed integer hash of its slot and generation (no Math.random), in the terrain frame
- *   (it scrolls with the ground) round the camera. Low graphics keeps half the streams and no dust devils.
+ *   (it scrolls with the ground) round the camera. Low graphics keeps half the streams.
  */
 const WIND = { x: 1.9, s: -0.35 } as const;
 /** Ribbons: count (high), segments along each, length and width ranges, lift over the ground, life range (seconds). */
@@ -25,8 +25,6 @@ const AREA = { halfX: 13, nearS: -4, farS: 26 } as const;
 const GROUND_FLOOR = -5.2;
 /** Height samples along a ribbon's path, this far apart. */
 const SAMPLE = 0.6;
-/** Dust devils: points per devil, at most this many at once, its height, life, the pause between them. */
-const DEVIL = { points: 90, count: 2, height: 2.6, life: 6, rest: [5, 11] } as const;
 
 const hash = (i: number, k: number) => {
   let h = Math.imul(i + 0x632b * k, 0x2c1b3c6d) ^ Math.imul(k + 0x41c6, 0x297a2d39);
@@ -58,35 +56,6 @@ void main() {
   if ( a <= 0.004 ) discard;
   gl_FragColor = vec4( sandColor, a );
 }`;
-const DEVIL_VERTEX = /* glsl */`
-attribute vec4 seed; // height share, phase, radius jitter, size jitter
-uniform vec4 devils[${DEVIL.count}]; // x, ground y, view s, life share (0 … 1; < 0 off)
-uniform float sandTime; uniform float sandScale;
-varying float vAlpha;
-void main() {
-  int k = int( floor( seed.w * ${DEVIL.count}.0 ) );
-  vec4 d = devils[0];
-  ${Array.from({ length: DEVIL.count - 1 }, (_, i) => `if ( k == ${i + 1} ) d = devils[${i + 1}];`).join(' ')}
-  float h = seed.x, life = d.w;
-  float r = ( 0.12 + 0.85 * pow( h, 1.4 ) ) * ( 0.8 + 0.4 * seed.z );
-  float turn = sandTime * ( 5.0 - 2.5 * h ) + seed.y * 6.2832;
-  // The column leans with the wind as it climbs.
-  vec3 p = vec3( d.x + cos( turn ) * r + h * 0.5, d.y + h * ${DEVIL.height.toFixed(1)}, -d.z + sin( turn ) * r * 0.8 );
-  vec4 view = viewMatrix * vec4( p, 1.0 );
-  gl_Position = projectionMatrix * view;
-  gl_PointSize = max( 1.0, ( 0.12 + 0.14 * fract( seed.x * 13.7 ) ) * sandScale / -view.z );
-  float fade = smoothstep( 0.0, 0.2, life ) * smoothstep( 1.0, 0.75, life );
-  vAlpha = life < 0.0 ? 0.0 : fade * ( 1.0 - h * 0.65 );
-}`;
-const DEVIL_FRAGMENT = /* glsl */`
-uniform vec3 sandColor;
-varying float vAlpha;
-void main() {
-  float d = length( gl_PointCoord - 0.5 ) * 2.0;
-  float a = ( 1.0 - smoothstep( 0.3, 1.0, d ) ) * vAlpha * 0.7;
-  if ( a <= 0.004 ) discard;
-  gl_FragColor = vec4( sandColor, a );
-}`;
 
 interface Ribbon { start: number; life: number; x: number; s: number; length: number; width: number; heights: Float32Array; from: number; spawnGround: number; generation: number }
 
@@ -108,25 +77,8 @@ export function createSandStreams(scene: THREE.Scene) {
   mesh.name = 'Nahara sand streams'; mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.visible = false;
   scene.add(mesh);
 
-  const seeds = new Float32Array(DEVIL.points * DEVIL.count * 4);
-  for (let i = 0; i < DEVIL.points * DEVIL.count; i++) {
-    seeds[i * 4] = hash(i, 1); seeds[i * 4 + 1] = hash(i, 2); seeds[i * 4 + 2] = hash(i, 3);
-    seeds[i * 4 + 3] = (Math.floor(i / DEVIL.points) + 0.5) / DEVIL.count;
-  }
-  const devilGeometry = new THREE.BufferGeometry();
-  devilGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DEVIL.points * DEVIL.count * 3), 3));
-  devilGeometry.setAttribute('seed', new THREE.BufferAttribute(seeds, 4));
-  const devilUniforms = {
-    devils: { value: Array.from({ length: DEVIL.count }, () => new THREE.Vector4(0, 0, 0, -1)) },
-    sandTime: uniforms.sandTime, sandScale: { value: 1 }, sandColor: { value: new THREE.Color().setHex(0xfff2da, THREE.SRGBColorSpace) },
-  };
-  const devilMaterial = new THREE.ShaderMaterial({ vertexShader: DEVIL_VERTEX, fragmentShader: DEVIL_FRAGMENT, uniforms: devilUniforms, transparent: true, depthWrite: false });
-  const devilPoints = new THREE.Points(devilGeometry, devilMaterial);
-  devilPoints.name = 'Nahara dust devils'; devilPoints.frustumCulled = false; devilPoints.renderOrder = 2; devilPoints.visible = false;
-  scene.add(devilPoints);
 
   const ribbons: (Ribbon | null)[] = Array.from({ length: STREAM.count }, () => null);
-  const devils: { start: number; x: number; s: number; next: number; generation: number }[] = Array.from({ length: DEVIL.count }, (_, k) => ({ start: -Infinity, x: 0, s: 0, next: 1.5 + k * 4, generation: 0 }));
   let lastTime = -1, low = false;
 
   const spawn = (slot: number, time: number, distance: number, cameraX: number, ground: (x: number, s: number) => number, generation: number, first: boolean): Ribbon => {
@@ -147,12 +99,12 @@ export function createSandStreams(scene: THREE.Scene) {
 
   return {
     /** `active`: Nahara is under the camera. `ground`: the terrain height at (x, world distance s). */
-    update(active: boolean, time: number, distance: number, camera: THREE.PerspectiveCamera, ground: (x: number, s: number) => number, pixelHeight: number) {
-      mesh.visible = active; devilPoints.visible = active && !low;
+    update(active: boolean, time: number, distance: number, camera: THREE.PerspectiveCamera, ground: (x: number, s: number) => number) {
+      mesh.visible = active;
       if (!active) { lastTime = -1; ribbons.fill(null); return; }
       // A new run (the clock went back) or a jump in it (a skipped stretch): start afresh, the sand already moving.
       const first = lastTime < 0 || time < lastTime || time - lastTime > 1;
-      if (first) { ribbons.fill(null); devils.forEach((d, k) => { d.start = -Infinity; d.next = time + 1.5 + k * 4; }); }
+      if (first) ribbons.fill(null);
       lastTime = time;
       uniforms.sandTime.value = time;
       const cameraX = camera.position.x, ux = WIND.x / Math.hypot(WIND.x, WIND.s), us = WIND.s / Math.hypot(WIND.x, WIND.s), vx = -us, vs = ux;
@@ -184,27 +136,8 @@ export function createSandStreams(scene: THREE.Scene) {
         }
       }
       positionAttribute.needsUpdate = true; grainAttribute.needsUpdate = true;
-      // Dust devils: each rests, then whirls for its life, drifting with the wind.
-      devilUniforms.sandScale.value = pixelHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
-      devils.forEach((d, k) => {
-        const slot = devilUniforms.devils.value[k];
-        if (time >= d.next && time - d.start >= DEVIL.life) {
-          d.generation++;
-          const h = (n: number) => hash(9000 + k * 131 + d.generation, n);
-          d.start = time; d.x = cameraX - 9 + h(1) * 18; d.s = distance + 2 + h(2) * 16;
-          // Only on the open ground: over the canyon it skips this turn.
-          if (ground(d.x, d.s) < GROUND_FLOOR + 0.6) d.start = -Infinity;
-          d.next = time + DEVIL.life + range(DEVIL.rest, h(3));
-        }
-        const age = time - d.start;
-        if (low || age < 0 || age >= DEVIL.life) { slot.set(0, 0, 0, -1); return; }
-        const x = d.x + WIND.x * 0.6 * age, s = d.s + WIND.s * 0.6 * age;
-        const y = ground(x, s);
-        // (Drifted over the canyon: gone.)
-        slot.set(x, y, s - distance, y < GROUND_FLOOR ? -1 : age / DEVIL.life);
-      });
     },
     setQuality(quality: 'high' | 'low') { low = quality === 'low'; },
-    dispose() { scene.remove(mesh, devilPoints); geometry.dispose(); material.dispose(); devilGeometry.dispose(); devilMaterial.dispose(); },
+    dispose() { scene.remove(mesh); geometry.dispose(); material.dispose(); },
   };
 }

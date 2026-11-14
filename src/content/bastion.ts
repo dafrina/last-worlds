@@ -1,11 +1,12 @@
+import { OVERLOAD_FRACTION } from './boss-phases';
 /** Authored vertical-slice encounter. No world-generation or campaign-profile input. */
 export const BASTION = {
   arrivesAt: 135,
   /** No approach cue is admitted at or after this time: authored relief before the fortress. */
   approachEndsAt: 127,
   arrivalDuration: 3,
-  batteryHp: 400,
-  coreHp: 1600,
+  batteryHp: 480,
+  coreHp: 1440,
   // The v5 fortress is 20% larger than v4, weak points included (user, 20 October 2026).
   batteryRadius: 0.84,
   coreRadius: 1.86,
@@ -19,7 +20,7 @@ export const BASTION = {
   /** Pause after each release before the next windup may start. */
   recovery: 0.45,
   transitionRecovery: 1.25,
-  overloadFraction: 0.4,
+  overloadFraction: OVERLOAD_FRACTION,
   /** Battery phase: alternating aimed three-bolt bursts. Core phase: a fixed five-way fan alternating with an aimed five-bolt burst. */
   batteryBurst: { bolts: 3, spread: 0.095, speed: 6.6 },
   coreBurst: { bolts: 5, spread: 0.075, speed: 6.6 },

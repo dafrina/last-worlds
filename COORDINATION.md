@@ -1041,3 +1041,17 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - browser 55 of 55.
 - **Deployed** `a4fcafd` (Pages run 43585087911; the live bundle matches). The run for `5f96586` failed on a CI timeout in
   `campaign-completion`, which now has explicit 2-minute limits.
+
+**14 November · Claude Code (main session) · boss phases 40-25-35, site callouts, no dust devils, deploying.**
+- **Files:**
+  - new `src/content/boss-phases.ts`;
+  - part HP and `overloadFraction` in the eight boss content files and `bosses.ts`;
+  - `src/sim/game.ts` (site callouts);
+  - `src/render/sand-streams.ts` and `scene.ts`;
+  - `MISSION_CADENCE` Dying Star 0.74;
+  - tests reseeded.
+- **Gate:**
+  - typecheck clean;
+  - unit 1101 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.

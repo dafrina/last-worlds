@@ -202,13 +202,16 @@ function updateDirector(state: RunState): void {
   const cues = resolvePlaylist(state.config, state.sector, state.config.seed);
   const start = endless ? state.sectorStartedAt : 0;
   const cue = cues[state.encounterIndex];
-  // Look ahead through a held wave so even a late site has its approach callout.
+  // A site's approach callout. Only for the site that comes next, once it would be admitted now (user, 14 November: "it
+  // tells me theres a site but then nothing follows"): announced on its schedule behind a held wave, a site on a busy
+  // world (Nahara's backlog) came 15-40 s after its callout, or never when the boss cut the playlist short.
   const groundLeadTime = state.scrollSpeed > .5 ? GROUND_LEAD / state.scrollSpeed : 0;
   const lastSite = state.siteNotice?.sector === state.sector ? state.siteNotice.index : -1;
   for (let i = Math.max(state.encounterIndex, lastSite + 1); i < cues.length && Number.isFinite(state.nextEncounterAt); i++) {
     const next = cues[i];
     if (start + next.at > state.time + groundLeadTime + SITE_NOTICE_LEAD) break;
     if (!next.site) continue;
+    if (i !== state.encounterIndex || !admits(state, next, scales(state))) break;
     // A two-flank alert is a combat warning: let it finish before using its message slot.
     if (cue && cueAlert(cue) === state.message && state.time < state.messageUntil) break;
     state.siteNotice = { sector: state.sector, index: i, time: state.time };

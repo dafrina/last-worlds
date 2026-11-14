@@ -185,7 +185,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 // flies Luna's settings, lost its clean path on Veteran.)
 // Measured: the late missions' pressure was capped by attackers dying before they repeated (attacks admitted a minute at
 // the expected level: Nacre 77, Amnion 86, Nahara 43, Umbra 57), so surviving enemies repeat sooner along the campaign.
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.75, 'cold-vector': 0.85, 'deep-bloom': 0.92, 'brood-strike': 0.66, 'dying-star': 0.72, 'silent-empire': 0.52, 'final-horizon': 0.52 };
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.75, 'cold-vector': 0.85, 'deep-bloom': 0.92, 'brood-strike': 0.66, 'dying-star': 0.74, 'silent-empire': 0.52, 'final-horizon': 0.52 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3, skimmer: 3, relic: 4 };

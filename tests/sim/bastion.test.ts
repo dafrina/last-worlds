@@ -175,7 +175,9 @@ describe('Bastion-9 mission', () => {
     // first of 1-20 on which every combination clears (seeds with any hit over 1-20: Relaxed 2, Standard 10, Veteran 10).
     // Since BASTION-9's campaign toughness (×1.3, 14 November, docs/40) all nine fly seed 2 (seed 10 took hits with
     // Standard fan and Veteran pulse and seeker); seeds 2, 4-6, 9, 11, 12 and 14 of 1-20 clear all nine, by 325 s.
-    const seed = 2;
+    // Seed 3 since the later site callouts and the boss phases 14 November: sites announced only when they come, boss phases 40-25-35: seeds 3, 11, 16 and 18 of 1-20 clear all
+    // nine (seed 2 took hits in six).
+    const seed = 3;
     const state = createRun({ mode: 'campaign', mission: 'bastion', weapon, difficulty, seed });
     const log = fly(state, perfectPilot(), 420, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

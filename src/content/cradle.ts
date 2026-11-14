@@ -1,3 +1,4 @@
+import { OVERLOAD_FRACTION } from './boss-phases';
 /**
  * THE CRADLE, Amnion's boss (docs/27): a living nest-fortress that heaves itself up the canyon onto the bone plateau,
  * carrying the brood. Its two brood sacs (the first pair) and its nest heart (the core) are the only targets; the
@@ -23,8 +24,8 @@ export const CRADLE = {
    * October (user: "the model seems pretty big no?"; it was 17 wide on a 12-wide screen and clipped the canyon walls).
    */
   targetHeight: 1.54,
-  sacHp: 640,
-  heartHp: 2050,
+  sacHp: 665,
+  heartHp: 2000,
   // Hit radii shrink less than the model (0.85 and 1.2 before), so the smaller targets stay as fair to hit.
   sacRadius: 0.72,
   heartRadius: 1.0,
@@ -38,7 +39,7 @@ export const CRADLE = {
   beamWarning: 1.2,
   recovery: 0.5,
   transitionRecovery: 1.3,
-  overloadFraction: 0.4,
+  overloadFraction: OVERLOAD_FRACTION,
   sacBurst: { bolts: 4, spread: 0.085, speed: 6.6 },
   heartBurst: { bolts: 5, spread: 0.075, speed: 6.8 },
   heartFan: { bolts: 7, spacing: Math.PI / 18, speed: 5.2 },

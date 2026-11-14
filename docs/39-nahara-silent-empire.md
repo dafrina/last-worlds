@@ -91,7 +91,7 @@ empire and moving sand, a steady scatter, the existing ruin kit, low and wide.
 - **Moving sand** (`src/render/sand-streams.ts`, render only, one draw each):
   - **Sand streams:** pale ribbons of blown sand gliding across the ground with the wind, draped over the terrain, with
     grain flowing along them; there are 36 (18 on Low).
-  - **Dust devils:** now and then one drifts with the wind (none on Low).
+  - **Dust devils:** tried and removed (user, 14 November: "they look a bit shit, just remove them").
   - **Never over the canyon:** a pale line in the lane could read as a shot. A stream fades where the ground falls away.
   - **Determinism:** placed by a fixed hash.
 

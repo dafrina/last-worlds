@@ -1,3 +1,4 @@
+import { OVERLOAD_FRACTION } from './boss-phases';
 /**
  * THE ECLIPSE, Umbra's boss and the final boss (docs/28): the user's crescent-winged Tripo GLB, adapted
  * (public/assets/umbra/the-eclipse-v2-approved.glb, tools/blender/approved_eclipse.py), lying flat with its horns away
@@ -22,8 +23,8 @@ export const ECLIPSE = {
    * 1.45 (the-eclipse-v1-approved.glb, tools/blender/approved_eclipse.py); one plane at 1.7 keeps both within 0.2 in s.
    */
   targetHeight: 1.7,
-  ventHp: 640,
-  reactorHp: 2050,
+  ventHp: 530,
+  reactorHp: 2380,
   // The vents are the almond panels on the inner wings' fronts, 4.7 long and 1 wide (never out on the horns); the reactor
   // is the lens in the glowing ring. Their visible centres projected onto the target plane: x ±5.15, s 0.1; and s 0.5.
   ventRadius: 1.1,
@@ -45,7 +46,7 @@ export const ECLIPSE = {
   beamWarning: 1.2,
   recovery: 0.5,
   transitionRecovery: 1.3,
-  overloadFraction: 0.4,
+  overloadFraction: OVERLOAD_FRACTION,
   ventBurst: { bolts: 4, spread: 0.085, speed: 6.6 },
   reactorBurst: { bolts: 5, spread: 0.075, speed: 6.8 },
   reactorFan: { bolts: 7, spacing: Math.PI / 18, speed: 5.2 },

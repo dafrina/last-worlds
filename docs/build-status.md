@@ -1,5 +1,37 @@
 # Build status
 
+## Boss phases 40-25-35, site callouts only when the site comes, no dust devils (14 November 2026; docs/39, docs/40)
+
+- **Boss phases** (user: "The split should always be roughly 35-30-35", then "Or maybe 40-25-35 since double cores would
+  die too soon"):
+  - The rule is one shared constant (`src/content/boss-phases.ts`): every boss's first-phase targets hold 40% of its
+    health, the core's first stage 25%, its final stage 35%.
+  - The final stage now begins at 58% of the core (`OVERLOAD_FRACTION`; it was 35-40%).
+  - Each boss keeps its total. Before, the finale was the shortest phase at 21-27%.
+  - Measured, skilled pilot at Level 4 (6 seeds): the fight lengths are about as before (THE CITADEL 91 → 90 s).
+  - The finale's share of the time is 30-48%: Vesper's and Nacre's finales run longest, because their final attacks
+    keep the pilot dodging.
+- **Site callouts** (user: "sometimes it tells me theres a site but then nothing follows"):
+  - The cause: a site was announced on its schedule, but spawned only when admitted behind the queue of held waves.
+    - On Silent Empire the site came 15-40 s after its callout.
+    - Once it never came: the boss cut the playlist short, after about 45 of 63 encounters.
+  - The fix: a site is announced only when it is the next encounter and would be admitted now. It follows 1-2 s later.
+    Across 8 Silent Empire runs, no callout went unanswered.
+- **Dying Star repeats 0.72 → 0.74:** the new spawn timing exposed a 0.15 s seal (airfield site, depot battery and a
+  Weaver line). The check was not weakened.
+- **Dust devils removed** (user: "they look a bit shit, just remove them"); the sand streams stay.
+- **Tests:**
+  - Empire's End is planned with a top-level weapon, which is Nahara's expected level;
+  - the Endless boss-start check allows craft that are breaking off;
+  - the Citadel test follows `OVERLOAD_FRACTION`;
+  - the no-hit seeds were re-surveyed.
+- **Gate:**
+  - typecheck clean;
+  - unit 1101 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.
+- No phone test.
+
 ## Silent Empire: renamed; the buried empire, moving sand; THE CITADEL awakens and fights sooner (14 November 2026; docs/39)
 
 - **Renamed:** "The Silent Empire" is now "Silent Empire" everywhere players see it: the menu, mission brief, flight

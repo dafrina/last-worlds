@@ -1,3 +1,4 @@
+import { OVERLOAD_FRACTION } from './boss-phases';
 /**
  * WARDEN-1, Luna's small boss (docs/19 §2): a decommissioned human lunar defence lander, the first boss a pilot
  * meets (Training, and the opening sector of endless). Four landing legs, a central command module (the core) and
@@ -14,8 +15,8 @@ export const WARDEN = {
   row: 12.5,
   /** Weak points' height above the ground (render-only). The v5 Warden flies 1.1 above the ground (user, 20 October): 1.3 + 1.1. */
   targetHeight: 2.4,
-  podHp: 270,
-  commandHp: 950,
+  podHp: 300,
+  commandHp: 890,
   podRadius: 0.7,
   commandRadius: 1.15,
   podOffset: 2.1,
@@ -24,7 +25,7 @@ export const WARDEN = {
   beamWarning: 1.4,
   recovery: 0.65,
   transitionRecovery: 1.5,
-  overloadFraction: 0.35,
+  overloadFraction: OVERLOAD_FRACTION,
   podBurst: { bolts: 3, spread: 0.1, speed: 5.6 },
   commandBurst: { bolts: 4, spread: 0.085, speed: 5.8 },
   overload: { coreLaneWidth: 2.2, batteryLaneWidth: 1.3, active: 0.35 },

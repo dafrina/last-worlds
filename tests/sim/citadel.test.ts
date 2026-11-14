@@ -7,6 +7,7 @@ import { bossTarget, resolveBossPhase, startBoss, updateBoss } from '../../src/s
 import { shotFootprint } from '../../src/sim/fairness';
 import { createRun } from '../../src/sim/game';
 import { fly, perfectPilot } from './pilots';
+import { OVERLOAD_FRACTION } from '../../src/content/boss-phases';
 
 // docs/39: THE CITADEL (on THE ECLIPSE's model for now) and Nahara's two boss attacks, which THE ECLIPSE also gains.
 const CITADEL = BOSSES.citadel;
@@ -101,9 +102,9 @@ describe('Boomerang Barrage', () => {
 });
 
 describe('THE CITADEL (docs/39)', () => {
-  it('ends The Silent Empire; three phases on one reactor pool, the fall at 40%; about 5,000 effective hull', () => {
+  it('ends Silent Empire; three phases on one reactor pool, 40-25-35 (BOSS_PHASES); about 5,000 effective hull', () => {
     expect(missionBoss('silent-empire')?.id).toBe('citadel');
-    expect(CITADEL.overloadFraction).toBe(0.4);
+    expect(CITADEL.overloadFraction).toBe(OVERLOAD_FRACTION);
     const total = bossParts(CITADEL).reduce((sum, part) => sum + CITADEL.parts[part]!.hp, 0) * BOSS_TOUGHNESS.hp;
     expect(total).toBeGreaterThanOrEqual(4500); expect(total).toBeLessThanOrEqual(5200);
     const eclipse = bossParts(BOSSES.eclipse).reduce((sum, part) => sum + BOSSES.eclipse.parts[part]!.hp, 0) * BOSS_TOUGHNESS.hp;

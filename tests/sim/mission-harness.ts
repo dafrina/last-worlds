@@ -130,8 +130,9 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
   // Rail Driver 40-54 s (6 November). By world six a player has one. Vent Breaker (CITADEL's three vents within 45 s) too:
   // a level-3 Rail Driver takes 49-55 s on Standard, a top-level Twin Pulse or Fan Cannon 20-26 s (12 November). Cradle's
   // End (CRADLE within 100 s) too since the mission's tougher boss (×1.5, 13 November, docs/40): a replay with an upgraded
-  // weapon, as the user put it ("players can replay levels and should do so for missions anyway").
-  if (visible.some(def => def.id === 'corona.sunburn' || def.id === 'nahara.vent-breaker' || def.id === 'amnion.cradles-end')) attempt.rank = MAX_RANK;
+  // weapon, as the user put it ("players can replay levels and should do so for missions anyway"). Empire's End (CITADEL
+  // within 90 s at ×2.75) too: Nahara's expected level is the top one anyway (docs/40).
+  if (visible.some(def => def.id === 'corona.sunburn' || def.id === 'nahara.vent-breaker' || def.id === 'amnion.cradles-end' || def.id === 'nahara.empires-end')) attempt.rank = MAX_RANK;
   // A burst of air kills in a few seconds (Interceptor Drill, Solar Wind): the Fan Cannon's spread, as a player would pick.
   else if (!loadout && visible.some(def => def.rule.kind === 'air' && def.rule.window !== undefined)) {
     attempt.weapon = 'fan'; attempt.rank = MAX_RANK;

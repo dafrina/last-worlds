@@ -1,3 +1,4 @@
+import { OVERLOAD_FRACTION } from './boss-phases';
 /**
  * THE VEIL, Nacre's boss (docs/20): a giant biological starship that rises over the open mire, far wider than the
  * view. Its two gill pods (the first pair) and its glowing heart (the core) are the only targets; the hull, the
@@ -14,8 +15,8 @@ export const VEIL = {
   row: 12,
   /** Hover height of the hull's target plane over the water. */
   targetHeight: 2.2,
-  podHp: 620,
-  heartHp: 2000,
+  podHp: 650,
+  heartHp: 1940,
   podRadius: 0.85,
   heartRadius: 1.2,
   podOffset: 3.1,
@@ -25,7 +26,7 @@ export const VEIL = {
   beamWarning: 1.2,
   recovery: 0.5,
   transitionRecovery: 1.3,
-  overloadFraction: 0.4,
+  overloadFraction: OVERLOAD_FRACTION,
   podBurst: { bolts: 4, spread: 0.085, speed: 6.6 },
   heartBurst: { bolts: 5, spread: 0.075, speed: 6.8 },
   heartFan: { bolts: 7, spacing: Math.PI / 18, speed: 5.2 },

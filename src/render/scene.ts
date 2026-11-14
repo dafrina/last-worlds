@@ -1705,8 +1705,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       coronaHaze.update(state.time, state.distance, -(view.minS + view.maxS) / 2, world.planet.id === 'corona', CORONA_SEA_LEVEL);
       // Each world's drifting dust, snow, spores or embers (render-only; none on Luna, none in the ortho debug view).
       if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) motes.update(world.planet.id, state.time, state.distance, camera as THREE.PerspectiveCamera, drawingHeight * renderer.getPixelRatio());
-      // Nahara's moving sand: streams over the ground and the odd dust devil (render only, src/render/sand-streams.ts).
-      if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) sand.update(world.planet.id === 'nahara', state.time, state.distance, camera as THREE.PerspectiveCamera, (x, s) => terrainHeight(state.config.seed, x, s, world), drawingHeight * renderer.getPixelRatio());
+      // Nahara's moving sand: streams over the ground (render only, src/render/sand-streams.ts).
+      if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) sand.update(world.planet.id === 'nahara', state.time, state.distance, camera as THREE.PerspectiveCamera, (x, s) => terrainHeight(state.config.seed, x, s, world));
       const lookPlanet: PlanetId = lookOverride ? terrainPlanet : state.planet ?? runPlanet(state.config);
       if (lookPlanet !== planet) applyLook(lookPlanet);
       if (state.config.mode === 'endless') {

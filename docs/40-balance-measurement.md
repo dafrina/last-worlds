@@ -201,3 +201,28 @@ node tools/balance-report.mjs out.jsonl
   0.92 and first attack 0.85, which pass all of its fairness unions. The grid above was measured before these two.
 - The fixed-seed no-hit tests moved: Rolling Thunder 10, Deep Bloom 1/9/4, Brood Strike 6, Final Horizon 5.
 
+## 14 November: boss phases 40-25-35
+
+The user: "last phase doesnt take that long compared to first", then "The split should always be roughly 35-30-35" and
+"Or maybe 40-25-35 since double cores would die too soon".
+- **Before:** every boss's final phase was its shortest, 21-27% of its health:
+  - WARDEN-1 36/41/22;
+  - BASTION-9 33/40/27;
+  - HELION ARK 40/36/24;
+  - VEIL and CRADLE 38/37/25;
+  - HELIOPHAGE, CITADEL and ECLIPSE 48/31/21.
+- **Now:** all eight are 40/25/35 (`src/content/boss-phases.ts`), each with its own total unchanged.
+- **The mission toughness** (`MISSION_PRESSURE.bossHp`) scales every part alike, so the split holds in every mode.
+- **Skilled pilot at Level 4, 6 seeds, seconds per phase:**
+
+| Mission | First | Core | Final | Total |
+|---|---|---|---|---|
+| Training | 7.0 | 3.9 | 7.7 | 18.6 |
+| Rolling Thunder | 9.9 | 6.7 | 7.3 | 23.8 |
+| Cold Vector | 11.5 | 11.0 | 16.9 | 39.3 |
+| Deep Bloom | 14.0 | 8.5 | 20.7 | 43.2 |
+| Brood Strike | 26.1 | 18.0 | 21.1 | 65.2 |
+| Dying Star | 25.0 | 17.0 | 24.8 | 66.7 |
+| Silent Empire | 38.7 | 22.0 | 29.1 | 89.8 |
+| Final Horizon | 45.7 | 26.4 | 40.5 | 112.6 |
+
