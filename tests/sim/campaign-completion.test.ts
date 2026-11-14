@@ -31,7 +31,8 @@ describe('campaign completion at the expected weapon tier', () => {
       expect(result.completed, `${mission} ${weapon}`).toBe(true);
       expect(result.livesLost, `${mission} ${weapon}`).toBe(0);
     }
-  });
+    // Four whole late missions with the tougher bosses (docs/40): about 12 s alone, past 30 s under CI's full load.
+  }, 120_000);
 
   // (One fight is noisy, neighbouring levels can swap on a seed: 13 November seed 21 gave L2 89.6 s, L3 95.1 s. The shape
   // holds on every seed: Level 1 drags, Level 5 is clearly stronger than the expected Level 4.)
@@ -39,5 +40,5 @@ describe('campaign completion at the expected weapon tier', () => {
     const fights = [0, 3, 4].map(rank => flyMission('final-horizon', 'pulse', rank, 'standard', 21).bossFight!);
     expect(fights[0], `${fights}`).toBeGreaterThan(fights[1] * 2);
     expect(fights[2], `${fights}`).toBeLessThan(fights[1] * 0.75);
-  });
+  }, 120_000);
 });
