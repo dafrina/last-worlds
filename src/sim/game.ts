@@ -174,7 +174,7 @@ function beginSector(state: RunState): void {
 
 const MISSION_TITLES: Readonly<Record<MissionId, string>> = {
   training: 'TRAINING · LUNA', bastion: 'ROLLING THUNDER · KHEPRI', 'deep-bloom': 'DEEP BLOOM · NACRE', 'cold-vector': 'COLD VECTOR · VESPER', 'brood-strike': 'BROOD STRIKE · AMNION',
-  'dying-star': 'DYING STAR · CORONA', 'silent-empire': 'THE SILENT EMPIRE · NAHARA', 'final-horizon': 'FINAL HORIZON · UMBRA',
+  'dying-star': 'DYING STAR · CORONA', 'silent-empire': 'SILENT EMPIRE · NAHARA', 'final-horizon': 'FINAL HORIZON · UMBRA',
 };
 
 function updateDirector(state: RunState): void {

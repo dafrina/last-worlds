@@ -1025,3 +1025,17 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - browser 55 of 55.
 - **Next:** pushing `integrator-next` to `main`.
 - **Deployed** `286cc28` (Pages run 43540602590; the live bundle matches). `main` = `integrator-next`.
+
+**14 November · Claude Code (main session) · Silent Empire: renamed, buried empire, moving sand, Citadel awakening, deploying.**
+- **Files:**
+  - `src/world/terrain-nahara.ts` (`buriedEmpire`);
+  - new `src/render/sand-streams.ts`;
+  - `scene.ts` (the sand hook and the arrival rumble);
+  - `veil-view.ts` (`AWAKEN`);
+  - Citadel `arrivalDuration` 3 s (`citadel.ts`, `bosses.ts`);
+  - the mission name in the UI, the banner, the deck message, the score title and the side missions.
+- **Gate:**
+  - typecheck clean;
+  - unit 1101 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.

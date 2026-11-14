@@ -667,6 +667,8 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
       }
     });
   }
+  yield;
+  buriedEmpire(seed, startS, size, terrain, arena, big, add);
   const cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   for (let j = Math.floor(startS / cell); j < Math.ceil((startS + size) / cell); j++) for (let i = 0; i < columns; i++) {
     if (i === 0) yield;
@@ -715,6 +717,90 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   // (No carved facings since 13 November: stretched to each cliff's drop as wall pieces, their caps jutted over the rims and
   // their masonry smeared; the ground's own cliffs carry the masonry.)
   return [...essential, ...cosmetic];
+}
+
+/**
+ * The buried empire (user, 14 November: "nahara still feels very empty. The dunes and hills are just so plain"; the
+ * questionnaire: the buried empire, a steady scatter, the existing ruin kit, low and wide): over the open ground, mostly
+ * the natural sandstone the ruin districts leave bare, the kit's own pieces sunk deep in the sand, only their tops showing
+ * (BURIED.reveal, never over BURIED.top above the ground under them): the crown of an arch, a wall's line, a tower's
+ * battlements, a gate's lintel, a pillar's stump, each with a little rubble. One candidate per lattice patch, jittered in
+ * it, so something is always in view without crowding the ground targets' read.
+ */
+const BURIED = { patchX: 4, patchS: 4.4, natural: 0.92, built: 0.3, top: 1.2, gap: 3 } as const;
+function buriedEmpire(seed: number, startS: number, size: number, terrain: ScatterField, arena: TerrainArena | undefined,
+  big: readonly [number, number][], add: (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number) => void) {
+  const columns = Math.ceil(WORLD_HALF * 2 / BURIED.patchX);
+  // The lowest ground under a piece's footprint (its corners and middle): it sinks from there, so nothing floats.
+  const lowest = (x: number, s: number, halfX: number, halfS: number, turn: number) => {
+    const c = Math.cos(turn), n = Math.sin(turn);
+    let low = terrain.height(x, s);
+    for (const [u, v] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [-1, 0], [1, 0]] as const) {
+      const dx = u * halfX * c + v * halfS * n, ds = -u * halfX * n + v * halfS * c;
+      low = Math.min(low, terrain.height(x + dx, s + ds));
+    }
+    return low;
+  };
+  // Open ground: the hills and the plateau, not the canyon floor nor its steep walls (the canyon mask's soft edge reaches
+  // well over the hills, so the height and the slope decide; only the canyon's own middle is out).
+  const open = (x: number, s: number) => Math.abs(x) <= WORLD_HALF - 1 && !terrain.blocked(x, s) && naharaPlatform(arena, seed, x, s) <= 0
+    && terrain.slope(x, s) < 0.9 && terrain.height(x, s) > NAHARA_FLOOR + 3 && naharaMasks(seed, x, s, 0, arena).chasm <= 0.8;
+
+  for (let j = Math.floor(startS / BURIED.patchS); j < Math.ceil((startS + size) / BURIED.patchS); j++) for (let i = 0; i < columns; i++) {
+    const h = (k: number) => hash(seed ^ 0x4b61, i * 61 + k, j);
+    const x = -WORLD_HALF + (i + 0.2 + h(0) * 0.6) * BURIED.patchX, s = (j + 0.2 + h(1) * 0.6) * BURIED.patchS;
+    if (s < startS || s >= startS + size || !open(x, s) || big.some(([bx, bs]) => Math.hypot(bx - x, bs - s) < BURIED.gap)) continue;
+    const built = naharaBuilt(seed, x, s, arena) > 0.5;
+    if (h(2) > (built ? BURIED.built : BURIED.natural)) continue;
+    // Laid out on the empire's grid, a little slack for age.
+    const squared = Math.round(h(3) * 4) * Math.PI / 2 + (h(4) - 0.5) * 0.16, what = h(5);
+    // Only the top `reveal` of a piece `tall` high shows: sunk by the rest under the lowest ground below it.
+    const sunk = (low: number, tall: number, reveal: number) => low - tall * (1 - Math.min(reveal, BURIED.top / tall));
+    let reach = 1.2;
+    if (what < 0.3) {
+      // An arch's crown, an arc of voussoirs out of the dune.
+      const scale = 1.6 + h(6) * 1.0, tall = 1.5 * scale * (0.9 + h(7) * 0.2), low = lowest(x, s, KIT.nahArch.halfX * scale, 0.4, squared);
+      add({ kind: 'nahArch', x, s, y: sunk(low, tall, 0.32 + h(8) * 0.12), scale, height: tall, rotation: squared, cosmetic: false }, h(9) < 0.4 ? 0.99 : 0);
+      reach = KIT.nahArch.halfX * scale;
+    } else if (what < 0.52) {
+      // A wall's line: two to four courses along the grid, some gone, each sunk to its own depth.
+      const scale = 1.1 + h(6) * 0.4, step = KIT.nahWall.halfX * 2 * scale * 0.96, count = 2 + Math.floor(h(7) * 3);
+      const ax = Math.cos(squared), as = -Math.sin(squared);
+      for (let k = 0; k < count; k++) {
+        const g = (n: number) => hash(seed ^ 0x4b63, i * 61 + k, j * 7 + n);
+        if (k > 0 && g(0) < 0.25) continue;
+        const wx = x + ax * step * (k - (count - 1) / 2), ws = s + as * step * (k - (count - 1) / 2);
+        if (!open(wx, ws)) continue;
+        const tall = 1.1 * scale, low = lowest(wx, ws, KIT.nahWall.halfX * scale, KIT.nahWall.halfZ * scale, squared);
+        add({ kind: 'nahWall', x: wx, s: ws, y: sunk(low, tall, 0.25 + g(1) * 0.35), scale, height: tall, rotation: squared, cosmetic: false }, g(2));
+      }
+      reach = step * count / 2;
+    } else if (what < 0.7) {
+      // A tower's battlements level with the sand.
+      const scale = 1.4 + h(6) * 0.6, tall = 2.6 * scale / 1.4, low = lowest(x, s, KIT.nahTower.halfX * scale, KIT.nahTower.halfZ * scale, squared);
+      add({ kind: 'nahTower', x, s, y: sunk(low, tall, 0.2 + h(7) * 0.15), scale, height: tall, rotation: squared, cosmetic: false }, h(8));
+      reach = KIT.nahTower.halfX * scale;
+    } else if (what < 0.84) {
+      // A gate buried to its lintel, square to the run as the old road ran.
+      const scale = 1.5 + h(6) * 0.5, tall = 2.2 * scale / 1.8, turn = Math.round(h(7)) * Math.PI / 2 + (h(8) - 0.5) * 0.14;
+      const low = lowest(x, s, KIT.nahGate.halfX * scale, KIT.nahGate.halfZ * scale, turn);
+      add({ kind: 'nahGate', x, s, y: sunk(low, tall, 0.3 + h(9) * 0.15), scale, height: tall, rotation: turn, cosmetic: false }, h(10));
+      reach = KIT.nahGate.halfX * scale;
+    } else {
+      // A pillar's stump of stacked blocks.
+      const scale = 0.7 + h(6) * 0.35, tall = 1.4 * scale, low = lowest(x, s, KIT.nahPillar.halfX * scale, KIT.nahPillar.halfZ * scale, squared);
+      add({ kind: 'nahPillar', x, s, y: sunk(low, tall, 0.35 + h(7) * 0.3), scale, height: tall, rotation: squared, cosmetic: false }, h(8));
+      reach = KIT.nahPillar.halfX * scale;
+    }
+    // Rubble round it: a few tumbled blocks half in the sand.
+    const rubble = 1 + Math.floor(h(11) * 3);
+    for (let k = 0; k < rubble; k++) {
+      const g = (n: number) => hash(seed ^ 0x4b65, i * 61 + k, j * 11 + n);
+      const angle = g(0) * Math.PI * 2, far = reach + 0.4 + g(1) * 1.2, rx = x + Math.cos(angle) * far, rs = s + Math.sin(angle) * far;
+      if (!open(rx, rs)) continue;
+      add({ kind: 'nahBlocks', x: rx, s: rs, y: terrain.height(rx, rs) - 0.12, scale: 0.6 + g(2) * 0.5, height: 0.5 + g(3) * 0.4, rotation: g(4) * Math.PI * 2, cosmetic: true }, g(5));
+    }
+  }
 }
 
 export const NAHARA: PlanetProfile = {

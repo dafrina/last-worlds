@@ -1,5 +1,27 @@
 # Build status
 
+## Silent Empire: renamed; the buried empire, moving sand; THE CITADEL awakens and fights sooner (14 November 2026; docs/39)
+
+- **Renamed:** "The Silent Empire" is now "Silent Empire" everywhere players see it: the menu, mission brief, flight
+  banner, intro message, music title and side-mission texts. The id stays `silent-empire`.
+- **The buried empire** (`src/world/terrain-nahara.ts` `buriedEmpire`):
+  - the kit's ruins sunk in the sand on Nahara's bare hills: arch crowns, wall lines, tower tops, gates, stumps and
+    rubble;
+  - low and wide, in a steady scatter.
+- **Moving sand** (`src/render/sand-streams.ts`): sand streams and dust devils. Render only, kept off the canyon.
+- **THE CITADEL:**
+  - arrival shortened from 5 s to 3 s, so the fight starts as the scroll stops (first windup at 188.3 s instead of
+    190.3 s);
+  - an awakening through the arrival: dust, a rumble, then its lanterns, emblem and crown ignite.
+- **Checked:**
+  - typecheck clean;
+  - unit 1101 passed, 8 skipped;
+  - build passes; browser 55 of 55;
+  - screenshots at 20–145 s and through the arrival (Chromium, SwiftShader).
+- **Seen in the screenshots:** a large reddish kill explosion near the stairs just before the boss (182–186 s). It
+  predates this change and is unchanged.
+- No phone test.
+
 ## Campaign pressure, tougher bosses, new Nahara missions, Skimmers on Corona, live autopilot, camera shake (13-14 November 2026; docs/40, docs/41, docs/39)
 
 - **Difficulty** (docs/40):

@@ -1,11 +1,12 @@
-# Nahara · The Silent Empire
+# Nahara · Silent Empire
 
 Design v0.1 · 12–13 November 2026. The user handed over the world with concept sheets: the world
 (`art/concepts/nahara/01-world`) and the enemy fleet ("NAHARA ENEMY FLEET": Skimmer, Relic Shield, Obelisk, Quarry
 Battery, Dune Hunter, Sunspike). The concept images are references, never runtime backgrounds or finished assets
 (AGENTS.md invariant 9).
 
-The planet is **Nahara**, the mission **The Silent Empire**, the boss **THE CITADEL**.
+The planet is **Nahara**, the mission **Silent Empire**, the boss **THE CITADEL**. (The mission was called *The Silent
+Empire* until 14 November; the user: "remove the THE". The id stays `silent-empire`.)
 
 ## Place in the game
 
@@ -68,6 +69,31 @@ User direction:
     share;
   - a weathered-sandstone grain on the ruin kit, projected triplanar on Nahara so curved arch stones carry it too;
   - the stone finish's bump is off on Nahara (stretched pieces smeared it).
+
+### The buried empire and the moving sand (14 November)
+
+The user: "nahara still feels very empty. The dunes and hills are just so plain". Questionnaire answers: the buried
+empire and moving sand, a steady scatter, the existing ruin kit, low and wide.
+- **Buried empire** (`buriedEmpire`):
+  - **Pieces:** the kit's own pieces sunk in the sand, their tops showing at most 1.2 over the lowest ground under them:
+    - arch crowns, their turquoise intact;
+    - wall lines of two to four courses;
+    - tower battlements;
+    - gates buried to the lintel;
+    - pillar stumps;
+    - a few tumbled blocks round each.
+  - **Placement:**
+    - one candidate per 4 × 4.4 patch;
+    - 92% taken on the natural sandstone, 30% in the ruin districts, which have their own ruins;
+    - only on open ground: the hills and plateau, never the canyon floor, steep walls or the Citadel's rock.
+  - **Scope:** scenery only; nothing simulated.
+  - **Measured:** the busiest frame rose from 91k to 117k triangles. Instanced, so the draw calls barely changed.
+- **Moving sand** (`src/render/sand-streams.ts`, render only, one draw each):
+  - **Sand streams:** pale ribbons of blown sand gliding across the ground with the wind, draped over the terrain, with
+    grain flowing along them; there are 36 (18 on Low).
+  - **Dust devils:** now and then one drifts with the wind (none on Low).
+  - **Never over the canyon:** a pale line in the lane could read as a shot. A stream fades where the ground falls away.
+  - **Determinism:** placed by a fixed hash.
 
 ### The ruin kit (`tools/blender/nahara_kit.py`, `public/assets/nahara/nahara-kit.glb`)
 
@@ -140,6 +166,13 @@ shapes (user: "keep it kit built, but obviously you can still take shapes etc fr
   sandstone (`boss_remodel` STYLES), 8.2 MB.
 - It stands still (`BossDefinition.stationary`, `CarrierStyle.still`); its terrain exclusion is only its plaza. It stands
   in its arena before the fight and after it (a wreck), never rises or sinks, and only explodes when it falls.
+- **Awakening** (14 November; user: "when we arrive at the boss it takes a tad too long until the boss fight starts even
+  tho hes already on screen"):
+  - Its arrival is 3 s, not THE ECLIPSE's 5 s, which covered that boss's rise. It ends as the scroll stops (187 s); the
+    first windup comes at 188.3 s instead of 190.3 s.
+  - It stands dormant (glow 0.15) until then. Through the arrival it shakes the sand off (a puff of dust and a short
+    camera rumble), then its lanterns, emblem and crown light in turn, each with a flicker and a flare of sparks
+    (`AWAKEN`, `src/render/veil-view.ts`).
 
 ### The arena (`src/world/terrain-nahara.ts`)
 

@@ -34,6 +34,7 @@ import { createFoam, createWater, type FoamRing } from './water';
 import { createCoronaArcs } from './corona-arcs';
 import { createCoronaHaze } from './corona-haze';
 import { createAmbientMotes } from './ambient-motes';
+import { createSandStreams } from './sand-streams';
 import { CORONA_SEA_LEVEL } from '../world/terrain-corona';
 import { createMireWater } from './mire-water';
 import { createFallbackInfra, createFallbackShared, createSharedMaterial, createTerrainMaterials, loadDistrictKit, loadKhepriInfra, loadKhepriKit, loadKhepriTextures, loadSharedKit } from './terrain-kit';
@@ -643,7 +644,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     }
     return made;
   };
-  const water = createWater(), foam = createFoam(scene), coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene), motes = createAmbientMotes(scene);
+  const water = createWater(), foam = createFoam(scene), coronaArcs = createCoronaArcs(scene), coronaHaze = createCoronaHaze(scene), motes = createAmbientMotes(scene), sand = createSandStreams(scene);
   /** Nacre's water: its own material (src/render/mire-water.ts); the sea sheets wear it while the look is Nacre's. */
   const mireWater = createMireWater();
   let planet: PlanetId = 'khepri', terrainPlanet: PlanetId = 'khepri';
@@ -1665,7 +1666,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     },
     isReady: planetReady,
     setQuality(next) {
-      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);motes.setQuality(next);
+      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);motes.setQuality(next);sand.setQuality(next);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); resizePost();
       // Shadow maps are a High-tier feature; toggling them recompiles the affected programs once.
       renderer.shadowMap.enabled = sunlight.castShadow = next === 'high';
@@ -1704,6 +1705,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       coronaHaze.update(state.time, state.distance, -(view.minS + view.maxS) / 2, world.planet.id === 'corona', CORONA_SEA_LEVEL);
       // Each world's drifting dust, snow, spores or embers (render-only; none on Luna, none in the ortho debug view).
       if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) motes.update(world.planet.id, state.time, state.distance, camera as THREE.PerspectiveCamera, drawingHeight * renderer.getPixelRatio());
+      // Nahara's moving sand: streams over the ground and the odd dust devil (render only, src/render/sand-streams.ts).
+      if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) sand.update(world.planet.id === 'nahara', state.time, state.distance, camera as THREE.PerspectiveCamera, (x, s) => terrainHeight(state.config.seed, x, s, world), drawingHeight * renderer.getPixelRatio());
       const lookPlanet: PlanetId = lookOverride ? terrainPlanet : state.planet ?? runPlanet(state.config);
       if (lookPlanet !== planet) applyLook(lookPlanet);
       if (state.config.mode === 'endless') {
@@ -2405,6 +2408,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         shakeEffect = effect.id;
         if (shakeDt > 0) shakeTrauma += effect.kind === 'bossBlast' ? .6 : effect.kind === 'blast' ? .14 : effect.kind === 'explosion' ? .07 : 0;
       }
+      // THE CITADEL's awakening: a short rumble as it shakes the dust off (src/render/veil-view.ts AWAKEN).
+      if (state.boss?.id === 'citadel' && state.boss.phase === 'arrival') shakeTrauma = Math.max(shakeTrauma, .6 * (1 - THREE.MathUtils.smoothstep(state.time - state.boss.startedAt, .1, 1.6)));
       shakeTrauma = Math.min(1, shakeTrauma);
       const shake = reducedMotion() || jumpActive ? 0 : shakeTrauma * shakeTrauma * SHAKE_AMPLITUDE;
       const shakeX = shake * (Math.sin(state.time * 47.3) + .5 * Math.sin(state.time * 89.1)), shakeY = shake * (Math.sin(state.time * 53.7 + 1.3) + .5 * Math.sin(state.time * 97.9 + .4));
@@ -2491,7 +2496,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const textures=new Set<THREE.Texture>();
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
-      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); motes.dispose(); basaltRaft.dispose(); environment.dispose(); skies.forEach(sky => sky.dispose());
+      terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); motes.dispose(); sand.dispose(); basaltRaft.dispose(); environment.dispose(); skies.forEach(sky => sky.dispose());
       lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose(); instancedDepth.dispose();
       renderer.dispose();

@@ -119,9 +119,16 @@ export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HEL
 
 /**
  * THE CITADEL (tools/blender/approved_citadel.py, docs/39): Nahara's boss, a temple standing on the arena's plateau (no
- * hover), 16 units wide (x ±8), 8.2 toward the player and 3.9 away from its pivot at the crown, 4.2 tall. It never moves;
- * it rises out of the ground in place.
+ * hover), 16 units wide (x ±8), 8.2 toward the player and 3.9 away from its pivot at the crown, 4.2 tall. It never moves:
+ * it stands dormant in its arena and awakens on arrival (AWAKEN).
  */
+/**
+ * THE CITADEL's awakening on arrival (user, 14 November: the fight began late with nothing on screen to show it coming):
+ * dormant glow while it stands in its arena, then lanterns, emblem and crown light in turn over the arrival (`order`, a
+ * share of it), each over `ignite` seconds with a brief over-bright `flare` that eases into its fight glow.
+ */
+const AWAKEN = { dormant: .15, ignite: .45, flare: 1.6, order: { left: .1, right: .3, prow: .5, core: .72 } as Record<BossPart, number> };
+
 export const CITADEL_STYLE: CarrierStyle = { id: 'citadel', name: 'THE CITADEL', prefix: 'citadel_', shutterOpen: 0, spark: 0x43d8c8, hover: 0, still: true,
   content: { podOffset: CITADEL.ventOffset, podS: CITADEL.ventS, heartS: CITADEL.reactorS, targetHeight: CITADEL.targetHeight, arrivalDuration: CITADEL.arrivalDuration, bays: CITADEL.bays,
     prowS: CITADEL.prowS },
@@ -377,10 +384,10 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
           for (const part of rig.parts.values()) {
             for (const object of part.live) object.visible = intact;
             if (part.wreck) part.wreck.visible = !intact;
-            part.heat.emissiveIntensity = intact ? 1.2 : 0;
+            part.heat.emissiveIntensity = intact ? AWAKEN.dormant : 0;
           }
           for (const ring of rings.values()) ring.mesh.visible = false;
-          rig.sinew.emissiveIntensity = intact ? 1.2 : 0;
+          rig.sinew.emissiveIntensity = intact ? AWAKEN.dormant : 0;
         }
         return;
       }
@@ -403,6 +410,14 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       }
       rig.engine.emissiveIntensity = destroyed ? Math.max(0, 2.6 - phaseAge) : 2.4 + .4 * Math.sin(state.time * 5);
       rig.sinew.emissiveIntensity = destroyed ? Math.max(0, 1.4 - phaseAge * .5) : 1.2 + .5 * Math.sin(state.time * 1.7);
+      // A still boss awakens through its arrival: dust shaken off its rock, then its modules light one after another, each
+      // with a flare of sparks, the sinew last. Render only: the arrival's length is the simulation's.
+      const waking = arriving && style.still, span = style.content.arrivalDuration;
+      if (waking) {
+        const before = age - dt;
+        if (before < .05 && age >= .05) for (let k = 0; k < 6; k++) steam(local((hash(k + 61) - .5) * 15, .2, (hash(k + 67) - .5) * 9 - 1), encounter * 7 + k, 1.4);
+        rig.sinew.emissiveIntensity = AWAKEN.dormant + (rig.sinew.emissiveIntensity - AWAKEN.dormant) * THREE.MathUtils.smoothstep(age, span * .75, span);
+      }
       if (destroyed) {
         const before = phaseAge - dt;
         for (let k = 0; k < 12; k++) { const at = .1 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * (k % 3 ? 4 : 18), 1.8, (hash(k + 5) - .5) * 14 - 1), 10, k * 13 + encounter, 1); }
@@ -471,6 +486,14 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .5 + .5 * Math.abs(Math.sin(state.time * 12)) : .85 + .15 * Math.sin(state.time * 2.2);
         part.heat.emissiveIntensity = living ? (1.2 + (1 - fraction) * 1.8 + (enemy.warning > 0 ? 1.4 : 0)) * pulse + kick * 2.8 : 0;
+        if (waking && living) {
+          // Each module ignites at its moment of the awakening: a flicker, a flare of sparks, then its full glow.
+          const at = AWAKEN.order[enemy.bossPart] * span, lit = THREE.MathUtils.smoothstep(age, at, at + AWAKEN.ignite);
+          const flicker = lit > 0 && lit < 1 ? .55 + .45 * Math.sin(age * 47 + enemy.id) : 1;
+          const flare = 1 + (AWAKEN.flare - 1) * (1 - THREE.MathUtils.smoothstep(age, at + AWAKEN.ignite, at + AWAKEN.ignite + .5));
+          part.heat.emissiveIntensity = AWAKEN.dormant + (part.heat.emissiveIntensity * flare - AWAKEN.dormant) * lit * flicker;
+          if (age - dt < at && age >= at) { const spot = local(part.group.position.x, 2.2, part.group.position.z); flash(spot, 1.3, enemy.id + 5); burst(spot, 14, enemy.id * 23 + encounter, .9); }
+        }
         target.mesh.visible = enemy.hp > 0 && enemy.damageable !== false;
         target.material.color.setHex(enemy.warning > 0 ? 0xffecd0 : 0xffb77c).multiplyScalar(.45 + .55 * fraction);
         if (enemy.hp <= 0 || enemy.damageable === false) continue;

@@ -285,7 +285,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   // and moves under its own name until its own model; its own attacks (Fracture Wave, Boomerang Barrage) join its fight.
   citadel: {
     // Its own model (src/content/citadel.ts): a temple on the ground that never moves; its lanterns, emblem and crown.
-    ...ECLIPSE_BOSS, id: 'citadel', name: 'CITADEL', stationary: true,
+    ...ECLIPSE_BOSS, id: 'citadel', name: 'CITADEL', stationary: true, arrivalDuration: CITADEL.arrivalDuration,
     targetHeight: CITADEL.targetHeight, entryS: CITADEL.entryS, row: CITADEL.row, arena: CITADEL.arena,
     // Its three phases (docs/39): the Awakening (its three vents' aimed bursts), the Reactor Exposed (walls, bursts,
     // boomerangs and the fan) and from 40% of the reactor's hull the Fall of the Empire (walls and spirals between its lanes),

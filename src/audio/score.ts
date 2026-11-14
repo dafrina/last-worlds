@@ -107,7 +107,7 @@ export const THEMES: Record<PlanetId, Theme> = {
   // ground under it), a chromatic leap to F♯ minor, and A suspended, the fourth never falling to the third. The horn's
   // line is written out per chord (naharaHorn), its every note a tone of the chord.
   nahara: {
-    title: 'The Silent Empire', bpm: 90, root: 50,
+    title: 'Silent Empire', bpm: 90, root: 50,
     chords: [[0, 7, 14, 15], [-4, 0, 4, 8], [-8, -1, 7, 16], [-5, 2, 7, 12]],
     bass: [0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 7, -1, -1, -1, -1, -1],
     melody: [19, -1, -1, -1, -1, -1, -1, -1, -1, -1, 14, -1, -1, -1, -1, -1],

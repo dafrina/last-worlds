@@ -743,7 +743,7 @@ const FINAL_HORIZON_SORTIE = extend(UMBRAL_ARC, 62, 36, withNominal(FINAL_HORIZO
  * last guard before THE CITADEL. Its Wraith and artillery ship fly in their slots as on Umbra.
  */
 const SILENT_EMPIRE: readonly DeckSlot[] = [
-  fix({ at: 2, id: 'h-canyon-skimmers', phase: 'intro', message: 'THE SILENT EMPIRE · SKIMMERS · THEIR SHOTS SPLIT', formations: [f('skimmer-pair')] }),
+  fix({ at: 2, id: 'h-canyon-skimmers', phase: 'intro', message: 'SILENT EMPIRE · SKIMMERS · THEIR SHOTS SPLIT', formations: [f('skimmer-pair')] }),
   fix({ at: 8, id: 'h-canyon-arrow', phase: 'intro', formations: [f('arrow-3')] }),
   fix({ at: 12, id: 'h-terrace-turrets', phase: 'intro', message: 'ANCIENT DEFENCES ON THE TERRACES', formations: [f('battery-2')] }),
   fix({ at: 16, id: 'h-relic', phase: 'pressure', message: 'RELIC SHIELD · STRIKE WHEN ITS CORE OPENS', formations: [f('relic-solo')] }),
