@@ -18,6 +18,8 @@
   - unit 1101 passed, 8 skipped;
   - build passes; browser 55 of 55;
   - screenshots at 20–145 s and through the arrival (Chromium, SwiftShader).
+- **Deployed** `a4fcafd`: Pages run 43585087911 matches the live bundle `main-Bc4uBTaD.js`. The first run (`5f96586`) failed
+  on a CI timeout in `campaign-completion`, so its long flights now have 2-minute limits.
 - **Seen in the screenshots:** a large reddish kill explosion near the stairs just before the boss (182–186 s). It
   predates this change and is unchanged.
 - No phone test.

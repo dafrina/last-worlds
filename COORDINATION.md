@@ -1039,3 +1039,5 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - unit 1101 passed, 8 skipped;
   - build passes;
   - browser 55 of 55.
+- **Deployed** `a4fcafd` (Pages run 43585087911; the live bundle matches). The run for `5f96586` failed on a CI timeout in
+  `campaign-completion`, which now has explicit 2-minute limits.
