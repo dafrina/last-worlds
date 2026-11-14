@@ -45,6 +45,7 @@
     - unit 1101 passed, 8 skipped;
     - build passes;
     - browser 55 of 55 passed (Chromium, SwiftShader).
+  - **Deployed** `286cc28` (Pages run 43540602590; the live bundle `main-B8kOB-YH.js` matches).
   - No phone test.
 
 ## Balance measurement: expected tiers, a stronger fairness check, campaign and endless reports (13 November 2026; docs/40)

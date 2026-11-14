@@ -1024,3 +1024,4 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - build passes;
   - browser 55 of 55.
 - **Next:** pushing `integrator-next` to `main`.
+- **Deployed** `286cc28` (Pages run 43540602590; the live bundle matches). `main` = `integrator-next`.
