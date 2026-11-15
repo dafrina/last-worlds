@@ -91,7 +91,7 @@ export const menuMarkup = `
     <div class="settings-list"><div><span>Sound</span>${selector('sound', 'Sound', [['on', 'On'], ['off', 'Off']], 'on')}</div></div>
     <h3 class="settings-heading">DISPLAY</h3>
     <div class="settings-group"><div><span class="settings-name">Graphics<small>Low is smoother on older phones.</small></span>${selector('graphics', 'Graphics quality', [['high', 'High'], ['low', 'Low']], 'high')}</div></div>
-    <div class="steering-setting" hidden><h3 class="settings-heading">CONTROLS</h3><div class="settings-group"><div><span>Steering</span>${selector('steering', 'Steering', [['touch', 'Touch'], ['tilt', 'Tilt']], 'touch')}</div></div></div>
+    <div class="steering-setting" hidden><h3 class="settings-heading">CONTROLS</h3><div class="settings-group"><div><span>Steering</span>${selector('steering', 'Steering', [['touch', 'Halves'], ['drag', 'Drag'], ['tilt', 'Tilt']], 'touch')}</div></div></div>
     <p class="panel-note steering-note" hidden></p>
     <button type="button" class="arcade-button secondary settings-help" data-action="settings-help">HOW TO PLAY <span aria-hidden="true">↗</span></button>
   </section>

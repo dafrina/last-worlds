@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createControlState } from '../../src/input/controls';
+import { DRAG_DEAD, DRAG_RESPONSE, createControlState, dragSteer } from '../../src/input/controls';
 
 describe('pointer and keyboard ownership', () => {
   it('ignores a repeated pointer-down for a pointer that is already held', () => {
@@ -82,5 +82,56 @@ describe('pointer and keyboard ownership', () => {
     input.pointerUp(1);
     input.keyUp('KeyD');
     expect(input.sample().horizontal).toBe(0);
+  });
+});
+
+describe('drag steering (relative to the first touch, user 15 November)', () => {
+  const view = { worldPerPx: 0.05 }; // 20 px of finger travel = 1 world unit
+  it('steers toward the ship x at touch-down plus the finger travel, and settles in the dead zone', () => {
+    const input = createControlState();
+    input.dragDown(1, 200, 2);
+    // No travel yet: the target is where the ship was, so a ship still there does not move.
+    expect(input.sample({ shipX: 2, ...view }).horizontal).toBe(0);
+    input.dragMove(1, 260); // +3 units: target 5
+    expect(input.sample({ shipX: 2, ...view }).horizontal).toBe(1);
+    expect(input.sample({ shipX: 4.7, ...view }).horizontal).toBeCloseTo(dragSteer(5, 4.7));
+    expect(input.sample({ shipX: 5 - DRAG_DEAD / 2, ...view }).horizontal).toBe(0);
+    input.dragMove(1, 140); // −3 units from the start: target −1, the ship at 5 goes left
+    expect(input.sample({ shipX: 5, ...view }).horizontal).toBe(-1);
+  });
+
+  it('stops on release, re-anchors on the next touch, and leaves the special pointer and keys their roles', () => {
+    const input = createControlState();
+    input.dragDown(1, 100, 0);
+    input.dragMove(1, 200);
+    expect(input.sample({ shipX: 0, ...view }).horizontal).toBe(1);
+    input.pointerUp(1);
+    expect(input.sample({ shipX: 3, ...view }).horizontal).toBe(0);
+    // A new touch anchors to the ship's x now, not to the old finger.
+    input.dragDown(2, 300, 3);
+    expect(input.sample({ shipX: 3, ...view }).horizontal).toBe(0);
+    // The special button's pointer fires without steering; a held key wins over the drag.
+    input.pointerDown(9, 'special');
+    const frame = input.sample({ shipX: 3, ...view });
+    expect(frame.specialPressed).toBe(true); expect(frame.horizontal).toBe(0);
+    input.dragMove(2, 400);
+    input.keyDown('ArrowLeft');
+    expect(input.sample({ shipX: 3, ...view }).horizontal).toBe(-1);
+    input.keyUp('ArrowLeft');
+    expect(input.sample({ shipX: 3, ...view }).horizontal).toBe(1);
+  });
+
+  it('ignores a drag touch-down outside a flight (no ship x)', () => {
+    const input = createControlState();
+    input.dragDown(1, 100, null);
+    input.dragMove(1, 300);
+    expect(input.sample({ shipX: 0, ...view }).horizontal).toBe(0);
+  });
+
+  it('maps the proportional share: full beyond DRAG_RESPONSE, zero within DRAG_DEAD', () => {
+    expect(dragSteer(DRAG_RESPONSE * 2, 0)).toBe(1);
+    expect(dragSteer(-DRAG_RESPONSE * 2, 0)).toBe(-1);
+    expect(dragSteer(DRAG_DEAD / 2, 0)).toBe(0);
+    expect(dragSteer(DRAG_RESPONSE / 2, 0)).toBeCloseTo(.5);
   });
 });

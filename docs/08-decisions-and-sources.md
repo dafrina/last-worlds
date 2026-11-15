@@ -345,6 +345,16 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **iOS motion permission:** asked when Tilt is chosen, and again on the first tap of a later visit (Safari forgets it). If it is refused, the setting falls back to Touch with a note.
 - **Risk:** proportional tilt gives finer control than the halves, so tilt may make dodging easier. Fairness and balance are still measured with the discrete inputs.
 
+### 15 November 2026 · Optional drag steering (user: "lets experiment with a new control for the ship. Instead of left screen right screen we follow where the touch is. as if the ship follows where we touch, relative to first touch ... Make it a new option.")
+- **Settings → Steering: Halves (default), Drag, or Tilt.** Drag is offered on touch devices, Tilt only where orientation is reported. A remembered non-default choice also shows the setting on other devices, so it can be switched back.
+- **How Drag works** (`src/input/controls.ts`):
+  - At touch-down, the input notes the finger's x and the ship's x. While the finger is held, the target is that ship x plus the finger's sideways travel, at `DRAG_GAIN` 1.5 view widths per screen width.
+  - Steering pulls toward the target with a proportional share: full beyond `DRAG_RESPONSE` 0.6 units, nothing within `DRAG_DEAD` 0.06. The simulation's own speed, acceleration and braking still limit the ship, so it never jumps.
+  - Lifting the finger stops steering, and a new touch re-anchors.
+  - Keys win over a drag. The special button's pointer never steers (invariant 3).
+- **AGENTS.md invariant 1** now allows this optional, relative, speed-limited mode. The default stays the screen halves, and absolute drag-to-position is still excluded.
+- **Risk:** like tilt, drag gives finer control than the halves, so it may make dodging easier. Fairness and balance are still measured with the discrete inputs.
+
 ### 6 November 2026 · Mission boards: an easy first five, Untouchable sixth at 100
 - **Every world's board opens with four single-run missions a first flight can clear,** then the long mission (#5) and Untouchable (#6).
   - The reason (user): "the first 5 should all be clearable relatively easy so that the player learns about a good payout from the no hit run early, but has 4 other slots to uncover".

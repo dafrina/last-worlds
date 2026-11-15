@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { leanFromOrientation, TILT_DEAD, TILT_FULL, tiltSteer } from '../../src/input/tilt';
+import { leanFromOrientation, readSteeringMode, TILT_DEAD, TILT_FULL, tiltSteer, writeSteeringMode } from '../../src/input/tilt';
 import { createControlState } from '../../src/input/controls';
 import { STEP } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
@@ -46,5 +46,16 @@ describe('tilt steering', () => {
     expect(speedAt(-.5)).toBeCloseTo(-full / 2, 3);
     expect(speedAt(7)).toBeCloseTo(full, 6);
     expect(speedAt(Number.NaN)).toBe(0);
+  });
+});
+
+describe('steering mode storage', () => {
+  it('remembers drag as well as tilt, and falls back to touch for anything else', () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } } as unknown as Storage;
+    expect(readSteeringMode(storage)).toBe('touch');
+    writeSteeringMode(storage, 'drag'); expect(readSteeringMode(storage)).toBe('drag');
+    writeSteeringMode(storage, 'tilt'); expect(readSteeringMode(storage)).toBe('tilt');
+    store.set('last-worlds.steering', 'joystick'); expect(readSteeringMode(storage)).toBe('touch');
   });
 });

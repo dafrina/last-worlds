@@ -313,7 +313,7 @@ export interface UiActions {
   setMuted(muted: boolean): void;
   setQuality(quality: GraphicsQuality): void;
   /** Touch halves (default) or tilt steering (src/input/tilt.ts); called from the tap, resolves false if motion access is refused. */
-  setSteering?(mode: 'touch' | 'tilt'): Promise<boolean>;
+  setSteering?(mode: 'touch' | 'tilt' | 'drag'): Promise<boolean>;
   /**
    * A picture of a ship's look for the hangar, drawn by the game's own renderer (menus never open a second WebGL
    * context): one still of `width` × `height` pixels, or null without a renderer.
