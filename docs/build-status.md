@@ -9,6 +9,7 @@
   - shells streaking in ahead of the front;
   - heavy impacts (rings, fireballs, dark smoke, debris) under the dark band, varied: about one in three a big blast, the
     rest small pops ("I want varied impacts small and big").
+- **Deployed** `fc62e6e`: Pages run 43696721887 matches the live bundle `main-V3kri65t.js`.
 - **Gate:**
   - typecheck clean;
   - unit 1106 passed, 8 skipped;
