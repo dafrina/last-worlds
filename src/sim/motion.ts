@@ -112,13 +112,9 @@ export function trackAfter(enemy: Enemy, ahead: number, rate = 1): { x: number; 
   // A Wraith winding up a feint holds still until its warning ends; if the feint is cancelled it then carries on down its
   // path from there, so the airspace sees that path rather than a squadron parked for good (8 November).
   const held = enemy.blink && enemy.warning > 0 ? Math.min(ahead * rate, enemy.warning) : 0;
-  const clock = ahead * rate - held, pull = enemy.pull;
-  // A Gravity Well's drag (docs/32 §2.2) stays as an offset on positions recomputed from the path each step.
-  if (enemy.formation) {
-    const point = memberPosition(enemy.formation, enemy.age + clock);
-    return pull ? { x: point.x + pull.x, s: point.s + pull.s } : point;
-  }
-  const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + clock) * 1.6) * 1.2 + (pull?.x ?? 0) : enemy.x;
+  const clock = ahead * rate - held;
+  if (enemy.formation) return memberPosition(enemy.formation, enemy.age + clock);
+  const x = enemy.kind === 'weaver' ? enemy.originX + Math.sin((enemy.age + clock) * 1.6) * 1.2 : enemy.x;
   return { x, s: enemy.s - ENEMIES[enemy.kind].speed * clock };
 }
 

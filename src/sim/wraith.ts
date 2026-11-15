@@ -35,7 +35,7 @@ export function updateWraith(state: RunState, enemy: Enemy, dt: number, scale: D
     const shots = enemyShots('wraith', enemy.x, enemy.s, enemy.aimX, speed);
     if (state.projectiles.length + shots.length <= BALANCE.maxProjectiles) {
       for (const shot of shots) state.projectiles.push({ ...shot, id: state.nextId++, previousX: shot.x, previousS: shot.s,
-        friendly: false, damage: 1, ttl: SHOT_TTL, source: enemy.id });
+        friendly: false, damage: 1, ttl: SHOT_TTL, source: enemy.id, firedBy: enemy.id });
       blink.attacks++; enemy.volleys = blink.attacks;
       if (state.events) observe(state, { type: 'wraith', time: state.time, hunter: !!enemy.hunter });
       const end = state.time + WRAITH.interval * (WRAITH.rounds - 1);

@@ -19,7 +19,7 @@ const REPORT = env.MISSION_REPORT;
 
 function attemptFor(def: WorldMission, seed: number, best: boolean): Attempt {
   const rule = def.rule, kind = rule.kind;
-  const attempt: Attempt = { seed, weapon: 'rail', rank: best ? 4 : 2, special: 'gravity-well', specials: true, difficulty: best ? 'relaxed' : 'standard',
+  const attempt: Attempt = { seed, weapon: 'rail', rank: best ? 4 : 2, special: 'siege-lance', specials: true, difficulty: best ? 'relaxed' : 'standard',
     style: kind === 'flanks' ? 'flank' : kind === 'ground' || kind === 'ground-streak' ? 'ground' : 'collect' };
   if ((kind === 'complete' || kind === 'boss') && rule.weapons && !rule.weapons.includes('rail')) attempt.weapon = rule.weapons[0];
   if (kind === 'complete' && rule.rank !== undefined) attempt.rank = rule.rank;

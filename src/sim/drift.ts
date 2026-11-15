@@ -62,7 +62,7 @@ function pathFloor(template: FormationTemplate): number {
 
 /** Whether an airframe could reach the ship's row within the fairness horizon (as the director's contact forecast). */
 function nearsRow(state: RunState, enemy: Enemy): boolean {
-  if (!enemy.pull && pathFloor(formationTemplate(enemy.formation!)) > 0) return false;
+  if (pathFloor(formationTemplate(enemy.formation!)) > 0) return false;
   const reach = rowReach(enemy.radius), rate = enemyClockRate(state, enemy);
   for (let t = 0; t <= FAIRNESS.horizon + 1e-9; t += FAIRNESS.slice) if (Math.abs(t === 0 ? enemy.s : positionAfter(enemy, t, rate).s) <= reach) return true;
   return false;

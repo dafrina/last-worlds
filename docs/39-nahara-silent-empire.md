@@ -92,6 +92,11 @@ empire and moving sand, a steady scatter, the existing ruin kit, low and wide.
   - **Sand streams:** pale ribbons of blown sand gliding across the ground with the wind, draped over the terrain, with
     grain flowing along them; there are 36 (18 on Low).
   - **Dust devils:** tried and removed (user, 14 November: "they look a bit shit, just remove them").
+- **Teal streams** (`tealStream`, 15 November; user: "increase the amount of teal colors in nahara? Maybe some small bits of
+  streams of teal liquids on the canyon grounds", then "not too wide, but they should be longer"):
+  - a channel winding along the canyon floor, in long lengths that sink into the sand and come up again further on;
+  - drawn through the ground's pool glow as a glowing liquid (Nahara: `poolCells` 0, `poolGlow` 0.7, a teal bed);
+  - render only.
   - **Never over the canyon:** a pale line in the lane could read as a shot. A stream fades where the ground falls away.
   - **Determinism:** placed by a fixed hash.
 

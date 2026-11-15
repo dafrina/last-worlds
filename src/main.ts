@@ -19,7 +19,6 @@ let run: RunState | null = null;
 let accumulator = 0;
 let lastTime = performance.now();
 let pendingSpecial = false;
-let pendingDash: -1 | 1 | undefined;
 const audio = createGameAudio();
 // Sound samples are made in a worker from boot, never inside the first launch's tap (src/audio/sample-bank.ts).
 prefetchSamples();
@@ -96,7 +95,7 @@ function pause(reason = 'manual') {
   run.phase = 'paused';
   lastPauseReason = reason;
   input.clear();
-  pendingSpecial = false; pendingDash = undefined;
+  pendingSpecial = false;
   accumulator = 0;
   ui.update(run);
 }
@@ -143,7 +142,7 @@ async function start(config: RunConfig) {
     perfLog?.begin(run);
     run.phase = startPaused || document.hidden || sideways?.matches ? 'paused' : 'playing';
     audio.start(run); if (run.phase === 'paused') audio.pause();
-    pendingSpecial = false; pendingDash = undefined; accumulator = 0; lastTime = performance.now();
+    pendingSpecial = false; accumulator = 0; lastTime = performance.now();
     warmupFrames = 2; maxFrameMs = 0; lastPauseReason = startPaused ? 'loading-blur' : '';
     ui.showLoading(false); ui.update(run);
   } catch (error) {
@@ -161,7 +160,7 @@ const ui = createUi(root, {
   resume() {
     if (run?.phase !== 'paused') return;
     input.clear();
-    pendingSpecial = false; pendingDash = undefined;
+    pendingSpecial = false;
     accumulator = 0;
     lastTime = performance.now();
     warmupFrames = 1;
@@ -174,7 +173,7 @@ const ui = createUi(root, {
     audio.quit();
     input.clear();
     run = null;
-    pendingSpecial = false; pendingDash = undefined;
+    pendingSpecial = false;
     accumulator = 0;
     ui.showMenu();
   },
@@ -290,14 +289,13 @@ function frame(now: number) {
   if (run?.jump) void renderer?.prepare(run.jump.to);
   const pendingWorld = destinationPending();
   if (pendingWorld !== waitingForWorld) {
-    waitingForWorld = pendingWorld; input.clear(); pendingSpecial = false; pendingDash = undefined; accumulator = 0;
+    waitingForWorld = pendingWorld; input.clear(); pendingSpecial = false; accumulator = 0;
     if (pendingWorld) audio.pause(); else if (run?.phase === 'playing') audio.resume();
   }
   ui.showLoading(!!loadingRun || waitingForWorld);
   const benching = !!bench && run?.phase === 'playing' && !waitingForWorld;
   if (run?.phase === 'playing' && !waitingForWorld) {
     pendingSpecial ||= controls.specialPressed;
-    pendingDash ??= controls.dashPressed;
     if (bench?.replay !== undefined) { accumulator = (bench.queue ?? 0) * STEP + 1e-9; bench.queue = 0; }
     else if (bench) { accumulator = bench.steps * STEP + 1e-9; run.player.lives = Math.max(run.player.lives, bench.lives); } else accumulator += frameSeconds;
     simStart = performance.now();
@@ -305,9 +303,9 @@ function frame(now: number) {
       const replayed = bench?.replay?.[run.tick];
       if (bench?.noFire || autopilot?.noFire) run.projectiles = run.projectiles.filter(shot => !shot.friendly);
       stepRun(run, { horizontal: replayed !== undefined ? (replayed === 'l' ? -1 : replayed === 'r' ? 1 : 0) : bench ? benchSteer(run.tick, run.player.x)
-        : autopilot ? autopilotInput(run) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false, dashPressed: pendingDash }, STEP);
+        : autopilot ? autopilotInput(run) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false }, STEP);
       if (bench?.noFire || autopilot?.noFire) run.projectiles = run.projectiles.filter(shot => !shot.friendly);
-      pendingSpecial = false; pendingDash = undefined;
+      pendingSpecial = false;
       accumulator -= STEP;
     }
   }

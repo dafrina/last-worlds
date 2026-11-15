@@ -138,7 +138,9 @@ interface ViewSettings {
 }
 const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, boss: false,
   lab: false, tab: 'level', model: 'shared/hero-scrapper.glb#hero_scrapper', wire: false, spin: true, worldLight: false,
-  weapon: 'rail', tier: 0, special: 'gravity-well', hold: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
+  weapon: 'rail', tier: 0, special: 'orbital-strike', hold: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
+// A special stored before it was retired (the Gravity Well, docs/42) falls back to its replacement.
+if (!(SPECIAL_IDS as readonly string[]).includes(view.special)) view.special = 'orbital-strike';
 const level = () => LEVELS.find(entry => entry.mission === view.mission) ?? LEVELS[1];
 
 let sliderVx = 0;
@@ -303,7 +305,7 @@ weaponsPane.addEventListener('click', event => {
     if (data.tier) view.tier = Number(data.tier);
     state.player.weapon = view.weapon; state.player.power = view.tier; state.mainSequence = undefined; state.nextVolleyAt = state.time;
   }
-  if (data.special) { view.special = data.special as SpecialId; state.config.special = view.special; state.well = null; state.lance = null; state.shockwave = null; }
+  if (data.special) { view.special = data.special as SpecialId; state.config.special = view.special; state.orbital = null; state.lance = null; state.shockwave = null; }
   if (data.fire) { ensureLab(); specialQueued = true; }
   if (data.nudge !== undefined) { view.x = data.nudge === '0' ? 0 : Math.max(-11, Math.min(11, view.x + Number(data.nudge))); syncView(); }
   if (data.target) {
@@ -317,7 +319,7 @@ weaponsPane.addEventListener('click', event => {
       }
     } else if (data.target === 'hunter') spawnHunter(state, hunterKind(planet));
     else if (data.target === 'attack') attackNow(state);
-    else if (data.target === 'clear') { state.enemies = state.enemies.filter(enemy => enemy.bossPart); state.projectiles = []; state.well = null; }
+    else if (data.target === 'clear') { state.enemies = state.enemies.filter(enemy => enemy.bossPart); state.projectiles = []; state.orbital = null; }
     else spawnFormation(state, data.target as keyof typeof FORMATIONS);
   }
   save(VIEW_STORE, view);

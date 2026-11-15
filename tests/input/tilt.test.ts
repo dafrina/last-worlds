@@ -26,7 +26,7 @@ describe('tilt steering', () => {
   });
 
   it('touch halves and keys still give full steps', () => {
-    const controls = createControlState(() => 0);
+    const controls = createControlState();
     controls.pointerDown(1, 'left');
     expect(controls.sample().horizontal).toBe(-1);
     controls.pointerUp(1);

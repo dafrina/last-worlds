@@ -10,7 +10,7 @@ export const SAMPLE_RATE = 32_000;
 export type Sound =
   | 'pulse' | 'fan' | 'seeker' | 'rail' | 'enemy' | 'impact' | 'explosion' | 'heavy'
   | 'shield' | 'shield-break' | 'life' | 'pickup' | 'part' | 'upgrade' | 'ready' | 'whoosh'
-  | 'shockwave' | 'seeker-rack' | 'siege-lance' | 'gravity-well' | 'warning' | 'beam'
+  | 'shockwave' | 'seeker-rack' | 'siege-lance' | 'orbital-strike' | 'warning' | 'beam'
   | 'boss-arrival' | 'boss-phase' | 'boss-death' | 'warp' | 'win' | 'loss';
 export type SampleId = Sound | Instrument;
 const TAU = Math.PI * 2;
@@ -22,7 +22,7 @@ const durations: Record<Sound, number> = {
   whoosh: 3,
   pulse: .07, fan: .08, seeker: .14, rail: .16, enemy: .2, impact: .13, explosion: .85, heavy: 1.6,
   shield: .35, 'shield-break': .35, life: .32, pickup: .28, part: .75, upgrade: .75, ready: .65,
-  shockwave: 1.65, 'seeker-rack': .8, 'siege-lance': SPECIALS['siege-lance'].duration, 'gravity-well': 1.6, warning: .65, beam: .85,
+  shockwave: 1.65, 'seeker-rack': .8, 'siege-lance': SPECIALS['siege-lance'].duration, 'orbital-strike': 1.6, warning: .65, beam: .85,
   'boss-arrival': 2.8, 'boss-phase': 1.1, 'boss-death': 3.6, warp: 3.1, win: 1.4, loss: 2.1,
 };
 const LATE: Sound[] = ['boss-arrival', 'boss-phase', 'boss-death', 'warp', 'win', 'loss'];
@@ -237,12 +237,14 @@ export function synthesize(id: SampleId, rate = SAMPLE_RATE): Float32Array {
         const f = midi(notes[j]), attack = Math.min(1, a * 500);
         v += sin(TAU * f * a + .7 * sin(TAU * f * 2 * a) * exp(-a * 20)) * exp(-a * (id === 'pickup' ? 28 : 5)) * attack * .3;
       }
-    } else if (['shockwave', 'seeker-rack', 'siege-lance', 'gravity-well', 'beam', 'warp'].includes(id)) {
-      if (id === 'gravity-well') {
-        // A low hum rising as the singularity opens, with a breathy inward suck (the collapse plays the heavy blast).
-        phase += TAU * (48 + 46 * q * q) / rate;
-        const swell = Math.min(1, t * 6) * (1 - q) ** .7;
-        v = (sin(phase + sin(phase * .5) * 1.4) * .55 + Math.tanh(slow * 6) * .5 + low * .9 * (.3 + .7 * q)) * swell;
+    } else if (['shockwave', 'seeker-rack', 'siege-lance', 'orbital-strike', 'beam', 'warp'].includes(id)) {
+      if (id === 'orbital-strike') {
+        // A rolling barrage (docs/42): a string of heavy thumps walking past over the 1.2 s sweep, under a low rumble.
+        for (let j = 0; j < 9; j++) {
+          const a = t - j * .14;
+          if (a > 0) v += (Math.tanh(low * 4) * .9 + sin(TAU * (55 - 18 * a) * a) * .7) * exp(-a * 9) * (.75 + .25 * ((j * 5) % 3) / 2);
+        }
+        v += Math.tanh(slow * 5) * .45 * Math.min(1, t * 8) * (1 - q) ** 1.2;
       } else if (id === 'seeker-rack') {
         for (let j = 0; j < 4; j++) {
           const a = t - j * .065;

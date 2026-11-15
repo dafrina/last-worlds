@@ -6,6 +6,7 @@ import { BOSSES } from '../content/bosses';
 import { AROUND_HERO } from './hero-stencil';
 import { drawnShot, type Launch } from './shot-launch';
 import { liveInstances } from './instances';
+import { orbitalFront } from '../sim/orbital';
 
 /**
  * Presentation-only effects (docs/04 §5): engine plumes, muzzle flashes, impact sparks, explosions (fireball,
@@ -520,6 +521,69 @@ export function createFx(scene: THREE.Scene) {
     anchoredEmission = false;
   }
 
+  /**
+   * The Orbital Strike's barrage (docs/42; user: "a barrage of explosions from the side"): impacts walk across the view
+   * with the strike's front, a column every ORBITAL_STEP, a few rows down each column. Short, low and ground-coloured
+   * flashes under a fireball, so the hostile shots it leaves in the air stay readable. Render only: the simulation kills
+   * by the same front (src/sim/game.ts updateOrbital).
+   */
+  const ORBITAL_STEP = .8, ORBITAL_ROWS = [1.5, 5.5, 9.5, 13.5, 17.5] as const;
+  let orbitalSeen = -1, orbitalDone = -Infinity;
+  function strike(x: number, z: number, n: number) {
+    const y = VIEW.flightHeight - .6;
+    flash(x, z, 1.5, .12, 0xfff0d0, 2.2, y);
+    emit(glow, { x, y: y + .2, z, vy: .7, drag: 1.4, life: .32 + hash(n) * .12, size: .9 + hash(n + 1) * .4, grow: 1.1, alpha: .9, shape: ROUND,
+      ...ramp(0xffe0a0, 2.4, 0xc83a10, .4) });
+    if (full()) emit(smoke, { x: x + (hash(n + 2) - .5) * .3, y, z: z + (hash(n + 3) - .5) * .3, vy: .5, drag: 1.2, life: .9 + hash(n + 4) * .4, size: .6,
+      grow: 1.6, alpha: .45, shape: ROUND, drift: 1, ...ramp(0x2a221c, 1, 0x6a625a, 1) });
+    sparks(x, z, full() ? 4 : 2, 0xffc078, 6, n * 2.3);
+  }
+  /**
+   * The barrage's pall (user, 15 November, of a red glow band in an early draft: "That looks super cool just not red make it
+   * dark gray"): a broad sheet of dark smoke at each column, lying flat just under the flight plane, above every piece of
+   * scenery (lower, the ruins and hills cut it into blocks), so a dark band trails the front across the view. The craft at
+   * the flight plane and every shot draw over it.
+   */
+  function pall(x: number, n: number) {
+    emit(smoke, { x, y: VIEW.flightHeight - .25, z: -9.5 + (hash(n) - .5) * 2, life: 1 + hash(n + 1) * .3, size: 9, grow: 1.4, alpha: .65, shape: ROUND,
+      flat: true, drift: 1, ...ramp(0x1c1d1f, 1, 0x38393c, 1) });
+  }
+  function orbitalBarrage(state: RunState) {
+    const orbital = state.orbital;
+    if (!orbital) return;
+    if (orbital.startedAt !== orbitalSeen) { orbitalSeen = orbital.startedAt; orbitalDone = orbital.cameraX - orbital.direction * (VIEW.width / 2 + 1); }
+    const front = orbitalFront(orbital, state.time - orbital.startedAt);
+    const rows = full() ? ORBITAL_ROWS : ORBITAL_ROWS.filter((_, k) => k % 2 === 0);
+    while ((front - orbitalDone) * orbital.direction >= ORBITAL_STEP) {
+      orbitalDone += orbital.direction * ORBITAL_STEP;
+      const column = Math.round(orbitalDone * 10);
+      rows.forEach((row, k) => {
+        const n = column * 31 + k * 7 + orbitalSeen * 13;
+        strike(orbitalDone + (hash(n) - .5) * .5, -(row + (hash(n + 5) - .5) * 2.4), n);
+      });
+      // (High draws the pall in the post composite, over the fog: src/render/post-pipeline.ts pallShade.)
+      if (!full()) pall(orbitalDone, column * 17 + orbitalSeen);
+    }
+  }
+
+  /**
+   * A kill on the Interceptor's Shred chain (docs/42; user: "very satisfying, like shredding through enemies with a special
+   * kill animation"): the target shatters. A white-hot teal flash, a fast ring, and shards flung outward and spinning,
+   * on top of its ordinary explosion; `power` (0 … 1) grows with the chain.
+   */
+  function shatter(x: number, z: number, n: number, power: number) {
+    const y = VIEW.flightHeight + .1;
+    flash(x, z, 1.8 + 1.4 * power, .12, 0xe8fffb, 3);
+    emit(glow, { x, y, z, life: .3, size: .7, grow: 4.5 + 3.5 * power, alpha: 1, shape: RING, flat: true, ...ramp(0xdffffb, 2.8, 0x2fd8d0, .7) });
+    const shards = (full() ? 9 : 5) + Math.round((full() ? 9 : 4) * power);
+    for (let k = 0; k < shards; k++) {
+      const a = hash(n + k * 2.9) * Math.PI * 2, v = 7 + hash(n + k * 1.3) * (5 + 6 * power);
+      emit(glow, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: .4 + hash(n + k) * .8, drag: 3.2, life: .3 + hash(n + k * 4.1) * .25,
+        size: .2 + hash(n + k * 3.3) * .14, grow: -.08, stretch: 2.8, alpha: 1, shape: CHIP, flat: true, ...ramp(0xffffff, 2.8, 0x3fe6dc, 1.2) });
+    }
+    sparks(x, z, full() ? 10 + Math.round(10 * power) : 6, 0x9ffcf4, 9 + 4 * power, n * 1.9);
+  }
+
   /** New snapshot events → particle spawns. Rewinds (a new run, retry) reset the cursors. */
   function spawn(state: RunState, heroGlow: number) {
     // A new run or a rewind: the last run's fire (its wrecks' too) goes out.
@@ -538,6 +602,7 @@ export function createFx(scene: THREE.Scene) {
       if (effect.kind === 'explosion') explosion(effect.x, z, effect.id);
       else if (effect.kind === 'blast') blast(effect.x, z, effect.id, 1);
       else if (effect.kind === 'bossBlast') bossBlast(effect.x, z, effect.id);
+      else if (effect.kind === 'shred') shatter(effect.x, z, effect.id, Math.min(1, Math.max(0, (effect.duration - .4) / .4)));
       else if (effect.kind === 'hit') { flash(effect.x, z, .38, .07, 0xffd2a0, 1.8); sparks(effect.x, z, full() ? 5 : 3, 0xffb070, 4.2, effect.id); }
       else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, heroGlow, 5, effect.id);
       else if (effect.kind === 'pickup') for (let i = 0; i < (full() ? 4 : 2); i++) emit(glow, { x: effect.x + (hash(effect.id + i) - .5) * .5, y: VIEW.flightHeight + .1,
@@ -649,6 +714,7 @@ export function createFx(scene: THREE.Scene) {
       const previous = lastTime, dt = lastTime < 0 || state.time < lastTime ? 0 : Math.min(.1, state.time - lastTime); lastTime = state.time;
       surface = planetSurface;
       spawn(state, heroGlow);
+      orbitalBarrage(state);
       // Steam from vent stacks: a slow, soft column (about two puffs a second each; High only).
       if (full() && dt > 0 && planetSurface && Math.floor(state.time * 2) !== Math.floor(previous * 2)) planetSurface.vents.forEach((vent, i) => emit(smoke, {
         x: vent.x + (hash(state.time + i * 3.1) - .5) * .12, y: vent.y, z: vent.z, vx: .08, vy: .55, life: 1.8, size: .25, grow: 1.1, drag: .3,

@@ -368,9 +368,25 @@ export function naharaLandform(seed: number, x: number, s: number, row: PlanetRo
   const tone = mix(hash(seed ^ 0x4a53, layer, 7), 0.5 + (slab - 0.5) * 0.35, built);
   const elevation = height >= PLATEAU - 0.6 ? 0.55 + 0.45 * smoothRange(PLATEAU, TOP, height) : 0.5 * smoothRange(NAHARA_FLOOR + 0.3, PLATEAU - 0.6, height);
   return {
-    height, elevation, channel: 0, pool: 0,
+    height, elevation, channel: 0, pool: tealStream(seed, x, s, m, height) * (1 - platform),
     vein, vein2: 9, veins: lit * (1 - m.chasm) * (1 - platform), tone, strata: 1 - built,
   };
+}
+
+/**
+ * Teal streams on the canyon floor (user, 14 November: "increase the amount of teal colors in nahara? Maybe some small bits
+ * of streams of teal liquids on the canyon grounds"): a thin channel winding along the chasm's floor, broken into lengths,
+ * drawn through the ground's pool glow as a glowing liquid (src/render/terrain-kit.ts). 0 … 1, render only.
+ */
+function tealStream(seed: number, x: number, s: number, m: NaharaMasks, height: number): number {
+  const c = m.course, phase = hash(seed ^ 0x4a61, 0, 0) * Math.PI * 2;
+  const wander = Math.sin(s * 0.11 + phase) * 0.45 + Math.sin(s * 0.047 + phase * 1.7) * 0.35;
+  const along = c.center + wander * Math.max(0, c.half - 1.2);
+  const bed = (1 - smoothRange(0.3, 0.85, Math.abs(x - along))) * smoothRange(0.55, 0.85, m.chasm)
+    * (1 - smoothRange(NAHARA_FLOOR + 0.8, NAHARA_FLOOR + 2.4, height));
+  if (bed <= 0) return 0;
+  // In long lengths (user: "they should be longer"): a stream runs a good way, sinks into the sand, and comes up again.
+  return bed * smoothRange(0.32, 0.42, noise(seed ^ 0x4a62, s * 0.025, 3.7));
 }
 
 /* ---------------------------------------------------------------- colour */

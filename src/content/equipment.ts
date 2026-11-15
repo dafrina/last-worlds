@@ -63,23 +63,23 @@ export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
  *   and clears hostile shots near the ship; 1 s invulnerability.
  * - Seeker Rack: eight missiles fan out, then accelerate and home on targets ahead (40 damage each); no clear.
  * - Siege Lance: a 0.9-wide piercing beam straight ahead from the ship for 2.4 s at 360 damage/s; the ship may steer
- *   it (0.8 s at 450/s until the user found it too short, 16 October).
- * - Gravity Well (docs/32 §2): a singularity `ahead` of the ship, fixed in the world. After `arm` s it pulls free air
- *   craft within `pullRadius` (`pullSpeed` near its centre, easing off toward the edge), burns those within `coreRadius` at `dps` (they cannot
- *   start an attack there) and removes hostile shots within `swallowRadius`, for `duration` s; then it collapses:
- *   `collapse` damage within `collapseRadius`, falling to `collapseEdge` of it at the edge.
+ *   it (0.8 s at 450/s until the user found it too short, 16 October). Since 14 November (docs/42) it also burns every
+ *   hostile shot in its lane: "focused but obliterating as far as it goes", the Shockwave's opposite.
+ * - Orbital Strike (docs/42; replaced the Gravity Well, "too similar to shockwave", 14 November): a barrage sweeps the
+ *   view it was called on in `sweep` s, from the side away from the ship. Every enemy it passes is destroyed (Relic
+ *   Shields too); a boss's targets each take `bossShare` of their current stage's pool instead. Hostile shots stay.
  */
 export const SPECIALS = {
-  // Hangar order (user, 6 November): Seeker Rack first, Shockwave, the most valuable, last at 450 (was 350); Seeker Rack
-  // recharges in 40 s (was 35).
+  // Hangar order (user, 6 November): Seeker Rack first, Shockwave at 450 (was 350); Seeker Rack recharges in 40 s (was 35).
+  // Since 14 November the Orbital Strike comes last, the most expensive (docs/42).
   'seeker-rack': { label: 'Seeker Rack', recharge: 40, price: 0, parts: 0, blurb: 'Eight homing missiles at targets ahead.', missiles: 8, damage: 40, launchSpeed: 9, speed: 21, accel: 34, turn: 4.5, spreadTime: .3 },
-  'siege-lance': { label: 'Siege Lance', recharge: 40, price: 250, parts: 1, blurb: 'A piercing beam straight ahead. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
-  'gravity-well': { label: 'Gravity Well', recharge: 40, price: 350, parts: 1, blurb: 'A singularity ahead pulls enemies together and swallows their shots, then collapses.',
-    // User, 28 October: "the radius should be bigger and sucking in ships" (was pull 4.5 at up to 4/s, core 1.6, swallow 3.5).
-    ahead: 9, arm: 0.35, duration: 2.6, pullRadius: 7, pullSpeed: 7, coreRadius: 2, dps: 40, swallowRadius: 4.5, collapse: 200, collapseRadius: 3.5, collapseEdge: 0.5 },
+  'siege-lance': { label: 'Siege Lance', recharge: 40, price: 250, parts: 1, blurb: 'A piercing beam straight ahead that burns enemy shots in its path. Steer it.', width: 0.9, duration: 2.4, dps: 360 },
   // Falloff (user, 17 October: too strong next to Seeker Rack): full damage within `full`, fading linearly to `minShare`
   // at `reach`; it clears hostile shots only within `clear` of the ship.
   shockwave: { label: 'Shockwave', recharge: 45, price: 450, parts: 1, blurb: 'A ring bursts out from your ship: it clears nearby shots and hits hardest up close.', speed: 26, reach: 20, full: 3, minShare: 0.2, clear: 8 },
+  // The user, 14 November: "Lock in the orbital strike. Most expensive at 600", "recharge at 60", "2 parts is fine",
+  // "1.2s sweep why not we can change it afterwards".
+  'orbital-strike': { label: 'Orbital Strike', recharge: 60, price: 600, parts: 2, blurb: 'A barrage sweeps the screen and destroys every enemy on it. Their shots stay in the air.', sweep: 1.2, bossShare: 0.15 },
 } as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; parts: number; blurb: string; [tuning: string]: string | number }>>;
 
 /** All ships can collect up to five shields. Equipment changes the starting reserve only. */
@@ -103,8 +103,8 @@ export interface ShipSpec {
 export const SHIPS: Readonly<Record<ShipId, ShipSpec>> = {
   scrapper: { label: 'Scrapper', perk: 'Salvage Rig', blurb: '40% wider pickup attraction. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1.4, price: 0, parts: 0 },
   ironclad: { label: 'Ironclad', perk: 'Reserve Life', blurb: 'One extra starting life. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 1, pickupReach: 1, price: 0, parts: 4 },
-  interceptor: { label: 'Interceptor', perk: 'Barrel Roll', blurb: 'Double-tap a steering side (or A/D or arrow key) to roll sideways out of the line of fire. 3 s cooldown. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
-  spectre: { label: 'Spectre', perk: 'Gravitic Shield', blurb: 'While shielded, a near-miss bullet curves around your shield and returns fire. One at a time; 1.2 s cooldown. Direct hits and beams still hurt. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
+  interceptor: { label: 'Interceptor', perk: 'Shred', blurb: 'Every hit spins your guns up: up to 40% faster fire. Getting hit, or a pause in firing, stops them. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
+  spectre: { label: 'Spectre', perk: 'Gravity Slingshot', blurb: 'A bullet that just misses you swings around your ship and flies back at whoever fired it. Direct hits still hurt. Active in both modes.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
 };
 
 export const WEAPON_IDS: readonly WeaponId[] = ['pulse', 'fan', 'seeker', 'rail'];

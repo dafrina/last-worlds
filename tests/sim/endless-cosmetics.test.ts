@@ -22,7 +22,7 @@ const withoutConfig = ({ config: _config, ...rest }: RunState) => rest;
 
 describe('endless flies the campaign ship as cosmetic parts and global chassis perks', () => {
   it('keeps the chassis perk and look while resetting campaign equipment', () => {
-    const state = createRun({ mode: 'endless', seed: 1, heroShip: 'spectre', hero: look, ship: 'ironclad', weapon: 'rail', special: 'gravity-well', shield: 'aegis', rank: 2 });
+    const state = createRun({ mode: 'endless', seed: 1, heroShip: 'spectre', hero: look, ship: 'ironclad', weapon: 'rail', special: 'orbital-strike', shield: 'aegis', rank: 2 });
     expect(state.config).toMatchObject({ ...ENDLESS_LOADOUT, ship: 'spectre', rank: 0, heroShip: 'spectre', hero: look });
     expect(state.player).toMatchObject({ lives: 3, shields: 3, weapon: 'pulse', power: 0 });
     // A look that does not fit the chassis, or an unknown chassis, is dropped: the default Scrapper shows.

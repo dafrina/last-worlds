@@ -1,21 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { createRun, hitPlayer, stepRun } from '../../src/sim/game';
-import { EMPTY_INPUT, STEP, VIEW, type Mode, type Projectile, type ShipId } from '../../src/shared/contracts';
-import { playerKinematics } from '../../src/sim/fairness';
+import { EMPTY_INPUT, STEP, type Enemy, type Mode, type Projectile, type ShipId } from '../../src/shared/contracts';
 import { SHIP_PERKS } from '../../src/content/ship-perks';
-import { lensFollow, lensRowHalfWidth } from '../../src/shared/lens';
 import { SPECIALS } from '../../src/content/equipment';
 
+// The chassis perks in flight (docs/42): the Interceptor's Shred and the Spectre's Gravity Slingshot.
 function arena(ship: ShipId = 'spectre', mode: Mode = 'campaign') {
   const state = createRun({ mode, ship, seed: 41 });
   state.nextEncounterAt = state.nextVolleyAt = Infinity;
   return state;
 }
-function bullet(state: ReturnType<typeof arena>, x = .8, s = .1): Projectile {
-  const shot: Projectile = { id: state.nextId++, x, s, previousX: x, previousS: s, vx: 0, vs: -18, friendly: false, damage: 1, radius: .1, ttl: 4 };
+type Arena = ReturnType<typeof arena>;
+function bullet(state: Arena, x = .8, s = .1, firedBy?: number): Projectile {
+  const shot: Projectile = { id: state.nextId++, x, s, previousX: x, previousS: s, vx: 0, vs: -18, friendly: false, damage: 1, radius: .1, ttl: 4, ...(firedBy ? { firedBy } : {}) };
   state.projectiles.push(shot); return shot;
 }
-const advance = (state: ReturnType<typeof arena>, seconds: number) => { for (let t = 0; t < seconds; t += STEP) stepRun(state, EMPTY_INPUT); };
+function target(state: Arena, x: number, s: number, hp = 1000): Enemy {
+  const enemy: Enemy = { id: state.nextId++, kind: 'turret', x, s, originX: x, hp, maxHp: hp, radius: .4, age: 0, nextAttack: Infinity, warning: 0, aimX: x, groundHeight: 3 };
+  state.enemies.push(enemy); return enemy;
+}
+/** One main-weapon shot that strikes `enemy` this step (the ship's own guns are held off: `nextVolleyAt`). */
+function strike(state: Arena, enemy: Enemy, damage = 10) {
+  state.projectiles.push({ id: state.nextId++, x: enemy.x, s: enemy.s - .3, previousX: enemy.x, previousS: enemy.s - .3, vx: 0, vs: 30, friendly: true, damage, radius: .1, ttl: 1, weapon: 'pulse' });
+}
+const advance = (state: Arena, seconds: number) => { for (let t = 0; t < seconds - 1e-9; t += STEP) stepRun(state, EMPTY_INPUT); };
 
 describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
   it('Ironclad starts with one extra life and Scrapper attracts pickups farther', () => {
@@ -27,95 +35,113 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
       expect(state.pickups[0].x < 2).toBe(ship === 'scrapper');
     }
   });
-  it('barrel roll dashes sideways at once, carries on when held, respects cooldown and never shields', () => {
+
+  it('Shred: every main-weapon hit, on any enemy, spins the guns up 5% fire rate, up to +40%', () => {
+    const state = arena('interceptor', mode), a = target(state, 3, 8), b = target(state, -3, 8);
+    const spins: number[] = [];
+    for (let i = 0; i < 14; i++) { strike(state, i % 2 ? a : b); stepRun(state, EMPTY_INPUT); spins.push(Math.round((state.player.spin ?? 0) * 100) / 100); }
+    expect(spins.slice(0, 4)).toEqual([.05, .1, .15, .2]);
+    expect(spins.slice(7)).toEqual(Array(7).fill(.4));
+    // Fire rate only: every hit still deals its own damage.
+    const before = a.hp; strike(state, a); stepRun(state, EMPTY_INPUT);
+    expect(before - a.hp).toBeCloseTo(10, 6);
+  });
+
+  it('a spun-up Interceptor fires its pattern 40% faster; a miss changes nothing, a hit on the ship stops it', () => {
     const state = arena('interceptor', mode);
-    stepRun(state, { ...EMPTY_INPUT, horizontal: 1, dashPressed: 1 });
-    const startedAt = state.player.dash!.startedAt;
-    expect(state.player.x).toBeGreaterThan(.4);
-    hitPlayer(state, 2); expect(state.player.shields).toBe(1);
-    for (let t = STEP; t < SHIP_PERKS.dashDuration - 1e-9; t += STEP) stepRun(state, { ...EMPTY_INPUT, horizontal: 1 });
-    expect(state.player.x).toBeCloseTo(SHIP_PERKS.dashDistance, 6);
-    expect(state.player.vx).toBeCloseTo(playerKinematics(state).speed, 6);
-    stepRun(state, { ...EMPTY_INPUT, dashPressed: -1 });
-    expect(state.player.dash!.startedAt).toBe(startedAt);
-    advance(state, SHIP_PERKS.dashCooldown);
-    const x = state.player.x;
-    stepRun(state, { ...EMPTY_INPUT, dashPressed: -1 });
-    expect(state.player.dash!.direction).toBe(-1); expect(state.player.dash!.startedAt).toBeGreaterThan(startedAt);
-    advance(state, SHIP_PERKS.dashDuration);
-    expect(state.player.x).toBeLessThan(x - SHIP_PERKS.dashDistance + .01);
-    expect(state.player.shields).toBe(1);
-  });
-  it('a dash stops at the edge of the world and is swept through hostile fire', () => {
-    const edge = arena('interceptor', mode); edge.player.x = VIEW.worldWidth / 2 - VIEW.playerRadius - 1;
-    stepRun(edge, { ...EMPTY_INPUT, dashPressed: 1 }); advance(edge, SHIP_PERKS.dashDuration);
-    expect(edge.player.x).toBeCloseTo(VIEW.worldWidth / 2 - VIEW.playerRadius, 6);
-    // A bullet standing in the dash's path, halfway along it, still hits.
-    const state = arena('interceptor', mode); bullet(state, SHIP_PERKS.dashDistance / 2, 0);
-    state.projectiles[0].vs = 0;
-    stepRun(state, { ...EMPTY_INPUT, dashPressed: 1 }); advance(state, SHIP_PERKS.dashDuration);
-    expect(state.player.shields).toBe(2);
-  });
-  it('a dash twice the old 2.8 units never carries the ship, wingtips included, out of view', () => {
-    const follow = lensFollow(), visible = lensRowHalfWidth() - .55;
-    let worst = 0;
-    for (const before of [-1, 1] as const) for (const lead of [0, .2, .5, 1, 2]) for (const direction of [-1, 1] as const) for (const held of [false, true]) {
-      const state = arena('interceptor', mode);
-      for (let t = 0; t < lead; t += STEP) stepRun(state, { ...EMPTY_INPUT, horizontal: before });
-      const x = state.player.x;
-      stepRun(state, { ...EMPTY_INPUT, horizontal: held ? direction : 0, dashPressed: direction });
-      for (let t = 0; t < 1.5; t += STEP) {
-        stepRun(state, { ...EMPTY_INPUT, horizontal: held ? direction : 0 });
-        worst = Math.max(worst, Math.abs(state.player.x - state.cameraX * follow));
-      }
-      if (Math.abs(x) < 4) expect(Math.abs(state.player.x - x)).toBeGreaterThan(SHIP_PERKS.dashDistance - .01);
-    }
-    expect(SHIP_PERKS.dashDistance).toBe(5.6);
-    expect(worst).toBeLessThanOrEqual(visible + 1e-6);
-  });
-  it('captures a genuine graze, curves visibly, and launches at an enemy without charging the special', () => {
-    const state = arena('spectre', mode), shot = bullet(state);
-    state.player.specialCharge = 0;
-    state.enemies.push({ id: state.nextId++, kind: 'turret', x: 0, s: 5, originX: 0, hp: 6, maxHp: 6, radius: .4, age: 0, nextAttack: Infinity, warning: 0, aimX: 0, groundHeight: 3 });
+    target(state, state.player.x, 10, 1e6);
+    state.nextVolleyAt = 0;
     stepRun(state, EMPTY_INPUT);
-    expect(shot.orbit).toBeDefined(); expect(shot.friendly).toBe(true);
-    expect(state.player.shields).toBe(3);
-    advance(state, .15); expect(shot.s).toBeLessThan(-.5);
-    advance(state, .8);
-    expect(state.kills).toBe(1);
-    expect(state.player.specialCharge).toBeCloseTo(state.time / SPECIALS[state.config.special!].recharge);
+    const still = state.nextVolleyAt - state.time;
+    state.player.spin = SHIP_PERKS.shredCap; state.nextVolleyAt = 0;
+    stepRun(state, EMPTY_INPUT);
+    expect(state.nextVolleyAt - state.time).toBeCloseTo(still / (1 + SHIP_PERKS.shredCap), 6);
+    // A shot that hits nothing leaves the spin as it is.
+    state.projectiles.push({ id: state.nextId++, x: -5, s: 1, previousX: -5, previousS: 1, vx: 0, vs: 30, friendly: true, damage: 10, radius: .1, ttl: .3, weapon: 'pulse' });
+    state.nextVolleyAt = Infinity; advance(state, .4);
+    expect(state.player.spin).toBeGreaterThanOrEqual(SHIP_PERKS.shredCap - 1e-9);
+    hitPlayer(state, 1);
+    expect(state.player.spin).toBe(0);
   });
-  it('does not intercept incoming direct hits, distant shots, empty-shield grazes or beams', () => {
+
+  it('the spin also stops after a pause in firing, but not between two shots', () => {
+    const state = arena('interceptor', mode), enemy = target(state, state.player.x, 10, 1e6);
+    state.nextVolleyAt = 0;
+    advance(state, 1);
+    expect(state.player.spin).toBeCloseTo(SHIP_PERKS.shredCap, 6);
+    // Nothing left to fire at: it holds for the grace, then stops.
+    enemy.hp = 0; state.enemies = [];
+    advance(state, SHIP_PERKS.shredIdle - .1);
+    expect(state.player.spin).toBeCloseTo(SHIP_PERKS.shredCap, 6);
+    advance(state, .3);
+    expect(state.player.spin).toBe(0);
+  });
+
+  it('no other chassis spins up', () => {
+    for (const ship of ['scrapper', 'ironclad', 'spectre'] as const) {
+      const other = arena(ship, mode), enemy = target(other, 3, 8);
+      for (let i = 0; i < 6; i++) { strike(other, enemy); stepRun(other, EMPTY_INPUT); }
+      expect(other.player.spin ?? 0, ship).toBe(0);
+    }
+  });
+
+  it('Gravity Slingshot: a graze is caught with or without shields, swung round and sent back at its shooter for 25', () => {
+    for (const shields of [3, 0]) {
+      const state = arena('spectre', mode);
+      state.player.shields = shields; state.player.specialCharge = 0;
+      const near = target(state, -1, 4, 100), shooter = target(state, 4, 12, 100);
+      const shot = bullet(state, .8, .1, shooter.id);
+      stepRun(state, EMPTY_INPUT);
+      expect(shot.orbit).toBeDefined(); expect(shot.friendly).toBe(true);
+      expect(state.player.shields).toBe(shields);
+      advance(state, 1.5);
+      // It went past the nearer target to the one that fired it.
+      expect(near.hp).toBe(100);
+      expect(shooter.hp).toBeCloseTo(100 - SHIP_PERKS.reflectedDamage, 6);
+      // A returned kill never charges the special.
+      expect(state.player.specialCharge).toBeCloseTo(state.time / SPECIALS[state.config.special!].recharge);
+    }
+  });
+
+  it('a return whose shooter is gone flies at the nearest target in view', () => {
+    const state = arena('spectre', mode), near = target(state, -1, 4, 100);
+    const shot = bullet(state, .8, .1, 999_999);
+    stepRun(state, EMPTY_INPUT); expect(shot.reflected).toBe(true);
+    advance(state, 1.2);
+    expect(near.hp).toBeCloseTo(100 - SHIP_PERKS.reflectedDamage, 6);
+  });
+
+  it('never intercepts a direct hit, a distant shot or a beam', () => {
     for (const x of [0, .51, 1.3]) {
       const state = arena('spectre', mode), shot = bullet(state, x, 1.5);
       advance(state, .2);
       expect(shot.reflected).toBeUndefined();
       expect(state.player.shields).toBe(x < .52 ? 2 : 3);
     }
-    const state = arena('spectre', mode); state.player.shields = 0;
-    expect(bullet(state).friendly).toBe(false); stepRun(state, EMPTY_INPUT);
-    expect(state.projectiles[0].reflected).toBeUndefined();
-    state.player.shields = 3;
+    const state = arena('spectre', mode);
     state.hazards.push({ id: state.nextId++, x: 0, width: 1, warning: 0, active: 1, ttl: 1, cost: 1 });
     stepRun(state, EMPTY_INPUT); expect(state.player.shields).toBe(2);
   });
-  it('captures only one bullet and limits repeat captures even after its orbit ends', () => {
-    const state = arena('spectre', mode); bullet(state); bullet(state, -.8);
+
+  it('catches again after its 0.4 s cooldown, several in the air at once', () => {
+    const state = arena('spectre', mode);
+    target(state, 0, 14, 1000);
+    bullet(state); bullet(state, -.8);
     stepRun(state, EMPTY_INPUT);
     expect(state.projectiles.filter(s => s.reflected)).toHaveLength(1);
-    advance(state, .4);
+    advance(state, .2);
     const blocked = bullet(state); stepRun(state, EMPTY_INPUT); expect(blocked.reflected).toBeUndefined();
-    advance(state, 1);
+    advance(state, SHIP_PERKS.reflectCooldown);
     const caught = bullet(state); stepRun(state, EMPTY_INPUT); expect(caught.reflected).toBe(true);
-    state.player.shields = 0; stepRun(state, EMPTY_INPUT);
-    expect(state.projectiles).not.toContain(caught);
+    expect(state.projectiles.filter(s => s.reflected && s.ttl > 0).length).toBeGreaterThanOrEqual(2);
   });
-  it('other chassis cannot roll or reflect, and pause does not advance a perk', () => {
+
+  it('other chassis never reflect, and a pause advances no perk', () => {
     const state = arena('ironclad', mode), shot = bullet(state);
-    stepRun(state, { ...EMPTY_INPUT, dashPressed: 1 });
-    expect(state.player.dash).toBeUndefined(); expect(shot.reflected).toBeUndefined();
+    stepRun(state, EMPTY_INPUT);
+    expect(shot.reflected).toBeUndefined();
     const spectre = arena('spectre', mode); bullet(spectre); stepRun(spectre, EMPTY_INPUT);
     spectre.phase = 'paused'; const before = structuredClone(spectre);
-    stepRun(spectre, { ...EMPTY_INPUT, dashPressed: 1 }); expect(spectre).toEqual(before);
+    stepRun(spectre, EMPTY_INPUT); expect(spectre).toEqual(before);
   });
 });

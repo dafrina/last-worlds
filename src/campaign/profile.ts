@@ -20,17 +20,20 @@ export const CAMPAIGN_V2_BACKUP_KEY = 'last-worlds.campaign.v2.backup';
 export const CAMPAIGN_V3_BACKUP_KEY = 'last-worlds.campaign.v3.backup';
 /** The backup of a version-4 save (before The Silent Empire joined the campaign order, 12 November 2026). */
 export const CAMPAIGN_V4_BACKUP_KEY = 'last-worlds.campaign.v4.backup';
-const BACKUP_KEYS: Readonly<Record<number, string>> = { 1: CAMPAIGN_BACKUP_KEY, 2: CAMPAIGN_V2_BACKUP_KEY, 3: CAMPAIGN_V3_BACKUP_KEY, 4: CAMPAIGN_V4_BACKUP_KEY };
-export const PROFILE_VERSION = 5;
+/** The backup of a version-5 save (before the Gravity Well became the Orbital Strike, 14 November 2026). */
+export const CAMPAIGN_V5_BACKUP_KEY = 'last-worlds.campaign.v5.backup';
+const BACKUP_KEYS: Readonly<Record<number, string>> = { 1: CAMPAIGN_BACKUP_KEY, 2: CAMPAIGN_V2_BACKUP_KEY, 3: CAMPAIGN_V3_BACKUP_KEY, 4: CAMPAIGN_V4_BACKUP_KEY, 5: CAMPAIGN_V5_BACKUP_KEY };
+export const PROFILE_VERSION = 6;
 export type Slot = 'weapon' | 'special' | 'shield' | 'ship';
 export type ItemId = WeaponId | SpecialId | ShieldTechId | ShipId;
 export interface MissionRecord { clears: Record<Difficulty, number>; best: Partial<Record<Difficulty, number>>; firstClearPaid: boolean }
 export interface CampaignProfile {
   /**
-   * 5 since 12 November 2026 (The Silent Empire inserted before Final Horizon, `opened`); 4 since 3 November 2026 (the shop
-   * in both currencies, selected weapon levels, the Seeker Rack as the free starter); versions 4 to 1 are migrated on load.
+   * 6 since 14 November 2026 (the Gravity Well became the Orbital Strike, docs/42); 5 since 12 November 2026 (The Silent
+   * Empire inserted before Final Horizon, `opened`); 4 since 3 November 2026 (the shop in both currencies, selected weapon
+   * levels, the Seeker Rack as the free starter); versions 5 to 1 are migrated on load.
    */
-  version: 5;
+  version: 6;
   credits: number;
   /** Parts (docs/33): the campaign's second, rare currency, from strike sites; ships, upgrades, specials and designs take them. */
   parts: number;
@@ -105,7 +108,7 @@ export const affords = (profile: CampaignProfile, price: Price) => profile.credi
 
 export function freshProfile(): CampaignProfile {
   return {
-    version: 5, credits: 0, parts: 0,
+    version: 6, credits: 0, parts: 0,
     owned: { weapon: [STARTER.weapon], special: [STARTER.special], shield: [STARTER.shield], ship: [STARTER.ship] },
     ranks: { pulse: 0, fan: 0, seeker: 0, rail: 0 }, selected: { pulse: 0, fan: 0, seeker: 0, rail: 0 },
     loadout: { ...STARTER }, missions: {}, receipts: [],
@@ -158,17 +161,23 @@ function wellFormed(data: CampaignProfile, rules: SaveRules): boolean {
 function decode(raw: string): CampaignProfile {
   const data = JSON.parse(raw) as CampaignProfile;
   const version = data?.version as number;
+  // A retired special a save owns or flies becomes its replacement before any version's rules check it.
+  if (version !== PROFILE_VERSION) renameRetiredSpecials(data);
   const rules: SaveRules = { slots: SLOT_ITEMS, starter: STARTER, maxRank: MAX_RANK, parts: true, selected: true };
   if (version === PROFILE_VERSION) {
     if (!wellFormed(data, rules)) throw unsupported();
     return cleanLooks(data);
   }
+  if (version === 5) {
+    if (!wellFormed(data, rules)) throw unsupported();
+    return cleanLooks(toVersion6(data));
+  }
   if (version === 4) {
     // Version 4 had no `opened`: one there is not a version-4 save.
     if (data.opened !== undefined || !wellFormed(data, rules)) throw unsupported();
-    return cleanLooks(toVersion5(data));
+    return cleanLooks(toVersion6(toVersion5(data)));
   }
-  if (version === 3 || version === 2 || version === 1) return cleanLooks(toVersion5(toVersion4(toVersion3(data))));
+  if (version === 3 || version === 2 || version === 1) return cleanLooks(toVersion6(toVersion5(toVersion4(toVersion3(data)))));
   throw unsupported();
 }
 
@@ -230,6 +239,26 @@ function toVersion5(data: CampaignProfile): CampaignProfile {
   const before = unlockedIn(migrated, ORDER_V4), now = new Set(unlockedMissions(migrated));
   const kept = before.filter(mission => !now.has(mission));
   if (kept.length) migrated.opened = kept;
+  return migrated;
+}
+
+/**
+ * Specials retired since a save was written, and what replaced them: the Gravity Well became the Orbital Strike
+ * (14 November 2026, docs/42; the user: "Gravity well convert it"). A save that owned it owns the Orbital Strike, and one
+ * that flew it flies the Orbital Strike; nothing is refunded and nothing else changes.
+ */
+const RETIRED_SPECIALS: Readonly<Record<string, SpecialId>> = { 'gravity-well': 'orbital-strike' };
+function renameRetiredSpecials(data: CampaignProfile): void {
+  const owned = (data?.owned as unknown as Record<string, unknown> | undefined)?.special;
+  if (Array.isArray(owned)) data.owned.special = [...new Set(owned.map(id => RETIRED_SPECIALS[id as string] ?? id))] as SpecialId[];
+  const loadout = data?.loadout as unknown as Record<string, unknown> | undefined;
+  if (loadout && typeof loadout.special === 'string' && RETIRED_SPECIALS[loadout.special]) loadout.special = RETIRED_SPECIALS[loadout.special];
+}
+
+/** Version 5 → 6 (the Gravity Well became the Orbital Strike, renamed in `decode`): only the version changes. */
+function toVersion6(data: CampaignProfile): CampaignProfile {
+  const migrated = structuredClone(data) as CampaignProfile;
+  (migrated as { version: number }).version = 6;
   return migrated;
 }
 

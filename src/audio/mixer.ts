@@ -13,7 +13,7 @@ interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; ga
 const LEVELS: Record<Sound, number> = {
   pulse: .22, fan: .3, seeker: .21, rail: .22, enemy: .10, impact: .13, explosion: .37, heavy: .43,
   shield: .19, 'shield-break': .19, life: .18, pickup: .19, part: .45, upgrade: .28, ready: .25, whoosh: .3,
-  shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, 'gravity-well': .42, warning: .25, beam: .28,
+  shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, 'orbital-strike': .5, warning: .25, beam: .28,
   'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .6, loss: .27,
 };
 const PRIORITY: Partial<Record<Sound, number>> = {

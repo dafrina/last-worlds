@@ -34,7 +34,7 @@ export type MissionRule =
   | { kind: 'threads' }
   /** Craft launched from this boss's bays. */
   | { kind: 'launched'; boss: BossId }
-  /** Kills by the Spectre's Gravitic Shield returns (reflected hostile shots). */
+  /** Kills by the Spectre's Gravity Slingshot returns (reflected hostile shots). */
   | { kind: 'reflected' }
   /** Specials fired. */
   | { kind: 'specials' }
@@ -245,7 +245,7 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     untouchable('Final Horizon'),
     collector(400, 50),
     airSuperiority(65, 50),
-    { slug: 'gravity-slingshot', name: 'Gravity Slingshot', text: 'Destroy 3 enemies with Gravitic Shield returns, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'reflected' }) },
+    { slug: 'gravity-slingshot', name: 'Gravity Slingshot', text: 'Destroy 3 enemies with Gravity Slingshot returns, across runs.', goal: 3, credits: 50, parts: 1, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'reflected' }) },
     { slug: 'wraith-exorcist', name: 'Wraith Exorcist', text: 'Destroy 3 Wraiths in one run.', goal: 3, credits: 75, parts: 0, difficulty: 'relaxed', ...run({ kind: 'wraiths' }) },
     { slug: 'veteran-of-the-void', name: 'Veteran of the Void', text: 'Complete Final Horizon on Veteran.', goal: 1, credits: 100, parts: 1, difficulty: 'veteran', ...run({ kind: 'complete' }) },
     { slug: 'blackout', name: 'Blackout', text: 'Defeat ECLIPSE without hull damage in its final phase.', goal: 1, credits: 100, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },

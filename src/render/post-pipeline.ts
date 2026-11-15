@@ -92,23 +92,8 @@ uniform vec4 haze;
 uniform sampler2D depthMap; uniform mat4 viewInverse; uniform mat4 projectionInverse;
 uniform vec3 fogColor; uniform vec3 fogHeight; uniform vec3 fogDistance;
 uniform float cover;
-uniform vec4 lens; uniform float lensSwirl; uniform float ratio;
+uniform vec4 pall;
 varying vec2 vUv;
-/**
- * Gravity Well lens (docs/32 §3; user, 28 October: "actually distort the view underneath"): inside its radius the image is
- * drawn from further out and twisted, so the world underneath looks sucked in and swirled. lens: centre (uv), radius
- * (fraction of the view height), strength (0 = off).
- */
-vec2 lensed( vec2 uv ) {
-  if ( lens.w <= 0.0 ) return uv;
-  vec2 d = ( uv - lens.xy ) * vec2( ratio, 1.0 );
-  float r = length( d );
-  if ( r >= lens.z ) return uv;
-  float f = 1.0 - r / lens.z; f *= f;
-  float a = lensSwirl * f, c = cos( a ), s = sin( a );
-  d = mat2( c, s, -s, c ) * d * ( 1.0 + lens.w * f * 1.8 );
-  return clamp( lens.xy + d / vec2( ratio, 1.0 ), vec2( 0.0 ), vec2( 1.0 ) );
-}
 /**
  * World fog from the scene depth (user, 22 October: "only the lower half of the terrain ... mountainous areas stay clear"):
  * it lies in the low ground below each level's fog top, thicker far away where the line of sight crosses more of it.
@@ -126,6 +111,23 @@ vec3 fog( vec3 color, vec2 uv ) {
   // Under a full-screen cover (the jump veil) the fog fades with the world: it never paints the hidden terrain's shapes.
   float amount = ( 1.0 - ( 1.0 - low ) * ( 1.0 - far ) ) * ( 1.0 - smoothstep( 1.2, 3.0, max( color.r, max( color.g, color.b ) ) ) ) * ( 1.0 - cover );
   return mix( color, fogColor, amount );
+}
+/**
+ * The Orbital Strike's pall (docs/42; user, 15 November: "just not red make it dark gray"): a dark band trailing the
+ * barrage's front across the middle of the view, laid on the flight plane so the ground's height never cuts it. It darkens
+ * the fogged frame (a dark smoke in the scene was fogged away over the canyon); bloom still adds on top, so the barrage's
+ * fireballs keep their punch. pall: the front's x, the sweep's direction, strength (0 off), the flight plane's height.
+ */
+vec3 pallShade( vec3 color, vec2 uv ) {
+  if ( pall.z <= 0.0 ) return color;
+  vec4 view = projectionInverse * vec4( uv * 2.0 - 1.0, 1.0, 1.0 );
+  vec3 eye = viewInverse[ 3 ].xyz, ray = ( viewInverse * vec4( view.xyz / view.w, 1.0 ) ).xyz - eye;
+  if ( abs( ray.y ) < 1e-5 ) return color;
+  vec3 p = eye + ray * ( ( pall.w - eye.y ) / ray.y );
+  float s = -p.z, behind = ( pall.x - p.x ) * pall.y;
+  float band = smoothstep( -0.6, 0.8, behind ) * ( 1.0 - smoothstep( 3.0, 13.0, behind ) ) * smoothstep( 2.0, 5.0, s ) * ( 1.0 - smoothstep( 14.0, 17.5, s ) );
+  float billow = 0.85 + 0.15 * sin( p.x * 1.7 + s * 0.9 ) * sin( p.x * 0.6 - s * 1.3 );
+  return mix( color, vec3( 0.035, 0.036, 0.04 ), clamp( pall.z * band * billow * 1.2, 0.0, 0.9 ) );
 }
 /** Compressed (Reinhard) luma, so FXAA edge detection behaves on HDR input. */
 float edgeLuma( vec3 c ) { float l = dot( c, vec3( 0.299, 0.587, 0.114 ) ) * exposure; return l / ( 1.0 + l ); }
@@ -165,8 +167,8 @@ vec3 srgb( vec3 c ) {
   return mix( c * 12.92, pow( c, vec3( 0.41666 ) ) * 1.055 - vec3( 0.055 ), step( vec3( 0.0031308 ), c ) );
 }
 void main() {
-  vec2 uv = lensed( vUv );
-  vec3 color = fog( antialiased( uv ), uv ) + texture2D( bloom, uv ).rgb * strength;
+  vec2 uv = vUv;
+  vec3 color = pallShade( fog( antialiased( uv ), uv ), uv ) + texture2D( bloom, uv ).rgb * strength;
   color *= exposure;
   // Warm lift in the deepest tones only: shadows read as warm umber, never as night.
   float luma = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
@@ -219,8 +221,8 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
     fogColor: { value: settings.fogColor.clone() }, fogHeight: { value: settings.fogHeight.clone() }, fogDistance: { value: settings.fogDistance.clone() },
     /** How much of the world a full-screen overlay hides this frame (0..1, the jump veil); fog and haze fade under it. */
     cover: { value: 0 },
-    /** Gravity Well lens: centre uv, radius (view heights) and strength (0 off); its twist; the view's width / height. */
-    lens: { value: new THREE.Vector4(.5, .5, 0, 0) }, lensSwirl: { value: 0 }, ratio: { value: 1 },
+    /** The Orbital Strike's pall: front x, direction, strength (0 off), flight-plane height (pallShade). */
+    pall: { value: new THREE.Vector4(0, 1, 0, 0) },
   });
   const quad = new THREE.Mesh(triangle, prefilter); quad.frustumCulled = false;
   let width = 1, height = 1;
@@ -238,7 +240,6 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
       sixteenth.setSize(Math.max(1, q[0] >> 2), Math.max(1, q[1] >> 2));
       composite.uniforms.aspect.value.set(width / Math.max(width, height) * 1.25, height / Math.max(width, height));
       composite.uniforms.texel.value.set(1 / width, 1 / height);
-      composite.uniforms.ratio.value = width / height;
     },
     /** Renders the scene into the HDR target, then bloom and the graded composite to the canvas. */
     render(scene: THREE.Object3D, view: THREE.Camera) {

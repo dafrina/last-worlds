@@ -6,7 +6,7 @@ export type Difficulty = 'relaxed' | 'standard' | 'veteran';
 export type GraphicsQuality = 'high' | 'low';
 export type WeaponId = 'pulse' | 'fan' | 'seeker' | 'rail';
 /** Campaign equipment slots besides the main weapon (docs/02 §3–4, src/content/equipment.ts). */
-export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance' | 'gravity-well';
+export type SpecialId = 'shockwave' | 'seeker-rack' | 'siege-lance' | 'orbital-strike';
 export type ShieldTechId = 'standard' | 'bulwark' | 'aegis';
 export type ShipId = 'scrapper' | 'ironclad' | 'interceptor' | 'spectre';
 export type MissionId = 'training' | 'bastion' | 'deep-bloom' | 'cold-vector' | 'brood-strike' | 'dying-star' | 'silent-empire' | 'final-horizon';
@@ -54,7 +54,7 @@ export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot
 export type SiteId = (typeof SITE_IDS)[number];
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith' | 'skimmer' | 'relic';
 /** `horizontal`: −1 … 1. Touch halves and keys give −1, 0 or 1; tilt steering (src/input/tilt.ts) any share between. */
-export interface InputFrame { horizontal: number; specialPressed: boolean; pausePressed: boolean; dashPressed?: -1 | 1 }
+export interface InputFrame { horizontal: number; specialPressed: boolean; pausePressed: boolean }
 /**
  * A run's setup. The campaign loadout (weapon, special, shield, ship, rank of the main weapon) applies only to the
  * campaign; createRun gives endless starter equipment and the selected chassis perk.
@@ -79,9 +79,12 @@ export interface RunConfig {
   heroShip?: ShipId;
 }
 export interface Player {
-  /** The Interceptor's last sidestep (src/sim/ship-perks.ts): when and which way, from where. */
-  dash?: { startedAt: number; direction: -1 | 1; fromX: number };
-  dashReadyAt?: number;
+  /**
+   * The Interceptor's Shred spin (src/sim/ship-perks.ts): its fire-rate bonus, 0 … SHIP_PERKS.shredCap, built by every
+   * main-weapon hit and emptied when the ship is hit.
+   */
+  spin?: number;
+  /** The Spectre's Gravity Slingshot: when it can catch its next near-miss. */
   reflectReadyAt?: number;
   x: number; vx: number; lives: number; shields: number; maxShields: number;
   specialCharge: number; invulnerableUntil: number; lastHitAt: number;
@@ -148,13 +151,13 @@ export interface Enemy {
    * re-picked at age `retarget` (`waypoint` counts the picks, for its rolls, keyed by `key`: its level and spawn number).
    */
   hunter?: { key: number; shield: number; perCharge: number; vx: number; vs: number; tx: number; ts: number; retarget: number; waypoint: number };
-  /** Displacement a Gravity Well dragged this craft off its authored path (docs/32 §2.2); kept after the well ends. */
-  pull?: { x: number; s: number };
 }
 export interface Projectile {
-  /** Gravitic Shield return fire; not a main/special missile and never grants special kill charge. */
+  /** Gravity Slingshot return fire (the Spectre); not a main/special missile and never grants special kill charge. */
   reflected?: boolean;
   orbit?: { angle: number; radius: number; direction: -1 | 1; elapsed: number };
+  /** The enemy that fired this hostile shot (a Gravity Slingshot return flies back at it). Never read by combat. */
+  firedBy?: number;
   /** The two halves of one Skimmer's Echo Split share this id (observation only: src/sim/events.ts observeThreads). */
   echo?: number;
   id: number; x: number; s: number; previousX: number; previousS: number;
@@ -184,11 +187,14 @@ export interface Projectile {
 export interface Hazard { id: number; x: number; width: number; warning: number; active: number; ttl: number; cost?: number; source?: number }
 /** `caught`: when the ship's reach first took it (it then homes in until collected; src/sim/game.ts updatePickups). */
 export interface Pickup { id: number; kind: 'shield' | 'power' | 'weapon' | 'credit' | 'part'; x: number; s: number; value: number; weapon?: WeaponId; ttl: number; caught?: number }
-/** `bossBlast`: a destroyed boss's last detonation (render only, like every effect). */
-export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast' | 'bossBlast'; x: number; s: number; ttl: number; duration: number }
+/**
+ * `bossBlast`: a destroyed boss's last detonation; `shred`: a kill by an Interceptor spun up by Shred, its `duration` growing
+ * with the spin (src/sim/ship-perks.ts). Render only, like every effect.
+ */
+export interface Effect { id: number; kind: 'hit' | 'explosion' | 'special' | 'shield' | 'pickup' | 'blast' | 'bossBlast' | 'shred'; x: number; s: number; ttl: number; duration: number }
 /**
  * What landed a kill (docs/35): a main-weapon shot ('main', with its `weapon`), a special ('special': the Shockwave ring, a
- * Seeker Rack missile, the Siege Lance or a Gravity Well), a Spectre's Gravitic Shield return ('reflected'), or a fuel skid's
+ * Seeker Rack missile, the Siege Lance or the Orbital Strike), a Spectre's Gravity Slingshot return ('reflected'), or a fuel skid's
  * blast ('blast').
  */
 export type KillCause = 'main' | 'special' | 'reflected' | 'blast';
@@ -248,10 +254,10 @@ export interface RunState {
   /** Shockwave in progress: a ring expanding from where the ship fired it; `hit` lists targets it already struck. */
   shockwave?: { x: number; s: number; startedAt: number; hit: number[]; cameraX: number } | null;
   /**
-   * Gravity Well in progress (docs/32 §2): a singularity fixed in the world at (x, s), pulling from `armedAt` until
-   * `until`, when it collapses. `swallowed` counts hostile shots it took (render and audio read it).
+   * Orbital Strike in progress (docs/42): a barrage sweeping the view it was called on (`cameraX`), from the side away
+   * from the ship toward it (`direction`: the sweep's x direction). `hit` lists targets it already struck.
    */
-  well?: { x: number; s: number; startedAt: number; armedAt: number; until: number; swallowed: number } | null;
+  orbital?: { startedAt: number; cameraX: number; direction: -1 | 1; hit: number[] } | null;
   /** Hunter bookkeeping for the current level or endless sector: hunters spawned and the last spawn window used. */
   hunters?: { sector: number; spawned: number; window: number; shieldDrops?: number };
   /** Parts collected this attempt (docs/33; campaign only, banked with the attempt like credits). */

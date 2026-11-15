@@ -18,13 +18,13 @@ import './styles.css';
 
 const shieldGlyph = '<svg viewBox="0 0 20 24" aria-hidden="true"><path d="M3 4 10 2 17 4 17 12Q17 17 10 22Q3 17 3 12Z"/></svg>';
 const weaponNames: Record<WeaponId, string> = { pulse: 'Twin Pulse', fan: 'Fan Cannon', seeker: 'Seeker Array', rail: 'Rail Driver' };
-/** Special button glyph per special: a bolt (Shockwave), stacked chevrons (Seeker Rack), a beam (Siege Lance), a ring
- * around a core (Gravity Well). */
+/** Special button glyph per special: a bolt (Shockwave), stacked chevrons (Seeker Rack), a beam (Siege Lance), a targeting
+ * reticle (Orbital Strike). */
 const specialGlyphs: Record<string, string> = {
   shockwave: 'M14 2 4 16H11L9 26 20 11H13Z',
   'seeker-rack': 'M12 3 21 11 18 13 12 8 6 13 3 11ZM12 11 21 19 18 21 12 16 6 21 3 19Z',
   'siege-lance': 'M10 2H14V18L17 21V26H7V21L10 18Z',
-  'gravity-well': 'M12 4A10 10 0 1 1 11.99 4ZM12 7A7 7 0 1 0 12.01 7ZM12 10A4 4 0 1 1 11.99 10Z',
+  'orbital-strike': 'M12 4A10 10 0 1 1 11.99 4ZM12 7A7 7 0 1 0 12.01 7ZM11 1H13V9H11ZM11 19H13V27H11ZM0 13H7V15H0ZM17 13H24V15H17ZM12 12A2 2 0 1 1 11.99 12Z',
 };
 const difficultyNames: Record<Difficulty, string> = { relaxed: 'Relaxed', standard: 'Standard', veteran: 'Veteran' };
 

@@ -4,6 +4,7 @@ import { liveInstances, dynamicBatch } from './instances';
 import { createSilhouetteMaterial, planarShadow, silhouetteShade } from './craft-shadows';
 export { liveInstances } from './instances';
 import { SHIP_PERKS } from '../content/ship-perks';
+import { orbitalFront } from '../sim/orbital';
 import { HERO_STENCIL } from './hero-stencil';
 import { drawnShot, launchFrom, type Launch } from './shot-launch';
 import * as THREE from 'three';
@@ -226,7 +227,7 @@ export const HERO_SCALE = 1.1;
 /** A battery's shot column: chevron spacing and how fast they flow down it, relative to the battery (units, units/s). */
 const CHEVRON_GAP = 2, CHEVRON_FLOW = 2.2;
 /** Constant tables the frame reads (docs/38 PF3: not rebuilt per enemy per frame). */
-const SIDES = [-1, 1] as const, DASH_STREAKS = [-.12, .16] as const, LINE_ATTRIBUTES = ['position', 'color'] as const;
+const SIDES = [-1, 1] as const, LINE_ATTRIBUTES = ['position', 'color'] as const;
 /** A battery's seat is checked at these corners for a plinth (x, s offsets). */
 const PLINTH_CORNERS = [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]] as const;
 /** A windup's aim rays: a turret's three-round fan, one ray otherwise. */
@@ -246,8 +247,8 @@ const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
 const CAMERA_NEAR = 20;
 /** How much further out the Helion Ark's glide-in is drawn at its start (render only; see its placement). */
 const ARK_GLIDE = 8;
-/** The Interceptor's barrel roll over its sidestep, and the speed streaks it leaves (seconds; render only). */
-const DASH_ROLL = .3, DASH_STREAK = .28;
+/** How long the Orbital Strike's dark band lingers once its sweep is done (seconds; render only). */
+const PALL_FADE = .8;
 
 /** Tuned by the user in the light playground (playground.html, 22 October): brighter sky fill and bounce, a higher sun on
  * Khepri, stronger bloom on Khepri and Nacre, and each level's fog. Vesper keeps its shipped light (its cliffs) with the
@@ -1189,6 +1190,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    */
   // The camera shake's state (cosmetic, render only): trauma, the clock, the last hit, lives and effect seen.
   let shakeTrauma = 0, shakeTime = -1, shakeHit = -Infinity, shakeLives = 0, shakeEffect = -1;
+  // The Orbital Strike's pall: where its front got to, which way, and when the band has faded (render only).
+  let pallState: { front: number; direction: number; until: number } | null = null;
   // THE CITADEL's standing state: the arena (by its start) whose temple has fallen, and the run clock last seen.
   let citadelFallen: number | null = null, citadelSeen = -Infinity;
   const HOVERING_BOSSES = [
@@ -1415,57 +1418,14 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     geometry.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(geometry, shockMaterials[k]); mesh.renderOrder = 9; mesh.visible = false; mesh.frustumCulled = false; scene.add(mesh); return mesh;
   });
-  // Gravity Well (docs/32 §3): a black core in a spinning accretion ring, with faint rings at its pull and core radii.
-  const wellSpec = SPECIALS['gravity-well'];
-  const well = new THREE.Group(); well.visible = false; scene.add(well);
-  const wellCore = new THREE.Mesh(new THREE.SphereGeometry(.5, 24, 16), new THREE.MeshBasicMaterial({ color: 0x020205, depthTest: false, depthWrite: false }));
-  const wellRingMaterial = new THREE.MeshBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: .9, depthTest: false, depthWrite: false,
-    blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide, forceSinglePass: true });
-  const wellAccretion = new THREE.Mesh(new THREE.RingGeometry(.58, 1.05, 64, 1).rotateX(-Math.PI / 2), wellRingMaterial);
-  const wellHalo = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.6, 64, 1).rotateX(-Math.PI / 2), wellRingMaterial.clone());
-  const wellReach = [wellSpec.pullRadius, wellSpec.coreRadius].map(radius => new THREE.Mesh(new THREE.RingGeometry(radius - .04, radius, 96).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0x9ff8ff, transparent: true, opacity: .2, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })));
-  // Swirl texture on the accretion ring: brighter arcs, so its spin reads.
-  const swirl = wellAccretion.geometry.getAttribute('position'), swirlColor = new Float32Array(swirl.count * 3);
-  for (let i = 0; i < swirl.count; i++) {
-    const a = Math.atan2(swirl.getZ(i), swirl.getX(i)), r = Math.hypot(swirl.getX(i), swirl.getZ(i)), k = (.55 + .45 * Math.sin(a * 3 + r * 6)) * (r < .8 ? 1.4 : .8);
-    swirlColor.set([k, k, k], i * 3);
-  }
-  wellAccretion.geometry.setAttribute('color', new THREE.BufferAttribute(swirlColor, 3)); wellRingMaterial.vertexColors = true;
-  for (const mesh of [wellHalo, ...wellReach, wellAccretion, wellCore]) { mesh.renderOrder = 9; mesh.frustumCulled = false; well.add(mesh); }
-  wellCore.renderOrder = 10;
-  let wellSwallowed = 0, wellFlashAt = -1;
-  // The well's lens (user, 28 October: "actually distort the view underneath"). High warps the frame in the post composite;
-  // Low copies the drawn frame while a well is out and redraws the disc around it through the same warp.
-  const wellLens = { on: false, x: .5, y: .5, radius: 0, strength: 0, swirl: 0 };
-  const lensPoint = new THREE.Vector3(), lensEdge = new THREE.Vector3(), drawingSize = new THREE.Vector2();
-  const lensScene = new THREE.Scene(), lensCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const lensMaterial = new THREE.ShaderMaterial({
-    uniforms: { frame: { value: null }, lens: { value: new THREE.Vector4() }, lensSwirl: { value: 0 }, ratio: { value: 1 } },
-    vertexShader: 'varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4( position.xy, 0.0, 1.0 ); }',
-    fragmentShader: `uniform sampler2D frame; uniform vec4 lens; uniform float lensSwirl; uniform float ratio; varying vec2 vUv;
-      void main() {
-        vec2 d = ( vUv - lens.xy ) * vec2( ratio, 1.0 );
-        float r = length( d );
-        if ( r >= lens.z ) discard;
-        float f = 1.0 - r / lens.z; f *= f;
-        float a = lensSwirl * f, c = cos( a ), s = sin( a );
-        d = mat2( c, s, -s, c ) * d * ( 1.0 + lens.w * f * 1.8 );
-        gl_FragColor = texture2D( frame, clamp( lens.xy + d / vec2( ratio, 1.0 ), vec2( 0.0 ), vec2( 1.0 ) ) );
-      }`,
-    depthTest: false, depthWrite: false, toneMapped: false,
-  });
-  const lensQuad = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3)), lensMaterial);
-  lensQuad.frustumCulled = false; lensScene.add(lensQuad);
-  let lensFrame: THREE.FramebufferTexture | null = null;
   // Rail Driver slugs (docs/32 §3): render-only trails from muzzle to head, fading out after the slug is gone; a fresh
   // slug kicks the hero back a touch.
   const railTrails = new Map<number, { x0: number; s0: number; x: number; s: number; endedAt?: number }>();
   let railKickAt = -1, railTick = -1;
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   // Flat rings face the camera one way only, so the single pass draws exactly what three.js's two passes over a transparent
-  // double-sided material drew (back faces: none), in half the draws (mobile performance pass, 3 November). So do the
-  // shockwave and the Gravity Well's rings.
+  // double-sided material drew (back faces: none), in half the draws (mobile performance pass, 3 November). So does the
+  // shockwave's ring.
   const effectMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, depthTest: false, side: THREE.DoubleSide, forceSinglePass: true });
   const effects = new THREE.InstancedMesh(new THREE.RingGeometry(.85, 1, 24), effectMaterial, 128);
   effects.setColorAt(0, color.setHex(0xffffff));
@@ -1613,10 +1573,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (railKickAt >= 0 && state.time >= railKickAt) hero.position.z += .06 * Math.max(0, 1 - (state.time - railKickAt) / .1);
     hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
     hero.rotation.z = -state.player.vx * .016 + (1 - entrance) * Math.PI * 2;
-    // Interceptor Barrel Roll: one roll into the sidestep (user, 30 October: "the roll is just visual for the side dash"),
-    // most of the turn while the ship slides, settling just after the dash ends.
-    const dash = state.player.dash, rollAge = dash ? (state.time - dash.startedAt) / DASH_ROLL : 1;
-    if (dash && rollAge >= 0 && rollAge < 1) hero.rotation.z -= dash.direction * Math.PI * 2 * (1 - Math.pow(1 - rollAge, 3));
     return entrance;
   }
   /**
@@ -1824,7 +1780,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           // every variant, the HDR target's untoned programs and the shadow pass's depth programs included. The frame
           // below draws over it.
           if (quality === 'high') post.render(scene, camera); else { renderer.setRenderTarget(null); renderer.render(scene, camera); }
-          renderer.compile(lensScene, lensCamera);
         } else {
           // Mid-flight (a later planet's kits arrived): compile for the target the scene draws into, in the background
           // where the browser compiles in parallel, so the flight does not stall.
@@ -2157,7 +2112,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       let friendlyCount = 0, hostileCount = 0, missileCount = 0;
       // Main-weapon tiers 4 and 5 draw hotter and larger (fx-particles `shotHeat`); everything in flight follows the current tier.
-      const heat = shotHeat(state.player.power);
+      // An Interceptor's Shred spin heats them (docs/42; "maybe my projectiles glow more", then "just for the interceptor perk
+      // the higher to max"): up to half again as large and twice as bright when fully spun up. Other ships' shots unchanged.
+      const tier = shotHeat(state.player.power), chain = state.config.ship === 'interceptor' ? Math.min(1, (state.player.spin ?? 0) / SHIP_PERKS.shredCap) : 0;
+      const heat = { grow: tier.grow * (1 + .5 * chain), energy: tier.energy * (1 + chain) };
       // Amnion uses acid-green fire over its warm yolk canyons
       // with a pale core, apart from the yolk and from the player's own white-cyan shots (docs/27).
       hostileMaterial.color.setHex(hostileHues(planet)[0]); hostileCoreMaterial.color.setHex(hostileHues(planet)[1]);
@@ -2189,12 +2147,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       trailRun = state; trailLives = state.player.lives; trailLook = heroShown;
       if (!heroAlive || entrance <= .9 || state.jump) heroTrail.clear();
       else heroTrail.draw(state.time, state.distance, hero.position.x, hero.position.z, Math.cos(hero.rotation.z), heroEngines, HERO_SCALE, trailEndZ, trailSegment);
-      // Interceptor Barrel Roll: two speed streaks from where the dash started to the ship's trailing wing, fading out.
-      const dash = state.player.dash, dashFade = dash ? 1 - (state.time - dash.startedAt) / DASH_STREAK : 0;
-      if (dash && dashFade > 0 && dashFade <= 1) {
-        const tail = state.player.x - dash.direction * .45;
-        if ((tail - dash.fromX) * dash.direction > .1) for (const s of DASH_STREAKS) strip(dash.fromX, s, tail, s, .05, 0x5ff3ff, flashLanes, dashFade * 1.4);
-      }
       const [hostileHex] = hostileHues(planet);
       wallShots.length = 0;
       for (const sim of state.projectiles) {
@@ -2279,7 +2231,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (missiles) liveInstances(missiles, missileCount);
       liveInstances(friendly, friendlyCount); liveInstances(hostile, hostileCount); liveInstances(hostileCores, hostileCount);
       liveInstances(friendlyOutline, brightGround ? friendlyCount : 0);
-      friendlyMaterial.color.setHex(brightGround ? 0x1fd2ff : 0xbcfff8);
+      friendlyMaterial.color.setHex(brightGround ? 0x1fd2ff : chain > 0 ? 0xd8fffb : 0xbcfff8);
       if (!brightGround) friendlyMaterial.color.multiplyScalar(heat.energy);
 
       pickupBatches.forEach(mesh => { mesh.count = 0; });
@@ -2324,43 +2276,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         ring.position.set(wave.x, VIEW.flightHeight + .05, -wave.s); ring.scale.setScalar(radius);
         shockMaterials[k].opacity = (k ? .22 : .95) * fade;
       });
-      // Gravity Well: flies from the nose to its anchor while arming, then spins; swallowing a shot flashes the ring.
-      const live = state.well;
-      well.visible = !!live;
-      if (live) {
-        const arm = Math.min(1, (state.time - live.startedAt) / Math.max(1e-3, live.armedAt - live.startedAt)), ease = 1 - (1 - arm) ** 3;
-        const sPos = .6 + (live.s - .6) * ease, ending = Math.max(0, 1 - (live.until - state.time) / .35);
-        if (live.swallowed > wellSwallowed) wellFlashAt = state.time;
-        wellSwallowed = live.swallowed;
-        const wellFlash = wellFlashAt < 0 ? 0 : Math.max(0, 1 - (state.time - wellFlashAt) * 5);
-        well.position.set(live.x, VIEW.flightHeight + .06, -sPos);
-        const grow = 1.35 * (.35 + .65 * ease) * (1 - .55 * ending);
-        well.scale.setScalar(grow);
-        wellAccretion.rotation.y = state.time * 3.4; wellHalo.rotation.y = -state.time * 1.3;
-        wellRingMaterial.opacity = .75 + .25 * wellFlash;
-        (wellHalo.material as THREE.MeshBasicMaterial).opacity = (.22 + .3 * wellFlash) * ease;
-        wellReach.forEach((ring, k) => { (ring.material as THREE.MeshBasicMaterial).opacity = (k ? .16 : .2) * ease * (.8 + .2 * Math.sin(state.time * 5 + k)); ring.scale.setScalar(1 / Math.max(.2, grow)); });
-        // The lens: on screen where the well is, as wide as its swallow radius (every shot it bends there is removed anyway, and
-        // the ship's row is never warped), deepening as it nears its collapse.
-        well.updateMatrixWorld();
-        lensPoint.set(live.x, VIEW.flightHeight, -sPos).project(camera); lensEdge.set(live.x + wellSpec.swallowRadius, VIEW.flightHeight, -sPos).project(camera);
-        const aspect = drawingWidth / Math.max(1, drawingHeight);
-        wellLens.on = true; wellLens.x = lensPoint.x * .5 + .5; wellLens.y = lensPoint.y * .5 + .5;
-        wellLens.radius = Math.abs(lensEdge.x - lensPoint.x) * .5 * aspect * ease;
-        wellLens.strength = (.45 + .45 * ending) * ease * (1 - Math.max(0, (state.time - live.until + .06) / .06));
-        wellLens.swirl = (1.5 + .6 * Math.sin(state.time * 2.2)) * ease;
-      } else { wellSwallowed = 0; wellLens.on = false; }
-      post.settings.lens.value.set(wellLens.x, wellLens.y, wellLens.radius, wellLens.on ? wellLens.strength : 0); post.settings.lensSwirl.value = wellLens.swirl;
       let effectCount = 0;
       for (const effect of state.effects) {
         if (effect.kind === 'special') continue;
         if (effectCount >= effects.instanceMatrix.count) break;
         const age = Math.max(0, Math.min(1, 1 - effect.ttl / effect.duration));
-        const radius = effect.kind === 'bossBlast' ? 1 + age * 11 : effect.kind === 'blast' ? .4 + age * 3 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
+        const radius = effect.kind === 'bossBlast' ? 1 + age * 11 : effect.kind === 'blast' ? .4 + age * 3 : effect.kind === 'shred' ? .2 + age * 2.2 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
         transform.position.set(effect.x, VIEW.flightHeight + .04, -effect.s);
         transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(radius); transform.updateMatrix();
         effects.setMatrixAt(effectCount, transform.matrix);
-        const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : effect.kind === 'shield' ? heroGlow : 0x97e7da;
+        const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : effect.kind === 'shield' ? heroGlow : effect.kind === 'shred' ? 0xc8fffa : 0x97e7da;
         color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
       }
       liveInstances(effects, effectCount);
@@ -2399,16 +2324,23 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // A slight camera shake on explosions and hits (user, 13 November), only for the draw: placements and rays this frame
       // used the true camera. Trauma from new effects and a hit decays quickly; the offset grows with its square.
       // (A new run restarts the clock and the ids: start afresh.)
-      if (state.time < shakeTime) { shakeTrauma = 0; shakeEffect = -1; shakeHit = state.player.lastHitAt; shakeLives = state.livesLost; }
+      if (state.time < shakeTime) { shakeTrauma = 0; shakeEffect = -1; shakeHit = state.player.lastHitAt; shakeLives = state.livesLost; pallState = null; }
       const shakeDt = shakeTime < 0 || state.time < shakeTime ? 0 : Math.min(.1, state.time - shakeTime); shakeTime = state.time;
       shakeTrauma = Math.max(0, shakeTrauma - shakeDt * 2.2);
       if (state.player.lastHitAt !== shakeHit) { if (shakeDt > 0 && state.player.lastHitAt > state.time - .2) shakeTrauma += state.livesLost > shakeLives ? .65 : .4; shakeHit = state.player.lastHitAt; }
       shakeLives = state.livesLost;
       for (const effect of state.effects) if (effect.id > shakeEffect) {
         shakeEffect = effect.id;
-        if (shakeDt > 0) shakeTrauma += effect.kind === 'bossBlast' ? .6 : effect.kind === 'blast' ? .14 : effect.kind === 'explosion' ? .07 : 0;
+        if (shakeDt > 0) shakeTrauma += effect.kind === 'bossBlast' ? .6 : effect.kind === 'blast' ? .14 : effect.kind === 'shred' ? .06 + .1 * Math.min(1, (effect.duration - .4) / .4) : effect.kind === 'explosion' ? .07 : 0;
       }
       // THE CITADEL's awakening: a short rumble as it shakes the dust off (src/render/veil-view.ts AWAKEN).
+      // The Orbital Strike's barrage rumbles while it sweeps (docs/42).
+      if (state.orbital) shakeTrauma = Math.max(shakeTrauma, .55);
+      // Its pall (High: the post composite's dark band behind the front), fading out over PALL_FADE once the sweep is done.
+      if (state.orbital) pallState = { front: orbitalFront(state.orbital, state.time - state.orbital.startedAt), direction: state.orbital.direction, until: state.time + PALL_FADE };
+      else if (pallState && state.time > pallState.until) pallState = null;
+      const pallStrength = pallState ? Math.min(1, (pallState.until - state.time) / PALL_FADE) : 0;
+      post.settings.pall.value.set(pallState?.front ?? 0, pallState?.direction ?? 1, pallStrength, VIEW.flightHeight);
       if (state.boss?.id === 'citadel' && state.boss.phase === 'arrival') shakeTrauma = Math.max(shakeTrauma, .6 * (1 - THREE.MathUtils.smoothstep(state.time - state.boss.startedAt, .1, 1.6)));
       shakeTrauma = Math.min(1, shakeTrauma);
       const shake = reducedMotion() || jumpActive ? 0 : shakeTrauma * shakeTrauma * SHAKE_AMPLITUDE;
@@ -2422,14 +2354,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       } else {
         renderer.setRenderTarget(null); renderer.render(scene, camera);
         passes.shadow = passes.post = 0; passes.main = renderer.info.render.calls;
-        if (wellLens.on && wellLens.strength > 0) {
-          renderer.getDrawingBufferSize(drawingSize);
-          if (!lensFrame || lensFrame.image.width !== drawingSize.x || lensFrame.image.height !== drawingSize.y) { lensFrame?.dispose(); lensFrame = new THREE.FramebufferTexture(drawingSize.x, drawingSize.y); }
-          renderer.copyFramebufferToTexture(lensFrame);
-          lensMaterial.uniforms.frame.value = lensFrame; lensMaterial.uniforms.ratio.value = drawingSize.x / Math.max(1, drawingSize.y);
-          lensMaterial.uniforms.lens.value.set(wellLens.x, wellLens.y, wellLens.radius, wellLens.strength); lensMaterial.uniforms.lensSwirl.value = wellLens.swirl;
-          const clear = renderer.autoClear; renderer.autoClear = false; renderer.render(lensScene, lensCamera); renderer.autoClear = clear;
-        }
       }
       if (shake > 0) { camera.position.x -= shakeX; camera.position.y -= shakeY; camera.updateMatrixWorld(); }
       if (state.tick > 0) terrainWork.renderMax = Math.max(terrainWork.renderMax, performance.now() - renderStart);
@@ -2497,7 +2421,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       usedMaterials.forEach(material=>Object.values(material).forEach(value=>{if(value instanceof THREE.Texture && value !== environment.texture)textures.add(value);}));
       geometries.forEach(geometry => geometry.dispose()); usedMaterials.forEach(material => material.dispose());textures.forEach(texture=>texture.dispose());
       terrain.dispose(); terrainMaterials.dispose(); mireWater.dispose(); coronaArcs.dispose(); coronaHaze.dispose(); motes.dispose(); sand.dispose(); basaltRaft.dispose(); environment.dispose(); skies.forEach(sky => sky.dispose());
-      lensFrame?.dispose(); lensMaterial.dispose(); lensQuad.geometry.dispose();
       sunlight.shadow.dispose(); post.dispose(); jumpFx.dispose(); beamLight.dispose(); phaseHoles.dispose(); instancedDepth.dispose();
       renderer.dispose();
     },

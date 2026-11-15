@@ -14,19 +14,21 @@ describe('the effects reworked on 11 November', () => {
     for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ bytes[i], 16777619);
     return (h >>> 0).toString(16).padStart(8, '0');
   };
-  it('pins every effect sample: seventeen unchanged since 20 October, eleven made on 11 November', () => {
+  it('pins every effect sample: sixteen unchanged since 20 October, eleven made on 11 November, one on 14 November', () => {
     // User, 11 November: the shots, the hit gong, the success sound; a whoosh for the warp; a clank for a part; upgrades
     // as the shield's bell rising; in rounds 2 and 3 gritty klaxons for the alarms, rockets for the Seeker Array.
     // 12 November: the alarms replaced again: the field thud for a shield hit (twice for the last charge), the deny
     // buzzer for a life lost. 13 November: the success sound a short ring ("like a rrrrring").
     // Every other effect is byte for byte what it was.
     const unchanged = {
-      enemy: '36a0d0cf', impact: 'a604939b', explosion: '8200421a', heavy: '3a14ddae', pickup: 'afcdf1a8', ready: '55b0aa29', shockwave: '7e19744a', 'seeker-rack': '609dc1d1', 'siege-lance': 'd2f2673a', 'gravity-well': '32151ad0', warning: '5229a0ca', beam: '0309b3b2', 'boss-arrival': '665ca708', 'boss-phase': '58db8d53', 'boss-death': '5b11baec', warp: 'df2ea95d', loss: 'f64d1595',
+      enemy: '36a0d0cf', impact: 'a604939b', explosion: '8200421a', heavy: '3a14ddae', pickup: 'afcdf1a8', ready: '55b0aa29', shockwave: '7e19744a', 'seeker-rack': '609dc1d1', 'siege-lance': 'd2f2673a', warning: '5229a0ca', beam: '0309b3b2', 'boss-arrival': '665ca708', 'boss-phase': '58db8d53', 'boss-death': '5b11baec', warp: 'df2ea95d', loss: 'f64d1595',
     };
     const reworked = {
       whoosh: '5e156c36', pulse: '3bdb43b5', fan: 'f3441840', seeker: 'cf789869', rail: '2cac85e0', shield: '951fdde4', 'shield-break': 'de47a98f', life: 'cc117f50', part: '4f76939e', upgrade: '140e99dc', win: 'fa554d4e',
     };
-    for (const [id, hash] of Object.entries({ ...unchanged, ...reworked })) expect(pcm(id), id).toBe(hash);
+    // 14 November: the Orbital Strike's rolling barrage replaced the Gravity Well's hum (docs/42).
+    const added = { 'orbital-strike': 'f0346c70' };
+    for (const [id, hash] of Object.entries({ ...unchanged, ...reworked, ...added })) expect(pcm(id), id).toBe(hash);
   });
   it('makes the player\'s shots short and sharp: gone within a fraction of a second, their energy up front', () => {
     for (const id of ['pulse', 'fan', 'seeker', 'rail'] as const) {

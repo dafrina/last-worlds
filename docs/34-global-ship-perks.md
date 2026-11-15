@@ -1,13 +1,15 @@
 # Global ship perks
 
+> 14 November 2026: the Interceptor's and the Spectre's perks were replaced (docs/42). The table shows the current ones.
+
 User decision, 30 October 2026. These perks apply to the selected chassis in **campaign and endless**. This explicitly replaces the earlier campaign-only perks/cosmetic-only endless chassis rule. Endless retains its starter main, special, shield array and weapon tier; it now keeps the equipped chassis and its perk. Part variants and paint remain cosmetic. Acquisition rules are unchanged.
 
 | Chassis | Perk | Behavior |
 | --- | --- | --- |
 | Scrapper | Salvage Rig | 40% wider pickup attraction. Weapon-swap pickups retain their intentional touch-to-select behavior. |
 | Ironclad | Reserve Life | One extra starting life above the mode/difficulty baseline. No extra shield or life restoration during play. |
-| Interceptor | Barrel Roll | Double-tap the same steering half or direction key within 280 ms: the ship dashes 5.6 units that way in 0.16 s (fast off the mark, easing out), drawn as one barrel roll over 0.3 s with speed streaks, then carries on at full steering speed (held) or brakes. 3 s between starts. It only moves the ship: no invulnerability, and the swept hit test still catches fire along the dash. Hit region unchanged. While a dash lasts the camera stays within 4.3 units of the ship (`dashCameraReach`), so the ship, wingtips included, never leaves the view at its row; ordinary steering's camera is untouched. (1.0 handover, 3 November: twice the old 2.8 units, same input, timing and cooldown. Encounter fairness never counts on the dash: every standard threat keeps a path reachable by ordinary steering.) (User, 30 October: "a quick sideswipe to evade quickly"; "the roll is just visual for the side dash". It was a 0.42 s invulnerable roll in place.) |
-| Spectre | Gravitic Shield | With shields remaining, catch one ordinary hostile bullet after a genuine near miss. It curves around the shield for 0.32 s, then flies toward the nearest visible forward enemy (straight ahead if none). 1.2 s between captures; no shield cost. |
+| Interceptor | Shred | Since 15 November (docs/42; it replaced the Barrel Roll, which fired by accident on fast taps): every main-weapon hit, on any enemy, spins the guns up 5% fire rate, up to +40%. Getting hit (a shield or a life) stops them, and so does a 0.5 s pause in firing; misses cost nothing. Damage per shot unchanged. Kills when spun up shatter, and the shots glow hotter and sound higher (render and audio only). |
+| Spectre | Gravity Slingshot | Since 14 November (docs/42; it replaced Gravitic Shield): with or without shields, a hostile shot whose closest approach passes within 0.5 outside the hit circle is caught, swung half round the ship in 0.32 s and flung back at the enemy that fired it (the nearest in view if that one is gone) as a homing shot of 25 damage. 0.4 s between catches. No protection: hits still count. |
 
 The Interceptor replaces the old special kill-charge bonus. Spectre replaces special-triggered firing overdrive. Neither new perk requires firing a special. There are no new HUD meters; the hangar selector and ship preview state each perk and its controls.
 

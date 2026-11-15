@@ -1,5 +1,39 @@
 # Build status
 
+## Specials and perks rework, Twin Pulse envelope, teal streams on Nahara (14-15 November 2026; docs/42, docs/39)
+
+- **Specials:**
+  - The **Orbital Strike** (600 credits, 2 parts, 60 s) replaces the Gravity Well. A barrage sweeps the view in 1.2 s
+    and destroys every enemy it passes, leaving their shots in the air. Boss targets take 15% of their stage.
+  - The **Siege Lance** burns hostile shots in its lane.
+- **Perks:**
+  - **Interceptor, Shred:** every main-weapon hit spins the guns up 5% fire rate, up to +40%; getting hit or a 0.5 s pause in
+    firing stops them.
+    The shots glow hotter and sound higher as they spin, and kills shatter. It replaces the Barrel Roll, and the
+    double-tap input is gone.
+  - **Spectre, Gravity Slingshot:** near-misses are flung back at their shooter for 25, with or without shields, every
+    0.4 s.
+- **Saves:** save version 6. A save that owned the Gravity Well owns the Orbital Strike; the original is backed up first.
+- **Firing envelope:** Twin Pulse 0.6 and Rail Driver 0.35 slack, so small steering corrections no longer stop them.
+- **Orbital Strike's barrage:** white impacts with a dark gray band trailing the front (High: drawn in the post composite
+  over the fog; Low: a smoke sheet).
+- **Nahara:** long teal streams on the canyon floors.
+- **Fairness:**
+  - Dying Star repeats 0.74 → 0.75, for two short seals the new timing exposed.
+  - **Open:** the director/trace mismatch behind them (docs/42 § Built).
+- **Tests:**
+  - perks and specials rewritten;
+  - save migration tests;
+  - audio pinned;
+  - no-hit seeds: Rolling Thunder 7, Endless 4;
+  - the Rolling Thunder clear ceiling raised for its ×1.3 boss.
+- **Gate:**
+  - typecheck clean;
+  - unit 1104 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.
+- **Not yet done:** the chassis measured against each other on the late missions. No phone test.
+
 ## Boss phases 40-25-35, site callouts only when the site comes, no dust devils (14 November 2026; docs/39, docs/40)
 
 - **Boss phases** (user: "The split should always be roughly 35-30-35", then "Or maybe 40-25-35 since double cores would

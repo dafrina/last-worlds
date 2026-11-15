@@ -1580,14 +1580,15 @@ ${VESPER_KIT_SURFACE}`)
     if (nextDetail !== snowDetail || walls) { snowDetail = nextDetail; apply(); }
     groundLook.detailContrast.value = vesper ? 0.9 : luna ? 0.6 : nacre ? 0.8 : .8;
     // Corona (docs/37) is Umbra's landform: its shapes (faults, crack relief, the abyss fog), in the star's heat.
-    const amnion = planet === 'amnion', corona = planet === 'corona', umbra = planet === 'umbra' || corona;
+    const amnion = planet === 'amnion', corona = planet === 'corona', umbra = planet === 'umbra' || corona, nahara = planet === 'nahara';
     groundLook.glowColor.value.copy(amnion ? linear(0xffd23a).multiplyScalar(1.7) : corona ? linear(0xff8a2a).multiplyScalar(2.2) : umbra ? linear(0x8a6cff).multiplyScalar(1.9) : linear(0x8ffcf0).multiplyScalar(0.75));
     groundLook.veinTint.value.set(...(amnion ? [0.2, 0.05, 0.02] : corona ? [0.008, 0.003, 0.001] : umbra ? [0.004, 0.003, 0.008] : [0.02, 0.16, 0.15]) as [number, number, number]);
-    groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : corona ? [0.14, 0.045, 0.01] : umbra ? [0.04, 0.025, 0.12] : [0.014, 0.055, 0.06]) as [number, number, number]);
+    groundLook.poolTint.value.set(...(amnion ? [0.12, 0.025, 0.012] : corona ? [0.14, 0.045, 0.01] : umbra ? [0.04, 0.025, 0.12] : nahara ? [0.03, 0.2, 0.18] : [0.014, 0.055, 0.06]) as [number, number, number]);
     // A dark flesh bed with the yolk in its crackle and a low glow of its own (a full glow read as a flat lava band).
     // (Umbra: a faint violet glow down in the canyon fog.)
-    groundLook.poolGlow.value = amnion ? 0.22 : corona ? 0.38 : umbra ? 0.3 : 0.12;
-    groundLook.poolCells.value = amnion ? 0.15 : 1;
+    // (Nahara: its canyon-floor streams are a glowing teal liquid, not a crystal bed; src/world/terrain-nahara.ts tealStream.)
+    groundLook.poolGlow.value = amnion ? 0.22 : corona ? 0.38 : umbra ? 0.3 : nahara ? 0.7 : 0.12;
+    groundLook.poolCells.value = amnion ? 0.15 : nahara ? 0 : 1;
     // Umbra's faults are thin glowing lines along its shattered plates.
     groundLook.veinWidth.value = amnion ? 3 : corona ? 1.6 : umbra ? 1.3 : 1;
     // Umbra's obsidian is glossy (docs/28: "obsidian black shiney surfaces"): it mirrors the eclipse's violet sky.

@@ -185,7 +185,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyScale> = {
 // flies Luna's settings, lost its clean path on Veteran.)
 // Measured: the late missions' pressure was capped by attackers dying before they repeated (attacks admitted a minute at
 // the expected level: Nacre 77, Amnion 86, Nahara 43, Umbra 57), so surviving enemies repeat sooner along the campaign.
-export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.75, 'cold-vector': 0.85, 'deep-bloom': 0.92, 'brood-strike': 0.66, 'dying-star': 0.74, 'silent-empire': 0.52, 'final-horizon': 0.52 };
+export const MISSION_CADENCE: Record<MissionId, number> = { training: 1.25, bastion: 0.75, 'cold-vector': 0.85, 'deep-bloom': 0.92, 'brood-strike': 0.66, 'dying-star': 0.75, 'silent-empire': 0.52, 'final-horizon': 0.52 };
 
 /** Threat cost per enemy for admission budgets (docs/03 §6). */
 export const THREAT_COST: Record<EnemyKind, number> = { dart: 1, weaver: 2, turret: 2, lancer: 3, needle: 2, diamond: 4, missile: 2, fuel: 0, pulsar: 3, wraith: 3, skimmer: 3, relic: 4 };
@@ -312,8 +312,14 @@ export const ENDLESS_RAMP = {
 export const WEAPONS: Record<WeaponId, {
   label: string; cadence: number; speed: number; range: number;
   damage: number; radius: number; angles: readonly number[]; offsets: readonly number[];
+  /**
+   * Firing envelope margin: a fixed gun fires at a target whose body comes within this much more of a shot's line (its own
+   * pattern is unchanged; it may miss). The Twin Pulse's (user, 14 November: "Sometimes it only fires when theres an enemy
+   * but misses because it stops shooting by moving slightly") keeps it firing through small steering corrections.
+   */
+  slack?: number;
 }> = {
-  pulse: { label: 'Twin Pulse', cadence: 0.125, speed: 30, range: 22, damage: 6, radius: 0.095, angles: [0, 0], offsets: [-0.2, 0.2] },
+  pulse: { label: 'Twin Pulse', cadence: 0.125, speed: 30, range: 22, damage: 6, radius: 0.095, angles: [0, 0], offsets: [-0.2, 0.2], slack: 0.6 },
   fan: { label: 'Fan Cannon', cadence: 1 / 3, speed: 26, range: 18, damage: 5, radius: 0.11, angles: [-12, -6, 0, 6, 12], offsets: [0, 0, 0, 0, 0] },
   // 24 October (user): "can you make the seeker missiles for the main weapon make less damage like the fan burst? there
   // should be incentive to use the other weapons": 18 → 12 a missile (75 → 50 damage a second, every shot homing), under an
@@ -322,7 +328,8 @@ export const WEAPONS: Record<WeaponId, {
   // Rail Driver (docs/32 §1, user 28 October): a slow, near-instant slug that pierces every target in its line. 64 damage
   // a second on a lone target, under Twin Pulse (96); each enemy lined up behind adds as much again. 40 a slug (the first
   // draft) out-killed Pulse on bosses too: the centred slug never misses where Pulse's offset twins partly do (docs/32 §1.7).
-  rail: { label: 'Rail Driver', cadence: 0.5, speed: 90, range: 21, damage: 32, radius: 0.12, angles: [0], offsets: [0] },
+  // (Slack 0.35, user, 15 November: "add for rail driver too": a narrow slug, so a little less than the Twin Pulse's.)
+  rail: { label: 'Rail Driver', cadence: 0.5, speed: 90, range: 21, damage: 32, radius: 0.12, angles: [0], offsets: [0], slack: 0.35 },
 };
 
 export const ENEMIES: Record<EnemyKind, {

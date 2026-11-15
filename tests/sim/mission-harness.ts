@@ -118,7 +118,8 @@ export function campaign(mission: MissionId) {
 export function planFor(visible: readonly WorldMission[], seed: number): Attempt {
   const has = (kind: WorldMission['rule']['kind']) => visible.some(def => def.rule.kind === kind);
   const ids = new Set(visible.map(def => def.id.split('.')[1]));
-  const attempt: Attempt = { seed, weapon: 'rail', rank: 2, special: 'gravity-well', specials: true, style: 'collect' };
+  // The Siege Lance: strong, and back every 40 s (the Orbital Strike's 60 s gives Specialist runs too few, docs/42).
+  const attempt: Attempt = { seed, weapon: 'rail', rank: 2, special: 'siege-lance', specials: true, style: 'collect' };
   const loadout = visible.find(def => (def.rule.kind === 'complete' || def.rule.kind === 'boss') && def.rule.weapons && !def.rule.weapons.includes('rail'))
     ?? visible.find(def => def.rule.kind === 'air-water');
   if (loadout?.rule.kind === 'air-water') attempt.weapon = loadout.rule.weapon;
@@ -141,7 +142,7 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
   if (visible.some(def => def.difficulty === 'veteran')) attempt.difficulty = 'veteran';
   if (has('reflected')) attempt.ship = 'spectre';
   // On a dedicated reflection run, keep targets alive for shield returns instead of
-  // burning the whole wave with a piercing Rail Driver and automatic Gravity Wells.
+  // burning the whole wave with a piercing Rail Driver and automatic specials.
   if (visible.length === 1 && has('reflected')) {
     return { seed, ship: 'spectre', weapon: 'pulse', rank: 0, specials: false, style: 'collect' };
   }
@@ -149,7 +150,7 @@ export function planFor(visible: readonly WorldMission[], seed: number): Attempt
   // Alternate a dedicated salvage sortie with the board's other objectives. A legal max-tier
   // loadout on Veteran can earn more per pickup and kill more of the wave before it exits.
   if (has('credits') && (seed % 2 === 0 || visible.length === 1)) {
-    return { seed, ship: 'scrapper', weapon: 'fan', rank: MAX_RANK, special: 'gravity-well',
+    return { seed, ship: 'scrapper', weapon: 'fan', rank: MAX_RANK, special: 'orbital-strike',
       specials: true, difficulty: 'veteran', style: 'coins' };
   }
   return attempt;

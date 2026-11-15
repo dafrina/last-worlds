@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, CAMPAIGN_V3_BACKUP_KEY, CAMPAIGN_V4_BACKUP_KEY, PROFILE_VERSION, awardOnce, freshProfile, campaignConfig, createCampaignProfile, itemPrice, rankPrice, unlockedMissions, type AttemptResult, type CampaignProfile } from '../../src/campaign/profile';
+import { CAMPAIGN_BACKUP_KEY, CAMPAIGN_KEY, CAMPAIGN_V2_BACKUP_KEY, CAMPAIGN_V3_BACKUP_KEY, CAMPAIGN_V4_BACKUP_KEY, CAMPAIGN_V5_BACKUP_KEY, PROFILE_VERSION, awardOnce, freshProfile, campaignConfig, createCampaignProfile, itemPrice, rankPrice, unlockedMissions, type AttemptResult, type CampaignProfile } from '../../src/campaign/profile';
 import { CAMPAIGN_ORDER, CREDIT_SCALE, RANK_PARTS, RANK_PRICES, REWARDS, SHIPS, SHIP_IDS, SPECIALS, STARTER, WEAPON_PRICES } from '../../src/content/equipment';
 import { HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_REMODELLED } from '../../src/content/hero-parts';
 import { createRun } from '../../src/sim/game';
@@ -101,7 +101,7 @@ describe('the shop (user, 3 November 2026): prices in credits and parts', () => 
     expect(RANK_PARTS).toEqual([0, 3, 5, 10]);
     expect([0, 1, 2, 3, 4].map(rankPrice)).toEqual([{ credits: 250, parts: 0 }, { credits: 500, parts: 3 }, { credits: 750, parts: 5 }, { credits: 1000, parts: 10 }, null]);
     expect(Object.fromEntries(Object.entries(SPECIALS).map(([id, s]) => [id, [s.price, s.parts]]))).toEqual({
-      'seeker-rack': [0, 0], 'siege-lance': [250, 1], shockwave: [450, 1], 'gravity-well': [350, 1] });
+      'seeker-rack': [0, 0], 'siege-lance': [250, 1], shockwave: [450, 1], 'orbital-strike': [600, 2] });
     expect(Object.fromEntries(SHIP_IDS.map(ship => [ship, itemPrice('ship', ship)]))).toEqual({
       scrapper: { credits: 0, parts: 0 }, ironclad: { credits: 0, parts: 4 }, interceptor: { credits: 0, parts: 4 }, spectre: { credits: 0, parts: 4 } });
     expect(itemPrice('shield', 'bulwark')).toEqual({ credits: 250, parts: 0 });
@@ -219,6 +219,29 @@ describe('selected weapon levels (user, 3 November 2026)', () => {
       store.settle(clear('x'));
       expect(storage.getItem(CAMPAIGN_KEY)).toBe(raw);
     }
+  });
+});
+
+describe('save version 6: the Gravity Well became the Orbital Strike (docs/42; the user: "Gravity well convert it")', () => {
+  it('a save that owned and flew the Gravity Well owns and flies the Orbital Strike; nothing else changes', () => {
+    const old = { ...freshProfile(), version: 5, credits: 120, parts: 3,
+      owned: { ...freshProfile().owned, special: ['seeker-rack', 'gravity-well', 'shockwave'] }, loadout: { ...freshProfile().loadout, special: 'gravity-well' } };
+    const raw = JSON.stringify(old), storage = memory(raw), store = createCampaignProfile(storage);
+    expect(store.status()).toBe('saved');
+    expect(storage.getItem(CAMPAIGN_V5_BACKUP_KEY)).toBe(raw);
+    const profile = store.read();
+    expect(profile).toEqual({ ...old, version: PROFILE_VERSION, owned: { ...old.owned, special: ['seeker-rack', 'orbital-strike', 'shockwave'] },
+      loadout: { ...old.loadout, special: 'orbital-strike' } });
+  });
+
+  it('an older save that owned the Orbital Strike already (no Gravity Well) is read unchanged but for the version', () => {
+    const old = { ...freshProfile(), version: 5, owned: { ...freshProfile().owned, special: ['seeker-rack', 'shockwave'] } };
+    expect(createCampaignProfile(memory(JSON.stringify(old))).read()).toEqual({ ...old, version: PROFILE_VERSION });
+  });
+
+  it('a current save naming the Gravity Well is not one: it stays unreadable rather than guessed at', () => {
+    const bad = { ...freshProfile(), owned: { ...freshProfile().owned, special: ['seeker-rack', 'gravity-well'] } };
+    expect(createCampaignProfile(memory(JSON.stringify(bad))).status()).toBe('unreadable');
   });
 });
 

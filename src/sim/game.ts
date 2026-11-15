@@ -11,11 +11,10 @@ import { runPlanet, showsHints } from '../content/missions';
 import { ENDLESS_LOADOUT, SHIP_IDS, SHIELD_IDS, SHIELD_TECH, SPECIALS, SPECIAL_IDS, STARTER, WEAPON_IDS, MAX_RANK, ENDLESS_TIER_CELLS, weaponRank, MAX_SHIELDS, SHIPS } from '../content/equipment';
 import { validLook } from '../content/hero-parts';
 import { updateEndless } from './endless';
-import { arenaScroll, resolveBossPhase, startBoss, updateBoss } from './boss';
+import { arenaScroll, bossStagePool, resolveBossPhase, startBoss, updateBoss } from './boss';
 import { spawnMembers } from './spawn';
 import { FORMATIONS } from '../content/formations';
 import { HUNTERS } from '../content/hunters';
-import { SHIP_PERKS } from '../content/ship-perks';
 import { airspaceClear, airspaceConflict, liveGroups, plannedMembers, resolveAnchor } from './airspace';
 import { DIAMOND_VOLLEY, RELIC_ARMOR, SHOT_TTL, aimAtPlayer, hostileShot, relicExposed, beamSpec, diamondSide, enemyShots, pulsarBurst, type BulletKind } from './attacks';
 import { admitAttack, playerKinematics } from './fairness';
@@ -24,9 +23,11 @@ import { projectGround } from './ground';
 import { absorbHunterShield, aceDropRoll, aceWeaponRoll, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
-import { catchNearMiss, orbitReflectedShot, sidestep, updateShipPerk } from './ship-perks';
+import { catchNearMiss, orbitReflectedShot, spinRate, spinUp } from './ship-perks';
+import { orbitalFront } from './orbital';
 import { observe, observeKill, observeThreads } from './events';
 import { retain } from '../shared/retain';
+import { SHIP_PERKS } from '../content/ship-perks';
 import { canAttack, isVisible } from './view';
 import { updateDrift } from './drift';
 
@@ -60,7 +61,7 @@ export function createRun(config: RunConfig): RunState {
     enemies: [], projectiles: [], hazards: [], pickups: [], effects: [],
     score: 0, kills: 0, credits: 0, livesLost: 0, specialsUsed: 0, parts: 0, sites: { destroyed: 0, shieldClaims: [] },
     nextId: 1, nextVolleyAt: 0, nextEncounterAt: 2, encounterIndex: 0,
-    chargeKillTimes: [], boss: null, lance: null, shockwave: null, well: null,
+    chargeKillTimes: [], boss: null, lance: null, shockwave: null, orbital: null,
     message: normalized.mode === 'endless' ? 'SECTOR 01 · LUNA' : MISSION_TITLES[normalized.mission ?? 'training'], messageUntil: 3,
   };
 }
@@ -74,7 +75,6 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   const previousTime = state.time;
   state.tick += 1;
   state.time += dt;
-  updateShipPerk(state, input, dt);
   updatePace(state, dt);
   movePlayer(state, input.horizontal, dt);
   updateDirector(state);
@@ -89,7 +89,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   fireMain(state);
   updateLance(state, dt);
   updateShockwave(state);
-  updateWell(state, dt);
+  updateOrbital(state);
   updateProjectiles(state, previousPlayerX, dt);
   observeThreads(state);
   resolveBossPhase(state);
@@ -147,22 +147,15 @@ function movePlayer(state: RunState, steer: number, dt: number): void {
   const player = state.player, horizontal = clamp(Number.isFinite(steer) ? steer : 0, -1, 1);
   // All ships share the same handling; endless scales it with pace.
   const movement = playerKinematics(state);
-  // An Interceptor sidestep overrides steering while it lasts (src/sim/ship-perks.ts); its speed is the ship's velocity, so
-  // the swept hit tests and the drawn bank follow it.
-  const dash = sidestep(state, dt);
-  player.vx = dash ? dash.dx / dt : approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
+  player.vx = approach(player.vx, horizontal * movement.speed, (horizontal === 0 ? movement.braking : movement.acceleration) * dt);
   const limit = VIEW.worldWidth / 2 - VIEW.playerRadius;
   player.x = clamp(player.x + player.vx * dt, -limit, limit);
-  // It ends at full steering speed, as if the ship had been steering that way: held, it carries on; released, it brakes.
-  if (dash?.done) player.vx = dash.direction * movement.speed;
   if (Math.abs(player.x) >= limit && Math.sign(player.vx) === Math.sign(player.x)) player.vx = 0;
   const offset = player.x - state.cameraX;
   let target = state.cameraX;
   if (Math.abs(offset) > BALANCE.camera.deadZone) target = player.x - Math.sign(offset) * BALANCE.camera.deadZone;
   const cameraLimit = (VIEW.worldWidth - VIEW.width) / 2;
   state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), movement.camera * dt);
-  // A sidestep outruns that follow: while it lasts the camera is held close enough that the ship stays in view.
-  if (dash) state.cameraX = clamp(clamp(state.cameraX, player.x - SHIP_PERKS.dashCameraReach, player.x + SHIP_PERKS.dashCameraReach), -cameraLimit, cameraLimit);
 }
 
 /** Starts an endless sector's playlist (called by the cycle driver when a sector begins). */
@@ -382,8 +375,6 @@ function updateEnemies(state: RunState, dt: number): void {
     } else if (enemy.age >= enemy.nextAttack && inFiringWindow(enemy, scale.firstAttack * worldIntensity(state).firstAttack, scale.airFirstShot) && state.time >= state.player.invulnerableUntil - 0.3) {
       // Readability caps: a bounded number of simultaneous windups and of marked beam lanes.
       if (windups >= scale.maxWindups) continue;
-      // Caught in a Gravity Well's core: no new attack until it is out (docs/32 §2.1).
-      if (inWellCore(state, enemy)) continue;
       // Hunters never wind up together: one hunter's attack at a time.
       if (enemy.hunter && state.enemies.some(other => other !== enemy && other.hunter && other.warning > 0)) { enemy.nextAttack = enemy.age + 0.4; continue; }
       // Needle beam rest: no new beam until the rest is over.
@@ -470,7 +461,7 @@ function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void
     const speed = ENEMIES.pulsar.shotSpeed * scale.shotSpeed * kinematics(state.pace).shot * WORLD_INTENSITY[state.planet].shot;
     const shots = pulsarBurst(enemy.x, enemy.s, state.player.x, speed, PULSAR_BURST.shots, PULSAR_BURST.interval);
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
-    for (const shot of shots) state.projectiles.push({ ...projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL), delay: shot.delay, track: true, source: enemy.id });
+    for (const shot of shots) state.projectiles.push({ ...projectile(state, shot.x, shot.s, shot.vx, shot.vs, false, 1, shot.radius, SHOT_TTL), delay: shot.delay, track: true, source: enemy.id, firedBy: enemy.id });
     return;
   }
   if (BEAM_KINDS.has(enemy.kind)) {
@@ -492,6 +483,7 @@ function emitAttack(state: RunState, enemy: Enemy, scale: DifficultyScale): void
   if (echo !== undefined) enemy.echoShot = echo - 1;
   for (const shot of shots) {
     const projectile = hostileShot(state.nextId++, shot);
+    projectile.firedBy = enemy.id;
     if (echo !== undefined && shot.delay) projectile.echo = echo;
     state.projectiles.push(projectile);
   }
@@ -510,7 +502,7 @@ export function acquireTarget(state: RunState, weaponId = state.player.weapon): 
       eligible = weaponSequence(weaponId, state.player.power).some(step => step.angles.some((angle, index) => {
         const x = state.player.x + step.offsets[index];
         return segmentCircleHit(x, MUZZLE, x + Math.sin(angle * DEG) * weapon.range, MUZZLE + Math.cos(angle * DEG) * weapon.range,
-          enemy.x, enemy.s, enemy.radius + weapon.radius) !== null;
+          enemy.x, enemy.s, enemy.radius + weapon.radius + (weapon.slack ?? 0)) !== null;
       }));
     }
     // Armed enemies come first; a harmless fuel skid is targeted only when nothing armed is in the envelope.
@@ -523,7 +515,11 @@ export function acquireTarget(state: RunState, weaponId = state.player.weapon): 
 function fireMain(state: RunState): void {
   if (state.time + 1e-8 < state.nextVolleyAt) return;
   const target = acquireTarget(state);
-  if (!target) return;
+  if (!target) {
+    // Nothing to fire at for a while: the Interceptor's spun-up guns stop (src/sim/ship-perks.ts).
+    if (state.time - state.nextVolleyAt > SHIP_PERKS.shredIdle) state.player.spin = 0;
+    return;
+  }
   const weaponId = state.player.weapon, rank = weaponRank(state.player.power);
   const weapon = WEAPONS[weaponId], sequence = weaponSequence(weaponId, rank);
   if (state.mainSequence?.weapon !== weaponId || state.mainSequence.rank !== rank) state.mainSequence = { weapon: weaponId, rank, index: 0 };
@@ -540,7 +536,8 @@ function fireMain(state: RunState): void {
     state.projectiles.push(shot);
   });
   state.mainSequence.index = (state.mainSequence.index + 1) % sequence.length;
-  state.nextVolleyAt = state.time + step.wait;
+  // The Interceptor's Shred spin fires faster (src/sim/ship-perks.ts); the pattern is unchanged.
+  state.nextVolleyAt = state.time + step.wait / spinRate(state);
 }
 
 function projectile(state: RunState, x: number, s: number, vx: number, vs: number, friendly: boolean, damage: number, radius: number, ttl: number): Projectile {
@@ -561,7 +558,8 @@ function updateProjectiles(state: RunState, previousPlayerX: number, dt: number)
     const activeDt = Math.min(dt, shot.ttl);
     if (orbitReflectedShot(state, shot, activeDt)) continue;
     if (shot.special) steerMissile(state, shot, activeDt);
-    else if (shot.homingTargetId !== undefined) {
+    // (A Gravity Slingshot return steers itself: src/sim/ship-perks.ts.)
+    else if (shot.homingTargetId !== undefined && !shot.reflected) {
       const target = state.enemies.find(enemy => enemy.id === shot.homingTargetId && enemy.hp > 0 && enemy.damageable !== false);
       if (target && isVisible(state, target.x, target.s, target.radius)) {
         const current = Math.atan2(shot.vx, shot.vs);
@@ -652,6 +650,8 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
   const player = state.player;
   if (state.phase !== 'playing' || state.time < player.invulnerableUntil) return;
   player.lastHitAt = state.time;
+  // A hit stops the Interceptor's spun-up guns.
+  player.spin = 0;
   if (state.events) observe(state, { type: 'hit', time: state.time, shield: player.shields > 0 });
   if (player.shields > 0) {
     player.shields = Math.max(0, player.shields - shieldCost);
@@ -681,6 +681,8 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
 /** `cause` is what landed the damage, for the run's observer only (src/sim/events.ts); the simulation never reads it. */
 function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: boolean, weapon: WeaponId | undefined, cause: KillCause): void {
   if (enemy.hp <= 0 || enemy.damageable === false) return;
+  // The Interceptor's Shred: every main-weapon hit spins its guns up (src/sim/ship-perks.ts).
+  if (mainWeapon) spinUp(state);
   addEffect(state, 'hit', enemy.x, enemy.s, 0.12);
   // A Relic Shield's closed armour lets only a share through (every source alike; docs/39).
   if (enemy.kind === 'relic' && !relicExposed(enemy, state.time)) damage *= RELIC_ARMOR.closedShare;
@@ -694,6 +696,9 @@ function damageEnemy(state: RunState, enemy: Enemy, damage: number, mainWeapon: 
   const reward = enemy.hunter ? HUNTERS.reward : 1;
   state.score += enemy.bossPart ? (enemy.bossPart === 'core' ? 5000 : 500) : ENEMIES[enemy.kind].score * reward;
   addEffect(state, 'explosion', enemy.x, enemy.s, 0.5);
+  // A main-weapon kill by a spun-up Interceptor shatters (render only): the faster the spin, the bigger the burst (0.4-0.8 s).
+  const spin = mainWeapon && state.config.ship === 'interceptor' ? (state.player.spin ?? 0) / SHIP_PERKS.shredCap : 0;
+  if (spin >= .25) addEffect(state, 'shred', enemy.x, enemy.s, 0.4 + 0.4 * spin);
   if (mainWeapon) {
     state.chargeKillTimes = state.chargeKillTimes.filter(time => state.time - time < 1);
     if (state.chargeKillTimes.length < 3) {
@@ -730,11 +735,11 @@ function useSpecial(state: RunState): void {
     setMessage(state, 'SIEGE LANCE', 1);
     return;
   }
-  if (special === 'gravity-well') {
-    // Fixed in the world where it was aimed: moving the ship or the camera never drags it along (like the Shockwave).
-    const well = SPECIALS['gravity-well'], armedAt = state.time + well.arm;
-    state.well = { x: state.player.x, s: well.ahead, startedAt: state.time, armedAt, until: armedAt + well.duration, swallowed: 0 };
-    setMessage(state, 'GRAVITY WELL', 1);
+  if (special === 'orbital-strike') {
+    // It sweeps the view it was called on, from the side away from the ship toward it (on the centre: left to right).
+    const direction: -1 | 1 = state.player.x - state.cameraX < 0 ? -1 : 1;
+    state.orbital = { startedAt: state.time, cameraX: state.cameraX, direction, hit: [] };
+    setMessage(state, 'ORBITAL STRIKE', 1);
     return;
   }
   state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + BALANCE.special.invulnerability);
@@ -823,57 +828,44 @@ function seekerTargets(state: RunState): Enemy[] {
 }
 
 /**
- * Whether a craft can be dragged by a Gravity Well (docs/32 §2.2): free air craft only. Ground targets, bosses and the
- * teleporting Wraith never move, and a craft winding up or firing stays where its attack was warned until it is done.
+ * Orbital Strike (docs/42): its front sweeps the view it was called on. Every enemy in that view the front has reached is
+ * destroyed once (whatever its armour or shield); a boss's open targets each take `bossShare` of their current stage's
+ * pool instead. Hostile shots are untouched. It ends when the front has crossed the view.
  */
-function pullable(enemy: Enemy): boolean {
-  return enemy.hp > 0 && !enemy.bossPart && !enemy.ground && !GROUND_KINDS.has(enemy.kind) && enemy.kind !== 'wraith'
-    && enemy.warning <= 0 && !enemy.lock;
-}
-/** Whether a target sits in an armed well's core, where it burns and cannot start an attack. */
-export function inWellCore(state: RunState, enemy: Enemy): boolean {
-  const well = state.well;
-  return !!well && state.time >= well.armedAt && Math.hypot(enemy.x - well.x, enemy.s - well.s) <= SPECIALS['gravity-well'].coreRadius + enemy.radius;
-}
-
-/**
- * Gravity Well (docs/32 §2): once armed, it drags free air craft in (hunters at half strength), burns targets in its
- * core and removes every hostile shot that comes within `swallowRadius`. A shot is never bent: it is either untouched or
- * gone. At the end it collapses, damaging each target in reach once.
- */
-function updateWell(state: RunState, dt: number): void {
-  const well = state.well;
-  if (!well || state.time < well.armedAt) return;
-  const spec = SPECIALS['gravity-well'];
-  const before = state.projectiles.length;
-  state.projectiles = state.projectiles.filter(shot => shot.friendly || Math.hypot(shot.x - well.x, shot.s - well.s) > spec.swallowRadius);
-  well.swallowed += before - state.projectiles.length;
-  const collapse = state.time >= well.until;
+function updateOrbital(state: RunState): void {
+  const orbital = state.orbital;
+  if (!orbital) return;
+  const spec = SPECIALS['orbital-strike'], elapsed = state.time - orbital.startedAt, front = orbitalFront(orbital, elapsed);
   for (const enemy of state.enemies) {
-    if (enemy.hp <= 0 || enemy.damageable === false || !isVisible(state, enemy.x, enemy.s, 0)) continue;
-    const dx = well.x - enemy.x, ds = well.s - enemy.s, distance = Math.hypot(dx, ds);
-    if (collapse) {
-      const reach = Math.max(0, distance - enemy.radius);
-      if (reach <= spec.collapseRadius) damageEnemy(state, enemy, spec.collapse * (1 - (1 - spec.collapseEdge) * reach / spec.collapseRadius), false, undefined, 'special');
-      continue;
+    if (enemy.hp <= 0 || enemy.damageable === false || orbital.hit.includes(enemy.id)) continue;
+    if (Math.abs(enemy.x - orbital.cameraX) > VIEW.width / 2 + enemy.radius || enemy.s < VIEW.minS || enemy.s > VIEW.maxS) continue;
+    if ((enemy.x - orbital.direction * enemy.radius - front) * orbital.direction > 0) continue;
+    orbital.hit.push(enemy.id);
+    if (enemy.bossPart) {
+      damageEnemy(state, enemy, spec.bossShare * bossStagePool(state, enemy), false, undefined, 'special');
+      if (enemy.bossPart === 'core' && enemy.hp <= 0) resolveBossPhase(state);
+    } else {
+      // Through any armour or hunter shield: the strike destroys what it reaches.
+      damageEnemy(state, enemy, ORBITAL_KILL, false, undefined, 'special');
     }
-    if (distance <= spec.coreRadius + enemy.radius) damageEnemy(state, enemy, spec.dps * dt, false, undefined, 'special');
-    if (!pullable(enemy) || distance >= spec.pullRadius || distance < 1e-3) continue;
-    // Strong through most of the reach, easing off only toward its edge: craft are visibly sucked in.
-    const speed = spec.pullSpeed * (1 - (distance / spec.pullRadius) ** 2) * (enemy.hunter ? 0.5 : 1);
-    const step = Math.min(speed * dt, Math.max(0, distance - 0.4)) / distance;
-    // Applied now and kept as an offset, so a craft flying an authored path carries on from where it was dragged.
-    enemy.x += dx * step; enemy.s += ds * step;
-    enemy.pull = { x: (enemy.pull?.x ?? 0) + dx * step, s: (enemy.pull?.s ?? 0) + ds * step };
   }
-  if (collapse) { addEffect(state, 'blast', well.x, well.s, 0.9); state.well = null; }
+  if (elapsed >= spec.sweep) state.orbital = null;
 }
+/** More than any enemy's health, armour and shield together: an Orbital Strike hit is a kill. */
+const ORBITAL_KILL = 1e6;
 
 /** Siege Lance: while active, its beam damages every target ahead whose body touches the lane over the ship. */
 function updateLance(state: RunState, dt: number): void {
   if (!state.lance) return;
   if (state.time >= state.lance.until) { state.lance = null; return; }
   const lance = SPECIALS['siege-lance'];
+  // It burns every hostile shot in its lane ahead of the ship, as far as the view (docs/42): "focused but obliterating".
+  const burnt = state.projectiles.filter(shot => !shot.friendly && shot.ttl > 0 && shot.s > MUZZLE && isVisible(state, shot.x, shot.s)
+    && Math.abs(shot.x - state.player.x) <= lance.width / 2 + shot.radius);
+  if (burnt.length) {
+    for (const shot of burnt) { shot.ttl = 0; addEffect(state, 'hit', shot.x, shot.s, 0.12); }
+    retain(state.projectiles, shot => shot.ttl > 0);
+  }
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.damageable === false || enemy.s <= MUZZLE || !isVisible(state, enemy.x, enemy.s, 0)) continue;
     if (Math.abs(enemy.x - state.player.x) <= lance.width / 2 + enemy.radius) damageEnemy(state, enemy, lance.dps * dt, false, undefined, 'special');

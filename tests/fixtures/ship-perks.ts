@@ -30,10 +30,10 @@ Object.assign(window, { __PERK_QA__: { reset, shot, advance, get state() { retur
 let before = performance.now(), lag = 0;
 function frame(now: number) {
   const controls = input.sample();
-  if (live || controls.horizontal || controls.dashPressed || controls.specialPressed) {
+  if (live || controls.horizontal || controls.specialPressed) {
     lag += Math.min((now - before) / 1000, .1);
     let first = true;
-    while (lag >= STEP) { stepRun(state, first ? controls : { ...controls, dashPressed: undefined, specialPressed: false }); first = false; lag -= STEP; }
+    while (lag >= STEP) { stepRun(state, first ? controls : { ...controls, specialPressed: false }); first = false; lag -= STEP; }
   } else lag = 0;
   before = now; renderer.render(state, 0); requestAnimationFrame(frame);
 }

@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { WEAPONS } from '../../src/content/balance';
 import { SPECIALS } from '../../src/content/equipment';
-import { FORMATIONS } from '../../src/content/formations';
 import { EMPTY_INPUT, STEP, type Enemy, type EnemyKind, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
 import { absorbHunterShield } from '../../src/sim/hunters';
-import { memberPosition, trackAfter } from '../../src/sim/motion';
 
-// docs/32: the Rail Driver (a piercing straight main weapon) and the Gravity Well (a special).
+// docs/32: the Rail Driver (a piercing straight main weapon); docs/42: the Orbital Strike, which replaced docs/32's Gravity
+// Well, and the Siege Lance's shot burning.
 const campaign = (extra: Partial<RunConfig>): RunState => {
   const state = createRun({ mode: 'campaign', seed: 3, mission: 'training', difficulty: 'standard', ...extra });
   state.nextEncounterAt = Infinity;
@@ -86,11 +85,10 @@ describe('Rail Driver', () => {
   });
 });
 
-describe('Gravity Well', () => {
-  const well = SPECIALS['gravity-well'];
-  /** Activates the well and holds main fire, so only the well acts. */
+describe('Orbital Strike (docs/42)', () => {
+  const orbital = SPECIALS['orbital-strike'];
+  /** Calls the strike and holds main fire, so only the strike acts. */
   const activate = (state: RunState) => { state.nextVolleyAt = Infinity; stepRun(state, { ...EMPTY_INPUT, specialPressed: true }); };
-  /** Steps with main fire held; `pinned` targets are put back each step (the legacy fixtures otherwise fly their motion). */
   const run = (state: RunState, seconds: number, pinned: Enemy[] = []) => {
     const at = pinned.map(e => [e.x, e.s] as const);
     for (let i = 0; i < Math.round(seconds / STEP); i++) {
@@ -103,73 +101,71 @@ describe('Gravity Well', () => {
     state.projectiles.push(shot); return shot;
   };
 
-  it('removes hostile shots that come within reach and never bends any other shot', () => {
-    const state = campaign({ special: 'gravity-well' });
-    activate(state);
-    run(state, well.arm);
-    const inside = hostile(state, 0, well.ahead + 1), outside = hostile(state, 5, well.ahead);
-    stepRun(state, EMPTY_INPUT);
-    expect(state.projectiles).not.toContain(inside);
-    expect(state.projectiles).toContain(outside);
-    expect([outside.vx, outside.vs]).toEqual([0, -.5]);
-    expect(state.well!.swallowed).toBe(1);
+  it('costs 600 and 2 parts, recharges in 60 s and sweeps the view in 1.2 s (user, 14 November)', () => {
+    expect([orbital.price, orbital.parts, orbital.recharge, orbital.sweep]).toEqual([600, 2, 60, 1.2]);
+    const prices = Object.values(SPECIALS).map(special => special.price);
+    expect(orbital.price).toBe(Math.max(...prices));
   });
 
-  it('drags free air craft, but never ground targets, boss parts or a craft winding up', () => {
-    const state = campaign({ special: 'gravity-well' });
-    const air = target(state, 2.5, well.ahead, {}, 'dart'), ground = target(state, -2.5, well.ahead);
-    const part = target(state, 0, well.ahead + 3, { bossPart: 'left' }), windup = target(state, 2.5, well.ahead + 2, { warning: 99, nextAttack: Infinity }, 'dart');
-    // Neutralise authored flight so only the well moves anything.
-    const stay = () => { for (const e of [air, windup]) e.s = e === air ? well.ahead : well.ahead + 2; };
+  it('destroys every enemy in the view it was called on, armour and shields included, and leaves their shots', () => {
+    const state = campaign({ special: 'orbital-strike' });
+    const plain = target(state, -4, 6), relic = target(state, 0, 12, { hp: 190, maxHp: 190 }, 'relic');
+    const ace = target(state, 4, 15, { hunter: { key: 1, shield: 9999, perCharge: 100, vx: 0, vs: 0, tx: 4, ts: 15, retarget: Infinity, waypoint: 0 } }, 'dart');
+    const beyond = target(state, 9, 6);
+    const shots = [hostile(state, -3, 8), hostile(state, 3, 10)];
     activate(state);
-    for (let i = 0; i < 60; i++) { state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT); stay(); }
-    expect(air.x).toBeLessThan(2.5);
-    expect(air.pull?.x).toBeLessThan(0);
-    expect(ground.x).toBe(-2.5);
-    expect([part.x, part.s]).toEqual([0, well.ahead + 3]);
-    expect(windup.x).toBe(2.5);
+    run(state, orbital.sweep + .1, [plain, relic, ace, beyond]);
+    expect([plain, relic, ace].every(enemy => enemy.hp <= 0)).toBe(true);
+    expect(beyond.hp).toBe(1000);
+    for (const shot of shots) expect(state.projectiles).toContain(shot);
+    expect(state.orbital).toBeNull();
   });
 
-  it('keeps a formation craft\'s drag as an offset on its authored path', () => {
-    const template = Object.keys(FORMATIONS)[0];
-    const formation = { template, slot: 0, anchorX: 0, mirror: 1 as const, group: 1 };
-    const enemy = { kind: 'dart', age: 1, formation, pull: { x: .7, s: -.4 } } as Enemy;
-    const path = memberPosition(formation, 1.5), moved = trackAfter(enemy, .5);
-    expect(moved.x).toBeCloseTo(path.x + .7, 9);
-    expect(moved.s).toBeCloseTo(path.s - .4, 9);
+  it('sweeps from the side away from the ship toward it', () => {
+    const state = campaign({ special: 'orbital-strike' });
+    state.player.x = -3;
+    const near = target(state, -5, 8), far = target(state, 5, 8);
+    activate(state);
+    expect(state.orbital!.direction).toBe(-1);
+    let farFirst = false;
+    for (let i = 0; i < Math.round(orbital.sweep / STEP) + 2; i++) {
+      run(state, STEP, [near, far]);
+      if (far.hp <= 0 && near.hp > 0) farFirst = true;
+    }
+    expect(farFirst).toBe(true);
+    expect(near.hp).toBeLessThanOrEqual(0);
   });
 
-  it('burns its core, then collapses once with falloff, and clears itself', () => {
-    const state = campaign({ special: 'gravity-well' });
-    const centre = target(state, 0, well.ahead), edge = target(state, 3.2, well.ahead);
+  it("takes a boss target's share of its current stage, never more, and never kills it outright", () => {
+    const state = campaign({ special: 'orbital-strike' });
+    const pod = target(state, -2, 10, { bossPart: 'left', hp: 1000, maxHp: 1000 });
     activate(state);
-    run(state, well.arm + well.duration + .2, [centre, edge]);
-    expect(state.well).toBeNull();
-    // Edge: 2.6 from the centre to its body, outside the core: collapse only, at 1 − 0.5 × 2.6 / 3 of full (it scrolls
-    // 0.08 within the collapse step, hence ±0.5).
-    expect(1000 - edge.hp).toBeCloseTo(well.collapse * (1 - (1 - well.collapseEdge) * 2.6 / well.collapseRadius), 0);
-    expect(Math.abs(1000 - centre.hp - (well.dps * well.duration + well.collapse))).toBeLessThanOrEqual(well.dps * STEP * 2 + 1e-6);
-  });
-
-  it('a craft in its core starts no attack', () => {
-    const state = campaign({ special: 'gravity-well' });
-    const caught = target(state, 0, well.ahead, {}, 'dart');
-    activate(state);
-    caught.s = well.ahead;
-    run(state, well.arm, [caught]);
-    caught.nextAttack = 0;
-    for (let i = 0; i < 60; i++) { run(state, STEP, [caught]); expect(caught.warning).toBe(0); }
-    // Out of the core, the same craft attacks again.
-    state.well = null;
-    run(state, .1, [caught]);
-    expect(caught.warning).toBeGreaterThan(0);
+    run(state, orbital.sweep + .1, [pod]);
+    expect(1000 - pod.hp).toBeCloseTo(orbital.bossShare * 1000, 6);
   });
 
   it('never moves the ship or changes its protection', () => {
-    const state = campaign({ special: 'gravity-well' });
+    const state = campaign({ special: 'orbital-strike' });
     const before = { x: state.player.x, shields: state.player.shields, lives: state.player.lives, invulnerableUntil: state.player.invulnerableUntil };
     activate(state);
     expect({ x: state.player.x, shields: state.player.shields, lives: state.player.lives, invulnerableUntil: state.player.invulnerableUntil }).toEqual(before);
-    expect(state.well).toMatchObject({ x: 0, s: well.ahead });
+  });
+});
+
+describe('Siege Lance burns shots (docs/42)', () => {
+  it('destroys hostile shots in its lane ahead of the ship, and only there', () => {
+    const state = campaign({ special: 'siege-lance' });
+    const shot = (x: number, s: number) => {
+      const p = { id: state.nextId++, x, s, previousX: x, previousS: s, vx: 0, vs: -.2, friendly: false, damage: 1, radius: .1, ttl: 30 };
+      state.projectiles.push(p); return p;
+    };
+    const inLane = [shot(0, 4), shot(.3, 12), shot(-.4, 18)], aside = shot(1.5, 6);
+    state.nextVolleyAt = Infinity; stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
+    for (const p of inLane) expect(state.projectiles).not.toContain(p);
+    expect(state.projectiles).toContain(aside);
+    // While it lasts, a shot entering the lane burns too.
+    const late = shot(0, 10);
+    state.nextVolleyAt = Infinity; stepRun(state, EMPTY_INPUT);
+    expect(state.projectiles).not.toContain(late);
   });
 });

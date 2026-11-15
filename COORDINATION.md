@@ -1056,3 +1056,19 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - build passes;
   - browser 55 of 55.
 - **Deployed** `b45ed7f` (Pages run 43591281460; the live bundle matches).
+
+**15 November · Claude Code (main session) · specials and perks rework (docs/42), Twin Pulse/Rail slack, Nahara teal streams, deploying.**
+- **Contents:**
+  - the Orbital Strike replaces the Gravity Well (`SpecialId` changed; save version 6 renames it);
+  - the Lance burns shots;
+  - Interceptor Shred: a fire-rate spin-up;
+  - Spectre Gravity Slingshot;
+  - the Barrel Roll and its double-tap input removed;
+  - the post pipeline's lens removed, and its pall added;
+  - `firedBy` on hostile shots;
+  - Dying Star repeats 0.75.
+- **Gate:**
+  - typecheck clean;
+  - unit 1104 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.

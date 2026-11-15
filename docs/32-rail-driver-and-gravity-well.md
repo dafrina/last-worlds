@@ -1,5 +1,8 @@
 # 32 · Rail Driver and Gravity Well
 
+> 14 November 2026: the Gravity Well was retired and replaced by the Orbital Strike (docs/42; the user: "too similar to
+> shockwave"). Saves that owned it own the Orbital Strike (save version 6). The Rail Driver is unchanged.
+
 Status: approved by the user on 28 October 2026 ("i love that, implement it. i also like the gravity well idea"), and
 **implemented on 28 October** (§7 lists what was built and measured). Numbers are tuned against the scripted pilot only.
 They have not been tuned in human play.

@@ -1,5 +1,6 @@
 import { VIEW, type RunState } from '../shared/contracts';
 import type { Sound } from './samples';
+import { SHIP_PERKS } from '../content/ship-perks';
 
 /** `transpose`: semitones, for a sound played in a key (the success resolve in the world's). */
 export interface Cue { sound: Sound; pan: number; gain: number; variant: number; transpose?: number }
@@ -38,7 +39,13 @@ export class SoundObserver {
     const cue = (sound: Sound, x = state.player.x, gain = 1, variant = state.tick) =>
       events.push({ sound, pan: Math.max(-.65, Math.min(.65, (x - state.cameraX) / VIEW.width)), gain, variant });
     const visible = (x: number, s: number) => Math.abs(x - state.cameraX) < VIEW.width / 2 + 1 && s >= VIEW.minS && s <= VIEW.maxS;
-    if (state.nextVolleyAt > this.volley) cue(state.player.weapon);
+    // The Interceptor's Shred spin (docs/42; user: "sound needs adjust too"): the faster the guns fire, the higher and lighter
+    // each shot, so the stream rises into a whine instead of piling up louder.
+    if (state.nextVolleyAt > this.volley) {
+      const spin = state.config.ship === 'interceptor' ? Math.min(1, (state.player.spin ?? 0) / SHIP_PERKS.shredCap) : 0;
+      if (spin > 0) events.push({ sound: state.player.weapon, pan: 0, gain: 1 - .35 * spin, variant: state.tick, transpose: 4 * spin });
+      else cue(state.player.weapon);
+    }
     const active = state.projectiles.filter(p => !p.delay || p.delay <= 0);
     const incoming = active.find(p => !p.friendly && !this.shots.has(p.id) && visible(p.x, p.s));
     if (incoming) cue('enemy', incoming.x, .65, incoming.id);

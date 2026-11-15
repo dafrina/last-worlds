@@ -48,6 +48,16 @@ function bossDef(state: RunState): BossDefinition {
   return BOSSES[state.boss!.id];
 }
 
+/**
+ * A boss target's current stage pool (the Orbital Strike's share is taken of it, docs/42): a first-phase target's whole
+ * health; the core's share before its overload, or the share left for its final stage.
+ */
+export function bossStagePool(state: RunState, target: Enemy): number {
+  if (target.bossPart !== 'core' || !state.boss) return target.maxHp;
+  const fraction = bossDef(state).overloadFraction;
+  return target.maxHp * (state.boss.phase === 'overload' ? fraction : 1 - fraction);
+}
+
 /** Pause after each boss attack: the authored recovery, scaled by the endless cadence ramp in endless. */
 function bossRecovery(state: RunState): number {
   const def = bossDef(state), base = state.boss?.phase === 'overload' ? def.overloadRecovery ?? def.recovery : def.recovery;
@@ -291,7 +301,7 @@ function emit(state: RunState, enemy: Enemy) {
   if (boss.attack && boss.attack !== 'beam') {
     const shots = bossShots(bossDef(state), boss.attack, enemy.x, enemy.s, enemy.aimX, bossShotScale(state), enemy.bossPart === 'core');
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
-    for (const shot of shots) state.projectiles.push(hostileShot(state.nextId++, shot));
+    for (const shot of shots) state.projectiles.push({ ...hostileShot(state.nextId++, shot), firedBy: enemy.id });
   }
 }
 
