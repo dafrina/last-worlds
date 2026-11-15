@@ -32,7 +32,8 @@ export type CoronaKitKind = 'corExtractor' | 'corCollector' | 'corHangar' | 'cor
  * (public/assets/vesper/cliff-kit.glb).
  */
 /** Nahara's sandstone ruins (nahara-kit.glb, docs/39, tools/blender/nahara_kit.py). */
-export type NaharaKitKind = 'nahTower' | 'nahGate' | 'nahPillar' | 'nahArch' | 'nahSpur' | 'nahRing' | 'nahBlocks' | 'nahAqueduct' | 'nahAqPier';
+export type NaharaKitKind = 'nahTower' | 'nahGate' | 'nahPillar' | 'nahArch' | 'nahSpur' | 'nahRing' | 'nahBlocks' | 'nahAqueduct' | 'nahAqPier'
+  | 'nahDrums' | 'nahStub' | 'nahFooting' | 'nahDebris' | 'nahRelic';
 export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall' | 'voidWall' | 'nahWall';
 export type KitKind = KhepriKitKind | VesperKitKind | NacreKitKind | AmnionKitKind | UmbraKitKind | CoronaKitKind | NaharaKitKind | CliffKitKind;
 /** Khepri's kit (khepri-kit.glb). */
@@ -45,7 +46,8 @@ export const AMNION_CLIFF_KINDS: readonly CliffKitKind[] = ['fleshWall'];
 export const AMNION_KIT_KINDS: readonly AmnionKitKind[] = ['eggClutch', 'boneSpire', 'nest', 'boneShards', 'broodNest', 'hive', 'broodRuin', 'sinewWeb'];
 export const UMBRA_CLIFF_KINDS: readonly CliffKitKind[] = ['voidWall'];
 export const NAHARA_CLIFF_KINDS: readonly CliffKitKind[] = ['nahWall'];
-export const NAHARA_KIT_KINDS: readonly NaharaKitKind[] = ['nahTower', 'nahGate', 'nahPillar', 'nahArch', 'nahSpur', 'nahRing', 'nahBlocks', 'nahAqueduct', 'nahAqPier'];
+export const NAHARA_KIT_KINDS: readonly NaharaKitKind[] = ['nahTower', 'nahGate', 'nahPillar', 'nahArch', 'nahSpur', 'nahRing', 'nahBlocks', 'nahAqueduct', 'nahAqPier',
+  'nahDrums', 'nahStub', 'nahFooting', 'nahDebris', 'nahRelic'];
 export const CORONA_KIT_KINDS: readonly CoronaKitKind[] = ['corExtractor', 'corCollector', 'corHangar', 'corRefinery', 'corGantry', 'corDome'];
 export const UMBRA_KIT_KINDS: readonly UmbraKitKind[] = ['umbHill', 'umbPeak', 'umbSpire', 'umbShards', 'umbFloat', 'umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbPad', 'umbDock'];
 export const NACRE_KIT_KINDS: readonly NacreKitKind[] = ['mireRock', 'mireCrag', 'lotus', 'lotusGrove', 'glassTube', 'goblet', 'lilyRaft', 'mossTuft',
@@ -129,6 +131,14 @@ export const KIT: Readonly<Record<KitKind, {
   nahAqPier: { prefix: 'nah_aqpier', variants: 1, halfX: 0.15, halfZ: 0.27, height: 1, exactTop: true, radius: 0.3 },
   nahRing: { prefix: 'nah_ring', variants: 1, halfX: 0.8, halfZ: 0.25, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.25) },
   nahBlocks: { prefix: 'nah_blocks', variants: 3, halfX: 0.6, halfZ: 0.6, height: 0.6, exactTop: false, radius: Math.hypot(0.6, 0.6) },
+  // The canyon floor's fallen city (15 November, tools/blender/nahara_kit.py): low pieces at real size (a fallen column in its
+  // drums, a foundation's courses, rubble fields, the empire's relics) and stumps topping out at exactly 1 (an obelisk over
+  // its plinth, column stumps on their stylobate); halves measured from the kit.
+  nahDrums: { prefix: 'nah_drums', variants: 2, halfX: 0.95, halfZ: 0.5, height: 0.4, exactTop: false, radius: Math.hypot(0.95, 0.5) },
+  nahStub: { prefix: 'nah_stub', variants: 2, halfX: 0.7, halfZ: 0.5, height: 1, exactTop: true, radius: Math.hypot(0.7, 0.5) },
+  nahFooting: { prefix: 'nah_footing', variants: 2, halfX: 0.95, halfZ: 0.95, height: 0.45, exactTop: false, radius: Math.hypot(0.95, 0.95) },
+  nahDebris: { prefix: 'nah_debris', variants: 3, halfX: 0.95, halfZ: 0.6, height: 0.3, exactTop: false, radius: Math.hypot(0.95, 0.6) },
+  nahRelic: { prefix: 'nah_relic', variants: 2, halfX: 0.85, halfZ: 0.4, height: 1, exactTop: false, radius: Math.hypot(0.85, 0.4) },
   corExtractor: { prefix: 'cor_extractor', variants: 1, halfX: 0.8, halfZ: 0.75, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.75) },
   corCollector: { prefix: 'cor_collector', variants: 1, halfX: 0.66, halfZ: 0.51, height: 1, exactTop: true, radius: Math.hypot(0.66, 0.51) },
   corHangar: { prefix: 'cor_hangar', variants: 1, halfX: 0.8, halfZ: 0.68, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.68) },
