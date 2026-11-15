@@ -1,5 +1,17 @@
 # Build status
 
+## Title theme, fourth take, and plainer perk texts deployed (`b928304`), 15 November 2026
+
+- **Tuning measured and fixed:** the per-note scoops (15–22 cents flat) and slur glides (up to 74 cents) are removed; notes land within a few cents.
+- **A familiar heroic melody in D natural minor:** a 1-5-8 call, a 3-2-1 answer, an F-G-A climax and a 5-7-8 homecoming.
+- **The lead:** a three-player horn section with horn resonances, breath and lip attacks and its own early reflections, with strings an octave down.
+- **Ship perk texts:** "Active in both modes." is removed from all four. The hangar scope still reads CAMPAIGN AND ENDLESS.
+- **Deployed at the user's request ("deploy it"), before the full browser gate finished.**
+  - On `b928304`: typecheck clean; ship-perk, campaign and UI unit tests pass; `ship-perks.spec.ts` 3/3 on an isolated server.
+  - The agent's run of the theme: unit 1112, build, `audio.spec` 8/8.
+  - The full gate on the theme merge `282d0cd` was still running at deploy time.
+- **Live:** Pages run 43766233563 succeeded; the live bundle is `main-xrR1eu9l.js`; the live `storage` chunk reads "40% wider pickup attraction." with no "both modes"; the smoke test reports no errors. No phone test.
+
 ## Title theme polish deployed (`827b2f4`), 15 November 2026
 
 - **Bar ends:**
