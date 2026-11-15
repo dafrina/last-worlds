@@ -8,7 +8,9 @@ export interface AudioSettings { muted: boolean; music: number; effects: number 
 /** The level score, the additive boss stem (its own pool, so it can never thin the score), combat effects, the title
  * theme (its own pool and fader, so it can fade in and out over a launch) and the menu's sounds. */
 type Group = 'music' | 'boss' | 'effects' | 'menu' | 'ui';
-interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; start: number; end: number }
+interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; tone?: BiquadFilterNode; group: Group; priority: number; start: number; end: number }
+/** A title-theme note's extras (see `Note`): its release, brightness and bus. */
+interface Extra { hold?: number; tone?: number; lead?: boolean }
 /** Effect levels. 11 November: the player's shots much lower (user: "a bit too much and too loud"), the new alarm,
  * part clank and warp whoosh set against the sounds they sit with. */
 const LEVELS: Record<Sound, number> = {
@@ -81,6 +83,15 @@ export class AudioMixer {
   /** The title theme's fader (`setMenuMix`) and the menu's sounds, which bypass the master gate: they sound in a paused
    * flight's menu too. */
   private menu: GainNode;
+  /** The title theme's own mix: its accompaniment (a dip around 2 kHz leaves the lead room), the lead with its
+   * doublings, their hall sends (the lead's pre-delayed, so it stays defined) and their ensemble, all under one glue
+   * compressor and the fader, which also carries the sends (15 November polish). */
+  private menuBed: GainNode;
+  private menuLead: GainNode;
+  private menuSends: GainNode[] = [];
+  private menuWet: GainNode;
+  private menuLeadWet: GainNode;
+  private menuEnsemble: GainNode;
   private ui: GainNode;
   private lastDuck = { at: -1, depth: 0 };
   private boss: GainNode;
@@ -112,7 +123,13 @@ export class AudioMixer {
     this.bed = gain(1); this.bed.connect(this.music);
     this.keyed = { music: gain(1), boss: gain(1), menu: gain(1) };
     this.keyed.music.connect(this.bed);
-    this.menu = gain(0); this.menu.connect(this.music); this.keyed.menu.connect(this.menu);
+    this.menu = gain(0); this.menu.connect(this.music);
+    const menuGlue = context.createDynamicsCompressor();
+    menuGlue.threshold.value = -14; menuGlue.knee.value = 8; menuGlue.ratio.value = 2; menuGlue.attack.value = .025; menuGlue.release.value = .3;
+    menuGlue.connect(this.menu); this.nodes.push(menuGlue);
+    const carve = filter('peaking', 2200, .8); carve.gain.value = -3.5;
+    this.menuBed = gain(1); this.menuBed.connect(carve).connect(menuGlue); this.keyed.menu.connect(this.menuBed);
+    this.menuLead = gain(1); this.menuLead.connect(filter('highpass', 90, .6)).connect(menuGlue);
     // The boss stem has its own gentle bus compressor: it only rounds off the drum and brass peaks so they do not push
     // the shared master compressor (which would pump the combat sounds). Slow enough to let every hit through first.
     this.boss = gain(0);
@@ -158,16 +175,25 @@ export class AudioMixer {
     this.nodes.push(this.reverb);
     // Stereo ensemble for sustained pads and strings: two short delays, one per side, slowly modulated at different
     // rates. It adds width and movement without any phase-inverted widening.
-    this.ensemble = gain(.32);
-    const sides = context.createChannelMerger(2);
-    for (const [side, ms, rate, depth] of [[0, 12.3, .17, 1.7], [1, 17.1, .23, 2.1]] as const) {
-      const line = context.createDelay(.05), lfo = context.createOscillator(), amount = gain(depth / 1000);
-      line.delayTime.value = ms / 1000; lfo.frequency.value = rate;
-      lfo.connect(amount).connect(line.delayTime); lfo.start();
-      this.ensemble.connect(line).connect(sides, 0, side);
-      this.nodes.push(line, lfo); this.lfos.push(lfo);
-    }
-    sides.connect(this.music); this.nodes.push(sides);
+    const ensemble = (into: AudioNode) => {
+      const input = gain(.32), sides = context.createChannelMerger(2);
+      for (const [side, ms, rate, depth] of [[0, 12.3, .17, 1.7], [1, 17.1, .23, 2.1]] as const) {
+        const line = context.createDelay(.05), lfo = context.createOscillator(), amount = gain(depth / 1000);
+        line.delayTime.value = ms / 1000; lfo.frequency.value = rate;
+        lfo.connect(amount).connect(line.delayTime); lfo.start();
+        input.connect(line).connect(sides, 0, side);
+        this.nodes.push(line, lfo); this.lfos.push(lfo);
+      }
+      sides.connect(into); this.nodes.push(sides);
+      return input;
+    };
+    this.ensemble = ensemble(this.music);
+    // The title theme's sends follow its fader (the hall returns outside it); the lead's reaches the hall 35 ms later.
+    this.menuWet = gain(0); this.menuWet.connect(this.reverb);
+    const preDelay = context.createDelay(.1); preDelay.delayTime.value = .035; this.nodes.push(preDelay);
+    this.menuLeadWet = gain(0); this.menuLeadWet.connect(preDelay).connect(this.reverb);
+    this.menuSends = [this.menuWet, this.menuLeadWet];
+    this.menuEnsemble = ensemble(menuGlue);
   }
   private buffer(id: SampleId) {
     let buffer = this.buffers.get(id);
@@ -207,9 +233,11 @@ export class AudioMixer {
   }
   /** The title theme's fader: in over a few seconds when the menu shows, out over a launch's warp. */
   setMenuMix(target: number, seconds: number, at = this.context.currentTime) {
-    this.menu.gain.cancelAndHoldAtTime(at);
-    if (seconds > 0) this.menu.gain.linearRampToValueAtTime(target, at + seconds);
-    else this.menu.gain.setValueAtTime(target, at);
+    for (const node of [this.menu, ...this.menuSends]) {
+      node.gain.cancelAndHoldAtTime(at);
+      if (seconds > 0) node.gain.linearRampToValueAtTime(target, at + seconds);
+      else node.gain.setValueAtTime(target, at);
+    }
   }
   menuMix() { return this.menu.gain.value; }
   bossMixAt(at = this.context.currentTime) {
@@ -237,7 +265,7 @@ export class AudioMixer {
   private release(voice: Voice) {
     const index = this.voices.indexOf(voice);
     if (index >= 0) this.voices.splice(index, 1);
-    voice.source.disconnect(); voice.gain.disconnect(); voice.pan?.disconnect(); voice.send?.disconnect();
+    voice.source.disconnect(); voice.gain.disconnect(); voice.pan?.disconnect(); voice.send?.disconnect(); voice.tone?.disconnect();
   }
   private stopVoice(voice: Voice, at = this.context.currentTime) {
     this.ramp(voice.gain.gain, 0, .003, at);
@@ -245,7 +273,7 @@ export class AudioMixer {
     // Disconnect onended; keeping the fade avoids a discontinuity when stealing a voice.
   }
   private play(id: SampleId, at: number, rate: number, volume: number, pan: number, group: Group, priority: number, wet = 0, skip = 0,
-    bend?: Note['bend'], part?: string) {
+    bend?: Note['bend'], part?: string, extra: Extra = {}) {
     const fader = group === 'effects' || group === 'ui' ? this.settings.effects : this.settings.music;
     if ((!this.active && group !== 'ui') || this.settings.muted || fader === 0) return false;
     this.voices.filter(v => v.end <= this.context.currentTime).forEach(v => this.release(v));
@@ -270,22 +298,32 @@ export class AudioMixer {
     }
     gain.gain.value = panner ? volume : volume * Math.SQRT1_2;
     if (panner) panner.pan.value = pan;
-    const out: AudioNode = panner ? source.connect(gain).connect(panner) : source.connect(gain);
-    const keyed = group !== 'effects' && group !== 'ui' && KEYED.has(id as Instrument);
+    // A title-theme note's brightness: a low-pass on its own voice.
+    const tone = extra.tone ? this.context.createBiquadFilter() : undefined;
+    if (tone) { tone.type = 'lowpass'; tone.frequency.value = extra.tone!; tone.Q.value = .6; }
+    const head: AudioNode = tone ? source.connect(tone) : source;
+    const out: AudioNode = panner ? head.connect(gain).connect(panner) : head.connect(gain);
+    const menu = group === 'menu', lead = menu && extra.lead === true;
+    const keyed = group !== 'effects' && group !== 'ui' && !lead && KEYED.has(id as Instrument);
     out.connect(group === 'music' ? keyed ? this.keyed.music : this.bed : group === 'boss' ? keyed ? this.keyed.boss : this.boss
-      : group === 'menu' ? keyed ? this.keyed.menu : this.menu : group === 'ui' ? this.ui : this.effects);
-    const voice: Voice = { id, part, source, gain, pan: panner, group, priority, start: at, end: at + (source.buffer.duration - skip) / rate };
+      : menu ? lead ? this.menuLead : keyed ? this.keyed.menu : this.menuBed : group === 'ui' ? this.ui : this.effects);
+    const length = (source.buffer.duration - skip) / rate;
+    const voice: Voice = { id, part, source, gain, pan: panner, tone, group, priority, start: at, end: at + length };
     if (wet > 0 && group !== 'effects' && group !== 'ui') {
       const send = this.context.createGain(); send.gain.value = wet;
-      out.connect(send).connect(this.reverb); voice.send = send;
+      out.connect(send).connect(menu ? lead ? this.menuLeadWet : this.menuWet : this.reverb); voice.send = send;
     }
-    if (group !== 'effects' && group !== 'ui' && ENSEMBLE.has(id as Instrument)) out.connect(this.ensemble);
+    if (group !== 'effects' && group !== 'ui' && ENSEMBLE.has(id as Instrument)) out.connect(menu ? this.menuEnsemble : this.ensemble);
+    // A held note (the title theme): released after `hold` seconds, silent about 150 ms later.
+    const held = extra.hold !== undefined && extra.hold + .25 < length;
+    if (held) { gain.gain.setTargetAtTime(0, at + extra.hold!, .04); voice.end = at + extra.hold! + .25; }
     source.onended = () => this.release(voice);
     this.voices.push(voice);
     const live = this.voices.filter(v => v.end > at);
     this.peakVoices = Math.max(this.peakVoices, live.length);
     if (group === 'boss') this.peakBossVoices = Math.max(this.peakBossVoices, live.filter(v => v.group === 'boss').length);
     source.start(at, skip); this.accepted++;
+    if (held) source.stop(voice.end);
     return true;
   }
   /** Whether a sound can play without being synthesized now (it was made at boot, or already played). */
@@ -334,7 +372,7 @@ export class AudioMixer {
     if (MONO.has(note.instrument)) this.choke(v => v.id === note.instrument, group, start, .012, .06);
     if (note.part && !legacy) this.choke(v => v.part === note.part, group, start, .027, .12);
     const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), touch.gain, note.pan,
-      group, priority, note.wet, note.skip ?? 0, note.bend, note.part);
+      group, priority, note.wet, note.skip ?? 0, note.bend, note.part, menu ? { hold: note.hold, tone: note.tone, lead: note.lead } : {});
     if (played && note.duck) this.sidechain(start, note.duck.depth, note.duck.release);
     // Only while a fight is on: the stem's fade-out bar must not lower the level score again after the kill.
     if (played && boss && note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);

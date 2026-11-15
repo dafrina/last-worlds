@@ -663,16 +663,28 @@ const BOSS: Record<BossInstrument, Patch> = {
 };
 
 const MENU: Record<MenuInstrument, Patch> = {
-  // The title theme's lead, its hook: a warm, dark synth brass. Three saws 4 cents either side over a sine an octave
-  // down, through a low-pass that opens with the note's swell (a brass attack) and settles, a slow vibrato after
-  // 0.25 s, a touch of drive for edge. It sustains, fading gently, so the hook's long notes hold.
-  anthem: { seconds: 1.8, base: 64, rms: .24, window: .4, render(out, rate) {
-    const f = midi(64), stack = new Unison(rate, 3, 4, 157), sub = new Rotor(f / 2, rate), filter = new Svf(rate, 900, 1.15), air = new OnePole(5200, rate);
+  // The title theme's lead (15 November polish, user: "the instrument sounds a bit cheap"): a cinematic synth brass,
+  // in layers that blend into one instrument.
+  // - A brass core: two saws 3 cents either side and a narrow pulse through a resonant low-pass whose envelope swells
+  //   open with the note and overshoots on the attack (the brass "blat"), then blooms slowly while the note is held.
+  // - A wider, darker unison of four saws for size, the fundamental as a sine for body.
+  // - Breath: noise through a band-pass, a puff on the attack and a trace under the sustain.
+  // - Gentle saturation (more on the attack), a slow vibrato that arrives late, and no harsh top.
+  // The score adds the rest per note: a scoop into long notes, slurs, and its brightness (`tone`).
+  anthem: { seconds: 2.8, base: 67, rms: .24, window: .5, render(out, rate, noise) {
+    const f = midi(67), left = new Saw(rate, .13), right = new Saw(rate, .61), pulse = new Pulse(rate, .38, .3), wide = new Unison(rate, 4, 13, 157);
+    const core = new Svf(rate, 900, 1.25), dark = new Svf(rate, 700, .8), breath = new Svf(rate, 1700, 1.1), air = new OnePole(6500, rate);
+    let body = 0;
     each(out, rate, (t, i) => {
-      const vibrato = 1 + .0028 * Math.sin(TAU * 5.1 * t) * Math.min(1, Math.max(0, (t - .25) / .35));
-      if (i % 16 === 0) filter.set(650 + 2100 * Math.min(1, t / .045) * (.5 + .5 * Math.exp(-t * 2.6)), 1.15);
-      const tone = filter.run(stack.next(f * vibrato)) + sub.next() * .3;
-      return air.run(drive(tone * 1.1, 1.4)) * Math.min(1, t / .018) * Math.exp(-t * .55) * Math.min(1, (1.8 - t) / .35);
+      const hz = f * (1 + .0022 * Math.sin(TAU * 5 * t) * Math.min(1, Math.max(0, (t - .42) / .5)));
+      const swell = (1 - Math.exp(-t / .03)) * (1 + .35 * Math.exp(-t / .09)) * (.78 + .22 * Math.min(1, t / 1.2));
+      if (i % 8 === 0) { core.set(f * 1.1 + 2300 * swell, 1.25); dark.set(f + 1100 * swell, .8); }
+      body += TAU * hz / rate;
+      breath.run(noise());
+      const brass = core.run(left.next(hz * cents(-3)) + right.next(hz * cents(3)) + pulse.next(hz) * .6);
+      const v = brass + dark.run(wide.next(hz)) * .45 + Math.sin(body) * .35 * Math.min(1, t / .02) + breath.band * (.22 * Math.exp(-t / .05) + .025);
+      const level = Math.min(1, t / .022) * (1 + .18 * Math.exp(-t / .08)) * (.88 + .12 * Math.exp(-t * 2)) * Math.exp(-t * .16) * Math.min(1, (2.8 - t) / .45);
+      return air.run(drive(v * (.9 + .5 * Math.exp(-t / .07)), 1.35)) * level;
     });
   } },
 };

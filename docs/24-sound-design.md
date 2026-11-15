@@ -634,6 +634,66 @@ The first take (D, A, F, G on the 3-3-2 rhythm over Dm, B♭, F, C) was rejected
   - Its cycle is fingerprinted.
 - **Voices:** at most 23 at once in the render, none dropped; the theme has its own pool of 28 (`menu`).
 
+### The polish (15 November, same day)
+
+User, of the second take: "i like it, the instrument sounds a bit cheap tho and the notes/melody is slightly weird, like i like most of the melody but towards the end of the bars its a bit off. Harmonics are right? polish it and make it proper high end." Kept: D minor, 100 BPM, the rising call, the form, the lifecycle and the menu sounds.
+
+**The bar ends.** The harmonic audit passed, but it checks sixteenths with rough note lengths. A second, stricter check now hears every pitched note at every 32nd against the chord sounding then. A note counts until its sample falls 30 dB, its release, or the next note of its line, plus 90 ms of the hall's early reflections, across the loop's seam too. It found notes ringing into chords they grind against, and swells rising against the chord they rose through. Changed at the bar ends:
+
+- **Reversed swells:** they now carry only tones common to both chords around their bar line, and moved from bars 0, 2, 12, 16 and 28 to 1, 12, 16 and 29.
+  - Bar 1: A3 and D4, D over D.
+  - Bar 12: A3 and D4, shared by D5 and Gsus2.
+  - Bar 16: B♭3, shared by E♭5 and B♭sus2.
+  - Bar 29: B♭3 and E♭4, E♭ over E♭.
+  - Before, the swells into bars 2, 12 and 28 rose through a chord a semitone or tritone away.
+- **Every pitched note, in every layer:** if it would still ring into a chord it grinds against (a minor second, major seventh or tritone from one of its tones), it is released 0.25 s before that bar line. Its release and early reflections then end on the line (`hold`, new in the mixer). A short note that cannot sound before then is left out.
+  - **In the score:**
+    - the pad's low D before the intro's E♭ (bar 1), before the B section's E♭ (bar 13) and before the turnaround's E♭ (bar 27);
+    - the pad's E♭ before the intro's D (bar 2);
+    - the pad's B♭ before D in each hook (bars 10 and 26);
+    - the choir's B♭ (bar 2);
+    - the glass shimmer's B♭ (bar 2) and D (bar 13);
+    - the lead's last D and its low strings before the turnaround (bar 27).
+  - **In the last hook:** the bass's last eighth plays the root where the fifth would grind against the next chord, and rests before the turnaround's E♭. So does the ostinato's last sixteenth there.
+- **The melody's phrase ends** now land on the root or fifth of the chord sounding:
+  - The first answer's end was D held over C, the pickup A3 over C; now G–F–G, the pickup G3 (C's fifth).
+  - The hook's last bar was G–F–E♭ over E♭; now G–F–D over D: the hook comes home, and the ♭II moves to the turnaround.
+  - The second call's C (over B♭) and the B section's quarter notes before each bar line (A over G, C over B♭) are now chord tones: the chords became B♭sus2 and Gsus2.
+  - The B section's last call is over G5 instead of Asus4.
+- **The turnaround** is E♭5 E♭5 B♭sus2 C5 into the intro's D. The mystery comes back after the hook resolves; the glass tease moved out of it (its D would now sit over E♭).
+- **Harmony:**
+  - Intro: D5 D5 E♭5 D5.
+  - Hook: D5 D5 B♭sus2 C5 | D5 D5 B♭sus2 D5.
+  - B section: Gsus2 Gsus2 E♭5 E♭5 B♭sus2 B♭sus2 G5 A5.
+  - Turnaround: E♭5 E♭5 B♭sus2 C5.
+
+**The lead, `anthem`, rebuilt as a layered cinematic synth brass** (2.8 s, base G4):
+- **Core:** two saws 3 cents either side and a narrow pulse through a resonant low-pass. Its envelope swells open with the note and overshoots on the attack (the brass "blat"), then blooms while the note is held.
+- **Body:** a wider, darker unison of four saws for size, and the fundamental as a sine.
+- **Breath:** a puff of band-passed noise on the attack and a trace under the sustain.
+- **Character:** saturation that is stronger on the attack, a gentle vibrato that arrives after 0.4 s, and no harsh top.
+- **Per note, from the score:**
+  - a scoop into long notes (a third of a semitone over 90 ms), a small one into short notes;
+  - slurs in the answers: the eighth and the half note glide from the note before, without a new attack;
+  - brightness that follows how hard a note is played (`tone`, a low-pass from 2.2 to 6.6 kHz): downbeats brightest, passing eighths darkest, the last hook brighter.
+- **Doublings:** brass stabs an octave down on the strong notes, and low strings under the held notes. They share the lead's bus, so the three blend into one instrument.
+
+**The mix: the theme's own bus** (`mixer.ts`):
+- **The lead** (with its doublings) is centred, high-passed at 90 Hz, with a lush hall send pre-delayed 35 ms so it stays defined.
+- **The accompaniment** is dipped 3.5 dB around 2.2 kHz to leave the lead room.
+- **Glue:** both meet in a gentle glue compressor (2:1 from −14 dB, 25 ms attack, 300 ms release) before the fader.
+- **Fader:** the hall sends and the ensemble now follow it too. Before, they bypassed it, so a fade left the theme's reverb and ensemble at full level.
+- **Width:** pads, choir and shimmer are panned wider (to ±0.45 and ±0.5); the lead and the bass are centred and mono-safe.
+- **Low end:** the kick's sidechain on the bass and ostinato is 0.3 deep (0.35 in the last hook).
+
+**Checks:**
+- **Bar ends:** the new 32nd check finds nothing.
+- **Harmonic audit:** clean.
+- **Mode:** no note outside it.
+- **Voices:** at most 23 at once, none dropped.
+- **The render:** no clicks (its largest sample-to-sample step is the same as the second take's), and no dip in level into any bar line.
+- **Pinned:** the hook (its call, answers and phrase ends), the chord shapes and the fingerprint (`a99ac37f`, 827 notes).
+
 ### Menu sounds (`src/audio/samples.ts`, wired by `src/ui/ui-sounds.ts`)
 
 One family, crisp and short, in the glassy, metallic world of the game's pickups and the theme. They play through their own path past the master gate, so a paused flight's panels sound too. They follow the Effects volume and Sound off; repeats closer than 40 ms (the slider's 50 ms, a refusal's 250 ms) are not played again.
@@ -653,7 +713,7 @@ One family, crisp and short, in the glassy, metallic world of the game's pickups
 
 ### Lifecycle (`engine.ts` `menu`, `launch`, `ui`; `main.ts`)
 
-- **First interaction:** silent before it. The theme starts on the first tap or key in the menu (browsers allow sound only after a gesture), once all its voices are made, and fades in over 3 s to its level (0.66 of the music fader).
+- **First interaction:** silent before it. The theme starts on the first tap or key in the menu (browsers allow sound only after a gesture), once all its voices are made, and fades in over 3 s to its level (0.5 of the music fader).
 - **Launch:** the theme fades out over 0.9 s under the warp's whoosh. The world's music starts as the flight does, after the warp (at least 1 s), so they never overlap and the world music's logic is unchanged.
 - **Returning:**
   - After a run, the theme returns 3.2 s after the result's stinger and plays on through the results into the menu.
@@ -665,13 +725,14 @@ One family, crisp and short, in the glassy, metallic world of the game's pickups
 ### Levels and costs
 
 **Levels** (previews at the game's defaults, music 75 % and effects 55 %):
-- **Theme:** its loudest second is −26.5 dBFS, peak 0.253. That is about 1.5 dB under Luna's music after the launch in the demo (−25.1 dBFS): a backdrop, not louder than a flight. The second take is fuller, so its fader is 0.66 (the first take's was 0.8).
+- **Theme:** its loudest second is −26.4 dBFS, peak 0.238. That is about 1.5 dB under Luna's music after the launch in the demo (−25.1 dBFS): a backdrop, not louder than a flight. The fader is 0.5 for the polished take (the first take's was 0.8, the second's 0.66): the lead is fuller and its sends now follow the fader.
 - **Menu sounds:** peaks from 0.035 (the slider tick) to 0.095 (a purchase), clear over the theme.
 - No clipping.
 
 **Costs:**
-- 92 samples instead of 84; 15,499,520 bytes of cached sound instead of 15,112,960 (+377 KiB: the anthem 230 KB, the menu sounds 156 KB), under the 15 MiB budget. The second take adds no sample: its other voices (choir, inhale, stab and the boss kit) were already made at boot.
-- Synthesis in Node: about 0.56 s warm for all, against 0.53 s.
+- 92 samples instead of 84; 15,627,520 bytes of cached sound instead of 15,112,960 (+502 KiB: the anthem 358 KB since the polish, the menu sounds 156 KB), under the 15 MiB budget (15,728,640). The theme's other voices (choir, inhale, stab and the boss kit) were already made at boot.
+- Synthesis in Node: about 0.57–0.67 s warm for all, against 0.53 s; the anthem takes 20 ms. The theme's score costs about 4 µs a sixteenth.
+- Mix: a few nodes made once (a compressor, two filters, a delay, two sends and an ensemble), plus one low-pass on each lead note.
 
 **Unchanged:** every world's music and every in-flight effect. Their fingerprints and the 28 effect hashes are pinned and pass.
 
@@ -681,4 +742,4 @@ One family, crisp and short, in the glassy, metallic world of the game's pickups
 - each menu sound;
 - a click through the menus over the theme ending in a launch into Luna's music.
 
-The page is at `lookdev/audio-previews/menu/index.html`. It holds the first take's renders: the user asked for the second take to ship without another preview.
+The page is at `lookdev/audio-previews/menu/index.html`. It holds the polished take, with the second and first takes' loops (in `take2/` and `take1/`) to compare.
