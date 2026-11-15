@@ -143,8 +143,8 @@ describe('authored music and bounded scheduler', () => {
 });
 
 it('validates independently stored audio preferences without touching a campaign save', () => {
-  expect(sanitizeSettings({ music: Infinity, effects: -3, muted: 'yes' })).toEqual({ music: .55, effects: 0, muted: false });
-  expect(sanitizeSettings(null)).toEqual({ music: .55, effects: .8, muted: false });
+  expect(sanitizeSettings({ music: Infinity, effects: -3, muted: 'yes' })).toEqual({ music: .75, effects: 0, muted: false });
+  expect(sanitizeSettings(null)).toEqual({ music: .75, effects: .55, muted: false });
 });
 
 it('all original samples are finite, have headroom and click-free edges', () => {
