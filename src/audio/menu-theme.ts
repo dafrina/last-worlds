@@ -4,18 +4,19 @@ import { landingNote, LANDING_STEPS, type Note } from './score';
 
 /**
  * "Last Worlds", the title theme (15 November, user: "a very recognizable, catchy and fitting to the style menu music";
- * of the first take: "too happy or melancholic, it should sound more heroic and mysterious"; of the second: "i like it,
- * the instrument sounds a bit cheap tho and ... towards the end of the bars its a bit off ... polish it and make it
- * proper high end"). D minor, modal, at 100 BPM with half-time weight; 32 bars that loop without a seam: intro
- * (4 bars), hook (8), B section (8), the hook again, bigger (8), turnaround (4).
+ * of the first take: "too happy or melancholic, it should sound more heroic and mysterious"; of the second: "the
+ * instrument sounds a bit cheap ... towards the end of the bars its a bit off"; of the polish: "melody still very
+ * unfamiliar in notes ... the instrument still bit artificial"). D minor, modal, at 100 BPM with half-time weight;
+ * 32 bars that loop without a seam: intro (4 bars), hook (8), B section (8), the hook again, bigger (8), turnaround (4).
  *
- * Heroic: the hook is a call, a rising fourth into the downbeat and then a fifth and a fourth up to the octave
- * (A3, then D4, A4, D5), on a dotted rhythm (dotted quarter, eighth, half) that the bass, the kick and the brass hit
- * with it. It is answered E–F–D, called again from F over B♭ and answered G–F–G over C, open on C's fifth; the second
- * time the answer comes home, G–F–D over D. The B section is the call slowed to half speed and climbing, from D, E♭,
- * F and G. Every phrase ends on the root or fifth of its chord.
+ * Heroic and familiar: the melody is a conventional heroic line in D natural minor, every hook bar on the call's dotted
+ * rhythm (dotted quarter, eighth, half), which the bass and the kick hit with it. The call is 1-5-8 (a pickup A3, then
+ * D4, A4, D5); the answer 3-2-1 (F, E, D); then rising B♭, C, D and C, D, E to the question on E; the call again; the
+ * climax F, G, A; down B♭'s arpeggio (F, D, B♭); home on A, C, D. The B section moves in long notes in two-bar rhymes:
+ * up G minor's arpeggio to D, the 5-6-5 turn over E♭ (B♭, C, B♭), up B♭'s arpeggio to D, and down to A, the dominant,
+ * into the hook's pickup. Strong beats are tones of the chord sounding; the eighths between them are steps.
  *
- * Mysterious: the harmony carries it, not the melody. Open fifths and suspended seconds, no thirds under the hook
+ * Mysterious: the harmony carries it, not the melody. Open fifths (and B♭ with its ninth), no thirds in the chords
  * (D5 D5 B♭sus2 C5, D5 D5 B♭sus2 D5); the ♭II (E♭) in the intro, the B section and the turnaround; a reversed swell
  * (Umbra's inhaled pad) on tones common to both chords around a bar line; a cold glass shimmer, Nahara's wordless choir,
  * and the glass calling the motif from afar before the hook.
@@ -24,10 +25,10 @@ import { landingNote, LANDING_STEPS, type Note } from './score';
  * second, major seventh or tritone from one of its tones) is released a quarter of a second before that bar line, so
  * its release and the hall's early reflections end on it; a short one that cannot is left out.
  *
- * The voices: the anthem lead (a layered synth brass) doubled an octave down by brass stabs and, in the last hook and
- * the B section's long notes, low strings, on the lead's own bus; the boss strings as the pad; spiccato strings driving
- * in eighths and then sixteenths (grouped 3-3-2, the game's rhythm); the round bass, the snappy kick keying the
- * sidechain, taiko, a half-time snare, timpani, braams, risers, crash and boom.
+ * The voices: the anthem lead (a horn section of three players) doubled an octave down by the string section under
+ * its strong notes and soft brass stabs on its downbeats, on the lead's own bus; the boss strings as the pad; spiccato
+ * strings driving in eighths and then sixteenths (grouped 3-3-2, the game's rhythm); the round bass, the snappy kick
+ * keying the sidechain, taiko, a half-time snare, timpani, braams, risers, crash and boom.
  */
 export const MENU_THEME = { title: 'Last Worlds', bpm: 100, root: 50, bars: 32 } as const;
 /** The theme's fader level: a backdrop a little under the worlds' music (balanced for the defaults, music 75 % and
@@ -36,10 +37,10 @@ export const MENU_LEVEL = .5;
 const STEPS = MENU_THEME.bars * 16, SIXTEENTH = 15 / MENU_THEME.bpm;
 
 // The chords, one a bar, voiced from D3: open fifths (root, fifth, octave) and suspended seconds (root, fifth, ninth).
-const D5 = [0, 7, 12], BbSus2 = [-4, 3, 10], C5 = [-2, 5, 10], Eb5 = [1, 8, 13], GSus2 = [-7, 0, 7], G5 = [-7, 0, 5], A5 = [-5, 2, 7];
+const D5 = [0, 7, 12], BbSus2 = [-4, 3, 10], C5 = [-2, 5, 10], Eb5 = [1, 8, 13], G5 = [-7, 0, 5], A5 = [-5, 2, 7];
 const HOOK_CHORDS = [D5, D5, BbSus2, C5, D5, D5, BbSus2, D5];
 const CHORDS: readonly (readonly number[])[] = [
-  D5, D5, Eb5, D5, ...HOOK_CHORDS, GSus2, GSus2, Eb5, Eb5, BbSus2, BbSus2, G5, A5, ...HOOK_CHORDS, Eb5, Eb5, BbSus2, C5,
+  D5, D5, Eb5, D5, ...HOOK_CHORDS, G5, G5, Eb5, Eb5, BbSus2, BbSus2, G5, A5, ...HOOK_CHORDS, Eb5, Eb5, BbSus2, C5,
 ];
 /** D aeolian (pitch classes); over the ♭II, E♭ without D or A. */
 const AEOLIAN = [2, 4, 5, 7, 9, 10, 0], FLAT_TWO = [3, 5, 7, 10, 0];
@@ -75,25 +76,32 @@ function holdFor(note: Note, step: number): number | null | undefined {
 }
 
 type Entry = readonly [sixteenth: number, pitch: number];
-/** The hook, eight bars: the call and its answer, twice. A note on sixteenth 14 is the pickup into the next bar. */
+/**
+ * The hook, eight bars (15 November, user: "melody still very unfamiliar in notes"): a conventional heroic line in D
+ * natural minor, every bar on the call's dotted rhythm (dotted quarter, eighth, half). Strong beats are tones of the
+ * chord sounding (D minor, B♭, C), the eighth between them a step. A note on sixteenth 14 is the pickup into the next bar.
+ *   call 1-5-8 (A3, then D, A, D) | answer 3-2-1 (F, E, D) | rising B♭, C, D | rising C, D, E (the question, on 2)
+ *   call again                    | to the climax, F, G, A    | down B♭'s arpeggio, F, D, B♭ | home: A, C, D (5, 7, 8)
+ */
 const HOOK: readonly (readonly Entry[])[] = [
   [[0, 62], [6, 69], [8, 74]],
-  [[0, 76], [6, 77], [8, 74], [14, 60]],
-  [[0, 65], [6, 72], [8, 77]],
-  [[0, 79], [6, 77], [8, 79], [14, 55]],
+  [[0, 77], [6, 76], [8, 74]],
+  [[0, 70], [6, 72], [8, 74]],
+  [[0, 72], [6, 74], [8, 76], [14, 57]],
   [[0, 62], [6, 69], [8, 74]],
-  [[0, 76], [6, 77], [8, 74], [14, 60]],
-  [[0, 65], [6, 72], [8, 77]],
-  [[0, 79], [6, 77], [8, 74]],
+  [[0, 77], [6, 79], [8, 81]],
+  [[0, 77], [6, 74], [8, 70]],
+  [[0, 69], [6, 72], [8, 74]],
 ];
-/** The B section: the call at half speed, climbing from D, E♭, F and G; its last note E, then the pickup into the hook. */
+/** The B section: long notes on the hook's rhythm at half speed, in two-bar rhymes: up G minor's arpeggio to D, the
+ * 5-6-5 turn over E♭ (B♭, C, B♭), up B♭'s arpeggio to D, and down to A (the dominant) for the pickup into the hook. */
 const B_LINE: readonly (readonly Entry[])[] = [
-  [[0, 62], [12, 69]], [[0, 74]],
-  [[0, 63], [12, 70]], [[0, 75]],
-  [[0, 65], [12, 72]], [[0, 77]],
-  [[0, 67], [12, 74]], [[0, 76], [14, 57]],
+  [[0, 67], [12, 70]], [[0, 74]],
+  [[0, 70], [12, 72]], [[0, 70]],
+  [[0, 65], [12, 70]], [[0, 74]],
+  [[0, 74], [12, 70]], [[0, 69], [14, 57]],
 ];
-/** The glass calling the motif from afar before the hook. */
+/** The glass calling the motif from afar before the hook (the call's 1-5-8). */
 const TEASE: readonly Entry[] = [[0, 74], [6, 81], [8, 86]];
 
 function leadTable(bar: number): readonly Entry[] {
@@ -105,21 +113,19 @@ export function menuMelody(step: number): number | null {
   const s = wrap(step);
   return leadTable(Math.floor(s / 16)).find(([sixteenth]) => sixteenth === s % 16)?.[1] ?? null;
 }
-/** Slurred notes: the answers' eighth and half note are bound to the note before (the calls are tongued). */
-const slurred = (bar: number, beat: number) => (sectionOf(bar) === 'hook' || sectionOf(bar) === 'hook2') && bar % 2 === 1 && (beat === 6 || beat === 8);
-/** How the lead plays a note: its slur from the note before, its scoop, how hard (its brightness and level follow). */
-function phrasing(s: number, pitch: number, big: boolean, b: boolean): Partial<Note> & { touch: number } {
+/** Slurred notes: in the hook, the eighth and the half note after it are bound to the note before (the calls, bars 0
+ * and 4 of the hook, are tongued). */
+const slurred = (bar: number, beat: number) => {
+  const section = sectionOf(bar), within = bar - (section === 'hook' ? 4 : 20);
+  return (section === 'hook' || section === 'hook2') && within % 4 !== 0 && (beat === 6 || beat === 8);
+};
+/** How the lead plays a note: how hard (its brightness, its horn resonances and its level follow), and whether it is
+ * slurred (it starts past its attack). Every note starts at its pitch: no scoops or glides (they pulled the starts of
+ * the notes 15 to 75 cents off). */
+function phrasing(s: number, big: boolean, b: boolean): Partial<Note> & { touch: number } {
   const bar = Math.floor(s / 16), beat = s % 16;
-  let length = 1;
-  while (length < 32 && menuMelody(s + length) === null) length++;
   const touch = Math.min(1, (beat === 0 ? .9 : beat === 8 ? .72 : beat >= 12 ? .62 : .5) + (big ? .08 : 0) - (b ? .05 : 0));
-  const tone = Math.round(2200 + 4400 * touch);
-  if (slurred(bar, beat)) {
-    let back = 1;
-    while (back < 16 && menuMelody(s - back) === null) back++;
-    return { touch, tone, skip: .05, bend: { from: (menuMelody(s - back) ?? pitch) - pitch, seconds: .035 } };
-  }
-  return { touch, tone, bend: length >= 8 ? { from: -.3, seconds: .09 } : { from: -.12, seconds: .04 } };
+  return { touch, tone: Math.round(2000 + 3600 * touch), formant: Math.round(touch * 100) / 100, ...slurred(bar, beat) ? { skip: .03 } : {} };
 }
 
 /** Every voice the theme plays: it starts only once all of them are made (never synthesized in a tap). */
@@ -139,8 +145,9 @@ export function menuStep(step: number): Note[] {
   // Every pitched note keeps clear of the next chord it would grind against (see `holdFor`).
   const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = 0, extra: Partial<Note> = {}) => {
     const note: Note = { instrument, pitch, gain, pan, wet, ...extra };
-    const hold = UNPITCHED.has(instrument) || instrument === 'riser' ? undefined : holdFor(note, s);
-    if (hold === null) return false;
+    const fit = UNPITCHED.has(instrument) || instrument === 'riser' ? undefined : holdFor(note, s);
+    if (fit === null) return false;
+    const hold = fit === undefined ? note.hold : note.hold === undefined ? fit : Math.min(fit, note.hold);
     notes.push(hold === undefined ? note : { ...note, hold });
     return true;
   };
@@ -200,15 +207,18 @@ export function menuStep(step: number): Note[] {
   const tone = pad[GROUP[beat]], accent = ACCENTS.has(beat), pan = beat % 2 ? .3 : -.3;
   if (big || (b && bar >= 16) || bar === 3) add('spiccato', tone, (accent ? .055 : .032) * (bar === 3 ? (beat + 4) / 20 : 1), pan, .15);
   else if ((section === 'hook' || b || (turn && bar < 30)) && beat % 2 === 0) add('spiccato', tone, (accent ? .05 : .036) * (turn ? .7 : 1), pan, .15);
-  // The lead, one note at a time, centred, on its own bus with its doublings: brass stabs an octave down on its strong
-  // notes (and the B section's), low strings an octave down under its held notes in the last hook and the B section's
-  // long notes; the glass an octave up in the last hook's first three bars.
+  // The lead, one note at a time, centred, on its own bus with its doublings: the string section an octave down under
+  // its strong notes (its own ensemble motion from the theme's ensemble), soft brass stabs an octave down on its
+  // downbeats in the hooks; the glass an octave up in the last hook's first three bars.
   const line = menuMelody(s);
   if (line !== null) {
-    const { touch, ...play } = phrasing(s, line, big, b);
-    add('anthem', line, (big ? .17 : b ? .155 : .155) * (.75 + .3 * touch), 0, .32, { part: 'lead', lead: true, ...play });
-    if ((hook && (beat === 0 || beat === 8)) || (b && beat !== 14)) add('stab', line - 12, big ? .065 : .05, 0, .25, { lead: true, tone: 3200 });
-    if ((big && beat === 8) || (b && beat === 0 && bar % 2 === 1)) add('strings', line - 12, big ? .045 : .05, 0, .3, { lead: true });
+    const { touch, ...play } = phrasing(s, big, b);
+    add('anthem', line, (big ? .1 : .09) * (.75 + .3 * touch), 0, .32, { part: 'lead', lead: true, ...play });
+    if (hook && beat === 0) add('stab', line - 12, big ? .05 : .04, 0, .25, { lead: true, tone: 2800 });
+    // The section follows the line: each note lets go as the next melody note arrives.
+    let next = 1;
+    while (next < 32 && menuMelody(s + next) === null) next++;
+    if ((hook && (beat === 0 || beat === 8)) || (b && beat === 0)) add('strings', line - 12, big ? .055 : b ? .05 : .045, beat === 8 ? .2 : -.2, .35, { lead: true, hold: next * SIXTEENTH - .2 });
     if (big && bar >= 24 && bar <= 26 && (beat === 0 || beat === 8)) add('glass', line + 12, .028, beat ? .3 : -.3, .5);
   }
   // The glass: the motif called from afar before the hook, and a cold shimmer two octaves up on the chord's upper

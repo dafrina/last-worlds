@@ -61,7 +61,7 @@ export async function renderTimeline(job: PreviewJob) {
  * over the warp (0.9 s) under the launch whoosh, and the `world`'s music starts at the warp's flash (1.3 s later).
  */
 export async function renderMenu(job: { seconds: number; theme?: boolean; fadeIn?: boolean; ui?: { at: number; sound: UiSound; transpose?: number }[];
-  launchAt?: number; world?: PlanetId }) {
+  launchAt?: number; world?: PlanetId; only?: string[]; dry?: boolean }) {
   // At the game's default volumes (music 75 %, effects 55 % since 15 November).
   const rate = 44_100, ctx = new OfflineAudioContext(2, Math.ceil(job.seconds * rate), rate);
   const mixer = new AudioMixer(ctx, { ...DEFAULT_AUDIO });
@@ -71,7 +71,9 @@ export async function renderMenu(job: { seconds: number; theme?: boolean; fadeIn
   const events: { at: number; run: () => void }[] = [], step = 15 / MENU_THEME.bpm, until = job.theme === false ? 0 : job.launchAt ?? job.seconds;
   for (let i = 0; START + i * step < until; i++) {
     const at = START + i * step;
-    events.push({ at: Math.max(1e-6, at - LOOKAHEAD), run: () => menuStep(i).forEach(n => mixer.note(n, at, false, i, false, true)) });
+    // `only` keeps some voices (the lead alone, for pitch tracking), `dry` takes them out of the hall.
+    const notes = () => menuStep(i).filter(n => !job.only || job.only.includes(n.instrument)).map(n => job.dry ? { ...n, wet: 0 } : n);
+    events.push({ at: Math.max(1e-6, at - LOOKAHEAD), run: () => notes().forEach(n => mixer.note(n, at, false, i, false, true)) });
   }
   for (const cue of job.ui ?? []) events.push({ at: cue.at, run: () => { mixer.uiCue(cue.sound, cue.transpose ?? 0, cue.at); } });
   if (job.launchAt !== undefined) {

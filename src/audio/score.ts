@@ -7,13 +7,14 @@ import { BASE_PITCH, INSTRUMENT_SECONDS, type Instrument } from './instruments';
  * `seconds`; `duck` marks a kick that keys the sidechain (leads and basses dip by `depth`, recovering over `release`
  * seconds); `part` names a monophonic line (the melody): its next note damps the one still ringing. The title theme
  * also uses `hold` (seconds the note sounds before it is released, so a note ends before a chord it would grind
- * against), `tone` (a low-pass in Hz: the lead's brightness follows how hard it is played) and `lead` (the lead's bus:
- * its doublings blend with it into one instrument). The mixer adds the player's small timing and velocity variations. */
+ * against), `tone` (a low-pass in Hz: the lead's brightness follows how hard it is played), `formant` (0-1: a horn's
+ * resonances, fixed in Hz, stronger and higher the harder it is played) and `lead` (the lead's bus: its doublings blend
+ * with it into one instrument). The mixer adds the player's small timing and velocity variations. */
 export interface Note {
   instrument: Instrument; pitch: number; gain: number; pan: number; wet: number;
   offset?: number; skip?: number; priority?: number; bed?: number;
   bend?: { from: number; seconds: number }; duck?: { depth: number; release: number }; part?: string;
-  hold?: number; tone?: number; lead?: boolean;
+  hold?: number; tone?: number; formant?: number; lead?: boolean;
 }
 interface Theme {
   title: string; bpm: number; root: number; chords: readonly (readonly number[])[];

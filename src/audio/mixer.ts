@@ -8,9 +8,9 @@ export interface AudioSettings { muted: boolean; music: number; effects: number 
 /** The level score, the additive boss stem (its own pool, so it can never thin the score), combat effects, the title
  * theme (its own pool and fader, so it can fade in and out over a launch) and the menu's sounds. */
 type Group = 'music' | 'boss' | 'effects' | 'menu' | 'ui';
-interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; tone?: BiquadFilterNode; group: Group; priority: number; start: number; end: number }
+interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; filters?: AudioNode[]; group: Group; priority: number; start: number; end: number }
 /** A title-theme note's extras (see `Note`): its release, brightness and bus. */
-interface Extra { hold?: number; tone?: number; lead?: boolean }
+interface Extra { hold?: number; tone?: number; formant?: number; lead?: boolean }
 /** Effect levels. 11 November: the player's shots much lower (user: "a bit too much and too loud"), the new alarm,
  * part clank and warp whoosh set against the sounds they sit with. */
 const LEVELS: Record<Sound, number> = {
@@ -129,7 +129,17 @@ export class AudioMixer {
     menuGlue.connect(this.menu); this.nodes.push(menuGlue);
     const carve = filter('peaking', 2200, .8); carve.gain.value = -3.5;
     this.menuBed = gain(1); this.menuBed.connect(carve).connect(menuGlue); this.keyed.menu.connect(this.menuBed);
-    this.menuLead = gain(1); this.menuLead.connect(filter('highpass', 90, .6)).connect(menuGlue);
+    this.menuLead = gain(1);
+    const leadOut = filter('highpass', 90, .6); this.menuLead.connect(leadOut).connect(menuGlue);
+    // The lead's stage: a few early reflections either side, darker than the source, so it sits like a section in a
+    // room before the hall takes it.
+    const stage = context.createChannelMerger(2), wall = filter('lowpass', 3500, .5);
+    leadOut.connect(wall);
+    for (const [side, ms, level] of [[0, 11, .2], [1, 16, .2], [0, 23, .12], [1, 29, .12]] as const) {
+      const tap = context.createDelay(.05); tap.delayTime.value = ms / 1000; this.nodes.push(tap);
+      wall.connect(tap).connect(gain(level)).connect(stage, 0, side);
+    }
+    stage.connect(menuGlue); this.nodes.push(stage);
     // The boss stem has its own gentle bus compressor: it only rounds off the drum and brass peaks so they do not push
     // the shared master compressor (which would pump the combat sounds). Slow enough to let every hit through first.
     this.boss = gain(0);
@@ -265,7 +275,7 @@ export class AudioMixer {
   private release(voice: Voice) {
     const index = this.voices.indexOf(voice);
     if (index >= 0) this.voices.splice(index, 1);
-    voice.source.disconnect(); voice.gain.disconnect(); voice.pan?.disconnect(); voice.send?.disconnect(); voice.tone?.disconnect();
+    voice.source.disconnect(); voice.gain.disconnect(); voice.pan?.disconnect(); voice.send?.disconnect(); voice.filters?.forEach(node => node.disconnect());
   }
   private stopVoice(voice: Voice, at = this.context.currentTime) {
     this.ramp(voice.gain.gain, 0, .003, at);
@@ -299,16 +309,22 @@ export class AudioMixer {
     gain.gain.value = panner ? volume : volume * Math.SQRT1_2;
     if (panner) panner.pan.value = pan;
     // A title-theme note's brightness: a low-pass on its own voice.
-    const tone = extra.tone ? this.context.createBiquadFilter() : undefined;
-    if (tone) { tone.type = 'lowpass'; tone.frequency.value = extra.tone!; tone.Q.value = .6; }
-    const head: AudioNode = tone ? source.connect(tone) : source;
+    // A title-theme note's brightness (a low-pass on its own voice) and a horn's two resonances, fixed in Hz so they do
+    // not move with the note's pitch: higher and stronger the harder it is played.
+    const filters: BiquadFilterNode[] = [];
+    const shape = (type: BiquadFilterType, hz: number, q: number, db = 0) => {
+      const node = this.context.createBiquadFilter(); node.type = type; node.frequency.value = hz; node.Q.value = q; node.gain.value = db; filters.push(node);
+    };
+    if (extra.tone) shape('lowpass', extra.tone, .6);
+    if (extra.formant !== undefined) { shape('peaking', 460 + 120 * extra.formant, 1.1, 2 + 3 * extra.formant); shape('peaking', 1080 + 320 * extra.formant, 1.3, 2 + 4 * extra.formant); }
+    const head: AudioNode = filters.reduce<AudioNode>((node, next) => node.connect(next), source);
     const out: AudioNode = panner ? head.connect(gain).connect(panner) : head.connect(gain);
     const menu = group === 'menu', lead = menu && extra.lead === true;
     const keyed = group !== 'effects' && group !== 'ui' && !lead && KEYED.has(id as Instrument);
     out.connect(group === 'music' ? keyed ? this.keyed.music : this.bed : group === 'boss' ? keyed ? this.keyed.boss : this.boss
       : menu ? lead ? this.menuLead : keyed ? this.keyed.menu : this.menuBed : group === 'ui' ? this.ui : this.effects);
     const length = (source.buffer.duration - skip) / rate;
-    const voice: Voice = { id, part, source, gain, pan: panner, tone, group, priority, start: at, end: at + length };
+    const voice: Voice = { id, part, source, gain, pan: panner, filters: filters.length ? filters : undefined, group, priority, start: at, end: at + length };
     if (wet > 0 && group !== 'effects' && group !== 'ui') {
       const send = this.context.createGain(); send.gain.value = wet;
       out.connect(send).connect(menu ? lead ? this.menuLeadWet : this.menuWet : this.reverb); voice.send = send;
@@ -370,9 +386,10 @@ export class AudioMixer {
     const start = Math.max(this.context.currentTime, at + (note.offset ?? 0) + touch.drift), pad = PADS.has(note.instrument);
     const priority = boss ? note.priority ?? 0 : pad ? 0 : 1, group: Group = boss ? 'boss' : menu ? 'menu' : 'music';
     if (MONO.has(note.instrument)) this.choke(v => v.id === note.instrument, group, start, .012, .06);
-    if (note.part && !legacy) this.choke(v => v.part === note.part, group, start, .027, .12);
+    // The title theme's lead lets go faster: a slur, not two notes ringing together.
+    if (note.part && !legacy) this.choke(v => v.part === note.part, group, start, menu ? .016 : .027, menu ? .08 : .12);
     const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), touch.gain, note.pan,
-      group, priority, note.wet, note.skip ?? 0, note.bend, note.part, menu ? { hold: note.hold, tone: note.tone, lead: note.lead } : {});
+      group, priority, note.wet, note.skip ?? 0, note.bend, note.part, menu ? { hold: note.hold, tone: note.tone, formant: note.formant, lead: note.lead } : {});
     if (played && note.duck) this.sidechain(start, note.duck.depth, note.duck.release);
     // Only while a fight is on: the stem's fade-out bar must not lower the level score again after the kill.
     if (played && boss && note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);

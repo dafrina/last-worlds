@@ -56,7 +56,9 @@ export function soundingSteps(planet: PlanetId, note: Note) { return soundingSte
 export function soundingStepsAt(bpm: number, note: Note) {
   const seconds = INSTRUMENT_SECONDS[note.instrument] / 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12) - (note.skip ?? 0);
   const factor = SUSTAINED.has(note.instrument) ? 1 : RINGING.has(note.instrument) ? .4 : .3;
-  return Math.max(1, Math.min(32, Math.round(seconds * factor * bpm / 15)));
+  const steps = Math.max(1, Math.min(32, Math.round(seconds * factor * bpm / 15)));
+  // A released note (the title theme's `hold`) is silent about 150 ms after its release.
+  return note.hold === undefined ? steps : Math.max(1, Math.min(steps, Math.round((note.hold + .15) * bpm / 15)));
 }
 
 export const REVERSED = new Set<Instrument>(['inhale', 'glint']);

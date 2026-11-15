@@ -20,25 +20,38 @@ const pcm = (id: string) => {
 
 describe('the title theme', () => {
   it('is the approved 32-bar cycle, D minor at 100 BPM, and loops without a seam', () => {
-    // A change here is a change to the composition itself (the second take, heroic and mysterious, polished on 15 November).
+    // A change here is a change to the composition itself (heroic and mysterious; its melody made familiar, 15 November).
     const notes = Array.from({ length: STEPS }, (_, s) => menuStep(s));
-    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['a99ac37f', 827]);
+    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['956753df', 822]);
     expect(MENU_THEME).toMatchObject({ bpm: 100, root: 50, bars: 32 });
     for (const s of [0, 37, 255, 511]) expect(menuStep(s + STEPS)).toEqual(menuStep(s));
   });
-  it('calls its hook with a rising fourth, fifth and fourth to the octave on a dotted rhythm, over open fifths', () => {
+  it('calls its hook 1-5-8 on a dotted rhythm and answers it in a familiar heroic line', () => {
     const bar = (b: number) => Array.from({ length: 16 }, (_, k) => menuMelody(b * 16 + k)).flatMap((p, k) => p === null ? [] : [[k, p]]);
     // The pickup A3, then D4, A4, D5 on a dotted quarter, an eighth and a half.
     expect(bar(3)).toEqual([[14, 57]]);
     expect(bar(4)).toEqual([[0, 62], [6, 69], [8, 74]]);
-    // Answered E–F–D, called again from F over B♭, answered G–F–G (open, on C's fifth), the pickup G3 on C's fifth;
-    // the second time the answer comes home, G–F–D over D. Every phrase ends on its chord's root or fifth.
-    expect(bar(5)).toEqual([[0, 76], [6, 77], [8, 74], [14, 60]]);
-    expect(bar(6)).toEqual([[0, 65], [6, 72], [8, 77]]);
-    expect(bar(7)).toEqual([[0, 79], [6, 77], [8, 79], [14, 55]]);
-    expect(bar(11)).toEqual([[0, 79], [6, 77], [8, 74]]);
+    // Answered 3-2-1 (F, E, D); rising over B♭ and C to the question on E; the call again; the climax F, G, A; down
+    // B♭'s arpeggio; home on A, C, D.
+    expect([5, 6, 7, 9, 10, 11].map(bar)).toEqual([
+      [[0, 77], [6, 76], [8, 74]], [[0, 70], [6, 72], [8, 74]], [[0, 72], [6, 74], [8, 76], [14, 57]],
+      [[0, 77], [6, 79], [8, 81]], [[0, 77], [6, 74], [8, 70]], [[0, 69], [6, 72], [8, 74]],
+    ]);
     expect(bar(8)).toEqual(bar(4));
     expect(bar(20)).toEqual(bar(4));
+    // D natural minor only (no E♭, no C♯, no B), at most two notes a beat, and every strong beat (the bar's first and
+    // third beats) a tone of the chord sounding: D minor, B♭, C, E♭, G minor or A minor.
+    const TRIAD: Record<number, number[]> = { 2: [2, 5, 9], 10: [10, 2, 5], 0: [0, 4, 7], 3: [3, 7, 10], 7: [7, 10, 2], 9: [9, 0, 4] };
+    for (let s = 0; s < STEPS; s++) {
+      const pitch = menuMelody(s);
+      if (pitch === null) continue;
+      expect([2, 4, 5, 7, 9, 10, 0], `${s}`).toContain(pitchClass(pitch));
+      if (s % 8 === 0) expect(TRIAD[pitchClass(menuChord(s).root)], `${s} ${pitch}`).toContain(pitchClass(pitch));
+      if (s % 4 < 3) expect(menuMelody(s + 1), `${s}`).toBeNull();
+    }
+    // Its phrases end home: the hook on D, the B section on A (the dominant), into the hook's pickup.
+    expect(bar(11).at(-1)?.[1]).toBe(74);
+    expect(bar(19)[0][1]).toBe(69);
     // No thirds under it: every chord is an open fifth (root, fifth, octave) or a suspended second (root, fifth, ninth).
     for (let b = 0; b < MENU_THEME.bars; b++) {
       const [root, ...rest] = menuChord(b * 16).tones;
@@ -104,7 +117,7 @@ describe('the title theme', () => {
   it('lists every voice it plays (it waits for all of them to be made), and its lead is its own sample', () => {
     const used = new Set(Array.from({ length: STEPS }, (_, s) => menuStep(s)).flat().map(n => n.instrument));
     expect([...used].every(id => MENU_INSTRUMENTS.includes(id)), [...used].join(' ')).toBe(true);
-    expect(pcm('anthem')).toBe('5fc40b22');
+    expect(pcm('anthem')).toBe('7796e0c6');
   });
 });
 

@@ -694,6 +694,68 @@ User, of the second take: "i like it, the instrument sounds a bit cheap tho and 
 - **The render:** no clicks (its largest sample-to-sample step is the same as the second take's), and no dip in level into any bar line.
 - **Pinned:** the hook (its call, answers and phrase ends), the chord shapes and the fingerprint (`a99ac37f`, 827 notes).
 
+### A familiar melody and a horn section (15 November, fourth take)
+
+User, of the polish: "instruments bit better but melody still very unfamiliar in notes. The harmony is there but the single notes a bit off, and the instrument still bit artificial pls fix and enhance it fully." Kept: the harmony, the call's spirit and rhythm, the form, the lifecycle and the menu sounds.
+
+**1. Tuning, measured first.** The rendered lead was pitch-tracked alone (YIN), note by note, against equal temperament: its first 300 ms (10–60, 60–150 and 150–300 ms) and its body. So was the sample itself.
+
+| | Sample's own pitch | First 10–60 ms of each note | 60–300 ms | Body |
+| --- | --- | --- | --- | --- |
+| Before | in tune: +2.8 cents in its first 30 ms, under 1 after | 12 cents off on average, up to 74 | under 1 cent | under 1 cent |
+| After | −3.5 cents in its first 30 ms (the lip's brief rise), under 1 after | 4 cents on average, up to 18 | 1 cent on average, at most 3 | under 1 cent |
+
+- **Before:** the scoops into long notes started 15 to 22 cents flat, and the slurs' glides 36 to 74 cents away. The sample, its declared base note, the playback rates and the vibrato were all in tune.
+- **The fix:** no scoops and no glides; a slurred note starts past its attack instead. The slur's crossfade is also quicker (the previous note lets go with a 16 ms time constant instead of 27).
+- **What is left:** the 18 cents are the previous note's last tail inside a slurred note's first 60 ms.
+
+**2. The melody, rewritten into a conventional heroic line** in D natural minor (no E♭, no C♯, no B).
+- Every hook bar keeps the call's dotted rhythm (dotted quarter, eighth, half). Strong beats are tones of the chord sounding (D minor, B♭, C, E♭, G minor, A minor), the eighth between them a step, and there are at most two notes a beat. All of this is tested.
+- **The hook:**
+  - the call 1-5-8 (A3, then D4, A4, D5);
+  - the answer 3-2-1 (F5, E5, D5);
+  - rising B♭4, C5, D5, then C5, D5, E5: the question, on 2 over C. D and A are not in C, so the half cadence uses C's third.
+  - the call again;
+  - the climax F5, G5, A5;
+  - down B♭'s arpeggio, F5, D5, B♭4;
+  - home: A4, C5, D5 (5, 7, 8).
+- **The B section:** long notes in two-bar rhymes:
+  - up G minor's arpeggio (G4, B♭4, then D5);
+  - the 5-6-5 turn over E♭ (B♭4, C5, then B♭4);
+  - up B♭'s arpeggio (F4, B♭4, then D5);
+  - down to A, the dominant (D5, B♭4, then A4), into the hook's pickup.
+- **Harmony:** unchanged, except the B section's first two bars. Gsus2 is now an open fifth (G5): its A ground against the melody's B♭.
+- **Audits:** the harmonic audit, the 32nd-by-32nd check and the mode check all pass.
+  - The audits now honour a note's release.
+  - The string section's doubling lets go as the next melody note arrives. It had held F under a passing E.
+
+**3. The lead: a horn section, not one perfect voice** (`anthem`, 2.8 s, base G4, the same size as before).
+- **Three players,** each a band-limited saw through a lip filter whose brightness follows that player's own loudness. Each has its own:
+  - entry: 0, 8 and 14 ms;
+  - tuning: −4, 0 and +4 cents, centred;
+  - slow drift;
+  - vibrato: 4.8, 5.3 and 5.7 Hz, arriving at 0.38–0.5 s.
+- **Attack:** breath and a short nasal lip buzz, rising from 8 cents low within a few milliseconds; no click.
+- **The note's shape:** a slight overshoot, a settle, then a bloom, darkening as it fades.
+- **Tone:** a little of the fundamental for body, gentle saturation, a darker top.
+- **In the mixer, per note** (fixed in Hz, so they do not move with the note's pitch):
+  - the horn's two resonances: around 0.46–0.58 kHz and 1.08–1.4 kHz, 2 to 7 dB, higher and stronger the harder a note is played;
+  - its brightness: a low-pass from 2 to 5.6 kHz.
+- **The lead's own stage:** four early reflections either side (11 to 29 ms, darker than the source) before the pre-delayed hall, so it sits like a section in a room.
+- **Doublings:** the string section an octave down under every strong note of both hooks and the B section's long notes, with the theme's ensemble motion. The brass stabs are now soft and on the hooks' downbeats only.
+
+**Levels and costs:**
+- **Theme:** the lead's level matched to the previous take's (it would have been 4.7 dB louder). The theme's loudest second is −26.5 dBFS, peak 0.244; Luna's music after a launch is −25.1.
+- **Voices:** at most 24 at once, none dropped.
+- **Render:** no clicks. The deepest dip into a bar line is 4.8 dB, the breath before the turnaround's E♭.
+- **Costs:**
+  - Memory unchanged at 15,627,520 bytes.
+  - Synthesis 0.57–0.69 s for all; the anthem takes 32 ms.
+  - The score costs about 3 µs a sixteenth.
+  - Per lead note, three filters.
+
+**Pinned:** the fingerprint `956753df` (822 notes) and the anthem's hash `7796e0c6`.
+
 ### Menu sounds (`src/audio/samples.ts`, wired by `src/ui/ui-sounds.ts`)
 
 One family, crisp and short, in the glassy, metallic world of the game's pickups and the theme. They play through their own path past the master gate, so a paused flight's panels sound too. They follow the Effects volume and Sound off; repeats closer than 40 ms (the slider's 50 ms, a refusal's 250 ms) are not played again.
@@ -725,14 +787,14 @@ One family, crisp and short, in the glassy, metallic world of the game's pickups
 ### Levels and costs
 
 **Levels** (previews at the game's defaults, music 75 % and effects 55 %):
-- **Theme:** its loudest second is −26.4 dBFS, peak 0.238. That is about 1.5 dB under Luna's music after the launch in the demo (−25.1 dBFS): a backdrop, not louder than a flight. The fader is 0.5 for the polished take (the first take's was 0.8, the second's 0.66): the lead is fuller and its sends now follow the fader.
+- **Theme (third take):** its loudest second is −26.4 dBFS, peak 0.238 (the fourth take: −26.5 dBFS, peak 0.244). That is about 1.5 dB under Luna's music after the launch in the demo (−25.1 dBFS): a backdrop, not louder than a flight. The fader is 0.5 for the polished take (the first take's was 0.8, the second's 0.66): the lead is fuller and its sends now follow the fader.
 - **Menu sounds:** peaks from 0.035 (the slider tick) to 0.095 (a purchase), clear over the theme.
 - No clipping.
 
 **Costs:**
 - 92 samples instead of 84; 15,627,520 bytes of cached sound instead of 15,112,960 (+502 KiB: the anthem 358 KB since the polish, the menu sounds 156 KB), under the 15 MiB budget (15,728,640). The theme's other voices (choir, inhale, stab and the boss kit) were already made at boot.
-- Synthesis in Node: about 0.57–0.67 s warm for all, against 0.53 s; the anthem takes 20 ms. The theme's score costs about 4 µs a sixteenth.
-- Mix: a few nodes made once (a compressor, two filters, a delay, two sends and an ensemble), plus one low-pass on each lead note.
+- Synthesis in Node: about 0.57–0.69 s warm for all, against 0.53 s; the anthem takes 32 ms (the horn section). The theme's score costs about 3 µs a sixteenth.
+- Mix: a few nodes made once (a compressor, a few filters and delays, two sends, an ensemble and the lead's early reflections), plus three filters on each lead note.
 
 **Unchanged:** every world's music and every in-flight effect. Their fingerprints and the 28 effect hashes are pinned and pass.
 
@@ -742,4 +804,4 @@ One family, crisp and short, in the glassy, metallic world of the game's pickups
 - each menu sound;
 - a click through the menus over the theme ending in a launch into Luna's music.
 
-The page is at `lookdev/audio-previews/menu/index.html`. It holds the polished take, with the second and first takes' loops (in `take2/` and `take1/`) to compare.
+The page is at `lookdev/audio-previews/menu/index.html`. It holds the fourth take, with the third, second and first takes' loops (in `take3/`, `take2/` and `take1/`) to compare.
