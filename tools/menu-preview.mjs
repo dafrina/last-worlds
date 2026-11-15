@@ -53,7 +53,8 @@ await writeFile(path.join(output, 'metrics.json'), JSON.stringify(metrics, null,
 
 const db = x => (20 * Math.log10(Math.max(x, 1e-9))).toFixed(1);
 // Earlier takes kept beside this one (their own renders in subfolders), so they can be compared.
-const TAKES = [['take2', 'Second take (deployed 15 November): heroic and mysterious, before the polish'], ['take1', 'First take (rejected: "too happy or melancholic")']];
+const TAKES = [['take3', 'Third take (deployed 15 November): the polish, before the familiar melody and the horn section'],
+  ['take2', 'Second take (deployed 15 November): heroic and mysterious, before the polish'], ['take1', 'First take (rejected: "too happy or melancholic")']];
 const earlier = [];
 for (const [dir, label] of TAKES) {
   try { await access(path.join(output, dir, 'theme-loop.wav')); earlier.push([dir, label]); } catch { /* Not kept. */ }
@@ -72,7 +73,7 @@ article{border:1px solid var(--line);background:var(--panel);padding:16px;margin
 .sounds button:hover{border-color:var(--accent)}.sounds small{display:block;color:var(--muted)}
 table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
 </style><main><h1>“Last Worlds” — title theme and menu sounds</h1>
-<p>Offline renders through the game's own mixer at the game's default volumes (music 75 %, effects 55 %). The polished take: D minor, modal, 100 BPM, 32 bars (76.8 s) that loop. The hook: a pickup A3, then D4, A4, D5 on a dotted rhythm, answered and called again, every phrase ending on its chord's root or fifth, over open fifths and suspended seconds (D5 D5 B♭sus2 C5, D5 D5 B♭sus2 D5). A rebuilt brass lead, clean bar lines, the theme's own mix bus.</p>
+<p>Offline renders through the game's own mixer at the game's default volumes (music 75 %, effects 55 %). The fourth take: D minor, 100 BPM, 32 bars (76.8 s) that loop. A familiar heroic melody in D natural minor on the call's dotted rhythm: the call 1-5-8 (A3, then D, A, D), the answer F, E, D, rising to the question on E, the call again, the climax F, G, A, and home on A, C, D. Over open fifths (D5 D5 B♭sus2 C5, D5 D5 B♭sus2 D5). The lead is a horn section of three players with horn resonances, in tune from the first moment, doubled by a string section an octave down.</p>
 <h2>The theme</h2>
 <article><p>As first heard: it fades in on the first tap in the menu (60 s).</p><audio controls preload="none" src="theme-60s.wav"></audio></article>
 <article><p>The full loop, at full level (intro, hook, B section, hook again, turnaround; the end runs straight into the start).</p><audio controls preload="none" src="theme-loop.wav"></audio></article>

@@ -663,28 +663,41 @@ const BOSS: Record<BossInstrument, Patch> = {
 };
 
 const MENU: Record<MenuInstrument, Patch> = {
-  // The title theme's lead (15 November polish, user: "the instrument sounds a bit cheap"): a cinematic synth brass,
-  // in layers that blend into one instrument.
-  // - A brass core: two saws 3 cents either side and a narrow pulse through a resonant low-pass whose envelope swells
-  //   open with the note and overshoots on the attack (the brass "blat"), then blooms slowly while the note is held.
-  // - A wider, darker unison of four saws for size, the fundamental as a sine for body.
-  // - Breath: noise through a band-pass, a puff on the attack and a trace under the sustain.
-  // - Gentle saturation (more on the attack), a slow vibrato that arrives late, and no harsh top.
-  // The score adds the rest per note: a scoop into long notes, slurs, and its brightness (`tone`).
-  anthem: { seconds: 2.8, base: 67, rms: .24, window: .5, render(out, rate, noise) {
-    const f = midi(67), left = new Saw(rate, .13), right = new Saw(rate, .61), pulse = new Pulse(rate, .38, .3), wide = new Unison(rate, 4, 13, 157);
-    const core = new Svf(rate, 900, 1.25), dark = new Svf(rate, 700, .8), breath = new Svf(rate, 1700, 1.1), air = new OnePole(6500, rate);
+  // The title theme's lead (15 November, user: "the instrument still bit artificial"): a horn section of three players,
+  // not one perfect voice. Each player is a band-limited saw through a lip filter whose brightness follows its own
+  // loudness, with its own entry (0, 8 and 14 ms), tuning (-4, 0 and +4 cents, centred), slow drift, and a vibrato
+  // of its own rate that arrives late. Each attack is breath and a short nasal lip buzz, rising from a few cents low
+  // for a few milliseconds; no click. The note swells after its attack (a slight overshoot, a settle, then a bloom)
+  // and darkens as it fades; a little of the fundamental for body, gentle saturation, a dark top. The horn's formants
+  // (about 0.5 and 1.2 kHz) are the mixer's, fixed in Hz and moving with how hard each note is played.
+  anthem: { seconds: 2.8, base: 67, rms: .24, window: .5, render(out, rate) {
+    const f = midi(67);
+    const players = [
+      { delay: 0, detune: -4, vibrato: 5.3, onset: .38, depth: .0019, drift: .23, phase: 0, gain: 1, seed: 401 },
+      { delay: .008, detune: 0, vibrato: 4.8, onset: .5, depth: .0023, drift: .31, phase: 2.1, gain: .95, seed: 409 },
+      { delay: .014, detune: 4, vibrato: 5.7, onset: .44, depth: .0017, drift: .17, phase: 4.2, gain: .9, seed: 419 },
+    ].map(p => ({ ...p, saw: new Saw(rate, (p.seed % 89) / 89), lip: new Svf(rate, 900, .9), buzz: new Svf(rate, 2300, 2.5),
+      breath: new Svf(rate, 1300, .8), noise: noiseSource(p.seed) }));
+    const air = new OnePole(4800, rate);
     let body = 0;
     each(out, rate, (t, i) => {
-      const hz = f * (1 + .0022 * Math.sin(TAU * 5 * t) * Math.min(1, Math.max(0, (t - .42) / .5)));
-      const swell = (1 - Math.exp(-t / .03)) * (1 + .35 * Math.exp(-t / .09)) * (.78 + .22 * Math.min(1, t / 1.2));
-      if (i % 8 === 0) { core.set(f * 1.1 + 2300 * swell, 1.25); dark.set(f + 1100 * swell, .8); }
-      body += TAU * hz / rate;
-      breath.run(noise());
-      const brass = core.run(left.next(hz * cents(-3)) + right.next(hz * cents(3)) + pulse.next(hz) * .6);
-      const v = brass + dark.run(wide.next(hz)) * .45 + Math.sin(body) * .35 * Math.min(1, t / .02) + breath.band * (.22 * Math.exp(-t / .05) + .025);
-      const level = Math.min(1, t / .022) * (1 + .18 * Math.exp(-t / .08)) * (.88 + .12 * Math.exp(-t * 2)) * Math.exp(-t * .16) * Math.min(1, (2.8 - t) / .45);
-      return air.run(drive(v * (.9 + .5 * Math.exp(-t / .07)), 1.35)) * level;
+      let sum = 0, middle = 0;
+      for (const p of players) {
+        const u = t - p.delay, n = p.noise();
+        if (u < 0) continue;
+        const attack = u < .04 ? .5 - .5 * Math.cos(Math.PI * u / .04) : 1;
+        const level = attack * (1 + .12 * Math.exp(-(((u - .055) / .03) ** 2))) * (.84 + .16 * (1 - Math.exp(-u / .5))) * Math.exp(-u * .12);
+        const vibrato = 1 + p.depth * Math.sin(TAU * p.vibrato * u) * Math.min(1, Math.max(0, (u - p.onset) / .5));
+        const hz = f * cents(p.detune + 1.2 * Math.sin(TAU * p.drift * u + p.phase) - 8 * Math.exp(-u / .012)) * vibrato;
+        if (p.detune === 0) middle = hz;
+        if (i % 8 === 0) p.lip.set(f * (1.3 + 4.5 * level) + 1800 * Math.exp(-u / .02), .9);
+        const v = p.saw.next(hz), buzz = Math.exp(-u / .025);
+        p.lip.run(v); p.buzz.run(v); p.breath.run(n);
+        sum += (p.lip.low + p.buzz.band * .5 * buzz + p.breath.band * (.18 * Math.exp(-u / .035) + .012)) * level * p.gain;
+      }
+      body += TAU * (middle || f) / rate;
+      const release = Math.min(1, (2.8 - t) / .45), weight = Math.min(1, t / .05) * Math.exp(-t * .12);
+      return air.run(drive(sum / Math.sqrt(3) + Math.sin(body) * .18 * weight, 1.15)) * release;
     });
   } },
 };
