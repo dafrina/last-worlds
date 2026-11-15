@@ -1,12 +1,12 @@
 import { hostileFlashHex } from './shot-colors';
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type PlanetId, type RunState } from '../shared/contracts';
-import { SPECIALS, weaponRank } from '../content/equipment';
+import { weaponRank } from '../content/equipment';
 import { BOSSES } from '../content/bosses';
 import { AROUND_HERO } from './hero-stencil';
 import { drawnShot, type Launch } from './shot-launch';
 import { liveInstances } from './instances';
-import { orbitalFront } from '../sim/orbital';
+import { orbitalRadius, orbitalSpeed } from '../sim/orbital';
 
 /**
  * Presentation-only effects (docs/04 §5): engine plumes, muzzle flashes, impact sparks, explosions (fireball,
@@ -587,25 +587,33 @@ export function createFx(scene: THREE.Scene) {
   function orbitalBarrage(state: RunState) {
     const orbital = state.orbital;
     if (!orbital) return;
-    const start = orbital.cameraX - orbital.direction * (VIEW.width / 2 + 1);
     if (orbital.startedAt !== orbitalSeen) {
-      orbitalSeen = orbital.startedAt; orbitalDone = start; shellsDone = start;
+      orbitalSeen = orbital.startedAt; orbitalDone = -ORBITAL_STEP; shellsDone = -ORBITAL_STEP;
       // The call: a white flash over the whole view (the camera's jolt is the renderer's: src/render/scene.ts).
-      flash(orbital.cameraX, -9, 24, .18, 0xffffff, 1.4);
+      flash(state.cameraX, -9, 24, .18, 0xffffff, 1.4);
     }
-    const front = orbitalFront(orbital, state.time - orbital.startedAt), lead = 2 * (VIEW.width / 2 + 1) / SPECIALS['orbital-strike'].sweep * SHELL_TIME;
+    // Its front (src/sim/orbital.ts): a column every ORBITAL_STEP from the origin. Only columns near the view are drawn: off
+    // screen they would spend the particle pools for nothing.
+    const radius = orbitalRadius(state.time - orbital.startedAt), lead = orbitalSpeed() * SHELL_TIME;
+    const near = (x: number) => Math.abs(x - state.cameraX) <= VIEW.width / 2 + 2;
     const rows = full() ? ORBITAL_ROWS : ORBITAL_ROWS.filter((_, k) => k % 2 === 0);
-    while ((front + orbital.direction * lead - shellsDone) * orbital.direction >= ORBITAL_STEP) {
-      shellsDone += orbital.direction * ORBITAL_STEP;
-      const column = Math.round(shellsDone * 10);
-      rows.forEach((row, k) => { const p = impact(column, k, row); shell(shellsDone + p.jx, p.z, orbital.direction); });
+    const sides = [orbital.direction] as const;
+    while (radius + lead - shellsDone >= ORBITAL_STEP) {
+      shellsDone += ORBITAL_STEP;
+      for (const side of sides) {
+        const x = orbital.origin + side * shellsDone, column = Math.round(x * 10);
+        if (near(x)) rows.forEach((row, k) => { const p = impact(column, k, row); shell(x + p.jx, p.z, side); });
+      }
     }
-    while ((front - orbitalDone) * orbital.direction >= ORBITAL_STEP) {
-      orbitalDone += orbital.direction * ORBITAL_STEP;
-      const column = Math.round(orbitalDone * 10);
-      rows.forEach((row, k) => { const p = impact(column, k, row); strike(orbitalDone + p.jx, p.z, p.n); });
-      // (High draws the pall in the post composite, over the fog: src/render/post-pipeline.ts pallShade.)
-      if (!full()) pall(orbitalDone, column * 17 + orbitalSeen);
+    while (radius - orbitalDone >= ORBITAL_STEP) {
+      orbitalDone += ORBITAL_STEP;
+      for (const side of sides) {
+        const x = orbital.origin + side * orbitalDone, column = Math.round(x * 10);
+        if (!near(x)) continue;
+        rows.forEach((row, k) => { const p = impact(column, k, row); strike(x + p.jx, p.z, p.n); });
+        // (High draws the pall in the post composite, over the fog: src/render/post-pipeline.ts pallShade.)
+        if (!full()) pall(x, column * 17 + orbitalSeen);
+      }
     }
   }
 

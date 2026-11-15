@@ -116,7 +116,8 @@ vec3 fog( vec3 color, vec2 uv ) {
  * The Orbital Strike's pall (docs/42; user, 15 November: "just not red make it dark gray"): a dark band trailing the
  * barrage's front across the middle of the view, laid on the flight plane so the ground's height never cuts it. It darkens
  * the fogged frame (a dark smoke in the scene was fogged away over the canyon); bloom still adds on top, so the barrage's
- * fireballs keep their punch. pall: the front's x, the sweep's direction, strength (0 off), the flight plane's height.
+ * fireballs keep their punch. pall: the strike's origin x, how far its fronts have gone each way, strength (0 off), the
+ * flight plane's height. The band trails each front back toward the origin.
  */
 vec3 pallShade( vec3 color, vec2 uv ) {
   if ( pall.z <= 0.0 ) return color;
@@ -124,7 +125,7 @@ vec3 pallShade( vec3 color, vec2 uv ) {
   vec3 eye = viewInverse[ 3 ].xyz, ray = ( viewInverse * vec4( view.xyz / view.w, 1.0 ) ).xyz - eye;
   if ( abs( ray.y ) < 1e-5 ) return color;
   vec3 p = eye + ray * ( ( pall.w - eye.y ) / ray.y );
-  float s = -p.z, behind = ( pall.x - p.x ) * pall.y;
+  float s = -p.z, behind = pall.y - abs( p.x - pall.x );
   float band = smoothstep( -0.6, 0.8, behind ) * ( 1.0 - smoothstep( 3.0, 13.0, behind ) ) * smoothstep( 2.0, 5.0, s ) * ( 1.0 - smoothstep( 14.0, 17.5, s ) );
   float billow = 0.85 + 0.15 * sin( p.x * 1.7 + s * 0.9 ) * sin( p.x * 0.6 - s * 1.3 );
   return mix( color, vec3( 0.035, 0.036, 0.04 ), clamp( pall.z * band * billow * 1.2, 0.0, 0.9 ) );
@@ -221,7 +222,7 @@ export function createPostPipeline(renderer: THREE.WebGLRenderer, settings: Post
     fogColor: { value: settings.fogColor.clone() }, fogHeight: { value: settings.fogHeight.clone() }, fogDistance: { value: settings.fogDistance.clone() },
     /** How much of the world a full-screen overlay hides this frame (0..1, the jump veil); fog and haze fade under it. */
     cover: { value: 0 },
-    /** The Orbital Strike's pall: front x, direction, strength (0 off), flight-plane height (pallShade). */
+    /** The Orbital Strike's pall: origin x, front distance, strength (0 off), flight-plane height (pallShade). */
     pall: { value: new THREE.Vector4(0, 1, 0, 0) },
   });
   const quad = new THREE.Mesh(triangle, prefilter); quad.frustumCulled = false;

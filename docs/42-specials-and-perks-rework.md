@@ -17,7 +17,7 @@ The user, after playtesting:
 |---|---|---|---|---|
 | Seeker Rack | starter: kill some shooters | free | 40 s | unchanged |
 | Siege Lance | cut a lane: shots and enemies in its beam | 250 | 40 s | **locked: it also destroys enemy shots** |
-| Shockwave | clear the shots around you | 450 | 45 s | unchanged |
+| Shockwave | clear the shots around you | 450 | 45 s | strikes off screen too (15 November) |
 | Orbital Strike | wipe every enemy on screen, not the shots | **600** | **60 s** | **locked; replaces the Gravity Well** |
 
 ### Siege Lance burns shots (locked)
@@ -38,7 +38,14 @@ barrage of explosions from the side".
   be dodged. That is what sets it apart from the Shockwave.
 - **Price:** 600 credits, the most expensive special.
 - **Recharge:** 60 s (user, 14 November).
-- **Sweep:** across the view in 1.2 s, from the side away from the ship ("1.2s sweep why not").
+- **Sweep:** one front across the whole map, from the map edge nearer the view to the other, in 1.75 s.
+  - **History:** it first swept only the view it was called on, in 1.2 s, from the side away from the ship ("1.2s sweep
+    why not"). Ground uncovered by moving was missed.
+  - **The user, 15 November:** "Can you make it go over the whole map?", then "make it always from the closer side towards
+    the other. Maybe increase the speed to 1.75s total so it isnt as noticeable that its delayed if it starts off screen
+    edge".
+  - Everything on the map dies when the front reaches it.
+  - The band trails the front (`src/sim/orbital.ts`).
 - **Bosses:** each open target takes 15% of its current stage's pool, never a kill.
 - **Parts:** 2 ("2 parts is fine").
 - **Look (15 November, after "looks a bit underwhelming", the user chose incoming shells, heavier impacts, an opening flash

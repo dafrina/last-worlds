@@ -24,7 +24,7 @@ import { absorbHunterShield, aceDropRoll, aceWeaponRoll, updateHunters } from '.
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
 import { catchNearMiss, orbitReflectedShot, spinRate, spinUp, updateSpin } from './ship-perks';
-import { orbitalFront } from './orbital';
+import { orbitalDirection, orbitalDuration, orbitalOrigin, orbitalRadius } from './orbital';
 import { observe, observeKill, observeThreads } from './events';
 import { retain } from '../shared/retain';
 import { SHIP_PERKS } from '../content/ship-perks';
@@ -737,31 +737,32 @@ function useSpecial(state: RunState): void {
     return;
   }
   if (special === 'orbital-strike') {
-    // It sweeps the view it was called on, from the side away from the ship toward it (on the centre: left to right).
-    const direction: -1 | 1 = state.player.x - state.cameraX < 0 ? -1 : 1;
-    state.orbital = { startedAt: state.time, cameraX: state.cameraX, direction, hit: [] };
+    // Across the whole map, from the edge nearer the view to the other (src/sim/orbital.ts).
+    const direction = orbitalDirection(state.cameraX);
+    state.orbital = { startedAt: state.time, origin: orbitalOrigin(direction), direction, hit: [] };
     setMessage(state, 'ORBITAL STRIKE', 1);
     return;
   }
   state.player.invulnerableUntil = Math.max(state.player.invulnerableUntil, state.time + BALANCE.special.invulnerability);
   // The ring bursts out from the ship (user request, 16 October 2026) and sweeps the view; see updateShockwave.
-  state.shockwave = { x: state.player.x, s: 0, startedAt: state.time, hit: [], cameraX: state.cameraX };
+  state.shockwave = { x: state.player.x, s: 0, startedAt: state.time, hit: [] };
   addEffect(state, 'special', state.player.x, 0, 0.6);
   updateShockwave(state);
   setMessage(state, 'SHOCKWAVE', 1);
 }
 
 /**
- * Shockwave: its ring grows from the ship at SPECIALS.shockwave.speed. Each target in the activation view takes 180
- * damage once as the ring reaches it, and each hostile shot there it reaches is cleared. It ends past `reach`.
+ * Shockwave: its ring grows from the ship at SPECIALS.shockwave.speed. Each target it reaches takes 180 damage once (less
+ * the further away), on screen or not (user, 15 November: "Same for shockwave yes"; until then only the view at
+ * activation was struck), and each hostile shot it reaches near the ship is cleared. It ends past `reach`.
  */
 function updateShockwave(state: RunState): void {
   const wave = state.shockwave;
   if (!wave) return;
   const spec = SPECIALS.shockwave, radius = spec.speed * (state.time - wave.startedAt);
-  // The footprint stays the view at activation (docs/02 §3): moving the camera never sweeps it across the map.
+  // Whatever the ring reaches on the run's rows, across the map (it held to the view at activation until 15 November).
   const reached = (x: number, s: number, extra: number) => Math.hypot(x - wave.x, s - wave.s) <= radius + extra
-    && Math.abs(x - wave.cameraX) <= VIEW.width / 2 && s >= VIEW.minS && s <= VIEW.maxS;
+    && s >= VIEW.minS && s <= VIEW.maxS;
   const near = Math.min(radius, spec.clear);
   state.projectiles = state.projectiles.filter(shot => shot.friendly || Math.hypot(shot.x - wave.x, shot.s - wave.s) > near || !reached(shot.x, shot.s, 0));
   for (const enemy of state.enemies) {
@@ -829,18 +830,19 @@ function seekerTargets(state: RunState): Enemy[] {
 }
 
 /**
- * Orbital Strike (docs/42): its front sweeps the view it was called on. Every enemy in that view the front has reached is
- * destroyed once (whatever its armour or shield); a boss's open targets each take `bossShare` of their current stage's
- * pool instead. Hostile shots are untouched. It ends when the front has crossed the view.
+ * Orbital Strike (docs/42): its front sweeps the whole map (src/sim/orbital.ts). Every enemy on the run's rows the front
+ * has reached is destroyed once (whatever its armour or shield); a boss's open targets each take `bossShare` of their
+ * current stage's pool instead. Hostile shots are untouched. It ends when the front is past the far edge.
  */
 function updateOrbital(state: RunState): void {
   const orbital = state.orbital;
   if (!orbital) return;
-  const spec = SPECIALS['orbital-strike'], elapsed = state.time - orbital.startedAt, front = orbitalFront(orbital, elapsed);
+  const spec = SPECIALS['orbital-strike'], elapsed = state.time - orbital.startedAt, radius = orbitalRadius(elapsed);
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || enemy.damageable === false || orbital.hit.includes(enemy.id)) continue;
-    if (Math.abs(enemy.x - orbital.cameraX) > VIEW.width / 2 + enemy.radius || enemy.s < VIEW.minS || enemy.s > VIEW.maxS) continue;
-    if ((enemy.x - orbital.direction * enemy.radius - front) * orbital.direction > 0) continue;
+    // The whole map's width, the view's depth: everything on the run's rows from edge to edge, in view or not.
+    if (enemy.s < VIEW.minS || enemy.s > VIEW.maxS) continue;
+    if (Math.abs(enemy.x - orbital.origin) - enemy.radius > radius) continue;
     orbital.hit.push(enemy.id);
     if (enemy.bossPart) {
       damageEnemy(state, enemy, spec.bossShare * bossStagePool(state, enemy), false, undefined, 'special');
@@ -850,7 +852,7 @@ function updateOrbital(state: RunState): void {
       damageEnemy(state, enemy, ORBITAL_KILL, false, undefined, 'special');
     }
   }
-  if (elapsed >= spec.sweep) state.orbital = null;
+  if (elapsed >= orbitalDuration()) state.orbital = null;
 }
 /** More than any enemy's health, armour and shield together: an Orbital Strike hit is a kill. */
 const ORBITAL_KILL = 1e6;

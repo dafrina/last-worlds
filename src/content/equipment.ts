@@ -66,8 +66,9 @@ export const WEAPON_TIERS: Readonly<Record<WeaponId, readonly string[]>> = {
  *   it (0.8 s at 450/s until the user found it too short, 16 October). Since 14 November (docs/42) it also burns every
  *   hostile shot in its lane: "focused but obliterating as far as it goes", the Shockwave's opposite.
  * - Orbital Strike (docs/42; replaced the Gravity Well, "too similar to shockwave", 14 November): a barrage sweeps the
- *   view it was called on in `sweep` s, from the side away from the ship. Every enemy it passes is destroyed (Relic
- *   Shields too); a boss's targets each take `bossShare` of their current stage's pool instead. Hostile shots stay.
+ *   whole map in `sweep` s, from the map edge nearer the view to the other (it swept only the view it was called on, in
+ *   1.2 s, until 15 November). Every enemy it passes is destroyed (Relic Shields too); a boss's targets each take
+ *   `bossShare` of their current stage's pool instead. Hostile shots stay.
  */
 export const SPECIALS = {
   // Hangar order (user, 6 November): Seeker Rack first, Shockwave at 450 (was 350); Seeker Rack recharges in 40 s (was 35).
@@ -78,8 +79,8 @@ export const SPECIALS = {
   // at `reach`; it clears hostile shots only within `clear` of the ship.
   shockwave: { label: 'Shockwave', recharge: 45, price: 450, parts: 1, blurb: 'A ring bursts out from your ship: it clears nearby shots and hits hardest up close.', speed: 26, reach: 20, full: 3, minShare: 0.2, clear: 8 },
   // The user, 14 November: "Lock in the orbital strike. Most expensive at 600", "recharge at 60", "2 parts is fine",
-  // "1.2s sweep why not we can change it afterwards".
-  'orbital-strike': { label: 'Orbital Strike', recharge: 60, price: 600, parts: 2, blurb: 'A barrage sweeps the screen and destroys every enemy on it. Their shots stay in the air.', sweep: 1.2, bossShare: 0.15 },
+  // "1.2s sweep why not we can change it afterwards", then the whole map in "1.75s total".
+  'orbital-strike': { label: 'Orbital Strike', recharge: 60, price: 600, parts: 2, blurb: 'A barrage sweeps the whole map and destroys every enemy it passes. Their shots stay in the air.', sweep: 1.75, bossShare: 0.15 },
 } as const satisfies Readonly<Record<SpecialId, { label: string; recharge: number; price: number; parts: number; blurb: string; [tuning: string]: string | number }>>;
 
 /** All ships can collect up to five shields. Equipment changes the starting reserve only. */

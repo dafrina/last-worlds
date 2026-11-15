@@ -253,12 +253,12 @@ export interface RunState {
   /** Siege Lance in progress: its beam fires straight ahead from the ship until this active time. */
   lance?: { until: number } | null;
   /** Shockwave in progress: a ring expanding from where the ship fired it; `hit` lists targets it already struck. */
-  shockwave?: { x: number; s: number; startedAt: number; hit: number[]; cameraX: number } | null;
+  shockwave?: { x: number; s: number; startedAt: number; hit: number[] } | null;
   /**
-   * Orbital Strike in progress (docs/42): a barrage sweeping the view it was called on (`cameraX`), from the side away
-   * from the ship toward it (`direction`: the sweep's x direction). `hit` lists targets it already struck.
+   * Orbital Strike in progress (docs/42, src/sim/orbital.ts): a barrage sweeping the whole map from `origin` (just beyond
+   * the map edge nearer the view) in `direction`. `hit` lists targets it already struck.
    */
-  orbital?: { startedAt: number; cameraX: number; direction: -1 | 1; hit: number[] } | null;
+  orbital?: { startedAt: number; origin: number; direction: -1 | 1; hit: number[] } | null;
   /** Hunter bookkeeping for the current level or endless sector: hunters spawned and the last spawn window used. */
   hunters?: { sector: number; spawned: number; window: number; shieldDrops?: number };
   /** Parts collected this attempt (docs/33; campaign only, banked with the attempt like credits). */

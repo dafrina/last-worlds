@@ -168,7 +168,7 @@ describe('lives, shield charges, and special', () => {
     expect(state.player.weapon).toBe('fan');
   });
 
-  it('special affects only the activation viewport, and its kills grant no action recharge', () => {
+  it('the Shockwave strikes whatever its ring reaches, on screen or not, and its kills grant no action recharge', () => {
     // The Shockwave (bought since 3 November 2026; the Seeker Rack is the starter).
     const state = quietRun('shockwave');
     const visible = target(state, 0, 10);
@@ -176,16 +176,16 @@ describe('lives, shield charges, and special', () => {
     visible.hp = 50;
     unseen.hp = 50;
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
-    // The ring expands from the ship; the camera moving meanwhile does not widen its footprint.
+    // The ring expands from the ship and strikes off screen too (user, 15 November: "Same for shockwave yes"; it held to
+    // the view at activation before), with the damage fading with distance.
     state.cameraX = 8;
     for (let i = 0; i < 70; i++) stepRun(state, EMPTY_INPUT);
     expect(state.shockwave).toBeNull();
     expect(visible.hp).toBeLessThanOrEqual(0);
-    expect(unseen.hp).toBe(50);
+    expect(unseen.hp).toBeLessThanOrEqual(0);
     expect(state.player.specialCharge).toBeCloseTo(71 * STEP / SPECIALS.shockwave.recharge);
     expect(state.specialsUsed).toBe(1);
     stepRun(state, { ...EMPTY_INPUT, specialPressed: true });
-    expect(unseen.hp).toBe(50);
     expect(state.specialsUsed).toBe(1);
   });
 

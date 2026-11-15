@@ -3,6 +3,7 @@ import { WEAPONS } from '../../src/content/balance';
 import { SPECIALS } from '../../src/content/equipment';
 import { EMPTY_INPUT, STEP, type Enemy, type EnemyKind, type RunConfig, type RunState } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
+import { orbitalDuration } from '../../src/sim/orbital';
 import { absorbHunterShield } from '../../src/sim/hunters';
 
 // docs/32: the Rail Driver (a piercing straight main weapon); docs/42: the Orbital Strike, which replaced docs/32's Gravity
@@ -101,46 +102,50 @@ describe('Orbital Strike (docs/42)', () => {
     state.projectiles.push(shot); return shot;
   };
 
-  it('costs 600 and 2 parts, recharges in 60 s and sweeps the view in 1.2 s (user, 14 November)', () => {
-    expect([orbital.price, orbital.parts, orbital.recharge, orbital.sweep]).toEqual([600, 2, 60, 1.2]);
+  it('costs 600 and 2 parts, recharges in 60 s and sweeps the whole map in 1.75 s (user, 14-15 November)', () => {
+    expect([orbital.price, orbital.parts, orbital.recharge, orbital.sweep]).toEqual([600, 2, 60, 1.75]);
     const prices = Object.values(SPECIALS).map(special => special.price);
     expect(orbital.price).toBe(Math.max(...prices));
   });
 
-  it('destroys every enemy in the view it was called on, armour and shields included, and leaves their shots', () => {
+  it('destroys every enemy across the whole map, in view or not, armour and shields included, and leaves their shots', () => {
     const state = campaign({ special: 'orbital-strike' });
     const plain = target(state, -4, 6), relic = target(state, 0, 12, { hp: 190, maxHp: 190 }, 'relic');
     const ace = target(state, 4, 15, { hunter: { key: 1, shield: 9999, perCharge: 100, vx: 0, vs: 0, tx: 4, ts: 15, retarget: Infinity, waypoint: 0 } }, 'dart');
-    const beyond = target(state, 9, 6);
+    // Off screen at either map edge (user, 15 November: "it should still hit it all").
+    const east = target(state, 11, 6), west = target(state, -11, 9);
     const shots = [hostile(state, -3, 8), hostile(state, 3, 10)];
     activate(state);
-    run(state, orbital.sweep + .1, [plain, relic, ace, beyond]);
-    expect([plain, relic, ace].every(enemy => enemy.hp <= 0)).toBe(true);
-    expect(beyond.hp).toBe(1000);
+    run(state, orbitalDuration() + .1, [plain, relic, ace, east, west]);
+    expect([plain, relic, ace, east, west].every(enemy => enemy.hp <= 0)).toBe(true);
     for (const shot of shots) expect(state.projectiles).toContain(shot);
     expect(state.orbital).toBeNull();
   });
 
-  it('sweeps from the side away from the ship toward it', () => {
-    const state = campaign({ special: 'orbital-strike' });
-    state.player.x = -3;
-    const near = target(state, -5, 8), far = target(state, 5, 8);
-    activate(state);
-    expect(state.orbital!.direction).toBe(-1);
-    let farFirst = false;
-    for (let i = 0; i < Math.round(orbital.sweep / STEP) + 2; i++) {
-      run(state, STEP, [near, far]);
-      if (far.hp <= 0 && near.hp > 0) farFirst = true;
+  it('sweeps from the map edge nearer the view to the other ("from the closer side towards the other")', () => {
+    for (const cameraX of [-4, 4]) {
+      const state = campaign({ special: 'orbital-strike' });
+      state.cameraX = state.player.x = cameraX;
+      const left = target(state, -5, 8), right = target(state, 5, 8);
+      activate(state);
+      expect(state.orbital!.direction).toBe(cameraX < 0 ? 1 : -1);
+      const [first, second] = cameraX < 0 ? [left, right] : [right, left];
+      let order = false;
+      const steps = Math.round(orbitalDuration() / STEP) + 2;
+      for (let i = 0; i < steps; i++) {
+        run(state, STEP, [left, right]);
+        if (first.hp <= 0 && second.hp > 0) order = true;
+      }
+      expect(order, `camera ${cameraX}`).toBe(true);
+      expect(second.hp).toBeLessThanOrEqual(0);
     }
-    expect(farFirst).toBe(true);
-    expect(near.hp).toBeLessThanOrEqual(0);
   });
 
   it("takes a boss target's share of its current stage, never more, and never kills it outright", () => {
     const state = campaign({ special: 'orbital-strike' });
     const pod = target(state, -2, 10, { bossPart: 'left', hp: 1000, maxHp: 1000 });
     activate(state);
-    run(state, orbital.sweep + .1, [pod]);
+    run(state, orbitalDuration() + .1, [pod]);
     expect(1000 - pod.hp).toBeCloseTo(orbital.bossShare * 1000, 6);
   });
 

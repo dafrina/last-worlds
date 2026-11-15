@@ -1,5 +1,20 @@
 # Build status
 
+## The Orbital Strike and the Shockwave strike off screen (15 November 2026; docs/42)
+
+- **Orbital Strike:**
+  - it sweeps the whole map in 1.75 s, from the map edge nearer the view to the other;
+  - before, it swept only the view it was called on, so ground uncovered by moving was missed;
+  - impacts are drawn only near the view.
+- **Shockwave:** its ring strikes whatever it reaches, on screen or not, with the damage fading with distance as before.
+  Before, it held to the view at activation ("Same for shockwave yes").
+- **Gate:**
+  - typecheck clean;
+  - unit 1106 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.
+- No phone test.
+
 ## Shred: +30% over 2 s (15 November 2026; docs/42)
 
 - Shred's cap is back to +30% fire rate ("the cap should be 30%"), reached over 2 s of steady hits ("Change to 2 s for

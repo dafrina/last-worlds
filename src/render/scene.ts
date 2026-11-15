@@ -4,7 +4,7 @@ import { liveInstances, dynamicBatch } from './instances';
 import { createSilhouetteMaterial, planarShadow, silhouetteShade } from './craft-shadows';
 export { liveInstances } from './instances';
 import { SHIP_PERKS } from '../content/ship-perks';
-import { orbitalFront } from '../sim/orbital';
+import { orbitalRadius } from '../sim/orbital';
 import { HERO_STENCIL } from './hero-stencil';
 import { drawnShot, launchFrom, type Launch } from './shot-launch';
 import * as THREE from 'three';
@@ -1191,7 +1191,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The camera shake's state (cosmetic, render only): trauma, the clock, the last hit, lives and effect seen.
   let shakeTrauma = 0, shakeTime = -1, shakeHit = -Infinity, shakeLives = 0, shakeEffect = -1;
   // The Orbital Strike's pall: where its front got to, which way, and when the band has faded (render only).
-  let pallState: { front: number; direction: number; until: number } | null = null, orbitalJolted = -1;
+  let pallState: { origin: number; radius: number; until: number } | null = null, orbitalJolted = -1;
   // THE CITADEL's standing state: the arena (by its start) whose temple has fallen, and the run clock last seen.
   let citadelFallen: number | null = null, citadelSeen = -Infinity;
   const HOVERING_BOSSES = [
@@ -2338,10 +2338,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.orbital && state.orbital.startedAt !== orbitalJolted) { orbitalJolted = state.orbital.startedAt; shakeTrauma = 1; }
       if (state.orbital) shakeTrauma = Math.max(shakeTrauma, .55);
       // Its pall (High: the post composite's dark band behind the front), fading out over PALL_FADE once the sweep is done.
-      if (state.orbital) pallState = { front: orbitalFront(state.orbital, state.time - state.orbital.startedAt), direction: state.orbital.direction, until: state.time + PALL_FADE };
+      if (state.orbital) pallState = { origin: state.orbital.origin, radius: orbitalRadius(state.time - state.orbital.startedAt), until: state.time + PALL_FADE };
       else if (pallState && state.time > pallState.until) pallState = null;
       const pallStrength = pallState ? Math.min(1, (pallState.until - state.time) / PALL_FADE) : 0;
-      post.settings.pall.value.set(pallState?.front ?? 0, pallState?.direction ?? 1, pallStrength, VIEW.flightHeight);
+      post.settings.pall.value.set(pallState?.origin ?? 0, pallState?.radius ?? 0, pallStrength, VIEW.flightHeight);
       if (state.boss?.id === 'citadel' && state.boss.phase === 'arrival') shakeTrauma = Math.max(shakeTrauma, .6 * (1 - THREE.MathUtils.smoothstep(state.time - state.boss.startedAt, .1, 1.6)));
       shakeTrauma = Math.min(1, shakeTrauma);
       const shake = reducedMotion() || jumpActive ? 0 : shakeTrauma * shakeTrauma * SHAKE_AMPLITUDE;

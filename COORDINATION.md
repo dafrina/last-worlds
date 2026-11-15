@@ -1089,3 +1089,10 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - build passes;
   - browser 55 of 55.
 - **Deployed** `9fe3f28` (Pages run 43700237251; the live bundle matches).
+
+**15 November · Claude Code (main session) · whole-map Orbital Strike and Shockwave, deploying.**
+- **Gate:**
+  - typecheck clean;
+  - unit 1106 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.
