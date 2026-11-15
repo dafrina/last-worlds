@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { MeshPhysicalMaterial, ShaderLib, type WebGLRenderer } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { CAMPAIGN_SCROLL, PACE } from '../../src/content/balance';
 import { scrollForPace } from '../../src/content/endless';
 import { VIEW, type RunConfig } from '../../src/shared/contracts';
 import { missionArena } from '../../src/render/scene';
-import { extractKitNode } from '../../src/render/terrain-kit';
+import { createTerrainMaterials, extractKitNode } from '../../src/render/terrain-kit';
 import { CITADEL_AT, naharaLandform } from '../../src/world/terrain-nahara';
 import type { PlanetRow } from '../../src/world/terrain-planet';
 import { UMBRA_SCENERY_MAX } from '../../src/world/terrain-umbra';
@@ -84,5 +85,26 @@ describe('Nahara canyon floor (docs/39, 15 November)', () => {
       expect(Math.max(-box.min.z, box.max.z), kitNodeName(kind, v)).toBeLessThanOrEqual(spec.halfZ + 1e-6);
       geometry.dispose();
     }
+  });
+});
+
+describe('Nahara sand (docs/39, 15 November)', () => {
+  it('ripples Nahara\'s ground only: High with the fine octave and sparkle, Low with one octave, other worlds off', () => {
+    const materials = createTerrainMaterials();
+    try {
+      const shader = { uniforms: {}, vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader } as Parameters<MeshPhysicalMaterial['onBeforeCompile']>[0];
+      materials.ground.onBeforeCompile(shader, {} as WebGLRenderer);
+      // Every stage found its chunk: the ripples (map), the normal's tilt, the sparkle after the direct light.
+      for (const piece of ['float u1 = 6.2831853 * dot( SAND_K1', 'vec3( -sandSlope.x, 0.0, -sandSlope.y )', 'grainFlash']) expect(shader.fragmentShader).toContain(piece);
+      const look = (shader.uniforms as Record<string, { value: number }>).sandLook, setPlanet = materials.ground.userData.setPlanet as (planet: string) => void;
+      setPlanet('nahara'); expect(look.value).toBe(2);
+      materials.setNormalMaps(false); expect(look.value).toBe(1);
+      materials.setNormalMaps(true); expect(look.value).toBe(2);
+      for (const planet of ['khepri', 'vesper', 'luna', 'nacre', 'amnion', 'umbra', 'corona']) { setPlanet(planet); expect(look.value).toBe(0); }
+      // The section joins: every wave vector's z frequency fits the 36-unit section a whole number of times.
+      for (const [, , z] of shader.fragmentShader.matchAll(/#define SAND_K\w+ vec2\( (-?[\d.]+), (-?[\d.]+) \)/g)) {
+        expect(Math.abs(Number(z) * VIEW.sectionLength - Math.round(Number(z) * VIEW.sectionLength))).toBeLessThan(0.02);
+      }
+    } finally { materials.dispose(); }
   });
 });
