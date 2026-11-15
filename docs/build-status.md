@@ -13,6 +13,7 @@
   - unit 1106 passed, 8 skipped;
   - build passes;
   - browser 55 of 55.
+- **Deployed** `bf327dc`: Pages run 43713378613 matches the live bundle `main-DpGuBx0x.js`.
 - No phone test.
 
 ## Shred: +30% over 2 s (15 November 2026; docs/42)
