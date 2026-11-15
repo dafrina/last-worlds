@@ -13,11 +13,12 @@ const MENU_FADE_IN = 3, MENU_FADE_OUT = .9;
 const MENU_AFTER_RESULT = 3.2;
 
 export const AUDIO_STORAGE_KEY = 'last-worlds.audio.v1';
-export const DEFAULT_AUDIO: Readonly<AudioSettings> = { muted: false, music: .55, effects: .8 };
+/** Defaults (user, 15 November: effects 55, music 75; were music 55, effects 80). Saved only once a slider moves. */
+export const DEFAULT_AUDIO: Readonly<AudioSettings> = { muted: false, music: .75, effects: .55 };
 export function sanitizeSettings(value: unknown): AudioSettings {
   const data = value && typeof value === 'object' ? value as Partial<AudioSettings> : {};
   const volume = (v: unknown, fallback: number) => typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback;
-  return { muted: typeof data.muted === 'boolean' ? data.muted : false, music: volume(data.music, .55), effects: volume(data.effects, .8) };
+  return { muted: typeof data.muted === 'boolean' ? data.muted : false, music: volume(data.music, DEFAULT_AUDIO.music), effects: volume(data.effects, DEFAULT_AUDIO.effects) };
 }
 
 /** The semitones that move the success resolve (written in C) to a world's key, within a tritone either way. */
