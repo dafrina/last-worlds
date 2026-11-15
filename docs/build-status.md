@@ -9,7 +9,7 @@
 - **Deployed at the user's request ("deploy it"), before the full browser gate finished.**
   - On `b928304`: typecheck clean; ship-perk, campaign and UI unit tests pass; `ship-perks.spec.ts` 3/3 on an isolated server.
   - The agent's run of the theme: unit 1112, build, `audio.spec` 8/8.
-  - The full gate on the theme merge `282d0cd` was still running at deploy time.
+  - The full gate on the theme merge `282d0cd` finished after the deploy: typecheck clean; unit tests 1112 passed, 8 skipped; build passes; browser 56/56, Playwright exit 0. `b928304` adds only the perk texts and their spec.
 - **Live:** Pages run 43766233563 succeeded; the live bundle is `main-xrR1eu9l.js`; the live `storage` chunk reads "40% wider pickup attraction." with no "both modes"; the smoke test reports no errors. No phone test.
 
 ## Title theme polish deployed (`827b2f4`), 15 November 2026
