@@ -3,7 +3,7 @@
 // the menus over the theme ending in a launch (the theme fading over the warp into a world's music).
 //   AUDIO_PREVIEW_URL=http://127.0.0.1:4192 node tools/menu-preview.mjs [output directory]
 import { chromium } from '@playwright/test';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const output = path.resolve(process.argv[2] ?? 'lookdev/audio-previews/menu');
@@ -52,6 +52,12 @@ try {
 await writeFile(path.join(output, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n');
 
 const db = x => (20 * Math.log10(Math.max(x, 1e-9))).toFixed(1);
+// Earlier takes kept beside this one (their own renders in subfolders), so they can be compared.
+const TAKES = [['take2', 'Second take (deployed 15 November): heroic and mysterious, before the polish'], ['take1', 'First take (rejected: "too happy or melancholic")']];
+const earlier = [];
+for (const [dir, label] of TAKES) {
+  try { await access(path.join(output, dir, 'theme-loop.wav')); earlier.push([dir, label]); } catch { /* Not kept. */ }
+}
 await writeFile(path.join(output, 'index.html'), `<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Last Worlds title theme</title>
@@ -66,10 +72,11 @@ article{border:1px solid var(--line);background:var(--panel);padding:16px;margin
 .sounds button:hover{border-color:var(--accent)}.sounds small{display:block;color:var(--muted)}
 table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
 </style><main><h1>“Last Worlds” — title theme and menu sounds</h1>
-<p>Offline renders through the game's own mixer at the game's default volumes (music 75 %, effects 55 %). D minor, modal, 100 BPM, 32 bars (76.8 s) that loop. The hook: a pickup A3, then D4, A4, D5 on a dotted rhythm, over open fifths (D5 D5 B♭5 C5, D5 D5 B♭5 E♭5).</p>
+<p>Offline renders through the game's own mixer at the game's default volumes (music 75 %, effects 55 %). The polished take: D minor, modal, 100 BPM, 32 bars (76.8 s) that loop. The hook: a pickup A3, then D4, A4, D5 on a dotted rhythm, answered and called again, every phrase ending on its chord's root or fifth, over open fifths and suspended seconds (D5 D5 B♭sus2 C5, D5 D5 B♭sus2 D5). A rebuilt brass lead, clean bar lines, the theme's own mix bus.</p>
 <h2>The theme</h2>
 <article><p>As first heard: it fades in on the first tap in the menu (60 s).</p><audio controls preload="none" src="theme-60s.wav"></audio></article>
 <article><p>The full loop, at full level (intro, hook, B section, hook again, turnaround; the end runs straight into the start).</p><audio controls preload="none" src="theme-loop.wav"></audio></article>
+${earlier.length ? `<h2>Earlier takes</h2>${earlier.map(([dir, label]) => `<article><p>${label}. The full loop.</p><audio controls preload="none" src="${dir}/theme-loop.wav"></audio></article>`).join('')}` : ''}
 <h2>Menu sounds</h2>
 <section class="sounds">${UI.map(([sound, label]) => `<button type="button" data-src="${sound}.wav"><b>${sound}</b><small>${label}</small></button>`).join('')}</section>
 <h2>Clicking through the menus</h2>

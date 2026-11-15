@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { auditMenu } from '../../src/audio/harmony-audit';
-import { heardWindowAt, pitchClass, UNPITCHED } from '../../src/audio/harmony';
+import { clash, heardWindowAt, pitchClass, UNPITCHED } from '../../src/audio/harmony';
+import { BASE_PITCH, type Instrument } from '../../src/audio/instruments';
 import { MENU_INSTRUMENTS, MENU_THEME, menuChord, menuMelody, menuStep } from '../../src/audio/menu-theme';
 import { SAMPLE_IDS, synthesize, type UiSound } from '../../src/audio/samples';
 
@@ -19,9 +20,9 @@ const pcm = (id: string) => {
 
 describe('the title theme', () => {
   it('is the approved 32-bar cycle, D minor at 100 BPM, and loops without a seam', () => {
-    // A change here is a change to the composition itself (the second take, heroic and mysterious, 15 November).
+    // A change here is a change to the composition itself (the second take, heroic and mysterious, polished on 15 November).
     const notes = Array.from({ length: STEPS }, (_, s) => menuStep(s));
-    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['66b54e4b', 827]);
+    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['a99ac37f', 827]);
     expect(MENU_THEME).toMatchObject({ bpm: 100, root: 50, bars: 32 });
     for (const s of [0, 37, 255, 511]) expect(menuStep(s + STEPS)).toEqual(menuStep(s));
   });
@@ -30,16 +31,18 @@ describe('the title theme', () => {
     // The pickup A3, then D4, A4, D5 on a dotted quarter, an eighth and a half.
     expect(bar(3)).toEqual([[14, 57]]);
     expect(bar(4)).toEqual([[0, 62], [6, 69], [8, 74]]);
-    // Answered E–F–D, called again from F over B♭, answered G–F–D; the second time the answer lands on E♭ over E♭.
+    // Answered E–F–D, called again from F over B♭, answered G–F–G (open, on C's fifth), the pickup G3 on C's fifth;
+    // the second time the answer comes home, G–F–D over D. Every phrase ends on its chord's root or fifth.
     expect(bar(5)).toEqual([[0, 76], [6, 77], [8, 74], [14, 60]]);
     expect(bar(6)).toEqual([[0, 65], [6, 72], [8, 77]]);
-    expect(bar(11)).toEqual([[0, 79], [6, 77], [8, 75]]);
+    expect(bar(7)).toEqual([[0, 79], [6, 77], [8, 79], [14, 55]]);
+    expect(bar(11)).toEqual([[0, 79], [6, 77], [8, 74]]);
     expect(bar(8)).toEqual(bar(4));
     expect(bar(20)).toEqual(bar(4));
-    // No thirds under it: every chord is an open fifth (root, fifth, octave) or a suspended fourth.
+    // No thirds under it: every chord is an open fifth (root, fifth, octave) or a suspended second (root, fifth, ninth).
     for (let b = 0; b < MENU_THEME.bars; b++) {
       const [root, ...rest] = menuChord(b * 16).tones;
-      expect([[7, 12], [5, 12]], `bar ${b}`).toContainEqual(rest.map(t => t - root));
+      expect([[7, 12], [7, 14]], `bar ${b}`).toContainEqual(rest.map(t => t - root));
     }
     // Simple and uncluttered: about two lead notes a bar, never two at once.
     const lead = Array.from({ length: STEPS }, (_, s) => menuStep(s).filter(n => n.instrument === 'anthem').length);
@@ -55,10 +58,53 @@ describe('the title theme', () => {
       expect(allowed.has(pitchClass(n.pitch)), `${s} ${n.instrument} ${n.pitch}`).toBe(true);
     }
   });
+  it('lets no note, tail, release or early reflection sound against the chord at any 32nd, across the loop too', () => {
+    // 15 November polish (user: "towards the end of the bars its a bit off"). A pitched note is heard from its sample's
+    // first to its last moment within 30 dB of its peak, cut short by its release (`hold`, silent 150 ms later) or by the
+    // next note of its line (the lead's part, the bass), plus 90 ms of the hall's early reflections if it is sent there.
+    // At every 32nd it must not grind against the chord sounding then: not one of its tones and a minor second, major
+    // seventh or tritone from one. Two cycles, so tails crossing the loop's seam are heard too.
+    const sixteenth = 15 / MENU_THEME.bpm, thirtySecond = sixteenth / 2, spans = new Map<Instrument, [number, number]>();
+    const span = (id: Instrument) => {
+      let found = spans.get(id);
+      if (!found) {
+        const samples = synthesize(id);
+        let peak = 0;
+        for (const v of samples) peak = Math.max(peak, Math.abs(v));
+        const floor = peak * 10 ** (-30 / 20);
+        let first = 0, last = samples.length - 1;
+        while (first < last && Math.abs(samples[first]) < floor) first++;
+        while (last > first && Math.abs(samples[last]) < floor) last--;
+        found = [first / 32000, (last + 1) / 32000]; spans.set(id, found);
+      }
+      return found;
+    };
+    const grinds = (pitch: number, step: number) => {
+      const tones = menuChord(step).tones.map(pitchClass), pc = pitchClass(pitch);
+      return !tones.includes(pc) && tones.some(t => clash(pc, t) !== 0);
+    };
+    const heard = Array.from({ length: 2 * STEPS }, (_, s) => menuStep(s).map(note => ({ note, start: s * sixteenth + (note.offset ?? 0) })))
+      .flat().filter(({ note }) => !UNPITCHED.has(note.instrument) && note.instrument !== 'riser');
+    const bad = new Set<string>();
+    heard.forEach(({ note, start }, k) => {
+      const rate = 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), [first, last] = span(note.instrument), skip = note.skip ?? 0;
+      let end = start + (last - skip) / rate;
+      if (note.hold !== undefined) end = Math.min(end, start + note.hold + .15);
+      const line = note.part ?? (note.instrument === 'round-bass' ? 'bass' : undefined);
+      const next = line && heard.slice(k + 1).find(h => h.start > start + 1e-6 && (h.note.part ?? (h.note.instrument === 'round-bass' ? 'bass' : undefined)) === line);
+      if (next) end = Math.min(end, next.start + (note.part ? .1 : .06));
+      if (note.wet > 0) end += .09;
+      for (let t = Math.ceil((start + Math.max(0, first - skip) / rate) / thirtySecond) * thirtySecond; t < end; t += thirtySecond) {
+        const step = Math.floor(t / sixteenth + 1e-9);
+        if (step >= STEPS && step < 2 * STEPS && grinds(note.pitch, step)) bad.add(`bar ${Math.floor((step - STEPS) / 16)} ${note.instrument} ${note.pitch}`);
+      }
+    });
+    expect([...bad]).toEqual([]);
+  });
   it('lists every voice it plays (it waits for all of them to be made), and its lead is its own sample', () => {
     const used = new Set(Array.from({ length: STEPS }, (_, s) => menuStep(s)).flat().map(n => n.instrument));
     expect([...used].every(id => MENU_INSTRUMENTS.includes(id)), [...used].join(' ')).toBe(true);
-    expect(pcm('anthem')).toBe('f5e03902');
+    expect(pcm('anthem')).toBe('5fc40b22');
   });
 });
 
