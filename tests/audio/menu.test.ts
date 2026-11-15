@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { auditMenu } from '../../src/audio/harmony-audit';
-import { pitchClass, UNPITCHED } from '../../src/audio/harmony';
+import { heardWindowAt, pitchClass, UNPITCHED } from '../../src/audio/harmony';
 import { MENU_INSTRUMENTS, MENU_THEME, menuChord, menuMelody, menuStep } from '../../src/audio/menu-theme';
 import { SAMPLE_IDS, synthesize, type UiSound } from '../../src/audio/samples';
 
@@ -19,18 +19,28 @@ const pcm = (id: string) => {
 
 describe('the title theme', () => {
   it('is the approved 32-bar cycle, D minor at 100 BPM, and loops without a seam', () => {
-    // A change here is a change to the composition itself.
+    // A change here is a change to the composition itself (the second take, heroic and mysterious, 15 November).
     const notes = Array.from({ length: STEPS }, (_, s) => menuStep(s));
-    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['fbf52e61', 517]);
+    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['66b54e4b', 827]);
     expect(MENU_THEME).toMatchObject({ bpm: 100, root: 50, bars: 32 });
     for (const s of [0, 37, 255, 511]) expect(menuStep(s + STEPS)).toEqual(menuStep(s));
   });
-  it('opens its hook with D, A, F, G on the 3-3-2 rhythm, answered, and states it again', () => {
+  it('calls its hook with a rising fourth, fifth and fourth to the octave on a dotted rhythm, over open fifths', () => {
     const bar = (b: number) => Array.from({ length: 16 }, (_, k) => menuMelody(b * 16 + k)).flatMap((p, k) => p === null ? [] : [[k, p]]);
-    expect(bar(4)).toEqual([[0, 62], [3, 69], [6, 65], [8, 67]]);
-    expect(bar(5)).toEqual([[0, 65], [6, 62]]);
-    expect(bar(6)).toEqual(bar(4));
+    // The pickup A3, then D4, A4, D5 on a dotted quarter, an eighth and a half.
+    expect(bar(3)).toEqual([[14, 57]]);
+    expect(bar(4)).toEqual([[0, 62], [6, 69], [8, 74]]);
+    // Answered E–F–D, called again from F over B♭, answered G–F–D; the second time the answer lands on E♭ over E♭.
+    expect(bar(5)).toEqual([[0, 76], [6, 77], [8, 74], [14, 60]]);
+    expect(bar(6)).toEqual([[0, 65], [6, 72], [8, 77]]);
+    expect(bar(11)).toEqual([[0, 79], [6, 77], [8, 75]]);
+    expect(bar(8)).toEqual(bar(4));
     expect(bar(20)).toEqual(bar(4));
+    // No thirds under it: every chord is an open fifth (root, fifth, octave) or a suspended fourth.
+    for (let b = 0; b < MENU_THEME.bars; b++) {
+      const [root, ...rest] = menuChord(b * 16).tones;
+      expect([[7, 12], [5, 12]], `bar ${b}`).toContainEqual(rest.map(t => t - root));
+    }
     // Simple and uncluttered: about two lead notes a bar, never two at once.
     const lead = Array.from({ length: STEPS }, (_, s) => menuStep(s).filter(n => n.instrument === 'anthem').length);
     expect(Math.max(...lead)).toBe(1);
@@ -38,9 +48,11 @@ describe('the title theme', () => {
   });
   it('has no clash anywhere in its cycle, the accompaniment against itself included, and no note outside its mode', () => {
     expect(auditMenu()).toEqual([]);
-    for (let s = 0; s < STEPS; s++) {
-      const { tones, scale } = menuChord(s), allowed = new Set([...scale, ...tones].map(pitchClass));
-      for (const n of menuStep(s)) if (!UNPITCHED.has(n.instrument) && n.instrument !== 'riser') expect(allowed.has(pitchClass(n.pitch)), `${s} ${n.instrument} ${n.pitch}`).toBe(true);
+    for (let s = 0; s < STEPS; s++) for (const n of menuStep(s)) {
+      if (UNPITCHED.has(n.instrument) || n.instrument === 'riser') continue;
+      // A reversed swell belongs to the chord it lands on.
+      const { tones, scale } = menuChord(heardWindowAt(MENU_THEME.bpm, n, s).chordStep ?? s), allowed = new Set([...scale, ...tones].map(pitchClass));
+      expect(allowed.has(pitchClass(n.pitch)), `${s} ${n.instrument} ${n.pitch}`).toBe(true);
     }
   });
   it('lists every voice it plays (it waits for all of them to be made), and its lead is its own sample', () => {

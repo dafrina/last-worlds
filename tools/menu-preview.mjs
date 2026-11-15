@@ -66,7 +66,7 @@ article{border:1px solid var(--line);background:var(--panel);padding:16px;margin
 .sounds button:hover{border-color:var(--accent)}.sounds small{display:block;color:var(--muted)}
 table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
 </style><main><h1>“Last Worlds” — title theme and menu sounds</h1>
-<p>Offline renders through the game's own mixer at the game's default volumes (music 75 %, effects 55 %). D minor, 100 BPM, 32 bars (76.8 s) that loop. The hook: D, A, F, G on the game's 3-3-2 rhythm.</p>
+<p>Offline renders through the game's own mixer at the game's default volumes (music 75 %, effects 55 %). D minor, modal, 100 BPM, 32 bars (76.8 s) that loop. The hook: a pickup A3, then D4, A4, D5 on a dotted rhythm, over open fifths (D5 D5 B♭5 C5, D5 D5 B♭5 E♭5).</p>
 <h2>The theme</h2>
 <article><p>As first heard: it fades in on the first tap in the menu (60 s).</p><audio controls preload="none" src="theme-60s.wav"></audio></article>
 <article><p>The full loop, at full level (intro, hook, B section, hook again, turnaround; the end runs straight into the start).</p><audio controls preload="none" src="theme-loop.wav"></audio></article>

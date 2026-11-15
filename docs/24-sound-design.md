@@ -143,10 +143,12 @@ The score clock schedules 120 ms ahead, checks every 40 ms, and skips missed not
 | `src/audio/instruments.ts`, `dsp.ts` | Music instrument patches and the offline synthesis kit, loudness matching, anti-click edges and headroom |
 | `src/audio/score.ts` | Planet arrangements, authored notes, the sidechain depth table, reversed-note landing and bounded lookahead clock |
 | `src/audio/boss-score.ts` | Boss stages, per-world boss kits, stingers and the arranger that lands changes on the score's grid |
+| `src/audio/menu-theme.ts` | The title theme "Last Worlds": its harmony, hook, form and arrangement (15 November) |
 | `src/audio/harmony.ts`, `harmony-audit.ts` | Clash detection, the stem's consonant tone choice, and the audit of every score and stage |
 | `src/audio/events.ts` | Read-only RunState observer, event coalescing, bounded ID tracking |
 | `src/audio/mixer.ts` | Cached AudioBuffers, buses, spatialization, hall, playback humanizing, slides, the kick-keyed sidechain, voice limits and ducking |
-| `src/audio/engine.ts` | Gesture/device lifecycle, playback state, preferences and score transitions |
+| `src/audio/engine.ts` | Gesture/device lifecycle, playback state, preferences, score transitions, the title theme's lifecycle and the menu sounds |
+| `src/ui/ui-sounds.ts` | The menu sounds' delegated listeners: which button, selector or slider makes which sound |
 | `src/audio/settings.ts`, `settings.css` | Isolated accessible sliders added to the existing settings panel |
 | `src/main.ts` | Thin start/observe/pause/resume/quit hooks, replacing the old triangle tones |
 
@@ -583,3 +585,100 @@ User: "i really dont like the new life and shield hit sounds, give me some other
 - **What they avoid:** bells (pickups), chirps (shots) and booms (explosions), so each still reads as a hit.
 - **Retired:** the klaxon voice.
 
+## 15 November 2026 · The title theme and the menu sounds
+
+User: "i want you to make a very recognizable, catchy and fitting to the style menu music and sounds for button presses etc in the menu". Until now the menu was silent: sound started only with a flight.
+
+### The theme: "Last Worlds" (`src/audio/menu-theme.ts`)
+
+The first take (D, A, F, G on the 3-3-2 rhythm over Dm, B♭, F, C) was rejected the same day. User: "sounds too happy or melancholic, it should sound more heroic and mysterious". This is the second take; the menu sounds were kept.
+
+- **Basics:** D minor, modal, at 100 BPM with half-time weight; 32 bars, 76.8 s, that loop without a seam.
+- **Form:** intro (4 bars), hook (8), B section (8), the hook again, bigger (8), turnaround (4).
+- **The hook (heroic):** a call on a dotted rhythm (dotted quarter, eighth, half).
+  - A pickup A3, then D4, A4, D5: a rising fourth into the downbeat, a fifth, a fourth to the octave.
+  - It is answered E–F–D (the minor third only in passing), called again from F over B♭ (F4, C5, F5) and answered G–F–D. That answer hangs on D over C: unresolved.
+  - The second time through, the last answer lands on E♭ over E♭ (G–F–E♭): a Phrygian turn that the hook never resolves. Only the turnaround's D does.
+  - The bass, the kick and the brass stabs hit the call's rhythm with it.
+- **The B section:** the call at half speed (dotted half, quarter, whole), climbing from D over G, E♭ over E♭, F over B♭ and G over A. Its last note is E, then the pickup into the last hook.
+- **Harmony (mysterious):** open fifths (root, fifth, octave), no thirds under the hook.
+  - Hook: D5 D5 B♭5 C5 | D5 D5 B♭5 E♭5.
+  - B section: G5 G5 E♭5 E♭5 B♭5 B♭5 Asus4 A5. The A has no C♯: no major cadence.
+  - Intro: D5 D5 E♭5 D5. Turnaround: D5 D5 B♭5 C5.
+  - The ♭II (E♭) colours the intro, the hook's end and the B section.
+  - The modes: D aeolian; over E♭, E♭ without D or A.
+- **Arrangement:**
+  - **Lead:** the `anthem` synth brass, doubled an octave down by the boss kit's brass stabs on its strong notes (and on the B section's long ones). In the last hook, low strings double its held notes and the glass its first three bars an octave up.
+  - **Pad and choir:** the boss strings play the open fifths, a chord a bar. Nahara's wordless choir holds the fifth and octave in the intro, the B section, the last hook's downbeats and the turnaround.
+  - **Ostinato:** spiccato strings in the fifth's register, grouped 3-3-2 (the game's rhythm). Eighths in the first hook, the B section's first half and the turnaround's start; sixteenths building into the hook, in the B section's second half and in the last hook.
+  - **Bass and drums:**
+    - The round bass on the call's rhythm (0, 6, 8), driving on in the last hook; half time in the B section.
+    - The snappy kick on the same rhythm keys the sidechain on the bass.
+    - Taiko on the downbeats, a half-time snare on beat 3, distant taiko in the intro.
+  - **Arrivals:** a riser and a timpani roll into each hook, then crash, boom, braam and timpani on its downbeat. Timpani open the B section's halves. A crash and a boom as the turnaround resolves the E♭ to D.
+  - **Mystery layers:**
+    - Umbra's reversed swell (`inhale`) breathes into five bar lines: the intro's first and third, the B section's two halves, and the turnaround.
+    - A cold glass shimmer, two octaves up on the fifth and octave, plays in the intro and turnaround and over the B section's held notes.
+    - The glass calls the motif from afar before the hook and in the turnaround.
+- **One new voice, `anthem`, for the hook:** a warm, dark synth brass.
+  - Three saws 4 cents either side over a sine an octave down.
+  - A low-pass that opens with the note's swell, a slow vibrato, a touch of drive; 1.8 s.
+  - It is monophonic, one note at a time.
+  - Every other voice is the game's own.
+- **Checks** (`tests/audio/menu.test.ts`):
+  - The harmonic audit runs on it (`auditMenu`). It is stricter than for the worlds: the accompaniment is checked against itself too, and a reversed swell belongs to the chord it lands on (`heardWindowAt`). It finds no clash.
+  - Every pitched note is in its chord or mode.
+  - Every chord is an open fifth or a suspended fourth.
+  - The hook's call and answers are pinned.
+  - About two lead notes a bar (2.1), never two at once; 26 notes a bar in all, most of them the quiet ostinato.
+  - Its cycle is fingerprinted.
+- **Voices:** at most 23 at once in the render, none dropped; the theme has its own pool of 28 (`menu`).
+
+### Menu sounds (`src/audio/samples.ts`, wired by `src/ui/ui-sounds.ts`)
+
+One family, crisp and short, in the glassy, metallic world of the game's pickups and the theme. They play through their own path past the master gate, so a paused flight's panels sound too. They follow the Effects volume and Sound off; repeats closer than 40 ms (the slider's 50 ms, a refusal's 250 ms) are not played again.
+
+| Sound | What it is | Where |
+| --- | --- | --- |
+| `ui-press` | a click and a short bright blip on A6 with its fifth above (80 ms) | any button that opens or confirms: menu buttons, hangar entry, loadout, settings, help, resume, pause |
+| `ui-back` | the same click, its blip falling an octave to A5 (90 ms) | back buttons, RETURN TO MENU (pause panel, results, loading) |
+| `ui-select` | a small glass tick on D7 (50 ms) | radio groups (quality, steering, sound, hangar slots, mission dots), tabs, mission arrows, tier pips, a tried-on design, a paint colour |
+| `ui-tick` | the faintest click on G7, pitched over an octave by the value (30 ms) | the Music and Effects volume sliders, at most every 50 ms |
+| `ui-purchase` | a latch's click, then the game's upgrade bell rising E6, B6, E7 over a soft shimmer (0.55 s) | hangar BUY and UPGRADE, a design bought in the shipyard |
+| `ui-equip` | a low clunk under a metallic catch (0.2 s) | hangar EQUIP, fitting an owned design |
+| `ui-deny` | two low, muted knocks (0.22 s); not the flight's deny buzzer | a press on a disabled button: not enough credits, a tier not bought, a locked mission (where the browser delivers the press; current Chromium does) |
+
+- **No menu sound** for the special button (gameplay) or for the launches (LAUNCH MISSION, ENDLESS, FLY AGAIN): the launch warp's whoosh covers them.
+- **Made first at boot:** the menu sounds are first in the boot order, and a sound not yet made is skipped, never made in the tap.
+
+### Lifecycle (`engine.ts` `menu`, `launch`, `ui`; `main.ts`)
+
+- **First interaction:** silent before it. The theme starts on the first tap or key in the menu (browsers allow sound only after a gesture), once all its voices are made, and fades in over 3 s to its level (0.66 of the music fader).
+- **Launch:** the theme fades out over 0.9 s under the warp's whoosh. The world's music starts as the flight does, after the warp (at least 1 s), so they never overlap and the world music's logic is unchanged.
+- **Returning:**
+  - After a run, the theme returns 3.2 s after the result's stinger and plays on through the results into the menu.
+  - Leaving a flight from the pause panel brings it back.
+  - Returning to the tab on the menu resumes it; a hidden tab pauses it.
+- **Volume:** it follows the Music volume and Sound off; turning Sound on again in the menu restarts it.
+- **The launch tap:** nothing is synthesized in it. The theme starts only once its samples are made, the menu sounds play only if made, and every sample is still made in the worker at boot.
+
+### Levels and costs
+
+**Levels** (previews at the game's defaults, music 75 % and effects 55 %):
+- **Theme:** its loudest second is −26.5 dBFS, peak 0.253. That is about 1.5 dB under Luna's music after the launch in the demo (−25.1 dBFS): a backdrop, not louder than a flight. The second take is fuller, so its fader is 0.66 (the first take's was 0.8).
+- **Menu sounds:** peaks from 0.035 (the slider tick) to 0.095 (a purchase), clear over the theme.
+- No clipping.
+
+**Costs:**
+- 92 samples instead of 84; 15,499,520 bytes of cached sound instead of 15,112,960 (+377 KiB: the anthem 230 KB, the menu sounds 156 KB), under the 15 MiB budget. The second take adds no sample: its other voices (choir, inhale, stab and the boss kit) were already made at boot.
+- Synthesis in Node: about 0.56 s warm for all, against 0.53 s.
+
+**Unchanged:** every world's music and every in-flight effect. Their fingerprints and the 28 effect hashes are pinned and pass.
+
+**Previews:** `node tools/menu-preview.mjs <output>` renders through the game's mixer (`renderMenu` in the audio lab):
+- the full loop;
+- a 60 s cut as first heard;
+- each menu sound;
+- a click through the menus over the theme ending in a launch into Luna's music.
+
+The page is at `lookdev/audio-previews/menu/index.html`. It holds the first take's renders: the user asked for the second take to ship without another preview.
