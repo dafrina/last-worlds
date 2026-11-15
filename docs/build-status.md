@@ -1,5 +1,20 @@
 # Build status
 
+## Title theme polish deployed (`827b2f4`), 15 November 2026
+
+- **Bar ends:**
+  - the reversed swells carry only tones both chords share;
+  - notes stop before clashing bar lines;
+  - phrase ends land on the root or fifth;
+  - the E♭ colour moved to the turnaround;
+  - a stricter 32nd-by-32nd audit counts tails, releases and early reflections.
+- **The lead:** `anthem` rebuilt as a layered synth brass, with a filter swell and blat, a wide unison, a sine fundamental, breath, scoops, slurs and velocity-driven brightness.
+- **The mix:** a menu bus with a centred, pre-delayed lead, the accompaniment carved around 2.2 kHz, glue and width. Bug fix: the theme's reverb now follows the menu fade.
+- **Deployed before the browser suite finished,** at the user's request ("go deploy now"). Typecheck, unit 1112 and the build had passed on the merged commit; the agent's audio spec was 8/8.
+- **Gate, after the fact:** browser 56/56, Playwright exit 0.
+- **Live:** Pages run 43754287096 succeeded; the live bundle `main-CaIlHsff.js` matches the build; the smoke test reports no errors. No phone test.
+- **Sample memory:** 15,627,520 bytes of a 15,728,640 budget (about 100 KB of headroom).
+
 ## Menu title theme and menu sounds deployed (`144bb0c`), 15 November 2026
 
 - **The title theme "Last Worlds":** the second, heroic and mysterious take. D minor, 100 BPM, 32 bars, open fifths, a rising call hook on synth brass.

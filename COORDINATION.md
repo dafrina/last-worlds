@@ -1106,3 +1106,8 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **15 November · Claude Code (Blender MCP in WSL session) · deployed `144bb0c`:** the menu title theme and menu sounds, plus the audio defaults (music 75 %, effects 55 %).
 - **Gate:** unit 1111, build, browser 56/56.
 - **Still owned:** `src/audio/*` for the theme's polish pass, which deploys next.
+
+**15 November · Claude Code (Blender MCP in WSL session) · deployed `827b2f4`, the title theme polish.**
+- **Gate:** unit 1112, build, browser 56/56; the browser run finished after the deploy, at the user's request.
+- **Released:** `src/audio/*` and the UI sound hooks are free.
+- **Note:** sample memory is now within about 100 KB of its budget.
