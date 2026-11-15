@@ -100,6 +100,71 @@ empire and moving sand, a steady scatter, the existing ruin kit, low and wide.
   - **Never over the canyon:** a pale line in the lane could read as a shot. A stream fades where the ground falls away.
   - **Determinism:** placed by a fixed hash.
 
+### The canyon floor and the rippled sand (15 November)
+
+The user: "lets enhance nahara by placing more things on naharas canyon grounds. Theyre so empty now. Also, a nice detailed
+sand texture shader for the dunes etc would look great, like ripples of sanddunes"; then "khepri has nice canyons as
+inspiration".
+
+- **What Khepri does:** its canyons read rich at their edges. Columns crown the rims, talus and fallen columns heap at every
+  cliff's foot and thin out across the floor, rubble lies in patches. Nahara's ledges had nothing but the odd monolith.
+- **The fallen city** (`canyonFloor`): the same gradient in Nahara's own ruin.
+  - **Talus:** tumbled blocks down the main canyon's lower walls (under -4), half sunk in the slope.
+  - **The walls' feet** (a rise within a unit): rubble fields, tumbled blocks, columns fallen along the wall, now and then
+    a stump.
+  - **The ledges:** rubble in patches (a noise field), fallen columns, the stepped foundations of fallen buildings, obelisk
+    and column stumps, and rarely a relic of the empire's machines.
+  - **The rims:** a little rubble and a stump, set back from the edge.
+  - **Rules:**
+    - one candidate per 1.4 × 1.4 patch, jittered in it (seeded, seam-free);
+    - about twice the pieces' modelled size: on the ledges, far under the camera, real size read as pebbles;
+    - only from -6 up: the cleft's floor stays lost in the haze with the teal streams;
+    - never on a stream, never overhanging a drop (no corner of the footprint falls away), off the monoliths' and great
+      ruins' feet;
+    - never in THE CITADEL's canyon (from 42 before the temple to 36 past it), which keeps its own authored ruins;
+    - nothing over 2.3 above its ground, under the 3.0 scenery cap;
+    - strike sites and battery compounds clear it at render time, like all scenery;
+    - rubble and tumbled blocks are cosmetic (the Low tier skips them); foundations, stumps and relics always stand.
+  - **Scope:** scenery only; nothing simulated.
+- **The pieces** (Blender, `nahara_kit.py`, the canyon floor's section): fallen column drums (two), an obelisk stub and
+  column stumps, foundations (an outline and a stepped platform), rubble fields (chips round two blocks, a toppled wall
+  course, a carved slab cracked across its glyph), relics (a bronze ring's arc, a split pylon over its core). Their
+  turquoise inlays glow at 55 % of the kit's: many lit lines on the floor read busy, and could be taken for the ship's shots.
+  The carved slab is one rubble field in eight for the same reason.
+- **The sand** (`src/render/terrain-kit.ts` `SAND_GLSL`, `SAND_RIPPLES`, `SAND_SPARKLE`): a procedural ground shader in
+  the section's own units, so it never swims with the scroll; every wave vector divides the 36-unit section, so the joins
+  carry on.
+  - **Wind ripples:** about a third of a unit apart, crests across Nahara's wind (the sand streams' `WIND`), asymmetric (a
+    long windward slope, a short lee). Their phase wanders on two octaves of noise, so crests bend, fork and merge, and the
+    ground's height shifts it, so on a slope the crests turn toward the contours.
+  - **Dune swells:** a long, low undulation every 3.7 units leans the light and rouses the ripples on its windward side;
+    some patches lie smoother.
+  - **Lit, not painted:** the ripples tilt the normal. Their slope comes from the phase's screen derivatives turned into a
+    world gradient (the inverse of the ground's screen Jacobian), so the light follows the crests as they bend. Crests are a
+    shade lighter and troughs darker; the pebbly dust map is mostly lifted off the sand.
+  - **High:** a finer set of ripples across the first, and a subtle sparkle of grains that mirror the sun into the camera
+    (after the direct light, so only in sunlight; each glint at least about a pixel, never one flickering texel).
+  - **Low:** one octave, no sparkle, one noise fewer.
+  - **No aliasing:** each octave fades out before it would alias (its phase's `fwidth`, about four pixels a ripple).
+  - **Where:** the natural sandstone's flats, and drifted patches over the built paving; never on walls, steep slopes or the
+    teal streams. The other worlds pay one uniform test.
+- **Measured** (High and Low, headless Chromium on SwiftShader, so no GPU time; no phone yet):
+  - **Scenery:** over ten sections (seed 93) the dressing went from 449 pieces to 728. The new ones are 112 rubble
+    fields, 54 fallen columns, 27 stumps, 8 foundations, 10 relics and 68 more tumbled blocks. Instanced, about 250 to 700
+    triangles a piece.
+  - **Seven frozen views** (`tools/nahara-lookdev.mjs`):
+    - High: 30–38 draw calls and 52–71k triangles before, 37–47 and 59–86k after;
+    - Low: 21–29 calls and 50–67k triangles before, 24–34 and 53–71k after.
+  - **The flight** (`tools/perf-bench.mjs nahara`, 300 frames at 4× CPU throttle):
+    - High: mean calls 51.6 → 60.4, triangles 106k → 116k;
+    - Low: calls 42.8 → 48.0, triangles 103k → 106k;
+    - JS work a frame, High: 11.4 and 13.3 ms before, 12.0 and 14.3 after (load 10–26, so ±20 %);
+    - terrain prefetch: about 75 → 95 ms per 300 frames, with no synchronous section fallbacks;
+    - shader programs unchanged (the ground keeps its one program).
+  - **Within the guardrail** (docs/36: 100 calls, 180k triangles).
+  - **The shader's GPU cost is unmeasured.** It adds about three value noises (two on Low) and a dozen trig terms a
+    ground pixel; a phone test should confirm it.
+
 ### The ruin kit (`tools/blender/nahara_kit.py`, `public/assets/nahara/nahara-kit.glb`)
 
 - **Construction:** rounded, weathered blocks (`rblock`), towers of bonded courses with lit openings.
@@ -107,7 +172,8 @@ empire and moving sand, a steady scatter, the existing ruin kit, low and wide.
   - arches of wedge stones with a teal channel, and broken half arches;
   - monoliths, towers, gates and rubble;
   - a ring mechanism;
-  - aqueduct bays (whole, broken through, a ruined end) and their pier columns.
+  - aqueduct bays (whole, broken through, a ruined end) and their pier columns;
+  - the canyon floor's pieces (15 November): column drums, stumps, foundations, rubble fields and relics (above).
 - **Placement:**
   - **Canyon arches:** a candidate every 20 units, wall to wall, each pier half sunk into its wall.
   - **Great ruins on the hills:** one candidate per 6 × 8 patch (arches, monoliths, towers, some great towers, gates);
@@ -211,4 +277,5 @@ ruins"; the canyon "should be closer to the normal canyons"; "fill the surroundi
 - THE CITADEL's GLB is the heaviest boss file (8.2 MB); its bake could drop to 1024.
 - The monoliths straight before its stairs stand in a fairly regular row.
 - Distinct models for the dart, needle and weaver.
-- No phone test yet.
+- No phone test yet. The sand shader's GPU cost on a phone and the canyon floor's draw calls (up to about 10 more nodes in
+  view) are the things to watch.
