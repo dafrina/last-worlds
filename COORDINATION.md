@@ -1097,3 +1097,8 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - build passes;
   - browser 55 of 55.
 - **Deployed** `bf327dc` (Pages run 43713378613; the live bundle matches).
+
+**15 November · Claude Code (Blender MCP in WSL session) · menu music and UI sounds** (user: "a very recognizable, catchy and fitting to the style menu music and sounds for button presses etc in the menu").
+- **Who:** an agent in its own worktree; previews before any merge.
+- **Owned until it merges:** `src/audio/*`, the sound hooks in `src/ui/*`, the audio wiring in `src/main.ts`, `docs/24`, `tests/audio`, and the audio preview tools.
+- **Other sessions:** please avoid audio edits until the merge note.
