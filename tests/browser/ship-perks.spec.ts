@@ -10,8 +10,11 @@ test('hangar selector identifies every global ship perk', async ({ page }, info)
   await page.getByRole('button', { name: /^HANGAR/ }).click();
   await page.getByRole('radiogroup', { name: 'Equipment slot' }).getByRole('radio', { name: 'Ships', exact: true }).click();
   await expect(page.locator('.hangar-scope')).toContainText('CAMPAIGN AND ENDLESS');
+  // The scope line says where perks fly; the perk texts no longer repeat it (user, 15 November).
   for (const perk of ['Salvage Rig', 'Reserve Life', 'Shred', 'Gravity Slingshot']) {
-    await expect(page.locator('.hangar-item').filter({ hasText: perk })).toContainText('both modes');
+    const item = page.locator('.hangar-item').filter({ hasText: perk });
+    await expect(item).toBeVisible();
+    await expect(item).not.toContainText('both modes');
   }
   await page.locator('.hangar-item').filter({ hasText: 'Gravity Slingshot' }).getByRole('button', { name: 'EQUIP' }).click();
   await expect(page.locator('.shipyard-perk')).toContainText('Gravity Slingshot');

@@ -268,7 +268,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     });
     const profile = campaign.read(), stage = find<HTMLCanvasElement>('.hangar-picture'), ship = SHIPS[profile.loadout.ship];
     text('[data-stage="ship"]', ship.label.toUpperCase());
-    text('[data-stage="perk"]', `${ship.perk.toUpperCase()} · ${ship.blurb.replace(/ Active in both modes\.$/, '')}`);
+    text('[data-stage="perk"]', `${ship.perk.toUpperCase()} · ${ship.blurb}`);
     // Each slot tab shows what it holds (its name stays the slot's: Main, Special, Shield, Ships).
     const holds: Record<Slot, string> = {
       weapon: `${itemText('weapon', profile.loadout.weapon).name}|TIER ${profile.selected[profile.loadout.weapon] + 1}`,
