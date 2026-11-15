@@ -1111,3 +1111,14 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Gate:** unit 1112, build, browser 56/56; the browser run finished after the deploy, at the user's request.
 - **Released:** `src/audio/*` and the UI sound hooks are free.
 - **Note:** sample memory is now within about 100 KB of its budget.
+
+**15 November, late · Claude Code (Blender MCP in WSL session) · three agents in their own worktrees (user's requests).**
+- **Menu theme drums (music agent):** `src/audio/*`.
+- **Nahara canyon dressing and sand-ripple shader:**
+  - `src/world/terrain-nahara.ts` and the Nahara parts of `src/world/scenery-kit.ts`;
+  - `src/render/terrain-kit.ts` (Nahara's ground and sand materials);
+  - `public/assets/nahara/*`, `tools/blender/` (Nahara kit pieces), `docs/39`.
+- **Relative touch steering option (new Settings choice):**
+  - `src/input/*`, the steering selector in `src/ui/game-ui.ts` and its styles;
+  - `docs/08` (the user's decision), AGENTS.md invariant 1 (wording for the option), and the input tests.
+- **Other sessions:** please avoid these files until the merge notes.
