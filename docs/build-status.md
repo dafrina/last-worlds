@@ -9,6 +9,7 @@
   - unit 1106 passed, 8 skipped;
   - build passes;
   - browser 55 of 55.
+- **Deployed** `9fe3f28`: Pages run 43700237251 matches the live bundle `main-BuJUqcWV.js`.
 - No phone test.
 
 ## Shred winds up over 2 s; a heavier Orbital Strike (15 November 2026; docs/42)
