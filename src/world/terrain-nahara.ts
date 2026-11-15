@@ -685,6 +685,8 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   }
   yield;
   buriedEmpire(seed, startS, size, terrain, arena, big, add);
+  /** The chasm's monoliths (x, s, footprint radius): the canyon floor's dressing keeps off their feet. */
+  const pillars: [number, number, number][] = [];
   const cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   for (let j = Math.floor(startS / cell); j < Math.ceil((startS + size) / cell); j++) for (let i = 0; i < columns; i++) {
     if (i === 0) yield;
@@ -703,8 +705,9 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
       // Monoliths out of the haze, up past the rims: a few in the channels, many more in the basins.
       const chance = (0.005 + 0.013 * c.wide) * ruin, side = Math.abs(x - c.center) / Math.max(1, c.half);
       if (slope < 0.8 && pick < chance && side > 0.2) {
-        const top = PLATEAU + 1.6 + h(9) * (UMBRA_SPIRE_MAX - PLATEAU - 1.6);
-        add({ kind: 'nahPillar', x, s, y: ground - 0.3, scale: 0.95 + h(10) * 0.5, height: top - ground + 0.3, rotation: squared, cosmetic: false }, h(11));
+        const top = PLATEAU + 1.6 + h(9) * (UMBRA_SPIRE_MAX - PLATEAU - 1.6), scale = 0.95 + h(10) * 0.5;
+        add({ kind: 'nahPillar', x, s, y: ground - 0.3, scale, height: top - ground + 0.3, rotation: squared, cosmetic: false }, h(11));
+        pillars.push([x, s, KIT.nahPillar.radius * scale]);
       } else if (slope < 0.6 && pick > 0.993 && ground > -6.2) {
         // Tumbled blocks on the ledges only: on the floor, lost in the haze, they read as blocks floating in the mist.
         add({ kind: 'nahBlocks', x, s, y: ground - 0.06, scale: 1.6 + h(12) * 1.2, height: 1.2 + h(13) * 0.8, rotation: h(14) * Math.PI * 2, cosmetic: true }, h(15));
@@ -732,7 +735,101 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   }
   // (No carved facings since 13 November: stretched to each cliff's drop as wall pieces, their caps jutted over the rims and
   // their masonry smeared; the ground's own cliffs carry the masonry.)
+  yield* canyonFloor(seed, startS, size, terrain, arena, [...big.map(([bx, bs]): [number, number, number] => [bx, bs, 2]), ...pillars], add);
   return [...essential, ...cosmetic];
+}
+
+/**
+ * The canyon floor's fallen city (user, 15 November: "lets enhance nahara by placing more things on naharas canyon grounds.
+ * Theyre so empty now", then "khepri has nice canyons as inspiration"). Khepri's canyons read rich at their edges: talus and
+ * fallen columns heaped at every cliff's foot, thinning out across the floor, rubble fields in patches. Nahara's canyon gets
+ * the same gradient in its own ruin (tools/blender/nahara_kit.py, the canyon floor's pieces):
+ * - talus: tumbled blocks down the lower slopes of its walls, half sunk in them;
+ * - at the walls' feet: rubble fields, tumbled blocks and columns fallen along the wall, now and then a stump;
+ * - across the ledges: rubble in patches, fallen columns, the stepped foundations of fallen buildings, obelisk and column
+ *   stumps, and rarely a relic of the empire's machines (a bronze ring's arc, a split pylon over its turquoise core);
+ * - on the rims: a little rubble set back from the edge.
+ * Only from FLOOR.lowest up (the cleft's floor is lost in the haze and holds the teal streams), never on a stream or a steep
+ * face, never overhanging a drop, off the monoliths' and great ruins' feet, never round THE CITADEL (its canyon keeps its
+ * own authored dressing, citadelRuins). Low: nothing over 2.3 above its ground, far under the flight plane. Strike sites
+ * and battery compounds clear it at render time like all scenery (src/render/terrain-view.ts). One candidate per
+ * FLOOR.patch square (jittered in it), so pieces spread and the section seams never matter; the rubble and the tumbled
+ * blocks are cosmetic (the Low tier skips them).
+ */
+const FLOOR = { patch: 1.4, lowest: -6.0, flat: 0.5, talus: 1.2, scree: -4.0, base: 0.4, wall: 0.5, field: 0.45, slopes: 0.16, rim: 0.14, gap: 3.2 } as const;
+type FloorKind = 'nahDebris' | 'nahBlocks' | 'nahDrums' | 'nahFooting' | 'nahStub' | 'nahRelic';
+function* canyonFloor(seed: number, startS: number, size: number, terrain: ScatterField, arena: TerrainArena | undefined,
+  keep: readonly (readonly [number, number, number])[], add: (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number) => void): Work<void> {
+  // THE CITADEL's canyon (citadelCourse's reach about the temple) keeps its own authored dressing (citadelRuins).
+  const temple = arena ? arena.fromS + CITADEL_AT : NaN, authored = (s: number) => s > temple - 42 && s < temple + 36;
+  const columns = Math.ceil(WORLD_HALF * 2 / FLOOR.patch), turn = (u: number) => u * Math.PI * 2;
+  /** The larger pieces placed here (x, s): foundations, stumps and relics keep FLOOR.gap apart. */
+  const features: [number, number][] = [];
+  for (let j = Math.floor(startS / FLOOR.patch); j < Math.ceil((startS + size) / FLOOR.patch); j++) {
+    yield;
+    for (let i = 0; i < columns; i++) {
+      const h = (k: number) => hash(seed ^ 0x4b81, i * 67 + k, j);
+      const x = -WORLD_HALF + (i + 0.2 + h(0) * 0.6) * FLOOR.patch, s = (j + 0.2 + h(1) * 0.6) * FLOOR.patch;
+      if (s < startS || s >= startS + size || Math.abs(x) > WORLD_HALF - 0.8 || authored(s) || terrain.blocked(x, s)) continue;
+      // The canyon's ledges and lower slopes, and the rims round it (the cheap tests first; the canyon's own mask last).
+      const ground = terrain.height(x, s), slope = terrain.slope(x, s);
+      if (ground < FLOOR.lowest || ground > PLATEAU + 0.6 || slope > FLOOR.talus || terrain.pool(x, s) > 0.01) continue;
+      const rim = ground > PLATEAU - 1.4;
+      if (rim && (slope > FLOOR.flat || terrain.drop(x, s) < 1.2)) continue;
+      // (A rim is the canyon's own, a unit or so from its edge: the hills' benches have drops too.)
+      const m = naharaMasks(seed, x, s, 0, arena);
+      if (rim ? m.inland > 0.2 : m.chasm < 0.5) continue;
+      if (keep.some(([kx, ks, r]) => Math.hypot(kx - x, ks - s) < r + 0.6)) continue;
+      // Down a slope (talus: the main canyon's lower walls only, under FLOOR.scree; the side ravines cut through hills
+      // the buried empire already strews), against a wall's foot (a rise within a unit), in a rubble patch, or out on the
+      // open ledge.
+      const talus = slope > FLOOR.flat;
+      if (talus && ground > FLOOR.scree) continue;
+      const wall = rim || talus ? 0 : smoothRange(0.6, 2.4, terrain.rise(x, s));
+      const field = smoothRange(0.52, 0.78, noise(seed ^ 0x4b82, x * 0.14, s * 0.11));
+      const chance = rim ? FLOOR.rim : talus ? FLOOR.slopes + FLOOR.field * 0.3 * field : FLOOR.base + FLOOR.wall * wall + FLOOR.field * field;
+      if (h(2) >= chance) continue;
+      const what = h(3), gx = terrain.gradientX(x, s), gs = terrain.gradientS(x, s);
+      // Along the wall (the contour): fallen columns lie the way they fell, against its foot.
+      const along = Math.hypot(gx, gs) > 0.05 ? Math.atan2(gx, -gs) + (h(5) - 0.5) * 0.5 : turn(h(5));
+      const squared = Math.round(h(6) * 4) * Math.PI / 2 + (h(7) - 0.5) * 0.14;
+      const kind: FloorKind = rim ? (what < 0.6 ? 'nahDebris' : what < 0.9 ? 'nahBlocks' : 'nahStub')
+        : talus ? (what < 0.8 ? 'nahBlocks' : 'nahDrums')
+          : wall > 0.35 ? (what < 0.45 ? 'nahDebris' : what < 0.7 ? 'nahBlocks' : what < 0.92 ? 'nahDrums' : 'nahStub')
+            : what < 0.36 ? 'nahDebris' : what < 0.46 ? 'nahBlocks' : what < 0.64 ? 'nahDrums' : what < 0.8 ? 'nahFooting' : what < 0.95 ? 'nahStub' : 'nahRelic';
+      // (About twice their modelled size: down in the canyon, far under the camera, at real size they read as pebbles.)
+      let scale = (kind === 'nahBlocks' ? (talus ? 0.55 : 0.5) + h(8) * 0.3 : kind === 'nahStub' ? 0.65 + h(8) * 0.25 : kind === 'nahRelic' ? 0.7 + h(8) * 0.3 : 0.75 + h(8) * 0.4) * 2;
+      // The ground under its footprint: on a ledge no corner may fall away (never hanging over a ledge's edge into the
+      // cleft), against a wall the uphill corners may rise into its foot; down a slope it sinks into the slope from its
+      // lowest corner, never over a drop. Rubble and fallen columns that do not fit try once at two thirds of the size.
+      let lowest = ground, fits = false;
+      for (let attempt = 0; attempt < 2 && !fits; attempt++) {
+        if (attempt) scale *= 0.65;
+        const reach = KIT[kind].radius * scale * 0.7;
+        let highest = ground;
+        lowest = ground;
+        for (const [dx, ds] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+          const g = terrain.height(x + dx * reach, s + ds * reach);
+          lowest = Math.min(lowest, g); highest = Math.max(highest, g);
+          if (terrain.pool(x + dx * reach, s + ds * reach) > 0.01) lowest = -Infinity;
+        }
+        fits = ground - lowest <= (talus ? FLOOR.talus * reach + 0.2 : 0.35) && highest - ground <= (talus || wall > 0.2 ? 2.4 : 0.6);
+        if (kind !== 'nahDebris' && kind !== 'nahBlocks' && kind !== 'nahDrums') break;
+      }
+      if (!fits) continue;
+      const big = kind === 'nahFooting' || kind === 'nahStub' || kind === 'nahRelic';
+      if (big && features.some(([fx, fs]) => Math.hypot(fx - x, fs - s) < FLOOR.gap)) continue;
+      if (big) features.push([x, s]);
+      // Each sunk a little into the sand drifted over the ledge (a foundation by up to a course).
+      const base = lowest - (kind === 'nahFooting' ? 0.08 + h(9) * 0.22 : kind === 'nahRelic' ? 0.2 + h(9) * 0.3 : kind === 'nahDrums' ? 0.08 + h(9) * 0.1 : 0.05);
+      const rotation = kind === 'nahDrums' && (wall > 0.35 || talus) ? along : kind === 'nahFooting' || kind === 'nahStub' ? squared : turn(h(10));
+      const height = kind === 'nahStub' ? 1.0 + h(11) * 1.3 : scale;
+      // (The carved slab with its turquoise glyph, the rubble's third variant, one field in eight: lit lines on every
+      // field read busy.)
+      const pick = kind === 'nahDebris' ? (h(4) < 0.875 ? h(4) / 0.875 * 0.66 : 0.99) : h(4);
+      add({ kind, x, s, y: base, scale, height, rotation, cosmetic: kind === 'nahDebris' || kind === 'nahBlocks' || (kind === 'nahDrums' && h(12) < 0.5) }, pick);
+    }
+  }
 }
 
 /**
