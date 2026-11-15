@@ -36,25 +36,25 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
     }
   });
 
-  it('Shred: while hits keep landing, on any enemies, the guns spin up to +40% over 1.5 s, at every level', () => {
+  it('Shred: while hits keep landing, on any enemies, the guns spin up to +30% over 2 s, at every level', () => {
     for (const rank of [0, 3]) {
       const state = arena('interceptor', mode), a = target(state, 3, 8), b = target(state, -3, 8);
       state.player.power = rank;
       const at = (seconds: number) => { for (let t = 0; t < seconds - 1e-9; t += STEP) { strike(state, Math.round(t / STEP) % 2 ? a : b); stepRun(state, EMPTY_INPUT); } };
-      at(.75);
+      at(SHIP_PERKS.shredWindUp / 2);
       expect(state.player.spin!, `rank ${rank}`).toBeCloseTo(SHIP_PERKS.shredCap / 2, 2);
-      at(.8);
+      at(SHIP_PERKS.shredWindUp / 2 + .05);
       expect(state.player.spin, `rank ${rank}`).toBeCloseTo(SHIP_PERKS.shredCap, 9);
       // Fire rate only: every hit still deals its own damage.
       const before = a.hp; strike(state, a); stepRun(state, EMPTY_INPUT);
       expect(before - a.hp).toBeCloseTo(10, 6);
     }
-    expect([SHIP_PERKS.shredCap, SHIP_PERKS.shredWindUp]).toEqual([.4, 1.5]);
+    expect([SHIP_PERKS.shredCap, SHIP_PERKS.shredWindUp]).toEqual([.3, 2]);
   });
 
   it('hits half a second apart (a Level 1 Rail Driver) still wind it up; a longer gap holds it where it is', () => {
     const state = arena('interceptor', mode), enemy = target(state, 3, 8);
-    for (let t = 0; t < 1.6; t += .5) { strike(state, enemy); stepRun(state, EMPTY_INPUT); advance(state, .5 - STEP); }
+    for (let t = 0; t < SHIP_PERKS.shredWindUp + .1; t += .5) { strike(state, enemy); stepRun(state, EMPTY_INPUT); advance(state, .5 - STEP); }
     expect(state.player.spin!).toBeGreaterThan(SHIP_PERKS.shredCap * .9);
     const held = arena('interceptor', mode), other = target(held, 3, 8);
     strike(held, other); stepRun(held, EMPTY_INPUT);
@@ -62,7 +62,7 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
     expect(held.player.spin!).toBeCloseTo(SHIP_PERKS.shredCap / SHIP_PERKS.shredWindUp * (SHIP_PERKS.shredWindow + STEP), 2);
   });
 
-  it('a spun-up Interceptor fires its pattern 40% faster; a miss changes nothing, a hit on the ship stops it', () => {
+  it('a spun-up Interceptor fires its pattern 30% faster; a miss changes nothing, a hit on the ship stops it', () => {
     const state = arena('interceptor', mode);
     target(state, state.player.x, 10, 1e6);
     state.nextVolleyAt = 0;

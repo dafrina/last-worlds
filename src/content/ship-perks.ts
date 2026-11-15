@@ -6,15 +6,17 @@ export const SHIP_PERKS = {
   /**
    * Interceptor Shred (docs/42; user, 15 November: "when im locked in on an enemy and get an accurate barrage it should
    * shred through like a minigun ... being helped when accuracy is on point"; "fire rate only"; "just hits reset it";
-   * "Lets try with 1.5s regardless of level"): while main-weapon hits keep landing, on any enemy, the guns spin up to
+   * "Lets try with 1.5s regardless of level", then "Change to 2 s for max"): while main-weapon hits keep landing, on any enemy, the guns spin up to
    * `shredCap` more fire rate over `shredWindUp` seconds, at every weapon and level (8 hits of +5% each was full in a fifth
    * of a second on a Level 4 Twin Pulse). Hits keep landing while each comes within `shredWindow` of the last (the Rail
    * Driver's slowest gap is 0.5 s). Getting hit (a shield or a life) stops them, and so does `shredIdle` without firing.
    * Replaces the Barrel Roll, which fired by accident on fast taps.
    */
-  // (Cap 40%: the user, 15 November, "Put it at 30% fire rate cap", then "Then put it at 40%"; 60% was proposed.)
-  shredCap: 0.4,
-  shredWindUp: 1.5,
+  // (Cap 30%: the user, 15 November, "Put it at 30% fire rate cap", then 40%, then back: "the cap should be 30%"; 60% was
+  // proposed. The shot sound follows the spin's share of the cap, so it is unchanged: "Dont change the sound tho".)
+  shredCap: 0.3,
+  // (2 s: the user, 15 November, "Change to 2 s for max"; 1.5 s before.)
+  shredWindUp: 2,
   shredWindow: 0.6,
   /**
    * The guns also stop when they stop firing (user, 15 November: "Make it reset also when the weapon is not firing"): once

@@ -1,8 +1,19 @@
 # Build status
 
-## Shred winds up over 1.5 s; a heavier Orbital Strike (15 November 2026; docs/42)
+## Shred: +30% over 2 s (15 November 2026; docs/42)
 
-- **Shred:** while main-weapon hits keep landing (each within 0.6 s of the last), the guns spin up to +40% fire rate
+- Shred's cap is back to +30% fire rate ("the cap should be 30%"), reached over 2 s of steady hits ("Change to 2 s for
+  max"). The shot sound follows the spin's share of the cap, so it is unchanged.
+- **Gate:**
+  - typecheck clean;
+  - unit 1106 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.
+- No phone test.
+
+## Shred winds up over 2 s; a heavier Orbital Strike (15 November 2026; docs/42)
+
+- **Shred:** while main-weapon hits keep landing (each within 0.6 s of the last), the guns spin up to +30% fire rate
   over 1.5 s, at every weapon and level. Counted by hits it was full in 0.2 s on a Level 4 Twin Pulse.
 - **Orbital Strike:**
   - a white flash and a camera jolt when it is called;
@@ -24,7 +35,7 @@
     and destroys every enemy it passes, leaving their shots in the air. Boss targets take 15% of their stage.
   - The **Siege Lance** burns hostile shots in its lane.
 - **Perks:**
-  - **Interceptor, Shred:** every main-weapon hit spins the guns up 5% fire rate, up to +40%; getting hit or a 0.5 s pause in
+  - **Interceptor, Shred:** every main-weapon hit spins the guns up 5% fire rate, up to +30%; getting hit or a 0.5 s pause in
     firing stops them.
     The shots glow hotter and sound higher as they spin, and kills shatter. It replaces the Barrel Roll, and the
     double-tap input is gone.

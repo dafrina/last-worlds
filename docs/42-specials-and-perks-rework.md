@@ -71,7 +71,7 @@ barrage of explosions from the side".
 |---|---|---|
 | Scrapper | Salvage Rig: pickups pulled in from 40% farther | unchanged |
 | Ironclad | Reserve Life: one extra life | unchanged |
-| Interceptor | Shred: every hit spins the guns up 5% fire rate, up to +40%; a hit on the ship stops them | **locked** |
+| Interceptor | Shred: every hit spins the guns up 5% fire rate, up to +30%; a hit on the ship stops them | **locked** |
 | Spectre | Gravity Slingshot | **locked** |
 
 ### Spectre: Gravity Slingshot (locked)
@@ -88,9 +88,9 @@ The user liked the slingshot idea ("I like the slingshot for the exotic") but fo
 
 The first version stacked +10% damage per hit in a row on one target. The user replaced it the same day: "when im locked
 in on an enemy and get an accurate barrage it should shred through like a minigun ... being helped when accuracy is on
-point", then "fire rate only", "just hits reset it", "Put it at 30% fire rate cap", then "Then put it at 40%".
-- **Rule:** while main-weapon hits keep landing, on any enemy, the guns spin up to +40% fire rate over 1.5 s, at every
-  weapon and level ("Lets try with 1.5s regardless of level").
+point", then "fire rate only", "just hits reset it", "Put it at 30% fire rate cap", then 40%, then back to 30%: "the cap should be 30% ... Dont change the sound tho".
+- **Rule:** while main-weapon hits keep landing, on any enemy, the guns spin up to +30% fire rate over 2 s, at every
+  weapon and level ("Lets try with 1.5s regardless of level", then "Change to 2 s for max").
   - **Why time, not hits:** the first version counted hits (+5% each, 8 to full), which was full in a fifth of a second
     on a Level 4 Twin Pulse and took 4 s on a Level 1 Rail Driver.
   - **"Keep landing":** each hit comes within 0.6 s of the last, which covers the Rail Driver's slowest gap of 0.5 s.
