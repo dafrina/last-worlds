@@ -10,7 +10,7 @@ export interface AudioSettings { muted: boolean; music: number; effects: number 
 type Group = 'music' | 'boss' | 'effects' | 'menu' | 'ui';
 interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; filters?: AudioNode[]; group: Group; priority: number; start: number; end: number }
 /** A title-theme note's extras (see `Note`): its release, brightness and bus. */
-interface Extra { hold?: number; tone?: number; formant?: number; lead?: boolean }
+interface Extra { hold?: number; tone?: number; formant?: number; lead?: boolean; kit?: boolean }
 /** Effect levels. 11 November: the player's shots much lower (user: "a bit too much and too loud"), the new alarm,
  * part clank and warp whoosh set against the sounds they sit with. */
 const LEVELS: Record<Sound, number> = {
@@ -28,7 +28,7 @@ const PRIORITY: Partial<Record<Sound, number>> = {
 /** Repeats closer than this are not played again. The Seeker Array's rockets at 50 ms (the highest tiers launch one every
  * 33 ms): each launch then stays a launch, not a smear; the volleys themselves are unchanged. */
 const COOLDOWN: Partial<Record<Sound, number>> = { impact: .055, enemy: .12, explosion: .045, heavy: .1, warning: .3, beam: .14, seeker: .05 };
-export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20, menu: 28, ui: 6 } as const;
+export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20, menu: 32, ui: 6 } as const;
 /** The menu's sounds: a repeat closer than this is not played again (a slider dragged, a button hammered). */
 const UI_COOLDOWN: Partial<Record<UiSound, number>> = { 'ui-tick': .05, 'ui-deny': .25, 'ui-purchase': .2 };
 const PADS = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'choir']);
@@ -88,6 +88,7 @@ export class AudioMixer {
    * compressor and the fader, which also carries the sends (15 November polish). */
   private menuBed: GainNode;
   private menuLead: GainNode;
+  private menuKit: GainNode;
   private menuSends: GainNode[] = [];
   private menuWet: GainNode;
   private menuLeadWet: GainNode;
@@ -140,6 +141,22 @@ export class AudioMixer {
       wall.connect(tap).connect(gain(level)).connect(stage, 0, side);
     }
     stage.connect(menuGlue); this.nodes.push(stage);
+    // The title theme's drums (16 November): their own bus and room, outside the lead's glue so a hit never pumps the
+    // lead. A small dip where the lead sings, a drum glue slow enough to let each transient through, and a room of early
+    // reflections either side (high-passed, so the low end stays clean) before the hall.
+    this.menuKit = gain(1);
+    const kitGlue = context.createDynamicsCompressor();
+    kitGlue.threshold.value = -12; kitGlue.knee.value = 6; kitGlue.ratio.value = 2.5; kitGlue.attack.value = .01; kitGlue.release.value = .12;
+    kitGlue.connect(this.menu); this.nodes.push(kitGlue);
+    const kitCarve = filter('peaking', 2500, .9); kitCarve.gain.value = -2;
+    this.menuKit.connect(kitCarve).connect(kitGlue);
+    const room = context.createChannelMerger(2), walls = filter('lowpass', 5000, .5), floor = filter('highpass', 120, .5);
+    kitCarve.connect(walls).connect(floor);
+    for (const [side, ms, level] of [[0, 7, .26], [1, 9, .26], [0, 13, .2], [1, 15, .2], [0, 19, .14], [1, 23, .14], [1, 27, .09], [0, 31, .09]] as const) {
+      const tap = context.createDelay(.05); tap.delayTime.value = ms / 1000; this.nodes.push(tap);
+      floor.connect(tap).connect(gain(level)).connect(room, 0, side);
+    }
+    room.connect(kitGlue); this.nodes.push(room);
     // The boss stem has its own gentle bus compressor: it only rounds off the drum and brass peaks so they do not push
     // the shared master compressor (which would pump the combat sounds). Slow enough to let every hit through first.
     this.boss = gain(0);
@@ -319,10 +336,10 @@ export class AudioMixer {
     if (extra.formant !== undefined) { shape('peaking', 460 + 120 * extra.formant, 1.1, 2 + 3 * extra.formant); shape('peaking', 1080 + 320 * extra.formant, 1.3, 2 + 4 * extra.formant); }
     const head: AudioNode = filters.reduce<AudioNode>((node, next) => node.connect(next), source);
     const out: AudioNode = panner ? head.connect(gain).connect(panner) : head.connect(gain);
-    const menu = group === 'menu', lead = menu && extra.lead === true;
+    const menu = group === 'menu', lead = menu && extra.lead === true, kit = menu && extra.kit === true;
     const keyed = group !== 'effects' && group !== 'ui' && !lead && KEYED.has(id as Instrument);
     out.connect(group === 'music' ? keyed ? this.keyed.music : this.bed : group === 'boss' ? keyed ? this.keyed.boss : this.boss
-      : menu ? lead ? this.menuLead : keyed ? this.keyed.menu : this.menuBed : group === 'ui' ? this.ui : this.effects);
+      : menu ? lead ? this.menuLead : kit ? this.menuKit : keyed ? this.keyed.menu : this.menuBed : group === 'ui' ? this.ui : this.effects);
     const length = (source.buffer.duration - skip) / rate;
     const voice: Voice = { id, part, source, gain, pan: panner, filters: filters.length ? filters : undefined, group, priority, start: at, end: at + length };
     if (wet > 0 && group !== 'effects' && group !== 'ui') {
@@ -389,7 +406,7 @@ export class AudioMixer {
     // The title theme's lead lets go faster: a slur, not two notes ringing together.
     if (note.part && !legacy) this.choke(v => v.part === note.part, group, start, menu ? .016 : .027, menu ? .08 : .12);
     const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), touch.gain, note.pan,
-      group, priority, note.wet, note.skip ?? 0, note.bend, note.part, menu ? { hold: note.hold, tone: note.tone, formant: note.formant, lead: note.lead } : {});
+      group, priority, note.wet, note.skip ?? 0, note.bend, note.part, menu ? { hold: note.hold, tone: note.tone, formant: note.formant, lead: note.lead, kit: note.kit } : {});
     if (played && note.duck) this.sidechain(start, note.duck.depth, note.duck.release);
     // Only while a fight is on: the stem's fade-out bar must not lower the level score again after the kill.
     if (played && boss && note.bed !== undefined && this.bossFade.target > 0) this.setBed(note.bed, start);
