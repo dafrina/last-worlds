@@ -1,6 +1,6 @@
 import type { PlanetId } from '../shared/contracts';
 import { bossStep, type BossStage } from './boss-score';
-import { chordAt, clash, heardWindow, LEAD, pitchClass, soundingStepsAt, UNPITCHED } from './harmony';
+import { chordAt, clash, heardWindow, heardWindowAt, LEAD, pitchClass, UNPITCHED } from './harmony';
 import { MENU_THEME, menuChord, menuStep } from './menu-theme';
 import { scoreStep, type Note } from './score';
 
@@ -34,7 +34,7 @@ export function audit(planet: PlanetId, stage: BossStage): Clash[] {
 export function auditMenu(): Clash[] {
   return auditSource('menu', 0, true, {
     steps: MENU_THEME.bars * 16, tones: step => new Set(menuChord(step).tones.map(pitchClass)),
-    heard: (note, step) => ({ start: step, end: step + soundingStepsAt(MENU_THEME.bpm, note) }),
+    heard: (note, step) => heardWindowAt(MENU_THEME.bpm, note, step),
     notes: step => menuStep(step).map(note => ({ note, layer: (note.instrument === 'anthem' ? 'lead' : 'harmony') as Layer })),
   });
 }

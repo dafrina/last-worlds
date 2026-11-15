@@ -62,10 +62,12 @@ export function soundingStepsAt(bpm: number, note: Note) {
 export const REVERSED = new Set<Instrument>(['inhale', 'glint']);
 /** The sixteenths a note struck (emitted) on `step` is heard in, and the step whose chord it belongs to: a reversed
  * note belongs to the chord it lands on and is loud only just before it. */
-export function heardWindow(planet: PlanetId, note: Note, step: number) {
-  if (!REVERSED.has(note.instrument)) return { start: step, end: step + soundingSteps(planet, note), chordStep: undefined };
+export function heardWindow(planet: PlanetId, note: Note, step: number) { return heardWindowAt(THEMES[planet].bpm, note, step); }
+/** `heardWindow` at a tempo (the title theme has no planet). */
+export function heardWindowAt(bpm: number, note: Note, step: number) {
+  if (!REVERSED.has(note.instrument)) return { start: step, end: step + soundingStepsAt(bpm, note), chordStep: undefined };
   const seconds = INSTRUMENT_SECONDS[note.instrument] / 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12);
-  const landing = step + Math.round(((note.offset ?? 0) + seconds) * THEMES[planet].bpm / 15);
+  const landing = step + Math.round(((note.offset ?? 0) + seconds) * bpm / 15);
   return { start: landing - 2, end: landing + 1, chordStep: landing };
 }
 
