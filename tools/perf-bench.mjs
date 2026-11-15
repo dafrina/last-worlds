@@ -26,6 +26,8 @@ const SCENARIOS = {
   nacre: { config: campaign('deep-bloom'), skip: 25 },
   amnion: { config: campaign('brood-strike'), skip: 25 },
   umbra: { config: campaign('final-horizon'), skip: 25 },
+  // Nahara (docs/39): the canyon floor's dressing and the sand shader (15 November).
+  nahara: { config: campaign('silent-empire'), skip: 25 },
   'khepri-boss': { config: campaign('bastion'), boss: true },
   'nacre-boss': { config: campaign('deep-bloom'), boss: true },
   // Peak moments.

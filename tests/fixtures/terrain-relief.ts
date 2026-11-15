@@ -1,6 +1,6 @@
 /**
  * Development-only, frozen real-game scene for terrain relief reviews (docs/26): any planet at any seed and distance.
- * Query: world (khepri | vesper | luna | nacre; picks the campaign mission flown over it, with its arena; not `planet`,
+ * Query: world (khepri | vesper | luna | nacre | amnion | umbra | corona | nahara; picks the campaign mission flown over it, with its arena; not `planet`,
  * which is the renderer's own preview switch and would pin every later view to one planet), seed,
  * distance, x (camera), quality=low, battery=<world x>,<world s> (one ground battery seated there), fly=<from>,<to>,<units
  * per second> (streams the terrain through that stretch in wall-clock time, then sets body[data-done]).
@@ -15,7 +15,8 @@ import { anchorGround } from '../../src/sim/ground';
 import type { MissionId, RunState } from '../../src/shared/contracts';
 
 const q = new URLSearchParams(location.search);
-const MISSION: Readonly<Record<string, MissionId>> = { khepri: 'bastion', vesper: 'cold-vector', luna: 'training', nacre: 'deep-bloom', amnion: 'brood-strike', umbra: 'final-horizon' };
+const MISSION: Readonly<Record<string, MissionId>> = { khepri: 'bastion', vesper: 'cold-vector', luna: 'training', nacre: 'deep-bloom', amnion: 'brood-strike', umbra: 'final-horizon',
+  corona: 'dying-star', nahara: 'silent-empire' };
 interface View { planet?: string; seed?: number; distance?: number; x?: number; battery?: string | null }
 function make(view: View): RunState {
   const state = createRun({ mode: 'campaign', mission: MISSION[view.planet ?? 'khepri'] ?? 'bastion', seed: view.seed ?? 93 });
