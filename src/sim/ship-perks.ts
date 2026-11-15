@@ -6,10 +6,15 @@ import { PLAYER_HIT_RADIUS, VIEW, type Enemy, type Projectile, type RunState } f
  * (content/equipment.ts SHIPS); these two have behaviour.
  */
 
-/** Interceptor Shred: a main-weapon hit spins the guns up one notch (any enemy; other chassis never spin). */
+/** Interceptor Shred: a main-weapon hit (any enemy) keeps the guns spinning up (other chassis never spin). */
 export function spinUp(state: RunState): void {
-  if (state.config.ship !== 'interceptor') return;
-  state.player.spin = Math.min(SHIP_PERKS.shredCap, (state.player.spin ?? 0) + SHIP_PERKS.shredPerHit);
+  if (state.config.ship === 'interceptor') state.player.spinAt = state.time;
+}
+/** While hits keep landing, the spin climbs to its cap over SHIP_PERKS.shredWindUp. */
+export function updateSpin(state: RunState, dt: number): void {
+  const p = state.player;
+  if (state.config.ship !== 'interceptor' || p.spinAt === undefined || state.time - p.spinAt > SHIP_PERKS.shredWindow + 1e-9) return;
+  p.spin = Math.min(SHIP_PERKS.shredCap, (p.spin ?? 0) + SHIP_PERKS.shredCap / SHIP_PERKS.shredWindUp * dt);
 }
 /** The main weapon's fire-rate multiplier from the Shred spin (1 when still). */
 export const spinRate = (state: RunState) => 1 + (state.config.ship === 'interceptor' ? state.player.spin ?? 0 : 0);

@@ -23,7 +23,7 @@ import { projectGround } from './ground';
 import { absorbHunterShield, aceDropRoll, aceWeaponRoll, updateHunters } from './hunters';
 import { updateWraith } from './wraith';
 import { destroySiteCore, siteCueMessage, supplyClaimed } from './sites';
-import { catchNearMiss, orbitReflectedShot, spinRate, spinUp } from './ship-perks';
+import { catchNearMiss, orbitReflectedShot, spinRate, spinUp, updateSpin } from './ship-perks';
 import { orbitalFront } from './orbital';
 import { observe, observeKill, observeThreads } from './events';
 import { retain } from '../shared/retain';
@@ -91,6 +91,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   updateShockwave(state);
   updateOrbital(state);
   updateProjectiles(state, previousPlayerX, dt);
+  updateSpin(state, dt);
   observeThreads(state);
   resolveBossPhase(state);
   updateHazards(state, previousPlayerX, dt);
@@ -517,7 +518,7 @@ function fireMain(state: RunState): void {
   const target = acquireTarget(state);
   if (!target) {
     // Nothing to fire at for a while: the Interceptor's spun-up guns stop (src/sim/ship-perks.ts).
-    if (state.time - state.nextVolleyAt > SHIP_PERKS.shredIdle) state.player.spin = 0;
+    if (state.time - state.nextVolleyAt > SHIP_PERKS.shredIdle) { state.player.spin = 0; state.player.spinAt = undefined; }
     return;
   }
   const weaponId = state.player.weapon, rank = weaponRank(state.player.power);
@@ -651,7 +652,7 @@ export function hitPlayer(state: RunState, shieldCost: number): void {
   if (state.phase !== 'playing' || state.time < player.invulnerableUntil) return;
   player.lastHitAt = state.time;
   // A hit stops the Interceptor's spun-up guns.
-  player.spin = 0;
+  player.spin = 0; player.spinAt = undefined;
   if (state.events) observe(state, { type: 'hit', time: state.time, shield: player.shields > 0 });
   if (player.shields > 0) {
     player.shields = Math.max(0, player.shields - shieldCost);

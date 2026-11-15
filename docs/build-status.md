@@ -1,5 +1,21 @@
 # Build status
 
+## Shred winds up over 1.5 s; a heavier Orbital Strike (15 November 2026; docs/42)
+
+- **Shred:** while main-weapon hits keep landing (each within 0.6 s of the last), the guns spin up to +40% fire rate
+  over 1.5 s, at every weapon and level. Counted by hits it was full in 0.2 s on a Level 4 Twin Pulse.
+- **Orbital Strike:**
+  - a white flash and a camera jolt when it is called;
+  - shells streaking in ahead of the front;
+  - heavy impacts (rings, fireballs, dark smoke, debris) under the dark band, varied: about one in three a big blast, the
+    rest small pops ("I want varied impacts small and big").
+- **Gate:**
+  - typecheck clean;
+  - unit 1106 passed, 8 skipped;
+  - build passes;
+  - browser 55 of 55.
+- No phone test.
+
 ## Specials and perks rework, Twin Pulse envelope, teal streams on Nahara (14-15 November 2026; docs/42, docs/39)
 
 - **Specials:**

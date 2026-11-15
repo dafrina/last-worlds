@@ -36,15 +36,30 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
     }
   });
 
-  it('Shred: every main-weapon hit, on any enemy, spins the guns up 5% fire rate, up to +40%', () => {
-    const state = arena('interceptor', mode), a = target(state, 3, 8), b = target(state, -3, 8);
-    const spins: number[] = [];
-    for (let i = 0; i < 14; i++) { strike(state, i % 2 ? a : b); stepRun(state, EMPTY_INPUT); spins.push(Math.round((state.player.spin ?? 0) * 100) / 100); }
-    expect(spins.slice(0, 4)).toEqual([.05, .1, .15, .2]);
-    expect(spins.slice(7)).toEqual(Array(7).fill(.4));
-    // Fire rate only: every hit still deals its own damage.
-    const before = a.hp; strike(state, a); stepRun(state, EMPTY_INPUT);
-    expect(before - a.hp).toBeCloseTo(10, 6);
+  it('Shred: while hits keep landing, on any enemies, the guns spin up to +40% over 1.5 s, at every level', () => {
+    for (const rank of [0, 3]) {
+      const state = arena('interceptor', mode), a = target(state, 3, 8), b = target(state, -3, 8);
+      state.player.power = rank;
+      const at = (seconds: number) => { for (let t = 0; t < seconds - 1e-9; t += STEP) { strike(state, Math.round(t / STEP) % 2 ? a : b); stepRun(state, EMPTY_INPUT); } };
+      at(.75);
+      expect(state.player.spin!, `rank ${rank}`).toBeCloseTo(SHIP_PERKS.shredCap / 2, 2);
+      at(.8);
+      expect(state.player.spin, `rank ${rank}`).toBeCloseTo(SHIP_PERKS.shredCap, 9);
+      // Fire rate only: every hit still deals its own damage.
+      const before = a.hp; strike(state, a); stepRun(state, EMPTY_INPUT);
+      expect(before - a.hp).toBeCloseTo(10, 6);
+    }
+    expect([SHIP_PERKS.shredCap, SHIP_PERKS.shredWindUp]).toEqual([.4, 1.5]);
+  });
+
+  it('hits half a second apart (a Level 1 Rail Driver) still wind it up; a longer gap holds it where it is', () => {
+    const state = arena('interceptor', mode), enemy = target(state, 3, 8);
+    for (let t = 0; t < 1.6; t += .5) { strike(state, enemy); stepRun(state, EMPTY_INPUT); advance(state, .5 - STEP); }
+    expect(state.player.spin!).toBeGreaterThan(SHIP_PERKS.shredCap * .9);
+    const held = arena('interceptor', mode), other = target(held, 3, 8);
+    strike(held, other); stepRun(held, EMPTY_INPUT);
+    held.nextVolleyAt = Infinity; advance(held, 2);
+    expect(held.player.spin!).toBeCloseTo(SHIP_PERKS.shredCap / SHIP_PERKS.shredWindUp * (SHIP_PERKS.shredWindow + STEP), 2);
   });
 
   it('a spun-up Interceptor fires its pattern 40% faster; a miss changes nothing, a hit on the ship stops it', () => {
@@ -67,7 +82,8 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
   it('the spin also stops after a pause in firing, but not between two shots', () => {
     const state = arena('interceptor', mode), enemy = target(state, state.player.x, 10, 1e6);
     state.nextVolleyAt = 0;
-    advance(state, 1);
+    // (Held in front of the ship: on its own it scrolls past within a second or two.)
+    for (let t = 0; t < SHIP_PERKS.shredWindUp + .3; t += STEP) { enemy.x = state.player.x; enemy.s = 10; stepRun(state, EMPTY_INPUT); }
     expect(state.player.spin).toBeCloseTo(SHIP_PERKS.shredCap, 6);
     // Nothing left to fire at: it holds for the grace, then stops.
     enemy.hp = 0; state.enemies = [];

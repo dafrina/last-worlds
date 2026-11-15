@@ -1,7 +1,7 @@
 import { hostileFlashHex } from './shot-colors';
 import * as THREE from 'three';
 import { VIEW, type GraphicsQuality, type PlanetId, type RunState } from '../shared/contracts';
-import { weaponRank } from '../content/equipment';
+import { SPECIALS, weaponRank } from '../content/equipment';
 import { BOSSES } from '../content/bosses';
 import { AROUND_HERO } from './hero-stencil';
 import { drawnShot, type Launch } from './shot-launch';
@@ -527,22 +527,58 @@ export function createFx(scene: THREE.Scene) {
    * flashes under a fireball, so the hostile shots it leaves in the air stay readable. Render only: the simulation kills
    * by the same front (src/sim/game.ts updateOrbital).
    */
-  const ORBITAL_STEP = .8, ORBITAL_ROWS = [1.5, 5.5, 9.5, 13.5, 17.5] as const;
-  let orbitalSeen = -1, orbitalDone = -Infinity;
-  function strike(x: number, z: number, n: number) {
-    const y = VIEW.flightHeight - .6;
-    flash(x, z, 1.5, .12, 0xfff0d0, 2.2, y);
-    emit(glow, { x, y: y + .2, z, vy: .7, drag: 1.4, life: .32 + hash(n) * .12, size: .9 + hash(n + 1) * .4, grow: 1.1, alpha: .9, shape: ROUND,
-      ...ramp(0xffe0a0, 2.4, 0xc83a10, .4) });
-    if (full()) emit(smoke, { x: x + (hash(n + 2) - .5) * .3, y, z: z + (hash(n + 3) - .5) * .3, vy: .5, drag: 1.2, life: .9 + hash(n + 4) * .4, size: .6,
-      grow: 1.6, alpha: .45, shape: ROUND, drift: 1, ...ramp(0x2a221c, 1, 0x6a625a, 1) });
-    sparks(x, z, full() ? 4 : 2, 0xffc078, 6, n * 2.3);
+  const ORBITAL_STEP = 1.3, ORBITAL_ROWS = [3, 7.5, 12, 16.5] as const;
+  /**
+   * Incoming shells (user, 15 November, "looks a bit underwhelming": incoming shells, heavier impacts, an opening flash and
+   * jolt): each impact's shell streaks in from above and the far side for SHELL_TIME, launched as the front comes within
+   * its lead (the front's speed × SHELL_TIME), so it lands as the front reaches its column.
+   */
+  const SHELL_TIME = .16, SHELL_FROM = { x: 3.5, y: 6, s: 3 } as const;
+  let orbitalSeen = -1, orbitalDone = -Infinity, shellsDone = -Infinity;
+  /** A column's impact point (the same for its shell and its blast). */
+  const impact = (column: number, k: number, row: number) => {
+    const n = column * 31 + k * 7 + orbitalSeen * 13;
+    return { n, jx: (hash(n) - .5) * .7, z: -(row + (hash(n + 5) - .5) * 2.4) };
+  };
+  function shell(x: number, z: number, direction: number) {
+    const y = VIEW.flightHeight - .6, dx = -direction * SHELL_FROM.x, dz = -SHELL_FROM.s;
+    emit(glow, { x: x + dx, y: y + SHELL_FROM.y, z: z + dz, vx: -dx / SHELL_TIME, vy: -SHELL_FROM.y / SHELL_TIME, vz: -dz / SHELL_TIME,
+      life: SHELL_TIME, size: .26, grow: 0, stretch: 7, alpha: 1, shape: ROUND, flat: true, ...ramp(0xffffff, 3, 0xffc070, 2.2) });
+    if (full()) emit(glow, { x: x + dx * .5, y: y + SHELL_FROM.y * .5, z: z + dz * .5, vx: -dx / SHELL_TIME, vy: -SHELL_FROM.y / SHELL_TIME,
+      vz: -dz / SHELL_TIME, life: SHELL_TIME * .5, delay: SHELL_TIME * .5, size: .5, grow: -.3, stretch: 3, alpha: .55, shape: ROUND, flat: true,
+      ...tint(0xffb060, 1.6) });
   }
   /**
-   * The barrage's pall (user, 15 November, of a red glow band in an early draft: "That looks super cool just not red make it
-   * dark gray"): a broad sheet of dark smoke at each column, lying flat just under the flight plane, above every piece of
-   * scenery (lower, the ruins and hills cut it into blocks), so a dark band trails the front across the view. The craft at
-   * the flight plane and every shot draw over it.
+   * An impact: a white-hot flash, a shock ring, fireballs cooling to deep red, dark smoke and debris thrown out. Small and
+   * big mixed (user, 15 November: "I want varied impacts small and big"): most are small, about one in three a heavy shell.
+   */
+  function strike(x: number, z: number, n: number) {
+    const y = VIEW.flightHeight - .6, big = hash(n + 9.7) < .33, k0 = hash(n + 3.1);
+    const scale = big ? 1.35 + .35 * k0 : .45 + .35 * k0;
+    flash(x, z, 2.6 * scale, .1 + .04 * scale, 0xfff6e0, 3, y);
+    emit(glow, { x, y: y + .05, z, life: .22 + .1 * scale, size: .8 * scale, grow: 5 * scale, alpha: .8, shape: RING, flat: true, ...ramp(0xfff0d8, 1.8, 0xff9a50, .5) });
+    const fire = full() ? (big ? 4 : 2) : 1;
+    for (let k = 0; k < fire; k++) {
+      const a = hash(n + k * 5.7) * Math.PI * 2, d = (.2 + hash(n + k) * .35) * scale, v = (.6 + hash(n + k * 1.3) * .6) * scale;
+      emit(glow, { x: x + Math.cos(a) * d, y: y + .15 + k * .03, z: z + Math.sin(a) * d, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: .6, drag: 2,
+        life: (.4 + hash(n + k * 2.1) * .25) * (.8 + .2 * scale), size: (1.3 + hash(n + k * 4.3) * .6) * scale, grow: 1.3, alpha: 1, shape: ROUND,
+        ...ramp(k ? 0xffb060 : 0xfff0c0, 2.8, 0xc8300c, .55) });
+    }
+    if (full()) {
+      emit(smoke, { x, y, z, vy: .6, drag: 1.1, life: (1 + hash(n + 4) * .4) * (.7 + .3 * scale), size: 1.1 * scale, grow: 1.8, alpha: .65, delay: .06,
+        shape: ROUND, drift: 1, ...ramp(0x1e1812, 1, 0x4a443e, 1) });
+      for (let k = 0; k < (big ? 6 : 2); k++) {
+        const a = hash(n + k * 4.9 + 1) * Math.PI * 2, v = (3 + hash(n + k * 1.9) * 3) * Math.sqrt(scale);
+        emit(smoke, { x, y, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1 + hash(n + k * 7.7) * 1.6, life: .55 + hash(n + k) * .3,
+          size: (.12 + hash(n + k * 3) * .1) * Math.sqrt(scale), drag: 1.2, fall: 8, alpha: .95, shape: CHIP, drift: .5, ...tint(0x1b1714, 1) });
+      }
+    }
+    sparks(x, z, full() ? (big ? 12 : 4) : 3, 0xffc078, 7 * Math.sqrt(scale), n * 2.3);
+  }
+  /**
+   * The barrage's pall on Low (user, 15 November, of a red glow band in an early draft: "That looks super cool just not
+   * red make it dark gray"): a broad sheet of dark smoke at each column, lying flat just under the flight plane, above
+   * every piece of scenery, so a dark band trails the front. High draws it in the post composite instead.
    */
   function pall(x: number, n: number) {
     emit(smoke, { x, y: VIEW.flightHeight - .25, z: -9.5 + (hash(n) - .5) * 2, life: 1 + hash(n + 1) * .3, size: 9, grow: 1.4, alpha: .65, shape: ROUND,
@@ -551,16 +587,23 @@ export function createFx(scene: THREE.Scene) {
   function orbitalBarrage(state: RunState) {
     const orbital = state.orbital;
     if (!orbital) return;
-    if (orbital.startedAt !== orbitalSeen) { orbitalSeen = orbital.startedAt; orbitalDone = orbital.cameraX - orbital.direction * (VIEW.width / 2 + 1); }
-    const front = orbitalFront(orbital, state.time - orbital.startedAt);
+    const start = orbital.cameraX - orbital.direction * (VIEW.width / 2 + 1);
+    if (orbital.startedAt !== orbitalSeen) {
+      orbitalSeen = orbital.startedAt; orbitalDone = start; shellsDone = start;
+      // The call: a white flash over the whole view (the camera's jolt is the renderer's: src/render/scene.ts).
+      flash(orbital.cameraX, -9, 24, .18, 0xffffff, 1.4);
+    }
+    const front = orbitalFront(orbital, state.time - orbital.startedAt), lead = 2 * (VIEW.width / 2 + 1) / SPECIALS['orbital-strike'].sweep * SHELL_TIME;
     const rows = full() ? ORBITAL_ROWS : ORBITAL_ROWS.filter((_, k) => k % 2 === 0);
+    while ((front + orbital.direction * lead - shellsDone) * orbital.direction >= ORBITAL_STEP) {
+      shellsDone += orbital.direction * ORBITAL_STEP;
+      const column = Math.round(shellsDone * 10);
+      rows.forEach((row, k) => { const p = impact(column, k, row); shell(shellsDone + p.jx, p.z, orbital.direction); });
+    }
     while ((front - orbitalDone) * orbital.direction >= ORBITAL_STEP) {
       orbitalDone += orbital.direction * ORBITAL_STEP;
       const column = Math.round(orbitalDone * 10);
-      rows.forEach((row, k) => {
-        const n = column * 31 + k * 7 + orbitalSeen * 13;
-        strike(orbitalDone + (hash(n) - .5) * .5, -(row + (hash(n + 5) - .5) * 2.4), n);
-      });
+      rows.forEach((row, k) => { const p = impact(column, k, row); strike(orbitalDone + p.jx, p.z, p.n); });
       // (High draws the pall in the post composite, over the fog: src/render/post-pipeline.ts pallShade.)
       if (!full()) pall(orbitalDone, column * 17 + orbitalSeen);
     }

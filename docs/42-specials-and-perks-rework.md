@@ -41,7 +41,14 @@ barrage of explosions from the side".
 - **Sweep:** across the view in 1.2 s, from the side away from the ship ("1.2s sweep why not").
 - **Bosses:** each open target takes 15% of its current stage's pool, never a kill.
 - **Parts:** 2 ("2 parts is fine").
-- **Look:**
+- **Look (15 November, after "looks a bit underwhelming", the user chose incoming shells, heavier impacts, an opening flash
+  and a jolt):**
+  - The call: a white flash over the whole view, and a hard camera jolt, then a rumble while it sweeps.
+  - Shells streak in from above and the far side, each landing as the front reaches its column.
+  - Each impact is a white-hot flash, a shock ring, fireballs cooling to deep red, dark smoke and debris: four rows, a
+    column every 1.3 units.
+  - A dark gray band trails the front ("not red make it dark gray").
+  - Earlier notes:
   - A line of artillery impacts walks across the screen, as if from ships out of frame.
   - Ground targets break where they stand, and air craft burst in place.
   - A rumble of camera shake goes with it.
@@ -82,13 +89,17 @@ The user liked the slingshot idea ("I like the slingshot for the exotic") but fo
 The first version stacked +10% damage per hit in a row on one target. The user replaced it the same day: "when im locked
 in on an enemy and get an accurate barrage it should shred through like a minigun ... being helped when accuracy is on
 point", then "fire rate only", "just hits reset it", "Put it at 30% fire rate cap", then "Then put it at 40%".
-- **Rule:** every main-weapon hit, on any enemy, spins the guns up 5% fire rate, up to +40% (8 hits).
+- **Rule:** while main-weapon hits keep landing, on any enemy, the guns spin up to +40% fire rate over 1.5 s, at every
+  weapon and level ("Lets try with 1.5s regardless of level").
+  - **Why time, not hits:** the first version counted hits (+5% each, 8 to full), which was full in a fifth of a second
+    on a Level 4 Twin Pulse and took 4 s on a Level 1 Rail Driver.
+  - **"Keep landing":** each hit comes within 0.6 s of the last, which covers the Rail Driver's slowest gap of 0.5 s.
 - **Reset:** getting hit, on a shield or a life, stops them. So does a pause in firing: a volley due for 0.5 s with nothing
   to fire at ("Make it reset also when the weapon is not firing"). Misses and switching targets cost nothing.
 - **Damage:** unchanged. The weapon's pattern only fires faster.
 - **Look and sound:**
   - the shots grow up to half again as large, and twice as bright, as the guns spin up;
-  - a main-weapon kill at a quarter spin or more shatters (a white-hot flash, a fast ring, shards), bigger the faster;
+  - a main-weapon kill at a quarter spin or more shatters (a white-hot flash, a fast ring and shards), bigger the faster;
   - each shot plays up to 4 semitones higher and a third quieter, so the faster stream rises into a whine instead of
     getting louder.
 - **Rejected or set aside:**

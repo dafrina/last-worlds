@@ -80,10 +80,11 @@ export interface RunConfig {
 }
 export interface Player {
   /**
-   * The Interceptor's Shred spin (src/sim/ship-perks.ts): its fire-rate bonus, 0 … SHIP_PERKS.shredCap, built by every
-   * main-weapon hit and emptied when the ship is hit.
+   * The Interceptor's Shred spin (src/sim/ship-perks.ts): its fire-rate bonus, 0 … SHIP_PERKS.shredCap, climbing while
+   * main-weapon hits keep landing (`spinAt`: the last one), emptied when the ship is hit or stops firing.
    */
   spin?: number;
+  spinAt?: number;
   /** The Spectre's Gravity Slingshot: when it can catch its next near-miss. */
   reflectReadyAt?: number;
   x: number; vx: number; lives: number; shields: number; maxShields: number;

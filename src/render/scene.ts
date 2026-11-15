@@ -1191,7 +1191,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The camera shake's state (cosmetic, render only): trauma, the clock, the last hit, lives and effect seen.
   let shakeTrauma = 0, shakeTime = -1, shakeHit = -Infinity, shakeLives = 0, shakeEffect = -1;
   // The Orbital Strike's pall: where its front got to, which way, and when the band has faded (render only).
-  let pallState: { front: number; direction: number; until: number } | null = null;
+  let pallState: { front: number; direction: number; until: number } | null = null, orbitalJolted = -1;
   // THE CITADEL's standing state: the arena (by its start) whose temple has fallen, and the run clock last seen.
   let citadelFallen: number | null = null, citadelSeen = -Infinity;
   const HOVERING_BOSSES = [
@@ -2334,7 +2334,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (shakeDt > 0) shakeTrauma += effect.kind === 'bossBlast' ? .6 : effect.kind === 'blast' ? .14 : effect.kind === 'shred' ? .06 + .1 * Math.min(1, (effect.duration - .4) / .4) : effect.kind === 'explosion' ? .07 : 0;
       }
       // THE CITADEL's awakening: a short rumble as it shakes the dust off (src/render/veil-view.ts AWAKEN).
-      // The Orbital Strike's barrage rumbles while it sweeps (docs/42).
+      // The Orbital Strike: a hard jolt as it is called, then a rumble while it sweeps (docs/42).
+      if (state.orbital && state.orbital.startedAt !== orbitalJolted) { orbitalJolted = state.orbital.startedAt; shakeTrauma = 1; }
       if (state.orbital) shakeTrauma = Math.max(shakeTrauma, .55);
       // Its pall (High: the post composite's dark band behind the front), fading out over PALL_FADE once the sweep is done.
       if (state.orbital) pallState = { front: orbitalFront(state.orbital, state.time - state.orbital.startedAt), direction: state.orbital.direction, until: state.time + PALL_FADE };
