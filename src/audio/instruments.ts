@@ -11,7 +11,9 @@ import { cents, drive, finish, midi, OnePole, Pulse, Rotor, Saw, seedOf, Svf, TA
 export type LevelInstrument = 'kick' | 'snare' | 'hat' | 'bass' | 'glass'
   | 'bloom-pad' | 'foundry-bass' | 'saw-lead' | 'piano' | 'round-bass' | 'brush'
   | 'breath-pad' | 'nerve' | 'bio-bass' | 'heart' | 'bone' | 'void-bass' | 'void-tick'
-  | WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument;
+  | WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument | MenuInstrument;
+/** The title theme's own voice (menu-theme.ts; user, 15 November: "a very recognizable, catchy ... menu music"). */
+export type MenuInstrument = 'anthem';
 /** Voices added when Luna, Khepri, Nacre, Vesper and Amnion were reworked (11 November, phase 4), and the snappy kick
  * they share. `kick` is now Umbra's alone: its score is frozen, sample for sample. */
 export type WorldInstrument = 'snap-kick' | 'signal' | 'forge-kick' | 'anvil' | 'steam' | 'pearl' | 'frost' | 'crack'
@@ -270,7 +272,7 @@ const NAHARA: Record<NaharaInstrument, Patch> = {
   } },
 };
 
-const LEVEL: Record<Exclude<LevelInstrument, WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument>, Patch> = {
+const LEVEL: Record<Exclude<LevelInstrument, WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument | MenuInstrument>, Patch> = {
   // Umbra's kick, frozen with its score: a fast pitch drop, a short beater click and saturation that puts its knock in
   // the midrange.
   kick: { seconds: .42, base: 36, rms: .183, window: .4, render(out, rate, noise) {
@@ -660,9 +662,25 @@ const BOSS: Record<BossInstrument, Patch> = {
   } },
 };
 
-const PATCHES: Record<Instrument, Patch> = { ...LEVEL, ...WORLDS, ...CORONA, ...UMBRA, ...NAHARA, ...BOSS };
-/** Voices added for the recomposed and reworked scores; the older level voices keep their 20 October base notes. */
-export const RECOMPOSED_INSTRUMENTS = [...Object.keys(WORLDS), ...Object.keys(CORONA), ...Object.keys(UMBRA), ...Object.keys(NAHARA)] as (WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument)[];
+const MENU: Record<MenuInstrument, Patch> = {
+  // The title theme's lead, its hook: a warm, dark synth brass. Three saws 4 cents either side over a sine an octave
+  // down, through a low-pass that opens with the note's swell (a brass attack) and settles, a slow vibrato after
+  // 0.25 s, a touch of drive for edge. It sustains, fading gently, so the hook's long notes hold.
+  anthem: { seconds: 1.8, base: 64, rms: .24, window: .4, render(out, rate) {
+    const f = midi(64), stack = new Unison(rate, 3, 4, 157), sub = new Rotor(f / 2, rate), filter = new Svf(rate, 900, 1.15), air = new OnePole(5200, rate);
+    each(out, rate, (t, i) => {
+      const vibrato = 1 + .0028 * Math.sin(TAU * 5.1 * t) * Math.min(1, Math.max(0, (t - .25) / .35));
+      if (i % 16 === 0) filter.set(650 + 2100 * Math.min(1, t / .045) * (.5 + .5 * Math.exp(-t * 2.6)), 1.15);
+      const tone = filter.run(stack.next(f * vibrato)) + sub.next() * .3;
+      return air.run(drive(tone * 1.1, 1.4)) * Math.min(1, t / .018) * Math.exp(-t * .55) * Math.min(1, (1.8 - t) / .35);
+    });
+  } },
+};
+
+const PATCHES: Record<Instrument, Patch> = { ...LEVEL, ...WORLDS, ...CORONA, ...UMBRA, ...NAHARA, ...MENU, ...BOSS };
+/** Voices added for the recomposed and reworked scores and the title theme; the older level voices keep their 20 October
+ * base notes. */
+export const RECOMPOSED_INSTRUMENTS = [...Object.keys(WORLDS), ...Object.keys(CORONA), ...Object.keys(UMBRA), ...Object.keys(NAHARA), ...Object.keys(MENU)] as (WorldInstrument | CoronaInstrument | UmbraInstrument | NaharaInstrument | MenuInstrument)[];
 export const LEVEL_INSTRUMENTS = [...Object.keys(LEVEL), ...RECOMPOSED_INSTRUMENTS] as LevelInstrument[];
 export const BOSS_INSTRUMENTS = Object.keys(BOSS) as BossInstrument[];
 export const isInstrument = (id: string): id is Instrument => id in PATCHES;

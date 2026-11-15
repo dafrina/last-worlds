@@ -51,10 +51,12 @@ export function steady(planet: PlanetId, step: number, pitch: number, span: numb
 
 /** How many sixteenths a note is heard for: held voices for their length, ringing ones until they have faded a lot,
  * plucked basses and short notes briefly. */
-export function soundingSteps(planet: PlanetId, note: Note) {
+export function soundingSteps(planet: PlanetId, note: Note) { return soundingStepsAt(THEMES[planet].bpm, note); }
+/** `soundingSteps` at a tempo (the title theme has no planet). */
+export function soundingStepsAt(bpm: number, note: Note) {
   const seconds = INSTRUMENT_SECONDS[note.instrument] / 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12) - (note.skip ?? 0);
   const factor = SUSTAINED.has(note.instrument) ? 1 : RINGING.has(note.instrument) ? .4 : .3;
-  return Math.max(1, Math.min(32, Math.round(seconds * factor * THEMES[planet].bpm / 15)));
+  return Math.max(1, Math.min(32, Math.round(seconds * factor * bpm / 15)));
 }
 
 export const REVERSED = new Set<Instrument>(['inhale', 'glint']);

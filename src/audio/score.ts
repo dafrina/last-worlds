@@ -621,8 +621,10 @@ export class ScoreClock {
     else this.step = Math.ceil(this.step / 32) * 32;
     this.nextAt = at;
   }
-  take(now: number, planet: PlanetId): { step: number; at: number }[] {
-    const duration = 60 / THEMES[planet].bpm / 4;
+  take(now: number, planet: PlanetId): { step: number; at: number }[] { return this.takeAt(now, THEMES[planet].bpm); }
+  /** `take` at a tempo (the title theme has no planet). */
+  takeAt(now: number, bpm: number): { step: number; at: number }[] {
+    const duration = 60 / bpm / 4;
     // Never pour missed notes into a frame after a blocked main thread or OS audio interruption.
     // Skip along the existing timeline: restarting a chord on every slow frame would pile up pads.
     if (now - this.nextAt > .15) {
