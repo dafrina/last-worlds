@@ -756,6 +756,62 @@ User, of the polish: "instruments bit better but melody still very unfamiliar in
 
 **Pinned:** the fingerprint `956753df` (822 notes) and the anthem's hash `7796e0c6`.
 
+### The drums refined (16 November, fifth take)
+
+User: "refine the drums now of the theme menu song." Everything else of the fourth take was kept: melody, lead, harmony, form, mix and lifecycle. No new samples: the kit reuses and layers the game's own drums, so sample memory is unchanged.
+
+**The sounds:**
+- **Kick:** the snappy kick, its tail released after 0.2 s so the low end stays the bass's. Each kick ducks the bass and the ostinato (0.3, 0.35 in the last hook, back in 0.15 s); the lead is never ducked.
+- **Snare:** the snare's crack and rattle over a tom tuned to its shell for body (released after 0.16 s), and a darbuka rim's snap on top: a backbeat with weight and a real crack, not a thin clap.
+- **Ensemble drums:** up to three taiko players, 11 and 19 ms apart, a few cents apart, spread left and right. Nahara's great processional drum sits under the biggest hits, each decaying naturally in the room.
+- **Timpani:** rolls in sixteenths into each hook, rising from nothing on the chord's root, each stroke damped by the next. Single strokes open the B section's halves.
+- **Cymbals:**
+  - a swell (the riser) lands exactly on each hook, and softer ones on the B section and the turnaround;
+  - two crashes, a third apart and either side, on the hooks' downbeats;
+  - single crashes on the B section's halves, the last hook's restatement and the turnaround.
+
+**The programming builds across the form:**
+- **Intro:** distant ensemble drums on the first and third bars; a kick, the timpani roll and the swell into the hook.
+- **First hook:** the kick on the call's rhythm (beats 1 and the "and" of 2), the snare on beat 3 (half time), a taiko on each downbeat, two players on the call bars.
+- **B section:** half time with the roomier snare, two drummers every other bar, every bar from its second half, where the kick doubles.
+- **Last hook, the biggest:**
+  - a third kick;
+  - three drummers on the downbeats and the processional drum on the call bars;
+  - a second taiko on beat 3's "and";
+  - soft off-beat hats (above the lead);
+  - a ghost snare into every other bar.
+- **Fills, never busy:**
+  - the drummers' pickups into the B section and the turnaround, softer ones into the B section's second half and the last hook's restatement;
+  - into the last hook, a snare building under the timpani roll.
+- **Turnaround:** kick, three drummers, the processional drum, crashes and boom on its arrival, then a distant pair two bars later.
+
+**The room** (`mixer.ts`, the theme's drum bus):
+- The drums have their own bus, outside the lead's glue compressor, so a hit can never pump the lead.
+- On that bus: a 2 dB dip at 2.5 kHz where the lead sings, and a drum glue that lets each transient through (2.5:1 from −12 dB, 10 ms attack, 120 ms release).
+- A room of eight early reflections either side (7 to 31 ms), high-passed at 120 Hz so the low end stays clean and darker than the source, then the hall.
+
+**Measured** (renders at the defaults):
+- **No pumping:** the lead and the drums rendered together, minus each rendered alone, leave −97 dBFS: 16-bit noise.
+- **Dynamics:**
+
+| Section | Drums alone (dBFS) | Whole mix (dBFS) |
+| --- | --- | --- |
+| Intro | −40.2 | −36.8 |
+| First hook | −34.2 | −30.5 |
+| B section | −34.5 | −31.1 |
+| Last hook | −31.3 | −28.5 |
+| Turnaround | −38.3 | −34.8 |
+
+- **The lead's space:** between 1 and 3 kHz the drums are 12 dB under the lead; only 22 dB of their energy lies there.
+- **Width:** the drums' sides are 16 dB under their centre: wide room, mono-safe hits.
+- **Level:** the theme's loudest second is still −26.5 dBFS (peak 0.287, the hits' transients), against Luna's music at −25.1. No clipping.
+- **Voices:** at most 28 at once in the render, none dropped. The theme's voice pool is now 32 (it was 28), for headroom.
+- **Costs:**
+  - The score costs about 15–18 µs a sixteenth (0.1 ms a second).
+  - Sample memory is unchanged (15,627,520 bytes): the kit's new voices (tom, tek, the processional drum, hat) were already made at boot.
+  - The theme now waits for them too.
+- **Pinned:** the fingerprint `b7f1370d` (963 notes). The harmonic audit, the 32nd-by-32nd check and the mode check all pass.
+
 ### Menu sounds (`src/audio/samples.ts`, wired by `src/ui/ui-sounds.ts`)
 
 One family, crisp and short, in the glassy, metallic world of the game's pickups and the theme. They play through their own path past the master gate, so a paused flight's panels sound too. They follow the Effects volume and Sound off; repeats closer than 40 ms (the slider's 50 ms, a refusal's 250 ms) are not played again.
@@ -804,4 +860,4 @@ One family, crisp and short, in the glassy, metallic world of the game's pickups
 - each menu sound;
 - a click through the menus over the theme ending in a launch into Luna's music.
 
-The page is at `lookdev/audio-previews/menu/index.html`. It holds the fourth take, with the third, second and first takes' loops (in `take3/`, `take2/` and `take1/`) to compare.
+The page is at `lookdev/audio-previews/menu/index.html`. It holds the fifth take, with the earlier takes' loops (in `take4/` to `take1/`) to compare.

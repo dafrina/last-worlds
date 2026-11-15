@@ -130,7 +130,7 @@ function phrasing(s: number, big: boolean, b: boolean): Partial<Note> & { touch:
 
 /** Every voice the theme plays: it starts only once all of them are made (never synthesized in a tap). */
 export const MENU_INSTRUMENTS: readonly Instrument[] = ['strings', 'choir', 'braam', 'inhale', 'round-bass', 'snap-kick', 'taiko', 'snare',
-  'timpani', 'riser', 'crash', 'boom', 'spiccato', 'anthem', 'stab', 'glass'];
+  'tom', 'tek', 'stone-drum', 'hat', 'timpani', 'riser', 'crash', 'boom', 'spiccato', 'anthem', 'stab', 'glass'];
 
 /** The spiccato's 3-3-2 grouping over a bar of sixteenths (which tone of the chord), and its accents. */
 const GROUP = [0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2], ACCENTS = new Set([0, 3, 6, 8, 11, 14]);
@@ -176,31 +176,71 @@ export function menuStep(step: number): Note[] {
     if (beat === 0 || beat === 8) add('round-bass', bass, beat ? .24 : .28);
     if (bar >= 16 && beat === 6) add('round-bass', bass, .22);
   } else if ((bar === 3 && (beat === 0 || beat === 8)) || (turn && beat === 0)) add('round-bass', bass, .26);
-  // The drums: the snappy kick on the hook's rhythm, keying the sidechain on the bass; taiko on the downbeats; a
-  // half-time snare. Distant taiko in the intro.
+  // The drums (16 November, user: "refine the drums now of the theme menu song"): a kit in its own room (the mixer's
+  // kit bus, outside the lead's glue), building across the form: distant ensemble drums in the intro, the full kit in
+  // the first hook, half time in the B section, the biggest in the last hook. Each kick keys the sidechain on the bass
+  // and the ostinato, never the lead. The players' small timing and velocity variations come from the mixer.
+  const kit = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = .2, extra: Partial<Note> = {}) =>
+    add(instrument, pitch, gain, pan, wet, { kit: true, ...extra });
   const duck = { depth: big ? .35 : .3, release: .15 };
-  if (hook) {
-    if (beat === 0 || beat === 6 || (big && beat === 10)) add('snap-kick', 36, beat === 0 ? .36 : .3, 0, .05, { duck });
-    if (beat === 0) add('taiko', 36, .2, 0, .2);
-    if (big && beat === 10) add('taiko', 36, .15, 0, .2);
-    if (beat === 8) add('snare', 60, .15, 0, .16);
-    if ((bar === 11 || bar === 27) && (beat === 12 || beat === 14)) add('taiko', 36, beat === 12 ? .14 : .18, 0, .2);
+  // The kick: the snappy kick, its tail cut short so the low end stays the bass's.
+  const kick = (gain: number) => kit('snap-kick', 36, gain, 0, .06, { duck, hold: .2 });
+  // The backbeat: the snare's crack and rattle over a tom's body tuned to its shell, a rim's snap on top, in the room.
+  const snare = (gain: number, wet = .28) => {
+    kit('snare', 60, gain, 0, wet); kit('tom', 53, gain * .55, 0, wet, { hold: .16 }); kit('tek', 62, gain * .35, .1, wet * .8);
+  };
+  // The ensemble drums: up to three drummers 11 and 19 ms apart, a few cents apart, either side; the great processional
+  // drum under the biggest.
+  const ensemble = (gain: number, players: number, boom = false) => {
+    kit('taiko', 36, gain, -.15, .3);
+    if (players > 1) kit('taiko', 35.6, gain * .8, .3, .32, { offset: .011 });
+    if (players > 2) kit('taiko', 36.4, gain * .7, -.35, .34, { offset: .019 });
+    if (boom) kit('stone-drum', 36, gain * .7, 0, .35);
+  };
+  if (section === 'intro') {
+    if ((bar === 0 || bar === 2) && beat === 0) ensemble(.12, 2);
+    if (bar === 3 && beat === 0) kick(.26);
+  } else if (hook) {
+    if (beat === 0) kick(big ? .37 : .34);
+    if (beat === 6) kick(big ? .3 : .27);
+    if (big && beat === 10) kick(.27);
+    if (beat === 8) snare(big ? .15 : .13);
+    if (beat === 0) ensemble(big ? .2 : .17, big ? 3 : bar % 4 === 0 ? 2 : 1, big && bar % 4 === 0);
+    if (big && beat === 10) ensemble(.13, 1);
+    // The last hook's drive: soft off-beat hats (above the lead), a ghost snare into every other bar.
+    if (big && beat % 4 === 2) kit('hat', 62, beat === 10 ? .03 : .024, beat < 8 ? -.25 : .25, .1);
+    if (big && beat === 15 && bar % 2 === 1 && bar !== 27) kit('snare', 60, .035, 0, .2);
   } else if (b) {
-    if (beat === 0 || (bar >= 16 && beat === 6)) add('snap-kick', 36, beat ? .28 : .34, 0, .05, { duck });
-    if (beat === 0 && (bar % 2 === 0 || bar >= 16)) add('taiko', 36, .24, 0, .2);
-    if (beat === 8) add('snare', 60, .14, 0, .2);
-  } else if (beat === 0) {
-    if (bar === 3 || bar === 28) add('snap-kick', 36, bar === 28 ? .32 : .28, 0, .06, { duck });
-    if (bar === 0 || bar === 2 || bar === 30) add('taiko', 36, .13, 0, .3);
-    if (bar === 28) add('taiko', 36, .2, 0, .2);
+    if (beat === 0) kick(.32);
+    if (bar >= 16 && beat === 6) kick(.25);
+    if (beat === 8) snare(.12, .36);
+    if (beat === 0 && (bar % 2 === 0 || bar >= 16)) ensemble(.22, 2);
+  } else {
+    if (bar === 28 && beat === 0) { kick(.32); ensemble(.2, 3, true); }
+    if (bar === 30 && beat === 0) ensemble(.12, 2);
   }
-  // Arrivals: a riser and a timpani roll into each hook, crash, boom, braam and timpani on its downbeat; timpani opening
-  // the B section's halves; crash and boom as the hook gives way to the turnaround's ♭II.
+  // Fills into sections, never busy: the drummers' pickup into the B section and the turnaround, a softer one into the
+  // B section's second half and the last hook's restatement, and the snare building under the roll into the last hook.
+  if ((bar === 11 || bar === 27) && (beat === 12 || beat === 14)) ensemble(beat === 12 ? .13 : .17, 2);
+  if ((bar === 15 || bar === 23) && beat === 14) ensemble(.11, 2);
+  if (bar === 19 && beat >= 12) kit('snare', 60, .04 + (beat - 12) * .025, 0, .3);
+  // Timpani: a roll in sixteenths into each hook, rising from nothing on the chord's root (each stroke damped by the
+  // next), and single strokes opening the B section's halves.
+  if ((bar === 3 || bar === 19) && beat >= 8) kit('timpani', drum, .05 + (beat - 8) * .022, beat % 2 ? .12 : -.12, .3, beat < 15 ? { hold: .2 } : {});
+  if ((bar === 12 || bar === 16) && beat === 0) kit('timpani', drum, .22, 0, .3);
+  // Cymbals land exactly on the arrivals: a swell into each hook (softer into the B section and the turnaround), two
+  // crashes a third apart either side on the hooks' downbeats, single ones on the other arrivals; boom and timpani
+  // under the hooks and the turnaround.
   if ((bar === 3 || bar === 19) && beat === 0) notes.push(riser(62, .12));
-  if ((bar === 3 || bar === 19) && [8, 11, 13, 14, 15].includes(beat)) add('timpani', drum, .08 + (beat - 8) * .018, 0, .25);
-  if ((bar === 4 || bar === 20) && beat === 0) { add('crash', 60, .1, 0, .2); add('boom', bass, .22, 0, .2); add('timpani', drum, .26, 0, .25); }
-  if ((bar === 12 || bar === 16) && beat === 0) add('timpani', drum, .22, 0, .25);
-  if (bar === 28 && beat === 0) { add('crash', 60, .06, 0, .3); add('boom', bass, .14, 0, .3); add('timpani', drum, .2, 0, .25); }
+  if (bar === 11 && beat === 0) notes.push(riser(62, .06));
+  if (bar === 27 && beat === 0) notes.push(riser(63, .06));
+  if ((bar === 4 || bar === 20) && beat === 0) {
+    kit('crash', 60, .1, -.3, .3); kit('crash', 57, .07, .35, .35, { offset: .006 }); kit('boom', bass, .22, 0, .25); kit('timpani', drum, .26, 0, .3);
+  }
+  if ((bar === 12 || bar === 16 || bar === 24) && beat === 0) kit('crash', 60, bar === 16 ? .035 : .05, bar === 24 ? .3 : -.3, .35);
+  if (bar === 28 && beat === 0) {
+    kit('crash', 60, .07, -.3, .35); kit('crash', 57, .045, .35, .4, { offset: .006 }); kit('boom', bass, .14, 0, .3); kit('timpani', drum, .2, 0, .3);
+  }
   // The ostinato on the spiccato strings, in the chord's register, grouped 3-3-2: sixteenths building into the hook and
   // in the last hook and the B section's second half, eighths in the first hook, the B section's first half and the
   // turnaround's start.
@@ -241,8 +281,9 @@ function swells(landing: number): Omit<Note, 'offset'>[] {
   return [...new Set(menuChord(s).tones.filter(t => before.has(pitchClass(t))).map(t => t < 55 ? t + 12 : t))]
     .map((pitch, i) => ({ instrument: 'inhale' as const, pitch, gain: .075, pan: i % 2 ? .4 : -.4, wet: .5 }));
 }
-/** A riser whose climbing tone lands on `pitch` exactly 16 sixteenths later (as the boss stems' risers do). */
+/** A riser (the cymbal swell) whose climbing tone lands on `pitch` exactly 16 sixteenths later, as the boss stems'
+ * risers do; on the drums' bus. */
 function riser(pitch: number, gain: number): Note {
   const rate = 2 ** ((pitch - 60) / 12), span = 16 * 15 / MENU_THEME.bpm, length = INSTRUMENT_SECONDS.riser / rate;
-  return { instrument: 'riser', pitch, gain, pan: 0, wet: .25, offset: Math.max(0, span - length), skip: Math.max(0, length - span) * rate };
+  return { instrument: 'riser', pitch, gain, pan: 0, wet: .25, offset: Math.max(0, span - length), skip: Math.max(0, length - span) * rate, kit: true };
 }

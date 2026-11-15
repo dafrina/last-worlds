@@ -20,9 +20,9 @@ const pcm = (id: string) => {
 
 describe('the title theme', () => {
   it('is the approved 32-bar cycle, D minor at 100 BPM, and loops without a seam', () => {
-    // A change here is a change to the composition itself (heroic and mysterious; its melody made familiar, 15 November).
+    // A change here is a change to the composition itself (heroic and mysterious; its melody made familiar, 15 November; its drums refined, 16 November).
     const notes = Array.from({ length: STEPS }, (_, s) => menuStep(s));
-    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['956753df', 822]);
+    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['b7f1370d', 963]);
     expect(MENU_THEME).toMatchObject({ bpm: 100, root: 50, bars: 32 });
     for (const s of [0, 37, 255, 511]) expect(menuStep(s + STEPS)).toEqual(menuStep(s));
   });
