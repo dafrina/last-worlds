@@ -1,5 +1,15 @@
 # Build status
 
+## Menu title theme and menu sounds deployed (`144bb0c`), 15 November 2026
+
+- **The title theme "Last Worlds":** the second, heroic and mysterious take. D minor, 100 BPM, 32 bars, open fifths, a rising call hook on synth brass.
+- **Menu sounds:** press, back, select, slider tick, purchase, equip and deny, wired centrally in `src/ui/ui-sounds.ts`.
+- **Behaviour:** the theme starts on the first interaction, fades under the launch warp and returns after a run.
+- **Audio defaults:** music 75 %, effects 55 % (`75865b5`).
+- **Gate on `144bb0c`:** typecheck clean; unit tests 1111 passed, 8 skipped; build passes; browser 56/56, Playwright exit 0.
+- **Live:** Pages run 43733071912 succeeded; the live bundle `main--OEcvbOV.js` matches the build; the smoke test reports no errors. No phone test.
+- **Next:** a polish pass (user: the lead "sounds a bit cheap", the bar ends "a bit off"). It covers the reversed swells against the outgoing chord, the unresolved phrase ends, a high-end synth-brass lead and the mix.
+
 ## The Orbital Strike and the Shockwave strike off screen (15 November 2026; docs/42)
 
 - **Orbital Strike:**

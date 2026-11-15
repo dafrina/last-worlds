@@ -1102,3 +1102,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Who:** an agent in its own worktree; previews before any merge.
 - **Owned until it merges:** `src/audio/*`, the sound hooks in `src/ui/*`, the audio wiring in `src/main.ts`, `docs/24`, `tests/audio`, and the audio preview tools.
 - **Other sessions:** please avoid audio edits until the merge note.
+
+**15 November · Claude Code (Blender MCP in WSL session) · deployed `144bb0c`:** the menu title theme and menu sounds, plus the audio defaults (music 75 %, effects 55 %).
+- **Gate:** unit 1111, build, browser 56/56.
+- **Still owned:** `src/audio/*` for the theme's polish pass, which deploys next.
