@@ -16,7 +16,8 @@ const LEVELS: Record<Sound, number> = {
   shield: .19, 'shield-break': .19, life: .18, pickup: .19, part: .45, upgrade: .28, ready: .25, whoosh: .3,
   shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, 'orbital-strike': .5, warning: .25, beam: .28,
   'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .6, loss: .27,
-  'ui-press': .34, 'ui-back': .32, 'ui-select': .27, 'ui-tick': .2, 'ui-purchase': .34, 'ui-equip': .32, 'ui-deny': .3,
+  // The menu's sounds, set to read clearly at the default Effects volume (55 %) over the title theme.
+  'ui-press': .54, 'ui-back': .5, 'ui-select': .43, 'ui-tick': .32, 'ui-purchase': .54, 'ui-equip': .5, 'ui-deny': .48,
 };
 const PRIORITY: Partial<Record<Sound, number>> = {
   impact: 0, enemy: 0, explosion: 1, heavy: 2, pulse: 2, fan: 2, seeker: 2, rail: 3,
@@ -98,6 +99,9 @@ export class AudioMixer {
   dropped = 0;
   peakVoices = 0;
   peakBossVoices = 0;
+  /** Menu sounds played, and the last one (diagnostics and tests). */
+  uiPlayed = 0;
+  lastUi: UiSound | '' = '';
   constructor(readonly context: BaseAudioContext, settings: AudioSettings) {
     this.settings = { ...settings };
     const gain = (level: number) => { const node = context.createGain(); node.gain.value = level; this.nodes.push(node); return node; };
@@ -290,7 +294,9 @@ export class AudioMixer {
   uiCue(sound: UiSound, transpose = 0, at = this.context.currentTime) {
     if (at < (this.cooldown.get(sound) ?? -Infinity)) { this.dropped++; return false; }
     this.cooldown.set(sound, at + (UI_COOLDOWN[sound] ?? .04));
-    return this.play(sound, at, 2 ** (transpose / 12), LEVELS[sound], 0, 'ui', 3);
+    const played = this.play(sound, at, 2 ** (transpose / 12), LEVELS[sound], 0, 'ui', 3);
+    if (played) { this.uiPlayed++; this.lastUi = sound; }
+    return played;
   }
   cue(cue: Cue, at = this.context.currentTime) {
     if (at < (this.cooldown.get(cue.sound) ?? -Infinity)) { this.dropped++; return; }
@@ -365,7 +371,7 @@ export class AudioMixer {
       voices: this.voices.length, musicVoices: this.voices.filter(v => v.group === 'music').length,
       bossVoices: this.voices.filter(v => v.group === 'boss').length,
       effectsVoices: this.voices.filter(v => v.group === 'effects').length,
-      menuVoices: this.voices.filter(v => v.group === 'menu').length, menuMix: this.menu.gain.value,
+      menuVoices: this.voices.filter(v => v.group === 'menu').length, menuMix: this.menu.gain.value, uiPlayed: this.uiPlayed, lastUi: this.lastUi,
       peakVoices: this.peakVoices, peakBossVoices: this.peakBossVoices, accepted: this.accepted, dropped: this.dropped,
       bossMix: this.bossMixAt(), bossTarget: this.bossFade.target,
       sampleBytes: [...this.buffers.values()].reduce((n, b) => n + b.length * 4 * b.numberOfChannels, 0),

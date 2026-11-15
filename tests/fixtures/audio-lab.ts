@@ -1,7 +1,7 @@
 import { AudioMixer } from '../../src/audio/mixer';
 import type { Sound, UiSound } from '../../src/audio/samples';
-import { MENU_THEME, menuStep } from '../../src/audio/menu-theme';
-import { createGameAudio } from '../../src/audio/engine';
+import { MENU_LEVEL, MENU_THEME, menuStep } from '../../src/audio/menu-theme';
+import { createGameAudio, DEFAULT_AUDIO } from '../../src/audio/engine';
 import { BossArranger, bossStage } from '../../src/audio/boss-score';
 import { FROZEN, THEMES, scoreStep } from '../../src/audio/score';
 import { createRun } from '../../src/sim/game';
@@ -62,11 +62,12 @@ export async function renderTimeline(job: PreviewJob) {
  */
 export async function renderMenu(job: { seconds: number; theme?: boolean; fadeIn?: boolean; ui?: { at: number; sound: UiSound; transpose?: number }[];
   launchAt?: number; world?: PlanetId }) {
+  // At the game's default volumes (music 75 %, effects 55 % since 15 November).
   const rate = 44_100, ctx = new OfflineAudioContext(2, Math.ceil(job.seconds * rate), rate);
-  const mixer = new AudioMixer(ctx, { muted: false, effects: .8, music: .55 });
+  const mixer = new AudioMixer(ctx, { ...DEFAULT_AUDIO });
   mixer.warm(); mixer.setActive(true);
-  mixer.setMenuMix(job.fadeIn ? 0 : 1, 0);
-  if (job.fadeIn) mixer.setMenuMix(1, 3, START);
+  mixer.setMenuMix(job.fadeIn ? 0 : MENU_LEVEL, 0);
+  if (job.fadeIn) mixer.setMenuMix(MENU_LEVEL, 3, START);
   const events: { at: number; run: () => void }[] = [], step = 15 / MENU_THEME.bpm, until = job.theme === false ? 0 : job.launchAt ?? job.seconds;
   for (let i = 0; START + i * step < until; i++) {
     const at = START + i * step;

@@ -14,6 +14,9 @@ import type { Note } from './score';
  * and the turnaround, and one voice of its own for the hook, `anthem`, a warm, dark synth brass.
  */
 export const MENU_THEME = { title: 'Last Worlds', bpm: 100, root: 50, bars: 32 } as const;
+/** The theme's fader level: a backdrop a little under the worlds' music (15 November: balanced for the defaults, music
+ * 75 % and effects 55 %). */
+export const MENU_LEVEL = .8;
 const STEPS = MENU_THEME.bars * 16;
 
 // The chords, one a bar, as offsets from D3.

@@ -4,7 +4,7 @@ import { SoundObserver } from './events';
 import { BossArranger, bossStage } from './boss-score';
 import { AudioMixer, type AudioSettings } from './mixer';
 import { FROZEN, scoreStep, ScoreClock, THEMES } from './score';
-import { MENU_INSTRUMENTS, MENU_THEME, menuStep } from './menu-theme';
+import { MENU_INSTRUMENTS, MENU_LEVEL, MENU_THEME, menuStep } from './menu-theme';
 import type { UiSound } from './samples';
 
 /** The title theme fades in over this many seconds, and out over a launch's warp in this many. */
@@ -70,7 +70,7 @@ export function createGameAudio() {
       if (!MENU_INSTRUMENTS.every(id => mixer!.ready(id))) return;
       menuPlaying = true; clearSuspend(); clearTimeout(menuStop); menuStop = undefined;
       mixer.stopGroup('menu'); mixer.setActive(true);
-      mixer.setMenuMix(0, 0); mixer.setMenuMix(1, MENU_FADE_IN);
+      mixer.setMenuMix(0, 0); mixer.setMenuMix(MENU_LEVEL, MENU_FADE_IN);
       menuClock.reset(context.currentTime + .05);
     }
     for (const slot of menuClock.takeAt(context.currentTime, MENU_THEME.bpm)) {

@@ -48,6 +48,41 @@ test('audio unlocks on launch, pauses silently, resumes, and remembers separate 
   expect(errors).toEqual([]);
 });
 
+test('the title theme starts with the first tap in the menu, fades out over a launch, returns after the flight, and the menu sounds play', async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  // Silent before any interaction: browsers allow sound only after a gesture.
+  expect(await status(page)).toMatchObject({ state: 'locked', menuWanted: false });
+  // The first tap (opening the hangar) starts the theme, once its samples are made, and plays its press.
+  await page.locator('[data-action="menu-hangar"]').click();
+  await expect.poll(async () => (await status(page)).menuPlaying, { timeout: 20_000 }).toBe(true);
+  await expect.poll(async () => (await status(page)).menuMix, { timeout: 10_000 }).toBeGreaterThan(.2);
+  await expect.poll(async () => (await status(page)).rms).toBeGreaterThan(.001);
+  expect((await status(page)).uiPlayed).toBeGreaterThan(0);
+  // A refused purchase: a real press on a disabled BUY button (a new profile cannot afford it) plays the refusal.
+  const buy = page.locator('.hangar-action.buy[disabled]').first();
+  await expect(buy).toBeVisible();
+  const box = (await buy.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect.poll(async () => (await status(page)).lastUi).toBe('ui-deny');
+  await page.locator('.hangar-panel .back-button').click();
+  await expect.poll(async () => (await status(page)).lastUi).toBe('ui-back');
+  // Launch: the theme fades out over the warp; the world's music takes over and no theme voice is left.
+  await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  expect((await status(page)).menuWanted).toBe(false);
+  await expect.poll(async () => (await status(page)).active, { timeout: 20_000 }).toBe(true);
+  await expect.poll(async () => (await status(page)).menuVoices).toBe(0);
+  expect((await status(page)).menuMix).toBeLessThan(.05);
+  await expect.poll(async () => (await status(page)).rms).toBeGreaterThan(.001);
+  // The pause panel's buttons sound too, outside the closed master gate; leaving the flight brings the theme back.
+  await page.getByRole('button', { name: 'Pause flight' }).click();
+  const played = (await status(page)).uiPlayed ?? 0;
+  await page.locator('[data-action="quit"]').click();
+  await expect.poll(async () => (await status(page)).uiPlayed).toBeGreaterThan(played);
+  await expect.poll(async () => (await status(page)).menuPlaying, { timeout: 20_000 }).toBe(true);
+  expect(errors).toEqual([]);
+});
 
 const WORLDS: PlanetId[] = ['luna', 'khepri', 'nacre', 'vesper', 'amnion', 'corona', 'umbra'];
 type Metrics = Awaited<ReturnType<typeof renderTimeline>>['metrics'];
