@@ -32,6 +32,7 @@
   - unit 1104 passed, 8 skipped;
   - build passes;
   - browser 55 of 55.
+- **Deployed** `9b71319`: Pages run 43657541560 matches the live bundle `main-BBEoGoWD.js`.
 - **Not yet done:** the chassis measured against each other on the late missions. No phone test.
 
 ## Boss phases 40-25-35, site callouts only when the site comes, no dust devils (14 November 2026; docs/39, docs/40)
