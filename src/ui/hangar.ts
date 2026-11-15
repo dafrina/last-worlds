@@ -36,6 +36,9 @@ export function renderHangar(list: HTMLElement, profile: CampaignProfile, slot: 
   const button = (label: string, kind: string, disabled: boolean, onClick: () => void) => {
     const element = document.createElement('button');
     element.type = 'button'; element.className = `hangar-action ${kind}`; element.textContent = label; element.disabled = disabled;
+    // Its menu sound (ui-sounds.ts): credits spent, or a fitting locked in.
+    if (kind === 'buy' || kind === 'upgrade') element.dataset.sound = 'ui-purchase';
+    else if (kind === 'equip') element.dataset.sound = 'ui-equip';
     element.addEventListener('click', onClick);
     return element;
   };
@@ -79,7 +82,7 @@ function levels(profile: CampaignProfile, weapon: WeaponId, actions: HangarActio
   const pips = document.createElement('span'); pips.className = 'rank-pips'; pips.setAttribute('role', 'group'); pips.setAttribute('aria-label', `${name} level to fly`);
   for (let rank = 0; rank < count; rank++) {
     const pip = document.createElement('button'), owned = rank <= bought;
-    pip.type = 'button'; pip.textContent = String(rank + 1);
+    pip.type = 'button'; pip.textContent = String(rank + 1); pip.dataset.sound = 'ui-select';
     pip.className = `rank-pip${owned ? ' is-bought' : ''}${rank === flown ? ' is-on' : ''}`;
     pip.disabled = !owned;
     pip.setAttribute('aria-label', owned ? `Fly tier ${rank + 1}` : `Tier ${rank + 1}, not bought`);
@@ -150,6 +153,7 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
       choice.type = 'button'; choice.className = `shipyard-design${fitted ? ' is-on' : owned ? '' : ' is-locked'}${tried ? ' is-trying' : ''}`;
       choice.textContent = owned ? design.toUpperCase() : `${design.toUpperCase()} ${price}·${parts}P`;
       choice.setAttribute('aria-pressed', String(fitted || tried));
+      choice.dataset.sound = owned ? 'ui-equip' : 'ui-select';
       choice.setAttribute('aria-label', `${HERO_SLOT_NAMES[slot]} design ${design.toUpperCase()}${owned ? '' : `, preview; costs ${priceWords({ credits: price, parts })}`}`);
       choice.addEventListener('click', () => {
         if (owned) { trying = null; if (!fitted) actions.setLook(ship, { ...look, parts: { ...look.parts, [slot]: design } }); else again(); }
@@ -164,6 +168,7 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
     const { slot, design } = trying, price = HERO_DESIGN_PRICES[design], parts = HERO_DESIGN_PARTS[design];
     const note = document.createElement('span'); note.textContent = `PREVIEW · ${HERO_SLOT_NAMES[slot].toUpperCase()} ${design.toUpperCase()}`;
     const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'hangar-action'; buy.textContent = `BUY · ${priceText({ credits: price, parts })}`;
+    buy.dataset.sound = 'ui-purchase';
     buy.disabled = !affords(profile, { credits: price, parts });
     buy.addEventListener('click', () => {
       trying = null;

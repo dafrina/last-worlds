@@ -11,6 +11,7 @@ import { WARP, warpSpeed } from './content/departure';
 import { createGameAudio } from './audio/engine';
 import { prefetchSamples } from './audio/sample-bank';
 import { mountAudioSettings } from './audio/settings';
+import { installUiSounds } from './ui/ui-sounds';
 import { installDevHooks, type Bench } from './dev-hooks';
 import { safeStorage } from './shared/storage';
 
@@ -176,6 +177,8 @@ const ui = createUi(root, {
     pendingSpecial = false;
     accumulator = 0;
     ui.showMenu();
+    // Back in the menu: the title theme (it plays on if a result already brought it back).
+    audio.menu();
   },
   setMuted(value) { audio.setSettings({ muted: value }); },
   setQuality(value) { renderer?.setQuality(value); },
@@ -184,6 +187,8 @@ const ui = createUi(root, {
   preloadHero: (ship, look) => renderer?.preloadHero?.(ship, look),
 });
 const disposeAudioSettings = mountAudioSettings(root, audio);
+// The menu's sounds: one delegated listener for every button, selector and slider (ui-sounds.ts).
+const disposeUiSounds = installUiSounds(root, audio);
 const input = createInput(ui.surface, ui.specialButton, tilt);
 let renderer: ReturnType<typeof createRenderer> | undefined;
 try {
@@ -201,7 +206,8 @@ const observer = new ResizeObserver(() => {
   renderer?.resize(rect.width, rect.height);
 });
 observer.observe(ui.canvas);
-document.addEventListener('visibilitychange', () => { if (document.hidden) pause('hidden'); });
+// Hidden, everything pauses (the title theme too); back on the menu, the title theme resumes.
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause('hidden'); else if (!run && !loadingRun) audio.menu(); });
 // Portrait only: a phone turned sideways pauses the flight under the rotate notice (styles.css). Where the browser
 // allows it (Android, installed app), also ask for a portrait lock on the first touch.
 const sideways = typeof matchMedia === 'function' ? matchMedia('(orientation: landscape) and (pointer: coarse) and (max-height: 600px)') : null;
@@ -210,9 +216,10 @@ window.addEventListener('pointerdown', () => {
   const orientation = screen.orientation as ScreenOrientation & { lock?: (kind: string) => Promise<void> };
   orientation?.lock?.('portrait').catch(() => { /* Not supported outside fullscreen or on iOS: the notice covers it. */ });
 }, { once: true });
-// Resume clicks start a countdown; unlock synchronously on the gesture, before that delayed callback.
-window.addEventListener('pointerdown', () => { if (run) audio.unlock(); });
-window.addEventListener('keydown', () => { if (run) audio.unlock(); });
+// Resume clicks start a countdown; unlock synchronously on the gesture, before that delayed callback. In the menu, the
+// first interaction is what lets the title theme start (browsers allow sound only after a gesture).
+window.addEventListener('pointerdown', () => { if (run) audio.unlock(); else if (!loadingRun) audio.menu(); });
+window.addEventListener('keydown', () => { if (run) audio.unlock(); else if (!loadingRun) audio.menu(); });
 window.addEventListener('blur', () => { input.clear(); pause('blur'); });
 ui.canvas.addEventListener('webglcontextlost', (event) => {
   event.preventDefault();
@@ -358,7 +365,7 @@ if (import.meta.env.DEV) {
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     observer.disconnect(); input.dispose(); ui.dispose(); renderer?.dispose();
-    disposeAudioSettings(); audio.dispose();
+    disposeAudioSettings(); disposeUiSounds(); audio.dispose();
     // A full page refresh prevents duplicate loops/listeners after module edits.
     location.reload();
   });

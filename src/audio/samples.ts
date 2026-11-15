@@ -11,14 +11,17 @@ export type Sound =
   | 'pulse' | 'fan' | 'seeker' | 'rail' | 'enemy' | 'impact' | 'explosion' | 'heavy'
   | 'shield' | 'shield-break' | 'life' | 'pickup' | 'part' | 'upgrade' | 'ready' | 'whoosh'
   | 'shockwave' | 'seeker-rack' | 'siege-lance' | 'orbital-strike' | 'warning' | 'beam'
-  | 'boss-arrival' | 'boss-phase' | 'boss-death' | 'warp' | 'win' | 'loss';
+  | 'boss-arrival' | 'boss-phase' | 'boss-death' | 'warp' | 'win' | 'loss' | UiSound;
+/** The menu's sounds (15 November): the engine plays them through `ui`, outside the flight's master gate. */
+export type UiSound = 'ui-press' | 'ui-back' | 'ui-select' | 'ui-tick' | 'ui-purchase' | 'ui-equip' | 'ui-deny';
 export type SampleId = Sound | Instrument;
 const TAU = Math.PI * 2;
 const sin = Math.sin;
 const exp = Math.exp;
 /** Combat and event sounds. Music instruments are patches in src/audio/instruments.ts. */
 const durations: Record<Sound, number> = {
-  // First: the launch warp plays it in the tap that starts a flight, only if it is already made (engine.ts launch).
+  // First: the menu's sounds and the launch warp's whoosh play in taps, only if they are already made (engine.ts).
+  'ui-press': .08, 'ui-back': .09, 'ui-select': .05, 'ui-tick': .03, 'ui-purchase': .55, 'ui-equip': .2, 'ui-deny': .22,
   whoosh: 3,
   pulse: .07, fan: .08, seeker: .14, rail: .16, enemy: .2, impact: .13, explosion: .85, heavy: 1.6,
   shield: .35, 'shield-break': .35, life: .32, pickup: .28, part: .75, upgrade: .75, ready: .65,
@@ -74,6 +77,64 @@ const age = (t: number, at: number) => t >= at ? t - at : -1;
 /** `fade`: the closing anti-click ramp in seconds (12 ms unless a sound is cut harder). */
 /** `cut` (s): made at full length and level, then truncated there behind a `fade`-long ramp (a hard cut without a click). */
 const REWORKED: Partial<Record<Sound, { peak: number; voice: (rate: number) => Voice; fade?: number; cut?: number }>> = {
+  // The menu's sounds (15 November, user: "sounds for button presses etc in the menu"): one family, crisp and short, in
+  // the glassy, metallic world of the game's pickups and the title theme, never cartoonish. A press (a confirm, opening a
+  // panel): a click and a short bright blip on A6 with its fifth above.
+  'ui-press': { peak: .5, voice: rate => {
+    const air = new OnePole(4000, rate);
+    return (t, n) => air.high(n) * exp(-t * 1400) * .6 + (sin(TAU * 1760 * t) + sin(TAU * 2637 * t) * .35) * exp(-t * 55) * .5;
+  } },
+  // Back (closing a panel, leaving a flight): the same click, its blip falling an octave to A5, a little softer.
+  'ui-back': { peak: .45, voice: rate => {
+    const air = new OnePole(4000, rate); let p = 0;
+    return (t, n) => { p += TAU * (880 + 880 * exp(-t * 60)) / rate; return air.high(n) * exp(-t * 1400) * .5 + sin(p) * exp(-t * 45) * .55; };
+  } },
+  // A selector (radio groups, tabs, mission dots and arrows, a tried-on design): a small glass tick on D7.
+  'ui-select': { peak: .4, voice: rate => {
+    const air = new OnePole(5000, rate);
+    return (t, n) => air.high(n) * exp(-t * 2000) * .4 + sin(TAU * 2349 * t) * exp(-t * 110) * .5;
+  } },
+  // A volume slider's tick: the faintest click on G7; the engine pitches it by the slider's value.
+  'ui-tick': { peak: .35, voice: rate => {
+    const air = new OnePole(6000, rate);
+    return (t, n) => air.high(n) * exp(-t * 2500) * .3 + sin(TAU * 3136 * t) * exp(-t * 220) * .5;
+  } },
+  // A purchase (credits spent): a latch's click, then the game's upgrade bell (partials 1, 1.498, 2.71) rising E6, B6,
+  // E7 over a soft shimmer: the same family as gaining an upgrade in flight.
+  'ui-purchase': { peak: .55, voice: rate => {
+    const latch = new Svf(rate, 2600, 1.4), shimmer = new Svf(rate, 7000, 2);
+    return (t, n) => {
+      latch.run(n); shimmer.run(n);
+      let v = latch.band * exp(-t * 300) * .5 + shimmer.band * exp(-t * 6) * .05 * Math.min(1, t / .05);
+      [1318.51, 1975.53, 2637.02].forEach((f, k) => {
+        const a = age(t, .03 + k * .07);
+        if (a >= 0) v += (sin(TAU * f * a) + sin(TAU * f * 1.498 * a) * .4 + sin(TAU * f * 2.71 * a) * .18) * exp(-a * (k === 2 ? 6 : 11)) * Math.min(1, a / .002) * .32;
+      });
+      return v;
+    };
+  } },
+  // Equip: a firm lock, a low clunk under a metallic catch.
+  'ui-equip': { peak: .55, voice: rate => {
+    const catchBand = new Svf(rate, 2400, 1.6); let p = 0;
+    return (t, n) => {
+      p += TAU * (95 + 70 * exp(-t * 40)) / rate; catchBand.run(n);
+      const a = age(t, .045);
+      return sin(p) * exp(-t * 28) * .7 + catchBand.band * exp(-t * 220) * .7 + (a >= 0 ? (sin(TAU * 1870 * a) * .3 + sin(TAU * 3120 * a) * .15) * exp(-a * 45) : 0);
+    };
+  } },
+  // Deny (not enough credits, a locked item): two low, muted knocks, a door that will not open. Not the flight's buzzer.
+  'ui-deny': { peak: .5, voice: rate => {
+    const body = new OnePole(900, rate);
+    return (t, n) => {
+      const thud = body.run(n);
+      let v = 0;
+      for (const at of [0, .09]) {
+        const a = age(t, at);
+        if (a >= 0) v += (sin(TAU * 150 * a) + sin(TAU * 225 * a) * .4) * exp(-a * 35) * .6 + thud * exp(-a * 80) * .5;
+      }
+      return v;
+    };
+  } },
   // Main weapon shots: a click and a chirp falling fast through the upper mids, gone in about 50 ms. No body, no tail,
   // nothing under 700 Hz; each family keeps its colour (pulse a clean tick, fan a spray, seeker a warble, rail a crack).
   pulse: { peak: .6, voice: rate => {

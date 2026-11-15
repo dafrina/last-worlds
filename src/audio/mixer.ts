@@ -1,12 +1,13 @@
 import type { Cue } from './events';
 import type { Note } from './score';
 import { BASE_PITCH, type Instrument } from './instruments';
-import { noiseSource, SAMPLE_IDS, SAMPLE_RATE, type SampleId, type Sound } from './samples';
+import { noiseSource, SAMPLE_IDS, SAMPLE_RATE, type SampleId, type Sound, type UiSound } from './samples';
 import { sampleMade, takeSample } from './sample-bank';
 
 export interface AudioSettings { muted: boolean; music: number; effects: number }
-/** The level score, the additive boss stem (its own pool, so it can never thin the score) and combat effects. */
-type Group = 'music' | 'boss' | 'effects';
+/** The level score, the additive boss stem (its own pool, so it can never thin the score), combat effects, the title
+ * theme (its own pool and fader, so it can fade in and out over a launch) and the menu's sounds. */
+type Group = 'music' | 'boss' | 'effects' | 'menu' | 'ui';
 interface Voice { id: SampleId; part?: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; send?: GainNode; group: Group; priority: number; start: number; end: number }
 /** Effect levels. 11 November: the player's shots much lower (user: "a bit too much and too loud"), the new alarm,
  * part clank and warp whoosh set against the sounds they sit with. */
@@ -15,6 +16,7 @@ const LEVELS: Record<Sound, number> = {
   shield: .19, 'shield-break': .19, life: .18, pickup: .19, part: .45, upgrade: .28, ready: .25, whoosh: .3,
   shockwave: .5, 'seeker-rack': .4, 'siege-lance': .35, 'orbital-strike': .5, warning: .25, beam: .28,
   'boss-arrival': .36, 'boss-phase': .33, 'boss-death': .57, warp: .39, win: .6, loss: .27,
+  'ui-press': .34, 'ui-back': .32, 'ui-select': .27, 'ui-tick': .2, 'ui-purchase': .34, 'ui-equip': .32, 'ui-deny': .3,
 };
 const PRIORITY: Partial<Record<Sound, number>> = {
   impact: 0, enemy: 0, explosion: 1, heavy: 2, pulse: 2, fan: 2, seeker: 2, rail: 3,
@@ -23,7 +25,9 @@ const PRIORITY: Partial<Record<Sound, number>> = {
 /** Repeats closer than this are not played again. The Seeker Array's rockets at 50 ms (the highest tiers launch one every
  * 33 ms): each launch then stays a launch, not a smear; the volleys themselves are unchanged. */
 const COOLDOWN: Partial<Record<Sound, number>> = { impact: .055, enemy: .12, explosion: .045, heavy: .1, warning: .3, beam: .14, seeker: .05 };
-export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20 } as const;
+export const VOICE_LIMITS = { music: 36, boss: 24, effects: 20, menu: 28, ui: 6 } as const;
+/** The menu's sounds: a repeat closer than this is not played again (a slider dragged, a button hammered). */
+const UI_COOLDOWN: Partial<Record<UiSound, number>> = { 'ui-tick': .05, 'ui-deny': .25, 'ui-purchase': .2 };
 const PADS = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'choir']);
 /** Sustained voices that also feed the stereo ensemble. */
 const ENSEMBLE = new Set<Instrument>(['frost', 'bloom-pad', 'breath-pad', 'solar', 'inhale', 'strings', 'choir']);
@@ -72,7 +76,11 @@ export class AudioMixer {
   /** The level score's voices; it steps back a little as the boss stem takes the weight (see `setBed`). */
   private bed: GainNode;
   /** The keyed leads and basses of the level score and of the boss stem: they dip under each kick (see `sidechain`). */
-  private keyed: { music: GainNode; boss: GainNode };
+  private keyed: { music: GainNode; boss: GainNode; menu: GainNode };
+  /** The title theme's fader (`setMenuMix`) and the menu's sounds, which bypass the master gate: they sound in a paused
+   * flight's menu too. */
+  private menu: GainNode;
+  private ui: GainNode;
   private lastDuck = { at: -1, depth: 0 };
   private boss: GainNode;
   private bossFade = { from: 0, target: 0, start: 0, end: 0 };
@@ -98,8 +106,9 @@ export class AudioMixer {
     };
     this.music = gain(settings.music * .72); this.effects = gain(settings.effects);
     this.bed = gain(1); this.bed.connect(this.music);
-    this.keyed = { music: gain(1), boss: gain(1) };
+    this.keyed = { music: gain(1), boss: gain(1), menu: gain(1) };
     this.keyed.music.connect(this.bed);
+    this.menu = gain(0); this.menu.connect(this.music); this.keyed.menu.connect(this.menu);
     // The boss stem has its own gentle bus compressor: it only rounds off the drum and brass peaks so they do not push
     // the shared master compressor (which would pump the combat sounds). Slow enough to let every hit through first.
     this.boss = gain(0);
@@ -121,6 +130,7 @@ export class AudioMixer {
     this.effects.connect(highpass);
     highpass.connect(compressor).connect(limiter).connect(this.gate).connect(this.analyser).connect(context.destination);
     this.nodes.push(compressor, limiter, this.analyser);
+    this.ui = gain(settings.effects * .85); this.ui.connect(this.analyser);
     // One hall for the entire score (11 November): 18 ms pre-delay, a cluster of early reflections that differ between
     // the sides, then a dense 2.3 s tail whose highs die first, as air and walls absorb them. Its return is high-passed,
     // so the hall never thickens the bass. The convolver normalizes by power, so wet level follows the impulse length:
@@ -177,11 +187,13 @@ export class AudioMixer {
     this.settings = { ...settings };
     this.ramp(this.music.gain, settings.music * .72);
     this.ramp(this.effects.gain, settings.effects);
+    this.ramp(this.ui.gain, settings.effects * .85);
     this.ramp(this.gate.gain, this.active && !settings.muted ? .85 : 0, .008);
     if (settings.muted) this.stop();
     else {
       if (settings.music === 0) this.stopGroup('music');
-      if (settings.effects === 0) this.stopGroup('effects');
+      if (settings.music === 0) this.stopGroup('menu');
+      if (settings.effects === 0) { this.stopGroup('effects'); this.stopGroup('ui'); }
     }
   }
   setActive(active: boolean) {
@@ -189,6 +201,13 @@ export class AudioMixer {
     this.ramp(this.gate.gain, active && !this.settings.muted ? .85 : 0, active ? .06 : .006);
     if (!active) this.stop();
   }
+  /** The title theme's fader: in over a few seconds when the menu shows, out over a launch's warp. */
+  setMenuMix(target: number, seconds: number, at = this.context.currentTime) {
+    this.menu.gain.cancelAndHoldAtTime(at);
+    if (seconds > 0) this.menu.gain.linearRampToValueAtTime(target, at + seconds);
+    else this.menu.gain.setValueAtTime(target, at);
+  }
+  menuMix() { return this.menu.gain.value; }
   bossMixAt(at = this.context.currentTime) {
     const { from, target, start, end } = this.bossFade;
     const progress = end <= start ? 1 : Math.min(1, Math.max(0, (at - start) / (end - start)));
@@ -223,8 +242,8 @@ export class AudioMixer {
   }
   private play(id: SampleId, at: number, rate: number, volume: number, pan: number, group: Group, priority: number, wet = 0, skip = 0,
     bend?: Note['bend'], part?: string) {
-    const fader = group === 'effects' ? this.settings.effects : this.settings.music;
-    if (!this.active || this.settings.muted || fader === 0) return false;
+    const fader = group === 'effects' || group === 'ui' ? this.settings.effects : this.settings.music;
+    if ((!this.active && group !== 'ui') || this.settings.muted || fader === 0) return false;
     this.voices.filter(v => v.end <= this.context.currentTime).forEach(v => this.release(v));
     // Notes scheduled ahead (Umbra's reversed voices, risers) can arrive out of time order, so a pool may already hold
     // more than its cap at this moment: steal until there is room, lowest priority and earliest end first.
@@ -248,14 +267,15 @@ export class AudioMixer {
     gain.gain.value = panner ? volume : volume * Math.SQRT1_2;
     if (panner) panner.pan.value = pan;
     const out: AudioNode = panner ? source.connect(gain).connect(panner) : source.connect(gain);
-    const keyed = group !== 'effects' && KEYED.has(id as Instrument);
-    out.connect(group === 'music' ? keyed ? this.keyed.music : this.bed : group === 'boss' ? keyed ? this.keyed.boss : this.boss : this.effects);
+    const keyed = group !== 'effects' && group !== 'ui' && KEYED.has(id as Instrument);
+    out.connect(group === 'music' ? keyed ? this.keyed.music : this.bed : group === 'boss' ? keyed ? this.keyed.boss : this.boss
+      : group === 'menu' ? keyed ? this.keyed.menu : this.menu : group === 'ui' ? this.ui : this.effects);
     const voice: Voice = { id, part, source, gain, pan: panner, group, priority, start: at, end: at + (source.buffer.duration - skip) / rate };
-    if (wet > 0 && group !== 'effects') {
+    if (wet > 0 && group !== 'effects' && group !== 'ui') {
       const send = this.context.createGain(); send.gain.value = wet;
       out.connect(send).connect(this.reverb); voice.send = send;
     }
-    if (group !== 'effects' && ENSEMBLE.has(id as Instrument)) out.connect(this.ensemble);
+    if (group !== 'effects' && group !== 'ui' && ENSEMBLE.has(id as Instrument)) out.connect(this.ensemble);
     source.onended = () => this.release(voice);
     this.voices.push(voice);
     const live = this.voices.filter(v => v.end > at);
@@ -266,6 +286,12 @@ export class AudioMixer {
   }
   /** Whether a sound can play without being synthesized now (it was made at boot, or already played). */
   ready(id: SampleId) { return this.buffers.has(id) || sampleMade(id); }
+  /** A menu sound, now, outside the master gate (so a paused flight's menu sounds too); `transpose` in semitones. */
+  uiCue(sound: UiSound, transpose = 0, at = this.context.currentTime) {
+    if (at < (this.cooldown.get(sound) ?? -Infinity)) { this.dropped++; return false; }
+    this.cooldown.set(sound, at + (UI_COOLDOWN[sound] ?? .04));
+    return this.play(sound, at, 2 ** (transpose / 12), LEVELS[sound], 0, 'ui', 3);
+  }
   cue(cue: Cue, at = this.context.currentTime) {
     if (at < (this.cooldown.get(cue.sound) ?? -Infinity)) { this.dropped++; return; }
     this.cooldown.set(cue.sound, at + (COOLDOWN[cue.sound] ?? .025));
@@ -294,11 +320,11 @@ export class AudioMixer {
   }
   /** A score note, or with `boss` a note of the additive boss stem (its own voice pool, priorities and fader). With the
    * note's sixteenth, it is played with the player's touch (`humanize`). */
-  note(note: Note, at: number, boss = false, step?: number, legacy = false) {
+  note(note: Note, at: number, boss = false, step?: number, legacy = false, menu = false) {
     if (boss && !this.bossActiveAt(at)) return;
     const touch = step === undefined ? { drift: 0, gain: note.gain } : humanize(note, step, legacy);
     const start = Math.max(this.context.currentTime, at + (note.offset ?? 0) + touch.drift), pad = PADS.has(note.instrument);
-    const priority = boss ? note.priority ?? 0 : pad ? 0 : 1, group: Group = boss ? 'boss' : 'music';
+    const priority = boss ? note.priority ?? 0 : pad ? 0 : 1, group: Group = boss ? 'boss' : menu ? 'menu' : 'music';
     if (MONO.has(note.instrument)) this.choke(v => v.id === note.instrument, group, start, .012, .06);
     if (note.part && !legacy) this.choke(v => v.part === note.part, group, start, .027, .12);
     const played = this.play(note.instrument, start, 2 ** ((note.pitch - BASE_PITCH[note.instrument]) / 12), touch.gain, note.pan,
@@ -315,23 +341,23 @@ export class AudioMixer {
   private sidechain(at: number, depth: number, release: number) {
     if (Math.abs(at - this.lastDuck.at) < .03 && depth <= this.lastDuck.depth) return;
     this.lastDuck = { at, depth };
-    for (const node of [this.keyed.music, this.keyed.boss]) {
+    for (const node of [this.keyed.music, this.keyed.boss, this.keyed.menu]) {
       node.gain.setTargetAtTime(1 - depth, at, .003);
       node.gain.setTargetAtTime(1, at + .02, release / 3);
     }
   }
-  stopGroup(group: 'music' | 'effects') {
+  stopGroup(group: 'music' | 'effects' | 'menu' | 'ui') {
     const stops = (v: Voice) => v.group === group || (group === 'music' && v.group === 'boss');
     for (const voice of this.voices.filter(stops)) this.stopVoice(voice);
     this.voices = this.voices.filter(v => !stops(v));
     if (group === 'music') {
       this.bedLevel = 1; this.ramp(this.bed.gain, 1);
-      for (const node of [this.keyed.music, this.keyed.boss]) this.ramp(node.gain, 1);
+      for (const node of [this.keyed.music, this.keyed.boss, this.keyed.menu]) this.ramp(node.gain, 1);
       this.lastDuck = { at: -1, depth: 0 };
     }
   }
   stop() {
-    this.stopGroup('music'); this.stopGroup('effects'); this.cooldown.clear();
+    this.stopGroup('music'); this.stopGroup('effects'); this.stopGroup('menu'); this.stopGroup('ui'); this.cooldown.clear();
     this.ramp(this.duck.gain, 1);
   }
   diagnostics() {
@@ -339,6 +365,7 @@ export class AudioMixer {
       voices: this.voices.length, musicVoices: this.voices.filter(v => v.group === 'music').length,
       bossVoices: this.voices.filter(v => v.group === 'boss').length,
       effectsVoices: this.voices.filter(v => v.group === 'effects').length,
+      menuVoices: this.voices.filter(v => v.group === 'menu').length, menuMix: this.menu.gain.value,
       peakVoices: this.peakVoices, peakBossVoices: this.peakBossVoices, accepted: this.accepted, dropped: this.dropped,
       bossMix: this.bossMixAt(), bossTarget: this.bossFade.target,
       sampleBytes: [...this.buffers.values()].reduce((n, b) => n + b.length * 4 * b.numberOfChannels, 0),
