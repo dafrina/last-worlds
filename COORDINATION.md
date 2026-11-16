@@ -1135,3 +1135,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **16 November · Codex:** increasing Nahara sand-ripple contrast in `src/render/terrain-kit.ts`, checking frozen High and Low views.
 
 **16 November · Codex · READY:** Nahara ripple contrast increased (color 0.08 → 0.18, main slope 0.019 → 0.026). High/Low before/after captures inspected, no page errors, five Nahara tests and build pass. `terrain-kit.ts` released. Local, pending deployment alongside the drag restart fix.
+
+**16 November · Codex:** revising Nahara ripples per user feedback about farmland-like rows and flatness. Adding irregular erosion patches, stronger wind bending and shaded height-field relief in `terrain-kit.ts`.
+
+**16 November · Codex · READY:** Nahara ripple relief revised with broader wind bends, stronger sun-lit normals and trough occlusion. Final user steering removes the all-over minimum strength and confines ripples to broad softly blended areas. Five Nahara tests and build pass, two seeds captured on High/Low. Local change, release pending. `terrain-kit.ts` released.

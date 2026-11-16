@@ -1,5 +1,12 @@
 # Build status
 
+## Nahara wind-shaped ripple relief, 16 November 2026
+
+- Broader phase bends vary the direction and spacing of sand crests. Stronger height-field normals and trough occlusion give the existing terrain lighting more relief.
+- User feedback narrowed coverage to broad wind-swept areas with soft transitions to smooth sand. The coverage noise spans 12 units and has no minimum-strength floor. Small erosion noise only modulates strength gently.
+- Five Nahara tests and production build pass. Two seeds captured on High and Low at `lookdev/nahara-contrast/windswept/`. Inspected the High views. The fine relief is shader-based, with the existing dune geometry beneath it. Phone GPU timing remains unmeasured.
+- Available locally, deployment pending.
+
 ## Nahara ripple contrast, 16 November 2026
 
 - Increased sand crest/trough color modulation from 0.08 to 0.18 and the main ripple height coefficient from 0.019 to 0.026, for clearer troughs and stronger sun-facing relief.

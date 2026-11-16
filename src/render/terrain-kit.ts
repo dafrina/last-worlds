@@ -1106,6 +1106,7 @@ float sandSlopeOf( float u ) { return cos( u ) + 0.5 * cos( 2.0 * u ); }`;
 const SAND_RIPPLES = `
 vec2 sandSlope = vec2( 0.0 );
 float sandOn = 0.0;
+float sandCavity = 0.0;
 if ( sandLook > 0.0 ) {
   vec2 sandP = vLocal.xz;
   // (The drifts' noise only where built paving shows: no derivative depends on it, so the branch is free to diverge.)
@@ -1114,27 +1115,31 @@ if ( sandLook > 0.0 ) {
   // The phase's world gradient from its screen derivatives: [dx.x dx.z; dy.x dy.z] g = (dFdx u, dFdy u).
   vec3 sandDx = dFdx( vLocal ), sandDy = dFdy( vLocal );
   float sandDet = sandDx.x * sandDy.z - sandDx.z * sandDy.x, sandInv = abs( sandDet ) > 1e-10 ? 1.0 / sandDet : 0.0;
-  // (Low keeps the broad wander only: one noise fewer a pixel.)
-  float warp = ( khepriNoise( sandP, 1.0 / 6.0 ) - 0.5 ) * 16.0 + ( sandLook > 1.5 ? ( khepriNoise( sandP + vec2( 13.1, 0.0 ), 0.5 ) - 0.5 ) * 6.0 : 0.0 );
+  // Broad wind bends and smaller erosion patches interrupt and compress the crests in both quality tiers.
+  float erosion = khepriNoise( sandP + vec2( 13.1, 0.0 ), 0.5 );
+  float warp = ( khepriNoise( sandP, 1.0 / 6.0 ) - 0.5 ) * 38.0 + ( erosion - 0.5 ) * 12.0;
   float u1 = 6.2831853 * dot( SAND_K1, sandP ) + warp + 5.0 * vLocal.y;
   vec2 g1 = vec2( dFdx( u1 ) * sandDy.z - dFdy( u1 ) * sandDx.z, dFdy( u1 ) * sandDx.x - dFdx( u1 ) * sandDy.x ) * sandInv;
   float dune = 6.2831853 * dot( SAND_KD, sandP ) + warp * 0.35;
   vec2 gd = vec2( dFdx( dune ) * sandDy.z - dFdy( dune ) * sandDx.z, dFdy( dune ) * sandDx.x - dFdx( dune ) * sandDy.x ) * sandInv;
-  float patchy = smoothstep( 0.2, 0.75, khepriNoise( sandP + vec2( 0.0, 7.7 ), 0.25 ) );
+  // Broad wind-swept areas blend into smooth sand across several world units.
+  float patchy = smoothstep( 0.3, 0.7, khepriNoise( sandP + vec2( 0.0, 7.7 ), 1.0 / 12.0 ) );
   // Each octave fades before it aliases: from about seven pixels a ripple to about three and a half.
-  float a1 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u1 ) ) ) * mix( 0.35, 1.0, patchy ) * ( 0.7 + 0.3 * cos( dune ) );
-  sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.026 * a1 ) + gd * ( cos( dune ) * 0.05 * sandOn );
+  float a1 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u1 ) ) ) * patchy * patchy * mix( 0.8, 1.0, erosion );
+  sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.045 * a1 ) + gd * ( cos( dune ) * 0.025 * sandOn );
   float sandShade = sandProfile( u1 ) * a1;
+  // Less sky reaches a sheltered trough; the perturbed normal supplies its directional sun shading.
+  sandCavity = smoothstep( 0.1, 0.95, -sandProfile( u1 ) ) * a1;
   if ( sandLook > 1.5 ) {
     float u2 = 6.2831853 * dot( SAND_K2, sandP ) + warp * 0.6 + 9.0 * vLocal.y;
     vec2 g2 = vec2( dFdx( u2 ) * sandDy.z - dFdy( u2 ) * sandDx.z, dFdy( u2 ) * sandDx.x - dFdx( u2 ) * sandDy.x ) * sandInv;
-    float a2 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u2 ) ) ) * mix( 0.45, 0.2, patchy );
+    float a2 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u2 ) ) ) * patchy * patchy * mix( 0.8, 1.0, erosion ) * 0.28;
     sandSlope += g2 * ( sandSlopeOf( u2 ) * 0.008 * a2 );
     sandShade += sandProfile( u2 ) * a2 * 0.5;
   }
-  // Stronger crest/trough contrast (16 November), with the ripple slope catching the sun. The ground's pebbly
+  // Subtle grain sorting in the troughs complements the sun-lit height field. The ground's pebbly
   // dust grain (the detail map) is mostly lifted off the sand, so the ripples carry its texture.
-  diffuseColor.rgb *= 1.0 + sandShade * 0.18;
+  diffuseColor.rgb *= 1.0 + sandShade * 0.10;
 #ifdef USE_MAP
   float sandDust = ( detail - 1.0 ) * detailContrast;
   diffuseColor.rgb *= ( 1.0 + sandDust * ( 1.0 - 0.7 * sandOn ) ) / max( 1.0 + sandDust, 0.2 );
@@ -1522,7 +1527,8 @@ ${SAND_RIPPLES}`)
   }
 #endif`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-${SAND_SPARKLE}`)
+${SAND_SPARKLE}
+  reflectedLight.indirectDiffuse *= 1.0 - 0.22 * sandCavity;`)
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   ground.customProgramCacheKey = () => 'khepri-ground';
