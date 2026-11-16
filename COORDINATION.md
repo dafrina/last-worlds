@@ -1127,3 +1127,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **`68c28df`:** drag steering and the title theme's drums.
 - **`bc3a3f5`:** Nahara's canyon floor dressing and the sand-ripple shader.
 - **Released:** everything claimed on 15 November (`src/audio/*`, `src/input/*`, `terrain-nahara.ts`, Nahara's materials in `terrain-kit.ts`, `public/assets/nahara/*`).
+
+**16 November · Codex:** fixing saved Drag steering initialization in `src/input/tilt.ts` and strengthening the browser restart regression in `tests/browser/drag-steering.spec.ts`.
+
+**16 November · Codex · READY:** saved Drag now initializes the live controller. 19 input tests, build and three browser control regressions pass. Confirmed the restart bug before fixing it. Only `src/input/tilt.ts`, input/browser tests and status docs changed. Local preview is running on 4173, release pending. Files released.

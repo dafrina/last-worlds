@@ -1,5 +1,12 @@
 # Build status
 
+## Saved Drag steering restored at startup, 16 November 2026
+
+- The input source now initializes with the persisted steering choice. Previously it defaulted to touch halves and restored only Tilt, while Settings independently displayed the saved Drag choice.
+- Regression coverage selects Drag through Settings, reloads twice, checks the saved selection, holds a stationary finger, steers right within the left screen half, reverses and releases. This reproduced unwanted left steering before the fix. Unit coverage checks all three startup modes.
+- Validation passed with 19 input tests, the production build and three Chromium touch-emulation browser checks (drag restart, screen halves and crossing the middle). The Settings screenshot after restart was inspected. A preliminary browser run lost its test-owned dev server, so the final run used a persistent server and passed 3/3.
+- Local preview at http://localhost:4173/. Physical phone restart and installation remain untested. Deployment is pending.
+
 ## Nahara's canyon floor and sand ripples deployed (`bc3a3f5`), 16 November 2026
 
 - **Canyon floor (docs/39):**

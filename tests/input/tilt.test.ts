@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { leanFromOrientation, readSteeringMode, TILT_DEAD, TILT_FULL, tiltSteer, writeSteeringMode } from '../../src/input/tilt';
+import { describe, expect, it, vi } from 'vitest';
+import { createTiltSource, leanFromOrientation, readSteeringMode, TILT_DEAD, TILT_FULL, tiltSteer, writeSteeringMode } from '../../src/input/tilt';
 import { createControlState } from '../../src/input/controls';
 import { STEP } from '../../src/shared/contracts';
 import { createRun, stepRun } from '../../src/sim/game';
@@ -57,5 +57,21 @@ describe('steering mode storage', () => {
     writeSteeringMode(storage, 'drag'); expect(readSteeringMode(storage)).toBe('drag');
     writeSteeringMode(storage, 'tilt'); expect(readSteeringMode(storage)).toBe('tilt');
     store.set('last-worlds.steering', 'joystick'); expect(readSteeringMode(storage)).toBe('touch');
+  });
+});
+
+describe('steering initialization', () => {
+  it.each(['touch', 'drag', 'tilt'] as const)('activates remembered %s immediately on startup', mode => {
+    vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('document', new EventTarget());
+    vi.stubGlobal('DeviceOrientationEvent', undefined);
+    const source = createTiltSource(mode);
+    try {
+      expect(source.mode).toBe(mode);
+      expect(source.value()).toBe(0);
+    } finally {
+      source.dispose();
+      vi.unstubAllGlobals();
+    }
   });
 });

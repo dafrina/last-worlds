@@ -53,7 +53,7 @@ export interface TiltSource {
 }
 
 export function createTiltSource(initial: SteeringMode): TiltSource {
-  let mode: SteeringMode = 'touch', steer = 0, at = -Infinity, listening = false, granted = !permissionRequest();
+  let mode: SteeringMode = initial, steer = 0, at = -Infinity, listening = false, granted = !permissionRequest();
   const onOrientation = (event: DeviceOrientationEvent) => {
     if (event.beta === null || event.gamma === null) return;
     const angle = screen.orientation?.angle ?? 0;
@@ -89,6 +89,6 @@ export function createTiltSource(initial: SteeringMode): TiltSource {
     dispose() { listen(false); for (const type of ['touchend', 'click'] as const) document.removeEventListener(type, onTap, true); },
   };
   // A remembered tilt choice: listen now where no permission is needed; on iOS the first tap asks.
-  if (initial === 'tilt') { mode = 'tilt'; if (granted) listen(true); }
+  if (mode === 'tilt' && granted) listen(true);
   return source;
 }
