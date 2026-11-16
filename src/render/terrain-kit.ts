@@ -1094,6 +1094,7 @@ if ( sitePadCount > 0 ) {
  * a steep slope or the teal streams. A uniform branch: the other worlds pay one test.
  */
 const SAND_GLSL = `uniform float sandLook;
+varying float vSandClearance;
 // Wave vectors (cycles per unit, local x and z; z times 36 is whole, so the section joins carry on): main ripples about a
 // third of a unit apart, the fine set about a sixth, across the main at 24 degrees; dune swells about 3.7 apart.
 #define SAND_K1 vec2( 2.95, 0.5556 )
@@ -1111,7 +1112,8 @@ if ( sandLook > 0.0 ) {
   vec2 sandP = vLocal.xz;
   // (The drifts' noise only where built paving shows: no derivative depends on it, so the branch is free to diverge.)
   float drifted = vSurface.w < 0.995 ? smoothstep( 0.42, 0.7, khepriNoise( sandP + vec2( 3.7, 0.0 ), 1.0 / 12.0 ) ) : 0.0;
-  sandOn = mix( drifted * 0.75, 1.0, vSurface.w ) * ( 1.0 - smoothstep( 0.0, 0.45, vSurface.z ) ) * ( 1.0 - cliffWall ) * ( 1.0 - smoothstep( 0.05, 0.3, vSurface.y ) );
+  sandOn = mix( drifted * 0.12, 1.0, smoothstep( 0.2, 0.9, vSurface.w ) ) * ( 1.0 - smoothstep( 0.0, 0.45, vSurface.z ) ) * ( 1.0 - cliffWall ) * ( 1.0 - smoothstep( 0.05, 0.3, vSurface.y ) );
+  sandOn *= smoothstep( 0.05, 0.95, vSandClearance );
   // The phase's world gradient from its screen derivatives: [dx.x dx.z; dy.x dy.z] g = (dFdx u, dFdy u).
   vec3 sandDx = dFdx( vLocal ), sandDy = dFdy( vLocal );
   float sandDet = sandDx.x * sandDy.z - sandDx.z * sandDy.x, sandInv = abs( sandDet ) > 1e-10 ? 1.0 / sandDet : 0.0;
@@ -1229,10 +1231,10 @@ export function createTerrainMaterials() {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
-attribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;\nvarying vec4 vCrackClip;
+attribute float sandClearance;\nvarying float vSandClearance;\nattribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;\nvarying vec4 vCrackClip;
 ${SITE_PAD_VERTEX}`)
       .replace('#include <beginnormal_vertex>', SITE_PAD_NORMAL)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurface = vec4(surface.xy, surface.z * (1.0 - sitePadWeight), surface.w);\nvVeins = veins;\nvLocal = position;\nvFace = normalize(mix(normal, vec3(0.0, 1.0, 0.0), sitePadWeight));\ntransformed.y = mix(transformed.y, sitePadTarget - modelMatrix[3].y, sitePadWeight);')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSandClearance = sandClearance * (1.0 - sitePadWeight);\nvSurface = vec4(surface.xy, surface.z * (1.0 - sitePadWeight), surface.w);\nvVeins = veins;\nvLocal = position;\nvFace = normalize(mix(normal, vec3(0.0, 1.0, 0.0), sitePadWeight));\ntransformed.y = mix(transformed.y, sitePadTarget - modelMatrix[3].y, sitePadWeight);')
       .replace('#include <project_vertex>', HAZE_VERTEX + '\nvCrackClip = gl_Position;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>

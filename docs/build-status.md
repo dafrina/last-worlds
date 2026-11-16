@@ -1,5 +1,12 @@
 # Build status
 
+## Nahara ripples favor open ground, 16 November 2026
+
+- Added a per-vertex sand clearance attribute from the existing one-unit terrain probes. Nearby rises or drops fade ripples out at cliff tops and feet. Slope suppresses them on hillsides. Open low canyon floors remain eligible.
+- Built ruin areas receive a much smaller ripple weight, while strike-site building pads suppress it. Both graphics tiers consume the same clearance.
+- The regression checks cliff exclusion, open floor coverage and matching clearance across a section join. It passes after its floor probes were corrected to include diagonal neighbors. Five existing Nahara tests, 16 general terrain tests and the build also pass.
+- Captured two seeds on High and Low with no page errors, inspected the High cliff view at `lookdev/nahara-contrast/open-sand/`. Local preview available, deployment pending.
+
 ## Nahara wind-shaped ripple relief, 16 November 2026
 
 - Broader phase bends vary the direction and spacing of sand crests. Stronger height-field normals and trough occlusion give the existing terrain lighting more relief.

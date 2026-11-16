@@ -140,6 +140,8 @@ export interface TerrainSection {
    * whose landform reports one: the renderer picks the cliffs' strata or brickwork by it.
    */
   strata?: Float32Array;
+  /** Nahara ripple coverage away from nearby cliff tops and feet, 0 at cliffs, 1 on open sand. */
+  sandClearance?: Float32Array;
   strips: readonly TerrainStrip[];
   props: readonly TerrainProp[];
   /** Kit pieces owned by this section, essential pieces first. */
@@ -300,6 +302,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   const normals = new Float32Array(vertices * 3), glow = new Float32Array(vertices * 2);
   const edges = new Float32Array(vertices * 2), rock = new Float32Array(vertices);
   const slopes = new Float32Array(vertices), drops = new Float32Array(vertices), rises = new Float32Array(vertices);
+  const sandClearance = strataRows ? perVertex() : undefined;
   const gradients = new Float32Array(vertices * 2), shade = new Float32Array(vertices);
   const rise = TERRAIN_STEP * SHADOW_STRIDE * Math.SQRT2 * SUN_RISE, albedo: [number, number, number] = [0, 0, 0];
   const scratch = { height: 0, elevation: 0, channel: 0, pool: 0, vein: 0, vein2: 0, veins: 0, industrial: 0 } as TerrainPoint;
@@ -329,6 +332,9 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     normals[vertex * 3] = -dx / length; normals[vertex * 3 + 1] = 1 / length; normals[vertex * 3 + 2] = ds / length;
     let drop = 0, foot = 0;
     for (const offset of rimOffsets) { const h = heights[center + offset]; drop = Math.max(drop, heights[center] - h); foot = Math.max(foot, h - heights[center]); }
+    // Both sides of a cliff get smooth sand. The one-unit rim probes also cross section borders,
+    // so the setback is continuous and does not suppress open canyon floors just because they are low.
+    if (sandClearance) sandClearance[vertex] = (1 - smoothRange(0.35, 1.1, Math.max(drop, foot))) * (1 - smoothRange(0.12, 0.5, slope));
     // Cheap cast shadow: march the height grid diagonally toward the sun.
     let shadow = 0;
     const toward = sunBehind(contexts[row].world.planet.id) ? -SHADOW_STRIDE : SHADOW_STRIDE;
@@ -521,6 +527,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   };
   if (sites.length) section.sites = sites;
   if (strataRows) section.strata = fStrata;
+  if (sandClearance) section.sandClearance = sandClearance;
   if (sea !== null) {
     yield;
     const floes: Floe[] = [];

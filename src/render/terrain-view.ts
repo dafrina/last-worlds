@@ -518,6 +518,7 @@ export function createTerrainView(options: TerrainViewOptions) {
       position: new THREE.BufferAttribute(section.positions, 3), normal: new THREE.BufferAttribute(section.normals, 3),
       color: new THREE.BufferAttribute(section.colors, 3), surface: new THREE.BufferAttribute(surface, 4), uv: new THREE.BufferAttribute(uv, 2),
       veins: new THREE.BufferAttribute(veins, 2),
+      ...(section.sandClearance ? { sandClearance: new THREE.BufferAttribute(section.sandClearance, 1) } : {}),
     };
     const index = new THREE.BufferAttribute(section.indices, 1);
     yield;

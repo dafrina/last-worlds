@@ -108,3 +108,27 @@ describe('Nahara sand (docs/39, 15 November)', () => {
     } finally { materials.dispose(); }
   });
 });
+
+it('keeps ripple clearance off cliffs while preserving flat canyon-floor sand across section joins', () => {
+  const a = generateTerrainSection(93, 5, NAHARA), b = generateTerrainSection(93, 6, NAHARA);
+  const clearance = a.sandClearance!;
+  expect(clearance.length).toBe(a.across * a.along);
+  let cliff = 0, floor = 0;
+  const step = a.positions[3] - a.positions[0], offset = Math.round(1 / step);
+  const diagonal = Math.round(offset / Math.SQRT2);
+  const probes = [offset, -offset, offset * a.across, -offset * a.across,
+    diagonal * (a.across + 1), diagonal * (a.across - 1), -diagonal * (a.across + 1), -diagonal * (a.across - 1)];
+  for (let row = offset; row < a.along - offset; row++) for (let col = offset; col < a.across - offset; col++) {
+    const index = row * a.across + col, height = a.positions[index * 3 + 1];
+    const variation = Math.max(...probes.map(delta => Math.abs(a.positions[(index + delta) * 3 + 1] - height)));
+    if (variation > 1.1) { expect(clearance[index]).toBe(0); cliff++; }
+    if (height < -2 && variation < .1 && a.normals[index * 3 + 1] > .999) {
+      expect(clearance[index]).toBeGreaterThan(.95); floor++;
+    }
+  }
+  expect(cliff).toBeGreaterThan(10);
+  expect(floor).toBeGreaterThan(10);
+  for (let col = 0; col < a.across; col++) {
+    expect(clearance[(a.along - 1) * a.across + col]).toBeCloseTo(b.sandClearance![col], 6);
+  }
+});

@@ -1139,3 +1139,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **16 November · Codex:** revising Nahara ripples per user feedback about farmland-like rows and flatness. Adding irregular erosion patches, stronger wind bending and shaded height-field relief in `terrain-kit.ts`.
 
 **16 November · Codex · READY:** Nahara ripple relief revised with broader wind bends, stronger sun-lit normals and trough occlusion. Final user steering removes the all-over minimum strength and confines ripples to broad softly blended areas. Five Nahara tests and build pass, two seeds captured on High/Low. Local change, release pending. `terrain-kit.ts` released.
+
+**16 November · Codex:** adding a terrain-derived cliff setback for Nahara sand ripples. Owns the small attribute additions in `terrain.ts`, `terrain-view.ts` and `terrain-kit.ts`, plus Nahara coverage checks. Canyon floor away from walls remains eligible.
+
+**16 November · Codex · READY:** ripples now favor flat natural open ground, fade by cliff rise/drop and slope, and are suppressed on site pads and reduced in built ruin areas. Canyon-floor clearance and section continuity regression pass, as do five existing Nahara checks, 16 terrain checks and build. High/Low captures show no page errors. Local only. Files released.
