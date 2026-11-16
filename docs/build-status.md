@@ -1,5 +1,20 @@
 # Build status
 
+## Nahara's canyon floor and sand ripples deployed (`bc3a3f5`), 16 November 2026
+
+- **Canyon floor (docs/39):**
+  - eleven new Blender kit pieces (`nahDrums`, `nahStub`, `nahFooting`, `nahDebris`, `nahRelic`);
+  - a seeded `canyonFloor` scatter, dense at the walls' feet and thinning across the floor, after Khepri's canyons;
+  - clear of streams, sites, batteries and THE CITADEL's canyon;
+  - 449 → 728 pieces over ten sections; the rubble is cosmetic, so Low skips it.
+- **Sand shader:**
+  - lit, anti-aliased wind ripples that bend with the terrain;
+  - dune swells, lighter crests and darker troughs;
+  - High adds a finer set and grain sparkle.
+- **Budget:** High 30–38 → 37–47 calls and 52–71k → 59–86k triangles in the frozen views, within the 100-call / 180k guardrail.
+- **Gate on `bc3a3f5`:** typecheck clean; unit tests 1122 passed, 8 skipped; build passes; browser 57/57, Playwright exit 0.
+- **Live:** Pages run 43782156956 succeeded; the live bundle `main-DP6TEaWf.js` matches the build; the smoke test reports no errors. No phone test; the shader's GPU cost on phones is unmeasured.
+
 ## Drag steering and the title theme's drums deployed (`68c28df`), 16 November 2026
 
 - **Drag steering:**

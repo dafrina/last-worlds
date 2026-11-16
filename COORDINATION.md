@@ -1122,3 +1122,8 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - `src/input/*`, the steering selector in `src/ui/game-ui.ts` and its styles;
   - `docs/08` (the user's decision), AGENTS.md invariant 1 (wording for the option), and the input tests.
 - **Other sessions:** please avoid these files until the merge notes.
+
+**16 November · Claude Code (Blender MCP in WSL session) · deployed `68c28df` and `bc3a3f5`.**
+- **`68c28df`:** drag steering and the title theme's drums.
+- **`bc3a3f5`:** Nahara's canyon floor dressing and the sand-ripple shader.
+- **Released:** everything claimed on 15 November (`src/audio/*`, `src/input/*`, `terrain-nahara.ts`, Nahara's materials in `terrain-kit.ts`, `public/assets/nahara/*`).
