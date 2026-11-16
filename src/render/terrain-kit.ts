@@ -1076,6 +1076,88 @@ if ( sitePadCount > 0 ) {
  * Ground, kit and infrastructure materials. Colour stays in the Khepri palette (vertex colours); textures
  * only add contrast-limited luminance detail and normals. Low tier drops normal maps; layout never changes.
  */
+/*
+ * Nahara's wind-rippled sand (docs/39; user, 15 November: "a nice detailed sand texture shader for the dunes etc ... like
+ * ripples of sanddunes"). Procedural, in the section's own units (vLocal: the ground never swims with the scroll; every
+ * pattern divides the 36-unit section along z, so it runs on across the joins), lit through the normal rather than painted:
+ * - wind ripples: crests across Nahara's wind (src/render/sand-streams.ts WIND: toward +x, a little toward the camera),
+ *   about a third of a unit apart, each asymmetric (a long windward slope, a short steep lee); their phase wanders (two
+ *   octaves of noise: crests bend, fork and merge) and follows the ground's relief (its height shifts the phase, so on a
+ *   slope the crests turn toward its contours);
+ * - dune swells: a long, low undulation every few units that leans the light and rouses the ripples on its windward side;
+ *   patches where the sand lies smoother;
+ * - High: a finer second set of ripples across the first, and the grains' sparkle (SAND_SPARKLE).
+ * The ripples' slope is turned from the phase's screen derivatives into a world gradient (the inverse of the ground's
+ * screen Jacobian), so the lighting follows the crests exactly as they bend. Each octave fades out before it would alias
+ * (under about four pixels a ripple: the phase's fwidth), so far ground and the Low tier's single-density canvas stay
+ * calm. Sand lies on the natural sandstone's flats (vSurface.w), in drifted patches over the built paving, never on a wall,
+ * a steep slope or the teal streams. A uniform branch: the other worlds pay one test.
+ */
+const SAND_GLSL = `uniform float sandLook;
+// Wave vectors (cycles per unit, local x and z; z times 36 is whole, so the section joins carry on): main ripples about a
+// third of a unit apart, the fine set about a sixth, across the main at 24 degrees; dune swells about 3.7 apart.
+#define SAND_K1 vec2( 2.95, 0.5556 )
+#define SAND_K2 vec2( 6.1, -1.5 )
+#define SAND_KD vec2( 0.26, 0.0833 )
+// An asymmetric ripple (the windward slope long, the lee short) and its slope per radian.
+float sandProfile( float u ) { return sin( u ) + 0.25 * sin( 2.0 * u ); }
+float sandSlopeOf( float u ) { return cos( u ) + 0.5 * cos( 2.0 * u ); }`;
+/** Ripples (map stage): `sandSlope` (the height field's world gradient) and `sandOn` (where sand lies) for the later stages. */
+const SAND_RIPPLES = `
+vec2 sandSlope = vec2( 0.0 );
+float sandOn = 0.0;
+if ( sandLook > 0.0 ) {
+  vec2 sandP = vLocal.xz;
+  // (The drifts' noise only where built paving shows: no derivative depends on it, so the branch is free to diverge.)
+  float drifted = vSurface.w < 0.995 ? smoothstep( 0.42, 0.7, khepriNoise( sandP + vec2( 3.7, 0.0 ), 1.0 / 12.0 ) ) : 0.0;
+  sandOn = mix( drifted * 0.75, 1.0, vSurface.w ) * ( 1.0 - smoothstep( 0.0, 0.45, vSurface.z ) ) * ( 1.0 - cliffWall ) * ( 1.0 - smoothstep( 0.05, 0.3, vSurface.y ) );
+  // The phase's world gradient from its screen derivatives: [dx.x dx.z; dy.x dy.z] g = (dFdx u, dFdy u).
+  vec3 sandDx = dFdx( vLocal ), sandDy = dFdy( vLocal );
+  float sandDet = sandDx.x * sandDy.z - sandDx.z * sandDy.x, sandInv = abs( sandDet ) > 1e-10 ? 1.0 / sandDet : 0.0;
+  // (Low keeps the broad wander only: one noise fewer a pixel.)
+  float warp = ( khepriNoise( sandP, 1.0 / 6.0 ) - 0.5 ) * 16.0 + ( sandLook > 1.5 ? ( khepriNoise( sandP + vec2( 13.1, 0.0 ), 0.5 ) - 0.5 ) * 6.0 : 0.0 );
+  float u1 = 6.2831853 * dot( SAND_K1, sandP ) + warp + 5.0 * vLocal.y;
+  vec2 g1 = vec2( dFdx( u1 ) * sandDy.z - dFdy( u1 ) * sandDx.z, dFdy( u1 ) * sandDx.x - dFdx( u1 ) * sandDy.x ) * sandInv;
+  float dune = 6.2831853 * dot( SAND_KD, sandP ) + warp * 0.35;
+  vec2 gd = vec2( dFdx( dune ) * sandDy.z - dFdy( dune ) * sandDx.z, dFdy( dune ) * sandDx.x - dFdx( dune ) * sandDy.x ) * sandInv;
+  float patchy = smoothstep( 0.2, 0.75, khepriNoise( sandP + vec2( 0.0, 7.7 ), 0.25 ) );
+  // Each octave fades before it aliases: from about seven pixels a ripple to about three and a half.
+  float a1 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u1 ) ) ) * mix( 0.35, 1.0, patchy ) * ( 0.7 + 0.3 * cos( dune ) );
+  sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.019 * a1 ) + gd * ( cos( dune ) * 0.05 * sandOn );
+  float sandShade = sandProfile( u1 ) * a1;
+  if ( sandLook > 1.5 ) {
+    float u2 = 6.2831853 * dot( SAND_K2, sandP ) + warp * 0.6 + 9.0 * vLocal.y;
+    vec2 g2 = vec2( dFdx( u2 ) * sandDy.z - dFdy( u2 ) * sandDx.z, dFdy( u2 ) * sandDx.x - dFdx( u2 ) * sandDy.x ) * sandInv;
+    float a2 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u2 ) ) ) * mix( 0.45, 0.2, patchy );
+    sandSlope += g2 * ( sandSlopeOf( u2 ) * 0.008 * a2 );
+    sandShade += sandProfile( u2 ) * a2 * 0.5;
+  }
+  // Crests a shade lighter, troughs (where the coarser grains gather) darker; the light does the rest. The ground's pebbly
+  // dust grain (the detail map) is mostly lifted off the sand, so the ripples carry its texture.
+  diffuseColor.rgb *= 1.0 + sandShade * 0.08;
+#ifdef USE_MAP
+  float sandDust = ( detail - 1.0 ) * detailContrast;
+  diffuseColor.rgb *= ( 1.0 + sandDust * ( 1.0 - 0.7 * sandOn ) ) / max( 1.0 + sandDust, 0.2 );
+#endif
+}`;
+/**
+ * The grains' sparkle (High, after the direct light, so only in sunlight): one grain in a few of every 0.11-unit cell
+ * carries a facet of its own; it flashes where it mirrors the sun into the camera, and twinkles as the ground scrolls.
+ * Each glint is at least about a pixel across (spread by the cell's fwidth, its energy kept), never a single flickering texel.
+ */
+const SAND_SPARKLE = `#if NUM_DIR_LIGHTS > 0
+  if ( sandLook > 1.5 ) {
+    vec2 grainCell = vLocal.xz * 9.0, grainId = floor( grainCell );
+    float r1 = khepriHash( grainId, 324.0 ), r2 = khepriHash( grainId + vec2( 17.0, 0.0 ), 324.0 ), r3 = khepriHash( grainId + vec2( 0.0, 29.0 ), 324.0 );
+    vec2 grainSpot = fract( grainCell ) - 0.5 - ( vec2( r2, r3 ) - 0.5 ) * 0.6;
+    float grainSize = 0.16, grainBlur = max( grainSize, length( fwidth( grainCell ) ) * 0.75 );
+    float grain = ( 1.0 - smoothstep( grainBlur * 0.35, grainBlur, length( grainSpot ) ) ) * ( grainSize * grainSize ) / ( grainBlur * grainBlur );
+    vec3 grainFacet = normalize( normal + mat3( viewMatrix ) * vec3( r2 - 0.5, 0.0, r3 - 0.5 ) * 0.7 );
+    float grainFlash = smoothstep( 0.982, 0.997, dot( grainFacet, normalize( directionalLights[ 0 ].direction + geometryViewDir ) ) ) * step( 0.8, r1 );
+    reflectedLight.directDiffuse *= 1.0 + 1.4 * grain * grainFlash * sandOn;
+  }
+#endif`;
+
 export function createTerrainMaterials() {
   const time = { beaconTime: { value: 0 } };
   /** 0 Khepri (basalt, unchanged), 1 Vesper (ice/snow/rock shading in the kit material); lunaLook greys the basalt. */
@@ -1128,11 +1210,17 @@ export function createTerrainMaterials() {
    * terrain over a `blend` band around it; the ground under the batteries near it stays as it is (they stand where the
    * simulation anchored them). Never terrain data or targeting: the simulation's ground is untouched.
    */
+  /**
+   * Nahara's sand (docs/39, 15 November; user: "a nice detailed sand texture shader for the dunes etc ... like ripples of
+   * sanddunes"): 0 off (every other world), 1 the Low tier's (one octave of wind ripples, lit through the normal), 2 High's
+   * (a finer second octave and the grains' sparkle). See SAND_GLSL.
+   */
+  const sandLook = { sandLook: { value: 0 } };
   const sitePads = { sitePadRects: { value: Array.from({ length: SITE_PADS }, () => new THREE.Vector4(1, -1, 1, -1)) },
     sitePadLevels: { value: Array.from({ length: SITE_PADS }, () => new THREE.Vector3(0, 1, 0)) }, sitePadCount: { value: 0 },
     sitePadKeeps: { value: Array.from({ length: SITE_PAD_KEEPS }, () => new THREE.Vector3(0, 0, 1)) }, sitePadKeepCount: { value: 0 } };
   ground.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps, crackLook, sitePads);
+    Object.assign(shader.uniforms, uniforms, groundHaze, groundLook, cliffLook, wallMaps, crackLook, sitePads, sandLook);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
@@ -1182,7 +1270,8 @@ float khepriCells( vec2 local, float scale ) {
     if ( d < f1 ) { f2 = f1; f1 = d; } else if ( d < f2 ) f2 = d;
   }
   return f2 - f1;
-}`)
+}
+${SAND_GLSL}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   // Glowing mineral cracks: each family's signed distance interpolates cleanly; crossings come from taking
   // the nearer line per fragment (never per vertex, which would zig-zag). Width is measured in pixels
@@ -1305,7 +1394,8 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // Crisp-cliff worlds lift them further, so the concept's dark faces still show their columns and fractures.
   // (Vesper's ice walls keep their facet contrast instead: little lift there.)
   // (faceLift: a sun behind the ship lights those faces itself; they keep only a trace of the lift.)
-  diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * ( 1.0 - 0.75 * groundIce ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 ) * faceLift;`)
+  diffuseColor.rgb *= 1.0 + ( 0.6 + 0.5 * cliffLook ) * ( 1.0 - 0.75 * groundIce ) * vRock * clamp( vFace.z * 1.4, 0.0, 1.0 ) * faceLift;
+${SAND_RIPPLES}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   // Vesper's snow at SNOW_TRIM (3 November 2026): lit at full albedo it clipped in blue and flattened in the tone curve's
   // shoulder, so its relief and texture vanished.
@@ -1374,6 +1464,9 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
   // Umbra's bare canyon faces are rock planes too. Averaging the wall normal with the plateau above made every
   // exposed rim look inflated, even beside a razor-edged model. Apply only to steep faces; flat ground stays smooth.
   if ( wallFacets > 0.5 && cliffUp < 0.88 ) normal = cliffFace;
+  // Nahara's sand ripples (SAND_RIPPLES): their slope tilts the normal (a height field y = h(x, z) leans by -grad h), so the
+  // sun lights each crest's windward face and shades its lee.
+  if ( sandLook > 0.0 ) normal = normalize( normal + mat3( viewMatrix ) * vec3( -sandSlope.x, 0.0, -sandSlope.y ) );
   // Wall relief (High): the wall map's normals on wall triangles only, in the frame the wall uv spans (screen
   // derivatives, as three's own normal maps do without tangents). Tops and rims keep their crisp planes.
 #ifdef USE_MAP
@@ -1428,6 +1521,8 @@ float vRock = cliffLook > 0.0 ? cliffWall : vSurface.z;
     material.clearcoatRoughness = min(1.,material.clearcoatRoughness + .35*max(max(coatDerivative.x,coatDerivative.y),coatDerivative.z));
   }
 #endif`)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+${SAND_SPARKLE}`)
       .replace('#include <opaque_fragment>', HAZE_FRAGMENT);
   };
   ground.customProgramCacheKey = () => 'khepri-ground';
@@ -1557,8 +1652,12 @@ ${VESPER_KIT_SURFACE}`)
   let masonry: THREE.DataTexture | null = null;
   /** Nahara's ruin kit grain (createSandstoneGrain), made with the masonry. */
   let sandGrain: THREE.DataTexture | null = null;
+  /** Nahara's sand look for the current planet and tier (0 elsewhere). */
+  let sandPlanet = false;
+  const setSand = () => { sandLook.sandLook.value = sandPlanet ? (normals ? 2 : 1) : 0; };
   /** Retunes the ground and roads for a planet: Vesper snow takes its own ripple detail, cool haze and snow tracks. */
   const setPlanet = (planet: PlanetId) => {
+    sandPlanet = planet === 'nahara'; setSand();
     const vesper = planet === 'vesper', luna = planet === 'luna', nacre = planet === 'nacre', khepri = haze();
     groundLook.groundIce.value = vesper ? 1 : 0;
     const wall = WALL_LOOK[planet];
@@ -1696,7 +1795,7 @@ ${VESPER_KIT_SURFACE}`)
     setTime(seconds: number) { time.beaconTime.value = seconds; },
     setTextures(next: KhepriTextures) { textures = next; apply(); },
     /** Low tier skips normal maps (a cosmetic cost), never layout or colour. */
-    setNormalMaps(enabled: boolean) { if (enabled !== normals) { normals = enabled; apply(); } },
+    setNormalMaps(enabled: boolean) { if (enabled !== normals) { normals = enabled; apply(); } setSand(); },
     /** Prefiltered desert sky for machinery reflections (graphite metal and paint); terrain stays matte. */
     setEnvironment(texture: THREE.Texture | null) {
       infra.envMap = texture; kit.envMap = texture; kit.envMapIntensity = .35; kitWall.envMap = texture; kitWall.envMapIntensity = .35;

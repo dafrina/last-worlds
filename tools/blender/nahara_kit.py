@@ -26,7 +26,7 @@ Headless (every path Blender sees is a Windows path):
     --python '\\\\wsl.localhost\\Ubuntu\\home\\davidfarina\\Projects\\alien-skies\\tools\\blender\\nahara_kit.py' -- [--preview] [--no-export]
 """
 import bpy, math, os, random, sys
-from mathutils import Vector
+from mathutils import Euler, Vector
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -88,6 +88,23 @@ def open_tops(ob, floor=.9):
             for li in p.loop_indices:
                 v = max(values[li * 4], floor)
                 values[li * 4:li * 4 + 3] = [v, v, v]
+    attr.data.foreach_set('color', values)
+
+
+def dim_glow(ob, factor):
+    """The game reads a glow face's brightness from its vertex colour: the canyon floor's inlays glow at `factor`, a quiet
+    accent down in the haze (many small lit lines on the floor read busy, and could be taken for the ship's own shots)."""
+    me = ob.data
+    attr = me.color_attributes.get('Color')
+    glow = [i for i, m in enumerate(me.materials) if m and 'glow' in m.name]
+    if attr is None or not glow:
+        return
+    values = [0.0] * (len(me.loops) * 4)
+    attr.data.foreach_get('color', values)
+    for p in me.polygons:
+        if p.material_index in glow:
+            for li in p.loop_indices:
+                values[li * 4:li * 4 + 3] = [v * factor for v in values[li * 4:li * 4 + 3]]
     attr.data.foreach_set('color', values)
 
 
@@ -389,6 +406,225 @@ def rubble(variant):
     return k
 
 
+# ----------------------------------------------------------------------------- the canyon floor's ruins (15 November)
+# User, 15 November: "lets enhance nahara by placing more things on naharas canyon grounds. Theyre so empty now"; "khepri
+# has nice canyons as inspiration". The fallen city on the canyon's ledges and at the feet of its walls: columns fallen
+# into their drums, obelisk and column stumps, foundations, rubble fields and the empire's relics. Low pieces at real size
+# (src/world/terrain-nahara.ts canyonFloor scales them a little), the same rounded sandstone and turquoise inlays.
+
+def turned(loops, at=(0, 0, 0), yaw=0.0, roll=0.0, pitch=0.0):
+    """Local loops turned (roll about x, pitch about y, then yaw about z) and moved to `at`."""
+    rot = Euler((roll, pitch, yaw), 'XYZ').to_matrix()
+    o = Vector(at)
+    return [[tuple(o + rot @ Vector(p)) for p in loop] for loop in loops]
+
+
+def stone(k, at, w, d, h, mat, yaw=0.0, roll=0.0, pitch=0.0, r=.04):
+    """rblock's weathered block about its base centre (half sizes w, d; height h), turned and set at `at`."""
+    r = max(.005, min(r, w * .6, d * .6, h * .3))
+    inner = octagon(-w + r * .7, w - r * .7, -d + r * .7, d - r * .7, r * .6)
+    outer = octagon(-w, w, -d, d, r)
+    loops = [[(x, y, 0) for x, y in inner], [(x, y, r) for x, y in outer], [(x, y, h - r) for x, y in outer], [(x, y, h) for x, y in inner]]
+    k.major.loft(turned(loops, at, yaw, roll, pitch), mat)
+
+
+def chip(k, at, w, d, h, mat, yaw=0.0, roll=0.0, pitch=0.0):
+    """A small chip or slab: a plain box (no rounding the camera could resolve at its size)."""
+    loops = [[(-w, -d, 0), (w, -d, 0), (w, d, 0), (-w, d, 0)], [(-w, -d, h), (w, -d, h), (w, d, h), (-w, d, h)]]
+    k.minor.loft(turned(loops, at, yaw, roll, pitch), mat)
+
+
+def drum(k, at, length, r, mat, yaw=0.0, roll=0.0, pitch=0.0, n=12, c=.022, broken=0.0, band=None):
+    """A column drum along its local x, centred at `at`: a 12-sided shaft, its rims worn round; `broken` slopes its +x end
+    (a snapped shaft); `band` (offset along x) inlays a thin turquoise ring."""
+    def ring(x, rad, slope=0.0):
+        return [(x + slope * math.cos(2 * math.pi * (i + .5) / n), rad * math.cos(2 * math.pi * (i + .5) / n), rad * math.sin(2 * math.pi * (i + .5) / n)) for i in range(n)]
+    h = length / 2
+    loops = [ring(-h, r - c), ring(-h + c, r), ring(h - c, r, broken), ring(h, r - c, broken)]
+    k.major.loft(turned(loops, at, yaw, roll, pitch), mat)
+    if band is not None:
+        k.minor.loft(turned([ring(band - .012, r + .006), ring(band + .012, r + .006)], at, yaw, roll, pitch), GLOW)
+
+
+def column_drums(variant):
+    """A fallen column lying in its drums (the concept's colonnades, toppled): four drums in a line, the last rolled away
+    (first); two drums, one rolled, and the capital tipped on its side beside them (second). A thin turquoise ring inlaid
+    in one drum, a few chips knocked off."""
+    rng = random.Random(9800 + variant)
+    k = RoundKit(ROLES)
+    r = .17
+    if variant == 0:
+        x = -.86
+        for i, length in enumerate((.4, .34, .36, .3)):
+            gap = rng.uniform(.02, .06)
+            cx = x + length / 2
+            if i < 3:
+                drum(k, (cx, rng.uniform(-.04, .04), r - .01), length, r, tone(rng), yaw=rng.uniform(-.07, .07), roll=rng.uniform(0, 1), band=.06 if i == 1 else None)
+            else:
+                # The last drum rolled off the line.
+                drum(k, (cx + .06, .2, r - .01), length, r, tone(rng), yaw=.55, roll=rng.uniform(0, 1))
+            x += length + gap
+        for i in range(3):
+            chip(k, (rng.uniform(-.7, .7), rng.choice((-1, 1)) * rng.uniform(.22, .34), 0), rng.uniform(.03, .06), rng.uniform(.025, .05), rng.uniform(.03, .06), tone(rng), yaw=rng.uniform(0, 3))
+    else:
+        drum(k, (-.6, .02, r - .01), .42, r, tone(rng), yaw=.05, roll=.4, band=-.08)
+        drum(k, (-.12, -.04, r - .01), .36, r, tone(rng), yaw=-.08, roll=1.3)
+        drum(k, (.16, .26, r - .01), .32, r, tone(rng), yaw=.9, roll=.2)
+        # The capital fallen beside them: its square abacus tilted on one edge, its round echinus rolled against it.
+        stone(k, (.64, -.06, 0), .21, .21, .13, SAND, yaw=.25, roll=.32, r=.03)
+        drum(k, (.6, .26, .13), .12, .14, STONE, yaw=.25 + math.pi / 2)
+        for i in range(3):
+            chip(k, (rng.uniform(-.8, .8), rng.choice((-1, 1)) * rng.uniform(.24, .36), 0), rng.uniform(.03, .06), rng.uniform(.025, .05), rng.uniform(.03, .05), tone(rng), yaw=rng.uniform(0, 3))
+    return k
+
+
+def stub(variant):
+    """Standing stumps (top normalised to 1, the terrain sets their height): an obelisk snapped off over its two-step plinth,
+    a turquoise glyph line down its face (first); two broken column stumps on a shared stylobate, a drum fallen at their
+    feet (second)."""
+    rng = random.Random(9850 + variant)
+    k = RoundKit(ROLES)
+    if variant == 0:
+        stone(k, (0, 0, 0), .34, .34, .1, STONE, r=.03)
+        stone(k, (0, 0, .1), .27, .27, .09, SAND, r=.025)
+        # The shaft: square, tapering, broken off on a slant (its top loop higher at the back left).
+        b0, b1, z0, z1 = .17, .13, .19, .93
+        def plan(half, z, slant=0.0):
+            return [(x, y, z + slant * (-x - y * .6)) for x, y in octagon(-half, half, -half, half, .025)]
+        k.major.loft([plan(b0, z0), plan(b0 * .99, z0 + .03), plan(b1, z1), plan(b1 * .95, z1 + .04, .22)], STONE)
+        # Glyph line on the front face: short turquoise dashes following the taper.
+        for i, (za, zb) in enumerate(((.3, .4), (.45, .5), (.55, .68), (.73, .79))):
+            ya = -(b0 + (b1 - b0) * (za - z0) / (z1 - z0)) - .004
+            B(k, -.025 if i % 2 else -.04, .025 if i % 2 else .04, ya - .008, ya + .004, za, zb, GLOW)
+        # Its broken tip lying at its foot.
+        stone(k, (.48, -.12, .085), .13, .09, .16, STONE, yaw=.6, roll=math.radians(80), r=.02)
+        chip(k, (-.42, .2, 0), .06, .04, .05, tone(rng), yaw=.8)
+    else:
+        stone(k, (0, 0, 0), .62, .22, .08, STONE, r=.03)
+        for x, top, slope in ((-.32, 1.0, .1), (.3, .62, -.14)):
+            stone(k, (x, 0, .08), .16, .16, .06, SAND, r=.02)
+            drum(k, (x, 0, .14 + (top - .14) / 2), top - .14, .12, tone(rng), pitch=-math.pi / 2, broken=slope, band=(top - .14) * .2 if x < 0 else None)
+        drum(k, (.08, -.36, .1), .3, .11, tone(rng), yaw=.3, roll=.8)
+        chip(k, (.62, -.26, 0), .05, .04, .05, tone(rng), yaw=.4)
+    return k
+
+
+def footing(variant):
+    """A fallen building's stepped foundation (low, at real size): the outline of its lower course with blocks missing, an
+    inner course on two sides, a pier base and paving slabs (first); a stepped platform, its front corner broken into
+    tumbled blocks (second)."""
+    rng = random.Random(9900 + variant)
+    k = RoundKit(ROLES)
+    if variant == 0:
+        half = .82
+        for side in range(4):
+            for i in range(4):
+                if rng.random() < .22:
+                    continue
+                t = -half + (i + .5) * (2 * half / 4)
+                at = [(t, -half), (half, t), (-t, half), (-half, -t)][side]
+                yaw = 0 if side % 2 == 0 else math.pi / 2
+                B(k, at[0] - (.2 if yaw == 0 else .11), at[0] + (.2 if yaw == 0 else .11), at[1] - (.11 if yaw == 0 else .2), at[1] + (.11 if yaw == 0 else .2), 0, .14 + rng.uniform(-.02, .02), tone(rng), c=.03)
+        # The inner course along the back and the left.
+        for i in range(3):
+            t = -half + .3 + i * .42
+            if rng.random() < .25:
+                continue
+            B(k, t - .19, t + .19, half - .32, half - .12, .0, .26, tone(rng), c=.03)
+            B(k, -half + .12, -half + .32, -t - .19, -t + .19, .0, .24, tone(rng), c=.03)
+        stone(k, (-half + .22, half - .22, 0), .17, .17, .42, SAND, r=.03)
+        for i in range(5):
+            chip(k, (rng.uniform(-.45, .4), rng.uniform(-.45, .35), 0), rng.uniform(.1, .16), rng.uniform(.08, .13), .035, STONE if i % 2 else SAND, yaw=rng.uniform(-.1, .1))
+    else:
+        steps = ((.88, .58, .12), (.66, .4, .24), (.4, .22, .34))
+        for i, (w, d, z) in enumerate(steps):
+            # Each step a course of long blocks, its front right quarter gone.
+            n = 3 if i < 2 else 2
+            for j in range(n):
+                x0 = -w + j * 2 * w / n
+                x1 = x0 + 2 * w / n
+                if i < 2 and j == n - 1:
+                    x1 = x0 + (x1 - x0) * .45
+                B(k, x0 + .01, x1 - .01, -d + .01, d - .01, z - .12 if i else 0, z, tone(rng), c=.03)
+        for (x, y, w) in ((.62, -.42, .14), (.82, -.12, .11), (.5, -.7, .1)):
+            stone(k, (x, y, 0), w, w * .8, w * 1.1, tone(rng), yaw=rng.uniform(0, 3), roll=rng.uniform(-.3, .3), r=.03)
+        chip(k, (-.7, -.68, 0), .06, .04, .04, tone(rng), yaw=.5)
+    return k
+
+
+def debris(variant):
+    """Rubble fields (low, at real size): chips and slabs spilled over the sand round two weathered blocks (first); a wall
+    course fallen in a row, its blocks tipping one on the next (second); a carved slab cracked in three, its turquoise
+    glyph broken across the pieces (third)."""
+    rng = random.Random(9950 + variant)
+    k = RoundKit(ROLES)
+    if variant == 0:
+        stone(k, (-.18, .06, 0), .17, .13, .2, tone(rng), yaw=.4, r=.04)
+        stone(k, (.32, -.14, 0), .12, .1, .15, tone(rng), yaw=1.2, roll=.2, r=.035)
+        for i in range(11):
+            a, d = rng.uniform(0, 2 * math.pi), rng.uniform(.25, .85)
+            w = rng.uniform(.04, .1)
+            chip(k, (math.cos(a) * d, math.sin(a) * d * .65, -.005), w, w * rng.uniform(.5, .9), rng.uniform(.025, .07), tone(rng),
+                 yaw=rng.uniform(0, 3), roll=rng.uniform(-.25, .25), pitch=rng.uniform(-.25, .25))
+    elif variant == 1:
+        for i in range(5):
+            x = -.72 + i * .34
+            lean = min(1.2, .2 + i * .28)
+            stone(k, (x, rng.uniform(-.03, .03), 0), .15, .12, .22, tone(rng), yaw=rng.uniform(-.08, .08), pitch=lean if i else .05, r=.03)
+        for i in range(6):
+            chip(k, (rng.uniform(-.9, .9), rng.choice((-1, 1)) * rng.uniform(.2, .4), -.005), rng.uniform(.04, .07), rng.uniform(.03, .05), rng.uniform(.03, .05), tone(rng), yaw=rng.uniform(0, 3))
+    else:
+        # The slab's three pieces, a little apart and tilted, the glyph inlay running across them.
+        for (x0, x1, yaw, tilt) in ((-.55, -.12, .04, .05), (-.08, .22, -.06, -.08), (.27, .58, .14, .12)):
+            cx, w = (x0 + x1) / 2, (x1 - x0) / 2
+            stone(k, (cx, 0, 0), w, .3, .07, SAND, yaw=yaw, roll=tilt, r=.02)
+            B(k, x0 + .03, x1 - .03, -.025, .025, .07, .078, GLOW)
+        for i in range(7):
+            a, d = rng.uniform(0, 2 * math.pi), rng.uniform(.45, .85)
+            chip(k, (math.cos(a) * d, math.sin(a) * d * .6, -.005), rng.uniform(.03, .07), rng.uniform(.03, .05), rng.uniform(.025, .05), tone(rng), yaw=rng.uniform(0, 3))
+    return k
+
+
+def relic(variant):
+    """The empire's machines left in the sand (top normalised to 1): a bronze ring's toothed arc standing out of the dune,
+    its inner channel still lit, stone collars at its feet (first); a toppled pylon, its stone casing split open over a
+    turquoise core (second)."""
+    rng = random.Random(9990 + variant)
+    k = RoundKit(ROLES)
+    if variant == 0:
+        # The arc: 250 degrees of a ring (the rest buried), axis along y, a little tilted back.
+        lean = math.radians(12)
+        def arc(rad0, rad1, y0, y1, mat, teeth=0):
+            loops = []
+            for i in range(19):
+                t = math.radians(-35 + 250 * i / 18)
+                out = rad1 + (.05 if teeth and i % 2 else 0)
+                pts = [(math.cos(t) * rad0, y0, math.sin(t) * rad0), (math.cos(t) * out, y0, math.sin(t) * out),
+                       (math.cos(t) * out, y1, math.sin(t) * out), (math.cos(t) * rad0, y1, math.sin(t) * rad0)]
+                loops.append(pts)
+            k.major.loft(turned(loops, (0, 0, .42), 0, lean), mat)
+        arc(.36, .52, -.07, .07, BRONZE, teeth=1)
+        arc(.3, .36, -.04, .04, GLOW)
+        for x in (-.5, .46):
+            stone(k, (x, -.02, 0), .14, .16, .18, tone(rng), yaw=rng.uniform(-.3, .3), r=.03)
+        chip(k, (.2, -.3, 0), .06, .05, .05, tone(rng), yaw=.3)
+    else:
+        # The pylon's octagonal casing lying along x, split open at its +x end over a crystal core.
+        casing = lambda x, rad: [(x, rad * math.cos(2 * math.pi * (i + .5) / 8), rad * math.sin(2 * math.pi * (i + .5) / 8)) for i in range(8)]
+        k.major.loft(turned([casing(-.75, .2), casing(-.72, .23), casing(.05, .23), casing(.1, .19)], (0, 0, .2), .08), STONE)
+        k.major.loft(turned([casing(-.8, .17), casing(-.75, .17)], (0, 0, .2), .08), BRONZE)
+        # The split halves of its casing beyond the break, fallen apart either side.
+        stone(k, (.42, .22, 0), .26, .09, .12, STONE, yaw=.2, roll=.5, r=.03)
+        stone(k, (.46, -.2, 0), .24, .08, .1, STONE, yaw=-.15, roll=-.6, r=.03)
+        for i, (x, y, ln, tilt) in enumerate(((.2, .02, .24, .5), (.32, -.05, .18, .9), (.28, .1, .14, -.6))):
+            # Crystal shards of the core: tapered prisms pointing out of the break.
+            base = [(x, y + .04 * math.cos(a), .2 + .04 * math.sin(a)) for a in (0, 2.1, 4.2)]
+            tip = [(x + ln * math.cos(tilt * .4), y + .01, .2 + ln * math.sin(tilt * .4)) for _ in range(3)]
+            k.minor.loft([base, [(p[0] + (t[0] - p[0]) * .98, p[1] + (t[1] - p[1]) * .98, p[2] + (t[2] - p[2]) * .98) for p, t in zip(base, tip)]], GLOW)
+        chip(k, (-.4, -.3, 0), .05, .04, .05, tone(rng), yaw=.7)
+    return k
+
+
 BUILDERS = {
     **{'nah_wall_%d' % v: (lambda v=v: wall(v)) for v in range(4)},
     **{'nah_tower_%d' % v: (lambda v=v: tower(v)) for v in range(3)},
@@ -400,7 +636,14 @@ BUILDERS = {
     'nah_aqpier_0': aqueduct_pier,
     'nah_ring_0': ring,
     **{'nah_blocks_%d' % v: (lambda v=v: rubble(v)) for v in range(3)},
+    **{'nah_drums_%d' % v: (lambda v=v: column_drums(v)) for v in range(2)},
+    **{'nah_stub_%d' % v: (lambda v=v: stub(v)) for v in range(2)},
+    **{'nah_footing_%d' % v: (lambda v=v: footing(v)) for v in range(2)},
+    **{'nah_debris_%d' % v: (lambda v=v: debris(v)) for v in range(3)},
+    **{'nah_relic_%d' % v: (lambda v=v: relic(v)) for v in range(2)},
 }
+# The canyon floor's pieces lie on the sand (their AO ground at 0); the older pieces stand sunk into it.
+FLOOR_PIECES = ('nah_drums', 'nah_stub', 'nah_footing', 'nah_debris', 'nah_relic')
 
 
 def main():
@@ -410,8 +653,10 @@ def main():
     objects, report = [], []
     for name, build in BUILDERS.items():
         ob = build().object(name, mats, sc)
-        br.bake_ao([ob], [ob], strength=.7, reach=.5, ground=-.15, rays=24)
+        br.bake_ao([ob], [ob], strength=.7, reach=.5, ground=0.0 if name.startswith(FLOOR_PIECES) else -.15, rays=24)
         open_tops(ob)
+        if name.startswith(FLOOR_PIECES):
+            dim_glow(ob, .55)
         pts = [ob.matrix_world @ v.co for v in ob.data.vertices]
         lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
         hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
@@ -433,6 +678,31 @@ def main():
             sc.collection.objects.link(ground)
             ground.data.materials.append(br.material('kit_preview_ground', '#a88a62', .9, 0))
         report.append('preview %s' % br.render_view(sc, 'three_quarter', (0, 0, .4), 8.5, os.path.join(PREVIEW, 'kit-hero.png'), res=1600, objects=objects + [ground]))
+    if '--canyon' in args:
+        # The canyon floor's pieces at the sizes the terrain gives them, on a ledge of sand (the game's own view angle).
+        os.makedirs(PREVIEW, exist_ok=True)
+        named = {ob.name: ob for ob in objects}
+        for ob in objects:
+            ob.hide_render = True
+        staged = [('nah_drums_0', (-2.6, 1.8, 0), 1.1, .2), ('nah_drums_1', (1.4, 2.6, 0), 1.0, -.4), ('nah_stub_0', (-.6, 3.6, 0), (1, 1, 1.3), 0),
+                  ('nah_stub_1', (2.8, .4, 0), (1, 1, .9), .3), ('nah_footing_0', (-2.4, -1.2, 0), 1.0, .1), ('nah_footing_1', (.6, -.2, 0), 1.0, -.2),
+                  ('nah_debris_0', (-.4, -2.6, 0), 1.0, .5), ('nah_debris_1', (2.6, -2.2, 0), 1.0, 1.2), ('nah_debris_2', (-3.2, 3.8, 0), 1.0, -.6),
+                  ('nah_relic_0', (3.4, 3.6, 0), (1, 1, .8), .4), ('nah_relic_1', (-3.6, -3.4, 0), (1, 1, .5), 2.4), ('nah_blocks_1', (1.2, -3.8, 0), .7, 0)]
+        shown = []
+        for name, at, size, yaw in staged:
+            ob = named[name]
+            ob.hide_render = False
+            ob.location, ob.rotation_euler = at, (0, 0, yaw)
+            ob.scale = size if isinstance(size, tuple) else (size, size, size)
+            shown.append(ob)
+        ground = bpy.data.objects.get('kit_canyon_ground')
+        if not ground:
+            me = bpy.data.meshes.new('kit_canyon_ground')
+            me.from_pydata([(-6, -6, -.01), (6, -6, -.01), (6, 6, -.01), (-6, 6, -.01)], [], [(0, 1, 2, 3)])
+            ground = bpy.data.objects.new('kit_canyon_ground', me)
+            sc.collection.objects.link(ground)
+            ground.data.materials.append(br.material('kit_canyon_ground', '#b89466', .95, 0))
+        report.append('canyon %s' % br.render_view(sc, 'game', (0, .4, 0), 9.5, os.path.join(PREVIEW, 'kit-canyon.png'), res=1400, objects=shown + [ground]))
     if '--scene' in args:
         # The pieces at the sizes the terrain gives them (src/world/terrain-nahara.ts), as in the concept: monoliths out of
         # the depths, a great arch, a spur, towers on a ledge.
