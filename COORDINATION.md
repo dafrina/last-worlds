@@ -1131,3 +1131,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **16 November · Codex:** fixing saved Drag steering initialization in `src/input/tilt.ts` and strengthening the browser restart regression in `tests/browser/drag-steering.spec.ts`.
 
 **16 November · Codex · READY:** saved Drag now initializes the live controller. 19 input tests, build and three browser control regressions pass. Confirmed the restart bug before fixing it. Only `src/input/tilt.ts`, input/browser tests and status docs changed. Local preview is running on 4173, release pending. Files released.
+
+**16 November · Codex:** increasing Nahara sand-ripple contrast in `src/render/terrain-kit.ts`, checking frozen High and Low views.
+
+**16 November · Codex · READY:** Nahara ripple contrast increased (color 0.08 → 0.18, main slope 0.019 → 0.026). High/Low before/after captures inspected, no page errors, five Nahara tests and build pass. `terrain-kit.ts` released. Local, pending deployment alongside the drag restart fix.

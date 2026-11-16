@@ -1123,7 +1123,7 @@ if ( sandLook > 0.0 ) {
   float patchy = smoothstep( 0.2, 0.75, khepriNoise( sandP + vec2( 0.0, 7.7 ), 0.25 ) );
   // Each octave fades before it aliases: from about seven pixels a ripple to about three and a half.
   float a1 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u1 ) ) ) * mix( 0.35, 1.0, patchy ) * ( 0.7 + 0.3 * cos( dune ) );
-  sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.019 * a1 ) + gd * ( cos( dune ) * 0.05 * sandOn );
+  sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.026 * a1 ) + gd * ( cos( dune ) * 0.05 * sandOn );
   float sandShade = sandProfile( u1 ) * a1;
   if ( sandLook > 1.5 ) {
     float u2 = 6.2831853 * dot( SAND_K2, sandP ) + warp * 0.6 + 9.0 * vLocal.y;
@@ -1132,9 +1132,9 @@ if ( sandLook > 0.0 ) {
     sandSlope += g2 * ( sandSlopeOf( u2 ) * 0.008 * a2 );
     sandShade += sandProfile( u2 ) * a2 * 0.5;
   }
-  // Crests a shade lighter, troughs (where the coarser grains gather) darker; the light does the rest. The ground's pebbly
+  // Stronger crest/trough contrast (16 November), with the ripple slope catching the sun. The ground's pebbly
   // dust grain (the detail map) is mostly lifted off the sand, so the ripples carry its texture.
-  diffuseColor.rgb *= 1.0 + sandShade * 0.08;
+  diffuseColor.rgb *= 1.0 + sandShade * 0.18;
 #ifdef USE_MAP
   float sandDust = ( detail - 1.0 ) * detailContrast;
   diffuseColor.rgb *= ( 1.0 + sandDust * ( 1.0 - 0.7 * sandOn ) ) / max( 1.0 + sandDust, 0.2 );

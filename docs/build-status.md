@@ -1,5 +1,11 @@
 # Build status
 
+## Nahara ripple contrast, 16 November 2026
+
+- Increased sand crest/trough color modulation from 0.08 to 0.18 and the main ripple height coefficient from 0.019 to 0.026, for clearer troughs and stronger sun-facing relief.
+- Inspected matching High and Low captures at seed 93, distance 200, camera x −6, under `lookdev/nahara-contrast/{before,after}/`. No browser errors. Rendering counts are 41 calls / 84,106 triangles on High and 29 / 69,864 on Low.
+- Five existing Nahara terrain/material tests and production build pass. Preview is at http://localhost:4173/playground.html, Silent Empire · Nahara. Deployment pending.
+
 ## Saved Drag steering restored at startup, 16 November 2026
 
 - The input source now initializes with the persisted steering choice. Previously it defaulted to touch halves and restored only Tilt, while Settings independently displayed the saved Drag choice.
