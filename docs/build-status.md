@@ -1,5 +1,18 @@
 # Build status
 
+## Drag steering and the title theme's drums deployed (`68c28df`), 16 November 2026
+
+- **Drag steering:**
+  - Settings → Steering → Halves (default), Drag or Tilt. The ship heads for its x at touch-down plus the finger's travel, under its normal speed limits (docs/08, AGENTS invariant 1).
+  - The surface width is read only while a drag finger is held; a layout read every frame had slowed every mode.
+- **Theme drums:** a drum bus with its own room, layered snare, taiko players, timpani rolls, and cymbals on arrivals. The drums never pump the lead.
+- **Gate on `e447890`** (the drag steering plus the drums):
+  - typecheck clean; unit tests 1117 passed, 8 skipped; build passes;
+  - browser 56/57: the endless-start steering poll reached x 7.87 of 8 under load 18.
+- **`68c28df`** (the layout-read fix): `flight.spec` plus `drag-steering.spec` 8/8, exit 0.
+- **The earlier drag-only gate (`e89750e`):** one asset-readiness timeout (THE ARK's GLB at load 17).
+- **Live:** Pages run 43778488077 succeeded; the live bundle is `main-MM05o-XX.js`; the smoke test reports no errors. No phone test.
+
 ## Title theme, fourth take, and plainer perk texts deployed (`b928304`), 15 November 2026
 
 - **Tuning measured and fixed:** the per-note scoops (15–22 cents flat) and slur glides (up to 74 cents) are removed; notes land within a few cents.
