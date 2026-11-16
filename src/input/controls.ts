@@ -46,6 +46,8 @@ export function createControlState() {
       pointers.set(id, 'drag'); drags.set(id, { startPx: px, px, shipX });
     },
     dragMove(id: number, px: number) { const drag = drags.get(id); if (drag) drag.px = px; },
+    /** A drag finger is held (the only time drag steering needs the ship's x and the surface's width). */
+    dragging() { return drags.size > 0; },
     pointerUp(id: number) { pointers.delete(id); drags.delete(id); },
     pointerCancel(id: number) { pointers.delete(id); drags.delete(id); },
     /** A held steering pointer now over the other half steers that way; special pointers keep their role. */
@@ -175,7 +177,9 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
   return {
     sample() {
       if (!active()) state.clear();
-      const x = dragMode() ? shipX?.() ?? null : null, width = surface.getBoundingClientRect().width;
+      // Measured only while a drag finger is held: a layout read every frame would cost every mode on every phone.
+      const x = dragMode() && state.dragging() ? shipX?.() ?? null : null;
+      const width = x === null ? 0 : surface.getBoundingClientRect().width;
       const frame = state.sample(x === null || width <= 0 ? undefined : { shipX: x, worldPerPx: VIEW.width * DRAG_GAIN / width });
       // Tilt steering (optional): a held half or key wins, otherwise the phone's lean steers.
       if (frame.horizontal === 0 && tilt) frame.horizontal = tilt.value();
