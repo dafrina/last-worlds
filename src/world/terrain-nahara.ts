@@ -553,7 +553,7 @@ function citadelRuins(seed: number, arena: TerrainArena, terrain: ScatterField):
 function* naharaScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
   // THE CITADEL's arena (Nahara's own ground there: its rock, its canyon, and the ruin city's built country).
   const arena = terrain.arena(startS + size / 2);
-  // Ruins may overhang the world's edges a little (0.6 of their footprint inside it); round the temple they stay under its dome.
+  // Ruins may overhang the world's edges by up to 0.4 of their footprint radius; round the temple they stay under its dome.
   const sink = createScatterSink({ startS, size, terrain, cap: UMBRA_SCENERY_MAX, tall: { kinds: TALL, cap: UMBRA_SPIRE_MAX },
     capAt: (x, s) => citadelCap(arena, x, s), reach: 0.6 }), { add } = sink;
   // Great arches over the narrows, wall to wall, square to the run; one in three broken. Each pier stands against its wall,
