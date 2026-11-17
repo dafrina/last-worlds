@@ -196,13 +196,29 @@ should not do that. I told it to limit it to open stretches of land and canyon f
   - **Seams:** a section's rows within 7 units of a join (`SAND_SHELTER_REACH`) take the neighbour's pieces too.
     Whichever side is built first, the later one re-shelters the earlier one's band and uploads only those rows. Both
     sides of a join are then the same row.
-  - **Cost:** computed once per section while its view is built off-frame (24 rows a prefetch step), no per-frame work,
-    no draw call, the same on Low (where the cosmetic rubble is not drawn, its calm stays: a smooth patch, not a hole).
+  - **Cost:** computed once per section while its view is built off-frame (24 rows a prefetch step, each neighbour's
+    band a step of its own), no per-frame work, no draw call, one float attribute a ground vertex. The same mask on Low
+    (where the cosmetic rubble is not drawn, its calm stays: a smooth patch, not a hole).
   - **Not covered:** the ground batteries (seated by the simulation, not the terrain) and THE CITADEL (its rock carries
     no sand).
 - **Where ripples show now:** the open natural sandstone and the canyon's floor between its dressing. The canyon floor is
-  densely dressed (15 November), so its ripples lie in the gaps: over seeds 93, 8831, 11 and 4242, a strength over half
-  on about a third of its bed (the pieces' plans alone cover about two fifths), and on about half the open land's.
+  densely dressed (15 November), so its ripples lie in the gaps. Over seeds 93, 8831, 11 and 4242 (sections 3 to 9), the
+  ripples keep over half their strength on 29 % of the canyon floor's bed (the pieces' plans alone cover 46 % of it) and
+  on 49 % of the open land's (28 %).
+- **Review stills** (`lookdev/nahara-ripple-mask/`, its `contact-sheet.png`): the frozen terrain-relief views on High and
+  Low, before and after, crops round buried walls and towers on rippled dunes, and the mask drawn in colour.
+- **Measured** (headless Chromium on SwiftShader, so no GPU time; no phone yet):
+  - **Per section** (Node, 40 sections of seeds 93, 8831, 11 and 4242, load 15–24): generation 129–133 ms before and
+    after. The shelter takes 3.0–4.5 ms for a section's rows and 1.0–1.9 ms for its two join bands, about 3 % of the
+    section's generation, in steps under a millisecond.
+  - **Ten frozen views** on High and Low: the same draw calls and triangles before and after, to the triangle.
+  - **The flight** (`tools/perf-bench.mjs nahara`, 300 frames at 4× CPU throttle):
+    - draw calls 60.6 → 61.0 on High and 47.9 → 47.9 on Low, triangles unchanged (116k, 106k);
+    - no synchronous section or view fallbacks;
+    - frame time within the machine's load noise: load 10–14 before, 15–20 after. The simulation, which this does not
+      touch, rose 22 % with it; the render rose 36 % on High and 12 % on Low.
+  - **The shader:** one varying and a smoothstep more, one value noise fewer (the drifted patches over the paving are
+    gone).
 
 ### The ruin kit (`tools/blender/nahara_kit.py`, `public/assets/nahara/nahara-kit.glb`)
 
@@ -318,3 +334,7 @@ ruins"; the canyon "should be closer to the normal canyons"; "fill the surroundi
 - Distinct models for the dart, needle and weaver.
 - No phone test yet. The sand shader's GPU cost on a phone and the canyon floor's draw calls (up to about 10 more nodes in
   view) are the things to watch.
+- The ground batteries (the Quarry Battery's plinth) do not calm the ripples round them: the simulation seats them, after
+  the section's mask is built. Feeding their seats to the ground shader (like the strike-site pads) would cover them.
+- The canyon floor's ripples show only between its dense dressing; if the user wants more there, thin the dressing's
+  rubble or give the low rubble a smaller calm.
