@@ -1,256 +1,203 @@
-# Vesper — Glass Frontier: planet, kits and the "Cold Vector" mission
+# Vesper, the Glass Frontier
 
-Design v0.6 · 15 October 2026. The user approved this plan: a new campaign mission on the ice planet from the right panel of `art/concepts/01-worlds-direction.png`, with the Vesper craft from `art/concepts/05-alien-factions.png`. The mission ends with the Helion Ark boss **in the water**, so the open ocean becomes the flat boss arena. Vesper must look clearly different from Khepri; the systems are shared, but the identity is not.
+Vesper is the ice world: the campaign's third mission, Cold Vector, and the second world of the endless cycle. It
+follows the right panel of `art/concepts/01-worlds-direction.png` and the VESPER column of
+`art/concepts/05-alien-factions.png` (references only). This doc covers its look, the planet-profile system it
+introduced, its Blender assets, its world generator, and the Cold Vector mission with its enemies and the HELION ARK.
+Vesper shares the systems of every world but must never look like Khepri.
 
-## 1. Visual identity (what makes it not Khepri)
+## 1. Visual identity
 
-- **Ocean is the base.** A deep blue animated water plane fills everything below sea level. It has gentle swell normals, sun glints and depth-tinted colour, with white foam where it meets ice. Khepri has no water.
-- **Ice shelves instead of basalt mesas:** broad snowy plateaus ending in sheer, fractured blue-white ice cliffs with overhangs and undercuts at the waterline.
-- **Pack ice instead of canyons:** broken floes and small icebergs in the open water between shelves, drifting slowly. The drift is presentation-only, derived from seed and time.
-- **Crevasse fields** across shelves (narrow, deep blue cracks), plus pressure ridges, snow drifts and a few dark rock outcrops poking through the snow. Small stones (the outcrop pieces at 0.45–1.0 scale, squat) lie scattered across the flat snow alone or in loose groups, thicker in stony patches and thinner along the routes, after `lookdev/cliff-study/vesper.png` (21 October).
-- **Light:** high, pale, slightly cool sun; blue shadows; white-blue distance haze; ice sparkle glints. No falling snow or weather that could hide shots (docs/03 §1).
-- **Palette:**
-  - snow `#e9eef3`, shaded snow `#b9c8d8`;
-  - ice-cliff blue `#8fc3e6` → deep `#2e6f9e`;
-  - ocean `#0d3557` → shallows `#1f6a8f`;
-  - rock charcoal `#2a2d31`;
-  - faction hardware metallic white and brushed steel with blue glow `#52c2ff` since 21 October (user; black ceramic `#15181b` with orange `#ff7a26` before; `src/render/world-paint.ts`).
-- **Moods along the route:** shelf coast, open pack-ice sea, crevasse plateau, radiator plains.
+- **The sea is the base.** Half of Vesper is a deep blue animated sea (terrain version 15; user, 21 October). Khepri has
+  no water.
+- **Ice shelves instead of basalt mesas:** flat-topped snowy shelves at several levels, stepping up inland in sheer,
+  fractured ice walls; wide inlets and open leads cut through them.
+- **Pack ice instead of canyons:** broken floes, cracked floe sets and small icebergs on open water, drifting slowly.
+  The drift is presentation only (seed and time).
+- **Shelf detail:** crevasse fields, pressure ridges, snow drifts, dark rock outcrops and nunataks, small stones alone or
+  in loose groups (thinner along the routes), and a fine crack pattern across the snow.
+- **Light:** a high, pale, slightly cool sun; blue shadows; a white-blue haze; ice glints; a pale low mist over the sea
+  and down the cliffs with the shelves clear (the user's playground fog, 23 October). No falling snow or weather that
+  could hide shots. The values are `LOOKS.vesper` in `src/render/scene.ts`; the reflection sky is
+  `createIceEnvironment` in `src/render/models.ts`. The bloom threshold keeps snow from blooming.
+- **Palette:** `VESPER_PALETTE` in `src/world/terrain-vesper.ts` (snow, shaded snow, light and deep ice, charcoal rock,
+  ocean, shallows).
+- **Contrast order** (user, 3 November): bright snow, blue-grey walls, dark sea.
+  - Ice walls (the kit's wall pieces, the ground's wall faces and crevasse walls) are a mid-tone blue-grey, darker toward
+    the foot, so a cliff's shaded base never merges with the sea.
+  - Snow sits a little below white (`SNOW_TRIM`) so drifts and texture keep their relief, and the kit's snow takes a
+    milder trim (`KIT_SNOW_TRIM`) so floes stay bright on the sea. Both are in the `VESPER_SLATE` shader block in
+    `src/render/terrain-kit.ts`.
+  - The sea, its shader and the look values stay as they are (user: "dont change vespers water i like it").
+- **Faction paint:** metallic white and brushed steel with blue glow (`WORLD_PAINT.vesper` in
+  `src/render/world-paint.ts`; user, 21 October). The infrastructure and craft models are authored in black ceramic with
+  orange glow; the runtime recolours them by brightness. Vesper's craft have their own darker ramp and an edge shade, so
+  a pale hull keeps a dark outline over snow and a lit top over the sea (3 November).
+- **Moods along the route:** shelf coast, pack-ice sea, crevasse plateau, radiator plains, icefall and nunataks.
 
-## 2. Planet abstraction (shared code, per-planet data)
+**The ocean** is `src/render/water.ts`: one opaque draw per visible water strip, no reflection pass. Shallows to deep
+by depth; four analytic travelling swells in the terrain's frame (normals only, the surface stays flat); low roughness
+so the sun leaves glints; broken white foam along every shoreline; one instanced draw of foam collars around floes and
+wakes behind moving hulls. Seabed below the water is darkened and hidden.
 
-A planet is data, not a code fork:
-- **Missions select a planet.** `MissionId` gains `'cold-vector'`, and a mission → planet table lives in `src/content/`. Endless stays on Khepri for now.
-- **The world generator takes a planet profile:** landform parameters, moods, palette, sea level, scatter tables, settlement archetypes and the kit node table. Without one, Khepri output must stay byte-identical (same rule as the arena).
-- **Render loads per-planet assets:** terrain kit, infrastructure kit, enemy craft and boss, plus the material palette for the shared kit's masks, the lighting rig, the water plane and haze.
+## 2. Planet profiles
 
-## 3. Blender assets (seeded scripts in `tools/blender/`, previews and provenance in `art/vesper-*/`)
+Vesper turned the world generator into planets as data, not code forks; every later world follows the same scheme.
 
-Same conventions as the Khepri kits: +Y up, game units, base-centre pivots, `COLOR_0`, box UVs, deterministic builds, contract self-checks.
+- **A planet is a profile** (`PlanetProfile` in `src/world/terrain-planet.ts`; all of them in `PLANETS`): landform,
+  moods, colour, sea level, scenery cap, scatter, floes, settlements, network style and districts, as data plus a few
+  small strategy functions. Shared code (sections, seams, streaming, roads, pipelines, arenas) reads the profile.
+  Khepri's profile wraps the original functions, and its output stays byte-identical; recorded fingerprints guard that
+  (`tests/world/terrain-vesper.test.ts`).
+- **Missions select a planet** (`MISSION_PLANET` and `runPlanet` in `src/content/missions.ts`); endless follows its
+  schedule ([docs/18](18-endless-planet-cycle.md)). The terrain takes a world (a planet plus any arena) or a route of them.
+- **Render loads per planet:** terrain kit, infrastructure kit, craft, boss and facility kit, the shared kit's palette,
+  the look (light, grade, fog, sky), the paint and the water (`prepare(planet)` in `src/render/scene.ts`).
+- **Look-dev:** `?planet=<world>` streams another world's terrain in any run (development only, never in a menu).
 
-| File | Contents |
+## 3. Blender assets
+
+All are seeded, deterministic scripts in `tools/blender/` with the same conventions as Khepri's kits: +Y up, game
+units, base-centre pivots, `COLOR_0`, box UVs and contract self-checks. Provenance and previews are in `art/vesper-kit/`,
+`art/vesper-infra/` and `art/vesper-craft/`.
+
+| File | Builder | Contents |
+| --- | --- | --- |
+| `public/assets/vesper/vesper-kit.glb` | `kit_vesper.py`; the shipped file adds the 19 October refinement through `kit_refinement.py` | Ice cliff segments, seracs, ice spires, icebergs and floes (single, and cracked pairs and triples that drift together; waterline at y = 0), pressure ridges, snow drifts, snow-capped rock outcrops, frozen vent stacks. Materials `vesper_ice`, `vesper_snow`, `vesper_rock`. Node kinds in `src/world/scenery-kit.ts` (`VesperKitKind`). |
+| `public/assets/vesper/vesper-infra.glb` | `kit_vesper_infra.py` | Radiator field arrays (tiling), missile and cannon emplacements on hex plinths, a cryo dome, two habitat pods, a tiling harbour pier and a crane, a comm needle mast, an ice-hauler crawler and an icebreaker (background traffic). Materials `vesper_ceramic`, `vesper_glow`. Sizes and roles in `src/world/settlement-modules.ts`. |
+| `public/assets/vesper/vesper-craft.glb` | `craft_vesper.py` | `vesper_needle`, `vesper_diamond`, `vesper_missile_battery`, after the faction board. |
+| `public/assets/vesper/cliff-kit.glb` | `kit_cliffs.py --world vesper` | Fractured ice-shelf wall segments ([docs/26 §11](26-terrain-relief.md)). |
+| `public/assets/vesper/textures/ice-wall-*.jpg` | `textures_cliffs.py` | Procedural ice-wall crack detail and normal maps. |
+| `public/assets/vesper/facility-kit.glb` | facility kits ([docs/25](25-modular-facilities.md)) | Battery compounds and plants. |
+| `public/assets/vesper/helion-ark.glb` | `boss_ark.py` | The HELION ARK (§5). |
+
+The shared industrial kit ([docs/14](14-shared-industrial-kit.md)) is reused through its palette masks; roads become
+packed-snow tracks with tread ruts. Khepri's own buildings are not reused on Vesper.
+
+## 4. World generation
+
+The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
+
+- **Sea and shelves.** The sea stands at `VESPER_SEA_LEVEL` (lowered in terrain version 16 so the ice walls are as tall
+  as Khepri's canyons; user, 21 October). Shelves stand one to several tiers over the water and step up inland in ice
+  cliffs; ice plateaus rise a tier or two above the shelves on sheer walls. The land share is about half over long
+  stretches of the route (tested). The relief rules are [docs/26 §4 and §11–12](26-terrain-relief.md).
+- **Moods** (`VESPER_MOODS`, `MOOD_SETTINGS`): land share, leads, crevasses, ridges, rock, floes, shelf height, cliff
+  step, inland stairs, inlets and plateaus per mood; never the same mood twice in a row.
+- **Ice walls** stand on every big face (crevasses, ridges and beside outposts included) in continuous runs, never on
+  small steps or faces turned away from the camera (`cliffWallSteps` with `iceWall`; user, 22–23 October).
+- **Pack ice.** Floes have stable ids and drift in presentation; the terrain view's live features (floes and vent-stack
+  tops) feed foam collars and steam. Every piece stays under `VESPER_SCENERY_MAX`.
+- **Outposts** stand on shelf ice: `VESPER_ARCHETYPES` (radiator fields, missile and cannon sites, cryo stations,
+  processing plants, heat exchangers, thermal reactors, harbours), after the facility sheet
+  `art/concepts/facility-sheets/vesper.jpg`, built of the Vesper infrastructure and the shared kit. Harbours run jetties
+  over open water. Snow tracks stay off water. Pipelines cross leads only on trestles (`WET_TRESTLE_CELLS`), and lines
+  that would mostly cross water are not planned.
+- **Readability.** The same rules as Khepri: calm routes, no repeated rhythm, budgets, seamless and deterministic
+  sections, incremental generation identical to synchronous.
+- **Boss arena:** open water. Inside the arena's range nothing stands or floats; the shelf edge recedes to frame it.
+
+## 5. Cold Vector and the Helion Ark
+
+### Mission
+
+Cold Vector (`cold-vector`) is campaign mission 3 (threat 3). Its arc is `COLD_VECTOR` and `COLD_VECTOR_SORTIE` in
+`src/content/encounter-deck.ts`:
+
+1. an introduction over the shelf coast: one Needle, one Diamond, a missile-battery pair;
+2. Needle lines, missile batteries and Diamond pairs;
+3. two side-route places for strike sites;
+4. missile batteries on the ice cliffs, with Needle lines and a sweeping Needle column;
+5. a fuel-barge stretch;
+6. the escort-convoy climax of Diamond convoys, missile batteries and Diamond pairs;
+7. relief, then the scroll eases to a stop over open ocean for the HELION ARK.
+
+Pressure comes from `WORLD_INTENSITY.vesper`, `MISSION_CADENCE['cold-vector']` and `MISSION_PRESSURE['cold-vector']`.
+The shield cells are `HELION_ARK.shieldSupplies` (three on Relaxed and Standard, two on Veteran).
+
+### Vesper's enemies
+
+Vesper flies only its own kinds: Needles, Diamonds, missile batteries and fuel barges (`authoredKinds`). Their stats are
+`ENEMIES` in `src/content/balance.ts`; their shapes are in `src/sim/attacks.ts`.
+
+- **Needle** (`needle`): a fast interceptor whose attack is a very narrow lane locked on the committed position
+  (`NEEDLE_BEAM`: a windup, a short flash, then a brief beam). A Needle beam costs one shield charge; a Lancer's costs
+  two. Before firing, a Needle swings over its lane and fires straight down from its nose (`applyBeamLock` in
+  `src/sim/motion.ts`). Needle beams do not count against the wide-beam lane cap.
+- **Diamond** (`diamond`): a heavy escort whose whole pale body takes hits. It fires three tight rounds from one wing,
+  aimed to that side of the committed position, and alternates wings (`DIAMOND_VOLLEY`).
+- **Missile battery** (`missile`): a ground target that fires one straight, non-tracking missile down its own marked
+  column. It moves with the terrain and does no contact damage.
+
+Formations: `needle-solo`, `needle-line-3` (lanes stepping across the committed position), `needle-column-5` (a column
+sweeping across, mirrorable), `diamond-solo`, `diamond-pair`, `diamond-convoy` (two Diamonds with two Needle escorts),
+`missile-2`, `missile-3`, `depot-missile`, and the boss-only `ark-launch`.
+
+Rules that keep Vesper's beams readable:
+
+- **Side lanes inside a beam's reach** (user, 8 November: barrages "left and right of my ship, without moving i wouldnt
+  even be hit"). The Needles' aim offsets put every side lane within a narrow beam's reach of a still ship, so holding
+  still is never safe; stagger, warnings and the hazard-union admission are unchanged.
+- **Laser flocks alternate with laser-free squadrons** (user, 8 November: "constantly a new flock of lasers once you
+  defeated them"). In Cold Vector and Vesper's endless stages, every second laser flock (any air wave with Needles or
+  Lancers) is a laser-free Diamond squadron, and a drawn wave keeps its slot's side of the alternation (`keepsBeams` in
+  `resolveDeck`). A strike site's own guard is the only exception.
+- **A cap on warning lines.** Outside campaign Veteran, Vesper shows at most `VESPER_LINE_CAP` warning lines (windups and
+  live lanes) at once (user, 31 October and 6 November).
+- **Beam rests.** After a run of Needle beams with no real pause, new Needle windups wait (`DifficultyScale.beamRest`;
+  [docs/11](11-campaign-difficulty.md)).
+- **Aces** on Vesper are shielded Diamonds (`HUNTERS.kinds.vesper`).
+
+### HELION ARK
+
+A carrier riding the open sea. Runtime values are `HELION_ARK` in `src/content/ark.ts`; the shared definition is
+`BOSSES.ark`; the fight follows the shared boss rules ([docs/03 §3](03-worlds-and-generation.md#3-bosses)).
+
+**Targets.** Two radiators at ±`radiatorOffset`, `radiatorS` behind the pivot, radius `radiatorRadius`, and the bridge
+at `bridgeS`, radius `bridgeRadius`; the hull and wings are scenery, not a hidden collision box. Base hit points
+`radiatorHp` and `bridgeHp`, scaled as every boss's.
+
+| Phase | Attacks |
 | --- | --- |
-| `public/assets/vesper/vesper-kit.glb` | Ice cliff segments (faceted, vertical, with undercut waterline), seracs, ice spires, icebergs and floes (floating, with the waterline at y = 0 of the piece), pressure-ridge slabs, snow drifts, snow-capped dark rock outcrops, frozen vent stacks |
-| `public/assets/vesper/vesper-infra.glb` | Black ceramic and orange radiator fins: radiator field arrays (tiling), missile and cannon emplacements on hex plinths (visual for ground targets), cryo domes, habitat pods, harbour piers and cranes for the shelf edge, comm needle masts, an ice-hauler crawler, an icebreaker ship (background traffic in the water) |
-| `public/assets/vesper/vesper-craft.glb` | Needle interceptor (pale ceramic blade, offset fins), Diamond heavy (fractured diamond frame, radiator wings), missile battery turret, all after the faction board |
-| `public/assets/vesper/helion-ark.glb` | The Helion Ark sea carrier (§5), with separate nodes for its targets, wreck states, shutters and launch bays |
+| Arrival (`arrivalDuration`) | Glides in from `entryS` beyond the view to its row (`row`) once the terrain has stopped. |
+| Radiators | Narrow lane lasers (`HELION_ARK.laser`) straight down the firing radiator's column, alternating radiators; every third attack an aimed bridge burst instead (`bridgeBurst`), so the middle between the lanes is not safe for long. |
+| Bridge | Aimed three-bolt bursts, and finite launches (`launches`): waves of two Needles (`ark-launch`), one from each deck bay, one wave at a time, only while the bays are in view. |
+| Overload | `overloadMoves`: core lane, burst, side lanes, cross, burst, core lane, cross, side lanes, with a shorter recovery (`overloadRecovery`) and two more launch waves. |
+| Destroyed | Launched Needles go down with it; it lists, noses down and sinks under the opaque sea. |
 
-The shared industrial kit (pipes, tanks, containers) is reused through its palette masks: black ceramic metal, orange paint, frost instead of dust, and orange heat bands so pipelines read as heated lines. Roads become packed-snow tracks with tread marks. Khepri's own buildings are not reused.
+**Arena.** The scroll eases to a stop from `arena.decelStart` (`arenaStopDistance`); `arena.platform` (relative to the
+stop) is open water from below the view to past the stern as it glides in. The hull sways and surges on the water
+(`arena.sway`, `arena.surge`; `BossState.vx` and `vs` expose its velocity) and holds still while its lanes charge and
+fire.
 
-## 4. World generation (Vesper profile)
+**Model.** The user's Tripo model (`art/source/bosses/ark-tripo-original.glb`), adapted in Blender by
+`tools/blender/boss_ark.py` (`build_clean`): every part planarized into flat plates with hard creases, the large light
+plates re-plated, the supplied paint kept on machinery and stripes, one fresh atlas; the two diamond pod sketches in
+front are dropped (user, 24 October). Nodes: `ark_hull`, `ark_bridge` (a Blender-built lens inside the armour),
+`ark_bridge_shutter_a` and `_b` (they slide apart to open the bridge), `ark_radiator_left`, `_right` and their wrecks,
+`ark_turret_left`, `_right` (they swing to aim), the markers `ark_bay_left`, `ark_bay_right` and `ark_wake_anchor`, and
+`ark_approved_v6`, an empty marker node (a real identifier) that tells the view to keep the authored materials. The file
+stays under the adapted bosses' triangle cap (docs/08, 24 October).
 
-- **Sea level:** −3.6 since terrain version 16 (−1.2 before; docs/26 §12). Shelves stand one to four tiers over the water, ice cliffs drop 4–6 units to it, and the seabed below the water is darkened and hazed.
-- **Landforms:** large shelf masses broken by open leads (water channels), crevasse fields on the shelves, pack-ice seas with floes, and pressure ridges.
-- **Variety:** route variety follows the same rules as Khepri (moods, no repeated rhythm, calm combat lanes, budgets, seams, determinism, incremental generation).
-- **Settlements** sit on shelves: radiator fields, missile sites, harbours at shelf edges, cryo stations. Snow-track roads and heated pipelines connect them; pipelines may cross leads on trestles.
-- **Boss arena:** the arena range for Cold Vector is **open water**. No shelves or floes inside the platform range; the shelf edge recedes to frame it, with a few distant icebergs.
+**Presentation** (`src/render/ark-view.ts`, render-only). `arkPlacement` puts the waterline at sea level and shifts the
+pivot so every target projects onto its logical row (`tests/world/ark-projection.test.ts`). Target rings sit on the
+sockets outside the chassis, so the sinking pose never moves them. The hull rides a slow swell. Foam collars and bow and
+stern wakes feed the ocean's foam layer. Bow spray follows its motion, steam vents from the open bays, and damaged or
+destroyed parts smoke and steam. The radiators swap to their wrecks, the bridge shutters part, and the turrets aim.
 
-## 5. Mission "Cold Vector" and the Helion Ark
+## 6. Tests
 
-**Length:** about 4–5 min. **Combat emphasis** (docs/03): precise burst windows, narrow telegraphed beams, coordinated heavy escorts.
-
-**Mission arc:**
-1. high-contrast introduction over the shelf coast;
-2. Needle squadrons with narrow beam lanes;
-3. missile batteries on the ice cliffs;
-4. heavy escort convoy;
-5. relief;
-6. the scroll eases to a stop over open ocean for the Helion Ark.
-
-**Enemies:**
-- **Needle:** a fast interceptor whose attack is a very narrow, telegraphed, locked beam (a Lancer-family pattern with its own timing).
-- **Diamond heavy:** an escort with alternating left/right volleys (Bulwark family) and a central core.
-- **Missile battery:** a ground target firing straight, non-tracking missiles in telegraphed lanes. Any tracking weapon would need its own distinct look and rule (docs/03 §2).
-
-All of them follow the fairness rules and the validator, and the perfect pilot must clear every weapon × difficulty combination.
-
-**Helion Ark:** a hovering industrial carrier riding just above the water. Since 24 October the model is the user's GLB, adapted and cleaned (`helion-ark.glb`; docs/08).
-- **Scale and height:** its targets use the combat-plane contract; its wings are scenery, not a hidden collision box. It is long and low; its top stays below the flight plane (`VIEW.flightHeight` 3.8).
-- **Phases:**
-  1. two radiator weapons (alternating lane lasers);
-  2. the bridge, which launches a finite number of fighters (Needles) from the deck bays;
-  3. bridge overload, with lanes over its own hit columns, as on Bastion-9.
-- **Health:** total effective HP is about 3,000, scaled by difficulty.
-- **Presentation:** wake and spray, radiator glow driven by damage, then a destruction sequence of explosions, listing and sinking with steam.
-
-## Contrast pass (3 November 2026)
-
-User: "Strengthen terrain contrast, especially the separation of bright ice surfaces, blue-grey cliff walls and dark water. Preserve detail in the highlights rather than making the snow uniformly brighter", and "the contrast also with some enemies is bad". The water, its shader and every look value (light, grade, fog) are unchanged (user: "dont change vespers water i like it"). Evidence: `docs/screenshots/vesper-contrast.jpg`.
-- **Cliff walls are blue-grey:**
-  - The ice walls (the kit's wall pieces, the ground's own wall faces and crevasse walls) were saturated blue at about the water's value, so the shaded foot of a cliff merged with the sea.
-  - They are now a mid-tone blue-grey (`vesperSlate` in `src/render/terrain-kit.ts`): lit faces pale, shaded faces slate with a faint cool fill, cracks dark, darker toward the foot.
-  - Order now: bright snow, blue-grey walls, dark sea.
-- **Ice in the kit:** the kit shader classified ice from the colour before the vertex colours were applied, so it only ever saw white and its ice branch never ran. Classification now runs after the vertex colours; ice pieces take the blue-grey, with gloss 0.5.
-- **Snow keeps its highlight detail:**
-  - Lit snow sat deep in the tone curve's shoulder with blue clipped, so drifts, slopes and texture flattened to one white.
-  - The ground's snow albedo is now about 70% (`SNOW_TRIM`, a little less blue), and the wind ripples' troughs turn a cool blue-grey.
-  - Lit snow now lands at the shoulder's start and keeps its relief, still reading white (measured: display luma 3–4 levels lower, its spread about doubled, blue no longer clipped).
-  - The kit's snow (floe tops, caps) takes a milder trim, so floes stay bright on the sea.
-- **Enemies (`src/render/world-paint.ts`, `src/render/models.ts`):**
-  - Vesper's craft get their own darker ramp (graphite `#232b35` to brushed steel `#c2ccd6`, at 0.85), still metallic white with blue glow.
-  - Their edges and lower sides darken (`edge` 0.7), so a pale hull keeps a dark outline over snow and its lit top over the sea.
-  - Buildings, compounds, the hero and other worlds are unchanged. Sizes and hit regions are untouched; shots and warning lines are unchanged.
-  - On High the far top of the view keeps its haze (a look value), so the gain there is smaller than on Low.
-
-## As implemented: world and look (wave 1, 15 October)
-
-- **Planet profiles:** `src/world/terrain-planet.ts` and `terrain-vesper.ts`. `runPlanet(config)` in `src/content/missions.ts` maps missions to planets, and `terrain.update(seed, distance, { planet, arena })` takes the result. Khepri's output is byte-identical (fingerprint tests). `TERRAIN_VERSION` is 10.
-- **Land and water:** about 70% land, 30% water (user request; mean 0.71 over test seeds, tested to 0.65–0.75). Pack-ice seas are rare (about 6% of the route); shelves, crevasse plateaus and radiator plains dominate.
-- **Ice and pack ice:** continuous faceted ice-cliff faces with undercuts and calved blocks. Pack ice fields have domain-warped ragged edges, mixed plate sizes and cracked plates.
-- **Pipelines:** they cross water only on trestles of up to 6 cells, and lines that can't reach their goal are not built.
-- **Look:** a per-planet light and grade table in `scene.ts`; Khepri is pixel-identical. The Vesper side:
-  - **Light:** a high, pale, cool sun with blue shadows; bloom threshold 1.2, so snow never blooms.
-  - **Water** (`src/render/water.ts`): one opaque draw per strip, with analytic swell, depth tint, shoreline foam, and instanced foam collars and wakes around floes.
-  - **Materials:** ice, snow and rock shading derived from the kit's vertex colours; black ceramic infrastructure with orange radiator glow.
-  - **Enemies:** Vesper craft models.
-- **Live features:** `terrain.features` exposes floes and vents, for foam collars and steam.
-- **Preview:** `?planet=vesper` is a hidden preview switch, not offered in any menu, that shows Vesper in any run until Cold Vector ships.
-
-### As built: combat (15 October 2026)
-
-Runtime sources:
-- `src/content/ark.ts` (Helion Ark);
-- `src/content/bosses.ts` (shared boss definition);
-- `src/content/formations.ts` and `encounters.ts` (`COLD_VECTOR`);
-- `src/content/balance.ts` (enemy stats);
-- `src/sim/boss.ts` (generic boss simulation; `src/sim/bastion.ts` until 8 November).
-
-**Enemy kinds (`EnemyKind`):**
-
-| Kind | Role | Radius | HP | Score / credits | Threat | Attack |
-| --- | --- | --- | --- | --- | --- | --- |
-| `needle` | Fast interceptor | 0.30 | 50 | 150 / 6 | 2 | Narrow 0.4 lane locked on the player: 0.75 s windup + 0.2 s flash, 0.15 s beam, costs **one** shield charge (Lancer beams cost two). Repeats every 1.3 s. Narrow lanes do not count against the wide-beam lane cap |
-| `diamond` | Heavy escort (Bulwark family) | 0.60, its whole pale body | 130 (was 220 on a 0.30 core until 15 October; Scatter could not kill one in a pass) | 400 / 16 | 4 | Alternating left/right wing volleys: three tight rounds from the wing, aimed 1.2 to that side of the committed position. Repeats every 1.0 s |
-| `missile` | Ground battery | 0.55 | 120 | 250 / 10 | 2 | One straight, non-tracking missile (radius 0.2, speed 9.5) down its own marked column; 1.0 s windup, repeats every 1.1 s. Moves with the terrain; no contact damage |
-
-**Squadrons:**
-- `needle-solo`, `needle-line-3` (stepped narrow lanes), `needle-column-5` (sweeping column, mirrorable);
-- `diamond-solo`, `diamond-convoy` (2 Diamonds + 2 Needle escorts, +1 Diamond on Veteran);
-- `missile-2`, `missile-3`;
-- `ark-launch` (boss-only, from the deck bays).
-
-All follow the airspace rule (one air squadron in a stretch of airspace at a time) and the director's exclusion check. Cold Vector uses the same harder cadence as Rolling Thunder (`MISSION_CADENCE['cold-vector'] = 1`).
-
-**Mission timeline (`COLD_VECTOR`, about 4–5 min):**
-
-| Time | Stage |
-| --- | --- |
-| 2–13 s | Introduction: a Needle, a Diamond and a missile pair, each with a teaching message |
-| 17–41 s | Needle squadrons with narrow beam lanes |
-| 48–53 s | Relief: an optional cliff battery west, a lone interceptor east |
-| 58–84 s | Missile batteries on the ice cliffs |
-| 89–147 s | Heavy Diamond escort convoy |
-| 160 s | Relief |
-| 170 s | Approach ends |
-| 181–187 s | The scroll eases to a stop |
-| 190 s | The Helion Ark arrives (since 16 October: a 28 s fuel-barge stretch, cues close at 190 s) |
-
-Shield cells:
-- 50, 115 and 172 s on Relaxed and Standard;
-- 115 and 172 s on Veteran.
-
-**Arena (for the world agent):**
-- **Scroll:** a closed form of active time. Full speed (5 units/s) until t = 181 s (distance 905), then a smoothstep ease to zero over 6 s.
-- **Stop:** exactly **distance 935** at t = 190 s; the Ark glides in once the terrain has stopped.
-- **During the fight:** static.
-- **After the kill:** a 1.5 s hold over the wreck, then a 1 s ease back to 5 units/s for a 4 s extraction.
-- **Platform:**
-  - The open-water platform must cover **s from −9 to +35** relative to the stop, which is **world distance 911 to 955**.
-  - It spans the full world width, x from −15 to +15.
-  - The Ark glides in from pivot s 26; its stern is about +7.3 behind the pivot.
-  - It then holds pivot s 11.5 ± 0.7, with the bow near s 7.8 and the stern near s 18.8.
-  - Its post is the camera x at arrival clamped to ±7, swaying ±1.3.
-
-**Helion Ark state (additive contract fields):**
-- `BossState.id` is `'ark'`.
-- Phases reuse the shared names:
-  - `'arrival'`;
-  - `'batteries'` (radiators);
-  - `'core'` (bridge);
-  - `'overload'` (bridge overload);
-  - `'destroyed'`.
-- `BossState.launchesLeft` and `nextLaunchAt` track the finite launches (3 waves of 2 Needles).
-- `BossState.vx` and `vs` give its velocity on the water.
-- Boss targets are `Enemy.bossPart`:
-  - `'left'`/`'right'` are the radiators (x ∓2.4, s −0.5, radius 0.75, 600 HP);
-  - `'core'` is the bridge (x 0, s +1.6, radius 1.0, 1,800 HP).
-  - All are at target height 1.6.
-- The deck bays (x ∓0.75, s −2) are launch points, not targets.
-- Total HP is 3,000 on Standard, scaled by difficulty.
-- Other additive fields:
-  - `FormationMember.anchorS` places bay launches relative to the moving hull;
-  - `Enemy.volleys` counts the Diamond's wing volleys;
-  - `Hazard.cost` gives a hazard's shield cost.
-
-**Evidence (`tests/sim/ark.test.ts`, `fairness.test.ts`):**
-- The validator covers every Vesper squadron in isolation and Cold Vector on all three difficulties, on the perfect, idle and dodger branches.
-- The perfect pilot clears all nine weapon × difficulty combinations of Cold Vector with **zero hits**, no special and no pickups. A wider sweep from two start positions per combination (18 runs) was also clean.
-- Clear times by setting:
-  - Relaxed: Pulse 245 s, Fan 303 s, Seeker 238 s;
-  - Standard: Pulse 272 s, Fan 335 s, Seeker 243 s;
-  - Veteran: Pulse 285 s, Fan 365 s, Seeker 251 s.
-- The Fan's Ark fight is long (about 150 s on Standard), the same single-target weakness it shows against Bastion-9.
-- Scripted mid-skill pilots fail Cold Vector before the Ark about as often as they fail Rolling Thunder before Bastion-9. With run-wide shields and the harder cadence, human playtests must judge it.
-
-## 6. Ownership and order
-
-1. **Kit agent:** the four GLBs (§3).
-2. **World agent:** planet profile plumbing and the Vesper generator (§2, §4).
-3. **Graphics agent:** water, the per-planet lighting/palette rig, ice materials, Vesper VFX (snow spray, steam).
-4. **Combat agent:** mission content, Vesper enemies, Helion Ark simulation.
-5. **Integrator:** boss renderer, mission wiring, menu entry (coordinated with Codex's UI files through `COORDINATION.md`), verification, deploys.
-
-**Deploy waves:**
-- first a flyable Vesper flight to judge the look;
-- then the full mission with the Helion Ark.
-
-
-**15 October balance notes:**
-- The Diamond takes hits on its whole pale body (radius 0.60) and has 130 HP (was a 0.30 core and 220 HP). With the old values Fan Cannon could not kill one in a whole pass, and shots through the visible plates did nothing.
-- Needle barrages rest after 7 s on Standard and in endless, and after 5 s on Relaxed (docs/11, "Needle beam rests").
-
-## Laser flocks alternate with laser-free squadrons (8 November 2026)
-
-User, in campaign and endless: Vesper was "constant laser enemies"; "its not that the barrages of those laser enemies is too much enemies but its constantly a new flock of lasers once you defeated them".
-
-- **Alternation:** in Cold Vector, its sortie, and the three endless arcs (opening, pressure, peak), every second laser flock became a laser-free Diamond squadron.
-  - The flocks that remain keep their size and attacks.
-  - A laser flock means any air wave with Needles or Lancers, the Diamond convoy included.
-- **New formation:** the Diamond heavy pair (`diamond-pair`, two Diamonds; a third on Veteran), added to Vesper's pools.
-- **Deck rule, Vesper only** (`src/content/encounter-deck.ts` `keepsBeams`): a drawn wave keeps its slot's side of the alternation.
-- **Measured:**
-  - Over 40 seeds, laser flocks fell from nearly every air wave to about half, and none follow each other. A strike site's single Needle guard next to a flock is the only exception; sites are optional side routes.
-  - Perfect pilot, 12 seeds: Cold Vector 2 → 1 hit over 72 runs, the endless Vesper stint 3 → 0.
-  - Mid-skill hunter pilot, endless Vesper stint: 295 → 297 hits, so the pressure is about the same, now from Diamond volleys instead of more beams.
-- **Test:** `tests/sim/encounter-deck.test.ts`, "Vesper alternates…". It fails on the old order on all 20 seeds.
-
-## Needle side lanes inside a beam's reach (8 November 2026)
-
-User: "Very often the laser enemies would just send barrages left and right of my ship, without moving i wouldnt even be hit".
-
-- **Before:** measured against a ship that never moves, only 9% of Cold Vector's Needle beams (Deep Bloom: 18%) went through it. The rest landed 0.9–1.2 units beside it, outside the 0.64 a narrow beam reaches (half its 0.4 width plus the ship's 0.441).
-- **Now:** the side lanes sit inside that reach.
-
-  | Formation | Was | Now |
-  | --- | --- | --- |
-  | Line | ±1 | ±0.5 |
-  | Column | ±0.9 | ±0.45 |
-  | Convoy flanks | ±1.2 | ±0.6 |
-  | Veteran wingmen | ±2 | ±1 |
-
-  Every beam now passes through a still ship, so holding still is never safe. The stagger, the warnings and the hazard-union admission are unchanged.
-- **Measured** (perfect pilot, Standard and Veteran, 12 seeds × 4 laser missions, 96 runs):
-
-  | Mission | Hits before | Hits after |
-  | --- | --- | --- |
-  | Cold Vector | 0 | 3 |
-  | Deep Bloom | 3 | 12 |
-  | Brood Strike | 5 | 4 |
-  | Final Horizon | 5 | 4 |
-  | **Total** | **13** | **23** |
-
-  No campaign run lost a life. In endless, that pilot now loses one life over the Nacre stint (sectors 8–10) and the late Umbra stint (35–37). The fairness suite allows that and still checks the hazard union strictly.
-- **Wraith bug it exposed:**
-  - A Wraith winding up a feint held still while its path clock kept running. When the feint was cancelled it jumped down its path.
-  - The airspace planner also treated it as parked for good.
-  - **Fix:** the clock now holds through the windup, and the planner sees the path resume after it (`src/sim/motion.ts`).
+- `tests/world/terrain-vesper.test.ts`: planet profiles keep Khepri byte-identical; missions map to planets; shelves at
+  several levels over the sea; half land and half water; seams and streaming; pack ice under the cap; outposts on shelf
+  ice with jetties, tracks and trestles; every outpost archetype; the open-water arena.
+- `tests/sim/ark.test.ts`: the arena stop and resume; the Ark's arrival, sockets, difficulty scaling, radiator lasers
+  down their own columns with bridge bursts between, finite Needle launches, overload lanes over its own columns, the
+  sinking wreck and extraction, its drift; beam alignment (every Needle beam under its Needle, every boss lane under its
+  column).
+- `tests/sim/vesper-aces.test.ts`: Vesper's warning-line cap.
+- `tests/sim/encounter-deck.test.ts`: Vesper alternates laser flocks with laser-free squadrons on every seed.
+- `tests/render/vesper-contrast.test.ts`: the craft's own ramp and edge shade, with buildings, other worlds and the
+  hero unchanged.
+- `tests/sim/fairness-campaign.test.ts` and the endless fairness suites: Cold Vector at every difficulty and Vesper's
+  endless stints, on every pilot branch.
+- `tests/browser/vesper.spec.ts`: the campaign offers Cold Vector and launches it without browser errors.
