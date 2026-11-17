@@ -26,6 +26,14 @@
         animation: boot-bar 1.1s ease-in-out infinite; }
       @keyframes boot-bar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
       @media (prefers-reduced-motion: reduce) { #boot i::after { animation: none; width: 100%; opacity: .5; } }
+      /* Ready (user, 17 November): the same screen, its LOADING line reads TAP TO START and blinks; the loader keeps its
+         space so nothing moves. The tap starts the menu theme, which browsers only allow after a gesture. */
+      #boot.ready { cursor: pointer; }
+      #boot.ready p { color: #e2edf6; animation: boot-blink 1.4s ease-in-out infinite; }
+      #boot.ready i { visibility: hidden; }
+      #boot:focus-visible { outline: none; }
+      @keyframes boot-blink { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
+      @media (prefers-reduced-motion: reduce) { #boot.ready p { animation: none; } }
     </style>
   </head>
   <body>

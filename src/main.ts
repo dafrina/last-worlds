@@ -268,14 +268,28 @@ const benchSteer = (tick: number, x: number): -1 | 0 | 1 => {
 
 const pacing = createFramePacer();
 
-/** The boot splash (index.html) fades out once the first frame is drawn, then leaves the page. */
+/**
+ * The boot splash (index.html). Once the first frame is drawn it becomes "tap to start" (user, 17 November): the same
+ * screen with its LOADING line blinking TAP TO START. The tap starts the menu theme (browsers allow audio only after a
+ * gesture; the window listeners below call audio.menu()) and fades the splash out. It closes on the click, not the
+ * press, so the tap never lands on a menu button underneath. Automated browsers (tests, tools) have nobody to tap and
+ * go straight to the menu; `?tap` keeps the gate for them.
+ */
 let booting = true;
 function finishBoot() {
   booting = false;
   const boot = document.getElementById('boot');
   if (!boot) return;
-  boot.classList.add('done');
-  setTimeout(() => boot.remove(), 600);
+  const dismiss = () => { boot.classList.add('done'); setTimeout(() => boot.remove(), 600); };
+  if (navigator.webdriver && !new URLSearchParams(location.search).has('tap')) { dismiss(); return; }
+  boot.classList.add('ready');
+  boot.setAttribute('role', 'button'); boot.setAttribute('aria-label', 'Last Worlds. Tap to start'); boot.tabIndex = 0;
+  const line = boot.querySelector('p'); if (line) line.textContent = 'TAP TO START';
+  boot.focus({ preventScroll: true });
+  const start = () => { window.removeEventListener('keydown', onKey); boot.removeEventListener('click', start); dismiss(); };
+  const onKey = (event: KeyboardEvent) => { if (!event.repeat) start(); };
+  boot.addEventListener('click', start);
+  window.addEventListener('keydown', onKey);
 }
 function frame(now: number) {
   const frameStart = performance.now();
