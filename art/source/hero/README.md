@@ -1,7 +1,7 @@
 # Hero ship sources (the user's Tripo models)
 
-29 October 2026. Twenty Tripo image-to-3D models the user made from the concepts in
-[art/concepts/hero-modular](../../concepts/hero-modular/DELIVERY.md): four chassis × five designs, named
+Twenty Tripo image-to-3D models the user made on 29 October 2026 from hero concept images (the concepts were never
+committed): four chassis × five designs, named
 `<chassis>-<n>.glb` (n 1–5 is design a–e). Each is one textured mesh of about two million triangles with 4096 px base
 colour, normal and roughness-metal maps, about 70 MB.
 
@@ -16,4 +16,4 @@ and size reference"):
 2. `tools/blender/hero_parts.py` builds clean parts over those references to each chassis's standard joints, and
    bakes the Tripo paint, wear and surface detail onto them. Output: `public/assets/shared/hero/<chassis>-<design>.glb`.
 
-Done: all 20 (Scrapper, Ironclad, Interceptor and Spectre 1–5). The Crescent (Spectre 2) keeps its model's ring drives tilted about 28° (user: "i liked that they were tilted").
+All twenty are built ([docs/31](../../../docs/31-hero-ships.md)). The Crescent (Spectre 2) keeps its model's ring drives tilted about 28° (user: "i liked that they were tilted").

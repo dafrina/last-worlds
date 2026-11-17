@@ -7,4 +7,4 @@ The user's approved facility concepts, supplied on 20 October 2026 with the sett
 - `luna.jpg`: training command bunker, radar/communications tower, modular hangar pad, defense turret emplacement, cargo/power module cluster.
 - `nacre.jpg`: bioluminescent monolith relay, semi-submerged ring shrine, mire pump/energy node, raised bridge-gate tower, pod-dock/launch spire.
 
-`../boss-sheets/warden.jpg` is the WARDEN-1 front elevation, the reference for its v5 remodel (art/bosses/README.md).
+`../boss-sheets/warden.jpg` is the WARDEN-1 front elevation, the reference for its model ([art/bosses](../../bosses/README.md)).

@@ -1,75 +1,71 @@
-# Boss remodels (v5), 20 October 2026
+# Boss models
 
-The user disliked the decimated v4 imports of their three supplied GLBs ("they look wonky"). These v5 bosses are **new, clean Blender models traced over those GLBs**, so they keep the supplied proportions and dimensions without any of the source mesh. The user's design sheets (front elevations of BASTION-9, HELION ARK, THE VEIL and WARDEN-1) guided the shapes. WARDEN-1 has no supplied GLB: its sheet and the size of the v3 study model are its references. The user said that shape matters more than surface detail, and that backs and undersides, which the 55° game camera never shows, can stay plain.
+How the eight boss models are made: which source each starts from, which Blender script builds it, the rig contract the
+game's boss views rely on, and how to rebuild one. The user's supplied source models are in
+[art/source/bosses](../source/bosses/README.md); the runtime files and their builders are listed in
+`src/render/boss-assets.ts` (`BOSS_ASSETS`). Each boss's design and fight are in its world's doc.
 
-| Boss | Runtime file | Triangles (on screen) | Vertices | Draw calls, live (all) | Size (textures) | Builder |
-| --- | --- | ---: | ---: | ---: | ---: | --- |
-| WARDEN-1 | `public/assets/luna/warden.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/boss_warden.py` |
-| BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 21,648 | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/boss_bastion_hull.py` |
-| HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,892 | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
-| THE VEIL | `public/assets/nacre/the-veil.glb` (24 October; v5 had the bow pods) | 14,760 (13,302) | 26,009 | 14 (19) | 3.5 MB (2.3) | `tools/blender/boss_veil.py` |
-| THE CRADLE (24 October, over the user's Tripo reference) | `public/assets/amnion/the-cradle-v1.glb` | 49,592 (live parts) | | | 3.2 MB (no textures) | `tools/blender/remodel_cradle.py` |
+| Boss | World | Runtime file (`public/assets/`) | Builder (`tools/blender/`) | Made from |
+| --- | --- | --- | --- | --- |
+| WARDEN-1 | Luna | `luna/warden.glb` | `boss_warden.py` | Modelled after the user's design sheet (`art/concepts/boss-sheets/warden.jpg`); no supplied model |
+| BASTION-9 | Khepri | `khepri/bastion-9.glb` | `boss_bastion.py` (runs `boss_bastion_hull.py`, then `boss_bastion_treads.py`'s tread-link extraction) | Clean model traced over the user's tank GLB |
+| HELION ARK | Vesper | `vesper/helion-ark.glb` | `boss_ark.py` (`build_clean()`) | The user's Tripo GLB, adapted, with its hull panels rebuilt flat |
+| THE VEIL | Nacre | `nacre/the-veil.glb` | `boss_veil.py` | Clean model traced over the user's spacecraft GLB |
+| THE CRADLE | Amnion | `amnion/the-cradle.glb` | `boss_cradle.py` | The user's Tripo GLB, adapted |
+| THE HELIOPHAGE | Corona | `corona/the-heliophage.glb` | `boss_heliophage.py` | The user's Tripo GLB, adapted, laid flat and squashed |
+| THE CITADEL | Nahara | `nahara/the-citadel.glb` | `boss_citadel.py` | Built of Nahara's ruin kit, with the user's Tripo model as its shape guide |
+| THE ECLIPSE | Umbra | `umbra/the-eclipse.glb` | `boss_eclipse.py` | The user's Tripo GLB, adapted, plus the prow vent |
 
-How to read the columns:
-- **Triangles:** the whole file. The figure in brackets leaves out the hidden wreck variants and the Veil's instanced flight-pod template.
-- **Draw calls:** one per material per mesh node, before the shadow pass.
-- **Materials and textures:** each boss has one textured surface material plus emissive glow; the Warden adds a blue thruster jet. Each boss has three 2048² JPEG maps (colour, roughness/metal, normal).
+## Two methods
 
-For comparison, the v4 imports:
-- Bastion: 97,603 triangles, 5.7 MB;
-- Ark: 92,464 triangles, 5.4 MB;
-- Veil: 82,161 triangles, 4.5 MB.
+**Traced models** (BASTION-9, THE VEIL; WARDEN-1 from its sheet), with `tools/blender/lib_solids.py`:
 
-The Warden's v3 study had 10,220 triangles and 1.1 MB.
+1. **Tracing.** The supplied model is placed in game space; `trace()` outlines any box of it from the top, side or front
+   and simplifies the outline to clean corner points, and `print_height_map()` prints roof heights as a grid. Those numbers
+   are symmetrised and rounded into clean faceted solids, each with one crisp chamfer.
+2. **Baked textures.** `texture_bake()` gives all meshes one shared atlas (faces the camera never sees get less space) and
+   bakes colour, roughness-metal and normal maps in Cycles: generated armour plating (`panel_image`) or chitin cells, Poly
+   Haven's CC0 `metal_plate_02` for grime and scratches ([art/source/polyhaven](../source/polyhaven/README.md)), and
+   per-world weathering.
+3. **One primitive per material.** Slots that share a material are merged after the bake (`merge_slots`), since the glTF
+   exporter writes one draw per slot. Emissive `*_glow` materials stay untextured: the game animates them.
+4. **Ambient occlusion** is baked into the vertex colours (`bake_ao`).
 
-## Method (`tools/blender/lib_solids.py`)
+**Adapted Tripo models** (HELION ARK, THE CRADLE, THE HELIOPHAGE, THE ECLIPSE): the user's mesh, UVs and painted atlases are
+kept and reduced; nothing of the shape is regenerated. `tools/blender/lib_tripo.py` copies faces out into named parts
+(`extract`), adds marker nodes and builds wreck copies. Loose pieces beside a supplied model are the concept's pod sketches
+and are left out. Models are laid flat for the game camera; backs and undersides, which the camera never shows, may stay
+plain.
 
-1. **Tracing paper.** The supplied model is placed in game space (`PLACEMENT`; the Bastion at ×9.6, which is 20% larger than v4). `trace()` then outlines any box of it from the top, side or front view and simplifies the outline to clean corner points. `print_height_map()` prints roof heights as a grid. These numbers were symmetrised and rounded, then used to author clean faceted solids (`Solids`: lofts, prisms, cylinders, gears). Each solid gets a single crisp chamfer and smooth shading split at 40°.
-2. **Rig contract.** The node names, pivots and wreck variants are the ones each view already drives. Each weak point sits where the 55° camera ray through its combat target meets the armour (`ray_y`). Hatches, petals and the spire halves clear the core ray when they open. `tests/world/cinematic-assets.test.ts` checks all of this.
-3. **Baked textures.** `texture_bake()` gives all meshes one shared UV atlas; faces the camera never sees get less space. It then bakes colour, roughness/metal and normal with Cycles.
-   - **Plating:** Bastion and Ark use a generated, tileable armour-plate map (`panel_image`: seams, hatches, vents and rivets). The Veil uses Voronoi chitin cells instead.
-   - **Surface detail:** Poly Haven's CC0 `metal_plate_02` adds grime and scratches (`art/source/polyhaven`).
-   - **Weathering:** Khepri gets dust and rust streaks, Vesper frost and light grime, Nacre violet dust. Edges show worn metal everywhere.
-   - **Materials:** every non-glow surface shares one textured material. Emissive `*_glow` materials stay untextured, because the game animates them as damage heat and lamps.
-4. **One primitive per material.** After the bake, slots that share a material are merged, because the glTF exporter writes one primitive (one draw call) per slot. This halved the draw calls.
-5. **AO.** `bake_ao()` writes per-corner ambient occlusion into the vertex colours, which glTF multiplies into the base colour.
-6. **Export.** Each GLB carries a `<boss>_remodel_v5` marker. The views treat the marker like v4's: authored materials are kept and the articulated rig is used.
+THE CITADEL is the exception: the adapted Tripo mesh was rejected ("its color is off"), so it is built of the ruin kit's own
+blocks and arches (`tools/blender/kit_nahara.py`) in the shape of the Tripo model ([docs/39](../../docs/39-nahara-silent-empire.md)).
 
-## Per boss
+## Rig contract
 
-- **BASTION-9:** 20% larger than v4, combat geometry included (src/content/bastion.ts and docs/08). It has full-length double drum tracks with a rolling sprocket and idler, shoulders that slope down outboard in gull-wing fashion, and the sheet's V-chevron glacis. The octagonal drill-muzzle cannon pods recoil, and the round drum turrets with glowing eyes aim (the batteries). The reactor well sits under two sliding hatches in front of the command tower. The big upper cannons face forward.
-- **HELION ARK:** the supplied trimaran layout, with the outriggers running past the aft wing (y 3.9 → 5.85). The centre hull is chunkier and longer, and the design sheet's tall spire is split into the two bridge shutters, which part to expose the lens. Finned radiators sit on the outrigger fore-decks, turrets on the wing platforms, and the bay hatches on the centre bow flanks. The foam collars and stern wake in `ark-view.ts` follow the longer hulls.
-- **WARDEN-1:** from its design sheet, at the v3 study's size, with unchanged sockets (pods at x ±2.1, command core 0.9 behind, height 1.3).
-  - **Command column:** a tall white column whose glowing slot is the seam between its two front armour halves. These are the core hatches: they slide 0.8 apart to expose a reactor capsule on the core's camera ray.
-  - **Turrets:** twin-barrel turret pods yaw about their targets on chevron side blocks.
-  - **Body:** inner blocks with amber lights and vents, blue thruster bells (a `warden_jet` material, kept out of the view's glow handling), landing legs and two antenna masts. The beacon sits on the left mast tip.
-  - **Paint:** nearly non-metallic, because Luna's black sky turns metallic white into grey.
-  - **Flight:** the Warden flies 1.1 above the ground (`HOVER`), and `WARDEN.targetHeight` is 1.3 + 1.1. Lifting the whole model keeps every weak point on its ray. The view keeps the thrusters burning with a gentle bob, and the craft drops to the ground when destroyed. It has no landing legs.
-- **THE VEIL:** crescent wings with three equal pods abreast in each hangar mouth, as in the concept art. The innermost is the weak point; glowing petal seams and a lit back wall make them read from the game camera. Also scythe mandibles, a petal bud over the heart and a crown egg, folded toward the concept sheet. Its flight pod follows the v4 contract. v6 (24 October) drops the two pods hanging on arms under the bow and their hoods: the source's floating crystals in front were the concept sheet's pod sketches (user: "remove its two tentacles in its front those were actually also sketches of its pods"). Launched pods now drop from under the bow at the gameplay bays.
+- Node names, pivots and wreck variants are the ones each boss view drives (`src/render/bastion-view.ts`, `ark-view.ts`,
+  `warden-view.ts`, `carrier-view.ts`). Each GLB carries a marker node the view looks for: `warden_remodel_v5`,
+  `bastion_remodel_v5`, `ark_approved_v6`, `veil_remodel_v6`, `cradle_approved_v2`, `eclipse_approved_v1` (these names are
+  identifiers, not version labels to update).
+- Every weak point sits where the game camera's ray through its combat target meets the armour (`ray_y`), and hatches,
+  petals and shutters clear that ray when they open.
+- `tests/world/cinematic-assets.test.ts` checks the contracts: node names, weak points on their rays, footprints and
+  triangle budgets.
 
 ## Rebuild
 
-Run the builds headless. Each takes about 45–75 s, mostly the Cycles bake.
+Builders with a `build(export, preview)` function (WARDEN-1, THE VEIL, the BASTION-9 hull) run headless through
+`run_build.py`:
 
 ```bash
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \
-  --python "$(wslpath -w tools/blender/run_build.py)" -- boss_warden|boss_veil|boss_bastion_hull [--no-export] [--no-preview] [--compare]
+  --python "$(wslpath -w tools/blender/run_build.py)" -- boss_warden [--no-export] [--no-preview] [--compare]
 ```
 
-`--compare` writes the source-versus-remodel sheet (game camera, top, side, front) to `lookdev/boss-remodel/<boss>-v5-compare.png`. Copies of the final sheets are in this folder.
+`--compare` writes a source-against-model sheet to `lookdev/`. The other builders give their own command in their
+docstring: `boss_bastion.py`, `boss_eclipse.py`, `boss_heliophage.py` and `boss_citadel.py` run headless the same way;
+`boss_ark.py` and `boss_cradle.py` run inside Blender through the Blender MCP (paths in the `\\wsl.localhost\…` form).
 
 ## Rollback
 
-Switch the filename in `src/render/boss-assets.ts`. The v4 approved copies, the v3 studies and the v2 models all remain published. The Bastion's 20% combat scale lives in `src/content/bastion.ts`, so restore its old values too when rolling the Bastion back to v4.
-
-## Evidence
-
-- `bastion-compare.png`, `ark-compare.png` and `veil-compare.png` in this folder. `warden-views.png` shows the Warden's four views, since it has no source GLB.
-- In-game Chromium captures: `docs/screenshots/boss-remodel/`. `all-bosses-in-game.jpg` shows all four in their weak-point and core phases.
-
-No phone hardware was tested.
-
-**Touch-ups (20 October 2026, user):**
-- **Ark:** the tall dark spire over the bridge lens read as a giant canopy, so it is now a compact light cowl. A build-time ray check (`lens_cover`) asserts that it still hides the lens.
-- **Bastion:** the side skirts, stowage boxes and front fender over the treads are removed, and the shoulders are cut back at the front, so the tracks show.
-
+Earlier versions of every model are in git history; restore the file from there. BASTION-9's combat geometry lives in
+`src/content/bastion.ts`, so rolling its model back means checking those values too.
