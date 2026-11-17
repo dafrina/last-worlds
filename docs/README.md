@@ -67,7 +67,7 @@ were merged into others. For the repository layout see the [README's map](../REA
 
 | Doc | What it covers |
 | --- | --- |
-| [24 Sound design](24-sound-design.md) | Sound effects, the per-world scores, boss music, the title theme, the mix and how to preview it |
+| [24 Sound design](24-sound-design.md) | The sound effects and their triggers, the synthesized instruments and sample cache, the mix, the eight world scores, boss music, the title theme and menu sounds, settings and lifecycle, previews and tests |
 
 ## Art pipeline
 

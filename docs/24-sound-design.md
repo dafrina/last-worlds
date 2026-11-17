@@ -1,863 +1,489 @@
-# Last Worlds — sound design
+# Sound design
 
-Implemented 20 October 2026. This is an independent presentation pass; models, terrain, encounters, rewards, combat rules and saves are unchanged.
+How the game sounds and how the audio code is built: the sound effects and what triggers them, the synthesized
+instruments, the mix, the eight world scores, the boss music, the title theme and the menu sounds, the settings and
+the mobile lifecycle, and how to preview and test it all. Everything lives in `src/audio/`, plus the menu-sound wiring
+in `src/ui/ui-sounds.ts`.
 
-## Direction and original sources
+## 1. Direction and sources
 
-Crisp, slightly arcade electronic weapons over atmospheric, rhythmically evolving planet scores. Impact is carried by a short upper-frequency transient and an audible midrange body, not only sub-bass. The soundtrack stays underneath combat. Shield breaks, life loss, specials and boss events take precedence over small impacts.
+- **Direction:** crisp, slightly arcade electronic weapons over atmospheric, rhythmically evolving world scores. Impact
+  comes from a short upper-frequency transient and an audible midrange body, not only sub-bass, so it reads on a phone
+  speaker. The music stays under the combat. Shield and life alarms, specials and boss events win over small impacts.
+- **Everything is synthesized in code.** Every effect, instrument patch, melody, chord progression, drum pattern and
+  arrangement is TypeScript in `src/audio/`. There are no recordings, downloaded loops, sample libraries, external audio
+  services or licences, and nothing audio is fetched at runtime. Samples are rendered once per page from that code
+  (section 3).
+- **Deterministic.** Noise comes from a private seeded generator (`noiseSource` in `src/audio/dsp.ts`); the irregular
+  touches in the scores come from hashes of the sixteenth (`scatter` in `score.ts`, `nuance` in `mixer.ts`). Audio never
+  calls `Math.random()`, never draws from the game's random streams and never changes `RunState`. Every render of a
+  passage is identical.
+- **Previews are not assets.** The WAV files the preview tools write (section 13) go to the git-ignored `lookdev/`
+  folder for listening; the game never loads them.
 
-All samples, instrument patches, melodies, chord progressions, percussion patterns and arrangements were authored for this project in `src/audio/`. There are no third-party recordings, downloaded loops, imitation artist prompts, external audio services or additional licensing dependencies. The editable source is TypeScript; WAV review exports are derived from that source. Do not mistake previews for additional runtime assets.
+History: on 11 November a trial with recorded instrument samples was built and rejected by the user ("still sound
+cheap"), then removed entirely: no recordings, no decoder, no extra downloads. The synthesized instruments were improved
+instead.
 
-## What plays
+## 2. What plays
 
-| Event | Treatment |
-| --- | --- |
-| Twin Pulse | A click and a chirp falling fast through the upper mids, 70 ms; one sound per volley (11 November) |
-| Fan Cannon | The same, two chirps and a short spray, 80 ms (11 November) |
-| Seeker Array | A rocket leaving the rack: a low thump, a rising ignition hiss and sparks, 0.14 s (11 November) |
-| Rail Driver | A crack, a falling zap and a short metallic ring, 0.16 s (11 November) |
-| Enemy volley | Quieter, lower-register shot; visible enemies only |
-| Weapon impact | Very short metallic tick, with a per-family cooldown |
-| Enemy / fuel explosion | Crack, saturated midrange body, falling pressure wave and scattered debris |
-| Shield hit / last charge | The field thud: a punchy low hit with an electric whine falling out of it, 0.35 s; the same for the last charge (12 November) |
-| Life loss | The deny buzzer: two short harsh pulses on a grinding minor second (G3 against G#3), 0.32 s; music ducking; no duplicate player explosion (12 November) |
-| Pickups | A part clanks and rings (0.75 s); a shield cell that adds a charge, a power cell or a weapon plays the shield's bell rising E, B, E; credits keep the brief blips (11 November) |
-| Special ready | Brief ascending intervals |
-| Shockwave | Broad pressure impulse and falling energy body |
-| Seeker Rack | Closely spaced launch transients |
-| Siege Lance | Sustained energy texture; duration reads the actual special's content definition |
-| Beam warning / release | Distinct pulsed warning and firing texture; visual warnings remain authoritative |
-| Boss arrival / phase / destruction | Low harmonic signal, phase accent and prolonged layered destruction |
-| Warps | A whoosh at the launch warp and with the planet jump's rising tone, peaking on its flash (11 November) |
-| Results | Success: a soft swell into an open sus2 chord in the world's key (11 November); loss: a short falling motif |
+`SoundObserver` (`src/audio/events.ts`) reads the run state after each frame and turns changes into cues; it never
+writes to the simulation. The cues name a `Sound` (`src/audio/samples.ts`); the mixer plays it at its level in `LEVELS`
+(`mixer.ts`).
 
-Only accepted shots and actual gameplay events produce combat sounds. Holding a direction or having no target produces no automatic laser sound. Terminal effects are read from the real run, not the animated afterglow copy. Pause, rewind, retry and debug fast-forward do not replay old events.
+| Event | Sound | What it is |
+| --- | --- | --- |
+| Main weapon volley (Twin Pulse, Fan Cannon, Seeker Array, Rail Driver) | `pulse`, `fan`, `seeker`, `rail` (the `WEAPON_IDS`) | One sound per volley. Twin Pulse: a click and a chirp falling fast through the upper mids, nothing under about 700 Hz. Fan Cannon: two detuned chirps and a short spray. Seeker Array: a rocket leaving the rack, a low thump, an ignition hiss whose band climbs, sparks. Rail Driver: a crack, a falling zap and a short metallic ring. Each 0.07 to 0.16 s long. |
+| Interceptor's Shred spinning up | the weapon's own sound | As the guns spin up (`player.spin` against `SHIP_PERKS.shredCap`), each shot plays up to a major third higher and 35 % quieter, centred, so the faster stream rises into a whine instead of getting louder ([docs/42](42-specials-and-perks.md)). |
+| Enemy shot appears | `enemy` | A quieter, lower FM shot; only the first new visible enemy shot of a frame. |
+| Hit on an enemy | `impact` | A very short metallic tick; at most two a frame. |
+| Enemy destroyed / heavy blast | `explosion`, `heavy` | A crack, a saturated midrange body, a falling pressure wave and scattered debris; `heavy` is the bigger version. At most three a frame, visible ones only. |
+| Shield charge lost | `shield`; `shield-break` for the last one | The field thud: a punchy low thud (90 falling to 45 Hz) under an electric whine falling away, with a noise click, 0.35 s. The last charge plays the same sound but keeps its own event, so the music ducks for it. |
+| Life lost | `life` | The deny buzzer: two short harsh square pulses on a grinding minor second (G3 against G♯3), driven, 0.32 s. The ship's own explosion is not played on top. |
+| Pickups | `part`, `upgrade`, `pickup` | A part: a heavy clank of struck steel whose middle modes ring on, then two clinks rising, 0.75 s. A shield cell that adds a charge, a power cell or a new weapon: the shield's bell (partials 1, 1.498, 2.71) rising E, B, E. Credits, or a shield cell at full shields: two brief blips. |
+| Special charged | `ready` | Three quick rising FM blips (D, A, D). |
+| Special fired | the special's id | Seeker Rack (`seeker-rack`): four launch transients 65 ms apart. Siege Lance (`siege-lance`): a sustained energy texture as long as the beam (`SPECIALS['siege-lance'].duration`). Shockwave (`shockwave`): a broad pressure impulse and a falling energy body. Orbital Strike (`orbital-strike`): a rolling barrage, nine heavy thumps 0.14 s apart walking past under a low rumble, 1.6 s; it came with the Orbital Strike on 14 November and replaced the Gravity Well's hum. |
+| Hazard | `warning`, `beam` | A pulsed warning tone when a visible hazard starts its warning, an energy texture when it fires. The visual warning is always the authority. |
+| Boss | `boss-arrival`, `boss-phase`, `heavy`, `boss-death` | A low pulsing harmonic signal on arrival and a shorter one on each phase change. The kill plays `heavy` as the module explosions start; the death roar (`boss-death`, a layered boom with a late sub) waits for the final big bang (the `bossBlast` effect). |
+| Launch warp | `whoosh`, a fifth up | Noise through two bands climbing from 220 Hz to 7 kHz; transposed so it peaks as the shortest warp breaks out (1 s). Played only if its sample is already made (section 11). |
+| Endless planet jump | `warp` and `whoosh` | A rising tone, and the whoosh peaking on the jump's flash (1.5 s), then passing. |
+| Mission complete | `win` | A short ring: a bright open chord (C, G, D and a high G; no third, no fanfare) rung like a bell, eighteen strokes a second for half a second, then ringing out; 1.4 s, transposed into the world's key (`successKey` in `engine.ts`). |
+| Run over | `loss` | A short falling motif (C, G, D). |
 
-## Music
+The sounds avoid each other's families on purpose: bells are pickups, chirps are shots, booms are explosions, so the
+two hit alarms (a thud and a buzzer) each read as a hit. The user chose them on 12 November from four candidates each,
+after the 11 November klaxons and, before that, a pitched-down bell ("the gong").
 
-| Planet | Track | Tempo | Character |
-| --- | --- | ---: | --- |
-| Luna | Far Side Signal | 94 BPM | Felt piano, a three-note melody over chords struck together, a round bass, brushes, a snappy kick, gentle human timing, and a distant beacon at the ends of phrases (phase 5) |
-| Khepri | Foundry Afterimage | 118 BPM | A hard forge kick and mechanical eighths, a round bass in four ringing notes a bar, the saw lead (four notes a bar) and stabs, a tuned anvil only where nothing else strikes, steam from the press (phase 5) |
-| Nacre | Dreams Beneath the Bloom | 106 BPM | A soft-mallet vibraphone (the pearl), three notes a bar, over thinned blooming pads, a round bass, and drums you can hear (phase 5) |
-| Vesper | Below the Ice Line | 88 BPM | Ambient: two triangle-clean bells every second bar, a cold frost pad, two bass notes a bar, one soft kick, and ice cracking far off (phase 5) |
-| Amnion | Something Beneath the Skin | 92 BPM | Breathing formant membranes, a three-note nerve-tone melody, low organic bass, paired heartbeats, dry bone clicks, and a lone creature calling in the night now and then (phase 5) |
-| Corona | Hymn for a Swollen Sun (10 November) | 110 BPM | Modal over an E–B drone (no chord progression): a sparse lament in Bayati and Saba with half-flat seconds and slow slides, a harp once per ten-sixteenth cycle, a darbuka in maqsum and baladi, a solar drone, ember crackle, bowed metal (phase 5) |
-| Umbra | Where the Light Goes Backwards (10 November) | 84 BPM | Reversed, inhaled chords and reversed glass that stop dead on the grid, a dark inharmonic obsidian bell, harmonic-series tones off the twelve-note grid, a precise void pulse |
+Rules that keep the mix readable:
 
-Each score has an authored 32-bar cycle: opening, developed phrase, breakdown, return. Chord movement and answering melodies prevent a single short phrase from repeating unchanged. Endless changes the score at the actual planet switch; the outgoing notes fade while the new tonal centre enters.
+- **Real events only.** A volley sound plays when the weapon actually fires (`nextVolleyAt` advances); holding a
+  direction or having no target makes no sound. Terminal cues come from the real run, not the afterglow copy that
+  animates the ending.
+- **Visible space only.** Enemy shots, impacts, explosions and hazards play only inside the view; offscreen battles are
+  silent.
+- **Quotas and cooldowns.** Per frame: one enemy shot, two impacts, three explosions, one plain pickup. Per sound: a
+  repeat closer than its `COOLDOWN` (`mixer.ts`; 25 ms by default) is dropped. The Seeker Array's 50 ms keeps each
+  rocket a launch at the highest tiers.
+- **No replay.** A paused frame plays nothing, and a time jump (a retry, a debug fast-forward) resets the observer
+  instead of replaying a backlog.
+- **Pan and pitch.** Cues pan with their x against the camera, within ±0.65. Untuned sounds vary up to ±3.6 % in pitch
+  by a fixed variant; tuned sounds and alarms play at their own pitch.
 
-## 10 November revision: instruments, boss states, Corona and Umbra
+## 3. Samples: synthesis, cache and memory
 
-User brief: the compositions are good and must not be rewritten; the instruments sounded too 8-bit; the boss music did not change dramatically enough, core and overload sharing one setting. Later the same day: Corona's music was a copy (it had no instruments of its own and Khepri-like patterns) and needed new music ("ominous harp sounds or something"); Umbra should be "very ominous too, with reversed instruments and alien harmonics". These two are the only rewritten compositions.
+- **One cached mono sample per sound and per instrument,** at `SAMPLE_RATE` (32 kHz), pitched by playback rate. No
+  oscillators are created per note.
+- **Effects** (`synthesize` in `samples.ts`): the sounds reworked since 11 November are written one by one in
+  `REWORKED` (each scaled to its own peak); the older effects come from one shared loop, peak-limited to 0.85. Every
+  sample gets anti-click edges and DC removal.
+- **Instruments** (`src/audio/instruments.ts`): each patch in `PATCHES` has a length, the note it sounds at rate 1
+  (`BASE_PITCH`), and a loudness target (RMS over a window) that `finish` in `dsp.ts` matches, through a soft knee for
+  sharp attacks, with peaks at or below 0.85. Matching loudness keeps the scores' written note gains in balance when a
+  patch is rebuilt.
+- **The synthesis kit** (`src/audio/dsp.ts`): PolyBLEP band-limited saws and pulses (`Saw`, `Pulse`), detuned unison
+  stacks (`Unison`), rotation sines for many-partial tones (`Rotor`), a topology-preserving state-variable filter that
+  stays stable while its cutoff moves (`Svf`), a one-pole filter (`OnePole`), soft saturation (`drive`) and the seeded
+  noise. Plucked strings are Karplus–Strong (`pluck` in `instruments.ts`).
+- **Made at boot, off the main thread.** `prefetchSamples` (`sample-bank.ts`) starts a module worker
+  (`sample-worker.ts`) that synthesizes every sample in `SAMPLE_IDS` order and hands each over as it is made. The order
+  is: the menu sounds and the whoosh first (they play in taps), then the flight's effects, the world instruments
+  (`LEVEL_INSTRUMENTS`, the title theme's lead among them), the boss instruments (`BOSS_INSTRUMENTS`), and last what
+  only a boss fight, a planet jump or the results need. The mixer takes a sample into an `AudioBuffer` the first time it
+  plays it (`takeSample`); a sample not made yet is made on the spot. Without a worker, samples are made one per 16 ms
+  task on the main thread. Synthesizing everything inside the first launch tap used to hold it about two seconds
+  (29 October), which is why this exists.
+- **Memory:** 92 samples, 15,627,520 bytes of PCM (14.9 MiB; measured 17 November). The budget is 15 MiB, asserted as
+  `15 * 1024 * 1024` in `tests/audio/audio.test.ts`, `tests/audio/boss-music.test.ts` and `tests/browser/audio.spec.ts`;
+  about 100 KB are left. The hall's impulse and the Web Audio nodes come on top.
 
-### What did not change
+## 4. Instruments
 
-- The level scores of Luna, Khepri, Nacre, Vesper and Amnion: every note, gain, pan, send and timing over the 32-bar cycle matches its 5af93ef fingerprint (`tests/audio/boss-music.test.ts`). Tempos, harmonies and arrangements are the same; Amnion's score function was split out without changing its output. (On 11 November the user asked for Khepri's bass and Vesper's arrangement to change; see the 11 November revision below.)
-- Every combat and event sound (weapons, impacts, explosions, shields, specials, boss cues, warp, results) is byte-identical: its synthesis code is untouched; only music instruments moved.
-- The scheduler (120 ms lookahead, 40 ms checks, missed beats skipped), the sample worker, the gesture/pause/mute lifecycle, the Music and Effects sliders and the master chain (high-pass, compressor, limiter, gate).
+The patches in `src/audio/instruments.ts`, by family (the types name them):
 
-### Instruments (`src/audio/instruments.ts`, `src/audio/dsp.ts`)
+| Family | Voices | Played by |
+| --- | --- | --- |
+| Level voices | `kick` (Umbra's own), `snare`, `hat`, `brush`; the round basses `bass`, `round-bass`, `foundry-bass`, `bio-bass`, `void-bass`; `saw-lead`, `piano`, `glass`, `bloom-pad`, `breath-pad`, `nerve`, `heart`, `bone`, `void-tick` | the world scores |
+| World voices (`WorldInstrument`) | `snap-kick`, `forge-kick`, `signal`, `anvil`, `steam`, `pearl`, `frost`, `crack`, `chitter`, `night-click` | Luna, Khepri, Nacre, Vesper, Amnion |
+| Corona (`CoronaInstrument`) | `harp`, `harp-high`, `solar`, `bowed`, `ember`, `doum`, `tek` | Corona |
+| Nahara (`NaharaInstrument`) | `horn`, `choir`, `stone-drum`, `rattle`, `conduit` | Nahara |
+| Umbra (`UmbraInstrument`) | `inhale`, `glint`, `obsidian` | Umbra |
+| Boss voices (`BossInstrument`) | `boom`, `riser`, `crash`, `braam`, `stab`, `tom`, `taiko`, `boss-kick`, `timpani`, `spiccato`, `drive-bass`, `growl`, `strings` | the boss stems and the title theme |
+| Title theme (`MenuInstrument`) | `anthem` | the title theme's lead |
 
-Each instrument is still one cached mono 32 kHz sample, pitched by playback rate. The synthesis is new: PolyBLEP band-limited saws and pulses, detuned unison stacks, a topology-preserving state-variable filter whose cutoff moves (filter envelopes, slow sweeps), rotor partials for modal and additive tones, Karplus–Strong strings, and gentle saturation that puts the low instruments' harmonics where a phone speaker can reproduce them. Every replaced patch keeps its name, length and base note and is matched to the loudness of the 20 October patch (RMS over the same window), so the scores' authored note gains keep their balance; sharp attacks reach it through a soft knee rather than a lower level. Peaks stay at or below 0.85.
+What shapes them:
 
-- Drums: a punchy pitch-dropping kick with a beater click and midrange knock; a snare of two tuned shell modes and a band-passed rattle with its top rolled off; six-square metallic hats band-passed around 8 kHz; modal foundry metal; a softer brushed swish.
-- Basses (replaced on 11 November, below): clean and round in every world, no saw or saturation.
-- Leads: Khepri's five-voice unison saw lead with a falling filter and delayed vibrato (kept low: it plays up to 2.5 times faster than its sample); Luna's felt piano with paired detuned strings, stretched partials and a two-stage decay; Vesper's glass (made calmer and colder on 11 November, below); Amnion's beating nerve tone.
-- Pads: Vesper's six drifting unison saws under a breathing filter; Nacre's slow bloom with a filter that opens with the swell; Amnion's membrane through two moving formant filters.
-- Boss voices (the 11 November orchestral set): boom (sub drop), riser, dark crash, braam (low brass blast), brass stab, tuned tom, ensemble drum (taiko), tuned timpani, spiccato strings, two round basses (plucked and short), string ensemble.
-- Corona: a two-string Karplus–Strong harp (3 cents either side, a slow uneasy beating) in a dark resonant body, in two registers; a solar drone (unison saws whose filter swells open and closed twice per note, a shimmer at the peaks, a band of plasma roar); bowed metal (inharmonic plate partials blooming in as the bow digs in); ember crackle.
-- Umbra: "reversed" means synthesized backwards envelopes, never reversed recordings. The inhale (an inhaled chord: unison saws and an inharmonic 2.41 partial growing under an opening filter, with backward air, cut at its end), glint (bell partials 1, 2.76, 5.4, 8.93 growing toward the end, smeared by a rising hiss) and obsidian (a dark ring-modulated bell, partials 1, 2.12, 3.47, 4.73, 6.18 with beating twins). The old void-air and needle patches are gone.
+- **Kicks** (`punchKick`): a beater click and a slap of noise in the first milliseconds, a body that drops fast in pitch
+  and dies quickly, saturation so the knock reads in a phone's midrange, and a short knock around 190 Hz. `snap-kick`
+  (Luna, Nacre, Vesper, the title theme), `forge-kick` (Khepri, harder), `boss-kick` (the fights) and Corona's `doum` are
+  built this way. Umbra keeps its own older `kick`, frozen with its score.
+- **Basses** (`roundBass`): clean and round in every world and fight, a sine fundamental with faster-fading second and
+  third harmonics and a soft felted onset; no saw, no saturation (user, 11 November: "too sawy and dirty"). They differ
+  by decay and harmonics; the fight basses (`drive-bass`, `growl`) get their drive from rhythm and length.
+- **Leads:** Khepri's five-voice unison saw lead; Luna's felt piano (paired detuned strings, stretched partials, a
+  two-stage decay); Vesper's bell, clean and icy like a triangle (five sparse steel-rod partials, each beating against a
+  twin 1.6 cents away); Nacre's pearl, a soft-mallet vibraphone with its motor's tremolo; Amnion's beating nerve tone;
+  Corona's two-string Karplus–Strong harps in a dark body; Nahara's ancient horn (three saws through a filter that blares
+  open on the attack).
+- **Pads and drones:** Vesper's frost (detuned sines over thin wind), Nacre's bloom (thinned below 200 Hz so it stays
+  above the drums), Amnion's membrane (formant filters), Corona's solar drone (a unison saw stack whose filter swells like
+  heat, with a plasma roar), Nahara's wordless choir (an open "ah" through three formant bands).
+- **Umbra's "reversed" voices** are synthesized backwards, never reversed recordings: `inhale` (an inhaled chord swelling
+  under an opening filter, cut at its end), `glint` (bell partials growing toward the end), and the forward `obsidian`, a
+  dark ring-modulated bell with non-integer partials.
+- **The orchestra for the fights:** a taiko-like ensemble drum, tuned timpani (principal tone and the inharmonic 1.5,
+  1.98 and 2.44 modes), spiccato strings, a sustained string ensemble, brass stabs, braam, boom, crash and riser. Pitched
+  boss voices keep their unison within ±6 cents and the strings' vibrato within ±3.5 cents (user, 11 November: the fights
+  "seem like they drift into false notes"); inharmonic partials are kept to the drums, crash and timpani.
+- **`anthem`**, the title theme's lead: a horn section of three players, each a band-limited saw through a lip filter
+  that brightens with that player's loudness, with its own entry (0, 8, 14 ms), tuning (−4, 0, +4 cents), drift and late
+  vibrato; breath and a short lip buzz on the attack, no click; a slight overshoot, a settle, then a bloom.
 
-### Mix (`src/audio/mixer.ts`)
+## 5. The mix
 
-- The level score's voices pass through a bed node. In core and overload it rests 0.5 and 1.5 dB lower (`BED` in boss-score.ts), moving smoothly on bar lines and stinger hits, so the stem gains weight without the fight simply getting louder. It returns to 1 as the boss fades. (Until 11 November it also dipped under every boss kick; that pumping is gone.)
-- The boss stem has its own 24-voice pool beside the score's 36 and the effects' 20, so it can never thin the level score, with priorities inside it (stingers, then drums and bass, strings, the ostinato, ticks). A gentle bus compressor (11 November: −10 dB threshold, 1.8:1, 15 ms attack, 250 ms release) only rounds off its peaks before the music fader, so it does not push the shared master compressor that the combat sounds pass through.
-- Pads, drones and strings feed a stereo ensemble: two short delays, one per side, slowly modulated at different rates (no phase-inverted widening; mono RMS stays above 85 %).
-- One hall (11 November) replaces the room and the ping-pong echo: see the 11 November revision below.
+One `AudioMixer` (`src/audio/mixer.ts`) serves the game and every offline preview, so previews use the real mix.
 
-### Boss music: four states (`src/audio/boss-score.ts`)
+**Signal flow:**
 
-The level score always plays on, untouched, on its own sixteenth-note clock. An additive stem on the same clock and harmony changes arrangement with the simulation's boss phase (read-only, via `bossStage`):
+```
+level score ── (keyed voices: sidechain) ── bed ─────────┐
+boss stem ── (keyed voices: sidechain) ── fader ── glue ─┤
+title theme ── lead, accompaniment, drum buses ── fader ─┼── music fader ── duck ──┐
+hall return, ensemble ───────────────────────────────────┘                         │
+effects ── effects fader ──────────────────────────────────────────────────────────┴── master chain ── gate ── out
+menu sounds ── ui fader ────────────────────────────────────────────────────────────────────────────────────── out
+```
 
-| State | Phases | Percussion | Bass | Pulses and harmony | Stinger into it |
-| --- | --- | --- | --- | --- | --- |
-| Flight | none, destroyed | the level score's own | | | |
-| Modules | arrival, batteries | two or three heavy ensemble-drum hits a bar, timpani on each chord, a tom fill into each phrase | long round notes on the half bar, on the riff where it lands on a beat | a low spiccato pulse on the beat (half notes on Vesper and Umbra); low strings on root and fifth; a quiet braam on each phrase | entrance: a riser timed to peak on the next bar line, toms climbing in the last beat, then boom, braam on root and fifth, crash, drum, timpani, a deep tom |
-| Core | core | a fuller drum pattern, timpani on each chord change, a snare pickup every fourth bar and a fill into each phrase | plucked eighths on the riff, the root otherwise, the octave at the end of each half bar | a sixteenth spiccato ostinato through the chord in 3-3-2 accents (eighths on Vesper and Umbra); a brass chord on each change; strings on the chord | on the next beat: a snare pickup, then crash, drum, timpani, boom and a brass chord |
-| Overload | overload | driving drums in 3-3-2, a timpani roll and a riser into each phrase, snare and tom fills | short eighths with octave leaps and the chord's colour tone | the ostinato doubled an octave up over low spiccato sixteenths; brass on each change and syncopated on 3, 6 and 10; boom per chord, crash and braam per phrase; brighter strings | on the next half bar: a riser, a thirty-second snare roll and spiccato rushing up the chord, one sixteenth of silence in the stem, then the biggest boom, braam in octaves, a four-voice brass chord, timpani and two drum strokes |
+- **Faders:** music is the Music setting × 0.72; effects the Effects setting; the menu sounds the Effects setting × 0.85.
+  The hall and ensemble return into the music fader, so music at zero silences them too.
+- **Master chain:** a 32 Hz high-pass, a compressor (−10 dB, 4:1, 4 ms attack, 170 ms release), a fast limiter at −2 dB
+  and the gate, which opens only while a flight or the title theme plays. The menu sounds bypass the chain and the gate,
+  so a paused flight's panels still sound.
+- **Voice pools** (`VOICE_LIMITS`): the level score, the boss stem, the effects, the title theme and the menu sounds each
+  have their own capped pool, so the boss stem can never thin the score and combat can never thin either. When a pool is
+  full, the new voice replaces the lowest-priority voice ending soonest (fading it over a few milliseconds), or is dropped
+  if every voice outranks it. Effect priorities are in `PRIORITY`: impacts and enemy shots lowest, alarms and the boss's
+  death highest; in the boss stem, stingers outrank drums and bass, then strings, the ostinato and ticks.
+- **The player's touch** (`humanize`): a fixed timing and velocity per note, from a hash, never written into the score.
+  One timing per sixteenth and part, so a chord's tones strike together and a part never smears against itself: drums and
+  basses (`TIGHT`) within ±2 ms, other parts 2 ms early to 4 ms late, velocity ±6 %. Reversed voices and risers
+  (`EXACT`) keep exact time. Umbra's frozen score keeps the older per-note touch it was approved with (`legacy`).
+- **One note at a time:** a bass (`MONO`) damps its previous note as the next starts (silent within 60 ms), and a melody
+  marked with a `part` does the same within 120 ms (80 ms in the title theme), so lines never ring over themselves.
+- **Space:** one stereo convolution hall for all music: 18 ms pre-delay, seven early reflections that differ between the
+  sides, a 2.3 s tail whose highs die first; its return is high-passed at 170 Hz so it never thickens the bass. Pads,
+  drones, strings and the choir (`ENSEMBLE`) also feed a stereo ensemble: two short delays, one per side, slowly
+  modulated. No phase-inverted widening, so mono playback keeps its level. Combat effects stay dry.
+- **Sidechain:** a kick note carries a key (`duck` on the `Note`). Only the keyed voices dip, within 3 ms, recovering
+  over about a quarter of a beat: the basses, the synth leads (`saw-lead`, `nerve`), the spiccato and the brass stabs
+  (`KEYED`), in the score, the stem and the title theme. Pads, acoustic leads, reverb returns and effects never dip. Two
+  kicks within 30 ms (the score's and the stem's) make one dip, the deeper. Depths per world, for the level score and
+  each boss stage, are in `SIDECHAIN` (`score.ts`): gentle in the ambient worlds, deeper in the fights and deepest in
+  overload, none in Umbra's level score.
+- **The level bed:** in a fight the level score steps back slightly as the stem takes the weight (`BED` in
+  `boss-score.ts`: about −0.5 dB in core and −1.5 dB in overload), moving on bar lines and stinger hits, back to full when
+  the fight ends.
+- **Ducking:** a life lost, the last shield charge, a boss arrival, a boss's death and the Shockwave lower the music by
+  about 7 dB for a fraction of a second.
+- **Boss stem bus:** a gentle glue compressor (−10 dB, 1.8:1, 15 ms, 250 ms) rounds off its drum and brass peaks before
+  the music fader, so they never push the master compressor that the combat sounds share.
+- **Title theme bus** (section 9): its own lead, accompaniment and drum paths under one fader whose hall sends fade with
+  it.
 
-There is no kick on the beat, no hi-hat or clap and no side-chain pumping (11 November); the snare only fills. Note density grows by stage (about 8–15, 23–38 and 73–88 stem notes per bar); nearly every off-beat sixteenth sounds in overload. Destroyed fades the stem out over one bar, still playing its last state, then the level score is alone again.
+## 6. The world scores
 
-Synchronization: when the engine observes a new stage it calls `BossArranger.request(stage, clock.step)` with the first sixteenth the lookahead has not scheduled. The change lands on the next bar line at least six sixteenths ahead (an entrance, room for its riser), the next half bar at least four ahead (overload) or the next beat at least two ahead (otherwise). Stingers fill the steps from the request to the switch. A change asked for before the previous one lands takes over that grid line. The clock is never reset; a resumed or stalled clock skips stingers it jumped past instead of playing a backlog.
+`src/audio/score.ts`. Each world has its own authored 32-bar cycle (`THEMES`, one arrangement function per world called
+by `scoreStep`). A step is a sixteenth; the clock (`ScoreClock`) schedules 120 ms ahead every 40 ms and, after a stall,
+skips missed sixteenths instead of playing a burst. All share one form: an opening (bars 1–8), a developed phrase
+(9–16), a breakdown (17–24) and a return (25–32); the chords change every two bars through four chords. No phrase
+repeats unchanged: in Luna, Khepri, Nacre and Vesper the melody's motif plays in the first two bars of each four and its
+mirror image answers in the next two, and those melodies, written as intervals over the chord root, are held to each
+chord's mode (`inMode`, the modes in `THEMES` `scales`); Amnion, Corona, Nahara and Umbra write their lines out per
+phrase or per chord.
 
-Identity per world: Luna keeps the score's played timing and brushes; Khepri adds struck metal on the off-beats and the heaviest drums; Nacre stays softest (brushes, the round bass, light drums); Vesper keeps a spacious pulse and an ostinato two octaves up until overload breaks into sixteenths; Amnion's drum is its heartbeat, paired beats racing unevenly in overload, with bone ticks; Corona's drums keep the score's 3-3-2 under ember crackle; Umbra keeps a precise half-time pulse with void ticks and adds inhaled chords that stop dead on the stem's chord changes (modules) and bar lines (core), and in overload reversed glass that sucks into every beat through the chord's harmonic-series tone. Every stem tone is checked against the melody (see the harmonic audit below).
+| World | Title | Tempo | Centre | Character |
+| --- | --- | ---: | --- | --- |
+| Luna | Far Side Signal | 94 | D, mixolydian with a lydian F♯ over C | Lonely and human: felt-piano chords struck together, a three-note melody, a four-note round bass, brushes, a soft snappy kick, Luna's own written played timing, and a distant beacon pinging twice at the end of every four bars in the opening and breakdown, once in the return's last bar |
+| Khepri | Foundry Afterimage | 118 | A minor and its dark semitone shifts | The foundry: a hard forge kick, mechanical eighth hats and a backbeat snare, the saw lead four notes a bar (root, third, fifth, third) with chord stabs, a round bass in four ringing notes, a tuned anvil every six sixteenths only where nothing else strikes, steam let out of the press every four bars |
+| Nacre | Dreams Beneath the Bloom | 106 | C; B♭ major's modes over C, E♭ and F, then D dorian | Dreamy: the pearl sings three notes a bar over a thinned bloom pad, with a three-note bass, a snappy kick, brushes and hats you can hear |
+| Vesper | Below the Ice Line | 88 | B | Ambient: two icy bells every second bar, an octave above the written melody, left to ring; a frost pad, two bass notes a bar, one soft kick, and now and then the ice cracking far off |
+| Amnion | Something Beneath the Skin | 92 | G, Phrygian and uneasy | The night: a breathing membrane pad, an organic bass, paired heartbeats that land like a kick, dry bone clicks, a three-note nerve melody (a semitone creep, then the tritone), and now and then a lone creature calling far off in the hall, never on the heartbeat or near the melody, placed by `scatter` |
+| Corona | Hymn for a Swollen Sun | 110 | E, modal over a drone | No chord progression: an open E–B fifth, its third section adding the ♭2 (F) as a colour. A lament of a few long notes on the higher harp (`CORONA_LAMENT`) in maqam Bayati with its half-flat second, Saba over the ♭2, with slow slides; the low harp plucks once per ten-sixteenth cycle (a sama'i thaqil's 10/8), drifting across the bar and meeting it again every five bars; a darbuka in maqsum, then baladi in the return (`MAQSUM`, `BALADI`); the solar drone, ember crackle, bowed metal every four bars |
+| Nahara | Silent Empire | 90 | D, nothing resolves | A procession through ruins: D minor with its ninth against the third, a B♭ augmented triad, a chromatic step to F♯ minor, A suspended. A wordless choir on each chord, the stone processional drum, a sistrum on the backbeat, the conduits' crystal arpeggios, and the ancient horn's three long notes over each chord (`NAHARA_HORN`) |
+| Umbra | Where the Light Goes Backwards | 84 | F♯ | Chords a semitone, a tritone and a semitone away (F♯, G, C, F), each with one harmonic-series tone off the twelve-note grid. Every bar line is breathed in by an inhaled chord that stops dead on it; the lament on reversed glass (octave, a three-quarter-tone step above it, fifth, a quarter-tone-flat fifth) lands on obsidian strikes; the forward obsidian bell answers with a neutral third and a quarter-tone-flat seventh (`UMBRA_ANSWER`); a precise void pulse (void bass, a kick on one and three, off-beat ticks). The breakdown is a line through silence: breath, one tick a bar, a distant toll |
 
-### Corona: Hymn for a Swollen Sun
+Notes on the table:
 
-- 110 BPM, E. Until phase 5, E Phrygian (maqam Kurd) over Em, F (♭II), C (♭VI) and B major (V). Since phase 5 there is no progression: an open E–B drone, its third section adding the ♭2 (F) as a colour (see phase 5 below).
-- The low harp (C3 sample) plucks once per ten-sixteenth cycle, drifting across the bar and walking the drone, never near a lament note (phase 5). Phase 4 had tremolos and graces, v3 three notes a bar, and before 11 November it was a running sixteenth ostinato.
-- The lament on the higher harp (`CORONA_LAMENT`) is a few long notes in Bayati, with Saba over the ♭2 (phase 5; phase 4 had Kurd and Hijaz over chords). It enters in the opening's second half (first bars only) and plays throughout phrases two and four. In the return its tonic is doubled an octave down.
-- The rest of the texture:
-  - the solar drone holds root and octave under each chord, with the higher octave too in the breakdown;
-  - the bass plays on the doum strokes;
-  - a darbuka plays maqsum in phrase two and baladi in the return;
-  - ember crackle off the beat;
-  - bowed metal every four bars.
+- **Tempo and centre** come from `THEMES` (`bpm`, `root`; the tempos are pinned in `tests/audio/boss-music.test.ts`). The
+  success ring transposes to the same centre (`successKey`).
+- **Corona and Umbra yield:** their accompaniments give way to the lament. A tone that would grind against a lament note
+  outside the chord moves to the nearest chord tone that does not, or is left out (`yieldTo`).
+- **Umbra's reversed notes** are scheduled from an earlier sixteenth and delayed within it, so their hard ending falls
+  exactly on the grid (`landingNote`, up to `LANDING_STEPS` ahead). Pitches may be fractional; the mixer plays them by
+  rate.
+- **Umbra is frozen.** The user loved it (11 November: "i love love love the umbra sound"), so its 32-bar cycle and the
+  samples it plays are pinned note for note and sample for sample (`FROZEN`; `tests/audio/boss-music.test.ts`). Nothing in
+  its level score keys the sidechain.
+- **Every cycle is pinned.** Each world's whole cycle is fingerprinted in `tests/audio/boss-music.test.ts`: a change there
+  is a change to the composition, never a side effect of sound design.
+- **Fewer notes:** the melodies are sparse and mostly stepwise (user, 11 November: "just relax the amount of notes,
+  simpler melodies").
+- **Endless** switches the score at the planet switch: the old score's voices stop with a short fade and the new score
+  starts from its first bar 70 ms later, so no beat doubles.
 
-### Umbra: Where the Light Goes Backwards
+## 7. Boss music
 
-- 84 BPM on F#. Chords, two bars each: F#, G (a semitone up), C (the tritone) and F (the semitone under the root). Each adds one harmonic-series tone off the twelve-note grid: the 11th harmonic (+5.51 semitones), the 7th (+9.69), a pure major third (+3.86) and a pure minor third (+3.16). Pitches may be fractional; the mixer plays them by rate.
-- Every bar line is breathed in: root, fifth and the chord's alien tone, inhaled and stopping dead on the downbeat. A reversed note is emitted from an earlier step and delayed within it so its hard ending falls exactly on its grid line (`landingNote`, up to 32 sixteenths ahead).
-- The lament on reversed glass: octave, a three-quarter-tone step above it, fifth, then a quarter-tone-flat fifth (11 November; the minor ninth that stood second read as a clash), each arriving out of its own backward ring onto a soft obsidian strike an octave down. The answer in the second bar is the forward obsidian bell: a neutral third (between minor and major), then the semitone above the root.
-- The pulse: void bass on beats and a syncopated pickup, a precise kick on one and three, off-beat ticks (sixteenths in the return). The breakdown is a line through silence: breath, one tick per bar and a distant toll.
+`src/audio/boss-score.ts`. The level score plays on unchanged through a fight, on its own clock, with its melody, rests,
+breakdown and phrase position. An additive stem on the same clock and harmony changes arrangement with the boss's phase
+(read only, through `bossStage`). There is never a second copy of the lead or pads, a restart, or a second clock that
+could drift.
 
-Boss revision (23 October; its two-level fader is superseded by the four boss states of 10 November, below): the approved level score now plays **unchanged** throughout a fight, including its melody, chord progression, rests, breakdown, tempo and phrase position. A separate bass/percussion stem follows that same sixteenth-note clock. Arrival fades this stem from silence to 85% over one bar (2.03–2.73 seconds depending on the planet); core/overload lifts it to 100% over one bar. Destruction fades it out over one bar. There is no second copy of the lead/pad bed, no track restart, and no independent audio clock that can drift. These are two arrangements of the same song, implemented as shared base plus an additive stem rather than two full streamed recordings.
+| Stage | Boss phases | What the stem adds | Stinger into it |
+| --- | --- | --- | --- |
+| Flight | none, destroyed | nothing: the level score alone | |
+| Modules | arrival, batteries | a few heavy drum hits a bar; long bass notes on the half bar; a low spiccato pulse on the beat (half notes in the spacious worlds); timpani and low strings (root and colour tone) on each chord; a quiet braam on each phrase; toms and snare filling into each phrase | Entrance, on the next bar line: a riser peaking on the hit, toms climbing in the last beat, then crash, drum, kick, timpani, boom, braam on root and colour tone, a deep tom |
+| Core | core | a fuller drum pattern; the bass in plucked eighths; a sixteenth spiccato ostinato through the chord in 3-3-2 accents (eighths in the spacious worlds); a brass chord and timpani on each chord change; sustained strings; a snare pickup every fourth bar and a fill into each phrase | On the next beat: a snare pickup, then crash, drum, kick and timpani with a boom and a brass chord (a step back down gets the pickup and the plain hit) |
+| Overload | overload | driving drums in 3-3-2; the bass in short eighths with octave leaps; the ostinato doubled an octave up over low sixteenths; brass on each change and syncopated; boom on each chord, crash and braam on each phrase; brighter strings; a timpani roll and a riser into each phrase | On the next half bar: a riser, a thirty-second snare roll and spiccato rushing up the chord, one sixteenth of silence, then the biggest boom, braam in octaves, a four-voice brass chord, timpani and two drum strokes |
 
-The boss bass reinforces the original riff and fills rests with the current root/octave. Luna retains played timing and a brushed backbeat, Khepri adds driving saw bass and mechanical subdivisions, Nacre gains a rolling rounded-bass groove beneath its soft pads, and Vesper keeps its glacial melody over a heavier half-time pulse. The added low end stays centred and dry. Its voices share the 36-voice music budget and have lower priority than the original score, so they cannot steal its sustained pads or lead. Muting, music volume, pause and quit govern both layers; a new run or world switch clears the boss fader. Existing combat-event sounds and ducking remain unchanged.
+- **Growth by arrangement, not level:** each stage is denser than the last (the test asks core for more than 1.3 times
+  the modules' notes, overload for more than 1.4 times core's, and nearly every off-beat sixteenth sounding in overload).
+  The bed steps back as the stem grows (`BED`), so a fight builds by density, register and voices rather than loudness.
+- **An orchestra, not a drum machine:** no four-on-the-floor, no hats or claps, and the snare only fills into phrases.
+  The fights' kick (`boss-kick`) sits under the big drum's strongest strokes (each half bar's first, and in overload the
+  3-3-2 accents) and under every stinger's hit, and keys the sidechain at the stage's depth; lighter drum strokes key it
+  at 0.6 of that.
+- **Each world stays recognisable** through its kit (`KITS`): Luna keeps its played timing and brushes; Khepri has the
+  heaviest drums and its anvil striking chord tones two octaves up; Nacre is the softest (brushes, light drums); Vesper
+  and Umbra keep a spacious half-time pulse and an ostinato two octaves up; Amnion's drum is its heartbeat, racing
+  unevenly in overload, with bone ticks; Corona's drums are the darbuka (doum where the maqsum puts it, tek between);
+  Nahara's are the stone drum and the sistrum; Umbra adds inhaled chords that stop dead on the stem's chord changes
+  (modules) and bar lines (core and overload), and in overload reversed glass sucking into every beat.
+- **Synchronization:** when the engine sees a new stage it calls `BossArranger.request` with the first sixteenth the
+  lookahead has not scheduled. The change lands on the grid after it (`switchStep`): the next bar line at least six
+  sixteenths ahead for an entrance (room for its riser), the next half bar at least four ahead for overload, the next
+  beat at least two ahead otherwise. Stingers fill the sixteenths up to the switch. A change asked for before the previous
+  one lands takes over its grid line. A resumed or stalled clock skips stingers it jumped past.
+- **Fader:** the stem's fader opens at once when a fight starts; when it ends (the boss destroyed), the stem plays its
+  last stage for one more bar while the fader closes over that bar, then the level score is alone again. A new run or a
+  planet switch clears it.
 
-Listening revision: the user liked the first pass but found the instrumentation too similar. The Moon now uses hammer/string-inspired piano patches and a small deterministic timing/velocity variation, giving it a familiar human character. Khepri uses finite-harmonic saw synthesis and a stronger bass balance. Nacre is led by slow-attack pads with only a sparse upper melody. Vesper's approved arrangement and instrument settings are retained. These are distinct patches, not merely different transpositions of one lead.
+## 8. Harmony and its audit
 
-The score clock schedules 120 ms ahead, checks every 40 ms, and skips missed notes after an interruption. It never plays a burst of overdue beats. A resumed score enters at a chord boundary. Normal music is original synthesis, not a recording streamed over the network.
+`src/audio/harmony.ts` and `src/audio/harmony-audit.ts`.
 
-## Mix, controls and mobile lifecycle
+- **A clash** (`clash`) is a minor second, major seventh or tritone between two notes heard together, checked within a
+  quarter tone so Umbra's microtones are not mistaken for one. It is not a clash if both notes are tones of the chord in
+  force.
+- **The stem yields to the melody:** each pitched stem tone is checked against the melody heard as it strikes and any
+  passing note in the next two sixteenths (`consonantWith`); a clashing tone moves to the nearest chord tone that does
+  not clash, or is left out.
+- **A tone still heard after a chord change belongs to both chords** (`steady`), or moves to the nearest tone that does.
+  Stinger lead-ins rush up the chord sounding at the time, and risers climb to the landing chord's root.
+- **How long a note is heard** (`soundingSteps`, `heardWindow`): held voices for their length, ringing ones until they
+  have faded a lot, short ones briefly; a reversed note belongs to the chord it lands on.
+- **The audit** (`audit`, `auditMenu`) replays a whole cycle per world and stage and lists every clash between the
+  melody, the score's harmony and the stem. `tests/audio/harmony.test.ts` asserts:
+  - no boss-stem note clashes with the melody, the harmony or another stem note, in any world or stage;
+  - no clash in any level score except Amnion's, whose tritones over its uneasy chords are its character (the count is
+    pinned in the test);
+  - every pitched stem note, stingers and risers included, stays in its chord or mode for its whole heard length;
+  - every melody but Umbra's stays in its mode.
 
-- Defaults: music 55%, effects 80%, Sound on. Independent sliders in the existing Settings page; the existing Sound on/off control mutes everything.
-- Preferences use `last-worlds.audio.v1`, separate from campaign progression and statistics. Invalid or unavailable storage falls back to session settings.
-- AudioContext is created/resumed from an input gesture. The first gesture builds the reusable sample cache. Failures cannot stop a flight.
-- The resume-button gesture unlocks audio before the UI's three-second countdown completes, including a context suspended during a pause.
-- Pause, hidden tab, window blur and rotate pause close the master gate and stop queued voices. Returning requires the game's normal resume. Muting also cancels queued voices. The device suspends after wet tails decay behind the closed gate.
-- Flight endings stop music, let the final cue finish, and suspend audio. The menu stays quiet.
-- Music and effects have separate faders. The music hall's return passes through its fader, so setting music to zero also silences it.
-- One stereo convolution hall and one stereo ensemble serve the score (11 November; see below). Kicks key a sidechain on the basses and synth leads only (phase 4). Combat stays comparatively dry and precise. No per-shot reverb instances or per-note oscillators; the ensemble's two slow modulation oscillators are created once with the mixer.
-- Conservative panning and no phase-inverted widening preserve mono playback. A high-pass, compressor, limiter and output headroom control combined levels.
-- Shield break, life loss, shockwave and major boss cues temporarily lower the music.
-- Nominal caps: 36 level-score voices, 24 boss-stem voices (10 November) and 20 effects voices. Voice stealing fades out over 18 ms; those short retiring fades can briefly overlap the capped active set. Important cues may replace low-priority voices. Quiet impacts cannot replace critical cues.
-- Visible-space filtering, volley grouping, per-frame impact quotas and cooldowns prevent offscreen battles and large formations from flooding the mix.
+## 9. The title theme "Last Worlds"
 
-## Code boundaries
+`src/audio/menu-theme.ts`. The menu's own music (user, 15 November: "a very recognizable, catchy and fitting to the style
+menu music and sounds for button presses"; then "it should sound more heroic and mysterious"). The melody makes it
+heroic and familiar; the harmony makes it mysterious.
+
+- **Basics** (`MENU_THEME`): D minor, modal, at 100 BPM with half-time weight; 32 bars (76.8 s) that loop without a
+  seam. Form: intro (4 bars), hook (8), B section (8), the hook again, bigger (8), turnaround (4).
+- **The melody** (`HOOK`, `B_LINE`), a conventional heroic line in D natural minor, every hook bar on the call's dotted
+  rhythm (dotted quarter, eighth, half):
+  - the call 1-5-8 (a pickup A3, then D4, A4, D5); the answer 3-2-1 (F, E, D); rising B♭, C, D, then C, D, E, the
+    question on E;
+  - the call again; the climax F, G, A; down B♭'s arpeggio (F, D, B♭); home on A, C, D;
+  - the B section in long notes and two-bar rhymes: up G minor's arpeggio to D, the 5-6-5 turn over E♭ (B♭, C, B♭), up
+    B♭'s arpeggio to D, and down to A, the dominant, into the hook's pickup.
+  - Strong beats are tones of the chord sounding, the eighths between them steps, never two lead notes at once.
+- **The harmony:** open fifths and suspended seconds, no thirds, one chord a bar. Intro D5 D5 E♭5 D5; hook D5 D5 B♭sus2
+  C5 | D5 D5 B♭sus2 D5; B section G5 G5 E♭5 E♭5 B♭sus2 B♭sus2 G5 A5 (the A without its C♯: no major cadence);
+  turnaround E♭5 E♭5 B♭sus2 C5. The ♭II (E♭) colours the intro, the B section and the turnaround.
+- **The arrangement:**
+  - **Lead:** `anthem` (section 4), centred, doubled by the string section an octave down under its strong notes (each
+    releasing as the next melody note arrives) and by soft brass stabs on the hooks' downbeats; in the last hook the glass
+    doubles it an octave up through the second call, the climax and the descent (its fifth to seventh bars).
+  - **Pad and choir:** the boss strings play each chord, wide; Nahara's wordless choir holds the fifth and octave over
+    it in chosen bars (`CHOIR`); low braams on the drone and the arrivals.
+  - **Ostinato:** spiccato strings in the chord's register, grouped 3-3-2 (the game's rhythm): eighths in the first
+    hook, the B section's first half and the turnaround's start; sixteenths building into the first hook, in the B
+    section's second half and in the last hook.
+  - **Bass:** the round bass on the call's rhythm, driving on in the last hook, half time in the B section.
+  - **Mystery:** Umbra's reversed swell (`inhale`) breathes into four bar lines (`SWELLS`), carrying only tones both
+    chords share; a cold glass shimmer two octaves up in the intro, the turnaround and over the B section's held notes;
+    the glass calling the 1-5-8 motif from afar before the first hook (`TEASE`).
+- **The drums** (user, 16 November: "refine the drums now of the theme menu song"), all reusing the game's own drum
+  samples:
+  - kick: the snappy kick, its tail released after 0.2 s so the low end stays the bass's; each kick ducks the bass and
+    the ostinato, never the lead;
+  - snare: the snare's crack and rattle over a tom tuned to its shell, with a darbuka rim's snap on top;
+  - ensemble drums: up to three taiko players 11 and 19 ms apart, slightly detuned, spread left and right, with Nahara's
+    stone drum under the biggest hits;
+  - timpani rolls in sixteenths into each hook, single strokes opening the B section's halves; a cymbal swell (the riser)
+    landing on each hook and softer ones on the B section and the turnaround; two crashes either side on the hooks'
+    downbeats, single crashes on the other arrivals.
+  - The programming builds across the form: distant drums in the intro; the kick on the call's rhythm, a half-time snare
+    and a taiko on each downbeat in the first hook; half time with a roomier snare in the B section; in the last hook a
+    third kick, three drummers, the stone drum on the call bars, soft off-beat hats and a ghost snare; short pickups into
+    sections, never busy.
+- **Clean bar lines:** a pitched note that would still ring into a chord it grinds against is released 0.25 s before that
+  bar line, so its release and the hall's early reflections end on it (`holdFor`, the `hold` field of a `Note`); a short
+  note that cannot sound before then is left out. Every note starts at its pitch: no scoops or glides (they pulled note
+  starts 15 to 74 cents off; measured and removed on 15 November).
+- **Its own mix** (`mixer.ts`):
+  - the lead and its doublings on one bus, high-passed at 90 Hz, with four early reflections (11 to 29 ms, alternating
+    sides) and a hall send pre-delayed 35 ms, so it sits like a section in a room;
+  - each lead note gets the horn's two resonances (around 0.5 and 1.2 kHz, `formant`) and a low-pass from 2 to 5.6 kHz
+    (`tone`), both stronger the harder the note is played;
+  - the accompaniment is dipped 3.5 dB around 2.2 kHz to leave the lead room, and meets the lead in a gentle glue
+    compressor;
+  - the drums have their own bus outside that glue, so a hit never pumps the lead: a 2 dB dip at 2.5 kHz, a drum glue
+    that lets transients through, and a room of eight early reflections (7 to 31 ms) across both sides, high-passed at
+    120 Hz;
+  - the fader (`MENU_LEVEL` of the music fader) carries the hall sends too, so a fade takes the reverb with it; the
+    theme has its own voice pool.
+- **Checks** (`tests/audio/menu.test.ts`): the cycle's fingerprint; the hook's call, answers and phrase ends; D natural
+  minor only, strong beats on chord tones, about two lead notes a bar; every chord an open fifth or suspended second;
+  `auditMenu`, stricter than the worlds' audit because the accompaniment is checked against itself too; a 32nd-by-32nd
+  check that no note, tail, release or early reflection sounds against the chord, across the loop's seam too; every voice
+  listed in `MENU_INSTRUMENTS`; the `anthem` sample's hash.
+
+## 10. Menu sounds
+
+One family, crisp and short, in the glassy, metallic world of the pickups and the theme (`UiSound` in `samples.ts`),
+wired once for the whole UI by delegated capture listeners in `installUiSounds` (`src/ui/ui-sounds.ts`). They play through
+their own path past the master gate, so a paused flight's panels sound too.
+
+| Sound | What it is | Where (`uiSoundOf`) |
+| --- | --- | --- |
+| `ui-press` | a click and a short bright blip on A6 with its fifth above | any other button: menu buttons, hangar entry, settings, help, resume, pause |
+| `ui-back` | the same click, its blip falling an octave to A5 | back buttons, quit, return to menu, cancelling a load |
+| `ui-select` | a small glass tick on D7 | radio groups, tabs, mission arrows, tier pips, a tried-on design, a paint colour or a checkbox |
+| `ui-tick` | the faintest click on G7, pitched over an octave by the slider's value | the Music and Effects sliders |
+| `ui-purchase` | a latch's click, then the upgrade bell rising E6, B6, E7 over a soft shimmer | hangar BUY and UPGRADE, a design bought (`data-sound` set in `src/ui/hangar.ts`) |
+| `ui-equip` | a low clunk under a metallic catch | hangar EQUIP, fitting an owned design |
+| `ui-deny` | two low, muted knocks (not the flight's buzzer) | a press on a disabled button: not enough credits, a tier not bought, a locked mission (where the browser delivers it; current Chromium does) |
+
+- **Silent buttons:** the special button (gameplay) and the launches (LAUNCH MISSION, ENDLESS, FLY AGAIN), which the
+  warp's whoosh covers.
+- **Rules:** they follow the Effects volume and Sound off; a repeat closer than 40 ms is not played again (`UI_COOLDOWN`:
+  longer for the slider tick, a purchase and a refusal). They are first in the boot order and are skipped, never made in
+  the tap, if not ready yet.
+
+## 11. Settings, controls and lifecycle
+
+- **Settings** (`src/audio/settings.ts`, `mountAudioSettings`): Music and Effects sliders (0–100 in steps of 5) added to
+  the Audio group of the settings panel ([docs/16](16-flight-command-ui.md)); the panel's own Sound on/off radio mutes
+  everything. Defaults are `DEFAULT_AUDIO` in `engine.ts` (user, 15 November: music 75 %, effects 55 %). Preferences are
+  stored under `AUDIO_STORAGE_KEY` when a setting changes, apart from the campaign save and statistics; unreadable or
+  unavailable storage falls back to the defaults for the session (`sanitizeSettings`).
+- **Gesture unlock:** browsers allow sound only after a gesture. The first tap or key creates the `AudioContext` and the
+  mixer (`unlock` in a flight, `menu` in the menus; `src/main.ts`). Before that the game is silent. A device that cannot
+  play audio, or fails to start it, never stops a flight.
+- **Flight start:** a launch tap fades the title theme out over the warp (0.9 s) under the warp's whoosh (`launch`); the
+  world's score starts when the flight does, after the warp (`start`), so the two never overlap. Nothing is synthesized
+  in that tap: the whoosh plays only if its sample is made.
+- **Pause:** pausing, a hidden tab, a window blur, turning the phone sideways and waiting for the next world to load in
+  an endless jump all close the master gate and stop queued voices (`pause`). The resume button's tap unlocks audio
+  before the three-second countdown ends; the score resumes at the next chord boundary. After two seconds without a
+  flight or the theme, the audio device is suspended once the tails have faded behind the gate.
+- **Mute and zero:** Sound off stops every voice and the theme; Sound on again in the menu restarts the theme. Music at
+  zero stops the music and the theme, Effects at zero the effects and menu sounds.
+- **Flight end:** the score stops, the result's sound plays, and the title theme returns 3.2 s later
+  (`MENU_AFTER_RESULT`), fading in under the results. Leaving a flight from the pause panel brings it back too.
+- **The title theme** starts on the first interaction in the menu, once every voice it plays is made
+  (`MENU_INSTRUMENTS`), and fades in over 3 s; it plays on through the menus until a launch. A hidden tab pauses it,
+  returning to the menu resumes it, and it follows the Music volume and Sound off.
+
+## 12. Code boundaries
 
 | File | Responsibility |
 | --- | --- |
-| `src/audio/samples.ts` | Deterministic 32 kHz combat and event sounds, the sample list and its boot order |
-| `src/audio/instruments.ts`, `dsp.ts` | Music instrument patches and the offline synthesis kit, loudness matching, anti-click edges and headroom |
-| `src/audio/score.ts` | Planet arrangements, authored notes, the sidechain depth table, reversed-note landing and bounded lookahead clock |
-| `src/audio/boss-score.ts` | Boss stages, per-world boss kits, stingers and the arranger that lands changes on the score's grid |
-| `src/audio/menu-theme.ts` | The title theme "Last Worlds": its harmony, hook, form and arrangement (15 November) |
-| `src/audio/harmony.ts`, `harmony-audit.ts` | Clash detection, the stem's consonant tone choice, and the audit of every score and stage |
-| `src/audio/events.ts` | Read-only RunState observer, event coalescing, bounded ID tracking |
-| `src/audio/mixer.ts` | Cached AudioBuffers, buses, spatialization, hall, playback humanizing, slides, the kick-keyed sidechain, voice limits and ducking |
-| `src/audio/engine.ts` | Gesture/device lifecycle, playback state, preferences, score transitions, the title theme's lifecycle and the menu sounds |
-| `src/ui/ui-sounds.ts` | The menu sounds' delegated listeners: which button, selector or slider makes which sound |
-| `src/audio/settings.ts`, `settings.css` | Isolated accessible sliders added to the existing settings panel |
-| `src/main.ts` | Thin start/observe/pause/resume/quit hooks, replacing the old triangle tones |
-
-The simulation imports no audio code. Audio never consumes the game's random stream or modifies RunState. A private seeded noise generator is used only to build sounds. The development snapshot exposes read-only audio diagnostics; production has no audio debug API.
-
-## Review and validation
-
-Run `npm run dev`, then:
-
-```sh
-node tools/audio/music-preview.mjs
-npx vitest run tests/audio
-npx playwright test tests/browser/audio.spec.ts
-```
-
-Since 10 November, the preview tool writes each world's normal, boss-stage, transition, whole-fight and under-fire excerpts (see the measurements below). It also writes `metrics.json` and a Sound room (`index.html`) to its output folder, `lookdev/audio/` by default. Switching version or build preserves the playback position. Open the Sound room through the dev server, for example `http://localhost:4173/lookdev/audio/index.html`. (Before 10 November it wrote six planet excerpts, boss and transition versions, a combat mix and a 37-second effects reel.) All exports use the same mixer and sample sources as the game, rendered with Chromium's OfflineAudioContext at 44.1 kHz stereo. The development-only `/tests/fixtures/audio-lab.html` also offers direct Nacre playback and live boss/defeat controls **through the Vite server**; opening its TypeScript module as a `file://` document cannot execute it.
-
-Automated coverage includes state immutability, real volleys, delayed enemy bursts, final shield/life loss, no replay, offscreen filtering, distinct arrangements, scheduler stalls, finite samples, invalid preferences, actual browser gesture unlock, pause/resume, persistence, no-audio fallback, silent submixes, voice-limit stress, mono compatibility and output headroom. The production build and existing gameplay/menu browser flows are part of the integration gate.
-
-The 20 October previews peak below 0.36 at default volumes with no clipped samples; mono RMS retains over 98% of stereo RMS. That palette used 7,412,480 bytes (7.07 MiB) of cached PCM. Its measurements remain in `docs/screenshots/audio/metrics.json`. These are rendered-signal checks, **not** an assertion of subjective listening quality on every device.
-
-The 23 October boss arrangements peak at 0.417 (Luna), 0.458 (Khepri), 0.333 (Nacre) and 0.374 (Vesper) at default volumes, with no clipping or dropped voices in the review excerpts. Peak music voices are 29/36, mono RMS retention is over 99%, and cached PCM remains 7,412,480 bytes: no additional sample downloads or synthesis are needed. New evidence is `docs/screenshots/audio/boss-metrics.json` and `boss-sound-room.png`. Browser checks cover live arrival/core/defeat fades without resetting score time, pause/resume, retry, silent submixes, low-band energy, and the unchanged musical timeline before and after the fade. A comparison against shipped `2d08b81` confirmed all 2,048 original score steps are identical (four planets × 32 bars).
-
-25 October: the Amnion and Umbra placeholders are replaced with original 32-bar arrangements and nine short cached instrument patches. Amnion's irregular paired heartbeat and formant breathing differ from Nacre's soft pad bed. Umbra's stable pure-tone layers, brief inharmonic attack and deliberate silence differ from Vesper's FM bells. Their dry bass/percussion boss layers use the same transport, chords and phrase positions as their level score. The four earlier scores and combat sound sources are unchanged.
-
-Six-world browser checks pass for level/boss/transition headroom, increased boss low-band energy, mono compatibility and unchanged score before/after fades. Amnion level/boss peaks are 0.209/0.414; Umbra 0.166/0.336, with zero clipped samples. All cached PCM now totals **9,070,080 bytes (8.65 MiB)**, still below the existing 9 MiB limit; the room impulse and Web Audio node overhead are additional. Evidence: `docs/screenshots/audio/final-world-metrics.json`. No runtime audio downloads were added.
-
-### 10 November measurements
-
-- **Previews:** `node tools/audio/music-preview.mjs <output> [planet ...]`, with `AUDIO_PREVIEW_URL` naming the dev server. It renders seven worlds through the real mixer: normal flight, the three boss stages, modules → core and core → overload changes (asked for mid-bar), a whole fight and three music-under-fire mixes. That is 52 WAVs, 44.1 kHz stereo, at default volumes. With a `before/` render of older code beside it (a harness for the old two-level fader), the Sound room switches builds at the same playback position. Corona and Umbra's before files are their old scores.
-- **Headroom:** the 52 renders peak at most 0.453, with zero clipped or non-finite samples and mono RMS at least 96.7 % of stereo. They use at most 53 voices at once and drop no notes. The boss pool peaks at 25 against its cap of 24, because a riser scheduled ahead can overlap the cap by one.
-- **Normal-flight level** is within 1 dB of the 20 October build on the five unchanged worlds (for example Luna −30.4 against −30.5 dBFS RMS). The phone band (300 Hz–4 kHz) is equal or stronger, up to +4 dB on Khepri.
-- **Boss stages, full mix:** RMS changes by at most a few dB from modules to overload, while the phone band and the top (above 6 kHz) rise through the stages. In the old build, core and overload were bit-identical.
-- **Boss stages, stem alone:** both bands rise by at least 1 dB at each step on every world, typically 2 to 6 dB from core to overload.
-- **Cost:** 65 samples instead of 49, and 12,435,200 bytes of cached PCM (11.86 MiB) against 9,328,640 (8.90 MiB). Synthesis in Node takes 0.42 to 0.51 s warm for all of them, against 0.59 to 0.61 s for the old 49. Samples are made in the order they are needed (flight sounds, the level score, then boss voices), so the boss voices never delay the first flight.
-- **Voices:** Corona's new score peaks at 30 level voices; its placeholder peaked at 37, over the 36 cap.
-- **Automated checks:** `tests/audio/boss-music.test.ts` covers the frozen scores, the stages, harmony, transitions and the reversed landings. `tests/browser/audio.spec.ts` covers rendered mixes, voice pools, live phase changes on the running clock, the rendered stem growing, and the untouched level timeline before and after a fight.
-
-These are rendered-signal checks. The arrangement and the levels of the 10 November pass were set from these measurements and from music theory, without listening.
-
-## 11 November revision: performance, space and an orchestral boss stem
-
-The user listened to the 10 November pass. It still sounded cheap, "not just the instruments". A trial with recorded instrument samples was built and rejected ("still sound cheap"), then removed entirely: no recordings, no decoder, no extra downloads. The user then approved three changes to the synthesized music (A, B and C below) and asked for some score and timbre tuning. They also said not to over-optimize: get it musically right, then stop.
-
-### A: performance (`humanize` in `src/audio/mixer.ts`)
-
-- **Timing and velocity:** each scheduled note gets a fixed touch at playback, taken from a hash of its sixteenth, voice and pitch (no random stream).
-  - Drums and basses move within ±4 ms of the grid. Other voices move from 4 ms early to 10 ms late.
-  - Velocity varies by ±8 %.
-  - Reversed notes and risers keep exact timing, because they must stop or peak on a grid line.
-  - Every render of a passage is identical, and the scores themselves are unchanged.
-- **One bass note at a time:** a new note in the same part (the level score or the stem) damps the previous one over about 40 ms. Notes end where the next one begins instead of piling up.
-
-### B: space (`src/audio/mixer.ts`)
-
-- **Hall:** one hall replaces the room and the ping-pong echo.
-  - Shape: 18 ms pre-delay, seven early reflections that differ between the sides, then a dense 2.3 s tail whose highs die first.
-  - Its return is high-passed at 170 Hz, so it never thickens the bass.
-  - It is set a fifth above the old room's wet energy, to make up for the removed echo.
-- **No pumping:** the level bed no longer dips under boss kicks. It only steps back by stage (`BED`).
-- **Gentler stem compressor:** −10 dB threshold, 1.8:1, 15 ms attack, 250 ms release. It was −12 dB, 2.5:1, 6 ms and 140 ms.
-- **Unchanged:** the master chain and every combat sound. All 26 effect samples are byte-identical to the original build.
-
-### C: an orchestral boss stem (`src/audio/boss-score.ts`)
-
-The four stages, the stingers, the grid and the harmony rules are unchanged (see the table above). The drum machine is gone. In its place:
-
-- **Drums:** a taiko-like ensemble drum (Amnion keeps its heartbeat), and tuned timpani on chord changes and in rolls. There is no kick on the beat and no hats or claps; the snare only fills into phrases.
-- **Strings:** spiccato strings for the pulse and the 3-3-2 ostinatos, plus sustained strings.
-- **Accents:** brass chords, braam, boom, crash and risers.
-
-The new voices are synthesized like the rest:
-
-- the drum: a falling skin with its second mode and the slap of the head;
-- the timpani: its principal tone and the inharmonic 1.5, 1.98 and 2.44 modes, struck with felt;
-- the spiccato: four detuned saws through a quickly closing low-pass, with a little rosin;
-- the brass stab: it now opens over 40 ms, with no saturation.
-
-### Score and timbre tuning (11 November)
-
-- **Basses, every world:** the user found the basses "too sawy and dirty", most of all Khepri's, "since it runs continuously". All seven bass voices, level and boss, now share one clean design:
-  - a sine fundamental;
-  - second and third harmonics that fade faster, a gently filtered edge a phone speaker can still reproduce;
-  - a soft felted onset;
-  - no saw and no saturation.
-
-  Each keeps its sample length and loudness target. The boss basses differ by length, 0.45 s plucked eighths in core and 0.35 s short eighths in overload, so their drive comes from rhythm and articulation. `saw-bass` is renamed `foundry-bass`.
-- **Khepri:** the bass ran in sixteenths, 12 notes a bar. It now plays four ringing notes a bar: root, root, fifth, ♭7. The lead, stabs and drums are as before.
-- **Vesper:** the user asked for glass that is "a bit more calm and cold", and music "more ambient than musical".
-  - The glass is purer and darker: a slower 25 ms attack, an octave partial that fades early, a faint cold 2.76 partial, a low-pass at 2.6 kHz, a 3.1 s ring.
-  - The score has three glass notes every second bar, two bass notes a bar and one soft kick. There is no backbeat and no hats; the pads are a little louder and wetter.
-- **Corona:** the user asked for "some more space between the notes, not just a quick jingle that runs".
-  - The low harp rises and falls through each chord, three notes a bar, each left to ring.
-  - The lament keeps its octave, ♭6 and fifth, and the answer ♭7, ♭6 and fifth, without the passing notes.
-
-### Harmonic audit (`src/audio/harmony.ts`, `harmony-audit.ts`)
-
-- **What counts as a clash:** a minor second, major seventh or tritone between two notes heard together. The check works within a quarter tone, so Umbra's microtones are not mistaken for one. It is not a clash if both notes are tones of the chord in force.
-- **The boss stem yields:** each pitched stem tone is checked against the melody heard as it strikes, and against any passing note in the next two sixteenths. A clashing tone moves to the nearest chord tone that does not clash, or is left out (`consonantWith`).
-- **Corona and Umbra yield too:** their accompaniments give way to their laments in the same way.
-- **Umbra's melody:** the second note is now a three-quarter-tone step above the octave, and the last a quarter-tone-flat fifth. The ♭9 that stood second read as a clash.
-
-`tests/audio/harmony.test.ts` audits every world and stage over the whole 32-bar cycle:
-
-- **Boss stems:** no stem note clashes with the melody, its harmony or another stem note, in any world or stage.
-- **Recomposed scores:** Vesper, Corona and Umbra have no clashes.
-- **Approved scores:** they keep their own intervals. Luna has 1 and Nacre 1. Khepri has 2, its lead's last note ringing across a chord change onto the new root; it had 4 before its bass was thinned. Amnion has 55: its tritones and minor ninths over uneasy chords are its character.
-
-### 11 November measurements
-
-- **Previews:** 52 renders in `lookdev/audio-previews/after-v3/`, with the same file set as the original (`before/`) and the 10 November pass (`after/`).
-  - The Sound room one level up (`lookdev/audio-previews/index.html`, `AUDIO_PREVIEW_BUILDS`) switches between A (original), B (10 November) and C (11 November) at the same playback position.
-- **Headroom:**
-  - Peak at most 0.520 (Khepri, core to overload), against 0.453 on 10 November.
-  - Zero clipped or non-finite samples.
-  - Mono RMS at least 96 % of stereo.
-- **Level, normal flight:** within 1 dB of the 10 November pass on Luna, Nacre, Amnion, Corona and Umbra. Khepri is 2.2 dB lower (its bass is no longer a saw) and Vesper 1.4 dB lower (now ambient).
-- **Level, boss stages:** 0 to 3.5 dB below the 10 November pass (Amnion the most). The stem alone (measured on Luna, Khepri, Amnion and Corona) rises 3 to 4 dB in the phone band from modules to core, and 1.5 to 2.5 dB more into overload. In the full mix the master compressor holds the level, so the stages grow by density, register and voices rather than loudness. Without hats and claps, the top above 6 kHz is up to 7 dB lower in core and overload.
-- **Voices:** at most 42 at once. The boss pool now holds its cap of 24 exactly: notes scheduled ahead out of time order (Umbra's reversed voices, risers) used to let it reach 29, and the mixer now steals until there is room. 7 low-priority stem notes were dropped across the 52 renders, all in Umbra's and Corona's densest passages.
-- **Cost:** 66 samples, 12,933,120 bytes of cached PCM (12.33 MiB); the budget test is raised from 12 to 13 MiB. Synthesis in Node takes 0.48 to 0.52 s warm for all of them.
-- **Checks:** typecheck clean; 1009 unit tests pass (5 skipped); the build passes; `tests/browser/audio.spec.ts` 6/6 (Playwright exit 0). The browser spec also confirms, in all seven worlds, that the rendered stem grows by more than 0.5 dB per stage in both the phone band and the top, and that the level score is identical before and after a fight.
-
-Final balance needs the user's ears: the stem against the level score, the hall's size and the ostinato levels. A phone speaker needs checking too.
-
-## 11 November, phase 4: snappier kicks, weight in the fights, every world reworked
-
-The user listened to the third pass and replied:
-
-> i need snappier kicks, especially for the boss fights. The boss fights are better now but they are too little bass-y, especially nacre pads seem very loud and the drums arent audible, vesper bells can be a bit cleaner and icyer like triangle, amnion could use some clicking noises with a lot of reverb here and there, like alien noises in the night, btw i love love love the umbra sound you made, also the corona music is good but the harps are too regularly placed on the rhythm, maybe take inspiration from arabian music. Can you rework the other sounds so it still fits the vibe they have, but in the quality of umbra and corona?
-
-Then: "you could sidechain the lead synths and basses on the kicks for some more pop."
-
-### Kicks (`punchKick` in `src/audio/instruments.ts`)
-
-- **One design for every new kick:**
-  - a beater click and a slap of noise in the first milliseconds;
-  - a body that drops fast in pitch and dies quickly;
-  - saturation, so its knock reads in a phone speaker's midrange;
-  - a short knock around 190 Hz.
-- **Four kicks use it:**
-  - `snap-kick`: Luna, Nacre and Vesper;
-  - `forge-kick`: Khepri, harder and brighter;
-  - `boss-kick`: the fights;
-  - `doum`: Corona's darbuka.
-- **Against the old kick:** 3 to 5 dB more click in the first 10 ms, and about 2 dB more body over the first 80 ms. Their written gains are higher too. The old kick is now Umbra's alone.
-- **Amnion's heartbeat** drops faster and has a soft snap.
-- **The fights' taiko** has a stick click, a quicker pitch drop and a firmer body.
-
-### Weight in the fights (`src/audio/boss-score.ts`)
-
-- **The fights' kick:** it sits under the big drum's strongest strokes, which are each half bar's first and, in overload, the 3-3-2 accents. It is also under every stinger's hit.
-- **Fuller boss basses:** longer notes (0.55 s and 0.45 s), more second harmonic, and written about 2 dB louder in every stage.
-- **Timpani:** about 2 dB louder.
-- **Booms:** bigger on the stingers.
-- **Corona:** its stem drums are the darbuka's doum where the maqsum puts them, with the tek between.
-- **Khepri:** its colour is the tuned anvil, striking chord tones.
-
-### Sidechain (`sidechain` in `mixer.ts`, `SIDECHAIN` in `score.ts`)
-
-- **What dips:** only the keyed voices — every bass, and the synth leads: Khepri's saw lead, Amnion's nerve tone, and the stems' spiccato and brass.
-- **What never dips:** pads, acoustic leads (piano, harps, bells, pearl), reverb returns and effects. This is not the v1 pump, which lowered the whole bed.
-- **How it works:**
-  - Each kick note carries its key.
-  - The mixer dips the keyed voices of the score and of the stem within 3 ms, then recovers over a quarter of a beat (80 to 150 ms).
-  - Two kicks within 30 ms (the score's and the stem's) make one dip, the deeper of the two.
-  - It follows the scheduled kicks exactly and is deterministic.
-- **Depths:** each figure is the fraction the keyed voices dip by, with the same dip in dB in brackets. The fights' lighter drum strokes key 0.6 of their stage's depth.
-
-| World | Level score | Modules | Core | Overload |
-| --- | ---: | ---: | ---: | ---: |
-| Luna | 0.25 (−2.5 dB) | 0.30 | 0.45 | 0.55 (−6.9 dB) |
-| Khepri | 0.40 (−4.4 dB) | 0.40 | 0.50 | 0.60 (−8 dB) |
-| Nacre | 0.12 (−1.1 dB) | 0.25 | 0.40 | 0.50 |
-| Vesper | 0.10 (−0.9 dB) | 0.25 | 0.40 | 0.50 |
-| Amnion | 0.20 (−1.9 dB) | 0.30 | 0.45 | 0.55 |
-| Corona | 0.20 | 0.30 | 0.45 | 0.55 |
-| Umbra | none (frozen) | 0.10 | 0.20 | 0.25 |
-
-### Per world
-
-- **Umbra: frozen.** The user loved it. Its 32-bar cycle (fingerprint 544dfdfb, 542 notes) and the PCM of all six samples it plays are pinned by `tests/audio/boss-music.test.ts`. Nothing in its score keys the sidechain. Its boss stem has the new kick and a light sidechain (0.10 to 0.25).
-- **Corona: Arabic colour, more irregular rhythm.**
-  - *The lament* is now written per chord in its maqam (`CORONA_LAMENT`): Kurd on E (E F G A B C D, the Phrygian it already had) over Em, F and C. Over the B major dominant it is Hijaz on B (B C D# E F# G A). The Hijaz phrase climbs B, C, D#, E — the augmented second C to D# — and later runs back down E, D#, C, B. Its long notes slide in from a tone below (a pitch bend, `bend` on a note), and a qanun tremolo (four plucks a thirty-second apart) marks where it holds.
-  - *The harp* runs on a ten-sixteenth cycle, like a sama'i thaqil's 10/8, plucking at 0 and 6 (3+3, then 2+2). It drifts across the 4/4 bar and meets the bar line again only every five bars. Its tones walk the chord over four cycles. Every third cycle opens with a tremolo. Every fourth leans into its second note with a grace from the maqam tone just above, but only if that tone sits with the chord and the lament.
-  - *The drums* are a darbuka. Doum and tek play maqsum (doum, tek, -, tek, doum, -, tek, -) in the second phrase and baladi in the return. The opening has lone doum strokes, the breakdown one doum every other bar, and a soft ka before every fourth bar line. The deep tom backbeat is gone.
-  - *Kept:* the drone, the bowed metal, the ember crackle and the space.
-  - *Dissonance:* the Hijaz ♭2 (C over B) passes over the held drone. The audit counts that as the melody's own motion; Corona has no clashes.
-- **Luna: lonely and human.**
-  - Chords are rolled upward on the felt piano.
-  - In the developed phrases, the downbeat melody note leans in from the scale tone above, a pianist's grace.
-  - The far-side signal: a distant beacon (a sine with a brief FM sparkle) pings three times at the end of every four bars of the opening and the breakdown, and once in eight bars in the return.
-  - A snappy kick, brushes, its round bass and played timing.
-- **Khepri: the foundry.**
-  - A hard forge kick and the mechanical sixteenths, the saw lead and stabs, and the four-note round bass.
-  - A tuned anvil strikes root, fifth and octave every six sixteenths, turning against the bar; it meets the downbeat again every three bars.
-  - Steam is let out of the press at the end of every four bars.
-- **Nacre: the dreamy bloom, with audible drums.**
-  - The pads are thinned below 200 Hz in the patch, their lowest tone is voiced an octave up, and they are written 4 dB quieter. The phone band (the frequencies a phone speaker reproduces well) of a Nacre flight is 3.9 dB lower than in v3.
-  - The kick (snap-kick, +4.5 dB), brushes (+4.8 dB) and hats (+4.4 dB) are louder.
-  - The melody moves to the pearl, a soft-mallet vibraphone (partials 1, 3.98, 9.6) with its motor's tremolo. In the developed phrases its arpeggio rises through the chord like bubbles.
-- **Vesper: cleaner and icier.**
-  - The bell is triangle-like: five sparse partials of a struck steel rod (1, 2.01, 2.76, 5.4, 8.93), each beating slowly against a twin 1.6 cents away (the shimmer), with a faint strike and nothing low. It plays an octave above the written melody.
-  - In the developed phrases each bell has a faint reflection three sixteenths later.
-  - The frost pad (detuned sines with a trace of odd harmonics over thin wind) replaces the warm saw pad.
-  - Now and then the ice cracks: the dispersive "pew" of a frozen sheet, high frequencies first, far off in the hall.
-  - The v3 ambient arrangement is kept.
-- **Amnion: the night.**
-  - The heartbeat lands like a kick, and its strong beats key a gentle sidechain.
-  - The nerve tone slides into its notes from a quarter or half tone below.
-  - Now and then, never on the heartbeat, something calls out in the dark: a chitter (eleven chitinous clicks speeding up, then stalling) or a three-tick click.
-  - The calls are pitched for different creatures, placed anywhere across the field, and almost fully sent into the hall. There is about one call in three bars, twice as many in the breakdown, and four in ten are answered from the other side three sixteenths later.
-  - The placement comes from a hash of the sixteenth (`scatter`), never a random stream, so every pass is identical.
-  - The composition and its 55 deliberate clashes are unchanged.
-
-### Phase 4 measurements
-
-- **Previews:** 52 renders in `lookdev/audio-previews/after-v4/`, with the same file set as the earlier builds.
-  - The Sound room (`lookdev/audio-previews/index.html`) switches between A (original), B (10 November), C (v3) and D (phase 4) at the same playback position.
-- **Headroom:**
-  - Peak at most 0.599 (Khepri's whole fight).
-  - Zero clipped or non-finite samples.
-  - Mono RMS at least 97.9 % of stereo.
-- **Boss stages against v3:**
-  - Overall level: −0.6 to +3.1 dB, mean +1.6.
-  - Bass band: +0.4 to +3.5 dB, mean +1.9.
-  - Phone band: −3.1 to +1.8 dB, mean +0.3.
-  - Overload gained the most: Luna +2.9 dB, Khepri +3.0, Nacre +1.3, Vesper +3.1, Amnion +2.1, Corona +2.1, Umbra +1.9.
-- **Flight levels against v3:**
-  - Umbra: identical (same level and bands).
-  - Luna +0.7 dB, Khepri +0.5, Corona −0.3, Amnion −0.1, Vesper −0.5.
-  - Nacre −2.2 dB. Its pads are 3.9 dB lower in the phone band; the kick, brushes and hats are written 4.4 to 4.8 dB louder.
-- **Sidechain, measured in Chromium:** a depth of 0.5 dips a held bass to 0.48 of its level and recovers within about a tenth of a second. A pad is untouched.
-- **Voices:** at most 43 at once, and the boss pool holds its cap of 24. 26 low-priority stem notes were dropped across the 52 renders, 1 to 3 in each overload render that dropped any.
-- **Cost:** 77 samples, 14,085,120 bytes of cached PCM (13.43 MiB); the budget test is now 14 MiB. Synthesis in Node takes about 0.52 s warm for all of them.
-- **Checks:**
-  - typecheck clean;
-  - 1011 unit tests pass (5 skipped);
-  - the build passes;
-  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0. It now also checks the sidechain in the real Web Audio graph.
-  - The audit: no stem note clashes with a melody in any world or stage. Nacre, Vesper, Corona and Umbra have no clashes at all. Luna keeps 1, Khepri 2 and Amnion 55, as written.
-  - Effects are byte-identical (26/26), and Umbra is pinned note for note and sample for sample.
-
-Final balance needs the user's ears: kick levels against each world's bass, the sidechain depths (the table above), the night calls' density and the Corona harp cycle. A phone speaker needs checking too.
-
-## 11 November, phase 5 (v5): clean timing, fewer notes, Corona over a drone, the fights in tune
-
-The user's comments on v4:
-- Luna, Amnion, Khepri and then Corona "have lots of quick succession notes that sound just weird and overlapping";
-- "just relax the amount of notes, simpler melodies for the main plucking instruments";
-- Corona's melody "sounds kinda shit, make it more mysterious arabic inspired not so happy at times";
-- the boss fights "seem like they drift into false notes sometimes";
-- on the plus side, "the instrument choices are much much better tho i like them all pretty much".
-
-So this pass changes notes, timing and Corona's harmony, not the sounds. The only exceptions are two fixes: the chitter's click spacing, and the boss voices' tuning.
-
-### Diagnosis (`lookdev/audio-bench/diag.test.ts`, `stemharm.test.ts`)
-
-Every scheduled onset was replayed as the mixer times it: the written offset plus the humanize drift. Over each world's 32-bar cycle, in the level score and each boss stage, the bench counted:
-- **Smears:** two attacks of the same part 2–15 ms apart.
-- **Quick pairs:** attacks in the same register 15–80 ms apart.
-- **Trains:** the clicks inside a chitter.
-- **Ring-overs:** a melodic note struck while the same part's previous note is still within 20 dB of its peak.
-
-| World | v4: smear / quick / train / ring (level; overload) | v5 | Main v4 causes |
-| --- | --- | --- | --- |
-| Luna | 43 / 117 / 0 / 134; 2061 / 383 / 0 / 134 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | rolled chords (105), leans (12), per-note timing smears, the piano melody ringing over itself (128), piano against the stem's stabs and spiccato |
-| Khepri | 128 / 0 / 0 / 142; 2881 / 101 / 0 / 154 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | timing smears, the saw lead ringing over itself (142), thirty-second snare doubling in fills, the overload anvil |
-| Amnion | 16 / 0 / 110 / 75; 1686 / 79 / 110 / 75 | 0 / 0 / one chitter / 0, in both | chitter trains (11 clicks 18–22 ms apart), the nerve tone ringing over itself, bone ticks against bone ticks and snares |
-| Corona | 32 / 62 / 0 / 27; 2046 / 315 / 0 / 27 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | lament tremolos (30), harp tremolos (18), harp graces (5 to 38), the lament against the stem's spiccato |
-| Nacre | 4 / 0 / 0 / 133; 2004 / 90 / 0 / 133 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | the pearl ringing over itself, fills |
-| Vesper | 0 / 0 / 0 / 54; 1296 / 3 / 0 / 54 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 | bells and their echoes |
-
-In every world the only spread left is up to 6 ms between *different* parts, by design.
-
-Umbra's level score is unchanged: 6 same-part smears and 53 obsidian rings, as approved. In its fights, the level and the stem void-bass double the same riff notes up to a few milliseconds apart; that keeps Umbra's level timing exact.
-
-**Lead notes per bar in the level scores (v4 → v5)** (Luna's and Khepri's counts include their piano chords and saw stabs):
-
-| Luna | Khepri | Nacre | Vesper | Amnion | Corona | Umbra |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 7.13 → 3.88 | 6.50 → 4.00 | 4.75 → 1.75 | 2.25 → 1.00 | 2.75 → 1.63 | 3.72 → 0.94 | 3.38 (frozen) |
-
-**Boss-stem harmony (v4 → v5)**, counting stem notes outside their chord or mode anywhere in their heard length, stingers and risers included:
-
-| World | v4 | v5 |
-| --- | ---: | ---: |
-| Luna | 0 | 0 |
-| Khepri | 29 | 0 |
-| Nacre | 0 | 0 |
-| Vesper | 48 | 0 |
-| Amnion | 18 | 0 |
-| Corona | 8 | 0 |
-| Umbra | 68 | 0 |
-
-The causes in v4:
-- **Stingers:** their lead-in spiccato anticipated the landing chord (76 in all).
-- **Risers:** their climbing tone always ended on C, whatever the key (64).
-- **Ringing across a chord change:** stinger braams (19), Khepri's overload anvil (8) and Umbra's timpani roll (4) rang into the next chord.
-
-The v4 level melodies also played notes outside their chord's mode: 5 in Luna, 10 in Khepri and 4 in Nacre. Written as fixed intervals over each chord root, they put an F natural over Luna's C(♯11) chord, an A♯ over Khepri's G major, and an A♭ over Nacre's E♭(♯11). Amnion's 34 were its deliberate ♭2 and tritone, which are now listed in its modes.
-
-### Timing (`mixer.ts`)
-
-- **Coherent humanizing:** one timing per sixteenth and part, so a chord's tones strike together and a part never smears against itself.
-  - Drums and basses stay within ±2 ms; other parts from 2 ms early to 4 ms late, so parts differ by 6 ms at most.
-  - Velocity varies ±6 % per note.
-  - Umbra's frozen score keeps its 11 November per-note touch (`FROZEN` in `score.ts`, `legacy` in `humanize`). Its flight render is unchanged.
-- **Monophonic melodies:** a note with a `part` (the melody of every world but Vesper and Umbra) damps that part's previous note over about 80 ms. The basses already worked this way.
-- **Fills:** the fights' snare plays one stroke a sixteenth, with no thirty-second doubling.
-
-### Scores (`score.ts`)
-
-- **Every melody is held to its chord's mode** (`THEMES.scales`, `inMode`). A melody written as intervals over the chord root now takes the mode's nearest tone, chord tones first.
-- **Luna:**
-  - chords struck together, not rolled, and no leaning graces;
-  - three melody notes a bar — the rising fourth, then a step down, its mirror answering rising;
-  - the bass in four notes;
-  - two beacon pings instead of three.
-- **Khepri:**
-  - the lead plays root, third, fifth, third — four notes a bar, in each chord's own mode;
-  - the anvil strikes only on sixteenths where nothing else does, and never in a chord's last beat;
-  - hats in eighths;
-  - the riff's last note is the octave, not the ♭7, which made a tritone under the lead.
-- **Nacre:** the pearl plays three notes a bar (root, the fifth above, a step down); the bubbles are gone; the bass is in three notes.
-- **Vesper:** two bells every second bar, left to ring into each other; the reflections are gone.
-- **Amnion:**
-  - three nerve notes a bar: the root creeping up a semitone, then the tritone's fourth above it;
-  - no slides and no bone offsets;
-  - the night calls are isolated. There are about six per cycle, never on the heartbeat, never within a beat of the melody, never within three beats of each other, and none are answered.
-  - The chitter is four clicks 70–120 ms apart instead of a train of eleven.
-- **Corona: modal over a drone.**
-  - *Harmony:* no chord progression and no major triads. An open E–B fifth with no third, its third section adding the ♭2 (F) as a colour.
-  - *Lament:* a few long notes, hovering around the tonic and its half-flat second, rising and falling back unresolved, with slow 0.3 s slides from a tone of the maqam:
-    - in Bayati on E (E, F half-sharp, G, A, B, C, D): E–F𝄳–G, then F𝄳–E–D;
-    - over the ♭2, Saba (G–A♭–G–F𝄳);
-    - then E and F𝄳 hovering.
-  - *Harp:* once per ten-sixteenth cycle, walking the drone, never within a sixteenth of a lament note.
-  - *Gone:* tremolos, graces and the ka fills.
-  - *Kept:* the darbuka's maqsum and baladi, the solar drone, the embers (now two a bar) and the bowed metal.
-  - *Audit:* the half-flat seconds and Saba's A♭ are authored tones of its modes, and Corona has no clashes.
-
-### Boss fights in tune (`boss-score.ts`, `harmony.ts`, `instruments.ts`)
-
-- **Every pitched stem tone is checked against both chords:** a tone still heard after a chord change must belong to both (`steady`). Otherwise it takes the nearest tone that does, and is left out if that tone would clash with the melody.
-- **Stinger lead-ins:** they rush up the chord sounding at the time, not the one they land in.
-- **Risers:** they climb to the landing chord's root (played between F#3 and F4, timed for their rate).
-- **Tuning:** pitched boss voices keep their unison within ±6 cents (strings ±5, brass ±4, spiccato ±4, braam ±6, the riser's tone ±6; they were ±10 to ±25), and the strings' vibrato within ±3.5 cents (it was ±6). Inharmonic partials stay only on the drums, the crash and the timpani.
-- **Stems:** Khepri's overload anvil strikes twice a bar, and Umbra's stem ticks moved to the backbeat sixteenths its level score leaves empty.
-- **Tests:** `tests/audio/harmony.test.ts` asserts, for all seven worlds and stages, stingers and risers included, that every pitched stem note is in its chord or mode over its whole heard length. It also asserts that every reworked world's melody stays in its mode.
-
-### Phase 5 measurements
-
-- **Previews:** 52 renders in `lookdev/audio-previews/after-v5/`. The Sound room (`lookdev/audio-previews/index.html`) switches between A (original), B (v1), C (v3), D (v4) and E (v5) at the same playback position.
-- **Headroom:**
-  - Peak at most 0.586 (Khepri's whole fight).
-  - Zero clipped or non-finite samples.
-  - Mono RMS at least 98 % of stereo.
-- **Levels against v4:**
-  - Flight: Luna −1.5 dB and Amnion −1.0 (fewer notes); Nacre −0.9; Khepri −0.3; Corona −0.4; Vesper 0.
-  - Umbra: identical (same level and bands).
-  - Boss stages: −1.3 to +0.7 dB, mean −0.3.
-- **Voices:** at most 37 at once, and the boss pool holds its 24. 10 low-priority stem notes were dropped across the 52 renders.
-- **Checks:**
-  - typecheck clean;
-  - 1013 unit tests pass (5 skipped);
-  - the build passes;
-  - `tests/browser/audio.spec.ts` 7/7, Playwright exit 0;
-  - effects byte-identical (26/26);
-  - Umbra pinned note for note and sample for sample.
-- **Remaining spread in Umbra's fights:** its frozen level score keeps the per-note touch, so in overload 13 same-part pairs (the level and stem void-bass doubling a riff note) and 51 cross-part pairs differ by up to about 14 ms.
-
-These are measurements of the schedule, not listening. The user's ears decide whether Luna, Khepri, Amnion and Corona now read clean, and whether Corona sounds mysterious rather than happy.
-
-## 11 November: sound effects reworked (three listening rounds)
-
-The user, after the music: "i dont like the shooting sound and the sound when we get hit. The shooting sound should be a very short one, i like the cadence but its a bit too much and too loud, it should sound sharper. The getting hit sound sounds distinct which is good but the pitched down gong sound just sounds wrong. Maybe a short alarm sound would be cool? Also the success sound is a bit too cheesy ... can we add a loading sound for the warp too like a swish or whoosh"; and "the picking up a part should make a clank, while others like upgrade should be like the shield but upwards melody".
-
-The changes came in three listening rounds:
-- **Round 2:** the part "longer like the shield cell, like a substantial pickup"; the Seeker Array "a bit more substantial ... rockets"; the alarms "an alarm horn ... maybe a lower tone"; and "replace the life lost with a horn alarm sound".
-- **Round 3:** "some more dirt, its too clean and too comic like". The shield hit became "the same as the last shield, just single". The life lost became "just one longer sound but pitching up like an alert horn", then "exactly only the first second ... just hard cut after 1 second".
-
-| Event (observer cue) | Old sound | New sound |
-| --- | --- | --- |
-| Main weapon volley, Twin Pulse (`pulse`) | FM laser fall, 0.18 s | a click and a chirp falling 3.5 to 0.9 kHz, 70 ms, nothing under ~700 Hz |
-| Fan Cannon (`fan`) | wide lower burst with noise, 0.24 s | two detuned chirps and a short spray, 80 ms |
-| Seeker Array (`seeker`) | bending electronic tail, 0.34 s | a rocket launch: a low thump, an ignition hiss rising from 1.5 to 5 kHz, sparks, 0.14 s; played at most every 50 ms |
-| Rail Driver (`rail`) | crack, zap, kick and ring, 0.42 s | crack, a falling zap and a short ring, no kick, 0.16 s |
-| Hit on the shield, charges left (`shield`) | a 740 Hz bell (the "gong") | a gritty klaxon call, A4 then E4, 0.23 s |
-| Last shield charge (`shield-break`) | the bell pitched down, 0.95 s | the same call twice, 0.5 s |
-| Life lost (`life`) | an explosion boom, 1.6 s | one klaxon blast winding up from A2 to G3, with its octave below, cut hard at 0.7 s (user: first 1.0 s, then "cut it at 0.7 seconds"; made at its full second and level, then truncated behind a 4 ms ramp, abrupt, without the click of a zero-length cut) |
-| Mission complete (`win`) | an FM-bell D major arpeggio, 2.1 s | a low open fifth swelling into a soft open C sus2 chord with a faint G above, 2.8 s, transposed to the world's key (`successKey`) |
-| Launch warp (new: engine `launch`) | nothing | the warp whoosh a fifth up, peaking as the shortest warp breaks out (1 s); played only if its sample is already made, so nothing is synthesized in the start tap |
-| Endless planet jump (`warp` + `whoosh`) | the rising tone | the rising tone and the whoosh: noise climbing from 220 Hz to 7 kHz to its peak on the jump flash (1.5 s), then passing |
-| Part pickup (`part`, new) | the credit blips | a heavy clank of struck steel whose middle modes ring on, and two clinks rising after it, 0.75 s |
-| Shield cell that adds a charge, power cell, weapon (`upgrade`) | an FM bell arpeggio | the shield's bell (partials 1, 1.498, 2.71) rising E5, B5, E6 |
-| Credit pickup, shield cell at full shields (`pickup`) | brief blips | unchanged |
-
-**The klaxon** (`klaxon` in `samples.ts`): a hazard klaxon in a damaged hull.
-- Three reeds about 11 cents apart, beating against each other, each a band-limited saw.
-- Overdrive, and a bit-crushed edge (held every third sample, in 4-bit steps).
-- A cheap damaged speaker: no lows, a hard resonance around 1.4 kHz, its cone rattling at 47 Hz.
-- Noise riding the signal like a grille buzzing against it.
-- No pitch slides, except the life alarm's wind-up.
-
-**Unchanged:** the other 17 effects are byte for byte as on 20 October. `tests/audio/audio.test.ts` pins all 28 effect samples.
-
-**Levels against the old sounds** (loudest window of the event alone, effects at 80 %):
-- **Shots** (clearly quieter):
-  - Twin Pulse −7.1 dB at tier 1, −7.2 at tier 5;
-  - Fan Cannon −7.3 / −7.1;
-  - Seeker Array −2.7 / −5.6 (more body, still under the old level);
-  - Rail Driver −6.2 / −6.0.
-- **Alarms:** shield hit 0.0 dB, last charge +1.2, life +0.5.
-- **Others:** success −1.9, upgrade −1.7, jump +0.7. The part is +13.0 against the old credit blips, and as loud as the upgrade.
-- **New:** the launch whoosh, at −36.9 dB.
-- **Headroom:** no clipping; the loudest preview peaks at 0.381.
-
-Over Khepri's music the shots no longer stand above the score: the loudest window changes by 0 to −2 dB.
-
-Previews: `node tools/audio/sfx-preview.mjs <root>` with `SFX_BUILD=before|after`, rendered through the game's mixer: each event alone and over Khepri's music, in `lookdev/audio-previews/sfx/` with an A/B room (`index.html`).
-
-Actual iOS Safari, Android hardware, phone speaker balance, Bluetooth latency, hardware mute behavior and OS interruptions still require listening/device validation. The first implementation deliberately offers separate mix sliders for that final taste/room/device adjustment. See `docs/build-status.md` for the exact final test results and revision.
-
-## 12 November 2026 · The hit alarms replaced again
-
-User: "i really dont like the new life and shield hit sounds, give me some other examples that are distinct form other sounds but still fitting and noticeably hostile sounding so that its an indicator". The user heard four candidates for each sound, alone and over combat (artifact `65FfLzBT2A5N9BbvGukhHm`), and picked "the field thud for shield hit and the deny buzzer for life hit". Then: "last shield can be same as normal shield hit no double".
-
-- **Shield hit and last charge (`shield`, `shield-break`):** the field thud, 0.35 s.
-  - a punchy low thud, 90 Hz falling to 45 Hz;
-  - under an electric whine, 720 Hz wobbled by 90 Hz FM and falling away;
-  - with a short noise click on the impact.
-  - The last charge plays the same sound; it keeps its own event for the mixer's ducking.
-- **Life lost (`life`):** the deny buzzer, two harsh square pulses (0.11 s and 0.13 s) on G3 against G#3, driven. 0.32 s.
-- **What they avoid:** bells (pickups), chirps (shots) and booms (explosions), so each still reads as a hit.
-- **Retired:** the klaxon voice.
-
-## 15 November 2026 · The title theme and the menu sounds
-
-User: "i want you to make a very recognizable, catchy and fitting to the style menu music and sounds for button presses etc in the menu". Until now the menu was silent: sound started only with a flight.
-
-### The theme: "Last Worlds" (`src/audio/menu-theme.ts`)
-
-The first take (D, A, F, G on the 3-3-2 rhythm over Dm, B♭, F, C) was rejected the same day. User: "sounds too happy or melancholic, it should sound more heroic and mysterious". This is the second take; the menu sounds were kept.
-
-- **Basics:** D minor, modal, at 100 BPM with half-time weight; 32 bars, 76.8 s, that loop without a seam.
-- **Form:** intro (4 bars), hook (8), B section (8), the hook again, bigger (8), turnaround (4).
-- **The hook (heroic):** a call on a dotted rhythm (dotted quarter, eighth, half).
-  - A pickup A3, then D4, A4, D5: a rising fourth into the downbeat, a fifth, a fourth to the octave.
-  - It is answered E–F–D (the minor third only in passing), called again from F over B♭ (F4, C5, F5) and answered G–F–D. That answer hangs on D over C: unresolved.
-  - The second time through, the last answer lands on E♭ over E♭ (G–F–E♭): a Phrygian turn that the hook never resolves. Only the turnaround's D does.
-  - The bass, the kick and the brass stabs hit the call's rhythm with it.
-- **The B section:** the call at half speed (dotted half, quarter, whole), climbing from D over G, E♭ over E♭, F over B♭ and G over A. Its last note is E, then the pickup into the last hook.
-- **Harmony (mysterious):** open fifths (root, fifth, octave), no thirds under the hook.
-  - Hook: D5 D5 B♭5 C5 | D5 D5 B♭5 E♭5.
-  - B section: G5 G5 E♭5 E♭5 B♭5 B♭5 Asus4 A5. The A has no C♯: no major cadence.
-  - Intro: D5 D5 E♭5 D5. Turnaround: D5 D5 B♭5 C5.
-  - The ♭II (E♭) colours the intro, the hook's end and the B section.
-  - The modes: D aeolian; over E♭, E♭ without D or A.
-- **Arrangement:**
-  - **Lead:** the `anthem` synth brass, doubled an octave down by the boss kit's brass stabs on its strong notes (and on the B section's long ones). In the last hook, low strings double its held notes and the glass its first three bars an octave up.
-  - **Pad and choir:** the boss strings play the open fifths, a chord a bar. Nahara's wordless choir holds the fifth and octave in the intro, the B section, the last hook's downbeats and the turnaround.
-  - **Ostinato:** spiccato strings in the fifth's register, grouped 3-3-2 (the game's rhythm). Eighths in the first hook, the B section's first half and the turnaround's start; sixteenths building into the hook, in the B section's second half and in the last hook.
-  - **Bass and drums:**
-    - The round bass on the call's rhythm (0, 6, 8), driving on in the last hook; half time in the B section.
-    - The snappy kick on the same rhythm keys the sidechain on the bass.
-    - Taiko on the downbeats, a half-time snare on beat 3, distant taiko in the intro.
-  - **Arrivals:** a riser and a timpani roll into each hook, then crash, boom, braam and timpani on its downbeat. Timpani open the B section's halves. A crash and a boom as the turnaround resolves the E♭ to D.
-  - **Mystery layers:**
-    - Umbra's reversed swell (`inhale`) breathes into five bar lines: the intro's first and third, the B section's two halves, and the turnaround.
-    - A cold glass shimmer, two octaves up on the fifth and octave, plays in the intro and turnaround and over the B section's held notes.
-    - The glass calls the motif from afar before the hook and in the turnaround.
-- **One new voice, `anthem`, for the hook:** a warm, dark synth brass.
-  - Three saws 4 cents either side over a sine an octave down.
-  - A low-pass that opens with the note's swell, a slow vibrato, a touch of drive; 1.8 s.
-  - It is monophonic, one note at a time.
-  - Every other voice is the game's own.
-- **Checks** (`tests/audio/menu.test.ts`):
-  - The harmonic audit runs on it (`auditMenu`). It is stricter than for the worlds: the accompaniment is checked against itself too, and a reversed swell belongs to the chord it lands on (`heardWindowAt`). It finds no clash.
-  - Every pitched note is in its chord or mode.
-  - Every chord is an open fifth or a suspended fourth.
-  - The hook's call and answers are pinned.
-  - About two lead notes a bar (2.1), never two at once; 26 notes a bar in all, most of them the quiet ostinato.
-  - Its cycle is fingerprinted.
-- **Voices:** at most 23 at once in the render, none dropped; the theme has its own pool of 28 (`menu`).
-
-### The polish (15 November, same day)
-
-User, of the second take: "i like it, the instrument sounds a bit cheap tho and the notes/melody is slightly weird, like i like most of the melody but towards the end of the bars its a bit off. Harmonics are right? polish it and make it proper high end." Kept: D minor, 100 BPM, the rising call, the form, the lifecycle and the menu sounds.
-
-**The bar ends.** The harmonic audit passed, but it checks sixteenths with rough note lengths. A second, stricter check now hears every pitched note at every 32nd against the chord sounding then. A note counts until its sample falls 30 dB, its release, or the next note of its line, plus 90 ms of the hall's early reflections, across the loop's seam too. It found notes ringing into chords they grind against, and swells rising against the chord they rose through. Changed at the bar ends:
-
-- **Reversed swells:** they now carry only tones common to both chords around their bar line, and moved from bars 0, 2, 12, 16 and 28 to 1, 12, 16 and 29.
-  - Bar 1: A3 and D4, D over D.
-  - Bar 12: A3 and D4, shared by D5 and Gsus2.
-  - Bar 16: B♭3, shared by E♭5 and B♭sus2.
-  - Bar 29: B♭3 and E♭4, E♭ over E♭.
-  - Before, the swells into bars 2, 12 and 28 rose through a chord a semitone or tritone away.
-- **Every pitched note, in every layer:** if it would still ring into a chord it grinds against (a minor second, major seventh or tritone from one of its tones), it is released 0.25 s before that bar line. Its release and early reflections then end on the line (`hold`, new in the mixer). A short note that cannot sound before then is left out.
-  - **In the score:**
-    - the pad's low D before the intro's E♭ (bar 1), before the B section's E♭ (bar 13) and before the turnaround's E♭ (bar 27);
-    - the pad's E♭ before the intro's D (bar 2);
-    - the pad's B♭ before D in each hook (bars 10 and 26);
-    - the choir's B♭ (bar 2);
-    - the glass shimmer's B♭ (bar 2) and D (bar 13);
-    - the lead's last D and its low strings before the turnaround (bar 27).
-  - **In the last hook:** the bass's last eighth plays the root where the fifth would grind against the next chord, and rests before the turnaround's E♭. So does the ostinato's last sixteenth there.
-- **The melody's phrase ends** now land on the root or fifth of the chord sounding:
-  - The first answer's end was D held over C, the pickup A3 over C; now G–F–G, the pickup G3 (C's fifth).
-  - The hook's last bar was G–F–E♭ over E♭; now G–F–D over D: the hook comes home, and the ♭II moves to the turnaround.
-  - The second call's C (over B♭) and the B section's quarter notes before each bar line (A over G, C over B♭) are now chord tones: the chords became B♭sus2 and Gsus2.
-  - The B section's last call is over G5 instead of Asus4.
-- **The turnaround** is E♭5 E♭5 B♭sus2 C5 into the intro's D. The mystery comes back after the hook resolves; the glass tease moved out of it (its D would now sit over E♭).
-- **Harmony:**
-  - Intro: D5 D5 E♭5 D5.
-  - Hook: D5 D5 B♭sus2 C5 | D5 D5 B♭sus2 D5.
-  - B section: Gsus2 Gsus2 E♭5 E♭5 B♭sus2 B♭sus2 G5 A5.
-  - Turnaround: E♭5 E♭5 B♭sus2 C5.
-
-**The lead, `anthem`, rebuilt as a layered cinematic synth brass** (2.8 s, base G4):
-- **Core:** two saws 3 cents either side and a narrow pulse through a resonant low-pass. Its envelope swells open with the note and overshoots on the attack (the brass "blat"), then blooms while the note is held.
-- **Body:** a wider, darker unison of four saws for size, and the fundamental as a sine.
-- **Breath:** a puff of band-passed noise on the attack and a trace under the sustain.
-- **Character:** saturation that is stronger on the attack, a gentle vibrato that arrives after 0.4 s, and no harsh top.
-- **Per note, from the score:**
-  - a scoop into long notes (a third of a semitone over 90 ms), a small one into short notes;
-  - slurs in the answers: the eighth and the half note glide from the note before, without a new attack;
-  - brightness that follows how hard a note is played (`tone`, a low-pass from 2.2 to 6.6 kHz): downbeats brightest, passing eighths darkest, the last hook brighter.
-- **Doublings:** brass stabs an octave down on the strong notes, and low strings under the held notes. They share the lead's bus, so the three blend into one instrument.
-
-**The mix: the theme's own bus** (`mixer.ts`):
-- **The lead** (with its doublings) is centred, high-passed at 90 Hz, with a lush hall send pre-delayed 35 ms so it stays defined.
-- **The accompaniment** is dipped 3.5 dB around 2.2 kHz to leave the lead room.
-- **Glue:** both meet in a gentle glue compressor (2:1 from −14 dB, 25 ms attack, 300 ms release) before the fader.
-- **Fader:** the hall sends and the ensemble now follow it too. Before, they bypassed it, so a fade left the theme's reverb and ensemble at full level.
-- **Width:** pads, choir and shimmer are panned wider (to ±0.45 and ±0.5); the lead and the bass are centred and mono-safe.
-- **Low end:** the kick's sidechain on the bass and ostinato is 0.3 deep (0.35 in the last hook).
-
-**Checks:**
-- **Bar ends:** the new 32nd check finds nothing.
-- **Harmonic audit:** clean.
-- **Mode:** no note outside it.
-- **Voices:** at most 23 at once, none dropped.
-- **The render:** no clicks (its largest sample-to-sample step is the same as the second take's), and no dip in level into any bar line.
-- **Pinned:** the hook (its call, answers and phrase ends), the chord shapes and the fingerprint (`a99ac37f`, 827 notes).
-
-### A familiar melody and a horn section (15 November, fourth take)
-
-User, of the polish: "instruments bit better but melody still very unfamiliar in notes. The harmony is there but the single notes a bit off, and the instrument still bit artificial pls fix and enhance it fully." Kept: the harmony, the call's spirit and rhythm, the form, the lifecycle and the menu sounds.
-
-**1. Tuning, measured first.** The rendered lead was pitch-tracked alone (YIN), note by note, against equal temperament: its first 300 ms (10–60, 60–150 and 150–300 ms) and its body. So was the sample itself.
-
-| | Sample's own pitch | First 10–60 ms of each note | 60–300 ms | Body |
-| --- | --- | --- | --- | --- |
-| Before | in tune: +2.8 cents in its first 30 ms, under 1 after | 12 cents off on average, up to 74 | under 1 cent | under 1 cent |
-| After | −3.5 cents in its first 30 ms (the lip's brief rise), under 1 after | 4 cents on average, up to 18 | 1 cent on average, at most 3 | under 1 cent |
-
-- **Before:** the scoops into long notes started 15 to 22 cents flat, and the slurs' glides 36 to 74 cents away. The sample, its declared base note, the playback rates and the vibrato were all in tune.
-- **The fix:** no scoops and no glides; a slurred note starts past its attack instead. The slur's crossfade is also quicker (the previous note lets go with a 16 ms time constant instead of 27).
-- **What is left:** the 18 cents are the previous note's last tail inside a slurred note's first 60 ms.
-
-**2. The melody, rewritten into a conventional heroic line** in D natural minor (no E♭, no C♯, no B).
-- Every hook bar keeps the call's dotted rhythm (dotted quarter, eighth, half). Strong beats are tones of the chord sounding (D minor, B♭, C, E♭, G minor, A minor), the eighth between them a step, and there are at most two notes a beat. All of this is tested.
-- **The hook:**
-  - the call 1-5-8 (A3, then D4, A4, D5);
-  - the answer 3-2-1 (F5, E5, D5);
-  - rising B♭4, C5, D5, then C5, D5, E5: the question, on 2 over C. D and A are not in C, so the half cadence uses C's third.
-  - the call again;
-  - the climax F5, G5, A5;
-  - down B♭'s arpeggio, F5, D5, B♭4;
-  - home: A4, C5, D5 (5, 7, 8).
-- **The B section:** long notes in two-bar rhymes:
-  - up G minor's arpeggio (G4, B♭4, then D5);
-  - the 5-6-5 turn over E♭ (B♭4, C5, then B♭4);
-  - up B♭'s arpeggio (F4, B♭4, then D5);
-  - down to A, the dominant (D5, B♭4, then A4), into the hook's pickup.
-- **Harmony:** unchanged, except the B section's first two bars. Gsus2 is now an open fifth (G5): its A ground against the melody's B♭.
-- **Audits:** the harmonic audit, the 32nd-by-32nd check and the mode check all pass.
-  - The audits now honour a note's release.
-  - The string section's doubling lets go as the next melody note arrives. It had held F under a passing E.
-
-**3. The lead: a horn section, not one perfect voice** (`anthem`, 2.8 s, base G4, the same size as before).
-- **Three players,** each a band-limited saw through a lip filter whose brightness follows that player's own loudness. Each has its own:
-  - entry: 0, 8 and 14 ms;
-  - tuning: −4, 0 and +4 cents, centred;
-  - slow drift;
-  - vibrato: 4.8, 5.3 and 5.7 Hz, arriving at 0.38–0.5 s.
-- **Attack:** breath and a short nasal lip buzz, rising from 8 cents low within a few milliseconds; no click.
-- **The note's shape:** a slight overshoot, a settle, then a bloom, darkening as it fades.
-- **Tone:** a little of the fundamental for body, gentle saturation, a darker top.
-- **In the mixer, per note** (fixed in Hz, so they do not move with the note's pitch):
-  - the horn's two resonances: around 0.46–0.58 kHz and 1.08–1.4 kHz, 2 to 7 dB, higher and stronger the harder a note is played;
-  - its brightness: a low-pass from 2 to 5.6 kHz.
-- **The lead's own stage:** four early reflections either side (11 to 29 ms, darker than the source) before the pre-delayed hall, so it sits like a section in a room.
-- **Doublings:** the string section an octave down under every strong note of both hooks and the B section's long notes, with the theme's ensemble motion. The brass stabs are now soft and on the hooks' downbeats only.
-
-**Levels and costs:**
-- **Theme:** the lead's level matched to the previous take's (it would have been 4.7 dB louder). The theme's loudest second is −26.5 dBFS, peak 0.244; Luna's music after a launch is −25.1.
-- **Voices:** at most 24 at once, none dropped.
-- **Render:** no clicks. The deepest dip into a bar line is 4.8 dB, the breath before the turnaround's E♭.
-- **Costs:**
-  - Memory unchanged at 15,627,520 bytes.
-  - Synthesis 0.57–0.69 s for all; the anthem takes 32 ms.
-  - The score costs about 3 µs a sixteenth.
-  - Per lead note, three filters.
-
-**Pinned:** the fingerprint `956753df` (822 notes) and the anthem's hash `7796e0c6`.
-
-### The drums refined (16 November, fifth take)
-
-User: "refine the drums now of the theme menu song." Everything else of the fourth take was kept: melody, lead, harmony, form, mix and lifecycle. No new samples: the kit reuses and layers the game's own drums, so sample memory is unchanged.
-
-**The sounds:**
-- **Kick:** the snappy kick, its tail released after 0.2 s so the low end stays the bass's. Each kick ducks the bass and the ostinato (0.3, 0.35 in the last hook, back in 0.15 s); the lead is never ducked.
-- **Snare:** the snare's crack and rattle over a tom tuned to its shell for body (released after 0.16 s), and a darbuka rim's snap on top: a backbeat with weight and a real crack, not a thin clap.
-- **Ensemble drums:** up to three taiko players, 11 and 19 ms apart, a few cents apart, spread left and right. Nahara's great processional drum sits under the biggest hits, each decaying naturally in the room.
-- **Timpani:** rolls in sixteenths into each hook, rising from nothing on the chord's root, each stroke damped by the next. Single strokes open the B section's halves.
-- **Cymbals:**
-  - a swell (the riser) lands exactly on each hook, and softer ones on the B section and the turnaround;
-  - two crashes, a third apart and either side, on the hooks' downbeats;
-  - single crashes on the B section's halves, the last hook's restatement and the turnaround.
-
-**The programming builds across the form:**
-- **Intro:** distant ensemble drums on the first and third bars; a kick, the timpani roll and the swell into the hook.
-- **First hook:** the kick on the call's rhythm (beats 1 and the "and" of 2), the snare on beat 3 (half time), a taiko on each downbeat, two players on the call bars.
-- **B section:** half time with the roomier snare, two drummers every other bar, every bar from its second half, where the kick doubles.
-- **Last hook, the biggest:**
-  - a third kick;
-  - three drummers on the downbeats and the processional drum on the call bars;
-  - a second taiko on beat 3's "and";
-  - soft off-beat hats (above the lead);
-  - a ghost snare into every other bar.
-- **Fills, never busy:**
-  - the drummers' pickups into the B section and the turnaround, softer ones into the B section's second half and the last hook's restatement;
-  - into the last hook, a snare building under the timpani roll.
-- **Turnaround:** kick, three drummers, the processional drum, crashes and boom on its arrival, then a distant pair two bars later.
-
-**The room** (`mixer.ts`, the theme's drum bus):
-- The drums have their own bus, outside the lead's glue compressor, so a hit can never pump the lead.
-- On that bus: a 2 dB dip at 2.5 kHz where the lead sings, and a drum glue that lets each transient through (2.5:1 from −12 dB, 10 ms attack, 120 ms release).
-- A room of eight early reflections either side (7 to 31 ms), high-passed at 120 Hz so the low end stays clean and darker than the source, then the hall.
-
-**Measured** (renders at the defaults):
-- **No pumping:** the lead and the drums rendered together, minus each rendered alone, leave −97 dBFS: 16-bit noise.
-- **Dynamics:**
-
-| Section | Drums alone (dBFS) | Whole mix (dBFS) |
-| --- | --- | --- |
-| Intro | −40.2 | −36.8 |
-| First hook | −34.2 | −30.5 |
-| B section | −34.5 | −31.1 |
-| Last hook | −31.3 | −28.5 |
-| Turnaround | −38.3 | −34.8 |
-
-- **The lead's space:** between 1 and 3 kHz the drums are 12 dB under the lead; only 22 dB of their energy lies there.
-- **Width:** the drums' sides are 16 dB under their centre: wide room, mono-safe hits.
-- **Level:** the theme's loudest second is still −26.5 dBFS (peak 0.287, the hits' transients), against Luna's music at −25.1. No clipping.
-- **Voices:** at most 28 at once in the render, none dropped. The theme's voice pool is now 32 (it was 28), for headroom.
-- **Costs:**
-  - The score costs about 15–18 µs a sixteenth (0.1 ms a second).
-  - Sample memory is unchanged (15,627,520 bytes): the kit's new voices (tom, tek, the processional drum, hat) were already made at boot.
-  - The theme now waits for them too.
-- **Pinned:** the fingerprint `b7f1370d` (963 notes). The harmonic audit, the 32nd-by-32nd check and the mode check all pass.
-
-### Menu sounds (`src/audio/samples.ts`, wired by `src/ui/ui-sounds.ts`)
-
-One family, crisp and short, in the glassy, metallic world of the game's pickups and the theme. They play through their own path past the master gate, so a paused flight's panels sound too. They follow the Effects volume and Sound off; repeats closer than 40 ms (the slider's 50 ms, a refusal's 250 ms) are not played again.
-
-| Sound | What it is | Where |
-| --- | --- | --- |
-| `ui-press` | a click and a short bright blip on A6 with its fifth above (80 ms) | any button that opens or confirms: menu buttons, hangar entry, loadout, settings, help, resume, pause |
-| `ui-back` | the same click, its blip falling an octave to A5 (90 ms) | back buttons, RETURN TO MENU (pause panel, results, loading) |
-| `ui-select` | a small glass tick on D7 (50 ms) | radio groups (quality, steering, sound, hangar slots, mission dots), tabs, mission arrows, tier pips, a tried-on design, a paint colour |
-| `ui-tick` | the faintest click on G7, pitched over an octave by the value (30 ms) | the Music and Effects volume sliders, at most every 50 ms |
-| `ui-purchase` | a latch's click, then the game's upgrade bell rising E6, B6, E7 over a soft shimmer (0.55 s) | hangar BUY and UPGRADE, a design bought in the shipyard |
-| `ui-equip` | a low clunk under a metallic catch (0.2 s) | hangar EQUIP, fitting an owned design |
-| `ui-deny` | two low, muted knocks (0.22 s); not the flight's deny buzzer | a press on a disabled button: not enough credits, a tier not bought, a locked mission (where the browser delivers the press; current Chromium does) |
-
-- **No menu sound** for the special button (gameplay) or for the launches (LAUNCH MISSION, ENDLESS, FLY AGAIN): the launch warp's whoosh covers them.
-- **Made first at boot:** the menu sounds are first in the boot order, and a sound not yet made is skipped, never made in the tap.
-
-### Lifecycle (`engine.ts` `menu`, `launch`, `ui`; `main.ts`)
-
-- **First interaction:** silent before it. The theme starts on the first tap or key in the menu (browsers allow sound only after a gesture), once all its voices are made, and fades in over 3 s to its level (0.5 of the music fader).
-- **Launch:** the theme fades out over 0.9 s under the warp's whoosh. The world's music starts as the flight does, after the warp (at least 1 s), so they never overlap and the world music's logic is unchanged.
-- **Returning:**
-  - After a run, the theme returns 3.2 s after the result's stinger and plays on through the results into the menu.
-  - Leaving a flight from the pause panel brings it back.
-  - Returning to the tab on the menu resumes it; a hidden tab pauses it.
-- **Volume:** it follows the Music volume and Sound off; turning Sound on again in the menu restarts it.
-- **The launch tap:** nothing is synthesized in it. The theme starts only once its samples are made, the menu sounds play only if made, and every sample is still made in the worker at boot.
-
-### Levels and costs
-
-**Levels** (previews at the game's defaults, music 75 % and effects 55 %):
-- **Theme (third take):** its loudest second is −26.4 dBFS, peak 0.238 (the fourth take: −26.5 dBFS, peak 0.244). That is about 1.5 dB under Luna's music after the launch in the demo (−25.1 dBFS): a backdrop, not louder than a flight. The fader is 0.5 for the polished take (the first take's was 0.8, the second's 0.66): the lead is fuller and its sends now follow the fader.
-- **Menu sounds:** peaks from 0.035 (the slider tick) to 0.095 (a purchase), clear over the theme.
-- No clipping.
-
-**Costs:**
-- 92 samples instead of 84; 15,627,520 bytes of cached sound instead of 15,112,960 (+502 KiB: the anthem 358 KB since the polish, the menu sounds 156 KB), under the 15 MiB budget (15,728,640). The theme's other voices (choir, inhale, stab and the boss kit) were already made at boot.
-- Synthesis in Node: about 0.57–0.69 s warm for all, against 0.53 s; the anthem takes 32 ms (the horn section). The theme's score costs about 3 µs a sixteenth.
-- Mix: a few nodes made once (a compressor, a few filters and delays, two sends, an ensemble and the lead's early reflections), plus three filters on each lead note.
-
-**Unchanged:** every world's music and every in-flight effect. Their fingerprints and the 28 effect hashes are pinned and pass.
-
-**Previews:** `node tools/audio/menu-preview.mjs <output>` renders through the game's mixer (`renderMenu` in the audio lab):
-- the full loop;
-- a 60 s cut as first heard;
-- each menu sound;
-- a click through the menus over the theme ending in a launch into Luna's music.
-
-The page is at `lookdev/audio-previews/menu/index.html`. It holds the fifth take, with the earlier takes' loops (in `take4/` to `take1/`) to compare.
+| `src/audio/events.ts` | `SoundObserver`: reads the run state, never changes it; coalesces volleys, applies quotas and visibility |
+| `src/audio/samples.ts` | The effect and menu sounds, the `Sound` list, `synthesize` for every sample, the boot order `SAMPLE_IDS` |
+| `src/audio/instruments.ts`, `dsp.ts` | The instrument patches and the offline synthesis kit: oscillators, filters, loudness matching, edges and headroom |
+| `src/audio/sample-bank.ts`, `sample-worker.ts` | Samples made in a worker at boot, taken on first play, main-thread fallback |
+| `src/audio/mixer.ts` | Buffers, buses, voice pools, panning, the hall and ensemble, the player's touch, the sidechain, ducking, the master chain; shared by the game and the previews |
+| `src/audio/score.ts` | The eight world scores, their modes, the sidechain depths, reversed-note landing and the lookahead clock |
+| `src/audio/boss-score.ts` | Boss stages, per-world kits, stingers and the arranger that lands changes on the score's grid |
+| `src/audio/harmony.ts`, `harmony-audit.ts` | Clash detection, the stem's tone choice, and the audit of every score, stage and the title theme |
+| `src/audio/menu-theme.ts` | The title theme: harmony, melody, form, arrangement and drums |
+| `src/audio/engine.ts` | `createGameAudio`: the device and gesture lifecycle, preferences, score and boss transitions, the title theme's lifecycle and the menu sounds |
+| `src/audio/settings.ts`, `settings.css` | The volume sliders in the settings panel |
+| `src/ui/ui-sounds.ts` | Which button, selector or slider makes which menu sound |
+| `src/main.ts` | Thin hooks: start, observe each frame, pause, resume, quit, launch, menu |
+
+The simulation imports no audio code. In development builds `window.__LAST_WORLDS__.audio()` returns read-only
+diagnostics (`diagnostics` in `engine.ts`: device state, stages, voice counts, levels, sample bytes); production has no
+audio debug API.
+
+## 13. Previewing and validating
+
+**Tests:**
+
+| File | What it checks |
+| --- | --- |
+| `tests/audio/audio.test.ts` | The observer (no sound at empty sky, no state change, no replay, volley coalescing, shield break against life loss, offscreen and pause suppression); the hash of every effect sample; short, front-loaded shots; parts, pickups and the jump; the success ring's key per world; the scheduler's lookahead and stall handling; preferences; finite, click-free samples within the memory budget |
+| `tests/audio/boss-music.test.ts` | Every world's 32-bar cycle fingerprinted, the tempos, Umbra frozen note for note and sample for sample; the sidechain depths; the reversed landings; the four stages growing by arrangement; no drum machine; each world's identity in its stem; the stem inside the harmony; the bed levels; transitions on the grid and the stingers; instrument headroom and the memory budget |
+| `tests/audio/harmony.test.ts` | The harmonic audit (section 8) |
+| `tests/audio/menu.test.ts` | The title theme (section 9) and the menu sounds' hashes, lengths, peaks and boot order |
+| `tests/browser/audio.spec.ts` | In Chromium: unlock on launch, silent pause, resume, persisted settings; the title theme's lifecycle and the menu sounds, including a refused purchase; seven worlds' offline mixes for headroom, clipping and mono; submix silence and hard voice caps in the real Web Audio graph; the sidechain dipping basses but not pads; boss phases on the running grid, through pause and into the next run; every world's stem growing by stage with the level score untouched; a flight without audio or storage |
+
+Run them with `npx vitest run tests/audio` and `npx playwright test tests/browser/audio.spec.ts` (Playwright starts the
+dev server on 4173 or reuses a running one; `npm run test:browser:isolated` uses its own, see the [README](../README.md)).
+
+**Listening previews.** Three tools in `tools/audio/` render offline through the game's own mixer and samples, in
+headless Chromium, via the audio lab page (`tests/fixtures/audio-lab.html`, with `audio-lab.ts` and `audio-render.ts`).
+They need a running dev server, named by `AUDIO_PREVIEW_URL` (default `http://127.0.0.1:4173`); a second server should
+use `npm run dev:isolated -- --port <port>` so the main one keeps working. Each writes WAVs (44.1 kHz stereo), a
+`metrics.json` (peak, clipping, mono retention, voices, sample bytes) and a listening page `index.html`, opened through
+the dev server (for example `http://localhost:4173/lookdev/audio/index.html`). Switching version or build on the page
+keeps the playback position.
+
+- `node tools/audio/music-preview.mjs [output] [world ...]`: per world, normal flight, the three boss stages, the
+  modules → core and core → overload changes asked for mid-bar, a whole fight, and music under fire for three worlds.
+  Output defaults to `lookdev/audio/`. `AUDIO_PREVIEW_BEFORE` or `AUDIO_PREVIEW_BUILDS` add older renders to the page for
+  A/B listening.
+- `SFX_BUILD=before|after node tools/audio/sfx-preview.mjs [root]`: each effect alone and over Khepri's music, with an
+  A/B page; output defaults to `lookdev/audio-previews/sfx/`.
+- `node tools/audio/menu-preview.mjs [output]`: the title theme's full loop, a 60 s cut as first heard, each menu sound,
+  and a click through the menus ending in a launch into Luna's music; output defaults to `lookdev/audio-previews/menu/`,
+  with earlier takes kept beside it in `take1/` to `take4/` if present.
+
+The audio lab page itself, served by the dev server, also plays Nacre live with buttons for a boss fight, core, overload
+and the kill.
+
+**Latest measurements** (offline renders; signal checks, not listening):
+
+- **World music, measured 11 November** (seven worlds, 52 renders, before Nahara existed): peaks at most 0.586, no
+  clipped or non-finite samples, mono RMS at least 98 % of stereo, at most 37 voices at once, the boss pool held at its
+  cap, 10 low-priority stem notes dropped across all renders, all in the densest overload passages. Nahara's score and
+  stem pass the harmonic audit (13 November).
+- **Title theme, measured 16 November** (at the default volumes): its loudest second is −26.5 dBFS (peak 0.287), against
+  −25.1 dBFS for Luna's music after a launch, so it stays a backdrop. From the intro to the last hook the whole mix rises
+  from −36.8 to −28.5 dBFS. The lead and drums rendered together, minus each alone, leave −97 dBFS: the drums never pump
+  the lead. Between 1 and 3 kHz the drums sit 12 dB under the lead. At most 28 voices, none dropped; no clicks.
+- **Menu sounds, measured 15 November:** peaks from 0.035 (the slider tick) to 0.095 (a purchase) over the theme; no
+  clipping.
+- **Synthesis cost:** about 0.57–0.69 s in Node for all samples, warm (measured 15 November); the title theme's score
+  costs about 15–18 µs per sixteenth (measured 16 November).
+
+## 14. Open
+
+- **Listening on phones:** phone speaker balance, iOS Safari, Android hardware, Bluetooth latency, the hardware mute
+  switch and OS interruptions are untested. The separate Music and Effects sliders exist for that final adjustment.
+- **Nahara's score** awaits the user's listen (noted in `tests/audio/boss-music.test.ts`).
+- **Nahara in the tools:** `music-preview.mjs` renders seven worlds by default (pass `nahara` to include it), and the
+  browser spec's offline mixes cover the same seven.
+- **Preview levels:** the music and effect previews render at music 55 % and effects 80 % (`renderTimeline` in
+  `tests/fixtures/audio-lab.ts`), the defaults before 15 November; the menu previews use the current defaults.
+- **Sample memory:** about 100 KB under the 15 MiB budget; a new voice needs the budget raised in the three tests above or
+  a voice removed.
