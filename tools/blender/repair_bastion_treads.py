@@ -1,10 +1,10 @@
-"""Restore articulation in a built Bastion remodel (v5 -> v6, v7 hull -> v7).
+"""Restore articulation in a built Bastion hull: the tread links of bastion_v7.py's hull become instanced templates.
 
 Extract the existing bevelled grouser bars, preserving their UVs and baked PBR atlas.
 Keep one link template per belt; the renderer instances it around the original belt
-profile. Nothing else is remodelled or rebaked. v5 remains available for rollback.
+profile. Nothing else is remodelled or rebaked. First run on the v5 hull (v6, 20 October), then on v7's (24 October).
 
-Live Blender MCP: run() repeats the original v5 -> v6 extraction. Headless (24 October 2026):
+Live Blender MCP: run(source, out). Headless:
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
         --python "$(wslpath -w tools/blender/repair_bastion_treads.py)" -- <source.glb> <out.glb>
@@ -19,12 +19,9 @@ import math
 from mathutils import Vector
 
 ROOT = Path(r'\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies')
-# Both archived out of the deployed assets (docs/38 P1); the game flies bastion-9-v7.glb.
-V5 = ROOT / 'art/archive/assets/khepri/bastion-9-v5-remodel.glb'
-V6 = ROOT / 'art/archive/assets/khepri/bastion-9-v6-treads.glb'
 
 
-def run(src=V5, out=V6):
+def run(src, out):
     if bpy.context.window is None:  # headless: the startup scene, emptied
         scene = bpy.context.scene
         scene.name = 'Bastion Tread Repair'
@@ -122,4 +119,4 @@ def run(src=V5, out=V6):
 
 if __name__ == '__main__':
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-    run(*args[:2]) if len(args) >= 2 else run()
+    run(*args[:2])

@@ -450,3 +450,8 @@ User answers after reviewing the merged strike sites and encounter deck:
   - every squadron slide passes the airspace rule.
 - **Counting:** aces and Wraiths in view count toward the two; ground batteries do not.
 - **Details and measurements:** docs/10 §4–5.
+
+### 17 November 2026 · Unused models, tools and screenshots are deleted, not archived
+- **User:** "can you also do a naming pass? like clean up the file names, especially for tools etc. Run through the docs too so everything is up to date and consistent, i find it very hard to follow the code when theres folders like approved bosses that is apparently old stuff etc"; then "unused models and tools should just be removed, we still have it in git history. Same for all the screenshots etc".
+- **Decision:** this replaces the 4 November decision to keep retired GLBs for rollback (moved to `art/archive/assets` on 8 November, docs/38 P1). Retired models, superseded Blender builders and one-off tools, previews and screenshots are deleted from the tree; git history keeps them. A rollback restores a file from history.
+- **Names:** files are named by what they are, not by their history: no "approved", "remodel" or version suffixes on current runtime assets, tools or Blender scripts.

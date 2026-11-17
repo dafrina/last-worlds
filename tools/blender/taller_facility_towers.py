@@ -1,9 +1,9 @@
-"""Height-only previews of the shipped facility kits, through live Blender MCP.
+"""Khepri's and Vesper's shipped facility kits (22 October): facility_kit.py's modules with taller buildings.
 
-Keep the footprint, foundation, materials and UVs. Raise the tower above its .14-unit
-base by 50%. Also raise Khepri's small machine hall walls by 70%, moving its
-roof machinery up without stretching it. Other modules stay unchanged; v3
-files remain the rollback. Preview approval is separate from deployment.
+Reads the base kit facility_kit.py writes for each world (git-ignored lookdev/facility-kit-base/<world>/facility-kit-v3.glb)
+and keeps the footprint, foundation, materials and UVs. Raises the tower above its .14-unit base by 50%, and Khepri's small
+machine hall walls by 70%, moving its roof machinery up without stretching it. Other modules stay unchanged.
+Run through live Blender MCP after facility_kit.py: run().
 """
 from pathlib import Path
 import bpy
@@ -18,7 +18,7 @@ def run():
         bpy.context.window.scene = scene
         for obj in list(scene.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
-        bpy.ops.import_scene.gltf(filepath=str(ROOT / f'art/archive/assets/{world}/facility-kit-v3.glb'))
+        bpy.ops.import_scene.gltf(filepath=str(ROOT / f'lookdev/facility-kit-base/{world}/facility-kit-v3.glb'))
         tower = next(o for o in scene.objects if o.name == f'fk_{world}_tower')
         assert tower.type == 'MESH'
         before = max(v.co.z for v in tower.data.vertices)
