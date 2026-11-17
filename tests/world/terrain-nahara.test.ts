@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { MeshPhysicalMaterial, ShaderLib, type WebGLRenderer } from 'three';
+import { MeshBasicMaterial, MeshPhysicalMaterial, Scene, ShaderLib, type Mesh, type WebGLRenderer } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { CAMPAIGN_SCROLL, PACE } from '../../src/content/balance';
 import { scrollForPace } from '../../src/content/endless';
 import { VIEW, type RunConfig } from '../../src/shared/contracts';
 import { missionArena } from '../../src/render/scene';
-import { createTerrainMaterials, extractKitNode } from '../../src/render/terrain-kit';
+import { createFallbackInfra, createFallbackShared, createTerrainMaterials, extractKitNode } from '../../src/render/terrain-kit';
+import { createMaterials } from '../../src/render/models';
+import { createTerrainView } from '../../src/render/terrain-view';
 import { CITADEL_AT, naharaLandform } from '../../src/world/terrain-nahara';
 import type { PlanetRow } from '../../src/world/terrain-planet';
 import { UMBRA_SCENERY_MAX } from '../../src/world/terrain-umbra';
 import { KIT, MESH_HALF, NAHARA_CLIFF_KINDS, NAHARA_KIT_KINDS, TERRAIN_STEP, createTerrainStream, generateTerrainSection, kitNodeName, terrainSample,
   type KitKind } from '../../src/world/terrain';
-import { ARCH_PIERS, NAHARA_PLANS, SAND_SHELTER_REACH, groundAt, groundPlans, sandRipples, sandShelters } from '../../src/world/sand-shelter';
+import { ARCH_PIERS, NAHARA_PLANS, SAND_SHELTER_REACH, groundAt, groundPlans, sandRipples, sandShelter, sandShelters } from '../../src/world/sand-shelter';
 
 // Node built-ins without @types/node: a non-literal specifier keeps the typecheck dependency-free.
 const fs: { existsSync(path: string): boolean; readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
@@ -228,5 +230,39 @@ describe('Nahara ripples keep to open sand (docs/39, 17 November)', () => {
       const own = sandRipples(section)!;
       for (let v = (reach + 1) * across; v < (section.along - reach - 1) * across; v++) expect(own[v]).toBe(a[v]);
     }
+    // No piece's calm reaches past its section's joins by more than the band a neighbour re-shelters.
+    for (const section of sections) for (const f of sandShelters(section)) {
+      const extent = Math.hypot(f.hx, f.hz) + f.lee + f.outer;
+      expect(f.s - extent).toBeGreaterThanOrEqual(section.startS - SAND_SHELTER_REACH);
+      expect(f.s + extent).toBeLessThanOrEqual(section.startS + section.size + SAND_SHELTER_REACH);
+    }
   });
+
+  it('streams the same shelter into the ground the view builds, whichever side of a join was built first', () => {
+    const scene = new Scene(), material = new MeshBasicMaterial();
+    const view = createTerrainView({ scene, groundMaterial: material, kitMaterial: material, infraMaterial: material,
+      sharedMaterial: material, roadMaterial: material, fallbackInfra: createFallbackInfra(createMaterials()), fallbackShared: createFallbackShared() });
+    const seed = 8831, generated = new Map<number, ReturnType<typeof generateTerrainSection>>();
+    const section = (index: number) => generated.get(index) ?? generated.set(index, generateTerrainSection(seed, index, NAHARA)).get(index)!;
+    let checked = 0;
+    try {
+      for (let distance = 30; distance < 250; distance += 2.5) {
+        view.update(seed, distance, NAHARA);
+        let steps = 200; view.prefetch(() => steps-- > 0);
+        // The window's middle section: both its neighbours have been built by now (one live behind, one live or prefetched).
+        const middle = Math.floor(distance / VIEW.sectionLength);
+        let ground: Mesh | undefined;
+        scene.traverse(object => { if (!ground && object.name.startsWith(`Khepri ground ${middle}:`) && object.parent?.parent?.parent === scene) ground = object as Mesh; });
+        if (!ground) continue;
+        const built = ground.geometry.getAttribute('sandShelter').array as Float32Array;
+        const expected = sandShelter(section(middle), [section(middle - 1), section(middle + 1)]);
+        let differ = 0;
+        for (let v = 0; v < expected.length; v++) if (Math.abs(built[v] - expected[v]) > 1e-6) differ++;
+        expect(differ, `section ${middle} at ${distance}`).toBe(0);
+        checked++;
+      }
+    } finally { view.dispose(); }
+    expect(checked).toBeGreaterThan(5);
+    expect(view.streamStats.viewFallbacks).toBe(0);
+  }, 120_000);
 });
