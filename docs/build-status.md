@@ -1,5 +1,20 @@
 # Build status
 
+## Nahara ripples on open sand and the shared scatter sink deployed (`0b9f692`), 17 November 2026
+
+- **Ripples:**
+  - each section builds a `sandShelter` mask from its placed pieces (real per-variant footprints, arch piers, a downwind tail);
+  - the ripples fade into calm sand around every piece;
+  - ruin districts get none;
+  - the user previewed it ("looks great").
+- **Scatter sink:** all eight worlds use `createScatterSink` (docs/38 W1). A fingerprint test proves their scatter output bit-identical.
+- **Gate on `0b9f692`:**
+  - typecheck clean; unit tests 1131 passed, 8 skipped; build passes;
+  - the full browser run gave 47/57 (Playwright exit 1, 54.5 min). The cleanup agent's browser suite was running at the same time (load 34).
+  - **Rerun of the four failed spec files alone** (faction-regressions, flight, graphics, menu): 25/25, exit 0.
+  - The cleanup branch, which contains this commit, also passed 57/57 on its own.
+- **Live:** Pages run 44083557694 succeeded; the live bundle `main-Dl5YEaz8.js` matches the build. A new smoke script (the old one was gone): Endless flies, no page errors. No phone test.
+
 ## Repository cleanup and naming pass, phase 1, 17 November 2026
 
 The user: "can you also do a naming pass? like clean up the file names, especially for tools etc."; "unused models and tools should just be removed, we still have it in git history. Same for all the screenshots etc" (docs/08, 17 November; this replaces the 4 November rule to keep retired GLBs).
