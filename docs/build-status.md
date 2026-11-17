@@ -1,5 +1,31 @@
 # Build status
 
+## Repository cleanup and naming pass, phase 1, 17 November 2026
+
+The user: "can you also do a naming pass? like clean up the file names, especially for tools etc."; "unused models and tools should just be removed, we still have it in git history. Same for all the screenshots etc" (docs/08, 17 November; this replaces the 4 November rule to keep retired GLBs).
+
+- **Deleted (81.4 MB from the tree, 3.4 MB from the deployed site):**
+  - `art/archive/assets`: 15 retired GLBs (44.7 MB);
+  - the unused hero part kits and the first Scrapper (`public/assets/shared/hero-*-kit.glb`, `hero-scrapper.glb`) with their dead loader (`src/render/hero-assembly.ts`);
+  - superseded art: the v4 boss handoff and previews, the 19 October boss studies, notes on retired models, THE CRADLE's view screenshots, the first HELION ARK source (22.2 MB);
+  - 12 superseded Blender builders and 3 one-off look-dev tools.
+- **Kept in named places:** `lib_tripo.py` (the Ark and Cradle face-copy helpers), the Ark's bridge lens in `boss_ark.py`, the Cradle's hatchling drone in `boss_cradle.py`, and `kit_refinement.py`, which builds the shipped Khepri, Vesper and Nacre terrain kits.
+- **Renamed:**
+  - `tools/` by purpose: `lib/`, `lookdev/`, `audio/`, `perf/`, `sim/`, and `dev/` (the private-cache dev server and browser configs, now tracked);
+  - Blender scripts by role: `boss_*`, `craft_*`, `kit_*`, `lib_*`;
+  - `art/source/bosses`, `art/bosses`;
+  - runtime assets without version suffixes (`nacre/the-veil.glb`, `khepri/bastion-9.glb`, `<world>/facility-kit.glb`, ...);
+  - `render/carrier-view.ts` (was `veil-view.ts`) and `render/boss-materials.ts`.
+- **Gate (WSL, SwiftShader, load average about 40 from other sessions):**
+  - typecheck clean; production build passes (`dist` 120.2 MB);
+  - unit: 1122 passed, 8 skipped, 1 timeout (`fairness-campaign`, silent-empire/standard, 35.6 s against 30 s); that
+    file alone then passed 24/24. The 8 fewer tests are the archive-only and Scrapper cases removed with their files;
+  - browser 57/57 against a private dev server (port 4191, `tools/dev/pw.isolated.config.ts`), Playwright exit 0;
+  - all 48 Blender modules import in Blender 5.2.2 headless (the six that build when imported were compiled, and their
+    imports run); no committed asset changed;
+  - no phone test (nothing a player sees changed).
+- **Not done (phase 2, the docs rework):** the docs' content still describes retired scripts and models in places; `HANDOFF.md` and `DESIGN-REVIEW.md` are untouched.
+
 ## Nahara ripples on open sand only, 17 November 2026
 
 User: the ripples "run below rocks and buildings/ruins"; they should stay on "open stretches of land and canyon floors"
