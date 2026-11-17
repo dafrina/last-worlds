@@ -13,7 +13,8 @@ export const BOSS_ASSETS = {
   ark: 'vesper/helion-ark.glb',
   /** A bulky remodel after the user's design sheet (boss_warden.py, 20 October 2026). */
   warden: 'luna/warden.glb',
-  /** The user's Tripo GLB itself, adapted in Blender (boss_cradle.py, 24 October 2026). */
+  /** The user's spider GLB adapted into a walking brood hive, its legs cut at their joints (boss_cradle.py, 17 November
+   * 2026; the flying hive before it is THE VEIL's model now). */
   cradle: 'amnion/the-cradle.glb',
   /** The user's Tripo GLB, adapted with its broken wing tip mended, plus the prow vent, its third first-phase target
    * (boss_eclipse.py, 24 and 31 October 2026). */

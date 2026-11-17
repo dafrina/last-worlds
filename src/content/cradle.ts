@@ -5,8 +5,9 @@ import { OVERLOAD_FRACTION } from './boss-phases';
  * ribbed shell, the bone spires and the egg clutches are scenery. Pressure as THE VEIL's (Amnion starts at Nacre's
  * intensity): aimed spore bursts from the sacs, then the heart alternates a fixed fan with an aimed burst and sends
  * hatchling waves from its brood bays, then overload lanes and a spiral over its own hit columns.
- * Its own model since 24 October 2026 (public/assets/amnion/the-cradle.glb, tools/blender/boss_cradle.py): it rises
- * out of a flesh canyon, hovers, opens its heart's shutters and launches hatchlings from bays in its base.
+ * Its model since 17 November 2026 (public/assets/amnion/the-cradle.glb, tools/blender/boss_cradle.py, docs/27 §5): a
+ * colossal hive walking on eight legs in the emergence canyon (render-only; src/render/cradle-gait.ts). Its combat values
+ * here are unchanged; the view projects its own visual target plane (WALKER.targetHeight) onto the same rows.
  */
 export const CRADLE = {
   arrivesAt: 184,
