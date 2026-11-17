@@ -1090,11 +1090,15 @@ if ( sitePadCount > 0 ) {
  * The ripples' slope is turned from the phase's screen derivatives into a world gradient (the inverse of the ground's
  * screen Jacobian), so the lighting follows the crests exactly as they bend. Each octave fades out before it would alias
  * (under about four pixels a ripple: the phase's fwidth), so far ground and the Low tier's single-density canvas stay
- * calm. Sand lies on the natural sandstone's flats (vSurface.w), in drifted patches over the built paving, never on a wall,
- * a steep slope or the teal streams. A uniform branch: the other worlds pay one test.
+ * calm. Sand lies where the terrain beds it (vSandClearance: the natural sandstone and the canyons' floors, never the ruin
+ * districts' terraces, away from cliffs; src/world/terrain.ts), never on a wall, a steep slope or the teal streams. The
+ * ripples and swells calm round every piece of scenery standing on it (vSandShelter, src/world/sand-shelter.ts, 17
+ * November: they "run below rocks and buildings/ruins"); the sand's colour, dust and sparkle stay. A uniform branch: the
+ * other worlds pay one test.
  */
 const SAND_GLSL = `uniform float sandLook;
 varying float vSandClearance;
+varying float vSandShelter;
 // Wave vectors (cycles per unit, local x and z; z times 36 is whole, so the section joins carry on): main ripples about a
 // third of a unit apart, the fine set about a sixth, across the main at 24 degrees; dune swells about 3.7 apart.
 #define SAND_K1 vec2( 2.95, 0.5556 )
@@ -1110,10 +1114,9 @@ float sandOn = 0.0;
 float sandCavity = 0.0;
 if ( sandLook > 0.0 ) {
   vec2 sandP = vLocal.xz;
-  // (The drifts' noise only where built paving shows: no derivative depends on it, so the branch is free to diverge.)
-  float drifted = vSurface.w < 0.995 ? smoothstep( 0.42, 0.7, khepriNoise( sandP + vec2( 3.7, 0.0 ), 1.0 / 12.0 ) ) : 0.0;
-  sandOn = mix( drifted * 0.12, 1.0, smoothstep( 0.2, 0.9, vSurface.w ) ) * ( 1.0 - smoothstep( 0.0, 0.45, vSurface.z ) ) * ( 1.0 - cliffWall ) * ( 1.0 - smoothstep( 0.05, 0.3, vSurface.y ) );
-  sandOn *= smoothstep( 0.05, 0.95, vSandClearance );
+  sandOn = smoothstep( 0.05, 0.95, vSandClearance ) * ( 1.0 - smoothstep( 0.0, 0.45, vSurface.z ) ) * ( 1.0 - cliffWall ) * ( 1.0 - smoothstep( 0.05, 0.3, vSurface.y ) );
+  // Open sand only: the ripples and swells calm round the scenery (the sand itself, its dust and sparkle, stay).
+  float sandFree = sandOn * ( 1.0 - smoothstep( 0.05, 0.95, vSandShelter ) );
   // The phase's world gradient from its screen derivatives: [dx.x dx.z; dy.x dy.z] g = (dFdx u, dFdy u).
   vec3 sandDx = dFdx( vLocal ), sandDy = dFdy( vLocal );
   float sandDet = sandDx.x * sandDy.z - sandDx.z * sandDy.x, sandInv = abs( sandDet ) > 1e-10 ? 1.0 / sandDet : 0.0;
@@ -1127,15 +1130,15 @@ if ( sandLook > 0.0 ) {
   // Broad wind-swept areas blend into smooth sand across several world units.
   float patchy = smoothstep( 0.3, 0.7, khepriNoise( sandP + vec2( 0.0, 7.7 ), 1.0 / 12.0 ) );
   // Each octave fades before it aliases: from about seven pixels a ripple to about three and a half.
-  float a1 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u1 ) ) ) * patchy * patchy * mix( 0.8, 1.0, erosion );
-  sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.045 * a1 ) + gd * ( cos( dune ) * 0.025 * sandOn );
+  float a1 = sandFree * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u1 ) ) ) * patchy * patchy * mix( 0.8, 1.0, erosion );
+  sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.045 * a1 ) + gd * ( cos( dune ) * 0.025 * sandFree );
   float sandShade = sandProfile( u1 ) * a1;
   // Less sky reaches a sheltered trough; the perturbed normal supplies its directional sun shading.
   sandCavity = smoothstep( 0.1, 0.95, -sandProfile( u1 ) ) * a1;
   if ( sandLook > 1.5 ) {
     float u2 = 6.2831853 * dot( SAND_K2, sandP ) + warp * 0.6 + 9.0 * vLocal.y;
     vec2 g2 = vec2( dFdx( u2 ) * sandDy.z - dFdy( u2 ) * sandDx.z, dFdy( u2 ) * sandDx.x - dFdx( u2 ) * sandDy.x ) * sandInv;
-    float a2 = sandOn * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u2 ) ) ) * patchy * patchy * mix( 0.8, 1.0, erosion ) * 0.28;
+    float a2 = sandFree * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u2 ) ) ) * patchy * patchy * mix( 0.8, 1.0, erosion ) * 0.28;
     sandSlope += g2 * ( sandSlopeOf( u2 ) * 0.008 * a2 );
     sandShade += sandProfile( u2 ) * a2 * 0.5;
   }
@@ -1231,10 +1234,10 @@ export function createTerrainMaterials() {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 // surface: x vein presence, y pool glow, z steepness; veins: signed distances to two crossing vein families.
-attribute float sandClearance;\nvarying float vSandClearance;\nattribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;\nvarying vec4 vCrackClip;
+attribute float sandClearance;\nvarying float vSandClearance;\nattribute float sandShelter;\nvarying float vSandShelter;\nattribute vec4 surface;\nattribute vec2 veins;\nvarying vec4 vSurface;\nvarying vec2 vVeins;\nvarying vec3 vLocal;\nvarying vec3 vFace;\nvarying float vHazeY;\nvarying vec4 vCrackClip;
 ${SITE_PAD_VERTEX}`)
       .replace('#include <beginnormal_vertex>', SITE_PAD_NORMAL)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSandClearance = sandClearance * (1.0 - sitePadWeight);\nvSurface = vec4(surface.xy, surface.z * (1.0 - sitePadWeight), surface.w);\nvVeins = veins;\nvLocal = position;\nvFace = normalize(mix(normal, vec3(0.0, 1.0, 0.0), sitePadWeight));\ntransformed.y = mix(transformed.y, sitePadTarget - modelMatrix[3].y, sitePadWeight);')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSandClearance = sandClearance * (1.0 - sitePadWeight);\nvSandShelter = sandShelter;\nvSurface = vec4(surface.xy, surface.z * (1.0 - sitePadWeight), surface.w);\nvVeins = veins;\nvLocal = position;\nvFace = normalize(mix(normal, vec3(0.0, 1.0, 0.0), sitePadWeight));\ntransformed.y = mix(transformed.y, sitePadTarget - modelMatrix[3].y, sitePadWeight);')
       .replace('#include <project_vertex>', HAZE_VERTEX + '\nvCrackClip = gl_Position;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>

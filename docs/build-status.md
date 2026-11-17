@@ -1,5 +1,30 @@
 # Build status
 
+## Nahara ripples on open sand only, 17 November 2026
+
+User: the ripples "run below rocks and buildings/ruins"; they should stay on "open stretches of land and canyon floors"
+(docs/39, "Ripples on open sand only").
+- **The bed:** the landform's sand bed leaves the ruin districts' terraces, cities and fallen buildings' footprints bare
+  (they had faint drifted patches); the canyon ledges and floor keep it, away from cliffs as before.
+- **The scenery's shelter** (`src/world/sand-shelter.ts`): every placed piece calms the ripples and swells round its
+  measured plan (from `nahara-kit.glb`; standing arches at their piers, nothing under aqueduct bays), with a halo and a
+  lee tail downwind. The sand's colour, dust and sparkle stay.
+  - Computed per section in the view's resumable build; a neighbour re-shelters the rows next to a join.
+  - The same mask on Low; other worlds unaffected.
+- **Checks:**
+  - typecheck clean;
+  - unit 1131 passed, 8 skipped. Four new Nahara tests: calm on every footprint and its margin; open floor kept and
+    built terraces bare; determinism and join continuity; the streamed view matching whichever side of a join is built
+    first. The GLB test also holds the plans to the model, and the scatter fingerprints are unchanged.
+  - build passes;
+  - browser: 20 of 20, Playwright exit 0 (graphics, umbra-terrain, asset-readiness incl. no mid-flight shader compile,
+    performance, endless-clearance and flight specs, on this worktree's own server on 4191).
+- **Measured:** about 3 % more work a section (3–4.5 ms rows and 1–2 ms join bands against 129–133 ms generation, Node);
+  ten frozen views identical in draw calls and triangles; no fallbacks in the Nahara flight bench; frame time within
+  load noise. No phone test.
+- **Stills:** `lookdev/nahara-ripple-mask/contact-sheet.png` (High and Low, before and after, crops, the mask in colour).
+- **Not covered:** the ground batteries' plinths (seated by the simulation after the mask is built).
+
 ## Nahara ripples favor open ground, 16 November 2026
 
 - Added a per-vertex sand clearance attribute from the existing one-unit terrain probes. Nearby rises or drops fade ripples out at cliff tops and feet. Slope suppresses them on hillsides. Open low canyon floors remain eligible.

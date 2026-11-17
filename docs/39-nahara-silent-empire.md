@@ -147,7 +147,7 @@ inspiration".
   - **Low:** one octave, no sparkle, one noise fewer.
   - **No aliasing:** each octave fades out before it would alias (its phase's `fwidth`, about four pixels a ripple).
   - **Where:** the natural sandstone's flats, and drifted patches over the built paving; never on walls, steep slopes or the
-    teal streams. The other worlds pay one uniform test.
+    teal streams. The other worlds pay one uniform test. (Since 17 November only on open sand: below.)
 - **Measured** (High and Low, headless Chromium on SwiftShader, so no GPU time; no phone yet):
   - **Scenery:** over ten sections (seed 93) the dressing went from 449 pieces to 728. The new ones are 112 rubble
     fields, 54 fallen columns, 27 stumps, 8 foundations, 10 relics and 68 more tumbled blocks. Instanced, about 250 to 700
@@ -164,6 +164,61 @@ inspiration".
   - **Within the guardrail** (docs/36: 100 calls, 180k triangles).
   - **The shader's GPU cost is unmeasured.** It adds about three value noises (two on Low) and a dozen trig terms a
     ground pixel; a phone test should confirm it.
+
+### Ripples on open sand only (16–17 November)
+
+The user: Codex's fixes look better, "but where it is applied bugs me a bit. It runs below rocks and buildings/ruins but it
+should not do that. I told it to limit it to open stretches of land and canyon floors".
+
+- **The terrain's bed** (`TerrainSection.sandClearance`, per vertex; Codex, 16 November, then 17 November):
+  - the landform's `sand` (`naharaLandform`): the natural sandstone, and in the ruin districts only the canyon's ledges and
+    floor (under -2.8; the basin mesas' tops are at -2.2 and up). The built terraces, cities and fallen buildings'
+    footprints carry none (they had faint drifted patches), nor does THE CITADEL's rock;
+  - away from cliffs: fading over a rise or drop of 0.35 to 1.1 within a unit, and over slopes of 0.12 to 0.5;
+  - strike-site pads clear it (render only, as before).
+- **The scenery's shelter** (`src/world/sand-shelter.ts`, the `sandShelter` attribute): every placed piece calms the
+  ripples round its footprint, so it sits in smooth sand. Only the ripples and the dune swells fade: the sand's colour,
+  its dust and its sparkle stay.
+  - **Footprints:** each piece's plan turned with it and scaled, measured from `nahara-kit.glb` per variant
+    (`NAHARA_PLANS`; the GLB test holds them to the model). The contract bounds are the most a node may take, and the
+    pieces take less: a tumbled block's contract is 0.6 by 0.6, its stones about 0.35 by 0.35.
+  - **Only where a piece meets the ground:**
+    - a standing arch at its piers (x 0.66 to 0.94 either side), a half arch at its one (`ARCH_PIERS`);
+    - a buried arch's crown along its whole width;
+    - a piece standing clear of the ground (an aqueduct's bay over its pier columns) not at all.
+  - **The calm** (`r` the footprint's radius, `e` how far the piece stands over the ground, at most 3):
+    - fully calm to `0.1 + 0.05 r` past the edge;
+    - fading out over `0.3 + 0.12 r + 0.1 e` more;
+    - a tail on the lee side, downwind (`SAND_WIND`, the sand streams' wind), up to `0.3 + 0.5 e + 0.1 r` long (at most
+      2), thinning as it goes.
+    - So a small block's ripples stop about half a unit round it, a rubble field's under a unit, a tower's 1.2 round and
+      2 downwind.
+  - **Seams:** a section's rows within 7 units of a join (`SAND_SHELTER_REACH`) take the neighbour's pieces too.
+    Whichever side is built first, the later one re-shelters the earlier one's band and uploads only those rows. Both
+    sides of a join are then the same row.
+  - **Cost:** computed once per section while its view is built off-frame (24 rows a prefetch step, each neighbour's
+    band a step of its own), no per-frame work, no draw call, one float attribute a ground vertex. The same mask on Low
+    (where the cosmetic rubble is not drawn, its calm stays: a smooth patch, not a hole).
+  - **Not covered:** the ground batteries (seated by the simulation, not the terrain) and THE CITADEL (its rock carries
+    no sand).
+- **Where ripples show now:** the open natural sandstone and the canyon's floor between its dressing. The canyon floor is
+  densely dressed (15 November), so its ripples lie in the gaps. Over seeds 93, 8831, 11 and 4242 (sections 3 to 9), the
+  ripples keep over half their strength on 29 % of the canyon floor's bed (the pieces' plans alone cover 46 % of it) and
+  on 49 % of the open land's (28 %).
+- **Review stills** (`lookdev/nahara-ripple-mask/`, its `contact-sheet.png`): the frozen terrain-relief views on High and
+  Low, before and after, crops round buried walls and towers on rippled dunes, and the mask drawn in colour.
+- **Measured** (headless Chromium on SwiftShader, so no GPU time; no phone yet):
+  - **Per section** (Node, 40 sections of seeds 93, 8831, 11 and 4242, load 15–24): generation 129–133 ms before and
+    after. The shelter takes 3.0–4.5 ms for a section's rows and 1.0–1.9 ms for its two join bands, about 3 % of the
+    section's generation, in steps under a millisecond.
+  - **Ten frozen views** on High and Low: the same draw calls and triangles before and after, to the triangle.
+  - **The flight** (`tools/perf-bench.mjs nahara`, 300 frames at 4× CPU throttle):
+    - draw calls 60.6 → 61.0 on High and 47.9 → 47.9 on Low, triangles unchanged (116k, 106k);
+    - no synchronous section or view fallbacks;
+    - frame time within the machine's load noise: load 10–14 before, 15–20 after. The simulation, which this does not
+      touch, rose 22 % with it; the render rose 36 % on High and 12 % on Low.
+  - **The shader:** one varying and a smoothstep more, one value noise fewer (the drifted patches over the paving are
+    gone).
 
 ### The ruin kit (`tools/blender/nahara_kit.py`, `public/assets/nahara/nahara-kit.glb`)
 
@@ -279,3 +334,7 @@ ruins"; the canyon "should be closer to the normal canyons"; "fill the surroundi
 - Distinct models for the dart, needle and weaver.
 - No phone test yet. The sand shader's GPU cost on a phone and the canyon floor's draw calls (up to about 10 more nodes in
   view) are the things to watch.
+- The ground batteries (the Quarry Battery's plinth) do not calm the ripples round them: the simulation seats them, after
+  the section's mask is built. Feeding their seats to the ground shader (like the strike-site pads) would cover them.
+- The canyon floor's ripples show only between its dense dressing; if the user wants more there, thin the dressing's
+  rubble or give the low rubble a smaller calm.

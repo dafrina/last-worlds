@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { MeshPhysicalMaterial, ShaderLib, type WebGLRenderer } from 'three';
+import { MeshBasicMaterial, MeshPhysicalMaterial, Scene, ShaderLib, type Mesh, type WebGLRenderer } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { CAMPAIGN_SCROLL, PACE } from '../../src/content/balance';
 import { scrollForPace } from '../../src/content/endless';
 import { VIEW, type RunConfig } from '../../src/shared/contracts';
 import { missionArena } from '../../src/render/scene';
-import { createTerrainMaterials, extractKitNode } from '../../src/render/terrain-kit';
+import { createFallbackInfra, createFallbackShared, createTerrainMaterials, extractKitNode } from '../../src/render/terrain-kit';
+import { createMaterials } from '../../src/render/models';
+import { createTerrainView } from '../../src/render/terrain-view';
 import { CITADEL_AT, naharaLandform } from '../../src/world/terrain-nahara';
 import type { PlanetRow } from '../../src/world/terrain-planet';
 import { UMBRA_SCENERY_MAX } from '../../src/world/terrain-umbra';
-import { KIT, NAHARA_CLIFF_KINDS, NAHARA_KIT_KINDS, createTerrainStream, generateTerrainSection, kitNodeName, terrainSample, type KitKind } from '../../src/world/terrain';
+import { KIT, MESH_HALF, NAHARA_CLIFF_KINDS, NAHARA_KIT_KINDS, TERRAIN_STEP, createTerrainStream, generateTerrainSection, kitNodeName, terrainSample,
+  type KitKind } from '../../src/world/terrain';
+import { ARCH_PIERS, NAHARA_PLANS, SAND_SHELTER_REACH, groundAt, groundPlans, sandRipples, sandShelter, sandShelters } from '../../src/world/sand-shelter';
 
 // Node built-ins without @types/node: a non-literal specifier keeps the typecheck dependency-free.
 const fs: { existsSync(path: string): boolean; readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
@@ -83,6 +87,22 @@ describe('Nahara canyon floor (docs/39, 15 November)', () => {
       else expect(box.max.y).toBeLessThanOrEqual(spec.height + 1e-6);
       expect(Math.max(-box.min.x, box.max.x), kitNodeName(kind, v)).toBeLessThanOrEqual(spec.halfX + 1e-6);
       expect(Math.max(-box.min.z, box.max.z), kitNodeName(kind, v)).toBeLessThanOrEqual(spec.halfZ + 1e-6);
+      // The plan the sand's shelter takes (src/world/sand-shelter.ts): the node's own, rounded out to the hundredth.
+      const plan = NAHARA_PLANS[kind]![v], measured = [box.min.x, box.max.x, box.min.z, box.max.z];
+      for (let k = 0; k < 4; k++) {
+        expect(plan[k] * (k % 2 ? 1 : -1), `${kitNodeName(kind, v)} plan ${k}`).toBeGreaterThanOrEqual(measured[k] * (k % 2 ? 1 : -1) - 1e-6);
+        expect(Math.abs(plan[k] - measured[k]), `${kitNodeName(kind, v)} plan ${k}`).toBeLessThan(0.011);
+      }
+      // A standing arch's piers: the lowest course's blocks (the span springs from them).
+      const piers = ARCH_PIERS[kind];
+      if (piers) {
+        const position = geometry.getAttribute('position'), course = box.min.y + 0.15 * (box.max.y - box.min.y);
+        for (let i = 0; i < position.count; i++) {
+          if (position.getY(i) > course) continue;
+          const x = position.getX(i), z = position.getZ(i);
+          expect(piers.some(([x0, x1, z0, z1]) => x >= x0 - 1e-6 && x <= x1 + 1e-6 && z >= z0 - 1e-6 && z <= z1 + 1e-6), `${kitNodeName(kind, v)} pier ${x},${z}`).toBe(true);
+        }
+      }
       geometry.dispose();
     }
   });
@@ -122,7 +142,8 @@ it('keeps ripple clearance off cliffs while preserving flat canyon-floor sand ac
     const index = row * a.across + col, height = a.positions[index * 3 + 1];
     const variation = Math.max(...probes.map(delta => Math.abs(a.positions[(index + delta) * 3 + 1] - height)));
     if (variation > 1.1) { expect(clearance[index]).toBe(0); cliff++; }
-    if (height < -2 && variation < .1 && a.normals[index * 3 + 1] > .999) {
+    // (Down in the canyon: the ruin districts' terraces and mesa tops over it carry no sand since 17 November.)
+    if (height < -3.6 && variation < .1 && a.normals[index * 3 + 1] > .999) {
       expect(clearance[index]).toBeGreaterThan(.95); floor++;
     }
   }
@@ -131,4 +152,117 @@ it('keeps ripple clearance off cliffs while preserving flat canyon-floor sand ac
   for (let col = 0; col < a.across; col++) {
     expect(clearance[(a.along - 1) * a.across + col]).toBeCloseTo(b.sandClearance![col], 6);
   }
+});
+
+describe('Nahara ripples keep to open sand (docs/39, 17 November)', () => {
+  // The user: the ripples "run below rocks and buildings/ruins", and should stay on "open stretches of land and canyon floors".
+  const sectionsOf = (seed: number) => [3, 4, 5, 6, 7].map(index => generateTerrainSection(seed, index, NAHARA));
+  it('calms the sand on and round every piece standing on the ground, its own section\'s and its neighbours\' across a join', () => {
+    let checked = 0, pieces = 0;
+    for (const seed of [93, 8831, 11]) {
+      const sections = sectionsOf(seed);
+      for (let k = 1; k < sections.length - 1; k++) {
+        const section = sections[k], ripples = sandRipples(section, [sections[k - 1], sections[k + 1]])!, margin = 0.1;
+        for (const owner of sections.slice(k - 1, k + 2)) for (const piece of owner.instances) {
+          const ground = groundAt(owner, piece.x, piece.s), ax = Math.cos(piece.rotation), as = Math.sin(piece.rotation);
+          // Where it meets the ground (its measured plan; a standing arch's piers; nothing under a bay standing clear).
+          for (const [x0, x1, z0, z1] of groundPlans(piece, ground)) {
+            pieces++;
+            // Every vertex within the footprint and a margin round it (local x along (cos, sin), local z (sin, -cos)).
+            const size = piece.scale, reach = Math.hypot(Math.max(-x0, x1), Math.max(-z0, z1)) * size + margin;
+            for (let row = Math.ceil((piece.s - reach - section.startS) / TERRAIN_STEP); row <= Math.floor((piece.s + reach - section.startS) / TERRAIN_STEP); row++) {
+              if (row < 0 || row >= section.along) continue;
+              for (let column = Math.ceil((piece.x - reach + MESH_HALF) / TERRAIN_STEP); column <= Math.floor((piece.x + reach + MESH_HALF) / TERRAIN_STEP); column++) {
+                if (column < 0 || column >= section.across) continue;
+                const dx = -MESH_HALF + column * TERRAIN_STEP - piece.x, ds = section.startS + row * TERRAIN_STEP - piece.s;
+                const u = dx * ax + ds * as, w = dx * as - ds * ax;
+                if (u < x0 * size - margin || u > x1 * size + margin || w < z0 * size - margin || w > z1 * size + margin) continue;
+                expect(ripples[row * section.across + column], `${piece.kind} (seed ${seed}) at ${piece.x.toFixed(2)},${piece.s.toFixed(2)}, section ${section.index}`).toBeLessThan(0.02);
+                checked++;
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(pieces).toBeGreaterThan(500);
+    expect(checked).toBeGreaterThan(20_000);
+  });
+
+  it('keeps the ripples on open canyon floor and open natural ground, and none on the ruin districts\' terraces', () => {
+    let floor = 0, open = 0, built = 0;
+    for (const seed of [93, 8831]) {
+      const sections = sectionsOf(seed);
+      for (let k = 1; k < sections.length - 1; k++) {
+        const section = sections[k], ripples = sandRipples(section, [sections[k - 1], sections[k + 1]])!, bed = section.sandClearance!;
+        const shelters = sections.slice(k - 1, k + 2).flatMap(near => sandShelters(near));
+        for (let row = 0; row < section.along; row++) for (let column = 20; column < section.across - 20; column++) {
+          const v = row * section.across + column, x = section.positions[v * 3], s = section.startS + row * TERRAIN_STEP, height = section.positions[v * 3 + 1];
+          // Beyond every piece's calm (its footprint, halo and lee tail) the sand keeps its ripples.
+          if (bed[v] > 0.95 && shelters.every(f => Math.hypot(f.x - x, f.s - s) > Math.hypot(f.hx, f.hz) + f.lee + f.outer)) {
+            expect(ripples[v]).toBe(bed[v]);
+            if (height < -3.6) floor++; else open++;
+          }
+          // The built terraces, city blocks and fallen buildings' footprints (the ruin districts over the canyon) carry none.
+          if (section.strata![v] < 0.02 && height > -2.6) { expect(bed[v]).toBe(0); built++; }
+        }
+      }
+    }
+    expect(floor).toBeGreaterThan(100);
+    expect(open).toBeGreaterThan(100);
+    expect(built).toBeGreaterThan(100);
+  });
+
+  it('is deterministic, reaches no further than a join\'s band, and runs on across every join', () => {
+    const sections = sectionsOf(8831), reach = Math.ceil(SAND_SHELTER_REACH / TERRAIN_STEP);
+    for (const section of sections) for (const shelter of sandShelters(section)) {
+      expect(Math.hypot(shelter.hx, shelter.hz) + shelter.lee + shelter.outer).toBeLessThanOrEqual(SAND_SHELTER_REACH);
+    }
+    for (let k = 1; k < sections.length - 2; k++) {
+      const section = sections[k], across = section.across, last = (section.along - 1) * across;
+      const a = sandRipples(section, [sections[k - 1], sections[k + 1]])!, b = sandRipples(sections[k + 1], [section, sections[k + 2]])!;
+      // A fresh generation of the same sections gives the same mask.
+      const again = [-1, 0, 1].map(d => generateTerrainSection(8831, section.index + d, NAHARA));
+      expect(sandRipples(again[1], [again[0], again[2]])).toEqual(a);
+      // The join's row is one row of the ground: the same in both sections.
+      for (let column = 0; column < across; column++) expect(a[last + column]).toBeCloseTo(b[column], 6);
+      // Rows beyond a join's band take only the section's own pieces.
+      const own = sandRipples(section)!;
+      for (let v = (reach + 1) * across; v < (section.along - reach - 1) * across; v++) expect(own[v]).toBe(a[v]);
+    }
+    // No piece's calm reaches past its section's joins by more than the band a neighbour re-shelters.
+    for (const section of sections) for (const f of sandShelters(section)) {
+      const extent = Math.hypot(f.hx, f.hz) + f.lee + f.outer;
+      expect(f.s - extent).toBeGreaterThanOrEqual(section.startS - SAND_SHELTER_REACH);
+      expect(f.s + extent).toBeLessThanOrEqual(section.startS + section.size + SAND_SHELTER_REACH);
+    }
+  });
+
+  it('streams the same shelter into the ground the view builds, whichever side of a join was built first', () => {
+    const scene = new Scene(), material = new MeshBasicMaterial();
+    const view = createTerrainView({ scene, groundMaterial: material, kitMaterial: material, infraMaterial: material,
+      sharedMaterial: material, roadMaterial: material, fallbackInfra: createFallbackInfra(createMaterials()), fallbackShared: createFallbackShared() });
+    const seed = 8831, generated = new Map<number, ReturnType<typeof generateTerrainSection>>();
+    const section = (index: number) => generated.get(index) ?? generated.set(index, generateTerrainSection(seed, index, NAHARA)).get(index)!;
+    let checked = 0;
+    try {
+      for (let distance = 30; distance < 250; distance += 2.5) {
+        view.update(seed, distance, NAHARA);
+        let steps = 200; view.prefetch(() => steps-- > 0);
+        // The window's middle section: both its neighbours have been built by now (one live behind, one live or prefetched).
+        const middle = Math.floor(distance / VIEW.sectionLength);
+        let ground: Mesh | undefined;
+        scene.traverse(object => { if (!ground && object.name.startsWith(`Khepri ground ${middle}:`) && object.parent?.parent?.parent === scene) ground = object as Mesh; });
+        if (!ground) continue;
+        const built = ground.geometry.getAttribute('sandShelter').array as Float32Array;
+        const expected = sandShelter(section(middle), [section(middle - 1), section(middle + 1)]);
+        let differ = 0;
+        for (let v = 0; v < expected.length; v++) if (Math.abs(built[v] - expected[v]) > 1e-6) differ++;
+        expect(differ, `section ${middle} at ${distance}`).toBe(0);
+        checked++;
+      }
+    } finally { view.dispose(); }
+    expect(checked).toBeGreaterThan(5);
+    expect(view.streamStats.viewFallbacks).toBe(0);
+  }, 120_000);
 });

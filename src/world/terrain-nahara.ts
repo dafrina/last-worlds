@@ -351,7 +351,7 @@ function citadelCap(arena: TerrainArena | undefined, x: number, s: number): numb
 }
 
 /** Nahara's ground: built terraces and natural sandstone, the chasm falling far to the hazy floor. */
-export function naharaLandform(seed: number, x: number, s: number, row: PlanetRow): Landform & { tone: number; strata: number } {
+export function naharaLandform(seed: number, x: number, s: number, row: PlanetRow): Landform & { tone: number; strata: number; sand: number } {
   const arena = row.arena, platform = naharaPlatform(arena, seed, x, s);
   const m = naharaMasks(seed, x, s, platform, arena), built = m.built;
   const b = built > 0.001 ? builtGround(seed, x, s, m, platform) : 0, n = built < 0.999 ? naturalGround(seed, x, s, m, platform) : 0;
@@ -368,9 +368,13 @@ export function naharaLandform(seed: number, x: number, s: number, row: PlanetRo
   const layer = Math.floor(height * 1.4 + (noise(seed ^ 0x4a52, x * 0.12, s * 0.1) - 0.5) * 1.6);
   const tone = mix(hash(seed ^ 0x4a53, layer, 7), 0.5 + (slab - 0.5) * 0.35, built);
   const elevation = height >= PLATEAU - 0.6 ? 0.55 + 0.45 * smoothRange(PLATEAU, TOP, height) : 0.5 * smoothRange(NAHARA_FLOOR + 0.3, PLATEAU - 0.6, height);
+  // The wind ripples' bed (src/render/terrain-kit.ts SAND_RIPPLES; user, 17 November: "open stretches of land and canyon
+  // floors"): the natural sandstone, and in the ruin districts only the canyon's ledges and floor, under the basin mesas'
+  // tops (PLATEAU - 0.4); never the built terraces, the cities or the fallen buildings' footprints, nor THE CITADEL's rock.
+  const sand = mix(1 - smoothRange(PLATEAU - 1.8, PLATEAU - 1.0, height), 1, smoothRange(0.2, 0.9, 1 - built)) * (1 - platform);
   return {
     height, elevation, channel: 0, pool: tealStream(seed, x, s, m, height) * (1 - platform),
-    vein, vein2: 9, veins: lit * (1 - m.chasm) * (1 - platform), tone, strata: 1 - built,
+    vein, vein2: 9, veins: lit * (1 - m.chasm) * (1 - platform), tone, strata: 1 - built, sand,
   };
 }
 

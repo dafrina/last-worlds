@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SAND_WIND } from '../world/sand-shelter';
 
 /**
  * Nahara's moving sand (user, 14 November: "nahara still feels very empty"; the questionnaire: "moving sand", drifting
@@ -13,7 +14,8 @@ import * as THREE from 'three';
  * - Everything is placed from a fixed integer hash of its slot and generation (no Math.random), in the terrain frame
  *   (it scrolls with the ground) round the camera. Low graphics keeps half the streams.
  */
-const WIND = { x: 1.9, s: -0.35 } as const;
+/** Nahara's wind (world units a second; the ripples lie across it and the scenery's calm trails downwind of it). */
+const WIND = SAND_WIND;
 /** Ribbons: count (high), segments along each, length and width ranges, lift over the ground, life range (seconds). */
 const STREAM = { count: 36, segments: 10, length: [3.2, 6.5], width: [0.35, 0.8], lift: 0.1, life: [3.5, 6.5], opacity: 0.5 } as const;
 /** Where they start, about the camera (x) and the view (s from the camera's ground distance). */
