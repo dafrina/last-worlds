@@ -1888,7 +1888,7 @@ def main():
         if only and site not in only:
             continue
         started = time.time()
-        sc = br.scene('sites_strike')
+        sc = br.scene('strike_sites')
         spec = spec_all[site]
         if finish_only and not set(finish_only) & set(spec['finishes']):
             continue

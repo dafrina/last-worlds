@@ -648,7 +648,7 @@ FLOOR_PIECES = ('nah_drums', 'nah_stub', 'nah_footing', 'nah_debris', 'nah_relic
 
 def main():
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-    sc = br.scene('kit_nahara')
+    sc = br.scene('nahara_kit')
     mats = materials()
     objects, report = [], []
     for name, build in BUILDERS.items():

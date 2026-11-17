@@ -36,7 +36,7 @@ from mathutils.bvhtree import BVHTree  # noqa: E402
 import kit_khepri as kit  # noqa: E402
 
 INFRA_SEED = "khepri-infra-v1"
-MAT_INFRA = "kit_khepri_infra"
+MAT_INFRA = "khepri_infra"
 MAT_LIGHT = "khepri_light"
 COLOR_ATTR = "Col"
 SINK = -0.05            # pieces extend this far below y = 0 (track: flush)

@@ -706,7 +706,7 @@ def wreck(ob, mat, sag, jitter, seed):
 def main():
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     t0 = time.time()
-    sc = br.scene('boss_citadel')
+    sc = br.scene('nahara_citadel')
     mats = nk.materials()
     mats[CRYSTAL] = br.material(CRYSTAL, '#1f6f68', .25, .1, emit='#3cc8b8', strength=1.0)
     mats[WALL] = br.material(WALL, '#866447', .9, .0)

@@ -306,7 +306,7 @@ BUILDERS = {'cor_extractor_0': extractor, 'cor_collector_0': collector, 'cor_han
 
 def main():
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-    sc = br.scene('kit_corona')
+    sc = br.scene('corona_kit')
     mats = materials()
     objects, report = [], []
     for name, build in BUILDERS.items():
