@@ -1,6 +1,6 @@
 # Khepri craft
 
-Runtime file: `public/assets/khepri/khepri-craft.glb` (263016 bytes, sha256 `9478cd69ca1f9a700c73ec440d04446ab5de9689cb81909aec17ca4bd9a96578`).
+Runtime file: `public/assets/khepri/khepri-craft.glb`.
 Design: the KHEPRI column of `art/concepts/05-alien-factions.png`. Weathered ochre and gold armour plates with seam gaps and raised graphite ribs sit over a graphite frame, with the odd rust-streaked plate and amber glow slits, wingtip lights and engine throats. The concept is a reference only; nothing is copied.
 
 These Blender models replace the code-built Khepri enemies (user, 15 October 2026: "definitely dont use code built models"). On Luna the same models fly in steel blue: the shared enemy material swaps the paint channels (`paintSwap` in `src/render/models.ts`).
@@ -19,7 +19,7 @@ R=/home/davidfarina/Projects/alien-skies
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup \
   --python "$(wslpath -w $R/tools/blender/craft_khepri.py)" -- \
   --glb "$(wslpath -w $R/public/assets/khepri/khepri-craft.glb)" \
-  --preview-dir "$(wslpath -w $R/art/khepri-craft)"
+  --preview-dir "$(wslpath -w $R/lookdev/khepri-craft)"
 ```
 
 The build verifies node names and translations, materials, triangle budgets (2,500 each) and footprints before it publishes.
@@ -46,5 +46,4 @@ The engine sockets are copied into `KHEPRI_ENGINES` in `src/render/scene.ts` (th
 
 ## Previews
 
-- `preview-craft.png`: close-up board.
-- `preview-game.png`: the game camera over sand.
+`--preview-dir <dir>` renders this kit's preview images; write them to the git-ignored `lookdev/`. The images once kept in this folder were removed on 17 November (git history keeps them).
