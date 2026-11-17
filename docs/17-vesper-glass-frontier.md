@@ -81,7 +81,7 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
 - **Sea and shelves.** The sea stands at `VESPER_SEA_LEVEL` (lowered in terrain version 16 so the ice walls are as tall
   as Khepri's canyons; user, 21 October). Shelves stand one to several tiers over the water and step up inland in ice
   cliffs; ice plateaus rise a tier or two above the shelves on sheer walls. The land share is about half over long
-  stretches of the route (tested). The relief rules are [docs/26 §4 and §11–12](26-terrain-relief.md).
+  stretches of the route (tested). The relief rules are [docs/26 §4–5 and §10–11](26-terrain-relief.md).
 - **Moods** (`VESPER_MOODS`, `MOOD_SETTINGS`): land share, leads, crevasses, ridges, rock, floes, shelf height, cliff
   step, inland stairs, inlets and plateaus per mood; never the same mood twice in a row.
 - **Ice walls** stand on every big face (crevasses, ridges and beside outposts included) in continuous runs, never on
