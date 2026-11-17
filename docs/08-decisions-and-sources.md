@@ -455,3 +455,16 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **User:** "can you also do a naming pass? like clean up the file names, especially for tools etc. Run through the docs too so everything is up to date and consistent, i find it very hard to follow the code when theres folders like approved bosses that is apparently old stuff etc"; then "unused models and tools should just be removed, we still have it in git history. Same for all the screenshots etc".
 - **Decision:** this replaces the 4 November decision to keep retired GLBs for rollback (moved to `art/archive/assets` on 8 November, docs/38 P1). Retired models, superseded Blender builders and one-off tools, previews and screenshots are deleted from the tree; git history keeps them. A rollback restores a file from history.
 - **Names:** files are named by what they are, not by their history: no "approved", "remodel" or version suffixes on current runtime assets, tools or Blender scripts.
+
+### 17 November 2026 · Boss visual overhaul: the VEIL, a walking CRADLE, HELION STRONGHOLD
+- **User:** the specification "LAST WORLDS — BOSS VISUAL OVERHAUL", kept verbatim in [docs/43](43-boss-visual-overhaul.md), with two new reference models and target images (`art/source/bosses/`). The work is visual only: no rebalancing, attacks, timings or rewards change.
+- **THE VEIL:** rebuilt from the old flying CRADLE, adapted from `cradle-tripo-original.glb`, and reskinned as an ancient Nacre relic. It keeps its own weak points, its pods and its rise from the mire. It does not inherit the CRADLE's brood launches.
+- **THE CRADLE:** a colossal walking brood hive on eight legs, from the spider reference. It walks with a procedural, deterministic gait. When it dies, its body collapses between buckling legs.
+  - **Height** (user: "obviously it doesnt hover, but doesnt sit low either, its suspended over the ground via its legs"): the body is slung between its legs at a clear standing height.
+- **Vesper's boss:** the flying HELION ARK becomes HELION STRONGHOLD, a fortress built into a snowy cliff. Its two cannons are the modules and the reactor bunker is the core. Vesper's boss arena becomes a cliff, built the way Nahara's CITADEL arena is.
+- **The integrator's assumptions, confirmed by the user ("youre assumptions are all correct"):**
+  - the Ark becomes `stationary`, as THE CITADEL is: a fortress cannot drift;
+  - only the display name changes: the id stays `ark`, and slugs, saves and statistics are unchanged;
+  - the VEIL keeps its own pods;
+  - the old VEIL's source GLB stays in `art/source/bosses/`.
+- **Deploying:** this work deploys only with the user's approval (the spec: "Do not deploy without the appropriate approval").
