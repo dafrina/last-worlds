@@ -76,7 +76,7 @@ After Cold Vector, threat 4 of 4 (user decision, 15 October: THE VEIL is so epic
 
 Since 16 October the sortie has a 36 s fuel-depot stretch: the approach closes at 182 s and THE VEIL rises at 184 s over open mire; the scroll stops at distance 920. Shield cells come at 45, 141 and 178 s (141 and 178 s on Veteran).
 
-## THE VEIL (`src/content/veil.ts`, `src/render/veil-view.ts`)
+## THE VEIL (`src/content/veil.ts`, `src/render/carrier-view.ts`)
 
 A giant alien warship in the design language of Nacre's fighters (Shard and Veil), redesigned on 17 October 2026 at the user's request: the first model read as round and animal-like ("an axolotl"). Modelled in Blender (`tools/blender/the_veil.py` → `public/assets/nacre/the-veil.glb`, 10,044 triangles, `art/the-veil/README.md`); the code-built rig only stands in while the model loads:
 - a faceted black hull about 18 units long with a ram prow and silver mandibles; its swept blades span about 25 units, so the ship is wider than it is long (user, 17 October: "make it wide");

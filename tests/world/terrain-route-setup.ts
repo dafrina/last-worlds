@@ -1,6 +1,6 @@
 import type { RunConfig } from '../../src/shared/contracts';
 import { endlessSchedule, endlessSectorPlan } from '../../src/content/endless';
-import { runRoute } from '../../src/render/terrain-route';
+import { runRoute } from '../../src/world/run-route';
 
 /* Shared setup of the terrain-route suites (split for parallel runs, docs/38 T1): terrain-route, -campaign and -stream. */
 export const SEED = 93;

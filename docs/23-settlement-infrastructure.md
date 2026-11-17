@@ -92,7 +92,7 @@ scene.ts groundNow (:954-967) → facility-view.ts compounds (≤ 12) → terrai
 | `src/world/terrain-vesper.ts`, `-luna.ts`, `-nacre.ts` | Other planets | Vesper cap 3.0 (:22), harbours face water. Luna: no networks (:252), reuses the Khepri kit. Nacre cap 3.0, ruin-site lattice in scatter (:107-220), `settlement: () => null` (:331). |
 | `src/world/terrain-arena.ts` | Mission and boss arenas | `ARENA_RAMP` 20 (:67), `nearArena` (:77-79). |
 | `src/world/terrain-work.ts` | Resumable work | Generators; `finish()` gives identical output whether run synchronously or incrementally. |
-| `src/render/terrain-route.ts:10-13` | `runRoute(config)` | Every run, campaign included, streams as a route over `endlessSchedule(config)` (`src/content/endless.ts:262-275`). |
+| `src/world/run-route.ts` | `runRoute(config)` | Every run, campaign included, streams as a route over `endlessSchedule(config)` (`src/content/endless.ts:262-275`). |
 | `src/render/terrain-view.ts` | Section views | `PRELOAD_AHEAD` 400 (:48), `CASTER_NODES` (:119-123), material routing by name prefix (:175), `prepare` (:351-397), `ensurePlanet` (:511), `compact` (:588-631), `setFacilityClearings` (:710), `setQuality` (:739). |
 | `src/render/terrain-kit.ts` | Loaders and stand-ins | `INFRA_NODES` sizes (:312-323), `VESPER_INFRA_NODES` (:325-330), `createFallbackInfra` (:374), loaders (:403-409, :886), `createFallbackShared` (:891). |
 | `src/render/facility-view.ts` | Battery compounds | 6 nodes (:5), capacity 12 (:9), bounds (:11-14), placement (:43-65), cosmetic hash of id and seed (:47), roof ≤ flightHeight − 0.45 and sink ≤ 0.35 (:60-61). |

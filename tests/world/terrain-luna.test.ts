@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
-import { runRoute } from '../../src/render/terrain-route';
+import { runRoute } from '../../src/world/run-route';
 import { LUNA_SCENERY_MAX, lunaCraters, lunaMare, lunaMoodOf } from '../../src/world/terrain-luna';
 import { KIT, generateTerrainSection, terrainHeight } from '../../src/world/terrain';
 

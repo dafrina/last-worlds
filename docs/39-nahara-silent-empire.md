@@ -298,7 +298,7 @@ shapes (user: "keep it kit built, but obviously you can still take shapes etc fr
     first windup comes at 188.3 s instead of 190.3 s.
   - It stands dormant (glow 0.15) until then. Through the arrival it shakes the sand off (a puff of dust and a short
     camera rumble), then its lanterns, emblem and crown light in turn, each with a flicker and a flare of sparks
-    (`AWAKEN`, `src/render/veil-view.ts`).
+    (`AWAKEN`, `src/render/carrier-view.ts`).
 
 ### The arena (`src/world/terrain-nahara.ts`)
 

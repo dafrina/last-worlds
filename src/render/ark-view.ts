@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HELION_ARK } from '../content/ark';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import type { FoamRing, Wake } from './water';
-import { retainBossMaterials } from './approved-boss-materials';
+import { retainBossMaterials } from './boss-materials';
 import { SIDES, markerWriter } from './bastion-view';
 
 /**
@@ -370,7 +370,7 @@ export function createArkView(scene: THREE.Scene) {
 
       marks.begin();
       for (const enemy of state.enemies) {
-        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
+        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in carrier-view.ts.
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
         if (!enemy.bossPart || !part || !target) continue;
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 2.0);

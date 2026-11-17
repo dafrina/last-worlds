@@ -5,7 +5,7 @@ import { BASTION } from '../../src/content/bastion';
 import { createSilhouetteMaterial } from '../../src/render/craft-shadows';
 import { createBastionView } from '../../src/render/bastion-view';
 import { createWardenView } from '../../src/render/warden-view';
-import { createVeilView } from '../../src/render/veil-view';
+import { createCarrierView } from '../../src/render/carrier-view';
 import { createArkView } from '../../src/render/ark-view';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { BASTION_FOOTPRINT } from '../../src/render/bastion-view';
@@ -29,7 +29,7 @@ describe('draws without redundant passes or program switches', () => {
     // WARDEN-1's hazard stripes paint a canvas: a blank one stands in.
     vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => null }) });
     const scene = new THREE.Scene();
-    createBastionView(scene); createWardenView(scene); createVeilView(scene);
+    createBastionView(scene); createWardenView(scene); createCarrierView(scene);
     const twoPass: string[] = [];
     scene.traverse(object => {
       for (const material of materialsOf(object)) if (material.transparent && material.side === THREE.DoubleSide && !material.forceSinglePass) twoPass.push(`${object.name || object.type}: ${material.type}`);
@@ -40,7 +40,7 @@ describe('draws without redundant passes or program switches', () => {
   it('keeps every boss\'s empty particle layers out of the render list', () => {
     vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => null }) });
     const scene = new THREE.Scene();
-    createBastionView(scene); createWardenView(scene); createVeilView(scene); createArkView(scene);
+    createBastionView(scene); createWardenView(scene); createCarrierView(scene); createArkView(scene);
     // Nothing is flying: an empty batch still costs a render-list entry and a program setup a frame, so none may be drawn.
     const drawn: string[] = [];
     const walk = (object: THREE.Object3D) => {

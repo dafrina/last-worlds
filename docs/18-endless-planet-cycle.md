@@ -86,7 +86,7 @@ Nacre joins the cycle when it exists. The cycle, its bosses and its timings are 
 
 ## As built: world and look (15 October 2026)
 
-- **Route:** `routeOf(...)` in `src/world/terrain-planet.ts` and `runRoute(config)` in `src/render/terrain-route.ts` turn `endlessSchedule` into a route. Each distance resolves to its stretch's planet and its nearest arena, and `terrain.world` is a routed world, so seating works unchanged.
+- **Route:** `routeOf(...)` in `src/world/terrain-planet.ts` and `runRoute(config)` in `src/world/run-route.ts` turn `endlessSchedule` into a route. Each distance resolves to its stretch's planet and its nearest arena, and `terrain.world` is a routed world, so seating works unchanged.
 - **Planet switch:** a section containing `switchDistance` is split per span, leaving a clean hard seam inside the arena's calm ground. Nothing stands within `SEAM_CLEARANCE` = 3 units of the seam.
 - **Streaming:** sections past the switch are prefetched with the next planet's profile, and the next planet's kits load 400 units ahead. Both jumps stream with 0 fallbacks at the 12.7 and 16.6 units/s peaks. `streamStats.viewFallbacks` counts synchronous view builds.
 - **Jump** (`src/render/fx-jump.ts`, two draws, only while active):

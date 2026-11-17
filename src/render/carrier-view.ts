@@ -9,9 +9,12 @@ import { HELIOPHAGE } from '../content/heliophage';
 import { CITADEL } from '../content/citadel';
 import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
-import { retainBossMaterials } from './approved-boss-materials';
+import { retainBossMaterials } from './boss-materials';
 
 /**
+ * The carrier bosses: THE VEIL, THE CRADLE, THE ECLIPSE, THE HELIOPHAGE and THE CITADEL share this view, each with its own
+ * CarrierStyle (below); it was THE VEIL's view first (veil-view.ts until 17 November).
+ *
  * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
  * (public/assets/nacre/the-veil.glb, tools/blender/boss_veil.py); a code-built stand-in renders until the model has loaded.
  * Render-only: it reads boss state and never applies damage. A black carrier frame with raised layered crescent armour,
@@ -138,12 +141,12 @@ export const CITADEL_STYLE: CarrierStyle = { id: 'citadel', name: 'THE CITADEL',
   // Nahara's own effects: turquoise sparks from the ancient machinery, sandstone dust.
   fx: { spark: 0x7ff0e2, hot: 0xe8fffa, flash: 0xc8fff4, steam: 0x8a7458, ichor: [0xe8fffa, 0x43d8c8, 0x1a8a80], ring: 0x43d8c8 } };
 
-export async function loadVeilModel(url: string): Promise<THREE.Group> {
+export async function loadCarrierModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
 }
 
 /** The approved imported carrier. No procedural exterior or replacement paint. */
-function approvedRig(model: THREE.Group, style: CarrierStyle): Rig {
+function modelRig(model: THREE.Group, style: CarrierStyle): Rig {
   model.updateMatrixWorld(true);
   const p = style.prefix, chassis = new THREE.Group(), node = (name: string) => model.getObjectByName(p + name);
   const materials = retainBossMaterials(model, p, name => name.startsWith(p + 'heart') ? 'core' : name.startsWith(p + 'pod_left') ? 'left'
@@ -292,7 +295,7 @@ function buildRig(style: CarrierStyle): Rig {
   return { chassis, parts, engine, sinew, bays: [], dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
 }
 
-export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_STYLE) {
+export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL_STYLE) {
   const root = new THREE.Group(); root.name = style.name; root.visible = false; scene.add(root);
   let rig = buildRig(style); root.add(rig.chassis);
   const rings = new Map<BossPart, { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }>();
@@ -511,7 +514,7 @@ export function createVeilView(scene: THREE.Scene, style: CarrierStyle = VEIL_ST
       liveVertices(markers, geometry, marks.count); markers.visible &&= root.visible;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
-    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = approvedRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
+    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
     get hasPodModel() { return !!rig.flightPods; },
     get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },

@@ -15,7 +15,7 @@ export const CITADEL = {
   entryS: 13,
   /**
    * Its arrival is its awakening: it already stands on screen, so it only lights up (lanterns, emblem, crown;
-   * src/render/veil-view.ts) and its fight begins as the scroll stops (arena decel ends at 187 s). THE ECLIPSE's 5 s
+   * src/render/carrier-view.ts) and its fight begins as the scroll stops (arena decel ends at 187 s). THE ECLIPSE's 5 s
    * covered its rise; here it was dead time (user, 14 November: "it takes a tad too long until the boss fight starts").
    */
   arrivalDuration: 3,

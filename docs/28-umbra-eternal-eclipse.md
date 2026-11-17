@@ -75,7 +75,7 @@ The concept images are references, never runtime backgrounds or finished assets 
   - Its broken left horn tip is mended by mirroring the right one.
   - The GLB's front view is the concept's top view, so it lies flat, its reactor facing the camera and its plain back the hidden underside.
 - **Size:** 78,941 triangles (the prow vent's are reserved before the reduction). It spans x ±10, 3.9 toward the player and 8.8 away from its pivot, 3.2 below it and 3.5 above. The surface was smoothed before reduction: Tripo's carved micro-cracks became notched highlights on the glossy black.
-- **Rig:** THE VEIL's carrier rig (`ECLIPSE_STYLE` in `src/render/veil-view.ts`):
+- **Rig:** THE VEIL's carrier rig (`ECLIPSE_STYLE` in `src/render/carrier-view.ts`):
   - **the three energy vents** are its first-phase targets:
     - the almond panels on the inner wings' fronts, at x ±5.15, hit radius 1.1, painted to glow;
     - **the prow vent** (31 October), see below;

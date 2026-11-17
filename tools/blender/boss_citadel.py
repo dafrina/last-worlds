@@ -9,7 +9,7 @@ a curved upper terrace, a drum fronted by nested rings round the emblem under a 
 long stepped buttresses; ruined throughout (cave-ins, broken fins and columns, broken bridges).
 
 Frame (src/content/citadel.ts): x right, y = s (away from the camera; the stairs toward -y), z up, the plaza's base at
-z 0 (the arena's plateau), the rock down to z -6.8. Nodes (src/render/veil-view.ts approvedRig):
+z 0 (the arena's plateau), the rock down to z -6.8. Nodes (src/render/carrier-view.ts modelRig):
     citadel_hull       everything that is not a target
     citadel_heart      the crown's turquoise crystal panels and their bronze ribs (the core)
     citadel_pod_left   the left lantern (crystal in a bronze cage)

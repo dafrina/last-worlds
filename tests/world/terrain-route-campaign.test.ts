@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RunConfig } from '../../src/shared/contracts';
 import { runPlanet } from '../../src/content/missions';
 import { missionArena } from '../../src/render/scene';
-import { runRoute } from '../../src/render/terrain-route';
+import { runRoute } from '../../src/world/run-route';
 import { generateTerrainSection } from '../../src/world/terrain';
 import { SEED, route } from './terrain-route-setup';
 

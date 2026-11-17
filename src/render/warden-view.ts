@@ -307,7 +307,7 @@ export function createWardenView(scene: THREE.Scene) {
       }
       marks.begin();
       for (const enemy of state.enemies) {
-        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
+        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in carrier-view.ts.
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
         if (!enemy.bossPart || !part || !target) continue;
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 1.85);
