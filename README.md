@@ -1,86 +1,103 @@
 # Last Worlds
 
-**A mobile-first, 3D arcade strike fighter game.** Last Worlds · playable prototype and design v0.4, 14 October 2026.
+**A mobile-first 3D arcade strike fighter for phone browsers.** Fly over eight hostile alien worlds, line up targets,
+weave through readable attacks and bring down huge machines. The image has real depth; combat stays on one plane.
 
-Fly above hostile alien worlds, line up targets, weave through readable attacks, and dismantle moving fortresses. The image has real depth; combat has the clarity of a single plane.
+Play it at <https://dafrina.github.io/last-worlds/>. What shipped when, with its test evidence, is in
+[build status](docs/build-status.md).
 
-This repository contains a playable Khepri prototype and the longer-term design package. Campaign offers the short Training flight and **Rolling Thunder**, which ends with the destructible Bastion-9 fortress. Endless escalates independently over seeded real 3D terrain. Saved campaign progression, full three-planet content, statistics, and offline installation are still planned. See [build status](docs/build-status.md) and [the boss increment](docs/15-bastion-slice.md) for verification and remaining limits.
+- **Campaign:** eight missions, Luna to Umbra, each ending with its world's boss. Credits and parts from each run buy
+  weapons, weapon levels, specials, shield arrays and ships in the hangar; every world has a board of side missions.
+- **Endless:** a standard start for everyone, then a cycle through the worlds with a boss and a hyperdrive jump between
+  each, ramping in pace and pressure until the last life is lost.
+- **Controls:** portrait only. Hold the left or right half of the screen to steer (or choose Drag or Tilt in Settings);
+  the main weapon fires by itself when a target is in its path; the button at the bottom fires the special. On desktop:
+  A/D or the arrow keys, Space, and Escape to pause.
 
 ## Run locally
 
-Use Node 22.12 or newer.
+Node 22.12 or newer.
 
 ```sh
 npm ci
-npm run dev -- --port 4173
+npm run dev              # http://localhost:4173 (the game) and /playground.html (the light and weapon playground)
 ```
 
-Open `http://localhost:4173`. Hold the left or right half of the screen to steer; tap the bottom-center button for the special. On desktop use A/D or arrows, Space, and Escape. High/Low graphics and sound controls are in the menu and pause panel.
-
-```sh
-npm run typecheck
-npm test
-npm run build
-npx playwright install chromium
-npm run test:browser
-```
-
-**For a readable overview, start with [DESIGN-REVIEW.md](DESIGN-REVIEW.md).** It consolidates the current concept and links to implementation detail.
-
-## Start here
-
-| Document | Purpose |
+| Command | What it does |
 | --- | --- |
-| [Game design](docs/01-game-design.md) | Player experience, controls, modes, scope, and design critique |
-| [Combat and progression](docs/02-combat-and-progression.md) | Lives, shield charges, equipment, drops, economy, and score |
-| [Worlds and encounters](docs/03-worlds-and-generation.md) | Planets, enemy behavior, bosses, missions, and constrained generation |
-| [Art and experience](docs/04-art-and-experience.md) | Visual direction, asset list, UI, animation, sound, and concept references |
-| [Technical design](docs/05-technical-design.md) | Engine, simulation, targeting, PWA, persistence, performance, and data contracts |
-| [Delivery and validation](docs/06-delivery-and-validation.md) | Milestones, acceptance gates, task backlog, risks, and testing |
-| [Agent handoff](docs/07-agent-handoff.md) | Copyable build prompts, work boundaries, and completion reports |
-| [Decision log and sources](docs/08-decisions-and-sources.md) | Confirmed requirements, provisional decisions, alternatives, and technical references |
-| [Objectives and statistics](docs/09-objectives-and-statistics.md) | Campaign-only goals, records, and score fairness |
-| [Wide map and camera](docs/10-wide-map-and-camera.md) | Lateral camera tracking, exploration, world bounds, and threat visibility |
-| [Campaign difficulty](docs/11-campaign-difficulty.md) | Selectable challenge, payouts, records, and endless separation |
-| [AGENTS.md](AGENTS.md) | Repository-level instructions for implementation agents |
-| [Specification data](docs/spec/README.md) | Machine-readable starter balance and content examples; not runtime code |
-| [Concept art](art/concepts/README.md) | Images, full generation prompts, and interpretation notes |
-| [Implementation contract](docs/12-implementation-contract.md) | Current agent ownership, prototype APIs, and latest decisions |
-| [Khepri world map](docs/13-khepri-world.md) | Concept-matched visual target, seeded valley/mesa layout, and the Blender terrain kit contract |
-| [Shared industrial kit](docs/14-shared-industrial-kit.md) | Cross-planet tiling pipes, tanks and containers with planet-neutral, palette-driven shading |
-| [Vesper — Glass Frontier](docs/17-vesper-glass-frontier.md) | The ice planet, its Blender kits, the Cold Vector mission and the Helion Ark boss |
-| [Endless planet cycle](docs/18-endless-planet-cycle.md) | Endless cycles planets with bosses and hyperdrive jumps |
-| [Package validation](docs/package-validation.md) | Completed documentation checks and untested implementation gates |
-| [October graphics refinement](docs/22-cinematic-art-refinement.md) | Blender assets, carrier rig, material finish, facility placement and visual QA |
+| `npm run typecheck` | TypeScript, no emit |
+| `npm test` | The unit and simulation suites (Vitest, `tests/**/*.test.ts`) |
+| `npm run build` | Typecheck, then the production build in `dist/` |
+| `npm run preview` | Serves `dist/` on port 4173 |
+| `npm run test:browser` | The browser suite (Playwright, `tests/browser/`) against the dev server on 4173; first run `npx playwright install chromium` |
+| `npm run dev:isolated -- --port <port>` | A second dev server with its own Vite cache, so the one on 4173 keeps working |
+| `PORT=<port> npm run test:browser:isolated` | The browser suite against its own isolated server |
+| `npm run record -- --mission <id> …` | Records a flight to video with the test pilots ([docs/41](docs/41-autopilot-and-recording.md)) |
 
-## The recommended design
+## Where things are
 
-- **Portrait, left/right only.** Hold the left side to move left; hold the right side to move right. Main fire activates only when a target is in the weapon's firing path. One plain arcade special button at bottom center; steering hints blink gently for the first three seconds, then disappear. These controls reflect the user's explicit preference.
-- **3D presentation, 2D combat.** Orthographic view with depth, fixed flight height, and stable horizontal movement. Ground weapons and bosses expose clear projected targets on the shared combat plane.
-- **Campaign builds; endless improvises.** Campaign has main weapon, special weapon, shield tech, and maneuverability-focused reactor tech. Optional campaign goals award credits. Endless always starts identically and ramps difficulty within each run, with independent scores and statistics.
-- **Generated worlds, authored battles.** Seeded terrain and world layout are core MVP features for endless. Enemy models, encounter compositions, sequences, and attack patterns are authored. Procedural hero assembly is a later possibility.
-- **A wider world.** The camera follows lateral travel across a map initially three times the visible width, with optional routes and discoveries. Screen edges are not world walls.
-- **Minimal analog HUD.** Small ship icons, shield icons, and one plain bottom-center special button with recharge ticks. No hull, ammo, energy, or reactor bars.
-- **Finish one planet first.** Prove movement, target-gated fire, ground targeting, and a fortress fight before expanding the content or economy.
+### `src/`: the game
 
-## Scope ladder
+| Folder | What lives there |
+| --- | --- |
+| `src/main.ts` | The app: the fixed 60 Hz frame loop, launch warp, pause, orientation |
+| `src/sim/` | The simulation: `game.ts` (`createRun`, `stepRun`), bosses, attacks, fairness, drift, sites, perks. Pure: no Three.js or DOM |
+| `src/content/` | All balance and content data: `balance.ts`, `equipment.ts`, missions, bosses (one file each), encounters and the encounter deck, the endless schedule |
+| `src/world/` | Seeded procedural terrain: one `terrain-<world>.ts` per world, routes, settlements, scatter, cliff walls |
+| `src/render/` | Three.js presentation: `scene.ts` (`createRenderer`), boss views, terrain and facility views, effects, post pipeline |
+| `src/ui/` | Menus, hangar, mission board, HUD, statistics (DOM and CSS) |
+| `src/input/` | Touch, keyboard, drag and tilt steering |
+| `src/audio/` | Procedural music and sound: engine, instruments, mixer, per-world scores, boss music, title theme |
+| `src/campaign/` | The campaign save (`profile.ts`) and the side-mission board (`missions.ts`) |
+| `src/shared/` | Contracts and types shared by all modules, the release lens, seeded streams, storage |
+| `src/playground/` | The playground page (`playground.html`): static levels for light, fog, look and weapon tuning |
+| `src/dev-hooks.ts` | Dev-build-only hooks for browser tests, the live autopilot and look-dev |
 
-| Stage | Contents | Decision unlocked |
-| --- | --- | --- |
-| Feel prototype | One graybox arena, one gun, three threat types, target dummy on the ground | Is this control scheme fun and fair? |
-| Vertical slice | One polished 3–4 minute mission on Khepri, two mains, one special, one fortress | Is the complete experience worth expanding? |
-| Compact MVP | One planet, three campaign missions, endless, four mains, three specials, three shield techs, three reactor techs, campaign difficulties/goals and statistics, local saves and installable offline build | Can we ship a complete small game? |
-| Full small release | Three planets, nine campaign missions, three bosses, more authored chunks, biome variants | Does more content sustain interest? |
-| Later only | Additional playable airframes beyond the three accepted tier designs, new planets, daily seeds, online scores, deeper procedural ship assembly | Requires separate evidence and scope decisions |
+### `tests/`
 
-The MVP is deliberately a complete one-planet game. The three-planet release is the full proposed content plan, not a prerequisite for testing the idea.
+Unit and simulation suites by area (`sim/`, `world/`, `render/`, `audio/`, `campaign/`, `input/`, `ui/`, `shared/`), the
+Playwright browser specs (`browser/`), standalone fixture pages for look-dev and browser checks (`fixtures/*.html`), and
+shared helpers (`helpers/`).
 
-## Important tradeoffs
+### `tools/`
 
-Left/right-only motion is distinctive and approachable, but makes some conventional bullet patterns impossible to dodge. Every encounter must be evaluated at the player's fixed forward position. Automatic fire must react immediately and visibly when alignment is achieved. A slightly elevated orthographic view is preferable to a strict 45-degree diagonal isometric camera because upward travel and horizontal touch controls stay intuitive.
+| Folder | What lives there |
+| --- | --- |
+| `tools/lib/` | `browser.mjs`: the shared headless Chromium (SwiftShader) launcher |
+| `tools/lookdev/` | Fixed-seed captures for art review: `flight-views.mjs`, `terrain-views.mjs`, `contact-sheet.mjs` (output in the git-ignored `lookdev/`) |
+| `tools/audio/` | Offline listening previews through the game's mixer: `music-preview.mjs`, `sfx-preview.mjs`, `menu-preview.mjs` |
+| `tools/perf/` | `bench.mjs` (frame work per scenario) and `soak.mjs` (long-session memory and pacing) |
+| `tools/sim/` | `balance-report.mjs` (tables from the balance suite) and `record-run.mjs` (`npm run record`) |
+| `tools/dev/` | The isolated dev server and browser-suite configs |
+| `tools/blender/` | Seeded Blender scripts that build every model: `boss_*` (one per boss), `craft_*` (each world's enemy fleet), `kit_*` (terrain, infrastructure and facility kits), `lib_*` (shared helpers), `props_*`, `sites_strike.py`, `hero_parts.py`, `textures_cliffs.py`; `run_build.py` runs a builder headless |
 
-Campaign grinding should offer experimentation, not repair bills or compulsory stat walls. Endless records remain separate. No campaign credits, objectives, equipment, tech, or visual unlock may alter its standardized start or score opportunities.
+### `art/`
 
-## First implementation assignment
+| Folder | What lives there |
+| --- | --- |
+| `art/concepts/` | Concept images and their prompts: references only, never runtime assets |
+| `art/source/bosses/` | The user's supplied boss models, byte-for-byte, with checksums: never edited |
+| `art/source/hero/` | Checksums of the user's Tripo hero models (the models themselves are not in git) |
+| `art/source/polyhaven/` | CC0 texture sources with provenance |
+| `art/bosses/` | How the boss models are built from those sources |
+| `art/<world>-kit/`, `-craft/`, `-infra/`, `art/shared-industrial/` | Provenance and notes for each Blender kit |
 
-Use [the M0/M1 prompt](docs/07-agent-handoff.md#first-build-prompt). Continue from the current playable prototype, validate each milestone on phones, and report the evidence against its gate. Do not implement the entire specification in one pass.
+### `public/assets/`
+
+One folder per world (`luna/`, `khepri/`, `vesper/`, `nacre/`, `amnion/`, `corona/`, `nahara/`, `umbra/`) with its terrain
+kit, infrastructure, enemy craft and boss GLBs, and `shared/` for what every world uses: the hero ship parts (`hero/`),
+strike-site models (`sites/`), the industrial kit, pickup tokens and loot props.
+
+### `docs/`
+
+The design and technical docs, indexed by topic in [docs/README.md](docs/README.md). Start with
+[game design](docs/01-game-design.md). User decisions: [docs/08](docs/08-decisions-and-sources.md). Deploy log:
+[build status](docs/build-status.md). Rules for agents: [AGENTS.md](AGENTS.md).
+
+## How changes ship
+
+Work happens on branches in separate git worktrees. The integrator merges finished work into `integrator-next`, runs the
+release gate there (typecheck, unit tests, build, browser suite), then pushes that commit to `main`. Every push to `main`
+runs `.github/workflows/pages.yml` (tests, typecheck, build) and publishes to GitHub Pages, so a push to `main` is a
+public release. Each deploy is recorded in [build status](docs/build-status.md). Details:
+[working on Last Worlds](docs/07-agent-handoff.md).

@@ -35,7 +35,8 @@ Shared types and constants: `src/shared/contracts.ts` (`RunConfig`, `RunState`, 
 | Campaign, `src/campaign/` | `createCampaignProfile`, `campaignConfig`, `endlessConfig` (`profile.ts`); the mission board (`missions.ts`) | The save and the side missions; endless never writes it |
 | Audio, `src/audio/` | `createGameAudio` in `engine.ts` | Listens to state and events; never affects play |
 | App, `src/main.ts` | The frame loop | Fixed-step accumulator, launch warp, pause and visibility, orientation |
-| Dev only | `src/dev-hooks.ts` (`window.__LAST_WORLDS__`), `src/playground/` (`playground.html`) | Dropped from production builds |
+| Dev hooks | `src/dev-hooks.ts` (`window.__LAST_WORLDS__`: read-only snapshots, the live autopilot, look-dev) | Installed only in the dev build (`import.meta.env.DEV`) |
+| Playground | `src/playground/`, served as `playground.html` | A separate page of the same build: the real renderer on static levels for look, light and weapon tuning |
 
 ## Coordinates
 

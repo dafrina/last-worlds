@@ -1,5 +1,8 @@
 # Build status
 
+The deployment log, newest first: what each deploy changed, its gate results and what was not tested. Entries are
+dated records and keep the names of their day; for how things work now, start at the [docs index](README.md).
+
 ## Repository cleanup and naming pass, phase 1, 17 November 2026
 
 The user: "can you also do a naming pass? like clean up the file names, especially for tools etc."; "unused models and tools should just be removed, we still have it in git history. Same for all the screenshots etc" (docs/08, 17 November; this replaces the 4 November rule to keep retired GLBs).
