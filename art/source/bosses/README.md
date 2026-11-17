@@ -11,5 +11,14 @@ Byte-for-byte copies of the GLBs the user supplied for the bosses. They are the 
 | `crescent winged spaceship 3d model.glb` (Tripo, 24 October 2026) | `eclipse-tripo-original.glb` | THE ECLIPSE: the mesh adapted | `boss_eclipse.py` |
 | Tripo (5 November 2026) | `heliophage-tripo-original.glb` | THE HELIOPHAGE: the mesh adapted | `boss_heliophage.py` |
 | fantasy temple citadel (Tripo, 13 November 2026) | `citadel-tripo-original.glb` | THE CITADEL: shape guide only; built of Nahara's ruin kit | `boss_citadel.py` |
+| `monster spider 3d model.glb` (17 November 2026) | `cradle-walker-original.glb` | THE CRADLE (walking brood hive, the boss overhaul of 17 November): reference for proportions, shapes and texture; rebuilt as a modular, animated walker | (in progress) |
+| `cf42e8f1-dec1-484b-8892-4a619271fc0e.glb` (17 November 2026) | `stronghold-original.glb` | HELION STRONGHOLD (Vesper's mountain fortress, replacing the flying ARK model): reference for dimensions, structure and texture | (in progress) |
 
 The source GLBs keep their original 4096² textures; the runtime exports use resized copies. WARDEN-1 has no source model: its design sheet is `art/concepts/boss-sheets/warden.jpg`.
+
+## References for the 17 November overhaul
+
+The user's target images are in `references/`:
+- `cradle-walker-target.png`: an in-game render sheet of the walking CRADLE (engaged and core-open in game, front, side and top, the brood sacs and the palette);
+- `cradle-walker-target-*.png`: crops of that sheet;
+- `stronghold-concept.png`: the concept art for the Vesper fortress.
