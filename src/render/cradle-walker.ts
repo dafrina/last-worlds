@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { EMERGENCE } from '../world/terrain-amnion';
+import { BROOD_BASIN } from '../world/terrain-amnion';
 import { type LegRest, type Pose } from './cradle-gait';
 
 /**
@@ -19,8 +19,8 @@ export const WALKER = {
    * CRADLE.targetHeight is unchanged.
    */
   targetHeight: 5,
-  /** It stands on the emergence canyon's floor (src/world/terrain-amnion.ts EMERGENCE): its seat's ground level. */
-  floor: EMERGENCE.floor,
+  /** It stands on its brood basin's floor (src/world/terrain-amnion.ts BROOD_BASIN): its seat's ground level. */
+  floor: BROOD_BASIN.floor,
   /** Body pieces merged into one mesh, and the leg segments in their order. */
   bodyParts: ['body', 'carapace', 'underside', 'vents', 'heart_cavity', 'body_core'],
   segments: ['coxa', 'femur', 'tibia', 'tarsus'] as const,

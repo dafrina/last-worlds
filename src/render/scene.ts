@@ -1682,9 +1682,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (isWarden) terrain.setExclusion(warden.footprint(state, seat));
       }
       {
-        // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. THE CRADLE's island rises
-        // out of the flesh canyon its arena digs (src/world/terrain-amnion.ts, `emergence`) and hovers over the plateau:
-        // its seat is raised by the hover, so its target plane still projects onto the logical rows.
+        // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. THE CRADLE walks on the
+        // floor of its brood basin (src/world/terrain-amnion.ts, `broodBasin`): its visual plane over that floor projects
+        // onto the logical rows.
         walkerSeed = state.config.seed;
         for (const { view, id, ground: plateau, style } of HOVERING_BOSSES) {
           // (A rig may stand in for another boss: `stands`.)

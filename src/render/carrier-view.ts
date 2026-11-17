@@ -94,7 +94,7 @@ export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 
   footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 3.6, back: 9.6 } };
 /**
  * THE CRADLE (tools/blender/boss_cradle.py, 17 November): a colossal brood hive walking on eight legs (cradle-walker.ts,
- * cradle-gait.ts). It stands on the emergence canyon's floor, its body slung high between its legs; its visual target plane
+ * cradle-gait.ts). It stands on its brood basin's floor, its body slung high between its legs; its visual target plane
  * (WALKER.targetHeight over that floor, render-only) projects onto the logical rows, so its brood chambers and heart sit on
  * the camera rays through their unchanged combat targets. Its crest splits in two and swings 55° outward over the heart.
  */
