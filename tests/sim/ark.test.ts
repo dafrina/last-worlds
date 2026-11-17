@@ -205,8 +205,12 @@ describe('HELION STRONGHOLD (id ark; the flying HELION ARK until 17 November)', 
     // inside a beam's reach of the ship (8 November), Standard flies 56. Since the squadron and boss pull (11 November,
     // docs/10 §4-5) Standard flies 3 (56 took one hit with the fan), which clears all three with and without the pull. Over
     // seeds 1-16 at Standard, old → new: pulse 2 → 4 hits, fan 1 → 1, seeker 2 → 3.
-    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 57 : difficulty === 'standard' ? 3 : 53 });
-    // Veteran flies seed 57 (14 November: sites announced only when they come, boss phases 40-25-35): seed 55 took a hit with Seeker; seeds 51-54, 57-59 and 61-65 clear all three.
+    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 58 : difficulty === 'standard' ? 3 : 53 });
+    // Veteran flies seed 58 since the boss stopped moving (17 November, HELION STRONGHOLD): seeds 51-54 and 58-65 clear all
+    // three without a hit; on 57 this pilot, parked right of the lanes with the Fan Cannon, never reached the far cannon (no
+    // sway brings it into the fan any more), and 55, 56 and 66 take one hit with one weapon. (Before: seed 57, 14 November:
+    // sites announced only when they come, boss phases 40-25-35; seed 55 took a hit with Seeker; seeds 51-54, 57-59 and
+    // 61-65 cleared all three.)
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

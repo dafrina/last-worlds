@@ -2336,7 +2336,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       else if (pallState && state.time > pallState.until) pallState = null;
       const pallStrength = pallState ? Math.min(1, (pallState.until - state.time) / PALL_FADE) : 0;
       post.settings.pall.value.set(pallState?.origin ?? 0, pallState?.radius ?? 0, pallStrength, VIEW.flightHeight);
-      if (state.boss?.id === 'citadel' && state.boss.phase === 'arrival') shakeTrauma = Math.max(shakeTrauma, .6 * (1 - THREE.MathUtils.smoothstep(state.time - state.boss.startedAt, .1, 1.6)));
+      // (HELION STRONGHOLD's awakening rumbles the same way: src/render/stronghold-view.ts.)
+      if ((state.boss?.id === 'citadel' || state.boss?.id === 'ark') && state.boss.phase === 'arrival') shakeTrauma = Math.max(shakeTrauma, .6 * (1 - THREE.MathUtils.smoothstep(state.time - state.boss.startedAt, .1, 1.6)));
       shakeTrauma = Math.min(1, shakeTrauma);
       const shake = reducedMotion() || jumpActive ? 0 : shakeTrauma * shakeTrauma * SHAKE_AMPLITUDE;
       const shakeX = shake * (Math.sin(state.time * 47.3) + .5 * Math.sin(state.time * 89.1)), shakeY = shake * (Math.sin(state.time * 53.7 + 1.3) + .5 * Math.sin(state.time * 97.9 + .4));
