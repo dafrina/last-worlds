@@ -41,7 +41,7 @@ Deep Bloom set):
 3. a strike-site place in the recovery, then the bone field (the sortie stretch): egg sacs, drones and a Needle column;
 4. the second pressure block, with the first of the mission's two Pulsars and a Diamond-Lancer pair;
 5. the climax ("THE BROOD RISES"): Diamond convoys, spore mortars, the second Pulsar and a last Needle swarm;
-6. relief, then THE CRADLE rises.
+6. relief, then THE CRADLE walks in.
 
 Pressure comes from `WORLD_INTENSITY.amnion`, `MISSION_CADENCE['brood-strike']` and `MISSION_PRESSURE['brood-strike']` in
 `src/content/balance.ts`: Amnion steps past Nacre in the late-world curve (10 November), and the campaign adds its own
@@ -115,7 +115,7 @@ Seeded, deterministic scripts in `tools/blender/` (+Y up, game units, base-centr
 | `public/assets/amnion/amnion-kit.glb` | `kit_amnion.py` | Egg clutches, great tusks (`boneSpire`), small nests, bone shards, brood nests, hive spires, the brood ruin, goo webs (`AmnionKitKind` in `src/world/scenery-kit.ts`). Materials `amnion_bone`, `amnion_flesh`, `amnion_glow` (the glow faces emit their own colour). |
 | `public/assets/amnion/cliff-kit.glb` | `kit_cliffs.py --world amnion` | Flesh walls: lobes and sinews tucked under the plateau's bone edge. |
 | `public/assets/amnion/brood-heavy.glb` | `craft_brood_heavy.py --brood-only` | The brood heavy (§2). |
-| `public/assets/amnion/the-cradle.glb` | `boss_cradle.py` | THE CRADLE (§5). |
+| `public/assets/amnion/the-cradle.glb` | `boss_cradle.py` | THE CRADLE, the walking brood hive (§5). |
 
 The kit's shapes follow the user's 23 October review ("too small and way too comic like", "make them closer to the
 concept"):
@@ -133,44 +133,54 @@ concept"):
 
 ## 5. THE CRADLE
 
-A living nest-fortress that rises out of a flesh canyon carrying the brood. Its numbers are `CRADLE` in
-`src/content/cradle.ts`, its definition `BOSSES.cradle` in `src/content/bosses.ts`, and its view `CRADLE_STYLE` in
-`src/render/carrier-view.ts`. It follows the shared boss rules ([docs/03 §3](03-worlds-and-generation.md#3-bosses)).
+A colossal brood hive walking on eight legs through its emergence canyon (17 November,
+[docs/43](43-boss-visual-overhaul.md) §4-7). Its numbers are `CRADLE` in `src/content/cradle.ts`, its definition
+`BOSSES.cradle` in `src/content/bosses.ts`, and its view `CRADLE_STYLE` in `src/render/carrier-view.ts` with its walking
+rig in `src/render/cradle-walker.ts` and its gait in `src/render/cradle-gait.ts`. It follows the shared boss rules
+([docs/03 §3](03-worlds-and-generation.md#3-bosses)); the walk is render-only and changes none of them.
 
-**Targets.** Two brood sacs (the flesh bulges at its front flanks; `sacOffset`, `sacS`, `sacRadius`, `sacHp`), then the nest
-heart, the golden egg (`heartS`, `heartRadius`, `heartHp`), whose six bone shields swing 42° outward to open it
-(`CRADLE_STYLE.shutterOpen`). The ribbed shell, the spires and the egg clutches are scenery. The combat points sit within
-half a unit of the model's egg and bulges; closer values pulled the overload fan's outer bolts onto both screen edges with
-one through the middle, a seal the fairness rules forbid.
+**Targets.** Two brood chambers (the glowing egg sacs on its flanks; `sacOffset`, `sacS`, `sacRadius`, `sacHp`), then the
+heart under its crest (`heartS`, `heartRadius`, `heartHp`), whose two halves swing 55° outward to open it
+(`CRADLE_STYLE.shutterOpen`). The body, carapace, legs and underside are scenery. It stands on the canyon floor
+(`WALKER.floor`) with its body slung high between its legs; its visual target plane, `WALKER.targetHeight` over that
+floor (render-only), projects onto the logical rows, so the chambers and the heart sit on the camera rays through their
+unchanged combat targets (`tests/world/cinematic-assets.test.ts`).
 
-| Phase | Attacks |
-| --- | --- |
-| Arrival (`arrivalDuration`) | Rises straight up out of the emergence canyon at its row (`entryS` equals `row`), then hovers over it (`CRADLE_STYLE.hover`; user, 23 October: "after rising it hovers slightly"). |
-| Brood sacs | Aimed spore bursts (`sacBurst`), one attacker at a time. |
-| Nest heart | `coreMoves`: a slow, wide spiral, aimed bursts (`heartBurst`) and a fixed fan (`heartFan`); hatchling waves from two brood bays at its base (`bays`, `launches`, the `veil-pods` formation). The spiral rests `spiral.rest` seconds, because its streams were still crossing the screen when the next burst and a hatchling wave came (27 October). |
-| Overload | `overloadMoves`: core lane, spiral, fan, side lanes, burst, cross, spiral, fan, with a shorter recovery and more hatchling waves. |
-| Destroyed | Its hatchlings go down with it; it sinks back into the canyon. |
+| Phase | Attacks | Presentation |
+| --- | --- | --- |
+| Arrival (`arrivalDuration`) | None | Walks in sideways along the canyon from the side away from the view and settles at its post (render-only, done 0.6 s before the fight). |
+| Brood chambers | Aimed spore bursts (`sacBurst`), one attacker at a time. | Slow, heavy steps as it sways; the chambers glow. |
+| Heart | `coreMoves`: a slow, wide spiral, aimed bursts (`heartBurst`) and a fixed fan (`heartFan`); hatchling waves (`bays`, `launches`, the `veil-pods` formation) launch from under its body. The spiral rests `spiral.rest` seconds. | The crest splits open over the glowing heart; the burst chambers hang dark and sagging; its steps loosen. |
+| Overload | `overloadMoves`: core lane, spiral, fan, side lanes, burst, cross, spiral, fan, with a shorter recovery and more hatchling waves. | Pores and vents burn hotter, the heart pulses hard, the legs tremble and the body staggers. |
+| Destroyed | Its hatchlings go down with it. | The heart flickers wildly, walking stops, the legs buckle one after another, the body falls between them and strikes the floor (a dust ring and debris at the moment of the death's big blast), the heart flickers and goes dark; the wreck lies in the canyon until the scroll carries it away. |
 
 **Arena.** The scroll eases to a stop (`arena.decelStart`, `decelDuration`) over the emergence canyon; the boss sways and
-surges within `arena.sway` and `arena.surge`.
+surges within `arena.sway` and `arena.surge`, and the walk follows.
 
-**Model.** The user's Tripo GLB itself (`art/source/bosses/cradle-tripo-original.glb`), adapted by
-`tools/blender/boss_cradle.py`, which runs inside Blender through the Blender MCP. The user rejected two hand-built
-rebuilds (24 October: "keep to the glb you have which is fully detailed. start fresh"). The mesh, UVs and painted atlases
-are kept; nothing is regenerated. Tripo split the mesh into arbitrary pieces, so each part is cut by shape:
+**The walk** (`src/render/cradle-gait.ts`, pure and deterministic, `tests/render/cradle-gait.test.ts`): alternating
+tetrapods (left 1, right 2, left 3, right 4, then the others). A group lifts when its feet fall behind where the body
+wants them and the other group waits until it has replanted, so four feet always stand. Feet stay planted on the ground
+(in the terrain's frame, so they stay put as the world scrolls) and plant on the terrain's height, sampled once per step
+(never per frame). The claw stays near vertical over its foot, the coxa turns toward it and the femur and tibia follow by
+two-bone IK with the knee arching up. The body sags as each group lifts and leans into its motion. Steps raise dust;
+a soft contact shadow lies under the body (fewer puffs on Low).
 
-- the egg by an ellipsoid round it (`cradle_heart` and its wreck);
-- the six inner shields' upper parts by their sector round the nest above a cut height, keeping only painted bone and
-  closing thin cracks (`cradle_heart_shutter_0` to `cradle_heart_shutter_5`, hinged on the cut line);
-- the brood sacs are the flesh bulges at the front flanks (`cradle_pod_left`, `cradle_pod_right` and their wrecks);
-- everything else is `cradle_hull`, with faceted rock hanging under the five outer shields so the wings read as
-  floating rock (the user: they "extend below to look like floating rocks");
-- `cradle_flight_pod` is the hatchling drone; `cradle_approved_v2` is an empty marker node (a real identifier the view
-  looks for).
+**Model.** Adapted from the user's spider GLB (`art/source/bosses/cradle-walker-original.glb`) by
+`tools/blender/boss_cradle.py` (headless; see [art/bosses](../art/bosses/README.md)): its mesh, UVs and atlases kept and
+reduced, the paint regraded after the user's target sheet (`art/source/bosses/references/cradle-walker-target*.png`:
+cream bone plates, dark red sinew, amber glow).
 
-It is exported at 70% of the reference placement (user, 24 October: "the model seems pretty big no?"), and the canyon is
-fitted to its footprint and sway. It stays under the adapted bosses' triangle cap (docs/08, 24 October); how the boss
-models are built is [art/bosses](../art/bosses/README.md).
+- `cradle_body`, `cradle_carapace`, `cradle_underside`, `cradle_vents`: the spider's body inside its flanks, its own legs cut
+  off at its edge (the view merges them into one draw);
+- `cradle_pod_left`/`right` (+ `_wreck`): the brood chambers, closed eggs 1.3 times the spider's own sacs, wearing the sacs'
+  paint, lit amber; the wreck burst and sagging;
+- `cradle_heart` (+ `_wreck`) in `cradle_heart_cavity`, under `cradle_heart_shutter_0`/`1` (the crest's halves);
+- `cradle_leg_<k>_coxa`/`femur`/`tibia`/`tarsus` and `cradle_leg_<k>_foot`, legs 0-3 left front to back, 4-7 right: the
+  spider's side leg cut at its joints and copied to every hip (mirrored on the right, sized per pair); each segment's
+  origin is its joint. The view binds all 32 segments to one skinned mesh (one draw);
+- `cradle_flight_pod`: the hatchling drone; `cradle_walker_v1`: the marker node.
+
+It is 67,021 triangles (wrecks and drone included) with one material, under the adapted bosses' 80k cap.
 
 ## 6. Music
 
@@ -195,6 +205,8 @@ climax arc with a site between its halves. Its world missions are in [docs/35 §
   size budget.
 - `tests/browser/faction-regressions.spec.ts`: THE CRADLE's view and pods never linger after another boss; the brood heavy
   loads and renders on both quality tiers.
+- `tests/render/cradle-gait.test.ts`: THE CRADLE's legs stay joined, planted feet never slide, the tetrapods alternate,
+  the death ends with the body on the ground, and the gait is deterministic.
 - The fairness suites (`tests/sim/fairness-campaign.test.ts`, `fairness-endless-early.test.ts`,
   `fairness-endless-late.test.ts`) fly Brood Strike at every difficulty and Amnion's endless stints.
 

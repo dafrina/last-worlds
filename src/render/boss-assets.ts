@@ -3,7 +3,8 @@
  * (user, 17 November 2026: "we still have it in git history"); a rollback restores the file from there.
  */
 export const BOSS_ASSETS = {
-  /** A clean remodel traced over the user's spacecraft GLB, without the bow pods (boss_veil.py, 24 October 2026). */
+  /** The old CRADLE (the user's Tripo hive GLB) adapted and repainted as an ancient relic (boss_veil.py, 17 November 2026;
+   * the traced spacecraft before it is in git history). */
   veil: 'nacre/the-veil.glb',
   /** A clean remodel traced over the user's tank GLB, its rear deck with turrets and greebles, instanced tread links
    * (boss_bastion.py, 24 October 2026). */
@@ -12,7 +13,8 @@ export const BOSS_ASSETS = {
   ark: 'vesper/helion-ark.glb',
   /** A bulky remodel after the user's design sheet (boss_warden.py, 20 October 2026). */
   warden: 'luna/warden.glb',
-  /** The user's Tripo GLB itself, adapted in Blender (boss_cradle.py, 24 October 2026). */
+  /** The user's spider GLB adapted into a walking brood hive, its legs cut at their joints (boss_cradle.py, 17 November
+   * 2026; the flying hive before it is THE VEIL's model now). */
   cradle: 'amnion/the-cradle.glb',
   /** The user's Tripo GLB, adapted with its broken wing tip mended, plus the prow vent, its third first-phase target
    * (boss_eclipse.py, 24 and 31 October 2026). */

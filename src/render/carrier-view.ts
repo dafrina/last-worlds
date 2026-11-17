@@ -10,17 +10,18 @@ import { CITADEL } from '../content/citadel';
 import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import { retainBossMaterials } from './boss-materials';
+import { WALKER, createWalkerRig, isWalker, type WalkerRig } from './cradle-walker';
+import { createGait, type GaitMode } from './cradle-gait';
 
 /**
  * The carrier bosses: THE VEIL, THE CRADLE, THE ECLIPSE, THE HELIOPHAGE and THE CITADEL share this view, each with its own
  * CarrierStyle (below); it was THE VEIL's view first (veil-view.ts until 17 November).
  *
- * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
- * (public/assets/nacre/the-veil.glb, tools/blender/boss_veil.py); a code-built stand-in renders until the model has loaded.
- * Render-only: it reads boss state and never applies damage. A black carrier frame with raised layered crescent armour,
- * recessed wing machinery, curved egg shutters and parked pod hangars, two crystal-crowned pods on
- * outriggers (the first pair of weak points), a faceted teal heart under four shutters (the core) and launch bays. It rises
- * out of the mire on arrival and sinks back into it when destroyed.
+ * THE VEIL presentation (docs/20): an ancient relic ship, the old CRADLE model re-cut and repainted in Nacre's pearl,
+ * violet and turquoise (public/assets/nacre/the-veil.glb, tools/blender/boss_veil.py, 17 November); a code-built stand-in
+ * renders until the model has loaded. Render-only: it reads boss state and never applies damage. Two crystal side modules
+ * on its flanks (the first pair of weak points) and a cyan reactor crystal under six stone shields (the core). It rises out
+ * of the mire on arrival and sinks back into it when destroyed.
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation), COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const PARTS = ['left', 'right', 'core'] as const;
@@ -32,8 +33,8 @@ const socket = (style: CarrierStyle, part: BossPart) => {
   if (part === 'prow') return new THREE.Vector3(0, 0, -(c.prowS ?? 0));
   return new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -c.podOffset : c.podOffset, 0, part === 'core' ? -c.heartS : -c.podS);
 };
-/** Hull footprint (x half-width, z half-depth) for the terrain exclusion (the blades overhang water anyway). */
-export const VEIL_FOOTPRINT = { halfWidth: 12.8, halfDepth: 9.5 } as const;
+/** Hull footprint (x half-width, z half-depth) for the terrain exclusion (its ring wings overhang water anyway). */
+export const VEIL_FOOTPRINT = { halfWidth: 9, halfDepth: 6.6 } as const;
 /** How deep the hull starts under the mire as it rises, and how far it sinks when destroyed. */
 const RISE = 4.4, SINK = 4.6;
 /**
@@ -51,11 +52,16 @@ export function veilPlacement(logicalS: number, sea: number, targetHeight: numbe
 interface PartRig { group: THREE.Group; live: THREE.Object3D[]; wreck: THREE.Object3D | null; petals: { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }[]; heat: THREE.MeshStandardMaterial; open: number }
 interface BayDoor { object: THREE.Object3D; closed: THREE.Quaternion; open: THREE.Quaternion }
 interface DockedPod { object: THREE.Object3D; position: THREE.Vector3 }
-interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; approved?: boolean; doors?: BayDoor[]; pods?: DockedPod[]; flightPods?: THREE.InstancedMesh[]; flightPodGroup?: THREE.Group; dispose(): void }
+interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; approved?: boolean; doors?: BayDoor[]; pods?: DockedPod[]; flightPods?: THREE.InstancedMesh[]; flightPodGroup?: THREE.Group;
+  /** THE CRADLE's walking rig (cradle-walker.ts): its parts hang from the walking body instead of the chassis. */
+  walker?: WalkerRig; dispose(): void }
 /** How far the code-built stand-in's petals fold open (radians). */
 const SHUTTER_OPEN = -1.15;
-/** the-veil.glb shutters open by rotating about their local +X hinge (the first VEIL's notes recommended 100–110°). */
-const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
+/**
+ * the-veil.glb's six stone shields open by rotating about their local +X hinge, tipping outward 42° as they did on the
+ * old CRADLE whose model the VEIL now flies (17 November; the earlier VEIL's four petals opened 105°).
+ */
+const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(42);
 
 /**
  * A carrier boss this view draws. THE VEIL (Nacre) and THE CRADLE (Amnion) share the rig contract (a hull, flank weak
@@ -84,16 +90,18 @@ export interface CarrierFx { spark: number; hot: number; flash: number; steam: n
 const VEIL_FX: CarrierFx = { spark: 0x8ffff0, hot: 0xf2fff8, flash: 0xc8fff2, steam: 0x9a86d0, ichor: [0xeafff8, 0x56f6dc, 0xa070ff], ring: 0x7ffff0 };
 export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
   content: { podOffset: VEIL.podOffset, podS: VEIL.podS, heartS: VEIL.heartS, targetHeight: VEIL.targetHeight, arrivalDuration: VEIL.arrivalDuration, bays: VEIL.bays },
-  // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
-  footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 8.5, back: 11 } };
+  // The old CRADLE at full size (the-veil.glb, 17 November): ring wings to x +-8.9, prow 3.3 toward the player, ring 9 away.
+  footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 3.6, back: 9.6 } };
 /**
- * THE CRADLE (tools/blender/boss_cradle.py): six claws unfold 42° outward from over its core. Its floating island
- * rises out of the canyon and hovers 0.8 over the plateau (user, 23 October: "after rising it hovers slightly").
+ * THE CRADLE (tools/blender/boss_cradle.py, 17 November): a colossal brood hive walking on eight legs (cradle-walker.ts,
+ * cradle-gait.ts). It stands on the emergence canyon's floor, its body slung high between its legs; its visual target plane
+ * (WALKER.targetHeight over that floor, render-only) projects onto the logical rows, so its brood chambers and heart sit on
+ * the camera rays through their unchanged combat targets. Its crest splits in two and swings 55° outward over the heart.
  */
-export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', shutterOpen: THREE.MathUtils.degToRad(42), spark: 0xffc860, hover: .8,
-  content: { podOffset: CRADLE.sacOffset, podS: CRADLE.sacS, heartS: CRADLE.heartS, targetHeight: CRADLE.targetHeight, arrivalDuration: CRADLE.arrivalDuration, bays: CRADLE.bays },
-  // the-cradle.glb (70% of the reference placement): arms to x +-6, prow 2.3 toward the player, ring 6.3 away.
-  footprint: { halfWidth: 6.2, front: 2.5, back: 6.7 },
+export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', shutterOpen: THREE.MathUtils.degToRad(55), spark: 0xffc860, hover: 0,
+  content: { podOffset: CRADLE.sacOffset, podS: CRADLE.sacS, heartS: CRADLE.heartS, targetHeight: WALKER.targetHeight, arrivalDuration: CRADLE.arrivalDuration, bays: CRADLE.bays },
+  // Its feet stand about 5.5 out from its body; its front legs reach 6 toward the player, its back legs 5.5 away.
+  footprint: { halfWidth: 6.6, front: 6.4, back: 6 },
   fx: { spark: 0xffc860, hot: 0xfff3c4, flash: 0xffdaa1, steam: 0x987057, ichor: [0xffe6a6, 0xebad39, 0xb73b24], ring: 0xffbd48 } };
 /**
  * THE ECLIPSE (tools/blender/boss_eclipse.py, docs/28): the final boss, lying flat over the abyss, 20 units from horn
@@ -152,10 +160,11 @@ function modelRig(model: THREE.Group, style: CarrierStyle): Rig {
   const materials = retainBossMaterials(model, p, name => name.startsWith(p + 'heart') ? 'core' : name.startsWith(p + 'pod_left') ? 'left'
     : name.startsWith(p + 'pod_right') ? 'right' : name.startsWith(p + 'prow') ? 'prow' : null);
   const fallbackGlow = glowMaterial(style.spark, 1.4);
-  const hull = node('hull'); if (hull) chassis.attach(hull);
+  const walker = isWalker(model, p) && materials.hull[0] ? createWalkerRig(model, p, materials.hull[0], chassis) : undefined;
+  const hull = walker ? null : node('hull'); if (hull) chassis.attach(hull);
   const parts = new Map<BossPart, PartRig>();
   for (const part of partsOf(style)) {
-    const group = new THREE.Group(); group.position.copy(socket(style, part)); chassis.add(group); group.updateMatrixWorld(true);
+    const group = new THREE.Group(); group.position.copy(socket(style, part)); (walker?.body ?? chassis).add(group); group.updateMatrixWorld(true);
     const take = (name: string) => { const object = node(name); if (object) group.attach(object); return object ?? null; };
     const base = part === 'core' ? 'heart' : part === 'prow' ? 'prow' : `pod_${part}`;
     const live = [take(base)].filter(Boolean) as THREE.Object3D[], wreck = take(`${base}_wreck`);
@@ -192,8 +201,8 @@ function modelRig(model: THREE.Group, style: CarrierStyle): Rig {
   flightPods.forEach(batch => flightPodGroup!.add(batch));
   const bays = pods.filter((_, i) => i % 2 === 0).map(p => p.position.clone());
   return { chassis, parts, engine: fallbackGlow, sinew: materials.hull[0] ?? fallbackGlow, bays, approved: true, doors, pods,
-    flightPods: flightPods.length ? flightPods : undefined, flightPodGroup,
-    dispose() { flightPodGroup?.removeFromParent(); flightPods.forEach(batch => batch.dispose()); materials.dispose(); fallbackGlow.dispose(); } };
+    flightPods: flightPods.length ? flightPods : undefined, flightPodGroup, walker,
+    dispose() { walker?.dispose(); flightPodGroup?.removeFromParent(); flightPods.forEach(batch => batch.dispose()); materials.dispose(); fallbackGlow.dispose(); } };
 }
 
 const glowMaterial = (color: number, intensity: number) =>
@@ -295,9 +304,25 @@ function buildRig(style: CarrierStyle): Rig {
   return { chassis, parts, engine, sinew, bays: [], dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); owned.forEach(item => item.dispose()); } };
 }
 
-export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL_STYLE) {
+/**
+ * What a walking carrier (THE CRADLE) reads from its scene: the terrain's height at a world point (x, world s), sampled
+ * only when a foot plants, and whether the Low tier is drawing (fewer dust puffs).
+ */
+export interface CarrierViewOptions { ground?: (x: number, s: number) => number; low?: () => boolean }
+
+/** THE CRADLE's walk-in (render-only, its arrival): it enters from the side away from the view, ending at its post. */
+const WALK_IN = { reach: 12.5, least: 6, until: 3.4 } as const;
+/** How far above the old carriers' effect heights THE CRADLE's body stands (its chambers' centres over its floor). */
+const WALKER_FX_LIFT = 2.65;
+
+export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL_STYLE, options: CarrierViewOptions = {}) {
   const root = new THREE.Group(); root.name = style.name; root.visible = false; scene.add(root);
   let rig = buildRig(style); root.add(rig.chassis);
+  // THE CRADLE's gait (once its walking model has loaded), its walk-in, and a soft contact shadow under its body.
+  let gait: ReturnType<typeof createGait> | null = null, walkIn = 0, walkerLift = 0, buckled = 0;
+  // (Only THE CRADLE's view has the shadow; the other carriers' scene graphs are as they were.)
+  const blob = style.id === 'cradle' ? walkerShadow() : null;
+  if (blob) { blob.visible = false; root.add(blob); }
   const rings = new Map<BossPart, { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }>();
   for (const part of partsOf(style)) {
     const core = part === 'core', material = new THREE.MeshBasicMaterial({ color: 0xffb77c, depthTest: false, depthWrite: false });
@@ -394,25 +419,66 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         }
         return;
       }
-      if (encounter !== boss.startedAt) { encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; }); }
+      const walking = !!rig.walker && !!gait;
+      if (encounter !== boss.startedAt) {
+        encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; });
+        // It walks in from the side away from where the view looks, far enough to start out of sight.
+        const away = state.cameraX > boss.x ? -1 : 1;
+        walkIn = boss.phase === 'arrival' ? away * THREE.MathUtils.clamp(WALK_IN.reach - Math.abs(state.cameraX - boss.x), WALK_IN.least, WALK_IN.reach) : 0;
+        buckled = 0;
+      }
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
       // Rising out of the mire during the arrival; a slow breathing bob while alive; sinking after its death.
       // (A still boss stands there already and falls where it stands: no rise, no sinking, only its explosions; user, 13
       // November: "the dying animation, no drop, just the explosion".)
-      const rise = arriving && !style.fliesIn && !style.still ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
-      const sink = destroyed && !style.still ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
-      // A hovering carrier (THE CRADLE) bobs wider and slower on the air it floats on.
-      const bob = destroyed || style.still ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
-      root.position.set(placement.x ?? boss.x, placement.baseHeight - rise * rise * (rig.approved ? APPROVED_RISE : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
+      // (THE CRADLE walks: no rise, no bob, no sink; its gait moves its body and its wreck stays where it fell.)
+      const rise = arriving && !style.fliesIn && !style.still && !walking ? 1 - THREE.MathUtils.smoothstep(age, 0, style.content.arrivalDuration) : 0;
+      const sink = destroyed && !style.still && !walking ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
+      // A hovering carrier bobs wider and slower on the air it floats on.
+      const bob = destroyed || style.still || walking ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
+      const entering = walking && arriving ? walkIn * (1 - THREE.MathUtils.smoothstep(age, 0, WALK_IN.until)) : 0;
+      root.position.set((placement.x ?? boss.x) + entering, placement.baseHeight - rise * rise * (rig.approved ? APPROVED_RISE : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
       root.updateMatrixWorld(true);
-      const sway = style.still ? 0 : 1;
+      const sway = style.still || walking ? 0 : 1;
       rig.chassis.rotation.set(-sink * .12 + Math.sin(state.time * .6) * .01 * sway, 0, sink * .16 + Math.sin(state.time * .45) * .012 * sway);
+      if (walking) {
+        // The walk: its seat in the ground frame (planted feet stay on the terrain as it scrolls), its phase.
+        const mode: GaitMode = destroyed ? 'dying' : arriving ? 'arrival' : overload ? 'overload' : boss.phase === 'core' ? 'core' : 'fight';
+        const pose = gait!.step({ time: state.time, origin: [root.position.x, root.position.y, -(state.distance + placement.s)], mode, deathAge: destroyed ? phaseAge : 0 });
+        rig.walker!.apply(pose);
+        walkerLift = WALKER_FX_LIFT + pose.body[1];
+        const low = options.low?.() ?? false;
+        // Step dust where a foot plants, a heavy cloud where the body strikes the ground.
+        for (const foot of pose.planted) for (let k = 0; k < (low ? 1 : 3); k++) {
+          const at = local(foot[0] - root.position.x, foot[1] - root.position.y + .1, foot[2] + state.distance + placement.s);
+          mist.emit({ x: at.x + (hash(foot[0] + k) - .5) * .6, y: at.y, z: at.z + (hash(foot[2] + k) - .5) * .6, vx: (hash(k + foot[0] * 3) - .5) * .9, vy: .35 + hash(k) * .3,
+            vz: (hash(k + foot[2] * 3) - .5) * .9, life: 1.6, size: .5, grow: 1.4, alpha: .32, color: fx.steam, drag: 1.4, lift: .1 });
+        }
+        if (pose.impact) {
+          for (let k = 0; k < (low ? 8 : 22); k++) {
+            const a = k / (low ? 8 : 22) * Math.PI * 2, at = local(Math.cos(a) * 2.6, .2, Math.sin(a) * 2.2);
+            mist.emit({ x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * 2.6, vy: .5 + hash(k) * .6, vz: Math.sin(a) * 2.2, life: 2.6, size: 1.2, grow: 2.6, alpha: .5, color: fx.steam, drag: 1.1, lift: .15 });
+          }
+          burst(local(0, .6, 0), low ? 16 : 40, 313 + encounter, 1.6, fx.ichor[2]);
+        }
+        // A soft contact shadow under the body, smaller and darker as the body comes down.
+        const height = THREE.MathUtils.clamp(walkerLift + 1.7, .5, 5);
+        if (blob) {
+          blob.visible = true; blob.position.set(pose.body[0], .06, pose.body[2] - .2); blob.scale.setScalar(4.2 + height * .25);
+          (blob.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(.62 - height * .06, .25, .6);
+        }
+        buckled = destroyed ? THREE.MathUtils.clamp(phaseAge / 2.3, 0, 1) : 0;
+      } else if (blob) blob.visible = false;
+      const lift = walking ? walkerLift : 0;
       if ((arriving && rise > .05) || (destroyed && sink > 0 && sink < 1)) for (let k = 0; k < 3; k++) if (hash(state.time * 37 + k) < 22 * dt) {
         steam(local((hash(state.time + k) - .5) * 16, -root.position.y + placement.baseHeight + .1, (hash(state.time + k + 1) - .5) * 15 - 1), state.time * 41 + k, 1.6);
       }
       rig.engine.emissiveIntensity = destroyed ? Math.max(0, 2.6 - phaseAge) : 2.4 + .4 * Math.sin(state.time * 5);
       rig.sinew.emissiveIntensity = destroyed ? Math.max(0, 1.4 - phaseAge * .5) : 1.2 + .5 * Math.sin(state.time * 1.7);
+      // THE CRADLE's pores and vents burn hotter as it weakens, and gutter out over its fall.
+      if (walking) rig.sinew.emissiveIntensity = destroyed ? Math.max(0, 1.6 - phaseAge * .55) * (.6 + .4 * Math.abs(Math.sin(phaseAge * 23)))
+        : overload ? 2.1 + .9 * Math.abs(Math.sin(state.time * 6.5)) : boss.phase === 'core' ? 1.6 + .5 * Math.sin(state.time * 3) : 1.15 + .35 * Math.sin(state.time * 1.7);
       // A still boss awakens through its arrival: dust shaken off its rock, then its modules light one after another, each
       // with a flare of sparks, the sinew last. Render only: the arrival's length is the simulation's.
       const waking = arriving && style.still, span = style.content.arrivalDuration;
@@ -423,12 +489,15 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
       }
       if (destroyed) {
         const before = phaseAge - dt;
-        for (let k = 0; k < 12; k++) { const at = .1 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * (k % 3 ? 4 : 18), 1.8, (hash(k + 5) - .5) * 14 - 1), 10, k * 13 + encounter, 1); }
+        // (THE CRADLE's are narrower, round its body, and at its body's height as it falls.)
+        const wide = walking ? .45 : 1;
+        // (Fewer and smaller round THE CRADLE, so its fall stays readable through the death's own explosions.)
+        for (let k = 0; k < 12; k++) { const at = .1 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * (k % 3 ? 4 : 18) * wide, 1.8 + lift, ((hash(k + 5) - .5) * 14 - 1) * wide), walking ? 6 : 10, k * 13 + encounter, 1); }
         for (let k = 0; k < 10; k++) {
-          const at = .4 + k * .18, spot = local((hash(k + 21) - .5) * (k % 2 ? 4 : 16), 1.8, (hash(k + 23) - .5) * 13 - 1);
-          if (before < at && phaseAge >= at) { flash(spot, 2.2 + hash(k), k); ichor(spot, 1.6 + hash(k + 40), k * 17 + encounter); }
+          const at = .4 + k * .18, spot = local((hash(k + 21) - .5) * (k % 2 ? 4 : 16) * wide, 1.8 + lift, ((hash(k + 23) - .5) * 13 - 1) * wide);
+          if (before < at && phaseAge >= at && !(walking && k % 2)) { flash(spot, (2.2 + hash(k)) * (walking ? .6 : 1), k); ichor(spot, (1.6 + hash(k + 40)) * (walking ? .7 : 1), k * 17 + encounter); }
         }
-        if (before < 1.9 && phaseAge >= 1.9) { const heart = local(0, style.content.targetHeight, -style.content.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }
+        if (before < 1.9 && phaseAge >= 1.9) { const heart = walking ? rig.parts.get('core')!.group.getWorldPosition(world) : local(0, style.content.targetHeight, -style.content.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }
       }
       const ring = THREE.MathUtils.clamp((phaseAge - 1.9) / 1.2, 0, 1);
       shock.visible = destroyed && ring > 0 && ring < 1;
@@ -441,7 +510,7 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         podsSeen.add(enemy.id);
         launchedAt = state.time;
         const dock = rig.pods?.find(p => Math.sign(p.position.x) === Math.sign(enemy.x - boss.x || 1));
-        const bay = dock ? local(dock.position.x, dock.position.y, dock.position.z) : local(Math.sign(enemy.x - boss.x || 1) * style.content.bays[1].x, 1.9, -style.content.bays[1].s);
+        const bay = dock ? local(dock.position.x, dock.position.y, dock.position.z) : local(Math.sign(enemy.x - boss.x || 1) * style.content.bays[1].x, 1.9 + lift * .55, -style.content.bays[1].s);
         flash(bay, 1.2, enemy.id); burst(bay, 8, enemy.id * 11, .7); steam(bay, enemy.id * 13, .8);
       }
       // Doors anticipate the existing finite deployment schedule; they never schedule combat.
@@ -462,26 +531,26 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 1.95);
         if (alive.get(enemy.bossPart) && !living) {
           deadAt.set(enemy.bossPart, state.time);
-          const at = local(part.group.position.x, 1.9, part.group.position.z);
+          const at = local(part.group.position.x, 1.9 + lift, part.group.position.z);
           burst(at, 30, enemy.id * 7, 1.2); flash(at, 2, enemy.id); ichor(at, 1.5, enemy.id * 5);
         }
         alive.set(enemy.bossPart, living);
         const seen = hpSeen.get(enemy.id); hpSeen.set(enemy.id, enemy.hp);
         if (seen !== undefined && enemy.hp < seen && living) {
-          if (state.time - (hitAt.get(enemy.id) ?? -9) > .07) { const at = local(part.group.position.x, 2, part.group.position.z); burst(at, 7, state.tick * 7 + enemy.id, .7); flash(at, .9, state.tick + enemy.id); }
+          if (state.time - (hitAt.get(enemy.id) ?? -9) > .07) { const at = local(part.group.position.x, 2 + lift, part.group.position.z); burst(at, 7, state.tick * 7 + enemy.id, .7); flash(at, .9, state.tick + enemy.id); }
           hitAt.set(enemy.id, state.time);
         }
         const kick = Math.max(0, 1 - (state.time - (hitAt.get(enemy.id) ?? -9)) / .16);
         const died = deadAt.get(enemy.bossPart);
-        if (died !== undefined && state.time - died < 7 && hash(state.time * 13 + enemy.id) < 5 * dt) steam(local(part.group.position.x, 1.8, part.group.position.z), state.time * 31 + enemy.id, .9);
+        if (died !== undefined && state.time - died < 7 && hash(state.time * 13 + enemy.id) < 5 * dt) steam(local(part.group.position.x, 1.8 + lift, part.group.position.z), state.time * 31 + enemy.id, .9);
         for (const object of part.live) object.visible = living;
         if (part.wreck) part.wreck.visible = !living;
         // The heart's petals fold open once it can be damaged.
         const wantOpen = enemy.damageable !== false || !living ? 1 : 0;
         if (enemy.bossPart === 'core' && wantOpen && part.open === 0 && dt > 0) {
           // A short pressure release marks the mechanical transformation; reuses the bounded boss pools.
-          for (const side of SIDES) steam(local(side * .9, 2.05, part.group.position.z), enemy.id + side * 11, .55);
-          flash(local(0, 2.15, part.group.position.z), 1.1, enemy.id);
+          for (const side of SIDES) steam(local(side * .9, 2.05 + lift * 1.5, part.group.position.z), enemy.id + side * 11, .55);
+          flash(local(0, 2.15 + lift * 1.5, part.group.position.z), 1.1, enemy.id);
         }
         part.open += THREE.MathUtils.clamp(wantOpen - part.open, -dt * 1.4, dt * 1.4);
         const eased = THREE.MathUtils.smoothstep(part.open, 0, 1);
@@ -489,6 +558,12 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         const fraction = Math.max(0, enemy.hp / enemy.maxHp);
         const pulse = overload && enemy.bossPart === 'core' ? .5 + .5 * Math.abs(Math.sin(state.time * 12)) : .85 + .15 * Math.sin(state.time * 2.2);
         part.heat.emissiveIntensity = living ? (1.2 + (1 - fraction) * 1.8 + (enemy.warning > 0 ? 1.4 : 0)) * pulse + kick * 2.8 : 0;
+        // THE CRADLE's heart: it destabilises (wild flicker) as the body falls, then flickers and goes dark.
+        if (walking && destroyed && enemy.bossPart === 'core') {
+          const fade = 1 - THREE.MathUtils.smoothstep(phaseAge, 1.9, 3.6), flick = hash(Math.floor(phaseAge * 18) + encounter) > (phaseAge < 1.9 ? .25 : .55) ? 1 : .15;
+          part.heat.emissiveIntensity = (phaseAge < 1.9 ? 3.2 + 2.2 * Math.abs(Math.sin(phaseAge * 31)) : 3.4) * fade * flick;
+          for (const object of part.live) object.visible = fade > 0; if (part.wreck) part.wreck.visible = fade <= 0;
+        }
         if (waking && living) {
           // Each module ignites at its moment of the awakening: a flicker, a flare of sparks, then its full glow.
           const at = AWAKEN.order[enemy.bossPart] * span, lit = THREE.MathUtils.smoothstep(age, at, at + AWAKEN.ignite);
@@ -514,9 +589,33 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
       liveVertices(markers, geometry, marks.count); markers.visible &&= root.visible;
     },
     /** Swap the code-built stand-in for the production model once the-veil.glb has loaded. */
-    setModel(model: THREE.Group) { root.remove(rig.chassis); rig.dispose(); rig = modelRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup); },
+    setModel(model: THREE.Group) {
+      root.remove(rig.chassis); rig.dispose(); rig = modelRig(model, style); root.add(rig.chassis); if (rig.flightPodGroup) scene.add(rig.flightPodGroup);
+      // A walking model (THE CRADLE): its gait plants feet on the terrain (the scene's sampler) or on its arena's floor.
+      gait = rig.walker ? createGait(rig.walker.rests, { floor: WALKER.floor, ground: (x, z) => {
+        const y = options.ground ? options.ground(x, -z) : WALKER.floor;
+        return THREE.MathUtils.clamp(y, WALKER.floor - 1.2, WALKER.floor + 1.6);
+      } }) : null;
+      // (Arriving mid-encounter, a walker starts its walk-in afresh.)
+      if (rig.walker) encounter = -1;
+    },
     get hasPodModel() { return !!rig.flightPods; },
-    get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count }; },
-    dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); },
+    get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count,
+      ...(rig.walker ? { walker: { swinging: gait?.swinging ?? -1, buckled: Math.round(buckled * 100) / 100, lift: Math.round(walkerLift * 100) / 100 } } : {}) }; },
+    dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); blob?.geometry.dispose(); (blob?.material as THREE.Material | undefined)?.dispose(); },
   };
+}
+
+/** A soft round contact shadow (one draw): a disc whose vertex alpha falls from its middle to its rim. */
+function walkerShadow(): THREE.Mesh {
+  const geometry = new THREE.CircleGeometry(1, 32, 0, Math.PI * 2).rotateX(-Math.PI / 2);
+  const count = geometry.getAttribute('position').count, colors = new Float32Array(count * 4);
+  for (let i = 0; i < count; i++) {
+    const x = geometry.getAttribute('position').getX(i), z = geometry.getAttribute('position').getZ(i), r = Math.min(1, Math.hypot(x, z));
+    colors.set([0, 0, 0, (1 - r) * (1 - r)], i * 4);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x1a0805, vertexColors: true, transparent: true, opacity: .5, depthWrite: false }));
+  mesh.name = 'walker contact shadow'; mesh.renderOrder = 2; mesh.frustumCulled = false;
+  return mesh;
 }
