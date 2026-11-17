@@ -1,27 +1,29 @@
-"""THE CRADLE from the user's Tripo GLB itself (24 October 2026). The user: "keep to the glb you have which is fully
-detailed. start fresh. theres an inner core with the egg on flesheggs surrounded by 5-6 shields, then theres the wings
-with 4-5 outer shields that kinda extend below to look like floating rocks. forget the turret nodes".
+"""THE CRADLE (Amnion) since 17 November 2026: a colossal walking brood hive adapted from the user's spider GLB
+(art/source/bosses/cradle-walker-original.glb, "monster spider 3d model.glb"; docs/43 §4-7). The flying CRADLE before it
+(the user's Tripo hive GLB) is now THE VEIL (boss_veil.py).
 
-Adapted like the first approved bosses (20 October; their face-copy helpers are tools/blender/lib_tripo.py): the supplied mesh, UVs, normals and painted atlases
-are kept; nothing is regenerated. Run through Blender MCP (UNC workspace path):
+Adapted like the approved Tripo bosses (art/bosses/README.md): the user's mesh, UVs and painted atlases are kept and
+reduced; nothing of the shape is regenerated except the heart, its cavity and the hatchling drone, which the spider lacks
+(painted from patches of its own atlas). Run headless:
 
-    import sys, importlib
-    sys.path.insert(0, r'\\\\wsl.localhost\\Ubuntu\\home\\davidfarina\\Projects\\alien-skies\\tools\\blender')
-    import boss_cradle; importlib.reload(boss_cradle).build()
+    cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
+        --python "$(wslpath -w tools/blender/run_build.py)" -- boss_cradle [--no-export] [--no-preview]
 
-Tripo split the mesh into arbitrary pieces (one holds half the egg, a shield and the flesh beside it), so parts are cut by
-shape, in the reference placement (lib_solids.PLACEMENT: source x 17, offset (0, 2.9, -1.6)):
-- cradle_heart (+ _wreck): the golden egg, inside an ellipsoid round it;
-- cradle_heart_shutter_0..5: the upper parts of the six inner shields round the egg. Each is a sector round the nest
-  above a cut height, keeping only painted bone (the atlas tells bone from red flesh), closed over thin cracks (grown and
-  shrunk four rings) and reduced to its main piece. Hinged on its cut line, local x along it, so the view's 42 degree
-  swing (CRADLE_STYLE.shutterOpen) opens it outward; the stump stays on the hull like a joint;
-- cradle_pod_left/right (+ _wreck): the red flesh bulges at the front flanks, the brood sacs (no turrets);
-- cradle_hull: everything else, with faceted rock hanging under the five outer shields (on the wings and at the back),
-  so the wings read as floating rock;
-- cradle_flight_pod: the hatchling drone (drone below).
-Exported at 70% of the reference placement (user: "the model seems pretty big no?"): src/content/cradle.ts holds the
-matching combat values.
+Working units are the source x10 (x right, y away from the player, the spider's face toward -y, z up, feet at 0); the game
+model is the working model x G (1.45), so the source's own egg sacs land on the fixed brood-chamber targets (x +-2.17).
+Parts (the rig contract of src/render/cradle-walker.ts):
+- cradle_body, cradle_carapace, cradle_underside: the spider's body inside its flanks (its own legs cut off at the body's
+  edge), split at heights into the armoured top, the flanks and the hanging brood structure underneath;
+- cradle_vents: the body's glowing pores and mouths (their own node, so the view can make them breathe);
+- cradle_pod_left/right (+ _wreck): the brood chambers, the spider's own egg sacs enlarged, glowing amber from within; the
+  wreck is the sac ruptured and sagging;
+- cradle_heart (+ _wreck) inside cradle_heart_cavity, under cradle_heart_shutter_0..3: the carapace over the heart cut in
+  four plates, each hinged on its outer edge (local x along the hinge, local -y outward, as THE ECLIPSE's), so the view's
+  swing opens them outward and clears the heart's camera ray;
+- cradle_leg_<k>_coxa/femur/tibia/tarsus, k 0..7 (0-3 left, front to back; 4-7 right): the spider's side leg, cut at its
+  joints, copied to every hip (mirrored on the right, scaled per pair). Each segment's origin is its proximal joint; the
+  empty cradle_leg_<k>_foot marks the claw's tip. The rest pose is the spider's; the view poses the legs by IK;
+- cradle_flight_pod: the hatchling drone the boss launches.
 """
 import bpy, bmesh, os, math, json, random
 import numpy as np
@@ -29,300 +31,520 @@ from mathutils import Vector, Matrix
 import lib_tripo as tripo
 import lib_solids as br
 
-SRC = os.path.join(br.ROOT, 'art', 'source', 'bosses', 'cradle-tripo-original.glb')
-REF_SCALE, REF_OFFSET = 17.0, Vector((0, 2.9, -1.6))
-SCALE = .7
-LABEL = ''   # an experiment's label is appended to the file name: the-cradle-<label>.glb
+SRC = os.path.join(br.ROOT, 'art', 'source', 'bosses', 'cradle-walker-original.glb')
+W = 10.0                 # working units per source unit
+G = 1.45                 # game units per working unit
+TAN = math.tan(math.radians(35))
+TARGET_Z = 5.0           # the visual target plane over the floor (CRADLE_WALKER.targetHeight in the view)
+SAC_X, SAC_S, HEART_S = 2.17, -0.28, 1.26
+BUDGET = 80000
 TAU = 2 * math.pi
-# Reference-placement measurements (source pieces' bounds; lib_solids.trace and height maps).
-EGG = dict(c=(.05, .27, 3.38), r=(.7, 1.1, .86))
-NEST = (-.1, 1.3)
-SHIELDS = [  # sector round NEST (mid azimuth, extent either side, rad), radius range, cut height
-    dict(name='front_left', amid=-2.186, a0=-.468, a1=.372, r0=2.548, r1=4.867, zc=1.313),
-    dict(name='front_right', amid=-1.041, a0=-.207, a1=.257, r0=2.617, r1=3.937, zc=2.562),
-    dict(name='left', amid=-3.085, a0=-.495, a1=.565, r0=.890, r1=2.818, zc=2.658),
-    dict(name='right', amid=.127, a0=-.991, a1=1.027, r0=.623, r1=3.161, zc=2.580),
-    dict(name='back_left', amid=2.428, a0=-.540, a1=.552, r0=1.080, r1=3.245, zc=2.726),
-    dict(name='back', amid=1.603, a0=-.395, a1=.343, r0=2.295, r1=4.375, zc=2.674),
-]
-# The densest red flesh at each front flank (the model is asymmetric): the brood sacs.
-SACS = dict(left=(-2.5, -.8, 1.66), right=(2.6, .4, 1.12), radius=.7)
-# Outer shields' feet (centre, half extents across x and y, wing deck height): rock hangs below each, reaching down past
-# the body's own base (about -1.6) so the wings read as floating rock.
-OUTER = [((-5.1, 2.2), (.55, 1.3), .45), ((4.8, 1.3), (.6, 1.4), .45), ((-2.5, 7.1), (.6, .9), .6), ((1.7, 7.3), (.55, .9), .6), ((.4, 6.6), (.6, .8), .7)]
+# The body: an elliptic cylinder round its middle (working); faces outside it are legs.
+BODY = dict(c=(0.0, -0.3), r=(1.2, 2.1))
+# The template leg (the spider's left side leg, foot at (-4.65, -1.26, 0)): its plane runs from BODY c along LEG_DIR.
+LEG_DIR = (-.975, -.221)
+# Its joints in the leg plane (t along LEG_DIR from BODY c, z): hip, coxa end, knee, ankle, claw tip (read side-on).
+LEG_JOINTS = [(1.72, 3.96), (2.3, 4.02), (3.49, 3.92), (4.67, 2.48), (4.83, .05)]
+SEGMENTS = ('coxa', 'femur', 'tibia', 'tarsus')
+# Hips: azimuth (deg, from +x toward +y, the spider's face at -90) and size per pair, left side; the right mirrors them.
+PAIRS = [(-133, 1.06), (172, 1.0), (148, .96), (118, 1.0)]
+HIP_Z = 3.96             # working: where the template's femur leaves the body
 
 
-def source():
-    key = 'approved_source_cradle'
-    if key not in bpy.data.objects:
-        sc = bpy.data.scenes.new('Last Worlds — Approved source cradle')
-        bpy.context.window.scene = sc
-        bpy.ops.import_scene.gltf(filepath=SRC)
-        meshes = [o for o in sc.objects if o.type == 'MESH']
-        if len(meshes) != 1:
-            raise RuntimeError('Approved source mesh count changed')
-        meshes[0].name = key
-    return bpy.data.objects[key]
+def ray_y(z, target_y):
+    return target_y - (z - TARGET_Z) * TAN
+
+
+def source(sc):
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=SRC)
+    meshes = [o for o in set(bpy.data.objects) - before if o.type == 'MESH']
+    if len(meshes) != 1:
+        raise RuntimeError('Spider source mesh count changed')
+    ob = meshes[0]; ob.name = 'walker_source'
+    for o in list(sc.objects):
+        if o != ob and o.type != 'MESH':
+            bpy.data.objects.remove(o, do_unlink=True)
+    return ob
 
 
 def face_data(ob):
-    """Face centroids (reference placement), atlas colours at their UV centroids, and seam-merged vertex ids."""
     me = ob.data
-    n = len(me.vertices)
-    co = np.empty(n * 3); me.vertices.foreach_get('co', co); co = co.reshape(-1, 3) * REF_SCALE + np.array(REF_OFFSET)
+    co = np.empty(len(me.vertices) * 3); me.vertices.foreach_get('co', co); co = co.reshape(-1, 3)
+    M = np.array(ob.matrix_world); co = (co @ M[:3, :3].T + M[:3, 3]) * W
     fv = np.empty(len(me.polygons) * 3, dtype=np.int64); me.polygons.foreach_get('vertices', fv); fv = fv.reshape(-1, 3)
     img = next(nd.image for nd in me.materials[0].node_tree.nodes if nd.type == 'TEX_IMAGE' and 'basecolor' in nd.image.name)
-    W, H = img.size
-    px = np.empty(W * H * 4, dtype=np.float32); img.pixels.foreach_get(px); px = px.reshape(H, W, 4)
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32); img.pixels.foreach_get(px); px = px.reshape(h, w, 4)
     uv = np.empty(len(me.loops) * 2, dtype=np.float32); me.uv_layers[0].data.foreach_get('uv', uv); uv = uv.reshape(-1, 2)
     ls = np.empty(len(me.polygons), dtype=np.int64); me.polygons.foreach_get('loop_start', ls)
     fuv = (uv[ls] + uv[ls + 1] + uv[ls + 2]) / 3
-    rgb = px[np.clip((fuv[:, 1] % 1) * H, 0, H - 1).astype(int), np.clip((fuv[:, 0] % 1) * W, 0, W - 1).astype(int), :3]
-    _, vid = np.unique(np.round(co, 5), axis=0, return_inverse=True)
-    return co, fv, co[fv].mean(1), rgb, vid.ravel()
+    rgb = px[np.clip((fuv[:, 1] % 1) * h, 0, h - 1).astype(int), np.clip((fuv[:, 0] % 1) * w, 0, w - 1).astype(int), :3]
+    return co, fv, co[fv].mean(1), rgb, uv, ls, fuv
 
 
-def adjacency(F, idx):
-    """Edge-adjacent face pairs among faces idx (positions in idx), both directions."""
-    sub = F[idx]
-    e = np.concatenate([np.sort(sub[:, [0, 1]], 1), np.sort(sub[:, [1, 2]], 1), np.sort(sub[:, [2, 0]], 1)])
-    owner = np.tile(np.arange(len(idx)), 3)
-    key = e[:, 0] * (F.max() + 1) + e[:, 1]
-    order = np.argsort(key); key, owner = key[order], owner[order]
-    same = key[1:] == key[:-1]
-    a, b = owner[:-1][same], owner[1:][same]
-    return np.concatenate([a, b]), np.concatenate([b, a])
+# ----------------------------------------------------------------------------- paint
+# Display-space tones after the user's target sheet (references/cradle-walker-target*.png): weathered cream bone plates,
+# dark red sinew, amber glow.
+BONE = [(.34, .25, .17), (.70, .60, .45), (.93, .87, .74)]
+SINEW = [(.10, .02, .02), (.30, .06, .04), (.55, .16, .09)]
+AMBER = [(.32, .09, .02), (.86, .42, .08), (1.0, .72, .30)]
+GLOW = (1.0, .55, .12)
 
 
-def classify(ob):
-    """Face classes: -1 hull, 0..5 inner shields, 'egg' 99, sacs 100/101."""
-    co, fv, fc, rgb, vid = face_data(ob)
+def ramp(t, stops):
+    t = np.clip(t, 0, 1)[:, None]
+    a, b, c = (np.array(s, dtype=np.float32) for s in stops)
+    return np.where(t < .5, a + (b - a) * (t / .5), b + (c - b) * ((t - .5) / .5))
+
+
+def weights(rgb):
+    """The spider's orange paint read as glow (saturated yellow-orange with little blue), bone (the light tan plates) and
+    sinew (the darker brown flesh)."""
     r, g, b = rgb.T
-    flesh = (r > g * 1.45) & (r > b * 1.5)
-    cls = np.full(len(fc), -1)
-    (ex, ey, ez), (rx, ry, rz) = EGG['c'], EGG['r']
-    cls[((fc[:, 0] - ex) / rx) ** 2 + ((fc[:, 1] - ey) / ry) ** 2 + ((fc[:, 2] - ez) / rz) ** 2 < 1] = 99
-    d = fc[:, :2] - np.array(NEST)
-    fa, fr = np.arctan2(d[:, 1], d[:, 0]), np.hypot(d[:, 0], d[:, 1])
-    F = vid[fv]
-    for k, sh in enumerate(SHIELDS):
-        da = np.angle(np.exp(1j * (fa - sh['amid'])))
-        idx = np.where((da > sh['a0']) & (da < sh['a1']) & (fr > sh['r0']) & (fr < sh['r1']) & (fc[:, 2] > sh['zc']) & (cls == -1))[0]
-        src, dst = adjacency(F, idx)
-        sel = ~flesh[idx]
-        for _ in range(4):   # close over thin cracks
-            grown = sel.copy(); grown[dst[sel[src]]] = True; sel = grown
-        for _ in range(4):
-            out = ~sel; shrunk = sel.copy(); shrunk[dst[out[src]]] = False; sel = shrunk
-        lab = np.where(sel, np.arange(len(idx)), -1)
-        for _ in range(500):
-            m = sel[src] & sel[dst]
-            new = lab.copy(); np.minimum.at(new, dst[m], lab[src[m]])
-            if np.array_equal(new, lab):
-                break
-            lab = new
-        u, c = np.unique(lab[sel], return_counts=True)
-        keep = u[c >= max(c.max() * .15, 200)]
-        cls[idx[np.isin(lab, keep) & sel]] = k
-    for k, side in ((100, 'left'), (101, 'right')):
-        sx, sy, sz = SACS[side]
-        m = (np.linalg.norm(fc - np.array((sx, sy, sz)), axis=1) < SACS['radius']) & flesh & (cls == -1)
-        cls[m] = k
-    return cls, co, fv
+    lum = .3 * r + .59 * g + .11 * b
+    glow = np.clip((r - .8) * 8, 0, 1) * np.clip((g - .45) * 6, 0, 1) * np.clip((.42 - b / np.maximum(g, .02)) * 6, 0, 1)
+    bone = np.clip((lum - .36) * 6, 0, 1) * (1 - glow)
+    sinew = np.clip(1 - glow - bone, 0, 1)
+    return lum, glow, bone, sinew
 
 
-def material(ob, size=2048, normal_size=1024):
-    """The supplied atlases at working size; roughness kept legible; the egg's and the hollows' amber glows emit."""
-    key = 'approved_cradle_surface_%d_v1' % size
-    if key in bpy.data.materials:
-        return bpy.data.materials[key]
+def regrade(rgb):
+    lum, glow, bone, sinew = weights(rgb)
+    out = bone[:, None] * ramp((lum - .34) / .5, BONE) + sinew[:, None] * ramp((lum - .08) / .45, SINEW) + glow[:, None] * ramp((lum - .4) / .5, AMBER)
+    return np.clip(out, 0, 1), glow
+
+
+def raster(tris, size):
+    rows, cols = [], []
+    for t in tris:
+        p = t * size
+        x0, y0 = np.floor(p.min(0)).astype(int); x1, y1 = np.ceil(p.max(0)).astype(int)
+        xs, ys = np.meshgrid(np.arange(max(x0, 0), min(x1 + 1, size)), np.arange(max(y0, 0), min(y1 + 1, size)))
+        px, py = xs.ravel() + .5, ys.ravel() + .5
+        (ax, ay), (bx, by), (cx, cy) = p
+        den = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+        if abs(den) < 1e-12:
+            continue
+        l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / den
+        l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / den
+        inside = (l1 >= -.1) & (l2 >= -.1) & (1 - l1 - l2 >= -.1)
+        rows.append(ys.ravel()[inside]); cols.append(xs.ravel()[inside])
+    return (np.concatenate(rows), np.concatenate(cols)) if rows else (np.zeros(0, int), np.zeros(0, int))
+
+
+def material(ob, glow_tris, size=2048, normal_size=1024):
+    """The spider's atlases at working size, regraded to the target palette; an emission map from its own glowing pores
+    and over the faces in `glow_tris` (the brood chambers, painted with their veins)."""
+    key = 'cradle_walker'
     mat = ob.data.materials[0].copy(); mat.name = key
     nt = mat.node_tree; bs = next(nd for nd in nt.nodes if nd.type == 'BSDF_PRINCIPLED')
-    base = None
-    directory = os.path.join(br.ROOT, 'lookdev', 'approved-bosses', 'textures'); os.makedirs(directory, exist_ok=True)
+    directory = os.path.join(br.ROOT, 'lookdev', 'boss-remodel', 'textures'); os.makedirs(directory, exist_ok=True)
+    base = base_glow = None
     for node in [nd for nd in nt.nodes if nd.type == 'TEX_IMAGE']:
         nm = node.image.name
         kind = 'base' if 'basecolor' in nm else 'rm' if '_rm.' in nm else 'normal'
         s = normal_size if kind == 'normal' else size
         img = node.image.copy(); img.name = key + '_' + kind; img.scale(s, s)
+        data = np.empty(s * s * 4, dtype=np.float32); img.pixels.foreach_get(data); rgba = data.reshape(-1, 4)
         if kind == 'rm':
-            data = np.empty(s * s * 4, dtype=np.float32); img.pixels.foreach_get(data); rgba = data.reshape(-1, 4)
-            rgba[:, 1] = np.clip(rgba[:, 1], .34, .86); img.pixels.foreach_set(data)
+            rgba[:, 1] = np.clip(rgba[:, 1], .38, .88)
+            rgba[:, 2] = np.clip(rgba[:, 2] * .5, 0, .2)
+        elif kind == 'base':
+            painted, base_glow = regrade(rgba[:, :3].copy())
+            # The brood chambers' own paint turns amber egg (the regrade reads their pale shells as bone).
+            rows, cols = raster(glow_tris, s)
+            lit = rows * s + cols
+            l = rgba[lit, :3] @ np.array([.3, .59, .11], dtype=np.float32)
+            painted[lit] = ramp((l - .25) / .55, AMBER)
+            rgba[:, :3] = painted
+        img.pixels.foreach_set(data)
         path = os.path.join(directory, key + '_' + kind + ('.png' if kind == 'normal' else '.jpg'))
         img.filepath_raw = path; img.file_format = 'PNG' if kind == 'normal' else 'JPEG'; img.save()
         saved = bpy.data.images.load(path, check_existing=False); saved.colorspace_settings.name = img.colorspace_settings.name; saved.pack(); node.image = saved
         if kind == 'base':
             base = saved
+    rgba = np.ones((size * size, 4), dtype=np.float32)
+    rgba[:, :3] = base_glow[:, None] * np.array(GLOW)
+    rows, cols = raster(glow_tris, size)
+    lit = rows * size + cols
     data = np.empty(size * size * 4, dtype=np.float32); base.pixels.foreach_get(data); rgb = data.reshape(-1, 4)[:, :3]
-    r, g, b = rgb.T
-    weight = np.clip((g / np.maximum(b, .02) - 1.5) * 3, 0, 1) * np.clip((r - .7) * 6, 0, 1)
-    rgba = np.ones((size * size, 4), dtype=np.float32); rgba[:, :3] = weight[:, None] * np.array((1, .62, .16))
+    lum = rgb[lit] @ np.array([.3, .59, .11], dtype=np.float32)
+    lo, hi = np.percentile(lum, 20), np.percentile(lum, 98)
+    rgba[lit, :3] = np.maximum(rgba[lit, :3], (.35 + .65 * np.clip((lum - lo) / max(hi - lo, 1e-3), 0, 1))[:, None] * np.array(GLOW))
     emit = bpy.data.images.new(key + '_emission', width=size, height=size, alpha=False)
     emit.colorspace_settings.name = 'Non-Color'; emit.pixels.foreach_set(rgba.ravel()); emit.pack()
-    tex = nt.nodes.new('ShaderNodeTexImage'); tex.image = emit
-    nt.links.new(tex.outputs['Color'], bs.inputs['Emission Color']); bs.inputs['Emission Strength'].default_value = 2.2
+    tex = nt.nodes.new('ShaderNodeTexImage'); tex.image = emit; tex.location = (-400, -600)
+    nt.links.new(tex.outputs['Color'], bs.inputs['Emission Color']); bs.inputs['Emission Strength'].default_value = 2.0
     return mat
 
 
-def bone_uv(ob, cls, rgb):
-    """UV centroids of hull faces painted as weathered bone on the outer shields (for texturing the rock below them)."""
-    me = ob.data
-    uv = np.empty(len(me.loops) * 2, dtype=np.float32); me.uv_layers[0].data.foreach_get('uv', uv); uv = uv.reshape(-1, 2)
-    ls = np.empty(len(me.polygons), dtype=np.int64); me.polygons.foreach_get('loop_start', ls)
-    return (uv[ls] + uv[ls + 1] + uv[ls + 2]) / 3
+# ----------------------------------------------------------------------------- parts
+def to_game(p, offset):
+    return (np.asarray(p) * G) + np.asarray(offset)
 
 
-def rocks(sc, mat, fc, fuv, rgb, cls):
-    """Floating rock under the five outer shields, as if each ran on down through the wing: one chunky boulder mass per
-    shield, wide under its foot and breaking off in a blunt, jagged underside, with two smaller chunks beside it.
-    Flat-shaded and painted from the atlas where the body's own rock slabs are (each chunk samples a patch round one of
-    those faces), so it carries the model's paint."""
-    rng = random.Random('cradle-floating-rocks')
-    r, g, b = rgb.T
-    slabs = np.where((cls == -1) & (fc[:, 2] < -.3) & (fc[:, 2] > -1.5) & (np.hypot(fc[:, 0], fc[:, 1] - 2.5) < 4.5) & (r > .3) & (r < .75))[0]
-    bm = bmesh.new()
-    uvl = bm.loops.layers.uv.new('UVMap')
-
-    def chunk(ox, oy, top, rad, depth, sides):
-        u0 = fuv[slabs[rng.randrange(len(slabs))]]
-        ph = rng.uniform(0, TAU)
-        prof = [(1.0, top), (rng.uniform(.95, 1.08), top - depth * .25), (rng.uniform(.7, .85), top - depth * .55), (rng.uniform(.38, .5), top - depth * .82)]
-        rings = [[bm.verts.new(((ox + math.cos(ph + TAU * j / sides) * rad * f * rng.uniform(.82, 1.18)) * SCALE,
-                                (oy + math.sin(ph + TAU * j / sides) * rad * f * rng.uniform(.82, 1.18)) * SCALE, (z + rng.uniform(-.14, .14)) * SCALE))
-                  for j in range(sides)] for f, z in prof]
-        faces = [bm.faces.new((a[j], a[(j + 1) % sides], bb[(j + 1) % sides], bb[j])) for a, bb in zip(rings, rings[1:]) for j in range(sides)]
-        # A blunt, broken underside: two or three short points.
-        last = rings[-1]
-        c = sum((v.co for v in last), Vector()) / sides
-        points = [bm.verts.new(c + Vector((rng.uniform(-.2, .2) * rad, rng.uniform(-.2, .2) * rad, -rng.uniform(.25, .55) * depth * SCALE * .3))) for _ in range(rng.choice((2, 3)))]
-        for j in range(sides):
-            faces.append(bm.faces.new((last[j], last[(j + 1) % sides], points[j * len(points) // sides])))
-        for k in range(len(points)):
-            a, bb = points[k], points[(k + 1) % len(points)]
-            j = (k + 1) * sides // len(points) % sides
-            if a != bb:
-                try:
-                    faces.append(bm.faces.new((a, bb, last[j])))
-                except ValueError:
-                    pass
-        faces.append(bm.faces.new(list(reversed(rings[0]))))
-        for f in faces:
-            for loop in f.loops:
-                v = loop.vert.co
-                loop[uvl].uv = (float(u0[0]) + (v.x + v.y) * .02, float(u0[1]) + v.z * .02)
-
-    for (cx, cy), (hx, hy), deck in OUTER:
-        chunk(cx, cy, deck + .25, max(hx, hy) * rng.uniform(.75, .9), rng.uniform(2.4, 3.1), rng.choice((7, 8)))
-        for _ in range(2):
-            a = rng.uniform(0, TAU)
-            chunk(cx + math.cos(a) * hx * 1.1, cy + math.sin(a) * hy * 1.1, deck - rng.uniform(.4, 1.0), rng.uniform(.25, .4), rng.uniform(.8, 1.4), rng.choice((5, 6)))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    me = bpy.data.meshes.new('cradle_rocks'); bm.to_mesh(me); bm.free()
+def mesh_from(name, verts, faces, uvs, mat, sc, pivot=(0, 0, 0), smooth=True):
+    """A mesh from game-space triangles (verts per face corner given by faces), with per-corner UVs."""
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([tuple(v - np.asarray(pivot)) for v in verts], [], faces)
+    me.update()
+    layer = me.uv_layers.new(name='UVMap')
+    layer.data.foreach_set('uv', np.asarray(uvs, dtype=np.float32).ravel())
     me.materials.append(mat)
-    for p in me.polygons:
-        p.use_smooth = False
-    ob = bpy.data.objects.new('cradle_rocks', me); sc.collection.objects.link(ob)
+    me.polygons.foreach_set('use_smooth', [smooth] * len(me.polygons))
+    ob = bpy.data.objects.new(name, me); ob.location = pivot; sc.collection.objects.link(ob)
     return ob
 
 
-# The hatchling drone the boss launches (cradle_flight_pod), from the clean rebuild of 23 October (remodel_cradle.py,
-# moved here on 17 November when the rest of that rebuild was removed). Its lofts come from the Veil's builder.
-DRONE_PALETTE = dict(
-    bone=('#bc9a74', .42, .04, None), plate=('#ab926e', .6, .04, None), seam=('#3a160c', .5, .04, None),
-    flesh=('#6e140f', .32, .08, None), dark=('#2e0806', .5, .04, None), glow=('#3a1a04', .4, .1, '#ffb32a'),
-    crust=('#4a1a12', .85, .02, None), rock=('#5a1812', .75, .03, None), rockdark=('#2c0907', .8, .02, None),
-    track=('#9a8a74', .65, .05, None),
-    slab=('#6a3a1c', .42, .05, None), slabdark=('#3a1a0c', .55, .04, None), amber=('#8a4a14', .3, .06, '#4a1e04'),
-    old=('#7e5c3e', .6, .03, None), web=('#9a6a52', .5, .05, None), tear=('#3e0b07', .4, .06, None),
-)
+def extract(src, idx, name, offset, pivot, ratio, scale_about=None, scale=1.0, mirror=False, xform=None):
+    """lib_tripo.extract with the working-to-game placement, then optional scaling about a point, mirroring (x -> -x)
+    and a further transform (a Matrix applied in game space)."""
+    o = tripo.extract(src, idx, name, W * G, tuple(offset), (0, 0, 0), 1)
+    me = o.data
+    if scale_about is not None and scale != 1:
+        c = Vector(scale_about)
+        me.transform(Matrix.Translation(c) @ Matrix.Scale(scale, 4) @ Matrix.Translation(-c))
+    if mirror:
+        me.transform(Matrix.Scale(-1, 4, (1, 0, 0)))
+        me.flip_normals()
+    if xform is not None:
+        me.transform(xform)
+    me.transform(Matrix.Translation(-Vector(pivot))); o.location = pivot
+    if ratio < 1:
+        bpy.context.view_layer.objects.active = o; o.select_set(True)
+        mod = o.modifiers.new('reduce', 'DECIMATE'); mod.ratio = ratio; mod.use_collapse_triangulate = True
+        bpy.ops.object.modifier_apply(modifier=mod.name); o.select_set(False)
+    return o
 
 
-def drone_materials():
-    return {key: br.material('cradle_' + key, c, r, m, e, 2.4 if e else 0) for key, (c, r, m, e) in DRONE_PALETTE.items()}
+def cap_holes(o, uv_patch):
+    """Close a cut part's open ends (a fan per boundary loop), painted from a dark patch of the atlas."""
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uvl = bm.loops.layers.uv.active
+    edges = [e for e in bm.edges if e.is_boundary]
+    res = bmesh.ops.holes_fill(bm, edges=edges, sides=0)
+    new = res['faces']
+    bmesh.ops.triangulate(bm, faces=new)
+    for f in bm.faces:
+        if f.select or any(l[uvl].uv.length == 0 for l in f.loops):
+            pass
+    for f in [f for f in bm.faces if f in set(new)] if new else []:
+        for loop in f.loops:
+            v = loop.vert.co
+            loop[uvl].uv = (float(uv_patch[0]) + (v.x + v.y) * .002, float(uv_patch[1]) + v.z * .002)
+    bm.to_mesh(o.data); bm.free()
 
 
-def drone(h, c=(0, 0, 0), k=1.0):
-    """A hatchling drone: a wasp-like carapace of bone over a glowing abdomen, two scythe wings."""
-    from boss_veil import egg, loft
-    x, y, z = c
-    egg(h, (x, y + .15 * k, z), [(-.12 * k, 0), (-.08 * k, .2 * k), (.06 * k, .24 * k), (.14 * k, 0)], 8, 'glow', sy=1.6)
-    egg(h, (x, y - .25 * k, z + .04 * k), [(-.1 * k, 0), (-.05 * k, .17 * k), (.08 * k, .19 * k), (.15 * k, 0)], 8, 'plate', sy=1.3)
+def lathe(name, centre, profile, seg, mat, sc, uv_patch, inward=False, pivot=None):
+    """A lathed solid round a vertical axis: profile [(dz, r)], r 0 an apex; UVs a small patch round uv_patch."""
+    bm = bmesh.new(); uvl = bm.loops.layers.uv.new('UVMap')
+    cx, cy, cz = centre
+    rings = []
+    for dz, r in profile:
+        if r <= 0:
+            rings.append([bm.verts.new((cx, cy, cz + dz))])
+        else:
+            rings.append([bm.verts.new((cx + r * math.cos(TAU * k / seg), cy + r * math.sin(TAU * k / seg), cz + dz)) for k in range(seg)])
+    for a, b in zip(rings, rings[1:]):
+        for j in range(seg):
+            if len(a) == 1:
+                bm.faces.new((b[j], b[(j + 1) % seg], a[0]) if not inward else (a[0], b[(j + 1) % seg], b[j]))
+            elif len(b) == 1:
+                bm.faces.new((a[j], a[(j + 1) % seg], b[0]) if not inward else (b[0], a[(j + 1) % seg], a[j]))
+            else:
+                q = (a[j], a[(j + 1) % seg], b[(j + 1) % seg], b[j])
+                bm.faces.new(q if not inward else tuple(reversed(q)))
+    if not inward:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:
+        for loop in f.loops:
+            v = loop.vert.co
+            loop[uvl].uv = (float(uv_patch[0]) + (v.x - cx) * .006, float(uv_patch[1]) + (v.z - cz + v.y - cy) * .006)
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    me.materials.append(mat)
+    for p in me.polygons:
+        p.use_smooth = True
+    pivot = pivot or centre
+    me.transform(Matrix.Translation(-Vector(pivot)))
+    ob = bpy.data.objects.new(name, me); ob.location = pivot; sc.collection.objects.link(ob)
+    return ob
+
+
+def drone(sc, mat, uv_bone, uv_glow, uv_dark):
+    """The hatchling drone (cradle_flight_pod), on its own origin: a bone carapace over a glowing abdomen, two scythe wings
+    (the old CRADLE's hatchling, rebuilt in the walker's paint)."""
+    parts = [lathe('d_abdomen', (0, .15, 0), [(-.12, 0), (-.08, .2), (.06, .24), (.14, 0)], 8, mat, sc, uv_glow),
+             lathe('d_shell', (0, -.25, .04), [(-.1, 0), (-.05, .17), (.08, .19), (.15, 0)], 8, mat, sc, uv_bone)]
+    for o in parts[:2]:
+        o.data.transform(Matrix.Scale(1.5, 4, (0, 1, 0)))
+    bm = bmesh.new(); uvl = bm.loops.layers.uv.new('UVMap')
     for s in (-1, 1):
-        loft(h, [[(x + s * .12 * k, y - .2 * k, z + .05 * k), (x + s * .12 * k, y + .1 * k, z + .05 * k), (x + s * .12 * k, y + .1 * k, z + .09 * k), (x + s * .12 * k, y - .2 * k, z + .09 * k)],
-                 [(x + s * .62 * k, y + .2 * k, z + .14 * k), (x + s * .62 * k, y + .32 * k, z + .14 * k), (x + s * .62 * k, y + .32 * k, z + .16 * k), (x + s * .62 * k, y + .2 * k, z + .16 * k)]],
-             'bone', ('bone', 'bone'))
+        a = [bm.verts.new(p) for p in [(s * .12, -.2, .05), (s * .12, .1, .05), (s * .12, .1, .09), (s * .12, -.2, .09)]]
+        b = [bm.verts.new(p) for p in [(s * .62, .2, .14), (s * .62, .32, .14), (s * .62, .32, .16), (s * .62, .2, .16)]]
+        for j in range(4):
+            bm.faces.new((a[j], a[(j + 1) % 4], b[(j + 1) % 4], b[j]))
+        bm.faces.new(a); bm.faces.new(list(reversed(b)))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:
+        for loop in f.loops:
+            v = loop.vert.co
+            loop[uvl].uv = (float(uv_bone[0]) + v.x * .01, float(uv_bone[1]) + v.y * .01)
+    me = bpy.data.meshes.new('d_wings'); bm.to_mesh(me); bm.free(); me.materials.append(mat)
+    wings = bpy.data.objects.new('d_wings', me); sc.collection.objects.link(wings)
+    parts.append(wings)
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in parts:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = parts[0]
+    bpy.ops.object.join()
+    out = parts[0]; out.name = 'cradle_flight_pod'; out.data.name = 'cradle_flight_pod'
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = out; out.select_set(True)
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS'); out.location = (0, 0, 0); out.select_set(False)
+    return out
 
 
-def flight_pod(mats, sc):
-    """The launched drone, on its own origin (instanced by the view at flight height)."""
-    from boss_veil import solid
-    return solid(lambda h: drone(h), 'cradle_flight_pod', mats, sc, bevel=0)
+def chamber(name, centre, radius, dirs, uvs, mat, sc, out, wreck=False, seg=22, rings=14):
+    """A brood chamber: a closed egg (a little long front to back, fuller outward), UVs projected from the sac's shell.
+    The wreck is the same egg burst and sagging: squashed, dropped, its top caved in."""
+    verts, faces = [], []
+    for i in range(rings + 1):
+        th = math.pi * i / rings
+        for j in range(seg):
+            ph = TAU * j / seg
+            d = Vector((math.sin(th) * math.cos(ph), math.sin(th) * math.sin(ph), math.cos(th)))
+            k = 1.0 + .08 * max(0, d.x * out)
+            p = Vector((d.x * radius * k, d.y * radius * 1.12, d.z * radius * .96))
+            if wreck:
+                p = Vector((p.x * 1.08, p.y * 1.08, p.z * .42 - radius * .45 - (.35 * radius if d.z > .4 else 0) * d.z))
+            verts.append(p)
+    for i in range(rings):
+        for j in range(seg):
+            a, b = i * seg + j, i * seg + (j + 1) % seg
+            faces.append((a, b, b + seg, a + seg))
+    me = bpy.data.meshes.new(name); me.from_pydata([tuple(v) for v in verts], [], faces); me.update()
+    # Outward normals: the sphere's own winding faces inward with this ordering; flip it.
+    me.flip_normals()
+    ndirs = []
+    for poly in me.polygons:
+        for vi in poly.vertices:
+            v = Vector(verts[vi]); v = Vector((v.x, v.y / 1.12, v.z)).normalized()
+            ndirs.append(v)
+    nd = np.array([tuple(v) for v in ndirs], dtype=np.float32)
+    best = np.empty(len(nd), dtype=np.int64)
+    D = dirs.astype(np.float32)
+    for k in range(0, len(nd), 256):
+        best[k:k + 256] = np.argmax(nd[k:k + 256] @ D.T, axis=1)
+    corner_uv = np.asarray(uvs, dtype=np.float32)[best]
+    # A face whose corners landed on different UV islands takes one corner's UV for all three.
+    n = 0
+    for poly in me.polygons:
+        c = corner_uv[n:n + poly.loop_total]
+        if np.ptp(c[:, 0]) > .04 or np.ptp(c[:, 1]) > .04:
+            corner_uv[n:n + poly.loop_total] = c[0]
+        n += poly.loop_total
+    layer = me.uv_layers.new(name='UVMap'); layer.data.foreach_set('uv', corner_uv.ravel())
+    me.materials.append(mat)
+    for poly in me.polygons:
+        poly.use_smooth = True
+    ob = bpy.data.objects.new(name, me); ob.location = tuple(centre); sc.collection.objects.link(ob)
+    return ob
 
 
-BUDGET = 80000   # user, 24 October: "lets raise the max to the veils 80k" (the v2 export was 111k)
+def join_into(target, other):
+    bpy.ops.object.select_all(action='DESELECT')
+    other.select_set(True); target.select_set(True); bpy.context.view_layer.objects.active = target
+    bpy.ops.object.join()
+    return target
 
 
-def build(ratio=.037, part_ratio=.15, label=LABEL):
-    src = source()
-    sc = bpy.data.scenes.get('Last Worlds — THE CRADLE approved') or bpy.data.scenes.new('Last Worlds — THE CRADLE approved')
-    bpy.context.window.scene = sc
-    for o in list(sc.objects):
-        bpy.data.objects.remove(o, do_unlink=True)
-    for m in [m for m in bpy.data.meshes if m.users == 0]:
-        bpy.data.meshes.remove(m)
-    cls, co, fv = classify(src)
-    _, _, fc, rgb, _ = face_data(src)
-    fuv = bone_uv(src, cls, rgb)
-    mat = material(src)
-    scale, offset = REF_SCALE * SCALE, REF_OFFSET * SCALE
+def leg_frame(az_deg):
+    a = math.radians(az_deg)
+    return np.array([math.cos(a), math.sin(a)])
+
+
+def fit_sphere(pts, guess, radius, rounds=6):
+    """Least-squares sphere through the points near a guess, refined on the points close to the fitted surface."""
+    c, r = np.asarray(guess, dtype=np.float64), radius
+    sel = pts[np.linalg.norm(pts - c, axis=1) < radius * 1.3]
+    for _ in range(rounds):
+        A = np.hstack([2 * sel, np.ones((len(sel), 1))]); bvec = (sel ** 2).sum(1)
+        sol, *_ = np.linalg.lstsq(A, bvec, rcond=None)
+        c = sol[:3]; r = math.sqrt(max(sol[3] + c @ c, 1e-6))
+        d = np.abs(np.linalg.norm(pts - c, axis=1) - r)
+        sel = pts[(d < .06) & (np.linalg.norm(pts - c, axis=1) < r * 1.2)]
+        if len(sel) < 50:
+            break
+    return c, r
+
+
+def leg_transform(az_deg, size, mirror):
+    """Template (working) -> this leg (working): turn about BODY c from the template's azimuth to this one, slide its hip
+    to the body's edge, scale about the hip; a right leg is the left one mirrored."""
+    a0 = math.atan2(LEG_DIR[1], LEG_DIR[0]); a = math.radians(az_deg)
+    cx, cy = BODY['c']
+    edge = 1 / math.sqrt((math.cos(a) / BODY['r'][0]) ** 2 + (math.sin(a) / BODY['r'][1]) ** 2)
+    t_hip = LEG_JOINTS[0][0]
+    hip = Vector((cx + math.cos(a) * edge * .97, cy + math.sin(a) * edge * .97, HIP_Z))
+    turn = Matrix.Translation((cx, cy, 0)) @ Matrix.Rotation(a - a0, 4, 'Z') @ Matrix.Translation((-cx, -cy, 0))
+    hip_template = turn @ Vector((cx + LEG_DIR[0] * t_hip, cy + LEG_DIR[1] * t_hip, HIP_Z))
+    M = Matrix.Translation(hip) @ Matrix.Scale(size, 4) @ Matrix.Translation(-hip_template) @ turn
+    if mirror:
+        M = Matrix.Scale(-1, 4, (1, 0, 0)) @ M
+    return M
+
+
+def build(export=True, preview=True):
+    sc = br.scene('Last Worlds — THE CRADLE walker')
+    src = source(sc)
+    co, fv, fc, rgb, uv, ls, fuv = face_data(src)
+    lum, glow, bone, sinew = weights(rgb)
+    c = np.array(BODY['c'])
+    rel = fc[:, :2] - c
+    inside = (rel[:, 0] / BODY['r'][0]) ** 2 + (rel[:, 1] / BODY['r'][1]) ** 2 < 1
+    # The egg sacs, fitted as spheres on the spider's flanks (working).
+    sacs = {side: fit_sphere(fc, (sgn * 1.5, -.26, 3.25), .58) for side, sgn in (('left', -1), ('right', 1))}
+    print('sacs', {k: (v[0].round(3).tolist(), round(v[1], 3)) for k, v in sacs.items()})
+    sac_c = (sacs['left'][0] * np.array([-1, 1, 1]) + sacs['right'][0]) / 2
+    # Placement: the sacs' centres onto their targets' camera rays; working -> game is x G, then this offset.
+    y_off = ray_y(sac_c[2] * G, SAC_S) - sac_c[1] * G
+    offset = np.array([0, y_off, 0])
+    # Only the sac's own shell (near the fitted sphere), not the body behind it.
+    sac_mask = {side: np.abs(np.linalg.norm(fc - v[0], axis=1) - v[1]) < .12 for side, v in sacs.items()}
+    sac_cut = {side: np.linalg.norm(fc - v[0], axis=1) < v[1] + .06 for side, v in sacs.items()}
+    # The crest over the heart (the tall dorsal plate): the heart's armour, cut in two halves hinged on their outer edges.
+    crest = inside & (np.abs(fc[:, 0]) < .62) & (fc[:, 1] > -1.15) & (fc[:, 1] < .05) & (fc[:, 2] > 4.25)
+    heart_z = 4.5
+    heart_y = (ray_y(heart_z * G, HEART_S) - y_off) / G   # working y of the heart on its ray
+    print('offset y %.3f; heart working (0, %.3f, %.2f)' % (y_off, heart_y, heart_z))
+    # Body masks (inside the flanks, not the sacs or the crest), split by height.
+    body = inside & ~sac_cut['left'] & ~sac_cut['right'] & ~crest
+    vents = body & (glow > .55)
+    carapace = body & ~vents & (fc[:, 2] > 3.75)
+    underside = body & ~vents & (fc[:, 2] < 2.25)
+    flank = body & ~vents & ~carapace & ~underside
+    # The template leg: its plane's slab beyond the hip, clear of the sac.
+    d0, n0 = np.array(LEG_DIR), np.array([-LEG_DIR[1], LEG_DIR[0]])
+    t, w = rel @ d0, rel @ n0
+    tz = np.stack([t, fc[:, 2]], 1)
+    template = (np.abs(w) < .5) & (t > LEG_JOINTS[0][0] - .05) & ~sac_cut['left'] & (fc[:, 0] < 0)
+    J = np.array(LEG_JOINTS)
+    dist = []
+    for a, b in zip(J, J[1:]):
+        ab = b - a; u = np.clip(((tz - a) @ ab) / (ab @ ab), 0, 1)
+        dist.append(np.linalg.norm(tz - (a + u[:, None] * ab), axis=1))
+    dist = np.stack(dist, 1); nearest = np.argmin(dist, 1)
+    seg_masks = []
+    for k in range(4):
+        m = template & (nearest == k)
+        for j in (k, k + 1):   # overlap round the joints, so a bent joint shows no gap
+            if 0 < j < 4:
+                m |= template & (np.linalg.norm(tz - J[j], axis=1) < .14) & ((nearest == j - 1) | (nearest == j))
+        seg_masks.append(m)
+    print('faces: body %d (vents %d carapace %d underside %d flank %d), crest %d, sacs %d/%d, template %s' % (
+        body.sum(), vents.sum(), carapace.sum(), underside.sum(), flank.sum(), crest.sum(), sac_mask['left'].sum(), sac_mask['right'].sum(),
+        [int(m.sum()) for m in seg_masks]))
+    # Paint: the chambers glow from within.
+    sac_faces = np.where(sac_mask['left'] | sac_mask['right'])[0]
+    glow_tris = uv[(ls[sac_faces][:, None] + np.arange(3)[None, :])].reshape(-1, 3, 2)
+    mat = material(src, glow_tris)
+    # Paint patches (UV centroids) for the made parts: the brightest glow, a dark sinew, a light bone.
+    pick = lambda score: fuv[int(np.argmax(score))]
+    uv_glow = pick(np.where(glow > .8, lum, -1))
+    uv_sac = pick(np.where(sac_mask['left'], lum, -1))
+    uv_dark = pick(np.where(sinew > .9, -np.abs(lum - .18), -9))
+    uv_bone = pick(np.where(bone > .9, -np.abs(lum - .7), -9))
     objects = []
 
-    def part(name, mask, pivot=(0, 0, 0), r=part_ratio):
-        o = tripo.extract(src, np.where(mask)[0].tolist(), name, scale, offset, pivot, r)
+    def part(name, mask, pivot=(0, 0, 0), ratio=.1, **kw):
+        idx = np.where(mask)[0].tolist()
+        o = extract(src, idx, name, offset, pivot, ratio, **kw)
         o.data.materials.clear(); o.data.materials.append(mat); objects.append(o)
         return o
 
-    hull = part('cradle_hull', cls == -1, r=ratio)
-    rock = rocks(sc, mat, fc, fuv, rgb, cls)
-    bpy.ops.object.select_all(action='DESELECT')
-    rock.select_set(True); hull.select_set(True); bpy.context.view_layer.objects.active = hull; bpy.ops.object.join()
-    egg_c = Vector(EGG['c']) * SCALE
-    heart = part('cradle_heart', cls == 99, tuple(egg_c), .3)
-    objects.append(tripo.wreck_copy(heart))
-    for side, k in (('left', 100), ('right', 101)):
-        sac = part('cradle_pod_' + side, cls == k, tuple(Vector(SACS[side]) * SCALE))
-        objects.append(tripo.wreck_copy(sac))
-    for k, sh in enumerate(SHIELDS):
-        mask = cls == k
-        pts = co[fv[mask].ravel()]
-        low = pts[pts[:, 2] < pts[:, 2].min() + .25].mean(0)
-        hinge = Vector(low) * SCALE
-        o = part('cradle_heart_shutter_%d' % k, mask, tuple(hinge))
-        out = Vector((low[0] - NEST[0], low[1] - NEST[1], 0)).normalized()
-        phi = math.atan2(out.x, -out.y)   # local -y outward: the view's +x swing tips the top outward
+    n_target = lambda mask, tris: min(1.0, tris / max(int(mask.sum()), 1))
+    part('cradle_body', flank, ratio=n_target(flank, 10000))
+    part('cradle_carapace', carapace, ratio=n_target(carapace, 11000))
+    part('cradle_underside', underside, ratio=n_target(underside, 8000))
+    part('cradle_vents', vents, ratio=n_target(vents, 2500))
+    # Brood chambers: closed eggs round each sac (the spider modelled only their outer half), 1.3 times its size, each
+    # corner taking the UV of the sac's own shell in its direction from the centre, so they wear the sac's veined paint.
+    for side in ('left', 'right'):
+        centre_w, r_w = sacs[side]
+        cg = to_game(centre_w, offset)
+        loops = (ls[sac_mask[side]][:, None] + np.arange(3)[None, :]).ravel()
+        lp = (co[fv[sac_mask[side]].ravel()] - centre_w)
+        dirs = lp / np.maximum(np.linalg.norm(lp, axis=1, keepdims=True), 1e-6)
+        out = 1 if side == 'right' else -1
+        for name, sag in (('cradle_pod_' + side, None), ('cradle_pod_%s_wreck' % side, True)):
+            objects.append(chamber(name, cg, r_w * G * 1.3, dirs, uv[loops], mat, sc, out, wreck=bool(sag)))
+    # The heart: a glowing core on its camera ray, in a dark cavity under the crest.
+    hc = Vector((0, heart_y * G + y_off, heart_z * G))
+    heart = lathe('cradle_heart', tuple(hc), [(-.62, 0), (-.52, .3), (-.38, .5), (-.15, .62), (.1, .62), (.32, .52), (.52, .34), (.66, .14), (.72, 0)], 16, mat, sc, uv_glow)
+    objects.append(heart)
+    hw = heart.copy(); hw.data = heart.data.copy(); hw.name = 'cradle_heart_wreck'; sc.collection.objects.link(hw)
+    hw.data.transform(Matrix.Diagonal((.85, .85, .55, 1))); objects.append(hw)
+    cavity = lathe('cradle_heart_cavity', tuple(hc + Vector((0, 0, -.25))), [(.7, 1.05), (.2, .95), (-.35, .7), (-.7, .3), (-.8, 0)], 12, mat, sc, uv_dark, inward=True)
+    cavity.data.transform(Matrix.Diagonal((1.0, 1.45, 1.0, 1)))
+    objects.append(cavity)
+    # The crest halves: hinged on their lowest outer line, local -y outward (the view's +x swing tips the top outward).
+    for k, sgn in enumerate((-1, 1)):
+        mask = crest & (np.sign(fc[:, 0]) == sgn)
+        pts = to_game(co[fv[mask].ravel()], offset)
+        low = pts[pts[:, 2] < pts[:, 2].min() + .3].mean(0)
+        hinge = (sgn * np.abs(pts[:, 0]).max() * .8, low[1], low[2])
+        o = part('cradle_heart_shutter_%d' % k, mask, hinge, n_target(mask, 1400))
+        out = Vector((sgn, 0, 0))
+        phi = math.atan2(out.x, -out.y)
         o.data.transform(Matrix.Rotation(-phi, 4, 'Z')); o.rotation_euler = (0, 0, phi)
-    pod = flight_pod(drone_materials(), sc)
-    objects.append(pod)
-    total = 0
-    for o in objects:
-        if o.type == 'MESH':
-            o.data.calc_loop_triangles(); total += len(o.data.loop_triangles)
+    # Legs: the template's four segments, decimated once, then copied to every hip.
+    templates = []
+    for k, (name, m) in enumerate(zip(SEGMENTS, seg_masks)):
+        o = tripo.extract(src, np.where(m)[0].tolist(), 'template_' + name, W, (0, 0, 0), (0, 0, 0), 1)
+        bpy.context.view_layer.objects.active = o; o.select_set(True)
+        mod = o.modifiers.new('reduce', 'DECIMATE'); mod.ratio = n_target(m, (260, 1000, 950, 650)[k]); mod.use_collapse_triangulate = True
+        bpy.ops.object.modifier_apply(modifier=mod.name); o.select_set(False)
+        o.data.materials.clear(); o.data.materials.append(mat)
+        cap_holes(o, uv_dark)
+        templates.append(o)
+    jw = [Vector((BODY['c'][0] + LEG_DIR[0] * tt, BODY['c'][1] + LEG_DIR[1] * tt, z)) for tt, z in LEG_JOINTS]
+    legs = []
+    for i in range(8):
+        side = 0 if i < 4 else 1
+        az, size = PAIRS[i % 4]
+        M = leg_transform(az, size, side == 1)
+        to_g = Matrix.Translation(Vector(offset)) @ Matrix.Scale(G, 4)
+        joints = [to_g @ (M @ j) for j in jw]
+        for k, name in enumerate(SEGMENTS):
+            o = templates[k].copy(); o.data = templates[k].data.copy(); o.name = 'cradle_leg_%d_%s' % (i, name)
+            sc.collection.objects.link(o)
+            o.data.transform(to_g @ M)
+            if side == 1:
+                o.data.flip_normals()
+            o.data.transform(Matrix.Translation(-joints[k])); o.location = joints[k]
+            objects.append(o)
+        foot = br.marker('cradle_leg_%d_foot' % i, tuple(joints[4]), sc)
+        objects.append(foot)
+        legs.append([tuple(round(c, 3) for c in j) for j in joints])
+    for o in templates:
+        bpy.data.objects.remove(o, do_unlink=True)
+    objects.append(drone(sc, mat, uv_bone, uv_glow, uv_dark))
+    bpy.data.objects.remove(src, do_unlink=True)
+    total = br.triangles(objects)
+    print('triangles', total, {o.name: len(o.data.polygons) for o in objects if o.type == 'MESH' and not o.name.startswith('cradle_leg_')})
+    print('legs', json.dumps(legs))
     if total > BUDGET:
         raise RuntimeError('THE CRADLE over its %d-triangle budget: %d' % (BUDGET, total))
-    tag = tripo.marker('cradle_approved_v2'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = ratio; objects.append(tag)
-    path = os.path.join(br.ROOT, 'public', 'assets', 'amnion', 'the-cradle%s.glb' % ('-' + label if label else ''))
-    bpy.ops.object.select_all(action='DESELECT')
-    for o in objects:
-        o.hide_set(False); o.select_set(True)
-    bpy.ops.export_scene.gltf(filepath=path + '.tmp.glb', export_format='GLB', use_selection=True, use_active_scene=True,
-                              export_materials='EXPORT', export_image_format='AUTO', export_texcoords=True, export_normals=True,
-                              export_yup=True, export_animations=False, export_extras=True, export_cameras=False, export_lights=False,
-                              export_copyright='Last Worlds — user-supplied Tripo GLB, adapted in Blender without regeneration')
-    os.replace(path + '.tmp.glb', path)
-    tris = 0
-    for o in objects:
-        if o.type == 'MESH':
-            o.data.calc_loop_triangles(); tris += len(o.data.loop_triangles)
-    counts = {int(k): int((cls == k).sum()) for k in np.unique(cls)}
-    print(json.dumps(dict(file=path, triangles=tris, bytes=os.path.getsize(path), faces=counts, nodes=[o.name for o in objects])))
-    return objects
+    objects.append(br.marker('cradle_walker_v1', sc=sc, source_file=os.path.basename(SRC), target_height=TARGET_Z,
+                             note='The user\'s spider GLB adapted into a walking brood hive; legs cut at their joints'))
+    result = None
+    if export:
+        path = os.path.join(br.ROOT, 'public', 'assets', 'amnion', 'the-cradle.glb')
+        result = br.export(path, objects, 'Last Worlds — THE CRADLE: the user-supplied spider GLB, adapted in Blender into a walking brood hive')
+    if preview:
+        os.makedirs(br.LOOKDEV, exist_ok=True)
+        shown = [o for o in objects if o.type == 'MESH' and not o.name.endswith('_wreck') and o.name != 'cradle_flight_pod']
+        for view in ('game', 'top', 'side', 'front', 'three_quarter'):
+            br.render_view(sc, view, (0, .5, 3.6), 16, os.path.join(br.LOOKDEV, 'cradle-walker-%s.png' % view), res=1000, objects=shown, light='desert')
+    return objects, result
