@@ -159,7 +159,7 @@ The simulation imports no audio code. Audio never consumes the game's random str
 Run `npm run dev`, then:
 
 ```sh
-node tools/audio-preview.mjs
+node tools/audio/music-preview.mjs
 npx vitest run tests/audio
 npx playwright test tests/browser/audio.spec.ts
 ```
@@ -178,7 +178,7 @@ Six-world browser checks pass for level/boss/transition headroom, increased boss
 
 ### 10 November measurements
 
-- **Previews:** `node tools/audio-preview.mjs <output> [planet ...]`, with `AUDIO_PREVIEW_URL` naming the dev server. It renders seven worlds through the real mixer: normal flight, the three boss stages, modules → core and core → overload changes (asked for mid-bar), a whole fight and three music-under-fire mixes. That is 52 WAVs, 44.1 kHz stereo, at default volumes. With a `before/` render of older code beside it (a harness for the old two-level fader), the Sound room switches builds at the same playback position. Corona and Umbra's before files are their old scores.
+- **Previews:** `node tools/audio/music-preview.mjs <output> [planet ...]`, with `AUDIO_PREVIEW_URL` naming the dev server. It renders seven worlds through the real mixer: normal flight, the three boss stages, modules → core and core → overload changes (asked for mid-bar), a whole fight and three music-under-fire mixes. That is 52 WAVs, 44.1 kHz stereo, at default volumes. With a `before/` render of older code beside it (a harness for the old two-level fader), the Sound room switches builds at the same playback position. Corona and Umbra's before files are their old scores.
 - **Headroom:** the 52 renders peak at most 0.453, with zero clipped or non-finite samples and mono RMS at least 96.7 % of stereo. They use at most 53 voices at once and drop no notes. The boss pool peaks at 25 against its cap of 24, because a riser scheduled ahead can overlap the cap by one.
 - **Normal-flight level** is within 1 dB of the 20 October build on the five unchanged worlds (for example Luna −30.4 against −30.5 dBFS RMS). The phone band (300 Hz–4 kHz) is equal or stronger, up to +4 dB on Khepri.
 - **Boss stages, full mix:** RMS changes by at most a few dB from modules to overload, while the phone band and the top (above 6 kHz) rise through the stages. In the old build, core and overload were bit-identical.
@@ -568,7 +568,7 @@ The changes came in three listening rounds:
 
 Over Khepri's music the shots no longer stand above the score: the loudest window changes by 0 to −2 dB.
 
-Previews: `node tools/sfx-preview.mjs <root>` with `SFX_BUILD=before|after`, rendered through the game's mixer: each event alone and over Khepri's music, in `lookdev/audio-previews/sfx/` with an A/B room (`index.html`).
+Previews: `node tools/audio/sfx-preview.mjs <root>` with `SFX_BUILD=before|after`, rendered through the game's mixer: each event alone and over Khepri's music, in `lookdev/audio-previews/sfx/` with an A/B room (`index.html`).
 
 Actual iOS Safari, Android hardware, phone speaker balance, Bluetooth latency, hardware mute behavior and OS interruptions still require listening/device validation. The first implementation deliberately offers separate mix sliders for that final taste/room/device adjustment. See `docs/build-status.md` for the exact final test results and revision.
 
@@ -854,7 +854,7 @@ One family, crisp and short, in the glassy, metallic world of the game's pickups
 
 **Unchanged:** every world's music and every in-flight effect. Their fingerprints and the 28 effect hashes are pinned and pass.
 
-**Previews:** `node tools/menu-preview.mjs <output>` renders through the game's mixer (`renderMenu` in the audio lab):
+**Previews:** `node tools/audio/menu-preview.mjs <output>` renders through the game's mixer (`renderMenu` in the audio lab):
 - the full loop;
 - a 60 s cut as first heard;
 - each menu sound;

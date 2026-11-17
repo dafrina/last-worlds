@@ -23,7 +23,6 @@ import { RELIC_ARMOR, beamSpec, relicExposed } from '../sim/attacks';
 import { ENEMIES } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
-import { runRoute } from './terrain-route';
 import { loadCoronaCraft, loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadNaharaCraft, loadUmbraCraft, type CoronaCraftNode, type NaharaCraftNode, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupBumpTextures, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
@@ -47,13 +46,13 @@ import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
-import { CITADEL_STYLE, CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, createVeilView, loadVeilModel, veilPlacement } from './veil-view';
+import { CITADEL_STYLE, CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, createCarrierView, loadCarrierModel, veilPlacement } from './carrier-view';
 import { WARDEN } from '../content/warden';
 import { WRAITH } from '../content/wraith';
 import { BASTION } from '../content/bastion';
 import { setWorldPaint, worldGlow, type WorldPaintUniforms } from './world-paint';
 import { planeZAtScreenY, viewFootprint, type ViewFootprint } from './view-footprint';
-import { PONTOON_DECK } from '../world/run-route';
+import { PONTOON_DECK, runRoute } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
 import type { PlanetLook } from '../shared/renderer-types';
 import { loadHeroModel, preloadHeroLook } from './hero-craft';
@@ -388,7 +387,7 @@ export const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Na
 };
 
 /**
- * The Umbral fleet (docs/28, tools/blender/umbra_craft.py): on Umbra every kind flies an Umbral model, and THE ECLIPSE's
+ * The Umbral fleet (docs/28, tools/blender/craft_umbra.py): on Umbra every kind flies an Umbral model, and THE ECLIPSE's
  * drone waves use the drone (scaled to a pod's size). Plume colour is violet.
  */
 export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: UmbraCraftNode; scale: number }>> = {
@@ -399,7 +398,7 @@ export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Um
   skimmer: { node: 'umbra_interceptor', scale: 0.85 }, relic: { node: 'umbra_carrier', scale: 1.1 },
 };
 export const UMBRA_DRONE_SCALE = 1.45;
-/** Corona's fleet (docs/37, tools/blender/corona_craft.py): the same roles as Umbra's, the Wraith its own crescent ship. */
+/** Corona's fleet (docs/37, tools/blender/craft_corona.py): the same roles as Umbra's, the Wraith its own crescent ship. */
 export const CORONA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: CoronaCraftNode; scale: number }>> = {
   dart: { node: 'corona_interceptor', scale: 1 }, needle: { node: 'corona_interceptor', scale: 0.9 }, weaver: { node: 'corona_fighter', scale: 0.95 },
   lancer: { node: 'corona_hunter', scale: 1.05 }, diamond: { node: 'corona_carrier', scale: 1 }, pulsar: { node: 'corona_artillery', scale: 1 },
@@ -409,7 +408,7 @@ export const CORONA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: C
 };
 export const CORONA_DRONE_SCALE = 1.45;
 /**
- * Nahara's fleet (docs/39, tools/blender/nahara_fleet.py), each kind on its model, sized to its role. Of these only the
+ * Nahara's fleet (docs/39, tools/blender/craft_nahara.py), each kind on its model, sized to its role. Of these only the
  * dart, needle, weaver, pulsar, wraith, skimmer, relic and the batteries fly on Nahara; the rest have a model too.
  */
 export const NAHARA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NaharaCraftNode; scale: number }>> = {
@@ -425,7 +424,7 @@ export const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraf
   dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret', pulsar: 'khepri_weaver',
   wraith: 'khepri_lancer', skimmer: 'khepri_dart', relic: 'khepri_weaver',
 };
-/** Engine sockets (x, z) of the Khepri craft, from tools/blender/khepri_craft.py SOCKETS (glTF z toward the player). */
+/** Engine sockets (x, z) of the Khepri craft, from tools/blender/craft_khepri.py SOCKETS (glTF z toward the player). */
 const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [number, number])[]>> = {
   khepri_dart: [[-.45, -.43], [.45, -.43], [0, -.49]], khepri_lancer: [[-.17, -.51], [.17, -.51]],
   khepri_weaver: [[-.09, -.45], [.09, -.45]], khepri_turret: [],
@@ -1048,7 +1047,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (next !== 'amnion' && next !== 'umbra') return undefined;
     if (predatorLoads.has(next)) return predatorLoads.get(next);
     const name = next === 'amnion' ? 'amnion_brood_heavy' : 'umbra_wraith';
-    const file = next === 'amnion' ? 'brood-heavy-v1.glb' : 'wraith-v2.glb';
+    const file = next === 'amnion' ? 'brood-heavy.glb' : 'wraith.glb';
     const loading = loadCraftNodes(`${import.meta.env.BASE_URL}assets/${next}/${file}`, [name]).then(nodes => {
       if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
       for (const [key, batch] of factionBatches(nodes, 'Predator', null, () => 0x8a6cff, materials.alienCraft)) predatorBatches.set(key, batch);
@@ -1181,11 +1180,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // The Helion Ark (docs/17 §5) rides on the sea; its model loads on first use, Bastion-9 stays untouched.
   const ark = createArkView(scene);
   const warden = createWardenView(scene);
-  const veil = createVeilView(scene);
-  const cradle = createVeilView(scene, CRADLE_STYLE);
-  const eclipse = createVeilView(scene, ECLIPSE_STYLE), heliophage = createVeilView(scene, HELIOPHAGE_STYLE), citadel = createVeilView(scene, CITADEL_STYLE);
+  const veil = createCarrierView(scene);
+  const cradle = createCarrierView(scene, CRADLE_STYLE);
+  const eclipse = createCarrierView(scene, ECLIPSE_STYLE), heliophage = createCarrierView(scene, HELIOPHAGE_STYLE), citadel = createCarrierView(scene, CITADEL_STYLE);
   /**
-   * The hovering bosses (veil-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
+   * The hovering bosses (carrier-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
    * mire's level), the others their plateau raised by their hover.
    */
   // The camera shake's state (cosmetic, render only): trauma, the clock, the last hit, lives and effect seen.
@@ -1213,11 +1212,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const bossAsset = (id: keyof typeof BOSS_ASSETS) => `${import.meta.env.BASE_URL}assets/${BOSS_ASSETS[id]}`;
   /** WARDEN-1 loads with Luna, THE VEIL with Nacre, THE CRADLE with Amnion, THE HELIOPHAGE with Corona, THE ECLIPSE with Umbra. */
   const ensureWarden = lazyAsset(() => loadWardenModel(bossAsset('warden')), model => warden.setModel(model), 'WARDEN-1 model unavailable; using the code-built stand-in.');
-  const ensureVeil = lazyAsset(() => loadVeilModel(bossAsset('veil')), model => veil.setModel(model), 'THE VEIL model unavailable; using the code-built stand-in.');
-  const ensureCradle = lazyAsset(() => loadVeilModel(bossAsset('cradle')), model => cradle.setModel(model), 'THE CRADLE model unavailable; using the code-built stand-in.');
-  const ensureEclipse = lazyAsset(() => loadVeilModel(bossAsset('eclipse')), model => eclipse.setModel(model), 'THE ECLIPSE model unavailable; using the code-built stand-in.');
-  const ensureHeliophage = lazyAsset(() => loadVeilModel(bossAsset('heliophage')), model => heliophage.setModel(model), 'THE HELIOPHAGE model unavailable; using the code-built stand-in.');
-  const ensureCitadel = lazyAsset(() => loadVeilModel(bossAsset('citadel')), model => citadel.setModel(model), 'THE CITADEL model unavailable; using the code-built stand-in.');
+  const ensureVeil = lazyAsset(() => loadCarrierModel(bossAsset('veil')), model => veil.setModel(model), 'THE VEIL model unavailable; using the code-built stand-in.');
+  const ensureCradle = lazyAsset(() => loadCarrierModel(bossAsset('cradle')), model => cradle.setModel(model), 'THE CRADLE model unavailable; using the code-built stand-in.');
+  const ensureEclipse = lazyAsset(() => loadCarrierModel(bossAsset('eclipse')), model => eclipse.setModel(model), 'THE ECLIPSE model unavailable; using the code-built stand-in.');
+  const ensureHeliophage = lazyAsset(() => loadCarrierModel(bossAsset('heliophage')), model => heliophage.setModel(model), 'THE HELIOPHAGE model unavailable; using the code-built stand-in.');
+  const ensureCitadel = lazyAsset(() => loadCarrierModel(bossAsset('citadel')), model => citadel.setModel(model), 'THE CITADEL model unavailable; using the code-built stand-in.');
   const ensureArk = lazyAsset(() => loadArkModel(bossAsset('ark')), model => ark.setModel(model), 'Helion Ark model unavailable; using the functional carrier.');
   /*
    * Endless planet cycle (docs/18 §4): the next planet's render assets load during the boss sector, never mid-jump,
@@ -1391,7 +1390,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     pickupBatches.set(icon, mesh);
   }
   /**
-   * 3D drop tokens (user, 7 November; tools/blender/pickup_tokens.py): a bevelled slab in each icon's frame outline, the
+   * 3D drop tokens (user, 7 November; tools/blender/props_pickup_tokens.py): a bevelled slab in each icon's frame outline, the
    * icon on both faces, embossed (bump map from the icon), its frame and glyph softly self-lit so they read on dark
    * worlds, the rim in the frame's colour. They replace the flat icons once loaded; the credit diamond is the lightest.
    */
@@ -2333,7 +2332,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         shakeEffect = effect.id;
         if (shakeDt > 0) shakeTrauma += effect.kind === 'bossBlast' ? .6 : effect.kind === 'blast' ? .14 : effect.kind === 'shred' ? .06 + .1 * Math.min(1, (effect.duration - .4) / .4) : effect.kind === 'explosion' ? .07 : 0;
       }
-      // THE CITADEL's awakening: a short rumble as it shakes the dust off (src/render/veil-view.ts AWAKEN).
+      // THE CITADEL's awakening: a short rumble as it shakes the dust off (src/render/carrier-view.ts AWAKEN).
       // The Orbital Strike: a hard jolt as it is called, then a rumble while it sweeps (docs/42).
       if (state.orbital && state.orbital.startedAt !== orbitalJolted) { orbitalJolted = state.orbital.startedAt; shakeTrauma = 1; }
       if (state.orbital) shakeTrauma = Math.max(shakeTrauma, .55);

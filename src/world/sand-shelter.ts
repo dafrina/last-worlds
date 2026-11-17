@@ -58,7 +58,7 @@ export const NAHARA_PLANS: Partial<Record<KitKind, readonly KitPlan[]>> = {
   nahWall: [[-1.05, 1.05, -0.6, 0.34], [-1.05, 1.05, -0.6, 0.34], [-1.05, 1.05, -0.6, 0.34], [-1.05, 1.05, -0.6, 0.34]],
 };
 /**
- * Where a standing arch meets the ground: its piers (tools/blender/nahara_kit.py arch: local x 0.66 to 0.94 either side;
+ * Where a standing arch meets the ground: its piers (tools/blender/kit_nahara.py arch: local x 0.66 to 0.94 either side;
  * a half arch's one pier, nahSpur, -1 to -0.64), its span clear over the ground (over a canyon, far over it).
  */
 export const ARCH_PIERS: Readonly<Partial<Record<KitKind, readonly KitPlan[]>>> = {

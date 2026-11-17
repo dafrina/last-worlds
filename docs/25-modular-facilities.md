@@ -14,7 +14,7 @@ v3 therefore builds each plant from a per-world kit of textured modules (`src/re
 
 Each world, Luna included (user: "what about moon?"), has one GLB, `public/assets/<world>/facility-kit-v3.glb`, holding 12–14 module nodes (`fk_<world>_<module>`). All the modules share one baked 2048² atlas (colour, roughness/metal, normal, with AO in the vertex colours) plus the untextured glow materials.
 
-- **Builder:** `tools/blender/facility_kit.py`, using the boss toolkit. The modules come from the v2 pieces the user liked.
+- **Builder:** `tools/blender/kit_facilities.py`, using the boss toolkit. The modules come from the v2 pieces the user liked.
 - **Source of truth:** `FACILITY_MODULES` holds each module's footprint, top, foundation depth, allowed turns and roles. The Blender builder asserts the same bounds, and the asset tests compare every GLB node with the registry.
 - **Module frame:**
   - the pivot is at the base centre, on the ground;

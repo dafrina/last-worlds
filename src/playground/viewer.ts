@@ -83,7 +83,7 @@ export function createModelViewer(host: HTMLElement) {
       copy.traverse(child => { const mesh = child as THREE.Mesh; if (mesh.isMesh) for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(m.name || '(unnamed)'); });
       return { triangles: triangles(copy), size: [size.x, size.y, size.z].map(v => Math.round(v * 100) / 100) as [number, number, number], materials: [...materials] };
     },
-    /** Shows an object built in code (a hangar build: src/render/hero-assembly.ts), centred on the grid and framed. */
+    /** Shows an object built in code (a hangar build: src/render/hero-craft.ts), centred on the grid and framed. */
     showObject(object: THREE.Object3D): ViewerInfo {
       ++revision;
       if (shown) scene.remove(shown);

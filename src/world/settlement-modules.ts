@@ -72,7 +72,7 @@ function vesper(node: string, size: readonly [number, number, number], top: numb
 }
 
 const LIST: readonly ModuleSpec[] = [
-  // Khepri infrastructure (khepri-infra.glb, tools/blender/khepri_infra.py); pivots at the base centre, skirt to −0.05.
+  // Khepri infrastructure (khepri-infra.glb, tools/blender/kit_khepri_infra.py); pivots at the base centre, skirt to −0.05.
   infra('infra_landing_pad', [5.4, 0.3, 6.2], ['repair', 'cargoZone'], { sockets: [{ id: 'apron', kind: 'road', at: [0, 0, 3.1], facing: 2 }] }),
   // Measured inlets on the plant's +z side, where its machinery meets a pipe centreline (the slab edge is at 2.55).
   infra('infra_refinery', [4.1, 1.6, 5.1], ['landmark', 'processing'], { shadow: true, sockets: [
@@ -91,7 +91,7 @@ const LIST: readonly ModuleSpec[] = [
   infra('infra_silo', [0.94, 1.75, 0.94], ['storage', 'landmark'], { shadow: true }),
   infra('wreck_0', [2.36, 0.39, 1.36], ['wreck'], { rotation: 'free', foundation: { kind: 'natural', sink: 0.12 } }),
   infra('wreck_1', [2.12, 0.54, 1.46], ['wreck'], { rotation: 'free', foundation: { kind: 'natural', sink: 0.12 } }),
-  // Shared industrial kit (industrial-kit.glb, tools/blender/shared_industrial.py): base on y = 0, pipes on a 2-unit grid.
+  // Shared industrial kit (industrial-kit.glb, tools/blender/kit_industrial.py): base on y = 0, pipes on a 2-unit grid.
   shared('pipe_s_straight', 0.11, 1, 0.47, ['pipe'], { tiles: { axis: 'z', period: 2 } }),
   shared('pipe_l_straight', 0.21, 1, 0.56, ['pipe'], { tiles: { axis: 'z', period: 2 } }),
   shared('pipe_s_elbow', 1, 1, 0.47, ['pipe']), shared('pipe_l_elbow', 1, 1, 0.56, ['pipe']),
@@ -115,7 +115,7 @@ const LIST: readonly ModuleSpec[] = [
   vesper('vesper_crane', [1.26, 2.15, 2.3], 2.1, ['cargoZone']), vesper('vesper_comm_needle', [0.74, 2.21, 0.7], 2.16, ['power']),
   vesper('vesper_ice_hauler', [1.1, 0.69, 1.96], 0.64, ['vehicle']),
   vesper('vesper_icebreaker', [1.04, 1.62, 3.32], 1.37, ['water'], { foundation: { kind: 'afloat', waterline: 0 } }),
-  // The refinery district's landmark (district-kit.glb, tools/blender/khepri_district_kit.py): large-pipe stubs end in
+  // The refinery district's landmark (district-kit.glb, tools/blender/kit_khepri_district.py): large-pipe stubs end in
   // half flanges at the middle of each face.
   { node: 'khepri_processing_tower', source: 'district-kit', material: 'infra', half: [1.5, 1.5], top: 3.5, below: 0.05, foundation: pad,
     planets: ['khepri'], roles: ['landmark', 'processing'], sockets: faceSockets(1.5, 1.5), rotation: 'quarter', detail: 'essential', shadow: true },

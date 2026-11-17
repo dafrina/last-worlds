@@ -1,12 +1,10 @@
 import { expect, it } from 'vitest';
 import { MeshStandardMaterial, ShaderLib, WebGLRenderer } from 'three';
 import { createTerrainMaterials } from '../../src/render/terrain-kit';
-const fs: { readFileSync(path: string): Uint8Array; existsSync(path: string): boolean } = await import(['node', 'fs'].join(':'));
+const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs'].join(':'));
 
-it('ships four isolated, bounded sharp cliff variants and retains the previous kit for rollback', () => {
-  // The previous kit is archived out of the deployed assets (docs/38 P1).
-  expect(fs.existsSync('art/archive/assets/umbra/cliff-kit.glb')).toBe(true);
-  const bytes = fs.readFileSync('public/assets/umbra/cliff-kit-v2.glb');
+it('ships four isolated, bounded sharp cliff variants', () => {
+  const bytes = fs.readFileSync('public/assets/umbra/cliff-kit.glb');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const gltf = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + view.getUint32(12, true))));
   expect(gltf.scenes).toHaveLength(1);
@@ -32,7 +30,7 @@ it('ships four isolated, bounded sharp cliff variants and retains the previous k
 });
 
 it('replaces only the three floating-rock nodes with bounded broad shards', () => {
-  const bytes = fs.readFileSync('public/assets/umbra/floating-shards-v2.glb');
+  const bytes = fs.readFileSync('public/assets/umbra/floating-shards.glb');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const gltf = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + view.getUint32(12, true))));
   expect(gltf.scenes).toHaveLength(1);

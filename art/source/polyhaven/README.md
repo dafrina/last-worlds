@@ -19,8 +19,8 @@ Downloaded 14 October 2026 at 1k resolution through the MCP for Blender addon (v
 | `khepri-basalt-detail.jpg` (256 px, 24 KB) | `rock_face_03_Diffuse_1k.jpg` | Luminance only; large-scale shading removed; contrast-limited |
 | `khepri-basalt-normal.jpg` (256 px, 28 KB) | `rock_face_03_nor_gl_1k.jpg` | Downsampled OpenGL-convention normal map |
 
-| `cliff-rock-detail.jpg` (512 px) | `cliff_side_Diffuse_1k.jpg` | Luminance ratio (log, std 0.17), shading removed with a 40 px periodic blur; `tools/blender/cliff_textures.py` |
-| `cliff-rock-normal.jpg` (512 px) | `cliff_side_nor_gl_1k.jpg` | Box-filtered to 512, renormalised; `tools/blender/cliff_textures.py` |
+| `cliff-rock-detail.jpg` (512 px) | `cliff_side_Diffuse_1k.jpg` | Luminance ratio (log, std 0.17), shading removed with a 40 px periodic blur; `tools/blender/textures_cliffs.py` |
+| `cliff-rock-normal.jpg` (512 px) | `cliff_side_nor_gl_1k.jpg` | Box-filtered to 512, renormalised; `tools/blender/textures_cliffs.py` |
 
 `cliff_side` was downloaded on 21 October 2026 at 1k from the Poly Haven API (`dl.polyhaven.org`), because the Blender addon's Poly Haven library was switched off. It gives the cliff walls (terrain v15) their layered, fractured rock face (user, 21 October: "make rocky textures too so it looks more detailed"). In the image the ledges run horizontally: image x runs along the wall, image y runs up.
 

@@ -5,24 +5,19 @@ import type { PlanetId } from '../shared/contracts';
  * composes around a ground battery. Pure data, no three.js; the single source for the composer, the view and the
  * asset tests (the Blender builder asserts the same bounds).
  *
- * Nodes are `fk_<world>_<module>` in `public/assets/<world>/facility-kit-v3.glb`, all sharing one baked atlas per
- * world (tools/blender/facility_kit.py). Module frame: pivot at the base centre on the ground; x lateral, s away from
+ * Nodes are `fk_<world>_<module>` in `public/assets/<world>/facility-kit.glb`, all sharing one baked atlas per
+ * world (tools/blender/kit_facilities.py; Khepri's and Vesper's with taller buildings, kit_facilities_taller.py; Nacre's
+ * as ruins, kit_facilities_nacre.py). Module frame: pivot at the base centre on the ground; x lateral, s away from
  * the camera (glTF −z); the detailed front faces the camera (−s). Foundations reach `below` under the pivot so a
  * module can sit on uneven ground.
  */
 /** Every world has a kit (Luna joined at the user's request: "what about moon?", 20 October). */
 export type FacilityWorld = PlanetId;
-/** Versioned kits: change a filename to restore the previous building heights. */
-export const FACILITY_KIT_ASSETS: Readonly<Record<FacilityWorld, string>> = {
-  khepri: 'facility-kit-v4-taller.glb', vesper: 'facility-kit-v4-taller.glb',
-  nacre: 'facility-kit-v4-ruins.glb', luna: 'facility-kit-v3.glb',
-  // Amnion, Corona and Umbra build no plants (their structures are kit pieces, docs/27 and docs/28): no module of theirs is
-  // in the registry, so facility-view.ts never loads these names (there is no such file in their folders).
-  amnion: 'facility-kit-v4-ruins.glb',
-  corona: 'facility-kit-v4-ruins.glb',
-  nahara: 'facility-kit-v4-ruins.glb',
-  umbra: 'facility-kit-v4-ruins.glb',
-};
+/**
+ * A world's kit file, `public/assets/<world>/<FACILITY_KIT_FILE>`. Amnion, Corona, Nahara and Umbra build no plants (their
+ * structures are kit pieces, docs/27 and docs/28): no module of theirs is in the registry, so none of theirs is loaded.
+ */
+export const FACILITY_KIT_FILE = 'facility-kit.glb';
 export type ModuleRole =
   | 'hall' | 'tank' | 'column' | 'landmark' | 'pump' | 'pipe' | 'wall' | 'detail' | 'pad' | 'ring' | 'arc' | 'pool' | 'apron';
 /** Quarter turns (1 = 90° counter-clockwise seen from above, three.js yaw). Turn 2 shows the camera the plain back. */

@@ -27,7 +27,7 @@ In the console, `__LAST_WORLDS__.autopilot('skilled')` takes over the run being 
 
 ## The recorder (`npm run record`)
 
-`tools/record-run.mjs` flies a run in Node and keeps its steering a tick at a time
+`tools/sim/record-run.mjs` flies a run in Node and keeps its steering a tick at a time
 (`tests/sim/record-inputs.test.ts`). It then replays it in a private dev server (no hot reload, its own port and cache)
 one frame at a time, and pipes the frames into Playwright's ffmpeg as a VP9 WebM in `recordings/` (git-ignored). The
 simulation is deterministic: at the end the replay is checked against the recording's time, kills and the ship's x.

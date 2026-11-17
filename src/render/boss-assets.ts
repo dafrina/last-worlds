@@ -1,25 +1,25 @@
-/** Switch a filename here to roll a boss back; archived GLBs are kept alongside it.
- * v2 = last published models, v3-study = the following reference-sheet study.
- * v4-approved = reduced and articulated copies of the user's approved GLBs.
- * v5-remodel = clean Blender remodels traced over those GLBs (tools/blender/boss_remodel.py).
- * v6-treads = the same Bastion v5 hull/atlas, with articulated, instanced track links.
+/**
+ * Each boss's model under public/assets and its Blender builder (tools/blender). Earlier versions are in git history
+ * (user, 17 November 2026: "we still have it in git history"); a rollback restores the file from there.
  */
 export const BOSS_ASSETS = {
-  veil: 'nacre/the-veil-v6-remodel.glb',
-  /** v7 = v6 with the rear deck's silver tubes replaced by turrets and greebles (tools/blender/bastion_v7.py, 24 October 2026). */
-  bastion: 'khepri/bastion-9-v7.glb',
-  /** v6 = the user's new Tripo GLB, adapted in Blender (tools/blender/approved_ark.py, 24 October 2026). */
-  ark: 'vesper/helion-ark-v6-approved.glb',
-  warden: 'luna/warden-v5-remodel.glb',
-  /** v2 = the user's Tripo GLB itself, adapted in Blender (tools/blender/approved_cradle.py, 24 October 2026). */
-  cradle: 'amnion/the-cradle-v2-approved.glb',
-  /**
-   * v1 = the user's Tripo GLB, adapted in Blender with its broken wing tip mended (tools/blender/approved_eclipse.py, 24 October
-   * 2026). v2 = v1 plus the prow vent, its third first-phase target (31 October 2026); v1 has no prow vent to draw.
-   */
-  eclipse: 'umbra/the-eclipse-v2-approved.glb',
-  /** v1 = the user's Tripo GLB, adapted in Blender, laid flat and squashed, 16 wide (tools/blender/approved_heliophage.py, 5 November 2026). */
-  heliophage: 'corona/the-heliophage-v1-approved.glb',
-  /** v2 = the temple rebuilt of Nahara's ruin kit, the user's Tripo model its shape guide (tools/blender/nahara_citadel.py, 13 November 2026; the Tripo mesh adapted was rejected: "its color is off"). */
-  citadel: 'nahara/the-citadel-v2.glb',
+  /** A clean remodel traced over the user's spacecraft GLB, without the bow pods (boss_veil.py, 24 October 2026). */
+  veil: 'nacre/the-veil.glb',
+  /** A clean remodel traced over the user's tank GLB, its rear deck with turrets and greebles, instanced tread links
+   * (boss_bastion.py, 24 October 2026). */
+  bastion: 'khepri/bastion-9.glb',
+  /** The user's Tripo GLB, adapted in Blender with its panels cleaned (boss_ark.py, 24 October 2026). */
+  ark: 'vesper/helion-ark.glb',
+  /** A bulky remodel after the user's design sheet (boss_warden.py, 20 October 2026). */
+  warden: 'luna/warden.glb',
+  /** The user's Tripo GLB itself, adapted in Blender (boss_cradle.py, 24 October 2026). */
+  cradle: 'amnion/the-cradle.glb',
+  /** The user's Tripo GLB, adapted with its broken wing tip mended, plus the prow vent, its third first-phase target
+   * (boss_eclipse.py, 24 and 31 October 2026). */
+  eclipse: 'umbra/the-eclipse.glb',
+  /** The user's Tripo GLB, adapted in Blender, laid flat and squashed, 16 wide (boss_heliophage.py, 5 November 2026). */
+  heliophage: 'corona/the-heliophage.glb',
+  /** The temple rebuilt of Nahara's ruin kit, the user's Tripo model its shape guide (boss_citadel.py, 13 November 2026;
+   * the Tripo mesh adapted was rejected: "its color is off"). */
+  citadel: 'nahara/the-citadel.glb',
 } as const;

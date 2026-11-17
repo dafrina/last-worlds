@@ -30,7 +30,7 @@ import { SITE_FIRE, type SiteBlast, type WorldPoint } from './fx-particles';
  * embers spread out with the shock ring and glow with the blast's heat, cooling to the resting ruin as the sequence ends
  * (SITE_HEAT).
  *
- * Assets: `public/assets/shared/sites/<site>-<finish>.glb` (tools/blender/strike_sites.py), loaded with the planet in
+ * Assets: `public/assets/shared/sites/<site>-<finish>.glb` (tools/blender/sites_strike.py), loaded with the planet in
  * `prepare` and drawn once hidden for the warm-up, so a site never compiles a program mid-flight. Never simulation:
  * nothing here changes a target, a collision or loot.
  */
@@ -147,7 +147,7 @@ interface Placed {
 
 const key = (site: SiteId, finish: PlanetId) => `${site}:${finish}`;
 const glowing = (material: THREE.Material) => /glow/i.test(material.name);
-/** Site materials laid as thin layers over others (tools/blender/strike_sites.py roles). */
+/** Site materials laid as thin layers over others (tools/blender/sites_strike.py roles). */
 const OVERLAY = /_(snow|stripe|accent)$/i;
 const ember = (material: THREE.Material) => /ember/i.test(material.name);
 const ash = (material: THREE.Material) => /_ash$/i.test(material.name);

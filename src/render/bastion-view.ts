@@ -1,7 +1,7 @@
 import { liveInstances, liveVertices } from './instances';
 import * as THREE from 'three';
 import { createBastionTracks } from './bastion-tracks';
-import { retainBossMaterials } from './approved-boss-materials';
+import { retainBossMaterials } from './boss-materials';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BASTION } from '../content/bastion';
@@ -413,7 +413,7 @@ export function createBastionView(scene: THREE.Scene) {
 
       marks.begin();
       for (const enemy of state.enemies) {
-        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
+        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in carrier-view.ts.
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
         if (!enemy.bossPart || !part || !target) continue;
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 2.05);

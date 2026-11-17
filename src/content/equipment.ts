@@ -92,7 +92,7 @@ export const SHIELD_TECH = {
 } as const satisfies Readonly<Record<ShieldTechId, { label: string; charges: number; cell: number; price: number; blurb: string }>>;
 
 export interface ShipSpec {
-  label: string; blurb: string; model: string;
+  label: string; blurb: string;
   extraLives: number; pickupReach: number; perk: string;
   /**
    * Campaign price: `price` credits plus `parts` (user, 3 November 2026: "lets make it 4 since its 4 parts of a ship";
@@ -102,10 +102,10 @@ export interface ShipSpec {
 }
 /** Global chassis perks. Part designs remain cosmetic; ordinary handling and hit regions are shared. */
 export const SHIPS: Readonly<Record<ShipId, ShipSpec>> = {
-  scrapper: { label: 'Scrapper', perk: 'Salvage Rig', blurb: '40% wider pickup attraction.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1.4, price: 0, parts: 0 },
-  ironclad: { label: 'Ironclad', perk: 'Reserve Life', blurb: 'One extra starting life.', model: 'shared/hero-scrapper.glb', extraLives: 1, pickupReach: 1, price: 0, parts: 4 },
-  interceptor: { label: 'Interceptor', perk: 'Shred', blurb: 'Keep hitting and your guns spin up: up to 30% faster fire over 2 s. Getting hit, or a pause in firing, stops them.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
-  spectre: { label: 'Spectre', perk: 'Gravity Slingshot', blurb: 'A bullet that just misses you swings around your ship and flies back at whoever fired it. Direct hits still hurt.', model: 'shared/hero-scrapper.glb', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
+  scrapper: { label: 'Scrapper', perk: 'Salvage Rig', blurb: '40% wider pickup attraction.', extraLives: 0, pickupReach: 1.4, price: 0, parts: 0 },
+  ironclad: { label: 'Ironclad', perk: 'Reserve Life', blurb: 'One extra starting life.', extraLives: 1, pickupReach: 1, price: 0, parts: 4 },
+  interceptor: { label: 'Interceptor', perk: 'Shred', blurb: 'Keep hitting and your guns spin up: up to 30% faster fire over 2 s. Getting hit, or a pause in firing, stops them.', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
+  spectre: { label: 'Spectre', perk: 'Gravity Slingshot', blurb: 'A bullet that just misses you swings around your ship and flies back at whoever fired it. Direct hits still hurt.', extraLives: 0, pickupReach: 1, price: 0, parts: 4 },
 };
 
 export const WEAPON_IDS: readonly WeaponId[] = ['pulse', 'fan', 'seeker', 'rail'];

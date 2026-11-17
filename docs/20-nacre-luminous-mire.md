@@ -12,7 +12,7 @@ Rework of 15–16 October 2026, after the user asked:
 
 The reference is the middle panel of `art/concepts/01-worlds-direction.png`.
 
-- **Kit:** every piece is a Blender-modelled node of `public/assets/nacre/nacre-kit.glb` (35 nodes, 14,197 triangles, built by `tools/blender/nacre_kit.py`; see `art/nacre-kit/README.md`). Light code-built stand-ins (`src/render/nacre-kit.ts`) draw only until the GLB has loaded (user rule: no code-built models as the look).
+- **Kit:** every piece is a Blender-modelled node of `public/assets/nacre/nacre-kit.glb` (35 nodes, 14,197 triangles, built by `tools/blender/kit_nacre.py`; see `art/nacre-kit/README.md`). Light code-built stand-ins (`src/render/nacre-kit.ts`) draw only until the GLB has loaded (user rule: no code-built models as the look).
 - **Terrain:** indigo water (sea level −0.6) dominates, winding between ragged islands, about half land:
   - coasts are three noise octaves plus a fine fringe, cut by channels;
   - low mossy shelves sit 0.1–0.35 above the water;
@@ -61,7 +61,7 @@ The reference is the middle panel of `art/concepts/01-worlds-direction.png`.
     - the noise hashed the unwrapped scroll (sine of numbers in the hundreds of thousands far along an endless run), which loses precision on GPUs.
   - **Fix:** Nacre's water is its own material (Vesper's ocean, `src/render/water.ts`, is untouched). Its detail comes from one runtime-generated 256² tileable texture of gradient noise (ripple slopes, two broad fields), mipmapped with 4× anisotropic filtering, sampled four times: the broad warp, the algae at the warped point, and two ripple layers drifting different ways. The ripples are the new fine normal detail (they replace the chop) and the mottling. Where they shrink under a pixel the mips flatten them and the surface turns a little more satin. The terrain view gives each sheet vertex a signed waterline (sea level minus ground); it crosses zero at the true shore inside a triangle, so the shore film and the darker shore band follow the shore instead of the grid. Texture coordinates wrap the scroll every 200 units (every along-scroll scale is a whole number of tiles per 200 units, tested), so precision holds on any run length.
   - **Cost:** four texture taps replace 19 value-noise evaluations (76 hashed sines) per pixel. No new render target, no extra draw call (the sheets switch material with the look); one extra program, warmed with the terrain's stand-ins. The texture builds in about 100 short slices ahead of the planet (the preload waits for it).
-- **Measured** (SwiftShader look-dev at 432 × 768 @2, `tools/lookdev.mjs … planet=nacre`, seeds 8831, 93 and 4242; nine views):
+- **Measured** (SwiftShader look-dev at 432 × 768 @2, `tools/lookdev/flight-views.mjs … planet=nacre`, seeds 8831, 93 and 4242; nine views):
 
   | Counter | Nacre | Khepri (same tool) |
   | --- | --- | --- |
@@ -76,7 +76,7 @@ After Cold Vector, threat 4 of 4 (user decision, 15 October: THE VEIL is so epic
 
 Since 16 October the sortie has a 36 s fuel-depot stretch: the approach closes at 182 s and THE VEIL rises at 184 s over open mire; the scroll stops at distance 920. Shield cells come at 45, 141 and 178 s (141 and 178 s on Veteran).
 
-## THE VEIL (`src/content/veil.ts`, `src/render/veil-view.ts`)
+## THE VEIL (`src/content/veil.ts`, `src/render/carrier-view.ts`)
 
 A giant alien warship in the design language of Nacre's fighters (Shard and Veil), redesigned on 17 October 2026 at the user's request: the first model read as round and animal-like ("an axolotl"). Modelled in Blender (`tools/blender/the_veil.py` → `public/assets/nacre/the-veil.glb`, 10,044 triangles, `art/the-veil/README.md`); the code-built rig only stands in while the model loads:
 - a faceted black hull about 18 units long with a ram prow and silver mandibles; its swept blades span about 25 units, so the ship is wider than it is long (user, 17 October: "make it wide");
@@ -93,7 +93,7 @@ It rises out of the mire on arrival and sinks back into it when destroyed.
 - **Clears:** the perfect pilot clears all nine difficulty × weapon combinations with zero hits.
 - **It must be killed** (user rule).
 
-## Nacre craft (`tools/blender/nacre_craft.py` → `public/assets/nacre/nacre-craft.glb`)
+## Nacre craft (`tools/blender/craft_nacre.py` → `public/assets/nacre/nacre-craft.glb`)
 
 Since 16 October Nacre flies its own Blender-modelled faction in the ORRERY / SHARD / VEIL language of `art/concepts/06-exotic-aliens.png` (`art/nacre-craft/README.md`, 8,088 triangles for all five):
 

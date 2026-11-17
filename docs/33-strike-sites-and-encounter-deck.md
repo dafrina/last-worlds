@@ -365,7 +365,7 @@ changed asks the integrator instead of editing it.
 | --- | --- |
 | **A · Deck** | `src/content/encounter-deck.ts` (new), `src/content/encounters.ts`, `updateDirector` and playlist resolution in `src/sim/game.ts`, deck tests and the seed-sweep balance tests |
 | **B · Sites (simulation, economy, UI)** | `src/content/sites.ts`, site cores, loot and pickups in the simulation (enemy death and pickup collection in `src/sim/game.ts`, not the director), `src/campaign/profile.ts` (parts balance, save migration, prices), `src/content/hero-parts.ts` prices, hangar and results UI, endless cosmetics (`createRun`, renderer `heroOf`) |
-| **C · Sites (models, render)** | `tools/blender/strike_sites.py` (new), `public/assets/shared/sites/` (new), `src/render/site-view.ts` (new), its hook in `src/render/scene.ts`, terrain clearings for sites, art/strike-sites review sheets |
+| **C · Sites (models, render)** | `tools/blender/sites_strike.py` (new), `public/assets/shared/sites/` (new), `src/render/site-view.ts` (new), its hook in `src/render/scene.ts`, terrain clearings for sites, art/strike-sites review sheets |
 
 Shared contracts (integrator, before the workstreams start):
 - `SiteId` and `SITE_IDS` (src/shared/contracts.ts);
@@ -381,7 +381,7 @@ Phase 1 (30 October): the pipeline, the render and one site per family. The user
 floating, and make sure none of these cross heavy cliffs") added the fixes below; phase 2 (30 October) modelled the other
 eight. Every site now has a model on every world it appears on.
 
-**Models.** Hand-built in Blender by `tools/blender/strike_sites.py` from the boss/facility toolkit's faceted solids
+**Models.** Hand-built in Blender by `tools/blender/sites_strike.py` from the boss/facility toolkit's faceted solids
 (user: "just model them yourself … the existing infra is good inspiration"): flat paints, baked AO in the vertex
 colours, glow materials named `*glow*`; no textures. Shape over texture, for the 55° camera. The concept sheet
 (`art/concepts/strike-sites/00-all-sites.png`) is a reference only.
@@ -535,7 +535,7 @@ Development builds expose `window.siteLab` (`place`, `destroy`, `hit`, `clear`, 
 **Rebuild:**
 ```
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup \
-  --python '\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies\tools\blender\strike_sites.py' -- [--site=airfield] [--no-export] [--preview]
+  --python '\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies\tools\blender\sites_strike.py' -- [--site=airfield] [--no-export] [--preview]
 ```
 About 3 minutes for all twelve sites with previews (Windows Blender 5.2, headless). `--preview` renders every finish,
 intact and destroyed, from the game camera into `lookdev/strike-sites/`. Review sheets (in game): `art/strike-sites/`.

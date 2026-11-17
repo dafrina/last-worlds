@@ -8,19 +8,19 @@ import type { GameAudio } from './audio/engine';
 /**
  * Development-only hooks on `window.__LAST_WORLDS__` (main.ts installs them under `import.meta.env.DEV`; production
  * builds drop this module). Read-only snapshots let browser tests inspect real gameplay; the rest is look-dev and the
- * perf bench (tools/perf-bench.mjs).
+ * perf bench (tools/perf/bench.mjs).
  */
 
 /** One measured frame of the perf bench: its JS work (ms), the run clock and the scroll speed. */
 export interface BenchFrame { sim: number; render: number; total: number; time: number; speed: number }
 /**
- * Development-only perf bench (tools/perf-bench.mjs): every rendered frame steps exactly `steps` ticks with a scripted
+ * Development-only perf bench (tools/perf/bench.mjs): every rendered frame steps exactly `steps` ticks with a scripted
  * weave, so a measured flight repeats tick for tick whatever the machine's speed; it records each frame's JS work (ms).
  */
 export interface Bench {
   steps: number; lives: number; frames: BenchFrame[]; steerTo?: number;
   /**
-   * A recorded flight replayed tick by tick (tools/record-run.mjs): the steering of each tick ('l', '.', 'r'), from
+   * A recorded flight replayed tick by tick (tools/sim/record-run.mjs): the steering of each tick ('l', '.', 'r'), from
    * tick 0. The loop then steps only the ticks `queue` asks for (the recorder's clock), not `steps`.
    */
   replay?: string; queue?: number;
@@ -60,7 +60,7 @@ export function createDevHooks(host: DevHooksHost) {
     killBoss: () => { const run = host.run(); if (!run?.boss) return; for (const part of bossParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
     // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
     boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { const run = host.run(); if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
-    // Perf bench (tools/perf-bench.mjs): fixed ticks per frame and a scripted weave; `benchStop` returns the frame timings.
+    // Perf bench (tools/perf/bench.mjs): fixed ticks per frame and a scripted weave; `benchStop` returns the frame timings.
     bench: (steps = 1, lives = 5, steerTo?: number) => { host.setBench({ steps, lives, frames: [], ...(steerTo === undefined ? {} : { steerTo }) }); },
     // Perf bench: every live strike-site core falls as damageEnemy kills one (its kill explosion, its site's loot).
     killSites: () => {

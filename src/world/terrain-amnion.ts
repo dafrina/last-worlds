@@ -264,7 +264,7 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
  * the model stands further than its logical row (its target plane projects there from the plateau) and its island lies
  * behind its pivot.
  */
-// Fitted to THE CRADLE (the-cradle-v2-approved.glb, 24 October): it rises in place (no slide) and spans 2.3 toward the
+// Fitted to THE CRADLE (the-cradle.glb, 24 October): it rises in place (no slide) and spans 2.3 toward the
 // player to 6.35 away from its pivot, which sits 1.65 past its row (its 1.54 target plane over the 0.8 hover), with 0.8 of
 // surge either way: its middle is 3.2 past the clearing's centre, and the canyon's narrowest stretch (0.87 of halfS)
 // clears it by 0.4.

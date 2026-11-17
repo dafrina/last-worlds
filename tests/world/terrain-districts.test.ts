@@ -7,7 +7,7 @@ import {
 import { districtPlanSteps, socketOffset } from '../../src/world/terrain-districts';
 import { districtRoadsSteps, fadeProfile, roadRibbons } from '../../src/world/terrain-network';
 import { finish } from '../../src/world/terrain-work';
-import { runRoute } from '../../src/render/terrain-route';
+import { runRoute } from '../../src/world/run-route';
 import { endlessSchedule } from '../../src/content/endless';
 import { VIEW } from '../../src/shared/contracts';
 

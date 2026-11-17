@@ -79,7 +79,7 @@ const SITE_FIRE = { fireFrom: (22 + SITE_LEAD - 18.8) / VIEW.scrollSpeed, fireUn
 /**
  * Guard seats (dx, ds) around a site's core, in firing order. Each stands outside every site's footprint (content/sites.ts
  * SITE_FOOTPRINT: |x| ≤ 3, s −3.2 to 3.3; on the ground the lens spreads them about 7% further), so no battery stands on
- * a runway, an apron or a building (workstream C, 30 October). tools/blender/strike_sites.py checks the models against
+ * a runway, an apron or a building (workstream C, 30 October). tools/blender/sites_strike.py checks the models against
  * these spots, so keep one ring per line.
  */
 const RING_2 = [[-3.5, -1], [3.1, 1]] as const;

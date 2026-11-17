@@ -60,12 +60,12 @@ export function modelOf(planet: PlanetId, kind: EnemyKind, pod = false): ModelRe
   }
   if (planet === 'umbra') {
     if (pod) return { file: 'umbra/umbra-craft.glb', node: 'umbra_drone', scale: UMBRA_DRONE_SCALE };
-    if (kind === 'wraith') return { file: 'umbra/wraith-v2.glb', node: 'umbra_wraith', scale: 0.76 };
+    if (kind === 'wraith') return { file: 'umbra/wraith.glb', node: 'umbra_wraith', scale: 0.76 };
     return { file: 'umbra/umbra-craft.glb', node: UMBRA_CRAFT[kind].node, scale: UMBRA_CRAFT[kind].scale };
   }
   if (planet === 'nacre' || planet === 'amnion') {
     if (pod) return { file: 'nacre/nacre-craft.glb', node: 'nacre_pod', scale: 1 };
-    if (planet === 'amnion' && kind === 'diamond') return { file: 'amnion/brood-heavy-v1.glb', node: 'amnion_brood_heavy', scale: 0.82 };
+    if (planet === 'amnion' && kind === 'diamond') return { file: 'amnion/brood-heavy.glb', node: 'amnion_brood_heavy', scale: 0.82 };
     return { file: 'nacre/nacre-craft.glb', node: NACRE_CRAFT[kind].node, scale: NACRE_CRAFT[kind].scale };
   }
   const vesper = VESPER_CRAFT[kind];
@@ -81,7 +81,7 @@ export const WORLDS: readonly { planet: PlanetId; name: string }[] = [
 /** A viewer entry: one model, the group it is listed in, and who flies it where. */
 export interface ViewerModel extends ModelRef { id: string; group: string; label: string; uses: string[] }
 
-/** Every model the viewer lists: the hero, each faction's craft (who flies them, where), the loot skid and the bosses. */
+/** Every model the viewer lists: each faction's craft (who flies them, where), the loot skid and the bosses (the hero ships are in the Hangar tab). */
 export function viewerModels(): ViewerModel[] {
   const models = new Map<string, ViewerModel>();
   const add = (group: string, file: string, node: string | null, label: string, use?: string) => {
@@ -90,7 +90,6 @@ export function viewerModels(): ViewerModel[] {
     if (use && !entry.uses.includes(use)) entry.uses.push(use);
     models.set(id, entry);
   };
-  add('Hero', 'shared/hero-scrapper.glb', 'hero_scrapper', 'Scrapper', 'the player\'s ship');
   const group = (file: string) => file.startsWith('khepri') ? 'Khepri craft (also Luna)' : file.startsWith('vesper') ? 'Vesper craft'
     : file.startsWith('nacre') ? 'Nacre craft (also Amnion)' : file.startsWith('amnion') ? 'Amnion' : file.startsWith('umbra') ? 'Umbral fleet' : 'Loot';
   for (const tier of ROSTER) for (const entry of tier.kinds) for (const { planet, name } of WORLDS) {
@@ -104,7 +103,7 @@ export function viewerModels(): ViewerModel[] {
     add(group(modelOf(planet, hunterKind(planet)).file), modelOf(planet, hunterKind(planet)).file, modelOf(planet, hunterKind(planet)).node, modelOf(planet, hunterKind(planet)).node ?? '', `hunter on ${name}`);
   }
   for (const [boss, file] of Object.entries(BOSS_ASSETS)) add('Bosses', file, null, boss.toUpperCase(), 'boss');
-  const order = ['Hero', 'Khepri craft (also Luna)', 'Vesper craft', 'Nacre craft (also Amnion)', 'Amnion', 'Umbral fleet', 'Loot', 'Bosses'];
+  const order = ['Khepri craft (also Luna)', 'Vesper craft', 'Nacre craft (also Amnion)', 'Amnion', 'Umbral fleet', 'Loot', 'Bosses'];
   return [...models.values()].sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || a.label.localeCompare(b.label));
 }
 

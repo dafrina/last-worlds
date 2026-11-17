@@ -52,7 +52,7 @@ export const SITE_FOOTPRINT = { x: 3.0, s: [-3.2, 3.3] } as const;
 /**
  * Each site's core height over its ground: the target's centre, where the model draws it (a tower's cab, a floating
  * crystal, a hook's load). The simulation anchors the core with it (its `groundHeight`). One entry per line:
- * tools/blender/strike_sites.py parses them.
+ * tools/blender/sites_strike.py parses them.
  */
 export const SITE_CORE_HEIGHT: Readonly<Record<SiteId, number>> = {
   'crash-site': 1.05,

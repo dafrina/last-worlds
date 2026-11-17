@@ -3,7 +3,7 @@ import type { PlanetId, SiteId } from '../shared/contracts';
 /**
  * Strike-site models (docs/33 § 3 and § 6): one Blender GLB per site and finish (the world it stands on),
  * `public/assets/shared/sites/<site>-<finish>.glb`, so a world loads only its own finishes. Pure data, no three.js: the single source for the view, the asset tests and the Blender
- * builder (tools/blender/strike_sites.py parses the entries below and asserts every node against them, so keep each entry
+ * builder (tools/blender/sites_strike.py parses the entries below and asserts every node against them, so keep each entry
  * on one line in this exact form).
  *
  * Nodes per finish: `site_<id>_<finish>_body` (the site), `_core` (the target, hidden once destroyed) and `_ruin` (the

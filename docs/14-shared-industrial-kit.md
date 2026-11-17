@@ -4,7 +4,7 @@ Design v0.5 · 14 October 2026. The user asked for tiling piping and generic ind
 
 ## 1. Files
 
-- Source: `tools/blender/shared_industrial.py` (seeded, deterministic Blender 5.2 script).
+- Source: `tools/blender/kit_industrial.py` (seeded, deterministic Blender 5.2 script).
 - Runtime: `public/assets/shared/industrial-kit.glb`.
 - Previews and provenance: `art/shared-industrial/`.
 

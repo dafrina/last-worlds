@@ -5,7 +5,7 @@ import { fly, perfectPilot, beamAwareHunterPilot, skilledPilot, type Pilot } fro
 import { env } from '../helpers/env';
 
 /**
- * Records a flight's steering for tools/record-run.mjs (docs/41; the user, 13 November: "record a perfect play", then "we
+ * Records a flight's steering for tools/sim/record-run.mjs (docs/41; the user, 13 November: "record a perfect play", then "we
  * could do it for failed runs so we can see what happens"). Off by default; the recorder runs it for you:
  *
  *   REPLAY_OUT=run.json REPLAY_MISSION=silent-empire REPLAY_WEAPON=pulse REPLAY_RANK=4 REPLAY_SEEDS=1-30 \

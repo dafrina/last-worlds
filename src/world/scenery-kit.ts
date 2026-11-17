@@ -19,11 +19,11 @@ export type VesperKitKind = 'iceCliff' | 'serac' | 'iceSpire' | 'iceberg' | 'flo
  */
 export type NacreKitKind = 'mireRock' | 'mireCrag' | 'lotus' | 'lotusGrove' | 'glassTube' | 'goblet' | 'lilyRaft' | 'mossTuft'
   | 'ruinTower' | 'ruinFort' | 'ruinRing' | 'ruinBridge' | 'ruinPillars' | 'ruinRubble';
-/** Amnion's brood kit (amnion-kit.glb, docs/27, tools/blender/amnion_kit.py). */
+/** Amnion's brood kit (amnion-kit.glb, docs/27, tools/blender/kit_amnion.py). */
 export type AmnionKitKind = 'eggClutch' | 'boneSpire' | 'nest' | 'boneShards' | 'broodNest' | 'hive' | 'broodRuin' | 'sinewWeb';
-/** Umbra's obsidian kit (umbra-kit.glb, docs/28, tools/blender/umbra_kit.py). */
+/** Umbra's obsidian kit (umbra-kit.glb, docs/28, tools/blender/kit_umbra.py). */
 export type UmbraKitKind = 'umbHill' | 'umbPeak' | 'umbSpire' | 'umbShards' | 'umbFloat' | 'umbMonolith' | 'umbPylon' | 'umbGate' | 'umbReactor' | 'umbObelisk' | 'umbPad' | 'umbDock';
-/** Corona's infrastructure kit (corona-kit.glb, docs/37, tools/blender/corona_kit.py). */
+/** Corona's infrastructure kit (corona-kit.glb, docs/37, tools/blender/kit_corona.py). */
 export type CoronaKitKind = 'corExtractor' | 'corCollector' | 'corHangar' | 'corRefinery' | 'corGantry' | 'corDome';
 /**
  * Cliff walls (terrain version 15, docs/26 §11): 2-unit wall segments set along cliff rims, base-centre pivot, front
@@ -31,7 +31,7 @@ export type CoronaKitKind = 'corExtractor' | 'corCollector' | 'corHangar' | 'cor
  * basalt (public/assets/khepri/cliff-kit.glb; Luna repaints it grey) and Vesper's fractured ice-shelf walls
  * (public/assets/vesper/cliff-kit.glb).
  */
-/** Nahara's sandstone ruins (nahara-kit.glb, docs/39, tools/blender/nahara_kit.py). */
+/** Nahara's sandstone ruins (nahara-kit.glb, docs/39, tools/blender/kit_nahara.py). */
 export type NaharaKitKind = 'nahTower' | 'nahGate' | 'nahPillar' | 'nahArch' | 'nahSpur' | 'nahRing' | 'nahBlocks' | 'nahAqueduct' | 'nahAqPier'
   | 'nahDrums' | 'nahStub' | 'nahFooting' | 'nahDebris' | 'nahRelic';
 export type CliffKitKind = 'cliffWall' | 'iceWall' | 'fleshWall' | 'voidWall' | 'nahWall';
@@ -107,7 +107,7 @@ export const KIT: Readonly<Record<KitKind, {
   sinewWeb: { prefix: 'amn_web', variants: 3, halfX: 1.05, halfZ: 0.45, height: 1, exactTop: false, radius: 1.05 },
   // Amnion's canyon walls (docs/27): flesh lobes and sinews tucked under the plateau's own bone edge.
   fleshWall: { prefix: 'flesh_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
-  // Umbra (umbra-kit.glb and cliff-kit.glb, tools/blender/umbra_kit.py, docs/28; halves measured from the kit):
+  // Umbra (umbra-kit.glb and cliff-kit.glb, tools/blender/kit_umbra.py, docs/28; halves measured from the kit):
   // knife-edged obsidian shards on the canyon-wall contract; sharp rocks, spires and the faction's structures top out at
   // exactly 1; shards and pads at real size; floating cliffs and the crescent dock from their lowest spike tip (y 0) to
   // their top (y 1).
@@ -119,19 +119,19 @@ export const KIT: Readonly<Record<KitKind, {
   nahWall: { prefix: 'nah_wall', variants: 4, halfX: 1.05, halfZ: 0.6, height: 1, exactTop: true, radius: Math.hypot(1.05, 0.6) },
   nahTower: { prefix: 'nah_tower', variants: 3, halfX: 0.7, halfZ: 0.7, height: 1, exactTop: true, radius: Math.hypot(0.7, 0.7) },
   nahGate: { prefix: 'nah_gate', variants: 2, halfX: 1, halfZ: 0.4, height: 1, exactTop: true, radius: Math.hypot(1, 0.4) },
-  // The chasm's monoliths: great blocks piled up out of the haze (tools/blender/nahara_kit.py stack).
+  // The chasm's monoliths: great blocks piled up out of the haze (tools/blender/kit_nahara.py stack).
   nahPillar: { prefix: 'nah_pillar', variants: 3, halfX: 1, halfZ: 1, height: 1, exactTop: true, radius: Math.SQRT2 },
   nahArch: { prefix: 'nah_arch', variants: 2, halfX: 1.04, halfZ: 0.2, height: 1, exactTop: true, radius: 1.04 },
   // A broken half arch from a pier at x -1, reaching toward +x (its far end at x 0.5 to 0.8).
   nahSpur: { prefix: 'nah_spur', variants: 2, halfX: 1.05, halfZ: 0.26, height: 1, exactTop: true, radius: 1.05 },
-  // One aqueduct bay, pier centre to pier centre along x (tools/blender/nahara_kit.py aqueduct), its channel rim at 1.
+  // One aqueduct bay, pier centre to pier centre along x (tools/blender/kit_nahara.py aqueduct), its channel rim at 1.
   // (Variants: whole, broken through, the run's ruined end toward +x.)
   nahAqueduct: { prefix: 'nah_aqueduct', variants: 3, halfX: 1.04, halfZ: 0.28, height: 1, exactTop: true, radius: Math.hypot(1.04, 0.28) },
   // An aqueduct pier's column below its bay, stretched down to the ground.
   nahAqPier: { prefix: 'nah_aqpier', variants: 1, halfX: 0.15, halfZ: 0.27, height: 1, exactTop: true, radius: 0.3 },
   nahRing: { prefix: 'nah_ring', variants: 1, halfX: 0.8, halfZ: 0.25, height: 1, exactTop: true, radius: Math.hypot(0.8, 0.25) },
   nahBlocks: { prefix: 'nah_blocks', variants: 3, halfX: 0.6, halfZ: 0.6, height: 0.6, exactTop: false, radius: Math.hypot(0.6, 0.6) },
-  // The canyon floor's fallen city (15 November, tools/blender/nahara_kit.py): low pieces at real size (a fallen column in its
+  // The canyon floor's fallen city (15 November, tools/blender/kit_nahara.py): low pieces at real size (a fallen column in its
   // drums, a foundation's courses, rubble fields, the empire's relics) and stumps topping out at exactly 1 (an obelisk over
   // its plinth, column stumps on their stylobate); halves measured from the kit.
   nahDrums: { prefix: 'nah_drums', variants: 2, halfX: 0.95, halfZ: 0.5, height: 0.4, exactTop: false, radius: Math.hypot(0.95, 0.5) },

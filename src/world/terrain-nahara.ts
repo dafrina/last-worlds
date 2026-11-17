@@ -20,7 +20,7 @@ import { createScatterSink } from './scatter-sink';
  * - natural: benched sandstone hills and buttes (Corona's domain-warped masks and bench), canyon walls stepping down in
  *   three stratified cliffs along a wandering rim, the cliffs in wavy strata.
  * Through both runs a meandering main chasm along the central route, with side ravines branching off it. The ruins are
- * Blender modules (tools/blender/nahara_kit.py): towers, gates, monoliths, arches set wall to wall, half arches from the
+ * Blender modules (tools/blender/kit_nahara.py): towers, gates, monoliths, arches set wall to wall, half arches from the
  * rims, carved facings and rubble. Pure functions of seed and position. THE CITADEL stands on its own flat pad at the
  * plateau level in the middle of a ruined city (naharaPlatform, citadelCourse, citadelRuins).
  */
@@ -312,7 +312,7 @@ function naturalGround(seed: number, x: number, s: number, m: NaharaMasks, platf
  * whatnot so it looks like the citadel is sitting in an ancient ruin city"; then "limit the flat part to just the base of
  * the model, and maybe keep some canyon around it like its towering in a canyons"; "key is it should tower above other
  * ruins and not look like a single asset"). Nahara's only arena is its boss's.
- * - The pad: flat at the plateau only under the temple's rock (tools/blender/nahara_citadel.py MESA: a front edge and a
+ * - The pad: flat at the plateau only under the temple's rock (tools/blender/boss_citadel.py MESA: a front edge and a
  *   half circle behind, 14.8 wide), instead of the common clearing (ARENA_CLEARING), which flattened the whole view.
  * - The canyon: the world's own canyon swings to it, opens into a gorge before it and forks round it (citadelCourse), the
  *   rock the point of the island between the channels (its carved cliff the canyon's wall there), so the temple towers
@@ -327,7 +327,7 @@ function naturalGround(seed: number, x: number, s: number, m: NaharaMasks, platf
  * gives 24.24). Before and after its fight the renderer stands it here too.
  */
 export const CITADEL_AT = 24.75;
-/** The rock's plan about the temple's origin (nahara_citadel.py MESA): half width, front edge, the back circle's centre. */
+/** The rock's plan about the temple's origin (boss_citadel.py MESA): half width, front edge, the back circle's centre. */
 const CITADEL_ROCK = { w: 7.4, front: -6.4, centre: -3.6 } as const;
 /** Units outside the temple's rock (negative on it); Infinity without an arena. */
 function citadelDistance(arena: TerrainArena | undefined, x: number, s: number): number {
@@ -465,7 +465,7 @@ function citadelRuins(seed: number, arena: TerrainArena, terrain: ScatterField):
     out.push({ kind: 'nahArch', x: cx, s: cs, y: foot, scale: half / 0.85, height: PLATEAU + 1.4 + h(i, 7) * 0.6 - foot,
       rotation: Math.abs(ds) > 0.5 ? Math.PI / 2 : 0, cosmetic: false, pick: h(i, 8) < 0.5 ? 0.99 : 0, big: false });
   };
-  // (The bridges at its sides are the model's own: tools/blender/nahara_citadel.py bridge.)
+  // (The bridges at its sides are the model's own: tools/blender/boss_citadel.py bridge.)
   bridge(-3.8, o + r.front + 0.2, 0, -1, 32); bridge(4.6, o + r.front + 0.2, 0, -1, 33);
   { const [bx, bs] = around(Math.PI / 2 - 0.5, -0.2); bridge(bx, bs, Math.cos(Math.PI / 2 - 0.5), Math.sin(Math.PI / 2 - 0.5), 34); }
   // Great arches across the gorge before the temple, wall to wall (the canyon arches' way: the walls found by walking out
@@ -545,7 +545,7 @@ function citadelRuins(seed: number, arena: TerrainArena, terrain: ScatterField):
 }
 
 /**
- * Nahara's dressing (tools/blender/nahara_kit.py), few and great (user, 12 November: "larger structures ... towers and arcs
+ * Nahara's dressing (tools/blender/kit_nahara.py), few and great (user, 12 November: "larger structures ... towers and arcs
  * of ruins rising or extending cliffs and hills ... It should feel huge"):
  * - monoliths: piles of great blocks standing out of the chasm floor, up past the rims, thickest in the basins;
  * - great arches spanning the narrows rim to rim, some broken;
@@ -647,7 +647,7 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   }
   // Ruined aqueducts (user, 13 November: "aqueducts, mostly running horizontally across ... it can be ruined aqueducts,
   // doesnt need to be connected"; then no glow, piers "extend well below so that they never float", ends broken): now and
-  // then a run straight across the map at one level, bay after bay (tools/blender/nahara_kit.py aqueduct), each bay its
+  // then a run straight across the map at one level, bay after bay (tools/blender/kit_nahara.py aqueduct), each bay its
   // own height, its piers carried down to the ground as columns (aqueduct_pier) sunk a unit into it. Ruined: bays missing,
   // some broken through, a hill swallowing it where the ground rises to its level; wherever a run breaks off, its last bay
   // is the ruined end piece facing the gap. It keeps clear of the arches' rows and of the other great ruins.
@@ -741,7 +741,7 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
  * The canyon floor's fallen city (user, 15 November: "lets enhance nahara by placing more things on naharas canyon grounds.
  * Theyre so empty now", then "khepri has nice canyons as inspiration"). Khepri's canyons read rich at their edges: talus and
  * fallen columns heaped at every cliff's foot, thinning out across the floor, rubble fields in patches. Nahara's canyon gets
- * the same gradient in its own ruin (tools/blender/nahara_kit.py, the canyon floor's pieces):
+ * the same gradient in its own ruin (tools/blender/kit_nahara.py, the canyon floor's pieces):
  * - talus: tumbled blocks down the lower slopes of its walls, half sunk in them;
  * - at the walls' feet: rubble fields, tumbled blocks and columns fallen along the wall, now and then a stump;
  * - across the ledges: rubble in patches, fallen columns, the stepped foundations of fallen buildings, obelisk and column

@@ -148,7 +148,7 @@ BALANCE_REPORT=out.jsonl BALANCE_TARGET=campaign BALANCE_PILOT=skilled BALANCE_W
 BALANCE_REPORT=out.jsonl BALANCE_TARGET=campaign BALANCE_RANKS=expected BALANCE_DIFFICULTIES=relaxed,veteran BALANCE_SEEDS=1-5 npx vitest run tests/sim/balance-report.test.ts
 BALANCE_REPORT=out.jsonl BALANCE_TARGET=endless BALANCE_SEEDS=1-8 BALANCE_LAST_SECTOR=31 npx vitest run tests/sim/balance-report.test.ts
 BALANCE_REPORT=out.jsonl BALANCE_TARGET=isolated BALANCE_SECTORS=10,20,30 BALANCE_LEVELS=1-5 BALANCE_SEEDS=1-3 npx vitest run tests/sim/balance-report.test.ts
-node tools/balance-report.mjs out.jsonl
+node tools/sim/balance-report.mjs out.jsonl
 ```
 
 ## Remaining

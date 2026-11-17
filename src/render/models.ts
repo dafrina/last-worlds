@@ -469,18 +469,18 @@ export interface NacreCraft { geometry: THREE.BufferGeometry; engines: [number, 
 export function loadNacreCraft(url: string): Promise<Map<NacreCraftNode, NacreCraft>> { return loadCraftNodes(url, NACRE_CRAFT_NODES); }
 
 /**
- * Nodes in umbra-craft.glb (docs/28, tools/blender/umbra_craft.py): the Umbral fleet after the UMBRA concept's ship classes,
+ * Nodes in umbra-craft.glb (docs/28, tools/blender/craft_umbra.py): the Umbral fleet after the UMBRA concept's ship classes,
  * deep black glossy glass (`umbra_obsidian`) with violet glow; noses +Z, air craft pivot at their blade plane, the turret
  * at its base.
  */
 export type UmbraCraftNode = 'umbra_interceptor' | 'umbra_fighter' | 'umbra_hunter' | 'umbra_carrier' | 'umbra_artillery' | 'umbra_turret' | 'umbra_drone';
 export const UMBRA_CRAFT_NODES: readonly UmbraCraftNode[] = ['umbra_interceptor', 'umbra_fighter', 'umbra_hunter', 'umbra_carrier', 'umbra_artillery', 'umbra_turret', 'umbra_drone'];
 export function loadUmbraCraft(url: string): Promise<Map<UmbraCraftNode, NacreCraft>> { return loadCraftNodes(url, UMBRA_CRAFT_NODES); }
-/** Nodes in corona-craft.glb (tools/blender/corona_craft.py, docs/37): Corona's fleet, the Wraith included. */
+/** Nodes in corona-craft.glb (tools/blender/craft_corona.py, docs/37): Corona's fleet, the Wraith included. */
 export type CoronaCraftNode = 'corona_interceptor' | 'corona_fighter' | 'corona_hunter' | 'corona_carrier' | 'corona_artillery' | 'corona_turret' | 'corona_drone' | 'corona_wraith';
 export const CORONA_CRAFT_NODES: readonly CoronaCraftNode[] = ['corona_interceptor', 'corona_fighter', 'corona_hunter', 'corona_carrier', 'corona_artillery', 'corona_turret', 'corona_drone', 'corona_wraith'];
 export function loadCoronaCraft(url: string): Promise<Map<CoronaCraftNode, NacreCraft>> { return loadCraftNodes(url, CORONA_CRAFT_NODES); }
-/** Nahara's fleet (tools/blender/nahara_fleet.py, docs/39): sandstone-armoured craft over dark frames, turquoise light. */
+/** Nahara's fleet (tools/blender/craft_nahara.py, docs/39): sandstone-armoured craft over dark frames, turquoise light. */
 export type NaharaCraftNode = 'nahara_skimmer' | 'nahara_hunter' | 'nahara_obelisk' | 'nahara_sunspike' | 'nahara_relic' | 'nahara_battery' | 'nahara_drone';
 export const NAHARA_CRAFT_NODES: readonly NaharaCraftNode[] = ['nahara_skimmer', 'nahara_hunter', 'nahara_obelisk', 'nahara_sunspike', 'nahara_relic', 'nahara_battery', 'nahara_drone'];
 export function loadNaharaCraft(url: string): Promise<Map<NaharaCraftNode, NacreCraft>> { return loadCraftNodes(url, NAHARA_CRAFT_NODES); }
@@ -559,7 +559,7 @@ export function craftFromScene<N extends string>(root: THREE.Object3D, names: re
 export interface TexturedPart { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial }
 
 /**
- * Loads textured nodes (tools/blender/boss_remodel.py bakes) for instancing: one part per primitive, keeping the GLB's
+ * Loads textured nodes (tools/blender/lib_solids.py bakes) for instancing: one part per primitive, keeping the GLB's
  * own materials (atlas, normal and metal/roughness maps, AO vertex colours; glow stays emissive). Materials are shared
  * between nodes of the same file.
  */

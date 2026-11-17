@@ -7,8 +7,8 @@ import { HELION_ARK } from '../../src/content/ark';
 import { VEIL } from '../../src/content/veil';
 import { ECLIPSE } from '../../src/content/eclipse';
 import { WARDEN } from '../../src/content/warden';
-import { FACILITY_KIT_ASSETS, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
-import { ARCHIVE, asset, stubGltfDecoding } from '../helpers/assets';
+import { FACILITY_KIT_FILE, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
+import { asset, stubGltfDecoding } from '../helpers/assets';
 
 stubGltfDecoding();
 function validate(model: Group, budget: number, textured=false) {
@@ -57,7 +57,7 @@ describe('Blender cinematic asset contracts',()=>{
     } finally { tracks.dispose(); }
   });
   // The selected boss assets (src/render/boss-assets.ts): v4 approved imports or v5 clean remodels
-  // (tools/blender/boss_remodel.py). Weak-point rays come from the combat constants, so a rescaled
+  // (tools/blender/lib_solids.py). Weak-point rays come from the combat constants, so a rescaled
   // fortress is checked at its own targets.
   const flankOf = {
     veil: { node:'pod', x:VEIL.podOffset, y:VEIL.targetHeight, z:-VEIL.podS },
@@ -158,97 +158,6 @@ describe('Blender cinematic asset contracts',()=>{
       expect(ray.intersectObject(hull,true)[0]?.distance ?? Infinity,`prow row x ${x} clear of armour`).toBeGreaterThan(hits[0].distance-.01);
     }
   });
-  it('keeps the Scrapper in its established visual footprint with two exhaust sockets',async()=>{
-    const model=await asset('shared/hero-scrapper.glb'); validate(model,3000);
-    const hull=model.getObjectByName('hero_scrapper'); expect(hull).toBeDefined();
-    const size=new Box3().setFromObject(hull!).getSize(new Vector3());
-    expect(size.x).toBeLessThanOrEqual(1.05); expect(size.z).toBeLessThanOrEqual(1.2);
-    expect(model.getObjectByName('hero_scrapper_engine_0')).toBeDefined();
-    expect(model.getObjectByName('hero_scrapper_engine_1')).toBeDefined();
-  });
-  it('preserves the VEIL combat sockets, hinges and wreck variants in the new carrier',async()=>{
-    const model=await asset('nacre/the-veil.glb',ARCHIVE); validate(model,55000);
-    for(const [name,x,y,z] of [
-      ['veil_pod_left',-3.1,2,.4],['veil_pod_right',3.1,2,.4],['veil_heart',0,2,-1.8],
-      ['veil_bay_left',-1.7,1.8,2.6],['veil_bay_right',1.7,1.8,2.6],
-    ] as const){
-      const node=model.getObjectByName(name); expect(node,name).toBeDefined();
-      const p=node!.getWorldPosition(new Vector3());
-      expect(p.x).toBeCloseTo(x,4); expect(p.y).toBeCloseTo(y,4); expect(p.z).toBeCloseTo(z,4);
-    }
-    for(const name of ['veil_hull','veil_pod_left_wreck','veil_pod_right_wreck','veil_heart_wreck',...Array.from({length:4},(_,i)=>`veil_heart_shutter_${i}`)]) expect(model.getObjectByName(name),name).toBeDefined();
-    const b=new Box3().setFromObject(model.getObjectByName('veil_hull')!);
-    expect(Math.max(Math.abs(b.min.x),Math.abs(b.max.x))).toBeLessThan(12.8);
-    expect(Math.max(Math.abs(b.min.z),Math.abs(b.max.z))).toBeLessThan(9.5);
-    // Taller armour must not mask the fixed weak-point crowns from the game camera.
-    const eye=new Vector3(0,Math.sin(55*Math.PI/180),Math.cos(55*Math.PI/180));
-    for(const x of [-3.1,3.1]){
-      const target=new Vector3(x,2.4,.4);
-      const hits=new Raycaster(target.addScaledVector(eye,20),eye.clone().negate(),0,19.95).intersectObject(model.getObjectByName('veil_hull')!,true);
-      expect(hits,`flank crown ${x} remains visible`).toHaveLength(0);
-    }
-  });
-  for(const spec of [
-    {path:'khepri/bastion-9.glb',prefix:'bastion',budget:25000,width:3.8,
-      sockets:[['bastion_battery_left',-2.2,1.45,0],['bastion_battery_right',2.2,1.45,0],['bastion_core',0,1.45,-1.35],['bastion_gun_left',-2.2,1.55,.2],['bastion_core_shutter_a',-.62,1.72,-1.35]],
-      parts:['bastion_battery_left_wreck','bastion_battery_right_wreck','bastion_core_shutter_b','bastion_tread_left','bastion_tread_right',...['left','right'].flatMap(s=>[`bastion_sprocket_${s}`,`bastion_idler_${s}`,...Array.from({length:6},(_,i)=>`bastion_roadwheel_${s}_${i}`)])]},
-    {path:'vesper/helion-ark.glb',prefix:'ark',budget:25000,width:5.7,
-      sockets:[['ark_radiator_left',-2.4,1.6,.5],['ark_radiator_right',2.4,1.6,.5],['ark_bridge',0,1.6,-1.6],['ark_bridge_shutter_a',-.47,1.712,-1.242],['ark_bay_left',-.75,1,2]],
-      parts:['ark_radiator_left_wreck','ark_radiator_right_wreck','ark_bridge_shutter_b','ark_bay_left_door','ark_bay_right_door','ark_wake_anchor']},
-    {path:'luna/warden.glb',prefix:'warden',budget:14000,width:3.5,
-      sockets:[['warden_pod_left',-2.1,1.3,0],['warden_pod_right',2.1,1.3,0],['warden_core',0,1.3,-.9],['warden_core_hatch_0',-.33,1.3,-.9]],
-      parts:['warden_pod_left_wreck','warden_pod_right_wreck','warden_core_wreck','warden_core_hatch_1','warden_beacon',...Array.from({length:4},(_,i)=>`warden_thruster_${i}`)]},
-  ] as const) it(`preserves ${spec.prefix}'s rig, clear target crowns and bounded geometry`,async()=>{
-    const model=await asset(spec.path,ARCHIVE);validate(model,spec.budget);
-    for(const [name,x,y,z] of spec.sockets){
-      const node=model.getObjectByName(name);expect(node,name).toBeDefined();
-      const p=node!.getWorldPosition(new Vector3());
-      expect(p.x).toBeCloseTo(x,4);expect(p.y).toBeCloseTo(y,4);expect(p.z).toBeCloseTo(z,4);
-    }
-    for(const name of spec.parts)expect(model.getObjectByName(name),name).toBeDefined();
-    const hull=model.getObjectByName(`${spec.prefix}_hull`)!;
-    const bounds=new Box3().setFromObject(model);
-    expect(Math.max(Math.abs(bounds.min.x),Math.abs(bounds.max.x))).toBeLessThan(spec.width);
-    const eye=new Vector3(0,Math.sin(55*Math.PI/180),Math.cos(55*Math.PI/180));
-    for(const [name,x,y,z] of spec.sockets.slice(0,3)){
-      const target=new Vector3(x,y+.4,z);
-      expect(new Raycaster(target.addScaledVector(eye,20),eye.clone().negate(),0,19.95).intersectObject(hull,true),`${name} visible above static armour`).toHaveLength(0);
-    }
-  });
-  // The plant around a ground battery: inside its seat (src/render/facility-view.ts SIZE), roof below the declared
-  // height, 1.8-2.2x the plan for the large one, and nothing above 0.25 over the gun's court.
-  function checkCompound(model: Group, planet: string, large: boolean) {
-    const node=model.getObjectByName(`facility_${planet}${large?'_large':''}`); expect(node).toBeDefined();
-    const box=new Box3().setFromObject(node!);
-    expect(box.max.y).toBeLessThanOrEqual(large?2.831:2.651);
-    expect(box.max.x-box.min.x).toBeLessThan(large?8.8:6.7);
-    expect(-box.max.z).toBeGreaterThan(large?-2.8:-1.8);
-    expect(-box.min.z).toBeLessThan(large?6.1:4.6);
-    if(large){
-      const small=new Box3().setFromObject(model.getObjectByName(`facility_${planet}`)!);
-      const ratio=(box.max.x-box.min.x)*(box.max.z-box.min.z)/((small.max.x-small.min.x)*(small.max.z-small.min.z));
-      expect(ratio).toBeGreaterThan(1.8); expect(ratio).toBeLessThan(2.2);
-    }
-    node!.traverse(o=>{
-      if(!(o instanceof Mesh))return;
-      const p=o.geometry.getAttribute('position'),v=new Vector3();
-      for(let i=0;i<p.count;i++){
-        v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);
-        if(Math.abs(v.x)<.65 && Math.abs(v.z)<.7) expect(v.y).toBeLessThan(.25);
-      }
-    });
-  }
-  it('keeps each facility gun courtyard empty and each roof below its declared height',async()=>{
-    const model=await asset('shared/facility-compounds.glb',ARCHIVE); validate(model,46000);
-    for(const planet of ['khepri','vesper','nacre']) for(const large of [false,true]) checkCompound(model,planet,large);
-  });
-  it('keeps the same seat contract in the archived v2 compounds after the facility sheets',async()=>{
-    for(const planet of ['khepri','vesper','nacre']){
-      const model=await asset(`${planet}/facility-compounds-v2-remodel.glb`,ARCHIVE); validate(model,46000,true);
-      expect(model.getObjectByName('facility_remodel_v2')).toBeDefined();
-      for(const large of [false,true]) checkCompound(model,planet,large);
-    }
-  });
   // v3 modular kits (docs/25, src/render/facility-kit.ts): every registry module is a node in its world's kit, inside its
   // declared footprint, foundation and top (reaching close to that top, so the height rule is not slack), textured with
   // UVs. A world whose kit has not shipped yet is skipped.
@@ -256,7 +165,7 @@ describe('Blender cinematic asset contracts',()=>{
     let checked=0;
     for(const world of new Set(FACILITY_MODULES.map(module=>module.world))){
       let model: Group;
-      try { model=await asset(`${world}/${FACILITY_KIT_ASSETS[world]}`); } catch(error) { if((error as {code?:string}).code==='ENOENT') continue; throw error; }
+      try { model=await asset(`${world}/${FACILITY_KIT_FILE}`); } catch(error) { if((error as {code?:string}).code==='ENOENT') continue; throw error; }
       checked++; validate(model,30000,true);
       expect(model.getObjectByName('facility_kit_v3'),world).toBeDefined();
       model.updateMatrixWorld(true);

@@ -48,7 +48,7 @@ User decisions of 14 October, in order: no artificial corridors of rock walls; y
 
 ## 3. Blender asset kit contract
 
-Source: `tools/blender/khepri_kit.py`, a seeded, deterministic Blender Python script that builds every kit mesh from code and exports the runtime file. Output: `public/assets/khepri/khepri-kit.glb`. Preview renders and provenance live in `art/khepri-kit/`. Rebuild headless with Blender 5.2 on the Windows host (see `art/khepri-kit/README.md`).
+Source: `tools/blender/kit_khepri.py`, a seeded, deterministic Blender Python script that builds every kit mesh from code and exports the runtime file. Output: `public/assets/khepri/khepri-kit.glb`. Preview renders and provenance live in `art/khepri-kit/`. Rebuild headless with Blender 5.2 on the Windows host (see `art/khepri-kit/README.md`).
 
 glTF 2.0 binary, +Y up, 1 unit = 1 game unit, no textures, cameras, lights, animation, or compression. Top-level node (object) names, all pivots at base center (0, 0, 0), every piece extending 0.1–0.15 below y = 0 so it seats on uneven ground:
 
@@ -77,7 +77,7 @@ The runtime scales clumps in y to the local cliff height, rotates them, and vari
 
 The user judged the code-built outpost props (landing pad, refinery, relay, cargo, track) too cheap next to the modelled terrain. They are replaced by modelled Khepri infrastructure: graphite foundry machinery with broad bevels, plate seams, pipes, vents and restrained greebles that survive phone size; weathered ochre/rust paint accents; amber work lights; ochre dust accumulated on low and upward surfaces. Credible stylized hard surface matching the terrain and enemy craft, never toy-like.
 
-Source: `tools/blender/khepri_infra.py` (seeded, deterministic). Output: `public/assets/khepri/khepri-infra.glb`; previews and provenance in `art/khepri-infra/`. Same glTF rules as the terrain kit (+Y up, game units, no textures/cameras/lights/animation/compression, `COLOR_0` with baked AO, edge wear and dust, `TEXCOORD_0` box-projected at 1 UV = 1 unit). Exactly two materials: `khepri_infra` (vertex-colour albedo) and `khepri_light` (amber emissive). Pieces are authored at their real game size; pivots at base center; they extend 0.05 below y = 0 (track: flush).
+Source: `tools/blender/kit_khepri_infra.py` (seeded, deterministic). Output: `public/assets/khepri/khepri-infra.glb`; previews and provenance in `art/khepri-infra/`. Same glTF rules as the terrain kit (+Y up, game units, no textures/cameras/lights/animation/compression, `COLOR_0` with baked AO, edge wear and dust, `TEXCOORD_0` box-projected at 1 UV = 1 unit). Exactly two materials: `kit_khepri_infra` (vertex-colour albedo) and `khepri_light` (amber emissive). Pieces are authored at their real game size; pivots at base center; they extend 0.05 below y = 0 (track: flush).
 
 | Node | Footprint x × z | Height | Triangles |
 | --- | --- | --- | --- |
@@ -116,7 +116,7 @@ As implemented (14 October), with deviations from the first draft:
 
 ## 5. Ownership for this pass
 
-- Kit agent (complete): `tools/blender/khepri_kit.py`, `khepri_infra.py`, `shared_industrial.py`; the three GLBs under `public/assets/`; `art/khepri-kit/`, `art/khepri-infra/`, `art/shared-industrial/`.
+- Kit agent (complete): `tools/blender/kit_khepri.py`, `kit_khepri_infra.py`, `kit_industrial.py`; the three GLBs under `public/assets/`; `art/khepri-kit/`, `art/khepri-infra/`, `art/shared-industrial/`.
 - World/render agent: `src/world/`, `src/render/scene.ts`, new `src/render/terrain-*.ts` files, terrain-related parts of `src/render/models.ts`, `tests/world/`.
 - Integrator: this document, `src/shared/contracts.ts`, `src/main.ts`, other docs, and final verification.
 

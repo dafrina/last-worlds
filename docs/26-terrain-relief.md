@@ -298,7 +298,7 @@ Real wall geometry now stands along the crisp cliffs of version 14. The heightfi
 
 ### Rock and ice textures
 
-Four maps come from Poly Haven CC0 `cliff_side` through `tools/blender/cliff_textures.py`; provenance is in `art/source/polyhaven/README.md`. Each is 512 px, tileable, x along the wall and y up:
+Four maps come from Poly Haven CC0 `cliff_side` through `tools/blender/textures_cliffs.py`; provenance is in `art/source/polyhaven/README.md`. Each is 512 px, tileable, x along the wall and y up:
 - `khepri/textures/cliff-rock-{detail,normal}.jpg` on Khepri and Luna (Luna's walls grey it as usual);
 - `vesper/textures/ice-wall-{detail,normal}.jpg` on Vesper.
 

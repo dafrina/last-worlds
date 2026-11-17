@@ -55,7 +55,7 @@ export interface WallOptions {
   scale?: readonly [number, number];
   /**
    * The wall's top over the rim, as a share of its drop (0 by default: flush with the rim). Umbra's shards (tools/blender/
-   * umbra_kit.py) put their tallest spikes at the top, so lifting it lets them stand above the lip.
+   * kit_umbra.py) put their tallest spikes at the top, so lifting it lets them stand above the lip.
    */
   overtop?: number;
   /** Additional depth below the sampled foot, keeping the rim at the same height. Hides exposed ends in deep canyons. */

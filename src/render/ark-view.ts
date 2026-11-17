@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HELION_ARK } from '../content/ark';
 import { VIEW, type BossPart, type RunState } from '../shared/contracts';
 import type { FoamRing, Wake } from './water';
-import { retainBossMaterials } from './approved-boss-materials';
+import { retainBossMaterials } from './boss-materials';
 import { SIDES, markerWriter } from './bastion-view';
 
 /**
@@ -99,7 +99,7 @@ function fallbackRig(): Rig {
     dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); [armor, trim, ...heats].forEach(m => m.dispose()); } };
 }
 
-/** Builds the rig from helion-ark.glb: every node is top-level and its translation is its socket (art/vesper-ark). */
+/** Builds the rig from helion-ark.glb: every node is top-level and its translation is its socket. */
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
   // v4 approved copies and v5 remodels both carry authored PBR materials and the three-hull layout.
@@ -312,7 +312,7 @@ export function createArkView(scene: THREE.Scene) {
       // (toward the player, −s), so forward speed is the negative of the ground-relative s speed.
       const forward = destroyed ? 0 : -((boss.vs ?? 0) + state.scrollSpeed), lateral = boss.vx ?? 0;
       const speed = Math.hypot(forward, lateral), heading = Math.PI + Math.atan2(lateral, Math.max(.01, forward)) * .5;
-      // The v5 outriggers run on past the aft wing to y 5.85 (art/boss-remodel): a longer stern wake.
+      // The v5 outriggers run on past the aft wing to y 5.85 (art/bosses): a longer stern wake.
       const bow = local(0, 0, rig.approved ? 3.5 : ARK_FOOTPRINT.bow - .3, bowAt), stern = local(0, 0, rig.remodel ? -5.6 : rig.approved ? -4 : -ARK_FOOTPRINT.stern, sternAt), centre = local(0, 0, rig.approved ? -.2 : -1.5, centreAt);
       // Gentle while it holds station (swell against the hull, a churned stern), strong while it glides in.
       const wakeStrength = destroyed ? Math.max(0, .3 - phaseAge * .06) : THREE.MathUtils.clamp(.18 + speed * .14, .18, .9);
@@ -370,7 +370,7 @@ export function createArkView(scene: THREE.Scene) {
 
       marks.begin();
       for (const enemy of state.enemies) {
-        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in veil-view.ts.
+        // A module this rig has no part for (THE ECLIPSE's prow; a rolled-back GLB) draws nothing, as in carrier-view.ts.
         const part = enemy.bossPart && rig.parts.get(enemy.bossPart), target = enemy.bossPart && rings.get(enemy.bossPart);
         if (!enemy.bossPart || !part || !target) continue;
         const living = enemy.hp > 0 && !(destroyed && enemy.bossPart === 'core' && phaseAge > 2.0);

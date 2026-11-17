@@ -481,7 +481,7 @@ export function createFallbackInfra(materials: Materials): KitGeometries {
   return infra;
 }
 
-/** District-kit nodes (district-kit.glb, tools/blender/khepri_district_kit.py): the registry's 'district-kit' modules. */
+/** District-kit nodes (district-kit.glb, tools/blender/kit_khepri_district.py): the registry's 'district-kit' modules. */
 export const DISTRICT_NODES: readonly string[] = Object.values(MODULES).filter(spec => spec.source === 'district-kit').map(spec => spec.node);
 /** Loads the district kit (same materials as khepri-infra.glb). Missing nodes keep their code-built stand-in. */
 export function loadDistrictKit(url: string): Promise<KitGeometries> {
@@ -1752,7 +1752,7 @@ ${VESPER_KIT_SURFACE}`)
   let disposed = false;
   const apply = () => {
     ground.map = snowDetail ?? textures?.groundDetail ?? fallback;
-    // (Nahara's ruins are built of their own rounded blocks, tools/blender/nahara_kit.py: they keep the plain stone grain;
+    // (Nahara's ruins are built of their own rounded blocks, tools/blender/kit_nahara.py: they keep the plain stone grain;
     // the masonry map is for the ground's cliffs and the carved facings.)
     const nahara = wallPlanet === 'nahara' && masonry;
     kit.map = snowDetail ?? (nahara ? sandGrain : null) ?? textures?.basaltDetail ?? fallback;

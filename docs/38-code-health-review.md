@@ -98,7 +98,7 @@ Highest value first. Effort: S is under half a day, M is half a day to two days,
 | S3 | Naming | `sim/bastion.ts` is really the generic boss system. | It serves all 7 bosses (`startBoss`, `updateBoss`) and keeps legacy aliases: `startBastion :125`, `resolveBastionPhase :212`, `updateBastion :377` (unused). It also holds `showsHints` (`:29`). | Rename it to `sim/boss.ts`, drop the aliases (two are used by tests), and move `showsHints` to `game.ts`. | S | low | Easier to find. |
 | X1 | Consistency | No formatter or linter; very dense lines. | 867 lines over 160 characters; mixed styles (`scene.ts:1513`: `if(disposed)return;quality=next;…`). | Add lint rules for new code only (a max-len warning, `no-unused-vars`). Do not mass-reformat while sessions edit in parallel. | S | low | Readable diffs from now on. |
 | X3 | Reuse | Storage access is wrapped ad hoc. | A try/catch around `localStorage` at `main.ts:159`, `game-ui.ts:44`, `audio/engine.ts:16,72`, `input/tilt.ts:38,42`, `playground/main.ts:88-89`, plus `flight-log.ts` and `campaign/profile.ts`. | Add `shared/storage.ts` with `safeStorage()`, `readJson(key, sanitize)` and `writeJson`. | S | low | One policy for private-mode storage. |
-| X2 | Reuse | Six tools copy the Chromium setup. | `chromium.launch({ args: ['--use-angle=swiftshader', …] })` appears in 6 of 7 `tools/*.mjs`. | Add `tools/browser.mjs` with `openGame({ port, viewport, quality, seed })`. | S | low | Small. |
+| X2 | Reuse | Six tools copy the Chromium setup. | `chromium.launch({ args: ['--use-angle=swiftshader', …] })` appears in 6 of 7 `tools/*.mjs`. | Add `tools/lib/browser.mjs` with `openGame({ port, viewport, quality, seed })`. | S | low | Small. |
 
 ## 1. Structure and modularity
 
