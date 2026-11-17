@@ -9,9 +9,8 @@ export const BOSS_ASSETS = {
   /** A clean remodel traced over the user's tank GLB, its rear deck with turrets and greebles, instanced tread links
    * (boss_bastion.py, 24 October 2026). */
   bastion: 'khepri/bastion-9.glb',
-  /** HELION STRONGHOLD (the boss id stays `ark`): the user's fortress GLB, adapted in Blender, its barrels turned toward the
-   * player, a reactor chamber built behind its door (boss_stronghold.py, 17 November 2026; the flying HELION ARK before). */
-  ark: 'vesper/helion-stronghold.glb',
+  /** The user's Tripo GLB, adapted in Blender with its panels cleaned (boss_ark.py, 24 October 2026). */
+  ark: 'vesper/helion-ark.glb',
   /** A bulky remodel after the user's design sheet (boss_warden.py, 20 October 2026). */
   warden: 'luna/warden.glb',
   /** The user's spider GLB adapted into a walking brood hive, its legs cut at their joints (boss_cradle.py, 17 November

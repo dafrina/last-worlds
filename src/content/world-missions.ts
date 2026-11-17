@@ -163,11 +163,11 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     untouchable('Cold Vector'),
     demolition(16),
     { slug: 'icebreaker', name: 'Icebreaker', text: 'Destroy 3 shield depots or freight terminals, across runs.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', scope: 'career', ...run({ kind: 'sites', sites: ['shield-depot', 'freight-terminal'] }) },
-    { slug: 'cold-vector', name: 'Cold Vector', text: 'Defeat HELION STRONGHOLD flying the Fan Cannon.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['fan'] }) },
+    { slug: 'cold-vector', name: 'Cold Vector', text: 'Defeat HELION ARK flying the Fan Cannon.', goal: 1, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'boss', weapons: ['fan'] }) },
     { slug: 'frozen-nerves', name: 'Frozen Nerves', text: 'Destroy 10 ground defences in a row without a hit.', goal: 10, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'ground-streak', kinds: ['turret', 'missile'], anyHit: true }) },
-    // HELION STRONGHOLD's weapon assemblies are its two cannons (their lane lasers), its first phase.
-    { slug: 'broadside-broken', name: 'Broadside Broken', text: 'Destroy both HELION STRONGHOLD cannons within 50 s of its arrival.', goal: 2, credits: 75, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss-parts', parts: ['left', 'right'], within: 50 }) },
-    { slug: 'arkfall', name: 'Rockfall', text: 'Defeat HELION STRONGHOLD without hull damage in its final stage.', goal: 1, credits: 75, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
+    // The Ark's weapon assemblies are its two radiators (their lane lasers), its first phase.
+    { slug: 'broadside-broken', name: 'Broadside Broken', text: 'Destroy both HELION ARK radiators within 50 s of its arrival.', goal: 2, credits: 75, parts: 1, difficulty: 'relaxed', ...run({ kind: 'boss-parts', parts: ['left', 'right'], within: 50 }) },
+    { slug: 'arkfall', name: 'Arkfall', text: 'Defeat HELION ARK without hull damage in its final stage.', goal: 1, credits: 75, parts: 1, difficulty: 'standard', ...run({ kind: 'boss', noHull: 'final' }) },
   ]),
   'deep-bloom': world('nacre', [
     specialist(8, 25),

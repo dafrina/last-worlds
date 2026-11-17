@@ -65,7 +65,7 @@ Board order per world; **bold** is the long mission, ✱ a career mission. Goals
 | 9 | Interceptor Drill | Flanking Maneuver | Cold Vector | Seeker Sweep |
 | 10 | Warden Shutdown | Dustfall | Frozen Nerves | Pod Bay Purge |
 | 11 | Training Discipline | Bastion Breaker | Broadside Broken | Veil Survivor |
-| 12 | Lunar Saboteur ✱ | Canyon Saboteur | Rockfall | Alien Weapons Specialist |
+| 12 | Lunar Saboteur ✱ | Canyon Saboteur | Arkfall | Alien Weapons Specialist |
 
 | # | Amnion (Brood Strike) | Corona (Dying Star) | Nahara (Silent Empire) | Umbra (Final Horizon) |
 | --- | --- | --- | --- | --- |
@@ -93,7 +93,7 @@ The kinds of mission (`MissionRule` in `src/content/world-missions.ts`):
   launched craft, reflected kills) and the long missions.
 
 Mappings worth knowing: *Lunar Saboteur* counts relay stations and shield depots (communication and defence);
-*Icebreaker* shield depots and freight terminals; *Broadside Broken* HELION STRONGHOLD's two cannons, its first phase (*Rockfall* was *Arkfall* before the Ark's model was replaced, 17 November);
+*Icebreaker* shield depots and freight terminals; *Broadside Broken* the HELION ARK's two radiators, its first phase;
 *Pod Bay Purge* the pods launched from THE VEIL's bays (launch points, not targets); *Heartbreaker* the organic sites'
 exposed cores (brood hive, spawning pool), not the overrun machine sites; *Brood Extermination* the hatchling waves THE
 CRADLE launches.

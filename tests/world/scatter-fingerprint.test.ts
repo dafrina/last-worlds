@@ -55,9 +55,7 @@ const RECORDED: Record<string, readonly [string, number, number, number]> = {
   khepri: ['0809259d4cc51f06', 847, 6, 357], luna: ['b15227357bb9b905', 197, 6, 216], vesper: ['b767c0ee98f8e2d5', 322, 6, 357],
   nacre: ['f2e03d27f53e344f', 973, 6, 531], amnion: ['a474d5d16e8d05d6', 918, 6, 357], corona: ['c204eed6309ad7b5', 825, 6, 370],
   umbra: ['381b39e54d68a094', 393, 6, 420], nahara: ['1cbf96f0c850b6d6', 538, 6, 384],
-  // vesper+arena: HELION STRONGHOLD's arena (17 November: its cliff, then its snowfields and mountains, then its low ground
-  // and its grown fortress at row 9; ['698a1fbf25f30d22', 147, 4, 238] before).
-  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['79d480ae55899caf', 473, 4, 238],
+  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['698a1fbf25f30d22', 147, 4, 238],
   // amnion+arena: THE CRADLE on its lowered crust terrace (17 November; its emergence canyon ['fd29dba2900c9d70', 405, 4, 238], its
   // brood basin ['920e5993df95c702', 325, 4, 238], then the plain settled plateau ['20a4b9ab47994205', 327, 4, 238] before).
   'nacre+arena': ['459e46b6b9fcdc14', 262, 4, 352], 'amnion+arena': ['973f54c333428511', 323, 4, 238], 'corona+arena': ['8135a9663edb2fff', 457, 4, 239],

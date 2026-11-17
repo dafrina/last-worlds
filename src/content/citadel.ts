@@ -34,8 +34,7 @@ export const CITADEL = {
   prowRadius: 0.9,
   /**
    * Its gate pillars (the tall ruin pillars at the front corners of its plaza, the-citadel.glb): where a pilot who hides from
-   * every target is fired on (BossDefinition.hiddenFire, docs/10 §5; user, 17 November), as HELION STRONGHOLD's terrace guns
-   * (src/content/ark.ts terraceGuns): the flight-plane point with the camera centred, relative to the pivot, and its height
+   * every target is fired on (BossDefinition.hiddenFire, docs/10 §5; user, 17 November): the flight-plane point with the camera centred, relative to the pivot, and its height
    * relative to the flight plane. One volley of its vents' aimed burst every `interval` seconds while the pilot stays hidden.
    */
   gatePillars: { points: [{ x: -6.01, s: -5.03, height: -2.6 }, { x: 5.79, s: -4.77, height: -2.8 }], interval: 2.6 },

@@ -55,9 +55,8 @@ export interface BossDefinition {
   row: number;
   targetHeight: number;
   /**
-   * A boss that never moves (THE CITADEL, a temple on the ground; user, 13 November: "its a stationary one"; HELION
-   * STRONGHOLD, a fortress in a mountain face, 17 November): no sway or surge (its arena's are zero), no glide-in (it enters at its
-   * row) and no pull toward a fleeing pilot (src/sim/boss.ts pullBoss).
+   * A boss that never moves (THE CITADEL, a temple on the ground; user, 13 November: "its a stationary one"): no sway or
+   * surge (its arena's are zero) and no pull toward a fleeing pilot (src/sim/boss.ts pullBoss).
    */
   stationary?: boolean;
   /**
@@ -171,9 +170,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
   },
   ark: {
-    // HELION STRONGHOLD (docs/17 §5, docs/43): a fortress in a mountain face, so it never moves (the flying HELION ARK swayed
-    // and drifted until 17 November); its fight is the Ark's.
-    id: 'ark', name: 'HELION STRONGHOLD', stationary: true, hiddenFire: HELION_ARK.terraceGuns,
+    id: 'ark', name: 'HELION ARK',
     arrivesAt: HELION_ARK.arrivesAt, approachEndsAt: HELION_ARK.approachEndsAt, arrivalDuration: HELION_ARK.arrivalDuration,
     entryS: HELION_ARK.entryS, row: HELION_ARK.row, targetHeight: HELION_ARK.targetHeight,
     parts: {
@@ -192,9 +189,9 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     launches: { ...HELION_ARK.launches, overloadWaves: 2, template: 'ark-launch', bays: HELION_ARK.bays },
     arena: HELION_ARK.arena, shieldSupplies: HELION_ARK.shieldSupplies,
     messages: {
-      start: 'HELION STRONGHOLD · BREAK BOTH CANNONS', batteries: 'BREAK BOTH CANNONS', core: 'REACTOR EXPOSED',
-      overload: 'REACTOR OVERLOAD · WATCH THE LANES', destroyed: 'HELION STRONGHOLD DESTROYED · JUMP',
-      approach: 'THE MOUNTAINS AHEAD · THE STRONGHOLD WAKES',
+      start: 'HELION ARK · BREAK BOTH RADIATORS', batteries: 'BREAK BOTH RADIATORS', core: 'BRIDGE EXPOSED',
+      overload: 'BRIDGE OVERLOAD · WATCH THE LANES', destroyed: 'HELION ARK DESTROYED · JUMP',
+      approach: 'OPEN WATER · THE ARK IS INBOUND',
     },
   },
   warden: {

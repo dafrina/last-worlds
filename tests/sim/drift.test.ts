@@ -188,20 +188,9 @@ describe('boss pull (src/sim/boss.ts pullBoss)', () => {
   });
 
   it('reaches a far module too, within the camera range', () => {
-    // (THE VEIL's far pod; the Helion Ark's far radiator until 17 November, when it became HELION STRONGHOLD, a fortress in
-    // a cliff that never moves: below.)
-    const stats = bossScenario('deep-bloom', 'far', 3, 30);
+    const stats = bossScenario('cold-vector', 'far', 3, 30);
     expect(stats.bossWindups).toBeGreaterThan(3);
     expect(stats.bossOffset).toBeLessThanOrEqual(CAMERA_LIMIT + 1e-9);
-  });
-
-  it('never pulls a stationary boss: HELION STRONGHOLD and THE CITADEL hold their posts with the ship parked at the edge', () => {
-    // The trade a stationary boss makes (docs/17 §5, docs/39): parked at the far edge with only its far module alive, the pilot
-    // holds off its attacks, but cannot hurt it from there either.
-    for (const mission of ['cold-vector', 'silent-empire'] as const) {
-      const stats = bossScenario(mission, 'far', 3, 20);
-      expect(stats.bossOffset, mission).toBe(0);
-    }
   });
 
   it('never moves while it winds up an attack or holds for its lanes, and stays put while a target is in view', () => {

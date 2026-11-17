@@ -3,7 +3,7 @@
 Vesper is the ice world: the campaign's third mission, Cold Vector, and the second world of the endless cycle. It
 follows the right panel of `art/concepts/01-worlds-direction.png` and the VESPER column of
 `art/concepts/05-alien-factions.png` (references only). This doc covers its look, the planet-profile system it
-introduced, its Blender assets, its world generator, and the Cold Vector mission with its enemies and HELION STRONGHOLD.
+introduced, its Blender assets, its world generator, and the Cold Vector mission with its enemies and the HELION ARK.
 Vesper shares the systems of every world but must never look like Khepri.
 
 ## 1. Visual identity
@@ -69,7 +69,7 @@ units, base-centre pivots, `COLOR_0`, box UVs and contract self-checks. Provenan
 | `public/assets/vesper/cliff-kit.glb` | `kit_cliffs.py --world vesper` | Fractured ice-shelf wall segments ([docs/26 §11](26-terrain-relief.md)). |
 | `public/assets/vesper/textures/ice-wall-*.jpg` | `textures_cliffs.py` | Procedural ice-wall crack detail and normal maps. |
 | `public/assets/vesper/facility-kit.glb` | facility kits ([docs/25](25-modular-facilities.md)) | Battery compounds and plants. |
-| `public/assets/vesper/helion-stronghold.glb` | `boss_stronghold.py` | HELION STRONGHOLD (§5; the HELION ARK's `helion-ark.glb` and `boss_ark.py` before 17 November, in git history). |
+| `public/assets/vesper/helion-ark.glb` | `boss_ark.py` | The HELION ARK (§5). |
 
 The shared industrial kit ([docs/14](14-shared-industrial-kit.md)) is reused through its palette masks; roads become
 packed-snow tracks with tread ruts. Khepri's own buildings are not reused on Vesper.
@@ -95,34 +95,9 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
   that would mostly cross water are not planned.
 - **Readability.** The same rules as Khepri: calm routes, no repeated rhythm, budgets, seamless and deterministic
   sections, incremental generation identical to synchronous.
-- **Boss arena** (HELION STRONGHOLD's low ground and mountains; `strongholdGround` in `src/world/terrain-vesper.ts`). The
-  user, 17 November: "the vesper boss should not be a rock/cliff/mountain next to water, it should go from snowy/icy
-  terrain to high alpine mountains (as well as possible)", then "have the terrain around the mountains be just above sea
-  level" and "obviously dont make it plain". Only rows of a Vesper boss arena change, in campaign and endless alike
-  (everything in s past the arena's start):
-  - the low ground: from −46 to −16 Vesper's own landform is pressed down to just above the sea (`low` −3.15, `squash`
-    0.2 from SHELF_LOW), its shelves becoming low ice shelves with small breaks; its pressure ridges, drifts and dark rock
-    stand out of it, its crevasses and open leads of dark water stay, frozen pools lie on its flats, and the land share
-    rises (`landed` mood parameters: more land, fewer inlets, crevasses, ridges and rock in every mood). It is dressed all
-    over with Vesper's scatter (stones, outcrops, seracs, ridge slabs, ice walls on the leads' banks); round the fortress
-    it never opens to the sea;
-  - the mountains: an alpine massif (warped ridged noise with sharp crests and couloirs) rises from that low ground beside
-    the fortress, in a low rocky shoulder just behind it and at the world's edges, and on beyond them (`Landform.ceiling`:
-    ground beyond the edges never hides the flight plane, since the eye stays over the world). Inside the world it keeps
-    low (0.6 beside the fortress, −0.8 rising to 0.6 at the edges elsewhere) and out of the corridor the fight and the
-    departure fly over (user: no terrain near the camera or the flight plane; the earlier massif up to the scenery cap
-    passed under the departure as large blurry white masses). Its colour (tone over 1, `massifColor`): dark blue-grey
-    stone on the steep faces, snow on the shoulders and dusted in streaks over the stone; crags on its ledges;
-  - the fortress stands at the head of the corridor. The ground fits its model's measured top
-    (`src/world/stronghold-seat.ts`, cast straight down every quarter unit; the test re-measures it): under the model it
-    keeps 0.3 under the lowest top within half a unit (gaps inside its outline too, never under the sea), round it it
-    meets the model at its edge's height (burying the cut faces) and climbs from there as broken rock, never as a wall
-    at the edge. The ground just before the barrels and housings stays low, so no ground hides them from the lens at the
-    camera's centre or extremes;
-  - past the fight the corridor runs on low under the departure; the massifs come down from 62 to 82 and Vesper's own
-    terrain returns from 78 to 98.
+- **Boss arena:** open water. Inside the arena's range nothing stands or floats; the shelf edge recedes to frame it.
 
-## 5. Cold Vector and HELION STRONGHOLD
+## 5. Cold Vector and the Helion Ark
 
 ### Mission
 
@@ -135,7 +110,7 @@ Cold Vector (`cold-vector`) is campaign mission 3 (threat 3). Its arc is `COLD_V
 4. missile batteries on the ice cliffs, with Needle lines and a sweeping Needle column;
 5. a fuel-barge stretch;
 6. the escort-convoy climax of Diamond convoys, missile batteries and Diamond pairs;
-7. relief over the snowfields, then the scroll eases to a stop in the valley before HELION STRONGHOLD.
+7. relief, then the scroll eases to a stop over open ocean for the HELION ARK.
 
 Pressure comes from `WORLD_INTENSITY.vesper`, `MISSION_CADENCE['cold-vector']` and `MISSION_PRESSURE['cold-vector']`.
 The shield cells are `HELION_ARK.shieldSupplies` (three on Relaxed and Standard, two on Veteran).
@@ -173,118 +148,56 @@ Rules that keep Vesper's beams readable:
   [docs/11](11-campaign-difficulty.md)).
 - **Aces** on Vesper are shielded Diamonds (`HUNTERS.kinds.vesper`).
 
-### HELION STRONGHOLD
+### HELION ARK
 
-A fortress built into a mountain face at the head of the arena (user's specification, 17 November 2026,
-[docs/43](43-boss-visual-overhaul.md) §8-10). It replaced the flying HELION ARK's model; the boss keeps the Ark's id
-(`ark`), field names and fight. Runtime values are `HELION_ARK` in `src/content/ark.ts`; the shared definition is
-`BOSSES.ark`; the fight follows the shared boss rules ([docs/03 §3](03-worlds-and-generation.md#3-bosses)). The content
-calls the two cannons "radiators" and the reactor "bridge"; on screen they are cannons and the reactor.
+A carrier riding the open sea. Runtime values are `HELION_ARK` in `src/content/ark.ts`; the shared definition is
+`BOSSES.ark`; the fight follows the shared boss rules ([docs/03 §3](03-worlds-and-generation.md#3-bosses)).
 
-**It never moves** (`stationary: true`, as THE CITADEL; 17 November). Its arena has no sway or surge, it enters at its
-row (`entryS` = `row`), and it is never pulled toward a pilot who keeps its targets out of view
-([docs/10 §5](10-wide-map-and-camera.md)). Parked far enough to the side, a pilot kept its targets out of view and held
-off its attacks (parked at the right edge, seeds 1–4, 30 s: no windups, against 72 for the Ark); since 17 November its
-terrace guns fire on such a pilot instead (user: "so there's no safe hiding spot"): the twin turrets on the fortress's lower
-terrace (`HELION_ARK.terraceGuns`) wind up the bridge's aimed burst at a pilot who has kept every target out of view for
-2 s, a volley every 2.6 s while it stays hidden (docs/10 §5; the turrets' points moved with the grown fortress at row 9).
-The Ark swayed 1.3 and surged 0.7, glided in from 26 and was pulled toward the view.
-With it fixed at x 0 its lanes always fall on the same columns (x 0 and ±2.98); the fairness suites pass (Cold Vector on
-every difficulty, endless sectors 5–7), and the perfect pilot clears it on every weapon and difficulty without a hit (on
-Veteran seed 57 it no longer reached the far cannon with the Fan Cannon once the sway stopped bringing it into the fan; the
-test flies seed 58).
-
-**Targets.** Two cannons at ±`radiatorOffset`, `radiatorS` behind the pivot, radius `radiatorRadius`, and the reactor at
-`bridgeS`, radius `bridgeRadius`; the fortress and its mountain are scenery, not a hidden collision box. Base hit points
+**Targets.** Two radiators at ±`radiatorOffset`, `radiatorS` behind the pivot, radius `radiatorRadius`, and the bridge
+at `bridgeS`, radius `bridgeRadius`; the hull and wings are scenery, not a hidden collision box. Base hit points
 `radiatorHp` and `bridgeHp`, scaled as every boss's.
 
 | Phase | Attacks |
 | --- | --- |
-| Arrival (`arrivalDuration`) | Its awakening: it already stands in its mountain as the scroll stops; steam bursts from its vents, its cannons and its reactor light in turn. |
-| Cannons | Narrow lane lasers (`HELION_ARK.laser`) straight down the firing cannon's column, alternating cannons; every third attack an aimed burst from the reactor's door instead (`bridgeBurst`), so the middle between the lanes is not safe for long. |
-| Reactor | The blast door opens. Aimed three-bolt bursts, and finite launches (`launches`): waves of two Needles (`ark-launch`) from the hatches either side of the door, one wave at a time, only while they are in view. |
+| Arrival (`arrivalDuration`) | Glides in from `entryS` beyond the view to its row (`row`) once the terrain has stopped. |
+| Radiators | Narrow lane lasers (`HELION_ARK.laser`) straight down the firing radiator's column, alternating radiators; every third attack an aimed bridge burst instead (`bridgeBurst`), so the middle between the lanes is not safe for long. |
+| Bridge | Aimed three-bolt bursts, and finite launches (`launches`): waves of two Needles (`ark-launch`), one from each deck bay, one wave at a time, only while the bays are in view. |
 | Overload | `overloadMoves`: core lane, burst, side lanes, cross, burst, core lane, cross, side lanes, with a shorter recovery (`overloadRecovery`) and two more launch waves. |
-| Destroyed | Launched Needles go down with it; the reactor flares and dies, and the wreck stays in its mountain. |
+| Destroyed | Launched Needles go down with it; it lists, noses down and sinks under the opaque sea. |
 
-**Arena.** The scroll eases to a stop from `arena.decelStart` (`arenaStopDistance`) over the low ground before the
-fortress; the low ground and the mountains round it are Vesper's terrain (§4). (Kills over the arena count as over open
-water for Seeker Sweep's `air-water` goal only over its leads.)
+**Arena.** The scroll eases to a stop from `arena.decelStart` (`arenaStopDistance`); `arena.platform` (relative to the
+stop) is open water from below the view to past the stern as it glides in. The hull sways and surges on the water
+(`arena.sway`, `arena.surge`; `BossState.vx` and `vs` expose its velocity) and holds still while its lanes charge and
+fire.
 
-**Closer (row 9, 17 November).** The user: "the stronghold should move down a bit too, the silent empire boss seems closer
-to the hero id like to keep it somewhat close, maybe not like that but currently its anchored to the top of screen". The
-whole boss moved 2.5 closer (`row` and `entryS` 11.5 → 9: the cannons at s 11.97, the reactor at 10.6; THE CITADEL's
-flanks stand at about 9.75), with its model re-seated by the lens (`STRONGHOLD_AT` 25.517 → 22.659) and its arena's ground
-with it; HP, attacks and timings are unchanged. At 390×844 the fortress's back now sits just under the boss bar (row 9.0
-is as low as the requested 9.0–9.5 goes; more room needs a lower row). Measured on the fairness branches before and after
-(seed 21; Cold Vector 330 s, endless 340 s from sectors 26 and 5; the hidden-fire volleys of the same day not yet in either):
+**Model.** The user's Tripo model (`art/source/bosses/ark-tripo-original.glb`), adapted in Blender by
+`tools/blender/boss_ark.py` (`build_clean`): every part planarized into flat plates with hard creases, the large light
+plates re-plated, the supplied paint kept on machinery and stripes, one fresh atlas; the two diamond pod sketches in
+front are dropped (user, 24 October). Nodes: `ark_hull`, `ark_bridge` (a Blender-built lens inside the armour),
+`ark_bridge_shutter_a` and `_b` (they slide apart to open the bridge), `ark_radiator_left`, `_right` and their wrecks,
+`ark_turret_left`, `_right` (they swing to aim), the markers `ark_bay_left`, `ark_bay_right` and `ark_wake_anchor`, and
+`ark_approved_v6`, an empty marker node (a real identifier) that tells the view to keep the authored materials. The file
+stays under the adapted bosses' triangle cap (docs/08, 24 October).
 
-| Run | Perfect: clear time, hits | Dodger: hits during the boss | Idle: hits during the boss | Aimed shots to the player's row (median, perfect) |
-| --- | --- | --- | --- | --- |
-| Cold Vector, Relaxed | 95.5 → 96.2 s, 0 → 0 | 2 → 2 | 19 → 20 | 2.07 → 1.72 s |
-| Cold Vector, Standard | 126.4 → 122.9 s, 0 → 0 | 19 → 5 | 22 → 23 | 1.77 → 1.47 s |
-| Cold Vector, Veteran | not cleared in 330 s (overload at 296.2 → 287.3 s), 0 → 0 | 0 → 0 | 21 → 22 | 1.67 → 1.38 s |
-| Endless sectors 26–28 | (fight runs past 340 s), 0 → 0 | 9 → 13 | 15 → 15 | 1.33 → 1.13 s |
-| Endless sectors 5–7 | (fight runs past 340 s), 0 → 0 | 5 → 8 | 15 → 16 | 1.38 → 1.18 s |
-
-No fairness violations on any branch before or after. The bridge's aimed bursts (speed 7) reach the player's row about
-0.3 s sooner (1.87 → 1.51 s from the reactor's door) and the launched Needles' shots sooner too; the lane lasers' warnings
-are timed, not travelled, and are unchanged.
-
-**Model.** The user's fortress GLB (`art/source/bosses/stronghold-original.glb`), adapted in Blender by
-`tools/blender/boss_stronghold.py`: the supplied mesh, UVs and painted atlases kept and reduced (79,242 triangles with
-the wrecks, under the adapted bosses' 80k), its plinth smoothed before reduction; the backdrop sketches, the flag, the
-round rock and the small mountain at its left left out, and its sides and back cut where the terrain's mountain buries
-them. The barrels, which point 31° outward in the source, are turned straight toward the player about their breeches,
-so the lanes leave from the muzzles. Its scale (12.79 units per source unit) and placement come from the release lens
-(`src/shared/lens.ts`): with the camera centred, each gun's breech and the reactor's aim point lie on the lines of sight
-through their combat targets. It is then grown 1.15 (user, 17 November: "the stronghold needs to be slightly bigger";
-`GROW`, about 12.9 wide) about a point on the reactor's line of sight at the breeches' height, so the aim point moves
-along its line, and each cannon assembly (housing and gun, grown with it) is re-seated where its breech was, 0.5 inward:
-the cannons now stand at about half the fortress's width from its axis (0.59 before), a little close for its size. Nodes: `stronghold_hull`; `stronghold_cannon_left`/`_right` (the armoured housings, the
-targets) each with its gun `stronghold_gun_left`/`_right` (barrel and breech; its origin is the recoil pivot) and the
-marker `stronghold_muzzle_left`/`_right`; wrecks of both (`_wreck`, the barrel snapped two thirds along);
-`stronghold_door_a`/`_b` (the main blast door's leaves); `stronghold_chamber` and `stronghold_core` (the reactor chamber
-and reactor behind the door, built in Blender: the source has nothing behind its door) with `stronghold_core_wreck`;
-`stronghold_radar` (the dish); markers `stronghold_bay_left`/`_right` (the hatches), `stronghold_vent_0`-`3`,
-`stronghold_core_aim`, and `stronghold_approved_v1` (an identifier, with the door slide in its extras). One material on
-the supplied atlases at 2K (base, roughness and metal; normal at 1K) plus an emission mask of the painted orange glows;
-the chamber and reactor are vertex coloured.
-
-**Presentation** (`src/render/stronghold-view.ts`, render-only). The renderer seats it at `STRONGHOLD_AT` past its
-arena's start (`src/world/terrain-vesper.ts`), its foot at the sea, before, during and after its fight (intact, then a
-wreck), as THE CITADEL. Target rings and brackets are drawn on the flight plane at the targets. A cannon charging its
-lane glows (its housing's lining and its muzzle), fires with a muzzle flash and smoke, recoils into its housing and
-vents steam from the roof; lanes from live cannons start at their muzzles (`beamTop`). Bursts leave the reactor's door
-with a flash. The door's leaves part over 0.9 s as the reactor opens; the reactor pulses in its overload. Needles leave
-the hatches with a flash and a trail of sparks. A broken cannon throws sparks, fire and dark fragments, swaps to its
-wreck, sags its snapped barrel and smokes; in the overload its column's lanes flare at the broken housing. At the kill
-the reactor destabilises and flares, the vents burst into steam, fires break out across the bunker, the radar mast
-topples, explosions go off inside with the simulation's blast, then the reactor's light dies and smoke pours from the
-door; the wreck stays embedded. Effects reuse the bosses' bounded particle layers (half their emission on Low).
+**Presentation** (`src/render/ark-view.ts`, render-only). `arkPlacement` puts the waterline at sea level and shifts the
+pivot so every target projects onto its logical row (`tests/world/ark-projection.test.ts`). Target rings sit on the
+sockets outside the chassis, so the sinking pose never moves them. The hull rides a slow swell. Foam collars and bow and
+stern wakes feed the ocean's foam layer. Bow spray follows its motion, steam vents from the open bays, and damaged or
+destroyed parts smoke and steam. The radiators swap to their wrecks, the bridge shutters part, and the turrets aim.
 
 ## 6. Tests
 
 - `tests/world/terrain-vesper.test.ts`: planet profiles keep Khepri byte-identical; missions map to planets; shelves at
   several levels over the sea; half land and half water; seams and streaming; pack ice under the cap; outposts on shelf
-  ice with jetties, tracks and trestles; every outpost archetype; the stronghold's arena (low ground just above the sea,
-  mostly land with leads but none round the fortress, varied relief, the corridor low past the shoulder, the play area well
-  under the flight plane and mountains beyond the edges, the ground under the barrels low, under the model and meeting its
-  edges, no ice walls on the mountain or round the fortress, crags round it, nothing in its plan), deterministic and
-  streamed, and at endless's Vesper boss stop.
-- `tests/world/stronghold-projection.test.ts`: the reactor's aim and the guns on their targets through the centred lens
-  (`STRONGHOLD_AT`); the seat table matches the model; no ground on the lines of sight to the guns, muzzles and the
-  reactor's aim with the camera centred or at either extreme; rings on the targets, the scenery exclusion, lanes from the
-  muzzles.
-- `tests/world/cinematic-assets.test.ts`: the stronghold's nodes, its weak points on their rays (the reactor with the doors
-  open), its width and triangle budget.
-- `tests/sim/ark.test.ts`: the arena stop and resume; the stronghold's arrival, sockets, difficulty scaling, cannon lasers
-  down their own columns with bursts between, finite Needle launches, overload lanes over its own columns, the wreck and
-  extraction, that it never moves; beam alignment (every Needle beam under its Needle, every boss lane under its column).
+  ice with jetties, tracks and trestles; every outpost archetype; the open-water arena.
+- `tests/sim/ark.test.ts`: the arena stop and resume; the Ark's arrival, sockets, difficulty scaling, radiator lasers
+  down their own columns with bridge bursts between, finite Needle launches, overload lanes over its own columns, the
+  sinking wreck and extraction, its drift; beam alignment (every Needle beam under its Needle, every boss lane under its
+  column).
 - `tests/sim/vesper-aces.test.ts`: Vesper's warning-line cap.
 - `tests/sim/encounter-deck.test.ts`: Vesper alternates laser flocks with laser-free squadrons on every seed.
 - `tests/render/vesper-contrast.test.ts`: the craft's own ramp and edge shade, with buildings, other worlds and the
   hero unchanged.
 - `tests/sim/fairness-campaign.test.ts` and the endless fairness suites: Cold Vector at every difficulty and Vesper's
   endless stints, on every pilot branch.
-- `tests/browser/vesper.spec.ts`: the campaign offers Cold Vector and launches it without browser errors; the stronghold
-  stands in its cliff before its fight, goes through its phases without moving and the mission completes.
+- `tests/browser/vesper.spec.ts`: the campaign offers Cold Vector and launches it without browser errors.

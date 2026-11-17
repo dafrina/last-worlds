@@ -4,7 +4,7 @@ import { snapshot } from './launch';
 
 const stats = async (page: Page) => JSON.parse(await page.locator('canvas.flight-canvas').getAttribute('data-render-stats') ?? '{}');
 
-test('cold Vesper launch waits for the stronghold and facility atlases; cancellation cannot start a stale flight', async ({ page }, info) => {
+test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot start a stale flight', async ({ page }, info) => {
   test.setTimeout(90000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await seedCampaign(page);
@@ -12,7 +12,7 @@ test('cold Vesper launch waits for the stronghold and facility atlases; cancella
   const gate = new Promise<void>(resolve => { release = resolve; });
   const requested: string[] = [];
   await page.route('**/assets/vesper/*.glb', async route => {
-    if (/helion-stronghold|facility-kit/.test(route.request().url())) { requested.push(route.request().url()); await gate; }
+    if (/helion-ark|facility-kit/.test(route.request().url())) { requested.push(route.request().url()); await gate; }
     await route.continue();
   });
   await page.goto('/');

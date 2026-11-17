@@ -16,7 +16,7 @@ of each stint ending with that planet's boss (`boss`). After Umbra the cycle sta
 | --- | --- | --- |
 | 1 | Luna (prologue) | WARDEN-1 |
 | 2–4 | Khepri | BASTION-9 |
-| 5–7 | Vesper | HELION STRONGHOLD |
+| 5–7 | Vesper | HELION ARK |
 | 8–10 | Nacre | THE VEIL |
 | 11–13 | Amnion | THE CRADLE |
 | 14–16 | Corona | THE HELIOPHAGE |

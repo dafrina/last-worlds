@@ -190,11 +190,6 @@ export interface Landform {
   /** Terraced mineral-pool mask in valley bottoms. */ pool: number;
   /** Signed distances (world units, approximate) to the two crossing vein-line families, and vein presence. */
   vein: number; vein2: number; veins: number;
-  /**
-   * The highest the ground may stand here, when a planet allows more than TERRAIN_MAX_HEIGHT at this point (HELION
-   * STRONGHOLD's mountains beyond the world's edges, src/world/terrain-vesper.ts).
-   */
-  ceiling?: number;
 }
 
 /**

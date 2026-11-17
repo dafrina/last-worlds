@@ -21,7 +21,7 @@ were merged into others. For the repository layout see the [README's map](../REA
 | [03 Worlds and generation](03-worlds-and-generation.md) | All eight worlds at a glance, the enemy catalog, the bosses, what is procedural, the director, fairness, endless difficulty |
 | [19 Luna](19-luna-training.md) | Khepri's moon, the Training mission and WARDEN-1 |
 | [13 Khepri](13-khepri-world.md) | The rust desert: visual target, layout rules and its Blender kits |
-| [17 Vesper](17-vesper-glass-frontier.md) | The ice world, Cold Vector and HELION STRONGHOLD |
+| [17 Vesper](17-vesper-glass-frontier.md) | The ice world, Cold Vector and the HELION ARK |
 | [20 Nacre](20-nacre-luminous-mire.md) | The luminous mire, Deep Bloom and THE VEIL |
 | [27 Amnion](27-amnion-brood-wastes.md) | The brood wastes, Brood Strike and THE CRADLE |
 | [37 Corona](37-corona-dying-star.md) | The dying star, Dying Star and THE HELIOPHAGE |
@@ -75,7 +75,7 @@ were merged into others. For the repository layout see the [README's map](../REA
 | --- | --- |
 | [04 Art and experience](04-art-and-experience.md) | The art direction and asset rules (also listed above) |
 | [art/bosses](../art/bosses/README.md) | How the eight boss models are built and their rig contract |
-| [43 Boss visual overhaul](43-boss-visual-overhaul.md) | The 17 November specification: VEIL from the old CRADLE, the walking CRADLE, the HELION STRONGHOLD fortress in Vesper's mountains |
+| [43 Boss visual overhaul](43-boss-visual-overhaul.md) | The 17 November specification: VEIL from the old CRADLE, the walking CRADLE, the HELION STRONGHOLD fortress on Vesper's cliff |
 | [art/concepts](../art/concepts/README.md) | The concept gallery: references only |
 | Kit provenance | One README per Blender kit: [Khepri kit](../art/khepri-kit/README.md), [Khepri infrastructure](../art/khepri-infra/README.md), [Khepri craft](../art/khepri-craft/README.md), [Vesper kit](../art/vesper-kit/README.md), [Vesper infrastructure](../art/vesper-infra/README.md), [Vesper craft](../art/vesper-craft/README.md), [Nacre kit](../art/nacre-kit/README.md), [Nacre craft](../art/nacre-craft/README.md), [shared industrial kit](../art/shared-industrial/README.md) |
 | [art/source](../art/source/bosses/README.md) | The user's supplied boss models ([hero sources](../art/source/hero/README.md), [Poly Haven maps](../art/source/polyhaven/README.md)) |

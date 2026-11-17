@@ -109,7 +109,7 @@ of view so that no attack ever started (user report, 11 November). Now the post 
 - **Telegraphs stay honest:** the post never moves while the boss winds up, holds still for its own lanes, or has a lane
   marked; the footprint forecast reads the post through `bossPose`.
 - A pilot can still retreat to an edge for a moment, but cannot park there.
-- **Stationary bosses** (`BossDefinition.stationary`: THE CITADEL, and HELION STRONGHOLD since 17 November) are built into
+- **Stationary bosses** (`BossDefinition.stationary`: THE CITADEL; HELION STRONGHOLD joins it with Vesper's boss overhaul, docs/43, not yet released) are built into
   their ground and are never pulled. Instead they fire on a pilot who hides (user, 17 November: "If you stay out of every
   attack's reach for 2 s, the fortress's small terrace guns fire the boss's existing aimed shots toward you, and the
   Citadel's do the same, so there's no safe hiding spot"; `updateHiddenFire` in `src/sim/boss.ts`, points
@@ -117,8 +117,8 @@ of view so that no attack ever started (user report, 11 November). Now the post 
   - **Trigger:** the pull's own (`hiddenTooLong`: no live target in view for `DRIFT.boss.patience` s), and the pilot itself
     keeps more than half a view from every live target, so a large target that leaves a lagging camera's frame beside the
     pilot draws nothing.
-  - **The volley:** the battery on the pilot's side (HELION STRONGHOLD's terrace guns, THE CITADEL's gate pillars, in
-    `src/content/ark.ts` and `citadel.ts`) winds up the boss's own aimed pair burst at the pilot, with the boss's warning,
+  - **The volley:** the battery on the pilot's side (THE CITADEL's gate pillars, `CITADEL.gatePillars` in
+    `src/content/citadel.ts`) winds up the boss's own aimed pair burst at the pilot, with the boss's warning,
     drawn as an aimed shot's windup; its muzzle is the battery projected through the lens for the camera of the windup's
     start, inside the view, and stays fixed. Then one every `hiddenFire.interval` s while the pilot stays hidden.
   - **It stops** the moment a target is back in view or the pilot comes nearer: a windup in progress is dropped.
@@ -126,9 +126,9 @@ of view so that no attack ever started (user report, 11 November). Now the post 
     only when the director admits its footprints; its windup is a committed hazard (`hiddenFireFootprints` in
     `src/sim/fairness.ts`). The fairness traces count it as a windup (`tests/sim/fairness-trace.ts`).
   - **Measured, 17 November** (`tests/sim/hidden-fire.test.ts`; Standard, perfect pilot 4 seeds, skilled 10, at the
-    expected level): the perfect and skilled pilots never trigger it on Cold Vector or Silent Empire, and their clear times
-    and hits are unchanged. The parked pilot (seeds 1–4, 30 s) is now fired on: 7 hits on Cold Vector (4 without) and 9 on
-    Silent Empire (5), where it took none from the boss before. A pilot who sidesteps each marked volley takes none from it.
+    expected level): the perfect and skilled pilots never trigger it on Silent Empire, and their clear times and hits are
+    unchanged. The parked pilot (seeds 1–4, 30 s) is now fired on: 9 hits on Silent Empire (5 without), where it took none
+    from the boss before. A pilot who sidesteps each marked volley takes none from it.
 
 **Measured, 11 November** (parked at the right edge, `bossScenario`, seeds 1–4): with the core open every boss now attacks
 (92–172 windups per four fights, against none). THE ECLIPSE and THE HELIOPHAGE, whose vents sit far off their pivot,

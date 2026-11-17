@@ -95,7 +95,7 @@ Vesper's landform is `vesperLandform` in `src/world/terrain-vesper.ts` (identity
 [docs/17](17-vesper-glass-frontier.md)).
 
 - **Sea.** The sea stands at `VESPER_SEA_LEVEL` (−3.6, lowered on 21 October so the ice walls stand as tall as Khepri's
-  canyons). Everything afloat reads the planet's sea level: ground batteries on pontoons, floes, piers,
+  canyons). Everything afloat reads the planet's sea level: the HELION ARK, ground batteries on pontoons, floes, piers,
   icebreakers and splashes.
 - **Land and water.** A warped shelf-mass field against a per-mood threshold makes the land; narrow winding leads and
   fjord-like inlets cut into it with sheer sides. Vesper is half land and half water over long stretches (user,

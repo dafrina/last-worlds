@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VIEW } from '../../src/shared/contracts';
 import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
-import { VESPER_SCENERY_MAX, strongholdClear, strongholdGround, vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
-import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from '../../src/world/stronghold-seat';
-import { endlessSectorPlan } from '../../src/content/endless';
-import { runRoute } from '../../src/world/run-route';
+import { vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
 import { NEUTRAL_MOOD } from '../../src/world/terrain-layout';
 import { HELION_ARK } from '../../src/content/ark';
 import { arenaStopDistance } from '../../src/sim/boss';
@@ -236,105 +233,36 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect([...archetypes].sort()).toEqual(['cryo', 'exchanger', 'harbour', 'missile', 'plant', 'radiator', 'reactor']);
   }, 180_000);
 
-  it('lays Cold Vector\'s arena (its stop −9 … +35) low just above the sea, rich and not plain, with HELION STRONGHOLD at the head of its corridor and mountains at its sides', () => {
-    // The mission's arena comes from the boss's own constants: the scroll stops at 1075.25 (935 before pace 1.15, 6 November).
+  it('opens the Cold Vector ocean arena (its stop −9 … +35): open water around the Ark, nothing afloat there, shelves beyond', () => {
+    // The mission's arena comes from the Ark's own constants: the scroll stops at 1075.25 (935 before pace 1.15, 6 November).
     const config = { mode: 'campaign', mission: 'cold-vector', seed: 93 } as Parameters<typeof missionArena>[0];
     const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena }, stop = arenaStopDistance(HELION_ARK.arena);
     expect(stop).toBeCloseTo(1075.25, 9);
     expect(arena).toEqual({ fromS: stop - 9, toS: stop + 35 });
     expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 776.25 - 9, toS: 776.25 + 26 });
     expect(missionArena({ ...config, mode: 'endless' })).toBeUndefined();
-    const at = (seed: number, x: number, a: number) => terrainHeight(seed, x, arena.fromS + a, world);
-    // The model's measured top (src/world/stronghold-seat.ts) by world x and arena-relative s; NaN off the model.
-    const top = (x: number, a: number) => {
-      const row = SEAT_ROWS[Math.round((a - SEAT_A) / SEAT_STEP)], code = row?.charCodeAt(Math.round((x + SEAT_X) / SEAT_STEP));
-      return code === undefined || code === 46 || Number.isNaN(code) ? NaN : (code - 48) / 10 - 4;
-    };
+    let land = 0;
     for (const seed of [93, 8831, 11]) {
-      let land = 0, wet = 0, nearWet = 0, pressed = 0, varied = 0, corridorHigh = -Infinity, beyond = -Infinity;
-      const heights: number[] = [];
-      for (let a = -12; a <= 76; a += 0.5) for (let x = -HALF; x <= HALF; x += 0.5) {
-        const h = at(seed, x, a);
-        // The play area keeps well under the flight plane (the departure flies over all of it).
-        expect(h, `${x}, ${a}`).toBeLessThanOrEqual(1.2);
-        if (Number.isNaN(top(x, a))) {
-          if (h < SEA) { wet++; if (a > 18 && a < 34 && Math.abs(x) < 9) nearWet++; } else land++;
-          // The low ground: just above the sea where it is not mountain.
-          if (h >= SEA && Math.abs(x) < 7 && a > 0 && a < 20) { pressed += h < -1.6 ? 1 : 0; heights.push(h); }
-        }
-        // The corridor the fight and the departure fly over stays low past the fortress's shoulder.
-        if (a > 40 && a < 60 && Math.abs(x) < 6) corridorHigh = Math.max(corridorHigh, h);
+      for (let s = arena.fromS; s <= arena.toS; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
+        const height = terrainHeight(seed, x, s, world);
+        if (inArenaCore(arena, x, s)) expect(height).toBeLessThan(SEA - 0.5);
+        else if (beyondArenaClearing(arena, x, s) && height >= SEA) land++;
       }
-      // Mostly land, its leads and pockets of dark water kept; none round the fortress.
-      expect(land / (land + wet)).toBeGreaterThan(0.7);
-      expect(wet).toBeGreaterThan(0);
-      expect(nearWet).toBe(0);
-      // Low: just above the sea, and not plain: its relief (ridges, drifts, rock, crevasses, small shelf breaks) varies.
-      expect(pressed / heights.length).toBeGreaterThan(0.85);
-      const mean = heights.reduce((sum, h) => sum + h, 0) / heights.length;
-      varied = Math.sqrt(heights.reduce((sum, h) => sum + (h - mean) ** 2, 0) / heights.length);
-      expect(mean).toBeLessThan(SEA + 1.4);
-      expect(varied).toBeGreaterThan(0.12);
-      expect(corridorHigh).toBeLessThan(-1);
-      // Beyond the world's edges the mountains rise over the play area's ground (whose massif keeps to 0.6 inside it).
-      for (let a = 0; a <= 60; a += 1) for (const x of [-15, -14, 14, 15]) beyond = Math.max(beyond, at(seed, x, a));
-      expect(beyond).toBeGreaterThan(1.8);
-      // The ground before the fortress stays well under its barrels (−0.7) and housings.
-      for (let a = 16; a <= 22; a += 0.5) for (let x = -5; x <= 5; x += 0.5) expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(-1.2);
-      // The ground keeps under the model, and meets it at its edge (burying the cut faces).
-      for (let a = SEAT_A; a < SEAT_A + SEAT_ROWS.length * SEAT_STEP; a += SEAT_STEP) for (let x = -SEAT_X; x <= SEAT_X; x += SEAT_STEP) {
-        const t = top(x, a);
-        if (!Number.isNaN(t)) { expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(Math.max(t - 0.05, SEA + 0.2)); continue; }
-        const near = [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([i, j]) => top(x + i * SEAT_STEP, a + j * SEAT_STEP)).filter(h => !Number.isNaN(h));
-        if (near.length && Math.abs(x) > 6) expect(at(seed, x, a), `${x}, ${a}`).toBeGreaterThan(Math.max(...near) - 0.05);
-      }
-      // The land takes over before the arena; far from it nothing changes.
-      expect(generateTerrainSection(seed, 3, world)).toEqual(generateTerrainSection(seed, 3, VESPER));
-      expect(terrainHeight(seed, 2, arena.fromS + 110, world)).toBe(terrainHeight(seed, 2, arena.fromS + 110, VESPER));
-      // Nothing stands in the fortress's plan; no outposts in the arena; no ice walls on the mountains or round the fortress;
-      // crags round it; floes only on the open water.
       const inside = (s: number) => s >= arena.fromS - ARENA_RAMP && s <= arena.toS + ARENA_RAMP;
-      let rocks = 0;
       for (let index = Math.floor((arena.fromS - ARENA_RAMP) / VIEW.sectionLength); index <= Math.floor((arena.toS + ARENA_RAMP) / VIEW.sectionLength); index++) {
         const section = generateTerrainSection(seed, index, world);
-        for (const piece of section.instances) {
-          const where = `${piece.kind} at ${piece.x.toFixed(2)}, ${(piece.s - arena.fromS).toFixed(2)}`;
-          expect(strongholdClear(arena, piece.x, piece.s), where).toBe(true);
-          const hold = strongholdGround(arena, seed, piece.x, piece.s)!;
-          if (piece.kind === 'iceWall') expect(hold.massif < 0.05 && strongholdClear(arena, piece.x, piece.s, 2), where).toBe(true);
-          const a = piece.s - arena.fromS;
-          if (piece.kind === 'outcrop' && a > 20 && a < 34 && Math.abs(piece.x) < 9) rocks++;
-        }
+        // Nothing afloat or standing in the clearing; no outposts anywhere in the arena.
+        for (const floe of section.floes!) expect(inArenaCore(arena, floe.x, floe.s)).toBe(false);
+        for (const piece of section.instances) expect(inArenaCore(arena, piece.x, piece.s)).toBe(false);
         for (const prop of section.props) expect(inside(prop.s)).toBe(false);
       }
-      expect(rocks).toBeGreaterThan(10);
+      // Far from the arena nothing changes.
+      expect(generateTerrainSection(seed, 3, world)).toEqual(generateTerrainSection(seed, 3, VESPER));
     }
-  }, 180_000);
-
-  it('builds the stronghold\'s mountains deterministically, streamed as generated, and on the endless Vesper boss stop too', () => {
-    const config = { mode: 'campaign', mission: 'cold-vector', seed: 8831 } as Parameters<typeof missionArena>[0];
-    const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena };
-    const first = Math.floor((arena.fromS + 18) / VIEW.sectionLength), last = Math.floor((arena.fromS + 60) / VIEW.sectionLength);
-    for (let index = first; index <= last; index++) {
-      const section = generateTerrainSection(8831, index, world);
-      resetTerrainCaches();
-      expect(generateTerrainSection(8831, index, world)).toEqual(section);
-    }
-    const stream = createTerrainStream(8831, world), sections = stream.update(arena.fromS + 20);
-    for (const section of sections) expect(section).toEqual(generateTerrainSection(8831, section.index, world));
-    // Endless reaches Vesper's boss stop (sector 7) with the same arena shape: land, the valley and the mountains at its stop.
-    const plan = endlessSectorPlan(7);
-    expect(plan.boss).toBe('ark');
-    const route = runRoute({ mode: 'endless' }), from = plan.stop!.platform.from;
-    expect(route.worldAt(from + 27).planet.id).toBe('vesper');
-    for (const [x, a] of [[0, 18], [3, 20], [0, 45]]) {
-      const h = terrainHeight(21, x, from + a, route);
-      expect(h, `${x}, ${a}`).toBeGreaterThan(SEA); expect(h, `${x}, ${a}`).toBeLessThan(-1.2);
-    }
-    let beyond = -Infinity;
-    for (let a = 10; a <= 50; a += 1) beyond = Math.max(beyond, terrainHeight(21, -14.5, from + a, route), terrainHeight(21, 14.5, from + a, route));
-    expect(beyond).toBeGreaterThan(1.8);
-  }, 120_000);
+    // Shelves frame the clearing on some seeds (open sea on others): shelf ice inside the arena, beyond the clearing and
+    // its entry corridor (the arena was all open water before 22 October).
+    expect(land).toBeGreaterThan(0);
+  });
 });
 
 /** Content fingerprint of a section (mesh arrays, pieces, roads): one sha256 over the parts, as recorded. */

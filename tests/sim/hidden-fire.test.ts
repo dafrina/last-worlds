@@ -11,10 +11,11 @@ import { fly, perfectPilot, skilledPilot, type Pilot } from './pilots';
 /*
  * Hidden-pilot fire (src/sim/boss.ts updateHiddenFire, docs/10 §5; user, 17 November: "If you stay out of every attack's
  * reach for 2 s, the fortress's small terrace guns fire the boss's existing aimed shots toward you, and the Citadel's do
- * the same, so there's no safe hiding spot"). HELION STRONGHOLD and THE CITADEL are never pulled toward the view, so a pilot
+ * the same, so there's no safe hiding spot"). THE CITADEL (and HELION STRONGHOLD with Vesper's unreleased overhaul) is never pulled toward the view, so a pilot
  * parked at the far edge kept their targets out of view and was never attacked (0 windups in 30 s, docs/10 §5).
  */
-const STATIONARY: readonly MissionId[] = ['cold-vector', 'silent-empire'];
+// The stationary bosses' missions (HELION STRONGHOLD's cold-vector joins with Vesper's unreleased overhaul, docs/43).
+const STATIONARY: readonly MissionId[] = ['silent-empire'];
 
 interface Watch { starts: number; volleys: number; startTimes: number[]; firstHiddenAt: number | null; safety: { reachable: boolean; before: boolean; sealed: boolean; minGap: number }[]; trace: string[] }
 
@@ -135,7 +136,7 @@ describe('hidden-pilot fire (stationary bosses)', () => {
     }
   });
 
-  it('only stationary bosses have it, and only from their own content (src/content/ark.ts, citadel.ts)', () => {
+  it('only stationary bosses have it, and only from their own content (src/content/citadel.ts)', () => {
     for (const def of Object.values(BOSSES)) expect(!!def.hiddenFire, def.id).toBe(!!def.stationary);
     expect(FAIRNESS.retryDelay).toBeGreaterThan(0);
   });
