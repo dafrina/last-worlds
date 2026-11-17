@@ -23,9 +23,9 @@ four) has five designs per slot, `a`–`e`; the others still have three, `a`–`
 The user rejected the script-built kits as comical and made Tripo models of twenty concepts (art/source/hero/README.md).
 Their parts are remodelled, not cut out (docs/08, 29 October):
 
-- **Reference:** `tools/blender/hero_tripo.py` levels each Tripo model onto one plane, scales it to its chassis and
+- **Reference:** `tools/blender/lib_hero_tripo.py` levels each Tripo model onto one plane, scales it to its chassis and
   splits it into the four slots (`SPECS`: outlines read off gridded top and side views).
-- **Remodel:** `tools/blender/hero_remodel.py`, one function per design, builds clean hard-surface parts measured off
+- **Remodel:** `tools/blender/hero_parts.py`, one function per design, builds clean hard-surface parts measured off
   that reference, then bakes the Tripo base colour, roughness-metal and normal maps onto them in Cycles. Output:
   `public/assets/shared/hero/<chassis>-<design>.glb`, its four part nodes sharing one material (base and normal 1024 px,
   roughness-metal 512 px) plus a glow material, and its engine sockets. About 1,700 to 6,200 triangles, 1.0 to 1.3 MB.

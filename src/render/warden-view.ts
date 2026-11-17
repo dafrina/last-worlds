@@ -9,7 +9,7 @@ import { applySurfaceFinish } from './surface-finish';
 
 /**
  * WARDEN-1 presentation (docs/19 §2): a decommissioned human lunar defence lander, modelled in Blender
- * (public/assets/luna/warden.glb, tools/blender/remodel_warden.py); a code-built stand-in renders until the model has loaded. Render-only:
+ * (public/assets/luna/warden.glb, tools/blender/boss_warden.py); a code-built stand-in renders until the model has loaded. Render-only:
  * it reads boss state and never applies damage or decides anything the simulation uses. Clean grey-white panels,
  * recessed machinery, square shoulder armour and twin cannon turrets; the command core has sliding roof plates.
  * It descends on its thrusters during the arrival and settles on its legs.
@@ -41,7 +41,7 @@ function thrusterFlames(sockets: THREE.Vector3[], material: THREE.Material): THR
 }
 
 /**
- * Builds the rig from warden.glb (tools/blender/remodel_warden.py): `warden_hull`, `warden_pod_left|right` (+ `_wreck`), `warden_core`
+ * Builds the rig from warden.glb (tools/blender/boss_warden.py): `warden_hull`, `warden_pod_left|right` (+ `_wreck`), `warden_core`
  * (+ `_wreck`), `warden_core_hatch_0|1`, and `warden_beacon` / `warden_thruster_N` empties. The authored paint
  * materials stay; `warden_glow` faces on a weak point take that part's heat material so hits and damage flare it.
  */

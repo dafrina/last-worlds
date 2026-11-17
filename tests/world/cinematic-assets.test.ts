@@ -57,7 +57,7 @@ describe('Blender cinematic asset contracts',()=>{
     } finally { tracks.dispose(); }
   });
   // The selected boss assets (src/render/boss-assets.ts): v4 approved imports or v5 clean remodels
-  // (tools/blender/boss_remodel.py). Weak-point rays come from the combat constants, so a rescaled
+  // (tools/blender/lib_solids.py). Weak-point rays come from the combat constants, so a rescaled
   // fortress is checked at its own targets.
   const flankOf = {
     veil: { node:'pod', x:VEIL.podOffset, y:VEIL.targetHeight, z:-VEIL.podS },

@@ -1,7 +1,7 @@
 import { OVERLOAD_FRACTION } from './boss-phases';
 /**
  * THE ECLIPSE, Umbra's boss and the final boss (docs/28): the user's crescent-winged Tripo GLB, adapted
- * (public/assets/umbra/the-eclipse-v2-approved.glb, tools/blender/approved_eclipse.py), lying flat with its horns away
+ * (public/assets/umbra/the-eclipse-v2-approved.glb, tools/blender/boss_eclipse.py), lying flat with its horns away
  * from the player and "very large ... like a final boss": about 20 units from horn to horn on the 24-unit world, so the
  * camera pans along it. Its two energy vents on the inner wings (the first pair), its prow vent under the reactor (a third
  * first-phase target since 31 October) and its luminous reactor (the core) are the only targets; the crescent, its horns
@@ -20,7 +20,7 @@ export const ECLIPSE = {
   row: 12,
   /**
    * Height of its target plane over its seat (the model's origin): the reactor's visible face averages 1.8, the vents'
-   * 1.45 (the-eclipse-v1-approved.glb, tools/blender/approved_eclipse.py); one plane at 1.7 keeps both within 0.2 in s.
+   * 1.45 (the-eclipse-v1-approved.glb, tools/blender/boss_eclipse.py); one plane at 1.7 keeps both within 0.2 in s.
    */
   targetHeight: 1.7,
   ventHp: 530,

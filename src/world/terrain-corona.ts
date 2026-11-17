@@ -39,7 +39,7 @@ const MESA_STEP = 1.3, TIER_STEP = 1;
 const LOW = CORONA_SEA_LEVEL + 1.8, RISE = 7, STEP = 1.1, RISER = 0.45, PROBE = 0.3, TOP = 2.3;
 const NEUTRAL: MoodParams = NEUTRAL_MOOD;
 const TALL: ReadonlySet<string> = new Set(['clump', 'column', 'spire', 'corExtractor', 'corCollector', 'corHangar', 'corRefinery', 'corGantry', 'corDome']);
-/** Landmark site lattice (Corona's infrastructure kit, tools/blender/corona_kit.py). */
+/** Landmark site lattice (Corona's infrastructure kit, tools/blender/kit_corona.py). */
 const SITE_ROW = 22, SITE_LANES = [-7.5, 0, 7.5];
 
 /* ---------------------------------------------------------------- masks */

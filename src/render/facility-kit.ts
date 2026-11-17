@@ -6,7 +6,7 @@ import type { PlanetId } from '../shared/contracts';
  * asset tests (the Blender builder asserts the same bounds).
  *
  * Nodes are `fk_<world>_<module>` in `public/assets/<world>/facility-kit-v3.glb`, all sharing one baked atlas per
- * world (tools/blender/facility_kit.py). Module frame: pivot at the base centre on the ground; x lateral, s away from
+ * world (tools/blender/kit_facilities.py). Module frame: pivot at the base centre on the ground; x lateral, s away from
  * the camera (glTF −z); the detailed front faces the camera (−s). Foundations reach `below` under the pivot so a
  * module can sit on uneven ground.
  */

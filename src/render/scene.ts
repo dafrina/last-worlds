@@ -388,7 +388,7 @@ export const NACRE_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Na
 };
 
 /**
- * The Umbral fleet (docs/28, tools/blender/umbra_craft.py): on Umbra every kind flies an Umbral model, and THE ECLIPSE's
+ * The Umbral fleet (docs/28, tools/blender/craft_umbra.py): on Umbra every kind flies an Umbral model, and THE ECLIPSE's
  * drone waves use the drone (scaled to a pod's size). Plume colour is violet.
  */
 export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: UmbraCraftNode; scale: number }>> = {
@@ -399,7 +399,7 @@ export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Um
   skimmer: { node: 'umbra_interceptor', scale: 0.85 }, relic: { node: 'umbra_carrier', scale: 1.1 },
 };
 export const UMBRA_DRONE_SCALE = 1.45;
-/** Corona's fleet (docs/37, tools/blender/corona_fleet.py): the same roles as Umbra's, the Wraith its own crescent ship. */
+/** Corona's fleet (docs/37, tools/blender/craft_corona.py): the same roles as Umbra's, the Wraith its own crescent ship. */
 export const CORONA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: CoronaCraftNode; scale: number }>> = {
   dart: { node: 'corona_interceptor', scale: 1 }, needle: { node: 'corona_interceptor', scale: 0.9 }, weaver: { node: 'corona_fighter', scale: 0.95 },
   lancer: { node: 'corona_hunter', scale: 1.05 }, diamond: { node: 'corona_carrier', scale: 1 }, pulsar: { node: 'corona_artillery', scale: 1 },
@@ -409,7 +409,7 @@ export const CORONA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: C
 };
 export const CORONA_DRONE_SCALE = 1.45;
 /**
- * Nahara's fleet (docs/39, tools/blender/nahara_fleet.py), each kind on its model, sized to its role. Of these only the
+ * Nahara's fleet (docs/39, tools/blender/craft_nahara.py), each kind on its model, sized to its role. Of these only the
  * dart, needle, weaver, pulsar, wraith, skimmer, relic and the batteries fly on Nahara; the rest have a model too.
  */
 export const NAHARA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: NaharaCraftNode; scale: number }>> = {
@@ -425,7 +425,7 @@ export const KHEPRI_NODE: Readonly<Record<Exclude<EnemyKind, 'fuel'>, KhepriCraf
   dart: 'khepri_dart', lancer: 'khepri_lancer', weaver: 'khepri_weaver', turret: 'khepri_turret', needle: 'khepri_dart', diamond: 'khepri_weaver', missile: 'khepri_turret', pulsar: 'khepri_weaver',
   wraith: 'khepri_lancer', skimmer: 'khepri_dart', relic: 'khepri_weaver',
 };
-/** Engine sockets (x, z) of the Khepri craft, from tools/blender/khepri_craft.py SOCKETS (glTF z toward the player). */
+/** Engine sockets (x, z) of the Khepri craft, from tools/blender/craft_khepri.py SOCKETS (glTF z toward the player). */
 const KHEPRI_ENGINES: Readonly<Record<KhepriCraftNode, readonly (readonly [number, number])[]>> = {
   khepri_dart: [[-.45, -.43], [.45, -.43], [0, -.49]], khepri_lancer: [[-.17, -.51], [.17, -.51]],
   khepri_weaver: [[-.09, -.45], [.09, -.45]], khepri_turret: [],
@@ -1391,7 +1391,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     pickupBatches.set(icon, mesh);
   }
   /**
-   * 3D drop tokens (user, 7 November; tools/blender/pickup_tokens.py): a bevelled slab in each icon's frame outline, the
+   * 3D drop tokens (user, 7 November; tools/blender/props_pickup_tokens.py): a bevelled slab in each icon's frame outline, the
    * icon on both faces, embossed (bump map from the icon), its frame and glyph softly self-lit so they read on dark
    * worlds, the rim in the frame's colour. They replace the flat icons once loaded; the credit diamond is the lightest.
    */

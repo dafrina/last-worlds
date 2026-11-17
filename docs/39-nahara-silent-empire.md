@@ -126,7 +126,7 @@ inspiration".
     - strike sites and battery compounds clear it at render time, like all scenery;
     - rubble and tumbled blocks are cosmetic (the Low tier skips them); foundations, stumps and relics always stand.
   - **Scope:** scenery only; nothing simulated.
-- **The pieces** (Blender, `nahara_kit.py`, the canyon floor's section): fallen column drums (two), an obelisk stub and
+- **The pieces** (Blender, `kit_nahara.py`, the canyon floor's section): fallen column drums (two), an obelisk stub and
   column stumps, foundations (an outline and a stepped platform), rubble fields (chips round two blocks, a toppled wall
   course, a carved slab cracked across its glyph), relics (a bronze ring's arc, a split pylon over its core). Their
   turquoise inlays glow at 55 % of the kit's: many lit lines on the floor read busy, and could be taken for the ship's shots.
@@ -220,7 +220,7 @@ should not do that. I told it to limit it to open stretches of land and canyon f
   - **The shader:** one varying and a smoothstep more, one value noise fewer (the drifted patches over the paving are
     gone).
 
-### The ruin kit (`tools/blender/nahara_kit.py`, `public/assets/nahara/nahara-kit.glb`)
+### The ruin kit (`tools/blender/kit_nahara.py`, `public/assets/nahara/nahara-kit.glb`)
 
 - **Construction:** rounded, weathered blocks (`rblock`), towers of bonded courses with lit openings.
 - **Pieces:**
@@ -239,7 +239,7 @@ should not do that. I told it to limit it to open stretches of land and canyon f
     - missing and broken bays, with a ruined end wherever a run breaks off.
   - **Removed:** the carved wall facings, whose caps jutted and whose masonry smeared.
 
-## The fleet (`tools/blender/nahara_fleet.py`, `public/assets/nahara/nahara-craft.glb`)
+## The fleet (`tools/blender/craft_nahara.py`, `public/assets/nahara/nahara-craft.glb`)
 
 Built on the approved fleet toolkit (Umbra and Corona): lofted hulls with knife edges, glow in grooves. The user asked for
 "more detailing and more mechanical like the pillars":
@@ -263,7 +263,7 @@ the Sunspike, 5,000 for the Relic Shield.
 ## Strike sites
 
 Nahara has the ancient worlds' sites in its own sandstone-and-turquoise finish, texture-baked as Corona's
-(`tools/blender/strike_sites.py`, `--finish=nahara`):
+(`tools/blender/sites_strike.py`, `--finish=nahara`):
 - the crash site;
 - the prism reactor;
 - the sealed vault (guarded by a Relic Shield);
@@ -274,7 +274,7 @@ It also has its own **Step Temple** ("a blocky pyramid, aztec style somewhat but
 - the target, a crystal eye in a ring of shards over the summit's altar;
 - a parts site.
 
-## THE CITADEL (`tools/blender/nahara_citadel.py`, `public/assets/nahara/the-citadel-v2.glb`)
+## THE CITADEL (`tools/blender/boss_citadel.py`, `public/assets/nahara/the-citadel-v2.glb`)
 
 The user supplied a Tripo temple ("fantasy temple citadel boss ... its a stationary one"). Its adaptation (v1) was rejected:
 "its color is off ... I would expect you to reuse some of the existing brick and arc models on the boss so it seems
@@ -289,7 +289,7 @@ shapes (user: "keep it kit built, but obviously you can still take shapes etc fr
 - **Targets:** the crown of turquoise crystal panels round the drum (core), the two lanterns (first pair), the emblem
   (prow). Positions in `src/content/citadel.ts`, measured by the script (`lookdev/nahara/citadel/citadel-v2-report.json`).
 - **Size:** 5.1 over the plateau (the spire cap, under the flight plane); 58,600 triangles; texture-baked in Nahara's
-  sandstone (`boss_remodel` STYLES), 8.2 MB.
+  sandstone (`lib_solids` STYLES), 8.2 MB.
 - It stands still (`BossDefinition.stationary`, `CarrierStyle.still`); its terrain exclusion is only its plaza. It stands
   in its arena before the fight and after it (a wreck), never rises or sinks, and only explodes when it falls.
 - **Awakening** (14 November; user: "when we arrive at the boss it takes a tad too long until the boss fight starts even

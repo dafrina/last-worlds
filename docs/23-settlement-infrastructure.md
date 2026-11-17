@@ -182,13 +182,13 @@ Conventions shared by all assets: glTF, +Y up, 1 unit = 1 game unit, **−Z = fo
 
 | GLB | Builder | Nodes | Size | Materials | Loaded by | Fallback |
 | --- | --- | --- | --- | --- | --- | --- |
-| `khepri/khepri-infra.glb` | `tools/blender/khepri_infra.py` (14 Oct) | 16 | 1,041 KiB, 12.0k tris | `khepri_infra` (vertex colour), `khepri_light` (amber) | `scene.ts:437` → `terrain.setInfra` | `createFallbackInfra` |
-| `shared/industrial-kit.glb` | `tools/blender/shared_industrial.py` | 15 | 396 KiB | `shared_metal`, `shared_paint`, `shared_light`; COLOR_0 = masks (AO, wear, dust), planet palette at runtime | `scene.ts:442` | `createFallbackShared` |
-| `vesper/vesper-infra.glb` | `tools/blender/vesper_infra.py` | 11 | 421 KiB | `vesper_ceramic`, `vesper_glow` | `ensurePlanet('vesper')` (`terrain-view.ts:526`) | `createFallbackVesperInfra` |
+| `khepri/khepri-infra.glb` | `tools/blender/kit_khepri_infra.py` (14 Oct) | 16 | 1,041 KiB, 12.0k tris | `kit_khepri_infra` (vertex colour), `khepri_light` (amber) | `scene.ts:437` → `terrain.setInfra` | `createFallbackInfra` |
+| `shared/industrial-kit.glb` | `tools/blender/kit_industrial.py` | 15 | 396 KiB | `shared_metal`, `shared_paint`, `shared_light`; COLOR_0 = masks (AO, wear, dust), planet palette at runtime | `scene.ts:442` | `createFallbackShared` |
+| `vesper/vesper-infra.glb` | `tools/blender/kit_vesper_infra.py` | 11 | 421 KiB | `vesper_ceramic`, `vesper_glow` | `ensurePlanet('vesper')` (`terrain-view.ts:526`) | `createFallbackVesperInfra` |
 | `shared/facility-compounds.glb` | `tools/blender/cinematic_assets.py` `facilities()` (19 Oct, via live MCP) | 6 | 3,705 KiB | `{khepri,vesper,nacre}_facility_{plate,frame,glow}` | `facility-view.ts:22` | none (legacy emplacements) |
-| `nacre/nacre-kit.glb` (ruins) | `nacre_kit.py`, re-exported by `cinematic_assets.py` `terrain()` | 6 ruin kinds | 1,446 KiB | `nacre_ruin`, `nacre_glow`, `nacre_rock` | `ensurePlanet('nacre')` | `src/render/nacre-kit.ts` |
-| `shared/loot-props.glb` (wrecks) | `tools/blender/loot_props.py` | 3 wreck nodes | 272 KiB | `prop_*` | `scene.ts:266` | none |
-| `khepri/khepri-kit.glb` | `khepri_kit.py`, re-exported by `cinematic_assets.py` | natural kit (rocks, columns, crystals) | 650 KiB | `khepri_basalt`, `khepri_mineral` | `scene.ts` | `createFallbackKit` |
+| `nacre/nacre-kit.glb` (ruins) | `kit_nacre.py`, re-exported by `cinematic_assets.py` `terrain()` | 6 ruin kinds | 1,446 KiB | `nacre_ruin`, `nacre_glow`, `nacre_rock` | `ensurePlanet('nacre')` | `src/render/nacre-kit.ts` |
+| `shared/loot-props.glb` (wrecks) | `tools/blender/props_loot.py` | 3 wreck nodes | 272 KiB | `prop_*` | `scene.ts:266` | none |
+| `khepri/khepri-kit.glb` | `kit_khepri.py`, re-exported by `cinematic_assets.py` | natural kit (rocks, columns, crystals) | 650 KiB | `khepri_basalt`, `khepri_mineral` | `scene.ts` | `createFallbackKit` |
 
 ### 2.2 Khepri infrastructure (`khepri-infra.glb`)
 

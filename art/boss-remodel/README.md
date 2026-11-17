@@ -4,10 +4,10 @@ The user disliked the decimated v4 imports of their three supplied GLBs ("they l
 
 | Boss | Runtime file | Triangles (on screen) | Vertices | Draw calls, live (all) | Size (textures) | Builder |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| WARDEN-1 | `public/assets/luna/warden-v5-remodel.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/remodel_warden.py` |
-| BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 21,648 | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/remodel_bastion.py` |
+| WARDEN-1 | `public/assets/luna/warden-v5-remodel.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/boss_warden.py` |
+| BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 21,648 | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/boss_bastion_hull.py` |
 | HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,892 | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
-| THE VEIL | `public/assets/nacre/the-veil-v6-remodel.glb` (24 October; v5 had the bow pods) | 14,760 (13,302) | 26,009 | 14 (19) | 3.5 MB (2.3) | `tools/blender/remodel_veil.py` |
+| THE VEIL | `public/assets/nacre/the-veil-v6-remodel.glb` (24 October; v5 had the bow pods) | 14,760 (13,302) | 26,009 | 14 (19) | 3.5 MB (2.3) | `tools/blender/boss_veil.py` |
 | THE CRADLE (24 October, over the user's Tripo reference) | `public/assets/amnion/the-cradle-v1.glb` | 49,592 (live parts) | | | 3.2 MB (no textures) | `tools/blender/remodel_cradle.py` |
 
 How to read the columns:
@@ -22,7 +22,7 @@ For comparison, the v4 imports:
 
 The Warden's v3 study had 10,220 triangles and 1.1 MB.
 
-## Method (`tools/blender/boss_remodel.py`)
+## Method (`tools/blender/lib_solids.py`)
 
 1. **Tracing paper.** The supplied model is placed in game space (`PLACEMENT`; the Bastion at ×9.6, which is 20% larger than v4). `trace()` then outlines any box of it from the top, side or front view and simplifies the outline to clean corner points. `print_height_map()` prints roof heights as a grid. These numbers were symmetrised and rounded, then used to author clean faceted solids (`Solids`: lofts, prisms, cylinders, gears). Each solid gets a single crisp chamfer and smooth shading split at 40°.
 2. **Rig contract.** The node names, pivots and wreck variants are the ones each view already drives. Each weak point sits where the 55° camera ray through its combat target meets the armour (`ray_y`). Hatches, petals and the spire halves clear the core ray when they open. `tests/world/cinematic-assets.test.ts` checks all of this.
@@ -53,7 +53,7 @@ Run the builds headless. Each takes about 45–75 s, mostly the Cycles bake.
 
 ```bash
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \
-  --python "$(wslpath -w tools/blender/remodel_run.py)" -- bastion|ark|veil|warden [--no-export] [--no-preview] [--compare]
+  --python "$(wslpath -w tools/blender/run_build.py)" -- boss_warden|boss_veil|boss_bastion_hull [--no-export] [--no-preview] [--compare]
 ```
 
 `--compare` writes the source-versus-remodel sheet (game camera, top, side, front) to `lookdev/boss-remodel/<boss>-v5-compare.png`. Copies of the final sheets are in this folder.

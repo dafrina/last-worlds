@@ -22,7 +22,7 @@ Runtime sources: `src/content/wraith.ts`, `src/content/balance.ts`, `src/sim/wra
 
 ## Models
 
-Both are authored in an isolated live Blender MCP scene by `tools/blender/phase_predators.py`. Existing boss scenes and Claude's Umbra terrain/kit assets are preserved. Exports explicitly use the active scene and selected hierarchy, preventing unrelated open Blender scenes from entering a GLB.
+Both are authored in an isolated live Blender MCP scene by `tools/blender/craft_brood_heavy.py`. Existing boss scenes and Claude's Umbra terrain/kit assets are preserved. Exports explicitly use the active scene and selected hierarchy, preventing unrelated open Blender scenes from entering a GLB.
 
 | Asset | Root | Triangles | File bytes | Design |
 | --- | --- | ---: | ---: | --- |
@@ -53,6 +53,6 @@ Active hunter shields absorb main Seeker hits at 20% effectiveness: five times t
 
 ## Wraith presentation v2 · 27 October 2026
 
-`public/assets/umbra/wraith-v2.glb` is the larger swept-wing black/violet fighter based on the user's latest reference: a spear nose, scalloped wings, raised engine shoulders, dorsal fins and recessed violet filaments. Authored/exported through live Blender MCP with `tools/blender/wraith_v2.py` in an isolated scene. It has 11,312 triangles and is 312,232 bytes; v1 remains available for rollback by changing the loader filename. No hitbox or attack timing changed.
+`public/assets/umbra/wraith-v2.glb` is the larger swept-wing black/violet fighter based on the user's latest reference: a spear nose, scalloped wings, raised engine shoulders, dorsal fins and recessed violet filaments. Authored/exported through live Blender MCP with `tools/blender/craft_wraith.py` in an isolated scene. It has 11,312 triangles and is 312,232 bytes; v1 remains available for rollback by changing the loader filename. No hitbox or attack timing changed.
 
 The existing 0.2-second transit now collapses the model at departure and expands it at arrival through small dark disks with violet rims. It no longer slides visibly across the field. The feint, three-shot timing, post-arrival delay, cooldown and hunter repetition remain unchanged.

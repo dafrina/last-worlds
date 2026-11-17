@@ -158,7 +158,7 @@ function* umbraScatterSteps(seed: number, startS: number, size: number, terrain:
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   // Landmarks: the faction's structures on open plateau, well back from the crevasses, on a sparse site lattice.
   const LANDMARKS = ['umbMonolith', 'umbPylon', 'umbGate', 'umbReactor', 'umbObelisk', 'umbDock'] as const;
-  // Scale and height of each structure, after the kit's comparison sheet with the concept (tools/blender/umbra_kit.py).
+  // Scale and height of each structure, after the kit's comparison sheet with the concept (tools/blender/kit_umbra.py).
   const LANDMARK_SIZE: Readonly<Record<(typeof LANDMARKS)[number], readonly [number, number]>> = {
     umbMonolith: [3, 3.6], umbPylon: [2.6, 3.9], umbGate: [3.4, 4.4], umbReactor: [2.6, 3.1], umbObelisk: [1.8, 3.4], umbDock: [2.6, 2.2],
   };

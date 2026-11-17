@@ -3,7 +3,7 @@ import { ECLIPSE } from './eclipse';
 /**
  * THE CITADEL, Nahara's boss (docs/39; user, 13 November: "fantasy temple citadel boss ... its a stationary one"): a
  * rotunda on a rock in the canyon, built of Nahara's ruin kit with the user's Tripo model as its shape guide
- * (public/assets/nahara/the-citadel-v2.glb, tools/blender/nahara_citadel.py). It never moves (BossDefinition.stationary);
+ * (public/assets/nahara/the-citadel-v2.glb, tools/blender/boss_citadel.py). It never moves (BossDefinition.stationary);
  * it stands in place from the start and awakens on arrival. Its fight is THE ECLIPSE's with Nahara's own attacks (src/content/bosses.ts); its
  * targets: the two lanterns (the first pair), the emblem at the centre of the drum's rings (the third first-phase target,
  * the prow) and the crown of turquoise panels round the drum (the core). Positions: each target's visible centre projected

@@ -21,7 +21,7 @@ export const HELION_ARK = {
   bridgeRadius: 1,
   /**
    * The two side deck superstructures of the user's new Ark model (helion-ark-v6-approved.glb, 24 October), measured in
-   * tools/blender/approved_ark.py; they stand behind the bridge (the v5 remodel's radiators sat at x 2.75, s -0.5).
+   * tools/blender/boss_ark.py; they stand behind the bridge (the v5 remodel's radiators sat at x 2.75, s -0.5).
    */
   radiatorOffset: 2.98,
   radiatorS: 2.97,

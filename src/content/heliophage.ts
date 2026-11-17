@@ -2,12 +2,12 @@ import { ECLIPSE } from './eclipse';
 
 /**
  * THE HELIOPHAGE, Corona's boss (docs/37): the user's Tripo GLB, adapted (public/assets/corona/the-heliophage-v1-approved.glb,
- * tools/blender/approved_heliophage.py), lying flat with its spires away from the player and its claws toward them, 16
+ * tools/blender/boss_heliophage.py), lying flat with its spires away from the player and its claws toward them, 16
  * units wide (user, 5 November: "Make it 16 units wide, the eclipse is the final boss"), its depth squashed so it hovers
  * between the plateau and the flight plane. Its fight is THE ECLIPSE's (user: "same gameplay"); only where its targets
  * stand comes from its own model: the two armoured blocks' vent grilles (the first pair), the central tower's glowing
  * column (the third first-phase target, as THE ECLIPSE's prow vent) and the caged molten core.
- * Positions are the targets' visible centres relative to the core (approved_heliophage.py report, rounded), on a target
+ * Positions are the targets' visible centres relative to the core (boss_heliophage.py report, rounded), on a target
  * plane at the targets' height.
  */
 export const HELIOPHAGE = {

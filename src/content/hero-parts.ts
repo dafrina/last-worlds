@@ -3,7 +3,7 @@ import type { HeroDesign, HeroLook, HeroSlot, RunConfig, ShipId } from '../share
 /**
  * Modular hero ships (docs/31): each chassis (ship) is built from four part slots. A remodelled chassis
  * (HERO_REMODELLED; user, 29 October) has five designs per slot, clean remodels over the user's Tripo models with their
- * finish baked on, one file per design (public/assets/shared/hero/<ship>-<design>.glb, tools/blender/hero_remodel.py).
+ * finish baked on, one file per design (public/assets/shared/hero/<ship>-<design>.glb, tools/blender/hero_parts.py).
  * Every chassis is remodelled; a chassis outside HERO_REMODELLED would offer three designs. Cosmetic only: the hit region,
  * handling and gun origins never depend on the parts. The single runtime source for slots, designs, prices and the
  * default paint.
@@ -24,7 +24,7 @@ export const HERO_DESIGN_PRICES: Readonly<Record<HeroDesign, number>> = { a: 0, 
 export const HERO_DESIGN_PARTS: Readonly<Record<HeroDesign, number>> = { a: 0, b: 1, c: 1, d: 1, e: 1 };
 /**
  * The models' own colours: what a look without paint shows. A remodelled chassis gives the median of its baked paint and
- * rust (tools/blender/hero_remodel.py prints them per design); a recolour finds them by colour.
+ * rust (tools/blender/hero_parts.py prints them per design); a recolour finds them by colour.
  */
 export const HERO_DEFAULT_PAINT: Readonly<Record<ShipId, { primary: number; secondary: number; glow: number }>> = {
   scrapper: { primary: 0x948b80, secondary: 0x704b38, glow: 0x78f9f1 },

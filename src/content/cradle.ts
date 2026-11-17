@@ -5,7 +5,7 @@ import { OVERLOAD_FRACTION } from './boss-phases';
  * ribbed shell, the bone spires and the egg clutches are scenery. Pressure as THE VEIL's (Amnion starts at Nacre's
  * intensity): aimed spore bursts from the sacs, then the heart alternates a fixed fan with an aimed burst and sends
  * hatchling waves from its brood bays, then overload lanes and a spiral over its own hit columns.
- * Its own model since 24 October 2026 (public/assets/amnion/the-cradle-v2-approved.glb, tools/blender/approved_cradle.py): it rises
+ * Its own model since 24 October 2026 (public/assets/amnion/the-cradle-v2-approved.glb, tools/blender/boss_cradle.py): it rises
  * out of a flesh canyon, hovers, opens its heart's shutters and launches hatchlings from bays in its base.
  */
 export const CRADLE = {
@@ -29,7 +29,7 @@ export const CRADLE = {
   // Hit radii shrink less than the model (0.85 and 1.2 before), so the smaller targets stay as fair to hit.
   sacRadius: 0.72,
   heartRadius: 1.0,
-  // Within about half a unit of the user's GLB (tools/blender/approved_cradle.py): the egg projects to s 0.77 and the flank
+  // Within about half a unit of the user's GLB (tools/blender/boss_cradle.py): the egg projects to s 0.77 and the flank
   // flesh bulges to x -1.75/1.82, s -0.83/-0.25 (the model is asymmetric). Closer values pulled the overload fan's outer
   // bolts onto the screen edges with one through the middle, a seal the fairness rules forbid (tests/sim/fairness).
   sacOffset: 2.17,

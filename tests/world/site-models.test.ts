@@ -12,7 +12,7 @@ const TRIANGLES_PER_FINISH = 7000;
 const CORES: Partial<Record<SiteId, readonly [number, number][]>> = { 'sealed-vault': [[-1.06, -.42], [1.06, -.42], [0, 1.06]] };
 const CAMERA = new Vector3(0, Math.sin(VIEW.elevation * Math.PI / 180), Math.cos(VIEW.elevation * Math.PI / 180));
 
-describe('strike-site models (docs/33 § 6, tools/blender/strike_sites.py)', () => {
+describe('strike-site models (docs/33 § 6, tools/blender/sites_strike.py)', () => {
   it('model every site on every world it appears on', () => {
     // A world with a stand-in wears that world's finish (none since Nahara's own, 13 November, docs/39).
     for (const id of SITE_IDS) expect(SITE_MODELS[id]?.finishes, id).toEqual(SITES[id].worlds.filter(world => !FINISH_STAND_INS[world]));

@@ -6,7 +6,7 @@ Run through Blender MCP (it switches the window's scene, so not headless):
     sys.path.insert(0, r'\\\\wsl.localhost\\Ubuntu\\home\\davidfarina\\Projects\\alien-skies\\tools\\blender')
     import kit_refinement; importlib.reload(kit_refinement).terrain()
 
-terrain() builds every piece with nacre_kit.py, vesper_kit.py and khepri_kit.py and exports
+terrain() builds every piece with kit_nacre.py, kit_vesper.py and kit_khepri.py and exports
 public/assets/{nacre,vesper,khepri}/<world>-kit.glb with the refinement: Nacre's membranes darker (light in the hearts and
 ribs) on blue-grey rock with angular talus splinters at the crags; Vesper's ridges and cliffs with leaned pressure slabs;
 Khepri's basalt with sharper chamfers. Running one of those kit scripts on its own exports the kit before the refinement.
@@ -16,8 +16,8 @@ were retired, and that script was removed on 17 November.
 import bpy, os, sys, random, json
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(__file__))
-import vesper_common as vc
-import khepri_kit as kit
+import lib_hardsurface as vc
+import kit_khepri as kit
 
 def scene(name):
     previous = bpy.data.scenes.get('Last Worlds — ' + name)
@@ -46,7 +46,7 @@ def export(path, objects):
 
 def terrain():
     # Rebuild from the editable authored source, with tighter chamfers and additional major fracture planes.
-    import nacre_kit as nk, vesper_kit as vk, importlib
+    import kit_nacre as nk, kit_vesper as vk, importlib
     nk=importlib.reload(nk)
     scene('Nacre fractured terrain')
     # Membranes are translucent-looking teal surfaces, with light concentrated in the heart and fine ribs.
