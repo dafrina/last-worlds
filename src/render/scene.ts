@@ -13,7 +13,7 @@ import { createFacilityView } from './facility-view';
 import { createSiteView } from './site-view';
 import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type Projectile, type RunState } from '../shared/contracts';
 import { PLANETS, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, setSunBehind, sunBehind, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
-import { AMNION_PLATEAU } from '../world/terrain-amnion';
+import { WALKER } from './cradle-walker';
 import { UMBRA_PLATEAU } from '../world/terrain-umbra';
 import { CITADEL_AT } from '../world/terrain-nahara';
 import { arenaStopDistance } from '../sim/boss';
@@ -1181,7 +1181,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ark = createArkView(scene);
   const warden = createWardenView(scene);
   const veil = createCarrierView(scene);
-  const cradle = createCarrierView(scene, CRADLE_STYLE);
+  // THE CRADLE walks (cradle-walker.ts): its feet sample the terrain when they plant (the run's seed and world, set below).
+  let walkerSeed = 0;
+  const cradle = createCarrierView(scene, CRADLE_STYLE, { ground: (x, s) => surfaceHeight(walkerSeed, x, s, terrain.world), low: () => quality === 'low' });
   const eclipse = createCarrierView(scene, ECLIPSE_STYLE), heliophage = createCarrierView(scene, HELIOPHAGE_STYLE), citadel = createCarrierView(scene, CITADEL_STYLE);
   /**
    * The hovering bosses (carrier-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
@@ -1195,7 +1197,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let citadelFallen: number | null = null, citadelSeen = -Infinity;
   const HOVERING_BOSSES = [
     { view: veil, id: 'veil', ground: undefined, style: VEIL_STYLE },
-    { view: cradle, id: 'cradle', ground: AMNION_PLATEAU + CRADLE_STYLE.hover, style: CRADLE_STYLE },
+    // THE CRADLE stands on its canyon's floor.
+    { view: cradle, id: 'cradle', ground: WALKER.floor, style: CRADLE_STYLE },
     { view: eclipse, id: 'eclipse', ground: UMBRA_PLATEAU + ECLIPSE_STYLE.hover, style: ECLIPSE_STYLE },
     { view: heliophage, id: 'heliophage', ground: UMBRA_PLATEAU + HELIOPHAGE_STYLE.hover, style: HELIOPHAGE_STYLE },
     // THE CITADEL stands on Nahara's arena plateau (the same level as Umbra's).
@@ -1684,6 +1687,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. THE CRADLE's island rises
         // out of the flesh canyon its arena digs (src/world/terrain-amnion.ts, `emergence`) and hovers over the plateau:
         // its seat is raised by the hover, so its target plane still projects onto the logical rows.
+        walkerSeed = state.config.seed;
         for (const { view, id, ground: plateau, style } of HOVERING_BOSSES) {
           // (A rig may stand in for another boss: `stands`.)
           const mine = !!boss && (boss.id === id || !!style.stands?.includes(boss.id)), ground = plateau ?? world.planet.seaLevel ?? 0, height = style.content.targetHeight;
