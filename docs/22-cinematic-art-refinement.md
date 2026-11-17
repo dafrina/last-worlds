@@ -1,6 +1,8 @@
 # Material, terrain and carrier refinement — 19 October 2026
 
-**Later boss update (20 October):** [the approved imported GLBs](../art/approved-bosses/README.md) supersede this document's VEIL asset, budget and build command. Use `approved_bosses.py` for Veil, Bastion and Ark; `boss_references.py` remains current only for Warden. `cinematic_assets.py` remains current for hero, facilities and terrain. The completed two-size facility work below is retained unchanged.
+**17 November:** the scripts, tools, previews and retired models this record names were deleted (docs/08, 17 November; git history keeps them). The refined terrain kits are built by `tools/blender/kit_refinement.py`.
+
+**Later boss update (20 October):** the approved imported GLBs (their handoff notes, `art/approved-bosses/`, since deleted) supersede this document's VEIL asset, budget and build command. Use `approved_bosses.py` for Veil, Bastion and Ark; `boss_references.py` remains current only for Warden. `cinematic_assets.py` remains current for hero, facilities and terrain. The completed two-size facility work below is retained unchanged.
 
 This pass follows the user's October 18 reference: violet metallic crescent armour, black machinery, teal inlays, recessed pod bays and a rocky, luminous mire. It extends the existing game presentation; simulation, difficulty, saves, weapon patterns and target sockets are unchanged.
 
