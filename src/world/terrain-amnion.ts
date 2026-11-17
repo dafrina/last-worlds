@@ -250,7 +250,8 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
   const ground: Landform & { tone: number } = {
     // `channel` carries the massif weight (the terrain grid keeps only its known fields; Amnion's colour reads it).
     // A ruin's courtyard floor: flesh, cracked with yolk fissures, a glowing pool at its heart.
-    height: clamp(mix(mix(floor, top, m.plateau), RUIN_FLOOR + (slab.offset - slab.crack * 0.1) * 0.6, m.pit), -5, 2.4),
+    height: clamp(mix(mix(floor, top, m.plateau), RUIN_FLOOR + (slab.offset - slab.crack * 0.1) * 0.6, m.pit), -5, 2.4)
+      - (row.arena ? cradleTerrace(seed, row.arena, x, s) * TERRACE_DEPTH : 0),
     elevation: m.plateau * (1 - m.pit * 0.85), channel: m.massif,
     pool: Math.max(pools * (1 - m.plateau), m.pit * (1 - smoothRange(0.18, 0.34, m.ruin)) * 0.9),
     vein, vein2, veins: Math.max(fissures, m.pit * smoothRange(0.35, 0.55, noise(seed ^ 0xa1e7, x * 0.3, s * 0.3))), tone: crust,
@@ -259,19 +260,37 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
 }
 
 /**
- * THE CRADLE's ground (17 November; user: "make its body sit lower ... I dont like it being in the basin idk"; it rose out of a
- * flesh canyon from 23 October, then stood in a brood basin): Amnion's own plateau crust, at the level the player flies over,
- * only settled where the walking hive stands (src/render/cradle-walker.ts): a band across the arena round its stance where
- * the crevasses are filled and the massifs, tiers and ruin pits levelled, so its feet plant on crust and no chasm opens under
- * it. The crust keeps its plates, cracks and egg hollows; outside the band the planet's ground is as everywhere.
+ * THE CRADLE's ground (17 November; it rose out of a flesh canyon from 23 October, then briefly stood in a dark brood basin;
+ * user: "Maybe another approach is to have a lower plateau than the normal terrain? i mainly disliked the dark canyon grounds,
+ * but if its just lighting like the normal terrain it may just sit lower"): a lowered terrace of Amnion's own plateau crust
+ * across the arena, a shelf of the same pale ground with its plates, cracks and egg hollows, its colour and light, stepping
+ * down from the plateau in two broken, wandering slopes. Only as deep as the walking hive needs (its top 6.9 over its feet,
+ * tools/blender/boss_cradle.py) to stand 0.5 under the flight plane. Round its stance the crevasses are filled and the
+ * massifs, tiers and ruin pits levelled, so its feet plant on crust and no chasm opens under it.
  */
-// Its stance: the body stands about 0.6 past the clearing's centre (its visual plane over this ground projects onto its row),
-// its feet about 4.5 toward the player and away, with 0.8 of surge either way; it can be pulled anywhere across the arena.
-export const CRADLE_GROUND = { ahead: 0.6, halfS: 6.2, fade: 3, floor: PLATEAU + 0.15 } as const;
-/** How settled the ground is at (x, s) for THE CRADLE: 1 in its band, fading out over `fade`, and along the arena's own fade. */
+// Its stance: the body stands about 2 past the clearing's centre (its visual plane over this floor projects onto its row),
+// its feet about 6 toward the player and away, with 0.8 of surge either way; it can be pulled anywhere across the arena.
+// The terrace's floor spans them (halfS), its two steps (each about 1.4 down over `step`) wander outside it.
+export const CRADLE_GROUND = { ahead: 2, halfS: 7.2, step: 1.7, gap: 1.6, fade: 3, floor: -3.7 } as const;
+/** The terrace's depth under the plateau: its floor at CRADLE_GROUND.floor where the plateau crust lies. */
+const TERRACE_DEPTH = PLATEAU - CRADLE_GROUND.floor;
+const terraceDs = (arena: TerrainArena, s: number) => s - arena.fromS - ARENA_CLEARING.centre - CRADLE_GROUND.ahead;
+/** How settled the ground is at (x, s) for THE CRADLE: 1 over its terrace and its slopes, fading out beyond, and along the arena. */
 export function cradleGround(arena: TerrainArena, x: number, s: number): number {
-  const G = CRADLE_GROUND, ds = Math.abs(s - arena.fromS - ARENA_CLEARING.centre - G.ahead);
-  return arenaWeight(arena, s) * (1 - smoothRange(G.halfS, G.halfS + G.fade, ds)) * (1 - smoothRange(WORLD_HALF + 1, WORLD_HALF + 4, Math.abs(x)));
+  const G = CRADLE_GROUND, ds = Math.abs(terraceDs(arena, s)), reach = G.halfS + G.gap + 2 * G.step;
+  return arenaWeight(arena, s) * (1 - smoothRange(reach, reach + G.fade, ds)) * (1 - smoothRange(WORLD_HALF + 1, WORLD_HALF + 4, Math.abs(x)));
+}
+/**
+ * How far down the terrace is at (x, s), 0 (the plateau) to 1 (its floor): two steps of half its depth each, their edges
+ * wandering along x (a broad and a finer zigzag per side, a little apart for the two steps), so it never reads as one wall.
+ */
+export function cradleTerrace(seed: number, arena: TerrainArena, x: number, s: number): number {
+  const G = CRADLE_GROUND, ds = terraceDs(arena, s), side = ds > 0 ? 1 : 0, out = Math.abs(ds) - G.halfS;
+  if (out > G.gap + 2 * G.step + 1.5) return 0;
+  const wander = (salt: number) => 0.9 * zigzag(seed ^ salt, x / 3.3, side) + 0.35 * zigzag(seed ^ (salt + 1), x / 1.1, side);
+  const lower = 1 - smoothRange(0, G.step, out + wander(0xa6e1));
+  const upper = 1 - smoothRange(0, G.step, out - G.gap - G.step * 0.5 + wander(0xa6e3));
+  return arenaWeight(arena, s) * (lower + upper) / 2;
 }
 
 /* ---------------------------------------------------------------- colour */
@@ -291,7 +310,8 @@ function amnionColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
   const P = AMNION_PALETTE, { seed, s } = row;
   const fine = noise(seed ^ 0x52c1, x * 1.3, s * 1.3), crust = point.tone ?? 0.5;
   const lip = smoothRange(0.75, 1, point.elevation) * (1 - smoothRange(0.98, 1, point.elevation)), steep = smoothRange(1, 2.2, slope);
-  const hollow = smoothRange(0.2, 0.5, (PLATEAU + 0.1 - point.height) * point.elevation) * smoothRange(0.95, 1, point.elevation);
+  const shelf = row.arena ? cradleTerrace(seed, row.arena, x, s) * TERRACE_DEPTH : 0;
+  const hollow = smoothRange(0.2, 0.5, (PLATEAU - shelf + 0.1 - point.height) * point.elevation) * smoothRange(0.95, 1, point.elevation);
   // Canyon walls are flesh (below the plateau lip); mountain flanks are darker, stained bone, their crests pale.
   const canyon = 1 - smoothRange(0.85, 0.98, point.elevation), flank = steep * (1 - canyon) * smoothRange(0.1, 0.4, point.channel);
   for (let c = 0; c < 3; c++) {

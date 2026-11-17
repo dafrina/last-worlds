@@ -18,8 +18,8 @@ export const WALKER = {
    * the camera rays through their unchanged combat targets at this height; boss_cradle.py TARGET_Z). The simulation's own
    * CRADLE.targetHeight is unchanged.
    */
-  targetHeight: 2.6,
-  /** It stands on Amnion's crust, settled under it (src/world/terrain-amnion.ts CRADLE_GROUND): its seat's ground level. */
+  targetHeight: 4,
+  /** It stands on its lowered terrace of Amnion's crust (src/world/terrain-amnion.ts CRADLE_GROUND): its seat's ground level. */
   floor: CRADLE_GROUND.floor,
   /** Body pieces merged into one mesh, and the leg segments in their order. */
   bodyParts: ['body', 'carapace', 'underside', 'vents', 'heart_cavity', 'body_core'],

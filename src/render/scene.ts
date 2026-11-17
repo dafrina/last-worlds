@@ -1683,8 +1683,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       {
         // THE VEIL hovers over the mire: its target plane sits VEIL.targetHeight above the water. THE CRADLE walks crouched
-        // on Amnion's crust, settled under it (src/world/terrain-amnion.ts, `cradleGround`): its visual plane over that
-        // ground projects onto the logical rows.
+        // on a lowered terrace of Amnion's crust (src/world/terrain-amnion.ts, `cradleTerrace`): its visual plane over that
+        // floor projects onto the logical rows.
         walkerSeed = state.config.seed;
         for (const { view, id, ground: plateau, style } of HOVERING_BOSSES) {
           // (A rig may stand in for another boss: `stands`.)

@@ -32,13 +32,13 @@ export interface GaitTuning {
   /** Arc height of a lifted foot. */
   lift: number;
 }
-// (Crouched since 17 November: its feet plant beyond the rest pose's reach, wide, the knees arching over the low body.)
-export const GAIT: GaitTuning = { stance: -.15, swing: .62, swingFast: .3, reach: .95, lift: .8 };
+// (Crouched since 17 November: its feet plant at about the rest pose's reach, wide, the knees arching over the low body.)
+export const GAIT: GaitTuning = { stance: .05, swing: .62, swingFast: .3, reach: 1.15, lift: 1 };
 /** Death: legs buckle one after another from BUCKLE.start, the body falls from FALL.start and strikes the ground at FALL.impact. */
-// (The crouched body falls its last 0.9 onto the ground: user, 17 November, "when it crashes it will be finally laying on the
-// ground".)
-export const BUCKLE = { start: .5, stagger: .13, duration: .55, slide: .9 } as const;
-export const FALL = { start: 1.15, impact: 1.85, settle: 2.3, drop: .9, pitch: .08, roll: -.04, rebound: .06 } as const;
+// (The crouched body falls its last 1.6 flat onto the ground: user, 17 November, "when it crashes it will be finally laying
+// on the ground".)
+export const BUCKLE = { start: .5, stagger: .13, duration: .55, slide: 1.4 } as const;
+export const FALL = { start: 1.15, impact: 1.85, settle: 2.3, drop: 1.6, pitch: .08, roll: -.04, rebound: .08 } as const;
 /** Leg order of the buckling (a front leg, a back one across, ...), and the two tetrapod groups (indices 0-3 left, 4-7 right). */
 const BUCKLE_ORDER = [1, 6, 4, 3, 0, 7, 5, 2] as const;
 export const GROUPS = [[0, 5, 2, 7], [4, 1, 6, 3]] as const;

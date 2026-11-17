@@ -169,8 +169,8 @@ describe('Blender cinematic asset contracts',()=>{
       // Hips on the crouched body; the rest pose's claws reach a little under the ground (the view plants them on it, so
       // the knees arch higher); the leg spans out from the body.
       expect(joints[0].y, `leg ${k} hip`).toBeGreaterThan(2);
-      expect(joints[4].y, `leg ${k} foot`).toBeGreaterThan(-1); expect(joints[4].y, `leg ${k} foot`).toBeLessThan(0);
-      expect(Math.hypot(joints[4].x, joints[4].z), `leg ${k} reach`).toBeGreaterThan(2.5);
+      expect(joints[4].y, `leg ${k} foot`).toBeGreaterThan(-2); expect(joints[4].y, `leg ${k} foot`).toBeLessThan(0);
+      expect(Math.hypot(joints[4].x, joints[4].z), `leg ${k} reach`).toBeGreaterThan(4);
       // Left legs (0-3) left of the body, right legs mirrored.
       expect(Math.sign(joints[4].x), `leg ${k} side`).toBe(k < 4 ? -1 : 1);
     }

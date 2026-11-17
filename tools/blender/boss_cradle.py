@@ -35,17 +35,15 @@ import lib_solids as br
 SRC = os.path.join(br.ROOT, 'art', 'source', 'bosses', 'cradle-walker-original.glb')
 W = 10.0                 # working units per source unit
 # The crouched walker (user, 17 November: "make its body sit lower, when it crashes it will be finally laying on the
-# ground"): it stands on the plateau the player flies over, so it is built at SIZE of its first scale (1.45 game units per
-# working unit) and its whole frame stands DROP lower on its feet, the body hanging near the ground between high knees,
-# its top well under the flight plane. Its brood chambers keep their places on the targets (x +-2.17), larger.
-SIZE = .55
-G = 1.45 * SIZE          # game units per working unit
-DROP = .6                # how far the frame is lowered below its rest pose's feet (the view plants the feet on the ground)
-TOP = 4.05               # the highest any part may stand over its feet's ground (the flight plane 3.8 over a -0.75 floor)
+# ground"), at its full size: its whole frame stands DROP lower on its feet, the body hanging near the ground between high
+# knees. It stands on a lowered terrace of Amnion's crust (src/world/terrain-amnion.ts CRADLE_GROUND), deep enough that its
+# top and every leg joint through a walk stay 0.5 under the flight plane (tests/world/cinematic-assets.test.ts).
+G = 1.45                 # game units per working unit
+DROP = 1.2               # how far the frame is lowered below its rest pose's feet (the view plants the feet on the ground)
+TOP = 7.0                # the highest any part may stand over its ground (CRADLE_GROUND.floor is set from it)
 TAN = math.tan(math.radians(35))
-TARGET_Z = 2.6           # the visual target plane over the floor (WALKER.targetHeight in the view)
-HEART_AT = (-.45, 4.2)   # working (y, z) of the heart: under the middle of the dorsal crest
-CHAMBER_Z = 1.25         # the brood chambers' centres over the ground: slung low on the flanks
+TARGET_Z = 4.0           # the visual target plane over the floor (WALKER.targetHeight in the view)
+HEART_Z = 4.2            # working height of the heart, under the dorsal crest
 SAC_X, SAC_S, HEART_S = 2.17, -0.28, 1.26
 BUDGET = 80000
 TAU = 2 * math.pi
@@ -418,16 +416,16 @@ def build(export=True, preview=True):
     print('sacs', {k: (v[0].round(3).tolist(), round(v[1], 3)) for k, v in sacs.items()})
     sac_c = (sacs['left'][0] * np.array([-1, 1, 1]) + sacs['right'][0]) / 2
     # Placement: the sacs' centres onto their targets' camera rays; working -> game is x G, then this offset.
-    # Placement: the heart under the crest's middle on its target's camera ray (the crouched, smaller body sets the body by
-    # its heart: at this scale the chambers' rays fall a body-length ahead of the heart's), the chambers on theirs.
-    y_off = ray_y(HEART_AT[1] * G - DROP, HEART_S) - HEART_AT[0] * G
+    # Placement: the sacs' centres onto their targets' camera rays (the heart's ray then falls under the crest).
+    y_off = ray_y(sac_c[2] * G - DROP, SAC_S) - sac_c[1] * G
     offset = np.array([0, y_off, -DROP])
     # Only the sac's own shell (near the fitted sphere), not the body behind it.
     sac_mask = {side: np.abs(np.linalg.norm(fc - v[0], axis=1) - v[1]) < .12 for side, v in sacs.items()}
     sac_cut = {side: np.linalg.norm(fc - v[0], axis=1) < v[1] + .06 for side, v in sacs.items()}
     # The crest over the heart (the tall dorsal plate): the heart's armour, cut in two halves hinged on their outer edges.
     crest = inside & (np.abs(fc[:, 0]) < .62) & (fc[:, 1] > -1.15) & (fc[:, 1] < .05) & (fc[:, 2] > 4.25)
-    heart_y, heart_z = HEART_AT
+    heart_z = HEART_Z
+    heart_y = (ray_y(heart_z * G - DROP, HEART_S) - y_off) / G   # working y of the heart on its ray
     print('offset y %.3f; heart working (0, %.3f, %.2f)' % (y_off, heart_y, heart_z))
     # Body masks (inside the flanks, not the sacs or the crest), split by height.
     body = inside & ~sac_cut['left'] & ~sac_cut['right'] & ~crest
@@ -484,21 +482,22 @@ def build(export=True, preview=True):
     for side in ('left', 'right'):
         centre_w, r_w = sacs[side]
         # On its target's ray at its own height, out at the target's x (the smaller body leaves the sac nearer its middle).
-        # Slung low on its flank, out at the target's x, on the target's ray at that height.
-        cg = np.array([SAC_X if side == 'right' else -SAC_X, ray_y(CHAMBER_Z, SAC_S), CHAMBER_Z])
+        # At its sac, out at the target's x, on the target's ray at that height.
+        cz = float(centre_w[2] * G - DROP)
+        cg = np.array([SAC_X if side == 'right' else -SAC_X, ray_y(cz, SAC_S), cz])
         loops = (ls[sac_mask[side]][:, None] + np.arange(3)[None, :]).ravel()
         lp = (co[fv[sac_mask[side]].ravel()] - centre_w)
         dirs = lp / np.maximum(np.linalg.norm(lp, axis=1, keepdims=True), 1e-6)
         out = 1 if side == 'right' else -1
         for name, sag in (('cradle_pod_' + side, None), ('cradle_pod_%s_wreck' % side, True)):
-            objects.append(chamber(name, cg, r_w * G * 2.0, dirs, uv[loops], mat, sc, out, wreck=bool(sag)))
+            objects.append(chamber(name, cg, r_w * G * 1.3, dirs, uv[loops], mat, sc, out, wreck=bool(sag)))
     # The heart: a glowing core on its camera ray, in a dark cavity under the crest.
     hc = Vector((0, heart_y * G + y_off, heart_z * G - DROP))
-    heart = lathe('cradle_heart', tuple(hc), [(z * .95, r * .95) for z, r in [(-.62, 0), (-.52, .3), (-.38, .5), (-.15, .62), (.1, .62), (.32, .52), (.52, .34), (.66, .14), (.72, 0)]], 16, mat, sc, uv_sac)
+    heart = lathe('cradle_heart', tuple(hc), [(z * 1.25, r * 1.25) for z, r in [(-.62, 0), (-.52, .3), (-.38, .5), (-.15, .62), (.1, .62), (.32, .52), (.52, .34), (.66, .14), (.72, 0)]], 16, mat, sc, uv_sac)
     objects.append(heart)
     hw = heart.copy(); hw.data = heart.data.copy(); hw.name = 'cradle_heart_wreck'; sc.collection.objects.link(hw)
     hw.data.transform(Matrix.Diagonal((.85, .85, .55, 1))); objects.append(hw)
-    cavity = lathe('cradle_heart_cavity', tuple(hc + Vector((0, 0, -.2))), [(z * .78, r * .78) for z, r in [(.7, 1.05), (.2, .95), (-.35, .7), (-.7, .3), (-.8, 0)]], 12, mat, sc, uv_dark, inward=True)
+    cavity = lathe('cradle_heart_cavity', tuple(hc + Vector((0, 0, -.2))), [(.7, 1.05), (.2, .95), (-.35, .7), (-.7, .3), (-.8, 0)], 12, mat, sc, uv_dark, inward=True)
     cavity.data.transform(Matrix.Diagonal((1.0, 1.45, 1.0, 1)))
     objects.append(cavity)
     # A dark flesh core filling the body, so the cuts where its own legs and sacs came off never show through.
@@ -512,9 +511,9 @@ def build(export=True, preview=True):
         pts = to_game(co[fv[mask].ravel()], offset)
         low = pts[pts[:, 2] < pts[:, 2].min() + .3].mean(0)
         hinge = (sgn * np.abs(pts[:, 0]).max() * .8, low[1], low[2])
-        # Flattened to 0.7 of its height over its foot, so the crouched hive's top stays low.
+        # Flattened to 0.85 of its height over its foot, so the crouched hive's top stays low.
         base = Vector((0, 0, float(pts[:, 2].min())))
-        flat = Matrix.Translation(base) @ Matrix.Diagonal((1, 1, .7, 1)) @ Matrix.Translation(-base)
+        flat = Matrix.Translation(base) @ Matrix.Diagonal((1, 1, .85, 1)) @ Matrix.Translation(-base)
         o = part('cradle_heart_shutter_%d' % k, mask, hinge, n_target(mask, 1400), xform=flat)
         out = Vector((sgn, 0, 0))
         phi = math.atan2(out.x, -out.y)
