@@ -4,7 +4,7 @@ import { snapshot } from './launch';
 
 const stats = async (page: Page) => JSON.parse(await page.locator('canvas.flight-canvas').getAttribute('data-render-stats') ?? '{}');
 
-test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot start a stale flight', async ({ page }, info) => {
+test('cold Vesper launch waits for the stronghold and facility atlases; cancellation cannot start a stale flight', async ({ page }, info) => {
   test.setTimeout(90000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await seedCampaign(page);
