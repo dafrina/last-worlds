@@ -1,28 +1,71 @@
-# Prototype integration contract
+# Implementation contract
 
-The user authorized agents to begin implementation on 13 October 2026. This is M0/M1 plus the procedural-world foundation required for the MVP, not an assertion that the full MVP is finished.
+The module boundaries, the core APIs and the conventions every change keeps. The folder map is in the
+[README](../README.md#where-things-are); the target architecture and budgets are in [technical design](05-technical-design.md).
 
-Latest decisions override earlier procedural-combat proposals: generate terrain, scenery, and world layout in the MVP. Author enemy designs, complete encounter compositions, timing, attack patterns, and battles. Endless replays an explicitly authored escalating combat schedule over seeded, streaming world sections. No random battle synthesis or random encounter selection. Procedural hero assembly is deferred for later consideration. GitHub Pages is the authorized static deployment target after verification. The current art pass improves the existing Khepri prototype; the three-planet release remains Khepri, Nacre, and Vesper.
+## Rules that shape the code
 
-Weapon families retain distinct firing behavior: fixed straight volleys, a fixed-angle fan, and a homing family with its own forward acquisition envelope. A main weapon starts firing only with a valid visible target. Homing is an intentional property of that family, not a universal aiming correction. These rules apply to both modes and projected ground targets.
+- **Generated worlds, authored battles** (invariant 8): terrain, scenery and world layout come from seeds; enemy designs,
+  encounters, battle sequences and attacks are authored. Endless replays an authored escalating schedule (the encounter
+  deck, [docs/33](33-strike-sites-and-encounter-deck.md)) over seeded streaming sections; nothing assembles battles at
+  random. Procedural hero assembly is deferred.
+- **Weapon families keep their behaviour** (invariant 2): straight volleys, a fixed fan, a homing family with its own
+  envelope, and the piercing Rail Driver. A main weapon fires only with a valid visible target.
+- **The simulation is independent of presentation:** no Three.js, DOM or browser API in `src/sim/` or `src/content/`;
+  rendering reads simulation state and never mutates it; effects never decide damage or loot.
+- **Determinism:** a fixed 60 Hz step (`STEP`), seeded streams (`src/shared/streams.ts`, one salt per system: the
+  encounter deck, hunters, site parts…), stable entity IDs, bounded pools. `Math.random()` only for cosmetic effects whose
+  stream cannot reach the simulation. Graphics quality never changes collision timing.
+- **One source per number:** balance and content live in `src/content/`; tests and docs cite the constant.
 
-## Ownership
+## Modules and their APIs
 
-- Integrator: `src/shared/contracts.ts`, bootstrap/package/config, `src/main.ts`, docs, final validation.
-- Combat agent: `src/sim/`, `src/content/`, `tests/sim/`.
-- World/render agent: `src/world/`, `src/render/`, `tests/world/`.
-- Controls/UI agent: `src/input/`, `src/ui/`, `tests/input/`.
+Shared types and constants: `src/shared/contracts.ts` (`RunConfig`, `RunState`, `InputFrame`, `GameRenderer`, `VIEW`,
+`STEP`, `PLAYER_HIT_RADIUS`, ids).
 
-All agents read AGENTS.md and the relevant design chapters. Work in the shared checkout; do not create chats, repositories, publish, or edit another owner's paths. Propose shared-contract changes to the integrator. Do not add dependencies or run installs independently.
+| Module | Entry points | Boundary |
+| --- | --- | --- |
+| Simulation, `src/sim/` | `createRun(config)`, `stepRun(state, input, dt = STEP)` in `game.ts` | Pure; paused or ended runs never advance |
+| Content, `src/content/` | Balance, equipment, missions, bosses, encounters, the endless schedule | Data and pure schedules; no browser |
+| Observation, `src/sim/events.ts` | `RunState.events`, appended when an observer attached it | Write-only: the run never reads it, so observed and unobserved runs are identical (invariant 13) |
+| World, `src/world/` | Seeded terrain, routes (`runRoute`, `run-route.ts`), settlements, scatter | Pure; never reads combat state or RNG |
+| Renderer, `src/render/` | `createRenderer(canvas): GameRenderer` in `scene.ts` | Renders state, prepares assets per world, never mutates the run |
+| Input, `src/input/` | `createInput(surface, specialButton, tilt?, shipX?)` in `controls.ts`, `createTiltSource` in `tilt.ts` | Produces `InputFrame`s; the special's pointer never steers |
+| UI, `src/ui/` | `createUi(root, actions)` in `game-ui.ts` | Menus, hangar, HUD, results; per-projectile state never goes into the DOM |
+| Campaign, `src/campaign/` | `createCampaignProfile`, `campaignConfig`, `endlessConfig` (`profile.ts`); the mission board (`missions.ts`) | The save and the side missions; endless never writes it |
+| Audio, `src/audio/` | `createGameAudio` in `engine.ts` | Listens to state and events; never affects play |
+| App, `src/main.ts` | The frame loop | Fixed-step accumulator, launch warp, pause and visibility, orientation |
+| Dev only | `src/dev-hooks.ts` (`window.__LAST_WORLDS__`), `src/playground/` (`playground.html`) | Dropped from production builds |
 
-## APIs
+## Coordinates
 
-Shared types/constants are in `src/shared/contracts.ts`.
+- **Combat plane:** `x` lateral (the world is `VIEW.worldWidth` wide, centred on 0), `s` forward from the player's row
+  (player at `s = 0`). The view spans `VIEW.minS` to `VIEW.maxS` around `RunState.cameraX` ([docs/10](10-wide-map-and-camera.md)).
+  Every warning, acquisition and visibility test uses `VIEW` translated by `cameraX`; nothing derives its own tactical
+  rectangle.
+- **Render space:** airborne entities at `(x, VIEW.flightHeight, -s)`.
+- **Ground targets:** an enemy's `s` is always its logical combat-plane position. Its model sits on the terrain where the
+  camera ray through that point meets the ground, through the release lens (`src/shared/lens.ts`, `rayPlacement` in
+  `src/render/scene.ts`), so model and target share a pixel ([docs/05 § 3](05-technical-design.md)).
+- **Motion:** `RunState.scrollSpeed` is the current scroll (render and streaming read it, not `VIEW.scrollSpeed`);
+  `RunState.pace` scales ship, enemy and camera motion (endless ramps it).
 
-- Simulation exports `createRun(config): RunState`, `stepRun(state, input, dt = STEP): void` from `src/sim/game.ts`. No browser or renderer imports. Pause is controlled by app phase; paused/ended states cannot advance. Campaign has the 120-second training sortie plus Rolling Thunder (`mission: 'bastion'`) ending in a required fortress kill and extraction. `RunState.boss` owns encounter phases; `Enemy.bossPart` and `damageable` identify shared combat targets. See [the M2 increment](15-bastion-slice.md). Endless uses a repeating authored playlist and increasing 90-second sectors; no campaign profile input. All campaign config weapons/missions are ignored for endless start.
-- Renderer exports `createRenderer(canvas): GameRenderer` from `src/render/scene.ts`. It renders mutable simulation state without mutating it. Seeded terrain is independent of combat state/RNG, retained in a bounded section window. Render enemies at flight height except turret whose visual core uses ground proxy mapping. Handle cameraX, ground targets, warnings, bullets, pickups, and temporary effects. Use authored mesh designs, not randomly generated ships.
-- UI exports `createUi(root, actions): GameUi` from `src/ui/game-ui.ts`; input exports `createInput(surface, specialButton): GameInput` from `src/input/controls.ts`. Root app wires actions/phase and animation. UI manages title, campaign training / endless launch, optional campaign difficulty/weapon selectors, pause/results, minimal HUD, and temporary hints. No locked or fake unfinished campaign shop. Label this build as a flight prototype in the menu.
+## Boss views
 
-Render coordinates are `(x, VIEW.flightHeight, -s)` for airborne entities (3.8 since 14 October; previously 3). `VIEW.worldWidth` = 24 since 21 October (camera ±6; 30 and camera ±9 from 15 October) and `VIEW.playerRadius` = 0.42 since 15 October. The additive fields are `RunState.scrollSpeed` (the current terrain scroll; render and streaming read this, not `VIEW.scrollSpeed`), `RunState.pace` (the endless pace ramp), `BossState.vx`/`vs`, and `FormationMember.group`. The terrain API takes an optional `TerrainArena` (`terrainHeight`, `terrainSample`, the stream, and `terrain.update`). Enemy `s` is always logical combat-plane position; turret actual ground s = logical s - (coreHeight-3)*cot(55°). Player s=0. All warnings/acquisition use VIEW bounds translated by cameraX. Use shared VIEW rather than independently deriving different tactical rectangles.
+Each boss has its own view module (`bastion-view.ts`, `ark-view.ts`, `warden-view.ts`, `carrier-view.ts` for the carrier
+bosses) and its model file and builder are listed in `src/render/boss-assets.ts`. Rig marker nodes inside the GLBs (for
+example `ark_approved_v6`) are identifiers the views look for.
 
-No full campaign economy/save progression, boss production asset, PWA/offline guarantee, or phone-validation claim is required to call this prototype implemented. Record those later gates honestly in build-status.md. Procedural terrain and playable endless foundation are required now.
+- Every view hides its root and clears its particles when another boss owns the encounter; carrier pod batches reset to
+  zero and draw only for their own active boss and placement.
+- The playground loads a level under a revision token and publishes it only once its assets are ready, so a late load
+  never restores an earlier selection.
+- `tests/browser/faction-regressions.spec.ts` renders every boss in one renderer and checks pod ownership and toggling.
+
+## Adding content
+
+A new world, enemy or boss touches, in order: its content data (`src/content/`), the simulation if it has new behaviour
+(with focused tests in `tests/sim/`), the world profile (`src/world/terrain-<world>.ts`, `terrain-planet.ts`), the
+Blender model and its builder, the view, audio, and the world's doc. The worlds added so far (Amnion, Corona, Nahara,
+Umbra) are worked examples ([docs/27](27-amnion-brood-wastes.md), [docs/37](37-corona-dying-star.md),
+[docs/39](39-nahara-silent-empire.md), [docs/28](28-umbra-eternal-eclipse.md)).
