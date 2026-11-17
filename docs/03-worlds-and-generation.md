@@ -18,7 +18,7 @@ Worlds are `PlanetId` in `src/shared/contracts.ts`; each has a terrain profile i
 | **Khepri**, the Rust Expanse | Ochre dust, columnar basalt mesas and canyons, turquoise mineral seams, graphite industry | Alignment, aimed shots, alternating lanes; ground batteries; a few scripted Lancers introduce beams | Rolling Thunder | BASTION-9, a tracked fortress | [docs/13](13-khepri-world.md), [docs/15](15-rolling-thunder-and-bastion-9.md) |
 | **Vesper**, the Glass Frontier | Snowy ice shelves, sheer blue-grey ice walls, a deep blue sea with pack ice | Narrow locked beams, alternating wing volleys, missiles down their own columns; precise commitment windows | Cold Vector | HELION ARK, a sea carrier | [docs/17](17-vesper-glass-frontier.md) |
 | **Nacre**, the Luminous Mire | Indigo mire between ragged islands, black crags, a glowing jungle, the ruins of its builders | Sine-flight weaver columns, Needle beams, the Pulsar's tracking stream, overlapping rhythms | Deep Bloom | THE VEIL, a crescent-winged alien carrier | [docs/20](20-nacre-luminous-mire.md) |
-| **Amnion**, the Brood Wastes | Pale bone plateaus, flesh canyons with glowing yolk, bone mountains, egg clutches | Drone flights, nest spires and spore mortars, egg sacs, brood heavies; red hostile shots | Brood Strike | THE CRADLE, a living nest-fortress | [docs/27](27-amnion-brood-wastes.md) |
+| **Amnion**, the Brood Wastes | Pale bone plateaus, flesh canyons with glowing yolk, bone mountains, egg clutches | Drone flights, nest spires and spore mortars, egg sacs, brood heavies; acid-green hostile shots | Brood Strike | THE CRADLE, a living nest-fortress | [docs/27](27-amnion-brood-wastes.md) |
 | **Corona**, the Dying Star | Radiant plasma seas meandering between black magnetic rock, flare arcs | The late fleet with the Wraith and the Skimmer | Dying Star | THE HELIOPHAGE | [docs/37](37-corona-dying-star.md) |
 | **Nahara**, the Silent Empire | Sandstone canyons and ruin districts of a vanished civilisation, moving sand | Skimmers (Echo Split), Relic Shields (armour), Wraiths; walls and boomerangs from the boss | Silent Empire | THE CITADEL, a stationary temple | [docs/39](39-nahara-silent-empire.md) |
 | **Umbra**, the Eternal Eclipse | Shattered obsidian plates under an eclipse, crevasses falling into violet fog, floating shards | The Wraith's home world; the whole late fleet | Final Horizon | THE ECLIPSE, the final boss | [docs/28](28-umbra-eternal-eclipse.md) |
@@ -116,7 +116,7 @@ shape (`BossDefinition` in `src/content/bosses.ts`, each boss's numbers in `src/
 - **Health:** each module's base hit points, times the difficulty (or the endless ramp), times `BOSS_TOUGHNESS.hp`, and
   in the campaign times the mission's `MISSION_PRESSURE.bossHp`.
 - **Overload moves:** each boss cycles its own `overloadMoves`: lanes over its core column, over both side columns, or
-  a cross (core plus one side, alternating), plus shot moves (aimed burst, fixed fan, spiral, and on Nahara's and
+  a cross (core plus one side, alternating), plus shot moves (aimed burst, fixed fan, spiral, and on Corona's, Nahara's and
   Umbra's bosses the Fracture Wave and Boomerang Barrage). A move the fairness director rejects is skipped.
 - **Fairness:** every boss attack passes the same exclusion check as squadron attacks (§7). The boss holds still while
   its own lanes charge and fire, and while a spiral unwinds, so lanes stay under the columns that fired them.

@@ -109,9 +109,9 @@ A whole weapon (levels 2–5) costs 2,500 credits and 18 parts.
 
 ## Currencies and income
 
-**Credits** are the main currency. **Parts** are the rare second one: they come only from strike sites in the campaign
-([docs/33](33-strike-sites-and-encounter-deck.md) § 3), one pickup per part, counted in `RunState.parts`; endless never
-drops one. No other currency exists (invariant 7).
+**Credits** are the main currency. **Parts** are the rare second one: in flight they come only from strike sites in the campaign
+([docs/33](33-strike-sites-and-encounter-deck.md) § 3), one pickup per part, counted in `RunState.parts`, and many side
+missions pay parts as their reward ([docs/35](35-missions.md)); endless never drops one. No other currency exists (invariant 7).
 
 A run's payout (`REWARDS`, `CREDIT_SCALE`, `CREDIT_MULTIPLIER`; `payout` in `src/campaign/profile.ts`), with C the
 collected credits (enemy drops, strike-site loot, full-shield cells), B the boss reward if the boss fell, M the difficulty

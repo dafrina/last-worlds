@@ -44,8 +44,9 @@ blocks and arches (`tools/blender/kit_nahara.py`) in the shape of the Tripo mode
 
 - Node names, pivots and wreck variants are the ones each boss view drives (`src/render/bastion-view.ts`, `ark-view.ts`,
   `warden-view.ts`, `carrier-view.ts`). Each GLB carries a marker node the view looks for: `warden_remodel_v5`,
-  `bastion_remodel_v5`, `ark_approved_v6`, `veil_remodel_v6`, `cradle_approved_v2`, `eclipse_approved_v1` (these names are
-  identifiers, not version labels to update).
+  `bastion_remodel_v5`, `ark_approved_v6`, `veil_remodel_v6`, `cradle_approved_v2`, `eclipse_approved_v1`,
+  `heliophage_approved_v1` (these names are identifiers, not version labels to update). THE CITADEL, built of the ruin kit,
+  has none.
 - Every weak point sits where the game camera's ray through its combat target meets the armour (`ray_y`), and hatches,
   petals and shutters clear that ray when they open.
 - `tests/world/cinematic-assets.test.ts` checks the contracts: node names, weak points on their rays, footprints and
