@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { HELION_ARK } from '../../src/content/ark';
 import { VIEW } from '../../src/shared/contracts';
-import { toFlightPlane } from '../../src/shared/lens';
+import { lensEye, toFlightPlane } from '../../src/shared/lens';
 import { createRun } from '../../src/sim/game';
 import { startBoss } from '../../src/sim/boss';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { STRONGHOLD_FOOTPRINT, createStrongholdView } from '../../src/render/stronghold-view';
 import { STRONGHOLD_AT, VESPER_SEA_LEVEL } from '../../src/world/terrain-vesper';
+import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from '../../src/world/stronghold-seat';
+import { terrainHeight } from '../../src/world/terrain';
 import { asset, stubGltfDecoding } from '../helpers/assets';
 
 stubGltfDecoding();
@@ -41,6 +43,46 @@ describe('HELION STRONGHOLD placement', () => {
       expect(breech.s - muzzle.s).toBeGreaterThan(2);
     }
   });
+
+  it('fits the ground to the model\'s measured top (src/world/stronghold-seat.ts holds the model as built)', async () => {
+    const model = await asset(BOSS_ASSETS.ark);
+    model.updateMatrixWorld(true);
+    const meshes: THREE.Object3D[] = [];
+    model.traverse(object => { if ((object as THREE.Mesh).isMesh && !/wreck|chamber|core|gun|muzzle/.test(object.name)) meshes.push(object); });
+    const ray = new THREE.Raycaster();
+    let differ = 0;
+    SEAT_ROWS.forEach((row, j) => {
+      for (let i = 0; i < row.length; i++) {
+        ray.set(new THREE.Vector3(-SEAT_X + i * SEAT_STEP, 30, STRONGHOLD_AT - (SEAT_A + j * SEAT_STEP)), new THREE.Vector3(0, -1, 0));
+        const hit = ray.intersectObjects(meshes, false)[0];
+        const measured = hit ? String.fromCharCode(48 + Math.round((VESPER_SEA_LEVEL + hit.point.y + 4) * 10)) : '.';
+        if (measured !== row[i]) differ++;
+      }
+    });
+    expect(differ).toBe(0);
+  }, 60_000);
+
+  it('leaves its weak points in sight from the lens at the camera\'s centre and both extremes (no ground on the lines of sight)', async () => {
+    const model = await asset(BOSS_ASSETS.ark);
+    model.updateMatrixWorld(true);
+    const points = ['stronghold_core_aim', 'stronghold_gun_left', 'stronghold_gun_right', 'stronghold_muzzle_left', 'stronghold_muzzle_right']
+      .map(name => model.getObjectByName(name)!.getWorldPosition(new THREE.Vector3()));
+    const stop = 1075.25, from = stop - 9;   // Cold Vector's stop and arena (tests/world/terrain-vesper.test.ts)
+    for (const seed of [7, 93, 8831]) {
+      const world = { planet: 'vesper' as const, arena: { fromS: from, toS: stop + 35 } };
+      for (const camera of [-(VIEW.worldWidth - VIEW.width) / 2, 0, (VIEW.worldWidth - VIEW.width) / 2]) {
+        const eye = lensEye(camera);
+        for (const p of points) {
+          // The point in the lens frame (s past the player's row at the stop), then down its line of sight from the eye.
+          const target = { x: p.x, y: VESPER_SEA_LEVEL + p.y, s: SEAT - p.z };
+          for (let k = 1; k < 200; k++) {
+            const t = k / 200, x = eye.x + (target.x - eye.x) * t, y = eye.y + (target.y - eye.y) * t, s = eye.s + (target.s - eye.s) * t;
+            expect(terrainHeight(seed, x, stop + s, world), `${seed} camera ${camera} ${t}`).toBeLessThan(y);
+          }
+        }
+      }
+    }
+  }, 60_000);
 
   it('draws its rings and brackets on the targets and its scenery exclusion over the fortress', async () => {
     const scene = new THREE.Scene(), view = createStrongholdView(scene);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE, DIFFICULTIES, ENEMIES, FAIRNESS, GROUND_KINDS, THREAT_COST, difficultyScales } from '../../src/content/balance';
 import { HELION_ARK } from '../../src/content/ark';
 import { BASTION } from '../../src/content/bastion';
+import { BOSSES } from '../../src/content/bosses';
 import { ALERT_LEAD, cueAlert, cueRoster, type EncounterCue } from '../../src/content/encounters';
 import { CAMPAIGN_DECKS, ENDLESS_DECKS, resolvePlaylist, resolveTemplate, slotAt } from '../../src/content/encounter-deck';
 import { FORMATIONS, FORMATION_IDS, slotFlies, type FormationTemplate } from '../../src/content/formations';
@@ -59,6 +60,9 @@ describe('authored formation content', () => {
   });
 
   it('keeps every member inside the view while its authored windup can start, and staggers volleys', () => {
+    // A bay squadron is launched from its boss's row (src/sim/boss.ts): the nearest row of the bosses that launch it
+    // (HELION STRONGHOLD's moved to 9 on 17 November; every squadron was anchored at its row before).
+    const bayRow = (id: string) => Math.min(...Object.values(BOSSES).filter(boss => boss.launches?.template === id).map(boss => boss.row));
     for (const id of ids) {
       const template = FORMATIONS[id];
       if (template.harmless) continue;
@@ -73,12 +77,12 @@ describe('authored formation content', () => {
           if (!holds) continue;
           const radius = ENEMIES[slot.kind].radius;
           for (let t = template.fireFrom; t <= template.fireUntil; t += 0.05) {
-            const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0, anchorS: template.entry === 'bay' ? HELION_ARK.row : undefined }, (slot.lag ?? 0) + t);
+            const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0, anchorS: template.entry === 'bay' ? bayRow(id) : undefined }, (slot.lag ?? 0) + t);
             expect(Math.abs(at.x), `${id} slot ${index} in view at path time ${t.toFixed(2)}`).toBeLessThanOrEqual(VIEW.width / 2 - radius - 0.2);
           }
         }
         for (const { slot, index } of flying) {
-          const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0, anchorS: template.entry === 'bay' ? HELION_ARK.row : undefined }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
+          const at = memberPosition({ template: id, slot: index, anchorX: 0, mirror: 1, group: 0, anchorS: template.entry === 'bay' ? bayRow(id) : undefined }, (slot.lag ?? 0) + template.fireFrom + slot.fire);
           const radius = ENEMIES[slot.kind].radius;
           expect(Math.abs(at.x), `${id} slot ${index} lateral`).toBeLessThanOrEqual(VIEW.width / 2 - radius - 0.2);
           expect(at.s, `${id} slot ${index} forward`).toBeGreaterThan(3.5);

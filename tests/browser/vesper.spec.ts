@@ -24,7 +24,7 @@ test('campaign offers Cold Vector on Vesper and launches it without browser erro
 const stronghold = (page: import('@playwright/test').Page) => page.locator('canvas.flight-canvas').getAttribute('data-render-stats')
   .then(text => (JSON.parse(text ?? '{}') as { ark?: { visible: boolean; model: string } }).ark);
 
-test('HELION STRONGHOLD stands in its cliff, fights through its phases without moving and leaves its wreck as Cold Vector completes', async ({ page }) => {
+test('HELION STRONGHOLD stands in its mountain, fights through its phases without moving and leaves its wreck as Cold Vector completes', async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -32,14 +32,14 @@ test('HELION STRONGHOLD stands in its cliff, fights through its phases without m
   await page.evaluate(() => window.__LAST_WORLDS__!.launch({ mode: 'campaign', mission: 'cold-vector', seed: 7, difficulty: 'standard', weapon: 'pulse' }));
   await flying(page);
   const hooks = (fn: string, arg?: number) => page.evaluate(([f, a]) => { const L = window.__LAST_WORLDS__!; if (f === 'advance') L.advance(a!); else (L as unknown as Record<string, () => void>)[f](); }, [fn, arg] as const);
-  // The arena scrolls in: the fortress already stands in its cliff before its fight (no glide-in).
+  // The arena scrolls in: the fortress already stands in its mountain before its fight (no glide-in).
   await hooks('advance', 188);
   await expect.poll(async () => (await stronghold(page))?.visible, { timeout: 20_000 }).toBe(true);
   expect((await stronghold(page))?.model).toBe('glb');
   expect((await snapshot(page)).boss).toBeNull();
   await hooks('advance', 9);
   let state = await snapshot(page);
-  expect(state.boss).toMatchObject({ id: 'ark', phase: 'batteries', x: 0, s: 11.5 });
+  expect(state.boss).toMatchObject({ id: 'ark', phase: 'batteries', x: 0, s: 9 });
   for (const [move, phase] of [['killFlanks', 'core'], ['bossOverload', 'overload'], ['killBoss', 'destroyed']] as const) {
     await hooks(move); await hooks('advance', 1.5);
     state = await snapshot(page);

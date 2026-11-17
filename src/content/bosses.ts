@@ -56,7 +56,7 @@ export interface BossDefinition {
   targetHeight: number;
   /**
    * A boss that never moves (THE CITADEL, a temple on the ground; user, 13 November: "its a stationary one"; HELION
-   * STRONGHOLD, a fortress in a cliff, 17 November): no sway or surge (its arena's are zero), no glide-in (it enters at its
+   * STRONGHOLD, a fortress in a mountain face, 17 November): no sway or surge (its arena's are zero), no glide-in (it enters at its
    * row) and no pull toward a fleeing pilot (src/sim/boss.ts pullBoss).
    */
   stationary?: boolean;
@@ -171,7 +171,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     },
   },
   ark: {
-    // HELION STRONGHOLD (docs/17 §5, docs/43): a fortress in Vesper's cliff, so it never moves (the flying HELION ARK swayed
+    // HELION STRONGHOLD (docs/17 §5, docs/43): a fortress in a mountain face, so it never moves (the flying HELION ARK swayed
     // and drifted until 17 November); its fight is the Ark's.
     id: 'ark', name: 'HELION STRONGHOLD', stationary: true, hiddenFire: HELION_ARK.terraceGuns,
     arrivesAt: HELION_ARK.arrivesAt, approachEndsAt: HELION_ARK.approachEndsAt, arrivalDuration: HELION_ARK.arrivalDuration,
@@ -194,7 +194,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     messages: {
       start: 'HELION STRONGHOLD · BREAK BOTH CANNONS', batteries: 'BREAK BOTH CANNONS', core: 'REACTOR EXPOSED',
       overload: 'REACTOR OVERLOAD · WATCH THE LANES', destroyed: 'HELION STRONGHOLD DESTROYED · JUMP',
-      approach: 'THE CLIFFS AHEAD · THE STRONGHOLD WAKES',
+      approach: 'THE MOUNTAINS AHEAD · THE STRONGHOLD WAKES',
     },
   },
   warden: {

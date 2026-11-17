@@ -44,7 +44,7 @@ export function rowPoint(row: TerrainRow, x: number): TerrainPoint {
   }
   // The landform object is fresh per call, so it is completed in place instead of copied (less garbage).
   const point = form as TerrainPoint;
-  point.height = clamp(height, TERRAIN_MIN_HEIGHT, TERRAIN_MAX_HEIGHT); point.industrial = industrial;
+  point.height = clamp(height, TERRAIN_MIN_HEIGHT, form.ceiling ?? TERRAIN_MAX_HEIGHT); point.industrial = industrial;
   point.pool = form.pool * (1 - industrial); point.veins = form.veins * (1 - industrial);
   // A boss arena reshapes its clearing, which can reach past a short platform's ramp (arenaReaches).
   if (arenaReaches(row.arena, row.s)) { const weight = arenaAt(row.arena, row.seed, x, row.s); if (weight > 0) planet.arena(row, x, point, weight); }

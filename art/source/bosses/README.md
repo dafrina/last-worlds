@@ -12,7 +12,7 @@ Byte-for-byte copies of the GLBs the user supplied for the bosses. They are the 
 | Tripo (5 November 2026) | `heliophage-tripo-original.glb` | THE HELIOPHAGE: the mesh adapted | `boss_heliophage.py` |
 | fantasy temple citadel (Tripo, 13 November 2026) | `citadel-tripo-original.glb` | THE CITADEL: shape guide only; built of Nahara's ruin kit | `boss_citadel.py` |
 | `monster spider 3d model.glb` (17 November 2026) | `cradle-walker-original.glb` | THE CRADLE (walking brood hive, the boss overhaul of 17 November): adapted into a modular walker (its mesh, UVs and paint kept, its legs cut at their joints) | `boss_cradle.py` |
-| `cf42e8f1-dec1-484b-8892-4a619271fc0e.glb` (17 November 2026) | `stronghold-original.glb` | HELION STRONGHOLD (Vesper's mountain fortress, replacing the flying ARK model): the mesh adapted (its barrels turned toward the player, a reactor chamber added), set into Vesper's cliff | `boss_stronghold.py` |
+| `cf42e8f1-dec1-484b-8892-4a619271fc0e.glb` (17 November 2026) | `stronghold-original.glb` | HELION STRONGHOLD (Vesper's mountain fortress, replacing the flying ARK model): the mesh adapted (its barrels turned toward the player, a reactor chamber added), set into Vesper's mountains | `boss_stronghold.py` |
 
 The source GLBs keep their original 4096² textures; the runtime exports use resized copies. WARDEN-1 has no source model: its design sheet is `art/concepts/boss-sheets/warden.jpg`.
 

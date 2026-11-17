@@ -80,7 +80,7 @@ describe('Blender cinematic asset contracts',()=>{
   } as const;
   // How far each sliding pair of core shutters opens in its view (the carriers' shutters rotate instead).
   // (HELION STRONGHOLD's blast door leaves: tools/blender/boss_stronghold.py, the marker's door_slide.)
-  const slideOf = { veil:0, bastion:1.1, ark:.66, warden:.8, eclipse:0 } as const;
+  const slideOf = { veil:0, bastion:1.1, ark:.76, warden:.8, eclipse:0 } as const;
   // Carriers' shutters swing open about their local x instead (THE VEIL's stone shields 42°, THE ECLIPSE's armour 50°).
   const swingOf: Partial<Record<keyof typeof slideOf, number>> = { veil:42, eclipse:50 };
   for (const spec of [
@@ -92,8 +92,9 @@ describe('Blender cinematic asset contracts',()=>{
       parts:['bastion_gun_left','bastion_gun_right','bastion_forward_cannon_left','bastion_forward_cannon_right','bastion_battery_left_wreck','bastion_battery_right_wreck'],
       shutters:['bastion_core_shutter_a','bastion_core_shutter_b'] },
     // HELION STRONGHOLD (17 November) adapts the user's fortress GLB (tools/blender/boss_stronghold.py): the cannon housings
-    // with their guns, wrecks, the radar, the reactor chamber and its reactor behind the blast door's two leaves, markers.
-    { id:'ark', prefix:'stronghold', core:'stronghold_core', width:{ e1:11.3 },
+    // with their guns, wrecks, the radar, the reactor chamber and its reactor behind the blast door's two leaves, markers. (Grown
+    // 1.15 the same day, about 12.9 wide: the user's "the stronghold needs to be slightly bigger".)
+    { id:'ark', prefix:'stronghold', core:'stronghold_core', width:{ e1:13 },
       parts:['stronghold_gun_left','stronghold_gun_right','stronghold_cannon_left_wreck','stronghold_cannon_right_wreck','stronghold_gun_left_wreck',
         'stronghold_gun_right_wreck','stronghold_core_wreck','stronghold_radar','stronghold_chamber','stronghold_muzzle_left','stronghold_muzzle_right',
         'stronghold_bay_left','stronghold_bay_right','stronghold_core_aim','stronghold_vent_0'],

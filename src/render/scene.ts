@@ -1175,7 +1175,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9; scene.add(mesh);
   }
-  // HELION STRONGHOLD (docs/17 §5), Vesper's boss, stands in the cliff at the head of its arena; its model loads with Vesper.
+  // HELION STRONGHOLD (docs/17 §5), Vesper's boss, stands in a mountain face at the head of its arena; its model loads with Vesper.
   const stronghold = createStrongholdView(scene);
   const warden = createWardenView(scene);
   const veil = createCarrierView(scene);
@@ -1670,7 +1670,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (plan.jump && state.time - state.sectorStartedAt > 8) preload(plan.jump.to);
       }
       const terrainUpdate = performance.now() - terrainStart;
-      // Boss routing: HELION STRONGHOLD stands in Vesper's cliff, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
+      // Boss routing: HELION STRONGHOLD stands in Vesper's mountains, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
       // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
       const boss = state.boss;
       const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle', isEclipse = boss?.id === 'eclipse', isHeliophage = boss?.id === 'heliophage', isCitadel = boss?.id === 'citadel';
@@ -1714,8 +1714,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
         terrain.setExclusion(bastion.footprint(state, bossPlacement));
       } else bastion.update(state, null); // Clear the previous fortress and its FX on every boss/world switch.
-      // HELION STRONGHOLD stands in the cliff at the head of Vesper's arena before and after its fight (intact, then a wreck),
-      // its foot at the sea and its seat fixed in the arena (src/world/terrain-vesper.ts STRONGHOLD_AT; it never moves).
+      // HELION STRONGHOLD stands in the mountain at the head of Vesper's arena before and after its fight (intact, then a
+      // wreck), its foot at sea level and its seat fixed in the arena (src/world/terrain-vesper.ts STRONGHOLD_AT; it never moves).
       const sea = world.planet.seaLevel ?? 0, vesperArena = world.planet.id === 'vesper' ? world.arena : undefined;
       if (state.time < strongholdSeen) strongholdFallen = null;
       strongholdSeen = state.time;

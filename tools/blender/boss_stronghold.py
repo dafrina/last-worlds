@@ -23,7 +23,10 @@ the release lens, centred, sees the radiator targets at the guns' height (x ±3.
 plane); TY puts the core's aim point (seventy per cent up the blast door) on the bridge's orthographic ray, so the rig
 contract's rays (`ray_y`, art/bosses/README.md) meet the cannons and, with the doors open, the reactor. The renderer seats the
 model by the lens (src/world/terrain-vesper.ts STRONGHOLD_AT, the report's `seat`), and each gun then moves along s onto its
-own line of sight (the report's `gun_move`, about 0.2).
+own line of sight (the report's `gun_move`, about 0.15). The whole structure is grown GROW times (user, 17 November: "the
+stronghold needs to be slightly bigger") about a point on the bridge's line of sight at the breeches' height, and each cannon
+assembly is re-seated where its breech was (the report's `reseat`, about 0.5 inward), so no target moves; the boss's row
+is 9 since that day ("the stronghold should move down a bit too").
 
 Left out: the two floating backdrop rock sketches, the flag, the round rock and the small mountain at the left, the plinth's
 cut sides (|x| > CUT_X) and the rock behind the roof (y > CUT_BACK): the rock round the fortress is Vesper's terrain cliff
@@ -71,7 +74,10 @@ AXIS_X = .045                 # the source's symmetry axis (midway between the t
 # at x 0 and the camera rests in its dead zone through most of a fight), so their lanes leave from their muzzles; that sets
 # the scale. The renderer seats the model so the core's aim point sits on the line of sight through the bridge target.
 EYE_Y, EYE_S, FLIGHT = 43.214, -20.823, 3.8
-ROW, SEA = 11.5, -3.6
+ROW, SEA = 9.0, -3.6
+# The structure grown about the core's aim point (user, 17 November: "the stronghold needs to be slightly bigger"); each
+# cannon assembly (housing and gun, grown with it) is then re-seated so its breech stays where the lens sees its target.
+GROW = 1.15
 TZ = -.3                      # the plinth's foot this far under the sea
 # The combat targets (src/content/ark.ts): radiators at x ±2.98, s 2.97; bridge (the core) at s 1.6; target plane 1.6.
 RADIATOR = (2.98, 2.97)
@@ -399,6 +405,19 @@ def build(export=True, preview=True, ty=None):
     for a in axes.values():
         a['pivot'][1] += TY; a['muzzle'][1] += TY
     report['ty'] = TY
+    # Grown about a point on the bridge's line of sight at the breeches' height: the aim point moves along that line (it
+    # stays on it), and the cannon assemblies, re-seated after the split where their breeches were before the growth, move
+    # only across (the structure grows round and behind them, and no gap opens over or under them).
+    zg = float(np.mean([a['pivot'][2] for a in axes.values()]))
+    about = np.array((0.0, door_y - (zg - aim_z) * COT, zg))
+    grow = lambda p: about + (np.asarray(p) - about) * GROW
+    pivots0 = {side: a['pivot'].copy() for side, a in axes.items()}
+    g = grow(g); fcg = grow(fcg)
+    for a in axes.values():
+        a['pivot'] = grow(a['pivot']); a['muzzle'] = grow(a['muzzle']); a['length'] *= GROW
+    door_x *= GROW; door_z = tuple(about[2] + (z - about[2]) * GROW for z in door_z)
+    door_y = float(about[1] + (door_y - about[1]) * GROW); aim_z = float(about[2] + (aim_z - about[2]) * GROW)
+    report['grow'] = dict(factor=GROW, about=about.tolist())
     report['door'] = dict(y=door_y, half_width=door_x, z=door_z, aim_z=aim_z)
     log('scale %.3f, TY %.3f, door y %.3f z %.3f..%.3f' % (SCALE, TY, door_y, door_z[0], door_z[1]))
     mat, glow_fraction = material(src_mat, os.path.join(PREVIEW, 'textures'))
@@ -446,6 +465,9 @@ def build(export=True, preview=True, ty=None):
     for side, can, gun in (('left', can_l, gun_l), ('right', can_r, gun_r)):
         set_origin(can, axes[side]['pivot'])
         gun.parent = can; gun.location = (0, 0, 0)
+        # Re-seated: the grown assembly's breech back where it was before the growth.
+        can.location = Vector(pivots0[side]); axes[side]['pivot'] = pivots0[side].copy()
+        report.setdefault('reseat', {})[side] = (pivots0[side] - grow(pivots0[side])).tolist()
     # Where the renderer seats the model: its origin's s past the player's row at the stop (the aim point on the lens's line
     # of sight through the bridge target; src/world/terrain-vesper.ts STRONGHOLD_AT adds the 9 from the arena's start to the
     # stop). Each gun then moves along s onto its own line of sight (a few tenths: the breech blocks sit deep in the housings).
@@ -458,7 +480,7 @@ def build(export=True, preview=True, ty=None):
         report.setdefault('gun_move', {})[side] = dict(dy=float(dy), x_error=float(abs(a['pivot'][0]) - RADIATOR[0] * tg))
     # Door leaves: origins at their centres (they slide along x).
     for leaf in (door_a, door_b):
-        c = np.array([v.co[:] for v in leaf.data.vertices]).mean(0); set_origin(leaf, c); leaf['slide'] = DOOR_SLIDE * k
+        c = np.array([v.co[:] for v in leaf.data.vertices]).mean(0); set_origin(leaf, c); leaf['slide'] = DOOR_SLIDE * k * GROW
     rc = np.array([v.co[:] for v in radar.data.vertices]); set_origin(radar, (rc[:, 0].mean(), rc[:, 1].mean(), rc[:, 2].min()))
     # Wrecks: the housings crumpled and dark; the guns snapped two thirds along, dark.
     wmat = ae.wreck_material(mat); wmat.name = 'stronghold_wreck'
@@ -496,12 +518,12 @@ def build(export=True, preview=True, ty=None):
     for side, sign in (('left', -1), ('right', 1)):
         m = ae.marker(P + 'bay_' + side); m.location = (sign * (door_x + .45), door_y - .25, door_z[0] + .12); markers.append(m)
     for n, at in enumerate(VENTS):
-        m = ae.marker(P + 'vent_%d' % n); m.location = (at[0] * k, at[1] * k + TY, at[2] * k + TZ); markers.append(m)
+        m = ae.marker(P + 'vent_%d' % n); m.location = Vector(grow((at[0] * k, at[1] * k + TY, at[2] * k + TZ))); markers.append(m)
     aim = Vector((0, door_y, aim_z))
     m = ae.marker(P + 'core_aim'); m.location = aim; markers.append(m)
     report['seat'] = dict(origin_s=seat, stronghold_at=seat + 9, aim=list(aim))
     log('seat', json.dumps(report['seat']), 'gun moves', json.dumps(report['gun_move']))
-    tag = ae.marker(P + 'approved_v1', source_file=os.path.basename(SRC), scale=SCALE, ty=TY, tz=TZ, door_slide=DOOR_SLIDE * k)
+    tag = ae.marker(P + 'approved_v1', source_file=os.path.basename(SRC), scale=SCALE, grow=GROW, ty=TY, tz=TZ, door_slide=DOOR_SLIDE * k * GROW)
     objs = parts + wrecks + [cham, core, corew] + markers + [tag]
     bpy.context.view_layer.update()
     report['triangles'] = ae.tris(objs)

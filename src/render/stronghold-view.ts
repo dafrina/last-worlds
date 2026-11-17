@@ -19,12 +19,12 @@ import { HELION_ARK } from '../content/ark';
  * Presentation only: the cannons charge (their housings and muzzles glow), recoil and vent steam when their lanes fire;
  * the blast door's leaves part when the reactor opens; Needles leave from the hatches beside the door. A destroyed cannon
  * throws sparks, fragments and smoke and its broken barrel sags. At the kill the reactor flares, pipes burst, the radar mast
- * falls, explosions go off inside, then the reactor's light dies; the wreck stays in the cliff.
+ * falls, explosions go off inside, then the reactor's light dies; the wreck stays in its mountain.
  */
 const P = 'stronghold_';
 const PARTS = ['left', 'right', 'core'] as const;
 /** The fortress's plan about its origin (tools/blender/boss_stronghold.py bounds): half width, front (muzzles) and back. */
-export const STRONGHOLD_FOOTPRINT = { halfWidth: 5.6, front: 1.6, back: 6.6 } as const;
+export const STRONGHOLD_FOOTPRINT = { halfWidth: 6.45, front: 1.85, back: 7.4 } as const;
 /** Recoil: how far a gun slides back into its housing when its lane fires, and how fast it runs out again. */
 const RECOIL = { distance: .42, kick: .05, settle: 3.2 } as const;
 /** A broken barrel's sag (radians, nose down) and how long it takes to settle. */
@@ -75,7 +75,7 @@ function modelRig(model: THREE.Group): Rig {
   const radarNode = node('radar');
   const markers = (prefix: string) => { const out: THREE.Vector3[] = []; for (let k = 0; ; k++) { const m = node(`${prefix}${k}`); if (!m) break; out.push(local(m)); } return out; };
   return {
-    model, guns, doors, slide: Number(tag?.userData.door_slide) || .66,
+    model, guns, doors, slide: Number(tag?.userData.door_slide) || .76,
     core: { live: core, wreck: coreWreck, heat: materials.heat.get('core') ?? null, aim: local(node('core_aim')) },
     radar: radarNode ? { object: radarNode, rest: radarNode.rotation.clone(), restY: radarNode.position.y } : null,
     bays: ['left', 'right'].map(side => local(node(`bay_${side}`))), vents: markers('vent_'), lamps: materials.hull,
