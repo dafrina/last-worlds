@@ -481,7 +481,7 @@ def build(export=True, preview=True):
             objects.append(chamber(name, cg, r_w * G * 1.3, dirs, uv[loops], mat, sc, out, wreck=bool(sag)))
     # The heart: a glowing core on its camera ray, in a dark cavity under the crest.
     hc = Vector((0, heart_y * G + y_off, heart_z * G))
-    heart = lathe('cradle_heart', tuple(hc), [(-.62, 0), (-.52, .3), (-.38, .5), (-.15, .62), (.1, .62), (.32, .52), (.52, .34), (.66, .14), (.72, 0)], 16, mat, sc, uv_glow)
+    heart = lathe('cradle_heart', tuple(hc), [(z * 1.25, r * 1.25) for z, r in [(-.62, 0), (-.52, .3), (-.38, .5), (-.15, .62), (.1, .62), (.32, .52), (.52, .34), (.66, .14), (.72, 0)]], 16, mat, sc, uv_sac)
     objects.append(heart)
     hw = heart.copy(); hw.data = heart.data.copy(); hw.name = 'cradle_heart_wreck'; sc.collection.objects.link(hw)
     hw.data.transform(Matrix.Diagonal((.85, .85, .55, 1))); objects.append(hw)
