@@ -22,7 +22,7 @@ export const WALKER = {
   /** It stands on the emergence canyon's floor (src/world/terrain-amnion.ts EMERGENCE): its seat's ground level. */
   floor: EMERGENCE.floor,
   /** Body pieces merged into one mesh, and the leg segments in their order. */
-  bodyParts: ['body', 'carapace', 'underside', 'vents', 'heart_cavity'],
+  bodyParts: ['body', 'carapace', 'underside', 'vents', 'heart_cavity', 'body_core'],
   segments: ['coxa', 'femur', 'tibia', 'tarsus'] as const,
   legs: 8,
 } as const;

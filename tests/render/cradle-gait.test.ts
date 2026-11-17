@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FALL, GROUPS, createGait, solveLeg, type LegRest, type Vec3 } from '../../src/render/cradle-gait';
+import { FALL, GROUPS, WALK_IN, createGait, solveLeg, walkInProgress, walkInReach, type LegRest, type Vec3 } from '../../src/render/cradle-gait';
+import { CRADLE } from '../../src/content/cradle';
 
 // A walker like THE CRADLE's rest pose (rig frame: x right, y up, z toward the player): hips high on the body, the femur
 // reaching out level, the tibia down to an ankle, the claw down to its foot.
@@ -86,6 +87,16 @@ describe('THE CRADLE gait (render-only)', () => {
   it('is deterministic: the same frames give the same poses', () => {
     const run = () => { const gait = createGait(RESTS, { ground: (x, z) => FLOOR + Math.sin(x * .7) * .3 + Math.cos(z * .5) * .2, floor: FLOOR }); return walk(gait, -1.1, 6, 0, 'overload').map(f => f.pose); };
     expect(run()).toEqual(run());
+  });
+
+  it('walks in heavily: never faster than its top speed, done within its arrival', () => {
+    const reach = walkInReach();
+    let fastest = 0;
+    for (let t = 0; t < 4; t += 1 / 120) fastest = Math.max(fastest, reach * (walkInProgress(t + 1 / 120) - walkInProgress(t)) * 120);
+    expect(fastest).toBeLessThanOrEqual(WALK_IN.speed + 1e-6);
+    expect(walkInProgress(0)).toBe(0);
+    expect(walkInProgress(WALK_IN.duration)).toBeCloseTo(1, 9);
+    expect(WALK_IN.duration).toBeLessThan(CRADLE.arrivalDuration);
   });
 
   it('replants on the terrain\'s height where each foot lands', () => {

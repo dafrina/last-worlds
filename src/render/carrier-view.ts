@@ -11,7 +11,7 @@ import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contr
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import { retainBossMaterials } from './boss-materials';
 import { WALKER, createWalkerRig, isWalker, type WalkerRig } from './cradle-walker';
-import { createGait, type GaitMode } from './cradle-gait';
+import { createGait, walkInProgress, walkInReach, type GaitMode } from './cradle-gait';
 
 /**
  * The carrier bosses: THE VEIL, THE CRADLE, THE ECLIPSE, THE HELIOPHAGE and THE CITADEL share this view, each with its own
@@ -310,8 +310,11 @@ function buildRig(style: CarrierStyle): Rig {
  */
 export interface CarrierViewOptions { ground?: (x: number, s: number) => number; low?: () => boolean }
 
-/** THE CRADLE's walk-in (render-only, its arrival): it enters from the side away from the view, ending at its post. */
-const WALK_IN = { reach: 12.5, least: 6, until: 3.4 } as const;
+/**
+ * THE CRADLE's walk-in (render-only, its arrival): it enters from the side away from the view, ending at its post, never
+ * faster than a heavy walk (cradle-gait.ts WALK_IN): from as far as that allows, nearer when the view already looks away.
+ */
+const WALK_IN_FROM = { clear: 12.5, least: 4 } as const;
 /** How far above the old carriers' effect heights THE CRADLE's body stands (its chambers' centres over its floor). */
 const WALKER_FX_LIFT = 2.65;
 
@@ -424,7 +427,7 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; });
         // It walks in from the side away from where the view looks, far enough to start out of sight.
         const away = state.cameraX > boss.x ? -1 : 1;
-        walkIn = boss.phase === 'arrival' ? away * THREE.MathUtils.clamp(WALK_IN.reach - Math.abs(state.cameraX - boss.x), WALK_IN.least, WALK_IN.reach) : 0;
+        walkIn = boss.phase === 'arrival' ? away * THREE.MathUtils.clamp(WALK_IN_FROM.clear - Math.abs(state.cameraX - boss.x), WALK_IN_FROM.least, walkInReach()) : 0;
         buckled = 0;
       }
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
@@ -437,7 +440,7 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
       const sink = destroyed && !style.still && !walking ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
       // A hovering carrier bobs wider and slower on the air it floats on.
       const bob = destroyed || style.still || walking ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
-      const entering = walking && arriving ? walkIn * (1 - THREE.MathUtils.smoothstep(age, 0, WALK_IN.until)) : 0;
+      const entering = walking && arriving ? walkIn * (1 - walkInProgress(age)) : 0;
       root.position.set((placement.x ?? boss.x) + entering, placement.baseHeight - rise * rise * (rig.approved ? APPROVED_RISE : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
       root.updateMatrixWorld(true);
       const sway = style.still || walking ? 0 : 1;
@@ -456,11 +459,11 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
             vz: (hash(k + foot[2] * 3) - .5) * .9, life: 1.6, size: .5, grow: 1.4, alpha: .32, color: fx.steam, drag: 1.4, lift: .1 });
         }
         if (pose.impact) {
-          for (let k = 0; k < (low ? 8 : 22); k++) {
-            const a = k / (low ? 8 : 22) * Math.PI * 2, at = local(Math.cos(a) * 2.6, .2, Math.sin(a) * 2.2);
-            mist.emit({ x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * 2.6, vy: .5 + hash(k) * .6, vz: Math.sin(a) * 2.2, life: 2.6, size: 1.2, grow: 2.6, alpha: .5, color: fx.steam, drag: 1.1, lift: .15 });
+          for (let k = 0; k < (low ? 8 : 18); k++) {
+            const a = k / (low ? 8 : 18) * Math.PI * 2, at = local(Math.cos(a) * 3.4, .15, Math.sin(a) * 2.8);
+            mist.emit({ x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * 3, vy: .25 + hash(k) * .35, vz: Math.sin(a) * 2.5, life: 2.2, size: .9, grow: 2, alpha: .34, color: fx.steam, drag: 1.2, lift: .05 });
           }
-          burst(local(0, .6, 0), low ? 16 : 40, 313 + encounter, 1.6, fx.ichor[2]);
+          burst(local(0, .6, 0), low ? 12 : 26, 313 + encounter, 1.4, fx.ichor[2]);
         }
         // A soft contact shadow under the body, smaller and darker as the body comes down.
         const height = THREE.MathUtils.clamp(walkerLift + 1.7, .5, 5);
@@ -497,13 +500,16 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
           const at = .4 + k * .18, spot = local((hash(k + 21) - .5) * (k % 2 ? 4 : 16) * wide, 1.8 + lift, ((hash(k + 23) - .5) * 13 - 1) * wide);
           if (before < at && phaseAge >= at && !(walking && k % 2)) { flash(spot, (2.2 + hash(k)) * (walking ? .6 : 1), k); ichor(spot, (1.6 + hash(k + 40)) * (walking ? .7 : 1), k * 17 + encounter); }
         }
-        if (before < 1.9 && phaseAge >= 1.9) { const heart = walking ? rig.parts.get('core')!.group.getWorldPosition(world) : local(0, style.content.targetHeight, -style.content.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }
+        if (before < 1.9 && phaseAge >= 1.9) {
+          if (walking) { const heart = rig.parts.get('core')!.group.getWorldPosition(world); flash(heart, 2.2, 99); burst(heart, 28, 777 + encounter, 1.4); }
+          else { const heart = local(0, style.content.targetHeight, -style.content.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }
+        }
       }
       const ring = THREE.MathUtils.clamp((phaseAge - 1.9) / 1.2, 0, 1);
       shock.visible = destroyed && ring > 0 && ring < 1;
       if (shock.visible) {
         shock.position.set(placement.x ?? boss.x, placement.baseHeight + .1, -placement.s);
-        shock.scale.setScalar(2 + Math.sqrt(ring) * 10); (shock.material as THREE.MeshBasicMaterial).opacity = (1 - ring) * (1 - ring);
+        shock.scale.setScalar(2 + Math.sqrt(ring) * 10); (shock.material as THREE.MeshBasicMaterial).opacity = (1 - ring) * (1 - ring) * (walking ? .45 : 1);
       }
       // Pod launches: each new pod bursts out of the bay on its side with a teal flash and a puff of mist.
       for (const enemy of state.enemies) if (enemy.formation?.template === 'veil-pods' && !podsSeen.has(enemy.id)) {

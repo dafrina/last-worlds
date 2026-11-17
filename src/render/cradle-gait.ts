@@ -73,6 +73,21 @@ const smooth = (t: number) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 
 /** A deterministic tremble: a sum of incommensurate sines (no random stream). */
 const tremble = (t: number, seed: number) => Math.sin(t * 13.1 + seed * 1.7) * .5 + Math.sin(t * 21.7 + seed * 3.1) * .3 + Math.sin(t * 7.3 + seed) * .2;
 
+/**
+ * The walk-in (its arrival, render-only): a heavy start, a steady walk and a long slowing to its post, within the arrival.
+ * `reach` is the farthest it starts from its post; the walk never goes faster than `speed` (units a second).
+ */
+export const WALK_IN = { reach: 7, speed: 2.5, accelerate: .7, settle: 1.1, duration: 3.7 } as const;
+/** Share of the walk-in done after `age` seconds of the arrival (0 to 1: a trapezoid of speed, eased at both ends). */
+export function walkInProgress(age: number): number {
+  const { accelerate: a, settle: d, duration: T } = WALK_IN, cruise = T - a - d, total = a / 2 + cruise + d / 2;
+  const t = clamp(age, 0, T);
+  const done = t < a ? t * t / (2 * a) : t < a + cruise ? a / 2 + (t - a) : a / 2 + cruise + (d - (T - t) ** 2 / d) / 2;
+  return done / total;
+}
+/** How far it starts from its post: as far as its top speed allows in the time, or less (the view's own choice, below it). */
+export const walkInReach = () => Math.min(WALK_IN.reach, WALK_IN.speed * (WALK_IN.duration - WALK_IN.accelerate / 2 - WALK_IN.settle / 2));
+
 /** Rotate a rig-frame point about the body's pivot by pitch (about x) then roll (about z). */
 function tilt(p: Vec3, pivot: Vec3, pitch: number, roll: number): V {
   let [x, y, z] = sub(p, pivot);

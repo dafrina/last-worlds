@@ -15,6 +15,7 @@ Parts (the rig contract of src/render/cradle-walker.ts):
 - cradle_body, cradle_carapace, cradle_underside: the spider's body inside its flanks (its own legs cut off at the body's
   edge), split at heights into the armoured top, the flanks and the hanging brood structure underneath;
 - cradle_vents: the body's glowing pores and mouths (their own node, so the view can make them breathe);
+- cradle_body_core: a dark flesh core inside the body, closing the cuts where its legs and sacs came off;
 - cradle_pod_left/right (+ _wreck): the brood chambers, the spider's own egg sacs enlarged, glowing amber from within; the
   wreck is the sac ruptured and sagging;
 - cradle_heart (+ _wreck) inside cradle_heart_cavity, under cradle_heart_shutter_0..3: the carapace over the heart cut in
@@ -488,6 +489,11 @@ def build(export=True, preview=True):
     cavity = lathe('cradle_heart_cavity', tuple(hc + Vector((0, 0, -.25))), [(.7, 1.05), (.2, .95), (-.35, .7), (-.7, .3), (-.8, 0)], 12, mat, sc, uv_dark, inward=True)
     cavity.data.transform(Matrix.Diagonal((1.0, 1.45, 1.0, 1)))
     objects.append(cavity)
+    # A dark flesh core filling the body, so the cuts where its own legs and sacs came off never show through.
+    bc = Vector((BODY['c'][0] * G, BODY['c'][1] * G + y_off, 3.0 * G))
+    core = lathe('cradle_body_core', tuple(bc), [(-1.05, 0), (-.85, .55), (-.4, .85), (.2, .95), (.7, .78), (1.05, .45), (1.25, 0)], 14, mat, sc, uv_dark)
+    core.data.transform(Matrix.Diagonal((BODY['r'][0] * G * 1.05, BODY['r'][1] * G * .95, G * 1.0, 1)))
+    objects.append(core)
     # The crest halves: hinged on their lowest outer line, local -y outward (the view's +x swing tips the top outward).
     for k, sgn in enumerate((-1, 1)):
         mask = crest & (np.sign(fc[:, 0]) == sgn)
