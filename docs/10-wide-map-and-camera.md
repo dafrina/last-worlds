@@ -109,6 +109,10 @@ of view so that no attack ever started (user report, 11 November). Now the post 
 - **Telegraphs stay honest:** the post never moves while the boss winds up, holds still for its own lanes, or has a lane
   marked; the footprint forecast reads the post through `bossPose`.
 - A pilot can still retreat to an edge for a moment, but cannot park there.
+- **Stationary bosses** (`BossDefinition.stationary`: THE CITADEL, and HELION STRONGHOLD since 17 November) are built into
+  their ground and are never pulled: a pilot parked far enough to the side keeps their targets out of view and holds off
+  their attacks, but makes no progress against them either (measured on Cold Vector, parked at the right edge, seeds 1–4,
+  30 s: no windups, against 72 for the pulled HELION ARK).
 
 **Measured, 11 November** (parked at the right edge, `bossScenario`, seeds 1–4): with the core open every boss now attacks
 (92–172 windups per four fights, against none). THE ECLIPSE and THE HELIOPHAGE, whose vents sit far off their pivot,
