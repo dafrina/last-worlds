@@ -12,7 +12,7 @@ const dummy = (state: ReturnType<typeof createRun>, x: number, s: number, hp = 1
   state.enemies.push(enemy); return enemy;
 };
 
-describe('campaign loadout in the simulation (docs/21)', () => {
+describe('campaign loadout in the simulation (docs/30)', () => {
   it('endless ignores every campaign choice and flies the starter equipment plus the selected ship perk', () => {
     const state = createRun({ mode: 'endless', seed: 1, weapon: 'seeker', special: 'siege-lance', shield: 'bulwark', ship: 'ironclad', rank: 3 });
     // Endless keeps the Shockwave (user, 3 November 2026: "Keep Shockwave"); the campaign starter is the Seeker Rack.

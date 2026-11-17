@@ -1,760 +1,479 @@
-# Settlement and infrastructure upgrade: audit and design
+# Settlements and infrastructure
 
-Status: Phase 1 audit, plus the proposed data and placement design (Phases 2–4) and the plan for the Phase 10 Khepri refinery prototype. Date: 20 October 2026.
+How outposts, the road and pipeline network between them, Khepri's refinery districts and the infrastructure models
+they are built from are generated and placed. Battery plants around ground guns are [docs/25](25-modular-facilities.md);
+the shared pipes and tanks are [docs/14](14-shared-industrial-kit.md); the relief they stand on is
+[docs/26](26-terrain-relief.md).
 
-This document changes no code. The brief is the user's settlement and infrastructure brief of 20 October 2026. The approved concept sheets are `art/concepts/facility-sheets/{khepri,vesper,luna,nacre}.jpg`. They are references only, never runtime assets (AGENTS invariant 9).
+Everything here is scenery: never collision, never a target, never cover. It is a pure function of the run seed and
+world coordinates, so every section sees the same settlements whatever order sections are built in. The user asked for
+varied bases joined by roads and pipelines (14 October), outposts that gather instead of standing alone (17 October),
+a refinery district prototype (20 October, option A), outposts in compounds (21 October) and roads only where they make
+sense (28 October); the decisions are in [docs/08](08-decisions-and-sources.md). The facility sheets
+(`art/concepts/facility-sheets/`) are references only.
 
-User addendum (20 October, during this audit): *"you may increase the vertical space we have available for the terrain too."* Section 4.2 covers this.
+## 1. The system
 
-Numbers marked *probe* come from throwaway Vitest probes run against the real generator in Node on this machine. They are not committed tests. Re-measure before relying on them.
+### 1.1 Which worlds have settlements
 
----
+Settlements come from each world's profile (`PlanetProfile` in `src/world/terrain-planet.ts`).
 
-## 0. Summary
+| World | Outposts | Network | Districts |
+| --- | --- | --- | --- |
+| Khepri | `settlement` in `src/world/terrain-settlements.ts`, wrapped by `districtSettlement` | Roads (`roads: 'purposeful'`) and pipelines | `KHEPRI_DISTRICTS` (§5) |
+| Vesper | `vesperSettlement` in `src/world/terrain-vesper.ts` | Snow tracks and pipelines | None |
+| Luna | `lunaSettlement` in `src/world/terrain-luna.ts` | Rover tracks only (`pipes: false`) | None |
+| Nacre, Amnion, Corona, Nahara, Umbra | None (`settlement: () => null`, `networks: false`; Corona and Nahara take Umbra's profile) | None | None |
 
-**What exists**
+The worlds without settlements build their structures as scatter: Nacre's ruin sites (`src/world/terrain-nacre.ts`),
+Corona's infrastructure modules and Umbra's structures, both seated on level ground under their whole footprint by
+`footprintBase` (`src/world/footprint.ts`), and Nahara's ruin cities ([docs/39](39-nahara-silent-empire.md)). Strike
+sites ([docs/33](33-strike-sites-and-encounter-deck.md)) and battery plants ([docs/25](25-modular-facilities.md)) are
+placed by the renderer around live targets, not by this system.
 
-- Each planet has a seeded, cell-based outpost system. Khepri has 8 archetypes, Vesper 5 and Luna 3; Nacre has none, and its ruins come from scatter. A seeded road and pipeline network joins the outposts with slope-aware A*.
-- All of it is a pure function of seed and world coordinates, already independent of chunk order. It is streamed in 36-unit sections with a 3 ms per-frame resumable prefetch.
-- There are four infrastructure GLBs with 48 nodes, plus 6 battery facility compounds that are placed at render time around live ground batteries.
-- No GLB carries connection sockets. Pipe joints are implicit in a 2-unit grid contract, and road gates are computed from pad edges.
-
-**What is missing for the brief**
-
-- Settlement size classes.
-- Any multi-pad (terraced) composition.
-- Socket metadata.
-- Internal connections inside a settlement: pipes between tanks and halls, internal roads.
-- A dominant landmark piece on any planet.
-- Foundations and retaining pieces.
-- Road ends, gates, bridges and pipe manifolds.
-- A Nacre settlement layer.
-- A Luna-specific (grey and ivory) kit.
-
-**Core design decisions**
-
-1. A **district** is a planet-level, seed-pure plan built on top of the existing `settlement(seed, cell, side)`. It is made of several terraced **lots**, and each lot is an ordinary `Settlement` pad. One lot is the network **hub**. The district claims its settlement cells, which become the quiet buffer. No world or route plumbing is needed, so memo keys and chunk independence stay valid.
-2. Placement uses global slots along *s*, one window per about 720 units. On Khepri the first window is s 440–606: Rolling Thunder's relief stretch before the Bastion arena, and endless sector 2. Asymmetric margins keep districts away from arenas and planet jumps.
-3. Layouts come from a few authored typed **layout graphs** (lots, role slots and socket links) with seeded variation. There is no node editor. A single typed **module registry** replaces the 7+ duplicated size tables.
-4. The plan is computed by resumable work warmed during prefetch, never inside `terrainRow`. Sections only instantiate the pieces whose anchor lies inside them.
-5. Rollback is a data switch: `PlanetProfile.districts` is null or absent, which is byte-identical to today, and a test proves it against the recorded legacy fingerprints.
-6. Vertical budget: district modules get their own cap, `structureMax`, set to 3.0 on Khepri (Vesper and Nacre already use 3.0). Natural scatter, ordinary outposts and pipelines keep 2.2, so nothing outside a district changes.
-
-**Prototype (Phase 10a)**
-
-- A Khepri refinery district of about 12 × 48 units (about 1.8 screens) on one flank.
-- It uses only existing nodes. The landmark is a stand-in cluster; the one truly needed new piece, a tall processing tower, is flagged and not authored.
-- Validated by fixed-camera fixture captures over several seeds and edge cases, determinism, seam and budget tests, and stream and frame-time measurements.
-
----
-
-## 1. Architecture map
-
-### 1.1 Data flow
+### 1.2 Data flow
 
 ```
-seed ─┬─ PlanetProfile (terrain-planet.ts:48-71): landform, color, settlement(), scatter(), floes(), sceneryMax, networks
-      │
-      ├─ settlement(seed, cell, side)  → Settlement | null   (per planet; memoized, pure)
-      │      Khepri terrain-settlements.ts:160-209 · Vesper terrain-vesper.ts:179-300 · Luna terrain-luna.ts:123-193 · Nacre: none (:331)
-      ├─ settlementsNear(seed, s0, s1, arena, planet)  (terrain-settlements.ts:223-233)
-      │      ├─ terrainRow(): pads that reach a row (terrain-ground.ts:18-27) → rowPoint(): flatten to pad level (:31-47)
-      │      ├─ edgesNear() → edgesOf(): chain / exit / cross edges (terrain-network.ts:101-142)
-      │      │      ├─ roadPathSteps(): A* on 1-unit grid, slope ≤ 0.45, Chaikin, memo (terrain-network.ts:286-322)
-      │      │      └─ pipeRunSteps(): A* on 2-unit grid, runs/risers/trestles, memo (terrain-network.ts:709-739)
-      │      └─ settlementPieces(): modules → props / industry / rubble (terrain.ts:129-152)
-      │
-      └─ sectionSteps(seed, index, route|world)  (terrain.ts:164-401): heightfield + aprons → mesh → network → settlements
-             → occupancy → road ribbons → scatter (skips pads and occupied cells) → floes/water → TerrainSection
-                    │
-createTerrainStream (terrain.ts:469-511): window = sections current−1…current+1, prefetch current+2 in resumable steps
-                    │
-terrain-view.ts: prepare() per section (:351-397) → compact() into one InstancedMesh per node (:588-631),
-                 caster strips (High), haulers on roads (animate), Low skips cosmetic (:602), facility clearings (:609)
-
-Render-only, from live combat state (never generation):
-scene.ts groundNow (:954-967) → facility-view.ts compounds (≤ 12) → terrain.setFacilityClearings (:1064-1065)
-                              → legacy battery emplacements of shared-kit pieces (:1067-1094) → wrecks (:1098-1105)
+seed ─┬─ PlanetProfile: landform, colour, settlement(), scatter(), floes(), sceneryMax, networks, pipes, roads, districts
+      ├─ settlement(seed, cell, side) → Settlement | null          per world; pure, memoized
+      ├─ districtPlan(seed, planet, slot) → DistrictPlan | null    Khepri; pure, memoized, resumable (§4.5)
+      ├─ settlementsNear(seed, s0, s1, arena, planet)              outposts plus district lots, minus what an arena hides
+      │    ├─ terrainRow() → rowPoint(): pads flatten the ground (terrain-ground.ts)
+      │    ├─ edgesNear() → edgesOf(): chain, exit and cross edges (terrain-network.ts)
+      │    │    ├─ roadPathSteps(): A* on a 1-unit grid, graded, straightened and curved; memo per edge
+      │    │    └─ pipeRunSteps(): A* on a 2-unit grid: runs, risers, trestles; memo per edge
+      │    └─ settlementPieces(): modules → props, shared-kit pieces, kit rubble (terrain.ts)
+      └─ sectionSteps(seed, index, world | route) (terrain.ts)
+           warm district plans → rows and colours → mesh → per world span: network, district pipework, roads and
+           sites, settlement pieces → occupancy → road-end wear → road ribbons → scatter (scatter sink) → floes, water
+                │
+createTerrainStream (terrain.ts): window current−1 … current+1; the next sections prefetched in resumable steps
+                │
+terrain-view.ts: prepare() per section → one InstancedMesh per node, compacted to the view; caster strips on High;
+                 Low drops cosmetic pieces; haulers on roads; reservedSites() for the battery plants
 ```
 
-### 1.2 Files and responsibilities
+### 1.3 Files
 
-| File | Responsibility | Key facts |
-| --- | --- | --- |
-| `src/shared/contracts.ts:110` | `VIEW` | width 12, worldWidth 30, sectionLength 36, flightHeight 3.8, minS −6.25, maxS 19.8. Camera x is limited to ±9 (`src/sim/game.ts:126`). |
-| `src/world/terrain-layout.ts` | Khepri landform, moods, routes, `hash` | `SCENERY_MAX_HEIGHT` 2.2 (:11), terrain −8…2 (:13-16), side routes at ±9.5 (:21), `routeCenter`/`routeCalm` (:131-144), stateless `hash(seed^salt, x, y)` (:32-37). |
-| `src/world/terrain-settlements.ts` | Khepri outposts | Archetype weights (:15), pad extents (:17-19), `MODULE_HEIGHT` (:21-30), `SETTLEMENT_CELL` 30 (:32), `compose()` per archetype (:56-148), `districtLevel` outpost clustering noise (:150-156), `settlement()` (:160-209), pads (:211-217), `settlementsNear` (:223-233). |
-| `src/world/terrain-ground.ts` | Row cache and point | Pads flatten ground (`padInfluence`, 2.4-unit falloff); the arena is applied last. |
-| `src/world/terrain-network.ts` | Shared-kit contract, network, roads, pipes | `SHARED_BOUNDS` (:28-37), `gate()` (:94-98), `edgesOf` (:101-125), `moduleReach` (:184), `gridSteps` with pad cost and crowded cells (:186-227), road memo key `planet:seed:edge` (:288), ribbons (:330-356), pipe memo key (:712), `sectionNetworkSteps` (:744-759). |
-| `src/world/terrain.ts` | Section generation and stream | `TerrainProp` (:54-60), `TerrainSection` (:63-92), `settlementPieces` (:129-152), seam filter `SEAM_CLEARANCE` 3 (:404), stream (:469-511), `TERRAIN_VERSION` 10 (:37). |
-| `src/world/terrain-planet.ts` | Profiles, worlds, routes | `KHEPRI` (:73-90), `worldOf` interning and `bare` (no arena) (:107-123), `RouteSchedule` (:133-137), `routeOf` (:176-223). |
-| `src/world/terrain-scatter.ts` | Khepri kit dressing | Skips `industrial > 0.2` and blocked cells (:168); trims to cap (:152-156). |
-| `src/world/terrain-vesper.ts`, `-luna.ts`, `-nacre.ts` | Other planets | Vesper cap 3.0 (:22), harbours face water. Luna: no networks (:252), reuses the Khepri kit. Nacre cap 3.0, ruin-site lattice in scatter (:107-220), `settlement: () => null` (:331). |
-| `src/world/terrain-arena.ts` | Mission and boss arenas | `ARENA_RAMP` 20 (:67), `nearArena` (:77-79). |
-| `src/world/terrain-work.ts` | Resumable work | Generators; `finish()` gives identical output whether run synchronously or incrementally. |
-| `src/world/run-route.ts` | `runRoute(config)` | Every run, campaign included, streams as a route over `endlessSchedule(config)` (`src/content/endless.ts:262-275`). |
-| `src/render/terrain-view.ts` | Section views | `PRELOAD_AHEAD` 400 (:48), `CASTER_NODES` (:119-123), material routing by name prefix (:175), `prepare` (:351-397), `ensurePlanet` (:511), `compact` (:588-631), `setFacilityClearings` (:710), `setQuality` (:739). |
-| `src/render/terrain-kit.ts` | Loaders and stand-ins | `INFRA_NODES` sizes (:312-323), `VESPER_INFRA_NODES` (:325-330), `createFallbackInfra` (:374), loaders (:403-409, :886), `createFallbackShared` (:891). |
-| `src/render/facility-view.ts` | Battery compounds | 6 nodes (:5), capacity 12 (:9), bounds (:11-14), placement (:43-65), cosmetic hash of id and seed (:47), roof ≤ flightHeight − 0.45 and sink ≤ 0.35 (:60-61). |
-| `src/render/scene.ts` | Integration | Prefetch budget 3 ms (:32, :876), infra/shared loads (:436-445), ray seating (:119-133), shadow slab −8.2…3.7 (:161), hidden-target silhouette (:472-473), markers drawn without a depth test (:662-667), emplacements (:545-557, :1067-1094). |
-
-### 1.3 Streaming, routes and seams
-
-- **Sections** are `VIEW.sectionLength` = 36 units long and 30 wide, on a 0.25 grid. The window is current−1…current+1 (`terrain.ts:479`). `prefetch` runs section current+2 within the frame budget (`:494-503`), and `terrain-view.prefetch` then builds its view off-scene. A section needed before it is ready is generated synchronously and counted as a fallback.
-- **Visible range:** at distance *d* the view shows *s* ∈ [d − 6.25, d + 19.8] at the flight plane. Ground at −4 shows about 5.6 further. The window covers [d − 36, d + 36] at worst, so a module straddling a boundary may extend up to about 10 units into the next section without popping (rule in §4.6: half-depth ≤ 6).
-- **Routes:** each distance resolves its own world (planet plus nearest arena). A planet switch splits the section; pieces keep `SEAM_CLEARANCE` = 3 from the seam (`terrain.ts:171-177, :357-361`).
-- **Endless, as measured (*probe*):** Luna 0–406 (arena 303–334), Khepri 406–1635 (arena 1528–1563), Vesper 1635–3133 (arena 3017–3061), then Nacre. **Rolling Thunder:** a single Khepri arena at 666–701, with the scroll stopping at 675.
-
-### 1.4 Global vs per-section
-
-| Global (seed plus world coordinates, memoized and bounded) | Per section (instantiation only) |
+| File | What it holds |
 | --- | --- |
-| Landform and moods; settlement candidates (`memo` ≤ 2048); network edges; road paths (memo ≤ 256); pipe runs (memo ≤ 256); Nacre ruin-site lattice (sampled one row beyond the section) | Mesh and colours; module ownership by anchor *s* (`terrain.ts:132`); network pieces by anchor *s* (`terrain-network.ts:748`); road ribbons for segments that start inside (`:340`); scatter cells; scatter occupancy set (`terrain.ts:352-364`) |
+| `src/world/settlement-geometry.ts` | Shared shapes: `Settlement`, `PlacedModule`, `Archetype`, `SETTLEMENT_CELL`, `padDistance` (a leaf module, so outposts and districts never import each other) |
+| `src/world/terrain-settlements.ts` | Khepri's outposts (`ARCHETYPES`, `compose`, `settlement`), the clustering noise `districtLevel`, `compoundSlot`, `padInfluence`, `settlementsNear`, and the legacy height table `MODULE_HEIGHT` |
+| `src/world/terrain-vesper.ts`, `terrain-luna.ts` | Vesper's and Luna's outposts beside their landforms |
+| `src/world/settlement-modules.ts` | The module registry `MODULES` (§4.3) |
+| `src/world/settlement-grammars.ts` | Layout graph types and the authored `KHEPRI_REFINERY` graph and `KHEPRI_DISTRICTS` policy (§4.4, §5) |
+| `src/world/terrain-districts.ts` | District planning, layout, pipework, claims and arena hiding |
+| `src/world/terrain-network.ts` | Network edges, road and pipe searches, district roads, road ribbons and road ends, `SHARED_BOUNDS` |
+| `src/world/terrain-ground.ts` | Rows and points: pads flatten the ground, a narrow lead under a Vesper pad fills at pad level |
+| `src/world/terrain.ts` | `sectionSteps`, `settlementPieces`, occupancy, `SEAM_CLEARANCE`, the stream, `TERRAIN_VERSION` |
+| `src/world/scenery-kit.ts`, `scatter-sink.ts` | Kit kinds and bounds; the sink every world's scatter goes through (span, world edge, scenery cap, essential pieces first) |
+| `src/world/footprint.ts` | `footprintBase`: where a large piece can stand level (Umbra, Corona) |
+| `src/world/terrain-work.ts` | Resumable work: `finish()` gives the same result run at once or in steps |
+| `src/render/terrain-view.ts` | Section views, instancing, culling, materials by node name, haulers, `reservedSites`, `setFacilityClearings` |
+| `src/render/terrain-kit.ts` | Loaders, the legacy tables `INFRA_NODES` and `VESPER_INFRA_NODES`, code-built stand-ins, road textures |
 
-**Settlement layout is already independent of chunk order.** `terrain.test.ts:23` and `terrain-network.test.ts:34` prove it by generating sections in shuffled orders.
+### 1.4 Streaming, routes and seams
 
-One caveat for any extension: road and pipe memo keys are only `planet:seed:edge.id` (`terrain-network.ts:288, :712`). Any new layer that changes which settlements exist must therefore be a pure function of (seed, planet), or the keys must grow.
+- **Sections** are `VIEW.sectionLength` long on the `TERRAIN_STEP` grid; the mesh spans the world plus `MESH_APRON` of
+  plain ground beyond each edge, but pieces, pads and roads stay inside the world. The stream keeps the current section
+  and its two neighbours (`RETAINED_SECTIONS`) and prefetches what comes next within `PREFETCH_BUDGET_MS` a frame
+  (`src/render/scene.ts`). A section needed before it is ready is generated at once and counted as a fallback; the
+  output is identical either way.
+- **Ownership.** A piece belongs to the section holding its anchor s. Roads are global centrelines: a section draws the
+  ribbon segments that start in it and keeps every road touching it for the haulers.
+- **Routes.** Every run streams a route (`runRoute` in `src/world/run-route.ts`): each distance resolves its own planet
+  and nearest arena. A planet switch splits its section, nothing stands within `SEAM_CLEARANCE` of the seam, and jumps
+  swap planets under the veil ([docs/18 §3](18-endless-planet-cycle.md#3-world)).
 
-### 1.5 Seeds and RNG
+### 1.5 What is global and what belongs to a section
 
-- Terrain uses only the stateless `hash(seed ^ salt, a, b)` with fixed salts per feature: settlements 0x5e77/0x5e78, clustering 0xd157, edges 0x7e7, pipe size 0x919, scatter 0x6c1a, Vesper 0x7e5e/f, Luna 0xa1e7, Nacre ruins 0x7d5f, and so on. There is no `Math.random` in `src/world`.
-- `src/content` never imports `src/world`. `src/sim` reads terrain but never changes it: ground seating, strike-site seats and run events go through `world/run-route` and `world/terrain` (`sim/ground.ts`, `sim/sites.ts`, `sim/events.ts`). Gameplay rolls come from seeded, keyed streams (`src/shared/streams.ts`); none is stored on `RunState`, and terrain never touches them.
-- Render cosmetics use their own hashes:
-  - facility size: `imul(id) ^ seed` (`facility-view.ts:47`);
-  - emplacement layouts: a `sin` hash of the enemy id (`scene.ts:1071`);
-  - haulers: `tint(key)` plus simulation time.
-- **Confirmed:** cosmetic randomness never touches gameplay RNG. Proposed new salts for districts: **0xd1a0–0xd1af**, which are unused.
+| Global: seed plus world coordinates, memoized and bounded | Per section: instantiation only |
+| --- | --- |
+| Landform and moods; outpost candidates (memo per world, 2,048 entries); district plans (256); network edges; road paths and pipe runs (256 each, keyed by planet, district policy, seed and edge); district roads (64) | Mesh and colours; settlement modules and network pieces by anchor s; road ribbons for segments starting inside; district sites reaching the section; scatter cells and the occupancy set |
 
-### 1.6 Ground targets, batteries and facilities
+Every cache holds pure results, so clearing one never changes output (`resetTerrainCaches` in `src/world/terrain.ts`).
+`tests/world/terrain.test.ts` and `tests/world/terrain-network.test.ts` build sections in shuffled orders and compare.
 
-- Ground batteries are simulation entities on the logical flight plane. View-anchored formations spawn around the camera (`src/sim/airspace.ts:22`), so **a battery can appear anywhere, including over a district**.
-- Rendering seats each battery on the terrain by a camera ray (`scene.ts:119-133`). Generation never moves targets.
-- `facility-view` wraps up to 12 suitable batteries in a Blender compound (small 6.6 × 5.9, large 8.7 × 8.5). Each compound's rectangle becomes a **render-only clearing** that hides any kit, infra or shared instance whose box centre falls inside it (`terrain-view.ts:609`), including settlement modules. Batteries that do not get a compound receive the legacy shared-kit emplacement (`scene.ts:1067-1094`).
-- Neither placement looks at settlements. A compound can therefore land on an outpost and hide part of it. For districts this must become an explicit reservation (§4.8).
+### 1.6 Seeds and randomness
 
-### 1.7 Clearance contracts
+- Generation uses only the stateless `hash(seed ^ salt, a, b)` (`src/world/terrain-layout.ts`) with a fixed salt per
+  feature: Khepri outposts `0x5e77`/`0x5e78`, outpost clustering `0xd157`, network edges `0x7e7`, pipe size `0x919`,
+  Vesper outposts `0x7e5e`–`0x7e60`, Luna outposts `0xa1e7`/`0xa1e8`, districts `0xd1a0`–`0xd1af`. There is no
+  `Math.random` in `src/world/`.
+- `districtLevel` is a slow noise along the route that makes outposts gather in busy stretches; despite its name it has
+  nothing to do with districts.
+- The simulation reads the terrain through the run's route (ground seats, strike-site seats and run events:
+  `src/sim/ground.ts`, `src/sim/sites.ts`, `src/sim/events.ts`) and never changes it. The terrain never reads combat, and
+  gameplay rolls come from seeded streams (`src/shared/streams.ts`) it never touches.
+- Render-only cosmetics hash their own inputs: hauler phase and speed from the road (`tint` in
+  `src/render/terrain-view.ts`), legacy emplacements from the enemy id (`src/render/scene.ts`), battery plants from the
+  battery id, seed and world ([docs/25](25-modular-facilities.md)).
+
+### 1.7 Ground targets and battery plants
+
+Ground batteries are simulation entities; most formations are anchored to the camera's view (`resolveAnchor` in
+`src/sim/airspace.ts`), so a battery can appear anywhere, including over an outpost or a district. Each stands on
+whatever terrain its position lands on ([docs/13 §2](13-khepri-world.md#2-procedural-layout)); generation never moves a
+target. A battery plant clears the terrain scenery inside its clearing. Plants and the
+legacy emplacement pieces (Khepri and Vesper) never cover a district pad or a strike site: `reservedSites()` hands the
+pads to `facilities.update` in `src/render/scene.ts` (§4.8). An ordinary outpost has no reservation, so a plant may
+clear part of one.
+
+### 1.8 Clearance contracts
 
 | Rule | Where |
 | --- | --- |
-| Scenery top ≤ `planet.sceneryMax`: Khepri and Luna 2.2, Vesper and Nacre 3.0, with the flight plane at 3.8. Settlement modules over the cap are **silently dropped**. | `terrain.ts:137, :141, :146`; `terrain-scatter.ts:152` |
-| Pad level ≤ cap − tallest module − 0.05 | `terrain-settlements.ts:192` (Vesper :276, Luna :179) |
-| Pipelines ≤ Khepri's 2.2 on **every** planet; uses `SCENERY_MAX_HEIGHT`, not the profile. | `terrain-network.ts:44, :389, :393, :751` |
-| Battery compounds: roof ≤ flightHeight − 0.45 (3.35) — the one existing exception to the planet cap | `facility-view.ts:60` |
-| Combat lanes: the centre route is calmer, pipes pay +1.5 within 3 of it, and outposts sit at 0.38–0.85 of the half width (\|x\| ≥ 5.7) | `terrain-network.ts:200`; `terrain-settlements.ts:174` |
-| Markers and telegraphs never depth-test; hidden ground targets draw a see-through silhouette | `scene.ts:662-667, :472-473` |
-| Shadow casters live in the y slab −8.2…3.7 | `scene.ts:161` |
+| Piece tops stay under the world's scenery cap (`SCENERY_MAX_HEIGHT`, `VESPER_SCENERY_MAX`, `LUNA_SCENERY_MAX`), under the flight plane `VIEW.flightHeight`; a settlement module over it is dropped. District lots carry their own cap (§4.2). | `settlementPieces` in `src/world/terrain.ts` |
+| An outpost's pad level leaves room for its tallest module (Khepri, Luna); Vesper swaps a piece too tall for its pad's room for a lower one (`LOWER`) | `settlement`, `lunaSettlement`, `vesperSettlement` |
+| Pipeline racks stay under `PIPE_TOP` and every piece under `SCENERY_MAX_HEIGHT` on every world | `src/world/terrain-network.ts` |
+| Outposts stand on the outer part of each side (Khepri 0.42–0.82 of the half width, Vesper 0.35–0.83, Luna 0.4–0.85; compounds facing each other move inward); paths pay a cost within 3 units of the calm centre route; district pads keep the policy's `lane` from it | `compoundSlot` callers, `gridSteps`, `districtPlanSteps` |
+| No outpost, road or pipeline on an arena or its ramps; an arena hides a whole district | `settlementsNear`, `edgesNear`, `districtHidden` |
+| Markers and telegraphs draw without depth testing; a ground target hidden by terrain draws a silhouette | [docs/13 §2](13-khepri-world.md#2-procedural-layout) |
 
-### 1.8 Tests that guard this today
+### 1.9 Tests
 
 | Test | Guards |
 | --- | --- |
-| `terrain.test.ts:23, :35, :50, :78` | Order-independent sections, seams, crack-free mesh, height range and pieces inside the world |
-| `terrain-network.test.ts:8, :23, :34, :51, :74` | Varied outposts, pads at authored heights under the cap, order-independent network with each piece owned once, no cliff climbing |
-| `terrain-pipes.test.ts:44, :51, :107` | ≥ 95% of pipeline edges connected, no floating or buried pipes, pipelines kept off modules |
-| `terrain-vesper.test.ts:17` | **Khepri fingerprints** (seeds 11, 93, 8831 and an arena), re-recorded 17 October |
-| `terrain-budget.test.ts:45, :51` | High ≤ 70 draw calls and ≤ 90k visible terrain triangles; Low only reduces cost |
-| `terrain-stream.test.ts:9, :25, :44`; `terrain-route.test.ts:85, :129` | Incremental equals synchronous; no fallbacks at top endless pace and through jumps; seam splits |
-| `terrain-arena.test.ts:47`; `endless-clearance.test.ts` | Arenas stay free of outposts, roads, pipes and tall scatter |
-| `facility-placement.test.ts:17, :32`; `cinematic-assets.test.ts:164` | Compound roof heights, an empty gun court, crowded and edge fallbacks |
-| `models.test.ts:20`; `terrain-kit.test.ts:25` | Industrial asset footprint contracts; a stand-in for every node |
+| `tests/world/terrain-network.test.ts` | Varied outposts, pads at authored heights under the cap, identical network pieces in any order and each owned once, paths that never climb cliffs |
+| `tests/world/terrain-pipes.test.ts` | At least 95% of pipeline edges connected end to end, no floating or buried pipes, pipelines off outpost modules |
+| `tests/world/terrain-districts.test.ts` | Districts (§5.5) and road ends |
+| `tests/world/settlement-modules.test.ts` | The registry equals every legacy table; district sockets lie on the shipped models |
+| `tests/world/terrain-vesper.test.ts` | Khepri fingerprints; Vesper outposts on shelf ice, harbours over open water, tracks off water, every archetype in view |
+| `tests/world/terrain-luna.test.ts` | Luna outposts: more than before, never in every section; no pipelines |
+| `tests/world/terrain-arena.test.ts`, `endless-clearance.test.ts` | Arenas free of outposts, roads, pipes and tall scatter |
+| `tests/world/terrain-budget.test.ts` | Draw calls and triangles on High, over districts too; Low never costs more |
+| `tests/world/facility-placement.test.ts` | Plants keep off district pads |
+| `tests/world/terrain-kit.test.ts`, `models.test.ts` | A stand-in for every node; industrial footprints |
 
-### 1.9 Audit findings
-
-These are not bugs blocking this work. They should be fixed in passing where the registry touches them.
-
-1. **Sizes are duplicated** in `MODULE_HEIGHT`, `INFRA_NODES`, `VESPER_INFRA_NODES`, `SHARED_BOUNDS`/`SHARED_LOCAL_BOX`, `moduleReach`, the occupancy radii (`terrain.ts:363`), `CASTER_NODES` and the facility `SIZE`. This goes against AGENTS's "avoid multiple independent copies of a number". There are also two conventions: `VESPER_INFRA_NODES` heights include the 0.05 skirt, while `MODULE_HEIGHT` does not.
-2. `terrain-view.prepare` sizes prop culling boxes from `INFRA_NODES` only. **Vesper infrastructure therefore gets a 1 × 1 × 1 box** (`terrain-view.ts:372`), although the crane is 2.1 tall and the icebreaker 3.3 long. `CULL_MARGIN` 2.2 mostly hides this.
-3. Material routing is by name prefix (`terrain-view.ts:175`): `vesper_*` and `wreck_*` draw with the kit material, not the infra material. That may be intended, but it should be made explicit.
-4. `infra_track_segment`, a crawler roadway that tiles along z, ships but is never placed.
-5. Drill rigs take a random yaw (`terrain-settlements.ts:88`), which conflicts with the brief's "do not randomly rotate every building".
-6. A module over the cap disappears silently (finding 1.7). A composition can lose its main piece without any test failing.
-7. docs/13 §2 still says "flight plane stays at y = 3" and "boundary cues at x = ±18". The current values are 3.8 and a 30-unit width.
-8. The battery compounds on Nacre (`facility_nacre*`) reuse the human compound geometry with Nacre paint. This conflicts with the brief's Phase 6 rule "do not recolor the human industrial kit as Nacre" (open question 5).
-9. The name `districtLevel` (outpost clustering noise) collides with the brief's "district". This document calls it **outpost clustering**.
-
----
-
-## 2. Asset registry
-
-Conventions shared by all assets: glTF, +Y up, 1 unit = 1 game unit, **−Z = forward (+s)**, pivot at the base centre. None of the GLBs contain socket empties; connection points below come from the build contracts and READMEs. Sizes are measured from the GLB accessor bounds in node space with a scratch script (not committed); W is along x and D along z.
+## 2. Assets
 
 ### 2.1 Files
 
-| GLB | Builder | Nodes | Size | Materials | Loaded by | Fallback |
-| --- | --- | --- | --- | --- | --- | --- |
-| `khepri/khepri-infra.glb` | `tools/blender/kit_khepri_infra.py` (14 Oct) | 16 | 1,041 KiB, 12.0k tris | `kit_khepri_infra` (vertex colour), `khepri_light` (amber) | `scene.ts:437` → `terrain.setInfra` | `createFallbackInfra` |
-| `shared/industrial-kit.glb` | `tools/blender/kit_industrial.py` | 15 | 396 KiB | `shared_metal`, `shared_paint`, `shared_light`; COLOR_0 = masks (AO, wear, dust), planet palette at runtime | `scene.ts:442` | `createFallbackShared` |
-| `vesper/vesper-infra.glb` | `tools/blender/kit_vesper_infra.py` | 11 | 421 KiB | `vesper_ceramic`, `vesper_glow` | `ensurePlanet('vesper')` (`terrain-view.ts:526`) | `createFallbackVesperInfra` |
-| `shared/facility-compounds.glb` | `tools/blender/cinematic_assets.py` `facilities()` (19 Oct, via live MCP) | 6 | 3,705 KiB | `{khepri,vesper,nacre}_facility_{plate,frame,glow}` | `facility-view.ts:22` | none (legacy emplacements) |
-| `nacre/nacre-kit.glb` (ruins) | `kit_nacre.py`, re-exported by `cinematic_assets.py` `terrain()` | 6 ruin kinds | 1,446 KiB | `nacre_ruin`, `nacre_glow`, `nacre_rock` | `ensurePlanet('nacre')` | `src/render/nacre-kit.ts` |
-| `shared/loot-props.glb` (wrecks) | `tools/blender/props_loot.py` | 3 wreck nodes | 272 KiB | `prop_*` | `scene.ts:266` | none |
-| `khepri/khepri-kit.glb` | `kit_khepri.py`, re-exported by `cinematic_assets.py` | natural kit (rocks, columns, crystals) | 650 KiB | `khepri_basalt`, `khepri_mineral` | `scene.ts` | `createFallbackKit` |
+Every model follows the same conventions: glTF, +Y up, 1 unit = 1 game unit, −Z along the route (forward, +s), pivot
+at the base centre, authored at real game size and placed at scale 1.
 
-### 2.2 Khepri infrastructure (`khepri-infra.glb`)
-
-Every node sits base-centre with a skirt to y −0.05 (the track is flush). Material family: Khepri infra (graphite, ochre and rust, amber lights).
-
-| Node | W × D | Top | Tris | Connection points | Used on | Placed today |
-| --- | --- | --- | --- | --- | --- | --- |
-| `infra_landing_pad` | 5.40 × 6.20 | 0.29 | 1014 | Pad edges serve as road gates through `gate()` | Khepri, Luna | Landing archetype (yaw in quarter turns) |
-| `infra_refinery` | 4.10 × 5.10 | 1.60 | 2534 | None declared; risers and separator are modelled | Khepri | Refinery archetype core |
-| `infra_relay` | 0.85 × 1.00 | 1.60 | 656 | — | Khepri, Luna | Landing, comm |
-| `infra_cargo_0/1/2` | 1.05 × 1.75 | 0.65 | 878 / 868 / 810 | Cab faces −Z | Khepri (Luna has no roads) | Static in mining, plant and landing; **haulers** on roads (`terrain-view` animate) |
-| `infra_track_segment` | 1.35 × 2.00 | 0.05 | 170 | Tiles along z every 2.0 (open ends) | — | **Unused** |
-| `infra_drill_rig` | 1.49 × 1.32 | 1.96 | 1164 | — | Khepri | Mining, 1–3 rigs at random yaw |
-| `infra_habitat_0` / `_1` | 1.38 × 0.74 / 1.32 × 1.03 | 0.78 | 496 / 348 | — | Khepri, Luna | Mining, landing, pumping, plant, comm, abandoned |
-| `infra_comm_dish` | 1.00 × 1.00 | 1.25 | 590 | — | Khepri, Luna | Comm, landing |
-| `infra_solar_array` | 2.20 × 0.74 | 0.45 | 412 | Tiles along x every 2.2 | Khepri, Luna | Comm (rows), abandoned |
-| `infra_light_mast` | 0.37 × 0.36 | 1.50 | 262 | — | Khepri, Luna | Most archetypes |
-| `infra_silo` | 0.94 × 0.94 | 1.75 | 596 | — | Khepri | Mining, landing, abandoned |
-| `wreck_0` / `_1` | 2.37 × 1.36 / 2.12 × 1.46 | 0.39 / 0.54 | 615 / 576 | — | Khepri | Wreck archetype on natural ground |
-
-### 2.3 Shared industrial kit (`industrial-kit.glb`)
-
-Base on y 0; pipe centreline at y 0.35 on a 2-unit grid. The material family is planet-neutral: masks plus a per-planet palette.
-
-| Node | W × D | Top | Tris | Connection points | Used on | Placed today |
-| --- | --- | --- | --- | --- | --- | --- |
-| `pipe_s_straight` / `pipe_l_straight` | 0.22 / 0.42 × 2.00 | 0.47 / 0.56 | 116 / 140 | Ends at z ±1, y 0.35 (half-flanges) | Khepri, Vesper | Network pipelines (pitched, risers, trestles) |
-| `pipe_s_elbow` / `pipe_l_elbow` | 1.11 / 1.21 square | 0.47 / 0.56 | 236 / 284 | In at z −1, out at x +1 | Khepri, Vesper | Network bends and riser bends |
-| `pipe_s_tee` / `pipe_l_tee` | 1.11 / 1.21 × 2.00 | 0.47 / 0.57 | 228 / 266 | z ±1 plus a branch at x +1 | Khepri, Vesper | Network; `pipe_l_tee` in the pumping archetype |
-| `pipe_valve` | 0.72 × 2.00 | 0.78 | 350 | z ±1 (large) | Khepri, Vesper | Network valves; refinery, plant, pumping |
-| `pipe_support` | 0.70 × 0.30 | 0.62 | 120 | Carries one large pipe at centre, or two small at x ±0.18 | Khepri, Vesper | Network supports and stacked trestle towers |
-| `tank_vertical_0` / `_1` | Ø 1.16 / 1.04 | 1.41 / 1.42 | 524 / 610 | Flanged nozzle (position unmeasured) | Khepri, Vesper | Refinery, pumping, plant; battery emplacements |
-| `tank_sphere` | Ø 1.10 | 1.48 | 510 | Top nozzle, bottom outlet | Khepri, Vesper | Refinery, pumping, plant, cryo |
-| `tank_horizontal` | 2.00 × 0.75 | 0.89 | 446 | Side outlet; axis along x | Khepri, Vesper | Refinery, pumping, radiator, plant |
-| `container_0` / `_1` | 1.18 × 0.62 / 1.10 × 0.64 | 0.52 / 0.58 | 218 / 136 | — | All | Many archetypes; emplacements |
-| `facility` (processing hall) | 2.75 × 2.10 | 1.80 | 722 | — | Khepri, Vesper | Refinery (50%), plant; emplacements |
-
-### 2.4 Vesper infrastructure (`vesper-infra.glb`)
-
-Skirt to y −0.05 except the waterline pieces. Material family: Vesper (black ceramic, orange glow).
-
-| Node | W × D | Top | Notes |
-| --- | --- | --- | --- |
-| `vesper_radiator_array` | 2.00 × 0.76 | 0.81 | Tiles along x every 2.0 (radiator fields) |
-| `vesper_missile_site`, `vesper_cannon_site` | 1.75 × 2.20, 1.66 × 2.42 | 1.74, 0.84 | Scenery emplacements (missile archetype) |
-| `vesper_cryo_dome`, `vesper_habitat_0/1` | 1.57 × 1.81, 1.40 × 1.56, 1.10 × 0.97 | 0.94, 0.89, 0.79 | Cryo, plant, harbour |
-| `vesper_pier_segment` | 1.40 × 2.00 | y −0.60…0.64 | **Waterline y = 0**, deck 0.40; tiles along z every 2.0 (harbour jetty) |
-| `vesper_crane` | 1.26 × 2.30 | 2.10 | Jib reaches toward +Z (seaward) |
-| `vesper_comm_needle` | 0.74 × 0.70 | 2.16 | Radiator, cryo, plant |
-| `vesper_ice_hauler` | 1.09 × 1.95 | 0.64 | Road haulers (faces +Z) |
-| `vesper_icebreaker` | 1.04 × 3.32 | y −0.25…1.37 | Waterline 0, bow +Z, beside jetties |
-
-### 2.5 Battery facility compounds (`facility-compounds.glb`)
-
-Drawn only by `facility-view` and never by the settlement system.
-
-| Node | W × D (z range) | y range | Tris | Notes |
+| GLB | Builder (`tools/blender/`) | Content | Loaded by | Stand-ins |
 | --- | --- | --- | --- | --- |
-| `facility_khepri`, `facility_vesper`, `facility_nacre` | 6.60 × 5.90 (z −4.30…1.60, so it extends 4.3 forward) | −1.75 (piles) … 2.55 (Nacre 2.65) | 6310 / 6310 / 5954 | Open gun court at the origin |
-| `facility_*_large` | 8.70 × 8.48 (z −5.80…2.67) | −1.75 … 2.83 | 8646 / 8646 / 8290 | About 1.9× the area; chosen for about ⅓ of batteries |
+| `public/assets/khepri/khepri-infra.glb` | `kit_khepri_infra.py` | Khepri outpost machinery: landing pad, refinery, relay, cargo haulers, crawler track, drill rig, habitats, comm dish, solar array, light mast, silo, wrecks ([docs/13 §3b](13-khepri-world.md#3b-infrastructure-kit-contract)); Luna uses it too | `loadKhepriInfra` at start (`src/render/scene.ts`) | `createFallbackInfra` |
+| `public/assets/khepri/district-kit.glb` | `kit_khepri_district.py` | `khepri_processing_tower` (§5.3) | `loadDistrictKit` at start | Code-built tower in `createFallbackInfra` |
+| `public/assets/vesper/vesper-infra.glb` | `kit_vesper_infra.py` | Radiator arrays, missile and cannon sites, cryo dome, habitats, pier, crane, comm needle, ice hauler, icebreaker (`art/vesper-infra/README.md`, [docs/17 §3](17-vesper-glass-frontier.md#3-blender-assets)) | `loadVesperInfra` when Vesper first loads (`ensurePlanet`) | `createFallbackVesperInfra` |
+| `public/assets/shared/industrial-kit.glb` | `kit_industrial.py` | Pipes, valves, supports, tanks, containers and the processing hall `facility` ([docs/14](14-shared-industrial-kit.md)) | `loadSharedKit` at start | `createFallbackShared` |
 
-**Recommendation:** do *not* reuse these as district buildings. Players read a compound as "a battery stands here", so an empty gun court would mislead them. Their roofs also exceed Khepri's 2.2 cap unless the base sits at −0.45 or below.
+Outposts also use natural kit pieces as rubble: Khepri's `rock`, `boulder`, `crystal` and `fallen`
+(`public/assets/khepri/khepri-kit.glb`) and Vesper's `outcrop` (`public/assets/vesper/vesper-kit.glb`). Battery plants
+come from each world's `facility-kit.glb` ([docs/25](25-modular-facilities.md)); the wrecks of killed ground targets
+are render-only props in `public/assets/shared/loot-props.glb`.
 
-### 2.6 Nacre ruins and other pieces
+### 2.2 Materials and stand-ins
 
-**Nacre ruins** (`nacre-kit.glb`; skirt to −0.12; the instance scales the height):
+- **Materials by node name** (`nodeMaterial` in `src/render/terrain-view.ts`): `infra_*` and `khepri_*` nodes draw with
+  the infrastructure material (their amber `light` faces glow); shared-kit nodes with the shared material, which takes
+  each world's palette through its masks ([docs/14 §2](14-shared-industrial-kit.md#2-planet-neutral-shading)); cliff
+  walls with the wall material; everything else, `vesper_*` and `wreck_*` included, with the kit material. The
+  registry's `material` field records the same families but the view does not read it.
+- **World paint** (`src/render/world-paint.ts`) recolours the infrastructure and the shared kit per world, keeping
+  brightness: Luna's bases are white with orange glow, Khepri's rust and orange, Vesper's metallic white with blue glow.
+- **Stand-ins.** Every node has a code-built stand-in at its contract size; it draws until the GLB loads, and stays if
+  a load fails.
 
-| Node | Size | Height | Notes |
-| --- | --- | --- | --- |
-| `nacre_tower_0/1` | 1.96² | Top exactly 1 (instances 2.4–3.3) | |
-| `nacre_fort_0/1` | 3.0² | Exactly 1 | |
-| `nacre_ring_0/1` | 2.26² | 0.46 | |
-| `nacre_bridge_0/1` | 0.71 / 0.82 × 3.00 | 0.76 | Ends at z ±1.5; scaled to span tower to ring |
-| `nacre_pillars_0/1` | about 1.1² | | |
-| `nacre_rubble_0/1` | about 1.25² | 0.19 | |
+## 3. Outposts and networks
 
-They are placed by the ruin-site lattice in Nacre scatter (`terrain-nacre.ts:107-220`): a sanctuary is a tower bridged to a ring, a fort is bridged to a tower, and there are lone towers and drowned pillars. They are scenery only.
+### 3.1 Outposts
 
-**Wrecks** (`loot-props.glb`): `wreck_turret_0/1` (about 1.5 × 1.4) and `wreck_fuel` (1.33 × 1.26) are render wrecks of killed ground targets (`scene.ts:1102`). They are not settlement assets.
+Each world with settlements has one candidate per side in every `SETTLEMENT_CELL` along the route. A candidate exists
+when its presence roll passes and `compoundSlot` finds it a partner, or now and then without one (§3.2); it then picks
+the calmest of a few candidate spots in its slot, an archetype, a quarter turn and a mirror, and composes its modules
+in a local frame from the seed. Its pad flattens the ground around it (`padInfluence`, falling off over 2.4 units);
+wrecks lie on natural ground.
 
-**Code-built stand-ins** exist for every infra, shared, Vesper and Nacre node at contract size (§2.1). The facility compounds have none; the legacy emplacement layouts take their place.
+- **Khepri** (`ARCHETYPES`: refinery complex, mining camp, processing plant, landing field, comm station, pumping
+  station, wreck site, abandoned outpost; weighted toward the big facilities, user 17 October). Never the same archetype
+  as the previous cell on its side. The pad's level is the landform's at its centre, snapped to a quarter unit and
+  clamped between `TERRAIN_MIN_HEIGHT` + 1 and the cap less its tallest module; site choice avoids high ground where the
+  tallest pieces would sink the pad.
+- **Vesper** (`VESPER_ARCHETYPES`: radiator field, missile and cannon sites, cryo station, processing plant, heat
+  exchanger, thermal reactor, harbour). A pad needs dry shelf: up to 20 tries, at least 85% of the pad over the ice and
+  its centre well above the sea. It keeps its own shelf's level, and pieces too tall for the room under the cap become
+  lower ones (`LOWER`). A narrow lead under a pad is filled at pad level like a causeway. An outpost within reach of open
+  water on a low ice foot may be a harbour (half of them are): its quay faces the water, its jetty and an icebreaker
+  stand afloat, and its crane leans over the sea. How the pads sit on the ice is
+  [docs/26 §5](26-terrain-relief.md#5-vesper-outposts-on-the-ice).
+- **Luna** (landing field, comm station, abandoned habitat; `OUTPOST_CHANCE`). Sparse by design (user, 20 October; a
+  little denser since 22 October). Bases come in pairs facing across the route: the left side a landing field (the pad
+  beside a habitat block, cargo and a light), the right a comm station or quarters.
 
----
+### 3.2 Compounds
 
-## 3. Gap analysis (brief and concept sheets)
+`compoundSlot` (`src/world/terrain-settlements.ts`; user, 21 October: infrastructure "cluttered together, with pipes and
+roads connecting several features and bases") puts each outpost beside a partner: the next or previous cell on its
+side, or the other side of its own cell. Without one it stands only now and then (15% on Khepri and Vesper, 20% on
+Luna). It moves toward its partners, to the shared end of the cell, and inward when both sides of the cell are built,
+so neighbouring pads stand a few units apart and the network's chain and cross links join them. The presence test it
+calls is partner-free (a seeded roll, on Vesper also a memoized dry-shelf search), so cells never recurse.
 
-| Planet | Concept item or brief kit | Closest existing | Gap (✗ missing, ◐ partial) |
-| --- | --- | --- | --- |
-| **Khepri** | 01 Heavy refinery tower / "processing tower variants" | `infra_refinery` (1.6 tall plant), silos, tanks | ✗ **No tall landmark.** The hierarchy cannot read without it. |
-| | 02 Mineral extractor pad | `infra_drill_rig`, `crystal`/`crystalSpire` kit | ◐ No extractor pad with arms around a crystal bed |
-| | 03 Pipeline junction | `pipe_l_tee`, `pipe_valve`, `pipe_support` | ◐ No domed manifold hub, no 4-way cross, no purpose-built tall supports (docs/14 §4 already notes stacked frames) |
-| | 04 Power relay spire | `infra_relay` (comm mast), `infra_solar_array` | ✗ No power building or grid piece |
-| | 05 Industrial bridge-gate | — | ✗ No road gates, road bridges or pipe bridges over roads |
-| | Tank farms | 4 tank nodes and `pumping` | ◐ Exist, but are not piped to anything internally |
-| | Mining rigs | `infra_drill_rig` | ◐ One variant |
-| | Cargo platforms | `infra_landing_pad`, unused `infra_track_segment`, cargo haulers | ◐ No raised loading platform or gantry |
-| | Large factory halls | shared `facility` (2.75 × 2.1 × 1.8) | ◐ Only a modest hall; nothing 4–6 long |
-| | Roads | Ribbons, haulers | ◐ No intersections, road ends at gates, ramps or shoulders |
-| | Foundations and retaining | Pad flattening only | ✗ No plinths or retaining walls (pads cut or fill with a 2.4 falloff) |
-| **Vesper** | 01 Thermal reactor tower | `vesper_comm_needle`, `vesper_cryo_dome` | ✗ |
-| | 02 Cryo dock / landing pad | Harbour jetty (pier, crane, icebreaker) | ◐ No dry dock or landing pad; the Khepri pad is ochre and must not be recoloured |
-| | 03 Ark-side defence pylon | `vesper_cannon_site`, `vesper_missile_site` (scenery) | ◐ Check readability against real missile batteries |
-| | 04 Heat exchanger | Radiator arrays, vent stacks | ◐ No exchanger block |
-| | 05 Frozen bridge outpost / "elevated bridges" | Pipe trestles only | ✗ No bridges over leads or crevasses |
-| | Refrigerated warehouses, repair facilities | Habitats, cryo dome | ◐ / ✗ |
-| **Luna** | 01 Command bunker | Khepri habitats | ✗ |
-| | 02 Radar / comms tower | `infra_comm_dish`, `infra_relay` | ◐ |
-| | 03 Hangar pad | `infra_landing_pad` (ochre) | ◐ Needs grey and ivory; `khepri-infra` bakes its colours, so this needs a palette pass or Luna nodes |
-| | 04 Turret emplacement | — | Avoid as scenery: it would read as a target |
-| | 05 Cargo / power cluster | Containers, tanks, solar | ◐ |
-| **Nacre** | 01 Monolith relay; 02 Ring shrine; 04 Bridge-gate tower | `nacre_tower`, `nacre_ring` (low, 0.46), `nacre_bridge` | ◐ Ruins only; no living sanctuary pieces, energy nodes or causeways |
-| | 03 Mire pump / energy node; 05 Pod dock / launch spire | — | ✗ |
-| | Settlement layer | Ruin lattice in scatter; `settlement: () => null` | ✗ The sanctuary grammar would move ruin sites into the settlement layer |
+### 3.3 The network
 
-**Cross-cutting gaps:**
+`edgesOf` in `src/world/terrain-network.ts` gives each outpost its edges:
 
-- socket metadata (none anywhere);
-- an `essential` vs `cosmetic` flag for props and industry (Low can only thin kit scatter today);
-- explicit per-module footprint clearance (now hard-coded per node name);
-- a district preload path for any new GLB.
+- **chain:** to the next outpost ahead on its side, within three cells (five from a district hub);
+- **exit:** to the map edge, now and then, and always for a pumping station without a pipeline;
+- **cross:** across the route, most of the time when the facing cell is built (the left side owns the link), rarely
+  otherwise.
 
----
+Each edge rolls for a road and a pipeline. Khepri's network is `purposeful` (user, 28 October: roads were "everywhere
+without purpose", then "lower the threshold a bit"): a road runs between two works (the `industrial` archetypes), half
+the time between a works and another outpost, always to and from a district, and across the route between facing
+compounds; it leaves the map only from a district. On Vesper and Luna most neighbours get a road. Pipelines join
+industrial sites, a tank farm always lies on one, quiet sites (wrecks, abandoned outposts) get none, Luna has none, and
+none ends at a district. On a world with a sea a pipeline is planned only where at most half its straight line crosses
+water. `edgesNear` drops edges whose search could reach an arena, and those touching or running beside a district an
+arena hides.
 
-## 4. Proposed design
+### 3.4 Roads
 
-### 4.1 Settlement hierarchy (Phase 2)
+- **Search** (`roadPathSteps`): A* on a 1-unit grid with diagonals; steps steeper than `ROAD_MAX_SLOPE` are forbidden,
+  turns cost a little, the centre lane and foreign pads cost more, and district pieces are solid. A road is built only
+  when it reaches its goal (user, 28 October), or on a world with a sea when it runs down to the shore.
+- **Shape:** the searched cells are straightened wherever a straight run stays on gentle, dry, open ground, and every
+  corner is curved (up to a 4-unit radius, tighter where the grade needs it); a final grade check drops any road that
+  still meets a hard step. A purposeful road that would meander (longer than 1.8 times the direct distance plus 4) is not
+  built unless it serves a district.
+- **Ribbons** (`roadRibbonSteps`): sampled every `ROAD_STEP`, each vertex on the highest ground a quarter unit either
+  way so ridges never break through, with graded berms. Surfaces: dust tracks on Khepri, packed snow on Vesper, regolith
+  rover tracks on Luna (`createRoadTexture` in `src/render/terrain-kit.ts`).
+- **Ends** (`RoadEnd`; user, 20 October): a `fade` end (open ground, map exits) narrows to a rounded tip, sinks and
+  fades over `ROAD_ENDS.taper` on a patch of worn ground (Khepri's industrial dust tone; elsewhere it only darkens); an
+  `apron` end runs `ROAD_ENDS.apron` flush onto the pad it serves; a `joined` end continues into a district road.
+  `ROAD_ENDS.taper = 0` restores square-cut ends.
+- **Haulers** (`animate` in `src/render/terrain-view.ts`): one or two per road shuttle in the right-hand lane, seated
+  on the ground under all four corners, drawn at three quarters of the cargo node so they never read as targets; Khepri
+  cargo haulers (repainted on Luna) and Vesper ice haulers. A road sharing another's corridor carries none, and Low keeps
+  fewer. Presentation only: seed and time, never collision.
 
-| Class | What | Existing members | Frequency target |
-| --- | --- | --- | --- |
-| **Outpost** (small) | 2–5 principal structures; isolated | Khepri comm, pumping, wreck, abandoned; Vesper missile, cryo, radiator; all of Luna; battery compounds (render-only, outside the seeded system) | Common, unchanged |
-| **Compound** (medium) | One main structure plus supporting buildings, *internally connected* | Khepri refinery, plant, landing, mining; Vesper plant, harbour. They become compounds once Phase 3 gives them internal links; until then they are only tagged. | "Occasional". Today they are 64% of Khepri sites (weights `terrain-settlements.ts:15`). Retuning is a separate, fingerprinted data change (open question 7). |
-| **District** (large) | Several terraced lots, an authored graph, about 12 × 48 units | New | Khepri: ≤ 1 per campaign mission and ≤ 2 per endless Khepri stint. Other planets later. |
+### 3.5 Pipelines
 
-**An extension, not a competing system.** The district wraps the planet's `settlement()`:
+The pipeline search, layout and supports are [docs/14 §4](14-shared-industrial-kit.md#4-runtime-use). Specific to the
+network: a line leaves and joins an outpost at any cell on its pad's rim (`rimCells`), keeps a unit clear of its modules
+(crowded cells), is laid large about 60% of the time, re-plans up to `PIPE_ATTEMPTS` times around cells where the laid
+pipe would rise over the cap, and on a world with a sea is not built at all when it cannot reach its goal.
 
-```ts
-KHEPRI.settlement = withDistricts(settlement, KHEPRI_DISTRICTS);
-```
+### 3.6 Measured
 
-- `withDistricts` returns the district's **hub lot** for the district's anchor cell and side.
-- It returns `null` for every other cell on that side that the district **claims**: its footprint ± `quietCells` (≈ 15 units of quiet terrain before and after).
-- Otherwise it falls through to the original function, unchanged.
-- `settlementsNear` additionally merges the district's non-hub lots, so pads flatten terrain, pipes avoid them and scatter keeps off them through the existing paths.
+17 November, terrain version 22, seeds 1, 93, 8831, 11 and 4242 over 3 km; "alone" means no other pad centre within
+16 units.
 
-Everything stays a pure function of (seed, planet), so the road and pipe memo keys remain valid (finding §1.4). Claimed cells are claimed whether or not an arena later hides the district, which keeps memo keys valid.
+| World | Outposts per km | Alone |
+| --- | --- | --- |
+| Khepri | 49.0 | 21% |
+| Vesper | 30.1 | 29% |
+| Luna | 16.8 | 21% |
 
-**Opposite flank:** leave its outposts. The busy opposite flank already follows outpost clustering, and the other side is 1.25 screens away. Optionally, suppress *compound* archetypes there within the district's *s* range, as a data flag.
+## 4. Districts
 
-### 4.2 Vertical budget (user addendum, 20 October)
+A district is a rare, authored, multi-lot settlement planned from the seed and the planet alone, in fixed slots along
+the route (`src/world/terrain-districts.ts`). Only Khepri has them (§5).
 
-| Option | Change | Effect | Cost and risk | Recommendation |
-| --- | --- | --- | --- | --- |
-| **A** | `PlanetProfile.structureMax`: district modules only, **3.0 on Khepri**, the same as Vesper and Nacre's `sceneryMax` | 0.8 clearance under the 3.8 plane. Below the facility compounds' 3.35 and the 3.7 shadow slab top. Landmark height H ≤ 3.0 − lot level − 0.05; *probe:* flat lots have a median level of about −3.6, so H ≤ 4 is practical. | No change outside districts. Pipelines and scatter keep 2.2. | **Adopt for Phase 10.** |
-| **B** | Deeper Khepri relief: `FLOOR_LEVEL` −6.3 → about −7.5, `TERRAIN_MIN_HEIGHT` −8 → −10 | More depth everywhere and taller structures in valleys | Changes the whole planet (all fingerprints). Shadow march length (`SHADOW_STEPS`, about 11 units), the settlement level clamp −6 (`terrain-settlements.ts:192`), haze and far plane need review. `rayPlacement` and the shadow slab follow `TERRAIN_MIN_HEIGHT` automatically. | Separate phase, behind its own data switch, with screenshot review |
-| **C** | Raise `VIEW.flightHeight` | Lifts every cap | Touches 17 source and test files, including `src/sim/motion.ts`, projection, viewport and boss seating. A combat-adjacent contract. | Only with an explicit user decision |
+### 4.1 Hierarchy
 
-*Probe* (40 seeds, 156-unit window): relief, not height, is the binding constraint. With relief ≤ 1.4, raising the cap from 2.2 to 3.0 does not change how many seeds find a site (29/40 either way).
+The registry names three classes (`SiteClass` in `src/world/settlement-modules.ts`): an **outpost** is one pad of a few
+structures; outposts in **compounds** stand beside partners and share roads and pipelines (§3.2); a **district** is
+several terraced lots laid out by an authored graph, one of them the network **hub**.
 
-### 4.3 Module metadata (Phase 4)
+A district extends the planet's outposts rather than replacing them. `KHEPRI.settlement` is
+`districtSettlement(KHEPRI, settlement, …)`:
 
-There is one typed registry, `src/world/settlement-modules.ts` (pure data, no three.js). It becomes the single source. `MODULE_HEIGHT`, the `INFRA_NODES` sizes, `SHARED_BOUNDS`, `moduleReach`, the occupancy radii and `CASTER_NODES` are then derived from it. A test asserts the derived values equal today's literals, so the switch is output-neutral.
+- the district's anchor cell on its flank returns the hub lot;
+- every other cell on that flank that the district claims (its extent plus the policy's `quiet` buffer) returns nothing;
+- all other cells return the original outpost.
 
-```ts
-export type SiteClass = 'outpost' | 'compound' | 'district';
-export type Role = 'landmark' | 'processing' | 'tankFarm' | 'pipeJunction' | 'cargoZone' | 'power' | 'storage'
-  | 'admin' | 'repair' | 'habitat' | 'lighting' | 'vehicle' | 'detail';
-export type SocketKind = 'road' | 'pipeS' | 'pipeL' | 'power' | 'bridge' | 'causeway' | 'walkway' | 'track';
-/** Outward quarter turn in node space: 0 = −Z (forward, +s), 1 = +X, 2 = +Z, 3 = −X. */
-export type Facing = 0 | 1 | 2 | 3;
-export interface Socket { id: string; kind: SocketKind; at: readonly [x: number, y: number, z: number]; facing: Facing }
-export type Foundation =
-  | { kind: 'pad' }                              // stands on a flattened lot (today's outposts)
-  | { kind: 'plinth'; maxRise: number }          // tolerates relief under its footprint; plinth piece fills (new asset)
-  | { kind: 'piles'; depth: number }             // authored piles (compounds: 1.75)
-  | { kind: 'afloat'; waterline: number }        // pier, icebreaker
-  | { kind: 'natural'; sink: number };           // wrecks, ruins: follow ground
-export interface ModuleSpec {
-  node: string;                                  // GLB node name = registry key
-  source: 'khepri-infra' | 'industrial-kit' | 'vesper-infra' | 'nacre-kit' | 'khepri-kit' | 'district-kit';
-  material: 'infra' | 'shared' | 'kit';          // explicit routing (replaces the name-prefix rule, terrain-view.ts:175)
-  half: readonly [x: number, z: number];         // measured half footprint before rotation
-  top: number; below: number;                    // above / below the pivot (one convention for every kit)
-  foundation: Foundation; maxRelief: number;     // ground relief tolerated under the footprint
-  planets: readonly PlanetId[]; classes: readonly SiteClass[]; roles: readonly Role[];
-  sockets: readonly Socket[];
-  rotation: 'quarter' | 'free' | 'fixed';        // industrial pieces: quarter turns only
-  clearance: number;                             // scatter/pipe keep-out radius
-  tiles?: { axis: 'x' | 'z'; period: number };  // solar 2.2/x, radiator 2.0/x, track 2.0/z, pier 2.0/z
-  variants?: readonly string[];                  // interchangeable nodes for one role
-  detail: 'essential' | 'cosmetic';              // Low drops cosmetic
-  shadow: boolean;                               // High caster strips
-  lowNode?: string;                              // optional simplified node (Low / distant)
-}
-export const MODULES: Readonly<Record<string, ModuleSpec>>;
-```
+`settlementsNear` adds the district's other lots, so pads flatten the ground, networks route round them and scatter
+keeps off them through the same paths as outposts. The opposite flank keeps its outposts.
 
-- **Sockets** are declared in metadata, not added to the approved GLBs, so no approved model is regenerated.
-- A contact test checks each socket against the loaded GLB: a ray from the socket along its facing reaches open air, and the opposite ray hits the mesh within 0.15. This uses the same approach as the ray checks in `cinematic-assets.test.ts`.
-- Pipe sockets lie on the 2-unit grid at y 0.35 so they join the existing pipe kit exactly. Where a piece has no modelled nozzle (the `facility` hall), the socket sits against the wall and the router ends the run with a `pipe_valve` against it. A reviewer judges this in screenshots.
+### 4.2 Structure cap
 
-### 4.4 Layout graphs (Phase 3)
+District pieces stay under the policy's `structureMax` (a lot's `cap`, read by `settlementPieces`), and the planner
+keeps each lot's level at or under `structureMax` less its tallest piece. This is option A of the user's 20 October
+decision ([docs/08](08-decisions-and-sources.md)): district structures have a cap of their own, and the flight plane
+never moves for scenery. Khepri's district cap and its scenery cap are both 3.0 now (`SCENERY_MAX_HEIGHT` rose to it with
+the deeper relief of terrain version 13), but they stay separate data.
 
-The layout graphs live in `src/world/settlement-grammars.ts` as authored data. There are three: Khepri refinery (the prototype), Vesper dockyard and Nacre sanctuary.
+### 4.3 Module registry
 
-```ts
-export interface LotSpec {
-  id: string; half: readonly [u: number, v: number];     // u lateral (+ toward the world edge), v forward
-  at: readonly (readonly [u: number, v: number])[];       // candidate centres relative to the core lot, tried in seeded order
-  maxRelief: number;                                      // p90 − p10 of raw ground under the lot
-  maxStep: number;                                        // level difference allowed to the lot it links to
-  optional?: boolean;
-}
-export interface SlotSpec {
-  id: string; role: Role; lot: string; modules: readonly string[];  // ModuleSpec keys, picked by seed
-  count?: readonly [min: number, max: number];
-  place: { u: number; v: number; turn?: Facing }          // lot-local, snapped to the lot's 2-unit grid
-       | { row: { u: number; v: number; step: readonly [number, number] } };
-  chance?: number; requires?: readonly string[];
-}
-export interface LinkSpec {
-  from: `${string}.${string}`;                            // slot.socket
-  to: `${string}.${string}` | 'external.road' | 'external.pipe' | 'external.power';
-  kind: 'road' | 'pipe' | 'power' | 'walkway' | 'causeway' | 'bridge'; required: boolean;
-}
-export interface LayoutGraph {
-  id: string; planet: PlanetId; class: SiteClass;
-  envelope: readonly [u: number, v: number];             // half extents incl. approach apron
-  landmark: string;                                       // slot placed first (step 3)
-  lots: readonly LotSpec[]; slots: readonly SlotSpec[]; links: readonly LinkSpec[];
-  variation: { mirror: boolean; flipV: boolean; emptyYardChance: number; inactiveChance: number };
-}
-export interface DistrictPolicy {
-  grammars: readonly { graph: LayoutGraph; weight: number }[];
-  first: number; period: number;                          // slot k window = first + k·period + window
-  window: readonly [minS: number, maxS: number]; prefer?: readonly [number, number];
-  arenaMarginBefore: number; arenaMarginAfter: number;    // beyond ARENA_RAMP
-  quietCells: number; laneKeepOut: number; structureMax: number;
-}
-/** Output: global, memoized per (planet, seed, slot); sections only read it. */
-export interface DistrictPlan {
-  id: string; graph: string; side: -1 | 1; turns: 0 | 1 | 2 | 3; mirror: 1 | -1;
-  bounds: { minX: number; maxX: number; minS: number; maxS: number };
-  lots: Settlement[];            // lots[0] = hub (gates, pipe ports, external edges)
-  pieces: IndustryPiece[];       // internal pipes, supports, valves
-  roads: RoadPath[];             // internal roads (ribbons + haulers via existing code)
-  reserved: readonly { minX: number; maxX: number; minS: number; maxS: number }[];
-}
-```
+`MODULES` (`src/world/settlement-modules.ts`) holds one typed record per placeable infrastructure node: the Khepri
+infrastructure, the shared industrial kit, the Vesper infrastructure and the district kit. Pure data, no three.js.
 
-Backward-compatible extensions:
+| Field | Meaning |
+| --- | --- |
+| `node`, `source` | GLB node name and kit (`khepri-infra`, `industrial-kit`, `vesper-infra`, `district-kit`) |
+| `half`, `top`, `below` | Contract half footprint (local x, z), height above the pivot and extent below it (skirt, waterline depth) |
+| `sockets` | Connection points: kind (`pipeL`, `road`, `track`, …), position in node space, outward facing (0 = −Z, 1 = +X, 2 = +Z, 3 = −X) |
+| `foundation`, `rotation`, `tiles` | Pad, piles, afloat or natural ground; quarter turns, free or fixed; seamless repeat along an axis |
+| `planets`, `roles` | Where it is used, and its roles (landmark, processing, tank farm, pipe junction, cargo zone, power, …) |
+| `detail`, `shadow`, `material` | Default detail level, real-time shadow on High, material family |
+| `planned` | Authored but not yet modelled: layouts place its stand-in pieces instead |
 
-- `Settlement` gains the optional fields `class`, `district`, `role: 'hub' | 'lot'`, `gates` and `pipePorts`.
-- `TerrainProp` and `IndustryPiece` gain `cosmetic?`.
-- `TerrainSection` gains `sites?` (reserved rectangles for the renderer).
+Code reads `half`, `top`, `sockets`, `source` and `planned`: the district layout seats pieces by socket and keeps
+planned nodes out, the network makes district pieces solid by their footprint, the terrain view sizes culling boxes with
+`moduleSize`, and `DISTRICT_NODES` lists the district kit. The other fields are descriptive. Sockets are metadata, not
+empties in the GLBs; pipe sockets sit on the 0.35 centreline of the 2-unit pipe grid
+([docs/14](14-shared-industrial-kit.md)).
+`tests/world/settlement-modules.test.ts` checks that the registry equals the older tables (`MODULE_HEIGHT`,
+`SHARED_BOUNDS`, `INFRA_NODES`, `VESPER_INFRA_NODES`) and casts rays at the shipped models to prove each district pipe
+socket lies on a real surface.
 
-**Seeded variation** comes from salts 0xd1a0–0xd1af:
+### 4.4 Layout graphs
 
-- side, mirror, `flipV` and the quarter turn of the whole district (never per building);
-- the lot candidate order;
-- module picks among variants, counts within range and optional slots;
-- an occasional empty yard or inactive (unlit) building.
+`src/world/settlement-grammars.ts` holds the authored graphs as data. A lot frame has `a` across (+ toward the world
+edge on the district's flank) and `b` along the district (+ away from the hub); pieces sit at authored spots in quarter
+turns, so industrial alignment holds, and the whole layout mirrors with the flank and direction.
 
-Industrial alignment holds within a lot: everything sits on the lot's 2-unit grid in quarter turns.
+- **`LayoutGraph`:** its lots in order (the first is the hub), the gap candidates between consecutive pads, and the
+  largest cut or fill under a pad (`maxCut`) and level step between lots (`maxStep`).
+- **`LotSpec`:** role (`hub` or `lot`), half extents, lateral centre candidates `u`, the tallest piece it may hold, its
+  pieces, its pipework, the hub's road gates, the yard where internal roads meet, where the spine leaves or enters, and
+  an optional landmark slot (with stand-in pieces while its node is planned).
+- **`Placement`:** one node or a seeded choice, its spot, a quarter turn or a `face` (an axis toward a lot direction,
+  for asymmetric sockets), an `attach` that seats the node by a socket onto a pipe end, a build `chance`, a `group` built
+  together or not at all, `cosmetic`, and a `lift` above the pad (a hauler parked on a track).
+- **`PipeCell`:** straights, valves, closed end valves (`cap`), tees (a tee may feed a tank, placed at the branch end by
+  the tank's socket radius) and elbows on the lot's 2-unit lattice.
+- **`DistrictPolicy`:** the graph, the slot windows (`first`, `period`, `length`) and preferred band (`prefer`), arena
+  margins beyond `ARENA_RAMP`, the `quiet` buffer, the `lane` clearance and `structureMax`.
 
-### 4.5 The fixed 8-step sequence, mapped onto the code
+### 4.5 Planning
 
-| # | Step | Implementation | Plugs into |
-| --- | --- | --- | --- |
-| 1 | Type and function | `districtSlot(seed, planet, k)` picks a grammar by weight (0xd1a0) | New `src/world/terrain-districts.ts`; read via `planet.districts` |
-| 2 | Terrain-appropriate location | Coarse-to-fine search: a raw-landform lattice (1 unit) over the slot window and both flanks, then per-lot relief and level tests. Requires \|x − routeCenter(1)\| ≥ `laneKeepOut`, \|x\| + half ≤ 14.7, core level ≤ `structureMax` − H − 0.05, and the arena margins. Same idea as `settlement()`'s calmest-candidate search (`terrain-settlements.ts:171-178`). | `terrain-districts.ts` (raw `planet.landform` with a neutral row, as `vesperSettlement` does) |
-| 3 | Landmark / core | Core lot first; landmark slot on its outer half (\|x\| 6.5–8.5) | Plan |
-| 4 | Reserve footprint and approach | Lots become pads (`terrainRow` sites → `rowPoint` flatten). Claimed cells come from `withDistricts`. An approach apron at the hub gate. `reserved` rectangles go to the renderer. | `terrain-settlements.ts` (`settlementsNear` merge), `terrain-ground.ts` unchanged |
-| 5 | Local connection network | Internal spine road as lot-local polylines → `RoadPath`. The external road is the hub's network edges, with `gate()` choosing among the hub's `gates`. Hub edges are forced to road = 1. | `terrain-network.ts` `gate()` (:94), `edgesOf` (:101; skips `role: 'lot'`) |
-| 6 | Supporting structures by function | Fill the slots per graph and lot | Plan → lot `modules` (existing `PlacedModule`) |
-| 7 | Connect with infrastructure | Orthogonal pipe router on each flat lot (2-unit grid, base at lot level, supports per straight cell, elbows and tees, a valve at junctions), emitting `IndustryPiece`s. Between lots at different levels, the existing pitched-run and riser layout handles the step. External pipelines join only at `pipePorts`, replacing `rimCells` for that site. | New router in `terrain-districts.ts`; `rimCells` (:417) |
-| 8 | Secondary detail, lighting, wear, activity | Light masts and parked cargo (cosmetic). The existing `industrial` mask darkens and dusts the pads (`terrain-layout.ts:237`). Haulers drive internal roads (`animate`). Optional render-only steam at stacks (the vent-feature path). | Plan + `terrain-view` |
+`districtPlanSteps` plans one slot in resumable steps:
 
-Sections consume the plan in `sectionSteps`: lot modules through `settlementPieces` (`terrain.ts:129`), and `plan.pieces` and `plan.roads` appended next to `networkPieces` and `networkRoads` (`terrain.ts:357`), filtered by anchor *s* and seam clearance.
+1. **Lattice.** One raw landform sample per unit across both flanks (integer |x| up to the world edge) over the slot's
+   window, a row per step. Raw means the planet's landform before pads and arenas.
+2. **Search.** Candidate centres for the second lot every 2 units, the preferred band first and then outward; for each,
+   flanks and directions in a seeded order, the lots' lateral candidates and the gaps. A fit needs every pad inside the
+   window, cut and fill under each pad within `maxCut` at the level that minimizes it, that level under the cap less
+   the lot's tallest piece, level steps within `maxStep`, each pad's inner edge `lane` clear of the calm centre route,
+   and a drivable grade across each gap (the final ground emulated under the pads' falloff, `LINK_GRADE`). The first fit
+   wins; with none the slot stays quiet.
+3. **Layout** (`layout`): seeded node choices, chances and groups; the landmark, or its stand-ins while planned; pieces
+   seated by socket or faced; the pipework with supports, tees feeding tanks and closed ends; the hub's gates, its yard
+   and the spine through every lot; and the reserved `sites` (each pad plus half a unit).
 
-### 4.6 Chunk independence and streaming
+The planner handles a hub and one lot; a graph with more lots throws.
 
-- **Global plan:** a plan depends only on (seed, planet.id, slot) and the raw landform. It never reads sections, load order, arenas (filtered at query time) or routes. It is memoized per `${planet}:${seed}:${slot}`, bounded at 64 entries.
-- **Instantiation:**
-  - Each piece is owned by the section that contains its anchor *s*.
-  - Rule: module half-depth ≤ 6 along *s* (the window margin is about 10; §1.3), so a district straddling sections never pops.
-  - Roads are global `RoadPath`s, so ribbons join across seams like network roads do today.
-  - Internal pipe joints are computed globally, so straddling runs join exactly.
-- **Cost and warm-up (*probe*):** a raw landform sample costs about 9 µs in Node here. A naive search would take about 1 s per slot, so it is not acceptable.
-  - The plan search reuses one cached lattice: about 3.5k samples, about 30 ms per slot, run as **resumable steps**.
-  - `createTerrainStream.prefetch` runs `districtPlanSteps` for any slot within 2 sections ahead before the section's own steps.
-  - `terrainRow` only reads ready plans. A plan requested synchronously (a seek or a test) is computed with `finish()` and counted as a fallback, giving identical output by construction.
-- **Seams and arenas:** a district must lie within one route segment. `arenaMarginBefore` = 40 (keeps the boss approach clear) and `arenaMarginAfter` = 132, which clears the departure, the planet switch at arena.to + 72 and the jump end at +80, so hyperdrive streaming never meets a district section.
-- **Preload:** the prototype uses only already-loaded nodes, so there is no new load. A future `district-kit.glb` loads with the planet's kits (`ensurePlanet`, `PRELOAD_AHEAD` 400) and has stand-ins.
+### 4.6 Chunk independence, streaming and arenas
 
-### 4.7 Determinism and RNG separation
+- A plan depends only on the seed, the planet, the policy and the slot, and reads only the raw landform: never sections,
+  load order, arenas or routes. Plans are memoized per planet, policy, seed and slot.
+- `sectionSteps` plans every slot within `DISTRICT_WARM` of its section before generating its rows
+  (`warmDistrictSteps`), inside the stream's budgeted steps; a plan requested at once (a seek, a test) is identical.
+- Pieces belong to the section holding their anchor; district roads are global (`districtRoadsSteps`, memoized per
+  plan); each section lists the district sites that reach it (`TerrainSection.sites`).
+- An arena hides a whole district at query time (`districtHidden`: within `arenaBefore` of the arena's ramp before it,
+  `arenaAfter` after it, which clears the departure and a jump). The plan and its claimed cells stay as they are, so the
+  network's memo keys stay valid; edges that touch the district or run beside it are dropped.
+- Network memo keys name the planet and its district policy (`memoPrefix`), so switching a policy never reuses a path
+  built for other sites.
 
-- Only `hash(seed ^ 0xd1aX, …)` is used. There is no `Math.random`, no gameplay stream and no render state in generation.
-- Render-only choices stay hash-based: hauler phase, light blink, and the compound fallback near a district.
-- New tests:
-  - **Order independence:** generate the district's sections in shuffled order and compare deep-equal, as in `terrain.test.ts:23`.
-  - **Sync and incremental equality**, including the plan steps.
-  - **Seed sensitivity:** different seeds produce different sides, turns and lots.
+### 4.7 Determinism
+
+Districts use hash salts `0xd1a0`–`0xd1af` (`0xd1a0` for the search order, `0xd1a2` for layout choices) and nothing
+else: no `Math.random`, no gameplay stream, no render state. The tests build a district's sections in shuffled order
+and incrementally, and compare them with synchronous generation (§5.5).
 
 ### 4.8 Combat, visibility and clearance
 
-- **No gameplay coupling:** terrain never reads encounters (the cues' timing depends on kills). Districts avoid combat-heavy *places* through flank placement and *times* through slot windows chosen against authored recovery stretches (§5.1). Targets, collisions and progression are untouched.
-- **Height:** every district module top must be ≤ `structureMax` (3.0 on Khepri). Plans guarantee this through the lot level. A test asserts that **no district module is dropped** by the cap guard (finding 1.6).
-- **Lanes:** lots keep \|x − routeCenter(seed, 1, s)\| ≥ 3.5. Only the hub's external road or pipe edge may cross toward the centre, as cross edges do today.
-- **Target visibility:** markers already ignore depth, and hidden batteries draw silhouettes.
-  - The landmark sits on the outer half of the envelope (\|x\| ≥ 6.5), so its occlusion shadow (about 0.7·H toward +s at the 55° camera) falls on the district and the world edge rather than the centre lane.
-  - Cap the landmark at H ≤ 4.
-- **Battery compounds versus the district (render-only):**
-  - `facility-view` and the legacy emplacements skip placements that overlap `section.sites` reserved rectangles. They try the small compound first, then the legacy emplacement, then nothing. Target positions do not change.
-  - `setFacilityClearings` never hides a module flagged as protected.
-  - A test extends `facility-placement.test.ts`.
-- **Low tier:** only `cosmetic` props and pieces drop: masts beyond one per lot, parked haulers beyond one, crate stacks. Silhouettes stay.
+- **No gameplay coupling.** Terrain never reads encounters; districts keep out of combat by standing on a flank and in
+  fixed slot windows away from arenas. Targets, collisions and progression are untouched.
+- **Height.** Every district piece stays under `structureMax`; the tests assert that none is dropped by the cap.
+- **Lanes.** Pads keep `lane` from the calm centre route, and the landmark stands on the outer half of its lot, away
+  from the lane.
+- **Paths.** District pieces, and the lots behind the hub, are solid to every road and pipeline search (`gridSteps`);
+  only the hub's yard is open to roads arriving at its gates.
+- **Battery plants.** `reservedSites()` passes the pads in the window to the plants and the legacy emplacement pieces,
+  which keep out of them, so no clearing ever hides a district piece. Batteries never move.
+- **Low tier.** Only placements marked `cosmetic` drop (extra light masts, the hauler on the second track, some
+  containers); silhouettes stay.
 
-### 4.9 Rollback per phase
-
-| Phase | Switch | Proof |
-| --- | --- | --- |
-| 2: hierarchy and district slots | `KHEPRI.districts = null` (one data line); `withDistricts` falls through | The legacy fingerprint set is kept as a second recorded set and asserted with districts off |
-| 3: layout graphs | Remove a graph from the policy (the slot then yields a compound or nothing) | Graph unit tests |
-| 4: module registry | Pure refactor; derived tables equal today's literals | Equality test; fingerprints unchanged |
-| 4.2 A: structure cap | `structureMax` = `sceneryMax` | Height tests |
-| 5: gates and pipe ports | `Settlement.gates` absent means the old `gate()` | Pipe and road connectivity tests |
-| 10: prototype | Same as phase 2; shipped as its own commit and deploy | Before/after captures |
-
-`TERRAIN_VERSION` goes to 11 when districts are on. Re-record the Khepri fingerprints deliberately (`terrain-vesper.test.ts:28-34`); the Vesper, Luna and Nacre fingerprints must stay identical.
-
----
-
-## 5. Phase 10a: Khepri refinery prototype (existing assets only)
+## 5. Khepri refinery districts
 
 ### 5.1 Placement
 
-| Run | Window (district footprint) | When it is visible | Combat context |
-| --- | --- | --- | --- |
-| Campaign Rolling Thunder (arena 666–701) | *s* 440–606; **prefer core 520–580** | Distance ≈ footprint − 25 … + 6 (prefer t ≈ 100–116 s) | After `r-last` (93 s) and `r-relief` (98 s); the Bastion rolls in at about 129 s (`encounters.ts:77-101`, `content/bastion.ts:39-43`) |
-| Endless, Khepri stint (406–1635) | Slot 0: 486–606 (after the Luna arena at 334 + 20 + 132). Slot 1 (period 720): 1160–1326 | Sector 2 and the sector 3/4 boundary | Ordinary sector pressure; flank placement keeps the centre lane |
+`KHEPRI_DISTRICTS` (`src/world/settlement-grammars.ts`, policy `khepri.v1`): slot k's window is
+`first + k · period` to `+ length`, and the planner looks first for the process lot in the preferred band (`prefer`, s
+520–580 in slot 0). Slot 0 lies in Rolling Thunder's run-up to the Bastion arena; on an endless route a slot shows only
+where Khepri generates that stretch. Arena margins (`arenaBefore`, `arenaAfter`), the quiet buffer, the lane clearance
+and `structureMax` are in the policy.
 
-- **Size:** envelope 12 × 48 (u ±6, v ±24). That is about 1.8 gameplay screens (one screen is 12 × 26) and is seen for about 10 s at 5 units/s.
-- The district occupies one flank: \|x\| from about 3.5 to 14.7. The landmark is partly visible from the centre lane (lateral commitment cue, docs/10 §3).
-- **Feasibility (*probe*, 40 seeds, flexible lots, core level within budget):**
+Khepri's landform grades the flanks of every slot's preferred band (`districtGrade` in `src/world/terrain-layout.ts`,
+[docs/26 §2](26-terrain-relief.md#2-khepri-the-level-field-and-its-moods)): gentler benches, fewer mesas and shallower
+canyons, so terraced lots and a drivable link are found often. Measured 17 November (terrain version 22, seeds 1–40):
+slot 0 holds a district for 23 seeds and slot 1 for 21; the test requires at least 22 in slot 0. Rolling Thunder shows
+at most one district, an endless Khepri stint at most two, each at least 80 units from a planet seam (tested).
 
-| Core window | Relief ≤ 1.4 | Relief ≤ 1.8 |
-| --- | --- | --- |
-| Whole window (core 440–596) | 29/40 seeds | 35/40 seeds |
-| Preferred only (core 522–580) | 21/40 seeds | 21/40 seeds |
+### 5.2 Layout
 
-  Search the preferred band first, then the full window. With no site, the slot yields **no district** (quiet), or a compound if open question 3 decides so. A rigid single-pad layout found sites for only 7 of 40 seeds, which is why lots must be terraced.
+The graph `KHEPRI_REFINERY` (`khepri.refinery`) has two lots, a gap of 5, 6 or 7 units between their pads, cut and fill
+up to `maxCut` and a level step up to `maxStep`. Together they cover about 10 × 40 units on one flank, from about 2
+units off the centreline to the world's edge.
 
-### 5.2 Layout graph `khepri.refinery`
+| Lot | Pieces |
+| --- | --- |
+| **Hub** (cargo zone, lateral centre 6–7.6 from the centreline) | Two rows of crawler track (`infra_track_segment`; the second row three times in four) with haulers parked on them; containers; an admin block (`infra_habitat_1`, often); a power relay with a solar array (together, often); two light masts. Gates `end` (at the hub's far end from the process lot) and `inner` (on its lane side) |
+| **Process lot** (lateral centre 6.4–7.3) | The landmark `khepri_processing_tower` on its outer half; one or two processing halls (`facility`) turned so their flat wall meets the header; storage tanks (`tank_horizontal`, sometimes `tank_sphere`); a container; three light masts. One large-pipe header runs from a closed valve at the far end through four tees, each feeding a vertical tank (the one by the closed end seven times in ten; an unbuilt tank's tee is a plain straight), then an inline valve as the junction and a tee that splits to the first hall and, by an elbow, to the tower's socket |
 
-Lot-local frame: u is lateral (+ toward the world edge) and v is forward (+s). The player meets −v first.
+Pieces marked cosmetic: the second track's hauler, one container on each lot and three of the five light masts.
 
-```
- v
-+24 ┌────────── [admin 4×4 opt] [repair 7×7 opt: landing pad apron] ───────────┐
-    │  [TANK FARM 7×8]  ══pipe══ [JUNCTION 4×4] ══pipe══╗                         │
-+10 │   Tv Ts Tv                    tee+valve          ║                          │
-    │   Tv Tv Th ─ ext. pipeline port ←─ network         ║                          │
-  0 │                                   [CORE 10×10]: landmark cluster (outer half) │
-    │  [power 5×5 opt]                    + 2 processing halls, masts               │
--10 │        ── internal spine road ──────────────┘                                 │
-    │  [CARGO ZONE 8×9]: track segments ×6, parked haulers, container stacks, masts │
--24 └──── hub gate: external network road enters here (−v) ─────────────────────────┘
-      u −6 (lane side)                                             u +6 (edge side)
-```
+### 5.3 District kit
 
-| Role (required ●, optional ○) | Lot / place | Existing nodes | Sockets and links |
-| --- | --- | --- | --- |
-| ● Landmark (stand-in) | Core, outer half | `infra_refinery` + 2× `infra_silo` + `tank_vertical_1` as one tight cluster | Refinery slab pipe socket (pipeL) faces the junction |
-| ● Processing buildings | Core | 1–2× shared `facility` hall, long axis along v | pipeL wall sockets → junction |
-| ● Tank farm | Tank lot | 2 × 3 grid at 2.0 pitch: `tank_vertical_0/1`, `tank_sphere`; `tank_horizontal` toward the junction | Each tank has 4 pipe sockets at its radius, y 0.35; manifold run to the junction |
-| ● Pipeline junction | Junction lot | `pipe_l_tee`, `pipe_valve`, `pipe_support` | Links tanks → junction → processing; `external.pipe` port |
-| ● Cargo loading zone | Cargo lot (at the hub) | `infra_track_segment` ×6 (two rows), `infra_cargo_0..2` parked (1 essential, the rest cosmetic), `container_0/1` stacks, `infra_light_mast` | `external.road` at the hub gate; spine road → core yard |
-| ● Road connection | Hub | Network edge (chain or exit) from `gates[0]`, forced road | — |
-| ○ Power generator | Power lot | `infra_relay` + 2–3 `infra_solar_array` tiles | `power` link drawn as a small conduit (`pipe_s` on supports) to the core |
-| ○ Secondary storage | Any lot edge | `infra_silo`, `tank_horizontal`, containers | — |
-| ○ Admin building | Admin lot | `infra_habitat_1` (office with cupola) | — |
-| ○ Repair yard | Repair lot | `infra_landing_pad` as a service apron, parked cargo | Road spur |
-| Lighting | Lot corners | `infra_light_mast` (first per lot essential, the rest cosmetic) | — |
+`khepri_processing_tower` (`public/assets/khepri/district-kit.glb`, built by `tools/blender/kit_khepri_district.py`
+after item 01 of the Khepri facility sheet): footprint 3 × 3, top 3.5, skirt to −0.05, large-pipe stubs ending in half
+flanges at the middle of each face (the registry's sockets), a 9,000-triangle budget. It uses the infrastructure kit's
+construction and materials, so the runtime infrastructure material draws it alike, casts a real shadow on High, and has
+a code-built stand-in until the kit loads. It is the only district-kit node.
 
-**Estimated cost:** about 23k triangles for the whole district and about 12–15k at once in view. That means +0 draw calls for nodes already on screen, and +1 for the first `infra_track_segment` batch.
+### 5.4 Roads at a district
 
-**Budget for review:** ≤ +3 calls and ≤ +15k visible triangles on High, within `terrain-budget.test.ts`'s 70 calls and 90k triangles.
-
-### 5.3 New pieces truly needed (flagged, not authored)
-
-| Priority | Piece | Why | Notes |
-| --- | --- | --- | --- |
-| 1 | `khepri_processing_tower` (2 variants) | No existing node can be the dominant landmark. The stand-in tops out at 1.75. | H 3.0–4.0 (fits option A on lots at ≤ −1), footprint about 3 × 3, pipeL sockets, amber stack lights, after sheet 01 |
-| 2 | `pipe_l_cross` / `pipe_manifold` hub | Junction readability (sheet 03); a 4-way joint is impossible with tees alone | Same 2-unit grid contract as docs/14 |
-| 3 | `foundation_plinth` / `retaining_wall` (tiling) | Lot edges with steps of 0.5 or more, and lots up to 1.8 relief | Basalt-concrete; tiles along x |
-| 4 | `khepri_power_relay` spire, `khepri_bridge_gate`, a large factory hall | Sheets 04 and 05; the "large factory halls" kit item | After the layout review |
-
-### 5.4 Implementation order (World session ownership)
-
-1. `src/world/settlement-modules.ts`: the registry subset the refinery needs, plus a derived-table equality test.
-2. `src/world/settlement-grammars.ts`: the `khepri.refinery` graph and `KHEPRI_DISTRICTS` (nullable).
-3. `src/world/terrain-districts.ts`:
-   - lattice search steps;
-   - lots;
-   - pipe router;
-   - internal roads;
-   - plan memo.
-4. Hooks:
-   - `terrain-settlements.ts`: `withDistricts`, and the merge in `settlementsNear`;
-   - `terrain-network.ts`: `gate()`/`rimCells` honour `gates`/`pipePorts`, `edgesOf` skips lots, hub edges are forced to road;
-   - `terrain.ts`: plan pieces and roads per span, occupancy radii from the registry, `TERRAIN_VERSION` 11;
-   - `terrain-planet.ts`: `districts`, `structureMax`.
-5. Stream: plan warm-up steps in `createTerrainStream.prefetch`.
-6. Render:
-   - `terrain-view.prepare` takes boxes and the cosmetic flag from the registry (also fixes finding 2);
-   - `facility-view` and the scene emplacements honour `section.sites`.
-7. Tests, fixture, captures and measurements (§5.5), then a `docs/build-status.md` entry.
-
-`tests/fixtures/**` is listed under the Bastion/Codex session in `COORDINATION.md`. Note the new fixture there before adding it.
+- **The hub always gets a road.** Its chain edge looks five cells ahead (its own claimed cells are empty) and falls back
+  to a map exit; its edges carry roads only. The other lot has no edges of its own: it joins through the hub.
+- **Gates.** `gate()` sends a network road to the hub gate nearest the road's far end.
+- **Internal roads** (`districtRoadsSteps`): the spine continues the main gate's network road from its exact tip
+  through the hub yard and across the gap to the process lot's yard, where it opens onto the pad; another gate a network
+  road reaches gets a spur to the hub yard, and further roads at a gate get a short link. Corners curve on a 2.5-unit
+  radius. They are built on the arena-free world from the network roads that world keeps, so no spur dangles.
+- **Pipelines.** No external pipeline joins a district; its pipework is all internal.
 
 ### 5.5 Validation
 
-**Unit tests** (new `tests/world/terrain-districts.test.ts`, plus extensions to existing suites):
+`tests/world/terrain-districts.test.ts`:
 
-- **Determinism:** shuffled section order, sync and incremental equality, and plan memo eviction all give deep-equal results (seeds 11, 93, 8831, 4242, plus a feasible-site seed found by search).
-- **Seams and continuity:**
-  - internal pipe joints match within 1e-6 across section boundaries;
-  - road ribbons join;
-  - every road end lies within 0.6 of a road socket, a network endpoint or a map exit;
-  - every district has ≥ 1 network road edge.
-- **Integrity:**
-  - no module dropped by the cap;
-  - every top ≤ `structureMax`;
-  - footprint corners within the foundation tolerance of the ground (no floating, no buried roofs);
-  - tank and hall sockets are touched by their pipe ends (contact ≤ 0.05).
-- **Placement:**
-  - quiet cells hold no other same-side settlement;
-  - lots respect the lane keep-out and world edge;
-  - arena margins hold (Rolling Thunder; endless 0–3200);
-  - no lot within 80 of any planet seam;
-  - ≤ 1 district in Rolling Thunder and ≤ 2 per endless Khepri stint.
-- **Rollback:** policy null gives the legacy Khepri fingerprints; Vesper, Luna and Nacre fingerprints are unchanged.
-- **Budget and stream:**
-  - `terrain-budget` sweep extended over a district window (High ≤ 70 calls, ≤ 90k triangles; Low ≤ High);
-  - `terrain-stream` no-fallback test at top endless pace through a district;
-  - route jump test unchanged.
-- **Facilities:** a battery inside the reserved rectangle gets the small compound, the legacy emplacement or nothing, never a hidden landmark. The battery's position is unchanged.
+- plans in most slots, identical whether planned at once or in resumable steps, with both flanks and directions;
+- terraces within the window, the world and the lane clearance, under the structure cap;
+- no stacked pieces; pipework joined end to end at pad level, open ends only at module sockets or closed valves;
+- every piece owned once in any section order, none dropped at a seam or the cap; streaming from prefetched work equal
+  to synchronous generation;
+- network roads reaching the gates, internal roads ending at gates and yards and avoiding pieces;
+- the quiet buffer; at most one district in Rolling Thunder and two per endless Khepri stint, clear of arenas, seams
+  and jumps; without the policy, outposts and sections are exactly the district-free ones;
+- road ends: fades, aprons and joins, seam safety, the wear patch, and the switch back to square-cut ends.
 
-**Browser and visual:**
+Also `tests/world/settlement-modules.test.ts` (§4.3), the district sweep in `tests/world/terrain-budget.test.ts` and
+the plant reservation case in `tests/world/facility-placement.test.ts`.
 
-- New fixture `tests/fixtures/khepri-district.{html,ts}`, cloned from `nacre-world.ts`: real renderer, frozen state, query `seed`, `distance`, `x`, `quality`, optional `facility`.
-- Fixed-camera captures at 432 × 768, DPR 2, High and Low, at camera x = 0, toward the district flank and at the district edge.
-- Cases:
-  - 3 feasible seeds;
-  - a steep-terrain seed (relief tier 1.8);
-  - a district next to a neighbouring opposite-flank outpost;
-  - a district straddling a section boundary (s = 36k);
-  - a battery compound placed inside the reserved rectangle.
-- **Before** captures: take them now on `main` with the same seeds and distances, using `tools/lookdev/flight-views.mjs` and `tools/art-refinement-lookdev.mjs` against the 4173 dev server.
-- Compare the after captures against `art/concepts/facility-sheets/khepri.jpg` items 01 and 03 for hierarchy, palette and connectivity. This is a judgement, not a pixel match.
+**Fixture:** `tests/fixtures/khepri-district.html` shows Rolling Thunder's terrain frozen at any `seed`, `distance` and
+camera `x`, with `quality=low`, `battery=x,s` (one battery seated there), `fly=from,to,speed` (streams the stretch and
+reports terrain work timings) and `legacy=1` (no districts, square-cut road ends).
 
-**Performance:**
+**Render cost** (measured 17 November, the budget test's sweep over the districts of seeds 11 and 93, s 470–600, with
+the shipped kits and an orthographic camera across the whole lateral range): High at most 55 draw calls and 43.9k
+triangles (mean 26.1k), Low at most 49 calls and 40.4k triangles. The budget is 70 calls and 90k triangles. Device
+measurements are in [docs/36](36-mobile-performance.md); no phone test has measured a district specifically.
 
-- `data-render-stats` (calls, triangles, terrain work max / over-4 ms / fallbacks) before and after, flying through the district in Rolling Thunder and endless.
-- Node timing of district sections against neighbours: target ≤ +25% generation time, and plan steps ≤ 3 ms each.
-- A phone check (iOS Safari or Android Chrome) if hardware is available. Otherwise record it explicitly as unverified.
+## 6. Open
 
-### 5.6 Risks
-
-1. **Rugged terrain:** about 15–25% of seeds have no site in the window. Mitigations: the full-window fallback, relief tier 1.8 with plinths (new piece), or a local "district calm" landform term (a terrain change; open question 3).
-2. **A weak hierarchy without the tower:** the stand-in cluster reads like an ordinary refinery outpost. The prototype validates layout and tech, not the final look.
-3. **Pad cut and fill seams:** lots at different levels create steep pad rims. Limit steps to ≤ 1.25 and review them in captures. Retaining walls come later.
-4. **Cost:** extra instances and caster triangles; plan search hitches if not warmed (§4.6).
-5. **Battery compound overlap:** handled render-side (§4.8). Without that, a compound clearing could erase the landmark.
-6. **Fingerprint churn:** intentional and recorded; the legacy set is retained for rollback.
-7. **Other sessions:** `scene.ts` and fixtures are shared files. Follow `COORDINATION.md`.
-
-### 5.7 Open questions for the user
-
-1. **Vertical space:** adopt option A (district-only cap of 3.0 on Khepri) now? Or do you also want B (deeper valleys planet-wide) or C (a higher flight plane), which are larger changes?
-2. **Placement control:** planet-level seeded slots (proposed), or per-mission authored windows read from the run schedule, like arenas?
-3. **No suitable site:** skip the district, place a compound, or soften the terrain locally under district slots?
-4. **Landmark:** review the stand-in prototype first, then author `khepri_processing_tower` in Blender? Or author the tower before the first review?
-5. **Nacre battery compounds:** they reuse the human compound geometry. Is that acceptable, or should Nacre get its own later?
-6. **Battery compounds inside a district:** fall back to the small compound or legacy emplacement (proposed)?
-7. **Compound frequency:** refinery, plant, landing and mining are 64% of Khepri outposts today. Make them rarer when compounds gain internal links (a fingerprinted retune)?
-
-**Decisions (integrator, 20 October, on the user's approval):** 1 option A; 2 planet-level seeded slots; 3 preferred band, then the full window, else the slot stays quiet (no terrain softening); 4 stand-in first, then the integrator authors the tower (it shipped the same day, see §6); 5 and 7 deferred; 6 the small compound or the legacy emplacement, never hiding the landmark, battery position unchanged.
-
----
-
-## 6. As built: Phase 10a (20 October 2026)
-
-`TERRAIN_VERSION` is 11. Khepri has refinery districts, and every road's ends now blend into the ground. Two data switches restore version 10 byte for byte: `PLANETS.khepri.districts = null` and `ROAD_ENDS.taper = 0`. A test asserts the recorded version 10 fingerprints with both switches set.
-
-### 6.1 What shipped
-
-| Area | As built | Where |
-| --- | --- | --- |
-| Module registry | 43 nodes (Khepri infra, shared kit, Vesper infra, the tower) with contract bounds, sockets, tiling, detail and shadow flags. A test proves it equals every legacy table (`MODULE_HEIGHT`, `SHARED_BOUNDS`, `INFRA_NODES`, `VESPER_INFRA_NODES`). Pipe sockets are measured against the shipped GLBs by ray tests: tanks, the hall's flat −x wall, the refinery's inlets, and the tower's stubs. | `src/world/settlement-modules.ts`, `tests/world/settlement-modules.test.ts` |
-| Grammar | `khepri.refinery` has two lots. The **hub** (8 × 10 pad) is the cargo zone: crawler tracks, parked haulers, freight, an optional admin block and an optional power relay with solar. The **process lot** (8.8 × 22.8 pad) holds `khepri_processing_tower`, one or two processing halls, the junction (inline valve and tee) and the tank farm on one header (tees feed 3–4 vertical tanks), plus storage tanks. Lot gaps are 5–7. Policy: slot k is s 440 + 720k … +166; preferred band 520–580; arena margins 40 before and 132 after; quiet buffer 15; lane clearance 2; `structureMax` 3.0. | `src/world/settlement-grammars.ts` |
-| Planner | Resumable search over a one-unit raw-ground lattice (one row per step), then seeded layout: flank, direction, lateral positions, gap, optional pieces. Lots must keep cut and fill ≤ 1.5 on the lattice and level steps ≤ 1.25, leave level room for the 3.5 tower, keep the lane clear and pass a road grade check across the gap. Pieces attach to pipe ends by socket (`attach`, `face`). | `src/world/terrain-districts.ts` |
-| Hooks | `KHEPRI.settlement` returns the hub for its anchor cell and nothing for claimed cells. `settlementsNear` adds lots and hides a district near an arena. `edgesOf` gives hubs roads only, looks 5 cells ahead and falls back to an exit. `gate()` uses hub gates. Network paths treat district pieces and the lots behind the hub as solid. `sectionSteps` warms plans, adds district pipework and roads per span, and sets `section.sites`. | `terrain-settlements.ts`, `terrain-planet.ts`, `terrain-network.ts`, `terrain.ts` |
-| Internal roads | A spine continues the main gate's network road (exactly from its tip) through the hub yard and the gap to the process yard. A spur runs from the other gate when a network road reaches it, and links cover any further roads at the same gate. A test proves that no joined end dangles in a campaign world. | `districtRoadsSteps` |
-| Road ends (all roads) | `fade` ends (dead ends, map exits, unfinished tracks) narrow over 3.5 units to 38% width, round into a tip, sink 0.04 and fade out, on a worn-gravel patch (vertex colours: Khepri's industrial dust tone, luminance kept). `apron` ends (at outposts) thin over their last unit and run 2.5 units flush onto the pad, widening and fading, with half-strength wear. `joined` ends continue into district roads. Ribbon vertices also rest on the highest ground a quarter unit either way, so terrain no longer pokes through roads. | `roadRibbonSteps`, `fadeProfile`, `roadEndSpotsSteps`; the wear pass in `sectionSteps` |
-| Render | Prop culling boxes come from the registry (Vesper props get real boxes). Props and pieces carry a `cosmetic` flag, so Low drops crates, a parked hauler and extra masts. `reservedSites()` exposes district pads. `khepri_*` nodes draw with the infra material, and the tower casts shadows. `loadDistrictKit` loads `district-kit.glb`, with a code-built tower stand-in until it loads. | `terrain-view.ts`, `terrain-kit.ts` |
-| Battery compounds | A compound never covers a district pad. The large one falls back to the small one, then to the legacy emplacement; emplacement pieces skip pads too. Render-only: battery positions and combat are unchanged. | `facility-view.ts` (`update(..., reserved)`), `scene.ts` |
-| Fixture | Rolling Thunder terrain frozen at any `seed`, `distance` and `x`, with `quality=low`, `battery=x,s`, `fly=from,to,speed` (terrain work timings) and `legacy=1` (both rollback switches). | `tests/fixtures/khepri-district.{html,ts}` |
-
-### 6.2 Deviations from §4–5
-
-- **Two lots, not three or four.** The envelope is about 12 × 38–40 (≈ 1.5 screens), not 48.
-  - The tank farm, junction and landmark share one flat process pad, so every internal pipe is a level run with no gaps.
-  - The cargo zone is the hub.
-- **No external pipeline joins a district in this slice.** Hub edges carry roads only, and pipelines to a hub are switched off, so no network pipe dangles near a district. Internal pipework is complete: tanks → junction → hall and tower. A purpose-built junction (§5.3 item 2) is the natural place for a later export line.
-- **Placement and arenas.** Plans stay planet-pure. An arena hides a whole district at query time (40 before, 132 after, beyond the ramp). Edges touching or running beside a hidden district are dropped, so roads never rest on pads that are not drawn.
-- **The landmark sits on the outer half** (|x| about 11). It is not visible from the centre lane. Moving it inward would bring its occlusion shadow over the lane.
-- **Feasibility:** 44 of 60 seeds get a district in slot 0 (73%), 33 of them in the preferred band; for the rest the slot stays quiet. Seeds 11 and 93 have one; 8831 and 4242 do not.
-- **Road-end blending was added at the user's request** (not in the original plan) and applies to every road on every planet with roads. The gravel tone is Khepri's; elsewhere the wear only darkens.
-
-### 6.3 Validation (20 October)
-
-- **Typecheck and build:** `npx tsc --noEmit -p .` is clean; `npm run build` passes (with the existing chunk-size warning).
-- **Unit tests: 368 of 368** (`npx vitest run`). New:
-  - `terrain-districts.test.ts` (14): plans in steps equal plans at once; window, world, lane, cap and terraces; nothing overlaps; pipes joined end to end, ending only at sockets or a closed valve; shuffled section order equal; nothing dropped at seams or the cap; flat pads under every prop; streaming at 5 and 11 units/s with 30 steps a frame and no fallback, with interleaved sections equal to sync; gates and roads with no dangling joins; quiet buffer; at most one district in Rolling Thunder; at most two per endless Khepri stint, 80 or more from seams; rollback; road-end fade, apron, join, seam safety and switch-off; gravel wear identical across a seam.
-  - `settlement-modules.test.ts` (2).
-  - A district budget sweep in `terrain-budget.test.ts`.
-  - The facility reservation case in `facility-placement.test.ts`.
-  - Re-recorded version 11 fingerprints, plus the version 10 set with the switches set, in `terrain-vesper.test.ts`.
-  - `terrain.test.ts`: the cast-shadow check now needs every channel darker, because wear dulls red but lifts green.
-- **Browser (Playwright, SwiftShader):** six relevant cases passed: three Bastion, endless flight, facilities on every world, and the Bastion model.
-- **Render budget** (Node sweep over the district window, seeds 11 and 93, shipped GLBs), version 10 → 11:
-  - High: at most 48 → 48 calls and 53.5k → 53.5k triangles; average 27.9k → 28.0k.
-  - Low: at most 41 → 41 calls; average 25.8k → 25.6k.
-- **Frame cost in the fixture** (432 × 768, DPR 2, High, whole frame including shadows and post): district views 39–46 calls (before 36–44) and 45–57k triangles (before 37–42k). Steep seed 15: 58–62 calls (before 53–58).
-- **Terrain work** (fixture flight, s 400 → 620 at 8 units/s):
-
-  | Run | Max work per frame | Frames over 4 ms | Fallbacks |
-  | --- | --- | --- | --- |
-  | Before, morning | 15–17 ms | 55–82 of 390 | 0 |
-  | After, midday | 10–17 ms | 26–57 of 390 | 0 |
-  | Final, load average about 30 | 127 / 246 ms | — | 1 per run |
-
-  The final run had heavy machine load from other sessions (load average 30–59). An A/B in Node under that load was inconclusive (±50% noise). The load-independent stream tests (fixed step budget) show 0 fallbacks. **Re-measure on a quiet machine and on a phone; no phone was tested.**
-- **Plan cost:** median 5–10 ms and maximum 43–95 ms per slot, depending on load, spread over resumable steps of about 0.25 ms.
-
-**Captures:**
-
-- `lookdev/districts/{before,after}/` (git-ignored), from the same seeds and views: seed 11 (near, far, centre lane, Low, battery inside), seed 93 (near, far; straddles the section boundary at 504), seed 15 (steep), and flights.
-- `lookdev/districts/road-ends/` holds before/after pairs from one build (`legacy=1`).
-- Curated JPEGs in `docs/screenshots/districts/`:
-
-  | Files | Shows |
-  | --- | --- |
-  | `district-seed11-before-after.jpg`, `district-seed93-before-after.jpg` | Districts before and after |
-  | `district-steep-seed15.jpg` | Steep site |
-  | `district-low-centre-battery.jpg` | Low tier, centre-lane view, battery inside a district |
-  | `road-end-*.jpg` | Zoomed road-end crops |
-  | `road-ends-*-full.jpg` | Road ends at full phone-view scale |
-
-### 6.4 Known limits and next
-
-- **Pieces still to author**, in priority order: pipe manifold or 4-way cross; foundation plinth or retaining wall (lots up to 1.5 cut and fill rely on pad banks today); power relay spire; bridge-gate; a large factory hall.
-- **External pipelines to districts** (Phase 5).
-- **Compound class retune and Vesper, Nacre and Luna grammars:** only after the Khepri review (brief, Phase 10).
-- **Visual review:**
-  - Junctions where several transparent road ribbons overlap still darken (this predates the change).
-  - The tower is not visible from the centre lane.
-  - Aprons at busy outposts overlap.
+- **Pieces still to model:** a pipe manifold or four-way cross for the junction; a foundation plinth or retaining wall
+  for lot edges (pads rely on cut-and-fill banks up to `maxCut`); a power relay spire; a bridge-gate; a large factory
+  hall.
+- **External pipelines** to a district's pipework.
+- **Other worlds' districts** (a Vesper dockyard, a Nacre sanctuary) and graphs with more than two lots: the planner
+  handles a hub and one lot only.
+- **Parallel size tables.** `MODULE_HEIGHT`, `SHARED_BOUNDS`, `INFRA_NODES` and `VESPER_INFRA_NODES` are held equal to
+  the registry by a test; `moduleReach` (`src/world/terrain-network.ts`), the occupancy radii in `src/world/terrain.ts`
+  and `CASTER_NODES` (`src/render/terrain-view.ts`) are separate copies of node sizes and shadow flags.

@@ -23,7 +23,7 @@ export type ModuleSource = 'khepri-infra' | 'industrial-kit' | 'vesper-infra' | 
 export interface ModuleSpec {
   node: string;
   source: ModuleSource;
-  /** Runtime material family that draws it (the terrain view still routes by name today; see docs/23 §1.9). */
+  /** Runtime material family that draws it (the terrain view still routes by name today; see docs/23 §2.2). */
   material: 'infra' | 'shared' | 'kit';
   /** Contract half footprint (local x, z) before rotation. */
   half: readonly [x: number, z: number];

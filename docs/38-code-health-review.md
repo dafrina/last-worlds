@@ -1,5 +1,14 @@
 # Last Worlds: code-health review
 
+> **Names have changed since this review.** It is a dated record, so its findings keep the file, tool, asset and doc names
+> of 8 November. The 17 November cleanup deleted unused models and tools and renamed `tools/` (grouped into `lib/`,
+> `lookdev/`, `audio/`, `perf/`, `sim/`, `dev/`), the Blender scripts (`boss_*`, `craft_*`, `kit_*`, `lib_*`), `art/`
+> sources and runtime assets (no version suffixes), `veil-view.ts` (now `carrier-view.ts`) and
+> `approved-boss-materials.ts` (now `boss-materials.ts`): the full map is in [build-status](build-status.md) ("Repository
+> cleanup and naming pass, phase 1") and in commit `f3316fc`. The docs were then reworked: docs/21, 22, 29 and 34 were
+> merged into other docs and `HANDOFF.md` and `DESIGN-REVIEW.md` removed; the [docs index](README.md) lists the current
+> set.
+
 8 November 2026. This is a read-only review of `integrator-next` (HEAD `8348c14`) plus the working tree at 20:00.
 
 - Another session was editing `src/render/scene.ts` during the review (2,297 → 2,342 lines). Its line numbers are from the working tree and may drift by a few dozen lines.

@@ -130,8 +130,8 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **The hero keeps only its real model shadow on High.** The blob shadow stands in only on Low, which has no shadow maps.
 
 - 2026-10-20, facilities and districts (user decisions):
-  - **Facility compounds remodelled after the facility sheets.** The user found the large building complexes "super flat" and asked for remodels that are more interesting and "textured like the bosses", taking "the render arts as inspiration". The six v1 gun-court plants (flat vertex colours) are replaced by textured v2 plants per world (`art/facility-remodel/README.md`). The seat contract is unchanged.
-  - **Districts:** option A (Khepri refinery district prototype, docs/23 §6). The world may get more vertical space if a map needs it.
+  - **Facility compounds remodelled after the facility sheets.** The user found the large building complexes "super flat" and asked for remodels that are more interesting and "textured like the bosses", taking "the render arts as inspiration". The six v1 gun-court plants (flat vertex colours) are replaced by textured v2 plants per world (`art/facility-remodel/`, since removed; the current modular kits are in docs/25). The seat contract is unchanged.
+  - **Districts:** option A (Khepri refinery district prototype, docs/23 §5). The world may get more vertical space if a map needs it.
   - **Facilities are modular, and not always a court** (user: "dont make it always have a open court design", "maybe these could be made modular as well?"). Plants are composed from per-world module kits by a seeded grammar with several arrangements per world; the U court is one option among them (docs/25).
   - **Higher roofs** use the headroom under the unchanged flight plane: modules up to 3.25 on low ground.
   - **Luna joins with much less** ("luna should get much less populated amount of buildings and infra"): about 30% of its batteries get a small, single-facility plant, and its outposts are rarer and smaller.
@@ -151,7 +151,7 @@ When changing a design later, append the date, old rule, new rule, evidence/reas
   - **Steering back to the screen halves:** "Left half of screen goes left right half goes right". This replaces steering relative to the ship (17 October); a held finger sliding across the middle still switches direction.
   - **Rocky cliff textures:** cliff walls get a layered, fractured rock face, softened to ice layering on Vesper ("make rocky textures too so it looks more detailed"). The textures are derived from Poly Haven's CC0 `cliff_side` by `tools/blender/textures_cliffs.py`; colour stays with the planet palette.
 
-  - **More relief on Vesper and Nacre** (terrain v16, docs/26 §12): "I love how elevated and rocky and mountainous Khepri looks. Please add more elevation and crazy landscaping on vesper as well. Nacre can also use some more elevation changes and mountains". Vesper's sea drops to −3.6 so its ice walls stand as tall as Khepri's canyons, and the Helion Ark swims at the new sea level ("vesper has a boss that swims, so if the sealevel is dropped it should too"). Vesper's cliffs get sharper, faceted ice columns ("don't look quite as sharp as on khepri").
+  - **More relief on Vesper and Nacre** (terrain v16, docs/26 §4 and §12): "I love how elevated and rocky and mountainous Khepri looks. Please add more elevation and crazy landscaping on vesper as well. Nacre can also use some more elevation changes and mountains". Vesper's sea drops to −3.6 so its ice walls stand as tall as Khepri's canyons, and the Helion Ark swims at the new sea level ("vesper has a boss that swims, so if the sealevel is dropped it should too"). Vesper's cliffs get sharper, faceted ice columns ("don't look quite as sharp as on khepri").
   - **Crack detail on the plains** of Vesper and Luna, after the concept's "fine crisscross lines across the ice and snow"; Khepri and Nacre are unchanged.
   - **Infrastructure in compounds:** "everything infrastructure should be more cluttered together, with pipes and roads connecting several features and bases"; stray tanks should be "highly unlikely". The Moon's landing pads stand beside buildings, and rover tracks join its bases.
   - **World colours for enemies, buildings and infrastructure:** "Moon should be white with orange glow and maybe blue if 3rd is needed, khepri is rusty and orange, vesper is metallic/white and blue glow and nacre is green/purple dark with purple glow". These are applied as a recolour (`src/render/world-paint.ts`); models are unchanged, and the hero and bosses keep their own paint.
@@ -232,7 +232,7 @@ User approved main/special/shield/ship as the four slots, replacing handling rea
 
 ## 30 October 2026 — Chassis perks are global
 
-User approved Spectre shielded near-miss reflection, requested the other chassis perks too, and clarified "perks are global not only campaign". Implemented Scrapper pickup reach, Ironclad reserve life, Interceptor double-tap roll, and Spectre Gravitic Shield in both modes, with descriptions in the hangar selector. This supersedes cosmetic-only endless chassis and the old Interceptor/Spectre bonuses; endless equipment progression still resets, cosmetic parts remain stat-free. See docs/34-global-ship-perks.md and the validation entry in build-status.md.
+User approved Spectre shielded near-miss reflection, requested the other chassis perks too, and clarified "perks are global not only campaign". Implemented Scrapper pickup reach, Ironclad reserve life, Interceptor double-tap roll, and Spectre Gravitic Shield in both modes, with descriptions in the hangar selector. This supersedes cosmetic-only endless chassis and the old Interceptor/Spectre bonuses; endless equipment progression still resets, cosmetic parts remain stat-free. See docs/42 (the perks; the Interceptor and Spectre perks were replaced on 14–15 November) and the validation entry in build-status.md.
 
 ## 30 October 2026 — Strike sites per mission, part chances, deck difficulty
 
@@ -276,7 +276,7 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **User:** "lets introduce 2 new crazier levels for each weapon", then "i want faster shots instead of much more. maybe 2 more projectiles each weapon on max level but other than that quicker shots". This replaces "exactly two upgrades" (28 October).
 - Every main weapon has five tiers in both modes. Tier 4 fires tier 3's volley about 1.35 times as often; tier 5 adds two projectiles to the volley and fires about 1.6–1.7 times as often as tier 3. Damage per projectile is unchanged, and each family keeps its pattern: Twin Pulse adds two outer streams, the Fan two spokes over the same ±12°, the Seeker two missiles to the salvo, the Rail Driver two slugs side by side (still piercing, still breaking hunter shields).
 - Campaign: tiers 4 and 5 cost 500 and 800 credits. Endless: power cells, power sites and an ace's power drop raise the tier up to 5.
-- Details, prices and measurements: [campaign expansion](30-campaign-expansion.md#main-weapons--four-upgrades-five-tiers).
+- Details, prices and measurements: [campaign progression](30-campaign-progression.md#main-weapons-five-levels).
 
 ## 5 November 2026 — Endless weapon drops
 

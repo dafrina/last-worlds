@@ -1,109 +1,106 @@
-# Campaign difficulty levels
+# Campaign difficulty
 
-Design v0.2. Selectable campaign difficulty is a confirmed user requirement. The names, numbers, reward multipliers, and unlock policy below are proposed tuning defaults. Endless retains one standardized gameplay ruleset and does not inherit the campaign setting.
+How hard the game is and why: the three campaign settings, the per-world intensity, the campaign-only mission pressure,
+and the separate endless ramp (invariant 15). All values are in `src/content/balance.ts`; how they are measured is in
+[balance measurement](40-balance-measurement.md).
 
-## 1. Three choices before launch
+## 1. Three settings, chosen per attempt
 
-| Setting | Purpose | Starting lives | Enemy HP | Hostile shot speed | Warning time | Repeatable credit multiplier |
-| --- | --- | --- | --- | --- | --- | --- |
-| Relaxed | Learn routes, enjoy the campaign, try builds | 5 | ×0.85 | ×0.85 | Base +0.25 s | ×0.85 |
-| Standard | Intended baseline experience: a real challenge | 3 | ×1.00 | ×1.00 | Authored baseline | ×1.00 |
-| Veteran | Master timing and positioning | 3 | ×1.20 | ×1.05 | Same minimum as Standard | ×1.20 |
+Relaxed, Standard or Veteran is chosen on the campaign page before launch and locked for that attempt; a change applies
+to the next launch and never to a paused run. Every setting is available for every unlocked mission. Endless never reads
+it.
 
-The prototype also scales attack pressure (runtime source: `DIFFICULTIES` in `src/content/balance.ts`, revised 15 October 2026):
+`DIFFICULTIES` holds each setting's `DifficultyScale`:
 
-| Setting | Repeat-attack interval | First windup (4 Nov) | Simultaneous windups / beam lanes | Squadron variant | Live threat budget | Shield cells (Training · Rolling Thunder) |
-| --- | --- | --- | --- | --- | --- | --- |
-| Relaxed | ×2.00 | ×1 | 3 / 1 | Base | 14 | 40 s, 85 s · 40 s, 105 s |
-| Standard | ×1.00 | ×0.75 | 5 / 1 | Base | 16 | 40 s, 85 s · 40 s, 105 s |
-| Veteran | ×0.75 | ×0.5 | 7 / 2 | Base plus authored Veteran wingmen | 20 | 65 s · 105 s |
+| Field | What it does | Relaxed / Standard / Veteran |
+| --- | --- | --- |
+| `lives` | Starting lives (Ironclad adds one) | 5 / 3 / 3 |
+| `hp` | Enemy hit points | ×0.85 / ×1 / ×1.2 |
+| `shotSpeed` | Hostile shot speed | ×0.85 / ×1 / ×1.05 |
+| `warning` | Seconds added to every windup (never below Standard's) | +0.25 / 0 / 0 |
+| `cadence` | Enemy repeat-attack interval (lower fires more often) | ×2 / ×1 / ×0.75 |
+| `firstAttack` | A squadron's first windup (its template's `fireFrom`) | ×1 / ×0.75 / ×0.5 |
+| `airFirstShot` | Air craft open fire this much sooner on top | ×0.75 / ×0.75 / ×1 |
+| `maxWindups`, `maxBeams` | Simultaneous windups and beam lanes | 3, 1 / 5, 1 / 7, 2 |
+| `rank` | Which authored formation variant flies | standard / standard / veteran (extra wingmen) |
+| `threatBudget` | Ceiling on the live threat cost ([docs/03 § 6](03-worlds-and-generation.md)) | 14 / 16 / 20 |
+| `beamRest` | Needle beam rest (§ 2) | 5 s run, 4 s rest / 7 s, 3 s / none |
 
-**Earlier first attacks (4 November 2026, user: "they are dead before the even started shooting"; "make the pause less for normal runs too"; "the special enemies shoot earlier too").** `DifficultyScale.firstAttack` multiplies how long a squadron waits before its first windup (its template's `fireFrom`): Relaxed ×1, Standard ×0.75, Veteran ×0.5. Endless keeps ×1 on its own ramp.
-- **Guards:**
-  - Each member keeps its authored stagger, so a squadron never fires as one sealing wall.
-  - No windup starts before an enemy is fully in view (`FIRST_WINDUP_ROW` 18.8, the ground batteries' row).
-  - Every windup keeps its full warning, and the hazard-union admission still checks each attack.
-- **Hunters and Wraiths:** their own first-attack timers (2.2 s and 1.6 s) take the same factor.
-- **Measured** (perfect pilot, seeds 1–12, six missions; Twin Pulse level 1, Rail Driver and Fan Cannon level 3):
+Shield arrays, hit costs, weapon and special rules, the camera and handling are the same on every setting. There is no
+hidden aim assistance, gear restriction or altered side-mission logic. Shields are one pool for the attempt on every
+setting: losing a life never refills them.
 
-  | Setting | Enemies killed before their first windup, Rail L3 | Hits |
-  | --- | --- | --- |
-  | Standard | Amnion 28 → 23 %, Nacre 32 → 22 % | 16 → 9 over 216 runs (noise) |
-  | Veteran | Amnion and Umbra 24 → 13 % | 15 → 28 over 216 runs, with no lives lost |
-
-- **Rejected first try:** scaling the members' stagger too made Nacre's Standard opening pin the pilot at the map edge on 11 of 12 seeds.
-
-Budgets were lowered on 15 October (from 18 / 24 / 32) together with the rule that squadrons never overlap. Later the same day base repeat intervals were cut by about 17%, Relaxed's multiplier was widened from ×1.7 to ×2.0, and the Training sortie gained a mission factor of ×1.25 on repeat intervals (`MISSION_CADENCE`), so Rolling Thunder carries the full pressure. In practice one air squadron flies at a time, with ground batteries beneath it, and difficulty comes from the faster repeat volleys instead of more enemies. Campaign always flies pace 1.
-
-All difficulties are available for an unlocked mission from the start. Select in mission preparation; persist the preferred campaign difficulty separately from endless. Lock it for an attempt. Changing it in the menu applies to the next launch and never mutates a paused run.
-
-Shield technology, discrete hit costs, main/special rules, camera behavior, and reactor handling are unchanged by difficulty. There is no hidden aim assistance, extra currency, gear restriction, permanent penalty, or altered side-mission logic. Extra Relaxed lives simply use more of the same small ship icons. On every setting shields are one pool for the whole attempt: losing a life does not refill them, and only shield cells add charges. Standard and Veteran therefore absorb 6 accepted hits per attempt and Relaxed 8, plus whatever cells are collected.
+**Earlier first attacks** (user, 4 and 6 November: "they are dead before they even started shooting", "25% quicker enemies
+shooting after arrival"): `firstAttack` and `airFirstShot` bring a squadron's first windup forward. Members keep their
+authored stagger, so a squadron never fires as one sealing wall; no windup starts before an enemy is fully in view
+(`FIRST_WINDUP_ROW`); every windup keeps its full warning. Aces and Wraiths take the same factor on their own timers.
+Ground batteries keep the difficulty's timing.
 
 ## 2. Challenge and fairness
 
-Use the same mission structure and route identities initially. Difficulty scales the specified values only; any later harder formation must be a separately authored and validated variant. Do not arbitrarily stack waves or add untelegraphed attacks. Veteran keeps readable warnings and reachable paths with every campaign reactor, including Precision's lower top speed.
+All three settings fly the same authored squadrons, cues and timings; Veteran adds the wingmen marked as its variant in
+each formation template (`src/content/formations.ts`), which are authored and validated, not random additions. The
+fairness floors (`FAIRNESS`), the minimum gap and the director's exclusion windows apply identically on every setting
+([docs/03 § 7](03-worlds-and-generation.md)). Difficulty is fixed, never adaptive to purchases, deaths or history.
 
-All three settings fly the same authored squadrons, cues and timings. Veteran adds the extra wingmen marked as its variant in each squadron template; those members are part of the authored and validated template, not random additions. The fairness floors, the 1.74-unit gap (1.4 before the 0.42 collider) and the director's exclusion windows apply identically on every setting ([fairness](03-worlds-and-generation.md#7-fairness-for-leftright-only-movement)).
+- **Needle beam rests** (user, 15 October: nonstop beam barrages in endless): once Needle beams have run for `beamRest.run`
+  seconds without a pause of 2.5 s, Needle windups not yet fired are called off and none starts for `beamRest.rest`
+  seconds. Endless uses Standard's rest; campaign Veteran has none.
+- **Vesper line cap:** outside campaign Veteran, at most `VESPER_LINE_CAP` warning lines (windups plus live beam lanes) at
+  once on Vesper (user, 31 October and 6 November).
 
-Scripted calibration, 15 October 2026 (`tests/sim/difficulty.test.ts`). These are deterministic bot results, not human playtests. A mid-skill pilot aligns under targets and dodges only the nearest bullet it saw 0.2 s ago; medians are over five start positions.
+## 3. Shared progression, labelled mastery
 
-| Training sortie | Relaxed | Standard | Veteran |
-| --- | --- | --- | --- |
-| Hostile shots per minute faced by that pilot (13 Oct → 14 Oct → 15 Oct) | 11 → 73 → 51 | 16 → 98 → 65 | 17 → 115 → 90 |
-| Its outcome at extraction (15 Oct, final) | clears 4 of 5 runs, median 3 of 5 lives lost | fails all 5 runs, median game over at 84 s | fails all 5 runs, median game over at 97 s |
-| Hits it takes per minute (Training · Rolling Thunder approach, 9 starts, lives to spare) | 3.7 · 3.7 | 4.7 · 5.7 | 4.5 · 5.8 |
-| Fire faced by the perfect pilot, shots per minute (15 Oct) | 47 | 67 | 92 |
+Clearing a mission on any setting unlocks the next one; purchases and balances are shared across settings. Clears and
+best times are stored per mission and per difficulty, with the hardest setting cleared shown on the mission card
+(`MissionRecord` in `src/campaign/profile.ts`). The first-clear reward is paid once per mission across all settings.
 
-The 0.42 collider and the run-wide shield pool dominate the 15 October changes. The mid-skill pilot still clears Training on Relaxed but fails it on Standard. Its hits come mostly from squadrons' first volleys rather than repeat volleys: a sweep of Training-only interval factors from ×1.0 to ×1.75 moved its Standard game-over time between 57 s and 84 s without producing clears. The ×1.25 factor was kept because it gave the longest Standard survival while Relaxed still clears. Veteran is not easier than Standard for this bot (hit rates are within 5%). Its denser fire is partly offset by tougher squadrons holding the airspace longer, so Veteran's edge shows in the fire a strong pilot faces, its single shield cell and its enemy HP. Human playtests should judge whether Standard Training is too punishing. The remaining levers are fewer squadrons in Training's first pressure phase, later first volleys, or more Standard lives; restoring the shield refill is excluded by the user's decision.
+## 4. Credits
 
-Veteran's shot-speed multiplier dropped from ×1.15 to ×1.05 in the 14 October pacing pass, which raised every base shot speed by about 10%. Veteran bullets therefore keep roughly their previous absolute speed (Dart 8.3 units/s), while Veteran keeps more shooters, shorter repeat intervals, more HP, two beam lanes and one fewer shield cell. Scripted pilots were also hit less by faster bullets, so speed alone was not making Veteran harder.
+The repeatable payout scales with `CREDIT_MULTIPLIER` (×0.85 / ×1 / ×1.2); the first-clear reward and side-mission rewards
+do not. The full formula, with the per-world scale, is in [docs/30](30-campaign-progression.md#currencies-and-income).
+These small multipliers recognize the challenge without making the hard setting a required grind.
 
-A solver pilot with perfect use of the visible warnings clears Training and Rolling Thunder on all three settings with all three main weapons, without hits, the special or pickups.
+## 5. Per-world intensity and mission pressure
 
-Difficulty is fixed, not adaptive to purchases, service rank, objective selection, deaths, or historical performance. All mains must defeat mandatory targets on every setting. The player should be able to choose difficulty independently of preferred equipment.
+Pressure rises across the worlds in both modes, and further in the campaign.
 
-M1 establishes Standard feel. M3 adds Relaxed and Veteran with per-mission playtests; M6 applies the same gates to all later missions. Revisit HP, speed, and payouts from observed completion times, life losses, and satisfaction, not formulas alone.
+- **`WORLD_INTENSITY`** (both modes; user, 16 October: "training moon pretty chill, then gradually ramp up"): per world,
+  `flight` scales air enemies' flight clock, `shot` their shot speeds (bosses too), `cadence` their repeat intervals, `hp`
+  formation enemies' and aces' hit points, `firstAttack` their first windup. Luna is the baseline; the late worlds step up
+  past Nacre (late-world curve, 10 November).
+- **`MISSION_CADENCE`** (campaign only): a per-mission factor on repeat intervals on top of the difficulty. Training stays
+  gentle; the later missions repeat sooner.
+- **`MISSION_PRESSURE`** (campaign only; user, 13–14 November: the late missions were too easy at their expected weapon
+  level): per mission, `firstAttack` (earlier first windups), `reinforce` (the share of air squadrons in the pressure and
+  climax stretches followed by a mirrored copy two seconds later; above 1 a third), `windup` (shorter shot telegraphs, never
+  under `FAIRNESS.warningFloor`; beams keep theirs), `flight` (faster air paths), `rank` and `threatBudget` (the Veteran
+  flocks at every difficulty, with room to admit them) and `bossHp` (the boss's health, at most about ×3). Reinforcements
+  are never beam squadrons, lone ships or squadrons whose path dives through the ship's row, and the director admits each
+  like any cue.
 
-## 3. Shared campaign progression; labeled mastery
+The pressure was tuned with the user on 13–14 November. Luna's extra challenge is its boss's health alone: quicker repeats there
+broke a formation fairness check and were reverted.
 
-Completing a mission on any setting unlocks the same next campaign mission. Equipment purchases and campaign credits are shared across campaign difficulties. Career counters accumulate eligible campaign activity from all three. Optional contract availability is based on mission compatibility, not artificial difficulty-exclusive unlocks.
+Every boss splits its health 40/25/35 over its three phases (`BOSS_PHASES` in `src/content/boss-phases.ts`; user,
+14 November), so the final phase is no longer the shortest; `bossHp` scales every part alike.
 
-Store clears, best successful time, and contract badges per mission and difficulty, plus highest difficulty cleared. Do not compare Relaxed and Veteran clear times as one unlabeled record. Career milestones are still once per campaign profile, not once per difficulty. First-clear reward is once per mission across all difficulties; switching settings cannot claim it again.
+## 6. Endless ramp
 
-## 4. Credit calculation
+Endless has its own standardized ramp by sector, independent of every campaign setting (`ENDLESS_RAMP`): enemy health,
+shot speed and repeat interval rise per sector to caps; the threat budget grows to a cap; more simultaneous windups and
+two beam lanes, and the Veteran formations, from sector 3. The pace ramps too (`PACE.endless`: from a slower start to a
+cap, eased in at each sector start), scaling the ship, enemies and camera together. After the caps, warnings, gaps and
+entity limits never scale. Endless also flies each world's `WORLD_INTENSITY`, but never `MISSION_CADENCE` or
+`MISSION_PRESSURE`. The cycle itself is in [docs/18](18-endless-planet-cycle.md).
 
-The difficulty multiplier applies only to repeatable combat/mission income, not career awards, contract bonuses, or the first-clear bonus. Let C = collected credits, B = 60 if the required boss was destroyed on a successful mission (otherwise 0), M = difficulty multiplier.
+The campaign's own pace is `PACE.campaign` (user, 6 November: "15% quicker pace").
 
-- Success: floor(M × (C + 80 + B)) + first-clear reward if entitled + completed selected-contract reward + newly earned career rewards.
-- Failure/abandon: floor(M × 0.5 × C) + newly earned cumulative career rewards. No mission-clear, boss-completion, first-clear, or contract payout.
+## 7. Checks
 
-First clear remains 150. Contract amounts and career rewards are specified in the objectives document. Round only at the stated stage, then bank once under the attempt transaction. Persist difficulty in the attempt before launch and in its result receipt. Reopening results or changing the menu selection cannot recalculate a historical payout.
-
-These small multipliers recognize the challenge without making harder difficulty a required grind route. If time-to-clear makes one setting disproportionately profitable, tune from measured credits/minute. Campaign economy has no effect on endless fairness.
-
-## 5. Statistics and verification
-
-Campaign statistics support All / Relaxed / Standard / Veteran filters. Mode-level totals are the sum of disjoint difficulty-tagged attempt records; never count an attempt twice when changing filters. Show difficulty on every recent result. Records from older ruleset versions stay labeled.
-
-Test difficulty initialization, five-versus-three life icons, unchanged shield/handling rules, safe warnings on Veteran, shared story unlocks, first-clear deduplication across settings, exact rounding, fixed contract semantics, and mode isolation. With the same endless seed/version/input, changing the selected campaign difficulty must produce no difference in endless state, loot, camera, or score.
-
-## Needle beam rests (15 October 2026)
-
-The user reported nonstop beam barrages in the endless sectors; they liked the high-pressure moments but not barrages that never ended. Measured with dodging and idle bots, later Vesper sectors (the peak playlist) chained Needle beams for 18–19 s with no pause of 2.5 s or more.
-
-The rule lives in `DifficultyScale.beamRest`. When Needle beams have run for `run` seconds with no pause of at least 2.5 s, Needle windups that haven't fired yet are called off, and no new one starts for `rest` seconds:
-- Relaxed: 5 s run, 4 s rest.
-- Standard and all of endless: 7 s run, 3 s rest.
-- Veteran: no rest.
-
-Result: the longest barrage in endless sectors 4–11 is now 7–9 s, while beams still fill about 30% of the time (was 34–37%). The Helion Ark is unchanged; the user finds it fine.
-
-## Later tuning (15 October 2026)
-
-At the user's request:
-- Rolling Thunder is slightly harder: mission cadence ×0.92, and Bastion-9's recovery dropped from 0.5 s to 0.45 s.
-- WARDEN-1 is slightly harder (docs/19).
-- Deep Bloom, now the final mission, runs at ×0.92.
-- The Helion Ark's final phase is harder and varied (docs/20, "Varied boss fights").
-
-The perfect pilot still clears every mission on all nine combinations without a hit.
+- `tests/sim/difficulty.test.ts`, `difficulty-pressure.test.ts`: per-setting start values, pressure and the scripted
+  calibration.
+- `tests/sim/fairness*.test.ts`: every setting keeps a fair path; no factor may be loosened to make content fit.
+- `tests/sim/late-world-curve.test.ts`: the late worlds step up.
+- `tests/sim/campaign-completion.test.ts`: the perfect pilot completes every mission at its expected level.
+- `tests/campaign/profile.test.ts`: first clears across settings, multipliers and rounding.

@@ -1,67 +1,32 @@
 # Concept gallery
 
-Design v0.2 · 13 October 2026. The latest hero and alien boards are accepted visual directions. No further regeneration is requested. All six images and their full prompts are saved here; concept renders are not screenshots or finished game assets.
+Concept images and their prompts. They are references for shape, palette and composition only: never runtime
+backgrounds, never finished model assets, never presented as screenshots of the game (AGENTS.md invariant 9). Written
+simulation rules decide hit regions, targeting and boss phases, never image placement.
 
-## 1. Accepted hero tiers
+## The first boards (13 October 2026)
 
-![Scrapper, Razor, and Dominion: three fundamentally different hero airframes](04-hero-tiers.png)
+Six images made with the built-in image tool at the start of the project, each with its full prompt. They set the
+direction; several details have since been superseded, as noted.
 
-[Image](04-hero-tiers.png) · [Full prompt](04-hero-tiers-prompt.txt)
+| Image | Prompt | What it still guides | Superseded |
+| --- | --- | --- | --- |
+| [01-worlds-direction.png](01-worlds-direction.png) | [prompt](01-worlds-prompt.txt) | Khepri's badlands (left), Nacre's luminous wetland (middle), Vesper's frozen coast (right): palettes, terrain forms, ground-machine scale | The hero design and its apparent size |
+| [02-portrait-combat.png](02-portrait-combat.png) | [prompt](02-portrait-prompt.txt) | Khepri's terrain and the fortress composition ([docs/13](../../docs/13-khepri-world.md)) | Its resource bars, ornate special button and HUD layout |
+| [03-minimal-hud.png](03-minimal-hud.png) | [prompt](03-minimal-hud-prompt.txt) | The HUD: life silhouettes, shield glyphs, the plain bottom-centre special button | Its hero silhouette |
+| [04-hero-tiers.png](04-hero-tiers.png) | [prompt](04-hero-tiers-prompt.txt) | Distinct silhouettes rather than reskins | The three tiers (Scrapper, Razor, Dominion) became four chassis built from the user's Tripo models ([docs/31](../../docs/31-hero-ships.md)) |
+| [05-alien-factions.png](05-alien-factions.png) | [prompt](05-alien-factions-prompt.txt) | Khepri, Nacre and Vesper faction materials and silhouettes | |
+| [06-exotic-aliens.png](06-exotic-aliens.png) | [prompt](06-exotic-aliens-prompt.txt) | Orrery, Shard and Veil forms (the Veil became THE VEIL) | |
 
-**Scrapper** is the battered, inexpensive utility fighter. **Razor** is the slender interceptor. **Dominion** is the broad advanced assault craft. Preserve their fundamentally different silhouettes; progression must not look like adding armor to the same base ship.
+## Later sheets, by folder
 
-The starter must be visibly smaller in the game. This board gives the designs similar presentation space for inspection, not a shared runtime scale. Proposed widths are 1.0 / 1.35 / 1.7 world units respectively, against a 12-unit-wide viewport. Use the same documented central collision radius and validate readability at phone size. Appearance is separate from equipment stats and campaign unlocks never improve endless starts.
+| Folder | What it holds | Used by |
+| --- | --- | --- |
+| [boss-sheets/](boss-sheets/) | `warden.jpg`, WARDEN-1's front elevation (the only boss without a supplied model) | `tools/blender/boss_warden.py`, [art/bosses](../bosses/README.md) |
+| [facility-sheets/](facility-sheets/README.md) | The user's facility concepts per world (20 October) | [docs/23](../../docs/23-settlement-infrastructure.md), [docs/25](../../docs/25-modular-facilities.md) |
+| [strike-sites/](strike-sites/README.md) | The strike-site sheet and its prompts (29 October) | [docs/33](../../docs/33-strike-sites-and-encounter-deck.md) |
+| [corona/](corona/) | The user's Corona sheets: world, infrastructure, craft (5 November) | [docs/37](../../docs/37-corona-dying-star.md) |
+| [umbra/](umbra/) | The user's Umbra sheets: world and infrastructure, faction and THE ECLIPSE (24 October) | [docs/28](../../docs/28-umbra-eternal-eclipse.md) |
 
-## 2. Accepted alien faction craft
-
-![Six alien ships across the Khepri, Nacre, and Vesper factions](05-alien-factions.png)
-
-[Image](05-alien-factions.png) · [Full prompt](05-alien-factions-prompt.txt)
-
-Use the six designs to establish each planet's faction materials and silhouettes. Assign each production craft a recognizable behavior archetype. Keep the most readable large forms; simplify surface detail and maintain consistent threat cues across variants.
-
-## 3. Accepted exotic alien concepts
-
-![Orrery, Shard, and Veil exotic alien spacecraft](06-exotic-aliens.png)
-
-[Image](06-exotic-aliens.png) · [Full prompt](06-exotic-aliens-prompt.txt)
-
-**Orrery:** interlocking rings around a core. **Shard:** asymmetric crystalline blades. **Veil:** flowing biomachine forms. These broaden the visual vocabulary without requiring new combat mechanics. Author readable silhouettes and central hit regions; decorative ring motion, fragments, and tendrils must not imply undocumented collision rules.
-
-The concept count is not an obligation to build nine independent enemy systems in the MVP. Map selected silhouettes to the existing behavior catalog and stage additional models with the content milestones.
-
-## 4. Current minimal HUD
-
-![Minimal ship and shield icons with a plain bottom-center special button](03-minimal-hud.png)
-
-[Image](03-minimal-hud.png) · [Full prompt](03-minimal-hud-prompt.txt)
-
-Use the simple life silhouettes, shield glyphs, restrained score/pause readout, and flat bottom-center special button. Recharge belongs on that button. Steering uses invisible left/right screen halves. Gentle arrow hints appear only for the first three active seconds of a new flight; reduced-motion uses a temporary static hint.
-
-This board establishes the HUD. Its earlier hero silhouette is superseded by the accepted hero board above. Build accessible UI in DOM/CSS and respect touch targets and phone safe areas rather than tracing the image. Campaign omits the permanent endless-score readout.
-
-## 5. Three-world direction
-
-![Khepri badlands, Nacre wetlands, and Vesper frozen coast](01-worlds-direction.png)
-
-[Image](01-worlds-direction.png) · [Full prompt](01-worlds-prompt.txt)
-
-Left: Khepri's mineral badlands and tracked fortress. Middle: Nacre's luminous wetland and patrols. Right: Vesper's frozen coast and heavy machinery. Use the palettes, terrain forms, planetary variety, and ground-machine scale.
-
-Simplify fine rubble, surface noise, dense plants, dust, and decorative emissive detail for gameplay. This reference is richer than the intended low-tier runtime scene. The hero design and apparent size here are historical; use the accepted tier board and written scale targets.
-
-## 6. Historical v0.1 portrait reference
-
-[Original portrait image](02-portrait-combat.png) · [Full prompt](02-portrait-prompt.txt)
-
-Retained for design history only. Its resource bars, ornate special button, and placement are superseded by the minimal HUD above. Do not implement that earlier interface. Its fortress composition can still help discuss ground-target depth.
-
-## Interpretation and production limits
-
-- Written simulation rules determine hit regions, target acquisition, boss phases, and projectile spacing; image placement does not define them.
-- Ground/boss target markers must follow current damageability and visibility. Concept art may show markers together for inspection.
-- These are references for real 3D models and scenes, not static gameplay backgrounds.
-- Production assets need optimized meshes, materials, sockets, animation, and a provenance manifest. No mobile performance is demonstrated by the images.
-- Use procedural variations within approved shape families only. Author the hero chassis, enemy identities, and bosses.
-
-Generation method: built-in imagegen. Each image's full prompt is linked above; prompts preserve the discussion but do not guarantee an identical regeneration. See [art and experience](../../docs/04-art-and-experience.md), [wide map and camera](../../docs/10-wide-map-and-camera.md), and the [consolidated design review](../../DESIGN-REVIEW.md).
+The user's supplied 3D source models are in `art/source/` ([bosses](../source/bosses/README.md),
+[hero](../source/hero/README.md)), not here.

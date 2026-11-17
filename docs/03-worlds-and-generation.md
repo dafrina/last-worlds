@@ -1,246 +1,349 @@
 # Worlds, enemies, bosses, and generation
 
-## 1. Three planets with mechanical identities
+The overview of the worlds side of the game: the eight worlds and their missions, the enemy catalog, the bosses, what is
+generated and what is authored, the encounter deck and director, the fairness rules for left/right-only movement, and
+the endless difficulty ramp. Each world's own document holds its terrain, models and boss in detail; the code is the
+source for every tuning value named here.
 
-| Planet | Visual identity | Combat emphasis | Ground life | Boss |
+## 1. The eight worlds
+
+Worlds are `PlanetId` in `src/shared/contracts.ts`; each has a terrain profile in `src/world/terrain-<world>.ts`
+(Khepri's in `src/world/terrain-layout.ts` and `src/world/terrain-planet.ts`), a look in `LOOKS` in
+`src/render/scene.ts` and a paint in `WORLD_PAINT` in `src/render/world-paint.ts`. The campaign flies them in
+`CAMPAIGN_ORDER` (`src/content/equipment.ts`), one mission each (`MISSION_PLANET` in `src/content/missions.ts`).
+
+| World | Look | Combat emphasis | Mission | Boss | Doc |
+| --- | --- | --- | --- | --- | --- |
+| **Luna**, Khepri's moon | Grey cratered regolith, dark maria, black sky, a low hard white sun | Teaching: every squadron is introduced with a hint; gentle pace | Training | WARDEN-1, a decommissioned human lunar defence lander | [docs/19](19-luna-training.md) |
+| **Khepri**, the Rust Expanse | Ochre dust, columnar basalt mesas and canyons, turquoise mineral seams, graphite industry | Alignment, aimed shots, alternating lanes; ground batteries; a few scripted Lancers introduce beams | Rolling Thunder | BASTION-9, a tracked fortress | [docs/13](13-khepri-world.md), [docs/15](15-rolling-thunder-and-bastion-9.md) |
+| **Vesper**, the Glass Frontier | Snowy ice shelves, sheer blue-grey ice walls, a deep blue sea with pack ice | Narrow locked beams, alternating wing volleys, missiles down their own columns; precise commitment windows | Cold Vector | HELION ARK, a sea carrier | [docs/17](17-vesper-glass-frontier.md) |
+| **Nacre**, the Luminous Mire | Indigo mire between ragged islands, black crags, a glowing jungle, the ruins of its builders | Sine-flight weaver columns, Needle beams, the Pulsar's tracking stream, overlapping rhythms | Deep Bloom | THE VEIL, a crescent-winged alien carrier | [docs/20](20-nacre-luminous-mire.md) |
+| **Amnion**, the Brood Wastes | Pale bone plateaus, flesh canyons with glowing yolk, bone mountains, egg clutches | Drone flights, nest spires and spore mortars, egg sacs, brood heavies; acid-green hostile shots | Brood Strike | THE CRADLE, a living nest-fortress | [docs/27](27-amnion-brood-wastes.md) |
+| **Corona**, the Dying Star | Radiant plasma seas meandering between black magnetic rock, flare arcs | The late fleet with the Wraith and the Skimmer | Dying Star | THE HELIOPHAGE | [docs/37](37-corona-dying-star.md) |
+| **Nahara**, the Silent Empire | Sandstone canyons and ruin districts of a vanished civilisation, moving sand | Skimmers (Echo Split), Relic Shields (armour), Wraiths; walls and boomerangs from the boss | Silent Empire | THE CITADEL, a stationary temple | [docs/39](39-nahara-silent-empire.md) |
+| **Umbra**, the Eternal Eclipse | Shattered obsidian plates under an eclipse, crevasses falling into violet fog, floating shards | The Wraith's home world; the whole late fleet | Final Horizon | THE ECLIPSE, the final boss | [docs/28](28-umbra-eternal-eclipse.md) |
+
+Rules every world keeps:
+
+- **One combat plane.** Terrain, water, cliffs, fog and ice are scenery under the flight plane (`VIEW.flightHeight`).
+  They never block shots, never collide and never steer the ship; each world's scenery stays under its cap
+  (`PlanetProfile.sceneryMax`). An environmental danger would have to be a marked combat hazard under the same fairness
+  rules as an attack (§7); no world has one. No weather hides shots.
+- **A wider world.** The view is a 12-unit slice (`VIEW.width`) of a 24-unit world (`VIEW.worldWidth`); the camera
+  follows lateral travel ([docs/10](10-wide-map-and-camera.md)). Terrain marks calmer routes at the centre and both
+  sides (`ROUTE_AXES` in `src/world/terrain-layout.ts`) but never builds walls along them.
+- **Moods along the route.** Each world alternates seeded regions (Khepri: canyons, mesas, basins, flats, dunes,
+  escarpment; Vesper: shelf, pack ice, crevasse, radiator plains, icefall, nunatak; Luna: highland, mare, basin, crater
+  field) and never repeats a mood twice in a row.
+- **Rising intensity.** `WORLD_INTENSITY` in `src/content/balance.ts` scales air enemies' flight clock, shot speed,
+  repeat fire, hit points and first windups per world, from gentle on Luna to hardest on Umbra, in both modes. Only
+  targets with a faction silhouette and an aim marker are shootable; ground traffic and outposts are scenery.
+
+## 2. Enemy catalog
+
+Enemy kinds are `EnemyKind` in `src/shared/contracts.ts`. Hit points, radius, speed, shot speed, repeat interval,
+warning, score and credits are `ENEMIES` in `src/content/balance.ts`; threat costs are `THREAT_COST` there. Attack
+shapes live in `src/sim/attacks.ts`, and the fairness director predicts them from the same functions (§7). Each world
+renders the kinds in its own faction's models (its doc says which).
+
+| Kind | Role | Attack | Counterplay | Worlds (authored arcs) |
 | --- | --- | --- | --- | --- |
-| **Khepri — Rust Expanse** | Ochre basalt, turquoise mineral fractures, graphite foundry machinery, dusty soft shadows | Learn alignment, aimed shots, alternating lanes | Cargo crawlers, relay stations, ground batteries, distant drilling rigs | Bastion-9, a tracked mobile fortress |
-| **Nacre — Luminous Mire** | Indigo water, teal bioluminescent reeds, violet vegetation, dark monoliths | Sine-flight formations, delayed volleys, overlapping rhythms | Pump platforms, amphibious machines, dormant alien ruins | Mire Crown, a walking refinery platform |
-| **Vesper — Glass Frontier** | Pale ice, deep blue ocean, black ceramic structures, orange radiator fins | Precise burst windows, narrow telegraphed beams, coordinated heavy escorts | Ice haulers, radiator fields, missile emplacements | Helion Ark, a hovering industrial carrier |
+| `dart` | Light fighter | One aimed shot | Move after the aim commits; align on its approach | Luna, Khepri, Amnion, Corona, Nahara, Umbra; boss pods and drones |
+| `weaver` | Crescent fighter, sine flight | Two parallel aimed shots (`WEAVER_PAIR_OFFSET` either side; the lane between fits the ship) | Use the lane between the pair; predict the crossing | Every world but Vesper |
+| `turret` | Ground battery | Aimed three-round fan | Same alignment as air targets; destroy one to remove its layer | Every world but Vesper |
+| `lancer` | Beam ship | Marks a wide lane (`LANCER_BEAM`) on the committed position, then a brief beam that costs two shield charges | Leave the marked lane; shoot it during recovery | Khepri (scripted only), Amnion, Corona, Umbra |
+| `needle` | Fast interceptor | A very narrow locked lane (`NEEDLE_BEAM`) that costs one shield charge | Step out of the thin lane; side lanes fall inside a beam's reach, so holding still is never safe | Vesper, Nacre, Amnion, Corona, Nahara, Umbra; the Helion Ark's launches |
+| `diamond` | Heavy escort | Three tight rounds from one wing, bracketing the committed position on that side; wings alternate (`DIAMOND_VOLLEY`) | Read which wing winds up; its whole body takes hits | Vesper, Nacre, Amnion, Corona, Umbra |
+| `missile` | Ground missile battery | One straight, non-tracking missile down its own marked column | Align under it only between missiles | Vesper, Nacre, Amnion, Corona, Nahara, Umbra |
+| `fuel` | Fuel skid or egg sac | Never fires; its blast (`FUEL_BLAST`) damages targets around it, never the player | Shoot it for salvage and to break nearby batteries | Every world |
+| `pulsar` | Explicit tracker | Marks a line on the ship, then a stream (`PULSAR_BURST`) whose every shot aims at the ship as it leaves the muzzle | Keep moving through the stream | Nacre, Amnion, Corona, Nahara, Umbra |
+| `wraith` | Phase predator | Teleports to a new firing angle near the end of its warning, then a fast three-round burst (`WRAITH`) | Watch the feint; move on the snap | Corona, Nahara, Umbra ([docs/28](28-umbra-eternal-eclipse.md)) |
+| `skimmer` | Light raider | Echo Split: one large aimed shot that stops, shows its halves and splits in two (`ECHO_SPLIT`) | Fly between the halves | Corona, Nahara, Umbra ([docs/39](39-nahara-silent-empire.md)) |
+| `relic` | Armoured heavy | Three-round fan; closed armour lets only a share of damage through, open after each attack (`RELIC_ARMOR`) | Hit it while it is open, or wear it down | Nahara, Umbra ([docs/39](39-nahara-silent-empire.md)) |
 
-The environment never changes the basic collision plane. Water, cliffs, fog, and ice are scenic. Environmental danger must be a marked combat hazard with the same fair rules as an enemy attack. Avoid wind that steals lateral control or snow that obscures shots. Each planet adds a combat idea, not just a palette swap.
+The worlds column is what the authored arcs fly (`authoredKinds` in `src/content/encounter-deck.ts`); the deck never
+adds a kind a world does not fly (§6).
 
-Within each planet use three terrain families: open traversal, industrial concentration, and dramatic landmark. Every family has quiet flight regions and richer detail outside active combat. The viewport is a moving 12-unit-wide slice of initially 36-unit-wide terrain; do not build a permanently screen-bounded canyon. Author left/center/right optional routes as described in [wide map and camera](10-wide-map-and-camera.md). Distant ground traffic may move, but only targets with the faction silhouette and aim markers are shootable.
+**Aim and warning rules.**
+- An attack commits its aim at the start of its windup. The warning line is drawn to the committed point, and the
+  release comes when the warning ends. Once a shot leaves, it does not track. The Pulsar's stream is the one explicit
+  tracking attack, with its own look and rule. A locked beam never moves with the player.
+- A squadron member may add an authored lateral aim offset (a bracket). The offset is part of the template, commits at
+  the same moment, and shows on the same warning line.
+- Windups start only inside the template's firing window, with the attacker fully in view and above the attack floor
+  (`ATTACK_FLOOR` in `src/sim/view.ts`). A windup that leaves the view is cancelled and starts again in full on return;
+  a hit does not cancel it.
+- Enemies never spawn inside the view or behind the player, every path ends outside the view, and craft below the
+  player row stop firing and leave. Missing a kill costs score and loot, never unavoidable damage.
 
-## 2. Enemy behavior catalog
+**Squadrons.** Squadrons are authored templates in `src/content/formations.ts`: a leader path as keyframes relative to
+an anchor, and per member a slot offset, an optional lag along the path (columns), an optional flipped path (pincers),
+a staggered first windup and an optional aim offset. No two windups of one squadron start within 0.3 s of each other,
+so a squadron never fires as one wall. Members marked `from: 'veteran'` fly on Veteran, in endless from
+`ENDLESS_RAMP.veteranFormationsFromSector`, and in the late missions that set `MISSION_PRESSURE.rank`. A placement may
+fly the validated mirror image or a validated lateral offset; neither is random. The families:
 
-| Archetype | Shape language | Movement and attack | Counterplay | Scope |
-| --- | --- | --- | --- | --- |
-| Dart | Narrow triangular fighter | Enters from top; one aimed burst after 0.65 s warning | Move after aim commits; align on its approach | Slice |
-| Weaver | Crescent wings | Bounded sine movement; two slow parallel shots | Predict its crossing; use open lane between pairs | Slice |
-| Skirmisher | Twin-tail interceptor | Crosses upper screen, pauses, fires a three-shot fan | Follow its pause without chasing into warning | MVP |
-| Bomber | Broad heavy wings | Slow descent; launches two visible drifting mines that burst in defined lanes | Destroy early or leave marked lane | MVP |
-| Bulwark | Wide armored central body | Occupies upper row; alternating left/right volleys | Move with rhythm; destroy exposed core | Full |
-| Lancer | Long needle hull | Marks a narrow lane, locks aim, then emits a brief beam | Exit warned strip; shoot during recovery | Full |
-| Spike Battery | Triangular ground base with tall barrel | Stationary relative to terrain; one aimed three-round burst | Same alignment rules as air targets | Slice |
-| Crawler | Low tracked chassis, paired pods | Moves slowly laterally on ground; alternating pod fire | Pick a pod to reduce pressure | Slice |
-| Needle (Vesper) | Pale ceramic blade, offset fins | Fast interceptor; marks a very narrow lane (0.4 wide) locked on the player, 0.75 s windup plus a 0.2 s flash, then a 0.15 s beam that costs one shield charge | Step out of the thin lane; shoot it between beams | Built (Cold Vector) |
-| Diamond (Vesper, Bulwark family) | Fractured diamond frame, radiator wings, central core | Heavy escort; alternating left/right wing volleys of three tight rounds, each bracketing the committed position 1.2 to that side | Read which wing is winding up; stay put or move the other way; hit the 0.3 core | Built (Cold Vector) |
-| Missile battery (Vesper) | Hex-plinth launcher on the ice | Ground target; one straight, non-tracking missile (radius 0.2, fast) down its own marked column every volley | Align under it only between missiles | Built (Cold Vector) |
+- **Fighters:** `arrow-3`, `arrow-5`, `line-dart-4`, `line-weaver-4`, `echelon-4`, `snake-weaver-5`, `pincer-4` (two
+  flanks, announced by an alert before entry), `dive-pair` (its dive lanes are contact hazards), `diamond-weaver`, and
+  the `solo-*` teaching templates.
+- **Beams:** `solo-lancer`, `diamond-lancer`, `needle-solo`, `needle-line-3`, `needle-column-5`.
+- **Heavies:** `diamond-solo`, `diamond-pair`, `diamond-convoy`, `relic-solo`, `relic-pair`, `relic-escort`.
+- **Late specials:** `pulsar-solo`, `pulsar-pair`, `wraith-solo`, `skimmer-pair`, `skimmer-trio`.
+- **Ground:** `battery-2`, `battery-3`, `battery-4`, `missile-2`, `missile-3`, the fuelled `depot-2`, `depot-3`,
+  `depot-missile`, and the harmless `fuel-pair` and `fuel-depot`. Ground targets ride the scrolling terrain.
+- **Boss launches:** `ark-launch` (Needles from the Helion Ark's bays) and `veil-pods` (the pods, hatchlings and drones
+  of the carrier bosses).
+- **Strike-site guards:** `site-*`, around a site's core ([docs/33](33-strike-sites-and-encounter-deck.md)).
 
-Starting HP: Dart 55, Weaver 75, Skirmisher 80, Bomber 150, Bulwark 220, Lancer 120, Spike Battery 110, Crawler 160; Vesper Needle 50, Diamond 130, Missile battery 120 (collision radii 0.30, 0.60 (the whole body), 0.55; score/credits 150/6, 400/16, 250/10; threat cost 2, 4, 2). Repeat intervals: Needle 1.3 s, Diamond 1.0 s, Missile battery 1.1 s. Crawler's MVP version is one damageable entity; split pods are boss tech, not required for every enemy. Dart, Weaver, Lancer and Spike Battery HP rose on 14 October 2026 so that squadrons survive long enough to fire; Twin Pulse still kills a Dart in 0.57 s and a Weaver in 0.78 s, inside the light-enemy goal in [combat](02-combat-and-progression.md#8-validation). Runtime values live in `src/content/balance.ts`.
+**Aces.** Hunters (`HUNTERS` in `src/content/hunters.ts`, behaviour in `src/sim/hunters.ts`) are a world's strong
+kind under a glowing shield of charges. They roam above the fight, follow a ship that retreats to a side, and stay
+until shot down, into a boss fight too. They stand outside the authored encounters (no threat budget or airspace), but
+every attack they start passes the same fairness admission. Their spawn rolls use their own stream, independent of the
+run seed, so every run of a level meets the same aces.
 
-Enemies entering from a side cannot attack until fully visible and warned. Airframes that travel below the player line stop firing and leave quickly. Never spawn behind the player. Enemies may pass harmlessly out of view if missed; missing a kill costs score and rewards, not unavoidable collision damage.
+## 3. Bosses
 
-Aim at the player's current horizontal position only at a documented commit point. Once a projectile launches, standard shots do not track. A locked beam does not move with the player. If a tracking special enemy is added later, it needs its own unmistakable appearance and rule.
+Every mission ends with a boss, and every endless planet stint ends with that planet's boss. A boss is an authored
+state machine with targetable modules: no random geometry and no improvised attacks. All eight share one definition
+shape (`BossDefinition` in `src/content/bosses.ts`, each boss's numbers in `src/content/<boss>.ts`) and one simulation
+(`src/sim/boss.ts`).
 
-In the prototype the commit point is the start of the windup: the warning line is drawn to the committed point and the shot is released when the warning ends. A squadron member may add an authored lateral **aim offset** to the committed player x (bracketing). The offset is part of the template, is committed at the same moment, is shown by the same warning line, and never tracks afterwards. Each archetype keeps its own attack shape: Dart one aimed shot, Weaver two parallel aimed shots 1.5 units apart (widened from 1 unit on 15 October so the lane between them still fits the 0.42 collider), Spike Battery an aimed three-round fan, Lancer a 0.8-unit beam lane.
+**Shared rules.**
+- **Phases:** a harmless arrival, then the first-phase targets (a pair; THE ECLIPSE, THE HELIOPHAGE and THE CITADEL add a
+  third, the `prow`), then the core, then the core's overload, then the wreck. The overload is a pattern change on the
+  same health pool, never a refill. Health splits 40-25-35 over the three stages (`BOSS_PHASES` in
+  `src/content/boss-phases.ts`).
+- **Health:** each module's base hit points, times the difficulty (or the endless ramp), times `BOSS_TOUGHNESS.hp`, and
+  in the campaign times the mission's `MISSION_PRESSURE.bossHp`.
+- **Overload moves:** each boss cycles its own `overloadMoves`: lanes over its core column, over both side columns, or
+  a cross (core plus one side, alternating), plus shot moves (aimed burst, fixed fan, spiral, and on Corona's, Nahara's and
+  Umbra's bosses the Fracture Wave and Boomerang Barrage). A move the fairness director rejects is skipped.
+- **Fairness:** every boss attack passes the same exclusion check as squadron attacks (§7). The boss holds still while
+  its own lanes charge and fire, and while a spiral unwinds, so lanes stay under the columns that fired them.
+- **Arena:** the scroll eases to a stop over a clearing (open water on Vesper, open mire on Nacre;
+  `src/world/terrain-arena.ts`) and the boss arrives at the map's centre. It sways and surges around its post within its arena's limits; THE CITADEL never moves. A boss with
+  no target in view for `DRIFT.boss.patience` seconds lumbers toward the view ([docs/10](10-wide-map-and-camera.md)).
+- **It must be killed** (user decision, 15 October; [docs/08](08-decisions-and-sources.md)). No timeout, no retreat,
+  in either mode. The player is never killed for low damage output; the fight lasts until the kill.
+- **Stage changes and respawns:** at arrival, other craft break off and fly out of frame (aces stay). At arrival and at
+  each stage change, windups and laser lanes end; shots already in flight fly on. A lost life keeps every destroyed module and the core's
+  damage, clears hostile shots in view and delays new attacks for the respawn protection.
+- **Destruction:** a barrage of explosions over the modules, then one big detonation (`deathSequence` in
+  `src/sim/boss.ts`, cosmetic). Launched craft go down with their carrier. The scroll holds over the wreck for
+  `WRECK_HOLD`, then the departure (`DEPARTURE` in `src/content/departure.ts`) and the warp: the campaign's results, or
+  endless's next planet ([docs/18](18-endless-planet-cycle.md)).
 
-### Authored squadrons
+**The eight bosses.**
 
-Squadrons are authored templates in `src/content/formations.ts`: a leader path as keyframes relative to an anchor, a slot offset per member, an optional time lag along the path (columns), an optional flipped path (pincers), a staggered first windup per member, and an optional aim offset. Members marked as the Veteran variant fly only on Veteran campaign difficulty and from endless sector 3. A placement may fly the template's mirror image or shift it laterally by up to 2 units; both are validated variants, never random.
+- **WARDEN-1** (Luna, Training): the smallest boss, a decommissioned human lunar defence lander that hovers on its
+  thrusters. Two turret pods, then the command module; slow bursts and generous warnings teach the phases.
+  [docs/19 §2](19-luna-training.md#2-warden-1).
+- **BASTION-9** (Khepri, Rolling Thunder): a tracked fortress on a flat paved clearing. Two gun batteries with aimed
+  bursts, then a core that alternates a fixed fan with an aimed burst, then lanes and fans over its own columns.
+  [docs/15](15-rolling-thunder-and-bastion-9.md).
+- **HELION ARK** (Vesper, Cold Vector): a carrier riding the open sea. Two radiators fire narrow lane lasers straight
+  down their own columns, with a bridge burst between, then the bridge fires aimed bursts and launches finite Needle
+  waves from its deck bays.
+  [docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-the-helion-ark).
+- **THE VEIL** (Nacre, Deep Bloom): a crescent-winged carrier far wider than the view that rises out of the mire. Two
+  pods, then a heart behind four shutters with a spiral barrage and pod waves from its bays.
+  [docs/20](20-nacre-luminous-mire.md#4-the-veil).
+- **THE CRADLE** (Amnion, Brood Strike): a living nest-fortress that rises out of a flesh canyon. Two brood sacs, then
+  the nest heart with spirals and hatchling waves. [docs/27](27-amnion-brood-wastes.md).
+- **THE HELIOPHAGE** (Corona, Dying Star): THE ECLIPSE's fight on its own model and targets (the user's choice until a
+  fight of its own exists, 5 November). [docs/37](37-corona-dying-star.md).
+- **THE CITADEL** (Nahara, Silent Empire): a stationary temple on a rock in the canyon. Two lanterns and an emblem,
+  then the crown of turquoise panels (its reactor), with THE ECLIPSE's fight plus Nahara's Fracture Wave and Boomerang
+  Barrage. [docs/39](39-nahara-silent-empire.md).
+- **THE ECLIPSE** (Umbra, Final Horizon): the final boss, a crescent about 20 units from horn to horn rising out of the
+  abyss. Three energy vents, then the reactor, with spirals, walls, boomerangs and drone waves.
+  [docs/28](28-umbra-eternal-eclipse.md).
 
-| Template | Members (Veteran adds) | Path | Fire pattern | Counterplay |
-| --- | --- | --- | --- | --- |
-| `arrow-5` | 5 darts in a V (+2 wingmen) | Dive in, hold a row with slow sway, climb out | One windup every 0.5 s; leader and inner wings aim at the player, outer wings bracket ±1.6 | Move decisively or slip inside the bracket |
-| `arrow-3` | 3 darts | Dive in, steady hold | Leader aims at the player, wings bracket ±1.5 | Introduction: the leader dies in your lane |
-| `line-dart-4` | 4 darts abreast (+2) | Hold with sway | Ripple volley 0.35 s apart, aims stepping from −2.1 to +2.1: a sweep | Read the sweep, go behind it |
-| `line-weaver-4` | 4 weavers abreast | Hold with sway | Staggered 0.7 s; inner pair brackets ±1.2 | Use the lanes between parallel pairs |
-| `echelon-4` and mirror | 4 darts on a diagonal (+1) | Strafes across while descending, exits to the side | Staggered 0.5 s, alternating brackets | Keep moving against the strafe |
-| `snake-weaver-5` and mirror | 4 weavers in a column (+1) | Enters from one side; a sine column crossing the view | Each member fires as it passes, 1.2 s apart | Predict the crossing |
-| `pincer-4` | 2 darts per flank (+1 per flank) | Readable alert 1.4 s before entry; enters from both sides, holds, withdraws | Flanks alternate 0.6 s apart; outer pair brackets | Stay central, break one flank |
-| `diamond-lancer` | Lancer leading 3 darts | Hold with sway | Beam lane plus bracketing darts | Leave the lane away from the bracket |
-| `dive-pair` | 2 darts | Dives straight through the player row at ±2.3 | One shot each | The dive lanes are contact hazards |
-| `battery-2/3/4` | 2–4 Spike Batteries | Fixed to the scrolling ground | Staggered fans 0.7–1 s apart | Destroy one to remove its layer |
-| `solo-*` | One dart, weaver, lancer or battery | As above | As above | Teaching and recovery |
-| `needle-solo`, `needle-line-3` | 1 or 3 Needles (+2 Veteran) | Quick dive in (0.9 s), hold high, climb out | Narrow lanes stepping −1/0/+1 around the committed position, 0.4 s apart | Keep moving; the lanes are thin |
-| `needle-column-5` and mirror | 4 Needles in a column (+1) | Side entry, sweeping across | Each locks a lane as it passes | Predict the sweep |
-| `diamond-solo`, `diamond-convoy` | 1 Diamond; or 2 Diamonds with 2 Needle escorts (+1 Diamond) | Slow descent, long hold | Alternating wing volleys; escorts lock lanes | Break the escorts, then the cores |
-| `missile-2`, `missile-3` | 2 or 3 missile batteries | Fixed to the scrolling ice | Straight missiles down each battery's column | Destroy them in the gaps between missiles |
-| `ark-launch` | 2 Needles from the Helion Ark's deck bays | Leave the bays, hold beside the Ark, exit | Lanes locked on the player | Boss-only; finite waves |
+The bosses' source models and builders are listed in `src/render/boss-assets.ts` and
+[art/bosses/README.md](../art/bosses/README.md).
 
-Squadrons dive in or climb out in 1.4 s, sweep and strafe about 25% faster than the first squadron pass, hold their row for 4–8.5 s and repeat their volleys while they hold. Base repeat intervals are Dart 0.85 s, Weaver 1.05 s, Spike Battery 0.98 s and Lancer 1.85 s, scaled by difficulty and, in the campaign, by the mission (Training ×1.25). They were shortened twice on 15 October: first because fewer enemies fly at once and each fires more often, then about 17% further at the user's request, then about 15% more (enemy fire only; the player's cadence is unchanged) after the user asked for enemies to be harder independently of the player's weapon. Base shot speeds are Dart 7.9, Weaver 6.6 and Spike Battery 7.3 units/s. Ground batteries move with the terrain scroll (`VIEW.scrollSpeed`, 5 units/s since 14 October 2026). Within one squadron no two windups start less than 0.3 s apart, so a squadron never fires as one wall. Squadrons never overlap one another; see the airspace rule in §6. Held rows keep every member inside the view while it may fire. No member spawns inside the view or behind the player; every path ends outside the view.
+## 4. Campaign missions
 
-Biome variants retain recognizable silhouettes and base mechanics. Material, exhaust, wing attachments, volley timing, and formation may vary within validated limits. A fast variant must be labeled visually; a recolor alone must not secretly triple bullet speed.
+| # | Mission (`MissionId`) | World | Boss | Threat | Boss arrives | Doc |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Training (`training`) | Luna | WARDEN-1 | 1 | `WARDEN.arrivesAt` (124 s) | [docs/19](19-luna-training.md) |
+| 2 | Rolling Thunder (`bastion`) | Khepri | BASTION-9 | 2 | `BASTION.arrivesAt` (135 s) | [docs/15](15-rolling-thunder-and-bastion-9.md) |
+| 3 | Cold Vector (`cold-vector`) | Vesper | HELION ARK | 3 | `HELION_ARK.arrivesAt` (190 s) | [docs/17](17-vesper-glass-frontier.md) |
+| 4 | Deep Bloom (`deep-bloom`) | Nacre | THE VEIL | 4 | `VEIL.arrivesAt` (184 s) | [docs/20](20-nacre-luminous-mire.md) |
+| 5 | Brood Strike (`brood-strike`) | Amnion | THE CRADLE | 5 | `CRADLE.arrivesAt` (184 s) | [docs/27](27-amnion-brood-wastes.md) |
+| 6 | Dying Star (`dying-star`) | Corona | THE HELIOPHAGE | 5 | `HELIOPHAGE.arrivesAt` (184 s) | [docs/37](37-corona-dying-star.md) |
+| 7 | Silent Empire (`silent-empire`) | Nahara | THE CITADEL | 5 | `CITADEL.arrivesAt` (184 s) | [docs/39](39-nahara-silent-empire.md) |
+| 8 | Final Horizon (`final-horizon`) | Umbra | THE ECLIPSE | 5 | `ECLIPSE.arrivesAt` (184 s) | [docs/28](28-umbra-eternal-eclipse.md) |
 
-## 3. Boss design
+Names, threat and briefing lines are `MISSION_TEXT` in `src/ui/missions.ts`. A mission opens once the one before it is
+cleared ([docs/30](30-campaign-progression.md)). Each mission's arc is authored in `src/content/encounter-deck.ts`
+(§6) and lengthened by an authored stretch with fuel depots (the `*_SORTIE` arcs). Its pressure comes from the
+difficulty (`DIFFICULTIES`), the world (`WORLD_INTENSITY`), the mission's repeat-fire factor (`MISSION_CADENCE`) and, for
+the later missions, `MISSION_PRESSURE` (earlier first windups, reinforcing squadrons, quicker telegraphs within the
+fairness floors, bigger flocks, tougher bosses; [docs/40](40-balance-measurement.md)). The boss's content file holds
+the mission's shield-cell times (`shieldSupplies`). Each attempt flies one to four strike sites (`SITE_COUNT`,
+[docs/33](33-strike-sites-and-encounter-deck.md)), and each world has a board of optional missions
+([docs/35](35-missions.md)).
 
-Bosses are authored state machines with targetable modules and readable phase transitions. No random geometry or improvised attacks. Boss damage windows cannot require a particular gun or special. Cap fight length through accessible targets and exposure, not forced damage races.
+## 5. What is procedural and what is authored
 
-### Bastion-9: the vertical-slice centerpiece
+| Layer | Approach |
+| --- | --- |
+| Terrain, landforms, scatter, outposts, roads, pipelines, districts | Generated from the run seed and world coordinates by pure functions (`src/world/`); identical regardless of load order |
+| Terrain pieces, infrastructure, facilities, enemy craft, bosses, strike sites | Modelled in Blender by seeded scripts in `tools/blender/`, or adapted from the user's source models (`art/source/`) |
+| Mission and endless arcs | Authored slot lists (`src/content/encounter-deck.ts`) |
+| Which wave flies in a pool slot, its mirror and offset, which strike site and side | Drawn per attempt (endless: per sector) from authored pools by a seeded roll (§6) |
+| Squadron formations, attack patterns, boss phases and moves | Authored; never assembled from parts |
+| Enemy statistics | Authored values scaled by documented factors: difficulty, world, mission, endless ramp |
+| Hero ships | Authored modular designs and paint chosen in the hangar ([docs/31](31-hero-ships.md)); no procedural ships |
+| Mesh generation at runtime, improvised attacks, generative AI | Excluded |
 
-Rolls in as the terrain eases to a stop, then fights over a static arena platform (the exact stop and platform range are in [wide map and camera](10-wide-map-and-camera.md#5-encounters-bosses-and-boundaries)); it maneuvers within ±1.1 laterally and ±0.9 forward/back. Its body is visibly below the aircraft, with two elevated weapon housings and a central core. The large ground silhouette communicates scale; projected combat targets communicate where to shoot.
+World generation never reads or changes combat: it cannot move a target, alter encounter timing or decide loot. Ground
+targets are seated on whatever terrain their authored position lands on, at any height
+([docs/13 §2](13-khepri-world.md#2-procedural-layout)). Concept images guide art direction only; the running game calls no
+generative service.
 
-| Phase | Targets / starting HP | Pattern | Tactical decision |
-| --- | --- | --- | --- |
-| Arrival, 3 s | None damageable until markers activate | Fortress rolls in, dust trails, shutters open; no incoming attack | Read the layout |
-| 1: artillery | Left and right battery, 400 HP each | Alternate aimed three-bolt bursts; 1.0 s warning, 0.5 s recovery | Choose which gun to remove first |
-| 2: core | Core, 1,600 HP after both batteries break | Fixed five-way fan alternating with an aimed five-bolt burst; 1.0 s warning, 0.5 s recovery | Stay aligned while timing lateral dodges |
-| 3: overload | Same core at below 40% remaining HP | Lanes over the fortress's own hit columns, alternating: a 2.4-wide lane over the core column, then 1.4-wide lanes over both battery columns, which leave the core column open as the damage window. Marked for 1.4 s (1.25 s windup plus 0.15 s flash), active 0.35 s, 0.6 s recovery | Leave the core column on its lane; return to it while the battery lanes fire |
+## 6. Encounter deck and director
 
-Every fortress attack passes the same director exclusion check as squadron attacks (§6); a rejected attack switches to its alternate pattern and retries after 0.25 s, so the fortress never stalls. A hit no longer cancels a fortress windup in progress; leaving the view still does. Phase 3 is a pattern transition, not restored HP. The minimal HUD communicates boss damage through visible weakpoints rather than a default extra bar. Removed guns remain destroyed and cannot keep shooting. Escorts are finite per sequence and yield no special-charge or drop farming if repeatedly summoned. Transition waits at least 0.75 s before introducing new threats; remove incompatible lingering hazards.
+**The encounter deck** (`src/content/encounter-deck.ts`; full rules in
+[docs/33 §4](33-strike-sites-and-encounter-deck.md)). Each campaign mission and endless stage keeps an authored arc of
+slots following the pacing arc (`PacingPhase` in `src/content/encounters.ts`: introduction, pressure, recovery,
+pressure, climax, recovery). `resolvePlaylist` turns the arc into the cue list a run flies, with a seeded roll per
+attempt (endless: per sector):
 
-Boss destruction is a sequence: module sparks → internal flashes → chassis collapse → short expanding shock ring → reduced smoke. The reward summary starts only after dangerous entities are cleared. The scene should stay responsive to pause throughout.
+- **fixed** slots fly as written: introductions, every cue with a message, set pieces, reliefs;
+- **pool** slots draw an authored wave from the world's pool for that phase (`DECK_POOLS`): the same role (air or
+  ground) and attack character (`waveCharacter`) as the slot's nominal wave, within a threat band (`BAND`), as authored or
+  mirrored;
+- **side** slots draw a strike site from the world's site pool.
 
-### Mire Crown
+Guard rails: no wave twice in a row; two heavy waves never stack (`PAIR_WINDOW`, `PAIR_FLOOR`); Pulsars and Wraiths fly
+only where the arc put them (`SCARCE`); teaching arcs (every campaign mission, the Luna prologue and each world's first
+endless opening) fly each introduction as authored and draw only formations already introduced; on Vesper a drawn wave
+keeps its slot's side of the alternation between laser flocks and laser-free squadrons
+([docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-the-helion-ark)). Campaign missions with
+`MISSION_PRESSURE.reinforce` add mirrored follow-up squadrons (`reinforced`).
 
-Broad refinery on four articulated legs. Two side condensers expose alternating cores. Slow pressure waves cross the player row as separated danger intervals, never full-screen rings that require vertical movement. Breaking a condenser removes one rhythmic layer. Final core periodically opens for sustained alignment. Target total effective HP around 2,600 before mission-specific tuning.
+**The director** is `updateDirector` in `src/sim/game.ts`. It admits the resolved cues in order:
 
-### Helion Ark
+- **Cue times are earliest times.** A cue waits until it fits; a pilot who destroys squadrons quickly meets the next one
+  sooner.
+- **Whole cues only.** A cue is admitted complete or not at all. Surviving enemies plus the cue must fit the live
+  threat budget (`DifficultyScale.threatBudget`, costs in `THREAT_COST`) and the entity ceiling
+  (`BALANCE.maxEnemies`). Aces count against neither.
+- **Airspace.** Squadrons never overlap (`src/sim/airspace.ts`, `AIRSPACE` in `src/content/balance.ts`). A cue is
+  admitted only if its predicted flight keeps every member `AIRSPACE.separation` from every member of another squadron,
+  and no two air squadrons that could share one screen occupy forward bands closer than `AIRSPACE.bandGap`. The rule
+  uses world positions only. Ground batteries keep separation from each other but may pass beneath an air squadron. In
+  practice one air squadron flies at a time.
+- **Anchors.** A `view` placement resolves to the camera centre when the cue is admitted, clamped to `ANCHOR_LIMIT`, so
+  the battle follows the player but never pins the ship against a world edge. A `world` placement pins optional
+  content to a world x. Ground formations spawn ahead of their cue (`GROUND_LEAD` in `src/sim/game.ts`) so they
+  scroll into view from beyond the top edge with the authored timing.
+- **Alerts.** A two-flank entry shows its alert `ALERT_LEAD` seconds before its members enter; an overwritten alert is
+  shown again in full. A strike site is announced when it is next and would be admitted.
+- **Windup gate.** A member starts a windup only inside its firing window, fully visible and above `ATTACK_FLOOR`, and
+  only while fewer than `maxWindups` attacks wind up and fewer than `maxBeams` wide lanes are marked (by difficulty or
+  endless sector). Vesper outside campaign Veteran also caps warning lines at once (`VESPER_LINE_CAP`), and Needle
+  barrages rest after a run of beams (`DifficultyScale.beamRest`).
+- **Exclusion check.** Before committing a windup, the director checks the hazard union (§7). A rejected windup retries
+  after `FAIRNESS.retryDelay`; its pattern is never edited and existing shots are never moved.
+- **Pool limit.** A volley that would overflow `BALANCE.maxProjectiles` is skipped whole, never trimmed.
+- **Squadron pull.** When fewer than `DRIFT.floor` air craft in view can attack, the nearest view-anchored squadron
+  beside the view slides toward it until `DRIFT.engaged` can (`src/sim/drift.ts`; [docs/10](10-wide-map-and-camera.md)).
+  It never slides while a member winds up, holds a lane or could reach the player row within the fairness horizon.
+- **Hits and respawns.** Hit invulnerability (`BALANCE.shield.hitInvulnerability`) does not cancel windups in progress;
+  it blocks new windups until 0.3 s before it ends. A lost life clears hostile shots in view, cancels all windups and
+  delays new attacks by the respawn protection ([docs/02](02-combat-and-progression.md)).
+- **Bosses.** The approach ends at the boss's `approachEndsAt` (endless: `ENDLESS_CYCLE.bossSector.approachEndsAt`); no
+  ordinary cue is admitted after it, not even one held back.
 
-Carrier moving above ice can visually sit higher than ordinary ground machinery; its targets still use the same combat-plane contract. Destroy two radiator weapons, then the bridge. Alternating lane lasers and finite fighter launches test learned patterns. Large wings are scenery, not an enormous hidden collision box. Target total effective HP around 3,000; ordinary starter weapons still need useful core exposure.
-
-**As built (Cold Vector, 15 October 2026).** It rides on the open-ocean arena (the scroll stops at distance 920) and follows the same phase rules as Bastion-9. Runtime values are in `src/content/ark.ts`; [Vesper](17-vesper-glass-frontier.md#5-mission-cold-vector-and-the-helion-ark) has the full contract.
-
-| Phase | Targets / HP (Standard) | Pattern |
-| --- | --- | --- |
-| Arrival, 3.5 s | None damageable | Glides in from s 26 to its row (11.5) |
-| Radiators | Left and right radiator, 600 each, radius 0.75, at x ∓2.4, s −0.5 | Alternating narrow lane lasers (0.7 wide) locked on the player: 1.1 s windup + 0.15 s flash, 0.3 s active, 0.55 s recovery |
-| Bridge | Bridge, 1,800, radius 1.0, at x 0, s +1.6 | Aimed three-bolt bursts (1.0 s warning) plus three launch waves of two Needles from the deck bays (x ∓0.75, s −2), the first 2.5 s into the phase and then every 7 s, one wave at a time |
-| Bridge overload | Same bridge below 40% | Alternating lanes over its own hit columns: 2.2 wide over the bridge, then 1.6 wide over both radiator columns, leaving the bridge column open as the damage window. 1.25 s windup + 0.15 s flash, 0.35 s active |
-| Destroyed | None | Launched fighters go down with it; the wreck stays on the water as extraction resumes the scroll; 8 s extraction |
-
-HP scales with campaign difficulty (2,550 Relaxed, 3,600 Veteran). The hull drifts ±1.3 laterally and surges ±0.7; `BossState.vx`/`vs` expose its velocity. Every attack passes the director's exclusion check.
-
-For each boss document the active targets, damageable flags, attack schedule, incoming-projectile limits, phase exits, death handling, and behavior if a player respawns. Never use a phase timer to silently restore health.
-
-## 4. Campaign mission plan
-
-| Mission | Length target | Authored arc | New emphasis |
-| --- | --- | --- | --- |
-| K1: First Contact | 3 min | Low-pressure approach → air patrol → turrets → extraction | Steering, auto acquisition, special, drops |
-| K2: Foundry Run | 3–4 min | Formation pairs → ground convoy → mixed defenses → heavy convoy finale | Prioritization and build choice |
-| K3: Rolling Thunder | 3–4 min | Mixed approach → recovery → Bastion-9 | Ground weakpoints and boss phases |
-| N1: Marshlight | 3–4 min | Open water → weaver formations → pump complex | Tracking movement without tracking bullets |
-| N2: Undertow | 4 min | Delayed bursts → bomber groups → recovery lanes | Timing multiple rhythms |
-| N3: Crownfall | 4–5 min | Refinery approach → Mire Crown | Removing attack layers |
-| V1: Cold Vector | 4 min | High-contrast introduction → lancer lanes → heavy escorts | Precise commitment windows |
-| V2: Radiator Field | 4 min | Heavy columns → offset beams → bomber recovery | Maintaining a reachable route |
-| V3: Last Foundry | 4–5 min | Reprise of prior lessons → Helion Ark | Mastery with any legal build |
-
-Unfinished planets do not appear as clickable empty content in the MVP. Display the first planet as a complete chapter; expand the map when the later chapters are actually built.
-
-For the standalone vertical slice, use a 200-second sequence: 15 s control/acquisition tutorial, 45 s air approach, 40 s mixed ground encounter, 15 s relief/pickups, up to 75 s fortress, 10 s extraction. This is a test mission, not a requirement to duplicate the entire K3 script.
-
-## 5. What should be procedural
-
-| Layer | Approach | Reason |
-| --- | --- | --- |
-| Terrain decoration | Seeded placement in bounded sockets | High visual variety with limited gameplay risk |
-| Terrain chunks | Hand-built modular pieces, stitched by connectors | Coherent routes, predictable density and draw cost |
-| Encounters and endless battle order | Explicitly authored sequences, cycling through designed difficulty stages | Predictable patterns, readable pressure, progression fairness |
-| Enemy formations | Authored complete patterns, including any chosen mirror/offset | Preserve deliberate battle composition |
-| Enemy statistics | Small documented modifiers by sector | Difficulty that remains recognizable |
-| Hero spaceship appearance | Deferred: possible approved part/material variants | Not required for MVP; enemy designs remain authored |
-| Bosses and campaign combat | Authored | Memorable encounters and repeatable mastery |
-| Mesh topology, unrestricted attacks, runtime AI generation | Excluded | Large validation and production burden |
-
-No generative AI service is called by the running game. Concept images help art direction; models and shaders are authored and packaged ahead of time.
-
-## 6. Chunk contract and director
-
-A combat chunk lasts 15–25 seconds, has entry/exit tags, spawn events, a threat cost, a cooldown after pressure, and a known safe-path envelope. Terrain pieces can scroll independently beneath it. Every chunk declares its maximum enemies, bullets, active lane exclusions, reward eligibility, and compatibility tags.
-
-For initial authoring, a chunk's threat cost is the sum of the costs of its scheduled enemies. The sector's threat budget is a ceiling per admitted chunk, not a single allowance for the entire 90-second sector. Default boundaries wait until threats clear; a chunk with validated overlap must count surviving prior enemies against the new admission budget and simultaneous entity limits. Recovery time is included in the chunk's duration, with no new spawn in its final recovery interval.
-
-The first content set should contain 12 authored templates: three introductions, three line-alignment challenges, two aimed-shot baits, two mixed air/ground phrases, one recovery, and one miniboss-style heavy convoy. Mirroring and lateral offsets are validated variants, not separate authored content counts. Full release expands to roughly 24 templates with biome-specific variations.
-
-Authored scheduling sequence:
-
-1. Select the documented campaign mission or endless sector stage.
-2. Read its authored encounter list in the declared order, including coordinates, timing, and formation choices.
-3. Wait for required clearance and reject a content definition that exceeds its budget or entity limits.
-4. Delay a scheduled attack when visibility or an existing hazard would make it unreadable; do not substitute a randomly selected battle.
-5. Use a documented quiet recovery interval if the authored schedule cannot safely continue. Log the content error for correction.
-
-Seeded world generation runs independently and cannot rewrite enemy composition, placement, or attack timing. Generated terrain is scenic around the authored combat anchors; optional ground targets are placed with sufficient clearance and compatible ground height. World variation is an MVP feature, not a later decoration pass.
-
-Pressure alternates between introduction, pressure, recovery, pressure, climax, recovery. Never stack the hardest two chunks just because budget remains. The director does not secretly aim harder after a player gets a good build or lower rewards after success. Shield supply budgets are explicit and independent of performance or objectives; there is no repeatable shield pity timer.
-
-### As implemented in the prototype (14 October 2026)
-
-Content lives in `src/content/encounters.ts` (cue sequences) and `src/content/formations.ts` (squadron templates, §2); the director is `updateDirector` in `src/sim/game.ts`. There are five authored sequences: Training (120 s), the Rolling Thunder approach (cues to 98 s, then relief before Bastion-9 at 115 s), and three endless playlists: opening (sector 1), pressure (sectors 2–3) and peak (sector 4 onward, repeated at the capped ramp). Each sequence follows the arc exactly once: intro → pressure → recovery → pressure → climax → recovery.
-
-- **Cue.** A time, a pacing label, one or more squadron placements, and an optional message and authored pickup. Pressure cues come every 2–6 s, alternating air squadrons with ground batteries; an air squadron waits for clear airspace (below), so batteries arrive beneath the squadron in flight. Recovery cues carry at most 6 threat and are followed by at least 5 s before the next cue.
-- **Placement anchor.** A `view` anchor resolves to the camera center when the cue is admitted, clamped to ±7 (two units inside the camera range), so the mandatory battle follows the player across the wide map but never pins the ship against a world edge. A `world` anchor pins optional side-route content (salvage west, outpost east) to a world x. Both use the same templates; mirrors and lateral offsets of at most 2 units are the only variants.
-- **Two-flank alert.** A cue containing a two-sided entry first shows its alert, then admits the members 1.4 s later. If another message overwrites the alert or it goes stale before admission, the alert is shown again with the full lead.
-- **Airspace (15 October 2026).** Squadrons never overlap. A cue is admitted only if its predicted flight keeps every member at least 2.2 units from every member of another squadron. In addition, no two air squadrons whose lateral extents could share one screen may occupy forward bands closer than 1 unit while either is in the visible band. Otherwise the cue waits. The rule uses world positions only, sampled every 0.1 s with swept extents and a 0.35 safety margin. Ground batteries are terrain targets: they keep separation from each other and may pass beneath an air squadron. In practice one air squadron flies at a time, and cue times are earliest times. A pilot who destroys squadrons quickly meets the next one sooner.
-- **Admission.** A cue is admitted whole or not at all. Threat costs are Dart 1, Weaver 2, Spike Battery 2, Lancer 3. Surviving enemies plus the new cue must fit the live threat budget of the current scale ([campaign difficulty](11-campaign-difficulty.md), §8 for endless) and the 24-enemy ceiling; otherwise the cue waits. Every authored cue fits every scale that flies it.
-- **Squadron pull (11 November 2026).** When no air craft in view can attack, the nearest view-anchored air squadron beside the view slides sideways toward it until two can ([wide map](10-wide-map-and-camera.md#4-visibility-and-fair-threats)). The director's forecasts stay exact. A squadron never slides while a member winds up, holds a beam lane or warps, nor while one of its airframes could reach the player row within the 6 s horizon. Every slide passes the airspace rule over the 14 s admission horizon. A boss with no target in view lumbers toward it the same way (docs/10 §5).
-- **Windup gate.** A member may start a windup only inside its template's firing window, while fully visible and above the s = 3.5 attack floor. A cap limits simultaneous windups (3–7 by scale) and marked beam lanes (1–2 by scale).
-- **Exclusion windows.** Before committing a windup, the director predicts the row footprints of every committed hazard (shots in flight, marked beams, windups already running, airframe paths through the player row) plus the new attack. It admits the windup only if, in every 0.25 s simultaneity window over the next 6 s, a physical clear gap of at least 1.74 units remains in the view, both view edges and the center are never blocked together, and a conservative player model can still reach a clear position: 0.2 s reaction, 0.2 s maneuver delay, then 70% of the current top speed (8.4 units/s at campaign pace), with the collider plus 0.15 comfort margin on each side of every hazard and every hazard padded 0.1 s before and 0.05 s after its crossing. These values were tightened on 15 October with the quicker fire, so the director always leaves the validation pilot some slack. The check now looks 6 s ahead (was 4.5 s) so the slowest committed pattern, a Relaxed core fan landing about 5.1 s after its windup, is included. A rejected windup waits 0.25 s and is checked again; its pattern is never edited and existing bullets are never moved. If the player is already committed to an unavoidable hit, only the gap and seal rules apply, so the director neither stalls nor quietly eases off.
-- **Pool limit.** If a volley would overflow the projectile pool, the whole volley is skipped; a fixed pattern is never trimmed bullet by bullet.
-
-Hit invulnerability (0.65 s) no longer cancels windups in progress; it only blocks new windups until 0.3 s before it ends. Respawn still clears hostile shots in view, cancels all windups and delays new attacks for 2 s, as specified in [combat](02-combat-and-progression.md#1-lives-and-shield-charges).
+The director never aims harder after a player gets a good build, never lowers rewards after success, and has no
+shield pity timer. Shield cells come only on the authored budgets.
 
 ## 7. Fairness for left/right-only movement
 
-At the player's fixed forward row, threats occupy horizontal world-space intervals over time across the wider map. Camera position and visible warnings constrain which physical escape routes are actually readable. Test the union of projectile, beam, and contact hazards; testing each enemy independently is insufficient.
+At the player's fixed forward row, every threat occupies a lateral interval over a time window. Testing each enemy alone
+is not enough: the union of shots, beams and airframe contacts must leave a reachable escape. The floors are `FAIRNESS`
+in `src/content/balance.ts`; nothing may loosen them to make content fit.
 
-Initial constraints:
+- **Warnings:** at least `FAIRNESS.warningFloor` from the first readable warning to a threatening shot, and
+  `FAIRNESS.beamWarningFloor` for beams. Late missions' quicker telegraphs (`MISSION_PRESSURE.windup`) never go below
+  the floor. At least `FAIRNESS.lockFloor` from aim lock to the earliest possible impact.
+- **Gap:** a physical clear gap of `FAIRNESS.minGap` between hazard edges at the player row: the collider
+  (`VIEW.playerRadius`), the comfort margin on each side and 0.6 units of free movement.
+- **No seal:** hazards never cover both view edges and the centre together (strips `FAIRNESS.sealStrip` wide).
+- **Reachability:** a conservative player model must still reach a clear position: `FAIRNESS.reaction` plus
+  `FAIRNESS.maneuverDelay`, then `FAIRNESS.effectiveSpeedRatio` of the top speed (the campaign assumes the slowest drive),
+  with the collider and comfort margin around every hazard, padded slightly in time.
+- **Never required:** no attack may require a special, a pickup, upgraded equipment or a timely kill to avoid certain
+  damage. No spawn overlaps the player without warning.
 
-- At least 0.65 s from first readable warning to a threatening shot; beams at least 0.9 s. These are floors, not sufficient by themselves to guarantee dodgeability.
-- At least 0.30 s after aim locks before impact is possible. Increase this when required by travel distance and acceleration.
-- Safe intervals must include player collider radius, an additional 0.15-unit comfort margin on each side, and movement time. Target a minimum clear gap of 1.4 units; bosses usually give more. With the 0.42 collider adopted on 15 October the gap scales to 2 × (0.42 + 0.15) + 0.6 = 1.74 units, keeping the same 0.6 units of free movement; the edge and center seal strips use the same width.
-- No spawn or scheduled hazard may overlap the player's body without prior warning. No attack may require a special, pickup, upgraded reactor tech, or destroying an enemy in time to avoid certain damage.
-- No simultaneous hazards that seal both screen edges and the center. Decorative occluders cannot cover the playfield or aim indicators.
+**At runtime** the director forecasts the footprint of every committed hazard (shots in flight, marked lanes, windups
+already running, airframe paths through the row) plus the new attack, over `FAIRNESS.horizon` or to the end of a long
+boss pattern, in windows of `FAIRNESS.window` (`committedFootprints`, `assessSafety`, `admitAttack` and `admitFootprints`
+in `src/sim/fairness.ts`). The attack is admitted only if the gap, seal and reachability rules all hold. If the player
+is already committed to an unavoidable hit, only the gap and seal rules apply, so the director neither stalls nor
+quietly eases off. Bosses, aces and Wraiths pass the same check.
 
-Validation has two levels. First, offline enumerate authored schedules across difficulty stages and world seeds, and model reachable `(x, velocity, cameraX)` states with acceleration/braking, conservative swept collisions, and reaction delay. Recompute aimed-shot commitments per simulated player branch; a precomputed straight-line bullet script does not validate adaptive attacks. Reject any sequence with no surviving branch. Second, during play the director uses conservative exclusion windows and can delay an unsafe new pattern. Existing bullets are never secretly moved or deleted to save the player.
+**Offline validation** runs the real simulation and observes it with an independent trace (`tests/sim/fairness-trace.ts`)
+that does not reuse the director's prediction. It checks warning and lock floors, that every shot had a completed
+windup in view, the gap and seal rules on actual hazards, and that squadrons never overlapped. Pilots resolve each
+aimed commitment per branch (`tests/sim/pilots.ts`): a perfect pilot (the safe-gap solver with exact kinematics, acting
+0.2 s late, no special, no pickups), an idle pilot, a dodger and a pacifist that never fires.
 
-This algorithm is a guardrail, not a proof that a human finds the pattern fair. Human phone playtests remain a release gate. If a rigorous branch validator is too expensive for M1, use only fixed authored schedules, conservative restrictions, and manual validation; do not ship an unvalidated authored schedule or allow world generation to introduce hidden hazards.
+- `tests/sim/fairness.test.ts`: every formation in isolation, both mirrors, every difficulty and endless scale, from
+  several starts including the world edge; plus content checks (stagger, view, arcs, recovery spacing, budgets).
+- `tests/sim/fairness-campaign.test.ts`: every mission at every difficulty, boss included.
+- `tests/sim/fairness-endless-early.test.ts` and `fairness-endless-late.test.ts`: every world's first stint and its
+  later capped visit, bosses and jumps included.
+- `tests/sim/fairness-guard.test.ts`: the director rejects sealing and last-gap windups, and the validator catches
+  walls, seals, short warnings, unwarned shots and off-screen windups.
 
-**Implemented validation (prototype).** The runtime half is the exclusion window in §6, constants in `FAIRNESS` (`src/content/balance.ts`). The offline half is `tests/sim/fairness.test.ts`. It runs the real simulation and observes it with an independent trace that does not reuse the director's prediction code. The trace records every windup start, release, beam, row crossing and airframe contact, then checks:
-
-- each release came at least 0.65 s after its windup started, and beams were marked for at least 0.9 s;
-- lock to earliest impact was at least 0.30 s;
-- no windup started out of view and no shot appeared without a completed windup;
-- every 0.25 s window of actual hazards left a 1.74-unit gap and never sealed both edges and the center, judged in the view where the latest hazard was committed (the view the director checked);
-- no two squadrons ever overlapped or shared rows (the airspace rule, observed every tick).
-
-Branches are recomputed by flying several pilots: a perfect pilot (the safe-gap solver with the simulation's exact acceleration, braking and top speed, acting on what it saw 0.2 s earlier, with no special and no pickups), an idle pilot and a simple dodger. Each aimed commitment is therefore resolved against each branch. Coverage:
-
-- every squadron template, both mirrors, all three campaign difficulties and capped endless, from several start positions including one at the world edge;
-- every cue sequence at every difficulty: Training, Rolling Thunder including the boss, endless sectors 1–4, and capped sector 9.
-
-The perfect pilot must take no hit in isolated squadrons and lose no life in any sequence. Static checks cover warning floors at every scale, lock floors at the fastest shot speed, entry and exit sides, in-view windups, intra-squadron stagger, pacing arcs, recovery spacing, threat budgets, entity ceilings and placement variants. `tests/sim/fairness-guard.test.ts` proves that the director rejects sealing and last-gap windups and that the validator detects walls, seals, short warnings, unwarned shots and offscreen windups. World seeds do not change combat, so seeds are not enumerated beyond confirming identical battles.
+World seeds do not change combat beyond the deck's draws, which these suites cover across seeds. The algorithm is a
+guardrail, not proof that a human finds a pattern fair; human phone playtests remain a release gate.
 
 ## 8. Endless difficulty and seeds
 
-Sector combat duration is 90 seconds excluding draft pauses. Every third sector ends with a boss; stop adding ordinary chunks before its entry. **Endless continues only once the boss is dead** (user decision, 15 October 2026): the fight has no time limit and no boss retreats, in endless or the campaign. This replaces the earlier rule that the boss could extend the sector by up to 60 seconds and then retreat with no kill reward. Never kill the player merely for low damage output; the fight simply lasts until the kill.
+Endless flies the Luna prologue, then every world in campaign order, three sectors each, each stint ending with its
+boss and a hyperdrive jump ([docs/18](18-endless-planet-cycle.md)). A sector without a boss lasts
+`BALANCE.sectorDuration`; a boss sector lasts until the kill. Endless never reads a campaign setting
+([docs/11](11-campaign-difficulty.md)).
 
-**Planet cycle and endless bosses (as built, 15 October 2026; contract in [docs/18](18-endless-planet-cycle.md)).** Sectors 1–3 fly Khepri and sector 3 ends with Bastion-9; a hyperdrive jump leads to Vesper for sectors 4–6, and sector 6 ends with the Helion Ark; a jump back to Khepri follows, and the cycle repeats. A boss sector runs on its own clock (seconds from the sector's start): no ordinary cue is admitted from 70 s, not even one the airspace or budget held back, and the boss's approach message shows; the scroll eases to a stop over 77–83 s exactly as in the campaign arenas; the boss arrives at 80 s with the generic boss simulation (`src/sim/boss.ts`) and its campaign script. Its part HP scale with the endless `healthScale`, its shot speeds with `bulletSpeedScale` times the pace's shot factor, and its recovery after each attack with `attackIntervalScale`; warnings, beam lanes and the fairness admission never scale. The fight lasts until the boss is destroyed. Then the scroll eases back up over 2 s and the 3 s hyperdrive jump runs (no enemies, shots or hazards; the player invulnerable from the kill until 0.5 s after the jump); the next sector starts on the new planet when the jump ends. The kill scores as usual (500 per module, 5,000 for the core); credits stay campaign-only. Fight length moves only time, never distance, so the whole schedule is a fixed function of distance (`endlessSchedule` in `src/content/endless.ts`).
-
-Difficulty by sector `s >= 1` (runtime source: `ENDLESS_RAMP` and `PACE` in `src/content/balance.ts`; revised 14 and 15 October 2026):
+**The ramp** (`ENDLESS_RAMP` and `PACE.endless` in `src/content/balance.ts`; `difficultyScales`, `sectorPace`). It
+counts ramp sectors (`endlessRampSector`): the prologue and the first Khepri sector are ramp sector 1, so the prologue
+adds no difficulty. With n = ramp sector − 1:
 
 ```
-pace                = min(0.8 + 0.075 * (s - 1), 1.1)  // eased over the first 5 s of each sector
-healthScale         = min(1 + 0.08 * (s - 1), 1.60)    // cap reached in sector 9
-bulletSpeedScale    = min(1 + 0.04 * (s - 1), 1.25)    // times the pace's shot factor (0.91 at 0.8, 1.05 at 1.1)
-attackIntervalScale = max(1 - 0.06 * (s - 1), 0.70)    // repeat volleys; floor reached in sector 6
-threatBudget        = min(14 + 2 * (s - 1), 22)        // live threat incl. survivors; cap in sector 5
-windups / beam lanes = 5 / 1 in sectors 1-2, 7 / 2 from sector 3
-squadron variant    = base in sectors 1-2, Veteran wingmen from sector 3
-playlist            = Khepri: opening (sector 1), pressure (2-3), peak (later Khepri visits)
-                      Vesper: vesper opening (4), vesper pressure (5-6), vesper peak (later Vesper visits)
-                      boss sectors (every third) fly their playlist only up to 70 s
+pace          = min(PACE.endless.start + PACE.endless.perSector · n, PACE.endless.cap)   // eased over easeSeconds
+hp            = min(1 + ENDLESS_RAMP.hp.perSector · n, ENDLESS_RAMP.hp.cap)
+shotSpeed     = min(1 + ENDLESS_RAMP.shotSpeed.perSector · n, ENDLESS_RAMP.shotSpeed.cap)   // times the pace's shot factor
+cadence       = max(1 + ENDLESS_RAMP.cadence.perSector · n, ENDLESS_RAMP.cadence.floor)    // repeat volleys and boss recovery
+threatBudget  = min(ENDLESS_RAMP.threatBudget.base + perSector · n, cap)
+windups/beams = base, then fromSector3 values from ramp sector 3
+formations    = Veteran members from ramp sector ENDLESS_RAMP.veteranFormationsFromSector
 ```
 
-**Pace.** Pace scales the terrain scroll, ship kinematics, enemy movement (squadron paths, fire offsets and repeat intervals run on an enemy clock at the pace; ground batteries move with the scroll), camera follow and pickup drift together. The anchors are:
+`WORLD_INTENSITY` applies on top, per world, as in the campaign. Endless keeps the authored first windups; air craft open
+fire `airFirstShot` sooner, as in the campaign. Needle barrages rest as on Standard.
 
-| Pace | Scroll | Ship speed / acceleration / braking | Camera follow | Shot-speed factor |
-| --- | --- | --- | --- | --- |
-| 0.8 (sector 1, the pre-14-October pace) | 4 | 10 / 70 / 100 | 14 | 0.91 |
-| 1.0 (campaign) | 5 | 12 / 90 / 125 | 17 | 1 |
-| 1.1 (sector 5 onward) | 5.5 | 13.2 / 99 / 137.5 | 18.7 | 1.05 |
+**Pace.** Pace scales the terrain scroll, ship kinematics, enemy movement (paths, fire offsets and repeat intervals run
+on an enemy clock), camera follow and pickup drift together, through the anchors in `PACE.anchors` (`kinematics`).
+Shot speed scales more gently. Warnings are real seconds and never scale. The campaign flies `PACE.campaign`; endless
+starts slower and ramps to its cap, which is still below the campaign's (held there until its fairness is worked out;
+docs/08, 6 November). The scroll is exactly `VIEW.scrollSpeed` × pace, so endless distance is a closed form of time.
 
-Values interpolate linearly between anchors. Sector values are 0.8, 0.875, 0.95, 1.025 and then 1.1. Warnings are real seconds and never scale with the pace. Campaign always flies pace 1. Scroll is exactly 5 × pace, so endless distance is a closed form of time: a sector without a boss covers 360, 392.81, 460.31, 494.06 and then 495 units (sectors 1, 2, 4, 5, then 7 onward); a boss sector covers its ramp to the arena stop, then 34.25 (Bastion-9) or 43.25 (Helion Ark) units of resume and jump.
+**What never scales:** warning times, the fairness gap and seal rules, beam widths, the entity ceiling and the
+projectile pool. After the caps, the world stints repeat with their peak stages and new draws; there is no timer that
+eventually makes patterns impossible.
 
-The 14 October proposal was `healthScale = min(1 + 0.08(s − 1), 1.6)`, `bulletSpeedScale = min(1 + 0.04(s − 1), 1.3)` and `threatBudget = min(22 + 3(s − 1), 34)` at a constant pace. The original proposal was `min(1 + 0.06(s − 1), 1.6)`, `min(1 + 0.025(s − 1), 1.25)` and a per-chunk `min(8 + 2(s − 1), 24)`. Sector 1 starts with squadrons from second 2, but the first 20 s stay an introduction: a ship that never moves loses its first life at about 29 s. After those caps, repeat at capped difficulty with new order and biome rotations. Endless means no scripted final stage, not infinitely accelerating bullets. No global timer that eventually makes all patterns impossible. Bullet count, warning time, and safe-path constraints remain hard limits at every sector.
+**Seeds and streams.** Every run gets a fresh seed. Simulation randomness comes only from keyed streams
+(`src/shared/streams.ts`); `Math.random()` never touches simulation or content.
+- Terrain is a pure function of the seed and world coordinates.
+- The deck's draws use the seed and, in endless, the sector (its own "deck" stream).
+- Aces use their own "hunt" stream, independent of the seed, so every run meets the same aces.
+- Strike-site part rolls use their own "part" stream.
 
-Use stable PRNG streams for loot, terrain, and cosmetics derived from `runSeed + generatorVersion`. Encounter order and parameters come from the authored schedule, without encounter RNG. Log executed chunk IDs and parameters for reproductions. Changing grass density must not change enemy order or drops. Record simulation/content version with a score; exact cross-browser bit-identical replay is not promised for v1.
-
-**Beam alignment (15 October 2026, user bug report: "some of the laser beams are not aligned with the ships shooting them").**
-- **Needles and Lancers:** they commit their lane at the windup, as before. The ship now swings over that lane within the first 0.45 s of the windup, fires straight down from its nose, holds while the beam is live, and eases back onto its formation path over 0.45 s (`applyBeamLock` in `src/sim/motion.ts`). Lane positions and timing are unchanged.
-- **Live beams** are drawn from their source downward.
-- **Boss lanes:** the Helion Ark's radiator lasers fire down the radiator's own column. Every boss holds its sway while one of its lanes charges and fires (`BossState.holdUntil` and `heldFor`), so overload lanes stay under the columns that fired them.
-- **Regression test:** `tests/sim/ark.test.ts`, "beam alignment".
+The endless schedule (planets, sector distances, arenas, jumps) is the same for every seed (`endlessSchedule` in
+`src/content/endless.ts`). Endless scores and records are kept separate from the campaign
+([docs/09](09-objectives-and-statistics.md)).

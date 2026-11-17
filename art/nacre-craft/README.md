@@ -1,6 +1,6 @@
 # Nacre craft
 
-Runtime file: `public/assets/nacre/nacre-craft.glb` (736,152 bytes, sha256 `2814e844b76939ce84872433660dd02de1bb313deb60cd1f6878fc0584d34c08`).
+Runtime file: `public/assets/nacre/nacre-craft.glb`.
 Context: [docs/20-nacre-luminous-mire.md](../../docs/20-nacre-luminous-mire.md). The designs follow the ORRERY, SHARD and VEIL panels of `art/concepts/06-exotic-aliens.png` and the NACRE column of `art/concepts/05-alien-factions.png`:
 - sharp sweeping crescent blades;
 - layered iridescent shell plates;
@@ -20,7 +20,7 @@ The concepts are references only; nothing is copied.
 - `lib_blades.py` builds on `lib_hardsurface.py`, `kit_khepri_infra.py` and `kit_khepri.py`.
 - No imported meshes, third-party assets or textures.
 - Built with Blender 5.2.2 LTS (hash `d13f752e3b9c`) and its bundled glTF exporter, headless, on 16 October 2026.
-- Deterministic: a fixed seed and per-node `random.Random` streams. Two consecutive builds were byte-identical and match the hash above.
+- Deterministic: a fixed seed and per-node `random.Random` streams. Two consecutive builds were byte-identical.
 
 ## Rebuild
 
@@ -29,7 +29,7 @@ R=/home/davidfarina/Projects/alien-skies
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup \
   --python "$(wslpath -w $R/tools/blender/craft_nacre.py)" -- \
   --glb "$(wslpath -w $R/public/assets/nacre/nacre-craft.glb)" \
-  --preview-dir "$(wslpath -w $R/art/nacre-craft)"
+  --preview-dir "$(wslpath -w $R/lookdev/nacre-craft)"
 ```
 
 `--wip` (or `--only nacre_shard,...`) skips publishing and writes `*-wip.png` previews for iteration.
@@ -119,12 +119,4 @@ Total: 8,088 triangles.
 
 ## Previews
 
-The lighting: a warm key sun from the upper left, a cool back rim light and a blue-violet ambient sky, ACES 1.3.
-- `preview-craft.png`: all five at the 55° game angle over dark slate, the air craft hovering.
-- `preview-hero-shard.png`, `preview-hero-veil.png`, `preview-hero-orrery.png`, `preview-hero-spore.png`, `preview-hero-pod.png`: 3/4 perspective close-ups. The nose points toward the lower left.
-- `preview-game.png`: the game camera (12.5 units wide, portrait). A Shard flight, a Veil pair, an Orrery and a pod wave fly at the flight plane over a dark mire, with spore batteries on islands.
-
-**Known gaps:**
-- Engine plumes, the Orrery's ring spin, beams and muzzle flashes are runtime effects. The sockets mark where they go.
-- The Shard's engines glow amber to match its seams; the runtime's Nacre engine-plume colour is teal. Choose per kind.
-- The pod craft is a separate node, not part of `the-veil.glb`.
+`--preview-dir <dir>` renders this kit's preview images; write them to the git-ignored `lookdev/`. The images once kept in this folder were removed on 17 November (git history keeps them).

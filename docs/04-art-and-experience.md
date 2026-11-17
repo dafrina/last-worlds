@@ -1,115 +1,133 @@
 # Art direction and player experience
 
+The look of the game and how it reads on a phone: the visual target, the camera, the visual hierarchy, how assets are
+made, effects, the HUD, rendering tiers and the hero ships' scale. World-specific looks are in each world's doc
+([docs/03](03-worlds-and-generation.md) lists them); the menus in [docs/16](16-flight-command-ui.md); sound in
+[docs/24](24-sound-design.md).
+
 ## 1. Visual target
 
-Modern stylized hard-surface science fiction. Aircraft should look engineered and dangerous: swept wings, recessed engines, broad armor plates, a few readable exposed mechanisms, selective wear. Use convincing light and material response without film-level texture noise. Avoid cute proportions, plastic toy surfaces, voxel terrain, and dense photoreal grit.
+Modern stylized hard-surface science fiction (invariant 9). Aircraft look engineered and dangerous: swept wings, recessed
+engines, broad armour plates, a few readable mechanisms, selective wear. Light and material response are convincing,
+without film-level texture noise. No cute proportions, plastic toy surfaces, voxel terrain or dense photoreal grit.
 
-The hero begins as a cheap rusty salvage fighter with patched metal, faded ivory paint, and exposed but serviceable twin engines. Later tiers use fundamentally different airframes: an agile interceptor and a broad advanced assault fighter. Shared material cues and faction identity can connect them, but wing plan, fuselage, engine arrangement and silhouette must change. Do not make the starter cute or comically broken. Hostiles use graphite armor with planet-specific geometry accents and warm threat lights. This is an original design direction; do not reproduce a named franchise's ship.
+The hero's chassis range from a rusty salvage fighter (Scrapper) to heavier, faster and exotic airframes, each a different
+silhouette rather than a repaint ([docs/31](31-hero-ships.md)). Hostiles use dark armour with world-specific geometry and
+warm threat lights; each world has its own faction look. This is an original direction; no named franchise's ships are
+reproduced.
 
-The art direction is represented in [the concept gallery](../art/concepts/README.md). These are concept renders, not gameplay screenshots, production meshes, UI implementation, or performance targets.
+Concept images in [the concept gallery](../art/concepts/README.md) are references only: never runtime backgrounds, never
+finished model assets, never presented as screenshots of the game.
 
 ## 2. Camera and composition
 
-Use orthographic projection, approximately 55° downward elevation, zero yaw, and no roll. This is isometric-inspired rather than mathematically strict isometric: the ground and machines have depth while forward flight remains screen-up and movement remains screen-horizontal. Strict diagonal isometric framing is rejected for the default controls.
+The release camera is a **25° perspective lens** at 55° elevation (`LENS_FOV` in `src/shared/lens.ts`, `VIEW.elevation`;
+user, 21 October), with zero yaw and no roll, placed so the tactical height fits the view at its centre depth. Forward
+flight stays screen-up and movement screen-horizontal. The simulation projects ground enemies through the same lens
+(`src/shared/lens.ts`), so a turret on the terrain and its gameplay target on the flight plane share a pixel. `?camera=ortho`
+and `?camera=rectified` are look-dev switches only.
 
-Player near 76% screen height; boss weakpoints around the upper third. Keep camera angle and zoom stable while camera x follows lateral movement across the wider map. A tiny render-only impulse may shake it after an explosion; a reduced-motion option removes it. No routine zooms, camera rotations, or perspective changes during attacks.
+The player flies low in the frame and boss weak points sit around the upper third. Camera angle and zoom stay fixed while
+its x follows lateral movement ([docs/10](10-wide-map-and-camera.md)). A small render-only shake follows explosions and
+hits (`SHAKE_AMPLITUDE` in `src/render/scene.ts`); no zooms, rotations or perspective changes during attacks.
 
-Ground target markers must follow the projected target cores, not a displaced ground shadow. Avoid foreground arches or cliffs that cover a live bullet or target. Terrain never occludes gameplay-critical markers. Ground scenery may fade if it approaches a sensitive visual region.
+Ground target markers follow the projected target cores. Foreground cliffs or arches never cover a live bullet or target,
+and scenery never blocks shots (invariant 4).
 
 ## 3. Visual hierarchy
 
-From highest priority to lowest: incoming dangerous shots and warning zones; player collider/ship; targetable enemy regions; useful pickups; friendly shots; explosions; scenery. Test this hierarchy on the smallest supported phone, not only on a desktop image.
+From highest priority to lowest: incoming shots and warnings; the player's ship; targetable enemy regions; useful pickups;
+friendly shots; explosions; scenery. It is checked on phone-size captures, not only desktop images.
 
-| Meaning | Color direction | Shape/behavior reinforcement |
+| Meaning | Colour | Shape and behaviour |
 | --- | --- | --- |
-| Player and friendly fire | Cyan/near-white core | Thin upward bolts, two compact exhaust plumes |
-| Incoming enemy projectile | Warm coral with pale core | Distinct round/diamond head and clear travel direction |
-| Warning before firing | Amber | Expanding brackets or striped lane outline, then lock |
-| Damageable enemy core | Warm rim plus neutral metal | Open corner target brackets and localized hit flash |
-| Shield pickup | Cyan | Hexagon with shield glyph |
-| Weapon pickup | Violet-white | Wide capsule and weapon silhouette |
-| Credits / endless salvage | Gold | Compact diamond/grouped token |
+| Player and friendly fire | Cyan to near-white core | Slim upward bolts, compact exhaust plumes |
+| Hostile shots | Per world (`hostileHues` in `src/render/shot-colors.ts`): warm coral with a pale core, blood red on Corona and Nahara, acid green on Amnion | Round heads, clear travel direction |
+| Warnings | Amber | Lane outlines and aim rays, then the lock |
+| Damageable enemy core | Warm rim on neutral metal | Target brackets and a local hit flash |
+| Pickups | Shield cyan, credits gold, weapons and power by pattern | 3D tokens with their own icons (`src/render/pickup-icons.ts`, `public/assets/shared/pickup-tokens.glb`) |
 
-Do not make the luminous plants as bright as player fire. Ice-world hostile shots need a dark outline as well as a bright core. Colorblind modes should preserve shape distinctions and offer alternative hostile-shot hues.
+Luminous scenery is never as bright as player fire. A runtime scene is calmer than a concept board: lower texture
+contrast, fewer props, restrained emissive flora. Greebles that vanish at phone size do not justify their draw cost.
 
-The first world board is intentionally richer than the runtime scene. Reduce terrain texture contrast, prop density, and emissive flora when implementing. Tiny greebles that disappear at phone size do not justify their draw cost.
+## 4. Asset production
 
-## 4. Asset production plan
+Every ship, enemy, boss and kit is a **Blender model** exported as GLB; nothing is built in code. The scripts live in
+`tools/blender/` (`boss_*`, `craft_*`, `kit_*`, `props_*`, `sites_strike.py`, `hero_parts.py`, with shared `lib_*`
+helpers) and rebuild headless through `run_build.py`. Runtime files are in `public/assets/<world>/` and
+`public/assets/shared/`. Bosses adapt the user's supplied models (`art/source/bosses/`, never edited); hero parts are clean
+models built over the user's Tripo references (`art/source/hero/`). Provenance and previews are in `art/`; see the
+[README's map](../README.md#where-things-are). Blender runs on Windows: paths handed to it use the
+`\\wsl.localhost\Ubuntu\…` form (AGENTS.md).
 
-Model in Blender or a comparable DCC tool; export glTF/GLB. Use shared materials, texture atlases where useful, sensible pivots, and named muzzle/weakpoint sockets. All dimensions are in consistent game units. Match collision bounds deliberately; the visual model does not author collisions implicitly.
-
-| Asset group | Vertical slice | Full small release |
-| --- | --- | --- |
-| Player | One salvage fighter, engine effect, shield shell | Three distinct authored tier airframes with reviewed gameplay envelopes |
-| Enemies | Dart, Weaver, Spike Battery, Crawler | Eight base archetypes with bounded biome variants |
-| Bosses | Bastion-9 with detached weapon modules | Three authored bosses |
-| Terrain | Six modular Khepri pieces, 10–15 reusable props | About six pieces and 10–15 props per biome |
-| Pickups | Credit and shield; later gun/power icons | Five simple pickup categories including endless life milestones |
-| VFX | Muzzle, three hit types, engine, explosion, warning, shield break, special | Recolored/recombined library plus biome atmosphere |
-| UI | HUD, pause, start/results, touch hints, special control | Four-slot hangar, mission select/contracts, career/statistics, drafts, settings, install help |
-| Audio | Main shot, hit, kill, warning, shield, special, pickup, boss, loop | Biome music/stems and weapon variants |
-
-Geometry targets, not promises: player 4–8k visible triangles; small enemy 1–3k; fortress 15–25k split into reusable parts; distant props substantially less. Start with 512–1024 textures and shared trim sheets. No assumption that every object gets unique 4K maps. The actual budgets are governed by the phone frame-time gate.
-
-Store editable source assets separately from optimized runtime exports. Track file provenance and license for every imported asset, sound, font, and texture. Generated concept references must not be mislabeled as licensed production model sources.
+- Shared materials and atlases, sensible pivots, named sockets for muzzles and weak points, consistent game units.
+- Collision is authored in the simulation, never implied by a mesh. Boss rigs keep the node names and pivots their views
+  drive; `tests/world/cinematic-assets.test.ts` checks the contracts (weak points on their camera rays, budgets).
+- Budgets follow the phone frame-time gate ([docs/36](36-mobile-performance.md)), not fixed per-asset promises.
+- Every imported texture, model, sound and font has its source and licence recorded (Poly Haven CC0 maps:
+  `art/source/polyhaven/README.md`).
 
 ## 5. Animation and effects
 
-- Lateral banking: up to 12°, quickly returning to neutral; never changes the collider or aim direction.
-- Engines: mild length change with lateral acceleration, minimal particle count, no long opaque smoke ribbon.
-- Hit feedback: 40–70 ms localized flash, short spark fan, brief target recoil. Avoid strobing whole-screen flashes.
-- Shield contact: directional ripple; shield break a distinctive ring and sound. Invulnerability uses a stable visible outline/pulse, not rapid disappearance.
-- Destruction: 0.3–0.6 s readable burst, a few fragments and short smoke. Debris is visual only and pooled.
-- Pickup collection: 150–250 ms arc into the ship; shield cells may resolve toward the existing shield glyphs. Do not add extra HUD indicators for credits or weapon power. Number popups aggregate per group and do not obscure targets.
-- Special: simple flat pressed-state fill, recharge ticks clearing, and a clear effect start. No chrome, glow, layered trim, or ornament on the UI control. Enemy bullets stay visible around the effect.
-- Boss phase: shutters, mechanical movement, broken modules, and different warning cadence. Avoid long unskippable arrival movies.
+Effects are presentation only and never decide damage (`src/render/fx-particles.ts`, bounded pools sized by its
+`*_CAPACITY` constants).
 
-Do not globally freeze simulation on every hit. If a future hit-stop experiment is used, isolate it to a safe destruction transition; it must not corrupt weapon timing, replay scheduling, or input responsiveness.
+- **Banking:** a quick lateral bank that returns to neutral; it never changes the collider or the aim.
+- **Engines:** a narrow core with shock diamonds in one plume quad; the hero leaves a soft contrail in its glow colour.
+- **Hits:** a brief local flash and spark fan; no strobing full-screen flashes.
+- **Shields:** a directional ripple on contact; a distinct ring and sound when one breaks; invulnerability is a steady
+  outline, not flicker.
+- **Destruction:** a short readable burst with a ring, a few fragments and brief smoke; boss wrecks smoke and sink.
+- **Pickups:** 3D tokens that spin, home in once caught and pop on collection.
+- **Specials:** each has its own effect ([docs/42](42-specials-and-perks.md)); enemy shots stay visible through them.
+- **Boss phases:** shutters, moving machinery, broken modules and a change of warning cadence; arrivals are short.
 
-## 6. Minimal analog / arcade HUD
+The simulation never freezes on hits.
 
-Top left: one row of small ivory ship silhouettes for lives and a second row of equally simple shield glyphs for charges. Filled shield means available; outline means spent. No labels or numbers are needed next to these readable icons. Shield capacity may vary from two to four; keep spacing and size consistent.
+## 6. HUD
 
-Endless score is a compact ivory readout at the top right beside a plain pause symbol. Campaign has no permanent currency/objective panel. No player health bar, shield bar, ammo meter, energy meter, reactor gauge, always-visible combo meter, minimap, or permanent steering arrows. Boss progress uses weakpoint damage, shutters, and destruction rather than another full-width bar by default.
-
-The special button sits at bottom center above the device safe area: a flat charcoal circle, thin ivory outline, simple lightning/weapon glyph, and a few recharge ticks. At least 64 CSS pixels of hit area. Its pressed state is a simple fill change; no metal housing, bevels, shiny glass, neon rim, gold framing, or layered rings. Current concept art uses six ticks; exact tick count is visual tuning, not stored extra charges.
-
-At the beginning of each new mission/run, show a small chevron in each steering half, blinking gently for three active seconds, then disappearing. Reduced-motion makes them static for those three seconds. Do not replay on unpause, respawn, or sector transition. They never become buttons. Special owns its input even where its centered hit area overlaps both steering halves.
-
-Menus use the same restrained flat graphic language: generous spacing, clear text, simple borders, limited ivory/coral/cyan accents. Avoid glossy cards, rarity fireworks, reward funnels, and purchase-style banners.
-
-Start screen: Campaign, Endless, Statistics, Settings. Campaign preparation shows exactly four equipment choices: main, special, shield tech, reactor tech; owned alternatives show concise differences and price. Optional contract and career panels stay outside flight. Endless offers only its standardized start and run records, with no campaign loadout selector.
-
-Results show a readable score or credit breakdown and optional contract/milestone completion. Primary actions are retry/next and menu/hangar. No automatic restart while fingers are lifting. Pause shows resume, current gear, objective detail if campaign, settings, and quit; resume clears input and uses a countdown.
+Lives as small ship silhouettes and shields as glyphs (filled or outlined), top left; the endless score or the campaign's
+live credit counter and the pause control, top right; one plain special button at bottom centre, above the safe-area
+inset, with recharge ticks. During a boss fight one slim meter shows the boss's remaining health. No player health,
+ammunition, energy or combo bars, no minimap, no permanent arrows. Steering hints
+blink for three seconds at flight start. Details and the menus: [docs/16](16-flight-command-ui.md).
 
 ## 7. Audio and accessibility
 
-Use restrained electronic percussion and atmospheric synth textures. Music can layer during a boss; keep danger cues audible. Cap simultaneous voices and vary shot pitch subtly. Target acquisition is a soft cue, not a repeated loud beep at weapon cadence.
+Audio starts on a user gesture; Settings has sound on or off and the audio panel has music and effects levels
+([docs/24](24-sound-design.md)). Visual warnings carry everything audio conveys; no rule depends on sound, colour or
+vibration alone. The OS reduced-motion setting removes camera shake, blinking hints and the jump's streaks. Menus support
+keyboard navigation; canvas combat cannot be fully screen-reader accessible.
 
-Unlock audio on a user gesture; provide music and effects sliders plus mute. No sound until permission/gesture requirements are satisfied. Visual warnings must contain all information conveyed by audio. Vibration is optional and capability-checked; no essential rule depends on it.
+## 8. Rendering and quality tiers
 
-Settings: reduced motion, reduced flash, hostile-shot palette, effect density,  music/effects volume, and graphics quality. Menus support keyboard navigation and readable text. Canvas combat cannot be claimed fully screen-reader accessible; accessible menus and redundant cues are still required. Do not use sound, color, or haptics as the only signal for an attack.
+Settings → Graphics chooses **High** or **Low**; both keep the same layout, targets and collision timing.
 
-## 8. Art review checklist
+- **High:** a real-time sun with a shadow map (`SUN` in `src/render/scene.ts`), every craft casting; an HDR post pipeline
+  with selective bloom, FXAA, tone mapping and a light grade (`src/render/post-pipeline.ts`).
+- **Low:** no shadow map and no post pipeline; each craft's silhouette is drawn flattened along the sun as its shadow
+  (`src/render/craft-shadows.ts`); cosmetic scatter and particles are reduced.
+- **Materials:** bosses keep their baked PBR atlases (`src/render/boss-materials.ts`) and receive the world's prefiltered
+  sky reflection; a shared mipmapped microfinish adds roughness and wear without per-object textures
+  (`src/render/surface-finish.ts`).
+- **Water** is opaque, with procedural normals and sky reflection in one draw (`src/render/water.ts`,
+  `src/render/mire-water.ts`).
 
-Approve a phone-size still and a moving clip for each new enemy or biome. Confirm silhouette, target/shot contrast, stable scale, understandable ground targeting, safe thumb regions, and material/style consistency. Review at low quality as well as high. Concept fidelity never overrides readable combat or device performance.
+## 9. Hero ships and in-game scale
 
-## 9. Hero evolution and curated procedural assembly
+Four chassis (Scrapper, Ironclad, Interceptor, Spectre), each a modular model with five designs per part slot and paint
+([docs/31](31-hero-ships.md)). All share the central hit region (`VIEW.playerRadius`, [docs/02](02-combat-and-progression.md))
+and the same handling; a chassis never gets a smaller collider or hidden stats (invariant 14). The models fly at
+`HERO_SCALE` (1.1, render only; user, 15 October). Endless flies the player's chosen chassis and look.
 
-Concept three fundamentally different tier chassis: Scrapper, Razor, Dominion (working names). The starter is patched, oxidized, inexpensive-looking and credible. The middle tier is a narrow split-boom/forward-swept interceptor; the apex is a broad advanced assault/flying-wing craft. They must not read as rust removal or added plating on the starter. The apex is intimidating through silhouette and engineering, not gaudy decoration.
+Each silhouette keeps its vulnerable central body legible; large solid-looking wings must not imply a dishonest hit
+region. Gun sockets differ visually, but shot origins and patterns come from the equipment.
 
-Proposed campaign visual gates: Scrapper at start; Razor after the first chapter; Dominion after the campaign and a rank-3 main are achieved. These are draft cosmetic gates, not extra equipment slots or stat boosts. A player may retain an older appearance. For the one-planet MVP, ship Scrapper and Razor first; Dominion is full-release art.
+Procedural hero assembly beyond the authored part designs is deferred (invariant 8).
 
-Endless always begins visually and mechanically at the same Scrapper state. If hero evolution is used during a run, apply the same universal rule for everyone: Razor at power tier III and Dominion at tier V, reversing when the tier falls. No campaign visual unlock is consulted.
+## 10. Art review checklist
 
-Author each radically different silhouette against the same documented central player hit region and comparable phone-size readability. No cosmetic hull tier grants a smaller collider or free stats. Keep the vulnerable central body legible and avoid large solid-looking parts that imply dishonest hit behavior. Validate each silhouette at actual game scale. Gun sockets may differ visually, but logical shot origins/patterns remain equipment-defined.
-
-Deferred idea only: procedural hero assembly could combine approved wing, engine, gun-pod, armor and wear variants within each distinct chassis family. It is not MVP work. It cannot substitute for authoring the three fundamentally different tier silhouettes. Use compatibility rules, attachment sockets and a curated silhouette envelope; bake or validate variants before release. Limit runtime work to selecting approved assets/material variations. Do not generate arbitrary geometry or let random shape alter hitboxes, performance, gun origins, visibility, or ranked stats. A handcrafted base plus controlled variation is the recommended approach.
-
-Alien design board: two silhouette classes per planet, with Khepri industrial/scarab-like geometry, Nacre crescent/petal biomechanical forms, and Vesper needle/diamond ceramic blades. These are mechanical alien spacecraft, not literal insects or animals. Retain identifiable behavior across cosmetic variants.
-
-The additional exotic board explores an interlocked-ring gravitic machine, an asymmetric crystalline shard craft, and a flowing biomechanical lattice craft. Treat these as candidates for elite or boss silhouettes; they do not automatically add three mandatory archetypes to the MVP. Curate readable variants and build bounded colliders/animations only after selecting a concept.
-
-### Accepted art and in-game scale
-
-The user accepted the latest distinct hero designs and alien boards; preserve them without regeneration. Their large equal presentation on the concept sheet is not gameplay scale. Scrapper must be visibly smaller in the game. Initial width targets: Scrapper 1.0 world unit (about 8% of viewport), Razor 1.35 (11%), Dominion 1.7 (14%). All use the documented central hit region of radius 0.25; review vulnerable-body clarity rather than pretending all wing silhouettes are full colliders. Tune size at phone scale without changing progression fairness. The final HUD reference still depicts an earlier hero; use it for interface placement, not final craft selection.
+Every new enemy, boss or world gets a phone-size still and a moving capture on High and Low, reviewed by the user before
+it ships. Check silhouette, target and shot contrast, stable scale, readable ground targeting, safe thumb regions and
+material consistency. Boss backs and undersides are never shown. Concept fidelity never overrides readable combat or
+phone performance.

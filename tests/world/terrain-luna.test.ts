@@ -38,7 +38,7 @@ describe('luna training world (docs/19)', () => {
     expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(1.5);
   });
 
-  it('varies its relief (docs/26 §4): highlands stand over the maria, craters of every age, rilles and scarps', () => {
+  it('varies its relief (docs/26 §6): highlands stand over the maria, craters of every age, rilles and scarps', () => {
     let mare = 0, highland = 0, fresh = 0, worn = 0, samples = 0;
     const high: number[] = [], low: number[] = [];
     for (let s = 0; s < 2400; s += 2.3) for (let x = -14; x <= 14; x += 2.9) {

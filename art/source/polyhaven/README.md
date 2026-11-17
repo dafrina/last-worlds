@@ -31,6 +31,6 @@ Downloaded 14 October 2026 at 1k resolution through the MCP for Blender addon (v
 | `ice-wall-detail.jpg` (512 px) | `cliff_side_Diffuse_1k.jpg` | As the rock detail, with the grain smoothed away (1.6 px) and less contrast (std 0.11): ice layering and fractures |
 | `ice-wall-normal.jpg` (512 px) | `cliff_side_nor_gl_1k.jpg` | Smoothed (2.2 px) and flattened to 60 % slope, for glassier ice |
 
-The world/render agent derived the three original Khepri maps with a one-off headless-Chromium canvas script that was not kept in the repository. Re-deriving them means repeating these steps; a committed tool should replace that step when the texture set next changes. `metal_plate_02` is used only in Blender previews so far.
+The world/render agent derived the three original Khepri maps with a one-off headless-Chromium canvas script that was not kept in the repository. Re-deriving them means repeating these steps; a committed tool should replace that step when the texture set next changes. `metal_plate_02` adds grime and scratches to the traced boss models' baked textures ([art/bosses](../../bosses/README.md)).
 
 Intended use: `dry_ground_rocks` supplies grain and pebble relief for valley floors; `rock_face_03` supplies fractured surface detail for basalt column sides; `metal_plate_02` supplies plate seams, scratches and grime for Khepri infrastructure (graphite foundry machinery). Colour stays driven by the Khepri palette (vertex colours); these maps add luminance detail and normals.

@@ -1,6 +1,6 @@
 # Strike sites: concept prompts
 
-Twelve optional strike sites (planned 29 October 2026, not built yet). Each one is a single Blender model with a finish
+Twelve optional strike sites (planned 29 October 2026, built since; docs/33). Each one is a single Blender model with a finish
 per world. The concepts are references for shape, silhouette and palette only, never runtime backgrounds or model assets
 (AGENTS.md invariant 9). Claude models the sites by hand from them; they are not Tripo sources.
 

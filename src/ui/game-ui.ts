@@ -236,7 +236,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   };
   /**
    * The front screen (user, 7 November): the campaign's next mission and endless's best sector under the two modes, and the
-   * hangar as a showcase of the equipped ship on its pad, with its perk (both modes, docs/34) and the gear it flies.
+   * hangar as a showcase of the equipped ship on its pad, with its perk (both modes, docs/42) and the gear it flies.
    */
   function refreshHome() {
     const profile = campaign.read(), ship = SHIPS[profile.loadout.ship];
