@@ -1,5 +1,6 @@
 import { NEUTRAL_MOOD, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange, type Landform, type MoodParams } from './terrain-layout';
 import { KIT, type KitInstance, type KitKind, type ScatterField } from './scenery-kit';
+import { createScatterSink } from './scatter-sink';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import { arenaAt, type TerrainArena } from './terrain-arena';
@@ -126,16 +127,7 @@ interface Disc { x: number; s: number; r: number }
  * Ruins are scenery only (never cover or targets). Arenas stay clear.
  */
 export function* nacreScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [], CAP = NACRE_SCENERY_MAX;
-  const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number, shade?: number, variant?: number) => {
-    const spec = KIT[instance.kind];
-    if (instance.s < startS || instance.s >= startS + size || Math.abs(instance.x) + spec.radius * instance.scale > WORLD_HALF) return false;
-    if (instance.y + instance.height * spec.height > CAP) instance = { ...instance, height: (CAP - instance.y) / spec.height };
-    if (instance.height <= 0.05) return false;
-    const placed: KitInstance = { ...instance, variant: variant ?? Math.min(spec.variants - 1, Math.floor(pick * spec.variants)), shade: shade ?? terrain.shade(instance.x, instance.s) };
-    (placed.cosmetic ? cosmetic : essential).push(placed);
-    return true;
-  };
+  const CAP = NACRE_SCENERY_MAX, sink = createScatterSink({ startS, size, terrain, cap: CAP }), { add } = sink;
   const turn = (pick: number) => pick * Math.PI * 2;
   /** Glowing flora keeps most of its light in shade (instance tint multiplies the emitted colour). */
   const glowShade = (x: number, s: number) => 0.7 + 0.3 * terrain.shade(x, s);
@@ -320,7 +312,7 @@ export function* nacreScatterSteps(seed: number, startS: number, size: number, t
     }
     yield;
   }
-  return [...essential, ...cosmetic];
+  return sink.finish();
 }
 
 /* ---------------------------------------------------------------- profile */
