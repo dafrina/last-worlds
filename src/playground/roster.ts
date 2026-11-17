@@ -60,12 +60,12 @@ export function modelOf(planet: PlanetId, kind: EnemyKind, pod = false): ModelRe
   }
   if (planet === 'umbra') {
     if (pod) return { file: 'umbra/umbra-craft.glb', node: 'umbra_drone', scale: UMBRA_DRONE_SCALE };
-    if (kind === 'wraith') return { file: 'umbra/wraith-v2.glb', node: 'umbra_wraith', scale: 0.76 };
+    if (kind === 'wraith') return { file: 'umbra/wraith.glb', node: 'umbra_wraith', scale: 0.76 };
     return { file: 'umbra/umbra-craft.glb', node: UMBRA_CRAFT[kind].node, scale: UMBRA_CRAFT[kind].scale };
   }
   if (planet === 'nacre' || planet === 'amnion') {
     if (pod) return { file: 'nacre/nacre-craft.glb', node: 'nacre_pod', scale: 1 };
-    if (planet === 'amnion' && kind === 'diamond') return { file: 'amnion/brood-heavy-v1.glb', node: 'amnion_brood_heavy', scale: 0.82 };
+    if (planet === 'amnion' && kind === 'diamond') return { file: 'amnion/brood-heavy.glb', node: 'amnion_brood_heavy', scale: 0.82 };
     return { file: 'nacre/nacre-craft.glb', node: NACRE_CRAFT[kind].node, scale: NACRE_CRAFT[kind].scale };
   }
   const vesper = VESPER_CRAFT[kind];

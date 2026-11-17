@@ -4,10 +4,8 @@ const fs: { readFileSync(path: string): Uint8Array } = await import(['node', 'fs
 
 describe('isolated Blender predator exports', () => {
   it.each([
-    ['amnion/brood-heavy-v1.glb', 'amnion_brood_heavy', 'public/assets'],
-    // Retired for v2 (26 October): kept in the archive (docs/38 P1), never deployed.
-    ['umbra/wraith-v1.glb', 'umbra_wraith', 'art/archive/assets'],
-    ['umbra/wraith-v2.glb', 'umbra_wraith', 'public/assets'],
+    ['amnion/brood-heavy.glb', 'amnion_brood_heavy', 'public/assets'],
+    ['umbra/wraith.glb', 'umbra_wraith', 'public/assets'],
   ])('%s contains only its own hierarchy and stays within its authored budget', (file, root, folder) => {
     const buffer = fs.readFileSync(`${folder}/${file}`), decode = new TextDecoder();
     expect(decode.decode(buffer.subarray(0, 4))).toBe('glTF');

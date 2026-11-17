@@ -35,7 +35,7 @@ import kit_nahara as nk
 from kit_nahara import RoundKit, rblock, voussoir, channel, tower_of_blocks, tone, octagon, open_tops
 from kit_nahara import SAND, STONE, BROWN, DARK, BRONZE, GLOW
 
-OUT = os.path.join(br.ROOT, 'public', 'assets', 'nahara', 'the-citadel-v2.glb')
+OUT = os.path.join(br.ROOT, 'public', 'assets', 'nahara', 'the-citadel.glb')
 PREVIEW = os.path.join(br.ROOT, 'lookdev', 'nahara', 'citadel')
 P = 'citadel_'
 CRYSTAL = 'citadel_crystal_glow'

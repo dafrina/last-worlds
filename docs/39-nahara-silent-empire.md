@@ -274,7 +274,7 @@ It also has its own **Step Temple** ("a blocky pyramid, aztec style somewhat but
 - the target, a crystal eye in a ring of shards over the summit's altar;
 - a parts site.
 
-## THE CITADEL (`tools/blender/boss_citadel.py`, `public/assets/nahara/the-citadel-v2.glb`)
+## THE CITADEL (`tools/blender/boss_citadel.py`, `public/assets/nahara/the-citadel.glb`)
 
 The user supplied a Tripo temple ("fantasy temple citadel boss ... its a stationary one"). Its adaptation (v1) was rejected:
 "its color is off ... I would expect you to reuse some of the existing brick and arc models on the boss so it seems

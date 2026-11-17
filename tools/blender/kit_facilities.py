@@ -10,7 +10,7 @@ This builder parses it and asserts each built module against it. Module frame: p
 ground; x lateral, y away from the camera; the detailed front faces the camera (-y); left and right faces are detailed
 too (layouts turn modules a quarter), and backs and undersides stay plain. Every module carries its own foundation.
 
-One GLB per world, all modules sharing one baked atlas. Luna flies its kit as built (public/assets/luna/facility-kit-v3.glb).
+One GLB per world, all modules sharing one baked atlas. Luna flies its kit as built (public/assets/luna/facility-kit.glb).
 Khepri's and Vesper's are the base of kit_facilities_taller.py, written to the git-ignored lookdev/facility-kit-base/;
 Nacre flies its ruin kit (kit_facilities_nacre.py), so its base kit goes there too.
 Headless: run_build.py kit_facilities [--world=khepri] [--no-export] [--no-preview].
@@ -21,7 +21,6 @@ import lib_solids as br
 import lib_facility as rf
 from lib_facility import B, cyl, dome, pipe, ring, front_slit, grooves, fan, mast, stack, sawtooth, column, plates
 
-LABEL = 'v3'
 WORLDS = ('khepri', 'vesper', 'nacre', 'luna')
 REGISTRY = os.path.join(br.ROOT, 'src', 'render', 'facility-kit.ts')
 PALETTES = {w: dict(p) for w, p in rf.PALETTES.items()}
@@ -839,7 +838,7 @@ def build(export=True, preview=True):
         marker = br.marker('facility_kit_v3', sc=sc, note='Modular facility kit after the facility sheets')
         if export:
             folder = ('public', 'assets') if world == 'luna' else ('lookdev', 'facility-kit-base')
-            path = os.path.join(br.ROOT, *folder, world, 'facility-kit-%s.glb' % LABEL)
+            path = os.path.join(br.ROOT, *folder, world, 'facility-kit.glb')
             results.append(br.export(path, objects + [marker], 'Last Worlds — %s modular facility kit' % world))
         if '--closeups' in sys.argv:
             for o in objects:

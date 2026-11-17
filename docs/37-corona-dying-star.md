@@ -71,7 +71,7 @@ The concept images are references, never runtime backgrounds or finished assets 
   - **User verdict:** "darker armor is fine but i like the shapes better now".
 - **Encounters:** the encounter deck flies Umbra's pools (`DECK_POOLS.corona`). The mission's arc is Final Horizon's, re-identified (`c-` slots). Its seeded rolls are its own, keyed by template id.
 - **World intensity:** flight 1.1, shot 1.1, cadence 0.43, enemy hp ×1.15, first windups ×0.85 (late-world curve, 10 November; it was cadence 0.5). The mission cadence is 0.92, and run credits scale by 0.425.
-- **Boss:** THE HELIOPHAGE, the user's Tripo GLB adapted like THE ECLIPSE (`tools/blender/boss_heliophage.py` → `public/assets/corona/the-heliophage-v1-approved.glb`; source `art/source/bosses/heliophage-tripo-original.glb`):
+- **Boss:** THE HELIOPHAGE, the user's Tripo GLB adapted like THE ECLIPSE (`tools/blender/boss_heliophage.py` → `public/assets/corona/the-heliophage.glb`; source `art/source/bosses/heliophage-tripo-original.glb`):
   - **Placement:** laid flat, its concept view to the camera, spires away from the player, claws toward them. It is 16 units wide (user: "Make it 16 units wide, the eclipse is the final boss"), with the depth squashed to 0.35 so it hovers between the plateau and the flight plane (`HELIOPHAGE_STYLE.hover` 2.6).
   - **Surface:** the mesh, UVs and atlases are kept and reduced to 77k triangles, with an emission mask from the painted glow.
   - **Targets** (`src/content/heliophage.ts`): the two armoured blocks' vent grilles (x ±5.0), the central tower's glowing column (the third first-phase target, s 4.7) and the caged molten core.

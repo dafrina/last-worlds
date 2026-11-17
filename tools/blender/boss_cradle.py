@@ -32,7 +32,7 @@ import lib_solids as br
 SRC = os.path.join(br.ROOT, 'art', 'source', 'bosses', 'cradle-tripo-original.glb')
 REF_SCALE, REF_OFFSET = 17.0, Vector((0, 2.9, -1.6))
 SCALE = .7
-LABEL = 'v2-approved'
+LABEL = ''   # an experiment's label is appended to the file name: the-cradle-<label>.glb
 TAU = 2 * math.pi
 # Reference-placement measurements (source pieces' bounds; lib_solids.trace and height maps).
 EGG = dict(c=(.05, .27, 3.38), r=(.7, 1.1, .86))
@@ -310,7 +310,7 @@ def build(ratio=.037, part_ratio=.15, label=LABEL):
     if total > BUDGET:
         raise RuntimeError('THE CRADLE over its %d-triangle budget: %d' % (BUDGET, total))
     tag = tripo.marker('cradle_approved_v2'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = ratio; objects.append(tag)
-    path = os.path.join(br.ROOT, 'public', 'assets', 'amnion', 'the-cradle-%s.glb' % label)
+    path = os.path.join(br.ROOT, 'public', 'assets', 'amnion', 'the-cradle%s.glb' % ('-' + label if label else ''))
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:
         o.hide_set(False); o.select_set(True)

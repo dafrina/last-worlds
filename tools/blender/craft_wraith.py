@@ -81,7 +81,7 @@ for side in [-1,1]:
 for o in bpy.context.selected_objects:o.select_set(False)
 for o in [craft]+list(craft.children_recursive):o.select_set(True)
 bpy.context.view_layer.objects.active=craft
-out=ROOT/'public/assets/umbra/wraith-v2.glb'
+out=ROOT/'public/assets/umbra/wraith.glb'
 previous=bpy.data.objects.get('umbra_wraith')
 if previous: previous.name='umbra_wraith_retained'
 craft.name='umbra_wraith'

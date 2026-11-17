@@ -19,7 +19,6 @@ from mathutils import Vector, Matrix
 import lib_solids as br
 
 POD_X, CORE_Y, TARGET_Z = 2.1, .9, 2.4   # src/content/warden.ts (podOffset, commandS, targetHeight)
-LABEL = 'v5-remodel'
 TURRET_Z = 3.7                           # turret centre height (the sheet's upper turrets)
 NOZZLE_Z = 1.15                          # thruster nozzles: it hovers on them
 PALETTE = dict(
@@ -363,7 +362,7 @@ def build(export=True, preview=True):
     objects.append(br.marker('warden_remodel_v5', sc=sc, hover=NOZZLE_Z, note='Bulky remodel after the WARDEN-1 design sheet'))
     result = None
     if export:
-        path = os.path.join(br.ROOT, 'public', 'assets', 'luna', 'warden-%s.glb' % LABEL)
+        path = os.path.join(br.ROOT, 'public', 'assets', 'luna', 'warden.glb')
         result = br.export(path, objects, 'Last Worlds — WARDEN-1 remodel after the design sheet')
     for o in objects:
         if o.name.endswith('_wreck'):

@@ -1048,7 +1048,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     if (next !== 'amnion' && next !== 'umbra') return undefined;
     if (predatorLoads.has(next)) return predatorLoads.get(next);
     const name = next === 'amnion' ? 'amnion_brood_heavy' : 'umbra_wraith';
-    const file = next === 'amnion' ? 'brood-heavy-v1.glb' : 'wraith-v2.glb';
+    const file = next === 'amnion' ? 'brood-heavy.glb' : 'wraith.glb';
     const loading = loadCraftNodes(`${import.meta.env.BASE_URL}assets/${next}/${file}`, [name]).then(nodes => {
       if (disposed) { nodes.forEach(craft => craft.geometry.dispose()); return; }
       for (const [key, batch] of factionBatches(nodes, 'Predator', null, () => 0x8a6cff, materials.alienCraft)) predatorBatches.set(key, batch);

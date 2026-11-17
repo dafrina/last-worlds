@@ -89,7 +89,7 @@ export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 
  */
 export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', shutterOpen: THREE.MathUtils.degToRad(42), spark: 0xffc860, hover: .8,
   content: { podOffset: CRADLE.sacOffset, podS: CRADLE.sacS, heartS: CRADLE.heartS, targetHeight: CRADLE.targetHeight, arrivalDuration: CRADLE.arrivalDuration, bays: CRADLE.bays },
-  // the-cradle-v2-approved.glb (70% of the reference placement): arms to x +-6, prow 2.3 toward the player, ring 6.3 away.
+  // the-cradle.glb (70% of the reference placement): arms to x +-6, prow 2.3 toward the player, ring 6.3 away.
   footprint: { halfWidth: 6.2, front: 2.5, back: 6.7 },
   fx: { spark: 0xffc860, hot: 0xfff3c4, flash: 0xffdaa1, steam: 0x987057, ichor: [0xffe6a6, 0xebad39, 0xb73b24], ring: 0xffbd48 } };
 /**

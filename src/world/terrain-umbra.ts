@@ -101,7 +101,7 @@ export function umbraLandform(seed: number, x: number, s: number, row: PlanetRow
 
 /**
  * THE ECLIPSE's arena: a vast abyss across the whole world, the boss floating over it, its serrated lips lined with the
- * kit's cliffs and peaks. `ahead` and `halfS` are fitted to the model's footprint (the-eclipse-v1-approved.glb).
+ * kit's cliffs and peaks. `ahead` and `halfS` are fitted to the model's footprint (the-eclipse.glb).
  */
 export const ABYSS = { ahead: 4, halfS: 9, floor: -8.5, reach: 20 } as const;
 function abyss(seed: number, x: number, s: number, centre: number, along: number, ground: Landform & { tone: number }): Landform & { tone: number } {
@@ -147,7 +147,7 @@ function umbraColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: num
 /* ---------------------------------------------------------------- dressing */
 
 /**
- * Obsidian dressing (kit: umbra-kit.glb and cliff-kit-v2.glb): fractured obsidian walls along selected
+ * Obsidian dressing (kit: umbra-kit.glb and cliff-kit.glb): fractured obsidian walls along selected
  * crevasse lip; clusters of needle spires on the spike mountains and along the edges; shard clutter on the plateau;
  * floating cliffs over the wide crevasses, lost in the fog; and on open plateau the faction's structures (monolith
  * towers, shield pylons, eclipse gates, arc reactors, obelisks) with small platforms beside them. The boss arena keeps

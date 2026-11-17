@@ -4,10 +4,10 @@ The user disliked the decimated v4 imports of their three supplied GLBs ("they l
 
 | Boss | Runtime file | Triangles (on screen) | Vertices | Draw calls, live (all) | Size (textures) | Builder |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| WARDEN-1 | `public/assets/luna/warden-v5-remodel.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/boss_warden.py` |
+| WARDEN-1 | `public/assets/luna/warden.glb` | 25,712 (22,248) | 47,230 | 13 (18) | 4.6 MB (2.5) | `tools/blender/boss_warden.py` |
 | BASTION-9 | `public/assets/khepri/bastion-9-v5-remodel.glb` | 21,648 | 42,419 | 28 (32) | 4.4 MB (2.6) | `tools/blender/boss_bastion_hull.py` |
 | HELION ARK | `public/assets/vesper/helion-ark-v5-remodel.glb` | 7,892 | 14,140 | 18 (22) | 2.6 MB (2.0) | `tools/blender/remodel_ark.py` |
-| THE VEIL | `public/assets/nacre/the-veil-v6-remodel.glb` (24 October; v5 had the bow pods) | 14,760 (13,302) | 26,009 | 14 (19) | 3.5 MB (2.3) | `tools/blender/boss_veil.py` |
+| THE VEIL | `public/assets/nacre/the-veil.glb` (24 October; v5 had the bow pods) | 14,760 (13,302) | 26,009 | 14 (19) | 3.5 MB (2.3) | `tools/blender/boss_veil.py` |
 | THE CRADLE (24 October, over the user's Tripo reference) | `public/assets/amnion/the-cradle-v1.glb` | 49,592 (live parts) | | | 3.2 MB (no textures) | `tools/blender/remodel_cradle.py` |
 
 How to read the columns:

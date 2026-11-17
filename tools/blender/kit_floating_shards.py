@@ -90,7 +90,7 @@ def build():
     for obj in objects:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = objects[0]
-    path = os.path.join(ROOT, 'public', 'assets', 'umbra', 'floating-shards-v2.glb')
+    path = os.path.join(ROOT, 'public', 'assets', 'umbra', 'floating-shards.glb')
     bpy.ops.export_scene.gltf(filepath=path, use_selection=True, use_active_scene=True, export_apply=True,
                               export_animations=False, export_extras=True, export_vertex_color='ACTIVE')
     print('EXPORTED', path, os.path.getsize(path))

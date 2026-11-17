@@ -32,7 +32,7 @@ import lib_solids as br
 
 SRC = os.path.join(br.ROOT, 'art', 'source', 'bosses', 'ark-tripo-original.glb')
 SCALE, OFFSET = 9.5, Vector((0, .79, -.9))
-LABEL = 'v6-approved'
+LABEL = ''   # an experiment's label is appended to the file name: helion-ark-<label>.glb
 BUDGET = 80000
 LENS = (0.0, .82, 2.71)   # game coordinates: inside the closed armour, on the camera ray through the bridge socket
 
@@ -512,7 +512,7 @@ def build_clean(label=LABEL, hull_ratio=.025, part_ratio=.09, atlas=2048):   # h
         raise RuntimeError('HELION ARK over its %d-triangle budget: %d' % (BUDGET, total))
     tag = tripo.marker('ark_approved_v6'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = hull_ratio; tag['cleaned'] = True
     objects.append(tag)
-    path = os.path.join(br.ROOT, 'public', 'assets', 'vesper', 'helion-ark-%s.glb' % label)
+    path = os.path.join(br.ROOT, 'public', 'assets', 'vesper', 'helion-ark%s.glb' % ('-' + label if label else ''))
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:
         o.hide_set(False); o.select_set(True)
@@ -577,7 +577,7 @@ def build(hull_ratio=.029, part_ratio=.09, label=LABEL):
     if total > BUDGET:
         raise RuntimeError('HELION ARK over its %d-triangle budget: %d' % (BUDGET, total))
     tag = tripo.marker('ark_approved_v6'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = hull_ratio; objects.append(tag)
-    path = os.path.join(br.ROOT, 'public', 'assets', 'vesper', 'helion-ark-%s.glb' % label)
+    path = os.path.join(br.ROOT, 'public', 'assets', 'vesper', 'helion-ark%s.glb' % ('-' + label if label else ''))
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:
         o.hide_set(False); o.select_set(True)

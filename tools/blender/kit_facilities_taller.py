@@ -1,6 +1,6 @@
 """Khepri's and Vesper's shipped facility kits (22 October): kit_facilities.py's modules with taller buildings.
 
-Reads the base kit kit_facilities.py writes for each world (git-ignored lookdev/facility-kit-base/<world>/facility-kit-v3.glb)
+Reads the base kit kit_facilities.py writes for each world (git-ignored lookdev/facility-kit-base/<world>/facility-kit.glb)
 and keeps the footprint, foundation, materials and UVs. Raises the tower above its .14-unit base by 50%, and Khepri's small
 machine hall walls by 70%, moving its roof machinery up without stretching it. Other modules stay unchanged.
 Run through live Blender MCP after kit_facilities.py: run().
@@ -18,7 +18,7 @@ def run():
         bpy.context.window.scene = scene
         for obj in list(scene.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
-        bpy.ops.import_scene.gltf(filepath=str(ROOT / f'lookdev/facility-kit-base/{world}/facility-kit-v3.glb'))
+        bpy.ops.import_scene.gltf(filepath=str(ROOT / f'lookdev/facility-kit-base/{world}/facility-kit.glb'))
         tower = next(o for o in scene.objects if o.name == f'fk_{world}_tower')
         assert tower.type == 'MESH'
         before = max(v.co.z for v in tower.data.vertices)
@@ -44,7 +44,7 @@ def run():
         for obj in scene.objects:
             obj.select_set(True)
         # GLB verified against the live 5.2 operator's dynamic export_format enum.
-        out = ROOT / f'public/assets/{world}/facility-kit-v4-taller.glb'
+        out = ROOT / f'public/assets/{world}/facility-kit.glb'
         # Blender makes cross-scene names unique; keep the shipped marker name in each GLB.
         contract = next(o for o in scene.objects if o.name.startswith('facility_kit_v3'))
         prior_name = contract.name

@@ -521,7 +521,8 @@ def build(world, preview=None):
         print('CLIFF %-14s tris=%d' % (name, hs.tris()))
     if problems:
         raise SystemExit('Cliff kit contract:\n  ' + '\n  '.join(problems))
-    # Umbra flies the walls of kit_cliffs_umbra.py (cliff-kit-v2.glb); this first Umbra kit goes to the git-ignored lookdev/.
+    # Umbra flies the walls of kit_cliffs_umbra.py (public/assets/umbra/cliff-kit.glb); this first Umbra kit goes to the
+    # git-ignored lookdev/.
     folder = ('lookdev', 'cliff-kit-first') if world == 'umbra' else ('public', 'assets')
     path = os.path.join(ROOT, *folder, world, 'cliff-kit.glb')
     vc.publish(path, 'kit_cliffs.py', dict(materials=list(names), nodes=nodes, max_bytes=800_000), 'CLIFF')

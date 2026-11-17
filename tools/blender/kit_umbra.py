@@ -2229,7 +2229,7 @@ def preview_kit(objs, args):
     if not focus or "infra" in focus:
         infra_sheet(objs, scene, dirs)
     # The cliff walls the game flies (kit_cliffs_umbra.py).
-    shipped_cliffs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "public", "assets", "umbra", "cliff-kit-v2.glb")
+    shipped_cliffs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "public", "assets", "umbra", "cliff-kit.glb")
     if not focus or "umb_hill" in focus:
         hills(objs, scene, dirs, shipped_cliffs)
     if focus:

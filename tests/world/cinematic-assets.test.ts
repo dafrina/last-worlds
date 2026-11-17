@@ -7,7 +7,7 @@ import { HELION_ARK } from '../../src/content/ark';
 import { VEIL } from '../../src/content/veil';
 import { ECLIPSE } from '../../src/content/eclipse';
 import { WARDEN } from '../../src/content/warden';
-import { FACILITY_KIT_ASSETS, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
+import { FACILITY_KIT_FILE, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
 import { asset, stubGltfDecoding } from '../helpers/assets';
 
 stubGltfDecoding();
@@ -165,7 +165,7 @@ describe('Blender cinematic asset contracts',()=>{
     let checked=0;
     for(const world of new Set(FACILITY_MODULES.map(module=>module.world))){
       let model: Group;
-      try { model=await asset(`${world}/${FACILITY_KIT_ASSETS[world]}`); } catch(error) { if((error as {code?:string}).code==='ENOENT') continue; throw error; }
+      try { model=await asset(`${world}/${FACILITY_KIT_FILE}`); } catch(error) { if((error as {code?:string}).code==='ENOENT') continue; throw error; }
       checked++; validate(model,30000,true);
       expect(model.getObjectByName('facility_kit_v3'),world).toBeDefined();
       model.updateMatrixWorld(true);

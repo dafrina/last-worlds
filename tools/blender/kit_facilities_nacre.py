@@ -233,7 +233,7 @@ def finish_export(bake=True):
     if existing: existing.name='facility_kit_v3_ruin_export_hold'
     marker=br.marker('facility_kit_v3',sc=scene,note='Ruin architecture v4; original v3 module contract')
     try:
-        print(br.export(str(ROOT/'public/assets/nacre/facility-kit-v4-ruins.glb'),objects+[marker],
+        print(br.export(str(ROOT/'public/assets/nacre/facility-kit.glb'),objects+[marker],
                         'Last Worlds - Nacre ruin architecture, Blender MCP'))
     finally:
         marker.name='nacre_ruin_facility_contract'

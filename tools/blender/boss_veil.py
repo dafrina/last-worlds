@@ -731,7 +731,7 @@ def build(export=True, preview=True):
                              note='Clean remodel traced over the supplied GLB; no source geometry exported; no pod sketches'))
     result = None
     if export:
-        path = os.path.join(br.ROOT, 'public', 'assets', 'nacre', 'the-veil-%s.glb' % LABEL)
+        path = os.path.join(br.ROOT, 'public', 'assets', 'nacre', 'the-veil.glb')
         result = br.export(path, objects, 'Last Worlds — THE VEIL remodel traced over the user-supplied GLB')
     for o in objects:
         if o.name.endswith('_wreck') or o.name == 'veil_flight_pod':

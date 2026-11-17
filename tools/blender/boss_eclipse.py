@@ -8,7 +8,7 @@ atlases are kept and reduced; nothing of the shape is regenerated. Headless (the
     R=/home/davidfarina/Projects/alien-skies
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
         --python "$(wslpath -w $R/tools/blender/boss_eclipse.py)" -- \\
-        --out "$(wslpath -w $R/public/assets/umbra/the-eclipse-v2-approved.glb)" --preview-dir "$(wslpath -w $R/lookdev/umbra/eclipse)"
+        --out "$(wslpath -w $R/public/assets/umbra/the-eclipse.glb)" --preview-dir "$(wslpath -w $R/lookdev/umbra/eclipse)"
 
 (`--no-previews` skips the renders.) About 90 s; deterministic. Writes the GLB, previews, working textures
 (`<preview-dir>/textures`) and `<preview-dir>/eclipse-report.json` (placement, parts, hinges, triangle counts, checks).
@@ -63,7 +63,7 @@ SCALE = 20.4            # source width 0.98 -> 20 units horn to horn (the world 
 HORN_CUT = .38          # source z of the wing-fix seam (horns agree there; the left one is cut off at 0.472)
 HORN_BAND = .32         # below the seam, down to here, the left horn eases onto the mirrored right one
 BUDGET = 80000
-LABEL = 'v2-approved'     # v2 (31 October 2026): v1 plus the prow vent; v1 stays beside it for rollback
+LABEL = 'v2-approved'     # v2 (31 October 2026): v1 plus the prow vent
 
 
 def log(*a):
@@ -1483,7 +1483,7 @@ def previews(res, directory):
 def main():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     opt = lambda k, d: argv[argv.index(k) + 1] if k in argv else d
-    out = opt('--out', os.path.join(ROOT, 'public', 'assets', 'umbra', 'the-eclipse-%s.glb' % LABEL))
+    out = opt('--out', os.path.join(ROOT, 'public', 'assets', 'umbra', 'the-eclipse.glb'))
     pdir = opt('--preview-dir', os.path.join(ROOT, 'lookdev', 'umbra', 'eclipse'))
     os.makedirs(pdir, exist_ok=True)
     res = build(out, pdir)

@@ -1,7 +1,7 @@
 import { ECLIPSE } from './eclipse';
 
 /**
- * THE HELIOPHAGE, Corona's boss (docs/37): the user's Tripo GLB, adapted (public/assets/corona/the-heliophage-v1-approved.glb,
+ * THE HELIOPHAGE, Corona's boss (docs/37): the user's Tripo GLB, adapted (public/assets/corona/the-heliophage.glb,
  * tools/blender/boss_heliophage.py), lying flat with its spires away from the player and its claws toward them, 16
  * units wide (user, 5 November: "Make it 16 units wide, the eclipse is the final boss"), its depth squashed so it hovers
  * between the plateau and the flight plane. Its fight is THE ECLIPSE's (user: "same gameplay"); only where its targets

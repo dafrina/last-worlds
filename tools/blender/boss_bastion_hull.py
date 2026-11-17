@@ -12,7 +12,7 @@ are never seen, so they stay plain (user note, 20 October).
 
 v7 (24 October 2026): the rear deck's silver tubes are replaced by turrets and greebles (rear_deck()).
 Build it with tools/blender/boss_bastion.py, which bakes this hull and then extracts the tread links
-into public/assets/khepri/bastion-9-v7.glb. build() alone writes only the git-ignored intermediate,
+into public/assets/khepri/bastion-9.glb. build() alone writes only the git-ignored intermediate,
 so the v5 rollback file is never overwritten.
 
 Blender axes: x right, y away from the player (glTF -z), z up. Ground at z = 0.

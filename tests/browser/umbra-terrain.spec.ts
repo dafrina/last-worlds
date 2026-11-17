@@ -12,8 +12,8 @@ test('Umbra loads the sharp cliff kit and renders supported crescent sites on bo
   const dock = pieces.find(p => p.kind === 'umbDock');
   expect(dock, 'A crescent still appears on a supported site').toBeDefined();
   for (const quality of ['low', 'high']) {
-    const loaded = page.waitForResponse(r => r.url().endsWith('/umbra/cliff-kit-v2.glb') && r.ok());
-    const floatsLoaded = page.waitForResponse(r => r.url().endsWith('/umbra/floating-shards-v2.glb') && r.ok());
+    const loaded = page.waitForResponse(r => r.url().endsWith('/umbra/cliff-kit.glb') && r.ok());
+    const floatsLoaded = page.waitForResponse(r => r.url().endsWith('/umbra/floating-shards.glb') && r.ok());
     await page.goto(`/tests/fixtures/terrain-relief.html?world=umbra&seed=${seed}&distance=210&quality=${quality}`);
     await loaded;
     await floatsLoaded;

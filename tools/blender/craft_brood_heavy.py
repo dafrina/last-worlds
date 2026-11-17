@@ -3,7 +3,7 @@
 6 November: the brood heavy at about a third of its triangles (15.3k for one ace, against 300-2,400 for an enemy;
 Amnion drew twice the triangles of any world): plates, tusks, teeth, sinews, gums and the mouth at lower resolution.
 Headless: `blender -b --python craft_brood_heavy.py -- --brood-only` exports only the brood heavy (the game flies
-wraith-v2, built elsewhere).
+the Wraith of craft_wraith.py).
 Run in an isolated scene: never clear the user's existing scenes or overwrite their assets.
 Design coordinates are game x/up/z-forward; converted to Blender x/-y/z-up on creation.
 """
@@ -172,7 +172,7 @@ def export(parent, relative):
         if o.type=='MESH': o.data.calc_loop_triangles();tris+=len(o.data.loop_triangles)
     return {'file':relative,'triangles':tris,'bytes':path.stat().st_size}
 
-manifest=[export(brood,'public/assets/amnion/brood-heavy-v1.glb')] + ([] if BROOD_ONLY else [export(wraith,'lookdev/phase-predators/wraith-v1.glb')])
+manifest=[export(brood,'public/assets/amnion/brood-heavy.glb')] + ([] if BROOD_ONLY else [export(wraith,'lookdev/phase-predators/wraith-v1.glb')])
 (OUT/'manifest.json').write_text(json.dumps(manifest,indent=2))
 
 # A real Blender preview with grazing highlights so black surfaces remain black yet legible.

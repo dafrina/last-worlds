@@ -7,7 +7,7 @@ rig node, pivot and combat socket is the v5/v6 one. This runner:
    intermediate GLB (git-ignored lookdev/bastion-rear/bastion-9-v7-hull.glb);
 2. clears the session and runs boss_bastion_treads.run() on it, which extracts the four
    instanced link templates and the bastion_treads_v6 marker exactly as for v6;
-3. writes public/assets/khepri/bastion-9-v7.glb.
+3. writes public/assets/khepri/bastion-9.glb.
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
         --python "$(wslpath -w tools/blender/boss_bastion.py)" [-- --hull <hull.glb> --out <out.glb> --preview]
@@ -31,7 +31,7 @@ def option(name, default):
 
 
 HULL = option('--hull', os.path.join(br.ROOT, 'lookdev', 'bastion-rear', 'bastion-9-v7-hull.glb'))
-OUT = option('--out', os.path.join(br.ROOT, 'public', 'assets', 'khepri', 'bastion-9-v7.glb'))
+OUT = option('--out', os.path.join(br.ROOT, 'public', 'assets', 'khepri', 'bastion-9.glb'))
 
 
 def clear_session():

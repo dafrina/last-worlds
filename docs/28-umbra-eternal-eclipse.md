@@ -71,7 +71,7 @@ The concept images are references, never runtime backgrounds or finished assets 
 
 ## THE ECLIPSE
 
-- **Model:** the user's Tripo GLB, adapted in Blender (`tools/blender/boss_eclipse.py`, `public/assets/umbra/the-eclipse-v2-approved.glb`) like the other approved bosses, at most 80k triangles. v1 (no prow vent) stays beside it for rollback (`src/render/boss-assets.ts`).
+- **Model:** the user's Tripo GLB, adapted in Blender (`tools/blender/boss_eclipse.py`, `public/assets/umbra/the-eclipse.glb`) like the other approved bosses, at most 80k triangles. v1 (no prow vent) stays beside it for rollback (`src/render/boss-assets.ts`).
   - Its broken left horn tip is mended by mirroring the right one.
   - The GLB's front view is the concept's top view, so it lies flat, its reactor facing the camera and its plain back the hidden underside.
 - **Size:** 78,941 triangles (the prow vent's are reserved before the reduction). It spans x ±10, 3.9 toward the player and 8.8 away from its pivot, 3.2 below it and 3.5 above. The surface was smoothed before reduction: Tripo's carved micro-cracks became notched highlights on the glossy black.
@@ -115,8 +115,8 @@ The user: "can you add a third target on the eclipse (umbra boss) that we have t
 
 - **Ground:** `src/world/terrain-umbra.ts`. The kit kinds are in `src/world/scenery-kit.ts`.
 - **Look:** `src/render/scene.ts` (`LOOKS.umbra`, `void` sky), `src/render/terrain-kit.ts` (glow, gloss, haze, wall look), `src/render/models.ts` (`createVoidEnvironment`).
-- **Kit:** approved hills/structures remain in `tools/blender/kit_umbra.py` and `public/assets/umbra/umbra-kit.glb`. Active cliffs: `tools/blender/kit_cliffs_umbra.py`, `public/assets/umbra/cliff-kit-v2.glb`, authored/exported through live Blender MCP in an isolated scene. Four variants, 203–315 triangles each, 122,564 bytes total. The old `cliff-kit.glb` and its builder remain for rollback; change the Umbra filename in `src/render/terrain-view.ts`.
-- **Floating rock undersides (26 October):** `tools/blender/kit_floating_shards.py` / `public/assets/umbra/floating-shards-v2.glb` replaces only the three float nodes after both kits have loaded. Original flat fractured tops and placement retained; a few broad cleaved wedges replace the hanging needles. 75–99 triangles each, 30,992 bytes total. Authored through live Blender MCP in its own scene. Omit the optional floating-kit URL in `terrain-view.ts` to restore the original three models; no other kit geometry changes.
+- **Kit:** approved hills/structures remain in `tools/blender/kit_umbra.py` and `public/assets/umbra/umbra-kit.glb`. Active cliffs: `tools/blender/kit_cliffs_umbra.py`, `public/assets/umbra/cliff-kit.glb`, authored/exported through live Blender MCP in an isolated scene. Four variants, 203–315 triangles each, 122,564 bytes total. The old `cliff-kit.glb` and its builder remain for rollback; change the Umbra filename in `src/render/terrain-view.ts`.
+- **Floating rock undersides (26 October):** `tools/blender/kit_floating_shards.py` / `public/assets/umbra/floating-shards.glb` replaces only the three float nodes after both kits have loaded. Original flat fractured tops and placement retained; a few broad cleaved wedges replace the hanging needles. 75–99 triangles each, 30,992 bytes total. Authored through live Blender MCP in its own scene. Omit the optional floating-kit URL in `terrain-view.ts` to restore the original three models; no other kit geometry changes.
 - **Fleet:** `tools/blender/craft_umbra.py` (`public/assets/umbra/umbra-craft.glb`).
 - **Content:** `src/content/eclipse.ts`, `src/content/bosses.ts`, `src/content/encounters.ts` (`FINAL_HORIZON`).
 - **Tests:**

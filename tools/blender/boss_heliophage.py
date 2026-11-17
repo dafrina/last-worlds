@@ -10,7 +10,7 @@ kept and reduced; nothing of the shape is regenerated. Headless:
     R=/home/davidfarina/Projects/alien-skies
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
         --python "$(wslpath -w $R/tools/blender/boss_heliophage.py)" -- \\
-        --out "$(wslpath -w $R/public/assets/corona/the-heliophage-v1-approved.glb)" --preview-dir "$(wslpath -w $R/lookdev/corona/heliophage)"
+        --out "$(wslpath -w $R/public/assets/corona/the-heliophage.glb)" --preview-dir "$(wslpath -w $R/lookdev/corona/heliophage)"
 
 Source: art/source/bosses/heliophage-tripo-original.glb (one piece, 1,909,385 triangles, 4K atlases). It stands
 upright in the GLB (a station: a disc deck on top, a crown of spires, a caged molten core at its front between two
@@ -40,7 +40,6 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 SRC = os.path.join(ROOT, 'art', 'source', 'bosses', 'heliophage-tripo-original.glb')
 WIDTH, DEPTH = 16.0, .35
 BUDGET = 80000
-LABEL = 'v1-approved'
 P = 'heliophage_'
 # Target regions (game units, relative to the core's centre; measured on lookdev/corona/heliophage/grid-top.png).
 HEART_R = 1.85                                             # the molten sphere (r ~1.7) inside its cage
@@ -238,7 +237,7 @@ def previews(res, pdir):
 def main():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     opt = lambda k, d: argv[argv.index(k) + 1] if k in argv else d
-    out = opt('--out', os.path.join(ROOT, 'public', 'assets', 'corona', 'the-heliophage-%s.glb' % LABEL))
+    out = opt('--out', os.path.join(ROOT, 'public', 'assets', 'corona', 'the-heliophage.glb'))
     pdir = opt('--preview-dir', os.path.join(ROOT, 'lookdev', 'corona', 'heliophage'))
     os.makedirs(pdir, exist_ok=True)
     res = build(out, pdir)

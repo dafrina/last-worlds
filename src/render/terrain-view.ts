@@ -680,12 +680,12 @@ export function createTerrainView(options: TerrainViewOptions) {
     // Nahara (docs/39): its sandstone ruin kit carries its masonry walls too.
     if (planet === 'nahara') jobs.push(loadNaharaKit(`${base}assets/nahara/nahara-kit.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
-    if (planet === 'umbra') jobs.push(loadUmbraKit(`${base}assets/umbra/umbra-kit.glb`, `${base}assets/umbra/floating-shards-v2.glb`)
+    if (planet === 'umbra') jobs.push(loadUmbraKit(`${base}assets/umbra/umbra-kit.glb`, `${base}assets/umbra/floating-shards.glb`)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // Cliff walls (docs/26 §11): Khepri's columnar basalt walls and Vesper's ice-shelf walls.
     // (Corona flies Khepri's columnar basalt walls, charcoal: user, 5 November, "couldnt you use khepris basalt columns".)
     const cliffs = planet === 'vesper' ? 'vesper' : planet === 'khepri' || planet === 'corona' ? 'khepri' : planet === 'amnion' ? 'amnion' : planet === 'umbra' ? 'umbra' : null;
-    if (cliffs) jobs.push(loadCliffKit(`${base}assets/${cliffs}/${cliffs === 'umbra' ? 'cliff-kit-v2.glb' : 'cliff-kit.glb'}`, cliffs)
+    if (cliffs) jobs.push(loadCliffKit(`${base}assets/${cliffs}/cliff-kit.glb`, cliffs)
       .then(loaded => { if (!disposed) self.setKit(loaded); else loaded.forEach(g => g.dispose()); }));
     // The planet's own wall maps (Vesper's ice walls), so walls never sharpen late; failures settle (procedural detail).
     const wallMaps = (groundMaterial.userData.loadPlanetTextures as ((planet: PlanetId, base: string) => Promise<void>) | undefined)?.(planet, base);

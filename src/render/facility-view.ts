@@ -1,7 +1,7 @@
 import { liveInstances } from './instances';
 import * as THREE from 'three';
 import { VIEW, type PlanetId, type RunState } from '../shared/contracts';
-import { FACILITY_KIT_ASSETS, MODULES_BY_NODE, modulesOf, type FacilityWorld, type ModuleRole } from './facility-kit';
+import { FACILITY_KIT_FILE, MODULES_BY_NODE, modulesOf, type FacilityWorld, type ModuleRole } from './facility-kit';
 import { composeFacility, nodeBudget, type ArrangementId, type FacilityPlant } from './facility-layouts';
 import { loadTexturedNodes, type TexturedPart } from './models';
 import { paintMaterial } from './world-paint';
@@ -9,8 +9,8 @@ import type { ViewFootprint } from './view-footprint';
 
 /**
  * The compounds around ground batteries are the modular kits of docs/25, composed per battery by `facility-layouts.ts`
- * (all four kits shipped 20 October). The v2 whole-compound plants were removed on 8 November (docs/38 V7); their GLBs
- * are archived in art/archive/assets.
+ * (all four kits shipped 20 October). The v2 whole-compound plants were removed on 8 November (docs/38 V7); git history keeps
+ * their GLBs.
  *
  * Dev/test override, set before the renderer is created: `standIns` draws a missing kit (or kit node) as registry
  * boxes instead of falling back to the legacy emplacements. Never in production builds.
@@ -93,7 +93,7 @@ function releaser(parts: Iterable<TexturedPart[]>) {
 
 /** Plants alive at once (as v2); the terrain view takes at most 12 clearings. */
 const PLANTS = 12;
-const kitUrl = (world: FacilityWorld) => `${import.meta.env.BASE_URL}assets/${world}/${FACILITY_KIT_ASSETS[world]}`;
+const kitUrl = (world: FacilityWorld) => `${import.meta.env.BASE_URL}assets/${world}/${FACILITY_KIT_FILE}`;
 interface Kit { source: 'glb' | 'stand-in' | 'mixed'; batches: Map<string, THREE.InstancedMesh[]>; dispose(): void }
 
 /**
