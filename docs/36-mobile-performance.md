@@ -6,9 +6,9 @@
 
 ## 1. Method
 
-- `tools/perf-bench.mjs`: each scenario launches a fixed flight (seed 4242), held at zero ticks from the launch, pre-rolled unrendered, then rendered at exactly one tick per frame (three for rapid scrolling) with the scripted weave, so every run does the same simulation and render work. It records per-frame JS work (mean, p95, p99, max, frames over 16.7/33/100 ms), long tasks, a CPU profile (self and in-frame inclusive time, GC), the renderer's stats (calls, triangles, geometries, textures, programs, shadow calls, particle and lane coverage, stream fallbacks) and the JS heap after two forced collections. `PERF_ALLOC=1` replaces the CPU profile with V8's sampling heap profiler (objects collected by minor and major GCs included): bytes allocated per frame inside the frame callback, by function.
-- `tools/perf-soak.mjs`: `endless` flies one endless run through its planet jumps (four ticks a frame, every boss killed once it fights) and records the heap after GC and the renderer's memory at every sector and planet change, with one-tick frame windows at the start and the end; `restarts` launches each campaign world in turn, flies 6 s and returns to the menu through the pause panel's button.
-- Scenarios (`perf-bench.mjs`):
+- `tools/perf/bench.mjs`: each scenario launches a fixed flight (seed 4242), held at zero ticks from the launch, pre-rolled unrendered, then rendered at exactly one tick per frame (three for rapid scrolling) with the scripted weave, so every run does the same simulation and render work. It records per-frame JS work (mean, p95, p99, max, frames over 16.7/33/100 ms), long tasks, a CPU profile (self and in-frame inclusive time, GC), the renderer's stats (calls, triangles, geometries, textures, programs, shadow calls, particle and lane coverage, stream fallbacks) and the JS heap after two forced collections. `PERF_ALLOC=1` replaces the CPU profile with V8's sampling heap profiler (objects collected by minor and major GCs included): bytes allocated per frame inside the frame callback, by function.
+- `tools/perf/soak.mjs`: `endless` flies one endless run through its planet jumps (four ticks a frame, every boss killed once it fights) and records the heap after GC and the renderer's memory at every sector and planet change, with one-tick frame windows at the start and the end; `restarts` launches each campaign world in turn, flies 6 s and returns to the menu through the pause panel's button.
+- Scenarios (`tools/perf/bench.mjs`):
 
 | Scenario | Flight | Measured |
 | --- | --- | --- |

@@ -152,10 +152,10 @@ inspiration".
   - **Scenery:** over ten sections (seed 93) the dressing went from 449 pieces to 728. The new ones are 112 rubble
     fields, 54 fallen columns, 27 stumps, 8 foundations, 10 relics and 68 more tumbled blocks. Instanced, about 250 to 700
     triangles a piece.
-  - **Seven frozen views** (`tools/nahara-lookdev.mjs`):
+  - **Seven frozen views** (`tools/lookdev/terrain-views.mjs`):
     - High: 30–38 draw calls and 52–71k triangles before, 37–47 and 59–86k after;
     - Low: 21–29 calls and 50–67k triangles before, 24–34 and 53–71k after.
-  - **The flight** (`tools/perf-bench.mjs nahara`, 300 frames at 4× CPU throttle):
+  - **The flight** (`tools/perf/bench.mjs nahara`, 300 frames at 4× CPU throttle):
     - High: mean calls 51.6 → 60.4, triangles 106k → 116k;
     - Low: calls 42.8 → 48.0, triangles 103k → 106k;
     - JS work a frame, High: 11.4 and 13.3 ms before, 12.0 and 14.3 after (load 10–26, so ±20 %);
@@ -212,7 +212,7 @@ should not do that. I told it to limit it to open stretches of land and canyon f
     after. The shelter takes 3.0–4.5 ms for a section's rows and 1.0–1.9 ms for its two join bands, about 3 % of the
     section's generation, in steps under a millisecond.
   - **Ten frozen views** on High and Low: the same draw calls and triangles before and after, to the triangle.
-  - **The flight** (`tools/perf-bench.mjs nahara`, 300 frames at 4× CPU throttle):
+  - **The flight** (`tools/perf/bench.mjs nahara`, 300 frames at 4× CPU throttle):
     - draw calls 60.6 → 61.0 on High and 47.9 → 47.9 on Low, triangles unchanged (116k, 106k);
     - no synchronous section or view fallbacks;
     - frame time within the machine's load noise: load 10–14 before, 15–20 after. The simulation, which this does not

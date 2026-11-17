@@ -1,7 +1,7 @@
 // Renders the title theme and the menu's sounds offline through the game's own mixer, in headless Chromium, with a
 // listening page: the full loop, a 60 s cut as first heard (fading in), every menu sound alone, and a click through
 // the menus over the theme ending in a launch (the theme fading over the warp into a world's music).
-//   AUDIO_PREVIEW_URL=http://127.0.0.1:4192 node tools/menu-preview.mjs [output directory]
+//   AUDIO_PREVIEW_URL=http://127.0.0.1:4192 node tools/audio/menu-preview.mjs [output directory]
 import { chromium } from '@playwright/test';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';

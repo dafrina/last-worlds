@@ -1,13 +1,13 @@
 // Long-session memory and pacing (mobile performance pass, 3 November 2026). Run a dev server first, then:
-//   node tools/perf-soak.mjs endless <out.json> [base=http://127.0.0.1:4194] [quality=high] [sectors=8] [steps=4]
-//   node tools/perf-soak.mjs restarts <out.json> [base=http://127.0.0.1:4194] [quality=high] [cycles=6]
+//   node tools/perf/soak.mjs endless <out.json> [base=http://127.0.0.1:4194] [quality=high] [sectors=8] [steps=4]
+//   node tools/perf/soak.mjs restarts <out.json> [base=http://127.0.0.1:4194] [quality=high] [cycles=6]
 // endless: one endless run (seed 4242) flown by the bench's scripted weave at `steps` ticks a rendered frame, every boss
 // killed once it fights (src/main.ts dev hooks), through its planet jumps to sector `sectors`. At every sector or planet
 // change, and at the end, it records the JS heap after two forced GCs and the renderer's geometries, textures and
 // programs; frame work at one tick a frame is measured in a window at the start and at the end.
 // restarts: launch a campaign mission (all six worlds in turn), fly 6 s, return to the menu; the heap after GC and the
 // renderer's memory at the menu after each cycle. Headless Chromium draws with SwiftShader: GPU memory is not measured.
-import { launchGameBrowser } from './browser.mjs';
+import { launchGameBrowser } from '../lib/browser.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const [mode = 'endless', out = 'soak.json', base = 'http://127.0.0.1:4194', quality = 'high', countArg, stepsArg = '4'] = process.argv.slice(2);

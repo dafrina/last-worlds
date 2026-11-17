@@ -647,7 +647,7 @@ Lot-local frame: u is lateral (+ toward the world edge) and v is forward (+s). T
   - a district next to a neighbouring opposite-flank outpost;
   - a district straddling a section boundary (s = 36k);
   - a battery compound placed inside the reserved rectangle.
-- **Before** captures: take them now on `main` with the same seeds and distances, using `tools/lookdev.mjs` and `tools/art-refinement-lookdev.mjs` against the 4173 dev server.
+- **Before** captures: take them now on `main` with the same seeds and distances, using `tools/lookdev/flight-views.mjs` and `tools/art-refinement-lookdev.mjs` against the 4173 dev server.
 - Compare the after captures against `art/concepts/facility-sheets/khepri.jpg` items 01 and 03 for hierarchy, palette and connectivity. This is a judgement, not a pixel match.
 
 **Performance:**

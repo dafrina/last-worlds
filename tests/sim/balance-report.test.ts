@@ -5,7 +5,7 @@ import { env } from '../helpers/env';
 
 /**
  * Extended balance report (docs/40). Off by default; writes one JSON line per flight to BALANCE_REPORT, summarised by
- * `node tools/balance-report.mjs <file.jsonl>`. One target per process, so several can run side by side:
+ * `node tools/sim/balance-report.mjs <file.jsonl>`. One target per process, so several can run side by side:
  *
  *   BALANCE_REPORT=out.jsonl BALANCE_TARGET=campaign BALANCE_MISSIONS=all BALANCE_WEAPONS=all BALANCE_RANKS=expected \
  *     BALANCE_DIFFICULTIES=standard BALANCE_SEEDS=1-3 npx vitest run tests/sim/balance-report.test.ts

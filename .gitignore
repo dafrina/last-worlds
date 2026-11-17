@@ -4,7 +4,8 @@ test-results/
 playwright-report/
 .DS_Store
 *.log
-lookdev/
+# Look-dev captures, previews and private Vite caches (the tools in tools/lookdev write here).
+/lookdev/
 __pycache__/
 
 # The user's Tripo source models (about 70 MB each; art/source/hero/README.md)

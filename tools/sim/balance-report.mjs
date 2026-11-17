@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * Summarises tests/sim/balance-report.test.ts's JSON lines as markdown tables (docs/40):
- *   node tools/balance-report.mjs out.jsonl [more.jsonl ...]
+ *   node tools/sim/balance-report.mjs out.jsonl [more.jsonl ...]
  * Medians and ranges rather than means: a single long boss fight or a lost run would distort an average.
  */
 import { readFileSync } from 'node:fs';

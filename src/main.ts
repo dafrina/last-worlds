@@ -246,7 +246,7 @@ if (perfLog) {
   }
 }
 let perfLast = performance.now(), simStart = 0;
-/** Development-only perf bench (src/dev-hooks.ts, tools/perf-bench.mjs). */
+/** Development-only perf bench (src/dev-hooks.ts, tools/perf/bench.mjs). */
 let bench: Bench | null = null;
 /**
  * Development-only autopilot (docs/41; user, 13 November: "make it in the browser so i can see it play"): a test pilot

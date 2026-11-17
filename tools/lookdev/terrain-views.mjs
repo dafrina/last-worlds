@@ -1,9 +1,9 @@
-// Frozen Nahara ground captures for art review (docs/39): the terrain-relief fixture (tests/fixtures/terrain-relief.ts) at
+// Frozen ground captures for art review (Nahara by default, docs/39; Khepri too): the terrain-relief fixture (tests/fixtures/terrain-relief.ts) at
 // fixed seeds, distances and camera x, on High and Low, with the renderer's stats. Not a test; never a production entry.
-// Usage: node tools/nahara-lookdev.mjs <out-dir> [base=http://127.0.0.1:4191] [qualities=high,low] [views=all] [world=nahara]
+// Usage: node tools/lookdev/terrain-views.mjs <out-dir> [base=http://127.0.0.1:4191] [qualities=high,low] [views=all] [world=nahara]
 // A view is `name:seed:distance:x`; `x=canyon` frames the canyon's course at the view's middle row.
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { launchGameBrowser } from './browser.mjs';
+import { launchGameBrowser } from '../lib/browser.mjs';
 
 const [out = 'lookdev/nahara', base = 'http://127.0.0.1:4191', qualityArg = 'high,low', viewArg = 'all', world = 'nahara'] = process.argv.slice(2);
 const VIEWS = {

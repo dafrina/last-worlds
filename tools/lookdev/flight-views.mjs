@@ -1,9 +1,9 @@
 // Fixed-seed look-dev captures of the running dev server for art review (not a test).
-// Usage: node tools/lookdev.mjs [label] [seed] [query]   → lookdev/<label>-seed<seed>-{center,left,right}.png
+// Usage: node tools/lookdev/flight-views.mjs [label] [seed] [query]   → lookdev/<label>-seed<seed>-{center,left,right}.png
 // query is appended to the URL, e.g. 'camera=perspective'.
 // Requires `npm run dev` on http://127.0.0.1:4173. Output goes to the git-ignored lookdev/ folder.
 import { mkdirSync } from 'node:fs';
-import { launchGameBrowser } from './browser.mjs';
+import { launchGameBrowser } from '../lib/browser.mjs';
 
 const label = process.argv[2] ?? 'capture';
 const seed = Number(process.argv[3] ?? 8831) >>> 0;

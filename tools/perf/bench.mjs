@@ -1,6 +1,6 @@
 // CPU-side frame-work bench (polish pass, 30 October 2026; mobile performance pass, 3 November: peak-moment scenarios,
 // heap after forced GC, allocation sampling). Run a dev server first (any port), then:
-//   node tools/perf-bench.mjs <out.json> [base=http://127.0.0.1:4194] [scenarios=all] [qualities=high,low] [throttle=4] [frames=600]
+//   node tools/perf/bench.mjs <out.json> [base=http://127.0.0.1:4194] [scenarios=all] [qualities=high,low] [throttle=4] [frames=600]
 // Each scenario launches a fixed flight (same seed, same scripted weave, exactly `steps` simulation ticks per rendered
 // frame; src/main.ts `bench`), so every run does identical simulation and render work whatever the machine's speed. It
 // records per-frame JS work (simulation + render() + UI), long tasks, a CDP CPU profile (self time by function, GC) under
@@ -9,7 +9,7 @@
 // function, a load-independent count. Headless Chromium draws with SwiftShader: GPU time is not measured.
 // Scenarios (docs/36-mobile-performance.md): each world in flight, a strike site's destruction, Vesper's lasers, a dense
 // wave, a boss's phase changes, rapid scrolling (three ticks a frame) and an endless planet jump (departure, warp, switch).
-import { launchGameBrowser } from './browser.mjs';
+import { launchGameBrowser } from '../lib/browser.mjs';
 import { writeFileSync } from 'node:fs';
 
 const [out = 'perf.json', base = 'http://127.0.0.1:4194', which = 'all', qualityArg = 'high,low', throttleArg = '4', framesArg = '600'] = process.argv.slice(2);

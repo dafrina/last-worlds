@@ -1,6 +1,6 @@
 // Renders the listening previews offline through the game's own mixer, in headless Chromium.
 // A Vite dev server must be running: AUDIO_PREVIEW_URL (default http://127.0.0.1:4173) serves the audio lab fixture.
-//   node tools/audio-preview.mjs [output directory] [planet ...]
+//   node tools/audio/music-preview.mjs [output directory] [planet ...]
 // AUDIO_PREVIEW_BEFORE names a folder rendered the same way from older code (default: a before/ folder beside or inside
 // the output); the Sound room then offers both builds. AUDIO_PREVIEW_BUILDS ("Label=folder,Label=folder", folders beside
 // the output, the output among them) instead writes the room one level up, offering every listed build.

@@ -1,9 +1,9 @@
 // Contact sheets and crops for look-dev reviews (no image library in the toolchain: Chromium lays the images out).
 // Usage:
-//   node tools/contact-sheet.mjs sheet <out.png> <columns> <title> <label=path>...   a labelled grid of images
-//   node tools/contact-sheet.mjs crop <in.png> <out.png> <x> <y> <width> <height> [zoom=2]   a region, enlarged (pixelated)
+//   node tools/lookdev/contact-sheet.mjs sheet <out.png> <columns> <title> <label=path>...   a labelled grid of images
+//   node tools/lookdev/contact-sheet.mjs crop <in.png> <out.png> <x> <y> <width> <height> [zoom=2]   a region, enlarged (pixelated)
 import { readFileSync } from 'node:fs';
-import { launchGameBrowser } from './browser.mjs';
+import { launchGameBrowser } from '../lib/browser.mjs';
 
 const [mode, ...args] = process.argv.slice(2);
 const dataUrl = path => `data:image/png;base64,${readFileSync(path).toString('base64')}`;

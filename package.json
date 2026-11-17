@@ -13,7 +13,9 @@
     "test:browser": "playwright test",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "record": "node tools/record-run.mjs"
+    "dev:isolated": "vite --config tools/dev/vite.isolated.config.ts --host 127.0.0.1",
+    "test:browser:isolated": "playwright test --config tools/dev/pw.isolated.config.ts",
+    "record": "node tools/sim/record-run.mjs"
   },
   "dependencies": {
     "three": "0.186.1"

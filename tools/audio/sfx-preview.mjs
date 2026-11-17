@@ -1,6 +1,6 @@
 // Renders the sound-effect previews offline through the game's own mixer, in headless Chromium: each changed event
 // alone and over a world's music, for an A/B comparison.
-//   SFX_BUILD=before|after node tools/sfx-preview.mjs <output root>
+//   SFX_BUILD=before|after node tools/audio/sfx-preview.mjs <output root>
 // AUDIO_PREVIEW_URL names the dev server (default http://127.0.0.1:4173). The room (index.html) is written to the output
 // root and offers every build found there.
 import { chromium } from '@playwright/test';
