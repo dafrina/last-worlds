@@ -28,8 +28,8 @@ import { SPECIALS } from '../content/equipment';
 import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupBumpTextures, createPickupIconTextures, pickupIcon, type PickupIcon } from './pickup-icons';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createVoidEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
-import { arkPlacement, createArkView, loadArkModel } from './ark-view';
-import { HELION_ARK } from '../content/ark';
+import { createStrongholdView, loadStrongholdModel } from './stronghold-view';
+import { STRONGHOLD_AT } from '../world/terrain-vesper';
 import { createFoam, createWater, type FoamRing } from './water';
 import { createCoronaArcs } from './corona-arcs';
 import { createCoronaHaze } from './corona-haze';
@@ -244,8 +244,6 @@ const HERO_ENTRANCE = 1.6, HERO_ENTRANCE_LIFT = 7;
  * the cliff faces "z-flashing", on the phone only). At 20 the precision at the ground is about 20 times finer.
  */
 const CAMERA_NEAR = 20;
-/** How much further out the Helion Ark's glide-in is drawn at its start (render only; see its placement). */
-const ARK_GLIDE = 8;
 /** How long the Orbital Strike's dark band lingers once its sweep is done (seconds; render only). */
 const PALL_FADE = .8;
 
@@ -701,7 +699,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     sharedMaterial.envMap = sky; sharedMaterial.needsUpdate = true;
     terrainMaterials.setEnvironment(sky); water.setEnvironment(sky); water.setPlanet(next); mireWater.setEnvironment(sky);
     terrainMaterials.setLook(next); (sharedMaterial.userData.setPlanet as ((planet: PlanetId) => void) | undefined)?.(next);
-    if (next === 'vesper') { ensureCraft(next); ensureArk(); } else foam.clear();
+    if (next === 'vesper') { ensureCraft(next); ensureStronghold(); } else foam.clear();
     // (Amnion flies Nacre's organic craft as a stand-in until its own faction exists; THE CRADLE has its own model: docs/27.)
     if (next === 'nacre') { ensureNacreCraft(); ensureVeil(); void mireWater.prepare(); }
     if (next === 'amnion') { ensureNacreCraft(); ensurePredator(next); ensureCradle(); }
@@ -1177,8 +1175,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color(1, 1, 1)); mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 9; scene.add(mesh);
   }
-  // The Helion Ark (docs/17 §5) rides on the sea; its model loads on first use, Bastion-9 stays untouched.
-  const ark = createArkView(scene);
+  // HELION STRONGHOLD (docs/17 §5), Vesper's boss, stands in the cliff at the head of its arena; its model loads with Vesper.
+  const stronghold = createStrongholdView(scene);
   const warden = createWardenView(scene);
   const veil = createCarrierView(scene);
   const cradle = createCarrierView(scene, CRADLE_STYLE);
@@ -1191,8 +1189,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   let shakeTrauma = 0, shakeTime = -1, shakeHit = -Infinity, shakeLives = 0, shakeEffect = -1;
   // The Orbital Strike's pall: where its front got to, which way, and when the band has faded (render only).
   let pallState: { origin: number; radius: number; until: number } | null = null, orbitalJolted = -1;
-  // THE CITADEL's standing state: the arena (by its start) whose temple has fallen, and the run clock last seen.
-  let citadelFallen: number | null = null, citadelSeen = -Infinity;
+  // THE CITADEL's and HELION STRONGHOLD's standing states: the arena (by its start) whose boss has fallen, and the run clock last seen.
+  let citadelFallen: number | null = null, citadelSeen = -Infinity, strongholdFallen: number | null = null, strongholdSeen = -Infinity;
   const HOVERING_BOSSES = [
     { view: veil, id: 'veil', ground: undefined, style: VEIL_STYLE },
     { view: cradle, id: 'cradle', ground: AMNION_PLATEAU + CRADLE_STYLE.hover, style: CRADLE_STYLE },
@@ -1203,7 +1201,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   ] as const;
   /**
    * A boss's production model, loaded once (docs/38 R3): applied unless the renderer is gone, then the next frame warms
-   * again; on failure the code-built stand-in (the Ark: its functional carrier) keeps rendering.
+   * again; on failure the code-built stand-in keeps rendering (HELION STRONGHOLD has none: only its targets are drawn).
    */
   const lazyAsset = <T,>(load: () => Promise<T>, apply: (model: T) => void, unavailable: string) => {
     let once: Promise<void> | undefined;
@@ -1217,10 +1215,10 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const ensureEclipse = lazyAsset(() => loadCarrierModel(bossAsset('eclipse')), model => eclipse.setModel(model), 'THE ECLIPSE model unavailable; using the code-built stand-in.');
   const ensureHeliophage = lazyAsset(() => loadCarrierModel(bossAsset('heliophage')), model => heliophage.setModel(model), 'THE HELIOPHAGE model unavailable; using the code-built stand-in.');
   const ensureCitadel = lazyAsset(() => loadCarrierModel(bossAsset('citadel')), model => citadel.setModel(model), 'THE CITADEL model unavailable; using the code-built stand-in.');
-  const ensureArk = lazyAsset(() => loadArkModel(bossAsset('ark')), model => ark.setModel(model), 'Helion Ark model unavailable; using the functional carrier.');
+  const ensureStronghold = lazyAsset(() => loadStrongholdModel(bossAsset('ark')), model => stronghold.setModel(model), 'HELION STRONGHOLD model unavailable; only its targets are drawn.');
   /*
    * Endless planet cycle (docs/18 §4): the next planet's render assets load during the boss sector, never mid-jump,
-   * and stay cached. Khepri's load at start; Vesper's are its craft, the Helion Ark and its prefiltered sky.
+   * and stay cached. Khepri's load at start; Vesper's are its craft, HELION STRONGHOLD and its prefiltered sky.
    */
   const prepared = new Set<PlanetId>();
   const preloads = new Map<PlanetId, Promise<void>>();
@@ -1230,7 +1228,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     const facilityLoad = facilities.prepare(next);
     if (preloads.has(next) && facilityPrefetches.get(next) === facilityLoad) return preloads.get(next)!;
     facilityPrefetches.set(next, facilityLoad);
-    const bossLoad = next === 'vesper' ? ensureArk() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'nahara' ? ensureCitadel() : next === 'corona' ? ensureHeliophage() : next === 'luna' ? ensureWarden() : bastionLoad;
+    const bossLoad = next === 'vesper' ? ensureStronghold() : next === 'nacre' ? ensureVeil() : next === 'amnion' ? ensureCradle() : next === 'umbra' ? ensureEclipse() : next === 'nahara' ? ensureCitadel() : next === 'corona' ? ensureHeliophage() : next === 'luna' ? ensureWarden() : bastionLoad;
     if (next === 'vesper' && !skies.has('ice')) { skyOf('ice'); warmed = false; }
     const loading = Promise.all([terrainLoad, infraLoad, districtLoad, sharedLoad, texturesLoad, heroLoad, khepriLoad, lootLoad,
       terrain.prepare(next), facilityLoad, sites.prepare(next), bossLoad, ensureCraft(next), ensurePredator(next), next === 'nacre' || next === 'amnion' ? ensureNacreCraft() : next === 'umbra' ? ensureUmbraCraft() : next === 'corona' ? ensureCoronaCraft() : next === 'nahara' ? ensureNaharaCraft() : undefined,
@@ -1621,7 +1619,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     },
     isReady: planetReady,
     setQuality(next) {
-      if(disposed)return;quality=next;terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);motes.setQuality(next);sand.setQuality(next);
+      if(disposed)return;quality=next;stronghold.setQuality(next);terrain.setQuality(next);terrainMaterials.setNormalMaps(next==='high');fx.setQuality(next);motes.setQuality(next);sand.setQuality(next);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,next==='high'?1.5:1)); resizePost();
       // Shadow maps are a High-tier feature; toggling them recompiles the affected programs once.
       renderer.shadowMap.enabled = sunlight.castShadow = next === 'high';
@@ -1669,7 +1667,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (plan.jump && state.time - state.sectorStartedAt > 8) preload(plan.jump.to);
       }
       const terrainUpdate = performance.now() - terrainStart;
-      // Boss routing: the Helion Ark rides the sea, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
+      // Boss routing: HELION STRONGHOLD stands in Vesper's cliff, WARDEN-1 lands on Luna, THE VEIL hovers over the mire; Bastion-9
       // otherwise. A wreck stays anchored to the ground and falls behind with it, through a warp too.
       const boss = state.boss;
       const isArk = boss?.id === 'ark', isWarden = boss?.id === 'warden', isVeil = boss?.id === 'veil', isCradle = boss?.id === 'cradle', isEclipse = boss?.id === 'eclipse', isHeliophage = boss?.id === 'heliophage', isCitadel = boss?.id === 'citadel';
@@ -1712,20 +1710,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // While the fortress is present, scenery under its hull is hidden (render-only; ground and roads stay).
         terrain.setExclusion(bastion.footprint(state, bossPlacement));
       } else bastion.update(state, null); // Clear the previous fortress and its FX on every boss/world switch.
-      // Waterline on the sea; targets (local height 1.6) project onto their logical rows (rayPlacement under a lens).
-      const sea = world.planet.seaLevel ?? 0;
-      let arkSeat: { x?: number; s: number; baseHeight: number } | null = null;
-      if (isArk && boss) {
-        ensureArk();
-        // Its glide-in is drawn from ARK_GLIDE further out, closing to the simulated row as the arrival ends (render only:
-        // nothing on it is a target or attacks before then). The simulation's entry row puts its bow just inside the top
-        // of the view at sea level, where it faded in out of the fog (user, 31 October: bosses "pop in").
-        const glide = boss.phase === 'arrival' ? ARK_GLIDE * Math.max(0, 1 - (state.time - boss.startedAt) / HELION_ARK.arrivalDuration) : 0;
-        arkSeat = perspective ? rayPlacement(camera, state.config.seed, state.distance, boss.x, boss.s + glide, HELION_ARK.targetHeight, sea, world)
-          : arkPlacement(boss.s + glide, sea);
-      }
-      ark.update(state, arkSeat);
-      if (isArk) terrain.setExclusion(ark.footprint(state, arkSeat));
+      // HELION STRONGHOLD stands in the cliff at the head of Vesper's arena before and after its fight (intact, then a wreck),
+      // its foot at the sea and its seat fixed in the arena (src/world/terrain-vesper.ts STRONGHOLD_AT; it never moves).
+      const sea = world.planet.seaLevel ?? 0, vesperArena = world.planet.id === 'vesper' ? world.arena : undefined;
+      if (state.time < strongholdSeen) strongholdFallen = null;
+      strongholdSeen = state.time;
+      if (isArk && boss?.phase === 'destroyed' && vesperArena) strongholdFallen = vesperArena.fromS;
+      const strongholdSeat = vesperArena ? { x: 0, s: vesperArena.fromS + STRONGHOLD_AT - state.distance, baseHeight: sea } : null;
+      const strongholdStanding = !boss && vesperArena ? strongholdFallen === vesperArena.fromS ? 'wrecked' as const : 'intact' as const : null;
+      if (isArk) ensureStronghold();
+      stronghold.update(state, strongholdSeat, strongholdStanding);
+      if (isArk || strongholdStanding) terrain.setExclusion(stronghold.footprint(state, strongholdSeat));
       // Haulers and beacons run on simulation time (frozen while paused); presentation only.
       const animateStart = performance.now();
       terrain.animate(state.time); terrainMaterials.setTime(state.time);
@@ -2261,7 +2256,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         // boss's row) down past the bottom of the view, never up past its source (user, 23 October: lasers "extend way
         // beyond the enemies past them to the top of the screen").
         const source = beamSource(state, hazard);
-        const top = Math.min(VIEW.maxS, source ? source.s : state.boss ? state.boss.s : VIEW.maxS);
+        const top = Math.min(VIEW.maxS, source ? stronghold.beamTop(state, source) ?? source.s : state.boss ? state.boss.s : VIEW.maxS);
         if (hazard.warning > 0) beamPreview(hazard.x, top, hazard.width, 1 - Math.min(1, hazard.warning / 1.4));
         else if (hazard.active > 0) beamLive(hazard.x, top, hazard.width);
       }
@@ -2307,9 +2302,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       } : { splash: () => null, vents: [], ground }, id => launches.get(id), heroGlow);
       // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
       water.update(state.time, state.distance); mireWater.update(state.time, state.distance);
-      const arkFoam = ark.foam;
-      // Floes carry their own coastline foam (terrain-view.ts); the oval rings are for round pontoons and the Ark.
-      // The Ark's rings join the pontoons' in this frame's scratch list (foam.update reads it at once).
+      const arkFoam = stronghold.foam;
+      // Floes carry their own coastline foam (terrain-view.ts); the oval rings are for round pontoons and the stronghold's foot.
+      // The stronghold's rings join the pontoons' in this frame's scratch list (foam.update reads it at once).
       for (const ring of arkFoam.rings) pontoonRings.push(ring);
       foam.update(state.time, pontoonRings, arkFoam.wakes);
       jumpActive = jumpFx.update(state, reducedMotion(), planetReady(state.jump?.to ?? state.planet ?? planet), quality === 'high');
@@ -2385,7 +2380,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (qaStats && (state.tick - lastStatsTick >= 60 || state.tick < lastStatsTick)) {
         // Read-only browser QA evidence; never a gameplay HUD or a simulation input.
         canvas.dataset.renderStats = JSON.stringify({
-          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: ark.stats, warden: warden.stats, veil: veil.stats, cradle: cradle.stats, eclipse: eclipse.stats, planet, jump: jumpActive,
+          sections: 3, terrain: terrain.stats, stream: terrain.streamStats, bastion: bastion.stats, ark: stronghold.stats, warden: warden.stats, veil: veil.stats, cradle: cradle.stats, eclipse: eclipse.stats, planet, jump: jumpActive,
           terrainWorkMs: { last: +terrainWork.last.toFixed(2), max: +terrainWork.max.toFixed(2), over4: terrainWork.over4, frames: terrainWork.frames,
             renderMax: +terrainWork.renderMax.toFixed(2), updateMax: +terrainWork.updateMax.toFixed(2),
             animateMax: +terrainWork.animateMax.toFixed(2), prefetchMax: +terrainWork.prefetchMax.toFixed(2) },

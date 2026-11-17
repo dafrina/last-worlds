@@ -25,6 +25,14 @@ const SEA = VESPER_SEA_LEVEL;
  * original plane at 3.0, so shelf emplacements, cranes and masts fit on 0.6–2.0 shelves.
  */
 export const VESPER_SCENERY_MAX = 3.0;
+/**
+ * HELION STRONGHOLD's seat past its arena's start (docs/17 §5): the model's origin (its foot at the sea, the fortress's
+ * axis at x 0) stands this far past `fromS`, where the release lens sees the reactor's aim point on its combat target at the
+ * stop (the stop is 9 past `fromS`; tools/blender/boss_stronghold.py reports it, tests/world/stronghold-projection.test.ts
+ * checks it against the model). The renderer seats it here before, during and after its fight; the arena's cliff is shaped
+ * round it (strongholdMassif).
+ */
+export const STRONGHOLD_AT = 25.517;
 
 /* ---------------------------------------------------------------- moods */
 
