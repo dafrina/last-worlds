@@ -399,7 +399,7 @@ export const UMBRA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: Um
   skimmer: { node: 'umbra_interceptor', scale: 0.85 }, relic: { node: 'umbra_carrier', scale: 1.1 },
 };
 export const UMBRA_DRONE_SCALE = 1.45;
-/** Corona's fleet (docs/37, tools/blender/corona_craft.py): the same roles as Umbra's, the Wraith its own crescent ship. */
+/** Corona's fleet (docs/37, tools/blender/corona_fleet.py): the same roles as Umbra's, the Wraith its own crescent ship. */
 export const CORONA_CRAFT: Readonly<Record<Exclude<EnemyKind, 'fuel'>, { node: CoronaCraftNode; scale: number }>> = {
   dart: { node: 'corona_interceptor', scale: 1 }, needle: { node: 'corona_interceptor', scale: 0.9 }, weaver: { node: 'corona_fighter', scale: 0.95 },
   lancer: { node: 'corona_hunter', scale: 1.05 }, diamond: { node: 'corona_carrier', scale: 1 }, pulsar: { node: 'corona_artillery', scale: 1 },

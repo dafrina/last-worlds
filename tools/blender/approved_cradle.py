@@ -2,7 +2,7 @@
 detailed. start fresh. theres an inner core with the egg on flesheggs surrounded by 5-6 shields, then theres the wings
 with 4-5 outer shields that kinda extend below to look like floating rocks. forget the turret nodes".
 
-Adapted like the approved bosses (tools/blender/approved_bosses.py): the supplied mesh, UVs, normals and painted atlases
+Adapted like the first approved bosses (20 October; their face-copy helpers are tools/blender/lib_tripo.py): the supplied mesh, UVs, normals and painted atlases
 are kept; nothing is regenerated. Run through Blender MCP (UNC workspace path):
 
     import sys, importlib
@@ -19,14 +19,14 @@ shape, in the reference placement (boss_remodel.PLACEMENT: source x 17, offset (
 - cradle_pod_left/right (+ _wreck): the red flesh bulges at the front flanks, the brood sacs (no turrets);
 - cradle_hull: everything else, with faceted rock hanging under the five outer shields (on the wings and at the back),
   so the wings read as floating rock;
-- cradle_flight_pod: the hatchling drone (remodel_cradle.drone).
+- cradle_flight_pod: the hatchling drone (drone below).
 Exported at 70% of the reference placement (user: "the model seems pretty big no?"): src/content/cradle.ts holds the
 matching combat values.
 """
 import bpy, bmesh, os, math, json, random
 import numpy as np
 from mathutils import Vector, Matrix
-import approved_bosses as ab
+import lib_tripo as tripo
 import boss_remodel as br
 
 SRC = os.path.join(br.ROOT, 'art', 'source', 'approved-bosses', 'cradle-tripo-original.glb')
@@ -225,6 +225,40 @@ def rocks(sc, mat, fc, fuv, rgb, cls):
     return ob
 
 
+# The hatchling drone the boss launches (cradle_flight_pod), from the clean rebuild of 23 October (remodel_cradle.py,
+# moved here on 17 November when the rest of that rebuild was removed). Its lofts come from the Veil's builder.
+DRONE_PALETTE = dict(
+    bone=('#bc9a74', .42, .04, None), plate=('#ab926e', .6, .04, None), seam=('#3a160c', .5, .04, None),
+    flesh=('#6e140f', .32, .08, None), dark=('#2e0806', .5, .04, None), glow=('#3a1a04', .4, .1, '#ffb32a'),
+    crust=('#4a1a12', .85, .02, None), rock=('#5a1812', .75, .03, None), rockdark=('#2c0907', .8, .02, None),
+    track=('#9a8a74', .65, .05, None),
+    slab=('#6a3a1c', .42, .05, None), slabdark=('#3a1a0c', .55, .04, None), amber=('#8a4a14', .3, .06, '#4a1e04'),
+    old=('#7e5c3e', .6, .03, None), web=('#9a6a52', .5, .05, None), tear=('#3e0b07', .4, .06, None),
+)
+
+
+def drone_materials():
+    return {key: br.material('cradle_' + key, c, r, m, e, 2.4 if e else 0) for key, (c, r, m, e) in DRONE_PALETTE.items()}
+
+
+def drone(h, c=(0, 0, 0), k=1.0):
+    """A hatchling drone: a wasp-like carapace of bone over a glowing abdomen, two scythe wings."""
+    from remodel_veil import egg, loft
+    x, y, z = c
+    egg(h, (x, y + .15 * k, z), [(-.12 * k, 0), (-.08 * k, .2 * k), (.06 * k, .24 * k), (.14 * k, 0)], 8, 'glow', sy=1.6)
+    egg(h, (x, y - .25 * k, z + .04 * k), [(-.1 * k, 0), (-.05 * k, .17 * k), (.08 * k, .19 * k), (.15 * k, 0)], 8, 'plate', sy=1.3)
+    for s in (-1, 1):
+        loft(h, [[(x + s * .12 * k, y - .2 * k, z + .05 * k), (x + s * .12 * k, y + .1 * k, z + .05 * k), (x + s * .12 * k, y + .1 * k, z + .09 * k), (x + s * .12 * k, y - .2 * k, z + .09 * k)],
+                 [(x + s * .62 * k, y + .2 * k, z + .14 * k), (x + s * .62 * k, y + .32 * k, z + .14 * k), (x + s * .62 * k, y + .32 * k, z + .16 * k), (x + s * .62 * k, y + .2 * k, z + .16 * k)]],
+             'bone', ('bone', 'bone'))
+
+
+def flight_pod(mats, sc):
+    """The launched drone, on its own origin (instanced by the view at flight height)."""
+    from remodel_veil import solid
+    return solid(lambda h: drone(h), 'cradle_flight_pod', mats, sc, bevel=0)
+
+
 BUDGET = 80000   # user, 24 October: "lets raise the max to the veils 80k" (the v2 export was 111k)
 
 
@@ -244,7 +278,7 @@ def build(ratio=.037, part_ratio=.15, label=LABEL):
     objects = []
 
     def part(name, mask, pivot=(0, 0, 0), r=part_ratio):
-        o = ab.extract(src, np.where(mask)[0].tolist(), name, scale, offset, pivot, r)
+        o = tripo.extract(src, np.where(mask)[0].tolist(), name, scale, offset, pivot, r)
         o.data.materials.clear(); o.data.materials.append(mat); objects.append(o)
         return o
 
@@ -254,10 +288,10 @@ def build(ratio=.037, part_ratio=.15, label=LABEL):
     rock.select_set(True); hull.select_set(True); bpy.context.view_layer.objects.active = hull; bpy.ops.object.join()
     egg_c = Vector(EGG['c']) * SCALE
     heart = part('cradle_heart', cls == 99, tuple(egg_c), .3)
-    objects.append(ab.wreck_copy(heart))
+    objects.append(tripo.wreck_copy(heart))
     for side, k in (('left', 100), ('right', 101)):
         sac = part('cradle_pod_' + side, cls == k, tuple(Vector(SACS[side]) * SCALE))
-        objects.append(ab.wreck_copy(sac))
+        objects.append(tripo.wreck_copy(sac))
     for k, sh in enumerate(SHIELDS):
         mask = cls == k
         pts = co[fv[mask].ravel()]
@@ -267,8 +301,7 @@ def build(ratio=.037, part_ratio=.15, label=LABEL):
         out = Vector((low[0] - NEST[0], low[1] - NEST[1], 0)).normalized()
         phi = math.atan2(out.x, -out.y)   # local -y outward: the view's +x swing tips the top outward
         o.data.transform(Matrix.Rotation(-phi, 4, 'Z')); o.rotation_euler = (0, 0, phi)
-    import remodel_cradle as rc
-    pod = rc.flight_pod(rc.materials(), sc)
+    pod = flight_pod(drone_materials(), sc)
     objects.append(pod)
     total = 0
     for o in objects:
@@ -276,7 +309,7 @@ def build(ratio=.037, part_ratio=.15, label=LABEL):
             o.data.calc_loop_triangles(); total += len(o.data.loop_triangles)
     if total > BUDGET:
         raise RuntimeError('THE CRADLE over its %d-triangle budget: %d' % (BUDGET, total))
-    tag = ab.marker('cradle_approved_v2'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = ratio; objects.append(tag)
+    tag = tripo.marker('cradle_approved_v2'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = ratio; objects.append(tag)
     path = os.path.join(br.ROOT, 'public', 'assets', 'amnion', 'the-cradle-%s.glb' % label)
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:

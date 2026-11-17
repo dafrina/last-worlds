@@ -16,7 +16,7 @@ The source is one solid piece plus the two diamond pod sketches in front (droppe
 units x 10 below), on the rig contract of src/render/ark-view.ts:
 - ark_bridge_shutter_a/b: the central tower's pointed front armour, split down the middle; the view slides the halves
   apart along -x/+x by 1.0 to open the bridge;
-- ark_bridge: the Blender-built bridge lens (helion_ark.build_bridge), inside the armour, revealed when it opens;
+- ark_bridge: the Blender-built bridge lens (build_bridge below), inside the armour, revealed when it opens;
 - ark_radiator_left/right (+ _wreck): the two side deck superstructures, the flank targets;
 - ark_turret_left/right: the deck turrets on them, which the view swings to aim;
 - ark_hull: everything else; markers for the bays and the wake.
@@ -27,7 +27,7 @@ x +-2.98, s 2.97, which the content follows.
 import bpy, os, math, json, random
 import numpy as np
 from mathutils import Vector, Matrix
-import approved_bosses as ab
+import lib_tripo as tripo
 import boss_remodel as br
 
 SRC = os.path.join(br.ROOT, 'art', 'source', 'approved-bosses', 'ark-tripo-original.glb')
@@ -35,6 +35,44 @@ SCALE, OFFSET = 9.5, Vector((0, .79, -.9))
 LABEL = 'v6-approved'
 BUDGET = 80000
 LENS = (0.0, .82, 2.71)   # game coordinates: inside the closed armour, on the camera ray through the bridge socket
+
+# The bridge lens behind the armour: built in Blender, as for the first Ark (helion_ark.py, 15 October; moved here on
+# 17 November when that model's builder was removed). Built at the first Ark's size about BRIDGE_SOCKET, then scaled to LENS.
+BRIDGE_SOCKET = (0.0, 1.6, -1.6)
+ARMOR, TRIM, GLOW = 0, 1, 2
+BRIDGE_PROFILE = [(1.15, 1.44), (1.15, 1.5), (1.4, 1.88), (2.05, 1.92), (2.1, 1.44)]
+SLOPE = (1.15, 1.5, 1.4, 1.88)
+
+
+def slope_frame():
+    y0, z0, y1, z1 = SLOPE
+    d = Vector((0.0, y1 - y0, z1 - z0)).normalized()
+    n = Vector((0.0, -(z1 - z0), y1 - y0)).normalized()
+    mid = Vector((0.0, (y0 + y1) * 0.5, (z0 + z1) * 0.5))
+    theta = math.atan2(-n.y, n.z)
+    return mid, d, n, theta
+
+
+def build_bridge(rng):
+    from vesper_common import HS, loft, merge_hs, xform
+    hs = HS(rng)
+    body = HS(rng)                                         # loft about its own centre (loft orients faces from y = 0)
+    loft(body, [(-0.95, 1.0, 1.0, 0.0), (0.95, 1.0, 1.0, 0.0)], [(y - 1.6, z - 1.68) for y, z in BRIDGE_PROFILE],
+         "ceramic_grey", cap_paint="ceramic_grey", cap_tag="main", mat=ARMOR)
+    merge_hs(hs, body, xform((0.0, 1.6, 1.68)))
+    mid, d, n, theta = slope_frame()
+    # Glowing window band across the sloped front and the bridge core lens in the middle.
+    win = HS(rng)
+    win.box((0.0, 0.0, 0.0), (1.7, 0.12, 0.012), 0.0, "lamp", GLOW, bottom=True)
+    merge_hs(hs, win, xform(tuple(mid + d * 0.13 + n * 0.004), (theta, 0.0, 0.0)))
+    ring = HS(rng)
+    ring.cyl((0.0, 0.0, 0.0), (0, 0, 1), 0.27, 0.04, 16, 0.01, "ceramic_dk", ARMOR, cap0=False, cap1=False)
+    ring.cyl((0.0, 0.0, 0.0), (0, 0, 1), 0.21, 0.035, 16, 0.0, "lamp", GLOW, cap0=False, smooth=False)
+    merge_hs(hs, ring, xform(tuple(mid - d * 0.05 + n * 0.005), (theta, 0.0, 0.0)))
+    for sx in (-1, 1):
+        hs.box((sx * 0.97, 1.6, 1.68), (0.06, 0.95, 0.42), 0.015, "pale", TRIM)
+        hs.box((sx * 0.6, 1.85, 1.94), (0.4, 0.3, 0.05), 0.015, "ceramic_dk", ARMOR)
+    return hs
 
 
 def source():
@@ -69,7 +107,7 @@ def classify(ob):
 
 
 def material(ob, size=2048, normal_size=1024):
-    """The atlases at working size, roughness kept legible, the painted orange glows emitting (approved_bosses rule)."""
+    """The atlases at working size, roughness kept legible, the painted orange glows emitting (the rule of the first adaptations, 20 October)."""
     key = 'approved_ark6_surface_%d_m55' % size
     if key in bpy.data.materials:
         return bpy.data.materials[key]
@@ -436,7 +474,7 @@ def build_clean(label=LABEL, hull_ratio=.025, part_ratio=.09, atlas=2048):   # h
     objects, meshes, stats = [], [], {}
 
     def part(name, mask, pivot=(0, 0, 0), r=part_ratio):
-        o = ab.extract(src, np.where(mask)[0].tolist(), name, SCALE, OFFSET, pivot, r)
+        o = tripo.extract(src, np.where(mask)[0].tolist(), name, SCALE, OFFSET, pivot, r)
         if 'custom_normal' in o.data.attributes:
             o.data.attributes.remove(o.data.attributes['custom_normal'])
         o.data.uv_layers[0].name = 'src'
@@ -458,21 +496,21 @@ def build_clean(label=LABEL, hull_ratio=.025, part_ratio=.09, atlas=2048):   # h
         part('ark_turret_' + side, t, pivot, .2)
     clean_bake(meshes, mat, size=atlas)
     for o in rads:
-        objects.append(ab.wreck_copy(o))
-    import helion_ark as old, vesper_common as vc
-    h = old.build_bridge(random.Random('approved-bridge'))
+        objects.append(tripo.wreck_copy(o))
+    import vesper_common as vc
+    h = build_bridge(random.Random('approved-bridge'))
     for v in h.verts:
         v[0] *= .45; v[1] = LENS[1] + (v[1] - 1.6) * .45; v[2] = LENS[2] + (v[2] - 1.6) * .45
     mats = [vc.make_material('ark_interior', 'vc', rough=.45, metal=.5), vc.make_material('ark_interior_trim', 'vc', rough=.5, metal=.7), vc.make_material('ark_interior_glow', 'glow')]
     vc.triangulate_nonplanar(h); cols = vc.bake(h, 'ark_bridge', dict(glow={2}, ao=.45, ground=None))
-    objects.append(vc.make_object('ark_bridge', h, mats, old.SOCKETS['ark_bridge'], cols))
+    objects.append(vc.make_object('ark_bridge', h, mats, BRIDGE_SOCKET, cols))
     for side, sg in (('left', -1), ('right', 1)):
-        objects.append(ab.marker('ark_bay_' + side, (sg * .75, -2, 1)))
-    objects.append(ab.marker('ark_wake_anchor', (0, 4, 0)))
+        objects.append(tripo.marker('ark_bay_' + side, (sg * .75, -2, 1)))
+    objects.append(tripo.marker('ark_wake_anchor', (0, 4, 0)))
     total = tris(objects)
     if total > BUDGET:
         raise RuntimeError('HELION ARK over its %d-triangle budget: %d' % (BUDGET, total))
-    tag = ab.marker('ark_approved_v6'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = hull_ratio; tag['cleaned'] = True
+    tag = tripo.marker('ark_approved_v6'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = hull_ratio; tag['cleaned'] = True
     objects.append(tag)
     path = os.path.join(br.ROOT, 'public', 'assets', 'vesper', 'helion-ark-%s.glb' % label)
     bpy.ops.object.select_all(action='DESELECT')
@@ -509,7 +547,7 @@ def build(hull_ratio=.029, part_ratio=.09, label=LABEL):
     objects = []
 
     def part(name, mask, pivot=(0, 0, 0), r=part_ratio):
-        o = ab.extract(src, np.where(mask)[0].tolist(), name, SCALE, OFFSET, pivot, r)
+        o = tripo.extract(src, np.where(mask)[0].tolist(), name, SCALE, OFFSET, pivot, r)
         o.data.materials.clear(); o.data.materials.append(mat); objects.append(o)
         return o
 
@@ -520,25 +558,25 @@ def build(hull_ratio=.029, part_ratio=.09, label=LABEL):
     for side, sg in (('left', -1), ('right', 1)):
         m = (cls == 2) & (np.sign(fc[:, 0]) == sg)
         rad = part('ark_radiator_' + side, m, tuple(game[m].mean(0)))
-        objects.append(ab.wreck_copy(rad))
+        objects.append(tripo.wreck_copy(rad))
         t = (cls == 3) & (np.sign(fc[:, 0]) == sg)
         base = game[t]; pivot = (base[:, 0].mean(), base[:, 1].mean(), base[:, 2].min())
         part('ark_turret_' + side, t, pivot, .2)
     # The bridge lens (Blender-built, as in the v4 adaptation), inside the closed armour.
-    import helion_ark as old, vesper_common as vc
-    h = old.build_bridge(random.Random('approved-bridge'))
+    import vesper_common as vc
+    h = build_bridge(random.Random('approved-bridge'))
     for v in h.verts:
         v[0] *= .45; v[1] = LENS[1] + (v[1] - 1.6) * .45; v[2] = LENS[2] + (v[2] - 1.6) * .45
     mats = [vc.make_material('ark_interior', 'vc', rough=.45, metal=.5), vc.make_material('ark_interior_trim', 'vc', rough=.5, metal=.7), vc.make_material('ark_interior_glow', 'glow')]
     vc.triangulate_nonplanar(h); cols = vc.bake(h, 'ark_bridge', dict(glow={2}, ao=.45, ground=None))
-    objects.append(vc.make_object('ark_bridge', h, mats, old.SOCKETS['ark_bridge'], cols))
+    objects.append(vc.make_object('ark_bridge', h, mats, BRIDGE_SOCKET, cols))
     for side, sg in (('left', -1), ('right', 1)):
-        objects.append(ab.marker('ark_bay_' + side, (sg * .75, -2, 1)))
-    objects.append(ab.marker('ark_wake_anchor', (0, 4, 0)))
+        objects.append(tripo.marker('ark_bay_' + side, (sg * .75, -2, 1)))
+    objects.append(tripo.marker('ark_wake_anchor', (0, 4, 0)))
     total = tris(objects)
     if total > BUDGET:
         raise RuntimeError('HELION ARK over its %d-triangle budget: %d' % (BUDGET, total))
-    tag = ab.marker('ark_approved_v6'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = hull_ratio; objects.append(tag)
+    tag = tripo.marker('ark_approved_v6'); tag['source_file'] = os.path.basename(SRC); tag['reduction_ratio'] = hull_ratio; objects.append(tag)
     path = os.path.join(br.ROOT, 'public', 'assets', 'vesper', 'helion-ark-%s.glb' % label)
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:

@@ -84,7 +84,7 @@ export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 
   // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
   footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 8.5, back: 11 } };
 /**
- * THE CRADLE (tools/blender/remodel_cradle.py): six claws unfold 42° outward from over its core. Its floating island
+ * THE CRADLE (tools/blender/approved_cradle.py): six claws unfold 42° outward from over its core. Its floating island
  * rises out of the canyon and hovers 0.8 over the plateau (user, 23 October: "after rising it hovers slightly").
  */
 export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', shutterOpen: THREE.MathUtils.degToRad(42), spark: 0xffc860, hover: .8,
@@ -118,7 +118,7 @@ export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HEL
   fx: { spark: 0xffb850, hot: 0xfff2d6, flash: 0xffd9a0, steam: 0x5a4a40, ichor: [0xfff0d0, 0xffa030, 0xff5a1c], ring: 0xffa040 } };
 
 /**
- * THE CITADEL (tools/blender/approved_citadel.py, docs/39): Nahara's boss, a temple standing on the arena's plateau (no
+ * THE CITADEL (tools/blender/nahara_citadel.py, docs/39): Nahara's boss, a temple standing on the arena's plateau (no
  * hover), 16 units wide (x ±8), 8.2 toward the player and 3.9 away from its pivot at the crown, 4.2 tall. It never moves:
  * it stands dormant in its arena and awakens on arrival (AWAKEN).
  */

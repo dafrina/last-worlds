@@ -1,26 +1,26 @@
-"""Clean hard-surface remodels of the three bosses, traced over the user's supplied GLBs.
+"""Shared hard-surface toolkit: faceted solids, paints, AO and texture bakes, export and game-view renders.
 
-The supplied models (art/source/approved-bosses, Tripo sculpts of ~500k triangles with the
-detail painted into 4k atlases) are references only: proportions, masses and part layout.
-Nothing of their mesh is exported. Each boss is rebuilt from simple faceted solids with
-flat paints, baked AO vertex colours and emissive trim, at about 16k triangles, keeping the
-existing rig contract (node names, pivots, combat sockets) so the game drives it unchanged.
-
-Run through Blender MCP (UNC workspace path) or headless; see art/boss-remodel/README.md.
+Written for the clean boss remodels traced over the user's supplied GLBs (20 October: BASTION-9, THE VEIL, WARDEN-1; see
+art/boss-remodel/README.md), and since used by the boss adaptations, the facility, Corona and Nahara kits, the strike
+sites and the later fleets:
+- tracing a source GLB (art/source/approved-bosses) placed in game space: `reference`, `trace`, `height_map`, `ray_y`;
+  nothing of a source mesh is exported;
+- `Solids` (lofts, prisms, cylinders with one crisp chamfer, smooth shading split at 40 degrees) and `material`;
+- `bake_ao` (vertex AO) and `texture_bake` (one shared atlas: colour, roughness/metal and normal, after `STYLES`);
+- `export`, `marker`, and previews (`render_view`, `game_view`, `compare`) into the git-ignored lookdev/.
+Run through Blender MCP (UNC workspace path) or headless (remodel_run.py).
 """
 import bpy, os, math, json
 import numpy as np
 from mathutils import Vector, Matrix
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SOURCES = {'veil': 'futuristic-spacecraft-original.glb', 'bastion': 'futuristic-tank-original.glb', 'ark': 'futuristic-starship-original.glb',
-           'cradle': 'cradle-tripo-original.glb'}
+SOURCES = {'veil': 'futuristic-spacecraft-original.glb', 'bastion': 'futuristic-tank-original.glb', 'cradle': 'cradle-tripo-original.glb'}
 # Placement of each source in game space (Blender axes: x right, y = -glTF z, z up), as used by
 # the v4 adaptation the game was tuned against: game = source * scale + offset.
 # Bastion: 20% larger than v4 (user, 20 Oct). THE CRADLE: its Tripo reference (23 Oct), a first placement, tuned to the
 # combat sockets next.
-PLACEMENT = {'veil': (12.5, (0, .9, .15)), 'bastion': (9.6, (0, -.12, .03)), 'ark': (9.5, (0, .2, -.18)),
-             'cradle': (17.0, (0, 2.9, -1.6))}
+PLACEMENT = {'veil': (12.5, (0, .9, .15)), 'bastion': (9.6, (0, -.12, .03)), 'cradle': (17.0, (0, 2.9, -1.6))}
 LOOKDEV = os.path.join(ROOT, 'lookdev', 'boss-remodel')
 
 

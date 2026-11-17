@@ -5,7 +5,7 @@ import { OVERLOAD_FRACTION } from './boss-phases';
  * ribbed shell, the bone spires and the egg clutches are scenery. Pressure as THE VEIL's (Amnion starts at Nacre's
  * intensity): aimed spore bursts from the sacs, then the heart alternates a fixed fan with an aimed burst and sends
  * hatchling waves from its brood bays, then overload lanes and a spiral over its own hit columns.
- * Its own model since 24 October 2026 (public/assets/amnion/the-cradle-v1.glb, tools/blender/remodel_cradle.py): it rises
+ * Its own model since 24 October 2026 (public/assets/amnion/the-cradle-v2-approved.glb, tools/blender/approved_cradle.py): it rises
  * out of a flesh canyon, hovers, opens its heart's shutters and launches hatchlings from bays in its base.
  */
 export const CRADLE = {
@@ -48,7 +48,7 @@ export const CRADLE = {
    * Front brood bays (relative to the pivot), and its hatchling waves: during the heart phase, plus more in overload.
    * At x +-1.96, s -1.68 (24 October; was x +-1.7, s -2.6 on the old full-size model): the projections on the target
    * plane of the model's bay mouths, in the base's front corners where the front shutter plates do not hide them from
-   * the game camera (tools/blender/remodel_cradle.py, BAY, at 70%).
+   * the game camera (measured on the first CRADLE build of 23 October, its BAY at 70%).
    */
   bays: [{ x: -1.96, s: -1.68 }, { x: 1.96, s: -1.68 }],
   launches: { waves: 3, firstAfter: 2, interval: 6.5, overloadWaves: 2 },
