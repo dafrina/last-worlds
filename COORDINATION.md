@@ -1151,3 +1151,10 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - `src/render/terrain-kit.ts` (Nahara's sand only);
   - `src/render/terrain-view.ts` and `src/world/terrain.ts` (the mask attribute);
   - the Nahara terrain tests.
+
+**17 November · Claude Code (Blender MCP in WSL session) · repository cleanup and naming pass** (user: delete unused models, tools and screenshots, since git history keeps them; clearer names; then a full docs rework).
+- **Phase 1, one agent:**
+  - deletions: unused models (including all of `art/archive/assets`), superseded or one-off tools and scripts, tracked screenshots;
+  - renames: `tools/` grouped by purpose; Blender scripts named by role; `art/` sources; misleading `src/` file and asset names; every reference updated.
+- **Phase 2, a second agent:** the docs rework.
+- **Owned until the merge notes:** effectively the whole repo (`tools/`, `art/`, `public/assets/`, `src/` renames, `tests/`, `docs/`, root docs). Other sessions: please don't commit until the cleanup merge note.
