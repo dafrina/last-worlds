@@ -1,5 +1,22 @@
 # Build status
 
+## Tap to start and the shipyard's steady part table deployed (`70540da`), 17 November 2026
+
+- **Tap to start:**
+  - once loaded, the boot splash stays as it is; LOADING becomes a blinking TAP TO START (static with reduced motion), and the loader keeps its space;
+  - the tap starts the menu theme (browsers allow audio only after a gesture) and opens the menu, closing on the click;
+  - automated browsers skip it unless `?tap`.
+- **Shipyard:** the offer row is always laid out (invisible and inert when idle), so the part table no longer jumps when BUY appears. `menu.spec` checks it.
+- **Gate on `70540da`:**
+  - typecheck clean; unit tests 1123 passed, 8 skipped; build passes;
+  - browser 57/59 (Playwright exit 1, 36 min; load from other sessions). Both new tap-to-start tests passed.
+  - **Rerun of bastion and endless-clearance alone:** 4/4, exit 0.
+- **Live:**
+  - Pages run 44115916078 succeeded; the live bundle `main-BCzQu_SW.js` matches the build; the smoke test reports no errors;
+  - the live `?tap` splash was captured: title at y 339, TAP TO START, and a tap opens the menu.
+  - No phone test.
+- **Housekeeping:** the local `lookdev/` folder (git-ignored) is wiped at the user's request; its dev-server configs live in `tools/dev/`.
+
 ## Repository cleanup deployed (`757d149`), 17 November 2026
 
 - **Phase 1:**
