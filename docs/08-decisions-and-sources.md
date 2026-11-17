@@ -461,6 +461,13 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **THE VEIL:** rebuilt from the old flying CRADLE, adapted from `cradle-tripo-original.glb`, and reskinned as an ancient Nacre relic. It keeps its own weak points, its pods and its rise from the mire. It does not inherit the CRADLE's brood launches.
 - **THE CRADLE:** a colossal walking brood hive on eight legs, from the spider reference. It walks with a procedural, deterministic gait. When it dies, its body collapses between buckling legs.
   - **Height** (user: "obviously it doesnt hover, but doesnt sit low either, its suspended over the ground via its legs"): the body is slung between its legs at a clear standing height.
+  - **Ground** (user, the same day):
+    - "it should not spawn in a canyon. dont flatten the terrain like crazy but not canyon"; then, about a dark basin, "I dont like it being in the basin";
+    - "make its body sit lower";
+    - a 0.55 shrink to fit on the plateau was rejected ("it looks shit like this");
+    - then: "Maybe another approach is to have a lower plateau than the normal terrain? i mainly disliked the dark canyon grounds".
+    - **Result:** the walker is at full size, crouched with its body low between arching knees, on a terrace of Amnion's own pale crust about 2.8 below the plateau, in the same look and light (docs/27). Approved: "cradle is good".
+- **THE VEIL approved:** "the veil looks great, the model suits it".
 - **Vesper's boss:** the flying HELION ARK becomes HELION STRONGHOLD, a fortress built into a snowy cliff. Its two cannons are the modules and the reactor bunker is the core. Vesper's boss arena becomes a cliff, built the way Nahara's CITADEL arena is. The same day the user redirected it: "the vesper boss should not be a rock/cliff/mountain next to water, it should go from snowy/icy terrain to high alpine mountains (as well as possible)"; the arena now leads from the sea over snowfields into mountains, the fortress in their face (docs/17 §4). Later that day: "Have the terrain around the mountains be just above sea level", "obviously dont make it plain", "the stronghold needs to be slightly bigger" and "the stronghold should move down a bit too ... currently its anchored to the top of screen": the arena's ground is now Vesper's own landform pressed down to just above the sea, the mountains keep to its sides and beyond the world's edges, the fortress is grown 1.15 with its cannons re-seated on their unchanged targets, and the boss's row is 9 (11.5 before; docs/17 §4, §5).
 - **The integrator's assumptions, confirmed by the user ("youre assumptions are all correct"):**
   - the Ark becomes `stationary`, as THE CITADEL is: a fortress cannot drift;
