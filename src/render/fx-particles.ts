@@ -178,6 +178,13 @@ export function createFx(scene: THREE.Scene) {
   const layers = [glow, smoke, ground, wreckGlow, wreckSmoke];
   const transform = new THREE.Object3D(), color = new THREE.Color(), mixing = new THREE.Color();
   let lastDistance = 0, anchoredEmission = false;
+  /**
+   * THE CRADLE's death (docs/43 §7): the moment is its body falling between its legs and striking the canyon floor, so its
+   * explosions (the simulation's, unchanged in number and timing) burn smaller and fainter over it, and their smoke thin.
+   * Every other boss's death is drawn as before.
+   */
+  let quieted: { size: number; glow: number; smoke: number } | null = null;
+  const CRADLE_DEATH = { size: .55, glow: .55, smoke: .3 } as const;
   /** Strike sites destroyed since the last update (site-view.ts), and the kill explosions their sequences replace. */
   const pendingSites: SiteBlast[] = [], replaced = new Set<number>();
   /** Ground batteries' rounds as drawn (src/render/shot-launch.ts), from the renderer. */
@@ -191,6 +198,7 @@ export function createFx(scene: THREE.Scene) {
     const q = target.pool[target.live++];
     q.x = p.x; q.y = p.y; q.z = p.z; q.vx = p.vx ?? 0; q.vy = p.vy ?? 0; q.vz = p.vz ?? 0; q.age = -(p.delay ?? 0); q.life = p.life;
     q.size = p.size; q.grow = p.grow ?? 0; q.stretch = p.stretch ?? 1; q.alpha = p.alpha ?? 1; q.shape = p.shape ?? ROUND;
+    if (quieted) { q.size *= quieted.size; q.grow *= quieted.size; q.alpha *= into === smoke ? quieted.smoke : quieted.glow; }
     q.flat = p.flat ?? false; q.drag = p.drag ?? 0; q.fall = p.fall ?? 0; q.r = p.r ?? 1; q.g = p.g ?? 1; q.b = p.b ?? 1; q.drift = anchoredEmission ? 1 : p.drift ?? 0;
     q.r2 = p.r2 ?? q.r; q.g2 = p.g2 ?? q.g; q.b2 = p.b2 ?? q.b; q.floor = p.floor ?? -Infinity;
   };
@@ -649,6 +657,7 @@ export function createFx(scene: THREE.Scene) {
       maxEffect = Math.max(maxEffect, effect.id);
       if (replaced.has(effect.id)) continue;
       anchoredEmission = state.boss?.phase === 'destroyed' && ['explosion', 'blast', 'bossBlast'].includes(effect.kind);
+      quieted = anchoredEmission && state.boss?.id === 'cradle' ? CRADLE_DEATH : null;
       const z = -effect.s;
       if (effect.kind === 'explosion') explosion(effect.x, z, effect.id);
       else if (effect.kind === 'blast') blast(effect.x, z, effect.id, 1);
@@ -660,7 +669,7 @@ export function createFx(scene: THREE.Scene) {
         z: z + (hash(effect.id + i * 3) - .5) * .5, life: .25, size: .32, grow: -.2, shape: STAR, alpha: 1, ...tint(0xfff4d8, 1.6) });
       else if (effect.kind === 'special') flash(effect.x, z, 2.2, .16, 0xc8fff8, 1.6);
     }
-    anchoredEmission = false;
+    anchoredEmission = false; quieted = null;
     replaced.clear();
     lastEffect = maxEffect;
     stageChange(state);

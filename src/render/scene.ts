@@ -2275,16 +2275,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         shockMaterials[k].opacity = (k ? .22 : .95) * fade;
       });
       let effectCount = 0;
+      // (THE CRADLE's death flashes smaller and fainter, so its body's fall reads through them: fx-particles.ts CRADLE_DEATH.)
+      const quiet = state.boss?.id === 'cradle' && state.boss.phase === 'destroyed' ? .5 : 1;
       for (const effect of state.effects) {
         if (effect.kind === 'special') continue;
         if (effectCount >= effects.instanceMatrix.count) break;
         const age = Math.max(0, Math.min(1, 1 - effect.ttl / effect.duration));
         const radius = effect.kind === 'bossBlast' ? 1 + age * 11 : effect.kind === 'blast' ? .4 + age * 3 : effect.kind === 'shred' ? .2 + age * 2.2 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
         transform.position.set(effect.x, VIEW.flightHeight + .04, -effect.s);
-        transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(radius); transform.updateMatrix();
+        transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(radius * quiet); transform.updateMatrix();
         effects.setMatrixAt(effectCount, transform.matrix);
         const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : effect.kind === 'shield' ? heroGlow : effect.kind === 'shred' ? 0xc8fffa : 0x97e7da;
-        color.setHex(tint).multiplyScalar(1 - age * .75); effects.setColorAt(effectCount++, color);
+        color.setHex(tint).multiplyScalar((1 - age * .75) * quiet); effects.setColorAt(effectCount++, color);
       }
       liveInstances(effects, effectCount);
       // Vesper: debris that falls on open water throws snow-white spray; vent stacks breathe steam.

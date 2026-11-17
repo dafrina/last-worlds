@@ -148,11 +148,11 @@ unchanged combat targets (`tests/world/cinematic-assets.test.ts`).
 
 | Phase | Attacks | Presentation |
 | --- | --- | --- |
-| Arrival (`arrivalDuration`) | None | Walks in sideways along the canyon from the side away from the view and settles at its post (render-only, done 0.6 s before the fight). |
+| Arrival (`arrivalDuration`) | None | Walks in sideways along the canyon from the side away from the view, never faster than 2.5 units a second (`WALK_IN` in `src/render/cradle-gait.ts`), and settles at its post (render-only, done 0.3 s before the fight). |
 | Brood chambers | Aimed spore bursts (`sacBurst`), one attacker at a time. | Slow, heavy steps as it sways; the chambers glow. |
 | Heart | `coreMoves`: a slow, wide spiral, aimed bursts (`heartBurst`) and a fixed fan (`heartFan`); hatchling waves (`bays`, `launches`, the `veil-pods` formation) launch from under its body. The spiral rests `spiral.rest` seconds. | The crest splits open over the glowing heart; the burst chambers hang dark and sagging; its steps loosen. |
 | Overload | `overloadMoves`: core lane, spiral, fan, side lanes, burst, cross, spiral, fan, with a shorter recovery and more hatchling waves. | Pores and vents burn hotter, the heart pulses hard, the legs tremble and the body staggers. |
-| Destroyed | Its hatchlings go down with it. | The heart flickers wildly, walking stops, the legs buckle one after another, the body falls between them and strikes the floor (a dust ring and debris at the moment of the death's big blast), the heart flickers and goes dark; the wreck lies in the canyon until the scroll carries it away. |
+| Destroyed | Its hatchlings go down with it. | The heart flickers wildly, walking stops, the legs buckle one after another, the body falls between them and strikes the floor (a dust ring and debris at the moment of the death's big blast), the heart flickers and goes dark; the wreck lies in the canyon until the scroll carries it away. Its explosions (the simulation's, unchanged) are drawn smaller and fainter and their smoke thinner (`CRADLE_DEATH` in `src/render/fx-particles.ts`), so the fall reads through them. |
 
 **Arena.** The scroll eases to a stop (`arena.decelStart`, `decelDuration`) over the emergence canyon; the boss sways and
 surges within `arena.sway` and `arena.surge`, and the walk follows.
@@ -178,9 +178,10 @@ cream bone plates, dark red sinew, amber glow).
 - `cradle_leg_<k>_coxa`/`femur`/`tibia`/`tarsus` and `cradle_leg_<k>_foot`, legs 0-3 left front to back, 4-7 right: the
   spider's side leg cut at its joints and copied to every hip (mirrored on the right, sized per pair); each segment's
   origin is its joint. The view binds all 32 segments to one skinned mesh (one draw);
+- `cradle_body_core`: a dark flesh core inside the body, closing the cuts where the spider's own legs and sacs came off;
 - `cradle_flight_pod`: the hatchling drone; `cradle_walker_v1`: the marker node.
 
-It is 67,021 triangles (wrecks and drone included) with one material, under the adapted bosses' 80k cap.
+It is 67,161 triangles (wrecks and drone included) with one material, under the adapted bosses' 80k cap.
 
 ## 6. Music
 
