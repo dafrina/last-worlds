@@ -6,6 +6,7 @@ import { MODULE_HEIGHT, compoundSlot, districtLevel, type CompoundSlot } from '.
 import type { Archetype, PlacedModule, Settlement } from './settlement-geometry';
 import type { Work } from './terrain-work';
 import { cliffWallSteps } from './terrain-walls';
+import { createScatterSink } from './scatter-sink';
 import type { Floe, PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import { arenaAt, type TerrainArena } from './terrain-arena';
 
@@ -495,15 +496,7 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
  * separate, drifting pieces). Arena platforms stay empty.
  */
 export function* vesperScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [], CAP = VESPER_SCENERY_MAX;
-  const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number, shade?: number) => {
-    const spec = KIT[instance.kind];
-    if (instance.s < startS || instance.s >= startS + size || Math.abs(instance.x) + spec.radius * instance.scale > WORLD_HALF) return;
-    if (instance.y + instance.height * spec.height > CAP) instance = { ...instance, height: (CAP - instance.y) / spec.height };
-    if (instance.height <= 0.05) return;
-    const placed: KitInstance = { ...instance, variant: Math.min(spec.variants - 1, Math.floor(pick * spec.variants)), shade: shade ?? terrain.shade(instance.x, instance.s) };
-    (placed.cosmetic ? cosmetic : essential).push(placed);
-  };
+  const CAP = VESPER_SCENERY_MAX, sink = createScatterSink({ startS, size, terrain, cap: CAP }), { add } = sink;
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   // Dark stones keep off cliffs (user, 22 October): none within about a unit of a sheer face, above or below it, where
   // they sat on the rim of an ice wall or against its face.
@@ -567,8 +560,8 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0);
     return drop >= 1.8 ? m.rock < 0.3 : m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.12;
   };
-  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, scale: [1.2, 1.5], cap: CAP, sea: SEA, accept: shelfEdge })) essential.push(wall);
-  return [...essential, ...cosmetic];
+  sink.keep(yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, scale: [1.2, 1.5], cap: CAP, sea: SEA, accept: shelfEdge }));
+  return sink.finish();
 }
 
 /* ---------------------------------------------------------------- floes */
