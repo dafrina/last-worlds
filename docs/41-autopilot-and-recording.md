@@ -1,10 +1,9 @@
-# Watching the test pilots: the live autopilot and the recorder
+# Autopilot and recorder
 
-13 November 2026. The user: "would it be possible to record a perfect play?", "we could do it for failed runs so we can
-see what happens. Make sure to build a reusable script for it", then "make it in the browser so i can see it play".
-
-Both are development tools only: the dev hooks exist in the dev build alone (`import.meta.env.DEV`), never in the public
-build.
+Two development tools for watching the scripted test pilots ([docs/40](40-balance-measurement.md)): the live autopilot
+flies a run in the browser, and the recorder turns a run into a video. The user asked for both on 13 November ("record a
+perfect play", "we could do it for failed runs so we can see what happens", "make it in the browser so i can see it
+play"). The dev hooks exist only in the dev build (`import.meta.env.DEV`), never in the public one.
 
 ## The live autopilot (dev server)
 
@@ -17,7 +16,7 @@ http://localhost:4173/?dev&autopilot=skilled&mission=final-horizon&rank=4
 
 | Parameter | Values |
 |---|---|
-| `autopilot` | `perfect` (the exact safe-gap solver), `skilled` (human limits: 0.3 s reaction, 1.2 s look ahead), `hunter`, `pacifist` (perfect evasion, nothing it fires lands) |
+| `autopilot` | `perfect` (the exact safe-gap solver), `skilled` (human limits), `hunter`, `pacifist` (perfect evasion, nothing it fires lands) |
 | `mission` | `training`, `bastion`, `cold-vector`, `deep-bloom`, `brood-strike`, `dying-star`, `silent-empire`, `final-horizon`, or `endless` |
 | `rank` | 0-4 (Level 1-5) |
 | `weapon`, `difficulty`, `seed` | optional (`pulse`, `standard`, `1`) |

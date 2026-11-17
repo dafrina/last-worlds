@@ -88,7 +88,8 @@ The simulation never freezes on hits.
 
 Lives as small ship silhouettes and shields as glyphs (filled or outlined), top left; the endless score or the campaign's
 live credit counter and the pause control, top right; one plain special button at bottom centre, above the safe-area
-inset, with recharge ticks. No health, ammunition, energy or combo bars, no minimap, no permanent arrows. Steering hints
+inset, with recharge ticks. During a boss fight one slim meter shows the boss's remaining health. No player health,
+ammunition, energy or combo bars, no minimap, no permanent arrows. Steering hints
 blink for three seconds at flight start. Details and the menus: [docs/16](16-flight-command-ui.md).
 
 ## 7. Audio and accessibility
