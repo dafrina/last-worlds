@@ -43,6 +43,8 @@ const CASES: Case[] = [
   ...PLANET_IDS.map((planet): Case => ({ name: planet, input: { planet }, seeds: [11, 93, 8831], sections: [2, 9] })),
   ...PLANET_IDS.map((planet): Case => ({ name: `${planet}+arena`, input: { planet, arena: ARENAS[planet].arena }, seeds: [93, 8831], sections: ARENAS[planet].sections })),
   { name: 'route', input: routeOf('scatter-fingerprint', CHAIN_SCHEDULE), seeds: [93], sections: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+  // High ground where Khepri drops boulders and fallen columns over its scenery cap (they are never trimmed to it).
+  { name: 'khepri 11:0', input: { planet: 'khepri' }, seeds: [11], sections: [0] },
 ];
 
 /**
@@ -56,7 +58,7 @@ const RECORDED: Record<string, readonly [string, number, number, number]> = {
   'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['698a1fbf25f30d22', 147, 4, 238],
   'nacre+arena': ['459e46b6b9fcdc14', 262, 4, 352], 'amnion+arena': ['fd29dba2900c9d70', 405, 4, 238], 'corona+arena': ['8135a9663edb2fff', 457, 4, 239],
   'umbra+arena': ['024b326323e18002', 202, 4, 249], 'nahara+arena': ['1b0e7095f021e896', 447, 6, 382],
-  route: ['96b9d538ac002f63', 1537, 19, 758],
+  route: ['96b9d538ac002f63', 1537, 19, 758], 'khepri 11:0': ['8a3012c672f9b64a', 164, 1, 59],
 };
 
 interface Call { planet: PlanetId; seed: number; startS: number; size: number; pieces: KitInstance[]; yields: number }
