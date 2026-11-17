@@ -10,6 +10,8 @@ import { WARDEN } from '../../src/content/warden';
 import { CRADLE } from '../../src/content/cradle';
 import { CRADLE_STYLE } from '../../src/render/carrier-view';
 import { WALKER, createWalkerRig } from '../../src/render/cradle-walker';
+import { createGait } from '../../src/render/cradle-gait';
+import { VIEW } from '../../src/shared/contracts';
 import { FACILITY_KIT_FILE, FACILITY_MODULES, modulesOf } from '../../src/render/facility-kit';
 import { asset, stubGltfDecoding } from '../helpers/assets';
 
@@ -164,10 +166,11 @@ describe('Blender cinematic asset contracts',()=>{
     const at = (name: string) => model.getObjectByName(name)!.getWorldPosition(new Vector3());
     for (let k = 0; k < WALKER.legs; k++) {
       const joints = [...WALKER.segments.map(segment => at(`cradle_leg_${k}_${segment}`)), at(`cradle_leg_${k}_foot`)];
-      // Hips on the body, high; the claw reaches the floor (local 0); the leg spans out from the body.
-      expect(joints[0].y, `leg ${k} hip`).toBeGreaterThan(4.5);
-      expect(Math.abs(joints[4].y), `leg ${k} foot`).toBeLessThan(.5);
-      expect(Math.hypot(joints[4].x, joints[4].z), `leg ${k} reach`).toBeGreaterThan(4);
+      // Hips on the crouched body; the rest pose's claws reach a little under the ground (the view plants them on it, so
+      // the knees arch higher); the leg spans out from the body.
+      expect(joints[0].y, `leg ${k} hip`).toBeGreaterThan(2);
+      expect(joints[4].y, `leg ${k} foot`).toBeGreaterThan(-1); expect(joints[4].y, `leg ${k} foot`).toBeLessThan(0);
+      expect(Math.hypot(joints[4].x, joints[4].z), `leg ${k} reach`).toBeGreaterThan(2.5);
       // Left legs (0-3) left of the body, right legs mirrored.
       expect(Math.sign(joints[4].x), `leg ${k} side`).toBe(k < 4 ? -1 : 1);
     }
@@ -192,6 +195,17 @@ describe('Blender cinematic asset contracts',()=>{
       expect(rig.legs.skeleton.bones).toHaveLength(WALKER.legs * WALKER.segments.length);
       expect(rig.rests).toHaveLength(WALKER.legs);
       expect(chassis.children.filter(child => (child as Mesh).isMesh || child.children.some(c => (c as Mesh).isMesh))).toHaveLength(2);
+      // Crouched on the plateau (17 November), its top stays well under the flight plane: the body as built, and every leg
+      // joint through a walk (a bone's own thickness, about 0.35, over its joint line).
+      const top = new Box3().setFromObject(rig.body).max.y;
+      expect(WALKER.floor + top, 'body top under the flight plane').toBeLessThan(VIEW.flightHeight - .5);
+      const gait = createGait(rig.rests, { ground: () => WALKER.floor, floor: WALKER.floor });
+      let knee = -Infinity;
+      for (let i = 0; i <= 600; i++) {
+        const pose = gait.step({ time: 10 + i / 60, origin: [Math.sin(i / 90) * 2, WALKER.floor, Math.cos(i / 70)], mode: i > 300 ? 'overload' : 'fight' });
+        for (const chain of pose.legs) for (const joint of chain) knee = Math.max(knee, joint[1]);
+      }
+      expect(WALKER.floor + knee + .35, 'legs under the flight plane').toBeLessThan(VIEW.flightHeight - .5);
     } finally { rig.dispose(); }
   });
   // THE ECLIPSE's prow vent (31 October), its third first-phase target: a lens with its own wreck on the hull's front face.

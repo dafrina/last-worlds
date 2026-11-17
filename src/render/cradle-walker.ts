@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BROOD_BASIN } from '../world/terrain-amnion';
+import { CRADLE_GROUND } from '../world/terrain-amnion';
 import { type LegRest, type Pose } from './cradle-gait';
 
 /**
@@ -18,9 +18,9 @@ export const WALKER = {
    * the camera rays through their unchanged combat targets at this height; boss_cradle.py TARGET_Z). The simulation's own
    * CRADLE.targetHeight is unchanged.
    */
-  targetHeight: 5,
-  /** It stands on its brood basin's floor (src/world/terrain-amnion.ts BROOD_BASIN): its seat's ground level. */
-  floor: BROOD_BASIN.floor,
+  targetHeight: 2.6,
+  /** It stands on Amnion's crust, settled under it (src/world/terrain-amnion.ts CRADLE_GROUND): its seat's ground level. */
+  floor: CRADLE_GROUND.floor,
   /** Body pieces merged into one mesh, and the leg segments in their order. */
   bodyParts: ['body', 'carapace', 'underside', 'vents', 'heart_cavity', 'body_core'],
   segments: ['coxa', 'femur', 'tibia', 'tarsus'] as const,

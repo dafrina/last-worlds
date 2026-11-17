@@ -4,7 +4,7 @@ import { cliffWallSteps } from './terrain-walls';
 import { createScatterSink } from './scatter-sink';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
-import { ARENA_CLEARING, arenaAt, arenaWeight } from './terrain-arena';
+import { ARENA_CLEARING, arenaAt, arenaWeight, type TerrainArena } from './terrain-arena';
 
 /**
  * Amnion, the Brood Wastes (docs/27, user 23 October 2026, after art/concepts/amnion-brood-wastes): pale plateaus of
@@ -178,30 +178,34 @@ function nearestRuin(seed: number, x: number, s: number): { site: RuinSite; d: n
   return best;
 }
 
-/** Amnion's masks at a point (landform, colour and scatter). An arena weight flattens the plateau around the boss. */
-export function amnionMasks(seed: number, x: number, s: number, platform = 0): AmnionMasks {
+/**
+ * Amnion's masks at a point (landform, colour and scatter). An arena weight flattens the plateau around the boss; `settle`
+ * (THE CRADLE's ground, `cradleGround`) only fills the crevasses and levels the massifs, tiers and ruin pits under it, so
+ * the crust keeps its plates and egg hollows.
+ */
+export function amnionMasks(seed: number, x: number, s: number, platform = 0, settle = 0): AmnionMasks {
   const calm = routeCalm(seed, x, s);
   const qx = x + (noise(seed ^ 0xa1a1, x * 0.045, s * 0.04) - 0.5) * 9, qs = s + (noise(seed ^ 0xa1a2, x * 0.045 + 5.1, s * 0.04) - 0.5) * 9;
   const { across, main } = crevasse(seed, x, s);
   // Sheer lips (crispStep), and no canyon inside the boss clearing.
-  const plateau = Math.max(crispStep((across - 0.86) / 0.24 + 0.5), platform);
+  const plateau = Math.max(crispStep((across - 0.86) / 0.24 + 0.5), platform, settle);
   // The yolk: a narrow channel down a main crevasse's middle, broken into runs and pools (dark flesh between).
   const flow = smoothRange(0.38, 0.6, noise(seed ^ 0xa1da, x * 0.16, s * 0.12));
   const yolk = (1 - smoothRange(0.06, 0.22 + 0.12 * flow, main)) * (0.25 + 0.75 * flow) * (1 - platform);
-  const tier = smoothRange(0.56, 0.6, noise(seed ^ 0xa1a7, qx * 0.06, qs * 0.055)) * (1 - calm * 0.5) * (1 - platform);
+  const tier = smoothRange(0.56, 0.6, noise(seed ^ 0xa1a7, qx * 0.06, qs * 0.055)) * (1 - calm * 0.5) * (1 - platform) * (1 - settle);
   const pit = noise(seed ^ 0xa1a8, x * 0.32, s * 0.3), field = smoothRange(0.5, 0.7, noise(seed ^ 0xa1a9, x * 0.06, s * 0.06));
   const hollow = smoothRange(0.68, 0.86, pit) * field * smoothRange(0.85, 1, plateau) * (1 - platform);
   // Mountains: broad massifs in their own regions, set well back from any canyon lip (the canyons keep their clean shape).
   const back = smoothRange(1.15, 1.7, across);
   // (Fewer, bigger massifs: about one tenth of the ground; the crust between stays smooth slabs, as in the concept.)
-  const massif = smoothRange(0.56, 0.72, noise(seed ^ 0xa1c1, qx * 0.035, qs * 0.03)) * back * (1 - calm * 0.4) * (1 - platform);
+  const massif = smoothRange(0.56, 0.72, noise(seed ^ 0xa1c1, qx * 0.035, qs * 0.03)) * back * (1 - calm * 0.4) * (1 - platform) * (1 - settle);
   // A ruin's clearing and its sunken courtyard (sheer-walled, with a jagged rim of its own).
   const near = nearestRuin(seed, x, s), ruin = near ? near.d : 99;
   const clear = (1 - smoothRange(1.25, 1.9, ruin)) * (1 - platform);
   // The courtyard's rim: big irregular teeth and a finer serration (never a clean circle).
   const turnAt = near ? (Math.atan2(s - near.site.s, x - near.site.x) / (2 * Math.PI) + 1) % 1 : 0;
   const rim = near ? 1 + 0.13 * ringZigzag(seed ^ 0xa3a5, turnAt, 11) + 0.05 * ringZigzag(seed ^ 0xa3a6, turnAt, 38) : 1;
-  const sunk = (1 - crispStep((ruin / rim - 0.97) / 0.08 + 0.5)) * (1 - platform);
+  const sunk = (1 - crispStep((ruin / rim - 0.97) / 0.08 + 0.5)) * (1 - platform) * (1 - settle);
   return {
     plateau: Math.max(plateau, clear), yolk: yolk * (1 - clear), tier: tier * (1 - clear), hollow: hollow * (1 - massif) * (1 - clear),
     across: mix(across, 9, clear), massif: massif * (1 - clear), clear, pit: sunk, ruin,
@@ -214,7 +218,7 @@ export function amnionMasks(seed: number, x: number, s: number, platform = 0): A
  * shader's glowing crackle network), `tone` the crust patches.
  */
 export function amnionLandform(seed: number, x: number, s: number, row: PlanetRow): Landform & { tone: number } {
-  const m = amnionMasks(seed, x, s, arenaAt(row.arena, seed, x, s));
+  const m = amnionMasks(seed, x, s, arenaAt(row.arena, seed, x, s), row.arena ? cradleGround(row.arena, x, s) : 0);
   // The crust: broken, tilted plates split by sharp cracks (user, 23 October: "too rounded"), a faint swell under them.
   const slab = plates(seed, x, s), calmCrust = 1 - m.massif;
   const dome = (noise(seed ^ 0xa1b1, x * 0.11, s * 0.1) - 0.5) * 0.08 + (slab.offset - slab.crack * 0.14) * calmCrust;
@@ -251,56 +255,23 @@ export function amnionLandform(seed: number, x: number, s: number, row: PlanetRo
     pool: Math.max(pools * (1 - m.plateau), m.pit * (1 - smoothRange(0.18, 0.34, m.ruin)) * 0.9),
     vein, vein2, veins: Math.max(fissures, m.pit * smoothRange(0.35, 0.55, noise(seed ^ 0xa1e7, x * 0.3, s * 0.3))), tone: crust,
   };
-  return row.arena ? broodBasin(seed, x, s, row.arena.fromS + ARENA_CLEARING.centre, arenaWeight(row.arena, s), ground) : ground;
+  return ground;
 }
 
 /**
- * THE CRADLE's arena (17 November; user: "i think it should not spawn in a canyon. dont flatten the terrain like crazy but
- * not canyon"; it had risen out of a sheer flesh canyon since 23 October): a broad open hollow of Amnion's own dark flesh
- * ground across the arena, at the crevasse floors' depth, where the walking brood hive stands and walks
- * (src/render/cradle-walker.ts, its feet on this ground). No walls: its sides fall from the plateau in gentle, broken slopes
- * of heaved crust plates; its floor undulates in low swells and fleshy mounds with the crust's plates showing through,
- * crossed by glowing yolk veins, with a shallow vein-channel or two cutting across it and the glow pooling in patches.
- * Its edges wander; it blends back into the planet's own ground about 18 out.
+ * THE CRADLE's ground (17 November; user: "make its body sit lower ... I dont like it being in the basin idk"; it rose out of a
+ * flesh canyon from 23 October, then stood in a brood basin): Amnion's own plateau crust, at the level the player flies over,
+ * only settled where the walking hive stands (src/render/cradle-walker.ts): a band across the arena round its stance where
+ * the crevasses are filled and the massifs, tiers and ruin pits levelled, so its feet plant on crust and no chasm opens under
+ * it. The crust keeps its plates, cracks and egg hollows; outside the band the planet's ground is as everywhere.
  */
-// Fitted to the walker: its body stands about 2 past the clearing's centre (its visual plane 5 over this floor projects onto
-// its row), its feet spread about 6 toward the player and away, with 0.8 of surge either way, so the hollow's floor spans
-// them; its top (7.4 over its feet) stays under the flight plane. The floor is low enough for that, no deeper.
-export const BROOD_BASIN = { ahead: 1.6, halfS: 7.5, slope: 6, floor: -4.2, swell: 0.4, heave: 0.9, vein: -0.55, reach: 18 } as const;
-function broodBasin(seed: number, x: number, s: number, centre: number, along: number, ground: Landform & { tone: number }): Landform & { tone: number } {
-  const B = BROOD_BASIN, ds = s - centre - B.ahead, far = Math.hypot(x / (B.reach * 1.4), ds / B.reach);
-  const weight = along * (1 - smoothRange(0.8, 1, far));
-  if (weight <= 0) return ground;
-  // Its rim wanders (a broad and a finer zigzag per side), so the slopes never run straight across the view.
-  const side = ds > 0 ? 1 : 0;
-  const edge = B.halfS * (1 + 0.12 * zigzag(seed ^ 0xa4a1, x / 3.1, side) + 0.05 * zigzag(seed ^ 0xa4a2, x / 1.2, side));
-  // 0 on the floor, 1 at the top of the slope: an easy S-curve, steepest halfway (about 0.85 rise per unit).
-  const rise = smoothRange(0, 1, Math.max(0, Math.abs(ds) - edge) / B.slope);
-  const slab = plates(seed ^ 0x5a, x, s);
-  // The floor: low swells and fleshy mounds, the crust's plates showing through faintly.
-  const swell = (noise(seed ^ 0xa4c1, x * 0.17, s * 0.15) - 0.5) * 2 * B.swell + ridged(noise(seed ^ 0xa4c3, x * 0.5, s * 0.45)) * 0.22;
-  const floor = B.floor + swell + slab.offset * 0.5 - slab.crack * 0.1;
-  // The slopes: the planet's crust heaved up in tilted plates toward the rim (strongest partway up), split by cracks.
-  const heaved = ground.height + Math.sin(Math.PI * rise) * (slab.offset * 2 + 0.25) * B.heave - slab.crack * 0.25 * rise;
-  // A shallow vein-channel or two across the floor (soft-sided, half a unit deep), glowing along its bed.
-  let channel = 0;
-  for (const [angle, salt] of [[0.62, 0xa4b1], [-0.55, 0xa4b2]] as const) {
-    const across = x * Math.cos(angle) - ds * Math.sin(angle), length = x * Math.sin(angle) + ds * Math.cos(angle);
-    const half = 0.9 * (1 + 0.3 * zigzag(seed ^ salt, length / 1.6, across > 0 ? 1 : 0));
-    channel = Math.max(channel, (1 - smoothRange(0.5, 1, Math.abs(across) / half)) * smoothRange(3, 5, Math.abs(length)));
-  }
-  channel *= 1 - rise;
-  const height = mix(floor + channel * B.vein, heaved, rise);
-  const glow = smoothRange(0.45, 0.6, noise(seed ^ 0xa4c2, x * 0.25, s * 0.25));
-  return {
-    ...ground,
-    height: clamp(mix(ground.height, height, weight), -8.5, 2.4),
-    // Flesh on the floor, turning to bone up the slopes.
-    elevation: mix(ground.elevation, rise, weight), channel: ground.channel * (1 - weight),
-    // Veins faint over most of the floor, brighter in the channels; the yolk pools only in patches.
-    pool: mix(ground.pool, Math.max((1 - rise) * 0.14 * glow, channel * 0.4), weight),
-    veins: mix(ground.veins, Math.max((1 - rise) * (0.25 + 0.3 * glow), channel * 0.85), weight),
-  };
+// Its stance: the body stands about 0.6 past the clearing's centre (its visual plane over this ground projects onto its row),
+// its feet about 4.5 toward the player and away, with 0.8 of surge either way; it can be pulled anywhere across the arena.
+export const CRADLE_GROUND = { ahead: 0.6, halfS: 6.2, fade: 3, floor: PLATEAU + 0.15 } as const;
+/** How settled the ground is at (x, s) for THE CRADLE: 1 in its band, fading out over `fade`, and along the arena's own fade. */
+export function cradleGround(arena: TerrainArena, x: number, s: number): number {
+  const G = CRADLE_GROUND, ds = Math.abs(s - arena.fromS - ARENA_CLEARING.centre - G.ahead);
+  return arenaWeight(arena, s) * (1 - smoothRange(G.halfS, G.halfS + G.fade, ds)) * (1 - smoothRange(WORLD_HALF + 1, WORLD_HALF + 4, Math.abs(x)));
 }
 
 /* ---------------------------------------------------------------- colour */
@@ -466,7 +437,7 @@ export const AMNION: PlanetProfile = {
   mood: () => 'brood', params: () => NEUTRAL, local: () => null,
   landform: amnionLandform,
   // The boss clearing is shaped in the landform (no canyon there, one plateau level); the clearing core stays flat.
-  // The arena's ground is THE CRADLE's brood basin, shaped in the landform (`broodBasin`): nothing more to flatten.
+  // The arena's ground is settled for THE CRADLE in the landform (`cradleGround`): nothing more to flatten.
   arena() { /* shaped in amnionLandform */ },
   color: amnionColor,
   shadowTint: [0.86, 0.66, 0.6],

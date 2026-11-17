@@ -94,14 +94,14 @@ export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 
   footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 3.6, back: 9.6 } };
 /**
  * THE CRADLE (tools/blender/boss_cradle.py, 17 November): a colossal brood hive walking on eight legs (cradle-walker.ts,
- * cradle-gait.ts). It stands on its brood basin's floor, its body slung high between its legs; its visual target plane
+ * cradle-gait.ts). It stands on Amnion's crust, crouched: its body hangs low between its high-kneed legs; its visual target plane
  * (WALKER.targetHeight over that floor, render-only) projects onto the logical rows, so its brood chambers and heart sit on
  * the camera rays through their unchanged combat targets. Its crest splits in two and swings 55° outward over the heart.
  */
 export const CRADLE_STYLE: CarrierStyle = { id: 'cradle', name: 'THE CRADLE', prefix: 'cradle_', shutterOpen: THREE.MathUtils.degToRad(55), spark: 0xffc860, hover: 0,
   content: { podOffset: CRADLE.sacOffset, podS: CRADLE.sacS, heartS: CRADLE.heartS, targetHeight: WALKER.targetHeight, arrivalDuration: CRADLE.arrivalDuration, bays: CRADLE.bays },
-  // Its feet stand about 5.5 out from its body; its front legs reach 6 toward the player, its back legs 5.5 away.
-  footprint: { halfWidth: 6.6, front: 6.4, back: 6 },
+  // Crouched: its feet stand about 4 out from its body, toward the player and away.
+  footprint: { halfWidth: 5, front: 4.4, back: 4.2 },
   fx: { spark: 0xffc860, hot: 0xfff3c4, flash: 0xffdaa1, steam: 0x987057, ichor: [0xffe6a6, 0xebad39, 0xb73b24], ring: 0xffbd48 } };
 /**
  * THE ECLIPSE (tools/blender/boss_eclipse.py, docs/28): the final boss, lying flat over the abyss, 20 units from horn
@@ -316,7 +316,7 @@ export interface CarrierViewOptions { ground?: (x: number, s: number) => number;
  */
 const WALK_IN_FROM = { clear: 12.5, least: 4 } as const;
 /** How far above the old carriers' effect heights THE CRADLE's body stands (its chambers' centres over its floor). */
-const WALKER_FX_LIFT = 2.65;
+const WALKER_FX_LIFT = 0;
 
 export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL_STYLE, options: CarrierViewOptions = {}) {
   const root = new THREE.Group(); root.name = style.name; root.visible = false; scene.add(root);
@@ -460,15 +460,15 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         }
         if (pose.impact) {
           for (let k = 0; k < (low ? 8 : 18); k++) {
-            const a = k / (low ? 8 : 18) * Math.PI * 2, at = local(Math.cos(a) * 3.4, .15, Math.sin(a) * 2.8);
+            const a = k / (low ? 8 : 18) * Math.PI * 2, at = local(Math.cos(a) * 2.3, .15, Math.sin(a) * 1.9);
             mist.emit({ x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * 3, vy: .25 + hash(k) * .35, vz: Math.sin(a) * 2.5, life: 2.2, size: .9, grow: 2, alpha: .34, color: fx.steam, drag: 1.2, lift: .05 });
           }
           burst(local(0, .6, 0), low ? 12 : 26, 313 + encounter, 1.4, fx.ichor[2]);
         }
         // A soft contact shadow under the body, smaller and darker as the body comes down.
-        const height = THREE.MathUtils.clamp(walkerLift + 1.7, .5, 5);
+        const height = THREE.MathUtils.clamp(walkerLift + 1, .3, 3);
         if (blob) {
-          blob.visible = true; blob.position.set(pose.body[0], .06, pose.body[2] - .2); blob.scale.setScalar(4.2 + height * .25);
+          blob.visible = true; blob.position.set(pose.body[0], .06, pose.body[2] - .2); blob.scale.setScalar(2.8 + height * .3);
           (blob.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(.62 - height * .06, .25, .6);
         }
         buckled = destroyed ? THREE.MathUtils.clamp(phaseAge / 2.3, 0, 1) : 0;

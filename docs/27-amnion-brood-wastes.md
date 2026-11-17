@@ -102,12 +102,11 @@ functions of the seed and world position.
     (`cliffWallSteps` with `fleshWall`; the wall rules are [docs/26](26-terrain-relief.md)).
 - **Ground look.** The flesh walls' shading is `WALL_LOOK.amnion` (flesh only, so terrace risers stay bone); the crack map
   is tinted bone (`src/render/terrain-kit.ts`).
-- **Boss arena:** THE CRADLE's brood basin (`BROOD_BASIN`, `broodBasin`; 17 November, user: "i think it should not spawn
-  in a canyon. dont flatten the terrain like crazy but not canyon"): a broad open hollow of dark flesh ground across the
-  arena at the crevasse floors' depth, where the walker stands. No walls: its sides fall from the plateau in gentle broken
-  slopes of heaved crust; its floor undulates in low swells and mounds, crossed by faint yolk veins and two shallow
-  glowing channels. It blends back into the world about 18 units out. (It was the emergence canyon, 7.5 deep with sheer
-  walls, from 23 October.)
+- **Boss arena:** THE CRADLE's ground (`CRADLE_GROUND`, `cradleGround`; 17 November): Amnion's own plateau crust at the
+  level the player flies over, only settled round the walker's stance: across the arena, a band where the crevasses are
+  filled and the massifs, tiers and ruin pits levelled, so its feet plant on crust and no chasm opens under it. The crust
+  keeps its plates, cracks and egg hollows. It was a sheer flesh canyon from 23 October, then briefly a dark brood basin
+  (user, 17 November: "i think it should not spawn in a canyon", then "I dont like it being in the basin idk").
 
 ## 4. Blender assets
 
@@ -136,7 +135,7 @@ concept"):
 
 ## 5. THE CRADLE
 
-A colossal brood hive walking on eight legs through its brood basin (17 November,
+A brood hive walking crouched on eight legs over its plateau (17 November,
 [docs/43](43-boss-visual-overhaul.md) §4-7). Its numbers are `CRADLE` in `src/content/cradle.ts`, its definition
 `BOSSES.cradle` in `src/content/bosses.ts`, and its view `CRADLE_STYLE` in `src/render/carrier-view.ts` with its walking
 rig in `src/render/cradle-walker.ts` and its gait in `src/render/cradle-gait.ts`. It follows the shared boss rules
@@ -144,20 +143,21 @@ rig in `src/render/cradle-walker.ts` and its gait in `src/render/cradle-gait.ts`
 
 **Targets.** Two brood chambers (the glowing egg sacs on its flanks; `sacOffset`, `sacS`, `sacRadius`, `sacHp`), then the
 heart under its crest (`heartS`, `heartRadius`, `heartHp`), whose two halves swing 55° outward to open it
-(`CRADLE_STYLE.shutterOpen`). The body, carapace, legs and underside are scenery. It stands on its basin's floor
-(`WALKER.floor`) with its body slung high between its legs; its visual target plane, `WALKER.targetHeight` over that
+(`CRADLE_STYLE.shutterOpen`). The body, carapace, legs and underside are scenery. It stands on its settled crust
+(`WALKER.floor`), crouched: its body hangs low between its legs, the knees arching over it (user, 17 November: "make
+its body sit lower, when it crashes it will be finally laying on the ground"), its top well under the flight plane; its visual target plane, `WALKER.targetHeight` over that
 floor (render-only), projects onto the logical rows, so the chambers and the heart sit on the camera rays through their
 unchanged combat targets (`tests/world/cinematic-assets.test.ts`).
 
 | Phase | Attacks | Presentation |
 | --- | --- | --- |
-| Arrival (`arrivalDuration`) | None | Walks in sideways across its basin from the side away from the view, never faster than 2.5 units a second (`WALK_IN` in `src/render/cradle-gait.ts`), and settles at its post (render-only, done 0.3 s before the fight). |
+| Arrival (`arrivalDuration`) | None | Walks in sideways across the plateau from the side away from the view, never faster than 2.5 units a second (`WALK_IN` in `src/render/cradle-gait.ts`), and settles at its post (render-only, done 0.3 s before the fight). |
 | Brood chambers | Aimed spore bursts (`sacBurst`), one attacker at a time. | Slow, heavy steps as it sways; the chambers glow. |
 | Heart | `coreMoves`: a slow, wide spiral, aimed bursts (`heartBurst`) and a fixed fan (`heartFan`); hatchling waves (`bays`, `launches`, the `veil-pods` formation) launch from under its body. The spiral rests `spiral.rest` seconds. | The crest splits open over the glowing heart; the burst chambers hang dark and sagging; its steps loosen. |
 | Overload | `overloadMoves`: core lane, spiral, fan, side lanes, burst, cross, spiral, fan, with a shorter recovery and more hatchling waves. | Pores and vents burn hotter, the heart pulses hard, the legs tremble and the body staggers. |
-| Destroyed | Its hatchlings go down with it. | The heart flickers wildly, walking stops, the legs buckle one after another, the body falls between them and strikes the floor (a dust ring and debris at the moment of the death's big blast), the heart flickers and goes dark; the wreck lies in the basin until the scroll carries it away. Its explosions (the simulation's, unchanged) are drawn smaller and fainter and their smoke thinner (`CRADLE_DEATH` in `src/render/fx-particles.ts`), so the fall reads through them. |
+| Destroyed | Its hatchlings go down with it. | The heart flickers wildly, walking stops, the legs buckle one after another, the low body falls its last 0.9 between them and lies on the ground (a dust ring and debris at the moment of the death's big blast), the heart flickers and goes dark; the wreck lies there until the scroll carries it away. Its explosions (the simulation's, unchanged) are drawn smaller and fainter and their smoke thinner (`CRADLE_DEATH` in `src/render/fx-particles.ts`), so the fall reads through them. |
 
-**Arena.** The scroll eases to a stop (`arena.decelStart`, `decelDuration`) over the brood basin; the boss sways and
+**Arena.** The scroll eases to a stop (`arena.decelStart`, `decelDuration`) over its plateau; the boss sways and
 surges within `arena.sway` and `arena.surge`, and the walk follows.
 
 **The walk** (`src/render/cradle-gait.ts`, pure and deterministic, `tests/render/cradle-gait.test.ts`): alternating
@@ -175,7 +175,7 @@ cream bone plates, dark red sinew, amber glow).
 
 - `cradle_body`, `cradle_carapace`, `cradle_underside`, `cradle_vents`: the spider's body inside its flanks, its own legs cut
   off at its edge (the view merges them into one draw);
-- `cradle_pod_left`/`right` (+ `_wreck`): the brood chambers, closed eggs 1.3 times the spider's own sacs, wearing the sacs'
+- `cradle_pod_left`/`right` (+ `_wreck`): the brood chambers, closed eggs twice the size of the spider's own sacs, slung low on its front flanks on their targets' rays, wearing the sacs'
   paint, lit amber; the wreck burst and sagging;
 - `cradle_heart` (+ `_wreck`) in `cradle_heart_cavity`, under `cradle_heart_shutter_0`/`1` (the crest's halves);
 - `cradle_leg_<k>_coxa`/`femur`/`tibia`/`tarsus` and `cradle_leg_<k>_foot`, legs 0-3 left front to back, 4-7 right: the
@@ -184,7 +184,9 @@ cream bone plates, dark red sinew, amber glow).
 - `cradle_body_core`: a dark flesh core inside the body, closing the cuts where the spider's own legs and sacs came off;
 - `cradle_flight_pod`: the hatchling drone; `cradle_walker_v1`: the marker node.
 
-It is 67,161 triangles (wrecks and drone included) with one material, under the adapted bosses' 80k cap.
+It is built at 0.55 of the spider's first scale and its frame stands 0.6 low on its feet, so crouched on the plateau it
+stays under the flight plane; 67,161 triangles (wrecks and drone included) with one material, under the adapted bosses'
+80k cap.
 
 ## 6. Music
 

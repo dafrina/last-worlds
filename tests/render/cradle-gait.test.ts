@@ -80,7 +80,7 @@ describe('THE CRADLE gait (render-only)', () => {
     // Every foot is back on the ground, slid outward; every hip came down with the body.
     for (const [k, chain] of pose.legs.entries()) {
       expect(chain[4][1]).toBeCloseTo(0, 6);
-      expect(chain[0][1]).toBeLessThan(RESTS[k].joints[0][1] - FALL.drop * .8);
+      expect(chain[0][1]).toBeLessThan(RESTS[k].joints[0][1] - FALL.drop * .5);
     }
   });
 

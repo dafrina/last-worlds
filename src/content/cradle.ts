@@ -6,7 +6,7 @@ import { OVERLOAD_FRACTION } from './boss-phases';
  * intensity): aimed spore bursts from the sacs, then the heart alternates a fixed fan with an aimed burst and sends
  * hatchling waves from its brood bays, then overload lanes and a spiral over its own hit columns.
  * Its model since 17 November 2026 (public/assets/amnion/the-cradle.glb, tools/blender/boss_cradle.py, docs/27 §5): a
- * colossal hive walking on eight legs in its brood basin (render-only; src/render/cradle-gait.ts). Its combat values
+ * colossal hive walking crouched on eight legs over its plateau (render-only; src/render/cradle-gait.ts). Its combat values
  * here are unchanged; the view projects its own visual target plane (WALKER.targetHeight) onto the same rows.
  */
 export const CRADLE = {
