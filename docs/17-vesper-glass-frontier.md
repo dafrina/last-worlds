@@ -167,9 +167,13 @@ calls the two cannons "radiators" and the reactor "bridge"; on screen they are c
 
 **It never moves** (`stationary: true`, as THE CITADEL; 17 November). Its arena has no sway or surge, it enters at its
 row (`entryS` = `row`), and it is never pulled toward a pilot who keeps its targets out of view
-([docs/10 §5](10-wide-map-and-camera.md)). As with THE CITADEL, a pilot parked far enough to the side therefore holds
-off its reactor's attacks, but cannot hurt it from there either. The Ark swayed 1.3 and surged 0.7, glided in from 26
-and was pulled toward the view.
+([docs/10 §5](10-wide-map-and-camera.md)). As with THE CITADEL, a pilot parked far enough to the side therefore keeps its
+targets out of view and holds off its attacks, but makes no progress either (parked at the right edge, seeds 1–4, 30 s: no
+windups, against 72 for the Ark). The Ark swayed 1.3 and surged 0.7, glided in from 26 and was pulled toward the view.
+With it fixed at x 0 its lanes always fall on the same columns (x 0 and ±2.98); the fairness suites pass (Cold Vector on
+every difficulty, endless sectors 5–7), and the perfect pilot clears it on every weapon and difficulty without a hit (on
+Veteran seed 57 it no longer reached the far cannon with the Fan Cannon once the sway stopped bringing it into the fan; the
+test flies seed 58).
 
 **Targets.** Two cannons at ±`radiatorOffset`, `radiatorS` behind the pivot, radius `radiatorRadius`, and the reactor at
 `bridgeS`, radius `bridgeRadius`; the fortress and its cliff are scenery, not a hidden collision box. Base hit points
