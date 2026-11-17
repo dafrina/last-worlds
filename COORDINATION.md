@@ -1158,3 +1158,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - renames: `tools/` grouped by purpose; Blender scripts named by role; `art/` sources; misleading `src/` file and asset names; every reference updated.
 - **Phase 2, a second agent:** the docs rework.
 - **Owned until the merge notes:** effectively the whole repo (`tools/`, `art/`, `public/assets/`, `src/` renames, `tests/`, `docs/`, root docs). Other sessions: please don't commit until the cleanup merge note.
+
+**17 November · Claude Code (Blender MCP in WSL session) · deployed `757d149`: the repository cleanup and docs rework.**
+- **Released:** all files. Read `README.md` → "Where things are" and `docs/README.md` for the new layout and names.
+- **Next deploy, gating now:** tap to start (`index.html`, `src/main.ts`) and the shipyard no-shift fix (`src/ui/hangar.ts`).

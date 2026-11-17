@@ -1,5 +1,23 @@
 # Build status
 
+## Repository cleanup deployed (`757d149`), 17 November 2026
+
+- **Phase 1:**
+  - 61 files and 81.4 MB deleted: `art/archive`, superseded art and Blender builders, unused hero kit models, stale look-dev tools. The deployed site is 3.4 MB smaller.
+  - Renames:
+    - `tools/` grouped into lib, lookdev, audio, perf, sim and dev;
+    - Blender scripts named `boss_*`, `kit_*`, `craft_*` and `lib_*`;
+    - `art/source/bosses`;
+    - runtime assets without version suffixes;
+    - `carrier-view.ts` and `boss-materials.ts`.
+  - Decision recorded in docs/08. Five material and scene names that the rename's text replacement had changed are restored (`bb89f9b`).
+- **Phase 2:** every doc reworked against the code, superseded docs merged or removed, DESIGN-REVIEW.md and HANDOFF.md removed, a docs index (`docs/README.md`) and a "where things are" map in README.md. The link check reports 0 problems across 59 files.
+- **Gate on `757d149`:**
+  - typecheck clean; unit tests 1123 passed, 8 skipped; build passes;
+  - browser 54/57 (Playwright exit 1, 40 min, overlapping with another browser run of mine);
+  - **rerun of the three failed spec files alone** (bastion, flight, menu): 19/19, exit 0.
+- **Live:** Pages run 44108079933 succeeded; the live bundle `main-OhLZx-RS.js` matches the build; the smoke test reports no errors. No phone test.
+
 The deployment log, newest first: what each deploy changed, its gate results and what was not tested. Entries are
 dated records and keep the names of their day; for how things work now, start at the [docs index](README.md).
 
