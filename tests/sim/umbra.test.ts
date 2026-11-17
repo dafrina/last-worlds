@@ -96,7 +96,7 @@ describe('Final Horizon over Umbra (docs/28)', () => {
   });
 
   it.each([['pulse', 'standard'], ['fan', 'standard'], ['seeker', 'veteran']] as [WeaponId, Difficulty][])('the perfect pilot clears it with %s on %s without a hit', (weapon, difficulty) => {
-    // The scripted pilot is not perfect. Since the Wraith (docs/29) it takes a single mission hit with the Fan on seeds 3 and
+    // The scripted pilot is not perfect. Since the Wraith (docs/28) it takes a single mission hit with the Fan on seeds 3 and
     // 5 (the short-ranged Fan flies it close to where the Wraith warps in); Twin Pulse and Seeker clear seeds 3, 5, 7, 11
     // and 21, never a hit from THE ECLIPSE, and the fairness checks pass. Seed 7 clears with all three (27 October).
     // Since the earlier first windups (4 November, DifficultyScale.firstAttack) all three fly seed 3: seed 7 takes one hit

@@ -108,7 +108,7 @@ export const SITE_CALM = 15;
 export const LINGERING: readonly FormationId[] = ['needle-column-5'];
 /**
  * Kinds whose stretch flies exactly as the arc authored it: a Pulsar's tracking stream and a Wraith's arrival are the
- * hardest things to read (docs/27, docs/29), and the arcs pair them deliberately (a Pulsar pair after a Needle column,
+ * hardest things to read (docs/27, docs/28), and the arcs pair them deliberately (a Pulsar pair after a Needle column,
  * missile batteries beside it, never aimed turrets). So no draw adds one (the pools carry none), and their slot and every
  * slot within PAIR_WINDOW of it fly their nominal (30 October: a third missile battery drawn beside Final Horizon's
  * artillery ship, a mirrored Pulsar pair or a Needle line instead of the column before it in endless sector 9 each pushed

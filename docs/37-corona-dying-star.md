@@ -1,120 +1,194 @@
-# Corona · The Dying Star
+# Corona, the Dying Star
 
-Design v0.1 · 5 November 2026. The user supplied three concept sheets (`art/concepts/corona/`):
-- the world (`01-world.webp`);
-- the infrastructure kit, six modules (`02-infrastructure.webp`);
-- the craft, six ships (`03-craft.webp`).
+Corona is the plasma world: the campaign's sixth mission, Dying Star, and the fifth world of the endless cycle. This doc
+covers its look, its world generator, its Blender kits and fleet, its two strike sites and THE HELIOPHAGE. It follows the
+user's three sheets in `art/concepts/corona/` (references only): the world (`01-world.webp`), the infrastructure
+(`02-infrastructure.webp`) and the craft (`03-craft.webp`). The user's brief (5 November): "A world so close to its star
+that its surface is being torn apart. Not ordinary lava: vast oceans of radiant plasma, black magnetic structures rising
+out of the light, and colossal glowing arcs crossing between the islands."
 
-The planet is **Corona** and the boss is **THE HELIOPHAGE**. The mission is **Dying Star**.
+## 1. Identity
 
-The concept images are references, never runtime backgrounds or finished assets (AGENTS.md invariant 9).
+- **Gold plasma, not lava.** The sea at `CORONA_SEA_LEVEL` (5 units under the plateau; user: "lower the lava level, the
+  cliffs look so miniscule") is Vesper's water material in a plasma mode (`src/render/water.ts`): emissive, with slow
+  warped convection, dark swirling veins of cooler skin, a web of white-hot filaments through the hottest pools and a
+  white-hot seam where it licks the rock. It rides the terrain frame and costs about a dozen noise lookups a pixel.
+- **Black basalt islands.** Land and plasma meander in winding bands, so every screen holds both (user: "i dont like to
+  have just a sea of lava or just a plan rock screen. It should always have both"). The land steps up in tiers from just
+  over the plasma, separated by sheer risers (user: "make the terrain height vary more, like khepri"), with mesas a tier
+  or two higher, crisp cliffs and glowing orange cracks densest toward the shore.
+- **The colossal arcs** (`src/render/corona-arcs.ts`, render only): loops of plasma, a white-hot core in a gold halo,
+  rising out of the sea, holding with pulses running along them, snapping open at the apex and sinking back (user: "would
+  be cool to have them kinda emerge like plasma behaves"). Seeded in the terrain frame, at most one per `SLOT` units
+  ("we need way more of those plasma flares"), both feet in open plasma, turned to face the camera; the apex stays
+  `APEX_CLEARANCE` under the flight plane and shots draw over them anyway.
+- **Smoke banks** (`src/render/corona-haze.ts`, render only): stacked slices of one density field, each higher slice
+  showing only the denser core, so banks dome up and parallax as the ground passes; dark and warm low, a lit grey on top,
+  thick at their cores, always under the lowest island tier (user: "the smoke ... looks like its everywhere, like a plane",
+  "You can make them really thick at points").
+- **Light:** a white-gold star, a hot orange bounce from the plasma below, strong bloom and warm haze (`LOOKS.corona` in
+  `src/render/scene.ts`). Corona keeps the sun ahead (`sunBehind: false`), unlike Umbra and Nahara.
+- **Palette:** `CORONA_PALETTE` in `src/world/terrain-corona.ts` (charcoal basalt, its dark seams, heat scorch toward the
+  shore, the seabed): lighter than Umbra's glass (user: "the terrain is also too dark compared to the coincept"), its
+  darker spots deep but the contrast high ("The darker spots should be a bit deeper dark but keeping the contrast high").
+- **Faction paint:** `WORLD_PAINT.corona` in `src/render/world-paint.ts`.
 
-## The user's direction (5 November)
+Readability rules:
 
-- "CORONA — The Dying Star. A world so close to its star that its surface is being torn apart. Not ordinary lava: vast oceans of radiant plasma, black magnetic structures rising out of the light, and colossal glowing arcs crossing between the islands. The entire environment feels overwhelming, as though you're flying through the outer layers of a star. Boss: THE HELIOPHAGE."
-- "also make some models for the ships and infrastructure as well as 2 special side route sites, one should be a star extractor facility"; "it should have the same ships as umbra, with wraith".
-- Campaign: the sixth mission, between Brood Strike (Amnion) and Final Horizon (Umbra). Also flown in endless.
-- Second site: first the **Solar Collector Array**, then the sites' designs settled (5 November): the legged plasma rig is the Star Extractor ("The one we worked on should be star extractor"), and the captured star between two arms is the **Star Cage** ("rename this something else, doesnt look like a star extractor anyways"). The concept's flare hangar is the ordinary airfield, also offered on Corona, with only its colours adjusted ("no new model tho").
-- Boss: "reuse the eclipse boss, no recolor or anything and same gameplay we will replace the boss later". Then: "no need for a special lava only lake for the boss, he will float anyway".
-- Endless: "i thought every level will be used in succession in endless". Endless now flies every world in campaign order after the Luna warm-up ("no no warm up is fine"): Khepri, Vesper, Nacre, Amnion, Corona, Umbra, then again from Khepri.
-- Reviews of the first ground passes:
-  - "really try to nail the terrain formations too, as in the concept. The colors are off too";
-  - "the relief is fine, but it isnt as sharp as in the concept. Also, make the terrain height vary more, like khepri with much more difference in height and variation";
-  - "the terrain is also too dark compared to the coincept".
+- **Enemy fire and ace shields are blood red** (`HOSTILE_BLOOD` in `src/render/shot-colors.ts`, `PLANET_GLOW.corona` in
+  `src/render/scene.ts`): coral vanished into the gold, and magenta was tried first (user: "warm red not magenta").
+- **Ground batteries over the plasma** ride black basalt rafts that leave no foam, not Vesper's white pontoons.
+- **Terrain is scenery only:** everything stays under the flight plane (§3).
 
-- Second review (5 November, evening):
-  - "The core of heliophage should point more down ... by maybe 10 degrees": the core (sphere, cage and hood) turns its front 10° toward the player, bending into the hull (`tilt_core`). 18° and 30° (turned at full depth, before the squash) were tried; the user kept 10° ("left one is best").
-  - "i dont like to have just a sea of lava or just a plan rock screen. It should always have both ... have the terrain meander between the lava seas": winding bands of rock and plasma alternate about every 14 units, snaking and pinching into necks and islands. Screens nearly all plasma or all rock fell from 20% to under 3% (12 × 24 screens, eight seeds).
-  - "we need way more of those plasma flares": an arc every 5 units instead of one in 26, turned to face the camera (edge-on loops read as streaks), thicker.
-  - "The darker spots should be a bit deeper dark but keeping the contrast high": a lower floor, wider dark veins and cool crusts.
-  - "the lava needs some kind of misty partial fog", then "the smoke ... looks like its everywhere, like a plane ... as if we faking volumetric clouds" and "You can make them really thick at points": banks of smoke (`src/render/corona-haze.ts`), six stacked slices of one density field, each higher slice showing only the denser core, so the banks dome up and the slices parallax. Warm low, lit grey on top. About a third of the plasma is under some smoke and about 10% under every slice (thick). The plasma is HDR-bright, so only stacked slices darken it visibly.
-  - "lower the lava level, the cliffs look so miniscule ... there should also be twice maybe even 3 times this height": the plasma lies 5 under the plateau (2.4 before), and the land steps from 1.8 over it up to 9. Coast cliffs (eight seeds) measure p10 2.6, median 5.1 and p90 7.7, against 2.0, 2.6 and 4.5 before. Corona's site foundations reach 9.6 (`siteDropMax`), so a site at a coast stands on foundations down to the plasma.
+## 2. Dying Star and Corona's fleet
 
-## Identity
+### Mission
 
-- **Gold plasma, not lava.** The sea at −6.8 (`CORONA_SEA_LEVEL`, 5 under the plateau) is Vesper's water material in a plasma mode (`src/render/water.ts`). It is emissive:
-  - slow domain-warped turbulence in three octaves;
-  - dark swirling veins of cooler skin;
-  - a fine web of white-hot filaments through the hottest pools;
-  - a white-hot band where it licks the rock.
+Dying Star (`dying-star`) is campaign mission 6, between Brood Strike and Silent Empire (`CAMPAIGN_ORDER`). Its arc is
+`DYING_STAR` and `DYING_STAR_SORTIE` in `src/content/encounter-deck.ts`: Final Horizon's arc and sortie stretch under its
+own slot ids (`c-`), with a Skimmer pair in place of the first dart line (user, 13 November: "the split shot is amazing.
+I want more of these enemies, put them in corona as well"). So it meets the Wraith at its first contact and twice more,
+two artillery ships (Pulsars) in their own slots, and the fleet's convoys in the climax
+([docs/28 §2](28-umbra-eternal-eclipse.md#2-final-horizon-and-the-umbral-fleet)). It does not take Final Horizon's Relic
+Shield; the Relic Shield first flies on Nahara. Its draws come from Corona's own pools (`DECK_POOLS.corona`: Amnion's waves
+and Skimmer waves; the Wraith and the Pulsars fly only in their slots).
 
-  It all rides the terrain frame and costs about a dozen noise lookups per pixel.
-- **Black basalt islands in it** (`src/world/terrain-corona.ts`):
-  - **Coastline:** about half the ground is plasma. A winding causeway runs along the central route, broken now and then by a plasma crossing, with sheer coasts.
-  - **Tiers:** the land steps up Khepri-style tiers 1.1 apart, from just over the plasma to about four units higher, separated by sheer risers (`bench`).
-  - **Mesas:** sheer mesas rise a tier or two over the land.
-  - **Cliffs:** crisp cliff shading with hard rim creases and columnar faces (`cliffs: true`, `WALL_LOOK.corona`).
-  - **Cracks:** glowing orange cracks run through the rock, densest toward the shore. They are the ground shader's vein lines; Umbra's recessed slab seams are off here.
-- **Dressing (stand-in):** until Corona's own kit exists, Umbra's kit is used, its violet glow faces burning orange (`glowHue` in the kit shader). This covers:
-  - fractured walls along coasts and tier faces;
-  - jagged black spire clusters rising out of the plasma, more of them near the shores;
-  - crags on the mesa rims, broken basalt blocks and shards;
-  - now and then a faction structure on level rock.
-- **The colossal arcs** (`src/render/corona-arcs.ts`): render-only loops of plasma, a white-hot core in a soft gold halo, with pulses running along them. They rise out of the sea and fall back into it.
-  - **Placement:** seeded in the terrain frame, at most one per 26 units, both feet in open plasma.
-  - **Height limit:** the apex stays at least 2.2 under the flight plane, so arcs never cover the ships, and shots skip the depth test anyway.
-- **Light:**
-  - a white-gold star high over the left;
-  - neutral fill, with the plasma's orange in the bounce and in a heat haze that only reaches just above the sea;
-  - lighter charcoal-brown basalt than Umbra's glass.
-- **Readability:**
-  - **Enemy fire and ace shields:** Amnion's warm red (`HOSTILE_BLOOD`, `PLANET_GLOW.corona`). Salmon vanished into the gold; magenta was tried first (user: "warm red not magenta").
-  - **Ground batteries over the plasma:** they ride black basalt rafts that leave no foam, instead of Vesper's white pontoons.
+Pressure comes from `WORLD_INTENSITY.corona` (between Amnion and Umbra in the late-world curve, 10 November),
+`MISSION_CADENCE['dying-star']` and `MISSION_PRESSURE['dying-star']` ([docs/40](40-balance-measurement.md)). The shield cells
+are `HELIOPHAGE.shieldSupplies` (THE ECLIPSE's).
 
-## Content
+### The fleet
 
-- **Fleet:** Umbra's roles and the Wraith (`hunters.ts` kind `wraith`), in Corona's own models (`public/assets/corona/corona-craft.glb`).
-  - **Third pass** (`tools/blender/craft_corona.py`, 6 November). The user on the second pass: "the enemies suck they look really cheaply made. Like toy insects"; it was beetle shells with thin floating arcs and legs (`tools/blender/corona_craft.py`, superseded).
-  - **Built on the Umbral fleet's surfaces:** smooth lofts meeting at knife edges, with glowing grooves.
-  - **Masses after the concept sheet:** lance, arrow, cannon hull, heavy, crescent ring and the Wraith's scythes, with fat engine nacelles and thick barrels.
-  - **Look:** dark scorched-bronze armour with bright gold knife edges and molten-gold glow. Pale plates washed out over the plasma.
-  - **User verdict:** "darker armor is fine but i like the shapes better now".
-- **Encounters:** the encounter deck flies Umbra's pools (`DECK_POOLS.corona`). The mission's arc is Final Horizon's, re-identified (`c-` slots). Its seeded rolls are its own, keyed by template id.
-- **World intensity:** flight 1.1, shot 1.1, cadence 0.43, enemy hp ×1.15, first windups ×0.85 (late-world curve, 10 November; it was cadence 0.5). The mission cadence is 0.92, and run credits scale by 0.425.
-- **Boss:** THE HELIOPHAGE, the user's Tripo GLB adapted like THE ECLIPSE (`tools/blender/boss_heliophage.py` → `public/assets/corona/the-heliophage.glb`; source `art/source/bosses/heliophage-tripo-original.glb`):
-  - **Placement:** laid flat, its concept view to the camera, spires away from the player, claws toward them. It is 16 units wide (user: "Make it 16 units wide, the eclipse is the final boss"), with the depth squashed to 0.35 so it hovers between the plateau and the flight plane (`HELIOPHAGE_STYLE.hover` 2.6).
-  - **Surface:** the mesh, UVs and atlases are kept and reduced to 77k triangles, with an emission mask from the painted glow.
-  - **Targets** (`src/content/heliophage.ts`): the two armoured blocks' vent grilles (x ±5.0), the central tower's glowing column (the third first-phase target, s 4.7) and the caged molten core.
-  - **Fight:** THE ECLIPSE's timing and patterns.
-  - **Arena:** it floats over the world's own ground; the arena only levels the mesas and tall dressing.
-- **Sites:**
-  - the **Star Extractor**, a parts site;
-  - the **Star Cage**, a shield site;
-  - the crash site and the airfield, also offered here.
+Corona flies Umbra's roles with the Wraith and the Skimmer (`authoredKinds('corona')`), in its own models
+(`CORONA_CRAFT` in `src/render/scene.ts`, `public/assets/corona/corona-craft.glb`, built by `tools/blender/craft_corona.py`
+after the craft sheet):
 
-  Models: `tools/blender/sites_strike.py`. The Corona finishes are ancient machinery (user, 5 November: "they look like toys now. refine them, alien and ancient looking, and also mechanical"): carved stone with glyph grooves, monolith posts, ring gears, ribbed pumps and pistons, dark iron and oxidised bronze, texture-baked with `lib_solids.STYLES['corona']` (plates, ash, soot, worn bronze edges). The airfield's Corona finish is a recolour plus that bake.
-- **Where sites stand** (user: "cant they generate on the rocks?", then "they can sit in lava just not exclusively"): the rock near the side routes keeps to the lowest tiers, so a site takes an island in reach. About two thirds stand on rock (gentler tiers and no mesas by the side routes; no trench: "lots of these corridors"); the rest float on decks in the plasma (`tests/sim/site-seats.test.ts`, `CORONA_ON_ROCK`).
-- **World missions:** twelve, 625 coins and 5 parts, as Brood Strike's and Final Horizon's (`src/content/world-missions.ts`).
-- **Endless:** Corona's stages are staged from Dying Star's arc as Nacre's are from Deep Bloom's (`lateStages`). The pressure stage holds no strike site, as Nacre's, Amnion's and Umbra's don't.
+| Node | Kinds | Shape |
+| --- | --- | --- |
+| `corona_interceptor` | dart, Needle, Skimmer | a lance hull with a spike nose, a glowing spine, raked side fins |
+| `corona_fighter` | weaver | an arrow body, wings swept back then hooked forward, two nacelles |
+| `corona_hunter` | Lancer | a long armoured hull round a glowing core, twin cannons, side pods |
+| `corona_carrier` | Diamond | the broad heavy, three glowing cannons in its prow, stub wings |
+| `corona_artillery` | Pulsar | an open ring of two crescents round a glowing core, a barrel forward |
+| `corona_turret` | turret and missile batteries | an armoured drum, buttress blades, a cowled head |
+| `corona_wraith` | Wraith | a reactor hub between two great crescent scythes, a spiked prow |
+| `corona_drone` | THE HELIOPHAGE's drones | a small pointed dart with a glowing eye |
 
-## Audio
+The hulls are built on the Umbral fleet's surfaces (smooth lofts meeting at knife edges, glow in grooves) in dark
+scorched-bronze armour with bright gold edges and molten-gold glow; pale plates washed out over the plasma. The user had
+called the earlier passes "really cheaply made. Like toy insects" (6 November) and approved this one ("darker armor is
+fine but i like the shapes better now"). Aces are Wraiths (`HUNTERS.kinds.corona`); the Wraith's teleport discs burn
+orange here ([docs/28 §3](28-umbra-eternal-eclipse.md#3-the-wraith)).
 
-- **First pass:** *Into the Corona*, 126 BPM, was a placeholder. It had no instruments of its own (Vesper's pad, glass and bass) and near-copies of Khepri's bass, kick and hat patterns. The user heard it as a copy and asked for new music, "ominous harp sounds or something" (10 November).
-- **Now:** *Hymn for a Swollen Sun*, 110 BPM, E Phrygian. Chords, two bars each: Em, F (♭II), C (♭VI) and B major (V).
-  - A low Karplus–Strong harp rises and falls slowly through each chord, three ringing notes a bar on the 3-3-2 in eighths. It is two strings a few cents apart in a dark resonant body, saturated a little for phone speakers. Until 11 November it ran in sixteenths; the user asked for "some more space between the notes, not just a quick jingle that runs".
-  - A lament on a higher harp sinks through its ♭6, three notes a bar since 11 November.
-  - A solar drone swells open and closed like heat.
-  - Sparse heavy kicks keep the same 3-3-2, under a deep tom backbeat, ember crackle in place of hats and a bowed-metal shriek at the phrase marks.
-  - The form is the shared 32-bar one: an opening that grows from single harp notes, the drums and lament, a breakdown to the drone and one harp note a bar, and a return with the lament doubled on low strings.
-- **Phase 4 (11 November):** the user found the harps "too regularly placed on the rhythm, maybe take inspiration from arabian music".
-  - The lament is written in maqam Kurd and, over the B major dominant, Hijaz on B, with its augmented second C–D#. Long notes slide in, and a qanun tremolo marks where it holds.
-  - The harp runs on a ten-sixteenth cycle, like a sama'i thaqil's 10/8, so it drifts across the 4/4 bar. It adds tremolos and maqam graces.
-  - A darbuka (doum, tek) plays maqsum, then baladi in the return.
-- **Phase 5 (11 November):** the user said its melody "sounds kinda shit, make it more mysterious arabic inspired not so happy at times", that the harps overlapped in quick succession, and to use fewer, simpler notes.
-  - Corona is now modal over a drone: an open E–B fifth with no third, its third section adding the ♭2 (F). The B and C major chords were the "happy" moments.
-  - The lament is a few long notes in maqam Bayati (with its half-flat second) and, over the ♭2, Saba, rising and falling back unresolved, with slow slides.
-  - The harp plucks once per ten-sixteenth cycle, never near the lament. The tremolos and graces are gone.
-- **Boss:** the same four states as every world (modules, core, overload, each with its stinger, on the score's clock), orchestral since 11 November. Corona's stem drums are the darbuka's doum where the maqsum puts them, with the tek between and the fights' kick under them.
-- **Details:** [sound design](24-sound-design.md), 10 and 11 November revisions.
+## 3. World generation
 
-## Stages
+The profile is `CORONA` in `src/world/terrain-corona.ts`, built on Umbra's (`...UMBRA`) with its own landform, colour,
+dressing and sea. Pure functions of the seed and world position.
 
-1. **Playable world (done, 5 November):** types, campaign and endless, terrain and look, plasma, arcs, the placeholder boss, deck, sites, missions.
-2. **Blender models:** the six craft (mapped to Umbra's kinds, the Wraith slot included), the infrastructure kit, the Star Extractor and the Star Cage, and the airfield's Corona recolour.
-3. **Validation:**
-   - measure the site-seat spread (`tests/sim/site-seats.test.ts`, provisional);
-   - measure the longer endless lap;
-   - pass the release gate;
-   - deploy.
+- **Land and plasma** (`coronaMasks`): bands of rock and plasma alternating across the map, snaking and pinching into
+  necks and islands; plasma rivers and pools cut through the land masses. A winding causeway runs along the central route,
+  broken now and then by a plasma crossing.
+- **Tiers** (`landLevel`, `bench`): the land rises from `LOW` (just over the plasma) about `RISE` units, cut into tiers
+  `STEP` apart by sheer risers, Khepri's and Vesper's way; the causeway keeps to the lower tiers. Mesas (`MESA_STEP`,
+  `TIER_STEP`) stand over the islands' cores, never on the causeway. Basalt plates about 3.6 across each lean a hair
+  their own way (`plates`). `cliffs: true` gives crisp rim creases and per-face wall shading (`WALL_LOOK.corona`).
+- **Glowing cracks** (the ground shader's vein lines) run through all the rock, densest toward the shore.
+- **Near the side routes**, where strike sites stand, the tiers are gentler and no mesa stands (`sideRoute`; user: "cant
+  they generate on the rocks?", then "they can sit in lava just not exclusively"), so most sites seat on rock and the rest
+  on decks in the plasma.
+- **Scenery caps:** Umbra's (`UMBRA_SCENERY_MAX`, and `UMBRA_SPIRE_MAX` for columns, spires and the infrastructure).
+- **Dressing** (`coronaScatterSteps`):
+  - Khepri's basalt kit in charcoal (user: "couldnt you use khepris basalt columns"): column clusters and lone columns
+    standing out of the plasma, more of them near the shores; crags on the mesa rims; boulders, fallen columns and rocks
+    on open rock;
+  - Khepri's columnar cliff walls (`cliffWall`) along every coast, tier riser and mesa face, their feet down to the plasma;
+  - now and then one of Corona's own infrastructure modules on level rock, facing the camera (§4).
+- **Boss arena:** THE HELIOPHAGE floats over the world's own ground; the arena only levels the mesas and tall dressing
+  (user: "no need for a special lava only lake for the boss, he will float anyway").
 
-The phone check stays open until it is done on hardware.
+## 4. Blender assets
+
+| File | Builder | Contents |
+| --- | --- | --- |
+| `public/assets/corona/corona-kit.glb` | `kit_corona.py` | The infrastructure sheet's six modules (`CoronaKitKind` in `src/world/scenery-kit.ts`): a captured star between two arms (`corExtractor`), a lattice collector tower with fan panels (`corCollector`), a ribbed half-barrel hangar (`corHangar`), a refinery of banded tanks and a plasma column (`corRefinery`), a gantry over a landing pad (`corGantry`), a ribbed dome (`corDome`). Gunmetal frames, bronze-grey plates, gold glowing seams; the kit shader burns `*glow*` faces orange. |
+| `public/assets/corona/corona-craft.glb` | `craft_corona.py` | The fleet (§2). |
+| `public/assets/corona/the-heliophage.glb` | `boss_heliophage.py` | THE HELIOPHAGE (§6). |
+| `public/assets/khepri/khepri-kit.glb`, `public/assets/khepri/cliff-kit.glb` | `kit_khepri.py` (shipped through `kit_refinement.py`), `kit_cliffs.py` | Khepri's basalt dressing and walls, tinted charcoal on Corona. |
+
+Corona builds no facility plants.
+
+## 5. Strike sites
+
+Corona's site pool ([docs/33 §3](33-strike-sites-and-encounter-deck.md)) holds its two own sites, the crash site and the
+airfield:
+
+- **Star Extractor** (`star-extractor`), a parts site: a legged rig drawing plasma out of the ground (user, 5 November: "one
+  should be a star extractor facility"; "The one we worked on should be star extractor"). It is the most likely draw.
+- **Star Cage** (`star-cage`), a shield site: a captured star held between two arms (user: "rename this something else,
+  doesnt look like a star extractor anyways").
+- The **crash site** and the **airfield**, the airfield only recoloured (user: "no new model tho").
+
+Corona's finishes are ancient machinery (user, 5 November: "they look like toys now. refine them, alien and ancient looking,
+and also mechanical"): carved stone with glyph grooves, monolith posts, ring gears, ribbed pumps and pistons, dark iron
+and oxidised bronze, texture-baked by `tools/blender/sites_strike.py` with `lib_solids.STYLES['corona']` (plates, ash,
+soot, worn bronze edges). Corona's sites may stand on foundations down to the plasma (`siteDropMax` in
+`src/sim/sites.ts`), as the concept's structures rise out of it; at least 60% seat on rock
+(`tests/sim/site-seats.test.ts`).
+
+## 6. THE HELIOPHAGE
+
+The user's Tripo GLB, given THE ECLIPSE's fight (user, 5 November: "reuse the eclipse boss ... same gameplay we will replace
+the boss later"; it has had its own model since that day). Its numbers are `HELIOPHAGE` in `src/content/heliophage.ts`
+(THE ECLIPSE's values with its own positions), its definition `BOSSES.heliophage` (THE ECLIPSE's parts, moves and
+messages under its own name), its view `HELIOPHAGE_STYLE` in `src/render/carrier-view.ts`.
+
+- **Targets:** the two armoured blocks' vent grilles (the first pair; `ventOffset`, `ventS`), the central tower's glowing
+  column (the third first-phase target, as THE ECLIPSE's prow vent; `prowS`) and the caged molten core (`reactorS`).
+- **Fight:** THE ECLIPSE's ([docs/28 §6](28-umbra-eternal-eclipse.md#6-the-eclipse)), including its Fracture Wave and
+  Boomerang Barrage; drone waves from the claws' tips (`bays`). Its campaign health includes
+  `MISSION_PRESSURE['dying-star'].bossHp`.
+- **Arrival:** it flies in from beyond the top of the screen to its row (`entryS`, `HELIOPHAGE_STYLE.fliesIn`; user, 6
+  November: it "should not rise from the depths ... it should come in from top of the screen") and hovers between the
+  plateau and the flight plane (`HELIOPHAGE_STYLE.hover`).
+- **Effects:** its own sparks, flashes, steam and smoke in white gold, molten orange and ash (`HELIOPHAGE_STYLE.fx`; user,
+  6 November: they had been purple).
+- **Model:** `art/source/bosses/heliophage-tripo-original.glb`, adapted headless by `tools/blender/boss_heliophage.py` with
+  THE ECLIPSE's helpers. It is laid flat with its concept view to the camera, spires away from the player and claws toward
+  them, 16 units wide (user: "Make it 16 units wide, the eclipse is the final boss"), its depth squashed so it fits under
+  the flight plane. Its core turns 10° toward the player (`tilt_core`; user: "The core of heliophage should point more
+  down"). The mesh, UVs and atlases are kept and reduced under the 80,000-triangle cap, with an emission mask from the
+  painted glow. Nodes `heliophage_hull`, `heliophage_pod_left`, `heliophage_pod_right`, `heliophage_prow`,
+  `heliophage_heart`, a wreck of each target, and the marker `heliophage_approved_v1` (a real identifier).
+
+## 7. Music
+
+*Hymn for a Swollen Sun*, 110 BPM (`THEMES.corona` in `src/audio/score.ts`): modal over a drone, an open E–B fifth with no
+third and the ♭2 as a colour in its third section. A low harp plucks once per ten-sixteenth cycle, so it drifts across the
+4/4 bar; a lament of a few long notes in maqam Bayati and, over the ♭2, Saba, with slow slides; a darbuka. The user asked
+for "ominous harp sounds or something" (10 November), then for something "more mysterious arabic inspired not so happy at
+times" with fewer notes (11 November). The boss stem's drums follow the darbuka's pattern with the fights' kick under
+them. Details: [docs/24](24-sound-design.md).
+
+## 8. Endless
+
+Corona flies between Amnion and Nahara in each endless lap (user, 5 November: "i thought every level will be used in
+succession in endless"; [docs/18](18-endless-planet-cycle.md)). Its stages are staged from Dying Star's arc (`lateStages`):
+the opening with its strike site, the pressure stage without one, and later visits the climax arc with a site between
+its halves. Its world missions are in [docs/35 §3](35-missions.md#3-the-missions).
+
+## 9. Tests
+
+Corona has no test file of its own; it is covered where every world is:
+
+- `tests/sim/encounter-deck.test.ts`: every world's pools and resolved lists keep to its roster, Corona's included.
+- `tests/sim/site-seats.test.ts`: Corona's site seats, at least 60% on rock (`CORONA_ON_ROCK`).
+- `tests/world/terrain-route.test.ts`: THE HELIOPHAGE's arena keeps the ground under it at the plateau.
+- `tests/sim/late-world-curve.test.ts`: Dying Star's first windups and repeat fire on its step of the curve, in both
+  modes.
+- `tests/world/site-models.test.ts`: the Star Extractor, the Star Cage and every Corona finish against the site contract.
+- `tests/sim/umbra.test.ts`: THE HELIOPHAGE's third first-phase target.
+- The fairness suites fly Dying Star at every difficulty and Corona's endless stints.
+
+## Open
+
+- No phone test of the plasma shader, the smoke banks or the arcs.

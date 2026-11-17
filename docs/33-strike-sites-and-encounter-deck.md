@@ -1,546 +1,381 @@
-# 33 · Strike sites and the encounter deck
+# Strike sites and the encounter deck
 
-> **30 October user override:** The selected chassis perk now applies in endless as well as campaign; only modular parts and paint are cosmetic. Starter weapon/special/shield equipment still resets. See [global ship perks](34-global-ship-perks.md).
+Strike sites are optional side-route targets, each with an authored guard and a core whose death drops loot (in the
+campaign, often a part); the encounter deck turns each authored mission and endless arc into a slightly different cue
+list per attempt. This doc covers both: the decisions behind them, the fifteen sites and their loot, the deck's slots,
+pools and guard rails, how they are validated, and the site models and their rendering. The director that flies the cues is
+[docs/03 §6](03-worlds-and-generation.md#6-encounter-deck-and-director).
 
-Status: planned 29 October 2026; three parallel workstreams (§ 5). Decisions: docs/08, 29 October (strike sites, parts,
-encounter deck, endless cosmetics).
+## 1. Overview
 
-## 1. Why
+The user asked for both on 29 October: "rework the events and random (or not so random) messages that currently always
+say 'something west or lone interceptor east'"; "special locations can pop up. Like an airfield on khepri/moon/vesper or a
+spaceport on the more exotic planets. I want a dozen or so of these special buildings/infrastructure locations that can
+be attacked for parts. Parts will be like the coins but much rarer and we buy ship parts with them"; and "Do you think it
+could make sense not to hardcode script the sequence? Every play would be a little different". Before, every mission and
+endless stage was one fixed cue list with the same side routes and messages on every flight.
 
-User, 29 October:
-- "rework the events and random (or not so random) messages that currently always say 'something west or lone
-  interceptor east'";
-- "special locations can pop up. Like an airfield on khepri/moon/vesper or a spaceport on the more exotic planets. I want a
-  dozen or so of these special buildings/infrastructure locations that can be attacked for parts. Parts will be like the
-  coins but much rarer and we buy ship parts with them";
-- "Do you think it could make sense not to hardcode script the sequence? Every play would be a little different".
+- **Strike sites** (§3) replace the fixed side routes: each world has a pool of sites with its own guards, models,
+  messages and loot.
+- **Parts** are the rare second currency they drop in the campaign.
+- **The encounter deck** (§4) keeps every arc authored but draws, per attempt, which authored wave flies in a pool slot,
+  its mirror image, and which strike site stands where.
 
-Today every mission and endless stage is one fixed cue list (src/content/encounters.ts): the same squadrons at the same
-times, and the same two or three side routes (`… · WEST`, `… · EAST`) with the same messages. Endless replays its three
-stage lists on every planet visit.
+## 2. Decisions
 
-## 2. Decisions (user, 29 October)
+The user's decisions of 29 and 30 October ([docs/08](08-decisions-and-sources.md), 29 and 30 October):
 
-- **Parts** are a second currency, **campaign only**. Ship designs B–E cost **parts plus credits**; credits still buy
-  weapons, specials, shields and chassis. Parts are banked with the attempt, a failed one included, as credits are.
-- **Strike sites** appear in both modes, as optional side routes. In endless a parts site drops a power cell and a score
-  bonus instead (no progression in endless, AGENTS.md invariants 6 and 13).
+- **Parts are a second currency, campaign only** (the design decision invariant 7 asks for). Parts, alone or with
+  credits, buy ships, ship designs, weapon levels and specials; the prices are in
+  [docs/30](30-campaign-progression.md#the-shop). Parts are banked with the attempt in full, whatever its outcome. World
+  missions pay parts too ([docs/35](35-missions.md)).
+- **Strike sites appear in both modes** as optional side routes. In endless, where nothing is earned for the campaign, a
+  parts site drops a power cell and a score bonus instead (invariants 6 and 13).
 - **Endless flies the ship's cosmetics** (user: "we can take on the cosmetics of the ship for endless, but the weapons will
-  be default tier"): the campaign's equipped chassis model, designs and paint. Endless keeps its own starter loadout and
-  handling: default weapons, no chassis perks, the same hit region. This replaces "endless always flies the default
-  Scrapper" (AGENTS.md invariant 14).
-- **Models:** Claude models the sites by hand in Blender ("just model them yourself. They dont need to be amazing and the
-  existing infra is good inspiration"). The user may add concepts from art/concepts/strike-sites/PROMPTS.md.
-- **Encounter deck, not a fixed script** ("Work on both"): the arc stays authored, each slot draws an authored wave from a
-  pool by a seeded roll per attempt (§ 4). This narrows invariant 8: waves and attacks stay authored, never assembled
-  from parts; only their order and their variations are drawn.
+  be default tier"): the campaign's equipped chassis, its part designs and paint (`endlessConfig` in
+  `src/campaign/profile.ts`), while weapons, special and shields start from `ENDLESS_LOADOUT`. Since 30 October the
+  chassis perk applies in endless too ([docs/42](42-specials-and-perks.md)).
+- **The sites are modelled by hand in Blender** (user: "just model them yourself. They dont need to be amazing and the
+  existing infra is good inspiration"). The user's concept sheet `art/concepts/strike-sites/00-all-sites.png` shows each
+  site on one world; the other finishes are derived from it.
+- **An encounter deck, not a fixed script** ("Work on both"): the arcs stay authored; only which authored wave flies in a
+  slot, its variation and the sites are drawn. This narrows invariant 8: waves and attacks are never assembled from parts.
+- **Sites per mission** (30 October: "keep sites 1-4, with 2 being most probable"), **a part roll on every site**
+  ("Every site rolls"; lowered on 31 October: "parts drop a bit too much, lower it to 0.2-0.6") and **a deck no harder than
+  the fixed lists** ("Tune those down").
 
 ## 3. Strike sites
 
-Twelve sites in families by builder, each one model with a finish per world.
+### 3.1 The sites
 
-| # | Id | Site | Worlds | Target | Loot (campaign) |
+`SITES` in `src/content/sites.ts` is the single source: worlds, draw weights, guards per world, cores and loot. The ids are
+`SITE_IDS` in `src/shared/contracts.ts`.
+
+| Site | Worlds | Target | Guard | Campaign loot | Endless loot |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `crash-site` | Crash site | all six | the freighter's reactor | parts |
-| 2 | `airfield` | Airfield | luna, khepri, vesper | control tower cab | parts |
-| 3 | `salvage-yard` | Salvage yard | luna, khepri, vesper | core on the crane hook | parts ×3, rare |
-| 4 | `shield-depot` | Shield depot | luna, khepri, vesper | generator under the dome | shield cell |
-| 5 | `relay-station` | Relay station | luna, khepri, vesper, amnion (overrun) | the dish's feed horn | credits |
-| 6 | `freight-terminal` | Freight terminal | luna, khepri, vesper, amnion (overrun) | weapons container | weapon |
-| 7 | `dark-spaceport` | Dark spaceport | umbra, nacre (ruin) | crystal at the spire | parts |
-| 8 | `prism-reactor` | Prism reactor | umbra, nacre (ruin) | the floating crystal | shield cell |
-| 9 | `sealed-vault` | Sealed vault | umbra, nacre (ruin) | three seal crystals | parts ×3, rare |
-| 10 | `gate-ring` | Gate ring | umbra, nacre (ruin), amnion (brood-crusted) | the membrane core | power / weapon |
-| 11 | `brood-hive` | Brood hive | amnion, nacre | the heart-sac | parts |
-| 12 | `spawning-pool` | Spawning pool | amnion, nacre | the pod on the stalk | shield cell |
+| Crash site | every world | the freighter's reactor in the break | turret trio and a weaver (Luna, Khepri); missile trio and a Needle (Vesper); mixed trio and a weaver (the others) | part roll | power cell + score |
+| Airfield | Luna, Khepri, Vesper, Corona | the control tower's glazed cab | turret trio and a **scrambled dart pair** (Luna, Khepri); missile trio and a Needle (Vesper); mixed trio and the scramble (Corona) | part roll | power cell + score |
+| Salvage yard (rare) | Luna, Khepri, Vesper | the pod on the gantry's hook | turret ring of four and a dart arrowhead (Luna, Khepri); missile trio and a Diamond (Vesper) | 3 parts | power cell + triple score |
+| Shield depot | Luna, Khepri, Vesper | the generator drum under the field dome | turret pair (Luna, Khepri); missile pair (Vesper) | shield cell, part roll | shield cell |
+| Relay station | Luna, Khepri, Vesper, Amnion | the dish's feed horn | turret pair and a dart (Luna, Khepri); missile pair (Vesper); turret and missile battery and a dart (Amnion) | credits, part roll | score |
+| Freight terminal | Luna, Khepri, Vesper, Amnion | the lit weapons container | turret trio (Luna, Khepri); missile trio (Vesper); mixed trio (Amnion) | credits, part roll | the next main weapon |
+| Dark spaceport | Nacre, Umbra | the crystal in the spire's face | mixed trio and a Needle | part roll | power cell + score |
+| Prism reactor | Nacre, Nahara, Umbra | the floating crystal (it turns) | turret and missile battery | shield cell, part roll | shield cell |
+| Sealed vault (rare) | Nacre, Nahara, Umbra | three seal crystals | a wide ring of two turrets and a missile battery, and a Diamond (a Relic Shield on Nahara) | 3 parts | power cell + triple score |
+| Gate ring | Nacre, Amnion, Nahara, Umbra | the membrane in the ring | turret and missile battery and a weaver | shield cell, part roll | power cell |
+| Brood hive | Nacre, Amnion | the heart-sac under the ribcage | mixed trio and a weaver | part roll | power cell + score |
+| Spawning pool | Nacre, Amnion | the pod on the stalk | turret and missile battery | shield cell, part roll | shield cell |
+| Star Extractor | Corona | the plasma chamber over the bore | mixed trio and a Needle | part roll | power cell + score |
+| Star Cage | Corona | the captured star | turret and missile battery | shield cell, part roll | shield cell |
+| Step Temple | Nahara | the crystal eye over the summit | mixed trio and a weaver | part roll | power cell + score |
 
-**Amnion (user, 29 October: "theres also not a lot for amnion"):** the brood has overrun the relay station, the freight
-terminal and a gate ring there. Same models, with one shared set of bone, chitin and resin growths over them.
+A mixed trio is two turret batteries and a missile battery (`site-mixed-3`); the guard formations are the "Strike sites"
+block of `src/content/formations.ts`.
 
-**Concepts:** `art/concepts/strike-sites/00-all-sites.png` (the user's sheet, one world each; the user: "derive" the other
-world finishes from it). Row by row: crash site (Khepri), airfield (Luna), salvage yard (Khepri), shield depot (Vesper);
-relay station (Luna), freight terminal (Vesper), dark spaceport (Umbra), prism reactor (Umbra); sealed vault (Nacre ruin),
-gate ring (Umbra), brood hive (Amnion), spawning pool (Nacre).
+Each world's pool (`sitePool`): Luna, Khepri and Vesper fly the six frontier sites; Nacre the crash site and the six
+ancient and brood sites; Amnion the crash site, the overrun relay station and freight terminal, the gate ring, the brood
+hive and the spawning pool (user: "theres also not a lot for amnion"); Corona the crash site, the airfield and its own
+two ([docs/37](37-corona-dying-star.md)); Nahara the crash site, the prism reactor, the sealed vault, the gate ring and
+the Step Temple ([docs/39](39-nahara-silent-empire.md)); Umbra the crash site and the four ancient sites. The draw weights
+(`SiteDefinition.weight`) make the salvage yard and the sealed vault rare, and the Star Extractor and the Step Temple the
+most likely on their worlds.
 
-Rules:
-- **Optional.** A site is a side route off the mandatory battle, world-anchored about 7.5 units out (west or east, drawn).
-  It is never needed to survive (invariant 5), and the main battle keeps its safe path.
-- **Authored defence.** Each site has its own authored guard (existing enemy kinds: turrets, missile batteries, darts,
-  and so on), heavier for parts sites. One small authored flourish each is welcome (the airfield scrambles a dart pair).
-- **The target** is the site's core: a ground target with an explicit proxy, like a battery. Its death drops the loot and
-  sets off the site's destruction effect. Scenery around it never blocks shots (invariant 4).
-- **Messages** are the site's own (`AIRFIELD · WEST`, `CRASH SITE · EAST · PARTS`), not the generic side-route text.
-- **Shield cells** from sites count inside the existing shield-supply budget (invariant 11): a shield site replaces a
-  budgeted supply in its stretch rather than adding one.
-- **Readable at phone size:** a bold silhouette, roofs under the flight plane (docs/25 rule 3), about 4–6 units across,
-  the target visible from the 55° camera (docs/25 rule 2).
+### 3.2 Rules
 
-Economy (provisional, to be measured with the test pilot): designs cost B 1 part + 80, C 1 + 160, D 2 + 240, E 3 + 320
-credits (since 3 November 2026, 50 credits and 1 part each; ships, upgrades and specials also take parts: docs/30 § Shop);
-a parts site drops 1 part, a rare one 3. Report parts per mission (Standard, perfect pilot collecting) before
-fixing the numbers.
+- **Optional.** A site is a side route off the main battle, world-anchored `SITE_X` units out on a drawn side. It is never
+  needed to survive (invariant 5), and the main battle keeps its safe path.
+- **Authored defence.** Each site has its own authored guard of kinds its world already flies (tested), heavier for parts
+  sites, light for shield sites, with one flourish each: the airfield scrambles a dart pair from its runway
+  (`site-scramble`), the salvage yard calls in a dart arrowhead or a Diamond, the sealed vault a heavy, others a fighter or
+  an interceptor.
+- **The core** is the site's target, formation `site-core-<site>`: a harmless ground target of kind `fuel` with an explicit
+  proxy that never attacks, ranks after armed targets and costs no threat. `spawnMembers` (`src/sim/spawn.ts`) gives it the
+  site's id (`Enemy.site`), hit points (`SiteDefinition.core`, times the difficulty's or endless ramp's hp scale), radius
+  and core height. It never bursts like a fuel skid and drops no credits of its own. The sealed vault has three seals; its
+  loot drops with the last one. Scenery round a core never blocks shots (invariant 4).
+- **Readable at phone size:** a bold silhouette inside `SITE_FOOTPRINT`, roofs under the flight plane, the core in sight
+  of the 55° camera ([docs/25](25-modular-facilities.md)'s line-of-sight and height rules).
 
-### 3.1 As built (workstream B, 29 October 2026)
+### 3.3 Layout and seats
 
-Runtime sources: `src/content/sites.ts` (the table below; `sitePool`, `siteCue`), the site formations in the
-"Strike sites" block of `src/content/formations.ts`, `src/sim/sites.ts` (message, loot, shield budget), the core hook in
-`src/sim/spawn.ts`, and `damageEnemy` / `updatePickups` / `updateShieldSupplies` in `src/sim/game.ts`.
+- **The track.** A site rides its own ground track (`SITE_TRACK` in `src/content/formations.ts`), `SITE_LEAD` units further
+  out than a battery's, so the whole site scrolls in from beyond the top edge; the director can lead it further like any
+  ground formation. Guards stand on rings round the core (`RING_2`, `RING_3`, `RING_4`, `RING_VAULT`), outside every
+  site's footprint and at least the airspace separation from the core, within reach of the ship. Each guard's first
+  windup waits until it is fully in view.
+- **The seat** (`siteSeat` in `src/sim/sites.ts`). As a site's core spawns, a pure search (the run's terrain and that tick's
+  camera, never randomness) picks the most even dry ground near the authored place: a small window (`SEAT_SEARCH`) and,
+  only if the best seat there would straddle a cliff, a trench or a pit (`seatRough`), a wider one (`SEAT_WIDE`) if it is
+  clearly better. It takes only seats whose footprint keeps every guard battery `GUARD_CLEARANCE` outside it
+  (`guardSpots`). Moving the core toward the camera costs extra (`SEAT_BACK_COST`): a core run ahead of its guards' ring
+  was killed while they still fired, and its part fell under their fire. Tall sites prefer lower ground (`seatHigh`,
+  `SEAT_LIMIT`); foundations fill drops down to `siteDropMax` (deeper on Corona, down to the plasma). On Nacre's mire a
+  site may stand in the shallows (`WET_WORLDS`).
+- **The floor** is the footprint's 95th-percentile height; the core rests on it (`seatCore`), so its gameplay position is
+  where its model draws it. The guards keep their authored places and timing, so the cue is exactly as fair as authored.
+  What unevenness remains, the render's site pad levels (§6).
+- **Fairness.** Every site cue passes the formation fairness tests at every scale and mirror. The offline validator
+  (`tests/sim/fairness-trace.ts`) treats a site's core and its own guard ring as one authored layout, so it does not
+  require airspace separation between them (under the release lens, ground seats near the bottom of the view come up to
+  a unit closer than authored); the guard keeps the rule against every other squadron.
 
-**Layout.** A site sits `SITE_X` = 7.5 units out on its side (world-anchored; the west site mirrors the east one). It
-rides its own ground track (`SITE_TRACK`), `SITE_LEAD` = 9 units further out than a battery's, so the whole site scrolls in
-from beyond the top edge even when its cue spawns at its time; the director's `leadGround` can lead it further, as any
-ground formation. Guards sit in rings around the core at least 2.55 units away (the airspace separation plus its margin,
-they are other squadrons), within x ±10.5 so every member can be lined up. Each guard's first windup waits until it is
-fully in view. All site formations pass the formation fairness tests (`tests/sim/fairness.test.ts`, every scale, both
-mirrors).
+### 3.4 Loot and parts
 
-**The core** is formation `site-core-<site>`: a harmless ground target of kind `fuel` (an explicit proxy that never
-attacks, ranked after armed targets, threat cost 0) that spawnMembers marks with `Enemy.site`, the site's hit points
-(× the difficulty's or endless ramp's hp scale) and radius 0.7. It never bursts like a fuel skid and drops no credits of
-its own: its death scores 500 and drops the site's loot where it stood. The sealed vault has three seals (55 hp, radius
-0.5); its loot drops with the last one. **Render (workstream C):** a site core is drawn as the site, not as a fuel skid
-or fuel wreck; skip `enemy.site` in the enemy batches and wrecks.
+When a site's last core falls (`destroySiteCore` in `src/sim/sites.ts`) the site counts as destroyed, scores `SITE_SCORE`,
+and drops its loot where that core stood:
 
-| Site | Worlds: guard (threat) | Core hp | Campaign loot | Endless loot |
-| --- | --- | --- | --- | --- |
-| Crash site | Luna, Khepri: turret trio + weaver (8); Vesper: missile trio + Needle (8); Nacre, Amnion, Umbra: two turrets and a missile battery + weaver (8) | 80 | part roll (75 %) | power cell + 1,000 |
-| Airfield | Luna, Khepri: turret trio + **a scrambled dart pair** (8); Vesper: missile trio + Needle (8) | 80 | part roll (75 %) | power cell + 1,000 |
-| Salvage yard (rare, weight 0.3) | Luna, Khepri: turret ring of four + three-dart arrowhead (11); Vesper: missile trio + Diamond (10) | 150 | 3 parts | power cell + 3,000 |
-| Shield depot | Luna, Khepri: turret pair (4); Vesper: missile pair (4) | 80 | shield cell (budgeted) + part roll (25 %) | shield cell (budgeted) |
-| Relay station | Luna, Khepri: turret pair + dart (5); Vesper: missile pair (4); Amnion: turret and missile battery + dart (5) | 80 | 30 credits + part roll (37.5 %; Vesper 25 %) | 1,500 score |
-| Freight terminal | Luna, Khepri: turret trio (6); Vesper: missile trio (6); Amnion: mixed trio (6) | 80 | 40 credits + part roll (50 %) | a weapon (the next in Pulse → Fan → Seeker → Rail) |
-| Dark spaceport | Umbra, Nacre: mixed trio + Needle (8) | 80 | part roll (75 %) | power cell + 1,000 |
-| Prism reactor | Umbra, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) + part roll (25 %) | shield cell (budgeted) |
-| Sealed vault (rare, weight 0.3) | Umbra, Nacre: wide ring of two turrets and a missile battery + Diamond (10); **three seals** | 3 × 55 | 3 parts | power cell + 3,000 |
-| Gate ring | Umbra, Nacre, Amnion: turret and missile battery + weaver (6) | 80 | shield cell (budgeted) + part roll (50 %) | power cell |
-| Brood hive | Amnion, Nacre: mixed trio + weaver (8) | 80 | part roll (75 %) | power cell + 1,000 |
-| Spawning pool | Amnion, Nacre: turret and missile battery (4) | 80 | shield cell (budgeted) + part roll (25 %) | shield cell (budgeted) |
+- **Part roll** (campaign only): every site rolls for one part (`sitePartChance`), with a chance linear in its guard's
+  threat on that world between `PART_CHANCE.min` (threat `minThreat`, the lightly guarded shield sites) and
+  `PART_CHANCE.max` (threat `maxThreat` and above, the parts sites). The part drops beside the core. The salvage yard and
+  the sealed vault roll nothing and drop their guaranteed parts (`loot.value`) side by side. The roll is its own hash
+  (`partRoll`: run seed, sector, site and how many sites the run had destroyed), never `Math.random` and never the loot
+  stream.
+- **Parts** are one pickup each (`Pickup.kind` `'part'`, an orange octagon with a cog), counted in `RunState.parts` and
+  banked with the attempt (docs/30). Endless never drops one.
+- **Shield cells** stay inside the shield-supply budget (invariant 11): a shield site's cell is a budgeted supply
+  delivered early, never an extra one. It claims the next supply still to come in the mission (`shieldSupplies` of the
+  mission's boss for the difficulty; endless: this sector's, else the next sector's), and that supply is then skipped
+  (`RunState.sites.shieldClaims`, `supplyClaimed`). With none left to take, the site pays `SHIELD_FALLBACK_CREDITS` in the
+  campaign or `SITE_SCORE` in endless.
+- **Credits and weapons:** campaign weapons and levels are bought, never picked up ([docs/30](30-campaign-progression.md)),
+  so the relay station and the freight terminal pay credits and the gate ring a budgeted shield cell (user: "Credits on
+  campaign instead of power is fine but you can also drop shields"). In endless the freight terminal drops the next main
+  weapon in `WEAPON_IDS` order and parts sites a power cell plus `ENDLESS_PART_SCORE` per part.
+- Loot is never lost to the pickup ceiling: when it is full, the oldest credit drop makes room.
 
-Every guard flies only kinds that already fly on its world (tested). **Weapon and power loot in the campaign:** the plan's
-"weapon" (freight terminal) and "power / weapon" (gate ring) cannot pay out in the campaign, where weapons and their tiers
-are bought, never picked up (docs/30; the campaign ignores weapon and power pickups). In the campaign the freight terminal pays
-40 credits and the gate ring a budgeted shield cell (user, 29 October: "Credits on campaign instead of power is fine but
-you can also drop shields"). Parts stay slow at the prices above (user: "No parts should be slow").
+### 3.5 Messages and statistics
 
-**Messages** are the site's own, naming what it drops in the run's mode: `AIRFIELD · WEST · PARTS` (campaign),
-`AIRFIELD · WEST · POWER` (endless), `SHIELD DEPOT · EAST · SHIELD`, `RELAY STATION · EAST · CREDITS` / `· BONUS`.
-
-**Shield budget (invariant 11).** A shield site's cell is a budgeted shield supply delivered early, never an extra one: it
-takes the next supply still to come in the mission (the mission's or boss's `shieldSupplies` for the difficulty; endless:
-this sector's, else the next sector's), and that supply is then skipped (`RunState.sites.shieldClaims`,
-`supplyClaimed`). With no supply left to take, the site pays 10 credits (campaign) or 500 score (endless). The cells a run
-can collect therefore never exceed its supply schedule (`tests/sim/sites.test.ts`).
-
-**Parts** (`Pickup.kind 'part'`, one pickup per part, an orange octagon with a cog) count in `RunState.parts` in the
-campaign and are banked with the attempt in full whatever its outcome (docs/21 § 7). Endless never drops one.
-
-**Every site rolls for a part** (user, 30 October: "raise parts probability to 0.25-0.75 per site", "Every site rolls";
-lowered 31 October: "parts drop a bit too much, lower it to 0.2-0.6"; docs/08). In the campaign each destroyed site drops
-one part, 0.8 units beside its core, with a chance linear in its guard's threat on that world (`sitePartChance`,
-`PART_CHANCE`): 20 % at threat 4, 60 % at threat 8. So 60 % for the crash site, airfield, dark spaceport and brood hive;
-40 % for the freight terminal and gate ring; 30 % for the relay station (20 % on Vesper); 20 % for the shield depot, prism
-reactor and spawning pool. It comes besides the site's own loot; the
-four parts sites no longer drop a guaranteed part (the roll is it), and the salvage yard and sealed vault keep their
-guaranteed 3 (no roll). The roll is its own hash (`partRoll` in src/sim/sites.ts: run seed, sector, site, sites destroyed
-so far), never `Math.random` and never the loot stream. Messages keep naming the main loot (`· PARTS` on the parts sites).
-
-**Statistics** (invariant 13, observation only): the flight log counts sites destroyed per mode (`FlightTotals.sites`,
-`FlightRecord.sites`; older logs read as 0). It is not shown on the Statistics page yet.
-
-**Measured, round 1 (29 October, before the part roll and the deck's 1–4 sites; the round-2 economy is in § 4.1;
-`SITE_ECONOMY=<file> npx vitest run tests/sim/site-economy.test.ts`).** Each mission's authored
-side routes (Training 2, Rolling Thunder 1, the others 2) replaced by each of its world's parts sites in turn, Standard,
-the perfect pilot steering for site cores and parts (`tests/sim/site-harness.ts`), seeds 5, 6 and 7, no life lost in any
-run. Parts banked per site encounter, and the expected parts per mission when the side slots draw from the world's pool
-by weight:
-
-| Mission | Tier-1 Twin Pulse: per encounter | expected / mission | Tier-3 Twin Pulse: per encounter | expected / mission | if every part were collected |
-| --- | --- | --- | --- | --- | --- |
-| Training (Luna) | crash 0.50, airfield 0.67, salvage 0.50 | 0.50 | 0.83, 0.83, 2.00 | 0.86 | 1.09 |
-| Rolling Thunder (Khepri) | 0.33, 0.33, 0 | 0.13 | 0.67, 1.00, 2.00 | 0.43 | 0.55 |
-| Cold Vector (Vesper) | 0.83, 0.83, 1.50 | 0.80 | 1.00, 1.00, 1.83 | 0.96 | 1.09 |
-| Deep Bloom (Nacre) | crash 0.83, spaceport 0.50, vault 0, hive 0.83 | 0.69 | 1.00, 1.00, 1.50, 1.00 | 1.10 | 1.24 |
-| Brood Strike (Amnion) | crash 1.00, hive 1.00 | 0.67 | 1.00, 1.00 | 0.67 | 0.67 |
-| Final Horizon (Umbra) | crash 0.50, spaceport 0.67, vault 0 | 0.54 | 1.00, 0.83, 1.50 | 1.06 | 1.35 |
-
-So a mission yields about 0.5–1 part (fewer on Rolling Thunder, which has one side slot; the deck's slot count decides).
-One chassis's designs cost 28 parts (7 per slot), all four 112: a B design takes one or two missions, a full chassis
-dozens. The pilot is cautious under aimed turret fire (it leaves a core's lane whenever a shot is committed there), so the
-tier-1 figures on the turret worlds are pessimistic; missile-battery guards (their own columns) leave the lane under the
-core open.
+- **Messages** are the site's own (`siteMessage`), naming the side and what it drops in the run's mode, with `PARTS` added
+  in the campaign when the site rolls for a part: `AIRFIELD · WEST · PARTS`, `SHIELD DEPOT · EAST · SHIELD · PARTS`,
+  `RELAY STATION · EAST · BONUS` (endless). The HUD colours the loot words in their pickup icons' tints
+  (`src/content/pickup-tints.ts`).
+- **Announcement:** a site is announced only when it is the next cue and would be admitted now, a short lead before its
+  ground entry (`SITE_NOTICE_LEAD` in `src/sim/game.ts`; user, 14 November: "it tells me theres a site but then nothing
+  follows").
+- **Statistics** (observation only, invariant 13): the flight log counts sites destroyed per mode (`FlightTotals.sites`,
+  `FlightRecord.sites` in `src/ui/flight-log.ts`), and side missions see a `site` event.
 
 ## 4. Encounter deck
 
-The director (src/sim/game.ts `updateDirector`) keeps consuming a concrete `EncounterCue[]`. What changes is where that
-list comes from:
+`src/content/encounter-deck.ts` holds every arc and its pools; `src/content/encounters.ts` keeps the shared types
+(`EncounterCue`, `FormationPlacement`, `PacingPhase`), `f()`, `cueRoster` and `cueAlert`. The director asks for the run's
+list every tick (`resolvePlaylist(config, sector, seed)`, memoized in a small bounded cache outside the run state) and
+admits its cues in order ([docs/03 §6](03-worlds-and-generation.md#6-encounter-deck-and-director)).
 
-- **Template:** each campaign mission and endless stage is an authored list of **slots**: fixed cues (Training's
-  teaching steps, boss approaches, set pieces), and pool slots by phase (`pressure`, `climax`, `recovery`/side).
-- **Pools:** authored waves per world family and phase, each with a threat cost and allowed variations (mirror, a
-  small lateral offset). Side slots draw strike sites (§ 3) from the world's site pool, weighted by rarity.
-- **Resolve:** `resolvePlaylist(config, sector, seed)` expands a template into `EncounterCue[]` with a dedicated seeded
-  stream (never `Math.random`, never the combat stream). The same seed always gives the same list. Endless resolves per
-  sector.
-- **Guard rails:** no wave twice in a row, a per-slot threat budget so two heavy waves never stack, and every pool wave
-  passes the existing admission and fairness checks.
-- **Balance:** the test pilots (tests/sim/pilots.ts) fly many seeds per mission; difficulty and payouts must stay within
-  a band, not match one number.
-- Training's teaching order stays fixed.
+- **Arcs** are authored lists of slots following the pacing arc (introduction, pressure, recovery, pressure, climax,
+  recovery):
+  - `fix(cue)` flies as written: every introduction, every cue with a message (teaching steps, set pieces, power-cell and
+    weapon opportunities) and every relief;
+  - `draw(cue, rank?)` is a pool slot: its cue's formations are the slot's nominal wave, which fixes its role (an air
+    squadron or ground batteries), its attack character and its threat cost; its pickup stays with the slot;
+  - `side({ at, id, pickup?, rank? })` is a strike-site place.
+- **Pools** (`DECK_POOLS[world][phase]`) are authored waves (`w(...)`) per world and phase: one air squadron, or ground
+  batteries with optional harmless skids, built only from formations and kinds the world already flies.
+- **Resolve:** `resolveDeck` walks the arc with its own seeded roll, keeping fixed cues, drawing a fitting pool wave for
+  each pool slot and a site for each site place. The same seed always gives the same list; endless resolves each sector
+  anew, so a later visit to a stage differs.
+- **Reinforcements:** in campaign missions with `MISSION_PRESSURE.reinforce`, `reinforced` follows a share of the pressure
+  and climax air squadrons with the same squadron mirrored two seconds later (above 1, a third as authored two seconds
+  after that). Lone squadrons (a Pulsar, a Wraith), diving formations, beam craft and site cues are never reinforced. The
+  director admits each follower on its own ([docs/11](11-campaign-difficulty.md), [docs/40](40-balance-measurement.md)).
 
-### 4.1 As built (workstream A, 29–30 October 2026; round 2, 30 October)
+### 4.1 The deck as built
 
-Runtime source: `src/content/encounter-deck.ts` (templates, pools, guard rails, `resolvePlaylist`); the director asks it
-for the run's list (`resolvePlaylist(state.config, state.sector, state.config.seed)`, memoized in a small bounded cache
-outside the run state). `src/content/encounters.ts` keeps the shared types (`EncounterCue`, `FormationPlacement`),
-`f()`, `cueRoster` and `cueAlert`; the fixed lists it used to hold are now the templates' slots.
+**Templates.** `CAMPAIGN_DECKS` holds the eight missions' arcs, each lengthened by an authored sortie stretch (`extend`).
+`ENDLESS_DECKS` holds the Luna prologue and each world's opening, pressure and peak stages (`endlessTemplate` picks one by
+sector: opening and pressure on a world's first stint, peak on later visits). The late worlds' stages are cut from their
+mission arcs (`lateStages`). Every campaign arc, the prologue and each world's opening are **teaching arcs**: a pool slot
+whose nominal introduces a formation flies it as authored, and draws use only formations already introduced, so
+squadrons appear in their authored order and Training's teaching sequence is the same on every seed.
 
-**Templates.** Every arc is the list it was before, slot by slot, at the same times (mission lengths, boss approach
-cutoffs and arrivals, the endless sector cycle and pace ramp and the shield-supply schedule are untouched):
+**Strike sites per run.** In the campaign the attempt first draws its site count (`SITE_COUNT`: one to four, two the most
+likely) and flies the first that many of the arc's four ranked site places. A place is a **side** slot (an empty relief
+when unused) or a **stand-in**: a pool slot whose ground battery the site replaces when used, so the arc's pressure stays
+as authored; unused, it draws as usual. A site standing in for a battery that introduced a formation moves that
+introduction to the battery's next slot. The places, with times after the sortie stretch (from `CAMPAIGN_DECKS`, checked 17
+November):
 
-- `fix(cue)`: flies as written. Every intro cue, every cue with a message (teaching steps, set pieces, power-cell and
-  weapon opportunities) and every relief.
-- `draw(cue, rank?)`: a pool slot; `cue.formations` is its **nominal** wave (what the arc flew before the deck) and fixes
-  the slot's role (an air squadron, or ground batteries), its attack character (below) and its threat cost; its pickup
-  stays with the slot. With a `rank` it is also a campaign site place (a stand-in, below); `endlessSite(cue)` is an
-  endless stage's stand-in.
-- `side({ at, id, pickup?, rank? })`: a strike site (§ 3), drawn from `sitePool(world)` by `SiteDefinition.weight`, west
-  or east by the roll, built with `siteCue(id, side, at, world)`; a slot's pickup moves to the drawn side. In the
-  campaign its `rank` decides whether the attempt flies it (below).
-- A site in either kind of slot is drawn the same way; no site twice in a row.
-
-Templates: the six missions (`CAMPAIGN_DECKS`) and ten endless stages (`ENDLESS_DECKS`: the Luna prologue, then opening,
-pressure and peak stages for Khepri, Vesper and Nacre). Teaching arcs (every mission, the prologue and the opening
-stage of each world's first endless visit) fly a slot whose nominal introduces a formation as authored, and draw only
-formations already introduced, so squadrons appear in their authored order. Training's teaching sequence is therefore
-fixed on every seed, and its first site, always at 39 s on a side route, teaches the side route.
-
-**Strike sites per run** (the old `SALVAGE ROUTE · WEST`, `OPTIONAL OUTPOST · EAST`, `LONE TURRET · EAST`, … routes are
-gone). **Campaign:** a seeded count per attempt (`SITE_COUNT`, drawn first from the deck stream; user, 30 October: "keep
-sites 1-4, with 2 being most probable"): one 20 %, two 45 %, three 25 %, four 10 %. Every mission offers four ranked site
-places and the attempt flies the first `count`. A place is either a **side** slot (`side({ …, rank })`: an empty relief
-when unused, as the old east routes were) or a **stand-in** (`draw(cue, rank)`: a pool slot whose ground battery the site
-replaces when used, so the arc's pressure stays as authored and the site adds no admission lag; unused, it draws as
-usual). A site standing in for a battery that introduced a formation moves that introduction to the battery's next slot.
-
-| Mission | rank 1 | rank 2 | rank 3 | rank 4 |
+| Mission | Rank 1 | Rank 2 | Rank 3 | Rank 4 |
 | --- | --- | --- | --- | --- |
-| Training | 39 s side (teaches the side route) | 63 s stand-in, battery-3 | 85 s stand-in, battery-3 | 44 s side |
-| Rolling Thunder | 64 s stand-in, battery-3 | 84 s stand-in, depot-3 | 16 s stand-in, battery-3 | 106 s stand-in, battery-4 |
-| Cold Vector | 48 s side | 75 s stand-in, missile-3 | 101 s stand-in, missile-3 | 53 s side |
-| Deep Bloom, Brood Strike, Final Horizon | 51 s side | 74 s stand-in, depot-missile | 95 s stand-in, missile-2 | 142 s stand-in, missile-3 |
+| Training | 39 s side (teaches the side route) | 63 s for `battery-3` | 85 s for `battery-3` | 44 s side |
+| Rolling Thunder | 64 s for `battery-3` | 84 s for `depot-3` | 16 s for `battery-3` | 106 s for `battery-4` |
+| Cold Vector | 48 s side | 75 s for `missile-3` | 101 s for `missile-3` | 53 s side |
+| Deep Bloom, Brood Strike, Dying Star, Silent Empire, Final Horizon | 51 s side | 74 s for `depot-missile` | 95 s for `missile-2` | 142 s for `missile-3` |
 
-Rolling Thunder's 41 s recovery keeps the old salvage route's 25 credits as a plain relief and holds no site: an airfield
-there (its scrambled dart pair) sealed the lanes together with the fixed fuel depot at 47 s (Standard Fan, seed 53, the
-hazard-union check). Two sites within `SITE_CALM` (15 s) of each other stand on opposite sides. Measured over seeds 1–48:
-the attempts drew 1/2/3/4 sites 15/16/12/5 times (Training), 12/17/14/5 (Rolling Thunder), 10/18/14/6 (Cold Vector),
-9/19/12/8 (Deep Bloom), 8/26/10/4 (Brood Strike) and 12/20/8/8 (Final Horizon), and every drawn site flew: the late
-places (106 s, 142 s) were dropped by the boss approach once each in 288 flights (Rolling Thunder 106 s, Deep Bloom 142 s).
+Rolling Thunder's 41 s recovery keeps the old salvage route's credits but no site: an airfield there, with its scrambled
+darts, sealed the lanes together with the fixed fuel depot just after it. The late arcs hold one side place in their
+recovery, not two: two sites back to back held the threat budget until the next pressure block arrived on top of them,
+the pilot still out at a site. Two sites within `SITE_CALM` seconds stand on opposite sides (two on one side ran into each
+other's ground). Endless flies one site per stage, with two in the Luna prologue (Training's two side places).
+Khepri's stages stand it in for a turret battery (`endlessSite`): a side-route site there, with Khepri's Lancer ace
+following the ship to the side, pinned the pilot at the world edge. Vesper's stages use a side place, as do each late
+world's opening and peak; its pressure stage has none (that stretch has no recovery to hold one).
 
-**Endless** keeps one site per stage: the Luna prologue Training's two side slots (39 s, 44 s); Vesper's stages and
-Nacre's opening and peak a side slot (their west route, Deep Bloom's 51 s, and 52 s between the peak's halves); Nacre's
-pressure stage none (Deep Bloom's middle and climax has no recovery to hold one; a site squeezed in before its climax
-roughly quadrupled sector 9's hits in round 1). **Khepri's three stages stand their site in for a turret battery**
-(`endlessSite`: 54 s, 41 s, 38 s; their old west recoveries keep their credit and weapon pickups as plain reliefs): with a
-side-route site there the endless boss run took 116 hits against the fixed lists' 88 (seeds 1–48, three weapons), almost
-all at the world edge with Khepri's hunter, a Lancer that follows the ship to the side; without any site 76 on seeds 1–24
-against 49. As stand-ins: 85.
-
-**Pools** (`DECK_POOLS[world][phase]`): authored waves (`w(...)`) built only from formations and kinds the world already
-flies (tested against the nominal arcs): one air squadron, or one ground battery, optionally with harmless skids (two
-air squadrons in one cue could never share the airspace). Each wave flies at its slot's centre or as its validated mirror
-image. Lateral offsets (±1–1.5 on narrow squadrons and batteries, as first planned) were measured and dropped: a wave
-shifted toward the world edge while the ship was out there closed it in, and those edge hits outweighed the ones a shift
-toward the centre spared; `w(…, { offsets })` still lets a wave opt in (tested in view). New waves over the
-fixed lists: Luna `dive-pair + fuel-pair`, `arrow-3 + fuel-pair`, `solo-lancer` in pressure, `line-weaver-4` in the
-climax; Khepri `line-weaver-4` in the climax; Vesper `needle-solo` in pressure, `diamond-solo` in
-the climax; Nacre `line-weaver-4 + fuel-pair` and `diamond-solo` in the climax; Amnion and Umbra each other's mixes. No
-new formations, and no Pulsar or Wraith wave: they fly only in their arc slots.
+**Pools and variations.** A wave flies at its slot's centre or as its validated mirror image. Lateral offsets were
+measured and dropped (30 October): a wave shifted toward the world edge while the ship was out there closed it in;
+`w(…, { offsets })` still lets a wave opt in. The pools carry no Pulsar or Wraith wave.
 
 **Guard rails** (`resolveDeck`):
-- the drawn wave has the nominal's role and **attack character** (`waveCharacter`): fighters (darts and weavers), beams
-  (Needles and Lancers), heavies (Diamonds), Pulsars or the Wraith in the air; aimed turret batteries or missile batteries
-  (which fire down their own columns) on the ground. The arcs pair characters deliberately, a Pulsar's tracking stream
-  beside missile batteries and never beside aimed turrets, so the deck varies the formation and its mirror, and never what
-  a stretch asks of the pilot. Without this rule (30 October) a turret battery drawn into a missile slot beside
-  the Pulsar pair, or a Pulsar drawn into a heavy's slot two cues from it, nearly tripled the perfect pilot's hits on Deep
-  Bloom (Veteran Seeker 17 against 6 over 24 seeds);
-- it costs between 0.65 and 1 times the nominal (`BAND`), at the Standard rank and, for the upper bound, at the Veteran
-  rank too (Veteran adds members to the dart squadrons): a draw never asks more of the pilot than the wave the arc authored
-  there (30 October; round 1 allowed up to 1.5 times and measured Rolling Thunder Veteran 28 % and the endless boss run
-  33 % above the fixed lists; user: "Tune those down");
-- it uses only formations its own arc flies (teaching arcs: only those already introduced); round 1 let endless stages
-  draw from their whole world pool;
-- no wave twice in a row, nor the same as the next fixed cue; where the pool allows, not the same as the last wave of its
-  role either; no site twice in a row, and a second site within `SITE_CALM` of another stands on the other side (two on
-  one side ran into each other: the seat search can move a core several units back onto the previous site's ground);
-- cues within 5 s of each other (`PAIR_WINDOW`) cost together no more than the arc's nominal pair (at least 10): two
-  heavy waves never stack beyond what the arc authored;
-- the wave after a strike site fits the Standard threat budget beside the site's guard where the pool allows;
-- a Pulsar's or the Wraith's stretch (`SCARCE`) flies exactly as authored: their own slots and every slot within
-  `PAIR_WINDOW` of one fly their nominal, and the pools carry no Pulsar or Wraith wave. The arcs pair them deliberately
-  (a Pulsar pair after a Needle column, missile batteries beside it); a third missile battery drawn beside Final
-  Horizon's artillery ship, a mirrored Pulsar pair or a Needle line instead of the column before it in endless sector 9
-  each pushed the pilot to the world edge, where the tracking stream caught it;
+
+- a draw has the nominal's role and **attack character** (`waveCharacter`: fighters, beams, heavies, Pulsar, Wraith; turret
+  or missile batteries on the ground). The arcs pair characters deliberately, a Pulsar's tracking stream beside missile
+  batteries and never beside aimed turrets, so the deck varies the formation and its mirror, never what a stretch asks of
+  the pilot;
+- it costs between `BAND.low` and `BAND.high` times the nominal, at the Standard rank and, for the upper bound, at the
+  Veteran rank too: a draw never asks more than the wave the arc authored there;
+- it uses only formations its own arc flies (teaching arcs: only those already introduced);
+- no wave twice in a row, nor the same as the next fixed cue, and where the pool allows not the same as the last wave of
+  its role; no site twice in a row;
+- cues within `PAIR_WINDOW` seconds cost together no more than the arc's nominal pair (at least `PAIR_FLOOR`), so two heavy
+  waves never stack beyond what the arc authored;
+- the wave after a strike site fits the Standard threat budget beside the site's guard where the pool allows
+  (`SIDE_WINDOW`);
+- a Pulsar's or a Wraith's stretch (`SCARCE`) flies exactly as authored: their own slots and every slot within
+  `PAIR_WINDOW` of one fly their nominal (a third missile battery or a mirrored Pulsar pair drawn there pushed the pilot to
+  the world edge, where the stream caught it);
 - after a Needle column (`LINGERING`), the next air cue is no Needle squadron and the next site has no air guard: the
-  column's last members lock their beam lanes as their path ends, which the airspace prediction cannot foresee, and a
-  Needle squadron diving in behind it shared its band (found by the cue-sequence union tests);
-- a slot with no fitting wave flies its nominal (about 1% of draws); where the nominal would repeat the previous wave, it
-  draws a wave of its role and band of another character instead, never one with a scarce kind (with the calm waves after
-  a column, about 2% of draws leave their band or character).
+  column's last members lock their beam lanes as their path ends, which the airspace prediction cannot foresee;
+- on Vesper a draw keeps its slot's side of the alternation between laser flocks and laser-free squadrons
+  ([docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-the-helion-ark));
+- a slot with no fitting wave flies its nominal; where the nominal would repeat the previous wave, it draws a wave of its
+  role and band of another character instead, never one with a scarce kind.
 
-The seeded roll is its own stream (mulberry32 over a hash of the run seed, the template and, in endless, the sector),
-used by nothing else; no `Math.random`. Endless resolves each sector anew, so a later visit to a stage differs.
+**The roll** is its own stream: mulberry32 over a hash of the run seed, the template id and, in endless, the sector
+(`deckSeed`), used by nothing else; never `Math.random`. Reinforcements and site part rolls use their own hashes.
 
-**How to add a wave:** append `w('formation')` (or `w(['formation', 'fuel-pair'])`, options `weight`, `mirror`,
-`offsets`) to a world's phase in `DECK_POOLS`. It is drawn wherever its role, character and cost suit a slot.
-`tests/sim/encounter-deck.test.ts` checks roster faithfulness, that every variation stays in view at its windups and is
-admitted into an empty sky at every rank, and the guard rails over 200 seeds; `tests/sim/deck-balance.test.ts` samples
-the balance band. Measure a new wave with the seed sweep below before shipping it: a wave that is fair can still pin the
-perfect pilot at the world edge.
+**Adding a wave:** append `w('formation')` (or `w(['formation', 'fuel-pair'])`, with `weight`, `mirror`, `offsets`) to a
+world's phase in `DECK_POOLS`. It is drawn wherever its role, character and cost suit a slot. A wave that is fair can
+still pin the perfect pilot at the world edge, so measure it with the seed sweep (§5) before shipping.
 
-**Validator note** (tests/sim/fairness-trace.ts): a site's core and its own guard ring are one authored layout; the
-airspace observer no longer requires separation between them. Under the release lens (src/sim/ground.ts) ground seats
-near the bottom of the view come up to a unit closer than authored, so the ring's 2.55-unit seats read as overlapping
-the core. The guard keeps the rule against every other squadron.
+## 5. Validation
 
-**Measured** (30 October, round 2, on d6b95e9). Hits the perfect pilot takes (`perfectPilot()`, no pickups, no special)
-over seeds 1–48, the three main weapons together (144 flights per cell), against the fixed lists of 67cdfad on the same
-seeds. Campaign missions fly whole; endless sectors from their start (`enterSector`) until the next sector begins, Twin
-Pulse. Band: the fixed lists' count plus 25 % or plus one hit per 16 flights, whichever is larger.
+- `tests/sim/encounter-deck.test.ts`: determinism and per-sector resolution; the authored arc kept (slot times, phases,
+  fixed cues, mission lengths, boss cutoffs); the guard rails over many seeds (no repeats, the band and pair budget, the
+  world's pool, teaching order, scarce kinds); roster faithfulness; every pool wave admitted into an empty sky at every
+  rank and in view at its windups; one to four sites per campaign attempt and one per endless stage; sites on opposite
+  sides within `SITE_CALM`; draws by weight; Vesper's laser alternation.
+- `tests/sim/deck-balance.test.ts`: the six missions and nine endless sectors the deck first replaced complete without a
+  lost life, their threat and credits within a band of the fixed lists' (baselines of 29 October).
+- `tests/sim/sites.test.ts`: every site's guard on every world flies only that world's kinds; parts sites guarded heavier
+  than shield sites; the cue, the core, the loot per mode, the sealed vault's last seal; shield sites inside the supply
+  budget in both modes; the announcement before the guards enter.
+- `tests/sim/site-seats.test.ts`: the seat search on every world (footprint spread, guards clear, the core on its floor
+  under the flight plane, Corona mostly on rock) and its determinism.
+- `tests/sim/site-economy.test.ts`: the perfect pilot clears Training with two parts sites; with `SITE_ECONOMY=<file>`, the
+  economy sweep per site and mission.
+- `tests/sim/fairness.test.ts`: every site formation in isolation at every scale and mirror; the campaign and endless
+  fairness suites fly the resolved lists.
+- `tests/sim/deck-report.test.ts`: the long seed sweep, off by default, one target per process:
 
-| Mission | Standard: fixed → deck | Veteran: fixed → deck | Mission (288 flights) |
-| --- | --- | --- | --- |
-| Training | 0 → 1 | 5 → 5 | 5 → 6 |
-| Rolling Thunder | 37 → 16 | 39 → 39 | 76 → 55 |
-| Cold Vector | 5 → 4 | 14 → 16 | 19 → 20 |
-| Deep Bloom | 38 → 34 | 60 → 62 | 98 → 96 |
-| Brood Strike | 19 → 25 | 27 → 30 | 46 → 55 |
-| Final Horizon | 10 → 19 (at the band's edge) | 29 → 30 | 39 → 49 |
+  ```
+  DECK_REPORT=<file> DECK_TARGET=mission:<id>|sector:<n> DECK_SEEDS=1-48 [DECK_PILOT=perfect|weaver|sites] \
+    npx vitest run tests/sim/deck-report.test.ts
+  ```
 
-| Endless sector | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 1–9 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Fixed → deck (48 flights each) | 0 → 0 | 1 → 3 | 4 → 6 | 2 → 2 | 4 → 2 | 4 → 3 | 1 → 1 | 16 → 13 | 6 → 9 | 38 → 39 |
+**Measured 30 October** (the six missions and nine endless sectors of the time, seeds 1–48, the perfect pilot with the three
+main weapons): every mission, difficulty and endless sector stayed within the band of the fixed lists it replaced (their
+hits plus 25% or plus one hit per 16 flights, whichever is larger); a pilot steering only for the main battle took as many
+hits on the deck as on the fixed lists (47 against 47 over nine cells), so the sites add no danger to the main battle's
+path. A site-hunting pilot banked about one part per mission at weapon level 1 and up
+to 1.6 at level 3 (with the part chance then at its first, higher range); one who ignored the sites, a part every four to
+ten missions. Current balance results are in [docs/40](40-balance-measurement.md).
 
-**The endless boss run** (sectors 1–8 in one flight, bosses killed, the perfect pilot with each main weapon at power 0,
-no pickups; seeds 1–48): 88 → 85 hits; runs without a hit 29 → 30 (Twin Pulse), 25 → 25 (Fan), 18 → 24 (Seeker).
+## 6. Site models and render
 
-Every cell sits in the band. One flight loses a life (Deep Bloom Veteran Fan; one did on the fixed lists too). Completion
-moved only for the Fan at Veteran, which outlasts its 420 s window against THE CRADLE on 33 of 48 seeds (28 on the fixed
-lists) and against THE ECLIPSE on 9 (13). A pilot that ignores the sites (steering only for the main battle) takes 47
-hits against 47 over nine cells on seeds 1–24 (Training Veteran Pulse, Rolling Thunder Standard Fan and Veteran with all
-three weapons, Cold Vector Standard Pulse, Deep Bloom Veteran Seeker, Brood Strike Standard Fan, Final Horizon Veteran
-Seeker): the sites add no danger to the main battle's path.
+### Models
 
-**Economy** (Standard, Twin Pulse, pickups collected, seeds 1–48): parts banked per mission by the perfect pilot (it takes
-a site only when one comes into its view) and by the site-hunting perfect pilot (`perfectPilot(siteSeeker)`), at tier 1
-and tier 3 of the Twin Pulse; and the perfect pilot's credits (tier 1, seeds 1–24) against the fixed lists.
+`tools/blender/sites_strike.py` builds every site by hand from the boss and facility toolkit's faceted solids
+(`lib_solids.py`, `lib_facility.py`): flat paints, ambient occlusion baked into the vertex colours, glow materials named
+`*glow*`, shape over texture for the 55° camera. One GLB per site and finish (the world it stands on),
+`public/assets/shared/sites/<site>-<finish>.glb`, so a world loads only its own.
 
-| Mission | Parts, perfect pilot: tier 1 / tier 3 | Parts, site hunter: tier 1 / tier 3 (sites destroyed, tier 1) | Hits, site hunter tier 1 | Credits: fixed → deck |
-| --- | --- | --- | --- | --- |
-| Training | 0.19 / 0.54 | 0.83 / 1.29 (1.48) | 0 | 276 → 256 |
-| Rolling Thunder | 0.17 / 0.67 | 0.54 / 1.19 (1.25) | 8 | 274 → 289 |
-| Cold Vector | 0.17 / 0.48 | 1.15 / 1.38 (2.19) | 2 | 409 → 412 |
-| Deep Bloom | 0.10 / 0.44 | 0.75 / 1.42 (1.67) | 15 | 327 → 314 |
-| Brood Strike | 0.27 / 0.46 | 0.90 / 1.02 (1.90) | 4 | 313 → 347 |
-| Final Horizon | 0.19 / 0.83 | 1.13 / 1.58 (1.90) | 5 | 367 → 384 |
-
-So a player who goes for the sites banks about one part per mission at tier 1 and 1–1.6 at tier 3, in the 0.5–1.5 the
-user asked for; one who ignores them banks a part every four to ten missions. **Parts lost under fire** (a destroyed
-site's part never collected): about 3 % for the site hunter at tier 1 (7 of about 260), 8 % at tier 3 and 15 % for the
-perfect pilot at tier 3, which kills cores from farther away and does not go for the drop. The site hunter takes more
-hits than the perfect pilot on Deep Bloom (15 against 10 over 48 flights at Standard Pulse) and Rolling Thunder (8
-against 5): taking a site is optional and has a price there.
-
-Reproduce: `DECK_REPORT=<file> DECK_TARGET=mission:<id>|sector:<n> DECK_SEEDS=1-48 [DECK_PILOT=perfect|weaver|sites] npx
-vitest run tests/sim/deck-report.test.ts` (one target per process); the table above came from the measuring probes
-described in the deck's handoff (not in the repository).
-
-## 5. Workstreams and file ownership
-
-Three agents, each in its own git worktree, merged by the integrator (Claude Code main session), who owns the release
-gate and the deploy. Shared contracts are created first by the integrator (below); a workstream that needs a contract
-changed asks the integrator instead of editing it.
-
-| Workstream | Owns |
+| Finishes | Look |
 | --- | --- |
-| **A · Deck** | `src/content/encounter-deck.ts` (new), `src/content/encounters.ts`, `updateDirector` and playlist resolution in `src/sim/game.ts`, deck tests and the seed-sweep balance tests |
-| **B · Sites (simulation, economy, UI)** | `src/content/sites.ts`, site cores, loot and pickups in the simulation (enemy death and pickup collection in `src/sim/game.ts`, not the director), `src/campaign/profile.ts` (parts balance, save migration, prices), `src/content/hero-parts.ts` prices, hangar and results UI, endless cosmetics (`createRun`, renderer `heroOf`) |
-| **C · Sites (models, render)** | `tools/blender/sites_strike.py` (new), `public/assets/shared/sites/` (new), `src/render/site-view.ts` (new), its hook in `src/render/scene.ts`, terrain clearings for sites, art/strike-sites review sheets |
+| Luna, Khepri, Vesper (frontier) | White panels with amber (Luna); bone and rust with the concept's teal reactor (Khepri); white and graphite with blue glow, snow on roofs and aprons (Vesper). |
+| Amnion (overrun) | The frontier sites under one shared set of brood growths (`brood_growths`: bone arches, chitin crusts, resin pools, egg clutches, spikes); the gate ring crusted the same way; the brood hive and spawning pool its own. |
+| Nacre (ruin) | The ancient sites as pale overgrown ruins with teal crystals: missing and sunken blocks, snapped blades, moss, fronds, mire puddles. |
+| Umbra | Glossy obsidian with violet seams, lifted off the dark ground. |
+| Corona | Ancient machinery: carved stone with glyph grooves, ring gears, ribbed pumps, dark iron and oxidised bronze, texture-baked (`lib_solids.STYLES['corona']`; [docs/37 §5](37-corona-dying-star.md#5-strike-sites)). The airfield is the frontier model recoloured. |
+| Nahara | Weathered sandstone with turquoise, texture-baked (`lib_solids.STYLES['nahara']`; [docs/39 §6](39-nahara-silent-empire.md#6-strike-sites)). |
 
-Shared contracts (integrator, before the workstreams start):
-- `SiteId` and `SITE_IDS` (src/shared/contracts.ts);
-- `Enemy.site?: SiteId`, marking a site's core target;
-- `EncounterCue.site?: { id: SiteId; side: -1 | 1 }`;
-- `Pickup.kind` gains `'part'`;
-- `src/content/sites.ts`: `SiteDefinition`, `SITES`, `sitePool(planet)`, `siteCue(id, side, at, planet)`. It starts as
-  placeholders; B fills them in, and A calls them from side slots.
+The crystal cores (prism reactor, dark spaceport, sealed vault) are faceted `prism_glow` with a bright heart; the shield
+depot's dome is a lit `field_glow` lattice; the relay station's dish is turned three-quarters to the camera so the bowl
+reads (user, 30 October). A site costs less than one facility plant; only the Corona and Nahara finishes carry textures.
 
-## 6. Site models and render (workstream C)
+**Nodes and frame.** Each GLB holds `site_<id>_<finish>_body` (the site), `_core` (the target, hidden once destroyed) and
+`_ruin` (the broken core with its scorch and debris, shown once destroyed), `<id>` with underscores. The pivot is the
+core's ground point (the vault's centre between its seals); x lateral, s away from the camera, the detailed front toward
+the camera; the core's centre stands `SITE_CORE_HEIGHT[site]` over the pivot (`src/content/sites.ts`; the simulation
+anchors the core with it). The sealed vault's `_core` and `_ruin` are one seal, drawn at each seal.
+`src/render/site-models.ts` (`SITE_MODELS`) is the single source of finishes and bounds: the builder parses it and checks
+every node against it, and `tests/world/site-models.test.ts` checks the GLBs.
 
-Phase 1 (30 October): the pipeline, the render and one site per family. The user's review ("the airfield on luna looks
-floating, and make sure none of these cross heavy cliffs") added the fixes below; phase 2 (30 October) modelled the other
-eight. Every site now has a model on every world it appears on.
+**Rules the builder and the tests keep:** inside `SITE_FOOTPRINT` and under the roof limit; rays from every core and from
+the guard batteries' spots toward the camera never meet the site; nothing stands on a guard battery's spot (`RING_*`,
+parsed from `src/content/formations.ts`); foundations reach below the pivot for uneven ground; visible coplanar faces are
+separated (`separate_coplanar`). Every ruin carries the blast (`devastate`): a jagged scorch over the aprons, pale ash
+streaks blasted out from the core, chunky debris and embers.
 
-**Models.** Hand-built in Blender by `tools/blender/sites_strike.py` from the boss/facility toolkit's faceted solids
-(user: "just model them yourself … the existing infra is good inspiration"): flat paints, baked AO in the vertex
-colours, glow materials named `*glow*`; no textures. Shape over texture, for the 55° camera. The concept sheet
-(`art/concepts/strike-sites/00-all-sites.png`) is a reference only.
+**Rebuild** (Windows Blender, headless; every path Blender sees is a Windows path):
 
-| Site | Finishes | Core (the target) | Triangles per file | File per finish |
-| --- | --- | --- | --- | --- |
-| Crash site | luna, khepri, vesper, nacre, amnion, umbra | the freighter's reactor in the break | 4.8–5.7k | 325–388 KB |
-| Airfield | luna, khepri, vesper | the control tower's glazed cab | 4.7–4.9k | 311–320 KB |
-| Salvage yard | luna, khepri, vesper | the pod on the gantry's hook | 3.7–3.9k | 260–271 KB |
-| Shield depot | luna, khepri, vesper | the generator drum under the field dome | 6.1–6.4k | 371–386 KB |
-| Relay station | luna, khepri, vesper, amnion (overrun) | the dish's feed horn | 2.7–5.0k | 178–332 KB |
-| Freight terminal | luna, khepri, vesper, amnion (overrun) | the lit weapons container | 3.8–6.4k | 265–442 KB |
-| Dark spaceport | umbra, nacre (ruin) | the crystal in the spire's face | 2.6–3.4k | 169–228 KB |
-| Prism reactor | umbra, nacre (ruin) | the floating crystal (it turns) | 3.8–4.7k | 251–316 KB |
-| Sealed vault | umbra, nacre (ruin) | three seal crystals (one node, drawn at each seal) | 2.8–3.6k | 178–236 KB |
-| Gate ring | umbra, nacre (ruin), amnion (brood-crusted) | the membrane in the ring | 3.0–4.3k | 213–299 KB |
-| Brood hive | amnion, nacre | the heart-sac under the ribcage | 5.9–6.0k | 394–400 KB |
-| Spawning pool | amnion, nacre | the pod on the stalk | 4.3k | 284–285 KB |
-
-Triangles per file count the body, one core and one ruin. A facility plant is about 6–10k triangles (Khepri modules
-0.4–4k each), so a site costs less than one plant. A world loads its own finishes only: 1.1 MB (Umbra) to 2.1 MB (Amnion) per world, against
-4–5.7 MB for a world's facility kit.
-
-**Finishes.** One palette per world (`BASE` and `WORLD` in the builder), derived from the facility kits and world docs.
-Frontier sites: Luna white panels with amber, Khepri bone and rust with the concept's teal reactor, Vesper white and
-graphite with blue glow, snow on roofs and on the aprons (never spilling past their edges). The Amnion overrun (relay
-station, freight terminal; the crash site on Amnion too) is one shared set, `brood_growths`: bone arches, chitin crusts,
-resin pools, egg clutches and spikes. Umbral sites are glossy obsidian with violet seams on Umbra (lifted off the dark
-ground, 30 October) and pale overgrown ruins with teal crystals on Nacre (missing and sunken blocks, snapped and fallen
-blades and stones, moss, fronds, mire puddles); the gate ring is crusted with the brood's growths on Amnion. The crystal
-cores (prism reactor, dark spaceport, sealed vault) are faceted `prism_glow` with a bright heart; the shield depot's dome
-is a lit `field_glow` lattice.
-
-**Phase-1 fixes (user review, 30 October).**
-1. Grounding: sites seat on even ground (below) and the terrain under them is levelled to their floor (site pads).
-2. Guards off the footprint: the guard rings (`RING_*` in content/formations.ts) stand outside `SITE_FOOTPRINT`, and the
-   seat search keeps every guard battery clear of the site (below).
-3. Crash site: a longer, thicker freighter broken in two at the end of a scorched furrow, cargo modules on its spine,
-   bright hull and glowing break so it reads on dark Nacre and Umbra ground.
-4. Prism reactor: a broken crown of seven sharp blades leaning out (two gaps; the back ones tallest) round a smaller
-   dais, and a big faceted crystal floating well above them on a beam, so the gap reads from the game camera: a crown with
-   a crystal over it, not a saucer.
-5. Airfield: a longer runway, a taller control tower (cab 1.85 up, under the height rule).
-6. Destroyed states (and the integrator's review: "the same model, darker"): every ruin carries the blast (`devastate` in
-   the builder): a jagged scorch splash draped over the site's aprons and the ground out to its bounds, twelve pale ash
-   streaks blasted out from the core, nine chunky debris pieces thrown off it and embers; the ash and the embers keep
-   their colour in the wreck, so the blast reads on charcoal and on dark ground. The core's spot is broken or caved in.
-7. Sealed vault: one model for the group of three seals (B's `formation.group`); each seal's crystal stands before a tall
-   standing stone (the third rests on the vault's first tier, framed in light).
-8. Relay station (user, 30 October: "turn the satelite dish of the relay station so its better visible"): the dish is
-   turned three-quarters to the camera about its feed horn (38° up, yawed 63° west), so the bowl reads as an ellipse with
-   its rim, back shell, struts and horn; the pedestal and yoke follow the hub.
-
-**File layout.** `public/assets/shared/sites/<site>-<finish>.glb`, so a world loads only its own finishes. Each holds
-`site_<id>_<finish>_body` (the site), `_core` (the target, hidden once destroyed) and `_ruin` (the broken core with its
-scorch and debris, shown once destroyed); `<id>` with underscores. Frame: the pivot is the core's ground anchor (the
-vault's centre between its seals); x lateral, s away from the camera (glTF −z), the detailed front toward the camera; the
-core's centre stands `SITE_CORE_HEIGHT[site]` over the pivot (content/sites.ts; the simulation anchors the core with it).
-`src/render/site-models.ts` (`SITE_MODELS`) is the single source of finishes and bounds: the builder parses it and asserts
-every node against it, and `tests/world/site-models.test.ts` checks the GLBs against it.
-
-**Rules the builder and the tests keep.**
-- Inside `SITE_FOOTPRINT` (|x| ≤ 3, s −3.2 to 3.3); top ≤ 3.25 (docs/25 rule 3); 4–6 units across.
-- Line of sight (docs/25 rule 2): rays from every core, and from the guard batteries' spots, toward the camera never meet
-  the site.
-- Guards: nothing stands on a guard battery's spot (the rings' spots, `GUARD_SPOTS` in the builder, a check only).
-- Foundations: slabs, mounds and blocks reach 0.7–1.3 below the pivot.
-
-**Seats** (`src/sim/sites.ts`, simulation; in their own commits). A side-route site's harmless core spawns on the flattest
-dry ground near its authored centre: the search (pure: the run's terrain and the spawn tick's camera, never randomness)
-reaches 0.5 in, 3 back and 0.5 ahead, and only takes seats whose footprint keeps every guard battery of the cue (where
-`anchorGround` will stand it, `guardSpots`) 0.3 outside it. When the best of those would straddle a cliff, a trench or a
-pit (spread over 1.5, a drop over 2.5 or ground 0.8 over the floor), it also tries 2 in and 7 back (`SEAT_WIDE`) and takes
-that seat if it is clearly better. Moving the core toward the camera costs 0.5 a unit: a core run ahead of its guards'
-ring is killed while they still fire and its part falls under their fire (Training, seeds 5–9 at ranks 0 and 2, the
-site-hunting perfect pilot: a destroyed site's part lost in 1 of 10 runs with the cores where authored, 6 of 10 before
-this cost, 2 of 10 now). Tall sites prefer lower ground (the prism reactor under 0.3, the airfield 0.4). The floor is the
-footprint's 95th-percentile height; the core rests on it, so its gameplay position is where its model draws it. The
-guards keep their authored places and timing: the cue is exactly as fair as authored. Measured over 192 seats per world
-(`tests/sim/site-seats.test.ts`): median footprint spread 0.5 (Vesper) to 0.7 (Khepri), 1.4 on Umbra's cracked plates and
-2.3 on Amnion's pitted plains (authored: 0.8 to 3.5); guards fully clear in 85–98%, at a footprint's rim (at most 0.55 in)
-in 0–2%. What unevenness is left the render's site pad levels.
-
-**Render** (`src/render/site-view.ts`, hooked into `src/render/scene.ts` in two places: `update` before the enemies, and
-the site pads after it):
-- Every live enemy with `site` set and a ground anchor gets its site in the current world's finish, placed at the anchor
-  less the core's seat in its group (world x, world s, the floor) and scrolling with the ground. The site draws the core:
-  scene.ts leaves the core's own craft model, ghost silhouette, plinth and pontoon out (`hidesCore`), and a site core
-  never seats a compound or emplacement or leaves a wreck. A finish that fails to load leaves its cores their own model.
-- **Site pads** (render only, `src/render/terrain-kit.ts`): the ground shader levels the terrain over each nearby site's
-  rectangle to its floor (cut and fill), easing back to the terrain across a 0.9 band around it; the ground within 1.1 of
-  a guard battery stays as it is, so no battery floats or sinks. On a deck over the sea (Nacre's mire, Vesper's sea) the
-  seabed fills only to just under the water: the site stands in the shallows. Four pads and eight kept batteries at once.
-  Never terrain data or targeting.
-- **Foundations** fill what the pad leaves under the floor (beside a kept battery), in the world's ground tone.
-- **High ground:** a site whose top would still come within 0.45 of the flight plane is squashed about its core (the core
-  stays put; at least to 35%); a floating crystal (the prism reactor's) keeps its own shape.
-- **Destroyed:** a core that vanishes with the simulation's kill explosion at its position (or has no hit points left)
-  leaves its site destroyed: the core hidden, the ruin shown, the structure in darkened twin materials (16% of its paint
-  toward charcoal) with its lamps out and its embers smouldering, until it scrolls out of view. A core that leaves without
-  a kill explosion leaves the site intact. A hit on the core flashes its glow.
-- **Destruction** (user, 3 November: "a memorable destruction effect comparable in style to boss explosions, but scaled
-  appropriately"; render only, no simulation change). In the frame the last core falls, `site-view.ts` hands
-  `fx-particles.ts` the site's sequence in world space (`siteBlast`: the core's centre, the floor, the footprint and the
-  site's main masses), and it replaces the core's kill explosion (the flight-plane fireball; the simulation's effect, its
-  sound and the loot are untouched). About 2 s, scaled down from a boss's last detonation:
-  - **0 s:** the core's glow flashes white-hot (in the core's own colour) with a short wash over the whole footprint; the
-    blast's light lands on the ground; a fireball climbs out of the core over dark smoke; two shock rings sweep out past
-    the site's edges; sparks skitter; hot shards, fragments of the site's paint and embers are thrown off on arcs.
-  - **0.2–1.1 s:** secondary blasts walk over the site's main masses, nearest the core first (`siteMasses`: up to four,
-    over the body's tallest parts, from its vertices on a 6 × 6 grid; a tower, the hangars, the freighter's halves).
-  - **To about 3 s:** a smoke column climbs from the core and the masses and leans with the wind; embers and fragments
-    land on the site's floor, skid to a stop and die there, handing over to the ruin's own.
-  - **Colours by world** (`SITE_FIRE`): warm fire on Luna, Khepri and Vesper (Vesper's smoke pale), the world's glow on
-    Nacre (teal) and Umbra (violet), and on Amnion splashes of ichor (pale, yolk, blood) among the fire.
-  - **World space:** every particle rests on the ground (it scrolls with the terrain, never with the camera), so the
-    sequence stays on the site through scrolling and lateral camera follow.
-  - **Around the ship:** it burns in the effects' wreck layers (a destroyed boss's), which draw around the hero's stencil
-    (`AROUND_HERO`): the ship stays visible over it.
-  - **The ruin takes over:** the site swaps to its ruin in the kill frame, under the white-hot flash. The ruin then
-    wears cooling twins of its destroyed materials (clones: the same programs) for `SITE_HEAT` (2.4 s): its paint darkens
-    from its live look to charcoal over 0.8 s under the fire, its lamps flicker out over 0.7 s, its scorch (and faintly
-    the rest) glows with the world's heat and its embers flare, all reaching the resting ruin exactly as the twins swap
-    back. Its blast marks (scorch, ash streaks, debris) spread out from the core over 0.45 s with the shock ring. Only a
-    template's latest destroyed site cools (a second one of the same site and world within 2.4 s ends the first one's).
-  - **Sealed vault:** a seal broken before the last gets one blast at the seal; seals broken in the same frame as the
-    last are covered by the site's sequence.
-  - **Budget:** peak per site on High 133 glow, 60 smoke and 5 ground lights (Amnion's ichor: 159 glow), against the wreck
-    pools of 384 and 160 and the 32 ground lights, so two sites at once fit; Low 38 glow, 15 smoke and 4 lights (Amnion
-    48); a seal's blast 19 / 6 / 1. The last ember dies by 3.2 s, the last smoke by 3.3 s. Nothing new to draw: no new
-    particle system, layer, material program or render target.
-  - Tests: `tests/render/site-view.test.ts` (handed over once per site in world space, seals, cooling, masses),
-    `tests/render/site-blast.test.ts` (replaces the kill explosion, wreck layers around the hero, anchored, within half
-    the pools, settles on the floor, every world, Low), `tests/browser/site-destruction.spec.ts` (the real renderer:
-    plays, and no program compiles mid-flight). Frames: the fixture `tests/fixtures/site-destruction.html`
-    (`__SITE_QA__.kill()`, `advance(seconds, fly, steer)`); the sheet is `docs/screenshots/site-destruction.jpg`.
-- **Clearings:** each site's rectangle and its pad band are terrain clearings (sites first; the terrain takes 12) and are
-  reserved from battery compounds and emplacements, so neither scenery nor a plant stands in them.
-- **Loading:** `renderer.prepare(planet)` loads the world's site finishes with the rest of the planet; one hidden
-  instance per finish (live and destroyed materials) joins the warm-up, so nothing compiles mid-flight (the cooling twins
-  are clones of the destroyed materials and share their programs). A world's sites are released after it is left
-  (endless revisits reload them).
-- QA: `data-render-stats.sites` = {loaded, count, destroyed, drawn, foundations, files, sites[{key, site, finish, cores,
-  destroyed, base, squash}]}.
-
-**Lab:** the playground's Sites tab (`playground.html`, `src/playground/sites-lab.ts`): West and East place the real
-site (its authored guard and core from `siteCue`) on the side route; Ahead places a lone core in front of the ship;
-"Hold the world still" freezes the simulation (only the clock and effects age); "Hit" and "Destroy" the cores.
-Development builds expose `window.siteLab` (`place`, `destroy`, `hit`, `clear`, `calm`, `skip`, `seats`) for lookdev automation.
-
-**Rebuild:**
 ```
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup \
-  --python '\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies\tools\blender\sites_strike.py' -- [--site=airfield] [--no-export] [--preview]
+  --python '\\wsl.localhost\Ubuntu\home\davidfarina\Projects\alien-skies\tools\blender\sites_strike.py' -- [--site=airfield] [--finish=nahara] [--no-export] [--preview]
 ```
-About 3 minutes for all twelve sites with previews (Windows Blender 5.2, headless). `--preview` renders every finish,
-intact and destroyed, from the game camera into `lookdev/strike-sites/`. Review sheets (in game): `art/strike-sites/`.
 
-**Open:** roads and pipelines are not cleared (a road through a pad keeps its own height); on Amnion many seats still
-straddle a pit, which the pad levels (searching wider always would need the guards to move with the site, a fairness
-change); a tall site on a high plateau with nothing lower in reach is still squashed (to 35% at most); the pad's shader
-cost on phones is unmeasured (four rectangles and eight points per ground vertex, only while a site is near).
+`--preview` renders every finish, intact and destroyed, from the game camera into `lookdev/strike-sites/`.
+
+### Render
+
+`src/render/site-view.ts` (render only; hooked into `src/render/scene.ts` before the enemies are drawn, and for the site
+pads after):
+
+- **Placement.** Every live enemy with `site` set and a ground anchor gets its site in the current world's finish, at its
+  seat's floor, scrolling with the ground. The site draws the core, so `scene.ts` leaves out the core's own craft model,
+  ghost silhouette, plinth and pontoon (`hidesCore`); a core never seats a compound or leaves a wreck. A finish that fails
+  to load leaves its cores their own model.
+- **Site pads** (`src/render/terrain-kit.ts`): the ground shader levels the terrain over each nearby site's rectangle to its
+  floor, easing back across `SITE_PAD_BLEND`; the ground within `SITE_PAD_KEEP` of a guard battery stays as it is, so no
+  battery floats or sinks. Over water or plasma the seabed fills only to just under the surface, so the site stands in the
+  shallows. At most `SITE_PADS` pads and `SITE_PAD_KEEPS` kept batteries at once. Never terrain data or targeting.
+- **Foundations** fill what the pad leaves under the floor, in the world's ground tone.
+- **High ground:** a site whose top would still come too close to the flight plane is squashed about its core
+  (`SITE_ROOF_CLEARANCE`, at most to `SQUASH_MIN`); a floating crystal keeps its shape.
+- **Destroyed:** a core that vanishes with the simulation's kill explosion leaves its site destroyed (core hidden, ruin
+  shown, the structure in darkened twin materials, `SITE_RUIN_SHADE`, lamps out, embers smouldering) until it scrolls out
+  of view; a core that leaves without one leaves the site intact. A hit on a core flashes its glow.
+- **Destruction** (user, 3 November: "a memorable destruction effect comparable in style to boss explosions, but scaled
+  appropriately"; render only). In the frame the last core falls, the view hands `src/render/fx-particles.ts` the site's
+  sequence in world space (`siteBlast`: its core, floor, footprint and main masses, `siteMasses`), replacing the core's
+  kill explosion; the simulation's effect, sound and loot are untouched. About three seconds: a white-hot flash in the
+  core's colour, a fireball over dark smoke, shock rings past the site's edges, thrown shards and embers; secondary blasts
+  walking over the main masses; a smoke column leaning with the wind; embers settling on the site's floor. Colours per
+  world (`SITE_FIRE`; ichor splashes on Amnion). It rests on the ground through scrolling and camera follow and burns in
+  the wreck layers that draw around the hero (`AROUND_HERO`). The site swaps to its ruin under the flash, and the ruin
+  cools from the blast over `SITE_HEAT` seconds on clones of its destroyed materials (no new programs), its blast marks
+  spreading out with the shock ring. A vault seal broken before the last gets one blast of its own. It stays within half
+  the wreck particle pools, so two sites at once fit.
+- **Clearings:** each site's rectangle and pad band are terrain clearings (sites first) and are reserved from battery
+  compounds, so no scenery or plant stands in them.
+- **Loading:** `prepare(planet)` loads the world's site finishes with the rest of the planet; one hidden instance per finish
+  joins the shader warm-up, so nothing compiles mid-flight. A world's sites are released after it is left (endless
+  revisits reload them), their textures included.
+- **QA:** the canvas's `data-render-stats` carries `sites` (loaded, count, destroyed, drawn, foundations, files, and per
+  site its key, finish, cores, destroyed state, base and squash).
+- **Tests:** `tests/render/site-view.test.ts` (placement, hidden core, pads, foundations, squash, the vault's seals, the
+  hand-over to the effects, cooling, masses), `tests/render/site-blast.test.ts` (the sequence replaces the kill explosion,
+  anchored, around the hero, within the pools, on every world and on Low), `tests/render/site-textures.test.ts` (textures
+  freed with a left world), `tests/browser/site-destruction.spec.ts` (the real renderer plays it and compiles nothing
+  mid-flight; frames from the fixture `tests/fixtures/site-destruction.html`).
+
+**Lab:** the playground's Sites tab (`playground.html`, `src/playground/sites-lab.ts`): West and East place the real site
+(its guard and core from `siteCue`) on the side route, Ahead a lone core in front of the ship; the world can be held still;
+cores can be hit and destroyed. Development builds expose `window.siteLab` for look-dev automation.
+
+## 7. Open
+
+- Roads and pipelines are not cleared under a pad: a road through one keeps its own height.
+- On Amnion's pitted plains many seats still straddle a pit, which the pad levels; searching wider always would need the
+  guards to move with the site, a fairness change.
+- A tall site on a high plateau with nothing lower in reach is still squashed.
+- The pads' shader cost on phones is unmeasured (a few rectangles and points per ground vertex, only while a site is near).

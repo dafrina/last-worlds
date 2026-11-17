@@ -1,97 +1,206 @@
-# Amnion · Brood Wastes
+# Amnion, the Brood Wastes
 
-Design v0.1 · 23 October 2026. The user approved the name **Amnion · Brood Wastes**, the mission **Brood Strike** and the boss **THE CRADLE**, after a concept of pale bone plateaus split by glowing flesh canyons, egg clutches, bone spires, ribbed nests and bone bridges ("biological wasteland and eggs and biological enemies and facilities"). Added the same day: "definitely also add mountains not only mesa canyons".
+Amnion is the bone-and-flesh world: the campaign's fifth mission, Brood Strike, and the fourth world of the endless cycle.
+This doc covers its look, its world generator, its Blender kits, its enemies and the brood heavy, and THE CRADLE. The
+user named the world, the mission and the boss on 23 October ("biological wasteland and eggs and biological enemies and
+facilities"); the user's concept for it was shared in that session and is not in the repository (code comments still
+cite it under a path that does not exist, "art/concepts/amnion-brood-wastes").
 
-The concept image is a reference, never a runtime background or a finished asset (AGENTS.md invariant 9).
-
-## Identity
+## 1. Identity
 
 - **Dry, hot and calcified.** Nacre is wet, cool and bioluminescent; Amnion is bone, chitin and yolk.
 - **Ground:**
-  - pale bone-crust plateaus cracked into plates, dimpled with egg hollows;
-  - bone mountains with sharp ridged crests in their own regions;
-  - deep sheer-walled canyons with dark flesh walls and floors and a glowing yolk river and pools along their middle.
-- **Enemies look grown, not built:** wasp-like drones, spitters, brood heavies, egg sacs.
-- **THE CRADLE:** a living nest-fortress carrying the brood.
+  - pale bone-crust plateaus cracked into tilted plates and dimpled with egg hollows;
+  - bone mountains with sharp ridged crests in their own regions (user, 23 October: "definitely also add mountains not
+    only mesa canyons");
+  - jagged sheer-walled crevasses with dark flesh walls and floors and a glowing yolk river along their middle.
+- **Grown, not built:** egg clutches, bone tusks, ribbed nests and hive spires are the world's structures; Amnion has no
+  outposts, roads or pipelines.
+- **Light:** a warm afternoon sun low from the upper left over pale bone, warm sky fill, a flesh-red bounce in the canyons
+  and a warm mist rising out of them (the user's playground settings, 23 October). The values are `LOOKS.amnion` in
+  `src/render/scene.ts`.
+- **Palette:** `AMNION_PALETTE` in `src/world/terrain-amnion.ts` (bone, shaded bone, stain, sinew, dark flesh, floor,
+  hollow). The flesh is a dark blood maroon (user, 23 October: "make the flesh a bit darker").
+- **The glow comes from the terrain texture, not from lights:** the yolk is the ground shader's pool glow and vein lines
+  (`glowColor`, `veinTint`, `poolTint`, `poolGlow`, `poolCells` set per planet in `src/render/terrain-kit.ts`), and bloom
+  stays restrained for phones.
+- **Faction paint:** flesh-dark to bone with yolk glow (`WORLD_PAINT.amnion` in `src/render/world-paint.ts`).
+- **Terrain is scenery only:** everything stays under the flight plane (§3), so canyons and mountains never seal the
+  flight.
 
-## Readability rules (non-negotiable)
+## 2. Brood Strike and Amnion's enemies
 
-- **Hostile shots are hot red here**: `#ff1e1e` with a near-white core `#fff2ee`; muzzle flashes `#ff3a2e`.
-  - The user asked for red on 23 October; the first pass was violet.
-  - The white core and the bloom carry them over the dark flesh: checked over bone and over a canyon (`lookdev/review/amnion35.jpg`).
-  - Never cyan: the player's own shots are white-cyan.
-  - Code: `src/render/scene.ts`, `src/render/fx-particles.ts`.
-- **The glow comes from the terrain texture, not from lights:**
-  - the yolk is the ground shader's pool crackle with a low glow of its own (`poolGlow` 0.22);
-  - bloom stays restrained, for phone performance.
-- **The canyons and mountains never seal the flight:** terrain is far below the flight plane, so it is scenery only.
-- **Open readability item:** the warning telegraphs (brackets, lanes) are still the shared warm colours. Check them over the yolk in play before release.
+### Mission
 
-## Campaign place and pressure
+Brood Strike (`brood-strike`) is campaign mission 5, after Deep Bloom and before Dying Star (`CAMPAIGN_ORDER`). Its arc is
+`BROOD_STRIKE` and `BROOD_STRIKE_SORTIE` in `src/content/encounter-deck.ts`, on the late worlds' timing grid (the shape
+Deep Bloom set):
 
-- **Brood Strike is the final campaign mission,** after Deep Bloom (`CAMPAIGN_ORDER`). It opens once Deep Bloom is cleared, and old saves stay valid.
-- **Pressure:** it started at Deep Bloom's level (`WORLD_INTENSITY.amnion` = Nacre's, `MISSION_CADENCE` 0.92). Since the late-world curve (10 November) it steps past Nacre: cadence 0.46, enemy hp ×1.10, first windups ×0.90. Its run credit scale is 0.41.
-- **Playlist:** authored on Deep Bloom's proven timing grid, with its own mix:
-  - drone flights over the canyons;
-  - nest spires (batteries) and spore mortars (missile batteries);
-  - egg-sac depots to burst;
-  - heavies in the climax;
-  - only two Pulsars (a tracking stream is the hardest thing to read over the glow).
-- **Hunters on Amnion:** Diamond-class heavies in the yolk glow (`#ffc23a`).
+1. an introduction: a drone flight over the canyons, a dart arrowhead, a pair of nest spires;
+2. pressure: weaver columns, spore mortars, a field of egg sacs, a Needle line and the first brood heavy;
+3. a strike-site place in the recovery, then the bone field (the sortie stretch): egg sacs, drones and a Needle column;
+4. the second pressure block, with the first of the mission's two Pulsars and a Diamond-Lancer pair;
+5. the climax ("THE BROOD RISES"): Diamond convoys, spore mortars, the second Pulsar and a last Needle swarm;
+6. relief, then THE CRADLE rises.
 
-## Milestones
+Pressure comes from `WORLD_INTENSITY.amnion`, `MISSION_CADENCE['brood-strike']` and `MISSION_PRESSURE['brood-strike']` in
+`src/content/balance.ts`: Amnion steps past Nacre in the late-world curve (10 November), and the campaign adds its own
+pressure on top (13 November; [docs/40](40-balance-measurement.md)). The shield cells are `CRADLE.shieldSupplies`. Only two
+Pulsars fly, in their own slots: a tracking stream is the hardest thing to read over the glowing canyons, and the deck
+never draws one ([docs/33 §4](33-strike-sites-and-encounter-deck.md)).
 
-1. **Ground, light and mission (done, 23 October):**
-   - `src/world/terrain-amnion.ts`;
-   - the Amnion look in `LOOKS` and the per-planet ground glow (`terrain-kit.ts`: `glowColor`, `veinTint`, `poolTint`, `poolGlow`, flesh `WALL_LOOK`, bone-crust cracks);
-   - violet hostile shots;
-   - THE CRADLE's content (`src/content/cradle.ts`) and the Brood Strike playlist;
-   - menu, campaign order and playground.
-   - **Stand-ins, openly marked:** Nacre's organic craft for the enemies and Nacre's arrangement a minor third lower as the music (Codex writes the real theme). THE VEIL's model stood in for THE CRADLE until 24 October.
-2. **Brood kit in Blender (in progress, `tools/blender/kit_amnion.py`):**
-   - **Done:**
-     - flesh canyon walls;
-     - egg heaps;
-     - great tusks;
-     - brood nests and tusk groves (Amnion's buildings);
-     - goo webs across the crevasses.
-   - **Still to do:**
-     - torn-bone bridges over the crevasses (the concept's perforated spans);
-     - egg-sac depots for the fuel role.
-   - **Shape rules after the 23 October review** ("too small and way too comic like", "make them closer to the concept", "tears in the spikes base, like tearing apart by spreading it like a dough"):
-     - **Torn webbing:** tusks grow out of a membrane torn with real oval holes, packed big then small and stretched along the spread. It is built with Blender's triangle fill, so the holes cost a few hundred triangles, never a subdivided grid. The rims curl under, and they are dark flesh.
-     - **Nests:** a torn bone bowl round a glowing pool. Four or five tusks of very different size and lean rise from the bowl at irregular gaps. Never a symmetric ring of spikes; the ring round a glowing core was rejected as "way too uniform".
-     - **Eggs:** heaped as in the concept. Big eggs form the core, smaller ones stack on and between them, and tiny ones fill the gaps. Only one in six glows.
-     - **Eggs on landmarks:** they are separate pieces. The landmark is stretched tall, and its eggs must stay round.
-     - **Pearl shells** ("this perlescent color with shine"):
-       - the body is pale nacre, turning to pastel pink, lilac, teal and gold toward the rim;
-       - the camera never turns, so baking the shift by the normal stands in for iridescence;
-       - the shells are marked glossy by vertex alpha 0, which the runtime stores as a negative glow;
-       - the kit shader gives glossy faces low roughness and a sharp sun glint, since small shells smear the physical highlight.
-3. **The biological enemy faction:** Blender models on the existing kinds' behaviour. **25 October:** the round `diamond` class and its hunter variant now use a dedicated brood heavy: irregular bone plates, an open toothed mouth and dark hanging sinews (`brood-heavy.glb`, 15,268 triangles). The other classes still borrow Nacre craft. See [phase predators](29-phase-predators.md).
-4. **THE CRADLE (done, 24 October):** the user's Tripo GLB itself, adapted in Blender (`tools/blender/boss_cradle.py`, `public/assets/amnion/the-cradle.glb`, about 111k triangles, 6.0 MB), like the other approved bosses. The user rejected two hand-built rebuilds ("its still wrong. keep to the glb you have which is fully detailed. start fresh").
-   - **Structure,** as the user described it: an inner core with the egg on flesh eggs surrounded by six shields; the wings with their outer shields, which "extend below to look like floating rocks". No turret nodes.
-   - **Cut by shape.** Tripo split the mesh into arbitrary pieces, so each part is cut by shape:
-     - the egg by an ellipsoid;
-     - each inner shield's upper part by its sector round the nest above a cut height, keeping only painted bone (the atlas tells bone from flesh) and closing over thin cracks. The shields hinge on the cut line and swing 42° outward for the core phase;
-     - the brood sacs are the flesh bulges at the front flanks.
-   - **Floating rock:** a boulder mass hangs under each of the five outer shields, painted from the model's own rock slabs, with smaller chunks floating beside it.
-   - **Size:** 70% of the reference placement ("the model seems pretty big no?"). It rises straight up out of its canyon (it used to slide in from row 30 and plough through the canyon wall), and the canyon is fitted to its footprint and sway.
-   - **Combat points:** the core target and the sacs keep their tested positions, within half a unit of the egg and the bulges; closer values made the overload fan seal the view. The hatchling bays are at x ±1.96, s −1.68.
-5. **Music:** *Something Beneath the Skin*, 92 BPM, implemented 25 October. Original biological-horror score: breathing formants, uneasy nerve tones, organic bass, irregular paired heartbeats and dry bone clicks. Authored 32-bar arc and a stronger synchronized bass/rhythm layer for THE CRADLE; see [sound design](24-sound-design.md). Replaces the earlier transposed Nacre placeholder. Phase 4 (11 November, user: "amnion could use some clicking noises with a lot of reverb here and there, like alien noises in the night") adds creatures clicking in the dark, deep in the hall. The heartbeat lands like a kick. Phase 5 (user: quick-succession notes "sound just weird and overlapping", and "relax the amount of notes"): the calls are isolated (about six per cycle, a click or four spaced clicks, never near the melody), the nerve melody plays three notes a bar without slides, and one note never rings over the next.
-6. **Endless:** Amnion joins the planet cycle.
+### Enemies
 
-## Terrain (milestone 1)
+Amnion flies darts, weavers, turret batteries, Needles, Diamonds, Lancers (in the Diamond-Lancer pair), missile batteries,
+fuel targets and two Pulsars (`authoredKinds('amnion')`). They keep their kinds' behaviour
+([docs/03 §2](03-worlds-and-generation.md#2-enemy-catalog)); the messages give them the brood's names: drones (weavers),
+nest spires (turret batteries), spore mortars (missile batteries), egg sacs (fuel depots), brood heavies (Diamonds).
 
-| | Value |
+- **Models.** Nacre's organic craft stand in for every kind but the Diamond (`NACRE_CRAFT` in `src/render/scene.ts`,
+  `public/assets/nacre/nacre-craft.glb`). The fuel targets are the shared fuel skid.
+- **The brood heavy** (the `diamond` class, its aces included) has its own model: unequal calcified plates around an open
+  toothed mouth, dark flesh, hanging sinews and tusks round its rim (`public/assets/amnion/brood-heavy.glb`, root node
+  `amnion_brood_heavy`, built by `tools/blender/craft_brood_heavy.py --brood-only`). It keeps its own material colours, with
+  no faction recolour or panel texture, and draws as one instanced batch (`ensurePredator` in `src/render/scene.ts`). Its
+  triangles were cut to about a third on 6 November (Amnion drew twice the triangles of any other world).
+- **Aces** are brood heavies under a yolk-coloured shield (`HUNTERS.kinds.amnion`, `PLANET_GLOW.amnion`).
+- **Hostile shots** are acid green with a pale core, muzzle flashes to match (`AMNION_SHOT` in `src/render/shot-colors.ts`,
+  8 November). They are never cyan: the player's own shots are white-cyan.
+
+## 3. World generation
+
+The profile is `AMNION` in `src/world/terrain-amnion.ts`: one mood (`brood`), no sea, no settlements and no networks. Pure
+functions of the seed and world position.
+
+- **Plateaus.** Two tiers of bone crust (`PLATEAU`, `TIER`), gently domed, with egg hollows; the crust breaks into
+  tilted plates about 3.4 units across, split by sharp cracks (`plates`; user, 23 October: "too rounded"). The whole level
+  sits lower than at first so the tusks can grow under the flight plane (user, 23 October: "lower the whole level a bit").
+- **Crevasses.** Two lanes of jagged zigzag crevasses down the world (`crevasseSegment`), straight runs turning at sharp
+  angles. Their width is set at every turn (`knotHalf`: about 30% narrow slits, 48% canyons, 22% wide chasms), so they
+  taper, and they close to a pointed wedge where they break off. Each lip has its own two-scale serration and an
+  occasional fang; side cracks run off to a point (user, 23 October: "too uniform, same width canyons and too rounded ...
+  sharp and hostile and biological edged"). The floor (`FLOOR`) lies 3.0 under the plateau and sags toward the yolk river
+  of the main crevasses. Umbra reuses this generator with its own seed ([docs/28](28-umbra-eternal-eclipse.md)).
+- **Mountains.** Bone massifs in the plateau interiors, set back from the lips, with two octaves of ridged crests up to
+  `PEAK`. About a third are cut into strata whose risers stay bone, shaded as stone steps (user, 24 October: "fix these
+  regular red strikes").
+- **Ruins.** At most one per `RUIN_ROW` units of flight: a clearing round a sunken, jagged-rimmed courtyard (its floor at
+  `RUIN_FLOOR`) holding the brood ruin, a broken ring of torn bone round a cracked glowing heart with gigantic tusks, about
+  7 units tall from the courtyard floor, egg heaps along its wall (user, 23 October: "big areas on the base but also high
+  and imposing").
+- **Scenery caps:** `AMNION_SCENERY_MAX` for everything and `AMNION_TUSK_MAX` for the tusk pieces (great tusks, brood nests,
+  hive spires, the ruin), 0.4 under the flight plane (docs/08, 23 October). Pieces under the plane never cover a ship or a
+  shot; the margin only keeps thin tips out of the ships' layer.
+- **Dressing** (`amnionScatterSteps`):
+  - landmarks on a lattice: brood nests and hive spires on open plateau, egg heaps pressed against them (separate pieces,
+    so the eggs stay round while the landmark stretches tall);
+  - egg clutches piled in the hollows and crowding the plateau edges over the canyons, a few on the canyon floors;
+  - great tusks on the mountains and along the canyon edges, small nests on open crust, bone shards everywhere;
+  - goo webs strung lip to lip across the main crevasses in irregular bunches, sagging into the gap (user: "should read
+    sticky");
+  - flesh walls along the canyon lips in continuous runs, never on mountain flanks or turned away from the camera
+    (`cliffWallSteps` with `fleshWall`; the wall rules are [docs/26](26-terrain-relief.md)).
+- **Ground look.** The flesh walls' shading is `WALL_LOOK.amnion` (flesh only, so terrace risers stay bone); the crack map
+  is tinted bone (`src/render/terrain-kit.ts`).
+- **Boss arena:** THE CRADLE's emergence site (`EMERGENCE`): a wide flesh canyon across the arena with serrated lips and a
+  dim yolk glow far down, crust heaved up toward the lips in broken plates split by glowing fissures, and two narrower
+  chasms cutting diagonally through. It blends back into the world about 16 units out.
+
+## 4. Blender assets
+
+Seeded, deterministic scripts in `tools/blender/` (+Y up, game units, base-centre pivots, colour in `COLOR_0`).
+
+| File | Builder | Contents |
+| --- | --- | --- |
+| `public/assets/amnion/amnion-kit.glb` | `kit_amnion.py` | Egg clutches, great tusks (`boneSpire`), small nests, bone shards, brood nests, hive spires, the brood ruin, goo webs (`AmnionKitKind` in `src/world/scenery-kit.ts`). Materials `amnion_bone`, `amnion_flesh`, `amnion_glow` (the glow faces emit their own colour). |
+| `public/assets/amnion/cliff-kit.glb` | `kit_cliffs.py --world amnion` | Flesh walls: lobes and sinews tucked under the plateau's bone edge. |
+| `public/assets/amnion/brood-heavy.glb` | `craft_brood_heavy.py --brood-only` | The brood heavy (§2). |
+| `public/assets/amnion/the-cradle.glb` | `boss_cradle.py` | THE CRADLE (§5). |
+
+The kit's shapes follow the user's 23 October review ("too small and way too comic like", "make them closer to the
+concept"):
+
+- **Torn webbing:** tusks grow out of a membrane torn with real oval holes, big then small, stretched along the spread
+  ("tears in the spikes base, like tearing apart by spreading it like a dough"). The holes are cut with Blender's triangle
+  fill, so they cost a few hundred triangles, and their rims curl under in dark flesh.
+- **Nests:** a torn bone bowl round a glowing pool, four or five tusks of very different size and lean at irregular gaps;
+  never a symmetric ring of spikes ("way too uniform").
+- **Eggs:** heaped as in the concept, big eggs at the core, smaller ones stacked between them, tiny ones in the gaps; one
+  in six glows.
+- **Pearl shells** ("this perlescent color with shine"): pale nacre turning to pastel pink, lilac, teal and gold toward
+  the rim, baked by the normal (the camera never turns, so this stands in for iridescence). Vertex alpha 0 marks them
+  glossy, and the kit shader gives them low roughness and a sharp sun glint.
+
+## 5. THE CRADLE
+
+A living nest-fortress that rises out of a flesh canyon carrying the brood. Its numbers are `CRADLE` in
+`src/content/cradle.ts`, its definition `BOSSES.cradle` in `src/content/bosses.ts`, and its view `CRADLE_STYLE` in
+`src/render/carrier-view.ts`. It follows the shared boss rules ([docs/03 §3](03-worlds-and-generation.md#3-bosses)).
+
+**Targets.** Two brood sacs (the flesh bulges at its front flanks; `sacOffset`, `sacS`, `sacRadius`, `sacHp`), then the nest
+heart, the golden egg (`heartS`, `heartRadius`, `heartHp`), whose six bone shields swing 42° outward to open it
+(`CRADLE_STYLE.shutterOpen`). The ribbed shell, the spires and the egg clutches are scenery. The combat points sit within
+half a unit of the model's egg and bulges; closer values pulled the overload fan's outer bolts onto both screen edges with
+one through the middle, a seal the fairness rules forbid.
+
+| Phase | Attacks |
 | --- | --- |
-| Plateau tiers | −0.9 and −0.4 (domed ±0.17, egg hollows −0.35). The level was lowered 1.2 on 23 October ("lower the whole level a bit" so the tusks can grow) |
-| Mountains | Up to the 2.4 cap: two octaves of ridged crests on the massifs, set back from the canyon lips. The peaks stayed when the level went down, so the mountains gained 1.2 of relief |
-| Canyon floor | About −3.9, sagging toward the yolk: 3.0 under the plateau (it was 3.6; "make the canyons slightly less deep") |
-| Scenery caps | 3.0 for everything, and 3.4 for the tusks alone (great tusks, nests and groves): 0.4 under the flight plane. Anything under the plane never covers a ship or a shot from the camera above it, so the margin is only about clutter |
-| Canyons | Jagged zigzag crevasses whose width is set at every turn, so they taper: about 30% narrow slits (1.7–2.4 wide), 48% canyons, 22% wide chasms (6–9). They close to a pointed wedge where they break off. Each lip has its own two-scale serration, and occasional fangs jut into the gap. Side cracks run to a point. The user asked for this on 23 October: "too uniform, same width canyons and too rounded ... sharp and hostile and biological edged" |
-| Crust and mountains | The plateau breaks into tilted plates about 3.4 across, split by sharp cracks. The mountains have blade crests. About a third of the massifs are cut into tall strata (0.65), whose risers stay bone, shaded as stone steps (24 October, user: "fix these regular red strikes"; until then they took the flesh colour, a red maze the user had liked "a little but not so many") |
-| Ruins | At most one per 64 units: a clearing round a sunken, jagged-rimmed courtyard 8–9 across whose floor lies 2.7 under the plateau. A ruin piece stands in it: a broken ring of torn bone, a cracked glowing heart, and gigantic tusks (two arching over the heart, two snapped off, one fallen), about 7 high from the courtyard floor. Egg heaps lie along the courtyard wall. It answers the user's 23 October ask: "big areas on the base but also high and imposing" |
-| Flesh | Dark blood maroon: palette flesh `#44120f`, floor `#260a09`; wall look hue `#3c1816` at shade 0.24 ("make the flesh a bit darker") |
-| Boss clearing | One plateau level, no canyon |
-| Colour | Bone, darker stained bone on mountain flanks and folds, pale crests; sinew at the lips, dark flesh walls and floors |
+| Arrival (`arrivalDuration`) | Rises straight up out of the emergence canyon at its row (`entryS` equals `row`), then hovers over it (`CRADLE_STYLE.hover`; user, 23 October: "after rising it hovers slightly"). |
+| Brood sacs | Aimed spore bursts (`sacBurst`), one attacker at a time. |
+| Nest heart | `coreMoves`: a slow, wide spiral, aimed bursts (`heartBurst`) and a fixed fan (`heartFan`); hatchling waves from two brood bays at its base (`bays`, `launches`, the `veil-pods` formation). The spiral rests `spiral.rest` seconds, because its streams were still crossing the screen when the next burst and a hatchling wave came (27 October). |
+| Overload | `overloadMoves`: core lane, spiral, fan, side lanes, burst, cross, spiral, fan, with a shorter recovery and more hatchling waves. |
+| Destroyed | Its hatchlings go down with it; it sinks back into the canyon. |
+
+**Arena.** The scroll eases to a stop (`arena.decelStart`, `decelDuration`) over the emergence canyon; the boss sways and
+surges within `arena.sway` and `arena.surge`.
+
+**Model.** The user's Tripo GLB itself (`art/source/bosses/cradle-tripo-original.glb`), adapted by
+`tools/blender/boss_cradle.py`, which runs inside Blender through the Blender MCP. The user rejected two hand-built
+rebuilds (24 October: "keep to the glb you have which is fully detailed. start fresh"). The mesh, UVs and painted atlases
+are kept; nothing is regenerated. Tripo split the mesh into arbitrary pieces, so each part is cut by shape:
+
+- the egg by an ellipsoid round it (`cradle_heart` and its wreck);
+- the six inner shields' upper parts by their sector round the nest above a cut height, keeping only painted bone and
+  closing thin cracks (`cradle_heart_shutter_0` to `cradle_heart_shutter_5`, hinged on the cut line);
+- the brood sacs are the flesh bulges at the front flanks (`cradle_pod_left`, `cradle_pod_right` and their wrecks);
+- everything else is `cradle_hull`, with faceted rock hanging under the five outer shields so the wings read as
+  floating rock (the user: they "extend below to look like floating rocks");
+- `cradle_flight_pod` is the hatchling drone; `cradle_approved_v2` is an empty marker node (a real identifier the view
+  looks for).
+
+It is exported at 70% of the reference placement (user, 24 October: "the model seems pretty big no?"), and the canyon is
+fitted to its footprint and sway. It stays under the adapted bosses' triangle cap (docs/08, 24 October); how the boss
+models are built is [art/bosses](../art/bosses/README.md).
+
+## 6. Music
+
+*Something Beneath the Skin*, 92 BPM (`THEMES.amnion` in `src/audio/score.ts`): Phrygian and uneasy, with breathing
+formants, nerve tones, an organic bass, irregular paired heartbeats that land like a kick, dry bone clicks, and creatures
+clicking far off in a reverberant hall (user, 11 November: "like alien noises in the night"). In THE CRADLE's fight the
+heartbeat races unevenly in overload. Details: [docs/24](24-sound-design.md).
+
+## 7. Endless
+
+Amnion's stint follows Nacre's in the endless cycle ([docs/18](18-endless-planet-cycle.md)). Its stages are staged from
+Brood Strike's arc as every late world's are (`lateStages` in `src/content/encounter-deck.ts`): the opening flies the
+arc's first stretch with its strike site, the pressure stage its middle and climax with no site, and later visits the
+climax arc with a site between its halves. Its world missions are in [docs/35 §3](35-missions.md#3-the-missions).
+
+## 8. Tests
+
+- `tests/sim/amnion.test.ts`: Brood Strike follows Deep Bloom and opens Dying Star, over Amnion, against THE CRADLE.
+- `tests/world/terrain-amnion.test.ts`: the tusks stay 0.4 under the flight plane and everything else under the scenery
+  cap.
+- `tests/world/phase-predator-assets.test.ts`: the brood heavy's GLB holds only its own hierarchy, within its triangle and
+  size budget.
+- `tests/browser/faction-regressions.spec.ts`: THE CRADLE's view and pods never linger after another boss; the brood heavy
+  loads and renders on both quality tiers.
+- The fairness suites (`tests/sim/fairness-campaign.test.ts`, `fairness-endless-early.test.ts`,
+  `fairness-endless-late.test.ts`) fly Brood Strike at every difficulty and Amnion's endless stints.
+
+## Open
+
+- Amnion's enemies other than the Diamond still fly Nacre's craft, and its egg sacs are the shared fuel skid; the brood
+  kit has no bone bridges.
+- The warning telegraphs (brackets, lanes) are the shared warm colours; their readability over the yolk in play is
+  unverified.
