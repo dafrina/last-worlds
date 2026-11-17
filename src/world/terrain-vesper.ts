@@ -168,6 +168,84 @@ function coastPlatform(seed: number, x: number, s: number, arena: TerrainArena):
   return Math.max(arenaAt(arena, seed, x, s), arenaAt(arena, seed, x, s + reach), arenaAt(arena, seed, x, s - reach),
     arenaAt(arena, seed, x + reach, s), arenaAt(arena, seed, x - reach, s));
 }
+/* ---------------------------------------------------------------- the stronghold's cliff */
+
+/**
+ * HELION STRONGHOLD's arena (docs/17 §4; the user's specification of 17 November, docs/43 §9: "at the end of Cold Vector,
+ * the player reaches an enormous snowy cliff face containing the fortress"; "the mountain should read as part of the
+ * procedural world"). Only rows of a Vesper boss arena (`row.arena`) are touched, everything in arena-relative s:
+ * - the sea before it stays the open water the Ark fought on (coastPlatform), its shelves at the sides;
+ * - a cliff line runs across the whole width at the fortress's foot, jagged, curving forward toward the world's edges
+ *   into a bay; behind it a high snowy plateau (Vesper's own snow, its ice walls on the cliff: vesperScatterSteps);
+ * - the fortress stands in a notch of the cliff (the model's plinth is the cliff there): under it the ground falls to the
+ *   seabed, its sides and its back rise sheer to the plateau, burying the model's cut edges (tools/blender/boss_stronghold.py
+ *   cuts it at x ±5.6 and behind its roof);
+ * - the plateau ends well behind (the departure flies over it), dropping back to Vesper's own terrain.
+ * The arena's open-water clearing (ARENA_CLEARING) ran on behind the boss for its glide-in; the cliff takes its place there.
+ */
+const STRONGHOLD = {
+  /** The cliff's foot past the arena's start, its jags and the bay toward the world's edges (straight beside the fortress). */
+  line: 25.3, jag: 1.5, bay: 4.5, bayFrom: 6.2,
+  /** The plateau's level, its relief, and where it ends. */
+  top: 2.15, relief: .55, end: 57,
+  /**
+   * The fortress's plan (the model's own: tools/blender/boss_stronghold.py, its origin at STRONGHOLD_AT, the sea its z 0):
+   * its front at the cliff's foot, its back behind the roof; half width over the terrace and the plinth, then over the roof.
+   * Round it a ledge runs at just under the model's top along its edge (`rim`: the terrace's, then the roof's), `ledge` wide,
+   * and from it the ice cliff rises sheer to the plateau (`slope` up per unit out), so the fortress sits in a recess of the
+   * cliff and every cut edge of the model is buried. (The ledge keeps the cliff's face clear of the seabed's edge under the
+   * model, so the cliff's ice walls find it: src/world/terrain-walls.ts takes each cell's steepest face.)
+   */
+  front: 25.35, back: 32.05, wide: 5.55, narrow: 4.6, waist: [29.2, 29.8], rim: [-1.6, .75], ledge: 1.05, slope: 4,
+  /**
+   * The seabed under the fortress stays this far inside its plan's sides (over the terrace and plinth, then over the roof),
+   * so the ground at the rim covers the model's cut edges.
+   */
+  inset: [.55, .2],
+} as const;
+/** The cliff line's s (arena-relative) at x: straight at the fortress, jagged and curving forward toward the edges. */
+function cliffLine(seed: number, x: number): number {
+  const c = STRONGHOLD, ax = Math.abs(x), away = smoothRange(c.wide + .8, c.wide + 3, ax);
+  const jag = ((noise(seed ^ 0x5701, x * 0.33, 0.5) - 0.5) + (noise(seed ^ 0x5702, x * 1.1, 2.5) - 0.5) * 0.35) * c.jag * away;
+  return c.line + jag - c.bay * smoothRange(c.bayFrom, WORLD_HALF, ax);
+}
+/** Units outside the fortress's plan (arena-relative s; negative inside it). */
+function fortressOutside(x: number, a: number): number {
+  const c = STRONGHOLD, half = mix(c.wide, c.narrow, smoothRange(c.waist[0], c.waist[1], a));
+  const dx = Math.abs(x) - half, ds = Math.max(c.front - a, a - c.back);
+  return dx > 0 && ds > 0 ? Math.hypot(dx, ds) : Math.max(dx, ds);
+}
+/** Whether a point is clear of the fortress (its plan, and its barrels over the sea in front), by `margin`. */
+export function strongholdClear(arena: TerrainArena | undefined, x: number, s: number, margin = 0): boolean {
+  if (!arena) return true;
+  const a = s - arena.fromS;
+  return fortressOutside(x, a) > margin + .3 && !(Math.abs(x) < STRONGHOLD.wide + margin && a > STRONGHOLD.front - 2 - margin && a < STRONGHOLD.back);
+}
+/**
+ * The cliff at a point of a Vesper boss arena: `weight` 1 on the plateau and up its cliff, 0 before it; `notch` 1 under the
+ * fortress; `height` the ground there (the plateau, lowered into the bowl round the fortress). Zero without an arena or far
+ * from the cliff.
+ */
+export function strongholdCliff(arena: TerrainArena | undefined, seed: number, x: number, s: number): { weight: number; notch: number; height: number; rock: number } {
+  const c = STRONGHOLD;
+  if (!arena) return { weight: 0, notch: 0, height: 0, rock: 0 };
+  const a = s - arena.fromS;
+  if (a < c.line - c.bay - c.jag || a > c.end + 4) return { weight: 0, notch: 0, height: 0, rock: 0 };
+  // Sheer up its face (crispStep, as the coasts: the foot keeps the sea, the rim a hard crease), sheer down at the back.
+  const front = crispStep((a - cliffLine(seed, x)) / 0.7 + 0.5);
+  const back = 1 - crispStep((a - c.end - (noise(seed ^ 0x5703, x * 0.2, 1.5) - 0.5) * 5) / 0.8 + 0.5);
+  // (The seabed's sides stay `inset` inside the plan, its front and back on it.)
+  const waist = smoothRange(c.waist[0], c.waist[1], a), half = mix(c.wide, c.narrow, waist) - mix(c.inset[0], c.inset[1], waist);
+  const out = fortressOutside(x, a), inner = Math.max(Math.abs(x) - half, c.front - a, a - c.back);
+  const notch = 1 - crispStep(inner / 0.3 + 0.5);
+  const plateau = c.top + (noise(seed ^ 0x5704, x * 0.11, a * 0.1) - 0.5) * c.relief + (noise(seed ^ 0x5705, x * 0.45, a * 0.42) - 0.5) * 0.12;
+  const rim = mix(c.rim[0], c.rim[1], smoothRange(c.waist[0] - .4, c.waist[1], a)) + (noise(seed ^ 0x5706, x * 0.6, a * 0.6) - 0.5) * 0.3;
+  // The shoulders are broken, buttresses and gullies (not a plane), and dark rock shows through their snow in patches.
+  const near = smoothRange(4.5, 0, out), lumps = (noise(seed ^ 0x5707, x * 0.7, a * 0.55) - 0.5) * 1.1 * smoothRange(0, .8, out) * near;
+  const rock = smoothRange(0.45, 0.65, noise(seed ^ 0x5708, x * 0.5, a * 0.5)) * smoothRange(0.2, 1, out) * near;
+  return { weight: front * back, notch, height: Math.min(plateau, rim + c.slope * Math.max(0, out - c.ledge) + lumps), rock };
+}
+
 /**
  * The smooth shelf level the ice cliffs are cut from: the mood's top, a regional swell, and a climb inland from the
  * coast (low ice feet at the water, higher shelves behind them).
@@ -226,11 +304,17 @@ export function vesperLandform(seed: number, x: number, s: number, row: PlanetRo
     // Crevasses: deep, sheer cracks that never open to the sea (their floors stay ice).
     top = Math.max(Math.min(top, SEA + 0.35), top - m.crack * 2.4);
   }
-  const height = mix(seabed, top, m.edge);
-  return {
-    height: clamp(height, -8, 2.4), elevation: m.land, channel: m.crack * m.land, pool: 0, vein: 99, vein2: 99, veins: 0,
-    tone: m.rock * m.land,
-  };
+  let height = mix(seabed, top, m.edge), elevation = m.land, channel = m.crack * m.land, tone = m.rock * m.land;
+  // HELION STRONGHOLD's cliff (a Vesper boss arena only): the plateau over its cliff, the seabed under the fortress.
+  if (row.arena) {
+    const cliff = strongholdCliff(row.arena, seed, x, s);
+    if (cliff.weight > 0) {
+      height = mix(height, cliff.height, cliff.weight); elevation = mix(elevation, 1, cliff.weight);
+      channel *= 1 - cliff.weight; tone = mix(tone, cliff.rock, cliff.weight);
+    }
+    if (cliff.notch > 0) height = mix(height, SEA - 2.4, cliff.notch);
+  }
+  return { height: clamp(height, -8, 2.4), elevation, channel, pool: 0, vein: 99, vein2: 99, veins: 0, tone };
 }
 
 /* ---------------------------------------------------------------- colour */
@@ -505,6 +589,9 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
  */
 export function* vesperScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
   const CAP = VESPER_SCENERY_MAX, sink = createScatterSink({ startS, size, terrain, cap: CAP }), { add } = sink;
+  // HELION STRONGHOLD's cliff (a Vesper boss arena): its plateau is dressed as any shelf, nothing stands where the fortress
+  // does (its notch, its barrels and its plinth: strongholdClear), and its rocks and walls are placed below.
+  const cliffAt = (x: number, s: number) => strongholdCliff(terrain.arena(s), seed, x, s);
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   // Dark stones keep off cliffs (user, 22 October): none within about a unit of a sheer face, above or below it, where
   // they sat on the rim of an ice wall or against its face.
@@ -520,7 +607,9 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     const h = (k: number) => hash(seed ^ 0x7c1a, i * 41 + k, j);
     const x = -WORLD_HALF + (i + 0.5 + (h(0) - 0.5) * 0.8) * cell, s = (j + 0.5 + (h(1) - 0.5) * 0.8) * cell;
     if (s < startS || s >= startS + size || terrain.industrial(x, s) > 0.2 || terrain.blocked(x, s)) continue;
-    const platform = terrain.platform(x, s);
+    const cliff = cliffAt(x, s);
+    if (!strongholdClear(terrain.arena(s), x, s)) continue;
+    const platform = terrain.platform(x, s) * (1 - cliff.weight);
     if (platform >= 0.5 || (platform > 0 && h(30) < platform * 2)) continue;
     const ground = terrain.height(x, s), slope = terrain.slope(x, s), drop = terrain.drop(x, s), pick = h(2);
     const gx = terrain.gradientX(x, s), gs = terrain.gradientS(x, s);
@@ -565,10 +654,55 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
   // "huge faces of walls not having them"). Lower faces only away from crevasses and ridges (they keep their own pieces).
   // Nothing under 1.2 (version 19: was 0.7; small steps and landmarks were crowded with walls).
   const shelfEdge = (x: number, s: number, drop: number) => {
+    if (cliffAt(x, s).weight > 0.02) return false;
     const m = vesperMasks(seed, x, s, vesperParams(seed, s), 0);
     return drop >= 1.8 ? m.rock < 0.3 : m.crack < 0.1 && m.ridge < 0.3 && m.rock < 0.12;
   };
-  sink.keep(yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, scale: [1.2, 1.5], cap: CAP, sea: SEA, accept: shelfEdge }));
+  const walls = { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, scale: [1.2, 1.5], cap: CAP, sea: SEA } as const;
+  sink.keep(yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, accept: shelfEdge }));
+  // The stronghold's cliff: its own ice walls across its face (the arena's platform would keep them off it), never in the
+  // fortress's notch; and rocks round the fortress, along the rim beside it and on the ledge behind its roof.
+  const arena = terrain.arena(startS + size / 2);
+  if (arena && startS + size > arena.fromS + STRONGHOLD.line - STRONGHOLD.bay - 2 && startS < arena.fromS + STRONGHOLD.end + 4) {
+    const c = STRONGHOLD;
+    const face = (x: number, s: number) => cliffAt(x, s).weight > 0.02 && fortressOutside(x, s - arena.fromS) > c.ledge + 1.4;
+    sink.keep(yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, salt: 0x7c2f, arenas: true, accept: face }));
+    // The recess's own walls (there cliffWallSteps finds each cell's steepest face at the seabed's edge under the model): up
+    // the flanks beside the fortress, facing it, and up the face behind its roof, facing the camera; each from the ledge
+    // at its foot to the plateau, its body in the cliff (as cliffWallSteps stands them).
+    const recess = (x: number, s: number, ux: number, us: number, k: number) => {
+      const h = (i: number) => hash(seed ^ 0x5712, k, i);
+      const y = Math.max(terrain.height(x - ux * 0.75, s - us * 0.75), SEA - 0.25) - 0.12, top = terrain.height(x + ux * 1.2, s + us * 1.2) + 0.03;
+      if (top - y < 1) return;
+      add({ kind: 'iceWall', x, s, y, scale: 1.2 + h(0) * 0.3, height: (top - y) / KIT.iceWall.height, rotation: Math.atan2(-ux, us), cosmetic: false }, h(1));
+    };
+    for (const side of [-1, 1]) {
+      for (let k = 0, a = c.front + 0.7; a < c.back + c.ledge; a += 1.55, k++) {
+        const half = mix(c.wide, c.narrow, smoothRange(c.waist[0], c.waist[1], a));
+        recess(side * (half + c.ledge + 0.5), arena.fromS + a, side, 0, k * 2 + (side > 0 ? 1 : 0));
+      }
+    }
+    for (let k = 0, x = -c.narrow + 0.3; x < c.narrow; x += 1.55, k++) recess(x, arena.fromS + c.back + c.ledge + 0.5, 0, 1, 40 + k);
+    // The ledges' fronts beside the fortress, from the sea up to the ledge (the cliff's own walls there would run on up to
+    // the plateau behind them).
+    for (const side of [-1, 1]) for (let k = 0; k < 2; k++) recess(side * (c.wide + 0.4 + k * 1.3), arena.fromS + c.line + 0.25, 0, 1, 60 + k * 2 + (side > 0 ? 1 : 0));
+    // Boulders on the ledges either side of the fortress, at the terrace's level.
+    for (let k = 0; k < 14; k++) {
+      const h = (i: number) => hash(seed ^ 0x5711, k, i), side = k % 2 ? 1 : -1;
+      const x = side * (STRONGHOLD.wide + 0.25 + h(0) * 0.6), s = arena.fromS + STRONGHOLD.front + 0.4 + h(1) * (STRONGHOLD.waist[0] - STRONGHOLD.front - 0.6);
+      if (s < startS || s >= startS + size || h(6) < 0.25) continue;
+      const scale = 0.6 + h(2) * 0.6;
+      add({ kind: 'outcrop', x, s, y: terrain.height(x, s) - 0.05, scale, height: scale * (0.8 + h(3) * 0.6), rotation: h(4) * Math.PI * 2, cosmetic: false }, h(5));
+    }
+    for (let k = 0; k < 44; k++) {
+      const h = (i: number) => hash(seed ^ 0x5710, k, i), side = k % 2 ? 1 : -1;
+      const behind = k >= 32, x = behind ? (h(0) - 0.5) * 2 * (STRONGHOLD.narrow + 0.4) : side * (STRONGHOLD.wide + 1.2 + h(0) * 5);
+      const s = arena.fromS + (behind ? STRONGHOLD.back + 0.9 + h(1) * 2.2 : cliffLine(seed, x) + 0.8 + h(1) * 4);
+      if (s < startS || s >= startS + size || terrain.slope(x, s) > 1.3 || !strongholdClear(arena, x, s, 0.3)) continue;
+      const scale = 0.9 + h(2) * 0.8;
+      add({ kind: 'outcrop', x, s, y: terrain.height(x, s) - 0.05, scale, height: scale * (0.7 + h(3) * 0.5), rotation: h(4) * Math.PI * 2, cosmetic: false }, h(5));
+    }
+  }
   return sink.finish();
 }
 
@@ -704,8 +838,12 @@ export const VESPER: PlanetProfile = {
   id: 'vesper', seaLevel: SEA,
   mood: (seed, s) => vesperMoodOf(seed, Math.floor(s / MOOD_LENGTH)), params: () => NEUTRAL, local: vesperParams,
   landform: vesperLandform,
-  // The ocean arena is shaped in the landform itself (shelves recede); the seabed just deepens a little.
-  arena(_row, _x, point, weight) { point.height = Math.min(point.height, mix(point.height, SEA - 2.6, weight)); },
+  // The ocean arena is shaped in the landform itself (shelves recede); the seabed just deepens a little, before the
+  // stronghold's cliff only.
+  arena(row, x, point, weight) {
+    const w = weight * (1 - strongholdCliff(row.arena, row.seed, x, row.s).weight);
+    if (w > 0) point.height = Math.min(point.height, mix(point.height, SEA - 2.6, w));
+  },
   color: vesperColor,
   shadowTint: [0.62, 0.74, 1],
   sceneryMax: VESPER_SCENERY_MAX,
