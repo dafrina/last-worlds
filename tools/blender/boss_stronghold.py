@@ -12,15 +12,18 @@ blast doors is built here (the supplied model has nothing behind its door). Head
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
         --python "$(wslpath -w tools/blender/run_build.py)" -- boss_stronghold [--no-export] [--no-preview]
 
-About two minutes; deterministic. Writes public/assets/vesper/helion-stronghold.glb, previews and
+About a minute; deterministic. Writes public/assets/vesper/helion-stronghold.glb, previews and
 `lookdev/boss-overhaul/stronghold/stronghold-report.json` (placement, parts, triangle counts, the ray checks).
 
 Source: art/source/bosses/stronghold-original.glb (one mesh, 1,953,711 triangles, 4K atlases, normalized coordinates).
 It already stands the game's way up (z up, its front toward -y), so it is only scaled and placed:
-game = ((x - AXIS_X) * SCALE, y * SCALE + TY, z * SCALE + TZ). SCALE 12 puts the two barrels' breeches on the radiator
-offset (x ±2.98); model z 0 is the sea level (the renderer seats the model's z 0 at Vesper's sea), so the plinth's foot
-stands just under the opaque water; TY puts every target on the game camera's ray through its combat target (`ray_y`,
-art/bosses/README.md: the cannons on the radiator rays, the reactor behind the doors on the bridge's ray).
+game = ((x - AXIS_X) * SCALE, y * SCALE + TY, z * SCALE + TZ). Model z 0 is the sea (the renderer seats it at Vesper's
+sea level), so the plinth's foot stands just under the opaque water. The scale (12.79) puts the two barrels' breeches where
+the release lens, centred, sees the radiator targets at the guns' height (x ±3.32 there, the targets' ±2.98 on the flight
+plane); TY puts the core's aim point (seventy per cent up the blast door) on the bridge's orthographic ray, so the rig
+contract's rays (`ray_y`, art/bosses/README.md) meet the cannons and, with the doors open, the reactor. The renderer seats the
+model by the lens (src/world/terrain-vesper.ts STRONGHOLD_AT, the report's `seat`), and each gun then moves along s onto its
+own line of sight (the report's `gun_move`, about 0.2).
 
 Left out: the two floating backdrop rock sketches, the flag, the round rock and the small mountain at the left, the plinth's
 cut sides (|x| > CUT_X) and the rock behind the roof (y > CUT_BACK): the rock round the fortress is Vesper's terrain cliff
@@ -76,10 +79,10 @@ CORE_S = 1.6
 TARGET_HEIGHT = 1.6
 COT = 1 / math.tan(math.radians(55))
 TO_EYE = np.array((0.0, -math.cos(math.radians(55)), math.sin(math.radians(55))))
-# Cuts (unplaced game units: x from the axis, y and z the source's * SCALE).
+# Cuts and regions in reference units (x from the axis, y and z the source's * REF).
 CUT_X = 5.25
 CUT_BACK = 2.95
-# Regions (unplaced game units). The door: the main blast door between the two legs, under the lintel.
+# The door: the main blast door between the two legs, under the lintel.
 DOOR = dict(x=.66, z=(.98, 1.92), y=(-1.95, -1.3))
 # Each cannon's housing: the octagonal armour frame round the gun (x mirrored), under the roof slab.
 HOUSING = dict(x=(1.66, 4.16), z=(2.42, 3.71), y=(-1.85, -.25))
