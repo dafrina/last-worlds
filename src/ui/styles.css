@@ -342,7 +342,7 @@ button:disabled { cursor: default; }
   .menu-tagline { margin-top: 14px; }
 }
 
-/* Campaign progression (docs/21): credit balance, mission lock/record, loadout summary, hangar, results payout. */
+/* Campaign progression (docs/30): credit balance, mission lock/record, loadout summary, hangar, results payout. */
 .credit-balance { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: #ffd27a; letter-spacing: 1px; }
 .credit-balance svg { width: 9px; height: 9px; fill: #ffd27a; filter: drop-shadow(0 0 4px #ffb84a); }
 .credit-balance b { font-weight: 600; color: #ffe2a6; }
@@ -466,7 +466,7 @@ button:disabled { cursor: default; }
 /* Shipyard (Hangar → Ships, docs/31): the equipped ship turning, its part designs and paint. Plain, like the hangar list. */
 .shipyard { margin-top: 14px; padding: 12px; border: 1px solid var(--line); background: #0b1b30; display: grid; gap: 8px; }
 .page-panel .shipyard-title { margin: 0; color: var(--ivory); font: 600 10px / 1 var(--mono); letter-spacing: 1.4px; }
-/* The chassis perk (docs/34), sized like the hangar cards' lines (it had no rule and showed at the browser's default size). */
+/* The chassis perk (docs/42), sized like the hangar cards' lines (it had no rule and showed at the browser's default size). */
 .shipyard-perk { margin: 0; color: #9db0c5; font-size: 11px; line-height: 1.45; }
 .shipyard-preview { justify-self: center; width: 100%; max-width: 360px; aspect-ratio: 360 / 230; background: radial-gradient(ellipse at 50% 60%, #1b3a5c 0%, #0b1b30 72%); }
 .shipyard-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { CAMPAIGN_KEY, freshProfile, type CampaignProfile } from '../../src/campaign/profile';
 
 /**
- * Seeds this page's campaign save before the app loads (docs/21). `veteranPilot` has cleared every mission and owns
+ * Seeds this page's campaign save before the app loads (docs/30). `veteranPilot` has cleared every mission and owns
  * every item, with plenty of credits; pass overrides for anything else.
  */
 export async function seedCampaign(page: Page, change: (profile: CampaignProfile) => void = veteranPilot) {

@@ -3,7 +3,7 @@ import type { Difficulty, HeroDesign, HeroLook, HeroSlot, MissionId, ShipId, Run
 import { DEFAULT_LOOK, HERO_DESIGN_PARTS, HERO_DESIGN_PRICES, HERO_SLOTS, heroDesignId, heroDesigns, validLook } from '../content/hero-parts';
 
 /**
- * Campaign progression (docs/21): one local profile with the credit and parts balances, owned equipment, main-weapon
+ * Campaign progression (docs/30): one local profile with the credit and parts balances, owned equipment, main-weapon
  * ranks (bought and selected), the equipped four-slot loadout, mission clears (which unlock the next mission) and banked
  * attempt receipts.
  * Endless never writes it; it reads only the equipped ship's look, as cosmetics (`endlessConfig`, docs/33 § 2). Every

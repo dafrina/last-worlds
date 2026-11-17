@@ -23,7 +23,7 @@ function v3(change: (profile: Record<string, unknown> & CampaignProfile) => void
   return profile;
 }
 
-describe('campaign profile (docs/21)', () => {
+describe('campaign profile (docs/30)', () => {
   it('starts with the canonical starter (the Seeker Rack free), no credits, level 1 everywhere and only Training open', () => {
     const profile = createCampaignProfile(memory()).read();
     expect(profile.credits).toBe(0);

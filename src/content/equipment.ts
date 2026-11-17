@@ -1,7 +1,7 @@
 import type { Difficulty, MissionId, ShipId, ShieldTechId, SpecialId, WeaponId } from '../shared/contracts';
 
 /**
- * Campaign equipment and economy (docs/02 §4–5, docs/11 §3–4, docs/21, docs/30). The single runtime source for the four
+ * Campaign equipment and economy (docs/02 §4–5, docs/11 §3–4, docs/30). The single runtime source for the four
  * slots (main weapon, special, shield array, ship chassis), prices, weapon ranks and mission rewards.
  * Endless never reads the campaign choices: every endless run starts with the canonical starter.
  */
