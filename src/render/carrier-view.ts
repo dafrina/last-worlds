@@ -320,7 +320,9 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
   let rig = buildRig(style); root.add(rig.chassis);
   // THE CRADLE's gait (once its walking model has loaded), its walk-in, and a soft contact shadow under its body.
   let gait: ReturnType<typeof createGait> | null = null, walkIn = 0, walkerLift = 0, buckled = 0;
-  const blob = walkerShadow(); blob.visible = false; root.add(blob);
+  // (Only THE CRADLE's view has the shadow; the other carriers' scene graphs are as they were.)
+  const blob = style.id === 'cradle' ? walkerShadow() : null;
+  if (blob) { blob.visible = false; root.add(blob); }
   const rings = new Map<BossPart, { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }>();
   for (const part of partsOf(style)) {
     const core = part === 'core', material = new THREE.MeshBasicMaterial({ color: 0xffb77c, depthTest: false, depthWrite: false });
@@ -462,10 +464,12 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         }
         // A soft contact shadow under the body, smaller and darker as the body comes down.
         const height = THREE.MathUtils.clamp(walkerLift + 1.7, .5, 5);
-        blob.visible = true; blob.position.set(pose.body[0], .06, pose.body[2] - .2); blob.scale.setScalar(4.2 + height * .25);
-        (blob.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(.62 - height * .06, .25, .6);
+        if (blob) {
+          blob.visible = true; blob.position.set(pose.body[0], .06, pose.body[2] - .2); blob.scale.setScalar(4.2 + height * .25);
+          (blob.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(.62 - height * .06, .25, .6);
+        }
         buckled = destroyed ? THREE.MathUtils.clamp(phaseAge / 2.3, 0, 1) : 0;
-      } else blob.visible = false;
+      } else if (blob) blob.visible = false;
       const lift = walking ? walkerLift : 0;
       if ((arriving && rise > .05) || (destroyed && sink > 0 && sink < 1)) for (let k = 0; k < 3; k++) if (hash(state.time * 37 + k) < 22 * dt) {
         steam(local((hash(state.time + k) - .5) * 16, -root.position.y + placement.baseHeight + .1, (hash(state.time + k + 1) - .5) * 15 - 1), state.time * 41 + k, 1.6);
@@ -592,12 +596,13 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         const y = options.ground ? options.ground(x, -z) : WALKER.floor;
         return THREE.MathUtils.clamp(y, WALKER.floor - 1.2, WALKER.floor + 1.6);
       } }) : null;
-      encounter = -1;
+      // (Arriving mid-encounter, a walker starts its walk-in afresh.)
+      if (rig.walker) encounter = -1;
     },
     get hasPodModel() { return !!rig.flightPods; },
     get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count,
       ...(rig.walker ? { walker: { swinging: gait?.swinging ?? -1, buckled: Math.round(buckled * 100) / 100, lift: Math.round(walkerLift * 100) / 100 } } : {}) }; },
-    dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); blob.geometry.dispose(); (blob.material as THREE.Material).dispose(); },
+    dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); blob?.geometry.dispose(); (blob?.material as THREE.Material | undefined)?.dispose(); },
   };
 }
 
