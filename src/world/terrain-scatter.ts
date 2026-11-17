@@ -1,12 +1,15 @@
 import type { Work } from './terrain-work';
 import { cliffWallSteps } from './terrain-walls';
 import { SCENERY_MAX_HEIGHT, WORLD_HALF, clamp, hash, mix, noise, routeCalm, smoothRange } from './terrain-layout';
-import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
+import type { KitInstance, ScatterField } from './scenery-kit';
+import { createScatterSink } from './scatter-sink';
 
 /** Lateral ground strips per section; off-screen strips are culled. */
 export const TERRAIN_STRIPS = 4;
 export const STRIP_WIDTH = (WORLD_HALF * 2) / TERRAIN_STRIPS;
 export const stripOf = (x: number) => clamp(Math.floor((x + WORLD_HALF) / STRIP_WIDTH), 0, TERRAIN_STRIPS - 1);
+/** Real-size pieces are never squashed to fit the cap (they are dropped); stretchable ones are trimmed. */
+const REAL_SIZE: ReadonlySet<string> = new Set(['fallen', 'boulder']);
 
 /**
  * Deterministic kit dressing for one section, classified from the landform: rim crowns of columns,
@@ -15,24 +18,10 @@ export const stripOf = (x: number) => clamp(Math.floor((x + WORLD_HALF) / STRIP_
  * Cells are global, so a section's pieces never depend on which sections were generated first.
  */
 export function* scatterKitSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [];
   /** Set per cell on an arena's ramp: only low pieces stand there. */
   let ramp = false;
-  const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number, shade?: number) => {
-    const { kind, x, s, scale } = instance, spec = KIT[kind];
-    if (s < startS || s >= startS + size) return;
-    if (ramp && instance.height * spec.height > 0.6) return;
-    if (Math.abs(x) + spec.radius * scale > WORLD_HALF) return;
-    if (instance.y + instance.height * spec.height > SCENERY_MAX_HEIGHT) {
-      // Real-size pieces are never squashed to fit the cap; stretchable ones are trimmed.
-      if (kind === 'fallen' || kind === 'boulder') return;
-      instance = { ...instance, height: (SCENERY_MAX_HEIGHT - instance.y) / spec.height };
-    }
-    if (instance.height <= 0.05) return;
-    const variant = Math.min(spec.variants - 1, Math.floor(pick * spec.variants));
-    const placed: KitInstance = { ...instance, variant, shade: shade ?? terrain.shade(x, s) };
-    (placed.cosmetic ? cosmetic : essential).push(placed);
-  };
+  const sink = createScatterSink({ startS, size, terrain, cap: SCENERY_MAX_HEIGHT, rigid: REAL_SIZE,
+    accept: (piece, spec) => !(ramp && piece.height * spec.height > 0.6) }), { add } = sink;
   const turn = (pick: number) => pick * Math.PI * 2;
   const cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   for (let j = Math.floor(startS / cell); j < Math.ceil((startS + size) / cell); j++) for (let i = 0; i < columns; i++) {
@@ -148,6 +137,6 @@ export function* scatterKitSteps(seed: number, startS: number, size: number, ter
     }
   }
   // Columnar basalt walls along every cliff (docs/26 §11).
-  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'cliffWall', salt: 0x3a11, minDrop: 0.6, cap: SCENERY_MAX_HEIGHT })) essential.push(wall);
-  return [...essential, ...cosmetic];
+  sink.keep(yield* cliffWallSteps(seed, startS, size, terrain, { kind: 'cliffWall', salt: 0x3a11, minDrop: 0.6, cap: SCENERY_MAX_HEIGHT }));
+  return sink.finish();
 }

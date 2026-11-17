@@ -1,6 +1,7 @@
 import { NEUTRAL_MOOD, WORLD_HALF, clamp, crispStep, hash, mix, noise, routeCalm, smoothRange, type Landform, type MoodParams } from './terrain-layout';
-import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
+import type { KitInstance, ScatterField } from './scenery-kit';
 import { cliffWallSteps } from './terrain-walls';
+import { createScatterSink } from './scatter-sink';
 import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import { ARENA_CLEARING, arenaAt, arenaWeight } from './terrain-arena';
@@ -345,16 +346,7 @@ function amnionColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
  * turned away from the camera, larger segments), the rules Vesper's walls proved (docs/26).
  */
 function* amnionScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [], CAP = AMNION_SCENERY_MAX;
-  const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number) => {
-    const spec = KIT[instance.kind];
-    if (instance.s < startS || instance.s >= startS + size || Math.abs(instance.x) + spec.radius * instance.scale > WORLD_HALF) return;
-    const cap = TUSKS.has(instance.kind) ? AMNION_TUSK_MAX : CAP;
-    if (instance.y + instance.height * spec.height > cap) instance = { ...instance, height: (cap - instance.y) / spec.height };
-    if (instance.height <= 0.05) return;
-    const placed: KitInstance = { ...instance, variant: Math.min(spec.variants - 1, Math.floor(pick * spec.variants)), shade: terrain.shade(instance.x, instance.s) };
-    (placed.cosmetic ? cosmetic : essential).push(placed);
-  };
+  const CAP = AMNION_SCENERY_MAX, sink = createScatterSink({ startS, size, terrain, cap: CAP, tall: { kinds: TUSKS, cap: AMNION_TUSK_MAX } }), { add } = sink;
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   // Landmarks (Amnion's buildings: user, 23 October, "the nests in this level replace the buildings ... big and high"):
   // a site lattice, rows every SITE_ROW along s and three lanes, each site taken by chance; it seeks open plateau well
@@ -459,11 +451,11 @@ function* amnionScatterSteps(seed: number, startS: number, size: number, terrain
     }
   }
   const canyonLip = (x: number, s: number) => amnionMasks(seed, x, s).massif < 0.25;
-  for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, {
+  sink.keep(yield* cliffWallSteps(seed, startS, size, terrain, {
     kind: 'fleshWall', salt: 0x7c4e, minDrop: 2.0, rimSpan: 0.7, maxAway: 0.75, minRun: 3, scale: [1.2, 1.5],
     cap: CAP, accept: canyonLip, arenas: true,
-  })) essential.push(wall);
-  return [...essential, ...cosmetic];
+  }));
+  return sink.finish();
 }
 
 export const AMNION: PlanetProfile = {
