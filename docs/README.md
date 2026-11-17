@@ -21,7 +21,7 @@ were merged into others. For the repository layout see the [README's map](../REA
 | [03 Worlds and generation](03-worlds-and-generation.md) | All eight worlds at a glance, the enemy catalog, the bosses, what is procedural, the director, fairness, endless difficulty |
 | [19 Luna](19-luna-training.md) | Khepri's moon, the Training mission and WARDEN-1 |
 | [13 Khepri](13-khepri-world.md) | The rust desert: visual target, layout rules and its Blender kits |
-| [17 Vesper](17-vesper-glass-frontier.md) | The ice world, Cold Vector and the HELION ARK |
+| [17 Vesper](17-vesper-glass-frontier.md) | The ice world, Cold Vector and HELION STRONGHOLD |
 | [20 Nacre](20-nacre-luminous-mire.md) | The luminous mire, Deep Bloom and THE VEIL |
 | [27 Amnion](27-amnion-brood-wastes.md) | The brood wastes, Brood Strike and THE CRADLE |
 | [37 Corona](37-corona-dying-star.md) | The dying star, Dying Star and THE HELIOPHAGE |

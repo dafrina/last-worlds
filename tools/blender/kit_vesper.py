@@ -588,7 +588,7 @@ def main():
     ap.add_argument("--engine", default="EEVEE", choices=("EEVEE", "WORKBENCH"))
     ap.add_argument("--samples", type=int, default=48)
     ap.add_argument("--infra", default=None, help="vesper-infra.glb for the diorama")
-    ap.add_argument("--ark", default=None, help="helion-ark.glb for the diorama")
+    ap.add_argument("--ark", default=None, help="helion-stronghold.glb for the diorama")
     ap.add_argument("--craft", default=None, help="vesper-craft.glb for the diorama")
     args = ap.parse_args(argv)
 

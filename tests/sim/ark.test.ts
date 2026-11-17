@@ -27,7 +27,7 @@ function openBridge(state: RunState) {
 describe('Cold Vector arena', () => {
   // At the campaign scroll (5.75 since pace 1.15, 6 November; 935 at 5): the stop is 187 s of scroll in.
   const STOP = CAMPAIGN_SCROLL * 187;
-  it('stops the scroll at exactly its documented distance over open water and resumes after the kill', () => {
+  it('stops the scroll at exactly its documented distance before the stronghold\'s cliff and resumes after the kill', () => {
     expect(arenaStopDistance(HELION_ARK.arena)).toBeCloseTo(STOP, 9);
     expect(arenaScroll(HELION_ARK.arena.decelStart, null, HELION_ARK.arena)).toEqual({ distance: CAMPAIGN_SCROLL * 184, speed: CAMPAIGN_SCROLL });
     const stopped = arenaScroll(HELION_ARK.arena.decelStart + HELION_ARK.arena.decelDuration, null, HELION_ARK.arena);
@@ -41,7 +41,8 @@ describe('Cold Vector arena', () => {
     // The approach ends before the relief; the Ark arrives after the terrain has nearly stopped.
     expect(slotAt(CAMPAIGN_DECKS['cold-vector'].slots[CAMPAIGN_DECKS['cold-vector'].slots.length - 1])).toBeLessThan(HELION_ARK.approachEndsAt);
     expect(HELION_ARK.arrivesAt).toBeGreaterThan(HELION_ARK.arena.decelStart);
-    // The documented platform covers the view below the stop and the Ark's glide-in with its long stern.
+    // The documented platform covers the view below the stop and the fortress at its row (src/world/terrain-vesper.ts
+    // shapes the sea and the cliff in it; the Ark glided in from 26 with its stern 7.3 further).
     expect(HELION_ARK.arena.platform.from).toBeLessThan(VIEW.minS);
     expect(HELION_ARK.arena.platform.to).toBeGreaterThanOrEqual(HELION_ARK.entryS + 7.3);
   });
@@ -56,8 +57,8 @@ describe('Cold Vector arena', () => {
   });
 });
 
-describe('Helion Ark', () => {
-  it('glides in harmlessly with protected targets at the authored sockets and about 3,000 HP', () => {
+describe('HELION STRONGHOLD (id ark; the flying HELION ARK until 17 November)', () => {
+  it('awakens harmlessly at its row with protected targets at the authored sockets and about 3,000 HP', () => {
     const state = encounter();
     const boss = state.boss!;
     expect(boss.phase).toBe('arrival');
@@ -149,7 +150,7 @@ describe('Helion Ark', () => {
     expect(bridge.hp).toBe(bridge.maxHp * 0.39);
   });
 
-  it('sinks into a water-anchored wreck, clears its fighters, rewards once and completes extraction', () => {
+  it('leaves its wreck in the cliff, clears its fighters, rewards once and completes extraction', () => {
     const state = encounter();
     openBridge(state);
     advance(state, 8);
@@ -166,20 +167,26 @@ describe('Helion Ark', () => {
     advance(state, WRECK_HOLD - 0.1);
     expect(state.scrollSpeed).toBe(0);
     advance(state, 4.1);
-    // Then it resumes for extraction and the wreck stays on the water, falling behind.
+    // Then it resumes for extraction and the wreck stays where it stands, falling behind.
     expect(state.scrollSpeed).toBeGreaterThan(4.9);
     expect(state.boss!.s).toBeLessThan(s0 - 5);
     advance(state, 0.1);
     expect(state.phase).toBe('complete');
   });
 
-  it('drifts and sways on the water and exposes its velocity', () => {
+  it('never moves (stationary): no sway, surge or pull toward a pilot parked at a world edge', () => {
+    // A fortress in a cliff (17 November): the Ark swayed 1.3 and surged 0.7 on the water, and was pulled toward a pilot who
+    // kept its targets out of view (docs/10 §5); the stronghold, like THE CITADEL, stays at x 0 on its row.
+    expect(ARK.stationary).toBe(true);
+    expect([HELION_ARK.arena.sway, HELION_ARK.arena.surge, HELION_ARK.entryS]).toEqual([0, 0, HELION_ARK.row]);
     const state = encounter();
-    advance(state, HELION_ARK.arrivalDuration + 2);
-    const speeds: number[] = [];
-    for (let i = 0; i < 120; i++) { stepRun(state, EMPTY_INPUT); speeds.push(Math.hypot(state.boss!.vx, state.boss!.vs)); }
-    expect(Math.max(...speeds)).toBeGreaterThan(0.1);
-    expect(Math.abs(state.boss!.x - state.boss!.originX)).toBeLessThanOrEqual(HELION_ARK.arena.sway + 1e-9);
+    state.player.lives = 99;
+    advance(state, HELION_ARK.arrivalDuration + 1);
+    for (let i = 0; i < 12 / STEP; i++) {
+      stepRun(state, { ...EMPTY_INPUT, horizontal: 1 });
+      expect([state.boss!.x, state.boss!.s, state.boss!.vx, state.boss!.vs]).toEqual([0, HELION_ARK.row, 0, 0]);
+    }
+    expect(state.player.x).toBeGreaterThan(VIEW.worldWidth / 2 - 1);
   });
 
   it('never appears in endless or training, and Bastion-9 stays the Rolling Thunder boss', () => {
@@ -198,8 +205,12 @@ describe('Helion Ark', () => {
     // inside a beam's reach of the ship (8 November), Standard flies 56. Since the squadron and boss pull (11 November,
     // docs/10 §4-5) Standard flies 3 (56 took one hit with the fan), which clears all three with and without the pull. Over
     // seeds 1-16 at Standard, old → new: pulse 2 → 4 hits, fan 1 → 1, seeker 2 → 3.
-    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 57 : difficulty === 'standard' ? 3 : 53 });
-    // Veteran flies seed 57 (14 November: sites announced only when they come, boss phases 40-25-35): seed 55 took a hit with Seeker; seeds 51-54, 57-59 and 61-65 clear all three.
+    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 58 : difficulty === 'standard' ? 3 : 53 });
+    // Veteran flies seed 58 since the boss stopped moving (17 November, HELION STRONGHOLD): seeds 51-54 and 58-65 clear all
+    // three without a hit; on 57 this pilot, parked right of the lanes with the Fan Cannon, never reached the far cannon (no
+    // sway brings it into the fan any more), and 55, 56 and 66 take one hit with one weapon. (Before: seed 57, 14 November:
+    // sites announced only when they come, boss phases 40-25-35; seed 55 took a hit with Seeker; seeds 51-54, 57-59 and
+    // 61-65 cleared all three.)
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });
     expect({ phase: state.phase, boss: state.boss?.phase }).toEqual({ phase: 'complete', boss: 'destroyed' });

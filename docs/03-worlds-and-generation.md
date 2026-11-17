@@ -16,7 +16,7 @@ Worlds are `PlanetId` in `src/shared/contracts.ts`; each has a terrain profile i
 | --- | --- | --- | --- | --- | --- |
 | **Luna**, Khepri's moon | Grey cratered regolith, dark maria, black sky, a low hard white sun | Teaching: every squadron is introduced with a hint; gentle pace | Training | WARDEN-1, a decommissioned human lunar defence lander | [docs/19](19-luna-training.md) |
 | **Khepri**, the Rust Expanse | Ochre dust, columnar basalt mesas and canyons, turquoise mineral seams, graphite industry | Alignment, aimed shots, alternating lanes; ground batteries; a few scripted Lancers introduce beams | Rolling Thunder | BASTION-9, a tracked fortress | [docs/13](13-khepri-world.md), [docs/15](15-rolling-thunder-and-bastion-9.md) |
-| **Vesper**, the Glass Frontier | Snowy ice shelves, sheer blue-grey ice walls, a deep blue sea with pack ice | Narrow locked beams, alternating wing volleys, missiles down their own columns; precise commitment windows | Cold Vector | HELION ARK, a sea carrier | [docs/17](17-vesper-glass-frontier.md) |
+| **Vesper**, the Glass Frontier | Snowy ice shelves, sheer blue-grey ice walls, a deep blue sea with pack ice | Narrow locked beams, alternating wing volleys, missiles down their own columns; precise commitment windows | Cold Vector | HELION STRONGHOLD, a fortress built into a cliff | [docs/17](17-vesper-glass-frontier.md) |
 | **Nacre**, the Luminous Mire | Indigo mire between ragged islands, black crags, a glowing jungle, the ruins of its builders | Sine-flight weaver columns, Needle beams, the Pulsar's tracking stream, overlapping rhythms | Deep Bloom | THE VEIL, a crescent-winged alien carrier | [docs/20](20-nacre-luminous-mire.md) |
 | **Amnion**, the Brood Wastes | Pale bone plateaus, flesh canyons with glowing yolk, bone mountains, egg clutches | Drone flights, nest spires and spore mortars, egg sacs, brood heavies; acid-green hostile shots | Brood Strike | THE CRADLE, a living nest-fortress | [docs/27](27-amnion-brood-wastes.md) |
 | **Corona**, the Dying Star | Radiant plasma seas meandering between black magnetic rock, flare arcs | The late fleet with the Wraith and the Skimmer | Dying Star | THE HELIOPHAGE | [docs/37](37-corona-dying-star.md) |
@@ -52,7 +52,7 @@ renders the kinds in its own faction's models (its doc says which).
 | `weaver` | Crescent fighter, sine flight | Two parallel aimed shots (`WEAVER_PAIR_OFFSET` either side; the lane between fits the ship) | Use the lane between the pair; predict the crossing | Every world but Vesper |
 | `turret` | Ground battery | Aimed three-round fan | Same alignment as air targets; destroy one to remove its layer | Every world but Vesper |
 | `lancer` | Beam ship | Marks a wide lane (`LANCER_BEAM`) on the committed position, then a brief beam that costs two shield charges | Leave the marked lane; shoot it during recovery | Khepri (scripted only), Amnion, Corona, Umbra |
-| `needle` | Fast interceptor | A very narrow locked lane (`NEEDLE_BEAM`) that costs one shield charge | Step out of the thin lane; side lanes fall inside a beam's reach, so holding still is never safe | Vesper, Nacre, Amnion, Corona, Nahara, Umbra; the Helion Ark's launches |
+| `needle` | Fast interceptor | A very narrow locked lane (`NEEDLE_BEAM`) that costs one shield charge | Step out of the thin lane; side lanes fall inside a beam's reach, so holding still is never safe | Vesper, Nacre, Amnion, Corona, Nahara, Umbra; HELION STRONGHOLD's launches |
 | `diamond` | Heavy escort | Three tight rounds from one wing, bracketing the committed position on that side; wings alternate (`DIAMOND_VOLLEY`) | Read which wing winds up; its whole body takes hits | Vesper, Nacre, Amnion, Corona, Umbra |
 | `missile` | Ground missile battery | One straight, non-tracking missile down its own marked column | Align under it only between missiles | Vesper, Nacre, Amnion, Corona, Nahara, Umbra |
 | `fuel` | Fuel skid or egg sac | Never fires; its blast (`FUEL_BLAST`) damages targets around it, never the player | Shoot it for salvage and to break nearby batteries | Every world |
@@ -91,7 +91,7 @@ fly the validated mirror image or a validated lateral offset; neither is random.
 - **Late specials:** `pulsar-solo`, `pulsar-pair`, `wraith-solo`, `skimmer-pair`, `skimmer-trio`.
 - **Ground:** `battery-2`, `battery-3`, `battery-4`, `missile-2`, `missile-3`, the fuelled `depot-2`, `depot-3`,
   `depot-missile`, and the harmless `fuel-pair` and `fuel-depot`. Ground targets ride the scrolling terrain.
-- **Boss launches:** `ark-launch` (Needles from the Helion Ark's bays) and `veil-pods` (the pods, hatchlings and drones
+- **Boss launches:** `ark-launch` (Needles from HELION STRONGHOLD's hatches) and `veil-pods` (the pods, hatchlings and drones
   of the carrier bosses).
 - **Strike-site guards:** `site-*`, around a site's core ([docs/33](33-strike-sites-and-encounter-deck.md)).
 
@@ -141,10 +141,11 @@ shape (`BossDefinition` in `src/content/bosses.ts`, each boss's numbers in `src/
 - **BASTION-9** (Khepri, Rolling Thunder): a tracked fortress on a flat paved clearing. Two gun batteries with aimed
   bursts, then a core that alternates a fixed fan with an aimed burst, then lanes and fans over its own columns.
   [docs/15](15-rolling-thunder-and-bastion-9.md).
-- **HELION ARK** (Vesper, Cold Vector): a carrier riding the open sea. Two radiators fire narrow lane lasers straight
-  down their own columns, with a bridge burst between, then the bridge fires aimed bursts and launches finite Needle
-  waves from its deck bays.
-  [docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-the-helion-ark).
+- **HELION STRONGHOLD** (Vesper, Cold Vector; the flying HELION ARK until 17 November, the same fight under the id `ark`):
+  a fortress built into a cliff at the head of the arena, which never moves. Two cannons fire narrow lane lasers straight
+  down their own columns, with a burst from the reactor's door between, then the reactor behind the opened blast door
+  fires aimed bursts and launches finite Needle waves from the hatches beside it.
+  [docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-helion-stronghold).
 - **THE VEIL** (Nacre, Deep Bloom): a crescent-winged carrier far wider than the view that rises out of the mire. Two
   pods, then a heart behind four shutters with a spiral barrage and pod waves from its bays.
   [docs/20](20-nacre-luminous-mire.md#4-the-veil).
@@ -168,7 +169,7 @@ The bosses' source models and builders are listed in `src/render/boss-assets.ts`
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Training (`training`) | Luna | WARDEN-1 | 1 | `WARDEN.arrivesAt` (124 s) | [docs/19](19-luna-training.md) |
 | 2 | Rolling Thunder (`bastion`) | Khepri | BASTION-9 | 2 | `BASTION.arrivesAt` (135 s) | [docs/15](15-rolling-thunder-and-bastion-9.md) |
-| 3 | Cold Vector (`cold-vector`) | Vesper | HELION ARK | 3 | `HELION_ARK.arrivesAt` (190 s) | [docs/17](17-vesper-glass-frontier.md) |
+| 3 | Cold Vector (`cold-vector`) | Vesper | HELION STRONGHOLD | 3 | `HELION_ARK.arrivesAt` (190 s) | [docs/17](17-vesper-glass-frontier.md) |
 | 4 | Deep Bloom (`deep-bloom`) | Nacre | THE VEIL | 4 | `VEIL.arrivesAt` (184 s) | [docs/20](20-nacre-luminous-mire.md) |
 | 5 | Brood Strike (`brood-strike`) | Amnion | THE CRADLE | 5 | `CRADLE.arrivesAt` (184 s) | [docs/27](27-amnion-brood-wastes.md) |
 | 6 | Dying Star (`dying-star`) | Corona | THE HELIOPHAGE | 5 | `HELIOPHAGE.arrivesAt` (184 s) | [docs/37](37-corona-dying-star.md) |
@@ -221,7 +222,7 @@ Guard rails: no wave twice in a row; two heavy waves never stack (`PAIR_WINDOW`,
 only where the arc put them (`SCARCE`); teaching arcs (every campaign mission, the Luna prologue and each world's first
 endless opening) fly each introduction as authored and draw only formations already introduced; on Vesper a drawn wave
 keeps its slot's side of the alternation between laser flocks and laser-free squadrons
-([docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-the-helion-ark)). Campaign missions with
+([docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-helion-stronghold)). Campaign missions with
 `MISSION_PRESSURE.reinforce` add mirrored follow-up squadrons (`reinforced`).
 
 **The director** is `updateDirector` in `src/sim/game.ts`. It admits the resolved cues in order:

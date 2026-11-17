@@ -2,7 +2,7 @@
 the one missing peak of one wing tho somehow that got fucked"; "the boss should be very large tho like a final boss";
 the Umbral ships "deep black shiney and smooth surfaced").
 
-Adapted like THE CRADLE and HELION ARK (boss_cradle.py, boss_ark.py `build()`): the supplied mesh, UVs and painted
+Adapted like THE VEIL and HELION STRONGHOLD (boss_veil.py, boss_stronghold.py): the supplied mesh, UVs and painted
 atlases are kept and reduced; nothing of the shape is regenerated. Headless (the live Blender stays with the integrator):
 
     R=/home/davidfarina/Projects/alien-skies

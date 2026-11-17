@@ -9,6 +9,7 @@ import {
 } from '../../src/world/terrain';
 import { SEED, jumps, route, schedule } from './terrain-route-setup';
 import { CITADEL_AT } from '../../src/world/terrain-nahara';
+import { strongholdCliff } from '../../src/world/terrain-vesper';
 
 /*
  * The campaign byte-identity and the jump-speed streaming checks run in parallel files (docs/38 T1):
@@ -48,7 +49,7 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
     expect(schedule.planetAt(ki * L)).toBe('khepri'); expect(khepri.water).toBeUndefined();
   });
 
-  it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water, the late worlds\' arenas', () => {
+  it('gives every endless boss stop its planet’s arena: levelled Luna, Khepri platform, open mire, Vesper open water before its cliff, the late worlds\' arenas', () => {
     const arenas = schedule.arenas(0, 16000);
     expect(arenas.map(arena => arena.boss).slice(0, 9)).toEqual(['warden', 'bastion', 'ark', 'veil', 'cradle', 'heliophage', 'citadel', 'eclipse', 'bastion']);
     for (const arena of arenas.slice(0, 8)) for (let s = arena.from + 0.5; s < arena.to; s += 1) for (let x = -HALF; x <= HALF; x += 0.5) {
@@ -68,6 +69,9 @@ describe('terrain routes from the run schedule (docs/18 §3)', () => {
       else if (arena.planet === 'corona') expect(height).toBeLessThan(UMBRA_PLATEAU + 0.3);
       // Nahara: THE CITADEL stands on its own rock in a canyon, not in the common clearing (docs/39); checked below.
       else if (arena.planet === 'nahara') continue;
+      // Vesper: open water up to HELION STRONGHOLD's cliff, which takes the clearing's entry corridor (docs/17 §4; its own
+      // checks are in terrain-vesper.test.ts).
+      else if (arena.planet === 'vesper' && strongholdCliff({ fromS: arena.from, toS: arena.to }, SEED, x, s).weight > 0) continue;
       else expect(height).toBeLessThan(SEA - 0.5);
     }
     // THE CITADEL's rock is flat at the plateau under the temple (its origin 9 + its row past the arena's start), and its

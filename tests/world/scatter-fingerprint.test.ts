@@ -55,7 +55,8 @@ const RECORDED: Record<string, readonly [string, number, number, number]> = {
   khepri: ['0809259d4cc51f06', 847, 6, 357], luna: ['b15227357bb9b905', 197, 6, 216], vesper: ['b767c0ee98f8e2d5', 322, 6, 357],
   nacre: ['f2e03d27f53e344f', 973, 6, 531], amnion: ['a474d5d16e8d05d6', 918, 6, 357], corona: ['c204eed6309ad7b5', 825, 6, 370],
   umbra: ['381b39e54d68a094', 393, 6, 420], nahara: ['1cbf96f0c850b6d6', 538, 6, 384],
-  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['698a1fbf25f30d22', 147, 4, 238],
+  // vesper+arena: HELION STRONGHOLD's cliff (17 November: its walls, recess and rocks; ['698a1fbf25f30d22', 147, 4, 238] before).
+  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['eedaef953bf78ab1', 353, 4, 284],
   'nacre+arena': ['459e46b6b9fcdc14', 262, 4, 352], 'amnion+arena': ['fd29dba2900c9d70', 405, 4, 238], 'corona+arena': ['8135a9663edb2fff', 457, 4, 239],
   'umbra+arena': ['024b326323e18002', 202, 4, 249], 'nahara+arena': ['1b0e7095f021e896', 447, 6, 382],
   route: ['96b9d538ac002f63', 1537, 19, 758], 'khepri 11:0': ['8a3012c672f9b64a', 164, 1, 59],

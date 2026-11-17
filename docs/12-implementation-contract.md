@@ -53,7 +53,7 @@ Shared types and constants: `src/shared/contracts.ts` (`RunConfig`, `RunState`, 
 
 ## Boss views
 
-Each boss has its own view module (`bastion-view.ts`, `ark-view.ts`, `warden-view.ts`, `carrier-view.ts` for the carrier
+Each boss has its own view module (`bastion-view.ts`, `stronghold-view.ts`, `warden-view.ts`, `carrier-view.ts` for the carrier
 bosses) and its model file and builder are listed in `src/render/boss-assets.ts`. Rig marker nodes inside the GLBs (for
 example `ark_approved_v6`) are identifiers the views look for.
 

@@ -11,7 +11,7 @@ Contract: [docs/17-vesper-glass-frontier.md §1 and §3](../../docs/17-vesper-gl
 - No imported meshes, third-party assets or textures.
 - Built with Blender 5.2.2 LTS and its bundled glTF exporter (5.2.40), headless, on 15 October 2026.
 - Deterministic: three builds were byte-identical.
-- The diorama imports the other published Vesper GLBs (`vesper-infra.glb`, `helion-ark.glb`, `vesper-craft.glb`). Its preview ground, ocean and seabed use procedural noise materials only; no Poly Haven maps were needed.
+- The diorama imports the other published Vesper GLBs (`vesper-infra.glb`, `helion-stronghold.glb`, `vesper-craft.glb`). Its preview ground, ocean and seabed use procedural noise materials only; no Poly Haven maps were needed.
 
 ## Rebuild
 
@@ -22,7 +22,7 @@ cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -
   --glb "$(wslpath -w $R/public/assets/vesper/vesper-kit.glb)" \
   --preview-dir "$(wslpath -w $R/lookdev/vesper-kit)" \
   --infra "$(wslpath -w $R/public/assets/vesper/vesper-infra.glb)" \
-  --ark "$(wslpath -w $R/public/assets/vesper/helion-ark.glb)" \
+  --ark "$(wslpath -w $R/public/assets/vesper/helion-stronghold.glb)" \
   --craft "$(wslpath -w $R/public/assets/vesper/vesper-craft.glb)"
 ```
 

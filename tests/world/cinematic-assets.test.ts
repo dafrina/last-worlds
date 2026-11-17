@@ -65,7 +65,8 @@ describe('Blender cinematic asset contracts',()=>{
   const flankOf = {
     veil: { node:'pod', x:VEIL.podOffset, y:VEIL.targetHeight, z:-VEIL.podS },
     bastion: { node:'battery', x:BASTION.batteryOffset, y:BASTION.targetHeight, z:0 },
-    ark: { node:'radiator', x:HELION_ARK.radiatorOffset, y:HELION_ARK.targetHeight, z:-HELION_ARK.radiatorS },
+    // HELION STRONGHOLD (id ark): its cannons on the radiator targets' rows.
+    ark: { node:'cannon', x:HELION_ARK.radiatorOffset, y:HELION_ARK.targetHeight, z:-HELION_ARK.radiatorS },
     warden: { node:'pod', x:WARDEN.podOffset, y:WARDEN.targetHeight, z:0 },
     eclipse: { node:'pod', x:ECLIPSE.ventOffset, y:ECLIPSE.targetHeight, z:-ECLIPSE.ventS },
   } as const;
@@ -76,7 +77,8 @@ describe('Blender cinematic asset contracts',()=>{
     eclipse: { y:ECLIPSE.targetHeight, z:-ECLIPSE.reactorS, x:0.6 },
   } as const;
   // How far each sliding pair of core shutters opens in its view (the carriers' shutters rotate instead).
-  const slideOf = { veil:0, bastion:1.1, ark:1, warden:.8, eclipse:0 } as const;
+  // (HELION STRONGHOLD's blast door leaves: tools/blender/boss_stronghold.py, the marker's door_slide.)
+  const slideOf = { veil:0, bastion:1.1, ark:.66, warden:.8, eclipse:0 } as const;
   // Carriers' shutters swing open about their local x instead (THE VEIL's stone shields 42°, THE ECLIPSE's armour 50°).
   const swingOf: Partial<Record<keyof typeof slideOf, number>> = { veil:42, eclipse:50 };
   for (const spec of [
@@ -87,10 +89,13 @@ describe('Blender cinematic asset contracts',()=>{
     { id:'bastion', prefix:'bastion', core:'bastion_core', width:{ v4:8.01, v5:9.9 },
       parts:['bastion_gun_left','bastion_gun_right','bastion_forward_cannon_left','bastion_forward_cannon_right','bastion_battery_left_wreck','bastion_battery_right_wreck'],
       shutters:['bastion_core_shutter_a','bastion_core_shutter_b'] },
-    // v6 (24 October) adapts the user's new Ark GLB: no bay doors (the Needles launch from the open prow).
-    { id:'ark', prefix:'ark', core:'ark_bridge', width:{ v4:9.51, v5:9.6, v6:9.6 },
-      parts:['ark_turret_left','ark_turret_right','ark_radiator_left_wreck','ark_radiator_right_wreck'],
-      shutters:['ark_bridge_shutter_a','ark_bridge_shutter_b'] },
+    // HELION STRONGHOLD (17 November) adapts the user's fortress GLB (tools/blender/boss_stronghold.py): the cannon housings
+    // with their guns, wrecks, the radar, the reactor chamber and its reactor behind the blast door's two leaves, markers.
+    { id:'ark', prefix:'stronghold', core:'stronghold_core', width:{ e1:11.3 },
+      parts:['stronghold_gun_left','stronghold_gun_right','stronghold_cannon_left_wreck','stronghold_cannon_right_wreck','stronghold_gun_left_wreck',
+        'stronghold_gun_right_wreck','stronghold_core_wreck','stronghold_radar','stronghold_chamber','stronghold_muzzle_left','stronghold_muzzle_right',
+        'stronghold_bay_left','stronghold_bay_right','stronghold_core_aim','stronghold_vent_0'],
+      shutters:['stronghold_door_a','stronghold_door_b'] },
     // THE ECLIPSE (24 October): the user's crescent GLB lying flat, 20 units from horn to horn (docs/28).
     { id:'eclipse', prefix:'eclipse', core:'eclipse_heart', width:{ e1:20 },
       parts:['eclipse_pod_left_wreck','eclipse_pod_right_wreck','eclipse_heart_wreck'],
