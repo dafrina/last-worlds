@@ -38,13 +38,13 @@ export interface VesperParams {
   /** Dark rock outcrops and nunataks. */ rock: number;
   /** Floes and icebergs on open water. */ floes: number;
   /** Typical shelf top height. */ top: number;
-  /** Height of one ice-cliff step between shelf levels (docs/26 §3). */ step: number;
+  /** Height of one ice-cliff step between shelf levels (docs/26 §4). */ step: number;
   /** How far the shelves climb inland from the coast, in levels. */ stairs: number;
   /** Wide, winding sea inlets (fjords) cutting into the shelves (version 15). */ inlets: number;
   /** Ice plateaus: tabular blocks standing a tier or two over the shelf on sheer walls (version 16). */ mesa: number;
 }
 /**
- * Land shares measured over long routes (seeds 93, 8831, 11, 4242, 7; docs/26 §11): the six moods and the inlets keep
+ * Land shares measured over long routes (seeds 93, 8831, 11, 4242, 7; docs/26 §4): the six moods and the inlets keep
  * the planet at about 50% land (0.49–0.51 per seed). Shelves stand at several levels: low ice feet at the coast, stepping up inland in ice cliffs.
  */
 const MOOD_SETTINGS: Readonly<Record<VesperMood, VesperParams>> = {

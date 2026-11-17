@@ -94,7 +94,7 @@ describe('Vesper generator (docs/17 §4)', () => {
     }
     expect(wet / (wet + land)).toBeGreaterThan(0.2);
     expect(wet / (wet + land)).toBeLessThan(0.7);
-    // Version 13 (docs/26 §3): no single shelf level holds most of the ice; at least four half-unit bands hold 8% each
+    // Version 13 (docs/26 §4): no single shelf level holds most of the ice; at least four half-unit bands hold 8% each
     // (version 12: one band, 0.5–1.5, held nearly everything).
     expect(Math.max(...levels.values()) / land).toBeLessThan(0.45);
     expect([...levels.values()].filter(n => n >= land * 0.08).length).toBeGreaterThanOrEqual(4);

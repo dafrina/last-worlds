@@ -18,7 +18,7 @@ export const LUNA_SCENERY_MAX = 3.0;
 /* ---------------------------------------------------------------- moods */
 
 /**
- * Regions along the route (docs/26 §4): cratered highlands, dark maria with rilles and wrinkle ridges, a basin rim of
+ * Regions along the route (docs/26 §6): cratered highlands, dark maria with rilles and wrinkle ridges, a basin rim of
  * mountains (montes) around a mare, and a saturated crater field. Never the same twice in a row.
  */
 export type LunaMood = 'highland' | 'mare' | 'basin' | 'craters';
@@ -151,7 +151,7 @@ const ridgedNoise = (seed: number, x: number, s: number) => { const r = 1 - Math
 /* ---------------------------------------------------------------- landform */
 
 /**
- * Luna ground (docs/26 §4): rugged highlands with mountain massifs and lobate scarps; dark mare plains a scarp below
+ * Luna ground (docs/26 §6): rugged highlands with mountain massifs and lobate scarps; dark mare plains a scarp below
  * them, with wrinkle ridges and sinuous rilles; all cratered at four scales, fresh and deep or old and worn.
  * `channel` carries the bowl and `tone` the ejecta.
  */
