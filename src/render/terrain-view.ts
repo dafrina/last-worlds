@@ -8,6 +8,7 @@ import {
   terrainHeight, worldAt, worldOf, type DistrictSite,
   type Floe, type IndustryPiece, type PlanetId, type RoadPath, type RoutedWorld, type TerrainInput, type TerrainRoute, type TerrainSection, type World, type WorldInput,
 } from '../world/terrain';
+import { SAND_SHELTER_REACH, sandShelterRows, sandShelters } from '../world/sand-shelter';
 import {
   GROUND_TILE, INFRA_NODES, createFallbackKit, createFallbackVesperInfra, createWaterMaterial, loadAmnionKit, loadCoronaKit, loadNaharaKit, loadUmbraKit, loadCliffKit, loadNacreKit, loadVesperInfra, loadVesperKit,
   type KitGeometries,
@@ -214,6 +215,11 @@ function tint(seed: number, x: number, s: number): number {
 const fixed = <T extends THREE.Object3D>(object: T): T => { object.matrixAutoUpdate = false; object.updateMatrix(); return object; };
 
 const triangleCount = (geometry: THREE.BufferGeometry) => (geometry.index ? geometry.index.count : geometry.getAttribute('position').count) / 3;
+/**
+ * Nahara's sand shelter (src/world/sand-shelter.ts): rows of a section computed per resumable step, and the rows next to a
+ * join (the shelters' reach) that a neighbour's pieces can calm.
+ */
+const SHELTER_ROWS = 24, JOIN_ROWS = Math.ceil(SAND_SHELTER_REACH / TERRAIN_STEP) + 1;
 
 /**
  * Streams procedural sections into scenery. Ground is split into lateral strips culled by exact boxes.
@@ -237,6 +243,11 @@ export function createTerrainView(options: TerrainViewOptions) {
   const seaMaterial = (): THREE.Material => lookPlanet === 'nacre' && options.mireMaterial ? options.mireMaterial : water ??= createWaterMaterial();
   const planetLoads = new Map<PlanetId, Promise<void>>();
   const views = new Map<number, SectionView>(), batches = new Map<string, Batch>();
+  /**
+   * The sand-shelter attribute of every section whose ground is built or being built (live, prefetched or half-built), so
+   * a section built later can calm the rows next to their join with its own pieces (shelterJoins).
+   */
+  const sandShelterOf = new Map<TerrainSection, THREE.BufferAttribute>();
   const pieces = new THREE.Group(); pieces.name = 'Khepri instanced scenery'; scene.add(pieces);
   const transform = new THREE.Object3D(), color = new THREE.Color();
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), worldBox = new THREE.Box3(), offset = new THREE.Vector3();
@@ -504,6 +515,30 @@ export function createTerrainView(options: TerrainViewOptions) {
     return prepared;
   }
 
+  /** The sections either side of one known to the view (live, prefetched, or with their ground being built). */
+  function neighboursOf(section: TerrainSection): TerrainSection[] {
+    const near = new Set<TerrainSection>();
+    const consider = (other: TerrainSection) => { if (Math.abs(other.index - section.index) === 1) near.add(other); };
+    for (const other of sandShelterOf.keys()) consider(other);
+    for (const view of views.values()) consider(view.section);
+    for (const other of prebuilt.keys()) consider(other);
+    return [...near];
+  }
+  /** Every shelter that can reach a section's ground: its own pieces' and its known neighbours'. */
+  const sheltersNear = (section: TerrainSection) => [...sandShelters(section), ...neighboursOf(section).flatMap(other => sandShelters(other))];
+  /**
+   * A section's ground was just sheltered: each neighbour's rows next to their join are sheltered again with its pieces
+   * (a few rows, uploaded as a range). Both sides of a join then agree, whichever was built first.
+   */
+  function shelterJoins(section: TerrainSection) {
+    for (const [other, attribute] of sandShelterOf) {
+      if (Math.abs(other.index - section.index) !== 1) continue;
+      const from = other.index < section.index ? other.along - JOIN_ROWS : 0, to = other.index < section.index ? other.along - 1 : JOIN_ROWS - 1;
+      sandShelterRows(other, sheltersNear(other), attribute.array as Float32Array, from, to);
+      attribute.addUpdateRange(from * other.across, (to - from + 1) * other.across); attribute.needsUpdate = true;
+    }
+  }
+
   function* buildGround(section: TerrainSection, view: SectionView): Generator<void, void, void> {
     const vertices = section.across * section.along, uv = new Float32Array(vertices * 2), surface = new Float32Array(vertices * 4);
     const veins = new Float32Array(vertices * 2);
@@ -513,12 +548,25 @@ export function createTerrainView(options: TerrainViewOptions) {
       surface[i * 4 + 2] = section.rock[i]; surface[i * 4 + 3] = section.strata?.[i] ?? 0;
       veins[i * 2] = section.edges[i * 2]; veins[i * 2 + 1] = section.edges[i * 2 + 1];
     }
+    // Nahara's sand: the scenery's shelter, from this section's pieces and its neighbours' near the joins, a band of rows a
+    // step (the neighbours as they stand at each step); then the neighbours' rows next to the join take this one's pieces.
+    let shelter: THREE.BufferAttribute | null = null;
+    if (section.sandClearance) {
+      shelter = new THREE.BufferAttribute(new Float32Array(vertices), 1);
+      sandShelterOf.set(section, shelter);
+      for (let row = 0; row < section.along; row += SHELTER_ROWS) {
+        sandShelterRows(section, sheltersNear(section), shelter.array as Float32Array, row, row + SHELTER_ROWS - 1);
+        yield;
+      }
+      shelterJoins(section);
+    }
     // One set of section attributes shared by every strip; strips are index ranges disposed together.
     const attributes = {
       position: new THREE.BufferAttribute(section.positions, 3), normal: new THREE.BufferAttribute(section.normals, 3),
       color: new THREE.BufferAttribute(section.colors, 3), surface: new THREE.BufferAttribute(surface, 4), uv: new THREE.BufferAttribute(uv, 2),
       veins: new THREE.BufferAttribute(veins, 2),
       ...(section.sandClearance ? { sandClearance: new THREE.BufferAttribute(section.sandClearance, 1) } : {}),
+      ...(shelter ? { sandShelter: shelter } : {}),
     };
     const index = new THREE.BufferAttribute(section.indices, 1);
     yield;
@@ -748,7 +796,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     for (const [key, entry] of [...prebuilt]) {
       if (section && key !== section) continue;
       if (entry.view) disposeView(entry.view);
-      else { const partial = entry.work.return(undefined as never); void partial; }
+      else { const partial = entry.work.return(undefined as never); void partial; sandShelterOf.delete(key); }
       prebuilt.delete(key);
     }
   };
@@ -774,6 +822,7 @@ export function createTerrainView(options: TerrainViewOptions) {
     view.casters.forEach(mesh => mesh.geometry.dispose()); view.casters = [];
     view.instanced.forEach(mesh => mesh.dispose());
     view.geometries.forEach(geometry => geometry.dispose());
+    sandShelterOf.delete(view.section);
     dirty = true;
   }
 

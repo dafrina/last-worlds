@@ -147,7 +147,7 @@ inspiration".
   - **Low:** one octave, no sparkle, one noise fewer.
   - **No aliasing:** each octave fades out before it would alias (its phase's `fwidth`, about four pixels a ripple).
   - **Where:** the natural sandstone's flats, and drifted patches over the built paving; never on walls, steep slopes or the
-    teal streams. The other worlds pay one uniform test.
+    teal streams. The other worlds pay one uniform test. (Since 17 November only on open sand: below.)
 - **Measured** (High and Low, headless Chromium on SwiftShader, so no GPU time; no phone yet):
   - **Scenery:** over ten sections (seed 93) the dressing went from 449 pieces to 728. The new ones are 112 rubble
     fields, 54 fallen columns, 27 stumps, 8 foundations, 10 relics and 68 more tumbled blocks. Instanced, about 250 to 700
@@ -164,6 +164,45 @@ inspiration".
   - **Within the guardrail** (docs/36: 100 calls, 180k triangles).
   - **The shader's GPU cost is unmeasured.** It adds about three value noises (two on Low) and a dozen trig terms a
     ground pixel; a phone test should confirm it.
+
+### Ripples on open sand only (16–17 November)
+
+The user: Codex's fixes look better, "but where it is applied bugs me a bit. It runs below rocks and buildings/ruins but it
+should not do that. I told it to limit it to open stretches of land and canyon floors".
+
+- **The terrain's bed** (`TerrainSection.sandClearance`, per vertex; Codex, 16 November, then 17 November):
+  - the landform's `sand` (`naharaLandform`): the natural sandstone, and in the ruin districts only the canyon's ledges and
+    floor (under -2.8; the basin mesas' tops are at -2.2 and up). The built terraces, cities and fallen buildings'
+    footprints carry none (they had faint drifted patches), nor does THE CITADEL's rock;
+  - away from cliffs: fading over a rise or drop of 0.35 to 1.1 within a unit, and over slopes of 0.12 to 0.5;
+  - strike-site pads clear it (render only, as before).
+- **The scenery's shelter** (`src/world/sand-shelter.ts`, the `sandShelter` attribute): every placed piece calms the
+  ripples round its footprint, so it sits in smooth sand. Only the ripples and the dune swells fade: the sand's colour,
+  its dust and its sparkle stay.
+  - **Footprints:** each piece's plan turned with it and scaled, measured from `nahara-kit.glb` per variant
+    (`NAHARA_PLANS`; the GLB test holds them to the model). The contract bounds are the most a node may take, and the
+    pieces take less: a tumbled block's contract is 0.6 by 0.6, its stones about 0.35 by 0.35.
+  - **Only where a piece meets the ground:**
+    - a standing arch at its piers (x 0.66 to 0.94 either side), a half arch at its one (`ARCH_PIERS`);
+    - a buried arch's crown along its whole width;
+    - a piece standing clear of the ground (an aqueduct's bay over its pier columns) not at all.
+  - **The calm** (`r` the footprint's radius, `e` how far the piece stands over the ground, at most 3):
+    - fully calm to `0.1 + 0.05 r` past the edge;
+    - fading out over `0.3 + 0.12 r + 0.1 e` more;
+    - a tail on the lee side, downwind (`SAND_WIND`, the sand streams' wind), up to `0.3 + 0.5 e + 0.1 r` long (at most
+      2), thinning as it goes.
+    - So a small block's ripples stop about half a unit round it, a rubble field's under a unit, a tower's 1.2 round and
+      2 downwind.
+  - **Seams:** a section's rows within 7 units of a join (`SAND_SHELTER_REACH`) take the neighbour's pieces too.
+    Whichever side is built first, the later one re-shelters the earlier one's band and uploads only those rows. Both
+    sides of a join are then the same row.
+  - **Cost:** computed once per section while its view is built off-frame (24 rows a prefetch step), no per-frame work,
+    no draw call, the same on Low (where the cosmetic rubble is not drawn, its calm stays: a smooth patch, not a hole).
+  - **Not covered:** the ground batteries (seated by the simulation, not the terrain) and THE CITADEL (its rock carries
+    no sand).
+- **Where ripples show now:** the open natural sandstone and the canyon's floor between its dressing. The canyon floor is
+  densely dressed (15 November), so its ripples lie in the gaps: over seeds 93, 8831, 11 and 4242, a strength over half
+  on about a third of its bed (the pieces' plans alone cover about two fifths), and on about half the open land's.
 
 ### The ruin kit (`tools/blender/nahara_kit.py`, `public/assets/nahara/nahara-kit.glb`)
 

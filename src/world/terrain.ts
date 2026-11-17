@@ -140,7 +140,11 @@ export interface TerrainSection {
    * whose landform reports one: the renderer picks the cliffs' strata or brickwork by it.
    */
   strata?: Float32Array;
-  /** Nahara ripple coverage away from nearby cliff tops and feet, 0 at cliffs, 1 on open sand. */
+  /**
+   * Where Nahara's ripples may lie by the terrain alone (0–1 per vertex): the landform's sand bed (the natural sandstone and
+   * the canyons' floors, not the ruin districts' terraces) away from cliff tops, cliff feet and slopes. The renderer calms
+   * it further round the scenery standing on it (src/world/sand-shelter.ts).
+   */
   sandClearance?: Float32Array;
   strips: readonly TerrainStrip[];
   props: readonly TerrainProp[];
@@ -273,7 +277,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
   // Per-vertex landform fields go straight into typed arrays (no retained point objects: less garbage).
   const perVertex = () => new Float32Array(vertices);
   const fChannel = perVertex(), fIndustrial = perVertex(), fPool = perVertex(), fVeins = perVertex(), fVein = perVertex(), fVein2 = perVertex();
-  const elevation = perVertex(), fPlatform = perVertex(), fPaving = perVertex(), fPlate = perVertex(), fTone = perVertex(), fStrata = perVertex();
+  const elevation = perVertex(), fPlatform = perVertex(), fPaving = perVertex(), fPlate = perVertex(), fTone = perVertex(), fStrata = perVertex(), fSand = perVertex();
   let strataRows = false;
   let arenaRows = false;
   const contexts: TerrainRow[] = new Array(along);
@@ -292,7 +296,7 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
         fChannel[v] = point.channel; fIndustrial[v] = point.industrial; fPool[v] = point.pool; fVeins[v] = point.veins;
         fVein[v] = point.vein; fVein2[v] = point.vein2; elevation[v] = point.elevation; fTone[v] = (point as { tone?: number }).tone ?? 0;
         const strata = (point as { strata?: number }).strata;
-        if (strata !== undefined) { strataRows = true; fStrata[v] = strata; }
+        if (strata !== undefined) { strataRows = true; fStrata[v] = strata; fSand[v] = (point as { sand?: number }).sand ?? 1; }
         if (point.platform !== undefined) { arenaRows = true; fPlatform[v] = point.platform; fPaving[v] = point.paving ?? 0; fPlate[v] = point.plate ?? 0; }
       }
     }
@@ -334,7 +338,8 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     for (const offset of rimOffsets) { const h = heights[center + offset]; drop = Math.max(drop, heights[center] - h); foot = Math.max(foot, h - heights[center]); }
     // Both sides of a cliff get smooth sand. The one-unit rim probes also cross section borders,
     // so the setback is continuous and does not suppress open canyon floors just because they are low.
-    if (sandClearance) sandClearance[vertex] = (1 - smoothRange(0.35, 1.1, Math.max(drop, foot))) * (1 - smoothRange(0.12, 0.5, slope));
+    // Only on the landform's sand bed (Nahara: the natural sandstone and the canyons' floors, never the ruin districts).
+    if (sandClearance) sandClearance[vertex] = fSand[vertex] * (1 - smoothRange(0.35, 1.1, Math.max(drop, foot))) * (1 - smoothRange(0.12, 0.5, slope));
     // Cheap cast shadow: march the height grid diagonally toward the sun.
     let shadow = 0;
     const toward = sunBehind(contexts[row].world.planet.id) ? -SHADOW_STRIDE : SHADOW_STRIDE;
