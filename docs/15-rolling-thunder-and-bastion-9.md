@@ -79,7 +79,7 @@ combat geometry with it ([docs/08](08-decisions-and-sources.md)).
 ## 3. Model and node contract
 
 **Source.** The user's supplied tank model (`art/source/bosses/futuristic-tank-original.glb`), traced into a clean
-hard-surface remodel that keeps its proportions; nothing of the source mesh ships. The rear deck carries turrets and
+hard-surface model that keeps its proportions; nothing of the source mesh ships. The rear deck carries turrets and
 greebles in place of the source's silver tubes (user, 24 October). Its builders:
 
 - `tools/blender/boss_bastion.py` runs the whole build headless;
