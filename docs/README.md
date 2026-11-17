@@ -33,8 +33,8 @@ were merged into others. For the repository layout see the [README's map](../REA
 
 | Doc | What it covers |
 | --- | --- |
-| [26 Terrain relief](26-terrain-relief.md) | Relief, cliffs, walls and rock textures per world |
-| [23 Settlements and infrastructure](23-settlement-infrastructure.md) | How settlements, networks, districts and infrastructure are generated and placed |
+| [26 Terrain relief, cliffs and walls](26-terrain-relief.md) | Relief, crisp cliffs, wall pieces, rock textures and cracks per world |
+| [23 Settlements and infrastructure](23-settlement-infrastructure.md) | How outposts, compounds, roads, pipelines and Khepri's refinery districts are generated and placed, and their infrastructure models |
 | [25 Modular facilities](25-modular-facilities.md) | The per-world facility kits and how plants are composed around ground batteries |
 | [14 Shared industrial kit](14-shared-industrial-kit.md) | The cross-world pipes, tanks and containers |
 
@@ -76,6 +76,7 @@ were merged into others. For the repository layout see the [README's map](../REA
 | [04 Art and experience](04-art-and-experience.md) | The art direction and asset rules (also listed above) |
 | [art/bosses](../art/bosses/README.md) | How the eight boss models are built and their rig contract |
 | [art/concepts](../art/concepts/README.md) | The concept gallery: references only |
+| Kit provenance | One README per Blender kit: [Khepri kit](../art/khepri-kit/README.md), [Khepri infrastructure](../art/khepri-infra/README.md), [Khepri craft](../art/khepri-craft/README.md), [Vesper kit](../art/vesper-kit/README.md), [Vesper infrastructure](../art/vesper-infra/README.md), [Vesper craft](../art/vesper-craft/README.md), [Nacre kit](../art/nacre-kit/README.md), [Nacre craft](../art/nacre-craft/README.md), [shared industrial kit](../art/shared-industrial/README.md) |
 | [art/source](../art/source/bosses/README.md) | The user's supplied boss models ([hero sources](../art/source/hero/README.md), [Poly Haven maps](../art/source/polyhaven/README.md)) |
 
 ## Process and logs
