@@ -4,6 +4,7 @@ import type { Work } from './terrain-work';
 import type { PlanetPoint, PlanetProfile, PlanetRow } from './terrain-planet';
 import type { TerrainArena } from './terrain-arena';
 import { UMBRA, UMBRA_PLATEAU, UMBRA_SCENERY_MAX, UMBRA_SPIRE_MAX } from './terrain-umbra';
+import { createScatterSink } from './scatter-sink';
 
 /*
  * NAHARA, the Silent Empire (docs/39; user handover, 12 November 2026, after art/concepts/nahara/01-world): a vast
@@ -554,18 +555,11 @@ function citadelRuins(seed: number, arena: TerrainArena, terrain: ScatterField):
  * - a few great tumbled blocks.
  */
 function* naharaScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [];
   // THE CITADEL's arena (Nahara's own ground there: its rock, its canyon, and the ruin city's built country).
   const arena = terrain.arena(startS + size / 2);
-  const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number) => {
-    const spec = KIT[instance.kind];
-    if (instance.s < startS || instance.s >= startS + size || Math.abs(instance.x) + spec.radius * instance.scale * 0.6 > WORLD_HALF) return;
-    const cap = Math.min(TALL.has(instance.kind) ? UMBRA_SPIRE_MAX : UMBRA_SCENERY_MAX, citadelCap(arena, instance.x, instance.s));
-    if (instance.y + instance.height * spec.height > cap) instance = { ...instance, height: (cap - instance.y) / spec.height };
-    if (instance.height <= 0.05) return;
-    const placed: KitInstance = { ...instance, variant: Math.min(spec.variants - 1, Math.floor(pick * spec.variants)), shade: terrain.shade(instance.x, instance.s) };
-    (placed.cosmetic ? cosmetic : essential).push(placed);
-  };
+  // Ruins may overhang the world's edges by up to 0.4 of their footprint radius; round the temple they stay under its dome.
+  const sink = createScatterSink({ startS, size, terrain, cap: UMBRA_SCENERY_MAX, tall: { kinds: TALL, cap: UMBRA_SPIRE_MAX },
+    capAt: (x, s) => citadelCap(arena, x, s), reach: 0.6 }), { add } = sink;
   // Great arches over the narrows, wall to wall, square to the run; one in three broken. Each pier stands against its wall,
   // half sunk into it (user, 13 November: piers standing free in the haze read as disconnected): the walls are found by
   // walking out from the canyon's middle at the piers' top, across the arch's whole thickness.
@@ -740,7 +734,7 @@ function* naharaScatterSteps(seed: number, startS: number, size: number, terrain
   // (No carved facings since 13 November: stretched to each cliff's drop as wall pieces, their caps jutted over the rims and
   // their masonry smeared; the ground's own cliffs carry the masonry.)
   yield* canyonFloor(seed, startS, size, terrain, arena, [...big.map(([bx, bs]): [number, number, number] => [bx, bs, 2]), ...pillars], add);
-  return [...essential, ...cosmetic];
+  return sink.finish();
 }
 
 /**

@@ -371,3 +371,13 @@ Two findings for later:
 - **Boss-fight terrain queries.** In khepri-boss, `bastionPlacement` costs about 458 KB/frame inclusive, through terrain-height queries (about 4.5 KB each). That is the biggest single allocation lever in boss fights. A cached height field around the boss would remove most of it.
 
 Not started, by choice: the structural splits (steps 6–11).
+
+### Progress (17 November)
+
+Step 6 (W1) is done, behaviour identical:
+- **One scatter sink.** Every world's scatter puts its pieces through `world/scatter-sink.ts`: `createScatterSink({ startS, size, terrain, cap, tall, capAt, rigid, reach, accept })` returns `{ add, keep, finish }`. The sink holds the span and world-bounds checks, the cap and its trim, the variant and shade, and the essential-before-cosmetic order. `keep` takes the cliff walls as they are.
+- **The per-world differences are options:** Khepri's real-size `rigid` kinds and its arena-ramp `accept`; the `tall` kinds of Amnion, Umbra, Corona and Nahara; Nahara's `capAt` (THE CITADEL's dome) and `reach` 0.6. Khepri and Nacre still pass a shade, Nacre a variant.
+- **One footprint check.** Umbra's and Corona's `supportedBase` is now `footprintBase(terrain, footing, ...)` in `world/footprint.ts`. Each world's `Footing` holds its mask, and Umbra's also a floor.
+- **The placement rules stay in each world's file.** Vesper's floe lattice (`place`) is not a scatter sink and stays.
+- **Guard:** `tests/world/scatter-fingerprint.test.ts` hashes each planet's scatter calls: every field as float64 bits, the piece and field order, the spans and the yields. It covers plain ground, the campaign arenas, a route through all eight worlds, and Khepri's high ground. The hashes were recorded before the change; a deliberate change to a world's dressing re-records that world's entries.
+- **Lines:** the eight world files lose 144 lines and gain 48. The two new modules add 110, about half of it comments and types.
