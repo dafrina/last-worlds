@@ -1143,3 +1143,11 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **16 November · Codex:** adding a terrain-derived cliff setback for Nahara sand ripples. Owns the small attribute additions in `terrain.ts`, `terrain-view.ts` and `terrain-kit.ts`, plus Nahara coverage checks. Canyon floor away from walls remains eligible.
 
 **16 November · Codex · READY:** ripples now favor flat natural open ground, fade by cliff rise/drop and slope, and are suppressed on site pads and reduced in built ruin areas. Canyon-floor clearance and section continuity regression pass, as do five existing Nahara checks, 16 terrain checks and build. High/Low captures show no page errors. Local only. Files released.
+
+**17 November · Claude Code (Blender MCP in WSL session) · Nahara ripples under scenery** (user: they "run below rocks and buildings/ruins", and should stay on "open stretches of land and canyon floors").
+- **Who:** an agent in its own worktree, building on Codex's `f830997`.
+- **Change:** a scenery-occupancy mask, so ripples fade into calm sand around every placed object (rocks, ruins, kit pieces, buildings, facilities, sites).
+- **Owned until the merge note:**
+  - `src/render/terrain-kit.ts` (Nahara's sand only);
+  - `src/render/terrain-view.ts` and `src/world/terrain.ts` (the mask attribute);
+  - the Nahara terrain tests.
