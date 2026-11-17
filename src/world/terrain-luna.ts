@@ -1,5 +1,6 @@
 import { NEUTRAL_MOOD, WORLD_HALF, clamp, cliff, hash, mix, noise, smoothRange, type Landform, type MoodParams } from './terrain-layout';
-import { KIT, type KitInstance, type ScatterField } from './scenery-kit';
+import type { KitInstance, ScatterField } from './scenery-kit';
+import { createScatterSink } from './scatter-sink';
 import { MODULE_HEIGHT, compoundSlot, districtLevel } from './terrain-settlements';
 import { SETTLEMENT_CELL, type Archetype, type PlacedModule, type Settlement } from './settlement-geometry';
 import type { Work } from './terrain-work';
@@ -298,15 +299,7 @@ export function lunaSettlement(seed: number, cell: number, side: number): Settle
  * large rock clumps on the highlands, scattered small rocks elsewhere. Mare plains stay bare and quiet.
  */
 export function* lunaScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const essential: KitInstance[] = [], cosmetic: KitInstance[] = [], CAP = LUNA_SCENERY_MAX;
-  const add = (instance: Omit<KitInstance, 'shade' | 'variant'>, pick: number) => {
-    const spec = KIT[instance.kind];
-    if (instance.s < startS || instance.s >= startS + size || Math.abs(instance.x) + spec.radius * instance.scale > WORLD_HALF) return;
-    if (instance.y + instance.height * spec.height > CAP) instance = { ...instance, height: (CAP - instance.y) / spec.height };
-    if (instance.height <= 0.05) return;
-    const placed: KitInstance = { ...instance, variant: Math.min(spec.variants - 1, Math.floor(pick * spec.variants)), shade: terrain.shade(instance.x, instance.s) };
-    (placed.cosmetic ? cosmetic : essential).push(placed);
-  };
+  const sink = createScatterSink({ startS, size, terrain, cap: LUNA_SCENERY_MAX }), { add } = sink;
   const turn = (pick: number) => pick * Math.PI * 2, cell = 1, columns = Math.ceil(WORLD_HALF * 2 / cell);
   for (let j = Math.floor(startS / cell); j < Math.ceil((startS + size) / cell); j++) for (let i = 0; i < columns; i++) {
     if (i === 0) yield;
@@ -337,7 +330,7 @@ export function* lunaScatterSteps(seed: number, startS: number, size: number, te
     }
   }
   // (No cliff walls on Luna, docs/26 §11: its scarps are gentle steps, never the sheer faces the walls need.)
-  return [...essential, ...cosmetic];
+  return sink.finish();
 }
 
 /* ---------------------------------------------------------------- profile */
