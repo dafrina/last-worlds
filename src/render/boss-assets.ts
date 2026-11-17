@@ -3,7 +3,8 @@
  * (user, 17 November 2026: "we still have it in git history"); a rollback restores the file from there.
  */
 export const BOSS_ASSETS = {
-  /** A clean remodel traced over the user's spacecraft GLB, without the bow pods (boss_veil.py, 24 October 2026). */
+  /** The old CRADLE (the user's Tripo hive GLB) adapted and repainted as an ancient relic (boss_veil.py, 17 November 2026;
+   * the traced spacecraft before it is in git history). */
   veil: 'nacre/the-veil.glb',
   /** A clean remodel traced over the user's tank GLB, its rear deck with turrets and greebles, instanced tread links
    * (boss_bastion.py, 24 October 2026). */

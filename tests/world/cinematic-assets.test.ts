@@ -72,15 +72,15 @@ describe('Blender cinematic asset contracts',()=>{
     // THE ECLIPSE's near spike hides the reactor's very centre from the camera; its ring and lens either side show (x 0.6).
     eclipse: { y:ECLIPSE.targetHeight, z:-ECLIPSE.reactorS, x:0.6 },
   } as const;
-  // How far each sliding pair of core shutters opens in its view (the Veil's petals rotate instead).
+  // How far each sliding pair of core shutters opens in its view (the carriers' shutters rotate instead).
   const slideOf = { veil:0, bastion:1.1, ark:1, warden:.8, eclipse:0 } as const;
-  // Carriers' shutters swing open about their local x instead (THE VEIL's petals 105°, THE ECLIPSE's armour 50°).
-  const swingOf: Partial<Record<keyof typeof slideOf, number>> = { veil:105, eclipse:50 };
+  // Carriers' shutters swing open about their local x instead (THE VEIL's stone shields 42°, THE ECLIPSE's armour 50°).
+  const swingOf: Partial<Record<keyof typeof slideOf, number>> = { veil:42, eclipse:50 };
   for (const spec of [
-    // v6 remodel (24 October): no docked pods, hoods or arms under the bow (they were the source's pod sketches).
-    { id:'veil', prefix:'veil', core:'veil_heart', width:{ v4:12.51, v5:12.51, r6:12.51 },
-      parts:['veil_flight_pod','veil_pod_left_wreck','veil_pod_right_wreck'],
-      shutters:Array.from({length:4},(_,i)=>`veil_heart_shutter_${i}`) },
+    // The relic (17 November): the old CRADLE model at full size, repainted (tools/blender/boss_veil.py), ring wings to x ±8.9.
+    { id:'veil', prefix:'veil', core:'veil_heart', width:{ relic:18 },
+      parts:['veil_flight_pod','veil_pod_left_wreck','veil_pod_right_wreck','veil_heart_wreck'],
+      shutters:Array.from({length:6},(_,i)=>`veil_heart_shutter_${i}`) },
     { id:'bastion', prefix:'bastion', core:'bastion_core', width:{ v4:8.01, v5:9.9 },
       parts:['bastion_gun_left','bastion_gun_right','bastion_forward_cannon_left','bastion_forward_cannon_right','bastion_battery_left_wreck','bastion_battery_right_wreck'],
       shutters:['bastion_core_shutter_a','bastion_core_shutter_b'] },
@@ -98,12 +98,13 @@ describe('Blender cinematic asset contracts',()=>{
   ] as const) it(`keeps the selected ${spec.id} model textured, bounded, articulated and its exposed core visible`,async()=>{
     const model=await asset(BOSS_ASSETS[spec.id]);
     const version = model.getObjectByName(`${spec.prefix}_remodel_v6`) ? 'r6' : model.getObjectByName(`${spec.prefix}_remodel_v5`) ? 'v5'
-      : model.getObjectByName(`${spec.prefix}_approved_v6`) ? 'v6' : model.getObjectByName(`${spec.prefix}_approved_v1`) ? 'e1' : 'v4';
+      : model.getObjectByName(`${spec.prefix}_approved_v6`) ? 'v6' : model.getObjectByName(`${spec.prefix}_approved_v1`) ? 'e1'
+      : model.getObjectByName(`${spec.prefix}_relic_v1`) ? 'relic' : 'v4';
     const remodel = version === 'v5' || version === 'r6';
     if (version==='v4') expect(model.getObjectByName(`${spec.prefix}_approved_v4`)).toBeDefined();
     // v4 keeps the decimated source atlases; v5 is ~20k clean triangles with one baked surface atlas; v6 adapts the user's
     // new GLB within THE VEIL's 80k (user, 24 October: "lets raise the max to the veils 80k").
-    validate(model,remodel?30000:version==='v6'||version==='e1'?80000:120000,true);
+    validate(model,remodel?30000:version==='v6'||version==='e1'||version==='relic'?80000:120000,true);
     for(const name of [...spec.parts,...spec.shutters])expect(model.getObjectByName(name),name).toBeDefined();
     const hull=model.getObjectByName(`${spec.prefix}_hull`)!;
     expect(new Box3().setFromObject(hull).getSize(new Vector3()).x).toBeLessThanOrEqual((spec.width as unknown as Record<string, number>)[version]);

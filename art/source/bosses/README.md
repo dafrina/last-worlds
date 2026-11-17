@@ -4,9 +4,9 @@ Byte-for-byte copies of the GLBs the user supplied for the bosses. They are the 
 
 | Supplied as | Copy | Boss | Builder (`tools/blender/`) |
 | --- | --- | --- | --- |
-| `futuristic spacecraft 3d model.glb` (20 October 2026) | `futuristic-spacecraft-original.glb` | THE VEIL: traced, rebuilt cleanly | `boss_veil.py` |
+| `futuristic spacecraft 3d model.glb` (20 October 2026) | `futuristic-spacecraft-original.glb` | THE VEIL until 17 November: traced, rebuilt cleanly | none since 17 November (`boss_veil.py` in git history) |
 | `futuristic tank 3d model.glb` (20 October 2026) | `futuristic-tank-original.glb` | BASTION-9: traced, rebuilt cleanly | `boss_bastion_hull.py`, run by `boss_bastion.py` |
-| `alien hive 3d model.glb` (Tripo, 23 October 2026) | `cradle-tripo-original.glb` | THE CRADLE: the mesh adapted | `boss_cradle.py` |
+| `alien hive 3d model.glb` (Tripo, 23 October 2026) | `cradle-tripo-original.glb` | THE VEIL since 17 November (THE CRADLE before): the mesh adapted, repainted as a relic | `boss_veil.py` |
 | Tripo (24 October 2026) | `ark-tripo-original.glb` | HELION ARK: the mesh adapted, its panels cleaned | `boss_ark.py` |
 | `crescent winged spaceship 3d model.glb` (Tripo, 24 October 2026) | `eclipse-tripo-original.glb` | THE ECLIPSE: the mesh adapted | `boss_eclipse.py` |
 | Tripo (5 November 2026) | `heliophage-tripo-original.glb` | THE HELIOPHAGE: the mesh adapted | `boss_heliophage.py` |

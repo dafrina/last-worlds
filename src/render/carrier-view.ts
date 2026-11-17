@@ -15,12 +15,11 @@ import { retainBossMaterials } from './boss-materials';
  * The carrier bosses: THE VEIL, THE CRADLE, THE ECLIPSE, THE HELIOPHAGE and THE CITADEL share this view, each with its own
  * CarrierStyle (below); it was THE VEIL's view first (veil-view.ts until 17 November).
  *
- * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
- * (public/assets/nacre/the-veil.glb, tools/blender/boss_veil.py); a code-built stand-in renders until the model has loaded.
- * Render-only: it reads boss state and never applies damage. A black carrier frame with raised layered crescent armour,
- * recessed wing machinery, curved egg shutters and parked pod hangars, two crystal-crowned pods on
- * outriggers (the first pair of weak points), a faceted teal heart under four shutters (the core) and launch bays. It rises
- * out of the mire on arrival and sinks back into it when destroyed.
+ * THE VEIL presentation (docs/20): an ancient relic ship, the old CRADLE model re-cut and repainted in Nacre's pearl,
+ * violet and turquoise (public/assets/nacre/the-veil.glb, tools/blender/boss_veil.py, 17 November); a code-built stand-in
+ * renders until the model has loaded. Render-only: it reads boss state and never applies damage. Two crystal side modules
+ * on its flanks (the first pair of weak points) and a cyan reactor crystal under six stone shields (the core). It rises out
+ * of the mire on arrival and sinks back into it when destroyed.
  */
 const ELEVATION = THREE.MathUtils.degToRad(VIEW.elevation), COT_ELEVATION = 1 / Math.tan(ELEVATION);
 const PARTS = ['left', 'right', 'core'] as const;
@@ -32,8 +31,8 @@ const socket = (style: CarrierStyle, part: BossPart) => {
   if (part === 'prow') return new THREE.Vector3(0, 0, -(c.prowS ?? 0));
   return new THREE.Vector3(part === 'core' ? 0 : part === 'left' ? -c.podOffset : c.podOffset, 0, part === 'core' ? -c.heartS : -c.podS);
 };
-/** Hull footprint (x half-width, z half-depth) for the terrain exclusion (the blades overhang water anyway). */
-export const VEIL_FOOTPRINT = { halfWidth: 12.8, halfDepth: 9.5 } as const;
+/** Hull footprint (x half-width, z half-depth) for the terrain exclusion (its ring wings overhang water anyway). */
+export const VEIL_FOOTPRINT = { halfWidth: 9, halfDepth: 6.6 } as const;
 /** How deep the hull starts under the mire as it rises, and how far it sinks when destroyed. */
 const RISE = 4.4, SINK = 4.6;
 /**
@@ -54,8 +53,11 @@ interface DockedPod { object: THREE.Object3D; position: THREE.Vector3 }
 interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; approved?: boolean; doors?: BayDoor[]; pods?: DockedPod[]; flightPods?: THREE.InstancedMesh[]; flightPodGroup?: THREE.Group; dispose(): void }
 /** How far the code-built stand-in's petals fold open (radians). */
 const SHUTTER_OPEN = -1.15;
-/** the-veil.glb shutters open by rotating about their local +X hinge (the first VEIL's notes recommended 100–110°). */
-const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
+/**
+ * the-veil.glb's six stone shields open by rotating about their local +X hinge, tipping outward 42° as they did on the
+ * old CRADLE whose model the VEIL now flies (17 November; the earlier VEIL's four petals opened 105°).
+ */
+const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(42);
 
 /**
  * A carrier boss this view draws. THE VEIL (Nacre) and THE CRADLE (Amnion) share the rig contract (a hull, flank weak
@@ -84,8 +86,8 @@ export interface CarrierFx { spark: number; hot: number; flash: number; steam: n
 const VEIL_FX: CarrierFx = { spark: 0x8ffff0, hot: 0xf2fff8, flash: 0xc8fff2, steam: 0x9a86d0, ichor: [0xeafff8, 0x56f6dc, 0xa070ff], ring: 0x7ffff0 };
 export const VEIL_STYLE: CarrierStyle = { id: 'veil', name: 'THE VEIL', prefix: 'veil_', shutterOpen: MODEL_SHUTTER_OPEN, spark: 0x8ffff0, hover: 0,
   content: { podOffset: VEIL.podOffset, podS: VEIL.podS, heartS: VEIL.heartS, targetHeight: VEIL.targetHeight, arrivalDuration: VEIL.arrivalDuration, bays: VEIL.bays },
-  // Its ram reaches 8 units toward the player, its stern 10.5 away (the-veil.glb, 17 October).
-  footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 8.5, back: 11 } };
+  // The old CRADLE at full size (the-veil.glb, 17 November): ring wings to x +-8.9, prow 3.3 toward the player, ring 9 away.
+  footprint: { halfWidth: VEIL_FOOTPRINT.halfWidth, front: 3.6, back: 9.6 } };
 /**
  * THE CRADLE (tools/blender/boss_cradle.py): six claws unfold 42° outward from over its core. Its floating island
  * rises out of the canyon and hovers 0.8 over the plateau (user, 23 October: "after rising it hovers slightly").

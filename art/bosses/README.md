@@ -10,7 +10,7 @@ game's boss views rely on, and how to rebuild one. The user's supplied source mo
 | WARDEN-1 | Luna | `luna/warden.glb` | `boss_warden.py` | Modelled after the user's design sheet (`art/concepts/boss-sheets/warden.jpg`); no supplied model |
 | BASTION-9 | Khepri | `khepri/bastion-9.glb` | `boss_bastion.py` (runs `boss_bastion_hull.py`, then `boss_bastion_treads.py`'s tread-link extraction) | Clean model traced over the user's tank GLB |
 | HELION ARK | Vesper | `vesper/helion-ark.glb` | `boss_ark.py` (`build_clean()`) | The user's Tripo GLB, adapted, with its hull panels rebuilt flat |
-| THE VEIL | Nacre | `nacre/the-veil.glb` | `boss_veil.py` | Clean model traced over the user's spacecraft GLB |
+| THE VEIL | Nacre | `nacre/the-veil.glb` | `boss_veil.py` | The old CRADLE (the user's Tripo hive GLB), adapted and repainted as an ancient relic (17 November) |
 | THE CRADLE | Amnion | `amnion/the-cradle.glb` | `boss_cradle.py` | The user's Tripo GLB, adapted |
 | THE HELIOPHAGE | Corona | `corona/the-heliophage.glb` | `boss_heliophage.py` | The user's Tripo GLB, adapted, laid flat and squashed |
 | THE CITADEL | Nahara | `nahara/the-citadel.glb` | `boss_citadel.py` | Built of Nahara's ruin kit, with the user's Tripo model as its shape guide |
@@ -18,7 +18,7 @@ game's boss views rely on, and how to rebuild one. The user's supplied source mo
 
 ## Two methods
 
-**Traced models** (BASTION-9, THE VEIL; WARDEN-1 from its sheet), with `tools/blender/lib_solids.py`:
+**Traced models** (BASTION-9; WARDEN-1 from its sheet), with `tools/blender/lib_solids.py`:
 
 1. **Tracing.** The supplied model is placed in game space; `trace()` outlines any box of it from the top, side or front
    and simplifies the outline to clean corner points, and `print_height_map()` prints roof heights as a grid. Those numbers
@@ -31,7 +31,7 @@ game's boss views rely on, and how to rebuild one. The user's supplied source mo
    exporter writes one draw per slot. Emissive `*_glow` materials stay untextured: the game animates them.
 4. **Ambient occlusion** is baked into the vertex colours (`bake_ao`).
 
-**Adapted Tripo models** (HELION ARK, THE CRADLE, THE HELIOPHAGE, THE ECLIPSE): the user's mesh, UVs and painted atlases are
+**Adapted Tripo models** (HELION ARK, THE VEIL, THE HELIOPHAGE, THE ECLIPSE): the user's mesh, UVs and painted atlases are
 kept and reduced; nothing of the shape is regenerated. `tools/blender/lib_tripo.py` copies faces out into named parts
 (`extract`), adds marker nodes and builds wreck copies. Loose pieces beside a supplied model are the concept's pod sketches
 and are left out. Models are laid flat for the game camera; backs and undersides, which the camera never shows, may stay
@@ -44,7 +44,7 @@ blocks and arches (`tools/blender/kit_nahara.py`) in the shape of the Tripo mode
 
 - Node names, pivots and wreck variants are the ones each boss view drives (`src/render/bastion-view.ts`, `ark-view.ts`,
   `warden-view.ts`, `carrier-view.ts`). Each GLB carries a marker node the view looks for: `warden_remodel_v5`,
-  `bastion_remodel_v5`, `ark_approved_v6`, `veil_remodel_v6`, `cradle_approved_v2`, `eclipse_approved_v1`,
+  `bastion_remodel_v5`, `ark_approved_v6`, `veil_relic_v1`, `cradle_approved_v2`, `eclipse_approved_v1`,
   `heliophage_approved_v1` (these names are identifiers, not version labels to update). THE CITADEL, built of the ruin kit,
   has none.
 - Every weak point sits where the game camera's ray through its combat target meets the armour (`ray_y`), and hatches,

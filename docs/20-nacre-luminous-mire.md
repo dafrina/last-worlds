@@ -69,19 +69,26 @@ ship. The shots are spaced so the ship can weave between them rather than outrun
 
 ## 4. THE VEIL
 
-A crescent-winged carrier far wider than the view, in the design language of Nacre's fighters (`src/content/veil.ts`,
-view `src/render/carrier-view.ts`, model `public/assets/nacre/the-veil.glb` traced over the user's spacecraft GLB by
-`tools/blender/boss_veil.py`; see [art/bosses](../art/bosses/README.md)). It rises out of the mire on arrival and sinks
-back when destroyed.
+An ancient relic ship risen from the mire (`src/content/veil.ts`, view `src/render/carrier-view.ts`, model
+`public/assets/nacre/the-veil.glb`; see [art/bosses](../art/bosses/README.md)). It rises out of the mire on arrival and
+sinks back when destroyed.
 
-- **Targets:** two pods (the first pair) and the heart (the core) behind four shutters that swing open. The hull, blades
-  and crown are scenery.
+- **Model** (17 November, [docs/43](43-boss-visual-overhaul.md) §3; the user: "the veil looks great, the model suits it"):
+  the old flying CRADLE, the user's Tripo hive GLB (`art/source/bosses/cradle-tripo-original.glb`), adapted by
+  `tools/blender/boss_veil.py` at full size, which is the VEIL's own socket frame (THE CRADLE was first fitted to the VEIL's
+  targets, then shrunk to 70%). Its atlas is repainted in Nacre's palette (`relic_paint`): pearlescent violet stone where
+  the bone was, deep indigo where the flesh was, turquoise and pale cyan where the amber glowed; the golden egg is now a
+  cyan reactor crystal, the ring wings and the stone under them weathered relic masonry. Nothing reads as flesh or brood.
+  The earlier VEIL, a clean model traced over the user's spacecraft GLB, is in git history.
+- **Targets:** two crystal side modules on the flanks (the first pair), cut round the point where the camera ray through
+  each fixed target meets the hull, and the reactor crystal (the core) under six stone shields that tip 42° outward when
+  it opens (`VEIL_STYLE.shutterOpen`). The hull, ring wings and stone are scenery.
 - **Fight:** the pods fire aimed spore bursts; the heart alternates a fixed fan with an aimed burst and looses a spiral
   barrage from its core, holding still while the spiral unwinds; the fairness director judges each spiral to its end, so
   one that would seal the row never starts. The overload runs its own move sequence (`overloadMoves` in
   `src/content/bosses.ts`; [docs/03 § 3](03-worlds-and-generation.md#3-bosses)). Numbers: `VEIL`.
-- **Pods:** pod waves (`veil-pods` in `src/content/formations.ts`) drop from the two front bays (`VEIL.bays`) toward the
-  player, fan out to a holding row, fire aimed seeds and stay until destroyed; each wave waits until the previous one is
+- **Pods:** pod waves (`veil-pods` in `src/content/formations.ts`; the model's `veil_flight_pod`, a violet egg painted from
+  the relic's own atlas) drop from the two front bays (`VEIL.bays`) toward the player, fan out to a holding row, fire aimed seeds and stay until destroyed; each wave waits until the previous one is
   down (`VEIL.launches`: waves in the heart phase, more in overload). When the carrier falls its deployed pods go down with
   it, without kill credit, and the extraction or the endless jump starts at once (user, 11 November).
 - **It must be killed** in every mode.
