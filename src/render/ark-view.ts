@@ -312,7 +312,7 @@ export function createArkView(scene: THREE.Scene) {
       // (toward the player, −s), so forward speed is the negative of the ground-relative s speed.
       const forward = destroyed ? 0 : -((boss.vs ?? 0) + state.scrollSpeed), lateral = boss.vx ?? 0;
       const speed = Math.hypot(forward, lateral), heading = Math.PI + Math.atan2(lateral, Math.max(.01, forward)) * .5;
-      // The v5 outriggers run on past the aft wing to y 5.85 (art/boss-remodel): a longer stern wake.
+      // The v5 outriggers run on past the aft wing to y 5.85 (art/bosses): a longer stern wake.
       const bow = local(0, 0, rig.approved ? 3.5 : ARK_FOOTPRINT.bow - .3, bowAt), stern = local(0, 0, rig.remodel ? -5.6 : rig.approved ? -4 : -ARK_FOOTPRINT.stern, sternAt), centre = local(0, 0, rig.approved ? -.2 : -1.5, centreAt);
       // Gentle while it holds station (swell against the hull, a churned stern), strong while it glides in.
       const wakeStrength = destroyed ? Math.max(0, .3 - phaseAge * .06) : THREE.MathUtils.clamp(.18 + speed * .14, .18, .9);

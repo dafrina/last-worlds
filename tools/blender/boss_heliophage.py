@@ -12,7 +12,7 @@ kept and reduced; nothing of the shape is regenerated. Headless:
         --python "$(wslpath -w $R/tools/blender/boss_heliophage.py)" -- \\
         --out "$(wslpath -w $R/public/assets/corona/the-heliophage-v1-approved.glb)" --preview-dir "$(wslpath -w $R/lookdev/corona/heliophage)"
 
-Source: art/source/approved-bosses/heliophage-tripo-original.glb (one piece, 1,909,385 triangles, 4K atlases). It stands
+Source: art/source/bosses/heliophage-tripo-original.glb (one piece, 1,909,385 triangles, 4K atlases). It stands
 upright in the GLB (a station: a disc deck on top, a crown of spires, a caged molten core at its front between two
 armoured blocks, hooked claw-arms below). Laid flat like THE ECLIPSE, so the concept's front faces the camera: source
 (x, y, z) -> game (x, z, -y * DEPTH) * SCALE (0.98 wide -> 16 units; the depth squashed to DEPTH so the whole boss
@@ -37,7 +37,7 @@ if HERE not in sys.path:
 import boss_eclipse as ae
 
 ROOT = os.path.dirname(os.path.dirname(HERE))
-SRC = os.path.join(ROOT, 'art', 'source', 'approved-bosses', 'heliophage-tripo-original.glb')
+SRC = os.path.join(ROOT, 'art', 'source', 'bosses', 'heliophage-tripo-original.glb')
 WIDTH, DEPTH = 16.0, .35
 BUDGET = 80000
 LABEL = 'v1-approved'

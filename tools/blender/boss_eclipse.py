@@ -13,7 +13,7 @@ atlases are kept and reduced; nothing of the shape is regenerated. Headless (the
 (`--no-previews` skips the renders.) About 90 s; deterministic. Writes the GLB, previews, working textures
 (`<preview-dir>/textures`) and `<preview-dir>/eclipse-report.json` (placement, parts, hinges, triangle counts, checks).
 
-Source: art/source/approved-bosses/eclipse-tripo-original.glb (one closed piece, 1,908,258 triangles, 4K atlases, no loose
+Source: art/source/bosses/eclipse-tripo-original.glb (one closed piece, 1,908,258 triangles, 4K atlases, no loose
 concept-sheet pieces). It stands upright in the GLB (its front view is the concept's top view), so it is laid flat:
 source (x, y, z) -> game (x, z, -y) * 20.4 (0.98 wide -> 20 units horn to horn; 6.7 thick, kept uniform), horns away
 from the player, the reactor face up, the plain back underneath. Origin: x 0 on the symmetry axis, y 0 at the reactor's
@@ -58,7 +58,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 ROOT = os.path.dirname(os.path.dirname(HERE))
-SRC = os.path.join(ROOT, 'art', 'source', 'approved-bosses', 'eclipse-tripo-original.glb')
+SRC = os.path.join(ROOT, 'art', 'source', 'bosses', 'eclipse-tripo-original.glb')
 SCALE = 20.4            # source width 0.98 -> 20 units horn to horn (the world is 24 wide)
 HORN_CUT = .38          # source z of the wing-fix seam (horns agree there; the left one is cut off at 0.472)
 HORN_BAND = .32         # below the seam, down to here, the left horn eases onto the mirrored right one

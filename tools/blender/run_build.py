@@ -1,5 +1,5 @@
 """Headless entry for the builders with a `build(export, preview)` function: boss_warden, boss_veil, boss_bastion_hull
-(which writes only the hull; boss_bastion.py builds the shipped BASTION-9) and kit_facilities (art/boss-remodel/README.md).
+(which writes only the hull; boss_bastion.py builds the shipped BASTION-9) and kit_facilities (art/bosses/README.md).
 
     cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \\
         --python "$(wslpath -w tools/blender/run_build.py)" -- boss_warden [--no-export] [--no-preview] [--compare]

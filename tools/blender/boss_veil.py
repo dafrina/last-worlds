@@ -6,7 +6,7 @@ the concept sheet's pod sketches, not parts of the ship. The launched pod (veil_
 under the bow at the gameplay bays (x +-1.7, s -2.6), where the view flashes each launch.
 
 Outlines, heights and depths come from lib_solids.trace / height maps over the supplied model
-(art/source/approved-bosses/futuristic-spacecraft-original.glb) at the v4 placement
+(art/source/bosses/futuristic-spacecraft-original.glb) at the v4 placement
 (x12.5, offset (0, .9, .15)); every number below is a final game unit, measured, then rounded,
 symmetrised and simplified. Nothing of the source mesh is exported.
 

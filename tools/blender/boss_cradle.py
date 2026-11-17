@@ -29,7 +29,7 @@ from mathutils import Vector, Matrix
 import lib_tripo as tripo
 import lib_solids as br
 
-SRC = os.path.join(br.ROOT, 'art', 'source', 'approved-bosses', 'cradle-tripo-original.glb')
+SRC = os.path.join(br.ROOT, 'art', 'source', 'bosses', 'cradle-tripo-original.glb')
 REF_SCALE, REF_OFFSET = 17.0, Vector((0, 2.9, -1.6))
 SCALE = .7
 LABEL = 'v2-approved'

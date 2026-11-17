@@ -1,7 +1,7 @@
 """BASTION-9 v5: a clean hard-surface remodel traced over the user's supplied tank GLB.
 
 Outlines and heights come from lib_solids.trace/print_height_map over the supplied model
-(art/source/approved-bosses/futuristic-tank-original.glb) placed 20% larger than v4 (the user
+(art/source/bosses/futuristic-tank-original.glb) placed 20% larger than v4 (the user
 asked for a bigger fortress): x8 -> x9.6. All coordinates below are final game units.
 Combat geometry scaled with it (src/content/bastion.ts: batteries x = +-2.64, core 1.62 behind,
 both at height 1.74), and the batteries and the reactor sit where the 55-degree game camera's

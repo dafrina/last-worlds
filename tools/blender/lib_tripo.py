@@ -1,4 +1,4 @@
-"""Helpers for adapting the user's Tripo boss GLBs (art/source/approved-bosses): copy faces into rig parts, add markers and wrecks.
+"""Helpers for adapting the user's Tripo boss GLBs (art/source/bosses): copy faces into rig parts, add markers and wrecks.
 
 The supplied mesh is never regenerated: `extract` copies exact triangles, UVs and split normals into a new part object,
 changing only its rigid placement (and optionally decimating the copy). Used by boss_ark.py and boss_cradle.py.

@@ -30,7 +30,7 @@ from mathutils import Vector, Matrix
 import lib_tripo as tripo
 import lib_solids as br
 
-SRC = os.path.join(br.ROOT, 'art', 'source', 'approved-bosses', 'ark-tripo-original.glb')
+SRC = os.path.join(br.ROOT, 'art', 'source', 'bosses', 'ark-tripo-original.glb')
 SCALE, OFFSET = 9.5, Vector((0, .79, -.9))
 LABEL = 'v6-approved'
 BUDGET = 80000

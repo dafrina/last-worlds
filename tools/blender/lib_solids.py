@@ -1,9 +1,9 @@
 """Shared hard-surface toolkit: faceted solids, paints, AO and texture bakes, export and game-view renders.
 
 Written for the clean boss remodels traced over the user's supplied GLBs (20 October: BASTION-9, THE VEIL, WARDEN-1; see
-art/boss-remodel/README.md), and since used by the boss adaptations, the facility, Corona and Nahara kits, the strike
+art/bosses/README.md), and since used by the boss adaptations, the facility, Corona and Nahara kits, the strike
 sites and the later fleets:
-- tracing a source GLB (art/source/approved-bosses) placed in game space: `reference`, `trace`, `height_map`, `ray_y`;
+- tracing a source GLB (art/source/bosses) placed in game space: `reference`, `trace`, `height_map`, `ray_y`;
   nothing of a source mesh is exported;
 - `Solids` (lofts, prisms, cylinders with one crisp chamfer, smooth shading split at 40 degrees) and `material`;
 - `bake_ao` (vertex AO) and `texture_bake` (one shared atlas: colour, roughness/metal and normal, after `STYLES`);
@@ -53,7 +53,7 @@ def source_mesh(boss):
     if earlier and earlier.type == 'MESH' and len(earlier.data.polygons) > 100000:
         return earlier.data
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=os.path.join(ROOT, 'art', 'source', 'approved-bosses', SOURCES[boss]))
+    bpy.ops.import_scene.gltf(filepath=os.path.join(ROOT, 'art', 'source', 'bosses', SOURCES[boss]))
     added = set(bpy.data.objects) - before
     meshes = [o for o in added if o.type == 'MESH']
     if len(meshes) != 1:
