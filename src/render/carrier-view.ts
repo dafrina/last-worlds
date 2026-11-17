@@ -487,10 +487,11 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         const before = phaseAge - dt;
         // (THE CRADLE's are narrower, round its body, and at its body's height as it falls.)
         const wide = walking ? .45 : 1;
-        for (let k = 0; k < 12; k++) { const at = .1 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * (k % 3 ? 4 : 18) * wide, 1.8 + lift, ((hash(k + 5) - .5) * 14 - 1) * wide), 10, k * 13 + encounter, 1); }
+        // (Fewer and smaller round THE CRADLE, so its fall stays readable through the death's own explosions.)
+        for (let k = 0; k < 12; k++) { const at = .1 * k; if (before < at && phaseAge >= at) burst(local((hash(k + 3) - .5) * (k % 3 ? 4 : 18) * wide, 1.8 + lift, ((hash(k + 5) - .5) * 14 - 1) * wide), walking ? 6 : 10, k * 13 + encounter, 1); }
         for (let k = 0; k < 10; k++) {
           const at = .4 + k * .18, spot = local((hash(k + 21) - .5) * (k % 2 ? 4 : 16) * wide, 1.8 + lift, ((hash(k + 23) - .5) * 13 - 1) * wide);
-          if (before < at && phaseAge >= at) { flash(spot, 2.2 + hash(k), k); ichor(spot, 1.6 + hash(k + 40), k * 17 + encounter); }
+          if (before < at && phaseAge >= at && !(walking && k % 2)) { flash(spot, (2.2 + hash(k)) * (walking ? .6 : 1), k); ichor(spot, (1.6 + hash(k + 40)) * (walking ? .7 : 1), k * 17 + encounter); }
         }
         if (before < 1.9 && phaseAge >= 1.9) { const heart = walking ? rig.parts.get('core')!.group.getWorldPosition(world) : local(0, style.content.targetHeight, -style.content.heartS); flash(heart, 6.5, 99); ichor(heart, 3.6, 4242 + encounter); burst(heart, 70, 777 + encounter, 2.2); }
       }
