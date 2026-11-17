@@ -17,9 +17,9 @@ import { createBossMeter } from '../ui/boss-meter';
  * live over the real map: src/playground/lab.ts) and Models (a turntable viewer for the hero, every faction's craft and
  * the bosses: src/playground/viewer.ts).
  */
-import { HERO_CHASSIS, HERO_DEFAULT_PAINT, HERO_SLOTS, assembleHero, heroDesigns, randomHeroBuild, type HeroBuild, type HeroChassis, type HeroDesign, type HeroSlot } from '../render/hero-assembly';
 import { loadHeroModel } from '../render/hero-craft';
-import { HERO_REMODELLED } from '../content/hero-parts';
+import { HERO_DEFAULT_PAINT, HERO_SLOTS, heroDesigns } from '../content/hero-parts';
+import type { HeroDesign, HeroLook, HeroSlot, ShipId } from '../shared/contracts';
 import { createRun, stepRun } from '../sim/game';
 import { arenaScroll, bossTarget, resolveBossPhase, startBoss } from '../sim/boss';
 import { missionBoss } from '../content/bosses';
@@ -137,7 +137,7 @@ interface ViewSettings {
   hold: boolean;
 }
 const view: ViewSettings = { mission: 'bastion', distance: 120, x: 0, fly: false, speed: 5, quality: 'high', ship: true, seed: 8831, boss: false,
-  lab: false, tab: 'level', model: 'shared/hero-scrapper.glb#hero_scrapper', wire: false, spin: true, worldLight: false,
+  lab: false, tab: 'level', model: '', wire: false, spin: true, worldLight: false,
   weapon: 'rail', tier: 0, special: 'orbital-strike', hold: false, ...load<Partial<ViewSettings>>(VIEW_STORE) };
 // A special stored before it was retired (the Gravity Well, docs/42) falls back to its replacement.
 if (!(SPECIAL_IDS as readonly string[]).includes(view.special)) view.special = 'orbital-strike';
@@ -397,8 +397,16 @@ function applyViewerLight() {
   viewer.setLight(look.sun[0], look.sun[1], look.hemisphere[0], look.hemisphere[1], look.hemisphere[2], look.background);
 }
 
-// ── Hangar: the modular hero ships (src/render/hero-assembly.ts), any chassis, one design per slot, recoloured. ──
+// ── Hangar: the modular hero ships (src/render/hero-craft.ts), any chassis, one design per slot, recoloured. ──
 const HANGAR_STORE = 'last-worlds.playground.hangar';
+const HERO_CHASSIS: readonly ShipId[] = ['scrapper', 'ironclad', 'interceptor', 'spectre'];
+/** A ship as the player built it: one design per slot, and optional paint (sRGB hex colours). */
+interface HeroBuild extends HeroLook { chassis: ShipId }
+/** A random build of a chassis's parts (the hangar's "shuffle"). */
+function randomParts(chassis: ShipId): Record<HeroSlot, HeroDesign> {
+  const designs = heroDesigns(chassis), pick = () => designs[Math.floor(Math.random() * designs.length)];
+  return { hull: pick(), wings: pick(), engines: pick(), cockpit: pick() };
+}
 const hangarPane = root.querySelector<HTMLElement>('.pg-hangar')!;
 const hangar: HeroBuild = load<HeroBuild>(HANGAR_STORE) ?? { chassis: 'scrapper', parts: { hull: 'a', wings: 'a', engines: 'a', cockpit: 'a' } };
 function hangarControls() {
@@ -412,10 +420,8 @@ function hangarControls() {
 }
 async function showHangar(controls = true) {
   save(HANGAR_STORE, hangar); if (controls) hangarControls();
-  // A remodelled chassis is drawn as the game draws it (textured parts); the others as their kit.
-  const object = HERO_REMODELLED.has(hangar.chassis)
-    ? (await loadHeroModel(hangar.chassis, { parts: hangar.parts, paint: hangar.paint }))?.object
-    : (await assembleHero(hangar)).object;
+  // Drawn as the game draws it (textured parts).
+  const object = (await loadHeroModel(hangar.chassis, { parts: hangar.parts, paint: hangar.paint }))?.object;
   if (!object) return;
   const info = viewer.showObject(object);
   hangarPane.querySelector<HTMLElement>('.pg-hangar-info')!.textContent = `${info.triangles.toLocaleString()} triangles · ${info.size.join(' × ')} units`;
@@ -424,12 +430,12 @@ hangarPane.addEventListener('click', event => {
   const target = (event.target as HTMLElement).closest<HTMLElement>('button');
   if (!target) return;
   if (target.dataset.chassis) {
-    hangar.chassis = target.dataset.chassis as HeroChassis; hangar.paint = undefined;
+    hangar.chassis = target.dataset.chassis as ShipId; hangar.paint = undefined;
     const designs = heroDesigns(hangar.chassis);
     for (const slot of HERO_SLOTS) if (!designs.includes(hangar.parts[slot])) hangar.parts[slot] = 'a';
   }
   else if (target.dataset.slot) hangar.parts[target.dataset.slot as HeroSlot] = target.dataset.design as HeroDesign;
-  else if (target.dataset.hangar === 'shuffle') hangar.parts = randomHeroBuild(hangar.chassis).parts;
+  else if (target.dataset.hangar === 'shuffle') hangar.parts = randomParts(hangar.chassis);
   else if (target.dataset.hangar === 'reset') hangar.paint = undefined;
   else return;
   void showHangar();

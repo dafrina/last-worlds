@@ -4,9 +4,9 @@ import type { HeroDesign, HeroLook, HeroSlot, RunConfig, ShipId } from '../share
  * Modular hero ships (docs/31): each chassis (ship) is built from four part slots. A remodelled chassis
  * (HERO_REMODELLED; user, 29 October) has five designs per slot, clean remodels over the user's Tripo models with their
  * finish baked on, one file per design (public/assets/shared/hero/<ship>-<design>.glb, tools/blender/hero_remodel.py).
- * The others keep three designs in one kit per chassis (public/assets/shared/hero-<ship>-kit.glb, tools/blender/
- * hero_kit.py) until they are remodelled. Cosmetic only: the hit region, handling and gun origins never depend on the
- * parts. The single runtime source for slots, designs, prices and the default paint.
+ * Every chassis is remodelled; a chassis outside HERO_REMODELLED would offer three designs. Cosmetic only: the hit region,
+ * handling and gun origins never depend on the parts. The single runtime source for slots, designs, prices and the
+ * default paint.
  */
 export const HERO_SLOTS: readonly HeroSlot[] = ['hull', 'wings', 'engines', 'cockpit'];
 export const HERO_DESIGNS: readonly HeroDesign[] = ['a', 'b', 'c', 'd', 'e'];
@@ -34,7 +34,6 @@ export const HERO_DEFAULT_PAINT: Readonly<Record<ShipId, { primary: number; seco
 };
 export const DEFAULT_LOOK: HeroLook = { parts: { hull: 'a', wings: 'a', engines: 'a', cockpit: 'a' } };
 
-export const heroKitFile = (ship: ShipId) => `shared/hero-${ship}-kit.glb`;
 /** A remodelled chassis's file for one design: its four part nodes and their textures. */
 export const heroDesignFile = (ship: ShipId, design: HeroDesign) => `shared/hero/${ship}-${design}.glb`;
 export const heroPartNode = (ship: ShipId, slot: HeroSlot, design: HeroDesign) => `hero_${ship}_${slot}_${design}`;

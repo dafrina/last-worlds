@@ -9,7 +9,7 @@ export interface HeroModel { object: THREE.Object3D; engines: [number, number][]
 /**
  * A ship's look as drawable model (docs/31): its four textured parts from their design files (geometry shared with the
  * loaded file, materials painted per look; up to one draw per design used). Every chassis is remodelled (29 October);
- * the older single-kit path was removed on 8 November (docs/38 V7). The kits stay for the playground (hero-assembly.ts).
+ * the older single-kit path was removed on 8 November (docs/38 V7), and its kit models on 17 November.
  */
 export async function loadHeroModel(ship: ShipId, look: HeroLook = DEFAULT_LOOK, base?: string): Promise<HeroModel | null> {
   return loadRemodel(ship, look, base);

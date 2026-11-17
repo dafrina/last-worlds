@@ -158,14 +158,6 @@ describe('Blender cinematic asset contracts',()=>{
       expect(ray.intersectObject(hull,true)[0]?.distance ?? Infinity,`prow row x ${x} clear of armour`).toBeGreaterThan(hits[0].distance-.01);
     }
   });
-  it('keeps the Scrapper in its established visual footprint with two exhaust sockets',async()=>{
-    const model=await asset('shared/hero-scrapper.glb'); validate(model,3000);
-    const hull=model.getObjectByName('hero_scrapper'); expect(hull).toBeDefined();
-    const size=new Box3().setFromObject(hull!).getSize(new Vector3());
-    expect(size.x).toBeLessThanOrEqual(1.05); expect(size.z).toBeLessThanOrEqual(1.2);
-    expect(model.getObjectByName('hero_scrapper_engine_0')).toBeDefined();
-    expect(model.getObjectByName('hero_scrapper_engine_1')).toBeDefined();
-  });
   // v3 modular kits (docs/25, src/render/facility-kit.ts): every registry module is a node in its world's kit, inside its
   // declared footprint, foundation and top (reaching close to that top, so the height rule is not slack), textured with
   // UVs. A world whose kit has not shipped yet is skipped.
