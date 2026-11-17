@@ -528,14 +528,15 @@ export function createTerrainView(options: TerrainViewOptions) {
   const sheltersNear = (section: TerrainSection) => [...sandShelters(section), ...neighboursOf(section).flatMap(other => sandShelters(other))];
   /**
    * A section's ground was just sheltered: each neighbour's rows next to their join are sheltered again with its pieces
-   * (a few rows, uploaded as a range). Both sides of a join then agree, whichever was built first.
+   * (a few rows, uploaded as a range; one neighbour a step). Both sides of a join then agree, whichever was built first.
    */
-  function shelterJoins(section: TerrainSection) {
-    for (const [other, attribute] of sandShelterOf) {
-      if (Math.abs(other.index - section.index) !== 1) continue;
+  function* shelterJoins(section: TerrainSection): Generator<void, void, void> {
+    for (const [other, attribute] of [...sandShelterOf]) {
+      if (Math.abs(other.index - section.index) !== 1 || sandShelterOf.get(other) !== attribute) continue;
       const from = other.index < section.index ? other.along - JOIN_ROWS : 0, to = other.index < section.index ? other.along - 1 : JOIN_ROWS - 1;
       sandShelterRows(other, sheltersNear(other), attribute.array as Float32Array, from, to);
       attribute.addUpdateRange(from * other.across, (to - from + 1) * other.across); attribute.needsUpdate = true;
+      yield;
     }
   }
 
@@ -558,7 +559,7 @@ export function createTerrainView(options: TerrainViewOptions) {
         sandShelterRows(section, sheltersNear(section), shelter.array as Float32Array, row, row + SHELTER_ROWS - 1);
         yield;
       }
-      shelterJoins(section);
+      yield* shelterJoins(section);
     }
     // One set of section attributes shared by every strip; strips are index ranges disposed together.
     const attributes = {
