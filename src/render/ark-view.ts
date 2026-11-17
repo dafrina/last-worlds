@@ -99,7 +99,7 @@ function fallbackRig(): Rig {
     dispose() { chassis.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); [armor, trim, ...heats].forEach(m => m.dispose()); } };
 }
 
-/** Builds the rig from helion-ark.glb: every node is top-level and its translation is its socket (art/vesper-ark). */
+/** Builds the rig from helion-ark.glb: every node is top-level and its translation is its socket. */
 function modelRig(model: THREE.Group): Rig {
   const chassis = new THREE.Group();
   // v4 approved copies and v5 remodels both carry authored PBR materials and the three-hull layout.

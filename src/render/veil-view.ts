@@ -13,7 +13,7 @@ import { retainBossMaterials } from './approved-boss-materials';
 
 /**
  * THE VEIL presentation (docs/20): a giant alien warship in the Nacre fighters' design language, modelled in Blender
- * (public/assets/nacre/the-veil.glb, art/the-veil); a code-built stand-in renders until the model has loaded.
+ * (public/assets/nacre/the-veil.glb, tools/blender/remodel_veil.py); a code-built stand-in renders until the model has loaded.
  * Render-only: it reads boss state and never applies damage. A black carrier frame with raised layered crescent armour,
  * recessed wing machinery, curved egg shutters and parked pod hangars, two crystal-crowned pods on
  * outriggers (the first pair of weak points), a faceted teal heart under four shutters (the core) and launch bays. It rises
@@ -51,7 +51,7 @@ interface DockedPod { object: THREE.Object3D; position: THREE.Vector3 }
 interface Rig { chassis: THREE.Group; parts: Map<BossPart, PartRig>; engine: THREE.MeshStandardMaterial; sinew: THREE.MeshStandardMaterial; bays: THREE.Vector3[]; approved?: boolean; doors?: BayDoor[]; pods?: DockedPod[]; flightPods?: THREE.InstancedMesh[]; flightPodGroup?: THREE.Group; dispose(): void }
 /** How far the code-built stand-in's petals fold open (radians). */
 const SHUTTER_OPEN = -1.15;
-/** the-veil.glb shutters open by rotating about their local +X hinge (art/the-veil/README.md recommends 100–110°). */
+/** the-veil.glb shutters open by rotating about their local +X hinge (the first VEIL's notes recommended 100–110°). */
 const MODEL_SHUTTER_OPEN = THREE.MathUtils.degToRad(105);
 
 /**
