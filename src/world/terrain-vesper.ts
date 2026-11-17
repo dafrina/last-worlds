@@ -689,7 +689,7 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     // Boulders on the ledges either side of the fortress, at the terrace's level.
     for (let k = 0; k < 14; k++) {
       const h = (i: number) => hash(seed ^ 0x5711, k, i), side = k % 2 ? 1 : -1;
-      const x = side * (STRONGHOLD.wide + 0.25 + h(0) * 0.6), s = arena.fromS + STRONGHOLD.front + 0.4 + h(1) * (STRONGHOLD.waist[0] - STRONGHOLD.front - 0.6);
+      const x = side * (STRONGHOLD.wide + 0.4 + h(0) * 0.5), s = arena.fromS + STRONGHOLD.front + 0.4 + h(1) * (STRONGHOLD.waist[0] - STRONGHOLD.front - 0.6);
       if (s < startS || s >= startS + size || h(6) < 0.25) continue;
       const scale = 0.6 + h(2) * 0.6;
       add({ kind: 'outcrop', x, s, y: terrain.height(x, s) - 0.05, scale, height: scale * (0.8 + h(3) * 0.6), rotation: h(4) * Math.PI * 2, cosmetic: false }, h(5));
