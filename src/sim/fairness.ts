@@ -85,6 +85,16 @@ export function pendingAttackFootprints(state: RunState, enemy: Enemy, aimX: num
     .map(shot => shotFootprint(release + (shot.delay ?? 0), shot)).filter((f): f is Footprint => f !== null);
 }
 
+/**
+ * A stationary boss's hidden-pilot volley (src/sim/boss.ts updateHiddenFire): the boss's own aimed pair burst from its
+ * battery's fixed muzzle, released when the windup ends. Its admission and its place among the committed hazards.
+ */
+export function hiddenFireFootprints(state: RunState, battery: { x: number; s: number; aimX: number; warning: number }): Footprint[] {
+  const def = BOSSES[state.boss!.id];
+  return bossShots(def, 'burst', battery.x, battery.s, battery.aimX, bossShotScale(state))
+    .map(shot => shotFootprint(state.time + battery.warning, shot)).filter((f): f is Footprint => f !== null);
+}
+
 /** Airframes that will cross the player row inside the horizon are contact hazards. */
 function contactFootprints(state: RunState, enemy: Enemy, horizon: number, out: Footprint[]): void {
   if (enemy.hp <= 0 || GROUND_KINDS.has(enemy.kind) || enemy.bossPart || enemy.leaving) return;
@@ -121,6 +131,7 @@ export function committedFootprints(state: RunState, horizon: number = FAIRNESS.
     if (enemy.hp > 0 && enemy.warning > 0) out.push(...pendingAttackFootprints(state, enemy, enemy.aimX, enemy.warning));
     contactFootprints(state, enemy, horizon, out);
   }
+  if (state.boss?.hiddenFire) out.push(...hiddenFireFootprints(state, state.boss.hiddenFire));
   return out;
 }
 

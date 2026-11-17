@@ -238,7 +238,10 @@ target, a turquoise crystal eye in a ring of floating shards.
 
 A stationary temple on a rock in the canyon (user, 12 November: "fantasy temple citadel boss ... its a stationary one").
 Its numbers are `CITADEL` in `src/content/citadel.ts`, its definition `BOSSES.citadel` in `src/content/bosses.ts`
-(`stationary: true`), its view `CITADEL_STYLE` in `src/render/carrier-view.ts` (`still`).
+(`stationary: true`), its view `CITADEL_STYLE` in `src/render/carrier-view.ts` (`still`). It is never pulled toward a
+pilot who keeps its targets out of view; since 17 November its gate pillars (`CITADEL.gatePillars`, the tall ruin pillars at
+the plaza's front corners) fire its vents' aimed burst on a pilot who hides from every target for 2 s, a volley every 2.6 s
+while it stays hidden (docs/10 §5).
 
 **Targets.** The two lanterns (the first pair; `ventOffset`, `ventS`), the emblem at the centre of the drum's rings (the
 third first-phase target, the prow; `prowS`) and the crown of turquoise crystal panels round the drum (the core;

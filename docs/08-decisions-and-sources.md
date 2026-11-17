@@ -468,3 +468,14 @@ User answers after reviewing the merged strike sites and encounter deck:
   - the VEIL keeps its own pods;
   - the old VEIL's source GLB stays in `art/source/bosses/`.
 - **Deploying:** this work deploys only with the user's approval (the spec: "Do not deploy without the appropriate approval").
+
+### 17 November 2026 · No safe hiding spot from a stationary boss
+- **Found:** HELION STRONGHOLD and THE CITADEL never move, so the 11 November boss pull skips them; a pilot parked at the far
+  edge with only a far target left was never attacked (0 boss windups in 30 s at the right edge).
+- **User:** "If you stay out of every attack's reach for 2 s, the fortress's small terrace guns fire the boss's existing aimed
+  shots toward you, and the Citadel's do the same, so there's no safe hiding spot. A small gameplay addition, telegraphed
+  like the other attacks, with fairness tests."
+- **Decision:** on the pull's own trigger (2 s with no live target in view), with the pilot more than half a view from every
+  target, the battery on the pilot's side fires the boss's own aimed pair burst at it, telegraphed and admitted by the
+  director like the boss's attacks, a volley every 2.6 s while it stays hidden; it stops when a target is back in view.
+  Battery points: `HELION_ARK.terraceGuns`, `CITADEL.gatePillars`. Details and measurements: docs/10 §5.

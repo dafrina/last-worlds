@@ -42,6 +42,14 @@ export const HELION_ARK = {
   transitionRecovery: 1.25,
   overloadFraction: OVERLOAD_FRACTION,
   bridgeBurst: { bolts: 3, spread: 0.09, speed: 7 },
+  /**
+   * Its terrace guns (the small twin turrets on the fortress's lower terrace, helion-stronghold.glb): where a pilot who hides
+   * from every target is fired on (BossDefinition.hiddenFire, docs/10 §5; user, 17 November). Each is its flight-plane point
+   * with the camera centred, relative to the pivot (x, s), and its height relative to the flight plane: the simulation
+   * projects it through the lens for the camera of the moment, as it does a ground battery. One volley of the bridge's aimed
+   * burst every `interval` seconds while the pilot stays hidden.
+   */
+  terraceGuns: { points: [{ x: -4.02, s: 1.93, height: -5.6 }, { x: 3.98, s: 1.2, height: -5.6 }], interval: 2.6 },
   /** Finite Needle launches during the bridge phase: waves of two, one from each bay. */
   launches: { waves: 3, firstAfter: 2.5, interval: 7 },
   /**

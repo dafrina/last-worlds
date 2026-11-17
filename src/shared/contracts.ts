@@ -43,6 +43,12 @@ export interface BossState {
    * edge but cannot park out of its reach. `hiddenSince`: when the view last lost sight of every live target.
    */
   driftVx?: number; hiddenSince?: number;
+  /**
+   * A stationary boss's hidden-pilot fire (src/sim/boss.ts `updateHiddenFire`, docs/10 §5): the battery winding up (its
+   * muzzle on the flight plane, fixed when the windup began, the aim, the windup left), and when the next may start.
+   */
+  hiddenFire?: { x: number; s: number; aimX: number; warning: number; duration: number };
+  nextHiddenFireAt?: number;
 }
 export type RunPhase = 'playing' | 'paused' | 'over' | 'complete';
 /** Khepri: dart, weaver, turret (ground), lancer. Vesper: needle, diamond, missile (ground battery). */

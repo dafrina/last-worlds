@@ -9,7 +9,8 @@ import { BOSSES, BOSS_TOUGHNESS, WRECK_HOLD, bossParts, missionBoss, phaseOnePar
 import { VIEW, type BossPart, type Enemy, type RunState } from '../shared/contracts';
 import { bossPartOffset, bossPose } from './motion';
 import { BOSS_BEAM, bossShots, hostileShot } from './attacks';
-import { admitFootprints, pendingAttackFootprints, type Footprint } from './fairness';
+import { admitFootprints, hiddenFireFootprints, pendingAttackFootprints, type Footprint } from './fairness';
+import { fromFlightPlane, toFlightPlane } from '../shared/lens';
 import { bossShotScale, runScale, spawnMembers } from './spawn';
 import { observe } from './events';
 
@@ -42,6 +43,7 @@ function clearThreats(state: RunState) {
   state.projectiles = state.projectiles.filter(shot => shot.friendly || !((shot.delay ?? 0) > 0));
   state.hazards = [];
   for (const enemy of state.enemies) enemy.warning = 0;
+  if (state.boss) state.boss.hiddenFire = undefined;
 }
 
 function bossDef(state: RunState): BossDefinition {
@@ -226,6 +228,15 @@ function visible(state: RunState, enemy: Enemy) {
     && enemy.s > 3.5 && enemy.s + enemy.radius < VIEW.maxS;
 }
 
+/**
+ * Whether the view has held none of a boss's live targets for DRIFT.boss.patience seconds: the boss pull starts then
+ * (pullBoss), and a stationary boss, which is never pulled, opens its hidden-pilot fire (updateHiddenFire). One trigger, so
+ * the two stay consistent.
+ */
+function hiddenTooLong(state: RunState, boss: NonNullable<RunState['boss']>): boolean {
+  return boss.hiddenSince !== undefined && state.time - boss.hiddenSince + 1e-9 >= DRIFT.boss.patience;
+}
+
 /** How far a boss's post may be pulled off the map's centre: the camera's own range, so the view can always centre on it. */
 const POST_LIMIT = (VIEW.worldWidth - VIEW.width) / 2;
 
@@ -247,14 +258,14 @@ function pullBoss(state: RunState, boss: NonNullable<RunState['boss']>, dt: numb
   else boss.hiddenSince ??= state.time;
   // (A stationary boss, a temple on its ground, never moves: its targets stay where it stands.)
   if (!fighting || bossDef(state).stationary || boss.attack || state.time < (boss.holdUntil ?? 0) || state.hazards.some(hazard => hazard.source === undefined)) { boss.driftVx = 0; return; }
-  const { speed, acceleration, braking, patience } = DRIFT.boss;
+  const { speed, acceleration, braking } = DRIFT.boss;
   let goal = 0;
   // A target would be in view with the post at home (x 0): ease back there.
   const home = boss.originX !== 0 && targets.some(enemy => visible(state, { ...enemy, x: enemy.x - boss.originX }));
   if (home) goal = -Math.sign(boss.originX) * speed * state.pace;
   // It waits before it first leaves home (a target out of view for a moment in an ordinary fight moves nothing); once on
   // its way it follows at once, so its sway cannot hide its target again for another wait.
-  else if (boss.hiddenSince !== undefined && (boss.originX !== 0 || state.time - boss.hiddenSince + 1e-9 >= patience)) {
+  else if (boss.hiddenSince !== undefined && (boss.originX !== 0 || hiddenTooLong(state, boss))) {
     // Toward the view from the target nearest to it (sideways): a target merely above or below the view needs no pull.
     let nearest = Infinity;
     for (const enemy of targets) {
@@ -303,6 +314,63 @@ function emit(state: RunState, enemy: Enemy) {
     if (state.projectiles.length + shots.length > BALANCE.maxProjectiles) return;
     for (const shot of shots) state.projectiles.push({ ...hostileShot(state.nextId++, shot), firedBy: enemy.id });
   }
+}
+
+/**
+ * Hidden-pilot fire (user, 17 November: "If you stay out of every attack's reach for 2 s, the fortress's small terrace guns
+ * fire the boss's existing aimed shots toward you, and the Citadel's do the same, so there's no safe hiding spot"; docs/10
+ * §5). A stationary boss is never pulled toward the view (pullBoss), so a pilot parked far enough to the side could keep
+ * every target out of view and never be attacked. On the pull's own trigger (hiddenTooLong) its battery on the side nearest
+ * the pilot, inside the view, winds up the boss's own aimed burst (its pair burst: kind, speed, damage, warning) at the
+ * pilot, and fires; then another every `hiddenFire.interval` seconds while the pilot stays hidden, and keeps more than half
+ * a view from every target itself (`hiding`). It stops the moment a target is back in view or the pilot comes nearer: a
+ * windup in progress is dropped. Its muzzle is the battery's point projected through the lens for
+ * the camera of the windup's start, as a ground battery's, and stays fixed; a windup whose muzzle leaves the view is
+ * dropped. It starts only as the boss's own attacks would: never during a windup or a held lane, never while a lane is
+ * marked, and only when the director admits its footprints against everything committed (src/sim/fairness.ts); a rejected
+ * volley waits FAIRNESS.retryDelay. Deterministic: no random stream.
+ */
+function updateHiddenFire(state: RunState, def: BossDefinition, dt: number): void {
+  const boss = state.boss!, fire = def.hiddenFire, hidden = hiddenTooLong(state, boss) && hiding(state);
+  const battery = boss.hiddenFire;
+  if (battery) {
+    if (!hidden || !muzzleInView(state, battery)) { boss.hiddenFire = undefined; boss.nextHiddenFireAt = state.time + FAIRNESS.retryDelay; return; }
+    battery.warning = Math.max(0, battery.warning - dt);
+    if (battery.warning > 0) return;
+    const shots = bossShots(def, 'burst', battery.x, battery.s, battery.aimX, bossShotScale(state));
+    if (state.projectiles.length + shots.length <= BALANCE.maxProjectiles) for (const shot of shots) state.projectiles.push(hostileShot(state.nextId++, shot));
+    boss.hiddenFire = undefined;
+    boss.nextHiddenFireAt = state.time + fire!.interval;
+    return;
+  }
+  if (!fire || !def.stationary || !hidden || boss.attack || state.time < (boss.holdUntil ?? 0) || state.hazards.some(hazard => hazard.source === undefined)) return;
+  if (state.time < (boss.nextHiddenFireAt ?? 0) || state.time < state.player.invulnerableUntil - .3) return;
+  // The battery on the pilot's side of the boss, if its muzzle is in the view.
+  const side = state.player.x >= boss.x ? 1 : -1;
+  const point = fire.points.reduce((best, p) => Math.sign(p.x) === side && (!best || Math.abs(p.x) > Math.abs(best.x)) ? p : best, undefined as typeof fire.points[number] | undefined);
+  if (!point) return;
+  const height = VIEW.flightHeight + point.height, world = fromFlightPlane(0, boss.x + point.x, boss.s + point.s, height);
+  const muzzle = toFlightPlane(state.cameraX, world.x, height, world.s);
+  const warning = def.warning + runScale(state).warning;
+  const next = { x: muzzle.x, s: muzzle.s, aimX: state.player.x, warning, duration: warning };
+  if (!muzzleInView(state, next)) { boss.nextHiddenFireAt = state.time + FAIRNESS.retryDelay; return; }
+  if (!admitFootprints(state, hiddenFireFootprints(state, next))) { boss.nextHiddenFireAt = state.time + FAIRNESS.retryDelay; return; }
+  boss.hiddenFire = next;
+}
+
+/**
+ * The pilot itself keeps away from every live target: each more than half a view to its side. (A large target can leave a
+ * lagging camera's frame while the pilot flies beside the boss: 17 November, the perfect pilot 1.9 from THE CITADEL's
+ * core with the camera 4.4 off it; that is not hiding, so it draws no fire.)
+ */
+function hiding(state: RunState): boolean {
+  const targets = state.enemies.filter(enemy => enemy.bossPart && enemy.hp > 0 && enemy.damageable);
+  return targets.length > 0 && targets.every(enemy => Math.abs(enemy.x - state.player.x) > VIEW.width / 2);
+}
+
+/** A battery's muzzle inside the view, with room for its telegraph. */
+function muzzleInView(state: RunState, muzzle: { x: number; s: number }): boolean {
+  return Math.abs(muzzle.x - state.cameraX) <= VIEW.width / 2 - .5 && muzzle.s > 3.5 && muzzle.s < VIEW.maxS - .5;
 }
 
 /** Finite launches from a boss's bays (the Helion Ark's Needles, THE VEIL's pods) in its core and overload phases. */
@@ -383,6 +451,7 @@ export function updateBoss(state: RunState, dt: number): void {
     return;
   }
   updateLaunches(state);
+  updateHiddenFire(state, def, dt);
   const attacker = state.enemies.find(enemy => enemy.id === boss.attackerId && enemy.hp > 0);
   if (boss.attack && attacker) {
     // A windup that leaves the view is cancelled and must start again in full; a hit does not cancel it.

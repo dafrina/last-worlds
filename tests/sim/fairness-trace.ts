@@ -61,6 +61,9 @@ export class FairnessTrace {
   private readonly waitingTracks = new Set<number>();
   /** Ground enemies' fixed muzzle points while their windups run (cleared by the sim when they fire). */
   private readonly muzzles = new Map<number, { x: number; s: number }>();
+  /** A stationary boss's hidden-pilot battery windup as last seen, traced as an enemy of its own (negative ids). */
+  private battery: { id: number; x: number; s: number; aimX: number; warning: number } | undefined;
+  private batteryIds = 0;
   constructor(private readonly lag = 0.6) {}
 
   private fail(rule: Violation['rule'], time: number, detail: string) {
@@ -101,6 +104,19 @@ export class FairnessTrace {
       if (enemy.ground?.muzzle) this.muzzles.set(enemy.id, enemy.ground.muzzle); else if (enemy.warning === 0) this.muzzles.delete(enemy.id);
       this.previousWarning.set(enemy.id, enemy.warning);
     }
+    // A stationary boss's hidden-pilot volley (src/sim/boss.ts updateHiddenFire): its battery's windup is on the boss state,
+    // not on an enemy; it is traced as one, from its fixed muzzle, and must start in view and run its full warning.
+    const battery = state.boss?.hiddenFire, previous = this.battery;
+    const fresh = !!battery && (!previous || battery.warning > previous.warning + 1e-9 || battery.x !== previous.x || battery.s !== previous.s);
+    if (previous && (!battery || fresh) && previous.warning <= 1.5 * STEP) released.push({ id: previous.id, kind: 'battery', x: previous.x, s: previous.s, aimX: previous.aimX });
+    if (battery && fresh) {
+      const id = -(++this.batteryIds);
+      this.windups += 1; this.started.set(id, now); this.startCamera.set(id, state.cameraX);
+      const visible = Math.abs(battery.x - state.cameraX) <= VIEW.width / 2 + 1e-6 && battery.s > 3.5 && battery.s <= VIEW.maxS + 1e-6;
+      if (!visible) this.fail('offscreen', now, `battery started a windup at x=${battery.x.toFixed(2)} s=${battery.s.toFixed(2)} cam=${state.cameraX.toFixed(2)}`);
+      this.battery = { id, x: battery.x, s: battery.s, aimX: battery.aimX, warning: battery.warning };
+    } else if (battery && previous) this.battery = { ...previous, warning: battery.warning };
+    else this.battery = undefined;
     for (const shot of state.projectiles) {
       if (shot.friendly) continue;
       // A tracking shot (a Pulsar stream) aims when it leaves the muzzle, which is when the director forecasts it: record

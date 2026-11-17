@@ -60,6 +60,14 @@ export interface BossDefinition {
    * row) and no pull toward a fleeing pilot (src/sim/boss.ts pullBoss).
    */
   stationary?: boolean;
+  /**
+   * A stationary boss's fire on a pilot who hides from all its targets (user, 17 November: "If you stay out of every
+   * attack's reach for 2 s, the fortress's small terrace guns fire the boss's existing aimed shots toward you, and the
+   * Citadel's do the same, so there's no safe hiding spot"; src/sim/boss.ts updateHiddenFire, docs/10 §5): its battery
+   * points (flight-plane points with the camera centred, relative to the pivot, and their height relative to the flight
+   * plane) and the seconds between volleys.
+   */
+  hiddenFire?: { points: readonly { x: number; s: number; height: number }[]; interval: number };
   /** Its modules relative to the pivot. `prow` (THE ECLIPSE only) joins the first pair's phase as a third target. */
   parts: Readonly<Record<Exclude<BossPart, 'prow'>, BossPartSpec>> & { readonly prow?: BossPartSpec };
   /** First-pair attack: Bastion fires aimed bursts, the Ark fires narrow lane lasers. */
@@ -165,7 +173,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   ark: {
     // HELION STRONGHOLD (docs/17 §5, docs/43): a fortress in Vesper's cliff, so it never moves (the flying HELION ARK swayed
     // and drifted until 17 November); its fight is the Ark's.
-    id: 'ark', name: 'HELION STRONGHOLD', stationary: true,
+    id: 'ark', name: 'HELION STRONGHOLD', stationary: true, hiddenFire: HELION_ARK.terraceGuns,
     arrivesAt: HELION_ARK.arrivesAt, approachEndsAt: HELION_ARK.approachEndsAt, arrivalDuration: HELION_ARK.arrivalDuration,
     entryS: HELION_ARK.entryS, row: HELION_ARK.row, targetHeight: HELION_ARK.targetHeight,
     parts: {
@@ -289,7 +297,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
   // and moves under its own name until its own model; its own attacks (Fracture Wave, Boomerang Barrage) join its fight.
   citadel: {
     // Its own model (src/content/citadel.ts): a temple on the ground that never moves; its lanterns, emblem and crown.
-    ...ECLIPSE_BOSS, id: 'citadel', name: 'CITADEL', stationary: true, arrivalDuration: CITADEL.arrivalDuration,
+    ...ECLIPSE_BOSS, id: 'citadel', name: 'CITADEL', stationary: true, hiddenFire: CITADEL.gatePillars, arrivalDuration: CITADEL.arrivalDuration,
     targetHeight: CITADEL.targetHeight, entryS: CITADEL.entryS, row: CITADEL.row, arena: CITADEL.arena,
     // Its three phases (docs/39): the Awakening (its three vents' aimed bursts), the Reactor Exposed (walls, bursts,
     // boomerangs and the fan) and from 58% of the reactor's hull the Fall of the Empire (walls and spirals between its lanes),

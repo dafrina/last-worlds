@@ -2001,6 +2001,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           muzzle(enemy.x, enemy.s, charge);
         }
       }
+      // A stationary boss's hidden-pilot volley (src/sim/boss.ts updateHiddenFire): its battery's windup drawn as an aimed
+      // shot's (brackets, the aim ray to where it crosses the player's row, a swelling muzzle glow).
+      const battery = state.boss?.hiddenFire;
+      if (battery) {
+        const charge = 1 - Math.min(1, battery.warning / Math.max(.1, battery.duration)), aim = Math.atan2(battery.aimX - battery.x, battery.s), r = .45;
+        for (const sx of SIDES) for (const sy of SIDES) {
+          line(battery.x + sx * r, battery.s + sy * r, battery.x + sx * (r - .16), battery.s + sy * r, 0xffc987);
+          line(battery.x + sx * r, battery.s + sy * r, battery.x + sx * r, battery.s + sy * (r - .16), 0xffc987);
+        }
+        aimRay(battery.x, battery.s, battery.x + Math.tan(aim) * battery.s, 0, charge); muzzle(battery.x, battery.s, charge);
+      }
       // Hunter shells (src/sim/hunters.ts): one per live hunter in view, in the world's glow, dimming charge by charge.
       let shellCount = 0;
       for (const enemy of state.enemies) {
