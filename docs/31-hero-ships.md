@@ -1,139 +1,84 @@
-# 31 · Modular hero ships
+# Hero ships
 
-> **30 October 2026 update:** Chassis perks now apply in both modes. Scrapper: 40% wider pickup attraction; Ironclad: +1 starting life; Interceptor: double-tap steering barrel roll; Spectre: shielded near-miss reflection. This replaces the old kill-charge/overdrive bonuses and cosmetic-only endless chassis rule. See [global ship perks](34-global-ship-perks.md). Modular parts/paint remain cosmetic; endless equipment still resets.
+The player's four chassis and their modular models: what each looks like, how the parts are built in Blender, the rules
+that keep any mix of parts sound, paint, and how the hangar and the flight use them. Perks and prices are in
+[docs/42](42-specials-and-perks.md) and [docs/30](30-campaign-progression.md).
 
-Status: in the game since 28 October 2026. Each campaign chassis flies its own build; Hangar → Ships has the
-configurator (§ In the game). The playground's Hangar tab is the look-dev view.
+## The chassis
 
-## What exists
-
-| Chassis (docs/30) | User's tier | Look | Glow |
+| Chassis | The user's tier | Look | Default glow |
 | --- | --- | --- | --- |
-| `scrapper` | basic | rusty salvage fighter, ivory and rust | cyan `#78f9f1` |
-| `ironclad` | armoured fighter | massive stepped armour, rams, tusks, spikes; dark olive, gunmetal, hazard stripes, red eye slits | red `#ff4a24` |
-| `interceptor` | assault interceptor | knife noses, sharp wings, spear booms with canted fins; pearl, cobalt, black | blue `#5aa8ff` |
-| `spectre` | exotic | obsidian flying wing with silver edges | violet `#b46cff` |
+| `scrapper` | basic | rusty salvage fighter, ivory and rust | cyan |
+| `ironclad` | armoured fighter | massive stepped armour, rams, tusks and spikes; dark olive, gunmetal, hazard stripes, red eye slits | red |
+| `interceptor` | assault interceptor | knife noses, sharp wings, spear booms with canted fins; pearl, cobalt and black | blue |
+| `spectre` | exotic | obsidian flying wing with silver edges | violet |
 
-Each chassis has four **slots**: `hull`, `wings`, `engines` and `cockpit`. A build picks one design per slot, and any mix
-within a chassis fits together. Parts never mix across chassis. A **remodelled** chassis (`HERO_REMODELLED`: since 29 October all
-four) has five designs per slot, `a`–`e`; the others still have three, `a`–`c`, in their script-built kits (below).
+Default paints are `HERO_DEFAULT_PAINT` in `src/content/hero-parts.ts`.
 
-## Remodelled chassis (29 October 2026)
+Each chassis has four **slots** (`HERO_SLOTS`: hull, wings, engines shown as Propulsion, cockpit) with five **designs**
+each, `a`–`e` (`HERO_DESIGNS`). A look picks one design per slot; any mix within a chassis fits together, and parts never
+mix across chassis. Design A comes with the chassis; B–E are bought in the hangar (`HERO_DESIGN_PRICES`,
+`HERO_DESIGN_PARTS`) and paint is free.
 
-The user rejected the script-built kits as comical and made Tripo models of twenty concepts (art/source/hero/README.md).
-Their parts are remodelled, not cut out (docs/08, 29 October):
+## How the parts are built
 
-- **Reference:** `tools/blender/lib_hero_tripo.py` levels each Tripo model onto one plane, scales it to its chassis and
+The user made Tripo models of twenty concepts (four chassis × five designs; `art/source/hero/README.md`) and chose to have
+clean parts modelled over them rather than cut out of them (user, 29 October: "remodel them all ourself, just using the
+model as a style and size reference"; docs/08).
+
+- **Reference** (`tools/blender/lib_hero_tripo.py`): levels each Tripo model onto one plane, scales it to its chassis and
   splits it into the four slots (`SPECS`: outlines read off gridded top and side views).
-- **Remodel:** `tools/blender/hero_parts.py`, one function per design, builds clean hard-surface parts measured off
-  that reference, then bakes the Tripo base colour, roughness-metal and normal maps onto them in Cycles. Output:
-  `public/assets/shared/hero/<chassis>-<design>.glb`, its four part nodes sharing one material (base and normal 1024 px,
-  roughness-metal 512 px) plus a glow material, and its engine sockets. About 1,700 to 6,200 triangles, 1.0 to 1.3 MB.
-- **Standard joints** (`JOINTS`, per chassis): a wing mounting plate on each hull side, a rear bulkhead every propulsion reaches
-  forward to, and a cockpit deck with every cockpit's skirt reaching down into the hull. Every design is built to them,
-  so parts sit unmoved in any mix. Designs stay faithful to their models; mixed parts may overlap but never float (user:
-  "they can intersect no problem", "but it should somewhat look good").
-- **Runtime:** `loadHeroModel` (src/render/hero-craft.ts) loads each design file once and shares its geometry; a look gets
-  its own copies of the materials. Paint is one ship colour and one glow (user, 29 October: "Lets just make one color for
-  the ship and one for glow"): every texel takes the ship colour at its brightness relative to the model's paint
-  (`HERO_DEFAULT_PAINT.primary`, the median the bake prints), so panels, wear and shading stay; texels lit in the
-  model's glow colour, the glow material and the plumes take the glow. The first rule matched texels to a paint and a
-  trim swatch: it reached about half of the Scrapper and Interceptor textures and none of the brown rust, which is why
-  most parts stayed brown.
-- **Review sheets:** `art/hero-tripo/` (remodel against Tripo, mixed builds).
+- **Parts** (`tools/blender/hero_parts.py`, one function per design): clean hard-surface parts measured off that
+  reference, then the Tripo base colour, roughness-metal and normal maps baked onto them in Cycles.
+- **Output:** `public/assets/shared/hero/<chassis>-<design>.glb`: four part nodes sharing one material and one texture set,
+  a glow material, and the engine sockets.
+- **Standard joints** (`JOINTS` in `hero_parts.py`, per chassis): a wing mounting plate on each hull side, a rear bulkhead
+  every propulsion reaches forward to, and a cockpit deck that every cockpit's skirt reaches down into. Every design is
+  built to them, so parts sit unmoved in any mix. Designs stay faithful to their models; mixed parts may overlap but never
+  float (user, 29 October: "they can intersect no problem", "but it should somewhat look good").
 
-## Script-built kits (retired 29 October; kept as the fallback path)
-
-- Source: `tools/blender/hero_kit.py`, run in headless Blender. The build command and the anchors for each chassis are in
-  its comments.
-- Kits: `public/assets/shared/hero-<chassis>-kit.glb`. Each kit holds one file per chassis with 12 part nodes.
-- Review sheets: `art/hero-kit/<chassis>-sheet.jpg`. The top row shows presets A, B and C; the other rows are seeded
-  mixes.
-- Assembly: `src/render/hero-assembly.ts` (`HeroBuild`, `assembleHero`, `HERO_DEFAULT_PAINT`).
-- Preview: the playground's **Hangar** tab (`playground.html`). Choose a chassis, a design for each slot and the paint,
-  or shuffle the parts.
+Build a design headless: `blender --background --factory-startup --python tools/blender/hero_parts.py -- --design
+scrapper-1` (from WSL through the Windows path; the full command is in the script's docstring).
 
 ## Rules
 
-- **Cosmetic only.** Every build of every chassis keeps the same hit region (radius 0.42 at the origin), handling and gun
-  origins (docs/04 §9; AGENTS.md invariant 14). The parts never feed the simulation.
-- **Shared anchors.** All designs of a chassis are authored around the same origin and anchors, so parts need no offsets.
-  Every part node sits at the kit origin.
-- **Size.** Each part stays inside x and z (glTF) of ±0.95; the publish step verifies this. The Scrapper is about 1.25
-  to 1.45 wide, the Ironclad and Interceptor about 1.4 to 1.6, and the Spectre about 1.7.
-- **Finish (user, 28 October: the parts "look blocky ... make them more sophisticated").** Every plate has a straight
-  lower side, a chamfered band and a slightly inset top. Large plates carry a raised inner panel. Every edge over 35° gets
-  a one-step bevel with hardened normals, and the bevel's own faces are lighter (edge wear), so panels read outlined.
-  Cylinders have half as many sides again. Bevel faces take the paint role of their painted side, so recolouring reaches
-  them.
-- **UVs:** one UV for the whole part, mid-plate in the game's panel map. Box-projected seams tiled into a brick pattern on
-  ships this small; the verifier's box-UV rule is waived for hero nodes (`uv='flat'`).
-- **Budget.** A whole ship runs about 1,500 to 7,000 triangles, as one draw. The limits per part are hull 3,400, wings
-  3,200, engines 4,600 and cockpit 1,400.
-- **Materials.** Each kit has three materials: `<chassis>_plate`, `<chassis>_frame` and `<chassis>_glow`. These class
-  names are the ones `loadCraftNodes` understands.
+- **Cosmetic only.** Every build of every chassis keeps the same hit region (`VIEW.playerRadius` at the origin), handling
+  and gun origins (invariant 14; [docs/04 § 9](04-art-and-experience.md)). Parts never feed the simulation.
+- **Shared origin.** All designs of a chassis are authored around the same origin and joints, so parts need no offsets.
+- **Scale.** Models are authored in game units and flown at `HERO_SCALE` (render only).
 
 ## Node names
 
-- Part node: `hero_<chassis>_<slot>_<design>`, for example `hero_ironclad_wings_b`.
-- Engine sockets (for plumes): empties named `hero_<chassis>_engines_<design>_engine_<i>`, at the nozzles. This
-  matches `loadCraftNodes`, which picks up `<node>_engine_*`.
+- Part node: `hero_<chassis>_<slot>_<design>` (`heroPartNode`), for example `hero_ironclad_wings_b`.
+- Engine sockets (for the plumes): empties named `hero_<chassis>_engines_<design>_engine_<i>` at the nozzles.
 
-## Recolouring
+## Paint
 
-Each face's vertex colour **alpha** stores its paint role:
-
-| Alpha | Role |
-| --- | --- |
-| 0.75 | primary paint |
-| 0.5 | secondary paint |
-| 1 | everything else: metal, glass, stripes |
-
-The baked RGB keeps the default scheme plus all the shading and wear. A recolour replaces a role's colour and keeps each
-vertex's shade relative to the default paint, so dark colours stay dark and light colours stay light. Glow is its own
-material and takes its own tint. The default paint for each chassis is `HERO_DEFAULT_PAINT`; it must match the kit
-(`PAINTS` in `hero_kit.py`).
+A look's paint is one ship colour and one glow (user, 29 October: "Lets just make one color for the ship and one for
+glow"). Every texel takes the ship colour at its brightness relative to the model's default paint, so panels, wear and
+shading stay; texels lit in the model's glow colour, the glow material and the plumes take the glow. Looks saved with the
+retired trim colour keep it unused.
 
 ## In the game
 
-- **Look:** `HeroLook` (src/shared/contracts.ts) is one design per slot plus optional paint. The campaign save keeps
-  `designs` (bought `ship:slot:design` ids) and `looks` (one per ship), both optional (src/campaign/profile.ts:
-  `buyDesign`, `setLook`, `ownsDesign`, `lookOf`, `cleanLooks`).
-- **Run config:** `RunConfig.hero` carries the look for the campaign. The simulation never reads it.
-- **Endless flies the ship's cosmetics (user, 29 October; docs/33 § 2):** an endless launch takes the campaign's equipped
-  chassis and its look (`endlessConfig`, src/campaign/profile.ts) as `RunConfig.heroShip` and `hero`; `createRun` keeps
-  them (a chassis that does not exist, or a look that does not fit it, is dropped and the default Scrapper shows). Nothing
-  in the simulation reads them: endless still flies the starter (`ship` stays the Scrapper, default weapons, no chassis
-  perks, the same hit region and handling). The renderer shows `shownHero(config)` (src/content/hero-parts.ts).
-  `tests/sim/endless-cosmetics.test.ts` flies the same endless seed under every chassis and look and gets the same run.
-- **Flight:** src/render/hero-craft.ts loads the four kit nodes through `craftFromScene` with the paint applied, merges
-  them into one craft draw, and takes the plumes from the propulsion part's engine sockets. The renderer's
-  `prepareHero` runs alongside the world under the launch warp.
-- **Hangar:** src/ui/hangar.ts `renderShipyard`.
-  - Designs per slot (`heroDesigns`): A–E on a remodelled chassis, A–C on a kit chassis. A is free; the rest are bought
-    with parts plus credits (src/content/hero-parts.ts `HERO_DESIGN_PARTS` and `HERO_DESIGN_PRICES`: every design
-    B–E costs 50 credits and 1 part since 3 November 2026, user; it was B 1 part + 80, C 1 + 160, D 2 + 240, E 3 + 320
-    from 29 October) and then switch freely. Buying needs both; designs already bought stay owned; paint is free.
-  - Colour and glow pickers, and Default paint. Looks saved with a trim colour keep it unused.
-  - The picture (user, 29 October: the turning preview "lags as fuck, preload the parts, and make them previewable. And
-    make the image bigger, maybe not needed to turn"): `GameRenderer.heroPreview` draws one still per look (it drew 36
-    views, each read back from the GPU), 720 × 460 for a panel-wide 360 × 230 picture, cached per look; the previous
-    picture stays up until the next is ready. Opening the shipyard starts loading every design file of the chassis.
-  - Try before buying: tapping an unbought design shows it on the ship with BUY and PUT BACK; buying fits it.
-
-## Integration notes (original handoff, now done)
-
-- The game currently loads `hero-scrapper.glb` through `loadCraftNodes` (src/render/scene.ts). A build can use the same
-  path. Load the four part nodes of the build from the kit, merge them, and take the engine sockets of the engines node.
-- `loadCraftNodes` keeps only the vertex RGB. Apply a recolour first, as `tint` does in hero-assembly.ts, or move that
-  logic into the loader.
-- `assembleHero` is fine for menus and hangars (cloned meshes, standard materials). In flight, use the shared craft
-  material (one draw).
-- Unlocks, saved builds and the campaign hangar UI belong to docs/30's owner. Endless uses its own starter (AGENTS.md
-  invariant 6) and, since 29 October, the campaign ship's looks as cosmetics only (above).
+- **Look:** `HeroLook` (`src/shared/contracts.ts`) is one design per slot plus optional paint. The campaign save keeps
+  `designs` (bought `ship:slot:design` ids) and `looks` (one per ship); see `buyDesign`, `setLook`, `ownsDesign`, `lookOf`
+  and `cleanLooks` in `src/campaign/profile.ts`.
+- **Run config:** the campaign passes the equipped ship and its look; endless passes them as `heroShip` and `hero`
+  (`endlessConfig`). Endless flies that chassis with its perk (user, 30 October) and its look; a chassis that does not
+  exist or a look that does not fit it is dropped and the Scrapper shows. The renderer shows `shownHero(config)`.
+- **Flight:** `loadHeroModel` (`src/render/hero-craft.ts`) loads each design file once and shares its geometry; a look gets
+  its own painted copies of the materials, at most one draw per design used, with the plumes at the propulsion part's
+  engine sockets. `prepareHero` runs alongside the world under the launch warp; `preloadHeroLook` starts the downloads from
+  the campaign screen.
+- **Hangar** (`renderShipyard` in `src/ui/hangar.ts`): the slot selector, designs A–E per slot, colour and glow pickers,
+  and Default paint. Tapping an unbought design tries it on the ship with BUY and PUT BACK. The picture is one still per
+  look (`GameRenderer.heroPreview`), cached, with the previous picture kept up until the next is ready; opening the
+  shipyard starts loading every design file of the chassis.
+- **Playground:** the Hangar tab of `playground.html` shows any chassis, design mix and paint.
 
 ## Open
 
-- The art has not been checked on a phone or over every world's light. The Ironclad is dark by design; check it over
-  Umbra.
+- The ships have not been checked on a phone or over every world's light; the Ironclad is dark by design and should be
+  checked over Umbra.
 - Each cockpit has a placeholder for its glass; there is no pilot.
