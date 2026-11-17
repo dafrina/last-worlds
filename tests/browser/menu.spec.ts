@@ -218,8 +218,12 @@ test('ships cost four parts, persist, and launch with their perk and five starti
   // credits and a part and fitted.
   const yard = page.locator('.shipyard');
   await expect(yard).toContainText('IRONCLAD · YOUR BUILD');
+  // The part table never moves when the offer appears (user, 17 November): its first row keeps its place.
+  const rowTop = async () => (await yard.locator('.shipyard-slot').first().boundingBox())!.y;
+  const before = await rowTop();
   await yard.getByRole('button', { name: /Wings design B, preview; costs 50 credits and 1 part/ }).click();
   await expect(yard.locator('.shipyard-offer')).toContainText('PREVIEW · WINGS B');
+  expect(await rowTop()).toBeCloseTo(before, 0);
   await yard.getByRole('button', { name: 'BUY · 50 CR + 1 P' }).click();
   await expect(yard.getByRole('button', { name: 'Wings design B' })).toHaveAttribute('aria-pressed', 'true');
   await expect(yard.locator('.shipyard-offer')).toBeHidden();

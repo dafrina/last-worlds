@@ -163,11 +163,16 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
     }
     return row;
   });
+  // The offer row always keeps its place above the parts (user, 17 November: the table jumped when BUY popped in):
+  // with nothing tried on it is laid out but invisible and inert, the same height as when it offers a design.
   const offer = document.createElement('div'); offer.className = 'shipyard-offer';
+  const note = document.createElement('span'); note.textContent = 'PREVIEW';
+  const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'hangar-action'; buy.textContent = 'BUY';
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'hangar-action'; back.textContent = 'PUT BACK';
   if (trying) {
     const { slot, design } = trying, price = HERO_DESIGN_PRICES[design], parts = HERO_DESIGN_PARTS[design];
-    const note = document.createElement('span'); note.textContent = `PREVIEW · ${HERO_SLOT_NAMES[slot].toUpperCase()} ${design.toUpperCase()}`;
-    const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'hangar-action'; buy.textContent = `BUY · ${priceText({ credits: price, parts })}`;
+    note.textContent = `PREVIEW · ${HERO_SLOT_NAMES[slot].toUpperCase()} ${design.toUpperCase()}`;
+    buy.textContent = `BUY · ${priceText({ credits: price, parts })}`;
     buy.dataset.sound = 'ui-purchase';
     buy.disabled = !affords(profile, { credits: price, parts });
     buy.addEventListener('click', () => {
@@ -175,11 +180,12 @@ export function renderShipyard(host: HTMLElement, profile: CampaignProfile, acti
       actions.buyDesign(ship, slot, design);
       actions.setLook(ship, { ...look, parts: { ...look.parts, [slot]: design } });
     });
-    const back = document.createElement('button'); back.type = 'button'; back.className = 'hangar-action'; back.textContent = 'PUT BACK';
     back.addEventListener('click', () => { trying = null; again(); });
-    offer.append(note, buy, back);
   }
-  offer.hidden = !trying;
+  offer.append(note, buy, back);
+  offer.classList.toggle('is-idle', !trying);
+  offer.inert = !trying;
+  if (!trying) offer.setAttribute('aria-hidden', 'true');
   const colours = document.createElement('div'); colours.className = 'shipyard-paint';
   for (const [role, name] of [['primary', 'COLOUR'], ['glow', 'GLOW']] as const) {
     const field = document.createElement('label'), input = document.createElement('input');

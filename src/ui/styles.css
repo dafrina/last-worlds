@@ -471,6 +471,8 @@ button:disabled { cursor: default; }
 .shipyard-preview { justify-self: center; width: 100%; max-width: 360px; aspect-ratio: 360 / 230; background: radial-gradient(ellipse at 50% 60%, #1b3a5c 0%, #0b1b30 72%); }
 .shipyard-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .shipyard-offer[hidden] { display: none; }
+/* Idle: laid out but invisible, so the part table below never moves when BUY appears (hangar.ts). */
+.shipyard-offer.is-idle { visibility: hidden; }
 .shipyard-offer span { flex: 1 1 100%; color: #ffe2a6; font: 600 9px / 1 var(--mono); letter-spacing: 1.2px; }
 .shipyard-design.is-trying { border-color: #ffc46a; background: #3a2c12; box-shadow: 0 0 10px #ffc46a55; }
 .shipyard-slot { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; gap: 6px; }
