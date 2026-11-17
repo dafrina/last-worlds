@@ -75,6 +75,7 @@ were merged into others. For the repository layout see the [README's map](../REA
 | --- | --- |
 | [04 Art and experience](04-art-and-experience.md) | The art direction and asset rules (also listed above) |
 | [art/bosses](../art/bosses/README.md) | How the eight boss models are built and their rig contract |
+| [43 Boss visual overhaul](43-boss-visual-overhaul.md) | The 17 November specification: VEIL from the old CRADLE, the walking CRADLE, the HELION STRONGHOLD fortress on Vesper's cliff |
 | [art/concepts](../art/concepts/README.md) | The concept gallery: references only |
 | Kit provenance | One README per Blender kit: [Khepri kit](../art/khepri-kit/README.md), [Khepri infrastructure](../art/khepri-infra/README.md), [Khepri craft](../art/khepri-craft/README.md), [Vesper kit](../art/vesper-kit/README.md), [Vesper infrastructure](../art/vesper-infra/README.md), [Vesper craft](../art/vesper-craft/README.md), [Nacre kit](../art/nacre-kit/README.md), [Nacre craft](../art/nacre-craft/README.md), [shared industrial kit](../art/shared-industrial/README.md) |
 | [art/source](../art/source/bosses/README.md) | The user's supplied boss models ([hero sources](../art/source/hero/README.md), [Poly Haven maps](../art/source/polyhaven/README.md)) |

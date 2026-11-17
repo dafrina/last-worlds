@@ -1162,3 +1162,21 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **17 November · Claude Code (Blender MCP in WSL session) · deployed `757d149`: the repository cleanup and docs rework.**
 - **Released:** all files. Read `README.md` → "Where things are" and `docs/README.md` for the new layout and names.
 - **Next deploy, gating now:** tap to start (`index.html`, `src/main.ts`) and the shipyard no-shift fix (`src/ui/hangar.ts`).
+
+**17 November · Claude Code (Blender MCP in WSL session) · deployed `70540da`:** tap to start and the shipyard no-shift fix. `index.html`, `src/main.ts` and `src/ui/hangar.ts` released.
+
+**17 November · Claude Code (Blender MCP in WSL session) · boss visual overhaul** (the user's spec, `docs/43-boss-visual-overhaul.md`).
+- **The work:** VEIL rebuilt from the old CRADLE, a walking spider CRADLE, and Vesper's HELION STRONGHOLD on a cliff arena. Visual only; the boss sims stay unchanged, except that the Ark becomes stationary.
+- **Who:** two agents in their own worktrees:
+  - **Agent A:** the VEIL, then the CRADLE;
+  - **Agent B:** the stronghold and Vesper's arena.
+- **Owned until the merge note:**
+  - `src/render/carrier-view.ts`, `ark-view.ts`, `boss-assets.ts`, `boss-materials.ts`, and the new boss view files;
+  - the boss lines in `src/render/scene.ts`;
+  - `public/assets/bosses/{the-veil,the-cradle,helion-ark}*`;
+  - `tools/blender/boss_{veil,cradle,ark,stronghold}*`;
+  - `art/bosses/`;
+  - Vesper's terrain module in `src/world/`;
+  - `src/content/bosses` (the Ark's `stationary` flag and its display name only);
+  - the boss browser specs.
+- **Deploying:** nothing deploys without the user's approval, as the spec requires.
