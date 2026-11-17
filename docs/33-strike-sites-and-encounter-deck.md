@@ -236,7 +236,7 @@ measured and dropped (30 October): a wave shifted toward the world edge while th
 - after a Needle column (`LINGERING`), the next air cue is no Needle squadron and the next site has no air guard: the
   column's last members lock their beam lanes as their path ends, which the airspace prediction cannot foresee;
 - on Vesper a draw keeps its slot's side of the alternation between laser flocks and laser-free squadrons
-  ([docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-the-helion-ark));
+  ([docs/17 §5](17-vesper-glass-frontier.md#5-cold-vector-and-helion-stronghold));
 - a slot with no fitting wave flies its nominal; where the nominal would repeat the previous wave, it draws a wave of its
   role and band of another character instead, never one with a scarce kind.
 

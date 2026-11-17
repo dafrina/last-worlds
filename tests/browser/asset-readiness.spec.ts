@@ -12,7 +12,7 @@ test('cold Vesper launch waits for Ark and facility atlases; cancellation cannot
   const gate = new Promise<void>(resolve => { release = resolve; });
   const requested: string[] = [];
   await page.route('**/assets/vesper/*.glb', async route => {
-    if (/helion-ark|facility-kit/.test(route.request().url())) { requested.push(route.request().url()); await gate; }
+    if (/helion-stronghold|facility-kit/.test(route.request().url())) { requested.push(route.request().url()); await gate; }
     await route.continue();
   });
   await page.goto('/');

@@ -9,7 +9,7 @@ game's boss views rely on, and how to rebuild one. The user's supplied source mo
 | --- | --- | --- | --- | --- |
 | WARDEN-1 | Luna | `luna/warden.glb` | `boss_warden.py` | Modelled after the user's design sheet (`art/concepts/boss-sheets/warden.jpg`); no supplied model |
 | BASTION-9 | Khepri | `khepri/bastion-9.glb` | `boss_bastion.py` (runs `boss_bastion_hull.py`, then `boss_bastion_treads.py`'s tread-link extraction) | Clean model traced over the user's tank GLB |
-| HELION ARK | Vesper | `vesper/helion-ark.glb` | `boss_ark.py` (`build_clean()`) | The user's Tripo GLB, adapted, with its hull panels rebuilt flat |
+| HELION STRONGHOLD (id `ark`) | Vesper | `vesper/helion-stronghold.glb` | `boss_stronghold.py` | The user's fortress GLB, adapted: barrels turned toward the player, a reactor chamber built behind its door, cut where Vesper's cliff buries it (the flying HELION ARK, `helion-ark.glb` by `boss_ark.py`, until 17 November: git history) |
 | THE VEIL | Nacre | `nacre/the-veil.glb` | `boss_veil.py` | Clean model traced over the user's spacecraft GLB |
 | THE CRADLE | Amnion | `amnion/the-cradle.glb` | `boss_cradle.py` | The user's Tripo GLB, adapted |
 | THE HELIOPHAGE | Corona | `corona/the-heliophage.glb` | `boss_heliophage.py` | The user's Tripo GLB, adapted, laid flat and squashed |
@@ -31,7 +31,7 @@ game's boss views rely on, and how to rebuild one. The user's supplied source mo
    exporter writes one draw per slot. Emissive `*_glow` materials stay untextured: the game animates them.
 4. **Ambient occlusion** is baked into the vertex colours (`bake_ao`).
 
-**Adapted Tripo models** (HELION ARK, THE CRADLE, THE HELIOPHAGE, THE ECLIPSE): the user's mesh, UVs and painted atlases are
+**Adapted Tripo models** (HELION STRONGHOLD, THE CRADLE, THE HELIOPHAGE, THE ECLIPSE): the user's mesh, UVs and painted atlases are
 kept and reduced; nothing of the shape is regenerated. `tools/blender/lib_tripo.py` copies faces out into named parts
 (`extract`), adds marker nodes and builds wreck copies. Loose pieces beside a supplied model are the concept's pod sketches
 and are left out. Models are laid flat for the game camera; backs and undersides, which the camera never shows, may stay
@@ -42,20 +42,22 @@ blocks and arches (`tools/blender/kit_nahara.py`) in the shape of the Tripo mode
 
 ## Rig contract
 
-- Node names, pivots and wreck variants are the ones each boss view drives (`src/render/bastion-view.ts`, `ark-view.ts`,
-  `warden-view.ts`, `carrier-view.ts`). Each GLB carries a marker node the view looks for: `warden_remodel_v5`,
-  `bastion_remodel_v5`, `ark_approved_v6`, `veil_remodel_v6`, `cradle_approved_v2`, `eclipse_approved_v1`,
+- Node names, pivots and wreck variants are the ones each boss view drives (`src/render/bastion-view.ts`,
+  `stronghold-view.ts`, `warden-view.ts`, `carrier-view.ts`). Each GLB carries a marker node the view looks for:
+  `warden_remodel_v5`, `bastion_remodel_v5`, `stronghold_approved_v1`, `veil_remodel_v6`, `cradle_approved_v2`, `eclipse_approved_v1`,
   `heliophage_approved_v1` (these names are identifiers, not version labels to update). THE CITADEL, built of the ruin kit,
   has none.
 - Every weak point sits where the game camera's ray through its combat target meets the armour (`ray_y`), and hatches,
-  petals and shutters clear that ray when they open.
+  petals and shutters clear that ray when they open. HELION STRONGHOLD, seated at a fixed spot in its cliff, is placed by
+  the release lens itself (`src/shared/lens.ts`): with the camera centred its guns and its reactor's aim lie on the lines of
+  sight through their targets (`tests/world/stronghold-projection.test.ts`).
 - `tests/world/cinematic-assets.test.ts` checks the contracts: node names, weak points on their rays, footprints and
   triangle budgets.
 
 ## Rebuild
 
-Builders with a `build(export, preview)` function (WARDEN-1, THE VEIL, the BASTION-9 hull) run headless through
-`run_build.py`:
+Builders with a `build(export, preview)` function (WARDEN-1, THE VEIL, the BASTION-9 hull, HELION STRONGHOLD) run headless
+through `run_build.py`:
 
 ```bash
 cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup \
@@ -64,7 +66,8 @@ cd /mnt/c && "/mnt/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" -
 
 `--compare` writes a source-against-model sheet to `lookdev/`. The other builders give their own command in their
 docstring: `boss_bastion.py`, `boss_eclipse.py`, `boss_heliophage.py` and `boss_citadel.py` run headless the same way;
-`boss_ark.py` and `boss_cradle.py` run inside Blender through the Blender MCP (paths in the `\\wsl.localhost\…` form).
+`boss_cradle.py` runs inside Blender through the Blender MCP (paths in the `\\wsl.localhost\…` form). `boss_stronghold.py`
+writes its previews and a report (placement, parts, triangles, ray checks, the seat) to `lookdev/boss-overhaul/stronghold/`.
 
 ## Rollback
 
