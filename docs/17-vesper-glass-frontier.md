@@ -85,20 +85,25 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
   the pieces' and outposts' cap is `VESPER_PIECE_MAX` (the scenery cap less the drop), and the renderer's Vesper fog and
   ice-wall shading follow it down. `VESPER_SCENERY_MAX` (3.0) stays the cap over Vesper, which HELION STRONGHOLD's peaks
   reach. Ground batteries and strike sites seat themselves on the lowered ground through the lens (docs/05), so they stand
-  deeper and their lines of sight meet the ground a little further from their tracks: over seeds 1–12 the endless perfect
-  pilot takes 24 hits in sectors 1–8 at 2.5 lower, 21 at 1.25 and 18 before (13, 10 and 7 on Vesper, all from its missile
-  batteries); 23 of 192 Vesper strike sites have a guard in the clearance band at 2.5 lower (deepest 0.70), 20 at 1.25 and
-  none before (tests/sim/site-seats.test.ts allows 12.5% on Vesper). Their causes
-  (found 18 November): the game stays consistent (shots leave from the battery's fixed muzzle); the test pilot
-  (tests/sim/pilots.ts `perceive`) copies each enemy shallowly, so in the 0.2 s it looks late a battery's live muzzle is
-  already cleared and it places the missile where the battery shows now, not where it launched; deeper ground's parallax
-  turned 3 near-misses into hits. Copying the anchor makes Vesper's missile hits 0 before and after the drop, but changes
-  every pilot-driven run on every world (6 other tests' seeds would need picking again), so it is left for the integrator.
-  The sites: all 20 are a vault or depot at the world's edge with the camera at the far extreme, its authored spot past
-  `SEAT_SEARCH.maxX` (9.80 → 10.24) and its inner guard on a pontoon 1.25 deeper, so it spreads 0.33 nearer; a taller
-  Vesper pontoon deck (0.45, a visual change to its hull) or seats moved toward the camera would remove them. Shelves stand one to several tiers over the water and step up inland in ice
-  cliffs; ice plateaus rise a tier or two above the shelves on sheer walls. The land share is about half over long
-  stretches of the route (tested). The relief rules are [docs/26 §4–5 and §10–11](26-terrain-relief.md).
+  deeper and their lines of sight meet the ground a little further from their tracks. That had two side effects, both
+  fixed on 18 November rather than allowed for in the tests. First, the test pilot misread missile batteries: its
+  delayed view (tests/sim/pilots.ts `perceive`) shared each enemy's nested state with the live run, so in the 0.2 s it
+  looks late a battery that had just fired had already lost its muzzle, and the pilot placed the missile where the battery
+  shows now, not where it launched; deeper ground's parallax turned near-misses into hits. The game was consistent (shots
+  leave from the battery's fixed muzzle). The view now copies the anchor and muzzle (and a squadron's pull and a
+  stationary boss's hidden-pilot windup); the Cold Vector and endless perfect-pilot tests went back to their seeds from
+  before the drop, and five tests elsewhere whose pilot now flies differently were re-picked (their comments say why).
+  Over seeds 1–12 the endless perfect pilot takes 16 hits in sectors 1–8, 1 on Vesper (a Diamond) and none from its
+  missile batteries, against 24 (13 on Vesper, all missile batteries) before the fix and 18 (7) before the drop; on Cold
+  Vector, seeds 1–6, 53 and 58 with all three weapons on every difficulty, 0 of 72 runs take a hit, against 8. Second, a
+  strike site held in from beyond the world's edge stood on its own guard: with the camera at the far extreme, a vault
+  or depot's authored spot spreads past `SEAT_SEARCH.maxX` (to 11.1 over the deep sea), the seat is held at 9, and the
+  ring's inner guard stayed where it was authored, up to 0.74 inside the footprint (24 of 192 surveyed seats on its rim,
+  deepest 1.04). Its ring now moves in with the site, just clear of it, when no seat in the search window keeps it off
+  (`ringShift`, docs/33 §3.3): none on the rim, deepest 0.28, the same rule as every world (Khepri's 4 and Corona's 5
+  rim seats went too). The pontoons and models are unchanged. Shelves stand one to several tiers over the water and step
+  up inland in ice cliffs; ice plateaus rise a tier or two above the shelves on sheer walls. The land share is about
+  half over long stretches of the route (tested). The relief rules are [docs/26 §4–5 and §10–11](26-terrain-relief.md).
 - **Moods** (`VESPER_MOODS`, `MOOD_SETTINGS`): land share, leads, crevasses, ridges, rock, floes, shelf height, cliff
   step, inland stairs, inlets and plateaus per mood; never the same mood twice in a row.
 - **Ice walls** stand on every big face (crevasses, ridges and beside outposts included) in continuous runs, never on

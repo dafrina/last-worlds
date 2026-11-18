@@ -501,6 +501,11 @@ export function coreSite(formation: string): SiteId | null {
   const site = formation.startsWith('site-core-') ? formation.slice('site-core-'.length) : '';
   return (SITE_IDS as readonly string[]).includes(site) ? site as SiteId : null;
 }
+/** A strike site's guard ring (`site-turrets-2` … `site-vault-guard`): ground batteries on the site's own track round its core. */
+export const siteRing = (formation: string): boolean => {
+  const template = FORMATIONS[formation as FormationId];
+  return template?.entry === 'ground' && template.path === SITE_TRACK && !coreSite(formation);
+};
 
 const RANK_ORDER: Readonly<Record<FormationRank, number>> = { standard: 0, veteran: 1 };
 

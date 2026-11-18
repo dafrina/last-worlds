@@ -115,18 +115,28 @@ export function preferredX(state: RunState): number {
  * Uses the safe-gap solver on what it perceived 0.2 s ago (committed shots, marked beams, warned windups and
  * airframe paths), with the simulation's exact acceleration, braking and top speed for its own motion.
  */
-/** What the pilot perceives: every field the footprint model reads, copied so later ticks cannot alter it. */
+/**
+ * What the pilot perceives: every field the footprint model reads, copied so later ticks cannot alter it. That includes the
+ * nested state the simulation keeps changing in place: a ground battery's anchor and the muzzle its windup fires from
+ * (`ground`: the camera it is seen with moves every tick, and the muzzle is cleared when the shot leaves), a squadron's pull
+ * toward the view (`formation.drift`) and a stationary boss's hidden-pilot windup (`boss.hiddenFire`). Until 18 November
+ * these were shared with the live state, so in the 0.2 s the pilot looks late a battery that had just fired had already
+ * lost its muzzle, and the pilot placed its shot where the battery shows now, not where it fired from: over Vesper's
+ * lowered sea (VESPER_DROP) the deeper parallax turned near-misses into hits (docs/17 §4).
+ */
 function perceive(state: RunState): RunState {
   return {
     ...state,
     player: { ...state.player },
     enemies: state.enemies.map(enemy => ({ ...enemy, hunter: enemy.hunter ? { ...enemy.hunter } : undefined,
       blink: enemy.blink ? { ...enemy.blink, destination: enemy.blink.destination ? { ...enemy.blink.destination } : undefined } : undefined,
-      lock: enemy.lock ? { ...enemy.lock } : undefined })),
+      lock: enemy.lock ? { ...enemy.lock } : undefined,
+      ground: enemy.ground ? { ...enemy.ground, muzzle: enemy.ground.muzzle ? { ...enemy.ground.muzzle } : undefined } : undefined,
+      formation: enemy.formation ? { ...enemy.formation, drift: enemy.formation.drift ? { ...enemy.formation.drift } : undefined } : undefined })),
     projectiles: state.projectiles.filter(shot => !shot.friendly).map(shot => ({ ...shot })),
     hazards: state.hazards.map(hazard => ({ ...hazard })),
     pickups: [], effects: [], chargeKillTimes: [],
-    boss: state.boss ? { ...state.boss } : null,
+    boss: state.boss ? { ...state.boss, hiddenFire: state.boss.hiddenFire ? { ...state.boss.hiddenFire } : undefined } : null,
   };
 }
 

@@ -184,12 +184,9 @@ describe('endless bosses and jumps', () => {
     // Of the Fan's 12, one came from a squadron that had been pulled; most came from ground batteries.
     // Seed 5 (14 November: sites announced only when they come, boss phases 40-25-35): seed 3 took a hit with Fan; seeds 5, 8 and 10 of 1-12 clear all three.
     // Seed 4 since the Twin Pulse's wider firing envelope (docs/42): seed 5 took a hit with Pulse; of 1-12 only 4 clears all three.
-    // Seed 9 since Vesper's whole level lies 1.25 lower (18 November): on 4 a Vesper missile battery hit the Pulse and the
-    // Seeker once; of 1-12 only 9 clears all three. Over seeds 1-12, before → after: Pulse 7 → 9 hits, Fan 5 → 6, Seeker
-    // 6 → 6 (7 → 10 of them on Vesper). Seed 30 since it lies 2.5 lower (the same day): of 1-12 none clears all three (24 hits,
-    // 13 on Vesper, all from its missile batteries; tests/sim/pilots.ts `perceive` reads a battery's live muzzle, docs/17 §4);
-    // of 1-40, 30, 31 and 33 do.
-    const state = createRun({ mode: 'endless', seed: 30 });
+    // (Vesper's level lies VESPER_DROP lower since 18 November. The Vesper missile-battery hits that moved this seed that
+    // day were the pilot's own misperception, tests/sim/pilots.ts `perceive`, fixed the same day; docs/17 §4.)
+    const state = createRun({ mode: 'endless', seed: 4 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;

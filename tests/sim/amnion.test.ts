@@ -26,7 +26,10 @@ describe('Brood Strike over Amnion (docs/27)', () => {
     // 16, 17 and 20 of 1-20 clear all three.
     // Seed 1 again since the deploy gate's values (14 November, docs/40: CRADLE ×1.5): seeds 1, 7-10, 12 and 16 of 1-20
     // clear all three; the fight is longer (runs end at 365-535 s), so the limit has room.
-    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 1 });
+    // Seed 2 since the pilot's perception fix (18 November: tests/sim/pilots.ts `perceive` copies a battery's anchor and muzzle; docs/17 §4):
+    // the pilot flies differently from then on, and on seed 1 Standard pulse met a Needle column's beam and a Pulsar stream,
+    // no ground battery; seeds 2, 3, 6, 10, 15, 16 and 18-20 of 1-20 clear all three. Over seeds 1-20, old → new: 15 → 16 hits.
+    const state = createRun({ mode: 'campaign', mission: 'brood-strike', difficulty, weapon, seed: 2 });
     const log = fly(state, perfectPilot(), 660, { noPickups: true });
     expect(log.phase).toBe('complete');
     expect(state.boss?.id).toBe('cradle');

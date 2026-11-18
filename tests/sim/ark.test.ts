@@ -205,10 +205,10 @@ describe('HELION STRONGHOLD (id ark; the flying HELION ARK until 17 November)', 
     // inside a beam's reach of the ship (8 November), Standard flies 56. Since the squadron and boss pull (11 November,
     // docs/10 §4-5) Standard flies 3 (56 took one hit with the fan), which clears all three with and without the pull. Over
     // seeds 1-16 at Standard, old → new: pulse 2 → 4 hits, fan 1 → 1, seeker 2 → 3.
-    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 58 : difficulty === 'standard' ? 4 : 1 });
-    // Relaxed flies seed 1 and Standard 4 since Vesper's whole level lies 1.25 lower (18 November): its ground batteries
-    // stand deeper, and on 53 (Relaxed) and 3 (Standard) a missile battery hit the Twin Pulse once. Over seeds 53/3/58 and
-    // 1, 2, 4-6, all three weapons and difficulties, 7 of 54 runs took one hit before and 7 of 54 after.
+    const state = createRun({ mode: 'campaign', mission: 'cold-vector', weapon, difficulty, seed: difficulty === 'veteran' ? 58 : difficulty === 'standard' ? 3 : 53 });
+    // (Vesper's level lies VESPER_DROP lower since 18 November. Its missile batteries' hits on this pilot then were the
+    // pilot's own misperception, tests/sim/pilots.ts `perceive`, fixed the same day: over seeds 1-6, 53 and 58, all three
+    // weapons and difficulties, 8 of 72 runs took a hit before the fix, none after.)
     // Veteran flies seed 58 since the boss stopped moving (17 November, HELION STRONGHOLD): seeds 51-54 and 58-65 clear all
     // three without a hit; on 57 this pilot, parked right of the lanes with the Fan Cannon, never reached the far cannon (no
     // sway brings it into the fan any more), and 55, 56 and 66 take one hit with one weapon. (Before: seed 57, 14 November:

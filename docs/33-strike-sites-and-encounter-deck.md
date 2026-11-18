@@ -114,6 +114,13 @@ most likely on their worlds.
 - **The floor** is the footprint's 95th-percentile height; the core rests on it (`seatCore`), so its gameplay position is
   where its model draws it. The guards keep their authored places and timing, so the cue is exactly as fair as authored.
   What unevenness remains, the render's site pad levels (§6).
+- **A ring held in with its site** (`ringShift` in `src/sim/sites.ts`; 18 November). A camera far to the other side spreads
+  a site's authored spot past `SEAT_SEARCH.maxX` over deep ground, and the search holds the site inside the world there,
+  which can pull it into its own ring (on Vesper's sea, lowered by `VESPER_DROP`, its inner guard stood up to 0.74 inside
+  the footprint). Only when no seat in the `SEAT_SEARCH` window keeps every guard off the footprint's rim does the ring move
+  in with its site, just far enough to clear it at the best such seat and never further than the site was held in. The
+  shift depends on the ring's own anchor and tick, so the guards stand where they do with or without their core, and the
+  seat search sees them there. Everywhere else the ring keeps its authored place.
 - **Fairness.** Every site cue passes the formation fairness tests at every scale and mirror. The offline validator
   (`tests/sim/fairness-trace.ts`) treats a site's core and its own guard ring as one authored layout, so it does not
   require airspace separation between them (under the release lens, ground seats near the bottom of the view come up to

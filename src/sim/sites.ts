@@ -9,7 +9,7 @@ import { fromFlightPlane, lensEye } from '../shared/lens';
 import { keyedUnit } from '../shared/streams';
 import { groundSeat, runRoute } from '../world/run-route';
 import { worldAt } from '../world/terrain';
-import { coreSite, FORMATIONS } from '../content/formations';
+import { coreSite, FORMATIONS, siteRing, type FormationId } from '../content/formations';
 import { MATCH_ROW, lineOfSightGround, projectGround } from './ground';
 import { groundHeight, memberPosition } from './motion';
 import { observe } from './events';
@@ -110,8 +110,9 @@ function pushLoot(state: RunState, pickup: Pickup): void {
  * flattest, dry, low enough and close to the side route, and the floor level the site is built at. The core's track is
  * shifted so its line of sight lands there and the core rests on the site's floor (not the raw terrain under its centre),
  * so the model built around it and its gameplay position stay one point. The guard batteries keep exactly their authored
- * places and timing (the cue's fairness is untouched); the search only takes seats whose footprint stays clear of every
- * guard. The renderer stands the site on that floor and fills any drop under it with foundations (src/render/site-view.ts).
+ * places and timing (the cue's fairness is untouched; except a ring its site is held into at the world's edge, ringShift);
+ * the search only takes seats whose footprint stays clear of every guard. The renderer stands the site on that floor and
+ * fills any drop under it with foundations (src/render/site-view.ts).
  */
 /**
  * Search window around the authored centre on the ground: up to `inward` toward the map's centre or `outward` toward
@@ -218,13 +219,56 @@ export function guardSpots(state: RunState, site: SiteId, anchorX: number, mirro
     const template = FORMATIONS[placement.formation];
     if (template.entry !== 'ground' || coreSite(template.id)) continue;
     const guardX = anchorX + side * (placement.x ?? 0), guardMirror = placement.mirror ? -mirror as 1 | -1 : mirror;
-    template.slots.forEach((slot, index) => {
-      const at = memberPosition({ template: template.id, slot: index, anchorX: guardX, mirror: guardMirror, group: 0 }, age);
-      const ahead = at.s - MATCH_ROW, hit = lineOfSightGround(state, at.x, ahead, groundHeight(slot.kind));
-      out.push({ x: hit.at.x, s: state.distance + ahead + hit.at.s });
-    });
+    out.push(...formationSpots(state, placement.formation, guardX + ringShift(state, placement.formation, guardX, guardMirror, age), guardMirror, age).map(({ spot }) => spot));
   }
   return out;
+}
+/** Each slot's ground spot (world x, s) and its lens spread, for a ground formation anchored at `anchorX`, as anchorGround anchors it. */
+function formationSpots(state: RunState, formation: FormationId, anchorX: number, mirror: 1 | -1, age: number): { spot: GuardSpot; spread: number }[] {
+  const eye = lensEye(state.cameraX);
+  return FORMATIONS[formation].slots.map((slot, index) => {
+    const at = memberPosition({ template: formation, slot: index, anchorX, mirror, group: 0 }, age);
+    const ahead = at.s - MATCH_ROW, height = groundHeight(slot.kind), hit = lineOfSightGround(state, at.x, ahead, height);
+    return { spot: { x: hit.at.x, s: state.distance + ahead + hit.at.s }, spread: (eye.y - hit.seat.base - height) / (eye.y - VIEW.flightHeight) };
+  });
+}
+/**
+ * How far (gameplay x, toward the map's centre) a site's guard ring moves in with its site (18 November). A camera far to
+ * the other side spreads a side-route site's authored spot past SEAT_SEARCH.maxX, and the seat search holds the site inside
+ * the world there. Over deep ground that pulls it into its own ring: on Vesper's sea, lowered by VESPER_DROP, the authored
+ * spot reaches 11.1 and the inner guard stood up to 0.74 inside the footprint (24 of 192 surveyed seats on its rim). Only
+ * when no seat in the SEAT_SEARCH window keeps every guard off the rim (less than GUARD_CLEARANCE into the clearance band)
+ * does the ring move: just far enough that its inner guards clear the band at the best such seat, never further than the
+ * site was held in. Everywhere else it is 0 and the guards keep their authored places. It depends on the ring's own anchor
+ * and tick only, so the ring stands where it does whether or not its core spawns beside it (spawnMembers), and the seat
+ * search sees the guards where they stand (guardSpots).
+ */
+export function ringShift(state: RunState, formation: string, anchorX: number, mirror: 1 | -1, age: number): number {
+  if (!siteRing(formation) || Math.abs(anchorX) < SEAT_SEARCH.side) return 0;
+  const id = formation as FormationId, slot = FORMATIONS[id].slots[0];
+  // The site's authored spot, as siteSeat finds it (the ring rides the site's own track: same row, same anchor).
+  const trackS = memberPosition({ template: id, slot: 0, anchorX, mirror, group: 0 }, age).s - (slot.ds ?? 0), ahead = trackS - MATCH_ROW;
+  const nominal = lineOfSightGround(state, anchorX, ahead, SEAT_AIM).at, x0 = nominal.x, s0 = state.distance + ahead + nominal.s;
+  const out = Math.sign(x0) || 1, held = Math.abs(x0) - SEAT_SEARCH.maxX;
+  if (held <= 0) return 0;
+  // The least the ring's guards can stand inside the footprint anywhere in the seat search's window: when that is short of
+  // the rim (GUARD_CLEARANCE) the search finds a seat off them and the ring stays as authored.
+  const ring = formationSpots(state, id, anchorX, mirror, age), spots = ring.map(({ spot }) => spot), cx = out * SEAT_SEARCH.maxX;
+  let best = { intrusion: Infinity, x: cx, s: s0 };
+  for (let dx = 0; dx <= SEAT_SEARCH.inward + 1e-9; dx += .5) for (let ds = -SEAT_SEARCH.back; ds <= SEAT_SEARCH.ahead + 1e-9; ds += .5) {
+    const x = cx - out * dx, s = s0 + ds, intrusion = guardIntrusion(spots, x, s);
+    if (intrusion < best.intrusion - 1e-9) best = { intrusion, x, s };
+  }
+  if (best.intrusion < GUARD_CLEARANCE) return 0;
+  // There, the inner guards (between the site and the map's centre) move in just clear of it, never further than the site was held.
+  let need = 0, spread = 1;
+  for (const { spot, spread: k } of ring) {
+    const inS = Math.min(spot.s - best.s - (SITE_FOOTPRINT.s[0] - GUARD_CLEARANCE), SITE_FOOTPRINT.s[1] + GUARD_CLEARANCE - (spot.s - best.s));
+    const gap = out * (best.x - spot.x), inX = SITE_FOOTPRINT.x + GUARD_CLEARANCE - gap;
+    if (inS > 0 && gap >= 0 && inX > need) { need = inX; spread = k; }
+  }
+  // Ground units to gameplay units through the binding guard's own spread (exact over level ground, as on open water).
+  return -out * Math.min(need, held) / spread;
 }
 const seats = new WeakMap<RunState, { tick: number; key: string; seat: SiteSeat }>();
 /**

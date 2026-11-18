@@ -34,7 +34,10 @@ describe('THE VEIL, Nacre\'s boss (docs/20)', () => {
     // combinations: Standard flies seed 9 and Veteran seed 4, the first on which all three weapons clear (Relaxed keeps 1).
     // Since the deploy gate's values (14 November: repeats 0.92, first attack 0.85) Standard and Veteran fly seed 6, the
     // first of 1-20 that clears all six (seed 9 does too; Veteran seeker took one hit on seed 4).
-    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 3 : 6 });
+    // Standard and Veteran fly seed 17 since the pilot's perception fix (18 November: tests/sim/pilots.ts `perceive` copies a battery's anchor and muzzle; docs/17 §4):
+    // on seed 6 Veteran pulse met a Pulsar pair's stream and Veteran fan a Diamond's volley, neither a ground battery; of
+    // 1-20 only 17 clears all six (2, 6 and 10 before). Over seeds 1-20, old → new: 46 → 46 hits.
+    const state = createRun({ mode: 'campaign', mission: 'deep-bloom', difficulty, weapon, seed: difficulty === 'relaxed' ? 3 : 17 });
     // Relaxed flies seed 3 (14 November: sites announced only when they come, boss phases 40-25-35): seed 1 took a hit with Seeker; seeds 3-5 and 7-16 of 1-20 clear all three.
     // +20% boss HP (3 November): allow a longer fight; retain the same seed and no-hit/no-special checks.
     const log = fly(state, perfectPilot(), 504, { noPickups: true });

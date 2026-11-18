@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRun } from '../../src/sim/game';
 import { MATCH_ROW, lineOfSightGround } from '../../src/sim/ground';
-import { CORE_CLEARANCE, GUARD_CLEARANCE, siteDropMax, footprintGround, guardIntrusion, guardSpots, siteSeat, type SiteSeat } from '../../src/sim/sites';
+import { CORE_CLEARANCE, GUARD_CLEARANCE, siteDropMax, footprintGround, guardIntrusion, guardSpots, ringShift, siteSeat, type SiteSeat } from '../../src/sim/sites';
 import { spawnMembers } from '../../src/sim/spawn';
 import { FORMATIONS, siteCoreFormation, type FormationId } from '../../src/content/formations';
 import { SITES, SITE_CORE_HEIGHT, SITE_FOOTPRINT, SITE_X, sitePool } from '../../src/content/sites';
@@ -39,18 +39,6 @@ const WATER_BUILT: ReadonlySet<PlanetId> = new Set(['nacre', 'vesper', 'corona']
 const SPREAD_P90: Readonly<Record<PlanetId, number>> = { luna: 1.6, khepri: 2.7, vesper: 3.3, nacre: 2.1, amnion: 4.8, corona: 6.5, nahara: 7.5, umbra: 4.3 };
 /** How far into the footprint's edge a guard may stand at worst (the models keep their rim clear of structures). */
 const GUARD_RIM = .6;
-/**
- * The share of seats whose guard reaches the footprint's rim band (one in thirty). Vesper's 11%: its whole level lies 1.25
- * lower since 18 November (VESPER_DROP), and its guards' lines of sight meet the ground further from their sites' (20 of
- * 192 reach up to 0.09 into the band, deepest 0.39 against 0.27 before; none before; clear seats unchanged, 164 of 192).
- * All 20 are one case: the camera at an extreme on the far side, a vault or depot over open water at the world's edge, its
- * ring's inner guard on a pontoon. The site's authored spot lies past SEAT_SEARCH.maxX (9.80 → 10.24 deeper), the seat is
- * held at 9 and cannot move outward, and the guard's own anchor spreads 0.33 nearer (pontoons 1.25 deeper). Either fix
- * changes something seen or played: a taller pontoon deck on Vesper (0.45: none on the rim; its hull model would need to
- * grow), or seats moved off the rim toward the camera (the core ahead of its guards' ring, docs/25's loot-under-fire).
- * 12.5% since the level lies 2.5 lower (the same day): 23 of 192, deepest 0.70.
- */
-const ON_RIM: Partial<Record<PlanetId, number>> = { vesper: .125 };
 /** Corona's share of sites on rock, not afloat in the plasma (67% measured 5 November, after "lots of these corridors"). */
 const CORONA_ON_ROCK = .6;
 const quantile = (values: number[], f: number) => [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * f)];
@@ -79,7 +67,9 @@ describe('strike-site seats', () => {
     }
     // Guards keep their whole clearance band in six seats of seven, and stand on the footprint's rim in at most one in thirty.
     expect(clear / seats.length).toBeGreaterThanOrEqual(.84);
-    expect(seats.filter(({ intrusion }) => intrusion >= GUARD_CLEARANCE).length / seats.length).toBeLessThanOrEqual(ON_RIM[world] ?? .03);
+    // (Vesper's deep sea since 18 November: a site held in from beyond the world's edge brings its ring in with it,
+    // src/sim/sites.ts ringShift; 24 of 192 Vesper seats stood on the rim without it, deepest 1.04.)
+    expect(seats.filter(({ intrusion }) => intrusion >= GUARD_CLEARANCE).length / seats.length).toBeLessThanOrEqual(.03);
     // Ground poking through the floor is rare and low.
     expect(quantile(above, .9)).toBeLessThanOrEqual(.7);
     // The search does better than the authored spot at the median (unless that is already flat: Corona's side-route
@@ -128,6 +118,30 @@ describe('strike-site seats', () => {
           expect(Math.abs(core.ground!.x), `${site} ${world}`).toBeLessThanOrEqual(12 - SITE_FOOTPRINT.x + (site === 'sealed-vault' ? 1.2 : .05));
         }
       }
+    }
+  });
+
+  it('moves a ring in with a site held in from beyond the world\'s edge, where it spawns and where the seat search sees it', () => {
+    // Two of the survey's Vesper seats that stood on their rim before ringShift (18 November): the camera at the far
+    // extreme spreads a salvage yard's and a shield depot's authored spot past SEAT_SEARCH.maxX over the lowered sea.
+    for (const [seed, distance, side, site] of [[1, 280, -1, 'salvage-yard'], [4, 160, 1, 'shield-depot']] as const) {
+      const make = () => {
+        const state = createRun({ mode: 'campaign', mission: 'cold-vector', difficulty: 'standard', seed });
+        state.distance = distance; state.cameraX = -6 * side; state.enemies = [];
+        return state;
+      };
+      const state = make(), alone = make();
+      const ground = (SITES[site].guard.vesper ?? []).filter(placement => FORMATIONS[placement.formation].entry === 'ground');
+      expect(ground.some(placement => ringShift(state, placement.formation, side * SITE_X, side, 0) !== 0), `${site}: the ring moves`).toBe(true);
+      const spots = guardSpots(state, site, side * SITE_X, side, 0), first = state.nextId;
+      for (const placement of ground) spawnMembers(alone, placement.formation, side * SITE_X, side);
+      for (const formation of [...ground.map(placement => placement.formation), siteCoreFormation(site)]) spawnMembers(state, formation, side * SITE_X, side);
+      const spawned = state.enemies.filter(enemy => enemy.id >= first), guards = spawned.filter(enemy => !enemy.site), core = spawned.find(enemy => enemy.site)!;
+      // The ring stands where the seat search saw it, and where it stands without its core.
+      expect(guards.map(guard => [guard.ground!.x, state.distance + guard.ground!.s])).toEqual(spots.map(spot => [expect.closeTo(spot.x, 9), expect.closeTo(spot.s, 9)]));
+      expect(guards.map(guard => [guard.x, guard.s])).toEqual(alone.enemies.map(enemy => [enemy.x, enemy.s]));
+      // Every guard keeps off the site's footprint (short of its rim band).
+      expect(guardIntrusion(spots, core.ground!.x, state.distance + core.ground!.s), site).toBeLessThan(GUARD_CLEARANCE);
     }
   });
 

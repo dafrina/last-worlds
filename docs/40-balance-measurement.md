@@ -22,9 +22,13 @@ the game enforces them, and Relaxed and Veteran use the same ones.
 ## The pilots
 
 - **Perfect:** the exact safe-gap solver on what it saw 0.2 s ago, with the ship's real acceleration, braking and top
-  speed. It never teleports, never reads future random events and is never immune. It treats a closed Relic Shield as a
-  resistant target and shoots something softer meanwhile. With `pickupSeeker` it steers for a power cell, or a shield cell
-  when its shields are not full, but only one it can still intercept safely.
+  speed. What it saw is a full copy of that moment (`perceive`): since 18 November that includes a ground battery's anchor
+  and the muzzle its windup fires from, a squadron's pull toward the view and a stationary boss's hidden-pilot windup,
+  which the simulation changes in place and the pilot used to read live (a battery that had just fired had already lost
+  its muzzle, so the pilot placed the shot where the battery shows now; docs/17 §4). It never teleports, never reads
+  future random events and is never immune. It treats a closed Relic Shield as a resistant target and shoots something
+  softer meanwhile. With `pickupSeeker` it steers for a power cell, or a shield cell when its shields are not full, but
+  only one it can still intercept safely.
 - **Pacifist** (fairness): the perfect pilot with every friendly shot removed (`fly` with `noFire`), so every pattern is
   flown in full. Its hits measure the pilot, not the content: they are reported, not asserted.
 - **Skilled** (`skilledPilot`, measurement only): the same planner with human limits (a slower reaction, a shorter look
@@ -108,7 +112,11 @@ To watch a pilot fly, or record one to video: [docs/41](41-autopilot-and-recordi
 ## Open
 
 - **The pilot's gap:** fast aimed ground shots met while steering toward their battery (the pacifist's hits); probably
-  the pending-attack footprint misses where the shot actually lands. Not confirmed.
+  the pending-attack footprint misses where the shot actually lands. Not confirmed. Part of it was the pilot's own
+  misperception of a battery's muzzle, fixed 18 November (above). Khepri's turrets still score most of the endless perfect
+  pilot's hits in sectors 1–8 (12 of 16 over seeds 1–12 after the fix), and the fix moved Khepri's counts up a little
+  where it changed the pilot's paths (Rolling Thunder at Level 2, all weapons, seeds 1–5: 2 → 5 hits in 20 runs; the
+  whole campaign 16 → 14, Cold Vector 3 → 0).
 - **Director rejections** (`retryDelay` retries) are not counted per mission yet.
 - **Endless with the skilled pilot:** natural progression with life losses and tier drops is not measured.
 - **Endless progression pace:** Level 5 by about sector 8 for a perfect collector; a sector-scaled cell rate was proposed

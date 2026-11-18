@@ -4,7 +4,7 @@ import { SITES, SITE_CORE_HEIGHT } from '../content/sites';
 import { VIEW, type FormationMember, type RunState } from '../shared/contracts';
 import { groundHeight, memberPosition } from './motion';
 import { anchorGround } from './ground';
-import { SEAT_SEARCH, guardSpots, seatCore, seatTrack, siteSeat, type SiteSeat } from './sites';
+import { SEAT_SEARCH, guardSpots, ringShift, seatCore, seatTrack, siteSeat, type SiteSeat } from './sites';
 
 export function runScale(state: RunState): DifficultyScale {
   return missionScales(state.config, state.sector);
@@ -34,8 +34,10 @@ export function spawnMembers(state: RunState, formation: FormationId, anchorX: n
   const site = coreSite(template.id), core = site ? SITES[site].core : null;
   // A strike site's core (harmless: it never fires) stands on the even dry seat found near its authored place, clear of
   // its cue's guards (src/sim/sites.ts), its track shifted onto it; the site is drawn around it. The guards keep their
-  // authored place and timing, so the cue's fairness is exactly as authored.
+  // authored place and timing, so the cue's fairness is exactly as authored, unless a ring's site is held in from beyond
+  // the world's edge onto it: that ring moves in just clear of it (src/sim/sites.ts ringShift; otherwise 0).
   let seat: SiteSeat | null = null;
+  anchorX += ringShift(state, template.id, anchorX, mirror, age);
   if (site && template.entry === 'ground' && Math.abs(anchorX) >= SEAT_SEARCH.side) {
     const trackS = memberPosition({ template: template.id, slot: 0, anchorX, mirror, group }, age).s - (template.slots[0].ds ?? 0);
     seat = siteSeat(state, anchorX, trackS, guardSpots(state, site, anchorX, mirror, age), SITE_CORE_HEIGHT[site]);
