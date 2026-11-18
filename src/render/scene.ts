@@ -266,8 +266,8 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
     post: { exposure: 1, threshold: 1.4, knee: .25, strength: .38, lift: [.0025, .0045, .0085], saturation: .9, contrast: 1.08, vignette: .16,
       haze: [.82, .9, .98, .155],
       // The user's playground fog (23 October): a pale low mist over the sea and down the cliffs, the shelves clear. (Its
-      // heights follow Vesper's level down, 1.25 since 18 November: VESPER_DROP.)
-      fog: { color: 0xc4d8ea, energy: 1.09, height: [-3.55, -10.3, .24], distance: [40.5, .041, .12] } },
+      // heights follow Vesper's level down, 2.5 since 18 November: VESPER_DROP.)
+      fog: { color: 0xc4d8ea, energy: 1.09, height: [-4.8, -11.55, .24], distance: [40.5, .041, .12] } },
     environment: 'ice',
   },
   // Luna, Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and

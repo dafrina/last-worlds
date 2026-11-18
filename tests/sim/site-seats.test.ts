@@ -48,8 +48,9 @@ const GUARD_RIM = .6;
  * held at 9 and cannot move outward, and the guard's own anchor spreads 0.33 nearer (pontoons 1.25 deeper). Either fix
  * changes something seen or played: a taller pontoon deck on Vesper (0.45: none on the rim; its hull model would need to
  * grow), or seats moved off the rim toward the camera (the core ahead of its guards' ring, docs/25's loot-under-fire).
+ * 12.5% since the level lies 2.5 lower (the same day): 23 of 192, deepest 0.70.
  */
-const ON_RIM: Partial<Record<PlanetId, number>> = { vesper: .11 };
+const ON_RIM: Partial<Record<PlanetId, number>> = { vesper: .125 };
 /** Corona's share of sites on rock, not afloat in the plasma (67% measured 5 November, after "lots of these corridors"). */
 const CORONA_ON_ROCK = .6;
 const quantile = (values: number[], f: number) => [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * f)];

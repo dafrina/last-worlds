@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VIEW } from '../../src/shared/contracts';
 import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
-import { STRONGHOLD_LEDGE, STRONGHOLD_SCALE, VESPER_PIECE_MAX, VESPER_SCENERY_MAX, strongholdClear, strongholdGround, strongholdReach, vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
+import { STRONGHOLD_BUILT_SEA, STRONGHOLD_LEDGE, STRONGHOLD_SCALE, STRONGHOLD_SLIDE, VESPER_PIECE_MAX, VESPER_SCENERY_MAX, strongholdClear, strongholdGround, strongholdReach, vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
 import { lensEye } from '../../src/shared/lens';
 import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from '../../src/world/stronghold-seat';
 import { endlessSectorPlan } from '../../src/content/endless';
@@ -254,7 +254,7 @@ describe('Vesper generator (docs/17 §4)', () => {
       return code === undefined || code === 46 || Number.isNaN(code) ? NaN : (code - 48) / 10 - 4;
     };
     const eye = lensEye(0), K = STRONGHOLD_SCALE, eyeA = 9 + eye.s;
-    const lift = (x: number, a: number, h = 0) => ({ x: K * x, a: eyeA + K * (a - eyeA), h: eye.y + K * (h - eye.y) });
+    const lift = (x: number, a: number, h = 0) => ({ x: K * x, a: eyeA + K * (a - eyeA) + STRONGHOLD_SLIDE, h: eye.y + K * (h - eye.y) });
     for (const seed of [93, 8831, 11]) {
       let land = 0, wet = 0, nearWet = 0, pressed = 0, varied = 0, corridorHigh = -Infinity, beyond = -Infinity, peaks = -Infinity, lanes = -Infinity;
       const heights: number[] = [];
@@ -263,7 +263,7 @@ describe('Vesper generator (docs/17 §4)', () => {
         // The play area keeps under the scenery cap, 0.8 under the flight plane; the ground under the fight's lanes before
         // the fortress stays low, the tall peaks stand beside and behind it.
         expect(h, `${x}, ${a}`).toBeLessThanOrEqual(VESPER_SCENERY_MAX);
-        if (a > -12 && a < 20 && Math.abs(x) < 7) lanes = Math.max(lanes, h);
+        if (a > -12 && a < STRONGHOLD_LEDGE.front - 5 && Math.abs(x) < 7) lanes = Math.max(lanes, h);
         if (a > 22 && a < 42 && Math.abs(x) > 7) peaks = Math.max(peaks, h);
         if (Number.isNaN(top(x, a))) {
           if (h < SEA) { wet++; if (a > 18 && a < 34 && Math.abs(x) < 9) nearWet++; } else land++;
@@ -296,7 +296,7 @@ describe('Vesper generator (docs/17 §4)', () => {
       // the cut faces).
       for (let a = SEAT_A; a < SEAT_A + SEAT_ROWS.length * SEAT_STEP; a += SEAT_STEP) for (let x = -SEAT_X; x <= SEAT_X; x += SEAT_STEP) {
         const t = top(x, a), rear = a > 29.5 || (a > 27.7 && Math.abs(x) > 3.6), p = lift(x, a, t);
-        if (!Number.isNaN(t)) { if (!rear) expect(at(seed, p.x, p.a), `${x}, ${a}`).toBeLessThan(Math.max(p.h - 0.05, lift(0, 0, SEA + 0.2).h)); continue; }
+        if (!Number.isNaN(t)) { if (!rear) expect(at(seed, p.x, p.a), `${x}, ${a}`).toBeLessThan(Math.max(p.h - 0.05, lift(0, 0, STRONGHOLD_BUILT_SEA + 0.2).h)); continue; }
         const near = [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([i, j]) => top(x + i * SEAT_STEP, a + j * SEAT_STEP)).filter(h => !Number.isNaN(h));
         if (near.length && Math.abs(x) > 6) expect(at(seed, p.x, p.a), `${x}, ${a}`).toBeGreaterThan(lift(0, 0, Math.max(...near)).h - 0.05);
       }
@@ -315,7 +315,7 @@ describe('Vesper generator (docs/17 §4)', () => {
           const hold = strongholdGround(arena, seed, piece.x, piece.s)!;
           if (piece.kind === 'iceWall') expect(hold.massif < 0.05 && strongholdClear(arena, piece.x, piece.s, 2), where).toBe(true);
           const a = piece.s - arena.fromS;
-          if (piece.kind === 'outcrop' && a > 20 && a < 34 && Math.abs(piece.x) < 9) rocks++;
+          if (piece.kind === 'outcrop' && a > 17 && a < 32 && Math.abs(piece.x) < 9) rocks++;
         }
         // (Its own works aside: src/world/stronghold-works.ts.)
         for (const prop of section.props) expect(inside(prop.s) && prop.group !== 'stronghold:works', prop.id).toBe(false);
@@ -358,11 +358,12 @@ describe('Vesper generator (docs/17 §4)', () => {
           expect(piece.s < arena.fromS + STRONGHOLD_LEDGE.front - 0.3 || Math.abs(piece.x) > STRONGHOLD_LEDGE.half + 0.3, piece.id).toBe(true);
         }
       }
-      expect(works, `${seed}`).toBeGreaterThan(24);
+      expect(works, `${seed}`).toBeGreaterThan(12);
     }
-    // The ledge's reach is the arena's own: right below the fortress for some seeds and arenas, past mid-screen for others.
+    // The ledge's reach is the arena's own, short (user, 18 November: "i also like seed 4 best, maybe we should limit it to
+    // shorter cliffes"): right below the fortress for some seeds and arenas, a couple of units out for others.
     const reaches = Array.from({ length: 40 }, (_, seed) => strongholdReach(arena, seed + 1, 0));
-    expect(Math.min(...reaches)).toBeLessThan(1.5); expect(Math.max(...reaches)).toBeGreaterThan(6);
+    expect(Math.min(...reaches)).toBeLessThan(0.8); expect(Math.max(...reaches)).toBeGreaterThan(1.8); expect(Math.max(...reaches)).toBeLessThan(3.2);
   }, 180_000);
 
   it('builds the stronghold\'s mountains deterministically, streamed as generated, and on the endless Vesper boss stop too', () => {

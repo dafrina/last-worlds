@@ -79,15 +79,16 @@ packed-snow tracks with tread ruts. Khepri's own buildings are not reused on Ves
 The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
 
 - **Sea and shelves.** The sea stands at `VESPER_SEA_LEVEL` (lowered in terrain version 16 so the ice walls are as tall
-  as Khepri's canyons; user, 21 October). Since 18 November the whole level lies `VESPER_DROP` (1.25, five grid steps)
-  lower, sea, ice, outposts and pieces alike (user: "Could we lower the vesper sea and current terrain to have more room to
+  as Khepri's canyons; user, 21 October). Since 18 November the whole level lies `VESPER_DROP` (2.5, ten grid steps;
+  1.25 earlier that day) lower, sea, ice, outposts and pieces alike (user: "Could we lower the vesper sea and current terrain to have more room to
   scale the mountains?", as Amnion's 1.2 on 23 October): the relief is built in its first frame and lowered as a whole,
   the pieces' and outposts' cap is `VESPER_PIECE_MAX` (the scenery cap less the drop), and the renderer's Vesper fog and
   ice-wall shading follow it down. `VESPER_SCENERY_MAX` (3.0) stays the cap over Vesper, which HELION STRONGHOLD's peaks
   reach. Ground batteries and strike sites seat themselves on the lowered ground through the lens (docs/05), so they stand
   deeper and their lines of sight meet the ground a little further from their tracks: over seeds 1–12 the endless perfect
-  pilot takes 21 hits in sectors 1–8 against 18 before (10 on Vesper against 7); 20 of 192 Vesper strike sites have a guard
-  reaching up to 0.09 into the clearance band (none before; tests/sim/site-seats.test.ts allows 11% on Vesper). Their causes
+  pilot takes 24 hits in sectors 1–8 at 2.5 lower, 21 at 1.25 and 18 before (13, 10 and 7 on Vesper, all from its missile
+  batteries); 23 of 192 Vesper strike sites have a guard in the clearance band at 2.5 lower (deepest 0.70), 20 at 1.25 and
+  none before (tests/sim/site-seats.test.ts allows 12.5% on Vesper). Their causes
   (found 18 November): the game stays consistent (shots leave from the battery's fixed muzzle); the test pilot
   (tests/sim/pilots.ts `perceive`) copies each enemy shallowly, so in the 0.2 s it looks late a battery's live muzzle is
   already cleared and it places the missile where the battery shows now, not where it launched; deeper ground's parallax
@@ -136,7 +137,15 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
     ranges beyond the edges rise to 6.5 by the fortress; ground there never hides the flight plane). Where the tall peaks
     end and where the massifs come down wanders along x. Its colour (tone over 1, `massifColor`): dark blue-grey stone on
     the steep faces, snow on the shoulders and dusted in streaks over the stone; crags on its ledges;
-  - the fortress stands at the head of the corridor on a ledge (user, 18 November: "maybe have it sit on a middle layer,
+  - the fortress stands at the head of the corridor on a ledge, short since the same day ("i also like seed 4 best, maybe
+    we should limit it to shorter cliffes, but make them more varied, jagged, maybe a second or third layer too": the ledge
+    runs out 0.35–2.25 before the fortress, `strongholdReach`, then steps down in one to three broken drops with narrow
+    tiers between them at the arena's own heights and offsets, `strongholdSteps`, sheer faces with an overhanging lip,
+    buttresses and gullies) and set into its mountain ("the fort looks not to be set into the mountain enough. The cliffs
+    are like cut off, not a steep slope where the fortress is set into": beside its rear two thirds and behind it the
+    mountainside climbs straight from the model's edges, steep and rough, over its rear and upper flanks, to the mountain's
+    ridged top; the ground round its front still meets its edges and climbs as a slope, never a wall standing off it). It
+    began (user, 18 November: "maybe have it sit on a middle layer,
     where theres cliff as now behind and sideways of is as now, but also a cliff and mountain walls layer below it in
     front", then "maybe dont make it a hard rule to have cliffs right in front of the fortress, but make it so it can also
     appear mid screen"): the ledge lies at the model's foot, 2 over the sea (`STRONGHOLD_LIFT`, below), and runs out before
@@ -158,11 +167,12 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
     Terrain streaming was never the cause: the section window always holds 36 units past the scroll, more than the lens
     sees.) The departure is not auto-centred (the ship steers throughout), so the cap over the play area holds in it too;
   - its works (user, 18 November: "maybe also have pipes running to and from it horizontally and connected
-    infrastructure up front"; `src/world/stronghold-works.ts`): a pumping station on dry low ground before each side of the
-    cliff (a processing hall, tanks, a comm mast; the shared kit and Vesper's infrastructure kit), a large pipeline from
-    each in to the cliff's foot, up the cliff to the ledge, along a long ledge to the fortress and out along its front
-    into the side mountain's rock. They follow the ledge wherever its edge falls; decorative, under the pieces' cap; they
-    add about 7 draw calls while in view (their nodes' batches) and a few thousand triangles.
+    infrastructure up front", then "dont use more than one pipeline tho, connect them properly"; `src/world/stronghold-works.ts`):
+    one pumping station on dry low ground before the cliff (a processing hall, tanks, a comm mast; the shared kit and
+    Vesper's infrastructure kit) and one large pipeline, continuous from inside the hall in to the cliff's foot, up the tiers
+    in one penstock on towers, along the ledge and out along the fortress's front into the mountain's rock (failing rock,
+    down into the ledge); its side is the arena's own. It follows the ledge and tiers; decorative, under the caps; about 7
+    draw calls while in view and a few thousand triangles.
 
 ## 5. Cold Vector and HELION STRONGHOLD
 
@@ -296,10 +306,18 @@ the chamber and reactor are vertex coloured.
 arena's start (`src/world/terrain-vesper.ts`), its foot on its ledge, before, during and after its fight (intact, then a
 wreck), as THE CITADEL. Since 18 November the model as built (its foot at the sea, `STRONGHOLD_BUILT_AT` 23.652) is
 lifted 2 onto the ledge by scaling it about the release lens's eye at the stop with the camera centred (`STRONGHOLD_LIFT`,
-`STRONGHOLD_SCALE` 0.958, `STRONGHOLD_AT` 22.176): every point keeps its line of sight, so with the camera centred it fills
+`STRONGHOLD_SCALE` 0.958; its built frame keeps its sea at −4.85, `STRONGHOLD_BUILT_SEA`): every point keeps its line of
+sight, so with the camera centred it fills
 the same pixels (no change of its size on screen) and its weak points stay on their targets; its top (the bridge) stands
 at 3.34, under the flight plane, and the terrace guns' heights follow (−6.96 → −5.03). The seat table and the plan stay
-in the built frame; the terrain converts. Its scenery exclusion ends at its plinth, so its works show before it. Target rings and brackets are drawn on the flight plane at the targets. A cannon charging its
+in the built frame; the terrain converts. Its scenery exclusion ends at its plinth, so its works show before it. Then
+moved down the screen (user, 18 November: "really move the stronghold further down the screen, its so high up"): its row
+9 → 8.1 and the lifted model slid 1.02 toward the camera (`STRONGHOLD_SLIDE`, `STRONGHOLD_AT` 21.15), the reactor's aim
+exactly on its moved target, the cannons 0.03 short of theirs. 8.1 is the lowest its Needle launch waves allow: they fire
+4.5 before the row and must stay 3.5 before the player's (tests/sim/fairness.test.ts; at 6.5 they fired 2 before it). Its
+attacks' times to the player's row, Cold Vector perfect pilot, median row 9 → 8.1: Relaxed 1.68 → 1.55 s, Standard
+1.43 → 1.32, Veteran 1.37 → 1.25; endless sectors 26–28 min 1.02 → 0.98, median 1.15 → 1.15; no fairness violations, no
+boss hits on the perfect pilot, the dodger's unchanged but Standard 2 → 3. Target rings and brackets are drawn on the flight plane at the targets. A cannon charging its
 lane glows (its housing's lining and its muzzle), fires with a muzzle flash and smoke, recoils into its housing and
 vents steam from the roof; lanes from live cannons start at their muzzles (`beamTop`). Bursts leave the reactor's door
 with a flash. The door's leaves part over 0.9 s as the reactor opens; the reactor pulses in its overload. Needles leave

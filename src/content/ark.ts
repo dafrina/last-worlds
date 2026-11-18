@@ -13,13 +13,15 @@ export const HELION_ARK = {
   /** Its arrival is its awakening (src/render/stronghold-view.ts): it already stands in its mountain as the scroll stops. */
   arrivalDuration: 3.5,
   /** It never moves (BossDefinition.stationary, 17 November): it starts at its row (the Ark glided in from 26). */
-  entryS: 9,
+  entryS: 8.1,
   /**
-   * Its pivot row: the cannons at s 11.97, the reactor at s 10.6. (User, 17 November: "the stronghold should move down a
+   * Its pivot row: the cannons at s 11.07, the reactor at s 9.7. (User, 17 November: "the stronghold should move down a
    * bit too ... currently its anchored to the top of screen"; 11.5 before, the cannons at 14.47 and the reactor at 13.1.
-   * THE CITADEL's flanks stand at about 9.75 and its crown at 11.85.)
+   * Then 18 November: "really move the stronghold further down the screen, its so high up"; 9 before, the cannons at
+   * 11.97 and the reactor at 10.6; 8.1 is the lowest its Needle launch waves allow, which fire 4.5 before the row and must
+   * stay 3.5 before the player's. THE CITADEL's flanks stand at about 9.75 and its crown at 11.85.)
    */
-  row: 9,
+  row: 8.1,
   targetHeight: 1.6,
   radiatorHp: 600,
   bridgeHp: 1800,
@@ -53,9 +55,10 @@ export const HELION_ARK = {
    * with the camera centred, relative to the pivot (x, s), and its height relative to the flight plane: the simulation
    * projects it through the lens for the camera of the moment, as it does a ground battery. One volley of the bridge's aimed
    * burst every `interval` seconds while the pilot stays hidden. (Height −6.96 until the fortress was lifted onto its ledge,
-   * 18 November: the lift keeps every line of sight, so only the height changed, src/world/terrain-vesper.ts STRONGHOLD_LIFT.)
+   * 18 November: the lift keeps every line of sight, so only the height changed, src/world/terrain-vesper.ts STRONGHOLD_LIFT;
+   * moved down with row 8.1 their points come 0.01 nearer the pivot, STRONGHOLD_SLIDE.)
    */
-  terraceGuns: { points: [{ x: -4.61, s: 1.96, height: -5.03 }, { x: 4.56, s: 1.12, height: -5.03 }], interval: 2.6 },
+  terraceGuns: { points: [{ x: -4.61, s: 1.95, height: -5.03 }, { x: 4.56, s: 1.11, height: -5.03 }], interval: 2.6 },
   /** Finite Needle launches during the bridge phase: waves of two, one from each bay. */
   launches: { waves: 3, firstAfter: 2.5, interval: 7 },
   /**

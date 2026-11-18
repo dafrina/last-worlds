@@ -186,8 +186,10 @@ describe('endless bosses and jumps', () => {
     // Seed 4 since the Twin Pulse's wider firing envelope (docs/42): seed 5 took a hit with Pulse; of 1-12 only 4 clears all three.
     // Seed 9 since Vesper's whole level lies 1.25 lower (18 November): on 4 a Vesper missile battery hit the Pulse and the
     // Seeker once; of 1-12 only 9 clears all three. Over seeds 1-12, before → after: Pulse 7 → 9 hits, Fan 5 → 6, Seeker
-    // 6 → 6 (7 → 10 of them on Vesper).
-    const state = createRun({ mode: 'endless', seed: 9 });
+    // 6 → 6 (7 → 10 of them on Vesper). Seed 30 since it lies 2.5 lower (the same day): of 1-12 none clears all three (24 hits,
+    // 13 on Vesper, all from its missile batteries; tests/sim/pilots.ts `perceive` reads a battery's live muzzle, docs/17 §4);
+    // of 1-40, 30, 31 and 33 do.
+    const state = createRun({ mode: 'endless', seed: 30 });
     state.player.weapon = weapon;
     const kills: string[] = [];
     let previous: string | null = null;

@@ -7,7 +7,7 @@ import { createRun } from '../../src/sim/game';
 import { startBoss } from '../../src/sim/boss';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { STRONGHOLD_FOOTPRINT, createStrongholdView } from '../../src/render/stronghold-view';
-import { STRONGHOLD_AT, STRONGHOLD_BASE, STRONGHOLD_BUILT_AT, STRONGHOLD_SCALE, VESPER_SEA_LEVEL } from '../../src/world/terrain-vesper';
+import { STRONGHOLD_AT, STRONGHOLD_BASE, STRONGHOLD_BUILT_AT, STRONGHOLD_BUILT_SEA, STRONGHOLD_SCALE } from '../../src/world/terrain-vesper';
 import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from '../../src/world/stronghold-seat';
 import { terrainHeight } from '../../src/world/terrain';
 import { asset, stubGltfDecoding } from '../helpers/assets';
@@ -48,7 +48,7 @@ describe('HELION STRONGHOLD placement', () => {
     // Lifted onto its ledge it stays under the flight plane: its top (the bridge) 0.4 under it, its foot on the ledge.
     const box = new THREE.Box3().setFromObject(model);
     expect(STRONGHOLD_BASE + K * box.max.y).toBeLessThan(VIEW.flightHeight - 0.4);
-    expect(STRONGHOLD_BASE).toBeCloseTo(VESPER_SEA_LEVEL + 2, 9);
+    expect(STRONGHOLD_BASE).toBeCloseTo(STRONGHOLD_BUILT_SEA + 2, 9);
   });
 
   it('fits the ground to the model\'s measured top (src/world/stronghold-seat.ts holds the model as built, its foot at the sea)', async () => {
@@ -62,7 +62,7 @@ describe('HELION STRONGHOLD placement', () => {
       for (let i = 0; i < row.length; i++) {
         ray.set(new THREE.Vector3(-SEAT_X + i * SEAT_STEP, 30, STRONGHOLD_BUILT_AT - (SEAT_A + j * SEAT_STEP)), new THREE.Vector3(0, -1, 0));
         const hit = ray.intersectObjects(meshes, false)[0];
-        const measured = hit ? String.fromCharCode(48 + Math.round((VESPER_SEA_LEVEL + hit.point.y + 4) * 10)) : '.';
+        const measured = hit ? String.fromCharCode(48 + Math.round((STRONGHOLD_BUILT_SEA + hit.point.y + 4) * 10)) : '.';
         if (measured !== row[i]) differ++;
       }
     });

@@ -39,7 +39,7 @@ test('HELION STRONGHOLD stands in its mountain, fights through its phases withou
   expect((await snapshot(page)).boss).toBeNull();
   await hooks('advance', 9);
   let state = await snapshot(page);
-  expect(state.boss).toMatchObject({ id: 'ark', phase: 'batteries', x: 0, s: 9 });
+  expect(state.boss).toMatchObject({ id: 'ark', phase: 'batteries', x: 0, s: 8.1 });
   for (const [move, phase] of [['killFlanks', 'core'], ['bossOverload', 'overload'], ['killBoss', 'destroyed']] as const) {
     await hooks(move); await hooks('advance', 1.5);
     state = await snapshot(page);
