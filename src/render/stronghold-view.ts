@@ -111,12 +111,97 @@ interface Rig {
   dispose(): void;
 }
 
+/**
+ * The fortress's surfaces against its mountain and Vesper's facilities (18 November, later: "the things that are same should
+ * also stay same"; "Just use the same textures and materials as the cliffs and terrain"; then "now it just all looks snowy,
+ * we should bring back some spots that read more like the facilities and infra we have, it looks so dirty we could clean up
+ * the textures a bit"). The atlas only says what each texel is (measured: its snow light and blue-tinted, sRGB over about
+ * 140 with blue 15-30 over red; its panels neutral mid-greys; its steel dark):
+ * - its snow is the open ground's (Vesper's snow at SNOW_TRIM, with its dust tint), read from a blurred mip of the atlas so
+ *   its streaks and specks are gone; matte, under the ground's faint environment light;
+ * - its panels and steel are clean facility metal, as the Vesper infra models (a cool grey from the texel's own
+ *   luminance, the panel lines kept, the grime softened by the same blur; metallic and fairly glossy, as the infra's 0.45
+ *   and 0.35);
+ * - snow lies on its rock (flat, plain dark texels, not the detailed panels and machinery) where the fortress meets its
+ *   mountain: along its foot, its outer edges and back, and on its rock's tops (user: "now its too much gray ... recolor the
+ *   parts that are rocky etc to be more snowy, especially on the edges of the model where its close to the terrain so it
+ *   blends in better"), its middle staying facility metal;
+ * - warm texels, its orange heat lines and lamps, keep their own colour; glow materials are left alone.
+ * (Until then its steel took the cliff walls' ice, whose lit pale blue-white made the whole fortress read as snow; before
+ * that, the atlas's own colours, which kept most of its snow blue-white.)
+ */
+/** The fortress's seat (its origin in the world, its scale) for the regrade's edges: one uniform for all its materials. */
+const HOLD_SEAT = { value: new THREE.Vector4(0, 0, 0, 1) };
+function regradeToMountain(material: THREE.MeshStandardMaterial) {
+  if (!material.map || /glow/i.test(material.name)) return;
+  material.metalness = 1; material.metalnessMap = null; material.roughness = 1; material.roughnessMap = null; material.envMapIntensity = .9;
+  material.onBeforeCompile = shader => {
+    shader.uniforms.holdSeat = HOLD_SEAT;
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vHoldWorld;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\n  vHoldWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
+#define SNOW_TRIM vec3( 0.72, 0.69, 0.62 )
+varying vec3 vHoldWorld; uniform vec4 holdSeat;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  vec3 holdTexel = diffuseColor.rgb, holdSoft = texture2D( map, vMapUv, 3.0 ).rgb;
+  float holdL = dot( holdTexel, vec3( 0.2126, 0.7152, 0.0722 ) ), holdSoftL = dot( holdSoft, vec3( 0.2126, 0.7152, 0.0722 ) );
+  // (Snow: light and blue-tinted, from the blurred atlas so a streak inside it stays snow; warm: the heat lines.)
+  float holdSnow = smoothstep( 0.2, 0.3, holdSoftL ) * smoothstep( 0.012, 0.035, holdSoft.b - holdSoft.r );
+  float holdKeep = smoothstep( 0.08, 0.2, holdTexel.r - holdTexel.b ) * ( 1.0 - holdSnow );
+  // Clean facility metal: the panel lines kept at half their contrast about the blurred texel, a cool grey lifted from it.
+  float holdMetalL = mix( holdSoftL, holdL, 0.5 );
+  vec3 holdMetal = ( 0.05 + holdMetalL * 1.5 ) * vec3( 0.93, 0.97, 1.05 );
+  // (Times the ratio measured on screen between the ground's snow and the model's at that albedo, 1.13, 1.24, 1.37 in
+  // linear light: the ground's own shader adds a cool tint and lift a model's material has not.)
+  vec3 holdSnowColor = vec3( 0.815, 0.855, 0.896 ) * SNOW_TRIM * vec3( 0.9, 0.94, 0.99 ) * vec3( 1.13, 1.24, 1.37 ) * mix( 0.93, 1.0, smoothstep( 0.25, 0.5, holdSoftL ) );
+  // Its rock: flat (little detail about the blurred texel) and not light (the snow) nor warm.
+  float holdRock = ( 1.0 - smoothstep( 0.12, 0.35, length( holdTexel - holdSoft ) / ( holdSoftL + 0.04 ) ) ) * ( 1.0 - holdKeep ) * ( 1.0 - holdSnow );
+  // Where it meets its mountain (model frame: x across, y up from its foot, z toward the player): its foot, its outer sides,
+  // its back.
+  vec3 holdAt = ( vHoldWorld - holdSeat.xyz ) / holdSeat.w;
+  // (Its front only low down, on the terrace's skirt along the ledge: never on the cannons over it.)
+  float holdMeet = max( max( 1.0 - smoothstep( 0.6, 1.6, holdAt.y ), smoothstep( 4.6, 6.0, abs( holdAt.x ) ) ),
+    max( smoothstep( 5.2, 6.6, -holdAt.z ), smoothstep( -1.2, -0.2, holdAt.z ) * ( 1.0 - smoothstep( 1.6, 2.3, holdAt.y ) ) ) );
+  diffuseColor.rgb = mix( mix( holdMetal, holdSnowColor, holdSnow ), holdTexel, holdKeep );`)
+      // (Snow on its rock: where it meets the mountain, and on the rock's tops anywhere; set once the normal is known.)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  float holdUp = smoothstep( 0.45, 0.8, inverseTransformDirection( normal, viewMatrix ).y );
+  // (Where it meets its mountain its detailed parts take snow too: there the rock's flatness alone left its skirt grey.)
+  // (Full snow there: blended with the metal it measured grey beside the ground's snow.)
+  float holdDust = max( holdRock * holdUp * 0.85, holdMeet * mix( 0.85, 1.0, holdRock ) * ( 1.0 - holdKeep ) );
+  // (One crisp decision, snow or metal, with its roughness and metalness from it: partial weights mixed a grey, part-metallic
+  // snow that measured darker and greyer than the ground's.)
+  holdSnow = smoothstep( 0.25, 0.6, max( holdSnow, holdDust ) );
+  diffuseColor.rgb = mix( mix( holdMetal, holdSnowColor, holdSnow ), holdTexel, holdKeep );
+  roughnessFactor = mix( 0.38, 1.0, max( holdSnow, holdKeep ) ); metalnessFactor = 0.45 * ( 1.0 - holdSnow ) * ( 1.0 - holdKeep );`)
+
+      // (The snow takes the ground's environment light, 0.18 of the infra's 0.9.)
+      .replace('#include <lights_fragment_maps>', `#include <lights_fragment_maps>
+  #if defined( RE_IndirectDiffuse ) && defined( USE_ENVMAP )
+    iblIrradiance *= mix( 1.0, 0.2, holdSnow );
+  #endif
+  #if defined( RE_IndirectSpecular ) && defined( USE_ENVMAP )
+    radiance *= mix( 1.0, 0.2, holdSnow );
+  #endif`);
+  };
+  material.customProgramCacheKey = () => 'stronghold-regrade';
+  material.needsUpdate = true;
+}
+
 function modelRig(model: THREE.Group): Rig {
   model.updateMatrixWorld(true);
   const node = (name: string) => model.getObjectByName(P + name) ?? null;
   const materials = retainBossMaterials(model, P, name => name.startsWith(P + 'core') ? 'core'
     : name.endsWith('_left') || name.endsWith('_left_wreck') ? 'left' : name.endsWith('_right') || name.endsWith('_right_wreck') ? 'right' : null);
   const fallback = new THREE.MeshStandardMaterial({ color: 0x140804, emissive: 0xff7a26, emissiveIntensity: 1.2, toneMapped: false });
+  const regraded = new Set<THREE.Material>();
+  model.traverse(object => {
+    if (!(object instanceof THREE.Mesh) || object.name.endsWith('_wreck') || object.parent?.name.endsWith('_wreck')) return;
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      if (regraded.has(material) || !(material instanceof THREE.MeshStandardMaterial)) continue;
+      regraded.add(material); regradeToMountain(material);
+    }
+  });
   const guns = new Map<'left' | 'right', Gun>();
   for (const side of ['left', 'right'] as const) {
     const live = node(`cannon_${side}`);
@@ -293,8 +378,17 @@ export function createStrongholdView(scene: THREE.Scene) {
       }
       // (Scaled onto its ledge about the lens's eye: every point keeps its line of sight. src/world/terrain-vesper.ts.)
       root.position.set(placement.x ?? 0, placement.baseHeight, -placement.s); root.scale.setScalar(STRONGHOLD_SCALE); root.updateMatrixWorld(true);
+      HOLD_SEAT.value.set(root.position.x, root.position.y, root.position.z, STRONGHOLD_SCALE);
       if (!boss) {
         // Standing: dormant before the fight (its cannons stowed), a dead wreck after it.
+        // (No fight is on, so the next one starts afresh: a run's fight begins at the same time as the last run's, the scroll
+        // and its stop being fixed, so keyed by its start alone it kept the last fight's state, its cannons' last shots in
+        // the future; that recoil threw a cannon off the bottom of the screen until the clock caught up, 19 November:
+        // "the right cannon didnt render ... then when the fight started it flew in from bottom screen into the place".)
+        if (encounter !== -1) {
+          encounter = -1; alive.clear(); hpSeen.clear(); launchesSeen = new Set(); coreShot = 0;
+          for (const gun of rig.guns.values()) { gun.firedAt = -Infinity; gun.diedAt = Infinity; gun.charging = false; gun.live0 = true; }
+        }
         const intact = standing === 'intact';
         for (const [side, gun] of rig.guns) {
           gun.live.visible = intact; if (gun.wreck) gun.wreck.visible = !intact;
@@ -409,7 +503,7 @@ export function createStrongholdView(scene: THREE.Scene) {
           const since = state.time - gun.firedAt, recoil = since < RECOIL.kick ? since / RECOIL.kick : Math.exp(-(since - RECOIL.kick) * RECOIL.settle);
           // Stowed until the awakening runs it out and swings it onto its lane (AWAKEN); then only its recoil moves it.
           const side = part as 'left' | 'right', unstow = cannonUnstow(side, age, span);
-          stow(gun, side, arriving ? unstow.run : 1, arriving ? unstow.swing : 1, RECOIL.distance * (Number.isFinite(since) ? recoil : 0));
+          stow(gun, side, arriving ? unstow.run : 1, arriving ? unstow.swing : 1, RECOIL.distance * (Number.isFinite(since) && since >= 0 ? recoil : 0));
           // Heat: the housing's lining brightens as its armour goes, flares through a charge and a hit; dormant before the
           // awakening, lit with a flare as the cannon locks onto its lane.
           const lit = arriving ? THREE.MathUtils.smoothstep(age, unstow.lock - .1, unstow.lock + AWAKEN.ignite) : 1;

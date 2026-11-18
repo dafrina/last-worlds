@@ -304,7 +304,7 @@ export const STRONGHOLD_LEDGE = { front: lifted(STRONGHOLD.front), half: STRONGH
  * there, covering the cut faces, and climbs from it).
  */
 const SEAT_REACH = 4.5;
-let seat: { under: Float32Array; edge: Float32Array; reach: Float32Array; columns: number; rows: number; x0: number; a0: number } | null = null;
+let seat: { under: Float32Array; edge: Float32Array; high: Float32Array; reach: Float32Array; inner: Float32Array; columns: number; rows: number; x0: number; a0: number } | null = null;
 function seatField() {
   if (seat) return seat;
   const rows = SEAT_ROWS.length, columns = SEAT_ROWS[0].length, top = new Float32Array(rows * columns).fill(NaN);
@@ -314,7 +314,7 @@ function seatField() {
   }
   // The field covers the table and SEAT_REACH round it.
   const pad = Math.round(SEAT_REACH / SEAT_STEP), fc = columns + 2 * pad, fr = rows + 2 * pad;
-  const under = new Float32Array(fc * fr).fill(NaN), edge = new Float32Array(fc * fr), reach = new Float32Array(fc * fr).fill(Infinity);
+  const under = new Float32Array(fc * fr).fill(NaN), edge = new Float32Array(fc * fr), high = new Float32Array(fc * fr), inner = new Float32Array(fc * fr), reach = new Float32Array(fc * fr).fill(Infinity);
   const sites: number[] = [];
   for (let j = 0; j < rows; j++) for (let i = 0; i < columns; i++) if (!Number.isNaN(top[j * columns + i])) sites.push(i, j);
   // A gap inside the model's outline (model on both sides of it along its row and its column: between the roof and a
@@ -333,29 +333,41 @@ function seatField() {
         if (defined(ti + di, tj + dj)) { const h = top[(tj + dj) * columns + ti + di]; low = Math.min(low, h); near = Math.max(near, h); }
       }
       // (Never under the sea: the model's front stands on it, open underneath.)
-      under[at] = Math.max(low - 0.3, STRONGHOLD_BUILT_SEA + 0.15); edge[at] = defined(ti, tj) ? top[tj * columns + ti] : near; reach[at] = 0;
+      under[at] = Math.max(low - 0.3, STRONGHOLD_BUILT_SEA + 0.15); edge[at] = high[at] = defined(ti, tj) ? top[tj * columns + ti] : near; reach[at] = 0;
+      // (`inner`: how far in from the model's outline, out to a unit.)
+      let d = 1;
+      for (let dj = -4; dj <= 4; dj++) for (let di = -4; di <= 4; di++) {
+        const oi = ti + di, oj = tj + dj, off = !(oi >= 0 && oj >= 0 && oi < columns && oj < rows) || (!defined(oi, oj) && !enclosed(oi, oj));
+        if (off) d = Math.min(d, Math.hypot(di, dj) * SEAT_STEP);
+      }
+      inner[at] = d;
       continue;
     }
     for (let k = 0; k < sites.length; k += 2) {
       const d = Math.hypot(sites[k] - ti, sites[k + 1] - tj) * SEAT_STEP;
       if (d < reach[at]) { reach[at] = d; edge[at] = top[sites[k + 1] * columns + sites[k]]; }
     }
+    // (`high`: the highest top within a unit past the nearest, so a notch in the model's edge leaves no notch in the rock.)
+    if (reach[at] < Infinity) for (let k = 0; k < sites.length; k += 2) {
+      if (Math.hypot(sites[k] - ti, sites[k + 1] - tj) * SEAT_STEP < reach[at] + 1) high[at] = Math.max(high[at] || -Infinity, top[sites[k + 1] * columns + sites[k]]);
+    }
   }
-  return seat = { under, edge, reach, columns: fc, rows: fr, x0: -SEAT_X - pad * SEAT_STEP, a0: SEAT_A - pad * SEAT_STEP };
+  return seat = { under, edge, high, reach, inner, columns: fc, rows: fr, x0: -SEAT_X - pad * SEAT_STEP, a0: SEAT_A - pad * SEAT_STEP };
 }
 /**
  * The seat at a point (arena-relative s): `under` the ground's ceiling under the model (NaN off it), `edge` the nearest
- * top of the model and `reach` the distance to it (Infinity beyond SEAT_REACH).
+ * top of the model, `high` the highest top about it, and `reach` the distance to it (Infinity beyond SEAT_REACH); `inner`
+ * how far in from the model's outline a point on it lies (to a unit).
  */
-function seatAt(x: number, a: number): { under: number; edge: number; reach: number } {
+function seatAt(x: number, a: number): { under: number; edge: number; high: number; reach: number; inner: number } {
   const f = seatField(), u = (x - f.x0) / SEAT_STEP, v = (a - f.a0) / SEAT_STEP;
-  if (u < 0 || v < 0 || u > f.columns - 1 || v > f.rows - 1) return { under: NaN, edge: 0, reach: Infinity };
+  if (u < 0 || v < 0 || u > f.columns - 1 || v > f.rows - 1) return { under: NaN, edge: 0, high: 0, reach: Infinity, inner: 0 };
   const i = Math.min(f.columns - 2, Math.floor(u)), j = Math.min(f.rows - 2, Math.floor(v)), fu = u - i, fv = v - j;
   const at = j * f.columns + i, corners = [at, at + 1, at + f.columns, at + f.columns + 1], weights = [(1 - fu) * (1 - fv), fu * (1 - fv), (1 - fu) * fv, fu * fv];
-  let under = 0, edge = 0, reach = 0;
+  let under = 0, edge = 0, high = 0, reach = 0, inner = 0;
   // (A corner that carries no weight is left out, to rounding: off the model its `under` is NaN.)
-  for (let k = 0; k < 4; k++) if (weights[k] > 1e-6) { under += f.under[corners[k]] * weights[k]; edge += f.edge[corners[k]] * weights[k]; reach += Math.min(f.reach[corners[k]], SEAT_REACH + 1) * weights[k]; }
-  return { under, edge, reach: reach > SEAT_REACH ? Infinity : reach };
+  for (let k = 0; k < 4; k++) if (weights[k] > 1e-6) { under += f.under[corners[k]] * weights[k]; edge += f.edge[corners[k]] * weights[k]; high += f.high[corners[k]] * weights[k]; inner += f.inner[corners[k]] * weights[k]; reach += Math.min(f.reach[corners[k]], SEAT_REACH + 1) * weights[k]; }
+  return { under, edge, high, inner, reach: reach > SEAT_REACH ? Infinity : reach };
 }
 /** Units outside the fortress's plan (x and arena-relative s in the built frame; negative inside it). */
 function fortressOutside(x: number, a: number): number {
@@ -425,7 +437,8 @@ interface CliffStep { share: number; run: number; tier: number; bite: number }
  */
 function strongholdSteps(arena: TerrainArena, seed: number, x: number, buttress: number, gully: number): CliffStep[] {
   const h = (k: number) => hash(seed ^ 0x5753, Math.round(arena.fromS * 4), k);
-  const count = 3 + (h(0) < 0.4 ? 0 : h(1) < 0.6 ? 1 : 2), steps: CliffStep[] = [];
+  // (Two or three since 18 November, later: "Calm the cliffs", the same size with fewer, bigger faces; three to five before.)
+  const count = 2 + (h(0) < 0.5 ? 0 : 1), steps: CliffStep[] = [];
   let left = 1;
   for (let k = 0; k < count; k++) {
     const share = k === count - 1 ? left
@@ -478,7 +491,9 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
   const round = ba > c.front - 0.5 && (bax > plan || ba > c.rear);
   // The shoulder: a broken ridge behind the roof, its crest wandering along x, its spurs running down into the corridor.
   const crest = c.rear + c.shoulder[0] + (noise(seed ^ 0x5739, x * 0.14, 0.5) - 0.5) * 2.4;
-  const shoulder = c.shoulder[1] - Math.abs(ba - crest) * (ba < crest ? 0.8 : 0.55) + jag * 0.5;
+  // (Past its crest it climbs on into the peaks, 18 November, later: "it still feels like i can see terrain walls behind it
+  // with a gap"; it dipped there, leaving a trench under the peaks' wall.)
+  const shoulder = (ba < crest ? c.shoulder[1] - (crest - ba) * 0.8 : c.shoulder[1] + (ba - crest) * 0.35) + jag * 0.5;
   // The rear in the rock: from just before the plan's back (and its outer rear corners) to the shoulder's crest, then down
   // its back with it. (Until 18 November this went on rising behind the crest, and the corridor behind the fortress became
   // massif to the fall, held flat at the pass's level: a plain cut off in a straight line at the top of the fight's view.)
@@ -489,7 +504,9 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
   // beyond the fight's play area (its top 19.8 past the player's row, 28.8 past the arena's start) and so out of the fight's
   // view, seen as the ship climbs over it after the kill (BossDefinition.departureClimb), then it comes down past the
   // departure. Its fronts wander along x.
-  const crag = smoothRange(back + 2.5, back + 7, aw) * (1 - smoothRange(back + 18, back + 27, aw));
+  // (Rising from 1.5 behind it to its full height by 4.5, so its top shows over the fortress at the fight's view's top edge,
+  // 18 November, later: "have the peak be a bit more steep so we see the actual mountain top"; from 2.5 to 7 before.)
+  const crag = smoothRange(back + 1.5, back + 4.5, aw) * (1 - smoothRange(back + 18, back + 27, aw));
   const depth = Math.max(ax - half + jag - guard * 3, ax < half ? shoulder : -9, round ? 2.6 - out * 0.6 + jag * 0.3 : -9, embed, crag * 3.5 - 0.5 + jag * 0.3);
   const presence = smoothRange(c.rise[0], c.rise[1], a) * (1 - smoothRange(c.fall[0], c.fall[1], aw));
   const approach = smoothRange(c.rise[0], front + c.tall[0], a), tall = smoothRange(front + c.tall[0], front + c.tall[1], a) * (1 - smoothRange(back + 12, back + 22, aw));
@@ -515,6 +532,26 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
   const peaks = mix(stepped, smoothPeaks, crag);
   const foot = Math.min(mix(c.base[0], c.base[1], tall) + c.beyond * beyond, limit - 1.2);
   let height = c.low + (foot - c.low) * climb + (limit - foot) * peaks * smoothRange(-1, 3, depth);
+  // No trench behind the fortress (18 November, later: "it still feels like i can see terrain walls behind it with a gap";
+  // measured, the ground fell from the roof's 3-5 to about 0 for two units before the peaks rose): from its plan's back the
+  // mountain carries on at the roof's height as broken rock and climbs into the summits, across the plan's width and
+  // easing out beside it.
+  {
+    // (Only across the trench: it fades out where the peaks' own rise begins, some 6 past the plan's back; carried further it
+    // climbed to the cap and cut the summits off flat.)
+    const width = plan * STRONGHOLD_SCALE, behindRoof = smoothRange(back - 0.3, back + 0.9, a) * (1 - smoothRange(width + 1.5, width + 5, ax))
+      * (1 - smoothRange(back + 6, back + 10, a));
+    if (behindRoof > 0) {
+      // (Under the cap its crest is ridged, summits and saddles 0.7 deep, never cut flat at the cap.)
+      const ridged = alpine(seed, x * 1.7, a * 1.7);
+      // (From the roof's height, 4.6, over the scenery cap: the rock the fortress is carved into, 18 November, later. From
+      // 3.2 under the cap before, which left a dip between the carved rock and the peaks.)
+      // (Then level with it for two units and rising gently, as the carved rock round it, 18 November, later.)
+      // (From the roof's back edge, 3.6-4.0 as seated, behind it: from 4.4 over the model's last row it stood as a lip.)
+      const backfill = Math.min(Math.max(limit, 7) - 0.7 * (1 - ridged), 3.95 + Math.max(0, a - back - 2) * 0.35 + (ridged - 0.5) * 0.8 * smoothRange(back + 1, back + 4, a));
+      height = Math.max(height, mix(height, backfill, behindRoof));
+    }
+  }
   // The ledge the fortress stands on, at its foot's level: it runs out a little before the plan's front and round its front
   // corners (strongholdReach), then steps down to the low ground in one to three broken drops (strongholdSteps): sheer
   // faces with an overhanging lip, buttresses standing out and gullies cut back, narrow tiers between them at the arena's
@@ -530,7 +567,8 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
     // The faces' rims are sawtoothed (`tooth`), and broad rock spurs run down the ascent with its bands stepping out over
     // them (`spur`: the bands lie further out there; v8, user: "make it more jagged").
     const tooth = Math.abs(noise(seed ^ 0x5767, x * 2.3, a * 0.8) - 0.5) * 2, spur = smoothRange(0.6, 0.82, noise(seed ^ 0x5766, x * 0.3, 4.5));
-    const u0 = (d - 1) * (ahead * reach + beside * wide) / (ahead + beside + 1e-6) + (noise(seed ^ 0x5745, x * 1.3, a * 1.3) - 0.5) * 0.3 + (tooth - 0.5) * 0.5;
+    // (The rims' sawtooth and wobble halved on 18 November, later: "Calm the cliffs".)
+    const u0 = (d - 1) * (ahead * reach + beside * wide) / (ahead + beside + 1e-6) + (noise(seed ^ 0x5745, x * 1.3, a * 1.3) - 0.5) * 0.15 + (tooth - 0.5) * 0.2;
     const u = u0 - spur * 1.3 * smoothRange(0.3, 2.5, u0);
     const steps = strongholdSteps(arena, seed, x, buttress, gully), drop = ledge - (SEA + 0.35);
     let level = ledge + (noise(seed ^ 0x5743, x * 0.7, a * 0.7) - 0.5) * 0.2, at = 0, past = Infinity;
@@ -552,7 +590,7 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
     const rib = smoothRange(0.6, 0.78, noise(seed ^ 0x5765, x * 0.5, 7.5)) * smoothRange(0, 1, u);
     if (past < 0) {
       tier = level + rib * 0.45 + spur * (0.3 + 0.4 * noise(seed ^ 0x576a, x * 3.1, a * 1.7)) * smoothRange(0, 1.2, u) - gully * 0.25 * smoothRange(0, 1, u);
-      if (u > 0.9) tier = Math.max(tier, Math.min(tier + strongholdNeedles(seed, arena, x, u), ledge - 0.3));
+      if (u > 0.9) tier = Math.max(tier, Math.min(tier + 0.5 * strongholdNeedles(seed, arena, x, u), ledge - 0.3));
       tier = Math.min(tier, ledge + 0.1); cliff = 1;
     } else if (past < 1.2) { cliff = 1 - smoothRange(0, 1.2, past); }
     // Before the cliff the low ground keeps down to its foot, rising back over a scree apron, so the cliff stands its full
@@ -567,20 +605,36 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
   // steep and rough, over its rear and its upper flanks (`sink`, more toward the back), until it meets the mountain's own
   // ridged top (`crown`: summits and saddles under the cap); never a wall standing off the model, nor a flat-cut top.
   const fit = ba > SEAT_A - SEAT_REACH - 1 && ba < SEAT_A + SEAT_ROWS.length * SEAT_STEP + SEAT_REACH ? seatAt(bx, ba) : null;
-  const rise = (1.5 + 0.8 * noise(seed ^ 0x5737, x * 0.32, a * 0.32)) * STRONGHOLD_SCALE, rough = (noise(seed ^ 0x5738, x * 0.8, a * 0.8) - 0.5) * 0.7;
+  // (A mountainside, not a wall: 0.8-1.3 a unit since 18 November, later; 1.5-2.3 before, which stood as a cliff round it.)
+  // (Broken rock: a ridged crag relief over the slope, 18 November, later; a soft 0.7 noise before read as an even snow wall.)
+  const crags = 1 - Math.abs(2 * noise(seed ^ 0x5738, x * 0.9, a * 0.7) - 1);
+  const rise = (0.8 + 0.5 * noise(seed ^ 0x5737, x * 0.32, a * 0.32)) * STRONGHOLD_SCALE, rough = (crags - 0.5) * 1.6 + (noise(seed ^ 0x576e, x * 2.1, a * 1.9) - 0.5) * 0.5;
   // (Over the fortress's back, behind its targets and inside its plan, the rock may rise with its structure over the cap:
   // the fortress itself stands over the flight plane there, and the ship climbs over both after the kill.)
   const behindTargets = smoothRange(c.front + 4, c.rear - 1, ba) * (1 - smoothRange(plan - 0.5, plan + 0.3, bax));
   const sink = 0.9 * smoothRange(c.front + 2.5, c.rear - 0.5, ba);
-  const crown = Math.min(behindTargets > 0 ? mix(c.peak, liftedHeight(1.1), behindTargets) : c.peak, 1.7 + 1.3 * peaks + 0.3 * noise(seed ^ 0x5752, x * 0.6, a * 0.6) + 2.4 * behindTargets);
+  // (Its crest ridged under the cap rather than cut flat at it: 1.2 + 1.8 of the relief since 18 November, later.)
+  const crown = Math.min(behindTargets > 0 ? mix(c.peak, liftedHeight(1.1), behindTargets) : c.peak, 1.2 + 1.8 * peaks + 0.5 * noise(seed ^ 0x5752, x * 0.6, a * 0.6) + 2.4 * behindTargets);
   let cap = Infinity, bury = -Infinity;
   // (Under it the ledge: never water either, a lead there showed through its open front.)
   if (fit && !Number.isNaN(fit.under)) {
     cap = rear ? Infinity : liftedHeight(fit.under); bury = ledge;
     // Over its rear band and rear corners the mountainside runs on over the model, rising toward the back.
-    const band = rear ? Math.max(smoothRange(c.rear - c.embed[0] - 0.4, c.rear - c.embed[0] + 0.4, ba + jag * 0.25),
-      smoothRange(c.rear - c.embed[1] - 0.4, c.rear - c.embed[1] + 0.4, ba) * smoothRange(plan - c.embed[2] - 0.4, plan - c.embed[2] + 0.4, bax)) : 0;
-    if (band > 0) height = Math.max(height, mix(height, Math.min(crown, liftedHeight(fit.under) + 0.55 + sink * 0.5 + Math.max(0, ba - c.rear + c.embed[0]) * rise + rough * 0.5), band));
+    // (It ramps in over 2.4 units from the roof's own height, 18 November, later: it switched on within 0.8 from 0.55 over
+    // the model's top and stood as a short wall facing the camera behind the roof, a dark strip between: "terrain walls
+    // behind it with a gap".)
+    const band = rear ? Math.max(smoothRange(c.rear - c.embed[0] - 1.2, c.rear - c.embed[0] + 1.2, ba + jag * 0.25),
+      smoothRange(c.rear - c.embed[1] - 1.2, c.rear - c.embed[1] + 1.2, ba) * smoothRange(plan - c.embed[2] - 1.2, plan - c.embed[2] + 1.2, bax)) : 0;
+    // (Just over the model's top there, rising slowly toward its back: one surface with the roof. Until 18 November, later,
+    // it stood 0.4-0.8 over the roof's back edge, with a rough lift, as a lip the roof was cut off against: "its just cutoff in
+    // the mountain".)
+    if (band > 0) height = Math.max(height, mix(height, Math.min(crown, liftedHeight(fit.under) + 0.32 + Math.max(0, ba - c.rear + c.embed[0]) * rise * 0.15), band));
+    // Set back into its mountain (user, 18 November, later: "set the whole fortress back into the mountain so it clips
+    // slightly into the mountain for the perfect seamless fit"): behind its targets, over the outer half unit of its sides
+    // and back, the rock lies just over the model's own top, so its outline is under the mountain's surface, never against
+    // it. (The model is not moved: its weak points stay on their combat targets.)
+    const clip = smoothRange(c.front + 4.6, c.front + 5.2, ba) * (1 - smoothRange(0.25, 0.6, fit.inner));
+    if (clip > 0) { const over = liftedHeight(fit.edge) + 0.06; height = Math.max(height, mix(height, over, clip)); if (Number.isFinite(cap)) cap = Math.max(cap, mix(cap, over + 0.05, clip)); }
   } else if (fit && fit.reach < SEAT_REACH) {
     // (Behind its rear the low feet of its back wall, down to the sea, held the ground in a trench until 18 November: the
     // mountainside there rises from the model's top instead.)
@@ -590,7 +644,28 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
       cap = slope + 0.3;
     } else cap = slope;
     // (Never down to the sea round it.)
-    bury = Math.max(fit.reach < 0.6 ? edge + 0.05 : -Infinity, SEA + 0.25);
+    // (At the edge's own height, not with the rise over it: with it, it held a lip 0.8 over the roof's back, 18 November.)
+    bury = Math.max(fit.reach < 0.6 ? liftedHeight(fit.edge) + 0.05 : -Infinity, SEA + 0.25);
+  }
+  // Carved into its mountain (user, 18 November, later: "the top of the fortress should be seamless against where it
+  // connects to the mountain behind it, so it looks like a bunker built in or carved from the mountain and not a model just
+  // planted on its hillside and flattening the mountain around it"): behind its targets, beside its rear and behind it, the
+  // rock meets the model at its roof's height (`high`: no notch follows a low cell of its edge) and climbs from there, over
+  // the scenery cap as the fortress itself does (it stands over the flight plane there; nothing of the fight flies beside
+  // its rear, its launch bays are at its front), never falling into a trench under its roof. (Measured before: 1.2-2.9
+  // beside its rear and 0-2.9 right behind its right half, under a roof at 3.6-4.4.) Beside it the rock eases down outward
+  // into its mountain's flank, a shoulder rather than a wall; behind it, it runs on into the peaks.
+  const carve = fit && Number.isNaN(fit.under) && fit.reach < SEAT_REACH ? smoothRange(c.front + 4, c.front + 5.5, ba)
+    * (1 - smoothRange(mix(0.8, 1.8, smoothRange(c.rear - 1.5, c.rear + 0.5, ba)), SEAT_REACH, fit.reach)) : 0;
+  if (carve > 0) {
+    // (Level with the roof for its first two units, then rising gently: climbing at once, half a unit to a unit for each,
+    // the rock stood behind the roof as a face toward the camera, "its just cutoff in the mountain", 18 November, later.)
+    const d = fit!.reach * STRONGHOLD_SCALE, ridged = alpine(seed, x * 1.6, a * 1.6), roof = Math.max(fit!.edge, fit!.high - 1.2);
+    const rock = liftedHeight(roof) + 0.05 + Math.max(0, d - 2) * (0.25 + 0.15 * crags) + (ridged - 0.5) * 0.3 * smoothRange(1, 3, d);
+    // (It replaces the older rise against the model there, which stood 0.4-0.9 over the roof's edge as a step: the roof's
+    // edge and the rock behind it are one surface.)
+    height = mix(height, rock, carve);
+    cap = Math.max(cap, rock + 0.3); bury = mix(bury, Math.min(bury, rock - 0.05), carve);
   }
   // (Before the model the ledge holds: the plinth's foot never pulls it into pits.)
   if (!rear && cap < ledge + 0.1 && ba < c.front + 1 && !(fit && !Number.isNaN(fit.under))) cap = ledge + 0.1;
@@ -598,7 +673,10 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
   if (cap < height) height = Math.max(Math.min(height, cap), bury);
   // Rock share over 1 (vesperColor: the massif's stone, bare from a gentler slope than a nunatak's): its crests and faces
   // rock, snow filling its couloirs and lying on its shoulders.
-  const tone = 1 + Math.max(smoothRange(-0.5, 2, depth) * mix(0.35, 1, smoothRange(0.2, 0.55, r)), cliff) * clamp(0.75 + 0.5 * noise(seed ^ 0x5736, x * 0.3, a * 0.3));
+  // (The rock it is carved into lies under snow right round it, as the roof's own: bare dark stone there, 18 November, later,
+  // stood behind the roof as a dark band, the model cut off against it.)
+  const snowed = carve * (1 - smoothRange(2, 3.5, (fit?.reach ?? Infinity) * STRONGHOLD_SCALE));
+  const tone = 1 + (snowed > 0 ? 0.001 : 0) + Math.max(smoothRange(-0.5, 2, depth) * mix(0.35, 1, smoothRange(0.2, 0.55, r)), cliff) * clamp(0.75 + 0.5 * noise(seed ^ 0x5736, x * 0.3, a * 0.3)) * (1 - snowed);
   const pool = smoothRange(0.7, 0.76, noise(seed ^ 0x5741, x * 0.15, a * 0.15)) * land;
   // (The ceiling only lets the massif and the buried edges stand over Vesper's own cap: it never flattens them.)
   const ceiling = Math.max(2.4 - DROP, Math.max(Math.min(height, cap), bury));
@@ -1033,21 +1111,25 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     // massif's cap (its crags kept to VESPER_PIECE_MAX until v8, so none stood above its lowest slopes); nothing else.
     if (hold && hold.massif > 0.5) {
       const top = massifCap(x, s), rock = hold.tone - 1;
-      if (slope < 1.1 && ground < top - 0.7 && pick < 0.012 + 0.035 * rock) {
-        const scale = 0.8 + h(3) * 1.1;
+      // (A few big crags, no small ones, no scree: 18 November, later, "reduce or eliminate the small scattered rocks etc on
+      // the plateaus"; 0.012 + 0.035 a rock share, from 0.8, before.)
+      if (slope < 1.1 && ground < top - 0.7 && pick < 0.004 + 0.012 * rock) {
+        const scale = 1.4 + h(3) * 0.9;
         add({ kind: 'outcrop', x, s, y: ground - 0.05, scale, height: scale * (0.7 + h(4) * 0.6), rotation: turn(h(5)), cosmetic: h(7) > 0.7 }, h(6));
-      } else if (hold.ledge > 0.5 && slope < 0.9 && pick > 0.965 && ground < STRONGHOLD_LEDGE.level - 1.4) {
+      } else if (hold.ledge > 0.5 && slope < 0.9 && pick > 0.988 && ground < STRONGHOLD_LEDGE.level - 1.4) {
         // A needle: a crag drawn up tall and narrow.
         // (Its top under the ledge's level and a little over: the ascent never hides the fortress's front.)
         const scale = 0.65 + h(3) * 0.45, height = Math.min(scale * (1.9 + h(4) * 1.3), (STRONGHOLD_LEDGE.level + 0.5 - ground + 0.1) / KIT.outcrop.height);
         add({ kind: 'outcrop', x, s, y: ground - 0.1, scale, height, rotation: turn(h(5)), cosmetic: false }, h(6));
-      } else if (slope < 0.8 && pick > 0.72 && pick < 0.8 && terrain.rise(x, s) > 0.9) {
-        // Scree: a few stones fallen to the foot of a face.
-        for (let k = 0; k < 1 + Math.floor(h(20) * 3); k++) {
-          const ox = x + (h(22 + k) - 0.5) * 0.9, os = s + (h(26 + k) - 0.5) * 0.9, oy = terrain.height(ox, os), scale = 0.25 + h(30 + k) * 0.3;
-          if (terrain.slope(ox, os) > 0.9 || oy < SEA || !strongholdClear(terrain.arena(os), ox, os)) continue;
-          add({ kind: 'outcrop', x: ox, s: os, y: oy - 0.03, scale, height: scale * (0.5 + h(34 + k) * 0.4), rotation: turn(h(38 + k)), cosmetic: true }, h(42 + k));
-        }
+      }
+      continue;
+    }
+    // The stronghold's arena keeps its plateaus clear of small pieces (18 November, later: "reduce or eliminate the small
+    // scattered rocks etc on the plateaus"): its outposts' plant stays.
+    if (hold) {
+      if (slope < 0.5 && m.land > 0.9 && terrain.industrial(x, s) > 0.01 && pick < 0.08) {
+        const scale = 0.9 + h(3) * 0.2;
+        add({ kind: 'vent', x, s, y: ground, scale, height: scale, rotation: turn(h(5)), cosmetic: false }, h(6));
       }
       continue;
     }
@@ -1109,13 +1191,21 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     // (The ascent's faces from a drop of 1.0, the slopes' and peaks' broken steps from 1.3: fewer pieces off the ascent.)
     const massifFace = (x: number, s: number, drop: number) => {
       const hold = holdAt(x, s);
-      return !!hold && hold.massif > 0.3 && drop >= (hold.ledge > 0.5 ? 1 : 1.3) && terrain.height(x, s) > SEA + 0.9 && strongholdClear(terrain.arena(s), x, s, 0.5, false);
+      return !!hold && hold.massif > 0.3 && drop >= 1.4 && terrain.height(x, s) > SEA + 0.9 && strongholdClear(terrain.arena(s), x, s, 0.5, false);
     };
-    for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, salt: 0x7c2f, minDrop: 1, cap: STRONGHOLD.crag, arenas: true, accept: massifFace })) {
+    // (Vesper's own walls, its pieces' size and run rule (19 November: "Why dont we use the same cliff placing logic as
+    // generally in vesper?"), one to a step (`oneStep`): on the stepped ascent a wall walked down through all its tiers and
+    // stood 5-6 tall, its neighbours stacked beside it, "a weird cluster". From 1.8 and 2.4 drops at 1.8-2.3 scale on
+    // 18 November, later, "Calm the cliffs"; from 1.0 and 1.3 at 1.2-1.5 before.)
+    for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, salt: 0x7c2f, minDrop: 1.4, oneStep: 1.6, cap: STRONGHOLD.crag, arenas: true, accept: massifFace })) {
       const arena = terrain.arena(wall.s), rise = wall.height * KIT.iceWall.height;
       // (Before the barrels nothing stands over the ledge.)
       const top = strongholdClear(arena, wall.x, wall.s, 0.5) ? massifCap(wall.x, wall.s) : STRONGHOLD_LEDGE.level + 0.3;
       if (!strongholdClear(arena, wall.x, wall.s, 0.5, false)) continue;
+      // (None on the mountainside behind and beside the fortress, within 5 units of its plan: there a row of them stood as a
+      // flat-topped wall off the mountain, the fortress in a box; 18 November, later, "it still feels like i can see terrain
+      // walls behind it with a gap". The mountain itself climbs from the model there.)
+      { const ba = builtA(wall.s - (arena ?? near).fromS); if (ba > STRONGHOLD.front && fortressOutside(builtX(wall.x), ba) < 5) continue; }
       // (Nor where the renderer would hide it, its box reaching into the fortress's plan: STRONGHOLD_FOOTPRINT.)
       const r = KIT.iceWall.radius * wall.scale, f = STRONGHOLD_FOOTPRINT, a = wall.s - (arena ?? near).fromS;
       if (Math.abs(wall.x) - r < f.halfWidth && a + r > STRONGHOLD_AT - f.front && a - r < STRONGHOLD_AT + f.back) continue;
@@ -1124,7 +1214,7 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
         wall.height = (top - wall.y) / KIT.iceWall.height;
       }
       // (The ascent's walls are essential; the slopes' and peaks' are cosmetic, so the low graphics tier draws the ascent's
-      // only: they add some 80k triangles at the stop on High.)
+      // only.)
       sink.keep([{ ...wall, cosmetic: (holdAt(wall.x, wall.s)?.ledge ?? 0) <= 0.5 }]);
     }
   }

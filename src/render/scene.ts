@@ -268,7 +268,9 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
       haze: [.82, .9, .98, .155],
       // The user's playground fog (23 October): a pale low mist over the sea and down the cliffs, the shelves clear. (Its
       // heights follow Vesper's level down, 3.75 since 18 November: VESPER_DROP.)
-      fog: { color: 0xc4d8ea, energy: 1.09, height: [-6.05, -12.8, .24], distance: [40.5, .041, .12] } },
+      // (Aerial fog: everything far beyond the fight fades, the peaks behind HELION STRONGHOLD included; 18 November. It starts
+      // past the fight's view, whose top edge lies 57-61 units from the eye, so no enemy in play is hazed.)
+      fog: { color: 0xc4d8ea, energy: 1.09, height: [-6.05, -12.8, .24], distance: [40.5, .041, .12], aerial: [62, 90, .6] } },
     environment: 'ice',
   },
   // Luna, Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and
@@ -677,6 +679,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     settings.fogColor.value.setHex(fog.color).multiplyScalar(fog.energy);
     settings.fogHeight.value.set(fog.height[0], fog.height[1], fogOff ? 0 : fog.height[2]);
     settings.fogDistance.value.set(fog.distance[0], fog.distance[1], fogOff ? 0 : fog.distance[2]);
+    const aerial = fog.aerial ?? [0, 1, 0];
+    settings.fogAerial.value.set(aerial[0], aerial[1], fogOff ? 0 : aerial[2]);
     renderer.toneMappingExposure = look.lowExposure;
     // Low-tier silhouettes keep the share of light the High shadow leaves (src/render/craft-shadows.ts).
     const shadowLight = { ...look, sunElevation: next === 'khepri' && look.sunElevation === KHEPRI_SUN_ELEVATION ? THREE.MathUtils.radToDeg(SUN_ELEVATION) : look.sunElevation };

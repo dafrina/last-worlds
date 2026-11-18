@@ -348,3 +348,21 @@ The campaign should now contain three visually distinctive encounters:
 All three must be optimized for mobile, visually readable from the existing Last Worlds camera, and integrated using the project's current modeling, animation and terrain systems.
 
 **The goal is not more visual complexity. The goal is three memorable, distinct bosses built to the visual and performance standards of Last Worlds.**
+
+## HELION STRONGHOLD: the scene cleanup (18-19 November)
+
+The user, after playing it, called it "very messy somehow, too much going on". They kept the concept ("Big cliffs, and the
+mountain peaks behind the stronghold is great, the stronghold feels integrated into the mountain") and, over several rounds
+of fight-time screenshots, asked for the changes below. (Pyramid summits tried on the way were rejected: "the peaks should
+be the very rock the fortress is built in"; the original peaks are back.)
+
+| Asked | Done |
+|---|---|
+| "Calm the cliffs" | 2-3 drops, a gentler rim; the mountain's ice walls with Vesper's own settings, one to a step (`oneStep`). |
+| No small scattered rocks on the plateaus | None in the arena: the props, pipes and buildings stay. |
+| "a bunker built in or carved from the mountain", "clips slightly into the mountain" | The ground meets the model's top edge and lies over its outer half unit behind its targets, level with the roof, then rising gently, under snow. The model is not moved. |
+| "the peak a bit more steep so we see the actual mountain top" | It rises from 1.5 past the fortress's back to its top by 4.5. |
+| The same colours as the terrain; "spots that read more like the facilities"; "more snowy, especially on the edges" | Render-time classification of the atlas: the ground's snow (measured to match on screen) on its snow, its rock and wherever it meets the mountain; clean facility metal elsewhere; heat lines kept. |
+| "some cliff rocks are very dark" (all of Vesper) | The ice walls' crack faces shaded as the ice. |
+| More far fog behind the mountain | Aerial fog at every height past the fight's view (`fog.aerial`, Vesper's look). |
+| The right cannon flying in from the bottom of the screen | A repeat run reused the last fight's cannon state (same start time); cleared while the fortress stands. |

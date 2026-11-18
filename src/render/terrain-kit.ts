@@ -865,11 +865,13 @@ const WALL_COLOR_FRAGMENT = `
     float iceLight = dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ), crack = 1.0 - smoothstep( 0.04, 0.14, iceLight );
     float cap = smoothstep( 0.5, 0.85, vWallTop ), iceLit = smoothstep( -0.05, 0.3, iceSun ) * ( 1.0 - crack );
     // (3 November: blue-grey, not saturated blue: the walls separate from the snow above and the dark sea below.)
-    vec3 iceShade = diffuseColor.rgb * mix( 1.0, 0.5, crack ), iceBright = mix( diffuseColor.rgb, vec3( 0.66, 0.76, 0.88 ) * wallGrain, 0.45 );
+    // (Cracks are shaded as the ice, 18 November: halved, with no fill, a crack face turned from the sun went near-black,
+    // "some cliff rocks are very dark", on tall pieces whole faces of it. They still stay out of the sun's lit highlight.)
+    vec3 iceShade = diffuseColor.rgb, iceBright = mix( diffuseColor.rgb, vec3( 0.66, 0.76, 0.88 ) * wallGrain, 0.45 );
     diffuseColor.rgb = mix( mix( iceShade, iceBright, iceLit ), vec3( 0.9, 0.94, 0.98 ) * SNOW_TRIM * ( 0.94 + 0.06 * wallGrain ), cap );
     wallIceShade = ( 1.0 - iceLit ) * ( 1.0 - cap );
     // Shadowed ice keeps a little cool light (through the ice) instead of sinking to the water's value.
-    totalEmissiveRadiance += vec3( 0.018, 0.03, 0.052 ) * wallIceShade * ( 1.0 - crack );
+    totalEmissiveRadiance += vec3( 0.018, 0.03, 0.052 ) * wallIceShade;
   } else {
     // Khepri: the caps read as the rock itself (the concept's dark, weathered column tops), not as bright slabs.
     vec3 capRock = vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.45, 1.0, 0.8 );
@@ -909,10 +911,13 @@ const EMISSIVE = '#include <emissivemap_fragment>\ntotalEmissiveRadiance += glow
  * snow sat deep in the tone curve's shoulder (blue clipped), where slopes, drifts and texture flattened to one white; at
  * about 70% (a little less blue) it lands at the shoulder's start, keeps them, and still reads white (display luma about
  * 3–4 levels lower). The kit's snow (floe tops, caps) takes a milder KIT_SNOW_TRIM: floes stay bright on the dark sea.
+ * (The darkest ice, the kit's abyss-blue cracks, is lifted to the ice's own level: on tall pieces whole faces of it read as
+ * black holes, 18 November, "some cliff rocks are very dark"; half the ice's level still read dark, "the red ones are the bad
+ * ones".)
  */
 const VESPER_SLATE = `#define SNOW_TRIM vec3( 0.72, 0.69, 0.62 )
 #define KIT_SNOW_TRIM vec3( 0.9, 0.88, 0.83 )
-vec3 vesperSlate( vec3 c ) { float l = dot( c, vec3( 0.2126, 0.7152, 0.0722 ) ); return ( 0.07 + l * 1.35 ) * vec3( 0.68, 0.91, 1.32 ); }`;
+vec3 vesperSlate( vec3 c ) { float l = dot( c, vec3( 0.2126, 0.7152, 0.0722 ) ); l = max( l, 0.24 + l * 0.15 ); return ( 0.07 + l * 1.35 ) * vec3( 0.68, 0.91, 1.32 ); }`;
 /**
  * Vesper kit surfaces (docs/17 §1, art/vesper-kit). The kit's COLOR_0 already separates the materials: ice is
  * saturated blue, snow near-white, rock dark grey. Ice turns blue-grey (VESPER_KIT_COLOR) with a faint translucent fill,

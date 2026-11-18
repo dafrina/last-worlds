@@ -1186,3 +1186,16 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 - **Released:** the boss files except Vesper's (`src/render/ark-view.ts` and its successor, `terrain-vesper.ts`, `src/content/ark.ts`), which stay claimed until the stronghold ships.
 
 **18 November · Claude Code (Blender MCP in WSL session) · deployed `b967a6d` at the user's request:** the boss overhaul's Vesper part, the departure climb and the stationary bosses' awakening. The stronghold scene is over the 250k triangle budget (`graphics.spec` fails), pending the user's verdict. All overhaul files are released.
+
+**18 November · Claude Code (main session) · HELION STRONGHOLD scene cleanup** (user: calm the cliffs, consistent snow and rock colours, fewer scattered rocks, the fortress seated into the mountain top, a sharp peak, more far fog).
+- **Owned until the merge note:**
+  - `src/world/terrain-vesper.ts`;
+  - `src/render/stronghold-view.ts`;
+  - the Vesper look lines in `src/render/terrain-kit.ts` and `scene.ts`;
+  - `tools/blender/boss_stronghold.py`;
+  - the stronghold assets.
+
+**19 November · Claude Code (main session) · deploying the HELION STRONGHOLD scene cleanup at the user's request** ("push anyways", over the triangle budget):
+- **What:** calmer cliffs and no clutter; Vesper's own wall settings on the mountain, one wall to a step (new optional `oneStep` in `src/world/terrain-walls.ts`, off for every other caller); the fortress carved into its mountain; the fortress in the ground's snow and clean facility metal (render-time); the ice walls' dark crack faces fixed on all of Vesper; aerial far fog; the cannon fly-in on a repeat run fixed.
+- **Checks:** typecheck, 1152 unit tests, build. Browser suite still running at push time (the stronghold scene was already over `graphics.spec`'s triangle budget at `b967a6d`). No phone test.
+- **Released:** `src/world/terrain-vesper.ts`, `src/render/stronghold-view.ts`, the Vesper lines in `src/render/terrain-kit.ts` and `scene.ts`, `tools/blender/boss_stronghold.py`, the stronghold assets.

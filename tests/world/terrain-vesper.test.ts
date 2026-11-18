@@ -263,8 +263,12 @@ describe('Vesper generator (docs/17 §4)', () => {
         // The play area keeps under the scenery cap, 0.8 under the flight plane (its top 28.8 past the arena's start; the peak
         // behind the fortress rises beyond it); the ground under the fight's lanes before the fortress stays low, the tall
         // peaks stand beside and behind it.
-        // (Over the fortress's back, inside its plan, the rock rises with its structure.)
-        if (a < 30 && !(Math.abs(x) < STRONGHOLD_LEDGE.half && a > STRONGHOLD_LEDGE.front + 3)) expect(h, `${x}, ${a}`).toBeLessThanOrEqual(VESPER_SCENERY_MAX + 1e-9);
+        // (Over the fortress's back, inside its plan, the rock rises with its structure; beside its rear and behind it, within
+        // about four units of the model, it is carved into its mountain: the rock meets the roof and climbs from it, 18
+        // November, later; the peak behind it rises from 1.5 past its back. Never over the peaks' top, 9.)
+        const carved = Math.abs(x) < STRONGHOLD_LEDGE.half + 4.2 && a > STRONGHOLD_LEDGE.front + 3.6;
+        if (a < 30 && !carved && !(Math.abs(x) < STRONGHOLD_LEDGE.half && a > STRONGHOLD_LEDGE.front + 3)) expect(h, `${x}, ${a}`).toBeLessThanOrEqual(VESPER_SCENERY_MAX + 1e-9);
+        if (a < 30 && carved) expect(h, `${x}, ${a}`).toBeLessThanOrEqual(9 + 1e-9);
         if (a > 34 && a < 50) crest = Math.max(crest, h);
         // (The fight's lanes over the low ground before the fortress's ascent: the ascent and its ledge are its mountain.)
         if (a > -12 && a < STRONGHOLD_LEDGE.front - 5 && Math.abs(x) < 7 && strongholdGround(arena, seed, x, arena.fromS + a)!.ledge === 0) lanes = Math.max(lanes, h);
@@ -337,7 +341,9 @@ describe('Vesper generator (docs/17 §4)', () => {
         for (const prop of section.props) expect(inside(prop.s) && prop.group !== 'stronghold:works', prop.id).toBe(false);
       }
       expect(rocks).toBeGreaterThan(10);
-      expect(mountainWalls, `${seed}`).toBeGreaterThan(20);
+      // (More than 2 since 18 November, later, none on the ascent: "theres still a weird cluster"; more than 4 after "Calm the
+      // cliffs", fewer, bigger faces; more than 20 after v8's "more jagged".)
+      expect(mountainWalls, `${seed}`).toBeGreaterThan(2);
       expect(ascentRocks, `${seed}`).toBeGreaterThan(3);
     }
   }, 180_000);

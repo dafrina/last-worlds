@@ -1,5 +1,46 @@
 # Build status
 
+## HELION STRONGHOLD's scene cleaned up, and the cannon fly-in fixed (18-19 November 2026; docs/43)
+
+The user, after playing `b967a6d`, said it is "very messy somehow, too much going on". They kept the big cliffs and the
+peaks behind the fortress, and over several rounds of fight-time screenshots asked for calm cliffs, no clutter, the
+fortress in the terrain's own colours, the fortress carved into its mountain, no dark cliff faces, and more far fog.
+
+**Done:**
+- **Cliffs and scatter:** two or three drops instead of three to five, a gentler rim, half-height needles. No small rocks,
+  scree, stones, seracs or ice spires in the arena; the props, pipes and buildings stay.
+- **Wall pieces on the mountain:** Vesper's own wall settings (piece size, run rule) and one wall to a step: the shared
+  placer's new `oneStep` option stops its walks up and down a face at the first tier (`terrain-walls.ts`, off for every
+  other caller). On the stepped ascent a wall had walked through all its tiers and stood 5-6 tall, its neighbours stacked
+  beside it, "a weird cluster". None within 5 units of the fortress's rear or sides.
+- **Carved into the mountain:** behind the fortress's targets the ground meets the model's top edge and lies just over
+  its outer half unit (the model itself is not moved: its weak points stay on their targets), level with the roof for two
+  units, then rising gently into the peaks, under snow. Measured, three terms had stood the ground 0.4-0.9 over the roof's
+  back edge as a lip (the tallest tops nearby taken for the roof, the old rise against the model, and the floor under it).
+  The peak behind starts 1.5 past the fortress's back (2.5 before) and reaches its top by 4.5 (7 before).
+- **Play-area cap:** the carved rock beside and behind the fortress's rear stands over the 3.0 cap, to 9 at most, as the
+  fortress itself does; nothing of the fight flies there (its launch bays are at its front). `terrain-vesper.test.ts`
+  records the zone.
+- **The fortress's colours** (render-time, `stronghold-view.ts`): the atlas only classifies each texel. Snow (light,
+  blue-tinted, read from a blurred mip so its streaks go) takes the ground's snow albedo, calibrated by the ratio measured
+  on screen (now 199-203/218-222/240-242 against the ground's 201/221/245); the snow lies on its rock and on everything
+  where it meets the mountain (its foot, outer sides, back, the front skirt under the cannons). The rest is clean facility
+  metal (cool grey from its luminance, panel lines kept, metallic 0.45, rough 0.38); warm texels (the heat lines) keep
+  their colour. A first pass kept most of its snow at the atlas's own blue-white: its "keep coloured texels" rule caught
+  the blue-tinted snow.
+- **Dark cliff faces** (all of Vesper): the ice-wall pieces' crack-coloured faces went near-black turned from the sun;
+  cracks are now shaded as the ice, their colour floor lifted (`terrain-kit.ts`).
+- **Far fog:** fog at every height from 62 to 90 units from the eye. The fight's view ends 57-61 from the eye, so no
+  enemy in play is hazed.
+- **Cannon fly-in** (user: "the right cannon didnt render ... then when the fight started it flew in from bottom
+  screen"): the view kept a fight's state keyed by its start time, and every Cold Vector run starts its fight at the same
+  time (190.00000000004334, logged on two runs on one page), so a second run kept the last one's cannon shots, in its
+  future; the recoil of a negative time threw the barrel off the bottom of the screen until the clock caught up. Fixed:
+  the standing fortress clears its fight state, and a future shot gives no recoil. The shared reset hole was confirmed in
+  the browser; a headless run never got the cannons to fire, so the fly-in itself was not replayed.
+
+**Checks:** see the deploy entry below. No phone test.
+
 ## Boss overhaul, part two, deployed (`b967a6d`) at the user's request, 18 November 2026
 
 - **What shipped:**

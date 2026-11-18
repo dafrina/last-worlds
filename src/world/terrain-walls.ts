@@ -62,6 +62,12 @@ export interface WallOptions {
   footDepth?: number;
   /** Lowest floor the wall must reach, even when its downhill probe ends on an intermediate shelf. */
   footFloor?: number;
+  /**
+   * One step only (HELION STRONGHOLD's stepped mountain, 19 November): the walks up to the rim and down the face stop this
+   * far from where they start (2.5 and 3 by default) and at the first tier, where the ground eases well below the face's own
+   * steepness, so a wall stands in one face. Walking on through the tiers, one wall spanned the whole staircase and its neighbours stacked beside it.
+   */
+  oneStep?: number;
 }
 /** Probe step for slopes and walks along the gradient (world units). */
 const PROBE = 0.125, WALK = 0.1;
@@ -99,8 +105,10 @@ export function* cliffWallSteps(seed: number, startS: number, size: number, terr
       if (o.maxAway !== undefined && -us > o.maxAway) continue;
       // Up to the rim (the ground levels out) and down to the foot of the sheer face (the talus starts).
       let up = 0, down = 0;
-      while (up < 2.5 && slope(fx + ux * (up + WALK), fs + us * (up + WALK)) > 0.7) up += WALK;
-      while (down < 3 && slope(fx - ux * (down + WALK), fs - us * (down + WALK)) > 1.2) down += WALK;
+      const upMax = o.oneStep ?? 2.5, downMax = o.oneStep ?? 3, sheer = o.oneStep === undefined ? 1.2 : Math.max(1.2, steepest * 0.55);
+      const rimSlope = o.oneStep === undefined ? 0.7 : Math.max(0.7, steepest * 0.35);
+      while (up < upMax && slope(fx + ux * (up + WALK), fs + us * (up + WALK)) > rimSlope) up += WALK;
+      while (down < downMax && slope(fx - ux * (down + WALK), fs - us * (down + WALK)) > sheer) down += WALK;
       const rx = fx + ux * (up + WALK), rs = fs + us * (up + WALK), px = fx - ux * down, ps = fs - us * down;
       // The rim's height across the segment's width, not just at its middle (version 18): the top stays flush where the
       // rim rises to one side instead of letting the bare cliff show over it.
