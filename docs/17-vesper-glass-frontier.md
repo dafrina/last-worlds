@@ -79,7 +79,7 @@ packed-snow tracks with tread ruts. Khepri's own buildings are not reused on Ves
 The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
 
 - **Sea and shelves.** The sea stands at `VESPER_SEA_LEVEL` (lowered in terrain version 16 so the ice walls are as tall
-  as Khepri's canyons; user, 21 October). Since 18 November the whole level lies `VESPER_DROP` (2.5, ten grid steps;
+  as Khepri's canyons; user, 21 October). Since 18 November the whole level lies `VESPER_DROP` (3.75, fifteen grid steps; 2.5 and
   1.25 earlier that day) lower, sea, ice, outposts and pieces alike (user: "Could we lower the vesper sea and current terrain to have more room to
   scale the mountains?", as Amnion's 1.2 on 23 October): the relief is built in its first frame and lowered as a whole,
   the pieces' and outposts' cap is `VESPER_PIECE_MAX` (the scenery cap less the drop), and the renderer's Vesper fog and
@@ -144,7 +144,12 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
     buttresses and gullies) and set into its mountain ("the fort looks not to be set into the mountain enough. The cliffs
     are like cut off, not a steep slope where the fortress is set into": beside its rear two thirds and behind it the
     mountainside climbs straight from the model's edges, steep and rough, over its rear and upper flanks, to the mountain's
-    ridged top; the ground round its front still meets its edges and climbs as a slope, never a wall standing off it). It
+    ridged top; the ground round its front still meets its edges and climbs as a slope, never a wall standing off it). Then
+    the view is one mountain from bottom to top ("lower third mountain base, middle third the ascend and top third peak with
+    the fortress between 2 and 3"): the ascent below the ledge climbs from the low ground in three to five rock bands over
+    the middle of the view, rock ribs running up it and gullies down it, under the cap; past the fortress's shoulder, beyond
+    the fight's play area (28.8 past the arena's start), the peak behind it rises over the flight plane to 9 ("you can now increase vertical space even more right?") across the
+    whole width and comes down past the departure, which the ship climbs over after the kill (`departureClimb`). It
     began (user, 18 November: "maybe have it sit on a middle layer,
     where theres cliff as now behind and sideways of is as now, but also a cliff and mountain walls layer below it in
     front", then "maybe dont make it a hard rule to have cliffs right in front of the fortress, but make it so it can also
@@ -168,11 +173,9 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
     sees.) The departure is not auto-centred (the ship steers throughout), so the cap over the play area holds in it too;
   - its works (user, 18 November: "maybe also have pipes running to and from it horizontally and connected
     infrastructure up front", then "dont use more than one pipeline tho, connect them properly"; `src/world/stronghold-works.ts`):
-    one pumping station on dry low ground before the cliff (a processing hall, tanks, a comm mast; the shared kit and
-    Vesper's infrastructure kit) and one large pipeline, continuous from inside the hall in to the cliff's foot, up the tiers
-    in one penstock on towers, along the ledge and out along the fortress's front into the mountain's rock (failing rock,
-    down into the ledge); its side is the arena's own. It follows the ledge and tiers; decorative, under the caps; about 7
-    draw calls while in view and a few thousand triangles.
+    since the same day on the lower plateau only: one pumping station on dry low ground before the ascent, of Vesper's own
+    outpost pieces (a cryo dome, a habitat, radiators, a comm mast, tanks), and one short line from it into the ascent's
+    foot; nothing on the ascent or the ledge; its side is the arena's own. Decorative, under the caps.
 
 ## 5. Cold Vector and HELION STRONGHOLD
 
@@ -305,7 +308,11 @@ the chamber and reactor are vertex coloured.
 **Presentation** (`src/render/stronghold-view.ts`, render-only). The renderer seats it at `STRONGHOLD_AT` past its
 arena's start (`src/world/terrain-vesper.ts`), its foot on its ledge, before, during and after its fight (intact, then a
 wreck), as THE CITADEL. Since 18 November the model as built (its foot at the sea, `STRONGHOLD_BUILT_AT` 23.652) is
-lifted 2 onto the ledge by scaling it about the release lens's eye at the stop with the camera centred (`STRONGHOLD_LIFT`,
+lifted onto the ledge by scaling it about the release lens's eye at the stop with the camera centred (`STRONGHOLD_LIFT`: 2,
+then 4.5 after "i thought we can also increase the fortresses height", its foot at −0.35 and the ascent below it 2.5
+taller; its rear and upper structure behind its targets now stand over the flight plane, to 5.5, its cannons' tops at
+3.19, its door and front terrace lower; tests/world/stronghold-projection.test.ts checks nothing stands over the flight
+plane before its targets;
 `STRONGHOLD_SCALE` 0.958; its built frame keeps its sea at −4.85, `STRONGHOLD_BUILT_SEA`): every point keeps its line of
 sight, so with the camera centred it fills
 the same pixels (no change of its size on screen) and its weak points stay on their targets; its top (the bridge) stands

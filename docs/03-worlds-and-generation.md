@@ -132,6 +132,16 @@ shape (`BossDefinition` in `src/content/bosses.ts`, each boss's numbers in `src/
   `src/sim/boss.ts`, cosmetic). Launched craft go down with their carrier. The scroll holds over the wreck for
   `WRECK_HOLD`, then the departure (`DEPARTURE` in `src/content/departure.ts`) and the warp: the campaign's results, or
   endless's next planet ([docs/18](18-endless-planet-cycle.md)).
+- **Departure climb** (presentation only; user, 18 November: "make the climb and the move forward above the boss
+  gradual", then "every boss obviously"): after every boss kill the hero's model climbs over the flight plane, easing in
+  and out (smootherstep of time) through the wreck hold and the departure, and holds that height into the warp
+  (`DEPARTURE_CLIMB` in `src/content/departure.ts`, `src/render/hero-climb.ts`; a boss may tune its own,
+  `departureClimb`). It climbs 7.0 from 0.4 to 4.0 s after the kill, so it is at 10.8 when the departure has flown 20
+  units, over HELION STRONGHOLD's peaks (9.0, just past the fight's play area). Its trails, shield, plumes, shots and
+  specials and the drops it collects rise with it; the wreck, its explosions and the ground stay. The camera does not
+  move (the ship grows about a fifth on screen as it nears it), and the simulation stays on the flight plane: hits,
+  timing and fairness are unchanged. Endless's jump lands the ship back on the flight plane over the warp's second half,
+  after the flash, over the next planet; the campaign's victory warp keeps it up behind the results.
 
 **The eight bosses.**
 

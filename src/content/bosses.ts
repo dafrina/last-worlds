@@ -15,7 +15,7 @@ export { WRECK_HOLD } from './departure';
  * transitions never reapply this multiplier. Recovery, attack sequencing and damage are unchanged.
  */
 export const BOSS_TOUGHNESS = { hp: 1.15 * 1.20, recovery: 0.9 } as const;
-import { DEPARTURE } from './departure';
+import { DEPARTURE, type DepartureClimb } from './departure';
 import { OVERLOAD_FRACTION } from './boss-phases';
 
 /**
@@ -68,6 +68,8 @@ export interface BossDefinition {
    * plane) and the seconds between volleys.
    */
   hiddenFire?: { points: readonly { x: number; s: number; height: number }[]; interval: number };
+  /** Presentation only: this boss's own departure climb, in place of the shared DEPARTURE_CLIMB (src/content/departure.ts). */
+  departureClimb?: DepartureClimb;
   /** Its modules relative to the pivot. `prow` (THE ECLIPSE only) joins the first pair's phase as a third target. */
   parts: Readonly<Record<Exclude<BossPart, 'prow'>, BossPartSpec>> & { readonly prow?: BossPartSpec };
   /** First-pair attack: Bastion fires aimed bursts, the Ark fires narrow lane lasers. */

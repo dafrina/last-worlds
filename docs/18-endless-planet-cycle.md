@@ -52,7 +52,10 @@ The simulation is `updateEndless` in `src/sim/endless.ts`, called from `src/sim/
   `WARP.duration` (`src/content/departure.ts`; user requests, 16–17 October). The jump starts at the departure speed,
   surges to a peak sized to the distance it must cover, and settles to the next sector's cruise. The run's planet and
   look switch at the jump's flash, halfway through, and the next sector starts when the jump ends. During the jump no
-  enemy, shot or hazard remains, and the player is protected from the kill until half a second after the jump.
+  enemy, shot or hazard remains, and the player is protected from the kill until half a second after the jump. The
+  ship's model has climbed over the flight plane since the kill (the departure climb, render only,
+  [docs/03](03-worlds-and-generation.md)); it comes back down to the flight plane over the jump's second half, after
+  the flash, so the next sector starts with the ship drawn in its row.
 - **A deterministic schedule.** Sector boundaries, boss stops, arena ranges, jump windows and the planet for every
   stretch of distance follow from the run config alone, never from combat state. The scroll is a closed form of time: the
   pace ramp, the boss stops, the departure and the jump. The fight's length moves only time: the scroll is stopped during

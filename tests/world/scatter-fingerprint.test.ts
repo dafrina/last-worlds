@@ -52,7 +52,7 @@ const CASES: Case[] = [
  * scatter calls and their yields.
  */
 const RECORDED: Record<string, readonly [string, number, number, number]> = {
-  khepri: ['0809259d4cc51f06', 847, 6, 357], luna: ['b15227357bb9b905', 197, 6, 216], vesper: ['50fac2ee6a65863b', 318, 6, 357],
+  khepri: ['0809259d4cc51f06', 847, 6, 357], luna: ['b15227357bb9b905', 197, 6, 216], vesper: ['4c0e30341eb5cc9a', 319, 6, 357],
   nacre: ['f2e03d27f53e344f', 973, 6, 531], amnion: ['a474d5d16e8d05d6', 918, 6, 357], corona: ['c204eed6309ad7b5', 825, 6, 370],
   umbra: ['381b39e54d68a094', 393, 6, 420], nahara: ['1cbf96f0c850b6d6', 538, 6, 384],
   // vesper+arena: HELION STRONGHOLD's arena (17 November: its cliff, then its snowfields and mountains, then its low ground
@@ -61,13 +61,15 @@ const RECORDED: Record<string, readonly [string, number, number, number]> = {
   // ['96b9d538ac002f63', 1537, 19, 758] before). vesper+arena: the mountains behind the fortress, its ledge and its works (18
   // November; ['bda008093970d9c7', 405, 4, 238] before). vesper, vesper+arena and route: Vesper 2.5 lower, the fortress
   // moved down on its tiered ledge (18 November; ['03a49fe99275c8d7', 318, 6, 357], ['9ce723d9304a5969', 299, 4, 238] and
-  // ['a044aa9c9af70b11', 1533, 19, 758] before).
-  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['9e1a9a60936bc28a', 325, 4, 238],
+  // ['a044aa9c9af70b11', 1533, 19, 758] before). vesper, vesper+arena and route: Vesper 3.75 lower, the fortress set into
+  // its full-screen mountain (18 November; ['50fac2ee6a65863b', 318, 6, 357] and ['b4c9297d58d5a7dd', 1536, 19, 758]
+  // before).
+  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['0f9c06e95048a0bb', 215, 4, 238],
   // amnion+arena: THE CRADLE on its lowered crust terrace (17 November; its emergence canyon ['fd29dba2900c9d70', 405, 4, 238], its
   // brood basin ['920e5993df95c702', 325, 4, 238], then the plain settled plateau ['20a4b9ab47994205', 327, 4, 238] before).
   'nacre+arena': ['459e46b6b9fcdc14', 262, 4, 352], 'amnion+arena': ['973f54c333428511', 323, 4, 238], 'corona+arena': ['8135a9663edb2fff', 457, 4, 239],
   'umbra+arena': ['024b326323e18002', 202, 4, 249], 'nahara+arena': ['1b0e7095f021e896', 447, 6, 382],
-  route: ['b4c9297d58d5a7dd', 1536, 19, 758], 'khepri 11:0': ['8a3012c672f9b64a', 164, 1, 59],
+  route: ['067e7457a2341c9e', 1538, 19, 758], 'khepri 11:0': ['8a3012c672f9b64a', 164, 1, 59],
 };
 
 interface Call { planet: PlanetId; seed: number; startS: number; size: number; pieces: KitInstance[]; yields: number }

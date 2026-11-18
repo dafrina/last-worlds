@@ -45,10 +45,23 @@ describe('HELION STRONGHOLD placement', () => {
       // The barrel points at the player: its muzzle is well down the screen from its breech.
       expect(breech.s - muzzle.s).toBeGreaterThan(2);
     }
-    // Lifted onto its ledge it stays under the flight plane: its top (the bridge) 0.4 under it, its foot on the ledge.
-    const box = new THREE.Box3().setFromObject(model);
-    expect(STRONGHOLD_BASE + K * box.max.y).toBeLessThan(VIEW.flightHeight - 0.4);
-    expect(STRONGHOLD_BASE).toBeCloseTo(STRONGHOLD_BUILT_SEA + 2, 9);
+    // Lifted onto its ledge, whatever stands over the flight plane stands behind its targets (its rear and upper structure),
+    // never between them and the player, where shots, Needles and rings pass (18 November: its seat 4.5 over its build's).
+    expect(STRONGHOLD_BASE).toBeCloseTo(STRONGHOLD_BUILT_SEA + 4.5, 9);
+    const front = Math.min(ROW + HELION_ARK.bridgeS, ROW + HELION_ARK.radiatorS), vertex = new THREE.Vector3();
+    let over = 0, high = -Infinity;
+    model.traverse(object => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh || /wreck/.test(object.name)) return;
+      const position = mesh.geometry.getAttribute('position');
+      for (let i = 0; i < position.count; i++) {
+        const p = seated(vertex.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld));
+        high = Math.max(high, p.y);
+        if (p.y > VIEW.flightHeight - 0.2 && p.s < front) over++;
+      }
+    });
+    expect(over).toBe(0);
+    expect(high).toBeGreaterThan(VIEW.flightHeight);
   });
 
   it('fits the ground to the model\'s measured top (src/world/stronghold-seat.ts holds the model as built, its foot at the sea)', async () => {

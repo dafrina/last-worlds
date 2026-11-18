@@ -56,9 +56,9 @@ export const HELION_ARK = {
    * projects it through the lens for the camera of the moment, as it does a ground battery. One volley of the bridge's aimed
    * burst every `interval` seconds while the pilot stays hidden. (Height −6.96 until the fortress was lifted onto its ledge,
    * 18 November: the lift keeps every line of sight, so only the height changed, src/world/terrain-vesper.ts STRONGHOLD_LIFT;
-   * moved down with row 8.1 their points come 0.01 nearer the pivot, STRONGHOLD_SLIDE.)
+   * moved down with row 8.1 their points come 0.01 nearer the pivot, STRONGHOLD_SLIDE; −2.62 since its seat rose 2.5 more.)
    */
-  terraceGuns: { points: [{ x: -4.61, s: 1.95, height: -5.03 }, { x: 4.56, s: 1.11, height: -5.03 }], interval: 2.6 },
+  terraceGuns: { points: [{ x: -4.61, s: 1.95, height: -2.62 }, { x: 4.56, s: 1.11, height: -2.62 }], interval: 2.6 },
   /** Finite Needle launches during the bridge phase: waves of two, one from each bay. */
   launches: { waves: 3, firstAfter: 2.5, interval: 7 },
   /**

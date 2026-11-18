@@ -57,6 +57,7 @@ import { PONTOON_DECK, runRoute } from '../world/run-route';
 import { LENS_FOV, fromFlightPlane, lensFollow } from '../shared/lens';
 import type { PlanetLook } from '../shared/renderer-types';
 import { loadHeroModel, preloadHeroLook } from './hero-craft';
+import { heroLift } from './hero-climb';
 import { DEFAULT_LOOK, HERO_DEFAULT_PAINT, heroLookKey, shownHero } from '../content/hero-parts';
 import type { HeroLook, ShipId } from '../shared/contracts';
 
@@ -266,8 +267,8 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
     post: { exposure: 1, threshold: 1.4, knee: .25, strength: .38, lift: [.0025, .0045, .0085], saturation: .9, contrast: 1.08, vignette: .16,
       haze: [.82, .9, .98, .155],
       // The user's playground fog (23 October): a pale low mist over the sea and down the cliffs, the shelves clear. (Its
-      // heights follow Vesper's level down, 2.5 since 18 November: VESPER_DROP.)
-      fog: { color: 0xc4d8ea, energy: 1.09, height: [-4.8, -11.55, .24], distance: [40.5, .041, .12] } },
+      // heights follow Vesper's level down, 3.75 since 18 November: VESPER_DROP.)
+      fog: { color: 0xc4d8ea, energy: 1.09, height: [-6.05, -12.8, .24], distance: [40.5, .041, .12] } },
     environment: 'ice',
   },
   // Luna, Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and
@@ -1438,13 +1439,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   /** This frame's plumes: pooled objects (docs/38 PF3), filled by `plume` and read by fx.update in the same frame. */
   const plumes: Plume[] = [], plumePool: Plume[] = [];
   let plumeCount = 0;
-  const plume = (x: number, z: number, length: number, width: number, hex: number, energy: number, round = false) => {
-    const p = plumePool[plumeCount] ??= { x: 0, z: 0, length: 0, width: 0, hex: 0, energy: 0, round: false };
-    p.x = x; p.z = z; p.length = length; p.width = width; p.hex = hex; p.energy = energy; p.round = round;
+  const plume = (x: number, z: number, length: number, width: number, hex: number, energy: number, round = false, lift = 0) => {
+    const p = plumePool[plumeCount] ??= { x: 0, z: 0, length: 0, width: 0, hex: 0, energy: 0, round: false, lift: 0 };
+    p.x = x; p.z = z; p.length = length; p.width = width; p.hex = hex; p.energy = energy; p.round = round; p.lift = lift;
     plumes[plumeCount++] = p;
   };
   const heroTrail = createHeroTrail();
   let trailEndZ = planeZAtScreenY(camera, VIEW.flightHeight + .035, .975);
+  /**
+   * The hero's departure climb this frame (src/render/hero-climb.ts; set by poseHero): the ship, its trails, shield and
+   * plumes, what it fires and the pickups it collects are drawn this much over the flight plane.
+   */
+  let heroClimb = 0;
   let trailRun: RunState | null = null, trailLives = 0, trailLook = '';
 
   const lineVertices = new Float32Array(16384 * 3), lineColors = new Float32Array(16384 * 3);
@@ -1470,17 +1476,17 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * The frame's lane, telegraph and marker writers (defined once: docs/38 PF3, not recreated every frame). `strip` adds a
    * lane quad to a layer; `line` a marker segment to the line buffer (`lineCursor`, reset each frame).
    */
-  const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1) => {
+  const strip = (x1: number, s1: number, x2: number, s2: number, width: number, hex: number, layer = telegraphs, energy = 1, lift = 0) => {
     const index = laneCounts.get(layer) ?? 0;
     if (index >= layer.instanceMatrix.count) return;
     laneArea += width * Math.hypot(x2 - x1, s2 - s1);
-    transform.position.set((x1 + x2) / 2, VIEW.flightHeight + .035, -(s1 + s2) / 2);
+    transform.position.set((x1 + x2) / 2, VIEW.flightHeight + .035 + lift, -(s1 + s2) / 2);
     transform.rotation.set(0, Math.atan2(x2 - x1, -(s2 - s1)), 0); transform.scale.set(width, 1, Math.hypot(x2 - x1, s2 - s1)); transform.updateMatrix();
     layer.setMatrixAt(index, transform.matrix); layer.setColorAt(index, color.setHex(hex).multiplyScalar(energy));
     laneCounts.set(layer, index + 1);
   };
   const trailSegment = (x0: number, s0: number, x1: number, s1: number, width: number, energy: number) =>
-    strip(x0, s0, x1, s1, width, heroGlow, heroTrails, energy);
+    strip(x0, s0, x1, s1, width, heroGlow, heroTrails, energy, heroClimb);
   /*
    * Enemy beams (user, 23 October: the dashed lanes "look dated under the new graphics"; "make it a faint red preview
    * which then turns white with a red glow ... maybe make the laser glow in the color of the glow on their specific
@@ -1572,7 +1578,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     // so the drop plays as the world appears (user, 27 October: the drop had been skipped under the warp).
     const entrance = state.time >= HERO_ENTRANCE ? 1 : 1 - Math.pow(1 - Math.max(0, state.time) / HERO_ENTRANCE, 3);
     const lift = (1 - entrance) * HERO_ENTRANCE_LIFT;
-    hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION), lift * Math.cos(ELEVATION));
+    // After a boss kill the ship climbs as it departs (render-only, src/render/hero-climb.ts).
+    heroClimb = heroLift(state);
+    hero.position.set(state.player.x, VIEW.flightHeight + lift * Math.sin(ELEVATION) + heroClimb, lift * Math.cos(ELEVATION));
     // Rail Driver recoil (render only): a short kick back, springing home in 0.1 s.
     if (railKickAt >= 0 && state.time >= railKickAt) hero.position.z += .06 * Math.max(0, 1 - (state.time - railKickAt) / .1);
     hero.scale.setScalar(HERO_SCALE * (1 + (1 - entrance) * 1.6));
@@ -1810,7 +1818,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // The last life lost: the hero is gone (its explosion plays on in the death afterglow, see main.ts).
       const heroAlive = state.player.lives > 0;
       const entrance = poseHero(state);
-      shield.position.set(state.player.x, VIEW.flightHeight + .03, 0);
+      shield.position.set(state.player.x, VIEW.flightHeight + .03 + heroClimb, 0);
       shield.visible = heroAlive && state.time < state.player.invulnerableUntil;
       shieldMaterial.color.setHex(heroGlow);
       shieldMaterial.opacity = .34;
@@ -1825,7 +1833,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Only the round light belongs to the nozzle. All visible exhaust behind it follows the recorded flight path.
       if (heroAlive && entrance > .9) for (const [ex, ez] of heroEngines) {
         plume(hero.position.x + ex * HERO_SCALE * Math.cos(hero.rotation.z), hero.position.z + ez * HERO_SCALE, 0,
-          .32 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)) * flicker(state.time, 0), heroGlow, 3.2, true);
+          .32 * HERO_SCALE * Math.sqrt(2 / Math.max(2, heroEngines.length)) * flicker(state.time, 0), heroGlow, 3.2, true, heroClimb);
       }
       let shadowCount = 0, plinthCount = 0;
       const groundAt = (gx: number, gs: number) => surfaceHeight(state.config.seed, gx, state.distance + gs, world);
@@ -2160,16 +2168,18 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         for (let k = 0; k < 3; k++) {
           const a = k / 3, b = (k + 1) / 3, glow = (.35 + .4 * k) * fade;
           const xa = trail.x0 + (trail.x - trail.x0) * a, sa = trail.s0 + (head - trail.s0) * a, xb = trail.x0 + (trail.x - trail.x0) * b, sb = trail.s0 + (head - trail.s0) * b;
-          strip(xa, sa, xb, sb, .12 + .04 * k, 0x5ff3ff, flashLanes, glow);
-          strip(xa, sa, xb, sb, .04, 0xffffff, flashLanes, glow * 1.5);
+          strip(xa, sa, xb, sb, .12 + .04 * k, 0x5ff3ff, flashLanes, glow, heroClimb);
+          strip(xa, sa, xb, sb, .04, 0xffffff, flashLanes, glow * 1.5, heroClimb);
         }
         // The slug itself: a white-hot streak at the head while it flies.
-        if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2 * heat.grow), trail.x, head, .17 * heat.grow, 0xffffff, flashLanes, 2.6);
+        if (trail.endedAt === undefined) strip(trail.x, Math.max(trail.s0, head - 1.2 * heat.grow), trail.x, head, .17 * heat.grow, 0xffffff, flashLanes, 2.6, heroClimb);
       }
       if (trailRun !== state || trailLives !== state.player.lives || trailLook !== heroShown) heroTrail.clear();
       trailRun = state; trailLives = state.player.lives; trailLook = heroShown;
       if (!heroAlive || entrance <= .9 || state.jump) heroTrail.clear();
-      else heroTrail.draw(state.time, state.distance, hero.position.x, hero.position.z, Math.cos(hero.rotation.z), heroEngines, HERO_SCALE, trailEndZ, trailSegment);
+      // A climbing ship's wake runs to the bottom of the screen at its own height.
+      else heroTrail.draw(state.time, state.distance, hero.position.x, hero.position.z, Math.cos(hero.rotation.z), heroEngines, HERO_SCALE,
+        heroClimb > 0 ? planeZAtScreenY(camera, VIEW.flightHeight + .035 + heroClimb, .975) : trailEndZ, trailSegment);
       const [hostileHex] = hostileHues(planet);
       wallShots.length = 0;
       for (const sim of state.projectiles) {
@@ -2205,18 +2215,19 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
               const a = end - orbit.direction * span * (1 - i / 8), b = end - orbit.direction * span * (1 - (i + 1) / 8);
               // A narrow dark backing keeps the arc readable over Luna snow without extra bloom.
               strip(state.player.x + Math.cos(a) * orbit.radius, Math.sin(a) * orbit.radius,
-                state.player.x + Math.cos(b) * orbit.radius, Math.sin(b) * orbit.radius, .09, 0x392354, telegraphs, 1);
+                state.player.x + Math.cos(b) * orbit.radius, Math.sin(b) * orbit.radius, .09, 0x392354, telegraphs, 1, heroClimb);
               strip(state.player.x + Math.cos(a) * orbit.radius, Math.sin(a) * orbit.radius,
-                state.player.x + Math.cos(b) * orbit.radius, Math.sin(b) * orbit.radius, .045, 0xb58aff, flashLanes, .35 + i * .1);
+                state.player.x + Math.cos(b) * orbit.radius, Math.sin(b) * orbit.radius, .045, 0xb58aff, flashLanes, .35 + i * .1, heroClimb);
             }
           } else {
             const speed = Math.hypot(sim.vx, sim.vs) || 1;
-            strip(sim.x - sim.vx / speed * .45, sim.s - sim.vs / speed * .45, sim.x, sim.s, .065, 0xb58aff, flashLanes, 1);
+            strip(sim.x - sim.vx / speed * .45, sim.s - sim.vs / speed * .45, sim.x, sim.s, .065, 0xb58aff, flashLanes, 1, sim.friendly ? heroClimb : 0);
           }
         }
         // A launched round is drawn where its launch puts it (its place and heading; the rest is the projectile's own).
+        // The ship's own fire leaves it at its climb's height.
         const launch = sim.friendly ? undefined : launches.get(sim.id), at = launch ? drawnShot(sim, launch) : sim;
-        transform.position.set(at.x, VIEW.flightHeight + .04, -at.s);
+        transform.position.set(at.x, VIEW.flightHeight + .04 + (sim.friendly ? heroClimb : 0), -at.s);
         transform.rotation.set(0, Math.atan2(at.vx, -at.vs), 0);
         if (sim.special && missiles) {
           // Model nose toward +Z: yaw it along the flight (world z = −s); scaled up a touch so it reads as a missile.
@@ -2263,7 +2274,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (mesh.count >= mesh.instanceMatrix.count) continue;
         // A gentle bob and sway, plus a soft breathing scale so drops catch the eye; they fade in their last 2 s.
         const breathe = 1 + Math.sin(state.time * 3.2 + pickup.id) * .045, fade = pickup.ttl < 2 ? .55 + .45 * Math.abs(Math.cos(state.time * 9)) : 1;
-        transform.position.set(pickup.x, VIEW.flightHeight + .06 + Math.sin(state.time * 2 + pickup.id) * .035, -pickup.s);
+        // Drops float on the ship's plane, so a climbing ship still collects them (src/render/hero-climb.ts).
+        transform.position.set(pickup.x, VIEW.flightHeight + .06 + heroClimb + Math.sin(state.time * 2 + pickup.id) * .035, -pickup.s);
         // A full turn about its upright axis (user, 7 November: "full 360 but ... when we see it it turns slow but when its
         // turning it turns quickly"): three quarters of each cycle it faces the camera, drifting slowly through ±17°; the
         // last quarter is one quick turn with an elastic settle. A glint right after the turn, a little darker side-on.
@@ -2277,8 +2289,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       // Siege Lance (campaign special): a bright piercing beam straight ahead from the ship's nose while it fires.
       if (state.lance && state.time < state.lance.until) {
         const left = state.lance.until - state.time, flare = Math.min(1, left / .12) * (.85 + .15 * Math.sin(state.time * 60));
-        strip(state.player.x, .5, state.player.x, VIEW.maxS + 2, .9, 0x7fefff, flashLanes, 1.6 * flare);
-        strip(state.player.x, .5, state.player.x, VIEW.maxS + 2, .32, 0xffffff, flashLanes, 2.6 * flare);
+        strip(state.player.x, .5, state.player.x, VIEW.maxS + 2, .9, 0x7fefff, flashLanes, 1.6 * flare, heroClimb);
+        strip(state.player.x, .5, state.player.x, VIEW.maxS + 2, .32, 0xffffff, flashLanes, 2.6 * flare, heroClimb);
       }
       for (const hazard of state.hazards) {
         // A beam runs from whatever fires it (a Needle at its aim, a locked beam ship, the boss column over it; else the
@@ -2296,7 +2308,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         ring.visible = !!wave;
         if (!wave) return;
         const radius = Math.max(.2, SPECIALS.shockwave.speed * (state.time - wave.startedAt)), fade = 1 - Math.min(1, radius / SPECIALS.shockwave.reach);
-        ring.position.set(wave.x, VIEW.flightHeight + .05, -wave.s); ring.scale.setScalar(radius);
+        ring.position.set(wave.x, VIEW.flightHeight + .05 + heroClimb, -wave.s); ring.scale.setScalar(radius);
         shockMaterials[k].opacity = (k ? .22 : .95) * fade;
       });
       let effectCount = 0;
@@ -2307,7 +2319,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         if (effectCount >= effects.instanceMatrix.count) break;
         const age = Math.max(0, Math.min(1, 1 - effect.ttl / effect.duration));
         const radius = effect.kind === 'bossBlast' ? 1 + age * 11 : effect.kind === 'blast' ? .4 + age * 3 : effect.kind === 'shred' ? .2 + age * 2.2 : effect.kind === 'explosion' ? .15 + age * .8 : .08 + age * .4;
-        transform.position.set(effect.x, VIEW.flightHeight + .04, -effect.s);
+        // A pickup's catch and a shield hit happen at the ship, at its climb's height.
+        transform.position.set(effect.x, VIEW.flightHeight + .04 + (effect.kind === 'pickup' || effect.kind === 'shield' ? heroClimb : 0), -effect.s);
         transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(radius * quiet); transform.updateMatrix();
         effects.setMatrixAt(effectCount, transform.matrix);
         const tint = effect.kind === 'explosion' || effect.kind === 'hit' || effect.kind === 'blast' || effect.kind === 'bossBlast' ? 0xf9b67f : effect.kind === 'shield' ? heroGlow : effect.kind === 'shred' ? 0xc8fffa : 0x97e7da;
@@ -2330,7 +2343,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       fx.update(state, plumes, terrain.haulerDust, planet === 'vesper' && seaHeight !== null ? {
         splash: (x, z) => terrainHeight(state.config.seed, x, state.distance - z, world) < seaHeight - .05 ? seaHeight : null,
         vents: collectVents(state.cameraX), ground,
-      } : { splash: () => null, vents: [], ground }, id => launches.get(id), heroGlow);
+      } : { splash: () => null, vents: [], ground }, id => launches.get(id), heroGlow, heroClimb);
       // The ocean and its foam follow the terrain, which streams the next planet ahead of a jump's flash.
       water.update(state.time, state.distance); mireWater.update(state.time, state.distance);
       const arkFoam = stronghold.foam;

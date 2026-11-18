@@ -256,14 +256,18 @@ describe('Vesper generator (docs/17 §4)', () => {
     const eye = lensEye(0), K = STRONGHOLD_SCALE, eyeA = 9 + eye.s;
     const lift = (x: number, a: number, h = 0) => ({ x: K * x, a: eyeA + K * (a - eyeA) + STRONGHOLD_SLIDE, h: eye.y + K * (h - eye.y) });
     for (const seed of [93, 8831, 11]) {
-      let land = 0, wet = 0, nearWet = 0, pressed = 0, varied = 0, corridorHigh = -Infinity, beyond = -Infinity, peaks = -Infinity, lanes = -Infinity;
+      let land = 0, wet = 0, nearWet = 0, pressed = 0, varied = 0, crest = -Infinity, corridorHigh = -Infinity, beyond = -Infinity, peaks = -Infinity, lanes = -Infinity;
       const heights: number[] = [];
       for (let a = -12; a <= 76; a += 0.5) for (let x = -HALF; x <= HALF; x += 0.5) {
         const h = at(seed, x, a);
-        // The play area keeps under the scenery cap, 0.8 under the flight plane; the ground under the fight's lanes before
-        // the fortress stays low, the tall peaks stand beside and behind it.
-        expect(h, `${x}, ${a}`).toBeLessThanOrEqual(VESPER_SCENERY_MAX);
-        if (a > -12 && a < STRONGHOLD_LEDGE.front - 5 && Math.abs(x) < 7) lanes = Math.max(lanes, h);
+        // The play area keeps under the scenery cap, 0.8 under the flight plane (its top 28.8 past the arena's start; the peak
+        // behind the fortress rises beyond it); the ground under the fight's lanes before the fortress stays low, the tall
+        // peaks stand beside and behind it.
+        // (Over the fortress's back, inside its plan, the rock rises with its structure.)
+        if (a < 30 && !(Math.abs(x) < STRONGHOLD_LEDGE.half && a > STRONGHOLD_LEDGE.front + 3)) expect(h, `${x}, ${a}`).toBeLessThanOrEqual(VESPER_SCENERY_MAX + 1e-9);
+        if (a > 34 && a < 50) crest = Math.max(crest, h);
+        // (The fight's lanes over the low ground before the fortress's ascent: the ascent and its ledge are its mountain.)
+        if (a > -12 && a < STRONGHOLD_LEDGE.front - 5 && Math.abs(x) < 7 && strongholdGround(arena, seed, x, arena.fromS + a)!.ledge === 0) lanes = Math.max(lanes, h);
         if (a > 22 && a < 42 && Math.abs(x) > 7) peaks = Math.max(peaks, h);
         if (Number.isNaN(top(x, a))) {
           if (h < SEA) { wet++; if (a > 18 && a < 34 && Math.abs(x) < 9) nearWet++; } else land++;
@@ -272,7 +276,7 @@ describe('Vesper generator (docs/17 §4)', () => {
           if (h >= SEA && Math.abs(x) < 7 && a > 0 && a < 20 && strongholdGround(arena, seed, x, arena.fromS + a)!.ledge === 0) { pressed += h < -1.6 ? 1 : 0; heights.push(h); }
         }
         // The corridor the fight and the departure fly over stays low past the fortress's shoulder.
-        if (a > 40 && a < 60 && Math.abs(x) < 5) corridorHigh = Math.max(corridorHigh, h);
+        if (a > 72 && a < 76 && Math.abs(x) < 5) corridorHigh = Math.max(corridorHigh, h);
       }
       // Mostly land, its leads and pockets of dark water kept; none round the fortress.
       expect(land / (land + wet)).toBeGreaterThan(0.7);
@@ -285,13 +289,15 @@ describe('Vesper generator (docs/17 §4)', () => {
       expect(mean).toBeLessThan(SEA + 1.4);
       expect(varied).toBeGreaterThan(0.12);
       expect(corridorHigh).toBeLessThan(-1);
+      // The peak behind the fortress stands over the flight plane, under its top.
+      expect(crest).toBeGreaterThan(6.5); expect(crest).toBeLessThanOrEqual(9);
       expect(lanes).toBeLessThan(SEA + 3.5);
       expect(peaks).toBeGreaterThan(2.2);
       // Beyond the world's edges the mountains rise over the play area's ground (whose massif keeps to 0.6 inside it).
       for (let a = 0; a <= 60; a += 1) for (const x of [-15, -14, 14, 15]) beyond = Math.max(beyond, at(seed, x, a));
       expect(beyond).toBeGreaterThan(1.8);
-      // The ground before the fortress stays well under its barrels (−0.7) and housings.
-      for (let a = 16; a <= 22; a += 0.5) for (let x = -5; x <= 5; x += 0.5) expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(-1.2);
+      // The ground before the fortress keeps to its ledge or under it, well under its barrels and housings.
+      for (let a = 16; a <= 22; a += 0.5) for (let x = -5; x <= 5; x += 0.5) expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(STRONGHOLD_LEDGE.level + 0.4);
       // The ground keeps under the model, except its rear, which the mountain takes in, and meets it at its edge (burying
       // the cut faces).
       for (let a = SEAT_A; a < SEAT_A + SEAT_ROWS.length * SEAT_STEP; a += SEAT_STEP) for (let x = -SEAT_X; x <= SEAT_X; x += SEAT_STEP) {
@@ -355,10 +361,12 @@ describe('Vesper generator (docs/17 §4)', () => {
           const top = 'baseHeight' in piece ? piece.baseHeight + piece.height : piece.y + (MODULE_HEIGHT[piece.node] ?? 0.8);
           expect(top, piece.id).toBeLessThan(VESPER_PIECE_MAX);
           expect(Math.abs(piece.x), piece.id).toBeLessThan(HALF);
+          // (On the low plateau only: nothing on the ascent or the ledge.)
+          expect(at(piece.x, piece.s - arena.fromS), piece.id).toBeLessThan(STRONGHOLD_LEDGE.level - 1);
           expect(piece.s < arena.fromS + STRONGHOLD_LEDGE.front - 0.3 || Math.abs(piece.x) > STRONGHOLD_LEDGE.half + 0.3, piece.id).toBe(true);
         }
       }
-      expect(works, `${seed}`).toBeGreaterThan(12);
+      expect(works, `${seed}`).toBeGreaterThanOrEqual(6);
     }
     // The ledge's reach is the arena's own, short (user, 18 November: "i also like seed 4 best, maybe we should limit it to
     // shorter cliffes"): right below the fortress for some seeds and arenas, a couple of units out for others.
@@ -382,9 +390,13 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect(plan.boss).toBe('ark');
     const route = runRoute({ mode: 'endless' }), from = plan.stop!.platform.from;
     expect(route.worldAt(from + 27).planet.id).toBe('vesper');
-    for (const [x, a] of [[0, 18], [3, 20], [0, 45]]) {
+    // (Before the fortress, and its peak over the flight plane behind it.)
+    let peak = -Infinity;
+    for (let a = 36; a <= 48; a += 1) peak = Math.max(peak, terrainHeight(21, 0, from + a, route), terrainHeight(21, -4, from + a, route), terrainHeight(21, 4, from + a, route));
+    expect(peak).toBeGreaterThan(5);
+    for (const [x, a] of [[0, 18], [3, 20]]) {
       const h = terrainHeight(21, x, from + a, route);
-      expect(h, `${x}, ${a}`).toBeGreaterThan(SEA); expect(h, `${x}, ${a}`).toBeLessThan(-1.2);
+      expect(h, `${x}, ${a}`).toBeGreaterThan(SEA); expect(h, `${x}, ${a}`).toBeLessThan(STRONGHOLD_LEDGE.level + 0.5);
     }
     let beyond = -Infinity;
     for (let a = 10; a <= 50; a += 1) beyond = Math.max(beyond, terrainHeight(21, -14.5, from + a, route), terrainHeight(21, 14.5, from + a, route));

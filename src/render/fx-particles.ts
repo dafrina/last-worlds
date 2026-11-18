@@ -75,8 +75,11 @@ interface Particle {
   /** A falling ember or fragment settles at this height (−Infinity: none). */
   floor: number;
 }
-/** An engine plume in world space: nozzle at (x, z), extending `length` along z (positive = toward the player). */
-export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number; round?: boolean }
+/**
+ * An engine plume in world space: nozzle at (x, z), extending `length` along z (positive = toward the player), `lift` over
+ * the flight plane (the hero's departure climb, src/render/hero-climb.ts).
+ */
+export interface Plume { x: number; z: number; length: number; width: number; hex: number; energy: number; round?: boolean; lift?: number }
 /** Planet surface hooks (Vesper): sea height under a world point (null over land) and steam vents (world space). */
 export interface FxSurface {
   splash(x: number, z: number): number | null; vents: readonly { x: number; y: number; z: number }[];
@@ -190,6 +193,8 @@ export function createFx(scene: THREE.Scene) {
   /** Ground batteries' rounds as drawn (src/render/shot-launch.ts), from the renderer. */
   let launchOf: (id: number) => Launch | undefined = () => undefined;
   let quality: GraphicsQuality = 'high', lastTime = -1, lastTick = -1, lastEffect = -1, lastShot = -1, seed = 0;
+  /** The hero's departure climb this frame: what the ship fires and collects is drawn that much over the flight plane. */
+  let heroLift = 0;
 
   const emit = (into: typeof glow, p: Partial<Particle> & { x: number; y: number; z: number; life: number; size: number; delay?: number }) => {
     // A destroyed boss's blasts burn below the ship (the wreck pair draws around the hero).
@@ -664,10 +669,10 @@ export function createFx(scene: THREE.Scene) {
       else if (effect.kind === 'bossBlast') bossBlast(effect.x, z, effect.id);
       else if (effect.kind === 'shred') shatter(effect.x, z, effect.id, Math.min(1, Math.max(0, (effect.duration - .4) / .4)));
       else if (effect.kind === 'hit') { flash(effect.x, z, .38, .07, 0xffd2a0, 1.8); sparks(effect.x, z, full() ? 5 : 3, 0xffb070, 4.2, effect.id); }
-      else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, heroGlow, 5, effect.id);
-      else if (effect.kind === 'pickup') for (let i = 0; i < (full() ? 4 : 2); i++) emit(glow, { x: effect.x + (hash(effect.id + i) - .5) * .5, y: VIEW.flightHeight + .1,
+      else if (effect.kind === 'shield') sparks(effect.x, z, full() ? 10 : 5, heroGlow, 5, effect.id, VIEW.flightHeight + .05 + heroLift);
+      else if (effect.kind === 'pickup') for (let i = 0; i < (full() ? 4 : 2); i++) emit(glow, { x: effect.x + (hash(effect.id + i) - .5) * .5, y: VIEW.flightHeight + .1 + heroLift,
         z: z + (hash(effect.id + i * 3) - .5) * .5, life: .25, size: .32, grow: -.2, shape: STAR, alpha: 1, ...tint(0xfff4d8, 1.6) });
-      else if (effect.kind === 'special') flash(effect.x, z, 2.2, .16, 0xc8fff8, 1.6);
+      else if (effect.kind === 'special') flash(effect.x, z, 2.2, .16, 0xc8fff8, 1.6, VIEW.flightHeight + .08 + heroLift);
     }
     anchoredEmission = false; quieted = null;
     replaced.clear();
@@ -682,7 +687,7 @@ export function createFx(scene: THREE.Scene) {
       // Muzzle flash at the logical origin; colour follows the shot's team. Main-weapon tiers 4 and 5 flash larger.
       if (shot.friendly) {
         const punch = shot.weapon ? heat : SHOT_HEAT[0];
-        flash(shot.previousX, -shot.previousS, .3 * punch.grow, .06, 0xd8fff9, 1.5 * Math.sqrt(punch.energy));
+        flash(shot.previousX, -shot.previousS, .3 * punch.grow, .06, 0xd8fff9, 1.5 * Math.sqrt(punch.energy), VIEW.flightHeight + .08 + heroLift);
       }
       // A ground battery's round flashes at the battery as drawn.
       else {
@@ -740,13 +745,13 @@ export function createFx(scene: THREE.Scene) {
     for (const plume of plumes) {
       if (plume.round) {
         // A one-frame glow (e.g. a Needle's muzzle charging) facing the camera, `width` across.
-        transform.position.set(plume.x, VIEW.flightHeight + .06, plume.z); transform.rotation.set(-ELEVATION, 0, 0); transform.scale.set(plume.width, plume.width, 1);
+        transform.position.set(plume.x, VIEW.flightHeight + .06 + (plume.lift ?? 0), plume.z); transform.rotation.set(-ELEVATION, 0, 0); transform.scale.set(plume.width, plume.width, 1);
         transform.updateMatrix(); color.setHex(plume.hex).multiplyScalar(plume.energy); add(transform.matrix, color.r, color.g, color.b, 1, ROUND);
         overlayArea += plume.width * plume.width;
         continue;
       }
       // Lies in the flight plane; uv.y = 1 at the nozzle, fading toward the tail.
-      transform.position.set(plume.x, VIEW.flightHeight + .02, plume.z + plume.length / 2);
+      transform.position.set(plume.x, VIEW.flightHeight + .02 + (plume.lift ?? 0), plume.z + plume.length / 2);
       transform.rotation.set(-Math.PI / 2, 0, plume.length > 0 ? 0 : Math.PI); transform.scale.set(plume.width, Math.abs(plume.length), 1); transform.updateMatrix();
       color.setHex(plume.hex).multiplyScalar(plume.energy); add(transform.matrix, color.r, color.g, color.b, 1, PLUME);
       overlayArea += plume.width * Math.abs(plume.length);
@@ -756,7 +761,7 @@ export function createFx(scene: THREE.Scene) {
       const pulse = Math.pow(Math.max(0, Math.sin(state.time * 3.4 + pickup.id * 1.7)), 10);
       if (pulse < .02) continue;
       const hex = pickup.kind === 'shield' ? 0xa8fff2 : pickup.kind === 'credit' ? 0xffe2a0 : pickup.kind === 'weapon' ? 0xe0ccff : 0xfff2dc;
-      transform.position.set(pickup.x + .2, VIEW.flightHeight + .2, -pickup.s - .14); transform.rotation.set(-ELEVATION, 0, .3);
+      transform.position.set(pickup.x + .2, VIEW.flightHeight + .2 + heroLift, -pickup.s - .14); transform.rotation.set(-ELEVATION, 0, .3);
       transform.scale.setScalar(.34 + .12 * pulse); transform.updateMatrix();
       color.setHex(hex).multiplyScalar(1.7 * pulse); add(transform.matrix, color.r, color.g, color.b, pulse, STAR);
     }
@@ -764,10 +769,13 @@ export function createFx(scene: THREE.Scene) {
   }
   return {
     setQuality(next: GraphicsQuality) { quality = next; },
-    /** Advance by simulation time (frozen while paused or in still fixtures) and rebuild both instanced layers. */
+    /**
+     * Advance by simulation time (frozen while paused or in still fixtures) and rebuild both instanced layers. `lift`: the
+     * hero's departure climb (src/render/hero-climb.ts), for the flashes and glints of what it fires and collects.
+     */
     update(state: RunState, plumes: readonly Plume[], dust: readonly { x: number; y: number; z: number }[] = [], planetSurface: FxSurface | null = null,
-      launches: (id: number) => Launch | undefined = () => undefined, heroGlow = 0x7ff6ea) {
-      launchOf = launches;
+      launches: (id: number) => Launch | undefined = () => undefined, heroGlow = 0x7ff6ea, lift = 0) {
+      launchOf = launches; heroLift = lift;
       const shift = lastTime < 0 || state.time < lastTime || seed !== state.config.seed ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       // Move only existing particles; new effects already use this snapshot's world position.
       for (const layer of layers) for (let i = 0; i < layer.live; i++) layer.pool[i].z += shift * (layer === ground ? 1 : layer.pool[i].drift);
@@ -787,10 +795,10 @@ export function createFx(scene: THREE.Scene) {
       if (dt > 0) for (const shot of state.projectiles) {
         if (!shot.special || shot.ttl <= 0) continue;
         const speed = Math.hypot(shot.vx, shot.vs) || 1, bx = -shot.vx / speed * .24, bs = -shot.vs / speed * .24;
-        emit(glow, { x: shot.x + bx, y: VIEW.flightHeight + .05, z: -(shot.s + bs), life: .08, size: .2, grow: -.4, alpha: 1, shape: ROUND, ...tint(0xffc070, 2.4) });
+        emit(glow, { x: shot.x + bx, y: VIEW.flightHeight + .05 + heroLift, z: -(shot.s + bs), life: .08, size: .2, grow: -.4, alpha: 1, shape: ROUND, ...tint(0xffc070, 2.4) });
         for (let k = 0; k < (full() ? 2 : 1); k++) {
           const f = k / 2, x = shot.previousX + (shot.x - shot.previousX) * f + bx, s = shot.previousS + (shot.s - shot.previousS) * f + bs;
-          emit(smoke, { x: x + (hash(shot.id + state.tick + k) - .5) * .05, y: VIEW.flightHeight, z: -s, vy: .05, life: .55 + hash(shot.id + k) * .25,
+          emit(smoke, { x: x + (hash(shot.id + state.tick + k) - .5) * .05, y: VIEW.flightHeight + heroLift, z: -s, vy: .05, life: .55 + hash(shot.id + k) * .25,
             size: .1, grow: .55, drag: 1.5, alpha: .5, shape: ROUND, drift: .25, ...tint(0xd8dde2, 1) });
         }
       }
