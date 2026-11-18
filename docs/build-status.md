@@ -1,5 +1,24 @@
 # Build status
 
+## Boss overhaul, part one, deployed (`b787a27`), 18 November 2026
+
+What shipped from the 17 November boss overhaul (docs/43), with the user's approval ("deploy everything but vesper changes"):
+- **THE VEIL** (Nacre): rebuilt from the old flying CRADLE model and repainted as an ancient relic (`boss_veil.py`). It keeps its weak points, pods, and rise and sink. The user approved it: "the veil looks great, the model suits it".
+- **THE CRADLE** (Amnion): a walking brood hive, adapted from the user's spider GLB (`boss_cradle.py`). It has eight jointed legs on one skinned draw and a deterministic gait (`cradle-gait.ts`, tested). It walks in from the side and stands full size, crouched on a lowered terrace of Amnion's own crust. On death its legs buckle and the body falls flat. The user approved it: "cradle is good".
+- **No hiding from a stationary boss:** THE CITADEL's gate pillars fire its aimed burst at a pilot who hides out of reach for 2 s (docs/10 §5, `hidden-fire.test.ts`). The perfect and skilled pilots never trigger it.
+- **Held back:** Vesper's HELION STRONGHOLD and its arena stay on `integrator-next`. The release is a branch (`release-no-vesper`) with Vesper's files restored byte-identical to the live ones. `integrator-next` records it with `-s ours`, keeping the stronghold.
+- **Gate on `b787a27`:**
+  - typecheck clean; unit tests 1137 passed, 8 skipped; build passes;
+  - browser 58/59 (Playwright exit 1, 28 min): the touch special and steer test in `flight.spec` failed on a 5 s poll;
+  - rerun of `flight.spec` alone: 7/7, exit 0. The release changes no input code.
+- **Live:**
+  - Pages run 44206943492 succeeded; the live bundle `main-DiWRNQE-.js` matches the build; the smoke test reports no errors;
+  - the live `the-veil.glb` (4,730,604 bytes) and `the-cradle.glb` (3,931,184) are the new models; `helion-ark.glb` is unchanged.
+  - No phone test.
+- **Performance** (agent measurements, SwiftShader at 390×844):
+  - CRADLE (High): draw calls 68 → 58, triangles 302k → 290k;
+  - VEIL (High): draw calls 77 → 75, triangles 128k → 250k. That's the old CRADLE's hull, within the other bosses' budgets.
+
 ## Tap to start and the shipyard's steady part table deployed (`70540da`), 17 November 2026
 
 - **Tap to start:**

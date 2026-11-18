@@ -1180,3 +1180,7 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
   - `src/content/bosses` (the Ark's `stationary` flag and its display name only);
   - the boss browser specs.
 - **Deploying:** nothing deploys without the user's approval, as the spec requires.
+
+**18 November · Claude Code (Blender MCP in WSL session) · deployed `b787a27`:** the boss overhaul without Vesper (THE VEIL relic, the walking CRADLE, THE CITADEL's hidden-pilot fire).
+- **Held back:** Vesper's HELION STRONGHOLD stays on `integrator-next`, which records the release with `-s ours`. Don't merge `release-no-vesper` into anything; it reverts the stronghold.
+- **Released:** the boss files except Vesper's (`src/render/ark-view.ts` and its successor, `terrain-vesper.ts`, `src/content/ark.ts`), which stay claimed until the stronghold ships.
