@@ -35,6 +35,12 @@ export interface WalkerRig {
   body: THREE.Group; legs: THREE.SkinnedMesh; rests: LegRest[];
   /** The body's pivot (rig frame): the height its tilt turns about. */
   pivot: THREE.Vector3;
+  /**
+   * What must be out of sight where its walk-in starts (rig frame): `outline`, the corners of the box round its rest pose
+   * (body and legs, its feet below its floor), which also holds its contact shadow; `casters`, the points whose sun shadows
+   * mark its cast shadow (the body's box corners and every leg's rest joints).
+   */
+  outline: THREE.Vector3[]; casters: THREE.Vector3[];
   apply(pose: Pose): void;
   dispose(): void;
 }
@@ -93,8 +99,12 @@ export function createWalkerRig(model: THREE.Group, prefix: string, material: TH
   legs.bind(new THREE.Skeleton(bones));
   const restDirections = rests.map(rest => WALKER.segments.map((_, s) => new THREE.Vector3(...rest.joints[s + 1]).sub(new THREE.Vector3(...rest.joints[s]))));
   const pivot = new THREE.Vector3(0, rests[0].joints[0][1], 0);
+  hull.geometry.computeBoundingBox(); legGeometry.computeBoundingBox();
+  const corners = (box: THREE.Box3) => [0, 1, 2, 3, 4, 5, 6, 7].map(k => new THREE.Vector3(k & 1 ? box.max.x : box.min.x, k & 2 ? box.max.y : box.min.y, k & 4 ? box.max.z : box.min.z));
+  const outline = corners(hull.geometry.boundingBox!.clone().union(legGeometry.boundingBox!));
+  const casters = [...corners(hull.geometry.boundingBox!), ...rests.flatMap(rest => rest.joints.map(joint => new THREE.Vector3(...joint)))];
   return {
-    body, legs, rests, pivot,
+    body, legs, rests, pivot, outline, casters,
     apply(pose: Pose) {
       // The body: its offset, then pitch and roll about the pivot.
       scratch.euler.set(pose.pitch, 0, pose.roll); body.quaternion.setFromEuler(scratch.euler);

@@ -77,19 +77,38 @@ const smooth = (t: number) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 
 const tremble = (t: number, seed: number) => Math.sin(t * 13.1 + seed * 1.7) * .5 + Math.sin(t * 21.7 + seed * 3.1) * .3 + Math.sin(t * 7.3 + seed) * .2;
 
 /**
- * The walk-in (its arrival, render-only): a heavy start, a steady walk and a long slowing to its post, within the arrival.
- * `reach` is the farthest it starts from its post; the walk never goes faster than `speed` (units a second).
+ * The walk-in (render-only): it starts wholly out of sight, its cast shadow too, as far out as the view needs (the view
+ * measures it with its camera: carrier-view.ts `walkInClearance`, plus `margin`), and walks to its post at a heavy pace:
+ * a heavy start, a steady walk and a long slowing, never faster than `speed` (units a second), done `end` seconds into
+ * its arrival. With the view on its post that is 16 to 18 units, longer than its arrival allows at that pace, so it may
+ * set out up to `lead` seconds before it arrives, on its terrace as that scrolls in, and waits out of sight until it must
+ * (user, 18 November: "on mobile the cradle pops in when half on screen already"; it started at most 7 units out, half
+ * in view). The lead covers the farthest start (`tests/render/cradle-walk-in.test.ts`).
  */
-export const WALK_IN = { reach: 7, speed: 2.5, accelerate: .7, settle: 1.1, duration: 3.7 } as const;
-/** Share of the walk-in done after `age` seconds of the arrival (0 to 1: a trapezoid of speed, eased at both ends). */
-export function walkInProgress(age: number): number {
-  const { accelerate: a, settle: d, duration: T } = WALK_IN, cruise = T - a - d, total = a / 2 + cruise + d / 2;
-  const t = clamp(age, 0, T);
-  const done = t < a ? t * t / (2 * a) : t < a + cruise ? a / 2 + (t - a) : a / 2 + cruise + (d - (T - t) ** 2 / d) / 2;
-  return done / total;
+export const WALK_IN = { speed: 2.5, accelerate: .7, settle: 1.1, end: 3.7, lead: 4.5, margin: .4 } as const;
+/** A walk-in on the run clock: from `distance` out at `start` to its post at `end`. */
+export interface WalkIn { distance: number; start: number; end: number }
+/** Seconds the walk takes over `distance` at its heavy pace. */
+export const walkInDuration = (distance: number) => distance / WALK_IN.speed + (WALK_IN.accelerate + WALK_IN.settle) / 2;
+/**
+ * Its schedule: at its post by `end`, setting out as late as its pace allows (it waits out of sight until then), and never
+ * before `now`, its first frame. Planned late (a frame or a model arriving after it should have set out), it squeezes the
+ * same walk into the time left rather than appear part-way in.
+ */
+export function planWalkIn(distance: number, now: number, end: number): WalkIn {
+  return { distance, start: Math.max(now, end - walkInDuration(distance)), end };
 }
-/** How far it starts from its post: as far as its top speed allows in the time, or less (the view's own choice, below it). */
-export const walkInReach = () => Math.min(WALK_IN.reach, WALK_IN.speed * (WALK_IN.duration - WALK_IN.accelerate / 2 - WALK_IN.settle / 2));
+/** How far it still is from its post at `time`: its distance until it sets out, 0 from its end (a trapezoid of speed). */
+export function walkInLeft(walk: WalkIn, time: number): number {
+  const span = walk.end - walk.start;
+  if (time >= walk.end || span <= 0) return 0;
+  if (time <= walk.start) return walk.distance;
+  // The heavy pace's start and slowing as shares of its own duration (kept when squeezed), at most all of it.
+  const natural = walkInDuration(walk.distance), sum = Math.max(1, (WALK_IN.accelerate + WALK_IN.settle) / natural);
+  const a = WALK_IN.accelerate / natural / sum, d = WALK_IN.settle / natural / sum, u = (time - walk.start) / span;
+  const done = u < a ? u * u / (2 * a) : u < 1 - d ? a / 2 + (u - a) : 1 - (a + d) / 2 - (1 - u) ** 2 / (2 * d);
+  return walk.distance * (1 - done / (1 - (a + d) / 2));
+}
 
 /** Rotate a rig-frame point about the body's pivot by pitch (about x) then roll (about z). */
 function tilt(p: Vec3, pivot: Vec3, pitch: number, roll: number): V {

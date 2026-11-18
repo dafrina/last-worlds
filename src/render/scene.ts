@@ -14,6 +14,7 @@ import { createSiteView } from './site-view';
 import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type Projectile, type RunState } from '../shared/contracts';
 import { PLANETS, SCENERY_MAX_HEIGHT, SUN_DIRECTION, TERRAIN_MIN_HEIGHT, setSunBehind, sunBehind, terrainHeight, worldOf, type PlanetId, type TerrainArena, type World, type WorldInput } from '../world/terrain';
 import { WALKER } from './cradle-walker';
+import { WALK_IN } from './cradle-gait';
 import { UMBRA_PLATEAU } from '../world/terrain-umbra';
 import { CITADEL_AT } from '../world/terrain-nahara';
 import { arenaStopDistance } from '../sim/boss';
@@ -21,7 +22,7 @@ import { HUNTERS } from '../content/hunters';
 import { hunterCharges } from '../sim/hunters';
 import { RELIC_ARMOR, beamSpec, relicExposed } from '../sim/attacks';
 import { ENEMIES } from '../content/balance';
-import { missionBoss } from '../content/bosses';
+import { BOSSES, missionBoss } from '../content/bosses';
 import { runPlanet } from '../content/missions';
 import { loadCoronaCraft, loadCraftNodes, loadKhepriCraft, loadNacreCraft, loadNaharaCraft, loadUmbraCraft, type CoronaCraftNode, type NaharaCraftNode, type KhepriCraftNode, type NacreCraft, type NacreCraftNode, type UmbraCraftNode } from './models';
 import { SPECIALS } from '../content/equipment';
@@ -46,7 +47,7 @@ import { createJumpFx } from './fx-jump';
 import { endlessSectorPlan } from '../content/endless';
 import { BASTION_FOOTPRINT, createBastionView, loadBastionModel } from './bastion-view';
 import { WARDEN_FOOTPRINT, createWardenView, loadWardenModel } from './warden-view';
-import { CITADEL_STYLE, CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, createCarrierView, loadCarrierModel, veilPlacement } from './carrier-view';
+import { CITADEL_STYLE, CRADLE_STYLE, ECLIPSE_STYLE, HELIOPHAGE_STYLE, VEIL_STYLE, bossDue, createCarrierView, loadCarrierModel, veilPlacement } from './carrier-view';
 import { WARDEN } from '../content/warden';
 import { WRAITH } from '../content/wraith';
 import { BASTION } from '../content/bastion';
@@ -1183,7 +1184,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   const veil = createCarrierView(scene);
   // THE CRADLE walks (cradle-walker.ts): its feet sample the terrain when they plant (the run's seed and world, set below).
   let walkerSeed = 0;
-  const cradle = createCarrierView(scene, CRADLE_STYLE, { ground: (x, s) => surfaceHeight(walkerSeed, x, s, terrain.world), low: () => quality === 'low' });
+  // Its walk-in starts out of this camera's sight, its cast shadow too (carrier-view.ts walkInClearance).
+  const cradle = createCarrierView(scene, CRADLE_STYLE, { ground: (x, s) => surfaceHeight(walkerSeed, x, s, terrain.world), low: () => quality === 'low',
+    camera: () => camera, sun: () => sun });
   const eclipse = createCarrierView(scene, ECLIPSE_STYLE), heliophage = createCarrierView(scene, HELIOPHAGE_STYLE), citadel = createCarrierView(scene, CITADEL_STYLE);
   /**
    * The hovering bosses (carrier-view.ts) and the ground each one's seat rests on: THE VEIL the world's sea (no `ground`: the
@@ -1705,7 +1708,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
             // moves while the scroll is still settling: the temple shifted as its fight began; user, 13 November).
             if (arena && (standing || mine)) seat = { x: mine && boss ? boss.x : 0, s: arena.fromS + CITADEL_AT - state.distance, baseHeight: ground };
           }
-          view.update(state, seat, standing);
+          // THE CRADLE sets out on its walk-in before it arrives (carrier-view.ts, WALK_IN.lead): its seat at its arrival, on
+          // its terrace, carried with the ground until then.
+          let arrivesAt: number | null = null;
+          const next = id === 'cradle' && !boss ? bossDue(state) : null;
+          if (next?.id === 'cradle' && next.at - state.time <= WALK_IN.lead) {
+            const entryS = BOSSES.cradle.entryS;
+            const early = perspective ? rayPlacement(camera, state.config.seed, next.distance, 0, entryS, height, ground, world) : veilPlacement(entryS, ground, height);
+            seat = { ...early, s: early.s + next.distance - state.distance }; arrivesAt = next.at;
+          }
+          view.update(state, seat, standing, arrivesAt);
           if (mine) terrain.setExclusion(view.footprint(state, seat));
         }
       }
