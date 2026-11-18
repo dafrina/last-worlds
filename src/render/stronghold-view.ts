@@ -7,7 +7,7 @@ import { retainBossMaterials } from './boss-materials';
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import type { FoamRing, Wake } from './water';
 import { HELION_ARK } from '../content/ark';
-import { STRONGHOLD_SCALE } from '../world/terrain-vesper';
+import { STRONGHOLD_FOOTPRINT, STRONGHOLD_SCALE } from '../world/terrain-vesper';
 
 /**
  * HELION STRONGHOLD (docs/17 §5, docs/43 §8-10), Vesper's boss, render-only: it reads the boss state (id `ark`) and never
@@ -17,29 +17,84 @@ import { STRONGHOLD_SCALE } from '../world/terrain-vesper';
  * placed so that, with the camera centred, each weak point lies on the release lens's line of sight through its combat
  * target; target rings and brackets are drawn on the flight plane at the targets themselves.
  *
- * Presentation only: the cannons charge (their housings and muzzles glow), recoil and vent steam when their lanes fire;
+ * Presentation only: it stands dormant before its fight and wakes over its arrival (AWAKEN: snow, steam, alarm beacons, its
+ * lights, each cannon unstowing onto its lane); the cannons charge (their housings and muzzles glow), recoil and vent steam when their lanes fire;
  * the blast door's leaves part when the reactor opens; Needles leave from the hatches beside the door. A destroyed cannon
  * throws sparks, fragments and smoke and its broken barrel sags. At the kill the reactor flares, pipes burst, the radar mast
  * falls, explosions go off inside, then the reactor's light dies; the wreck stays in its mountain.
  */
 const P = 'stronghold_';
 const PARTS = ['left', 'right', 'core'] as const;
-/**
- * The fortress's plan about its origin as seated (tools/blender/boss_stronghold.py bounds, scaled with the model onto its
- * ledge: src/world/terrain-vesper.ts STRONGHOLD_SCALE): half width, front (its plinth's; the barrels jut out 1.95 over the
- * ledge, where only its works stand, src/world/stronghold-works.ts) and back.
- */
-export const STRONGHOLD_FOOTPRINT = { halfWidth: 6.62 * STRONGHOLD_SCALE, front: 0.5 * STRONGHOLD_SCALE, back: 7.55 * STRONGHOLD_SCALE } as const;
+/** The fortress's plan about its origin as seated (src/world/terrain-vesper.ts, where its mountain's walls keep out of it). */
+export { STRONGHOLD_FOOTPRINT };
 /** Recoil: how far a gun slides back into its housing when its lane fires, and how fast it runs out again. */
 const RECOIL = { distance: .42, kick: .05, settle: 3.2 } as const;
 /** A broken barrel's sag (radians, nose down) and how long it takes to settle. */
 const SAG = { angle: .34, time: 1.3 } as const;
-/** The awakening on arrival (as THE CITADEL's, src/render/carrier-view.ts AWAKEN): dormant glow, then each part in turn. */
-const AWAKEN = { dormant: .25, order: { left: .25, right: .45, core: .7 } as Record<BossPart, number>, ignite: .5 };
+/**
+ * The awakening (user, 18 November: "Usually the boss walks in but for stationary its so sudden"). Before its fight it
+ * stands dormant as the scroll brings it in: its cannons stowed (run in, raised and turned out along the cliff), its lights
+ * all but out. Over its arrival it wakes in an order the player can follow: a rumble shakes snow off its roofs and steam out
+ * of its vents, alarm beacons start sweeping, its lights flicker on, each cannon runs out and swings down onto its lane with
+ * a clunk, and its reactor glows last. Times are seconds into a 4 s arrival, scaled to the boss's own
+ * (HELION_ARK.arrivalDuration); render only. Until 18 November it only lit its cannons and reactor in turn.
+ */
+const AWAKEN = {
+  dormant: .1, span: 4, snow: [.1, 1.7], beacons: [.2, .6], beaconFade: 1, lamps: [.35, 1.25],
+  guns: { left: [.8, 2.2], right: [1.4, 2.8] } as Record<'left' | 'right', readonly [number, number]>, core: [2.9, 3.6], ignite: .45,
+  /** The stowed pose: run in this far (model units), nose raised and turned out (radians). */
+  stowed: { back: .7, pitch: -.3, yaw: .4 },
+  /** The camera's jolt as each cannon locks onto its lane (src/render/scene.ts adds it to the shake). */
+  clunk: .38,
+} as const;
+/** Alarm beacons on its roofs (model frame: x, y, z; the hull's top measured from the GLB). */
+const BEACONS = [[-3.25, 4.05, -3.75], [3.25, 4.06, -3.75], [-1.75, 4.5, -5.25], [1.75, 4.5, -5.25]] as const;
+/** Points along its roofs' front edges (model frame) that snow slides off as it wakes: the upper roof's, then the terrace's. */
+const SNOW_EDGES = [[-4.5, 3.44, -3.1], [-3.5, 3.89, -3.1], [-2.5, 3.87, -3.1], [-1.5, 3.28, -3.1], [-.5, 4.11, -3.1], [.5, 4.12, -3.1],
+  [1.5, 3.84, -3.1], [3.5, 3.84, -3.1], [4.5, 2.15, -3.1], [-5.5, 1.62, -1.9], [-4.25, 1.19, -1.9], [-2.75, 2.43, -1.9], [-1.5, 2.14, -1.9],
+  [0, 2.16, -1.9], [1.5, 2.1, -1.9], [2.75, 2.43, -1.9], [4.25, 1.26, -1.9], [5.5, 1.22, -1.9]] as const;
 /** The hull's painted glows (emblem, slits, pipes): the export's emission strength. */
 const HULL_GLOW = 2.2;
 /** Steam, sparks and smoke. */
-const FX = { spark: 0xffa15a, hot: 0xfff2cf, flash: 0xffd6a0, steam: 0xe8f0f6, smoke: 0x1e2226, debris: 0x2a2f35 } as const;
+const FX = { spark: 0xffa15a, hot: 0xfff2cf, flash: 0xffd6a0, steam: 0xe8f0f6, smoke: 0x1e2226, debris: 0x2a2f35, snow: 0xf3f7fa } as const;
+
+/**
+ * Seconds into the awakening scaled to an arrival of `span` seconds, and where a moment of it falls. A 4 s schedule
+ * (AWAKEN) on the boss's own arrival.
+ */
+const awakenAt = (t: number, span: number) => t * span / AWAKEN.span;
+/** A cannon's stowed share through the awakening: `run` 0 run in → 1 run out, then `swing` 0 raised and turned out → 1 on its lane. */
+export function cannonUnstow(side: 'left' | 'right', age: number, span: number): { run: number; swing: number; lock: number } {
+  const [from, to] = AWAKEN.guns[side], a = awakenAt(from, span), b = awakenAt(to, span), mid = a + (b - a) * .4;
+  return { run: THREE.MathUtils.smoothstep(age, a, mid), swing: THREE.MathUtils.smoothstep(age, a + (b - a) * .3, b), lock: b };
+}
+/** The camera's jolt from the awakening at `age` into an arrival of `span`: a kick as each cannon locks onto its lane. */
+export function awakenClunk(age: number, span: number): number {
+  let k = 0;
+  for (const side of ['left', 'right'] as const) {
+    const since = age - cannonUnstow(side, age, span).lock;
+    if (since >= 0 && since < .45) k = Math.max(k, AWAKEN.clunk * (1 - since / .45));
+  }
+  return k;
+}
+
+/** Two opposed beams of a turning alarm beacon seen from above, and its lamp; alpha in the vertex colour (fades to its rim). */
+function beaconGeometry(): THREE.BufferGeometry {
+  const positions: number[] = [], colors: number[] = [], segments = 6, half = .3;
+  const vertex = (x: number, z: number, r: number, g: number, b: number, a: number) => { positions.push(x, 0, z); colors.push(r, g, b, a); };
+  for (const heading of [0, Math.PI]) for (let i = 0; i < segments; i++) {
+    const a0 = heading - half + 2 * half * i / segments, a1 = heading - half + 2 * half * (i + 1) / segments;
+    vertex(0, 0, 1, .38, .1, .62); vertex(Math.cos(a1), Math.sin(a1), 1, .3, .06, 0); vertex(Math.cos(a0), Math.sin(a0), 1, .3, .06, 0);
+  }
+  for (let i = 0; i < 6; i++) {
+    const a0 = i / 6 * Math.PI * 2, a1 = (i + 1) / 6 * Math.PI * 2, r = .09;
+    vertex(0, .02, 1, .85, .55, 1); vertex(Math.cos(a1) * r, Math.sin(a1) * r, 1, .7, .35, 1); vertex(Math.cos(a0) * r, Math.sin(a0) * r, 1, .7, .35, 1);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
+  return geometry;
+}
 
 export async function loadStrongholdModel(url: string): Promise<THREE.Group> {
   return (await new GLTFLoader().loadAsync(url)).scene;
@@ -106,6 +161,11 @@ export function createStrongholdView(scene: THREE.Scene) {
   const markers = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }));
   markers.frustumCulled = false; markers.renderOrder = 9; markers.visible = false; scene.add(markers);
   const marks = markerWriter(vertices, colors), line = marks.line;
+  // Its alarm beacons through the awakening (hidden otherwise): one batch.
+  const beacons = new THREE.InstancedMesh(beaconGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false,
+    toneMapped: false, side: THREE.DoubleSide }), BEACONS.length);
+  beacons.name = 'stronghold-beacons'; beacons.frustumCulled = false; beacons.renderOrder = 4; beacons.visible = false; scene.add(beacons);
+  const beaconTransform = new THREE.Object3D(), beaconTint = new THREE.Color();
   const world = new THREE.Vector3(), scratch = new THREE.Vector3();
   const foamRings: FoamRing[] = [], wakes: Wake[] = [];
   let lastDistance = 0, lastTime = -1, encounter = -1, low = false, launchesSeen = new Set<number>(), coreShot = 0;
@@ -146,6 +206,45 @@ export function createStrongholdView(scene: THREE.Scene) {
     }
   };
   const gunPart = (side: 'left' | 'right') => rig?.guns.get(side) ?? null;
+  /** A gun's pose: its stowed share (`run` and `swing`, 1 = on its lane, AWAKEN.stowed) and its recoil (model units back). */
+  const stow = (gun: Gun, side: 'left' | 'right', run: number, swing: number, recoil: number) => {
+    if (!gun.gun) return;
+    const out = side === 'left' ? -1 : 1, s = AWAKEN.stowed;
+    gun.gun.position.copy(gun.gunRest).setZ(gun.gunRest.z - s.back * (1 - run) - recoil);
+    gun.gun.rotation.set(s.pitch * (1 - swing), out * s.yaw * (1 - swing), 0);
+  };
+  /** Powder snow sliding off a roof's edge toward the player and falling down the face below it. */
+  const snow = (p: THREE.Vector3, seed: number, scale = 1) =>
+    mist.emit({ x: p.x + (hash(seed) - .5) * .5, y: p.y, z: p.z + (hash(seed + 5) - .5) * .3, vx: (hash(seed + 2) - .5) * .6, vy: .3 + hash(seed + 4) * .4,
+      vz: .9 + hash(seed + 6) * 1.2, life: 1.4 + hash(seed + 8) * .6, size: .42 * scale, grow: 2.1 * scale, alpha: .62, color: FX.snow, drag: .9, lift: -5 });
+  /**
+   * The awakening's effects (AWAKEN): a sheet of snow off every roof edge at the jolt, then a slide easing off; each cannon
+   * hisses and sheds its snow as it starts to run out, and locks onto its lane with a flash, sparks and a burst of steam.
+   */
+  const awaken = (state: RunState, age: number, dt: number, span: number) => {
+    if (!rig) return;
+    const s0 = awakenAt(AWAKEN.snow[0], span), s1 = awakenAt(AWAKEN.snow[1], span);
+    if (age - dt < s0 && age >= s0) for (const [k, e] of SNOW_EDGES.entries()) for (let j = 0; j < (low ? 1 : 2); j++) snow(at(e[0] + (j - .5) * .6, e[1], e[2]), k * 5 + j * 97 + encounter, 1.3);
+    if (age > s0 && age < s1) {
+      const rate = 46 * (1 - (age - s0) / (s1 - s0));
+      for (let k = 0; k < 4; k++) if (hash(state.time * 29 + k) < chance(rate / 4, dt)) {
+        const e = SNOW_EDGES[Math.floor(hash(state.time * 13 + k * 7) * SNOW_EDGES.length)];
+        snow(at(e[0] + (hash(state.time + k) - .5) * .8, e[1], e[2]), state.time * 31 + k);
+      }
+    }
+    for (const [side, gun] of rig.guns) {
+      const start = awakenAt(AWAKEN.guns[side][0], span), lock = cannonUnstow(side, age, span).lock, n = side === 'left' ? 0 : 50;
+      const p = gun.live.getWorldPosition(scratch);
+      if (age - dt < start && age >= start) {
+        for (let j = 0; j < 3; j++) steam(p, encounter + j * 3 + n, .8, .9);
+        for (let j = 0; j < 6; j++) snow(world.set(p.x + (hash(j + n + 3) - .5) * 1.6, p.y + .5, p.z + (hash(j + n + 9) - .5) * 1.2), j * 7 + n, .8);
+      }
+      if (age - dt < lock && age >= lock) {
+        flash(p, 1, encounter + n); burst(p, 8, encounter * 3 + n, .6);
+        for (let j = 0; j < 4; j++) steam(p, encounter + j * 5 + n + 11, 1.1, 1.2);
+      }
+    }
+  };
   const isLane = (state: RunState, x: number, live: boolean) => state.hazards.some(h => h.source === undefined && Math.abs(h.x - x) < h.width / 2 + .3 && (live ? h.warning <= 0 && h.active > 0 : h.warning > 0));
 
   return {
@@ -181,7 +280,7 @@ export function createStrongholdView(scene: THREE.Scene) {
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null, standing: 'intact' | 'wrecked' | null = null) {
       const boss = state.boss?.id === 'ark' ? state.boss : null;
       const shown = !!rig && !!placement && (!!boss || !!standing);
-      root.visible = shown; markers.visible = shown && !!boss;
+      root.visible = shown; markers.visible = shown && !!boss; beacons.visible = false;
       foamRings.length = 0; wakes.length = 0;
       const groundShift = lastTime < 0 || state.time < lastTime ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
@@ -195,11 +294,11 @@ export function createStrongholdView(scene: THREE.Scene) {
       // (Scaled onto its ledge about the lens's eye: every point keeps its line of sight. src/world/terrain-vesper.ts.)
       root.position.set(placement.x ?? 0, placement.baseHeight, -placement.s); root.scale.setScalar(STRONGHOLD_SCALE); root.updateMatrixWorld(true);
       if (!boss) {
-        // Standing: dormant before the fight, a dead wreck after it.
+        // Standing: dormant before the fight (its cannons stowed), a dead wreck after it.
         const intact = standing === 'intact';
-        for (const gun of rig.guns.values()) {
+        for (const [side, gun] of rig.guns) {
           gun.live.visible = intact; if (gun.wreck) gun.wreck.visible = !intact;
-          if (gun.gun) gun.gun.position.copy(gun.gunRest);
+          if (gun.gun) stow(gun, side, intact ? 0 : 1, intact ? 0 : 1, 0);
           if (gun.gunWreck) gun.gunWreck.rotation.x = SAG.angle * 1.4;
           gun.heat.emissiveIntensity = intact ? AWAKEN.dormant : 0;
         }
@@ -219,13 +318,30 @@ export function createStrongholdView(scene: THREE.Scene) {
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
       const span = HELION_ARK.arrivalDuration;
       const before = phaseAge - dt;
-      // The awakening: steam shaken off the vents, then the cannons and the reactor light in turn (render only).
-      const wake = arriving ? THREE.MathUtils.smoothstep(age, .2, span) : 1;
+      // The awakening (AWAKEN, render only): steam shaken out of the vents and snow off the roofs, beacons, its lights
+      // flickering on, each cannon unstowing (below), the reactor last.
+      const lamps = arriving ? THREE.MathUtils.smoothstep(age, awakenAt(AWAKEN.lamps[0], span), awakenAt(AWAKEN.lamps[1], span)) : 1;
+      const wake = arriving ? THREE.MathUtils.smoothstep(age, awakenAt(AWAKEN.core[0], span), awakenAt(AWAKEN.core[1], span)) : 1;
+      if (arriving) awaken(state, age, dt, span);
       if (arriving && age - dt < .1 && age >= .1) for (const [k, vent] of rig.vents.entries()) for (let j = 0; j < 4; j++) steam(atV(vent), k * 7 + j, 1.4, 1.2);
-      // The radar turns while the fortress lives; it falls at the kill.
-      if (rig.radar) radarPose(rig.radar, destroyed ? THREE.MathUtils.smoothstep(phaseAge, .9, 1.7) : 0, destroyed ? 0 : state.time * .55 * wake);
+      // Alarm beacons sweep through the awakening and fade over the first second of its fight.
+      const beaconOn = arriving ? THREE.MathUtils.smoothstep(age, awakenAt(AWAKEN.beacons[0], span), awakenAt(AWAKEN.beacons[1], span))
+        : boss.phase === 'batteries' ? 1 - THREE.MathUtils.smoothstep(phaseAge, 0, AWAKEN.beaconFade) : 0;
+      if (beaconOn > 0) {
+        for (const [i, b] of BEACONS.entries()) {
+          at(b[0], b[1], b[2], beaconTransform.position);
+          beaconTransform.rotation.set(0, state.time * 4.6 * (i % 2 ? -1 : 1) + i * 1.9, 0);
+          beaconTransform.scale.setScalar(2.4 * beaconOn); beaconTransform.updateMatrix();
+          beacons.setMatrixAt(i, beaconTransform.matrix);
+          beacons.setColorAt(i, beaconTint.setScalar(.7 + .3 * Math.abs(Math.sin(state.time * 6 + i))));
+        }
+        beacons.instanceMatrix.needsUpdate = true; if (beacons.instanceColor) beacons.instanceColor.needsUpdate = true;
+        beacons.visible = true;
+      }
+      // The radar starts turning once its lights are on, and turns while the fortress lives; it falls at the kill.
+      if (rig.radar) radarPose(rig.radar, destroyed ? THREE.MathUtils.smoothstep(phaseAge, .9, 1.7) : 0, destroyed ? 0 : .55 * Math.max(0, age - awakenAt(AWAKEN.lamps[1], span)));
       // Cooling vents: slow steam over the fight, more after each shot, a rush through the overload, burst pipes at the kill.
-      const ventRate = destroyed ? (phaseAge < 2.4 ? 14 : 2) : overload ? 4 : 1.2 * wake;
+      const ventRate = destroyed ? (phaseAge < 2.4 ? 14 : 2) : overload ? 4 : 1.2 * lamps;
       for (const [k, vent] of rig.vents.entries()) if (hash(state.time * 31 + k) < chance(ventRate, dt)) {
         const p = atV(vent);
         if (destroyed && phaseAge > 1.9 && k < 2) smoke(p, state.time * 17 + k, 1.3); else steam(p, state.time * 17 + k, destroyed ? 1.5 : 1, destroyed ? 1.6 : .6);
@@ -291,11 +407,15 @@ export function createStrongholdView(scene: THREE.Scene) {
           }
           gun.charging = charging;
           const since = state.time - gun.firedAt, recoil = since < RECOIL.kick ? since / RECOIL.kick : Math.exp(-(since - RECOIL.kick) * RECOIL.settle);
-          if (gun.gun) gun.gun.position.copy(gun.gunRest).setZ(gun.gunRest.z - RECOIL.distance * (Number.isFinite(since) ? recoil : 0));
-          // Heat: the housing's lining brightens as its armour goes, flares through a charge and a hit; dormant before the awakening.
-          const lit = arriving ? THREE.MathUtils.smoothstep(age, AWAKEN.order[part] * span, (AWAKEN.order[part] + AWAKEN.ignite / span) * span) : 1;
+          // Stowed until the awakening runs it out and swings it onto its lane (AWAKEN); then only its recoil moves it.
+          const side = part as 'left' | 'right', unstow = cannonUnstow(side, age, span);
+          stow(gun, side, arriving ? unstow.run : 1, arriving ? unstow.swing : 1, RECOIL.distance * (Number.isFinite(since) ? recoil : 0));
+          // Heat: the housing's lining brightens as its armour goes, flares through a charge and a hit; dormant before the
+          // awakening, lit with a flare as the cannon locks onto its lane.
+          const lit = arriving ? THREE.MathUtils.smoothstep(age, unstow.lock - .1, unstow.lock + AWAKEN.ignite) : 1;
+          const flare = arriving ? 1 + .9 * Math.max(0, 1 - Math.abs(age - unstow.lock - .15) / .4) : 1;
           const hot = living ? (1.6 + (1 - fraction) * 1.6 + (charging ? 2.2 * (1 - Math.min(1, enemy.warning / 1.6)) : 0) + kick * 2.8) * HULL_GLOW / 2 : 0;
-          gun.heat.emissiveIntensity = AWAKEN.dormant + (hot - AWAKEN.dormant) * lit;
+          gun.heat.emissiveIntensity = AWAKEN.dormant + (hot * flare - AWAKEN.dormant) * lit;
           // A dead cannon's column still fires the overload's side lanes: the broken housing's feed flares.
           if (!living && isLane(state, enemy.x, false) && hash(state.time * 41 + enemy.id) < chance(20, dt) && gun.wreck) {
             const p = gun.wreck.getWorldPosition(scratch);
@@ -344,13 +464,20 @@ export function createStrongholdView(scene: THREE.Scene) {
       }
       for (const material of rig.lamps) material.emissiveIntensity = destroyed
         ? (phaseAge < 1.85 ? HULL_GLOW * (1.2 + .5 * Math.abs(Math.sin(phaseAge * 17))) : Math.max(.12, HULL_GLOW * (1.2 - (phaseAge - 1.85) * .5)))
-        : HULL_GLOW * (AWAKEN.dormant + (1 - AWAKEN.dormant) * wake) * (overload ? .85 + .3 * Math.abs(Math.sin(state.time * 6)) : .95 + .05 * Math.sin(state.time * 2.6));
+        : HULL_GLOW * (AWAKEN.dormant + (1 - AWAKEN.dormant) * lamps * (arriving && lamps > 0 && lamps < 1 && hash(Math.floor(age * 15) + encounter) < .4 ? .15 : 1))
+          * (overload ? .85 + .3 * Math.abs(Math.sin(state.time * 6)) : .95 + .05 * Math.sin(state.time * 2.6));
       mist.step(dt, 0); sparks.step(dt, 0);
       liveVertices(markers, geometry, marks.count); markers.visible &&= root.visible;
     },
+    /** The camera's extra jolt from its awakening (src/render/scene.ts adds it to the shake): a kick as each cannon locks on. */
+    rumble(state: RunState): number {
+      const boss = state.boss?.id === 'ark' ? state.boss : null;
+      return boss?.phase === 'arrival' && root.visible ? awakenClunk(state.time - boss.startedAt, HELION_ARK.arrivalDuration) : 0;
+    },
     get stats() { return { visible: root.visible, model: rig ? 'glb' : 'none', approved: !!rig, particles: mist.count + sparks.count }; },
     dispose() {
-      rig?.dispose(); scene.remove(root, markers); geometry.dispose(); (markers.material as THREE.Material).dispose();
+      rig?.dispose(); scene.remove(root, markers, beacons); geometry.dispose(); (markers.material as THREE.Material).dispose();
+      beacons.geometry.dispose(); (beacons.material as THREE.Material).dispose();
       rings.forEach(({ mesh, material }) => { scene.remove(mesh); mesh.geometry.dispose(); material.dispose(); });
     },
   };

@@ -309,24 +309,36 @@ describe('Vesper generator (docs/17 §4)', () => {
       // The land takes over before the arena; far from it nothing changes.
       expect(generateTerrainSection(seed, 3, world)).toEqual(generateTerrainSection(seed, 3, VESPER));
       expect(terrainHeight(seed, 2, arena.fromS + 110, world)).toBe(terrainHeight(seed, 2, arena.fromS + 110, VESPER));
-      // Nothing stands in the fortress's plan; no outposts in the arena (its works aside); no ice walls on the mountains or
-      // round the fortress; crags round it; floes only on the open water.
+      // Nothing stands in the fortress's plan; no outposts in the arena (its works aside); crags round it; floes only on the
+      // open water. Walls stand in the mountain's faces too since v8 (user, 18 November: "theres no cliff models placed on the
+      // mountain"; until then none stood on the mountains or round the fortress), never in its plan nor before its barrels,
+      // and every piece keeps under the scenery cap over the fight's play area, under the peaks' top behind it.
       const inside = (s: number) => s >= arena.fromS - ARENA_RAMP && s <= arena.toS + ARENA_RAMP;
-      let rocks = 0;
+      let rocks = 0, mountainWalls = 0, ascentRocks = 0;
       for (let index = Math.floor((arena.fromS - ARENA_RAMP) / VIEW.sectionLength); index <= Math.floor((arena.toS + ARENA_RAMP) / VIEW.sectionLength); index++) {
         const section = generateTerrainSection(seed, index, world);
         for (const piece of section.instances) {
           const where = `${piece.kind} at ${piece.x.toFixed(2)}, ${(piece.s - arena.fromS).toFixed(2)}`;
-          expect(strongholdClear(arena, piece.x, piece.s), where).toBe(true);
-          const hold = strongholdGround(arena, seed, piece.x, piece.s)!;
-          if (piece.kind === 'iceWall') expect(hold.massif < 0.05 && strongholdClear(arena, piece.x, piece.s, 2), where).toBe(true);
-          const a = piece.s - arena.fromS;
+          const hold = strongholdGround(arena, seed, piece.x, piece.s)!, a = piece.s - arena.fromS, top = piece.y + piece.height * KIT[piece.kind].height;
+          if (piece.kind === 'iceWall' && hold.massif >= 0.05) {
+            // (The mountain's: out of the plan, and before the barrels only in the ascent's top face, flush with the ledge.)
+            expect(strongholdClear(arena, piece.x, piece.s, 0.5, false), where).toBe(true);
+            if (!strongholdClear(arena, piece.x, piece.s)) expect(top, where).toBeLessThanOrEqual(STRONGHOLD_LEDGE.level + 0.35);
+            if (a > 0 && a < 34 && Math.abs(piece.x) < HALF) mountainWalls++;
+          } else {
+            expect(strongholdClear(arena, piece.x, piece.s), where).toBe(true);
+            if (piece.kind === 'iceWall') expect(strongholdClear(arena, piece.x, piece.s, 2), where).toBe(true);
+          }
+          expect(top, where).toBeLessThanOrEqual((a > 30 ? 9 : VESPER_SCENERY_MAX) + 1e-6);
           if (piece.kind === 'outcrop' && a > 17 && a < 32 && Math.abs(piece.x) < 9) rocks++;
+          if (piece.kind === 'outcrop' && hold.ledge > 0.5) ascentRocks++;
         }
         // (Its own works aside: src/world/stronghold-works.ts.)
         for (const prop of section.props) expect(inside(prop.s) && prop.group !== 'stronghold:works', prop.id).toBe(false);
       }
       expect(rocks).toBeGreaterThan(10);
+      expect(mountainWalls, `${seed}`).toBeGreaterThan(20);
+      expect(ascentRocks, `${seed}`).toBeGreaterThan(3);
     }
   }, 180_000);
 
@@ -368,6 +380,22 @@ describe('Vesper generator (docs/17 §4)', () => {
       }
       expect(works, `${seed}`).toBeGreaterThanOrEqual(6);
     }
+    // The ascent is jagged, its bands uneven and offset rather than stacked evenly across the view (v8; user, 18 November: "It
+    // looks to staggered and even ... make it more jagged"): along each row across it the ground's height spreads (its mean
+    // spread over these seeds was 0.51 before, now about 0.77).
+    let spread = 0;
+    for (const seed of [93, 8831, 7, 4]) {
+      let rows = 0, sum = 0;
+      for (let a = STRONGHOLD_LEDGE.front - 9; a <= STRONGHOLD_LEDGE.front - 0.5; a += 0.25) {
+        const row: number[] = [];
+        for (let x = -6; x <= 6; x += 0.25) if (strongholdGround(arena, seed, x, arena.fromS + a)!.ledge > 0.99) row.push(terrainHeight(seed, x, arena.fromS + a, world));
+        if (row.length < 20) continue;
+        const mean = row.reduce((total, h) => total + h, 0) / row.length;
+        sum += Math.sqrt(row.reduce((total, h) => total + (h - mean) ** 2, 0) / row.length); rows++;
+      }
+      spread += sum / rows / 4;
+    }
+    expect(spread).toBeGreaterThan(0.65);
     // The ledge's reach is the arena's own, short (user, 18 November: "i also like seed 4 best, maybe we should limit it to
     // shorter cliffes"): right below the fortress for some seeds and arenas, a couple of units out for others.
     const reaches = Array.from({ length: 40 }, (_, seed) => strongholdReach(arena, seed + 1, 0));

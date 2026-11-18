@@ -11,6 +11,7 @@ import { missionBoss } from '../content/bosses';
 import { ENDLESS_CYCLE, endlessScroll, endlessSectorPlan } from '../content/endless';
 import { arenaScroll } from '../sim/boss';
 import { VIEW, type BossId, type BossPart, type BossState, type RunState } from '../shared/contracts';
+import { fromFlightPlane } from '../shared/lens';
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import { retainBossMaterials } from './boss-materials';
 import { WALKER, createWalkerRig, isWalker, type WalkerRig } from './cradle-walker';
@@ -141,7 +142,10 @@ export const HELIOPHAGE_STYLE: CarrierStyle = { id: 'heliophage', name: 'THE HEL
  * dormant glow while it stands in its arena, then lanterns, emblem and crown light in turn over the arrival (`order`, a
  * share of it), each over `ignite` seconds with a brief over-bright `flare` that eases into its fight glow.
  */
-const AWAKEN = { dormant: .15, ignite: .45, flare: 1.6, order: { left: .1, right: .3, prow: .5, core: .72 } as Record<BossPart, number> };
+// (Since 18 November, "Usually the boss walks in but for stationary its so sudden": sand pours off it as it wakes, its
+// crown's ignition sends a pulse of light over the ground (`pulse` seconds) with a jolt of the camera (`jolt`), and its
+// arrival is 4 s, as the walking and rising bosses' (src/content/citadel.ts).)
+const AWAKEN = { dormant: .15, ignite: .45, flare: 1.6, order: { left: .1, right: .3, prow: .5, core: .72 } as Record<BossPart, number>, pulse: 1.4, jolt: .45 };
 
 export const CITADEL_STYLE: CarrierStyle = { id: 'citadel', name: 'THE CITADEL', prefix: 'citadel_', shutterOpen: 0, spark: 0x43d8c8, hover: 0, still: true,
   content: { podOffset: CITADEL.ventOffset, podS: CITADEL.ventS, heartS: CITADEL.reactorS, targetHeight: CITADEL.targetHeight, arrivalDuration: CITADEL.arrivalDuration, bays: CITADEL.bays,
@@ -549,6 +553,24 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
       if (waking) {
         const before = age - dt;
         if (before < .05 && age >= .05) for (let k = 0; k < 6; k++) steam(local((hash(k + 61) - .5) * 15, .2, (hash(k + 67) - .5) * 9 - 1), encounter * 7 + k, 1.4);
+        // Sand pours off its drum and ledges as the jolt shakes it awake (user, 18 November: "for stationary its so sudden").
+        const pour = THREE.MathUtils.smoothstep(age, .05, .3) * (1 - THREE.MathUtils.smoothstep(age, span * .25, span * .45));
+        for (let k = 0; k < 3; k++) if (pour > 0 && hash(state.time * 43 + k) < 26 * pour * dt * (options.low?.() ? .5 : 1)) {
+          const a = hash(state.time * 17 + k) * Math.PI * 2, r = 2.2 + hash(state.time * 5 + k) * 1.4, p = local(Math.cos(a) * r, 3.2, -style.content.heartS + Math.sin(a) * r * .8);
+          mist.emit({ x: p.x, y: p.y, z: p.z, vx: Math.cos(a) * .7, vy: .2, vz: Math.sin(a) * .5, life: 1.4, size: .3, grow: 1.1, alpha: .6, color: fx.steam, drag: .8, lift: -4.5 });
+        }
+        // Its gate pillars stir (the batteries at its plaza's front corners, CITADEL.gatePillars: their points as the centred lens
+        // sees them from its pivot, carried with its seat while the scroll still settles): a flash of its light at each top in
+        // turn, sparks, and dust sliding down its shaft.
+        if (style.id === 'citadel') for (const [k, p] of CITADEL.gatePillars.points.entries()) {
+          const at = span * (.08 + k * .07);
+          if (before < at && age >= at) {
+            const y = VIEW.flightHeight + p.height, w = fromFlightPlane(0, p.x, boss.s + p.s, y), pivot = fromFlightPlane(0, 0, boss.s, placement.baseHeight + style.content.targetHeight);
+            const px = (placement.x ?? boss.x) + w.x - pivot.x, pz = -(placement.s + w.s - pivot.s);
+            flash(world.set(px, y + .2, pz), 1.2, k + encounter); burst(world.set(px, y + .2, pz), 12, k * 31 + encounter, .8);
+            for (let j = 0; j < 4; j++) steam(world.set(px + (hash(j + k * 5) - .5) * .7, y - .3 - j * .45, pz + .3), encounter * 3 + k * 9 + j, 1.1);
+          }
+        }
         rig.sinew.emissiveIntensity = AWAKEN.dormant + (rig.sinew.emissiveIntensity - AWAKEN.dormant) * THREE.MathUtils.smoothstep(age, span * .75, span);
       }
       if (destroyed) {
@@ -567,10 +589,13 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         }
       }
       const ring = THREE.MathUtils.clamp((phaseAge - 1.9) / 1.2, 0, 1);
-      shock.visible = destroyed && ring > 0 && ring < 1;
+      // (A still boss's awakening ends in a pulse of its light over the ground as its core ignites: AWAKEN.pulse.)
+      const pulse = waking ? THREE.MathUtils.clamp((age - AWAKEN.order.core * span) / AWAKEN.pulse, 0, 1) : 0;
+      shock.visible = (destroyed && ring > 0 && ring < 1) || (pulse > 0 && pulse < 1);
       if (shock.visible) {
+        const t = destroyed ? ring : pulse;
         shock.position.set(placement.x ?? boss.x, placement.baseHeight + .1, -placement.s);
-        shock.scale.setScalar(2 + Math.sqrt(ring) * 10); (shock.material as THREE.MeshBasicMaterial).opacity = (1 - ring) * (1 - ring) * (walking ? .45 : 1);
+        shock.scale.setScalar(2 + Math.sqrt(t) * (destroyed ? 10 : 12)); (shock.material as THREE.MeshBasicMaterial).opacity = (1 - t) * (1 - t) * (walking ? .45 : destroyed ? 1 : .7);
       }
       // Pod launches: each new pod bursts out of the bay on its side with a teal flash and a puff of mist.
       for (const enemy of state.enemies) if (enemy.formation?.template === 'veil-pods' && !podsSeen.has(enemy.id)) {
@@ -668,6 +693,13 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
       if (rig.walker) { encounter = -1; walk = null; }
     },
     get hasPodModel() { return !!rig.flightPods; },
+    /** A still boss's jolt of the camera as its core ignites in its awakening (src/render/scene.ts adds it to the shake). */
+    rumble(state: RunState): number {
+      const boss = state.boss && mine(state.boss.id) ? state.boss : null;
+      if (!style.still || !root.visible || boss?.phase !== 'arrival') return 0;
+      const since = state.time - boss.startedAt - AWAKEN.order.core * style.content.arrivalDuration;
+      return since >= 0 && since < .5 ? AWAKEN.jolt * (1 - since / .5) : 0;
+    },
     get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count,
       ...(rig.walker ? { walker: { swinging: gait?.swinging ?? -1, buckled: Math.round(buckled * 100) / 100, lift: Math.round(walkerLift * 100) / 100 } } : {}) }; },
     dispose() { rig.dispose(); scene.remove(root, shock, markers); geometry.dispose(); blob?.geometry.dispose(); (blob?.material as THREE.Material | undefined)?.dispose(); },

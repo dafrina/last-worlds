@@ -141,7 +141,21 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
     start just past the plan's front), and toward the edges elsewhere the foothills keep low (`Landform.ceiling` lets the
     ranges beyond the edges rise to 6.5 by the fortress; ground there never hides the flight plane). Where the tall peaks
     end and where the massifs come down wanders along x. Its colour (tone over 1, `massifColor`): dark blue-grey stone on
-    the steep faces, snow on the shoulders and dusted in streaks over the stone; crags on its ledges;
+    the steep faces, snow on the shoulders and dusted in streaks over the stone; crags on its ledges. Since 18 November
+    (v8; user: "theres no cliff models placed on the mountain. It looks to staggered and even, put some rocky cliffs and make
+    it more jagged etc.") its relief round the fortress and over the approach climbs in broken terraces (the ridged relief
+    cut into steps of its own count and height wandering along x and s, each ending in a sheer rim; never over the relief's
+    own height, and smooth on the tall peaks behind the fortress, whose summits keep their height for the departure). Its
+    pieces stand up to the scenery cap over the fight's play area and to the peaks' top (9) behind it (`MASSIF_PLAY_TOP` 30
+    past the arena's start; they were kept to `VESPER_PIECE_MAX`, −0.75, so none stood above its lowest slopes): crags on
+    its shoulders, tiers and spurs, rock needles on the ascent's tiers (under the ledge, a little over it at most), scree at
+    the feet of its faces, and Vesper's walls (`iceWall`, the shelves' fractured walls) in its faces by the shelves' rules
+    (runs of three along a rim, faces toward the camera, from a drop of 1.0; a second pass of `cliffWallSteps` over the
+    arena, `MASSIF_WALLS`), never in the fortress's plan nor where the renderer would hide them under it, and before its
+    barrels only in the ascent's top face, flush with the ledge (the shelves' walls kept off the mountain, so it had none
+    until then). Off the ascent they are cosmetic, so the low graphics tier draws the ascent's only. Their cost on High
+    (390×844, SwiftShader, seed 7, camera centred, 193.8 s into the awakening): 61 → 72 draw calls, 203k → 288k
+    triangles (walls and their shadows, crags, the beacons' one call);
   - the fortress stands at the head of the corridor on a ledge, short since the same day ("i also like seed 4 best, maybe
     we should limit it to shorter cliffes, but make them more varied, jagged, maybe a second or third layer too": the ledge
     runs out 0.35–2.25 before the fortress, `strongholdReach`, then steps down in one to three broken drops with narrow
@@ -152,7 +166,12 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
     ridged top; the ground round its front still meets its edges and climbs as a slope, never a wall standing off it). Then
     the view is one mountain from bottom to top ("lower third mountain base, middle third the ascend and top third peak with
     the fortress between 2 and 3"): the ascent below the ledge climbs from the low ground in three to five rock bands over
-    the middle of the view, rock ribs running up it and gullies down it, under the cap; past the fortress's shoulder, beyond
+    the middle of the view, rock ribs running up it and gullies down it, under the cap. Since v8 its bands are uneven and
+    offset rather than stacked (`strongholdSteps`): each band's height varies along x (a tall face here, a low step there),
+    each tier's width wanders along x on its own, pinching out where two faces merge into one taller face and widening into
+    a shelf elsewhere, each face bites into its rim at its own steepness, scree heaps at each face's foot, the rims are
+    sawtoothed, broad spurs run down the ascent with the bands stepping out over them and their crests standing over them,
+    and rock needles stand on the wider tiers (`strongholdNeedles`, under the ledge); past the fortress's shoulder, beyond
     the fight's play area (28.8 past the arena's start), the peak behind it rises over the flight plane to 9 ("you can now increase vertical space even more right?") across the
     whole width and comes down past the departure, which the ship climbs over after the kill (`departureClimb`). It
     began (user, 18 November: "maybe have it sit on a middle layer,
@@ -260,7 +279,7 @@ test flies seed 58).
 
 | Phase | Attacks |
 | --- | --- |
-| Arrival (`arrivalDuration`) | Its awakening: it already stands in its mountain as the scroll stops; steam bursts from its vents, its cannons and its reactor light in turn. |
+| Arrival (`arrivalDuration`, 4 s) | Its awakening: it already stands in its mountain, dormant, as the scroll stops, then wakes: snow slides off its roofs, steam bursts from its vents, alarm beacons sweep, its lights flicker on, each cannon runs out and swings onto its lane with a clunk, its reactor lights last. |
 | Cannons | Narrow lane lasers (`HELION_ARK.laser`) straight down the firing cannon's column, alternating cannons; every third attack an aimed burst from the reactor's door instead (`bridgeBurst`), so the middle between the lanes is not safe for long. |
 | Reactor | The blast door opens. Aimed three-bolt bursts, and finite launches (`launches`): waves of two Needles (`ark-launch`) from the hatches either side of the door, one wave at a time, only while they are in view. |
 | Overload | `overloadMoves`: core lane, burst, side lanes, cross, burst, core lane, cross, side lanes, with a shorter recovery (`overloadRecovery`) and two more launch waves. |
@@ -329,7 +348,28 @@ exactly on its moved target, the cannons 0.03 short of theirs. 8.1 is the lowest
 4.5 before the row and must stay 3.5 before the player's (tests/sim/fairness.test.ts; at 6.5 they fired 2 before it). Its
 attacks' times to the player's row, Cold Vector perfect pilot, median row 9 → 8.1: Relaxed 1.68 → 1.55 s, Standard
 1.43 → 1.32, Veteran 1.37 → 1.25; endless sectors 26–28 min 1.02 → 0.98, median 1.15 → 1.15; no fairness violations, no
-boss hits on the perfect pilot, the dodger's unchanged but Standard 2 → 3. Target rings and brackets are drawn on the flight plane at the targets. A cannon charging its
+boss hits on the perfect pilot, the dodger's unchanged but Standard 2 → 3.
+
+**Its arrival** (user, 18 November: "the stationary enemies seem to have a smaller pause before the boss fight. The
+current enemies go away later too", then "no i mean the pause before the boss fight. Usually the boss walks in but for
+stationary its so sudden"). Measured over seeds 1–6 with the perfect pilot (campaign Standard; endless sectors 7 and 28),
+the same on the live game (the flying Ark) and this branch: the craft still in the sky leave at the boss's arrival as for
+every boss (Cold Vector's last ones are gone 5.5–10.2 s before it, at 179.8–184.5 s); its arrival begins as the scroll stops
+(190 s; endless 78 s, 3 s into its stop), and its first attack came 4.75 s after it, against 5.3 s for the walking and
+rising bosses (THE CRADLE, THE VEIL) and 4.3 s for THE CITADEL. The flying Ark glided in over those seconds; the stronghold
+already stands there, scrolled into view with the arena (its front from about 184.4 s), so its fight began with nothing
+arriving. Since then (render: `AWAKEN` in `src/render/stronghold-view.ts`) it stands dormant as it scrolls in, its cannons
+stowed (run in, raised and turned out along the cliff) and its lights all but out, and wakes over its arrival in an order
+the player can follow: a rumble shakes a sheet of snow off its roofs' edges and steam out of its vents, four alarm beacons
+on its roofs start sweeping (one instanced batch, shown only through the awakening and the first second of its fight), its
+lights flicker on, the left cannon runs out and swings down onto its lane with a clunk (a flash, sparks, steam and a jolt of
+the camera), then the right, and its reactor glows last. Its arrival is 4 s (3.5 before, the Ark's glide-in), as the
+walking and rising bosses' (`HELION_ARK.arrivalDuration`): its first attack 5.25 s after its arrival (endless 5.27 s, the
+others 5.30–5.32 s). Its approach banner (THE MOUNTAINS AHEAD · THE STRONGHOLD WAKES) now shows in the campaign too, from
+188.5 s to its arrival (`HELION_ARK.approachEndsAt`, 190 before: the arrival itself, so only endless showed it), after
+Cold Vector's closing relief (188 s) and the last shield cell's call; no cue changes.
+
+Target rings and brackets are drawn on the flight plane at the targets. A cannon charging its
 lane glows (its housing's lining and its muzzle), fires with a muzzle flash and smoke, recoils into its housing and
 vents steam from the roof; lanes from live cannons start at their muzzles (`beamTop`). Bursts leave the reactor's door
 with a flash. The door's leaves part over 0.9 s as the reactor opens; the reactor pulses in its overload. Needles leave
@@ -346,7 +386,8 @@ door; the wreck stays embedded. Effects reuse the bosses' bounded particle layer
   ice with jetties, tracks and trestles; every outpost archetype; the stronghold's arena (low ground just above the sea,
   mostly land with leads but none round the fortress, varied relief, the corridor low past the shoulder, the play area well
   under the flight plane and mountains beyond the edges, the ground under the barrels low, under the model and meeting its
-  edges, no ice walls on the mountain or round the fortress, crags round it, nothing in its plan), deterministic and
+  edges, walls in the mountain's faces but never in its plan nor over the ledge before its barrels, every piece under the
+  massif's cap, crags round it and on its ascent, nothing in its plan), deterministic and
   streamed, and at endless's Vesper boss stop; behind it no plain and no cut across the view to where Vesper's terrain
   returns, the ledge out to the arena's own reach (varying with the seed), the works decorative and under the caps.
 - `tests/world/stronghold-projection.test.ts`: the reactor's aim and the guns on their targets through the centred lens

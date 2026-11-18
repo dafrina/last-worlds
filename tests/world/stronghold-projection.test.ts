@@ -9,7 +9,7 @@ import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { STRONGHOLD_FOOTPRINT, createStrongholdView } from '../../src/render/stronghold-view';
 import { STRONGHOLD_AT, STRONGHOLD_BASE, STRONGHOLD_BUILT_AT, STRONGHOLD_BUILT_SEA, STRONGHOLD_SCALE } from '../../src/world/terrain-vesper';
 import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from '../../src/world/stronghold-seat';
-import { terrainHeight } from '../../src/world/terrain';
+import { KIT, generateTerrainSection, pieceBounds, terrainHeight } from '../../src/world/terrain';
 import { asset, stubGltfDecoding } from '../helpers/assets';
 
 stubGltfDecoding();
@@ -82,14 +82,25 @@ describe('HELION STRONGHOLD placement', () => {
     expect(differ).toBe(0);
   }, 60_000);
 
-  it('leaves its weak points in sight from the lens at the camera\'s centre and both extremes (no ground on the lines of sight)', async () => {
+  it('leaves its weak points in sight from the lens at the camera\'s centre and both extremes (no ground or scenery on the lines of sight)', async () => {
     const model = await asset(BOSS_ASSETS.ark);
     model.updateMatrixWorld(true);
-    const points = ['stronghold_core_aim', 'stronghold_gun_left', 'stronghold_gun_right', 'stronghold_muzzle_left', 'stronghold_muzzle_right']
+    // The reactor's aim (its door), the guns and muzzles, and the hatches its Needles launch from.
+    const points = ['stronghold_core_aim', 'stronghold_gun_left', 'stronghold_gun_right', 'stronghold_muzzle_left', 'stronghold_muzzle_right', 'stronghold_bay_left', 'stronghold_bay_right']
       .map(name => model.getObjectByName(name)!.getWorldPosition(new THREE.Vector3()));
     const stop = 1075.25, from = stop - 9;   // Cold Vector's stop and arena (tests/world/terrain-vesper.test.ts)
-    for (const seed of [7, 93, 8831]) {
+    for (const seed of [7, 4, 9, 93, 8831]) {
       const world = { planet: 'vesper' as const, arena: { fromS: from, toS: stop + 35 } };
+      // The scenery round it (its mountain's walls, crags and needles since v8, its works): each piece's conservative box.
+      const boxes: { minX: number; maxX: number; minS: number; maxS: number; top: number; id: string }[] = [];
+      for (let index = Math.floor((stop - 4) / VIEW.sectionLength); index <= Math.floor((stop + 24) / VIEW.sectionLength); index++) {
+        const section = generateTerrainSection(seed, index, world);
+        for (const piece of section.instances) {
+          const r = KIT[piece.kind].radius * piece.scale;
+          boxes.push({ minX: piece.x - r, maxX: piece.x + r, minS: piece.s - r, maxS: piece.s + r, top: piece.y + piece.height * KIT[piece.kind].height, id: `${piece.kind} ${piece.x.toFixed(2)} ${(piece.s - from).toFixed(2)}` });
+        }
+        for (const piece of section.industry) { const b = pieceBounds(piece); boxes.push({ minX: b.minX, maxX: b.maxX, minS: b.minS, maxS: b.maxS, top: b.maxY, id: piece.node }); }
+      }
       for (const camera of [-(VIEW.worldWidth - VIEW.width) / 2, 0, (VIEW.worldWidth - VIEW.width) / 2]) {
         const eye = lensEye(camera);
         for (const p of points) {
@@ -98,11 +109,12 @@ describe('HELION STRONGHOLD placement', () => {
           for (let k = 1; k < 200; k++) {
             const t = k / 200, x = eye.x + (target.x - eye.x) * t, y = eye.y + (target.y - eye.y) * t, s = eye.s + (target.s - eye.s) * t;
             expect(terrainHeight(seed, x, stop + s, world), `${seed} camera ${camera} ${t}`).toBeLessThan(y);
+            for (const box of boxes) if (y < box.top && x > box.minX && x < box.maxX && stop + s > box.minS && stop + s < box.maxS) expect.fail(`${seed} camera ${camera}: ${box.id} on the line of sight at ${t}`);
           }
         }
       }
     }
-  }, 60_000);
+  }, 120_000);
 
   it('draws its rings and brackets on the targets and its scenery exclusion over the fortress', async () => {
     const scene = new THREE.Scene(), view = createStrongholdView(scene);

@@ -8,10 +8,20 @@ import { OVERLOAD_FRACTION } from './boss-phases';
  */
 export const HELION_ARK = {
   arrivesAt: 190,
-  /** No approach cue is admitted at or after this time: authored relief before the Ark. */
-  approachEndsAt: 190,
-  /** Its arrival is its awakening (src/render/stronghold-view.ts): it already stands in its mountain as the scroll stops. */
-  arrivalDuration: 3.5,
+  /**
+   * No approach cue is admitted at or after this time: authored relief before the Ark. Its approach banner shows from here
+   * to the arrival (THE MOUNTAINS AHEAD · THE STRONGHOLD WAKES, src/sim/game.ts): 188.5 since 18 November (user: "for
+   * stationary its so sudden"; 190 before, the arrival itself, so the campaign never showed it), just after Cold Vector's
+   * closing relief (188 s) and the last shield cell's call (185 + 2.5 s).
+   */
+  approachEndsAt: 188.5,
+  /**
+   * Its arrival is its awakening (src/render/stronghold-view.ts AWAKEN): it already stands in its mountain, dormant, as the
+   * scroll stops. 4 s since 18 November (user: "Usually the boss walks in but for stationary its so sudden"; 3.5 before, the
+   * flying Ark's glide-in): as long as the walking and rising bosses' arrivals (THE CRADLE's, THE VEIL's), so its first
+   * attack comes as long after its arrival as theirs (5.3 s, 4.75 before).
+   */
+  arrivalDuration: 4,
   /** It never moves (BossDefinition.stationary, 17 November): it starts at its row (the Ark glided in from 26). */
   entryS: 8.1,
   /**

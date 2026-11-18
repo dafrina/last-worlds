@@ -2382,6 +2382,8 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       post.settings.pall.value.set(pallState?.origin ?? 0, pallState?.radius ?? 0, pallStrength, VIEW.flightHeight);
       // (HELION STRONGHOLD's awakening rumbles the same way: src/render/stronghold-view.ts.)
       if ((state.boss?.id === 'citadel' || state.boss?.id === 'ark') && state.boss.phase === 'arrival') shakeTrauma = Math.max(shakeTrauma, .6 * (1 - THREE.MathUtils.smoothstep(state.time - state.boss.startedAt, .1, 1.6)));
+      // ...and jolts as each of its cannons locks onto its lane; THE CITADEL as its crown ignites.
+      shakeTrauma = Math.max(shakeTrauma, stronghold.rumble(state), citadel.rumble(state));
       shakeTrauma = Math.min(1, shakeTrauma);
       const shake = reducedMotion() || jumpActive ? 0 : shakeTrauma * shakeTrauma * SHAKE_AMPLITUDE;
       const shakeX = shake * (Math.sin(state.time * 47.3) + .5 * Math.sin(state.time * 89.1)), shakeY = shake * (Math.sin(state.time * 53.7 + 1.3) + .5 * Math.sin(state.time * 97.9 + .4));

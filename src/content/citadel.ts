@@ -17,8 +17,11 @@ export const CITADEL = {
    * Its arrival is its awakening: it already stands on screen, so it only lights up (lanterns, emblem, crown;
    * src/render/carrier-view.ts) and its fight begins as the scroll stops (arena decel ends at 187 s). THE ECLIPSE's 5 s
    * covered its rise; here it was dead time (user, 14 November: "it takes a tad too long until the boss fight starts").
+   * 4 since 18 November (user: "Usually the boss walks in but for stationary its so sudden"; 3 from 14 November): as long as
+   * THE CRADLE's walk-in and THE VEIL's rise on the same arena timing, its fight beginning a second after the scroll stops
+   * as theirs does (at the stop before), its awakening a clearer sequence (sand pouring off, a pulse of light, a jolt).
    */
-  arrivalDuration: 3,
+  arrivalDuration: 4,
   row: 13,
   /** The target plane over its base (the model's origin): the lanterns and the emblem stand 3.0-3.2 up, the crown 4.95. */
   targetHeight: 2.4,

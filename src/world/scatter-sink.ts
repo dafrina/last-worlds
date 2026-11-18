@@ -41,7 +41,10 @@ export interface ScatterSink {
    * (0..1) chooses its variant; `shade` and `variant` replace the sink's own.
    */
   add(piece: ScatterPiece, pick: number, shade?: number, variant?: number): boolean;
-  /** Pieces placed by rules of their own (the cliff walls): kept as they are, with the essential pieces. */
+  /**
+   * Pieces placed by rules of their own (the cliff walls): kept as they are, with the essential pieces (a cosmetic one with
+   * the cosmetic pieces: HELION STRONGHOLD's mountain walls off its ascent, src/world/terrain-vesper.ts).
+   */
   keep(pieces: readonly KitInstance[]): void;
   /** Everything placed: the essential pieces, then the cosmetic ones, each in the order they came. */
   finish(): KitInstance[];
@@ -66,7 +69,7 @@ export function createScatterSink(options: ScatterSinkOptions): ScatterSink {
       (placed.cosmetic ? cosmetic : essential).push(placed);
       return true;
     },
-    keep(pieces) { for (const piece of pieces) essential.push(piece); },
+    keep(pieces) { for (const piece of pieces) (piece.cosmetic ? cosmetic : essential).push(piece); },
     finish: () => [...essential, ...cosmetic],
   };
 }

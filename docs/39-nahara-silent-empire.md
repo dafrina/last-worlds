@@ -259,10 +259,18 @@ settings. Drone waves fly from gates either side of its stairs (`bays`). Its cam
 only explodes when it falls. Its terrain exclusion is only its plaza (`CITADEL_STYLE.footprint`).
 
 **Awakening** (user, 14 November: "when we arrive at the boss it takes a tad too long until the boss fight starts even tho
-hes already on screen"): its arrival (`CITADEL.arrivalDuration`) is shorter than THE ECLIPSE's, which covered a rise, and
-ends as the scroll stops. Until then it stands dormant; through the arrival it shakes the sand off (a puff of dust and a
-short camera rumble), then its lanterns, emblem and crown light in turn, each with a flicker and a flare of sparks
-(`AWAKEN` in `src/render/carrier-view.ts`). Its effects are turquoise sparks and sandstone dust (`CITADEL_STYLE.fx`).
+hes already on screen"; then 18 November: "Usually the boss walks in but for stationary its so sudden", and "yes do it for
+the citadel too"): until its arrival it stands dormant (lanterns, emblem and crown barely lit). Through the arrival it
+shakes the sand off (a puff of dust and a short camera rumble), sand pours off its drum and ledges, its gate pillars stir
+in turn (a flash of its light at each top, sparks, dust down the shaft), then its lanterns, emblem and crown light in turn,
+each with a flicker and a flare of sparks, and the crown's ignition sends a pulse of turquoise light out over the ground
+with a jolt of the camera (`AWAKEN` in `src/render/carrier-view.ts`; render only). Its effects are turquoise sparks and
+sandstone dust (`CITADEL_STYLE.fx`). Its arrival (`CITADEL.arrivalDuration`) was 5 s (THE ECLIPSE's, which covered a
+rise), 3 s from 14 November (ending as the scroll stopped, so the fight began at the stop), and 4 s since 18 November: as
+THE CRADLE's walk-in and THE VEIL's rise on the same arena timing, so its first attack comes 5.3 s after its arrival
+begins, as theirs does (4.3 s before), a second after the scroll stops. The craft still in the sky at its arrival break
+off and fly out then, as for every boss (measured over seeds 1–6, campaign Standard: all gone by 185.0 s, its fight from
+188 s).
 
 **Model.** Built of the ruin kit's own construction by `tools/blender/boss_citadel.py`, with the user's Tripo model
 (`art/source/bosses/citadel-tripo-original.glb`) as the guide for its shapes. The adapted Tripo mesh was rejected ("its

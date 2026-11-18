@@ -281,6 +281,18 @@ const STRONGHOLD = {
   barrels: [6.1, 17],
 } as const;
 /**
+ * Over HELION STRONGHOLD's mountain, pieces stand to the scenery cap up to this far past the arena's start (the fight's play
+ * area reaches 28.8, its view's top at the stop), and to the peaks' top (STRONGHOLD.crag) behind it, which the ship climbs
+ * over after the kill. Its walls stand between MASSIF_WALLS past the arena's start (the approach's foothills to the jump).
+ */
+const MASSIF_PLAY_TOP = 30, MASSIF_WALLS = [-24, 86] as const;
+/**
+ * The fortress's plan about its seat (STRONGHOLD_AT) as seated: half width, front (its plinth's; the barrels jut out 1.95 over
+ * the ledge, where only its works stand, src/world/stronghold-works.ts) and back (tools/blender/boss_stronghold.py bounds,
+ * scaled onto its ledge). The renderer hides scenery whose box reaches into it (src/render/stronghold-view.ts).
+ */
+export const STRONGHOLD_FOOTPRINT = { halfWidth: 6.62 * STRONGHOLD_SCALE, front: 0.5 * STRONGHOLD_SCALE, back: 7.55 * STRONGHOLD_SCALE } as const;
+/**
  * The fortress's ledge as seated, for the works round it (src/world/stronghold-works.ts): its plan's front past the arena's
  * start, its half width there, and the ledge's level (the model's foot).
  */
@@ -351,11 +363,14 @@ function fortressOutside(x: number, a: number): number {
   const dx = Math.abs(x) - half, ds = Math.max(c.front - a, a - c.rear);
   return dx > 0 && ds > 0 ? Math.hypot(dx, ds) : Math.max(dx, ds);
 }
-/** Whether a point is clear of the fortress (its plan, and its barrels over the valley in front), by `margin`. */
-export function strongholdClear(arena: TerrainArena | undefined, x: number, s: number, margin = 0): boolean {
+/**
+ * Whether a point is clear of the fortress (its plan, and unless `barrels` is false its barrels over the valley in front),
+ * by `margin`.
+ */
+export function strongholdClear(arena: TerrainArena | undefined, x: number, s: number, margin = 0, barrels = true): boolean {
   if (!arena) return true;
   const bx = builtX(x), a = builtA(s - arena.fromS);
-  return fortressOutside(bx, a) > margin + .3 && !(Math.abs(bx) < STRONGHOLD.wide + margin && a > STRONGHOLD.front - 2 - margin && a < STRONGHOLD.rear);
+  return fortressOutside(bx, a) > margin + .3 && !(barrels && Math.abs(bx) < STRONGHOLD.wide + margin && a > STRONGHOLD.front - 2 - margin && a < STRONGHOLD.rear);
 }
 /**
  * The massif's relief (0 … 1): domain-warped ridged noise, ridges with sharp crests over broad snowy valleys, and crags
@@ -395,25 +410,49 @@ export function strongholdReach(arena: TerrainArena, seed: number, x: number): n
   const curve = (noise(seed ^ 0x5751, x * 0.18, arena.fromS * 0.01) - 0.5) * 1.4;
   return Math.max(0.25, out + tilt * x + curve);
 }
-/** One drop of the fortress's cliff: its share of the whole drop, its face's run, the tier below it (the last has none). */
-interface CliffStep { share: number; run: number; tier: number }
+/**
+ * One drop of the fortress's cliff: its share of the whole drop, its face's run, the tier below it (the last has none), and
+ * how its face bites into its rim (the exponent of its profile: lower is sheerer at the rim).
+ */
+interface CliffStep { share: number; run: number; tier: number; bite: number }
 /**
  * The drops from the fortress's ledge to the low ground at world x (user, 18 November: "make them more varied, jagged, maybe a
- * second or third layer too"): the arena's own count (one drop now and then, mostly two, often three), their shares of the
- * height, their tiers' widths wandering along x, faces sheer on buttresses and drawn out in gullies.
+ * second or third layer too", then "It looks to staggered and even, put some rocky cliffs and make it more jagged"): the
+ * arena's own count (three to five), each band its own height varying along x (a tall face here, a low step there), faces
+ * sheer on buttresses and drawn out in gullies, and each tier's width wandering along x on its own, so the faces are offset
+ * rather than stacked in parallel: a tier pinches out where two faces merge into one taller face and widens into a shelf
+ * elsewhere. (Until 18 November, v8, the shares and tiers varied little along x and the bands echoed the ledge's outline.)
  */
 function strongholdSteps(arena: TerrainArena, seed: number, x: number, buttress: number, gully: number): CliffStep[] {
   const h = (k: number) => hash(seed ^ 0x5753, Math.round(arena.fromS * 4), k);
   const count = 3 + (h(0) < 0.4 ? 0 : h(1) < 0.6 ? 1 : 2), steps: CliffStep[] = [];
   let left = 1;
   for (let k = 0; k < count; k++) {
-    const share = k === count - 1 ? left : left * clamp(1 / (count - k) + (h(2 + k) - 0.5) * 0.25 + (noise(seed ^ (0x5754 + k), x * 0.4, 0.5) - 0.5) * 0.2, 0.15, 0.7);
+    const share = k === count - 1 ? left
+      : left * clamp(1 / (count - k) + (h(2 + k) - 0.5) * 0.4 + (noise(seed ^ (0x5754 + k), x * 0.33 + k * 3.1, 0.5) - 0.5) * 0.55, 0.12, 0.75);
     left -= share;
-    const run = (0.35 + 0.55 * noise(seed ^ (0x5758 + k), x * 0.9, 1.5)) * mix(1, 0.55, buttress) * mix(1, 1.9, gully);
-    const tier = k === count - 1 ? 0 : (1.1 + 1.3 * h(7 + k)) * (0.6 + 0.8 * noise(seed ^ (0x575c + k), x * 0.45, 2.5));
-    steps.push({ share, run, tier });
+    const run = (0.3 + 0.65 * noise(seed ^ (0x5758 + k), x * 0.9, 1.5)) * mix(1, 0.5, buttress) * mix(1, 2, gully);
+    const pinch = mix(0.06, 1.75, smoothRange(0.3, 0.72, noise(seed ^ (0x575c + k), x * 0.3 + k * 7.3, 2.5)));
+    const tier = k === count - 1 ? 0 : (0.9 + 1.5 * h(7 + k)) * pinch * (0.8 + 0.4 * noise(seed ^ (0x5760 + k), x * 1.1, 3.5));
+    steps.push({ share, run, tier, bite: 0.35 + 0.45 * noise(seed ^ (0x5768 + k), x * 1.7, 4.5) });
   }
   return steps;
+}
+/**
+ * Rock needles standing on the ascent's tiers and spurs (user, 18 November: "make it more jagged"): their height over the
+ * ground at world x and `u` units out from the ledge's edge, from a jittered lattice in (x, u).
+ */
+function strongholdNeedles(seed: number, arena: TerrainArena, x: number, u: number): number {
+  const salt = seed ^ 0x5769, k = Math.round(arena.fromS * 4), cx = 2.1, cu = 1.6;
+  let top = 0;
+  for (let i = Math.floor(x / cx) - 1; i <= Math.floor(x / cx) + 1; i++) for (let j = Math.floor(u / cu) - 1; j <= Math.floor(u / cu) + 1; j++) {
+    const h = (n: number) => hash(salt, i * 131 + j * 7 + k, n);
+    if (h(0) > 0.34) continue;
+    const px = (i + 0.2 + 0.6 * h(1)) * cx, pu = (j + 0.2 + 0.6 * h(2)) * cu, r = 0.35 + 0.35 * h(3);
+    const d = Math.hypot(x - px, (u - pu) * 1.2) / r;
+    if (d < 1) top = Math.max(top, (1 - d) ** 1.3 * (0.6 + 1.1 * h(4)));
+  }
+  return top;
 }
 export function strongholdGround(arena: TerrainArena | undefined, seed: number, x: number, s: number): StrongholdGround | null {
   if (!arena) return null;
@@ -464,7 +503,16 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
   // From the massif's foot to its top: ridged crests with summits and saddles along them (`peaks`), so the ground meets its
   // top only at the summits and never in a plateau (user, 18 November: "the mountain behind the boss when we fly away is
   // just cut off straight").
-  const peaks = r * (0.55 + 0.45 * smoothRange(0.25, 0.75, noise(seed ^ 0x573a, x * 0.2, a * 0.2)));
+  const smoothPeaks = r * (0.55 + 0.45 * smoothRange(0.25, 0.75, noise(seed ^ 0x573a, x * 0.2, a * 0.2)));
+  // Broken into rock steps (v8; user, 18 November: "It looks to staggered and even, put some rocky cliffs and make it more
+  // jagged"): the relief climbs in terraces, each ending in a sheer rim (crispStep), their count and heights wandering with x
+  // and s so they never stack evenly; Vesper's walls and crags stand in them (vesperScatterSteps). Never over the relief's own
+  // height (min), so no cap or line of sight moves; round the fortress and its approach, not on the tall peaks behind it
+  // (`crag`), whose summits keep their height for the departure's climb over them.
+  const terraces = 2.6 + 2 * noise(seed ^ 0x576c, x * 0.11, a * 0.11), phase = noise(seed ^ 0x576d, x * 0.23, a * 0.19) * 0.8;
+  const q = smoothPeaks * terraces + phase, qi = Math.floor(q);
+  const stepped = Math.max(0, Math.min(smoothPeaks, (qi + crispStep(clamp((q - qi - 0.55) / 0.45)) - phase) / terraces));
+  const peaks = mix(stepped, smoothPeaks, crag);
   const foot = Math.min(mix(c.base[0], c.base[1], tall) + c.beyond * beyond, limit - 1.2);
   let height = c.low + (foot - c.low) * climb + (limit - foot) * peaks * smoothRange(-1, 3, depth);
   // The ledge the fortress stands on, at its foot's level: it runs out a little before the plan's front and round its front
@@ -479,22 +527,34 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
     // Past the ledge's edge (world units): before the plan's front by `reach`, beside it by about a unit, the corners rounded.
     const ahead = Math.max(0, (c.front - ba) * STRONGHOLD_SCALE), beside = Math.max(0, bax - plan) * STRONGHOLD_SCALE;
     const wide = 1.1 + 0.6 * noise(seed ^ 0x573e, a * 0.35, 0.5), d = Math.cbrt((ahead / reach) ** 3 + (beside / wide) ** 3);
-    const u = (d - 1) * (ahead * reach + beside * wide) / (ahead + beside + 1e-6) + (noise(seed ^ 0x5745, x * 1.3, a * 1.3) - 0.5) * 0.3;
+    // The faces' rims are sawtoothed (`tooth`), and broad rock spurs run down the ascent with its bands stepping out over
+    // them (`spur`: the bands lie further out there; v8, user: "make it more jagged").
+    const tooth = Math.abs(noise(seed ^ 0x5767, x * 2.3, a * 0.8) - 0.5) * 2, spur = smoothRange(0.6, 0.82, noise(seed ^ 0x5766, x * 0.3, 4.5));
+    const u0 = (d - 1) * (ahead * reach + beside * wide) / (ahead + beside + 1e-6) + (noise(seed ^ 0x5745, x * 1.3, a * 1.3) - 0.5) * 0.3 + (tooth - 0.5) * 0.5;
+    const u = u0 - spur * 1.3 * smoothRange(0.3, 2.5, u0);
     const steps = strongholdSteps(arena, seed, x, buttress, gully), drop = ledge - (SEA + 0.35);
     let level = ledge + (noise(seed ^ 0x5743, x * 0.7, a * 0.7) - 0.5) * 0.2, at = 0, past = Infinity;
     for (let k = 0; k < steps.length && past === Infinity; k++) {
       const step = steps[k];
       if (u < at) { past = -1; break; }
-      if (u < at + step.run) { level -= step.share * drop * smoothRange(0, 1, (u - at) / step.run) ** 0.55; past = -1; break; }
+      if (u < at + step.run) { level -= step.share * drop * smoothRange(0, 1, (u - at) / step.run) ** step.bite; past = -1; break; }
       level -= step.share * drop; at += step.run;
       if (k === steps.length - 1) past = u - at;
-      else if (u < at + step.tier) { level += (noise(seed ^ 0x5748, x * 0.9, a * 0.9) - 0.5) * 0.2; past = -1; break; }
-      else at += step.tier;
+      else if (u < at + step.tier) {
+        // Scree heaped at the face's foot, then the tier's own lumps.
+        level += step.share * drop * 0.2 * (1 - smoothRange(0, 0.8, u - at)) ** 2 * (0.5 + noise(seed ^ 0x576b, x * 2.6, a * 2.6))
+          + (noise(seed ^ 0x5748, x * 0.9, a * 0.9) - 0.5) * 0.2;
+        past = -1; break;
+      } else at += step.tier;
     }
-    // (Rock ribs run up the ascent and gullies cut down it, across its bands.)
+    // (Rock ribs run up the ascent and gullies cut down it, across its bands; the spurs' crests stand over their bands, and
+    // rock needles over the tiers, all under the ledge.)
     const rib = smoothRange(0.6, 0.78, noise(seed ^ 0x5765, x * 0.5, 7.5)) * smoothRange(0, 1, u);
-    if (past < 0) { tier = level + rib * 0.45 - gully * 0.25 * smoothRange(0, 1, u); cliff = 1; }
-    else if (past < 1.2) { cliff = 1 - smoothRange(0, 1.2, past); }
+    if (past < 0) {
+      tier = level + rib * 0.45 + spur * (0.3 + 0.4 * noise(seed ^ 0x576a, x * 3.1, a * 1.7)) * smoothRange(0, 1.2, u) - gully * 0.25 * smoothRange(0, 1, u);
+      if (u > 0.9) tier = Math.max(tier, Math.min(tier + strongholdNeedles(seed, arena, x, u), ledge - 0.3));
+      tier = Math.min(tier, ledge + 0.1); cliff = 1;
+    } else if (past < 1.2) { cliff = 1 - smoothRange(0, 1.2, past); }
     // Before the cliff the low ground keeps down to its foot, rising back over a scree apron, so the cliff stands its full
     // height (the low ground's relief would otherwise fill its lower half); beside the fortress the low ground keeps its own.
     if (ba < c.front && past !== Infinity && past >= 0) footCap = SEA + 0.35 + past * 0.3 + 6 * (1 - smoothRange(0.35, 0.75, ahead / (ahead + beside + 1e-6)));
@@ -934,11 +994,12 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
  * separate, drifting pieces). Arena platforms stay empty.
  */
 export function* vesperScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  // (Crags on HELION STRONGHOLD's mountain may stand to the scenery cap over Vesper, the mountain's own; elsewhere pieces keep
-  // to VESPER_PIECE_MAX.)
+  // (Crags on HELION STRONGHOLD's mountain may stand to the scenery cap over Vesper, the mountain's own, over the fight's play
+  // area and to the peaks' top behind it (`massifCap`, MASSIF_PLAY_TOP); elsewhere pieces keep to VESPER_PIECE_MAX.)
   const CAP = VESPER_PIECE_MAX, onMassif = (x: number, s: number) => (strongholdGround(terrain.arena(s), seed, x, s)?.massif ?? 0) > 0.3;
-  const sink = createScatterSink({ startS, size, terrain, cap: CAP, tall: { kinds: new Set(['outcrop']), cap: VESPER_SCENERY_MAX },
-    capAt: (x, s) => onMassif(x, s) ? VESPER_SCENERY_MAX : CAP }), { add } = sink;
+  const massifCap = (x: number, s: number) => { const arena = terrain.arena(s); return arena && s - arena.fromS > MASSIF_PLAY_TOP ? STRONGHOLD.crag : VESPER_SCENERY_MAX; };
+  const sink = createScatterSink({ startS, size, terrain, cap: CAP, tall: { kinds: new Set(['outcrop']), cap: STRONGHOLD.crag },
+    capAt: (x, s) => onMassif(x, s) ? massifCap(x, s) : CAP }), { add } = sink;
   // HELION STRONGHOLD's arena (a Vesper boss arena): its land is dressed as any shelf, its massif only with crags, nothing
   // stands where the fortress does (its plan, its barrels and its plinth: strongholdClear); its rocks are placed below.
   const holdAt = (x: number, s: number) => strongholdGround(terrain.arena(s), seed, x, s);
@@ -967,11 +1028,26 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     const { m } = groundMasks(seed, x, s, vesperParams(seed, s), platform, hold);
     // Water is dressed by the coarser cliff pass below (and drifting floes); shelves get the land pieces here.
     if (ground < SEA) continue;
-    // The stronghold's massif: dark crags on its shoulders and ledges, under the cap (none on its faces); nothing else.
+    // The stronghold's massif: dark crags on its shoulders, tiers and spurs, rock needles on its ascent's tiers, scree at the
+    // feet of its faces (v8, user: "put some rocky cliffs and make it more jagged"; walls in its faces below), under the
+    // massif's cap (its crags kept to VESPER_PIECE_MAX until v8, so none stood above its lowest slopes); nothing else.
     if (hold && hold.massif > 0.5) {
-      if (slope < 1.1 && ground < CAP - 0.7 && pick < 0.01 + 0.05 * hold.tone) {
-        const scale = 0.8 + h(3) * 0.9;
-        add({ kind: 'outcrop', x, s, y: ground - 0.05, scale, height: scale * (0.7 + h(4) * 0.5), rotation: turn(h(5)), cosmetic: h(7) > 0.7 }, h(6));
+      const top = massifCap(x, s), rock = hold.tone - 1;
+      if (slope < 1.1 && ground < top - 0.7 && pick < 0.012 + 0.035 * rock) {
+        const scale = 0.8 + h(3) * 1.1;
+        add({ kind: 'outcrop', x, s, y: ground - 0.05, scale, height: scale * (0.7 + h(4) * 0.6), rotation: turn(h(5)), cosmetic: h(7) > 0.7 }, h(6));
+      } else if (hold.ledge > 0.5 && slope < 0.9 && pick > 0.965 && ground < STRONGHOLD_LEDGE.level - 1.4) {
+        // A needle: a crag drawn up tall and narrow.
+        // (Its top under the ledge's level and a little over: the ascent never hides the fortress's front.)
+        const scale = 0.65 + h(3) * 0.45, height = Math.min(scale * (1.9 + h(4) * 1.3), (STRONGHOLD_LEDGE.level + 0.5 - ground + 0.1) / KIT.outcrop.height);
+        add({ kind: 'outcrop', x, s, y: ground - 0.1, scale, height, rotation: turn(h(5)), cosmetic: false }, h(6));
+      } else if (slope < 0.8 && pick > 0.72 && pick < 0.8 && terrain.rise(x, s) > 0.9) {
+        // Scree: a few stones fallen to the foot of a face.
+        for (let k = 0; k < 1 + Math.floor(h(20) * 3); k++) {
+          const ox = x + (h(22 + k) - 0.5) * 0.9, os = s + (h(26 + k) - 0.5) * 0.9, oy = terrain.height(ox, os), scale = 0.25 + h(30 + k) * 0.3;
+          if (terrain.slope(ox, os) > 0.9 || oy < SEA || !strongholdClear(terrain.arena(os), ox, os)) continue;
+          add({ kind: 'outcrop', x: ox, s: os, y: oy - 0.03, scale, height: scale * (0.5 + h(34 + k) * 0.4), rotation: turn(h(38 + k)), cosmetic: true }, h(42 + k));
+        }
       }
       continue;
     }
@@ -1021,6 +1097,37 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
   };
   const walls = { kind: 'iceWall', salt: 0x7c2e, minDrop: 1.2, rimSpan: 0.7, maxAway: 0.75, padReach: 0.6, minRun: 3, scale: [1.2, 1.5], cap: CAP, sea: SEA } as const;
   sink.keep(yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, accept: shelfEdge }));
+  // HELION STRONGHOLD's mountain (v8; user, 18 November: "theres no cliff models placed on the mountain. It looks to staggered
+  // and even, put some rocky cliffs and make it more jagged etc."): the same walls stand in its faces, the ascent's bands and
+  // the broken steps of its slopes and peaks, by the same rules (runs of three along a rim, faces toward the camera; faces
+  // from 1.0), never in the fortress's plan, before its barrels only flush with the ledge, and under the massif's cap
+  // (MASSIF_PLAY_TOP).
+  const near = terrain.arena(startS + size / 2);
+  if (near && startS + size > near.fromS + MASSIF_WALLS[0] && startS < near.fromS + MASSIF_WALLS[1]) {
+    // (Its faces only: not the leads' low banks on the low ground at its foot, which keep the shelves' rule. Under the
+    // barrels too, in the ascent's top face: walls keep flush with its rim, the ledge, far under the barrels.)
+    // (The ascent's faces from a drop of 1.0, the slopes' and peaks' broken steps from 1.3: fewer pieces off the ascent.)
+    const massifFace = (x: number, s: number, drop: number) => {
+      const hold = holdAt(x, s);
+      return !!hold && hold.massif > 0.3 && drop >= (hold.ledge > 0.5 ? 1 : 1.3) && terrain.height(x, s) > SEA + 0.9 && strongholdClear(terrain.arena(s), x, s, 0.5, false);
+    };
+    for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, salt: 0x7c2f, minDrop: 1, cap: STRONGHOLD.crag, arenas: true, accept: massifFace })) {
+      const arena = terrain.arena(wall.s), rise = wall.height * KIT.iceWall.height;
+      // (Before the barrels nothing stands over the ledge.)
+      const top = strongholdClear(arena, wall.x, wall.s, 0.5) ? massifCap(wall.x, wall.s) : STRONGHOLD_LEDGE.level + 0.3;
+      if (!strongholdClear(arena, wall.x, wall.s, 0.5, false)) continue;
+      // (Nor where the renderer would hide it, its box reaching into the fortress's plan: STRONGHOLD_FOOTPRINT.)
+      const r = KIT.iceWall.radius * wall.scale, f = STRONGHOLD_FOOTPRINT, a = wall.s - (arena ?? near).fromS;
+      if (Math.abs(wall.x) - r < f.halfWidth && a + r > STRONGHOLD_AT - f.front && a - r < STRONGHOLD_AT + f.back) continue;
+      if (wall.y + rise > top) {
+        if (top - wall.y < 0.7) continue;
+        wall.height = (top - wall.y) / KIT.iceWall.height;
+      }
+      // (The ascent's walls are essential; the slopes' and peaks' are cosmetic, so the low graphics tier draws the ascent's
+      // only: they add some 80k triangles at the stop on High.)
+      sink.keep([{ ...wall, cosmetic: (holdAt(wall.x, wall.s)?.ledge ?? 0) <= 0.5 }]);
+    }
+  }
   // Round the fortress: crags where the mountain meets the model, along its flanks and behind its roof (they break the
   // plan's straight edges).
   const arena = terrain.arena(startS + size / 2);

@@ -231,7 +231,7 @@ cliff and the wall stands in it.
   | World | Kind | Rules |
   | --- | --- | --- |
   | Khepri (`scatterKitSteps`) | `cliffWall` | Every cliff with a drop of 0.6 or more; rim crowns and foot rubble are sparser so the walls read |
-  | Vesper (`vesperScatterSteps`) | `iceWall` | Drops of 1.2 or more; every face of 1.8 or more (crevasse and ridge regions too, never rock), lower faces only away from crevasses, ridges and rock; none turned away from the camera (`maxAway`); only in runs of three or more along a rim (`minRun`); tops follow the highest rim across the segment (`rimSpan`); larger segments that reach back over the rim; allowed beside outpost pads (user, 22–23 October) |
+  | Vesper (`vesperScatterSteps`) | `iceWall` | Drops of 1.2 or more; every face of 1.8 or more (crevasse and ridge regions too, never rock), lower faces only away from crevasses, ridges and rock; none turned away from the camera (`maxAway`); only in runs of three or more along a rim (`minRun`); tops follow the highest rim across the segment (`rimSpan`); larger segments that reach back over the rim; allowed beside outpost pads (user, 22–23 October). On HELION STRONGHOLD's mountain (none until 18 November) a second pass stands them in its faces: the ascent's from a drop of 1.0, its slopes' and peaks' broken steps from 1.3, never in the fortress's plan, before its barrels only flush with its ledge, up to the scenery cap over the fight's play area and 9 behind it, cosmetic off the ascent (the scatter sink keeps a cosmetic kept piece with the cosmetic pieces; [docs/17 §4](17-vesper-glass-frontier.md)) |
   | Amnion, Umbra, Corona | `fleshWall`, `voidWall`, `cliffWall` | Their own options; see their docs (§7) |
   | Luna, Nacre | none | |
 
