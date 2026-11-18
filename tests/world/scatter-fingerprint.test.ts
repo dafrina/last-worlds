@@ -58,8 +58,9 @@ const RECORDED: Record<string, readonly [string, number, number, number]> = {
   // vesper+arena: HELION STRONGHOLD's arena (17 November: its cliff, then its snowfields and mountains, then its low ground
   // and its grown fortress at row 9; ['698a1fbf25f30d22', 147, 4, 238] before). vesper, vesper+arena and route (which crosses
   // Vesper): the whole Vesper level 1.25 lower (18 November; vesper ['b767c0ee98f8e2d5', 322, 6, 357] and route
-  // ['96b9d538ac002f63', 1537, 19, 758] before).
-  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['bda008093970d9c7', 405, 4, 238],
+  // ['96b9d538ac002f63', 1537, 19, 758] before). vesper+arena: the mountains behind the fortress, its ledge and its works (18
+  // November; ['bda008093970d9c7', 405, 4, 238] before).
+  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['9ce723d9304a5969', 299, 4, 238],
   // amnion+arena: THE CRADLE on its lowered crust terrace (17 November; its emergence canyon ['fd29dba2900c9d70', 405, 4, 238], its
   // brood basin ['920e5993df95c702', 325, 4, 238], then the plain settled plateau ['20a4b9ab47994205', 327, 4, 238] before).
   'nacre+arena': ['459e46b6b9fcdc14', 262, 4, 352], 'amnion+arena': ['973f54c333428511', 323, 4, 238], 'corona+arena': ['8135a9663edb2fff', 457, 4, 239],

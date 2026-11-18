@@ -9,6 +9,7 @@ import type { Archetype } from './settlement-geometry';
 import { ROAD_ENDS, SHARED_BOUNDS, districtRoadsSteps, resetNetworkMemos, roadEndSpotsSteps, roadRibbonSteps, sectionNetworkSteps, type IndustryPiece, type RoadMesh, type RoadPath, type SharedNode } from './terrain-network';
 import { districtHidden, districtPlanSteps, districtsNear, knownPlan, resetDistrictPlans, slotRange, type DistrictSite } from './terrain-districts';
 import { arenaAt } from './terrain-arena';
+import { strongholdWorks } from './stronghold-works';
 import { SWAP_AHEAD, SWAP_BEHIND, routeOfInput, sunBehind, worldAt, worldOf, type Floe, type RouteSpan, type TerrainInput, type TerrainRoute, type World, type WorldInput } from './terrain-planet';
 
 export {
@@ -463,7 +464,11 @@ export function* sectionSteps(seed: number, index: number, input?: TerrainInput)
     const district = yield* districtSectionSteps(seed, span.from, span.to - span.from, span.world);
     network.pieces.push(...district.pieces); network.roads.push(...district.roads); sites.push(...district.sites);
     networks.push(network);
-    settlements.push(settlementPieces(seed, span.from, span.to - span.from, span.world));
+    const placed = settlementPieces(seed, span.from, span.to - span.from, span.world);
+    // HELION STRONGHOLD's pipelines and pumping stations (a Vesper boss arena only; src/world/stronghold-works.ts).
+    const works = strongholdWorks(seed, span.from, span.to - span.from, span.world);
+    placed.props.push(...works.props); placed.industry.push(...works.industry);
+    settlements.push(placed);
   }
   const occupied = new Set<string>();
   yield;

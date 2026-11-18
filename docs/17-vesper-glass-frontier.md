@@ -87,7 +87,15 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
   reach. Ground batteries and strike sites seat themselves on the lowered ground through the lens (docs/05), so they stand
   deeper and their lines of sight meet the ground a little further from their tracks: over seeds 1–12 the endless perfect
   pilot takes 21 hits in sectors 1–8 against 18 before (10 on Vesper against 7); 20 of 192 Vesper strike sites have a guard
-  reaching up to 0.09 into the clearance band (none before; tests/sim/site-seats.test.ts allows 11% on Vesper). Shelves stand one to several tiers over the water and step up inland in ice
+  reaching up to 0.09 into the clearance band (none before; tests/sim/site-seats.test.ts allows 11% on Vesper). Their causes
+  (found 18 November): the game stays consistent (shots leave from the battery's fixed muzzle); the test pilot
+  (tests/sim/pilots.ts `perceive`) copies each enemy shallowly, so in the 0.2 s it looks late a battery's live muzzle is
+  already cleared and it places the missile where the battery shows now, not where it launched; deeper ground's parallax
+  turned 3 near-misses into hits. Copying the anchor makes Vesper's missile hits 0 before and after the drop, but changes
+  every pilot-driven run on every world (6 other tests' seeds would need picking again), so it is left for the integrator.
+  The sites: all 20 are a vault or depot at the world's edge with the camera at the far extreme, its authored spot past
+  `SEAT_SEARCH.maxX` (9.80 → 10.24) and its inner guard on a pontoon 1.25 deeper, so it spreads 0.33 nearer; a taller
+  Vesper pontoon deck (0.45, a visual change to its hull) or seats moved toward the camera would remove them. Shelves stand one to several tiers over the water and step up inland in ice
   cliffs; ice plateaus rise a tier or two above the shelves on sheer walls. The land share is about half over long
   stretches of the route (tested). The relief rules are [docs/26 §4–5 and §10–11](26-terrain-relief.md).
 - **Moods** (`VESPER_MOODS`, `MOOD_SETTINGS`): land share, leads, crevasses, ridges, rock, floes, shelf height, cliff
@@ -119,23 +127,42 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
     rises (`landed` mood parameters: more land, fewer inlets, crevasses, ridges and rock in every mood). It is dressed all
     over with Vesper's scatter (stones, outcrops, seracs, ridge slabs, ice walls on the leads' banks); round the fortress
     it never opens to the sea;
-  - the mountains: an alpine massif (warped ridged noise with sharp crests and couloirs) rises from that low ground. Tall
-    peaks reach the scenery cap (3.0, some 7.4 over the low ground) beside the fortress and behind it at the sides, seen at
-    the top of the view as it stops; a rocky shoulder behind the fortress's roof stays under it (0.6) and a pass behind
-    it (half width 7, its floor 2 over the sea) carries the departure; before the fortress the fight's lanes keep low ground
-    (the peaks start just past the plan's front), and toward the edges elsewhere the foothills keep low (`Landform.ceiling`
-    lets the ranges beyond the edges rise to 3.4; ground there never hides the flight plane). Its colour (tone over 1,
-    `massifColor`): dark blue-grey stone on the steep faces, snow on the shoulders and dusted in streaks over the stone;
-    crags on its ledges;
-  - the fortress stands at the head of the corridor. The ground fits its model's measured top
+  - the mountains: an alpine massif (warped ridged noise with sharp crests and couloirs) rises from that low ground. Its
+    height runs from its foot to its top through the ridged relief with summits and saddles along the crests, so it meets
+    its top only at the summits and never in a plateau (no soft cap since 18 November). Tall peaks reach the scenery cap
+    (3.0, some 7.4 over the low ground) beside the fortress and in a broken shoulder behind its roof, whose crest wanders
+    and whose spurs run down into the corridor behind; before the fortress the fight's lanes keep low ground (the peaks
+    start just past the plan's front), and toward the edges elsewhere the foothills keep low (`Landform.ceiling` lets the
+    ranges beyond the edges rise to 6.5 by the fortress; ground there never hides the flight plane). Where the tall peaks
+    end and where the massifs come down wanders along x. Its colour (tone over 1, `massifColor`): dark blue-grey stone on
+    the steep faces, snow on the shoulders and dusted in streaks over the stone; crags on its ledges;
+  - the fortress stands at the head of the corridor on a ledge (user, 18 November: "maybe have it sit on a middle layer,
+    where theres cliff as now behind and sideways of is as now, but also a cliff and mountain walls layer below it in
+    front", then "maybe dont make it a hard rule to have cliffs right in front of the fortress, but make it so it can also
+    appear mid screen"): the ledge lies at the model's foot, 2 over the sea (`STRONGHOLD_LIFT`, below), and runs out before
+    the fortress as far as the arena's own reach (`strongholdReach`, from the seed and the arena: from just below the
+    fortress to past mid-screen, tilted across the view and curving), a little round its front corners, then drops in a
+    broken cliff (buttresses, gullies, a snow bench here and there, scree) to the low ground, which keeps down to the
+    cliff's foot. Ground at the ledge's level stays under everything the lens must see. The ground fits its model's measured top
     (`src/world/stronghold-seat.ts`, cast straight down every quarter unit; the test re-measures it): under the model it
     keeps 0.3 under the lowest top within half a unit (gaps inside its outline too, never under the sea), round it it
     meets the model at its edge's height (burying the cut faces) and climbs from there as broken rock, never as a wall
     at the edge. Its rear is taken in by the mountain: over the last 1.4 of the plan and its outer rear corners the rock
     rises against and over the structure to the shoulder, so its back disappears into rock. The ground just before the
     barrels and housings stays low, so no ground hides them from the lens at the camera's centre or extremes;
-  - past the fight the corridor runs on low under the departure; the massifs come down from 62 to 82 and Vesper's own
-    terrain returns from 78 to 98.
+  - past the fight the corridor runs on low under the departure; the massifs come down from about 62 to 82 and Vesper's
+    own terrain returns from 78 to 98. (Until 18 November the rock taking in the fortress's rear went on rising behind
+    it, so the corridor behind the fortress was massif to the fall, held flat at a pass's floor 2 over the sea: a plain
+    cut off in a straight line at the top of the fight's view, seen as the terrain ending when the ship flew off. The user:
+    "its the terrain generation that stops at the top edge of screen and is visible when we fly away after defeating it".
+    Terrain streaming was never the cause: the section window always holds 36 units past the scroll, more than the lens
+    sees.) The departure is not auto-centred (the ship steers throughout), so the cap over the play area holds in it too;
+  - its works (user, 18 November: "maybe also have pipes running to and from it horizontally and connected
+    infrastructure up front"; `src/world/stronghold-works.ts`): a pumping station on dry low ground before each side of the
+    cliff (a processing hall, tanks, a comm mast; the shared kit and Vesper's infrastructure kit), a large pipeline from
+    each in to the cliff's foot, up the cliff to the ledge, along a long ledge to the fortress and out along its front
+    into the side mountain's rock. They follow the ledge wherever its edge falls; decorative, under the pieces' cap; they
+    add about 7 draw calls while in view (their nodes' batches) and a few thousand triangles.
 
 ## 5. Cold Vector and HELION STRONGHOLD
 
@@ -266,8 +293,13 @@ the supplied atlases at 2K (base, roughness and metal; normal at 1K) plus an emi
 the chamber and reactor are vertex coloured.
 
 **Presentation** (`src/render/stronghold-view.ts`, render-only). The renderer seats it at `STRONGHOLD_AT` past its
-arena's start (`src/world/terrain-vesper.ts`), its foot at the sea, before, during and after its fight (intact, then a
-wreck), as THE CITADEL. Target rings and brackets are drawn on the flight plane at the targets. A cannon charging its
+arena's start (`src/world/terrain-vesper.ts`), its foot on its ledge, before, during and after its fight (intact, then a
+wreck), as THE CITADEL. Since 18 November the model as built (its foot at the sea, `STRONGHOLD_BUILT_AT` 23.652) is
+lifted 2 onto the ledge by scaling it about the release lens's eye at the stop with the camera centred (`STRONGHOLD_LIFT`,
+`STRONGHOLD_SCALE` 0.958, `STRONGHOLD_AT` 22.176): every point keeps its line of sight, so with the camera centred it fills
+the same pixels (no change of its size on screen) and its weak points stay on their targets; its top (the bridge) stands
+at 3.34, under the flight plane, and the terrace guns' heights follow (−6.96 → −5.03). The seat table and the plan stay
+in the built frame; the terrain converts. Its scenery exclusion ends at its plinth, so its works show before it. Target rings and brackets are drawn on the flight plane at the targets. A cannon charging its
 lane glows (its housing's lining and its muzzle), fires with a muzzle flash and smoke, recoils into its housing and
 vents steam from the roof; lanes from live cannons start at their muzzles (`beamTop`). Bursts leave the reactor's door
 with a flash. The door's leaves part over 0.9 s as the reactor opens; the reactor pulses in its overload. Needles leave
@@ -285,9 +317,10 @@ door; the wreck stays embedded. Effects reuse the bosses' bounded particle layer
   mostly land with leads but none round the fortress, varied relief, the corridor low past the shoulder, the play area well
   under the flight plane and mountains beyond the edges, the ground under the barrels low, under the model and meeting its
   edges, no ice walls on the mountain or round the fortress, crags round it, nothing in its plan), deterministic and
-  streamed, and at endless's Vesper boss stop.
+  streamed, and at endless's Vesper boss stop; behind it no plain and no cut across the view to where Vesper's terrain
+  returns, the ledge out to the arena's own reach (varying with the seed), the works decorative and under the caps.
 - `tests/world/stronghold-projection.test.ts`: the reactor's aim and the guns on their targets through the centred lens
-  (`STRONGHOLD_AT`); the seat table matches the model; no ground on the lines of sight to the guns, muzzles and the
+  (`STRONGHOLD_AT`, lifted; its top under the flight plane); the seat table matches the model; no ground on the lines of sight to the guns, muzzles and the
   reactor's aim with the camera centred or at either extreme; rings on the targets, the scenery exclusion, lanes from the
   muzzles.
 - `tests/world/cinematic-assets.test.ts`: the stronghold's nodes, its weak points on their rays (the reactor with the doors

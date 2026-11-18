@@ -7,6 +7,7 @@ import { retainBossMaterials } from './boss-materials';
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import type { FoamRing, Wake } from './water';
 import { HELION_ARK } from '../content/ark';
+import { STRONGHOLD_SCALE } from '../world/terrain-vesper';
 
 /**
  * HELION STRONGHOLD (docs/17 §5, docs/43 §8-10), Vesper's boss, render-only: it reads the boss state (id `ark`) and never
@@ -23,8 +24,12 @@ import { HELION_ARK } from '../content/ark';
  */
 const P = 'stronghold_';
 const PARTS = ['left', 'right', 'core'] as const;
-/** The fortress's plan about its origin (tools/blender/boss_stronghold.py bounds): half width, front (muzzles) and back. */
-export const STRONGHOLD_FOOTPRINT = { halfWidth: 6.62, front: 1.95, back: 7.55 } as const;
+/**
+ * The fortress's plan about its origin as seated (tools/blender/boss_stronghold.py bounds, scaled with the model onto its
+ * ledge: src/world/terrain-vesper.ts STRONGHOLD_SCALE): half width, front (its plinth's; the barrels jut out 1.95 over the
+ * ledge, where only its works stand, src/world/stronghold-works.ts) and back.
+ */
+export const STRONGHOLD_FOOTPRINT = { halfWidth: 6.62 * STRONGHOLD_SCALE, front: 0.5 * STRONGHOLD_SCALE, back: 7.55 * STRONGHOLD_SCALE } as const;
 /** Recoil: how far a gun slides back into its housing when its lane fires, and how fast it runs out again. */
 const RECOIL = { distance: .42, kick: .05, settle: 3.2 } as const;
 /** A broken barrel's sag (radians, nose down) and how long it takes to settle. */
@@ -171,7 +176,7 @@ export function createStrongholdView(scene: THREE.Scene) {
     },
     /**
      * `standing`: drawn without an encounter where it stands in its arena: intact before its fight, a wreck after it.
-     * `placement`: the fixed seat (src/render/scene.ts: the arena's start plus STRONGHOLD_AT, its foot at the sea).
+     * `placement`: the fixed seat (src/render/scene.ts: the arena's start plus STRONGHOLD_AT, its foot on its ledge).
      */
     update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null, standing: 'intact' | 'wrecked' | null = null) {
       const boss = state.boss?.id === 'ark' ? state.boss : null;
@@ -187,7 +192,8 @@ export function createStrongholdView(scene: THREE.Scene) {
         mist.step(dt, 0); sparks.step(dt, 0);
         return;
       }
-      root.position.set(placement.x ?? 0, placement.baseHeight, -placement.s); root.updateMatrixWorld(true);
+      // (Scaled onto its ledge about the lens's eye: every point keeps its line of sight. src/world/terrain-vesper.ts.)
+      root.position.set(placement.x ?? 0, placement.baseHeight, -placement.s); root.scale.setScalar(STRONGHOLD_SCALE); root.updateMatrixWorld(true);
       if (!boss) {
         // Standing: dormant before the fight, a dead wreck after it.
         const intact = standing === 'intact';

@@ -68,7 +68,7 @@ export const SHARED_LOCAL_BOX: Readonly<Record<SharedNode, readonly number[]>> =
   return [node, tight[node] ?? [-b.halfX, 0, -b.halfZ, b.halfX, b.height, b.halfZ]];
 })) as Record<SharedNode, number[]>;
 
-type Vec = [number, number, number];
+export type Vec = [number, number, number];
 /** R·v for R = Ry(yaw)·Rx(pitch)·Rz(roll), in three.js axes (x, y up, z = −s), as the view composes it. */
 export function rotatePiece(yaw: number, pitch: number, roll: number, v: Vec): Vec {
   let [x, y, z] = v;
@@ -864,13 +864,13 @@ function pose(id: string, node: SharedNode, group: string, axis: Vec, z: Vec, x:
   return { id, node, group, x: axis[0] - y[0] * PIPE_AXIS, y: axis[1] - y[1] * PIPE_AXIS, s: -(axis[2] - y[2] * PIPE_AXIS), rotation, pitch, roll, scaleY: 1, scaleZ };
 }
 /** A straight (or valve) whose centreline runs exactly from `from` to `to` (three.js axes). */
-function pipeBetween(id: string, node: SharedNode, group: string, from: Vec, to: Vec): IndustryPiece {
+export function pipeBetween(id: string, node: SharedNode, group: string, from: Vec, to: Vec): IndustryPiece {
   const delta: Vec = [to[0] - from[0], to[1] - from[1], to[2] - from[2]], z = unit(delta);
   const x = Math.abs(z[1]) > 0.9999999 ? [1, 0, 0] as Vec : unit(cross(UP, z));
   return pose(id, node, group, [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2], z, x, Math.hypot(...delta) / 2);
 }
 /** An elbow with its corner on the centreline at (x, s, level + axis), arms toward w1 and w2 (unit, three.js axes). */
-function elbowPiece(id: string, node: SharedNode, group: string, x: number, s: number, level: number, w1: Vec, w2: Vec): IndustryPiece {
+export function elbowPiece(id: string, node: SharedNode, group: string, x: number, s: number, level: number, w1: Vec, w2: Vec): IndustryPiece {
   // Native arms run along local −z and +x; a level elbow is turned (arms swapped) so its base stays down.
   let z: Vec = [-w1[0], -w1[1], -w1[2]], arm = w2;
   if (w1[1] === 0 && w2[1] === 0 && cross(z, arm)[1] < 0) { z = [-w2[0], -w2[1], -w2[2]]; arm = w1; }
@@ -881,8 +881,8 @@ function elbowPiece(id: string, node: SharedNode, group: string, x: number, s: n
  * (a lattice tower when tall). Where no rack fits under the cap the pipe rests on the ground, on a short
  * stand of frames up to its underside if needed. Valves (`rack` false) stand on frames under their base.
  */
-type Ground = (x: number, s: number) => number;
-function supportStack(pieces: IndustryPiece[], terrain: Ground, id: string, group: string, x: number, s: number, level: number, along: Vec, rack: boolean, body: number) {
+export type Ground = (x: number, s: number) => number;
+export function supportStack(pieces: IndustryPiece[], terrain: Ground, id: string, group: string, x: number, s: number, level: number, along: Vec, rack: boolean, body: number) {
   const ground = terrain(x, s), racked = rack && level <= PIPE_TOP + 1e-9 && ground <= level + 0.02;
   const base = { node: 'pipe_support' as const, x, s, rotation: Math.atan2(along[0], along[2]), pitch: 0, roll: 0, scaleZ: 1, group };
   if (racked) pieces.push({ ...base, id: `${id}:rack`, y: level, scaleY: 1 });

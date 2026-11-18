@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { VIEW } from '../../src/shared/contracts';
 import { MISSION_PLANET, runPlanet } from '../../src/content/missions';
-import { VESPER_SCENERY_MAX, strongholdClear, strongholdGround, vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
+import { STRONGHOLD_LEDGE, STRONGHOLD_SCALE, VESPER_PIECE_MAX, VESPER_SCENERY_MAX, strongholdClear, strongholdGround, strongholdReach, vesperLandform, vesperMoodOf, vesperParams } from '../../src/world/terrain-vesper';
+import { lensEye } from '../../src/shared/lens';
 import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from '../../src/world/stronghold-seat';
 import { endlessSectorPlan } from '../../src/content/endless';
 import { runRoute } from '../../src/world/run-route';
@@ -245,11 +246,15 @@ describe('Vesper generator (docs/17 §4)', () => {
     expect(missionArena({ ...config, mission: 'bastion' })).toEqual({ fromS: 776.25 - 9, toS: 776.25 + 26 });
     expect(missionArena({ ...config, mode: 'endless' })).toBeUndefined();
     const at = (seed: number, x: number, a: number) => terrainHeight(seed, x, arena.fromS + a, world);
-    // The model's measured top (src/world/stronghold-seat.ts) by world x and arena-relative s; NaN off the model.
+    // The model's measured top (src/world/stronghold-seat.ts, the model as built, its foot at the sea) by x and arena-relative
+    // s of that frame; NaN off the model. The renderer lifts it onto its ledge about the lens's eye (`lift`: world x, s and a
+    // height of the built frame as seated).
     const top = (x: number, a: number) => {
       const row = SEAT_ROWS[Math.round((a - SEAT_A) / SEAT_STEP)], code = row?.charCodeAt(Math.round((x + SEAT_X) / SEAT_STEP));
       return code === undefined || code === 46 || Number.isNaN(code) ? NaN : (code - 48) / 10 - 4;
     };
+    const eye = lensEye(0), K = STRONGHOLD_SCALE, eyeA = 9 + eye.s;
+    const lift = (x: number, a: number, h = 0) => ({ x: K * x, a: eyeA + K * (a - eyeA), h: eye.y + K * (h - eye.y) });
     for (const seed of [93, 8831, 11]) {
       let land = 0, wet = 0, nearWet = 0, pressed = 0, varied = 0, corridorHigh = -Infinity, beyond = -Infinity, peaks = -Infinity, lanes = -Infinity;
       const heights: number[] = [];
@@ -262,8 +267,9 @@ describe('Vesper generator (docs/17 §4)', () => {
         if (a > 22 && a < 42 && Math.abs(x) > 7) peaks = Math.max(peaks, h);
         if (Number.isNaN(top(x, a))) {
           if (h < SEA) { wet++; if (a > 18 && a < 34 && Math.abs(x) < 9) nearWet++; } else land++;
-          // The low ground: just above the sea where it is not mountain.
-          if (h >= SEA && Math.abs(x) < 7 && a > 0 && a < 20) { pressed += h < -1.6 ? 1 : 0; heights.push(h); }
+          // The low ground: just above the sea where it is not mountain, nor the fortress's ledge (it runs out as far as the
+          // arena's own reach: strongholdReach).
+          if (h >= SEA && Math.abs(x) < 7 && a > 0 && a < 20 && strongholdGround(arena, seed, x, arena.fromS + a)!.ledge === 0) { pressed += h < -1.6 ? 1 : 0; heights.push(h); }
         }
         // The corridor the fight and the departure fly over stays low past the fortress's shoulder.
         if (a > 40 && a < 60 && Math.abs(x) < 5) corridorHigh = Math.max(corridorHigh, h);
@@ -289,16 +295,16 @@ describe('Vesper generator (docs/17 §4)', () => {
       // The ground keeps under the model, except its rear, which the mountain takes in, and meets it at its edge (burying
       // the cut faces).
       for (let a = SEAT_A; a < SEAT_A + SEAT_ROWS.length * SEAT_STEP; a += SEAT_STEP) for (let x = -SEAT_X; x <= SEAT_X; x += SEAT_STEP) {
-        const t = top(x, a), rear = a > 29.5 || (a > 27.7 && Math.abs(x) > 3.6);
-        if (!Number.isNaN(t)) { if (!rear) expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(Math.max(t - 0.05, SEA + 0.2)); continue; }
+        const t = top(x, a), rear = a > 29.5 || (a > 27.7 && Math.abs(x) > 3.6), p = lift(x, a, t);
+        if (!Number.isNaN(t)) { if (!rear) expect(at(seed, p.x, p.a), `${x}, ${a}`).toBeLessThan(Math.max(p.h - 0.05, lift(0, 0, SEA + 0.2).h)); continue; }
         const near = [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([i, j]) => top(x + i * SEAT_STEP, a + j * SEAT_STEP)).filter(h => !Number.isNaN(h));
-        if (near.length && Math.abs(x) > 6) expect(at(seed, x, a), `${x}, ${a}`).toBeGreaterThan(Math.max(...near) - 0.05);
+        if (near.length && Math.abs(x) > 6) expect(at(seed, p.x, p.a), `${x}, ${a}`).toBeGreaterThan(lift(0, 0, Math.max(...near)).h - 0.05);
       }
       // The land takes over before the arena; far from it nothing changes.
       expect(generateTerrainSection(seed, 3, world)).toEqual(generateTerrainSection(seed, 3, VESPER));
       expect(terrainHeight(seed, 2, arena.fromS + 110, world)).toBe(terrainHeight(seed, 2, arena.fromS + 110, VESPER));
-      // Nothing stands in the fortress's plan; no outposts in the arena; no ice walls on the mountains or round the fortress;
-      // crags round it; floes only on the open water.
+      // Nothing stands in the fortress's plan; no outposts in the arena (its works aside); no ice walls on the mountains or
+      // round the fortress; crags round it; floes only on the open water.
       const inside = (s: number) => s >= arena.fromS - ARENA_RAMP && s <= arena.toS + ARENA_RAMP;
       let rocks = 0;
       for (let index = Math.floor((arena.fromS - ARENA_RAMP) / VIEW.sectionLength); index <= Math.floor((arena.toS + ARENA_RAMP) / VIEW.sectionLength); index++) {
@@ -311,10 +317,52 @@ describe('Vesper generator (docs/17 §4)', () => {
           const a = piece.s - arena.fromS;
           if (piece.kind === 'outcrop' && a > 20 && a < 34 && Math.abs(piece.x) < 9) rocks++;
         }
-        for (const prop of section.props) expect(inside(prop.s)).toBe(false);
+        // (Its own works aside: src/world/stronghold-works.ts.)
+        for (const prop of section.props) expect(inside(prop.s) && prop.group !== 'stronghold:works', prop.id).toBe(false);
       }
       expect(rocks).toBeGreaterThan(10);
     }
+  }, 180_000);
+
+  it('runs the mountains on past HELION STRONGHOLD to the jump, its ledge out to the arena\'s own reach, its works on and below it', () => {
+    const config = { mode: 'campaign', mission: 'cold-vector', seed: 93 } as Parameters<typeof missionArena>[0];
+    const arena = missionArena(config)!, world = { planet: 'vesper' as const, arena };
+    for (const seed of [93, 8831, 7, 4]) {
+      const at = (x: number, a: number) => terrainHeight(seed, x, arena.fromS + a, world);
+      // Behind the fortress the departure flies over varied ground, never a plain (until 18 November the corridor behind it was
+      // held flat at a pass's floor behind a straight edge, seen at the top of the fight's view).
+      const behind: number[] = [];
+      for (let a = 36; a <= 70; a += 0.5) for (let x = -6; x <= 6; x += 0.5) behind.push(at(x, a));
+      const mean = behind.reduce((sum, h) => sum + h, 0) / behind.length;
+      expect(Math.sqrt(behind.reduce((sum, h) => sum + (h - mean) ** 2, 0) / behind.length), `${seed}`).toBeGreaterThan(0.2);
+      // No straight cut across the view, from the fortress to where Vesper's own terrain returns: no row where the ground
+      // steps by a unit across most of the width at once.
+      for (let a = 28; a <= 110; a += 0.25) {
+        let steps = 0;
+        for (let x = -12; x <= 12; x += 0.5) if (Math.abs(at(x, a + 0.25) - at(x, a)) > 1) steps++;
+        expect(steps, `${seed} ${a}`).toBeLessThan(30);
+      }
+      // The ledge: level with the model's foot from the plan's front out to its reach, under the caps.
+      const reach = strongholdReach(arena, seed, 0);
+      for (let d = 0.6; d < reach - 1.2; d += 0.5) expect(Math.abs(at(0, STRONGHOLD_LEDGE.front - d) - STRONGHOLD_LEDGE.level), `${seed} ${d}`).toBeLessThan(0.3);
+      expect(at(0, STRONGHOLD_LEDGE.front - reach - 2.5), `${seed}`).toBeLessThan(STRONGHOLD_LEDGE.level - 1);
+      // The works: deterministic pipelines and stations in the arena's sections, decorative, inside the world, under the caps.
+      let works = 0;
+      for (let index = Math.floor((arena.fromS - 4) / VIEW.sectionLength); index <= Math.floor((arena.fromS + 24) / VIEW.sectionLength); index++) {
+        const section = generateTerrainSection(seed, index, world);
+        for (const piece of [...section.industry.filter(piece => piece.group === 'stronghold:works'), ...section.props.filter(prop => prop.group === 'stronghold:works')]) {
+          works++;
+          const top = 'baseHeight' in piece ? piece.baseHeight + piece.height : piece.y + (MODULE_HEIGHT[piece.node] ?? 0.8);
+          expect(top, piece.id).toBeLessThan(VESPER_PIECE_MAX);
+          expect(Math.abs(piece.x), piece.id).toBeLessThan(HALF);
+          expect(piece.s < arena.fromS + STRONGHOLD_LEDGE.front - 0.3 || Math.abs(piece.x) > STRONGHOLD_LEDGE.half + 0.3, piece.id).toBe(true);
+        }
+      }
+      expect(works, `${seed}`).toBeGreaterThan(24);
+    }
+    // The ledge's reach is the arena's own: right below the fortress for some seeds and arenas, past mid-screen for others.
+    const reaches = Array.from({ length: 40 }, (_, seed) => strongholdReach(arena, seed + 1, 0));
+    expect(Math.min(...reaches)).toBeLessThan(1.5); expect(Math.max(...reaches)).toBeGreaterThan(6);
   }, 180_000);
 
   it('builds the stronghold\'s mountains deterministically, streamed as generated, and on the endless Vesper boss stop too', () => {

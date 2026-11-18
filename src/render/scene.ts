@@ -30,7 +30,7 @@ import { PICKUP_ICONS, PICKUP_ICON_SIZE, createPickupBumpTextures, createPickupI
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VESPER_CRAFT_NODES, createDesertEnvironment, createEnemy, createHero, createIceEnvironment, createLunaEnvironment, createMireEnvironment, createVoidEnvironment, createMaterials, createPontoonGeometry, loadVesperCraft, type VesperCraftNode } from './models';
 import { createStrongholdView, loadStrongholdModel } from './stronghold-view';
-import { STRONGHOLD_AT } from '../world/terrain-vesper';
+import { STRONGHOLD_AT, STRONGHOLD_BASE } from '../world/terrain-vesper';
 import { createFoam, createWater, type FoamRing } from './water';
 import { createCoronaArcs } from './corona-arcs';
 import { createCoronaHaze } from './corona-haze';
@@ -1728,12 +1728,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         terrain.setExclusion(bastion.footprint(state, bossPlacement));
       } else bastion.update(state, null); // Clear the previous fortress and its FX on every boss/world switch.
       // HELION STRONGHOLD stands in the mountain at the head of Vesper's arena before and after its fight (intact, then a
-      // wreck), its foot at sea level and its seat fixed in the arena (src/world/terrain-vesper.ts STRONGHOLD_AT; it never moves).
+      // wreck), on its ledge, its seat fixed in the arena (src/world/terrain-vesper.ts STRONGHOLD_AT, STRONGHOLD_BASE; it never
+      // moves).
       const sea = world.planet.seaLevel ?? 0, vesperArena = world.planet.id === 'vesper' ? world.arena : undefined;
       if (state.time < strongholdSeen) strongholdFallen = null;
       strongholdSeen = state.time;
       if (isArk && boss?.phase === 'destroyed' && vesperArena) strongholdFallen = vesperArena.fromS;
-      const strongholdSeat = vesperArena ? { x: 0, s: vesperArena.fromS + STRONGHOLD_AT - state.distance, baseHeight: sea } : null;
+      const strongholdSeat = vesperArena ? { x: 0, s: vesperArena.fromS + STRONGHOLD_AT - state.distance, baseHeight: STRONGHOLD_BASE } : null;
       const strongholdStanding = !boss && vesperArena ? strongholdFallen === vesperArena.fromS ? 'wrecked' as const : 'intact' as const : null;
       if (isArk) ensureStronghold();
       stronghold.update(state, strongholdSeat, strongholdStanding);

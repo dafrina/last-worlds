@@ -7,7 +7,7 @@ import { createRun } from '../../src/sim/game';
 import { startBoss } from '../../src/sim/boss';
 import { BOSS_ASSETS } from '../../src/render/boss-assets';
 import { STRONGHOLD_FOOTPRINT, createStrongholdView } from '../../src/render/stronghold-view';
-import { STRONGHOLD_AT, VESPER_SEA_LEVEL } from '../../src/world/terrain-vesper';
+import { STRONGHOLD_AT, STRONGHOLD_BASE, STRONGHOLD_BUILT_AT, STRONGHOLD_SCALE, VESPER_SEA_LEVEL } from '../../src/world/terrain-vesper';
 import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from '../../src/world/stronghold-seat';
 import { terrainHeight } from '../../src/world/terrain';
 import { asset, stubGltfDecoding } from '../helpers/assets';
@@ -15,15 +15,18 @@ import { asset, stubGltfDecoding } from '../helpers/assets';
 stubGltfDecoding();
 
 /**
- * HELION STRONGHOLD's placement (docs/17 §5): the renderer seats the model at STRONGHOLD_AT past its arena's start with its
- * foot at the sea, and with the camera centred (where it rests through most of a fight) the release lens sees each weak
- * point of the model on its combat target. The model's frame: glTF (y up, +z toward the player); s = the seat − z.
+ * HELION STRONGHOLD's placement (docs/17 §5): the renderer seats the model at STRONGHOLD_AT past its arena's start, scaled
+ * by STRONGHOLD_SCALE onto its ledge (its foot at STRONGHOLD_BASE), and with the camera centred (where it rests through most
+ * of a fight) the release lens sees each weak point of the model on its combat target. The model's frame: glTF (y up, +z
+ * toward the player); s = the seat − z.
  */
 const SEAT = STRONGHOLD_AT - 9;   // its origin past the player's row at the stop (the stop is 9 past the arena's start)
-const ROW = HELION_ARK.row;
+const ROW = HELION_ARK.row, K = STRONGHOLD_SCALE;
+/** A point of the model (its own frame) as seated, in the lens frame at the stop. */
+const seated = (p: THREE.Vector3) => ({ x: K * p.x, y: STRONGHOLD_BASE + K * p.y, s: SEAT - K * p.z });
 const onPlane = (object: THREE.Object3D) => {
-  const p = object.getWorldPosition(new THREE.Vector3());
-  return toFlightPlane(0, p.x, VESPER_SEA_LEVEL + p.y, SEAT - p.z);
+  const p = seated(object.getWorldPosition(new THREE.Vector3()));
+  return toFlightPlane(0, p.x, p.y, p.s);
 };
 
 describe('HELION STRONGHOLD placement', () => {
@@ -42,9 +45,13 @@ describe('HELION STRONGHOLD placement', () => {
       // The barrel points at the player: its muzzle is well down the screen from its breech.
       expect(breech.s - muzzle.s).toBeGreaterThan(2);
     }
+    // Lifted onto its ledge it stays under the flight plane: its top (the bridge) 0.4 under it, its foot on the ledge.
+    const box = new THREE.Box3().setFromObject(model);
+    expect(STRONGHOLD_BASE + K * box.max.y).toBeLessThan(VIEW.flightHeight - 0.4);
+    expect(STRONGHOLD_BASE).toBeCloseTo(VESPER_SEA_LEVEL + 2, 9);
   });
 
-  it('fits the ground to the model\'s measured top (src/world/stronghold-seat.ts holds the model as built)', async () => {
+  it('fits the ground to the model\'s measured top (src/world/stronghold-seat.ts holds the model as built, its foot at the sea)', async () => {
     const model = await asset(BOSS_ASSETS.ark);
     model.updateMatrixWorld(true);
     const meshes: THREE.Object3D[] = [];
@@ -53,7 +60,7 @@ describe('HELION STRONGHOLD placement', () => {
     let differ = 0;
     SEAT_ROWS.forEach((row, j) => {
       for (let i = 0; i < row.length; i++) {
-        ray.set(new THREE.Vector3(-SEAT_X + i * SEAT_STEP, 30, STRONGHOLD_AT - (SEAT_A + j * SEAT_STEP)), new THREE.Vector3(0, -1, 0));
+        ray.set(new THREE.Vector3(-SEAT_X + i * SEAT_STEP, 30, STRONGHOLD_BUILT_AT - (SEAT_A + j * SEAT_STEP)), new THREE.Vector3(0, -1, 0));
         const hit = ray.intersectObjects(meshes, false)[0];
         const measured = hit ? String.fromCharCode(48 + Math.round((VESPER_SEA_LEVEL + hit.point.y + 4) * 10)) : '.';
         if (measured !== row[i]) differ++;
@@ -74,7 +81,7 @@ describe('HELION STRONGHOLD placement', () => {
         const eye = lensEye(camera);
         for (const p of points) {
           // The point in the lens frame (s past the player's row at the stop), then down its line of sight from the eye.
-          const target = { x: p.x, y: VESPER_SEA_LEVEL + p.y, s: SEAT - p.z };
+          const target = seated(p);
           for (let k = 1; k < 200; k++) {
             const t = k / 200, x = eye.x + (target.x - eye.x) * t, y = eye.y + (target.y - eye.y) * t, s = eye.s + (target.s - eye.s) * t;
             expect(terrainHeight(seed, x, stop + s, world), `${seed} camera ${camera} ${t}`).toBeLessThan(y);
@@ -91,11 +98,12 @@ describe('HELION STRONGHOLD placement', () => {
     state.time = HELION_ARK.arrivesAt; state.distance = 1075.25; startBoss(state);
     state.time += HELION_ARK.arrivalDuration + .1; state.boss!.phase = 'batteries';
     for (const target of state.enemies) if (target.bossPart !== 'core') target.damageable = true;
-    const seat = { x: 0, s: SEAT, baseHeight: VESPER_SEA_LEVEL };
+    const seat = { x: 0, s: SEAT, baseHeight: STRONGHOLD_BASE };
     view.update(state, seat); view.update(state, seat);
     const root = scene.getObjectByName('HELION STRONGHOLD')!;
     expect(root.visible).toBe(true);
-    expect(root.position.toArray()).toEqual([0, VESPER_SEA_LEVEL, -SEAT]);
+    expect(root.position.toArray()).toEqual([0, STRONGHOLD_BASE, -SEAT]);
+    expect(root.scale.toArray()).toEqual([K, K, K]);
     for (const target of state.enemies) {
       const ring = scene.getObjectByName(`stronghold-target-${target.bossPart}`)!;
       expect(ring.visible).toBe(target.damageable);

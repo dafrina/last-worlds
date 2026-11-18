@@ -43,6 +43,11 @@ const GUARD_RIM = .6;
  * The share of seats whose guard reaches the footprint's rim band (one in thirty). Vesper's 11%: its whole level lies 1.25
  * lower since 18 November (VESPER_DROP), and its guards' lines of sight meet the ground further from their sites' (20 of
  * 192 reach up to 0.09 into the band, deepest 0.39 against 0.27 before; none before; clear seats unchanged, 164 of 192).
+ * All 20 are one case: the camera at an extreme on the far side, a vault or depot over open water at the world's edge, its
+ * ring's inner guard on a pontoon. The site's authored spot lies past SEAT_SEARCH.maxX (9.80 → 10.24 deeper), the seat is
+ * held at 9 and cannot move outward, and the guard's own anchor spreads 0.33 nearer (pontoons 1.25 deeper). Either fix
+ * changes something seen or played: a taller pontoon deck on Vesper (0.45: none on the rim; its hull model would need to
+ * grow), or seats moved off the rim toward the camera (the core ahead of its guards' ring, docs/25's loot-under-fire).
  */
 const ON_RIM: Partial<Record<PlanetId, number>> = { vesper: .11 };
 /** Corona's share of sites on rock, not afloat in the plasma (67% measured 5 November, after "lots of these corridors"). */
