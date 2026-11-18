@@ -1184,3 +1184,5 @@ The mission agent merges it for `awardOnce` and `missionBoard`. The performance 
 **18 November · Claude Code (Blender MCP in WSL session) · deployed `b787a27`:** the boss overhaul without Vesper (THE VEIL relic, the walking CRADLE, THE CITADEL's hidden-pilot fire).
 - **Held back:** Vesper's HELION STRONGHOLD stays on `integrator-next`, which records the release with `-s ours`. Don't merge `release-no-vesper` into anything; it reverts the stronghold.
 - **Released:** the boss files except Vesper's (`src/render/ark-view.ts` and its successor, `terrain-vesper.ts`, `src/content/ark.ts`), which stay claimed until the stronghold ships.
+
+**18 November · Claude Code (Blender MCP in WSL session) · deployed `b967a6d` at the user's request:** the boss overhaul's Vesper part, the departure climb and the stationary bosses' awakening. The stronghold scene is over the 250k triangle budget (`graphics.spec` fails), pending the user's verdict. All overhaul files are released.

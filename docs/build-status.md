@@ -1,5 +1,24 @@
 # Build status
 
+## Boss overhaul, part two, deployed (`b967a6d`) at the user's request, 18 November 2026
+
+- **What shipped:**
+  - **Vesper:** HELION STRONGHOLD and its mountain arena: the whole level 3.75 lower, the alpine approach, the fortress raised into its mountain on a short tiered ledge, a jagged ascent with cliff walls, peaks behind it, and one pumping station on the low plateau.
+  - **Departures:** every boss's departure climbs over its arena; render only, the camera is unchanged.
+  - **Arrivals:** the stationary bosses wake on arrival. Their arrival goes from 3.5 s (stronghold) and 3 s (Citadel) to 4 s each, the same pause as THE CRADLE and THE VEIL.
+  - **Test pilot:** its delayed view is fixed.
+  - **Site guards:** guard rings move in with a strike site held in at the world's edge, by at most about 1.1; this changes live levels on Vesper, Corona, Khepri and Umbra.
+- **The user:** "just deploy it, let me test it. im not sure we should keep this at all anyways". The release went out despite a known budget failure (below), for the user to judge on their phone.
+- **Gate on `b967a6d`, quiet machine:**
+  - typecheck clean; unit tests 1152 passed, 8 skipped, exit 0; build passes;
+  - browser 58/60 (Playwright exit 1, 32 min):
+    - `bastion.spec` destruction failed, then passed alone (3/3, exit 0);
+    - **`graphics.spec` "ark reference model": 277,731 triangles against the 250,000 budget.** This is a real failure. Most of it comes from the cliff walls on the mountain and their shadows (agent measurement: 203k → 288k at the stop on High, 61 → 72 draw calls; Low skips the cosmetic walls). Trim them if the stronghold stays.
+- **Live:**
+  - Pages run 44366006475 succeeded; the live bundle `main-Bd5BF6yb.js` matches the build; the smoke test reports no errors;
+  - `vesper/helion-stronghold.glb` is served (4,360,168 bytes).
+  - No phone test.
+
 ## THE CRADLE walks in from out of sight, deployed (`f86ecfc`), 18 November 2026
 
 - **The bug (user):** "on mobile the cradle pops in when half on screen already".
