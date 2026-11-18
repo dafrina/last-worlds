@@ -1,5 +1,25 @@
 # Build status
 
+## THE CRADLE walks in from out of sight, deployed (`f86ecfc`), 18 November 2026
+
+- **The bug (user):** "on mobile the cradle pops in when half on screen already".
+  - The old walk-in started at most 7 units out. With the real camera, the walker needs about 16 units to be out of view, 18 with Amnion's long cast shadow.
+- **The fix:**
+  - the start is measured through the current camera, outline and shadow included, and it comes in from the nearer side;
+  - it sets out up to 4.5 s before its arrival, standing on its terrace as the terrace scrolls in;
+  - the visible pace is still at most 2.5 units/s, and it reaches its post 3.7 s into the arrival;
+  - a model that arrives late re-plans from out of sight.
+  - New `tests/render/cradle-walk-in.test.ts` covers 390×844, 360×780 and 405×720, with the camera from −6 to 6.
+  - Built on the live release `b787a27`, so it has no Vesper changes.
+- **Gate on `f86ecfc`:**
+  - typecheck clean; unit tests 1142 passed, 8 skipped; build passes;
+  - browser 51/59 (Playwright exit 1, 43 min, load average 38 from a concurrent agent);
+  - **Reruns:**
+    - bastion, flight, graphics and menu specs: 23/25;
+    - flight and graphics alone, under load: 0/2; the steering test failed on the live `b787a27` the same way at that load;
+    - with the other agent paused, all of `flight.spec` and `graphics.spec`: 13/13, exit 0.
+- **Live:** Pages run 44292794900 succeeded; the live bundle `main-DDLcJYIq.js` matches the build; the smoke test reports no errors. No phone test.
+
 ## Boss overhaul, part one, deployed (`b787a27`), 18 November 2026
 
 What shipped from the 17 November boss overhaul (docs/43), with the user's approval ("deploy everything but vesper changes"):
