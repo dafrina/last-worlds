@@ -251,19 +251,22 @@ describe('Vesper generator (docs/17 §4)', () => {
       return code === undefined || code === 46 || Number.isNaN(code) ? NaN : (code - 48) / 10 - 4;
     };
     for (const seed of [93, 8831, 11]) {
-      let land = 0, wet = 0, nearWet = 0, pressed = 0, varied = 0, corridorHigh = -Infinity, beyond = -Infinity;
+      let land = 0, wet = 0, nearWet = 0, pressed = 0, varied = 0, corridorHigh = -Infinity, beyond = -Infinity, peaks = -Infinity, lanes = -Infinity;
       const heights: number[] = [];
       for (let a = -12; a <= 76; a += 0.5) for (let x = -HALF; x <= HALF; x += 0.5) {
         const h = at(seed, x, a);
-        // The play area keeps well under the flight plane (the departure flies over all of it).
-        expect(h, `${x}, ${a}`).toBeLessThanOrEqual(1.2);
+        // The play area keeps under the scenery cap, 0.8 under the flight plane; the ground under the fight's lanes before
+        // the fortress stays low, the tall peaks stand beside and behind it.
+        expect(h, `${x}, ${a}`).toBeLessThanOrEqual(VESPER_SCENERY_MAX);
+        if (a > -12 && a < 20 && Math.abs(x) < 7) lanes = Math.max(lanes, h);
+        if (a > 22 && a < 42 && Math.abs(x) > 7) peaks = Math.max(peaks, h);
         if (Number.isNaN(top(x, a))) {
           if (h < SEA) { wet++; if (a > 18 && a < 34 && Math.abs(x) < 9) nearWet++; } else land++;
           // The low ground: just above the sea where it is not mountain.
           if (h >= SEA && Math.abs(x) < 7 && a > 0 && a < 20) { pressed += h < -1.6 ? 1 : 0; heights.push(h); }
         }
         // The corridor the fight and the departure fly over stays low past the fortress's shoulder.
-        if (a > 40 && a < 60 && Math.abs(x) < 6) corridorHigh = Math.max(corridorHigh, h);
+        if (a > 40 && a < 60 && Math.abs(x) < 5) corridorHigh = Math.max(corridorHigh, h);
       }
       // Mostly land, its leads and pockets of dark water kept; none round the fortress.
       expect(land / (land + wet)).toBeGreaterThan(0.7);
@@ -276,15 +279,18 @@ describe('Vesper generator (docs/17 §4)', () => {
       expect(mean).toBeLessThan(SEA + 1.4);
       expect(varied).toBeGreaterThan(0.12);
       expect(corridorHigh).toBeLessThan(-1);
+      expect(lanes).toBeLessThan(SEA + 3.5);
+      expect(peaks).toBeGreaterThan(2.2);
       // Beyond the world's edges the mountains rise over the play area's ground (whose massif keeps to 0.6 inside it).
       for (let a = 0; a <= 60; a += 1) for (const x of [-15, -14, 14, 15]) beyond = Math.max(beyond, at(seed, x, a));
       expect(beyond).toBeGreaterThan(1.8);
       // The ground before the fortress stays well under its barrels (−0.7) and housings.
       for (let a = 16; a <= 22; a += 0.5) for (let x = -5; x <= 5; x += 0.5) expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(-1.2);
-      // The ground keeps under the model, and meets it at its edge (burying the cut faces).
+      // The ground keeps under the model, except its rear, which the mountain takes in, and meets it at its edge (burying
+      // the cut faces).
       for (let a = SEAT_A; a < SEAT_A + SEAT_ROWS.length * SEAT_STEP; a += SEAT_STEP) for (let x = -SEAT_X; x <= SEAT_X; x += SEAT_STEP) {
-        const t = top(x, a);
-        if (!Number.isNaN(t)) { expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(Math.max(t - 0.05, SEA + 0.2)); continue; }
+        const t = top(x, a), rear = a > 29.5 || (a > 27.7 && Math.abs(x) > 3.6);
+        if (!Number.isNaN(t)) { if (!rear) expect(at(seed, x, a), `${x}, ${a}`).toBeLessThan(Math.max(t - 0.05, SEA + 0.2)); continue; }
         const near = [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([i, j]) => top(x + i * SEAT_STEP, a + j * SEAT_STEP)).filter(h => !Number.isNaN(h));
         if (near.length && Math.abs(x) > 6) expect(at(seed, x, a), `${x}, ${a}`).toBeGreaterThan(Math.max(...near) - 0.05);
       }

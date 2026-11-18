@@ -74,7 +74,7 @@ AXIS_X = .045                 # the source's symmetry axis (midway between the t
 # at x 0 and the camera rests in its dead zone through most of a fight), so their lanes leave from their muzzles; that sets
 # the scale. The renderer seats the model so the core's aim point sits on the line of sight through the bridge target.
 EYE_Y, EYE_S, FLIGHT = 43.214, -20.823, 3.8
-ROW, SEA = 9.0, -3.6
+ROW, SEA = 9.0, -4.85
 # The structure grown about the core's aim point (user, 17 November: "the stronghold needs to be slightly bigger"); each
 # cannon assembly (housing and gun, grown with it) is then re-seated so its breech stays where the lens sees its target.
 GROW = 1.15
@@ -144,10 +144,25 @@ def glowing(rgb):
     return np.clip((r - .42) / .2, 0, 1) * np.clip((r - b - .3) / .2, 0, 1) * np.clip((g - b * .9 - .02) / .12, 0, 1) * np.clip((r - g * 1.25) / .12, 0, 1)
 
 
+def grade(rgba):
+    """The supplied atlas regraded to Vesper's own ground (user, 18 November: "the color for the fortress is a bit too blue,
+    not matching the ice and snow of the terrain"): its snow toward the terrain's snow and ice (src/world/terrain-vesper.ts
+    VESPER_PALETTE: near-white with cool grey shadows, little saturation), its metal and concrete toward a neutral dark
+    gunmetal and grey; the painted orange glows (glowing) untouched. In place, display-encoded RGB."""
+    rgb = rgba[:, :3]
+    lum = rgb @ np.array((.2126, .7152, .0722), dtype=np.float32)
+    glow = glowing(rgb.reshape(-1, 1, 3)).reshape(-1) > .1
+    # Saturation kept: a trace in the dark metal, a little more in the snow (Vesper's snow is a cool white, not grey).
+    keep = np.where(lum > .55, .32, .18).astype(np.float32)[:, None]
+    tint = np.where(lum[:, None] > .55, np.array((.975, .99, 1.02), dtype=np.float32), np.array((1.0, 1.0, 1.015), dtype=np.float32))
+    graded = np.clip(lum[:, None] * tint + (rgb - lum[:, None]) * keep, 0, 1)
+    rgb[~glow] = graded[~glow]
+
+
 def material(src_mat, directory, size=2048, normal_size=1024):
     """The supplied atlases at working size (base and roughness/metal 2K JPEG, normal 1K PNG) and an emission mask of the
     painted glows (as boss_heliophage.material)."""
-    key = 'stronghold_surface_%d_v1' % size
+    key = 'stronghold_surface_%d_v2' % size
     mat = src_mat.copy(); mat.name = key
     nt = mat.node_tree; bs = next(nd for nd in nt.nodes if nd.type == 'BSDF_PRINCIPLED')
     os.makedirs(directory, exist_ok=True)
@@ -157,6 +172,10 @@ def material(src_mat, directory, size=2048, normal_size=1024):
         kind = 'base' if 'basecolor' in nm else 'rm' if '_rm.' in nm else 'normal'
         s = normal_size if kind == 'normal' else size
         img = node.image.copy(); img.name = key + '_' + kind; img.scale(s, s)
+        if kind == 'base':
+            data = np.empty(s * s * 4, dtype=np.float32); img.pixels.foreach_get(data); rgba = data.reshape(-1, 4)
+            grade(rgba)
+            img.pixels.foreach_set(data)
         if kind == 'rm':
             data = np.empty(s * s * 4, dtype=np.float32); img.pixels.foreach_get(data); rgba = data.reshape(-1, 4)
             # Roughness kept legible; metal damped (Vesper's bright ice sky turned fully metallic paint near white on the Ark).

@@ -79,7 +79,15 @@ packed-snow tracks with tread ruts. Khepri's own buildings are not reused on Ves
 The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
 
 - **Sea and shelves.** The sea stands at `VESPER_SEA_LEVEL` (lowered in terrain version 16 so the ice walls are as tall
-  as Khepri's canyons; user, 21 October). Shelves stand one to several tiers over the water and step up inland in ice
+  as Khepri's canyons; user, 21 October). Since 18 November the whole level lies `VESPER_DROP` (1.25, five grid steps)
+  lower, sea, ice, outposts and pieces alike (user: "Could we lower the vesper sea and current terrain to have more room to
+  scale the mountains?", as Amnion's 1.2 on 23 October): the relief is built in its first frame and lowered as a whole,
+  the pieces' and outposts' cap is `VESPER_PIECE_MAX` (the scenery cap less the drop), and the renderer's Vesper fog and
+  ice-wall shading follow it down. `VESPER_SCENERY_MAX` (3.0) stays the cap over Vesper, which HELION STRONGHOLD's peaks
+  reach. Ground batteries and strike sites seat themselves on the lowered ground through the lens (docs/05), so they stand
+  deeper and their lines of sight meet the ground a little further from their tracks: over seeds 1–12 the endless perfect
+  pilot takes 21 hits in sectors 1–8 against 18 before (10 on Vesper against 7); 20 of 192 Vesper strike sites have a guard
+  reaching up to 0.09 into the clearance band (none before; tests/sim/site-seats.test.ts allows 11% on Vesper). Shelves stand one to several tiers over the water and step up inland in ice
   cliffs; ice plateaus rise a tier or two above the shelves on sheer walls. The land share is about half over long
   stretches of the route (tested). The relief rules are [docs/26 §4–5 and §10–11](26-terrain-relief.md).
 - **Moods** (`VESPER_MOODS`, `MOOD_SETTINGS`): land share, leads, crevasses, ridges, rock, floes, shelf height, cliff
@@ -98,27 +106,34 @@ The Vesper profile is `VESPER` in `src/world/terrain-vesper.ts`.
 - **Boss arena** (HELION STRONGHOLD's low ground and mountains; `strongholdGround` in `src/world/terrain-vesper.ts`). The
   user, 17 November: "the vesper boss should not be a rock/cliff/mountain next to water, it should go from snowy/icy
   terrain to high alpine mountains (as well as possible)", then "have the terrain around the mountains be just above sea
-  level" and "obviously dont make it plain". Only rows of a Vesper boss arena change, in campaign and endless alike
-  (everything in s past the arena's start):
-  - the low ground: from −46 to −16 Vesper's own landform is pressed down to just above the sea (`low` −3.15, `squash`
+  level", "obviously dont make it plain", "try tall peaks behind the fortress", "you may also start the alpine mood
+  before the boss, not that it starts open snow field then boom mountain" and "the stronghold should clip into the mountain
+  walls slightly on its backside". Only rows of a Vesper boss arena change, in campaign and endless alike (everything in s
+  past the arena's start):
+  - the alpine mood: from −118 (Cold Vector about 165 s in, some 20 s before the stop) distant ranges rise beyond the
+    world's edges and foothills toward them; from −100 the ground turns rockier and snowier (more rock, ridges and
+    crevasses in every mood); the foothills climb over the approach;
+  - the low ground: from −46 to −16 Vesper's own landform is pressed down to just above the sea (`low` the sea + 0.45, `squash`
     0.2 from SHELF_LOW), its shelves becoming low ice shelves with small breaks; its pressure ridges, drifts and dark rock
     stand out of it, its crevasses and open leads of dark water stay, frozen pools lie on its flats, and the land share
     rises (`landed` mood parameters: more land, fewer inlets, crevasses, ridges and rock in every mood). It is dressed all
     over with Vesper's scatter (stones, outcrops, seracs, ridge slabs, ice walls on the leads' banks); round the fortress
     it never opens to the sea;
-  - the mountains: an alpine massif (warped ridged noise with sharp crests and couloirs) rises from that low ground beside
-    the fortress, in a low rocky shoulder just behind it and at the world's edges, and on beyond them (`Landform.ceiling`:
-    ground beyond the edges never hides the flight plane, since the eye stays over the world). Inside the world it keeps
-    low (0.6 beside the fortress, −0.8 rising to 0.6 at the edges elsewhere) and out of the corridor the fight and the
-    departure fly over (user: no terrain near the camera or the flight plane; the earlier massif up to the scenery cap
-    passed under the departure as large blurry white masses). Its colour (tone over 1, `massifColor`): dark blue-grey
-    stone on the steep faces, snow on the shoulders and dusted in streaks over the stone; crags on its ledges;
+  - the mountains: an alpine massif (warped ridged noise with sharp crests and couloirs) rises from that low ground. Tall
+    peaks reach the scenery cap (3.0, some 7.4 over the low ground) beside the fortress and behind it at the sides, seen at
+    the top of the view as it stops; a rocky shoulder behind the fortress's roof stays under it (0.6) and a pass behind
+    it (half width 7, its floor 2 over the sea) carries the departure; before the fortress the fight's lanes keep low ground
+    (the peaks start just past the plan's front), and toward the edges elsewhere the foothills keep low (`Landform.ceiling`
+    lets the ranges beyond the edges rise to 3.4; ground there never hides the flight plane). Its colour (tone over 1,
+    `massifColor`): dark blue-grey stone on the steep faces, snow on the shoulders and dusted in streaks over the stone;
+    crags on its ledges;
   - the fortress stands at the head of the corridor. The ground fits its model's measured top
     (`src/world/stronghold-seat.ts`, cast straight down every quarter unit; the test re-measures it): under the model it
     keeps 0.3 under the lowest top within half a unit (gaps inside its outline too, never under the sea), round it it
     meets the model at its edge's height (burying the cut faces) and climbs from there as broken rock, never as a wall
-    at the edge. The ground just before the barrels and housings stays low, so no ground hides them from the lens at the
-    camera's centre or extremes;
+    at the edge. Its rear is taken in by the mountain: over the last 1.4 of the plan and its outer rear corners the rock
+    rises against and over the structure to the shoulder, so its back disappears into rock. The ground just before the
+    barrels and housings stays low, so no ground hides them from the lens at the camera's centre or extremes;
   - past the fight the corridor runs on low under the departure; the massifs come down from 62 to 82 and Vesper's own
     terrain returns from 78 to 98.
 
@@ -213,7 +228,7 @@ water for Seeker Sweep's `air-water` goal only over its leads.)
 **Closer (row 9, 17 November).** The user: "the stronghold should move down a bit too, the silent empire boss seems closer
 to the hero id like to keep it somewhat close, maybe not like that but currently its anchored to the top of screen". The
 whole boss moved 2.5 closer (`row` and `entryS` 11.5 → 9: the cannons at s 11.97, the reactor at 10.6; THE CITADEL's
-flanks stand at about 9.75), with its model re-seated by the lens (`STRONGHOLD_AT` 25.517 → 22.659) and its arena's ground
+flanks stand at about 9.75), with its model re-seated by the lens (`STRONGHOLD_AT` 25.517 → 22.659; 23.652 since Vesper's level lies 1.25 lower) and its arena's ground
 with it; HP, attacks and timings are unchanged. At 390×844 the fortress's back now sits just under the boss bar (row 9.0
 is as low as the requested 9.0–9.5 goes; more room needs a lower row). Measured on the fairness branches before and after
 (seed 21; Cold Vector 330 s, endless 340 s from sectors 26 and 5; the hidden-fire volleys of the same day not yet in either):
@@ -237,7 +252,7 @@ round rock and the small mountain at its left left out, and its sides and back c
 them. The barrels, which point 31° outward in the source, are turned straight toward the player about their breeches,
 so the lanes leave from the muzzles. Its scale (12.79 units per source unit) and placement come from the release lens
 (`src/shared/lens.ts`): with the camera centred, each gun's breech and the reactor's aim point lie on the lines of sight
-through their combat targets. It is then grown 1.15 (user, 17 November: "the stronghold needs to be slightly bigger";
+through their combat targets (13.13 since Vesper's level lies 1.25 lower: the lower fortress stands further from the lens). Its atlas is regraded toward Vesper's snow and a neutral gunmetal, the orange glows kept (user, 18 November: "the color for the fortress is a bit too blue, not matching the ice and snow of the terrain"). It is then grown 1.15 (user, 17 November: "the stronghold needs to be slightly bigger";
 `GROW`, about 12.9 wide) about a point on the reactor's line of sight at the breeches' height, so the aim point moves
 along its line, and each cannon assembly (housing and gun, grown with it) is re-seated where its breech was, 0.5 inward:
 the cannons now stand at about half the fortress's width from its axis (0.59 before), a little close for its size. Nodes: `stronghold_hull`; `stronghold_cannon_left`/`_right` (the armoured housings, the

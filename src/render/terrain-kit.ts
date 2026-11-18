@@ -6,6 +6,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { FLOE_FOOTPRINT, KHEPRI_CLIFF_KINDS, KIT, KIT_KINDS, MODULES, NACRE_KIT_KINDS, SHARED_NODES, VESPER_CLIFF_KINDS, VESPER_KIT_KINDS, AMNION_CLIFF_KINDS, AMNION_KIT_KINDS, UMBRA_CLIFF_KINDS, UMBRA_KIT_KINDS, CORONA_KIT_KINDS, NAHARA_CLIFF_KINDS, NAHARA_KIT_KINDS, kitNodeName, sunBehind, type KitKind, type PlanetId, type SharedNode } from '../world/terrain';
 import { createScenicProp, type Materials, type PropKind } from './models';
 import { createNacrePiece } from './nacre-kit';
+import { VESPER_DROP } from '../world/terrain-vesper';
+/** Where Vesper's shadowed ice wall shading runs from its deepest (at the waterline) to its lightest, with the level lowered. */
+const ICE_FOOT = (-3.4 - VESPER_DROP).toFixed(2), ICE_TOP = (1.6 - VESPER_DROP).toFixed(2);
 
 /** Kit geometry by node name (`basalt_clump_0` …). Attributes: position, normal, color, glow. */
 export type KitGeometries = Map<string, THREE.BufferGeometry>;
@@ -1450,9 +1453,10 @@ ${SAND_RIPPLES}`)
     // grey streaks (user: "doesn't look great").
     iceSun += iceLean * 0.18;
     float iceLit = smoothstep( -0.05, 0.3, iceSun ), baked = clamp( dot( vColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) / 0.8, 0.4, 1.0 );
-    // Shadowed ice deepens toward the waterline, like the kit's ramp; shallow crevasse lips stay a lighter blue.
+    // Shadowed ice deepens toward the waterline, like the kit's ramp; shallow crevasse lips stay a lighter blue. (Its heights
+    // follow Vesper's level down: ICE_FOOT, ICE_TOP.)
     // (3 November: blue-grey ice, a mid-tone between the snow and the dark sea; it was saturated blue at the water's value.)
-    vec3 iceShade = mix( vec3( 0.14, 0.21, 0.32 ), vec3( 0.3, 0.42, 0.58 ), smoothstep( -3.4, 1.6, vLocal.y ) ), iceBright = vec3( 0.6, 0.72, 0.88 );
+    vec3 iceShade = mix( vec3( 0.14, 0.21, 0.32 ), vec3( 0.3, 0.42, 0.58 ), smoothstep( ${ICE_FOOT}, ${ICE_TOP}, vLocal.y ) ), iceBright = vec3( 0.6, 0.72, 0.88 );
     vec3 iceTone = mix( vec3( 0.04, 0.06, 0.1 ), mix( iceShade, iceBright, iceLit ), 0.55 + 0.45 * iceSeam );
     // The ice map at its strength (x).
     float iceDetail = clamp( detail, 0.0, 2.0 );

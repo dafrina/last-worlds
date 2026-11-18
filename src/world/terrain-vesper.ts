@@ -19,13 +19,24 @@ import { SEAT_A, SEAT_ROWS, SEAT_STEP, SEAT_X } from './stronghold-seat';
  * pressure ridges, snow drifts and a few dark rock outcrops dress the shelves. Pure functions of seed and
  * world coordinates, like Khepri.
  */
-export const VESPER_SEA_LEVEL = -3.6;
+/**
+ * The whole Vesper level sits this much lower (sea, ice, outposts and pieces alike; user, 18 November: "Could we lower the
+ * vesper sea and current terrain to have more room to scale the mountains?", as Amnion's did on 23 October). A whole number
+ * of grid steps, so every quarter-unit level (pads, shelves) keeps its place on the grid. Vesper's relief is still built
+ * in its first frame (SEA0) and lowered as a whole.
+ */
+export const VESPER_DROP = 1.25;
+const SEA0 = -3.6, DROP = VESPER_DROP;
+export const VESPER_SEA_LEVEL = SEA0 - DROP;
 const SEA = VESPER_SEA_LEVEL;
 /**
- * Vesper's scenery cap: the same 0.8 clearance under the flight plane (3.8) that Khepri's 2.2 kept under the
- * original plane at 3.0, so shelf emplacements, cranes and masts fit on 0.6–2.0 shelves.
+ * The highest anything may stand over Vesper: the same 0.8 clearance under the flight plane (3.8) that Khepri's 2.2 kept
+ * under the original plane at 3.0. HELION STRONGHOLD's mountains reach it; everything else on Vesper is lowered with the
+ * level, under VESPER_PIECE_MAX.
  */
 export const VESPER_SCENERY_MAX = 3.0;
+/** The cap of Vesper's pieces and outposts (its shelf emplacements, cranes and masts), lowered with the level. */
+export const VESPER_PIECE_MAX = VESPER_SCENERY_MAX - DROP;
 /**
  * HELION STRONGHOLD's seat past its arena's start (docs/17 §5): the model's origin (its foot at the sea, the fortress's
  * axis at x 0) stands this far past `fromS`, where the release lens sees the reactor's aim point on its combat target at the
@@ -33,7 +44,7 @@ export const VESPER_SCENERY_MAX = 3.0;
  * checks it against the model). The renderer seats it here before, during and after its fight; the arena's ground is shaped
  * round it (strongholdGround). (25.517 at the boss's row 11.5 before it moved closer, 17 November.)
  */
-export const STRONGHOLD_AT = 22.659;
+export const STRONGHOLD_AT = 23.652;
 
 /* ---------------------------------------------------------------- moods */
 
@@ -185,22 +196,38 @@ const STRONGHOLD = {
   land: [-46, -16], back: [78, 98],
   /** The low ground: Vesper's land top from SHELF_LOW pressed to `low` (just above the sea) by `squash`. */
   low: SEA + 0.45, squash: 0.2,
-  /** The corridor kept clear of the massifs: its half width wide open, beside the fortress and on past it. */
-  corridor: [13.5, 7.4, 7.8],
-  /** The shoulder behind the fortress: its centre past the plan's back, its depth, and its top over the corridor. */
-  shoulder: [3, 2.2, 0.4],
-  /** The massif: where it rises and comes down, its base level, its relief, its top over the play area. */
-  rise: [-24, -4], fall: [62, 82], base: -1.4, relief: 3.4, cap: 0.6,
-  /** Beyond the world's edges its peaks rise this much more, to `summit` at most. */
-  beyond: 2.2, summit: 2.6,
+  /**
+   * The alpine mood (user, 18 November: "you may also start the alpine mood before the boss, not that it starts open snow
+   * field then boom mountain"): from `rise[0]` distant ranges at the world's sides and edges, then rockier, snowier ground
+   * and foothills (`rocky`), the tall peaks round and behind the fortress from `tall[0]` past the plan's front; all of it
+   * comes down from `fall[0]`.
+   */
+  rise: [-118, -60], rocky: [-100, -30], tall: [-3, 0.5], fall: [62, 82],
+  /** The corridor kept clear of the massifs (half widths): wide open, at the approach's end, beside the fortress, its pass. */
+  corridor: [15.5, 9.5, 8.2, 7, 8.5],
+  /** The shoulder behind the fortress's roof (its top) and the floor of the pass behind it, over the corridor. */
+  shoulder: [3, 2.2, 0.6], pass: SEA + 2,
+  /**
+   * The rear of the fortress embedded in its mountain (user, 18 November: "the stronghold should clip into the mountain
+   * walls slightly on its backside so it really looks like part of the mountain"): over this band before the plan's back,
+   * and the wider one at its outer rear corners, the rock rises against and over the model.
+   */
+  embed: [1.4, 3.2, 1.4],
+  /**
+   * The massif: its base level (the foothills', then the tall peaks'), its relief, the foothills' tops at the world's edges
+   * (far, then near), the peaks' top.
+   */
+  base: [SEA + 2.4, SEA + 4.4], relief: 3.6, foothills: [-2.6, -0.4], peak: VESPER_SCENERY_MAX,
+  /** Beyond the world's edges its ranges rise this much more, to `summit` at most (far, then near). */
+  beyond: 3, summit: [0.6, 3.4],
   /**
    * The fortress's plan (the model's own: tools/blender/boss_stronghold.py, its origin at STRONGHOLD_AT, the sea its z 0),
    * where no scenery stands: its front, its back behind the roof; half width over the terrace and the housings, then over
    * the roof. (The ground itself fits the model's measured top: STRONGHOLD_SEAT.)
    */
-  front: 22.4, rear: 29.8, wide: 6.4, narrow: 5, waist: [27.3, 27.8],
+  front: 23.2, rear: 31, wide: 6.6, narrow: 5.1, waist: [27.6, 28.1],
   /** The ground just before the barrels and housings (half width, from) stays low: the mountain there could hide them. */
-  barrels: [6, 16.3],
+  barrels: [6.1, 17],
 } as const;
 /**
  * The ground round and under the model, from its measured top (src/world/stronghold-seat.ts), built once: under it the
@@ -289,8 +316,8 @@ function alpine(seed: number, x: number, a: number): number {
 const softCap = (h: number, cap: number, knee = 0.9) => h < cap - knee ? h : cap - knee * Math.exp((cap - knee - h) / knee);
 /** HELION STRONGHOLD's ground at a point of its arena (see STRONGHOLD); null away from it. */
 export interface StrongholdGround {
-  /** How far the low ground has taken over (1 through the arena). */
-  land: number;
+  /** How far the low ground has taken over (1 through the arena), and the rockier, snowier ground before it. */
+  land: number; rocky: number;
   /** A frozen pool's share at the point (on the low ground's flats). */
   pool: number;
   /** The massif's share, its ground and its tone (1 plus its rock share: vesperColor's massif stone). */
@@ -303,36 +330,45 @@ export interface StrongholdGround {
 export function strongholdGround(arena: TerrainArena | undefined, seed: number, x: number, s: number): StrongholdGround | null {
   if (!arena) return null;
   const c = STRONGHOLD, a = s - arena.fromS, ax = Math.abs(x);
-  if (a < c.land[0] - 8 || a > c.back[1] + 8) return null;
+  if (a < c.rise[0] - 8 || a > c.back[1] + 8) return null;
   // Ragged fronts: where the low ground takes over and where Vesper's own terrain comes back wander along x.
   const land = smoothRange(c.land[0], c.land[1], a + (noise(seed ^ 0x5731, x * 0.12, 0.5) - 0.5) * 12)
     * (1 - smoothRange(c.back[0], c.back[1], a + (noise(seed ^ 0x5732, x * 0.12, 1.5) - 0.5) * 12));
-  // Into the massif: past the corridor's side (narrowing to the fortress, a little wider past it), in the shoulder behind
-  // the fortress, or round its sides; broken into spurs and bays, and kept back from the ground before its barrels.
-  const half = c.corridor[0] - (c.corridor[0] - c.corridor[1]) * smoothRange(-4, c.front - 2, a) + (c.corridor[2] - c.corridor[1]) * smoothRange(c.rear, c.rear + 6, a)
-    + (c.corridor[0] - c.corridor[2]) * smoothRange(c.fall[0], c.fall[1], a);
+  // Into the massif: past the corridor's side (narrowing over the approach to the fortress, a pass behind it, wider again past
+  // it), in the shoulder behind the fortress's roof, or round its sides; broken into spurs and bays, and kept back from the
+  // ground before its barrels.
+  const k = c.corridor;
+  const half = k[0] - (k[0] - k[1]) * smoothRange(c.rise[0], c.land[1], a) - (k[1] - k[2]) * smoothRange(c.land[1], c.front - 2, a)
+    - (k[2] - k[3]) * smoothRange(c.rear, c.rear + 2, a) + (k[4] - k[3]) * smoothRange(c.rear + 14, c.rear + 22, a) + (k[0] - k[4]) * smoothRange(c.fall[0], c.fall[1], a);
   const jag = (noise(seed ^ 0x5733, x * 0.16, a * 0.16) - 0.5) * 3 + (noise(seed ^ 0x5734, x * 0.45, a * 0.42) - 0.5) * 0.8;
   const waist = smoothRange(c.waist[0], c.waist[1], a), plan = mix(c.wide, c.narrow, waist), out = fortressOutside(x, a);
   const guard = 1 - smoothRange(0, 4.5, Math.hypot(Math.max(0, ax - c.barrels[0]), Math.max(0, c.barrels[1] - a, a - c.front)));
   const round = a > c.front - 0.5 && (ax > plan || a > c.rear);
   const shoulder = c.shoulder[1] - Math.abs(a - c.rear - c.shoulder[0]) * 0.8 + jag * 0.3;
-  const depth = Math.max(ax - half + jag - guard * 3, ax < half ? shoulder : -9, round ? 2.6 - out * 0.6 : -9);
+  const rear = a > c.rear - c.embed[0] || (a > c.rear - c.embed[1] && ax > plan - c.embed[2]);
+  const embed = rear ? 2.2 + Math.max(a - c.rear + c.embed[0], ax - plan + c.embed[2]) * 1.6 : -9;
+  const depth = Math.max(ax - half + jag - guard * 3, ax < half ? shoulder : -9, round ? 2.6 - out * 0.6 : -9, embed);
   const presence = smoothRange(c.rise[0], c.rise[1], a) * (1 - smoothRange(c.fall[0], c.fall[1], a));
+  const approach = smoothRange(c.rise[0], c.front + c.tall[0], a), tall = smoothRange(c.front + c.tall[0], c.front + c.tall[1], a) * (1 - smoothRange(c.rear + 12, c.rear + 22, a));
   const r = alpine(seed, x, a), beyond = smoothRange(WORLD_HALF + 0.3, WORLD_HALF + 3, ax), climb = smoothRange(-0.5, 3.5, depth);
-  const ceiling = 2.4 + (c.summit - 2.4) * beyond * smoothRange(-1, 1, depth) * presence;
-  // The corridor's ground stays low under the shoulder (the departure flies over it). The sides rise to `cap` beside the
-  // fortress; before and past it they keep lower inside the world (a pilot at its edge flies over them: no white mass
-  // passing close under the ship) and rise to their peaks beyond its edges.
-  const beside = smoothRange(c.front - 6, c.front - 2, a) * (1 - smoothRange(c.rear, c.rear + 4, a));
-  const sides = mix(mix(-0.8, c.cap, smoothRange(9.5, WORLD_HALF, ax)), c.cap, beside);
-  const top = mix(c.shoulder[2], sides, smoothRange(half - 1.5, half + 1, ax)), limit = mix(top, c.summit, beyond);
-  let height = softCap(c.low + (c.base - c.low) * climb + c.relief * r * smoothRange(-1, 3, depth) + c.beyond * beyond * climb, limit, 0.6);
+  const summit = mix(c.summit[0], c.summit[1], approach);
+  const ceiling = 2.4 - DROP + (Math.max(summit, c.peak) - 2.4 + DROP) * smoothRange(-1, 1, depth) * presence;
+  // The tops: the foothills toward the world's edges rise over the approach (inside the world they keep low: a pilot at its
+  // edge flies over them), the peaks round and behind the fortress reach VESPER_SCENERY_MAX (the lowered level gives them
+  // their height), the shoulder behind the roof stays under it and the pass behind is low (the departure flies through it),
+  // and beyond the world's edges the ranges rise from the start.
+  const edges = mix(c.foothills[0], c.foothills[1], approach);
+  const sides = mix(mix(edges - 1, edges, smoothRange(half + 0.5, WORLD_HALF, ax)), c.peak, tall);
+  const behind = mix(c.pass, c.shoulder[2], smoothRange(c.rear - c.embed[0] - 0.4, c.rear - c.embed[0] + 0.4, a) * (1 - smoothRange(c.rear + 3.5, c.rear + 6, a)));
+  const top = mix(a > c.rear - c.embed[0] - 0.5 ? behind : sides, sides, smoothRange(half - 1.5, half + 1, ax)), limit = mix(top, summit, beyond);
+  const base = mix(c.base[0], c.base[1], tall);
+  let height = softCap(c.low + (base - c.low) * climb + c.relief * r * smoothRange(-1, 3, depth) + c.beyond * beyond * climb, limit, 0.6);
   // The fortress: under the model the ground keeps below its top; round it the ground meets the model at its edge's height
   // (burying the cut faces) and climbs from there as broken rock, steep buttresses and gentler gullies, never as a wall
   // standing at its edge.
   const fit = a > SEAT_A - SEAT_REACH - 1 && a < SEAT_A + SEAT_ROWS.length * SEAT_STEP + SEAT_REACH ? seatAt(x, a) : null;
   let cap = Infinity, bury = -Infinity;
-  if (fit && !Number.isNaN(fit.under)) cap = fit.under;
+  if (fit && !Number.isNaN(fit.under)) cap = rear ? Infinity : fit.under;
   else if (fit && fit.reach < SEAT_REACH) {
     // (Lifted away toward SEAT_REACH, so the mountain's own ground takes over without a step.)
     const release = smoothRange(SEAT_REACH - 2, SEAT_REACH, fit.reach);
@@ -346,7 +382,7 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
   // rock, snow filling its couloirs and lying on its shoulders.
   const tone = 1 + smoothRange(-0.5, 2, depth) * mix(0.35, 1, smoothRange(0.2, 0.55, r)) * clamp(0.75 + 0.5 * noise(seed ^ 0x5736, x * 0.3, a * 0.3));
   const pool = smoothRange(0.7, 0.76, noise(seed ^ 0x5741, x * 0.15, a * 0.15)) * land;
-  return { land, pool, massif: presence * smoothRange(-2, 1, depth), height, tone, cap, bury, ceiling };
+  return { land, rocky: smoothRange(c.rocky[0], c.rocky[1], a) * (1 - smoothRange(c.fall[0], c.fall[1], a)), pool, massif: presence * smoothRange(-2, 1, depth), height, tone, cap, bury, ceiling };
 }
 
 /**
@@ -363,8 +399,10 @@ function shelfLevel(seed: number, x: number, s: number, p: VesperParams, thresho
 }
 /** Ice-cliff riser width between shelf levels (sheer, two grid cells) and the gradient probe. */
 const ICE_RISER = 0.5, ICE_PROBE = 0.3;
-/** The lowest shelf (an ice foot just above the sea) and the highest ice. */
-const SHELF_LOW = SEA + 0.75, SHELF_HIGH = 2.3;
+/** The lowest shelf (an ice foot just above the sea) and the highest ice (in Vesper's first frame, SEA0). */
+const SHELF_LOW0 = SEA0 + 0.75, SHELF_HIGH = 2.3;
+/** The lowest shelf as it stands, lowered with the level. */
+const SHELF_LOW = SHELF_LOW0 - DROP;
 /**
  * Ice plateaus (version 16): a warped blob field lifts tabular blocks of ice one or two tiers over the shelf they stand
  * on, behind sheer walls a few tenths wide (crispStep, as on the coast), so a plateau reads like Khepri's mesas.
@@ -389,7 +427,7 @@ function shelfTop(seed: number, x: number, s: number, p: VesperParams, m: Return
   const phase = noise(seed ^ 0x9b4, x * 0.02 + 1.7, s * 0.018) * p.step;
   // Snow ramps: here and there a step softens into a drift slope, so tracks can climb between shelf levels.
   const ramp = smoothRange(0.6, 0.74, noise(seed ^ 0x9b7, x * 0.07, s * 0.065));
-  let top = clamp(bench(level, Math.hypot(gx, gs), p.step, phase, ICE_RISER, 0.92 * (1 - ramp) * (1 - m.calm * 0.5), edges), SHELF_LOW, SHELF_HIGH);
+  let top = clamp(bench(level, Math.hypot(gx, gs), p.step, phase, ICE_RISER, 0.92 * (1 - ramp) * (1 - m.calm * 0.5), edges), SHELF_LOW0, SHELF_HIGH);
   top += icePlateau(seed, m.qx, m.qs, p, m.calm);
   top += (noise(seed ^ 0x9ad, x * 0.25, s * 0.3) - 0.5) * 0.14 + (noise(seed ^ 0x9ae, x * 1.3, s * 1.2) - 0.5) * 0.03;
   // Pressure ridges: jagged walls of broken ice; drifts: wind-packed snow; nunataks: dark rock peaks (version 16: taller,
@@ -397,21 +435,21 @@ function shelfTop(seed: number, x: number, s: number, p: VesperParams, m: Return
   top += m.ridge * (0.6 + 0.6 * ridged(noise(seed ^ 0x9b5, x * 0.6, s * 0.55)));
   top += m.dune * 0.38 * (1 - m.crack);
   if (m.rock > 0) top += m.rock * (0.9 + 2.4 * smooth(ridged(noise(seed ^ 0x9b6, x * 0.3, s * 0.28)) * m.rock));
-  // Crevasses: deep, sheer cracks that never open to the sea (their floors stay ice).
-  return Math.max(Math.min(top, SEA + 0.35), top - m.crack * 2.4);
+  // Crevasses: deep, sheer cracks that never open to the sea (their floors stay ice). Then the whole level lowered.
+  return Math.max(Math.min(top, SEA0 + 0.35), top - m.crack * 2.4) - DROP;
 }
 /**
  * Vesper's mood parameters where HELION STRONGHOLD's low ground has taken over (`land` 0…1): more land (the sea keeps to
  * leads and pockets), fewer inlets, and crevasses, pressure ridges and rock in every mood.
  */
-function landed(p: VesperParams, land: number): VesperParams {
-  if (land <= 0) return p;
-  return { ...p, land: mix(p.land, 1.15, land), leads: mix(p.leads, 0.55, land), inlets: p.inlets * (1 - 0.7 * land), crevasse: Math.max(p.crevasse, 0.45 * land),
-    ridge: Math.max(p.ridge, 0.45 * land), rock: Math.max(p.rock, 0.5 * land) };
+function landed(p: VesperParams, land: number, rocky: number): VesperParams {
+  if (land <= 0 && rocky <= 0) return p;
+  return { ...p, land: mix(p.land, 1.15, land), leads: mix(p.leads, 0.55, land), inlets: p.inlets * (1 - 0.7 * land), crevasse: Math.max(p.crevasse, 0.45 * land, 0.4 * rocky),
+    ridge: Math.max(p.ridge, 0.45 * land, 0.5 * rocky), rock: Math.max(p.rock, 0.5 * land, 0.6 * rocky) };
 }
 /** Vesper's parameters and masks at a point, with HELION STRONGHOLD's land where its arena reaches (the scatter reads them too). */
 function groundMasks(seed: number, x: number, s: number, p: VesperParams, platform: number, ground: StrongholdGround | null) {
-  const local = ground ? landed(p, ground.land) : p;
+  const local = ground ? landed(p, ground.land, ground.rocky) : p;
   return { p: local, m: vesperMasks(seed, x, s, local, ground ? 0 : platform) };
 }
 /**
@@ -435,13 +473,13 @@ export function vesperLandform(seed: number, x: number, s: number, row: PlanetRo
     const pool = ground.pool * m.edge * (1 - m.crack) * (1 - m.rock);
     if (pool > 0) { height -= pool * 0.05; channel = Math.max(channel, pool * 0.5); }
     if (ground.massif > 0) {
-      height = mix(height, ground.height, ground.massif); elevation = mix(elevation, 1, ground.massif);
+      height = mix(height, Math.max(height, ground.height), ground.massif); elevation = mix(elevation, 1, ground.massif);
       channel *= 1 - ground.massif; tone = mix(tone, ground.tone, ground.massif);
     }
     height = Math.max(Math.min(height, ground.cap), ground.bury);
     return { height: clamp(height, -8, ground.ceiling), elevation, channel, pool: 0, vein: 99, vein2: 99, veins: 0, tone, ceiling: ground.ceiling };
   }
-  return { height: clamp(height, -8, 2.4), elevation, channel, pool: 0, vein: 99, vein2: 99, veins: 0, tone };
+  return { height: clamp(height, -8 - DROP, 2.4 - DROP), elevation, channel, pool: 0, vein: 99, vein2: 99, veins: 0, tone };
 }
 
 /* ---------------------------------------------------------------- colour */
@@ -468,7 +506,7 @@ function vesperColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: nu
   if ((point.tone ?? 0) > 1) return massifColor(row, x, point, slope, rim, drift, fine, out);
   // Only true cliff faces turn to blue ice (version 19: from 0.9, rounded shoulders showed the grid as blue facets).
   const steep = smoothRange(1.5, 3, slope) * (1 - smoothRange(0.05, 0.3, point.tone ?? 0)), shade = smoothRange(0.35, 0.8, drift) * 0.35;
-  const cliff = smoothRange(SEA, 1.6, point.height), rock = smoothRange(0.25, 0.6, point.tone ?? 0);
+  const cliff = smoothRange(SEA, 1.6 - DROP, point.height), rock = smoothRange(0.25, 0.6, point.tone ?? 0);
   // Snow caps stay on the flat tops of outcrops; only their steep flanks show charcoal rock (version 18: gentle flanks
   // in charcoal read as a dark, blurred smear at the grid's resolution).
   const bare = rock * smoothRange(1, 1.5, slope);
@@ -701,7 +739,7 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
       const turns = archetype === 'harbour' ? water : Math.floor(h(21) * 4), mirror = archetype === 'harbour' ? 1 : h(22) < 0.5 ? -1 : 1;
       const [hu, hv] = EXTENT[archetype], [hx, hs] = turns % 2 ? [hv, hu] : [hu, hv];
       // The pad keeps its shelf's level; pieces too tall for the room under the cap there are swapped for lower ones.
-      const level = clamp(Math.round(ground(x, s) / 0.25) * 0.25, SEA + 0.75, 2.25), room = VESPER_SCENERY_MAX - 0.05 - level;
+      const level = clamp(Math.round(ground(x, s) / 0.25) * 0.25, SEA + 0.75, 2.25 - DROP), room = VESPER_PIECE_MAX - 0.05 - level;
       const local = compose(archetype, k => h(30 + k), archetype === 'harbour' ? edge : 0, room);
       const cos = [1, 0, -1, 0][turns], sin = [0, 1, 0, -1][turns];
       const placed = local.map((module, i): PlacedModule => {
@@ -736,7 +774,7 @@ export function vesperSettlement(seed: number, cell: number, side: number): Sett
  * separate, drifting pieces). Arena platforms stay empty.
  */
 export function* vesperScatterSteps(seed: number, startS: number, size: number, terrain: ScatterField): Work<KitInstance[]> {
-  const CAP = VESPER_SCENERY_MAX, sink = createScatterSink({ startS, size, terrain, cap: CAP }), { add } = sink;
+  const CAP = VESPER_PIECE_MAX, sink = createScatterSink({ startS, size, terrain, cap: CAP }), { add } = sink;
   // HELION STRONGHOLD's arena (a Vesper boss arena): its land is dressed as any shelf, its massif only with crags, nothing
   // stands where the fortress does (its plan, its barrels and its plinth: strongholdClear); its rocks are placed below.
   const holdAt = (x: number, s: number) => strongholdGround(terrain.arena(s), seed, x, s);
@@ -974,7 +1012,7 @@ export const VESPER: PlanetProfile = {
   arena() {},
   color: vesperColor,
   shadowTint: [0.62, 0.74, 1],
-  sceneryMax: VESPER_SCENERY_MAX,
+  sceneryMax: VESPER_PIECE_MAX,
   settlement: vesperSettlement,
   scatter: vesperScatterSteps,
   floes: vesperFloes,

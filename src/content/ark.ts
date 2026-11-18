@@ -54,7 +54,7 @@ export const HELION_ARK = {
    * projects it through the lens for the camera of the moment, as it does a ground battery. One volley of the bridge's aimed
    * burst every `interval` seconds while the pilot stays hidden.
    */
-  terraceGuns: { points: [{ x: -4.61, s: 1.96, height: -5.76 }, { x: 4.56, s: 1.12, height: -5.76 }], interval: 2.6 },
+  terraceGuns: { points: [{ x: -4.61, s: 1.96, height: -6.96 }, { x: 4.56, s: 1.12, height: -6.96 }], interval: 2.6 },
   /** Finite Needle launches during the bridge phase: waves of two, one from each bay. */
   launches: { waves: 3, firstAfter: 2.5, interval: 7 },
   /**
