@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FALL, GROUPS, WALK_IN, createGait, solveLeg, walkInProgress, walkInReach, type LegRest, type Vec3 } from '../../src/render/cradle-gait';
+import { FALL, GROUPS, WALK_IN, createGait, planWalkIn, solveLeg, walkInDuration, walkInLeft, type LegRest, type Vec3 } from '../../src/render/cradle-gait';
 import { CRADLE } from '../../src/content/cradle';
 
 // A walker like THE CRADLE's rest pose (rig frame: x right, y up, z toward the player): hips high on the body, the femur
@@ -89,14 +89,32 @@ describe('THE CRADLE gait (render-only)', () => {
     expect(run()).toEqual(run());
   });
 
-  it('walks in heavily: never faster than its top speed, done within its arrival', () => {
-    const reach = walkInReach();
-    let fastest = 0;
-    for (let t = 0; t < 4; t += 1 / 120) fastest = Math.max(fastest, reach * (walkInProgress(t + 1 / 120) - walkInProgress(t)) * 120);
-    expect(fastest).toBeLessThanOrEqual(WALK_IN.speed + 1e-6);
-    expect(walkInProgress(0)).toBe(0);
-    expect(walkInProgress(WALK_IN.duration)).toBeCloseTo(1, 9);
-    expect(WALK_IN.duration).toBeLessThan(CRADLE.arrivalDuration);
+  it('walks in heavily: never faster than its top speed, set out within its lead and done within its arrival', () => {
+    // From its first frame (its lead before the arrival at 0) over distances from a view looking away to one centred on it.
+    for (const distance of [3, 8, 12, 16]) {
+      const walk = planWalkIn(distance, -WALK_IN.lead, WALK_IN.end);
+      expect(walk.start, `${distance} units set out within its lead`).toBeGreaterThanOrEqual(-WALK_IN.lead);
+      expect(walk.end - walk.start).toBeCloseTo(walkInDuration(distance), 9);
+      let fastest = 0;
+      for (let t = -WALK_IN.lead; t < 4; t += 1 / 120) fastest = Math.max(fastest, (walkInLeft(walk, t) - walkInLeft(walk, t + 1 / 120)) * 120);
+      expect(fastest).toBeLessThanOrEqual(WALK_IN.speed + 1e-6);
+      if (distance > 4) expect(fastest).toBeGreaterThan(WALK_IN.speed * .98);
+      // Out where it starts until it sets out, at its post from its end on.
+      expect(walkInLeft(walk, -WALK_IN.lead)).toBe(distance);
+      expect(walkInLeft(walk, walk.start)).toBe(distance);
+      expect(walkInLeft(walk, WALK_IN.end)).toBe(0);
+      expect(walkInLeft(walk, (walk.start + walk.end) / 2)).toBeLessThan(distance);
+    }
+    expect(WALK_IN.end).toBeLessThan(CRADLE.arrivalDuration);
+  });
+
+  it('squeezes a walk-in planned late into the time left rather than starting part-way in', () => {
+    const walk = planWalkIn(15, 1, WALK_IN.end);
+    expect(walk.start).toBe(1);
+    expect(walkInLeft(walk, 1)).toBe(15);
+    expect(walkInLeft(walk, WALK_IN.end)).toBe(0);
+    let last = 15;
+    for (let t = 1; t <= WALK_IN.end; t += 1 / 60) { const left = walkInLeft(walk, t); expect(left).toBeLessThanOrEqual(last + 1e-9); last = left; }
   });
 
   it('replants on the terrain\'s height where each foot lands', () => {

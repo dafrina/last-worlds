@@ -7,11 +7,14 @@ import { CRADLE } from '../content/cradle';
 import { ECLIPSE } from '../content/eclipse';
 import { HELIOPHAGE } from '../content/heliophage';
 import { CITADEL } from '../content/citadel';
-import { VIEW, type BossId, type BossPart, type RunState } from '../shared/contracts';
+import { missionBoss } from '../content/bosses';
+import { ENDLESS_CYCLE, endlessScroll, endlessSectorPlan } from '../content/endless';
+import { arenaScroll } from '../sim/boss';
+import { VIEW, type BossId, type BossPart, type BossState, type RunState } from '../shared/contracts';
 import { SIDES, hash, markerWriter, particleLayer } from './bastion-view';
 import { retainBossMaterials } from './boss-materials';
 import { WALKER, createWalkerRig, isWalker, type WalkerRig } from './cradle-walker';
-import { createGait, walkInProgress, walkInReach, type GaitMode } from './cradle-gait';
+import { WALK_IN, createGait, planWalkIn, walkInLeft, type GaitMode, type WalkIn } from './cradle-gait';
 
 /**
  * The carrier bosses: THE VEIL, THE CRADLE, THE ECLIPSE, THE HELIOPHAGE and THE CITADEL share this view, each with its own
@@ -306,23 +309,53 @@ function buildRig(style: CarrierStyle): Rig {
 
 /**
  * What a walking carrier (THE CRADLE) reads from its scene: the terrain's height at a world point (x, world s), sampled
- * only when a foot plants, and whether the Low tier is drawing (fewer dust puffs).
+ * only when a foot plants, whether the Low tier is drawing (fewer dust puffs), and the camera its walk-in starts out of
+ * sight of, with the sun (a unit vector toward it) that casts its shadow.
  */
-export interface CarrierViewOptions { ground?: (x: number, s: number) => number; low?: () => boolean }
+export interface CarrierViewOptions { ground?: (x: number, s: number) => number; low?: () => boolean; camera?: () => THREE.Camera; sun?: () => THREE.Vector3 }
 
 /**
- * THE CRADLE's walk-in (render-only, its arrival): it enters from the side away from the view, ending at its post, never
- * faster than a heavy walk (cradle-gait.ts WALK_IN): from as far as that allows, nearer when the view already looks away.
+ * How far to one side of its seat (`side` -1 left, 1 right) a walker must stand to be wholly out of the view: the least
+ * offset at which every point of its outline (rig frame, cradle-walker.ts, with its cast shadow's) projects beyond that
+ * side edge of the camera's frame. The actual camera of this frame: its projection, aspect and position (a lens is wider
+ * deeper down and further away, so the walker's ground and its depth matter). Beyond the side edge, not merely above the
+ * top one: it stays out of sight while it waits there and the ground carries it toward the camera.
  */
-const WALK_IN_FROM = { clear: 12.5, least: 4 } as const;
+export function walkInClearance(camera: THREE.Camera, seat: THREE.Vector3, side: -1 | 1, outline: readonly THREE.Vector3[]): number {
+  const point = new THREE.Vector3();
+  const hidden = (offset: number) => outline.every(p => side * point.set(seat.x + side * offset + p.x, seat.y + p.y, seat.z + p.z).project(camera).x > 1);
+  let near = 0, far = 64;
+  for (let i = 0; i < 30; i++) { const mid = (near + far) / 2; if (hidden(mid)) far = mid; else near = mid; }
+  return far;
+}
+
+/**
+ * The boss due next (render-only): which, when it arrives on the run clock and how far the scroll will have come then, from
+ * the simulation's own schedule (the campaign mission's boss, or the endless boss sector's); null once one is present or
+ * none is ahead. THE CRADLE's walk-in reads it to set out before its arrival.
+ */
+export function bossDue(state: RunState): { id: BossId; at: number; distance: number } | null {
+  if (state.boss) return null;
+  if (state.config.mode === 'campaign') {
+    const def = missionBoss(state.config.mission);
+    return def && state.time < def.arrivesAt ? { id: def.id, at: def.arrivesAt, distance: arenaScroll(def.arrivesAt, null, def.arena).distance } : null;
+  }
+  if (state.config.mode !== 'endless') return null;
+  const plan = endlessSectorPlan(Math.max(1, state.sector)), at = state.sectorStartedAt + ENDLESS_CYCLE.bossSector.arrivesAt;
+  return plan.boss && state.time < at ? { id: plan.boss, at, distance: endlessScroll(plan, ENDLESS_CYCLE.bossSector.arrivesAt, null).distance } : null;
+}
 /** How far above the old carriers' effect heights THE CRADLE's body stands (its chambers' centres over its floor). */
 const WALKER_FX_LIFT = 1.6;
 
 export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL_STYLE, options: CarrierViewOptions = {}) {
   const root = new THREE.Group(); root.name = style.name; root.visible = false; scene.add(root);
   let rig = buildRig(style); root.add(rig.chassis);
-  // THE CRADLE's gait (once its walking model has loaded), its walk-in, and a soft contact shadow under its body.
-  let gait: ReturnType<typeof createGait> | null = null, walkIn = 0, walkerLift = 0, buckled = 0;
+  // THE CRADLE's gait (once its walking model has loaded), its walk-in and the side it comes from, and a soft contact
+  // shadow under its body.
+  let gait: ReturnType<typeof createGait> | null = null, walk: WalkIn | null = null, walkSide = 1, walkerLift = 0, buckled = 0;
+  /** THE CRADLE before its arrival (its walk-in sets out early): the boss as it will arrive, read by the frame below. */
+  const due: BossState = { id: style.id, phase: 'arrival', x: 0, originX: 0, s: 0, startedAt: 0, phaseStartedAt: 0, nextAttackAt: Infinity, attackIndex: 0,
+    attack: null, attackerId: null, deathEffectAt: Infinity, vx: 0, vs: 0, launchesLeft: 0, nextLaunchAt: Infinity };
   // (Only THE CRADLE's view has the shadow; the other carriers' scene graphs are as they were.)
   const blob = style.id === 'cradle' ? walkerShadow() : null;
   if (blob) { blob.visible = false; root.add(blob); }
@@ -383,10 +416,17 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
      * `standing`: a still boss (THE CITADEL) drawn without an encounter where it stands in its arena: intact before its
      * fight, a wreck after it (user, 13 November: "the citadel shouldnt rise from the ground ... it should just render in
      * already"). `placement` is then its fixed seat.
+     * `arrivesAt`: THE CRADLE before its arrival (scene.ts, within WALK_IN.lead of it): its walk-in sets out of sight,
+     * `placement` its seat at its arrival carried with the ground until then. Nothing else of it shows or acts.
      */
-    update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null, standing: 'intact' | 'wrecked' | null = null) {
-      const boss = state.boss && mine(state.boss.id) ? state.boss : null;
+    update(state: RunState, placement: { baseHeight: number; s: number; x?: number } | null, standing: 'intact' | 'wrecked' | null = null, arrivesAt: number | null = null) {
+      const present = state.boss && mine(state.boss.id) ? state.boss : null;
+      const early = !present && arrivesAt !== null && !!rig.walker && !!gait && arrivesAt - state.time <= WALK_IN.lead;
+      if (early) { due.startedAt = due.phaseStartedAt = arrivesAt; }
+      const boss = present ?? (early ? due : null);
       root.visible = !!boss && !!placement; markers.visible = root.visible;
+      // A clock run backwards (a replayed fight) plans a walk-in afresh.
+      if (state.time < lastTime && walk) { walk = null; encounter = -1; }
       const groundShift = lastTime < 0 || state.time < lastTime ? 0 : Math.max(0, state.distance - lastDistance); lastDistance = state.distance;
       const dt = lastTime < 0 ? 0 : Math.min(.1, Math.max(0, state.time - lastTime)); lastTime = state.time;
       mist.shift(groundShift); sparks.shift(groundShift);
@@ -407,7 +447,7 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         for (const batch of rig.flightPods) liveInstances(batch, count);
       }
       if (!boss || !placement) {
-        shock.visible = false; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1;
+        shock.visible = false; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); encounter = -1; walk = null;
         if (!boss && placement && standing && style.still) {
           root.visible = true; markers.visible = false;
           root.position.set(placement.x ?? 0, placement.baseHeight, -placement.s); rig.chassis.rotation.set(0, 0, 0); root.updateMatrixWorld(true);
@@ -423,13 +463,34 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         return;
       }
       const walking = !!rig.walker && !!gait;
+      // (A walk-in set out before its arrival carries on into it: the same encounter, its clock within a tick.)
+      const carried = !!walk && encounter >= 0 && Math.abs(boss.startedAt - encounter) < .5;
+      if (encounter !== boss.startedAt && carried) encounter = boss.startedAt;
       if (encounter !== boss.startedAt) {
         encounter = boss.startedAt; mist.clear(); sparks.clear(); alive.clear(); deadAt.clear(); hpSeen.clear(); podsSeen.clear(); bayOpen = 0; launchedAt = -Infinity; rig.parts.forEach(p => { p.open = 0; });
-        // It walks in from the side away from where the view looks, far enough to start out of sight.
-        const away = state.cameraX > boss.x ? -1 : 1;
-        walkIn = boss.phase === 'arrival' ? away * THREE.MathUtils.clamp(WALK_IN_FROM.clear - Math.abs(state.cameraX - boss.x), WALK_IN_FROM.least, walkInReach()) : 0;
-        buckled = 0;
+        walk = null; buckled = 0;
+        // It walks in from wholly out of sight (measured through this frame's camera at its seat), from the nearer side:
+        // away from where the view looks, or with the view near its post the side its shadow trails on. It is at its post
+        // by WALK_IN.end into its arrival. Too late for a walk (a model arriving at the end of its arrival), it stands there.
+        const camera = options.camera?.(), end = boss.startedAt + WALK_IN.end;
+        if (walking && camera && boss.phase === 'arrival' && end - state.time > 1) {
+          const seat = world.set(placement.x ?? boss.x, placement.baseHeight, -placement.s), sun = options.sun?.();
+          // Its cast shadow too (the sun's, on its floor): on Amnion's low sun it reaches 4 units past its legs.
+          const outline = sun && sun.y > .05 ? [...rig.walker!.outline, ...rig.walker!.casters.filter(p => p.y > 0).map(p => p.clone().addScaledVector(sun, -p.y / sun.y))]
+            : rig.walker!.outline;
+          const left = walkInClearance(camera, seat, -1, outline), right = walkInClearance(camera, seat, 1, outline);
+          walkSide = left < right ? -1 : 1;
+          walk = planWalkIn(Math.min(left, right) + WALK_IN.margin, state.time, end);
+        }
+        // (Its weak points as at its arrival, from before it: whole, the crest shut, no aim rings.)
+        if (early) for (const [part, rigged] of rig.parts) {
+          for (const object of rigged.live) object.visible = true;
+          if (rigged.wreck) rigged.wreck.visible = false;
+          for (const petal of rigged.petals) petal.object.quaternion.copy(petal.closed);
+          rings.get(part)!.mesh.visible = false;
+        }
       }
+      if (early) for (const rigged of rig.parts.values()) rigged.heat.emissiveIntensity = 1.2 * (.85 + .15 * Math.sin(state.time * 2.2));
       const age = state.time - boss.startedAt, phaseAge = state.time - boss.phaseStartedAt;
       const destroyed = boss.phase === 'destroyed', overload = boss.phase === 'overload', arriving = boss.phase === 'arrival';
       // Rising out of the mire during the arrival; a slow breathing bob while alive; sinking after its death.
@@ -440,7 +501,7 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
       const sink = destroyed && !style.still && !walking ? THREE.MathUtils.smoothstep(phaseAge, 1.6, 5.5) : 0;
       // A hovering carrier bobs wider and slower on the air it floats on.
       const bob = destroyed || style.still || walking ? 0 : style.hover ? Math.sin(state.time * .6) * .16 : Math.sin(state.time * .9) * .06;
-      const entering = walking && arriving ? walkIn * (1 - walkInProgress(age)) : 0;
+      const entering = walking && walk ? walkSide * walkInLeft(walk, state.time) : 0;
       root.position.set((placement.x ?? boss.x) + entering, placement.baseHeight - rise * rise * (rig.approved ? APPROVED_RISE : RISE) - sink * (rig.approved ? 8.5 : SINK) + bob, -placement.s);
       root.updateMatrixWorld(true);
       const sway = style.still || walking ? 0 : 1;
@@ -602,8 +663,9 @@ export function createCarrierView(scene: THREE.Scene, style: CarrierStyle = VEIL
         const y = options.ground ? options.ground(x, -z) : WALKER.floor;
         return THREE.MathUtils.clamp(y, WALKER.floor - 1.2, WALKER.floor + 1.6);
       } }) : null;
-      // (Arriving mid-encounter, a walker starts its walk-in afresh.)
-      if (rig.walker) encounter = -1;
+      // (Arriving mid-encounter, a walker plans its walk-in afresh, from out of sight for the camera then; the flight's
+      // preparation loads it before its world shows, so this is only a fallback.)
+      if (rig.walker) { encounter = -1; walk = null; }
     },
     get hasPodModel() { return !!rig.flightPods; },
     get stats() { return { visible: root.visible, model: rig.approved || rig.bays.length ? 'glb' : 'fallback', approved: !!rig.approved, bayOpen, deployedPods: rig.flightPods?.[0]?.count ?? 0, particles: mist.count + sparks.count,
