@@ -128,7 +128,9 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
   });
 
   it('never intercepts a direct hit, a distant shot or a beam', () => {
-    for (const x of [0, .51, 1.3]) {
+    // (A direct hit, a graze just inside the hit circle, and a shot just outside the catch band: 1.3 until the band widened
+    // to 1, 19 November.)
+    for (const x of [0, .51, .52 + SHIP_PERKS.grazeWidth + .3]) {
       const state = arena('spectre', mode), shot = bullet(state, x, 1.5);
       advance(state, .2);
       expect(shot.reflected).toBeUndefined();
@@ -139,7 +141,7 @@ describe.each(['campaign', 'endless'] as const)('%s chassis perks', mode => {
     stepRun(state, EMPTY_INPUT); expect(state.player.shields).toBe(2);
   });
 
-  it('catches again after its 0.4 s cooldown, several in the air at once', () => {
+  it('catches again after its cooldown, several in the air at once', () => {
     const state = arena('spectre', mode);
     target(state, 0, 14, 1000);
     bullet(state); bullet(state, -.8);

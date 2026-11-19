@@ -819,3 +819,11 @@ button:disabled { cursor: default; }
   .menu-utility { margin-top: 6px; }
   .menu-utility button, .menu-utility button:last-child { min-height: 40px; padding-top: 7px; }
 }
+/* Where the view lies across the map (src/ui/game-ui.ts mapPosition): a faint white bar along the screen's bottom edge. */
+.map-position {
+  position: absolute; z-index: 4; left: 0; right: 0; bottom: max(3px, calc(var(--safe-bottom) - 2px)); height: 4px; pointer-events: none;
+}
+.map-position i {
+  display: block; height: 100%; width: 50%; border-radius: 2px; background: #ffffffb3; box-shadow: 0 0 4px #00000040;
+  will-change: transform;
+}

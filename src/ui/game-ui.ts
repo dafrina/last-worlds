@@ -78,6 +78,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
       <p class="flight-message" role="status" hidden></p>
       <p class="mission-note" role="status" aria-live="polite"></p>
       <span class="site-marker" aria-hidden="true" hidden>?</span>
+      <span class="map-position" aria-hidden="true" hidden><i></i></span>
       <button type="button" class="special-button" aria-label="Activate shockwave" data-no-steer hidden>
         <span class="charge-ring" aria-hidden="true"></span>
         <svg class="special-glyph" viewBox="0 0 24 28" aria-hidden="true"><path d="M14 2 4 16H11L9 26 20 11H13Z"/></svg>
@@ -133,6 +134,13 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   const surface = find<HTMLElement>('.flight-frame');
   const canvas = find<HTMLCanvasElement>('canvas');
   const specialButton = find<HTMLButtonElement>('.special-button');
+  /**
+   * Where the view lies across the map (user, 19 November: "a white bar on the bottom of the screen that indicates where in
+   * the level we are horizontally"): the view's share of the world's width at its place, along the screen's bottom edge.
+   * Presentation only; its transform is written only when it moves.
+   */
+  const mapPosition = find<HTMLElement>('.map-position'), mapPositionBar = mapPosition.querySelector('i')!;
+  let mapPositionAt = NaN;
   const overlay = find<HTMLElement>('.flight-overlay');
   /** The overlay's pages: its own sections only, so a section inside a page (the shipyard) keeps its own visibility. */
   const panels = [...overlay.querySelectorAll<HTMLElement>(':scope > section')];
@@ -593,6 +601,15 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     hud.hidden = !playing;
     updateBossMeter(state);
     specialButton.hidden = !playing;
+    mapPosition.hidden = !playing;
+    if (playing) {
+      const share = VIEW.width / VIEW.worldWidth, at = (state.cameraX - VIEW.width / 2 + VIEW.worldWidth / 2) / VIEW.worldWidth;
+      if (!(Math.abs(at - mapPositionAt) < 0.001)) {
+        mapPositionAt = at;
+        mapPositionBar.style.width = `${share * 100}%`;
+        mapPositionBar.style.transform = `translateX(${(at / share) * 100}%)`;
+      }
+    }
     missionNotes.frame(playing);
     hints.hidden = !playing || state.time >= 3;
     // The last life: a red glow at the screen's edges (user, 22 October).

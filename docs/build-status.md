@@ -1,5 +1,20 @@
 # Build status
 
+## Rail beams strike what they hit; the Slingshot buffed; a map position bar (19 November 2026)
+
+- **Rail beams** (user: "projectiles clipping thru boss ... it goes under the top plateau", THE CITADEL): a Rail Driver slug
+  moves 1.5 units a tick and a boss part stops it at its hit circle, so its trail froze up to about 2.4 units short of the
+  part, on THE CITADEL at its plateau's front edge, where it looked cut off under the boss. Its trail is now carried on to
+  the struck part's centre (render only; src/render/scene.ts). Verified frame by frame at the boss: before and after.
+- **Gravity Slingshot** (user: "useless when under heavy fire late game. Maybe the perk is just weak"): catch band 1 (0.5),
+  cooldown 0.3 s (0.4), a return 60 damage (25; ordinary enemies have 55-120 at base, up to +40% late and on Veteran).
+  It still never protects: a direct hit still counts.
+- **Map position bar** (user: "a white bar on the bottom of the screen that indicates where in the level we are
+  horizontally"): the view's share of the 24-unit world (half the width) at its place, a 4 px white bar at 70% opacity along the
+  screen's bottom edge (src/ui/game-ui.ts, styles.css); its transform written only when it moves. Checked on Vesper and
+  Khepri, centred and shifted.
+- **Checks:** typecheck, unit tests, build, browser suite (see the deploy). No phone test.
+
 ## GPU savings, Nahara's sand canyon floor, the hero shots' new look (19 November 2026)
 
 The user's iPhone logs (`?perf`, 19 November: Cold Vector, Brood Strike, Silent Empire on High) showed the game GPU-bound,

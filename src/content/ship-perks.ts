@@ -29,10 +29,13 @@ export const SHIP_PERKS = {
    * the enemy that fired it as a homing shot of `reflectedDamage` at `reflectedSpeed`. With or without shields; one catch
    * every `reflectCooldown`. It never protects: a hit still counts.
    */
-  reflectCooldown: .4,
+  // (A wider band, a shorter cooldown and a heavier return since 19 November, user: "increase the slingshot perk projectile
+  // pickup radius ... Its useless when under heavy fire late game. Maybe the perk is just weak": 0.5, 0.4 s and 25 before,
+  // when a return took 3-7 to kill one late enemy.)
+  reflectCooldown: .3,
   reflectDuration: .32,
-  grazeWidth: .5,
-  reflectedDamage: 25,
+  grazeWidth: 1,
+  reflectedDamage: 60,
   reflectedSpeed: 26,
   /** How sharply a returned shot turns onto its target (radians a second). */
   reflectedTurn: 6,

@@ -1448,7 +1448,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   });
   // Rail Driver slugs (docs/32 §3): render-only trails from muzzle to head, fading out after the slug is gone; a fresh
   // slug kicks the hero back a touch.
-  const railTrails = new Map<number, { x0: number; s0: number; x: number; s: number; endedAt?: number }>();
+  const railTrails = new Map<number, { x0: number; s0: number; x: number; s: number; endedAt?: number; struck?: boolean }>();
   let railKickAt = -1, railTick = -1;
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   // Flat rings face the camera one way only, so the single pass draws exactly what three.js's two passes over a transparent
@@ -2184,6 +2184,21 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       if (state.tick < railTick) { railTrails.clear(); railKickAt = -1; }
       railTick = state.tick;
       for (const trail of railTrails.values()) trail.endedAt ??= state.time;
+      // (A slug stopped by a boss part ends at the part's hit circle, a frame short of it: its trail is carried on to the
+      // part's centre, so it strikes the target ring instead of ending under the boss's front, 19 November: "projectiles
+      // clipping thru boss ... it goes under the top plateau". Render only: the hit is the simulation's.)
+      const live = new Set<number>();
+      for (const sim of state.projectiles) if (sim.pierced) live.add(sim.id);
+      for (const [id, trail] of railTrails) {
+        if (live.has(id) || trail.struck) continue;
+        trail.struck = true;
+        for (const enemy of state.enemies) {
+          if (!enemy.bossPart || enemy.damageable === false) continue;
+          // (Its radius, its own, and a tick of its travel: 1.5 at 90 a second.)
+          const reach = enemy.radius + .3 + 1.6;
+          if (Math.abs(enemy.x - trail.x) < enemy.radius + .3 && enemy.s >= trail.s && enemy.s - trail.s < reach) { trail.s = enemy.s; break; }
+        }
+      }
       for (const sim of state.projectiles) {
         if (!sim.pierced) continue;
         const trail = railTrails.get(sim.id);
