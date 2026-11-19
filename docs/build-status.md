@@ -1,5 +1,18 @@
 # Build status
 
+## HELION STRONGHOLD's plateaus get stations and pipelines; more cliffs on its mountain (19 November 2026)
+
+- **Infrastructure** (user: "make sure on the empty plateaus before the boss mountain that theres piping and
+  infrastructure as in the level"): src/world/stronghold-works.ts adds up to three of Vesper's own outposts on the low
+  ground before the mountain (a tank farm, a radiator field with its relay mast, a cryo station), each on dry level ground
+  clear of the ascent, the ledge and the fortress, and one pipeline chain on racks from station to station into the pump
+  station at the mountain's foot. Under VESPER_PIECE_MAX, decorative only.
+- **Cliffs** (user: "increase the cliff models on the surrounding terrain", "add only cliffs up to 235k"): the mountain's
+  walls from 0.7 drops (1.4) and from a massif share of 0.12 (0.3), in runs of two. Measured at the stop: 220k triangles in
+  graphics.spec's view on High (277k before the remodel), 167-190k in the campaign fight over three seeds.
+- **Checks:** typecheck, 1152 unit tests (the Vesper arena's fingerprint re-recorded), build; browser suite: see the
+  deploy note. No phone test.
+
 ## HELION STRONGHOLD remodelled, its far fog reverted, its warning earlier (19 November 2026; docs/43)
 
 - **The remodel** (user: "rebuild the boss model how we did it for the other bosses, use it as a stencil for your own

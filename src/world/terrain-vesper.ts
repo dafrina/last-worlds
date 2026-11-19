@@ -1196,13 +1196,15 @@ export function* vesperScatterSteps(seed: number, startS: number, size: number, 
     // (The ascent's faces from a drop of 1.0, the slopes' and peaks' broken steps from 1.3: fewer pieces off the ascent.)
     const massifFace = (x: number, s: number, drop: number) => {
       const hold = holdAt(x, s);
-      return !!hold && hold.massif > 0.3 && drop >= 1.4 && terrain.height(x, s) > SEA + 0.9 && strongholdClear(terrain.arena(s), x, s, 0.5, false);
+      // (From 0.7 and 0.12 since 19 November: the remodel freed triangles, "now we can also increase the cliff models on the
+      // surrounding terrain", up to a 235k scene: 220k measured at the stop (tests/browser/graphics.spec.ts), a margin left for other seeds; 1.4 and 0.3 before.)
+      return !!hold && hold.massif > 0.12 && drop >= 0.7 && terrain.height(x, s) > SEA + 0.9 && strongholdClear(terrain.arena(s), x, s, 0.5, false);
     };
     // (Vesper's own walls, its pieces' size and run rule (19 November: "Why dont we use the same cliff placing logic as
     // generally in vesper?"), one to a step (`oneStep`): on the stepped ascent a wall walked down through all its tiers and
     // stood 5-6 tall, its neighbours stacked beside it, "a weird cluster". From 1.8 and 2.4 drops at 1.8-2.3 scale on
     // 18 November, later, "Calm the cliffs"; from 1.0 and 1.3 at 1.2-1.5 before.)
-    for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, salt: 0x7c2f, minDrop: 1.4, oneStep: 1.6, cap: STRONGHOLD.crag, arenas: true, accept: massifFace })) {
+    for (const wall of yield* cliffWallSteps(seed, startS, size, terrain, { ...walls, salt: 0x7c2f, minDrop: .7, minRun: 2, oneStep: 1.6, cap: STRONGHOLD.crag, arenas: true, accept: massifFace })) {
       const arena = terrain.arena(wall.s), rise = wall.height * KIT.iceWall.height;
       // (Before the barrels nothing stands over the ledge.)
       const top = strongholdClear(arena, wall.x, wall.s, 0.5) ? massifCap(wall.x, wall.s) : STRONGHOLD_LEDGE.level + 0.3;

@@ -72,6 +72,60 @@ export function strongholdWorks(seed: number, startS: number, size: number, worl
   stand('mast', 'vesper_comm_needle', side * 6.3, station - 1.6);
   shared('sphere', 'tank_sphere', side * 1.4, station - 0.9);
   shared('tank', 'tank_vertical_1', side * 5.4, station - 1.9);
+  // More of Vesper's outposts on the low ground before the mountain, linked by pipelines (user, 19 November: "make sure on
+  // the empty plateaus before the boss mountain that theres piping and infrastructure as in the level"): stations of
+  // the level's own kinds on dry, level ground clear of the ascent, each line from the one before running to the next,
+  // the chain ending at the pump station above. Fixed by the seed.
+  const dryAt = (px: number, ps: number, r: number) => {
+    let lo = Infinity, hi = -Infinity;
+    for (const d of [-r, 0, r]) for (const e of [-r, 0, r]) { const h = ground(px + d, ps + e); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    return lo > VESPER_SEA_LEVEL + 0.1 && hi - lo < 0.45 && hi + 2.2 < VESPER_PIECE_MAX + 2.2 && hi < L.level - 1.2;
+  };
+  const sites: { x: number; s: number; kind: number }[] = [];
+  for (let k = 0; k < 40 && sites.length < 3; k++) {
+    const h = (n: number) => hash(seed ^ 0x5770, Math.round(arena.fromS * 4) + k, n);
+    const px = (h(0) < 0.5 ? -1 : 1) * (3 + h(1) * 6.5), ps = arena.fromS - 6 + h(2) * (station - arena.fromS + 2);
+    if (ps > base - 4 || !dryAt(px, ps, 1.6)) continue;
+    if (Math.abs(px - side * 4) < 4 && Math.abs(ps - station) < 5) continue;
+    if (sites.some(o => Math.hypot(o.x - px, o.s - ps) < 6)) continue;
+    sites.push({ x: px, s: ps, kind: sites.length });
+  }
+  for (const [n, site] of sites.entries()) {
+    const { x: sx, s: ss } = site, face = sx < 0 ? 1 : -1, id = (part: string) => `site${n}:${part}`;
+    if (site.kind === 0) {
+      // A tank farm.
+      shared(id('tank0'), 'tank_vertical_0', sx - 0.9, ss); shared(id('tank1'), 'tank_vertical_1', sx + 0.4, ss + 0.5);
+      shared(id('tank2'), 'tank_horizontal', sx + 0.2, ss - 1.3, Math.PI / 2); shared(id('sphere'), 'tank_sphere', sx + 1.6, ss - 0.4);
+      stand(id('hab'), 'vesper_habitat_1', sx - 1.2, ss - 1.6, face * 0.3);
+    } else if (site.kind === 1) {
+      // A radiator field and its relay.
+      stand(id('rad0'), 'vesper_radiator_array', sx - 1.0, ss, Math.PI / 2); stand(id('rad1'), 'vesper_radiator_array', sx + 1.0, ss, Math.PI / 2);
+      stand(id('mast'), 'vesper_comm_needle', sx + face * 2.0, ss + 1.2); stand(id('hab'), 'vesper_habitat_0', sx, ss - 1.8, face * 0.5);
+    } else {
+      // A cryo station.
+      stand(id('dome'), 'vesper_cryo_dome', sx, ss); stand(id('hab'), 'vesper_habitat_1', sx + face * 1.8, ss + 0.4, face * 0.6);
+      shared(id('tank'), 'tank_vertical_1', sx - face * 1.5, ss - 0.8); shared(id('box0'), 'container_0', sx + face * 1.2, ss - 1.5, 0.2);
+    }
+  }
+  // The pipelines: from each station to the next toward the pump station, an L of level straights on racks (along s,
+  // then across), on the lower of its two ends' ground.
+  const chain = [...sites].sort((a, b) => a.s - b.s), stops = [...chain.map(o => [o.x, o.s] as const), [side * 2.4, station] as const];
+  for (let k = 0; k + 1 < stops.length; k++) {
+    const [ax, as] = stops[k], [bx, bs] = stops[k + 1], level = Math.max(ground(ax, as + 1.5), ground(bx, bs)) + 0.02;
+    const run = (from: Vec, to: Vec, tag: string) => {
+      const length = Math.hypot(to[0] - from[0], to[2] - from[2]), count = Math.max(1, Math.round(length / 2));
+      for (let i = 0; i < count; i++) {
+        const t0 = i / count, t1 = (i + 1) / count, p0: Vec = [from[0] + (to[0] - from[0]) * t0, level + PIPE_AXIS, from[2] + (to[2] - from[2]) * t0];
+        const p1: Vec = [from[0] + (to[0] - from[0]) * t1, level + PIPE_AXIS, from[2] + (to[2] - from[2]) * t1];
+        pipes.push(pipeBetween(`${GROUP}:${tag}:${i}`, 'pipe_s_straight', GROUP, p0, p1));
+        const along: Vec = [p1[0] - p0[0], 0, p1[2] - p0[2]];
+        supportStack(pipes, ground, `${GROUP}:${tag}:${i}:support`, GROUP, (p0[0] + p1[0]) / 2, -(p0[2] + p1[2]) / 2, level, along, true, 0.47);
+      }
+    };
+    const s0 = as + 1.5, corner: Vec = [ax, 0, -bs];
+    run([ax, 0, -s0], corner, `chain${k}a`);
+    run(corner, [bx, 0, -bs], `chain${k}b`);
+  }
   for (const piece of pipes) if (own(piece.s) && piece.y + 0.8 < VESPER_PIECE_MAX) industry.push(piece);
   return { props, industry };
 }
