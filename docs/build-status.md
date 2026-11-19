@@ -1,5 +1,21 @@
 # Build status
 
+## The mission selector's globes ship pre-baked (19 November 2026)
+
+The user: "cant we cache the textures so it loads once for all? currently when switching it loads every time for quite a
+long time", and pause the globes while flying. The globes' textures were baked on the device from each level's terrain
+(about a thousand rows, 1-1.6 s each on a desktop), only in idle time the menu's animations hardly left (in practice one row
+each half second), then 10 ms a frame once shown (seconds of a flat placeholder on a phone), and again after every reload.
+- **Now:** `public/assets/previews/<planet>.jpg` (eight, about 270 KB in all), written by
+  `node tools/dev/bake-planet-previews.mjs` from `bakePlanetTexture` (src/ui/planet-preview.ts); the menu loads them at
+  start (the browser caches them) and the bake runs only for one that fails to load, so no bake runs in a flight either.
+  (The globe's spin already stopped off the campaign page and in flight.)
+- **Held to the terrain:** `public/assets/previews/manifest.json` holds each image's source hash;
+  tests/ui/planet-previews.test.ts bakes each world and fails if it no longer matches: rerun the script after a planet's
+  terrain or palette changes.
+- **Checks:** typecheck, unit tests, build, browser suite; the eight globes captured in the menu, each image fetched once.
+  No phone test.
+
 ## HELION STRONGHOLD's wrecks revised; the hero flickers while it cannot be hit (19 November 2026)
 
 - **Wrecks** (user: the destroyed cannons "should tilt down more", "make them sag inwards ... a bit diagonal", and "the

@@ -21,12 +21,48 @@ const ATMOSPHERE_STRENGTH: Readonly<Record<PlanetId, number>> = { khepri: 0.55, 
 type Texture = Uint8ClampedArray;
 const textures = new Map<PlanetId, Texture>();
 const pending = new Map<PlanetId, Generator<void, Texture, void>>();
+/**
+ * The globes ship pre-baked (user, 19 November: "cant we cache the textures so it loads once for all? currently when
+ * switching it loads every time for quite a long time"): public/assets/previews/<planet>.jpg, written by
+ * tools/dev/bake-planet-previews.mjs from bakePlanetTexture, held to the terrain by tests/ui/planet-previews.test.ts. The
+ * menu loads them (the browser caches them); the bake runs only if an image fails to load.
+ */
+const PREVIEW_URL = (planet: PlanetId) => `${import.meta.env?.BASE_URL ?? '/'}assets/previews/${planet}.jpg`;
+const requested = new Map<PlanetId, 'loading' | 'failed'>();
+function load(planet: PlanetId): void {
+  if (textures.has(planet) || requested.has(planet) || typeof Image === 'undefined') return;
+  requested.set(planet, 'loading');
+  const image = new Image();
+  image.decoding = 'async';
+  image.onload = () => {
+    const canvas = document.createElement('canvas'); canvas.width = TEXTURE_W; canvas.height = TEXTURE_H;
+    const context = canvas.getContext('2d');
+    if (!context || image.width !== TEXTURE_W || image.height !== TEXTURE_H) { requested.set(planet, 'failed'); return; }
+    context.drawImage(image, 0, 0);
+    const rgba = context.getImageData(0, 0, TEXTURE_W, TEXTURE_H).data, texture = new Uint8ClampedArray(TEXTURE_W * TEXTURE_H * 3);
+    for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) { texture[j] = rgba[i]; texture[j + 1] = rgba[i + 1]; texture[j + 2] = rgba[i + 2]; }
+    textures.set(planet, texture); requested.delete(planet); pending.delete(planet);
+  };
+  image.onerror = () => requested.set(planet, 'failed');
+  image.src = PREVIEW_URL(planet);
+}
+/** A planet's globe texture (RGB, TEXTURE_W × TEXTURE_H), baked in one go: the shipped images' source. */
+export function bakePlanetTexture(planet: PlanetId): Texture {
+  const work = bake(planet);
+  let step = work.next();
+  while (!step.done) step = work.next();
+  return step.value;
+}
+export const PLANET_TEXTURE_SIZE = { width: TEXTURE_W, height: TEXTURE_H } as const;
 /** Flat base tone (sRGB) shown while a world's texture is still baking. */
 const PLACEHOLDER: Readonly<Record<PlanetId, readonly [number, number, number]>> = { khepri: [176, 92, 50], vesper: [205, 218, 230], luna: [150, 148, 144], nacre: [70, 50, 120], amnion: [200, 180, 150], nahara: [184, 148, 102], corona: [60, 30, 18], umbra: [22, 20, 32] };
 
 /** Advances a world's bake for about `budget` ms; true once its texture exists. */
 function advance(planet: PlanetId, budget: number): boolean {
   if (textures.has(planet)) return true;
+  // (The shipped image first; the bake only once it failed.)
+  load(planet);
+  if (requested.get(planet) !== 'failed') return false;
   let work = pending.get(planet);
   if (!work) { work = bake(planet); pending.set(planet, work); }
   const until = performance.now() + budget;
@@ -35,8 +71,12 @@ function advance(planet: PlanetId, budget: number): boolean {
   if (step.done) { textures.set(planet, step.value); pending.delete(planet); return true; }
   return false;
 }
-/** Bakes every world in idle time (in small slices) so the mission selector opens with its globes ready. */
+/**
+ * Loads every world's shipped globe so the mission selector opens with them ready (a bake in idle time only for one that
+ * failed to load; none runs while nothing needs it, so a flight never pays for it).
+ */
 export function prebakePlanets(planets: readonly PlanetId[]): void {
+  for (const planet of planets) load(planet);
   const queue = [...planets];
   const idle = (callback: (deadline?: IdleDeadline) => void) => typeof requestIdleCallback === 'function' ? requestIdleCallback(callback, { timeout: 500 }) : setTimeout(callback, 50);
   // Only the idle time the browser offers (performance, 30 October: a flight launched soon after boot lost 8 ms slices
